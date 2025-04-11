@@ -5,5 +5,5 @@
 from frappe.model.document import Document
 
 
-class test(Document):
+class StockEntryMultiWorkOrdersTableWO(Document):
 	pass

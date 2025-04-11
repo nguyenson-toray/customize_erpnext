@@ -1,0 +1,110 @@
+{
+    "actions": [],
+    "allow_rename": 1,
+    "creation": "2025-04-11 13:11:13.842591",
+    "doctype": "DocType",
+    "engine": "InnoDB",
+    "field_order": [
+        "section_break_vpnk",
+        "amended_from",
+        "posting_date",
+        "posting_time",
+        "column_break_gdux",
+        "item_template",
+        "color",
+        "section_break_vfck",
+        "work_orders",
+        "section_break_zxeb",
+        "materials"
+    ],
+    "fields": [
+        {
+            "fieldname": "section_break_vpnk",
+            "fieldtype": "Section Break"
+        },
+        {
+            "fieldname": "amended_from",
+            "fieldtype": "Link",
+            "label": "Amended From",
+            "no_copy": 1,
+            "options": "Stock Entry Multi Work Orders",
+            "print_hide": 1,
+            "read_only": 1,
+            "search_index": 1
+        },
+        {
+            "default": "Today",
+            "fieldname": "posting_date",
+            "fieldtype": "Date",
+            "label": "Posting Date"
+        },
+        {
+            "default": "Now",
+            "fieldname": "posting_time",
+            "fieldtype": "Time",
+            "label": "Posting Time"
+        },
+        {
+            "fieldname": "column_break_gdux",
+            "fieldtype": "Column Break"
+        },
+        {
+            "fieldname": "item_template",
+            "fieldtype": "Link",
+            "label": "Item Template",
+            "link_filters": "[[\"Item\",\"has_variants\",\"=\",1],[\"Item\",\"item_group\",\"=\",\"B-Finished Goods\"]]",
+            "options": "Item"
+        },
+        {
+            "fieldname": "color",
+            "fieldtype": "Select",
+            "label": "Color"
+        },
+        {
+            "fieldname": "section_break_vfck",
+            "fieldtype": "Section Break"
+        },
+        {
+            "fieldname": "work_orders",
+            "fieldtype": "Table",
+            "label": "Work Orders",
+            "options": "Stock Entry Multi Work Orders Table WO"
+        },
+        {
+            "fieldname": "section_break_zxeb",
+            "fieldtype": "Section Break"
+        },
+        {
+            "fieldname": "materials",
+            "fieldtype": "Table",
+            "label": "Materials",
+            "options": "Stock Entry Multi Work Orders Table Material"
+        }
+    ],
+    "grid_page_length": 50,
+    "index_web_pages_for_search": 1,
+    "links": [],
+    "modified": "2025-04-11 13:11:32.051047",
+    "modified_by": "Administrator",
+    "module": "Customize Erpnext",
+    "name": "Stock Entry Multi Work Orders",
+    "owner": "Administrator",
+    "permissions": [
+        {
+            "create": 1,
+            "delete": 1,
+            "email": 1,
+            "export": 1,
+            "print": 1,
+            "read": 1,
+            "report": 1,
+            "role": "System Manager",
+            "share": 1,
+            "write": 1
+        }
+    ],
+    "row_format": "Dynamic",
+    "sort_field": "modified",
+    "sort_order": "DESC",
+    "states": []
+}
