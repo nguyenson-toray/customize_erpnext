@@ -1,8 +1,6 @@
-
 frappe.ui.form.on('Item', {
     onload: async function (frm) {
-        // Chỉ áp dụng cho Item mới
-        // Da update tu DB 
+        // Chỉ áp dụng cho Item mới 
         if (frm.is_new()) {
             try {
                 // set valune for item_group =""    
@@ -11,7 +9,7 @@ frappe.ui.form.on('Item', {
                 let current_user = frappe.session.user;
                 // Lấy role profile và thiết lập filter trước khi tiếp tục
                 await frappe.call({
-                    method: 'custom_features.custom_features.utilities.get_role_profile',
+                    method: 'customize_erpnext.api.utilities.get_role_profile',
                     args: {
                         email: current_user
                     },

@@ -22,7 +22,7 @@ frappe.ui.form.on('Job Card', {
         }, 5);
         if (frm.doc.work_order && frm.doc.operation) {
             frappe.call({
-                method: 'custom_features.custom_features.work_order.update_work_order_operation',
+                method: 'customize_erpnext.api.work_order.update_work_order_operation',
                 args: {
                     job_card: frm.doc.name
                 },

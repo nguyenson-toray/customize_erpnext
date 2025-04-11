@@ -18,7 +18,7 @@ frappe.ui.form.on('Purchase Request', {
                         frm.set_value('requester_name', emp.employee_name);
                         frm.refresh_field(['approver',]);
                         frappe.call({
-                            method: 'custom_features.custom_features.purchase_request.get_email_from_emp_id',
+                            method: 'customize_erpnext.api.purchase_request.get_email_from_emp_id',
                             args: {
                                 emp_id: emp.reports_to
                             },
@@ -30,7 +30,7 @@ frappe.ui.form.on('Purchase Request', {
                             }
                         });
                         frappe.call({
-                            method: 'custom_features.custom_features.purchase_request.get_employee_name_from_emp_id',
+                            method: 'customize_erpnext.api.purchase_request.get_employee_name_from_emp_id',
                             args: {
                                 emp_id: emp.reports_to
                             },

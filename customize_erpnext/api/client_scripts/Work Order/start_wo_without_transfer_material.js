@@ -9,7 +9,7 @@ frappe.ui.form.on('Work Order', {
                     'Bạn có chắc chắn muốn bắt đầu Work Order này?',
                     function () {
                         frappe.call({
-                            method: 'custom_features.custom_features.work_order.start_wo_without_transfer_material',
+                            method: 'customize_erpnext.api.work_order.start_wo_without_transfer_material',
                             args: {
                                 doc_name: frm.doc.name
                             },

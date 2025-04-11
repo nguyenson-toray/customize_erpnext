@@ -105,7 +105,7 @@ function show_production_plan_dialog(frm) {
             }
 
             frappe.call({
-                method: 'custom_features.custom_features.material_request.get_items_from_production_plan',
+                method: 'customize_erpnext.api.material_request.get_items_from_production_plan',
                 args: {
                     production_plan: selected
                 },
@@ -257,7 +257,7 @@ function show_split_dialog(frm) {
 
 function split_material_request(frm, groups) {
     frappe.call({
-        method: 'custom_features.custom_features.material_request.split_items_by_groups',
+        method: 'customize_erpnext.api.material_request.split_items_by_groups',
         args: {
             items: frm.doc.items,
             groups: groups,
@@ -294,7 +294,7 @@ function sum_duplicate_items(frm) {
         __('This will combine duplicate items in the request. Continue?'),
         () => {
             frappe.call({
-                method: 'custom_features.custom_features.material_request.sum_duplicate_items',
+                method: 'customize_erpnext.api.material_request.sum_duplicate_items',
                 args: {
                     doc: frm.doc
                 },
@@ -374,7 +374,7 @@ function show_work_order_dialog(frm) {
             }
 
             frappe.call({
-                method: 'custom_features.custom_features.material_request.get_materials_from_work_orders',
+                method: 'customize_erpnext.api.material_request.get_materials_from_work_orders',
                 args: {
                     work_orders: selected_work_orders
                 },

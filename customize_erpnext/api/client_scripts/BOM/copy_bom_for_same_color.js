@@ -3,7 +3,7 @@ frappe.ui.form.on('BOM', {
         // Add custom button in Custom Features group
         frm.add_custom_button(__('Copy For All Size - Same Color'), function () {
             frappe.call({
-                method: 'custom_features.custom_features.bom.copy_bom_for_same_color',
+                method: 'customize_erpnext.api.bom.copy_bom_for_same_color',
                 args: {
                     doc: frm.doc
                 },
