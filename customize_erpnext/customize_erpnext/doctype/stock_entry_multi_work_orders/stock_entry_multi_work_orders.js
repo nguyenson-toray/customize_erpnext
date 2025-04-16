@@ -14,6 +14,27 @@ frappe.ui.form.on("Stock Entry Multi Work Orders", {
                 refresh_materials(frm);
             }, 300);
         });
+        if (frm.doc.item_template) {
+            // Only run this if item_template is set and color list needs to be populated
+            frappe.call({
+                method: 'customize_erpnext.customize_erpnext.doctype.stock_entry_multi_work_orders.stock_entry_multi_work_orders.get_colors_for_template',
+                args: {
+                    item_template: frm.doc.item_template
+                },
+                callback: function (response) {
+                    if (response.message && Array.isArray(response.message) && response.message.length > 0) {
+                        // Set the options for the Color field
+                        frm.set_df_property('color', 'options', response.message.join('\n'));
+                        // This will keep the selected color if it exists in the options
+                        frm.refresh_field('color');
+                    }
+                }
+            });
+        }
+        // Thêm nút tạo Stock Entry
+        frm.add_custom_button(__('Create Stock Entry'), function () {
+            create_stock_entries(frm);
+        }).addClass('btn-primary');
 
     },
     // Get Color After choosing Item Template
@@ -83,7 +104,7 @@ frappe.ui.form.on("Stock Entry Multi Work Orders", {
                         console.log(combinedData); // Debug log
                         if (combinedData && Array.isArray(combinedData)) {
                             combinedData.forEach(function (material) {
-
+                                console.log(material)
                                 let row = frm.add_child('materials');
                                 row.item_code = material.item_code;
                                 row.item_name = material.item_name;
@@ -91,6 +112,7 @@ frappe.ui.form.on("Stock Entry Multi Work Orders", {
                                 row.required_qty = material.required_qty;
                                 row.qty_available = material.qty_available;
                                 row.wip_warehouse = material.wip_warehouse;
+                                row.source_warehouse = material.source_warehouse;
                             });
                             frm.refresh_field('materials');
                         }
@@ -99,6 +121,8 @@ frappe.ui.form.on("Stock Entry Multi Work Orders", {
             });
         }
     },
+
+
 
 });
 
@@ -117,6 +141,7 @@ frappe.ui.form.on("Stock Entry Multi Work Orders Table WO", {
 });
 
 // Improved refresh_materials function that properly handles work order deletions
+// Improved refresh_materials function that properly handles work order deletions
 function refresh_materials(frm) {
     // Get all work orders from the table
     let work_orders = frm.doc.work_orders
@@ -125,11 +150,10 @@ function refresh_materials(frm) {
             .map(row => row.work_order)
         : [];
 
+    // Luôn luôn xóa bảng materials, kể cả khi không có work orders
+    frm.clear_table('materials');
 
     if (work_orders.length > 0) {
-        // Clear existing materials table only if there are work orders to replace them
-        frm.clear_table('materials');
-
         frappe.call({
             method: 'customize_erpnext.customize_erpnext.doctype.stock_entry_multi_work_orders.stock_entry_multi_work_orders.get_materials_for_work_orders',
             args: {
@@ -137,12 +161,9 @@ function refresh_materials(frm) {
             },
             freeze: true,
             callback: function (response) {
-
-
                 if (response.message && Array.isArray(response.message)) {
                     // Add materials to the table
                     response.message.forEach(function (material) {
-
                         let row = frm.add_child('materials');
                         row.item_code = material.item_code;
                         row.item_name = material.item_name;
@@ -150,16 +171,60 @@ function refresh_materials(frm) {
                         row.required_qty = material.required_qty;
                         row.qty_available = material.qty_available;
                         row.wip_warehouse = material.wip_warehouse;
+                        row.source_warehouse = material.source_warehouse;
                     });
-                    frm.refresh_field('materials');
                 }
+                frm.refresh_field('materials');
             }
         });
     } else {
-        // Only clear if there are no work orders left
-        frm.clear_table('materials');
+        // Không có work orders, đảm bảo làm mới bảng trống
         frm.refresh_field('materials');
     }
+}
+
+
+// Hàm tạo nhiều Stock Entry
+function create_stock_entries(frm) {
+    if (!frm.doc.work_orders || frm.doc.work_orders.length === 0) {
+        frappe.msgprint(__('No work orders selected'));
+        return;
+    }
+
+    frappe.confirm(
+        __('This will create {0} separate Stock Entries, one for each Work Order. Continue?', [frm.doc.work_orders.length]),
+        function () {
+            // Hiển thị thông báo đang xử lý
+            frappe.show_progress(__('Creating Stock Entries'), 0, frm.doc.work_orders.length);
+
+            // Lấy danh sách work order
+            const work_orders = frm.doc.work_orders.map(row => row.work_order);
+
+            frappe.call({
+                method: 'customize_erpnext.customize_erpnext.doctype.stock_entry_multi_work_orders.stock_entry_multi_work_orders.create_individual_stock_entries',
+                args: {
+                    'doc_name': frm.doc.name,
+                    'work_orders': work_orders
+                },
+                freeze: true,
+                freeze_message: __('Creating Stock Entries...'),
+                callback: function (response) {
+                    if (response.message && response.message.length) {
+                        let message = __('Created the following Stock Entries:') + '<br><br>';
+                        response.message.forEach(entry => {
+                            message += `<a href="/app/stock-entry/${entry}" target="_blank">${entry}</a><br>`;
+                        });
+
+                        frappe.msgprint({
+                            title: __('Stock Entries Created'),
+                            indicator: 'green',
+                            message: message
+                        });
+                    }
+                }
+            });
+        }
+    );
 }
 
 /**
@@ -185,3 +250,6 @@ const combineItemsByCode = (items) => {
     // Convert the object back to array
     return Object.values(groupedItems);
 }
+
+// Thêm đoạn mã này vào file stock_entry_multi_work_orders.js
+

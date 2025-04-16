@@ -8,6 +8,30 @@ app_license = "mit"
 # Apps
 # ------------------
 
+# In hooks.py or using Customize Form
+custom_fields = {
+    "Stock Entry Multi Work Orders": [
+        {
+            "fieldname": "stock_entries",
+            "fieldtype": "Long Text",
+            "label": "Created Stock Entries",
+            "read_only": 1,
+            "hidden": 0,
+            "insert_after": "color"
+        }
+    ],
+    "Stock Entry": [
+        {
+            "fieldname": "multi_work_order",
+            "fieldtype": "Link",
+            "label": "Multi Work Order",
+            "options": "Stock Entry Multi Work Orders",
+            "insert_after": "work_order"
+        }
+    ]
+}
+
+
 # required_apps = []
 
 # Each item in the list will be shown as an app in the apps page
