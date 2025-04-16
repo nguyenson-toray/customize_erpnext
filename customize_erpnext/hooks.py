@@ -7,13 +7,16 @@ app_license = "mit"
 
 # Sau khi sửa file hook.py chạy các lệnh sau:
 #  
-#  clear-cache bench --site erp-sonnt.tiqn.local
+#  bench --site erp-sonnt.tiqn.local clear-cache 
 #  bench build
 #  bench --site erp-sonnt.tiqn.local migrate
+#  bench restart
 
 # Apps
 # ------------------
+# Customize các Doctype mặc định của erpnext
 doctype_js = {
+    "Stock Entry": "public/js/custom_scripts/stock_entry.js",
     "BOM": "public/js/custom_scripts/bom.js",
     "Item": [
         "public/js/custom_scripts/item.js",
