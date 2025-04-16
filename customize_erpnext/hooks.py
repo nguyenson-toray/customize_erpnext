@@ -5,6 +5,13 @@ app_description = "Customize Erpnext"
 app_email = "it@tiqn.com.vn"
 app_license = "mit"
 
+# Sau khi sửa file hook.py chạy các lệnh sau:
+#  
+#  bench --site erp-sonnt.tiqn.local clear-cache 
+#  bench build
+#  bench --site erp-sonnt.tiqn.local migrate
+#  bench restart
+
 # Apps
 # ------------------
 
