@@ -28,6 +28,23 @@ doctype_js = {
     "Item Attribute Value": "public/js/custom_scripts/item_attribute.js"
     # Thêm các doctype khác  
 }
+
+# 1 : edit fixtures 
+# 2 : export workspace : bench --site erp-sonnt.tiqn.local export-fixtures
+# 3 : edit fixtures/workspace.json : thêm custom doctype mới
+# 4 : bench --site erp-sonnt.tiqn.local migrate
+fixtures = [
+    {
+        "doctype": "Workspace",
+        "filters": [
+            [
+                "name",
+                "in",
+                ["Stock"]
+            ]
+        ]
+    }
+]
 # Hook on document methods and events
 # doc_events = {
 #     # "Item": {
