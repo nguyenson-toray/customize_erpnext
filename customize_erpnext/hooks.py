@@ -5,9 +5,32 @@ app_description = "Customize Erpnext"
 app_email = "it@tiqn.com.vn"
 app_license = "mit"
 
+# Sau khi sửa file hook.py chạy các lệnh sau:
+#  
+#  clear-cache bench --site erp-sonnt.tiqn.local
+#  bench build
+#  bench --site erp-sonnt.tiqn.local migrate
+
 # Apps
 # ------------------
-
+doctype_js = {
+    "BOM": "public/js/custom_scripts/bom.js",
+    "Item": [
+        "public/js/custom_scripts/item.js",
+        "public/js/custom_scripts/item_show_multiple_variants_dialog.js"
+    ],
+    "Material Request" :  "public/js/custom_scripts/material_request.js",
+    "Purchase Order" :  "public/js/custom_scripts/purchase_order.js",
+    "Item Attribute": "public/js/custom_scripts/item_attribute.js",
+    "Item Attribute Value": "public/js/custom_scripts/item_attribute.js"
+    # Thêm các doctype khác  
+}
+# Hook on document methods and events
+# doc_events = {
+#     # "Item": {
+#     #     "after_insert": "customize_erpnext.doc_events.item.update_item_variant" 
+#     # }
+# } 
 # required_apps = []
 
 # Each item in the list will be shown as an app in the apps page

@@ -1,0 +1,169 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2025-04-15 14:37:09.675769",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "section_break_mjl4",
+  "request_time",
+  "eta",
+  "dept_short",
+  "amended_from",
+  "column_break_thhg",
+  "requester",
+  "requester_name",
+  "emp_id",
+  "column_break_alpl",
+  "position",
+  "dept",
+  "column_break_cjla",
+  "approver",
+  "section_break_ofmc",
+  "purpose",
+  "items"
+ ],
+ "fields": [
+  {
+   "fieldname": "section_break_mjl4",
+   "fieldtype": "Section Break"
+  },
+  {
+   "default": "now",
+   "fieldname": "request_time",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Request time",
+   "reqd": 1
+  },
+  {
+   "fieldname": "eta",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "ETA",
+   "reqd": 1
+  },
+  {
+   "fieldname": "dept_short",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Department_short"
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Purchase Request",
+   "print_hide": 1,
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "column_break_thhg",
+   "fieldtype": "Column Break",
+   "label": "Requester"
+  },
+  {
+   "fieldname": "requester",
+   "fieldtype": "Link",
+   "label": "Email",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "requester_name",
+   "fieldtype": "Data",
+   "ignore_user_permissions": 1,
+   "label": "Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "emp_id",
+   "fieldtype": "Link",
+   "hidden": 1,
+   "ignore_user_permissions": 1,
+   "label": "Employee ID",
+   "options": "Employee"
+  },
+  {
+   "fieldname": "column_break_alpl",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "emp_id.designation",
+   "fieldname": "position",
+   "fieldtype": "Data",
+   "ignore_user_permissions": 1,
+   "label": "Position",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "emp_id.department",
+   "fieldname": "dept",
+   "fieldtype": "Data",
+   "ignore_user_permissions": 1,
+   "label": "Department / Section",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_cjla",
+   "fieldtype": "Column Break",
+   "label": "Approver"
+  },
+  {
+   "fetch_from": "approver_id.company_email",
+   "fetch_if_empty": 1,
+   "fieldname": "approver",
+   "fieldtype": "Link",
+   "ignore_user_permissions": 1,
+   "label": "Email",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_ofmc",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "purpose",
+   "fieldtype": "Small Text",
+   "label": "Purpose",
+   "max_height": "100px"
+  },
+  {
+   "fieldname": "items",
+   "fieldtype": "Table",
+   "options": "Purchase Request Items",
+   "reqd": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2025-04-16 10:56:58.579138",
+ "modified_by": "Administrator",
+ "module": "Customize Erpnext",
+ "name": "Purchase Request",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

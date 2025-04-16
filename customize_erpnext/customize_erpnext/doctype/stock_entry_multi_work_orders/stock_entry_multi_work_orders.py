@@ -5,7 +5,15 @@ import frappe
 from frappe.model.document import Document
 
 class StockEntryMultiWorkOrders(Document):
-    pass
+    def onload(self): 
+        frappe.log("StockEntryMultiWorkOrders -onload ")
+    def before_validate(self): 
+        frappe.log("StockEntryMultiWorkOrders -before_validate ")
+    def validate(self):
+        frappe.log("StockEntryMultiWorkOrders -validate ")
+    def on_submit(self):
+        frappe.log("StockEntryMultiWorkOrders -on_submit ")
+     
  # Get color options for the selected item template
 @frappe.whitelist()
 # query to get colors for the selected item template

@@ -1,0 +1,74 @@
+{
+    "actions": [],
+    "allow_rename": 1,
+    "creation": "2025-04-15 14:38:41.762446",
+    "doctype": "DocType",
+    "editable_grid": 1,
+    "engine": "InnoDB",
+    "field_order": [
+        "item_name",
+        "quantity",
+        "uom",
+        "secification",
+        "photo",
+        "note"
+    ],
+    "fields": [
+        {
+            "fieldname": "item_name",
+            "fieldtype": "Small Text",
+            "in_list_view": 1,
+            "label": "T\u00ean h\u00e0ng / Items",
+            "reqd": 1
+        },
+        {
+            "default": "1",
+            "fieldname": "quantity",
+            "fieldtype": "Int",
+            "in_list_view": 1,
+            "label": "SL / Qty",
+            "reqd": 1
+        },
+        {
+            "default": "Pcs",
+            "fieldname": "uom",
+            "fieldtype": "Link",
+            "in_list_view": 1,
+            "label": "\u0110\u01a1n v\u1ecb / UOM",
+            "options": "UOM",
+            "reqd": 1
+        },
+        {
+            "fieldname": "secification",
+            "fieldtype": "Small Text",
+            "in_list_view": 1,
+            "label": "Quy c\u00e1ch / Specification"
+        },
+        {
+            "fieldname": "photo",
+            "fieldtype": "Attach Image",
+            "ignore_user_permissions": 1,
+            "label": "H\u00ecnh \u1ea3nh / photo"
+        },
+        {
+            "fieldname": "note",
+            "fieldtype": "Small Text",
+            "in_list_view": 1,
+            "label": "Ghi ch\u00fa / note"
+        }
+    ],
+    "grid_page_length": 50,
+    "index_web_pages_for_search": 1,
+    "istable": 1,
+    "links": [],
+    "modified": "2025-04-15 14:40:32.594712",
+    "modified_by": "Administrator",
+    "module": "Customize Erpnext",
+    "name": "Purchase Request Items",
+    "owner": "Administrator",
+    "permissions": [],
+    "row_format": "Dynamic",
+    "sort_field": "modified",
+    "sort_order": "DESC",
+    "states": []
+}
