@@ -12,7 +12,7 @@ app_license = "mit"
 #  bench --site erp-sonnt.tiqn.local migrate
 #  bench restart
 
-# Apps
+
 # ------------------
 # Customize các Doctype mặc định của erpnext
 doctype_js = {
@@ -41,6 +41,18 @@ fixtures = [
                 "name",
                 "in",
                 ["Stock"]
+            ]
+        ]
+    },
+     {
+        "doctype": "Custom Field",
+        "filters": [
+            [
+                "name",
+                "in",
+                [
+                    "Stock Entry-custom_stock_entry_multi_work_orders"
+                ]
             ]
         ]
     }
