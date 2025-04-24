@@ -12,6 +12,9 @@
   "column_break_gdux",
   "item_template",
   "color",
+  "column_break_klzy",
+  "item_template_name",
+  "item_template_desc",
   "section_break_vfck",
   "work_orders",
   "section_break_zxeb",
@@ -80,13 +83,33 @@
    "fieldtype": "Table",
    "label": "Materials",
    "options": "Stock Entry Multi Work Orders Table Material"
+  },
+  {
+   "fieldname": "column_break_klzy",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "item_template.item_name",
+   "fetch_if_empty": 1,
+   "fieldname": "item_template_name",
+   "fieldtype": "Data",
+   "label": "Item Template Name",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "item_template.description",
+   "fetch_if_empty": 1,
+   "fieldname": "item_template_desc",
+   "fieldtype": "Data",
+   "label": "Item Template Desc",
+   "read_only": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2025-04-23 13:34:28.954894",
+ "modified": "2025-04-24 12:40:55.968836",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Stock Entry Multi Work Orders",
