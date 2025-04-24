@@ -395,7 +395,7 @@ def get_materials_for_single_work_order(work_order):
             SELECT 
                 item.item_code as item_code,
                 item.item_name as item_name,
-                item.description as item_name_detail,
+                item.custom_item_name_detail as item_name_detail,
                 (bom_item.qty_consumed_per_unit * wo.qty) as required_qty,
                 bin.actual_qty as qty_available,
                 wo.wip_warehouse as wip_warehouse,
