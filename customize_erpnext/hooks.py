@@ -38,7 +38,19 @@ custom_fields = {
     ]
 }
 
+# Thêm hook xử lý trước khi import
+data_import_before_insert = {
+    "Item Attribute Value": "customize_erpnext.override_methods.handle_import_attr_colors.handle_item_attribute_value_import"
+}
 
+# Trong hooks.py
+data_import_before_import = [
+    "customize_erpnext.override_methods.item_attribute_import.before_import"
+]
+
+data_import_after_import = [
+    "customize_erpnext.override_methods.item_attribute_import.after_import"
+]
 # required_apps = []
 
 # Each item in the list will be shown as an app in the apps page

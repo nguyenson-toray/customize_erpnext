@@ -157,45 +157,60 @@ def create_individual_stock_entries(doc_name, work_orders):
         import json
         work_orders = json.loads(work_orders)
 
-    # Danh sách các Stock Entries được tạo
+    # Get the multi work order document
+    multi_doc = frappe.get_doc("Stock Entry Multi Work Orders", doc_name)
+    
+    # Create a dictionary to store the original required quantities for each item
+    original_quantities = {}
+    
+    # Create a dictionary to map items to their quantities in the multi document
+    multi_doc_quantities = {}
+    for material in multi_doc.materials:
+        multi_doc_quantities[material.item_code] = material.required_qty
+    
+    # Get original quantities for each work order and item
+    for wo_name in work_orders:
+        materials = get_materials_for_single_work_order(wo_name)
+        
+        for material in materials:
+            item_code = material.item_code
+            if item_code not in original_quantities:
+                original_quantities[item_code] = 0
+            original_quantities[item_code] += material.required_qty
+    
+    # Created entries list
     created_entries = []
     
-    for wo_name in work_orders:
+    # Process each work order except the last one
+    for i, wo_name in enumerate(work_orders[:-1]):
         try:
-            # Lấy thông tin Work Order
+            # Get Work Order info
             work_order = frappe.get_doc("Work Order", wo_name)
             
-            # Tạo Stock Entry mới cho Work Order này
+            # Create new Stock Entry
             stock_entry = frappe.new_doc("Stock Entry")
             stock_entry.stock_entry_type = "Material Transfer for Manufacture"
             stock_entry.purpose = "Material Transfer for Manufacture"
             stock_entry.work_order = wo_name
             
-            # Lọc các materials chỉ cho Work Order này
+            # Get materials for this specific work order with original quantities
             wo_materials = get_materials_for_single_work_order(wo_name)
             
-            # Thêm các nguyên liệu vào Stock Entry
+            # Add items using original quantities from this work order
             for material in wo_materials:
-                # Ưu tiên sử dụng source_warehouse từ BOM Item
-                s_warehouse = material.source_warehouse if hasattr(material, 'source_warehouse') else None
+                item_code = material.item_code
+                original_qty = material.required_qty
                 
-                # Nếu không có source_warehouse từ BOM Item, sử dụng source_warehouse từ Work Order
-                if not s_warehouse:
-                    s_warehouse = work_order.source_warehouse
-                
-                # Nếu vẫn không có source_warehouse, báo lỗi
-                if not s_warehouse:
-                    frappe.throw(f"Không tìm thấy Source Warehouse cho item {material.item_code} trong Work Order {wo_name}")
-                
+                # Add item to Stock Entry with original quantity
                 stock_entry.append("items", {
-                    "s_warehouse": s_warehouse,
-                    "t_warehouse": work_order.wip_warehouse,
-                    "item_code": material.item_code,
-                    "qty": material.required_qty,
-                    "basic_rate": get_item_rate(material.item_code)
+                    "s_warehouse": material.source_warehouse or work_order.source_warehouse,
+                    "t_warehouse": material.wip_warehouse or work_order.wip_warehouse,
+                    "item_code": item_code,
+                    "qty": original_qty,
+                    "basic_rate": get_item_rate(item_code)
                 })
             
-            # Lưu Stock Entry
+            # Save Stock Entry
             stock_entry.save()
             created_entries.append(stock_entry.name)
             
@@ -203,10 +218,88 @@ def create_individual_stock_entries(doc_name, work_orders):
             
         except Exception as e:
             frappe.log_error(f"Error creating Stock Entry for Work Order {wo_name}: {str(e)}")
-            # Ném lỗi để người dùng biết
-            frappe.throw(f"Lỗi khi tạo Stock Entry cho Work Order {wo_name}: {str(e)}")
+            frappe.throw(f"Error when creating Stock Entry for Work Order {wo_name}: {str(e)}")
+    
+    # Process the last work order - give it any extra quantity
+    if work_orders:
+        last_wo_name = work_orders[-1]
+        try:
+            # Get Work Order info
+            work_order = frappe.get_doc("Work Order", last_wo_name)
+            
+            # Create new Stock Entry
+            stock_entry = frappe.new_doc("Stock Entry")
+            stock_entry.stock_entry_type = "Material Transfer for Manufacture"
+            stock_entry.purpose = "Material Transfer for Manufacture"
+            stock_entry.work_order = last_wo_name
+            
+            # Get materials for the last work order
+            last_wo_materials = get_materials_for_single_work_order(last_wo_name)
+            
+            # Track which items we've processed
+            processed_items = set()
+            
+            # Add items, adjusting for any differences in total quantity
+            for material in last_wo_materials:
+                item_code = material.item_code
+                original_qty = material.required_qty
+                
+                # Get the quantity from multi-doc (if available)
+                multi_qty = multi_doc_quantities.get(item_code, 0)
+                original_total = original_quantities.get(item_code, 0)
+                
+                # Calculate the quantity for the last work order
+                # If multi_qty > original_total, the last work order gets the extra
+                if multi_qty > original_total:
+                    extra_qty = multi_qty - original_total
+                    adjusted_qty = original_qty + extra_qty
+                else:
+                    adjusted_qty = original_qty
+                
+                # Add item to Stock Entry with adjusted quantity
+                stock_entry.append("items", {
+                    "s_warehouse": material.source_warehouse or work_order.source_warehouse,
+                    "t_warehouse": material.wip_warehouse or work_order.wip_warehouse,
+                    "item_code": item_code,
+                    "qty": adjusted_qty,
+                    "basic_rate": get_item_rate(item_code)
+                })
+                
+                processed_items.add(item_code)
+            
+            # Check if there are any items in multi_doc that were not in the last work order
+            for material in multi_doc.materials:
+                item_code = material.item_code
+                if item_code not in processed_items:
+                    # Calculate original total and multi quantity
+                    original_total = original_quantities.get(item_code, 0)
+                    multi_qty = multi_doc_quantities.get(item_code, 0)
+                    
+                    # If there's extra quantity for this item, add it to the last work order
+                    if multi_qty > original_total:
+                        extra_qty = multi_qty - original_total
+                        if extra_qty > 0:
+                            stock_entry.append("items", {
+                                "s_warehouse": material.source_warehouse or work_order.source_warehouse,
+                                "t_warehouse": material.wip_warehouse or work_order.wip_warehouse,
+                                "item_code": item_code,
+                                "qty": extra_qty,
+                                "basic_rate": get_item_rate(item_code)
+                            })
+            
+            # Save Stock Entry
+            stock_entry.save()
+            created_entries.append(stock_entry.name)
+            
+            frappe.db.commit()
+            
+        except Exception as e:
+            frappe.log_error(f"Error creating Stock Entry for last Work Order {last_wo_name}: {str(e)}")
+            frappe.throw(f"Error when creating Stock Entry for last Work Order {last_wo_name}: {str(e)}")
     
     return created_entries
+
+
 
 def get_materials_for_single_work_order(work_order):
     """Lấy danh sách nguyên liệu cho một Work Order cụ thể"""
@@ -243,6 +336,8 @@ def get_materials_for_single_work_order(work_order):
         frappe.log_error(f"Error in get_materials_for_single_work_order for {work_order}: {str(e)}")
         return []
 
+        
+
 def get_item_rate(item_code):
     # Lấy giá item từ Item Price hoặc Last Purchase Rate
     item_rate = frappe.db.get_value("Item", item_code, "valuation_rate") or 0
@@ -260,3 +355,33 @@ def check_material_availability(work_order):
         'sufficient': len(insufficient_items) == 0,
         'insufficient_items': insufficient_items
     }
+
+
+@frappe.whitelist()
+def check_existing_draft_stock_entries(work_orders):
+    """Check if there are existing draft Stock Entries for any of the Work Orders"""
+    if isinstance(work_orders, str):
+        import json
+        work_orders = json.loads(work_orders)
+    
+    # Find existing draft Stock Entries for these Work Orders
+    existing_entries = []
+    
+    for wo_name in work_orders:
+        drafts = frappe.get_all(
+            "Stock Entry",
+            filters={
+                "work_order": wo_name,
+                "docstatus": 0,  # 0 = Draft
+                "stock_entry_type": "Material Transfer for Manufacture"
+            },
+            fields=["name", "work_order"]
+        )
+        
+        if drafts:
+            existing_entries.append({
+                "work_order": wo_name,
+                "stock_entry": drafts[0].name
+            })
+    
+    return existing_entries
