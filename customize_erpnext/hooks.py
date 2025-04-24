@@ -51,7 +51,16 @@ fixtures = [
                 "name",
                 "in",
                 [
-                    "Stock Entry-custom_stock_entry_multi_work_orders"
+                    "Stock Entry-custom_stock_entry_multi_work_orders",
+                    "Sales Order Item-custom_export_to_country",
+                     "Sales Order Item-custom_export_to_country",
+                    "Sales Order-section_break_kbzt",
+                    "Sales Order-sum_by_country",
+                    "Sales Order-column_break_tiya",
+                    "Sales Order-sum_by_delivery_date",
+                    "Sales Order-column_break_egiy",
+                    "Sales Order-sum_by_sku"
+
                 ]
             ]
         ]
