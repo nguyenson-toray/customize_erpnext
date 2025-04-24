@@ -329,7 +329,7 @@ def get_related_work_orders(item_template, color):
             wo.production_item as item_code,
             wo.status as work_order_status,
             item.item_name as item_name,
-            item.description as item_name_detail,
+            item.custom_item_name_detail as item_name_detail,
             wo.qty as qty_to_manufacture,
             CASE 
                 WHEN EXISTS (
