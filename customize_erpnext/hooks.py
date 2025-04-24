@@ -15,6 +15,7 @@ app_license = "mit"
 # Apps
 # ------------------
 
+
 # In hooks.py or using Customize Form
 custom_fields = {
     "Stock Entry Multi Work Orders": [
@@ -39,11 +40,7 @@ custom_fields = {
 }
 
 # Thêm hook xử lý trước khi import
-data_import_before_insert = {
-    "Item Attribute Value": "customize_erpnext.override_methods.handle_import_attr_colors.handle_item_attribute_value_import"
-}
 
-# Trong hooks.py
 data_import_before_import = [
     "customize_erpnext.override_methods.item_attribute_import.before_import"
 ]
