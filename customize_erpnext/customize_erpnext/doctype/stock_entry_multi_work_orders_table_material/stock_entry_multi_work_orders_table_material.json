@@ -3,6 +3,7 @@
  "allow_rename": 1,
  "creation": "2025-04-11 13:14:52.228815",
  "doctype": "DocType",
+ "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
   "item_code",
@@ -76,7 +77,7 @@
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2025-04-19 10:10:24.598545",
+ "modified": "2025-04-24 12:31:01.509036",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Stock Entry Multi Work Orders Table Material",

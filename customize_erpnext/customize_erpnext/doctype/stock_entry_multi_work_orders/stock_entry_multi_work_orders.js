@@ -180,6 +180,10 @@ frappe.ui.form.on("Stock Entry Multi Work Orders", {
         if (frm.doc.item_template) {
             // Clear the color field first
             frm.set_value('color', '');
+            frm.clear_table('work_orders');
+            frm.clear_table('materials');
+            frm.refresh_fields(['work_orders', 'materials']);
+
             frm.set_df_property('color', 'options', ''); // Clear options first 
             // Fetch available colors using the server-side method
             frappe.call({
@@ -199,7 +203,6 @@ frappe.ui.form.on("Stock Entry Multi Work Orders", {
                 }
             });
         }
-
     },
 
     // Get Work Order After choosing Color:
@@ -227,6 +230,14 @@ frappe.ui.form.on("Stock Entry Multi Work Orders", {
                                 row.item_name = wo.item_name;
                                 row.item_name_detail = wo.item_name_detail;
                                 row.qty_to_manufacture = wo.qty_to_manufacture;
+                                row.work_order_status = wo.work_order_status;
+                                // Update notification and maintain consistent status
+                                if (wo.work_order_status != 'Not Started') {
+                                    frappe.show_alert({
+                                        message: __(`Work Order ${wo.work_order} đã bắt đầu !!!`),
+                                        indicator: 'orange'
+                                    });
+                                }
                             });
                             frm.refresh_field('work_orders');
 
@@ -287,6 +298,7 @@ frappe.ui.form.on("Stock Entry Multi Work Orders Table WO", {
     work_orders_add: function (frm, cdt, cdn) {
         refresh_materials(frm);
     },
+
 
     work_orders_remove: function (frm, cdt, cdn) {
         // Use a small delay to ensure the form state is updated
@@ -387,24 +399,33 @@ function refresh_materials(frm) {
             freeze: true,
             callback: function (response) {
                 if (response.message && Array.isArray(response.message)) {
+                    // Combine items with the same item_code
+                    const combinedData = combineItemsByCode(response.message);
+
                     // Add materials to the table
-                    response.message.forEach(function (material) {
+                    combinedData.forEach(function (material) {
                         let row = frm.add_child('materials');
                         row.item_code = material.item_code;
                         row.item_name = material.item_name;
                         row.item_name_detail = material.item_name_detail;
                         row.required_qty = material.required_qty;
-                        row.qty_available = material.qty_available;
+                        row.qty_available_in_source_warehouse = material.qty_available;
                         row.wip_warehouse = material.wip_warehouse;
                         row.source_warehouse = material.source_warehouse;
                     });
+
+                    frm.refresh_field('materials');
+                    frappe.show_alert({
+                        message: __('Materials retrieved successfully'),
+                        indicator: 'green'
+                    });
+                } else {
+                    frappe.msgprint(__('No materials found for the selected work orders.'));
                 }
-                frm.refresh_field('materials');
             }
         });
     } else {
-        // Không có work orders, đảm bảo làm mới bảng trống
-        frm.refresh_field('materials');
+        frappe.msgprint(__('No work orders selected. Please select at least one work order.'));
     }
 }
 
@@ -512,6 +533,51 @@ function create_new_stock_entries(frm, work_orders) {
 }
 
 /**
+ * Simplified quantity adjustment dialog - removed validation for qty reductions
+ * @param {Object} frm - Form object
+ * @param {Array} selected_items - Selected material items
+ */
+function show_qty_adjustment_dialog(frm, selected_items) {
+    console.log("show_qty_adjustment_dialog");
+    if (selected_items.length === 0) return;
+
+    let fields = [];
+
+    selected_items.forEach(item => {
+        // Use grid_idx instead of idx
+        fields.push({
+            fieldtype: 'Float',
+            fieldname: `qty_${item.grid_idx}`,
+            label: `${item.item_code} - ${item.item_name || ''} (Current: ${item.required_qty})`,
+            default: item.required_qty
+        });
+    });
+
+    let d = new frappe.ui.Dialog({
+        title: __('Adjust Quantities'),
+        fields: fields,
+        primary_action_label: __('Update'),
+        primary_action: function () {
+            let values = d.get_values();
+
+            // Update quantities in the materials table
+            selected_items.forEach(item => {
+                // Use grid_idx instead of idx
+                let new_qty = values[`qty_${item.grid_idx}`];
+
+                // Update the quantity in the grid
+                frappe.model.set_value(item.doctype, item.name, 'required_qty', new_qty);
+            });
+
+            frm.refresh_field('materials');
+            d.hide();
+        }
+    });
+
+    d.show();
+}
+
+/**
  * Combines items with the same item_code and sums their required_qty values
  * @param {Array} items - Array of item objects
  * @returns {Array} - Array of combined items
@@ -527,7 +593,7 @@ const combineItemsByCode = (items) => {
             groupedItems[itemCode] = { ...item };
         } else {
             // Item already exists, sum the required_qty
-            groupedItems[itemCode].required_qty += item.required_qty;
+            groupedItems[itemCode].required_qty = flt(groupedItems[itemCode].required_qty) + flt(item.required_qty);
         }
     });
 
@@ -535,5 +601,11 @@ const combineItemsByCode = (items) => {
     return Object.values(groupedItems);
 }
 
-// Thêm đoạn mã này vào file stock_entry_multi_work_orders.js
-
+/**
+ * Helper function to safely convert string to float
+ * @param {*} val - Value to convert
+ * @returns {number} - Float value
+ */
+function flt(val) {
+    return parseFloat(val || 0);
+}

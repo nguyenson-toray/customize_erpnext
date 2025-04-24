@@ -12,42 +12,66 @@ app_license = "mit"
 #  bench --site erp-sonnt.tiqn.local migrate
 #  bench restart
 
-# Apps
+
 # ------------------
-
-
-# In hooks.py or using Customize Form
-custom_fields = {
-    "Stock Entry Multi Work Orders": [
-        {
-            "fieldname": "stock_entries",
-            "fieldtype": "Long Text",
-            "label": "Created Stock Entries",
-            "read_only": 1,
-            "hidden": 0,
-            "insert_after": "color"
-        }
+# Customize các Doctype mặc định của erpnext
+doctype_js = {
+    "Stock Entry": "public/js/custom_scripts/stock_entry.js",
+    "BOM": "public/js/custom_scripts/bom.js",
+    "Item": [
+        "public/js/custom_scripts/item.js",
+        "public/js/custom_scripts/item_show_multiple_variants_dialog.js"
     ],
-    "Stock Entry": [
-        {
-            "fieldname": "multi_work_order",
-            "fieldtype": "Link",
-            "label": "Multi Work Order",
-            "options": "Stock Entry Multi Work Orders",
-            "insert_after": "work_order"
-        }
-    ]
+    "Material Request" :  "public/js/custom_scripts/material_request.js",
+    "Purchase Order" :  "public/js/custom_scripts/purchase_order.js",
+    "Item Attribute": "public/js/custom_scripts/item_attribute.js",
+    "Item Attribute Value": "public/js/custom_scripts/item_attribute.js"
+    # Thêm các doctype khác  
 }
 
-# Thêm hook xử lý trước khi import
+# 1 : edit fixtures 
+# 2 : export workspace : bench --site erp-sonnt.tiqn.local export-fixtures
+# 3 : edit fixtures/workspace.json : thêm custom doctype mới
+# 4 : bench --site erp-sonnt.tiqn.local migrate
+fixtures = [
+    {
+        "doctype": "Workspace",
+        "filters": [
+            [
+                "name",
+                "in",
+                ["Stock"]
+            ]
+        ]
+    },
+     {
+        "doctype": "Custom Field",
+        "filters": [
+            [
+                "name",
+                "in",
+                [
+                    "Stock Entry-custom_stock_entry_multi_work_orders",
+                    "Sales Order Item-custom_export_to_country",
+                     "Sales Order Item-custom_export_to_country",
+                    "Sales Order-section_break_kbzt",
+                    "Sales Order-sum_by_country",
+                    "Sales Order-column_break_tiya",
+                    "Sales Order-sum_by_delivery_date",
+                    "Sales Order-column_break_egiy",
+                    "Sales Order-sum_by_sku"
 
-data_import_before_import = [
-    "customize_erpnext.override_methods.item_attribute_import.before_import"
+                ]
+            ]
+        ]
+    }
 ]
-
-data_import_after_import = [
-    "customize_erpnext.override_methods.item_attribute_import.after_import"
-]
+# Hook on document methods and events
+# doc_events = {
+#     # "Item": {
+#     #     "after_insert": "customize_erpnext.doc_events.item.update_item_variant" 
+#     # }
+# } 
 # required_apps = []
 
 # Each item in the list will be shown as an app in the apps page
