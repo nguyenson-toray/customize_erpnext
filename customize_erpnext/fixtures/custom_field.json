@@ -77,6 +77,7 @@
         "name": "Sales Order-section_break_kbzt",
         "dt": "Sales Order",
         "fieldname": "section_break_kbzt",
+        "collapsible": 1,
         "fieldtype": "Section Break",
         "insert_after": "net_total",
         "label": "Summary quantity"
