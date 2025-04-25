@@ -24,7 +24,9 @@ doctype_js = {
     ],
     "Material Request" :  "public/js/custom_scripts/material_request.js",
     "Purchase Order" :  "public/js/custom_scripts/purchase_order.js",
-    "Item Attribute": "public/js/custom_scripts/item_attribute.js",
+    "Item Attribute": ["public/js/custom_scripts/item_attribute.js",
+        "public/js/custom_scripts/item_attribute_import.js"
+    ],
     "Item Attribute Value": "public/js/custom_scripts/item_attribute.js"
     # Thêm các doctype khác  
 }
@@ -65,6 +67,16 @@ fixtures = [
             ]
         ]
     }
+]
+
+
+
+data_import_before_import = [
+    "customize_erpnext.override_methods.item_attribute_import.before_import"
+]
+
+data_import_after_import = [
+    "customize_erpnext.override_methods.item_attribute_import.after_import"
 ]
 # Hook on document methods and events
 # doc_events = {
