@@ -27,7 +27,8 @@ doctype_js = {
     "Item Attribute": ["public/js/custom_scripts/item_attribute.js",
         "public/js/custom_scripts/item_attribute_import.js"
     ],
-    "Item Attribute Value": "public/js/custom_scripts/item_attribute.js"
+    "Item Attribute Value": "public/js/custom_scripts/item_attribute.js",
+    "Sales Order": "public/js/custom_scripts/sales_order_sum_qty.js"
     # Thêm các doctype khác  
 }
 
