@@ -1,11 +1,33 @@
 frappe.ui.form.on('Item Attribute', {
   refresh: function (frm) {
     // Thêm nút import trực tiếp
+    addImportButton(frm);
+  },
+  onload: function (frm) {
+    // Thêm cả khi form được tải lần đầu
+    addImportButton(frm);
+  },
+  onload_post_render: function (frm) {
+    // Thêm sau khi form đã render xong
+    addImportButton(frm);
+  },
+  after_save: function (frm) {
+    // Thêm sau khi lưu form
+    addImportButton(frm);
+  }
+});
+
+// Tách hàm thêm nút ra để tái sử dụng
+function addImportButton(frm) {
+  setTimeout(function () {
+    // Xóa nút cũ nếu đã tồn tại để tránh trùng lặp
+    frm.remove_custom_button('Import Values');
+    // Thêm nút mới
     frm.add_custom_button(__('Import Values'), function () {
       showImportDialog(frm);
     });
-  }
-});
+  }, 300); // Đợi một chút để đảm bảo UI đã render xong
+}
 
 // Hiển thị dialog để import các giá trị
 function showImportDialog(frm) {
