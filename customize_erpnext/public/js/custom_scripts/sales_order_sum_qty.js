@@ -1,19 +1,15 @@
 // Thêm code này vào file sales_order.js trong Custom Script hoặc server_scripts
 frappe.ui.form.on('Sales Order', {
-    refresh: function (frm) {
-        if (frm.doc.sum_by_delivery_date = []) {
-            calculate_sum_by_delivery_date(frm);
-        }
-    },
-
     validate: function (frm) {
         // Tự động tính tổng khi validate form
         calculate_sum_by_delivery_date(frm);
+        calculate_sum_by_country(frm);
+        calculate_sum_by_sku(frm);
     },
 
     items_remove: function (frm) {
-        // Cập nhật khi xóa dòng sản phẩm
         calculate_sum_by_delivery_date(frm);
+        calculate_sum_by_country(frm);
     },
 
     items_add: function (frm, cdt, cdn) {
@@ -22,16 +18,21 @@ frappe.ui.form.on('Sales Order', {
         frappe.ui.form.on("Sales Order Item", "delivery_date", function (frm, cdt, cdn) {
             calculate_sum_by_delivery_date(frm);
         });
-
         frappe.ui.form.on("Sales Order Item", "qty", function (frm, cdt, cdn) {
             calculate_sum_by_delivery_date(frm);
+            calculate_sum_by_country(frm);
+            calculate_sum_by_sku(frm);
         });
-    },
+        frappe.ui.form.on("Sales Order Item", "custom_export_to_country", function (frm, cdt, cdn) {
+            calculate_sum_by_country(frm);
+        });
+        frappe.ui.form.on("Sales Order Item", "custom_sku", function (frm, cdt, cdn) {
+            calculate_sum_by_sku(frm);
+        });
 
-    after_save: function (frm) {
-        // Đảm bảo dữ liệu được cập nhật sau khi lưu
-        calculate_sum_by_delivery_date(frm);
-    }
+
+
+    },
 });
 
 // Hàm để tính tổng số lượng theo ngày giao hàng
@@ -46,7 +47,6 @@ function calculate_sum_by_delivery_date(frm) {
                 delivery_date_totals[date] += item.qty;
             } else {
                 delivery_date_totals[date] = item.qty;
-
             }
         }
     });
@@ -58,4 +58,51 @@ function calculate_sum_by_delivery_date(frm) {
         row.quantity = Math.round(total_qty);
     });
     frm.refresh_field("sum_by_delivery_date");
+}
+function calculate_sum_by_country(frm) {
+    frm.doc.sum_by_country = [];
+    let country_totals = {};
+    // Lặp qua từng dòng trong Sales Order Items
+    $.each(frm.doc.items || [], function (i, item) {
+        if (item.custom_export_to_country) {
+            let country = item.custom_export_to_country;
+            if (country_totals[country]) {
+                country_totals[country] += item.qty;
+            } else {
+                country_totals[country] = item.qty;
+            }
+        }
+    });
+
+    // Thêm dữ liệu vào child table
+    $.each(country_totals, function (country, total_qty) {
+        let row = frappe.model.add_child(frm.doc, "Sales Order Sum By Delivery Date", "sum_by_country");
+        row.country = country;
+        row.quantity = Math.round(total_qty);
+    });
+    frm.refresh_field("sum_by_country");
+}
+function calculate_sum_by_sku(frm) {
+    frm.doc.sum_by_sku = [];
+    let sku_totals = {};
+    // Lặp qua từng dòng trong Sales Order Items
+    $.each(frm.doc.items || [], function (i, item) {
+        if (item.custom_sku) {
+            let sku = item.custom_sku;
+            if (sku_totals[sku]) {
+                sku_totals[sku] += item.qty;
+            } else {
+                sku_totals[sku] = item.qty;
+
+            }
+        }
+    });
+
+    // Thêm dữ liệu vào child table
+    $.each(sku_totals, function (custom_sku, total_qty) {
+        let row = frappe.model.add_child(frm.doc, "Sales Order Sum By SKU", "sum_by_sku");
+        row.sku = custom_sku;
+        row.quantity = Math.round(total_qty);
+    });
+    frm.refresh_field("sum_by_sku");
 }
