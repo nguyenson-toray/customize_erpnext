@@ -35,6 +35,43 @@
     },
     {
         "doctype": "Custom Field",
+        "name": "Sales Order Item-custom_sku",
+        "dt": "Sales Order Item",
+        "fieldname": "custom_sku",
+        "fieldtype": "Data",
+        "insert_after": "delivery_date",
+        "label": "SKU",
+        "allow_on_submit": 0,
+        "bold": 0,
+        "collapsible": 0,
+        "collapsible_depends_on": null,
+        "columns": 1,
+        "depends_on": null,
+        "description": null,
+        "fetch_from": null,
+        "fetch_if_empty": 0,
+        "hidden": 0,
+        "ignore_user_permissions": 0,
+        "ignore_xss_filter": 0,
+        "in_global_search": 0,
+        "in_list_view": 1,
+        "in_standard_filter": 1,
+        "length": 0,
+        "no_copy": 0,
+        "permlevel": 0,
+        "precision": "",
+        "print_hide": 0,
+        "print_hide_if_no_value": 0,
+        "print_width": null,
+        "read_only": 0,
+        "report_hide": 0,
+        "reqd": 0,
+        "search_index": 0,
+        "translatable": 0,
+        "unique": 0
+    },
+    {
+        "doctype": "Custom Field",
         "name": "Sales Order Item-custom_export_to_country",
         "dt": "Sales Order Item",
         "fieldname": "custom_export_to_country",
@@ -80,7 +117,7 @@
         "collapsible": 1,
         "fieldtype": "Section Break",
         "insert_after": "net_total",
-        "label": "Summary quantity"
+        "label": "Summary Quantity"
     },
     {
         "doctype": "Custom Field",
@@ -90,7 +127,8 @@
         "fieldtype": "Table",
         "insert_after": "section_break_kbzt",
         "label": "Sum By Country",
-        "options": "Sales Order Sum By Country"
+        "options": "Sales Order Sum By Country",
+        "read_only": 1
     },
     {
         "doctype": "Custom Field",
@@ -108,7 +146,8 @@
         "fieldtype": "Table",
         "insert_after": "column_break_tiya",
         "label": "Sum By Delivery Date",
-        "options": "Sales Order Sum By Delivery Date"
+        "options": "Sales Order Sum By Delivery Date",
+        "read_only": 1
     },
     {
         "doctype": "Custom Field",
@@ -126,6 +165,7 @@
         "fieldtype": "Table",
         "insert_after": "column_break_egiy",
         "label": "Sum By SKU",
-        "options": "Sales Order Sum By SKU"
+        "options": "Sales Order Sum By SKU",
+        "read_only": 1
     }
 ]
