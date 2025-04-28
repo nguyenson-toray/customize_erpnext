@@ -62,8 +62,9 @@ fixtures = [
                     "Sales Order-column_break_tiya",
                     "Sales Order-sum_by_delivery_date",
                     "Sales Order-column_break_egiy",
-                    "Sales Order-sum_by_sku"
-
+                    "Sales Order-sum_by_sku",
+                    "BOM Item-custom_lost",
+                    "BOM Item-custom_total_qty",
                 ]
             ]
         ]

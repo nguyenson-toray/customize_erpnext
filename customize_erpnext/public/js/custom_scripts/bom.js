@@ -28,6 +28,12 @@ frappe.ui.form.on('BOM', {
         }, __('Custom Features'));
         formatAllRows(frm);
         formatIntegerQuantities(frm);
+        //Fix lỗi hiển thị VND của custom_total_qty
+        frm.fields_dict.items.grid.update_docfield_property(
+            'custom_total_qty',
+            'options',
+            ''
+        );
     },
 
 

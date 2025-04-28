@@ -167,5 +167,32 @@
         "label": "Sum By SKU",
         "options": "Sales Order Sum By SKU",
         "read_only": 1
+    },
+    {
+        "doctype": "Custom Field",
+        "name": "BOM Item-custom_lost",
+        "dt": "BOM Item",
+        "insert_after": "qty",
+        "columns": 1,
+        "default": "0",
+        "fieldname": "custom_lost",
+        "fieldtype": "Percent",
+        "in_list_view": 1,
+        "label": "Lost"
+    },
+    {
+        "doctype": "Custom Field",
+        "name": "BOM Item-custom_total_qty",
+        "dt": "BOM Item",
+        "insert_after": "custom_lost",
+        "columns": 1,
+        "fetch_if_empty": 1,
+        "fieldname": "custom_total_qty",
+        "fieldtype": "Float",
+        "in_list_view": 1,
+        "in_standard_filter": 1,
+        "is_virtual": 1,
+        "label": "Total Qty",
+        "options": "doc.qty * (1+doc.custom_lost/100)"
     }
 ]
