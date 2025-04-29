@@ -177,7 +177,7 @@ def get_items_from_production_plan(production_plan):
             "stock_uom": item_details.stock_uom,
             "conversion_factor": conversion_factor,
             "from_warehouse": default_warehouse,  # Source warehouse
-            "warehouse": "6.1 - WIP Production - TIQN"  # Target warehouse
+            # "warehouse": "6.1 - WIP Production - TIQN"  # Target warehouse
         })
     
     # Create custom_note with production items detail

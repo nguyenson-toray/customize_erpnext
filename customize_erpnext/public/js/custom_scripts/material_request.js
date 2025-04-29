@@ -5,34 +5,38 @@ frappe.ui.form.on('Material Request', {
             let schedule_date = frappe.datetime.add_days(frappe.datetime.nowdate(), 3);
             frm.set_value('schedule_date', schedule_date);
         }
+        frm.add_custom_button(__('Get Material From Production Plan - Purchase - Including Lost Percent'), function () {
+            show_production_plan_dialog(frm);
+        }, __('Custom Features'));
+        frm.add_custom_button(__('Get Material From Production Plan - Customer Provided - Including Lost Percent'), function () {
+            show_production_plan_dialog(frm);
+        }, __('Custom Features'));
     },
     material_request_type: function (frm) {
         // validate_total_amount(frm); 
-        if (frm.doc.material_request_type == "Purchase") {
-            frappe.msgprint({
-                title: __('Notification'),
-                indicator: 'green',
-                message: __('Only for Items are material in manufacturing')
-            });
-        }
+        // if (frm.doc.material_request_type == "Purchase") {
+        //     frappe.msgprint({
+        //         title: __('Notification'),
+        //         indicator: 'green',
+        //         message: __('Only for Items are material in manufacturing')
+        //     });
+        //     frm.add_custom_button(__('Get Material From Production Plan - Purchase - Including Lost Percent'), function () {
+        //         show_production_plan_dialog(frm);
+        //     }, __('Custom Features'));
+        // }
+        // if (frm.doc.material_request_type == "Customer Provided") {
+        //     frm.add_custom_button(__('Get Material From Production Plan - Customer Provided - Including Lost Percent'), function () {
+        //         show_production_plan_dialog(frm);
+        //     }, __('Custom Features'));
+        // }
     },
     validate: function (frm) {
         // validate_total_amount(frm);
     },
     refresh: function (frm) {
+        console.log('frm.doc.material_request_type:', frm.doc.material_request_type);
         if (frm.doc.docstatus === 0) {
-            // Thêm nhóm button Custom Features
-            // frm.add_custom_button(__('Get Items From Production Plan'), function() {
-            //     show_production_plan_dialog(frm);
-            // }, __('Custom Features'));
-            frm.add_custom_button(__('Get Materials from Work Orders'), function () {
-                show_work_order_dialog(frm);
-            }, __('Custom Features'));
-
-            frm.add_custom_button(__('Split Request By Group'), function () {
-                show_split_dialog(frm);
-            }, __('Custom Features'));
-
+            // Thêm nhóm button Custom Features 
             frm.add_custom_button(__('Sum Qty Of Duplicate Item'), function () {
                 sum_duplicate_items(frm);
             }, __('Custom Features'));
