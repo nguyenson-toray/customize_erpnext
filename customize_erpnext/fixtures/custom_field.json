@@ -174,7 +174,7 @@
         "dt": "BOM Item",
         "insert_after": "qty",
         "columns": 1,
-        "default": "0",
+        "default": 0,
         "fieldname": "custom_lost",
         "fieldtype": "Percent",
         "in_list_view": 1,
@@ -194,5 +194,15 @@
         "is_virtual": 1,
         "label": "Total Qty",
         "options": "doc.qty * (1+doc.custom_lost/100)"
+    },
+    {
+        "doctype": "Custom Field",
+        "name": "Production Plan-custom_include_lost_percent_in_bom",
+        "dt": "Production Plan",
+        "insert_after": "for_warehouse",
+        "fieldname": "custom_include_lost_percent_in_bom",
+        "fieldtype": "Check",
+        "default": 1,
+        "label": "Including Lost Percent in BOM"
     }
 ]

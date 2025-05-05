@@ -24,13 +24,16 @@ doctype_js = {
     ],
     "Material Request" :  "public/js/custom_scripts/material_request.js",
     "Purchase Order" :  "public/js/custom_scripts/purchase_order.js",
-    "Item Attribute": ["public/js/custom_scripts/item_attribute.js",
+    "Item Attribute": [
+        "public/js/custom_scripts/item_attribute.js",
         "public/js/custom_scripts/item_attribute_import.js"
     ],
     "Item Attribute Value": "public/js/custom_scripts/item_attribute.js",
-    "Sales Order": "public/js/custom_scripts/sales_order_sum_qty.js"
+    "Sales Order": "public/js/custom_scripts/sales_order_sum_qty.js",
+    "Production Plan" : "public/js/custom_scripts/production_plan.js",
     # Thêm các doctype khác  
 }
+ 
 
 # 1 : edit fixtures 
 # 2 : export workspace : bench --site erp-sonnt.tiqn.local export-fixtures
@@ -56,7 +59,7 @@ fixtures = [
                 [
                     "Stock Entry-custom_stock_entry_multi_work_orders",
                     "Sales Order Item-custom_export_to_country",
-                     "Sales Order Item-custom_export_to_country",
+                    "Sales Order Item-custom_export_to_country",
                     "Sales Order-section_break_kbzt",
                     "Sales Order-sum_by_country",
                     "Sales Order-column_break_tiya",
@@ -65,6 +68,8 @@ fixtures = [
                     "Sales Order-sum_by_sku",
                     "BOM Item-custom_lost",
                     "BOM Item-custom_total_qty",
+                    "Material Request Item-custom_original_qty",
+                    "Production Plan-custom_include_lost_percent_in_bom"
                 ]
             ]
         ]
