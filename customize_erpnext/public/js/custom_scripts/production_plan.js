@@ -1,51 +1,102 @@
 frappe.ui.form.on('Production Plan', {
+    custom_include_lost_percent_in_bom: function (frm) {
+        // Khi giá trị custom_include_lost_percent_in_bom thay đổi, gọi hàm setup_button
+        frm.trigger('setup_button');
+    },
+
     refresh: function (frm) {
+        // Khi form được refresh, gọi hàm setup_button
+        frm.trigger('setup_button');
+        frm.page.buttons.forEach(btn => {
+            if (btn.text === "Get Items for Material Request") {
+                btn.text("Get Raw Materials for Purchase & Customer Provided");
+            }
+        });
+    },
+
+    setup_button: function (frm) {
+        frm.doc.set
+        console.log("Setting up button with custom_include_lost_percent_in_bom =", frm.doc.custom_include_lost_percent_in_bom);
+
+        // Đảm bảo rằng button get_items_for_mr tồn tại
+        if (!frm.get_field('get_items_for_mr') || !frm.get_field('get_items_for_mr').$input) {
+            console.log("Could not find get_items_for_mr button");
+            return;
+        }
+
+        // Đầu tiên, loại bỏ tất cả event handler hiện tại để tránh duplicate
+        frm.get_field('get_items_for_mr').$input.off('click');
+
         if (frm.doc.custom_include_lost_percent_in_bom) {
-            // Add a delay to ensure the form is fully loaded
-            setTimeout(function () {
-                // Override the get_items_for_mr button click event
-                if (frm.get_field('get_items_for_mr') && frm.get_field('get_items_for_mr').$input) {
-                    frm.get_field('get_items_for_mr').$input.off('click');
-                    frm.get_field('get_items_for_mr').$input.on('click', function () {
-                        console.log("Button Get Raw Materials for Purchase clicked - Override working");
+            // Nếu custom_include_lost_percent_in_bom = 1, gắn event handler tùy chỉnh
+            console.log("Attaching custom handler for get_items_for_mr button");
 
-                        if (!frm.doc.for_warehouse) {
-                            frm.trigger("toggle_for_warehouse");
-                            frappe.throw(__("Select the Warehouse"));
-                        }
+            frm.get_field('get_items_for_mr').$input.on('click', function () {
+                console.log("Custom button handler triggered - Using lost percentage");
 
-                        // Call our customized function instead of the standard one
-                        console.log("Calling customize_erpnext.api.production_plan.get_items_for_material_requests");
-                        frappe.call({
-                            method: "customize_erpnext.api.production_plan.get_items_for_material_requests",
-                            args: {
-                                doc: frm.doc,
-                                warehouses: [{
-                                    warehouse: frm.doc.for_warehouse
-                                }]
-                            },
-                            callback: function (r) {
-                                console.log("Received response from server", r);
-                                if (r.message) {
-                                    frm.set_value("mr_items", []);
-                                    r.message.forEach(row => {
-                                        let d = frm.add_child("mr_items");
-                                        for (let field in row) {
-                                            if (field !== "name") {
-                                                d[field] = row[field];
-                                            }
-                                        }
-                                    });
+                // Gọi API tùy chỉnh với hỗ trợ cho tỷ lệ hao hụt
+                frappe.call({
+                    method: "customize_erpnext.api.production_plan.get_items_for_material_requests",
+                    args: {
+                        doc: frm.doc,
+                        warehouses: frm.doc.for_warehouse ? [{
+                            warehouse: frm.doc.for_warehouse
+                        }] : []
+                    },
+                    callback: function (r) {
+                        console.log("Received response from customized function");
+                        if (r.message) {
+                            frm.set_value("mr_items", []);
+                            r.message.forEach(row => {
+                                let d = frm.add_child("mr_items");
+                                for (let field in row) {
+                                    if (field !== "name") {
+                                        d[field] = row[field];
+                                    }
                                 }
-                                refresh_field("mr_items");
-                            }
-                        });
-                    });
-                    console.log("Successfully attached custom click handler to get_items_for_mr button");
-                } else {
-                    console.log("Could not find get_items_for_mr button");
-                }
-            }, 1000); // 1-second delay to ensure DOM is ready
+                            });
+                        }
+                        refresh_field("mr_items");
+                    }
+                });
+            });
+
+            console.log("Successfully attached custom click handler to get_items_for_mr button");
+        } else {
+            // Nếu custom_include_lost_percent_in_bom = 0, sử dụng API tùy chỉnh nhưng không áp dụng hao hụt
+            console.log("Attaching modified default handler for get_items_for_mr button");
+
+            frm.get_field('get_items_for_mr').$input.on('click', function () {
+                console.log("Modified default button handler triggered - Not using lost percentage");
+
+                // Gọi API tùy chỉnh nhưng không áp dụng hao hụt
+                frappe.call({
+                    method: "customize_erpnext.api.production_plan.get_items_for_material_requests_default",
+                    args: {
+                        doc: frm.doc,
+                        warehouses: frm.doc.for_warehouse ? [{
+                            warehouse: frm.doc.for_warehouse
+                        }] : []
+                    },
+                    callback: function (r) {
+                        console.log("Received response from default function with warehouse handling");
+                        if (r.message) {
+                            frm.set_value("mr_items", []);
+                            r.message.forEach(row => {
+                                let d = frm.add_child("mr_items");
+                                for (let field in row) {
+                                    if (field !== "name") {
+                                        d[field] = row[field];
+                                    }
+                                }
+                            });
+                        }
+                        refresh_field("mr_items");
+                    }
+                });
+            });
+
+            console.log("Successfully attached modified default click handler to get_items_for_mr button");
         }
     }
 });
