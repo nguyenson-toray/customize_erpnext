@@ -204,5 +204,35 @@
         "fieldtype": "Check",
         "default": 1,
         "label": "Including Lost Percent in BOM"
+    },
+    {
+        "doctype": "Custom Field",
+        "name": "Employee-custom_section",
+        "dt": "Employee",
+        "insert_after": "department",
+        "fieldname": "custom_section",
+        "fieldtype": "Link",
+        "label": "Section",
+        "options": "Section"
+    },
+    {
+        "doctype": "Custom Field",
+        "dt": "Employee",
+        "name": "Employee-custom_group",
+        "insert_after": "custom_section",
+        "fieldname": "custom_group",
+        "fieldtype": "Link",
+        "label": "Group",
+        "options": "Group"
+    },
+    {
+        "doctype": "Custom Field",
+        "dt": "Employee",
+        "name": "Employee-custom_line_team",
+        "insert_after": "custom_group",
+        "fieldname": "custom_line_team",
+        "fieldtype": "Link",
+        "label": "Line Team",
+        "options": "Line Team"
     }
 ]

@@ -69,7 +69,10 @@ fixtures = [
                     "BOM Item-custom_lost",
                     "BOM Item-custom_total_qty",
                     "Material Request Item-custom_original_qty",
-                    "Production Plan-custom_include_lost_percent_in_bom"
+                    "Production Plan-custom_include_lost_percent_in_bom",
+                    "Employee-custom_section",
+                    "Employee-custom_group",
+                    "Employee-custom_line_team"
                 ]
             ]
         ]
