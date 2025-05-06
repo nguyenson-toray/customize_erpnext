@@ -1,17 +1,17 @@
 frappe.ui.form.on('Material Request', {
 
-    onload: function (frm) {
-        if (frm.is_new()) {
-            let schedule_date = frappe.datetime.add_days(frappe.datetime.nowdate(), 3);
-            frm.set_value('schedule_date', schedule_date);
-        }
-        frm.add_custom_button(__('Get Material From Production Plan - Purchase - Including Lost Percent'), function () {
-            show_production_plan_dialog(frm);
-        }, __('Custom Features'));
-        frm.add_custom_button(__('Get Material From Production Plan - Customer Provided - Including Lost Percent'), function () {
-            show_production_plan_dialog(frm);
-        }, __('Custom Features'));
-    },
+    // onload: function (frm) {
+    //     if (frm.is_new()) {
+    //         let schedule_date = frappe.datetime.add_days(frappe.datetime.nowdate(), 3);
+    //         frm.set_value('schedule_date', schedule_date);
+    //     }
+    //     frm.add_custom_button(__('Get Material From Production Plan - Purchase - Including Lost Percent'), function () {
+    //         show_production_plan_dialog(frm);
+    //     }, __('Custom Features'));
+    //     frm.add_custom_button(__('Get Material From Production Plan - Customer Provided - Including Lost Percent'), function () {
+    //         show_production_plan_dialog(frm);
+    //     }, __('Custom Features'));
+    // },
     material_request_type: function (frm) {
         // validate_total_amount(frm); 
         // if (frm.doc.material_request_type == "Purchase") {
