@@ -1,5 +1,6 @@
 {
  "actions": [],
+ "allow_import": 1,
  "allow_rename": 1,
  "creation": "2025-05-06 16:24:53.714083",
  "doctype": "DocType",
@@ -17,7 +18,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-05-06 16:25:14.711772",
+ "modified": "2025-05-07 08:35:27.643106",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Line Team",
