@@ -2,6 +2,7 @@
  "actions": [],
  "allow_import": 1,
  "allow_rename": 1,
+ "autoname": "format:{line_team}",
  "creation": "2025-05-06 16:24:53.714083",
  "doctype": "DocType",
  "engine": "InnoDB",
@@ -12,16 +13,22 @@
   {
    "fieldname": "line_team",
    "fieldtype": "Data",
-   "label": "Line Team"
+   "in_filter": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Line Team",
+   "reqd": 1,
+   "translatable": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-05-07 08:35:27.643106",
+ "modified": "2025-05-08 09:20:04.613865",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Line Team",
+ "naming_rule": "Expression",
  "owner": "Administrator",
  "permissions": [
   {

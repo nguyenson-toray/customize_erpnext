@@ -2,6 +2,7 @@
  "actions": [],
  "allow_import": 1,
  "allow_rename": 1,
+ "autoname": "format:{group}",
  "creation": "2025-05-06 16:24:18.403075",
  "doctype": "DocType",
  "engine": "InnoDB",
@@ -12,7 +13,9 @@
   {
    "fieldname": "group",
    "fieldtype": "Data",
+   "in_filter": 1,
    "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Group",
    "reqd": 1
   }
@@ -20,10 +23,11 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-05-07 08:41:04.893923",
+ "modified": "2025-05-08 09:21:28.070716",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Group",
+ "naming_rule": "Expression",
  "owner": "Administrator",
  "permissions": [
   {
