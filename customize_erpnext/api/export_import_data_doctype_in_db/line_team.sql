@@ -1,5 +1,5 @@
 -- SQL Export for DocType: Line Team
--- Generated on: 2025-05-08 13:12:25
+-- Generated on: 2025-05-08 15:46:32
 -- Table: tabLine Team
 
 DROP TABLE IF EXISTS `tabLine Team`;
@@ -61,6 +61,6 @@ INSERT INTO `tabLine Team` (`name`, `creation`, `modified`, `modified_by`, `owne
 ('Translator', '2025-05-08 11:25:16', '2025-05-08 11:25:16', 'Administrator', 'Administrator', 0, 0, NULL, NULL, NULL, NULL, 'Translator'),
 ('Utilities', '2025-05-08 11:25:16', '2025-05-08 11:25:16', 'Administrator', 'Administrator', 0, 0, NULL, NULL, NULL, NULL, 'Utilities'),
 ('Warehouse', '2025-05-08 11:25:16', '2025-05-08 11:25:16', 'Administrator', 'Administrator', 0, 0, NULL, NULL, NULL, NULL, 'Warehouse');
-/*!40000 ALTER TABLE `{table_name}` ENABLE KEYS */;
+/*!40000 ALTER TABLE `tabLine Team` ENABLE KEYS */;
 UNLOCK TABLES;
 

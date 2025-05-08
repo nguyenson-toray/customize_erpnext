@@ -1,5 +1,5 @@
 -- SQL Export for DocType: Section
--- Generated on: 2025-05-08 13:12:25
+-- Generated on: 2025-05-08 15:46:32
 -- Table: tabSection
 
 DROP TABLE IF EXISTS `tabSection`;
@@ -49,6 +49,6 @@ INSERT INTO `tabSection` (`name`, `creation`, `modified`, `modified_by`, `owner`
 ('QA/QC', '2025-05-08 09:16:51', '2025-05-08 09:16:51', 'Administrator', 'Administrator', 0, 0, NULL, NULL, NULL, 0, 0, 0, 0, NULL, NULL, NULL, NULL, NULL, 'QA/QC', NULL),
 ('Supply chain management', '2025-05-08 09:16:51', '2025-05-08 09:16:51', 'Administrator', 'Administrator', 0, 0, NULL, NULL, NULL, 0, 0, 0, 0, NULL, NULL, NULL, NULL, NULL, 'Supply chain management', NULL),
 ('Warehouse', '2025-05-08 09:16:51', '2025-05-08 09:16:51', 'Administrator', 'Administrator', 0, 0, NULL, NULL, NULL, 0, 0, 0, 0, NULL, NULL, NULL, NULL, NULL, 'Warehouse', NULL);
-/*!40000 ALTER TABLE `{table_name}` ENABLE KEYS */;
+/*!40000 ALTER TABLE `tabSection` ENABLE KEYS */;
 UNLOCK TABLES;
 

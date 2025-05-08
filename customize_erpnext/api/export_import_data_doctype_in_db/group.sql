@@ -1,5 +1,5 @@
 -- SQL Export for DocType: Group
--- Generated on: 2025-05-08 13:12:25
+-- Generated on: 2025-05-08 15:46:32
 -- Table: tabGroup
 
 DROP TABLE IF EXISTS `tabGroup`;
@@ -52,6 +52,6 @@ INSERT INTO `tabGroup` (`name`, `creation`, `modified`, `modified_by`, `owner`, 
 ('Translator', '2025-05-08 09:22:04', '2025-05-08 09:22:04', 'Administrator', 'Administrator', 0, 0, NULL, NULL, NULL, NULL, 'Translator'),
 ('Utility', '2025-05-08 09:22:05', '2025-05-08 09:22:05', 'Administrator', 'Administrator', 0, 0, NULL, NULL, NULL, NULL, 'Utility'),
 ('Warehouse', '2025-05-08 09:22:05', '2025-05-08 09:22:05', 'Administrator', 'Administrator', 0, 0, NULL, NULL, NULL, NULL, 'Warehouse');
-/*!40000 ALTER TABLE `{table_name}` ENABLE KEYS */;
+/*!40000 ALTER TABLE `tabGroup` ENABLE KEYS */;
 UNLOCK TABLES;
 

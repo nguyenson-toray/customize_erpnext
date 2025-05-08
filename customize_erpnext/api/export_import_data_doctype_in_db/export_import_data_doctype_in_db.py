@@ -148,8 +148,8 @@ def export_sql():
                     sql_file.write(",\n".join(value_strings))
                     sql_file.write(";\n")
                 
-                sql_file.write("/*!40000 ALTER TABLE `{table_name}` ENABLE KEYS */;\n")
-                sql_file.write("UNLOCK TABLES;\n\n")
+                sql_file.write(f"/*!40000 ALTER TABLE `{table_name}` ENABLE KEYS */;\n")
+                sql_file.write(f"UNLOCK TABLES;\n\n")
             
             print(f"Exported SQL for DocType: {doctype} with {len(data)} records to {sql_filename}")
             

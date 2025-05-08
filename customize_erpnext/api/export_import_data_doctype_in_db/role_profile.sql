@@ -1,5 +1,5 @@
 -- SQL Export for DocType: Role Profile
--- Generated on: 2025-05-08 13:12:25
+-- Generated on: 2025-05-08 15:46:32
 -- Table: tabRole Profile
 
 DROP TABLE IF EXISTS `tabRole Profile`;
@@ -37,6 +37,6 @@ INSERT INTO `tabRole Profile` (`name`, `creation`, `modified`, `modified_by`, `o
 ('TIQN All Employee', '2025-05-08 12:30:17', '2025-05-08 12:38:12', 'Administrator', 'Administrator', 0, 4, 'TIQN All Employee', NULL, NULL, NULL, NULL),
 ('TIQN Staff', '2025-01-22 15:53:31', '2025-02-17 13:46:12', 'erp@tiqn.com.vn', 'it@tiqn.com.vn', 0, 0, 'TIQN Staff', NULL, NULL, NULL, NULL),
 ('Warehouse', '2025-02-18 15:48:23', '2025-02-18 15:48:23', 'son.nt@tiqn.com.vn', 'son.nt@tiqn.com.vn', 0, 0, 'Warehouse', NULL, NULL, NULL, NULL);
-/*!40000 ALTER TABLE `{table_name}` ENABLE KEYS */;
+/*!40000 ALTER TABLE `tabRole Profile` ENABLE KEYS */;
 UNLOCK TABLES;
 

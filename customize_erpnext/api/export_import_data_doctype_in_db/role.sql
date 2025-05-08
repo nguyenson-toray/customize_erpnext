@@ -1,5 +1,5 @@
 -- SQL Export for DocType: Role
--- Generated on: 2025-05-08 13:12:25
+-- Generated on: 2025-05-08 15:46:32
 -- Table: tabRole
 
 DROP TABLE IF EXISTS `tabRole`;
@@ -93,6 +93,6 @@ INSERT INTO `tabRole` (`name`, `creation`, `modified`, `modified_by`, `owner`, `
 ('Website Manager', '2024-10-26 11:26:50', '2024-10-26 11:26:50', 'Administrator', 'Administrator', 0, 0, 'Website Manager', NULL, NULL, 0, 0, 1, 0, NULL, NULL, NULL, NULL),
 ('Wiki Approver', '2025-02-06 11:15:24', '2021-08-21 13:11:40', 'Administrator', 'Administrator', 0, 0, 'Wiki Approver', NULL, NULL, 0, 0, 1, 0, NULL, NULL, NULL, NULL),
 ('Workspace Manager', '2024-10-26 11:26:51', '2024-10-26 11:26:51', 'Administrator', 'Administrator', 0, 0, 'Workspace Manager', NULL, NULL, 0, 0, 1, 0, NULL, NULL, NULL, NULL);
-/*!40000 ALTER TABLE `{table_name}` ENABLE KEYS */;
+/*!40000 ALTER TABLE `tabRole` ENABLE KEYS */;
 UNLOCK TABLES;
 
