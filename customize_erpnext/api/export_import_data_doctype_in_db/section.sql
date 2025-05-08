@@ -1,5 +1,5 @@
 -- SQL Export for DocType: Section
--- Generated on: 2025-05-08 11:27:58
+-- Generated on: 2025-05-08 13:12:25
 -- Table: tabSection
 
 DROP TABLE IF EXISTS `tabSection`;
@@ -43,7 +43,7 @@ INSERT INTO `tabSection` (`name`, `creation`, `modified`, `modified_by`, `owner`
 ('Operation Management', '2025-05-08 09:16:51', '2025-05-08 09:16:51', 'Administrator', 'Administrator', 0, 0, NULL, NULL, NULL, 0, 0, 0, 0, NULL, NULL, NULL, NULL, NULL, 'Operation Management', NULL),
 ('Pattern', '2025-05-08 09:16:51', '2025-05-08 09:16:51', 'Administrator', 'Administrator', 0, 0, NULL, NULL, NULL, 0, 0, 0, 0, NULL, NULL, NULL, NULL, NULL, 'Pattern', NULL),
 ('Preparation', '2025-05-08 09:16:51', '2025-05-08 09:16:51', 'Administrator', 'Administrator', 0, 0, NULL, NULL, NULL, 0, 0, 0, 0, NULL, NULL, NULL, NULL, NULL, 'Preparation', NULL),
-('Production', '2025-05-08 09:16:51', '2025-05-08 09:16:51', 'Administrator', 'Administrator', 0, 0, NULL, NULL, NULL, 0, 0, 0, 0, NULL, NULL, NULL, NULL, NULL, 'Production', NULL),
+('Production', '2025-05-08 09:16:51', '2025-05-08 09:16:51', 'Administrator', 'Administrator', 0, 1, NULL, NULL, NULL, 0, 0, 0, 0, NULL, NULL, NULL, NULL, NULL, 'Production', NULL),
 ('Purchasing', '2025-05-08 09:16:51', '2025-05-08 09:16:51', 'Administrator', 'Administrator', 0, 0, NULL, NULL, NULL, 0, 0, 0, 0, NULL, NULL, NULL, NULL, NULL, 'Purchasing', NULL),
 ('QA', '2025-05-08 09:16:51', '2025-05-08 09:16:51', 'Administrator', 'Administrator', 0, 0, NULL, NULL, NULL, 0, 0, 0, 0, NULL, NULL, NULL, NULL, NULL, 'QA', NULL),
 ('QA/QC', '2025-05-08 09:16:51', '2025-05-08 09:16:51', 'Administrator', 'Administrator', 0, 0, NULL, NULL, NULL, 0, 0, 0, 0, NULL, NULL, NULL, NULL, NULL, 'QA/QC', NULL),

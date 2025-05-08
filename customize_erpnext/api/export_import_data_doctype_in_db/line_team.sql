@@ -1,5 +1,5 @@
 -- SQL Export for DocType: Line Team
--- Generated on: 2025-05-08 11:27:58
+-- Generated on: 2025-05-08 13:12:25
 -- Table: tabLine Team
 
 DROP TABLE IF EXISTS `tabLine Team`;
@@ -35,7 +35,7 @@ INSERT INTO `tabLine Team` (`name`, `creation`, `modified`, `modified_by`, `owne
 ('Grand leader', '2025-05-08 11:25:16', '2025-05-08 11:25:16', 'Administrator', 'Administrator', 0, 0, NULL, NULL, NULL, NULL, 'Grand leader'),
 ('HR/GA', '2025-05-08 11:25:16', '2025-05-08 11:25:16', 'Administrator', 'Administrator', 0, 0, NULL, NULL, NULL, NULL, 'HR/GA'),
 ('IE', '2025-05-08 11:25:16', '2025-05-08 11:25:16', 'Administrator', 'Administrator', 0, 0, NULL, NULL, NULL, NULL, 'IE'),
-('Line 01', '2025-05-08 11:25:16', '2025-05-08 11:25:16', 'Administrator', 'Administrator', 0, 0, NULL, NULL, NULL, NULL, 'Line 01'),
+('Line 01', '2025-05-08 11:25:16', '2025-05-08 11:25:16', 'Administrator', 'Administrator', 0, 1, NULL, NULL, NULL, NULL, 'Line 01'),
 ('Line 02', '2025-05-08 11:25:16', '2025-05-08 11:25:16', 'Administrator', 'Administrator', 0, 0, NULL, NULL, NULL, NULL, 'Line 02'),
 ('Line 03', '2025-05-08 11:25:16', '2025-05-08 11:25:16', 'Administrator', 'Administrator', 0, 0, NULL, NULL, NULL, NULL, 'Line 03'),
 ('Line 04', '2025-05-08 11:25:16', '2025-05-08 11:25:16', 'Administrator', 'Administrator', 0, 0, NULL, NULL, NULL, NULL, 'Line 04'),

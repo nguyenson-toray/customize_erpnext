@@ -1,5 +1,5 @@
 -- SQL Export for DocType: Group
--- Generated on: 2025-05-08 11:27:58
+-- Generated on: 2025-05-08 13:12:25
 -- Table: tabGroup
 
 DROP TABLE IF EXISTS `tabGroup`;
@@ -46,7 +46,7 @@ INSERT INTO `tabGroup` (`name`, `creation`, `modified`, `modified_by`, `owner`, 
 ('QA', '2025-05-08 09:22:04', '2025-05-08 09:22:04', 'Administrator', 'Administrator', 0, 0, NULL, NULL, NULL, NULL, 'QA'),
 ('QC', '2025-05-08 09:22:04', '2025-05-08 09:22:04', 'Administrator', 'Administrator', 0, 0, NULL, NULL, NULL, NULL, 'QC'),
 ('Sample', '2025-05-08 09:22:05', '2025-05-08 09:22:05', 'Administrator', 'Administrator', 0, 0, NULL, NULL, NULL, NULL, 'Sample'),
-('Sewing', '2025-05-08 09:22:05', '2025-05-08 09:22:05', 'Administrator', 'Administrator', 0, 0, NULL, NULL, NULL, NULL, 'Sewing'),
+('Sewing', '2025-05-08 09:22:05', '2025-05-08 09:22:05', 'Administrator', 'Administrator', 0, 1, NULL, NULL, NULL, NULL, 'Sewing'),
 ('Supply chain management', '2025-05-08 09:22:04', '2025-05-08 09:22:04', 'Administrator', 'Administrator', 0, 0, NULL, NULL, NULL, NULL, 'Supply chain management'),
 ('Supporting', '2025-05-08 09:22:04', '2025-05-08 09:22:04', 'Administrator', 'Administrator', 0, 0, NULL, NULL, NULL, NULL, 'Supporting'),
 ('Translator', '2025-05-08 09:22:04', '2025-05-08 09:22:04', 'Administrator', 'Administrator', 0, 0, NULL, NULL, NULL, NULL, 'Translator'),
