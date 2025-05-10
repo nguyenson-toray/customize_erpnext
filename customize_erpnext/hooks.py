@@ -14,7 +14,7 @@ app_license = "mit"
 
 
 # ------------------
-# Customize các Doctype mặc định của erpnext
+# Customize các js script cho các DocType mặc định của erpnext
 doctype_js = {
     "Stock Entry": "public/js/custom_scripts/stock_entry.js",
     "BOM": "public/js/custom_scripts/bom.js",
@@ -34,22 +34,17 @@ doctype_js = {
     # Thêm các doctype khác  
 }
  
-
-# 1 : edit fixtures 
-# 2 : export workspace : bench --site erp-sonnt.tiqn.local export-fixtures
-# 3 : edit fixtures/workspace.json : thêm custom doctype mới
-# 4 : bench --site erp-sonnt.tiqn.local migrate
-fixtures = [
-    {
-        "doctype": "Workspace",
-        "filters": [
-            [
-                "name",
-                "in",
-                ["Stock"]
-            ]
-        ]
-    },
+# Hướng dẫn sử dụng fixtures để export từ site A và import vào site B
+#  Site A
+    # 1 : Chỉnh sửa Doctype, field, workspace Web UI
+    # 2 : export ra thư mục fixture chứa các file json : bench --site erp-sonnt.tiqn.local export-fixtures
+    #     Commit & push lên git
+#  Site B
+    # 1 : Pull code về
+    # 2 : Chạy lệnh bench --site erp.tiqn.local clear-cache
+    # 3 : Chạy lệnh bench --site erpt.tiqn.local migrate    
+    # hoặc cho 1 app cụ thể : bench --site erp.tiqn.local import-fixtures --app customize_erpnext  
+fixtures = [ 
      {
         "doctype": "Custom Field",
         "filters": [
@@ -57,24 +52,34 @@ fixtures = [
                 "name",
                 "in",
                 [
-                    "Stock Entry-custom_stock_entry_multi_work_orders",
-                    "Sales Order Item-custom_export_to_country",
-                    "Sales Order Item-custom_export_to_country",
-                    "Sales Order-section_break_kbzt",
-                    "Sales Order-sum_by_country",
-                    "Sales Order-column_break_tiya",
-                    "Sales Order-sum_by_delivery_date",
-                    "Sales Order-column_break_egiy",
+                    "Stock Entry-custom_%",
+                    "Sales Order Item-custom_%", 
+                    "Sales Order-section_break_%",
+                    "Sales Order-sum_by_country", 
+                    "Sales Order-sum_by_delivery_date", 
                     "Sales Order-sum_by_sku",
-                    "BOM Item-custom_lost",
-                    "BOM Item-custom_total_qty",
-                    "Material Request Item-custom_original_qty",
-                    "Production Plan-custom_include_lost_percent_in_bom",
-                    "Employee-custom_section",
-                    "Employee-custom_group",
-                    "Employee-custom_line_team"
+                    "BOM Item-custom_%", 
+                    "Material Request Item-custom_%",
+                    "Production Plan-custom_%",
+                    "Employee-custom_%", 
                 ]
             ]
+        ]
+    },
+    # Custom Workspace
+    {
+        "doctype": "Workspace",
+        "filters": [
+            ["name", "in", ["Stock"]]
+        ]
+    },
+    # Property Setter
+    {
+        "doctype": "Property Setter",
+        "filters": [
+            ["doc_type", "in", [
+                # "Sales Invoice", "Purchase Invoice"
+                ]]
         ]
     }
 ]
@@ -85,9 +90,7 @@ data_import_before_import = [
     "customize_erpnext.override_methods.item_attribute_import.before_import"
 ]
 
-data_import_after_import = [
-    "customize_erpnext.override_methods.item_attribute_import.after_import"
-]
+ 
 # Hook on document methods and events
 # doc_events = {
 #     # "Item": {
