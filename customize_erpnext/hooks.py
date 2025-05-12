@@ -49,20 +49,22 @@ fixtures = [
         "doctype": "Custom Field",
         "filters": [
             [
-                "name",
+                "dt",
                 "in",
                 [
-                    "Stock Entry-custom_%",
-                    "Sales Order Item-custom_%", 
-                    "Sales Order-section_break_%",
-                    "Sales Order-sum_by_country", 
-                    "Sales Order-sum_by_delivery_date", 
-                    "Sales Order-sum_by_sku",
-                    "BOM Item-custom_%", 
-                    "Material Request Item-custom_%",
-                    "Production Plan-custom_%",
-                    "Employee-custom_%", 
+                    "Stock Entry",
+                    "Sales Order Item", 
+                    "Sales Order", 
+                    "BOM Item", 
+                    "Material Request Item",
+                    "Production Plan",
+                    "Employee"
                 ]
+            ],
+            [
+                "fieldname",
+                "like",
+                "custom%"  # Lấy tất cả field có fieldname bắt đầu bằng "custom"
             ]
         ]
     },
