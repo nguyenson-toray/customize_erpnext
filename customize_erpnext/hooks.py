@@ -72,7 +72,9 @@ fixtures = [
     {
         "doctype": "Workspace",
         "filters": [
-            ["name", "in", ["Stock"]]
+            # Chỉ export một số workspace cụ thể
+            # ["name", "in", ["Stock"]] 
+            # Để trống filter nếu muốn export tất cả
         ]
     },
     # Property Setter
