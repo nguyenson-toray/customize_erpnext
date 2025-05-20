@@ -391,7 +391,7 @@
     "type": "Link"
    }
   ],
-  "modified": "2025-05-13 12:50:07.871519",
+  "modified": "2025-05-17 16:13:44.308611",
   "module": "Setup",
   "name": "Home",
   "number_cards": [],
@@ -1232,7 +1232,7 @@
     "type": "Link"
    }
   ],
-  "modified": "2025-05-13 12:50:08.063244",
+  "modified": "2025-05-17 16:13:44.582078",
   "module": "CRM",
   "name": "CRM",
   "number_cards": [],
@@ -2379,7 +2379,7 @@
     "type": "Link"
    }
   ],
-  "modified": "2025-05-13 12:50:08.112572",
+  "modified": "2025-05-17 16:13:44.629154",
   "module": "Selling",
   "name": "Selling",
   "number_cards": [],
@@ -3345,7 +3345,7 @@
     "type": "Link"
    }
   ],
-  "modified": "2025-05-13 12:50:08.167468",
+  "modified": "2025-05-17 16:13:44.686656",
   "module": "Buying",
   "name": "Buying",
   "number_cards": [],
@@ -3870,7 +3870,7 @@
     "type": "Link"
    }
   ],
-  "modified": "2025-05-13 12:50:08.986956",
+  "modified": "2025-05-17 16:13:45.517598",
   "module": "Website",
   "name": "Website",
   "number_cards": [],
@@ -4541,7 +4541,7 @@
     "type": "Link"
    }
   ],
-  "modified": "2025-05-13 12:50:09.024853",
+  "modified": "2025-05-17 16:13:45.555629",
   "module": "Automation",
   "name": "Tools",
   "number_cards": [],
@@ -4889,7 +4889,7 @@
     "type": "Link"
    }
   ],
-  "modified": "2025-05-13 12:50:08.951797",
+  "modified": "2025-05-17 16:13:45.481623",
   "module": "Core",
   "name": "Users",
   "number_cards": [],
@@ -5362,7 +5362,7 @@
     "type": "Link"
    }
   ],
-  "modified": "2025-05-13 12:50:09.111468",
+  "modified": "2025-05-17 16:13:45.643301",
   "module": "Integrations",
   "name": "Integrations",
   "number_cards": [],
@@ -6369,7 +6369,7 @@
     "type": "Link"
    }
   ],
-  "modified": "2025-05-13 12:50:08.218048",
+  "modified": "2025-05-17 16:13:44.738513",
   "module": "Accounts",
   "name": "Accounting",
   "number_cards": [
@@ -6910,7 +6910,7 @@
     "type": "Link"
    }
   ],
-  "modified": "2025-05-13 12:50:08.381937",
+  "modified": "2025-05-17 16:13:44.903500",
   "module": "Assets",
   "name": "Assets",
   "number_cards": [],
@@ -7320,7 +7320,7 @@
     "type": "Link"
    }
   ],
-  "modified": "2025-05-13 12:50:08.880186",
+  "modified": "2025-05-17 16:13:45.409265",
   "module": "Projects",
   "name": "Projects",
   "number_cards": [],
@@ -7738,7 +7738,7 @@
     "type": "Link"
    }
   ],
-  "modified": "2025-05-13 12:50:08.917060",
+  "modified": "2025-05-17 16:13:45.446283",
   "module": "Support",
   "name": "Support",
   "number_cards": [],
@@ -8491,7 +8491,7 @@
     "type": "Link"
    }
   ],
-  "modified": "2025-05-13 12:50:08.489749",
+  "modified": "2025-05-17 16:13:44.974629",
   "module": "HR",
   "name": "HR",
   "number_cards": [],
@@ -8500,7 +8500,7 @@
   "quick_lists": [],
   "restrict_to_domain": "",
   "roles": [],
-  "sequence_id": 15.0,
+  "sequence_id": 14.0,
   "shortcuts": [
    {
     "color": null,
@@ -9304,7 +9304,7 @@
     "type": "Link"
    }
   ],
-  "modified": "2025-05-13 12:50:08.538139",
+  "modified": "2025-05-17 16:13:45.026087",
   "module": "HR",
   "name": "Overview",
   "number_cards": [],
@@ -9313,7 +9313,7 @@
   "quick_lists": [],
   "restrict_to_domain": "",
   "roles": [],
-  "sequence_id": 16.0,
+  "sequence_id": 15.0,
   "shortcuts": [
    {
     "color": "Grey",
@@ -9617,7 +9617,7 @@
     "type": "Link"
    }
   ],
-  "modified": "2025-05-13 12:50:08.418333",
+  "modified": "2025-05-17 16:13:44.939697",
   "module": "Quality Management",
   "name": "Quality",
   "number_cards": [],
@@ -10269,7 +10269,7 @@
     "type": "Link"
    }
   ],
-  "modified": "2025-05-13 12:50:08.017581",
+  "modified": "2025-05-17 16:13:44.538621",
   "module": "Manufacturing",
   "name": "Manufacturing",
   "number_cards": [],
@@ -10565,7 +10565,7 @@
     "type": "Link"
    }
   ],
-  "modified": "2025-05-13 12:50:08.806866",
+  "modified": "2025-05-17 16:13:45.336457",
   "module": "Payroll",
   "name": "Payroll",
   "number_cards": [],
@@ -11023,7 +11023,7 @@
     "type": "Link"
    }
   ],
-  "modified": "2025-05-13 12:50:09.146369",
+  "modified": "2025-05-17 16:13:45.678196",
   "module": "ERPNext Integrations",
   "name": "ERPNext Integrations",
   "number_cards": [],
@@ -11806,7 +11806,7 @@
     "type": "Link"
    }
   ],
-  "modified": "2025-05-13 12:50:09.065929",
+  "modified": "2025-05-17 16:13:45.596917",
   "module": "Setup",
   "name": "ERPNext Settings",
   "number_cards": [],
@@ -12267,7 +12267,7 @@
     "type": "Link"
    }
   ],
-  "modified": "2025-05-13 12:50:08.739748",
+  "modified": "2025-05-17 16:13:45.265472",
   "module": "HR",
   "name": "Recruitment",
   "number_cards": [],
@@ -12894,7 +12894,7 @@
     "type": "Link"
    }
   ],
-  "modified": "2025-05-13 12:50:08.836166",
+  "modified": "2025-05-17 16:13:45.367328",
   "module": "HR",
   "name": "Employee Lifecycle",
   "number_cards": [],
@@ -13437,7 +13437,7 @@
     "type": "Link"
    }
   ],
-  "modified": "2025-05-13 12:50:08.701610",
+  "modified": "2025-05-17 16:13:45.227190",
   "module": "HR",
   "name": "Shift & Attendance",
   "number_cards": [],
@@ -13874,7 +13874,7 @@
     "type": "Link"
    }
   ],
-  "modified": "2025-05-13 12:50:08.585324",
+  "modified": "2025-05-17 16:13:45.070323",
   "module": "HR",
   "name": "Leaves",
   "number_cards": [],
@@ -13883,7 +13883,7 @@
   "quick_lists": [],
   "restrict_to_domain": null,
   "roles": [],
-  "sequence_id": 17.0,
+  "sequence_id": 16.0,
   "shortcuts": [
    {
     "color": "Orange",
@@ -14242,7 +14242,7 @@
     "type": "Link"
    }
   ],
-  "modified": "2025-05-13 12:50:08.665980",
+  "modified": "2025-05-17 16:13:45.192304",
   "module": "HR",
   "name": "Performance",
   "number_cards": [],
@@ -14779,16 +14779,16 @@
     "type": "Link"
    }
   ],
-  "modified": "2025-05-13 12:50:08.451662",
+  "modified": "2025-05-17 16:13:45.106828",
   "module": "HR",
   "name": "Expense Claims",
   "number_cards": [],
-  "parent_page": "",
+  "parent_page": "HR",
   "public": 1,
   "quick_lists": [],
   "restrict_to_domain": null,
   "roles": [],
-  "sequence_id": 14.0,
+  "sequence_id": 17.0,
   "shortcuts": [
    {
     "color": "Grey",
@@ -15532,7 +15532,7 @@
     "type": "Link"
    }
   ],
-  "modified": "2025-05-13 12:50:08.621626",
+  "modified": "2025-05-17 16:13:45.147622",
   "module": "Payroll",
   "name": "Salary Payout",
   "number_cards": [],
@@ -15845,7 +15845,7 @@
     "type": "Link"
    }
   ],
-  "modified": "2025-05-13 12:50:08.773839",
+  "modified": "2025-05-17 16:13:45.302655",
   "module": "Payroll",
   "name": "Tax & Benefits",
   "number_cards": [],
@@ -16194,7 +16194,7 @@
     "type": "Link"
    }
   ],
-  "modified": "2025-05-13 12:50:08.274302",
+  "modified": "2025-05-17 16:13:44.794981",
   "module": "Accounts",
   "name": "Payables",
   "number_cards": [],
@@ -16614,7 +16614,7 @@
     "type": "Link"
    }
   ],
-  "modified": "2025-05-13 12:50:08.308902",
+  "modified": "2025-05-17 16:13:44.830516",
   "module": "Accounts",
   "name": "Receivables",
   "number_cards": [],
@@ -17158,7 +17158,7 @@
     "type": "Link"
    }
   ],
-  "modified": "2025-05-13 12:50:08.346262",
+  "modified": "2025-05-17 16:13:44.868028",
   "module": "Accounts",
   "name": "Financial Reports",
   "number_cards": [],
@@ -18471,7 +18471,7 @@
     "type": "Link"
    }
   ],
-  "modified": "2025-05-13 12:50:07.953706",
+  "modified": "2025-05-17 16:13:44.465149",
   "module": "Stock",
   "name": "Stock",
   "number_cards": [
@@ -19214,7 +19214,7 @@
     "type": "Link"
    }
   ],
-  "modified": "2025-05-13 12:50:09.183897",
+  "modified": "2025-05-17 16:13:45.715650",
   "module": "Core",
   "name": "Build",
   "number_cards": [],
@@ -19394,7 +19394,7 @@
   "is_hidden": 0,
   "label": "Registration",
   "links": [],
-  "modified": "2025-05-14 14:38:25.624476",
+  "modified": "2025-05-17 16:13:44.428629",
   "module": "TIQN App",
   "name": "Registration",
   "number_cards": [],
@@ -19425,7 +19425,7 @@
    {
     "color": "Orange",
     "doc_view": "List",
-    "format": null,
+    "format": "{} Open",
     "icon": null,
     "kanban_board": null,
     "label": "Print Vegetarian Meal Registration Form",

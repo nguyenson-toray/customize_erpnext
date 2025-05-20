@@ -1,0 +1,97 @@
+{
+ "add_total_row": 0,
+ "add_translate_data": 0,
+ "columns": [
+  {
+   "fieldname": "item",
+   "fieldtype": "Data",
+   "label": "Item",
+   "width": 0
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Data",
+   "label": "Description",
+   "width": 0
+  },
+  {
+   "fieldname": "item_name_detail",
+   "fieldtype": "Data",
+   "label": "Item Name Detail",
+   "width": 0
+  },
+  {
+   "fieldname": "lost_percent",
+   "fieldtype": "Float",
+   "label": "Lost Percent",
+   "width": 0
+  },
+  {
+   "fieldname": "quantity_require",
+   "fieldtype": "Float",
+   "label": "Quantity Require",
+   "width": 0
+  },
+  {
+   "fieldname": "quantity_require_include_lost_percent",
+   "fieldtype": "Float",
+   "label": "Qty Require Include Lost Percent",
+   "width": 0
+  }
+ ],
+ "creation": "2025-05-20 09:04:37.401171",
+ "disabled": 0,
+ "docstatus": 0,
+ "doctype": "Report",
+ "filters": [
+  {
+   "fieldname": "sale_order",
+   "fieldtype": "Link",
+   "label": "Sale Order",
+   "mandatory": 0,
+   "wildcard_filter": 0
+  },
+  {
+   "fieldname": "item_template",
+   "fieldtype": "Select",
+   "label": "Item Template",
+   "mandatory": 1,
+   "wildcard_filter": 0
+  },
+  {
+   "fieldname": "color",
+   "fieldtype": "Select",
+   "label": "Color",
+   "mandatory": 0,
+   "wildcard_filter": 0
+  },
+  {
+   "fieldname": "quantity",
+   "fieldtype": "Int",
+   "label": "Quantity",
+   "mandatory": 0,
+   "wildcard_filter": 0
+  }
+ ],
+ "idx": 0,
+ "is_standard": "Yes",
+ "letterhead": null,
+ "modified": "2025-05-20 09:09:06.367596",
+ "modified_by": "Administrator",
+ "module": "Customize Erpnext",
+ "name": "BOM Balance Sheet",
+ "owner": "Administrator",
+ "prepared_report": 0,
+ "ref_doctype": "BOM",
+ "report_name": "BOM Balance Sheet",
+ "report_type": "Script Report",
+ "roles": [
+  {
+   "role": "Manufacturing Manager"
+  },
+  {
+   "role": "Manufacturing User"
+  }
+ ],
+ "timeout": 0
+}
