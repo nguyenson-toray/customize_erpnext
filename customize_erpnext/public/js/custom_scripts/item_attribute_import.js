@@ -46,32 +46,71 @@ function showImportDialog(frm) {
     ],
     primary_action_label: __('Import'),
     primary_action: function () {
-      const values = d.get_value('values').split('\n').filter(v => v.trim() !== '');
-      if (values.length === 0) {
+      // Lấy giá trị đã nhập và loại bỏ dòng trống
+      const rawValues = d.get_value('values').split('\n');
+      const allValues = rawValues.filter(v => v.trim() !== '');
+
+      if (allValues.length === 0) {
         frappe.msgprint(__('No values to import.'));
         return;
       }
+
+      // Xử lý trùng lặp trong giá trị đã nhập
+      const uniqueValues = [];
+      const internalDuplicates = [];
+      const valueSet = new Set();
+
+      // Tìm giá trị trùng lặp trong input
+      allValues.forEach(v => {
+        const trimmedValue = v.trim();
+        const lowercaseValue = trimmedValue.toLowerCase();
+
+        if (valueSet.has(lowercaseValue)) {
+          internalDuplicates.push(trimmedValue);
+        } else {
+          valueSet.add(lowercaseValue);
+          uniqueValues.push(trimmedValue);
+        }
+      });
+
       d.hide();
 
-      // Kiểm tra giá trị trùng lặp trước
+      // Kiểm tra giá trị trùng lặp với giá trị hiện có
       const existingValues = frm.doc.item_attribute_values || [];
       const existingValueSet = new Set(existingValues.map(v => v.attribute_value.toLowerCase()));
-      const duplicates = values.filter(v => existingValueSet.has(v.trim().toLowerCase()));
-      const newValues = values.filter(v => !existingValueSet.has(v.trim().toLowerCase()));
+      const duplicatesWithExisting = uniqueValues.filter(v => existingValueSet.has(v.toLowerCase()));
+      const newValues = uniqueValues.filter(v => !existingValueSet.has(v.toLowerCase()));
 
-      if (duplicates.length > 0) {
-        // Thông báo về giá trị trùng lặp
-        frappe.show_alert({
-          message: __(`${duplicates.length} duplicate values will be skipped.`),
-          indicator: 'orange'
-        }, 5);
+      // Hiển thị thông báo về các giá trị trùng lặp
+      let duplicateMessage = '';
+
+      if (internalDuplicates.length > 0) {
+        duplicateMessage += `<p>${internalDuplicates.length} duplicate values within your input were removed.</p>`;
+        if (internalDuplicates.length <= 10) {
+          duplicateMessage += `<p>Duplicates: ${internalDuplicates.join(', ')}</p>`;
+        }
+      }
+
+      if (duplicatesWithExisting.length > 0) {
+        duplicateMessage += `<p>${duplicatesWithExisting.length} values already exist in the attribute and will be skipped.</p>`;
+        if (duplicatesWithExisting.length <= 10) {
+          duplicateMessage += `<p>Existing: ${duplicatesWithExisting.join(', ')}</p>`;
+        }
+      }
+
+      if (duplicateMessage) {
+        frappe.msgprint({
+          title: __('Duplicate Values'),
+          indicator: 'orange',
+          message: duplicateMessage
+        });
       }
 
       if (newValues.length === 0) {
         frappe.msgprint({
           title: __('No New Values'),
           indicator: 'orange',
-          message: __('All values already exist in the attribute.')
+          message: __('No unique values to import. All values either already exist or are duplicates.')
         });
         return;
       }
