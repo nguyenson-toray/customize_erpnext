@@ -178,6 +178,7 @@ data_import_before_import = [
 # before_install = "customize_erpnext.install.before_install"
 # after_install = "customize_erpnext.install.after_install"
 
+after_install = "customize_erpnext.setup.remove_depends_on"
 # Uninstallation
 # ------------
 
