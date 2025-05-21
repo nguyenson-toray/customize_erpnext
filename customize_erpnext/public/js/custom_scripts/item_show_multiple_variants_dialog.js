@@ -31,15 +31,24 @@ erpnext.item.show_multiple_variants_dialog = function (frm) {
                 fieldname: `${name}_search`,
                 onchange: function () {
                     let search_value = this.get_value().toLowerCase();
-                    let checkboxes = $(this.wrapper).closest('.form-column').find('.checkbox');
+                    let column = $(this.wrapper).closest('.form-column');
+                    let checkboxes = column.find('.unchecked-checkboxes .checkbox');
+
+                    let visibleCount = 0;
                     checkboxes.each(function () {
                         let label = $(this).find('label').text().toLowerCase();
                         if (label.includes(search_value)) {
                             $(this).show();
+                            visibleCount++;
                         } else {
                             $(this).hide();
                         }
                     });
+
+                    // Update available values count after search
+                    let attributeName = column.find('.column-label').text().trim();
+                    let checkboxContainers = column.find(`.checkbox-containers[data-attribute="${attributeName}"]`);
+                    checkboxContainers.find('.available-values-count').text(`(${visibleCount})`);
                 }
             });
 
@@ -97,6 +106,9 @@ erpnext.item.show_multiple_variants_dialog = function (frm) {
                                 [attribute_name, not_found_values.join(', '), attribute_link])
                         });
                     }
+
+                    // Update counts after setting values
+                    updateValueCounts($(this.wrapper).closest('.form-column'));
                 }
             });
 
@@ -107,13 +119,13 @@ erpnext.item.show_multiple_variants_dialog = function (frm) {
                 options: `<div class="checkbox-containers" data-attribute="${name}">
                     <div class="checked-container mb-2" style="display:none;">
                         <div class="checked-header font-weight-bold text-success" style="padding: 5px 0; margin-bottom: 5px; border-bottom: 1px solid #ccc;">
-                            ${__('Selected Values')}
+                            ${__('Selected Values')} <span class="selected-values-count">(0)</span>
                         </div>
                         <div class="checked-checkboxes"></div>
                     </div>
                     <div class="unchecked-container">
                         <div class="unchecked-header font-weight-bold" style="padding: 5px 0; margin-bottom: 5px; border-bottom: 1px solid #ccc;">
-                            ${__('Available Values')}
+                            ${__('Available Values')} <span class="available-values-count">(${attr_dict[name].length})</span>
                         </div>
                         <div class="unchecked-checkboxes"></div>
                     </div>
@@ -131,9 +143,13 @@ erpnext.item.show_multiple_variants_dialog = function (frm) {
                     onchange: function () {
                         let selected_attributes = get_selected_attributes();
                         let lengths = [];
+                        let total_selected = 0;
+
                         Object.keys(selected_attributes).map(key => {
                             lengths.push(selected_attributes[key].length);
+                            total_selected += selected_attributes[key].length;
                         });
+
                         if (lengths.includes(0)) {
                             me.multiple_variant_dialog.get_primary_btn().html(__('Create Variants'));
                             me.multiple_variant_dialog.disable_primary_action();
@@ -164,6 +180,23 @@ erpnext.item.show_multiple_variants_dialog = function (frm) {
         return fields;
     }
 
+    // Function to update the count of checked and unchecked values
+    function updateValueCounts(column) {
+        let attributeName = column.find('.column-label').text().trim();
+        if (!attributeName) return;
+
+        let checkboxContainers = column.find(`.checkbox-containers[data-attribute="${attributeName}"]`);
+        if (checkboxContainers.length === 0) return;
+
+        // Count the checkboxes
+        let checkedCount = column.find('.checked-checkboxes .checkbox').length;
+        let visibleUncheckedCount = column.find('.unchecked-checkboxes .checkbox:visible').length;
+
+        // Update the count displays
+        checkboxContainers.find('.selected-values-count').text(`(${checkedCount})`);
+        checkboxContainers.find('.available-values-count').text(`(${visibleUncheckedCount})`);
+    }
+
     // Function to move checkbox to appropriate group (checked or unchecked)
     function moveCheckboxToGroup(checkboxWrapper, attributeName, isChecked) {
         let column = $(checkboxWrapper).closest('.form-column');
@@ -181,11 +214,153 @@ erpnext.item.show_multiple_variants_dialog = function (frm) {
                 column.find('.checked-container').hide();
             }
         }
+
+        // Update counts after moving
+        updateValueCounts(column);
+    }
+
+    // Hàm xử lý tạo variant theo batch để tránh timeout
+    function create_variants_in_batches(selected_attributes, use_template_image) {
+        const batch_size = 10; // Mặc định batch size là 10
+
+        // Tạo danh sách các tổ hợp thuộc tính
+        let attribute_names = Object.keys(selected_attributes);
+        let attribute_values = attribute_names.map(name => selected_attributes[name]);
+
+        // Tổng số biến thể cần tạo
+        let total_variants = attribute_values.reduce((a, b) => a * b.length, 1);
+        let current_batch_index = 0;
+        let variants_created = 0;
+        let progress_dialog;
+
+        // Tạo progress dialog để hiển thị tiến trình
+        function show_progress_dialog() {
+            progress_dialog = new frappe.ui.Dialog({
+                title: __('Creating Variants'),
+                fields: [
+                    {
+                        fieldtype: 'HTML',
+                        fieldname: 'progress_area',
+                        options: `
+                            <div class="progress" style="height: 20px;">
+                                <div class="progress-bar" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
+                            </div>
+                            <p class="text-muted mt-2 mb-0">${__('Creating variants... Please do not close this dialog.')}</p>
+                            <p class="text-muted mb-2"><span class="variants-created">0</span> ${__('of')} ${total_variants} ${__('variants created')}</p>
+                        `
+                    }
+                ]
+            });
+            progress_dialog.show();
+
+            // Vô hiệu hóa nút đóng để ngăn người dùng đóng dialog khi đang xử lý
+            progress_dialog.$wrapper.find('.modal-header .btn-modal-close').addClass('d-none');
+        }
+
+        // Cập nhật tiến trình
+        function update_progress(created_count) {
+            let percent = Math.floor((created_count / total_variants) * 100);
+            progress_dialog.$wrapper.find('.progress-bar').css('width', percent + '%').attr('aria-valuenow', percent).text(percent + '%');
+            progress_dialog.$wrapper.find('.variants-created').text(created_count);
+        }
+
+        // Tạo các tổ hợp theo Cartesian product
+        function get_combinations(arrays, current = [], index = 0, results = []) {
+            if (index === arrays.length) {
+                results.push([...current]);
+                return;
+            }
+
+            for (let i = 0; i < arrays[index].length; i++) {
+                current[index] = arrays[index][i];
+                get_combinations(arrays, current, index + 1, results);
+            }
+
+            return results;
+        }
+
+        // Lấy tất cả các tổ hợp thuộc tính
+        let all_combinations = get_combinations(attribute_values);
+
+        // Chia thành các batch nhỏ hơn
+        let batches = [];
+        for (let i = 0; i < all_combinations.length; i += batch_size) {
+            batches.push(all_combinations.slice(i, i + batch_size));
+        }
+
+        // Hàm xử lý từng batch
+        function process_batch() {
+            if (current_batch_index >= batches.length) {
+                // Hoàn thành tất cả các batch
+                setTimeout(() => {
+                    progress_dialog.hide();
+                    frappe.show_alert({
+                        message: __("{0} variants created successfully.", [variants_created]),
+                        indicator: 'green'
+                    });
+                }, 1000);
+                return;
+            }
+
+            let current_batch = batches[current_batch_index];
+            let batch_attributes = {};
+
+            // Chuyển đổi định dạng cho batch hiện tại
+            attribute_names.forEach((attr_name, attr_index) => {
+                batch_attributes[attr_name] = [];
+                current_batch.forEach(combination => {
+                    if (!batch_attributes[attr_name].includes(combination[attr_index])) {
+                        batch_attributes[attr_name].push(combination[attr_index]);
+                    }
+                });
+            });
+
+            // Gọi API để tạo biến thể cho batch hiện tại
+            frappe.call({
+                method: 'erpnext.controllers.item_variant.enqueue_multiple_variant_creation',
+                args: {
+                    item: frm.doc.name,
+                    args: batch_attributes,
+                    use_template_image: use_template_image
+                },
+                callback: function (r) {
+                    let created_count = 0;
+                    if (r.message === 'queued') {
+                        // Nếu job được xếp hàng đợi, ước tính số biến thể được tạo
+                        created_count = current_batch.length;
+                    } else if (typeof r.message === 'number') {
+                        created_count = r.message;
+                    }
+
+                    variants_created += created_count;
+                    update_progress(variants_created);
+
+                    // Xử lý batch tiếp theo
+                    current_batch_index++;
+                    setTimeout(process_batch, 1000); // Đợi 1 giây giữa các batch để tránh tải quá mức
+                },
+                error: function (err) {
+                    frappe.msgprint({
+                        title: __('Error Creating Variants'),
+                        indicator: 'red',
+                        message: __('An error occurred processing batch {0}. {1} variants were created before the error.',
+                            [current_batch_index + 1, variants_created])
+                    });
+
+                    console.error("Variant creation error:", err);
+                    progress_dialog.hide();
+                }
+            });
+        }
+
+        // Bắt đầu xử lý
+        show_progress_dialog();
+        process_batch();
     }
 
     function make_and_show_dialog(fields) {
         me.multiple_variant_dialog = new frappe.ui.Dialog({
-            title: __('Select Attribute Values'),
+            title: __('Select Attribute Values. Least one value from each of the attributes.'),
             fields: [
                 frm.doc.image ? {
                     fieldtype: 'Check',
@@ -193,13 +368,14 @@ erpnext.item.show_multiple_variants_dialog = function (frm) {
                     fieldname: 'use_template_image',
                     default: 0
                 } : null,
-                {
-                    fieldtype: 'HTML',
-                    fieldname: 'help',
-                    options: `<label class="control-label">
-                        ${__('Select at least one value from each of the attributes.')}
-                    </label>`,
-                }
+                // {
+                //     fieldtype: 'HTML',
+                //     fieldname: 'help',
+                //     options: `<label class="control-label">
+                //         ${__('Select at least one value from each of the attributes.')}
+                //     </label>`,
+                // },
+
             ].concat(fields).filter(Boolean)
         });
 
@@ -214,14 +390,29 @@ erpnext.item.show_multiple_variants_dialog = function (frm) {
         });
 
         me.multiple_variant_dialog.$wrapper.find('textarea').css({
-            'height': '140px',
-            'min-height': '140px',
-            'max-height': '140px',
+            'height': '100px',
+            'min-height': '100px',
+            'max-height': '100px',
             'overflow-y': 'auto'
         });
 
-        // For each column, reorganize checkboxes
+
+
+        // Khởi tạo các thống kê lựa chọn khi dialog được mở
         setTimeout(function () {
+            // Update selection stats khi dialog mở
+            let selected_attributes = get_selected_attributes();
+            let lengths = [];
+
+            Object.keys(selected_attributes).map(key => {
+                lengths.push(selected_attributes[key].length);
+            });
+
+            if (!lengths.includes(0)) {
+                let no_of_combinations = lengths.reduce((a, b) => a * b, 1);
+            }
+
+            // Sắp xếp lại các checkbox
             me.multiple_variant_dialog.$wrapper.find('.form-column').each(function () {
                 let column = $(this);
                 let attributeName = column.find('.column-label').text().trim();
@@ -233,6 +424,9 @@ erpnext.item.show_multiple_variants_dialog = function (frm) {
                 let checkedContainer = checkboxContainers.find('.checked-checkboxes');
                 let uncheckedContainer = checkboxContainers.find('.unchecked-checkboxes');
 
+                // Count the checkboxes
+                let checkedCount = 0;
+
                 // Move all checkboxes to the unchecked container initially
                 column.find('.frappe-control[data-fieldtype="Check"]').each(function () {
                     let checkbox = $(this);
@@ -241,10 +435,14 @@ erpnext.item.show_multiple_variants_dialog = function (frm) {
                     if (isChecked) {
                         checkedContainer.append(checkbox);
                         checkboxContainers.find('.checked-container').show();
+                        checkedCount++;
                     } else {
                         uncheckedContainer.append(checkbox);
                     }
                 });
+
+                // Update counts after organizing
+                updateValueCounts(column);
             });
         }, 100);
 
@@ -259,28 +457,22 @@ erpnext.item.show_multiple_variants_dialog = function (frm) {
                 return;
             }
 
-            me.multiple_variant_dialog.hide();
-            frappe.call({
-                method: 'erpnext.controllers.item_variant.enqueue_multiple_variant_creation',
-                args: {
-                    item: frm.doc.name,
-                    args: selected_attributes,
-                    use_template_image: use_template_image
-                },
-                callback: function (r) {
-                    if (r.message === 'queued') {
-                        frappe.show_alert({
-                            message: __('Variant creation has been queued.'),
-                            indicator: 'orange'
-                        });
-                    } else {
-                        frappe.show_alert({
-                            message: __("{0} variants created.", [r.message]),
-                            indicator: 'green'
-                        });
+            // Tính toán tổng số biến thể sẽ được tạo
+            let total_variants = Object.values(selected_attributes).reduce((total, values) => total * values.length, 1);
+
+            // Hiển thị thông báo xác nhận nếu số lượng biến thể lớn
+            if (total_variants > 50) {
+                frappe.confirm(
+                    __('You are about to create {0} variants. This may take some time. Do you want to continue?', [total_variants]),
+                    () => {
+                        me.multiple_variant_dialog.hide();
+                        create_variants_in_batches(selected_attributes, use_template_image);
                     }
-                }
-            });
+                );
+            } else {
+                me.multiple_variant_dialog.hide();
+                create_variants_in_batches(selected_attributes, use_template_image);
+            }
         });
 
         $($(me.multiple_variant_dialog.$wrapper.find('.form-column')).find('.frappe-control')).css('margin-bottom', '0px');
