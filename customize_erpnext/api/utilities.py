@@ -30,3 +30,23 @@ def get_role_profile(email=None):
     except Exception as e:
         frappe.log_error(f"Error in get_role_profile: {str(e)}")
         return None
+    
+# Get color options for the selected item template 
+
+@frappe.whitelist()
+def get_colors_for_template(item_template):
+    """Get all colors for an item template"""
+    colors = frappe.db.sql("""
+        SELECT DISTINCT attribute_value 
+        FROM `tabItem Variant Attribute` 
+        WHERE attribute = 'Color' 
+        AND parent IN (
+            SELECT name 
+            FROM `tabItem` 
+            WHERE variant_of = %s
+        )
+    """, item_template, as_list=1)
+    
+    return [color[0] for color in colors] if colors else []
+
+

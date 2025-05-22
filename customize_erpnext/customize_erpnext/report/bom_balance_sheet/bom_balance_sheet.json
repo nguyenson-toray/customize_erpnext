@@ -3,6 +3,12 @@
  "add_translate_data": 0,
  "columns": [
   {
+   "fieldname": "item_group",
+   "fieldtype": "Link",
+   "label": "Item Group",
+   "width": 0
+  },
+  {
    "fieldname": "item",
    "fieldtype": "Data",
    "label": "Item",
@@ -18,6 +24,18 @@
    "fieldname": "item_name_detail",
    "fieldtype": "Data",
    "label": "Item Name Detail",
+   "width": 0
+  },
+  {
+   "fieldname": "color",
+   "fieldtype": "Data",
+   "label": "Color",
+   "width": 0
+  },
+  {
+   "fieldname": "size",
+   "fieldtype": "Data",
+   "label": "Size",
    "width": 0
   },
   {
@@ -37,6 +55,12 @@
    "fieldtype": "Float",
    "label": "Qty Require Include Lost Percent",
    "width": 0
+  },
+  {
+   "fieldname": "quantity_available_in_stock",
+   "fieldtype": "Float",
+   "label": "Qty Available in Stock",
+   "width": 0
   }
  ],
  "creation": "2025-05-20 09:04:37.401171",
@@ -48,7 +72,7 @@
    "fieldname": "sale_order",
    "fieldtype": "Link",
    "label": "Sale Order",
-   "mandatory": 0,
+   "mandatory": 1,
    "wildcard_filter": 0
   },
   {
@@ -66,9 +90,10 @@
    "wildcard_filter": 0
   },
   {
-   "fieldname": "quantity",
-   "fieldtype": "Int",
-   "label": "Quantity",
+   "default": "1",
+   "fieldname": "with_percent_lost",
+   "fieldtype": "Check",
+   "label": "Compare Qty Including Lost Percent",
    "mandatory": 0,
    "wildcard_filter": 0
   }
@@ -76,7 +101,7 @@
  "idx": 0,
  "is_standard": "Yes",
  "letterhead": null,
- "modified": "2025-05-20 09:09:06.367596",
+ "modified": "2025-05-22 15:12:33.606950",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "BOM Balance Sheet",
