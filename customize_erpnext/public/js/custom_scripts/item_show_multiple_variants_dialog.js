@@ -1,4 +1,9 @@
 // Ghi đè hàm show_multiple_variants_dialog trong erpnext.item
+// Cải tiến: 
+// - Thêm nút "Update Attribute Values" để refresh danh sách attributes
+// - Cố định thứ tự attributes: Color, Size, Brand, Season, Info
+// - Tổ chức checkboxes thành Selected/Available groups
+// - Thêm search và bulk input cho mỗi attribute
 if (!erpnext.item._original_show_multiple_variants_dialog) {
     erpnext.item._original_show_multiple_variants_dialog = erpnext.item.show_multiple_variants_dialog;
 }
@@ -9,9 +14,31 @@ erpnext.item.show_multiple_variants_dialog = function (frm) {
     let promises = [];
     let attr_val_fields = {};
 
+    // Định nghĩa thứ tự cố định cho attributes
+    // Có thể thay đổi thứ tự này theo nhu cầu của bạn
+    const FIXED_ATTRIBUTE_ORDER = ['Color', 'Size', 'Brand', 'Season', 'Info'];
+
     function make_fields_from_attribute_values(attr_dict) {
         let fields = [];
-        const sorted_attributes = Object.keys(attr_dict);
+
+        // Lấy tất cả attributes và sắp xếp theo thứ tự cố định
+        let all_attributes = Object.keys(attr_dict);
+        let sorted_attributes = [];
+
+        // Thêm attributes theo thứ tự cố định trước
+        FIXED_ATTRIBUTE_ORDER.forEach(attr => {
+            if (all_attributes.includes(attr)) {
+                sorted_attributes.push(attr);
+            }
+        });
+
+        // Thêm các attributes còn lại (nếu có) không nằm trong FIXED_ATTRIBUTE_ORDER
+        all_attributes.forEach(attr => {
+            if (!sorted_attributes.includes(attr)) {
+                sorted_attributes.push(attr);
+            }
+        });
+
         const cols_per_section = 5;
 
         sorted_attributes.forEach((name, i) => {
@@ -223,9 +250,26 @@ erpnext.item.show_multiple_variants_dialog = function (frm) {
     function create_variants_in_batches(selected_attributes, use_template_image) {
         const batch_size = 10; // Mặc định batch size là 10
 
-        // Tạo danh sách các tổ hợp thuộc tính
-        let attribute_names = Object.keys(selected_attributes);
-        let attribute_values = attribute_names.map(name => selected_attributes[name]);
+        // Tạo danh sách các tổ hợp thuộc tính theo thứ tự cố định
+        let ordered_attributes = {};
+        let attribute_names = [];
+
+        FIXED_ATTRIBUTE_ORDER.forEach(attr => {
+            if (selected_attributes[attr]) {
+                ordered_attributes[attr] = selected_attributes[attr];
+                attribute_names.push(attr);
+            }
+        });
+
+        // Thêm các attributes còn lại
+        Object.keys(selected_attributes).forEach(attr => {
+            if (!ordered_attributes[attr]) {
+                ordered_attributes[attr] = selected_attributes[attr];
+                attribute_names.push(attr);
+            }
+        });
+
+        let attribute_values = attribute_names.map(name => ordered_attributes[name]);
 
         // Tổng số biến thể cần tạo
         let total_variants = attribute_values.reduce((a, b) => a * b.length, 1);
@@ -305,7 +349,7 @@ erpnext.item.show_multiple_variants_dialog = function (frm) {
             let current_batch = batches[current_batch_index];
             let batch_attributes = {};
 
-            // Chuyển đổi định dạng cho batch hiện tại
+            // Chuyển đổi định dạng cho batch hiện tại theo thứ tự cố định
             attribute_names.forEach((attr_name, attr_index) => {
                 batch_attributes[attr_name] = [];
                 current_batch.forEach(combination => {
@@ -358,6 +402,162 @@ erpnext.item.show_multiple_variants_dialog = function (frm) {
         process_batch();
     }
 
+    // Hàm load attribute values
+    function load_attribute_values(callback) {
+        let promises = [];
+        let new_attr_val_fields = {};
+
+        frm.doc.attributes.forEach(function (d) {
+            if (!d.disabled) {
+                let p = new Promise(resolve => {
+                    if (!d.numeric_values) {
+                        frappe.call({
+                            method: 'frappe.client.get_list',
+                            args: {
+                                doctype: 'Item Attribute Value',
+                                filters: [
+                                    ['parent', '=', d.attribute]
+                                ],
+                                fields: ['attribute_value'],
+                                limit_page_length: 0,
+                                parent: 'Item Attribute',
+                                order_by: 'idx'
+                            }
+                        }).then((r) => {
+                            if (r.message) {
+                                new_attr_val_fields[d.attribute] = r.message.map(function (d) { return d.attribute_value; });
+                                resolve();
+                            }
+                        });
+                    } else {
+                        frappe.call({
+                            method: 'frappe.client.get',
+                            args: {
+                                doctype: 'Item Attribute',
+                                name: d.attribute
+                            }
+                        }).then((r) => {
+                            if (r.message) {
+                                const from = r.message.from_range;
+                                const to = r.message.to_range;
+                                const increment = r.message.increment || 1;
+
+                                let values = [];
+                                for (let i = from; i <= to; i += increment) {
+                                    values.push(i.toString());
+                                }
+                                new_attr_val_fields[d.attribute] = values;
+                                resolve();
+                            }
+                        });
+                    }
+                });
+
+                promises.push(p);
+            }
+        });
+
+        Promise.all(promises).then(() => {
+            // Sắp xếp lại theo thứ tự cố định
+            let ordered_attr_val_fields = {};
+
+            // Thêm attributes theo thứ tự cố định
+            FIXED_ATTRIBUTE_ORDER.forEach(attr => {
+                if (new_attr_val_fields[attr]) {
+                    ordered_attr_val_fields[attr] = new_attr_val_fields[attr];
+                }
+            });
+
+            // Thêm các attributes còn lại
+            Object.keys(new_attr_val_fields).forEach(attr => {
+                if (!ordered_attr_val_fields[attr]) {
+                    ordered_attr_val_fields[attr] = new_attr_val_fields[attr];
+                }
+            });
+
+            attr_val_fields = ordered_attr_val_fields;
+            if (callback) callback();
+        });
+    }
+
+    // Hàm refresh dialog
+    function refresh_dialog_content() {
+        // Lưu lại các giá trị đã chọn
+        let selected_values = get_selected_attributes();
+        let manual_values = {};
+        let search_values = {};
+        let use_template_image = me.multiple_variant_dialog.get_value('use_template_image');
+
+        // Lưu lại giá trị trong các textarea và search input
+        me.multiple_variant_dialog.$wrapper.find('.form-column').each(function () {
+            let column = $(this);
+            let attribute_name = column.find('.column-label').text().trim();
+            if (attribute_name) {
+                let manual_field = me.multiple_variant_dialog.get_field(`${attribute_name}_manual`);
+                let search_field = me.multiple_variant_dialog.get_field(`${attribute_name}_search`);
+
+                if (manual_field) {
+                    manual_values[attribute_name] = manual_field.get_value();
+                }
+                if (search_field) {
+                    search_values[attribute_name] = search_field.get_value();
+                }
+            }
+        });
+
+        // Hiển thị loading
+        frappe.show_alert(__('Updating attribute values...'), 3);
+
+        // Load lại attribute values
+        load_attribute_values(() => {
+            // Đóng dialog cũ
+            me.multiple_variant_dialog.hide();
+
+            // Tạo lại dialog mới
+            let fields = make_fields_from_attribute_values(attr_val_fields);
+            make_and_show_dialog(fields);
+
+            // Khôi phục các giá trị sau khi dialog mới được tạo
+            setTimeout(() => {
+                // Restore use_template_image
+                if (frm.doc.image && use_template_image) {
+                    me.multiple_variant_dialog.set_value('use_template_image', use_template_image);
+                }
+
+                // Restore manual values và search values
+                Object.keys(manual_values).forEach(attr => {
+                    let field = me.multiple_variant_dialog.get_field(`${attr}_manual`);
+                    if (field && manual_values[attr]) {
+                        field.set_value(manual_values[attr]);
+                    }
+                });
+
+                Object.keys(search_values).forEach(attr => {
+                    let field = me.multiple_variant_dialog.get_field(`${attr}_search`);
+                    if (field && search_values[attr]) {
+                        field.set_value(search_values[attr]);
+                        field.$input.trigger('change');
+                    }
+                });
+
+                // Restore selected values
+                Object.keys(selected_values).forEach(attr => {
+                    selected_values[attr].forEach(value => {
+                        let checkbox = me.multiple_variant_dialog.get_field(value);
+                        if (checkbox) {
+                            checkbox.set_value(1);
+                        }
+                    });
+                });
+
+                frappe.show_alert({
+                    message: __('Attribute values updated successfully'),
+                    indicator: 'green'
+                });
+            }, 200);
+        });
+    }
+
     function make_and_show_dialog(fields) {
         me.multiple_variant_dialog = new frappe.ui.Dialog({
             title: __('Select Attribute Values. Least one value from each of the attributes.'),
@@ -368,14 +568,6 @@ erpnext.item.show_multiple_variants_dialog = function (frm) {
                     fieldname: 'use_template_image',
                     default: 0
                 } : null,
-                // {
-                //     fieldtype: 'HTML',
-                //     fieldname: 'help',
-                //     options: `<label class="control-label">
-                //         ${__('Select at least one value from each of the attributes.')}
-                //     </label>`,
-                // },
-
             ].concat(fields).filter(Boolean)
         });
 
@@ -396,7 +588,24 @@ erpnext.item.show_multiple_variants_dialog = function (frm) {
             'overflow-y': 'auto'
         });
 
+        // Thêm nút Update Attribute Values vào footer
+        setTimeout(() => {
+            let footer = me.multiple_variant_dialog.$wrapper.find('.modal-footer');
+            let update_btn = $(`<button class="btn btn-default btn-sm btn-update-attributes">
+                ${__('Update Attribute Values')}
+            </button>`);
 
+            update_btn.css({
+                'margin-right': '5px'
+            });
+
+            update_btn.on('click', () => {
+                refresh_dialog_content();
+            });
+
+            // Thêm button vào trước nút primary
+            footer.prepend(update_btn);
+        }, 100);
 
         // Khởi tạo các thống kê lựa chọn khi dialog được mở
         setTimeout(function () {
@@ -484,6 +693,9 @@ erpnext.item.show_multiple_variants_dialog = function (frm) {
 
     function get_selected_attributes() {
         let selected_attributes = {};
+
+        // Thu thập tất cả attributes
+        let temp_attributes = {};
         me.multiple_variant_dialog.$wrapper.find('.form-column').each((i, col) => {
             let column_label = $(col).find('.column-label');
             if (column_label.length === 0) return;
@@ -491,69 +703,34 @@ erpnext.item.show_multiple_variants_dialog = function (frm) {
             let attribute_name = column_label.html().trim();
             if (!attribute_name) return;
 
-            selected_attributes[attribute_name] = [];
+            temp_attributes[attribute_name] = [];
             let checked_opts = $(col).find('.checkbox input');
             checked_opts.each((i, opt) => {
                 if ($(opt).is(':checked')) {
-                    selected_attributes[attribute_name].push($(opt).attr('data-fieldname') || $(opt).next('label').text().trim());
+                    temp_attributes[attribute_name].push($(opt).attr('data-fieldname') || $(opt).next('label').text().trim());
                 }
             });
+        });
+
+        // Sắp xếp lại theo thứ tự cố định
+        FIXED_ATTRIBUTE_ORDER.forEach(attr => {
+            if (temp_attributes[attr]) {
+                selected_attributes[attr] = temp_attributes[attr];
+            }
+        });
+
+        // Thêm các attributes còn lại không nằm trong FIXED_ATTRIBUTE_ORDER
+        Object.keys(temp_attributes).forEach(attr => {
+            if (!selected_attributes[attr]) {
+                selected_attributes[attr] = temp_attributes[attr];
+            }
         });
 
         return selected_attributes;
     }
 
-    frm.doc.attributes.forEach(function (d) {
-        if (!d.disabled) {
-            let p = new Promise(resolve => {
-                if (!d.numeric_values) {
-                    frappe.call({
-                        method: 'frappe.client.get_list',
-                        args: {
-                            doctype: 'Item Attribute Value',
-                            filters: [
-                                ['parent', '=', d.attribute]
-                            ],
-                            fields: ['attribute_value'],
-                            limit_page_length: 0,
-                            parent: 'Item Attribute',
-                            order_by: 'idx'
-                        }
-                    }).then((r) => {
-                        if (r.message) {
-                            attr_val_fields[d.attribute] = r.message.map(function (d) { return d.attribute_value; });
-                            resolve();
-                        }
-                    });
-                } else {
-                    frappe.call({
-                        method: 'frappe.client.get',
-                        args: {
-                            doctype: 'Item Attribute',
-                            name: d.attribute
-                        }
-                    }).then((r) => {
-                        if (r.message) {
-                            const from = r.message.from_range;
-                            const to = r.message.to_range;
-                            const increment = r.message.increment || 1;
-
-                            let values = [];
-                            for (let i = from; i <= to; i += increment) {
-                                values.push(i.toString());
-                            }
-                            attr_val_fields[d.attribute] = values;
-                            resolve();
-                        }
-                    });
-                }
-            });
-
-            promises.push(p);
-        }
-    }, this);
-
-    Promise.all(promises).then(() => {
+    // Load attribute values lần đầu
+    load_attribute_values(() => {
         let fields = make_fields_from_attribute_values(attr_val_fields);
         make_and_show_dialog(fields);
     });
