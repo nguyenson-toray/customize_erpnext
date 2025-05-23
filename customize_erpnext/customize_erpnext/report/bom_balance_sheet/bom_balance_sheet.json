@@ -1,5 +1,5 @@
 {
- "add_total_row": 0,
+ "add_total_row": 1,
  "add_translate_data": 0,
  "columns": [
   {
@@ -79,7 +79,7 @@
    "fieldname": "item_template",
    "fieldtype": "Select",
    "label": "Item Template",
-   "mandatory": 1,
+   "mandatory": 0,
    "wildcard_filter": 0
   },
   {
@@ -101,7 +101,7 @@
  "idx": 0,
  "is_standard": "Yes",
  "letterhead": null,
- "modified": "2025-05-22 15:12:33.606950",
+ "modified": "2025-05-23 11:01:03.836270",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "BOM Balance Sheet",

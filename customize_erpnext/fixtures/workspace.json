@@ -9753,7 +9753,7 @@
  },
  {
   "charts": [],
-  "content": "[{\"id\":\"csBCiDglCE\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Your Shortcuts</b></span>\",\"col\":12}},{\"id\":\"YHCQG3wAGv\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"BOM Creator\",\"col\":3}},{\"id\":\"xit0dg7KvY\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"BOM\",\"col\":3}},{\"id\":\"LRhGV9GAov\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Production Plan\",\"col\":3}},{\"id\":\"69KKosI6Hg\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Work Order\",\"col\":3}},{\"id\":\"PwndxuIpB3\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Job Card\",\"col\":3}},{\"id\":\"Ubj6zXcmIQ\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Plant Floor\",\"col\":3}},{\"id\":\"OtMcArFRa5\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"BOM Stock Report\",\"col\":3}},{\"id\":\"76yYsI5imF\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Production Planning Report\",\"col\":3}},{\"id\":\"PIQJYZOMnD\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Learn Manufacturing\",\"col\":3}},{\"id\":\"OaiDqTT03Y\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Forecasting\",\"col\":3}},{\"id\":\"bN_6tHS-Ct\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"yVEFZMqVwd\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Reports &amp; Masters</b></span>\",\"col\":12}},{\"id\":\"rwrmsTI58-\",\"type\":\"card\",\"data\":{\"card_name\":\"Production\",\"col\":4}},{\"id\":\"6dnsyX-siZ\",\"type\":\"card\",\"data\":{\"card_name\":\"Bill of Materials\",\"col\":4}},{\"id\":\"CIq-v5f5KC\",\"type\":\"card\",\"data\":{\"card_name\":\"Reports\",\"col\":4}},{\"id\":\"8RRiQeYr0G\",\"type\":\"card\",\"data\":{\"card_name\":\"Tools\",\"col\":4}},{\"id\":\"Pu8z7-82rT\",\"type\":\"card\",\"data\":{\"card_name\":\"Settings\",\"col\":4}}]",
+  "content": "[{\"id\":\"csBCiDglCE\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Your Shortcuts</b></span>\",\"col\":12}},{\"id\":\"YHCQG3wAGv\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"BOM Creator\",\"col\":3}},{\"id\":\"xit0dg7KvY\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"BOM\",\"col\":3}},{\"id\":\"8Q42WfyvoR\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Bom Balance Sheet\",\"col\":3}},{\"id\":\"LRhGV9GAov\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Production Plan\",\"col\":3}},{\"id\":\"69KKosI6Hg\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Work Order\",\"col\":3}},{\"id\":\"PwndxuIpB3\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Job Card\",\"col\":3}},{\"id\":\"Ubj6zXcmIQ\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Plant Floor\",\"col\":3}},{\"id\":\"OtMcArFRa5\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"BOM Stock Report\",\"col\":3}},{\"id\":\"76yYsI5imF\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Production Planning Report\",\"col\":3}},{\"id\":\"PIQJYZOMnD\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Learn Manufacturing\",\"col\":3}},{\"id\":\"OaiDqTT03Y\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Forecasting\",\"col\":3}},{\"id\":\"bN_6tHS-Ct\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"yVEFZMqVwd\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Reports &amp; Masters</b></span>\",\"col\":12}},{\"id\":\"rwrmsTI58-\",\"type\":\"card\",\"data\":{\"card_name\":\"Production\",\"col\":4}},{\"id\":\"6dnsyX-siZ\",\"type\":\"card\",\"data\":{\"card_name\":\"Bill of Materials\",\"col\":4}},{\"id\":\"CIq-v5f5KC\",\"type\":\"card\",\"data\":{\"card_name\":\"Reports\",\"col\":4}},{\"id\":\"8RRiQeYr0G\",\"type\":\"card\",\"data\":{\"card_name\":\"Tools\",\"col\":4}},{\"id\":\"Pu8z7-82rT\",\"type\":\"card\",\"data\":{\"card_name\":\"Settings\",\"col\":4}}]",
   "custom_blocks": [],
   "docstatus": 0,
   "doctype": "Workspace",
@@ -10287,7 +10287,7 @@
     "type": "Link"
    }
   ],
-  "modified": "2025-05-17 16:13:44.538621",
+  "modified": "2025-05-22 15:50:22.726934",
   "module": "Manufacturing",
   "name": "Manufacturing",
   "number_cards": [],
@@ -10314,6 +10314,23 @@
     "stats_filter": null,
     "type": "URL",
     "url": "https://frappe.school/courses/manufacturing?utm_source=in_app"
+   },
+   {
+    "color": "Grey",
+    "doc_view": "List",
+    "format": null,
+    "icon": null,
+    "kanban_board": null,
+    "label": "Bom Balance Sheet",
+    "link_to": "BOM Balance Sheet",
+    "parent": "Manufacturing",
+    "parentfield": "shortcuts",
+    "parenttype": "Workspace",
+    "report_ref_doctype": "BOM",
+    "restrict_to_domain": null,
+    "stats_filter": null,
+    "type": "Report",
+    "url": null
    },
    {
     "color": "Grey",
