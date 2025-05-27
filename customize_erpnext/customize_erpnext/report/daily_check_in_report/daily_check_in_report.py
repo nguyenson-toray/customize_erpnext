@@ -14,9 +14,9 @@ def execute(filters=None):
         {"label": _("Group"), "fieldname": "custom_group", "fieldtype": "Data", "width": 120},
         {"label": _("Designation"), "fieldname": "designation", "fieldtype": "Data", "width": 120},
         {"label": _("Status"), "fieldname": "status", "fieldtype": "Data", "width": 100},
-        {"label": _("Status Info"), "fieldname": "status_info", "fieldtype": "Data", "width": 120},
-        {"label": _("Check-in Time"), "fieldname": "check_in_time", "fieldtype": "Datetime", "width": 150},
-        {"label": _("Device"), "fieldname": "device_id", "fieldtype": "Data", "width": 100}
+        {"label": _("Status Info"), "fieldname": "status_info", "fieldtype": "Data", "width": 140, "align": "left"},
+        {"label": _("Check-in Time"), "fieldname": "check_in_time", "fieldtype": "Datetime", "width": 220, "align": "left"},
+        {"label": _("Device"), "fieldname": "device_id", "fieldtype": "Data", "width": 120, "align": "left"}
     ]
    
     # Get report data

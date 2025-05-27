@@ -94,7 +94,32 @@ data_import_before_import = [
     "customize_erpnext.override_methods.item_attribute_import.before_import"
 ]
 
- 
+
+# Scheduled Jobs
+scheduler_events = {
+    "daily": [
+        "customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.auto_sync_attendance"
+    ]
+}
+
+# Document Events
+doc_events = {
+    "Employee Checkin": {
+        "after_insert": "customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.on_checkin_creation"
+    }
+}
+
+# Fixtures (for initial setup)
+fixtures = [
+    {
+        "doctype": "Custom Field",
+        "filters": {
+            "dt": ["in", ["Employee"]]
+        }
+    }
+]
+
+# boot_session = "customize_erpnext.override_methods.employee_checkin_or.apply_monkey_patch"
 # Hook on document methods and events
 # doc_events = {
 #     # "Item": {
@@ -178,7 +203,7 @@ data_import_before_import = [
 # before_install = "customize_erpnext.install.before_install"
 # after_install = "customize_erpnext.install.after_install"
 
-after_install = "customize_erpnext.setup.remove_depends_on"
+# after_install = "customize_erpnext.setup.remove_depends_on"
 # Uninstallation
 # ------------
 
@@ -266,10 +291,10 @@ after_install = "customize_erpnext.setup.remove_depends_on"
 # before_tests = "customize_erpnext.install.before_tests"
 
 # Overriding Methods
-# ------------------------------
+# ------------------------------ 
 #
 # override_whitelisted_methods = {
-# 	"frappe.desk.doctype.event.event.get_events": "customize_erpnext.event.get_events"
+#     "hrms.hr.doctype.employee_checkin.employee_checkin.calculate_working_hours": "customize_erpnext.override_methods.employee_checkin_or.calculate_working_hours"
 # }
 #
 # each overriding function accepts a `data` argument;
@@ -278,10 +303,13 @@ after_install = "customize_erpnext.setup.remove_depends_on"
 # override_doctype_dashboards = {
 # 	"Task": "customize_erpnext.task.get_dashboard_data"
 # }
-
 # exempt linked doctypes from being automatically cancelled
 #
 # auto_cancel_exempted_doctypes = ["Auto Repeat"]
+
+# Chạy khi session boot lên
+# boot_session = "customize_erpnext.override_methods.employee_checkin_or.apply_monkey_patch"
+
 
 # Ignore links to specified DocTypes when deleting documents
 # -----------------------------------------------------------

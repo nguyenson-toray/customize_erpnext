@@ -45,32 +45,6 @@ frappe.query_reports["Daily Check-in Report"] = {
 
 	"onload": function (report) {
 		// Thêm CSS để điều chỉnh độ rộng cột STT - sử dụng selector chính xác hơn
-		$("<style>")
-			.prop("type", "text/css")
-			.html(`
-                /* Tăng độ rộng cột STT */
-                .dt-scrollable .dt-cell.dt-cell--col-0, 
-                .dt-scrollable .dt-cell--col-index {
-                    min-width: 50px !important;
-                    width: 50px !important;
-                    max-width: 50px !important;
-                   
-                }
-                .dt-cell.dt-cell--col-0.dt-cell--header.dt-cell--header-0, .dt-cell__content.dt-cell__content--col-0{
-                    min-width: 50px !important;
-                    width: 50px !important;
-                    max-width: 50px !important;
-                }
-                
-                /* Đảm bảo nội dung STT hiển thị đầy đủ */
-                .dt-scrollable .dt-cell--col-0 .dt-cell__content,
-                .dt-scrollable .dt-cell--col-index .dt-cell__content {
-                    white-space: normal !important;
-                    overflow: visible !important;
-                    text-overflow: clip !important;
-                }
-            `)
-			.appendTo("head");
 
 		// Thêm hiển thị tổng hợp
 		let total_absent = 0;
