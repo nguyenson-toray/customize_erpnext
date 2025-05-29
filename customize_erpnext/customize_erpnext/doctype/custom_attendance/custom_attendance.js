@@ -1,8 +1,6 @@
-// custom_attendance.js - Client Script
-// Đặt trong apps/customize_erpnext/customize_erpnext/doctype/custom_attendance/custom_attendance.js
-
 frappe.ui.form.on('Custom Attendance', {
   refresh: function (frm) {
+
     // Add custom button in toolbar
     if (!frm.doc.__islocal && frm.doc.docstatus === 0) {
       frm.add_custom_button(__('Sync from Check-in'), function () {
@@ -19,14 +17,161 @@ frappe.ui.form.on('Custom Attendance', {
       };
     });
 
-    frm.set_query('shift', function () {
-      // Check if Shift Type has 'disabled' field, otherwise no filter
-      return {
+    // Load Employee Checkin connections if document exists
+    if (!frm.doc.__islocal && frm.doc.employee && frm.doc.attendance_date) {
+      setTimeout(function () {
+        frm.trigger('load_employee_checkin_connections');
+      }, 1000);
+    }
+  },
+
+  load_employee_checkin_connections: function (frm) {
+    if (!frm.doc.employee || !frm.doc.attendance_date) {
+      render_connections_html_direct(frm, []);
+      return;
+    }
+
+    // Direct frappe.call to get checkins
+    frappe.call({
+      method: 'frappe.client.get_list',
+      args: {
+        doctype: 'Employee Checkin',
         filters: {
-          // Most Shift Types don't have disabled field, so no filter
+          employee: frm.doc.employee,
+          time: ['between', [
+            frm.doc.attendance_date + ' 00:00:00',
+            frm.doc.attendance_date + ' 23:59:59'
+          ]]
+        },
+        fields: ['name', 'time', 'log_type', 'device_id', 'shift', 'attendance'],
+        order_by: 'time asc'
+      },
+      callback: function (r) {
+
+        if (r.message && r.message.length > 0) {
+          render_connections_html_direct(frm, r.message);
+        } else {
+          render_connections_html_direct(frm, []);
         }
-      };
+      },
+      error: function (r) {
+        console.error('Error loading checkins:', r);
+        render_connections_html_direct(frm, []);
+      }
     });
+  },
+
+  render_connections_html: function (frm, checkins) {
+
+    if (!checkins) {
+      checkins = [];
+    }
+    let html = '';
+
+    if (checkins.length === 0) {
+      html = `
+        <div class="alert alert-info" style="margin: 10px 0;">
+          <h6>No Employee Check-ins found</h6>
+          <p>No check-in records found for ${frm.doc.employee || 'this employee'} on ${frm.doc.attendance_date || 'this date'}.</p>
+          <small>Debug info: Employee=${frm.doc.employee}, Date=${frm.doc.attendance_date}</small>
+        </div>
+      `;
+    } else {
+      // Header
+      html += `
+        <div class="connections-header" style="margin-bottom: 15px;">
+          <h5 style="margin: 0; color: #333;">Employee Check-ins (${checkins.length} records)</h5>
+          <small class="text-muted">Check-in records for ${frm.doc.employee_name || frm.doc.employee} on ${frappe.datetime.str_to_user(frm.doc.attendance_date)}</small>
+        </div>
+      `;
+
+      // Table
+      html += `
+        <div class="table-responsive">
+          <table class="table table-bordered table-sm">
+            <thead style="background-color: #f8f9fa;">
+              <tr>
+                <th>Time</th>
+                <th>Type</th>
+                <th>Device</th>
+                <th>Shift</th>
+                <th>Linked</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+      `;
+
+      checkins.forEach(function (checkin, index) {
+
+        let time_formatted = checkin.time ? frappe.datetime.str_to_user(checkin.time) : 'N/A';
+        let log_type_badge = checkin.log_type === 'IN' ?
+          '<span class="badge badge-success">IN</span>' :
+          '<span class="badge badge-warning">OUT</span>';
+
+        let linked_status = checkin.attendance === frm.doc.name ?
+          '<span class="badge badge-success">Linked</span>' :
+          '<span class="badge badge-light">Not Linked</span>';
+
+        html += `
+          <tr>
+            <td>${time_formatted}</td>
+            <td>${log_type_badge}</td>
+            <td>${checkin.device_id || '-'}</td>
+            <td>${checkin.shift || '-'}</td>
+            <td>${linked_status}</td>
+            <td>
+              <a href="/app/employee-checkin/${checkin.name}" target="_blank" class="btn btn-xs btn-default">
+                View
+              </a>
+            </td>
+          </tr>
+        `;
+      });
+
+      html += `
+            </tbody>
+          </table>
+        </div>
+      `;
+
+      // Summary
+      let linked_count = checkins.filter(c => c.attendance === frm.doc.name).length;
+      html += `
+        <div class="connections-summary" style="margin-top: 10px; padding: 10px; background-color: #f8f9fa; border-radius: 4px;">
+          <small>
+            <strong>Summary:</strong> ${checkins.length} total check-ins, ${linked_count} linked to this attendance record
+          </small>
+        </div>
+      `;
+    }
+
+    // Debug: check if field exists
+    let field = frm.get_field('connections_html');
+
+    // Set HTML to field - try multiple methods
+    try {
+      frm.set_df_property('connections_html', 'options', html);
+    } catch (e) {
+      console.error('Error setting via set_df_property:', e);
+    }
+
+    try {
+      frm.refresh_field('connections_html');
+    } catch (e) {
+      console.error('Error refreshing field:', e);
+    }
+
+    // Alternative method
+    try {
+      if (field && field.$wrapper) {
+        field.$wrapper.html(html);
+      }
+    } catch (e) {
+      console.error('Error setting via wrapper:', e);
+    }
+
+    // Check if HTML was actually set
   },
 
   sync_button: function (frm) {
@@ -36,28 +181,32 @@ frappe.ui.form.on('Custom Attendance', {
     }
 
     frappe.call({
-      method: 'customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.sync_attendance_from_checkin',
-      args: {
-        doc_name: frm.doc.name
-      },
+      method: 'sync_from_checkin',
+      doc: frm.doc,
       freeze: true,
       freeze_message: __('Syncing attendance data...'),
       callback: function (r) {
         if (r.message) {
           frappe.show_alert({
-            message: __('Attendance synced successfully'),
+            message: __('Sync Result: ') + r.message,
             indicator: 'green'
           });
+          // Reload connections after sync
+          setTimeout(() => {
+            frm.trigger('load_employee_checkin_connections');
+          }, 1000);
           frm.reload_doc();
         }
       },
       error: function (r) {
+        console.error('Sync error:', r);
         frappe.msgprint(__('Error occurred while syncing attendance'));
       }
     });
   },
 
   employee: function (frm) {
+
     if (frm.doc.employee) {
       // Auto-populate related fields
       frappe.call({
@@ -78,10 +227,18 @@ frappe.ui.form.on('Custom Attendance', {
           }
         }
       });
+
+      // Reload connections if attendance_date is also set
+      if (frm.doc.attendance_date && !frm.doc.__islocal) {
+        setTimeout(() => {
+          frm.trigger('load_employee_checkin_connections');
+        }, 1500);
+      }
     }
   },
 
   attendance_date: function (frm) {
+
     if (frm.doc.attendance_date && frm.doc.employee) {
       // Clear previous attendance data when date changes
       frm.set_value('check_in', '');
@@ -93,6 +250,13 @@ frappe.ui.form.on('Custom Attendance', {
       frm.set_value('early_exit', 0);
       frm.set_value('last_sync_time', '');
       frm.set_value('status', 'Absent');
+
+      // Reload connections if not a new document
+      if (!frm.doc.__islocal) {
+        setTimeout(() => {
+          frm.trigger('load_employee_checkin_connections');
+        }, 1500);
+      }
 
       frappe.show_alert({
         message: __('Attendance data cleared for new date. Click "Sync from Check-in" to load data.'),
@@ -149,62 +313,167 @@ frappe.ui.form.on('Custom Attendance', {
   }
 });
 
+// Manual trigger for debugging
+// frappe.ui.form.on('Custom Attendance', {
+//   after_load: function (frm) {
+//     console.log('Form loaded, document:', frm.doc);
+//     console.log('connections_html field:', frm.get_field('connections_html'));
+//   }
+// });
+
 // List View customizations
 frappe.listview_settings['Custom Attendance'] = {
-  add_fields: ['status', 'working_hours', 'auto_sync_enabled'],
+  add_fields: ['status', 'working_hours', 'auto_sync_enabled', 'docstatus'],
   get_indicator: function (doc) {
-    if (doc.status === 'Present') {
-      return [__('Present'), 'green', 'status,=,Present'];
-    } else if (doc.status === 'Absent') {
-      return [__('Absent'), 'red', 'status,=,Absent'];
-    } else if (doc.status === 'Half Day') {
-      return [__('Half Day'), 'orange', 'status,=,Half Day'];
-    } else if (doc.status === 'Work From Home') {
-      return [__('Work From Home'), 'blue', 'status,=,Work From Home'];
-    } else if (doc.status === 'On Leave') {
-      return [__('On Leave'), 'purple', 'status,=,On Leave'];
-    }
-  },
-  onload: function (listview) {
-    // Add bulk sync button
-    listview.page.add_menu_item(__('Bulk Sync Selected'), function () {
-      let selected_docs = listview.get_checked_items();
-      if (selected_docs.length === 0) {
-        frappe.msgprint(__('Please select attendance records to sync'));
-        return;
+    if (doc.docstatus === 1) {
+      if (doc.status === 'Present') {
+        return [__('Present'), 'green', 'status,=,Present'];
+      } else if (doc.status === 'Absent') {
+        return [__('Absent'), 'red', 'status,=,Absent'];
+      } else if (doc.status === 'Half Day') {
+        return [__('Half Day'), 'orange', 'status,=,Half Day'];
+      } else if (doc.status === 'Work From Home') {
+        return [__('Work From Home'), 'purple', 'status,=,Work From Home'];
+      } else if (doc.status === 'On Leave') {
+        return [__('On Leave'), 'dark-grey', 'status,=,On Leave'];
       }
+    } else if (doc.docstatus === 0) {
+      if (doc.status === 'Present') {
+        return [__('Present'), 'green', 'status,=,Present'];
+      } else if (doc.status === 'Absent') {
+        return [__('Absent'), 'red', 'status,=,Absent'];
+      } else if (doc.status === 'Half Day') {
+        return [__('Half Day'), 'orange', 'status,=,Half Day'];
+      } else if (doc.status === 'Work From Home') {
+        return [__('Work From Home'), 'blue', 'status,=,Work From Home'];
+      } else if (doc.status === 'On Leave') {
+        return [__('On Leave'), 'purple', 'status,=,On Leave'];
+      }
+    } else if (doc.docstatus === 2) {
+      return [__('Cancelled'), 'red', 'docstatus,=,2'];
+    }
 
-      frappe.confirm(
-        __('Are you sure you want to sync {0} attendance records?', [selected_docs.length]),
-        function () {
-          bulk_sync_attendance(selected_docs);
-        }
-      );
-    });
+    return [__('Draft'), 'grey', 'docstatus,=,0'];
   }
 };
 
-function bulk_sync_attendance(selected_docs) {
-  let promises = [];
+// Debug function to manually trigger connection loading
+// window.debug_load_connections = function () {
+//   let frm = cur_frm;
+//   if (frm && frm.doc.name) {
+//     console.log('Manual debug trigger for:', frm.doc.name);
+//     frm.trigger('load_employee_checkin_connections');
+//   } else {
+//     console.log('No current form found');
+//   }
+// };
 
-  selected_docs.forEach(function (doc) {
-    promises.push(
-      frappe.call({
-        method: 'customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.sync_attendance_from_checkin',
-        args: {
-          doc_name: doc.name
-        }
-      })
-    );
-  });
+// Direct render function
+function render_connections_html_direct(frm, checkins) {
+  if (!checkins) {
+    checkins = [];
+  }
 
-  Promise.all(promises).then(function () {
-    frappe.show_alert({
-      message: __('Bulk sync completed successfully'),
-      indicator: 'green'
+  let html = '';
+
+  if (checkins.length === 0) {
+    html = `
+      <div class="alert alert-info" style="margin: 10px 0;">
+        <h6>No Employee Check-ins found</h6>
+        <p>No check-in records found for ${frm.doc.employee || 'this employee'} on ${frm.doc.attendance_date || 'this date'}.</p>
+        <small>Debug info: Employee=${frm.doc.employee}, Date=${frm.doc.attendance_date}</small>
+      </div>
+    `;
+  } else {
+    // Header
+    html += `
+      <div class="connections-header" style="margin-bottom: 15px;">
+        <h5 style="margin: 0; color: #333;">Employee Check-ins (${checkins.length} records)</h5>
+        <small class="text-muted">Check-in records for ${frm.doc.employee_name || frm.doc.employee} on ${frappe.datetime.str_to_user(frm.doc.attendance_date)}</small>
+      </div>
+    `;
+
+    // Table
+    html += `
+      <div class="table-responsive">
+        <table class="table table-bordered table-sm">
+          <thead style="background-color: #f8f9fa;">
+            <tr>
+              <th>Time</th>
+              <th>Check-in Record</th>
+              <th>Type</th>
+              <th>Device</th>
+              <th>Shift</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+    `;
+
+    checkins.forEach(function (checkin, index) {
+
+      let time_formatted = checkin.time ? frappe.datetime.str_to_user(checkin.time) : 'N/A';
+      let checkin_link = `<a href="/app/employee-checkin/${checkin.name}" target="_blank" class="text-primary">${checkin.name}</a>`;
+      let log_type_badge = checkin.log_type === 'IN' ?
+        '<span class="badge badge-success">IN</span>' :
+        (checkin.log_type === 'OUT' ? '<span class="badge badge-warning">OUT</span>' : '<span class="badge badge-secondary">-</span>');
+
+      let linked_status = checkin.attendance === frm.doc.name ?
+        '<span class="badge badge-success">✓ Linked</span>' :
+        '<span class="badge badge-light">Not Linked</span>';
+
+      html += `
+        <tr>
+          <td>${time_formatted}</td>
+          <td>${checkin_link}</td>
+          <td>${log_type_badge}</td>
+          <td>${checkin.device_id || '-'}</td>
+          <td>${checkin.shift || '-'}</td>
+          <td>${linked_status}</td>
+        </tr>
+      `;
     });
-    location.reload();
-  }).catch(function (error) {
-    frappe.msgprint(__('Some records failed to sync. Please check the error log.'));
-  });
+
+    html += `
+          </tbody>
+        </table>
+      </div>
+    `;
+
+    // Summary
+    let linked_count = checkins.filter(c => c.attendance === frm.doc.name).length;
+    html += `
+      <div class="connections-summary" style="margin-top: 10px; padding: 10px; background-color: #f8f9fa; border-radius: 4px;">
+        <small>
+          <strong>Summary:</strong> ${checkins.length} total check-ins, ${linked_count} linked to this attendance record
+        </small>
+      </div>
+    `;
+  }
+
+  // Debug: check if field exists
+  let field = frm.get_field('connections_html');
+
+  // Set HTML to field - try multiple methods
+  try {
+    frm.set_df_property('connections_html', 'options', html);
+  } catch (e) {
+    console.error('Error setting via set_df_property:', e);
+  }
+
+  try {
+    frm.refresh_field('connections_html');
+  } catch (e) {
+    console.error('Error refreshing field:', e);
+  }
+
+  // Alternative method
+  try {
+    if (field && field.$wrapper) {
+      field.$wrapper.html(html);
+    }
+  } catch (e) {
+    console.error('Error setting via wrapper:', e);
+  }
+
 }

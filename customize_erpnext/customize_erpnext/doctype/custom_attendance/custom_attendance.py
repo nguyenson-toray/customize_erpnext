@@ -4,7 +4,7 @@
 import frappe
 from frappe.model.document import Document
 from frappe.utils import getdate, get_datetime, now_datetime, time_diff_in_hours, flt
-from datetime import datetime, timedelta, time  # Thêm import 'time'
+from datetime import datetime, timedelta, time
 
 
 class CustomAttendance(Document):
@@ -16,8 +16,8 @@ class CustomAttendance(Document):
         if self.check_in and self.check_out:
             self.calculate_working_hours()
         
-        # Skip auto sync during save to avoid timing conflicts
-        # Auto sync will be triggered manually via button or hooks
+        # Update employee checkin links after validation
+        self.update_employee_checkin_links()
 
     def before_save(self):
         """Before saving the document"""
@@ -25,6 +25,16 @@ class CustomAttendance(Document):
         if not self.company and self.employee:
             employee = frappe.get_doc("Employee", self.employee)
             self.company = employee.company
+
+    def on_submit(self):
+        """After submitting the document"""
+        # Update all related employee checkins to link to this attendance
+        self.update_employee_checkin_links()
+
+    def on_cancel(self):
+        """When cancelling the document"""
+        # Remove attendance links from employee checkins
+        self.remove_employee_checkin_links()
 
     def calculate_working_hours(self):
         """Calculate working hours using realistic calculation logic"""
@@ -113,7 +123,6 @@ class CustomAttendance(Document):
             hours = total_seconds // 3600
             minutes = (total_seconds % 3600) // 60
             seconds = total_seconds % 60
-            # Sửa lỗi: sử dụng time() đã import thay vì datetime.time()
             return time(hours, minutes, seconds)
         else:
             return td
@@ -138,8 +147,8 @@ class CustomAttendance(Document):
             
             # Nếu vẫn không có, dùng default 12:00-13:00
             if not break_start_time or not break_end_time:
-                break_start_time = time(12, 0, 0)  # Sửa: dùng time() thay vì datetime.time()
-                break_end_time = time(13, 0, 0)    # Sửa: dùng time() thay vì datetime.time()
+                break_start_time = time(12, 0, 0)
+                break_end_time = time(13, 0, 0)
         
         # Nếu không có break time gì cả
         if not break_start_time or not break_end_time:
@@ -202,6 +211,86 @@ class CustomAttendance(Document):
                 title="Duplicate Attendance Record"
             )
 
+    def update_employee_checkin_links(self):
+        """Update Employee Checkin records to link to this attendance"""
+        if not self.employee or not self.attendance_date:
+            return
+            
+        try:
+            # Get all checkins for this employee on this date
+            checkins = frappe.get_all("Employee Checkin",
+                filters={
+                    "employee": self.employee,
+                    "time": ["between", [
+                        f"{self.attendance_date} 00:00:00",
+                        f"{self.attendance_date} 23:59:59"
+                    ]]
+                },
+                fields=["name"]
+            )
+            
+            # Update each checkin to link to this attendance
+            for checkin in checkins:
+                frappe.db.set_value("Employee Checkin", checkin.name, "attendance", self.name)
+            
+            frappe.db.commit()
+            
+        except Exception as e:
+            frappe.log_error(f"Error updating employee checkin links: {str(e)}", "Custom Attendance")
+
+    def remove_employee_checkin_links(self):
+        """Remove attendance links from Employee Checkin records"""
+        if not self.employee or not self.attendance_date:
+            return
+            
+        try:
+            # Get all checkins linked to this attendance
+            checkins = frappe.get_all("Employee Checkin",
+                filters={
+                    "attendance": self.name
+                },
+                fields=["name"]
+            )
+            
+            # Remove attendance link from each checkin
+            for checkin in checkins:
+                frappe.db.set_value("Employee Checkin", checkin.name, "attendance", "")
+            
+            frappe.db.commit()
+            
+        except Exception as e:
+            frappe.log_error(f"Error removing employee checkin links: {str(e)}", "Custom Attendance")
+
+    @frappe.whitelist()
+    def get_employee_checkins(self):
+        """Get all Employee Checkin records for this attendance"""
+        if not self.employee or not self.attendance_date:
+            return []
+            
+        checkins = frappe.get_all("Employee Checkin",
+            filters={
+                "employee": self.employee,
+                "time": ["between", [
+                    f"{self.attendance_date} 00:00:00",
+                    f"{self.attendance_date} 23:59:59"
+                ]]
+            },
+            fields=["name", "time", "log_type", "device_id", "shift", "attendance"],
+            order_by="time asc"
+        )
+        
+        return checkins
+
+    @frappe.whitelist()
+    def get_connections_data(self):
+        """Get connections data for display in form"""
+        checkins = self.get_employee_checkins()
+        return {
+            "checkins": checkins,
+            "total_count": len(checkins),
+            "linked_count": len([c for c in checkins if c.get('attendance') == self.name])
+        }
+
     @frappe.whitelist()
     def sync_from_checkin(self):
         """Sync attendance data from Employee Checkin records"""
@@ -262,6 +351,9 @@ class CustomAttendance(Document):
             self.flags.ignore_validate_update_after_submit = True
             self.flags.ignore_auto_sync = True
             self.db_update()
+            
+            # Update employee checkin links after sync
+            self.update_employee_checkin_links()
             
             return f"Synced successfully! IN: {in_time}, OUT: {out_time}"
             
@@ -515,3 +607,52 @@ def on_checkin_creation(doc, method):
             new_attendance.sync_from_checkin()
         except Exception as e:
             frappe.log_error(f"Failed to create attendance from checkin: {str(e)}")
+
+@frappe.whitelist()
+def debug_employee_checkins(employee, attendance_date):
+    """Debug method to get employee checkins"""
+    try:
+        # Kiểm tra parameter
+        if not employee or not attendance_date:
+            return {
+                "success": False, 
+                "message": "Missing employee or attendance_date",
+                "checkins": []
+            }
+        
+        # Get checkins using direct SQL query
+        checkins = frappe.db.sql("""
+            SELECT 
+                name, 
+                time, 
+                log_type, 
+                device_id, 
+                shift, 
+                attendance,
+                employee
+            FROM `tabEmployee Checkin`
+            WHERE employee = %s 
+            AND DATE(time) = %s
+            ORDER BY time ASC
+        """, (employee, attendance_date), as_dict=True)
+        
+        # Format time for better display
+        for checkin in checkins:
+            if checkin.time:
+                checkin.formatted_time = frappe.utils.format_datetime(checkin.time)
+        
+        return {
+            "success": True,
+            "message": f"Found {len(checkins)} checkin records",
+            "checkins": checkins,
+            "employee": employee,
+            "attendance_date": attendance_date
+        }
+        
+    except Exception as e:
+        frappe.log_error(f"Debug employee checkins error: {str(e)}", "Custom Attendance Debug")
+        return {
+            "success": False,
+            "message": f"Error: {str(e)}",
+            "checkins": []
+        }
