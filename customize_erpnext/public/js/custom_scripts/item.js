@@ -64,15 +64,13 @@ frappe.ui.form.on('Item', {
         if (frm.doc.item_group) {
             console.log("Processing item group:", frm.doc.item_group);
             // Check if exits items
-            is_exists_item(frm.doc.item_group, frm.doc.item_name).then((is_exits) => {
-                // Only proceed if no duplicates found 
-                if (!is_exits) {
+            is_exists_item(frm.doc.item_group, frm.doc.item_name).then((result) => {
+                if (result.exists) {
+                    frappe.throw(__('Item already exits in system: <a href="/app/item/{0}" target="_blank">{1}</a>', [result.item_code, result.item_code]));
+                    frm.set_value('item_name', '');
+                } else {
                     generate_new_item_code(frm);
                     set_default_values(frm);
-                }
-                else {
-                    frappe.throw(__('Item đã tồn tại trong hệ thống'));
-                    frm.set_value('item_name', '');
                 }
             }).catch(err => {
                 console.error("Error in item_group handler:", err);
@@ -86,9 +84,9 @@ frappe.ui.form.on('Item', {
     },
     custom_office_factory_sub_group: function (frm) {
         // Check for duplicate items
-        is_exists_item(frm.doc.custom_office_factory_sub_group, frm.doc.item_name).then((is_exits) => {
+        is_exists_item(frm.doc.custom_office_factory_sub_group, frm.doc.item_name).then((result) => {
             // Only proceed if no duplicates found 
-            if (!is_exits) {
+            if (!result.exists) {
                 generate_new_item_code(frm);
             }
             else {
@@ -101,9 +99,9 @@ frappe.ui.form.on('Item', {
     },
     item_name: function (frm) {
         if (frm.doc.item_name && frm.doc.item_group) {
-            is_exists_item(frm.doc.custom_office_factory_sub_group, frm.doc.item_name).then((is_exits) => {
+            is_exists_item(frm.doc.custom_office_factory_sub_group, frm.doc.item_name).then((result) => {
                 // Only proceed if no duplicates found 
-                if (!is_exits) {
+                if (!result.exists) {
                     generate_new_item_code(frm);
                 }
                 else {
@@ -468,29 +466,38 @@ async function get_next_code(max_code) {
  * @param {string} name - The item name to check for
  * @returns {Promise<boolean>} True if the item exists, false otherwise
  */
-async function is_exists_item(item_group, name) {
+async function is_exists_item(item_group, item_name) {
     try {
-        // Sanitize inputs to prevent injection risks
-        const sanitized_name = name.trim();
+        const sanitized_name = item_name.trim();
         const sanitized_group = item_group.trim();
 
-        // Query the database for items matching both criteria
+        // Tìm item khớp tên và nhóm
         const items = await frappe.db.get_list('Item', {
             filters: {
                 'item_group': sanitized_group,
                 'item_name': sanitized_name
             },
-            fields: ['name'],
+            fields: ['name', 'variant_of'],
             limit: 1
         });
 
-        // Return true if at least one matching item was found, false otherwise
-        return items && items.length > 0;
-    } catch (error) {
-        // Log the error for debugging purposes
-        console.error('Error checking item existence:', error);
+        if (items.length > 0) {
+            const found_item = items[0];
+            const item_code = found_item.variant_of || found_item.name;  // nếu là variant thì trả template
 
-        // Return false in case of errors to prevent false positives
-        return false;
+            console.log("Item exists:", item_code);
+            return {
+                exists: true,
+                item_code: item_code
+            };
+        } else {
+            return {
+                exists: false
+            };
+        }
+    } catch (err) {
+        console.error("Error checking item existence:", err);
+        throw err;
     }
 }
+

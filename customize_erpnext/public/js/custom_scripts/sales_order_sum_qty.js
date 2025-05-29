@@ -9,9 +9,9 @@ frappe.ui.form.on('Sales Order', {
 
     refresh: function (frm) {
         // Tính tổng khi refresh form
-        calculate_sum_by_delivery_date(frm);
-        calculate_sum_by_country(frm);
-        calculate_sum_by_sku(frm);
+        // calculate_sum_by_delivery_date(frm);
+        // calculate_sum_by_country(frm);
+        // calculate_sum_by_sku(frm);
     },
 
     items_remove: function (frm) {
