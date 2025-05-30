@@ -103,7 +103,7 @@ frappe.ui.form.on('Custom Attendance', {
       `;
 
       checkins.forEach(function (checkin, index) {
-
+        console.log(checkin.attendance, frm.doc.name);
         let time_formatted = checkin.time ? frappe.datetime.str_to_user(checkin.time) : 'N/A';
         let log_type_badge = checkin.log_type === 'IN' ?
           '<span class="badge badge-success">IN</span>' :
@@ -324,6 +324,15 @@ frappe.ui.form.on('Custom Attendance', {
 // List View customizations
 frappe.listview_settings['Custom Attendance'] = {
   add_fields: ['status', 'working_hours', 'auto_sync_enabled', 'docstatus'],
+  // Add bulk action button trong list view
+  onload: function (listview) {
+    // Add Bulk Create button cho HR Manager và System Manager
+    if (frappe.user.has_role('HR Manager') || frappe.user.has_role('System Manager')) {
+      listview.page.add_menu_item(__('Bulk Create from Shift Date'), function () {
+        show_bulk_process_dialog();
+      });
+    }
+  },
   get_indicator: function (doc) {
     if (doc.docstatus === 1) {
       if (doc.status === 'Present') {
@@ -476,4 +485,355 @@ function render_connections_html_direct(frm, checkins) {
     console.error('Error setting via wrapper:', e);
   }
 
+}
+
+// syn manual:
+function show_bulk_process_dialog() {
+  let dialog = new frappe.ui.Dialog({
+    title: __('Bulk Create Custom Attendance'),
+    size: 'large',
+    fields: [
+      {
+        fieldtype: 'Section Break',
+        label: __('Date Range Selection')
+      },
+      {
+        fieldtype: 'Link',
+        fieldname: 'shift_type',
+        label: __('Shift Type (Optional)'),
+        options: 'Shift Type',
+        description: __('Leave empty to process all shifts. If selected, will use "Process Attendance After" date from this shift.')
+      },
+      {
+        fieldtype: 'Column Break'
+      },
+      {
+        fieldtype: 'Check',
+        fieldname: 'use_shift_date',
+        label: __('Use Shift "Process Attendance After" Date'),
+        default: 1,
+        description: __('Use the date from shift settings as start date')
+      },
+      {
+        fieldtype: 'Section Break',
+        label: __('Custom Date Range'),
+        depends_on: 'eval:!doc.use_shift_date'
+      },
+      {
+        fieldtype: 'Date',
+        fieldname: 'start_date',
+        label: __('Start Date'),
+        default: frappe.datetime.add_days(frappe.datetime.get_today(), -30),
+        mandatory_depends_on: 'eval:!doc.use_shift_date'
+      },
+      {
+        fieldtype: 'Column Break'
+      },
+      {
+        fieldtype: 'Date',
+        fieldname: 'end_date',
+        label: __('End Date'),
+        default: frappe.datetime.get_today(),
+        reqd: 1
+      },
+      {
+        fieldtype: 'Section Break',
+        label: __('Preview')
+      },
+      {
+        fieldtype: 'Button',
+        fieldname: 'preview_btn',
+        label: __('Preview Data'),
+        click: function () {
+          show_preview(dialog);
+        }
+      },
+      {
+        fieldtype: 'HTML',
+        fieldname: 'preview_html',
+        label: __('Preview Results')
+      },
+      {
+        fieldtype: 'Section Break',
+        label: __('Information')
+      },
+      {
+        fieldtype: 'HTML',
+        fieldname: 'info',
+        options: `
+          <div class="alert alert-info">
+            <h6><strong>Bulk Create Custom Attendance</strong></h6>
+            <ul>
+              <li><strong>Purpose:</strong> Create Custom Attendance records for employees with check-ins</li>
+              <li><strong>Date Range:</strong> Maximum 90 days to prevent system overload</li>
+              <li><strong>Process:</strong> Create attendance → Auto sync from check-ins → Report results</li>
+              <li><strong>Skip:</strong> Employees already having Custom Attendance records</li>
+              <li><strong>Safe:</strong> No duplicates will be created</li>
+            </ul>
+          </div>
+        `
+      }
+    ],
+    primary_action_label: __('Start Bulk Process'),
+    primary_action: function (values) {
+      start_bulk_process(values, dialog);
+    }
+  });
+
+  dialog.show();
+}
+
+function show_preview(dialog) {
+  let values = dialog.get_values();
+
+  if (!values.end_date) {
+    frappe.msgprint(__('Please select End Date'));
+    return;
+  }
+
+  let args = {
+    end_date: values.end_date
+  };
+
+  if (values.shift_type) {
+    args.shift_name = values.shift_type;
+  }
+
+  if (!values.use_shift_date && values.start_date) {
+    args.start_date = values.start_date;
+  }
+
+  frappe.call({
+    method: 'customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.get_bulk_process_preview',
+    args: args,
+    callback: function (r) {
+      if (r.message && r.message.success) {
+        render_preview_html(dialog, r.message);
+      } else {
+        frappe.msgprint(__('Error getting preview: ') + (r.message.message || 'Unknown error'));
+      }
+    }
+  });
+}
+
+function render_preview_html(dialog, data) {
+  let html = `
+    <div class="preview-results" style="margin-top: 15px;">
+      <div class="alert alert-success">
+        <h6><strong>Preview Results</strong></h6>
+        <div class="row">
+          <div class="col-md-6">
+            <p><strong>Date Range:</strong> ${data.start_date} to ${data.end_date}</p>
+            <p><strong>Total Days:</strong> ${data.total_days} days</p>
+          </div>
+          <div class="col-md-6">
+            <p><strong>Total Employees:</strong> ${data.total_employees} employee-days</p>
+            <p><strong>Shift:</strong> ${data.shift_name || 'All Shifts'}</p>
+          </div>
+        </div>
+      </div>
+  `;
+
+  if (data.daily_breakdown && data.daily_breakdown.length > 0) {
+    html += `
+      <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
+        <table class="table table-bordered table-sm">
+          <thead style="background-color: #f8f9fa;">
+            <tr>
+              <th>Date</th>
+              <th>Employees</th>
+              <th>Check-ins</th>
+              <th>Shifts</th>
+            </tr>
+          </thead>
+          <tbody>
+    `;
+
+    data.daily_breakdown.forEach(function (row) {
+      html += `
+        <tr>
+          <td>${frappe.datetime.str_to_user(row.attendance_date)}</td>
+          <td><span class="badge badge-primary">${row.employee_count}</span></td>
+          <td>${row.checkin_count}</td>
+          <td>${row.shift_count}</td>
+        </tr>
+      `;
+    });
+
+    html += `
+          </tbody>
+        </table>
+      </div>
+    `;
+  } else {
+    html += `
+      <div class="alert alert-warning">
+        <strong>No Data Found</strong><br>
+        No employees with check-ins found in the selected date range, or all records already exist.
+      </div>
+    `;
+  }
+
+  html += '</div>';
+
+  dialog.set_df_property('preview_html', 'options', html);
+}
+
+function start_bulk_process(values, dialog) {
+  if (!values.end_date) {
+    frappe.msgprint(__('Please select End Date'));
+    return;
+  }
+
+  // Confirm before processing
+  frappe.confirm(
+    __('Are you sure you want to start bulk processing? This may take several minutes for large date ranges.'),
+    function () {
+      let args = {
+        end_date: values.end_date
+      };
+
+      if (values.shift_type) {
+        args.shift_name = values.shift_type;
+      }
+
+      if (!values.use_shift_date && values.start_date) {
+        args.start_date = values.start_date;
+      }
+
+      // Show progress dialog
+      let progress_dialog = show_progress_dialog();
+      dialog.hide();
+
+      frappe.call({
+        method: 'customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.bulk_process_from_shift_date',
+        args: args,
+        freeze: false, // Don't freeze để có thể show progress
+        callback: function (r) {
+          progress_dialog.hide();
+
+          if (r.message && r.message.success) {
+            show_results_dialog(r.message);
+          } else {
+            frappe.msgprint(__('Bulk Process Error: ') + (r.message.message || 'Unknown error'));
+          }
+        },
+        error: function (r) {
+          progress_dialog.hide();
+          frappe.msgprint(__('System Error: Please check error logs'));
+        }
+      });
+    }
+  );
+}
+
+function show_progress_dialog() {
+  let progress_dialog = new frappe.ui.Dialog({
+    title: __('Bulk Processing in Progress'),
+    fields: [
+      {
+        fieldtype: 'HTML',
+        fieldname: 'progress_html',
+        options: `
+          <div class="text-center" style="padding: 30px;">
+            <div class="spinner-border text-primary" role="status">
+              <span class="sr-only">Processing...</span>
+            </div>
+            <h5 style="margin-top: 20px;">Processing Custom Attendance Records...</h5>
+            <p class="text-muted">This may take several minutes. Please wait...</p>
+          </div>
+        `
+      }
+    ]
+  });
+
+  progress_dialog.show();
+  return progress_dialog;
+}
+
+function show_results_dialog(results) {
+  let status_class = results.error_count === 0 ? 'alert-success' : 'alert-warning';
+  let status_icon = results.error_count === 0 ? 'ok' : 'warning';
+
+  let html = `
+    <div class="${status_class} alert">
+      <h5>${status_icon} Bulk Processing Completed</h5>
+      <div class="row">
+        <div class="col-md-6">
+          <p><strong> Days Processed:</strong> ${results.total_days}</p>
+          <p><strong> Employee-Days Found:</strong> ${results.total_employees}</p>
+        </div>
+        <div class="col-md-6">
+          <p><strong> Records Created:</strong> ${results.created_count}</p>
+          <p><strong> Successfully Synced:</strong> ${results.synced_count}</p>
+          <p><strong> Errors:</strong> ${results.error_count}</p>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Add daily details if available
+  if (results.details && results.details.length > 0) {
+    html += `
+      <h6>Daily Breakdown:</h6>
+      <div class="table-responsive" style="max-height: 200px; overflow-y: auto;">
+        <table class="table table-sm">
+          <thead><tr><th>Date</th><th>Created</th><th>Synced</th><th>Errors</th></tr></thead>
+          <tbody>
+    `;
+
+    results.details.forEach(function (day) {
+      html += `
+        <tr>
+          <td>${frappe.datetime.str_to_user(day.date)}</td>
+          <td><span class="badge badge-success">${day.created}</span></td>
+          <td><span class="badge badge-info">${day.synced}</span></td>
+          <td>${day.errors > 0 ? `<span class="badge badge-danger">${day.errors}</span>` : '-'}</td>
+        </tr>
+      `;
+    });
+
+    html += '</tbody></table></div>';
+  }
+
+  // Add errors if any
+  if (results.errors && results.errors.length > 0) {
+    html += `
+      <h6 style="margin-top: 15px;">Error Details:</h6>
+      <div style="max-height: 150px; overflow-y: auto; background-color: #f8f9fa; padding: 10px; border-radius: 4px;">
+    `;
+
+    results.errors.slice(0, 20).forEach(function (error) {  // Show max 20 errors
+      html += `<small class="text-danger">• ${error}</small><br>`;
+    });
+
+    if (results.errors.length > 20) {
+      html += `<small class="text-muted">... and ${results.errors.length - 20} more errors</small>`;
+    }
+
+    html += '</div>';
+  }
+
+  let results_dialog = new frappe.ui.Dialog({
+    title: __('Bulk Process Results'),
+    size: 'large',
+    fields: [
+      {
+        fieldtype: 'HTML',
+        fieldname: 'results_html',
+        options: html
+      }
+    ],
+    primary_action_label: __('Close'),
+    primary_action: function () {
+      results_dialog.hide();
+
+      // Refresh current form if it's Custom Attendance
+      if (cur_frm && cur_frm.doc.doctype === 'Custom Attendance') {
+        cur_frm.reload_doc();
+      }
+    }
+  });
+
+  results_dialog.show();
 }

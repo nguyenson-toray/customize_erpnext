@@ -25,7 +25,6 @@ class CustomAttendance(Document):
         if not self.company and self.employee:
             employee = frappe.get_doc("Employee", self.employee)
             self.company = employee.company
-
     def on_submit(self):
         """After submitting the document"""
         # Update all related employee checkins to link to this attendance
@@ -212,10 +211,10 @@ class CustomAttendance(Document):
             )
 
     def update_employee_checkin_links(self):
-        """Update Employee Checkin records to link to this attendance"""
+        """Update Employee Checkin records to link to this Custom Attendance via custom field"""
         if not self.employee or not self.attendance_date:
             return
-            
+        
         try:
             # Get all checkins for this employee on this date
             checkins = frappe.get_all("Employee Checkin",
@@ -229,41 +228,44 @@ class CustomAttendance(Document):
                 fields=["name"]
             )
             
-            # Update each checkin to link to this attendance
+            # Update each checkin to link to this Custom Attendance via custom field
+            # KHÔNG can thiệp vào field 'attendance' gốc
             for checkin in checkins:
-                frappe.db.set_value("Employee Checkin", checkin.name, "attendance", self.name)
+                frappe.db.set_value("Employee Checkin", checkin.name, "custom_attendance_link", self.name)
             
             frappe.db.commit()
+            frappe.logger().info(f"Updated {len(checkins)} checkins with custom attendance link: {self.name}")
             
         except Exception as e:
-            frappe.log_error(f"Error updating employee checkin links: {str(e)}", "Custom Attendance")
+            frappe.log_error(f"Error updating employee checkin custom links: {str(e)}", "Custom Attendance")
 
     def remove_employee_checkin_links(self):
-        """Remove attendance links from Employee Checkin records"""
+        """Remove custom attendance links from Employee Checkin records"""
         if not self.employee or not self.attendance_date:
             return
             
         try:
-            # Get all checkins linked to this attendance
+            # Get all checkins linked to this Custom Attendance
             checkins = frappe.get_all("Employee Checkin",
                 filters={
-                    "attendance": self.name
+                    "custom_attendance_link": self.name
                 },
                 fields=["name"]
             )
             
-            # Remove attendance link from each checkin
+            # Remove custom attendance link from each checkin
             for checkin in checkins:
-                frappe.db.set_value("Employee Checkin", checkin.name, "attendance", "")
+                frappe.db.set_value("Employee Checkin", checkin.name, "custom_attendance_link", "")
             
             frappe.db.commit()
+            frappe.logger().info(f"Removed custom attendance links from {len(checkins)} checkins")
             
         except Exception as e:
-            frappe.log_error(f"Error removing employee checkin links: {str(e)}", "Custom Attendance")
+            frappe.log_error(f"Error removing employee checkin custom links: {str(e)}", "Custom Attendance")
 
     @frappe.whitelist()
     def get_employee_checkins(self):
-        """Get all Employee Checkin records for this attendance"""
+        """Get all Employee Checkin records for this attendance with both links"""
         if not self.employee or not self.attendance_date:
             return []
             
@@ -275,7 +277,14 @@ class CustomAttendance(Document):
                     f"{self.attendance_date} 23:59:59"
                 ]]
             },
-            fields=["name", "time", "log_type", "device_id", "shift", "attendance"],
+            fields=[
+                "name", 
+                "time", 
+                "log_type", 
+                "device_id", 
+                "shift", 
+                "custom_attendance_link"  # Link mới đến Custom Attendance
+            ],
             order_by="time asc"
         )
         
@@ -283,12 +292,14 @@ class CustomAttendance(Document):
 
     @frappe.whitelist()
     def get_connections_data(self):
-        """Get connections data for display in form"""
+        """Get connections data for display in form with enhanced info"""
         checkins = self.get_employee_checkins()
         return {
             "checkins": checkins,
             "total_count": len(checkins),
-            "linked_count": len([c for c in checkins if c.get('attendance') == self.name])
+            "custom_linked_count": len([c for c in checkins if c.get('custom_attendance_link') == self.name]),
+            "standard_linked_count": len([c for c in checkins if c.get('attendance')]),
+            "unlinked_count": len([c for c in checkins if not c.get('attendance') and not c.get('custom_attendance_link')])
         }
 
     @frappe.whitelist()
@@ -355,7 +366,7 @@ class CustomAttendance(Document):
             # Update employee checkin links after sync
             self.update_employee_checkin_links()
             
-            return f"Synced successfully! IN: {in_time}, OUT: {out_time}"
+            return f"Synced successfully!"
             
         except Exception as e:
             error_msg = str(e)
@@ -533,7 +544,6 @@ def sync_attendance_from_checkin(doc_name):
         frappe.log_error(f"API sync error: {str(e)}")
         return f"Error: {str(e)}"
 
-
 # Scheduled job to auto-sync attendance records
 def auto_sync_attendance():
     """Scheduled job to automatically sync attendance from checkins"""
@@ -608,51 +618,762 @@ def on_checkin_creation(doc, method):
         except Exception as e:
             frappe.log_error(f"Failed to create attendance from checkin: {str(e)}")
 
-@frappe.whitelist()
-def debug_employee_checkins(employee, attendance_date):
-    """Debug method to get employee checkins"""
+# Scheduler Logic:
+
+# Thêm vào file custom_attendance.py
+
+def daily_custom_attendance_sync():
+    """Daily job để sync tất cả Custom Attendance records chưa được sync"""
     try:
-        # Kiểm tra parameter
-        if not employee or not attendance_date:
-            return {
-                "success": False, 
-                "message": "Missing employee or attendance_date",
-                "checkins": []
-            }
+        yesterday = getdate() - timedelta(days=1)
         
-        # Get checkins using direct SQL query
-        checkins = frappe.db.sql("""
-            SELECT 
-                name, 
-                time, 
-                log_type, 
-                device_id, 
-                shift, 
-                attendance,
-                employee
-            FROM `tabEmployee Checkin`
-            WHERE employee = %s 
-            AND DATE(time) = %s
-            ORDER BY time ASC
-        """, (employee, attendance_date), as_dict=True)
+        # Get all Custom Attendance records từ hôm qua cần sync
+        records_to_sync = frappe.get_all("Custom Attendance",
+            filters={
+                "attendance_date": yesterday,
+                "auto_sync_enabled": 1,
+                "docstatus": 0,
+                # Chỉ sync những record chưa có data hoặc chưa sync gần đây
+                "last_sync_time": ["is", "not set"]
+            },
+            fields=["name", "employee", "attendance_date"]
+        )
         
-        # Format time for better display
-        for checkin in checkins:
-            if checkin.time:
-                checkin.formatted_time = frappe.utils.format_datetime(checkin.time)
+        synced_count = 0
+        failed_count = 0
+        
+        for record in records_to_sync:
+            try:
+                doc = frappe.get_doc("Custom Attendance", record.name)
+                result = doc.sync_from_checkin()
+                
+                if "successfully" in str(result).lower():
+                    synced_count += 1
+                else:
+                    failed_count += 1
+                    
+                frappe.db.commit()
+                
+            except Exception as e:
+                failed_count += 1
+                frappe.log_error(f"Daily sync failed for {record.name}: {str(e)}", "Daily Custom Attendance Sync")
+                continue
+        
+        frappe.logger().info(f"Daily Custom Attendance Sync completed: {synced_count} synced, {failed_count} failed")
+        
+    except Exception as e:
+        frappe.log_error(f"Error in daily_custom_attendance_sync: {str(e)}", "Daily Custom Attendance Sync")
+
+def on_checkin_update(doc, method):
+    """Trigger khi Employee Checkin được update"""
+    try:
+        if not doc.time or not doc.employee:
+            return
+            
+        attendance_date = getdate(doc.time)
+        
+        # Tìm Custom Attendance record tương ứng
+        custom_attendance = frappe.db.get_value("Custom Attendance", {
+            "employee": doc.employee,
+            "attendance_date": attendance_date,
+            "auto_sync_enabled": 1,
+            "docstatus": 0
+        })
+        
+        if custom_attendance:
+            # Auto sync nếu có Custom Attendance record
+            try:
+                ca_doc = frappe.get_doc("Custom Attendance", custom_attendance)
+                ca_doc.sync_from_checkin()
+                frappe.logger().info(f"Auto-synced Custom Attendance {custom_attendance} after checkin update")
+            except Exception as e:
+                frappe.log_error(f"Auto-sync failed after checkin update: {str(e)}", "Custom Attendance Auto Sync")
+                
+    except Exception as e:
+        frappe.log_error(f"Error in on_checkin_update: {str(e)}", "Custom Attendance Checkin Update")
+
+def on_shift_update(doc, method):
+    """Trigger khi Shift Type được update"""
+    try:
+        # Nếu shift times thay đổi, có thể cần re-calculate working hours
+        if doc.has_value_changed("start_time") or doc.has_value_changed("end_time"):
+            # Get Custom Attendance records sử dụng shift này từ 7 ngày qua
+            recent_date = getdate() - timedelta(days=7)
+            
+            affected_records = frappe.get_all("Custom Attendance",
+                filters={
+                    "shift": doc.name,
+                    "attendance_date": [">=", recent_date],
+                    "docstatus": 0
+                },
+                fields=["name"]
+            )
+            
+            # Re-calculate working hours cho affected records
+            for record in affected_records:
+                try:
+                    ca_doc = frappe.get_doc("Custom Attendance", record.name)
+                    if ca_doc.check_in and ca_doc.check_out:
+                        ca_doc.calculate_working_hours()
+                        ca_doc.save(ignore_permissions=True)
+                except Exception as e:
+                    frappe.log_error(f"Error recalculating hours for {record.name}: {str(e)}", "Shift Update Impact")
+                    continue
+                    
+            if affected_records:
+                frappe.logger().info(f"Recalculated working hours for {len(affected_records)} Custom Attendance records after shift update")
+                
+    except Exception as e:
+        frappe.log_error(f"Error in on_shift_update: {str(e)}", "Custom Attendance Shift Update")
+
+# Thêm configuration options
+@frappe.whitelist()
+def get_auto_attendance_settings():
+    """Get auto attendance settings"""
+    return {
+        "enabled": frappe.db.get_single_value("HR Settings", "auto_attendance") or False,
+        "tolerance_minutes": frappe.db.get_single_value("HR Settings", "attendance_tolerance") or 30,
+        "auto_sync_enabled": True  # Default cho Custom Attendance
+    }
+
+@frappe.whitelist()
+def configure_auto_attendance(settings):
+    """Configure auto attendance settings"""
+    try:
+        if isinstance(settings, str):
+            settings = json.loads(settings)
+            
+        # Update HR Settings nếu cần
+        if "tolerance_minutes" in settings:
+            frappe.db.set_single_value("HR Settings", "attendance_tolerance", settings["tolerance_minutes"])
+            
+        # Log configuration change
+        frappe.logger().info(f"Auto attendance settings updated: {settings}")
+        
+        return {"success": True, "message": "Settings updated successfully"}
+        
+    except Exception as e:
+        frappe.log_error(f"Error configuring auto attendance: {str(e)}", "Auto Attendance Config")
+        return {"success": False, "message": str(e)}
+
+# Manual trigger functions for testing
+@frappe.whitelist()
+def manual_auto_update(date=None):
+    """Manual trigger để test auto update"""
+    try:
+        if not date:
+            date = getdate()
+        else:
+            date = getdate(date)
+            
+        # Run auto update cho specific date
+        current_time = now_datetime()
+        
+        # Simulate shift completion cho tất cả shifts
+        shifts = frappe.get_all("Shift Type", 
+            filters={"disabled": 0, "enable_auto_attendance": 1},
+            fields=["name", "start_time", "end_time"]
+        )
+        
+        processed = 0
+        for shift in shifts:
+            employees = get_employees_for_auto_update(shift.name, date)
+            for employee in employees:
+                if process_employee_auto_attendance(employee, date, shift.name):
+                    processed += 1
+        
+        return {"success": True, "message": f"Processed {processed} records for {date}"}
+        
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+@frappe.whitelist()
+def bulk_sync_custom_attendance(date_from, date_to):
+    """Bulk sync Custom Attendance records trong date range"""
+    try:
+        from frappe.utils import getdate
+        
+        date_from = getdate(date_from)
+        date_to = getdate(date_to)
+        
+        records = frappe.get_all("Custom Attendance",
+            filters={
+                "attendance_date": ["between", [date_from, date_to]],
+                "auto_sync_enabled": 1,
+                "docstatus": 0
+            },
+            fields=["name", "employee", "attendance_date"]
+        )
+        
+        success_count = 0
+        error_count = 0
+        
+        for record in records:
+            try:
+                doc = frappe.get_doc("Custom Attendance", record.name)
+                doc.sync_from_checkin()
+                success_count += 1
+                frappe.db.commit()
+            except Exception as e:
+                error_count += 1
+                frappe.log_error(f"Bulk sync error for {record.name}: {str(e)}", "Bulk Sync Custom Attendance")
+                continue
         
         return {
-            "success": True,
-            "message": f"Found {len(checkins)} checkin records",
-            "checkins": checkins,
-            "employee": employee,
-            "attendance_date": attendance_date
+            "success": True, 
+            "message": f"Bulk sync completed: {success_count} success, {error_count} errors",
+            "success_count": success_count,
+            "error_count": error_count
         }
         
     except Exception as e:
-        frappe.log_error(f"Debug employee checkins error: {str(e)}", "Custom Attendance Debug")
-        return {
-            "success": False,
-            "message": f"Error: {str(e)}",
-            "checkins": []
+        return {"success": False, "message": str(e)}
+
+def smart_auto_update_custom_attendance():
+    """
+    Smart scheduler - chỉ chạy khi shifts thực sự kết thúc + tolerance time
+    Thay vì chạy mỗi 15 phút, chỉ chạy khi cần thiết
+    """
+    try:
+        current_time = now_datetime()
+        current_date = getdate()
+        
+        # Get all active shifts có auto attendance enabled
+        shifts = get_shifts_ready_for_processing(current_time)
+        
+        if not shifts:
+            return  # Không có shift nào cần process
+            
+        processed_count = 0
+        
+        for shift_info in shifts:
+            try:
+                employees = get_employees_for_shift_processing(shift_info)
+                
+                for employee in employees:
+                    if process_employee_custom_attendance(employee, shift_info):
+                        processed_count += 1
+                        
+            except Exception as e:
+                frappe.log_error(f"Error processing shift {shift_info['name']}: {str(e)}", "Smart Auto Custom Attendance")
+                continue
+        
+        if processed_count > 0:
+            frappe.logger().info(f"Smart auto-update processed {processed_count} Custom Attendance records")
+            
+    except Exception as e:
+        frappe.log_error(f"Error in smart_auto_update_custom_attendance: {str(e)}", "Smart Auto Custom Attendance")
+
+def get_shifts_ready_for_processing(current_time):
+    """
+    Get shifts sẵn sàng để process based on end time + tolerance
+    Chỉ return shifts thực sự cần process ngay bây giờ
+    """
+    try:
+        # Get all active shifts with auto attendance enabled
+        shifts = frappe.db.sql("""
+            SELECT 
+                name, 
+                start_time, 
+                end_time, 
+                allow_check_out_after_shift_end_time,
+                process_attendance_after,
+                last_sync_of_checkin
+            FROM `tabShift Type`
+            WHERE disabled = 0 
+            AND enable_auto_attendance = 1
+        """, as_dict=True)
+        
+        ready_shifts = []
+        
+        for shift in shifts:
+            if is_shift_ready_for_processing(shift, current_time):
+                # Add processing info
+                shift['processing_date'] = calculate_processing_date(shift, current_time)
+                shift['tolerance_minutes'] = cint(shift.get('allow_check_out_after_shift_end_time', 60))
+                ready_shifts.append(shift)
+        
+        return ready_shifts
+        
+    except Exception as e:
+        frappe.log_error(f"Error getting ready shifts: {str(e)}", "Smart Auto Custom Attendance")
+        return []
+
+def is_shift_ready_for_processing(shift, current_time):
+    """
+    Check if shift is ready for processing dựa trên ERPNext logic:
+    1. Shift đã kết thúc + tolerance time
+    2. Sau process_attendance_after date
+    3. Chưa process gần đây (tránh duplicate)
+    """
+    try:
+        # Check process_attendance_after date
+        if shift.process_attendance_after and getdate() < getdate(shift.process_attendance_after):
+            return False
+            
+        if not shift.end_time:
+            return False
+            
+        # Calculate actual shift end time + tolerance
+        tolerance_minutes = cint(shift.get('allow_check_out_after_shift_end_time', 60))
+        
+        # Convert shift end time to datetime
+        end_time = shift.end_time
+        if hasattr(end_time, 'total_seconds'):
+            total_seconds = int(end_time.total_seconds())
+            hours = total_seconds // 3600
+            minutes = (total_seconds % 3600) // 60
+            end_time = datetime.min.time().replace(hour=hours, minute=minutes)
+        
+        # Determine which date this shift ended
+        shift_date = current_time.date()
+        
+        # Handle overnight shifts
+        if shift.start_time and shift.end_time <= shift.start_time:
+            # Overnight shift - end time is next day
+            if current_time.time() < end_time:
+                # We're in the next day, shift ended today
+                shift_end_datetime = datetime.combine(shift_date, end_time)
+            else:
+                # We're still in same day, shift will end tomorrow
+                shift_end_datetime = datetime.combine(shift_date + timedelta(days=1), end_time)
+        else:
+            # Regular shift - same day
+            shift_end_datetime = datetime.combine(shift_date, end_time)
+        
+        # Add tolerance time
+        processing_time = shift_end_datetime + timedelta(minutes=tolerance_minutes)
+        
+        # Check if it's time to process (within 5-minute window để avoid missing)
+        time_diff = (current_time - processing_time).total_seconds()
+        
+        # Ready if:
+        # 1. Current time is after processing_time
+        # 2. But not more than 30 minutes late (to avoid old processing)
+        return 0 <= time_diff <= 1800  # 0-30 minutes after processing time
+        
+    except Exception as e:
+        frappe.log_error(f"Error checking shift readiness: {str(e)}", "Smart Auto Custom Attendance")
+        return False
+
+def calculate_processing_date(shift, current_time):
+    """Calculate which date this shift should be processed for"""
+    try:
+        if not shift.start_time or not shift.end_time:
+            return current_time.date()
+            
+        # Convert times
+        start_time = shift.start_time
+        end_time = shift.end_time
+        
+        if hasattr(start_time, 'total_seconds'):
+            total_seconds = int(start_time.total_seconds())
+            hours = total_seconds // 3600
+            minutes = (total_seconds % 3600) // 60
+            start_time = datetime.min.time().replace(hour=hours, minute=minutes)
+            
+        if hasattr(end_time, 'total_seconds'):
+            total_seconds = int(end_time.total_seconds())
+            hours = total_seconds // 3600
+            minutes = (total_seconds % 3600) // 60
+            end_time = datetime.min.time().replace(hour=hours, minute=minutes)
+        
+        current_date = current_time.date()
+        
+        if end_time <= start_time:
+            # Overnight shift
+            if current_time.time() < end_time:
+                # We're in the "next day" part of shift
+                return current_date - timedelta(days=1)  # Attendance date is previous day
+            else:
+                return current_date  # Attendance date is today
+        else:
+            # Regular shift
+            return current_date
+            
+    except Exception as e:
+        frappe.log_error(f"Error calculating processing date: {str(e)}", "Smart Auto Custom Attendance")
+        return current_time.date()
+
+def get_employees_for_shift_processing(shift_info):
+    """Get employees cần process cho shift này"""
+    try:
+        processing_date = shift_info['processing_date']
+        
+        # Get employees có checkins trong shift này và chưa có Custom Attendance
+        employees = frappe.db.sql("""
+            SELECT DISTINCT ec.employee, e.employee_name, e.company
+            FROM `tabEmployee Checkin` ec
+            JOIN `tabEmployee` e ON ec.employee = e.name
+            WHERE DATE(ec.time) = %s
+            AND (ec.shift = %s OR e.default_shift = %s)
+            AND e.status = 'Active'
+            AND NOT EXISTS (
+                SELECT 1 FROM `tabCustom Attendance` ca 
+                WHERE ca.employee = ec.employee 
+                AND ca.attendance_date = %s
+                AND ca.docstatus != 2
+            )
+        """, (processing_date, shift_info['name'], shift_info['name'], processing_date), as_dict=True)
+        
+        return employees
+        
+    except Exception as e:
+        frappe.log_error(f"Error getting employees for shift processing: {str(e)}", "Smart Auto Custom Attendance")
+        return []
+
+def process_employee_custom_attendance(employee_info, shift_info):
+    """Process Custom Attendance cho employee với shift info"""
+    try:
+        processing_date = shift_info['processing_date']
+        
+        # Create Custom Attendance
+        custom_attendance = frappe.new_doc("Custom Attendance")
+        custom_attendance.employee = employee_info['employee']
+        custom_attendance.employee_name = employee_info['employee_name']
+        custom_attendance.attendance_date = processing_date
+        custom_attendance.company = employee_info['company']
+        custom_attendance.shift = shift_info['name']
+        custom_attendance.auto_sync_enabled = 1
+        custom_attendance.status = "Absent"  # Will be updated after sync
+        
+        # Skip validations during auto creation
+        custom_attendance.flags.ignore_validate = True
+        custom_attendance.flags.ignore_auto_sync = True
+        custom_attendance.flags.ignore_duplicate_check = True
+        
+        # Save
+        custom_attendance.save(ignore_permissions=True)
+        
+        # Auto sync from checkins
+        sync_result = custom_attendance.sync_from_checkin()
+        
+        frappe.logger().info(f"Auto-created Custom Attendance {custom_attendance.name} for {employee_info['employee']} (Shift: {shift_info['name']}, Date: {processing_date}): {sync_result}")
+        
+        return True
+        
+    except Exception as e:
+        frappe.log_error(f"Error processing employee custom attendance: {str(e)}", "Smart Auto Custom Attendance")
+        return False
+
+# Updated hooks configuration
+def get_smart_scheduler_events():
+    """
+    Return scheduler events based on shift timing
+    Thay vì cron mỗi 15 phút, tính toán thời gian cần thiết
+    """
+    try:
+        # Get all unique shift end times + tolerance
+        shifts = frappe.db.sql("""
+            SELECT DISTINCT 
+                end_time, 
+                allow_check_out_after_shift_end_time
+            FROM `tabShift Type`
+            WHERE disabled = 0 
+            AND enable_auto_attendance = 1
+            AND end_time IS NOT NULL
+        """, as_dict=True)
+        
+        scheduler_times = []
+        
+        for shift in shifts:
+            tolerance = cint(shift.get('allow_check_out_after_shift_end_time', 60))
+            end_time = shift.end_time
+            
+            if hasattr(end_time, 'total_seconds'):
+                total_seconds = int(end_time.total_seconds())
+                hours = total_seconds // 3600
+                minutes = (total_seconds % 3600) // 60
+                
+                # Calculate processing time = end_time + tolerance
+                processing_minutes = minutes + tolerance
+                processing_hours = hours + (processing_minutes // 60)
+                processing_minutes = processing_minutes % 60
+                processing_hours = processing_hours % 24
+                
+                # Create cron expression
+                cron_expr = f"{processing_minutes} {processing_hours} * * *"
+                scheduler_times.append(cron_expr)
+        
+        return scheduler_times
+        
+    except Exception as e:
+        frappe.log_error(f"Error generating smart scheduler events: {str(e)}", "Smart Scheduler")
+        return ["0 */2 * * *"]  # Fallback: every 2 hours
+
+# Manual function để test logic
+@frappe.whitelist()
+def test_shift_processing_logic():
+    """Test function để verify shift processing logic"""
+    try:
+        current_time = now_datetime()
+        shifts = get_shifts_ready_for_processing(current_time)
+        
+        result = {
+            "current_time": str(current_time),
+            "ready_shifts": []
         }
+        
+        for shift in shifts:
+            shift_info = {
+                "name": shift['name'],
+                "processing_date": str(shift['processing_date']),
+                "tolerance_minutes": shift['tolerance_minutes'],
+                "employees_count": len(get_employees_for_shift_processing(shift))
+            }
+            result["ready_shifts"].append(shift_info)
+        
+        return result
+        
+    except Exception as e:
+        return {"error": str(e)}
+
+# Thêm vào file custom_attendance.py
+
+@frappe.whitelist()
+def bulk_process_from_shift_date(shift_name=None, start_date=None, end_date=None):
+    """
+    Bulk create và sync Custom Attendance từ Process Attendance After date
+    """
+    try:
+        from frappe.utils import getdate, date_diff
+        
+        results = {
+            "success": True,
+            "total_days": 0,
+            "total_employees": 0,
+            "created_count": 0,
+            "synced_count": 0,
+            "error_count": 0,
+            "details": [],
+            "errors": []
+        }
+        
+        # Get date range
+        if shift_name:
+            # Lấy từ shift settings
+            shift_doc = frappe.get_doc("Shift Type", shift_name)
+            start_date = shift_doc.process_attendance_after or getdate() - timedelta(days=30)
+        elif start_date:
+            start_date = getdate(start_date)
+        else:
+            start_date = getdate() - timedelta(days=30)  # Default 30 ngày trước
+            
+        if not end_date:
+            end_date = getdate()  # Đến hôm nay
+        else:
+            end_date = getdate(end_date)
+            
+        # Validate date range
+        if start_date > end_date:
+            return {"success": False, "message": "Start date cannot be after end date"}
+            
+        days_count = date_diff(end_date, start_date) + 1
+        if days_count > 90:  # Limit để tránh overload
+            return {"success": False, "message": "Date range too large (maximum 90 days)"}
+        
+        results["total_days"] = days_count
+        
+        frappe.logger().info(f"Starting bulk process from {start_date} to {end_date}")
+        
+        # Process từng ngày
+        current_date = start_date
+        while current_date <= end_date:
+            try:
+                day_result = process_single_day_bulk(current_date, shift_name)
+                
+                results["total_employees"] += day_result["employees_processed"]
+                results["created_count"] += day_result["created_count"]
+                results["synced_count"] += day_result["synced_count"]  
+                results["error_count"] += day_result["error_count"]
+                
+                if day_result["created_count"] > 0 or day_result["error_count"] > 0:
+                    results["details"].append({
+                        "date": str(current_date),
+                        "created": day_result["created_count"],
+                        "synced": day_result["synced_count"],
+                        "errors": day_result["error_count"]
+                    })
+                
+                results["errors"].extend(day_result["errors"])
+                
+                # Commit sau mỗi ngày để tránh timeout
+                frappe.db.commit()
+                
+            except Exception as e:
+                error_msg = f"Error processing {current_date}: {str(e)}"
+                results["errors"].append(error_msg)
+                results["error_count"] += 1
+                frappe.log_error(error_msg, "Bulk Process Custom Attendance")
+                
+            current_date += timedelta(days=1)
+        
+        # Summary message
+        results["message"] = f"""Bulk processing completed:
+        rocessed {results['total_days']} days
+        Found {results['total_employees']} employee-days with check-ins
+        Created {results['created_count']} Custom Attendance records
+        Synced {results['synced_count']} records successfully
+        {results['error_count']} errors encountered"""
+        
+        frappe.logger().info(f"Bulk process completed: {results['message']}")
+        
+        return results
+        
+    except Exception as e:
+        error_msg = f"Error in bulk_process_from_shift_date: {str(e)}"
+        frappe.log_error(error_msg, "Bulk Process Custom Attendance")
+        return {"success": False, "message": error_msg}
+
+def process_single_day_bulk(date, shift_name=None):
+    """Process Custom Attendance cho một ngày cụ thể"""
+    try:
+        result = {
+            "employees_processed": 0,
+            "created_count": 0,
+            "synced_count": 0,
+            "error_count": 0,
+            "errors": []
+        }
+        
+        # Get employees có check-ins trong ngày này
+        filters = {
+            "DATE(time)": date,
+            "employee": ["!=", ""]
+        }
+        
+        if shift_name:
+            # Lọc theo shift cụ thể
+            filters["shift"] = shift_name
+            
+        # Query employees có checkins
+        employees_with_checkins = frappe.db.sql("""
+            SELECT DISTINCT 
+                ec.employee, 
+                e.employee_name, 
+                e.company,
+                COALESCE(ec.shift, e.default_shift) as shift_type
+            FROM `tabEmployee Checkin` ec
+            JOIN `tabEmployee` e ON ec.employee = e.name
+            WHERE DATE(ec.time) = %s
+            AND e.status = 'Active'
+            {}
+            AND NOT EXISTS (
+                SELECT 1 FROM `tabCustom Attendance` ca 
+                WHERE ca.employee = ec.employee 
+                AND ca.attendance_date = %s
+                AND ca.docstatus != 2
+            )
+        """.format("AND (ec.shift = %s OR e.default_shift = %s)" if shift_name else ""),
+        (date, shift_name, shift_name, date) if shift_name else (date, date), as_dict=True)
+        
+        result["employees_processed"] = len(employees_with_checkins)
+        
+        # Tạo Custom Attendance cho từng employee
+        for emp in employees_with_checkins:
+            try:
+                # Create Custom Attendance
+                custom_attendance = frappe.new_doc("Custom Attendance")
+                custom_attendance.employee = emp.employee
+                custom_attendance.employee_name = emp.employee_name
+                custom_attendance.attendance_date = date
+                custom_attendance.company = emp.company
+                custom_attendance.shift = emp.shift_type
+                custom_attendance.auto_sync_enabled = 1
+                custom_attendance.status = "Absent"  # Will be updated after sync
+                
+                # Skip validations during bulk creation
+                custom_attendance.flags.ignore_validate = True
+                custom_attendance.flags.ignore_auto_sync = True
+                custom_attendance.flags.ignore_duplicate_check = True
+                
+                # Save
+                custom_attendance.save(ignore_permissions=True)
+                result["created_count"] += 1
+                
+                # Auto sync from checkins
+                try:
+                    sync_result = custom_attendance.sync_from_checkin()
+                    if "successfully" in str(sync_result).lower() or "success" in str(sync_result).lower():
+                        result["synced_count"] += 1
+                    else:
+                        result["errors"].append(f"{emp.employee} ({date}): Sync issue - {sync_result}")
+                        
+                except Exception as sync_error:
+                    result["errors"].append(f"{emp.employee} ({date}): Sync failed - {str(sync_error)}")
+                    
+            except Exception as create_error:
+                result["error_count"] += 1
+                error_msg = f"{emp.employee} ({date}): Create failed - {str(create_error)}"
+                result["errors"].append(error_msg)
+                frappe.log_error(error_msg, "Bulk Process Single Employee")
+                
+        return result
+        
+    except Exception as e:
+        return {
+            "employees_processed": 0,
+            "created_count": 0, 
+            "synced_count": 0,
+            "error_count": 1,
+            "errors": [f"Day processing failed: {str(e)}"]
+        }
+
+@frappe.whitelist()
+def get_bulk_process_preview(shift_name=None, start_date=None, end_date=None):
+    """Preview data trước khi bulk process"""
+    try:
+        from frappe.utils import getdate, date_diff
+        
+        # Get date range
+        if shift_name:
+            shift_doc = frappe.get_doc("Shift Type", shift_name)
+            start_date = shift_doc.process_attendance_after or getdate() - timedelta(days=30)
+        elif start_date:
+            start_date = getdate(start_date)
+        else:
+            start_date = getdate() - timedelta(days=30)
+            
+        if not end_date:
+            end_date = getdate()
+        else:
+            end_date = getdate(end_date)
+            
+        # Get summary data
+        preview_data = frappe.db.sql("""
+            SELECT 
+                DATE(ec.time) as attendance_date,
+                COUNT(DISTINCT ec.employee) as employee_count,
+                COUNT(ec.name) as checkin_count,
+                COUNT(DISTINCT COALESCE(ec.shift, e.default_shift)) as shift_count
+            FROM `tabEmployee Checkin` ec
+            JOIN `tabEmployee` e ON ec.employee = e.name
+            WHERE DATE(ec.time) BETWEEN %s AND %s
+            AND e.status = 'Active'
+            {}
+            AND NOT EXISTS (
+                SELECT 1 FROM `tabCustom Attendance` ca 
+                WHERE ca.employee = ec.employee 
+                AND ca.attendance_date = DATE(ec.time)
+                AND ca.docstatus != 2
+            )
+            GROUP BY DATE(ec.time)
+            ORDER BY DATE(ec.time)
+        """.format("AND (ec.shift = %s OR e.default_shift = %s)" if shift_name else ""),
+        (start_date, end_date, shift_name, shift_name) if shift_name else (start_date, end_date), as_dict=True)
+        
+        total_employees = sum([row.employee_count for row in preview_data])
+        total_days = len(preview_data)
+        
+        return {
+            "success": True,
+            "start_date": str(start_date),
+            "end_date": str(end_date),
+            "total_days": total_days,
+            "total_employees": total_employees,  
+            "daily_breakdown": preview_data,
+            "shift_name": shift_name
+        }
+        
+    except Exception as e:
+        return {"success": False, "message": str(e)}

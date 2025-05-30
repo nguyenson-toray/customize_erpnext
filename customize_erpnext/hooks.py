@@ -97,15 +97,23 @@ data_import_before_import = [
 
 # Scheduled Jobs
 scheduler_events = {
+     # Daily cleanup và sync
+    "hourly": [
+        "customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.smart_auto_update_custom_attendance"
+    ],
     "daily": [
-        "customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.auto_sync_attendance"
-    ]
+        "customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.daily_custom_attendance_sync"
+    ],
 }
 
 # Document Events
 doc_events = {
     "Employee Checkin": {
-        "after_insert": "customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.on_checkin_creation"
+        "after_insert": "customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.on_checkin_creation",
+        "on_update": "customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.on_checkin_update"
+    },
+    "Shift Type": {
+        "on_update": "customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.on_shift_update"
     }
 }
 
