@@ -94,7 +94,64 @@ data_import_before_import = [
     "customize_erpnext.override_methods.item_attribute_import.before_import"
 ]
 
- 
+
+# Scheduler Events
+
+scheduler_events = {
+    "daily": [
+        # Daily attendance completion - chạy lúc 6:00 AM mỗi ngày
+        "customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.auto_daily_attendance_completion",
+        
+        # Auto submit Custom Attendance - chạy lúc 7:00 AM mỗi ngày  
+        "customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.auto_submit_custom_attendance"
+    ],
+    
+    "hourly": [
+        # Smart auto update - chỉ chạy khi shift kết thúc + tolerance
+        "customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.smart_auto_update_custom_attendance"
+    ],
+    
+    # Cron-based schedules (optional - có thể customize thời gian cụ thể)
+    "cron": {
+        # Daily completion lúc 6:00 AM
+        "0 6 * * *": [
+            "customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.auto_daily_attendance_completion"
+        ],
+        
+        # Auto submit lúc 7:00 AM
+        "0 7 * * *": [
+            "customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.auto_submit_custom_attendance"
+        ],
+        
+        # Smart auto update mỗi 30 phút (có thể adjust)
+        "*/30 * * * *": [
+            "customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.smart_auto_update_custom_attendance"
+        ]
+    }
+}
+
+# Document Events
+doc_events = {
+    "Employee Checkin": {
+        "on_update": "customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.on_checkin_update",
+        "after_insert": "customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.on_checkin_creation",
+    },
+    
+    "Shift Type": {
+        "on_update": "customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.on_shift_update"
+    }
+}
+# Fixtures (for initial setup)
+fixtures = [
+    {
+        "doctype": "Custom Field",
+        "filters": {
+            "dt": ["in", ["Employee"]]
+        }
+    }
+]
+
+# boot_session = "customize_erpnext.override_methods.employee_checkin_or.apply_monkey_patch"
 # Hook on document methods and events
 # doc_events = {
 #     # "Item": {
@@ -178,7 +235,7 @@ data_import_before_import = [
 # before_install = "customize_erpnext.install.before_install"
 # after_install = "customize_erpnext.install.after_install"
 
-after_install = "customize_erpnext.setup.remove_depends_on"
+# after_install = "customize_erpnext.setup.remove_depends_on"
 # Uninstallation
 # ------------
 
@@ -266,10 +323,10 @@ after_install = "customize_erpnext.setup.remove_depends_on"
 # before_tests = "customize_erpnext.install.before_tests"
 
 # Overriding Methods
-# ------------------------------
+# ------------------------------ 
 #
 # override_whitelisted_methods = {
-# 	"frappe.desk.doctype.event.event.get_events": "customize_erpnext.event.get_events"
+#     "hrms.hr.doctype.employee_checkin.employee_checkin.calculate_working_hours": "customize_erpnext.override_methods.employee_checkin_or.calculate_working_hours"
 # }
 #
 # each overriding function accepts a `data` argument;
@@ -278,10 +335,13 @@ after_install = "customize_erpnext.setup.remove_depends_on"
 # override_doctype_dashboards = {
 # 	"Task": "customize_erpnext.task.get_dashboard_data"
 # }
-
 # exempt linked doctypes from being automatically cancelled
 #
 # auto_cancel_exempted_doctypes = ["Auto Repeat"]
+
+# Chạy khi session boot lên
+# boot_session = "customize_erpnext.override_methods.employee_checkin_or.apply_monkey_patch"
+
 
 # Ignore links to specified DocTypes when deleting documents
 # -----------------------------------------------------------
