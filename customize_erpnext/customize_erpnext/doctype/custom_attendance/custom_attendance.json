@@ -52,12 +52,22 @@
    "search_index": 1
   },
   {
-   "fetch_from": "employee.employee_name",
-   "fieldname": "employee_name",
-   "fieldtype": "Data",
-   "in_list_view": 1,
-   "label": "Employee Name",
-   "read_only": 1
+  "fieldname": "employee",
+  "fieldtype": "Link",
+  "in_global_search": 1,
+  "in_standard_filter": 1,
+  "label": "Employee",
+  "options": "Employee",
+  "reqd": 1,
+  "search_index": 1
+  },
+  {
+  "fetch_from": "employee.employee_name",
+  "fieldname": "employee_name",
+  "fieldtype": "Data",
+  "in_global_search": 1,
+  "label": "Employee Name",
+  "read_only": 1
   },
   {
    "fieldname": "attendance_date",

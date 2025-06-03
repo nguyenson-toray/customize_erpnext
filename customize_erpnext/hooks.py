@@ -95,28 +95,52 @@ data_import_before_import = [
 ]
 
 
-# Scheduled Jobs
+# Scheduler Events
+
 scheduler_events = {
-     # Daily cleanup và sync
+    "daily": [
+        # Daily attendance completion - chạy lúc 6:00 AM mỗi ngày
+        "customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.auto_daily_attendance_completion",
+        
+        # Auto submit Custom Attendance - chạy lúc 7:00 AM mỗi ngày  
+        "customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.auto_submit_custom_attendance"
+    ],
+    
     "hourly": [
+        # Smart auto update - chỉ chạy khi shift kết thúc + tolerance
         "customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.smart_auto_update_custom_attendance"
     ],
-    "daily": [
-        "customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.daily_custom_attendance_sync"
-    ],
+    
+    # Cron-based schedules (optional - có thể customize thời gian cụ thể)
+    "cron": {
+        # Daily completion lúc 6:00 AM
+        "0 6 * * *": [
+            "customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.auto_daily_attendance_completion"
+        ],
+        
+        # Auto submit lúc 7:00 AM
+        "0 7 * * *": [
+            "customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.auto_submit_custom_attendance"
+        ],
+        
+        # Smart auto update mỗi 30 phút (có thể adjust)
+        "*/30 * * * *": [
+            "customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.smart_auto_update_custom_attendance"
+        ]
+    }
 }
 
 # Document Events
 doc_events = {
     "Employee Checkin": {
+        "on_update": "customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.on_checkin_update",
         "after_insert": "customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.on_checkin_creation",
-        "on_update": "customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.on_checkin_update"
     },
+    
     "Shift Type": {
         "on_update": "customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.on_shift_update"
     }
 }
-
 # Fixtures (for initial setup)
 fixtures = [
     {

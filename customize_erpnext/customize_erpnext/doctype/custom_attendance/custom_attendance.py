@@ -2,6 +2,16 @@
 # For license information, please see license.txt
 
 import frappe
+from frappe import _
+from frappe.utils import (
+    getdate, 
+    add_days, 
+    today, 
+    get_datetime, 
+    nowdate,
+    time_diff_in_hours,
+    flt
+)
 from frappe.model.document import Document
 from frappe.utils import getdate, get_datetime, now_datetime, time_diff_in_hours, flt
 from datetime import datetime, timedelta, time
@@ -1003,9 +1013,9 @@ def get_employees_for_shift_processing(shift_info):
         # Get employees có checkins trong shift này và chưa có Custom Attendance
         employees = frappe.db.sql("""
             SELECT DISTINCT ec.employee, e.employee_name, e.company
-            FROM `tabEmployee Checkin` ec
-            JOIN `tabEmployee` e ON ec.employee = e.name
-            WHERE DATE(ec.time) = %s
+            FROM `tabEmployee` e
+            WHERE e.status = 'Active'
+            AND e.default_shift = %s
             AND (ec.shift = %s OR e.default_shift = %s)
             AND e.status = 'Active'
             AND NOT EXISTS (
@@ -1253,9 +1263,9 @@ def process_single_day_bulk(date, shift_name=None):
                 e.employee_name, 
                 e.company,
                 COALESCE(ec.shift, e.default_shift) as shift_type
-            FROM `tabEmployee Checkin` ec
-            JOIN `tabEmployee` e ON ec.employee = e.name
-            WHERE DATE(ec.time) = %s
+            FROM `tabEmployee` e  
+            LEFT JOIN `tabEmployee Checkin` ec ON ec.employee = e.name AND DATE(ec.time) = %s
+            WHERE e.status = 'Active'
             AND e.status = 'Active'
             {}
             AND NOT EXISTS (
@@ -1346,9 +1356,9 @@ def get_bulk_process_preview(shift_name=None, start_date=None, end_date=None):
                 COUNT(DISTINCT ec.employee) as employee_count,
                 COUNT(ec.name) as checkin_count,
                 COUNT(DISTINCT COALESCE(ec.shift, e.default_shift)) as shift_count
-            FROM `tabEmployee Checkin` ec
-            JOIN `tabEmployee` e ON ec.employee = e.name
-            WHERE DATE(ec.time) BETWEEN %s AND %s
+            FROM `tabEmployee` e
+            LEFT JOIN `tabEmployee Checkin` ec ON ec.employee = e.name AND DATE(ec.time) = %s
+            WHERE e.status = 'Active'
             AND e.status = 'Active'
             {}
             AND NOT EXISTS (
@@ -1376,4 +1386,956 @@ def get_bulk_process_preview(shift_name=None, start_date=None, end_date=None):
         }
         
     except Exception as e:
+        return {"success": False, "message": str(e)}
+
+@frappe.whitelist()
+def auto_bulk_create_custom_attendance():
+    """
+    Tự động bulk create Custom Attendance cho các ngày trước đó
+    Chạy hàng ngày qua scheduler
+    """
+    try:
+        # Lấy settings từ System Settings hoặc Custom Settings DocType
+        # auto_create_days = frappe.db.get_single_value("HR Settings", "auto_create_attendance_days") or 7
+        
+        # Hoặc hardcode số ngày muốn tự động tạo (ví dụ 3 ngày trước)
+        auto_create_days = 3
+        
+        end_date = add_days(today(), -1)  # Hôm qua
+        start_date = add_days(end_date, -auto_create_days)  # 3 ngày trước
+        
+        # Log để debug
+        frappe.logger().info(f"Auto bulk create Custom Attendance from {start_date} to {end_date}")
+        
+        # Gọi function bulk process có sẵn
+        result = bulk_process_from_shift_date(
+            start_date=start_date,
+            end_date=end_date
+        )
+        
+        if result.get('success'):
+            frappe.logger().info(f"Auto bulk create completed: {result.get('created_count', 0)} records created")
+            
+            # Gửi email thông báo cho HR Manager (optional)
+            # send_auto_create_notification(result)
+            
+        else:
+            frappe.logger().error(f"Auto bulk create failed: {result.get('message', 'Unknown error')}")
+            
+    except Exception as e:
+        frappe.logger().error(f"Auto bulk create Custom Attendance error: {str(e)}")
+        frappe.log_error(f"Auto bulk create error: {str(e)}", "Auto Bulk Create Custom Attendance")
+
+@frappe.whitelist()
+def auto_submit_custom_attendance():
+    """
+    Tự động submit tất cả Custom Attendance records (trừ ngày hôm nay)
+    Chạy hàng ngày qua scheduler
+    """
+    try:
+        # Kiểm tra xem auto submit có được enable không
+        auto_submit_enabled = frappe.db.get_single_value("HR Settings", "custom_auto_submit_attendance_enabled")
+        if not auto_submit_enabled:
+            frappe.logger().info("Auto submit Custom Attendance is disabled in HR Settings")
+            return {"success": True, "message": "Auto submit disabled"}
+        
+        # Lấy số ngày lookback từ settings (default 30 ngày)
+        # lookback_days = frappe.db.get_single_value("HR Settings", "custom_auto_submit_attendance_days") or 30
+        
+        lookback_days = 30
+        # Giới hạn tối đa 90 ngày
+        if lookback_days > 90:
+            lookback_days = 90
+            
+        # Tính toán date range (từ X ngày trước đến hôm qua)
+        end_date = add_days(today(), -1)  # Hôm qua
+        start_date = add_days(end_date, -lookback_days)  # X ngày trước
+        
+        frappe.logger().info(f"Auto submit Custom Attendance from {start_date} to {end_date}")
+        
+        # Lấy tất cả records chưa submit trong khoảng thời gian
+        draft_records = frappe.get_all("Custom Attendance", 
+            filters={
+                "docstatus": 0,  # Draft
+                "attendance_date": ["between", [start_date, end_date]]
+            },
+            fields=["name", "employee", "employee_name", "attendance_date", "status", "working_hours"],
+            order_by="attendance_date asc, employee asc"
+        )
+        
+        if not draft_records:
+            frappe.logger().info("No draft Custom Attendance records found to submit")
+            return {
+                "success": True, 
+                "message": "No records to submit",
+                "submitted_count": 0,
+                "error_count": 0
+            }
+        
+        # Counters
+        submitted_count = 0
+        error_count = 0
+        errors = []
+        
+        # Process records by batches để tránh timeout
+        batch_size = 50
+        total_records = len(draft_records)
+        
+        for i in range(0, total_records, batch_size):
+            batch = draft_records[i:i + batch_size]
+            
+            for record in batch:
+                try:
+                    # Load document
+                    doc = frappe.get_doc("Custom Attendance", record.name)
+                    
+                    # Validate trước khi submit
+                    validation_result = validate_before_submit(doc)
+                    if not validation_result["valid"]:
+                        error_msg = f"{record.name}: {validation_result['message']}"
+                        errors.append(error_msg)
+                        error_count += 1
+                        frappe.logger().warning(error_msg)
+                        continue
+                    
+                    # Submit document
+                    doc.submit()
+                    submitted_count += 1
+                    
+                    # Log success (có thể comment để giảm log)
+                    # frappe.logger().info(f"Submitted: {record.name} - {record.employee_name} - {record.attendance_date}")
+                    
+                except Exception as e:
+                    error_msg = f"{record.name}: {str(e)}"
+                    errors.append(error_msg)
+                    error_count += 1
+                    frappe.logger().error(f"Failed to submit {record.name}: {str(e)}")
+                    
+            # Commit sau mỗi batch
+            frappe.db.commit()
+            
+        # Kết quả
+        result = {
+            "success": True,
+            "start_date": start_date,
+            "end_date": end_date,
+            "total_found": total_records,
+            "submitted_count": submitted_count,
+            "error_count": error_count,
+            "errors": errors[:20]  # Chỉ lấy 20 errors đầu tiên
+        }
+        
+        frappe.logger().info(f"Auto submit completed: {submitted_count}/{total_records} records submitted, {error_count} errors")
+        
+        # Gửi email notification nếu enable
+        # notification_enabled = frappe.db.get_single_value("HR Settings", "custom_auto_submit_notification_enabled")
+        # if notification_enabled:
+        #     send_auto_submit_notification(result)
+            
+        return result
+        
+    except Exception as e:
+        frappe.logger().error(f"Auto submit Custom Attendance error: {str(e)}")
+        frappe.log_error(f"Auto submit error: {str(e)}", "Auto Submit Custom Attendance")
+        return {"success": False, "message": str(e)}
+
+def validate_before_submit(doc):
+    """
+    Validate Custom Attendance record trước khi submit
+    """
+    try:
+        # Basic validation
+        if not doc.employee:
+            return {"valid": False, "message": "Missing employee"}
+            
+        if not doc.attendance_date:
+            return {"valid": False, "message": "Missing attendance date"}
+            
+        if not doc.status:
+            return {"valid": False, "message": "Missing status"}
+            
+        # Business logic validation
+        if doc.status == "Present":
+            # Nếu Present mà không có check_in hoặc working_hours = 0, có thể cảnh báo nhưng vẫn cho submit
+            if not doc.check_in and not doc.working_hours:
+                frappe.logger().warning(f"Present record without check-in or working hours: {doc.name}")
+                
+        elif doc.status == "Absent":
+            # Absent records should not have check-in/out or working hours
+            if doc.check_in or doc.check_out or doc.working_hours:
+                frappe.logger().warning(f"Absent record has check-in/out data: {doc.name}")
+                
+        # Check for duplicate (same employee + date)
+        existing = frappe.db.exists("Custom Attendance", {
+            "employee": doc.employee,
+            "attendance_date": doc.attendance_date,
+            "name": ["!=", doc.name],
+            "docstatus": ["!=", 2]  # Not cancelled
+        })
+        
+        if existing:
+            return {"valid": False, "message": f"Duplicate attendance exists: {existing}"}
+            
+        # Check if employee was active on that date
+        employee_doc = frappe.get_doc("Employee", doc.employee)
+        if employee_doc.date_of_joining and getdate(employee_doc.date_of_joining) > getdate(doc.attendance_date):
+            return {"valid": False, "message": "Attendance date before employee joining date"}
+            
+        if employee_doc.relieving_date and getdate(employee_doc.relieving_date) < getdate(doc.attendance_date):
+            return {"valid": False, "message": "Attendance date after employee relieving date"}
+            
+        return {"valid": True, "message": "Valid"}
+        
+    except Exception as e:
+        return {"valid": False, "message": f"Validation error: {str(e)}"}
+
+@frappe.whitelist()
+def manual_submit_bulk():
+    """
+    Manual trigger để test auto submit function
+    """
+    if not frappe.has_permission("Custom Attendance", "write"):
+        frappe.throw(_("Not permitted to submit Custom Attendance"))
+        
+    result = auto_submit_custom_attendance()
+    return result
+
+# Thêm vào file custom_attendance.py
+
+def daily_attendance_completion():
+    """
+    Tạo Custom Attendance cho TẤT CẢ nhân viên active (bao gồm Absent)
+    Chạy hàng ngày để đảm bảo không ai bị thiếu attendance record
+    """
+    try:
+        # Lấy ngày cần xử lý (hôm qua hoặc theo cấu hình)
+        target_date = add_days(today(), -1)  # Hôm qua
+        
+        frappe.logger().info(f"Starting daily attendance completion for {target_date}")
+        
+        # Lấy tất cả nhân viên active
+        active_employees = get_active_employees_for_date(target_date)
+        
+        if not active_employees:
+            frappe.logger().info("No active employees found")
+            return
+        
+        # Counters
+        created_count = 0
+        updated_count = 0
+        error_count = 0
+        errors = []
+        
+        for employee in active_employees:
+            try:
+                result = process_employee_daily_attendance(employee, target_date)
+                
+                if result['action'] == 'created':
+                    created_count += 1
+                elif result['action'] == 'updated':
+                    updated_count += 1
+                    
+            except Exception as e:
+                error_count += 1
+                error_msg = f"Employee {employee['name']}: {str(e)}"
+                errors.append(error_msg)
+                frappe.log_error(error_msg, "Daily Attendance Completion")
+                continue
+        
+        # Log results
+        frappe.logger().info(
+            f"Daily attendance completion for {target_date}: "
+            f"{created_count} created, {updated_count} updated, {error_count} errors"
+        )
+        
+        # Commit changes
+        frappe.db.commit()
+        
+        return {
+            "success": True,
+            "date": target_date,
+            "total_employees": len(active_employees),
+            "created_count": created_count,
+            "updated_count": updated_count,
+            "error_count": error_count,
+            "errors": errors[:10]  # First 10 errors only
+        }
+        
+    except Exception as e:
+        frappe.log_error(f"Error in daily_attendance_completion: {str(e)}", "Daily Attendance Completion")
+        return {"success": False, "message": str(e)}
+
+def get_active_employees_for_date(target_date):
+    """
+    Lấy tất cả nhân viên active cho ngày cụ thể
+    """
+    try:
+        employees = frappe.db.sql("""
+            SELECT 
+                e.name,
+                e.employee_name,
+                e.company,
+                e.department,
+                e.default_shift,
+                e.date_of_joining,
+                e.relieving_date,
+                e.status
+            FROM `tabEmployee` e
+            WHERE e.status = 'Active'
+            AND (e.date_of_joining IS NULL OR e.date_of_joining <= %s)
+            AND (e.relieving_date IS NULL OR e.relieving_date >= %s)
+            ORDER BY e.name
+        """, (target_date, target_date), as_dict=True)
+        
+        return employees
+        
+    except Exception as e:
+        frappe.log_error(f"Error getting active employees: {str(e)}", "Daily Attendance Completion")
+        return []
+
+def process_employee_daily_attendance(employee, target_date):
+    """
+    Xử lý attendance cho một nhân viên trong ngày cụ thể
+    """
+    try:
+        # Check if Custom Attendance already exists
+        existing_attendance = frappe.db.get_value("Custom Attendance", {
+            "employee": employee['name'],
+            "attendance_date": target_date,
+            "docstatus": ["!=", 2]  # Not cancelled
+        }, ["name", "docstatus", "status", "auto_sync_enabled"])
+        
+        if existing_attendance:
+            # Update existing record if needed
+            return update_existing_attendance(existing_attendance, employee, target_date)
+        else:
+            # Create new attendance record
+            return create_new_attendance(employee, target_date)
+            
+    except Exception as e:
+        raise Exception(f"Process failed: {str(e)}")
+
+def create_new_attendance(employee, target_date):
+    """
+    Tạo Custom Attendance mới cho nhân viên
+    """
+    try:
+        # Check if employee has checkins
+        has_checkins = frappe.db.exists("Employee Checkin", {
+            "employee": employee['name'],
+            "time": ["between", [
+                f"{target_date} 00:00:00",
+                f"{target_date} 23:59:59"
+            ]]
+        })
+        
+        # Create new Custom Attendance
+        custom_attendance = frappe.new_doc("Custom Attendance")
+        custom_attendance.employee = employee['name']
+        custom_attendance.employee_name = employee['employee_name']
+        custom_attendance.attendance_date = target_date
+        custom_attendance.company = employee['company']
+        custom_attendance.department = employee['department']
+        custom_attendance.shift = employee['default_shift']
+        custom_attendance.auto_sync_enabled = 1
+        
+        # Set initial status
+        if has_checkins:
+            custom_attendance.status = "Present"  # Will be refined after sync
+        else:
+            custom_attendance.status = "Absent"
+            
+        # Skip validations during auto creation
+        custom_attendance.flags.ignore_validate = True
+        custom_attendance.flags.ignore_auto_sync = True
+        custom_attendance.flags.ignore_duplicate_check = True
+        
+        # Save
+        custom_attendance.save(ignore_permissions=True)
+        
+        # Auto sync if has checkins
+        if has_checkins:
+            custom_attendance.sync_from_checkin()
+            
+        frappe.logger().info(f"Created Custom Attendance: {custom_attendance.name} for {employee['name']} - Status: {custom_attendance.status}")
+        
+        return {"action": "created", "name": custom_attendance.name, "status": custom_attendance.status}
+        
+    except Exception as e:
+        raise Exception(f"Create failed: {str(e)}")
+
+def update_existing_attendance(existing_attendance, employee, target_date):
+    """
+    Update existing Custom Attendance if needed
+    """
+    try:
+        attendance_name = existing_attendance[0] if isinstance(existing_attendance, (list, tuple)) else existing_attendance
+        
+        # Load document
+        doc = frappe.get_doc("Custom Attendance", attendance_name)
+        
+        # Only update if auto_sync is enabled and not submitted
+        if doc.auto_sync_enabled and doc.docstatus == 0:
+            # Check if employee has checkins
+            has_checkins = frappe.db.exists("Employee Checkin", {
+                "employee": employee['name'],
+                "time": ["between", [
+                    f"{target_date} 00:00:00",
+                    f"{target_date} 23:59:59"
+                ]]
+            })
+            
+            if has_checkins and doc.status == "Absent":
+                # Had no checkins before, but now has checkins - sync
+                doc.sync_from_checkin()
+                frappe.logger().info(f"Updated Custom Attendance: {doc.name} - Status changed from Absent to {doc.status}")
+                return {"action": "updated", "name": doc.name, "status": doc.status}
+            elif not has_checkins and doc.status != "Absent":
+                # Had checkins before, but now no checkins - mark as Absent
+                doc.status = "Absent"
+                doc.check_in = None
+                doc.check_out = None
+                doc.working_hours = 0
+                doc.in_time = None
+                doc.out_time = None
+                doc.late_entry = 0
+                doc.early_exit = 0
+                
+                doc.flags.ignore_validate_update_after_submit = True
+                doc.save(ignore_permissions=True)
+                
+                frappe.logger().info(f"Updated Custom Attendance: {doc.name} - Status changed to Absent")
+                return {"action": "updated", "name": doc.name, "status": "Absent"}
+        
+        return {"action": "skipped", "name": attendance_name, "reason": "No update needed"}
+        
+    except Exception as e:
+        raise Exception(f"Update failed: {str(e)}")
+
+@frappe.whitelist()
+def manual_daily_completion(date=None):
+    """
+    Manual trigger cho daily attendance completion
+    """
+    try:
+        if not frappe.has_permission("Custom Attendance", "create"):
+            frappe.throw(_("Not permitted to create Custom Attendance"))
+            
+        target_date = getdate(date) if date else add_days(today(), -1)
+        
+        result = daily_attendance_completion_for_date(target_date)
+        return result
+        
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+def daily_attendance_completion_for_date(target_date):
+    """
+    Daily completion cho ngày cụ thể
+    """
+    try:
+        frappe.logger().info(f"Manual daily attendance completion for {target_date}")
+        
+        # Lấy tất cả nhân viên active
+        active_employees = get_active_employees_for_date(target_date)
+        
+        if not active_employees:
+            return {"success": True, "message": "No active employees found", "created_count": 0}
+        
+        # Counters
+        created_count = 0
+        updated_count = 0
+        error_count = 0
+        errors = []
+        
+        for employee in active_employees:
+            try:
+                result = process_employee_daily_attendance(employee, target_date)
+                
+                if result['action'] == 'created':
+                    created_count += 1
+                elif result['action'] == 'updated':
+                    updated_count += 1
+                    
+            except Exception as e:
+                error_count += 1
+                error_msg = f"Employee {employee['name']}: {str(e)}"
+                errors.append(error_msg)
+                continue
+        
+        return {
+            "success": True,
+            "date": str(target_date),
+            "total_employees": len(active_employees),
+            "created_count": created_count,
+            "updated_count": updated_count,
+            "error_count": error_count,
+            "errors": errors[:10],
+            "message": f"Completed for {target_date}: {created_count} created, {updated_count} updated, {error_count} errors"
+        }
+        
+    except Exception as e:
+        frappe.log_error(f"Error in daily_attendance_completion_for_date: {str(e)}", "Daily Attendance Completion")
+        return {"success": False, "message": str(e)}
+
+@frappe.whitelist()
+def bulk_daily_completion(start_date, end_date):
+    """
+    Bulk daily completion cho nhiều ngày
+    """
+    try:
+        if not frappe.has_permission("Custom Attendance", "create"):
+            frappe.throw(_("Not permitted to create Custom Attendance"))
+            
+        start_date = getdate(start_date)
+        end_date = getdate(end_date)
+        
+        if start_date > end_date:
+            return {"success": False, "message": "Start date cannot be after end date"}
+            
+        # Limit 30 days để tránh overload
+        from frappe.utils import date_diff
+        if date_diff(end_date, start_date) > 30:
+            return {"success": False, "message": "Date range too large (maximum 30 days)"}
+        
+        results = {
+            "success": True,
+            "start_date": str(start_date),
+            "end_date": str(end_date),
+            "total_created": 0,
+            "total_updated": 0,
+            "total_errors": 0,
+            "daily_results": [],
+            "errors": []
+        }
+        
+        current_date = start_date
+        while current_date <= end_date:
+            day_result = daily_attendance_completion_for_date(current_date)
+            
+            if day_result["success"]:
+                results["total_created"] += day_result["created_count"]
+                results["total_updated"] += day_result["updated_count"]
+                results["total_errors"] += day_result["error_count"]
+                
+                if day_result["created_count"] > 0 or day_result["updated_count"] > 0:
+                    results["daily_results"].append({
+                        "date": str(current_date),
+                        "created": day_result["created_count"],
+                        "updated": day_result["updated_count"],
+                        "errors": day_result["error_count"]
+                    })
+                
+                results["errors"].extend(day_result["errors"])
+            else:
+                results["total_errors"] += 1
+                results["errors"].append(f"{current_date}: {day_result['message']}")
+            
+            current_date = add_days(current_date, 1)
+            frappe.db.commit()  # Commit sau mỗi ngày
+        
+        results["message"] = f"""Bulk completion: {results['total_created']} created, {results['total_updated']} updated, {results['total_errors']} errors"""
+        
+        return results
+        
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+# Cập nhật scheduler để chạy daily completion
+def auto_daily_attendance_completion():
+    """
+    Scheduler function - chạy hàng ngày lúc 6:00 AM
+    """
+    try:
+        # Check if feature is enabled
+        completion_enabled = frappe.db.get_single_value("HR Settings", "custom_daily_attendance_completion_enabled")
+        if not completion_enabled:
+            frappe.logger().info("Daily attendance completion is disabled in HR Settings")
+            return
+        
+        result = daily_attendance_completion()
+        
+        if result and result.get("success"):
+            frappe.logger().info(f"Auto daily attendance completion: {result.get('message', 'Completed')}")
+        else:
+            frappe.logger().error(f"Auto daily attendance completion failed: {result.get('message', 'Unknown error')}")
+            
+    except Exception as e:
+        frappe.log_error(f"Auto daily attendance completion error: {str(e)}", "Auto Daily Attendance Completion")
+
+# Thêm vào hooks.py:
+"""
+# Scheduler Events
+doc_events = {
+    # ... existing events ...
+}
+
+# Thêm scheduler event mới
+scheduler_events = {
+    "daily": [
+        "customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.auto_daily_attendance_completion"
+    ],
+    # ... existing scheduler events ...
+}
+"""
+
+@frappe.whitelist()
+def get_attendance_summary_for_range(start_date=None, end_date=None):
+    """
+    Lấy summary attendance cho date range
+    """
+    try:
+        start_date = getdate(start_date) if start_date else add_days(today(), -7)
+        end_date = getdate(end_date) if end_date else today()
+        
+        if start_date > end_date:
+            return {"success": False, "message": "Start date cannot be after end date"}
+        
+        # Calculate total days
+        from frappe.utils import date_diff
+        total_days = date_diff(end_date, start_date) + 1
+        
+        if total_days > 90:  # Limit để tránh overload
+            return {"success": False, "message": "Date range too large (maximum 90 days)"}
+        
+        # Build daily breakdown
+        daily_breakdown = []
+        current_date = start_date
+        total_employee_days = 0
+        total_attendance_records = 0
+        
+        while current_date <= end_date:
+            # Get active employees for this date
+            active_employees_count = frappe.db.count("Employee", {
+                "status": "Active",
+                "date_of_joining": ["<=", current_date],
+                "relieving_date": ["is", "not set"]
+            })
+            
+            # Get attendance records for this date
+            attendance_records_count = frappe.db.count("Custom Attendance", {
+                "attendance_date": current_date,
+                "docstatus": ["!=", 2]
+            })
+            
+            daily_breakdown.append({
+                "date": str(current_date),
+                "total_employees": active_employees_count,
+                "attendance_records": attendance_records_count
+            })
+            
+            total_employee_days += active_employees_count
+            total_attendance_records += attendance_records_count
+            
+            current_date = add_days(current_date, 1)
+        
+        # Calculate totals
+        total_missing = total_employee_days - total_attendance_records
+        
+        completion_percentage = 0
+        if total_employee_days > 0:
+            completion_percentage = round((total_attendance_records / total_employee_days) * 100, 1)
+        
+        return {
+            "success": True,
+            "start_date": str(start_date),
+            "end_date": str(end_date),
+            "total_days": total_days,
+            "total_employee_days": total_employee_days,
+            "total_attendance_records": total_attendance_records,
+            "total_missing": total_missing,
+            "completion_percentage": completion_percentage,
+            "daily_breakdown": daily_breakdown
+        }
+        
+    except Exception as e:
+        frappe.log_error(f"Error in get_attendance_summary_for_range: {str(e)}", "Attendance Range Summary")
+        return {"success": False, "message": str(e)}
+    """
+    Lấy summary attendance cho ngày cụ thể để kiểm tra
+    """
+    try:
+        target_date = getdate(date) if date else today()
+        
+        # Total active employees
+        total_employees = frappe.db.count("Employee", {
+            "status": "Active",
+            "date_of_joining": ["<=", target_date],
+            "relieving_date": ["is", "not set"]
+        })
+        
+        # Custom Attendance records
+        attendance_summary = frappe.db.sql("""
+            SELECT 
+                status,
+                COUNT(*) as count
+            FROM `tabCustom Attendance`
+            WHERE attendance_date = %s
+            AND docstatus != 2
+            GROUP BY status
+        """, (target_date,), as_dict=True)
+        
+        # Employees with checkins
+        employees_with_checkins = frappe.db.sql("""
+            SELECT COUNT(DISTINCT employee) as count
+            FROM `tabEmployee Checkin`
+            WHERE DATE(time) = %s
+        """, (target_date,), as_dict=True)
+        
+        checkin_count = employees_with_checkins[0]['count'] if employees_with_checkins else 0
+        
+        # Calculate missing attendance
+        total_attendance = sum([row['count'] for row in attendance_summary])
+        missing_attendance = total_employees - total_attendance
+        
+        return {
+            "success": True,
+            "date": str(target_date),
+            "total_employees": total_employees,
+            "total_attendance_records": total_attendance,
+            "missing_attendance": missing_attendance,
+            "employees_with_checkins": checkin_count,
+            "attendance_breakdown": attendance_summary
+        }
+        
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+@frappe.whitelist()
+def identify_missing_attendance(date=None):
+    """
+    Identify employees thiếu Custom Attendance records
+    """
+    try:
+        target_date = getdate(date) if date else today()
+        
+        missing_employees = frappe.db.sql("""
+            SELECT 
+                e.name as employee,
+                e.employee_name,
+                e.company,
+                e.department,
+                e.default_shift,
+                CASE 
+                    WHEN ec.employee IS NOT NULL THEN 'Has Check-ins'
+                    ELSE 'No Check-ins'
+                END as checkin_status
+            FROM `tabEmployee` e
+            LEFT JOIN (
+                SELECT DISTINCT employee 
+                FROM `tabEmployee Checkin` 
+                WHERE DATE(time) = %s
+            ) ec ON ec.employee = e.name
+            WHERE e.status = 'Active'
+            AND (e.date_of_joining IS NULL OR e.date_of_joining <= %s)
+            AND (e.relieving_date IS NULL OR e.relieving_date >= %s)
+            AND NOT EXISTS (
+                SELECT 1 FROM `tabCustom Attendance` ca 
+                WHERE ca.employee = e.name 
+                AND ca.attendance_date = %s
+                AND ca.docstatus != 2
+            )
+            ORDER BY e.name
+        """, (target_date, target_date, target_date, target_date), as_dict=True)
+        
+        return {
+            "success": True,
+            "date": str(target_date),
+            "missing_count": len(missing_employees),
+            "missing_employees": missing_employees
+        }
+        
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+@frappe.whitelist()
+def get_attendance_summary_for_date(date=None):
+    """
+    Lấy summary attendance cho ngày cụ thể để kiểm tra
+    """
+    try:
+        target_date = getdate(date) if date else today()
+        
+        # Total active employees
+        total_employees = frappe.db.count("Employee", {
+            "status": "Active",
+            "date_of_joining": ["<=", target_date],
+            "relieving_date": ["is", "not set"]
+        })
+        
+        # Custom Attendance records
+        attendance_summary = frappe.db.sql("""
+            SELECT 
+                status,
+                COUNT(*) as count
+            FROM `tabCustom Attendance`
+            WHERE attendance_date = %s
+            AND docstatus != 2
+            GROUP BY status
+        """, (target_date,), as_dict=True)
+        
+        # Employees with checkins
+        employees_with_checkins = frappe.db.sql("""
+            SELECT COUNT(DISTINCT employee) as count
+            FROM `tabEmployee Checkin`
+            WHERE DATE(time) = %s
+        """, (target_date,), as_dict=True)
+        
+        checkin_count = employees_with_checkins[0]['count'] if employees_with_checkins else 0
+        
+        # Calculate missing attendance
+        total_attendance = sum([row['count'] for row in attendance_summary])
+        missing_attendance = total_employees - total_attendance
+        
+        return {
+            "success": True,
+            "date": str(target_date),
+            "total_employees": total_employees,
+            "total_attendance_records": total_attendance,
+            "missing_attendance": missing_attendance,
+            "employees_with_checkins": checkin_count,
+            "attendance_breakdown": attendance_summary
+        }
+        
+    except Exception as e: 
+        frappe.log_error(f"Error in get_attendance_summary_for_date: {str(e)}", "Custom Attendance Summary")
+        return {"success": False, "message": str(e)}
+
+# Enhanced auto daily attendance completion with settings
+def auto_daily_attendance_completion():
+    """
+    Enhanced scheduler function - chạy hàng ngày với settings support
+    """
+    try:
+        # Check if feature is enabled (fallback to True if setting doesn't exist)
+        try:
+            completion_enabled = frappe.db.get_single_value("HR Settings", "custom_daily_attendance_completion_enabled")
+            if completion_enabled is None:
+                completion_enabled = True  # Default enabled
+        except:
+            completion_enabled = True  # Fallback if settings table doesn't exist
+            
+        if not completion_enabled:
+            frappe.logger().info("Daily attendance completion is disabled in HR Settings")
+            return
+        
+        result = daily_attendance_completion()
+        
+        if result and result.get("success"):
+            frappe.logger().info(f"Auto daily attendance completion: {result.get('message', 'Completed')}")
+        else:
+            frappe.logger().error(f"Auto daily attendance completion failed: {result.get('message', 'Unknown error')}")
+            
+    except Exception as e:
+        frappe.log_error(f"Auto daily attendance completion error: {str(e)}", "Auto Daily Attendance Completion")
+
+# Enhanced auto submit with better error handling
+def auto_submit_custom_attendance():
+    """
+    Enhanced auto submit với better error handling
+    """
+    try:
+        # Check if feature is enabled (fallback to True if setting doesn't exist)
+        try:
+            auto_submit_enabled = frappe.db.get_single_value("HR Settings", "custom_auto_submit_attendance_enabled")
+            if auto_submit_enabled is None:
+                auto_submit_enabled = True  # Default enabled
+        except:
+            auto_submit_enabled = True  # Fallback if settings table doesn't exist
+            
+        if not auto_submit_enabled:
+            frappe.logger().info("Auto submit Custom Attendance is disabled in HR Settings")
+            return {"success": True, "message": "Auto submit disabled"}
+        
+        # Use settings or default values
+        try:
+            lookback_days = frappe.db.get_single_value("HR Settings", "custom_auto_submit_attendance_days") or 30
+        except:
+            lookback_days = 30  # Default
+        
+        # Giới hạn tối đa 90 ngày
+        if lookback_days > 90:
+            lookback_days = 90
+            
+        # Tính toán date range (từ X ngày trước đến hôm qua)
+        end_date = add_days(today(), -1)  # Hôm qua
+        start_date = add_days(end_date, -lookback_days)  # X ngày trước
+        
+        frappe.logger().info(f"Auto submit Custom Attendance from {start_date} to {end_date}")
+        
+        # Lấy tất cả records chưa submit trong khoảng thời gian
+        draft_records = frappe.get_all("Custom Attendance", 
+            filters={
+                "docstatus": 0,  # Draft
+                "attendance_date": ["between", [start_date, end_date]]
+            },
+            fields=["name", "employee", "employee_name", "attendance_date", "status", "working_hours"],
+            order_by="attendance_date asc, employee asc"
+        )
+        
+        if not draft_records:
+            frappe.logger().info("No draft Custom Attendance records found to submit")
+            return {
+                "success": True, 
+                "message": "No records to submit",
+                "submitted_count": 0,
+                "error_count": 0
+            }
+        
+        # Counters
+        submitted_count = 0
+        error_count = 0
+        errors = []
+        
+        # Process records by batches để tránh timeout
+        batch_size = 50
+        total_records = len(draft_records)
+        
+        for i in range(0, total_records, batch_size):
+            batch = draft_records[i:i + batch_size]
+            
+            for record in batch:
+                try:
+                    # Load document
+                    doc = frappe.get_doc("Custom Attendance", record.name)
+                    
+                    # Validate trước khi submit
+                    validation_result = validate_before_submit(doc)
+                    if not validation_result["valid"]:
+                        error_msg = f"{record.name}: {validation_result['message']}"
+                        errors.append(error_msg)
+                        error_count += 1
+                        frappe.logger().warning(error_msg)
+                        continue
+                    
+                    # Submit document
+                    doc.submit()
+                    submitted_count += 1
+                    
+                except Exception as e:
+                    error_msg = f"{record.name}: {str(e)}"
+                    errors.append(error_msg)
+                    error_count += 1
+                    frappe.logger().error(f"Failed to submit {record.name}: {str(e)}")
+                    
+            # Commit sau mỗi batch
+            frappe.db.commit()
+            
+        # Kết quả
+        result = {
+            "success": True,
+            "start_date": str(start_date),
+            "end_date": str(end_date),
+            "total_found": total_records,
+            "submitted_count": submitted_count,
+            "error_count": error_count,
+            "errors": errors[:20]  # Chỉ lấy 20 errors đầu tiên
+        }
+        
+        frappe.logger().info(f"Auto submit completed: {submitted_count}/{total_records} records submitted, {error_count} errors")
+        
+        return result
+        
+    except Exception as e:
+        frappe.log_error(f"Auto submit Custom Attendance error: {str(e)}", "Auto Submit Custom Attendance")
         return {"success": False, "message": str(e)}
