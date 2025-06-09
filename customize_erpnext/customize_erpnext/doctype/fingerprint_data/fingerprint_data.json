@@ -1,7 +1,7 @@
 {
  "actions": [],
  "allow_rename": 1,
- "autoname": "format:FPD-{parent}-{finger_number}-{##}",
+ "autoname": "format:FPD-{parent}-{finger_index}-{##}",
  "creation": "2025-05-24 15:56:23.749073",
  "doctype": "DocType",
  "editable_grid": 1,
@@ -16,7 +16,7 @@
   {
    "columns": 2,
    "fieldname": "finger_index",
-   "fieldtype": "Small Text",
+   "fieldtype": "Int",
    "in_list_view": 1,
    "in_preview": 1,
    "in_standard_filter": 1,
@@ -47,7 +47,7 @@
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2025-06-03 15:43:27.775772",
+ "modified": "2025-06-07 16:06:01.580453",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Fingerprint Data",
