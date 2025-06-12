@@ -1,0 +1,134 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "format:att_machine_{id}",
+ "creation": "2025-06-03 16:00:50.928203",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "enable",
+  "id",
+  "device_name",
+  "ip_address",
+  "port",
+  "model",
+  "location",
+  "timeout",
+  "force_udp",
+  "ommit_ping",
+  "sync_interval"
+ ],
+ "fields": [
+  {
+   "fieldname": "id",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "ID",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "ZKTeco F21Lite/ID",
+   "fieldname": "model",
+   "fieldtype": "Data",
+   "label": "Model"
+  },
+  {
+   "fieldname": "location",
+   "fieldtype": "Small Text",
+   "label": "Location"
+  },
+  {
+   "default": "10",
+   "fieldname": "timeout",
+   "fieldtype": "Int",
+   "label": "Timeout",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "force_udp",
+   "fieldtype": "Check",
+   "label": "Force UDP"
+  },
+  {
+   "default": "1",
+   "fieldname": "ommit_ping",
+   "fieldtype": "Check",
+   "label": "Ommit Ping"
+  },
+  {
+   "default": "300",
+   "fieldname": "sync_interval",
+   "fieldtype": "Int",
+   "label": "Sync Interval"
+  },
+  {
+   "default": "1",
+   "fieldname": "enable",
+   "fieldtype": "Check",
+   "label": "Enable"
+  },
+  {
+   "default": "4370",
+   "fieldname": "port",
+   "fieldtype": "Int",
+   "label": "Port"
+  },
+  {
+   "fieldname": "device_name",
+   "fieldtype": "Data",
+   "label": "Device Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "ip_address",
+   "fieldtype": "Data",
+   "label": "IP",
+   "reqd": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2025-06-04 16:32:02.617954",
+ "modified_by": "Administrator",
+ "module": "Customize Erpnext",
+ "name": "Attendance Machine",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Administrator",
+   "select": 1,
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1,
+ "track_views": 1
+}

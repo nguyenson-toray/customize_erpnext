@@ -1,0 +1,61 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "format:FPD-{parent}-{finger_index}-{##}",
+ "creation": "2025-05-24 15:56:23.749073",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "finger_index",
+  "finger_name",
+  "template_data",
+  "quality_score"
+ ],
+ "fields": [
+  {
+   "columns": 2,
+   "fieldname": "finger_index",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "in_preview": 1,
+   "in_standard_filter": 1,
+   "label": "Finger Index",
+   "non_negative": 1
+  },
+  {
+   "columns": 4,
+   "fieldname": "template_data",
+   "fieldtype": "Long Text",
+   "in_list_view": 1,
+   "in_preview": 1,
+   "in_standard_filter": 1,
+   "label": "Template Data"
+  },
+  {
+   "fieldname": "quality_score",
+   "fieldtype": "Int",
+   "label": "Quality Ccore"
+  },
+  {
+   "fieldname": "finger_name",
+   "fieldtype": "Small Text",
+   "label": "Finger Name"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2025-06-07 16:06:01.580453",
+ "modified_by": "Administrator",
+ "module": "Customize Erpnext",
+ "name": "Fingerprint Data",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}
