@@ -1,0 +1,175 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "format:OTL-{DD}-{MM}-{YYYY}-{####}",
+ "creation": "2025-06-03 09:30:00",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "level_name",
+  "level_code",
+  "column_break_3",
+  "is_active",
+  "time_settings_section",
+  "start_time",
+  "end_time",
+  "column_break_7",
+  "min_hours",
+  "max_hours",
+  "default_hours",
+  "rates_section",
+  "rate_multiplier",
+  "column_break_12",
+  "is_weekend_allowed",
+  "is_holiday_allowed",
+  "approval_section",
+  "approval_required",
+  "column_break_16",
+  "max_per_week",
+  "description"
+ ],
+ "fields": [
+  {
+   "fieldname": "level_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Level Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "level_code",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Level Code",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_3",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Is Active"
+  },
+  {
+   "fieldname": "time_settings_section",
+   "fieldtype": "Section Break",
+   "label": "Time Settings"
+  },
+  {
+   "default": "17:00:00",
+   "fieldname": "start_time",
+   "fieldtype": "Time",
+   "in_list_view": 1,
+   "label": "Start Time",
+   "reqd": 1
+  },
+  {
+   "fieldname": "end_time",
+   "fieldtype": "Time",
+   "in_list_view": 1,
+   "label": "End Time",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_7",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "min_hours",
+   "fieldtype": "Float",
+   "label": "Minimum Hours",
+   "precision": "2"
+  },
+  {
+   "fieldname": "max_hours",
+   "fieldtype": "Float",
+   "label": "Maximum Hours",
+   "precision": "2",
+   "reqd": 1
+  },
+  {
+   "fieldname": "default_hours",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Default Hours",
+   "precision": "2",
+   "reqd": 1
+  },
+  {
+   "fieldname": "rates_section",
+   "fieldtype": "Section Break",
+   "label": "Rates & Permissions"
+  },
+  {
+   "default": "1.5",
+   "fieldname": "rate_multiplier",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Rate Multiplier",
+   "precision": "2",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_12",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "is_weekend_allowed",
+   "fieldtype": "Check",
+   "label": "Weekend Allowed"
+  },
+  {
+   "default": "1",
+   "fieldname": "is_holiday_allowed",
+   "fieldtype": "Check",
+   "label": "Holiday Allowed"
+  },
+  {
+   "fieldname": "approval_section",
+   "fieldtype": "Section Break",
+   "label": "Approval & Limits"
+  },
+  {
+   "default": "1",
+   "fieldname": "approval_required",
+   "fieldtype": "Check",
+   "label": "Approval Required"
+  },
+  {
+   "fieldname": "column_break_16",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "max_per_week",
+   "fieldtype": "Float",
+   "label": "Max Hours Per Week",
+   "precision": "2"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Text",
+   "label": "Description"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2025-06-07 11:03:34.900658",
+ "modified_by": "Administrator",
+ "module": "Customize Erpnext",
+ "name": "Overtime Level",
+ "naming_rule": "Expression (old style)",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

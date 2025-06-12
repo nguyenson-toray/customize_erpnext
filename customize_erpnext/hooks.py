@@ -113,13 +113,13 @@ scheduler_events = {
     
     # Cron-based schedules (optional - có thể customize thời gian cụ thể)
     "cron": {
-        # Daily completion lúc 6:00 AM
-        "0 6 * * *": [
+        # Daily completion lúc 3:00 AM
+        "0 3 * * *": [
             "customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.auto_daily_attendance_completion"
         ],
         
-        # Auto submit lúc 7:00 AM
-        "0 7 * * *": [
+        # Auto submit lúc 6:00 AM
+        "0 6 * * *": [
             "customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.auto_submit_custom_attendance"
         ],
         
