@@ -69,68 +69,68 @@ class OvertimeRequest(Document):
         self.calculate_totals()
 
     def has_permission(self, ptype, user=None):
-    """Custom permission logic"""
-    if not user:
-        user = frappe.session.user
-    
-    # Admin always has access
-    if user == "Administrator":
-        return True
+        """Custom permission logic"""
+        if not user:
+            user = frappe.session.user
         
-    # System Manager role has full access
-    user_roles = frappe.get_roles(user)
-    if "System Manager" in user_roles:
-        return True
-    
-    # HR Manager and HR User always have access
-    if "HR Manager" in user_roles or "HR User" in user_roles:
-        return True
-    
-    # Check if user has any manager roles - they can see requests for approval
-    manager_roles = ["Department Manager", "Factory Manager", "TIQN Factory Manager", "TIQN Manager"]
-    if any(role in user_roles for role in manager_roles):
-        return True
-    
-    # Get current user's employee record
-    current_employee = frappe.get_value("Employee", {"user_id": user}, "name")
-    
-    # If no employee record but user has Employee role, allow create only
-    if not current_employee:
+        # Admin always has access
+        if user == "Administrator":
+            return True
+            
+        # System Manager role has full access
+        user_roles = frappe.get_roles(user)
+        if "System Manager" in user_roles:
+            return True
+        
+        # HR Manager and HR User always have access
+        if "HR Manager" in user_roles or "HR User" in user_roles:
+            return True
+        
+        # Check if user has any manager roles - they can see requests for approval
+        manager_roles = ["Department Manager", "Factory Manager", "TIQN Factory Manager", "TIQN Manager"]
+        if any(role in user_roles for role in manager_roles):
+            return True
+        
+        # Get current user's employee record
+        current_employee = frappe.get_value("Employee", {"user_id": user}, "name")
+        
+        # If no employee record but user has Employee role, allow create only
+        if not current_employee:
+            if ptype == "create" and "Employee" in user_roles:
+                return True
+            # Allow read access for users with manager roles even without employee record
+            if ptype == "read" and any(role in user_roles for role in manager_roles):
+                return True
+            return False
+        
+        # Check if user has HR designation - they can see all requests
+        user_designation = frappe.get_value("Employee", current_employee, "designation")
+        if user_designation and "HR" in user_designation.upper():
+            return True
+        
+        # For existing documents, check specific permissions
+        if hasattr(self, 'name') and self.name:
+            # Owner (requested_by) can always access their own requests
+            if hasattr(self, 'requested_by') and self.requested_by == current_employee:
+                return True
+            
+            # Manager approver can access when they are assigned as approver
+            if hasattr(self, 'manager_approver') and self.manager_approver == current_employee:
+                return True
+            
+            # Factory manager approver can access when they are assigned as approver
+            if hasattr(self, 'factory_manager_approver') and self.factory_manager_approver == current_employee:
+                return True
+        
+        # Anyone with Employee role can create new requests
         if ptype == "create" and "Employee" in user_roles:
             return True
-        # Allow read access for users with manager roles even without employee record
-        if ptype == "read" and any(role in user_roles for role in manager_roles):
+        
+        # Default allow read for users with appropriate roles
+        if ptype == "read" and ("Employee" in user_roles or any(role in user_roles for role in manager_roles)):
             return True
+        
         return False
-    
-    # Check if user has HR designation - they can see all requests
-    user_designation = frappe.get_value("Employee", current_employee, "designation")
-    if user_designation and "HR" in user_designation.upper():
-        return True
-    
-    # For existing documents, check specific permissions
-    if hasattr(self, 'name') and self.name:
-        # Owner (requested_by) can always access their own requests
-        if hasattr(self, 'requested_by') and self.requested_by == current_employee:
-            return True
-        
-        # Manager approver can access when they are assigned as approver
-        if hasattr(self, 'manager_approver') and self.manager_approver == current_employee:
-            return True
-        
-        # Factory manager approver can access when they are assigned as approver
-        if hasattr(self, 'factory_manager_approver') and self.factory_manager_approver == current_employee:
-            return True
-    
-    # Anyone with Employee role can create new requests
-    if ptype == "create" and "Employee" in user_roles:
-        return True
-    
-    # Default allow read for users with appropriate roles
-    if ptype == "read" and ("Employee" in user_roles or any(role in user_roles for role in manager_roles)):
-        return True
-    
-    return False
 
     def adjust_rate_multipliers(self):
         """Adjust rate multipliers based on OT date"""
