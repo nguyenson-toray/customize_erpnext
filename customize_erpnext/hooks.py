@@ -58,7 +58,8 @@ fixtures = [
                     "BOM Item", 
                     "Material Request Item",
                     "Production Plan",
-                    "Employee"
+                    "Employee",
+                     "Stock Entry Detail"
                 ]
             ],
             [
@@ -73,7 +74,7 @@ fixtures = [
         "doctype": "Workspace",
         "filters": [
             # Chỉ export một số workspace cụ thể
-            # ["name", "in", ["Stock"]] 
+            ["name", "in", ["Stock"]] 
             # Để trống filter nếu muốn export tất cả
         ]
     },
@@ -142,14 +143,14 @@ doc_events = {
     }
 }
 # Fixtures (for initial setup)
-fixtures = [
-    {
-        "doctype": "Custom Field",
-        "filters": {
-            "dt": ["in", ["Employee"]]
-        }
-    }
-]
+# fixtures = [
+#     {
+#         "doctype": "Custom Field",
+#         "filters": {
+#             "dt": ["in", ["Employee"]]
+#         }
+#     }
+# ]
 
 # boot_session = "customize_erpnext.override_methods.employee_checkin_or.apply_monkey_patch"
 # Hook on document methods and events
