@@ -20,7 +20,7 @@ def update_item_attributes(excel_file_path=None):
     
     # Use default path if none is provided
     if not excel_file_path:
-        excel_file_path = "/home/frappe/frappe-bench/sites/erp.tiqn.local/public/files/Item Templates.xlsx"
+        excel_file_path = "/home/sonnt/frappe-bench/sites/erp-sonnt.tiqn.local/public/files/Item Templates.xlsx"
     
     try:
         log_message(f"Reading Excel file from: {excel_file_path}", log_file)
@@ -134,7 +134,7 @@ def update_item_attributes(excel_file_path=None):
                         item.append("attributes", {
                             "attribute": "Info"
                         })
-                        attributes_added.append("Season")
+                        attributes_added.append("Info")
                 
                 # Save the item if changes were made
                 if attributes_added:
@@ -184,18 +184,18 @@ if __name__ == "__main__":
     update_item_attributes()
 
 '''
-Cach 1 : bench --site erp.tiqn.local  console
+Cach 1 : bench --site erp-sonnt.tiqn.local  console
 Using default file path : 
-import custom_features.custom_features.bulk_update_scripts.update_item_attributes as update_script
+import customize_erpnext.api.bulk_update_scripts.update_item_attributes as update_script
 update_script.update_item_attributes()
 
-Cach 2 : bench --site erp.tiqn.local  console
+Cach 2 : bench --site erps-sonnt.tiqn.local  console
 Specifying a custom file path:
-import custom_features.custom_features.bulk_update_scripts.update_item_attributes as update_script
-update_script.update_item_attributes("/home/frappe/frappe-bench/sites/erp.tiqn.local/public//files/Item template.xlsx")
-update_script.update_item_attributes("/home/frappe/frappe-bench/sites/erp.tiqn.local/public//files/Item templates - finished goods.xlsx")
+import customize_erpnext.api.bulk_update_scripts.update_item_attributes as update_script
+update_script.update_item_attributes("/home/sonnt/frappe-bench/sites/erp-sonnt.tiqn.local/public/files/Item Templates.xlsx")
+update_script.update_item_attributes("/home/sonnt/frappe-bench/sites/erp-sonnt.tiqn.local/public/files/Item templates - finished goods.xlsx")
 
 Cach 3 : 
 Using bench execute with default path:
-bench execute custom_features.custom_features.bulk_update_scripts.update_item_attributes.update_item_attributes
+bench execute customize_erpnext.api.bulk_update_scripts.update_item_attributes.update_item_attributes
 '''

@@ -17,7 +17,7 @@ def create_item_variants(file_path=None):
     log_file_path = os.path.join(script_dir, "create_item_variants_log.txt")
     error_log_file_path = os.path.join(script_dir, "create_item_variants_log_err.txt")
     if not file_path:
-        file_path = "/home/frappe/frappe-bench/sites/erp.tiqn.local/public/files/Item Variants.xlsx"
+        file_path = "/home/sonnt/frappe-bench/sites/erp-sonnt.tiqn.local/public/files/Item Variants.xlsx"
     # Create a custom logging function that writes to both console and appropriate log file
     def log_message(message, is_error=False):
         print(message)
@@ -332,10 +332,10 @@ if __name__ == "__main__":
 
 
 '''
-bench --site erp.tiqn.local console
-import custom_features.custom_features.bulk_update_scripts.create_item_variants as create_script
+bench --site erp-sonnt.tiqn.local console
+import customize_erpnext.api.bulk_update_scripts.create_item_variants as create_script
 create_script.create_item_variants()
 or
-create_script.create_item_variants("/home/frappe/frappe-bench/sites/erp.tiqn.local/public/files/Item variant.xlsx")
-create_script.create_item_variants("/home/frappe/frappe-bench/sites/erp.tiqn.local/public/files/Item variant FS.xlsx")
+create_script.create_item_variants("/home/sonnt/frappe-bench/sites/erp-sonnt.tiqn.local/public/files/Item variant.xlsx")
+create_script.create_item_variants("/home/sonnt/frappe-bench/sites/erp-sonnt.tiqn.local/public/files/Item variant FS.xlsx")
 '''
