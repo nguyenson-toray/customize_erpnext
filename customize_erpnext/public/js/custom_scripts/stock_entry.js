@@ -22,7 +22,7 @@ frappe.ui.form.on('Stock Entry', {
 
     before_save: function (frm) {
         // Sync invoice fields to child table before saving
-        sync_invoice_fields_to_child_table(frm);
+        sync_fields_to_child_table(frm);
     }
 });
 
@@ -135,7 +135,7 @@ function check_existing_material_transfers(frm) {
     });
 }
 
-function sync_invoice_fields_to_child_table(frm) {
+function sync_fields_to_child_table(frm) {
     if (!frm.doc.items) return;
 
     let total_updated = 0;
@@ -146,9 +146,39 @@ function sync_invoice_fields_to_child_table(frm) {
             label: 'Số hóa đơn tờ khai'
         },
         {
-            field: 'custom_invoice_number',
-            value: frm.doc.custom_invoice_number,
-            label: 'Số hóa đơn'
+            field: 'custom_material_issue_purpose',
+            value: frm.doc.custom_material_issue_purpose,
+            label: 'Material Issue Purpose'
+        },
+        {
+            field: 'custom_line',
+            value: frm.doc.custom_material_issue_purpose,
+            label: 'Line'
+        },
+        {
+            field: 'custom_inv_lot',
+            value: frm.doc.custom_inv_lot,
+            label: 'INV Lot'
+        },
+        {
+            field: 'custom_fg_qty',
+            value: frm.doc.custom_fg_qty,
+            label: 'Qty FG'
+        },
+        {
+            field: 'custom_fg_style',
+            value: frm.doc.custom_fg_style,
+            label: 'FG Style'
+        },
+        {
+            field: 'custom_fg_color',
+            value: frm.doc.custom_fg_color,
+            label: 'FG Color'
+        },
+        {
+            field: 'custom_fg_size',
+            value: frm.doc.custom_fg_size,
+            label: 'FG Size'
         }
     ];
 
