@@ -18,6 +18,11 @@ frappe.ui.form.on('Stock Entry', {
         if (frm.doc.purpose === "Material Transfer for Manufacture" && frm.doc.work_order) {
             check_existing_material_transfers(frm);
         }
+    },
+
+    before_save: function (frm) {
+        // Sync invoice fields to child table before saving
+        sync_invoice_fields_to_child_table(frm);
     }
 });
 
@@ -128,4 +133,48 @@ function check_existing_material_transfers(frm) {
             frm.dashboard.add_comment(status_html, "blue", true);
         }
     });
+}
+
+function sync_invoice_fields_to_child_table(frm) {
+    if (!frm.doc.items) return;
+
+    let total_updated = 0;
+    let fields_to_sync = [
+        {
+            field: 'custom_declaration_invoice_number',
+            value: frm.doc.custom_declaration_invoice_number,
+            label: 'Số hóa đơn tờ khai'
+        },
+        {
+            field: 'custom_invoice_number',
+            value: frm.doc.custom_invoice_number,
+            label: 'Số hóa đơn'
+        }
+    ];
+
+    fields_to_sync.forEach(function (field_info) {
+        if (field_info.value) {
+            let updated_count = 0;
+
+            frm.doc.items.forEach(function (row) {
+                if (!row[field_info.field]) {
+                    frappe.model.set_value(row.doctype, row.name, field_info.field, field_info.value);
+                    updated_count++;
+                }
+            });
+
+            if (updated_count > 0) {
+                total_updated += updated_count;
+                console.log(`Đã cập nhật ${updated_count} dòng cho ${field_info.label}: ${field_info.value}`);
+            }
+        }
+    });
+
+    if (total_updated > 0) {
+        frm.refresh_field('items');
+        frappe.show_alert({
+            message: __('Đã tự động cập nhật {0} trường trong bảng chi tiết', [total_updated]),
+            indicator: 'green'
+        }, 5);
+    }
 }
