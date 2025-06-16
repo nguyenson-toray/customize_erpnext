@@ -93,8 +93,8 @@ def delete_specific_items(item_codes):
 
 
     '''
-   bench --site erp.tiqn.local console
-   import custom_features.custom_features.bulk_update_scripts.filter_and_delete_items as delete_script
+   bench --site erp-sonnt.tiqn.local console
+   import customize_erpnext.api.bulk_update_scripts.filter_and_delete_items as delete_script
 delete_script.filter_and_delete_items({"item_group": ["like", "%C%"]})
 
 delete_script.filter_and_delete_items({"item_group": "01 - Finished Goods"})
