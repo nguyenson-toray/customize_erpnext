@@ -231,11 +231,11 @@ function validateAttributeFormat(frm) {
         let requiredFormat = "";
 
         // Check format based on attribute name
-        if (attributeName === "Color" || attributeName === "Size") {
+        if (attributeName === "Color" || attributeName === "Size" || attributeName === "Info") {
             // Mã 3 ký tự phải chứa số và chữ
             requiredFormat = "3 ký tự (số và chữ in hoa)";
             isValidFormat = /^[0-9A-Z]{3}$/.test(row.abbr);
-        } else if (attributeName === "Brand" || attributeName === "Season" || attributeName === "Info") {
+        } else if (attributeName === "Brand" || attributeName === "Season") {
             // Mã 2 ký tự phải chứa số và chữ
             requiredFormat = "2 ký tự (số và chữ in hoa)";
             isValidFormat = /^[0-9A-Z]{2}$/.test(row.abbr);
