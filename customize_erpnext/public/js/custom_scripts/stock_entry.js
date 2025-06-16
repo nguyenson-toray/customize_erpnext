@@ -1,9 +1,86 @@
 frappe.ui.form.on('Stock Entry', {
+    onload: function (frm) {
+        $(document).on('keydown.duplicate_rows', function (e) {
+            // Chỉ hoạt động khi đang focus vào form này
+            if (frm.doc.name && frm.doc.doctype === 'Stock Entry') {
+                // Ctrl+D để duplicate
+                if (e.ctrlKey && e.keyCode === 68) {
+                    e.preventDefault();
+
+                    let selected_rows = frm.fields_dict.items.grid.get_selected();
+                    if (selected_rows.length > 0) {
+                        selected_rows.forEach(function (row_name) {
+                            let source_row = locals['Stock Entry Detail'][row_name];
+                            let new_row = frm.add_child('items');
+
+                            Object.keys(source_row).forEach(function (field) {
+                                if (!['name', 'idx', 'docstatus', 'creation', 'modified', 'owner', 'modified_by'].includes(field)) {
+                                    new_row[field] = source_row[field];
+                                }
+                            });
+                        });
+
+                        frm.refresh_field('items');
+                        frappe.show_alert(__('Rows duplicated with Ctrl+D'));
+                    }
+                }
+            }
+        });
+    },
+
+    // Cleanup event khi form bị destroy
+    before_load: function (frm) {
+        $(document).off('keydown.duplicate_rows');
+    },
     refresh: function (frm) {
         // Only run this for Material Transfer for Manufacture type
         if (frm.doc.purpose === "Material Transfer for Manufacture" && frm.doc.work_order) {
             check_existing_material_transfers(frm);
         }
+        // Khởi tạo duplicate button (ẩn ban đầu)
+        let duplicate_btn = frm.fields_dict.items.grid.add_custom_button(__('Duplicate Selected'),
+            function () {
+                let selected_rows = frm.fields_dict.items.grid.get_selected();
+                if (selected_rows.length === 0) {
+                    frappe.msgprint(__('Please select rows to duplicate'));
+                    return;
+                }
+
+                // LOGIC DUPLICATE THỰC TẾ (thay thế duplicate_selected_rows())
+                selected_rows.forEach(function (row_name) {
+                    // Lấy data từ row được select
+                    let source_row = locals['Stock Entry Detail'][row_name];
+
+                    // Tạo row mới
+                    let new_row = frm.add_child('items');
+
+                    // Copy tất cả fields trừ system fields
+                    Object.keys(source_row).forEach(function (field) {
+                        if (!['name', 'idx', 'docstatus', 'creation', 'modified', 'owner', 'modified_by'].includes(field)) {
+                            new_row[field] = source_row[field];
+                        }
+                    });
+                });
+
+                // Refresh grid để hiển thị rows mới
+                frm.refresh_field('items');
+
+                // Show success message
+                frappe.show_alert({
+                    message: __(`${selected_rows.length} row(s) duplicated successfully`),
+                    indicator: 'green'
+                });
+            }
+        ).addClass('btn-primary');
+
+        // Ẩn button ban đầu
+        duplicate_btn.hide();
+
+        // Lưu reference để có thể access từ các function khác
+        frm.duplicate_btn = duplicate_btn;
+
+        // Setup listener để monitor selection changes
+        setup_selection_monitor(frm);
     },
 
     work_order: function (frm) {
@@ -146,13 +223,18 @@ function sync_fields_to_child_table(frm) {
             label: 'Số hóa đơn tờ khai'
         },
         {
+            field: 'custom_invoice_number',
+            value: frm.doc.custom_invoice_number,
+            label: 'Số hóa đơni'
+        },
+        {
             field: 'custom_material_issue_purpose',
             value: frm.doc.custom_material_issue_purpose,
             label: 'Material Issue Purpose'
         },
         {
             field: 'custom_line',
-            value: frm.doc.custom_material_issue_purpose,
+            value: frm.doc.custom_line,
             label: 'Line'
         },
         {
@@ -206,5 +288,50 @@ function sync_fields_to_child_table(frm) {
             message: __('Đã tự động cập nhật {0} trường trong bảng chi tiết', [total_updated]),
             indicator: 'green'
         }, 5);
+    }
+}
+// Function để monitor selection changes
+function setup_selection_monitor(frm) {
+    // Monitor click events trên grid
+    frm.fields_dict.items.grid.wrapper.on('click', '.grid-row-check', function () {
+        setTimeout(() => {
+            toggle_duplicate_button(frm);
+        }, 50); // Small delay để đảm bảo selection đã được update
+    });
+
+    // Monitor click trên row (có thể select/deselect)
+    frm.fields_dict.items.grid.wrapper.on('click', '.grid-row', function () {
+        setTimeout(() => {
+            toggle_duplicate_button(frm);
+        }, 50);
+    });
+
+    // Monitor select all checkbox
+    frm.fields_dict.items.grid.wrapper.on('click', '.grid-header-row .grid-row-check', function () {
+        setTimeout(() => {
+            toggle_duplicate_button(frm);
+        }, 50);
+    });
+
+    // Monitor keyboard events (Ctrl+A, arrow keys, etc.)
+    frm.fields_dict.items.grid.wrapper.on('keyup', function () {
+        setTimeout(() => {
+            toggle_duplicate_button(frm);
+        }, 50);
+    });
+}
+
+// Function để show/hide duplicate button
+function toggle_duplicate_button(frm) {
+    if (!frm.duplicate_btn) return;
+
+    let selected_rows = frm.fields_dict.items.grid.get_selected();
+
+    if (selected_rows.length > 0) {
+        frm.duplicate_btn.show();
+        // Update button text với số lượng selected
+        frm.duplicate_btn.text(__(`Duplicate Selected (${selected_rows.length})`));
+    } else {
+        frm.duplicate_btn.hide();
     }
 }
