@@ -87,16 +87,30 @@ frappe.ui.form.on('Stock Entry', {
         // Setup listener để monitor selection changes
         setup_selection_monitor(frm);
 
-        // THÊM QUICK ADD BUTTON
-        let quick_add_btn = frm.fields_dict.items.grid.add_custom_button(__('Quick Add'),
-            function () {
-                show_quick_add_dialog(frm);
-            }
-        ).addClass('btn-success').css({
-            'background-color': '#5cb85c',
-            'border-color': '#4cae4c',
-            'color': '#fff'
-        });
+        // THÊM QUICK ADD BUTTONS - Hiển thị theo stock_entry_type
+        if (frm.doc.stock_entry_type === "Material Issue") {
+            let material_issue_quick_add_btn = frm.fields_dict.items.grid.add_custom_button(__('Material Issue - Quick Add'),
+                function () {
+                    show_quick_add_dialog(frm, 'material_issue');
+                }
+            ).addClass('btn-success').css({
+                'background-color': '#5cb85c',
+                'border-color': '#4cae4c',
+                'color': '#fff'
+            });
+        }
+
+        if (frm.doc.stock_entry_type === "Material Receipt") {
+            let material_receipt_quick_add_btn = frm.fields_dict.items.grid.add_custom_button(__('Material Receipt - Quick Add'),
+                function () {
+                    show_quick_add_dialog(frm, 'material_receipt');
+                }
+            ).addClass('btn-warning').css({
+                'background-color': '#f0ad4e',
+                'border-color': '#eea236',
+                'color': '#fff'
+            });
+        }
     },
 
     work_order: function (frm) {
@@ -119,51 +133,18 @@ frappe.ui.form.on('Stock Entry', {
     }
 });
 
-// NEW FUNCTION: Show Quick Add Dialog
-function show_quick_add_dialog(frm) {
+// UPDATED FUNCTION: Show Quick Add Dialog with type parameter
+function show_quick_add_dialog(frm, dialog_type) {
+    let dialog_config = get_dialog_config(dialog_type);
+
     let dialog = new frappe.ui.Dialog({
-        title: __('Quick Add Items'),
+        title: dialog_config.title,
         fields: [
             {
                 fieldname: 'items_data',
                 fieldtype: 'Small Text',
                 label: __('Items Data'),
-                description: __(`
-                    <div style="background: #f5f5f5; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
-                        <strong>Định dạng:</strong> item_pattern;custom_inv_lot;qty<br><br>
-                        
-                        <strong>Cấu trúc item_pattern:</strong><br>
-                        item_name<strong>%</strong> color<strong>%</strong> size<strong>%</strong> brand<strong>%</strong> season<strong>%</strong> info<br>
-                        <small style="color: #666;">
-                        • Dùng dấu % để ngăn cách các thuộc tính<br>
-                        • Phải có khoảng trắng sau % và trước giá trị thuộc tính<br>
-                        • Bắt buộc: item_name, color, size<br>
-                        • Tùy chọn: brand, season, info
-                        </small><br><br>
-                        
-                        <strong>Ví dụ:</strong><br>
-                        <code style="background: #fff; padding: 5px; display: block; margin: 5px 0;">
-                        LM-2666% 410% Sm% STIO FERNOS% 25fw% 200317;2650281395;52<br>
-                        LM-2667% 420% M;2650281396;30<br>
-                        LM-2668% 430% L% STIO FERNOS;2650281397;25
-                        </code><br>
-                        
-                        <strong>Giải thích ví dụ 1:</strong><br>
-                        • <code>LM-2666</code> → Mã item<br>
-                        • <code>% 410</code> → Màu sắc (Color)<br>
-                        • <code>% Sm</code> → Kích cỡ (Size)<br>
-                        • <code>% STIO FERNOS</code> → Thương hiệu (Brand)<br>
-                        • <code>% 25fw</code> → Mùa (Season)<br>
-                        • <code>% 200317</code> → Thông tin thêm (Info)<br>
-                        • <code>2650281395</code> → Số INV Lot<br>
-                        • <code>52</code> → Số lượng<br><br>
-                        
-                        <strong>Lưu ý:</strong><br>
-                        • Mỗi dòng là một item riêng biệt<br>
-                        • Hệ thống sẽ tìm item dựa trên custom_item_name_detail<br>
-                        • Nếu không tìm thấy item, dòng đó sẽ bị bỏ qua và báo lỗi
-                    </div>
-                `),
+                description: dialog_config.description,
                 reqd: 1,
                 default: ''
             }
@@ -171,7 +152,7 @@ function show_quick_add_dialog(frm) {
         size: 'large',
         primary_action_label: __('OK'),
         primary_action: function (values) {
-            process_quick_add_items(frm, values.items_data);
+            process_quick_add_items(frm, values.items_data, dialog_type);
             dialog.hide();
         }
     });
@@ -183,8 +164,94 @@ function show_quick_add_dialog(frm) {
     dialog.show();
 }
 
-// NEW FUNCTION: Process Quick Add Items
-async function process_quick_add_items(frm, items_data) {
+// NEW FUNCTION: Get dialog configuration based on type
+function get_dialog_config(dialog_type) {
+    if (dialog_type === 'material_issue') {
+        return {
+            title: __('Quick Add Items - Material Issue'),
+            description: __(`
+                <div style="background: #f5f5f5; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
+                    <strong>Định dạng:</strong> item_pattern;custom_inv_lot;qty<br><br>
+                    
+                    <strong>Cấu trúc item_pattern:</strong><br>
+                    item_name<strong>%</strong> color<strong>%</strong> size<strong>%</strong> brand<strong>%</strong> season<strong>%</strong> info<br>
+                    <small style="color: #666;">
+                    • Dùng dấu % để ngăn cách các thuộc tính<br>
+                    • Phải có khoảng trắng sau % và trước giá trị thuộc tính (Tránh bị trùng giữa "Xl" & Xxl)"<br>
+                    • Bắt buộc tối thiểu: item_name<br>
+                    • Các thuộc tính: color, size, brand, season, info : Nếu trống ("Blank") thì bỏ qua<br>
+                    </small><br><br>
+                    
+                    <strong>Ví dụ:</strong><br>
+                    <code style="background: #fff; padding: 5px; display: block; margin: 5px 0;">
+                    LM-2666% 410% Sm% STIO FERNOS% 25fw% 200317;2650281395;52<br>
+                    LM-2667% 420% M;2650281396;30<br>
+                    LM-2668% 430% L% STIO FERNOS;2650281397;25
+                    </code><br>
+                    
+                    <strong>Giải thích ví dụ 1:</strong><br>
+                    • <code>LM-2666</code> → Mã item<br>
+                    • <code>% 410</code> → Màu sắc (Color)<br>
+                    • <code>% Sm</code> → Kích cỡ (Size)<br>
+                    • <code>% STIO FERNOS</code> → Thương hiệu (Brand)<br>
+                    • <code>% 25fw</code> → Mùa (Season)<br>
+                    • <code>% 200317</code> → Thông tin thêm (Info)<br>
+                    • <code>2650281395</code> → Số INV Lot<br>
+                    • <code>52</code> → Số lượng<br><br>
+                    
+                    <strong>Lưu ý:</strong><br>
+                    • Mỗi dòng là một item riêng biệt<br>
+                    • Hệ thống sẽ tìm item dựa trên custom_item_name_detail<br>
+                    • Nếu không tìm thấy item, dòng đó sẽ bị bỏ qua và báo lỗi
+                </div>
+            `)
+        };
+    } else if (dialog_type === 'material_receipt') {
+        return {
+            title: __('Quick Add Items - Material Receipt'),
+            description: __(`
+                <div style="background: #f5f5f5; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
+                    <strong>Định dạng:</strong> item_pattern;declaration_invoice_number;custom_invoice_number;qty<br><br>
+                    
+                    <strong>Cấu trúc item_pattern:</strong><br>
+                    item_name<strong>%</strong> color<strong>%</strong> size<strong>%</strong> brand<strong>%</strong> season<strong>%</strong> info<br>
+                    <small style="color: #666;">
+                    • Dùng dấu % để ngăn cách các thuộc tính<br>
+                    • Phải có khoảng trắng sau % và trước giá trị thuộc tính (Tránh bị trùng giữa "Xl" & Xxl)"<br>
+                    • Bắt buộc tối thiểu: item_name<br>
+                    • Các thuộc tính: color, size, brand, season, info : Nếu trống ("Blank") thì bỏ qua<br>
+                    </small><br><br>
+                    
+                    <strong>Ví dụ:</strong><br>
+                    <code style="background: #fff; padding: 5px; display: block; margin: 5px 0;">
+                    LM-2666% 410% Sm% STIO FERNOS% 25fw% 200317;IV001;IV002;52<br>
+                    LM-2667% 420% M;IV003;IV004;30<br>
+                    LM-2668% 430% L% STIO FERNOS;IV005;IV006;25
+                    </code><br>
+                    
+                    <strong>Giải thích ví dụ 1:</strong><br>
+                    • <code>LM-2666</code> → Mã item<br>
+                    • <code>% 410</code> → Màu sắc (Color)<br>
+                    • <code>% Sm</code> → Kích cỡ (Size)<br>
+                    • <code>% STIO FERNOS</code> → Thương hiệu (Brand)<br>
+                    • <code>% 25fw</code> → Mùa (Season)<br>
+                    • <code>% 200317</code> → Thông tin thêm (Info)<br>
+                    • <code>IV001</code> → Số hóa đơn tờ khai<br>
+                    • <code>IV002</code> → Số hóa đơn<br>
+                    • <code>52</code> → Số lượng<br><br>
+                    
+                    <strong>Lưu ý:</strong><br>
+                    • Mỗi dòng là một item riêng biệt<br>
+                    • Hệ thống sẽ tìm item dựa trên custom_item_name_detail<br>
+                    • Nếu không tìm thấy item, dòng đó sẽ bị bỏ qua và báo lỗi
+                </div>
+            `)
+        };
+    }
+}
+
+// UPDATED FUNCTION: Process Quick Add Items with type parameter
+async function process_quick_add_items(frm, items_data, dialog_type) {
     if (!items_data) return;
 
     let lines = items_data.split('\n');
@@ -193,21 +260,35 @@ async function process_quick_add_items(frm, items_data) {
     let errors = [];
     let items_to_add = [];
 
-    // First pass: validate and prepare data
+    // First pass: validate and prepare data based on dialog type
     for (let i = 0; i < lines.length; i++) {
         let line = lines[i].trim();
         if (!line) continue; // Skip empty lines
 
         let parts = line.split(';');
-        if (parts.length !== 3) {
-            errors.push(__('Line {0}: Invalid format. Expected 3 parts separated by semicolon', [i + 1]));
-            error_count++;
-            continue;
-        }
-
         let item_pattern = parts[0].trim();
-        let custom_inv_lot = parts[1].trim();
-        let qty = parseFloat(parts[2].trim());
+        let qty, field_data = {};
+
+        if (dialog_type === 'material_issue') {
+            // Format: item_pattern;custom_inv_lot;qty
+            if (parts.length < 3) {
+                errors.push(__('Line {0}: Invalid format. Expected: item_pattern;custom_inv_lot;qty', [i + 1]));
+                error_count++;
+                continue;
+            }
+            field_data.custom_inv_lot = parts[1].trim();
+            qty = parseFloat(parts[2].trim());
+        } else if (dialog_type === 'material_receipt') {
+            // Format: item_pattern;declaration_invoice_number;custom_invoice_number;qty
+            if (parts.length < 4) {
+                errors.push(__('Line {0}: Invalid format. Expected: item_pattern;declaration_invoice_number;custom_invoice_number;qty', [i + 1]));
+                error_count++;
+                continue;
+            }
+            field_data.custom_declaration_invoice_number = parts[1].trim();
+            field_data.custom_invoice_number = parts[2].trim();
+            qty = parseFloat(parts[3].trim());
+        }
 
         if (isNaN(qty) || qty <= 0) {
             errors.push(__('Line {0}: Invalid quantity', [i + 1]));
@@ -217,12 +298,6 @@ async function process_quick_add_items(frm, items_data) {
 
         // Parse item pattern
         let pattern_parts = item_pattern.split('%').map(p => p.trim()).filter(p => p);
-
-        if (pattern_parts.length < 3) {
-            errors.push(__('Line {0}: Item pattern must have at least item_name, color, and size', [i + 1]));
-            error_count++;
-            continue;
-        }
 
         let item_name = pattern_parts[0];
         let color = pattern_parts[1];
@@ -239,22 +314,18 @@ async function process_quick_add_items(frm, items_data) {
         if (season) search_pattern += '% ' + season;
         if (info) search_pattern += '% ' + info;
 
+        search_pattern += '%';
+
         items_to_add.push({
             line_number: i + 1,
             search_pattern: search_pattern,
-            custom_inv_lot: custom_inv_lot,
-            qty: qty,
-            attributes: {
-                color: color,
-                size: size,
-                brand: brand,
-                season: season,
-                info: info
-            }
+            field_data: field_data,
+            qty: qty
         });
     }
 
     // Second pass: find items and add rows sequentially
+    let count = 0;
     for (let item_data of items_to_add) {
         try {
             // Find item
@@ -272,26 +343,19 @@ async function process_quick_add_items(frm, items_data) {
 
             if (response.message && response.message.length > 0) {
                 let item = response.message[0];
-
+                count++;
+                console.log(`Processing item:  ${count} ${item.item_code} for pattern: ${item_data.search_pattern}`);
                 // Add new row
                 let new_row = frm.add_child('items');
 
-                // Set all values at once to avoid conflicts
+                // Set basic item values
                 let values_to_set = {
                     'item_code': item.item_code,
-                    'custom_inv_lot': item_data.custom_inv_lot,
                     'qty': item_data.qty
                 };
 
-                // Add attribute fields
-                Object.keys(item_data.attributes).forEach(function (attr) {
-                    if (item_data.attributes[attr]) {
-                        let field_name = 'custom_' + attr;
-                        if (frm.fields_dict.items.grid.fields_map[field_name]) {
-                            values_to_set[field_name] = item_data.attributes[attr];
-                        }
-                    }
-                });
+                // Add type-specific fields
+                Object.assign(values_to_set, item_data.field_data);
 
                 // Set all values
                 Object.keys(values_to_set).forEach(function (field) {
@@ -301,7 +365,7 @@ async function process_quick_add_items(frm, items_data) {
                 success_count++;
 
                 // Small delay between adding items to ensure proper processing
-                await new Promise(resolve => setTimeout(resolve, 100));
+                await new Promise(resolve => setTimeout(resolve, 120));
 
             } else {
                 errors.push(__('Line {0}: Item not found with pattern: {1}', [item_data.line_number, item_data.search_pattern]));
@@ -319,7 +383,8 @@ async function process_quick_add_items(frm, items_data) {
     }
 
     // Show results
-    let message = __('Quick Add completed: {0} items added successfully', [success_count]);
+    let type_label = dialog_type === 'material_issue' ? 'Material Issue' : 'Material Receipt';
+    let message = __('Quick Add {0} completed: {1} items added successfully', [type_label, success_count]);
 
     if (error_count > 0) {
         message += __('<br><br>Errors ({0}):<br>', [error_count]);
