@@ -37,6 +37,7 @@ frappe.ui.form.on('Stock Entry', {
         if (frm.doc.purpose === "Material Transfer for Manufacture" && frm.doc.work_order) {
             check_existing_material_transfers(frm);
         }
+
         // Khởi tạo duplicate button (ẩn ban đầu)
         let duplicate_btn = frm.fields_dict.items.grid.add_custom_button(__('Duplicate Selected'),
             function () {
@@ -46,7 +47,7 @@ frappe.ui.form.on('Stock Entry', {
                     return;
                 }
 
-                // LOGIC DUPLICATE THỰC TẾ (thay thế duplicate_selected_rows())
+                // LOGIC DUPLICATE THỰC TẾ
                 selected_rows.forEach(function (row_name) {
                     // Lấy data từ row được select
                     let source_row = locals['Stock Entry Detail'][row_name];
@@ -71,7 +72,11 @@ frappe.ui.form.on('Stock Entry', {
                     indicator: 'green'
                 });
             }
-        ).addClass('btn-primary');
+        ).addClass('btn-primary').css({
+            'background-color': '#6495ED',
+            'border-color': '#6495ED',
+            'color': '#fff'
+        });;
 
         // Ẩn button ban đầu
         duplicate_btn.hide();
@@ -81,6 +86,17 @@ frappe.ui.form.on('Stock Entry', {
 
         // Setup listener để monitor selection changes
         setup_selection_monitor(frm);
+
+        // THÊM QUICK ADD BUTTON
+        let quick_add_btn = frm.fields_dict.items.grid.add_custom_button(__('Quick Add'),
+            function () {
+                show_quick_add_dialog(frm);
+            }
+        ).addClass('btn-success').css({
+            'background-color': '#5cb85c',
+            'border-color': '#4cae4c',
+            'color': '#fff'
+        });
     },
 
     work_order: function (frm) {
@@ -102,6 +118,225 @@ frappe.ui.form.on('Stock Entry', {
         sync_fields_to_child_table(frm);
     }
 });
+
+// NEW FUNCTION: Show Quick Add Dialog
+function show_quick_add_dialog(frm) {
+    let dialog = new frappe.ui.Dialog({
+        title: __('Quick Add Items'),
+        fields: [
+            {
+                fieldname: 'items_data',
+                fieldtype: 'Small Text',
+                label: __('Items Data'),
+                description: __(`
+                    <div style="background: #f5f5f5; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
+                        <strong>Định dạng:</strong> item_pattern;custom_inv_lot;qty<br><br>
+                        
+                        <strong>Cấu trúc item_pattern:</strong><br>
+                        item_name<strong>%</strong> color<strong>%</strong> size<strong>%</strong> brand<strong>%</strong> season<strong>%</strong> info<br>
+                        <small style="color: #666;">
+                        • Dùng dấu % để ngăn cách các thuộc tính<br>
+                        • Phải có khoảng trắng sau % và trước giá trị thuộc tính<br>
+                        • Bắt buộc: item_name, color, size<br>
+                        • Tùy chọn: brand, season, info
+                        </small><br><br>
+                        
+                        <strong>Ví dụ:</strong><br>
+                        <code style="background: #fff; padding: 5px; display: block; margin: 5px 0;">
+                        LM-2666% 410% Sm% STIO FERNOS% 25fw% 200317;2650281395;52<br>
+                        LM-2667% 420% M;2650281396;30<br>
+                        LM-2668% 430% L% STIO FERNOS;2650281397;25
+                        </code><br>
+                        
+                        <strong>Giải thích ví dụ 1:</strong><br>
+                        • <code>LM-2666</code> → Mã item<br>
+                        • <code>% 410</code> → Màu sắc (Color)<br>
+                        • <code>% Sm</code> → Kích cỡ (Size)<br>
+                        • <code>% STIO FERNOS</code> → Thương hiệu (Brand)<br>
+                        • <code>% 25fw</code> → Mùa (Season)<br>
+                        • <code>% 200317</code> → Thông tin thêm (Info)<br>
+                        • <code>2650281395</code> → Số INV Lot<br>
+                        • <code>52</code> → Số lượng<br><br>
+                        
+                        <strong>Lưu ý:</strong><br>
+                        • Mỗi dòng là một item riêng biệt<br>
+                        • Hệ thống sẽ tìm item dựa trên custom_item_name_detail<br>
+                        • Nếu không tìm thấy item, dòng đó sẽ bị bỏ qua và báo lỗi
+                    </div>
+                `),
+                reqd: 1,
+                default: ''
+            }
+        ],
+        size: 'large',
+        primary_action_label: __('OK'),
+        primary_action: function (values) {
+            process_quick_add_items(frm, values.items_data);
+            dialog.hide();
+        }
+    });
+
+    // Set dialog height for better visibility
+    dialog.$wrapper.find('.modal-dialog').css('width', '800px');
+    dialog.$wrapper.find('[data-fieldname="items_data"]').css('min-height', '200px');
+
+    dialog.show();
+}
+
+// NEW FUNCTION: Process Quick Add Items
+async function process_quick_add_items(frm, items_data) {
+    if (!items_data) return;
+
+    let lines = items_data.split('\n');
+    let success_count = 0;
+    let error_count = 0;
+    let errors = [];
+    let items_to_add = [];
+
+    // First pass: validate and prepare data
+    for (let i = 0; i < lines.length; i++) {
+        let line = lines[i].trim();
+        if (!line) continue; // Skip empty lines
+
+        let parts = line.split(';');
+        if (parts.length !== 3) {
+            errors.push(__('Line {0}: Invalid format. Expected 3 parts separated by semicolon', [i + 1]));
+            error_count++;
+            continue;
+        }
+
+        let item_pattern = parts[0].trim();
+        let custom_inv_lot = parts[1].trim();
+        let qty = parseFloat(parts[2].trim());
+
+        if (isNaN(qty) || qty <= 0) {
+            errors.push(__('Line {0}: Invalid quantity', [i + 1]));
+            error_count++;
+            continue;
+        }
+
+        // Parse item pattern
+        let pattern_parts = item_pattern.split('%').map(p => p.trim()).filter(p => p);
+
+        if (pattern_parts.length < 3) {
+            errors.push(__('Line {0}: Item pattern must have at least item_name, color, and size', [i + 1]));
+            error_count++;
+            continue;
+        }
+
+        let item_name = pattern_parts[0];
+        let color = pattern_parts[1];
+        let size = pattern_parts[2];
+        let brand = pattern_parts[3] || '';
+        let season = pattern_parts[4] || '';
+        let info = pattern_parts[5] || '';
+
+        // Build search pattern for custom_item_name_detail
+        let search_pattern = item_name;
+        if (color) search_pattern += '% ' + color;
+        if (size) search_pattern += '% ' + size;
+        if (brand) search_pattern += '% ' + brand;
+        if (season) search_pattern += '% ' + season;
+        if (info) search_pattern += '% ' + info;
+
+        items_to_add.push({
+            line_number: i + 1,
+            search_pattern: search_pattern,
+            custom_inv_lot: custom_inv_lot,
+            qty: qty,
+            attributes: {
+                color: color,
+                size: size,
+                brand: brand,
+                season: season,
+                info: info
+            }
+        });
+    }
+
+    // Second pass: find items and add rows sequentially
+    for (let item_data of items_to_add) {
+        try {
+            // Find item
+            let response = await frappe.call({
+                method: 'frappe.client.get_list',
+                args: {
+                    doctype: 'Item',
+                    filters: {
+                        'custom_item_name_detail': ['like', item_data.search_pattern]
+                    },
+                    fields: ['name', 'item_code', 'item_name', 'stock_uom'],
+                    limit: 1
+                }
+            });
+
+            if (response.message && response.message.length > 0) {
+                let item = response.message[0];
+
+                // Add new row
+                let new_row = frm.add_child('items');
+
+                // Set all values at once to avoid conflicts
+                let values_to_set = {
+                    'item_code': item.item_code,
+                    'custom_inv_lot': item_data.custom_inv_lot,
+                    'qty': item_data.qty
+                };
+
+                // Add attribute fields
+                Object.keys(item_data.attributes).forEach(function (attr) {
+                    if (item_data.attributes[attr]) {
+                        let field_name = 'custom_' + attr;
+                        if (frm.fields_dict.items.grid.fields_map[field_name]) {
+                            values_to_set[field_name] = item_data.attributes[attr];
+                        }
+                    }
+                });
+
+                // Set all values
+                Object.keys(values_to_set).forEach(function (field) {
+                    frappe.model.set_value(new_row.doctype, new_row.name, field, values_to_set[field]);
+                });
+
+                success_count++;
+
+                // Small delay between adding items to ensure proper processing
+                await new Promise(resolve => setTimeout(resolve, 100));
+
+            } else {
+                errors.push(__('Line {0}: Item not found with pattern: {1}', [item_data.line_number, item_data.search_pattern]));
+                error_count++;
+            }
+        } catch (error) {
+            errors.push(__('Line {0}: Error processing item: {1}', [item_data.line_number, error.message]));
+            error_count++;
+        }
+    }
+
+    // Refresh grid once after all items are added
+    if (success_count > 0) {
+        frm.refresh_field('items');
+    }
+
+    // Show results
+    let message = __('Quick Add completed: {0} items added successfully', [success_count]);
+
+    if (error_count > 0) {
+        message += __('<br><br>Errors ({0}):<br>', [error_count]);
+        message += errors.join('<br>');
+
+        frappe.msgprint({
+            title: __('Quick Add Results'),
+            message: message,
+            indicator: 'orange'
+        });
+    } else if (success_count > 0) {
+        frappe.show_alert({
+            message: message,
+            indicator: 'green'
+        }, 5);
+    }
+}
 
 function check_existing_material_transfers(frm) {
     frappe.call({
@@ -225,7 +460,7 @@ function sync_fields_to_child_table(frm) {
         {
             field: 'custom_invoice_number',
             value: frm.doc.custom_invoice_number,
-            label: 'Số hóa đơni'
+            label: 'Số hóa đơn'
         },
         {
             field: 'custom_material_issue_purpose',
@@ -290,6 +525,7 @@ function sync_fields_to_child_table(frm) {
         }, 5);
     }
 }
+
 // Function để monitor selection changes
 function setup_selection_monitor(frm) {
     // Monitor click events trên grid
