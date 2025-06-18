@@ -365,7 +365,7 @@ async function process_quick_add_items(frm, items_data, dialog_type) {
                 success_count++;
 
                 // Small delay between adding items to ensure proper processing
-                await new Promise(resolve => setTimeout(resolve, 120));
+                await new Promise(resolve => setTimeout(resolve, 150));
 
             } else {
                 errors.push(__('Line {0}: Item not found with pattern: {1}', [item_data.line_number, item_data.search_pattern]));
