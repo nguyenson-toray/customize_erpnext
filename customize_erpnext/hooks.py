@@ -267,7 +267,9 @@ fixtures = [
 # Permissions
 # -----------
 # Permissions evaluated in scripted ways
-
+# permission_query_conditions = {
+#     "Overtime Request": "customize_erpnext.customize_erpnext.doctype.overtime_request.overtime_request.get_permission_query_conditions"
+# }
 # permission_query_conditions = {
 # 	"Event": "frappe.desk.doctype.event.event.get_permission_query_conditions",
 # }

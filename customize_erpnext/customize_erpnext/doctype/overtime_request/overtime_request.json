@@ -2,7 +2,7 @@
  "actions": [],
  "allow_rename": 1,
  "autoname": "naming_series:",
- "creation": "2025-06-04 10:00:00.000000",
+ "creation": "2025-06-04 10:00:00",
  "default_view": "List",
  "doctype": "DocType",
  "editable_grid": 1,
@@ -26,7 +26,7 @@
   "ot_employees",
   "approval_section",
   "manager_approver",
-  "column_break_16", 
+  "column_break_16",
   "factory_manager_approver",
   "timestamps_section",
   "manager_approved_on",
@@ -71,13 +71,13 @@
    "reqd": 1
   },
   {
+   "allow_on_submit": 1,
    "default": "Draft",
    "fieldname": "status",
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Status",
-   "options": "Draft\nPending Manager Approval\nPending Factory Manager Approval\nApproved\nRejected\nCancelled",
-   "read_only": 1
+   "options": "Draft\nPending Manager Approval\nPending Factory Manager Approval\nApproved\nRejected\nCancelled"
   },
   {
    "fieldname": "ot_details_section",
@@ -144,9 +144,8 @@
   },
   {
    "fieldname": "manager_approver",
-   "fieldtype": "Link",
-   "label": "Department Manager",
-   "options": "Employee"
+   "fieldtype": "Select",
+   "label": "Department Manager"
   },
   {
    "fieldname": "column_break_16",
@@ -154,9 +153,8 @@
   },
   {
    "fieldname": "factory_manager_approver",
-   "fieldtype": "Link",
-   "label": "Factory Manager",
-   "options": "Employee"
+   "fieldtype": "Select",
+   "label": "Factory Manager"
   },
   {
    "fieldname": "timestamps_section",
@@ -164,6 +162,7 @@
    "label": "Approval Timestamps"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "manager_approved_on",
    "fieldtype": "Datetime",
    "label": "Department Manager Approved On",
@@ -174,6 +173,7 @@
    "fieldtype": "Column Break"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "factory_manager_approved_on",
    "fieldtype": "Datetime",
    "label": "Factory Manager Approved On",
@@ -208,82 +208,109 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2025-06-04 10:00:00.000000",
+ "modified": "2025-06-19 15:22:02.215224",
  "modified_by": "Administrator",
- "module": "Customize ERPNext",
+ "module": "Customize Erpnext",
  "name": "Overtime Request",
  "naming_rule": "By \"Naming Series\" field",
  "owner": "Administrator",
-  "permissions": [
+ "permissions": [
   {
-    "create": 1,
-    "delete": 1,
-    "email": 1,
-    "export": 1,
-    "print": 1,
-    "read": 1,
-    "report": 1,
-    "role": "HR Manager",
-    "share": 1,
-    "submit": 1,
-    "write": 1
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "HR Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
   },
   {
-    "create": 1,
-    "email": 1,
-    "export": 1,
-    "print": 1,
-    "read": 1,
-    "report": 1,
-    "role": "Employee",
-    "share": 1,
-    "submit": 1,
-    "write": 1
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Employee",
+   "share": 1,
+   "submit": 1,
+   "write": 1
   },
   {
-    "email": 1,
-    "export": 1,
-    "print": 1,
-    "read": 1,
-    "report": 1,
-    "role": "Department Manager",
-    "share": 1,
-    "write": 1
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Department Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
   },
   {
-    "email": 1,
-    "export": 1,
-    "print": 1,
-    "read": 1,
-    "report": 1,
-    "role": "Factory Manager",
-    "share": 1,
-    "write": 1
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Factory Manager",
+   "share": 1,
+   "write": 1
   },
   {
-    "email": 1,
-    "export": 1,
-    "print": 1,
-    "read": 1,
-    "report": 1,
-    "role": "TIQN Factory Manager",
-    "share": 1,
-    "write": 1
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "TIQN Factory Manager",
+   "share": 1,
+   "write": 1
   },
   {
-    "email": 1,
-    "export": 1,
-    "print": 1,
-    "read": 1,
-    "report": 1,
-    "role": "TIQN Manager",
-    "share": 1, 
-    "write": 1
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "TIQN Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "All",
+   "share": 1,
+   "submit": 1,
+   "write": 1
   }
-  ],
-  "sort_field": "modified",
-  "sort_order": "DESC",
-  "states": [],
-  "track_changes": 1,
-  "track_seen": 1
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1,
+ "track_seen": 1
 }

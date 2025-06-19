@@ -4,6 +4,22 @@ frappe.ui.form.on('Overtime Request', {
     if (frm.doc.docstatus === 1) { // Only for submitted documents
       add_approval_buttons(frm);
     }
+    
+    // Show status indicator
+    show_status_indicator(frm);
+    
+    // Add custom buttons for workflow actions
+    add_workflow_buttons(frm);
+    setTimeout(function() {
+      load_approver_options(frm);
+    }, 500);
+
+        //set OT Level:
+     if (frm.doc.ot_configuration) {
+      load_ot_configuration_data(frm);
+    } else {
+      clear_ot_level_options(frm);
+    }
   },
 
   ot_date: function(frm) {
@@ -13,12 +29,29 @@ frappe.ui.form.on('Overtime Request', {
   },
 
   onload: function (frm) {
+
+    //set OT Level:
+     if (frm.doc.ot_configuration) {
+      load_ot_configuration_data(frm);
+    } else {
+      clear_ot_level_options(frm);
+    }
+
+    // Set current user as requester if new document and no requester set
     if (frm.is_new() && !frm.doc.requested_by) {
       set_current_user_as_requester(frm);
     }
     
     // Set filters for approver fields
     set_approver_filters(frm);
+    
+    // Set status to Draft for new documents
+    if (frm.is_new()) {
+      frm.set_value('status', 'Draft');
+    }
+        setTimeout(function() {
+      load_approver_options(frm);
+    }, 500);
   },
 
   ot_configuration: function (frm) {
@@ -42,6 +75,103 @@ frappe.ui.form.on('Overtime Request', {
   }
 });
 
+// Show status indicator with progress
+function show_status_indicator(frm) {
+  if (!frm.doc.status) return;
+  
+  let status_info = {
+    'Draft': { color: 'grey', message: 'Draft - Ready to submit' },
+    'Pending Manager Approval': { color: 'orange', message: 'Waiting for Department Manager approval' },
+    'Pending Factory Manager Approval': { color: 'blue', message: 'Waiting for Factory Manager approval' },
+    'Approved': { color: 'green', message: 'Fully approved - Overtime entries created' },
+    'Rejected': { color: 'red', message: 'Rejected - Returned to draft for modification' },
+    'Cancelled': { color: 'red', message: 'Cancelled' }
+  };
+  
+  let info = status_info[frm.doc.status];
+  if (info) {
+    frm.dashboard.add_indicator(__('Status: {0}', [frm.doc.status]), info.color);
+    
+    // Add progress info
+    if (frm.doc.status !== 'Draft') {
+      let progress_html = '<div class="row"><div class="col-md-12">';
+      progress_html += '<h5>Approval Progress</h5>';
+      progress_html += '<div class="progress" style="height: 25px;">';
+      
+      let progress = 0;
+      if (frm.doc.status === 'Pending Manager Approval') progress = 33;
+      else if (frm.doc.status === 'Pending Factory Manager Approval') progress = 66;
+      else if (frm.doc.status === 'Approved') progress = 100;
+      
+      progress_html += `<div class="progress-bar bg-primary" role="progressbar" style="width: ${progress}%" aria-valuenow="${progress}" aria-valuemin="0" aria-valuemax="100">${progress}%</div>`;
+      progress_html += '</div>';
+      
+      // Show timeline
+      progress_html += '<div class="mt-3">';
+      progress_html += '<small>';
+      if (frm.doc.request_date) {
+        progress_html += `<strong>Submitted:</strong> ${frappe.datetime.str_to_user(frm.doc.request_date)}<br>`;
+      }
+      if (frm.doc.manager_approved_on) {
+        progress_html += `<strong>Manager Approved:</strong> ${frappe.datetime.str_to_user(frm.doc.manager_approved_on)}<br>`;
+      }
+      if (frm.doc.factory_manager_approved_on) {
+        progress_html += `<strong>Factory Manager Approved:</strong> ${frappe.datetime.str_to_user(frm.doc.factory_manager_approved_on)}<br>`;
+      }
+      progress_html += '</small>';
+      progress_html += '</div>';
+      
+      progress_html += '</div></div>';
+      
+      frm.dashboard.add_section(progress_html);
+    }
+  }
+}
+
+// Add workflow-specific buttons
+function add_workflow_buttons(frm) {
+  // For requesters - show resubmit option if rejected
+  // if (frm.doc.status === 'Draft' && frm.doc.docstatus === 0 && !frm.is_new()) {
+    // frm.add_custom_button(__('Submit for Approval'), function() {
+    //   if (frm.doc.ot_employees.length === 0) {
+    //     frappe.msgprint('Please add at least one employee before submitting');
+    //     return;
+    //   }
+      
+    //   frappe.confirm(
+    //     'Are you sure you want to submit this overtime request for approval?',
+    //     function() {
+    //       frm.save('Submit');
+    //     }
+    //   );
+    // }).addClass('btn-primary');
+  // }
+  
+  // Show pending approvals counter for managers
+  get_pending_approvals_count(frm);
+}
+
+// Get pending approvals count for current user
+function get_pending_approvals_count(frm) {
+  frappe.call({
+    method: 'customize_erpnext.customize_erpnext.doctype.overtime_request.overtime_request.get_pending_approvals',
+    callback: function(r) {
+      if (r.message && r.message.length > 0) {
+        frm.dashboard.add_indicator(__('Pending Approvals: {0}', [r.message.length]), 'orange');
+        
+        // Add link to view pending approvals
+        frm.add_custom_button(__('View Pending Approvals ({0})', [r.message.length]), function() {
+          frappe.route_options = {
+            "status": ["in", ["Pending Manager Approval", "Pending Factory Manager Approval"]],
+            "docstatus": 1
+          };
+          frappe.set_route("List", "Overtime Request");
+        }).addClass('btn-warning');
+      }
+    }
+  });
+}
+
 // Set filters for approver fields
 function set_approver_filters(frm) {
   frm.set_query("manager_approver", function() {
@@ -53,6 +183,18 @@ function set_approver_filters(frm) {
   frm.set_query("factory_manager_approver", function() {
     return {
       query: "customize_erpnext.customize_erpnext.doctype.overtime_request.overtime_request.get_factory_managers"
+    };
+  });
+  
+  // Set query for employee field in child table
+  frm.set_query("employee", "ot_employees", function() {
+    return {
+      query: "customize_erpnext.customize_erpnext.doctype.overtime_request.overtime_request.get_active_employees"
+    };
+  });
+  frm.set_query("employee", "ot_level", function() {
+    return {
+      query: "customize_erpnext.customize_erpnext.doctype.overtime_request.overtime_request.get_ot_level_options"
     };
   });
 }
@@ -89,40 +231,48 @@ function setup_ot_level_dropdown(frm, overtime_levels) {
   }
   
   frm.refresh_field('ot_employees');
-  
 }
 
 // Adjust rate multipliers for date
 function adjust_rate_multipliers_for_date(frm) {
   if (!frm.doc.ot_date) return;
   
-  let date_obj = frappe.datetime.str_to_obj(frm.doc.ot_date);
-  let day_of_week = date_obj.getDay(); // 0 = Sunday
-  let is_sunday = day_of_week === 0;
-  
-  let message = '';
-  
-  frm.doc.ot_employees.forEach(function(row) {
-    let base_multiplier = get_base_multiplier_from_config(frm, row.ot_level);
-    let adjusted_multiplier = base_multiplier;
-    
-    if (is_sunday) {
-      adjusted_multiplier = 2.0;
-      message = 'Weekend rate (x2.0) applied for Sunday';
+  // Get date multiplier info from server
+  frappe.call({
+    method: 'customize_erpnext.customize_erpnext.doctype.overtime_request.overtime_request.get_date_multiplier_info',
+    args: { ot_date: frm.doc.ot_date },
+    callback: function(r) {
+      if (r.message) {
+        let date_info = r.message;
+        let message = '';
+        
+        frm.doc.ot_employees.forEach(function(row) {
+          let base_multiplier = get_base_multiplier_from_config(frm, row.ot_level);
+          let adjusted_multiplier = base_multiplier;
+          
+          if (date_info.is_holiday) {
+            adjusted_multiplier = 3.0;
+            message = `Holiday rate (x3.0) applied for ${date_info.holiday_name}`;
+          } else if (date_info.is_weekend) {
+            adjusted_multiplier = 2.0;
+            message = 'Weekend rate (x2.0) applied for Sunday';
+          }
+          
+          frappe.model.set_value(row.doctype, row.name, 'rate_multiplier', adjusted_multiplier);
+        });
+        
+        if (message) {
+          frappe.show_alert({
+            message: message,
+            indicator: 'blue'
+          });
+        }
+        
+        frm.refresh_field('ot_employees');
+        calculate_totals(frm);
+      }
     }
-    
-    frappe.model.set_value(row.doctype, row.name, 'rate_multiplier', adjusted_multiplier);
   });
-  
-  if (message) {
-    frappe.show_alert({
-      message: message,
-      indicator: 'blue'
-    });
-  }
-  
-  frm.refresh_field('ot_employees');
-  calculate_totals(frm);
 }
 
 function get_base_multiplier_from_config(frm, ot_level_name) {
@@ -243,36 +393,54 @@ function update_hours_display(dialog, ot_levels, selected_level_name) {
     let rate_note = '';
     
     if (current_frm && current_frm.doc.ot_date) {
-      adjusted_multiplier = get_adjusted_multiplier_for_date(current_frm.doc.ot_date, base_multiplier);
-      let date_type = get_date_type(current_frm.doc.ot_date);
-      
-      if (date_type !== 'Weekday') {
-        rate_note = `<br><strong>Adjusted for ${date_type}:</strong> x${adjusted_multiplier}`;
-      }
+      // Get date type info
+      frappe.call({
+        method: 'customize_erpnext.customize_erpnext.doctype.overtime_request.overtime_request.get_date_multiplier_info',
+        args: { ot_date: current_frm.doc.ot_date },
+        callback: function(r) {
+          if (r.message) {
+            let date_info = r.message;
+            
+            if (date_info.is_holiday) {
+              adjusted_multiplier = 3.0;
+              rate_note = `<br><strong>Adjusted for Holiday:</strong> x${adjusted_multiplier}`;
+            } else if (date_info.is_weekend) {
+              adjusted_multiplier = 2.0;
+              rate_note = `<br><strong>Adjusted for Weekend:</strong> x${adjusted_multiplier}`;
+            }
+            
+            update_hours_info_display(dialog, selected_level, base_multiplier, rate_note);
+          }
+        }
+      });
+    } else {
+      update_hours_info_display(dialog, selected_level, base_multiplier, rate_note);
     }
-    
-    let hours_info = `
-      <div class="alert alert-info">
-        <strong>Selected OT Level: ${selected_level.level_name}</strong><br>
-        <strong>Base Rate Multiplier:</strong> x${base_multiplier}${rate_note}<br>
-    `;
-    
-    if (selected_level.max_hours) {
-      hours_info += `<strong>Max Hours:</strong> ${selected_level.max_hours} hours<br>`;
-    }
-    
-    if (selected_level.default_hours) {
-      hours_info += `<strong>Default Hours:</strong> ${selected_level.default_hours} hours<br>`;
-    }
-    
-    if (selected_level.start_time && selected_level.end_time) {
-      hours_info += `<strong>Time:</strong> ${selected_level.start_time} - ${selected_level.end_time}<br>`;
-    }
-    
-    hours_info += `</div>`;
-    
-    dialog.fields_dict.hours_info.$wrapper.html(hours_info);
   }
+}
+
+function update_hours_info_display(dialog, selected_level, base_multiplier, rate_note) {
+  let hours_info = `
+    <div class="alert alert-info">
+      <strong>Selected OT Level: ${selected_level.level_name}</strong><br>
+      <strong>Base Rate Multiplier:</strong> x${base_multiplier}${rate_note}<br>
+  `;
+  
+  if (selected_level.max_hours) {
+    hours_info += `<strong>Max Hours:</strong> ${selected_level.max_hours} hours<br>`;
+  }
+  
+  if (selected_level.default_hours) {
+    hours_info += `<strong>Default Hours:</strong> ${selected_level.default_hours} hours<br>`;
+  }
+  
+  if (selected_level.start_time && selected_level.end_time) {
+    hours_info += `<strong>Time:</strong> ${selected_level.start_time} - ${selected_level.end_time}<br>`;
+  }
+  
+  hours_info += `</div>`;
+  
+  dialog.fields_dict.hours_info.$wrapper.html(hours_info);
 }
 
 // Add selected employees to form
@@ -306,8 +474,8 @@ function add_selected_employees_to_form(frm, dialog, employees, ot_levels, value
       row.ot_level = selected_ot_level.level_name;
       
       let base_multiplier = selected_ot_level.rate_multiplier;
-      let adjusted_multiplier = get_adjusted_multiplier_for_date(frm.doc.ot_date, base_multiplier);
-      row.rate_multiplier = adjusted_multiplier;
+      // Will be adjusted by server validation based on date
+      row.rate_multiplier = base_multiplier;
       
       row.planned_hours = selected_ot_level.default_hours || selected_ot_level.max_hours || 8.0;
       
@@ -323,47 +491,17 @@ function add_selected_employees_to_form(frm, dialog, employees, ot_levels, value
   frm.refresh_field('ot_employees');
   calculate_totals(frm);
   
-  let date_type = get_date_type(frm.doc.ot_date);
-  if (date_type !== 'Weekday') {
-    frappe.show_alert({
-      message: `${selected_checkboxes.length} employees added with ${date_type} rate applied`,
-      indicator: 'blue'
-    });
-  } else {
-    frappe.show_alert({
-      message: `${selected_checkboxes.length} employees added successfully`,
-      indicator: 'green'
-    });
-  }
+  frappe.show_alert({
+    message: `${selected_checkboxes.length} employees added successfully`,
+    indicator: 'green'
+  });
 
   dialog.hide();
-}
-
-// Helper functions
-function get_adjusted_multiplier_for_date(ot_date, base_multiplier) {
-  if (!ot_date) return base_multiplier;
   
-  let date_obj = frappe.datetime.str_to_obj(ot_date);
-  let day_of_week = date_obj.getDay();
-  
-  if (day_of_week === 0) { // Sunday
-    return 2.0;
+  // Trigger rate adjustment for date
+  if (frm.doc.ot_date) {
+    adjust_rate_multipliers_for_date(frm);
   }
-  
-  return base_multiplier;
-}
-
-function get_date_type(ot_date) {
-  if (!ot_date) return 'Weekday';
-  
-  let date_obj = frappe.datetime.str_to_obj(ot_date);
-  let day_of_week = date_obj.getDay();
-  
-  if (day_of_week === 0) {
-    return 'Weekend (Sunday)';
-  }
-  
-  return 'Weekday';
 }
 
 // Clear OT level options
@@ -371,7 +509,6 @@ function clear_ot_level_options(frm) {
   frm.fields_dict.ot_employees.grid.update_docfield_property('ot_level', 'options', '');
   frm.refresh_field('ot_employees');
   frm._ot_config_data = null;
-  
 }
 
 // Validate existing OT levels
@@ -449,9 +586,8 @@ function set_ot_level_details(frm, cdt, cdn, selected_level_name) {
 
   if (selected_level) {
     let base_multiplier = selected_level.rate_multiplier;
-    let adjusted_multiplier = get_adjusted_multiplier_for_date(frm.doc.ot_date, base_multiplier);
     
-    frappe.model.set_value(cdt, cdn, 'rate_multiplier', adjusted_multiplier);
+    frappe.model.set_value(cdt, cdn, 'rate_multiplier', base_multiplier);
 
     if (selected_level.start_time) {
       frappe.model.set_value(cdt, cdn, 'start_time', selected_level.start_time);
@@ -466,8 +602,13 @@ function set_ot_level_details(frm, cdt, cdn, selected_level_name) {
       frappe.model.set_value(cdt, cdn, 'planned_hours', selected_level.max_hours);
     }
 
-    setTimeout(() => calculate_totals(frm), 200);
-    
+    setTimeout(() => {
+      calculate_totals(frm);
+      // Adjust rate based on date
+      if (frm.doc.ot_date) {
+        adjust_rate_multipliers_for_date(frm);
+      }
+    }, 200);
   }
 }
 
@@ -531,8 +672,10 @@ function add_approval_buttons(frm) {
 }
 
 function approve_request(frm, approval_type) {
+  let approval_title = approval_type === 'manager' ? 'Department Manager' : 'Factory Manager';
+  
   frappe.confirm(
-    `Are you sure you want to approve this overtime request?`,
+    `Are you sure you want to approve this overtime request as ${approval_title}?`,
     function() {
       frappe.call({
         method: 'customize_erpnext.customize_erpnext.doctype.overtime_request.overtime_request.approve_overtime_request',
@@ -556,12 +699,15 @@ function approve_request(frm, approval_type) {
 }
 
 function reject_request(frm, rejection_type) {
+  let rejection_title = rejection_type === 'manager' ? 'Department Manager' : 'Factory Manager';
+  
   frappe.prompt([
     {
       label: 'Rejection Comments',
       fieldname: 'comments',
       fieldtype: 'Text',
-      reqd: 1
+      reqd: 1,
+      description: 'Please provide reason for rejection. The requester will be notified.'
     }
   ], function(values) {
     frappe.call({
@@ -575,11 +721,44 @@ function reject_request(frm, rejection_type) {
         if (!r.exc) {
           frm.reload_doc();
           frappe.show_alert({
-            message: 'Request rejected successfully',
-            indicator: 'red'
+            message: 'Request rejected and returned to draft status',
+            indicator: 'orange'
           });
         }
       }
     });
-  }, 'Reject Overtime Request', 'Reject');
+  }, `Reject Overtime Request as ${rejection_title}`, 'Reject');
+}
+
+// Load approver options for Select fields
+function load_approver_options(frm) {
+  // Load Department Managers
+  frappe.call({
+    method: 'customize_erpnext.customize_erpnext.doctype.overtime_request.overtime_request.get_managers_list',
+    args: { manager_type: 'department' },
+    callback: function(r) {
+      if (r.message && r.message.length > 0) {
+        let options = r.message.map(manager => 
+          `${manager.display_name}`
+        ).join('\n');
+        frm.set_df_property('manager_approver', 'options', options);
+        frm.refresh_field('manager_approver');
+      }
+    }
+  });
+  
+  // Load Factory Managers
+  frappe.call({
+    method: 'customize_erpnext.customize_erpnext.doctype.overtime_request.overtime_request.get_managers_list', 
+    args: { manager_type: 'factory' },
+    callback: function(r) {
+      if (r.message && r.message.length > 0) {
+        let options = r.message.map(manager => 
+          manager.display_name
+        ).join('\n');
+        frm.set_df_property('factory_manager_approver', 'options', options);
+        frm.refresh_field('factory_manager_approver');
+      }
+    }
+  });
 }
