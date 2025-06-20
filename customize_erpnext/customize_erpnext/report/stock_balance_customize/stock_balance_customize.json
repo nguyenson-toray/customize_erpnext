@@ -10,7 +10,7 @@
  "idx": 0,
  "is_standard": "Yes",
  "letterhead": null,
- "modified": "2025-06-14 14:04:33.747799",
+ "modified": "2025-06-20 21:10:53.469576",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Stock Balance Customize",
@@ -27,5 +27,5 @@
    "role": "Accounts Manager"
   }
  ],
- "timeout": 0
+ "timeout": 300
 }

@@ -78,6 +78,24 @@ frappe.query_reports["Stock Balance Customize"] = {
 			options: "Warehouse Type",
 		},
 		{
+			fieldname: "custom_invoice_number",
+			label: __("Invoice Number"),
+			fieldtype: "Data",
+			width: "160",
+		},
+		// {
+		// 	fieldname: "custom_receive_date_from",
+		// 	label: __("Receive Date From"),
+		// 	fieldtype: "Date",
+		// 	width: "80",
+		// },
+		// {
+		// 	fieldname: "custom_receive_date_to",
+		// 	label: __("Receive Date To"),
+		// 	fieldtype: "Date",
+		// 	width: "80",
+		// },
+		{
 			fieldname: "valuation_field_type",
 			label: __("Valuation Field Type"),
 			fieldtype: "Select",
@@ -130,10 +148,10 @@ frappe.query_reports["Stock Balance Customize"] = {
 			value = "<span style='color:red'>" + value + "</span>";
 		} else if (column.fieldname == "in_qty" && data && data.in_qty > 0) {
 			value = "<span style='color:green'>" + value + "</span>";
+		} else if (column.fieldname == "custom_invoice_number" && data && data.custom_invoice_number) {
+			value = "<strong>" + value + "</strong>";
 		}
 
 		return value;
 	},
 };
-
-erpnext.utils.add_inventory_dimensions("Stock Balance", 8);

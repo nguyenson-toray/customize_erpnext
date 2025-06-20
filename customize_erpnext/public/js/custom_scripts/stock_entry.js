@@ -517,11 +517,11 @@ function sync_fields_to_child_table(frm) {
 
     let total_updated = 0;
     let fields_to_sync = [
-        {
-            field: 'custom_declaration_invoice_number',
-            value: frm.doc.custom_declaration_invoice_number,
-            label: 'Số hóa đơn tờ khai'
-        },
+        // {
+        //     field: 'custom_declaration_invoice_number',
+        //     value: frm.doc.custom_declaration_invoice_number,
+        //     label: 'Số hóa đơn tờ khai'
+        // },
         {
             field: 'custom_invoice_number',
             value: frm.doc.custom_invoice_number,
@@ -537,11 +537,11 @@ function sync_fields_to_child_table(frm) {
             value: frm.doc.custom_line,
             label: 'Line'
         },
-        {
-            field: 'custom_inv_lot',
-            value: frm.doc.custom_inv_lot,
-            label: 'INV Lot'
-        },
+        // {
+        //     field: 'custom_inv_lot',
+        //     value: frm.doc.custom_inv_lot,
+        //     label: 'INV Lot'
+        // },
         {
             field: 'custom_fg_qty',
             value: frm.doc.custom_fg_qty,

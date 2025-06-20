@@ -59,7 +59,9 @@ fixtures = [
                     "Material Request Item",
                     "Production Plan",
                     "Employee",
-                     "Stock Entry Detail"
+                    "Stock Entry Detail",
+                    "Stock Reconciliation",
+                    "Stock Reconciliation Item"
                 ]
             ],
             [
