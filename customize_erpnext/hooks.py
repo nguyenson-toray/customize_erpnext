@@ -16,7 +16,10 @@ app_license = "mit"
 # ------------------
 # Customize các js script cho các DocType mặc định của erpnext
 doctype_js = {
-    "Stock Entry": "public/js/custom_scripts/stock_entry.js",
+    "Stock Entry": [
+        "public/js/custom_scripts/stock_entry.js",
+        "public/js/custom_scripts/stock_entry_quick_item.js"
+    ],
     "BOM": "public/js/custom_scripts/bom.js",
     "Item": [
         "public/js/custom_scripts/item.js",

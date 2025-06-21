@@ -1,116 +1,15 @@
 frappe.ui.form.on('Stock Entry', {
-    onload: function (frm) {
-        $(document).on('keydown.duplicate_rows', function (e) {
-            // Chỉ hoạt động khi đang focus vào form này
-            if (frm.doc.name && frm.doc.doctype === 'Stock Entry') {
-                // Ctrl+D để duplicate
-                if (e.ctrlKey && e.keyCode === 68) {
-                    e.preventDefault();
-
-                    let selected_rows = frm.fields_dict.items.grid.get_selected();
-                    if (selected_rows.length > 0) {
-                        selected_rows.forEach(function (row_name) {
-                            let source_row = locals['Stock Entry Detail'][row_name];
-                            let new_row = frm.add_child('items');
-
-                            Object.keys(source_row).forEach(function (field) {
-                                if (!['name', 'idx', 'docstatus', 'creation', 'modified', 'owner', 'modified_by'].includes(field)) {
-                                    new_row[field] = source_row[field];
-                                }
-                            });
-                        });
-
-                        frm.refresh_field('items');
-                        frappe.show_alert(__('Rows duplicated with Ctrl+D'));
-                    }
-                }
-            }
-        });
-    },
-
-    // Cleanup event khi form bị destroy
-    before_load: function (frm) {
-        $(document).off('keydown.duplicate_rows');
-    },
     refresh: function (frm) {
         // Only run this for Material Transfer for Manufacture type
         if (frm.doc.purpose === "Material Transfer for Manufacture" && frm.doc.work_order) {
             check_existing_material_transfers(frm);
         }
 
-        // Khởi tạo duplicate button (ẩn ban đầu)
-        let duplicate_btn = frm.fields_dict.items.grid.add_custom_button(__('Duplicate Selected'),
-            function () {
-                let selected_rows = frm.fields_dict.items.grid.get_selected();
-                if (selected_rows.length === 0) {
-                    frappe.msgprint(__('Please select rows to duplicate'));
-                    return;
-                }
-
-                // LOGIC DUPLICATE THỰC TẾ
-                selected_rows.forEach(function (row_name) {
-                    // Lấy data từ row được select
-                    let source_row = locals['Stock Entry Detail'][row_name];
-
-                    // Tạo row mới
-                    let new_row = frm.add_child('items');
-
-                    // Copy tất cả fields trừ system fields
-                    Object.keys(source_row).forEach(function (field) {
-                        if (!['name', 'idx', 'docstatus', 'creation', 'modified', 'owner', 'modified_by'].includes(field)) {
-                            new_row[field] = source_row[field];
-                        }
-                    });
-                });
-
-                // Refresh grid để hiển thị rows mới
-                frm.refresh_field('items');
-
-                // Show success message
-                frappe.show_alert({
-                    message: __(`${selected_rows.length} row(s) duplicated successfully`),
-                    indicator: 'green'
-                });
-            }
-        ).addClass('btn-primary').css({
-            'background-color': '#6495ED',
-            'border-color': '#6495ED',
-            'color': '#fff'
-        });;
-
-        // Ẩn button ban đầu
-        duplicate_btn.hide();
-
-        // Lưu reference để có thể access từ các function khác
-        frm.duplicate_btn = duplicate_btn;
-
-        // Setup listener để monitor selection changes
-        setup_selection_monitor(frm);
-
-        // THÊM QUICK ADD BUTTONS - Hiển thị theo stock_entry_type
+        // Setup invoice selector for Material Issue
         if (frm.doc.stock_entry_type === "Material Issue") {
-            let material_issue_quick_add_btn = frm.fields_dict.items.grid.add_custom_button(__('Material Issue - Quick Add'),
-                function () {
-                    show_quick_add_dialog(frm, 'material_issue');
-                }
-            ).addClass('btn-success').css({
-                'background-color': '#5cb85c',
-                'border-color': '#4cae4c',
-                'color': '#fff'
-            });
+            setup_invoice_selector(frm);
         }
 
-        if (frm.doc.stock_entry_type === "Material Receipt") {
-            let material_receipt_quick_add_btn = frm.fields_dict.items.grid.add_custom_button(__('Material Receipt - Quick Add'),
-                function () {
-                    show_quick_add_dialog(frm, 'material_receipt');
-                }
-            ).addClass('btn-warning').css({
-                'background-color': '#f0ad4e',
-                'border-color': '#eea236',
-                'color': '#fff'
-            });
-        }
     },
 
     work_order: function (frm) {
@@ -133,275 +32,8 @@ frappe.ui.form.on('Stock Entry', {
     }
 });
 
-// UPDATED FUNCTION: Show Quick Add Dialog with type parameter
-function show_quick_add_dialog(frm, dialog_type) {
-    let dialog_config = get_dialog_config(dialog_type);
 
-    let dialog = new frappe.ui.Dialog({
-        title: dialog_config.title,
-        fields: [
-            {
-                fieldname: 'items_data',
-                fieldtype: 'Small Text',
-                label: __('Items Data'),
-                description: dialog_config.description,
-                reqd: 1,
-                default: ''
-            }
-        ],
-        size: 'large',
-        primary_action_label: __('OK'),
-        primary_action: function (values) {
-            process_quick_add_items(frm, values.items_data, dialog_type);
-            dialog.hide();
-        }
-    });
 
-    // Set dialog height for better visibility
-    dialog.$wrapper.find('.modal-dialog').css('width', '800px');
-    dialog.$wrapper.find('[data-fieldname="items_data"]').css('min-height', '200px');
-
-    dialog.show();
-}
-
-// NEW FUNCTION: Get dialog configuration based on type
-function get_dialog_config(dialog_type) {
-    if (dialog_type === 'material_issue') {
-        return {
-            title: __('Quick Add Items - Material Issue'),
-            description: __(`
-                <div style="background: #f5f5f5; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
-                    <strong>Định dạng:</strong> item_pattern;custom_inv_lot;qty<br><br>
-                    
-                    <strong>Cấu trúc item_pattern:</strong><br>
-                    item_name<strong>%</strong> color<strong>%</strong> size<strong>%</strong> brand<strong>%</strong> season<strong>%</strong> info<br>
-                    <small style="color: #666;">
-                    • Dùng dấu % để ngăn cách các thuộc tính<br>
-                    • Phải có khoảng trắng sau % và trước giá trị thuộc tính (Tránh bị trùng giữa "Xl" & Xxl)"<br>
-                    • Bắt buộc tối thiểu: item_name<br>
-                    • Các thuộc tính: color, size, brand, season, info : Nếu trống ("Blank") thì bỏ qua<br>
-                    </small><br><br>
-                    
-                    <strong>Ví dụ:</strong><br>
-                    <code style="background: #fff; padding: 5px; display: block; margin: 5px 0;">
-                    LM-2666% 410% Sm% STIO FERNOS% 25fw% 200317;2650281395;52<br>
-                    LM-2667% 420% M;2650281396;30<br>
-                    LM-2668% 430% L% STIO FERNOS;2650281397;25
-                    </code><br>
-                    
-                    <strong>Giải thích ví dụ 1:</strong><br>
-                    • <code>LM-2666</code> → Mã item<br>
-                    • <code>% 410</code> → Màu sắc (Color)<br>
-                    • <code>% Sm</code> → Kích cỡ (Size)<br>
-                    • <code>% STIO FERNOS</code> → Thương hiệu (Brand)<br>
-                    • <code>% 25fw</code> → Mùa (Season)<br>
-                    • <code>% 200317</code> → Thông tin thêm (Info)<br>
-                    • <code>2650281395</code> → Số INV Lot<br>
-                    • <code>52</code> → Số lượng<br><br>
-                    
-                    <strong>Lưu ý:</strong><br>
-                    • Mỗi dòng là một item riêng biệt<br>
-                    • Hệ thống sẽ tìm item dựa trên custom_item_name_detail<br>
-                    • Nếu không tìm thấy item, dòng đó sẽ bị bỏ qua và báo lỗi
-                </div>
-            `)
-        };
-    } else if (dialog_type === 'material_receipt') {
-        return {
-            title: __('Quick Add Items - Material Receipt'),
-            description: __(`
-                <div style="background: #f5f5f5; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
-                    <strong>Định dạng:</strong> item_pattern;declaration_invoice_number;custom_invoice_number;qty<br><br>
-                    
-                    <strong>Cấu trúc item_pattern:</strong><br>
-                    item_name<strong>%</strong> color<strong>%</strong> size<strong>%</strong> brand<strong>%</strong> season<strong>%</strong> info<br>
-                    <small style="color: #666;">
-                    • Dùng dấu % để ngăn cách các thuộc tính<br>
-                    • Phải có khoảng trắng sau % và trước giá trị thuộc tính (Tránh bị trùng giữa "Xl" & Xxl)"<br>
-                    • Bắt buộc tối thiểu: item_name<br>
-                    • Các thuộc tính: color, size, brand, season, info : Nếu trống ("Blank") thì bỏ qua<br>
-                    </small><br><br>
-                    
-                    <strong>Ví dụ:</strong><br>
-                    <code style="background: #fff; padding: 5px; display: block; margin: 5px 0;">
-                    LM-2666% 410% Sm% STIO FERNOS% 25fw% 200317;IV001;IV002;52<br>
-                    LM-2667% 420% M;IV003;IV004;30<br>
-                    LM-2668% 430% L% STIO FERNOS;IV005;IV006;25
-                    </code><br>
-                    
-                    <strong>Giải thích ví dụ 1:</strong><br>
-                    • <code>LM-2666</code> → Mã item<br>
-                    • <code>% 410</code> → Màu sắc (Color)<br>
-                    • <code>% Sm</code> → Kích cỡ (Size)<br>
-                    • <code>% STIO FERNOS</code> → Thương hiệu (Brand)<br>
-                    • <code>% 25fw</code> → Mùa (Season)<br>
-                    • <code>% 200317</code> → Thông tin thêm (Info)<br>
-                    • <code>IV001</code> → Số hóa đơn tờ khai<br>
-                    • <code>IV002</code> → Số hóa đơn<br>
-                    • <code>52</code> → Số lượng<br><br>
-                    
-                    <strong>Lưu ý:</strong><br>
-                    • Mỗi dòng là một item riêng biệt<br>
-                    • Hệ thống sẽ tìm item dựa trên custom_item_name_detail<br>
-                    • Nếu không tìm thấy item, dòng đó sẽ bị bỏ qua và báo lỗi
-                </div>
-            `)
-        };
-    }
-}
-
-// UPDATED FUNCTION: Process Quick Add Items with type parameter
-async function process_quick_add_items(frm, items_data, dialog_type) {
-    if (!items_data) return;
-
-    let lines = items_data.split('\n');
-    let success_count = 0;
-    let error_count = 0;
-    let errors = [];
-    let items_to_add = [];
-
-    // First pass: validate and prepare data based on dialog type
-    for (let i = 0; i < lines.length; i++) {
-        let line = lines[i].trim();
-        if (!line) continue; // Skip empty lines
-
-        let parts = line.split(';');
-        let item_pattern = parts[0].trim();
-        let qty, field_data = {};
-
-        if (dialog_type === 'material_issue') {
-            // Format: item_pattern;custom_inv_lot;qty
-            if (parts.length < 3) {
-                errors.push(__('Line {0}: Invalid format. Expected: item_pattern;custom_inv_lot;qty', [i + 1]));
-                error_count++;
-                continue;
-            }
-            field_data.custom_inv_lot = parts[1].trim();
-            qty = parseFloat(parts[2].trim());
-        } else if (dialog_type === 'material_receipt') {
-            // Format: item_pattern;declaration_invoice_number;custom_invoice_number;qty
-            if (parts.length < 4) {
-                errors.push(__('Line {0}: Invalid format. Expected: item_pattern;declaration_invoice_number;custom_invoice_number;qty', [i + 1]));
-                error_count++;
-                continue;
-            }
-            field_data.custom_declaration_invoice_number = parts[1].trim();
-            field_data.custom_invoice_number = parts[2].trim();
-            qty = parseFloat(parts[3].trim());
-        }
-
-        if (isNaN(qty) || qty <= 0) {
-            errors.push(__('Line {0}: Invalid quantity', [i + 1]));
-            error_count++;
-            continue;
-        }
-
-        // Parse item pattern
-        let pattern_parts = item_pattern.split('%').map(p => p.trim()).filter(p => p);
-
-        let item_name = pattern_parts[0];
-        let color = pattern_parts[1];
-        let size = pattern_parts[2];
-        let brand = pattern_parts[3] || '';
-        let season = pattern_parts[4] || '';
-        let info = pattern_parts[5] || '';
-
-        // Build search pattern for custom_item_name_detail
-        let search_pattern = item_name;
-        if (color) search_pattern += '% ' + color;
-        if (size) search_pattern += '% ' + size;
-        if (brand) search_pattern += '% ' + brand;
-        if (season) search_pattern += '% ' + season;
-        if (info) search_pattern += '% ' + info;
-
-        search_pattern += '%';
-
-        items_to_add.push({
-            line_number: i + 1,
-            search_pattern: search_pattern,
-            field_data: field_data,
-            qty: qty
-        });
-    }
-
-    // Second pass: find items and add rows sequentially
-    let count = 0;
-    for (let item_data of items_to_add) {
-        try {
-            // Find item
-            let response = await frappe.call({
-                method: 'frappe.client.get_list',
-                args: {
-                    doctype: 'Item',
-                    filters: {
-                        'custom_item_name_detail': ['like', item_data.search_pattern]
-                    },
-                    fields: ['name', 'item_code', 'item_name', 'stock_uom'],
-                    limit: 1
-                }
-            });
-
-            if (response.message && response.message.length > 0) {
-                let item = response.message[0];
-                count++;
-                console.log(`Processing item:  ${count} ${item.item_code} for pattern: ${item_data.search_pattern}`);
-                // Add new row
-                let new_row = frm.add_child('items');
-
-                // Set basic item values
-                let values_to_set = {
-                    'item_code': item.item_code,
-                    'qty': item_data.qty
-                };
-
-                // Add type-specific fields
-                Object.assign(values_to_set, item_data.field_data);
-
-                // Set all values
-                Object.keys(values_to_set).forEach(function (field) {
-                    frappe.model.set_value(new_row.doctype, new_row.name, field, values_to_set[field]);
-                });
-
-                success_count++;
-
-                // Small delay between adding items to ensure proper processing
-                await new Promise(resolve => setTimeout(resolve, 150));
-
-            } else {
-                errors.push(__('Line {0}: Item not found with pattern: {1}', [item_data.line_number, item_data.search_pattern]));
-                error_count++;
-            }
-        } catch (error) {
-            errors.push(__('Line {0}: Error processing item: {1}', [item_data.line_number, error.message]));
-            error_count++;
-        }
-    }
-
-    // Refresh grid once after all items are added
-    if (success_count > 0) {
-        frm.refresh_field('items');
-    }
-
-    // Show results
-    let type_label = dialog_type === 'material_issue' ? 'Material Issue' : 'Material Receipt';
-    let message = __('Quick Add {0} completed: {1} items added successfully', [type_label, success_count]);
-
-    if (error_count > 0) {
-        message += __('<br><br>Errors ({0}):<br>', [error_count]);
-        message += errors.join('<br>');
-
-        frappe.msgprint({
-            title: __('Quick Add Results'),
-            message: message,
-            indicator: 'orange'
-        });
-    } else if (success_count > 0) {
-        frappe.show_alert({
-            message: message,
-            indicator: 'green'
-        }, 5);
-    }
-}
 
 function check_existing_material_transfers(frm) {
     frappe.call({
@@ -425,15 +57,15 @@ function check_existing_material_transfers(frm) {
                 let existing_entries = r.message;
                 let warning_html = `
                     <div class="alert alert-warning" style="margin-bottom: 15px;">
-                        <h4><i class="fa fa-exclamation-triangle"></i> Cảnh báo: Đã có ${existing_entries.length} phiếu chuyển nguyên liệu cho Work Order này!</h4>
+                        <h4><i class="fa fa-exclamation-triangle"></i> Warning: There are ${existing_entries.length} material transfer entries for this Work Order!</h4>
                         <div style="margin-top: 10px;">
                             <table class="table table-bordered table-condensed" style="margin-bottom: 5px;">
                                 <thead>
                                     <tr>
-                                        <th>Phiếu chuyển kho</th>
-                                        <th>Trạng thái</th>
-                                        <th>Ngày cập nhật</th>
-                                        <th>Người tạo</th>
+                                        <th>Transfer Entry</th>
+                                        <th>Status</th>
+                                        <th>Last Updated</th>
+                                        <th>Created By</th>
                                     </tr>
                                 </thead>
                                 <tbody>`;
@@ -441,9 +73,9 @@ function check_existing_material_transfers(frm) {
                 existing_entries.forEach(entry => {
                     let status = "";
                     if (entry.docstatus === 0) {
-                        status = '<span class="indicator orange">Bản nháp</span>';
+                        status = '<span class="indicator orange">Draft</span>';
                     } else if (entry.docstatus === 1) {
-                        status = '<span class="indicator green">Đã gửi</span>';
+                        status = '<span class="indicator green">Submitted</span>';
                     }
 
                     warning_html += `
@@ -461,10 +93,10 @@ function check_existing_material_transfers(frm) {
                             </table>
                             <div style="margin-top: 10px;">
                                 <a href="/app/work-order/${frm.doc.work_order}" target="_blank" class="btn btn-sm btn-info">
-                                    <i class="fa fa-external-link"></i> Xem Work Order
+                                    <i class="fa fa-external-link"></i> View Work Order
                                 </a>
                                 <a href="/app/stock-entry?filters=[['Stock Entry','work_order','=','${frm.doc.work_order}'],['Stock Entry','purpose','=','Material Transfer for Manufacture']]" target="_blank" class="btn btn-sm btn-info">
-                                    <i class="fa fa-list"></i> Xem tất cả phiếu chuyển nguyên liệu
+                                    <i class="fa fa-list"></i> View all material transfer entries
                                 </a>
                             </div>
                         </div>
@@ -477,7 +109,7 @@ function check_existing_material_transfers(frm) {
                 let has_submitted = existing_entries.some(entry => entry.docstatus === 1);
                 if (has_submitted) {
                     frappe.show_alert({
-                        message: __('Đã có phiếu chuyển nguyên liệu đã Submit cho Work Order này!'),
+                        message: __('There is a material transfer slip submitted for this Work Order.!'),
                         indicator: 'red'
                     }, 10);
                 }
@@ -487,10 +119,10 @@ function check_existing_material_transfers(frm) {
                 frm.dashboard.add_comment(`
                     <div class="alert alert-info">
                         <i class="fa fa-info-circle"></i> 
-                        Chưa có phiếu chuyển nguyên liệu nào cho Work Order này.
+                        There are no material transfer orders for this Work Order.
                         <div style="margin-top: 10px;">
                             <a href="/app/work-order/${frm.doc.work_order}" target="_blank" class="btn btn-sm btn-info">
-                                <i class="fa fa-external-link"></i> Xem Work Order
+                                <i class="fa fa-external-link"></i> View Work Order
                             </a>
                         </div>
                     </div>
@@ -500,11 +132,11 @@ function check_existing_material_transfers(frm) {
             // Show current status
             let status_html = '';
             if (frm.doc.docstatus === 0) {
-                status_html = '<span class="indicator orange">Trạng thái hiện tại: Bản nháp</span>';
+                status_html = '<span class="indicator orange">Current status: Draft</span>';
             } else if (frm.doc.docstatus === 1) {
-                status_html = '<span class="indicator green">Trạng thái hiện tại: Đã submit</span>';
+                status_html = '<span class="indicator green">Current status: Submitted</span>';
             } else if (frm.doc.docstatus === 2) {
-                status_html = '<span class="indicator red">Trạng thái hiện tại: Đã hủy</span>';
+                status_html = '<span class="indicator red">Current status: Cancelled</span>';
             }
 
             frm.dashboard.add_comment(status_html, "blue", true);
@@ -517,15 +149,10 @@ function sync_fields_to_child_table(frm) {
 
     let total_updated = 0;
     let fields_to_sync = [
-        // {
-        //     field: 'custom_declaration_invoice_number',
-        //     value: frm.doc.custom_declaration_invoice_number,
-        //     label: 'Số hóa đơn tờ khai'
-        // },
         {
             field: 'custom_invoice_number',
             value: frm.doc.custom_invoice_number,
-            label: 'Số hóa đơn'
+            label: 'Invoice Number'
         },
         {
             field: 'custom_material_issue_purpose',
@@ -545,7 +172,7 @@ function sync_fields_to_child_table(frm) {
         {
             field: 'custom_fg_qty',
             value: frm.doc.custom_fg_qty,
-            label: 'Qty FG'
+            label: 'FG Qty'
         },
         {
             field: 'custom_fg_style',
@@ -577,7 +204,7 @@ function sync_fields_to_child_table(frm) {
 
             if (updated_count > 0) {
                 total_updated += updated_count;
-                console.log(`Đã cập nhật ${updated_count} dòng cho ${field_info.label}: ${field_info.value}`);
+                console.log(`Updated ${updated_count} rows for ${field_info.label}: ${field_info.value}`);
             }
         }
     });
@@ -585,54 +212,327 @@ function sync_fields_to_child_table(frm) {
     if (total_updated > 0) {
         frm.refresh_field('items');
         frappe.show_alert({
-            message: __('Đã tự động cập nhật {0} trường trong bảng chi tiết', [total_updated]),
+            message: __('Automatically updated {0} fields in detail table', [total_updated]),
             indicator: 'green'
         }, 5);
     }
 }
 
-// Function để monitor selection changes
-function setup_selection_monitor(frm) {
-    // Monitor click events trên grid
-    frm.fields_dict.items.grid.wrapper.on('click', '.grid-row-check', function () {
-        setTimeout(() => {
-            toggle_duplicate_button(frm);
-        }, 50); // Small delay để đảm bảo selection đã được update
-    });
 
-    // Monitor click trên row (có thể select/deselect)
-    frm.fields_dict.items.grid.wrapper.on('click', '.grid-row', function () {
-        setTimeout(() => {
-            toggle_duplicate_button(frm);
-        }, 50);
-    });
 
-    // Monitor select all checkbox
-    frm.fields_dict.items.grid.wrapper.on('click', '.grid-header-row .grid-row-check', function () {
-        setTimeout(() => {
-            toggle_duplicate_button(frm);
-        }, 50);
-    });
+// Function to setup invoice selector click handlers
+function setup_invoice_selector(frm) {
+    // Prevent multiple dialogs
+    if (frm.invoice_dialog_open) {
+        return;
+    }
 
-    // Monitor keyboard events (Ctrl+A, arrow keys, etc.)
-    frm.fields_dict.items.grid.wrapper.on('keyup', function () {
-        setTimeout(() => {
-            toggle_duplicate_button(frm);
-        }, 50);
+    // Wait for grid to be ready
+    setTimeout(() => {
+        // Remove existing handlers first
+        frm.fields_dict.items.grid.wrapper.off('click', 'input[data-fieldname="custom_invoice_number"]');
+        frm.fields_dict.items.grid.wrapper.off('focus', 'input[data-fieldname="custom_invoice_number"]');
+
+        // Attach click handler to grid
+        frm.fields_dict.items.grid.wrapper.on('click', 'input[data-fieldname="custom_invoice_number"]', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            // Prevent multiple dialogs
+            if (frm.invoice_dialog_open) {
+                return;
+            }
+
+            // Get the row index from the clicked element
+            let $row = $(this).closest('.grid-row');
+            let row_index = $row.attr('data-idx') - 1;
+            let row = frm.doc.items[row_index];
+
+            if (!row) return;
+
+            // Only show dialog if item is selected
+            if (!row.item_code) {
+                frappe.msgprint(__('Please select an item first'));
+                return;
+            }
+            if (!row.s_warehouse) {
+                frappe.msgprint(__('Please select a warehouse'));
+                return;
+            }
+
+            // Show invoice selection dialog
+            show_invoice_selection_dialog(frm, row);
+        });
+
+        // Also handle focus event
+        frm.fields_dict.items.grid.wrapper.on('focus', 'input[data-fieldname="custom_invoice_number"]', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            // Prevent multiple dialogs
+            if (frm.invoice_dialog_open) {
+                return;
+            }
+
+            // Get the row index from the clicked element
+            let $row = $(this).closest('.grid-row');
+            let row_index = $row.attr('data-idx') - 1;
+            let row = frm.doc.items[row_index];
+
+            if (!row) return;
+
+            // Only show dialog if item is selected
+            if (!row.item_code) {
+                frappe.msgprint(__('Please select an item first'));
+                return;
+            }
+
+            // Show invoice selection dialog
+            show_invoice_selection_dialog(frm, row);
+        });
+    }, 500);
+}
+
+// Stock Entry Detail form handlers
+frappe.ui.form.on('Stock Entry Detail', {
+    items_add: function (frm, cdt, cdn) {
+        // Re-setup invoice selector when new row is added
+        if (frm.doc.stock_entry_type === "Material Issue") {
+            setTimeout(() => {
+                setup_invoice_selector(frm);
+            }, 100);
+        }
+    },
+
+    item_code: function (frm, cdt, cdn) {
+        // Re-setup invoice selector when item is changed
+        if (frm.doc.stock_entry_type === "Material Issue") {
+            setTimeout(() => {
+                setup_invoice_selector(frm);
+            }, 100);
+        }
+    }
+});
+
+// Function to show invoice selection dialog
+function show_invoice_selection_dialog(frm, row) {
+    // Mark dialog as open
+    frm.invoice_dialog_open = true;
+
+    // Fetch available stock by invoice
+    console.log('Fetching available stock by invoice for item:', row.item_code, 'in warehouse:', row.s_warehouse || frm.doc.from_warehouse);
+    frappe.call({
+        method: 'customize_erpnext.api.get_stock_by_invoice.get_stock_by_invoice',
+        args: {
+            item_code: row.item_code,
+            warehouse: row.s_warehouse || frm.doc.from_warehouse,
+            company: frm.doc.company
+        },
+        callback: function (r) {
+            console.log('Available stock by invoice:', r.message);
+            if (!r.message || r.message.length === 0) {
+                frm.invoice_dialog_open = false;
+                frappe.msgprint(__('No stock available for this item with invoice information'));
+                return;
+            }
+
+            // Calculate total available quantity and determine default quantity
+            let total_available_qty = r.message.reduce((sum, item) => sum + (item.available_qty || 0), 0);
+            let default_qty = row.qty > 0 ? row.qty : total_available_qty;
+
+            // Create dialog with grid and quantity field
+            let dialog = new frappe.ui.Dialog({
+                title: __('Select Invoice(s) for Item:<br>{0}<br>{1}', [row.item_code, row.custom_item_name_detail]),
+                fields: [
+                    {
+                        fieldname: 'quantity_info',
+                        fieldtype: 'HTML',
+                        options: `<div class="alert alert-info" style="margin-bottom: 15px;">
+                            <strong>Current Row Quantity:</strong> ${row.qty || 0}<br>
+                            <strong>Total Available Stock:</strong> ${total_available_qty}
+                        </div>`
+                    },
+                    {
+                        fieldname: 'selected_quantity',
+                        fieldtype: 'Float',
+                        label: __('Quantity to Use'),
+                        default: default_qty,
+                        reqd: 1,
+                        description: __('Maximum available quantity: {0}', [total_available_qty])
+                    },
+                    {
+                        fieldname: 'invoice_selection',
+                        fieldtype: 'Table',
+                        label: __('Available Stock by Invoice (Select multiple)'),
+                        cannot_add_rows: true,
+                        cannot_delete_rows: true,
+                        in_place_edit: false,
+                        data: r.message,
+                        fields: [
+                            {
+                                fieldname: 'invoice_number',
+                                fieldtype: 'Data',
+                                label: __('Invoice Number'),
+                                read_only: 1,
+                                in_list_view: 1,
+                                columns: 2
+                            },
+                            {
+                                fieldname: 'custom_item_name_detail',
+                                fieldtype: 'Data',
+                                label: __('Item Detail'),
+                                read_only: 1,
+                                in_list_view: 1,
+                                columns: 4
+                            },
+                            {
+                                fieldname: 'available_qty',
+                                fieldtype: 'Float',
+                                label: __('Available Qty'),
+                                read_only: 1,
+                                in_list_view: 1,
+                                columns: 1
+                            },
+                            {
+                                fieldname: 'stock_uom',
+                                fieldtype: 'Data',
+                                label: __('UOM'),
+                                read_only: 1,
+                                in_list_view: 1,
+                                columns: 1
+                            },
+                            {
+                                fieldname: 'warehouse',
+                                fieldtype: 'Link',
+                                options: 'Warehouse',
+                                label: __('Warehouse'),
+                                read_only: 1,
+                                in_list_view: 1,
+                                columns: 2
+                            },
+                            {
+                                fieldname: 'receive_date',
+                                fieldtype: 'Date',
+                                label: __('Receive Date'),
+                                read_only: 1,
+                                in_list_view: 1,
+                                columns: 2
+                            }
+                        ]
+                    }
+                ],
+                size: 'extra-large',
+                primary_action_label: __('Add Selected Items'),
+                primary_action: function (values) {
+                    // Find selected rows
+                    let selected_rows = values.invoice_selection.filter(inv => inv.__checked);
+
+                    if (selected_rows.length === 0) {
+                        frappe.msgprint(__('Please select at least one invoice'));
+                        return;
+                    }
+
+                    // Validate selected quantity
+                    let selected_qty = values.selected_quantity;
+                    if (!selected_qty || selected_qty <= 0) {
+                        frappe.msgprint(__('Please enter a valid quantity'));
+                        return;
+                    }
+
+                    if (selected_qty > total_available_qty) {
+                        frappe.msgprint(__('Selected quantity ({0}) cannot exceed available stock ({1})', [selected_qty, total_available_qty]));
+                        return;
+                    }
+
+                    // Process multiple selections with selected quantity
+                    process_multiple_invoice_selection(frm, row, selected_rows, selected_qty);
+
+                    dialog.hide();
+                    frm.invoice_dialog_open = false;
+                },
+                secondary_action_label: __('Cancel'),
+                secondary_action: function () {
+                    dialog.hide();
+                    frm.invoice_dialog_open = false;
+                }
+            });
+
+            // Make the dialog wider
+            dialog.$wrapper.find('.modal-dialog').css('max-width', '900px');
+
+            // Handle dialog close event
+            dialog.$wrapper.on('hidden.bs.modal', function () {
+                frm.invoice_dialog_open = false;
+            });
+
+            dialog.show();
+        },
+        error: function () {
+            frm.invoice_dialog_open = false;
+        }
     });
 }
 
-// Function để show/hide duplicate button
-function toggle_duplicate_button(frm) {
-    if (!frm.duplicate_btn) return;
+// Function to process multiple invoice selections
+function process_multiple_invoice_selection(frm, original_row, selected_invoices, selected_qty) {
+    let added_count = 0;
+    let updated_count = 0;
+    let remaining_qty = selected_qty;
 
-    let selected_rows = frm.fields_dict.items.grid.get_selected();
+    selected_invoices.forEach(function (selected, index) {
+        // Calculate quantity to use for this invoice (proportional to available quantity)
+        let total_selected_available = selected_invoices.reduce((sum, inv) => sum + (inv.available_qty || 0), 0);
+        let proportional_qty = (selected.available_qty / total_selected_available) * selected_qty;
 
-    if (selected_rows.length > 0) {
-        frm.duplicate_btn.show();
-        // Update button text với số lượng selected
-        frm.duplicate_btn.text(__(`Duplicate Selected (${selected_rows.length})`));
-    } else {
-        frm.duplicate_btn.hide();
+        // Use the minimum of proportional quantity or remaining quantity
+        let qty_to_use = Math.min(proportional_qty, remaining_qty, selected.available_qty);
+
+        if (qty_to_use <= 0) return; // Skip if no quantity to use
+
+        remaining_qty -= qty_to_use;
+
+        if (index === 0) {
+            // First selection: update the current row (keep item_code and warehouse, update invoice and qty)
+            frappe.model.set_value(original_row.doctype, original_row.name, 'custom_invoice_number', selected.invoice_number);
+            frappe.model.set_value(original_row.doctype, original_row.name, 'qty', qty_to_use);
+
+            // Set warehouse if not already set
+            if (!original_row.s_warehouse && selected.warehouse) {
+                frappe.model.set_value(original_row.doctype, original_row.name, 's_warehouse', selected.warehouse);
+            }
+
+            updated_count++;
+        } else {
+            // Additional selections: create new rows
+            let new_row = frm.add_child('items');
+
+            // Copy basic item data from original row
+            frappe.model.set_value(new_row.doctype, new_row.name, 'item_code', original_row.item_code);
+            frappe.model.set_value(new_row.doctype, new_row.name, 's_warehouse', original_row.s_warehouse || selected.warehouse);
+
+            // Set invoice-specific data
+            frappe.model.set_value(new_row.doctype, new_row.name, 'custom_invoice_number', selected.invoice_number);
+            frappe.model.set_value(new_row.doctype, new_row.name, 'qty', qty_to_use);
+
+            added_count++;
+        }
+    });
+
+    // Refresh the grid
+    frm.refresh_field('items');
+
+    // Show success message
+    let message = '';
+    if (updated_count > 0 && added_count > 0) {
+        message = __('Updated current row and added {0} new items with selected invoices (Total qty: {1})', [added_count, selected_qty]);
+    } else if (updated_count > 0) {
+        message = __('Updated current row with selected invoice (Qty: {0})', [selected_qty]);
+    } else if (added_count > 0) {
+        message = __('Added {0} new items with selected invoices (Total qty: {1})', [added_count, selected_qty]);
     }
+
+    frappe.show_alert({
+        message: message,
+        indicator: 'green'
+    }, 5);
 }
