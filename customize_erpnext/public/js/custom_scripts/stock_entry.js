@@ -29,6 +29,9 @@ frappe.ui.form.on('Stock Entry', {
     },
 
     before_save: function (frm) {
+        // Validate empty invoice numbers first
+        validate_invoice_numbers(frm);
+
         // Trim parent fields first
         trim_parent_fields(frm);
 
@@ -44,6 +47,39 @@ frappe.ui.form.on('Stock Entry', {
         setup_warehouse_column_visibility(frm);
     }
 });
+
+// Function to validate invoice numbers in items table
+function validate_invoice_numbers(frm) {
+    if (!frm.doc.items || frm.doc.items.length === 0) {
+        return;
+    }
+
+    let empty_invoice_rows = [];
+
+    frm.doc.items.forEach(function (item, index) {
+        if (!item.custom_invoice_number || !item.custom_invoice_number.trim()) {
+            empty_invoice_rows.push({
+                row_number: index + 1,
+                item_code: item.item_code || 'Unknown Item'
+            });
+        }
+    });
+
+    if (empty_invoice_rows.length > 0) {
+        let error_message = __('The following rows have empty Invoice Number:');
+        error_message += '<ul>';
+        empty_invoice_rows.forEach(function (row) {
+            error_message += `<li>Row ${row.row_number}: ${row.item_code}</li>`;
+        });
+        error_message += '</ul>';
+        error_message += __('Please fill in all Invoice Numbers before saving.');
+        error_message += __('</br>Fill "yy-mm-dd:Unknow" if not exit Invoice Number.');
+        frappe.throw({
+            title: __('Validation Error'),
+            message: error_message
+        });
+    }
+}
 
 // Function to trim parent document fields
 function trim_parent_fields(frm) {
@@ -72,6 +108,14 @@ function trim_parent_fields(frm) {
         {
             field: 'custom_fg_size',
             camel_case: true
+        },
+        {
+            field: 'custom_note',
+            camel_case: false
+        },
+        {
+            field: 'custom_no',
+            camel_case: false
         }
     ];
 
@@ -88,6 +132,8 @@ function trim_parent_fields(frm) {
 
         // Trim toàn bộ giá trị
         let processed_value = value.toString().trim();
+        // Thay thế nhiều khoảng trắng bằng một khoảng trắng
+        processed_value = processed_value.replace(/\s+/g, ' ');
 
         // Áp dụng Camel Case nếu được yêu cầu
         if (apply_camel_case && processed_value) {
@@ -427,7 +473,30 @@ frappe.ui.form.on('Stock Entry Detail', {
     },
 
     custom_invoice_number: function (frm, cdt, cdn) {
-        // Trigger aggregation when invoice number is changed in child table
+        let row = locals[cdt][cdn];
+        if (row.custom_invoice_number) {
+            // Store original value
+            let original_value = row.custom_invoice_number;
+
+            // Trim and clean the text
+            let cleaned_value = row.custom_invoice_number.trim();
+            // Replace multiple spaces with single space
+            cleaned_value = cleaned_value.replace(/\s+/g, ' ');
+
+            // Check if there was any change
+            if (original_value !== cleaned_value) {
+                // Set the cleaned value back to the row
+                frappe.model.set_value(cdt, cdn, 'custom_invoice_number', cleaned_value);
+
+                // Show alert only when there was a change
+                frappe.show_alert({
+                    message: __('Invoice number has been cleaned: "{0}" → "{1}"', [original_value, cleaned_value]),
+                    indicator: 'blue'
+                }, 5);
+            }
+        }
+
+        // Trigger aggregation with a slight delay
         setTimeout(() => {
             aggregate_invoice_numbers(frm);
         }, 100);
@@ -455,9 +524,6 @@ function show_invoice_selection_dialog(frm, row) {
                 frappe.msgprint(__('No stock available for this item with invoice information'));
                 return;
             }
-
-            // Debug: Check if receive_date is present
-            console.log('Sample data structure:', r.message[0]);
 
             // Calculate total available quantity and determine default quantity
             let total_available_qty = r.message.reduce((sum, item) => sum + (item.available_qty || 0), 0);

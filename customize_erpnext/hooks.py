@@ -89,7 +89,8 @@ fixtures = [
         "filters": [
             ["doc_type", "in", [
                 # "Sales Invoice", "Purchase Invoice"
-                "Stock Entry Detail"
+                "Stock Entry Detail",
+                "Stock Reconciliation"
                 ]]
         ]
     }

@@ -2,3 +2,65 @@ My Settings, Cài đặt cá nhân
 My Profile, Hồ sơ cá nhân
 Log out, Đăng xuất
 These values ​​will apply to the entire detail table (if empty).,Các giá trị này sẽ áp dụng cho toàn bộ bảng chi tiết ( nếu trống).
+All invoice numbers in item detail table, Tất cả các số hóa đơn trong bảng chi tiết mặt hàng
+Please enter Item Code to get Batch Number, Vui lòng nhập Mã hàng hóa để lấy Số lô
+Quality Inspection(s), Kiểm tra Chất lượng
+Create, Tạo
+Material Request, Yêu cầu Vật tư
+Alternate Item, Mặt hàng Thay thế
+End Transit, Kết thúc Vận chuyển
+Received Stock Entries, Phiếu nhập Kho đã nhận
+View, Xem
+Purchase Invoice, Hóa đơn Mua hàng
+Get Items From, Lấy Hàng hóa từ
+Purpose, Mục đích
+Customer, Khách hàng
+Expired Batches, Lô hàng Hết hạn
+Create Sample Retention Stock Entry, Tạo Phiếu xuất Kho lưu mẫu
+Transit Entry, Phiếu Vận chuyển
+Material Consumption is not set in Manufacturing Settings., Tiêu thụ Vật tư chưa được thiết lập trong Cài đặt Sản xuất.
+Retention Stock Entry already created or Sample Quantity not provided, Phiếu xuất Kho lưu mẫu đã được tạo hoặc chưa cung cấp Số lượng Mẫu
+Bill of Materials, Bảng kê Nguyên vật liệu
+BOM, BOM
+Source Warehouse, Kho Nguồn
+Target Warehouse, Kho Đích
+Quantity, Số lượng
+Fetch exploded BOM (including sub-assemblies), Lấy BOM chi tiết (bao gồm cụm con)
+Get Items from BOM, Lấy Hàng hóa từ BOM
+Company field is required, Trường Công ty là bắt buộc
+BOM does not contain any stock item, BOM không chứa mặt hàng kho nào
+BOM and Manufacturing Quantity are required, BOM và Số lượng Sản xuất là bắt buộc
+Excise Invoice, Hóa đơn Thuế tiêu thụ đặc biệt
+The following rows have empty Invoice Number:, Các dòng sau có Số hóa đơn trống:
+Please fill in all Invoice Numbers before saving., Vui lòng điền tất cả Số hóa đơn trước khi lưu.
+Validation Error, Lỗi Xác thực
+Trimmed and formatted field: {0}, Đã cắt và định dạng trường: {0}
+There is a material transfer slip submitted for this Work Order.!, Có phiếu chuyển vật tư đã được gửi cho Lệnh sản xuất này!
+Automatically updated {0} fields in detail table, Tự động cập nhật {0} trường trong bảng chi tiết
+Please select an item first, Vui lòng chọn mặt hàng trước
+Please select a warehouse, Vui lòng chọn kho
+Invoice number has been cleaned: "{0}" → "{1}", Số hóa đơn đã được làm sạch: "{0}" → "{1}"
+No stock available for this item with invoice information, Không có tồn kho cho mặt hàng này với thông tin hóa đơn
+Select Invoice(s) for Item:<br>{0}<br>{1}, Chọn Hóa đơn cho Mặt hàng:<br>{0}<br>{1}
+Quantity to Use, Số lượng Sử dụng
+Maximum available quantity: {0}, Số lượng tối đa có sẵn: {0}
+Available Stock by Invoice (Select multiple), Tồn kho theo Hóa đơn (Chọn nhiều)
+Invoice Number, Số Hóa đơn
+Item Detail, Chi tiết Mặt hàng
+Available Qty, SL Có sẵn
+UOM, ĐVT
+Warehouse, Kho
+Date, Ngày
+Add Selected Items, Thêm Mặt hàng đã chọn
+Please select at least one invoice, Vui lòng chọn ít nhất một hóa đơn
+Please enter a valid quantity, Vui lòng nhập số lượng hợp lệ
+Selected quantity ({0}) cannot exceed available stock ({1}), Số lượng đã chọn ({0}) không thể vượt quá tồn kho ({1})
+Cancel, Hủy
+Updated current row and added {0} new items with selected invoices (Total qty: {1}), Đã cập nhật dòng hiện tại và thêm {0} mặt hàng mới với hóa đơn đã chọn (Tổng SL: {1})
+Updated current row with selected invoice (Qty: {0}), Đã cập nhật dòng hiện tại với hóa đơn đã chọn (SL: {0})
+Added {0} new items with selected invoices (Total qty: {1}), Đã thêm {0} mặt hàng mới với hóa đơn đã chọn (Tổng SL: {1})
+Draft, Nháp
+Submitted, Đã gửi
+Current status: Draft, Trạng thái hiện tại: Nháp
+Current status: Submitted, Trạng thái hiện tại: Đã gửi
+Current status: Cancelled, Trạng thái hiện tại: Đã hủy
