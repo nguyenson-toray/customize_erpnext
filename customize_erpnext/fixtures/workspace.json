@@ -1161,7 +1161,7 @@
     "icon": null,
     "is_query_report": 0,
     "label": "Stock Reports",
-    "link_count": 8,
+    "link_count": 9,
     "link_to": null,
     "link_type": "DocType",
     "onboard": 0,
@@ -1315,9 +1315,27 @@
     "parenttype": "Workspace",
     "report_ref_doctype": null,
     "type": "Link"
+   },
+   {
+    "dependencies": null,
+    "description": null,
+    "hidden": 0,
+    "icon": null,
+    "is_query_report": 1,
+    "label": "Stock Ledger Customize",
+    "link_count": 0,
+    "link_to": "Stock Ledger Customize",
+    "link_type": "Report",
+    "onboard": 0,
+    "only_for": null,
+    "parent": "Stock",
+    "parentfield": "links",
+    "parenttype": "Workspace",
+    "report_ref_doctype": null,
+    "type": "Link"
    }
   ],
-  "modified": "2025-06-16 13:33:19.919474",
+  "modified": "2025-06-23 11:03:37.131753",
   "module": "Stock",
   "name": "Stock",
   "number_cards": [
