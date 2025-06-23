@@ -10,6 +10,8 @@ frappe.ui.form.on('Stock Entry', {
             setup_invoice_selector(frm);
         }
 
+        // Setup warehouse column visibility based on stock entry type
+        setup_warehouse_column_visibility(frm);
     },
 
     work_order: function (frm) {
@@ -27,13 +29,135 @@ frappe.ui.form.on('Stock Entry', {
     },
 
     before_save: function (frm) {
-        // Sync invoice fields to child table before saving
+        // Trim parent fields first
+        trim_parent_fields(frm);
+
+        // Aggregate invoice numbers from child table to parent
+        aggregate_invoice_numbers(frm);
+
+        // Sync invoice fields to child table after trimming parent fields
         sync_fields_to_child_table(frm);
+    },
+
+    stock_entry_type: function (frm) {
+        // Setup warehouse column visibility when stock entry type changes
+        setup_warehouse_column_visibility(frm);
     }
 });
 
+// Function to trim parent document fields
+function trim_parent_fields(frm) {
+    // List of fields to trim with their formatting options
+    let fields_to_trim = [
+        {
+            field: 'custom_material_issue_purpose',
+            camel_case: false
+        },
+        {
+            field: 'custom_line',
+            camel_case: true
+        },
+        {
+            field: 'custom_fg_qty',
+            camel_case: false
+        },
+        {
+            field: 'custom_fg_style',
+            camel_case: true
+        },
+        {
+            field: 'custom_fg_color',
+            camel_case: true
+        },
+        {
+            field: 'custom_fg_size',
+            camel_case: true
+        }
+    ];
 
+    // Function để chuyển đổi text sang Camel Case
+    function toCamelCase(str) {
+        return str.toLowerCase().replace(/\b\w/g, function (match) {
+            return match.toUpperCase();
+        });
+    }
 
+    // Function để xử lý giá trị field
+    function processFieldValue(value, apply_camel_case = false) {
+        if (!value) return value;
+
+        // Trim toàn bộ giá trị
+        let processed_value = value.toString().trim();
+
+        // Áp dụng Camel Case nếu được yêu cầu
+        if (apply_camel_case && processed_value) {
+            // Chỉ áp dụng Camel Case cho text, không áp dụng cho numbers, codes
+            if (!/^[0-9\-\.]+$/.test(processed_value)) {
+                processed_value = toCamelCase(processed_value);
+            }
+        }
+
+        return processed_value;
+    }
+
+    let updated_fields = [];
+
+    fields_to_trim.forEach(function (field_info) {
+        let current_value = frm.doc[field_info.field];
+
+        if (current_value) {
+            let processed_value = processFieldValue(current_value, field_info.camel_case);
+
+            // Chỉ update nếu có thay đổi
+            if (current_value !== processed_value) {
+                frm.set_value(field_info.field, processed_value);
+                updated_fields.push(field_info.field);
+                frappe.show_alert({
+                    message: __('Trimmed and formatted field: {0}', [processed_value]),
+                    indicator: 'green'
+                });
+
+            }
+        }
+    });
+
+    if (updated_fields.length > 0) {
+        console.log(`Trimmed and formatted parent fields: ${updated_fields.join(', ')}`);
+    }
+}
+
+// Function to aggregate invoice numbers from items table
+function aggregate_invoice_numbers(frm) {
+    if (!frm.doc.items || frm.doc.items.length === 0) {
+        return;
+    }
+
+    // Collect all unique invoice numbers from items
+    let invoice_numbers = [];
+
+    frm.doc.items.forEach(function (item) {
+        if (item.custom_invoice_number && item.custom_invoice_number.trim()) {
+            let invoice_num = item.custom_invoice_number.trim();
+            // Only add if not already in the array (avoid duplicates)
+            if (invoice_numbers.indexOf(invoice_num) === -1) {
+                invoice_numbers.push(invoice_num);
+            }
+        }
+    });
+
+    // Join with "; " separator and set to parent field
+    let aggregated_invoices = invoice_numbers.join("; ");
+
+    // Only update if there's a change to avoid unnecessary triggers
+    if (frm.doc.custom_invoice_number !== aggregated_invoices) {
+        frm.set_value('custom_invoice_number', aggregated_invoices);
+
+        // Show info message if invoices were aggregated
+        if (aggregated_invoices && invoice_numbers.length > 0) {
+            console.log(`Aggregated ${invoice_numbers.length} invoice numbers: ${aggregated_invoices}`);
+        }
+    }
+}
 
 function check_existing_material_transfers(frm) {
     frappe.call({
@@ -150,11 +274,6 @@ function sync_fields_to_child_table(frm) {
     let total_updated = 0;
     let fields_to_sync = [
         {
-            field: 'custom_invoice_number',
-            value: frm.doc.custom_invoice_number,
-            label: 'Invoice Number'
-        },
-        {
             field: 'custom_material_issue_purpose',
             value: frm.doc.custom_material_issue_purpose,
             label: 'Material Issue Purpose'
@@ -164,11 +283,6 @@ function sync_fields_to_child_table(frm) {
             value: frm.doc.custom_line,
             label: 'Line'
         },
-        // {
-        //     field: 'custom_inv_lot',
-        //     value: frm.doc.custom_inv_lot,
-        //     label: 'INV Lot'
-        // },
         {
             field: 'custom_fg_qty',
             value: frm.doc.custom_fg_qty,
@@ -196,7 +310,8 @@ function sync_fields_to_child_table(frm) {
             let updated_count = 0;
 
             frm.doc.items.forEach(function (row) {
-                if (!row[field_info.field]) {
+                // Chỉ update nếu field chưa có giá trị hoặc khác với giá trị parent
+                if (!row[field_info.field] || row[field_info.field] !== field_info.value) {
                     frappe.model.set_value(row.doctype, row.name, field_info.field, field_info.value);
                     updated_count++;
                 }
@@ -217,8 +332,6 @@ function sync_fields_to_child_table(frm) {
         }, 5);
     }
 }
-
-
 
 // Function to setup invoice selector click handlers
 function setup_invoice_selector(frm) {
@@ -311,6 +424,13 @@ frappe.ui.form.on('Stock Entry Detail', {
                 setup_invoice_selector(frm);
             }, 100);
         }
+    },
+
+    custom_invoice_number: function (frm, cdt, cdn) {
+        // Trigger aggregation when invoice number is changed in child table
+        setTimeout(() => {
+            aggregate_invoice_numbers(frm);
+        }, 100);
     }
 });
 
@@ -335,6 +455,9 @@ function show_invoice_selection_dialog(frm, row) {
                 frappe.msgprint(__('No stock available for this item with invoice information'));
                 return;
             }
+
+            // Debug: Check if receive_date is present
+            console.log('Sample data structure:', r.message[0]);
 
             // Calculate total available quantity and determine default quantity
             let total_available_qty = r.message.reduce((sum, item) => sum + (item.available_qty || 0), 0);
@@ -383,7 +506,7 @@ function show_invoice_selection_dialog(frm, row) {
                                 label: __('Item Detail'),
                                 read_only: 1,
                                 in_list_view: 1,
-                                columns: 4
+                                columns: 3
                             },
                             {
                                 fieldname: 'available_qty',
@@ -408,15 +531,15 @@ function show_invoice_selection_dialog(frm, row) {
                                 label: __('Warehouse'),
                                 read_only: 1,
                                 in_list_view: 1,
-                                columns: 2
+                                columns: 1
                             },
                             {
                                 fieldname: 'receive_date',
                                 fieldtype: 'Date',
-                                label: __('Receive Date'),
+                                label: __('Date'),
                                 read_only: 1,
                                 in_list_view: 1,
-                                columns: 2
+                                columns: 1
                             }
                         ]
                     }
@@ -457,14 +580,6 @@ function show_invoice_selection_dialog(frm, row) {
                 }
             });
 
-            // Make the dialog wider
-            dialog.$wrapper.find('.modal-dialog').css('max-width', '900px');
-
-            // Handle dialog close event
-            dialog.$wrapper.on('hidden.bs.modal', function () {
-                frm.invoice_dialog_open = false;
-            });
-
             dialog.show();
         },
         error: function () {
@@ -479,13 +594,17 @@ function process_multiple_invoice_selection(frm, original_row, selected_invoices
     let updated_count = 0;
     let remaining_qty = selected_qty;
 
-    selected_invoices.forEach(function (selected, index) {
-        // Calculate quantity to use for this invoice (proportional to available quantity)
-        let total_selected_available = selected_invoices.reduce((sum, inv) => sum + (inv.available_qty || 0), 0);
-        let proportional_qty = (selected.available_qty / total_selected_available) * selected_qty;
+    // Sort invoices by date (oldest first) to prioritize older invoices
+    selected_invoices.sort(function (a, b) {
+        let dateA = new Date(a.receive_date || '1900-01-01');
+        let dateB = new Date(b.receive_date || '1900-01-01');
+        return dateA - dateB;
+    });
 
-        // Use the minimum of proportional quantity or remaining quantity
-        let qty_to_use = Math.min(proportional_qty, remaining_qty, selected.available_qty);
+    selected_invoices.forEach(function (selected, index) {
+        // Use FIFO (First In, First Out) - prioritize older invoices
+        // Use the minimum of remaining quantity or available quantity for this invoice
+        let qty_to_use = Math.min(remaining_qty, selected.available_qty);
 
         if (qty_to_use <= 0) return; // Skip if no quantity to use
 
@@ -521,6 +640,11 @@ function process_multiple_invoice_selection(frm, original_row, selected_invoices
     // Refresh the grid
     frm.refresh_field('items');
 
+    // Trigger aggregation after all rows are updated
+    setTimeout(() => {
+        aggregate_invoice_numbers(frm);
+    }, 200);
+
     // Show success message
     let message = '';
     if (updated_count > 0 && added_count > 0) {
@@ -535,4 +659,49 @@ function process_multiple_invoice_selection(frm, original_row, selected_invoices
         message: message,
         indicator: 'green'
     }, 5);
+}
+
+// Function to setup warehouse column visibility based on stock entry type
+function setup_warehouse_column_visibility(frm) {
+    if (!frm.fields_dict.items || !frm.fields_dict.items.grid) {
+        return;
+    }
+
+    setTimeout(() => {
+        let grid = frm.fields_dict.items.grid;
+
+        if (frm.doc.stock_entry_type === "Material Issue") {
+            // For Material Issue: Show s_warehouse, hide t_warehouse
+            if (grid.docfields) {
+                grid.docfields.forEach(function (field) {
+                    if (field.fieldname === 's_warehouse') {
+                        field.in_list_view = 1;
+                        field.columns = 1;
+                    } else if (field.fieldname === 't_warehouse') {
+                        field.in_list_view = 0;
+                        field.columns = 0;
+                    }
+                });
+            }
+        } else if (frm.doc.stock_entry_type === "Material Receipt") {
+            // For Material Receipt: Show t_warehouse, hide s_warehouse
+            if (grid.docfields) {
+                grid.docfields.forEach(function (field) {
+                    if (field.fieldname === 't_warehouse') {
+                        field.in_list_view = 1;
+                        field.columns = 1;
+                    } else if (field.fieldname === 's_warehouse') {
+                        field.in_list_view = 0;
+                        field.columns = 0;
+                    }
+                });
+            }
+        }
+
+        // Refresh the grid to apply changes
+        if (grid.refresh) {
+            grid.refresh();
+        }
+        frm.refresh_field('items');
+    }, 100);
 }

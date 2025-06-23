@@ -99,19 +99,32 @@ frappe.ui.form.on('Item', {
     },
     item_name: function (frm) {
         if (frm.doc.item_name && frm.doc.item_group) {
-            is_exists_item(frm.doc.custom_office_factory_sub_group, frm.doc.item_name).then((result) => {
-                // Only proceed if no duplicates found 
-                if (!result.exists) {
-                    generate_new_item_code(frm);
-                }
-                else {
-                    frappe.throw(__('Item đã tồn tại trong hệ thống'));
-                    frm.set_value('item_name', '');
-                }
+            // Trim dữ liệu item_name để loại bỏ khoảng trắng đầu và cuối
+            let trimmed_item_name = frm.doc.item_name.trim();
 
-            }).catch(err => {
-                console.error("Error in item_name handler:", err);
-            });
+            // Cập nhật lại giá trị đã trim vào field (chỉ khi có thay đổi)
+            if (frm.doc.item_name !== trimmed_item_name) {
+                frm.set_value('item_name', trimmed_item_name);
+            }
+
+            // Kiểm tra nếu item_name sau khi trim vẫn có giá trị
+            if (trimmed_item_name) {
+                is_exists_item(frm.doc.custom_office_factory_sub_group, trimmed_item_name).then((result) => {
+                    // Only proceed if no duplicates found 
+                    if (!result.exists) {
+                        generate_new_item_code(frm);
+                    }
+                    else {
+                        frappe.throw(__('Item already exists in the system : <a href="/app/item/{0}" target="_blank">{1}</a>', [result.item_code, result.item_code]));
+                        frm.set_value('item_name', '');
+                    }
+                }).catch(err => {
+                    console.error("Error in item_name handler:", err);
+                });
+            } else {
+                // Nếu sau khi trim item_name trống, clear field
+                frm.set_value('item_name', '');
+            }
         }
     },
 });
