@@ -1,5 +1,5 @@
 {
- "add_total_row": 0,
+ "add_total_row": 1,
  "add_translate_data": 0,
  "columns": [],
  "creation": "2025-06-14 14:04:33.747799",
@@ -10,7 +10,7 @@
  "idx": 0,
  "is_standard": "Yes",
  "letterhead": null,
- "modified": "2025-06-20 21:10:53.469576",
+ "modified": "2025-06-23 11:26:11.116870",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Stock Balance Customize",

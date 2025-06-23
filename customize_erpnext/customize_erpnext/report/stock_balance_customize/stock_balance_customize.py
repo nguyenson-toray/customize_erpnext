@@ -12,7 +12,14 @@ from frappe.utils import add_days, cint, date_diff, flt, getdate
 from frappe.utils.nestedset import get_descendants_of
 
 import erpnext
-from erpnext.stock.doctype.inventory_dimension.inventory_dimension import get_inventory_dimensions
+
+# Handle inventory dimensions import - may not exist in all ERPNext versions
+try:
+	from erpnext.stock.doctype.inventory_dimension.inventory_dimension import get_inventory_dimensions
+except ImportError:
+	def get_inventory_dimensions():
+		return []
+
 from erpnext.stock.doctype.warehouse.warehouse import apply_warehouse_filter
 from erpnext.stock.report.stock_ageing.stock_ageing import FIFOSlots, get_average_age
 from erpnext.stock.utils import add_additional_uom_columns
@@ -81,16 +88,19 @@ class StockBalanceCustomizeReport:
 		_func = itemgetter(1)
 		del self.sle_entries
 
+		# Get variant values if show_variant_attributes is enabled - after item_warehouse_map is created
 		variant_values = {}
 		if self.filters.get("show_variant_attributes"):
 			variant_values = self.get_variant_values_for()
 
 		for _key, report_data in self.item_warehouse_map.items():
-			if variant_data := variant_values.get(report_data.item_code):
+			# Add variant attributes if enabled
+			if self.filters.get("show_variant_attributes") and variant_values.get(report_data.item_code):
+				variant_data = variant_values.get(report_data.item_code)
 				# Filter out None, empty values, and "nan" values
 				clean_variant_data = {}
 				for k, v in variant_data.items():
-					if v and v != "nan" and str(v).lower() != "nan" and v != "None":
+					if v and v != "nan" and str(v).lower() not in ["nan", "none", ""]:
 						clean_variant_data[k] = v
 				if clean_variant_data:
 					report_data.update(clean_variant_data)
@@ -392,6 +402,32 @@ class StockBalanceCustomizeReport:
 
 		return query
 
+	def get_variant_values_for(self):
+		"""Get variant attribute values for items in item_warehouse_map"""
+		attribute_map = {}
+		items = list(set(data.item_code for data in self.item_warehouse_map.values())) if self.item_warehouse_map else []
+		
+		if not items:
+			return attribute_map
+
+		filters = {"parent": ("in", items)}
+		attribute_info = frappe.get_all(
+			"Item Variant Attribute",
+			fields=["parent", "attribute", "attribute_value"],
+			filters=filters,
+		)
+
+		for attr in attribute_info:
+			# Skip if attribute_value is None, empty, or "nan"
+			attr_value = attr.get("attribute_value")
+			if not attr_value or str(attr_value).lower() in ["nan", "none", ""]:
+				continue
+				
+			attribute_map.setdefault(attr["parent"], {})
+			attribute_map[attr["parent"]].update({attr["attribute"]: attr_value})
+
+		return attribute_map
+
 	def get_columns(self):
 		columns = [
 			{"label": _("Item"), "fieldname": "item_code", "fieldtype": "Link", "options": "Item", "width": 100},
@@ -405,14 +441,17 @@ class StockBalanceCustomizeReport:
 		]
 
 		if self.filters.get("show_dimension_wise_stock"):
-			for dimension in get_inventory_dimensions():
-				columns.append({
-					"label": _(dimension.doctype),
-					"fieldname": dimension.fieldname,
-					"fieldtype": "Link",
-					"options": dimension.doctype,
-					"width": 110,
-				})
+			try:
+				for dimension in get_inventory_dimensions():
+					columns.append({
+						"label": _(dimension.doctype),
+						"fieldname": dimension.fieldname,
+						"fieldtype": "Link",
+						"options": dimension.doctype,
+						"width": 110,
+					})
+			except:
+				pass
 
 		columns.extend([
 			{"label": _("Stock UOM"), "fieldname": "stock_uom", "fieldtype": "Link", "options": "UOM", "width": 90},
@@ -429,11 +468,31 @@ class StockBalanceCustomizeReport:
 				{"label": _("Latest Age"), "fieldname": "latest_age", "width": 100},
 			]
 
+		# Add variant attribute columns if enabled
 		if self.filters.get("show_variant_attributes"):
-			columns += [
-				{"label": att_name, "fieldname": att_name, "width": 100}
-				for att_name in get_variants_attributes()
-			]
+			# Define fixed order for variant attributes
+			fixed_order_attributes = ["Color", "Size", "Brand", "Season", "Info"]
+			variant_attributes = get_variants_attributes()
+			
+			# Add attributes in fixed order first
+			for attr_name in fixed_order_attributes:
+				if attr_name in variant_attributes:
+					columns.append({
+						"label": _(attr_name),
+						"fieldname": attr_name,
+						"fieldtype": "Data",
+						"width": 100,
+					})
+			
+			# Add any remaining attributes not in the fixed order
+			for attr_name in variant_attributes:
+				if attr_name not in fixed_order_attributes:
+					columns.append({
+						"label": _(attr_name),
+						"fieldname": attr_name,
+						"fieldtype": "Data",
+						"width": 100,
+					})
 
 		return columns
 
@@ -460,30 +519,6 @@ class StockBalanceCustomizeReport:
 
 		result = query.run(as_dict=1)
 		return {d.parent: d.conversion_factor for d in result} if result else {}
-
-	def get_variant_values_for(self):
-		attribute_map = {}
-		items = []
-		if self.filters.item_code or self.filters.item_group:
-			items = [d.item_code for d in self.data]
-
-		filters = {"parent": ("in", items)} if items else {}
-		attribute_info = frappe.get_all(
-			"Item Variant Attribute",
-			fields=["parent", "attribute", "attribute_value"],
-			filters=filters,
-		)
-
-		for attr in attribute_info:
-			# Skip if attribute_value is None, empty, or "nan"
-			attr_value = attr.get("attribute_value")
-			if not attr_value or str(attr_value).lower() in ["nan", "none", ""]:
-				continue
-				
-			attribute_map.setdefault(attr["parent"], {})
-			attribute_map[attr["parent"]].update({attr["attribute"]: attr_value})
-
-		return attribute_map
 
 	def get_opening_vouchers(self):
 		opening_vouchers = {"Stock Entry": [], "Stock Reconciliation": []}
@@ -517,7 +552,10 @@ class StockBalanceCustomizeReport:
 
 	@staticmethod
 	def get_inventory_dimension_fields():
-		return [dimension.fieldname for dimension in get_inventory_dimensions()]
+		try:
+			return [dimension.fieldname for dimension in get_inventory_dimensions()]
+		except:
+			return []
 
 	@staticmethod
 	def get_opening_fifo_queue(report_data):
@@ -525,6 +563,47 @@ class StockBalanceCustomizeReport:
 		for row in opening_fifo_queue:
 			row[1] = getdate(row[1])
 		return opening_fifo_queue
+
+
+def get_variant_values_for(sl_entries):
+	"""Get variant attribute values for items in stock ledger entries"""
+	attribute_map = {}
+	items = list(set(d.item_code for d in sl_entries)) if sl_entries else []
+	
+	if not items:
+		return attribute_map
+
+	filters = {"parent": ("in", items)}
+	attribute_info = frappe.get_all(
+		"Item Variant Attribute",
+		fields=["parent", "attribute", "attribute_value"],
+		filters=filters,
+	)
+
+	for attr in attribute_info:
+		# Skip if attribute_value is None, empty, or "nan"
+		attr_value = attr.get("attribute_value")
+		if not attr_value or str(attr_value).lower() in ["nan", "none", ""]:
+			continue
+			
+		attribute_map.setdefault(attr["parent"], {})
+		attribute_map[attr["parent"]].update({attr["attribute"]: attr_value})
+
+	return attribute_map
+
+
+def get_variants_attributes():
+	"""Get all item attribute names"""
+	return frappe.get_all("Item Attribute", pluck="name")
+
+
+def get_variant_attributes():
+	"""Get all item variant attributes"""
+	return frappe.get_all(
+		"Item Attribute", 
+		fields=["name", "item_attribute_name"], 
+		order_by="name"
+	)
 
 
 def filter_items_with_no_transactions(iwb_map, float_precision, inventory_dimensions=None):
@@ -555,7 +634,3 @@ def filter_items_with_no_transactions(iwb_map, float_precision, inventory_dimens
 		iwb_map.pop(key)
 
 	return iwb_map
-
-
-def get_variants_attributes():
-	return frappe.get_all("Item Attribute", pluck="name")
