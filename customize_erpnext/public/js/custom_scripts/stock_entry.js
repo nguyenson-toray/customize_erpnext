@@ -27,8 +27,7 @@ frappe.ui.form.on('Stock Entry', {
             check_existing_material_transfers(frm);
         }
     },
-
-    before_save: function (frm) {
+    validate: function (frm) {
         // check if custom_no empty, set to format dd/mm/yyyy:Unknown 
         if (!frm.doc.custom_no || !frm.doc.custom_no.trim()) {
             let today = new Date();
@@ -40,19 +39,15 @@ frappe.ui.form.on('Stock Entry', {
                 indicator: 'blue'
             }, 5);
         }
-        // Validate empty invoice numbers first
-        validate_invoice_numbers(frm);
-
         // Trim parent fields first
         trim_parent_fields(frm);
-
-        // Aggregate invoice numbers from child table to parent
+        // Validate empty invoice numbers first
+        validate_invoice_numbers(frm);
+        // Aggregate invoice numbers from child table to parentPX011055
         aggregate_invoice_numbers(frm);
-
         // Sync invoice fields to child table after trimming parent fields
         sync_fields_to_child_table(frm);
     },
-
     stock_entry_type: function (frm) {
         // Setup warehouse column visibility when stock entry type changes
         setup_warehouse_column_visibility(frm);
@@ -193,7 +188,7 @@ function trim_parent_fields(frm) {
         }
     ];
 
-    // Function để chuyển đổi text sang Camel Case
+    // Function để chuyển đổi text sang Camel Case    
     function toCamelCase(str) {
         return str.toLowerCase().replace(/\b\w/g, function (match) {
             return match.toUpperCase();
@@ -227,7 +222,10 @@ function trim_parent_fields(frm) {
 
         if (current_value) {
             let processed_value = processFieldValue(current_value, field_info.camel_case);
-
+            // Max length of 140 characters
+            if (processed_value.length > 140) {
+                processed_value = processed_value.substring(0, 137) + '...';
+            }
             // Chỉ update nếu có thay đổi
             if (current_value !== processed_value) {
                 frm.set_value(field_info.field, processed_value);
@@ -267,7 +265,10 @@ function aggregate_invoice_numbers(frm) {
 
     // Join with "; " separator and set to parent field
     let aggregated_invoices = invoice_numbers.join("; ");
-
+    if (aggregated_invoices.length > 140) {
+        // Truncate to 140 characters if too long
+        aggregated_invoices = aggregated_invoices.substring(0, 137) + '...';
+    }
     // Only update if there's a change to avoid unnecessary triggers
     if (frm.doc.custom_invoice_number !== aggregated_invoices) {
         frm.set_value('custom_invoice_number', aggregated_invoices);
