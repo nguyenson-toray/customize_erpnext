@@ -285,7 +285,7 @@ async function process_quick_add_items(frm, items_data, dialog_type) {
                 error_count++;
                 continue;
             }
-            field_data.custom_inv_lot = parts[1].trim();
+            field_data.custom_invoice_number = parts[1].trim();
             qty = parseVietnameseFloat(parts[2].trim()); // Use Vietnamese number parser
         } else if (dialog_type === 'material_receipt') {
             // Format: item_pattern;custom_invoice_number;qty

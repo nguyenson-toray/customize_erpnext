@@ -29,6 +29,17 @@ frappe.ui.form.on('Stock Entry', {
     },
 
     before_save: function (frm) {
+        // check if custom_no empty, set to format dd/mm/yyyy:Unknown 
+        if (!frm.doc.custom_no || !frm.doc.custom_no.trim()) {
+            let today = new Date();
+            let formatted_date = today.toLocaleDateString('vi-VN'); // Format Việt Nam: dd/mm/yyyy
+
+            frm.set_value('custom_no', `${formatted_date}:Unknown`);
+            frappe.show_alert({
+                message: __('Custom No was empty. Set to default: {0}:Unknown', [formatted_date]),
+                indicator: 'blue'
+            }, 5);
+        }
         // Validate empty invoice numbers first
         validate_invoice_numbers(frm);
 
