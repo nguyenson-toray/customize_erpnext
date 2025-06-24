@@ -111,6 +111,23 @@ frappe.ui.form.on('Stock Entry', {
     }
 });
 
+// HELPER FUNCTION: Parse Vietnamese number format (comma as decimal separator)
+function parseVietnameseFloat(value) {
+    if (!value) return 0;
+
+    // Convert to string and trim
+    let str = String(value).trim();
+
+    // Replace Vietnamese comma decimal separator with dot
+    str = str.replace(',', '.');
+
+    // Parse the number
+    let result = parseFloat(str);
+
+    // Return 0 if not a valid number
+    return isNaN(result) ? 0 : result;
+}
+
 // UPDATED FUNCTION: Show Quick Add Dialog with type parameter
 function show_quick_add_dialog(frm, dialog_type) {
     let dialog_config = get_dialog_config(dialog_type);
@@ -160,11 +177,18 @@ function get_dialog_config(dialog_type) {
                     • Attributes: color, size, brand, season, info : If empty ("Blank") then skip<br>
                     </small><br><br>
                     
+                    <strong>Quantity format:</strong><br>
+                    <small style="color: #666;">
+                    • Support Vietnamese format: <code>52,5</code> (comma as decimal separator)<br>
+                    • Support International format: <code>52.5</code> (dot as decimal separator)<br>
+                    • Examples: <code>100</code>, <code>25,75</code>, <code>33.25</code>
+                    </small><br><br>
+                    
                     <strong>Examples:</strong><br>
                     <code style="background: #fff; padding: 5px; display: block; margin: 5px 0;">
-                    LM-2666% 410% Sm% STIO FERNOS% 25fw% 200317;2650281395;52<br>
+                    LM-2666% 410% Sm% STIO FERNOS% 25fw% 200317;2650281395;52,5<br>
                     LM-2667% 420% M;2650281396;30<br>
-                    LM-2668% 430% L% STIO FERNOS;2650281397;25
+                    LM-2668% 430% L% STIO FERNOS;2650281397;25,75
                     </code><br>
                     
                     <strong>Example 1 explanation:</strong><br>
@@ -175,7 +199,7 @@ function get_dialog_config(dialog_type) {
                     • <code>% 25fw</code> → Season<br>
                     • <code>% 200317</code> → Additional info<br>
                     • <code>2650281395</code> → INV Lot number<br>
-                    • <code>52</code> → Quantity<br><br>
+                    • <code>52,5</code> → Quantity (Vietnamese format)<br><br>
                     
                     <strong>Notes:</strong><br>
                     • Each line is a separate item<br>
@@ -200,11 +224,18 @@ function get_dialog_config(dialog_type) {
                     • Attributes: color, size, brand, season, info : If empty ("Blank") then skip<br>
                     </small><br><br>
                     
+                    <strong>Quantity format:</strong><br>
+                    <small style="color: #666;">
+                    • Support Vietnamese format: <code>52,5</code> (comma as decimal separator)<br>
+                    • Support International format: <code>52.5</code> (dot as decimal separator)<br>
+                    • Examples: <code>100</code>, <code>25,75</code>, <code>33.25</code>
+                    </small><br><br>
+                    
                     <strong>Examples:</strong><br>
                     <code style="background: #fff; padding: 5px; display: block; margin: 5px 0;">
-                    LM-2666% 410% Sm% STIO FERNOS% 25fw% 200317;IV001;IV002;52<br>
-                    LM-2667% 420% M;IV003;IV004;30<br>
-                    LM-2668% 430% L% STIO FERNOS;IV005;IV006;25
+                    LM-2666% 410% Sm% STIO FERNOS% 25fw% 200317;IV001;52,5<br>
+                    LM-2667% 420% M;IV003;30<br>
+                    LM-2668% 430% L% STIO FERNOS;IV005;25,75
                     </code><br>
                     
                     <strong>Example 1 explanation:</strong><br>
@@ -214,9 +245,8 @@ function get_dialog_config(dialog_type) {
                     • <code>% STIO FERNOS</code> → Brand<br>
                     • <code>% 25fw</code> → Season<br>
                     • <code>% 200317</code> → Additional info<br>
-                    • <code>IV001</code> → Declaration invoice number<br>
-                    • <code>IV002</code> → Invoice number<br>
-                    • <code>52</code> → Quantity<br><br>
+                    • <code>IV001</code> → Invoice number<br>
+                    • <code>52,5</code> → Quantity (Vietnamese format)<br><br>
                     
                     <strong>Notes:</strong><br>
                     • Each line is a separate item<br>
@@ -228,7 +258,7 @@ function get_dialog_config(dialog_type) {
     }
 }
 
-// UPDATED FUNCTION: Process Quick Add Items with type parameter
+// UPDATED FUNCTION: Process Quick Add Items with type parameter and Vietnamese number support
 async function process_quick_add_items(frm, items_data, dialog_type) {
     if (!items_data) return;
 
@@ -256,7 +286,7 @@ async function process_quick_add_items(frm, items_data, dialog_type) {
                 continue;
             }
             field_data.custom_inv_lot = parts[1].trim();
-            qty = parseFloat(parts[2].trim());
+            qty = parseVietnameseFloat(parts[2].trim()); // Use Vietnamese number parser
         } else if (dialog_type === 'material_receipt') {
             // Format: item_pattern;custom_invoice_number;qty
             if (parts.length < 3) {
@@ -265,11 +295,11 @@ async function process_quick_add_items(frm, items_data, dialog_type) {
                 continue;
             }
             field_data.custom_invoice_number = parts[1].trim();
-            qty = parseFloat(parts[2].trim());
+            qty = parseVietnameseFloat(parts[2].trim()); // Use Vietnamese number parser
         }
 
         if (isNaN(qty) || qty <= 0) {
-            errors.push(__('Line {0}: Invalid quantity', [i + 1]));
+            errors.push(__('Line {0}: Invalid quantity: {1}', [i + 1, parts[parts.length - 1]]));
             error_count++;
             continue;
         }
@@ -322,7 +352,8 @@ async function process_quick_add_items(frm, items_data, dialog_type) {
             if (response.message && response.message.length > 0) {
                 let item = response.message[0];
                 count++;
-                console.log(`Processing item:  ${count} ${item.item_code} for pattern: ${item_data.search_pattern}`);
+                console.log(`Processing item: ${count} ${item.item_code} for pattern: ${item_data.search_pattern}, qty: ${item_data.qty}`);
+
                 // Add new row
                 let new_row = frm.add_child('items');
 
@@ -343,7 +374,7 @@ async function process_quick_add_items(frm, items_data, dialog_type) {
                 success_count++;
 
                 // Small delay between adding items to ensure proper processing
-                await new Promise(resolve => setTimeout(resolve, 150));
+                await new Promise(resolve => setTimeout(resolve, 180));
 
             } else {
                 errors.push(__('Line {0}: Item not found with pattern: {1}', [item_data.line_number, item_data.search_pattern]));
