@@ -47,7 +47,70 @@ frappe.ui.form.on('Stock Entry', {
         setup_warehouse_column_visibility(frm);
     }
 });
+// Function to validate warehouse in items table
+function validate_warehouse(frm) {
+    if (!frm.doc.items || frm.doc.items.length === 0) {
+        return;
+    }
 
+    let empty_warehouse_rows = [];
+    let updated_rows = [];
+
+    if (frm.doc.stock_entry_type === "Material Issue") {
+        // For Material Issue, check s_warehouse (source warehouse)
+        frm.doc.items.forEach((item, index) => {
+            if (!item.s_warehouse && item.item_code) {
+                empty_warehouse_rows.push(index + 1);
+
+                // Get default warehouse from Item master
+                frappe.db.get_value('Item', item.item_code, 'default_warehouse')
+                    .then(result => {
+                        if (result.message && result.message.default_warehouse) {
+                            frappe.model.set_value(item.doctype, item.name, "s_warehouse", result.message.default_warehouse);
+                            updated_rows.push(index + 1);
+                            frm.refresh_field("items");
+                        }
+                    });
+            }
+        });
+
+        if (empty_warehouse_rows.length > 0) {
+            frappe.msgprint({
+                title: __('Missing Source Warehouse'),
+                indicator: 'orange',
+                message: __('Source Warehouse was empty in row(s) {0}. Setting default warehouse from Item master.',
+                    [empty_warehouse_rows.join(', ')])
+            });
+        }
+
+    } else if (frm.doc.stock_entry_type === "Material Receipt") {
+        // For Material Receipt, check t_warehouse (target warehouse)
+        frm.doc.items.forEach((item, index) => {
+            if (!item.t_warehouse && item.item_code) {
+                empty_warehouse_rows.push(index + 1);
+
+                // Get default warehouse from Item master
+                frappe.db.get_value('Item', item.item_code, 'default_warehouse')
+                    .then(result => {
+                        if (result.message && result.message.default_warehouse) {
+                            frappe.model.set_value(item.doctype, item.name, "t_warehouse", result.message.default_warehouse);
+                            updated_rows.push(index + 1);
+                            frm.refresh_field("items");
+                        }
+                    });
+            }
+        });
+
+        if (empty_warehouse_rows.length > 0) {
+            frappe.msgprint({
+                title: __('Missing Target Warehouse'),
+                indicator: 'orange',
+                message: __('Target Warehouse was empty in row(s) {0}. Setting default warehouse from Item master.',
+                    [empty_warehouse_rows.join(', ')])
+            });
+        }
+    }
+}
 // Function to validate invoice numbers in items table
 function validate_invoice_numbers(frm) {
     if (!frm.doc.items || frm.doc.items.length === 0) {
