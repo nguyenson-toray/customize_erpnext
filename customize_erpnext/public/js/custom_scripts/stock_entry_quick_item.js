@@ -85,28 +85,31 @@ frappe.ui.form.on('Stock Entry', {
         setup_selection_monitor(frm);
 
         // THÊM QUICK ADD BUTTONS - Hiển thị theo stock_entry_type
-        if (frm.doc.stock_entry_type === "Material Issue") {
-            let material_issue_quick_add_btn = frm.fields_dict.items.grid.add_custom_button(__('Material Issue - Quick Add'),
-                function () {
-                    show_quick_add_dialog(frm, 'material_issue');
-                }
-            ).addClass('btn-success').css({
-                'background-color': '#5cb85c',
-                'border-color': '#4cae4c',
-                'color': '#fff'
-            });
-        }
+        // Status not submitted
+        if (frm.doc.docstatus !== 1) {
+            if (frm.doc.stock_entry_type === "Material Issue") {
+                let material_issue_quick_add_btn = frm.fields_dict.items.grid.add_custom_button(__('Material Issue - Quick Add'),
+                    function () {
+                        show_quick_add_dialog(frm, 'material_issue');
+                    }
+                ).addClass('btn-success').css({
+                    'background-color': '#5cb85c',
+                    'border-color': '#4cae4c',
+                    'color': '#fff'
+                });
+            }
 
-        if (frm.doc.stock_entry_type === "Material Receipt") {
-            let material_receipt_quick_add_btn = frm.fields_dict.items.grid.add_custom_button(__('Material Receipt - Quick Add'),
-                function () {
-                    show_quick_add_dialog(frm, 'material_receipt');
-                }
-            ).addClass('btn-warning').css({
-                'background-color': '#f0ad4e',
-                'border-color': '#eea236',
-                'color': '#fff'
-            });
+            if (frm.doc.stock_entry_type === "Material Receipt") {
+                let material_receipt_quick_add_btn = frm.fields_dict.items.grid.add_custom_button(__('Material Receipt - Quick Add'),
+                    function () {
+                        show_quick_add_dialog(frm, 'material_receipt');
+                    }
+                ).addClass('btn-warning').css({
+                    'background-color': '#f0ad4e',
+                    'border-color': '#eea236',
+                    'color': '#fff'
+                });
+            }
         }
     }
 });

@@ -56,9 +56,8 @@ def execute(filters=None):
 		item_detail = item_details[sle.item_code]
 		sle.update(item_detail)
 
-		# Add invoice number from either source
-		invoice_number = sle.get("se_detail_invoice_number") or sle.get("sr_custom_invoice_number")
-		sle["custom_invoice_number"] = invoice_number
+		# Use custom_invoice_number directly from Stock Ledger Entry
+		sle["custom_invoice_number"] = sle.get("custom_invoice_number")
 
 		# Add variant attributes if enabled
 		if filters.get("show_variant_attributes") and variant_values.get(sle.item_code):
@@ -88,92 +87,6 @@ def execute(filters=None):
 
 	update_included_uom_in_report(columns, data, include_uom, conversion_factors)
 	return columns, data
-
-
-def get_segregated_bundle_entries(sle, bundle_details, batch_balance_dict, filters):
-	segregated_entries = []
-	qty_before_transaction = sle.qty_after_transaction - sle.actual_qty
-
-	for row in bundle_details:
-		new_sle = copy.deepcopy(sle)
-		new_sle.update(row)
-		new_sle.update(
-			{
-				"in_qty": row.qty if row.qty > 0 else 0,
-				"out_qty": row.qty if row.qty < 0 else 0,
-				"qty_after_transaction": qty_before_transaction + row.qty,
-			}
-		)
-
-		if filters.get("batch_no") and row.batch_no:
-			if not batch_balance_dict.get(row.batch_no):
-				batch_balance_dict[row.batch_no] = [0]
-
-			batch_balance_dict[row.batch_no][0] += row.qty
-
-			new_sle.update(
-				{
-					"qty_after_transaction": batch_balance_dict[row.batch_no][0],
-				}
-			)
-
-		qty_before_transaction += row.qty
-
-		segregated_entries.append(new_sle)
-
-	return segregated_entries
-
-
-def get_serial_batch_bundle_details(sl_entries, filters=None):
-	bundle_details = []
-	for sle in sl_entries:
-		if sle.serial_and_batch_bundle:
-			bundle_details.append(sle.serial_and_batch_bundle)
-
-	if not bundle_details:
-		return frappe._dict({})
-
-	query_filers = {"parent": ("in", bundle_details)}
-	if filters.get("batch_no"):
-		query_filers["batch_no"] = filters.batch_no
-
-	_bundle_details = frappe._dict({})
-	batch_entries = frappe.get_all(
-		"Serial and Batch Entry",
-		filters=query_filers,
-		fields=["parent", "qty", "batch_no", "serial_no"],
-		order_by="parent, idx",
-	)
-	for entry in batch_entries:
-		_bundle_details.setdefault(entry.parent, []).append(entry)
-
-	return _bundle_details
-
-
-def update_available_serial_nos(available_serial_nos, sle):
-	serial_nos = get_serial_nos(sle.serial_no)
-	key = (sle.item_code, sle.warehouse)
-	if key not in available_serial_nos:
-		stock_balance = get_stock_balance_for(
-			sle.item_code, sle.warehouse, sle.posting_date, sle.posting_time
-		)
-		serials = get_serial_nos(stock_balance["serial_nos"]) if stock_balance["serial_nos"] else []
-		available_serial_nos.setdefault(key, serials)
-
-	existing_serial_no = available_serial_nos[key]
-	for sn in serial_nos:
-		if sle.actual_qty > 0:
-			if sn in existing_serial_no:
-				existing_serial_no.remove(sn)
-			else:
-				existing_serial_no.append(sn)
-		else:
-			if sn in existing_serial_no:
-				existing_serial_no.remove(sn)
-			else:
-				existing_serial_no.append(sn)
-
-	sle.balance_serial_no = "\n".join(existing_serial_no)
 
 
 def get_variant_values_for(sl_entries):
@@ -303,13 +216,6 @@ def get_columns(filters):
 				"options": "voucher_type",
 				"width": 100,
 			},
-			
-			{
-				"label": _("Note"),
-				"fieldname": "note",
-				"fieldtype": "Text",
-				"width": 200,
-			},
 		]
 	)
 
@@ -348,26 +254,11 @@ def get_stock_ledger_entries(filters, items):
 
 	sle = frappe.qb.DocType("Stock Ledger Entry")
 	se = frappe.qb.DocType("Stock Entry")
-	se_detail = frappe.qb.DocType("Stock Entry Detail")
-	sr_item = frappe.qb.DocType("Stock Reconciliation Item")
 	
 	query = (
 		frappe.qb.from_(sle)
 		.left_join(se)
 		.on((sle.voucher_type == "Stock Entry") & (sle.voucher_no == se.name))
-		.left_join(se_detail)
-		.on(
-			(sle.voucher_type == "Stock Entry") 
-			& (sle.voucher_no == se_detail.parent)
-			& (sle.item_code == se_detail.item_code)
-		)
-		.left_join(sr_item)
-		.on(
-			(sle.voucher_type == "Stock Reconciliation")
-			& (sle.voucher_no == sr_item.parent)
-			& (sle.item_code == sr_item.item_code)
-			& (sle.warehouse == sr_item.warehouse)
-		)
 		.select(
 			sle.item_code,
 			sle.posting_datetime.as_("date"),
@@ -379,9 +270,8 @@ def get_stock_ledger_entries(filters, items):
 			sle.voucher_type,
 			sle.qty_after_transaction,
 			sle.voucher_no,
+			sle.custom_invoice_number,  # Use directly from Stock Ledger Entry
 			se.custom_note.as_("note"),
-			se_detail.custom_invoice_number.as_("se_detail_invoice_number"),
-			sr_item.custom_invoice_number.as_("sr_custom_invoice_number"),
 		)
 		.where((sle.docstatus < 2) & (sle.is_cancelled == 0) & (sle.posting_datetime[from_date:to_date]))
 		.orderby(sle.posting_datetime)
@@ -409,29 +299,13 @@ def get_stock_ledger_entries(filters, items):
 			(se.stock_entry_type == filters.get("stock_entry_type"))
 		)
 
+	# Filter by Invoice Number - use directly from Stock Ledger Entry
+	if filters.get("custom_invoice_number"):
+		query = query.where(sle.custom_invoice_number == filters.get("custom_invoice_number"))
+
 	query = apply_warehouse_filter(query, sle, filters)
 
 	return query.run(as_dict=True)
-
-
-def get_serial_and_batch_bundles(filters):
-	SBB = frappe.qb.DocType("Serial and Batch Bundle")
-	SBE = frappe.qb.DocType("Serial and Batch Entry")
-
-	query = (
-		frappe.qb.from_(SBE)
-		.inner_join(SBB)
-		.on(SBE.parent == SBB.name)
-		.select(SBE.parent)
-		.where(
-			(SBB.docstatus == 1)
-			& (SBB.has_batch_no == 1)
-			& (SBB.voucher_no.notnull())
-			& (SBE.batch_no == filters.batch_no)
-		)
-	)
-
-	return query.run(pluck=SBE.parent)
 
 
 def get_inventory_dimension_fields():
@@ -493,26 +367,6 @@ def get_item_details(items, sl_entries, include_uom, filters):
 		item_details.setdefault(item.name, item)
 
 	return item_details
-
-
-def get_sle_conditions(filters):
-	conditions = []
-	if filters.get("warehouse"):
-		warehouse_condition = get_warehouse_condition(filters.get("warehouse"))
-		if warehouse_condition:
-			conditions.append(warehouse_condition)
-	if filters.get("voucher_no"):
-		conditions.append("voucher_no=%(voucher_no)s")
-	if filters.get("batch_no"):
-		conditions.append("batch_no=%(batch_no)s")
-	if filters.get("project"):
-		conditions.append("project=%(project)s")
-
-	for dimension in get_inventory_dimensions():
-		if filters.get(dimension.fieldname):
-			conditions.append(f"{dimension.fieldname} in %({dimension.fieldname})s")
-
-	return "and {}".format(" and ".join(conditions)) if conditions else ""
 
 
 def get_opening_balance(filters, columns, sl_entries):
@@ -629,7 +483,7 @@ def get_item_group_condition(item_group, item_table=None):
 def check_inventory_dimension_filters_applied(filters) -> bool:
 	try:
 		for dimension in get_inventory_dimensions():
-			if dimension.fieldname in filters and filters.get(dimension.fieldname):
+			if dimension.fieldname in filters and filters.get(fieldname):
 				return True
 	except:
 		pass

@@ -34,6 +34,7 @@ doctype_js = {
     "Item Attribute Value": "public/js/custom_scripts/item_attribute.js",
     "Sales Order": "public/js/custom_scripts/sales_order_sum_qty.js",
     "Production Plan" : "public/js/custom_scripts/production_plan.js",
+    "Stock Reconciliation" : "public/js/custom_scripts/stock_reconciliation.js",
     # Thêm các doctype khác  
 }
  
@@ -64,7 +65,8 @@ fixtures = [
                     "Employee",
                     "Stock Entry Detail",
                     "Stock Reconciliation",
-                    "Stock Reconciliation Item"
+                    "Stock Reconciliation Item",
+                    "Stock Ledger Entry"
                 ]
             ],
             [
@@ -147,8 +149,17 @@ doc_events = {
     
     "Shift Type": {
         "on_update": "customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.on_shift_update"
+    },
+    # Add custom_invoice_number field of Stock Entry and Stock Reconciliation to Stock Ledger Entry
+     "Stock Entry": {
+        "on_submit": "customize_erpnext.api.update_stock_ledger_invoice_number.update_stock_ledger_invoice_number"
+    },
+    "Stock Reconciliation": {
+        "on_submit": "customize_erpnext.api.update_stock_ledger_invoice_number.update_stock_ledger_invoice_number"
     }
 }
+ 
+
 # Fixtures (for initial setup)
 # fixtures = [
 #     {

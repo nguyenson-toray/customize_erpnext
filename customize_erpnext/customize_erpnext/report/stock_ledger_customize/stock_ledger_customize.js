@@ -36,7 +36,8 @@ frappe.query_reports["Stock Ledger Customize"] = {
 					filters: { company: company },
 				};
 			},
-		}, {
+		},
+		{
 			fieldname: "voucher_no",
 			label: __("Voucher #"),
 			fieldtype: "Data",
@@ -58,7 +59,12 @@ frappe.query_reports["Stock Ledger Customize"] = {
 			fieldtype: "Link",
 			options: "Item Group",
 		},
-
+		{
+			fieldname: "custom_invoice_number",
+			label: __("Invoice Number"),
+			fieldtype: "Data",
+			width: "160",
+		},
 		{
 			fieldname: "stock_entry_type",
 			label: __("Stock Entry Type"),
