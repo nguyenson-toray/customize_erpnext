@@ -284,7 +284,7 @@ function get_dialog_config_sr(dialog_type) {
                                 <code>item_name<strong>%</strong> color<strong>%</strong> size<strong>%</strong> brand<strong>%</strong> season<strong>%</strong> info</code><br><br>
                                 <small style="color: #666;">
                                 ✓ Use % to separate attributes<br>
-                                ✓ Space after % before value (Xl vs Xxl)<br>
+                                ✓ Must have space after % and before attribute value (To avoid confusion between ""Xl"" & ""Xxl"")<br>
                                 ✓ Only item_name is required<br>
                                 ✓ Skip empty attributes
                                 </small>
@@ -314,7 +314,7 @@ function get_dialog_config_sr(dialog_type) {
                             <div style="background: #fff3cd; padding: 10px; border-radius: 4px; border-left: 4px solid #ffc107;">
                                 <small>
                                 • Each line = one item<br>
-                                • System searches by custom_item_name_detail<br>
+                                • The system will search for item_pattern in the "Item Name Detail" field of all Items.<br>
                                 • Invalid items will be skipped with error report<br>
                                 • Date formats: DD/MM/YYYY, DD-MM-YYYY, YYYY-MM-DD
                                 </small>
