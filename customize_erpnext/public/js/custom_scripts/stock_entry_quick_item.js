@@ -33,7 +33,40 @@ frappe.ui.form.on('Stock Entry', {
     before_load: function (frm) {
         $(document).off('keydown.duplicate_rows');
     },
+    stock_entry_type: function (frm) {
+        // THÊM QUICK ADD BUTTONS - Hiển thị theo stock_entry_type
+        // Status not submitted
+        if (frm.doc.docstatus !== 1) {
+            // Remove existing quick add buttons first
+            frm.fields_dict.items.grid.grid_buttons.find('.btn').filter(function () {
+                return $(this).text().includes('Quick Add');
+            }).remove();
 
+            if (frm.doc.stock_entry_type === "Material Issue") {
+                let material_issue_quick_add_btn = frm.fields_dict.items.grid.add_custom_button(__('Material Issue - Quick Add'),
+                    function () {
+                        show_quick_add_dialog(frm, 'material_issue');
+                    }
+                ).addClass('btn-success').css({
+                    'background-color': '#5cb85c',
+                    'border-color': '#4cae4c',
+                    'color': '#fff'
+                });
+            }
+
+            if (frm.doc.stock_entry_type === "Material Receipt") {
+                let material_receipt_quick_add_btn = frm.fields_dict.items.grid.add_custom_button(__('Material Receipt - Quick Add'),
+                    function () {
+                        show_quick_add_dialog(frm, 'material_receipt');
+                    }
+                ).addClass('btn-warning').css({
+                    'background-color': '#f0ad4e',
+                    'border-color': '#eea236',
+                    'color': '#fff'
+                });
+            }
+        }
+    },
     refresh: function (frm) {
         // Khởi tạo duplicate button (ẩn ban đầu)
         let duplicate_btn = frm.fields_dict.items.grid.add_custom_button(__('Duplicate Selected'),
@@ -83,34 +116,6 @@ frappe.ui.form.on('Stock Entry', {
 
         // Setup listener để monitor selection changes
         setup_selection_monitor(frm);
-
-        // THÊM QUICK ADD BUTTONS - Hiển thị theo stock_entry_type
-        // Status not submitted
-        if (frm.doc.docstatus !== 1) {
-            if (frm.doc.stock_entry_type === "Material Issue") {
-                let material_issue_quick_add_btn = frm.fields_dict.items.grid.add_custom_button(__('Material Issue - Quick Add'),
-                    function () {
-                        show_quick_add_dialog(frm, 'material_issue');
-                    }
-                ).addClass('btn-success').css({
-                    'background-color': '#5cb85c',
-                    'border-color': '#4cae4c',
-                    'color': '#fff'
-                });
-            }
-
-            if (frm.doc.stock_entry_type === "Material Receipt") {
-                let material_receipt_quick_add_btn = frm.fields_dict.items.grid.add_custom_button(__('Material Receipt - Quick Add'),
-                    function () {
-                        show_quick_add_dialog(frm, 'material_receipt');
-                    }
-                ).addClass('btn-warning').css({
-                    'background-color': '#f0ad4e',
-                    'border-color': '#eea236',
-                    'color': '#fff'
-                });
-            }
-        }
     }
 });
 
@@ -147,7 +152,7 @@ function show_quick_add_dialog(frm, dialog_type) {
                 default: ''
             }
         ],
-        size: 'large',
+        size: 'extra-large',
         primary_action_label: __('OK'),
         primary_action: function (values) {
             process_quick_add_items(frm, values.items_data, dialog_type);
@@ -155,59 +160,78 @@ function show_quick_add_dialog(frm, dialog_type) {
         }
     });
 
-    // Set dialog height for better visibility
-    dialog.$wrapper.find('.modal-dialog').css('width', '800px');
-    dialog.$wrapper.find('[data-fieldname="items_data"]').css('min-height', '200px');
+    // Set dialog width and height for full screen visibility
+    dialog.$wrapper.find('.modal-dialog').css({
+        'width': '95%',
+        'max-width': '1200px',
+        'height': '90vh'
+    });
+    dialog.$wrapper.find('.modal-content').css('height', '100%');
+    dialog.$wrapper.find('.modal-body').css({
+        'height': 'calc(100% - 120px)',
+        'overflow-y': 'auto'
+    });
+    dialog.$wrapper.find('[data-fieldname="items_data"]').css('min-height', '250px');
 
     dialog.show();
 }
 
-// NEW FUNCTION: Get dialog configuration based on type
+// UPDATED FUNCTION: Get dialog configuration based on type with optional fields
 function get_dialog_config(dialog_type) {
     if (dialog_type === 'material_issue') {
         return {
             title: __('Quick Add Items - Material Issue'),
             description: __(`
-                <div style="background: #f5f5f5; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
-                    <strong>Format:</strong> item_pattern;custom_inv_lot;qty<br><br>
+                <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; font-size: 13px; line-height: 1.4;">
                     
-                    <strong>Item pattern structure:</strong><br>
-                    item_name<strong>%</strong> color<strong>%</strong> size<strong>%</strong> brand<strong>%</strong> season<strong>%</strong> info<br>
-                    <small style="color: #666;">
-                    • Use % to separate attributes<br>
-                    • Must have space after % and before attribute value (To avoid confusion between "Xl" & "Xxl")<br>
-                    • Minimum required: item_name<br>
-                    • Attributes: color, size, brand, season, info : If empty ("Blank") then skip<br>
-                    </small><br><br>
-                    
-                    <strong>Quantity format:</strong><br>
-                    <small style="color: #666;">
-                    • Support Vietnamese format: <code>52,5</code> (comma as decimal separator)<br>
-                    • Support International format: <code>52.5</code> (dot as decimal separator)<br>
-                    • Examples: <code>100</code>, <code>25,75</code>, <code>33.25</code>
-                    </small><br><br>
-                    
-                    <strong>Examples:</strong><br>
-                    <code style="background: #fff; padding: 5px; display: block; margin: 5px 0;">
-                    LM-2666% 410% Sm% STIO FERNOS% 25fw% 200317;2650281395;52,5<br>
-                    LM-2667% 420% M;2650281396;30<br>
-                    LM-2668% 430% L% STIO FERNOS;2650281397;25,75
-                    </code><br>
-                    
-                    <strong>Example 1 explanation:</strong><br>
-                    • <code>LM-2666</code> → Item code<br>
-                    • <code>% 410</code> → Color<br>
-                    • <code>% Sm</code> → Size<br>
-                    • <code>% STIO FERNOS</code> → Brand<br>
-                    • <code>% 25fw</code> → Season<br>
-                    • <code>% 200317</code> → Additional info<br>
-                    • <code>2650281395</code> → INV Lot number<br>
-                    • <code>52,5</code> → Quantity (Vietnamese format)<br><br>
-                    
-                    <strong>Notes:</strong><br>
-                    • Each line is a separate item<br>
-                    • System will find item based on custom_item_name_detail<br>
-                    • If item not found, that line will be skipped and report error
+                    <div style="display: flex; gap: 20px;">
+                        <div style="flex: 1;">
+                            <h4 style="margin: 0 0 10px 0; color: #333;">📝 Format Options</h4>
+                            <div style="background: white; padding: 10px; border-radius: 4px; margin-bottom: 15px;">
+                                <strong>1. Simple:</strong> <code>item_pattern</code><br>
+                                <strong>2. With Invoice Number:</strong> <code>item_pattern;invoice_number</code><br>
+                                <strong>3. Full format:</strong> <code>item_pattern;invoice_number;qty</code><br>
+                                <strong>4. Skip Invoice Number:</strong> <code>item_pattern;;qty</code>
+                            </div>
+
+                            <h4 style="margin: 0 0 10px 0; color: #333;">🏷️ Item Pattern Structure</h4>
+                            <div style="background: white; padding: 10px; border-radius: 4px; margin-bottom: 15px;">
+                                <code>item_name<strong>%</strong> color<strong>%</strong> size<strong>%</strong> brand<strong>%</strong> season<strong>%</strong> info</code><br><br>
+                                <small style="color: #666;">
+                                ✓ Use % to separate attributes<br>
+                                ✓ Space after % before value (Xl vs Xxl)<br>
+                                ✓ Only item_name is required<br>
+                                ✓ Skip empty attributes
+                                </small>
+                            </div>
+
+                            <h4 style="margin: 0 0 10px 0; color: #333;">⚙️ Default Values</h4>
+                            <div style="background: white; padding: 10px; border-radius: 4px;">
+                                <strong>invoice_number:</strong> empty<br>
+                                <strong>qty:</strong> 1<br>
+                                <strong>Number format:</strong> 52,5 or 52.5
+                            </div>
+                        </div>
+
+                        <div style="flex: 1;">
+                            <h4 style="margin: 0 0 10px 0; color: #333;">📋 Examples</h4>
+                            <div style="background: white; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 12px;">
+                                <div style="margin-bottom: 8px;"><code>E79799 Black 20Mm Vital 25Ss</code><br><small style="color: #28a745;">→ qty=1, Invoice Number=empty</small></div>
+                                <div style="margin-bottom: 8px;"><code>E79799 Black 20Mm Vital 25Ss;IV01</code><br><small style="color: #28a745;">→ qty=1, Invoice Number=IN01</small></div>
+                                <div style="margin-bottom: 8px;"><code>E79799 Black 20Mm Vital 25Ss;IV02;25,75</code><br><small style="color: #28a745;">→ qty=25.75, Invoice Number=IV02</small></div>
+                                <div><code>E79799 Black 20Mm Vital 25Ss;;30</code><br><small style="color: #28a745;">→ qty=30, Invoice Number=empty</small></div>
+                            </div>
+                            
+                            <h4 style="margin: 15px 0 10px 0; color: #333;">ℹ️ Notes</h4>
+                            <div style="background: #fff3cd; padding: 10px; border-radius: 4px; border-left: 4px solid #ffc107;">
+                                <small>
+                                • Each line = one item<br>
+                                • The system will search for item_pattern in the "Item Name Detail" field of all Items.<br>
+                                • Invalid items will be skipped with error report
+                                </small>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             `)
         };
@@ -215,53 +239,63 @@ function get_dialog_config(dialog_type) {
         return {
             title: __('Quick Add Items - Material Receipt'),
             description: __(`
-                <div style="background: #f5f5f5; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
-                    <strong>Format:</strong> item_pattern;custom_invoice_number;qty<br><br>
+                <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; font-size: 13px; line-height: 1.4;">
                     
-                    <strong>Item pattern structure:</strong><br>
-                    item_name<strong>%</strong> color<strong>%</strong> size<strong>%</strong> brand<strong>%</strong> season<strong>%</strong> info<br>
-                    <small style="color: #666;">
-                    • Use % to separate attributes<br>
-                    • Must have space after % and before attribute value (To avoid confusion between "Xl" & "Xxl")<br>
-                    • Minimum required: item_name<br>
-                    • Attributes: color, size, brand, season, info : If empty ("Blank") then skip<br>
-                    </small><br><br>
-                    
-                    <strong>Quantity format:</strong><br>
-                    <small style="color: #666;">
-                    • Support Vietnamese format: <code>52,5</code> (comma as decimal separator)<br>
-                    • Support International format: <code>52.5</code> (dot as decimal separator)<br>
-                    • Examples: <code>100</code>, <code>25,75</code>, <code>33.25</code>
-                    </small><br><br>
-                    
-                    <strong>Examples:</strong><br>
-                    <code style="background: #fff; padding: 5px; display: block; margin: 5px 0;">
-                    LM-2666% 410% Sm% STIO FERNOS% 25fw% 200317;IV001;52,5<br>
-                    LM-2667% 420% M;IV003;30<br>
-                    LM-2668% 430% L% STIO FERNOS;IV005;25,75
-                    </code><br>
-                    
-                    <strong>Example 1 explanation:</strong><br>
-                    • <code>LM-2666</code> → Item code<br>
-                    • <code>% 410</code> → Color<br>
-                    • <code>% Sm</code> → Size<br>
-                    • <code>% STIO FERNOS</code> → Brand<br>
-                    • <code>% 25fw</code> → Season<br>
-                    • <code>% 200317</code> → Additional info<br>
-                    • <code>IV001</code> → Invoice number<br>
-                    • <code>52,5</code> → Quantity (Vietnamese format)<br><br>
-                    
-                    <strong>Notes:</strong><br>
-                    • Each line is a separate item<br>
-                    • System will find item based on custom_item_name_detail<br>
-                    • If item not found, that line will be skipped and report error
+                    <div style="display: flex; gap: 20px;">
+                        <div style="flex: 1;">
+                            <h4 style="margin: 0 0 10px 0; color: #333;">📝 Format Options</h4>
+                            <div style="background: white; padding: 10px; border-radius: 4px; margin-bottom: 15px;">
+                                <strong>1. Simple:</strong> <code>item_pattern</code><br>
+                                <strong>2. With invoice:</strong> <code>item_pattern;invoice_number</code><br>
+                                <strong>3. Full format:</strong> <code>item_pattern;invoice_number;qty</code><br>
+                                <strong>4. Skip invoice:</strong> <code>item_pattern;;qty</code>
+                            </div>
+
+                            <h4 style="margin: 0 0 10px 0; color: #333;">🏷️ Item Pattern Structure</h4>
+                            <div style="background: white; padding: 10px; border-radius: 4px; margin-bottom: 15px;">
+                                <code>item_name<strong>%</strong> color<strong>%</strong> size<strong>%</strong> brand<strong>%</strong> season<strong>%</strong> info</code><br><br>
+                                <small style="color: #666;">
+                                ✓ Use % to separate attributes<br>
+                                ✓ Space after % before value (Xl vs Xxl)<br>
+                                ✓ Only item_name is required<br>
+                                ✓ Skip empty attributes
+                                </small>
+                            </div>
+
+                            <h4 style="margin: 0 0 10px 0; color: #333;">⚙️ Default Values</h4>
+                            <div style="background: white; padding: 10px; border-radius: 4px;">
+                                <strong>invoice_number:</strong> empty<br>
+                                <strong>qty:</strong> 1<br>
+                                <strong>Number format:</strong> 52,5 or 52.5
+                            </div>
+                        </div>
+
+                        <div style="flex: 1;">
+                            <h4 style="margin: 0 0 10px 0; color: #333;">📋 Examples</h4>
+                            <div style="background: white; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 12px;">
+                                <div style="margin-bottom: 8px;"><code>E79799 Black 20Mm Vital 25Ss</code><br><small style="color: #17a2b8;">→ qty=1, invoice=empty</small></div>
+                                <div style="margin-bottom: 8px;"><code>E79799 Black 20Mm Vital 25Ss;IV003</code><br><small style="color: #17a2b8;">→ qty=1, invoice=IV003</small></div>
+                                <div style="margin-bottom: 8px;"><code>E79799 Black 20Mm Vital 25Ss;IV005;25,75</code><br><small style="color: #17a2b8;">→ qty=25.75, invoice=IV005</small></div>
+                                <div><code>E79799 Black 20Mm Vital 25Ss;;30</code><br><small style="color: #17a2b8;">→ qty=30, invoice=empty</small></div>
+                            </div>
+                            
+                            <h4 style="margin: 15px 0 10px 0; color: #333;">ℹ️ Notes</h4>
+                            <div style="background: #fff3cd; padding: 10px; border-radius: 4px; border-left: 4px solid #ffc107;">
+                                <small>
+                                • Each line = one item<br>
+                                • The system will search for item_pattern in the "Item Name Detail" field of all Items.<br>
+                                • Invalid items will be skipped with error report
+                                </small>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             `)
         };
     }
 }
 
-// UPDATED FUNCTION: Process Quick Add Items with type parameter and Vietnamese number support
+// UPDATED FUNCTION: Process Quick Add Items with flexible format support
 async function process_quick_add_items(frm, items_data, dialog_type) {
     if (!items_data) return;
 
@@ -279,32 +313,54 @@ async function process_quick_add_items(frm, items_data, dialog_type) {
 
         let parts = line.split(';');
         let item_pattern = parts[0].trim();
-        let qty, field_data = {};
+        let qty = 1; // Default quantity
+        let field_data = {};
 
-        if (dialog_type === 'material_issue') {
-            // Format: item_pattern;custom_inv_lot;qty
-            if (parts.length < 3) {
-                errors.push(__('Line {0}: Invalid format. Expected: item_pattern;custom_inv_lot;qty', [i + 1]));
-                error_count++;
-                continue;
-            }
-            field_data.custom_invoice_number = parts[1].trim();
-            qty = parseVietnameseFloat(parts[2].trim()); // Use Vietnamese number parser
-        } else if (dialog_type === 'material_receipt') {
-            // Format: item_pattern;custom_invoice_number;qty
-            if (parts.length < 3) {
-                errors.push(__('Line {0}: Invalid format. Expected: item_pattern;custom_invoice_number;qty', [i + 1]));
-                error_count++;
-                continue;
-            }
-            field_data.custom_invoice_number = parts[1].trim();
-            qty = parseVietnameseFloat(parts[2].trim()); // Use Vietnamese number parser
-        }
-
-        if (isNaN(qty) || qty <= 0) {
-            errors.push(__('Line {0}: Invalid quantity: {1}', [i + 1, parts[parts.length - 1]]));
+        // Check if we have at least the item pattern
+        if (!item_pattern) {
+            errors.push(__('Line {0}: Item pattern is required', [i + 1]));
             error_count++;
             continue;
+        }
+
+        if (dialog_type === 'material_issue') {
+            // Handle different format options for material issue
+            if (parts.length >= 2 && parts[1].trim() !== '') {
+                // Has custom_inv_lot
+                field_data.custom_invoice_number = parts[1].trim();
+            } else {
+                // No custom_inv_lot or empty
+                field_data.custom_invoice_number = '';
+            }
+
+            if (parts.length >= 3 && parts[2].trim() !== '') {
+                // Has quantity
+                qty = parseVietnameseFloat(parts[2].trim());
+                if (isNaN(qty) || qty <= 0) {
+                    errors.push(__('Line {0}: Invalid quantity: {1}', [i + 1, parts[2]]));
+                    error_count++;
+                    continue;
+                }
+            }
+        } else if (dialog_type === 'material_receipt') {
+            // Handle different format options for material receipt
+            if (parts.length >= 2 && parts[1].trim() !== '') {
+                // Has custom_invoice_number
+                field_data.custom_invoice_number = parts[1].trim();
+            } else {
+                // No custom_invoice_number or empty
+                field_data.custom_invoice_number = '';
+            }
+
+            if (parts.length >= 3 && parts[2].trim() !== '') {
+                // Has quantity
+                qty = parseVietnameseFloat(parts[2].trim());
+                if (isNaN(qty) || qty <= 0) {
+                    errors.push(__('Line {0}: Invalid quantity: {1}', [i + 1, parts[2]]));
+                    error_count++;
+                    continue;
+                }
+            }
         }
 
         // Parse item pattern

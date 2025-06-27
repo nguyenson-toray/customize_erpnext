@@ -43,7 +43,9 @@ frappe.ui.form.on('Stock Entry', {
         trim_parent_fields(frm);
         // Validate empty invoice numbers first
         validate_invoice_numbers(frm);
-        // Aggregate invoice numbers from child table to parentPX011055
+        // Validate and set default warehouses
+        validate_warehouse(frm);
+        // Aggregate invoice numbers from child table to parent
         aggregate_invoice_numbers(frm);
         // Sync invoice fields to child table after trimming parent fields
         sync_fields_to_child_table(frm);
@@ -53,6 +55,7 @@ frappe.ui.form.on('Stock Entry', {
         setup_warehouse_column_visibility(frm);
     }
 });
+
 // Function to validate warehouse in items table
 function validate_warehouse(frm) {
     if (!frm.doc.items || frm.doc.items.length === 0) {
@@ -60,7 +63,7 @@ function validate_warehouse(frm) {
     }
 
     let empty_warehouse_rows = [];
-    let updated_rows = [];
+    let promises = [];
 
     if (frm.doc.stock_entry_type === "Material Issue") {
         // For Material Issue, check s_warehouse (source warehouse)
@@ -68,15 +71,30 @@ function validate_warehouse(frm) {
             if (!item.s_warehouse && item.item_code) {
                 empty_warehouse_rows.push(index + 1);
 
-                // Get default warehouse from Item master
-                frappe.db.get_value('Item', item.item_code, 'default_warehouse')
-                    .then(result => {
-                        if (result.message && result.message.default_warehouse) {
-                            frappe.model.set_value(item.doctype, item.name, "s_warehouse", result.message.default_warehouse);
-                            updated_rows.push(index + 1);
-                            frm.refresh_field("items");
+                // Get item details including default warehouse from item_defaults
+                let promise = frappe.call({
+                    method: 'frappe.client.get',
+                    args: {
+                        doctype: 'Item',
+                        name: item.item_code
+                    }
+                }).then(result => {
+                    if (result.message && result.message.item_defaults) {
+                        // Find default warehouse for current company
+                        let default_warehouse = null;
+                        for (let item_default of result.message.item_defaults) {
+                            if (item_default.company === frm.doc.company && item_default.default_warehouse) {
+                                default_warehouse = item_default.default_warehouse;
+                                break;
+                            }
                         }
-                    });
+
+                        if (default_warehouse) {
+                            frappe.model.set_value(item.doctype, item.name, "s_warehouse", default_warehouse);
+                        }
+                    }
+                });
+                promises.push(promise);
             }
         });
 
@@ -95,15 +113,30 @@ function validate_warehouse(frm) {
             if (!item.t_warehouse && item.item_code) {
                 empty_warehouse_rows.push(index + 1);
 
-                // Get default warehouse from Item master
-                frappe.db.get_value('Item', item.item_code, 'default_warehouse')
-                    .then(result => {
-                        if (result.message && result.message.default_warehouse) {
-                            frappe.model.set_value(item.doctype, item.name, "t_warehouse", result.message.default_warehouse);
-                            updated_rows.push(index + 1);
-                            frm.refresh_field("items");
+                // Get item details including default warehouse from item_defaults
+                let promise = frappe.call({
+                    method: 'frappe.client.get',
+                    args: {
+                        doctype: 'Item',
+                        name: item.item_code
+                    }
+                }).then(result => {
+                    if (result.message && result.message.item_defaults) {
+                        // Find default warehouse for current company
+                        let default_warehouse = null;
+                        for (let item_default of result.message.item_defaults) {
+                            if (item_default.company === frm.doc.company && item_default.default_warehouse) {
+                                default_warehouse = item_default.default_warehouse;
+                                break;
+                            }
                         }
-                    });
+
+                        if (default_warehouse) {
+                            frappe.model.set_value(item.doctype, item.name, "t_warehouse", default_warehouse);
+                        }
+                    }
+                });
+                promises.push(promise);
             }
         });
 
@@ -116,7 +149,15 @@ function validate_warehouse(frm) {
             });
         }
     }
+
+    // Wait for all warehouse assignments to complete, then refresh
+    if (promises.length > 0) {
+        Promise.all(promises).then(() => {
+            frm.refresh_field("items");
+        });
+    }
 }
+
 // Function to validate invoice numbers in items table
 function validate_invoice_numbers(frm) {
     if (!frm.doc.items || frm.doc.items.length === 0) {
@@ -129,7 +170,8 @@ function validate_invoice_numbers(frm) {
         if (!item.custom_invoice_number || !item.custom_invoice_number.trim()) {
             empty_invoice_rows.push({
                 row_number: index + 1,
-                item_code: item.item_code || 'Unknown Item'
+                item_code: item.item_code || 'Unknown Item',
+                item_object: item
             });
         }
     });
@@ -141,12 +183,60 @@ function validate_invoice_numbers(frm) {
             error_message += `<li>Row ${row.row_number}: ${row.item_code}</li>`;
         });
         error_message += '</ul>';
-        error_message += __('Please fill in all Invoice Numbers before saving.');
-        error_message += __('</br>Fill "yy-mm-dd:Unknow" if not exit Invoice Number.');
-        frappe.throw({
+        error_message += __('Please fill in all Invoice Numbers before saving.<br>');
+        error_message += __('Click "Auto Fill" to automatically fill with format "yy-mm-dd:Unknown" or "Cancel" to fill manually.');
+
+        frappe.msgprint({
             title: __('Validation Error'),
-            message: error_message
+            message: error_message,
+            indicator: 'red',
+            primary_action: {
+                label: __('Auto Fill'),
+                action: function () {
+                    // Generate default invoice number with current date
+                    let today = new Date();
+                    let year = today.getFullYear().toString()
+                    let month = String(today.getMonth() + 1).padStart(2, '0'); // Month with leading zero
+                    let day = String(today.getDate()).padStart(2, '0'); // Day with leading zero
+                    let default_invoice = `${day}/${month}/${year}:Unknown`;
+
+                    // Fill empty invoice numbers
+                    let filled_count = 0;
+                    empty_invoice_rows.forEach(function (row) {
+                        frappe.model.set_value(row.item_object.doctype, row.item_object.name, 'custom_invoice_number', default_invoice);
+                        filled_count++;
+                    });
+
+                    // Refresh the items grid
+                    frm.refresh_field('items');
+
+                    // Trigger aggregation after filling
+                    setTimeout(() => {
+                        aggregate_invoice_numbers(frm);
+                    }, 100);
+
+                    // Show success message
+                    frappe.show_alert({
+                        message: __('Auto-filled {0} invoice number(s) with: {1}', [filled_count, default_invoice]),
+                        indicator: 'green'
+                    }, 5);
+
+                    // Close the dialog
+                    frappe.hide_msgprint();
+                }
+            },
+            secondary_action: {
+                label: __('Cancel'),
+                action: function () {
+                    frappe.hide_msgprint();
+                    // Throw the original validation error to prevent saving
+                    frappe.validated = false;
+                }
+            }
         });
+
+        // Prevent the form from saving until resolved
+        frappe.validated = false;
     }
 }
 
@@ -539,6 +629,49 @@ frappe.ui.form.on('Stock Entry Detail', {
     },
 
     item_code: function (frm, cdt, cdn) {
+        let row = locals[cdt][cdn];
+
+        if (row.item_code) {
+            // Fetch item details including default warehouse
+            frappe.call({
+                method: 'frappe.client.get',
+                args: {
+                    doctype: 'Item',
+                    name: row.item_code
+                },
+                callback: function (r) {
+                    if (r.message) {
+                        // Check for default warehouse in item defaults
+                        if (r.message.item_defaults && r.message.item_defaults.length > 0) {
+                            // Find default warehouse for current company
+                            let default_warehouse = null;
+                            for (let item_default of r.message.item_defaults) {
+                                if (item_default.company === frm.doc.company && item_default.default_warehouse) {
+                                    default_warehouse = item_default.default_warehouse;
+                                    break;
+                                }
+                            }
+
+                            // Set warehouse based on stock entry type and default warehouse
+                            if (default_warehouse) {
+                                if (frm.doc.stock_entry_type === "Material Issue") {
+                                    // For Material Issue, set s_warehouse (source warehouse) if not already set
+                                    if (!row.s_warehouse) {
+                                        frappe.model.set_value(cdt, cdn, 's_warehouse', default_warehouse);
+                                    }
+                                } else if (frm.doc.stock_entry_type === "Material Receipt") {
+                                    // For Material Receipt, set t_warehouse (target warehouse) if not already set
+                                    if (!row.t_warehouse) {
+                                        frappe.model.set_value(cdt, cdn, 't_warehouse', default_warehouse);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
         // Re-setup invoice selector when item is changed
         if (frm.doc.stock_entry_type === "Material Issue") {
             setTimeout(() => {
