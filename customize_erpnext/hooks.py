@@ -151,11 +151,11 @@ doc_events = {
         "on_update": "customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.on_shift_update"
     },
     # Add custom_invoice_number field of Stock Entry and Stock Reconciliation to Stock Ledger Entry
-     "Stock Entry": {
-        "on_submit": "customize_erpnext.api.update_stock_ledger_invoice_number.update_stock_ledger_invoice_number"
+    "Stock Entry": {
+        "on_submit": "customize_erpnext.api.stock_ledger.update_stock_ledger_invoice_number_receive_date.update_stock_ledger_invoice_number_receive_date"
     },
     "Stock Reconciliation": {
-        "on_submit": "customize_erpnext.api.update_stock_ledger_invoice_number.update_stock_ledger_invoice_number"
+        "on_submit": "customize_erpnext.api.stock_ledger.update_stock_ledger_invoice_number_receive_date.update_stock_ledger_invoice_number_receive_date"
     }
 }
  

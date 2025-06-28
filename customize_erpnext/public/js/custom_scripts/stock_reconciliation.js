@@ -1,6 +1,7 @@
 // Client Script for Stock Reconciliation - Quick Add functionality
 // Purpose: Add Quick Add button for Opening Stock purpose with custom format
 // Format: item_pattern;invoice_number;qty;receive_date
+// Updated: Added validation and better handling for custom_receive_date
 
 frappe.ui.form.on('Stock Reconciliation', {
     onload: function (frm) {
@@ -115,6 +116,34 @@ frappe.ui.form.on('Stock Reconciliation', {
         if (frm.doc.purpose === "Opening Stock" && frm.doc.docstatus !== 1) {
             frm.trigger('purpose');
         }
+    },
+
+    // Validate before submit to ensure custom fields are properly set
+    before_submit: function (frm) {
+        // Validate custom_receive_date format in all items
+        let validation_errors = [];
+
+        frm.doc.items.forEach(function (item, index) {
+            if (item.custom_receive_date) {
+                // Validate date format
+                let date_obj = new Date(item.custom_receive_date);
+                if (isNaN(date_obj.getTime())) {
+                    validation_errors.push(__('Row {0}: Invalid receive date format', [index + 1]));
+                }
+            }
+        });
+
+        if (validation_errors.length > 0) {
+            frappe.msgprint({
+                title: __('Validation Errors'),
+                message: validation_errors.join('<br>'),
+                indicator: 'red'
+            });
+            frappe.validated = false;
+            return false;
+        }
+
+        frappe.validated = true;
     }
 });
 
@@ -129,6 +158,33 @@ frappe.ui.form.on('Stock Reconciliation Item', {
 
             if (row.custom_invoice_number !== trimmed_value) {
                 frappe.model.set_value(cdt, cdn, 'custom_invoice_number', trimmed_value);
+            }
+        }
+    },
+
+    custom_receive_date: function (frm, cdt, cdn) {
+        let row = locals[cdt][cdn];
+
+        // Validate date format when user changes the date
+        if (row.custom_receive_date) {
+            let date_obj = new Date(row.custom_receive_date);
+            if (isNaN(date_obj.getTime())) {
+                frappe.msgprint({
+                    title: __('Invalid Date'),
+                    message: __('Please enter a valid date in the receive date field'),
+                    indicator: 'red'
+                });
+                frappe.model.set_value(cdt, cdn, 'custom_receive_date', '');
+                return;
+            }
+
+            // Format the date to ensure consistency (YYYY-MM-DD)
+            let formatted_date = date_obj.getFullYear() + '-' +
+                String(date_obj.getMonth() + 1).padStart(2, '0') + '-' +
+                String(date_obj.getDate()).padStart(2, '0');
+
+            if (row.custom_receive_date !== formatted_date) {
+                frappe.model.set_value(cdt, cdn, 'custom_receive_date', formatted_date);
             }
         }
     },
@@ -185,7 +241,7 @@ function parseVietnameseFloat_sr(value) {
     return isNaN(result) ? 0 : result;
 }
 
-// HELPER FUNCTION: Parse date in various formats
+// HELPER FUNCTION: Parse date in various formats with enhanced validation
 function parseDate_sr(dateStr) {
     if (!dateStr) return null;
 
@@ -197,24 +253,44 @@ function parseDate_sr(dateStr) {
     // Format: DD/MM/YYYY
     if (dateStr.match(/^\d{1,2}\/\d{1,2}\/\d{4}$/)) {
         let parts = dateStr.split('/');
-        date = new Date(parts[2], parts[1] - 1, parts[0]);
+        let day = parseInt(parts[0], 10);
+        let month = parseInt(parts[1], 10);
+        let year = parseInt(parts[2], 10);
+
+        // Validate ranges
+        if (day >= 1 && day <= 31 && month >= 1 && month <= 12 && year >= 1900 && year <= 2100) {
+            date = new Date(year, month - 1, day);
+        }
     }
     // Format: DD-MM-YYYY
     else if (dateStr.match(/^\d{1,2}-\d{1,2}-\d{4}$/)) {
         let parts = dateStr.split('-');
-        date = new Date(parts[2], parts[1] - 1, parts[0]);
+        let day = parseInt(parts[0], 10);
+        let month = parseInt(parts[1], 10);
+        let year = parseInt(parts[2], 10);
+
+        // Validate ranges
+        if (day >= 1 && day <= 31 && month >= 1 && month <= 12 && year >= 1900 && year <= 2100) {
+            date = new Date(year, month - 1, day);
+        }
     }
     // Format: YYYY-MM-DD
     else if (dateStr.match(/^\d{4}-\d{1,2}-\d{1,2}$/)) {
         date = new Date(dateStr);
     }
 
-    // Check if date is valid
+    // Check if date is valid and not in the future
     if (date && !isNaN(date.getTime())) {
-        // Return in YYYY-MM-DD format
-        return date.getFullYear() + '-' +
-            String(date.getMonth() + 1).padStart(2, '0') + '-' +
-            String(date.getDate()).padStart(2, '0');
+        // Check if date is not too far in the future (max 1 year ahead)
+        let maxDate = new Date();
+        maxDate.setFullYear(maxDate.getFullYear() + 1);
+
+        if (date <= maxDate) {
+            // Return in YYYY-MM-DD format
+            return date.getFullYear() + '-' +
+                String(date.getMonth() + 1).padStart(2, '0') + '-' +
+                String(date.getDate()).padStart(2, '0');
+        }
     }
 
     return null;
@@ -296,7 +372,8 @@ function get_dialog_config_sr(dialog_type) {
                                 <strong>qty:</strong> 1<br>
                                 <strong>receive_date:</strong> empty<br>
                                 <strong>Number format:</strong> 52,5 or 52.5<br>
-                                <strong>Date format:</strong> DD/MM/YYYY, DD-MM-YYYY, or YYYY-MM-DD
+                                <strong>Date format:</strong> DD/MM/YYYY, DD-MM-YYYY, or YYYY-MM-DD<br>
+                                <strong>Date validation:</strong> Max 1 year in future
                             </div>
                         </div>
 
@@ -316,7 +393,8 @@ function get_dialog_config_sr(dialog_type) {
                                 • Each line = one item<br>
                                 • The system will search for item_pattern in the "Item Name Detail" field of all Items.<br>
                                 • Invalid items will be skipped with error report<br>
-                                • Date formats: DD/MM/YYYY, DD-MM-YYYY, YYYY-MM-DD
+                                • Date formats: DD/MM/YYYY, DD-MM-YYYY, YYYY-MM-DD<br>
+                                • Receive date will be saved to Stock Ledger Entry
                                 </small>
                             </div>
                         </div>
@@ -372,13 +450,13 @@ async function process_quick_add_items_sr(frm, items_data, dialog_type) {
             }
         }
 
-        // Process receive_date (parts[3])
+        // Process receive_date (parts[3]) with enhanced validation
         if (parts.length >= 4 && parts[3].trim() !== '') {
             let parsed_date = parseDate_sr(parts[3].trim());
             if (parsed_date) {
                 field_data.custom_receive_date = parsed_date;
             } else {
-                errors.push(__('Line {0}: Invalid date format: {1}. Use DD/MM/YYYY, DD-MM-YYYY, or YYYY-MM-DD', [i + 1, parts[3]]));
+                errors.push(__('Line {0}: Invalid date format: {1}. Use DD/MM/YYYY, DD-MM-YYYY, or YYYY-MM-DD (max 1 year in future)', [i + 1, parts[3]]));
                 error_count++;
                 continue;
             }
@@ -434,7 +512,7 @@ async function process_quick_add_items_sr(frm, items_data, dialog_type) {
             if (response.message && response.message.length > 0) {
                 let item = response.message[0];
                 count++;
-                console.log(`Processing item: ${count} ${item.item_code} for pattern: ${item_data.search_pattern}, qty: ${item_data.qty}`);
+                console.log(`Processing item: ${count} ${item.item_code} for pattern: ${item_data.search_pattern}, qty: ${item_data.qty}, receive_date: ${item_data.field_data.custom_receive_date || 'empty'}`);
 
                 // Get full item details including warehouse defaults
                 let item_response = await frappe.call({

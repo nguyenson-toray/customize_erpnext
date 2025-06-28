@@ -1305,7 +1305,7 @@
     "icon": null,
     "is_query_report": 0,
     "label": "Stock Report Customize",
-    "link_count": 2,
+    "link_count": 3,
     "link_to": null,
     "link_type": "DocType",
     "onboard": 0,
@@ -1351,9 +1351,27 @@
     "parenttype": "Workspace",
     "report_ref_doctype": null,
     "type": "Link"
+   },
+   {
+    "dependencies": null,
+    "description": null,
+    "hidden": 0,
+    "icon": null,
+    "is_query_report": 1,
+    "label": "Stock Ageing Customize",
+    "link_count": 0,
+    "link_to": "Stock Ageing Customize",
+    "link_type": "Report",
+    "onboard": 0,
+    "only_for": null,
+    "parent": "Stock",
+    "parentfield": "links",
+    "parenttype": "Workspace",
+    "report_ref_doctype": null,
+    "type": "Link"
    }
   ],
-  "modified": "2025-06-23 11:30:13.964729",
+  "modified": "2025-06-28 13:37:34.171808",
   "module": "Stock",
   "name": "Stock",
   "number_cards": [
