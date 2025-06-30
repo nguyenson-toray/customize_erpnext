@@ -139,6 +139,12 @@ doc_events = {
     
     "Shift Type": {
         "on_update": "customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.on_shift_update"
+    },
+    "Overtime Request": {
+        # Override permission method globally
+        "has_permission": "customize_erpnext.overrides.overtime_request_permission",
+        # Override query conditions
+        "get_permission_query_conditions": "customize_erpnext.overrides.overtime_request_query_conditions"
     }
 }
 # Fixtures (for initial setup)
@@ -150,6 +156,8 @@ fixtures = [
         }
     }
 ]
+
+
 
 # boot_session = "customize_erpnext.override_methods.employee_checkin_or.apply_monkey_patch"
 # Hook on document methods and events

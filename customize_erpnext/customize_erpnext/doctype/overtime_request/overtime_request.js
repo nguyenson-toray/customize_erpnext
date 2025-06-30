@@ -124,7 +124,7 @@ function show_status_indicator(frm) {
       progress_html += '</div></div>';
       
       frm.dashboard.add_section(progress_html);
-    }
+    } 
   }
 }
 
@@ -190,11 +190,6 @@ function set_approver_filters(frm) {
   frm.set_query("employee", "ot_employees", function() {
     return {
       query: "customize_erpnext.customize_erpnext.doctype.overtime_request.overtime_request.get_active_employees"
-    };
-  });
-  frm.set_query("employee", "ot_level", function() {
-    return {
-      query: "customize_erpnext.customize_erpnext.doctype.overtime_request.overtime_request.get_ot_level_options"
     };
   });
 }
@@ -643,20 +638,20 @@ function add_approval_buttons(frm) {
         
         // Manager Approval Button
         if (frm.doc.status === "Pending Manager Approval" && 
-            frm.doc.manager_approver === current_user_employee) {
+            frm.doc.manager_approver.split(' - ')[0] === current_user_employee) {  // fix condition to check employee ID
           
-          frm.add_custom_button(__('Approve (Manager)'), function() {
+          frm.add_custom_button(__('Approve (Dept.Manager)'), function() {
             approve_request(frm, 'manager');
           }, __('Actions')).addClass('btn-success');
           
-          frm.add_custom_button(__('Reject (Manager)'), function() {
+          frm.add_custom_button(__('Reject (Dept.Manager)'), function() {
             reject_request(frm, 'manager');
           }, __('Actions')).addClass('btn-danger');
         }
         
         // Factory Manager Approval Button
         if (frm.doc.status === "Pending Factory Manager Approval" && 
-            frm.doc.factory_manager_approver === current_user_employee) {
+            frm.doc.factory_manager_approver.split(' - ')[0] === current_user_employee) { // fix condition to check employee ID
           
           frm.add_custom_button(__('Approve (Factory Manager)'), function() {
             approve_request(frm, 'factory_manager');
@@ -699,6 +694,7 @@ function approve_request(frm, approval_type) {
 }
 
 function reject_request(frm, rejection_type) {
+  console.log('Rejecting request as', rejection_type);
   let rejection_title = rejection_type === 'manager' ? 'Department Manager' : 'Factory Manager';
   
   frappe.prompt([
