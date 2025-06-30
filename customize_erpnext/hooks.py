@@ -66,7 +66,8 @@ fixtures = [
                     "Stock Entry Detail",
                     "Stock Reconciliation",
                     "Stock Reconciliation Item",
-                    "Stock Ledger Entry"
+                    "Stock Ledger Entry",
+                    "Customer"
                 ]
             ],
             [
