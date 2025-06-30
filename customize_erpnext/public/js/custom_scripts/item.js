@@ -37,10 +37,19 @@ frappe.ui.form.on('Item', {
             frm.set_value('description', frm.doc.item_name);
         }
 
-    }, refresh: function (frm) {
+    },
+    refresh: function (frm) {
         // Disable nút Single Variant
         frm.page.remove_inner_button('Single Variant', 'Create');
-    }, item_group: function (frm) {
+
+        // Thêm button để update warehouse manual
+        if (frm.doc.docstatus === 0) { // Chỉ hiện khi đang draft
+            frm.add_custom_button(__('Update Default Warehouse'), async function () {
+                await update_default_warehouse(frm);
+            }, __('Actions'));
+        }
+    },
+    item_group: function (frm) {
         console.log('item_group function called');
         console.log('Current item_name:', frm.doc.item_name);
         console.log('Current item_group:', frm.doc.item_group);
@@ -64,18 +73,30 @@ frappe.ui.form.on('Item', {
         if (frm.doc.item_group) {
             console.log("Processing item group:", frm.doc.item_group);
             // Check if exits items
-            is_exists_item(frm.doc.item_group, frm.doc.item_name).then((result) => {
+            is_exists_item(frm.doc.item_group, frm.doc.item_name).then(async (result) => {
                 if (result.exists) {
                     frappe.throw(__('Item already exits in system: <a href="/app/item/{0}" target="_blank">{1}</a>', [result.item_code, result.item_code]));
                     frm.set_value('item_name', '');
                 } else {
-                    generate_new_item_code(frm);
-                    set_default_values(frm);
+                    await generate_new_item_code(frm);
+                    await set_default_values(frm);
+                    // Update warehouse sau khi set default values
+                    await update_default_warehouse(frm);
                 }
             }).catch(err => {
                 console.error("Error in item_group handler:", err);
             });
         }
+    },
+    customer: async function (frm) {
+        // Trigger update warehouse khi customer thay đổi
+        console.log('Customer changed, updating default warehouse');
+        await update_default_warehouse(frm);
+    },
+    is_customer_provided_item: async function (frm) {
+        // Trigger update warehouse khi is_customer_provided_item thay đổi
+        console.log('is_customer_provided_item changed, updating default warehouse');
+        await update_default_warehouse(frm);
     },
     has_variants: function (frm) {
         if (frm.doc.has_variants) {
@@ -304,17 +325,88 @@ const default_item_config = {
     }
     // Add other configurations as needed
 };
-function set_default_values(frm) {
+
+/**
+ * Update default warehouse - có thể gọi độc lập
+ * Function này có thể được trigger từ:
+ * - Event customer thay đổi
+ * - Event is_customer_provided_item thay đổi  
+ * - Button "Update Default Warehouse" trong form
+ * - Manual call từ code khác
+ * 
+ * @param {object} frm - The form object
+ */
+async function update_default_warehouse(frm) {
+    try {
+        // Chỉ update warehouse nếu item là stock item
+        if (frm.doc.is_stock_item !== 0) {
+            const default_warehouse = await get_default_warehouse(frm);
+
+            // Update item_defaults với warehouse mới
+            frm.set_value('item_defaults', [{
+                company: frappe.defaults.get_default('company'),
+                default_warehouse: default_warehouse
+            }]);
+
+            // Show notification
+            frappe.show_alert({
+                message: __('Default warehouse updated to: {0}', [default_warehouse]),
+                indicator: 'green'
+            });
+        } else {
+            frappe.show_alert({
+                message: __('Item is not a stock item, skipping warehouse update'),
+                indicator: 'orange'
+            });
+        }
+    } catch (error) {
+        console.error("Error updating default warehouse:", error);
+        frappe.show_alert({
+            message: __('Error updating default warehouse'),
+            indicator: 'red'
+        });
+    }
+}
+
+/**
+ * Determine default warehouse based on customer and item properties
+ * @param {object} frm - The form object
+ * @returns {Promise<string>} The appropriate warehouse code
+ * 
+ * Note: Cần có field 'customer' trong Item DocType để function này hoạt động
+ * Hoặc có thể lấy customer từ context khác (session, user settings, etc.)
+ */
+async function get_default_warehouse(frm) {
+    // Logic mới cho default warehouse
+    if (frm.doc.is_customer_provided_item) {
+        // Lấy thông tin customer - có thể từ field customer hoặc từ context khác
+        // TODO: Cần xác định customer được lấy từ đâu trong Item form
+        const customer = frm.doc.customer || '';
+
+        if (customer) {
+            try {
+                // Query Customer doctype để lấy custom_default_warehouse
+                const customer_data = await frappe.db.get_value('Customer', customer, 'custom_default_warehouse');
+
+                if (customer_data && customer_data.message && customer_data.message.custom_default_warehouse) {
+                    console.log("Found custom default warehouse for customer:", customer, "->", customer_data.message.custom_default_warehouse);
+                    return customer_data.message.custom_default_warehouse;
+                }
+            } catch (error) {
+                console.error("Error getting customer default warehouse:", error);
+            }
+        }
+    }
+
+    // Trường hợp khác - fallback
+    return 'Material - Local - TIQN';
+}
+
+async function set_default_values(frm) {
     console.log("set_default_values for:", frm.doc.item_group);
     try {
         const group = frm.doc.item_group;
-        // Set default warehouse
-        if (frm.is_stock_item) {
-            frm.set_value('item_defaults', [{
-                company: frappe.defaults.get_default('company'),
-                default_warehouse: `${group} - TIQN`
-            }]);
-        }
+
         // Set values based on the configuration 
         Object.entries(default_item_config).forEach(([key, values]) => {
             if (group.includes(key)) {
@@ -324,6 +416,10 @@ function set_default_values(frm) {
                 });
             }
         });
+
+        // Note: Không set default warehouse ở đây nữa
+        // Warehouse sẽ được set riêng thông qua update_default_warehouse()
+
     } catch (err) {
         console.error("Error setting default values:", err);
     }
@@ -474,6 +570,24 @@ async function get_next_code(max_code) {
 // get_next_code('ZZZ') returns '000' (overflow)
 
 /**
+ * Utility function để trigger update warehouse từ external code
+ * @param {string} item_name - Item name/code
+ * Usage: window.update_item_warehouse('ITEM-001');
+ */
+window.update_item_warehouse = async function (item_name) {
+    try {
+        const frm = cur_frm;
+        if (frm && frm.doc.name === item_name) {
+            await update_default_warehouse(frm);
+        } else {
+            console.error("Current form does not match the item:", item_name);
+        }
+    } catch (error) {
+        console.error("Error in update_item_warehouse:", error);
+    }
+};
+
+/**
  * Check if an item with the specified name exists within a particular item group
  * @param {string} item_group - The item group to search within
  * @param {string} name - The item name to check for
@@ -513,4 +627,3 @@ async function is_exists_item(item_group, item_name) {
         throw err;
     }
 }
-
