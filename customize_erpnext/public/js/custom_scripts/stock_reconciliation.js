@@ -745,7 +745,8 @@ async function process_quick_add_items_sr(frm, items_data, dialog_type) {
                 // Set basic item values (including qty this time)
                 let values_to_set = {
                     'item_code': item.item_code,
-                    'qty': item.qty  // Set qty immediately
+                    'qty': item.qty,  // Set qty immediately
+                    'allow_zero_valuation_rate': 1,
                 };
 
                 // Add default warehouse if available

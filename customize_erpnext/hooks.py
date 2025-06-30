@@ -93,7 +93,8 @@ fixtures = [
             ["doc_type", "in", [
                 # "Sales Invoice", "Purchase Invoice"
                 "Stock Entry Detail",
-                "Stock Reconciliation"
+                "Stock Reconciliation",
+                "Stock Reconciliation Item"
                 ]]
         ]
     }
@@ -140,7 +141,13 @@ scheduler_events = {
         ]
     }
 }
-
+ 
+# DocType Class
+# ---------------
+# Override standard doctype classes
+override_doctype_class = {
+    "Stock Reconciliation": "customize_erpnext.override_methods.stock_reconciliation.custom_stock_reconciliation.CustomStockReconciliation"
+}
 # Document Events
 doc_events = {
     "Employee Checkin": {
@@ -296,13 +303,7 @@ doc_events = {
 # 	"Event": "frappe.desk.doctype.event.event.has_permission",
 # }
 
-# DocType Class
-# ---------------
-# Override standard doctype classes
 
-# override_doctype_class = {
-# 	"ToDo": "custom_app.overrides.CustomToDo"
-# }
 
 # Document Events
 # ---------------
@@ -415,4 +416,6 @@ doc_events = {
 # default_log_clearing_doctypes = {
 # 	"Logging DocType Name": 30  # days to retain logs
 # }
+
+
 
