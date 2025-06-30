@@ -1,7 +1,7 @@
 // Client Script for Stock Reconciliation - Quick Add functionality
 // Purpose: Add Quick Add button for Opening Stock purpose with custom format
 // Format: item_pattern;invoice_number;qty;receive_date
-// Updated: Always show Quick Add button, validate purpose on click
+// Updated: Progress dialog, button states, max 100 lines limit
 
 frappe.ui.form.on('Stock Reconciliation', {
     onload: function (frm) {
@@ -40,8 +40,13 @@ frappe.ui.form.on('Stock Reconciliation', {
     },
 
     purpose: function (frm) {
-        // No action needed - button is always present
-        // Validation happens on button click
+        // Update Quick Add button state when purpose changes
+        if (frm.opening_stock_quick_add_btn) {
+            update_quick_add_button_state_sr(frm, frm.opening_stock_quick_add_btn);
+        }
+
+        // Update duplicate button state as well
+        toggle_duplicate_button_sr(frm);
     },
 
     refresh: function (frm) {
@@ -50,7 +55,21 @@ frappe.ui.form.on('Stock Reconciliation', {
             function () {
                 let selected_rows = frm.fields_dict.items.grid.get_selected();
                 if (selected_rows.length === 0) {
-                    frappe.msgprint(__('Please select rows to duplicate'));
+                    frappe.msgprint({
+                        title: __('No Selection'),
+                        message: __('Please select one or more rows to duplicate'),
+                        indicator: 'red'
+                    });
+                    return;
+                }
+
+                // Check if document is submitted
+                if (frm.doc.docstatus === 1) {
+                    frappe.msgprint({
+                        title: __('Document Submitted'),
+                        message: __('Cannot duplicate rows in a submitted document'),
+                        indicator: 'red'
+                    });
                     return;
                 }
 
@@ -94,41 +113,49 @@ frappe.ui.form.on('Stock Reconciliation', {
         // Setup listener to monitor selection changes
         setup_selection_monitor_sr(frm);
 
-        // Always add Quick Add button (regardless of purpose or docstatus)
+        // Always add Quick Add button (but handle disabled state)
         if (!frm.quick_add_btn_added) {
             let opening_stock_quick_add_btn = frm.fields_dict.items.grid.add_custom_button(__('Opening Stock - Quick Add'),
                 function () {
-                    // Validate purpose before proceeding
-                    if (frm.doc.purpose !== "Opening Stock") {
-                        frappe.msgprint({
-                            title: __('Invalid Purpose'),
-                            message: __('Quick Add is only available for Opening Stock purpose. Current purpose: {0}', [frm.doc.purpose || 'Not Set']),
-                            indicator: 'red'
-                        });
-                        return;
-                    }
+                    // Check if button should be disabled
+                    let is_disabled = frm.doc.purpose !== "Opening Stock" || frm.doc.docstatus === 1;
 
-                    // Validate document status
-                    if (frm.doc.docstatus === 1) {
-                        frappe.msgprint({
-                            title: __('Document Submitted'),
-                            message: __('Cannot add items to a submitted Stock Reconciliation'),
-                            indicator: 'red'
-                        });
+                    if (is_disabled) {
+                        // Show appropriate message based on condition
+                        if (frm.doc.docstatus === 1) {
+                            frappe.msgprint({
+                                title: __('Document Submitted'),
+                                message: __('Cannot add items to a submitted Stock Reconciliation'),
+                                indicator: 'red'
+                            });
+                        } else if (frm.doc.purpose !== "Opening Stock") {
+                            frappe.msgprint({
+                                title: __('Invalid Purpose'),
+                                message: __('Quick Add is only available for Opening Stock purpose.<br>Current purpose: <strong>{0}</strong><br><br>Please change the purpose to "Opening Stock" to use this feature.', [frm.doc.purpose || 'Not Set']),
+                                indicator: 'orange'
+                            });
+                        }
                         return;
                     }
 
                     // Proceed with Quick Add dialog
                     show_quick_add_dialog_sr(frm, 'opening_stock');
                 }
-            ).addClass('btn-info').css({
-                'background-color': '#17a2b8',
-                'border-color': '#138496',
-                'color': '#fff'
-            });
+            );
+
+            // Update button styling based on state
+            update_quick_add_button_state_sr(frm, opening_stock_quick_add_btn);
+
+            // Save reference to button
+            frm.opening_stock_quick_add_btn = opening_stock_quick_add_btn;
 
             // Mark that Quick Add button has been added
             frm.quick_add_btn_added = true;
+        } else {
+            // Update existing button state
+            if (frm.opening_stock_quick_add_btn) {
+                update_quick_add_button_state_sr(frm, frm.opening_stock_quick_add_btn);
+            }
         }
     },
 
@@ -158,6 +185,15 @@ frappe.ui.form.on('Stock Reconciliation', {
         }
 
         frappe.validated = true;
+    },
+
+    // Update button states when document status changes
+    after_save: function (frm) {
+        // Update button states after save (docstatus might have changed)
+        if (frm.opening_stock_quick_add_btn) {
+            update_quick_add_button_state_sr(frm, frm.opening_stock_quick_add_btn);
+        }
+        toggle_duplicate_button_sr(frm);
     }
 });
 
@@ -329,6 +365,35 @@ function show_quick_add_dialog_sr(frm, dialog_type) {
         size: 'extra-large',
         primary_action_label: __('OK'),
         primary_action: function (values) {
+            // Validate line count
+            if (!values.items_data) {
+                frappe.msgprint({
+                    title: __('No Data'),
+                    message: __('Please enter items data'),
+                    indicator: 'red'
+                });
+                return;
+            }
+
+            let lines = values.items_data.split('\n').filter(line => line.trim());
+            if (lines.length > 100) {
+                frappe.msgprint({
+                    title: __('Too Many Lines'),
+                    message: __('Maximum  100 lines allowed per Quick Add operation.<br>Current lines: <strong>{0}</strong><br><br>Please split your data into smaller batches.', [lines.length]),
+                    indicator: 'red'
+                });
+                return;
+            }
+
+            if (lines.length === 0) {
+                frappe.msgprint({
+                    title: __('No Valid Lines'),
+                    message: __('Please enter at least one valid line of data'),
+                    indicator: 'red'
+                });
+                return;
+            }
+
             process_quick_add_items_sr(frm, values.items_data, dialog_type);
             dialog.hide();
         }
@@ -354,7 +419,7 @@ function show_quick_add_dialog_sr(frm, dialog_type) {
 function get_dialog_config_sr(dialog_type) {
     if (dialog_type === 'opening_stock') {
         return {
-            title: __('Quick Add Items - Opening Stock'),
+            title: __('Quick Add Items - Opening Stock (Max 100 lines)'),
             description: __(`
                 <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; font-size: 13px; line-height: 1.4;">
                     
@@ -404,6 +469,7 @@ function get_dialog_config_sr(dialog_type) {
                             <h4 style="margin: 15px 0 10px 0; color: #333;">ℹ️ Notes</h4>
                             <div style="background: #fff3cd; padding: 10px; border-radius: 4px; border-left: 4px solid #ffc107;">
                                 <small>
+                                • <strong>Maximum  100 lines per batch</strong><br>
                                 • Each line = one item<br>
                                 • The system will search for item_pattern in the "Item Name Detail" field of all Items.<br>
                                 • Invalid items will be skipped with error report<br>
@@ -419,15 +485,80 @@ function get_dialog_config_sr(dialog_type) {
     }
 }
 
-// FUNCTION: Process Quick Add Items for Stock Reconciliation
+// FUNCTION: Process Quick Add Items for Stock Reconciliation - Optimized Version with Progress Dialog
 async function process_quick_add_items_sr(frm, items_data, dialog_type) {
     if (!items_data) return;
+
+    // Create progress dialog with simplified structure
+    let progress_dialog = new frappe.ui.Dialog({
+        title: __('Processing Quick Add Items'),
+        fields: [
+            {
+                fieldtype: 'HTML',
+                fieldname: 'progress_content'
+            }
+        ],
+        size: 'small',
+        static: true  // Prevent closing by clicking outside
+    });
+
+    // Show dialog first
+    progress_dialog.show();
+
+    // Set HTML content after dialog is shown
+    setTimeout(() => {
+        let progress_wrapper = progress_dialog.fields_dict.progress_content.$wrapper;
+        progress_wrapper.html(`
+            <div style="text-align: center; padding: 30px 20px;">
+                <div style="width: 100%; background-color: #e9ecef; border-radius: 10px; margin: 20px 0; height: 25px; overflow: hidden;">
+                    <div id="progress_bar_sr" style="width: 0%; height: 100%; background: linear-gradient(90deg, #17a2b8, #20c997); transition: width 0.5s ease; border-radius: 10px;"></div>
+                </div>
+                <div id="progress_text_sr" style="font-size: 16px; font-weight: 500; color: #495057; margin: 15px 0;">
+                    Initializing...
+                </div>
+                <div id="progress_details_sr" style="font-size: 13px; color: #6c757d; margin-top: 10px;">
+                    Please wait while we process your items
+                </div>
+                <div id="progress_percentage_sr" style="font-size: 24px; font-weight: bold; color: #17a2b8; margin-top: 15px;">
+                    0%
+                </div>
+            </div>
+        `);
+    }, 100);
+
+    // Helper function to update progress
+    function updateProgress(percentage, text, details = '') {
+        try {
+            let progress_bar = progress_dialog.$wrapper.find('#progress_bar_sr');
+            let progress_text = progress_dialog.$wrapper.find('#progress_text_sr');
+            let progress_details = progress_dialog.$wrapper.find('#progress_details_sr');
+            let progress_percentage = progress_dialog.$wrapper.find('#progress_percentage_sr');
+
+            if (progress_bar.length) {
+                progress_bar.css('width', percentage + '%');
+            }
+            if (progress_text.length) {
+                progress_text.text(text);
+            }
+            if (progress_details.length && details) {
+                progress_details.text(details);
+            }
+            if (progress_percentage.length) {
+                progress_percentage.text(Math.round(percentage) + '%');
+            }
+        } catch (error) {
+            console.log('Progress update error:', error);
+        }
+    }
 
     let lines = items_data.split('\n');
     let success_count = 0;
     let error_count = 0;
     let errors = [];
     let items_to_add = [];
+
+    updateProgress(10, 'Validating input data...', `Processing ${lines.length} lines`);
+    await new Promise(resolve => setTimeout(resolve, 200));
 
     // First pass: validate and prepare data
     for (let i = 0; i < lines.length; i++) {
@@ -504,91 +635,199 @@ async function process_quick_add_items_sr(frm, items_data, dialog_type) {
             field_data: field_data,
             qty: qty
         });
+
+        // Update progress during validation
+        if (i % 5 === 0 || i === lines.length - 1) {
+            let progress = 10 + (i / lines.length) * 20;
+            updateProgress(progress, 'Validating input data...', `Processed ${i + 1}/${lines.length} lines`);
+            await new Promise(resolve => setTimeout(resolve, 50));
+        }
     }
 
-    // Second pass: find items and add rows sequentially
-    let count = 0;
-    for (let item_data of items_to_add) {
-        try {
-            // Find item
-            let response = await frappe.call({
-                method: 'frappe.client.get_list',
-                args: {
-                    doctype: 'Item',
-                    filters: {
-                        'custom_item_name_detail': ['like', item_data.search_pattern]
-                    },
-                    fields: ['name', 'item_code', 'item_name', 'stock_uom'],
-                    limit: 1
-                }
-            });
+    // Second pass: Find all items in batch
+    updateProgress(30, 'Searching for items in database...', `Searching ${items_to_add.length} patterns`);
+    await new Promise(resolve => setTimeout(resolve, 200));
+
+    console.log('Starting batch item search...');
+    let found_items = [];
+    let search_patterns = items_to_add.map(item => item.search_pattern);
+
+    try {
+        // Find all items using batch call
+        let batch_responses = await Promise.all(
+            search_patterns.map(pattern =>
+                frappe.call({
+                    method: 'frappe.client.get_list',
+                    args: {
+                        doctype: 'Item',
+                        filters: {
+                            'custom_item_name_detail': ['like', pattern]
+                        },
+                        fields: ['name', 'item_code', 'item_name', 'stock_uom'],
+                        limit: 1
+                    }
+                })
+            )
+        );
+
+        updateProgress(50, 'Processing search results...', `Found items for ${batch_responses.length} patterns`);
+        await new Promise(resolve => setTimeout(resolve, 200));
+
+        // Process batch responses and map to original items
+        for (let i = 0; i < batch_responses.length; i++) {
+            let response = batch_responses[i];
+            let original_item = items_to_add[i];
 
             if (response.message && response.message.length > 0) {
                 let item = response.message[0];
-                count++;
-                console.log(`Processing item: ${count} ${item.item_code} for pattern: ${item_data.search_pattern}, qty: ${item_data.qty}, receive_date: ${item_data.field_data.custom_receive_date || 'empty'}`);
-
-                // Get full item details including warehouse defaults
-                let item_response = await frappe.call({
-                    method: 'frappe.client.get',
-                    args: {
-                        doctype: 'Item',
-                        name: item.item_code
-                    }
+                found_items.push({
+                    ...original_item,
+                    item_code: item.item_code,
+                    item_name: item.item_name,
+                    stock_uom: item.stock_uom,
+                    found: true
                 });
+            } else {
+                errors.push(__('Line {0}: Item not found with pattern: {1}', [original_item.line_number, original_item.search_pattern]));
+                error_count++;
+            }
+        }
 
-                let default_warehouse = null;
-                if (item_response.message && item_response.message.item_defaults) {
+        console.log(`Found ${found_items.length} items out of ${search_patterns.length} patterns`);
+
+        // Third pass: Get item details for found items (warehouse defaults)
+        if (found_items.length > 0) {
+            updateProgress(60, 'Getting item details...', `Processing ${found_items.length} found items`);
+            await new Promise(resolve => setTimeout(resolve, 200));
+
+            console.log('Getting item details for warehouse defaults...');
+
+            let item_detail_responses = await Promise.all(
+                found_items.map(item =>
+                    frappe.call({
+                        method: 'frappe.client.get',
+                        args: {
+                            doctype: 'Item',
+                            name: item.item_code
+                        }
+                    })
+                )
+            );
+
+            // Add warehouse defaults to found items
+            for (let i = 0; i < item_detail_responses.length; i++) {
+                let response = item_detail_responses[i];
+                if (response.message && response.message.item_defaults) {
                     // Find default warehouse for current company
-                    for (let item_default of item_response.message.item_defaults) {
+                    for (let item_default of response.message.item_defaults) {
                         if (item_default.company === frm.doc.company && item_default.default_warehouse) {
-                            default_warehouse = item_default.default_warehouse;
+                            found_items[i].default_warehouse = item_default.default_warehouse;
                             break;
                         }
                     }
                 }
+            }
+        }
 
+        // Fourth pass: Add all rows to table (including qty)
+        updateProgress(70, 'Adding items to table...', `Adding ${found_items.length} items`);
+        await new Promise(resolve => setTimeout(resolve, 200));
+
+        console.log('Adding rows to table...');
+        let added_rows = [];
+
+        for (let i = 0; i < found_items.length; i++) {
+            let item = found_items[i];
+            try {
                 // Add new row
                 let new_row = frm.add_child('items');
 
-                // Set basic item values
+                // Set basic item values (including qty this time)
                 let values_to_set = {
                     'item_code': item.item_code,
-                    'qty': item_data.qty
+                    'qty': item.qty  // Set qty immediately
                 };
 
                 // Add default warehouse if available
-                if (default_warehouse) {
-                    values_to_set.warehouse = default_warehouse;
+                if (item.default_warehouse) {
+                    values_to_set.warehouse = item.default_warehouse;
                 }
 
                 // Add type-specific fields
-                Object.assign(values_to_set, item_data.field_data);
+                Object.assign(values_to_set, item.field_data);
 
-                // Set all values
+                // Set all values including qty
                 Object.keys(values_to_set).forEach(function (field) {
-                    frappe.model.set_value(new_row.doctype, new_row.name, field, values_to_set[field]);
+                    // Set directly on the row object
+                    new_row[field] = values_to_set[field];
+                });
+
+                // Store row info for backup qty setting
+                added_rows.push({
+                    doctype: new_row.doctype,
+                    name: new_row.name,
+                    qty: item.qty
                 });
 
                 success_count++;
+                console.log(`Added row ${success_count}: ${item.item_code} with qty ${item.qty}`);
 
-                // Small delay between adding items to ensure proper processing
-                await new Promise(resolve => setTimeout(resolve, 180));
+                // Update progress for every 3 items or last item
+                if (i % 3 === 0 || i === found_items.length - 1) {
+                    let progress = 70 + ((i + 1) / found_items.length) * 15;
+                    updateProgress(progress, 'Adding items to table...', `Added ${i + 1}/${found_items.length} items`);
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
 
-            } else {
-                errors.push(__('Line {0}: Item not found with pattern: {1}', [item_data.line_number, item_data.search_pattern]));
+            } catch (error) {
+                errors.push(__('Line {0}: Error adding item to table: {1}', [item.line_number, error.message]));
                 error_count++;
             }
-        } catch (error) {
-            errors.push(__('Line {0}: Error processing item: {1}', [item_data.line_number, error.message]));
-            error_count++;
         }
+
+        // Refresh grid after adding all rows
+        if (added_rows.length > 0) {
+            updateProgress(85, 'Refreshing table display...', 'Updating user interface');
+            await new Promise(resolve => setTimeout(resolve, 200));
+
+            frm.refresh_field('items');
+            console.log('Grid refreshed after adding all rows');
+
+            // Wait for refresh to complete, then verify and fix qty if needed
+            await new Promise(resolve => setTimeout(resolve, 500));
+
+            updateProgress(90, 'Verifying quantities...', 'Ensuring all quantities are correct');
+            await new Promise(resolve => setTimeout(resolve, 200));
+
+            // Verify and fix qty values
+            console.log('Verifying and fixing qty values...');
+            for (let row_info of added_rows) {
+                try {
+                    let row = locals[row_info.doctype][row_info.name];
+                    if (row && (!row.qty || row.qty === 0)) {
+                        console.log(`Fixing qty for row ${row_info.name}: ${row.qty} -> ${row_info.qty}`);
+                        row.qty = row_info.qty;
+                        frappe.model.set_value(row_info.doctype, row_info.name, 'qty', row_info.qty);
+                    }
+                } catch (error) {
+                    console.error(`Error verifying qty for row ${row_info.name}:`, error);
+                }
+            }
+        }
+
+        updateProgress(100, 'Completed!', `Successfully added ${success_count} items`);
+        await new Promise(resolve => setTimeout(resolve, 800));
+
+    } catch (error) {
+        console.error('Error in batch processing:', error);
+        errors.push(__('Error in batch processing: {0}', [error.message]));
+        error_count++;
+        updateProgress(100, 'Error occurred', 'Processing failed');
+        await new Promise(resolve => setTimeout(resolve, 1000));
     }
 
-    // Refresh grid once after all items are added
-    if (success_count > 0) {
-        frm.refresh_field('items');
-    }
+    // Close progress dialog
+    progress_dialog.hide();
 
     // Show results
     let message = __('Quick Add Opening Stock completed: {0} items added successfully', [success_count]);
@@ -641,17 +880,73 @@ function setup_selection_monitor_sr(frm) {
     });
 }
 
-// Function to show/hide duplicate button
+// Function to show/hide duplicate button with proper styling
 function toggle_duplicate_button_sr(frm) {
     if (!frm.duplicate_btn) return;
 
     let selected_rows = frm.fields_dict.items.grid.get_selected();
+    let is_disabled = frm.doc.docstatus === 1; // Disable if document is submitted
 
-    if (selected_rows.length > 0) {
+    if (selected_rows.length > 0 && !is_disabled) {
         frm.duplicate_btn.show();
-        // Update button text with selected count
+        // Update button text with selected count and enable styling
         frm.duplicate_btn.text(__(`Duplicate Selected (${selected_rows.length})`));
+        frm.duplicate_btn.removeClass('btn-secondary').addClass('btn-primary').css({
+            'background-color': '#6495ED',
+            'border-color': '#6495ED',
+            'color': '#fff',
+            'cursor': 'pointer',
+            'opacity': '1'
+        });
+    } else if (selected_rows.length > 0 && is_disabled) {
+        frm.duplicate_btn.show();
+        // Show but disabled
+        frm.duplicate_btn.text(__(`Duplicate Selected (${selected_rows.length}) - Disabled`));
+        frm.duplicate_btn.removeClass('btn-primary').addClass('btn-secondary').css({
+            'background-color': '#6c757d',
+            'border-color': '#6c757d',
+            'color': '#fff',
+            'cursor': 'not-allowed',
+            'opacity': '0.6'
+        });
     } else {
         frm.duplicate_btn.hide();
+    }
+}
+
+// Function to update Quick Add button state
+function update_quick_add_button_state_sr(frm, button) {
+    if (!button) return;
+
+    let is_disabled = frm.doc.purpose !== "Opening Stock" || frm.doc.docstatus === 1;
+
+    if (is_disabled) {
+        // Disabled state - gray styling
+        button.removeClass('btn-info').addClass('btn-secondary').css({
+            'background-color': '#6c757d',
+            'border-color': '#6c757d',
+            'color': '#fff',
+            'cursor': 'not-allowed',
+            'opacity': '0.6'
+        });
+
+        // // Update button text to indicate disabled
+        // if (frm.doc.docstatus === 1) {
+        //     button.text(__('Opening Stock - Quick Add (Document Submitted)'));
+        // } else {
+        //     button.text(__('Opening Stock - Quick Add (Wrong Purpose)'));
+        // }
+    } else {
+        // Enabled state - blue styling
+        button.removeClass('btn-secondary').addClass('btn-info').css({
+            'background-color': '#17a2b8',
+            'border-color': '#138496',
+            'color': '#fff',
+            'cursor': 'pointer',
+            'opacity': '1'
+        });
+
+        // Reset button text
+        button.text(__('Opening Stock - Quick Add'));
     }
 }
