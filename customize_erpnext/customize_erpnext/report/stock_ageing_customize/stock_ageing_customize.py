@@ -34,7 +34,7 @@ def format_report_data(filters: Filters, item_details: dict, to_date: str) -> li
 
 	precision = cint(frappe.db.get_single_value("System Settings", "float_precision", cache=True))
 
-	for _item, item_dict in item_details.items():
+	for key, item_dict in item_details.items():
 		if not flt(item_dict.get("total_qty"), precision):
 			continue
 
@@ -55,8 +55,8 @@ def format_report_data(filters: Filters, item_details: dict, to_date: str) -> li
 			range_values, details.valuation_method, details.valuation_rate
 		)
 
-		# Get unique invoice numbers from FIFO queue
-		invoice_numbers = get_unique_invoice_numbers(fifo_queue)
+		# Get invoice number for this specific grouping
+		invoice_number = get_invoice_number_for_key(key, filters)
 
 		row = [details.name, details.item_name, details.description, details.item_group]
 
@@ -68,8 +68,8 @@ def format_report_data(filters: Filters, item_details: dict, to_date: str) -> li
 		if filters.get("show_warehouse_wise_stock"):
 			row.append(details.warehouse)
 
-		# Add Invoice Numbers column right after warehouse
-		row.append(invoice_numbers)
+		# Add Invoice Numbers column
+		row.append(invoice_number)
 
 		row.extend([
 			flt(item_dict.get("total_qty"), precision),
@@ -90,14 +90,14 @@ def format_report_data(filters: Filters, item_details: dict, to_date: str) -> li
 	return data
 
 
-def get_unique_invoice_numbers(fifo_queue):
-	"""Get unique invoice numbers from FIFO queue"""
-	invoice_numbers = set()
-	for slot in fifo_queue:
-		if len(slot) > 3 and slot[3]:  # Check if invoice number exists
-			invoice_numbers.add(slot[3])
-	
-	return ", ".join(sorted(invoice_numbers)) if invoice_numbers else ""
+def get_invoice_number_for_key(key, filters):
+	"""Get invoice number based on key structure"""
+	if filters.get("show_warehouse_wise_stock"):
+		# Key: (item_code, warehouse, invoice_number)
+		return key[2] if len(key) > 2 else ""
+	else:
+		# Key: (item_code, invoice_number)
+		return key[1] if len(key) > 1 else ""
 
 
 def get_variant_attributes(item_code):
@@ -240,7 +240,7 @@ def get_columns(filters: Filters) -> list[dict]:
 			"width": 100,
 		})
 
-	# Add Invoice Numbers column right after warehouse
+	# Add Invoice Numbers column
 	columns.append({
 		"label": _("Invoice Numbers"),
 		"fieldname": "invoice_numbers", 
@@ -344,7 +344,7 @@ class FIFOSlots:
 	def generate(self) -> dict:
 		"""
 		Returns dict of the foll.g structure:
-		Key = Item A / (Item A, Warehouse A)
+		Key = Item A / (Item A, Warehouse A) / (Item A, Invoice A) / (Item A, Warehouse A, Invoice A)
 		Key: {
 		        'details' -> Dict: ** item details **,
 		        'fifo_queue' -> List: ** list of lists containing entries/slots for existing stock,
@@ -401,19 +401,25 @@ class FIFOSlots:
 			del stock_ledger_entries
 
 		if not self.filters.get("show_warehouse_wise_stock"):
-			# (Item 1, WH 1), (Item 1, WH 2) => (Item 1)
-			self.item_details = self.__aggregate_details_by_item(self.item_details)
+			# Always aggregate by (Item, Invoice) - keep separate entries for different invoice numbers
+			self.item_details = self.__aggregate_details_by_item_and_invoice(self.item_details)
 
 		return self.item_details
 
 	def __init_key_stores(self, row: dict) -> tuple:
 		"Initialise keys and FIFO Queue."
 
-		key = (row.name, row.warehouse)
+		# Always group by invoice number
+		invoice_number = row.get("custom_invoice_number", "")
+		if self.filters.get("show_warehouse_wise_stock"):
+			key = (row.name, row.warehouse, invoice_number)
+		else:
+			key = (row.name, invoice_number)
+
 		self.item_details.setdefault(key, {"details": row, "fifo_queue": []})
 		fifo_queue = self.item_details[key]["fifo_queue"]
 
-		transferred_item_key = (row.voucher_no, row.name, row.warehouse)
+		transferred_item_key = (row.voucher_no, row.name, row.warehouse, row.get("custom_invoice_number", ""))
 		self.transferred_item_details.setdefault(transferred_item_key, [])
 
 		return key, fifo_queue, transferred_item_key
@@ -561,14 +567,24 @@ class FIFOSlots:
 		self.item_details[key]["has_serial_no"] = row.has_serial_no
 		self.item_details[key]["details"].valuation_rate = row.valuation_rate
 
-	def __aggregate_details_by_item(self, wh_wise_data: dict) -> dict:
-		"Aggregate Item-Wh wise data into single Item entry."
-		item_aggregated_data = {}
+	def __aggregate_details_by_item_and_invoice(self, wh_wise_data: dict) -> dict:
+		"Aggregate Item-Wh wise data by Item and Invoice Number."
+		item_invoice_aggregated_data = {}
 		for key, row in wh_wise_data.items():
-			item = key[0]
-			if not item_aggregated_data.get(item):
-				item_aggregated_data.setdefault(
-					item,
+			# Key structure: (item_code, warehouse, invoice_number) or (item_code, invoice_number)
+			if len(key) >= 3:  # (item_code, warehouse, invoice_number)
+				item = key[0]
+				invoice_number = key[2]
+			else:  # (item_code, invoice_number)
+				item = key[0]
+				invoice_number = key[1] if len(key) > 1 else ""
+			
+			# Create new key as (item_code, invoice_number)
+			new_key = (item, invoice_number)
+			
+			if not item_invoice_aggregated_data.get(new_key):
+				item_invoice_aggregated_data.setdefault(
+					new_key,
 					{
 						"details": frappe._dict(),
 						"fifo_queue": [],
@@ -576,14 +592,14 @@ class FIFOSlots:
 						"total_qty": 0.0,
 					},
 				)
-			item_row = item_aggregated_data.get(item)
+			item_row = item_invoice_aggregated_data.get(new_key)
 			item_row["details"].update(row["details"])
 			item_row["fifo_queue"].extend(row["fifo_queue"])
 			item_row["qty_after_transaction"] += flt(row["qty_after_transaction"])
 			item_row["total_qty"] += flt(row["total_qty"])
 			item_row["has_serial_no"] = row["has_serial_no"]
 
-		return item_aggregated_data
+		return item_invoice_aggregated_data
 
 	def __get_stock_ledger_entries(self) -> Iterator[dict]:
 		sle = frappe.qb.DocType("Stock Ledger Entry")
