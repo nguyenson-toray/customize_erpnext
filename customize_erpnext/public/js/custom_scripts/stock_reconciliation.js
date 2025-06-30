@@ -1,7 +1,7 @@
 // Client Script for Stock Reconciliation - Quick Add functionality
 // Purpose: Add Quick Add button for Opening Stock purpose with custom format
 // Format: item_pattern;invoice_number;qty;receive_date
-// Updated: Added validation and better handling for custom_receive_date
+// Updated: Always show Quick Add button, validate purpose on click
 
 frappe.ui.form.on('Stock Reconciliation', {
     onload: function (frm) {
@@ -40,26 +40,8 @@ frappe.ui.form.on('Stock Reconciliation', {
     },
 
     purpose: function (frm) {
-        // Add Quick Add button only for Opening Stock purpose
-        // Status not submitted
-        if (frm.doc.docstatus !== 1) {
-            // Remove existing quick add buttons first
-            frm.fields_dict.items.grid.grid_buttons.find('.btn').filter(function () {
-                return $(this).text().includes('Quick Add');
-            }).remove();
-
-            if (frm.doc.purpose === "Opening Stock") {
-                let opening_stock_quick_add_btn = frm.fields_dict.items.grid.add_custom_button(__('Opening Stock - Quick Add'),
-                    function () {
-                        show_quick_add_dialog_sr(frm, 'opening_stock');
-                    }
-                ).addClass('btn-info').css({
-                    'background-color': '#17a2b8',
-                    'border-color': '#138496',
-                    'color': '#fff'
-                });
-            }
-        }
+        // No action needed - button is always present
+        // Validation happens on button click
     },
 
     refresh: function (frm) {
@@ -112,9 +94,41 @@ frappe.ui.form.on('Stock Reconciliation', {
         // Setup listener to monitor selection changes
         setup_selection_monitor_sr(frm);
 
-        // Trigger purpose event to show Quick Add if applicable
-        if (frm.doc.purpose === "Opening Stock" && frm.doc.docstatus !== 1) {
-            frm.trigger('purpose');
+        // Always add Quick Add button (regardless of purpose or docstatus)
+        if (!frm.quick_add_btn_added) {
+            let opening_stock_quick_add_btn = frm.fields_dict.items.grid.add_custom_button(__('Opening Stock - Quick Add'),
+                function () {
+                    // Validate purpose before proceeding
+                    if (frm.doc.purpose !== "Opening Stock") {
+                        frappe.msgprint({
+                            title: __('Invalid Purpose'),
+                            message: __('Quick Add is only available for Opening Stock purpose. Current purpose: {0}', [frm.doc.purpose || 'Not Set']),
+                            indicator: 'red'
+                        });
+                        return;
+                    }
+
+                    // Validate document status
+                    if (frm.doc.docstatus === 1) {
+                        frappe.msgprint({
+                            title: __('Document Submitted'),
+                            message: __('Cannot add items to a submitted Stock Reconciliation'),
+                            indicator: 'red'
+                        });
+                        return;
+                    }
+
+                    // Proceed with Quick Add dialog
+                    show_quick_add_dialog_sr(frm, 'opening_stock');
+                }
+            ).addClass('btn-info').css({
+                'background-color': '#17a2b8',
+                'border-color': '#138496',
+                'color': '#fff'
+            });
+
+            // Mark that Quick Add button has been added
+            frm.quick_add_btn_added = true;
         }
     },
 
