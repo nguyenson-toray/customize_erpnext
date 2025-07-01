@@ -28,17 +28,13 @@ frappe.ui.form.on('Stock Entry', {
         }
     },
     validate: function (frm) {
-        // check if custom_no empty, set to format dd/mm/yyyy:Unknown 
-        if (!frm.doc.custom_no || !frm.doc.custom_no.trim()) {
-            let today = new Date();
-            let formatted_date = today.toLocaleDateString('vi-VN'); // Format Việt Nam: dd/mm/yyyy
+        // remove empty items from items table
+        frm.doc.items = frm.doc.items.filter(item => item.item_code && item.item_code.trim() !== '');
+        frappe.show_alert({
+            message: __('Empty items have been removed from the items table.'),
+            indicator: 'green'
+        });
 
-            frm.set_value('custom_no', `${formatted_date}:Unknown`);
-            frappe.show_alert({
-                message: __('Custom No was empty. Set to default: {0}:Unknown', [formatted_date]),
-                indicator: 'blue'
-            }, 5);
-        }
         // Trim parent fields first
         trim_parent_fields(frm);
         // Validate empty invoice numbers first
