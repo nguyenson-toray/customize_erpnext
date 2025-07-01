@@ -801,7 +801,7 @@ async function process_quick_add_items_sr(frm, items_data, dialog_type) {
             await new Promise(resolve => setTimeout(resolve, 200));
 
             // Verify and fix qty values
-            console.log('Verifying and fixing qty values...');
+            console.log('Verifying and fixing qty values... Add allow_zero_valuation_rate = 1');
             for (let row_info of added_rows) {
                 try {
                     let row = locals[row_info.doctype][row_info.name];
@@ -809,6 +809,7 @@ async function process_quick_add_items_sr(frm, items_data, dialog_type) {
                         console.log(`Fixing qty for row ${row_info.name}: ${row.qty} -> ${row_info.qty}`);
                         row.qty = row_info.qty;
                         frappe.model.set_value(row_info.doctype, row_info.name, 'qty', row_info.qty);
+                        frappe.model.set_value(row_info.doctype, row_info.name, 'allow_zero_valuation_rate', 1);
                     }
                 } catch (error) {
                     console.error(`Error verifying qty for row ${row_info.name}:`, error);
