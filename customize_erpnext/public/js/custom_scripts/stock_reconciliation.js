@@ -1,6 +1,6 @@
 // Client Script for Stock Reconciliation - Quick Add functionality
 // Purpose: Add Quick Add button for Opening Stock purpose with custom format
-// Format: item_pattern;invoice_number;qty;receive_date
+// Format: item_name_detail;invoice_number;qty;receive_date
 // Updated: Progress dialog, button states, max 100 lines limit
 
 frappe.ui.form.on('Stock Reconciliation', {
@@ -374,29 +374,19 @@ function get_dialog_config_sr(dialog_type) {
         return {
             title: __('Quick Add Items - Opening Stock (Max 100 lines)'),
             description: __(`
-                <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; font-size: 13px; line-height: 1.4;">
+                <div style="background: #f8f9fa; padding: 15px; border-radius: 12px; font-size: 13px; line-height: 1.4;">
                     
                     <div style="display: flex; gap: 20px;">
                         <div style="flex: 1;">
                             <h4 style="margin: 0 0 10px 0; color: #333;">📝 Format Options</h4>
                             <div style="background: white; padding: 10px; border-radius: 4px; margin-bottom: 15px;">
-                                <strong>1. Simple:</strong> <code>item_pattern</code><br>
-                                <strong>2. With invoice:</strong> <code>item_pattern;invoice_number</code><br>
-                                <strong>3. With qty:</strong> <code>item_pattern;invoice_number;qty</code><br>
-                                <strong>4. Full format:</strong> <code>item_pattern;invoice_number;qty;receive_date</code><br>
-                                <strong>5. Skip fields:</strong> <code>item_pattern;;qty;receive_date</code>
+                                <strong>1. Full format:</strong> <code>item_name_detail; invoice_number; qty; receive_date</code><br>
+                                <strong>2. With invoice:</strong> <code>item_name_detail; invoice_number</code><br>
+                                <strong>3. With qty:</strong> <code>item_name_detail; invoice_number; qty</code><br>
+                                <strong>4. Skip fields:</strong> <code>item_name_detail; ; qty; receive_date</code><br>
+                                <strong>5. Simple:</strong> <code>item_name_detail</code><br>
                             </div>
 
-                            <h4 style="margin: 0 0 10px 0; color: #333;">🏷️ Item Pattern Structure</h4>
-                            <div style="background: white; padding: 10px; border-radius: 4px; margin-bottom: 15px;">
-                                <code>item_name<strong>%</strong> color<strong>%</strong> size<strong>%</strong> brand<strong>%</strong> season<strong>%</strong> info</code><br><br>
-                                <small style="color: #666;">
-                                ✓ Use % to separate attributes<br>
-                                ✓ Must have space after % and before attribute value (To avoid confusion between ""Xl"" & ""Xxl"")<br>
-                                ✓ Only item_name is required<br>
-                                ✓ Skip empty attributes
-                                </small>
-                            </div>
 
                             <h4 style="margin: 0 0 10px 0; color: #333;">⚙️ Default Values</h4>
                             <div style="background: white; padding: 10px; border-radius: 4px;">
@@ -412,21 +402,19 @@ function get_dialog_config_sr(dialog_type) {
                         <div style="flex: 1;">
                             <h4 style="margin: 0 0 10px 0; color: #333;">📋 Examples</h4>
                             <div style="background: white; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 12px;">
-                                <div style="margin-bottom: 8px;"><code>E79799 Black 20Mm Vital 25Ss</code><br><small style="color: #17a2b8;">→ qty=1, invoice=empty, date=empty</small></div>
-                                <div style="margin-bottom: 8px;"><code>E79799 Black 20Mm Vital 25Ss;IV003</code><br><small style="color: #17a2b8;">→ qty=1, invoice=IV003, date=empty</small></div>
-                                <div style="margin-bottom: 8px;"><code>E79799 Black 20Mm Vital 25Ss;IV005;25,75</code><br><small style="color: #17a2b8;">→ qty=25.75, invoice=IV005, date=empty</small></div>
-                                <div style="margin-bottom: 8px;"><code>E79799 Black 20Mm Vital 25Ss;IV007;30;15/06/2024</code><br><small style="color: #17a2b8;">→ qty=30, invoice=IV007, date=15/06/2024</small></div>
-                                <div><code>E79799 Black 20Mm Vital 25Ss;;45;2024-06-20</code><br><small style="color: #17a2b8;">→ qty=45, invoice=empty, date=2024-06-20</small></div>
+                                <div style="margin-bottom: 12px;"><code>E79799 Black 20Mm Vital 25Ss; IV007; 30; 15/06/2024</code><br><small style="color: #17a2b8;">→ qty=30, invoice=IV007, date=15/06/2024</small></div>
+                                <div style="margin-bottom: 12px;"><code>E79799 Black 20Mm Vital 25Ss; IV003</code><br><small style="color: #17a2b8;">→ qty=1, invoice=IV003, date=empty</small></div>
+                                <div style="margin-bottom: 12px;"><code>E79799 Black 20Mm Vital 25Ss</code><br><small style="color: #17a2b8;">→ qty=1, invoice=empty, date=empty</small></div>
+                                <div style="margin-bottom: 12px;"><code>E79799 Black 20Mm Vital 25Ss; IV005; 25,75</code><br><small style="color: #17a2b8;">→ qty=25.75, invoice=IV005, date=empty</small></div>
+                                <div><code>E79799 Black 20Mm Vital 25Ss; ; 45; 2024-06-20</code><br><small style="color: #17a2b8;">→ qty=45, invoice=empty, date=2024-06-20</small></div>
                             </div>
                             
                             <h4 style="margin: 15px 0 10px 0; color: #333;">ℹ️ Notes</h4>
                             <div style="background: #fff3cd; padding: 10px; border-radius: 4px; border-left: 4px solid #ffc107;">
                                 <small>
-                                • <strong>Maximum  100 lines per batch</strong><br>
                                 • Each line = one item<br>
-                                • The system will search for item_pattern in the "Item Name Detail" field of all Items.<br>
-                                • Invalid items will be skipped with error report<br>
-                                • Date formats: DD/MM/YYYY, DD-MM-YYYY, YYYY-MM-DD<br>
+                                • The system will search for item_name_detail in the "Item Name Detail" field of all Items.<br>
+                                • Invalid items will be skipped with error report<br> 
                                 • Receive date will be saved to Stock Ledger Entry
                                 </small>
                             </div>
@@ -515,17 +503,16 @@ async function process_quick_add_items_sr(frm, items_data, dialog_type) {
 
     // First pass: validate and prepare data
     for (let i = 0; i < lines.length; i++) {
-        console.log(`Processing line ${i + 1}: ${lines[i]}`);
         let line = lines[i].trim();
         if (!line) continue; // Skip empty lines
 
         let parts = line.split(';');
-        let item_pattern = parts[0].trim();
+        let item_name_detail = parts[0].trim();
         let qty = 1; // Default quantity
         let field_data = {};
 
         // Check if we have at least the item pattern
-        if (!item_pattern) {
+        if (!item_name_detail) {
             errors.push(__('Line {0}: Item pattern is required', [i + 1]));
             error_count++;
             continue;
@@ -561,30 +548,10 @@ async function process_quick_add_items_sr(frm, items_data, dialog_type) {
         } else {
             field_data.custom_receive_date = '';
         }
-
-        // Parse item pattern
-        let pattern_parts = item_pattern.split('%').map(p => p.trim()).filter(p => p);
-
-        let item_name = pattern_parts[0];
-        let color = pattern_parts[1];
-        let size = pattern_parts[2];
-        let brand = pattern_parts[3] || '';
-        let season = pattern_parts[4] || '';
-        let info = pattern_parts[5] || '';
-
-        // Build search pattern for custom_item_name_detail
-        let search_pattern = item_name;
-        if (color) search_pattern += '% ' + color;
-        if (size) search_pattern += '% ' + size;
-        if (brand) search_pattern += '% ' + brand;
-        if (season) search_pattern += '% ' + season;
-        if (info) search_pattern += '% ' + info;
-
-        search_pattern += '%';
-
+        item_name_detail += '%'; // Ensure pattern ends with %
         items_to_add.push({
             line_number: i + 1,
-            search_pattern: search_pattern,
+            search_pattern: item_name_detail,
             field_data: field_data,
             qty: qty
         });
@@ -600,11 +567,8 @@ async function process_quick_add_items_sr(frm, items_data, dialog_type) {
     // Second pass: Find all items in batch
     updateProgress(30, 'Searching for items in database...', `Searching ${items_to_add.length} patterns`);
     await new Promise(resolve => setTimeout(resolve, 200));
-
-    console.log('Starting batch item search...');
     let found_items = [];
     let search_patterns = items_to_add.map(item => item.search_pattern);
-
     try {
         // Find all items using batch call
         let batch_responses = await Promise.all(
@@ -614,9 +578,11 @@ async function process_quick_add_items_sr(frm, items_data, dialog_type) {
                     args: {
                         doctype: 'Item',
                         filters: {
-                            'custom_item_name_detail': ['like', pattern]
+                            'custom_item_name_detail': ['like', pattern],
+                            'variant_of': ['!=', '']  // Chỉ lấy item variants (có parent template)
                         },
                         fields: ['name', 'item_code', 'item_name', 'stock_uom'],
+                        order_by: 'LENGTH(custom_item_name_detail) ASC',  // Chuỗi ngắn hơn lên đầu
                         limit: 1
                     }
                 })
@@ -645,16 +611,10 @@ async function process_quick_add_items_sr(frm, items_data, dialog_type) {
                 error_count++;
             }
         }
-
-        console.log(`Found ${found_items.length} items out of ${search_patterns.length} patterns`);
-
         // Third pass: Get item details for found items (warehouse defaults)
         if (found_items.length > 0) {
             updateProgress(60, 'Getting item details...', `Processing ${found_items.length} found items`);
             await new Promise(resolve => setTimeout(resolve, 200));
-
-            console.log('Getting item details for warehouse defaults...');
-
             let item_detail_responses = await Promise.all(
                 found_items.map(item =>
                     frappe.call({
@@ -686,7 +646,6 @@ async function process_quick_add_items_sr(frm, items_data, dialog_type) {
         updateProgress(70, 'Adding items to table...', `Adding ${found_items.length} items`);
         await new Promise(resolve => setTimeout(resolve, 200));
 
-        console.log('Adding rows to table...');
         let added_rows = [];
 
         for (let i = 0; i < found_items.length; i++) {
@@ -724,7 +683,6 @@ async function process_quick_add_items_sr(frm, items_data, dialog_type) {
                 });
 
                 success_count++;
-                console.log(`Added row ${success_count}: ${item.item_code} with qty ${item.qty}`);
 
                 // Update progress for every 3 items or last item
                 if (i % 3 === 0 || i === found_items.length - 1) {
@@ -745,8 +703,6 @@ async function process_quick_add_items_sr(frm, items_data, dialog_type) {
             await new Promise(resolve => setTimeout(resolve, 200));
 
             frm.refresh_field('items');
-            console.log('Grid refreshed after adding all rows');
-
             // Wait for refresh to complete, then verify and fix qty if needed
             await new Promise(resolve => setTimeout(resolve, 500));
 
@@ -754,12 +710,11 @@ async function process_quick_add_items_sr(frm, items_data, dialog_type) {
             await new Promise(resolve => setTimeout(resolve, 200));
 
             // Verify and fix qty values
-            console.log('Verifying and fixing qty values... Add allow_zero_valuation_rate = 1');
+            // console.log('Verifying and fixing qty values... Add allow_zero_valuation_rate = 1');
             for (let row_info of added_rows) {
                 try {
                     let row = locals[row_info.doctype][row_info.name];
                     if (row && (!row.qty || row.qty === 0)) {
-                        console.log(`Fixing qty for row ${row_info.name}: ${row.qty} -> ${row_info.qty}`);
                         row.qty = row_info.qty;
                         frappe.model.set_value(row_info.doctype, row_info.name, 'qty', row_info.qty);
                         frappe.model.set_value(row_info.doctype, row_info.name, 'allow_zero_valuation_rate', 1);
@@ -838,7 +793,7 @@ function setup_selection_monitor_sr(frm) {
 // Function to show/hide duplicate button with proper styling
 // Client Script for Stock Reconciliation - Quick Add functionality
 // Purpose: Add Quick Add button for Opening Stock purpose with custom format
-// Format: item_pattern;invoice_number;qty;receive_date
+// Format: item_name_detail;invoice_number;qty;receive_date
 // Updated: Progress dialog, button states, max 100 lines limit
 
 frappe.ui.form.on('Stock Reconciliation', {
@@ -1259,441 +1214,6 @@ function show_quick_add_dialog_sr(frm, dialog_type) {
     dialog.show();
 }
 
-// FUNCTION: Get dialog configuration for Opening Stock
-function get_dialog_config_sr(dialog_type) {
-    if (dialog_type === 'opening_stock') {
-        return {
-            title: __('Quick Add Items - Opening Stock (Max 100 lines)'),
-            description: __(`
-                <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; font-size: 13px; line-height: 1.4;">
-                    
-                    <div style="display: flex; gap: 20px;">
-                        <div style="flex: 1;">
-                            <h4 style="margin: 0 0 10px 0; color: #333;">📝 Format Options</h4>
-                            <div style="background: white; padding: 10px; border-radius: 4px; margin-bottom: 15px;">
-                                <strong>1. Simple:</strong> <code>item_pattern</code><br>
-                                <strong>2. With invoice:</strong> <code>item_pattern;invoice_number</code><br>
-                                <strong>3. With qty:</strong> <code>item_pattern;invoice_number;qty</code><br>
-                                <strong>4. Full format:</strong> <code>item_pattern;invoice_number;qty;receive_date</code><br>
-                                <strong>5. Skip fields:</strong> <code>item_pattern;;qty;receive_date</code>
-                            </div>
-
-                            <h4 style="margin: 0 0 10px 0; color: #333;">🏷️ Item Pattern Structure</h4>
-                            <div style="background: white; padding: 10px; border-radius: 4px; margin-bottom: 15px;">
-                                <code>item_name<strong>%</strong> color<strong>%</strong> size<strong>%</strong> brand<strong>%</strong> season<strong>%</strong> info</code><br><br>
-                                <small style="color: #666;">
-                                ✓ Use % to separate attributes<br>
-                                ✓ Must have space after % and before attribute value (To avoid confusion between ""Xl"" & ""Xxl"")<br>
-                                ✓ Only item_name is required<br>
-                                ✓ Skip empty attributes
-                                </small>
-                            </div>
-
-                            <h4 style="margin: 0 0 10px 0; color: #333;">⚙️ Default Values</h4>
-                            <div style="background: white; padding: 10px; border-radius: 4px;">
-                                <strong>invoice_number:</strong> empty<br>
-                                <strong>qty:</strong> 1<br>
-                                <strong>receive_date:</strong> empty<br>
-                                <strong>Number format:</strong> 52,5 or 52.5<br>
-                                <strong>Date format:</strong> DD/MM/YYYY, DD-MM-YYYY, or YYYY-MM-DD<br>
-                                <strong>Date validation:</strong> Max 1 year in future
-                            </div>
-                        </div>
-
-                        <div style="flex: 1;">
-                            <h4 style="margin: 0 0 10px 0; color: #333;">📋 Examples</h4>
-                            <div style="background: white; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 12px;">
-                                <div style="margin-bottom: 8px;"><code>E79799 Black 20Mm Vital 25Ss</code><br><small style="color: #17a2b8;">→ qty=1, invoice=empty, date=empty</small></div>
-                                <div style="margin-bottom: 8px;"><code>E79799 Black 20Mm Vital 25Ss;IV003</code><br><small style="color: #17a2b8;">→ qty=1, invoice=IV003, date=empty</small></div>
-                                <div style="margin-bottom: 8px;"><code>E79799 Black 20Mm Vital 25Ss;IV005;25,75</code><br><small style="color: #17a2b8;">→ qty=25.75, invoice=IV005, date=empty</small></div>
-                                <div style="margin-bottom: 8px;"><code>E79799 Black 20Mm Vital 25Ss;IV007;30;15/06/2024</code><br><small style="color: #17a2b8;">→ qty=30, invoice=IV007, date=15/06/2024</small></div>
-                                <div><code>E79799 Black 20Mm Vital 25Ss;;45;2024-06-20</code><br><small style="color: #17a2b8;">→ qty=45, invoice=empty, date=2024-06-20</small></div>
-                            </div>
-                            
-                            <h4 style="margin: 15px 0 10px 0; color: #333;">ℹ️ Notes</h4>
-                            <div style="background: #fff3cd; padding: 10px; border-radius: 4px; border-left: 4px solid #ffc107;">
-                                <small>
-                                • <strong>Maximum  100 lines per batch</strong><br>
-                                • Each line = one item<br>
-                                • The system will search for item_pattern in the "Item Name Detail" field of all Items.<br>
-                                • Invalid items will be skipped with error report<br>
-                                • Date formats: DD/MM/YYYY, DD-MM-YYYY, YYYY-MM-DD<br>
-                                • Receive date will be saved to Stock Ledger Entry
-                                </small>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `)
-        };
-    }
-}
-
-// FUNCTION: Process Quick Add Items for Stock Reconciliation - Optimized Version with Progress Dialog
-async function process_quick_add_items_sr(frm, items_data, dialog_type) {
-    if (!items_data) return;
-
-    // Create progress dialog with simplified structure
-    let progress_dialog = new frappe.ui.Dialog({
-        title: __('Processing Quick Add Items'),
-        fields: [
-            {
-                fieldtype: 'HTML',
-                fieldname: 'progress_content'
-            }
-        ],
-        size: 'small',
-        static: true  // Prevent closing by clicking outside
-    });
-
-    // Show dialog first
-    progress_dialog.show();
-
-    // Set HTML content after dialog is shown
-    setTimeout(() => {
-        let progress_wrapper = progress_dialog.fields_dict.progress_content.$wrapper;
-        progress_wrapper.html(`
-            <div style="text-align: center; padding: 30px 20px;">
-                <div style="width: 100%; background-color: #e9ecef; border-radius: 10px; margin: 20px 0; height: 25px; overflow: hidden;">
-                    <div id="progress_bar_sr" style="width: 0%; height: 100%; background: linear-gradient(90deg, #17a2b8, #20c997); transition: width 0.5s ease; border-radius: 10px;"></div>
-                </div>
-                <div id="progress_text_sr" style="font-size: 16px; font-weight: 500; color: #495057; margin: 15px 0;">
-                    Initializing...
-                </div>
-                <div id="progress_details_sr" style="font-size: 13px; color: #6c757d; margin-top: 10px;">
-                    Please wait while we process your items
-                </div>
-                <div id="progress_percentage_sr" style="font-size: 24px; font-weight: bold; color: #17a2b8; margin-top: 15px;">
-                    0%
-                </div>
-            </div>
-        `);
-    }, 100);
-
-    // Helper function to update progress
-    function updateProgress(percentage, text, details = '') {
-        try {
-            let progress_bar = progress_dialog.$wrapper.find('#progress_bar_sr');
-            let progress_text = progress_dialog.$wrapper.find('#progress_text_sr');
-            let progress_details = progress_dialog.$wrapper.find('#progress_details_sr');
-            let progress_percentage = progress_dialog.$wrapper.find('#progress_percentage_sr');
-
-            if (progress_bar.length) {
-                progress_bar.css('width', percentage + '%');
-            }
-            if (progress_text.length) {
-                progress_text.text(text);
-            }
-            if (progress_details.length && details) {
-                progress_details.text(details);
-            }
-            if (progress_percentage.length) {
-                progress_percentage.text(Math.round(percentage) + '%');
-            }
-        } catch (error) {
-            console.log('Progress update error:', error);
-        }
-    }
-
-    let lines = items_data.split('\n');
-    let success_count = 0;
-    let error_count = 0;
-    let errors = [];
-    let items_to_add = [];
-
-    updateProgress(10, 'Validating input data...', `Processing ${lines.length} lines`);
-    await new Promise(resolve => setTimeout(resolve, 200));
-
-    // First pass: validate and prepare data
-    for (let i = 0; i < lines.length; i++) {
-        console.log(`Processing line ${i + 1}: ${lines[i]}`);
-        let line = lines[i].trim();
-        if (!line) continue; // Skip empty lines
-
-        let parts = line.split(';');
-        let item_pattern = parts[0].trim();
-        let qty = 1; // Default quantity
-        let field_data = {};
-
-        // Check if we have at least the item pattern
-        if (!item_pattern) {
-            errors.push(__('Line {0}: Item pattern is required', [i + 1]));
-            error_count++;
-            continue;
-        }
-
-        // Process invoice_number (parts[1])
-        if (parts.length >= 2 && parts[1].trim() !== '') {
-            field_data.custom_invoice_number = parts[1].trim();
-        } else {
-            field_data.custom_invoice_number = '';
-        }
-
-        // Process quantity (parts[2])
-        if (parts.length >= 3 && parts[2].trim() !== '') {
-            qty = parseVietnameseFloat_sr(parts[2].trim());
-            if (isNaN(qty) || qty <= 0) {
-                errors.push(__('Line {0}: Invalid quantity: {1}', [i + 1, parts[2]]));
-                error_count++;
-                continue;
-            }
-        }
-
-        // Process receive_date (parts[3]) with enhanced validation
-        if (parts.length >= 4 && parts[3].trim() !== '') {
-            let parsed_date = parseDate_sr(parts[3].trim());
-            if (parsed_date) {
-                field_data.custom_receive_date = parsed_date;
-            } else {
-                errors.push(__('Line {0}: Invalid date format: {1}. Use DD/MM/YYYY, DD-MM-YYYY, or YYYY-MM-DD (max 1 year in future)', [i + 1, parts[3]]));
-                error_count++;
-                continue;
-            }
-        } else {
-            field_data.custom_receive_date = '';
-        }
-
-        // Parse item pattern
-        let pattern_parts = item_pattern.split('%').map(p => p.trim()).filter(p => p);
-
-        let item_name = pattern_parts[0];
-        let color = pattern_parts[1];
-        let size = pattern_parts[2];
-        let brand = pattern_parts[3] || '';
-        let season = pattern_parts[4] || '';
-        let info = pattern_parts[5] || '';
-
-        // Build search pattern for custom_item_name_detail
-        let search_pattern = item_name;
-        if (color) search_pattern += '% ' + color;
-        if (size) search_pattern += '% ' + size;
-        if (brand) search_pattern += '% ' + brand;
-        if (season) search_pattern += '% ' + season;
-        if (info) search_pattern += '% ' + info;
-
-        search_pattern += '%';
-
-        items_to_add.push({
-            line_number: i + 1,
-            search_pattern: search_pattern,
-            field_data: field_data,
-            qty: qty
-        });
-
-        // Update progress during validation
-        if (i % 5 === 0 || i === lines.length - 1) {
-            let progress = 10 + (i / lines.length) * 20;
-            updateProgress(progress, 'Validating input data...', `Processed ${i + 1}/${lines.length} lines`);
-            await new Promise(resolve => setTimeout(resolve, 50));
-        }
-    }
-
-    // Second pass: Find all items in batch
-    updateProgress(30, 'Searching for items in database...', `Searching ${items_to_add.length} patterns`);
-    await new Promise(resolve => setTimeout(resolve, 200));
-
-    console.log('Starting batch item search...');
-    let found_items = [];
-    let search_patterns = items_to_add.map(item => item.search_pattern);
-
-    try {
-        // Find all items using batch call
-        let batch_responses = await Promise.all(
-            search_patterns.map(pattern =>
-                frappe.call({
-                    method: 'frappe.client.get_list',
-                    args: {
-                        doctype: 'Item',
-                        filters: {
-                            'custom_item_name_detail': ['like', pattern]
-                        },
-                        fields: ['name', 'item_code', 'item_name', 'stock_uom'],
-                        limit: 1
-                    }
-                })
-            )
-        );
-
-        updateProgress(50, 'Processing search results...', `Found items for ${batch_responses.length} patterns`);
-        await new Promise(resolve => setTimeout(resolve, 200));
-
-        // Process batch responses and map to original items
-        for (let i = 0; i < batch_responses.length; i++) {
-            let response = batch_responses[i];
-            let original_item = items_to_add[i];
-
-            if (response.message && response.message.length > 0) {
-                let item = response.message[0];
-                found_items.push({
-                    ...original_item,
-                    item_code: item.item_code,
-                    item_name: item.item_name,
-                    stock_uom: item.stock_uom,
-                    found: true
-                });
-            } else {
-                errors.push(__('Line {0}: Item not found with pattern: {1}', [original_item.line_number, original_item.search_pattern]));
-                error_count++;
-            }
-        }
-
-        console.log(`Found ${found_items.length} items out of ${search_patterns.length} patterns`);
-
-        // Third pass: Get item details for found items (warehouse defaults)
-        if (found_items.length > 0) {
-            updateProgress(60, 'Getting item details...', `Processing ${found_items.length} found items`);
-            await new Promise(resolve => setTimeout(resolve, 200));
-
-            console.log('Getting item details for warehouse defaults...');
-
-            let item_detail_responses = await Promise.all(
-                found_items.map(item =>
-                    frappe.call({
-                        method: 'frappe.client.get',
-                        args: {
-                            doctype: 'Item',
-                            name: item.item_code
-                        }
-                    })
-                )
-            );
-
-            // Add warehouse defaults to found items
-            for (let i = 0; i < item_detail_responses.length; i++) {
-                let response = item_detail_responses[i];
-                if (response.message && response.message.item_defaults) {
-                    // Find default warehouse for current company
-                    for (let item_default of response.message.item_defaults) {
-                        if (item_default.company === frm.doc.company && item_default.default_warehouse) {
-                            found_items[i].default_warehouse = item_default.default_warehouse;
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-
-        // Fourth pass: Add all rows to table (including qty)
-        updateProgress(70, 'Adding items to table...', `Adding ${found_items.length} items`);
-        await new Promise(resolve => setTimeout(resolve, 200));
-
-        console.log('Adding rows to table...');
-        let added_rows = [];
-
-        for (let i = 0; i < found_items.length; i++) {
-            let item = found_items[i];
-            try {
-                // Add new row
-                let new_row = frm.add_child('items');
-
-                // Set basic item values (including qty this time)
-                let values_to_set = {
-                    'item_code': item.item_code,
-                    'qty': item.qty,  // Set qty immediately
-                    'allow_zero_valuation_rate': 1,
-                };
-
-                // Add default warehouse if available
-                if (item.default_warehouse) {
-                    values_to_set.warehouse = item.default_warehouse;
-                }
-
-                // Add type-specific fields
-                Object.assign(values_to_set, item.field_data);
-
-                // Set all values including qty
-                Object.keys(values_to_set).forEach(function (field) {
-                    // Set directly on the row object
-                    new_row[field] = values_to_set[field];
-                });
-
-                // Store row info for backup qty setting
-                added_rows.push({
-                    doctype: new_row.doctype,
-                    name: new_row.name,
-                    qty: item.qty
-                });
-
-                success_count++;
-                console.log(`Added row ${success_count}: ${item.item_code} with qty ${item.qty}`);
-
-                // Update progress for every 3 items or last item
-                if (i % 3 === 0 || i === found_items.length - 1) {
-                    let progress = 70 + ((i + 1) / found_items.length) * 15;
-                    updateProgress(progress, 'Adding items to table...', `Added ${i + 1}/${found_items.length} items`);
-                    await new Promise(resolve => setTimeout(resolve, 100));
-                }
-
-            } catch (error) {
-                errors.push(__('Line {0}: Error adding item to table: {1}', [item.line_number, error.message]));
-                error_count++;
-            }
-        }
-
-        // Refresh grid after adding all rows
-        if (added_rows.length > 0) {
-            updateProgress(85, 'Refreshing table display...', 'Updating user interface');
-            await new Promise(resolve => setTimeout(resolve, 200));
-
-            frm.refresh_field('items');
-            console.log('Grid refreshed after adding all rows');
-
-            // Wait for refresh to complete, then verify and fix qty if needed
-            await new Promise(resolve => setTimeout(resolve, 500));
-
-            updateProgress(90, 'Verifying quantities...', 'Ensuring all quantities are correct');
-            await new Promise(resolve => setTimeout(resolve, 200));
-
-            // Verify and fix qty values
-            console.log('Verifying and fixing qty values... Add allow_zero_valuation_rate = 1');
-            for (let row_info of added_rows) {
-                try {
-                    let row = locals[row_info.doctype][row_info.name];
-                    if (row && (!row.qty || row.qty === 0)) {
-                        console.log(`Fixing qty for row ${row_info.name}: ${row.qty} -> ${row_info.qty}`);
-                        row.qty = row_info.qty;
-                        frappe.model.set_value(row_info.doctype, row_info.name, 'qty', row_info.qty);
-                        frappe.model.set_value(row_info.doctype, row_info.name, 'allow_zero_valuation_rate', 1);
-                    }
-                } catch (error) {
-                    console.error(`Error verifying qty for row ${row_info.name}:`, error);
-                }
-            }
-        }
-
-        updateProgress(100, 'Completed!', `Successfully added ${success_count} items`);
-        await new Promise(resolve => setTimeout(resolve, 800));
-
-    } catch (error) {
-        console.error('Error in batch processing:', error);
-        errors.push(__('Error in batch processing: {0}', [error.message]));
-        error_count++;
-        updateProgress(100, 'Error occurred', 'Processing failed');
-        await new Promise(resolve => setTimeout(resolve, 1000));
-    }
-
-    // Close progress dialog
-    progress_dialog.hide();
-
-    // Show results
-    let message = __('Quick Add Opening Stock completed: {0} items added successfully', [success_count]);
-
-    if (error_count > 0) {
-        message += __('<br><br>Errors ({0}):<br>', [error_count]);
-        message += errors.join('<br>');
-
-        frappe.msgprint({
-            title: __('Quick Add Results'),
-            message: message,
-            indicator: 'orange'
-        });
-    } else if (success_count > 0) {
-        frappe.show_alert({
-            message: message,
-            indicator: 'green'
-        }, 5);
-    }
-}
 
 // Function to monitor selection changes
 function setup_selection_monitor_sr(frm) {

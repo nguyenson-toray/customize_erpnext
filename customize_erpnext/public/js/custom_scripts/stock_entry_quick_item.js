@@ -8,7 +8,6 @@ frappe.ui.form.on('Stock Entry', {
         // Setup cleanup for browser navigation/close
         $(window).on('beforeunload.quick_add_se', function () {
             // Cleanup any remaining intervals or listeners
-            console.log('Stock Entry form unloading - cleanup completed');
         });
 
         // Setup keyboard shortcuts for duplicate functionality
@@ -236,33 +235,19 @@ function show_quick_add_dialog_se(frm, dialog_type) {
 
 // ENHANCED FUNCTION: Get dialog configuration with max 100 lines note
 function get_dialog_config_se(dialog_type) {
-    if (dialog_type === 'material_issue') {
-        return {
-            title: __('Quick Add Items - Material Issue (Max 100 lines)'),
-            description: __(`
-                <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; font-size: 13px; line-height: 1.4;">
+    let dialog_description = `
+    <div style="background: #f8f9fa; padding: 15px; border-radius: 12px; font-size: 13px; line-height: 1.4;">
                     
                     <div style="display: flex; gap: 20px;">
                         <div style="flex: 1;">
                             <h4 style="margin: 0 0 10px 0; color: #333;">📝 Format Options</h4>
                             <div style="background: white; padding: 10px; border-radius: 4px; margin-bottom: 15px;">
-                                <strong>1. Simple:</strong> <code>item_pattern</code><br>
-                                <strong>2. With Invoice:</strong> <code>item_pattern;invoice_number</code><br>
-                                <strong>3. Full format:</strong> <code>item_pattern;invoice_number;qty</code><br>
-                                <strong>4. Skip Invoice:</strong> <code>item_pattern;;qty</code>
+                                <strong>1. Full format:</strong> <code>item_name_detail; invoice_number; qty</code><br>
+                                <strong>2. With Invoice:</strong> <code>item_name_detail; invoice_number</code><br>
+                                <strong>3. Skip Invoice:</strong> <code>item_name_detail; ; qty</code><br>
+                                <strong>4. Simple:</strong> <code>item_name_detail</code><br>
                             </div>
-
-                            <h4 style="margin: 0 0 10px 0; color: #333;">🏷️ Item Pattern Structure</h4>
-                            <div style="background: white; padding: 10px; border-radius: 4px; margin-bottom: 15px;">
-                                <code>item_name<strong>%</strong> color<strong>%</strong> size<strong>%</strong> brand<strong>%</strong> season<strong>%</strong> info</code><br><br>
-                                <small style="color: #666;">
-                                ✓ Use % to separate attributes<br>
-                                ✓ Must have space after % and before attribute value<br>
-                                ✓ Only item_name is required<br>
-                                ✓ Skip empty attributes
-                                </small>
-                            </div>
-
+                            
                             <h4 style="margin: 0 0 10px 0; color: #333;">⚙️ Default Values</h4>
                             <div style="background: white; padding: 10px; border-radius: 4px;">
                                 <strong>invoice_number:</strong> empty<br>
@@ -274,10 +259,11 @@ function get_dialog_config_se(dialog_type) {
                         <div style="flex: 1;">
                             <h4 style="margin: 0 0 10px 0; color: #333;">📋 Examples</h4>
                             <div style="background: white; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 12px;">
-                                <div style="margin-bottom: 8px;"><code>E79799 Black 20Mm Vital 25Ss</code><br><small style="color: #28a745;">→ qty=1, Invoice=empty</small></div>
-                                <div style="margin-bottom: 8px;"><code>E79799 Black 20Mm Vital 25Ss;IV01</code><br><small style="color: #28a745;">→ qty=1, Invoice=IV01</small></div>
-                                <div style="margin-bottom: 8px;"><code>E79799 Black 20Mm Vital 25Ss;IV02;25,75</code><br><small style="color: #28a745;">→ qty=25.75, Invoice=IV02</small></div>
-                                <div style="margin-bottom: 8px;"><code>E79799 Black 20Mm Vital 25Ss;;30</code><br><small style="color: #28a745;">→ qty=30, Invoice=empty</small></div>
+                                <div style="margin-bottom: 12px;"><code>E79799 Black 20Mm Vital 25Ss; IV001; 25,75</code><br><small style="color: #28a745;">→ qty=25.75, Invoice=IV001</small></div>
+                                <div style="margin-bottom: 12px;"><code>E79799 Black 20Mm Vital 25Ss; IV002</code><br><small style="color: #28a745;">→ qty=1, Invoice=IV002</small></div>
+                                <div style="margin-bottom: 12px;"><code>E79799 Black 20Mm Vital 25Ss; ; 30</code><br><small style="color: #28a745;">→ qty=30, Invoice=empty</small></div>
+                                <div style="margin-bottom: 12px;"><code>E79799 Black 20Mm Vital 25Ss</code><br><small style="color: #28a745;">→ qty=1, Invoice=empty</small></div>
+                                                                
                             </div>
                             
                             <h4 style="margin: 15px 0 10px 0; color: #333;">ℹ️ Notes</h4>
@@ -292,65 +278,16 @@ function get_dialog_config_se(dialog_type) {
                         </div>
                     </div>
                 </div>
-            `)
+    `;
+    if (dialog_type === 'material_issue') {
+        return {
+            title: __('Quick Add Items - Material Issue (Max 100 lines)'),
+            description: __(dialog_description)
         };
     } else if (dialog_type === 'material_receipt') {
         return {
             title: __('Quick Add Items - Material Receipt (Max 100 lines)'),
-            description: __(`
-                <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; font-size: 13px; line-height: 1.4;">
-                    
-                    <div style="display: flex; gap: 20px;">
-                        <div style="flex: 1;">
-                            <h4 style="margin: 0 0 10px 0; color: #333;">📝 Format Options</h4>
-                            <div style="background: white; padding: 10px; border-radius: 4px; margin-bottom: 15px;">
-                                <strong>1. Simple:</strong> <code>item_pattern</code><br>
-                                <strong>2. With invoice:</strong> <code>item_pattern;invoice_number</code><br>
-                                <strong>3. Full format:</strong> <code>item_pattern;invoice_number;qty</code><br>
-                                <strong>4. Skip invoice:</strong> <code>item_pattern;;qty</code>
-                            </div>
-
-                            <h4 style="margin: 0 0 10px 0; color: #333;">🏷️ Item Pattern Structure</h4>
-                            <div style="background: white; padding: 10px; border-radius: 4px; margin-bottom: 15px;">
-                                <code>item_name<strong>%</strong> color<strong>%</strong> size<strong>%</strong> brand<strong>%</strong> season<strong>%</strong> info</code><br><br>
-                                <small style="color: #666;">
-                                ✓ Use % to separate attributes<br>
-                                ✓ Must have space after % and before attribute value<br>
-                                ✓ Only item_name is required<br>
-                                ✓ Skip empty attributes
-                                </small>
-                            </div>
-
-                            <h4 style="margin: 0 0 10px 0; color: #333;">⚙️ Default Values</h4>
-                            <div style="background: white; padding: 10px; border-radius: 4px;">
-                                <strong>invoice_number:</strong> empty<br>
-                                <strong>qty:</strong> 1<br>
-                                <strong>Number format:</strong> 52,5 or 52.5
-                            </div>
-                        </div>
-
-                        <div style="flex: 1;">
-                            <h4 style="margin: 0 0 10px 0; color: #333;">📋 Examples</h4>
-                            <div style="background: white; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 12px;">
-                                <div style="margin-bottom: 8px;"><code>E79799 Black 20Mm Vital 25Ss</code><br><small style="color: #17a2b8;">→ qty=1, invoice=empty</small></div>
-                                <div style="margin-bottom: 8px;"><code>E79799 Black 20Mm Vital 25Ss;IV003</code><br><small style="color: #17a2b8;">→ qty=1, invoice=IV003</small></div>
-                                <div style="margin-bottom: 8px;"><code>E79799 Black 20Mm Vital 25Ss;IV005;25,75</code><br><small style="color: #17a2b8;">→ qty=25.75, invoice=IV005</small></div>
-                                <div style="margin-bottom: 8px;"><code>E79799 Black 20Mm Vital 25Ss;;30</code><br><small style="color: #17a2b8;">→ qty=30, invoice=empty</small></div>
-                            </div>
-                            
-                            <h4 style="margin: 15px 0 10px 0; color: #333;">ℹ️ Notes</h4>
-                            <div style="background: #fff3cd; padding: 10px; border-radius: 4px; border-left: 4px solid #ffc107;">
-                                <small>
-                                • <strong>Maximum 100 lines per batch</strong><br>
-                                • Each line = one item<br>
-                                • System searches "Item Name Detail" field<br>
-                                • Invalid items will be skipped with error report
-                                </small>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `)
+            description: __(dialog_description)
         };
     }
 }
@@ -432,17 +369,15 @@ async function process_quick_add_items_se(frm, items_data, dialog_type) {
 
     // First pass: validate and prepare data based on dialog type
     for (let i = 0; i < lines.length; i++) {
-        console.log(`Processing line ${i + 1}: ${lines[i]}`);
-        let line = lines[i].trim();
         if (!line) continue; // Skip empty lines
 
         let parts = line.split(';');
-        let item_pattern = parts[0].trim();
+        let item_name_detail = parts[0].trim();
         let qty = 1; // Default quantity
         let field_data = {};
 
         // Check if we have at least the item pattern
-        if (!item_pattern) {
+        if (!item_name_detail) {
             errors.push(__('Line {0}: Item pattern is required', [i + 1]));
             error_count++;
             continue;
@@ -464,30 +399,10 @@ async function process_quick_add_items_se(frm, items_data, dialog_type) {
                 continue;
             }
         }
-
-        // Parse item pattern
-        let pattern_parts = item_pattern.split('%').map(p => p.trim()).filter(p => p);
-
-        let item_name = pattern_parts[0];
-        let color = pattern_parts[1];
-        let size = pattern_parts[2];
-        let brand = pattern_parts[3] || '';
-        let season = pattern_parts[4] || '';
-        let info = pattern_parts[5] || '';
-
-        // Build search pattern for custom_item_name_detail
-        let search_pattern = item_name;
-        if (color) search_pattern += '% ' + color;
-        if (size) search_pattern += '% ' + size;
-        if (brand) search_pattern += '% ' + brand;
-        if (season) search_pattern += '% ' + season;
-        if (info) search_pattern += '% ' + info;
-
-        search_pattern += '%';
-
+        item_name_detail += '%'; // Ensure pattern ends with %
         items_to_add.push({
             line_number: i + 1,
-            search_pattern: search_pattern,
+            search_pattern: item_name_detail,
             field_data: field_data,
             qty: qty
         });
@@ -503,8 +418,6 @@ async function process_quick_add_items_se(frm, items_data, dialog_type) {
     // Second pass: Find all items in batch (optimized from stock_reconciliation.js)
     updateProgress(30, 'Searching for items in database...', `Searching ${items_to_add.length} patterns`);
     await new Promise(resolve => setTimeout(resolve, 200));
-
-    console.log('Starting batch item search...');
     let found_items = [];
     let search_patterns = items_to_add.map(item => item.search_pattern);
 
@@ -517,9 +430,11 @@ async function process_quick_add_items_se(frm, items_data, dialog_type) {
                     args: {
                         doctype: 'Item',
                         filters: {
-                            'custom_item_name_detail': ['like', pattern]
+                            'custom_item_name_detail': ['like', pattern],
+                            'variant_of': ['!=', '']  // Chỉ lấy item variants (có parent template)
                         },
                         fields: ['name', 'item_code', 'item_name', 'stock_uom'],
+                        order_by: 'LENGTH(custom_item_name_detail) ASC',
                         limit: 1
                     }
                 })
@@ -549,13 +464,10 @@ async function process_quick_add_items_se(frm, items_data, dialog_type) {
             }
         }
 
-        console.log(`Found ${found_items.length} items out of ${search_patterns.length} patterns`);
 
         // Third pass: Add all rows to table using optimized method
         updateProgress(70, 'Adding items to table...', `Adding ${found_items.length} items`);
         await new Promise(resolve => setTimeout(resolve, 200));
-
-        console.log('Adding rows to table...');
         let added_rows = [];
 
         for (let i = 0; i < found_items.length; i++) {
@@ -588,8 +500,6 @@ async function process_quick_add_items_se(frm, items_data, dialog_type) {
                 });
 
                 success_count++;
-                console.log(`Added row ${success_count}: ${item.item_code} with qty ${item.qty}`);
-
                 // Update progress for every 3 items or last item
                 if (i % 3 === 0 || i === found_items.length - 1) {
                     let progress = 70 + ((i + 1) / found_items.length) * 15;
@@ -609,21 +519,15 @@ async function process_quick_add_items_se(frm, items_data, dialog_type) {
             await new Promise(resolve => setTimeout(resolve, 200));
 
             frm.refresh_field('items');
-            console.log('Grid refreshed after adding all rows');
-
             // Wait for refresh to complete, then verify and fix qty if needed
             await new Promise(resolve => setTimeout(resolve, 500));
 
             updateProgress(90, 'Verifying quantities...', 'Ensuring all quantities are correct');
             await new Promise(resolve => setTimeout(resolve, 200));
-
-            // Verify and fix qty values (backup method)
-            console.log('Verifying and fixing qty values...');
             for (let row_info of added_rows) {
                 try {
                     let row = locals[row_info.doctype][row_info.name];
                     if (row && (!row.qty || row.qty === 0 || row.qty != row_info.qty)) {
-                        console.log(`Fixing qty for row ${row_info.name}: ${row.qty} -> ${row_info.qty}`);
                         await frappe.model.set_value(row_info.doctype, row_info.name, 'qty', row_info.qty);
                     }
                 } catch (error) {
@@ -787,8 +691,6 @@ function initialize_form_buttons_se(frm) {
                 'opacity': '0.6'
             });
         }
-
-        console.log('Form-level Quick Add buttons initialized successfully');
     } catch (error) {
         console.error('Error initializing form buttons:', error);
         throw_error_se('Failed to initialize Quick Add buttons: ' + error.message);
@@ -839,7 +741,6 @@ function throw_error_se(message) {
 function update_quick_add_button_styles_se(frm) {
     try {
         if (!frm.material_issue_btn || !frm.material_receipt_btn) {
-            console.log('Button references not found, skipping style update');
             return;
         }
 
@@ -901,7 +802,6 @@ function update_quick_add_button_styles_se(frm) {
 function update_duplicate_button_style_se(frm) {
     try {
         if (!frm.duplicate_btn) {
-            console.log('Duplicate button reference not found, skipping style update');
             return;
         }
 
