@@ -22,9 +22,32 @@ frappe.ui.form.on('Stock Entry', {
     },
 
     purpose: function (frm) {
+        // Throw an error if purpose differs from ["Material Receipt", "Material Issue", "Material Transfer"]
+        if (frm.doc.purpose && !["Material Receipt", "Material Issue", "Material Transfer"].includes(frm.doc.purpose)) {
+            frappe.throw(__('Please select one of "Material Receipt (Nhập)", "Material Issue (Xuất)", or "Material Transfer (Chuyển kho nội bộ)".'));
+            return true; // Prevent further processing
+        } else {
+            // hide bom_info_section
+            frm.toggle_display('bom_info_section', false);
+        }
         // Check when purpose is changed to Material Transfer for Manufacture
         if (frm.doc.purpose === "Material Transfer for Manufacture" && frm.doc.work_order) {
             check_existing_material_transfers(frm);
+        }
+    },
+    custom_material_issue_purpose: function (frm) {
+        // if custom_material_issue_purpose = "Md" => set custom_line to "Md"
+        if (frm.doc.custom_material_issue_purpose && frm.doc.custom_material_issue_purpose.trim() === "Md") {
+            frm.set_value('custom_line', 'Md');
+        }
+        else {
+            //remove option "Md" from custom_line
+            let custom_line_field = frm.fields_dict['custom_line'];
+            if (custom_line_field && custom_line_field.df && custom_line_field.df.options) {
+                let options = custom_line_field.df.options.split('\n').filter(option => option.trim() !== 'Md');
+                custom_line_field.df.options = options.join('\n');
+                frm.refresh_field('custom_line');
+            }
         }
     },
     validate: function (frm) {
