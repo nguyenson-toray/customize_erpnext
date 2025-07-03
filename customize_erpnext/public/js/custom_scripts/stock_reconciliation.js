@@ -111,9 +111,7 @@ frappe.ui.form.on('Stock Reconciliation', {
 
     // Validate before submit to ensure custom fields are properly set
     before_submit: function (frm) {
-        // Validate custom_receive_date format in all items
         let validation_errors = [];
-
         frm.doc.items.forEach(function (item, index) {
             if (item.custom_receive_date) {
                 // Validate date format
@@ -121,20 +119,21 @@ frappe.ui.form.on('Stock Reconciliation', {
                 if (isNaN(date_obj.getTime())) {
                     validation_errors.push(__('Row {0}: Invalid receive date format', [index + 1]));
                 }
+            } else {
+                validation_errors.push(__('Row {0}: Receive date cannot be empty', [index + 1]));
+            }
+            if (!item.custom_invoice_number) {
+                validation_errors.push(__('Row {0}: Invoice number cannot be empty', [index + 1]));
+            }
+            if (!item.qty || item.qty <= 0) {
+                validation_errors.push(__('Row {0}: Quantity cannot be empty or zero', [index + 1]));
             }
         });
 
         if (validation_errors.length > 0) {
-            frappe.msgprint({
-                title: __('Validation Errors'),
-                message: validation_errors.join('<br>'),
-                indicator: 'red'
-            });
+            frappe.throw(validation_errors.join('<br>'));
             frappe.validated = false;
-            return false;
         }
-
-        frappe.validated = true;
     },
 
     // Update button states when document status changes
