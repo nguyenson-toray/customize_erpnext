@@ -4,6 +4,7 @@
 // - Cố định thứ tự attributes: Color, Size, Brand, Season, Info
 // - Tổ chức checkboxes thành Selected/Available groups
 // - Thêm search và bulk input cho mỗi attribute
+// - Chỉ thực hiện bulk input khi nhấn Enter thay vì tìm kiếm liên tục
 if (!erpnext.item._original_show_multiple_variants_dialog) {
     erpnext.item._original_show_multiple_variants_dialog = erpnext.item.show_multiple_variants_dialog;
 }
@@ -80,62 +81,13 @@ erpnext.item.show_multiple_variants_dialog = function (frm) {
             });
 
             fields.push({
-                fieldtype: 'Text',
-                label: __('Enter value (one per line)'),
+                fieldtype: 'Small Text',
+                label: __('Enter value (one per line, press Enter to apply)'),
                 fieldname: `${name}_manual`,
+                description: __('Type values and press Enter to select/deselect them'),
                 onchange: function () {
-                    let manual_values = this.get_value().split('\n').map(v => v.trim()).filter(v => v);
-                    let attribute_name = name;
-                    let not_found_values = [];
-
-                    let available_values = [];
-                    let available_values_lower = [];
-                    let checkboxes = $(this.wrapper).closest('.form-column').find('.checkbox');
-                    checkboxes.each(function () {
-                        let value = $(this).find('label').text().trim();
-                        available_values.push(value);
-                        available_values_lower.push(value.toLowerCase());
-                    });
-
-                    // Tạo một tập hợp các giá trị nhập vào để dễ dàng kiểm tra
-                    let manual_values_set = new Set(manual_values.map(v => v.toLowerCase()));
-
-                    // Duyệt qua tất cả các checkbox
-                    checkboxes.each(function () {
-                        let label = $(this).find('label').text().trim();
-                        let label_lower = label.toLowerCase();
-                        let checkbox_input = $(this).find('input');
-
-                        if (manual_values_set.has(label_lower)) {
-                            if (!checkbox_input.is(':checked')) {
-                                checkbox_input.prop('checked', true).trigger('change');
-                            }
-                        } else {
-                            if (checkbox_input.is(':checked')) {
-                                checkbox_input.prop('checked', false).trigger('change');
-                            }
-                        }
-                    });
-
-                    // Kiểm tra các giá trị không tồn tại
-                    manual_values.forEach(value => {
-                        if (!available_values_lower.includes(value.toLowerCase())) {
-                            not_found_values.push(value);
-                        }
-                    });
-
-                    if (not_found_values.length > 0) {
-                        let attribute_link = `<a href="/app/item-attribute/${encodeURIComponent(attribute_name)}" target="_blank">Thêm giá trị mới</a>`;
-                        frappe.msgprint({
-                            title: __('Attribute Value Not Found'),
-                            indicator: 'orange',
-                            message: __('The following values do not exist in the attribute {0}: {1}<br><br>{2}',
-                                [attribute_name, not_found_values.join(', '), attribute_link])
-                        });
-                    }
-
-                    // Update counts after setting values
-                    updateValueCounts($(this.wrapper).closest('.form-column'));
+                    // Không làm gì trong onchange, chỉ để trống
+                    // Logic sẽ được xử lý trong key event listener
                 }
             });
 
@@ -205,6 +157,69 @@ erpnext.item.show_multiple_variants_dialog = function (frm) {
         });
 
         return fields;
+    }
+
+    // Hàm xử lý bulk input chỉ khi nhấn Enter
+    function handleBulkInput(manual_field, attribute_name) {
+        let manual_values = manual_field.get_value().split('\n').map(v => v.trim()).filter(v => v);
+        let not_found_values = [];
+
+        let available_values = [];
+        let available_values_lower = [];
+        let checkboxes = $(manual_field.wrapper).closest('.form-column').find('.checkbox');
+        checkboxes.each(function () {
+            let value = $(this).find('label').text().trim();
+            available_values.push(value);
+            available_values_lower.push(value.toLowerCase());
+        });
+
+        // Tạo một tập hợp các giá trị nhập vào để dễ dàng kiểm tra
+        let manual_values_set = new Set(manual_values.map(v => v.toLowerCase()));
+
+        // Duyệt qua tất cả các checkbox
+        checkboxes.each(function () {
+            let label = $(this).find('label').text().trim();
+            let label_lower = label.toLowerCase();
+            let checkbox_input = $(this).find('input');
+
+            if (manual_values_set.has(label_lower)) {
+                if (!checkbox_input.is(':checked')) {
+                    checkbox_input.prop('checked', true).trigger('change');
+                }
+            } else {
+                if (checkbox_input.is(':checked')) {
+                    checkbox_input.prop('checked', false).trigger('change');
+                }
+            }
+        });
+
+        // Kiểm tra các giá trị không tồn tại
+        manual_values.forEach(value => {
+            if (!available_values_lower.includes(value.toLowerCase())) {
+                not_found_values.push(value);
+            }
+        });
+
+        if (not_found_values.length > 0) {
+            let attribute_link = `<a href="/app/item-attribute/${encodeURIComponent(attribute_name)}" target="_blank">Thêm giá trị mới</a>`;
+            frappe.msgprint({
+                title: __('Attribute Value Not Found'),
+                indicator: 'orange',
+                message: __('The following values do not exist in the attribute {0}: {1}<br><br>{2}',
+                    [attribute_name, not_found_values.join(', '), attribute_link])
+            });
+        }
+
+        // Update counts after setting values
+        updateValueCounts($(manual_field.wrapper).closest('.form-column'));
+
+        // Hiển thị thông báo thành công
+        if (manual_values.length > 0) {
+            frappe.show_alert({
+                message: __('Applied {0} values for {1}', [manual_values.length, attribute_name]),
+                indicator: 'green'
+            });
+        }
     }
 
     // Function to update the count of checked and unchecked values
@@ -587,6 +602,37 @@ erpnext.item.show_multiple_variants_dialog = function (frm) {
             'max-height': '100px',
             'overflow-y': 'auto'
         });
+
+        // Thêm event listener cho phím Enter trên tất cả các manual input fields
+        setTimeout(() => {
+            me.multiple_variant_dialog.$wrapper.find('textarea').each(function () {
+                let textarea = $(this);
+                let fieldname = textarea.attr('data-fieldname');
+
+                // Tìm attribute name từ fieldname
+                let attribute_name = '';
+                if (fieldname && fieldname.endsWith('_manual')) {
+                    attribute_name = fieldname.replace('_manual', '');
+                }
+
+                if (attribute_name) {
+                    textarea.on('keydown', function (e) {
+                        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                            // Ctrl+Enter hoặc Cmd+Enter để apply
+                            e.preventDefault();
+                            let manual_field = me.multiple_variant_dialog.get_field(fieldname);
+                            if (manual_field) {
+                                handleBulkInput(manual_field, attribute_name);
+                            }
+                        }
+                    });
+
+                    // Thêm tooltip để hướng dẫn người dùng
+                    textarea.attr('title', 'Press Ctrl+Enter (or Cmd+Enter) to apply values');
+                    textarea.attr('placeholder', 'Enter values (one per line)\nPress Ctrl+Enter to apply');
+                }
+            });
+        }, 200);
 
         // Thêm nút Update Attribute Values vào footer
         setTimeout(() => {
