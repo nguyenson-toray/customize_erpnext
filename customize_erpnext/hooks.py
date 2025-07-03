@@ -18,7 +18,8 @@ app_license = "mit"
 doctype_js = {
     "Stock Entry": [
         "public/js/custom_scripts/stock_entry.js",
-        "public/js/custom_scripts/stock_entry_quick_item.js"
+        "public/js/custom_scripts/stock_entry_quick_item.js",
+        "public/js/custom_scripts/stock_entry_import_excel.js"
     ],
     "BOM": "public/js/custom_scripts/bom.js",
     "Item": [
