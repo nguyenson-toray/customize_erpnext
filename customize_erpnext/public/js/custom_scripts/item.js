@@ -382,20 +382,24 @@ async function get_default_warehouse(frm) {
         // Lấy thông tin customer - có thể từ field customer hoặc từ context khác
         // TODO: Cần xác định customer được lấy từ đâu trong Item form
         const customer = frm.doc.customer || '';
+        // if item group is 'B-Finished Goods'
+        if (frm.doc.item_group && frm.doc.item_group.includes('B-Finished Goods')) {
+            // Nếu item là B-Finished Goods, trả về warehouse mặc định Finished Goods - TIQN
+            return 'Finished Goods - TIQN';
+        } else
+            if (customer) {
+                try {
+                    // Query Customer doctype để lấy custom_default_warehouse
+                    const customer_data = await frappe.db.get_value('Customer', customer, 'custom_default_warehouse');
 
-        if (customer) {
-            try {
-                // Query Customer doctype để lấy custom_default_warehouse
-                const customer_data = await frappe.db.get_value('Customer', customer, 'custom_default_warehouse');
-
-                if (customer_data && customer_data.message && customer_data.message.custom_default_warehouse) {
-                    console.log("Found custom default warehouse for customer:", customer, "->", customer_data.message.custom_default_warehouse);
-                    return customer_data.message.custom_default_warehouse;
+                    if (customer_data && customer_data.message && customer_data.message.custom_default_warehouse) {
+                        console.log("Found custom default warehouse for customer:", customer, "->", customer_data.message.custom_default_warehouse);
+                        return customer_data.message.custom_default_warehouse;
+                    }
+                } catch (error) {
+                    console.error("Error getting customer default warehouse:", error);
                 }
-            } catch (error) {
-                console.error("Error getting customer default warehouse:", error);
             }
-        }
     }
 
     // Trường hợp khác - fallback
