@@ -107,118 +107,7 @@ Log file: {self.log_file_path}
 
 # Global logger instance
 logger = None
-
-@frappe.whitelist()
-def create_excel_template():
-    """Tạo file Excel template và trả về URL để download"""
-    try:
-        # Tạo sample data
-        sample_data = [
-            {
-                'custom_item_name_detail': 'AT0452HSMP-3D Iron Gate Vital 25Ss',
-                'posting_date': '2024-01-15',
-                'posting_time': '14:30:00',
-                'custom_no': 'TEST001',
-                'qty': 10,
-                'custom_invoice_number': 'IV001',
-                'custom_fg_style': 'Style A',
-                'custom_line': '1',
-                'custom_fg_color': 'Blue',
-                'custom_fg_size': 'L',
-                'custom_fg_qty': 100,
-                'custom_material_issue_purpose': 'Production',
-                'custom_note': 'Sample note for material issue'
-            },
-            {
-                'custom_item_name_detail': 'AT0452HSMP-3D Iron Gate Vital 26Ss',
-                'posting_date': '2024-01-15',
-                'posting_time': '14:30:00',
-                'custom_no': 'TEST001',
-                'qty': 5,
-                'custom_invoice_number': 'IV002',
-                'custom_fg_style': 'Style A',
-                'custom_line': '1',
-                'custom_fg_color': 'Red',
-                'custom_fg_size': 'M',
-                'custom_fg_qty': 100,
-                'custom_material_issue_purpose': 'Production',
-                'custom_note': 'Sample note for material issue'
-            },
-            {
-                'custom_item_name_detail': 'AT0452HSMP-3D Iron Gate Vital 27Ss',
-                'posting_date': '2024-01-16',
-                'posting_time': '09:00:00',
-                'custom_no': 'TEST002',
-                'qty': 8,
-                'custom_invoice_number': 'IV003',
-                'custom_fg_style': 'Style B',
-                'custom_line': '2',
-                'custom_fg_color': 'Green',
-                'custom_fg_size': 'XL',
-                'custom_fg_qty': 50,
-                'custom_material_issue_purpose': 'Testing',
-                'custom_note': 'Different group example'
-            }
-        ]
-        
-        # Tạo DataFrame
-        df = pd.DataFrame(sample_data)
-        
-        # Tạo file path
-        site_path = get_site_path()
-        template_dir = os.path.join(site_path, "public", "files")
-        if not os.path.exists(template_dir):
-            os.makedirs(template_dir)
-        
-        template_path = os.path.join(template_dir, "create_material_issue_template.xlsx")
-        
-        # Tạo Excel file với instructions
-        with pd.ExcelWriter(template_path, engine='openpyxl') as writer:
-            # Write main data
-            df.to_excel(writer, sheet_name='Data', index=False)
-            
-            # Write instructions
-            instructions_data = [
-                ['INSTRUCTIONS FOR MATERIAL ISSUE IMPORT'],
-                [''],
-                ['Required Columns:'],
-                ['custom_item_name_detail: Item identifier for searching items'],
-                ['custom_no: Grouping number for Stock Entry'],
-                ['qty: Quantity to issue (must be positive number)'],
-                ['custom_invoice_number: Invoice number reference'],
-                [''],
-                ['Optional Columns:'],
-                ['posting_date: Date in YYYY-MM-DD format (default: today)'],
-                ['posting_time: Time in HH:MM:SS format (default: 08:00:00)'],
-                ['custom_fg_style: Finished goods style'],
-                ['custom_line: Production line'],
-                ['custom_fg_color: Finished goods color'],
-                ['custom_fg_size: Finished goods size'],
-                ['custom_fg_qty: Finished goods quantity'],
-                ['custom_material_issue_purpose: Purpose of material issue'],
-                ['custom_note: Additional notes'],
-                [''],
-                ['Notes:'],
-                ['- Items will be grouped by custom_no'],
-                ['- Warehouse will be auto-detected from Item Default settings'],
-                ['- Invoice numbers must exist in Stock Ledger Entry'],
-                ['- System will validate available quantity before import']
-            ]
-            
-            instructions_df = pd.DataFrame(instructions_data, columns=['Instructions'])
-            instructions_df.to_excel(writer, sheet_name='Instructions', index=False)
-        
-        # Return file URL
-        file_url = f"/files/create_material_issue_template.xlsx"
-        return {
-            "file_url": file_url,
-            "file_path": template_path
-        }
-        
-    except Exception as e:
-        frappe.log_error(f"Error creating Excel template: {str(e)}", "Excel Template Creation")
-        frappe.throw(f"Error creating template: {str(e)}")
-
+ 
 @frappe.whitelist()
 def validate_excel_file(file_url):
     """Validate Excel file và trả về kết quả validation"""
@@ -1441,8 +1330,7 @@ def test_with_sample_data():
 
 # Export các hàm chính
 __all__ = [
-    'create_material_issue', 
-    'create_excel_template',
+    'create_material_issue',  
     'validate_excel_file',
     'import_material_issue_from_excel',
     'get_available_qty_by_invoice',

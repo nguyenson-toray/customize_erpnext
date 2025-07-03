@@ -334,13 +334,13 @@ function download_excel_template() {
 
     // Create and download Excel template
     frappe.call({
-        method: 'customize_erpnext.api.bulk_update_scripts.create_material_issue.create_excel_template',
+        method: 'customize_erpnext.api.bulk_update_scripts.create_material_issue_template.create_material_issue_template',
         callback: function (r) {
             if (r.message && r.message.file_url) {
                 // Create download link
                 let link = document.createElement('a');
                 link.href = r.message.file_url;
-                link.download = 'create_material_issue_template.xlsx';
+                link.download = 'material_issue_template.xlsx';
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
