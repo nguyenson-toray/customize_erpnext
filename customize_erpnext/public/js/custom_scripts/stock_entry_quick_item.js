@@ -369,6 +369,7 @@ async function process_quick_add_items_se(frm, items_data, dialog_type) {
 
     // First pass: validate and prepare data based on dialog type
     for (let i = 0; i < lines.length; i++) {
+        let line = lines[i].trim();
         if (!line) continue; // Skip empty lines
 
         let parts = line.split(';');
