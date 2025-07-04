@@ -6,7 +6,8 @@
 // - Thêm search và bulk input cho mỗi attribute
 // - Chỉ thực hiện bulk input khi nhấn Enter thay vì tìm kiếm liên tục
 // - Import trực tiếp attribute values khi không tìm thấy
-// - Luôn so sánh lowercase và chuyển đổi sang camelCase khi lưu
+// - Luôn so sánh lowercase và chuyển đổi sang Proper Case khi lưu
+// - Fuzzy matching để cảnh báo values tương tự (chỉ hiển thị thông tin)
 if (!erpnext.item._original_show_multiple_variants_dialog) {
     erpnext.item._original_show_multiple_variants_dialog = erpnext.item.show_multiple_variants_dialog;
 }
@@ -18,18 +19,7 @@ erpnext.item.show_multiple_variants_dialog = function (frm) {
     let attr_val_fields = {};
 
     // Định nghĩa thứ tự cố định cho attributes
-    // Có thể thay đổi thứ tự này theo nhu cầu của bạn
     const FIXED_ATTRIBUTE_ORDER = ['Color', 'Size', 'Brand', 'Season', 'Info'];
-
-    // Cấu hình format theo attribute - có thể tùy chỉnh : keep, proper
-    const ATTRIBUTE_FORMAT_CONFIG = {
-        'Color': 'proper',        // Blue1, Red Color
-        'Size': 'proper',          // giữ nguyên: S, M, L, XL
-        'Brand': 'proper',       // Nike, Adidas Brand
-        'Season': 'proper',      // Summer, Winter Sale
-        'Info': 'proper',        // New Arrival, Hot Item
-        'default': 'proper'      // mặc định cho attributes khác
-    };
 
     // Hàm chuyển đổi sang PROPER case (như Excel) - in hoa chữ cái đầu mỗi từ, giữ khoảng trắng
     function toProperCase(str) {
@@ -42,80 +32,110 @@ erpnext.item.show_multiple_variants_dialog = function (frm) {
             });
     }
 
-    // Hàm alternative cho camelCase thật (nối từ, không có space)
-    function toCamelCaseNoSpace(str) {
-        if (!str) return str;
-
-        str = str.trim().toLowerCase();
-
-        // Tách bằng nhiều delimiter: space, dash, underscore
-        let words = str.split(/[\s\-_]+/).filter(word => word);
-
-        return words
-            .map((word, index) => {
-                if (index === 0) {
-                    // Word đầu tiên giữ nguyên lowercase
-                    return word;
-                } else {
-                    // Các word tiếp theo capitalize chữ cái đầu
-                    return word.charAt(0).toUpperCase() + word.slice(1);
-                }
-            })
-            .join('');
-    }
-
-    // Hàm alternative để convert properly với số (PascalCase without space)
-    function toPascalCaseNoSpace(str) {
-        if (!str) return str;
-
-        str = str.trim().toLowerCase();
-
-        // Tách bằng space, dash, underscore
-        let words = str.split(/[\s\-_]+/).filter(word => word);
-
-        return words
-            .map(word => {
-                if (!word) return '';
-                return word.charAt(0).toUpperCase() + word.slice(1);
-            })
-            .join('');
-    }
-
     // Hàm chuẩn hóa giá trị để so sánh
     function normalizeForComparison(value) {
         return value.toLowerCase().trim();
     }
 
-    // Hàm format giá trị cho display và storage - enhanced với proper case
-    function formatValueForStorage(value, attributeName = null) {
+    // Hàm format giá trị cho display và storage - simplified
+    function formatValueForStorage(value) {
         if (!value) return value;
 
-        // Trim trước
-        const trimmed = value.trim();
+        // Luôn convert sang Proper Case
+        return toProperCase(value.trim());
+    }
 
-        // Lấy format config cho attribute này
-        const formatType = attributeName ?
-            (ATTRIBUTE_FORMAT_CONFIG[attributeName] || ATTRIBUTE_FORMAT_CONFIG['default']) :
-            ATTRIBUTE_FORMAT_CONFIG['default'];
+    // Hàm tính khoảng cách Levenshtein để so sánh độ tương tự
+    function levenshteinDistance(str1, str2) {
+        const matrix = [];
 
-        switch (formatType) {
-            case 'keep':
-                // Giữ nguyên case, chỉ trim
-                return trimmed;
+        if (str1.length === 0) return str2.length;
+        if (str2.length === 0) return str1.length;
 
-            case 'camelCaseNoSpace':
-                // camelCase không có space: newArrival, hotItem
-                return toCamelCaseNoSpace(trimmed);
-
-            case 'pascalCaseNoSpace':
-                // PascalCase không có space: NewArrival, HotItem
-                return toPascalCaseNoSpace(trimmed);
-
-            case 'proper':
-            default:
-                // PROPER case như Excel: New Arrival, Hot Item, Blue1
-                return toProperCase(trimmed);
+        // Initialize first row and column
+        for (let i = 0; i <= str2.length; i++) {
+            matrix[i] = [i];
         }
+        for (let j = 0; j <= str1.length; j++) {
+            matrix[0][j] = j;
+        }
+
+        // Fill in the rest of the matrix
+        for (let i = 1; i <= str2.length; i++) {
+            for (let j = 1; j <= str1.length; j++) {
+                if (str2.charAt(i - 1) === str1.charAt(j - 1)) {
+                    matrix[i][j] = matrix[i - 1][j - 1];
+                } else {
+                    matrix[i][j] = Math.min(
+                        matrix[i - 1][j - 1] + 1, // substitution
+                        matrix[i][j - 1] + 1,     // insertion
+                        matrix[i - 1][j] + 1      // deletion
+                    );
+                }
+            }
+        }
+
+        return matrix[str2.length][str1.length];
+    }
+
+    // Hàm tính tỷ lệ tương tự giữa hai strings
+    function getSimilarity(str1, str2) {
+        const longer = str1.length > str2.length ? str1 : str2;
+        const shorter = str1.length > str2.length ? str2 : str1;
+
+        if (longer.length === 0) return 1.0;
+
+        const distance = levenshteinDistance(longer, shorter);
+        return (longer.length - distance) / longer.length;
+    }
+
+    // Hàm tìm các values tương tự
+    function findSimilarValues(inputValue, availableValues, threshold = 0.7) {
+        const normalizedInput = normalizeForComparison(inputValue);
+        const similarValues = [];
+
+        availableValues.forEach(value => {
+            const normalizedValue = normalizeForComparison(value);
+            const similarity = getSimilarity(normalizedInput, normalizedValue);
+
+            // Kiểm tra similarity score và một số điều kiện bổ sung
+            if (similarity >= threshold && similarity < 1.0) {
+                similarValues.push({
+                    value: value,
+                    similarity: similarity,
+                    reason: getSimilarityReason(normalizedInput, normalizedValue, similarity)
+                });
+            }
+        });
+
+        // Sắp xếp theo độ tương tự giảm dần
+        return similarValues.sort((a, b) => b.similarity - a.similarity);
+    }
+
+    // Hàm xác định lý do tương tự
+    function getSimilarityReason(input, existing, similarity) {
+        // Kiểm tra các trường hợp đặc biệt
+        if (input.includes(existing) || existing.includes(input)) {
+            return 'substring match';
+        }
+
+        // Kiểm tra hoán vị từ
+        const inputWords = input.split(/\s+/).sort();
+        const existingWords = existing.split(/\s+/).sort();
+        if (inputWords.join(' ') === existingWords.join(' ')) {
+            return 'word order difference';
+        }
+
+        // Kiểm tra lỗi chính tả có thể
+        if (similarity > 0.8) {
+            return 'possible typo';
+        }
+
+        if (similarity > 0.7) {
+            return 'similar pattern';
+        }
+
+        return 'general similarity';
     }
 
     function make_fields_from_attribute_values(attr_dict) {
@@ -191,8 +211,8 @@ erpnext.item.show_multiple_variants_dialog = function (frm) {
                 fieldtype: 'HTML',
                 fieldname: `${name}_status`,
                 options: `<div class="value-status-area" data-attribute="${name}" style="margin-bottom: 10px; display: none;">
-                    <div class="status-content" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px; background: #f9f9f9;">
-                        <div class="status-info" style="font-size: 12px; margin-bottom: 5px;"></div>
+                    <div class="status-content" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px; background: #f9f9f9; font-size: 11px; line-height: 1.4;">
+                        <div class="status-info" style="margin-bottom: 5px;"></div>
                         <div class="missing-values" style="margin-bottom: 8px;"></div>
                         <button class="btn btn-primary btn-xs import-missing-btn" style="display: none;">
                             ${__('Import Missing Values')}
@@ -269,17 +289,15 @@ erpnext.item.show_multiple_variants_dialog = function (frm) {
         return fields;
     }
 
-    // === Merge functions from item_attribute_import.js ===
-
-    // Enhanced import function với camelCase conversion
+    // Enhanced import function với Proper Case conversion
     function importMissingValues(attributeName, missingValues, selectedValues, callback) {
         if (!missingValues || missingValues.length === 0) {
             if (callback) callback();
             return;
         }
 
-        // Convert missing values to configured format for storage
-        const formattedMissingValues = missingValues.map(value => formatValueForStorage(value, attributeName));
+        // Convert missing values to Proper Case format for storage
+        const formattedMissingValues = missingValues.map(value => formatValueForStorage(value));
 
         // Show progress
         frappe.show_alert(__('Adding {0} values to {1}...', [formattedMissingValues.length, attributeName]), 5);
@@ -333,7 +351,7 @@ erpnext.item.show_multiple_variants_dialog = function (frm) {
                         }
 
                         attr_doc.item_attribute_values.push({
-                            attribute_value: value, // Already in camelCase format
+                            attribute_value: value, // Already in Proper Case format
                             abbr: lastAbbr
                         });
                     });
@@ -351,16 +369,16 @@ erpnext.item.show_multiple_variants_dialog = function (frm) {
                                     indicator: 'green'
                                 });
 
-                                // Update selected values with new camelCase values
+                                // Update selected values with new Proper Case values
                                 let updatedSelectedValues = { ...selectedValues };
                                 if (!updatedSelectedValues[attributeName]) {
                                     updatedSelectedValues[attributeName] = [];
                                 }
 
-                                // Add the new camelCase values to selected
-                                valuesToAdd.forEach(camelValue => {
-                                    if (!updatedSelectedValues[attributeName].includes(camelValue)) {
-                                        updatedSelectedValues[attributeName].push(camelValue);
+                                // Add the new Proper Case values to selected
+                                valuesToAdd.forEach(properValue => {
+                                    if (!updatedSelectedValues[attributeName].includes(properValue)) {
+                                        updatedSelectedValues[attributeName].push(properValue);
                                     }
                                 });
 
@@ -481,88 +499,12 @@ erpnext.item.show_multiple_variants_dialog = function (frm) {
         }
     }
 
-    // === End merge from item_attribute_import.js ===
-
-    // Hàm refresh dialog với selected values
-    function refresh_dialog_content_with_selection(selectedValues) {
-        // Lưu lại các giá trị khác
-        let manual_values = {};
-        let search_values = {};
-        let use_template_image = me.multiple_variant_dialog.get_value('use_template_image');
-
-        // Lưu lại giá trị trong các textarea và search input
-        me.multiple_variant_dialog.$wrapper.find('.form-column').each(function () {
-            let column = $(this);
-            let attribute_name = column.find('.column-label').text().trim();
-            if (attribute_name) {
-                let manual_field = me.multiple_variant_dialog.get_field(`${attribute_name}_manual`);
-                let search_field = me.multiple_variant_dialog.get_field(`${attribute_name}_search`);
-
-                if (manual_field) {
-                    manual_values[attribute_name] = manual_field.get_value();
-                }
-                if (search_field) {
-                    search_values[attribute_name] = search_field.get_value();
-                }
-            }
-        });
-
-        // Hiển thị loading
-        frappe.show_alert(__('Updating attribute values...'), 3);
-
-        // Load lại attribute values
-        load_attribute_values(() => {
-            // Đóng dialog cũ
-            me.multiple_variant_dialog.hide();
-
-            // Tạo lại dialog mới
-            let fields = make_fields_from_attribute_values(attr_val_fields);
-            make_and_show_dialog(fields);
-
-            // Khôi phục các giá trị sau khi dialog mới được tạo
-            setTimeout(() => {
-                // Restore use_template_image
-                if (frm.doc.image && use_template_image) {
-                    me.multiple_variant_dialog.set_value('use_template_image', use_template_image);
-                }
-
-                // Restore manual values và search values
-                Object.keys(manual_values).forEach(attr => {
-                    let field = me.multiple_variant_dialog.get_field(`${attr}_manual`);
-                    if (field && manual_values[attr]) {
-                        field.set_value(manual_values[attr]);
-                    }
-                });
-
-                Object.keys(search_values).forEach(attr => {
-                    let field = me.multiple_variant_dialog.get_field(`${attr}_search`);
-                    if (field && search_values[attr]) {
-                        field.set_value(search_values[attr]);
-                        field.$input.trigger('change');
-                    }
-                });
-
-                // Restore và apply selected values (bao gồm cả values mới import)
-                Object.keys(selectedValues).forEach(attr => {
-                    selectedValues[attr].forEach(value => {
-                        let checkbox = me.multiple_variant_dialog.get_field(value);
-                        if (checkbox) {
-                            checkbox.set_value(1);
-                        }
-                    });
-                });
-
-                frappe.show_alert({
-                    message: __('Attribute values updated and selections restored'),
-                    indicator: 'green'
-                });
-            }, 200);
-        });
-    }
-
-    // Enhanced bulk input handler với improved comparison và camelCase conversion
+    // Enhanced bulk input handler - treat similar values as missing
     function handleBulkInput(manual_field, attribute_name) {
-        let manual_values = manual_field.get_value().split('\n').map(v => v.trim()).filter(v => v);
+        let manual_values = manual_field.get_value()
+            .split('\n')
+            .map(v => v.trim())
+            .filter(v => v); // Filter out empty lines
 
         if (manual_values.length === 0) {
             // Hide status area if no input
@@ -572,35 +514,46 @@ erpnext.item.show_multiple_variants_dialog = function (frm) {
         }
 
         let available_values = [];
-        let available_values_normalized = [];
         let checkboxes = $(manual_field.wrapper).closest('.form-column').find('.checkbox');
 
         checkboxes.each(function () {
             let value = $(this).find('label').text().trim();
             available_values.push(value);
-            available_values_normalized.push(normalizeForComparison(value));
         });
 
-        // Categorize values into existing and missing với improved comparison
+        // Categorize values into existing and missing only
         let existing_values = [];
         let missing_values = [];
+        let missing_with_similar = []; // Track which missing values have similar matches
 
         manual_values.forEach(inputValue => {
             let normalizedInput = normalizeForComparison(inputValue);
-            let matchFound = false;
+            let exactMatch = false;
 
             // Tìm exact match trong available values
-            for (let i = 0; i < available_values_normalized.length; i++) {
-                if (available_values_normalized[i] === normalizedInput) {
+            for (let i = 0; i < available_values.length; i++) {
+                let normalizedAvailable = normalizeForComparison(available_values[i]);
+                if (normalizedAvailable === normalizedInput) {
                     existing_values.push(available_values[i]); // Use the exact value from available
-                    matchFound = true;
+                    exactMatch = true;
                     break;
                 }
             }
 
-            if (!matchFound) {
-                // Convert to configured format for consistency before adding to missing
-                missing_values.push(formatValueForStorage(inputValue, attribute_name));
+            if (!exactMatch) {
+                // Convert to proper case for consistency before adding to missing
+                const formattedValue = formatValueForStorage(inputValue);
+                missing_values.push(formattedValue);
+
+                // Check if this missing value has similar matches (for warning only)
+                const similarMatches = findSimilarValues(inputValue, available_values, 0.7);
+                if (similarMatches.length > 0) {
+                    missing_with_similar.push({
+                        input: inputValue,
+                        formatted: formattedValue,
+                        matches: similarMatches
+                    });
+                }
             }
         });
 
@@ -628,8 +581,8 @@ erpnext.item.show_multiple_variants_dialog = function (frm) {
         // Update counts after setting values
         updateValueCounts($(manual_field.wrapper).closest('.form-column'));
 
-        // Show status and import button if needed
-        showValueStatus(manual_field, attribute_name, existing_values, missing_values);
+        // Show enhanced status
+        showEnhancedValueStatus(manual_field, attribute_name, existing_values, missing_values, missing_with_similar);
 
         // Show success message for applied values
         if (appliedCount > 0) {
@@ -638,14 +591,23 @@ erpnext.item.show_multiple_variants_dialog = function (frm) {
                 indicator: 'green'
             });
         }
+
+        // Show similarity warnings if any
+        if (missing_with_similar.length > 0) {
+            frappe.show_alert({
+                message: __('Found {0} values with similar existing entries. Check warnings below - they will be imported as new values.', [missing_with_similar.length]),
+                indicator: 'orange'
+            });
+        }
     }
 
-    // Enhanced status display with camelCase preview
-    function showValueStatus(manual_field, attribute_name, existing_values, missing_values) {
+
+
+    // Enhanced status display - treat similar as missing with warnings
+    function showEnhancedValueStatus(manual_field, attribute_name, existing_values, missing_values, missing_with_similar) {
         let column = $(manual_field.wrapper).closest('.form-column');
         let statusArea = column.find('.value-status-area');
         let statusInfo = statusArea.find('.status-info');
-        let missingDiv = statusArea.find('.missing-values');
         let importBtn = statusArea.find('.import-missing-btn');
 
         if (existing_values.length === 0 && missing_values.length === 0) {
@@ -655,29 +617,47 @@ erpnext.item.show_multiple_variants_dialog = function (frm) {
 
         statusArea.show();
 
-        // Create status display
+        // Create enhanced status display
         let statusHtml = '';
+
+        // Existing values
         if (existing_values.length > 0) {
+            statusHtml += `<div style="margin-bottom: 8px;">`;
             statusHtml += `<span style="color: green; font-weight: bold;">✓ ${existing_values.length} existing:</span> `;
             statusHtml += existing_values.map(v => `<span style="color: green;">${v}</span>`).join(', ');
+            statusHtml += `</div>`;
         }
 
+        // Missing values (including those with similar matches)
         if (missing_values.length > 0) {
-            if (existing_values.length > 0) statusHtml += '<br>';
-
-            // Get format type for this attribute
-            const formatType = ATTRIBUTE_FORMAT_CONFIG[attribute_name] || ATTRIBUTE_FORMAT_CONFIG['default'];
-            let formatDescription;
-            switch (formatType) {
-                case 'keep': formatDescription = 'as-is'; break;
-                case 'camelCaseNoSpace': formatDescription = 'camelCase'; break;
-                case 'pascalCaseNoSpace': formatDescription = 'PascalCase'; break;
-                case 'proper':
-                default: formatDescription = 'Proper Case'; break;
-            }
-
-            statusHtml += `<span style="color: red; font-weight: bold;">✗ ${missing_values.length} missing (will be saved as ${formatDescription}):</span> `;
+            statusHtml += `<div style="margin-bottom: 8px;">`;
+            statusHtml += `<span style="color: red; font-weight: bold;">✗ ${missing_values.length} missing : `;
             statusHtml += missing_values.map(v => `<span style="color: red;">${v}</span>`).join(', ');
+            statusHtml += `</div>`;
+        }
+
+        // Similar values warning (subset of missing values)
+        if (missing_with_similar.length > 0) {
+            statusHtml += `<div style="margin-bottom: 8px; padding: 8px; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px;">`;
+            statusHtml += `<span style="color: #856404; font-weight: bold;">⚠ ${missing_with_similar.length} of the missing values have similar existing entries:</span><br>`;
+
+            missing_with_similar.forEach(item => {
+                statusHtml += `<div style="margin: 4px 0; font-size: 11px;">`;
+                statusHtml += `<span style="color: #d63384; font-weight: bold;">"${item.input}"</span> `;
+
+                statusHtml += `<span style="color: #856404;">Similar to: `;
+                item.matches.forEach((match, index) => {
+                    statusHtml += `<span style="color: #0d6efd;">`;
+                    statusHtml += `"${match.value}"`;
+                    statusHtml += `</span>`;
+                    if (index < item.matches.length - 1) statusHtml += ', ';
+                });
+                statusHtml += `</div>`;
+            });
+            statusHtml += `<div style="margin-top: 5px; font-size: 10px; color: #856404; font-style: italic;">`;
+            // statusHtml += `Note: These will still be imported as new values. Edit manually if you want to use existing values instead.`;
+            statusHtml += `</div>`;
+            statusHtml += `</div>`;
         }
 
         statusInfo.html(statusHtml);
@@ -688,7 +668,7 @@ erpnext.item.show_multiple_variants_dialog = function (frm) {
             importBtn.off('click').on('click', function () {
                 // Get current selected values to restore after import
                 let currentSelected = get_selected_attributes();
-                // Add missing values (already in camelCase) to current selected for this attribute
+                // Add missing values to current selected for this attribute
                 if (!currentSelected[attribute_name]) {
                     currentSelected[attribute_name] = [];
                 }
@@ -700,9 +680,17 @@ erpnext.item.show_multiple_variants_dialog = function (frm) {
 
                 importMissingValues(attribute_name, missing_values, currentSelected);
             });
+
+            // Update button text to show count
+            importBtn.text(__('Import {0} Missing Values', [missing_values.length]));
         } else {
             importBtn.hide();
         }
+    }
+
+    // Original status display function (for backward compatibility)
+    function showValueStatus(manual_field, attribute_name, existing_values, missing_values) {
+        showEnhancedValueStatus(manual_field, attribute_name, existing_values, missing_values, []);
     }
 
     // Function to update the count of checked and unchecked values
@@ -978,6 +966,83 @@ erpnext.item.show_multiple_variants_dialog = function (frm) {
         });
     }
 
+    // Hàm refresh dialog với selected values
+    function refresh_dialog_content_with_selection(selectedValues) {
+        // Lưu lại các giá trị khác
+        let manual_values = {};
+        let search_values = {};
+        let use_template_image = me.multiple_variant_dialog.get_value('use_template_image');
+
+        // Lưu lại giá trị trong các textarea và search input
+        me.multiple_variant_dialog.$wrapper.find('.form-column').each(function () {
+            let column = $(this);
+            let attribute_name = column.find('.column-label').text().trim();
+            if (attribute_name) {
+                let manual_field = me.multiple_variant_dialog.get_field(`${attribute_name}_manual`);
+                let search_field = me.multiple_variant_dialog.get_field(`${attribute_name}_search`);
+
+                if (manual_field) {
+                    manual_values[attribute_name] = manual_field.get_value();
+                }
+                if (search_field) {
+                    search_values[attribute_name] = search_field.get_value();
+                }
+            }
+        });
+
+        // Hiển thị loading
+        frappe.show_alert(__('Updating attribute values...'), 3);
+
+        // Load lại attribute values
+        load_attribute_values(() => {
+            // Đóng dialog cũ
+            me.multiple_variant_dialog.hide();
+
+            // Tạo lại dialog mới
+            let fields = make_fields_from_attribute_values(attr_val_fields);
+            make_and_show_dialog(fields);
+
+            // Khôi phục các giá trị sau khi dialog mới được tạo
+            setTimeout(() => {
+                // Restore use_template_image
+                if (frm.doc.image && use_template_image) {
+                    me.multiple_variant_dialog.set_value('use_template_image', use_template_image);
+                }
+
+                // Restore manual values và search values
+                Object.keys(manual_values).forEach(attr => {
+                    let field = me.multiple_variant_dialog.get_field(`${attr}_manual`);
+                    if (field && manual_values[attr]) {
+                        field.set_value(manual_values[attr]);
+                    }
+                });
+
+                Object.keys(search_values).forEach(attr => {
+                    let field = me.multiple_variant_dialog.get_field(`${attr}_search`);
+                    if (field && search_values[attr]) {
+                        field.set_value(search_values[attr]);
+                        field.$input.trigger('change');
+                    }
+                });
+
+                // Restore và apply selected values (bao gồm cả values mới import)
+                Object.keys(selectedValues).forEach(attr => {
+                    selectedValues[attr].forEach(value => {
+                        let checkbox = me.multiple_variant_dialog.get_field(value);
+                        if (checkbox) {
+                            checkbox.set_value(1);
+                        }
+                    });
+                });
+
+                frappe.show_alert({
+                    message: __('Attribute values updated and selections restored'),
+                    indicator: 'green'
+                });
+            }, 200);
+        });
+    }
+
     // Hàm refresh dialog
     function refresh_dialog_content() {
         // Lưu lại các giá trị đã chọn
@@ -1065,7 +1130,7 @@ erpnext.item.show_multiple_variants_dialog = function (frm) {
                     label: __('Create a variant with the template image.'),
                     fieldname: 'use_template_image',
                     default: 0
-                } : null,
+                } : null
             ].concat(fields).filter(Boolean)
         });
 
@@ -1110,19 +1175,9 @@ erpnext.item.show_multiple_variants_dialog = function (frm) {
                         }
                     });
 
-                    // Enhanced tooltip với format info
-                    const formatType = ATTRIBUTE_FORMAT_CONFIG[attribute_name] || ATTRIBUTE_FORMAT_CONFIG['default'];
-                    let formatDescription;
-                    switch (formatType) {
-                        case 'keep': formatDescription = 'as-is'; break;
-                        case 'camelCaseNoSpace': formatDescription = 'camelCase'; break;
-                        case 'pascalCaseNoSpace': formatDescription = 'PascalCase'; break;
-                        case 'proper':
-                        default: formatDescription = 'Proper Case'; break;
-                    }
-
-                    textarea.attr('title', `Search & Bulk Input for ${attribute_name}\nPress Ctrl+Enter to apply\nGreen = existing, Red = missing (will be converted to ${formatDescription})`);
-                    textarea.attr('placeholder', `${attribute_name} values (one per line)\nCtrl+Enter to apply\nMissing values → ${formatDescription}`);
+                    // Set tooltips
+                    textarea.attr('title', `Search & Bulk Input for ${attribute_name}\nPress Ctrl+Enter to apply\nGreen = existing, Red = missing\nSimilar values show as warnings but will be imported as new`);
+                    textarea.attr('placeholder', `${attribute_name} values (one per line)\nCtrl+Enter to apply\nSimilar values → warnings + import as new`);
                 }
             });
 
