@@ -796,7 +796,8 @@ function show_invoice_selection_dialog(frm, row) {
 
             // Create dialog with grid and quantity field
             let dialog = new frappe.ui.Dialog({
-                title: __('Select Invoice(s) for Item:<br>{0}<br>{1}', [row.item_code, row.custom_item_name_detail]),
+                title: __('Select Invoice(s) for Item: <a href="/app/item/{0}" target="_blank">{0}</a><br>{1}', [row.item_code, row.custom_item_name_detail]),
+
                 fields: [
                     {
                         fieldname: 'quantity_info',
@@ -834,7 +835,7 @@ function show_invoice_selection_dialog(frm, row) {
                             {
                                 fieldname: 'custom_item_name_detail',
                                 fieldtype: 'Data',
-                                label: __('Item Detail'),
+                                label: __('Item Name Detail'),
                                 read_only: 1,
                                 in_list_view: 1,
                                 columns: 3
@@ -842,7 +843,7 @@ function show_invoice_selection_dialog(frm, row) {
                             {
                                 fieldname: 'available_qty',
                                 fieldtype: 'Float',
-                                label: __('Available Qty'),
+                                label: __('Qty Available'),
                                 read_only: 1,
                                 in_list_view: 1,
                                 columns: 1
@@ -862,7 +863,7 @@ function show_invoice_selection_dialog(frm, row) {
                                 label: __('Warehouse'),
                                 read_only: 1,
                                 in_list_view: 1,
-                                columns: 1
+                                columns: 2
                             },
                             {
                                 fieldname: 'receive_date',
@@ -875,6 +876,7 @@ function show_invoice_selection_dialog(frm, row) {
                         ]
                     }
                 ],
+
                 size: 'extra-large',
                 primary_action_label: __('Add Selected Items'),
                 primary_action: function (values) {
@@ -902,11 +904,13 @@ function show_invoice_selection_dialog(frm, row) {
                     process_multiple_invoice_selection(frm, row, selected_rows, selected_qty);
 
                     dialog.hide();
-                    frm.invoice_dialog_open = false;
                 },
                 secondary_action_label: __('Cancel'),
                 secondary_action: function () {
                     dialog.hide();
+                },
+                onhide: function () {
+                    // Always reset the dialog flag when dialog is hidden (any way)
                     frm.invoice_dialog_open = false;
                 }
             });
