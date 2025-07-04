@@ -98,7 +98,19 @@ fixtures = [
                 "Stock Reconciliation Item"
                 ]]
         ]
-    }
+    },
+    # List View Settings
+    {
+        "doctype": "List View Settings",
+        "filters": {
+            "name": ["in", [
+                "Item",
+                "Stock Entry", 
+                "Stock Reconciliation"
+                # Add your doctypes here
+            ]]
+        }
+    },
 ]
 
 
