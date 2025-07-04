@@ -5,6 +5,8 @@
 // - Tổ chức checkboxes thành Selected/Available groups
 // - Thêm search và bulk input cho mỗi attribute
 // - Chỉ thực hiện bulk input khi nhấn Enter thay vì tìm kiếm liên tục
+// - Import trực tiếp attribute values khi không tìm thấy
+// - Luôn so sánh lowercase và chuyển đổi sang camelCase khi lưu
 if (!erpnext.item._original_show_multiple_variants_dialog) {
     erpnext.item._original_show_multiple_variants_dialog = erpnext.item.show_multiple_variants_dialog;
 }
@@ -18,6 +20,103 @@ erpnext.item.show_multiple_variants_dialog = function (frm) {
     // Định nghĩa thứ tự cố định cho attributes
     // Có thể thay đổi thứ tự này theo nhu cầu của bạn
     const FIXED_ATTRIBUTE_ORDER = ['Color', 'Size', 'Brand', 'Season', 'Info'];
+
+    // Cấu hình format theo attribute - có thể tùy chỉnh : keep, proper
+    const ATTRIBUTE_FORMAT_CONFIG = {
+        'Color': 'proper',        // Blue1, Red Color
+        'Size': 'proper',          // giữ nguyên: S, M, L, XL
+        'Brand': 'proper',       // Nike, Adidas Brand
+        'Season': 'proper',      // Summer, Winter Sale
+        'Info': 'proper',        // New Arrival, Hot Item
+        'default': 'proper'      // mặc định cho attributes khác
+    };
+
+    // Hàm chuyển đổi sang PROPER case (như Excel) - in hoa chữ cái đầu mỗi từ, giữ khoảng trắng
+    function toProperCase(str) {
+        if (!str) return str;
+
+        return str.trim()
+            .toLowerCase()
+            .replace(/\b\w/g, function (char) {
+                return char.toUpperCase();
+            });
+    }
+
+    // Hàm alternative cho camelCase thật (nối từ, không có space)
+    function toCamelCaseNoSpace(str) {
+        if (!str) return str;
+
+        str = str.trim().toLowerCase();
+
+        // Tách bằng nhiều delimiter: space, dash, underscore
+        let words = str.split(/[\s\-_]+/).filter(word => word);
+
+        return words
+            .map((word, index) => {
+                if (index === 0) {
+                    // Word đầu tiên giữ nguyên lowercase
+                    return word;
+                } else {
+                    // Các word tiếp theo capitalize chữ cái đầu
+                    return word.charAt(0).toUpperCase() + word.slice(1);
+                }
+            })
+            .join('');
+    }
+
+    // Hàm alternative để convert properly với số (PascalCase without space)
+    function toPascalCaseNoSpace(str) {
+        if (!str) return str;
+
+        str = str.trim().toLowerCase();
+
+        // Tách bằng space, dash, underscore
+        let words = str.split(/[\s\-_]+/).filter(word => word);
+
+        return words
+            .map(word => {
+                if (!word) return '';
+                return word.charAt(0).toUpperCase() + word.slice(1);
+            })
+            .join('');
+    }
+
+    // Hàm chuẩn hóa giá trị để so sánh
+    function normalizeForComparison(value) {
+        return value.toLowerCase().trim();
+    }
+
+    // Hàm format giá trị cho display và storage - enhanced với proper case
+    function formatValueForStorage(value, attributeName = null) {
+        if (!value) return value;
+
+        // Trim trước
+        const trimmed = value.trim();
+
+        // Lấy format config cho attribute này
+        const formatType = attributeName ?
+            (ATTRIBUTE_FORMAT_CONFIG[attributeName] || ATTRIBUTE_FORMAT_CONFIG['default']) :
+            ATTRIBUTE_FORMAT_CONFIG['default'];
+
+        switch (formatType) {
+            case 'keep':
+                // Giữ nguyên case, chỉ trim
+                return trimmed;
+
+            case 'camelCaseNoSpace':
+                // camelCase không có space: newArrival, hotItem
+                return toCamelCaseNoSpace(trimmed);
+
+            case 'pascalCaseNoSpace':
+                // PascalCase không có space: NewArrival, HotItem
+                return toPascalCaseNoSpace(trimmed);
+
+            case 'proper':
+            default:
+                // PROPER case như Excel: New Arrival, Hot Item, Blue1
+                return toProperCase(trimmed);
+        }
+    }
 
     function make_fields_from_attribute_values(attr_dict) {
         let fields = [];
@@ -55,16 +154,15 @@ erpnext.item.show_multiple_variants_dialog = function (frm) {
 
             fields.push({
                 fieldtype: 'Data',
-                label: __('Search {0}', [name]),
                 fieldname: `${name}_search`,
                 onchange: function () {
-                    let search_value = this.get_value().toLowerCase();
+                    let search_value = normalizeForComparison(this.get_value());
                     let column = $(this.wrapper).closest('.form-column');
                     let checkboxes = column.find('.unchecked-checkboxes .checkbox');
 
                     let visibleCount = 0;
                     checkboxes.each(function () {
-                        let label = $(this).find('label').text().toLowerCase();
+                        let label = normalizeForComparison($(this).find('label').text());
                         if (label.includes(search_value)) {
                             $(this).show();
                             visibleCount++;
@@ -82,13 +180,25 @@ erpnext.item.show_multiple_variants_dialog = function (frm) {
 
             fields.push({
                 fieldtype: 'Small Text',
-                label: __('Enter value (one per line, press Enter to apply)'),
                 fieldname: `${name}_manual`,
-                description: __('Type values and press Enter to select/deselect them'),
                 onchange: function () {
-                    // Không làm gì trong onchange, chỉ để trống
-                    // Logic sẽ được xử lý trong key event listener
+                    // Không làm gì trong onchange
                 }
+            });
+
+            // Add status display area
+            fields.push({
+                fieldtype: 'HTML',
+                fieldname: `${name}_status`,
+                options: `<div class="value-status-area" data-attribute="${name}" style="margin-bottom: 10px; display: none;">
+                    <div class="status-content" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px; background: #f9f9f9;">
+                        <div class="status-info" style="font-size: 12px; margin-bottom: 5px;"></div>
+                        <div class="missing-values" style="margin-bottom: 8px;"></div>
+                        <button class="btn btn-primary btn-xs import-missing-btn" style="display: none;">
+                            ${__('Import Missing Values')}
+                        </button>
+                    </div>
+                </div>`
             });
 
             // Add HTML containers for checked and unchecked checkboxes
@@ -159,32 +269,354 @@ erpnext.item.show_multiple_variants_dialog = function (frm) {
         return fields;
     }
 
-    // Hàm xử lý bulk input chỉ khi nhấn Enter
+    // === Merge functions from item_attribute_import.js ===
+
+    // Enhanced import function với camelCase conversion
+    function importMissingValues(attributeName, missingValues, selectedValues, callback) {
+        if (!missingValues || missingValues.length === 0) {
+            if (callback) callback();
+            return;
+        }
+
+        // Convert missing values to configured format for storage
+        const formattedMissingValues = missingValues.map(value => formatValueForStorage(value, attributeName));
+
+        // Show progress
+        frappe.show_alert(__('Adding {0} values to {1}...', [formattedMissingValues.length, attributeName]), 5);
+
+        // Get attribute document and add values
+        frappe.call({
+            method: 'frappe.client.get',
+            args: {
+                doctype: 'Item Attribute',
+                name: attributeName
+            },
+            callback: function (r) {
+                if (r.message) {
+                    let attr_doc = r.message;
+                    let existingValues = attr_doc.item_attribute_values || [];
+                    let lastAbbr = getLastAbbreviation(attributeName, existingValues);
+
+                    // Check for duplicates using normalized comparison
+                    let existingNormalized = existingValues.map(item =>
+                        normalizeForComparison(item.attribute_value)
+                    );
+
+                    let valuesToAdd = [];
+                    formattedMissingValues.forEach(value => {
+                        let normalizedValue = normalizeForComparison(value);
+                        if (!existingNormalized.includes(normalizedValue)) {
+                            valuesToAdd.push(value);
+                        }
+                    });
+
+                    if (valuesToAdd.length === 0) {
+                        frappe.show_alert({
+                            message: __('All values already exist in {0}', [attributeName]),
+                            indicator: 'blue'
+                        });
+
+                        // Still refresh to update UI
+                        setTimeout(() => {
+                            refresh_dialog_content_with_selection(selectedValues);
+                        }, 500);
+                        return;
+                    }
+
+                    // Add new values to the document
+                    valuesToAdd.forEach(value => {
+                        lastAbbr = get_next_code(lastAbbr);
+
+                        // Add to item_attribute_values array
+                        if (!attr_doc.item_attribute_values) {
+                            attr_doc.item_attribute_values = [];
+                        }
+
+                        attr_doc.item_attribute_values.push({
+                            attribute_value: value, // Already in camelCase format
+                            abbr: lastAbbr
+                        });
+                    });
+
+                    // Save the document
+                    frappe.call({
+                        method: 'frappe.client.save',
+                        args: {
+                            doc: attr_doc
+                        },
+                        callback: function (save_r) {
+                            if (save_r.message) {
+                                frappe.show_alert({
+                                    message: __('Successfully added {0} values to {1}', [valuesToAdd.length, attributeName]),
+                                    indicator: 'green'
+                                });
+
+                                // Update selected values with new camelCase values
+                                let updatedSelectedValues = { ...selectedValues };
+                                if (!updatedSelectedValues[attributeName]) {
+                                    updatedSelectedValues[attributeName] = [];
+                                }
+
+                                // Add the new camelCase values to selected
+                                valuesToAdd.forEach(camelValue => {
+                                    if (!updatedSelectedValues[attributeName].includes(camelValue)) {
+                                        updatedSelectedValues[attributeName].push(camelValue);
+                                    }
+                                });
+
+                                // Refresh dialog với selected values để restore
+                                setTimeout(() => {
+                                    refresh_dialog_content_with_selection(updatedSelectedValues);
+                                }, 500);
+
+                                if (callback) callback();
+                            } else {
+                                frappe.msgprint({
+                                    title: __('Error'),
+                                    indicator: 'red',
+                                    message: __('Failed to save {0} values. Please try again.', [attributeName])
+                                });
+                            }
+                        },
+                        error: function (err) {
+                            console.error('Save error:', err);
+                            frappe.msgprint({
+                                title: __('Error'),
+                                indicator: 'red',
+                                message: __('Error saving attribute values: {0}', [err.message || 'Unknown error'])
+                            });
+                        }
+                    });
+                } else {
+                    frappe.msgprint({
+                        title: __('Error'),
+                        indicator: 'red',
+                        message: __('Could not load {0} attribute document', [attributeName])
+                    });
+                }
+            },
+            error: function (err) {
+                console.error('Get attribute error:', err);
+                frappe.msgprint({
+                    title: __('Error'),
+                    indicator: 'red',
+                    message: __('Error loading attribute: {0}', [err.message || 'Unknown error'])
+                });
+            }
+        });
+    }
+
+    // Lấy mã viết tắt cuối cùng dựa trên loại thuộc tính
+    function getLastAbbreviation(attributeName, existingValues = []) {
+        if (existingValues.length > 0) {
+            return existingValues[existingValues.length - 1].abbr;
+        }
+
+        // Mã mặc định dựa trên loại thuộc tính
+        if (attributeName === "Color" || attributeName === "Size" || attributeName === "Info") {
+            return "000"; // 3-character code
+        } else if (attributeName === "Brand" || attributeName === "Season") {
+            return "00";  // 2-character code
+        } else {
+            return "000"; // Default 3-character code
+        }
+    }
+
+    // Hàm tạo mã code tiếp theo
+    function get_next_code(max_code) {
+        try {
+            // Xác định độ dài mã
+            const codeLength = max_code ? max_code.length : 3;
+
+            // Nếu max_code rỗng hoặc không hợp lệ, trả về mã mặc định
+            if (!max_code || (codeLength !== 2 && codeLength !== 3)) {
+                return codeLength === 2 ? '00' : '000';
+            }
+
+            // Định nghĩa ký tự hợp lệ (0-9 và A-Z)
+            const validChars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
+            // Chuyển đổi mã hiện tại thành mảng ký tự
+            const codeChars = max_code.split('');
+
+            // Bắt đầu từ ký tự ngoài cùng bên phải
+            let position = codeLength - 1;
+            let carry = true;
+
+            // Xử lý từng ký tự từ phải sang trái
+            while (position >= 0 && carry) {
+                // Lấy ký tự hiện tại tại vị trí này
+                const currentChar = codeChars[position];
+
+                // Tìm index của nó trong chuỗi validChars
+                const currentIndex = validChars.indexOf(currentChar);
+
+                if (currentIndex === validChars.length - 1) {
+                    // Nếu là ký tự cuối cùng (Z), reset về đầu tiên (0) và nhớ
+                    codeChars[position] = '0';
+                    carry = true;
+                } else {
+                    // Ngược lại, tăng lên ký tự tiếp theo và dừng nhớ
+                    codeChars[position] = validChars[currentIndex + 1];
+                    carry = false;
+                }
+
+                // Di chuyển đến vị trí bên trái tiếp theo
+                position--;
+            }
+
+            // Nếu vẫn còn nhớ sau khi xử lý tất cả các vị trí,
+            // chúng ta đã vượt quá mã tối đa có thể (ZZ hoặc ZZZ)
+            if (carry) {
+                console.warn('Warning: Code sequence overflow, returning to ' + '0'.repeat(codeLength));
+                return '0'.repeat(codeLength);
+            }
+
+            // Nối các ký tự lại thành một chuỗi
+            return codeChars.join('');
+        } catch (error) {
+            console.error('Error generating next code:', error);
+            // Fallback là mã mặc định trong trường hợp lỗi
+            return max_code && max_code.length === 2 ? '00' : '000';
+        }
+    }
+
+    // === End merge from item_attribute_import.js ===
+
+    // Hàm refresh dialog với selected values
+    function refresh_dialog_content_with_selection(selectedValues) {
+        // Lưu lại các giá trị khác
+        let manual_values = {};
+        let search_values = {};
+        let use_template_image = me.multiple_variant_dialog.get_value('use_template_image');
+
+        // Lưu lại giá trị trong các textarea và search input
+        me.multiple_variant_dialog.$wrapper.find('.form-column').each(function () {
+            let column = $(this);
+            let attribute_name = column.find('.column-label').text().trim();
+            if (attribute_name) {
+                let manual_field = me.multiple_variant_dialog.get_field(`${attribute_name}_manual`);
+                let search_field = me.multiple_variant_dialog.get_field(`${attribute_name}_search`);
+
+                if (manual_field) {
+                    manual_values[attribute_name] = manual_field.get_value();
+                }
+                if (search_field) {
+                    search_values[attribute_name] = search_field.get_value();
+                }
+            }
+        });
+
+        // Hiển thị loading
+        frappe.show_alert(__('Updating attribute values...'), 3);
+
+        // Load lại attribute values
+        load_attribute_values(() => {
+            // Đóng dialog cũ
+            me.multiple_variant_dialog.hide();
+
+            // Tạo lại dialog mới
+            let fields = make_fields_from_attribute_values(attr_val_fields);
+            make_and_show_dialog(fields);
+
+            // Khôi phục các giá trị sau khi dialog mới được tạo
+            setTimeout(() => {
+                // Restore use_template_image
+                if (frm.doc.image && use_template_image) {
+                    me.multiple_variant_dialog.set_value('use_template_image', use_template_image);
+                }
+
+                // Restore manual values và search values
+                Object.keys(manual_values).forEach(attr => {
+                    let field = me.multiple_variant_dialog.get_field(`${attr}_manual`);
+                    if (field && manual_values[attr]) {
+                        field.set_value(manual_values[attr]);
+                    }
+                });
+
+                Object.keys(search_values).forEach(attr => {
+                    let field = me.multiple_variant_dialog.get_field(`${attr}_search`);
+                    if (field && search_values[attr]) {
+                        field.set_value(search_values[attr]);
+                        field.$input.trigger('change');
+                    }
+                });
+
+                // Restore và apply selected values (bao gồm cả values mới import)
+                Object.keys(selectedValues).forEach(attr => {
+                    selectedValues[attr].forEach(value => {
+                        let checkbox = me.multiple_variant_dialog.get_field(value);
+                        if (checkbox) {
+                            checkbox.set_value(1);
+                        }
+                    });
+                });
+
+                frappe.show_alert({
+                    message: __('Attribute values updated and selections restored'),
+                    indicator: 'green'
+                });
+            }, 200);
+        });
+    }
+
+    // Enhanced bulk input handler với improved comparison và camelCase conversion
     function handleBulkInput(manual_field, attribute_name) {
         let manual_values = manual_field.get_value().split('\n').map(v => v.trim()).filter(v => v);
-        let not_found_values = [];
+
+        if (manual_values.length === 0) {
+            // Hide status area if no input
+            let column = $(manual_field.wrapper).closest('.form-column');
+            column.find('.value-status-area').hide();
+            return;
+        }
 
         let available_values = [];
-        let available_values_lower = [];
+        let available_values_normalized = [];
         let checkboxes = $(manual_field.wrapper).closest('.form-column').find('.checkbox');
+
         checkboxes.each(function () {
             let value = $(this).find('label').text().trim();
             available_values.push(value);
-            available_values_lower.push(value.toLowerCase());
+            available_values_normalized.push(normalizeForComparison(value));
         });
 
-        // Tạo một tập hợp các giá trị nhập vào để dễ dàng kiểm tra
-        let manual_values_set = new Set(manual_values.map(v => v.toLowerCase()));
+        // Categorize values into existing and missing với improved comparison
+        let existing_values = [];
+        let missing_values = [];
 
-        // Duyệt qua tất cả các checkbox
+        manual_values.forEach(inputValue => {
+            let normalizedInput = normalizeForComparison(inputValue);
+            let matchFound = false;
+
+            // Tìm exact match trong available values
+            for (let i = 0; i < available_values_normalized.length; i++) {
+                if (available_values_normalized[i] === normalizedInput) {
+                    existing_values.push(available_values[i]); // Use the exact value from available
+                    matchFound = true;
+                    break;
+                }
+            }
+
+            if (!matchFound) {
+                // Convert to configured format for consistency before adding to missing
+                missing_values.push(formatValueForStorage(inputValue, attribute_name));
+            }
+        });
+
+        // Apply existing values to checkboxes với normalized comparison
+        let existing_values_normalized = new Set(existing_values.map(v => normalizeForComparison(v)));
+        let appliedCount = 0;
+
         checkboxes.each(function () {
             let label = $(this).find('label').text().trim();
-            let label_lower = label.toLowerCase();
+            let label_normalized = normalizeForComparison(label);
             let checkbox_input = $(this).find('input');
 
-            if (manual_values_set.has(label_lower)) {
+            if (existing_values_normalized.has(label_normalized)) {
                 if (!checkbox_input.is(':checked')) {
                     checkbox_input.prop('checked', true).trigger('change');
+                    appliedCount++;
                 }
             } else {
                 if (checkbox_input.is(':checked')) {
@@ -193,32 +625,83 @@ erpnext.item.show_multiple_variants_dialog = function (frm) {
             }
         });
 
-        // Kiểm tra các giá trị không tồn tại
-        manual_values.forEach(value => {
-            if (!available_values_lower.includes(value.toLowerCase())) {
-                not_found_values.push(value);
-            }
-        });
-
-        if (not_found_values.length > 0) {
-            let attribute_link = `<a href="/app/item-attribute/${encodeURIComponent(attribute_name)}" target="_blank">Thêm giá trị mới</a>`;
-            frappe.msgprint({
-                title: __('Attribute Value Not Found'),
-                indicator: 'orange',
-                message: __('The following values do not exist in the attribute {0}: {1}<br><br>{2}',
-                    [attribute_name, not_found_values.join(', '), attribute_link])
-            });
-        }
-
         // Update counts after setting values
         updateValueCounts($(manual_field.wrapper).closest('.form-column'));
 
-        // Hiển thị thông báo thành công
-        if (manual_values.length > 0) {
+        // Show status and import button if needed
+        showValueStatus(manual_field, attribute_name, existing_values, missing_values);
+
+        // Show success message for applied values
+        if (appliedCount > 0) {
             frappe.show_alert({
-                message: __('Applied {0} values for {1}', [manual_values.length, attribute_name]),
+                message: __('Applied {0} existing values for {1}', [appliedCount, attribute_name]),
                 indicator: 'green'
             });
+        }
+    }
+
+    // Enhanced status display with camelCase preview
+    function showValueStatus(manual_field, attribute_name, existing_values, missing_values) {
+        let column = $(manual_field.wrapper).closest('.form-column');
+        let statusArea = column.find('.value-status-area');
+        let statusInfo = statusArea.find('.status-info');
+        let missingDiv = statusArea.find('.missing-values');
+        let importBtn = statusArea.find('.import-missing-btn');
+
+        if (existing_values.length === 0 && missing_values.length === 0) {
+            statusArea.hide();
+            return;
+        }
+
+        statusArea.show();
+
+        // Create status display
+        let statusHtml = '';
+        if (existing_values.length > 0) {
+            statusHtml += `<span style="color: green; font-weight: bold;">✓ ${existing_values.length} existing:</span> `;
+            statusHtml += existing_values.map(v => `<span style="color: green;">${v}</span>`).join(', ');
+        }
+
+        if (missing_values.length > 0) {
+            if (existing_values.length > 0) statusHtml += '<br>';
+
+            // Get format type for this attribute
+            const formatType = ATTRIBUTE_FORMAT_CONFIG[attribute_name] || ATTRIBUTE_FORMAT_CONFIG['default'];
+            let formatDescription;
+            switch (formatType) {
+                case 'keep': formatDescription = 'as-is'; break;
+                case 'camelCaseNoSpace': formatDescription = 'camelCase'; break;
+                case 'pascalCaseNoSpace': formatDescription = 'PascalCase'; break;
+                case 'proper':
+                default: formatDescription = 'Proper Case'; break;
+            }
+
+            statusHtml += `<span style="color: red; font-weight: bold;">✗ ${missing_values.length} missing (will be saved as ${formatDescription}):</span> `;
+            statusHtml += missing_values.map(v => `<span style="color: red;">${v}</span>`).join(', ');
+        }
+
+        statusInfo.html(statusHtml);
+
+        // Show/hide import button
+        if (missing_values.length > 0) {
+            importBtn.show();
+            importBtn.off('click').on('click', function () {
+                // Get current selected values to restore after import
+                let currentSelected = get_selected_attributes();
+                // Add missing values (already in camelCase) to current selected for this attribute
+                if (!currentSelected[attribute_name]) {
+                    currentSelected[attribute_name] = [];
+                }
+                missing_values.forEach(val => {
+                    if (!currentSelected[attribute_name].includes(val)) {
+                        currentSelected[attribute_name].push(val);
+                    }
+                });
+
+                importMissingValues(attribute_name, missing_values, currentSelected);
+            });
+        } else {
+            importBtn.hide();
         }
     }
 
@@ -603,7 +1086,7 @@ erpnext.item.show_multiple_variants_dialog = function (frm) {
             'overflow-y': 'auto'
         });
 
-        // Thêm event listener cho phím Enter trên tất cả các manual input fields
+        // Thêm event listener cho phím Enter và tooltip
         setTimeout(() => {
             me.multiple_variant_dialog.$wrapper.find('textarea').each(function () {
                 let textarea = $(this);
@@ -627,10 +1110,29 @@ erpnext.item.show_multiple_variants_dialog = function (frm) {
                         }
                     });
 
-                    // Thêm tooltip để hướng dẫn người dùng
-                    textarea.attr('title', 'Press Ctrl+Enter (or Cmd+Enter) to apply values');
-                    textarea.attr('placeholder', 'Enter values (one per line)\nPress Ctrl+Enter to apply');
+                    // Enhanced tooltip với format info
+                    const formatType = ATTRIBUTE_FORMAT_CONFIG[attribute_name] || ATTRIBUTE_FORMAT_CONFIG['default'];
+                    let formatDescription;
+                    switch (formatType) {
+                        case 'keep': formatDescription = 'as-is'; break;
+                        case 'camelCaseNoSpace': formatDescription = 'camelCase'; break;
+                        case 'pascalCaseNoSpace': formatDescription = 'PascalCase'; break;
+                        case 'proper':
+                        default: formatDescription = 'Proper Case'; break;
+                    }
+
+                    textarea.attr('title', `Search & Bulk Input for ${attribute_name}\nPress Ctrl+Enter to apply\nGreen = existing, Red = missing (will be converted to ${formatDescription})`);
+                    textarea.attr('placeholder', `${attribute_name} values (one per line)\nCtrl+Enter to apply\nMissing values → ${formatDescription}`);
                 }
+            });
+
+            // Thêm tooltip cho search inputs
+            me.multiple_variant_dialog.$wrapper.find('input[data-fieldname$="_search"]').each(function () {
+                let input = $(this);
+                let fieldname = input.attr('data-fieldname');
+                let attribute_name = fieldname.replace('_search', '');
+                input.attr('title', `Search ${attribute_name} values (case-insensitive)`);
+                input.attr('placeholder', `Search ${attribute_name}...`);
             });
         }, 200);
 
