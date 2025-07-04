@@ -378,15 +378,16 @@ async function update_default_warehouse(frm) {
  */
 async function get_default_warehouse(frm) {
     // Logic mới cho default warehouse
-    if (frm.doc.is_customer_provided_item) {
-        // Lấy thông tin customer - có thể từ field customer hoặc từ context khác
-        // TODO: Cần xác định customer được lấy từ đâu trong Item form
-        const customer = frm.doc.customer || '';
-        // if item group is 'B-Finished Goods'
-        if (frm.doc.item_group && frm.doc.item_group.includes('B-Finished Goods')) {
-            // Nếu item là B-Finished Goods, trả về warehouse mặc định Finished Goods - TIQN
-            return 'Finished Goods - TIQN';
-        } else
+    if (frm.doc.item_group && frm.doc.item_group.includes('B-Finished Goods')) {
+        // Nếu item là B-Finished Goods, trả về warehouse mặc định Finished Goods - TIQN
+        return 'Finished Goods - TIQN';
+    } else
+        if (frm.doc.is_customer_provided_item) {
+            // Lấy thông tin customer - có thể từ field customer hoặc từ context khác
+            // TODO: Cần xác định customer được lấy từ đâu trong Item form
+            const customer = frm.doc.customer || '';
+            // if item group is 'B-Finished Goods'
+
             if (customer) {
                 try {
                     // Query Customer doctype để lấy custom_default_warehouse
@@ -400,7 +401,7 @@ async function get_default_warehouse(frm) {
                     console.error("Error getting customer default warehouse:", error);
                 }
             }
-    }
+        }
 
     // Trường hợp khác - fallback
     return 'Material - Local - TIQN';

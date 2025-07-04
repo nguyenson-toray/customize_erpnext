@@ -1,3 +1,19 @@
+/**
+ * Converts a string to Proper Case (like Excel PROPER function)
+ * Capitalizes first letter of each word, preserves spaces
+ * @param {String} str - The string to convert
+ * @returns {String} The proper case string
+ */
+function toProperCase(str) {
+  if (!str) return str;
+
+  return str.trim()
+    .toLowerCase()
+    .replace(/\b\w/g, function (char) {
+      return char.toUpperCase();
+    });
+}
+
 frappe.ui.form.on('Item Attribute', {
   refresh: function (frm) {
     // Thêm nút import trực tiếp
@@ -41,7 +57,17 @@ function showImportDialog(frm) {
         fieldname: 'values',
         fieldtype: 'Text',
         reqd: 1,
-        description: __(`Each line will be imported as a new ${attributeName} value with auto-generated abbreviation.`)
+        description: __(`Each line will be imported as a new ${attributeName} value with auto-generated abbreviation. Values will be converted to Proper Case format (e.g., "red color" → "Red Color").`)
+      },
+      {
+        fieldtype: 'HTML',
+        fieldname: 'preview_area',
+        options: `
+          <div id="preview-container" style="margin-top: 15px; display: none;">
+            <h6><strong>Preview (Proper Case format):</strong></h6>
+            <div id="preview-content" style="max-height: 150px; overflow-y: auto; padding: 10px; border: 1px solid #ddd; border-radius: 4px; background: #f9f9f9; font-family: monospace; font-size: 12px;"></div>
+          </div>
+        `
       }
     ],
     primary_action_label: __('Import'),
@@ -55,53 +81,65 @@ function showImportDialog(frm) {
         return;
       }
 
-      // Xử lý trùng lặp trong giá trị đã nhập
+      // Convert tất cả values sang Proper Case và xử lý trùng lặp
+      const properCaseValues = allValues.map(v => toProperCase(v.trim()));
+
+      // Xử lý trùng lặp trong giá trị đã nhập (so sánh case-insensitive)
       const uniqueValues = [];
       const internalDuplicates = [];
       const valueSet = new Set();
 
       // Tìm giá trị trùng lặp trong input
-      allValues.forEach(v => {
-        const trimmedValue = v.trim();
-        const lowercaseValue = trimmedValue.toLowerCase();
+      properCaseValues.forEach((properValue, index) => {
+        const originalValue = allValues[index].trim();
+        const lowercaseValue = properValue.toLowerCase();
 
         if (valueSet.has(lowercaseValue)) {
-          internalDuplicates.push(trimmedValue);
+          internalDuplicates.push(originalValue);
         } else {
           valueSet.add(lowercaseValue);
-          uniqueValues.push(trimmedValue);
+          uniqueValues.push(properValue);
         }
       });
 
       d.hide();
 
-      // Kiểm tra giá trị trùng lặp với giá trị hiện có
+      // Kiểm tra giá trị trùng lặp với giá trị hiện có (case-insensitive)
       const existingValues = frm.doc.item_attribute_values || [];
       const existingValueSet = new Set(existingValues.map(v => v.attribute_value.toLowerCase()));
       const duplicatesWithExisting = uniqueValues.filter(v => existingValueSet.has(v.toLowerCase()));
       const newValues = uniqueValues.filter(v => !existingValueSet.has(v.toLowerCase()));
 
-      // Hiển thị thông báo về các giá trị trùng lặp
+      // Hiển thị thông báo về các giá trị trùng lặp và conversion
       let duplicateMessage = '';
 
+      // Show conversion info
+      const convertedCount = allValues.filter((original, index) =>
+        original.trim() !== properCaseValues[index]
+      ).length;
+
+      if (convertedCount > 0) {
+        duplicateMessage += `<p><strong>Format Conversion:</strong> ${convertedCount} values were converted to Proper Case format.</p>`;
+      }
+
       if (internalDuplicates.length > 0) {
-        duplicateMessage += `<p>${internalDuplicates.length} duplicate values within your input were removed.</p>`;
+        duplicateMessage += `<p><strong>Internal Duplicates:</strong> ${internalDuplicates.length} duplicate values within your input were removed.</p>`;
         if (internalDuplicates.length <= 10) {
-          duplicateMessage += `<p>Duplicates: ${internalDuplicates.join(', ')}</p>`;
+          duplicateMessage += `<p style="font-family: monospace; font-size: 11px; color: #666;">Duplicates: ${internalDuplicates.join(', ')}</p>`;
         }
       }
 
       if (duplicatesWithExisting.length > 0) {
-        duplicateMessage += `<p>${duplicatesWithExisting.length} values already exist in the attribute and will be skipped.</p>`;
+        duplicateMessage += `<p><strong>Existing Values:</strong> ${duplicatesWithExisting.length} values already exist in the attribute and will be skipped.</p>`;
         if (duplicatesWithExisting.length <= 10) {
-          duplicateMessage += `<p>Existing: ${duplicatesWithExisting.join(', ')}</p>`;
+          duplicateMessage += `<p style="font-family: monospace; font-size: 11px; color: #666;">Existing: ${duplicatesWithExisting.join(', ')}</p>`;
         }
       }
 
       if (duplicateMessage) {
         frappe.msgprint({
-          title: __('Duplicate Values'),
-          indicator: 'orange',
+          title: __('Import Summary'),
+          indicator: convertedCount > 0 ? 'blue' : 'orange',
           message: duplicateMessage
         });
       }
@@ -122,6 +160,38 @@ function showImportDialog(frm) {
     }
   });
 
+  // Thêm real-time preview khi user nhập
+  d.$wrapper.on('input', 'textarea[data-fieldname="values"]', function () {
+    const inputValues = $(this).val().split('\n').filter(v => v.trim() !== '');
+    const previewContainer = d.$wrapper.find('#preview-container');
+    const previewContent = d.$wrapper.find('#preview-content');
+
+    if (inputValues.length > 0) {
+      // Show preview với Proper Case format
+      const previewItems = inputValues.slice(0, 20).map(value => {
+        const original = value.trim();
+        const properCase = toProperCase(original);
+
+        if (original !== properCase) {
+          return `<span style="color: #666;">${original}</span> → <span style="color: #2e7d32; font-weight: bold;">${properCase}</span>`;
+        } else {
+          return `<span style="color: #2e7d32;">${properCase}</span>`;
+        }
+      });
+
+      let previewHtml = previewItems.join('<br>');
+
+      if (inputValues.length > 20) {
+        previewHtml += `<br><span style="color: #666; font-style: italic;">... and ${inputValues.length - 20} more values</span>`;
+      }
+
+      previewContent.html(previewHtml);
+      previewContainer.show();
+    } else {
+      previewContainer.hide();
+    }
+  });
+
   d.show();
 }
 
@@ -135,13 +205,16 @@ function importValuesWithProgress(frm, values) {
 
   try {
     importDialog = frappe.msgprint({
-      title: __('Importing Values'),
+      title: __('Importing Values (Proper Case Format)'),
       indicator: 'blue',
       message: `<div class="progress">
               <div class="progress-bar" role="progressbar" 
                   style="width: 0%;" aria-valuenow="0" 
                   aria-valuemin="0" aria-valuemax="100">0%</div>
-            </div>`,
+            </div>
+            <p style="margin-top: 10px; font-size: 12px; color: #666;">
+              All values are being saved in Proper Case format...
+            </p>`,
       wide: true
     });
 
@@ -159,15 +232,15 @@ function importValuesWithProgress(frm, values) {
           frappe.msgprint({
             title: __('Import Complete'),
             indicator: 'green',
-            message: __(`Successfully imported ${importedCount} values.`)
+            message: __(`Successfully imported ${importedCount} values in Proper Case format.`)
           });
           frm.save();
         }, 500);
         return;
       }
 
-      const value = values[index].trim();
-      if (value === '') {
+      const value = values[index]; // Value đã được convert sang Proper Case
+      if (!value || value.trim() === '') {
         processNext(index + 1);
         return;
       }
@@ -175,9 +248,9 @@ function importValuesWithProgress(frm, values) {
       // Tạo mã viết tắt mới
       lastAbbr = get_next_code(lastAbbr);
 
-      // Thêm giá trị mới
+      // Thêm giá trị mới (đã ở dạng Proper Case)
       const child = frappe.model.add_child(frm.doc, 'Item Attribute Value', 'item_attribute_values');
-      child.attribute_value = value;
+      child.attribute_value = value; // Giá trị đã được format
       child.abbr = lastAbbr;
 
       importedCount++;
@@ -299,23 +372,38 @@ function get_next_code(max_code) {
   }
 }
 
-// Thêm hàm để hỗ trợ import CSV
+// Thêm hàm để hỗ trợ import CSV với Proper Case
 frappe.ui.form.on('Data Import', {
   refresh: function (frm) {
     // Chỉ áp dụng cho Item Attribute imports
     if (frm.doc.reference_doctype === "Item Attribute") {
-      // Thêm thông báo để thông báo về tự động tạo abbreviations
-      frm.add_custom_button(__('How Abbreviations Work'), function () {
+      // Thêm thông báo để thông báo về tự động tạo abbreviations và Proper Case
+      frm.add_custom_button(__('Import Guidelines'), function () {
         frappe.msgprint({
-          title: __('Auto-generate Abbreviations'),
+          title: __('Item Attribute Import Guidelines'),
           indicator: 'green',
           message: __(`
-                      <p>Khi nhập dữ liệu Item Attribute từ CSV:</p>
+                      <h6><strong>CSV Import Requirements:</strong></h6>
                       <ul>
                           <li>CSV chỉ cần chứa: <strong>Attribute Name</strong> (Color, Size...) và <strong>Attribute Value</strong> (giá trị)</li>
                           <li>Mã viết tắt (Abbreviation) sẽ tự động được tạo</li>
                           <li>Định dạng mã: 3 ký tự cho Color, Size, Info và 2 ký tự cho Brand, Season</li>
                           <li>Hệ thống sẽ tiếp tục từ mã cuối cùng hiện có</li>
+                      </ul>
+                      
+                      <h6><strong>Proper Case Formatting:</strong></h6>
+                      <ul>
+                          <li>Tất cả attribute values sẽ được tự động chuyển sang <strong>Proper Case</strong></li>
+                          <li>Ví dụ: "red color" → "Red Color", "blue1" → "Blue1"</li>
+                          <li>Khoảng trắng được giữ nguyên giữa các từ</li>
+                          <li>Chữ cái đầu mỗi từ sẽ được viết hoa</li>
+                      </ul>
+                      
+                      <h6><strong>Duplicate Detection:</strong></h6>
+                      <ul>
+                          <li>Hệ thống tự động phát hiện và bỏ qua giá trị trùng lặp</li>
+                          <li>So sánh không phân biệt hoa thường</li>
+                          <li>Báo cáo chi tiết sau khi import</li>
                       </ul>
                   `)
         });

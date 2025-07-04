@@ -63,6 +63,32 @@ function get_next_code(max_code) {
 }
 
 /**
+ * Converts a string to Proper Case (like Excel PROPER function)
+ * Capitalizes first letter of each word, preserves spaces
+ * @param {String} str - The string to convert
+ * @returns {String} The proper case string
+ */
+function toProperCase(str) {
+    if (!str) return str;
+
+    return str.trim()
+        .toLowerCase()
+        .replace(/\b\w/g, function (char) {
+            return char.toUpperCase();
+        });
+}
+
+/**
+ * Legacy function name for backward compatibility
+ * Now redirects to toProperCase for consistent formatting
+ * @param {String} str - The string to convert
+ * @returns {String} The proper case string
+ */
+function toCamelCase(str) {
+    return toProperCase(str);
+}
+
+/**
  * Validates a new Item Attribute to ensure there are no duplicate Attribute Values or Abbreviations
  * @param {Object} newAttribute - The new attribute object being created
  * @param {Array} existingAttributes - Array of existing attributes to check against
@@ -100,16 +126,18 @@ function validateItemAttribute(newAttribute, existingAttributes) {
         // Compare each new value with existing values
         newValues.forEach(newValue => {
             existingValues.forEach(existingValue => {
-                // Check for duplicate attribute value
-                if (newValue.attribute_value.toLowerCase() === existingValue.attribute_value.toLowerCase()) {
+                // Check for duplicate attribute value (case insensitive)
+                if (newValue.attribute_value && existingValue.attribute_value &&
+                    newValue.attribute_value.toLowerCase() === existingValue.attribute_value.toLowerCase()) {
                     duplicateValues.push({
                         value: newValue.attribute_value,
                         existingIn: existingAttr.attribute_name
                     });
                 }
 
-                // Check for duplicate abbreviation
-                if (newValue.abbr.toLowerCase() === existingValue.abbr.toLowerCase()) {
+                // Check for duplicate abbreviation (case insensitive)
+                if (newValue.abbr && existingValue.abbr &&
+                    newValue.abbr.toLowerCase() === existingValue.abbr.toLowerCase()) {
                     duplicateAbbreviations.push({
                         abbr: newValue.abbr,
                         existingIn: existingAttr.attribute_name
@@ -124,26 +152,30 @@ function validateItemAttribute(newAttribute, existingAttributes) {
     const abbrSet = new Set();
 
     newValues.forEach(value => {
-        // Check for duplicate attribute values within the same attribute
-        const lowercaseValue = value.attribute_value.toLowerCase();
-        if (valueSet.has(lowercaseValue)) {
-            duplicateValues.push({
-                value: value.attribute_value,
-                existingIn: "current attribute"
-            });
-        } else {
-            valueSet.add(lowercaseValue);
+        // Check for duplicate attribute values within the same attribute (case insensitive)
+        if (value.attribute_value) {
+            const lowercaseValue = value.attribute_value.toLowerCase();
+            if (valueSet.has(lowercaseValue)) {
+                duplicateValues.push({
+                    value: value.attribute_value,
+                    existingIn: "current attribute"
+                });
+            } else {
+                valueSet.add(lowercaseValue);
+            }
         }
 
-        // Check for duplicate abbreviations within the same attribute
-        const lowercaseAbbr = value.abbr.toLowerCase();
-        if (abbrSet.has(lowercaseAbbr)) {
-            duplicateAbbreviations.push({
-                abbr: value.abbr,
-                existingIn: "current attribute"
-            });
-        } else {
-            abbrSet.add(lowercaseAbbr);
+        // Check for duplicate abbreviations within the same attribute (case insensitive)
+        if (value.abbr) {
+            const lowercaseAbbr = value.abbr.toLowerCase();
+            if (abbrSet.has(lowercaseAbbr)) {
+                duplicateAbbreviations.push({
+                    abbr: value.abbr,
+                    existingIn: "current attribute"
+                });
+            } else {
+                abbrSet.add(lowercaseAbbr);
+            }
         }
     });
 
@@ -179,13 +211,48 @@ frappe.ui.form.on('Item Attribute', {
     refresh: function (frm) {
         console.log('Form refreshed - ');
         console.log('Is numeric:', frm.doc.numeric_values);
+
+        // Add a note about Proper Case formatting
+        if (!frm.doc.numeric_values) {
+            frm.add_custom_button(__('Format Note'), function () {
+                frappe.msgprint({
+                    title: __('Attribute Value Formatting'),
+                    message: __('All attribute values will be automatically converted to Proper Case (like Excel PROPER function) before saving.<br><br>Examples:<br>• "red color" → "Red Color"<br>• "blue1" → "Blue1"<br>• "DARK-BLUE" → "Dark-Blue"'),
+                    indicator: 'blue'
+                });
+            });
+        }
     },
 
     before_save: function (frm) {
+        // Convert all attribute values to Proper Case before saving
+        const values = frm.doc.item_attribute_values || [];
+        let hasChanges = false;
+
+        values.forEach(value => {
+            if (value.attribute_value) {
+                const originalValue = value.attribute_value;
+                const properCaseValue = toProperCase(value.attribute_value);
+
+                if (originalValue !== properCaseValue) {
+                    value.attribute_value = properCaseValue;
+                    hasChanges = true;
+                }
+            }
+        });
+
+        // Show message if values were converted
+        if (hasChanges) {
+            frappe.show_alert({
+                message: __('Attribute values converted to Proper Case format'),
+                indicator: 'blue'
+            }, 3);
+        }
+
         // Validate abbreviation format based on attribute type
         validateAttributeFormat(frm);
 
-        // Fetch all existing attributes from the system
+        // Fetch all existing attributes from the system for duplicate validation
         frappe.call({
             method: "frappe.client.get_list",
             args: {
@@ -311,6 +378,22 @@ frappe.ui.form.on('Item Attribute Value', {
 
     // Add validation when attribute value or abbreviation is changed
     attribute_value: function (frm, cdt, cdn) {
+        // Convert to Proper Case when attribute value changes
+        let row = locals[cdt][cdn];
+        if (row.attribute_value) {
+            const originalValue = row.attribute_value;
+            const properCaseValue = toProperCase(row.attribute_value);
+
+            if (properCaseValue !== originalValue) {
+                frappe.model.set_value(cdt, cdn, 'attribute_value', properCaseValue);
+
+                // Show conversion notification
+                frappe.show_alert({
+                    message: __('Converted "{0}" to Proper Case: "{1}"', [originalValue, properCaseValue]),
+                    indicator: 'blue'
+                }, 3);
+            }
+        }
         validateAttributeRow(frm, cdt, cdn);
     },
 
@@ -375,14 +458,14 @@ function validateAttributeRow(frm, cdt, cdn) {
         // Skip comparing with itself
         if (value.name === row.name) return;
 
-        // Check for duplicate attribute value
-        if (value.attribute_value &&
+        // Check for duplicate attribute value (case insensitive)
+        if (value.attribute_value && row.attribute_value &&
             value.attribute_value.toLowerCase() === row.attribute_value.toLowerCase()) {
             hasDuplicateValue = true;
         }
 
-        // Check for duplicate abbreviation
-        if (value.abbr &&
+        // Check for duplicate abbreviation (case insensitive)
+        if (value.abbr && row.abbr &&
             value.abbr.toLowerCase() === row.abbr.toLowerCase()) {
             hasDuplicateAbbr = true;
         }
@@ -423,14 +506,14 @@ function validateAttributeRow(frm, cdt, cdn) {
 
                     // Check each value in the attribute
                     (attr.item_attribute_values || []).forEach(value => {
-                        // Check for duplicate attribute value
-                        if (value.attribute_value &&
+                        // Check for duplicate attribute value (case insensitive)
+                        if (value.attribute_value && row.attribute_value &&
                             value.attribute_value.toLowerCase() === row.attribute_value.toLowerCase()) {
                             externalDuplicateValue = attr.attribute_name;
                         }
 
-                        // Check for duplicate abbreviation
-                        if (value.abbr &&
+                        // Check for duplicate abbreviation (case insensitive)
+                        if (value.abbr && row.abbr &&
                             value.abbr.toLowerCase() === row.abbr.toLowerCase()) {
                             externalDuplicateAbbr = attr.attribute_name;
                         }

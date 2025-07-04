@@ -92,7 +92,7 @@ fixtures = [
         "doctype": "Property Setter",
         "filters": [
             ["doc_type", "in", [
-                # "Sales Invoice", "Purchase Invoice"
+                "Item",
                 "Stock Entry Detail",
                 "Stock Reconciliation",
                 "Stock Reconciliation Item"
