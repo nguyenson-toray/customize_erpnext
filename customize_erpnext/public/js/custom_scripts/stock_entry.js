@@ -105,7 +105,7 @@ function validate_no(frm) {
                 frappe.validated = false; // Prevent form submission
                 // Show error message with links to existing documents
                 frappe.msgprint({
-                    title: __('Duplicate Custom No Found'),
+                    title: __('Duplicate No# Found'),
                     message: __('No#: "{0}" already exists in the following Stock Entry documents: {1}', [custom_no, existing_docs]),
                     indicator: 'red'
                 });
