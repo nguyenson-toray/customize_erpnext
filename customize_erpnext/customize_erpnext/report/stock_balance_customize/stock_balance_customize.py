@@ -218,9 +218,14 @@ class StockBalanceReportCustomized:
 
         value_diff = flt(entry.stock_value_difference)
 
+        # Check if this is an opening stock entry
+        is_opening_stock = (entry.voucher_type == 'Stock Entry' and 
+                           getattr(entry, 'custom_is_opening_stock', 0) == 1)
+
         # Categorize as opening or period transaction
         if (entry.posting_date < self.from_date or 
-            entry.voucher_no in self.opening_vouchers.get(entry.voucher_type, [])):
+            entry.voucher_no in self.opening_vouchers.get(entry.voucher_type, []) or
+            is_opening_stock):
             qty_dict.opening_qty += qty_diff
             qty_dict.opening_val += value_diff
         elif self.from_date <= entry.posting_date <= self.to_date:
@@ -319,7 +324,7 @@ class StockBalanceReportCustomized:
                 sle.item_code, sle.warehouse, sle.posting_date, sle.actual_qty,
                 sle.valuation_rate, sle.company, sle.voucher_type, sle.qty_after_transaction,
                 sle.stock_value_difference, sle.voucher_no, sle.batch_no, sle.serial_no,
-                sle.custom_invoice_number, sle.custom_receive_date,
+                sle.custom_invoice_number, sle.custom_receive_date, sle.custom_is_opening_stock,
                 item_table.item_group, item_table.stock_uom, item_table.item_name,
             )
             .where((sle.docstatus < 2) & (sle.is_cancelled == 0))

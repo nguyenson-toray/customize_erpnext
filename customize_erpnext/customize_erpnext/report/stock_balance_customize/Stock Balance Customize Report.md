@@ -36,6 +36,7 @@
 - Custom Invoice Number từ Stock Entry và Stock Reconciliation
 - Custom Receive Date tracking cho aging accuracy
 - Sequential mapping với fallback logic cho invoice assignment
+- **Opening Stock Handling**: Stock Entry với `custom_is_opening_stock=1` được xử lý đặc biệt - qty được cộng vào Opening Qty thay vì In Qty
 
 ## Kiến trúc đã Refactor
 
@@ -53,7 +54,9 @@ class StockBalanceReportCustomized:
 ```
 Closing Balance Check → Opening Data (if available)
 Stock Ledger Query → Filtered SLE entries
+Opening Stock Detection → Check custom_is_opening_stock flag
 Group Processing → Item/Warehouse/Invoice grouping  
+Quantity Classification → Opening Qty vs In/Out Qty assignment
 FIFO Calculation → Age analysis với custom dates
 Variant Merge → Attribute integration
 Final Assembly → Report ready
@@ -120,6 +123,7 @@ class CustomizedFIFOSlots(FIFOSlots):
 def _prepare_stock_ledger_entries(self):
     # Single optimized query với proper joins
     # Indexed fields (posting_date, item_code, warehouse)
+    # Include custom_is_opening_stock field for classification
     # Filtered at database level
     # Unbuffered cursor cho large datasets
 ```
@@ -146,6 +150,7 @@ with frappe.db.unbuffered_cursor():
 - **Direct Mapping**: Sử dụng voucher_detail_no làm primary key
 - **Sequential Fallback**: Pattern-based mapping cho missing voucher_detail_no
 - **Enhanced Logic**: Xử lý Material Transfer với proper source/target mapping
+- **Opening Stock Logic**: Stock Entry với `voucher_type='Stock Entry'` và `custom_is_opening_stock=1` được classify như Opening Qty
 
 ### 📊 Multi-dimensional Grouping
 ```python
@@ -165,6 +170,24 @@ def _filter_items_with_no_transactions(self, iwb_map):
     # Remove items với zero transactions
     # Clean up float precision  
     # Maintain data consistency
+```
+
+### 📋 Opening Stock Classification Logic
+```python
+def _classify_stock_entry_quantity(self, sle_entry):
+    """
+    Phân loại quantity của Stock Ledger Entry:
+    - Nếu voucher_type='Stock Entry' và custom_is_opening_stock=1: 
+      → Cộng vào Opening Qty thay vì In Qty
+    - Các trường hợp khác: xử lý bình thường theo actual_qty
+    """
+    if (sle_entry.voucher_type == 'Stock Entry' and 
+        sle_entry.get('custom_is_opening_stock') == 1):
+        return 'opening_qty'
+    elif sle_entry.actual_qty > 0:
+        return 'in_qty'
+    else:
+        return 'out_qty'
 ```
 
 ## Configuration Options
@@ -365,6 +388,7 @@ export_selected_rows: function(data)   // Export selected rows only
 # Solution: Run invoice number correction script
 # Validate: Invoice balance consistency
 # Check: SLE integrity với voucher documents
+# Verify: Opening stock entries có custom_is_opening_stock flag đúng
 ```
 
 ### 🔍 Debug Mode

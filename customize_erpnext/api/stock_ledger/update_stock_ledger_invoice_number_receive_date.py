@@ -97,6 +97,12 @@ def update_from_stock_entry_enhanced(stock_entry):
             update_data['custom_invoice_number'] = invoice_number
         if receive_date:
             update_data['custom_receive_date'] = receive_date
+        
+        # Add custom_is_opening_stock field from Stock Entry
+        if hasattr(stock_entry, 'custom_is_opening_stock'):
+            update_data['custom_is_opening_stock'] = stock_entry.custom_is_opening_stock
+        else:
+            update_data['custom_is_opening_stock'] = 0  # Default to 0 if not present
             
         if update_data:
             updates_to_process.append({
@@ -168,6 +174,9 @@ def update_from_stock_reconciliation_enhanced(stock_reconciliation):
             update_data['custom_invoice_number'] = invoice_number
         if receive_date:
             update_data['custom_receive_date'] = receive_date
+        
+        # Add custom_is_opening_stock field (always 0 for Stock Reconciliation)
+        update_data['custom_is_opening_stock'] = 0
             
         if update_data:
             updates_to_process.append({

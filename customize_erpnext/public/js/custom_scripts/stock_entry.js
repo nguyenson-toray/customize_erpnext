@@ -20,7 +20,15 @@ frappe.ui.form.on('Stock Entry', {
             check_existing_material_transfers(frm);
         }
     },
-
+    custom_is_opening_stock: function (frm) {
+        if (frm.doc.custom_is_opening_stock === 1) {
+            // show alert message : Must set custom_receive_date in table items
+            frappe.show_alert({
+                message: __('Please set Receive Date for each item in the items table. This is required for opening stock entries.'),
+                indicator: 'orange'
+            }, 10);
+        }
+    },
     purpose: function (frm) {
         // Throw an error if purpose differs from ["Material Receipt", "Material Issue", "Material Transfer"]
         if (frm.doc.purpose && !["Material Receipt", "Material Issue", "Material Transfer"].includes(frm.doc.purpose)) {
@@ -107,11 +115,22 @@ function clear_custom_receive_date(frm) {
 
 function validate_no(frm) {
     console.log('Validating custom_no field:', frm.doc.custom_no);
+    if (frm.doc.custom_is_opening_stock === 1) {
+        // set custom_no format:  'Opening Stock'& posting_date yyyy-MM-dd
+        frm.set_value('custom_no', `Opening Stock ${frm.doc.posting_date ? frappe.datetime.str_to_user(frm.doc.posting_date) : frappe.datetime.nowdate()}`);
+        console.log('Setting custom_no to:', frm.doc.custom_no);
+        // set custom_no to read only    
+        frm.set_df_property('custom_no', 'read_only', 1);
+        return;
+    }
     let custom_no = frm.doc.custom_no ? frm.doc.custom_no.trim() : '';
     // validate custom_no field : not allow empty, must be unique, not dupplicate with exiting stock entry
     if (!frm.doc.custom_no || frm.doc.custom_no.trim() === '') {
-        frappe.throw(__('No# cannot be empty'));
-        return;
+        if (frm.custom_is_opening_stock === 0) {
+            frappe.throw(__('No# cannot be empty'));
+            return;
+        }
+
     }
     // Check if custom_no already exists in the submitted Stock Entry documents
     frappe.call({
@@ -565,7 +584,7 @@ function check_existing_material_transfers(frm) {
 }
 
 function sync_fields_to_child_table(frm) {
-    if (!frm.doc.items) return;
+    if (!frm.doc.items || frm.doc.custom_is_opening_stock === 1) return;
 
     let total_updated = 0;
     let fields_to_sync = [
@@ -611,10 +630,11 @@ function sync_fields_to_child_table(frm) {
             let updated_count = 0;
             frm.doc.items.forEach(function (row) {
                 // Chỉ update nếu field chưa có giá trị hoặc khác với giá trị parent
+
                 if (!row[field_info.field] || row[field_info.field] !== field_info.value) {
                     frappe.model.set_value(row.doctype, row.name, field_info.field, field_info.value);
-                    if (field_info.field === 'custom_receive_date' && frm.doc.stock_entry_type === "Material Issue") {
-                        frappe.model.set_value(row.doctype, row.name, 'custom_receive_date', null); // Clear custom_receive_date for Material Issue
+                    if (field_info.field === 'custom_receive_date' && (frm.doc.stock_entry_type === "Material Issue" || frm.doc.custom_is_opening_stock === 1)) {
+                        frappe.model.set_value(row.doctype, row.name, 'custom_receive_date', null); // Clear  custom_receive_date for Material Issue or custom_is_opening_stock =1
                     }
                     updated_count++;
                 }
