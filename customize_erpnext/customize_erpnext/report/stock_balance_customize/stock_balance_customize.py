@@ -1,6 +1,5 @@
 # stock_balance_customize.py
-# Enhanced Stock Balance Report with Invoice Number Support
-# Copyright (c) 2024, Custom Enhancement for ERPNext
+# Refactored Stock Balance Report with Invoice Number Support
 
 from operator import itemgetter
 from typing import Any, TypedDict
@@ -33,6 +32,7 @@ class StockBalanceFilter(TypedDict):
     show_variant_attributes: bool
     summary_qty_by_invoice_number: bool
     show_value: bool
+    range: str | None
 
 
 SLEntry = dict[str, Any]
@@ -42,145 +42,46 @@ def execute(filters: StockBalanceFilter | None = None):
     return StockBalanceReportCustomized(filters).run()
 
 
-def get_report_filters():
-    """Define filters for the Stock Balance Report"""
-    return [
-        {
-            "fieldname": "company",
-            "label": _("Company"),
-            "fieldtype": "Link",
-            "options": "Company",
-            "default": frappe.defaults.get_user_default("Company"),
-            "reqd": 1,
-            "width": 100
-        },
-        {
-            "fieldname": "from_date",
-            "label": _("From Date"),
-            "fieldtype": "Date",
-            "default": frappe.utils.add_months(frappe.utils.today(), -1),
-            "reqd": 1,
-            "width": 100
-        },
-        {
-            "fieldname": "to_date",
-            "label": _("To Date"), 
-            "fieldtype": "Date",
-            "default": frappe.utils.today(),
-            "reqd": 1,
-            "width": 100
-        },
-        {
-            "fieldname": "item_group",
-            "label": _("Item Group"),
-            "fieldtype": "Link",
-            "options": "Item Group",
-            "width": 100
-        },
-        {
-            "fieldname": "item",
-            "label": _("Item"),
-            "fieldtype": "Link", 
-            "options": "Item",
-            "width": 100
-        },
-        {
-            "fieldname": "warehouse",
-            "label": _("Warehouse"),
-            "fieldtype": "Link",
-            "options": "Warehouse",
-            "get_query": lambda: {"filters": {"is_group": 0}},
-            "width": 100
-        },
-        {
-            "fieldname": "warehouse_type",
-            "label": _("Warehouse Type"),
-            "fieldtype": "Link",
-            "options": "Warehouse Type",
-            "width": 100
-        },
-        {
-            "fieldname": "include_uom",
-            "label": _("Include UOM"),
-            "fieldtype": "Link",
-            "options": "UOM",
-            "width": 100
-        },
-        {
-            "fieldname": "show_variant_attributes",
-            "label": _("Show Variant Attributes"),
-            "fieldtype": "Check",
-            "default": 1
-        },
-        {
-            "fieldname": "show_stock_ageing_data", 
-            "label": _("Show Stock Ageing Data"),
-            "fieldtype": "Check",
-            "default": 0
-        },
-        {
-            "fieldname": "summary_qty_by_invoice_number",
-            "label": _("Group by Invoice Number"),
-            "fieldtype": "Check", 
-            "default": 1
-        },
-        {
-            "fieldname": "show_value",
-            "label": _("Show Value"),
-            "fieldtype": "Check",
-            "default": 0
-        },
-        {
-            "fieldname": "include_zero_stock_items",
-            "label": _("Include Zero Stock Items"),
-            "fieldtype": "Check",
-            "default": 0
-        },
-        {
-            "fieldname": "ignore_closing_balance",
-            "label": _("Ignore Closing Balance"),
-            "fieldtype": "Check", 
-            "default": 0
-        }
-    ]
-
-
 class StockBalanceReportCustomized:
     def __init__(self, filters: StockBalanceFilter | None) -> None:
-        self.filters = filters
-        self.from_date = getdate(filters.get("from_date"))
-        self.to_date = getdate(filters.get("to_date"))
-
+        self.filters = filters or {}
+        self.from_date = getdate(self.filters.get("from_date"))
+        self.to_date = getdate(self.filters.get("to_date"))
+        
         self.start_from = None
         self.data = []
         self.columns = []
         self.sle_entries: list[SLEntry] = []
-        self.set_company_currency()
+        self.opening_data = frappe._dict({})
+        self.company_currency = self._get_company_currency()
+        self.float_precision = cint(frappe.db.get_default("float_precision")) or 3
+        self.inventory_dimensions = self._get_inventory_dimension_fields()
 
-    def set_company_currency(self) -> None:
-        # Use company from filters or default
-        company = self.filters.get("company") or "Toray International, VietNam Company Limited - Quang Ngai Branch"
-        self.company_currency = erpnext.get_company_currency(company)
+    def _get_company_currency(self) -> str:
+        """Get company currency with fallback"""
+        company = self.filters.get("company") or frappe.defaults.get_user_default("Company")
+        return erpnext.get_company_currency(company) if company else "VND"
+
+    @staticmethod
+    def _get_inventory_dimension_fields():
+        """Get inventory dimension fields"""
+        return [dimension.fieldname for dimension in get_inventory_dimensions()]
 
     def run(self):
-        self.float_precision = cint(frappe.db.get_default("float_precision")) or 3
-
-        self.inventory_dimensions = self.get_inventory_dimension_fields()
-        self.prepare_opening_data_from_closing_balance()
-        self.prepare_stock_ledger_entries()
-        self.prepare_new_data()
-
+        """Main execution flow"""
+        self._prepare_opening_data_from_closing_balance()
+        self._prepare_stock_ledger_entries()
+        self._prepare_report_data()
+        
         if not self.columns:
-            self.columns = self.get_columns()
-
-        self.add_additional_uom_columns()
-
+            self.columns = self._get_columns()
+            
+        self._add_additional_uom_columns()
         return self.columns, self.data
 
-    def prepare_opening_data_from_closing_balance(self) -> None:
-        self.opening_data = frappe._dict({})
-
-        closing_balance = self.get_closing_balance()
+    def _prepare_opening_data_from_closing_balance(self) -> None:
+        """Load opening data from closing balance if available"""
+        closing_balance = self._get_closing_balance()
         if not closing_balance:
             return
 
@@ -189,132 +90,127 @@ class StockBalanceReportCustomized:
 
         for entry in res.data:
             entry = frappe._dict(entry)
-
-            # When grouping by invoice number, skip opening data as it doesn't have invoice breakdown
-            if self.filters.get("summary_qty_by_invoice_number"):
-                continue
-            else:
-                group_by_key = self.get_group_by_key(entry)
+            if not self.filters.get("summary_qty_by_invoice_number"):
+                group_by_key = self._get_group_by_key(entry)
                 if group_by_key not in self.opening_data:
-                    self.opening_data.setdefault(group_by_key, entry)
+                    self.opening_data[group_by_key] = entry
 
-    def prepare_new_data(self):
-        self.item_warehouse_map = self.get_item_warehouse_map()
+    def _prepare_report_data(self):
+        """Prepare final report data with aging and variant information"""
+        self.item_warehouse_map = self._get_item_warehouse_map()
+        
+        # Generate FIFO queue for aging calculation
+        self.filters["show_warehouse_wise_stock"] = True
+        item_wise_fifo_queue = CustomizedFIFOSlots(self.filters, self.sle_entries).generate()
+        
+        # Setup aging ranges if needed
+        if self.filters.get("show_stock_ageing_data") and not self.filters.get("range"):
+            self.filters["range"] = "180, 360, 720"
+        if self.filters.get("range"):
+            self.filters["ranges"] = [num.strip() for num in self.filters["range"].split(",") if num.strip().isdigit()]
 
-        if self.filters.get("show_stock_ageing_data"):
-            self.filters["show_warehouse_wise_stock"] = True
-            item_wise_fifo_queue = FIFOSlots(self.filters, self.sle_entries).generate()
-
-        _func = itemgetter(1)
-
-        del self.sle_entries
-
-        sre_details = self.get_sre_reserved_qty_details()
-
-        variant_values = {}
-        if self.filters.get("show_variant_attributes"):
-            variant_values = self.get_variant_values_for()
-
+        # Get variant attributes and reserved stock
+        variant_values = self._get_variant_values() if self.filters.get("show_variant_attributes") else {}
+        sre_details = self._get_sre_reserved_qty_details()
+        
+        # Process each item-warehouse combination
         for _key, report_data in self.item_warehouse_map.items():
-            if variant_data := variant_values.get(report_data.item_code):
-                # Clean variant data to prevent "nan" values
-                cleaned_variant_data = {}
-                for key, value in variant_data.items():
-                    if value in [None, "", "None", "nan", "null"]:
-                        cleaned_variant_data[key] = ""
-                    else:
-                        cleaned_variant_data[key] = str(value) if value else ""
-                # FIXED: Use cleaned_variant_data instead of variant_data
-                report_data.update(cleaned_variant_data)
-
-            if self.filters.get("show_stock_ageing_data"):
-                opening_fifo_queue = self.get_opening_fifo_queue(report_data) or []
-
-                fifo_queue = []
-                if fifo_queue := item_wise_fifo_queue.get((report_data.item_code, report_data.warehouse)):
-                    fifo_queue = fifo_queue.get("fifo_queue")
-
-                if fifo_queue:
-                    opening_fifo_queue.extend(fifo_queue)
-
-                stock_ageing_data = {"average_age": 0, "earliest_age": 0, "latest_age": 0}
-                if opening_fifo_queue:
-                    fifo_queue = sorted(filter(_func, opening_fifo_queue), key=_func)
-                    if not fifo_queue:
-                        continue
-
-                    to_date = self.to_date
-                    stock_ageing_data["average_age"] = get_average_age(fifo_queue, to_date)
-                    stock_ageing_data["earliest_age"] = date_diff(to_date, fifo_queue[0][1])
-                    stock_ageing_data["latest_age"] = date_diff(to_date, fifo_queue[-1][1])
-                    stock_ageing_data["fifo_queue"] = fifo_queue
-
-                report_data.update(stock_ageing_data)
-
-            report_data.update(
-                {"reserved_stock": sre_details.get((report_data.item_code, report_data.warehouse), 0.0)}
-            )
-
-            if (
-                not self.filters.get("include_zero_stock_items")
-                and report_data
-                and report_data.bal_qty == 0
-                and report_data.bal_val == 0
-            ):
+            self._process_report_row(report_data, item_wise_fifo_queue, variant_values, sre_details)
+            
+            # Skip zero stock items
+            if report_data.bal_qty == 0 and report_data.bal_val == 0:
                 continue
-
+                
             self.data.append(report_data)
 
-    def get_item_warehouse_map(self):
-        item_warehouse_map = {}
-        self.opening_vouchers = self.get_opening_vouchers()
+    def _process_report_row(self, report_data, item_wise_fifo_queue, variant_values, sre_details):
+        """Process individual report row with aging and variant data"""
+        # Add variant attributes
+        if variant_data := variant_values.get(report_data.item_code):
+            cleaned_variant_data = {
+                key: str(value) if value not in [None, "", "None", "nan", "null"] else ""
+                for key, value in variant_data.items()
+            }
+            report_data.update(cleaned_variant_data)
 
+        # Calculate aging data
+        fifo_key = self._get_fifo_key(report_data)
+        if fifo_data := item_wise_fifo_queue.get(fifo_key):
+            fifo_queue = fifo_data.get("fifo_queue", [])
+            if fifo_queue:
+                aging_data = self._calculate_aging_data(fifo_queue)
+                report_data.update(aging_data)
+        else:
+            report_data.update({"age": 0, "average_age": 0, "earliest_age": 0, "latest_age": 0})
+
+        # Add reserved stock
+        report_data["reserved_stock"] = sre_details.get((report_data.item_code, report_data.warehouse), 0.0)
+
+    def _get_fifo_key(self, report_data):
+        """Get FIFO key based on grouping settings"""
+        if self.filters.get("summary_qty_by_invoice_number"):
+            return (report_data.item_code, report_data.warehouse, report_data.invoice_number or "")
+        return (report_data.item_code, report_data.warehouse)
+
+    def _calculate_aging_data(self, fifo_queue):
+        """Calculate aging data from FIFO queue"""
+        _func = itemgetter(1)
+        filtered_queue = sorted(filter(_func, fifo_queue), key=_func)
+        
+        if not filtered_queue:
+            return {"age": 0, "average_age": 0, "earliest_age": 0, "latest_age": 0}
+            
+        to_date = self.to_date
+        average_age = get_average_age(filtered_queue, to_date)
+        earliest_age = date_diff(to_date, filtered_queue[0][1])
+        latest_age = date_diff(to_date, filtered_queue[-1][1])
+        
+        aging_data = {
+            "age": average_age,
+            "average_age": average_age,
+            "earliest_age": earliest_age,
+            "latest_age": latest_age,
+        }
+        
+        # Add range values if stock aging is enabled
         if self.filters.get("show_stock_ageing_data"):
-            self.sle_entries = self.sle_query.run(as_dict=True)
+            aging_data.update(self._get_range_age_values(filtered_queue, to_date))
+            
+        return aging_data
 
-        # HACK: This is required to avoid causing db query in flt
-        _system_settings = frappe.get_cached_doc("System Settings")
-        with frappe.db.unbuffered_cursor():
-            if not self.filters.get("show_stock_ageing_data"):
-                self.sle_entries = self.sle_query.run(as_dict=True, as_iterator=True)
+    def _get_item_warehouse_map(self):
+        """Build item-warehouse mapping with transactions"""
+        item_warehouse_map = {}
+        self.opening_vouchers = self._get_opening_vouchers()
+        self.sle_entries = self.sle_query.run(as_dict=True)
 
-            for entry in self.sle_entries:
-                group_by_key = self.get_group_by_key(entry)
-                if group_by_key not in item_warehouse_map:
-                    self.initialize_data(item_warehouse_map, group_by_key, entry)
+        # Process each SLE entry
+        for entry in self.sle_entries:
+            group_by_key = self._get_group_by_key(entry)
+            if group_by_key not in item_warehouse_map:
+                self._initialize_warehouse_data(item_warehouse_map, group_by_key, entry)
+            self._process_sle_entry(item_warehouse_map, entry, group_by_key)
+            
+            # Remove processed opening data
+            if group_by_key in self.opening_data:
+                del self.opening_data[group_by_key]
 
-                self.prepare_item_warehouse_map(item_warehouse_map, entry, group_by_key)
-
-                if self.opening_data.get(group_by_key):
-                    del self.opening_data[group_by_key]
-
+        # Add remaining opening data
         for group_by_key, entry in self.opening_data.items():
             if group_by_key not in item_warehouse_map:
-                self.initialize_data(item_warehouse_map, group_by_key, entry)
+                self._initialize_warehouse_data(item_warehouse_map, group_by_key, entry)
 
-        item_warehouse_map = filter_items_with_no_transactions(
-            item_warehouse_map, self.float_precision, self.inventory_dimensions
-        )
+        return self._filter_items_with_no_transactions(item_warehouse_map)
 
-        return item_warehouse_map
-
-    def get_sre_reserved_qty_details(self) -> dict:
-        from erpnext.stock.doctype.stock_reservation_entry.stock_reservation_entry import (
-            get_sre_reserved_qty_for_items_and_warehouses as get_reserved_qty_details,
-        )
-
-        item_code_list, warehouse_list = [], []
-        for d in self.item_warehouse_map:
-            item_code_list.append(d[1])
-            warehouse_list.append(d[2])
-
-        return get_reserved_qty_details(item_code_list, warehouse_list)
-
-    def prepare_item_warehouse_map(self, item_warehouse_map, entry, group_by_key):
+    def _process_sle_entry(self, item_warehouse_map, entry, group_by_key):
+        """Process single Stock Ledger Entry"""
         qty_dict = item_warehouse_map[group_by_key]
+        
+        # Update inventory dimensions
         for field in self.inventory_dimensions:
             qty_dict[field] = entry.get(field)
 
+        # Calculate quantity and value differences
         if entry.voucher_type == "Stock Reconciliation" and (not entry.batch_no or entry.serial_no):
             qty_diff = flt(entry.qty_after_transaction) - flt(qty_dict.bal_qty)
         else:
@@ -322,386 +218,280 @@ class StockBalanceReportCustomized:
 
         value_diff = flt(entry.stock_value_difference)
 
-        if entry.posting_date < self.from_date or entry.voucher_no in self.opening_vouchers.get(
-            entry.voucher_type, []
-        ):
+        # Categorize as opening or period transaction
+        if (entry.posting_date < self.from_date or 
+            entry.voucher_no in self.opening_vouchers.get(entry.voucher_type, [])):
             qty_dict.opening_qty += qty_diff
             qty_dict.opening_val += value_diff
-
-        elif entry.posting_date >= self.from_date and entry.posting_date <= self.to_date:
-            if flt(qty_diff, self.float_precision) >= 0:
+        elif self.from_date <= entry.posting_date <= self.to_date:
+            if qty_diff >= 0:
                 qty_dict.in_qty += qty_diff
-            else:
-                qty_dict.out_qty += abs(qty_diff)
-
-            if flt(value_diff, self.float_precision) >= 0:
                 qty_dict.in_val += value_diff
             else:
+                qty_dict.out_qty += abs(qty_diff)
                 qty_dict.out_val += abs(value_diff)
 
+        # Update running totals
         qty_dict.val_rate = entry.valuation_rate
         qty_dict.bal_qty += qty_diff
         qty_dict.bal_val += value_diff
 
-    def initialize_data(self, item_warehouse_map, group_by_key, entry):
+    def _initialize_warehouse_data(self, item_warehouse_map, group_by_key, entry):
+        """Initialize warehouse data structure"""
         opening_data = self.opening_data.get(group_by_key, {})
-
-        # Extract invoice number correctly from group_by_key if invoice grouping is enabled
+        
+        # Extract invoice number from group key
         invoice_number = ""
-        if self.filters.get("summary_qty_by_invoice_number"):
-            # Invoice number is the 4th element in group_by_key (company, item_code, warehouse, invoice_number)
-            if len(group_by_key) >= 4:
-                invoice_number = group_by_key[3] or ""
+        if self.filters.get("summary_qty_by_invoice_number") and len(group_by_key) >= 4:
+            invoice_number = group_by_key[3] or ""
 
-        item_warehouse_map[group_by_key] = frappe._dict(
-            {
-                "item_code": entry.item_code,
-                "warehouse": entry.warehouse,
-                "item_group": entry.item_group,
-                "company": entry.company,
-                "currency": self.company_currency,
-                "stock_uom": entry.stock_uom,
-                "item_name": entry.item_name,
-                "invoice_number": invoice_number,
-                "opening_qty": opening_data.get("bal_qty") or 0.0,
-                "opening_val": opening_data.get("bal_val") or 0.0,
-                "opening_fifo_queue": opening_data.get("fifo_queue") or [],
-                "in_qty": 0.0,
-                "in_val": 0.0,
-                "out_qty": 0.0,
-                "out_val": 0.0,
-                "bal_qty": opening_data.get("bal_qty") or 0.0,
-                "bal_val": opening_data.get("bal_val") or 0.0,
-                "val_rate": 0.0,
-            }
-        )
+        item_warehouse_map[group_by_key] = frappe._dict({
+            "item_code": entry.item_code,
+            "warehouse": entry.warehouse,
+            "item_group": entry.item_group,
+            "company": entry.company,
+            "currency": self.company_currency,
+            "stock_uom": entry.stock_uom,
+            "item_name": entry.item_name,
+            "invoice_number": invoice_number,
+            "opening_qty": opening_data.get("bal_qty", 0.0),
+            "opening_val": opening_data.get("bal_val", 0.0),
+            "in_qty": 0.0,
+            "in_val": 0.0,
+            "out_qty": 0.0,
+            "out_val": 0.0,
+            "bal_qty": opening_data.get("bal_qty", 0.0),
+            "bal_val": opening_data.get("bal_val", 0.0),
+            "val_rate": 0.0,
+            "age": 0.0,
+        })
 
-    def get_group_by_key(self, row) -> tuple:
+    def _get_group_by_key(self, row) -> tuple:
+        """Generate grouping key for report data"""
         group_by_key = [row.company, row.item_code, row.warehouse]
 
-        # Add invoice number to group by if enabled
         if self.filters.get("summary_qty_by_invoice_number"):
             group_by_key.append(row.get("custom_invoice_number") or "")
 
         for fieldname in self.inventory_dimensions:
-            if not row.get(fieldname):
-                continue
-
-            if self.filters.get(fieldname) or self.filters.get("show_dimension_wise_stock"):
+            if row.get(fieldname) and (self.filters.get(fieldname) or self.filters.get("show_dimension_wise_stock")):
                 group_by_key.append(row.get(fieldname))
 
         return tuple(group_by_key)
 
-    def get_closing_balance(self) -> list[dict[str, Any]]:
+    def _get_closing_balance(self) -> list[dict[str, Any]]:
+        """Get latest closing balance"""
         if self.filters.get("ignore_closing_balance"):
             return []
 
         table = frappe.qb.DocType("Closing Stock Balance")
-        
-        # Use company from filters or default
-        company = self.filters.get("company") or "Toray International, VietNam Company Limited - Quang Ngai Branch"
+        company = self.filters.get("company") or frappe.defaults.get_user_default("Company")
 
         query = (
             frappe.qb.from_(table)
             .select(table.name, table.to_date)
             .where(
-                (table.docstatus == 1)
-                & (table.company == company)
-                & (table.to_date <= self.from_date)
-                & (table.status == "Completed")
+                (table.docstatus == 1) &
+                (table.company == company) &
+                (table.to_date <= self.from_date) &
+                (table.status == "Completed")
             )
             .orderby(table.to_date, order=Order.desc)
             .limit(1)
         )
 
+        # Apply additional filters
         for fieldname in ["warehouse", "item_code", "item_group", "warehouse_type"]:
             if self.filters.get(fieldname):
                 query = query.where(table[fieldname] == self.filters.get(fieldname))
 
         return query.run(as_dict=True)
 
-    def prepare_stock_ledger_entries(self):
+    def _prepare_stock_ledger_entries(self):
+        """Build Stock Ledger Entry query"""
         sle = frappe.qb.DocType("Stock Ledger Entry")
         item_table = frappe.qb.DocType("Item")
 
         query = (
             frappe.qb.from_(sle)
-            .inner_join(item_table)
-            .on(sle.item_code == item_table.name)
+            .inner_join(item_table).on(sle.item_code == item_table.name)
             .select(
-                sle.item_code,
-                sle.warehouse,
-                sle.posting_date,
-                sle.actual_qty,
-                sle.valuation_rate,
-                sle.company,
-                sle.voucher_type,
-                sle.qty_after_transaction,
-                sle.stock_value_difference,
-                sle.item_code.as_("name"),
-                sle.voucher_no,
-                sle.stock_value,
-                sle.batch_no,
-                sle.serial_no,
-                sle.serial_and_batch_bundle,
-                sle.has_serial_no,
-                sle.custom_invoice_number,
-                item_table.item_group,
-                item_table.stock_uom,
-                item_table.item_name,
+                sle.item_code, sle.warehouse, sle.posting_date, sle.actual_qty,
+                sle.valuation_rate, sle.company, sle.voucher_type, sle.qty_after_transaction,
+                sle.stock_value_difference, sle.voucher_no, sle.batch_no, sle.serial_no,
+                sle.custom_invoice_number, sle.custom_receive_date,
+                item_table.item_group, item_table.stock_uom, item_table.item_name,
             )
             .where((sle.docstatus < 2) & (sle.is_cancelled == 0))
-            .orderby(sle.posting_datetime)
-            .orderby(sle.creation)
+            .orderby(sle.posting_datetime, sle.creation)
         )
 
-        query = self.apply_inventory_dimensions_filters(query, sle)
-        query = self.apply_warehouse_filters(query, sle)
-        query = self.apply_items_filters(query, item_table)
-        query = self.apply_date_filters(query, sle)
-
-        # Filter by company from filters or default
-        company = self.filters.get("company") or "Toray International, VietNam Company Limited - Quang Ngai Branch"
-        query = query.where(sle.company == company)
-
+        query = self._apply_filters(query, sle, item_table)
         self.sle_query = query
 
-    def apply_inventory_dimensions_filters(self, query, sle) -> str:
-        inventory_dimension_fields = self.get_inventory_dimension_fields()
-        if inventory_dimension_fields:
-            for fieldname in inventory_dimension_fields:
-                query = query.select(fieldname)
-                if self.filters.get(fieldname):
-                    query = query.where(sle[fieldname].isin(self.filters.get(fieldname)))
+    def _apply_filters(self, query, sle, item_table):
+        """Apply all filters to the query"""
+        # Company filter
+        company = self.filters.get("company") or frappe.defaults.get_user_default("Company")
+        if company:
+            query = query.where(sle.company == company)
 
-        return query
+        # Date filters
+        if not self.filters.get("ignore_closing_balance") and self.start_from:
+            query = query.where(sle.posting_date >= self.start_from)
+        if self.to_date:
+            query = query.where(sle.posting_date <= self.to_date)
 
-    def apply_warehouse_filters(self, query, sle) -> str:
-        warehouse_table = frappe.qb.DocType("Warehouse")
+        # Inventory dimension filters
+        for fieldname in self.inventory_dimensions:
+            query = query.select(fieldname)
+            if self.filters.get(fieldname):
+                query = query.where(sle[fieldname].isin(self.filters.get(fieldname)))
 
+        # Warehouse filters
         if self.filters.get("warehouse"):
             query = apply_warehouse_filter(query, sle, self.filters)
         elif warehouse_type := self.filters.get("warehouse_type"):
-            query = (
-                query.join(warehouse_table)
-                .on(warehouse_table.name == sle.warehouse)
-                .where(warehouse_table.warehouse_type == warehouse_type)
-            )
+            warehouse_table = frappe.qb.DocType("Warehouse")
+            query = (query.join(warehouse_table).on(warehouse_table.name == sle.warehouse)
+                    .where(warehouse_table.warehouse_type == warehouse_type))
 
-        return query
-
-    def apply_items_filters(self, query, item_table) -> str:
+        # Item filters
         if item_group := self.filters.get("item_group"):
             children = get_descendants_of("Item Group", item_group, ignore_permissions=True)
             query = query.where(item_table.item_group.isin([*children, item_group]))
 
         for field in ["item_code", "brand"]:
-            if not self.filters.get(field):
-                continue
-            elif field == "item_code":
-                query = query.where(item_table.name == self.filters.get(field))
-            else:
-                query = query.where(item_table[field] == self.filters.get(field))
+            if self.filters.get(field):
+                if field == "item_code":
+                    query = query.where(item_table.name == self.filters.get(field))
+                else:
+                    query = query.where(item_table[field] == self.filters.get(field))
 
         return query
 
-    def apply_date_filters(self, query, sle) -> str:
-        if not self.filters.ignore_closing_balance and self.start_from:
-            query = query.where(sle.posting_date >= self.start_from)
-
-        if self.to_date:
-            query = query.where(sle.posting_date <= self.to_date)
-
-        return query
-
-    def get_columns(self):
+    def _get_columns(self):
+        """Generate report columns"""
         columns = [
-            {
-                "label": _("Item"),
-                "fieldname": "item_code",
-                "fieldtype": "Link",
-                "options": "Item",
-                "width": 100,
-            },
+            {"label": _("Item"), "fieldname": "item_code", "fieldtype": "Link", "options": "Item", "width": 100},
             {"label": _("Item Name"), "fieldname": "item_name", "width": 150},
-            {
-                "label": _("Item Group"),
-                "fieldname": "item_group",
-                "fieldtype": "Link",
-                "options": "Item Group",
-                "width": 100,
-            },
-            {
-                "label": _("Warehouse"),
-                "fieldname": "warehouse",
-                "fieldtype": "Link",
-                "options": "Warehouse",
-                "width": 100,
-            },
+            {"label": _("Item Group"), "fieldname": "item_group", "fieldtype": "Link", "options": "Item Group", "width": 100},
+            {"label": _("Warehouse"), "fieldname": "warehouse", "fieldtype": "Link", "options": "Warehouse", "width": 100},
         ]
 
-        # Add invoice number column if enabled
+        # Invoice number column
         if self.filters.get("summary_qty_by_invoice_number"):
-            columns.append({
-                "label": _("Invoice Number"),
-                "fieldname": "invoice_number",
-                "fieldtype": "Data",
-                "width": 140,
-            })
+            columns.append({"label": _("Invoice Number"), "fieldname": "invoice_number", "fieldtype": "Data", "width": 140})
 
+        # Dimension columns
         if self.filters.get("show_dimension_wise_stock"):
             for dimension in get_inventory_dimensions():
-                columns.append(
-                    {
-                        "label": _(dimension.doctype),
-                        "fieldname": dimension.fieldname,
-                        "fieldtype": "Link",
-                        "options": dimension.doctype,
-                        "width": 110,
-                    }
-                )
+                columns.append({
+                    "label": _(dimension.doctype), "fieldname": dimension.fieldname,
+                    "fieldtype": "Link", "options": dimension.doctype, "width": 110
+                })
 
+        # Quantity columns
         columns.extend([
-            {
-                "label": _("Stock UOM"),
-                "fieldname": "stock_uom",
-                "fieldtype": "Link",
-                "options": "UOM",
-                "width": 90,
-            },
-            {
-                "label": _("Balance Qty"),
-                "fieldname": "bal_qty",
-                "fieldtype": "Float",
-                "width": 100,
-                "convertible": "qty",
-            },
+            {"label": _("Stock UOM"), "fieldname": "stock_uom", "fieldtype": "Link", "options": "UOM", "width": 90},
+            {"label": _("Balance Qty"), "fieldname": "bal_qty", "fieldtype": "Float", "width": 100, "convertible": "qty"},
         ])
 
-        # Add value columns if enabled
+        # Value columns (conditional)
         if self.filters.get("show_value"):
-            columns.extend([
-                {
-                    "label": _("Balance Value"),
-                    "fieldname": "bal_val",
-                    "fieldtype": "Currency",
-                    "width": 100,
-                    "options": "currency",
-                },
-            ])
+            columns.append({"label": _("Balance Value"), "fieldname": "bal_val", "fieldtype": "Currency", "width": 100, "options": "currency"})
 
         columns.extend([
-            {
-                "label": _("Opening Qty"),
-                "fieldname": "opening_qty",
-                "fieldtype": "Float",
-                "width": 100,
-                "convertible": "qty",
-            },
+            {"label": _("Opening Qty"), "fieldname": "opening_qty", "fieldtype": "Float", "width": 100, "convertible": "qty"},
         ])
 
         if self.filters.get("show_value"):
-            columns.extend([
-                {
-                    "label": _("Opening Value"),
-                    "fieldname": "opening_val",
-                    "fieldtype": "Currency",
-                    "width": 110,
-                    "options": "currency",
-                },
-            ])
+            columns.append({"label": _("Opening Value"), "fieldname": "opening_val", "fieldtype": "Currency", "width": 110, "options": "currency"})
 
         columns.extend([
-            {
-                "label": _("In Qty"),
-                "fieldname": "in_qty",
-                "fieldtype": "Float",
-                "width": 80,
-                "convertible": "qty",
-            },
+            {"label": _("In Qty"), "fieldname": "in_qty", "fieldtype": "Float", "width": 80, "convertible": "qty"},
         ])
 
         if self.filters.get("show_value"):
-            columns.extend([
-                {"label": _("In Value"), "fieldname": "in_val", "fieldtype": "Float", "width": 80},
-            ])
+            columns.append({"label": _("In Value"), "fieldname": "in_val", "fieldtype": "Float", "width": 80})
 
         columns.extend([
-            {
-                "label": _("Out Qty"),
-                "fieldname": "out_qty",
-                "fieldtype": "Float",
-                "width": 80,
-                "convertible": "qty",
-            },
+            {"label": _("Out Qty"), "fieldname": "out_qty", "fieldtype": "Float", "width": 80, "convertible": "qty"},
         ])
 
         if self.filters.get("show_value"):
             columns.extend([
                 {"label": _("Out Value"), "fieldname": "out_val", "fieldtype": "Float", "width": 80},
-                {
-                    "label": _("Valuation Rate"),
-                    "fieldname": "val_rate",
-                    "fieldtype": self.filters.valuation_field_type or "Currency",
-                    "width": 90,
-                    "convertible": "rate",
-                    "options": "currency"
-                    if self.filters.valuation_field_type == "Currency"
-                    else None,
-                },
+                {"label": _("Valuation Rate"), "fieldname": "val_rate", "fieldtype": "Currency", "width": 90, "options": "currency"},
             ])
 
-        # columns.append({
-        #     "label": _("Reserved Stock"),
-        #     "fieldname": "reserved_stock",
-        #     "fieldtype": "Float",
-        #     "width": 80,
-        #     "convertible": "qty",
-        # })
+        # Age columns - only show when invoice grouping is enabled
+        if self.filters.get("summary_qty_by_invoice_number"):
+            columns.append({"label": _("Age"), "fieldname": "age", "width": 80})
 
-        if self.filters.get("show_stock_ageing_data"):
-            columns += [
-                {"label": _("Average Age"), "fieldname": "average_age", "width": 100},
-                {"label": _("Earliest Age"), "fieldname": "earliest_age", "width": 100},
-                {"label": _("Latest Age"), "fieldname": "latest_age", "width": 100},
-            ]
+            # Stock aging columns
+            if self.filters.get("show_stock_ageing_data"):
+                self._add_aging_columns(columns)
 
+        # Variant attribute columns
         if self.filters.get("show_variant_attributes"):
-            # Specific order: Color, Size, Brand, Season, Info
-            ordered_attributes = ["Color", "Size", "Brand", "Season", "Info"]
-            all_attributes = get_variants_attributes()
-            
-            # Add ordered attributes first
-            for att_name in ordered_attributes:
-                if att_name in all_attributes:
-                    columns.append({"label": att_name, "fieldname": att_name, "width": 100})
-            
-            # Add any remaining attributes
-            for att_name in all_attributes:
-                if att_name not in ordered_attributes:
-                    columns.append({"label": att_name, "fieldname": att_name, "width": 100})
+            self._add_variant_columns(columns)
 
         return columns
 
-    def add_additional_uom_columns(self):
+    def _add_aging_columns(self, columns):
+        """Add stock aging columns to report"""
+        if self.filters.get("range"):
+            ranges = []
+            prev_range = 0
+            for range_val in self.filters.get("ranges", []):
+                ranges.append(f"{prev_range} - {range_val}")
+                prev_range = int(range_val) + 1
+            ranges.append(f"{prev_range} - Above")
+
+            for i, label in enumerate(ranges):
+                fieldname = f"range{i + 1}"
+                columns.append({"label": _(f"Age ({label})"), "fieldname": fieldname, "fieldtype": "Float", "width": 140})
+                if self.filters.get("show_value"):
+                    columns.append({"label": _(f"Value ({label})"), "fieldname": f"{fieldname}value", "fieldtype": "Float", "width": 140})
+        else:
+            columns.extend([
+                {"label": _("Average Age"), "fieldname": "average_age", "width": 100},
+                {"label": _("Earliest Age"), "fieldname": "earliest_age", "width": 100},
+                {"label": _("Latest Age"), "fieldname": "latest_age", "width": 100},
+            ])
+
+    def _add_variant_columns(self, columns):
+        """Add variant attribute columns"""
+        ordered_attributes = ["Color", "Size", "Brand", "Season", "Info"]
+        all_attributes = self._get_variant_attributes()
+        
+        # Add ordered attributes first
+        for att_name in ordered_attributes:
+            if att_name in all_attributes:
+                columns.append({"label": att_name, "fieldname": att_name, "width": 100})
+        
+        # Add remaining attributes
+        for att_name in all_attributes:
+            if att_name not in ordered_attributes:
+                columns.append({"label": att_name, "fieldname": att_name, "width": 100})
+
+    def _add_additional_uom_columns(self):
+        """Add UOM conversion columns if needed"""
         if not self.filters.get("include_uom"):
             return
 
-        conversion_factors = self.get_itemwise_conversion_factor()
+        conversion_factors = self._get_itemwise_conversion_factor()
         add_additional_uom_columns(self.columns, self.data, self.filters.include_uom, conversion_factors)
 
-    def get_itemwise_conversion_factor(self):
-        items = []
-        if self.filters.item_code or self.filters.item_group:
-            items = [d.item_code for d in self.data]
-
+    def _get_itemwise_conversion_factor(self):
+        """Get UOM conversion factors"""
+        items = [d.item_code for d in self.data] if self.filters.get("item_code") or self.filters.get("item_group") else []
+        
         table = frappe.qb.DocType("UOM Conversion Detail")
         query = (
             frappe.qb.from_(table)
-            .select(
-                table.conversion_factor,
-                table.parent,
-            )
+            .select(table.conversion_factor, table.parent)
             .where((table.parenttype == "Item") & (table.uom == self.filters.include_uom))
         )
 
@@ -709,63 +499,56 @@ class StockBalanceReportCustomized:
             query = query.where(table.parent.isin(items))
 
         result = query.run(as_dict=1)
-        if not result:
-            return {}
+        return {d.parent: d.conversion_factor for d in result} if result else {}
 
-        return {d.parent: d.conversion_factor for d in result}
-
-    def get_variant_values_for(self):
-        """Returns variant values for items with database-level cleaning and white text styling for hidden values."""
-        attribute_map = {}
-        items = []
-        if self.filters.item_code or self.filters.item_group:
-            items = [d.item_code for d in self.data]
-
-        # Use SQL query with CASE statement to clean at database level
-        condition = ""
-        if items:
-            condition = f"AND parent IN ({', '.join(['%s'] * len(items))})"
-            values = items
-        else:
-            values = []
+    def _get_variant_values(self):
+        """Get variant attribute values for items"""
+        items = [d.item_code for d in self.data] if self.filters.get("item_code") or self.filters.get("item_group") else []
+        
+        conditions = "AND parent IN ({})".format(', '.join(['%s'] * len(items))) if items else ""
+        values = items if items else []
 
         query = f"""
-            SELECT 
-                parent,
-                attribute,
+            SELECT parent, attribute,
                 CASE 
                     WHEN attribute_value IS NULL THEN ''
                     WHEN TRIM(attribute_value) = '' THEN ''
-                    WHEN LOWER(TRIM(attribute_value)) IN ('none', 'nan', 'null' ) THEN ''
+                    WHEN LOWER(TRIM(attribute_value)) IN ('none', 'nan', 'null') THEN ''
                     ELSE TRIM(attribute_value)
                 END as cleaned_attribute_value
             FROM `tabItem Variant Attribute`
-            WHERE 1=1 {condition}
+            WHERE 1=1 {conditions}
         """
 
         attribute_info = frappe.db.sql(query, values, as_dict=True)
-
-        # Define values to hide with white text styling
-        hidden_values = ["Blank","(blank)"]  # Add more values as needed
-
+        attribute_map = {}
+        
         for attr in attribute_info:
             attribute_map.setdefault(attr["parent"], {})
-            cleaned_value = attr["cleaned_attribute_value"]
-            
-            # Apply white text styling for hidden values
-            if cleaned_value and cleaned_value in hidden_values:
-                styled_value = f'<span style="color: white; cursor: help;" title="Hidden Value: {cleaned_value}">{cleaned_value}</span>'
-                attribute_map[attr["parent"]].update({
-                    attr["attribute"]: styled_value
-                })
-            else:
-                attribute_map[attr["parent"]].update({
-                    attr["attribute"]: cleaned_value
-                })
+            attribute_map[attr["parent"]][attr["attribute"]] = attr["cleaned_attribute_value"]
 
         return attribute_map
 
-    def get_opening_vouchers(self):
+    @staticmethod
+    def _get_variant_attributes() -> list[str]:
+        """Get all item variant attributes"""
+        return frappe.get_all("Item Attribute", pluck="name")
+
+    def _get_sre_reserved_qty_details(self) -> dict:
+        """Get reserved stock quantities"""
+        try:
+            from erpnext.stock.doctype.stock_reservation_entry.stock_reservation_entry import (
+                get_sre_reserved_qty_for_items_and_warehouses as get_reserved_qty_details,
+            )
+            
+            item_codes = [d[1] for d in self.item_warehouse_map]
+            warehouses = [d[2] for d in self.item_warehouse_map]
+            return get_reserved_qty_details(item_codes, warehouses)
+        except ImportError:
+            return {}
+
+    def _get_opening_vouchers(self):
+        """Get opening vouchers (Stock Entry and Stock Reconciliation)"""
         opening_vouchers = {"Stock Entry": [], "Stock Reconciliation": []}
 
         se = frappe.qb.DocType("Stock Entry")
@@ -773,430 +556,326 @@ class StockBalanceReportCustomized:
 
         vouchers_data = (
             frappe.qb.from_(
-                (
-                    frappe.qb.from_(se)
-                    .select(se.name, Coalesce("Stock Entry").as_("voucher_type"))
-                    .where((se.docstatus == 1) & (se.posting_date <= self.to_date) & (se.is_opening == "Yes"))
-                )
-                + (
-                    frappe.qb.from_(sr)
-                    .select(sr.name, Coalesce("Stock Reconciliation").as_("voucher_type"))
-                    .where(
-                        (sr.docstatus == 1)
-                        & (sr.posting_date <= self.to_date)
-                        & (sr.purpose == "Opening Stock")
-                    )
-                )
+                (frappe.qb.from_(se).select(se.name, Coalesce("Stock Entry").as_("voucher_type"))
+                 .where((se.docstatus == 1) & (se.posting_date <= self.to_date) & (se.is_opening == "Yes"))) +
+                (frappe.qb.from_(sr).select(sr.name, Coalesce("Stock Reconciliation").as_("voucher_type"))
+                 .where((sr.docstatus == 1) & (sr.posting_date <= self.to_date) & (sr.purpose == "Opening Stock")))
             ).select("voucher_type", "name")
         ).run(as_dict=True)
 
-        if vouchers_data:
-            for d in vouchers_data:
-                opening_vouchers[d.voucher_type].append(d.name)
+        for d in vouchers_data:
+            opening_vouchers[d.voucher_type].append(d.name)
 
         return opening_vouchers
 
-    @staticmethod
-    def get_inventory_dimension_fields():
-        return [dimension.fieldname for dimension in get_inventory_dimensions()]
+    def _get_range_age_values(self, fifo_queue, to_date):
+        """Calculate age range values for stock aging"""
+        if not self.filters.get("ranges"):
+            return {}
+        
+        precision = self.float_precision
+        num_ranges = len(self.filters.ranges) + 1
+        range_values = [0.0] * (num_ranges * 2 if self.filters.get("show_value") else num_ranges)
 
-    @staticmethod
-    def get_opening_fifo_queue(report_data):
-        opening_fifo_queue = report_data.get("opening_fifo_queue") or []
-        for row in opening_fifo_queue:
-            row[1] = getdate(row[1])
+        for item in fifo_queue:
+            age = flt(date_diff(to_date, item[1]))
+            qty = flt(item[0])
+            stock_value = flt(item[2]) if len(item) > 2 else 0
 
-        return opening_fifo_queue
+            # Find appropriate range
+            range_index = len(self.filters.ranges)  # Default to last range
+            for i, age_limit in enumerate(self.filters.ranges):
+                if age <= flt(age_limit):
+                    range_index = i
+                    break
 
+            # Add to range
+            if self.filters.get("show_value"):
+                qty_index = range_index * 2
+                value_index = qty_index + 1
+                if qty_index < len(range_values):
+                    range_values[qty_index] = flt(range_values[qty_index] + qty, precision)
+                if value_index < len(range_values):
+                    range_values[value_index] = flt(range_values[value_index] + stock_value, precision)
+            else:
+                if range_index < len(range_values):
+                    range_values[range_index] = flt(range_values[range_index] + qty, precision)
 
-def filter_items_with_no_transactions(
-    iwb_map, float_precision: float, inventory_dimensions: list | None = None
-):
-    pop_keys = []
-    for group_by_key in iwb_map:
-        qty_dict = iwb_map[group_by_key]
+        # Convert to dictionary
+        result = {}
+        for i in range(num_ranges):
+            if self.filters.get("show_value"):
+                qty_index = i * 2
+                value_index = qty_index + 1
+                result[f"range{i + 1}"] = range_values[qty_index] if qty_index < len(range_values) else 0
+                result[f"range{i + 1}value"] = range_values[value_index] if value_index < len(range_values) else 0
+            else:
+                result[f"range{i + 1}"] = range_values[i] if i < len(range_values) else 0
+        
+        return result
 
-        no_transactions = True
-        for key, val in qty_dict.items():
-            if inventory_dimensions and key in inventory_dimensions:
-                continue
+    def _filter_items_with_no_transactions(self, iwb_map):
+        """Remove items with no meaningful transactions"""
+        pop_keys = []
+        for group_by_key, qty_dict in iwb_map.items():
+            has_transactions = False
+            for key, val in qty_dict.items():
+                if key in ["item_code", "warehouse", "item_name", "item_group", "stock_uom", "company", "invoice_number", "currency"]:
+                    continue
+                if key in self.inventory_dimensions:
+                    continue
+                    
+                val = flt(val, self.float_precision)
+                qty_dict[key] = val
+                if key != "val_rate" and val:
+                    has_transactions = True
 
-            if key in [
-                "item_code",
-                "warehouse",
-                "item_name",
-                "item_group",
-                "project",
-                "stock_uom",
-                "company",
-                "opening_fifo_queue",
-                "invoice_number",
-                "currency",
-            ]:
-                continue
+            if not has_transactions:
+                pop_keys.append(group_by_key)
 
-            val = flt(val, float_precision)
-            qty_dict[key] = val
-            if key != "val_rate" and val:
-                no_transactions = False
+        for key in pop_keys:
+            iwb_map.pop(key)
 
-        if no_transactions:
-            pop_keys.append(group_by_key)
-
-    for key in pop_keys:
-        iwb_map.pop(key)
-
-    return iwb_map
-
-
-def get_variants_attributes() -> list[str]:
-    """Return all item variant attributes."""
-    return frappe.get_all("Item Attribute", pluck="name")
-
-
-# Enhanced hooks functions for Stock Entry and Stock Reconciliation
-
-def update_stock_ledger_invoice_number(doc, method):
-    """
-    Enhanced update function with improved mapping logic
-    """
-    if doc.doctype == "Stock Entry":
-        update_from_stock_entry_enhanced(doc)
-    elif doc.doctype == "Stock Reconciliation":
-        update_from_stock_reconciliation_enhanced(doc)
+        return iwb_map
 
 
-def update_from_stock_entry_enhanced(stock_entry):
-    """Enhanced Stock Entry processing with improved sequential mapping"""
+class CustomizedFIFOSlots(FIFOSlots):
+    """Enhanced FIFOSlots with invoice number support and custom_receive_date prioritization"""
     
-    # Get Stock Ledger Entries in creation order
-    stock_ledger_entries = frappe.db.sql("""
-        SELECT name, item_code, warehouse, posting_date, posting_time, 
-               actual_qty, qty_after_transaction, voucher_detail_no, creation
-        FROM `tabStock Ledger Entry`
-        WHERE voucher_type = 'Stock Entry' 
-        AND voucher_no = %s
-        ORDER BY posting_date, posting_time, creation
+    def generate(self) -> dict:
+        """Generate FIFO slots with invoice grouping support"""
+        try:
+            from erpnext.stock.doctype.serial_and_batch_bundle.test_serial_and_batch_bundle import get_serial_nos_from_bundle
+        except ImportError:
+            def get_serial_nos_from_bundle(bundle_name):
+                return []
+
+        stock_ledger_entries = self.sle or self._get_stock_ledger_entries()
+        bundle_wise_serial_nos = frappe._dict({}) if self.sle else self._get_bundle_wise_serial_nos()
+
+        with frappe.db.unbuffered_cursor():
+            for d in stock_ledger_entries:
+                key, fifo_queue, transferred_item_key = self._init_key_stores(d)
+
+                if d.voucher_type == "Stock Reconciliation":
+                    prev_balance_qty = self.item_details[key].get("qty_after_transaction", 0)
+                    d.actual_qty = flt(d.qty_after_transaction) - flt(prev_balance_qty)
+
+                # Prioritize custom_receive_date
+                if d.get("custom_receive_date"):
+                    d.posting_date = d.custom_receive_date
+
+                # Handle serial numbers
+                serial_nos = self._get_serial_numbers(d, bundle_wise_serial_nos, get_serial_nos_from_bundle)
+
+                if d.actual_qty > 0:
+                    self._compute_incoming_stock(d, fifo_queue, transferred_item_key, serial_nos)
+                else:
+                    self._compute_outgoing_stock(d, fifo_queue, transferred_item_key, serial_nos)
+
+                self._update_balances(d, key)
+
+        if not self.filters.get("show_warehouse_wise_stock"):
+            self.item_details = self._aggregate_details_by_item_and_invoice(self.item_details)
+
+        return self.item_details
+
+    def _init_key_stores(self, row: dict) -> tuple:
+        """Initialize keys with invoice number grouping"""
+        invoice_number = row.get("custom_invoice_number", "")
+        
+        if self.filters.get("show_warehouse_wise_stock"):
+            key = (row.item_code, row.warehouse, invoice_number) if self.filters.get("summary_qty_by_invoice_number") else (row.item_code, row.warehouse)
+        else:
+            key = (row.item_code, invoice_number) if self.filters.get("summary_qty_by_invoice_number") else (row.item_code,)
+
+        self.item_details.setdefault(key, {"details": row, "fifo_queue": []})
+        fifo_queue = self.item_details[key]["fifo_queue"]
+
+        transferred_item_key = (row.voucher_no, row.item_code, row.warehouse, invoice_number)
+        self.transferred_item_details.setdefault(transferred_item_key, [])
+
+        return key, fifo_queue, transferred_item_key
+
+    def _get_serial_numbers(self, entry, bundle_wise_serial_nos, get_serial_nos_from_bundle):
+        """Get serial numbers from various sources"""
+        serial_nos = []
+        
+        if entry.serial_no:
+            from erpnext.stock.doctype.serial_no.serial_no import get_serial_nos
+            serial_nos = get_serial_nos(entry.serial_no)
+        elif entry.serial_and_batch_bundle and entry.has_serial_no:
+            if bundle_wise_serial_nos:
+                serial_nos = bundle_wise_serial_nos.get(entry.serial_and_batch_bundle) or []
+            else:
+                serial_nos = get_serial_nos_from_bundle(entry.serial_and_batch_bundle) or []
+                
+        return serial_nos
+
+    def _compute_incoming_stock(self, row: dict, fifo_queue: list, transfer_key: tuple, serial_nos: list):
+        """Process incoming stock with invoice tracking"""
+        transfer_data = self.transferred_item_details.get(transfer_key)
+        if transfer_data:
+            self._adjust_incoming_transfer_qty(transfer_data, fifo_queue, row)
+        else:
+            if not serial_nos and not row.get("has_serial_no"):
+                if fifo_queue and flt(fifo_queue[0][0]) <= 0:
+                    fifo_queue[0][0] += flt(row.actual_qty)
+                    fifo_queue[0][1] = row.posting_date
+                    fifo_queue[0][2] += flt(row.stock_value_difference)
+                    if len(fifo_queue[0]) <= 3:
+                        fifo_queue[0].append(row.get("custom_invoice_number", ""))
+                    else:
+                        fifo_queue[0][3] = row.get("custom_invoice_number", "")
+                else:
+                    fifo_queue.append([
+                        flt(row.actual_qty), row.posting_date, flt(row.stock_value_difference),
+                        row.get("custom_invoice_number", "")
+                    ])
+                return
+
+            valuation = row.stock_value_difference / row.actual_qty if row.actual_qty else 0
+            for serial_no in serial_nos:
+                fifo_queue.append([serial_no, row.posting_date, valuation, row.get("custom_invoice_number", "")])
+
+    def _compute_outgoing_stock(self, row: dict, fifo_queue: list, transfer_key: tuple, serial_nos: list):
+        """Process outgoing stock with FIFO logic"""
+        if serial_nos:
+            fifo_queue[:] = [serial_no for serial_no in fifo_queue if serial_no[0] not in serial_nos]
+            return
+
+        qty_to_pop = abs(row.actual_qty)
+        stock_value = abs(row.stock_value_difference)
+
+        while qty_to_pop:
+            slot = fifo_queue[0] if fifo_queue else [0, None, 0, ""]
+            if 0 < flt(slot[0]) <= qty_to_pop:
+                qty_to_pop -= flt(slot[0])
+                stock_value -= flt(slot[2])
+                self.transferred_item_details[transfer_key].append(fifo_queue.pop(0))
+            elif not fifo_queue:
+                fifo_queue.append([-(qty_to_pop), row.posting_date, -(stock_value), row.get("custom_invoice_number", "")])
+                self.transferred_item_details[transfer_key].append([qty_to_pop, row.posting_date, stock_value, row.get("custom_invoice_number", "")])
+                qty_to_pop = 0
+                stock_value = 0
+            else:
+                slot[0] = flt(slot[0]) - qty_to_pop
+                slot[2] = flt(slot[2]) - stock_value
+                self.transferred_item_details[transfer_key].append([qty_to_pop, slot[1], stock_value, slot[3] if len(slot) > 3 else ""])
+                qty_to_pop = 0
+                stock_value = 0
+
+    def _adjust_incoming_transfer_qty(self, transfer_data: dict, fifo_queue: list, row: dict):
+        """Add previously removed stock back to FIFO Queue"""
+        transfer_qty_to_pop = flt(row.actual_qty)
+        stock_value = flt(row.stock_value_difference)
+
+        def add_to_fifo_queue(slot):
+            if fifo_queue and flt(fifo_queue[0][0]) <= 0:
+                fifo_queue[0][0] += flt(slot[0])
+                fifo_queue[0][1] = slot[1]
+                fifo_queue[0][2] += flt(slot[2])
+                if len(fifo_queue[0]) <= 3:
+                    fifo_queue[0].append(slot[3] if len(slot) > 3 else "")
+                else:
+                    fifo_queue[0][3] = slot[3] if len(slot) > 3 else ""
+            else:
+                fifo_queue.append(slot)
+
+        while transfer_qty_to_pop:
+            if transfer_data and 0 < transfer_data[0][0] <= transfer_qty_to_pop:
+                transfer_qty_to_pop -= transfer_data[0][0]
+                stock_value -= transfer_data[0][2]
+                add_to_fifo_queue(transfer_data.pop(0))
+            elif not transfer_data:
+                add_to_fifo_queue([transfer_qty_to_pop, row.posting_date, stock_value, row.get("custom_invoice_number", "")])
+                transfer_qty_to_pop = 0
+                stock_value = 0
+            else:
+                transfer_data[0][0] -= transfer_qty_to_pop
+                transfer_data[0][2] -= stock_value
+                add_to_fifo_queue([transfer_qty_to_pop, transfer_data[0][1], stock_value, transfer_data[0][3] if len(transfer_data[0]) > 3 else ""])
+                transfer_qty_to_pop = 0
+                stock_value = 0
+
+    def _update_balances(self, row: dict, key: tuple | str):
+        """Update balance tracking"""
+        self.item_details[key]["qty_after_transaction"] = row.qty_after_transaction
+
+        if "total_qty" not in self.item_details[key]:
+            self.item_details[key]["total_qty"] = row.actual_qty
+        else:
+            self.item_details[key]["total_qty"] += row.actual_qty
+
+        self.item_details[key]["has_serial_no"] = row.get("has_serial_no", False)
+        self.item_details[key]["details"].valuation_rate = row.valuation_rate
+
+    def _aggregate_details_by_item_and_invoice(self, wh_wise_data: dict) -> dict:
+        """Aggregate warehouse-wise data by item and invoice"""
+        item_invoice_aggregated_data = {}
+        
+        for key, row in wh_wise_data.items():
+            if self.filters.get("summary_qty_by_invoice_number"):
+                new_key = (key[0], key[2] if len(key) >= 3 else key[1] if len(key) > 1 else "")
+            else:
+                new_key = (key[0],)
+
+            if new_key not in item_invoice_aggregated_data:
+                item_invoice_aggregated_data[new_key] = {
+                    "details": frappe._dict(),
+                    "fifo_queue": [],
+                    "qty_after_transaction": 0.0,
+                    "total_qty": 0.0,
+                }
+            
+            item_row = item_invoice_aggregated_data[new_key]
+            item_row["details"].update(row["details"])
+            item_row["fifo_queue"].extend(row["fifo_queue"])
+            item_row["qty_after_transaction"] += flt(row["qty_after_transaction"])
+            item_row["total_qty"] += flt(row["total_qty"])
+            item_row["has_serial_no"] = row.get("has_serial_no", False)
+
+        return item_invoice_aggregated_data
+
+
+# Hook functions for Stock Entry and Stock Reconciliation
+def update_stock_ledger_invoice_number(doc, method):
+    """Update Stock Ledger Entry invoice numbers when documents are submitted"""
+    if doc.doctype == "Stock Entry":
+        _update_from_stock_entry(doc)
+    elif doc.doctype == "Stock Reconciliation":
+        _update_from_stock_reconciliation(doc)
+
+
+def _update_from_stock_entry(stock_entry):
+    """Update invoice numbers for Stock Entry"""
+    # Get detail to invoice mapping
+    detail_to_invoice = {item.name: item.custom_invoice_number for item in stock_entry.items}
+    
+    # Update SLE entries
+    sle_entries = frappe.db.sql("""
+        SELECT name, voucher_detail_no FROM `tabStock Ledger Entry`
+        WHERE voucher_type = 'Stock Entry' AND voucher_no = %s
     """, stock_entry.name, as_dict=1)
     
-    # Create direct mapping from voucher_detail_no to invoice_number
-    detail_to_invoice = {}
-    for item in stock_entry.items:
-        detail_to_invoice[item.name] = item.custom_invoice_number
-    
-    # Create sequential mapping for fallback
-    item_sequences = defaultdict(list)
-    for item in stock_entry.items:
-        # For each item, store all its variations with invoice numbers
-        sequence_key = f"{item.item_code}_{item.s_warehouse or ''}_{item.t_warehouse or ''}"
-        item_sequences[sequence_key].append({
-            'invoice_number': item.custom_invoice_number,
-            'qty': item.qty,
-            'idx': item.idx,
-            'detail_name': item.name,
-            'transfer_qty': item.transfer_qty or item.qty
-        })
-    
-    # Sort sequences by idx to maintain order
-    for key in item_sequences:
-        item_sequences[key].sort(key=lambda x: x['idx'])
-    
-    # Process each Stock Ledger Entry
-    for sle in stock_ledger_entries:
-        invoice_number = None
-        
-        # Method 1: Direct mapping using voucher_detail_no (most reliable)
-        if sle.voucher_detail_no and sle.voucher_detail_no in detail_to_invoice:
-            invoice_number = detail_to_invoice[sle.voucher_detail_no]
-        
-        # Method 2: Sequential mapping based on item pattern
-        if not invoice_number:
-            # Determine the sequence key based on transaction direction
-            if sle.actual_qty > 0:  # Incoming to warehouse
-                sequence_key = f"{sle.item_code}__{sle.warehouse}"  # Target warehouse
-            else:  # Outgoing from warehouse
-                sequence_key = f"{sle.item_code}_{sle.warehouse}_"  # Source warehouse
-            
-            # Find matching sequence key
-            matching_key = None
-            for key in item_sequences:
-                if (sle.actual_qty > 0 and key.endswith(f"_{sle.warehouse}")) or \
-                   (sle.actual_qty < 0 and key.startswith(f"{sle.item_code}_{sle.warehouse}_")):
-                    matching_key = key
-                    break
-            
-            if matching_key and item_sequences[matching_key]:
-                # Get the next item in sequence
-                item_data = item_sequences[matching_key].pop(0)
-                invoice_number = item_data['invoice_number']
-        
-        # Method 3: Fallback - find any remaining item with same item_code
-        if not invoice_number:
-            for key in list(item_sequences.keys()):
-                if key.startswith(sle.item_code) and item_sequences[key]:
-                    item_data = item_sequences[key].pop(0)
-                    invoice_number = item_data['invoice_number']
-                    break
-        
-        # Update Stock Ledger Entry
+    for sle in sle_entries:
+        invoice_number = detail_to_invoice.get(sle.voucher_detail_no)
         if invoice_number:
-            frappe.db.set_value(
-                "Stock Ledger Entry",
-                sle.name,
-                "custom_invoice_number",
-                invoice_number,
-                update_modified=False
-            )
-        else:
-            # Log missing mapping for debugging
-            frappe.log_error(
-                f"No invoice number mapping found for SLE {sle.name}, Item: {sle.item_code}, Warehouse: {sle.warehouse}",
-                "Stock Entry Invoice Mapping"
-            )
+            frappe.db.set_value("Stock Ledger Entry", sle.name, "custom_invoice_number", invoice_number, update_modified=False)
 
 
-def update_from_stock_reconciliation_enhanced(stock_reconciliation):
-    """Enhanced Stock Reconciliation processing"""
+def _update_from_stock_reconciliation(stock_reconciliation):
+    """Update invoice numbers for Stock Reconciliation"""
+    # Get detail to invoice mapping
+    detail_to_invoice = {item.name: item.custom_invoice_number for item in stock_reconciliation.items}
     
-    # Get Stock Ledger Entries with voucher_detail_no
-    stock_ledger_entries = frappe.db.sql("""
-        SELECT name, item_code, warehouse, actual_qty, voucher_detail_no
-        FROM `tabStock Ledger Entry`
-        WHERE voucher_type = 'Stock Reconciliation' 
-        AND voucher_no = %s
-        ORDER BY creation
+    # Update SLE entries
+    sle_entries = frappe.db.sql("""
+        SELECT name, voucher_detail_no FROM `tabStock Ledger Entry`
+        WHERE voucher_type = 'Stock Reconciliation' AND voucher_no = %s
     """, stock_reconciliation.name, as_dict=1)
     
-    # Create mapping with detail names
-    detail_invoice_map = {}
-    sequential_map = defaultdict(list)
-    
-    for item in stock_reconciliation.items:
-        detail_invoice_map[item.name] = item.custom_invoice_number
-        
-        # Also create sequential mapping as backup
-        key = f"{item.item_code}_{item.warehouse}"
-        sequential_map[key].append({
-            'invoice_number': item.custom_invoice_number,
-            'idx': item.idx,
-            'detail_name': item.name
-        })
-    
-    # Update Stock Ledger Entries
-    for sle in stock_ledger_entries:
-        invoice_number = None
-        
-        # Try direct mapping with voucher_detail_no
-        if sle.voucher_detail_no and sle.voucher_detail_no in detail_invoice_map:
-            invoice_number = detail_invoice_map[sle.voucher_detail_no]
-        
-        # Fallback to sequential mapping
-        if not invoice_number:
-            key = f"{sle.item_code}_{sle.warehouse}"
-            if key in sequential_map and sequential_map[key]:
-                item_data = sequential_map[key].pop(0)
-                invoice_number = item_data['invoice_number']
-        
-        # Update if invoice number found
+    for sle in sle_entries:
+        invoice_number = detail_to_invoice.get(sle.voucher_detail_no)
         if invoice_number:
-            frappe.db.set_value(
-                "Stock Ledger Entry",
-                sle.name,
-                "custom_invoice_number",
-                invoice_number,
-                update_modified=False
-            )
-
-
-# Validation and utility functions
-
-def validate_invoice_balance_consistency():
-    """
-    Validation function to check if invoice-level balances match item totals
-    """
-    validation_query = """
-        WITH invoice_balances AS (
-            SELECT 
-                item_code,
-                warehouse,
-                custom_invoice_number,
-                SUM(actual_qty) as invoice_balance
-            FROM `tabStock Ledger Entry`
-            WHERE is_cancelled = 0
-            AND custom_invoice_number IS NOT NULL
-            AND custom_invoice_number != ''
-            GROUP BY item_code, warehouse, custom_invoice_number
-        ),
-        item_totals AS (
-            SELECT 
-                item_code,
-                warehouse,
-                SUM(actual_qty) as total_balance
-            FROM `tabStock Ledger Entry`
-            WHERE is_cancelled = 0
-            GROUP BY item_code, warehouse
-        ),
-        invoice_totals AS (
-            SELECT 
-                item_code,
-                warehouse,
-                SUM(invoice_balance) as invoice_sum
-            FROM invoice_balances
-            GROUP BY item_code, warehouse
-        )
-        SELECT 
-            it.item_code,
-            it.warehouse,
-            it.total_balance,
-            COALESCE(int.invoice_sum, 0) as invoice_sum,
-            (it.total_balance - COALESCE(int.invoice_sum, 0)) as difference
-        FROM item_totals it
-        LEFT JOIN invoice_totals int ON it.item_code = int.item_code AND it.warehouse = int.warehouse
-        WHERE ABS(it.total_balance - COALESCE(int.invoice_sum, 0)) > 0.001
-    """
-    
-    inconsistencies = frappe.db.sql(validation_query, as_dict=1)
-    
-    if inconsistencies:
-        frappe.log_error(
-            f"Invoice balance inconsistencies found: {inconsistencies}",
-            "Stock Balance Validation"
-        )
-    
-    return inconsistencies
-
-
-def correct_existing_stock_ledger_invoice_numbers():
-    """
-    Function to correct invoice numbers for existing Stock Ledger Entries
-    """
-    # Get all Stock Entries with custom_invoice_number
-    stock_entries = frappe.db.sql("""
-        SELECT DISTINCT parent as name
-        FROM `tabStock Entry Detail`
-        WHERE custom_invoice_number IS NOT NULL
-        AND custom_invoice_number != ''
-    """, as_dict=1)
-    
-    corrected_count = 0
-    for se in stock_entries:
-        doc = frappe.get_doc("Stock Entry", se.name)
-        if doc.docstatus == 1:  # Only process submitted entries
-            # Clear existing invoice numbers
-            frappe.db.sql("""
-                UPDATE `tabStock Ledger Entry`
-                SET custom_invoice_number = NULL
-                WHERE voucher_type = 'Stock Entry'
-                AND voucher_no = %s
-            """, se.name)
-            
-            # Reapply mapping
-            update_from_stock_entry_enhanced(doc)
-            corrected_count += 1
-    
-    # Get all Stock Reconciliations
-    stock_reconciliations = frappe.db.sql("""
-        SELECT DISTINCT parent as name
-        FROM `tabStock Reconciliation Item`
-        WHERE custom_invoice_number IS NOT NULL
-        AND custom_invoice_number != ''
-    """, as_dict=1)
-    
-    for sr in stock_reconciliations:
-        doc = frappe.get_doc("Stock Reconciliation", sr.name)
-        if doc.docstatus == 1:
-            # Clear existing invoice numbers
-            frappe.db.sql("""
-                UPDATE `tabStock Ledger Entry`
-                SET custom_invoice_number = NULL
-                WHERE voucher_type = 'Stock Reconciliation'
-                AND voucher_no = %s
-            """, sr.name)
-            
-            # Reapply mapping
-            update_from_stock_reconciliation_enhanced(doc)
-            corrected_count += 1
-    
-    frappe.db.commit()
-    return corrected_count
-
-
-def generate_invoice_balance_report(item_code=None, warehouse=None, from_date=None, to_date=None):
-    """
-    Generate detailed balance report showing both total and invoice-wise balances
-    """
-    conditions = ["sle.is_cancelled = 0"]
-    values = []
-    
-    if item_code:
-        conditions.append("sle.item_code = %s")
-        values.append(item_code)
-    
-    if warehouse:
-        conditions.append("sle.warehouse = %s")
-        values.append(warehouse)
-    
-    if from_date:
-        conditions.append("sle.posting_date >= %s")
-        values.append(from_date)
-    
-    if to_date:
-        conditions.append("sle.posting_date <= %s")
-        values.append(to_date)
-    
-    where_clause = " AND ".join(conditions)
-    
-    query = f"""
-        WITH invoice_wise_balance AS (
-            SELECT 
-                sle.item_code,
-                sle.warehouse,
-                sle.custom_invoice_number,
-                SUM(sle.actual_qty) as invoice_balance,
-                COUNT(*) as transaction_count
-            FROM `tabStock Ledger Entry` sle
-            WHERE {where_clause}
-            AND sle.custom_invoice_number IS NOT NULL
-            AND sle.custom_invoice_number != ''
-            GROUP BY sle.item_code, sle.warehouse, sle.custom_invoice_number
-        ),
-        total_balance AS (
-            SELECT 
-                sle.item_code,
-                sle.warehouse,
-                SUM(sle.actual_qty) as total_balance,
-                COUNT(*) as total_transactions
-            FROM `tabStock Ledger Entry` sle
-            WHERE {where_clause}
-            GROUP BY sle.item_code, sle.warehouse
-        ),
-        invoice_summary AS (
-            SELECT 
-                item_code,
-                warehouse,
-                SUM(invoice_balance) as sum_of_invoices,
-                COUNT(DISTINCT custom_invoice_number) as distinct_invoices
-            FROM invoice_wise_balance
-            GROUP BY item_code, warehouse
-        )
-        SELECT 
-            tb.item_code,
-            tb.warehouse,
-            tb.total_balance,
-            COALESCE(ins.sum_of_invoices, 0) as sum_of_invoices,
-            (tb.total_balance - COALESCE(ins.sum_of_invoices, 0)) as difference,
-            COALESCE(ins.distinct_invoices, 0) as distinct_invoices,
-            tb.total_transactions,
-            -- Detail breakdown
-            GROUP_CONCAT(
-                CONCAT(iwb.custom_invoice_number, ':', iwb.invoice_balance, '(', iwb.transaction_count, ')')
-                SEPARATOR ' | '
-            ) as invoice_breakdown
-        FROM total_balance tb
-        LEFT JOIN invoice_summary ins ON tb.item_code = ins.item_code AND tb.warehouse = ins.warehouse
-        LEFT JOIN invoice_wise_balance iwb ON tb.item_code = iwb.item_code AND tb.warehouse = iwb.warehouse
-        GROUP BY tb.item_code, tb.warehouse, tb.total_balance, ins.sum_of_invoices, ins.distinct_invoices, tb.total_transactions
-        ORDER BY ABS(tb.total_balance - COALESCE(ins.sum_of_invoices, 0)) DESC, tb.item_code, tb.warehouse
-    """
-    
-    return frappe.db.sql(query, values, as_dict=1)
+            frappe.db.set_value("Stock Ledger Entry", sle.name, "custom_invoice_number", invoice_number, update_modified=False)

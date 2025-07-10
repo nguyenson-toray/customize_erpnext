@@ -29,7 +29,7 @@ def get_stock_by_invoice(item_code, warehouse=None, company=None):
             item.custom_item_name_detail,
             MIN(CASE 
                 WHEN sle.voucher_type = 'Stock Reconciliation' THEN sri.custom_receive_date
-                WHEN sle.voucher_type = 'Stock Entry' THEN se.posting_date
+                WHEN sle.voucher_type = 'Stock Entry' THEN COALESCE(sed.custom_receive_date, se.posting_date)
                 ELSE sle.posting_date 
             END) as receive_date,
             SUM(

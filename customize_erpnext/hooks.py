@@ -18,8 +18,7 @@ app_license = "mit"
 doctype_js = {
     "Stock Entry": [
         "public/js/custom_scripts/stock_entry.js",
-        "public/js/custom_scripts/stock_entry_quick_item.js",
-        "public/js/custom_scripts/stock_entry_import_excel.js"
+        "public/js/custom_scripts/stock_entry_quick_import.js"
     ],
     "BOM": "public/js/custom_scripts/bom.js",
     "Item": [
@@ -158,9 +157,9 @@ scheduler_events = {
 # DocType Class
 # ---------------
 # Override standard doctype classes
-override_doctype_class = {
-    "Stock Reconciliation": "customize_erpnext.override_methods.stock_reconciliation.custom_stock_reconciliation.CustomStockReconciliation"
-}
+# override_doctype_class = {
+#     "Stock Reconciliation": "customize_erpnext.override_methods.stock_reconciliation.custom_stock_reconciliation.CustomStockReconciliation"
+# }
 # Document Events
 doc_events = {
     "Employee Checkin": {

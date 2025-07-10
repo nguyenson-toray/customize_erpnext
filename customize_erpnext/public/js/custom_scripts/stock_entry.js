@@ -57,7 +57,10 @@ frappe.ui.form.on('Stock Entry', {
             message: __('Empty items have been removed from the items table.'),
             indicator: 'green'
         });
-
+        // Clear custom_receive_date for Material Issue
+        if (frm.doc.stock_entry_type === "Material Issue") {
+            clear_custom_receive_date(frm);
+        }
         // Trim parent fields first
         trim_parent_fields(frm);
         // Validate empty invoice numbers first
@@ -77,6 +80,31 @@ frappe.ui.form.on('Stock Entry', {
         setup_warehouse_column_visibility(frm);
     }
 });
+
+// Function to clear custom_receive_date for Material Issue
+function clear_custom_receive_date(frm) {
+    if (!frm.doc.items || frm.doc.items.length === 0) {
+        return;
+    }
+
+    let cleared_count = 0;
+
+    frm.doc.items.forEach(function (item) {
+        if (item.custom_receive_date) {
+            frappe.model.set_value(item.doctype, item.name, 'custom_receive_date', null);
+            cleared_count++;
+        }
+    });
+
+    if (cleared_count > 0) {
+        frappe.show_alert({
+            message: __('Cleared custom_receive_date from {0} items (Material Issue)', [cleared_count]),
+            indicator: 'orange'
+        });
+        frm.refresh_field('items');
+    }
+}
+
 function validate_no(frm) {
     console.log('Validating custom_no field:', frm.doc.custom_no);
     let custom_no = frm.doc.custom_no ? frm.doc.custom_no.trim() : '';
@@ -570,17 +598,24 @@ function sync_fields_to_child_table(frm) {
             field: 'custom_fg_size',
             value: frm.doc.custom_fg_size,
             label: 'FG Size'
+        },
+        {
+            field: 'custom_receive_date',
+            value: frm.doc.posting_date,
+            label: 'receive Date'
         }
     ];
 
     fields_to_sync.forEach(function (field_info) {
         if (field_info.value) {
             let updated_count = 0;
-
             frm.doc.items.forEach(function (row) {
                 // Chỉ update nếu field chưa có giá trị hoặc khác với giá trị parent
                 if (!row[field_info.field] || row[field_info.field] !== field_info.value) {
                     frappe.model.set_value(row.doctype, row.name, field_info.field, field_info.value);
+                    if (field_info.field === 'custom_receive_date' && frm.doc.stock_entry_type === "Material Issue") {
+                        frappe.model.set_value(row.doctype, row.name, 'custom_receive_date', null); // Clear custom_receive_date for Material Issue
+                    }
                     updated_count++;
                 }
             });

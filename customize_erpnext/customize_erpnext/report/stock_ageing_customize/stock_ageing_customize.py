@@ -379,8 +379,8 @@ class FIFOSlots:
 					prev_balance_qty = self.item_details[key].get("qty_after_transaction", 0)
 					d.actual_qty = flt(d.qty_after_transaction) - flt(prev_balance_qty)
 					
-					# Use custom_receive_date for Opening Stock entries
-					if d.get("custom_receive_date") and "Opening Stock" in str(d.get("voucher_no", "")):
+					# Always prioritize custom_receive_date over posting_date for age calculation
+					if d.get("custom_receive_date"):
 						d.posting_date = d.custom_receive_date
 
 				serial_nos = get_serial_nos(d.serial_no) if d.serial_no else []
@@ -429,6 +429,9 @@ class FIFOSlots:
 
 		transfer_data = self.transferred_item_details.get(transfer_key)
 		if transfer_data:
+
+
+			
 			# inward/outward from same voucher, item & warehouse
 			# eg: Repack with same item, Stock reco for batch item
 			# consume transfer data and add stock to fifo queue
