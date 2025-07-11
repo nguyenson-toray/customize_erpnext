@@ -5,6 +5,7 @@
 
 frappe.ui.form.on('Stock Reconciliation', {
     onload: function (frm) {
+        frm.set_intro(__('Trường hợp trùng Item nhưng khác Invoice : Chỉ nhập 1 invoice, còn lại chuyển sang Stopk Entry - Material Receipt & chọn "Is Opening Stock"', 'blue'));
         // Setup keyboard shortcuts for duplicate functionality
         $(document).on('keydown.duplicate_rows_sr', function (e) {
             // Only work when focused on this form

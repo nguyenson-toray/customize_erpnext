@@ -86,8 +86,28 @@ frappe.ui.form.on('Stock Entry', {
     stock_entry_type: function (frm) {
         // Setup warehouse column visibility when stock entry type changes
         setup_warehouse_column_visibility(frm);
-    }
+    },
+    before_submit: function (frm) {
+        // Validate custom_no field before submission
+        // set note for custom_no field
+        set_value_for_custom_note(frm);
+
+    },
 });
+set_value_for_custom_note = function (frm) {
+    // if custom_is_opening_stock = 1     Set custom_note = current custom_note value + items[item_name, custom_invoice_number]
+    if (!frm.doc.custom_note) {
+        frm.set_value('custom_note', '');
+
+    }
+    let note = `Additional for Opening Stock: ${frm.doc.custom_note || ''}\n`;
+    frm.doc.items.forEach(function (item) {
+        note = note + `Item: ${item.item_name || ''}, Invoice: ${item.custom_invoice_number || ''}, Qty: ${item.qty}\n`;
+    });
+    if (frm.doc.custom_is_opening_stock === 1) {
+        frm.set_value('custom_note', note);
+    }
+}
 
 // Function to clear custom_receive_date for Material Issue
 function clear_custom_receive_date(frm) {
@@ -116,8 +136,9 @@ function clear_custom_receive_date(frm) {
 function validate_no(frm) {
     console.log('Validating custom_no field:', frm.doc.custom_no);
     if (frm.doc.custom_is_opening_stock === 1) {
-        // set custom_no format:  'Opening Stock'& posting_date yyyy-MM-dd
-        frm.set_value('custom_no', `Opening Stock ${frm.doc.posting_date ? frappe.datetime.str_to_user(frm.doc.posting_date) : frappe.datetime.nowdate()}`);
+        // set custom_no format:  'Opening Stock'& posting_date & 3 random digits
+
+        frm.set_value('custom_no', `Opening Stock ${frm.doc.posting_date ? frappe.datetime.str_to_user(frm.doc.posting_date) : frappe.datetime.nowdate()} ${Math.floor(100 + Math.random() * 900)}`);
         console.log('Setting custom_no to:', frm.doc.custom_no);
         // set custom_no to read only    
         frm.set_df_property('custom_no', 'read_only', 1);

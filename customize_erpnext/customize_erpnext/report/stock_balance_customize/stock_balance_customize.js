@@ -161,12 +161,15 @@ frappe.query_reports["Stock Balance Customize"] = {
 		// Highlight age columns for aging analysis
 		if (column.fieldname === "age" && data.age > 0) {
 			if (data.age > 365) {
-				value = "<span style='color: red; font-weight: bold;'>" + value + "</span>";
+				value = "<span style='color: red;'>" + value + "</span>";
 			} else if (data.age > 180) {
-				value = "<span style='color: orange; font-weight: bold;'>" + value + "</span>";
+				value = "<span style='color: orange;'>" + value + "</span>";
 			}
 		}
-
+		// Set text color white for columns [Color, Size, Brand, Brand, Season, Info] if value is "Blank"
+		if (["color", "size", "brand", "season", "info"].includes(column.fieldname) && !data[column.fieldname]) {
+			value = "<span style='color: white;'>" + __("Blank") + "</span>";
+		}
 		return value;
 	},
 
