@@ -1028,7 +1028,7 @@ async function process_quick_add_items_se(frm, items_data, dialog_type) {
                 continue;
             }
         }
-        item_name_detail += '%'; // Ensure pattern ends with %
+        // item_name_detail += '%'; // Ensure pattern ends with %
         items_to_add.push({
             line_number: i + 1,
             search_pattern: item_name_detail,
@@ -1059,7 +1059,7 @@ async function process_quick_add_items_se(frm, items_data, dialog_type) {
                     args: {
                         doctype: 'Item',
                         filters: {
-                            'custom_item_name_detail': pattern,
+                            'custom_item_name_detail': pattern.trim(),
                             'variant_of': ['!=', '']  // Chỉ lấy item variants (có parent template)
                         },
                         fields: ['name', 'item_code', 'item_name', 'stock_uom'],
