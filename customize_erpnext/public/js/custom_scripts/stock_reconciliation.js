@@ -46,6 +46,7 @@ frappe.ui.form.on('Stock Reconciliation', {
             message: __('Empty items have been removed from the items table.'),
             indicator: 'green'
         });
+
     },
     purpose: function (frm) {
         // Update Quick Add button state when purpose changes
@@ -56,6 +57,25 @@ frappe.ui.form.on('Stock Reconciliation', {
         // Update duplicate button state as well
         toggle_duplicate_button_sr(frm);
         initialize_quick_add_button_sr(frm);
+
+        // Hide posting_time field, set to '00:00:00' and make read-only if purpose is 'Opening Stock'
+        if (frm.doc.purpose === 'Opening Stock') {
+            frm.set_value('posting_time', '00:00:00');
+            frm.set_df_property('posting_time', 'read_only', 1);
+        } else {
+            frm.toggle_display('posting_time', 1);
+            frm.set_df_property('posting_time', 'read_only', 0);
+        }
+    },
+    set_posting_time: function (frm) {
+        // Ensure posting_time is set to '00:00:00' if purpose is 'Opening Stock'
+        if (frm.doc.purpose === 'Opening Stock' && frm.doc.set_posting_time) {
+            frm.set_value('posting_time', '00:00:00');
+            frm.set_df_property('posting_time', 'read_only', 1);
+        } else {
+            frm.toggle_display('posting_time', 1);
+            frm.set_df_property('posting_time', 'read_only', 0);
+        }
     },
 
     refresh: function (frm) {
