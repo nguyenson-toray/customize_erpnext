@@ -166,9 +166,10 @@ frappe.query_reports["Stock Balance Customize"] = {
 				value = "<span style='color: orange;'>" + value + "</span>";
 			}
 		}
-		// Set text color white for columns [Color, Size, Brand, Brand, Season, Info] if value is "Blank"
-		if (["color", "size", "brand", "season", "info"].includes(column.fieldname) && !data[column.fieldname]) {
-			value = "<span style='color: white;'>" + __("Blank") + "</span>";
+		// Set text color white for columns [Color, Size, Brand, Season, Info] if value is "Blank"
+		if (["Color", "Size", "Brand", "Season", "Info"].includes(column.fieldname) && 
+			(data[column.fieldname] === "Blank" || data[column.fieldname] === "" || !data[column.fieldname])) {
+			value = "<span style='color: white;'>Blank</span>";
 		}
 		return value;
 	},

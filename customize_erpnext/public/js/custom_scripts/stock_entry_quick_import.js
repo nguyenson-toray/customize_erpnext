@@ -6,7 +6,7 @@ frappe.ui.form.on('Stock Entry', {
     refresh: function (frm) {
         // Import Excel functionality
         add_import_button_if_needed(frm);
-        
+
         // Quick Add functionality
         initialize_form_buttons_se(frm);
 
@@ -74,7 +74,7 @@ frappe.ui.form.on('Stock Entry', {
     onload: function (frm) {
         // Import Excel functionality
         add_import_button_if_needed(frm);
-        
+
         // Quick Add functionality
         // Setup cleanup for browser navigation/close
         $(window).on('beforeunload.quick_add_se', function () {
@@ -1051,7 +1051,7 @@ async function process_quick_add_items_se(frm, items_data, dialog_type) {
     let search_patterns = items_to_add.map(item => item.search_pattern);
 
     try {
-        // Find all items using batch call
+        // Find exactly  item using batch call
         let batch_responses = await Promise.all(
             search_patterns.map(pattern =>
                 frappe.call({
@@ -1059,11 +1059,10 @@ async function process_quick_add_items_se(frm, items_data, dialog_type) {
                     args: {
                         doctype: 'Item',
                         filters: {
-                            'custom_item_name_detail': ['like', pattern],
+                            'custom_item_name_detail': pattern,
                             'variant_of': ['!=', '']  // Chỉ lấy item variants (có parent template)
                         },
                         fields: ['name', 'item_code', 'item_name', 'stock_uom'],
-                        order_by: 'LENGTH(custom_item_name_detail) ASC',
                         limit: 1
                     }
                 })
