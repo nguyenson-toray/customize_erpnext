@@ -33,6 +33,7 @@ class StockBalanceFilter(TypedDict):
     summary_qty_by_invoice_number: bool
     show_value: bool
     range: str | None
+    include_zero_stock_items: bool
 
 
 SLEntry = dict[str, Any]
@@ -117,10 +118,11 @@ class StockBalanceReportCustomized:
         for _key, report_data in self.item_warehouse_map.items():
             self._process_report_row(report_data, item_wise_fifo_queue, variant_values, sre_details)
             
-            # Skip items with no balance and no transactions
-            if (report_data.bal_qty == 0 and report_data.bal_val == 0 and 
-                report_data.in_qty == 0 and report_data.out_qty == 0 and 
-                report_data.opening_qty == 0):
+            # Skip items with zero stock if include_zero_stock_items is not enabled
+            if (not self.filters.get("include_zero_stock_items") and
+                report_data and
+                report_data.bal_qty == 0 and
+                report_data.bal_val == 0):
                 continue
                 
             self.data.append(report_data)

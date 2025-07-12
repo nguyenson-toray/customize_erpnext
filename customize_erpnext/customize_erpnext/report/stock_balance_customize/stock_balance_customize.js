@@ -16,7 +16,8 @@ frappe.query_reports["Stock Balance Customize"] = {
 			"fieldname": "from_date",
 			"label": __("From Date"),
 			"fieldtype": "Date",
-			"default": frappe.datetime.add_months(frappe.datetime.get_today(), -1),
+			"default": erpnext.utils.get_fiscal_year(frappe.datetime.get_today(), true)[1],
+			//frappe.datetime.add_months(frappe.datetime.get_today(), -1),
 			"reqd": 1,
 			"width": "100px"
 		},
@@ -108,7 +109,13 @@ frappe.query_reports["Stock Balance Customize"] = {
 			"fieldtype": "Data",
 			"default": "180, 360, 720",
 			"depends_on": "eval:doc.show_stock_ageing_data && doc.summary_qty_by_invoice_number"
-		}
+		},
+		{
+			'fieldname': "include_zero_stock_items",
+			'label': __("Include Zero Stock Items"),
+			'fieldtype': "Check",
+			'default': 1,
+		},
 
 		// {
 		// 	"fieldname": "show_value",
@@ -167,7 +174,7 @@ frappe.query_reports["Stock Balance Customize"] = {
 			}
 		}
 		// Set text color white for columns [Color, Size, Brand, Season, Info] if value is "Blank"
-		if (["Color", "Size", "Brand", "Season", "Info"].includes(column.fieldname) && 
+		if (["Color", "Size", "Brand", "Season", "Info"].includes(column.fieldname) &&
 			(data[column.fieldname] === "Blank" || data[column.fieldname] === "" || !data[column.fieldname])) {
 			value = "<span style='color: white;'>Blank</span>";
 		}
