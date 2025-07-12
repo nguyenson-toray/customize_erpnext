@@ -67,17 +67,13 @@ frappe.ui.form.on('Stock Entry', {
 
         // Trim parent fields first
         trim_parent_fields(frm);
-        // Validate empty invoice numbers first
-        validate_invoice_numbers(frm);
         // Validate and set default warehouses
         validate_warehouse(frm);
         // Aggregate invoice numbers from child table to parent
         aggregate_invoice_numbers(frm);
         // Sync invoice fields to child table after trimming parent fields
         sync_fields_to_child_table(frm);
-        // Validate custom_no field
-        validate_no(frm);
-        validate_receive_date(frm);
+
 
     },
     stock_entry_type: function (frm) {
@@ -85,8 +81,9 @@ frappe.ui.form.on('Stock Entry', {
         setup_warehouse_column_visibility(frm);
     },
     before_submit: function (frm) {
-        // Validate custom_no field before submission
-        // set note for custom_no field
+        validate_invoice_numbers(frm);
+        validate_no(frm);
+        validate_receive_date(frm);
         set_value_for_custom_note(frm);
 
     },

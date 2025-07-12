@@ -36,7 +36,9 @@ frappe.ui.form.on('Item', {
         if (!frm.doc.description) {
             frm.set_value('description', frm.doc.item_name);
         }
-
+        
+        // Validate and manage barcode
+        validate_and_manage_barcode(frm);
     },
     refresh: function (frm) {
         // Disable nút Single Variant
@@ -630,5 +632,79 @@ async function is_exists_item(item_group, item_name) {
     } catch (err) {
         console.error("Error checking item existence:", err);
         throw err;
+    }
+}
+
+/**
+ * Validate and manage barcode in tabItem Barcode table
+ * - Check if barcode entry exists for this item
+ * - If not exists, add new entry with barcode = item_code, uom = stock_uom, barcode_type = 'CODE-39'
+ * - If exists but incorrect, update it
+ * - Ensure only one barcode per item
+ * @param {object} frm - The form object
+ */
+function validate_and_manage_barcode(frm) {
+    if (!frm.doc.item_code || !frm.doc.stock_uom) {
+        return;
+    }
+
+    // Ensure only one barcode entry exists
+    if (frm.doc.barcodes && frm.doc.barcodes.length > 1) {
+        // Keep only the first barcode and remove others
+        frm.doc.barcodes = [frm.doc.barcodes[0]];
+        frappe.show_alert({
+            message: __('Multiple barcodes detected. Keeping only one barcode per item.'),
+            indicator: 'orange'
+        });
+    }
+
+    let barcode_entry = null;
+    let needs_update = false;
+    let needs_create = false;
+
+    if (frm.doc.barcodes && frm.doc.barcodes.length > 0) {
+        // Barcode entry exists, check if it's correct
+        barcode_entry = frm.doc.barcodes[0];
+        
+        if (barcode_entry.barcode !== frm.doc.item_code || 
+            barcode_entry.uom !== frm.doc.stock_uom || 
+            barcode_entry.barcode_type !== 'CODE-39') {
+            needs_update = true;
+        }
+    } else {
+        // No barcode entry exists, need to create one
+        needs_create = true;
+    }
+
+    if (needs_create) {
+        // Add new barcode entry
+        let new_barcode = frm.add_child('barcodes');
+        frappe.model.set_value(new_barcode.doctype, new_barcode.name, 'barcode', frm.doc.item_code);
+        frappe.model.set_value(new_barcode.doctype, new_barcode.name, 'uom', frm.doc.stock_uom);
+        frappe.model.set_value(new_barcode.doctype, new_barcode.name, 'barcode_type', 'CODE-39');
+        
+        frappe.show_alert({
+            message: __('Auto-created barcode entry: {0}', [frm.doc.item_code]),
+            indicator: 'green'
+        });
+        
+        console.log('Created new barcode entry for item:', frm.doc.item_code);
+    } else if (needs_update) {
+        // Update existing barcode entry
+        frappe.model.set_value(barcode_entry.doctype, barcode_entry.name, 'barcode', frm.doc.item_code);
+        frappe.model.set_value(barcode_entry.doctype, barcode_entry.name, 'uom', frm.doc.stock_uom);
+        frappe.model.set_value(barcode_entry.doctype, barcode_entry.name, 'barcode_type', 'CODE-39');
+        
+        frappe.show_alert({
+            message: __('Updated barcode entry to: {0}', [frm.doc.item_code]),
+            indicator: 'blue'
+        });
+        
+        console.log('Updated barcode entry for item:', frm.doc.item_code);
+    }
+
+    // Refresh the barcodes field to show changes
+    if (needs_create || needs_update) {
+        frm.refresh_field('barcodes');
     }
 }
