@@ -4,7 +4,6 @@ frappe.ui.form.on('Stock Entry', {
         if (frm.doc.purpose === "Material Transfer for Manufacture" && frm.doc.work_order) {
             check_existing_material_transfers(frm);
         }
-
         // Setup invoice selector for Material Issue
         if (frm.doc.stock_entry_type === "Material Issue") {
             setup_invoice_selector(frm);
@@ -65,10 +64,7 @@ frappe.ui.form.on('Stock Entry', {
             message: __('Empty items have been removed from the items table.'),
             indicator: 'green'
         });
-        // Clear custom_receive_date for Material Issue
-        if (frm.doc.stock_entry_type === "Material Issue") {
-            clear_custom_receive_date(frm);
-        }
+
         // Trim parent fields first
         trim_parent_fields(frm);
         // Validate empty invoice numbers first
@@ -81,6 +77,7 @@ frappe.ui.form.on('Stock Entry', {
         sync_fields_to_child_table(frm);
         // Validate custom_no field
         validate_no(frm);
+        validate_receive_date(frm);
 
     },
     stock_entry_type: function (frm) {
@@ -110,27 +107,58 @@ set_value_for_custom_note = function (frm) {
 }
 
 // Function to clear custom_receive_date for Material Issue
-function clear_custom_receive_date(frm) {
+function validate_receive_date(frm) {
+    // custom_receive_date only applies to Material Receipt and Is Opening Stock 
     if (!frm.doc.items || frm.doc.items.length === 0) {
         return;
     }
-
-    let cleared_count = 0;
-
-    frm.doc.items.forEach(function (item) {
-        if (item.custom_receive_date) {
-            frappe.model.set_value(item.doctype, item.name, 'custom_receive_date', null);
-            cleared_count++;
-        }
-    });
-
-    if (cleared_count > 0) {
-        frappe.show_alert({
-            message: __('Cleared custom_receive_date from {0} items (Material Issue)', [cleared_count]),
-            indicator: 'orange'
+    if (frm.doc.stock_entry_type === "Material Receipt" && frm.doc.custom_is_opening_stock === 1) {
+        let empty_receive_date_rows = [];
+        frm.doc.items.forEach((item, index) => {
+            if (!item.custom_receive_date) {
+                empty_receive_date_rows.push({
+                    row_number: index + 1,
+                    item_code: item.item_code || 'Unknown Item',
+                    item_name: item.item_name || 'Unknown Name'
+                });
+            }
         });
-        frm.refresh_field('items');
+
+        if (empty_receive_date_rows.length > 0) {
+            let error_message = __('The following rows have empty Receive Date:');
+            error_message += '<ul>';
+            empty_receive_date_rows.forEach(function (row) {
+                error_message += `<li>Row ${row.row_number}: ${row.item_code}    ${row.item_name}</li>`;
+            });
+            error_message += '</ul>';
+            error_message += __('Please fill in the Receive Date for all items when Is Opening Stock is checked.');
+
+            frappe.msgprint({
+                title: __('Missing Receive Date'),
+                message: error_message,
+                indicator: 'red'
+            });
+
+            frappe.validated = false;
+            return;
+        }
+    } else {
+        let cleared_count = 0;
+        frm.doc.items.forEach(function (item) {
+            if (item.custom_receive_date) {
+                frappe.model.set_value(item.doctype, item.name, 'custom_receive_date', null);
+                cleared_count++;
+            }
+        });
+        if (cleared_count > 0) {
+            frappe.show_alert({
+                message: __('Cleared Receive Date from {0} items', [cleared_count]),
+                indicator: 'orange'
+            });
+            frm.refresh_field('items');
+        }
     }
+
 }
 
 function validate_no(frm) {
@@ -638,11 +666,6 @@ function sync_fields_to_child_table(frm) {
             field: 'custom_fg_size',
             value: frm.doc.custom_fg_size,
             label: 'FG Size'
-        },
-        {
-            field: 'custom_receive_date',
-            value: frm.doc.posting_date,
-            label: 'receive Date'
         }
     ];
 
@@ -654,9 +677,6 @@ function sync_fields_to_child_table(frm) {
 
                 if (!row[field_info.field] || row[field_info.field] !== field_info.value) {
                     frappe.model.set_value(row.doctype, row.name, field_info.field, field_info.value);
-                    if (field_info.field === 'custom_receive_date' && (frm.doc.stock_entry_type === "Material Issue" || frm.doc.custom_is_opening_stock === 1)) {
-                        frappe.model.set_value(row.doctype, row.name, 'custom_receive_date', null); // Clear  custom_receive_date for Material Issue or custom_is_opening_stock =1
-                    }
                     updated_count++;
                 }
             });
