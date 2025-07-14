@@ -4,6 +4,11 @@ frappe.listview_settings['Item'] = {
         listview.page.add_inner_button(__('Print QR Labels'), function () {
             show_qr_label_dialog(listview);
         }, __('Actions'));
+
+        // Add "Quick Check Item" button to Item List
+        listview.page.add_inner_button(__('Quick Check Item'), function () {
+            show_quick_check_item_dialog(listview);
+        }, __('Actions'));
     }
 };
 
@@ -584,3 +589,448 @@ frappe.listview_settings['Item'].get_indicator = function (doc) {
         return [__("Non-Stock Item"), "orange", "is_stock_item,=,0"];
     }
 };
+
+// Quick Check Item functionality
+function show_quick_check_item_dialog() {
+    let dialog = new frappe.ui.Dialog({
+        title: __('Quick Check Item'),
+        fields: [
+
+            {
+                fieldname: 'search_type',
+                fieldtype: 'Select',
+                label: __('Search Type'),
+                options: [
+                    { value: 'qr_scan', label: __('QR Code Scan') },
+                    { value: 'search_item', label: __('Search Item') }
+                ],
+                default: 'qr_scan',
+                change: function () {
+                    toggle_search_fields(dialog);
+                }
+            },
+            {
+                fieldname: 'search_input',
+                fieldtype: 'Link',
+                options: 'Item',
+                label: __('Search Item'),
+                depends_on: 'eval:doc.search_type=="search_item"',
+                placeholder: __('Type to search for items...'),
+                change: function () {
+                    const selected_item = dialog.get_value('search_input');
+                    if (selected_item) {
+                        search_item_by_code(dialog, selected_item);
+                    }
+                }
+            },
+            {
+                fieldname: 'qr_scan_area',
+                fieldtype: 'HTML',
+                label: __('QR Code Scanner'),
+                depends_on: 'eval:doc.search_type=="qr_scan"',
+                options: `
+                    <div id="qr-scanner-container">
+                        <div id="qr-reader" style="width: 100%; max-width: 600px; margin: 0 auto;"></div>
+                        <div class="text-center mt-3">
+                            <button class="btn btn-primary" id="start-qr-scan-btn">Start QR Scanning</button>
+                            <button class="btn btn-secondary" id="stop-qr-scan-btn" style="display: none;">Stop QR Scanning</button>
+                        </div>
+                        <div id="qr-scan-result" class="mt-3"></div>
+                    </div>
+                `
+            },
+            {
+                fieldtype: 'Section Break',
+                label: __('Item Information')
+            },
+            {
+                fieldname: 'item_info',
+                fieldtype: 'HTML',
+                label: __('Item Details'),
+                options: '<div class="text-muted">Search for an item to see information</div>'
+            },
+            {
+                fieldtype: 'Section Break',
+                label: __('Stock Information')
+            },
+            {
+                fieldname: 'stock_info',
+                fieldtype: 'HTML',
+                label: __('Stock Details'),
+                options: '<div class="text-muted">Item information will show stock details</div>'
+            },
+            {
+                fieldtype: 'Section Break',
+                label: __('Transaction History')
+            },
+            {
+                fieldname: 'transaction_history',
+                fieldtype: 'HTML',
+                label: __('Recent Transactions'),
+                options: '<div class="text-muted">Item information will show transaction history</div>'
+            }
+        ],
+        size: 'extra-large'
+    });
+
+    dialog.show();
+
+    // Initialize dialog handlers
+    setTimeout(() => {
+        setup_quick_check_dialog_handlers(dialog);
+        toggle_search_fields(dialog);
+    }, 200);
+}
+
+function setup_quick_check_dialog_handlers(dialog) {
+    console.log('Setting up quick check dialog handlers');
+
+    // QR Scanner handlers
+    $(document).off('click', '#start-qr-scan-btn').on('click', '#start-qr-scan-btn', function () {
+        console.log('Start QR scan button clicked');
+        start_qr_scanner(dialog);
+    });
+
+    $(document).off('click', '#stop-qr-scan-btn').on('click', '#stop-qr-scan-btn', function () {
+        console.log('Stop QR scan button clicked');
+        stop_qr_scanner(dialog);
+    });
+
+    // Manual search handlers - Link field will handle autocomplete automatically
+}
+
+function toggle_search_fields(dialog) {
+    const search_type = dialog.get_value('search_type');
+
+    // Show/hide QR scanner and auto-start if QR scan is selected
+    const qr_container = $(dialog.$wrapper).find('#qr-scanner-container');
+    const qr_field = dialog.get_field('qr_scan_area');
+    if (search_type === 'qr_scan') {
+        qr_container.show();
+        if (qr_field) qr_field.toggle(true);
+
+        // Auto-start QR scanner when QR scan is selected
+        setTimeout(() => {
+            start_qr_scanner(dialog);
+        }, 500);
+    } else {
+        qr_container.hide();
+        if (qr_field) qr_field.toggle(false);
+        stop_qr_scanner(dialog);
+    }
+
+    // Clear previous results when switching search types
+    dialog.set_value('item_info', '<div class="text-muted">Search for an item to see information</div>');
+    dialog.set_value('stock_info', '<div class="text-muted">Item information will show stock details</div>');
+    dialog.set_value('transaction_history', '<div class="text-muted">Item information will show transaction history</div>');
+
+    // Refresh dialog layout
+    dialog.refresh();
+}
+
+let qr_scanner = null;
+
+function start_qr_scanner(dialog) {
+    // Load HTML5-QRCode library if not available
+    if (typeof Html5QrcodeScanner === 'undefined') {
+        load_qr_scanner_library().then(() => {
+            start_qr_scanner(dialog);
+        }).catch(() => {
+            frappe.msgprint({
+                title: __('QR Scanner Not Available'),
+                message: __('Failed to load QR Code scanning library. Please scan QR codes manually or use other search methods.'),
+                indicator: 'orange'
+            });
+        });
+        return;
+    }
+
+    const qr_reader_element = document.getElementById('qr-reader');
+    if (!qr_reader_element) {
+        frappe.msgprint(__('QR reader element not found. Please try again.'));
+        return;
+    }
+
+    // Clear any previous scanner content
+    $(qr_reader_element).empty();
+
+    try {
+        console.log('Creating QR scanner...');
+        qr_scanner = new Html5QrcodeScanner(
+            'qr-reader',
+            {
+                fps: 10,
+                qrbox: { width: 250, height: 250 },
+                aspectRatio: 1.0,
+                rememberLastUsedCamera: true,
+                preferredCamera: 'environment'  // Use back camera on mobile
+            },
+            false
+        );
+        console.log('QR scanner created successfully');
+
+        console.log('Rendering QR scanner...');
+        qr_scanner.render(
+            function (decodedText, decodedResult) {
+                console.log('QR code scanned:', decodedText);
+                // Handle successful scan
+                $('#qr-scan-result').html(`
+                    <div class="alert alert-success">
+                        <strong>QR Code Detected:</strong> ${decodedText}
+                    </div>
+                `);
+
+                // Stop scanner
+                stop_qr_scanner(dialog);
+
+                // Search for the item
+                search_item_by_qr_code(dialog, decodedText);
+            },
+            function (error) {
+                // Handle scan failure - don't show error for every frame
+                if (error.indexOf('QR code parse error') === -1) {
+                    console.log('QR scan error:', error);
+                }
+            }
+        );
+
+        // Update button states
+        $('#start-qr-scan-btn').hide();
+        $('#stop-qr-scan-btn').show();
+
+        console.log('QR scanner started successfully');
+
+    } catch (error) {
+        console.error('QR Scanner error:', error);
+        frappe.msgprint(__('Error starting QR scanner: {0}', [error.message || 'Unknown error']));
+    }
+}
+
+function stop_qr_scanner(dialog) {
+    if (qr_scanner) {
+        try {
+            qr_scanner.clear();
+            qr_scanner = null;
+            console.log('QR scanner stopped successfully');
+        } catch (error) {
+            console.log('Error stopping QR scanner:', error);
+        }
+    }
+
+    // Update button states
+    $('#start-qr-scan-btn').show();
+    $('#stop-qr-scan-btn').hide();
+}
+
+function search_item_by_qr_code(dialog, qr_code) {
+    // QR code typically contains item_code
+    dialog.set_value('item_code', qr_code);
+    search_item_by_code(dialog, qr_code);
+}
+
+function search_item_info(dialog) {
+    // This function is now used for QR code searches
+    const item_code = dialog.get_value('item_code');
+    if (!item_code) return;
+
+    search_item_by_code(dialog, item_code);
+}
+
+
+
+
+
+function search_item_by_code(dialog, item_code) {
+    // Show loading
+    dialog.set_value('item_info', '<div class="text-center"><i class="fa fa-spinner fa-spin"></i> Loading item information...</div>');
+
+    frappe.call({
+        method: 'frappe.client.get',
+        args: {
+            doctype: 'Item',
+            name: item_code
+        },
+        callback: function (r) {
+            if (r.message) {
+                display_item_information(dialog, r.message);
+                load_stock_information(dialog, item_code);
+                load_transaction_history(dialog, item_code);
+            } else {
+                dialog.set_value('item_info', '<div class="alert alert-warning">Item not found</div>');
+            }
+        },
+        error: function (r) {
+            dialog.set_value('item_info', '<div class="alert alert-danger">Error loading item information</div>');
+        }
+    });
+}
+
+function display_item_information(dialog, item) {
+    // Check if device is mobile
+    const isMobile = window.innerWidth <= 768;
+    
+    let html;
+    if (isMobile) {
+        // Mobile layout - show only Item Name Detail, Item Group, Stock UOM
+        html = `
+            <div class="card">
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-12">
+                            <p><strong>Item Name Detail:</strong> ${item.custom_item_name_detail || 'N/A'}</p>
+                            <p><strong>Item Group:</strong> ${item.item_group || 'N/A'}</p>
+                            <p><strong>Stock UOM:</strong> ${item.stock_uom || 'N/A'}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    } else {
+        // Desktop layout - show all fields
+        html = `
+            <div class="card">
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p><strong>Item Name:</strong> ${item.item_name || 'N/A'}</p>
+                            <p><strong>Item Name Detail:</strong> ${item.custom_item_name_detail || 'N/A'}</p>
+                        </div>
+                        <div class="col-md-3">
+                            <p><strong>Item Group:</strong> ${item.item_group || 'N/A'}</p>
+                            <p><strong>Stock UOM:</strong> ${item.stock_uom || 'N/A'}</p>
+                        </div>
+                        <div class="col-md-3">
+                            <p><strong>Is Stock Item:</strong> ${item.is_stock_item ? 'Yes' : 'No'}</p>
+                            <p><strong>Status:</strong> ${item.disabled ? 'Disabled' : 'Active'}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    dialog.set_value('item_info', html);
+}
+
+function load_stock_information(dialog, item_code) {
+    dialog.set_value('stock_info', '<div class="text-center"><i class="fa fa-spinner fa-spin"></i> Loading stock information...</div>');
+
+    frappe.call({
+        method: 'frappe.client.get_list',
+        args: {
+            doctype: 'Bin',
+            filters: {
+                'item_code': item_code
+            },
+            fields: ['warehouse', 'actual_qty', 'reserved_qty', 'planned_qty', 'projected_qty'],
+            order_by: 'actual_qty desc'
+        },
+        callback: function (r) {
+            if (r.message && r.message.length > 0) {
+                let html = '<div class="table-responsive"><table class="table table-sm table-striped">';
+                html += '<thead><tr><th>Warehouse</th><th>Available Qty</th><th>Reserved Qty</th><th>Planned Qty</th><th>Projected Qty</th></tr></thead><tbody>';
+
+                r.message.forEach(bin => {
+                    html += `<tr>
+                        <td>${bin.warehouse}</td>
+                        <td>${bin.actual_qty || 0}</td>
+                        <td>${bin.reserved_qty || 0}</td>
+                        <td>${bin.planned_qty || 0}</td>
+                        <td>${bin.projected_qty || 0}</td>
+                    </tr>`;
+                });
+
+                html += '</tbody></table></div>';
+
+                dialog.set_value('stock_info', html);
+            } else {
+                dialog.set_value('stock_info', '<div class="alert alert-warning">No stock information found</div>');
+            }
+        },
+        error: function (r) {
+            dialog.set_value('stock_info', '<div class="alert alert-danger">Error loading stock information</div>');
+        }
+    });
+}
+
+function load_transaction_history(dialog, item_code) {
+    dialog.set_value('transaction_history', '<div class="text-center"><i class="fa fa-spinner fa-spin"></i> Loading transaction history...</div>');
+
+    frappe.call({
+        method: 'frappe.client.get_list',
+        args: {
+            doctype: 'Stock Ledger Entry',
+            filters: {
+                'item_code': item_code
+            },
+            fields: ['posting_date', 'posting_time', 'voucher_type', 'voucher_no', 'warehouse', 'actual_qty', 'qty_after_transaction'],
+            order_by: 'posting_date desc, posting_time desc',
+            limit: 20
+        },
+        callback: function (r) {
+            if (r.message && r.message.length > 0) {
+                let html = '<div class="table-responsive"><table class="table table-sm table-striped">';
+                html += '<thead><tr><th>Date</th><th>Time</th><th>Voucher Type</th><th>Voucher No</th><th>Warehouse</th><th>Qty Change</th><th>Qty After</th></tr></thead><tbody>';
+
+                r.message.forEach(entry => {
+                    const qty_change = entry.actual_qty || 0;
+                    const qty_class = qty_change > 0 ? 'text-success' : qty_change < 0 ? 'text-danger' : '';
+
+                    html += `<tr>
+                        <td>${entry.posting_date || ''}</td>
+                        <td>${entry.posting_time || ''}</td>
+                        <td>${entry.voucher_type || ''}</td>
+                        <td><a href="/app/${entry.voucher_type.toLowerCase().replace(' ', '-')}/${entry.voucher_no}" target="_blank">${entry.voucher_no || ''}</a></td>
+                        <td>${entry.warehouse || ''}</td>
+                        <td class="${qty_class}">${qty_change}</td>
+                        <td>${entry.qty_after_transaction || 0}</td>
+                    </tr>`;
+                });
+
+                html += '</tbody></table></div>';
+
+                dialog.set_value('transaction_history', html);
+            } else {
+                dialog.set_value('transaction_history', '<div class="alert alert-warning">No transaction history found</div>');
+            }
+        },
+        error: function (r) {
+            dialog.set_value('transaction_history', '<div class="alert alert-danger">Error loading transaction history</div>');
+        }
+    });
+}
+
+// Function to load QR scanner library
+function load_qr_scanner_library() {
+    return new Promise((resolve, reject) => {
+        if (typeof Html5QrcodeScanner !== 'undefined') {
+            resolve();
+            return;
+        }
+
+        // Show loading message
+        frappe.show_alert({
+            message: __('Loading scanner library...'),
+            indicator: 'blue'
+        });
+
+        // Try to load from CDN
+        const script = document.createElement('script');
+        script.src = 'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js';
+        script.onload = function () {
+            if (typeof Html5QrcodeScanner !== 'undefined') {
+                frappe.show_alert({
+                    message: __('Scanner library loaded successfully'),
+                    indicator: 'green'
+                });
+                resolve();
+            } else {
+                reject('Library loaded but Html5QrcodeScanner not available');
+            }
+        };
+        script.onerror = function () {
+            reject('Failed to load QR scanner library');
+        };
+        document.head.appendChild(script);
+    });
+}

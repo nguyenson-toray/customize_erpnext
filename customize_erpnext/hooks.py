@@ -40,7 +40,8 @@ doctype_js = {
 
 # List view customizations
 doctype_list_js = {
-    "Item": "public/js/custom_scripts/item_list.js"
+    "Item": "public/js/custom_scripts/item_list.js",
+    "Stock Entry": "public/js/custom_scripts/stock_entry_list.js",
 }
  
 # Hướng dẫn sử dụng fixtures để export từ site A và import vào site B
