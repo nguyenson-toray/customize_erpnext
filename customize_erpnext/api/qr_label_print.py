@@ -138,7 +138,7 @@ def get_filtered_items(filters):
     
     # Add ordering and limit
     #  Ordering by creation date desc and item group acs
-    query +=  " ORDER BY item_group ASC, creation DESC"
+    query +=  " ORDER BY item_group ASC , custom_item_name_detail ASC , creation DESC"
     
     if filters.get('limit'):
         query += f" LIMIT {int(filters['limit'])}"
