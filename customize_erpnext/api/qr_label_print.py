@@ -104,7 +104,7 @@ def get_filtered_items(filters):
             creation,
             modified
         FROM `tabItem`
-        WHERE disabled = 0
+        WHERE disabled = 0 AND has_variants = 0
     """
     
     # Add filters
@@ -137,7 +137,8 @@ def get_filtered_items(filters):
         query += " AND " + " AND ".join(conditions)
     
     # Add ordering and limit
-    query += " ORDER BY creation DESC"
+    #  Ordering by creation date desc and item group acs
+    query +=  " ORDER BY item_group ASC, creation DESC"
     
     if filters.get('limit'):
         query += f" LIMIT {int(filters['limit'])}"

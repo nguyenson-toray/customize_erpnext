@@ -9,12 +9,13 @@ frappe.listview_settings['Item'] = {
 
 function show_qr_label_dialog(listview) {
     let dialog = new frappe.ui.Dialog({
-        title: __('Print QR Labels - A4 - Tommy No.138'),
+        title: __('Print QR Labels (A4 - Tommy No.138). Enter to apply filter, Ctrl + Enter to generate PDF'),
         fields: [
-            {
-                fieldtype: 'Section Break',
-                label: __('Filter Options')
-            },
+
+            // {
+            //     fieldtype: 'Section Break',
+            //     label: __('Filters : Enter to apply filter, Ctrl+Enter to generate PDF')
+            // },
             {
                 fieldname: 'filter_type',
                 fieldtype: 'Select',
@@ -38,29 +39,30 @@ function show_qr_label_dialog(listview) {
                 fieldtype: 'Int',
                 label: __('Limit (Max 1000)'),
                 default: 100,
-                description: __('Maximum number of items to query.')
             },
             {
-                fieldtype: 'Section Break',
-                label: __('Custom Filters'),
-                depends_on: 'eval:doc.filter_type=="filter"'
+                fieldname: 'cb2',
+                fieldtype: 'Column Break'
             },
             {
                 fieldname: 'item_code',
                 fieldtype: 'Data',
-                label: __('Item Code (Contains)'),
+                label: __('Item Code'),
                 depends_on: 'eval:doc.filter_type=="filter"'
             },
             {
-                fieldname: 'cb2',
-                fieldtype: 'Column Break',
-                depends_on: 'eval:doc.filter_type=="filter"'
+                fieldname: 'cb3',
+                fieldtype: 'Column Break'
             },
             {
                 fieldname: 'custom_item_name_detail',
                 fieldtype: 'Data',
-                label: __('Item Name Detail (Contains)'),
+                label: __('Item Name Detail'),
                 depends_on: 'eval:doc.filter_type=="filter"'
+            },
+            {
+                fieldname: 'cb4',
+                fieldtype: 'Column Break'
             },
             {
                 fieldname: 'item_group',
@@ -77,9 +79,8 @@ function show_qr_label_dialog(listview) {
                 }
             },
             {
-                fieldname: 'cb3',
-                fieldtype: 'Column Break',
-                depends_on: 'eval:doc.filter_type=="filter"'
+                fieldname: 'cb5',
+                fieldtype: 'Column Break'
             },
             {
                 fieldname: 'created_after',
@@ -101,7 +102,7 @@ function show_qr_label_dialog(listview) {
             },
             {
                 fieldtype: 'Section Break',
-                label: __('Preview Items')
+                label: __('Apply Filter')
             },
             {
                 fieldname: 'item_preview',
@@ -119,11 +120,8 @@ function show_qr_label_dialog(listview) {
             }
         ],
         size: 'extra-large',
-        primary_action_label: __('Generate PDF'),
-        primary_action: function (values) {
-            generate_qr_labels_pdf(values, listview, dialog);
-        },
-        secondary_action_label: __('Preview Items'),
+        // Remove primary_action to avoid default Generate PDF button
+        secondary_action_label: __('Apply Filter'),
         secondary_action: function (values) {
             // Always get fresh values from dialog
             let current_values = dialog.get_values();
@@ -131,7 +129,7 @@ function show_qr_label_dialog(listview) {
         }
     });
 
-    // Add custom buttons
+    // Add custom buttons in the desired order
     dialog.page = {
         add_action_item: function (label, action, group) {
             let btn = $(`<button class="btn btn-default btn-sm" style="margin-left: 10px;">${label}</button>`);
@@ -146,18 +144,42 @@ function show_qr_label_dialog(listview) {
 
     dialog.show();
 
-    // Add "Add to List" button
+    // Add keyboard event handlers
+    $(dialog.$wrapper).on('keydown', function (e) {
+        if (e.key === 'Enter') {
+            if (e.ctrlKey) {
+                // Ctrl+Enter: Generate PDF
+                e.preventDefault();
+                generate_qr_labels_pdf(dialog.get_values(), null, dialog);
+            } else {
+                // Enter: Apply Filter
+                e.preventDefault();
+                let current_values = dialog.get_values();
+                preview_items(current_values, dialog);
+            }
+        }
+    });
+
+    // Add buttons in the desired order: Add to List, Clear List, Generate PDF
     setTimeout(() => {
+        // 1. "Add to List" button (after Apply Filter)
         let add_btn = dialog.page.add_action_item(__('Add to List'), function () {
             add_selected_items_to_list(dialog);
         });
         add_btn.addClass('btn-warning');
 
-        // Add "Clear List" button  
+        // 2. "Clear List" button  
         let clear_btn = dialog.page.add_action_item(__('Clear List'), function () {
             clear_selected_items_list(dialog);
         });
         clear_btn.addClass('btn-danger');
+
+        // 3. "Generate PDF" button (last)
+        let generate_btn = dialog.page.add_action_item(__('Generate PDF'), function () {
+            generate_qr_labels_pdf(dialog.get_values(), null, dialog);
+        });
+        generate_btn.addClass('btn-primary');
+        generate_btn.css('font-weight', 'bold');
     }, 100);
 
     // Initialize preview and selected items display
@@ -204,14 +226,19 @@ function preview_items(values, dialog) {
                 let select_all_text = `Select All (${r.message.length} items)`;
 
                 let html = `
-                    <div class="alert alert-info">
-                        <strong>Total Items Found:</strong> ${r.message.length}
-                    </div>
-                    <div style="margin-bottom: 10px;">
-                        <label style="margin-right: 15px;">
-                            <input type="checkbox" id="select_all_items" style="margin-right: 5px;">
-                            <strong>${select_all_text}</strong>
-                        </label>
+                    <div class="row" style="margin-bottom: 15px; align-items: center;">
+                        <div class="col-md-4">
+                            <div class="alert alert-info" style="margin-bottom: 0; padding: 8px 12px;">
+                                <strong>Total Items Found:</strong> ${r.message.length}
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <label style="margin-bottom: 0; font-weight: normal;">
+                                <input type="checkbox" id="select_all_items" style="margin-right: 8px;">
+                                <strong>${select_all_text}</strong>
+                            </label>
+                        </div>
+                     
                     </div>
                     <div style="max-height: 300px; overflow-y: auto;">
                         <table class="table table-bordered">
@@ -253,9 +280,15 @@ function preview_items(values, dialog) {
 
                 dialog.set_value('item_preview', html);
 
-                // Add event handlers for checkboxes after setting HTML
+                // Add event handlers for checkboxes and inline apply filter button after setting HTML
                 setTimeout(() => {
                     setup_checkbox_handlers(dialog);
+
+                    // Add handler for inline Apply Filter button
+                    $(dialog.$wrapper).find('.apply-filter-inline').off('click').on('click', function () {
+                        let current_values = dialog.get_values();
+                        preview_items(current_values, dialog);
+                    });
                 }, 100);
             }
         }
@@ -475,8 +508,10 @@ function generate_qr_labels_pdf(values, listview, dialog) {
         return;
     }
 
-    // Show loading
-    dialog.set_primary_action(__('Generating...'), null);
+    // Find the Generate PDF button and show loading state
+    let generate_btn = $(dialog.$wrapper).find('.modal-footer button:contains("Generate PDF")');
+    let original_text = generate_btn.text();
+    generate_btn.text(__('Generating...')).prop('disabled', true);
 
     // Extract item codes from selected items
     let item_codes = dialog.selected_items.map(item => item.item_code);
@@ -489,9 +524,8 @@ function generate_qr_labels_pdf(values, listview, dialog) {
             }
         },
         callback: function (r) {
-            dialog.set_primary_action(__('Generate PDF'), function () {
-                generate_qr_labels_pdf(values, listview, dialog);
-            });
+            // Restore button state
+            generate_btn.text(original_text).prop('disabled', false);
 
             if (r.message) {
                 // Download PDF
@@ -509,9 +543,8 @@ function generate_qr_labels_pdf(values, listview, dialog) {
             }
         },
         error: function (r) {
-            dialog.set_primary_action(__('Generate PDF'), function () {
-                generate_qr_labels_pdf(values, listview, dialog);
-            });
+            // Restore button state
+            generate_btn.text(original_text).prop('disabled', false);
 
             frappe.msgprint(__('Error generating PDF: {0}', [r.message || 'Unknown error']));
         }
