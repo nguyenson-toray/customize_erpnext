@@ -255,19 +255,27 @@ def create_table_data(items, cols, rows):
     
     # Create styles
     styles = getSampleStyleSheet()
-    code_style = ParagraphStyle(
+    group_style = ParagraphStyle(
         'CodeStyle',
         parent=styles['Normal'],
         fontSize=8,
         leading=9,
         alignment=TA_LEFT,
-        fontName='Helvetica-Bold'
+        fontName='Helvetica'
     )
     
     name_style = ParagraphStyle(
         'NameStyle',
         parent=styles['Normal'],
-        fontSize=5,
+        fontSize=8,
+        leading=7,
+        alignment=TA_LEFT,
+        fontName='Helvetica'
+    )
+    name_style_long = ParagraphStyle(
+        'NameStyle',
+        parent=styles['Normal'],
+        fontSize=6,
         leading=7,
         alignment=TA_LEFT,
         fontName='Helvetica'
@@ -285,12 +293,16 @@ def create_table_data(items, cols, rows):
                 qr_img = generate_qr_code(item['item_code'])
                 
                 # Create text content
-                item_code_text = Paragraph(item['item_code'] or '', code_style)
-                item_name_text = Paragraph(item['custom_item_name_detail'] or item['item_name'] or '', name_style)
+                # item_group removed 'All' prefix : 2 characters
+                item_group = Paragraph(item['item_group'][2:] or '', group_style)  
+                if len(item['custom_item_name_detail']) > 44:
+                    item_name_text = Paragraph(item['custom_item_name_detail'] , name_style_long)
+                else:
+                    item_name_text = Paragraph(item['custom_item_name_detail'] or item['item_name'] or '', name_style)
                 
                 # Create nested table for QR + text layout
                 cell_data = [
-                    [qr_img, [item_code_text, item_name_text]]
+                    [qr_img, [item_group, item_name_text]]
                 ]
                 
                 cell_table = Table(
