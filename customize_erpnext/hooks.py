@@ -37,6 +37,11 @@ doctype_js = {
     "Stock Reconciliation" : "public/js/custom_scripts/stock_reconciliation.js",
     # Thêm các doctype khác  
 }
+
+# List view customizations
+doctype_list_js = {
+    "Item": "public/js/custom_scripts/item_list.js"
+}
  
 # Hướng dẫn sử dụng fixtures để export từ site A và import vào site B
 #  Site A
