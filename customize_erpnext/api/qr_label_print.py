@@ -146,7 +146,7 @@ def get_filtered_items(filters):
     return frappe.db.sql(query, values, as_dict=True)
 
 
-def generate_qr_code(data, size=(12*mm, 12*mm)):
+def generate_qr_code(data, size=None):
     """Generate QR code image"""
     qr = qrcode.QRCode(
         version=1,
