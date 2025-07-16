@@ -116,6 +116,12 @@ fixtures = [
             ]]
         }
     },
+    {
+        "doctype": "Print Format",
+        "filters": {
+            "module": "Customize Erpnext"
+        }
+    }
 ]
 
 
