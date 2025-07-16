@@ -173,27 +173,34 @@ def generate_qr_code(data, size=(12*mm, 12*mm)):
 @frappe.whitelist()
 def generate_qr_code_base64(data):
     """Generate QR code image and return as base64 string for web display"""
-    if not QRCODE_AVAILABLE:
+    try:
+        import qrcode
+        import qrcode.constants
+        from io import BytesIO
+        import base64
+        
+        qr = qrcode.QRCode(
+            version=1,
+            error_correction=qrcode.constants.ERROR_CORRECT_Q,
+            box_size=8,
+            border=2
+        )
+        qr.add_data(data)
+        qr.make(fit=True)
+        
+        # Create QR code image
+        qr_img = qr.make_image(fill_color="black", back_color="white")
+        
+        # Convert to base64
+        img_buffer = BytesIO()
+        qr_img.save(img_buffer, format='PNG')
+        img_buffer.seek(0)
+        
+        return base64.b64encode(img_buffer.getvalue()).decode()
+        
+    except Exception as e:
+        frappe.log_error(f"Error generating QR code: {str(e)}")
         return ""
-    
-    qr = qrcode.QRCode(
-        version=1,
-        error_correction=qrcode.constants.ERROR_CORRECT_Q,
-        box_size=8,
-        border=2
-    )
-    qr.add_data(data)
-    qr.make(fit=True)
-    
-    # Create QR code image
-    qr_img = qr.make_image(fill_color="black", back_color="white")
-    
-    # Convert to base64
-    img_buffer = BytesIO()
-    qr_img.save(img_buffer, format='PNG')
-    img_buffer.seek(0)
-    
-    return base64.b64encode(img_buffer.getvalue()).decode()
 
 
 def create_qr_labels_pdf(items):
