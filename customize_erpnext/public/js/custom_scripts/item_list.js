@@ -9,6 +9,11 @@ frappe.listview_settings['Item'] = {
         listview.page.add_inner_button(__('Quick Check Item'), function () {
             show_quick_check_item_dialog(listview);
         }, __('Actions'));
+
+        // Add "Export Master Data - Item - Attribute" button to Item List
+        listview.page.add_inner_button(__('Export Master Data - Item - Attribute'), function () {
+            export_master_data_item_attribute();
+        }, __('Actions'));
     }
 };
 
@@ -1032,5 +1037,52 @@ function load_qr_scanner_library() {
             reject('Failed to load QR scanner library');
         };
         document.head.appendChild(script);
+    });
+}
+
+// Export Master Data - Item - Attribute function
+function export_master_data_item_attribute() {
+    frappe.show_alert({
+        message: __('Generating Excel file...'),
+        indicator: 'blue'
+    });
+
+    frappe.call({
+        method: 'customize_erpnext.api.utilities.export_master_data_item_attribute',
+        callback: function(r) {
+            if (r.message) {
+                // Convert base64 to blob
+                const byteCharacters = atob(r.message.file_data);
+                const byteNumbers = new Array(byteCharacters.length);
+                for (let i = 0; i < byteCharacters.length; i++) {
+                    byteNumbers[i] = byteCharacters.charCodeAt(i);
+                }
+                const byteArray = new Uint8Array(byteNumbers);
+                const blob = new Blob([byteArray], { 
+                    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+                });
+
+                // Create download link
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = r.message.filename;
+                document.body.appendChild(a);
+                a.click();
+
+                // Cleanup
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+
+                // Show success message
+                frappe.show_alert({
+                    message: __('Excel file downloaded successfully! ({0} items)', [r.message.items_count]),
+                    indicator: 'green'
+                }, 5);
+            }
+        },
+        error: function(r) {
+            frappe.msgprint(__('Error generating Excel file: {0}', [r.message || 'Unknown error']));
+        }
     });
 }
