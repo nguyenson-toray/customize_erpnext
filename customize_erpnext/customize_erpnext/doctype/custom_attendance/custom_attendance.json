@@ -19,6 +19,11 @@
   "working_hours",
   "late_entry",
   "early_exit",
+  "section_break_overtime",
+  "overtime_hours",
+  "overtime_details_html",
+  "column_break_overtime",
+  "recalculate_overtime_btn",
   "section_break_12",
   "sync_button",
   "auto_sync_enabled",
@@ -45,29 +50,20 @@
   {
    "fieldname": "employee",
    "fieldtype": "Link",
-   "in_list_view": 1,
+   "in_global_search": 1,
+   "in_standard_filter": 1,
    "label": "Employee",
    "options": "Employee",
    "reqd": 1,
    "search_index": 1
   },
   {
-  "fieldname": "employee",
-  "fieldtype": "Link",
-  "in_global_search": 1,
-  "in_standard_filter": 1,
-  "label": "Employee",
-  "options": "Employee",
-  "reqd": 1,
-  "search_index": 1
-  },
-  {
-  "fetch_from": "employee.employee_name",
-  "fieldname": "employee_name",
-  "fieldtype": "Data",
-  "in_global_search": 1,
-  "label": "Employee Name",
-  "read_only": 1
+   "fetch_from": "employee.employee_name",
+   "fieldname": "employee_name",
+   "fieldtype": "Data",
+   "in_global_search": 1,
+   "label": "Employee Name",
+   "read_only": 1
   },
   {
    "fieldname": "attendance_date",
@@ -108,9 +104,11 @@
   {
    "fieldname": "working_hours",
    "fieldtype": "Float",
-   "label": "Working Hours",
+   "in_list_view": 1,
+   "label": "Working Hours (Total)",
    "precision": "2",
-   "read_only": 1
+   "read_only": 1,
+   "description": "Total working hours including overtime"
   },
   {
    "default": "0",
@@ -123,6 +121,35 @@
    "fieldname": "early_exit",
    "fieldtype": "Check",
    "label": "Early Exit"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "section_break_overtime",
+   "fieldtype": "Section Break",
+   "label": "Overtime Information"
+  },
+  {
+   "fieldname": "overtime_hours",
+   "fieldtype": "Float",
+   "label": "Overtime Hours",
+   "precision": "2",
+   "read_only": 1,
+   "description": "Calculated overtime hours from approved Overtime Requests"
+  },
+  {
+   "fieldname": "overtime_details_html",
+   "fieldtype": "HTML",
+   "label": "Overtime Details"
+  },
+  {
+   "fieldname": "column_break_overtime",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "recalculate_overtime_btn",
+   "fieldtype": "Button",
+   "label": "Recalculate with Overtime",
+   "depends_on": "eval:doc.check_in && doc.check_out"
   },
   {
    "fieldname": "section_break_12",
@@ -249,7 +276,6 @@
   }
  ],
  "quick_entry": 0,
- "row_format": "Dynamic",
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": [],

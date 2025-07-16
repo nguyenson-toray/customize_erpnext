@@ -876,6 +876,7 @@ class OvertimeRequest(Document):
             
         except Exception as e:
             frappe.log_error(f"Error in share_with_approvers: {str(e)}", "Share Approvers Error")
+    
 
 # ===== WHITELIST METHODS =====
 

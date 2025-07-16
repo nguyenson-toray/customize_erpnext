@@ -12,12 +12,767 @@ from frappe.utils import (
     time_diff_in_hours,
     flt
 )
-from frappe.model.document import Document
+from frappe.model.document import Document 
 from frappe.utils import getdate, get_datetime, now_datetime, time_diff_in_hours, flt
 from datetime import datetime, timedelta, time
 
 
-class CustomAttendance(Document):
+@frappe.whitelist()
+def recalculate_attendance_with_overtime(attendance_name):
+    """FIXED: API method to recalculate specific attendance with overtime"""
+    try:
+        frappe.logger().info(f"=== RECALCULATING OVERTIME for {attendance_name} ===")
+        
+        doc = frappe.get_doc("Custom Attendance", attendance_name)
+        
+        if not doc.check_in or not doc.check_out:
+            return {"success": False, "message": "Check-in and check-out times required"}
+        
+        frappe.logger().info(f"Employee: {doc.employee}")
+        frappe.logger().info(f"Date: {doc.attendance_date}")
+        frappe.logger().info(f"Check-in: {doc.check_in}")
+        frappe.logger().info(f"Check-out: {doc.check_out}")
+        
+        # Get OT requests với correct table name
+        ot_requests = get_approved_overtime_requests_for_doc(doc)
+        frappe.logger().info(f"Found {len(ot_requests)} OT requests")
+        
+        # Store old values
+        old_working_hours = doc.working_hours or 0
+        old_overtime_hours = doc.overtime_hours or 0
+        
+        if ot_requests:
+            # Calculate với OT
+            calculate_working_hours_with_overtime_for_doc(doc)
+        else:
+            # Không có OT, chỉ tính regular hours
+            frappe.logger().info("No OT requests found, calculating regular hours only")
+            doc.calculate_working_hours()  # Method gốc
+            doc.overtime_hours = 0
+        
+        # Save changes
+        doc.save()
+        
+        frappe.logger().info(f"Results:")
+        frappe.logger().info(f"  Old working hours: {old_working_hours}")
+        frappe.logger().info(f"  New working hours: {doc.working_hours}")
+        frappe.logger().info(f"  Old overtime hours: {old_overtime_hours}")
+        frappe.logger().info(f"  New overtime hours: {doc.overtime_hours}")
+        
+        # Get detailed OT info
+        overtime_details = get_overtime_details_for_doc(doc)
+        
+        return {
+            "success": True,
+            "message": f"Recalculated! Total: {doc.working_hours}h (OT: {doc.overtime_hours or 0}h)",
+            "working_hours": doc.working_hours,
+            "overtime_hours": doc.overtime_hours or 0,
+            "overtime_details": overtime_details,
+            "ot_requests_found": len(ot_requests)
+        }
+        
+    except Exception as e:
+        error_msg = str(e)
+        frappe.log_error(f"Recalculate overtime error: {error_msg}", "Recalculate Overtime")
+        frappe.logger().error(f"RECALCULATE ERROR: {error_msg}")
+        return {"success": False, "message": error_msg}
+
+@frappe.whitelist()
+def bulk_recalculate_overtime(date_from, date_to):
+    """Bulk recalculate overtime cho date range"""
+    try:
+        date_from = getdate(date_from)
+        date_to = getdate(date_to)
+        
+        # Get all attendance records trong date range có check-in/out
+        attendance_records = frappe.get_all("Custom Attendance",
+            filters={
+                "attendance_date": ["between", [date_from, date_to]],
+                "docstatus": 0,  # Only draft records
+                "check_in": ["!=", ""],
+                "check_out": ["!=", ""]
+            },
+            fields=["name", "employee", "attendance_date", "working_hours"]
+        )
+        
+        success_count = 0
+        error_count = 0
+        total_ot_found = 0
+        
+        for record in attendance_records:
+            try:
+                doc = frappe.get_doc("Custom Attendance", record.name)
+                
+                # Store old working hours
+                old_hours = doc.working_hours or 0
+                
+                # Recalculate
+                doc.calculate_working_hours()
+                doc.save()
+                
+                # Check if overtime was added
+                if doc.working_hours > old_hours:
+                    total_ot_found += 1
+                
+                success_count += 1
+                
+            except Exception as e:
+                error_count += 1
+                frappe.log_error(f"Bulk recalc error for {record.name}: {str(e)}", "Bulk Overtime Recalc")
+                continue
+        
+        return {
+            "success": True,
+            "message": f"Recalculated {success_count} records, {total_ot_found} with overtime, {error_count} errors",
+            "success_count": success_count,
+            "error_count": error_count,
+            "overtime_found_count": total_ot_found
+        }
+        
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+# HELPER FUNCTIONS: Standalone functions to work with document objects
+def get_approved_overtime_requests_for_doc(doc):
+    """Get OT requests for a document object"""
+    try:
+        frappe.logger().info(f"=== Getting OT requests for {doc.employee} on {doc.attendance_date} ===")
+        
+        # FIXED QUERY: Correct table name
+        overtime_requests = frappe.db.sql("""
+            SELECT 
+                ot.name,
+                ot.ot_date,
+                ot.status,
+                ote.employee,
+                ote.employee_name,
+                ote.start_time,
+                ote.end_time,
+                ote.planned_hours
+            FROM `tabOvertime Request` ot
+            INNER JOIN `tabOT Employee Detail` ote ON ote.parent = ot.name
+            WHERE ote.employee = %s
+            AND ot.ot_date = %s
+            AND ot.status = 'Approved'
+            AND ot.docstatus = 1
+        """, (doc.employee, doc.attendance_date), as_dict=True)
+        
+        frappe.logger().info(f"Query: employee={doc.employee}, date={doc.attendance_date}")
+        frappe.logger().info(f"Found {len(overtime_requests)} OT requests")
+        
+        # Log chi tiết từng request
+        for req in overtime_requests:
+            frappe.logger().info(f"OT Request Found:")
+            frappe.logger().info(f"  Name: {req.name}")
+            frappe.logger().info(f"  Employee: {req.employee}")
+            frappe.logger().info(f"  Date: {req.ot_date}")
+            frappe.logger().info(f"  Start Time: {req.start_time}")
+            frappe.logger().info(f"  End Time: {req.end_time}")
+            frappe.logger().info(f"  Planned Hours: {req.planned_hours}")
+        
+        return overtime_requests
+        
+    except Exception as e:
+        frappe.log_error(f"Error getting overtime requests: {str(e)}", "Custom Attendance Overtime")
+        return []
+
+def calculate_working_hours_with_overtime(self):
+    """Calculate working hours including overtime - FIXED"""
+    if self.check_in and self.check_out:
+        check_in_time = get_datetime(self.check_in)
+        check_out_time = get_datetime(self.check_out)
+        
+        if check_out_time > check_in_time:
+            # Calculate regular working hours
+            regular_hours = self.calculate_realistic_working_hours(check_in_time, check_out_time)
+            
+            # Get overtime details using the fixed method
+            ot_details = self.get_overtime_details()
+            overtime_hours = ot_details.get('total_actual_ot_hours', 0.0)
+            
+            # Update fields
+            self.working_hours = flt(regular_hours + overtime_hours, 2)
+            self.overtime_hours = flt(overtime_hours, 2)
+            
+            frappe.logger().info(f"Calculated: Regular={regular_hours}, OT={overtime_hours}, Total={self.working_hours}")
+        else:
+            frappe.throw("Check-out time cannot be earlier than check-in time")
+
+def calculate_realistic_working_hours_for_doc(doc, in_time, out_time):
+    """Calculate realistic working hours for document (regular hours only)"""
+    try:
+        if not doc.shift:
+            # Fallback: simple calculation
+            total_hours = time_diff_in_hours(out_time, in_time)
+            return max(0, flt(total_hours, 2))
+        
+        # Get shift document
+        shift_doc = frappe.get_cached_doc("Shift Type", doc.shift)
+        
+        if not shift_doc.start_time or not shift_doc.end_time:
+            total_hours = time_diff_in_hours(out_time, in_time)
+            return max(0, flt(total_hours, 2))
+        
+        # Convert shift times
+        shift_start_time = timedelta_to_time(shift_doc.start_time)
+        shift_end_time = timedelta_to_time(shift_doc.end_time)
+        
+        work_date = in_time.date()
+        shift_start_datetime = datetime.combine(work_date, shift_start_time)
+        shift_end_datetime = datetime.combine(work_date, shift_end_time)
+        
+        # Handle overnight shifts
+        if shift_end_datetime <= shift_start_datetime:
+            if in_time.time() >= shift_start_time:
+                shift_end_datetime += timedelta(days=1)
+            else:
+                shift_start_datetime -= timedelta(days=1)
+        
+        # Calculate effective working time (within shift bounds)
+        effective_start = max(in_time, shift_start_datetime)
+        effective_end = min(out_time, shift_end_datetime)
+        
+        if effective_end <= effective_start:
+            return 0.0
+        
+        # Calculate hours minus break
+        total_working_hours = time_diff_in_hours(effective_end, effective_start)
+        
+        # Simple break deduction (1 hour lunch break)
+        if total_working_hours > 4:
+            total_working_hours -= 1
+        
+        return max(0, flt(total_working_hours, 2))
+        
+    except Exception as e:
+        frappe.log_error(f"Error calculating realistic hours: {str(e)}", "Working Hours Calc")
+        total_hours = time_diff_in_hours(out_time, in_time)
+        return max(0, flt(total_hours, 2))
+
+def calculate_overtime_hours_for_doc(doc, check_in_time, check_out_time):
+    """Calculate overtime hours for document"""
+    try:
+        # Get OT requests
+        overtime_requests = get_approved_overtime_requests_for_doc(doc)
+        
+        if not overtime_requests:
+            return 0.0
+        
+        total_overtime_hours = 0.0
+        
+        for ot_request in overtime_requests:
+            # Calculate actual OT for this request
+            actual_ot_hours = calculate_actual_overtime_for_request_doc(ot_request, check_in_time, check_out_time)
+            total_overtime_hours += actual_ot_hours
+            
+            frappe.logger().info(f"OT Request {ot_request['name']}: {actual_ot_hours} hours")
+        
+        return total_overtime_hours
+        
+    except Exception as e:
+        frappe.log_error(f"Error calculating overtime: {str(e)}", "Overtime Calculation")
+        return 0.0
+
+def calculate_actual_overtime_for_request_doc(ot_request, check_in_time, check_out_time):
+    """Calculate actual OT for specific request"""
+    try:
+        # Parse OT times
+        ot_start_time = parse_time_field_helper(ot_request['start_time'])
+        ot_end_time = parse_time_field_helper(ot_request['end_time'])
+        
+        if not ot_start_time or not ot_end_time:
+            frappe.logger().warning(f"Could not parse OT times: start={ot_start_time}, end={ot_end_time}")
+            return 0.0
+        
+        # Convert to datetime objects
+        work_date = check_in_time.date()
+        ot_start_datetime = datetime.combine(work_date, ot_start_time)
+        ot_end_datetime = datetime.combine(work_date, ot_end_time)
+        
+        # Handle overnight OT
+        if ot_end_datetime <= ot_start_datetime:
+            ot_end_datetime += timedelta(days=1)
+        
+        # Calculate effective OT period
+        effective_start = max(ot_start_datetime, check_in_time)
+        effective_end = min(ot_end_datetime, check_out_time)
+        
+        if effective_end <= effective_start:
+            return 0.0
+        
+        # Calculate actual hours
+        actual_ot_hours = time_diff_in_hours(effective_end, effective_start)
+        planned_ot_hours = flt(ot_request.get('planned_hours', 0))
+        
+        # Don't exceed planned hours
+        final_ot_hours = min(actual_ot_hours, planned_ot_hours)
+        
+        frappe.logger().info(f"OT Calc: {ot_request['name']} - Actual: {actual_ot_hours}h, Planned: {planned_ot_hours}h, Final: {final_ot_hours}h")
+        
+        return flt(final_ot_hours, 2)
+        
+    except Exception as e:
+        frappe.log_error(f"Error calculating actual OT: {str(e)}", "Actual OT Calculation")
+        return 0.0
+
+def get_overtime_details_for_doc(doc):
+    """Get overtime details for document"""
+    try:
+        ot_requests = get_approved_overtime_requests_for_doc(doc)
+        
+        if not ot_requests:
+            return {"has_overtime": False, "requests": []}
+        
+        overtime_details = []
+        total_actual_ot_hours = 0.0
+        
+        if doc.check_in and doc.check_out:
+            check_in_time = get_datetime(doc.check_in)
+            check_out_time = get_datetime(doc.check_out)
+            
+            for req in ot_requests:
+                actual_ot_hours = calculate_actual_overtime_for_request_doc(req, check_in_time, check_out_time)
+                total_actual_ot_hours += actual_ot_hours
+                
+                overtime_details.append({
+                    "request_name": req['name'],
+                    "planned_from": str(req['start_time']),
+                    "planned_to": str(req['end_time']),
+                    "planned_hours": flt(req.get('planned_hours', 0), 2),
+                    "actual_hours": flt(actual_ot_hours, 2)
+                })
+        
+        return {
+            "has_overtime": True,
+            "total_requests": len(ot_requests),
+            "total_actual_ot_hours": flt(total_actual_ot_hours, 2),
+            "requests": overtime_details
+        }
+        
+    except Exception as e:
+        frappe.log_error(f"Error getting overtime details: {str(e)}", "Overtime Details")
+        return {"has_overtime": False, "error": str(e)}
+
+def calculate_working_hours_with_overtime_for_doc(doc):
+    """
+    MAIN FUNCTION: Calculate working hours including overtime for Custom Attendance document
+    
+    Logic: 
+    - Keep existing regular working hours (already calculated with breaks deducted)
+    - Only add overtime hours from approved OT requests
+    - Working Hours = Current Regular Hours + Overtime Hours
+
+    Args:
+        doc: Custom Attendance document object
+        
+    Returns:
+        dict: {
+            "working_hours": float,
+            "overtime_hours": float,  
+            "regular_hours": float,
+            "has_overtime": bool,
+            "overtime_details": dict,
+            "message": str
+        }
+    """
+    try:
+        frappe.logger().info(f"=== CALCULATE WORKING HOURS WITH OVERTIME for {doc.name} ===")
+        
+        # Validate input
+        if not doc.check_in or not doc.check_out:
+            return {
+                "working_hours": doc.working_hours or 0.0,  # Keep existing if no check times
+                "overtime_hours": 0.0,
+                "regular_hours": doc.working_hours or 0.0,
+                "has_overtime": False,
+                "overtime_details": {},
+                "message": "Check-in and check-out times required"
+            }
+        
+        check_in_time = get_datetime(doc.check_in)
+        check_out_time = get_datetime(doc.check_out)
+        
+        frappe.logger().info(f"Times: {check_in_time} to {check_out_time}")
+        
+        if check_out_time <= check_in_time:
+            return {
+                "working_hours": doc.working_hours or 0.0,
+                "overtime_hours": 0.0,
+                "regular_hours": doc.working_hours or 0.0,
+                "has_overtime": False,
+                "overtime_details": {},
+                "message": "Invalid time range: check-out must be after check-in"
+            }
+        
+        # Step 1: Get existing regular working hours (already calculated with breaks)
+        existing_regular_hours = flt(doc.working_hours or 0.0, 2)
+        frappe.logger().info(f"Existing regular working hours: {existing_regular_hours}")
+        
+        # Step 2: Get overtime details using existing method
+        overtime_details = get_overtime_details_for_doc(doc)
+        overtime_hours = overtime_details.get('total_actual_ot_hours', 0.0)
+        
+        frappe.logger().info(f"Overtime details: {overtime_details}")
+        frappe.logger().info(f"Overtime hours: {overtime_hours}")
+        
+        # Step 3: Calculate total working hours = existing regular + overtime
+        total_working_hours = existing_regular_hours + overtime_hours
+        
+        # Step 4: Update document fields
+        doc.working_hours = flt(total_working_hours, 2)
+        doc.overtime_hours = flt(overtime_hours, 2)
+        
+        frappe.logger().info(f"Final calculation:")
+        frappe.logger().info(f"  Existing regular hours: {existing_regular_hours}")
+        frappe.logger().info(f"  Overtime hours: {overtime_hours}")
+        frappe.logger().info(f"  Total working hours: {total_working_hours}")
+        
+        # Return detailed result
+        result = {
+            "working_hours": flt(total_working_hours, 2),
+            "overtime_hours": flt(overtime_hours, 2),
+            "regular_hours": flt(existing_regular_hours, 2),
+            "has_overtime": overtime_hours > 0,
+            "overtime_details": overtime_details,
+            "message": f"Calculated: {existing_regular_hours}h regular + {overtime_hours}h overtime = {total_working_hours}h total"
+        }
+        
+        frappe.logger().info(f"Result: {result}")
+        return result
+        
+    except Exception as e:
+        error_msg = f"Error calculating working hours with overtime: {str(e)}"
+        frappe.log_error(error_msg, "Calculate Working Hours With Overtime")
+        frappe.logger().error(error_msg)
+        
+        return {
+            "working_hours": doc.working_hours or 0.0,
+            "overtime_hours": 0.0, 
+            "regular_hours": doc.working_hours or 0.0,
+            "has_overtime": False,
+            "overtime_details": {},
+            "message": f"Calculation failed: {str(e)}"
+        }
+
+def timedelta_to_time_helper(td):
+    """Helper function to convert timedelta to time object"""
+    if td is None:
+        return None
+    if hasattr(td, 'total_seconds'):
+        total_seconds = int(td.total_seconds())
+        hours = total_seconds // 3600
+        minutes = (total_seconds % 3600) // 60
+        seconds = total_seconds % 60
+        return time(hours, minutes, seconds)
+    else:
+        return td
+
+def parse_time_field_helper(time_field):
+    """Helper function to parse time field từ Overtime Request"""
+    try:
+        if time_field is None:
+            return None
+            
+        if isinstance(time_field, time):
+            return time_field
+            
+        if hasattr(time_field, 'total_seconds'):
+            # timedelta object
+            return timedelta_to_time_helper(time_field)
+            
+        if isinstance(time_field, str):
+            # String format "HH:MM:SS"
+            time_parts = time_field.split(':')
+            hours = int(time_parts[0])
+            minutes = int(time_parts[1]) if len(time_parts) > 1 else 0
+            seconds = int(time_parts[2]) if len(time_parts) > 2 else 0
+            return time(hours, minutes, seconds)
+            
+        return None
+        
+    except Exception as e:
+        frappe.log_error(f"Error parsing time field {time_field}: {str(e)}", "Time Parse Helper")
+        return None
+
+# API method wrapper
+
+# Enhanced version with shift validation
+def calculate_working_hours_with_overtime_enhanced(doc):
+    """
+    Enhanced version with shift validation and break deduction
+    """
+    try:
+        if not doc.check_in or not doc.check_out:
+            return {"working_hours": 0.0, "overtime_hours": 0.0, "message": "Missing check times"}
+        
+        check_in_time = get_datetime(doc.check_in)
+        check_out_time = get_datetime(doc.check_out)
+        
+        # Basic validation
+        if check_out_time <= check_in_time:
+            return {"working_hours": 0.0, "overtime_hours": 0.0, "message": "Invalid time range"}
+        
+        # Calculate total actual working time
+        total_actual_hours = time_diff_in_hours(check_out_time, check_in_time)
+        
+        # Get shift information for proper calculation
+        regular_hours = total_actual_hours
+        overtime_hours = 0.0
+        
+        if doc.shift:
+            try:
+                shift_doc = frappe.get_cached_doc("Shift Type", doc.shift)
+                
+                if shift_doc.start_time and shift_doc.end_time:
+                    # Calculate standard shift duration
+                    shift_duration = calculate_shift_duration_helper(shift_doc)
+                    
+                    # Deduct break time if applicable
+                    break_duration = calculate_break_duration_helper(shift_doc)
+                    net_shift_duration = shift_duration - break_duration
+                    
+                    # Calculate regular vs overtime
+                    if total_actual_hours > net_shift_duration:
+                        regular_hours = net_shift_duration
+                        overtime_hours = total_actual_hours - net_shift_duration
+                    else:
+                        regular_hours = total_actual_hours
+                        overtime_hours = 0.0
+                        
+            except Exception as e:
+                frappe.logger().warning(f"Error processing shift {doc.shift}: {str(e)}")
+                # Fallback to basic calculation
+                pass
+        
+        # Get approved overtime hours từ OT Requests
+        approved_overtime = get_approved_overtime_hours_for_doc(doc)
+        
+        # Use the higher of calculated overtime or approved overtime
+        final_overtime = max(overtime_hours, approved_overtime)
+        
+        # Final working hours = regular + actual approved overtime
+        final_working_hours = regular_hours + final_overtime
+        
+        # Update document
+        doc.working_hours = flt(final_working_hours, 2)
+        doc.overtime_hours = flt(final_overtime, 2)
+        
+        return {
+            "working_hours": flt(final_working_hours, 2),
+            "overtime_hours": flt(final_overtime, 2),
+            "regular_hours": flt(regular_hours, 2),
+            "calculated_overtime": flt(overtime_hours, 2),
+            "approved_overtime": flt(approved_overtime, 2),
+            "message": f"Success: {final_working_hours}h total ({regular_hours}h regular + {final_overtime}h overtime)"
+        }
+        
+    except Exception as e:
+        return {"working_hours": 0.0, "overtime_hours": 0.0, "message": f"Error: {str(e)}"}
+
+def calculate_shift_duration_helper(shift_doc):
+    """Calculate shift duration in hours"""
+    if not shift_doc.start_time or not shift_doc.end_time:
+        return 8.0  # Default 8 hours
+    
+    start_time = timedelta_to_time_helper(shift_doc.start_time)
+    end_time = timedelta_to_time_helper(shift_doc.end_time)
+    
+    if not start_time or not end_time:
+        return 8.0
+    
+    # Handle overnight shifts
+    if end_time <= start_time:
+        # Overnight shift
+        duration = (24 * 3600 - start_time.hour * 3600 - start_time.minute * 60 + 
+                   end_time.hour * 3600 + end_time.minute * 60) / 3600
+    else:
+        # Regular shift
+        duration = ((end_time.hour * 3600 + end_time.minute * 60) - 
+                   (start_time.hour * 3600 + start_time.minute * 60)) / 3600
+    
+    return flt(duration, 2)
+
+def calculate_break_duration_helper(shift_doc):
+    """Calculate break duration in hours"""
+    try:
+        # Check for custom break settings
+        if getattr(shift_doc, 'custom_has_break', False):
+            break_start = getattr(shift_doc, 'custom_break_start_time', None)
+            break_end = getattr(shift_doc, 'custom_break_end_time', None)
+        else:
+            # Standard ERPNext break
+            if not getattr(shift_doc, 'has_break', False):
+                return 0.0
+            break_start = getattr(shift_doc, 'break_start_time', None)
+            break_end = getattr(shift_doc, 'break_end_time', None)
+        
+        if not break_start or not break_end:
+            return 1.0  # Default 1 hour break
+        
+        break_start = timedelta_to_time_helper(break_start)
+        break_end = timedelta_to_time_helper(break_end)
+        
+        if not break_start or not break_end:
+            return 1.0
+        
+        # Calculate break duration
+        if break_end <= break_start:
+            # Overnight break (unusual but possible)
+            duration = (24 * 3600 - break_start.hour * 3600 - break_start.minute * 60 + 
+                       break_end.hour * 3600 + break_end.minute * 60) / 3600
+        else:
+            duration = ((break_end.hour * 3600 + break_end.minute * 60) - 
+                       (break_start.hour * 3600 + break_start.minute * 60)) / 3600
+        
+        return flt(duration, 2)
+        
+    except Exception as e:
+        frappe.logger().warning(f"Error calculating break duration: {str(e)}")
+        return 1.0  # Default fallback
+
+def get_approved_overtime_hours_for_doc(doc):
+    """Get approved overtime hours for document"""
+    try:
+        if not doc.check_in or not doc.check_out:
+            return 0.0
+            
+        # Get OT requests
+        overtime_requests = get_approved_overtime_requests_for_doc(doc)
+        
+        if not overtime_requests:
+            return 0.0
+        
+        check_in_time = get_datetime(doc.check_in)
+        check_out_time = get_datetime(doc.check_out)
+        
+        total_overtime_hours = 0.0
+        
+        for ot_request in overtime_requests:
+            # Calculate actual OT for this request
+            actual_ot_hours = calculate_actual_overtime_for_request_doc(ot_request, check_in_time, check_out_time)
+            total_overtime_hours += actual_ot_hours
+        
+        return flt(total_overtime_hours, 2)
+        
+    except Exception as e:
+        frappe.log_error(f"Error getting approved overtime hours: {str(e)}", "Approved Overtime Hours")
+        return 0.0
+
+# Methods to add to CustomAttendance class
+class CustomAttendanceOvertimeMethods:
+    """Methods to be added to CustomAttendance class"""
+    
+
+
+    @frappe.whitelist()
+    def calculate_with_overtime(self):
+        """Method to be called from Custom Attendance document"""
+        result = calculate_working_hours_with_overtime_for_doc(self)
+        
+        # Save if successful
+        if result["working_hours"] > 0:
+            self.flags.ignore_validate_update_after_submit = True
+            self.save(ignore_permissions=True)
+            
+        return result
+    
+    def recalculate_working_hours_with_overtime(self):
+        """Update working hours including overtime - to be added to CustomAttendance class"""
+        try:
+            if not self.check_in or not self.check_out:
+                return False
+                
+            result = calculate_working_hours_with_overtime_for_doc(self)
+            
+            if result["working_hours"] > 0:
+                self.working_hours = result["working_hours"]
+                self.overtime_hours = result["overtime_hours"]
+                return True
+                
+            return False
+            
+        except Exception as e:
+            frappe.log_error(f"Error in recalculate_working_hours_with_overtime: {str(e)}", "Custom Attendance Overtime")
+            return False
+
+# Enhanced calculate_working_hours method for CustomAttendance class
+def calculate_working_hours_enhanced(self):
+    """Enhanced calculate_working_hours method that includes overtime - REPLACE existing method"""
+    if self.check_in and self.check_out:
+        check_in_time = get_datetime(self.check_in)
+        check_out_time = get_datetime(self.check_out)
+        
+        if check_out_time > check_in_time:
+            # Use the enhanced calculation that includes overtime
+            result = calculate_working_hours_with_overtime_for_doc(self)
+            
+            self.working_hours = result["working_hours"]
+            self.overtime_hours = result["overtime_hours"]
+            
+            frappe.logger().info(f"Enhanced calculation: {result['message']}")
+        else:
+            frappe.throw("Check-out time cannot be earlier than check-in time")
+
+# Console commands for testing and migration
+@frappe.whitelist()
+def migrate_existing_attendance_with_overtime():
+    """Migrate existing Custom Attendance records to include overtime calculation"""
+    try:
+        # Get records that might have overtime but overtime_hours = 0
+        records = frappe.db.sql("""
+            SELECT ca.name, ca.employee, ca.attendance_date
+            FROM `tabCustom Attendance` ca
+            WHERE ca.overtime_hours = 0
+            AND ca.check_in IS NOT NULL 
+            AND ca.check_out IS NOT NULL
+            AND ca.docstatus = 0
+            AND EXISTS (
+                SELECT 1 FROM `tabOvertime Request` ot
+                INNER JOIN `tabOT Employee Detail` ote ON ote.parent = ot.name
+                WHERE ote.employee = ca.employee
+                AND ot.ot_date = ca.attendance_date
+                AND ot.status = 'Approved'
+                AND ot.docstatus = 1
+            )
+            LIMIT 100
+        """, as_dict=True)
+        
+        updated_count = 0
+        error_count = 0
+        
+        for record in records:
+            try:
+                doc = frappe.get_doc("Custom Attendance", record.name)
+                old_hours = doc.working_hours
+                old_overtime = doc.overtime_hours
+                
+                result = calculate_working_hours_with_overtime_for_doc(doc)
+                
+                if result["overtime_hours"] > 0:
+                    doc.flags.ignore_validate_update_after_submit = True
+                    doc.save(ignore_permissions=True)
+                    updated_count += 1
+                    
+                    print(f"Updated {record.name}: {old_hours}h -> {doc.working_hours}h (OT: {old_overtime} -> {doc.overtime_hours})")
+                    
+            except Exception as e:
+                error_count += 1
+                print(f"Error updating {record.name}: {str(e)}")
+                continue
+        
+        frappe.db.commit()
+        
+        return {
+            "success": True,
+            "message": f"Migration completed: {updated_count} updated, {error_count} errors",
+            "updated_count": updated_count,
+            "error_count": error_count
+        }
+        
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+050class CustomAttendance(Document):
     def validate(self):
         """Validate attendance data"""
         # Check for duplicate attendance - including drafts
@@ -25,7 +780,10 @@ class CustomAttendance(Document):
         
         if self.check_in and self.check_out:
             self.calculate_working_hours()
-        
+
+            # NEW: Auto-calculate overtime
+            self.auto_calculate_overtime()
+
         # Update employee checkin links after validation
         self.update_employee_checkin_links()
 
@@ -56,6 +814,33 @@ class CustomAttendance(Document):
                 self.working_hours = self.calculate_realistic_working_hours(check_in_time, check_out_time)
             else:
                 frappe.throw("Check-out time cannot be earlier than check-in time")
+
+    def parse_time_field(self, time_field):
+        """Parse time field từ Overtime Request (có thể là timedelta hoặc time object)"""
+        try:
+            if time_field is None:
+                return None
+                
+            if isinstance(time_field, time):
+                return time_field
+                
+            if hasattr(time_field, 'total_seconds'):
+                # timedelta object
+                return self.timedelta_to_time(time_field)
+                
+            if isinstance(time_field, str):
+                # String format "HH:MM:SS"
+                time_parts = time_field.split(':')
+                hours = int(time_parts[0])
+                minutes = int(time_parts[1]) if len(time_parts) > 1 else 0
+                seconds = int(time_parts[2]) if len(time_parts) > 2 else 0
+                return time(hours, minutes, seconds)
+                
+            return None
+            
+        except Exception as e:
+            frappe.log_error(f"Error parsing time field {time_field}: {str(e)}", "Custom Attendance Time Parse")
+            return None
 
     def calculate_realistic_working_hours(self, in_time, out_time):
         """
@@ -273,6 +1058,139 @@ class CustomAttendance(Document):
         except Exception as e:
             frappe.log_error(f"Error removing employee checkin custom links: {str(e)}", "Custom Attendance")
 
+
+    def get_approved_overtime_requests(self):
+        """FIXED: Correct table name - tabOT Employee Detail"""
+        try:
+            frappe.logger().info(f"=== Getting OT requests for {self.employee} on {self.attendance_date} ===")
+            
+            # FIXED QUERY: Correct table name
+            overtime_requests = frappe.db.sql("""
+                SELECT 
+                    ot.name,
+                    ot.ot_date,
+                    ot.status,
+                    ote.employee,
+                    ote.employee_name,
+                    ote.start_time,
+                    ote.end_time,
+                    ote.planned_hours
+                FROM `tabOvertime Request` ot
+                INNER JOIN `tabOT Employee Detail` ote ON ote.parent = ot.name
+                WHERE ote.employee = %s
+                AND ot.ot_date = %s
+                AND ot.status = 'Approved'
+                AND ot.docstatus = 1
+            """, (self.employee, self.attendance_date), as_dict=True)
+            
+            frappe.logger().info(f"Query: employee={self.employee}, date={self.attendance_date}")
+            frappe.logger().info(f"Found {len(overtime_requests)} OT requests")
+            
+            # Log chi tiết từng request
+            for req in overtime_requests:
+                frappe.logger().info(f"OT Request Found:")
+                frappe.logger().info(f"  Name: {req.name}")
+                frappe.logger().info(f"  Employee: {req.employee}")
+                frappe.logger().info(f"  Date: {req.ot_date}")
+                frappe.logger().info(f"  Start Time: {req.start_time}")
+                frappe.logger().info(f"  End Time: {req.end_time}")
+                frappe.logger().info(f"  Planned Hours: {req.planned_hours}")
+            
+            return overtime_requests
+            
+        except Exception as e:
+            frappe.log_error(f"Error getting overtime requests: {str(e)}", "Custom Attendance Overtime")
+            return []
+
+    def auto_calculate_overtime(self):
+        """Auto-calculate overtime - ADD TO CustomAttendance class"""
+        try:
+            if not self.employee or not self.attendance_date:
+                return
+                
+            # Only calculate if we have check times
+            if not self.check_in or not self.check_out:
+                self.overtime_hours = 0.0
+                return
+                
+            # Get OT requests
+            ot_requests = get_approved_overtime_requests_for_doc(self)
+            
+            if ot_requests:
+                # Calculate overtime
+                overtime_details = get_overtime_details_for_doc(self)
+                overtime_hours = overtime_details.get('total_actual_ot_hours', 0.0)
+                
+                if overtime_hours > 0:
+                    # Store current regular hours
+                    current_working = self.working_hours or 8.0
+                    
+                    # Update fields
+                    self.overtime_hours = flt(overtime_hours, 2)
+                    self.working_hours = flt(current_working + overtime_hours, 2)
+                    
+                    frappe.logger().info(f"Auto-calculated OT for {self.name}: {overtime_hours}h overtime, total {self.working_hours}h")
+                else:
+                    self.overtime_hours = 0.0
+            else:
+                self.overtime_hours = 0.0
+                
+        except Exception as e:
+            frappe.log_error(f"Auto-calculate overtime error: {str(e)}", "Auto Overtime")
+            # Don't block save on error
+            pass
+
+    @frappe.whitelist()
+    def calculate_working_hours_with_overtime_for_doc_api(docname):
+        """
+        API wrapper for calculate_working_hours_with_overtime_for_doc
+        Called from client script - HANDLES SUBMITTED DOCUMENTS
+        """
+        try:
+            doc = frappe.get_doc("Custom Attendance", docname)
+            old_working_hours = doc.working_hours
+            old_overtime_hours = doc.overtime_hours
+            
+            result = calculate_working_hours_with_overtime_for_doc(doc)
+            
+            # Update document with new values1111
+            if result["working_hours"] > 0 and (result["working_hours"] != old_working_hours or result["overtime_hours"] != old_overtime_hours):
+                
+                if doc.docstatus == 1:  # Submitted document
+                    # Method 1: Use database update for submitted docs
+                    frappe.db.set_value("Custom Attendance", docname, {
+                        "overtime_hours": result["overtime_hours"],
+                        "working_hours": result["working_hours"]
+                    })
+                    frappe.db.commit()
+                    
+                    # Update doc object for return values
+                    doc.overtime_hours = result["overtime_hours"]
+                    doc.working_hours = result["working_hours"]
+                    
+                    result["update_method"] = "database_direct"
+                    result["message"] += " (Updated via database - document was submitted)"
+                    
+                else:  # Draft document
+                    # Method 2: Normal save for draft docs
+                    doc.flags.ignore_validate_update_after_submit = True
+                    doc.save(ignore_permissions=True)
+                    result["update_method"] = "document_save"
+                    result["message"] += " (Updated via document save)"
+                
+                result["updated"] = True
+                result["old_working_hours"] = old_working_hours
+                result["old_overtime_hours"] = old_overtime_hours
+            else:
+                result["updated"] = False
+                result["message"] += " (No changes needed)"
+                
+            return result
+            
+        except Exception as e:
+            error_msg = f"API error calculating working hours for {docname}: {str(e)}"
+            frappe.log_error(error_msg, "Calculate Working Hours API")
+            return {"error": error_msg}
     @frappe.whitelist()
     def get_employee_checkins(self):
         """Get all Employee Checkin records for this attendance with both links"""
@@ -387,9 +1305,85 @@ class CustomAttendance(Document):
                 simplified_msg = "This attendance record already exists"
             else:
                 simplified_msg = f"Sync failed: {error_msg[:100]}..."
-            
+            x 
             frappe.log_error(f"Error syncing attendance: {error_msg}", "Custom Attendance Sync")
             return simplified_msg
+
+    @frappe.whitelist()
+    def get_overtime_details(self):
+        """Get detailed overtime information - FIXED VERSION"""
+        try:
+            frappe.logger().info(f"=== Getting overtime details for {self.employee} on {self.attendance_date} ===")
+            
+            # FIXED: Don't call frappe.get_doc again, use self directly
+            if not self.employee or not self.attendance_date:
+                return {"has_overtime": False, "requests": []}
+            
+            # Get OT requests using helper function
+            ot_requests = get_approved_overtime_requests_for_doc(self)
+            
+            frappe.logger().info(f"Found {len(ot_requests)} OT requests")
+            
+            if not ot_requests:
+                return {"has_overtime": False, "requests": []}
+            
+            # Calculate actual overtime hours if check-in/out available
+            overtime_details = []
+            total_actual_ot_hours = 0.0
+            total_planned_ot_hours = 0.0
+            
+            if self.check_in and self.check_out:
+                check_in_time = get_datetime(self.check_in)
+                check_out_time = get_datetime(self.check_out)
+                
+                frappe.logger().info(f"Check times: {check_in_time} to {check_out_time}")
+                
+                for req in ot_requests:
+                    frappe.logger().info(f"Processing OT request: {req.name}")
+                    
+                    # Calculate actual OT hours
+                    actual_ot_hours = calculate_actual_overtime_for_request_doc(req, check_in_time, check_out_time)
+                    
+                    total_actual_ot_hours += actual_ot_hours
+                    total_planned_ot_hours += flt(req.get('planned_hours', 0))
+                    
+                    # Format for display
+                    overtime_details.append({
+                        "request_name": req['name'],
+                        "planned_from": str(req['start_time']),
+                        "planned_to": str(req['end_time']),
+                        "planned_hours": flt(req.get('planned_hours', 0), 2),
+                        "actual_hours": flt(actual_ot_hours, 2)
+                    })
+            else:
+                # No check-in/out times, show planned only
+                frappe.logger().info("No check-in/out times, showing planned hours only")
+                for req in ot_requests:
+                    total_planned_ot_hours += flt(req.get('planned_hours', 0))
+                    overtime_details.append({
+                        "request_name": req['name'],
+                        "planned_from": str(req['start_time']),
+                        "planned_to": str(req['end_time']),
+                        "planned_hours": flt(req.get('planned_hours', 0), 2),
+                        "actual_hours": 0.0
+                    })
+            
+            result = {
+                "has_overtime": True,
+                "total_requests": len(ot_requests),
+                "total_planned_hours": flt(total_planned_ot_hours, 2),
+                "total_actual_ot_hours": flt(total_actual_ot_hours, 2),
+                "requests": overtime_details
+            }
+            
+            frappe.logger().info(f"Final overtime details result: {result}")
+            return result
+            
+        except Exception as e:
+            error_msg = str(e)
+            frappe.log_error(f"Error in get_overtime_details: {error_msg}", "Custom Attendance Overtime Details")
+            frappe.logger().error(f"get_overtime_details error: {error_msg}")
+            return {"has_overtime": False, "error": error_msg}
 
     def extract_in_out_times(self, logs, check_in_out_type):
         """Extract in_time và out_time từ logs using your logic"""
@@ -584,7 +1578,6 @@ def on_checkin_creation(doc, method):
     """Automatically create or update attendance when checkin is created"""
     if doc.log_type not in ["IN", "OUT"]:
         return
-        
     attendance_date = getdate(doc.time)
     
     # Check if Custom Attendance record exists
@@ -593,7 +1586,6 @@ def on_checkin_creation(doc, method):
         "attendance_date": attendance_date,
         "docstatus": ["!=", 2]
     })
-    
     if existing_attendance:
         # Update existing record
         try:
@@ -890,8 +1882,7 @@ def get_shifts_ready_for_processing(current_time):
                 process_attendance_after,
                 last_sync_of_checkin
             FROM `tabShift Type`
-            WHERE disabled = 0 
-            AND enable_auto_attendance = 1
+            WHERE enable_auto_attendance = 1
         """, as_dict=True)
         
         ready_shifts = []
@@ -1079,8 +2070,7 @@ def get_smart_scheduler_events():
                 end_time, 
                 allow_check_out_after_shift_end_time
             FROM `tabShift Type`
-            WHERE disabled = 0 
-            AND enable_auto_attendance = 1
+            WHERE enable_auto_attendance = 1
             AND end_time IS NOT NULL
         """, as_dict=True)
         
@@ -1173,7 +2163,7 @@ def bulk_process_from_shift_date(shift_name=None, start_date=None, end_date=None
             end_date = getdate()  # Đến hôm nay
         else:
             end_date = getdate(end_date)
-            
+                
         # Validate date range
         if start_date > end_date:
             return {"success": False, "message": "Start date cannot be after end date"}
@@ -1963,21 +2953,6 @@ def auto_daily_attendance_completion():
     except Exception as e:
         frappe.log_error(f"Auto daily attendance completion error: {str(e)}", "Auto Daily Attendance Completion")
 
-# Thêm vào hooks.py:
-"""
-# Scheduler Events
-doc_events = {
-    # ... existing events ...
-}
-
-# Thêm scheduler event mới
-scheduler_events = {
-    "daily": [
-        "customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.auto_daily_attendance_completion"
-    ],
-    # ... existing scheduler events ...
-}
-"""
 
 @frappe.whitelist()
 def get_attendance_summary_for_range(start_date=None, end_date=None):

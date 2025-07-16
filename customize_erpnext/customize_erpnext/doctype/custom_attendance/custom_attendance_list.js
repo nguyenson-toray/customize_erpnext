@@ -1,28 +1,31 @@
-// Enhanced List View customizations với Daily Completion features
+// Enhanced List View customizations với Overtime Bulk Operations
 frappe.listview_settings['Custom Attendance'] = {
-  add_fields: ['status', 'working_hours', 'auto_sync_enabled', 'docstatus'],
+  add_fields: ['status', 'working_hours', 'overtime_hours', 'auto_sync_enabled', 'docstatus'],
   onload: function (listview) {
 
     // Add Bulk Create button cho HR Manager và System Manager
     if (frappe.user.has_role('HR Manager') || frappe.user.has_role('System Manager')) {
       setTimeout(function () {
         try {
-          // Bulk Create from Shift Date button
+          // Existing bulk operations
           listview.page.add_menu_item(__('Bulk Create from Shift Date'), function () {
             show_bulk_process_dialog();
           });
 
-          // NEW: Daily Completion button
           listview.page.add_menu_item(__('Daily Attendance Completion'), function () {
             show_daily_completion_dialog();
           });
 
-          // NEW: Check Missing Attendance button  
           listview.page.add_menu_item(__('Check Missing Attendance'), function () {
             show_missing_attendance_dialog();
           });
 
-          console.log('Enhanced Custom Attendance buttons added successfully');
+          // NEW: Overtime bulk operations
+          listview.page.add_menu_item(__('Bulk Recalculate Overtime'), function () {
+            show_bulk_overtime_recalculate_dialog();
+          });
+
+          console.log('Enhanced Custom Attendance buttons with overtime added successfully');
         } catch (e) {
           console.error('Failed to add enhanced buttons:', e);
         }
@@ -32,6 +35,10 @@ frappe.listview_settings['Custom Attendance'] = {
   get_indicator: function (doc) {
     if (doc.docstatus === 1) {
       if (doc.status === 'Present') {
+        // Show different indicator if has overtime
+        if (doc.overtime_hours && doc.overtime_hours > 0) {
+          return [__('Present + OT'), 'blue', 'status,=,Present'];
+        }
         return [__('Present'), 'green', 'status,=,Present'];
       } else if (doc.status === 'Absent') {
         return [__('Absent'), 'red', 'status,=,Absent'];
@@ -44,6 +51,10 @@ frappe.listview_settings['Custom Attendance'] = {
       }
     } else if (doc.docstatus === 0) {
       if (doc.status === 'Present') {
+        // Show different indicator if has overtime
+        if (doc.overtime_hours && doc.overtime_hours > 0) {
+          return [__('Present + OT'), 'blue', 'status,=,Present'];
+        }
         return [__('Present'), 'green', 'status,=,Present'];
       } else if (doc.status === 'Absent') {
         return [__('Absent'), 'red', 'status,=,Absent'];
@@ -62,7 +73,220 @@ frappe.listview_settings['Custom Attendance'] = {
   }
 };
 
-// EXISTING: Bulk process dialog functions
+// NEW: Bulk Overtime Recalculate Dialog
+function show_bulk_overtime_recalculate_dialog() {
+  let dialog = new frappe.ui.Dialog({
+    title: __('Bulk Recalculate Overtime'),
+    size: 'large',
+    fields: [
+      {
+        fieldtype: 'Section Break',
+        label: __('Date Range for Overtime Recalculation')
+      },
+      {
+        fieldtype: 'Date',
+        fieldname: 'start_date',
+        label: __('From Date'),
+        default: frappe.datetime.add_days(frappe.datetime.get_today(), -7),
+        reqd: 1
+      },
+      {
+        fieldtype: 'Column Break'
+      },
+      {
+        fieldtype: 'Date',
+        fieldname: 'end_date',
+        label: __('To Date'),
+        default: frappe.datetime.get_today(),
+        reqd: 1
+      },
+      {
+        fieldtype: 'Section Break',
+        label: __('Filters (Optional)')
+      },
+      {
+        fieldtype: 'Link',
+        fieldname: 'employee',
+        label: __('Specific Employee'),
+        options: 'Employee',
+        description: __('Leave empty to process all employees')
+      },
+      {
+        fieldtype: 'Column Break'
+      },
+      {
+        fieldtype: 'Link',
+        fieldname: 'shift',
+        label: __('Specific Shift'),
+        options: 'Shift Type',
+        description: __('Leave empty to process all shifts')
+      },
+      {
+        fieldtype: 'Section Break',
+        label: __('Options')
+      },
+      {
+        fieldtype: 'Check',
+        fieldname: 'only_with_checkins',
+        label: __('Only records with check-in/out'),
+        default: 1,
+        description: __('Process only attendance records that have both check-in and check-out times')
+      },
+      {
+        fieldtype: 'Check',
+        fieldname: 'draft_only',
+        label: __('Draft records only'),
+        default: 1,
+        description: __('Process only draft (unsubmitted) attendance records')
+      },
+      {
+        fieldtype: 'Section Break',
+        label: __('Information')
+      },
+      {
+        fieldtype: 'HTML',
+        fieldname: 'info',
+        options: `
+          <div class="alert alert-warning">
+            <h6><strong>Bulk Overtime Recalculation</strong></h6>
+            <ul>
+              <li><strong>Purpose:</strong> Recalculate working hours including overtime from approved Overtime Requests</li>
+              <li><strong>Logic:</strong> 
+                <ul>
+                  <li>Find all approved Overtime Requests in the date range</li>
+                  <li>Recalculate attendance working hours including overtime hours</li>
+                  <li>Update working_hours field with total (regular + overtime)</li>
+                </ul>
+              </li>
+              <li><strong>Safe:</strong> Only updates existing attendance records, no new records created</li>
+              <li><strong>Reversible:</strong> You can always recalculate again if overtime requests change</li>
+            </ul>
+          </div>
+        `
+      }
+    ],
+    primary_action_label: __('Start Recalculation'),
+    primary_action: function (values) {
+      start_bulk_overtime_recalculation(values, dialog);
+    }
+  });
+
+  dialog.show();
+}
+
+function start_bulk_overtime_recalculation(values, dialog) {
+  if (!values.start_date || !values.end_date) {
+    frappe.msgprint(__('Please select both start and end dates'));
+    return;
+  }
+
+  if (frappe.datetime.get_diff(values.end_date, values.start_date) > 90) {
+    frappe.msgprint(__('Date range too large. Maximum 90 days allowed.'));
+    return;
+  }
+
+  frappe.confirm(
+    __('Recalculate overtime for attendance records from {0} to {1}?<br><br>This will update working hours for all matching records.', [
+      frappe.datetime.str_to_user(values.start_date),
+      frappe.datetime.str_to_user(values.end_date)
+    ]),
+    function () {
+      let progress_dialog = show_progress_dialog('Recalculating overtime...');
+      dialog.hide();
+
+      frappe.call({
+        method: 'customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.bulk_recalculate_overtime',
+        args: {
+          date_from: values.start_date,
+          date_to: values.end_date,
+          employee: values.employee || null,
+          shift: values.shift || null,
+          only_with_checkins: values.only_with_checkins || false,
+          draft_only: values.draft_only || false
+        },
+        freeze: false,
+        callback: function (r) {
+          progress_dialog.hide();
+
+          if (r && r.message && r.message.success) {
+            show_overtime_recalc_results_dialog(r.message);
+          } else {
+            frappe.msgprint(__('Bulk Overtime Recalculation Error: ') + (r.message && r.message.message ? r.message.message : 'Unknown error'));
+          }
+        },
+        error: function (r) {
+          progress_dialog.hide();
+          console.error('Bulk overtime recalc error:', r);
+          frappe.msgprint(__('System Error: Please check error logs'));
+        }
+      });
+    }
+  );
+}
+
+function show_overtime_recalc_results_dialog(results) {
+  let status_class = results.error_count === 0 ? 'alert-success' : 'alert-warning';
+
+  let html = `
+    <div class="${status_class} alert">
+      <h5>Bulk Overtime Recalculation Results</h5>
+      <div class="row">
+        <div class="col-md-4">
+          <p><strong>Records Processed:</strong> ${results.success_count}</p>
+        </div>
+        <div class="col-md-4">
+          <p><strong>With Overtime Found:</strong> ${results.overtime_found_count}</p>
+        </div>
+        <div class="col-md-4">
+          <p><strong>Errors:</strong> ${results.error_count}</p>
+        </div>
+      </div>
+    </div>
+  `;
+
+  if (results.overtime_found_count > 0) {
+    html += `
+      <div class="alert alert-info">
+        <strong>Success!</strong> ${results.overtime_found_count} attendance records were updated with overtime hours.
+        Check the individual records to see the updated working hours.
+      </div>
+    `;
+  }
+
+  if (results.error_count > 0) {
+    html += `
+      <div class="alert alert-warning">
+        <strong>Partial Success:</strong> ${results.error_count} records encountered errors during processing.
+        Check the error logs for details.
+      </div>
+    `;
+  }
+
+  let results_dialog = new frappe.ui.Dialog({
+    title: __('Overtime Recalculation Results'),
+    size: 'large',
+    fields: [
+      {
+        fieldtype: 'HTML',
+        fieldname: 'results_html',
+        options: html
+      }
+    ],
+    primary_action_label: __('Close'),
+    primary_action: function () {
+      results_dialog.hide();
+
+      // Refresh current list view
+      if (cur_list && cur_list.doctype === 'Custom Attendance') {
+        cur_list.refresh();
+      }
+    }
+  });
+
+  results_dialog.show();
+}
+
+// EXISTING functions (keeping all previous functionality)
 function show_bulk_process_dialog() {
   let dialog = new frappe.ui.Dialog({
     title: __('Bulk Create Custom Attendance'),
@@ -141,7 +365,7 @@ function show_bulk_process_dialog() {
             <ul>
               <li><strong>Purpose:</strong> Create Custom Attendance records for employees with check-ins</li>
               <li><strong>Date Range:</strong> Maximum 90 days to prevent system overload</li>
-              <li><strong>Process:</strong> Create attendance → Auto sync from check-ins → Report results</li>
+              <li><strong>Process:</strong> Create attendance → Auto sync from check-ins → Calculate overtime → Report results</li>
               <li><strong>Skip:</strong> Employees already having Custom Attendance records</li>
               <li><strong>Safe:</strong> No duplicates will be created</li>
             </ul>
@@ -158,7 +382,32 @@ function show_bulk_process_dialog() {
   dialog.show();
 }
 
-// NEW: Daily Completion Dialog
+// Progress dialog helper
+function show_progress_dialog(message = 'Processing...') {
+  let progress_dialog = new frappe.ui.Dialog({
+    title: __('Processing in Progress'),
+    fields: [
+      {
+        fieldtype: 'HTML',
+        fieldname: 'progress_html',
+        options: `
+          <div class="text-center" style="padding: 30px;">
+            <div class="spinner-border text-primary" role="status">
+              <span class="sr-only">Processing...</span>
+            </div>
+            <h5 style="margin-top: 20px;">${message}</h5>
+            <p class="text-muted">This may take several minutes. Please wait...</p>
+          </div>
+        `
+      }
+    ]
+  });
+
+  progress_dialog.show();
+  return progress_dialog;
+}
+
+// Daily completion dialog
 function show_daily_completion_dialog() {
   let dialog = new frappe.ui.Dialog({
     title: __('Daily Attendance Completion'),
@@ -175,8 +424,6 @@ function show_daily_completion_dialog() {
         options: 'Single Date\nDate Range',
         default: 'Single Date',
         onchange: function () {
-          // depends_on sẽ tự động handle việc show/hide
-          // Chỉ cần refresh layout
           dialog.layout.refresh();
         }
       },
@@ -247,6 +494,7 @@ function show_daily_completion_dialog() {
             <ul>
               <li><strong>Purpose:</strong> Create attendance records for ALL active employees (including Absent)</li>
               <li><strong>Logic:</strong> Employees with check-ins become Present, Employees without check-ins become Absent</li>
+              <li><strong>Overtime:</strong> Working hours will automatically include overtime from approved Overtime Requests</li>
               <li><strong>Safe:</strong> Only creates missing records, won't duplicate existing ones</li>
               <li><strong>Comprehensive:</strong> Ensures no employee is missing from attendance tracking</li>
               <li><strong>Limit:</strong> Maximum 30 days for bulk processing</li>
@@ -264,7 +512,6 @@ function show_daily_completion_dialog() {
   dialog.show();
 }
 
-// NEW: Missing Attendance Dialog
 function show_missing_attendance_dialog() {
   let dialog = new frappe.ui.Dialog({
     title: __('Check Missing Attendance'),
@@ -300,7 +547,89 @@ function show_missing_attendance_dialog() {
   dialog.show();
 }
 
-// NEW: Check attendance summary
+// Stub functions for existing functionality - implement as needed
+function show_preview(dialog) {
+  let values = dialog.get_values();
+
+  if (!values.end_date) {
+    frappe.msgprint(__('Please select End Date'));
+    return;
+  }
+
+  let args = {
+    end_date: values.end_date
+  };
+
+  if (values.shift_type) {
+    args.shift_name = values.shift_type;
+  }
+
+  if (!values.use_shift_date && values.start_date) {
+    args.start_date = values.start_date;
+  }
+
+  frappe.call({
+    method: 'customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.get_bulk_process_preview',
+    args: args,
+    callback: function (r) {
+      if (r && r.message && r.message.success) {
+        render_preview_html(dialog, r.message);
+      } else {
+        frappe.msgprint(__('Error getting preview: ') + (r.message && r.message.message ? r.message.message : 'Unknown error'));
+      }
+    },
+    error: function (r) {
+      console.error('Preview call error:', r);
+      frappe.msgprint(__('Failed to get preview. Please check console for details.'));
+    }
+  });
+}
+function start_bulk_process(values, dialog) {
+  if (!values.end_date) {
+    frappe.msgprint(__('Please select End Date'));
+    return;
+  }
+
+  frappe.confirm(
+    __('Are you sure you want to start bulk processing? This may take several minutes for large date ranges.'),
+    function () {
+      let args = {
+        end_date: values.end_date
+      };
+
+      if (values.shift_type) {
+        args.shift_name = values.shift_type;
+      }
+
+      if (!values.use_shift_date && values.start_date) {
+        args.start_date = values.start_date;
+      }
+
+      let progress_dialog = show_progress_dialog();
+      dialog.hide();
+
+      frappe.call({
+        method: 'customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.bulk_process_from_shift_date',
+        args: args,
+        freeze: false,
+        callback: function (r) {
+          progress_dialog.hide();
+
+          if (r && r.message && r.message.success) {
+            show_results_dialog(r.message);
+          } else {
+            frappe.msgprint(__('Bulk Process Error: ') + (r.message && r.message.message ? r.message.message : 'Unknown error'));
+          }
+        },
+        error: function (r) {
+          progress_dialog.hide();
+          console.error('Bulk process call error:', r);
+          frappe.msgprint(__('System Error: Please check error logs'));
+        }
+      });
+    }
+  );
+}
 function check_attendance_summary(dialog) {
   let values = dialog.get_values();
   let completion_type = values.completion_type || 'Single Date';
@@ -340,6 +669,8 @@ function check_attendance_summary(dialog) {
     frappe.call({
       method: 'customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.get_attendance_summary_for_range',
       args: {
+
+        
         start_date: start_date,
         end_date: end_date
       },
@@ -358,232 +689,8 @@ function check_attendance_summary(dialog) {
   }
 }
 
-function render_summary_html(dialog, data) {
-  let html = `
-    <div class="summary-results" style="margin-top: 15px;">
-      <div class="alert alert-info">
-        <h6><strong>Attendance Summary for ${frappe.datetime.str_to_user(data.date)}</strong></h6>
-        <div class="row">
-          <div class="col-md-6">
-            <p><strong>Total Active Employees:</strong> ${data.total_employees}</p>
-            <p><strong>Attendance Records:</strong> ${data.total_attendance_records}</p>
-            <p><strong>Missing Records:</strong> <span class="badge badge-warning">${data.missing_attendance}</span></p>
-          </div>
-          <div class="col-md-6">
-            <p><strong>Employees with Check-ins:</strong> ${data.employees_with_checkins}</p>
-            <p><strong>Completion Rate:</strong> ${((data.total_attendance_records / data.total_employees) * 100).toFixed(1)}%</p>
-          </div>
-        </div>
-      </div>
-  `;
-
-  if (data.attendance_breakdown && data.attendance_breakdown.length > 0) {
-    html += `
-      <div class="table-responsive">
-        <table class="table table-bordered table-sm">
-          <thead style="background-color: #f8f9fa;">
-            <tr>
-              <th>Status</th>
-              <th>Count</th>
-              <th>Percentage</th>
-            </tr>
-          </thead>
-          <tbody>
-    `;
-
-    data.attendance_breakdown.forEach(function (row) {
-      let percentage = ((row.count / data.total_attendance_records) * 100).toFixed(1);
-      let badgeClass = row.status === 'Present' ? 'badge-success' :
-        row.status === 'Absent' ? 'badge-danger' : 'badge-secondary';
-
-      html += `
-        <tr>
-          <td><span class="badge ${badgeClass}">${row.status}</span></td>
-          <td>${row.count}</td>
-          <td>${percentage}%</td>
-        </tr>
-      `;
-    });
-
-    html += `
-          </tbody>
-        </table>
-      </div>
-    `;
-  }
-
-  if (data.missing_attendance > 0) {
-    html += `
-      <div class="alert alert-warning">
-        <strong>Action Needed:</strong> ${data.missing_attendance} employees are missing attendance records.
-        Click "Start Completion" to create these missing records.
-      </div>
-    `;
-  } else {
-    html += `
-      <div class="alert alert-success">
-        <strong>Complete:</strong> All active employees have attendance records for this date.
-      </div>
-    `;
-  }
-
-  html += '</div>';
-
-  dialog.set_df_property('summary_html', 'options', html);
-}
-
-// NEW: Check missing attendance
-
-function render_range_summary_html(dialog, data) {
-  let html = `
-    <div class="summary-results" style="margin-top: 15px;">
-      <div class="alert alert-info">
-        <h6><strong>Date Range Summary: ${frappe.datetime.str_to_user(data.start_date)} to ${frappe.datetime.str_to_user(data.end_date)}</strong></h6>
-        <div class="row">
-          <div class="col-md-6">
-            <p><strong>Total Days:</strong> ${data.total_days}</p>
-            <p><strong>Total Employee-Days:</strong> ${data.total_employee_days}</p>
-            <p><strong>Missing Records:</strong> <span class="badge badge-warning">${data.total_missing}</span></p>
-          </div>
-          <div class="col-md-6">
-            <p><strong>Avg Daily Employees:</strong> ${Math.round(data.total_employee_days / data.total_days)}</p>
-            <p><strong>Completion Rate:</strong> ${data.completion_percentage}%</p>
-          </div>
-        </div>
-      </div>
-  `;
-
-  if (data.daily_breakdown && data.daily_breakdown.length > 0) {
-    html += `
-      <div class="table-responsive" style="max-height: 200px; overflow-y: auto;">
-        <table class="table table-bordered table-sm">
-          <thead style="background-color: #f8f9fa;">
-            <tr>
-              <th>Date</th>
-              <th>Active Employees</th>
-              <th>Attendance Records</th>
-              <th>Missing</th>
-              <th>Completion %</th>
-            </tr>
-          </thead>
-          <tbody>
-    `;
-
-    data.daily_breakdown.forEach(function (row) {
-      let completion_rate = row.total_employees > 0 ? ((row.attendance_records / row.total_employees) * 100).toFixed(1) : '0.0';
-      let missing_count = row.total_employees - row.attendance_records;
-
-      html += `
-        <tr>
-          <td>${frappe.datetime.str_to_user(row.date)}</td>
-          <td>${row.total_employees}</td>
-          <td>${row.attendance_records}</td>
-          <td><span class="badge ${missing_count > 0 ? 'badge-warning' : 'badge-success'}">${missing_count}</span></td>
-          <td>${completion_rate}%</td>
-        </tr>
-      `;
-    });
-
-    html += `
-          </tbody>
-        </table>
-      </div>
-    `;
-  }
-
-  if (data.total_missing > 0) {
-    html += `
-      <div class="alert alert-warning">
-        <strong>Action Needed:</strong> ${data.total_missing} attendance records are missing across the date range.
-        Click "Start Completion" to create these missing records.
-      </div>
-    `;
-  } else {
-    html += `
-      <div class="alert alert-success">
-        <strong>Complete:</strong> All employees have attendance records for the selected date range.
-      </div>
-    `;
-  }
-
-  html += '</div>';
-
-  dialog.set_df_property('summary_html', 'options', html);
-}
-let html = `
-    <div class="summary-results" style="margin-top: 15px;">
-      <div class="alert alert-info">
-        <h6><strong>Attendance Summary for ${frappe.datetime.str_to_user(data.date)}</strong></h6>
-        <div class="row">
-          <div class="col-md-6">
-            <p><strong>Total Active Employees:</strong> ${data.total_employees}</p>
-            <p><strong>Attendance Records:</strong> ${data.total_attendance_records}</p>
-            <p><strong>Missing Records:</strong> <span class="badge badge-warning">${data.missing_attendance}</span></p>
-          </div>
-          <div class="col-md-6">
-            <p><strong>Employees with Check-ins:</strong> ${data.employees_with_checkins}</p>
-            <p><strong>Completion Rate:</strong> ${((data.total_attendance_records / data.total_employees) * 100).toFixed(1)}%</p>
-          </div>
-        </div>
-      </div>
-  `;
-
-if (data.attendance_breakdown && data.attendance_breakdown.length > 0) {
-  html += `
-      <div class="table-responsive">
-        <table class="table table-bordered table-sm">
-          <thead style="background-color: #f8f9fa;">
-            <tr>
-              <th>Status</th>
-              <th>Count</th>
-              <th>Percentage</th>
-            </tr>
-          </thead>
-          <tbody>
-    `;
-
-  data.attendance_breakdown.forEach(function (row) {
-    let percentage = ((row.count / data.total_attendance_records) * 100).toFixed(1);
-    let badgeClass = row.status === 'Present' ? 'badge-success' :
-      row.status === 'Absent' ? 'badge-danger' : 'badge-secondary';
-
-    html += `
-        <tr>
-          <td><span class="badge ${badgeClass}">${row.status}</span></td>
-          <td>${row.count}</td>
-          <td>${percentage}%</td>
-        </tr>
-      `;
-  });
-
-  html += `
-          </tbody>
-        </table>
-      </div>
-    `;
-}
-
-if (data.missing_attendance > 0) {
-  html += `
-      <div class="alert alert-warning">
-        <strong>Action Needed:</strong> ${data.missing_attendance} employees are missing attendance records.
-        Click "Start Completion" to create these missing records.
-      </div>
-    `;
-} else {
-  html += `
-      <div class="alert alert-success">
-        <strong>Complete:</strong> All active employees have attendance records for this date.
-      </div>
-    `;
-}
-
-html += '</div>';
-
-dialog.set_df_property('summary_html', 'options', html);
 
 
-// NEW: Check missing attendance
 function check_missing_attendance(dialog) {
   let values = dialog.get_values();
 
@@ -609,66 +716,6 @@ function check_missing_attendance(dialog) {
   });
 }
 
-function render_missing_attendance_html(dialog, data) {
-  let html = `
-    <div class="missing-results" style="margin-top: 15px;">
-      <div class="alert ${data.missing_count > 0 ? 'alert-warning' : 'alert-success'}">
-        <h6><strong>Missing Attendance for ${frappe.datetime.str_to_user(data.date)}</strong></h6>
-        <p><strong>Missing Records:</strong> ${data.missing_count}</p>
-      </div>
-  `;
-
-  if (data.missing_count > 0) {
-    html += `
-      <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
-        <table class="table table-bordered table-sm">
-          <thead style="background-color: #f8f9fa;">
-            <tr>
-              <th>Employee</th>
-              <th>Employee Name</th>
-              <th>Department</th>
-              <th>Shift</th>
-              <th>Check-in Status</th>
-            </tr>
-          </thead>
-          <tbody>
-    `;
-
-    data.missing_employees.forEach(function (emp) {
-      let checkinBadge = emp.checkin_status === 'Has Check-ins' ?
-        '<span class="badge badge-success">Has Check-ins</span>' :
-        '<span class="badge badge-secondary">No Check-ins</span>';
-
-      html += `
-        <tr>
-          <td>${emp.employee}</td>
-          <td>${emp.employee_name}</td>
-          <td>${emp.department || '-'}</td>
-          <td>${emp.default_shift || '-'}</td>
-          <td>${checkinBadge}</td>
-        </tr>
-      `;
-    });
-
-    html += `
-          </tbody>
-        </table>
-      </div>
-    `;
-  } else {
-    html += `
-      <div class="alert alert-success">
-        <strong>Perfect!</strong> All active employees have attendance records for this date.
-      </div>
-    `;
-  }
-
-  html += '</div>';
-
-  dialog.set_df_property('missing_results_html', 'options', html);
-}
-
-// NEW: Create missing attendance
 function create_missing_attendance(values, dialog) {
   if (!values.check_date) {
     frappe.msgprint(__('Please select a date'));
@@ -738,279 +785,47 @@ function start_daily_completion(values, dialog) {
   }
 }
 
-function execute_single_date_completion(date, dialog) {
-  let progress_dialog = show_progress_dialog();
-  dialog.hide();
 
-  frappe.call({
-    method: 'customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.manual_daily_completion',
-    args: { date: date },
-    freeze: false,
-    callback: function (r) {
-      progress_dialog.hide();
 
-      if (r && r.message && r.message.success) {
-        show_completion_results_dialog(r.message);
-      } else {
-        frappe.msgprint(__('Daily Completion Error: ') + (r.message && r.message.message ? r.message.message : 'Unknown error'));
-      }
-    },
-    error: function (r) {
-      progress_dialog.hide();
-      console.error('Single date completion call error:', r);
-      frappe.msgprint(__('System Error: Please check error logs'));
-    }
-  });
-}
 
-function execute_date_range_completion(start_date, end_date, dialog) {
-  let progress_dialog = show_progress_dialog();
-  dialog.hide();
-
-  frappe.call({
-    method: 'customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.bulk_daily_completion',
-    args: {
-      start_date: start_date,
-      end_date: end_date
-    },
-    freeze: false,
-    callback: function (r) {
-      progress_dialog.hide();
-
-      if (r && r.message && r.message.success) {
-        show_bulk_completion_results_dialog(r.message);
-      } else {
-        frappe.msgprint(__('Bulk Daily Completion Error: ') + (r.message && r.message.message ? r.message.message : 'Unknown error'));
-      }
-    },
-    error: function (r) {
-      progress_dialog.hide();
-      console.error('Date range completion call error:', r);
-      frappe.msgprint(__('System Error: Please check error logs'));
-    }
-  });
-}
-
-// NEW: Show completion results
-function show_completion_results_dialog(results) {
-  let status_class = results.error_count === 0 ? 'alert-success' : 'alert-warning';
-
+/* Render HTML for missing attendance results */
+function render_missing_attendance_html(dialog, data) {
   let html = `
-    <div class="${status_class} alert">
-      <h5>Daily Attendance Completion - ${frappe.datetime.str_to_user(results.date)}</h5>
-      <div class="row">
-        <div class="col-md-6">
-          <p><strong>Total Employees:</strong> ${results.total_employees}</p>
-          <p><strong>Records Created:</strong> ${results.created_count}</p>
-        </div>
-        <div class="col-md-6">
-          <p><strong>Records Updated:</strong> ${results.updated_count}</p>
-          <p><strong>Errors:</strong> ${results.error_count}</p>
-        </div>
-      </div>
-    </div>
-  `;
-
-  // Add error details if any
-  if (results.errors && results.errors.length > 0) {
-    html += `
-      <h6 style="margin-top: 15px;">Error Details:</h6>
-      <div style="max-height: 150px; overflow-y: auto; background-color: #f8f9fa; padding: 10px; border-radius: 4px;">
-    `;
-
-    results.errors.forEach(function (error) {
-      html += `<small class="text-danger">• ${error}</small><br>`;
-    });
-
-    html += '</div>';
-  }
-
-  let results_dialog = new frappe.ui.Dialog({
-    title: __('Daily Completion Results'),
-    size: 'large',
-    fields: [
-      {
-        fieldtype: 'HTML',
-        fieldname: 'results_html',
-        options: html
-      }
-    ],
-    primary_action_label: __('Close'),
-    primary_action: function () {
-      results_dialog.hide();
-
-      // Refresh current list view
-      if (cur_list && cur_list.doctype === 'Custom Attendance') {
-        cur_list.refresh();
-      }
-    }
-  });
-
-  results_dialog.show();
-}
-
-// NEW: Show bulk completion results
-function show_bulk_completion_results_dialog(results) {
-  let status_class = results.total_errors === 0 ? 'alert-success' : 'alert-warning';
-
-  let html = `
-    <div class="${status_class} alert">
-      <h5>Bulk Daily Completion Results</h5>
-      <p><strong>Date Range:</strong> ${frappe.datetime.str_to_user(results.start_date)} to ${frappe.datetime.str_to_user(results.end_date)}</p>
-      <div class="row">
-        <div class="col-md-4">
-          <p><strong>Total Created:</strong> ${results.total_created}</p>
-        </div>
-        <div class="col-md-4">
-          <p><strong>Total Updated:</strong> ${results.total_updated}</p>
-        </div>
-        <div class="col-md-4">
-          <p><strong>Total Errors:</strong> ${results.total_errors}</p>
-        </div>
-      </div>
-    </div>
-  `;
-
-  // Add daily breakdown if available
-  if (results.daily_results && results.daily_results.length > 0) {
-    html += `
-      <h6>Daily Breakdown:</h6>
-      <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
-        <table class="table table-sm">
-          <thead><tr><th>Date</th><th>Created</th><th>Updated</th><th>Errors</th></tr></thead>
-          <tbody>
-    `;
-
-    results.daily_results.forEach(function (day) {
-      html += `
-        <tr>
-          <td>${frappe.datetime.str_to_user(day.date)}</td>
-          <td><span class="badge badge-success">${day.created}</span></td>
-          <td><span class="badge badge-info">${day.updated}</span></td>
-          <td>${day.errors > 0 ? `<span class="badge badge-danger">${day.errors}</span>` : '-'}</td>
-        </tr>
-      `;
-    });
-
-    html += '</tbody></table></div>';
-  }
-
-  // Add errors if any
-  if (results.errors && results.errors.length > 0) {
-    html += `
-      <h6 style="margin-top: 15px;">Error Details:</h6>
-      <div style="max-height: 150px; overflow-y: auto; background-color: #f8f9fa; padding: 10px; border-radius: 4px;">
-    `;
-
-    results.errors.forEach(function (error) {
-      html += `<small class="text-danger">• ${error}</small><br>`;
-    });
-
-    html += '</div>';
-  }
-
-  let results_dialog = new frappe.ui.Dialog({
-    title: __('Bulk Completion Results'),
-    size: 'large',
-    fields: [
-      {
-        fieldtype: 'HTML',
-        fieldname: 'results_html',
-        options: html
-      }
-    ],
-    primary_action_label: __('Close'),
-    primary_action: function () {
-      results_dialog.hide();
-
-      // Refresh current list view
-      if (cur_list && cur_list.doctype === 'Custom Attendance') {
-        cur_list.refresh();
-      }
-    }
-  });
-
-  results_dialog.show();
-}
-
-// EXISTING functions (show_preview, start_bulk_process, etc.)
-function show_preview(dialog) {
-  let values = dialog.get_values();
-
-  if (!values.end_date) {
-    frappe.msgprint(__('Please select End Date'));
-    return;
-  }
-
-  let args = {
-    end_date: values.end_date
-  };
-
-  if (values.shift_type) {
-    args.shift_name = values.shift_type;
-  }
-
-  if (!values.use_shift_date && values.start_date) {
-    args.start_date = values.start_date;
-  }
-
-  frappe.call({
-    method: 'customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.get_bulk_process_preview',
-    args: args,
-    callback: function (r) {
-      if (r && r.message && r.message.success) {
-        render_preview_html(dialog, r.message);
-      } else {
-        frappe.msgprint(__('Error getting preview: ') + (r.message && r.message.message ? r.message.message : 'Unknown error'));
-      }
-    },
-    error: function (r) {
-      console.error('Preview call error:', r);
-      frappe.msgprint(__('Failed to get preview. Please check console for details.'));
-    }
-  });
-}
-
-function render_preview_html(dialog, data) {
-  let html = `
-    <div class="preview-results" style="margin-top: 15px;">
-      <div class="alert alert-success">
-        <h6><strong>Preview Results</strong></h6>
-        <div class="row">
-          <div class="col-md-6">
-            <p><strong>Date Range:</strong> ${data.start_date} to ${data.end_date}</p>
-            <p><strong>Total Days:</strong> ${data.total_days} days</p>
-          </div>
-          <div class="col-md-6">
-            <p><strong>Total Employees:</strong> ${data.total_employees} employee-days</p>
-            <p><strong>Shift:</strong> ${data.shift_name || 'All Shifts'}</p>
-          </div>
-        </div>
+    <div class="missing-results" style="margin-top: 15px;">
+      <div class="alert ${data.missing_count > 0 ? 'alert-warning' : 'alert-success'}">
+        <h6><strong>Missing Attendance for ${frappe.datetime.str_to_user(data.date)}</strong></h6>
+        <p><strong>Missing Records:</strong> ${data.missing_count}</p>
       </div>
   `;
 
-  if (data.daily_breakdown && data.daily_breakdown.length > 0) {
+  if (data.missing_count > 0) {
     html += `
-      <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
+      <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
         <table class="table table-bordered table-sm">
           <thead style="background-color: #f8f9fa;">
             <tr>
-              <th>Date</th>
-              <th>Employees</th>
-              <th>Check-ins</th>
-              <th>Shifts</th>
+              <th>Employee</th>
+              <th>Employee Name</th>
+              <th>Department</th>
+              <th>Shift</th>
+              <th>Check-in Status</th>
             </tr>
           </thead>
           <tbody>
     `;
 
-    data.daily_breakdown.forEach(function (row) {
+    data.missing_employees.forEach(function (emp) {
+      let checkinBadge = emp.checkin_status === 'Has Check-ins' ?
+        '<span class="badge badge-success">Has Check-ins</span>' :
+        '<span class="badge badge-secondary">No Check-ins</span>';
+
       html += `
         <tr>
-          <td>${frappe.datetime.str_to_user(row.attendance_date)}</td>
-          <td><span class="badge badge-primary">${row.employee_count}</span></td>
-          <td>${row.checkin_count}</td>
-          <td>${row.shift_count}</td>
+          <td>${emp.employee}</td>
+          <td>${emp.employee_name}</td>
+          <td>${emp.department || '-'}</td>
+          <td>${emp.default_shift || '-'}</td>
+          <td>${checkinBadge}</td>
         </tr>
       `;
     });
@@ -1022,168 +837,13 @@ function render_preview_html(dialog, data) {
     `;
   } else {
     html += `
-      <div class="alert alert-warning">
-        <strong>No Data Found</strong><br>
-        No employees with check-ins found in the selected date range, or all records already exist.
+      <div class="alert alert-success">
+        <strong>Perfect!</strong> All active employees have attendance records for this date.
       </div>
     `;
   }
 
   html += '</div>';
 
-  dialog.set_df_property('preview_html', 'options', html);
-}
-
-function start_bulk_process(values, dialog) {
-  if (!values.end_date) {
-    frappe.msgprint(__('Please select End Date'));
-    return;
-  }
-
-  frappe.confirm(
-    __('Are you sure you want to start bulk processing? This may take several minutes for large date ranges.'),
-    function () {
-      let args = {
-        end_date: values.end_date
-      };
-
-      if (values.shift_type) {
-        args.shift_name = values.shift_type;
-      }
-
-      if (!values.use_shift_date && values.start_date) {
-        args.start_date = values.start_date;
-      }
-
-      let progress_dialog = show_progress_dialog();
-      dialog.hide();
-
-      frappe.call({
-        method: 'customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.bulk_process_from_shift_date',
-        args: args,
-        freeze: false,
-        callback: function (r) {
-          progress_dialog.hide();
-
-          if (r && r.message && r.message.success) {
-            show_results_dialog(r.message);
-          } else {
-            frappe.msgprint(__('Bulk Process Error: ') + (r.message && r.message.message ? r.message.message : 'Unknown error'));
-          }
-        },
-        error: function (r) {
-          progress_dialog.hide();
-          console.error('Bulk process call error:', r);
-          frappe.msgprint(__('System Error: Please check error logs'));
-        }
-      });
-    }
-  );
-}
-
-function show_progress_dialog() {
-  let progress_dialog = new frappe.ui.Dialog({
-    title: __('Processing in Progress'),
-    fields: [
-      {
-        fieldtype: 'HTML',
-        fieldname: 'progress_html',
-        options: `
-          <div class="text-center" style="padding: 30px;">
-            <div class="spinner-border text-primary" role="status">
-              <span class="sr-only">Processing...</span>
-            </div>
-            <h5 style="margin-top: 20px;">Processing Custom Attendance Records...</h5>
-            <p class="text-muted">This may take several minutes. Please wait...</p>
-          </div>
-        `
-      }
-    ]
-  });
-
-  progress_dialog.show();
-  return progress_dialog;
-}
-
-function show_results_dialog(results) {
-  let status_class = results.error_count === 0 ? 'alert-success' : 'alert-warning';
-
-  let html = `
-    <div class="${status_class} alert">
-      <h5>Bulk Processing Completed</h5>
-      <div class="row">
-        <div class="col-md-6">
-          <p><strong>Days Processed:</strong> ${results.total_days}</p>
-          <p><strong>Employee-Days Found:</strong> ${results.total_employees}</p>
-        </div>
-        <div class="col-md-6">
-          <p><strong>Records Created:</strong> ${results.created_count}</p>
-          <p><strong>Successfully Synced:</strong> ${results.synced_count}</p>
-          <p><strong>Errors:</strong> ${results.error_count}</p>
-        </div>
-      </div>
-    </div>
-  `;
-
-  if (results.details && results.details.length > 0) {
-    html += `
-      <h6>Daily Breakdown:</h6>
-      <div class="table-responsive" style="max-height: 200px; overflow-y: auto;">
-        <table class="table table-sm">
-          <thead><tr><th>Date</th><th>Created</th><th>Synced</th><th>Errors</th></tr></thead>
-          <tbody>
-    `;
-
-    results.details.forEach(function (day) {
-      html += `
-        <tr>
-          <td>${frappe.datetime.str_to_user(day.date)}</td>
-          <td><span class="badge badge-success">${day.created}</span></td>
-          <td><span class="badge badge-info">${day.synced}</span></td>
-          <td>${day.errors > 0 ? `<span class="badge badge-danger">${day.errors}</span>` : '-'}</td>
-        </tr>
-      `;
-    });
-
-    html += '</tbody></table></div>';
-  }
-
-  if (results.errors && results.errors.length > 0) {
-    html += `
-      <h6 style="margin-top: 15px;">Error Details:</h6>
-      <div style="max-height: 150px; overflow-y: auto; background-color: #f8f9fa; padding: 10px; border-radius: 4px;">
-    `;
-
-    results.errors.slice(0, 20).forEach(function (error) {
-      html += `<small class="text-danger">• ${error}</small><br>`;
-    });
-
-    if (results.errors.length > 20) {
-      html += `<small class="text-muted">... and ${results.errors.length - 20} more errors</small>`;
-    }
-
-    html += '</div>';
-  }
-
-  let results_dialog = new frappe.ui.Dialog({
-    title: __('Bulk Process Results'),
-    size: 'large',
-    fields: [
-      {
-        fieldtype: 'HTML',
-        fieldname: 'results_html',
-        options: html
-      }
-    ],
-    primary_action_label: __('Close'),
-    primary_action: function () {
-      results_dialog.hide();
-
-      if (cur_list && cur_list.doctype === 'Custom Attendance') {
-        cur_list.refresh();
-      }
-    }
-  });
-
-  results_dialog.show();
+  dialog.set_df_property('missing_results_html', 'options', html);
 }

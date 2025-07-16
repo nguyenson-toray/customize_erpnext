@@ -143,13 +143,13 @@ doc_events = {
     "Overtime Request": {
         # Override permission method globally
         "has_permission": "customize_erpnext.overrides.overtime_request_permission",
-        # Override query conditions
-        "get_permission_query_conditions": "customize_erpnext.overrides.overtime_request_query_conditions"
+        # Update overtime request status
+        # "on_update": "customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.on_overtime_request_approval"
     }
 }
 # Fixtures (for initial setup)
 fixtures = [
-    {
+    { 
         "doctype": "Custom Field",
         "filters": {
             "dt": ["in", ["Employee"]]
