@@ -772,7 +772,7 @@ def migrate_existing_attendance_with_overtime():
     except Exception as e:
         return {"success": False, "message": str(e)}
 
-050class CustomAttendance(Document):
+class CustomAttendance(Document):
     def validate(self):
         """Validate attendance data"""
         # Check for duplicate attendance - including drafts
