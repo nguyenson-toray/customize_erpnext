@@ -1,0 +1,153 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "format:SR-{YY}{MM}{DD}-{###}",
+ "creation": "2025-07-29 19:43:59.722969",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "section_break_vh8u",
+  "amended_from",
+  "section_break_etmv",
+  "request_date",
+  "requested_by",
+  "shift",
+  "total_employees",
+  "column_break_azvh",
+  "begin_date",
+  "end_date",
+  "begin_time",
+  "end_time",
+  "column_break_abbu",
+  "reason",
+  "section_break_owph",
+  "employees_list"
+ ],
+ "fields": [
+  {
+   "fieldname": "section_break_vh8u",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Shift Registration",
+   "print_hide": 1,
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "section_break_etmv",
+   "fieldtype": "Section Break"
+  },
+  {
+   "default": "Today",
+   "fieldname": "request_date",
+   "fieldtype": "Date",
+   "label": "Request Date",
+   "read_only": 1
+  },
+  {
+   "fieldname": "requested_by",
+   "fieldtype": "Link",
+   "label": "Requested By",
+   "options": "Employee"
+  },
+  {
+   "fieldname": "column_break_azvh",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "total_employees",
+   "fieldtype": "Int",
+   "label": "Total Employees",
+   "non_negative": 1,
+   "read_only": 1
+  },
+  {
+   "default": "Day",
+   "fieldname": "shift",
+   "fieldtype": "Link",
+   "label": "Shift",
+   "options": "Shift Name"
+  },
+  {
+   "fieldname": "column_break_abbu",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "shift.begin_time",
+   "fieldname": "begin_time",
+   "fieldtype": "Time",
+   "label": "Begin Time",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "shift.end_time",
+   "fieldname": "end_time",
+   "fieldtype": "Time",
+   "label": "End Time",
+   "read_only": 1
+  },
+  {
+   "default": "Today",
+   "fieldname": "begin_date",
+   "fieldtype": "Date",
+   "label": "Begin Date"
+  },
+  {
+   "default": "Today",
+   "fieldname": "end_date",
+   "fieldtype": "Date",
+   "label": "End Date"
+  },
+  {
+   "fieldname": "reason",
+   "fieldtype": "Small Text",
+   "label": "Reason"
+  },
+  {
+   "fieldname": "section_break_owph",
+   "fieldtype": "Section Break"
+  },
+  {
+   "allow_bulk_edit": 1,
+   "fieldname": "employees_list",
+   "fieldtype": "Table",
+   "label": "Employees List",
+   "options": "Shift Registration Detail"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2025-07-29 20:21:41.997103",
+ "modified_by": "Administrator",
+ "module": "Customize Erpnext",
+ "name": "Shift Registration",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

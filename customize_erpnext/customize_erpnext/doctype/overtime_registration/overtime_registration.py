@@ -26,16 +26,27 @@ class OvertimeRegistration(Document):
         entries = []
         
         for d in self.ot_employees:
-            if not all([d.employee, d.date, d.get("from"), d.get("to")]):
-                frappe.throw(_("Row #{idx}: Employee, Date, From Time, and To Time are required.").format(idx=d.idx))
+            # Debug what fields are actually available
+            missing_fields = []
+            if not d.employee:
+                missing_fields.append("Employee")
+            if not d.date:
+                missing_fields.append("Date") 
+            if not d.get("begin_time"):
+                missing_fields.append("Begin Time")
+            if not d.get("end_time"):
+                missing_fields.append("End Time")
+                
+            if missing_fields:
+                frappe.throw(_("Row #{idx}: {fields} are required.").format(idx=d.idx, fields=", ".join(missing_fields)))
             
             entries.append({
                 'idx': d.idx,
                 'employee': d.employee,
                 'employee_name': d.employee_name,
                 'date': d.date,
-                'from': d.get("from"),
-                'to': d.get("to")
+                'from': d.get("begin_time"),
+                'to': d.get("end_time")
             })
         
         # Check for duplicates and overlaps
@@ -65,11 +76,11 @@ class OvertimeRegistration(Document):
             return
 
         for d in self.ot_employees:
-            from_time = d.get("from")
-            to_time = d.get("to")
+            from_time = d.get("begin_time")
+            to_time = d.get("end_time")
 
             existing_entries = frappe.db.sql("""
-                SELECT child.parent, child.from, child.to
+                SELECT child.parent, child.begin_time as `from`, child.end_time as `to`
                 FROM `tabOvertime Registration Detail` as child
                 JOIN `tabOvertime Registration` as parent ON child.parent = parent.name
                 WHERE child.employee = %(employee)s
@@ -113,8 +124,8 @@ class OvertimeRegistration(Document):
             if d.employee:
                 distinct_employees.add(d.employee)
 
-            if d.get("from") and d.get("to"):
-                total_hours += time_diff_in_hours(d.to, d.get("from"))
+            if d.get("begin_time") and d.get("end_time"):
+                total_hours += time_diff_in_hours(d.end_time, d.get("begin_time"))
             
             if d.reason:
                 child_reasons.add(d.reason.strip())
@@ -149,7 +160,7 @@ def check_overtime_conflicts(entries, current_doc_name="new"):
     for entry in entries:
         # Query for existing overtime registrations for same employee and date
         existing_entries = frappe.db.sql("""
-            SELECT child.parent, child.from, child.to, child.employee_name
+            SELECT child.parent, child.begin_time as `from`, child.end_time as `to`, child.employee_name
             FROM `tabOvertime Registration Detail` as child
             JOIN `tabOvertime Registration` as parent ON child.parent = parent.name
             WHERE child.employee = %(employee)s

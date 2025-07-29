@@ -33,12 +33,17 @@ frappe.ui.form.on("Overtime Registration", {
     },
 
     validate(frm) {
+        // Always validate required fields first
+        if (!validate_required_fields(frm)) {
+            return false;
+        }
+
         // Synchronous validation for immediate feedback
         validate_duplicate_employees(frm);
-        
+
         // Check conflicts with submitted records (asynchronous)
         check_conflicts_with_submitted_records(frm);
-        
+
         calculate_totals_and_apply_reason(frm);
     }
 });
@@ -93,14 +98,14 @@ function show_employee_selection_dialog(frm) {
             },
             {
                 fieldtype: 'Time',
-                fieldname: 'time_from',
-                label: 'From Time',
+                fieldname: 'time_begin',
+                label: 'Time Begin',
                 default: '17:00:00'
             },
             {
                 fieldtype: 'Time',
-                fieldname: 'time_to',
-                label: 'To Time',
+                fieldname: 'time_end',
+                label: 'Time End',
                 default: '19:00:00'
             },
             {
@@ -290,7 +295,7 @@ function open_employee_selection_dialog() {
                 fieldname: 'employee_search',
                 label: 'Search Employees',
                 placeholder: 'Type employee name or ID to filter...',
-                onchange: function() {
+                onchange: function () {
                     filter_employees_in_dialog(this.value, employeeListDialog);
                 }
             },
@@ -298,7 +303,7 @@ function open_employee_selection_dialog() {
                 fieldtype: 'Button',
                 fieldname: 'clear_search',
                 label: 'Clear Search',
-                click: function() {
+                click: function () {
                     employeeListDialog.set_value('employee_search', '');
                     filter_employees_in_dialog('', employeeListDialog);
                 }
@@ -322,7 +327,7 @@ function open_employee_selection_dialog() {
     setTimeout(() => {
         const searchInput = employeeListDialog.get_field('employee_search').$input;
         if (searchInput) {
-            searchInput.on('input', function() {
+            searchInput.on('input', function () {
                 filter_employees_in_dialog(this.value, employeeListDialog);
             });
         }
@@ -341,15 +346,15 @@ function filter_employees_in_dialog(searchTerm, dialog) {
         render_employee_list(originalEmployeeList, dialog);
         return;
     }
-    
+
     const filteredEmployees = originalEmployeeList.filter(emp => {
         const searchLower = searchTerm.toLowerCase().trim();
         const empName = (emp.employee_name || emp.name || '').toLowerCase();
         const empId = (emp.name || '').toLowerCase();
-        
+
         return empName.includes(searchLower) || empId.includes(searchLower);
     });
-    
+
     render_employee_list(filteredEmployees, dialog);
 }
 
@@ -383,10 +388,10 @@ function load_employees_for_selection(groupName, dialog) {
 
             // Store original list for filtering
             originalEmployeeList = r.message;
-            
+
             // Reset search field when loading new group
             dialog.set_value('employee_search', '');
-            
+
             // Render the employee list
             render_employee_list(originalEmployeeList, dialog);
         },
@@ -399,7 +404,7 @@ function load_employees_for_selection(groupName, dialog) {
 
 function render_employee_list(employees, dialog) {
     const field_wrapper = dialog.get_field('employee_list').$wrapper;
-    
+
     if (!field_wrapper) {
         return;
     }
@@ -428,7 +433,7 @@ function render_employee_list(employees, dialog) {
         // Highlight matching text
         let displayName = emp.employee_name || emp.name;
         let displayId = emp.name;
-        
+
         if (searchTerm.trim()) {
             const regex = new RegExp(`(${searchTerm.trim()})`, 'gi');
             displayName = displayName.replace(regex, '<mark style="background-color: yellow; padding: 1px 2px;">$1</mark>');
@@ -569,11 +574,11 @@ function save_overtime_registration_native(frm) {
         return;
     }
 
-    const timeFrom = currentDialog.get_value('time_from');
-    const timeTo = currentDialog.get_value('time_to');
+    const begin_time = currentDialog.get_value('time_begin');
+    const end_time = currentDialog.get_value('time_end');
 
     // Clear existing rows
-    frm.clear_table('ot_employees');
+    // frm.clear_table('ot_employees');
 
     // Add selected employees to child table
     selectedEmployees.forEach(employee => {
@@ -593,8 +598,8 @@ function save_overtime_registration_native(frm) {
             date.setDate(monday.getDate() + dayIndex);
             child.date = date.toISOString().split('T')[0];
 
-            child.from = timeFrom;
-            child.to = timeTo;
+            child.begin_time = begin_time;
+            child.end_time = end_time;
             child.reason = reason;
         });
     });
@@ -656,11 +661,11 @@ function get_dialog_html() {
                             <label class="control-label">Time Period</label>
                             <div class="row">
                                 <div class="col-md-6">
-                                    <label class="control-label" style="font-size: 12px; margin-bottom: 5px;">From Time</label>
+                                    <label class="control-label" style="font-size: 12px; margin-bottom: 5px;">Begin Time</label>
                                     <input type="time" class="form-control" id="time_from" value="17:00">
                                 </div>
                                 <div class="col-md-6">
-                                    <label class="control-label" style="font-size: 12px; margin-bottom: 5px;">To Time</label>
+                                    <label class="control-label" style="font-size: 12px; margin-bottom: 5px;">End Time</label>
                                     <input type="time" class="form-control" id="time_to" value="19:00">
                                 </div>
                             </div>
@@ -1327,8 +1332,8 @@ function save_overtime_registration(frm) {
             child.employee = employee.name;
             child.employee_name = employee.employee_name || employee.name;
             child.date = dayCheckbox.getAttribute('data-date');
-            child.from = timeFrom;
-            child.to = timeTo;
+            child.begin_time = timeFrom;
+            child.end_time = timeTo;
             child.reason = reason;
         });
     });
@@ -1355,13 +1360,29 @@ function save_overtime_registration(frm) {
 }
 
 // Validation functions
+function validate_required_fields(frm) {
+    let hasErrors = false;
+
+    for (let d of frm.doc.ot_employees || []) {
+        if (!d.employee || !d.date || !d.begin_time || !d.end_time) {
+            frappe.msgprint(__(`Row #{0}: Employee, Date, Begin Time, and End Time are required.`, [d.idx]));
+            hasErrors = true;
+        }
+    }
+
+    if (hasErrors) {
+        frappe.validated = false;
+        return false;
+    }
+    return true;
+}
+
 function validate_duplicate_employees(frm) {
     const entries = [];
-    
+
     for (let d of frm.doc.ot_employees || []) {
-        if (!d.employee || !d.date || !d.from || !d.to) {
-            frappe.validated = false;
-            frappe.msgprint(__(`Row #{0}: Employee, Date, From Time, and To Time are required.`, [d.idx]));
+        // Skip validation if required fields are missing - handled by validate_required_fields
+        if (!d.employee || !d.date || !d.begin_time || !d.end_time) {
             return;
         }
 
@@ -1370,8 +1391,8 @@ function validate_duplicate_employees(frm) {
             employee: d.employee,
             employee_name: d.employee_name,
             date: d.date,
-            from: d.from,
-            to: d.to
+            begin_time: d.begin_time,
+            end_time: d.end_time
         });
     }
 
@@ -1380,14 +1401,14 @@ function validate_duplicate_employees(frm) {
         for (let j = i + 1; j < entries.length; j++) {
             const entry1 = entries[i];
             const entry2 = entries[j];
-            
+
             // Same employee and date
             if (entry1.employee === entry2.employee && entry1.date === entry2.date) {
                 // Check for exact match or time overlap
-                if (times_overlap(entry1.from, entry1.to, entry2.from, entry2.to)) {
+                if (times_overlap(entry1.begin_time, entry1.end_time, entry2.begin_time, entry2.end_time)) {
                     frappe.validated = false;
-                    frappe.msgprint(__(`Row #{0} and Row #{1}: Overlapping overtime entries for employee {2} on {3}. Entry 1: {4}-{5}, Entry 2: {6}-{7}`, 
-                        [entry1.idx, entry2.idx, entry1.employee_name, entry1.date, entry1.from, entry1.to, entry2.from, entry2.to]));
+                    frappe.msgprint(__(`Row #{0} and Row #{1}: Overlapping overtime entries for employee {2} on {3}. Entry 1: {4}-{5}, Entry 2: {6}-{7}`,
+                        [entry1.idx, entry2.idx, entry1.employee_name, entry1.date, entry1.begin_time, entry1.end_time, entry2.begin_time, entry2.end_time]));
                     return;
                 }
             }
@@ -1399,26 +1420,26 @@ function check_conflicts_with_submitted_records(frm) {
     if (!frm.doc.ot_employees || frm.doc.ot_employees.length === 0) {
         return;
     }
-    
+
     // Prepare data for server-side validation
     const entries_to_check = [];
     for (let d of frm.doc.ot_employees) {
-        if (d.employee && d.date && d.from && d.to) {
+        if (d.employee && d.date && d.begin_time && d.end_time) {
             entries_to_check.push({
                 idx: d.idx,
                 employee: d.employee,
                 employee_name: d.employee_name,
                 date: d.date,
-                from: d.from,
-                to: d.to
+                begin_time: d.begin_time,
+                end_time: d.end_time
             });
         }
     }
-    
+
     if (entries_to_check.length === 0) {
         return;
     }
-    
+
     // Call server method to check conflicts
     frappe.call({
         method: 'customize_erpnext.customize_erpnext.doctype.overtime_registration.overtime_registration.check_overtime_conflicts',
@@ -1426,16 +1447,16 @@ function check_conflicts_with_submitted_records(frm) {
             entries: entries_to_check,
             current_doc_name: frm.doc.name || 'new'
         },
-        callback: function(r) {
+        callback: function (r) {
             if (r.message && r.message.length > 0) {
                 // Found conflicts
                 frappe.validated = false;
-                
+
                 // Show all conflicts
                 for (let conflict of r.message) {
-                    frappe.msgprint(__(`Row #{0}: Overlapping overtime entry for employee {1} on {2}. Current: {3}-{4}, Existing: {5}-{6} in <a href="/app/overtime-registration/{7}" target="_blank">{7}</a>`, 
-                        [conflict.idx, conflict.employee_name, conflict.date, conflict.current_from, conflict.current_to, 
-                         conflict.existing_from, conflict.existing_to, conflict.existing_doc]));
+                    frappe.msgprint(__(`Row #{0}: Overlapping overtime entry for employee {1} on {2}. Current: {3}-{4}, Existing: {5}-{6} in <a href="/app/overtime-registration/{7}" target="_blank">{7}</a>`,
+                        [conflict.idx, conflict.employee_name, conflict.date, conflict.current_from, conflict.current_to,
+                        conflict.existing_from, conflict.existing_to, conflict.existing_doc]));
                 }
             }
         }
@@ -1459,16 +1480,16 @@ function calculate_totals_and_apply_reason(frm) {
             distinct_employees.add(d.employee);
         }
 
-        if (d.from && d.to) {
+        if (d.begin_time && d.end_time) {
             // Simple time difference calculation
-            const from_parts = d.from.split(':');
-            const to_parts = d.to.split(':');
+            const from_parts = d.begin_time.split(':');
+            const to_parts = d.end_time.split(':');
             const from_minutes = parseInt(from_parts[0]) * 60 + parseInt(from_parts[1]);
             const to_minutes = parseInt(to_parts[0]) * 60 + parseInt(to_parts[1]);
             const diff_hours = (to_minutes - from_minutes) / 60;
             total_hours += diff_hours;
         }
-        
+
         if (d.reason && d.reason.trim()) {
             child_reasons.add(d.reason.trim());
         }
@@ -1503,13 +1524,13 @@ function times_overlap(from1, to1, from2, to2) {
     const time1End = new Date(`2000-01-01T${to1}`);
     const time2Start = new Date(`2000-01-01T${from2}`);
     const time2End = new Date(`2000-01-01T${to2}`);
-    
+
     // Check for overlap: start1 < end2 && start2 < end1
     // Adjacent periods (where one ends exactly when another begins) are NOT overlapping
     const condition1 = time1Start < time2End;
     const condition2 = time2Start < time1End;
     const overlap = condition1 && condition2;
-    
+
     return overlap;
 }
 
