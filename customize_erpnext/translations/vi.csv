@@ -1,3 +1,26 @@
-My Settings, Cài đặt cá nhân
-My Profile, Hồ sơ cá nhân
-Log out, Đăng xuất
+My Settings,Cài đặt cá nhân
+My Profile,Hồ sơ cá nhân
+Log out,Đăng xuất
+"These values will apply to the entire detail table (if empty).","Các giá trị này sẽ áp dụng cho toàn bộ bảng chi tiết ( nếu trống)."
+"These values will apply to the entire detail table (if empty).","Các giá trị này sẽ áp dụng cho toàn bộ bảng chi tiết ( nếu trống)."
+All invoice numbers in item detail table,Tất cả các số hóa đơn trong bảng chi tiết mặt hàng
+Rows duplicated with Ctrl+D,Nhân bản hàng với Ctrl+D
+Duplicate Selected Rows,Nhân bản các hàng đã chọn
+Please select rows to duplicate,Vui lòng chọn các hàng để nhân bản
+Quick Add Items - Opening Stock,Thêm nhanh mặt hàng - Tồn kho đầu kỳ
+Use % to separate attributes,Sử dụng % để phân tách các thuộc tính 
+Only item_name is required, Chỉ cần item_name là bắt buộc
+Skip empty attributes,Bỏ qua các thuộc tính trống
+Each line = one item, Mỗi dòng = một mặt hàng
+The system will search for item_pattern in the "Item Name Detail" field of all Items., Hệ thống sẽ tìm kiếm item_pattern trong trường "Tên mặt hàng chi tiết" của tất cả các Mặt hàng.
+Invalid items will be skipped with error report, Các mặt hàng không hợp lệ sẽ bị bỏ qua với báo cáo lỗi
+'Quick Add Opening Stock completed: {0} items added successfully', 'Thêm Tồn kho đầu kỳ nhanh đã hoàn tất: {0} mặt hàng đã được thêm thành công'
+'Line {0}: Invalid quantity: {1}', 'Dòng {0}: Số lượng không hợp lệ: {1}'
+'Line {0}: Item not found with pattern: {1}', 'Dòng {0}: Không tìm thấy mặt hàng với mẫu: {1}'
+'Line {0}: Error processing item: {1}', 'Dòng {0}: Lỗi khi xử lý mặt hàng: {1}'
+'Quick Add {0} completed: {1} items added successfully', 'Thêm nhanh {0} đã hoàn tất: {1} mặt hàng đã được thêm thành công'
+Quick Add Results,Kết quả Thêm nhanh
+Material Issue - Quick Add, Thêm nhanh - Cấp phát NPL
+Material Receipt - Quick Add, Thêm nhanh - Nhập NPL
+"Must have space after % and before attribute value (To avoid confusion between ""Xl"" & ""Xxl"")",Phải có khoảng trắng sau % và trước giá trị thuộc tính (Để tránh nhầm lẫn giữa "Xl" & "Xxl")
+Minimum required: item_name,Tối thiểu yêu cầu: item_name

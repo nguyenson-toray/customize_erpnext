@@ -1,0 +1,30 @@
+[
+ {
+  "allow_edit": 0,
+  "disable_auto_refresh": 0,
+  "disable_automatic_recency_filters": 0,
+  "disable_comment_count": 0,
+  "disable_count": 0,
+  "disable_sidebar_stats": 0,
+  "docstatus": 0,
+  "doctype": "List View Settings",
+  "fields": "[{\"fieldname\":\"item_name\",\"label\":\"Item Name\"},{\"fieldname\":\"stock_uom\",\"label\":\"Default Unit of Measure\"},{\"fieldname\":\"item_group\",\"label\":\"Item Group\"},{\"fieldname\":\"custom_item_name_detail\",\"label\":\"Item Name Detail\"},{\"fieldname\":\"status_field\",\"label\":\"Status\"}]",
+  "modified": "2025-07-04 08:37:00.030959",
+  "name": "Item",
+  "total_fields": "10"
+ },
+ {
+  "allow_edit": 0,
+  "disable_auto_refresh": 0,
+  "disable_automatic_recency_filters": 0,
+  "disable_comment_count": 0,
+  "disable_count": 0,
+  "disable_sidebar_stats": 0,
+  "docstatus": 0,
+  "doctype": "List View Settings",
+  "fields": "[{\"fieldname\":\"stock_entry_type\",\"label\":\"Stock Entry Type\"},{\"fieldname\":\"posting_date\",\"label\":\"Posting Date\"},{\"fieldname\":\"custom_no\",\"label\":\"No#\"},{\"fieldname\":\"custom_line\",\"label\":\"Line\"},{\"fieldname\":\"custom_invoice_number\",\"label\":\"Invoice number\"},{\"fieldname\":\"status_field\",\"label\":\"Status\"}]",
+  "modified": "2025-07-04 08:24:18.378910",
+  "name": "Stock Entry",
+  "total_fields": "10"
+ }
+]

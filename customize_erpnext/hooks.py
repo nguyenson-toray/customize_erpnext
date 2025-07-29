@@ -16,7 +16,10 @@ app_license = "mit"
 # ------------------
 # Customize các js script cho các DocType mặc định của erpnext
 doctype_js = {
-    "Stock Entry": "public/js/custom_scripts/stock_entry.js",
+    "Stock Entry": [
+        "public/js/custom_scripts/stock_entry.js",
+        "public/js/custom_scripts/stock_entry_quick_import.js"
+    ],
     "BOM": "public/js/custom_scripts/bom.js",
     "Item": [
         "public/js/custom_scripts/item.js",
@@ -31,7 +34,14 @@ doctype_js = {
     "Item Attribute Value": "public/js/custom_scripts/item_attribute.js",
     "Sales Order": "public/js/custom_scripts/sales_order_sum_qty.js",
     "Production Plan" : "public/js/custom_scripts/production_plan.js",
+    "Stock Reconciliation" : "public/js/custom_scripts/stock_reconciliation.js",
     # Thêm các doctype khác  
+}
+
+# List view customizations
+doctype_list_js = {
+    "Item": "public/js/custom_scripts/item_list.js",
+    "Stock Entry": "public/js/custom_scripts/stock_entry_list.js",
 }
  
 # Hướng dẫn sử dụng fixtures để export từ site A và import vào site B
@@ -58,7 +68,12 @@ fixtures = [
                     "BOM Item", 
                     "Material Request Item",
                     "Production Plan",
-                    "Employee"
+                    "Employee",
+                    "Stock Entry Detail",
+                    "Stock Reconciliation",
+                    "Stock Reconciliation Item",
+                    "Stock Ledger Entry",
+                    "Customer"
                 ]
             ],
             [
@@ -73,7 +88,7 @@ fixtures = [
         "doctype": "Workspace",
         "filters": [
             # Chỉ export một số workspace cụ thể
-            # ["name", "in", ["Stock"]] 
+            ["name", "in", ["Stock"]] 
             # Để trống filter nếu muốn export tất cả
         ]
     },
@@ -82,9 +97,30 @@ fixtures = [
         "doctype": "Property Setter",
         "filters": [
             ["doc_type", "in", [
-                # "Sales Invoice", "Purchase Invoice"
+                "Item",
+                "Stock Entry Detail",
+                "Stock Reconciliation",
+                "Stock Reconciliation Item"
                 ]]
         ]
+    },
+    # List View Settings
+    {
+        "doctype": "List View Settings",
+        "filters": {
+            "name": ["in", [
+                "Item",
+                "Stock Entry", 
+                "Stock Reconciliation"
+                # Add your doctypes here
+            ]]
+        }
+    },
+    {
+        "doctype": "Print Format",
+        "filters": {
+            "module": "Customize Erpnext"
+        }
     }
 ]
 
@@ -129,7 +165,13 @@ scheduler_events = {
         ]
     }
 }
-
+ 
+# DocType Class
+# ---------------
+# Override standard doctype classes
+# override_doctype_class = {
+#     "Stock Reconciliation": "customize_erpnext.override_methods.stock_reconciliation.custom_stock_reconciliation.CustomStockReconciliation"
+# }
 # Document Events
 doc_events = {
     "Employee Checkin": {
@@ -140,6 +182,13 @@ doc_events = {
     "Shift Type": {
         "on_update": "customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.on_shift_update"
     },
+    # Add custom_invoice_number field of Stock Entry and Stock Reconciliation to Stock Ledger Entry
+    "Stock Entry": {
+        "on_submit": "customize_erpnext.api.stock_ledger.update_stock_ledger_invoice_number_receive_date.update_stock_ledger_invoice_number_receive_date"
+    },
+    "Stock Reconciliation": {
+        "on_submit": "customize_erpnext.api.stock_ledger.update_stock_ledger_invoice_number_receive_date.update_stock_ledger_invoice_number_receive_date"
+    },
     "Overtime Request": {
         # Override permission method globally
         "has_permission": "customize_erpnext.overrides.overtime_request_permission",
@@ -147,17 +196,17 @@ doc_events = {
         # "on_update": "customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.on_overtime_request_approval"
     }
 }
+ 
+
 # Fixtures (for initial setup)
-fixtures = [
-    { 
-        "doctype": "Custom Field",
-        "filters": {
-            "dt": ["in", ["Employee"]]
-        }
-    }
-]
-
-
+# fixtures = [
+#     {
+#         "doctype": "Custom Field",
+#         "filters": {
+#             "dt": ["in", ["Employee"]]
+#         }
+#     }
+# ]
 
 # boot_session = "customize_erpnext.override_methods.employee_checkin_or.apply_monkey_patch"
 # Hook on document methods and events
@@ -286,13 +335,7 @@ fixtures = [
 # 	"Event": "frappe.desk.doctype.event.event.has_permission",
 # }
 
-# DocType Class
-# ---------------
-# Override standard doctype classes
 
-# override_doctype_class = {
-# 	"ToDo": "custom_app.overrides.CustomToDo"
-# }
 
 # Document Events
 # ---------------
@@ -405,4 +448,6 @@ fixtures = [
 # default_log_clearing_doctypes = {
 # 	"Logging DocType Name": 30  # days to retain logs
 # }
+
+
 

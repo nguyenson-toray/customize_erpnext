@@ -1,0 +1,1044 @@
+Started item attribute update process at 2025-06-16 13:06:13
+Reading Excel file from: /home/sonnt/frappe-bench/sites/erp-sonnt.tiqn.local/public/files/Item Templates.xlsx
+Found 517 unique item codes in Excel file
+Item C-001 current attributes: Color
+Updated Item: C-001 - Added attributes: Size, Brand, Season
+Item C-002 current attributes: Color
+Updated Item: C-002 - Added attributes: Size, Brand, Season
+Item C-003 current attributes: Color
+Updated Item: C-003 - Added attributes: Size, Brand, Season
+Item C-004 current attributes: Color
+Updated Item: C-004 - Added attributes: Size, Brand, Season
+Item C-005 current attributes: Color
+Updated Item: C-005 - Added attributes: Size, Brand, Season
+Item C-006 current attributes: Color
+Updated Item: C-006 - Added attributes: Size, Brand, Season
+Item C-007 current attributes: Color
+Updated Item: C-007 - Added attributes: Size, Brand, Season
+Item C-008 current attributes: Color
+Updated Item: C-008 - Added attributes: Size, Brand, Season
+Item C-009 current attributes: Color
+Updated Item: C-009 - Added attributes: Size, Brand, Season
+Item C-00A current attributes: Color
+Updated Item: C-00A - Added attributes: Size, Brand, Season
+Item C-00B current attributes: Color
+Updated Item: C-00B - Added attributes: Size, Brand, Season
+Item C-00C current attributes: Color
+Updated Item: C-00C - Added attributes: Size, Brand, Season
+Item C-00D current attributes: Color
+Updated Item: C-00D - Added attributes: Size, Brand, Season
+Item C-00E current attributes: Color
+Updated Item: C-00E - Added attributes: Size, Brand, Season
+Item C-00F current attributes: Color
+Updated Item: C-00F - Added attributes: Size, Brand, Season
+Item C-00G current attributes: Color
+Updated Item: C-00G - Added attributes: Size, Brand, Season
+Item C-00H current attributes: Color
+Updated Item: C-00H - Added attributes: Size, Brand, Season
+Item C-00I current attributes: Color
+Updated Item: C-00I - Added attributes: Size, Brand, Season
+Item C-00J current attributes: Color
+Updated Item: C-00J - Added attributes: Size, Brand, Season
+Item C-00K current attributes: Color
+Updated Item: C-00K - Added attributes: Size, Brand, Season
+Item C-00L current attributes: Color
+Updated Item: C-00L - Added attributes: Size, Brand, Season
+Item C-00M current attributes: Color
+Updated Item: C-00M - Added attributes: Size, Brand, Season
+Item C-00N current attributes: Color
+Updated Item: C-00N - Added attributes: Size, Brand, Season
+Item C-00O current attributes: Color
+Updated Item: C-00O - Added attributes: Size, Brand, Season
+Item C-00P current attributes: Color
+Updated Item: C-00P - Added attributes: Size, Brand, Season
+Item C-00Q current attributes: Color
+Updated Item: C-00Q - Added attributes: Size, Brand, Season
+Item C-00R current attributes: Color
+Updated Item: C-00R - Added attributes: Size, Brand, Season
+Item C-00S current attributes: Color
+Updated Item: C-00S - Added attributes: Size, Brand, Season
+Item C-00T current attributes: Color
+Updated Item: C-00T - Added attributes: Size, Brand, Season
+Item C-00U current attributes: Color
+Updated Item: C-00U - Added attributes: Size, Brand, Season
+Item C-00V current attributes: Color
+Updated Item: C-00V - Added attributes: Size, Brand, Season
+Item C-00W current attributes: Color
+Updated Item: C-00W - Added attributes: Size, Brand, Season
+Item C-00X current attributes: Color
+Updated Item: C-00X - Added attributes: Size, Brand, Season
+Item C-00Y current attributes: Color
+Updated Item: C-00Y - Added attributes: Size, Brand, Season
+Item C-00Z current attributes: Color
+Updated Item: C-00Z - Added attributes: Size, Brand, Season
+Item C-010 current attributes: Color
+Updated Item: C-010 - Added attributes: Size, Brand, Season
+Item C-011 current attributes: Color
+Updated Item: C-011 - Added attributes: Size, Brand, Season
+Item C-012 current attributes: Color
+Updated Item: C-012 - Added attributes: Size, Brand, Season
+Item C-013 current attributes: Color
+Updated Item: C-013 - Added attributes: Size, Brand, Season
+Item C-014 current attributes: Color
+Updated Item: C-014 - Added attributes: Size, Brand, Season
+Item C-015 current attributes: Color
+Updated Item: C-015 - Added attributes: Size, Brand, Season
+Item C-016 current attributes: Color
+Updated Item: C-016 - Added attributes: Size, Brand, Season
+Item C-017 current attributes: Color
+Updated Item: C-017 - Added attributes: Size, Brand, Season
+Item C-018 current attributes: Color
+Updated Item: C-018 - Added attributes: Size, Brand, Season
+Item C-019 current attributes: Color
+Updated Item: C-019 - Added attributes: Size, Brand, Season
+Item C-01A current attributes: Color
+Updated Item: C-01A - Added attributes: Size, Brand, Season
+Item C-01B current attributes: Color
+Updated Item: C-01B - Added attributes: Size, Brand, Season
+Item C-01C current attributes: Color
+Updated Item: C-01C - Added attributes: Size, Brand, Season
+Item C-01D current attributes: Color
+Updated Item: C-01D - Added attributes: Size, Brand, Season
+Item C-01E current attributes: Color
+Updated Item: C-01E - Added attributes: Size, Brand, Season
+Item C-01F current attributes: Color
+Updated Item: C-01F - Added attributes: Size, Brand, Season
+Item C-01G current attributes: Color
+Updated Item: C-01G - Added attributes: Size, Brand, Season
+Item C-01H current attributes: Color
+Updated Item: C-01H - Added attributes: Size, Brand, Season
+Item C-01I current attributes: Color
+Updated Item: C-01I - Added attributes: Size, Brand, Season
+Item D-001 current attributes: Color
+Updated Item: D-001 - Added attributes: Size, Brand, Season
+Item D-002 current attributes: Color
+Updated Item: D-002 - Added attributes: Size, Brand, Season
+Item D-003 current attributes: Color
+Updated Item: D-003 - Added attributes: Size, Brand, Season
+Item D-004 current attributes: Color
+Updated Item: D-004 - Added attributes: Size, Brand, Season
+Item D-005 current attributes: Color
+Updated Item: D-005 - Added attributes: Size, Brand, Season
+Item D-006 current attributes: Color
+Updated Item: D-006 - Added attributes: Size, Brand, Season
+Item D-007 current attributes: Color
+Updated Item: D-007 - Added attributes: Size, Brand, Season
+Item D-008 current attributes: Color
+Updated Item: D-008 - Added attributes: Size, Brand, Season
+Item D-009 current attributes: Color
+Updated Item: D-009 - Added attributes: Size, Brand, Season
+Item D-00A current attributes: Color
+Updated Item: D-00A - Added attributes: Size, Brand, Season
+Item D-00B current attributes: Color
+Updated Item: D-00B - Added attributes: Size, Brand, Season
+Item D-00C current attributes: Color
+Updated Item: D-00C - Added attributes: Size, Brand, Season
+Item D-00D current attributes: Color
+Updated Item: D-00D - Added attributes: Size, Brand, Season
+Item D-00E current attributes: Color
+Updated Item: D-00E - Added attributes: Size, Brand, Season
+Item D-00F current attributes: Color
+Updated Item: D-00F - Added attributes: Size, Brand, Season
+Item D-00G current attributes: Color
+Updated Item: D-00G - Added attributes: Size, Brand, Season
+Item D-00H current attributes: Color
+Updated Item: D-00H - Added attributes: Size, Brand, Season
+Item D-00I current attributes: Color
+Updated Item: D-00I - Added attributes: Size, Brand, Season
+Item D-00J current attributes: Color
+Updated Item: D-00J - Added attributes: Size, Brand, Season
+Item D-00K current attributes: Color
+Updated Item: D-00K - Added attributes: Size, Brand, Season
+Item D-00L current attributes: Color
+Updated Item: D-00L - Added attributes: Size, Brand, Season
+Item D-00M current attributes: Color
+Updated Item: D-00M - Added attributes: Size, Brand, Season
+Item D-00N current attributes: Color
+Updated Item: D-00N - Added attributes: Size, Brand, Season
+Item D-00O current attributes: Color
+Updated Item: D-00O - Added attributes: Size, Brand, Season
+Item D-00P current attributes: Color
+Updated Item: D-00P - Added attributes: Size, Brand, Season
+Item D-00Q current attributes: Color
+Updated Item: D-00Q - Added attributes: Size, Brand, Season
+Item E-001 current attributes: Color
+Updated Item: E-001 - Added attributes: Size, Brand, Season
+Item E-002 current attributes: Color
+Updated Item: E-002 - Added attributes: Size, Brand, Season
+Item E-003 current attributes: Color
+Updated Item: E-003 - Added attributes: Size, Brand, Season
+Item E-004 current attributes: Color
+Updated Item: E-004 - Added attributes: Size, Brand, Season
+Item E-005 current attributes: Color
+Updated Item: E-005 - Added attributes: Size, Brand, Season
+Item E-006 current attributes: Color
+Updated Item: E-006 - Added attributes: Size, Brand, Season
+Item E-007 current attributes: Color
+Updated Item: E-007 - Added attributes: Size, Brand, Season
+Item E-008 current attributes: Color
+Updated Item: E-008 - Added attributes: Size, Brand, Season
+Item E-009 current attributes: Color
+Updated Item: E-009 - Added attributes: Size, Brand, Season
+Item E-00A current attributes: Color
+Updated Item: E-00A - Added attributes: Size, Brand, Season
+Item E-00B current attributes: Color
+Updated Item: E-00B - Added attributes: Size, Brand, Season
+Item E-00C current attributes: Color
+Updated Item: E-00C - Added attributes: Size, Brand, Season
+Item E-00D current attributes: Color
+Updated Item: E-00D - Added attributes: Size, Brand, Season
+Item E-00E current attributes: Color
+Updated Item: E-00E - Added attributes: Size, Brand, Season
+Item E-00F current attributes: Color
+Updated Item: E-00F - Added attributes: Size, Brand, Season
+Item E-00G current attributes: Color
+Updated Item: E-00G - Added attributes: Size, Brand, Season
+Item E-00H current attributes: Color
+Updated Item: E-00H - Added attributes: Size, Brand, Season
+Item F-001 current attributes: Color
+Updated Item: F-001 - Added attributes: Size, Brand, Season
+Item F-002 current attributes: Color
+Updated Item: F-002 - Added attributes: Size, Brand, Season
+Item F-003 current attributes: Color
+Updated Item: F-003 - Added attributes: Size, Brand, Season
+Item F-004 current attributes: Color
+Updated Item: F-004 - Added attributes: Size, Brand, Season, Info
+Item F-005 current attributes: Color
+Updated Item: F-005 - Added attributes: Size, Brand, Season
+Item F-006 current attributes: Color
+Updated Item: F-006 - Added attributes: Size, Brand, Season
+Item F-007 current attributes: Color
+Updated Item: F-007 - Added attributes: Size, Brand, Season, Info
+Item F-008 current attributes: Color
+Updated Item: F-008 - Added attributes: Size, Brand, Season
+Item F-009 current attributes: Color
+Updated Item: F-009 - Added attributes: Size, Brand, Season
+Item F-00A current attributes: Color
+Updated Item: F-00A - Added attributes: Size, Brand, Season
+Item F-00B current attributes: Color
+Updated Item: F-00B - Added attributes: Size, Brand, Season
+Item F-00C current attributes: Color
+Updated Item: F-00C - Added attributes: Size, Brand, Season
+Item F-00D current attributes: Color
+Updated Item: F-00D - Added attributes: Size, Brand, Season
+Item F-00E current attributes: Color
+Updated Item: F-00E - Added attributes: Size, Brand, Season
+Item F-00F current attributes: Color
+Updated Item: F-00F - Added attributes: Size, Brand, Season
+Item F-00G current attributes: Color
+Updated Item: F-00G - Added attributes: Size, Brand, Season
+Item F-00H current attributes: Color
+Updated Item: F-00H - Added attributes: Size, Brand, Season
+Item F-00I current attributes: Color
+Updated Item: F-00I - Added attributes: Size, Brand, Season
+Item F-00J current attributes: Color
+Updated Item: F-00J - Added attributes: Size, Brand, Season, Info
+Item F-00K current attributes: Color
+Updated Item: F-00K - Added attributes: Size, Brand, Season, Info
+Item F-00L current attributes: Color
+Updated Item: F-00L - Added attributes: Size, Brand, Season
+Item F-00M current attributes: Color
+Updated Item: F-00M - Added attributes: Size, Brand, Season
+Item F-00N current attributes: Color
+Updated Item: F-00N - Added attributes: Size, Brand, Season
+Item F-00O current attributes: Color
+Updated Item: F-00O - Added attributes: Size, Brand, Season
+Item F-00P current attributes: Color
+Updated Item: F-00P - Added attributes: Size, Brand, Season
+Item F-00Q current attributes: Color
+Updated Item: F-00Q - Added attributes: Size, Brand, Season
+Item F-00R current attributes: Color
+Updated Item: F-00R - Added attributes: Size, Brand, Season
+Item F-00S current attributes: Color
+Updated Item: F-00S - Added attributes: Size, Brand, Season
+Item F-00T current attributes: Color
+Updated Item: F-00T - Added attributes: Size, Brand, Season
+Item F-00U current attributes: Color
+Updated Item: F-00U - Added attributes: Size, Brand, Season, Info
+Item F-00V current attributes: Color
+Updated Item: F-00V - Added attributes: Size, Brand, Season
+Item F-00W current attributes: Color
+Updated Item: F-00W - Added attributes: Size, Brand, Season
+Item F-00X current attributes: Color
+Updated Item: F-00X - Added attributes: Size, Brand, Season
+Item F-00Y current attributes: Color
+Updated Item: F-00Y - Added attributes: Size, Brand, Season
+Item F-00Z current attributes: Color
+Updated Item: F-00Z - Added attributes: Size, Brand, Season
+Item F-010 current attributes: Color
+Updated Item: F-010 - Added attributes: Size, Brand, Season
+Item F-011 current attributes: Color
+Updated Item: F-011 - Added attributes: Size, Brand, Season
+Item F-012 current attributes: Color
+Updated Item: F-012 - Added attributes: Size, Brand, Season
+Item F-013 current attributes: Color
+Updated Item: F-013 - Added attributes: Size, Brand, Season
+Item F-014 current attributes: Color
+Updated Item: F-014 - Added attributes: Size, Brand, Season
+Item F-015 current attributes: Color
+Updated Item: F-015 - Added attributes: Size, Brand, Season, Info
+Item F-016 current attributes: Color
+Updated Item: F-016 - Added attributes: Size, Brand, Season
+Item F-017 current attributes: Color
+Updated Item: F-017 - Added attributes: Size, Brand, Season
+Item F-018 current attributes: Color
+Updated Item: F-018 - Added attributes: Size, Brand, Season
+Item F-019 current attributes: Color
+Updated Item: F-019 - Added attributes: Size, Brand, Season
+Item F-01A current attributes: Color
+Updated Item: F-01A - Added attributes: Size, Brand, Season, Info
+Item F-01B current attributes: Color
+Updated Item: F-01B - Added attributes: Size, Brand, Season
+Item F-01C current attributes: Color
+Updated Item: F-01C - Added attributes: Size, Brand, Season
+Item F-01D current attributes: Color
+Updated Item: F-01D - Added attributes: Size, Brand, Season
+Item F-01E current attributes: Color
+Updated Item: F-01E - Added attributes: Size, Brand, Season, Info
+Item F-01F current attributes: Color
+Updated Item: F-01F - Added attributes: Size, Brand, Season
+Item F-01G current attributes: Color
+Updated Item: F-01G - Added attributes: Size, Brand, Season
+Item F-01H current attributes: Color
+Updated Item: F-01H - Added attributes: Size, Brand, Season
+Item F-01I current attributes: Color
+Updated Item: F-01I - Added attributes: Size, Brand, Season
+Item F-01J current attributes: Color
+Updated Item: F-01J - Added attributes: Size, Brand, Season
+Item F-01K current attributes: Color
+Updated Item: F-01K - Added attributes: Size, Brand, Season
+Item F-01L current attributes: Color
+Updated Item: F-01L - Added attributes: Size, Brand, Season
+Item F-01M current attributes: Color
+Updated Item: F-01M - Added attributes: Size, Brand, Season, Info
+Item F-01N current attributes: Color
+Updated Item: F-01N - Added attributes: Size, Brand, Season
+Item F-01O current attributes: Color
+Updated Item: F-01O - Added attributes: Size, Brand, Season
+Item F-01P current attributes: Color
+Updated Item: F-01P - Added attributes: Size, Brand, Season
+Item F-01Q current attributes: Color
+Updated Item: F-01Q - Added attributes: Size, Brand, Season
+Item F-01R current attributes: Color
+Updated Item: F-01R - Added attributes: Size, Brand, Season
+Item F-01S current attributes: Color
+Updated Item: F-01S - Added attributes: Size, Brand, Season
+Item F-01T current attributes: Color
+Updated Item: F-01T - Added attributes: Size, Brand, Season
+Item F-01U current attributes: Color
+Updated Item: F-01U - Added attributes: Size, Brand, Season
+Item F-01V current attributes: Color
+Updated Item: F-01V - Added attributes: Size, Brand, Season
+Item F-01W current attributes: Color
+Updated Item: F-01W - Added attributes: Size, Brand, Season
+Item F-01X current attributes: Color
+Updated Item: F-01X - Added attributes: Size, Brand, Season
+Item F-01Y current attributes: Color
+Updated Item: F-01Y - Added attributes: Size, Brand, Season
+Item F-01Z current attributes: Color
+Updated Item: F-01Z - Added attributes: Size, Brand, Season
+Item F-020 current attributes: Color
+Updated Item: F-020 - Added attributes: Size, Brand, Season
+Item G-001 current attributes: Color
+Updated Item: G-001 - Added attributes: Size, Brand, Season
+Item G-002 current attributes: Color
+Updated Item: G-002 - Added attributes: Size, Brand, Season
+Item G-003 current attributes: Color
+Updated Item: G-003 - Added attributes: Size, Brand, Season
+Item G-004 current attributes: Color
+Updated Item: G-004 - Added attributes: Size, Brand, Season
+Item G-005 current attributes: Color
+Updated Item: G-005 - Added attributes: Size, Brand, Season
+Item G-006 current attributes: Color
+Updated Item: G-006 - Added attributes: Size, Brand, Season
+Item G-007 current attributes: Color
+Updated Item: G-007 - Added attributes: Size, Brand, Season
+Item G-008 current attributes: Color
+Updated Item: G-008 - Added attributes: Size, Brand, Season
+Item G-009 current attributes: Color
+Updated Item: G-009 - Added attributes: Size, Brand, Season
+Item G-00A current attributes: Color
+Updated Item: G-00A - Added attributes: Size, Brand, Season
+Item G-00B current attributes: Color
+Updated Item: G-00B - Added attributes: Size, Brand, Season
+Item G-00C current attributes: Color
+Updated Item: G-00C - Added attributes: Size, Brand, Season
+Item G-00D current attributes: Color
+Updated Item: G-00D - Added attributes: Size, Brand, Season
+Item G-00E current attributes: Color
+Updated Item: G-00E - Added attributes: Size, Brand, Season
+Item G-00F current attributes: Color
+Updated Item: G-00F - Added attributes: Size, Brand, Season
+Item G-00G current attributes: Color
+Updated Item: G-00G - Added attributes: Size, Brand, Season
+Item G-00H current attributes: Color
+Updated Item: G-00H - Added attributes: Size, Brand, Season
+Item G-00I current attributes: Color
+Updated Item: G-00I - Added attributes: Size, Brand, Season
+Item G-00J current attributes: Color
+Updated Item: G-00J - Added attributes: Size, Brand, Season
+Item G-00K current attributes: Color
+Updated Item: G-00K - Added attributes: Size, Brand, Season
+Item G-00L current attributes: Color
+Updated Item: G-00L - Added attributes: Size, Brand, Season
+Item G-00M current attributes: Color
+Updated Item: G-00M - Added attributes: Size, Brand, Season
+Item G-00N current attributes: Color
+Updated Item: G-00N - Added attributes: Size, Brand, Season
+Item G-00O current attributes: Color
+Updated Item: G-00O - Added attributes: Size, Brand, Season
+Item G-00P current attributes: Color
+Updated Item: G-00P - Added attributes: Size, Brand, Season
+Item G-00Q current attributes: Color
+Updated Item: G-00Q - Added attributes: Size, Brand, Season
+Item G-00R current attributes: Color
+Updated Item: G-00R - Added attributes: Size, Brand, Season
+Item G-00S current attributes: Color
+Updated Item: G-00S - Added attributes: Size, Brand, Season
+Item G-00T current attributes: Color
+Updated Item: G-00T - Added attributes: Size, Brand, Season
+Item G-00U current attributes: Color
+Updated Item: G-00U - Added attributes: Size, Brand, Season
+Item G-00V current attributes: Color
+Updated Item: G-00V - Added attributes: Size, Brand, Season
+Item G-00W current attributes: Color
+Updated Item: G-00W - Added attributes: Size, Brand, Season
+Item G-00X current attributes: Color
+Updated Item: G-00X - Added attributes: Size, Brand, Season
+Item G-00Y current attributes: Color
+Updated Item: G-00Y - Added attributes: Size, Brand, Season
+Item G-00Z current attributes: Color
+Updated Item: G-00Z - Added attributes: Size, Brand, Season
+Item G-010 current attributes: Color
+Updated Item: G-010 - Added attributes: Size, Brand, Season
+Item G-011 current attributes: Color
+Updated Item: G-011 - Added attributes: Size, Brand, Season
+Item G-012 current attributes: Color
+Updated Item: G-012 - Added attributes: Size, Brand, Season
+Item G-013 current attributes: Color
+Updated Item: G-013 - Added attributes: Size, Brand, Season
+Item G-014 current attributes: Color
+Updated Item: G-014 - Added attributes: Size, Brand, Season
+Item G-015 current attributes: Color
+Updated Item: G-015 - Added attributes: Size, Brand, Season
+Item G-016 current attributes: Color
+Updated Item: G-016 - Added attributes: Size, Brand, Season
+Item G-017 current attributes: Color
+Updated Item: G-017 - Added attributes: Size, Brand, Season
+Item G-018 current attributes: Color
+Updated Item: G-018 - Added attributes: Size, Brand, Season
+Item G-019 current attributes: Color
+Updated Item: G-019 - Added attributes: Size, Brand, Season
+Item G-01A current attributes: Color
+Updated Item: G-01A - Added attributes: Size, Brand, Season
+Item G-01B current attributes: Color
+Updated Item: G-01B - Added attributes: Size, Brand, Season
+Item G-01C current attributes: Color
+Updated Item: G-01C - Added attributes: Size, Brand, Season
+Item G-01D current attributes: Color
+Updated Item: G-01D - Added attributes: Size, Brand, Season
+Item G-01E current attributes: Color
+Updated Item: G-01E - Added attributes: Size, Brand, Season
+Item G-01F current attributes: Color
+Updated Item: G-01F - Added attributes: Size, Brand, Season
+Item G-01G current attributes: Color
+Updated Item: G-01G - Added attributes: Size, Brand, Season
+Item G-01H current attributes: Color
+Updated Item: G-01H - Added attributes: Size, Brand, Season
+Item G-01I current attributes: Color
+Updated Item: G-01I - Added attributes: Size, Brand, Season
+Item G-01J current attributes: Color
+Updated Item: G-01J - Added attributes: Size, Brand, Season
+Item G-01K current attributes: Color
+Updated Item: G-01K - Added attributes: Size, Brand, Season
+Item G-01L current attributes: Color
+Updated Item: G-01L - Added attributes: Size, Brand, Season
+Item G-01M current attributes: Color
+Updated Item: G-01M - Added attributes: Size, Brand, Season
+Item G-01N current attributes: Color
+Updated Item: G-01N - Added attributes: Size, Brand, Season
+Item G-01O current attributes: Color
+Updated Item: G-01O - Added attributes: Size, Brand, Season
+Item G-01P current attributes: Color
+Updated Item: G-01P - Added attributes: Size, Brand, Season
+Item G-01Q current attributes: Color
+Updated Item: G-01Q - Added attributes: Size, Brand, Season
+Item G-01R current attributes: Color
+Updated Item: G-01R - Added attributes: Size, Brand, Season
+Item G-01S current attributes: Color
+Updated Item: G-01S - Added attributes: Size, Brand, Season
+Item G-01T current attributes: Color
+Updated Item: G-01T - Added attributes: Size, Brand, Season
+Item G-01U current attributes: Color
+Updated Item: G-01U - Added attributes: Size, Brand, Season
+Item G-01V current attributes: Color
+Updated Item: G-01V - Added attributes: Size, Brand, Season
+Item G-01W current attributes: Color
+Updated Item: G-01W - Added attributes: Size, Brand, Season
+Item G-01X current attributes: Color
+Updated Item: G-01X - Added attributes: Size, Brand, Season
+Item G-01Y current attributes: Color
+Updated Item: G-01Y - Added attributes: Size, Brand, Season
+Item G-01Z current attributes: Color
+Updated Item: G-01Z - Added attributes: Size, Brand, Season
+Item G-020 current attributes: Color
+Updated Item: G-020 - Added attributes: Size, Brand, Season
+Item G-021 current attributes: Color
+Updated Item: G-021 - Added attributes: Size, Brand, Season
+Item G-022 current attributes: Color
+Updated Item: G-022 - Added attributes: Size, Brand, Season
+Item G-023 current attributes: Color
+Updated Item: G-023 - Added attributes: Size, Brand, Season
+Item G-024 current attributes: Color
+Updated Item: G-024 - Added attributes: Size, Brand, Season
+Item G-025 current attributes: Color
+Updated Item: G-025 - Added attributes: Size, Brand, Season
+Item G-026 current attributes: Color
+Updated Item: G-026 - Added attributes: Size, Brand, Season
+Item G-027 current attributes: Color
+Updated Item: G-027 - Added attributes: Size, Brand, Season
+Item G-028 current attributes: Color
+Updated Item: G-028 - Added attributes: Size, Brand, Season
+Item G-029 current attributes: Color
+Updated Item: G-029 - Added attributes: Size, Brand, Season
+Item G-02A current attributes: Color
+Updated Item: G-02A - Added attributes: Size, Brand, Season
+Item G-02B current attributes: Color
+Updated Item: G-02B - Added attributes: Size, Brand, Season
+Item G-02C current attributes: Color
+Updated Item: G-02C - Added attributes: Size, Brand, Season
+Item G-02D current attributes: Color
+Updated Item: G-02D - Added attributes: Size, Brand, Season
+Item G-02E current attributes: Color
+Updated Item: G-02E - Added attributes: Size, Brand, Season
+Item G-02F current attributes: Color
+Updated Item: G-02F - Added attributes: Size, Brand, Season
+Item G-02G current attributes: Color
+Updated Item: G-02G - Added attributes: Size, Brand, Season
+Item G-02H current attributes: Color
+Updated Item: G-02H - Added attributes: Size, Brand, Season
+Item G-02I current attributes: Color
+Updated Item: G-02I - Added attributes: Size, Brand, Season
+Item G-02J current attributes: Color
+Updated Item: G-02J - Added attributes: Size, Brand, Season
+Item G-02K current attributes: Color
+Updated Item: G-02K - Added attributes: Size, Brand, Season
+Item G-02L current attributes: Color
+Updated Item: G-02L - Added attributes: Size, Brand, Season
+Item G-02M current attributes: Color
+Updated Item: G-02M - Added attributes: Size, Brand, Season
+Item G-02N current attributes: Color
+Updated Item: G-02N - Added attributes: Size, Brand, Season
+Item G-02O current attributes: Color
+Updated Item: G-02O - Added attributes: Size, Brand, Season
+Item G-02P current attributes: Color
+Updated Item: G-02P - Added attributes: Size, Brand, Season
+Item G-02Q current attributes: Color
+Updated Item: G-02Q - Added attributes: Size, Brand, Season
+Item G-02R current attributes: Color
+Updated Item: G-02R - Added attributes: Size, Brand, Season
+Item G-02S current attributes: Color
+Updated Item: G-02S - Added attributes: Size, Brand, Season
+Item G-02T current attributes: Color
+Updated Item: G-02T - Added attributes: Size, Brand, Season
+Item G-02U current attributes: Color
+Updated Item: G-02U - Added attributes: Size, Brand, Season
+Item G-02V current attributes: Color
+Updated Item: G-02V - Added attributes: Size, Brand, Season
+Item G-02W current attributes: Color
+Updated Item: G-02W - Added attributes: Size, Brand, Season
+Item G-02X current attributes: Color
+Updated Item: G-02X - Added attributes: Size, Brand, Season
+Item G-02Y current attributes: Color
+Updated Item: G-02Y - Added attributes: Size, Brand, Season
+Item G-02Z current attributes: Color
+Updated Item: G-02Z - Added attributes: Size, Brand, Season
+Item G-030 current attributes: Color
+Updated Item: G-030 - Added attributes: Size, Brand, Season
+Item G-031 current attributes: Color
+Updated Item: G-031 - Added attributes: Size, Brand, Season
+Item G-032 current attributes: Color
+Updated Item: G-032 - Added attributes: Size, Brand, Season
+Item G-033 current attributes: Color
+Updated Item: G-033 - Added attributes: Size, Brand, Season
+Item G-034 current attributes: Color
+Updated Item: G-034 - Added attributes: Size, Brand, Season
+Item G-035 current attributes: Color
+Updated Item: G-035 - Added attributes: Size, Brand, Season
+Item G-036 current attributes: Color
+Updated Item: G-036 - Added attributes: Size, Brand, Season
+Item G-037 current attributes: Color
+Updated Item: G-037 - Added attributes: Size, Brand, Season
+Item G-038 current attributes: Color
+Updated Item: G-038 - Added attributes: Size, Brand, Season
+Item G-039 current attributes: Color
+Updated Item: G-039 - Added attributes: Size, Brand, Season
+Item G-03A current attributes: Color
+Updated Item: G-03A - Added attributes: Size, Brand, Season
+Item G-03B current attributes: Color
+Updated Item: G-03B - Added attributes: Size, Brand, Season
+Item G-03C current attributes: Color
+Updated Item: G-03C - Added attributes: Size, Brand, Season
+Item G-03D current attributes: Color
+Updated Item: G-03D - Added attributes: Size, Brand, Season
+Item G-03E current attributes: Color
+Updated Item: G-03E - Added attributes: Size, Brand, Season
+Item G-03F current attributes: Color
+Updated Item: G-03F - Added attributes: Size, Brand, Season
+Item G-03G current attributes: Color
+Updated Item: G-03G - Added attributes: Size, Brand, Season
+Item G-03H current attributes: Color
+Updated Item: G-03H - Added attributes: Size, Brand, Season
+Item G-03I current attributes: Color
+Updated Item: G-03I - Added attributes: Size, Brand, Season
+Item G-03J current attributes: Color
+Updated Item: G-03J - Added attributes: Size, Brand, Season
+Item G-03K current attributes: Color
+Updated Item: G-03K - Added attributes: Size, Brand, Season
+Item G-03L current attributes: Color
+Updated Item: G-03L - Added attributes: Size, Brand, Season
+Item G-03M current attributes: Color
+Updated Item: G-03M - Added attributes: Size, Brand, Season
+Item G-03N current attributes: Color
+Updated Item: G-03N - Added attributes: Size, Brand, Season
+Item G-03O current attributes: Color
+Updated Item: G-03O - Added attributes: Size, Brand, Season
+Item G-03P current attributes: Color
+Updated Item: G-03P - Added attributes: Size, Brand, Season
+Item G-03Q current attributes: Color
+Updated Item: G-03Q - Added attributes: Size, Brand, Season
+Item G-03R current attributes: Color
+Updated Item: G-03R - Added attributes: Size, Brand, Season
+Item G-03S current attributes: Color
+Updated Item: G-03S - Added attributes: Size, Brand, Season
+Item G-03T current attributes: Color
+Updated Item: G-03T - Added attributes: Size, Brand, Season
+Item G-03U current attributes: Color
+Updated Item: G-03U - Added attributes: Size, Brand, Season
+Item G-03V current attributes: Color
+Updated Item: G-03V - Added attributes: Size, Brand, Season
+Item G-03W current attributes: Color
+Updated Item: G-03W - Added attributes: Size, Brand, Season
+Item G-03X current attributes: Color
+Updated Item: G-03X - Added attributes: Size, Brand, Season
+Item G-03Y current attributes: Color
+Updated Item: G-03Y - Added attributes: Size, Brand, Season
+Item G-03Z current attributes: Color
+Updated Item: G-03Z - Added attributes: Size, Brand, Season
+Item G-040 current attributes: Color
+Updated Item: G-040 - Added attributes: Size, Brand, Season
+Item G-041 current attributes: Color
+Updated Item: G-041 - Added attributes: Size, Brand, Season
+Item G-042 current attributes: Color
+Updated Item: G-042 - Added attributes: Size, Brand, Season
+Item G-043 current attributes: Color
+Updated Item: G-043 - Added attributes: Size, Brand, Season
+Item G-044 current attributes: Color
+Updated Item: G-044 - Added attributes: Size, Brand, Season
+Item G-045 current attributes: Color
+Updated Item: G-045 - Added attributes: Size, Brand, Season
+Item G-046 current attributes: Color
+Updated Item: G-046 - Added attributes: Size, Brand, Season
+Item G-047 current attributes: Color
+Updated Item: G-047 - Added attributes: Size, Brand, Season
+Item G-048 current attributes: Color
+Updated Item: G-048 - Added attributes: Size, Brand, Season
+Item G-049 current attributes: Color
+Updated Item: G-049 - Added attributes: Size, Brand, Season
+Item G-04A current attributes: Color
+Updated Item: G-04A - Added attributes: Size, Brand, Season
+Item G-04B current attributes: Color
+Updated Item: G-04B - Added attributes: Size, Brand, Season
+Item G-04C current attributes: Color
+Updated Item: G-04C - Added attributes: Size, Brand, Season
+Item G-04D current attributes: Color
+Updated Item: G-04D - Added attributes: Size, Brand, Season
+Item G-04E current attributes: Color
+Updated Item: G-04E - Added attributes: Size, Brand, Season
+Item G-04F current attributes: Color
+Updated Item: G-04F - Added attributes: Size, Brand, Season
+Item G-04G current attributes: Color
+Updated Item: G-04G - Added attributes: Size, Brand, Season
+Item G-04H current attributes: Color
+Updated Item: G-04H - Added attributes: Size, Brand, Season, Info
+Item G-04I current attributes: Color
+Updated Item: G-04I - Added attributes: Size, Brand, Season, Info
+Item G-04J current attributes: Color
+Updated Item: G-04J - Added attributes: Size, Brand, Season, Info
+Item G-04K current attributes: Color
+Updated Item: G-04K - Added attributes: Size, Brand, Season, Info
+Item G-04L current attributes: Color
+Updated Item: G-04L - Added attributes: Size, Brand, Season, Info
+Item G-04M current attributes: Color
+Updated Item: G-04M - Added attributes: Size, Brand, Season
+Item G-04N current attributes: Color
+Updated Item: G-04N - Added attributes: Size, Brand, Season
+Item G-04O current attributes: Color
+Updated Item: G-04O - Added attributes: Size, Brand, Season
+Item G-04P current attributes: Color
+Updated Item: G-04P - Added attributes: Size, Brand, Season
+Item G-04Q current attributes: Color
+Updated Item: G-04Q - Added attributes: Size, Brand, Season
+Item G-04R current attributes: Color
+Updated Item: G-04R - Added attributes: Size, Brand, Season
+Item G-04S current attributes: Color
+Updated Item: G-04S - Added attributes: Size, Brand, Season
+Item G-04T current attributes: Color
+Updated Item: G-04T - Added attributes: Size, Brand, Season
+Item G-04U current attributes: Color
+Updated Item: G-04U - Added attributes: Size, Brand, Season
+Item G-04V current attributes: Color
+Updated Item: G-04V - Added attributes: Size, Brand, Season, Info
+Item G-04W current attributes: Color
+Updated Item: G-04W - Added attributes: Size, Brand, Season
+Item G-04X current attributes: Color
+Updated Item: G-04X - Added attributes: Size, Brand, Season, Info
+Item G-04Y current attributes: Color
+Updated Item: G-04Y - Added attributes: Size, Brand, Season
+Item G-04Z current attributes: Color
+Updated Item: G-04Z - Added attributes: Size, Brand, Season
+Item G-050 current attributes: Color
+Updated Item: G-050 - Added attributes: Size, Brand, Season
+Item G-051 current attributes: Color
+Updated Item: G-051 - Added attributes: Size, Brand, Season
+Item G-052 current attributes: Color
+Updated Item: G-052 - Added attributes: Size, Brand, Season
+Item G-053 current attributes: Color
+Updated Item: G-053 - Added attributes: Size, Brand, Season
+Item G-054 current attributes: Color
+Updated Item: G-054 - Added attributes: Size, Brand, Season
+Item G-055 current attributes: Color
+Updated Item: G-055 - Added attributes: Size, Brand, Season
+Item G-056 current attributes: Color
+Updated Item: G-056 - Added attributes: Size, Brand, Season
+Item G-057 current attributes: Color
+Updated Item: G-057 - Added attributes: Size, Brand, Season
+Item G-058 current attributes: Color
+Updated Item: G-058 - Added attributes: Size, Brand, Season
+Item G-059 current attributes: Color
+Updated Item: G-059 - Added attributes: Size, Brand, Season
+Item G-05A current attributes: Color
+Updated Item: G-05A - Added attributes: Size, Brand, Season
+Item G-05B current attributes: Color
+Updated Item: G-05B - Added attributes: Size, Brand, Season
+Item G-05C current attributes: Color
+Updated Item: G-05C - Added attributes: Size, Brand, Season
+Item G-05D current attributes: Color
+Updated Item: G-05D - Added attributes: Size, Brand, Season
+Item G-05E current attributes: Color
+Updated Item: G-05E - Added attributes: Size, Brand, Season
+Item G-05F current attributes: Color
+Updated Item: G-05F - Added attributes: Size, Brand, Season
+Item G-05G current attributes: Color
+Updated Item: G-05G - Added attributes: Size, Brand, Season
+Item G-05H current attributes: Color
+Updated Item: G-05H - Added attributes: Size, Brand, Season
+Item G-05I current attributes: Color
+Updated Item: G-05I - Added attributes: Size, Brand, Season
+Item G-05J current attributes: Color
+Updated Item: G-05J - Added attributes: Size, Brand, Season
+Item G-05K current attributes: Color
+Updated Item: G-05K - Added attributes: Size, Brand, Season
+Item G-05L current attributes: Color
+Updated Item: G-05L - Added attributes: Size, Brand, Season, Info
+Item G-05M current attributes: Color
+Updated Item: G-05M - Added attributes: Size, Brand, Season
+Item G-05N current attributes: Color
+Updated Item: G-05N - Added attributes: Size, Brand, Season
+Item G-05O current attributes: Color
+Updated Item: G-05O - Added attributes: Size, Brand, Season
+Item G-05P current attributes: Color
+Updated Item: G-05P - Added attributes: Size, Brand, Season
+Item G-05Q current attributes: Color
+Updated Item: G-05Q - Added attributes: Size, Brand, Season
+Item G-05R current attributes: Color
+Updated Item: G-05R - Added attributes: Size, Brand, Season
+Item G-05S current attributes: Color
+Updated Item: G-05S - Added attributes: Size, Brand, Season
+Item G-05T current attributes: Color
+Updated Item: G-05T - Added attributes: Size, Brand, Season
+Item G-05U current attributes: Color
+Updated Item: G-05U - Added attributes: Size, Brand, Season
+Item G-05V current attributes: Color
+Updated Item: G-05V - Added attributes: Size, Brand, Season
+Item G-05W current attributes: Color
+Updated Item: G-05W - Added attributes: Size, Brand, Season
+Item G-05X current attributes: Color
+Updated Item: G-05X - Added attributes: Size, Brand, Season
+Item G-05Y current attributes: Color
+Updated Item: G-05Y - Added attributes: Size, Brand, Season
+Item G-05Z current attributes: Color
+Updated Item: G-05Z - Added attributes: Size, Brand, Season
+Item G-060 current attributes: Color
+Updated Item: G-060 - Added attributes: Size, Brand, Season
+Item G-061 current attributes: Color
+Updated Item: G-061 - Added attributes: Size, Brand, Season
+Item G-062 current attributes: Color
+Updated Item: G-062 - Added attributes: Size, Brand, Season
+Item G-063 current attributes: Color
+Updated Item: G-063 - Added attributes: Size, Brand, Season
+Item G-064 current attributes: Color
+Updated Item: G-064 - Added attributes: Size, Brand, Season
+Item G-065 current attributes: Color
+Updated Item: G-065 - Added attributes: Size, Brand, Season
+Item G-066 current attributes: Color
+Updated Item: G-066 - Added attributes: Size, Brand, Season
+Item G-067 current attributes: Color
+Updated Item: G-067 - Added attributes: Size, Brand, Season
+Item G-068 current attributes: Color
+Updated Item: G-068 - Added attributes: Size, Brand, Season
+Item G-069 current attributes: Color
+Updated Item: G-069 - Added attributes: Size, Brand, Season, Info
+Item G-06A current attributes: Color
+Updated Item: G-06A - Added attributes: Size, Brand, Season, Info
+Item G-06B current attributes: Color
+Updated Item: G-06B - Added attributes: Size, Brand, Season, Info
+Item G-06C current attributes: Color
+Updated Item: G-06C - Added attributes: Size, Brand, Season
+Item G-06D current attributes: Color
+Updated Item: G-06D - Added attributes: Size, Brand, Season
+Item G-06E current attributes: Color
+Updated Item: G-06E - Added attributes: Size, Brand, Season
+Item G-06F current attributes: Color
+Updated Item: G-06F - Added attributes: Size, Brand, Season
+Item G-06G current attributes: Color
+Updated Item: G-06G - Added attributes: Size, Brand, Season
+Item G-06H current attributes: Color
+Updated Item: G-06H - Added attributes: Size, Brand, Season
+Item G-06I current attributes: Color
+Updated Item: G-06I - Added attributes: Size, Brand, Season
+Item G-06J current attributes: Color
+Updated Item: G-06J - Added attributes: Size, Brand, Season
+Item G-06K current attributes: Color
+Updated Item: G-06K - Added attributes: Size, Brand, Season
+Item G-06L current attributes: Color
+Updated Item: G-06L - Added attributes: Size, Brand, Season
+Item G-06M current attributes: Color
+Updated Item: G-06M - Added attributes: Size, Brand, Season
+Item G-06N current attributes: Color
+Updated Item: G-06N - Added attributes: Size, Brand, Season
+Item G-06O current attributes: Color
+Updated Item: G-06O - Added attributes: Size, Brand, Season
+Item G-06P current attributes: Color
+Updated Item: G-06P - Added attributes: Size, Brand, Season
+Item G-06Q current attributes: Color
+Updated Item: G-06Q - Added attributes: Size, Brand, Season
+Item G-06R current attributes: Color
+Updated Item: G-06R - Added attributes: Size, Brand, Season
+Item G-06S current attributes: Color
+Updated Item: G-06S - Added attributes: Size, Brand, Season
+Item G-06T current attributes: Color
+Updated Item: G-06T - Added attributes: Size, Brand, Season
+Item G-06U current attributes: Color
+Updated Item: G-06U - Added attributes: Size, Brand, Season
+Item G-06V current attributes: Color
+Updated Item: G-06V - Added attributes: Size, Brand, Season
+Item G-06W current attributes: Color
+Updated Item: G-06W - Added attributes: Size, Brand, Season
+Item G-06X current attributes: Color
+Updated Item: G-06X - Added attributes: Size, Brand, Season
+Item G-06Y current attributes: Color
+Updated Item: G-06Y - Added attributes: Size, Brand, Season
+Item G-06Z current attributes: Color
+Updated Item: G-06Z - Added attributes: Size, Brand, Season
+Item G-070 current attributes: Color
+Updated Item: G-070 - Added attributes: Size, Brand, Season
+Item G-071 current attributes: Color
+Updated Item: G-071 - Added attributes: Size, Brand, Season
+Item G-072 current attributes: Color
+Updated Item: G-072 - Added attributes: Size, Brand, Season
+Item G-073 current attributes: Color
+Updated Item: G-073 - Added attributes: Size, Brand, Season
+Item G-074 current attributes: Color
+Updated Item: G-074 - Added attributes: Size, Brand, Season
+Item G-075 current attributes: Color
+Updated Item: G-075 - Added attributes: Size, Brand, Season
+Item G-076 current attributes: Color
+Updated Item: G-076 - Added attributes: Size, Brand, Season
+Item G-077 current attributes: Color
+Updated Item: G-077 - Added attributes: Size, Brand, Season, Info
+Item G-078 current attributes: Color
+Updated Item: G-078 - Added attributes: Size, Brand, Season
+Item G-079 current attributes: Color
+Updated Item: G-079 - Added attributes: Size, Brand, Season, Info
+Item G-07A current attributes: Color
+Updated Item: G-07A - Added attributes: Size, Brand, Season, Info
+Item G-07B current attributes: Color
+Updated Item: G-07B - Added attributes: Size, Brand, Season
+Item G-07C current attributes: Color
+Updated Item: G-07C - Added attributes: Size, Brand, Season
+Item G-07D current attributes: Color
+Updated Item: G-07D - Added attributes: Size, Brand, Season
+Item G-07E current attributes: Color
+Updated Item: G-07E - Added attributes: Size, Brand, Season
+Item G-07F current attributes: Color
+Updated Item: G-07F - Added attributes: Size, Brand, Season
+Item G-07G current attributes: Color
+Updated Item: G-07G - Added attributes: Size, Brand, Season
+Item G-07H current attributes: Color
+Updated Item: G-07H - Added attributes: Size, Brand, Season
+Item G-07I current attributes: Color
+Updated Item: G-07I - Added attributes: Size, Brand, Season
+Item G-07J current attributes: Color
+Updated Item: G-07J - Added attributes: Size, Brand, Season, Info
+Item G-07K current attributes: Color
+Updated Item: G-07K - Added attributes: Size, Brand, Season, Info
+Item G-07L current attributes: Color
+Updated Item: G-07L - Added attributes: Size, Brand, Season, Info
+Item G-07M current attributes: Color
+Updated Item: G-07M - Added attributes: Size, Brand, Season, Info
+Item G-07N current attributes: Color
+Updated Item: G-07N - Added attributes: Size, Brand, Season, Info
+Item G-07O current attributes: Color
+Updated Item: G-07O - Added attributes: Size, Brand, Season
+Item G-07P current attributes: Color
+Updated Item: G-07P - Added attributes: Size, Brand, Season
+Item G-07Q current attributes: Color
+Updated Item: G-07Q - Added attributes: Size, Brand, Season
+Item G-07R current attributes: Color
+Updated Item: G-07R - Added attributes: Size, Brand, Season
+Item G-07S current attributes: Color
+Updated Item: G-07S - Added attributes: Size, Brand, Season
+Item G-07T current attributes: Color
+Updated Item: G-07T - Added attributes: Size, Brand, Season
+Item G-07U current attributes: Color
+Updated Item: G-07U - Added attributes: Size, Brand, Season
+Item G-07V current attributes: Color
+Updated Item: G-07V - Added attributes: Size, Brand, Season
+Item G-07W current attributes: Color
+Updated Item: G-07W - Added attributes: Size, Brand, Season
+Item G-07X current attributes: Color
+Updated Item: G-07X - Added attributes: Size, Brand, Season
+Item G-07Y current attributes: Color
+Updated Item: G-07Y - Added attributes: Size, Brand, Season
+Item G-07Z current attributes: Color
+Updated Item: G-07Z - Added attributes: Size, Brand, Season
+Item G-080 current attributes: Color
+Updated Item: G-080 - Added attributes: Size, Brand, Season
+Item G-081 current attributes: Color
+Updated Item: G-081 - Added attributes: Size, Brand, Season
+Item G-082 current attributes: Color
+Updated Item: G-082 - Added attributes: Size, Brand, Season, Info
+Item G-083 current attributes: Color
+Updated Item: G-083 - Added attributes: Size, Brand, Season, Info
+Item G-084 current attributes: Color
+Updated Item: G-084 - Added attributes: Size, Brand, Season, Info
+Item G-085 current attributes: Color
+Updated Item: G-085 - Added attributes: Size, Brand, Season, Info
+Item G-086 current attributes: Color
+Updated Item: G-086 - Added attributes: Size, Brand, Season, Info
+Item H-001 current attributes: Color
+Updated Item: H-001 - Added attributes: Size, Brand, Season
+Item H-002 current attributes: Color
+Updated Item: H-002 - Added attributes: Size, Brand, Season
+Item H-003 current attributes: Color
+Updated Item: H-003 - Added attributes: Size, Brand, Season
+Item H-004 current attributes: Color
+Updated Item: H-004 - Added attributes: Size, Brand, Season
+Item H-005 current attributes: Color
+Updated Item: H-005 - Added attributes: Size, Brand, Season
+Item H-006 current attributes: Color
+Updated Item: H-006 - Added attributes: Size, Brand, Season
+Item H-007 current attributes: Color
+Updated Item: H-007 - Added attributes: Size, Brand, Season
+Item H-008 current attributes: Color
+Updated Item: H-008 - Added attributes: Size, Brand, Season
+Item H-009 current attributes: Color
+Updated Item: H-009 - Added attributes: Size, Brand, Season
+Item H-00A current attributes: Color
+Updated Item: H-00A - Added attributes: Size, Brand, Season
+Item H-00B current attributes: Color
+Updated Item: H-00B - Added attributes: Size, Brand, Season
+Item H-00C current attributes: Color
+Updated Item: H-00C - Added attributes: Size, Brand, Season
+Item H-00D current attributes: Color
+Updated Item: H-00D - Added attributes: Size, Brand, Season
+Item H-00E current attributes: Color
+Updated Item: H-00E - Added attributes: Size, Brand, Season
+Item H-00F current attributes: Color
+Updated Item: H-00F - Added attributes: Size, Brand, Season
+Item H-00G current attributes: Color
+Updated Item: H-00G - Added attributes: Size, Brand, Season
+Item H-00H current attributes: Color
+Updated Item: H-00H - Added attributes: Size, Brand, Season
+Item H-00I current attributes: Color
+Updated Item: H-00I - Added attributes: Size, Brand, Season
+Item H-00J current attributes: Color
+Updated Item: H-00J - Added attributes: Size, Brand, Season
+Item H-00K current attributes: Color
+Updated Item: H-00K - Added attributes: Size, Brand, Season
+Item H-00L current attributes: Color
+Updated Item: H-00L - Added attributes: Size, Brand, Season
+Item H-00M current attributes: Color
+Updated Item: H-00M - Added attributes: Size, Brand, Season
+Item H-00N current attributes: Color
+Updated Item: H-00N - Added attributes: Size, Brand, Season
+Item H-00O current attributes: Color
+Updated Item: H-00O - Added attributes: Size, Brand, Season
+Item H-00P current attributes: Color
+Updated Item: H-00P - Added attributes: Size, Brand, Season
+Item H-00Q current attributes: Color
+Updated Item: H-00Q - Added attributes: Size, Brand, Season
+Item H-00R current attributes: Color
+Updated Item: H-00R - Added attributes: Size, Brand, Season
+Item H-00S current attributes: Color
+Updated Item: H-00S - Added attributes: Size, Brand, Season
+Item H-00T current attributes: Color
+Updated Item: H-00T - Added attributes: Size, Brand, Season
+Item H-00U current attributes: Color
+Updated Item: H-00U - Added attributes: Size, Brand, Season
+Item H-00V current attributes: Color
+Updated Item: H-00V - Added attributes: Size, Brand, Season
+Item H-00W current attributes: Color
+Updated Item: H-00W - Added attributes: Size, Brand, Season
+Item H-00X current attributes: Color
+Updated Item: H-00X - Added attributes: Size, Brand, Season
+Item H-00Y current attributes: Color
+Updated Item: H-00Y - Added attributes: Size, Brand, Season
+Item H-00Z current attributes: Color
+Updated Item: H-00Z - Added attributes: Size, Brand, Season
+Item H-010 current attributes: Color
+Updated Item: H-010 - Added attributes: Size, Brand, Season
+Item H-011 current attributes: Color
+Updated Item: H-011 - Added attributes: Size, Brand, Season
+Item H-012 current attributes: Color
+Updated Item: H-012 - Added attributes: Size, Brand, Season
+Item H-013 current attributes: Color
+Updated Item: H-013 - Added attributes: Size, Brand, Season
+Item H-014 current attributes: Color
+Updated Item: H-014 - Added attributes: Size, Brand, Season
+Item H-015 current attributes: Color
+Updated Item: H-015 - Added attributes: Size, Brand, Season
+Item H-016 current attributes: Color
+Updated Item: H-016 - Added attributes: Size, Brand, Season
+Item H-017 current attributes: Color
+Updated Item: H-017 - Added attributes: Size, Brand, Season
+Item H-018 current attributes: Color
+Updated Item: H-018 - Added attributes: Size, Brand, Season
+Item H-019 current attributes: Color
+Updated Item: H-019 - Added attributes: Size, Brand, Season
+Item H-01A current attributes: Color
+Updated Item: H-01A - Added attributes: Size, Brand, Season
+Item H-01B current attributes: Color
+Updated Item: H-01B - Added attributes: Size, Brand, Season
+Item H-01C current attributes: Color
+Updated Item: H-01C - Added attributes: Size, Brand, Season
+Item H-01D current attributes: Color
+Updated Item: H-01D - Added attributes: Size, Brand, Season
+Item H-01E current attributes: Color
+Updated Item: H-01E - Added attributes: Size, Brand, Season
+Item H-01F current attributes: Color
+Updated Item: H-01F - Added attributes: Size, Brand, Season
+Item H-01G current attributes: Color
+Updated Item: H-01G - Added attributes: Size, Brand, Season
+Item H-01H current attributes: Color
+Updated Item: H-01H - Added attributes: Size, Brand, Season
+Item H-01I current attributes: Color
+Updated Item: H-01I - Added attributes: Size, Brand, Season
+
+--- Summary ---
+Total items processed: 517
+Successfully updated: 517
+Skipped (already had attributes): 0
+Errors: 0
+Process completed at 2025-06-16 13:06:28
