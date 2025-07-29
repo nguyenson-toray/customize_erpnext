@@ -689,6 +689,162 @@ function check_attendance_summary(dialog) {
   }
 }
 
+function render_summary_html(dialog, data) {
+  let html = `
+    <div class="summary-results" style="margin-top: 15px;">
+      <div class="alert alert-info">
+        <h6><strong>Attendance Summary for ${frappe.datetime.str_to_user(data.date)}</strong></h6>
+        <div class="row">
+          <div class="col-md-6">
+            <p><strong>Total Active Employees:</strong> ${data.total_employees}</p>
+            <p><strong>Attendance Records:</strong> ${data.total_attendance_records}</p>
+            <p><strong>Missing Records:</strong> <span class="badge badge-warning">${data.missing_attendance}</span></p>
+          </div>
+          <div class="col-md-6">
+            <p><strong>Employees with Check-ins:</strong> ${data.employees_with_checkins}</p>
+            <p><strong>Completion Rate:</strong> ${((data.total_attendance_records / data.total_employees) * 100).toFixed(1)}%</p>
+          </div>
+        </div>
+      </div>
+  `;
+
+  if (data.attendance_breakdown && data.attendance_breakdown.length > 0) {
+    html += `
+      <div class="table-responsive">
+        <table class="table table-bordered table-sm">
+          <thead style="background-color: #f8f9fa;">
+            <tr>
+              <th>Status</th>
+              <th>Count</th>
+              <th>Percentage</th>
+            </tr>
+          </thead>
+          <tbody>
+    `;
+
+    data.attendance_breakdown.forEach(function (row) {
+      let percentage = ((row.count / data.total_attendance_records) * 100).toFixed(1);
+      let badgeClass = row.status === 'Present' ? 'badge-success' :
+        row.status === 'Absent' ? 'badge-danger' : 'badge-secondary';
+
+      html += `
+        <tr>
+          <td><span class="badge ${badgeClass}">${row.status}</span></td>
+          <td>${row.count}</td>
+          <td>${percentage}%</td>
+        </tr>
+      `;
+    });
+
+    html += `
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  if (data.missing_attendance > 0) {
+    html += `
+      <div class="alert alert-warning">
+        <strong>Action Needed:</strong> ${data.missing_attendance} employees are missing attendance records.
+        Click "Start Completion" to create these missing records.
+      </div>
+    `;
+  } else {
+    html += `
+      <div class="alert alert-success">
+        <strong>Complete:</strong> All active employees have attendance records for this date.
+      </div>
+    `;
+  }
+
+  html += '</div>';
+
+  dialog.set_df_property('summary_html', 'options', html);
+}
+
+function execute_single_date_completion(date, dialog) {
+  let progress_dialog = show_progress_dialog();
+  dialog.hide();
+
+  frappe.call({
+    method: 'customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.manual_daily_completion',
+    args: { date: date },
+    freeze: false,
+    callback: function (r) {
+      progress_dialog.hide();
+
+      if (r && r.message && r.message.success) {
+        show_completion_results_dialog(r.message);
+      } else {
+        frappe.msgprint(__('Daily Completion Error: ') + (r.message && r.message.message ? r.message.message : 'Unknown error'));
+      }
+    },
+    error: function (r) {
+      progress_dialog.hide();
+      console.error('Single date completion call error:', r);
+      frappe.msgprint(__('System Error: Please check error logs'));
+    }
+  });
+}
+
+// NEW: Show completion results
+function show_completion_results_dialog(results) {
+  let status_class = results.error_count === 0 ? 'alert-success' : 'alert-warning';
+
+  let html = `
+    <div class="${status_class} alert">
+      <h5>Daily Attendance Completion - ${frappe.datetime.str_to_user(results.date)}</h5>
+      <div class="row">
+        <div class="col-md-6">
+          <p><strong>Total Employees:</strong> ${results.total_employees}</p>
+          <p><strong>Records Created:</strong> ${results.created_count}</p>
+        </div>
+        <div class="col-md-6">
+          <p><strong>Records Updated:</strong> ${results.updated_count}</p>
+          <p><strong>Errors:</strong> ${results.error_count}</p>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Add error details if any
+  if (results.errors && results.errors.length > 0) {
+    html += `
+      <h6 style="margin-top: 15px;">Error Details:</h6>
+      <div style="max-height: 150px; overflow-y: auto; background-color: #f8f9fa; padding: 10px; border-radius: 4px;">
+    `;
+
+    results.errors.forEach(function (error) {
+      html += `<small class="text-danger">• ${error}</small><br>`;
+    });
+
+    html += '</div>';
+  }
+
+  let results_dialog = new frappe.ui.Dialog({
+    title: __('Daily Completion Results'),
+    size: 'large',
+    fields: [
+      {
+        fieldtype: 'HTML',
+        fieldname: 'results_html',
+        options: html
+      }
+    ],
+    primary_action_label: __('Close'),
+    primary_action: function () {
+      results_dialog.hide();
+
+      // Refresh current list view
+      if (cur_list && cur_list.doctype === 'Custom Attendance') {
+        cur_list.refresh();
+      }
+    }
+  });
+
+  results_dialog.show();
+}
 
 
 function check_missing_attendance(dialog) {

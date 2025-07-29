@@ -10,7 +10,9 @@ from frappe.utils import (
     get_datetime, 
     nowdate,
     time_diff_in_hours,
-    flt
+    flt,
+    cint,         
+    now_datetime  
 )
 from frappe.model.document import Document 
 from frappe.utils import getdate, get_datetime, now_datetime, time_diff_in_hours, flt
@@ -70,7 +72,7 @@ def recalculate_attendance_with_overtime(attendance_name):
             "overtime_details": overtime_details,
             "ot_requests_found": len(ot_requests)
         }
-        
+         
     except Exception as e:
         error_msg = str(e)
         frappe.log_error(f"Recalculate overtime error: {error_msg}", "Recalculate Overtime")
@@ -3314,3 +3316,309 @@ def auto_submit_custom_attendance():
     except Exception as e:
         frappe.log_error(f"Auto submit Custom Attendance error: {str(e)}", "Auto Submit Custom Attendance")
         return {"success": False, "message": str(e)}
+
+
+# Debug nguyên nhân tại sao 19-20/07 lại thiếu trong khi các ngày khác OK
+
+# 1. Kiểm tra Scheduler Logs cho những ngày cụ thể
+@frappe.whitelist()
+def check_scheduler_logs_for_dates():
+    """Kiểm tra scheduler logs cho ngày 19-20/07"""
+    try:
+        # Lấy scheduler logs từ ngày 18-21/07
+        logs = frappe.db.sql("""
+            SELECT 
+                scheduled_job_type,
+                status,
+                creation,
+                error,
+                details
+            FROM `tabScheduled Job Log`
+            WHERE DATE(creation) BETWEEN '2025-07-18' AND '2025-07-21'
+            AND (
+                scheduled_job_type LIKE '%attendance%' 
+                OR scheduled_job_type LIKE '%daily%'
+            )
+            ORDER BY creation DESC
+        """, as_dict=True)
+        
+        return {
+            "total_logs": len(logs),
+            "logs": logs
+        }
+        
+    except Exception as e:
+        return {"error": str(e)}
+
+# 2. Kiểm tra Employee status trong những ngày đó
+@frappe.whitelist()
+def check_employee_history():
+    """Kiểm tra lịch sử thay đổi của employee"""
+    try:
+        employee_id = "TIQN-0368"
+        
+        # Kiểm tra Version history (nếu có versioning)
+        try:
+            versions = frappe.get_all("Version",
+                filters={
+                    "ref_doctype": "Employee",
+                    "docname": employee_id,
+                    "creation": ["between", ["2025-07-18 00:00:00", "2025-07-21 23:59:59"]]
+                },
+                fields=["name", "creation", "data"],
+                order_by="creation desc"
+            )
+        except:
+            versions = []
+        
+        # Kiểm tra Comment/Activity logs
+        try:
+            comments = frappe.get_all("Comment",
+                filters={
+                    "reference_doctype": "Employee",
+                    "reference_name": employee_id,
+                    "creation": ["between", ["2025-07-18 00:00:00", "2025-07-21 23:59:59"]]
+                },
+                fields=["name", "creation", "content", "comment_type"],
+                order_by="creation desc"
+            )
+        except:
+            comments = []
+        
+        # Kiểm tra Employee current status
+        emp_doc = frappe.get_doc("Employee", employee_id)
+        
+        return {
+            "employee_current_status": emp_doc.status,
+            "joining_date": emp_doc.date_of_joining,
+            "relieving_date": emp_doc.relieving_date,
+            "versions_found": len(versions),
+            "version_details": versions[:5],  # Top 5
+            "comments_found": len(comments),
+            "comment_details": comments[:5]   # Top 5
+        }
+        
+    except Exception as e:
+        return {"error": str(e)}
+
+# 3. Kiểm tra Error Logs trong những ngày đó
+@frappe.whitelist()
+def check_error_logs_for_dates():
+    """Kiểm tra error logs cho 19-20/07"""
+    try:
+        # Tìm error logs liên quan đến attendance
+        error_logs = frappe.db.sql("""
+            SELECT 
+                name,
+                creation,
+                error,
+                method,
+                traceback
+            FROM `tabError Log`
+            WHERE DATE(creation) BETWEEN '2025-07-18' AND '2025-07-21'
+            AND (
+                error LIKE '%attendance%' 
+                OR error LIKE '%TIQN-0368%'
+                OR method LIKE '%attendance%'
+                OR error LIKE '%Custom Attendance%'
+            )
+            ORDER BY creation DESC
+        """, as_dict=True)
+        
+        return {
+            "error_logs_found": len(error_logs),
+            "error_details": error_logs
+        }
+        
+    except Exception as e:
+        return {"error": str(e)}
+
+# 4. Kiểm tra System Settings và HR Settings trong thời gian đó
+@frappe.whitelist()
+def check_system_settings_history():
+    """Kiểm tra xem có settings nào bị thay đổi không"""
+    try:
+        # Check Singles doctype changes (System Settings, HR Settings)
+        singles_changes = []
+        
+        # Kiểm tra HR Settings
+        try:
+            hr_settings = frappe.get_doc("HR Settings")
+            singles_changes.append({
+                "doctype": "HR Settings",
+                "modified": hr_settings.modified,
+                "modified_by": hr_settings.modified_by
+            })
+        except:
+            pass
+        
+        # Kiểm tra System Settings
+        try:
+            sys_settings = frappe.get_doc("System Settings")
+            singles_changes.append({
+                "doctype": "System Settings", 
+                "modified": sys_settings.modified,
+                "modified_by": sys_settings.modified_by
+            })
+        except:
+            pass
+        
+        # Kiểm tra có Scheduled Job Type nào bị disable không
+        try:
+            job_types = frappe.get_all("Scheduled Job Type",
+                filters={"stopped": 1},
+                fields=["name", "method", "stopped", "modified"]
+            )
+        except:
+            job_types = []
+        
+        return {
+            "singles_last_modified": singles_changes,
+            "stopped_job_types": job_types
+        }
+        
+    except Exception as e:
+        return {"error": str(e)}
+
+# 5. Kiểm tra Database locks hoặc conflicts
+@frappe.whitelist()
+def check_database_issues():
+    """Kiểm tra database issues có thể xảy ra"""
+    try:
+        # Kiểm tra duplicate attempts
+        duplicate_attempts = frappe.db.sql("""
+            SELECT 
+                DATE(creation) as date,
+                COUNT(*) as attempts,
+                employee,
+                employee_name
+            FROM `tabCustom Attendance`
+            WHERE employee = 'TIQN-0368'
+            AND DATE(creation) BETWEEN '2025-07-18' AND '2025-07-21'
+            AND docstatus = 2  -- Cancelled records
+            GROUP BY DATE(creation), employee
+            ORDER BY date
+        """, as_dict=True)
+        
+        # Kiểm tra Transaction logs (nếu có)
+        try:
+            transaction_logs = frappe.db.sql("""
+                SELECT 
+                    name,
+                    creation,
+                    reference_doctype,
+                    reference_name
+                FROM `tabTransaction Log`
+                WHERE DATE(creation) BETWEEN '2025-07-18' AND '2025-07-21'
+                AND (
+                    reference_doctype = 'Custom Attendance'
+                    OR reference_doctype = 'Employee'
+                )
+                AND reference_name LIKE '%TIQN-0368%'
+                ORDER BY creation DESC
+            """, as_dict=True)
+        except:
+            transaction_logs = []
+        
+        return {
+            "duplicate_attempts": duplicate_attempts,
+            "transaction_logs": transaction_logs
+        }
+        
+    except Exception as e:
+        return {"error": str(e)}
+
+# 6. Comprehensive debug cho những ngày thiếu
+@frappe.whitelist()
+def comprehensive_debug_missing_dates():
+    """Debug tổng hợp cho ngày 19-20/07"""
+    try:
+        results = {}
+        
+        # 1. Scheduler logs
+        results["scheduler_logs"] = check_scheduler_logs_for_dates()
+        
+        # 2. Employee history
+        results["employee_history"] = check_employee_history()
+        
+        # 3. Error logs
+        results["error_logs"] = check_error_logs_for_dates()
+        
+        # 4. System settings
+        results["system_settings"] = check_system_settings_history()
+        
+        # 5. Database issues
+        results["database_issues"] = check_database_issues()
+        
+        # 6. Current scheduler status
+        try:
+            scheduler_disabled = frappe.utils.scheduler.is_scheduler_disabled()
+            results["current_scheduler_status"] = {
+                "disabled": scheduler_disabled,
+                "current_time": frappe.utils.now_datetime()
+            }
+        except:
+            results["current_scheduler_status"] = {"error": "Cannot check scheduler"}
+        
+        return results
+        
+    except Exception as e:
+        return {"error": str(e)}
+
+# 7. Manual recreation để test
+@frappe.whitelist()
+def manual_test_date_creation():
+    """Test tạo attendance cho ngày khác để verify logic"""
+    try:
+        # Test với ngày 22/07 (hôm qua hoặc hôm nay - 1)
+        test_date = "2025-07-22"
+        employee_id = "TIQN-0368"
+        
+        # Check nếu đã tồn tại
+        existing = frappe.db.exists("Custom Attendance", {
+            "employee": employee_id,
+            "attendance_date": test_date
+        })
+        
+        if existing:
+            return {"message": f"Test date {test_date} already has attendance: {existing}"}
+        
+        # Check checkins cho test date
+        checkins = frappe.get_all("Employee Checkin",
+            filters={
+                "employee": employee_id,
+                "time": ["between", [f"{test_date} 00:00:00", f"{test_date} 23:59:59"]]
+            },
+            fields=["name", "time", "log_type"]
+        )
+        
+        # Tạo test attendance
+        emp_doc = frappe.get_doc("Employee", employee_id)
+        ca = frappe.new_doc("Custom Attendance")
+        ca.employee = employee_id
+        ca.employee_name = emp_doc.employee_name
+        ca.attendance_date = test_date
+        ca.company = emp_doc.company
+        ca.status = "Present" if checkins else "Absent"
+        ca.working_hours = 0 if not checkins else 8
+        ca.auto_sync_enabled = 1
+        
+        ca.flags.ignore_validate = True
+        ca.flags.ignore_duplicate_check = True
+        ca.save(ignore_permissions=True)
+        
+        if checkins:
+            ca.sync_from_checkin()
+        
+        return {
+            "success": True,
+            "test_date": test_date,
+            "checkins_found": len(checkins),
+            "created_record": ca.name,
+            "final_status": ca.status,
+            "working_hours": ca.working_hours0509,
+            "message": "Test creation successful - logic is working"
+        }
+        
+    except Exception as e:
+        return {"success": False, "error": str(e)}
