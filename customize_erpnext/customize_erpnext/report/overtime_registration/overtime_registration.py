@@ -92,7 +92,7 @@ def get_data(filters):
 		INNER JOIN `tabOvertime Registration Detail` as child 
 			ON parent.name = child.parent
 		WHERE parent.docstatus != 2 {conditions}
-		ORDER BY parent.request_date DESC, child.date DESC
+		ORDER BY parent.request_date , child.date, child.group, child.employee
 	""".format(conditions=conditions)
 	
 	data = frappe.db.sql(query, filters, as_dict=1)

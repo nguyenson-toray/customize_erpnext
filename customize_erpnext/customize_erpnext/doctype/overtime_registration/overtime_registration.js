@@ -377,7 +377,7 @@ function load_employees_for_selection(groupName, dialog) {
                 'custom_group': groupName,
                 'status': 'Active'
             },
-            order_by: 'employee_name asc'
+            order_by: 'name'
         },
         callback: function (r) {
             if (!r.message || r.message.length === 0) {

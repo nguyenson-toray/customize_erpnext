@@ -175,13 +175,13 @@ def check_overtime_conflicts(entries, current_doc_name="new"):
         
         # Check for overlaps
         for existing in existing_entries:
-            if times_overlap(entry["from"], entry["to"], existing["from"], existing["to"]):
+            if times_overlap(entry["begin_time"], entry["end_time"], existing["from"], existing["to"]):
                 conflicts.append({
                     "idx": entry["idx"],
                     "employee_name": entry["employee_name"],
                     "date": entry["date"],
-                    "current_from": entry["from"],
-                    "current_to": entry["to"],
+                    "current_from": entry["begin_time"],
+                    "current_to": entry["end_time"],
                     "existing_from": existing["from"],
                     "existing_to": existing["to"],
                     "existing_doc": existing["parent"]
