@@ -1500,7 +1500,8 @@ function calculate_totals_and_apply_reason(frm) {
     frm.set_value('total_hours', total_hours);
 
     // If general reason is empty, populate it from unique child reasons
-    if (!frm.doc.reason_general && child_reasons.size > 0) {
+    // Also update if child_reasons has multiple unique reasons
+    if (child_reasons.size > 0 && (!frm.doc.reason_general || child_reasons.size > 1)) {
         const sorted_reasons = Array.from(child_reasons).sort();
         frm.set_value('reason_general', sorted_reasons.join(', '));
     }
