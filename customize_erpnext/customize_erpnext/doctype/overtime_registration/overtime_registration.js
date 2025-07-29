@@ -7,7 +7,7 @@ frappe.ui.form.on("Overtime Registration", {
         frm.page.add_inner_button(__('Get Employees'), function () {
             show_employee_selection_dialog(frm);
         }, __('Actions'));
-        
+
         // Auto-populate requested_by with current user's employee
         if (frm.is_new() && !frm.doc.requested_by) {
             frappe.call({
@@ -19,20 +19,27 @@ frappe.ui.form.on("Overtime Registration", {
                         'user_id': frappe.session.user
                     }
                 },
-                callback: function(r) {
+                callback: function (r) {
                     if (r.message && r.message.length > 0) {
                         frm.set_value('requested_by', r.message[0].name);
-                    } else {
-                        // If no employee found for current user, set to Administrator
-                        frm.set_value('requested_by', 'Administrator');
                     }
                 }
             });
         }
     },
-    
+
     get_employees_button(frm) {
         show_employee_selection_dialog(frm);
+    },
+
+    validate(frm) {
+        // Synchronous validation for immediate feedback
+        validate_duplicate_employees(frm);
+        
+        // Check conflicts with submitted records (asynchronous)
+        check_conflicts_with_submitted_records(frm);
+        
+        calculate_totals_and_apply_reason(frm);
     }
 });
 
@@ -48,10 +55,10 @@ function show_employee_selection_dialog(frm) {
         currentDialog.hide();
         currentDialog = null;
     }
-    
+
     // Generate week options
     const weekOptions = get_week_options();
-    
+
     currentDialog = new frappe.ui.Dialog({
         title: __('Select Employees for Overtime Registration'),
         size: 'extra-large',
@@ -76,7 +83,7 @@ function show_employee_selection_dialog(frm) {
                 label: 'Week',
                 options: weekOptions,
                 default: '0',
-                onchange: function() {
+                onchange: function () {
                     const weekValue = currentDialog.get_value('selected_week');
                     update_day_labels_for_week(parseInt(weekValue) || 0);
                 }
@@ -92,7 +99,7 @@ function show_employee_selection_dialog(frm) {
             },
             {
                 fieldtype: 'Time',
-                fieldname: 'time_to', 
+                fieldname: 'time_to',
                 label: 'To Time',
                 default: '19:00:00'
             },
@@ -114,7 +121,7 @@ function show_employee_selection_dialog(frm) {
                 fieldname: 'day_selection_html'
             },
             {
-                fieldtype: 'Section Break', 
+                fieldtype: 'Section Break',
                 label: 'Employee Selection'
             },
             {
@@ -128,27 +135,27 @@ function show_employee_selection_dialog(frm) {
                 fieldtype: 'Button',
                 fieldname: 'select_employees_btn',
                 label: 'Select Employees',
-                click: function() {
+                click: function () {
                     open_employee_selection_dialog();
                 }
             },
             {
-                fieldtype: 'Button', 
+                fieldtype: 'Button',
                 fieldname: 'clear_employees_btn',
                 label: 'Clear All Selected',
-                click: function() {
+                click: function () {
                     clear_selected_employees();
                 }
             }
         ],
         primary_action_label: __('OK'),
-        primary_action: function() {
+        primary_action: function () {
             save_overtime_registration_native(frm);
         }
     });
 
     currentDialog.show();
-    
+
     // Initialize dialog with native fields only
     setTimeout(() => {
         initialize_simple_dialog();
@@ -160,43 +167,43 @@ function get_week_options() {
     const currentDay = today.getDay();
     const monday = new Date(today);
     monday.setDate(today.getDate() - currentDay + 1);
-    
+
     let options = [];
-    
+
     // Current week and next 2 weeks (3 total)
     for (let i = 0; i < 3; i++) {
         const weekMonday = new Date(monday);
         weekMonday.setDate(monday.getDate() + (i * 7));
-        
+
         const weekSunday = new Date(weekMonday);
         weekSunday.setDate(weekMonday.getDate() + 6);
-        
-        const mondayStr = weekMonday.toLocaleDateString('en-GB', {day: '2-digit', month: '2-digit'});
-        const sundayStr = weekSunday.toLocaleDateString('en-GB', {day: '2-digit', month: '2-digit'});
-        
+
+        const mondayStr = weekMonday.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit' });
+        const sundayStr = weekSunday.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit' });
+
         let weekLabel = '';
         if (i === 0) {
-            weekLabel = `Current Week (${mondayStr} - ${sundayStr})`;
+            weekLabel = __('Current Week') + ` (${mondayStr} - ${sundayStr})`;
         } else if (i === 1) {
-            weekLabel = `Week +1 (${mondayStr} - ${sundayStr})`;
+            weekLabel = __('Week +1') + ` (${mondayStr} - ${sundayStr})`;
         } else {
-            weekLabel = `Week +2 (${mondayStr} - ${sundayStr})`;
+            weekLabel = __('Week') + ` +${i} (${mondayStr} - ${sundayStr})`;
         }
-        
+
         // Use simple value:label format for Frappe select
         options.push(`${i}:${weekLabel}`);
     }
-    
+
     return options.join('\n');
 }
 
 function initialize_simple_dialog() {
     // Set current week as default
     currentDialog.set_value('selected_week', '0');
-    
+
     // Update day labels for current week
     update_day_labels_for_week(0);
-    
+
     // Update selected employees display
     update_selected_employees_display();
 }
@@ -208,17 +215,17 @@ function update_day_labels_for_week(weekOffset = 0) {
     monday.setDate(today.getDate() - currentDay + 1 + (weekOffset * 7));
 
     const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-    const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    
+    const dayNames = [__('Monday'), __('Tuesday'), __('Wednesday'), __('Thursday'), __('Friday'), __('Saturday')];
+
     let day_selection_html = '<div class="row">';
-    
+
     // "Select All" checkbox
     day_selection_html += `
         <div class="col-md-2">
             <div class="form-group">
                 <div class="checkbox">
                     <label>
-                        <input type="checkbox" class="select-all-days"> Select All
+                        <input type="checkbox" class="select-all-days"> ${__('Select All')}
                     </label>
                 </div>
             </div>
@@ -228,7 +235,7 @@ function update_day_labels_for_week(weekOffset = 0) {
     days.forEach((dayField, index) => {
         const date = new Date(monday);
         date.setDate(monday.getDate() + index);
-        const dateStr = date.toLocaleDateString('en-GB', {day: '2-digit', month: '2-digit'});
+        const dateStr = date.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit' });
         const newLabel = `${dayNames[index]} ${dateStr}`;
 
         day_selection_html += `
@@ -245,18 +252,18 @@ function update_day_labels_for_week(weekOffset = 0) {
     });
 
     day_selection_html += '</div>';
-    
+
     currentDialog.get_field('day_selection_html').$wrapper.html(day_selection_html);
-    
+
     // Add event listeners
     const selectAllCheckbox = currentDialog.get_field('day_selection_html').$wrapper.find('.select-all-days');
     const dayCheckboxes = currentDialog.get_field('day_selection_html').$wrapper.find('.day-checkbox');
 
-    selectAllCheckbox.on('change', function() {
+    selectAllCheckbox.on('change', function () {
         dayCheckboxes.prop('checked', $(this).prop('checked'));
     });
 
-    dayCheckboxes.on('change', function() {
+    dayCheckboxes.on('change', function () {
         if (!$(this).prop('checked')) {
             selectAllCheckbox.prop('checked', false);
         }
@@ -279,13 +286,31 @@ function open_employee_selection_dialog() {
         size: 'large',
         fields: [
             {
+                fieldtype: 'Data',
+                fieldname: 'employee_search',
+                label: 'Search Employees',
+                placeholder: 'Type employee name or ID to filter...',
+                onchange: function() {
+                    filter_employees_in_dialog(this.value, employeeListDialog);
+                }
+            },
+            {
+                fieldtype: 'Button',
+                fieldname: 'clear_search',
+                label: 'Clear Search',
+                click: function() {
+                    employeeListDialog.set_value('employee_search', '');
+                    filter_employees_in_dialog('', employeeListDialog);
+                }
+            },
+            {
                 fieldtype: 'HTML',
                 fieldname: 'employee_list',
                 options: '<div class="text-muted" style="padding: 20px;">Loading...</div>'
             }
         ],
         primary_action_label: __('Add Selected'),
-        primary_action: function() {
+        primary_action: function () {
             add_selected_employees_from_dialog(employeeListDialog); // Pass dialog instance
             employeeListDialog.hide();
         }
@@ -293,20 +318,51 @@ function open_employee_selection_dialog() {
 
     employeeListDialog.show();
 
+    // Add real-time search functionality
+    setTimeout(() => {
+        const searchInput = employeeListDialog.get_field('employee_search').$input;
+        if (searchInput) {
+            searchInput.on('input', function() {
+                filter_employees_in_dialog(this.value, employeeListDialog);
+            });
+        }
+    }, 100);
+
     // Load employees for the selected group
     load_employees_for_selection(groupValue, employeeListDialog);
 }
 
-function load_employees_for_selection(groupName, dialog) {
-    const field_wrapper = dialog.get_field('employee_list').$wrapper;
-    
-    if (!field_wrapper) {
+// Global variable to store original employee list for filtering
+let originalEmployeeList = [];
+
+function filter_employees_in_dialog(searchTerm, dialog) {
+    if (!searchTerm || searchTerm.trim() === '') {
+        // Show all employees if search is empty
+        render_employee_list(originalEmployeeList, dialog);
         return;
     }
     
+    const filteredEmployees = originalEmployeeList.filter(emp => {
+        const searchLower = searchTerm.toLowerCase().trim();
+        const empName = (emp.employee_name || emp.name || '').toLowerCase();
+        const empId = (emp.name || '').toLowerCase();
+        
+        return empName.includes(searchLower) || empId.includes(searchLower);
+    });
+    
+    render_employee_list(filteredEmployees, dialog);
+}
+
+function load_employees_for_selection(groupName, dialog) {
+    const field_wrapper = dialog.get_field('employee_list').$wrapper;
+
+    if (!field_wrapper) {
+        return;
+    }
+
     // Set loading state
     field_wrapper.html('<div class="text-muted" style="padding: 20px;">Loading employees...</div>');
-    
+
     frappe.call({
         method: 'frappe.client.get_list',
         args: {
@@ -318,53 +374,95 @@ function load_employees_for_selection(groupName, dialog) {
             },
             order_by: 'employee_name asc'
         },
-        callback: function(r) {
+        callback: function (r) {
             if (!r.message || r.message.length === 0) {
                 field_wrapper.html('<p class="text-muted" style="padding: 20px;">No active employees found in this group.</p>');
+                originalEmployeeList = [];
                 return;
             }
+
+            // Store original list for filtering
+            originalEmployeeList = r.message;
             
-            let html = '<div style="max-height: 400px; overflow-y: auto; padding: 10px; border: 1px solid #ddd;">';
-            html += '<div style="margin-bottom: 15px; padding: 10px; background-color: #f8f9fa; border-radius: 4px;"><label style="font-weight: bold;"><input type="checkbox" id="select_all_employees" style="margin-right: 8px;"> Select All Employees</label></div>';
+            // Reset search field when loading new group
+            dialog.set_value('employee_search', '');
             
-            r.message.forEach((emp) => {
-                const isSelected = selectedEmployees.has(emp.name);
-                const checkedAttr = isSelected ? 'checked' : '';
-                const disabledAttr = isSelected ? 'disabled title="Already selected"' : '';
-                
-                html += `
-                    <div style="margin-bottom: 10px; padding: 12px; border: 1px solid #ddd; border-radius: 6px; background-color: ${isSelected ? '#f0f8ff' : 'white'};
-">
-                        <label style="margin: 0; cursor: ${isSelected ? 'not-allowed' : 'pointer'}; display: block;">
-                            <input type="checkbox" class="employee-checkbox" value="${emp.name}" 
-                                   data-name="${emp.employee_name || emp.name}" 
-                                   data-group="${emp.custom_group}" ${checkedAttr} ${disabledAttr}
-                                   style="margin-right: 8px;">
-                            <strong style="color: #333;">${emp.name}</strong> - ${emp.employee_name || emp.name}
-                            <br><small class="text-muted">Group: ${emp.custom_group}</small>
-                            ${isSelected ? '<br><small class="text-info"><strong>(Already selected)</strong></small>' : ''}
-                        </label>
-                    </div>
-                `;
-            });
-            
-            html += '</div>';
-            
-            field_wrapper.html(html);
-            
-            // Set up select all functionality
-            const selectAllBtn = field_wrapper.find('#select_all_employees');
-            
-            if (selectAllBtn.length) {
-                selectAllBtn.on('change', function() {
-                    field_wrapper.find('.employee-checkbox:not([disabled])').prop('checked', this.checked);
-                });
-            }
+            // Render the employee list
+            render_employee_list(originalEmployeeList, dialog);
         },
-        error: function(r) {
+        error: function (r) {
             field_wrapper.html('<p class="text-danger" style="padding: 20px;"><strong>Error loading employees:</strong><br>' + (r.message || 'Unknown error') + '</p>');
+            originalEmployeeList = [];
         }
     });
+}
+
+function render_employee_list(employees, dialog) {
+    const field_wrapper = dialog.get_field('employee_list').$wrapper;
+    
+    if (!field_wrapper) {
+        return;
+    }
+
+    if (employees.length === 0) {
+        field_wrapper.html('<p class="text-muted" style="padding: 20px;">No employees match your search criteria.</p>');
+        return;
+    }
+
+    // Get current search term for highlighting
+    const searchTerm = dialog.get_value('employee_search') || '';
+
+    let html = '<div style="max-height: 400px; overflow-y: auto; padding: 10px; border: 1px solid #ddd;">';
+    html += `<div style="margin-bottom: 15px; padding: 10px; background-color: #f8f9fa; border-radius: 4px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <label style="font-weight: bold; margin: 0;"><input type="checkbox" id="select_all_employees" style="margin-right: 8px;"> Select All Employees</label>
+                    <small class="text-muted">Showing ${employees.length} employee(s)</small>
+                </div>
+             </div>`;
+
+    employees.forEach((emp) => {
+        const isSelected = selectedEmployees.has(emp.name);
+        const checkedAttr = isSelected ? 'checked' : '';
+        const disabledAttr = isSelected ? 'disabled title="Already selected"' : '';
+
+        // Highlight matching text
+        let displayName = emp.employee_name || emp.name;
+        let displayId = emp.name;
+        
+        if (searchTerm.trim()) {
+            const regex = new RegExp(`(${searchTerm.trim()})`, 'gi');
+            displayName = displayName.replace(regex, '<mark style="background-color: yellow; padding: 1px 2px;">$1</mark>');
+            displayId = displayId.replace(regex, '<mark style="background-color: yellow; padding: 1px 2px;">$1</mark>');
+        }
+
+        html += `
+            <div style="margin-bottom: 10px; padding: 12px; border: 1px solid #ddd; border-radius: 6px; background-color: ${isSelected ? '#f0f8ff' : 'white'};
+">
+                <label style="margin: 0; cursor: ${isSelected ? 'not-allowed' : 'pointer'}; display: block;">
+                    <input type="checkbox" class="employee-checkbox" value="${emp.name}" 
+                           data-name="${emp.employee_name || emp.name}" 
+                           data-group="${emp.custom_group}" ${checkedAttr} ${disabledAttr}
+                           style="margin-right: 8px;">
+                    <strong style="color: #333;">${displayId}</strong> - ${displayName}
+                    <br><small class="text-muted">Group: ${emp.custom_group}</small>
+                    ${isSelected ? '<br><small class="text-info"><strong>(Already selected)</strong></small>' : ''}
+                </label>
+            </div>
+        `;
+    });
+
+    html += '</div>';
+
+    field_wrapper.html(html);
+
+    // Set up select all functionality
+    const selectAllBtn = field_wrapper.find('#select_all_employees');
+
+    if (selectAllBtn.length) {
+        selectAllBtn.on('change', function () {
+            field_wrapper.find('.employee-checkbox:not([disabled])').prop('checked', this.checked);
+        });
+    }
 }
 
 function add_selected_employees_from_dialog(employeeListDialog) { // Accept dialog instance
@@ -372,13 +470,13 @@ function add_selected_employees_from_dialog(employeeListDialog) { // Accept dial
 
     const checkedBoxes = $(employeeListDialog.body).find('.employee-checkbox:checked:not([disabled])');
     let addedCount = 0;
-    
-    checkedBoxes.each(function() {
+
+    checkedBoxes.each(function () {
         const checkbox = $(this);
         const empId = checkbox.val();
         const empName = checkbox.data('name');
         const empGroup = checkbox.data('group');
-        
+
         if (!selectedEmployees.has(empId)) {
             selectedEmployees.set(empId, {
                 name: empId,
@@ -389,7 +487,7 @@ function add_selected_employees_from_dialog(employeeListDialog) { // Accept dial
             addedCount++;
         }
     });
-    
+
     if (addedCount > 0) {
         update_selected_employees_display();
         frappe.show_alert({
@@ -412,7 +510,7 @@ function clear_selected_employees() {
         });
         return;
     }
-    
+
     frappe.confirm(__('Are you sure you want to clear all selected employees?'), () => {
         selectedEmployees.clear();
         update_selected_employees_display();
@@ -425,7 +523,7 @@ function clear_selected_employees() {
 
 function update_selected_employees_display() {
     if (!currentDialog) return;
-    
+
     let displayText = '';
     if (selectedEmployees.size === 0) {
         displayText = 'No employees selected';
@@ -435,7 +533,7 @@ function update_selected_employees_display() {
             .join(', ');
         displayText = `${selectedEmployees.size} employee(s) selected: ${employeeList}`;
     }
-    
+
     currentDialog.set_value('selected_employees_display', displayText);
 }
 
@@ -448,9 +546,9 @@ function save_overtime_registration_native(frm) {
         });
         return;
     }
-    
+
     const selectedDays = [];
-    currentDialog.get_field('day_selection_html').$wrapper.find('.day-checkbox:checked').each(function() {
+    currentDialog.get_field('day_selection_html').$wrapper.find('.day-checkbox:checked').each(function () {
         selectedDays.push($(this).data('day'));
     });
 
@@ -461,7 +559,7 @@ function save_overtime_registration_native(frm) {
         });
         return;
     }
-    
+
     const reason = currentDialog.get_value('reason');
     if (!reason) {
         frappe.show_alert({
@@ -470,26 +568,26 @@ function save_overtime_registration_native(frm) {
         });
         return;
     }
-    
+
     const timeFrom = currentDialog.get_value('time_from');
     const timeTo = currentDialog.get_value('time_to');
-    
+
     // Clear existing rows
     frm.clear_table('ot_employees');
-    
+
     // Add selected employees to child table
     selectedEmployees.forEach(employee => {
         selectedDays.forEach(day => {
             const child = frm.add_child('ot_employees');
             child.employee = employee.name;
             child.employee_name = employee.employee_name || employee.name;
-            
+
             const weekOffset = parseInt(currentDialog.get_value('selected_week')) || 0;
             const today = new Date();
             const currentDay = today.getDay();
             const monday = new Date(today);
             monday.setDate(today.getDate() - currentDay + 1 + (weekOffset * 7));
-            
+
             const dayIndex = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'].indexOf(day);
             const date = new Date(monday);
             date.setDate(monday.getDate() + dayIndex);
@@ -500,24 +598,24 @@ function save_overtime_registration_native(frm) {
             child.reason = reason;
         });
     });
-    
+
     // Update parent fields
     frm.set_value('reason_general', reason);
     frm.set_value('total_employees', selectedEmployees.size);
-    
+
     // Refresh child table
     frm.refresh_field('ot_employees');
-    
+
     // Close dialog
     if (currentDialog) {
         currentDialog.hide();
     }
-    
+
     frappe.show_alert({
         message: __(`Successfully added ${selectedEmployees.size} employee(s) for ${selectedDays.length} day(s)`),
         indicator: 'green'
     });
-    
+
     // Clear selected employees after successful save
     selectedEmployees.clear();
 }
@@ -728,39 +826,31 @@ function get_dialog_html() {
 }
 
 function initialize_dialog() {
-    console.log('=== Initializing Dialog ===');
-    
     // Wait for DOM elements to be available
     const checkElements = () => {
         const groupSelect = document.getElementById('group_select');
         const weekSelect = document.getElementById('week_select');
-        
+
         if (!groupSelect || !weekSelect) {
-            console.log('DOM elements not ready, retrying...');
             setTimeout(checkElements, 100);
             return;
         }
-        
-        console.log('DOM elements found, proceeding with initialization');
-        
+
         // Setup event handlers FIRST before loading data
         setup_event_handlers();
-        
+
         // Then load initial data
         load_groups();
         load_weeks();
-        
+
         // Render current selected employees
         render_selected_employees();
-        
-        console.log('Dialog initialization complete');
     };
-    
+
     checkElements();
 }
 
 function load_groups() {
-    console.log('Loading groups...');
     frappe.call({
         method: 'frappe.client.get_list',
         args: {
@@ -769,23 +859,19 @@ function load_groups() {
             order_by: '`group` asc',
             limit_page_length: 0  // Get all records
         },
-        callback: function(r) {
-            console.log('Groups API response:', r);
+        callback: function (r) {
             const groupSelect = document.getElementById('group_select');
-            console.log('Group select element:', groupSelect);
-            console.log('Group select disabled:', groupSelect?.disabled);
-            console.log('Group select readonly:', groupSelect?.readOnly);
-            
+
             if (r.message && groupSelect) {
                 // Clear and rebuild options
                 groupSelect.innerHTML = '';
-                
+
                 // Add default option
                 const defaultOption = document.createElement('option');
                 defaultOption.value = '';
                 defaultOption.textContent = 'Select Group...';
                 groupSelect.appendChild(defaultOption);
-                
+
                 // Add group options
                 r.message.forEach(group => {
                     const displayName = group.group || group.name;
@@ -793,21 +879,12 @@ function load_groups() {
                     option.value = group.name;
                     option.textContent = displayName;
                     groupSelect.appendChild(option);
-                    console.log(`Added group: ${group.name} -> ${displayName}`);
                 });
-                
+
                 // Force refresh the select element
                 groupSelect.disabled = false;
                 groupSelect.readOnly = false;
-                
-                console.log(`Loaded ${r.message.length} groups, final options count:`, groupSelect.options.length);
-                console.log('Group select after loading - disabled:', groupSelect.disabled, 'readonly:', groupSelect.readOnly);
-            } else {
-                console.log('No groups found or element missing');
             }
-        },
-        error: function(r) {
-            console.error('Error loading groups:', r);
         }
     });
 }
@@ -815,35 +892,35 @@ function load_groups() {
 function load_weeks() {
     const weekSelect = document.getElementById('week_select');
     if (!weekSelect) return;
-    
+
     const today = new Date();
     const currentDay = today.getDay();
     const monday = new Date(today);
     monday.setDate(today.getDate() - currentDay + 1);
-    
+
     weekSelect.innerHTML = '<option value="">Select Week...</option>';
-    
+
     // Current week and next 2 weeks
     for (let i = 0; i < 3; i++) {
         const weekMonday = new Date(monday);
         weekMonday.setDate(monday.getDate() + (i * 7));
-        
+
         const weekSunday = new Date(weekMonday);
         weekSunday.setDate(weekMonday.getDate() + 6);
-        
-        const mondayStr = weekMonday.toLocaleDateString('en-GB', {day: '2-digit', month: '2-digit'});
-        const sundayStr = weekSunday.toLocaleDateString('en-GB', {day: '2-digit', month: '2-digit'});
-        
+
+        const mondayStr = weekMonday.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit' });
+        const sundayStr = weekSunday.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit' });
+
         let weekLabel = '';
         if (i === 0) {
-            weekLabel = `Current Week (${mondayStr} - ${sundayStr})`;
+            weekLabel = __('Current Week') + ` (${mondayStr} - ${sundayStr})`;
         } else {
-            weekLabel = `Week +${i} (${mondayStr} - ${sundayStr})`;
+            weekLabel = __('Week') + ` +${i} (${mondayStr} - ${sundayStr})`;
         }
-        
+
         weekSelect.innerHTML += `<option value="${i}">${weekLabel}</option>`;
     }
-    
+
     // Set current week as default
     weekSelect.value = '0';
     generate_week_dates(0);
@@ -855,19 +932,19 @@ function generate_week_dates(weekOffset = 0) {
     const monday = new Date(today);
     monday.setDate(today.getDate() - currentDay + 1 + (weekOffset * 7));
 
-    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    const dayAbbr = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    
+    const days = [__('Monday'), __('Tuesday'), __('Wednesday'), __('Thursday'), __('Friday'), __('Saturday')];
+    const dayAbbr = [__('Mon'), __('Tue'), __('Wed'), __('Thu'), __('Fri'), __('Sat')];
+
     const individualDaysContainer = document.getElementById('individual_days');
     if (!individualDaysContainer) return;
-    
+
     let html = '';
     days.forEach((day, index) => {
         const date = new Date(monday);
         date.setDate(monday.getDate() + index);
-        const dateStr = date.toLocaleDateString('en-GB', {day: '2-digit', month: '2-digit', year: 'numeric'});
+        const dateStr = date.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
         const isoDateStr = date.toISOString().split('T')[0];
-        
+
         html += `
             <label class="checkbox-inline">
                 <input type="checkbox" class="day-checkbox" data-day="${day.toLowerCase()}" data-date="${isoDateStr}">
@@ -875,7 +952,7 @@ function generate_week_dates(weekOffset = 0) {
             </label>
         `;
     });
-    
+
     individualDaysContainer.innerHTML = html;
 }
 
@@ -883,21 +960,17 @@ function generate_week_dates(weekOffset = 0) {
 let eventHandlersAttached = false;
 
 function setup_event_handlers() {
-    console.log('Setting up event handlers...');
-    
     // Don't attach handlers multiple times
     if (eventHandlersAttached) {
-        console.log('Event handlers already attached, skipping');
         return;
     }
-    
+
     // Use event delegation on document to avoid conflicts
-    document.addEventListener('change', function(e) {
+    document.addEventListener('change', function (e) {
         // Only handle events within the overtime dialog
         if (!e.target.closest('.overtime-dialog')) return;
-        
+
         if (e.target.id === 'group_select') {
-            console.log('Group changed to:', e.target.value);
             const groupName = e.target.value;
             if (groupName) {
                 load_available_employees(groupName);
@@ -905,7 +978,6 @@ function setup_event_handlers() {
                 clear_available_employees();
             }
         } else if (e.target.id === 'week_select') {
-            console.log('Week changed to:', e.target.value);
             const weekOffset = parseInt(e.target.value);
             if (!isNaN(weekOffset)) {
                 generate_week_dates(weekOffset);
@@ -921,20 +993,19 @@ function setup_event_handlers() {
             }
         }
     });
-    
-    console.log('Change event delegation set up on document');
-    
+
+
     // Set up click event delegation
-    document.addEventListener('click', function(e) {
+    document.addEventListener('click', function (e) {
         // Only handle events within the overtime dialog
         if (!e.target.closest('.overtime-dialog')) return;
-        
+
         // Move buttons
         if (e.target.id === 'move_right' || e.target.closest('#move_right')) {
             move_employees_to_selected();
         } else if (e.target.id === 'move_left' || e.target.closest('#move_left')) {
             remove_employees_from_selected();
-        } 
+        }
         // Summary panel buttons
         else if (e.target.id === 'refresh_available_btn' || e.target.closest('#refresh_available_btn')) {
             refresh_available_employees();
@@ -951,14 +1022,11 @@ function setup_event_handlers() {
             }
         }
     });
-    
+
     eventHandlersAttached = true;
-    console.log('Click event delegation set up on document');
 }
 
 function load_available_employees(groupName) {
-    console.log('Loading employees for group:', groupName);
-    
     frappe.call({
         method: 'frappe.client.get_list',
         args: {
@@ -970,20 +1038,18 @@ function load_available_employees(groupName) {
             },
             order_by: 'employee_name asc'
         },
-        callback: function(r) {
+        callback: function (r) {
             if (r.message) {
                 currentGroupEmployees.clear();
                 r.message.forEach(emp => {
                     currentGroupEmployees.set(emp.name, emp);
                 });
                 render_available_employees(r.message);
-                console.log(`Loaded ${r.message.length} employees for group ${groupName}`);
             } else {
                 clear_available_employees();
             }
         },
-        error: function(r) {
-            console.error('Error loading employees:', r);
+        error: function (r) {
             frappe.show_alert({
                 message: __('Error loading employees: ') + (r.message || 'Unknown error'),
                 indicator: 'red'
@@ -996,7 +1062,7 @@ function load_available_employees(groupName) {
 function render_available_employees(employees) {
     const container = document.getElementById('available_employees');
     if (!container) return;
-    
+
     if (employees.length === 0) {
         container.innerHTML = `
             <div class="empty-state text-center text-muted" style="padding: 50px 20px;">
@@ -1006,7 +1072,7 @@ function render_available_employees(employees) {
         `;
         return;
     }
-    
+
     let html = '';
     employees.forEach(emp => {
         // Don't show employees that are already selected
@@ -1014,7 +1080,7 @@ function render_available_employees(employees) {
             html += create_employee_item_html(emp);
         }
     });
-    
+
     if (html === '') {
         container.innerHTML = `
             <div class="empty-state text-center text-muted" style="padding: 50px 20px;">
@@ -1030,7 +1096,7 @@ function render_available_employees(employees) {
 function render_selected_employees() {
     const container = document.getElementById('selected_employees');
     if (!container) return;
-    
+
     if (selectedEmployees.size === 0) {
         container.innerHTML = `
             <div class="empty-state text-center text-muted" style="padding: 50px 20px;">
@@ -1045,15 +1111,15 @@ function render_selected_employees() {
         });
         container.innerHTML = html;
     }
-    
+
     update_selected_count();
     update_summary();
 }
 
 function create_employee_item_html(employee) {
-    const statusBadge = employee.status !== 'Active' ? 
+    const statusBadge = employee.status !== 'Active' ?
         `<span class="label label-warning" style="font-size: 9px; margin-left: 5px;">${employee.status}</span>` : '';
-    
+
     return `
         <div class="employee-item" data-employee-id="${employee.name}">
             <div class="employee-id">${employee.name}${statusBadge}</div>
@@ -1065,7 +1131,7 @@ function create_employee_item_html(employee) {
 
 function move_employees_to_selected() {
     const selectedItems = document.querySelectorAll('#available_employees .employee-item.selected');
-    
+
     if (selectedItems.length === 0) {
         frappe.show_alert({
             message: __('Please select employees to add'),
@@ -1073,18 +1139,18 @@ function move_employees_to_selected() {
         });
         return;
     }
-    
+
     let addedCount = 0;
     selectedItems.forEach(item => {
         const employeeId = item.getAttribute('data-employee-id');
         const employee = currentGroupEmployees.get(employeeId);
-        
+
         if (employee && !selectedEmployees.has(employeeId)) {
             selectedEmployees.set(employeeId, employee);
             addedCount++;
         }
     });
-    
+
     if (addedCount > 0) {
         render_selected_employees();
         // Refresh available list to hide newly selected employees
@@ -1092,7 +1158,7 @@ function move_employees_to_selected() {
         if (groupSelect && groupSelect.value) {
             load_available_employees(groupSelect.value);
         }
-        
+
         frappe.show_alert({
             message: __(`Added ${addedCount} employee(s) to selection`),
             indicator: 'green'
@@ -1102,7 +1168,7 @@ function move_employees_to_selected() {
 
 function remove_employees_from_selected() {
     const selectedItems = document.querySelectorAll('#selected_employees .employee-item.selected');
-    
+
     if (selectedItems.length === 0) {
         frappe.show_alert({
             message: __('Please select employees to remove'),
@@ -1110,7 +1176,7 @@ function remove_employees_from_selected() {
         });
         return;
     }
-    
+
     let removedCount = 0;
     selectedItems.forEach(item => {
         const employeeId = item.getAttribute('data-employee-id');
@@ -1119,7 +1185,7 @@ function remove_employees_from_selected() {
             removedCount++;
         }
     });
-    
+
     if (removedCount > 0) {
         render_selected_employees();
         // Refresh available list to show newly unselected employees
@@ -1127,7 +1193,7 @@ function remove_employees_from_selected() {
         if (groupSelect && groupSelect.value) {
             load_available_employees(groupSelect.value);
         }
-        
+
         frappe.show_alert({
             message: __(`Removed ${removedCount} employee(s) from selection`),
             indicator: 'blue'
@@ -1156,17 +1222,17 @@ function clear_all_selected() {
         });
         return;
     }
-    
+
     frappe.confirm(__('Are you sure you want to clear all selected employees?'), () => {
         selectedEmployees.clear();
         render_selected_employees();
-        
+
         // Refresh available list
         const groupSelect = document.getElementById('group_select');
         if (groupSelect && groupSelect.value) {
             load_available_employees(groupSelect.value);
         }
-        
+
         frappe.show_alert({
             message: __('All selected employees cleared'),
             indicator: 'blue'
@@ -1200,15 +1266,15 @@ function update_selected_count() {
 function update_summary() {
     const summaryEl = document.getElementById('summary_text');
     if (!summaryEl) return;
-    
+
     if (selectedEmployees.size === 0) {
         summaryEl.textContent = 'Please select employees and configure overtime details';
         return;
     }
-    
+
     const selectedDays = document.querySelectorAll('.day-checkbox:checked').length;
     const reason = document.getElementById('reason_input')?.value || '';
-    
+
     let summary = `${selectedEmployees.size} employee(s) selected`;
     if (selectedDays > 0) {
         summary += `, ${selectedDays} day(s) selected`;
@@ -1216,7 +1282,7 @@ function update_summary() {
     if (reason) {
         summary += `, Reason: ${reason}`;
     }
-    
+
     summaryEl.textContent = summary;
 }
 
@@ -1229,7 +1295,7 @@ function save_overtime_registration(frm) {
         });
         return;
     }
-    
+
     const selectedDays = Array.from(document.querySelectorAll('.day-checkbox:checked'));
     if (selectedDays.length === 0) {
         frappe.show_alert({
@@ -1238,7 +1304,7 @@ function save_overtime_registration(frm) {
         });
         return;
     }
-    
+
     const reason = document.getElementById('reason_input')?.value?.trim();
     if (!reason) {
         frappe.show_alert({
@@ -1247,13 +1313,13 @@ function save_overtime_registration(frm) {
         });
         return;
     }
-    
+
     const timeFrom = document.getElementById('time_from')?.value;
     const timeTo = document.getElementById('time_to')?.value;
-    
+
     // Clear existing rows
     frm.clear_table('ot_employees');
-    
+
     // Add selected employees to child table
     selectedEmployees.forEach(employee => {
         selectedDays.forEach(dayCheckbox => {
@@ -1266,33 +1332,185 @@ function save_overtime_registration(frm) {
             child.reason = reason;
         });
     });
-    
+
     // Update parent fields
     frm.set_value('reason_general', reason);
     frm.set_value('total_employees', selectedEmployees.size);
-    
+
     // Refresh child table
     frm.refresh_field('ot_employees');
-    
+
     // Close dialog
     if (currentDialog) {
         currentDialog.hide();
     }
-    
+
     frappe.show_alert({
         message: __(`Successfully added ${selectedEmployees.size} employee(s) for ${selectedDays.length} day(s)`),
         indicator: 'green'
     });
-    
+
     // Clear selected employees after successful save
     selectedEmployees.clear();
 }
 
-// Utility functions for external access
-window.debug_overtime_dialog = function() {
-    console.log('=== Overtime Dialog Debug ===');
-    console.log('Selected employees:', selectedEmployees.size);
-    console.log('Current group employees:', currentGroupEmployees.size);
-    console.log('Selected employees list:', Array.from(selectedEmployees.keys()));
-    console.log('Current group employees list:', Array.from(currentGroupEmployees.keys()));
-};
+// Validation functions
+function validate_duplicate_employees(frm) {
+    const entries = [];
+    
+    for (let d of frm.doc.ot_employees || []) {
+        if (!d.employee || !d.date || !d.from || !d.to) {
+            frappe.validated = false;
+            frappe.msgprint(__(`Row #{0}: Employee, Date, From Time, and To Time are required.`, [d.idx]));
+            return;
+        }
+
+        entries.push({
+            idx: d.idx,
+            employee: d.employee,
+            employee_name: d.employee_name,
+            date: d.date,
+            from: d.from,
+            to: d.to
+        });
+    }
+
+    // Check for duplicates and overlaps
+    for (let i = 0; i < entries.length; i++) {
+        for (let j = i + 1; j < entries.length; j++) {
+            const entry1 = entries[i];
+            const entry2 = entries[j];
+            
+            // Same employee and date
+            if (entry1.employee === entry2.employee && entry1.date === entry2.date) {
+                // Check for exact match or time overlap
+                if (times_overlap(entry1.from, entry1.to, entry2.from, entry2.to)) {
+                    frappe.validated = false;
+                    frappe.msgprint(__(`Row #{0} and Row #{1}: Overlapping overtime entries for employee {2} on {3}. Entry 1: {4}-{5}, Entry 2: {6}-{7}`, 
+                        [entry1.idx, entry2.idx, entry1.employee_name, entry1.date, entry1.from, entry1.to, entry2.from, entry2.to]));
+                    return;
+                }
+            }
+        }
+    }
+}
+
+function check_conflicts_with_submitted_records(frm) {
+    if (!frm.doc.ot_employees || frm.doc.ot_employees.length === 0) {
+        return;
+    }
+    
+    // Prepare data for server-side validation
+    const entries_to_check = [];
+    for (let d of frm.doc.ot_employees) {
+        if (d.employee && d.date && d.from && d.to) {
+            entries_to_check.push({
+                idx: d.idx,
+                employee: d.employee,
+                employee_name: d.employee_name,
+                date: d.date,
+                from: d.from,
+                to: d.to
+            });
+        }
+    }
+    
+    if (entries_to_check.length === 0) {
+        return;
+    }
+    
+    // Call server method to check conflicts
+    frappe.call({
+        method: 'customize_erpnext.customize_erpnext.doctype.overtime_registration.overtime_registration.check_overtime_conflicts',
+        args: {
+            entries: entries_to_check,
+            current_doc_name: frm.doc.name || 'new'
+        },
+        callback: function(r) {
+            if (r.message && r.message.length > 0) {
+                // Found conflicts
+                frappe.validated = false;
+                
+                // Show all conflicts
+                for (let conflict of r.message) {
+                    frappe.msgprint(__(`Row #{0}: Overlapping overtime entry for employee {1} on {2}. Current: {3}-{4}, Existing: {5}-{6} in <a href="/app/overtime-registration/{7}" target="_blank">{7}</a>`, 
+                        [conflict.idx, conflict.employee_name, conflict.date, conflict.current_from, conflict.current_to, 
+                         conflict.existing_from, conflict.existing_to, conflict.existing_doc]));
+                }
+            }
+        }
+    });
+}
+
+function calculate_totals_and_apply_reason(frm) {
+    if (!frm.doc.ot_employees || frm.doc.ot_employees.length === 0) {
+        frm.set_value('total_employees', 0);
+        frm.set_value('total_hours', 0);
+        return;
+    }
+
+    const distinct_employees = new Set();
+    let total_hours = 0.0;
+    const child_reasons = new Set();
+
+    // First pass: calculate totals and gather unique, non-empty child reasons
+    frm.doc.ot_employees.forEach(d => {
+        if (d.employee) {
+            distinct_employees.add(d.employee);
+        }
+
+        if (d.from && d.to) {
+            // Simple time difference calculation
+            const from_parts = d.from.split(':');
+            const to_parts = d.to.split(':');
+            const from_minutes = parseInt(from_parts[0]) * 60 + parseInt(from_parts[1]);
+            const to_minutes = parseInt(to_parts[0]) * 60 + parseInt(to_parts[1]);
+            const diff_hours = (to_minutes - from_minutes) / 60;
+            total_hours += diff_hours;
+        }
+        
+        if (d.reason && d.reason.trim()) {
+            child_reasons.add(d.reason.trim());
+        }
+    });
+
+    // Update totals
+    frm.set_value('total_employees', distinct_employees.size);
+    frm.set_value('total_hours', total_hours);
+
+    // If general reason is empty, populate it from unique child reasons
+    if (!frm.doc.reason_general && child_reasons.size > 0) {
+        const sorted_reasons = Array.from(child_reasons).sort();
+        frm.set_value('reason_general', sorted_reasons.join(', '));
+    }
+
+    // If a general reason now exists (either provided by user or generated),
+    // apply it to any child rows that have an empty reason.
+    if (frm.doc.reason_general) {
+        frm.doc.ot_employees.forEach(d => {
+            if (!d.reason) {
+                d.reason = frm.doc.reason_general;
+            }
+        });
+        frm.refresh_field('ot_employees');
+    }
+}
+
+// Helper function to check if two time ranges overlap
+function times_overlap(from1, to1, from2, to2) {
+    // Convert time strings to Date objects for comparison
+    const time1Start = new Date(`2000-01-01T${from1}`);
+    const time1End = new Date(`2000-01-01T${to1}`);
+    const time2Start = new Date(`2000-01-01T${from2}`);
+    const time2End = new Date(`2000-01-01T${to2}`);
+    
+    // Check for overlap: start1 < end2 && start2 < end1
+    // Adjacent periods (where one ends exactly when another begins) are NOT overlapping
+    const condition1 = time1Start < time2End;
+    const condition2 = time2Start < time1End;
+    const overlap = condition1 && condition2;
+    
+    return overlap;
+}
+
+

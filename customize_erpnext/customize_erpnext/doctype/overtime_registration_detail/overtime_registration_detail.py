@@ -5,5 +5,5 @@
 from frappe.model.document import Document
 
 
-class OvertimeRequestDetail(Document):
+class OvertimeRegistrationDetail(Document):
 	pass
