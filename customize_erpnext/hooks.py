@@ -121,7 +121,8 @@ fixtures = [
             "name": ["in", [
                 "Item",
                 "Stock Entry", 
-                "Stock Reconciliation"
+                "Stock Reconciliation",
+                "Shift Name"
                 # Add your doctypes here
             ]]
         }

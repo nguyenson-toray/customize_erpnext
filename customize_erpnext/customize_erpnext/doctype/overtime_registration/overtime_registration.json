@@ -1,258 +1,249 @@
 {
- "actions": [],
- "autoname": "format:OTR-{YY}{MM}{DD}-{###}",
- "creation": "2025-07-26 13:28:39.538763",
- "default_view": "List",
- "doctype": "DocType",
- "editable_grid": 1,
- "engine": "InnoDB",
- "field_order": [
-  "status",
-  "reason_general",
-  "column_break_qnut",
-  "request_date",
-  "requested_by",
-  "column_break_kjuy",
-  "total_employees",
-  "total_hours",
-  "employees_section",
-  "get_employees_button",
-  "ot_employees",
-  "approval_section",
-  "manager_approver",
-  "column_break_16",
-  "factory_manager_approver",
-  "timestamps_section",
-  "manager_approved_on",
-  "column_break_20",
-  "factory_manager_approved_on",
-  "reason_section",
-  "remarks",
-  "amended_from"
- ],
- "fields": [
-  {
-   "fieldname": "requested_by",
-   "fieldtype": "Link",
-   "in_list_view": 1,
-   "label": "Requested By",
-   "options": "Employee",
-   "read_only": 1
-  },
-  {
-   "default": "Today",
-   "fieldname": "request_date",
-   "fieldtype": "Date",
-   "label": "Request Date",
-   "read_only": 1
-  },
-  {
-   "default": "Draft",
-   "fieldname": "status",
-   "fieldtype": "Select",
-   "in_list_view": 1,
-   "label": "Status",
-   "options": "Draft\nPending Manager Approval\nPending Factory Manager Approval\nApproved\nRejected\nCancelled",
-   "read_only": 1
-  },
-  {
-   "fieldname": "total_employees",
-   "fieldtype": "Int",
-   "label": "Total Employees",
-   "read_only": 1
-  },
-  {
-   "fieldname": "total_hours",
-   "fieldtype": "Float",
-   "label": "Total Hours",
-   "precision": "2",
-   "read_only": 1
-  },
-  {
-   "fieldname": "employees_section",
-   "fieldtype": "Section Break",
-   "label": "Employees"
-  },
-  {
-   "fieldname": "get_employees_button",
-   "fieldtype": "Button",
-   "label": "Get Employees By Group"
-  },
-  {
-   "allow_bulk_edit": 1,
-   "fieldname": "ot_employees",
-   "fieldtype": "Table",
-   "ignore_user_permissions": 1,
-   "label": "OT Employees List",
-   "options": "Overtime Registration Detail",
-   "reqd": 1
-  },
-  {
-   "collapsible": 1,
-   "fieldname": "approval_section",
-   "fieldtype": "Section Break",
-   "label": "Approval Details"
-  },
-  {
-   "fieldname": "manager_approver",
-   "fieldtype": "Link",
-   "label": "Department Manager",
-   "options": "Employee"
-  },
-  {
-   "fieldname": "column_break_16",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "factory_manager_approver",
-   "fieldtype": "Link",
-   "label": "Factory Manager",
-   "options": "Employee"
-  },
-  {
-   "fieldname": "timestamps_section",
-   "fieldtype": "Section Break",
-   "label": "Approval Timestamps"
-  },
-  {
-   "fieldname": "manager_approved_on",
-   "fieldtype": "Datetime",
-   "label": "Department Manager Approved On",
-   "read_only": 1
-  },
-  {
-   "fieldname": "column_break_20",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "factory_manager_approved_on",
-   "fieldtype": "Datetime",
-   "label": "Factory Manager Approved On",
-   "read_only": 1
-  },
-  {
-   "collapsible": 1,
-   "fieldname": "reason_section",
-   "fieldtype": "Section Break",
-   "label": "Reason & Remarks"
-  },
-  {
-   "fieldname": "remarks",
-   "fieldtype": "Text",
-   "label": "Additional Remarks"
-  },
-  {
-   "fieldname": "amended_from",
-   "fieldtype": "Link",
-   "label": "Amended From",
-   "no_copy": 1,
-   "options": "Overtime Registration",
-   "print_hide": 1,
-   "read_only": 1
-  },
-  {
-   "fieldname": "amended_from",
-   "fieldtype": "Link",
-   "label": "Amended From",
-   "no_copy": 1,
-   "options": "Overtime Registration",
-   "print_hide": 1,
-   "read_only": 1
-  },
-  {
-   "fieldname": "column_break_qnut",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "column_break_kjuy",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "reason_general",
-   "fieldtype": "Small Text",
-   "label": "General Reason for OT"
-  }
- ],
- "index_web_pages_for_search": 1,
- "is_submittable": 1,
- "links": [],
- "modified": "2025-07-29 14:38:43.010375",
- "modified_by": "Administrator",
- "module": "Customize Erpnext",
- "name": "Overtime Registration",
- "naming_rule": "Expression",
- "owner": "Administrator",
- "permissions": [
-  {
-   "create": 1,
-   "delete": 1,
-   "email": 1,
-   "export": 1,
-   "print": 1,
-   "read": 1,
-   "report": 1,
-   "role": "HR Manager",
-   "share": 1,
-   "submit": 1,
-   "write": 1
-  },
-  {
-   "create": 1,
-   "email": 1,
-   "export": 1,
-   "print": 1,
-   "read": 1,
-   "report": 1,
-   "role": "Employee",
-   "share": 1,
-   "submit": 1,
-   "write": 1
-  },
-  {
-   "email": 1,
-   "export": 1,
-   "print": 1,
-   "read": 1,
-   "report": 1,
-   "role": "Department Manager",
-   "share": 1,
-   "write": 1
-  },
-  {
-   "email": 1,
-   "export": 1,
-   "print": 1,
-   "read": 1,
-   "report": 1,
-   "role": "Factory Manager",
-   "share": 1,
-   "write": 1
-  },
-  {
-   "email": 1,
-   "export": 1,
-   "print": 1,
-   "read": 1,
-   "report": 1,
-   "role": "TIQN Factory Manager",
-   "share": 1,
-   "write": 1
-  },
-  {
-   "email": 1,
-   "export": 1,
-   "print": 1,
-   "read": 1,
-   "report": 1,
-   "role": "TIQN Manager",
-   "share": 1,
-   "write": 1
-  }
- ],
- "row_format": "Dynamic",
- "sort_field": "modified",
- "sort_order": "DESC",
- "states": [],
- "track_changes": 1,
- "track_seen": 1
+    "actions": [],
+    "autoname": "format:OTR-{YY}{MM}{DD}-{###}",
+    "creation": "2025-07-26 13:28:39.538763",
+    "default_view": "List",
+    "doctype": "DocType",
+    "editable_grid": 1,
+    "engine": "InnoDB",
+    "field_order": [
+        "status",
+        "reason_general",
+        "column_break_qnut",
+        "request_date",
+        "requested_by",
+        "column_break_kjuy",
+        "total_employees",
+        "total_hours",
+        "employees_section",
+        "get_employees_button",
+        "ot_employees",
+        "approval_section",
+        "manager_approver",
+        "column_break_16",
+        "factory_manager_approver",
+        "timestamps_section",
+        "manager_approved_on",
+        "column_break_20",
+        "factory_manager_approved_on",
+        "reason_section",
+        "remarks",
+        "amended_from"
+    ],
+    "fields": [
+        {
+            "fieldname": "requested_by",
+            "fieldtype": "Link",
+            "in_list_view": 1,
+            "label": "Requested By",
+            "options": "Employee",
+            "read_only": 1
+        },
+        {
+            "default": "Today",
+            "fieldname": "request_date",
+            "fieldtype": "Date",
+            "label": "Request Date",
+            "read_only": 1
+        },
+        {
+            "default": "Draft",
+            "fieldname": "status",
+            "fieldtype": "Select",
+            "in_list_view": 1,
+            "label": "Status",
+            "options": "Draft\nPending Manager Approval\nPending Factory Manager Approval\nApproved\nRejected\nCancelled",
+            "read_only": 1
+        },
+        {
+            "fieldname": "total_employees",
+            "fieldtype": "Int",
+            "label": "Total Employees",
+            "read_only": 1
+        },
+        {
+            "fieldname": "total_hours",
+            "fieldtype": "Float",
+            "label": "Total Hours",
+            "precision": "2",
+            "read_only": 1
+        },
+        {
+            "fieldname": "employees_section",
+            "fieldtype": "Section Break",
+            "label": "Employees"
+        },
+        {
+            "fieldname": "get_employees_button",
+            "fieldtype": "Button",
+            "label": "Get Employees By Group"
+        },
+        {
+            "allow_bulk_edit": 1,
+            "fieldname": "ot_employees",
+            "fieldtype": "Table",
+            "ignore_user_permissions": 1,
+            "label": "OT Employees List",
+            "options": "Overtime Registration Detail",
+            "reqd": 1
+        },
+        {
+            "collapsible": 1,
+            "fieldname": "approval_section",
+            "fieldtype": "Section Break",
+            "label": "Approval Details"
+        },
+        {
+            "fieldname": "manager_approver",
+            "fieldtype": "Link",
+            "label": "Department Manager",
+            "options": "Employee"
+        },
+        {
+            "fieldname": "column_break_16",
+            "fieldtype": "Column Break"
+        },
+        {
+            "fieldname": "factory_manager_approver",
+            "fieldtype": "Link",
+            "label": "Factory Manager",
+            "options": "Employee"
+        },
+        {
+            "fieldname": "timestamps_section",
+            "fieldtype": "Section Break",
+            "label": "Approval Timestamps"
+        },
+        {
+            "fieldname": "manager_approved_on",
+            "fieldtype": "Datetime",
+            "label": "Department Manager Approved On",
+            "read_only": 1
+        },
+        {
+            "fieldname": "column_break_20",
+            "fieldtype": "Column Break"
+        },
+        {
+            "fieldname": "factory_manager_approved_on",
+            "fieldtype": "Datetime",
+            "label": "Factory Manager Approved On",
+            "read_only": 1
+        },
+        {
+            "collapsible": 1,
+            "fieldname": "reason_section",
+            "fieldtype": "Section Break",
+            "label": "Reason & Remarks"
+        },
+        {
+            "fieldname": "remarks",
+            "fieldtype": "Text",
+            "label": "Additional Remarks"
+        },
+        {
+            "fieldname": "amended_from",
+            "fieldtype": "Link",
+            "label": "Amended From",
+            "no_copy": 1,
+            "options": "Overtime Registration",
+            "print_hide": 1,
+            "read_only": 1
+        },
+        {
+            "fieldname": "column_break_qnut",
+            "fieldtype": "Column Break"
+        },
+        {
+            "fieldname": "column_break_kjuy",
+            "fieldtype": "Column Break"
+        },
+        {
+            "fieldname": "reason_general",
+            "fieldtype": "Small Text",
+            "label": "General Reason for OT"
+        }
+    ],
+    "index_web_pages_for_search": 1,
+    "is_submittable": 1,
+    "links": [],
+    "modified": "2025-07-30 09:22:02.061617",
+    "modified_by": "Administrator",
+    "module": "Customize Erpnext",
+    "name": "Overtime Registration",
+    "naming_rule": "Expression",
+    "owner": "Administrator",
+    "permissions": [
+        {
+            "create": 1,
+            "delete": 1,
+            "email": 1,
+            "export": 1,
+            "print": 1,
+            "read": 1,
+            "report": 1,
+            "role": "HR Manager",
+            "share": 1,
+            "submit": 1,
+            "write": 1
+        },
+        {
+            "create": 1,
+            "email": 1,
+            "export": 1,
+            "print": 1,
+            "read": 1,
+            "report": 1,
+            "role": "Employee",
+            "share": 1,
+            "submit": 1,
+            "write": 1
+        },
+        {
+            "email": 1,
+            "export": 1,
+            "print": 1,
+            "read": 1,
+            "report": 1,
+            "role": "Department Manager",
+            "share": 1,
+            "write": 1
+        },
+        {
+            "email": 1,
+            "export": 1,
+            "print": 1,
+            "read": 1,
+            "report": 1,
+            "role": "Factory Manager",
+            "share": 1,
+            "write": 1
+        },
+        {
+            "email": 1,
+            "export": 1,
+            "print": 1,
+            "read": 1,
+            "report": 1,
+            "role": "TIQN Factory Manager",
+            "share": 1,
+            "write": 1
+        },
+        {
+            "email": 1,
+            "export": 1,
+            "print": 1,
+            "read": 1,
+            "report": 1,
+            "role": "TIQN Manager",
+            "share": 1,
+            "write": 1
+        }
+    ],
+    "row_format": "Dynamic",
+    "sort_field": "modified",
+    "sort_order": "DESC",
+    "states": [],
+    "track_changes": 1,
+    "track_seen": 1
 }
