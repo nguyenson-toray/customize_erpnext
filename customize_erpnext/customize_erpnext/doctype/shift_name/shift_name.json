@@ -1,6 +1,7 @@
 {
  "actions": [],
  "allow_rename": 1,
+ "autoname": "format:{shift_name}",
  "creation": "2025-07-29 19:48:06.939283",
  "doctype": "DocType",
  "engine": "InnoDB",
@@ -10,7 +11,9 @@
   "section_break_axyo",
   "shift_name",
   "begin_time",
-  "end_time"
+  "end_time",
+  "begin_break_time",
+  "end_break_time"
  ],
  "fields": [
   {
@@ -46,16 +49,26 @@
    "fieldname": "begin_time",
    "fieldtype": "Time",
    "label": "Begin Time"
+  },
+  {
+   "fieldname": "begin_break_time",
+   "fieldtype": "Time",
+   "label": "Begin Break Time"
+  },
+  {
+   "fieldname": "end_break_time",
+   "fieldtype": "Time",
+   "label": "End Break Time"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
- "is_submittable": 1,
  "links": [],
- "modified": "2025-07-29 20:13:26.596573",
+ "modified": "2025-07-30 08:08:31.402398",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Shift Name",
+ "naming_rule": "Expression",
  "owner": "Administrator",
  "permissions": [
   {
@@ -68,7 +81,6 @@
    "report": 1,
    "role": "System Manager",
    "share": 1,
-   "submit": 1,
    "write": 1
   }
  ],
