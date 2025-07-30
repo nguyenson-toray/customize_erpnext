@@ -5,6 +5,16 @@ app_description = "Customize Erpnext"
 app_email = "it@tiqn.com.vn"
 app_license = "mit"
 
+# Test function
+def test_overtime_conflicts():
+    import frappe
+    try:
+        test_entries = [{"idx": 1, "employee": "EMP-0001", "employee_name": "Test", "date": "2025-01-15", "from": "17:00:00", "to": "19:00:00"}]
+        result = frappe.call('customize_erpnext.customize_erpnext.doctype.overtime_registration.overtime_registration.check_overtime_conflicts', entries=test_entries, current_doc_name="test")
+        return f"SUCCESS: {result}"
+    except Exception as e:
+        return f"ERROR: {e}"
+
 # Sau khi sửa file hook.py chạy các lệnh sau:
 #  
 #  bench --site erp-sonnt.tiqn.local clear-cache 

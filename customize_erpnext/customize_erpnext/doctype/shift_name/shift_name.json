@@ -1,0 +1,91 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "format:{shift_name}",
+ "creation": "2025-07-29 19:48:06.939283",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "section_break_ssvc",
+  "amended_from",
+  "section_break_axyo",
+  "shift_name",
+  "begin_time",
+  "end_time",
+  "begin_break_time",
+  "end_break_time"
+ ],
+ "fields": [
+  {
+   "fieldname": "section_break_ssvc",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Shift Name",
+   "print_hide": 1,
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "section_break_axyo",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "shift_name",
+   "fieldtype": "Select",
+   "label": "Shift Name",
+   "options": "Day\nDay - Pregnant - Young Child\nCanteen\nShift 1\nShift 2"
+  },
+  {
+   "fieldname": "end_time",
+   "fieldtype": "Time",
+   "label": "End Time"
+  },
+  {
+   "fieldname": "begin_time",
+   "fieldtype": "Time",
+   "label": "Begin Time"
+  },
+  {
+   "fieldname": "begin_break_time",
+   "fieldtype": "Time",
+   "label": "Begin Break Time"
+  },
+  {
+   "fieldname": "end_break_time",
+   "fieldtype": "Time",
+   "label": "End Break Time"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2025-07-30 08:08:31.402398",
+ "modified_by": "Administrator",
+ "module": "Customize Erpnext",
+ "name": "Shift Name",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}
