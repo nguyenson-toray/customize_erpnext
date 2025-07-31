@@ -377,7 +377,8 @@ function load_employees_for_selection(groupName, dialog) {
                 'custom_group': groupName,
                 'status': 'Active'
             },
-            order_by: 'name'
+            order_by: 'name',
+            limit_page_length: 0  // Get all records
         },
         callback: function (r) {
             if (!r.message || r.message.length === 0) {
@@ -1041,7 +1042,8 @@ function load_available_employees(groupName) {
                 'custom_group': groupName,
                 'status': 'Active'
             },
-            order_by: 'employee_name asc'
+            order_by: 'employee_name asc',
+            limit_page_length: 0  // Get all records
         },
         callback: function (r) {
             if (r.message) {
