@@ -53,6 +53,39 @@ let currentDialog = null;
 let selectedEmployees = new Map(); // Store all selected employees across sessions
 let currentGroupEmployees = new Map(); // Store current group's available employees
 
+// Function to get current user's filter value based on filter_employee_by field
+function get_user_filter_value(frm, callback) {
+    const filterBy = frm.doc.filter_employee_by;
+    
+    if (!filterBy) {
+        callback(null, null);
+        return;
+    }
+
+    frappe.call({
+        method: 'frappe.client.get_list',
+        args: {
+            doctype: 'Employee',
+            fields: ['department', 'custom_section', 'custom_group'],
+            filters: {
+                'user_id': frappe.session.user
+            },
+            limit_page_length: 1
+        },
+        callback: function (r) {
+            if (r.message && r.message.length > 0) {
+                const employee = r.message[0];
+                const filterValue = employee[filterBy];
+                callback(filterBy, filterValue);
+            } else {
+                callback(filterBy, null);
+            }
+        },
+        error: function () {
+            callback(filterBy, null);
+        }
+    });
+}
 
 function show_employee_selection_dialog(frm) {
     // Close any existing dialog first and reset state
@@ -80,7 +113,17 @@ function show_employee_selection_dialog(frm) {
                 fieldname: 'selected_group',
                 label: 'Group',
                 options: 'Group',
-                reqd: 1
+                reqd: 1,
+                get_query: function() {
+                    if (frm.doc.filter_employee_by === 'custom_group' && frm.doc.request_by_group) {
+                        return {
+                            filters: {
+                                name: frm.doc.request_by_group
+                            }
+                        };
+                    }
+                    return {};
+                }
             },
             {
                 fieldtype: 'Select',
@@ -141,7 +184,7 @@ function show_employee_selection_dialog(frm) {
                 fieldname: 'select_employees_btn',
                 label: 'Select Employees',
                 click: function () {
-                    open_employee_selection_dialog();
+                    open_employee_selection_dialog(frm);
                 }
             },
             {
@@ -159,6 +202,9 @@ function show_employee_selection_dialog(frm) {
         }
     });
 
+    // Store frm reference in dialog for access to lock_group field
+    currentDialog.frm = frm;
+    
     currentDialog.show();
 
     // Initialize dialog with native fields only
@@ -275,7 +321,7 @@ function update_day_labels_for_week(weekOffset = 0) {
     });
 }
 
-function open_employee_selection_dialog() {
+function open_employee_selection_dialog(frm) {
     const groupValue = currentDialog.get_value('selected_group');
     if (!groupValue) {
         frappe.show_alert({
@@ -285,6 +331,36 @@ function open_employee_selection_dialog() {
         return;
     }
 
+    // Check if filtering is enabled
+    if (frm.doc.filter_employee_by) {
+        get_user_filter_value(frm, function(filterBy, filterValue) {
+            if (!filterValue) {
+                frappe.show_alert({
+                    message: __('Current user does not have a valid ' + filterBy + ' value'),
+                    indicator: 'red'
+                });
+                return;
+            }
+            
+            // For custom_group filtering, check if group matches
+            if (filterBy === 'custom_group' && groupValue !== filterValue) {
+                frappe.show_alert({
+                    message: __('You can only select employees from your own group: ') + filterValue,
+                    indicator: 'red'
+                });
+                return;
+            }
+            
+            // Proceed with dialog creation
+            create_employee_list_dialog(groupValue);
+        });
+    } else {
+        // No filtering, proceed normally
+        create_employee_list_dialog(groupValue);
+    }
+}
+
+function create_employee_list_dialog(groupValue) {
     // Create a new dialog every time to ensure correct z-index
     const employeeListDialog = new frappe.ui.Dialog({
         title: __("Select Employees from Group: ") + groupValue,
@@ -368,15 +444,47 @@ function load_employees_for_selection(groupName, dialog) {
     // Set loading state
     field_wrapper.html('<div class="text-muted" style="padding: 20px;">Loading employees...</div>');
 
+    const frm = currentDialog && currentDialog.frm;
+    const filterBy = frm && frm.doc.filter_employee_by;
+    
+    if (filterBy) {
+        get_user_filter_value(frm, function(filterBy, filterValue) {
+            if (!filterValue) {
+                field_wrapper.html('<p class="text-danger" style="padding: 20px;"><strong>Error:</strong><br>Current user does not have a valid ' + filterBy + ' value.</p>');
+                originalEmployeeList = [];
+                return;
+            }
+            
+            // Build filters for employee query
+            const employeeFilters = {
+                'custom_group': groupName,
+                'status': 'Active'
+            };
+            
+            // Add filter based on filter_employee_by
+            employeeFilters[filterBy] = filterValue;
+            
+            load_employees_for_selection_with_filters(employeeFilters, dialog);
+        });
+    } else {
+        // No filtering, load all employees from group
+        const employeeFilters = {
+            'custom_group': groupName,
+            'status': 'Active'
+        };
+        load_employees_for_selection_with_filters(employeeFilters, dialog);
+    }
+}
+
+function load_employees_for_selection_with_filters(filters, dialog) {
+    const field_wrapper = dialog.get_field('employee_list').$wrapper;
+    
     frappe.call({
         method: 'frappe.client.get_list',
         args: {
             doctype: 'Employee',
-            fields: ['name', 'employee_name', 'custom_group', 'status'],
-            filters: {
-                'custom_group': groupName,
-                'status': 'Active'
-            },
+            fields: ['name', 'employee_name', 'custom_group', 'department', 'custom_section', 'status'],
+            filters: filters,
             order_by: 'name',
             limit_page_length: 0  // Get all records
         },
@@ -441,6 +549,14 @@ function render_employee_list(employees, dialog) {
             displayId = displayId.replace(regex, '<mark style="background-color: yellow; padding: 1px 2px;">$1</mark>');
         }
 
+        // Build additional info based on available fields
+        let additionalInfo = [];
+        if (emp.custom_group) additionalInfo.push(`Group: ${emp.custom_group}`);
+        if (emp.department) additionalInfo.push(`Dept: ${emp.department}`);
+        if (emp.custom_section) additionalInfo.push(`Section: ${emp.custom_section}`);
+        
+        const infoText = additionalInfo.length > 0 ? `(${additionalInfo.join(', ')})` : '';
+
         html += `
             <div style="margin-bottom: 10px; padding: 12px; border: 1px solid #ddd; border-radius: 6px; background-color: ${isSelected ? '#f0f8ff' : 'white'};
 ">
@@ -449,8 +565,7 @@ function render_employee_list(employees, dialog) {
                            data-name="${emp.employee_name || emp.name}" 
                            data-group="${emp.custom_group}" ${checkedAttr} ${disabledAttr}
                            style="margin-right: 8px;">
-                    <strong style="color: #333;">${displayId}</strong> - ${displayName}
-                    <br><small class="text-muted">Group: ${emp.custom_group}</small>
+                    <strong style="color: #333;">${displayId}</strong> - ${displayName} <small class="text-muted">${infoText}</small>
                     ${isSelected ? '<br><small class="text-info"><strong>(Already selected)</strong></small>' : ''}
                 </label>
             </div>
@@ -857,11 +972,18 @@ function initialize_dialog() {
 }
 
 function load_groups() {
+    // Check if we need to filter groups based on current user
+    const filterBy = currentDialog && currentDialog.frm && currentDialog.frm.doc.filter_employee_by;
+    const userGroup = currentDialog && currentDialog.frm && currentDialog.frm.doc.request_by_group;
+    
+    const filters = (filterBy === 'custom_group' && userGroup) ? { 'name': userGroup } : {};
+    
     frappe.call({
         method: 'frappe.client.get_list',
         args: {
             doctype: 'Group',
             fields: ['name', 'group'],
+            filters: filters,
             order_by: '`group` asc',
             limit_page_length: 0  // Get all records
         },
@@ -1033,15 +1155,48 @@ function setup_event_handlers() {
 }
 
 function load_available_employees(groupName) {
+    const frm = currentDialog && currentDialog.frm;
+    const filterBy = frm && frm.doc.filter_employee_by;
+    
+    if (filterBy) {
+        get_user_filter_value(frm, function(filterBy, filterValue) {
+            if (!filterValue) {
+                frappe.show_alert({
+                    message: __('Current user does not have a valid ' + filterBy + ' value'),
+                    indicator: 'red'
+                });
+                clear_available_employees();
+                return;
+            }
+            
+            // Build filters for employee query
+            const employeeFilters = {
+                'custom_group': groupName,
+                'status': 'Active'
+            };
+            
+            // Add filter based on filter_employee_by
+            employeeFilters[filterBy] = filterValue;
+            
+            load_employees_with_filters(employeeFilters);
+        });
+    } else {
+        // No filtering, load all employees from group
+        const employeeFilters = {
+            'custom_group': groupName,
+            'status': 'Active'
+        };
+        load_employees_with_filters(employeeFilters);
+    }
+}
+
+function load_employees_with_filters(filters) {
     frappe.call({
         method: 'frappe.client.get_list',
         args: {
             doctype: 'Employee',
-            fields: ['name', 'employee_name', 'custom_group', 'status'],
-            filters: {
-                'custom_group': groupName,
-                'status': 'Active'
-            },
+            fields: ['name', 'employee_name', 'custom_group', 'department', 'custom_section', 'status'],
+            filters: filters,
             order_by: 'employee_name asc',
             limit_page_length: 0  // Get all records
         },
@@ -1127,11 +1282,18 @@ function create_employee_item_html(employee) {
     const statusBadge = employee.status !== 'Active' ?
         `<span class="label label-warning" style="font-size: 9px; margin-left: 5px;">${employee.status}</span>` : '';
 
+    // Build additional info based on available fields
+    let additionalInfo = [];
+    if (employee.custom_group) additionalInfo.push(`Group: ${employee.custom_group}`);
+    if (employee.department) additionalInfo.push(`Dept: ${employee.department}`);
+    if (employee.custom_section) additionalInfo.push(`Section: ${employee.custom_section}`);
+    
+    const infoText = additionalInfo.length > 0 ? `(${additionalInfo.join(', ')})` : '';
+
     return `
         <div class="employee-item" data-employee-id="${employee.name}">
             <div class="employee-id">${employee.name}${statusBadge}</div>
-            <div class="employee-name">${employee.employee_name || employee.name}</div>
-            <div class="employee-group">Group: ${employee.custom_group || 'Not Set'}</div>
+            <div class="employee-name">${employee.employee_name || employee.name} <small class="text-muted">${infoText}</small></div>
         </div>
     `;
 }
