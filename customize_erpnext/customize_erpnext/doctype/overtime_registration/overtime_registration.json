@@ -8,10 +8,13 @@
  "engine": "InnoDB",
  "field_order": [
   "status",
+  "filter_employee_by",
   "reason_general",
   "column_break_qnut",
   "request_date",
   "requested_by",
+  "request_by_full_name",
+  "request_by_group",
   "column_break_kjuy",
   "total_employees",
   "total_hours",
@@ -35,7 +38,7 @@
    "fieldname": "requested_by",
    "fieldtype": "Link",
    "in_list_view": 1,
-   "label": "Requested By",
+   "label": "Request By",
    "options": "Employee",
    "read_only": 1
   },
@@ -162,12 +165,34 @@
    "fieldname": "reason_general",
    "fieldtype": "Small Text",
    "label": "General Reason for OT"
+  },
+  {
+   "fetch_from": "requested_by.employee_name",
+   "fetch_if_empty": 1,
+   "fieldname": "request_by_full_name",
+   "fieldtype": "Data",
+   "label": "Request By"
+  },
+  {
+   "fetch_from": "requested_by.custom_group",
+   "fetch_if_empty": 1,
+   "fieldname": "request_by_group",
+   "fieldtype": "Data",
+   "label": "Group"
+  },
+  {
+   "default": "custom_section",
+   "fieldname": "filter_employee_by",
+   "fieldtype": "Select",
+   "label": "Filter Employee By",
+   "options": "\ndepartment\ncustom_section\ncustom_group",
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2025-07-31 11:17:31.639920",
+ "modified": "2025-07-31 12:49:52.513342",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Overtime Registration",
