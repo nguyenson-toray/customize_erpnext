@@ -151,15 +151,6 @@
    "read_only": 1
   },
   {
-   "fieldname": "amended_from",
-   "fieldtype": "Link",
-   "label": "Amended From",
-   "no_copy": 1,
-   "options": "Overtime Registration",
-   "print_hide": 1,
-   "read_only": 1
-  },
-  {
    "fieldname": "column_break_qnut",
    "fieldtype": "Column Break"
   },
@@ -176,7 +167,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2025-07-29 14:38:43.010375",
+ "modified": "2025-07-31 11:17:31.639920",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Overtime Registration",
@@ -200,6 +191,7 @@
    "create": 1,
    "email": 1,
    "export": 1,
+   "if_owner": 1,
    "print": 1,
    "read": 1,
    "report": 1,

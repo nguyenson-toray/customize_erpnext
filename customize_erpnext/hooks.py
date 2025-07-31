@@ -110,7 +110,8 @@ fixtures = [
                 "Item",
                 "Stock Entry Detail",
                 "Stock Reconciliation",
-                "Stock Reconciliation Item"
+                "Stock Reconciliation Item",
+                "Employee"
                 ]]
         ]
     },
@@ -121,7 +122,8 @@ fixtures = [
             "name": ["in", [
                 "Item",
                 "Stock Entry", 
-                "Stock Reconciliation"
+                "Stock Reconciliation",
+                "Shift Name"
                 # Add your doctypes here
             ]]
         }
