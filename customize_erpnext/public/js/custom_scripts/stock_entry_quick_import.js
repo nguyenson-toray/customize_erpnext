@@ -2,6 +2,9 @@
 // Features: Excel import, Quick Add items, Duplicate rows, Progress tracking, Validation
 // Combined all functions, events, and logic from both files
 
+// Constants
+const max_line_quick_add = 200;
+
 frappe.ui.form.on('Stock Entry', {
     refresh: function (frm) {
         // Import Excel functionality
@@ -835,10 +838,10 @@ function show_quick_add_dialog_se(frm, dialog_type) {
             }
 
             let lines = values.items_data.split('\n').filter(line => line.trim());
-            if (lines.length > 200) {
+            if (lines.length > max_line_quick_add) {
                 frappe.msgprint({
                     title: __('Too Many Lines'),
-                    message: __('Maximum 200 lines allowed per Quick Add operation.<br>Current lines: <strong>{0}</strong><br><br>Please split your data into smaller batches.', [lines.length]),
+                    message: __('Maximum {0} lines allowed per Quick Add operation.<br>Current lines: <strong>{1}</strong><br><br>Please split your data into smaller batches.', [max_line_quick_add, lines.length]),
                     indicator: 'red'
                 });
                 return;
@@ -911,7 +914,7 @@ function get_dialog_config_se(dialog_type) {
                             <h4 style="margin: 15px 0 10px 0; color: #333;">ℹ️ Notes</h4>
                             <div style="background: #fff3cd; padding: 10px; border-radius: 4px; border-left: 4px solid #ffc107;">
                                 <small>
-                                • <strong>Maximum 200 lines per batch</strong><br>
+                                • <strong>Maximum " + max_line_quick_add + " lines per batch</strong><br>
                                 • Each line = one item<br>
                                 • System searches "Item Name Detail" field<br>
                                 • Invalid items will be skipped with error report<br>
@@ -924,12 +927,12 @@ function get_dialog_config_se(dialog_type) {
     `;
     if (dialog_type === 'material_issue') {
         return {
-            title: __('Quick Add Items - Material Issue (Max 200 lines)'),
+            title: __('Quick Add Items - Material Issue (Max {0} lines)', [max_line_quick_add]),
             description: __(dialog_description)
         };
     } else if (dialog_type === 'material_receipt') {
         return {
-            title: __('Quick Add Items - Material Receipt (Max 200 lines)'),
+            title: __('Quick Add Items - Material Receipt (Max {0} lines)', [max_line_quick_add]),
             description: __(dialog_description)
         };
     }

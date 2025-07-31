@@ -1,3 +1,6 @@
+// Constants
+const max_line_quick_add = 200;
+
 // Client Script for Stock Reconciliation - Quick Add functionality
 // Purpose: Add Quick Add button for Opening Stock purpose with custom format
 // Format: item_name_detail;invoice_number;qty;receive_date
@@ -349,10 +352,10 @@ function show_quick_add_dialog_sr(frm, dialog_type) {
             }
 
             let lines = values.items_data.split('\n').filter(line => line.trim());
-            if (lines.length > 200) {
+            if (lines.length > max_line_quick_add) {
                 frappe.msgprint({
                     title: __('Too Many Lines'),
-                    message: __('Maximum 200 lines allowed per Quick Add operation.<br>Current lines: <strong>{0}</strong><br><br>Please split your data into smaller batches.', [lines.length]),
+                    message: __('Maximum {0} lines allowed per Quick Add operation.<br>Current lines: <strong>{1}</strong><br><br>Please split your data into smaller batches.', [max_line_quick_add, lines.length]),
                     indicator: 'red'
                 });
                 return;
@@ -392,7 +395,7 @@ function show_quick_add_dialog_sr(frm, dialog_type) {
 function get_dialog_config_sr(dialog_type) {
     if (dialog_type === 'opening_stock') {
         return {
-            title: __('Quick Add Items - Opening Stock (Max 200 lines)'),
+            title: __('Quick Add Items - Opening Stock (Max {0} lines)', [max_line_quick_add]),
             description: __(`
                 <div style="background: #f8f9fa; padding: 15px; border-radius: 12px; font-size: 13px; line-height: 1.4;">
                     
@@ -820,6 +823,9 @@ function setup_selection_monitor_sr(frm) {
 }
 
 // Function to show/hide duplicate button with proper styling
+// Constants
+const max_line_quick_add = 200;
+
 // Client Script for Stock Reconciliation - Quick Add functionality
 // Purpose: Add Quick Add button for Opening Stock purpose with custom format
 // Format: item_name_detail;invoice_number;qty;receive_date
@@ -1204,10 +1210,10 @@ function show_quick_add_dialog_sr(frm, dialog_type) {
             }
 
             let lines = values.items_data.split('\n').filter(line => line.trim());
-            if (lines.length > 200) {
+            if (lines.length > max_line_quick_add) {
                 frappe.msgprint({
                     title: __('Too Many Lines'),
-                    message: __('Maximum 200 lines allowed per Quick Add operation.<br>Current lines: <strong>{0}</strong><br><br>Please split your data into smaller batches.', [lines.length]),
+                    message: __('Maximum {0} lines allowed per Quick Add operation.<br>Current lines: <strong>{1}</strong><br><br>Please split your data into smaller batches.', [max_line_quick_add, lines.length]),
                     indicator: 'red'
                 });
                 return;
