@@ -823,9 +823,6 @@ function setup_selection_monitor_sr(frm) {
 }
 
 // Function to show/hide duplicate button with proper styling
-// Constants
-const max_line_quick_add = 200;
-
 // Client Script for Stock Reconciliation - Quick Add functionality
 // Purpose: Add Quick Add button for Opening Stock purpose with custom format
 // Format: item_name_detail;invoice_number;qty;receive_date
