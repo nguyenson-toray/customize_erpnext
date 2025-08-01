@@ -1,5 +1,5 @@
 // Constants
-const max_line_quick_add = 200;
+const max_line_quick_add = 3000;
 
 // Client Script for Stock Reconciliation - Quick Add functionality
 // Purpose: Add Quick Add button for Opening Stock purpose with custom format
@@ -61,23 +61,25 @@ frappe.ui.form.on('Stock Reconciliation', {
         toggle_duplicate_button_sr(frm);
         initialize_quick_add_button_sr(frm);
 
-        // Hide posting_time field, set to '00:00:00' and make read-only if purpose is 'Opening Stock'
+        // Set default date and time for Opening Stock purpose
         if (frm.doc.purpose === 'Opening Stock') {
             frm.set_value('posting_time', '00:00:00');
             frm.set_df_property('posting_time', 'read_only', 1);
         } else {
             frm.toggle_display('posting_time', 1);
             frm.set_df_property('posting_time', 'read_only', 0);
+            frm.set_df_property('posting_date', 'read_only', 0);
         }
     },
     set_posting_time: function (frm) {
-        // Ensure posting_time is set to '00:00:00' if purpose is 'Opening Stock'
+        // Set default date and time for Opening Stock purpose
         if (frm.doc.purpose === 'Opening Stock' && frm.doc.set_posting_time) {
             frm.set_value('posting_time', '00:00:00');
             frm.set_df_property('posting_time', 'read_only', 1);
         } else {
             frm.toggle_display('posting_time', 1);
             frm.set_df_property('posting_time', 'read_only', 0);
+            frm.set_df_property('posting_date', 'read_only', 0);
         }
     },
 
@@ -588,11 +590,12 @@ async function process_quick_add_items_sr(frm, items_data, dialog_type) {
             qty: qty
         });
 
-        // Update progress during validation
-        if (i % 5 === 0 || i === lines.length - 1) {
+        // Update progress during validation - optimized for larger batches
+        if (i % 50 === 0 || i === lines.length - 1) {
             let progress = 10 + (i / lines.length) * 20;
             updateProgress(progress, 'Validating input data...', `Processed ${i + 1}/${lines.length} lines`);
-            await new Promise(resolve => setTimeout(resolve, 50));
+            // Reduced delay for faster processing
+            await new Promise(resolve => setTimeout(resolve, 20));
         }
     }
 
@@ -602,9 +605,13 @@ async function process_quick_add_items_sr(frm, items_data, dialog_type) {
     let found_items = [];
     let search_patterns = items_to_add.map(item => item.search_pattern);
     try {
-        // Find all items using batch call
-        let batch_responses = await Promise.all(
-            search_patterns.map(pattern =>
+        // Process items in smaller batches to avoid overwhelming the server
+        const BATCH_SIZE = 500; // Process 500 items at a time
+        let batch_responses = [];
+
+        for (let i = 0; i < search_patterns.length; i += BATCH_SIZE) {
+            let batch_patterns = search_patterns.slice(i, i + BATCH_SIZE);
+            let batch_promises = batch_patterns.map(pattern =>
                 frappe.call({
                     method: 'frappe.client.get_list',
                     args: {
@@ -618,8 +625,16 @@ async function process_quick_add_items_sr(frm, items_data, dialog_type) {
                         limit: 1
                     }
                 })
-            )
-        );
+            );
+
+            let batch_results = await Promise.all(batch_promises);
+            batch_responses.push(...batch_results);
+
+            // Update progress for each batch
+            let progress = 30 + ((i + batch_patterns.length) / search_patterns.length) * 20;
+            updateProgress(progress, 'Searching for items in database...', `Processed ${Math.min(i + BATCH_SIZE, search_patterns.length)}/${search_patterns.length} patterns`);
+            await new Promise(resolve => setTimeout(resolve, 50));
+        }
 
         updateProgress(50, 'Processing search results...', `Found items for ${batch_responses.length} patterns`);
         await new Promise(resolve => setTimeout(resolve, 200));
@@ -647,8 +662,14 @@ async function process_quick_add_items_sr(frm, items_data, dialog_type) {
         if (found_items.length > 0) {
             updateProgress(60, 'Getting item details...', `Processing ${found_items.length} found items`);
             await new Promise(resolve => setTimeout(resolve, 200));
-            let item_detail_responses = await Promise.all(
-                found_items.map(item =>
+
+            // Process item details in batches to avoid overwhelming the server
+            const DETAIL_BATCH_SIZE = 300; // Process 300 item details at a time
+            let item_detail_responses = [];
+
+            for (let i = 0; i < found_items.length; i += DETAIL_BATCH_SIZE) {
+                let batch_items = found_items.slice(i, i + DETAIL_BATCH_SIZE);
+                let batch_promises = batch_items.map(item =>
                     frappe.call({
                         method: 'frappe.client.get',
                         args: {
@@ -656,8 +677,16 @@ async function process_quick_add_items_sr(frm, items_data, dialog_type) {
                             name: item.item_code
                         }
                     })
-                )
-            );
+                );
+
+                let batch_results = await Promise.all(batch_promises);
+                item_detail_responses.push(...batch_results);
+
+                // Update progress for each batch
+                let progress = 60 + ((i + batch_items.length) / found_items.length) * 10;
+                updateProgress(progress, 'Getting item details...', `Processed ${Math.min(i + DETAIL_BATCH_SIZE, found_items.length)}/${found_items.length} items`);
+                await new Promise(resolve => setTimeout(resolve, 30));
+            }
 
             // Add warehouse defaults to found items
             for (let i = 0; i < item_detail_responses.length; i++) {
@@ -674,85 +703,107 @@ async function process_quick_add_items_sr(frm, items_data, dialog_type) {
             }
         }
 
-        // Fourth pass: Add all rows to table (including qty)
+        // Fourth pass: Add all rows to table (including qty) - Optimized for large batches
         updateProgress(70, 'Adding items to table...', `Adding ${found_items.length} items`);
-        await new Promise(resolve => setTimeout(resolve, 200));
+        await new Promise(resolve => setTimeout(resolve, 100));
 
         let added_rows = [];
 
-        for (let i = 0; i < found_items.length; i++) {
-            let item = found_items[i];
-            try {
-                // Add new row
-                let new_row = frm.add_child('items');
+        // Process items in smaller chunks to avoid DOM overload
+        const ADD_BATCH_SIZE = 200; // Add 200 items at a time before refreshing
 
-                // Set basic item values (including qty this time)
-                let values_to_set = {
-                    'item_code': item.item_code,
-                    'qty': item.qty,  // Set qty immediately
-                    'allow_zero_valuation_rate': 1,
-                };
+        for (let batch_start = 0; batch_start < found_items.length; batch_start += ADD_BATCH_SIZE) {
+            let batch_end = Math.min(batch_start + ADD_BATCH_SIZE, found_items.length);
+            let batch_items = found_items.slice(batch_start, batch_end);
 
-                // Add default warehouse if available
-                if (item.default_warehouse) {
-                    values_to_set.warehouse = item.default_warehouse;
+            // Add batch of items without refreshing grid each time
+            for (let i = 0; i < batch_items.length; i++) {
+                let item = batch_items[i];
+                let global_index = batch_start + i;
+
+                try {
+                    // Add new row
+                    let new_row = frm.add_child('items');
+
+                    // Set basic item values (including qty this time)
+                    let values_to_set = {
+                        'item_code': item.item_code,
+                        'qty': item.qty,  // Set qty immediately
+                        'allow_zero_valuation_rate': 1,
+                    };
+
+                    // Add default warehouse if available
+                    if (item.default_warehouse) {
+                        values_to_set.warehouse = item.default_warehouse;
+                    }
+
+                    // Add type-specific fields
+                    Object.assign(values_to_set, item.field_data);
+
+                    // Set all values including qty
+                    Object.keys(values_to_set).forEach(function (field) {
+                        // Set directly on the row object
+                        new_row[field] = values_to_set[field];
+                    });
+
+                    // Store row info for backup qty setting
+                    added_rows.push({
+                        doctype: new_row.doctype,
+                        name: new_row.name,
+                        qty: item.qty
+                    });
+
+                    success_count++;
+
+                } catch (error) {
+                    errors.push(__('Line {0}: Error adding item to table: {1}', [item.line_number, error.message]));
+                    error_count++;
                 }
+            }
 
-                // Add type-specific fields
-                Object.assign(values_to_set, item.field_data);
+            // Update progress after each batch
+            let progress = 70 + ((batch_end) / found_items.length) * 15;
+            updateProgress(progress, 'Adding items to table...', `Added ${batch_end}/${found_items.length} items`);
 
-                // Set all values including qty
-                Object.keys(values_to_set).forEach(function (field) {
-                    // Set directly on the row object
-                    new_row[field] = values_to_set[field];
-                });
-
-                // Store row info for backup qty setting
-                added_rows.push({
-                    doctype: new_row.doctype,
-                    name: new_row.name,
-                    qty: item.qty
-                });
-
-                success_count++;
-
-                // Update progress for every 3 items or last item
-                if (i % 3 === 0 || i === found_items.length - 1) {
-                    let progress = 70 + ((i + 1) / found_items.length) * 15;
-                    updateProgress(progress, 'Adding items to table...', `Added ${i + 1}/${found_items.length} items`);
-                    await new Promise(resolve => setTimeout(resolve, 100));
-                }
-
-            } catch (error) {
-                errors.push(__('Line {0}: Error adding item to table: {1}', [item.line_number, error.message]));
-                error_count++;
+            // Small delay between batches to keep UI responsive
+            if (batch_end < found_items.length) {
+                await new Promise(resolve => setTimeout(resolve, 50));
             }
         }
 
-        // Refresh grid after adding all rows
+        // Refresh grid after adding all rows - Optimized for large datasets
         if (added_rows.length > 0) {
             updateProgress(85, 'Refreshing table display...', 'Updating user interface');
-            await new Promise(resolve => setTimeout(resolve, 200));
+            await new Promise(resolve => setTimeout(resolve, 100));
 
             frm.refresh_field('items');
-            // Wait for refresh to complete, then verify and fix qty if needed
-            await new Promise(resolve => setTimeout(resolve, 500));
+            // Reduced wait time for refresh to complete
+            await new Promise(resolve => setTimeout(resolve, 300));
 
             updateProgress(90, 'Verifying quantities...', 'Ensuring all quantities are correct');
-            await new Promise(resolve => setTimeout(resolve, 200));
+            await new Promise(resolve => setTimeout(resolve, 100));
 
-            // Verify and fix qty values
-            // console.log('Verifying and fixing qty values... Add allow_zero_valuation_rate = 1');
-            for (let row_info of added_rows) {
-                try {
-                    let row = locals[row_info.doctype][row_info.name];
-                    if (row && (!row.qty || row.qty === 0)) {
-                        row.qty = row_info.qty;
-                        frappe.model.set_value(row_info.doctype, row_info.name, 'qty', row_info.qty);
-                        frappe.model.set_value(row_info.doctype, row_info.name, 'allow_zero_valuation_rate', 1);
+            // Verify and fix qty values in batches for better performance
+            const VERIFY_BATCH_SIZE = 500;
+            for (let i = 0; i < added_rows.length; i += VERIFY_BATCH_SIZE) {
+                let batch_rows = added_rows.slice(i, i + VERIFY_BATCH_SIZE);
+
+                for (let row_info of batch_rows) {
+                    try {
+                        let row = locals[row_info.doctype][row_info.name];
+                        if (row && (!row.qty || row.qty === 0)) {
+                            row.qty = row_info.qty;
+                            frappe.model.set_value(row_info.doctype, row_info.name, 'qty', row_info.qty);
+                            frappe.model.set_value(row_info.doctype, row_info.name, 'allow_zero_valuation_rate', 1);
+                        }
+                    } catch (error) {
+                        console.error(`Error verifying qty for row ${row_info.name}:`, error);
                     }
-                } catch (error) {
-                    console.error(`Error verifying qty for row ${row_info.name}:`, error);
+                }
+
+                // Small delay between verification batches
+                if (i + VERIFY_BATCH_SIZE < added_rows.length) {
+                    await new Promise(resolve => setTimeout(resolve, 10));
                 }
             }
         }

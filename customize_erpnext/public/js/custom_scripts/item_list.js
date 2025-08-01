@@ -14,6 +14,11 @@ frappe.listview_settings['Item'] = {
         listview.page.add_inner_button(__('Export Master Data - Item - Attribute'), function () {
             export_master_data_item_attribute();
         }, __('Actions'));
+
+        // Add "Create Item Variants From Excel" button to Item List
+        listview.page.add_inner_button(__('Create Item Variants From Excel'), function () {
+            show_create_item_variants_dialog(listview);
+        }, __('Actions'));
     }
 };
 
@@ -1085,4 +1090,426 @@ function export_master_data_item_attribute() {
             frappe.msgprint(__('Error generating Excel file: {0}', [r.message || 'Unknown error']));
         }
     });
+}
+
+// Create Item Variants From Excel functionality
+function show_create_item_variants_dialog(listview) {
+    let dialog = new frappe.ui.Dialog({
+        title: __('Create Item Variants From Excel'),
+        fields: [
+            {
+                fieldtype: 'Section Break',
+                label: __('Step 1: Upload Excel File')
+            },
+            {
+                fieldname: 'excel_file',
+                fieldtype: 'Attach',
+                label: __('Excel File'),
+                options: {
+                    restrictions: {
+                        allowed_file_types: ['.xlsx', '.xls']
+                    }
+                },
+                reqd: 1,
+                description: __('Upload Excel file with item variant data. Required columns: Item Name, Attribute Color - Value, Attribute Size - Value, Attribute Brand - Value, Attribute Season - Value, Attribute Info - Value')
+            },
+            {
+                fieldtype: 'Section Break',
+                label: __('Step 2: Validation Results')
+            },
+            {
+                fieldname: 'validation_results',
+                fieldtype: 'HTML',
+                label: __('Validation Status'),
+                options: '<div class="text-muted">Please upload an Excel file and click "Validate Data" to see results</div>'
+            },
+            {
+                fieldtype: 'Section Break',
+                label: __('Step 3: Create Variants')
+            },
+            {
+                fieldname: 'creation_results',
+                fieldtype: 'HTML',
+                label: __('Creation Status'),
+                options: '<div class="text-muted">Validation must pass before creating variants. Items will be skipped if they already exist.</div>'
+            }
+        ],
+        size: 'extra-large',
+        primary_action_label: __('Create Variants'),
+        primary_action: function(values) {
+            create_item_variants_from_excel(dialog, values);
+        },
+        secondary_action_label: __('Validate Data'),
+        secondary_action: function(values) {
+            validate_excel_data(dialog, values);
+        }
+    });
+
+    // Initially disable primary action
+    dialog.get_primary_btn().prop('disabled', true);
+    
+    dialog.show();
+    
+    // Add download template button
+    setTimeout(() => {
+        let template_btn = $(`<button class="btn btn-info btn-sm" style="margin-right: 10px;">
+            <i class="fa fa-download"></i> ${__('Download Template')}
+        </button>`);
+        
+        template_btn.click(function() {
+            download_template();
+        });
+        
+        dialog.$wrapper.find('.modal-footer .standard-actions').prepend(template_btn);
+    }, 100);
+}
+
+function download_template() {
+    frappe.show_alert({
+        message: __('Downloading template...'),
+        indicator: 'blue'
+    });
+
+    // Use frappe.call to download the template file
+    frappe.call({
+        method: 'customize_erpnext.api.bulk_update_scripts.create_item_variants_improved_validate_data.download_template',
+        callback: function(r) {
+            if (r.message) {
+                // Convert base64 to blob and download
+                const byteCharacters = atob(r.message.file_data);
+                const byteNumbers = new Array(byteCharacters.length);
+                for (let i = 0; i < byteCharacters.length; i++) {
+                    byteNumbers[i] = byteCharacters.charCodeAt(i);
+                }
+                const byteArray = new Uint8Array(byteNumbers);
+                const blob = new Blob([byteArray], { 
+                    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+                });
+
+                // Create download link
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = r.message.filename;
+                document.body.appendChild(a);
+                a.click();
+
+                // Cleanup
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+
+                frappe.show_alert({
+                    message: __('Template downloaded successfully!'),
+                    indicator: 'green'
+                }, 3);
+            } else {
+                frappe.show_alert({
+                    message: __('Error downloading template'),
+                    indicator: 'red'
+                }, 3);
+            }
+        },
+        error: function(r) {
+            frappe.show_alert({
+                message: __('Error downloading template: {0}', [r.message || 'Unknown error']),
+                indicator: 'red'
+            }, 3);
+        }
+    });
+}
+
+function validate_excel_data(dialog, values) {
+    // Get fresh values from dialog
+    let current_values = dialog.get_values();
+    
+    // Get the Excel file value
+    
+    let excel_file = current_values.excel_file || values.excel_file;
+    
+    if (!excel_file) {
+        frappe.msgprint(__('Please upload an Excel file first'));
+        return;
+    }
+
+    // File validated successfully
+
+    // Show loading
+    dialog.set_value('validation_results', '<div class="text-center"><i class="fa fa-spinner fa-spin"></i> Validating Excel data...</div>');
+    
+    // Disable buttons during validation
+    dialog.get_primary_btn().prop('disabled', true);
+    dialog.get_secondary_btn().prop('disabled', true).text(__('Validating...'));
+
+    frappe.call({
+        method: 'customize_erpnext.api.bulk_update_scripts.create_item_variants_improved_validate_data.validate_item_variants_data',
+        args: {
+            file_url: excel_file  // Send the file URL instead of file path
+        },
+        callback: function(r) {
+            // Re-enable secondary button
+            dialog.get_secondary_btn().prop('disabled', false).text(__('Validate Data'));
+            
+            if (r.message) {
+                display_validation_results(dialog, r.message);
+                
+                // Enable primary button only if validation passed
+                if (r.message.invalid_rows === 0) {
+                    dialog.get_primary_btn().prop('disabled', false);
+                    frappe.show_alert({
+                        message: __('✅ Validation passed! Ready to create {0} item variants', [r.message.valid_rows]),
+                        indicator: 'green'
+                    }, 5);
+                } else {
+                    dialog.get_primary_btn().prop('disabled', true);
+                    frappe.show_alert({
+                        message: __('⚠️ Validation failed! Please fix {0} issues before creating variants', [r.message.invalid_rows]),
+                        indicator: 'orange'
+                    }, 5);
+                }
+            } else {
+                dialog.set_value('validation_results', '<div class="alert alert-danger">❌ Validation failed. Please check your Excel file format.</div>');
+                dialog.get_primary_btn().prop('disabled', true);
+            }
+        },
+        error: function(r) {
+            // Re-enable secondary button
+            dialog.get_secondary_btn().prop('disabled', false).text(__('Validate Data'));
+            dialog.get_primary_btn().prop('disabled', true);
+            
+            dialog.set_value('validation_results', 
+                `<div class="alert alert-danger">❌ Error during validation: ${r.message || 'Unknown error'}</div>`
+            );
+            frappe.msgprint(__('Error validating Excel data: {0}', [r.message || 'Unknown error']));
+        }
+    });
+}
+
+function display_validation_results(dialog, results) {
+    let html = '';
+    
+    // Summary section
+    html += `
+        <div class="row">
+            <div class="col-md-3">
+                <div class="alert ${results.invalid_rows === 0 ? 'alert-success' : 'alert-warning'}">
+                    <strong>Total Rows:</strong> ${results.total_rows}
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="alert alert-success">
+                    <strong>Valid Rows:</strong> ${results.valid_rows}
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="alert ${results.invalid_rows === 0 ? 'alert-success' : 'alert-danger'}">
+                    <strong>Invalid Rows:</strong> ${results.invalid_rows}
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="alert ${results.invalid_rows === 0 ? 'alert-success' : 'alert-info'}">
+                    <strong>Status:</strong> ${results.invalid_rows === 0 ? '✅ Ready' : '⚠️ Issues Found'}
+                </div>
+            </div>
+        </div>
+    `;
+
+    // Issues section
+    if (results.invalid_rows > 0) {
+        html += '<div class="alert alert-warning"><strong>⚠️ Issues Found:</strong></div>';
+        
+        if (results.missing_templates && results.missing_templates.length > 0) {
+            html += `
+                <div class="card mb-3">
+                    <div class="card-header bg-danger text-white">
+                        <strong>❌ Missing Templates (${results.missing_templates.length})</strong>
+                    </div>
+                    <div class="card-body">
+                        <ul class="mb-0">
+                            ${results.missing_templates.map(template => `<li>${template}</li>`).join('')}
+                        </ul>
+                    </div>
+                </div>
+            `;
+        }
+        
+        if (results.missing_attributes && Object.keys(results.missing_attributes).length > 0) {
+            html += `
+                <div class="card mb-3">
+                    <div class="card-header bg-warning text-dark">
+                        <strong>⚠️ Missing Attribute Abbreviations</strong>
+                    </div>
+                    <div class="card-body">
+            `;
+            
+            for (let attr_name in results.missing_attributes) {
+                html += `<p><strong>${attr_name}:</strong> ${results.missing_attributes[attr_name].join(', ')}</p>`;
+            }
+            
+            html += '</div></div>';
+        }
+        
+        if (results.duplicate_variants && results.duplicate_variants.length > 0) {
+            html += `
+                <div class="card mb-3">
+                    <div class="card-header bg-danger text-white">
+                        <strong>❌ Duplicate Variants (${results.duplicate_variants.length})</strong>
+                    </div>
+                    <div class="card-body">
+                        <ul class="mb-0">
+                            ${results.duplicate_variants.map(variant => `<li>${variant}</li>`).join('')}
+                        </ul>
+                    </div>
+                </div>
+            `;
+        }
+    }
+
+    // Success section
+    if (results.valid_rows > 0) {
+        html += `
+            <div class="alert alert-success">
+                <strong>✅ ${results.valid_rows} rows are ready for item variant creation</strong>
+            </div>
+        `;
+        
+        if (results.invalid_rows === 0) {
+            html += `
+                <div class="alert alert-info">
+                    <strong>💡 Expected Format:</strong> Item codes will be created with format: TEMPLATE-COLOR-SIZE-BRAND-SEASON-INFO (using dash separators)
+                    <br><strong>💡 Valid Values:</strong> "Blank" is treated as a valid attribute value for missing data
+                </div>
+            `;
+        }
+    }
+
+    dialog.set_value('validation_results', html);
+}
+
+function create_item_variants_from_excel(dialog, values) {
+    // Get fresh values from dialog
+    let current_values = dialog.get_values();
+    let excel_file = current_values.excel_file || values.excel_file;
+    
+    if (!excel_file) {
+        frappe.msgprint(__('Please upload an Excel file first'));
+        return;
+    }
+
+    frappe.confirm(
+        __('Are you sure you want to create item variants? This action cannot be undone.'),
+        () => {
+            // Show loading
+            dialog.set_value('creation_results', '<div class="text-center"><i class="fa fa-spinner fa-spin"></i> Creating item variants...</div>');
+            
+            // Disable buttons during creation
+            dialog.get_primary_btn().prop('disabled', true).text(__('Creating...'));
+            dialog.get_secondary_btn().prop('disabled', true);
+
+            frappe.call({
+                method: 'customize_erpnext.api.bulk_update_scripts.create_item_variants_improved.create_item_variants_improved',
+                args: {
+                    file_url: excel_file  // Send the file URL instead of file path
+                },
+                callback: function(r) {
+                    // Re-enable buttons
+                    dialog.get_primary_btn().prop('disabled', false).text(__('Create Variants'));
+                    dialog.get_secondary_btn().prop('disabled', false);
+                    
+                    if (r.message) {
+                        display_creation_results(dialog, r.message);
+                        
+                        // Show success alert
+                        frappe.show_alert({
+                            message: __('✅ Item variants creation completed! Check results below.'),
+                            indicator: 'green'
+                        }, 5);
+                        
+                        // Refresh list view if available
+                        if (cur_list) {
+                            cur_list.refresh();
+                        }
+                    } else {
+                        dialog.set_value('creation_results', '<div class="alert alert-danger">❌ Creation failed. Please check the logs.</div>');
+                    }
+                },
+                error: function(r) {
+                    // Re-enable buttons
+                    dialog.get_primary_btn().prop('disabled', false).text(__('Create Variants'));
+                    dialog.get_secondary_btn().prop('disabled', false);
+                    
+                    dialog.set_value('creation_results', 
+                        `<div class="alert alert-danger">❌ Error during creation: ${r.message || 'Unknown error'}</div>`
+                    );
+                    frappe.msgprint(__('Error creating item variants: {0}', [r.message || 'Unknown error']));
+                }
+            });
+        }
+    );
+}
+
+function display_creation_results(dialog, results) {
+    let html = `
+        <div class="alert alert-success">
+            <strong>✅ Item Variants Creation Completed!</strong>
+        </div>
+        <div class="row">
+            <div class="col-md-4">
+                <div class="alert alert-info">
+                    <strong>Total Processed:</strong> ${results.total_rows || 0}
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="alert alert-success">
+                    <strong>Successfully Created:</strong> ${results.success_count || 0}
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="alert ${results.error_count > 0 ? 'alert-danger' : 'alert-success'}">
+                    <strong>Errors:</strong> ${results.error_count || 0}
+                </div>
+            </div>
+        </div>
+    `;
+
+    if (results.results && results.results.length > 0) {
+        html += `
+            <div class="card">
+                <div class="card-header">
+                    <strong>📋 Detailed Results</strong>
+                </div>
+                <div class="card-body" style="max-height: 400px; overflow-y: auto;">
+                    <table class="table table-sm table-striped">
+                        <thead>
+                            <tr>
+                                <th>Status</th>
+                                <th>Details</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+        `;
+        
+        results.results.forEach(result => {
+            let status_class = result.indexOf('✅') >= 0 ? 'text-success' : 'text-danger';
+            html += `
+                <tr>
+                    <td class="${status_class}">
+                        ${result.indexOf('✅') >= 0 ? '✅ Success' : '❌ Error'}
+                    </td>
+                    <td>${result}</td>
+                </tr>
+            `;
+        });
+        
+        html += '</tbody></table></div></div>';
+    }
+
+    if (results.log_file) {
+        html += `
+            <div class="alert alert-info">
+                <strong>📄 Log File:</strong> Detailed logs saved to <code>${results.log_file}</code>
+            </div>
+        `;
+    }
+
+    dialog.set_value('creation_results', html);
 }
