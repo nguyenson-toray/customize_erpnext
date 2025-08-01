@@ -1,3 +1,6 @@
+// Constants
+const max_line_quick_add = 200;
+
 // Client Script for Stock Reconciliation - Quick Add functionality
 // Purpose: Add Quick Add button for Opening Stock purpose with custom format
 // Format: item_name_detail;invoice_number;qty;receive_date
@@ -349,10 +352,10 @@ function show_quick_add_dialog_sr(frm, dialog_type) {
             }
 
             let lines = values.items_data.split('\n').filter(line => line.trim());
-            if (lines.length > 100) {
+            if (lines.length > max_line_quick_add) {
                 frappe.msgprint({
                     title: __('Too Many Lines'),
-                    message: __('Maximum  100 lines allowed per Quick Add operation.<br>Current lines: <strong>{0}</strong><br><br>Please split your data into smaller batches.', [lines.length]),
+                    message: __('Maximum {0} lines allowed per Quick Add operation.<br>Current lines: <strong>{1}</strong><br><br>Please split your data into smaller batches.', [max_line_quick_add, lines.length]),
                     indicator: 'red'
                 });
                 return;
@@ -392,7 +395,7 @@ function show_quick_add_dialog_sr(frm, dialog_type) {
 function get_dialog_config_sr(dialog_type) {
     if (dialog_type === 'opening_stock') {
         return {
-            title: __('Quick Add Items - Opening Stock (Max 100 lines)'),
+            title: __('Quick Add Items - Opening Stock (Max {0} lines)', [max_line_quick_add]),
             description: __(`
                 <div style="background: #f8f9fa; padding: 15px; border-radius: 12px; font-size: 13px; line-height: 1.4;">
                     
@@ -400,11 +403,11 @@ function get_dialog_config_sr(dialog_type) {
                         <div style="flex: 1;">
                             <h4 style="margin: 0 0 10px 0; color: #333;">📝 Format Options</h4>
                             <div style="background: white; padding: 10px; border-radius: 4px; margin-bottom: 15px;">
-                                <strong>1. Full format:</strong> <code>item_name_detail; invoice_number; qty; receive_date</code><br>
-                                <strong>2. With invoice:</strong> <code>item_name_detail; invoice_number</code><br>
-                                <strong>3. With qty:</strong> <code>item_name_detail; invoice_number; qty</code><br>
-                                <strong>4. Skip fields:</strong> <code>item_name_detail; ; qty; receive_date</code><br>
-                                <strong>5. Simple:</strong> <code>item_name_detail</code><br>
+                                <strong>1. Full format:</strong> <code>item_name_detail; invoice_number; qty; receive_date; [customs_declaration_number]</code><br>
+                                <strong>2. With invoice:</strong> <code>item_name_detail; invoice_number; [customs_declaration_number]</code><br>
+                                <strong>3. With qty:</strong> <code>item_name_detail; invoice_number; qty; [customs_declaration_number]</code><br>
+                                <strong>4. Skip fields:</strong> <code>item_name_detail; ; qty; receive_date; [customs_declaration_number]</code><br>
+                                <strong>5. Simple:</strong> <code>item_name_detail; [customs_declaration_number]</code><br>
                             </div>
 
 
@@ -413,6 +416,7 @@ function get_dialog_config_sr(dialog_type) {
                                 <strong>invoice_number:</strong> empty<br>
                                 <strong>qty:</strong> 1<br>
                                 <strong>receive_date:</strong> empty<br>
+                                <strong>customs_declaration_number:</strong> empty (optional)<br>
                                 <strong>Number format:</strong> 52,5 or 52.5<br>
                                 <strong>Date format:</strong> DD/MM/YYYY, DD-MM-YYYY, or YYYY-MM-DD<br>
                                 <strong>Date validation:</strong> Max 1 year in future
@@ -422,11 +426,11 @@ function get_dialog_config_sr(dialog_type) {
                         <div style="flex: 1;">
                             <h4 style="margin: 0 0 10px 0; color: #333;">📋 Examples</h4>
                             <div style="background: white; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 12px;">
-                                <div style="margin-bottom: 12px;"><code>E79799 Black 20Mm Vital 25Ss; IV007; 30; 15/06/2024</code><br><small style="color: #17a2b8;">→ qty=30, invoice=IV007, date=15/06/2024</small></div>
-                                <div style="margin-bottom: 12px;"><code>E79799 Black 20Mm Vital 25Ss; IV003</code><br><small style="color: #17a2b8;">→ qty=1, invoice=IV003, date=empty</small></div>
-                                <div style="margin-bottom: 12px;"><code>E79799 Black 20Mm Vital 25Ss</code><br><small style="color: #17a2b8;">→ qty=1, invoice=empty, date=empty</small></div>
-                                <div style="margin-bottom: 12px;"><code>E79799 Black 20Mm Vital 25Ss; IV005; 25,75</code><br><small style="color: #17a2b8;">→ qty=25.75, invoice=IV005, date=empty</small></div>
-                                <div><code>E79799 Black 20Mm Vital 25Ss; ; 45; 2024-06-20</code><br><small style="color: #17a2b8;">→ qty=45, invoice=empty, date=2024-06-20</small></div>
+                                <div style="margin-bottom: 12px;"><code>E79799 Black 20Mm Vital 25Ss; IV007; 30; 15/06/2024; TK001</code><br><small style="color: #17a2b8;">→ qty=30, invoice=IV007, date=15/06/2024, customs=TK001</small></div>
+                                <div style="margin-bottom: 12px;"><code>E79799 Black 20Mm Vital 25Ss; IV003; ; ; TK002</code><br><small style="color: #17a2b8;">→ qty=1, invoice=IV003, date=empty, customs=TK002</small></div>
+                                <div style="margin-bottom: 12px;"><code>E79799 Black 20Mm Vital 25Ss; IV007; 30; 15/06/2024</code><br><small style="color: #17a2b8;">→ qty=30, invoice=IV007, date=15/06/2024, customs=empty</small></div>
+                                <div style="margin-bottom: 12px;"><code>E79799 Black 20Mm Vital 25Ss; IV005; 25,75</code><br><small style="color: #17a2b8;">→ qty=25.75, invoice=IV005, date=empty, customs=empty</small></div>
+                                <div><code>E79799 Black 20Mm Vital 25Ss</code><br><small style="color: #17a2b8;">→ qty=1, invoice=empty, date=empty, customs=empty</small></div>
                             </div>
                             
                             <h4 style="margin: 15px 0 10px 0; color: #333;">ℹ️ Notes</h4>
@@ -435,7 +439,8 @@ function get_dialog_config_sr(dialog_type) {
                                 • Each line = one item<br>
                                 • The system will search for item_name_detail in the "Item Name Detail" field of all Items.<br>
                                 • Invalid items will be skipped with error report<br> 
-                                • Receive date will be saved to Stock Ledger Entry
+                                • Receive date will be saved to Stock Ledger Entry<br>
+                                • customs_declaration_number is optional - can be included or omitted
                                 </small>
                             </div>
                         </div>
@@ -567,6 +572,13 @@ async function process_quick_add_items_sr(frm, items_data, dialog_type) {
             }
         } else {
             field_data.custom_receive_date = '';
+        }
+
+        // Process custom_customs_declaration_number (parts[4])
+        if (parts.length >= 5 && parts[4].trim() !== '') {
+            field_data.custom_customs_declaration_number = parts[4].trim();
+        } else {
+            field_data.custom_customs_declaration_number = '';
         }
         item_name_detail += '%'; // Ensure pattern ends with %
         items_to_add.push({
@@ -1195,10 +1207,10 @@ function show_quick_add_dialog_sr(frm, dialog_type) {
             }
 
             let lines = values.items_data.split('\n').filter(line => line.trim());
-            if (lines.length > 100) {
+            if (lines.length > max_line_quick_add) {
                 frappe.msgprint({
                     title: __('Too Many Lines'),
-                    message: __('Maximum  100 lines allowed per Quick Add operation.<br>Current lines: <strong>{0}</strong><br><br>Please split your data into smaller batches.', [lines.length]),
+                    message: __('Maximum {0} lines allowed per Quick Add operation.<br>Current lines: <strong>{1}</strong><br><br>Please split your data into smaller batches.', [max_line_quick_add, lines.length]),
                     indicator: 'red'
                 });
                 return;

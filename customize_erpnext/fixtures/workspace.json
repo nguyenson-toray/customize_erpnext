@@ -1667,5 +1667,66 @@
    }
   ],
   "title": "Stock"
+ },
+ {
+  "charts": [],
+  "content": "[{\"id\":\"kb3XPLg8lb\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Các phím tắt của bạn</b></span>\",\"col\":12}},{\"id\":\"LXp_txj_Os\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Đăng ký tăng ca\",\"col\":3}},{\"id\":\"_4A0ewQDF4\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Đăng ký ca làm việc (Ca 1, 2)\",\"col\":3}},{\"id\":\"r3xmz_dQ3v\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"NUsTQ4-NeA\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Vegetarian Meal\",\"col\":3}},{\"id\":\"dpVplxyGzs\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Vegetarian Meal Checking\",\"col\":3}},{\"id\":\"fUYyGlD5Gi\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Print Vegetarian Meal Registration Form\",\"col\":3}},{\"id\":\"HsiteVBPmx\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"d_KVM1gsf9\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"JVu8-FJZCu\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Reports &amp; Masters</b></span>\",\"col\":12}},{\"id\":\"Zr_eJ5IJdc\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Vegetarian Meal Report - List Register\",\"col\":3}},{\"id\":\"3ZOceBbIJh\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Vegetarian Meal Chart - Daily Quantity\",\"col\":3}},{\"id\":\"uu8PKBkfKO\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Vegetarian Meal Chart - Daily Quantity\",\"col\":12}}]",
+  "custom_blocks": [],
+  "docstatus": 0,
+  "doctype": "Workspace",
+  "for_user": "",
+  "hide_custom": 0,
+  "icon": "milestone",
+  "indicator_color": "",
+  "is_hidden": 0,
+  "label": "Registration",
+  "links": [],
+  "modified": "2025-07-31 11:27:23.577948",
+  "module": "TIQN App",
+  "name": "Registration",
+  "number_cards": [],
+  "parent_page": "",
+  "public": 1,
+  "quick_lists": [],
+  "restrict_to_domain": "",
+  "roles": [],
+  "sequence_id": 2.0,
+  "shortcuts": [
+   {
+    "color": "Grey",
+    "doc_view": "List",
+    "format": null,
+    "icon": null,
+    "kanban_board": null,
+    "label": "Đăng ký ca làm việc (Ca 1, 2)",
+    "link_to": "Shift Registration",
+    "parent": "Registration",
+    "parentfield": "shortcuts",
+    "parenttype": "Workspace",
+    "report_ref_doctype": null,
+    "restrict_to_domain": null,
+    "stats_filter": "[]",
+    "type": "DocType",
+    "url": null
+   },
+   {
+    "color": "Grey",
+    "doc_view": "List",
+    "format": null,
+    "icon": null,
+    "kanban_board": null,
+    "label": "Đăng ký tăng ca",
+    "link_to": "Overtime Registration",
+    "parent": "Registration",
+    "parentfield": "shortcuts",
+    "parenttype": "Workspace",
+    "report_ref_doctype": null,
+    "restrict_to_domain": null,
+    "stats_filter": "[]",
+    "type": "DocType",
+    "url": null
+   }
+  ],
+  "title": "Registration"
  }
 ]

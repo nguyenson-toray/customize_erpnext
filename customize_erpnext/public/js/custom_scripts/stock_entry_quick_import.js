@@ -2,6 +2,9 @@
 // Features: Excel import, Quick Add items, Duplicate rows, Progress tracking, Validation
 // Combined all functions, events, and logic from both files
 
+// Constants
+const max_line_quick_add = 200;
+
 frappe.ui.form.on('Stock Entry', {
     refresh: function (frm) {
         // Import Excel functionality
@@ -152,6 +155,19 @@ frappe.ui.form.on('Stock Entry Detail', {
 
             if (row.custom_invoice_number !== trimmed_value) {
                 frappe.model.set_value(cdt, cdn, 'custom_invoice_number', trimmed_value);
+            }
+        }
+    },
+
+    custom_customs_declaration_number: function (frm, cdt, cdn) {
+        let row = locals[cdt][cdn];
+
+        // Trim the field when user moves out of the field
+        if (row.custom_customs_declaration_number && typeof row.custom_customs_declaration_number === 'string') {
+            let trimmed_value = row.custom_customs_declaration_number.trim();
+
+            if (row.custom_customs_declaration_number !== trimmed_value) {
+                frappe.model.set_value(cdt, cdn, 'custom_customs_declaration_number', trimmed_value);
             }
         }
     }
@@ -822,10 +838,10 @@ function show_quick_add_dialog_se(frm, dialog_type) {
             }
 
             let lines = values.items_data.split('\n').filter(line => line.trim());
-            if (lines.length > 100) {
+            if (lines.length > max_line_quick_add) {
                 frappe.msgprint({
                     title: __('Too Many Lines'),
-                    message: __('Maximum 100 lines allowed per Quick Add operation.<br>Current lines: <strong>{0}</strong><br><br>Please split your data into smaller batches.', [lines.length]),
+                    message: __('Maximum {0} lines allowed per Quick Add operation.<br>Current lines: <strong>{1}</strong><br><br>Please split your data into smaller batches.', [max_line_quick_add, lines.length]),
                     indicator: 'red'
                 });
                 return;
@@ -870,16 +886,17 @@ function get_dialog_config_se(dialog_type) {
                         <div style="flex: 1;">
                             <h4 style="margin: 0 0 10px 0; color: #333;">📝 Format Options</h4>
                             <div style="background: white; padding: 10px; border-radius: 4px; margin-bottom: 15px;">
-                                <strong>1. Full format:</strong> <code>item_name_detail; invoice_number; qty</code><br>
-                                <strong>2. With Invoice:</strong> <code>item_name_detail; invoice_number</code><br>
-                                <strong>3. Skip Invoice:</strong> <code>item_name_detail; ; qty</code><br>
-                                <strong>4. Simple:</strong> <code>item_name_detail</code><br>
+                                <strong>1. Full format:</strong> <code>item_name_detail; invoice_number; qty; [customs_declaration_number]</code><br>
+                                <strong>2. With Invoice:</strong> <code>item_name_detail; invoice_number; [customs_declaration_number]</code><br>
+                                <strong>3. Skip Invoice:</strong> <code>item_name_detail; ; qty; [customs_declaration_number]</code><br>
+                                <strong>4. Simple:</strong> <code>item_name_detail; [customs_declaration_number]</code><br>
                             </div>
                             
                             <h4 style="margin: 0 0 10px 0; color: #333;">⚙️ Default Values</h4>
                             <div style="background: white; padding: 10px; border-radius: 4px;">
                                 <strong>invoice_number:</strong> empty<br>
                                 <strong>qty:</strong> 1<br>
+                                <strong>customs_declaration_number:</strong> empty (optional)<br>
                                 <strong>Number format:</strong> 52,5 or 52.5
                             </div>
                         </div>
@@ -887,20 +904,21 @@ function get_dialog_config_se(dialog_type) {
                         <div style="flex: 1;">
                             <h4 style="margin: 0 0 10px 0; color: #333;">📋 Examples</h4>
                             <div style="background: white; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 12px;">
-                                <div style="margin-bottom: 12px;"><code>E79799 Black 20Mm Vital 25Ss; IV001; 25,75</code><br><small style="color: #28a745;">→ qty=25.75, Invoice=IV001</small></div>
-                                <div style="margin-bottom: 12px;"><code>E79799 Black 20Mm Vital 25Ss; IV002</code><br><small style="color: #28a745;">→ qty=1, Invoice=IV002</small></div>
-                                <div style="margin-bottom: 12px;"><code>E79799 Black 20Mm Vital 25Ss; ; 30</code><br><small style="color: #28a745;">→ qty=30, Invoice=empty</small></div>
-                                <div style="margin-bottom: 12px;"><code>E79799 Black 20Mm Vital 25Ss</code><br><small style="color: #28a745;">→ qty=1, Invoice=empty</small></div>
+                                <div style="margin-bottom: 12px;"><code>E79799 Black 20Mm Vital 25Ss; IV001; 25,75; TK001</code><br><small style="color: #28a745;">→ qty=25.75, Invoice=IV001, customs=TK001</small></div>
+                                <div style="margin-bottom: 12px;"><code>E79799 Black 20Mm Vital 25Ss; IV002; ; TK002</code><br><small style="color: #28a745;">→ qty=1, Invoice=IV002, customs=TK002</small></div>
+                                <div style="margin-bottom: 12px;"><code>E79799 Black 20Mm Vital 25Ss; IV001; 25,75</code><br><small style="color: #28a745;">→ qty=25.75, Invoice=IV001, customs=empty</small></div>
+                                <div style="margin-bottom: 12px;"><code>E79799 Black 20Mm Vital 25Ss</code><br><small style="color: #28a745;">→ qty=1, Invoice=empty, customs=empty</small></div>
                                                                 
                             </div>
                             
                             <h4 style="margin: 15px 0 10px 0; color: #333;">ℹ️ Notes</h4>
                             <div style="background: #fff3cd; padding: 10px; border-radius: 4px; border-left: 4px solid #ffc107;">
                                 <small>
-                                • <strong>Maximum 100 lines per batch</strong><br>
+                                • <strong>Maximum " + max_line_quick_add + " lines per batch</strong><br>
                                 • Each line = one item<br>
                                 • System searches "Item Name Detail" field<br>
-                                • Invalid items will be skipped with error report
+                                • Invalid items will be skipped with error report<br>
+                                • customs_declaration_number is optional - can be included or omitted
                                 </small>
                             </div>
                         </div>
@@ -909,12 +927,12 @@ function get_dialog_config_se(dialog_type) {
     `;
     if (dialog_type === 'material_issue') {
         return {
-            title: __('Quick Add Items - Material Issue (Max 100 lines)'),
+            title: __('Quick Add Items - Material Issue (Max {0} lines)', [max_line_quick_add]),
             description: __(dialog_description)
         };
     } else if (dialog_type === 'material_receipt') {
         return {
-            title: __('Quick Add Items - Material Receipt (Max 100 lines)'),
+            title: __('Quick Add Items - Material Receipt (Max {0} lines)', [max_line_quick_add]),
             description: __(dialog_description)
         };
     }
@@ -1027,6 +1045,13 @@ async function process_quick_add_items_se(frm, items_data, dialog_type) {
                 error_count++;
                 continue;
             }
+        }
+
+        // Process custom_customs_declaration_number (parts[3])
+        if (parts.length >= 4 && parts[3].trim() !== '') {
+            field_data.custom_customs_declaration_number = parts[3].trim();
+        } else {
+            field_data.custom_customs_declaration_number = '';
         }
         // item_name_detail += '%'; // Ensure pattern ends with %
         items_to_add.push({
