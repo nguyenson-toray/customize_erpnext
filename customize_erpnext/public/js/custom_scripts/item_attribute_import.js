@@ -1,17 +1,27 @@
 /**
  * Converts a string to Proper Case (like Excel PROPER function)
  * Capitalizes first letter of each word, preserves spaces
+ * Special handling: first non-number character is uppercase (e.g., "26ss" → "26Ss")
  * @param {String} str - The string to convert
  * @returns {String} The proper case string
  */
 function toProperCase(str) {
   if (!str) return str;
 
-  return str.trim()
-    .toLowerCase()
-    .replace(/\b\w/g, function (char) {
-      return char.toUpperCase();
-    });
+  let result = str.trim().toLowerCase();
+  
+  // First, handle regular word boundaries (spaces, punctuation)
+  result = result.replace(/\b\w/g, function (char) {
+    return char.toUpperCase();
+  });
+  
+  // Special handling: ensure first non-number character is uppercase
+  // This handles cases like "26ss" → "26Ss"
+  result = result.replace(/^(\d*)([a-z])/, function(_, numbers, firstLetter) {
+    return numbers + firstLetter.toUpperCase();
+  });
+  
+  return result;
 }
 
 frappe.ui.form.on('Item Attribute', {
