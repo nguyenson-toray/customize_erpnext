@@ -26,7 +26,7 @@ Material Receipt - Quick Add, Thêm nhanh - Nhập NPL
 Minimum required: item_name,Tối thiểu yêu cầu: item_name
 
 # Overtime Registration Translations
-"Overtime Registration": "Đăng ký tăng ca"
+"Overtime Registration","Đăng ký tăng ca"
 "Request By","Người yêu cầu"
 "Request Date","Ngày yêu cầu"
 "Status","Trạng thái"
@@ -34,7 +34,7 @@ Minimum required: item_name,Tối thiểu yêu cầu: item_name
 "Total Hours","Tổng số giờ"
 "Employees","Nhân viên"
 "Get Employees By Group","Lấy nhân viên theo nhóm"
-"OT Employees List","Danh sachs nhân viên tăng ca"
+"OT Employees List","Danh sách nhân viên tăng ca"
 "Approval Details","Chi tiết phê duyệt"
 "Department Manager","Trưởng phòng ban"
 "Factory Manager","Trưởng nhà máy"
@@ -122,3 +122,32 @@ Minimum required: item_name,Tối thiểu yêu cầu: item_name
 "To","Đến"
 "Begin", "Bắt đầu"
 "End", "Kết thúc"
+
+# Shift Registration Translations
+"Employee {0} has been selected multiple times in the list. Please select each employee only once.","Nhân viên {0} đã được chọn nhiều lần trong danh sách. Vui lòng chỉ chọn mỗi nhân viên một lần."
+"Validation Error","Lỗi Validation"
+
+# Report Labels
+"Hours","Giờ"
+"Time Begin","Giờ bắt đầu"
+"Time End","Giờ kết thúc"
+"Total Employee (Submitted)","Tổng số nhân viên (Đã gửi)"
+"Total Hours (Submitted)","Tổng số giờ (Đã gửi)"
+"Total Employee (Draft)","Tổng số nhân viên (Bản nháp)"
+"Total Hours (Draft)","Tổng số giờ (Bản nháp)"
+"No Group","Không có nhóm"
+
+# Additional common translations
+"Registered Groups","Nhóm đã đăng ký"
+"Select Employees from Group: {0}","Chọn nhân viên từ nhóm: {0}"
+"Current user does not have a valid {0} value","Người dùng hiện tại không có giá trị {0} hợp lệ"
+"You can only select employees from your own group: {0}","Bạn chỉ có thể chọn nhân viên từ nhóm của mình: {0}"
+"Select Employees from Group: {0}","Chọn nhân viên từ nhóm: {0}"
+"Error loading employees","Lỗi tải danh sách nhân viên"
+"Unknown error","Lỗi không xác định"
+
+# Workspace and Menu Translations
+"Shift Registration","Đăng ký ca làm việc"
+"Reports & Masters","Báo cáo & Danh mục"
+"Overtime Registration Report","Báo cáo đăng ký tăng ca"
+"Overtime Registration Quantity","Số lượng đăng ký tăng ca"

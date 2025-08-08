@@ -45,6 +45,9 @@ frappe.ui.form.on("Overtime Registration", {
         check_conflicts_with_submitted_records(frm);
 
         calculate_totals_and_apply_reason(frm);
+        
+        // Update registered groups summary when saving
+        update_registered_groups(frm);
     }
 });
 
@@ -1679,6 +1682,30 @@ function calculate_totals_and_apply_reason(frm) {
             }
         });
         frm.refresh_field('ot_employees');
+    }
+}
+
+function update_registered_groups(frm) {
+    if (!frm.doc.ot_employees || frm.doc.ot_employees.length === 0) {
+        frm.set_value('registered_groups', '');
+        return;
+    }
+
+    const distinct_groups = new Set();
+
+    // Collect unique groups from all rows
+    frm.doc.ot_employees.forEach(d => {
+        if (d.group && d.group.trim()) {
+            distinct_groups.add(d.group.trim());
+        }
+    });
+
+    // Update registered groups summary
+    if (distinct_groups.size > 0) {
+        const sorted_groups = Array.from(distinct_groups).sort();
+        frm.set_value('registered_groups', sorted_groups.join(', '));
+    } else {
+        frm.set_value('registered_groups', '');
     }
 }
 

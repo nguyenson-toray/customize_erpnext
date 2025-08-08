@@ -10,7 +10,7 @@
  "idx": 0,
  "is_standard": "Yes",
  "letterhead": null,
- "modified": "2025-08-08 21:10:03.581608",
+ "modified": "2025-08-09 00:09:53.030791",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Overtime Registration Quantity",
@@ -37,6 +37,12 @@
   },
   {
    "role": "TIQN Manager"
+  },
+  {
+   "role": "TIQN Staff"
+  },
+  {
+   "role": "All"
   }
  ],
  "timeout": 600

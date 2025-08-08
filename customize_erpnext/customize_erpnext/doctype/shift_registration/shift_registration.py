@@ -1,7 +1,8 @@
 # Copyright (c) 2025, IT Team - TIQN and contributors
 # For license information, please see license.txt
 
-# import frappe
+import frappe
+from frappe import _
 from frappe.model.document import Document
 
 
@@ -10,7 +11,7 @@ class ShiftRegistration(Document):
 
 
 def validate_duplicate_employees(doc, method):
-    """Kiểm tra trùng lặp nhân viên trong danh sách"""
+    """Check for duplicate employees in the list"""
     if not doc.employees_list:
         return
         
@@ -20,8 +21,7 @@ def validate_duplicate_employees(doc, method):
         if row.employee:
             if row.employee in employees_seen:
                 frappe.throw(
-                    f"Nhân viên {row.employee} đã được chọn nhiều lần trong danh sách. "
-                    "Vui lòng chỉ chọn mỗi nhân viên một lần.",
-                    title="Lỗi Validation"
+                    _("Employee {0} has been selected multiple times in the list. Please select each employee only once.").format(row.employee),
+                    title=_("Validation Error")
                 )
             employees_seen.append(row.employee)
