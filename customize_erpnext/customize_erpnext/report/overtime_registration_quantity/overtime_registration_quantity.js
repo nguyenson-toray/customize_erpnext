@@ -1,7 +1,7 @@
 // Copyright (c) 2025, IT Team - TIQN and contributors
 // For license information, please see license.txt
 
-frappe.query_reports["Overtime Registration"] = {
+frappe.query_reports["Overtime Registration Quantity"] = {
 	"filters": [
 		{
 			"fieldname": "from_date",
@@ -18,28 +18,10 @@ frappe.query_reports["Overtime Registration"] = {
 			"reqd": 1
 		},
 		{
-			"fieldname": "employee",
-			"label": __("Employee"),
-			"fieldtype": "Link",
-			"options": "Employee"
-		},
-		{
 			"fieldname": "group",
 			"label": __("Group"),
 			"fieldtype": "Link",
 			"options": "Group"
-		},
-		{
-			"fieldname": "status",
-			"label": __("Status"),
-			"fieldtype": "Select",
-			"default": "Submitted",
-			"options": [
-				"",
-				"Draft",
-				"Submitted",
-				"Cancelled"
-			]
 		}
 	],
 	"onload": function (report) {
@@ -53,18 +35,17 @@ frappe.query_reports["Overtime Registration"] = {
 	},
 	"formatter": function (value, row, column, data, default_formatter) {
 		value = default_formatter(value, row, column, data);
-		
-		if (column.fieldname === "status") {
-			if (value === "Submitted") {
-				// Green color for submitted status
-				value = `<span style="color: green;">${value}</span>`;
-			}
-			else if (value === "Draft") {
-				// Orange color and italic for draft status
-				value = `<span style="color: orange; font-style: italic;">${value}</span>`;
-			}
+
+		if (column.fieldname === "total_employees_submitted" || column.fieldname === "total_hours_submitted") {
+			// Green color for submitted data
+			value = `<span style="color: green; font-weight: normal;">${value}</span>`;
 		}
-		
+		else
+			if (column.fieldname === "total_employees_draft" || column.fieldname === "total_hours_draft") {
+				// Gray color and italic for draft data
+				value = `<span style="color: gray; font-style: italic;">${value}</span>`;
+			}
+
 		return value;
 	}
 };

@@ -2,211 +2,137 @@
 # For license information, please see license.txt
 
 import frappe
-from frappe.model.document import Document
-from frappe.utils import get_time, time_diff_in_hours
 from frappe import _
+from frappe.utils import formatdate, format_time, time_diff_in_hours
 
-class OvertimeRegistration(Document):
-    def validate(self):
-        self.validate_duplicate_employees()
-        self.validate_conflicting_ot_requests()
-        self.calculate_totals_and_apply_reason()
+def execute(filters=None):
+    columns = get_columns()
+    data = get_data(filters)
+    return columns, data
+
+def get_columns():
+    return [
+        {
+            "fieldname": "overtime_registration",
+            "label": _("Overtime Registration"),
+            "fieldtype": "Link",
+            "options": "Overtime Registration",
+            "width": 180
+        },
+        {
+            "fieldname": "date",
+            "label": _("Date"),
+            "fieldtype": "Date",
+            "width": 100
+        },
+        {
+            "fieldname": "employee",
+            "label": _("Employee"),
+            "fieldtype": "Link",
+            "options": "Employee",
+            "width": 150
+        },
+        {
+            "fieldname": "employee_name",
+            "label": _("Employee Name"),
+            "fieldtype": "Data",
+            "width": 150
+        },
+        {
+            "fieldname": "begin_time",
+            "label": _("Begin Time"),
+            "fieldtype": "Time",
+            "width": 100
+        },
+        {
+            "fieldname": "end_time",
+            "label": _("End Time"),
+            "fieldtype": "Time",
+            "width": 100
+        },
+        {
+            "fieldname": "hours",
+            "label": _("Hours"),
+            "fieldtype": "Float",
+            "width": 80,
+            "precision": 2
+        },
+        {
+            "fieldname": "reason",
+            "label": _("Reason"),
+            "fieldtype": "Data",
+            "width": 300
+        },
+        {
+            "fieldname": "status",
+            "label": _("Status"),
+            "fieldtype": "Data",
+            "width": 100
+        }
+    ]
+
+def get_data(filters=None):
+    if not filters:
+        filters = {}
     
-    def before_save(self):
-        self.validate_duplicate_employees()
-        self.validate_conflicting_ot_requests()
+    conditions = []
+    values = {}
     
-    def before_insert(self):
-        self.validate_duplicate_employees()
-        self.validate_conflicting_ot_requests()
-
-    def validate_duplicate_employees(self):
-        """Prevent duplicate or overlapping overtime entries within the same form"""
-        
-        entries = []
-        
-        for d in self.ot_employees:
-            # Debug what fields are actually available
-            missing_fields = []
-            if not d.employee:
-                missing_fields.append("Employee")
-            if not d.date:
-                missing_fields.append("Date") 
-            if not d.get("begin_time"):
-                missing_fields.append("Begin Time")
-            if not d.get("end_time"):
-                missing_fields.append("End Time")
-                
-            if missing_fields:
-                frappe.throw(_("Row #{idx}: {fields} are required.").format(idx=d.idx, fields=", ".join(missing_fields)))
-            
-            entries.append({
-                'idx': d.idx,
-                'employee': d.employee,
-                'employee_name': d.employee_name,
-                'date': d.date,
-                'from': d.get("begin_time"),
-                'to': d.get("end_time")
-            })
-        
-        # Check for duplicates and overlaps
-        for i in range(len(entries)):
-            for j in range(i + 1, len(entries)):
-                entry1 = entries[i]
-                entry2 = entries[j]
-                
-                # Same employee and date
-                if entry1['employee'] == entry2['employee'] and entry1['date'] == entry2['date']:
-                    # Check for exact match or time overlap
-                    if times_overlap(entry1['from'], entry1['to'], entry2['from'], entry2['to']):
-                        frappe.throw(_("Row #{idx1} and Row #{idx2}: Overlapping overtime entries for employee {employee_name} on {date}. Entry 1: {from1}-{to1}, Entry 2: {from2}-{to2}").format(
-                            idx1=entry1['idx'],
-                            idx2=entry2['idx'],
-                            employee_name=frappe.bold(entry1['employee_name']),
-                            date=frappe.bold(entry1['date']),
-                            from1=entry1['from'],
-                            to1=entry1['to'],
-                            from2=entry2['from'],
-                            to2=entry2['to']
-                        ))
-
-    def validate_conflicting_ot_requests(self):
-        """Prevent conflicts with existing submitted overtime registrations"""
-        if not self.ot_employees:
-            return
-
-        for d in self.ot_employees:
-            from_time = d.get("begin_time")
-            to_time = d.get("end_time")
-
-            existing_entries = frappe.db.sql("""
-                SELECT child.parent, child.begin_time as `from`, child.end_time as `to`
-                FROM `tabOvertime Registration Detail` as child
-                JOIN `tabOvertime Registration` as parent ON child.parent = parent.name
-                WHERE child.employee = %(employee)s
-                AND child.date = %(date)s
-                AND parent.name != %(current_doc_name)s
-                AND parent.docstatus = 1
-            """, {
-                "employee": d.employee,
-                "date": d.date,
-                "current_doc_name": self.name or "new"
-            }, as_dict=1)
-
-            for existing in existing_entries:
-                if times_overlap(from_time, to_time, existing.get("from"), existing.get("to")):
-                    conflicting_doc = existing.get("parent")
-                    doc_link = frappe.get_desk_link("Overtime Registration", conflicting_doc)
-                    frappe.throw(_("Row #{idx}: Overlapping overtime entry for {employee_name} on {date}. Current: {from_time}-{to_time}, Existing: {existing_from}-{existing_to} in {doc_link}.").format(
-                        idx=d.idx,
-                        employee_name=frappe.bold(d.employee_name),
-                        date=frappe.bold(d.date),
-                        from_time=from_time,
-                        to_time=to_time,
-                        existing_from=existing.get("from"),
-                        existing_to=existing.get("to"),
-                        doc_link=doc_link
-                    ))
-
-    def calculate_totals_and_apply_reason(self):
-        """Manage general reason field and calculate totals"""
-        if not self.ot_employees:
-            self.total_employees = 0
-            self.total_hours = 0
-            return
-
-        distinct_employees = set()
-        total_hours = 0.0
-        child_reasons = set()
-
-        # First pass: calculate totals and gather unique, non-empty child reasons
-        for d in self.ot_employees:
-            if d.employee:
-                distinct_employees.add(d.employee)
-
-            if d.get("begin_time") and d.get("end_time"):
-                total_hours += time_diff_in_hours(d.end_time, d.get("begin_time"))
-            
-            if d.reason:
-                child_reasons.add(d.reason.strip())
-
-        # Update totals
-        self.total_employees = len(distinct_employees)
-        self.total_hours = total_hours
-
-        # If general reason is empty, populate it from unique child reasons
-        if not self.reason_general and child_reasons:
-            self.reason_general = ", ".join(sorted(list(child_reasons)))
-
-        # If a general reason now exists (either provided by user or generated),
-        # apply it to any child rows that have an empty reason.
-        if self.reason_general:
-            for d in self.ot_employees:
-                if not d.reason:
-                    d.reason = self.reason_general
-
-@frappe.whitelist()
-def check_overtime_conflicts(entries, current_doc_name="new"):
+    if filters.get("from_date"):
+        conditions.append("detail.date >= %(from_date)s")
+        values["from_date"] = filters.get("from_date")
+    
+    if filters.get("to_date"):
+        conditions.append("detail.date <= %(to_date)s")
+        values["to_date"] = filters.get("to_date")
+    
+    if filters.get("employee"):
+        conditions.append("detail.employee = %(employee)s")
+        values["employee"] = filters.get("employee")
+    
+    if filters.get("group"):
+        conditions.append("emp.group = %(group)s")
+        values["group"] = filters.get("group")
+    
+    if filters.get("status"):
+        if filters.get("status") == "Draft":
+            conditions.append("parent.docstatus = 0")
+        elif filters.get("status") == "Submitted":
+            conditions.append("parent.docstatus = 1")
+        elif filters.get("status") == "Cancelled":
+            conditions.append("parent.docstatus = 2")
+    
+    where_clause = ""
+    if conditions:
+        where_clause = "WHERE " + " AND ".join(conditions)
+    
+    query = f"""
+        SELECT 
+            parent.name as overtime_registration,
+            detail.date,
+            detail.employee,
+            detail.employee_name,
+            detail.begin_time,
+            detail.end_time,
+            detail.reason,
+            CASE 
+                WHEN parent.docstatus = 0 THEN 'Draft'
+                WHEN parent.docstatus = 1 THEN 'Submitted'
+                WHEN parent.docstatus = 2 THEN 'Cancelled'
+            END as status
+        FROM `tabOvertime Registration` parent
+        JOIN `tabOvertime Registration Detail` detail ON parent.name = detail.parent
+        LEFT JOIN `tabEmployee` emp ON detail.employee = emp.name
+        {where_clause}
+        ORDER BY detail.date DESC, detail.begin_time ASC
     """
-    Server method to check conflicts with submitted overtime registrations
-    Called from JavaScript validation
-    """
-    import json
-    if isinstance(entries, str):
-        entries = json.loads(entries)
     
-    conflicts = []
+    data = frappe.db.sql(query, values, as_dict=1)
     
-    for entry in entries:
-        # Query for existing overtime registrations for same employee and date
-        existing_entries = frappe.db.sql("""
-            SELECT child.parent, child.begin_time as `from`, child.end_time as `to`, child.employee_name
-            FROM `tabOvertime Registration Detail` as child
-            JOIN `tabOvertime Registration` as parent ON child.parent = parent.name
-            WHERE child.employee = %(employee)s
-            AND child.date = %(date)s
-            AND parent.name != %(current_doc_name)s
-            AND parent.docstatus = 1
-        """, {
-            "employee": entry["employee"],
-            "date": entry["date"],
-            "current_doc_name": current_doc_name
-        }, as_dict=1)
-        
-        # Check for overlaps
-        for existing in existing_entries:
-            if times_overlap(entry["begin_time"], entry["end_time"], existing["from"], existing["to"]):
-                conflicts.append({
-                    "idx": entry["idx"],
-                    "employee_name": entry["employee_name"],
-                    "date": entry["date"],
-                    "current_from": entry["begin_time"],
-                    "current_to": entry["end_time"],
-                    "existing_from": existing["from"],
-                    "existing_to": existing["to"],
-                    "existing_doc": existing["parent"]
-                })
+    for row in data:
+        if row.begin_time and row.end_time:
+            row.hours = time_diff_in_hours(row.end_time, row.begin_time)
+        else:
+            row.hours = 0.0
     
-    return conflicts
-
-def times_overlap(from1, to1, from2, to2):
-    """
-    Check if two time ranges overlap
-    Adjacent periods (where one ends exactly when another begins) are NOT overlapping
-    """
-    try:
-        # Convert time strings to time objects for comparison
-        time1_start = get_time(from1)
-        time1_end = get_time(to1)
-        time2_start = get_time(from2)
-        time2_end = get_time(to2)
-        
-        # Check for overlap: start1 < end2 && start2 < end1
-        condition1 = time1_start < time2_end
-        condition2 = time2_start < time1_end
-        overlap = condition1 and condition2
-        
-        return overlap
-    except Exception:
-        # If there's any error in time conversion, assume no overlap
-        return False
+    return data
