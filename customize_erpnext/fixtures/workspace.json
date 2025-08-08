@@ -1669,8 +1669,16 @@
   "title": "Stock"
  },
  {
-  "charts": [],
-  "content": "[{\"id\":\"kb3XPLg8lb\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Your Shortcuts</b></span>\",\"col\":12}},{\"id\":\"NUsTQ4-NeA\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Overtime Registration\",\"col\":3}},{\"id\":\"r3xmz_dQ3v\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"dpVplxyGzs\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Shift Registration\",\"col\":3}},{\"id\":\"d_KVM1gsf9\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"JVu8-FJZCu\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Reports &amp; Masters</b></span>\",\"col\":12}},{\"id\":\"Zr_eJ5IJdc\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Overtime Registration Detail\",\"col\":3}},{\"id\":\"S1nLTOzGSh\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Overtime Registration Quantity\",\"col\":3}}]",
+  "charts": [
+   {
+    "chart_name": "Overtime Registration Quantity",
+    "label": "Overtime Registration Qty",
+    "parent": "Registration",
+    "parentfield": "charts",
+    "parenttype": "Workspace"
+   }
+  ],
+  "content": "[{\"id\":\"kb3XPLg8lb\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Your Shortcuts</b></span>\",\"col\":12}},{\"id\":\"NUsTQ4-NeA\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Overtime Registration\",\"col\":3}},{\"id\":\"r3xmz_dQ3v\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"dpVplxyGzs\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Shift Registration\",\"col\":3}},{\"id\":\"d_KVM1gsf9\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"JVu8-FJZCu\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Reports &amp; Masters</b></span>\",\"col\":12}},{\"id\":\"Zr_eJ5IJdc\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Overtime Registration Detail\",\"col\":3}},{\"id\":\"S1nLTOzGSh\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Overtime Registration Quantity\",\"col\":3}},{\"id\":\"Kwo8TOiAkP\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Overtime Registration Qty\",\"col\":12}}]",
   "custom_blocks": [],
   "docstatus": 0,
   "doctype": "Workspace",
@@ -1681,7 +1689,7 @@
   "is_hidden": 0,
   "label": "Registration",
   "links": [],
-  "modified": "2025-08-08 21:52:23.481842",
+  "modified": "2025-08-08 22:08:50.598149",
   "module": "TIQN App",
   "name": "Registration",
   "number_cards": [],
