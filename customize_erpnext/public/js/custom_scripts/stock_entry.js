@@ -179,32 +179,32 @@ function validate_no(frm) {
 
     }
     // Check if custom_no already exists in the submitted Stock Entry documents
-    frappe.call({
-        method: "frappe.client.get_list",
-        args: {
-            doctype: "Stock Entry",
-            filters: {
-                custom_no: custom_no,
-                // Only check submitted or draft documents
-                docstatus: ["!=", 2], // Not cancelled
-                name: ["!=", frm.doc.name] // Exclude current document
-            },
-            fields: ["name"]
-        },
-        callback: function (r) {
-            if (r.message && r.message.length > 0) {
-                // If a document with the same custom_no exists, throw an error , link to the document
-                let existing_docs = r.message.map(doc => `<a href="/app/stock-entry/${doc.name}" target="_blank">${doc.name}</a>`).join(', ');
-                frappe.validated = false; // Prevent form submission
-                // Show error message with links to existing documents
-                frappe.msgprint({
-                    title: __('Duplicate No# Found'),
-                    message: __('No#: "{0}" already exists in the following Stock Entry documents: {1}', [custom_no, existing_docs]),
-                    indicator: 'red'
-                });
-            }
-        }
-    });
+    // frappe.call({
+    //     method: "frappe.client.get_list",
+    //     args: {
+    //         doctype: "Stock Entry",
+    //         filters: {
+    //             custom_no: custom_no,
+    //             // Only check submitted or draft documents
+    //             docstatus: ["!=", 2], // Not cancelled
+    //             name: ["!=", frm.doc.name] // Exclude current document
+    //         },
+    //         fields: ["name"]
+    //     },
+    //     callback: function (r) {
+    //         if (r.message && r.message.length > 0) {
+    //             // If a document with the same custom_no exists, throw an error , link to the document
+    //             let existing_docs = r.message.map(doc => `<a href="/app/stock-entry/${doc.name}" target="_blank">${doc.name}</a>`).join(', ');
+    //             frappe.validated = false; // Prevent form submission
+    //             // Show error message with links to existing documents
+    //             frappe.msgprint({
+    //                 title: __('Duplicate No# Found'),
+    //                 message: __('No#: "{0}" already exists in the following Stock Entry documents: {1}', [custom_no, existing_docs]),
+    //                 indicator: 'red'
+    //             });
+    //         }
+    //     }
+    // });
 }
 // Function to validate warehouse in items table
 function validate_warehouse(frm) {
@@ -400,7 +400,7 @@ function trim_parent_fields(frm) {
         },
         {
             field: 'custom_line',
-            camel_case: true
+            camel_case: false
         },
         {
             field: 'custom_fg_qty',
