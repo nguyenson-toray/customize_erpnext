@@ -1,13 +1,12 @@
 {
  "actions": [],
  "autoname": "format:OTR-{YY}{MM}{DD}-{###}",
- "creation": "2025-07-26 13:28:39.538763",
+ "creation": "2025-08-08 23:33:14.711192",
  "default_view": "List",
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
-  "status",
   "reason_general",
   "column_break_qnut",
   "request_date",
@@ -47,15 +46,6 @@
    "fieldname": "request_date",
    "fieldtype": "Date",
    "label": "Request Date",
-   "read_only": 1
-  },
-  {
-   "default": "Draft",
-   "fieldname": "status",
-   "fieldtype": "Select",
-   "in_list_view": 1,
-   "label": "Status",
-   "options": "Draft\nPending Manager Approval\nPending Factory Manager Approval\nApproved\nRejected\nCancelled",
    "read_only": 1
   },
   {
@@ -192,7 +182,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2025-08-08 23:30:29.826698",
+ "modified": "2025-08-09 09:56:12.424586",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Overtime Registration",

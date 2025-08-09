@@ -8,6 +8,11 @@ frappe.ui.form.on("Overtime Registration", {
             show_employee_selection_dialog(frm);
         }, __('Actions'));
 
+        // Add button to remove empty rows
+        frm.page.add_inner_button(__('Remove Empty Rows'), function () {
+            remove_empty_overtime_rows(frm);
+        }, __('Actions'));
+
         // Auto-populate requested_by with current user's employee
         if (frm.is_new() && !frm.doc.requested_by) {
             frappe.call({
@@ -33,6 +38,9 @@ frappe.ui.form.on("Overtime Registration", {
     },
 
     validate(frm) {
+        // Auto-remove empty rows before validation
+        remove_empty_overtime_rows(frm, true);
+
         // Always validate required fields first
         if (!validate_required_fields(frm)) {
             return false;
@@ -45,7 +53,7 @@ frappe.ui.form.on("Overtime Registration", {
         check_conflicts_with_submitted_records(frm);
 
         calculate_totals_and_apply_reason(frm);
-        
+
         // Update registered groups summary when saving
         update_registered_groups(frm);
     }
@@ -59,7 +67,7 @@ let currentGroupEmployees = new Map(); // Store current group's available employ
 // Function to get current user's filter value based on filter_employee_by field
 function get_user_filter_value(frm, callback) {
     const filterBy = frm.doc.filter_employee_by;
-    
+
     if (!filterBy) {
         callback(null, null);
         return;
@@ -117,7 +125,7 @@ function show_employee_selection_dialog(frm) {
                 label: 'Group',
                 options: 'Group',
                 reqd: 1,
-                get_query: function() {
+                get_query: function () {
                     if (frm.doc.filter_employee_by === 'custom_group' && frm.doc.request_by_group) {
                         return {
                             filters: {
@@ -207,7 +215,7 @@ function show_employee_selection_dialog(frm) {
 
     // Store frm reference in dialog for access to lock_group field
     currentDialog.frm = frm;
-    
+
     currentDialog.show();
 
     // Initialize dialog with native fields only
@@ -336,7 +344,7 @@ function open_employee_selection_dialog(frm) {
 
     // Check if filtering is enabled
     if (frm.doc.filter_employee_by) {
-        get_user_filter_value(frm, function(filterBy, filterValue) {
+        get_user_filter_value(frm, function (filterBy, filterValue) {
             if (!filterValue) {
                 frappe.show_alert({
                     message: __('Current user does not have a valid ' + filterBy + ' value'),
@@ -344,7 +352,7 @@ function open_employee_selection_dialog(frm) {
                 });
                 return;
             }
-            
+
             // For custom_group filtering, check if group matches
             if (filterBy === 'custom_group' && groupValue !== filterValue) {
                 frappe.show_alert({
@@ -353,7 +361,7 @@ function open_employee_selection_dialog(frm) {
                 });
                 return;
             }
-            
+
             // Proceed with dialog creation
             create_employee_list_dialog(groupValue);
         });
@@ -373,7 +381,7 @@ function create_employee_list_dialog(groupValue) {
                 fieldtype: 'Data',
                 fieldname: 'employee_search',
                 label: 'Search Employees',
-                placeholder: 'Type employee name or ID to filter...',
+                placeholder: __('Type employee name or ID to filter...'),
                 onchange: function () {
                     filter_employees_in_dialog(this.value, employeeListDialog);
                 }
@@ -449,24 +457,24 @@ function load_employees_for_selection(groupName, dialog) {
 
     const frm = currentDialog && currentDialog.frm;
     const filterBy = frm && frm.doc.filter_employee_by;
-    
+
     if (filterBy) {
-        get_user_filter_value(frm, function(filterBy, filterValue) {
+        get_user_filter_value(frm, function (filterBy, filterValue) {
             if (!filterValue) {
                 field_wrapper.html('<p class="text-danger" style="padding: 20px;"><strong>Error:</strong><br>Current user does not have a valid ' + filterBy + ' value.</p>');
                 originalEmployeeList = [];
                 return;
             }
-            
+
             // Build filters for employee query
             const employeeFilters = {
                 'custom_group': groupName,
                 'status': 'Active'
             };
-            
+
             // Add filter based on filter_employee_by
             employeeFilters[filterBy] = filterValue;
-            
+
             load_employees_for_selection_with_filters(employeeFilters, dialog);
         });
     } else {
@@ -481,7 +489,7 @@ function load_employees_for_selection(groupName, dialog) {
 
 function load_employees_for_selection_with_filters(filters, dialog) {
     const field_wrapper = dialog.get_field('employee_list').$wrapper;
-    
+
     frappe.call({
         method: 'frappe.client.get_list',
         args: {
@@ -532,15 +540,15 @@ function render_employee_list(employees, dialog) {
     let html = '<div style="max-height: 400px; overflow-y: auto; padding: 10px; border: 1px solid #ddd;">';
     html += `<div style="margin-bottom: 15px; padding: 10px; background-color: #f8f9fa; border-radius: 4px;">
                 <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <label style="font-weight: bold; margin: 0;"><input type="checkbox" id="select_all_employees" style="margin-right: 8px;"> Select All Employees</label>
-                    <small class="text-muted">Showing ${employees.length} employee(s)</small>
+                    <label style="font-weight: bold; margin: 0;"><input type="checkbox" id="select_all_employees" style="margin-right: 8px;"> ${__('Select All Employees')}</label>
+                    <small class="text-muted">${__('Showing {0} employee(s)', [employees.length])}</small>
                 </div>
              </div>`;
 
     employees.forEach((emp) => {
         const isSelected = selectedEmployees.has(emp.name);
         const checkedAttr = isSelected ? 'checked' : '';
-        const disabledAttr = isSelected ? 'disabled title="Already selected"' : '';
+        const disabledAttr = isSelected ? `disabled title="${__('Already selected')}"` : '';
 
         // Highlight matching text
         let displayName = emp.employee_name || emp.name;
@@ -555,9 +563,9 @@ function render_employee_list(employees, dialog) {
         // Build additional info based on available fields
         let additionalInfo = [];
         if (emp.custom_group) additionalInfo.push(`Group: ${emp.custom_group}`);
-        if (emp.department) additionalInfo.push(`Dept: ${emp.department}`);
         if (emp.custom_section) additionalInfo.push(`Section: ${emp.custom_section}`);
-        
+        if (emp.department) additionalInfo.push(`Dept: ${emp.department}`);
+
         const infoText = additionalInfo.length > 0 ? `(${additionalInfo.join(', ')})` : '';
 
         html += `
@@ -569,7 +577,7 @@ function render_employee_list(employees, dialog) {
                            data-group="${emp.custom_group}" ${checkedAttr} ${disabledAttr}
                            style="margin-right: 8px;">
                     <strong style="color: #333;">${displayId}</strong> - ${displayName} <small class="text-muted">${infoText}</small>
-                    ${isSelected ? '<br><small class="text-info"><strong>(Already selected)</strong></small>' : ''}
+                    ${isSelected ? `<br><small class="text-info"><strong>(${__('Already selected')})</strong></small>` : ''}
                 </label>
             </div>
         `;
@@ -615,7 +623,7 @@ function add_selected_employees_from_dialog(employeeListDialog) { // Accept dial
     if (addedCount > 0) {
         update_selected_employees_display();
         frappe.show_alert({
-            message: __(`Added ${addedCount} employee(s) to selection`),
+            message: __('Added {0} employee(s) to selection', [addedCount]),
             indicator: 'green'
         });
     } else {
@@ -736,7 +744,7 @@ function save_overtime_registration_native(frm) {
     }
 
     frappe.show_alert({
-        message: __(`Successfully added ${selectedEmployees.size} employee(s) for ${selectedDays.length} day(s)`),
+        message: __('Successfully added {0} employee(s) for {1} day(s)', [selectedEmployees.size, selectedDays.length]),
         indicator: 'green'
     });
 
@@ -978,9 +986,9 @@ function load_groups() {
     // Check if we need to filter groups based on current user
     const filterBy = currentDialog && currentDialog.frm && currentDialog.frm.doc.filter_employee_by;
     const userGroup = currentDialog && currentDialog.frm && currentDialog.frm.doc.request_by_group;
-    
+
     const filters = (filterBy === 'custom_group' && userGroup) ? { 'name': userGroup } : {};
-    
+
     frappe.call({
         method: 'frappe.client.get_list',
         args: {
@@ -1160,9 +1168,9 @@ function setup_event_handlers() {
 function load_available_employees(groupName) {
     const frm = currentDialog && currentDialog.frm;
     const filterBy = frm && frm.doc.filter_employee_by;
-    
+
     if (filterBy) {
-        get_user_filter_value(frm, function(filterBy, filterValue) {
+        get_user_filter_value(frm, function (filterBy, filterValue) {
             if (!filterValue) {
                 frappe.show_alert({
                     message: __('Current user does not have a valid ' + filterBy + ' value'),
@@ -1171,16 +1179,16 @@ function load_available_employees(groupName) {
                 clear_available_employees();
                 return;
             }
-            
+
             // Build filters for employee query
             const employeeFilters = {
                 'custom_group': groupName,
                 'status': 'Active'
             };
-            
+
             // Add filter based on filter_employee_by
             employeeFilters[filterBy] = filterValue;
-            
+
             load_employees_with_filters(employeeFilters);
         });
     } else {
@@ -1288,9 +1296,9 @@ function create_employee_item_html(employee) {
     // Build additional info based on available fields
     let additionalInfo = [];
     if (employee.custom_group) additionalInfo.push(`Group: ${employee.custom_group}`);
-    if (employee.department) additionalInfo.push(`Dept: ${employee.department}`);
     if (employee.custom_section) additionalInfo.push(`Section: ${employee.custom_section}`);
-    
+    if (employee.department) additionalInfo.push(`Dept: ${employee.department}`);
+
     const infoText = additionalInfo.length > 0 ? `(${additionalInfo.join(', ')})` : '';
 
     return `
@@ -1332,7 +1340,7 @@ function move_employees_to_selected() {
         }
 
         frappe.show_alert({
-            message: __(`Added ${addedCount} employee(s) to selection`),
+            message: __('Added {0} employee(s) to selection', [addedCount]),
             indicator: 'green'
         });
     }
@@ -1367,7 +1375,7 @@ function remove_employees_from_selected() {
         }
 
         frappe.show_alert({
-            message: __(`Removed ${removedCount} employee(s) from selection`),
+            message: __('Removed {0} employee(s) from selection', [removedCount]),
             indicator: 'blue'
         });
     }
@@ -1518,7 +1526,7 @@ function save_overtime_registration(frm) {
     }
 
     frappe.show_alert({
-        message: __(`Successfully added ${selectedEmployees.size} employee(s) for ${selectedDays.length} day(s)`),
+        message: __('Successfully added {0} employee(s) for {1} day(s)', [selectedEmployees.size, selectedDays.length]),
         indicator: 'green'
     });
 
@@ -1531,7 +1539,7 @@ function validate_required_fields(frm) {
     let hasErrors = false;
 
     for (let d of frm.doc.ot_employees || []) {
-        if (!d.employee || !d.date || !d.begin_time || !d.end_time) {
+        if (!d.date || !d.begin_time || !d.end_time) {
             frappe.msgprint(__(`Row #{0}: Employee, Date, Begin Time, and End Time are required.`, [d.idx]));
             hasErrors = true;
         }
@@ -1574,8 +1582,8 @@ function validate_duplicate_employees(frm) {
                 // Check for exact match or time overlap
                 if (times_overlap(entry1.begin_time, entry1.end_time, entry2.begin_time, entry2.end_time)) {
                     frappe.validated = false;
-                    frappe.msgprint(__(`Row #{0} and Row #{1}: Overlapping overtime entries for employee {2} on {3}. Entry 1: {4}-{5}, Entry 2: {6}-{7}`,
-                        [entry1.idx, entry2.idx, entry1.employee_name, entry1.date, entry1.begin_time, entry1.end_time, entry2.begin_time, entry2.end_time]));
+                    frappe.msgprint(__('Row {0} and {1}: Duplicate overtime for employee {2} on {3}',
+                        [entry1.idx, entry2.idx, entry1.employee_name, entry1.date]));
                     return;
                 }
             }
@@ -1621,9 +1629,9 @@ function check_conflicts_with_submitted_records(frm) {
 
                 // Show all conflicts
                 for (let conflict of r.message) {
-                    frappe.msgprint(__(`Row #{0}: Overlapping overtime entry for employee {1} on {2}. Current: {3}-{4}, Existing: {5}-{6} in <a href="/app/overtime-registration/{7}" target="_blank">{7}</a>`,
-                        [conflict.idx, conflict.employee_name, conflict.date, conflict.current_from, conflict.current_to,
-                        conflict.existing_from, conflict.existing_to, conflict.existing_doc]));
+                    var doc_link = `<a href="/app/overtime-registration/${conflict.existing_doc}" target="_blank">${conflict.existing_doc}</a>`;
+                    frappe.msgprint(__('Row {0}: Employee {1} already has overtime on {2} ({3}-{4}). Conflicts with {5}',
+                        [conflict.idx, conflict.employee_name, conflict.date, conflict.current_from, conflict.current_to, doc_link]));
                 }
             }
         }
@@ -1724,6 +1732,43 @@ function times_overlap(from1, to1, from2, to2) {
     const overlap = condition1 && condition2;
 
     return overlap;
+}
+
+// Function to remove rows with empty employee
+function remove_empty_overtime_rows(frm, silent = false) {
+    var rows_to_remove = [];
+
+    if (frm.doc.ot_employees) {
+        frm.doc.ot_employees.forEach(function (row, index) {
+            if (!row.employee) {
+                rows_to_remove.push(row.name);
+            }
+        });
+    }
+
+    // Remove rows in reverse order to avoid index issues
+    rows_to_remove.reverse().forEach(function (row_name) {
+        var row = frm.doc.ot_employees.find(r => r.name === row_name);
+        if (row) {
+            frm.get_field('ot_employees').grid.grid_rows_by_docname[row_name].remove();
+        }
+    });
+
+    if (rows_to_remove.length > 0) {
+        frm.refresh_field('ot_employees');
+
+        if (!silent) {
+            frappe.show_alert({
+                message: __('Removed {0} empty rows', [rows_to_remove.length]),
+                indicator: 'blue'
+            });
+        }
+    } else if (!silent) {
+        frappe.show_alert({
+            message: __('No empty rows found'),
+            indicator: 'orange'
+        });
+    }
 }
 
 

@@ -1678,7 +1678,7 @@
     "parenttype": "Workspace"
    }
   ],
-  "content": "[{\"id\":\"kb3XPLg8lb\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Your Shortcuts</b></span>\",\"col\":12}},{\"id\":\"NUsTQ4-NeA\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Overtime Registration\",\"col\":3}},{\"id\":\"r3xmz_dQ3v\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"dpVplxyGzs\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Shift Registration\",\"col\":3}},{\"id\":\"d_KVM1gsf9\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"JVu8-FJZCu\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Reports &amp; Masters</b></span>\",\"col\":12}},{\"id\":\"Zr_eJ5IJdc\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Overtime Registration Report\",\"col\":3}},{\"id\":\"jC6Ws9LGwO\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Overtime Registration Quantity\",\"col\":3}},{\"id\":\"HRApufL2VT\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Overtime Registration Quantity\",\"col\":12}}]",
+  "content": "[{\"id\":\"kb3XPLg8lb\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Your Shortcuts</b></span>\",\"col\":12}},{\"id\":\"NUsTQ4-NeA\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Overtime Registration\",\"col\":3}},{\"id\":\"r3xmz_dQ3v\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"dpVplxyGzs\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Shift Registration\",\"col\":3}},{\"id\":\"d_KVM1gsf9\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"JVu8-FJZCu\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Reports &amp; Masters</b></span>\",\"col\":12}},{\"id\":\"Zr_eJ5IJdc\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Overtime Registration Report\",\"col\":3}},{\"id\":\"b0X6HScA1c\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Overtime Registration Quantity\",\"col\":3}},{\"id\":\"Ke-maROxX2\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Overtime Registration Quantity\",\"col\":12}}]",
   "custom_blocks": [],
   "docstatus": 0,
   "doctype": "Workspace",
@@ -1689,7 +1689,7 @@
   "is_hidden": 0,
   "label": "Registration",
   "links": [],
-  "modified": "2025-08-09 00:11:35.751137",
+  "modified": "2025-08-09 15:56:07.096724",
   "module": "TIQN App",
   "name": "Registration",
   "number_cards": [],
@@ -1697,39 +1697,9 @@
   "public": 1,
   "quick_lists": [],
   "restrict_to_domain": "",
-  "roles": [
-   {
-    "parent": "Registration",
-    "parentfield": "roles",
-    "parenttype": "Workspace",
-    "role": "TIQN Staff"
-   },
-   {
-    "parent": "Registration",
-    "parentfield": "roles",
-    "parenttype": "Workspace",
-    "role": "Employee"
-   }
-  ],
+  "roles": [],
   "sequence_id": 2.0,
   "shortcuts": [
-   {
-    "color": "Grey",
-    "doc_view": "List",
-    "format": null,
-    "icon": null,
-    "kanban_board": null,
-    "label": "Overtime Registration",
-    "link_to": "Overtime Registration",
-    "parent": "Registration",
-    "parentfield": "shortcuts",
-    "parenttype": "Workspace",
-    "report_ref_doctype": null,
-    "restrict_to_domain": null,
-    "stats_filter": "[]",
-    "type": "DocType",
-    "url": null
-   },
    {
     "color": "Grey",
     "doc_view": "List",
@@ -1745,6 +1715,23 @@
     "restrict_to_domain": null,
     "stats_filter": null,
     "type": "Report",
+    "url": null
+   },
+   {
+    "color": "Grey",
+    "doc_view": "List",
+    "format": null,
+    "icon": null,
+    "kanban_board": null,
+    "label": "Overtime Registration",
+    "link_to": "Overtime Registration",
+    "parent": "Registration",
+    "parentfield": "shortcuts",
+    "parenttype": "Workspace",
+    "report_ref_doctype": null,
+    "restrict_to_domain": null,
+    "stats_filter": "[]",
+    "type": "DocType",
     "url": null
    },
    {

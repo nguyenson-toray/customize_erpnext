@@ -6,7 +6,7 @@
  "engine": "InnoDB",
  "field_order": [
   "employee",
-  "full_name",
+  "employee_name",
   "group",
   "begin_date",
   "end_date",
@@ -56,15 +56,6 @@
    "options": "Employee"
   },
   {
-   "columns": 2,
-   "fetch_from": "employee.employee_name",
-   "fetch_if_empty": 1,
-   "fieldname": "full_name",
-   "fieldtype": "Data",
-   "in_list_view": 1,
-   "label": "Full Name"
-  },
-  {
    "columns": 1,
    "fetch_from": "employee.custom_group",
    "fetch_if_empty": 1,
@@ -72,13 +63,22 @@
    "fieldtype": "Data",
    "in_list_view": 1,
    "label": "Group"
+  },
+  {
+   "columns": 2,
+   "fetch_from": "employee.employee_name",
+   "fetch_if_empty": 1,
+   "fieldname": "employee_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Full Name"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2025-07-30 15:51:54.109617",
+ "modified": "2025-08-09 14:08:48.087731",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Shift Registration Detail",
