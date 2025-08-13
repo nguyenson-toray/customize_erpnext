@@ -2,23 +2,23 @@
  "charts": [
   {
    "chart_name": "Overtime Registration Quantity",
-   "label": "Overtime Registration Quantity Chart"
+   "label": "Overtime Registration Quantity"
   }
  ],
- "content": "[{\"id\":\"kb3XPLg8lb\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Your Shortcuts</b></span>\",\"col\":12}},{\"id\":\"NUsTQ4-NeA\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Overtime Registration\",\"col\":3}},{\"id\":\"r3xmz_dQ3v\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"dpVplxyGzs\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Shift Registration\",\"col\":3}},{\"id\":\"d_KVM1gsf9\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"JVu8-FJZCu\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Reports &amp; Masters</b></span>\",\"col\":12}},{\"id\":\"Zr_eJ5IJdc\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Overtime Registration Report\",\"col\":3}},{\"id\":\"Nom7-9TMUI\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Overtime Registration Quantity\",\"col\":3}},{\"id\":\"LmM2EU7uvG\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Overtime Registration Quantity Chart\",\"col\":12}}]",
- "creation": "2025-08-08 23:50:17.164619",
+ "content": "[{\"id\":\"kb3XPLg8lb\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Your Shortcuts</b></span>\",\"col\":12}},{\"id\":\"LxexctoATI\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Overtime Registration\",\"col\":3}},{\"id\":\"r3xmz_dQ3v\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"JVu8-FJZCu\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Reports &amp; Masters</b></span>\",\"col\":12}},{\"id\":\"2uIyyINHSa\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Overtime Registration Detail\",\"col\":3}},{\"id\":\"i7037Ntn6S\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Overtime Registration Quantity\",\"col\":3}},{\"id\":\"JDOkFASq9j\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"jsb9pySoyX\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Overtime Registration Quantity\",\"col\":12}}]",
+ "creation": "2025-08-13 10:18:33.643342",
  "custom_blocks": [],
  "docstatus": 0,
  "doctype": "Workspace",
  "for_user": "",
  "hide_custom": 0,
- "icon": "milestone",
+ "icon": "table_2",
  "idx": 0,
- "indicator_color": "",
+ "indicator_color": "green",
  "is_hidden": 0,
  "label": "Registration",
  "links": [],
- "modified": "2025-08-09 00:03:12.004352",
+ "modified": "2025-08-13 10:23:25.882343",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Registration",
@@ -31,15 +31,12 @@
  "roles": [
   {
    "role": "TIQN Staff"
-  },
-  {
-   "role": "Employee"
   }
  ],
- "sequence_id": 2.0,
+ "sequence_id": 1.1,
  "shortcuts": [
   {
-   "color": "Grey",
+   "color": "Green",
    "doc_view": "List",
    "label": "Overtime Registration",
    "link_to": "Overtime Registration",
@@ -49,24 +46,16 @@
   {
    "color": "Grey",
    "doc_view": "List",
-   "label": "Overtime Registration Quantity",
-   "link_to": "Overtime Registration Quantity",
+   "label": "Overtime Registration Detail",
+   "link_to": "Overtime Registration",
    "report_ref_doctype": "Overtime Registration",
    "type": "Report"
   },
   {
    "color": "Grey",
    "doc_view": "List",
-   "label": "Shift Registration",
-   "link_to": "Shift Registration",
-   "stats_filter": "[]",
-   "type": "DocType"
-  },
-  {
-   "color": "Grey",
-   "doc_view": "List",
-   "label": "Overtime Registration Report",
-   "link_to": "Overtime Registration",
+   "label": "Overtime Registration Quantity",
+   "link_to": "Overtime Registration Quantity",
    "report_ref_doctype": "Overtime Registration",
    "type": "Report"
   }

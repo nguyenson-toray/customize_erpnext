@@ -98,7 +98,7 @@ fixtures = [
         "doctype": "Workspace",
         "filters": [
             # Chỉ export một số workspace cụ thể
-            ["name", "in", ["Stock","Registration"]] 
+            ["name", "in", ["Stock"]] 
             # Để trống filter nếu muốn export tất cả
         ]
     },
