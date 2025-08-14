@@ -45,6 +45,7 @@ doctype_js = {
     "Sales Order": "public/js/custom_scripts/sales_order_sum_qty.js",
     "Production Plan" : "public/js/custom_scripts/production_plan.js",
     "Stock Reconciliation" : "public/js/custom_scripts/stock_reconciliation.js",
+    "Employee": "public/js/custom_scripts/employee.js",
     # Thêm các doctype khác  
 }
 
@@ -52,6 +53,7 @@ doctype_js = {
 doctype_list_js = {
     "Item": "public/js/custom_scripts/item_list.js",
     "Stock Entry": "public/js/custom_scripts/stock_entry_list.js",
+    "Employee": "public/js/custom_scripts/employee_list.js",
 }
  
 # Hướng dẫn sử dụng fixtures để export từ site A và import vào site B
