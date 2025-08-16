@@ -6,15 +6,24 @@ window.original_employee_code = null;
 // Ensure FingerprintScannerDialog is available
 function ensureFingerprintModule() {
     return new Promise((resolve) => {
+        console.log('🔍 Checking FingerprintScannerDialog availability...');
+        console.log('window.FingerprintScannerDialog:', window.FingerprintScannerDialog);
+
         if (window.FingerprintScannerDialog && window.FingerprintScannerDialog.showForEmployee) {
+            console.log('✅ FingerprintScannerDialog module is ready');
             resolve(true);
             return;
         }
 
+        console.log('⏳ Module not ready, waiting...');
+
         // Try to manually load the script if needed
         if (!document.querySelector('script[src*="fingerprint_scanner_dialog.js"]')) {
+            console.log('🔧 Attempting to load fingerprint_scanner_dialog.js manually...');
             const script = document.createElement('script');
             script.src = '/assets/customize_erpnext/js/fingerprint_scanner_dialog.js';
+            script.onload = () => console.log('📜 fingerprint_scanner_dialog.js loaded manually');
+            script.onerror = () => console.log('❌ Failed to load fingerprint_scanner_dialog.js manually');
             document.head.appendChild(script);
         }
 
@@ -24,12 +33,15 @@ function ensureFingerprintModule() {
 
         const checkModule = () => {
             attempts++;
+            console.log(`🔄 Attempt ${attempts}/${maxAttempts} - Checking module...`);
 
             if (window.FingerprintScannerDialog && window.FingerprintScannerDialog.showForEmployee) {
+                console.log('✅ Module loaded successfully!');
                 resolve(true);
             } else if (attempts < maxAttempts) {
                 setTimeout(checkModule, 200);
             } else {
+                console.log('❌ Module loading failed after', maxAttempts, 'attempts');
                 resolve(false);
             }
         };
@@ -38,26 +50,53 @@ function ensureFingerprintModule() {
     });
 }
 
+console.log('📝 Employee.js script loaded at:', new Date().toLocaleTimeString());
+
 frappe.ui.form.on('Employee', {
     refresh: function (frm) {
+        // Debug: Check module availability on refresh
+        console.log('🔍 Employee form refresh triggered for:', frm.doc.name);
+        console.log('🔍 Is new record:', frm.is_new());
+        console.log('🔍 FingerprintScannerDialog available:', !!window.FingerprintScannerDialog);
+        console.log('🔍 Current doctype:', frm.doctype);
+        
         // Add custom button for fingerprint scanning if not new record
         if (!frm.is_new() && frm.doc.name) {
-            frm.add_custom_button(__('🔍 Scan Fingerprints'), async function () {
+            console.log('🔑 Adding Scan Fingerprints button...');
+            console.log('🔑 Form doctype:', frm.doctype);
+            console.log('🔑 Form is_new():', frm.is_new());
+            console.log('🔑 Form doc.name:', frm.doc.name);
+            
+            try {
+                frm.add_custom_button(__('🔍 Scan Fingerprints'), async function () {
+                console.log('🔍 Scan Fingerprints button clicked!');
+                
                 // Show fingerprint scanner dialog with fixed employee
                 const moduleReady = await ensureFingerprintModule();
                 if (moduleReady) {
+                    console.log('✅ Module ready, showing dialog...');
                     window.FingerprintScannerDialog.showForEmployee(frm.doc.name, frm.doc.employee_name);
                 } else {
+                    console.log('❌ Module not ready');
                     frappe.msgprint({
                         title: __('Module Loading Failed'),
                         message: __('Fingerprint Scanner module could not be loaded. Please refresh the page and try again.'),
                         indicator: 'red'
                     });
                 }
-            }, __('Actions'));
+                }, __('Actions'));
+                
+                console.log('✅ Scan Fingerprints button added successfully');
+            } catch (error) {
+                console.error('❌ Error adding button:', error);
+            }
+        } else {
+            console.log('⚠️ Cannot add button - is_new:', frm.is_new(), 'name:', frm.doc.name);
         }
 
         if (frm.is_new()) {
+            console.log('🆕 New employee record - setting up auto-population...');
+            
             // Auto-populate employee code and attendance device ID for new employees
             if (!frm.doc.employee || !frm.doc.employee.startsWith('TIQN-')) {
                 frappe.call({
@@ -77,10 +116,14 @@ frappe.ui.form.on('Employee', {
                                     current_highest_id: employee_num
                                 },
                                 callback: function (series_r) {
-                                    // Series updated successfully
+                                    if (series_r.message) {
+                                        console.log('Series update result:', series_r.message);
+                                    }
                                 }
                             });
-                            // Auto-populated employee code successfully
+                            // console log for debugging next employee code, current series
+                            console.log('Next Employee Code:', r.message);
+                            console.log('Current Series:', employee_num);
                         }
                     }
                 });
@@ -194,6 +237,9 @@ frappe.ui.form.on('Employee', {
 
         // set employee_name = first_name + " " + midile_name + " " + last_name
         if (frm.doc.first_name && frm.doc.last_name) {
+            // frm.set_value('first_name', toProperCase(frm.doc.first_name));
+            // frm.set_value('middle_name', toProperCase(frm.doc.middle_name));
+            // frm.set_value('last_name', toProperCase(frm.doc.last_name));
             frm.set_value('employee_name',
                 [frm.doc.first_name, frm.doc.middle_name, frm.doc.last_name].filter(Boolean).join(' ')
             );
@@ -204,8 +250,65 @@ frappe.ui.form.on('Employee', {
             frappe.validated = false;
         }
     },
-});
 
+    // after_save: function (frm) {
+    //     // Restore original employee code if it was changed and rename document
+    //     if (window.original_employee_code &&
+    //         frm.doc.employee !== window.original_employee_code &&
+    //         window.original_employee_code.startsWith('TIQN-')) {
+
+    //         console.log('Employee code changed from', window.original_employee_code, 'to', frm.doc.employee);
+    //         console.log('Restoring original employee code and renaming document...');
+
+    //         // First restore the employee field value
+    //         frappe.call({
+    //             method: 'frappe.client.set_value',
+    //             args: {
+    //                 doctype: 'Employee',
+    //                 name: frm.doc.name,
+    //                 fieldname: 'employee',
+    //                 value: window.original_employee_code
+    //             },
+    //             callback: function (r) {
+    //                 if (r.message) {
+    //                     // If document name doesn't match original employee code, rename it
+    //                     if (frm.doc.name !== window.original_employee_code) {
+    //                         frappe.call({
+    //                             method: 'frappe.rename_doc',
+    //                             args: {
+    //                                 doctype: 'Employee',
+    //                                 old: frm.doc.name,
+    //                                 new: window.original_employee_code,
+    //                                 merge: false
+    //                             },
+    //                             callback: function (rename_r) {
+    //                                 if (!rename_r.exc) {
+    //                                     // Reload the form with the new name
+    //                                     frappe.set_route('Form', 'Employee', window.original_employee_code);
+    //                                     frappe.show_alert({
+    //                                         message: __('Employee code preserved: {0}', [window.original_employee_code]),
+    //                                         indicator: 'green'
+    //                                     });
+    //                                 } else {
+    //                                     console.error('Rename failed:', rename_r.exc);
+    //                                 }
+    //                             }
+    //                         });
+    //                     } else {
+    //                         // Just update the form values
+    //                         frm.doc.employee = window.original_employee_code;
+    //                         frm.refresh_field('employee');
+    //                         frappe.show_alert({
+    //                             message: __('Employee code preserved: {0}', [window.original_employee_code]),
+    //                             indicator: 'green'
+    //                         });
+    //                     }
+    //                 }
+    //             }
+    //         });
+    //     }
+    // }
+});
 function show_sync_fingerprint_dialog(employee_id, employee_name) {
     let d = new frappe.ui.Dialog({
         title: __('🔄 Sync Fingerprints to Machines - {0}', [employee_name || employee_id]),
@@ -480,13 +583,17 @@ function update_sync_status(message, type = 'info') {
     if (statusDiv && message) {
         const timestamp = new Date().toLocaleTimeString();
         let textClass = 'text-info';
+        let icon = '🔵';
 
         if (type === 'success') {
             textClass = 'text-success';
+            icon = '✅';
         } else if (type === 'danger') {
             textClass = 'text-danger';
+            icon = '❌';
         } else if (type === 'warning') {
             textClass = 'text-warning';
+            icon = '⚠️';
         }
 
         const logEntry = `<div class="log-entry ${textClass} mb-1"><strong>[${timestamp}]</strong> ${message}</div>`;

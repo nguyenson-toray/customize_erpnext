@@ -83,14 +83,6 @@ def check_duplicate_attendance_device_id(attendance_device_id, current_doc_name=
     existing = frappe.db.exists("Employee", filters)
     return {"exists": bool(existing), "attendance_device_id": attendance_device_id}
 
-@frappe.whitelist()
-def get_employee_fingerprint_data(employee_id):
-    """Get employee fingerprint data for display"""
-    emp = frappe.get_doc("Employee", employee_id)
-    return {
-        "employee": emp.employee,
-        "employee_name": emp.employee_name,
-        "attendance_device_id": emp.attendance_device_id or "Not Set"
-    }
+
 
 
