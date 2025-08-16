@@ -195,7 +195,7 @@ function start_bulk_overtime_recalculation(values, dialog) {
       dialog.hide();
 
       frappe.call({
-        method: 'customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.bulk_recalculate_overtime',
+        method: 'customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.api_methods.api_bulk_recalculate_overtime',
         args: {
           date_from: values.start_date,
           date_to: values.end_date,
@@ -569,7 +569,7 @@ function show_preview(dialog) {
   }
 
   frappe.call({
-    method: 'customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.get_bulk_process_preview',
+    method: 'customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.api_methods.get_bulk_process_preview',
     args: args,
     callback: function (r) {
       if (r && r.message && r.message.success) {
@@ -609,7 +609,7 @@ function start_bulk_process(values, dialog) {
       dialog.hide();
 
       frappe.call({
-        method: 'customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.bulk_process_from_shift_date',
+        method: 'customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.api_methods.api_bulk_process_from_shift_date',
         args: args,
         freeze: false,
         callback: function (r) {
@@ -642,7 +642,7 @@ function check_attendance_summary(dialog) {
     }
 
     frappe.call({
-      method: 'customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.get_attendance_summary_for_date',
+      method: 'customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.api_methods.api_get_attendance_summary_for_date',
       args: { date: target_date },
       callback: function (r) {
         if (r && r.message && r.message.success) {
@@ -667,7 +667,7 @@ function check_attendance_summary(dialog) {
     }
 
     frappe.call({
-      method: 'customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.get_attendance_summary_for_range',
+      method: 'customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.api_methods.api_get_attendance_summary_for_range',
       args: {
 
         
@@ -768,7 +768,7 @@ function execute_single_date_completion(date, dialog) {
   dialog.hide();
 
   frappe.call({
-    method: 'customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.manual_daily_completion',
+    method: 'customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.api_methods.api_manual_daily_completion',
     args: { date: date },
     freeze: false,
     callback: function (r) {
@@ -856,7 +856,7 @@ function check_missing_attendance(dialog) {
   }
 
   frappe.call({
-    method: 'customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.identify_missing_attendance',
+    method: 'customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.api_methods.identify_missing_attendance',
     args: { date: values.check_date },
     callback: function (r) {
       if (r && r.message && r.message.success) {
@@ -885,7 +885,7 @@ function create_missing_attendance(values, dialog) {
       dialog.hide();
 
       frappe.call({
-        method: 'customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.manual_daily_completion',
+        method: 'customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.api_methods.api_manual_daily_completion',
         args: { date: values.check_date },
         freeze: false,
         callback: function (r) {

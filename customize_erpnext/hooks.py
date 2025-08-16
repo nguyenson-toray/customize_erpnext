@@ -148,32 +148,31 @@ data_import_before_import = [
 scheduler_events = {
     "daily": [
         # Daily attendance completion - chạy lúc 6:00 AM mỗi ngày
-        "customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.auto_daily_attendance_completion",
-        
-        # Auto submit Custom Attendance - chạy lúc 7:00 AM mỗi ngày  
-        "customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.auto_submit_custom_attendance"
+        "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.auto_daily_attendance_completion",
+        # Auto submit Custom Attendance - chạy lúc 7:00 AM mỗi ngày
+        "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.scheduler_jobs.auto_submit_custom_attendance"
     ],
     
     "hourly": [
         # Smart auto update - chỉ chạy khi shift kết thúc + tolerance
-        "customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.smart_auto_update_custom_attendance"
+        "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.smart_auto_update_custom_attendance"
     ],
     
     # Cron-based schedules (optional - có thể customize thời gian cụ thể)
     "cron": {
         # Daily completion lúc 3:00 AM
         "0 3 * * *": [
-            "customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.auto_daily_attendance_completion"
+            "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.auto_daily_attendance_completion"
         ],
         
         # Auto submit lúc 6:00 AM
         "0 6 * * *": [
-            "customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.auto_submit_custom_attendance"
+            "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.scheduler_jobs.auto_submit_custom_attendance"
         ],
         
         # Smart auto update mỗi 30 phút (có thể adjust)
         "*/30 * * * *": [
-            "customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.smart_auto_update_custom_attendance"
+            "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.smart_auto_update_custom_attendance"
         ]
     }
 }
@@ -187,12 +186,12 @@ scheduler_events = {
 # Document Events
 doc_events = {
     "Employee Checkin": {
-        "on_update": "customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.on_checkin_update",
-        "after_insert": "customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.on_checkin_creation",
+        "on_update": "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.attendance_sync.on_checkin_update",
+        "after_insert": "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.attendance_sync.on_checkin_creation",
     },
     
     "Shift Type": {
-        "on_update": "customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.on_shift_update"
+        "on_update": "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.on_shift_update"
     },
     # Add custom_invoice_number field of Stock Entry and Stock Reconciliation to Stock Ledger Entry
     "Stock Entry": {
@@ -205,7 +204,7 @@ doc_events = {
         # Override permission method globally
         "has_permission": "customize_erpnext.overrides.overtime_request_permission",
         # Update overtime request status
-        # "on_update": "customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.on_overtime_request_approval"
+        # "on_update": "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.on_overtime_request_approval"
     }
 }
  
