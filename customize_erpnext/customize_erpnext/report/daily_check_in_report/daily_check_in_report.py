@@ -8,15 +8,16 @@ def execute(filters=None):
    
     # Define columns for the report
     columns = [
-        {"label": _("Employee"), "fieldname": "employee_code", "fieldtype": "Link", "options": "Employee", "width": 120},
+        {"label": _("Att ID"), "fieldname": "attendance_device_id", "fieldtype": "Data", "width": 70, "align": "left"},
+        {"label": _("Employee"), "fieldname": "employee_code", "fieldtype": "Link", "options": "Employee", "width": 110},
         {"label": _("Employee Name"), "fieldname": "employee_name", "fieldtype": "Data", "width": 200},
         {"label": _("Department"), "fieldname": "department", "fieldtype": "Data", "width": 120},
-        {"label": _("Group"), "fieldname": "custom_group", "fieldtype": "Data", "width": 120},
-        {"label": _("Designation"), "fieldname": "designation", "fieldtype": "Data", "width": 120},
-        {"label": _("Status"), "fieldname": "status", "fieldtype": "Data", "width": 100},
-        {"label": _("Status Info"), "fieldname": "status_info", "fieldtype": "Data", "width": 140, "align": "left"},
-        {"label": _("Check-in Time"), "fieldname": "check_in_time", "fieldtype": "Datetime", "width": 220, "align": "left"},
-        {"label": _("Device"), "fieldname": "device_id", "fieldtype": "Data", "width": 150, "align": "left"}
+        {"label": _("Group"), "fieldname": "custom_group", "fieldtype": "Data", "width": 150},
+        {"label": _("Designation"), "fieldname": "designation", "fieldtype": "Data", "width": 140},
+        {"label": _("Status"), "fieldname": "status", "fieldtype": "Data", "width": 100},       
+        {"label": _("Check-in Time"), "fieldname": "check_in_time", "fieldtype": "Datetime", "width": 180, "align": "left"},
+        {"label": _("Device"), "fieldname": "device_id", "fieldtype": "Data", "width": 100, "align": "left"},
+         {"label": _("Status Info"), "fieldname": "status_info", "fieldtype": "Data", "width": 140, "align": "left"},
     ]
    
     # Get report data
@@ -47,6 +48,7 @@ def get_data(filters):
         # Hiển thị tất cả check-in trong ngày
         result = frappe.db.sql(f"""
             SELECT 
+                e.attendance_device_id,
                 e.name AS employee_code,
                 e.employee_name,
                 e.department,
@@ -82,12 +84,13 @@ def get_data(filters):
                 {additional_conditions}
                 AND (c.time IS NOT NULL OR ml.name IS NOT NULL)
             ORDER BY 
-                e.name, c.time
+                status ASC, e.name, c.time
         """, as_dict=1)
         
         # Thêm nhân viên vắng mặt (không có check-in và không nghỉ thai sản)
         absent_employees = frappe.db.sql(f"""
             SELECT 
+                e.attendance_device_id,
                 e.name AS employee_code,
                 e.employee_name,
                 e.department,
@@ -120,10 +123,14 @@ def get_data(filters):
         # Kết hợp kết quả
         result.extend(absent_employees)
         
+        # Sắp xếp kết quả theo status ASC, employee name
+        result = sorted(result, key=lambda x: (x['status'] or '', x['employee_code'] or ''))
+        
     else:
         # Chỉ hiển thị check-in đầu tiên trong ngày (logic cũ)
         result = frappe.db.sql(f"""
             SELECT 
+                e.attendance_device_id,
                 e.name AS employee_code,
                 e.employee_name,
                 e.department,
@@ -165,7 +172,7 @@ def get_data(filters):
                 e.status = 'Active'
                 {additional_conditions}
             ORDER BY 
-                e.name
+                status ASC, e.name
         """, as_dict=1)
     
     # Lọc kết quả theo status nếu được chọn

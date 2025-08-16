@@ -1,3 +1,5 @@
+Submitted,Đã hoàn thành
+"Print","In"
 My Settings,Cài đặt cá nhân
 My Profile,Hồ sơ cá nhân
 Log out,Đăng xuất
@@ -26,15 +28,15 @@ Material Receipt - Quick Add, Thêm nhanh - Nhập NPL
 Minimum required: item_name,Tối thiểu yêu cầu: item_name
 
 # Overtime Registration Translations
-"Overtime Registration": "Đăng ký tăng ca"
+"Overtime Registration","Đăng ký tăng ca"
 "Request By","Người yêu cầu"
 "Request Date","Ngày yêu cầu"
 "Status","Trạng thái"
 "Total Employees","Tổng số nhân viên"
 "Total Hours","Tổng số giờ"
 "Employees","Nhân viên"
-"Get Employees By Group","Lấy nhân viên theo nhóm"
-"OT Employees List","Danh sachs nhân viên tăng ca"
+"Get Employees By Group","Lấy DS nhân viên theo nhóm"
+"OT Employees List","Danh sách nhân viên tăng ca"
 "Approval Details","Chi tiết phê duyệt"
 "Department Manager","Trưởng phòng ban"
 "Factory Manager","Trưởng nhà máy"
@@ -109,12 +111,16 @@ Minimum required: item_name,Tối thiểu yêu cầu: item_name
 "Row #{0}: Employee, Date, Begin Time, and End Time are required.","Dòng #{0}: Nhân viên, Ngày, Giờ bắt đầu và Giờ kết thúc là bắt buộc."
 "Row #{0} and Row #{1}: Overlapping overtime entries for employee {2} on {3}. Entry 1: {4}-{5}, Entry 2: {6}-{7}","Dòng #{0} và Dòng #{1}: Thời gian làm thêm giờ trùng lặp cho nhân viên {2} vào ngày {3}. Mục 1: {4}-{5}, Mục 2: {6}-{7}"
 "Row #{0}: Overlapping overtime entry for employee {1} on {2}. Current: {3}-{4}, Existing: {5}-{6} in {7}","Dòng #{0}: Thời gian làm thêm giờ trùng lặp cho nhân viên {1} vào ngày {2}. Hiện tại: {3}-{4}, Đã tồn tại: {5}-{6} trong {7}"
+"Row #{0}: Overlapping overtime entry for employee {1} on {2}. Current: {3}-{4}, Existing: {5}-{6} in <a href=\"/app/overtime-registration/{7}\" target=\"_blank\">{7}</a>","Dòng #{0}: Thời gian làm thêm giờ trùng lặp cho nhân viên {1} vào ngày {2}. Hiện tại: {3}-{4}, Đã tồn tại: {5}-{6} trong <a href=\"/app/overtime-registration/{7}\" target=\"_blank\">{7}</a>"
+"Row {0}: Employee {1} already has overtime on {2} ({3}-{4}). Conflicts with {5}","Dòng {0}: Nhân viên {1} đã có tăng ca vào ngày {2} ({3}-{4}). Trùng với {5}"
+"Row {0} and {1}: Duplicate overtime for employee {2} on {3}","Dòng {0} và {1}: Tăng ca trùng lặp cho nhân viên {2} vào ngày {3}"
 "Loading...","Đang tải..."
 "Loading employees...","Đang tải danh sách nhân viên..."
 "No data found for the selected criteria","Không tìm thấy dữ liệu cho tiêu chí đã chọn"
 "All employees from this group are already selected","Tất cả nhân viên từ nhóm này đã được chọn"
 "Already selected","Đã được chọn"
 "Select a group to load employees","Chọn một nhóm để tải danh sách nhân viên"
+"Showing {0} employee(s)","Hiển thị {0} nhân viên"
 "Employee","Nhân viên"
 "Employee Name","Tên nhân viên"
 "Date","Ngày"
@@ -122,3 +128,47 @@ Minimum required: item_name,Tối thiểu yêu cầu: item_name
 "To","Đến"
 "Begin", "Bắt đầu"
 "End", "Kết thúc"
+
+# Shift Registration Translations
+"Remove Empty Rows","Xóa các hàng trống"
+"Actions","Hành động"
+"Removed {0} empty rows","Đã xóa {0} hàng trống"
+"No empty rows found","Không tìm thấy hàng trống"
+"Employee {0} has been selected multiple times in the list. Please select each employee only once.","Nhân viên {0} đã được chọn nhiều lần trong danh sách. Vui lòng chỉ chọn mỗi nhân viên một lần."
+"Validation Error","Lỗi Validation"
+"Row #{0}: {1} are required.","Dòng #{0}: {1} là bắt buộc."
+"Row #{0} and Row #{1}: Overlapping shift entries for employee {2}. Entry 1: {3} to {4} ({5}-{6}), Entry 2: {7} to {8} ({9}-{10})","Dòng #{0} và Dòng #{1}: Thời gian ca làm việc trùng lặp cho nhân viên {2}. Mục 1: {3} đến {4} ({5}-{6}), Mục 2: {7} đến {8} ({9}-{10})"
+"Row #{0}: Overlapping shift entry for employee {1} from {2} to {3} ({4}-{5}). Existing: {6} to {7} ({8}-{9}) in <a href=\"/app/shift-registration/{10}\" target=\"_blank\">{10}</a>","Dòng #{0}: Thời gian ca làm việc trùng lặp cho nhân viên {1} từ {2} đến {3} ({4}-{5}). Đã tồn tại: {6} đến {7} ({8}-{9}) trong <a href=\"/app/shift-registration/{10}\" target=\"_blank\">{10}</a>"
+"Begin Date","Ngày bắt đầu"
+"End Date","Ngày kết thúc" 
+"Begin Time","Giờ bắt đầu"
+"End Time","Giờ kết thúc"
+"Row {0}: Only \"Shift 1\" and \"Shift 2\" are allowed. Found: {1}","Dòng {0}: Chỉ cho phép \"Shift 1\" và \"Shift 2\". Tìm thấy: {1}"
+"Row {0}: Only \"{1}\" and \"{2}\" are allowed. Found: {3}","Dòng {0}: Chỉ cho phép \"{1}\" và \"{2}\". Tìm thấy: {3}"
+"Shift 1","Ca 1"
+"Shift 2","Ca 2"
+
+# Report Labels
+"Hours","Giờ"
+"Time Begin","Giờ bắt đầu"
+"Time End","Giờ kết thúc"
+"Total Employee (Submitted)","Tổng số nhân viên (Đã gửi)"
+"Total Hours (Submitted)","Tổng số giờ (Đã gửi)"
+"Total Employee (Draft)","Tổng số nhân viên (Bản nháp)"
+"Total Hours (Draft)","Tổng số giờ (Bản nháp)"
+"No Group","Không có nhóm"
+
+# Additional common translations
+"Registered Groups","Nhóm đã đăng ký"
+"Select Employees from Group: ","Chọn nhân viên từ nhóm: "
+"Select Employees from Group: {0}","Chọn nhân viên từ nhóm: {0}"
+"Current user does not have a valid {0} value","Người dùng hiện tại không có giá trị {0} hợp lệ"
+"You can only select employees from your own group: {0}","Bạn chỉ có thể chọn nhân viên từ nhóm của mình: {0}"
+"Error loading employees","Lỗi tải danh sách nhân viên"
+"Unknown error","Lỗi không xác định"
+
+# Workspace and Menu Translations
+"Shift Registration","Đăng ký ca làm việc"
+"Reports & Masters","Báo cáo & Danh mục"
+"Overtime Registration Report","Báo cáo đăng ký tăng ca"
+"Overtime Registration Quantity","Số lượng đăng ký tăng ca"

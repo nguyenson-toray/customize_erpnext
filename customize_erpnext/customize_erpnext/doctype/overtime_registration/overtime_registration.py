@@ -59,15 +59,11 @@ class OvertimeRegistration(Document):
                 if entry1['employee'] == entry2['employee'] and entry1['date'] == entry2['date']:
                     # Check for exact match or time overlap
                     if times_overlap(entry1['from'], entry1['to'], entry2['from'], entry2['to']):
-                        frappe.throw(_("Row #{idx1} and Row #{idx2}: Overlapping overtime entries for employee {employee_name} on {date}. Entry 1: {from1}-{to1}, Entry 2: {from2}-{to2}").format(
-                            idx1=entry1['idx'],
-                            idx2=entry2['idx'],
-                            employee_name=frappe.bold(entry1['employee_name']),
-                            date=frappe.bold(entry1['date']),
-                            from1=entry1['from'],
-                            to1=entry1['to'],
-                            from2=entry2['from'],
-                            to2=entry2['to']
+                        frappe.throw(_("Row {0} and {1}: Duplicate overtime for employee {2} on {3}").format(
+                            entry1['idx'],
+                            entry2['idx'],
+                            entry1['employee_name'],
+                            entry1['date']
                         ))
 
     def validate_conflicting_ot_requests(self):
@@ -96,16 +92,14 @@ class OvertimeRegistration(Document):
             for existing in existing_entries:
                 if times_overlap(from_time, to_time, existing.get("from"), existing.get("to")):
                     conflicting_doc = existing.get("parent")
-                    doc_link = frappe.get_desk_link("Overtime Registration", conflicting_doc)
-                    frappe.throw(_("Row #{idx}: Overlapping overtime entry for {employee_name} on {date}. Current: {from_time}-{to_time}, Existing: {existing_from}-{existing_to} in {doc_link}.").format(
-                        idx=d.idx,
-                        employee_name=frappe.bold(d.employee_name),
-                        date=frappe.bold(d.date),
-                        from_time=from_time,
-                        to_time=to_time,
-                        existing_from=existing.get("from"),
-                        existing_to=existing.get("to"),
-                        doc_link=doc_link
+                    doc_link = f'<a href="/app/overtime-registration/{conflicting_doc}" target="_blank">{conflicting_doc}</a>'
+                    frappe.throw(_("Row {0}: Employee {1} already has overtime on {2} ({3}-{4}). Conflicts with {5}").format(
+                        d.idx,
+                        d.employee_name,
+                        d.date,
+                        from_time,
+                        to_time,
+                        doc_link
                     ))
 
     def calculate_totals_and_apply_reason(self):

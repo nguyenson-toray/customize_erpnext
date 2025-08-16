@@ -45,6 +45,10 @@ doctype_js = {
     "Sales Order": "public/js/custom_scripts/sales_order_sum_qty.js",
     "Production Plan" : "public/js/custom_scripts/production_plan.js",
     "Stock Reconciliation" : "public/js/custom_scripts/stock_reconciliation.js",
+    "Employee": [
+        "public/js/fingerprint_scanner_dialog.js",
+        "public/js/custom_scripts/employee.js"
+    ],
     # Thêm các doctype khác  
 }
 
@@ -52,6 +56,10 @@ doctype_js = {
 doctype_list_js = {
     "Item": "public/js/custom_scripts/item_list.js",
     "Stock Entry": "public/js/custom_scripts/stock_entry_list.js",
+    "Employee": [
+        "public/js/fingerprint_scanner_dialog.js",
+        "public/js/custom_scripts/employee_list.js"
+    ],
 }
  
 # Hướng dẫn sử dụng fixtures để export từ site A và import vào site B
@@ -98,7 +106,7 @@ fixtures = [
         "doctype": "Workspace",
         "filters": [
             # Chỉ export một số workspace cụ thể
-            ["name", "in", ["Stock","Registration"]] 
+            ["name", "in", ["Stock"]] 
             # Để trống filter nếu muốn export tất cả
         ]
     },
@@ -244,7 +252,7 @@ doc_events = {
 
 # include js, css files in header of desk.html
 # app_include_css = "/assets/customize_erpnext/css/customize_erpnext.css"
-# app_include_js = "/assets/customize_erpnext/js/customize_erpnext.js"
+app_include_js = "/assets/customize_erpnext/js/fingerprint_scanner_dialog.js"
 
 # include js, css files in header of web template
 # web_include_css = "/assets/customize_erpnext/css/customize_erpnext.css"
