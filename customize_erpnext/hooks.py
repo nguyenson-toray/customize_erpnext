@@ -195,7 +195,7 @@ scheduler_events = {
 doc_events = {
     "Employee Checkin": {
         "on_update": "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.attendance_sync.on_checkin_update",
-        "after_insert": "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.attendance_sync.on_checkin_creation",
+        "after_insert": "customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.on_checkin_creation",
     },
     
     "Shift Type": {
