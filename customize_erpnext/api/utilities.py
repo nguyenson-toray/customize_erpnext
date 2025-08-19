@@ -409,8 +409,9 @@ def get_employees_for_fingerprint():
 def sync_employee_fingerprint_to_machines(employee_id):
     """Sync employee fingerprint data to all enabled attendance machines"""
     try:
-        # Get employee data
-        employee = frappe.get_doc("Employee", employee_id)
+        # Get employee data, filter only required fields (excluding fingerprints child table)
+        employee = frappe.get_doc("Employee", employee_id, 
+            ["employee", "employee_name", "attendance_device_id", "custom_privilege", "custom_password"])
         
         if not employee.attendance_device_id:
             return {
@@ -430,15 +431,20 @@ def sync_employee_fingerprint_to_machines(employee_id):
                 "message": "No enabled attendance machines found"
             }
         
-        # Get employee fingerprint data
+        # Get employee fingerprint data using direct SQL query for better performance
+        fingerprints_data = frappe.db.sql("""
+            SELECT finger_index, template_data
+            FROM `tabFingerprint Data`
+            WHERE parent = %s AND template_data IS NOT NULL AND template_data != ''
+            ORDER BY finger_index
+        """, employee_id, as_dict=True)
+        
         fingerprints = []
-        if employee.get("custom_fingerprints"):
-            for fp in employee.get("custom_fingerprints"):
-                if fp.template_data:
-                    fingerprints.append({
-                        "finger_index": fp.finger_index,
-                        "template_data": fp.template_data
-                    })
+        for fp in fingerprints_data:
+            fingerprints.append({
+                "finger_index": fp.finger_index,
+                "template_data": fp.template_data
+            })
         
         if not fingerprints:
             return {
@@ -640,31 +646,26 @@ def sync_to_single_machine(machine_config, employee_data):
             templates_to_send = []
             fingerprint_count = 0
             
-            # Create 10 Finger objects (for all 10 fingers)
+            # Create fingerprint data lookup for fast access
+            fingerprint_lookup = {fp.get("finger_index"): fp for fp in employee_data["fingerprints"] if fp.get("template_data")}
+            
+            # Pre-decode all template data to avoid repeated base64 operations
+            decoded_templates = {}
+            for finger_index, fp in fingerprint_lookup.items():
+                try:
+                    decoded_templates[finger_index] = base64.b64decode(fp["template_data"])
+                except Exception:
+                    pass  # Skip invalid templates
+            
+            # Create 10 Finger objects in batch (for all 10 fingers)
+            templates_to_send = []
             for i in range(10):
-                finger_data = None
-                
-                # Find fingerprint data for this finger index
-                for fp in employee_data["fingerprints"]:
-                    if fp.get("finger_index") == i and fp.get("template_data"):
-                        finger_data = fp
-                        break
-                
-                if finger_data:
-                    try:
-                        # Decode base64 template data
-                        template_bytes = base64.b64decode(finger_data["template_data"])
-                        finger_obj = Finger(uid=user.uid, fid=i, valid=True, template=template_bytes)
-                        templates_to_send.append(finger_obj)
-                        fingerprint_count += 1
-                    except Exception as e:
-                        # Invalid template, create empty finger
-                        finger_obj = Finger(uid=user.uid, fid=i, valid=False, template=b'')
-                        templates_to_send.append(finger_obj)
+                if i in decoded_templates:
+                    finger_obj = Finger(uid=user.uid, fid=i, valid=True, template=decoded_templates[i])
+                    fingerprint_count += 1
                 else:
-                    # No data for this finger, create empty finger
                     finger_obj = Finger(uid=user.uid, fid=i, valid=False, template=b'')
-                    templates_to_send.append(finger_obj)
+                templates_to_send.append(finger_obj)
             
             # Send all templates to device
             conn.save_user_template(user, templates_to_send)

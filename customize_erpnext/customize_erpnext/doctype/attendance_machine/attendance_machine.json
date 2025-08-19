@@ -1,5 +1,6 @@
 {
  "actions": [],
+ "allow_import": 1,
  "allow_rename": 1,
  "autoname": "format:att_machine_{id}",
  "creation": "2025-06-03 16:00:50.928203",
@@ -7,6 +8,7 @@
  "engine": "InnoDB",
  "field_order": [
   "enable",
+  "master_device",
   "id",
   "device_name",
   "ip_address",
@@ -87,12 +89,18 @@
    "fieldtype": "Data",
    "label": "IP",
    "reqd": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "master_device",
+   "fieldtype": "Check",
+   "label": "Master Device"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-06-04 16:32:02.617954",
+ "modified": "2025-08-19 16:26:44.750336",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Attendance Machine",
