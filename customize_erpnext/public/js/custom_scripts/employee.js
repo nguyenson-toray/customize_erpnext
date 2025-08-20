@@ -307,7 +307,7 @@ function display_machines_list(data) {
         machinesDiv.innerHTML = `
             <div class="alert alert-warning">
                 <i class="fa fa-exclamation-triangle me-2"></i>
-                <strong>No enabled machines found.</strong> Please enable at least one attendance machine to proceed.
+                <strong>No master machines found.</strong> Please set enable & master_device at least one attendance machine to proceed.
             </div>
         `;
         return;

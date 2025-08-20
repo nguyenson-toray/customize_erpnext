@@ -694,8 +694,9 @@ def get_enabled_attendance_machines():
     """Get list of enabled attendance machines with connection status"""
     try:
         # Get enabled machines
+        # filter : only get machines that are enabled =1 & master_device = 1
         machines = frappe.get_list("Attendance Machine",
-            filters={"enable": 1},
+            filters={"enable": 1, "master_device": 1},
             fields=["name", "device_name", "ip_address", "port", "timeout", "force_udp", "ommit_ping", "location"]
         )
         
