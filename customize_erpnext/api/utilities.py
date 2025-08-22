@@ -378,7 +378,7 @@ def get_employee_fingerprints_status(employee_id):
 def get_finger_name(finger_index):
     """Get standardized finger name from index"""
     finger_names = {
-        0: "Left Thumb", 1: "Left Index", 2: "Left Middle", 3: "Left Ring", 4: "Left Little",
+        0: "Left Little",1: "Left Ring",  2: "Left Middle", 3: "Left Index", 5: "Left Thumb", 
         5: "Right Thumb", 6: "Right Index", 7: "Right Middle", 8: "Right Ring", 9: "Right Little"
     }
     return finger_names.get(finger_index, f"Finger {finger_index}")
@@ -386,7 +386,7 @@ def get_finger_name(finger_index):
 def get_finger_index(finger_name):
     """Get finger index from standardized name"""
     finger_map = {
-        'Left Thumb': 0, 'Left Index': 1, 'Left Middle': 2, 'Left Ring': 3, 'Left Little': 4,
+        'Left Ring': 1, 'Left Little': 0, 'Left Middle': 2, 'Left Index': 3, 'Left Thumb': 4,  
         'Right Thumb': 5, 'Right Index': 6, 'Right Middle': 7, 'Right Ring': 8, 'Right Little': 9
     }
     return finger_map.get(finger_name, -1)
