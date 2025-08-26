@@ -40,11 +40,11 @@ window.FingerprintScannerDialog = {
                     label: __('Select Finger'),
                     options: [
                         '',
-                        __('Left Thumb'),
-                        __('Left Index'),
-                        __('Left Middle'),
-                        __('Left Ring'),
                         __('Left Little'),
+                        __('Left Ring'),
+                        __('Left Middle'),
+                        __('Left Index'),
+                        __('Left Thumb'),
                         __('Right Thumb'),
                         __('Right Index'),
                         __('Right Middle'),
@@ -58,7 +58,7 @@ window.FingerprintScannerDialog = {
 
                         if (finger_selection_name) {
                             const finger_map = {
-                                'Left Thumb': 0, 'Left Index': 1, 'Left Middle': 2, 'Left Ring': 3, 'Left Little': 4,
+                                'Left Little': 0, 'Left Ring': 1, 'Left Middle': 2, 'Left Index': 3, 'Left Thumb': 4,
                                 'Right Thumb': 5, 'Right Index': 6, 'Right Middle': 7, 'Right Ring': 8, 'Right Little': 9
                             };
                             const selected_finger_index = finger_map[finger_selection_name];
@@ -159,7 +159,7 @@ window.FingerprintScannerDialog = {
         // Initialize scan status
         FingerprintScannerDialog.scan_dialog = d;
         FingerprintScannerDialog.scan_count = 0;
-        
+
         // Store the fixed employee ID in the dialog for use in reset function
         d.employee_id = employee_id;
 
@@ -167,7 +167,7 @@ window.FingerprintScannerDialog = {
         setTimeout(() => {
             // Initialize finger status display first
             FingerprintScannerDialog.updateFingerStatusDisplay([]);
-            
+
             // Then load actual data
             frappe.call({
                 method: 'customize_erpnext.api.utilities.get_employee_fingerprints_status',
@@ -195,8 +195,8 @@ window.FingerprintScannerDialog = {
             }
 
             const finger_map_reverse = {
-                0: 'Left Thumb', 1: 'Left Index', 2: 'Left Middle', 3: 'Left Ring', 4: 'Left Little',
-                5: 'Right Thumb', 6: 'Right Index', 7: 'Right Middle', 8: 'Right Ring', 9: 'Right Little'
+                0: "Left Little", 1: "Left Ring", 2: "Left Middle", 3: "Left Index", 5: "Left Thumb",
+                5: "Right Thumb", 6: "Right Index", 7: "Right Middle", 8: "Right Ring", 9: "Right Little"
             };
 
             let grid_html = '';
@@ -239,7 +239,7 @@ window.FingerprintScannerDialog = {
     startFingerprintCapture: function (values, dialog) {
         // Get finger index from selection
         const finger_map = {
-            'Left Thumb': 0, 'Left Index': 1, 'Left Middle': 2, 'Left Ring': 3, 'Left Little': 4,
+            'Left Little': 0, 'Left Ring': 1, 'Left Middle': 2, 'Left Index': 3, 'Left Thumb': 4,
             'Right Thumb': 5, 'Right Index': 6, 'Right Middle': 7, 'Right Ring': 8, 'Right Little': 9
         };
 
@@ -398,17 +398,17 @@ window.FingerprintScannerDialog = {
                 });
                 return;
             }
-            
+
             // Create values object with fixed employee from dialog
             const scanValues = {
                 employee: dialog.employee_id,
                 finger_selection: values.finger_selection
             };
-            
+
             // Reset attempt counter when starting fresh scan
             if (FingerprintScannerDialog.scan_attempts && scanValues.employee && scanValues.finger_selection) {
                 const finger_map = {
-                    'Left Thumb': 0, 'Left Index': 1, 'Left Middle': 2, 'Left Ring': 3, 'Left Little': 4,
+                    'Left Little': 0, 'Left Ring': 1, 'Left Middle': 2, 'Left Index': 3, 'Left Thumb': 4,
                     'Right Thumb': 5, 'Right Index': 6, 'Right Middle': 7, 'Right Ring': 8, 'Right Little': 9
                 };
                 const finger_index = finger_map[scanValues.finger_selection];

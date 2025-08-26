@@ -378,7 +378,7 @@ def get_employee_fingerprints_status(employee_id):
 def get_finger_name(finger_index):
     """Get standardized finger name from index"""
     finger_names = {
-        0: "Left Thumb", 1: "Left Index", 2: "Left Middle", 3: "Left Ring", 4: "Left Little",
+        0: "Left Little",1: "Left Ring",  2: "Left Middle", 3: "Left Index", 5: "Left Thumb", 
         5: "Right Thumb", 6: "Right Index", 7: "Right Middle", 8: "Right Ring", 9: "Right Little"
     }
     return finger_names.get(finger_index, f"Finger {finger_index}")
@@ -386,7 +386,7 @@ def get_finger_name(finger_index):
 def get_finger_index(finger_name):
     """Get finger index from standardized name"""
     finger_map = {
-        'Left Thumb': 0, 'Left Index': 1, 'Left Middle': 2, 'Left Ring': 3, 'Left Little': 4,
+        'Left Little': 0, 'Left Ring': 1,  'Left Middle': 2, 'Left Index': 3, 'Left Thumb': 4,  
         'Right Thumb': 5, 'Right Index': 6, 'Right Middle': 7, 'Right Ring': 8, 'Right Little': 9
     }
     return finger_map.get(finger_name, -1)
@@ -409,8 +409,9 @@ def get_employees_for_fingerprint():
 def sync_employee_fingerprint_to_machines(employee_id):
     """Sync employee fingerprint data to all enabled attendance machines"""
     try:
-        # Get employee data
-        employee = frappe.get_doc("Employee", employee_id)
+        # Get employee data, filter only required fields (excluding fingerprints child table)
+        employee = frappe.get_doc("Employee", employee_id, 
+            ["employee", "employee_name", "attendance_device_id", "custom_privilege", "custom_password"])
         
         if not employee.attendance_device_id:
             return {
@@ -430,15 +431,20 @@ def sync_employee_fingerprint_to_machines(employee_id):
                 "message": "No enabled attendance machines found"
             }
         
-        # Get employee fingerprint data
+        # Get employee fingerprint data using direct SQL query for better performance
+        fingerprints_data = frappe.db.sql("""
+            SELECT finger_index, template_data
+            FROM `tabFingerprint Data`
+            WHERE parent = %s AND template_data IS NOT NULL AND template_data != ''
+            ORDER BY finger_index
+        """, employee_id, as_dict=True)
+        
         fingerprints = []
-        if employee.get("custom_fingerprints"):
-            for fp in employee.get("custom_fingerprints"):
-                if fp.template_data:
-                    fingerprints.append({
-                        "finger_index": fp.finger_index,
-                        "template_data": fp.template_data
-                    })
+        for fp in fingerprints_data:
+            fingerprints.append({
+                "finger_index": fp.finger_index,
+                "template_data": fp.template_data
+            })
         
         if not fingerprints:
             return {
@@ -534,17 +540,13 @@ def sync_employee_fingerprint_to_machines(employee_id):
         }
 
 def sync_to_single_machine(machine_config, employee_data):
-    """Sync employee data to a single attendance machine - Optimized version"""
-    import time
-    import base64
-    from zk import ZK
-    from zk.base import Finger
-    
-    start_time = time.time()
-    print(f"[DEBUG] sync_to_single_machine started for {machine_config.device_name} ({machine_config.ip_address}) at {time.strftime('%Y-%m-%d %H:%M:%S')}")
-    frappe.logger().info(f"[DEBUG] sync_to_single_machine started for {machine_config.device_name} ({machine_config.ip_address}) at {time.strftime('%Y-%m-%d %H:%M:%S')}")
-    
+    """Sync employee data to a single attendance machine"""
     try:
+        import socket
+        from zk import ZK
+        from zk.base import Finger
+        import base64
+        import time
         
         # Prepare device config
         device_config = {
@@ -556,7 +558,23 @@ def sync_to_single_machine(machine_config, employee_data):
             "ommit_ping": machine_config.ommit_ping or True
         }
         
-        # Skip network pre-check - ZK library will handle connection errors more efficiently
+        # Check network connectivity
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(3)
+            result = sock.connect_ex((device_config["ip_address"], device_config["port"]))
+            sock.close()
+            
+            if result != 0:
+                return {
+                    "success": False,
+                    "message": f"Cannot connect to {device_config['ip_address']}:{device_config['port']}"
+                }
+        except Exception as e:
+            return {
+                "success": False,
+                "message": f"Network error: {str(e)}"
+            }
         
         # Connect to device
         zk = ZK(
@@ -580,13 +598,13 @@ def sync_to_single_machine(machine_config, employee_data):
             
             attendance_device_id = employee_data["attendance_device_id"]
             
-            # Delete user directly (more efficient than checking if exists first)
-            # The delete operation will silently fail if user doesn't exist
-            try:
+            # Check if user exists and delete if found
+            existing_users = conn.get_users()
+            user_exists = any(u.user_id == attendance_device_id for u in existing_users)
+            
+            if user_exists:
                 conn.delete_user(user_id=attendance_device_id)
-                time.sleep(0.1)  # Reduced sleep time
-            except:
-                pass  # User didn't exist, continue
+                time.sleep(0.1)  # Give device time to process
             
             # Create new user
             full_name = employee_data["employee_name"]
@@ -596,91 +614,61 @@ def sync_to_single_machine(machine_config, employee_data):
             password = employee_data.get("password", "")
             privilege = employee_data.get("privilege", 0)  # Default to USER_DEFAULT
             
-            print(f"[DEBUG] Creating user {attendance_device_id} with name '{shortened_name}', privilege {privilege}")
+            if password:
+                # Create user with password
+                conn.set_user(
+                    name=shortened_name,
+                    privilege=privilege,
+                    password=password,
+                    group_id='',
+                    user_id=attendance_device_id
+                )
+            else:
+                # Create user without password
+                conn.set_user(
+                    name=shortened_name,
+                    privilege=privilege,
+                    group_id='',
+                    user_id=attendance_device_id
+                )
             
-            try:
-                if password:
-                    # Create user with password
-                    print(f"[DEBUG] Creating user with password")
-                    conn.set_user(
-                        name=shortened_name,
-                        privilege=privilege,
-                        password=password,
-                        group_id='',
-                        user_id=attendance_device_id
-                    )
-                else:
-                    # Create user without password
-                    print(f"[DEBUG] Creating user without password")
-                    conn.set_user(
-                        name=shortened_name,
-                        privilege=privilege,
-                        group_id='',
-                        user_id=attendance_device_id
-                    )
-                print(f"[DEBUG] User creation command completed")
-            except Exception as e:
-                print(f"[DEBUG] Error creating user: {str(e)}")
+            # Get user info after creation
+            users = conn.get_users()
+            user = next((u for u in users if u.user_id == attendance_device_id), None)
+            
+            if not user:
                 return {
                     "success": False,
-                    "message": f"Error creating user: {str(e)}"
+                    "message": f"Could not create or find user {attendance_device_id}"
                 }
             
-            # Get user info after creation - add small delay to ensure user is created
-            time.sleep(0.2)
-            try:
-                users = conn.get_users()
-                user = next((u for u in users if u.user_id == attendance_device_id), None)
-                
-                if not user:
-                    print(f"[DEBUG] User {attendance_device_id} not found in device user list")
-                    return {
-                        "success": False,
-                        "message": f"Could not create or find user {attendance_device_id}"
-                    }
-                else:
-                    print(f"[DEBUG] User {attendance_device_id} found successfully with UID {user.uid}")
-            except Exception as e:
-                print(f"[DEBUG] Error getting users from device: {str(e)}")
-                return {
-                    "success": False,
-                    "message": f"Error verifying user creation: {str(e)}"
-                }
-            
-            # Pre-process fingerprint data into a dictionary for O(1) lookup
-            fingerprint_lookup = {}
-            for fp in employee_data["fingerprints"]:
-                if fp.get("template_data"):
-                    fingerprint_lookup[fp.get("finger_index")] = fp
-            
-            # Prepare fingerprint templates more efficiently
+            # Prepare fingerprint templates
             templates_to_send = []
             fingerprint_count = 0
             
-            # Create Finger objects for all 10 fingers
+            # Create fingerprint data lookup for fast access
+            fingerprint_lookup = {fp.get("finger_index"): fp for fp in employee_data["fingerprints"] if fp.get("template_data")}
+            
+            # Pre-decode all template data to avoid repeated base64 operations
+            decoded_templates = {}
+            for finger_index, fp in fingerprint_lookup.items():
+                try:
+                    decoded_templates[finger_index] = base64.b64decode(fp["template_data"])
+                except Exception:
+                    pass  # Skip invalid templates
+            
+            # Create 10 Finger objects in batch (for all 10 fingers)
+            templates_to_send = []
             for i in range(10):
-                if i in fingerprint_lookup:
-                    try:
-                        # Decode base64 template data
-                        template_bytes = base64.b64decode(fingerprint_lookup[i]["template_data"])
-                        finger_obj = Finger(uid=user.uid, fid=i, valid=True, template=template_bytes)
-                        fingerprint_count += 1
-                    except Exception:
-                        # Invalid template, create empty finger
-                        finger_obj = Finger(uid=user.uid, fid=i, valid=False, template=b'')
+                if i in decoded_templates:
+                    finger_obj = Finger(uid=user.uid, fid=i, valid=True, template=decoded_templates[i])
+                    fingerprint_count += 1
                 else:
-                    # No data for this finger, create empty finger
                     finger_obj = Finger(uid=user.uid, fid=i, valid=False, template=b'')
-                
                 templates_to_send.append(finger_obj)
             
             # Send all templates to device
             conn.save_user_template(user, templates_to_send)
-            
-            end_time = time.time()
-            duration = end_time - start_time
-            print(f"[DEBUG] sync_to_single_machine completed for {machine_config.device_name} ({machine_config.ip_address}) at {time.strftime('%Y-%m-%d %H:%M:%S')} - Duration: {duration:.2f}s")
-            frappe.logger().info(f"[DEBUG] sync_to_single_machine completed for {machine_config.device_name} ({machine_config.ip_address}) at {time.strftime('%Y-%m-%d %H:%M:%S')} - Duration: {duration:.2f}s")
             
             return {
                 "success": True,
@@ -696,11 +684,6 @@ def sync_to_single_machine(machine_config, employee_data):
                 pass
                 
     except Exception as e:
-        end_time = time.time()
-        duration = end_time - start_time
-        print(f"[DEBUG] sync_to_single_machine failed for {machine_config.device_name} ({machine_config.ip_address}) at {time.strftime('%Y-%m-%d %H:%M:%S')} - Duration: {duration:.2f}s - Error: {str(e)}")
-        frappe.logger().error(f"[DEBUG] sync_to_single_machine failed for {machine_config.device_name} ({machine_config.ip_address}) at {time.strftime('%Y-%m-%d %H:%M:%S')} - Duration: {duration:.2f}s - Error: {str(e)}")
-        
         return {
             "success": False,
             "message": f"Sync error: {str(e)}"
@@ -711,8 +694,9 @@ def get_enabled_attendance_machines():
     """Get list of enabled attendance machines with connection status"""
     try:
         # Get enabled machines
+        # filter : only get machines that are enabled =1 & master_device = 1
         machines = frappe.get_list("Attendance Machine",
-            filters={"enable": 1},
+            filters={"enable": 1, "master_device": 1},
             fields=["name", "device_name", "ip_address", "port", "timeout", "force_udp", "ommit_ping", "location"]
         )
         
@@ -793,14 +777,13 @@ def check_machine_connection(machine_config):
             "message": f"Connection error: {str(e)}",
             "response_time": 0
         }
- 
 
 def shorten_name(full_name, max_length=24):
     """Shorten employee name if it exceeds max length and convert Vietnamese to non-accented"""
     from unidecode import unidecode
     if not full_name:
         return full_name 
-    text_processed = unidecode(full_name)    
+    text_processed = unidecode(full_name)  # Convert to non-accented text
     # Remove extra spaces
     text_processed = ' '.join(text_processed.split()).strip()
     
@@ -816,5 +799,4 @@ def shorten_name(full_name, max_length=24):
             return text_processed[:max_length]
     else:
         return text_processed
-
 
