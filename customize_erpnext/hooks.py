@@ -156,21 +156,21 @@ data_import_before_import = [
 scheduler_events = {
     "daily": [
         # Daily attendance completion - chạy lúc 6:00 AM mỗi ngày
-        "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.auto_daily_attendance_completion",
+        "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.scheduler_jobs.auto_daily_attendance_completion",
         # Auto submit Custom Attendance - chạy lúc 7:00 AM mỗi ngày
         "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.scheduler_jobs.auto_submit_custom_attendance"
     ],
     
     "hourly": [
         # Smart auto update - chỉ chạy khi shift kết thúc + tolerance
-        "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.smart_auto_update_custom_attendance"
+        "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.scheduler_jobs.smart_auto_update_custom_attendance"
     ],
     
     # Cron-based schedules (optional - có thể customize thời gian cụ thể)
     "cron": {
         # Daily completion lúc 3:00 AM
         "0 3 * * *": [
-            "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.auto_daily_attendance_completion"
+            "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.scheduler_jobs.auto_daily_attendance_completion"
         ],
         
         # Auto submit lúc 6:00 AM
@@ -180,7 +180,7 @@ scheduler_events = {
         
         # Smart auto update mỗi 30 phút (có thể adjust)
         "*/30 * * * *": [
-            "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.smart_auto_update_custom_attendance"
+            "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.scheduler_jobs.smart_auto_update_custom_attendance"
         ]
     }
 }
