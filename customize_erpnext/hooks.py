@@ -87,6 +87,7 @@ fixtures = [
                     "Material Request Item",
                     "Production Plan",
                     "Employee",
+                    "Employee Checkin"
                     "Stock Entry Detail",
                     "Stock Reconciliation",
                     "Stock Reconciliation Item",
@@ -119,7 +120,8 @@ fixtures = [
                 "Stock Entry Detail",
                 "Stock Reconciliation",
                 "Stock Reconciliation Item",
-                "Employee"
+                "Employee",
+                "Employee Checkin"
                 ]]
         ]
     },
