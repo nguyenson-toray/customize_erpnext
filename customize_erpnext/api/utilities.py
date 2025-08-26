@@ -386,7 +386,7 @@ def get_finger_name(finger_index):
 def get_finger_index(finger_name):
     """Get finger index from standardized name"""
     finger_map = {
-        'Left Ring': 1, 'Left Little': 0, 'Left Middle': 2, 'Left Index': 3, 'Left Thumb': 4,  
+        'Left Little': 0, 'Left Ring': 1,  'Left Middle': 2, 'Left Index': 3, 'Left Thumb': 4,  
         'Right Thumb': 5, 'Right Index': 6, 'Right Middle': 7, 'Right Ring': 8, 'Right Little': 9
     }
     return finger_map.get(finger_name, -1)
