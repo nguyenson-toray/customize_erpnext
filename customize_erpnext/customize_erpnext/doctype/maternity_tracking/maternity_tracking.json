@@ -10,11 +10,13 @@
   "type",
   "from_date",
   "to_date",
+  "estimated_due_date",
+  "date_of_birth",
   "note"
  ],
  "fields": [
   {
-   "columns": 2,
+   "columns": 1,
    "fieldname": "type",
    "fieldtype": "Select",
    "in_list_view": 1,
@@ -24,7 +26,7 @@
    "options": "\nPregnant\nMaternity Leave\nYoung child"
   },
   {
-   "columns": 2,
+   "columns": 1,
    "fieldname": "from_date",
    "fieldtype": "Date",
    "in_filter": 1,
@@ -35,7 +37,7 @@
    "reqd": 1
   },
   {
-   "columns": 2,
+   "columns": 1,
    "fieldname": "to_date",
    "fieldtype": "Date",
    "in_list_view": 1,
@@ -45,20 +47,40 @@
    "reqd": 1
   },
   {
-   "columns": 4,
+   "columns": 2,
    "fieldname": "note",
    "fieldtype": "Small Text",
    "in_list_view": 1,
    "in_preview": 1,
    "in_standard_filter": 1,
    "label": "Note"
+  },
+  {
+   "columns": 1,
+   "fieldname": "estimated_due_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "in_preview": 1,
+   "in_standard_filter": 1,
+   "label": "Estimated Due Date",
+   "read_only_depends_on": "eval:doc.type != 'Pregnant'"
+  },
+  {
+   "columns": 1,
+   "fieldname": "date_of_birth",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "in_preview": 1,
+   "in_standard_filter": 1,
+   "label": "Date of Birth",
+   "read_only_depends_on": "eval:doc.type != 'Maternity Leave'"
   }
  ],
  "grid_page_length": 5,
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2025-08-14 20:01:57.775240",
+ "modified": "2025-08-25 16:16:40.958544",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Maternity Tracking",

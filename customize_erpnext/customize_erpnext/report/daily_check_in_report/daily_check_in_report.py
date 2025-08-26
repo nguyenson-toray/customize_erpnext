@@ -58,11 +58,11 @@ def get_data(filters):
                 c.device_id,
                 CASE 
                     WHEN c.time IS NOT NULL THEN 'Present'
-                    WHEN ml.name IS NOT NULL THEN 'Present'
                     ELSE 'Absent' 
                 END AS status,
                 CASE 
-                    WHEN ml.name IS NOT NULL THEN 'Maternity Leave'
+                    WHEN c.time IS NOT NULL THEN NULL
+                    WHEN ml.name IS NOT NULL AND ml.type = 'Maternity Leave' THEN 'Maternity Leave'
                     ELSE NULL
                 END AS status_info
             FROM 
@@ -74,7 +74,7 @@ def get_data(filters):
                 e.name = c.employee
                 AND DATE(c.time) = '{report_date}'
             LEFT JOIN
-                `tabMaternity Leave` ml
+                `tabMaternity Tracking` ml
             ON
                 ml.parent = e.name
                 AND ml.type = 'Maternity Leave'
@@ -82,49 +82,9 @@ def get_data(filters):
             WHERE 
                 e.status = 'Active'
                 {additional_conditions}
-                AND (c.time IS NOT NULL OR ml.name IS NOT NULL)
             ORDER BY 
                 status ASC, e.name, c.time
         """, as_dict=1)
-        
-        # Thêm nhân viên vắng mặt (không có check-in và không nghỉ thai sản)
-        absent_employees = frappe.db.sql(f"""
-            SELECT 
-                e.attendance_device_id,
-                e.name AS employee_code,
-                e.employee_name,
-                e.department,
-                e.custom_group,
-                e.designation,
-                NULL AS check_in_time,
-                NULL AS device_id,
-                'Absent' AS status,
-                NULL AS status_info
-            FROM 
-                `tabEmployee` e
-            WHERE 
-                e.status = 'Active'
-                {additional_conditions}
-                AND e.name NOT IN (
-                    SELECT DISTINCT employee 
-                    FROM `tabEmployee Checkin` 
-                    WHERE DATE(time) = '{report_date}'
-                )
-                AND e.name NOT IN (
-                    SELECT DISTINCT ml.parent
-                    FROM `tabMaternity Leave` ml
-                    WHERE ml.type = 'Maternity Leave'
-                    AND '{report_date}' BETWEEN ml.from_date AND ml.to_date
-                )
-            ORDER BY 
-                e.name
-        """, as_dict=1)
-        
-        # Kết hợp kết quả
-        result.extend(absent_employees)
-        
-        # Sắp xếp kết quả theo status ASC, employee name
-        result = sorted(result, key=lambda x: (x['status'] or '', x['employee_code'] or ''))
         
     else:
         # Chỉ hiển thị check-in đầu tiên trong ngày (logic cũ)
@@ -140,11 +100,11 @@ def get_data(filters):
                 c.device_id,
                 CASE 
                     WHEN c.time IS NOT NULL THEN 'Present'
-                    WHEN ml.name IS NOT NULL THEN 'Present'
                     ELSE 'Absent' 
                 END AS status,
                 CASE 
-                    WHEN ml.name IS NOT NULL THEN 'Maternity Leave'
+                    WHEN c.time IS NOT NULL THEN NULL
+                    WHEN ml.name IS NOT NULL AND ml.type = 'Maternity Leave' THEN 'Maternity Leave'
                     ELSE NULL
                 END AS status_info
             FROM 
@@ -163,7 +123,7 @@ def get_data(filters):
             ON 
                 e.name = c.employee
             LEFT JOIN
-                `tabMaternity Leave` ml
+                `tabMaternity Tracking` ml
             ON
                 ml.parent = e.name
                 AND ml.type = 'Maternity Leave'
