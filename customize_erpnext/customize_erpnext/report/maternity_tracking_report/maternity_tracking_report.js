@@ -68,13 +68,6 @@ frappe.query_reports["Maternity Tracking Report"] = {
 			"options": "\nUpcoming\nActive\nCompleted",
 			"width": "80px"
 		},
-		{
-			"fieldname": "apply_pregnant_benefit",
-			"label": __("Apply Pregnant Benefit"),
-			"fieldtype": "Select",
-			"options": "\nYes\nNo",
-			"width": "80px"
-		}
 	],
 
 	"formatter": function(value, row, column, data, default_formatter) {
@@ -127,9 +120,7 @@ function show_summary_stats(data) {
 		young_child: 0,
 		active: 0,
 		upcoming: 0,
-		completed: 0,
-		with_benefit: 0,
-		without_benefit: 0
+		completed: 0
 	};
 
 	data.forEach(row => {
@@ -142,10 +133,6 @@ function show_summary_stats(data) {
 		if (row.status === "Active") stats.active++;
 		if (row.status === "Upcoming") stats.upcoming++;
 		if (row.status === "Completed") stats.completed++;
-
-		// Count by benefit
-		if (row.custom_apply_pregnant_benefit) stats.with_benefit++;
-		else stats.without_benefit++;
 	});
 
 	let dialog = new frappe.ui.Dialog({
@@ -175,12 +162,6 @@ function show_summary_stats(data) {
 								<tr><td><span style="color: blue;">📅 Upcoming:</span></td><td>${stats.upcoming}</td></tr>
 								<tr><td><span style="color: green;">🟢 Active:</span></td><td>${stats.active}</td></tr>
 								<tr><td><span style="color: gray;">⚪ Completed:</span></td><td>${stats.completed}</td></tr>
-							</table>
-							
-							<h5>💼 Benefit Application</h5>
-							<table class="table table-condensed">
-								<tr><td><span style="color: green;">✓ With Benefit:</span></td><td>${stats.with_benefit}</td></tr>
-								<tr><td><span style="color: red;">✗ Without Benefit:</span></td><td>${stats.without_benefit}</td></tr>
 							</table>
 						</div>
 					</div>
