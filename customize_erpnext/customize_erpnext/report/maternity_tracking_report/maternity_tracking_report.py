@@ -60,12 +60,6 @@ def get_columns(filters=None):
 				"label": _("Number of Pregnancies"),
 				"fieldtype": "Int",
 				"width": 140
-			},
-			{
-				"fieldname": "custom_apply_pregnant_benefit",
-				"label": _("Apply Pregnant Benefit"),
-				"fieldtype": "Check",
-				"width": 140
 			}
 		])
 	
@@ -168,7 +162,6 @@ def get_data(filters):
 			emp.department,
 			emp.custom_section,
 			emp.custom_group,
-			emp.custom_apply_pregnant_benefit,
 			emp.date_of_joining,
 			emp.relieving_date,
 			mt.type,
@@ -249,12 +242,6 @@ def get_conditions(filters):
 		if status_condition:
 			conditions.append(f"({status_condition})")
 	
-	# Apply pregnant benefit filter
-	if filters.get("apply_pregnant_benefit") is not None:
-		if filters.get("apply_pregnant_benefit"):
-			conditions.append("emp.custom_apply_pregnant_benefit = 1")
-		else:
-			conditions.append("(emp.custom_apply_pregnant_benefit = 0 OR emp.custom_apply_pregnant_benefit IS NULL)")
 	
 	return " AND ".join(conditions)
 
