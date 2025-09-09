@@ -1,89 +1,89 @@
 {
-    "actions": [],
-    "creation": "2025-07-29 10:43:35.504297",
-    "doctype": "DocType",
-    "editable_grid": 1,
-    "engine": "InnoDB",
-    "field_order": [
-        "employee",
-        "employee_name",
-        "group",
-        "date",
-        "time_begin",
-        "time_end",
-        "reason"
-    ],
-    "fields": [
-        {
-            "columns": 2,
-            "fieldname": "employee",
-            "fieldtype": "Link",
-            "in_list_view": 1,
-            "label": "Employee",
-            "options": "Employee"
-        },
-        {
-            "columns": 2,
-            "fetch_from": "employee.employee_name",
-            "fieldname": "employee_name",
-            "fieldtype": "Data",
-            "in_list_view": 1,
-            "label": "Employee Name"
-        },
-        {
-            "columns": 1,
-            "default": "Today",
-            "fieldname": "date",
-            "fieldtype": "Date",
-            "in_list_view": 1,
-            "label": "Date"
-        },
-        {
-            "columns": 2,
-            "fieldname": "reason",
-            "fieldtype": "Small Text",
-            "in_list_view": 1,
-            "label": "Reason"
-        },
-        {
-            "columns": 1,
-            "fetch_from": "employee.custom_group",
-            "fetch_if_empty": 1,
-            "fieldname": "group",
-            "fieldtype": "Link",
-            "in_list_view": 1,
-            "label": "Group",
-            "options": "Group"
-        },
-        {
-            "columns": 1,
-            "default": "17:00:00",
-            "fieldname": "begin_time",
-            "fieldtype": "Time",
-            "in_list_view": 1,
-            "label": "Begin Time"
-        },
-        {
-            "columns": 1,
-            "default": "19:00:00",
-            "fieldname": "end_time",
-            "fieldtype": "Time",
-            "in_list_view": 1,
-            "label": "End Time"
-        }
-    ],
-    "grid_page_length": 50,
-    "index_web_pages_for_search": 1,
-    "istable": 1,
-    "links": [],
-    "modified": "2025-07-29 20:24:09.499743",
-    "modified_by": "Administrator",
-    "module": "Customize Erpnext",
-    "name": "Overtime Registration Detail",
-    "owner": "Administrator",
-    "permissions": [],
-    "row_format": "Dynamic",
-    "sort_field": "modified",
-    "sort_order": "DESC",
-    "states": []
+ "actions": [],
+ "creation": "2025-07-29 10:43:35.504297",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "employee",
+  "employee_name",
+  "group",
+  "date",
+  "reason",
+  "begin_time",
+  "end_time"
+ ],
+ "fields": [
+  {
+   "columns": 2,
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Employee",
+   "options": "Employee"
+  },
+  {
+   "columns": 2,
+   "fetch_from": "employee.employee_name",
+   "fieldname": "employee_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Employee Name"
+  },
+  {
+   "columns": 1,
+   "default": "Today",
+   "fieldname": "date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Date"
+  },
+  {
+   "columns": 2,
+   "fieldname": "reason",
+   "fieldtype": "Small Text",
+   "in_list_view": 1,
+   "label": "Reason"
+  },
+  {
+   "columns": 1,
+   "fetch_from": "employee.custom_group",
+   "fetch_if_empty": 1,
+   "fieldname": "group",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Group",
+   "options": "Group"
+  },
+  {
+   "columns": 1,
+   "default": "17:00:00",
+   "fieldname": "begin_time",
+   "fieldtype": "Time",
+   "in_list_view": 1,
+   "label": "Begin Time"
+  },
+  {
+   "columns": 1,
+   "default": "19:00:00",
+   "fieldname": "end_time",
+   "fieldtype": "Time",
+   "in_list_view": 1,
+   "label": "End Time"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2025-09-05 12:30:08.722581",
+ "modified_by": "Administrator",
+ "module": "Customize Erpnext",
+ "name": "Overtime Registration Detail",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
 }

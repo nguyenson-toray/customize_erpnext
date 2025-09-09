@@ -203,8 +203,187 @@ frappe.ui.form.on('Employee', {
             frappe.msgprint(__('Employee name should not contain numbers'));
             frappe.validated = false;
         }
+
+        // Validate maternity tracking date overlaps
+        if (frm.doc.maternity_tracking && frm.doc.maternity_tracking.length > 1) {
+            if (!validate_all_maternity_periods(frm)) {
+                frappe.validated = false;
+            }
+        }
     },
 });
+
+// Maternity Tracking child table events
+frappe.ui.form.on('Maternity Tracking', {
+    type: function(frm, cdt, cdn) {
+        let row = locals[cdt][cdn];
+        
+        // Auto-set apply_pregnant_benefit = 1 when type = 'Pregnant'
+        if (row.type === 'Pregnant') {
+            frappe.model.set_value(cdt, cdn, 'apply_pregnant_benefit', 1);
+        } else {
+            // Clear the field for other types since it's only relevant for Pregnant
+            frappe.model.set_value(cdt, cdn, 'apply_pregnant_benefit', 0);
+        }
+    },
+    
+    from_date: function(frm, cdt, cdn) {
+        validate_maternity_date_overlap(frm, cdt, cdn);
+    },
+    
+    to_date: function(frm, cdt, cdn) {
+        validate_maternity_date_overlap(frm, cdt, cdn);
+        validate_date_sequence(frm, cdt, cdn);
+    }
+});
+
+// Function to validate date sequence (from_date should be before to_date)
+function validate_date_sequence(frm, cdt, cdn) {
+    let row = locals[cdt][cdn];
+    
+    if (row.from_date && row.to_date) {
+        let from_date = frappe.datetime.str_to_obj(row.from_date);
+        let to_date = frappe.datetime.str_to_obj(row.to_date);
+        
+        if (from_date >= to_date) {
+            frappe.msgprint({
+                title: __('Invalid Date Range'),
+                message: __('From Date must be earlier than To Date'),
+                indicator: 'red'
+            });
+            frappe.model.set_value(cdt, cdn, 'to_date', '');
+            return false;
+        }
+    }
+    
+    return true;
+}
+
+// Function to validate all maternity tracking periods on form save
+function validate_all_maternity_periods(frm) {
+    let maternity_tracking = frm.doc.maternity_tracking || [];
+    let valid_periods = [];
+    
+    // First, validate each row for date sequence
+    for (let i = 0; i < maternity_tracking.length; i++) {
+        let row = maternity_tracking[i];
+        
+        if (!row.from_date || !row.to_date) {
+            continue; // Skip incomplete rows
+        }
+        
+        let from_date = frappe.datetime.str_to_obj(row.from_date);
+        let to_date = frappe.datetime.str_to_obj(row.to_date);
+        
+        // Check date sequence
+        if (from_date >= to_date) {
+            frappe.msgprint({
+                title: __('Invalid Date Range'),
+                message: __('Row {0}: From Date must be earlier than To Date', [row.idx]),
+                indicator: 'red'
+            });
+            return false;
+        }
+        
+        valid_periods.push({
+            idx: row.idx,
+            type: row.type,
+            from_date: from_date,
+            to_date: to_date,
+            from_date_str: frappe.datetime.str_to_user(row.from_date),
+            to_date_str: frappe.datetime.str_to_user(row.to_date)
+        });
+    }
+    
+    // Check for overlapping periods
+    for (let i = 0; i < valid_periods.length; i++) {
+        for (let j = i + 1; j < valid_periods.length; j++) {
+            let period1 = valid_periods[i];
+            let period2 = valid_periods[j];
+            
+            // Check for overlap
+            let has_overlap = (period1.from_date < period2.to_date && period1.to_date > period2.from_date);
+            
+            if (has_overlap) {
+                frappe.msgprint({
+                    title: __('Date Period Overlap Detected'),
+                    message: __('Overlapping periods found:<br><br>Row {0}: {1} ({2} - {3})<br>Row {4}: {5} ({6} - {7})<br><br>Please adjust the dates to avoid overlapping periods.', [
+                        period1.idx, period1.type, period1.from_date_str, period1.to_date_str,
+                        period2.idx, period2.type, period2.from_date_str, period2.to_date_str
+                    ]),
+                    indicator: 'red'
+                });
+                return false;
+            }
+        }
+    }
+    
+    return true;
+}
+
+// Function to validate overlapping date periods
+function validate_maternity_date_overlap(frm, cdt, cdn) {
+    let current_row = locals[cdt][cdn];
+    
+    // Only validate if both dates are filled
+    if (!current_row.from_date || !current_row.to_date) {
+        return;
+    }
+    
+    let current_from = frappe.datetime.str_to_obj(current_row.from_date);
+    let current_to = frappe.datetime.str_to_obj(current_row.to_date);
+    
+    // Validate date sequence first
+    if (current_from >= current_to) {
+        return; // Will be handled by validate_date_sequence
+    }
+    
+    // Check for overlaps with other rows
+    let maternity_tracking = frm.doc.maternity_tracking || [];
+    let overlapping_rows = [];
+    
+    maternity_tracking.forEach(function(row) {
+        // Skip current row and rows without both dates
+        if (row.name === current_row.name || !row.from_date || !row.to_date) {
+            return;
+        }
+        
+        let row_from = frappe.datetime.str_to_obj(row.from_date);
+        let row_to = frappe.datetime.str_to_obj(row.to_date);
+        
+        // Check for overlap: two periods overlap if one starts before the other ends
+        let has_overlap = (current_from < row_to && current_to > row_from);
+        
+        if (has_overlap) {
+            overlapping_rows.push({
+                idx: row.idx,
+                type: row.type,
+                from_date: frappe.datetime.str_to_user(row.from_date),
+                to_date: frappe.datetime.str_to_user(row.to_date)
+            });
+        }
+    });
+    
+    if (overlapping_rows.length > 0) {
+        let overlap_details = overlapping_rows.map(row => 
+            `Row ${row.idx}: ${row.type} (${row.from_date} - ${row.to_date})`
+        ).join('<br>');
+        
+        frappe.msgprint({
+            title: __('Date Period Overlap Detected'),
+            message: __('The current date period overlaps with existing records:<br><br>{0}<br><br>Please adjust the dates to avoid overlapping periods.', [overlap_details]),
+            indicator: 'red'
+        });
+        
+        // Clear both dates to force user to re-enter correct values
+        frappe.model.set_value(cdt, cdn, 'from_date', '');
+        frappe.model.set_value(cdt, cdn, 'to_date', '');
+        
+        return false;
+    }
+    
+    return true;
+}
 
 function show_sync_fingerprint_dialog(employee_id, employee_name) {
     let d = new frappe.ui.Dialog({

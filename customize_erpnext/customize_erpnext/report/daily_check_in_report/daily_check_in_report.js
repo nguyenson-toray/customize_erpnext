@@ -32,6 +32,13 @@ frappe.query_reports["Daily Check-in Report"] = {
 			"fieldtype": "Check",
 			"default": 0,
 			"description": __("Check to show all check-ins during the day, uncheck to show only first check-in")
+		},
+		{
+			"fieldname": "show_maternity_leave",
+			"label": __("Show Maternity Leave"),
+			"fieldtype": "Check",
+			"default": 0,
+			"description": __("Check to include employees who are on maternity leave")
 		}
 	],
 

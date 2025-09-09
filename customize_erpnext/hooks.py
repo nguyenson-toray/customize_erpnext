@@ -92,7 +92,8 @@ fixtures = [
                     "Stock Reconciliation",
                     "Stock Reconciliation Item",
                     "Stock Ledger Entry",
-                    "Customer"
+                    "Customer",
+                    "Shift Type",
                 ]
             ],
             [
@@ -107,7 +108,7 @@ fixtures = [
         "doctype": "Workspace",
         "filters": [
             # Chỉ export một số workspace cụ thể
-            ["name", "in", ["Stock"]] 
+            ["name", "in", ["Stock","HR"]] 
             # Để trống filter nếu muốn export tất cả
         ]
     },
@@ -156,32 +157,42 @@ data_import_before_import = [
 # Scheduler Events
 
 scheduler_events = {
-    "daily": [
-        # Daily attendance completion - chạy lúc 6:00 AM mỗi ngày
-        "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.scheduler_jobs.auto_daily_attendance_completion",
-        # Auto submit Custom Attendance - chạy lúc 7:00 AM mỗi ngày
-        "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.scheduler_jobs.auto_submit_custom_attendance"
-    ],
+    # "daily": [
+    #     # Daily attendance completion - chạy lúc 6:00 AM mỗi ngày
+    #     "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.scheduler_jobs.auto_daily_attendance_completion",
+    #     # Auto submit Custom Attendance - chạy lúc 7:00 AM mỗi ngày
+    #     "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.scheduler_jobs.auto_submit_custom_attendance"
+    # ],
     
-    "hourly": [
-        # Smart auto update - chỉ chạy khi shift kết thúc + tolerance
-        "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.scheduler_jobs.smart_auto_update_custom_attendance"
-    ],
+    # "hourly": [
+    #     # Smart auto update - chỉ chạy khi shift kết thúc + tolerance
+    #     "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.scheduler_jobs.smart_auto_update_custom_attendance"
+    # ],
     
     # Cron-based schedules (optional - có thể customize thời gian cụ thể)
     "cron": {
-        # Daily completion lúc 3:00 AM
-        "0 3 * * *": [
-            "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.scheduler_jobs.auto_daily_attendance_completion"
+        # # Daily completion lúc 3:00 AM
+        # "0 3 * * *": [
+        #     "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.scheduler_jobs.auto_daily_attendance_completion"
+        # ],
+        
+        # # Auto submit lúc 6:00 AM
+        # "0 6 * * *": [
+        #     "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.scheduler_jobs.auto_submit_custom_attendance"
+        # ],
+        
+        # Daily Timesheet auto sync and calculation at 21:00 every day
+        "0 21 * * *": [
+            "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.daily_timesheet_auto_sync_and_calculate"
         ],
         
-        # Auto submit lúc 6:00 AM
-        "0 6 * * *": [
-            "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.scheduler_jobs.auto_submit_custom_attendance"
+        # Monthly recalculation - 22:00 on 25th of every month, period : 26th of previous month to 25th of current month
+        "0 22 25 * *": [
+            "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.monthly_timesheet_recalculation"
         ],
         
-        # Smart auto update mỗi 30 phút (có thể adjust)
-        "*/30 * * * *": [
+        # Smart auto update mỗi 2 giờ
+        "0 */2 * * *": [
             "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.scheduler_jobs.smart_auto_update_custom_attendance"
         ]
     }
@@ -196,8 +207,17 @@ scheduler_events = {
 # Document Events
 doc_events = {
     "Employee Checkin": {
-        "on_update": "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.attendance_sync.on_checkin_update",
-        "after_insert": "customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.on_checkin_creation",
+        "on_update": [
+            "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.attendance_sync.on_checkin_update",
+            "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.auto_sync_on_checkin_update"
+        ],
+        "after_insert": [
+            "customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.on_checkin_creation",
+            "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.auto_sync_on_checkin_update"
+        ],
+        "on_trash": [
+            "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.auto_cleanup_on_checkin_delete"
+        ],
     },
     
     "Shift Type": {
