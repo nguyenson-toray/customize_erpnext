@@ -177,6 +177,11 @@ frappe.query_reports["Daily Timesheet Report"] = {
 				window.daily_timesheet_chart_type = chart_filter;
 			}
 		}, 500);
+		
+		// Add export Excel button (always shown)
+		report.page.add_inner_button(__('Export Excel - HR Template'), function() {
+			export_timesheet_excel(report);
+		}, __('Actions'));
 	},
 
 	"formatter": function (value, row, column, data, default_formatter) {
@@ -247,7 +252,8 @@ frappe.query_reports["Daily Timesheet Report"] = {
 			console.log("Rendering Department Summary chart"); // Debug log
 			return get_department_summary_chart(result, round_decimal);
 		}
-	}
+	},
+
 };
 
 // Helper functions for different chart types
@@ -404,4 +410,99 @@ function get_top_working_hours_chart(result, round_decimal) {
 			horizontal: true
 		}
 	};
+}
+
+// Export Excel function
+function export_timesheet_excel(report) {
+	let filters = report.get_values();
+	
+	// Validate required date filters based on date type
+	if (!filters.date_type) {
+		frappe.msgprint({
+			title: __('Missing Filter'),
+			message: __('Please select a Date Type for the export.'),
+			indicator: 'red'
+		});
+		return;
+	}
+	
+	if (filters.date_type === 'Single Date' && !filters.single_date) {
+		frappe.msgprint({
+			title: __('Missing Filter'),
+			message: __('Please select a Date for the export.'),
+			indicator: 'red'
+		});
+		return;
+	}
+	
+	if (filters.date_type === 'Date Range' && (!filters.from_date || !filters.to_date)) {
+		frappe.msgprint({
+			title: __('Missing Filters'),
+			message: __('Please select From Date and To Date for the export.'),
+			indicator: 'red'
+		});
+		return;
+	}
+	
+	if (filters.date_type === 'Monthly' && (!filters.month || !filters.year)) {
+		frappe.msgprint({
+			title: __('Missing Filters'),
+			message: __('Please select Month and Year for the export.'),
+			indicator: 'red'
+		});
+		return;
+	}
+	
+	frappe.show_alert({
+		message: __('Generating Excel file...'),
+		indicator: 'blue'
+	});
+	
+	// Get current report data 
+	let report_data = null;
+	if (report.data && report.data.length > 0) {
+		report_data = report.data;
+	}
+
+	frappe.call({
+		method: 'customize_erpnext.customize_erpnext.report.daily_timesheet_report.daily_timesheet_report.export_timesheet_excel',
+		args: {
+			filters: filters,
+			report_data: report_data
+		},
+		callback: function(r) {
+			if (r.message && r.message.filecontent) {
+				// Convert base64 to blob
+				const byteCharacters = atob(r.message.filecontent);
+				const byteNumbers = new Array(byteCharacters.length);
+				for (let i = 0; i < byteCharacters.length; i++) {
+					byteNumbers[i] = byteCharacters.charCodeAt(i);
+				}
+				const byteArray = new Uint8Array(byteNumbers);
+				const blob = new Blob([byteArray], {type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+				
+				// Create download link
+				const url = window.URL.createObjectURL(blob);
+				const link = document.createElement('a');
+				link.href = url;
+				link.download = r.message.filename;
+				document.body.appendChild(link);
+				link.click();
+				document.body.removeChild(link);
+				window.URL.revokeObjectURL(url);
+				
+				frappe.show_alert({
+					message: __('Excel file downloaded successfully!'),
+					indicator: 'green'
+				});
+			}
+		},
+		error: function(xhr) {
+			frappe.msgprint({
+				title: __('Export Error'),
+				message: __('Failed to generate Excel file. Please try again.'),
+				indicator: 'red'
+			});
+		}
+	});
 }
