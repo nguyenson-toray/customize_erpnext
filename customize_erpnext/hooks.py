@@ -49,6 +49,11 @@ doctype_js = {
         "public/js/fingerprint_scanner_dialog.js",
         "public/js/custom_scripts/employee.js"
     ],
+    "Employee Checkin": [ 
+        "public/js/custom_scripts/employee_checkin.js"
+    ],
+
+    
     # Thêm các doctype khác  
 }
 

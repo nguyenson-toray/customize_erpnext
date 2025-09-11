@@ -1,6 +1,22 @@
 [
  {
   "default_value": null,
+  "doc_type": "Employee Checkin",
+  "docstatus": 0,
+  "doctype": "Property Setter",
+  "doctype_or_field": "DocType",
+  "field_name": null,
+  "is_system_generated": 0,
+  "modified": "2025-09-11 09:11:30.878995",
+  "module": null,
+  "name": "Employee Checkin-main-autoname",
+  "property": "autoname",
+  "property_type": "Data",
+  "row_name": null,
+  "value": "format:HREC-{YY}{MM}{DD}-{####"
+ },
+ {
+  "default_value": null,
   "doc_type": "Employee",
   "docstatus": 0,
   "doctype": "Property Setter",
@@ -1444,22 +1460,6 @@
   "doc_type": "Employee Checkin",
   "docstatus": 0,
   "doctype": "Property Setter",
-  "doctype_or_field": "DocType",
-  "field_name": null,
-  "is_system_generated": 0,
-  "modified": "2025-09-06 11:43:07.567191",
-  "module": null,
-  "name": "Employee Checkin-main-field_order",
-  "property": "field_order",
-  "property_type": "Data",
-  "row_name": null,
-  "value": "[\"employee\", \"employee_name\", \"log_type\", \"shift\", \"overtime_type\", \"column_break_4\", \"time\", \"device_id\", \"custom_reason_for_manual_check_in\", \"skip_auto_attendance\", \"attendance\", \"custom_attendance_link\", \"location_section\", \"latitude\", \"column_break_yqpi\", \"longitude\", \"section_break_ksbo\", \"fetch_geolocation\", \"geolocation\", \"shift_timings_section\", \"shift_start\", \"shift_end\", \"offshift\", \"column_break_vyyt\", \"shift_actual_start\", \"shift_actual_end\"]"
- },
- {
-  "default_value": null,
-  "doc_type": "Employee Checkin",
-  "docstatus": 0,
-  "doctype": "Property Setter",
   "doctype_or_field": "DocField",
   "field_name": "employee",
   "is_system_generated": 0,
@@ -1502,5 +1502,21 @@
   "property_type": "Check",
   "row_name": null,
   "value": "0"
+ },
+ {
+  "default_value": null,
+  "doc_type": "Employee Checkin",
+  "docstatus": 0,
+  "doctype": "Property Setter",
+  "doctype_or_field": "DocType",
+  "field_name": null,
+  "is_system_generated": 0,
+  "modified": "2025-09-11 13:50:05.584036",
+  "module": null,
+  "name": "Employee Checkin-main-field_order",
+  "property": "field_order",
+  "property_type": "Data",
+  "row_name": null,
+  "value": "[\"employee\", \"employee_name\", \"log_type\", \"shift\", \"column_break_4\", \"time\", \"device_id\", \"custom_reason_for_manual_check_in\", \"custom_other_reason_for_manual_check_in\", \"skip_auto_attendance\", \"attendance\", \"custom_attendance_link\", \"location_section\", \"latitude\", \"column_break_yqpi\", \"longitude\", \"section_break_ksbo\", \"fetch_geolocation\", \"geolocation\", \"shift_timings_section\", \"shift_start\", \"shift_end\", \"offshift\", \"column_break_vyyt\", \"shift_actual_start\", \"shift_actual_end\"]"
  }
 ]
