@@ -3,11 +3,11 @@ import os
 import shutil
 
 @frappe.whitelist()
-def create_material_issue_template():
-    """Trả về URL để download file Excel template Material Issue có sẵn."""
+def create_material_receipt_template():
+    """Trả về URL để download file Excel template Material Receipt có sẵn."""
     try:
         # Đường dẫn đến file template có sẵn
-        template_source_path = "/home/frappe/frappe-bench/apps/customize_erpnext/customize_erpnext/api/bulk_update_scripts/create_material_issue_teamplate.xlsx"
+        template_source_path = "/home/frappe/frappe-bench/apps/customize_erpnext/customize_erpnext/api/bulk_update_scripts/create_material_receipt_template.xlsx"
         
         # Kiểm tra file có tồn tại không
         if not os.path.exists(template_source_path):
@@ -23,7 +23,7 @@ def create_material_issue_template():
             os.makedirs(public_files_dir)
         
         # Tên file đích
-        template_filename = "import_material_issue_template.xlsx"
+        template_filename = "import_material_receipt_template.xlsx"
         template_dest_path = os.path.join(public_files_dir, template_filename)
         
         # Copy file template vào thư mục public/files
@@ -35,11 +35,11 @@ def create_material_issue_template():
         return {
             "success": True,
             "file_url": file_url,
-            "message": "Material Issue template is ready for download"
+            "message": "Material Receipt template is ready for download"
         }
         
     except Exception as e:
-        frappe.log_error(f"Error serving Material Issue template: {str(e)}", "Material Issue Template Error")
+        frappe.log_error(f"Error serving Material Receipt template: {str(e)}", "Material Receipt Template Error")
         return {
             "success": False,
             "message": f"Error preparing template: {str(e)}"
@@ -78,6 +78,6 @@ def get_sample_items():
 
 # Export functions
 __all__ = [
-    'create_material_issue_template',
+    'create_material_receipt_template',
     'get_sample_items'
 ]

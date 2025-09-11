@@ -14,7 +14,7 @@ import json
 DEFAULT_COMPANY = "Toray International, VietNam Company Limited - Quang Ngai Branch"
 
 # Đường dẫn file mặc định
-DEFAULT_FILE_PATH = "/home/sonnt/frappe-bench/sites/erp-sonnt.tiqn.local/private/files/create_material_issue.xlsx"
+DEFAULT_FILE_PATH = "/home/sonnt/frappe-bench/sites/erp-sonnt.tiqn.local/private/files/create_material_receipt.xlsx"
 
 class Logger:
     """Class để ghi log vào file và console"""
@@ -22,7 +22,7 @@ class Logger:
         if not log_file_path:
             # Tạo log file ở cùng thư mục với script
             script_dir = os.path.dirname(os.path.abspath(__file__))
-            log_file_path = os.path.join(script_dir, "create_material_issue.txt")
+            log_file_path = os.path.join(script_dir, "create_material_receipt.txt")
         
         self.log_file_path = log_file_path
         self.start_time = datetime.datetime.now()
@@ -34,7 +34,7 @@ class Logger:
         """Viết header cho log file"""
         header = f"""
 {'='*80}
-MATERIAL ISSUE BULK CREATION LOG
+MATERIAL RECEIPT BULK CREATION LOG
 Started at: {self.start_time.strftime('%Y-%m-%d %H:%M:%S')}
 Script: {__file__}
 {'='*80}
@@ -107,10 +107,10 @@ Log file: {self.log_file_path}
 
 # Global logger instance
 logger = None
- 
+
 @frappe.whitelist()
 def validate_excel_file(file_url):
-    """Performance optimized Excel validation"""
+    """Performance optimized Excel validation for Material Receipt"""
     global logger
     
     try:
@@ -200,21 +200,21 @@ def validate_excel_file(file_url):
         }
 
 @frappe.whitelist()
-def import_material_issue_from_excel(file_url):
-    """Import Material Issue từ Excel file"""
+def import_material_receipt_from_excel(file_url):
+    """Import Material Receipt từ Excel file"""
     global logger
     
     try:
         # Khởi tạo logger
         logger = Logger()
         
-        logger.log_separator("BẮT ĐẦU IMPORT MATERIAL ISSUE")
+        logger.log_separator("BẮT ĐẦU IMPORT MATERIAL RECEIPT")
         
         # Chuyển đổi file URL thành đường dẫn thực
         file_path = get_file_path_from_url(file_url)
         
-        # Gọi hàm create_material_issue hiện tại
-        result = create_material_issue(file_path)
+        # Gọi hàm create_material_receipt hiện tại
+        result = create_material_receipt(file_path)
         
         return result
         
@@ -318,7 +318,7 @@ def validate_excel_data_detailed(df):
                     
                     # Check warehouse - priority: Excel > Default warehouse
                     warehouse = None
-                    excel_warehouse = row.get('s_warehouse', '')
+                    excel_warehouse = row.get('t_warehouse', '')
                     
                     if excel_warehouse and pd.notna(excel_warehouse) and str(excel_warehouse).strip():
                         # Validate warehouse từ Excel có tồn tại không
@@ -366,15 +366,6 @@ def validate_excel_data_detailed(df):
                         )
                         result["success"] = False
                         continue
-                    
-                    # Performance optimization: Stock validation can be deferred for large datasets
-                    # For now, we'll skip individual stock validation in batch mode
-                    # This can be re-enabled with batch stock lookup if needed
-                    
-                    # Note: Stock validation temporarily disabled for performance
-                    # available_qty = get_available_qty_by_invoice(item['item_code'], warehouse, invoice_number)
-                    # if available_qty < qty:
-                    #     result["validation_details"]["invoice_issues"].append({...})
                     
                     valid_row_count += 1
                     
@@ -552,91 +543,9 @@ def batch_get_warehouses(item_codes):
             logger.log_error(f"Error in batch warehouse lookup: {str(e)}")
         return {}
 
-def get_available_qty_by_invoice(item_code, warehouse, invoice_number):
+def create_material_receipt(file_path=None):
     """
-    Tính available quantity theo invoice number từ Stock Ledger Entry
-    Xử lý đúng cả Stock Reconciliation và Stock Entry
-    
-    Logic:
-    1. Tìm Stock Reconciliation gần nhất (nếu có) để lấy base quantity
-    2. Cộng tất cả actual_qty từ các Stock Entry sau reconciliation đó
-    3. Nếu không có reconciliation, cộng tất cả actual_qty từ đầu
-    """
-    try:
-        # Lấy tất cả Stock Ledger Entries theo thứ tự thời gian
-        entries = frappe.db.sql("""
-            SELECT 
-                voucher_type,
-                voucher_no,
-                actual_qty,
-                qty_after_transaction,
-                posting_date,
-                posting_time,
-                creation
-            FROM `tabStock Ledger Entry`
-            WHERE item_code = %s 
-            AND warehouse = %s 
-            AND custom_invoice_number = %s
-            AND is_cancelled = 0
-            AND docstatus < 2
-            ORDER BY posting_date ASC, posting_time ASC, creation ASC
-        """, (item_code, warehouse, invoice_number), as_dict=True)
-        
-        if not entries:
-            return 0.0
-        
-        # Tìm Stock Reconciliation gần nhất
-        latest_reconciliation = None
-        latest_reconciliation_index = -1
-        
-        for i, entry in enumerate(entries):
-            if entry['voucher_type'] == 'Stock Reconciliation':
-                latest_reconciliation = entry
-                latest_reconciliation_index = i
-        
-        total_qty = 0.0
-        
-        if latest_reconciliation:
-            # Nếu có Stock Reconciliation, bắt đầu từ qty_after_transaction của reconciliation gần nhất
-            total_qty = flt(latest_reconciliation['qty_after_transaction'])
-            
-            if logger:
-                logger.log_info(f"  📊 Base from Stock Reconciliation {latest_reconciliation['voucher_no']}: {total_qty}")
-            
-            # Cộng các actual_qty từ các entries sau reconciliation
-            for i in range(latest_reconciliation_index + 1, len(entries)):
-                entry = entries[i]
-                actual_qty = flt(entry['actual_qty'])
-                total_qty += actual_qty
-                
-                if logger:
-                    logger.log_info(f"  ➕ {entry['voucher_type']} {entry['voucher_no']}: {actual_qty} (Running total: {total_qty})")
-        
-        else:
-            # Nếu không có Stock Reconciliation, cộng tất cả actual_qty
-            for entry in entries:
-                actual_qty = flt(entry['actual_qty'])
-                total_qty += actual_qty
-                
-                if logger:
-                    logger.log_info(f"  ➕ {entry['voucher_type']} {entry['voucher_no']}: {actual_qty} (Running total: {total_qty})")
-        
-        if logger:
-            logger.log_info(f"📊 Final available qty for {item_code} - {warehouse} - {invoice_number}: {total_qty}")
-        
-        return total_qty
-        
-    except Exception as e:
-        error_msg = f"Error getting available qty for {item_code} - {warehouse} - {invoice_number}: {str(e)}"
-        if logger:
-            logger.log_error(error_msg)
-        else:
-            print(f"❌ {error_msg}")
-        return 0.0
-
-def create_material_issue(file_path=None):
-    """
-    Hàm chính để tạo Material Issue Stock Entry từ file Excel
+    Hàm chính để tạo Material Receipt Stock Entry từ file Excel
     
     Args:
         file_path (str, optional): Đường dẫn đến file Excel. 
@@ -651,7 +560,7 @@ def create_material_issue(file_path=None):
         # Khởi tạo logger
         logger = Logger()
         
-        logger.log_separator("BẮT ĐẦU TẠO MATERIAL ISSUE STOCK ENTRIES")
+        logger.log_separator("BẮT ĐẦU TẠO MATERIAL RECEIPT STOCK ENTRIES")
         
         # Xác định đường dẫn file
         if not file_path:
@@ -903,7 +812,8 @@ def validate_excel_columns(df):
     optional_columns = [
         'posting_date',         # Ngày chứng từ
         'posting_time',         # Thời gian chứng từ
-        's_warehouse'           # Source warehouse (optional - fallback to default if not provided)
+        'custom_receive_date',  # Ngày nhận hàng (specific for Material Receipt)
+        't_warehouse'           # Target warehouse (optional - fallback to default if not provided)
     ]
     
     missing_columns = [col for col in required_columns if col not in df.columns]
@@ -978,12 +888,12 @@ def create_stock_entry_for_group(custom_no, group_df):
                 "message": f"Không có item nào hợp lệ. Lỗi: {'; '.join(item_errors)}"
             }
         
-        # Set from_warehouse của parent bằng s_warehouse của item đầu tiên
+        # Set to_warehouse của parent bằng t_warehouse của item đầu tiên (Material Receipt)
         if stock_entry.items and len(stock_entry.items) > 0:
             first_item = stock_entry.items[0]
-            if hasattr(first_item, 's_warehouse') and first_item.s_warehouse:
-                stock_entry.from_warehouse = first_item.s_warehouse
-                logger.log_info(f"  Set from_warehouse: {first_item.s_warehouse}")
+            if hasattr(first_item, 't_warehouse') and first_item.t_warehouse:
+                stock_entry.to_warehouse = first_item.t_warehouse
+                logger.log_info(f"  Set to_warehouse: {first_item.t_warehouse}")
         
         # Tổng hợp custom_invoice_number từ items (loại bỏ trùng)
         aggregate_invoice_numbers_to_parent(stock_entry)
@@ -995,7 +905,6 @@ def create_stock_entry_for_group(custom_no, group_df):
         logger.log_info(f"    - posting_time: {getattr(stock_entry, 'posting_time', 'NOT_SET')}")
         
         # **QUAN TRỌNG**: Validate và set lại posting fields trước khi save
-        # Đảm bảo set_posting_time = 1 không bị override
         if not getattr(stock_entry, 'set_posting_time', None):
             stock_entry.set_posting_time = 1
             logger.log_warning(f"  ⚠️ Re-setting set_posting_time = 1")
@@ -1049,8 +958,8 @@ def create_stock_entry_doc(first_row, custom_no):
     
     # Thiết lập các field cơ bản
     stock_entry.company = DEFAULT_COMPANY
-    stock_entry.purpose = "Material Issue"
-    stock_entry.stock_entry_type = "Material Issue"
+    stock_entry.purpose = "Material Receipt"
+    stock_entry.stock_entry_type = "Material Receipt"
     
     # QUAN TRỌNG: Set set_posting_time = 1 để có thể tùy chỉnh posting_date
     stock_entry.set_posting_time = 1
@@ -1119,16 +1028,10 @@ def create_stock_entry_doc(first_row, custom_no):
     logger.log_info(f"    - posting_date: {stock_entry.posting_date}")
     logger.log_info(f"    - posting_time: {stock_entry.posting_time}")
     
-    # Custom fields từ Excel
+    # Custom fields từ Excel (Material Receipt specific)
     custom_fields_mapping = {
         'custom_no': custom_no,
-        'custom_fg_style': 'custom_fg_style',
-        'custom_fg_size': 'custom_fg_size', 
-        'custom_fg_qty': 'custom_fg_qty',
-        'custom_line': 'custom_line',
-        'custom_fg_color': 'custom_fg_color',
-        'custom_note': 'custom_note',
-        'custom_material_issue_purpose': 'custom_material_issue_purpose'
+        'custom_note': 'custom_note'
     }
     
     for se_field, excel_field in custom_fields_mapping.items():
@@ -1150,7 +1053,7 @@ def create_stock_entry_doc(first_row, custom_no):
 
 def format_text_field(value, field_name):
     """
-    Format text field giống logic trong JS
+    Format text field cho Material Receipt
     """
     if not value:
         return value
@@ -1159,13 +1062,8 @@ def format_text_field(value, field_name):
     processed_value = str(value).strip()
     processed_value = ' '.join(processed_value.split())
     
-    # Áp dụng title case cho một số field
-    title_case_fields = ['custom_line', 'custom_fg_style', 'custom_fg_color', 'custom_fg_size']
-    if field_name in title_case_fields:
-        # Chỉ áp dụng title case nếu không phải số/code
-        if not processed_value.replace('-', '').replace('.', '').replace(' ', '').isdigit():
-            processed_value = processed_value.title()
-    
+    # Material Receipt doesn't need title case formatting for finished goods fields
+    # Just return cleaned value
     return processed_value
 
 # Performance optimization: Add item cache
@@ -1258,7 +1156,7 @@ def batch_find_items(pattern_list):
 
 def add_item_to_stock_entry(stock_entry, row, row_number):
     """
-    Performance optimized item addition using cached lookups
+    Performance optimized item addition using cached lookups for Material Receipt
     """
     try:
         # Use cached item lookup
@@ -1281,7 +1179,7 @@ def add_item_to_stock_entry(stock_entry, row, row_number):
         
         # Determine warehouse - priority: Excel > Default warehouse
         warehouse = None
-        excel_warehouse = row.get('s_warehouse', '')
+        excel_warehouse = row.get('t_warehouse', '')
         
         if excel_warehouse and pd.notna(excel_warehouse) and str(excel_warehouse).strip():
             # Use warehouse from Excel
@@ -1314,21 +1212,25 @@ def add_item_to_stock_entry(stock_entry, row, row_number):
                 "message": f"Thiếu invoice number cho item {item['item_code']}"
             }
         
-        # Performance optimization: Skip stock validation in batch mode
-        # This can be re-enabled if needed, but significantly improves performance
-        # available_qty = get_available_qty_by_invoice(item['item_code'], warehouse, invoice_number)
-        # if available_qty < qty:
-        #     return {"success": False, "message": f"Insufficient stock..."}
-        
         # Tạo item row
         item_row = stock_entry.append("items", {})
         item_row.item_code = item['item_code']
-        item_row.s_warehouse = warehouse
+        item_row.t_warehouse = warehouse  # Material Receipt uses t_warehouse
         item_row.qty = qty
         item_row.custom_invoice_number = invoice_number
         
-        # Sync các field từ parent
-        sync_parent_fields_to_item(stock_entry, item_row)
+        # Set custom_receive_date if available
+        if 'custom_receive_date' in row and pd.notna(row['custom_receive_date']):
+            try:
+                receive_date = row['custom_receive_date']
+                if hasattr(receive_date, 'strftime'):
+                    item_row.custom_receive_date = receive_date.strftime('%Y-%m-%d')
+                else:
+                    item_row.custom_receive_date = str(receive_date)
+            except Exception as e:
+                logger.log_warning(f"Error setting receive_date: {str(e)}")
+        
+        # Material Receipt doesn't need finished goods fields sync
         
         return {
             "success": True,
@@ -1342,22 +1244,7 @@ def add_item_to_stock_entry(stock_entry, row, row_number):
             "message": f"Lỗi thêm item: {str(e)}"
         }
 
-def sync_parent_fields_to_item(stock_entry, item_row):
-    """
-    Sync các field từ parent xuống item row
-    """
-    parent_fields_to_sync = [
-        'custom_material_issue_purpose',
-        'custom_line', 
-        'custom_fg_qty',
-        'custom_fg_style',
-        'custom_fg_color',
-        'custom_fg_size'
-    ]
-    
-    for field in parent_fields_to_sync:
-        if hasattr(stock_entry, field) and getattr(stock_entry, field):
-            setattr(item_row, field, getattr(stock_entry, field))
+# Material Receipt doesn't need finished goods fields sync - removed sync_parent_fields_to_item
 
 def aggregate_invoice_numbers_to_parent(stock_entry):
     """
@@ -1393,575 +1280,10 @@ def aggregate_invoice_numbers_to_parent(stock_entry):
     except Exception as e:
         logger.log_error(f"Lỗi tổng hợp invoice numbers: {str(e)}")
 
-def show_summary(created_entries):
-    """
-    Hiển thị tóm tắt các Stock Entry đã tạo
-    """
-    if not created_entries:
-        return
-    
-    print(f"\n📋 DANH SÁCH STOCK ENTRIES ĐÃ TẠO:")
-    for i, entry_name in enumerate(created_entries, 1):
-        print(f"  {i}. {entry_name}")
-
-def debug_posting_date_issue():
-    """
-    Function để debug posting_date issue
-    """
-    print("🔬 DEBUGGING POSTING DATE ISSUE...")
-    
-    try:
-        # Tạo Stock Entry đơn giản để test
-        test_doc = frappe.new_doc("Stock Entry")
-        test_doc.company = DEFAULT_COMPANY
-        test_doc.purpose = "Material Issue"
-        test_doc.stock_entry_type = "Material Issue"
-        
-        print(f"📋 Initial values:")
-        print(f"  - set_posting_time: {getattr(test_doc, 'set_posting_time', 'NOT_SET')}")
-        print(f"  - posting_date: {getattr(test_doc, 'posting_date', 'NOT_SET')}")
-        print(f"  - posting_time: {getattr(test_doc, 'posting_time', 'NOT_SET')}")
-        
-        # Set posting fields
-        test_doc.set_posting_time = 1
-        test_doc.posting_date = "2024-01-15"
-        test_doc.posting_time = "14:30:00"
-        test_doc.custom_no = "custom_no_test"
-        
-        print(f"\n📝 After setting:")
-        print(f"  - set_posting_time: {test_doc.set_posting_time}")
-        print(f"  - posting_date: {test_doc.posting_date}")
-        print(f"  - posting_time: {test_doc.posting_time}")
-        
-        # Thêm một item test (cần item và warehouse thực tế)
-        # Lấy item đầu tiên có sẵn
-        items = frappe.get_list("Item", limit=1, fields=["name", "item_code"])
-        warehouses = frappe.get_list("Warehouse", filters={"company": DEFAULT_COMPANY}, limit=1, fields=["name"])
-        
-        if items and warehouses:
-            test_doc.append("items", {
-                "item_code": items[0]["item_code"],
-                "s_warehouse": warehouses[0]["name"],
-                "qty": 1
-            })
-            
-            print(f"\n💾 Saving test document...")
-            test_doc.save()
-            
-            print(f"✅ Saved with name: {test_doc.name}")
-            
-            # Load lại và kiểm tra
-            reloaded = frappe.get_doc("Stock Entry", test_doc.name)
-            print(f"\n🔍 After reload from database:")
-            print(f"  - set_posting_time: {getattr(reloaded, 'set_posting_time', 'NOT_SET')}")
-            print(f"  - posting_date: {getattr(reloaded, 'posting_date', 'NOT_SET')}")
-            print(f"  - posting_time: {getattr(reloaded, 'posting_time', 'NOT_SET')}")
-            
-            # Cleanup - delete test document
-            frappe.delete_doc("Stock Entry", test_doc.name)
-            print(f"\n🗑️ Cleaned up test document")
-            
-            return True
-        else:
-            print("❌ Không tìm thấy Item hoặc Warehouse để test")
-            return False
-        
-    except Exception as e:
-        print(f"❌ Error in debug: {str(e)}")
-        import traceback
-        print(f"📍 Traceback: {traceback.format_exc()}")
-        return False
-
-def test_posting_date_formats():
-    """
-    Test các format posting_date khác nhau
-    """
-    print("\n🧪 TESTING POSTING DATE FORMATS...")
-    
-    test_dates = [
-        "2024-01-15",           # String YYYY-MM-DD
-        "15/01/2024",           # String DD/MM/YYYY
-        "2024-01-15 14:30:00",  # String với time
-        pd.Timestamp("2024-01-15"),  # Pandas timestamp
-        datetime.date(2024, 1, 15),  # Python date
-        datetime.datetime(2024, 1, 15, 14, 30, 0)  # Python datetime
-    ]
-    
-    for i, test_date in enumerate(test_dates):
-        print(f"\n📅 Test {i+1}: {type(test_date).__name__} = {test_date}")
-        
-        try:
-            if hasattr(test_date, 'strftime'):
-                formatted = test_date.strftime('%Y-%m-%d')
-                print(f"  ✅ Formatted: {formatted}")
-            elif isinstance(test_date, str):
-                print(f"  ✅ String as-is: {test_date}")
-            else:
-                converted = str(test_date)
-                print(f"  ✅ Converted: {converted}")
-        except Exception as e:
-            print(f"  ❌ Error: {str(e)}")
-
-# Hàm để test với dữ liệu mẫu
-def test_with_sample_data():
-    """
-    Tạo dữ liệu mẫu để test
-    """
-    print("🧪 Tạo dữ liệu mẫu để test...")
-    
-    sample_data = [
-        {
-            'custom_item_name_detail': 'AT0452HSMP-3D Iron Gate Vital 25Ss',
-            'posting_date': '2024-01-15',
-            'posting_time': '14:30:00',
-            'custom_no': 'TEST001',
-            'qty': 10,
-            'custom_invoice_number': 'IV001',
-            'custom_fg_style': 'Style A',
-            'custom_line': '1'
-        }
-    ]
-    
-    # Tạo file Excel tạm
-    import tempfile
-    with tempfile.NamedTemporaryFile(suffix='.xlsx', delete=False) as tmp_file:
-        df = pd.DataFrame(sample_data)
-        df.to_excel(tmp_file.name, index=False)
-        
-        print(f"📁 File test tạo tại: {tmp_file.name}")
-        return create_material_issue(tmp_file.name)
-
 # Export các hàm chính
 __all__ = [
-    'create_material_issue',  
+    'create_material_receipt',  
     'validate_excel_file',
-    'import_material_issue_from_excel',
-    'get_available_qty_by_invoice',
-    'get_default_warehouse_for_item',
-    'test_with_sample_data', 
-    'debug_posting_date_issue', 
-    'test_posting_date_formats',
-    'debug_available_qty_calculation',
-    'validate_stock_balance_by_invoice',
-    'get_stock_ledger_entries_by_invoice',
-    'validate_custom_item_name_detail_uniqueness',
-    'find_duplicate_custom_item_names',
-    'test_item_lookup_performance'
+    'import_material_receipt_from_excel',
+    'get_default_warehouse_for_item'
 ]
-
-def validate_custom_item_name_detail_uniqueness():
-    """
-    Kiểm tra tính duy nhất của custom_item_name_detail trong hệ thống
-    """
-    print(f"\n🔍 VALIDATING CUSTOM_ITEM_NAME_DETAIL UNIQUENESS")
-    print("="*60)
-    
-    try:
-        # Query tất cả items có custom_item_name_detail
-        items = frappe.db.sql("""
-            SELECT 
-                item_code,
-                custom_item_name_detail,
-                COUNT(*) as count_items
-            FROM `tabItem`
-            WHERE custom_item_name_detail IS NOT NULL
-            AND custom_item_name_detail != ''
-            AND has_variants = 0
-            GROUP BY custom_item_name_detail
-            ORDER BY count_items DESC, custom_item_name_detail
-        """, as_dict=True)
-        
-        total_items = len(items)
-        duplicate_items = [item for item in items if item['count_items'] > 1]
-        unique_items = [item for item in items if item['count_items'] == 1]
-        
-        print(f"📊 SUMMARY:")
-        print(f"  - Total items with custom_item_name_detail: {total_items}")
-        print(f"  - Unique custom_item_name_detail: {len(unique_items)}")
-        print(f"  - Duplicate custom_item_name_detail: {len(duplicate_items)}")
-        
-        if duplicate_items:
-            print(f"\n❌ DUPLICATE CUSTOM_ITEM_NAME_DETAIL FOUND:")
-            print("-" * 60)
-            for item in duplicate_items[:10]:  # Show first 10
-                print(f"  '{item['custom_item_name_detail']}' -> {item['count_items']} items")
-                
-                # Show which items have this duplicate name
-                duplicate_details = frappe.db.sql("""
-                    SELECT item_code, item_name
-                    FROM `tabItem`
-                    WHERE custom_item_name_detail = %s
-                    AND has_variants = 0
-                """, item['custom_item_name_detail'], as_dict=True)
-                
-                for detail in duplicate_details:
-                    print(f"    - {detail['item_code']}: {detail['item_name']}")
-                print()
-            
-            if len(duplicate_items) > 10:
-                print(f"  ... and {len(duplicate_items) - 10} more duplicates")
-        else:
-            print(f"\n✅ ALL CUSTOM_ITEM_NAME_DETAIL ARE UNIQUE!")
-        
-        return {
-            "total_items": total_items,
-            "unique_count": len(unique_items),
-            "duplicate_count": len(duplicate_items),
-            "duplicates": duplicate_items
-        }
-        
-    except Exception as e:
-        print(f"❌ Error validating uniqueness: {str(e)}")
-        return {"error": str(e)}
-
-def find_duplicate_custom_item_names():
-    """
-    Tìm và trả về chi tiết các custom_item_name_detail bị duplicate
-    """
-    try:
-        duplicates = frappe.db.sql("""
-            SELECT 
-                custom_item_name_detail,
-                GROUP_CONCAT(item_code SEPARATOR ', ') as item_codes,
-                COUNT(*) as count_items
-            FROM `tabItem`
-            WHERE custom_item_name_detail IS NOT NULL
-            AND custom_item_name_detail != ''
-            AND has_variants = 0
-            GROUP BY custom_item_name_detail
-            HAVING COUNT(*) > 1
-            ORDER BY count_items DESC
-        """, as_dict=True)
-        
-        return duplicates
-        
-    except Exception as e:
-        print(f"❌ Error finding duplicates: {str(e)}")
-        return []
-
-def test_item_lookup_performance():
-    """
-    Test performance của exact match vs pattern matching
-    """
-    print(f"\n⏱️ TESTING ITEM LOOKUP PERFORMANCE")
-    print("="*60)
-    
-    import time
-    
-    try:
-        # Lấy một số custom_item_name_detail để test
-        test_items = frappe.db.sql("""
-            SELECT custom_item_name_detail
-            FROM `tabItem`
-            WHERE custom_item_name_detail IS NOT NULL
-            AND custom_item_name_detail != ''
-            AND has_variants = 0
-            LIMIT 10
-        """, as_dict=True)
-        
-        if not test_items:
-            print("❌ No items found for testing")
-            return
-        
-        print(f"Testing with {len(test_items)} items...")
-        
-        # Test exact match (current method)
-        start_time = time.time()
-        exact_results = []
-        
-        for item in test_items:
-            result = find_item_by_pattern(item['custom_item_name_detail'])
-            exact_results.append(result is not None)
-        
-        exact_time = time.time() - start_time
-        
-        # Test pattern matching (old method) - for comparison
-        start_time = time.time()
-        pattern_results = []
-        
-        for item in test_items:
-            pattern_search = item['custom_item_name_detail']
-            items = frappe.get_list(
-                "Item",
-                filters={
-                    "custom_item_name_detail": ["like", f"%{pattern_search}%"],
-                    "has_variants": 0,
-                },
-                fields=["item_code"],
-                limit=5
-            )
-            pattern_results.append(len(items) > 0)
-        
-        pattern_time = time.time() - start_time
-        
-        print(f"\n📊 PERFORMANCE RESULTS:")
-        print(f"  Exact Match Method:")
-        print(f"    - Time: {exact_time:.4f} seconds")
-        print(f"    - Success rate: {sum(exact_results)}/{len(exact_results)} ({sum(exact_results)/len(exact_results)*100:.1f}%)")
-        
-        print(f"  Pattern Match Method (old):")
-        print(f"    - Time: {pattern_time:.4f} seconds")
-        print(f"    - Success rate: {sum(pattern_results)}/{len(pattern_results)} ({sum(pattern_results)/len(pattern_results)*100:.1f}%)")
-        
-        improvement = ((pattern_time - exact_time) / pattern_time) * 100
-        print(f"\n✅ Performance improvement: {improvement:.1f}% faster with exact match")
-        
-        return {
-            "exact_time": exact_time,
-            "pattern_time": pattern_time,
-            "improvement_percent": improvement,
-            "exact_success_rate": sum(exact_results)/len(exact_results)*100,
-            "pattern_success_rate": sum(pattern_results)/len(pattern_results)*100
-        }
-        
-    except Exception as e:
-        print(f"❌ Error testing performance: {str(e)}")
-        return {"error": str(e)}
-
-def debug_available_qty_calculation(item_code, warehouse, invoice_number):
-    """
-    Debug function để kiểm tra chi tiết tính toán available quantity
-    """
-    print(f"\n🔍 DEBUGGING AVAILABLE QTY CALCULATION")
-    print(f"Item: {item_code}")
-    print(f"Warehouse: {warehouse}")
-    print(f"Invoice: {invoice_number}")
-    print("="*60)
-    
-    try:
-        # Lấy tất cả entries
-        entries = frappe.db.sql("""
-            SELECT 
-                voucher_type,
-                voucher_no,
-                actual_qty,
-                qty_after_transaction,
-                posting_date,
-                posting_time,
-                creation,
-                valuation_rate,
-                stock_value_difference
-            FROM `tabStock Ledger Entry`
-            WHERE item_code = %s 
-            AND warehouse = %s 
-            AND custom_invoice_number = %s
-            AND is_cancelled = 0
-            AND docstatus < 2
-            ORDER BY posting_date ASC, posting_time ASC, creation ASC
-        """, (item_code, warehouse, invoice_number), as_dict=True)
-        
-        if not entries:
-            print("❌ No Stock Ledger Entries found!")
-            return
-        
-        print(f"📋 Found {len(entries)} Stock Ledger Entries:")
-        
-        running_balance = 0.0
-        latest_reconciliation_qty = None
-        
-        for i, entry in enumerate(entries, 1):
-            print(f"\n{i}. {entry['voucher_type']} - {entry['voucher_no']}")
-            print(f"   Date: {entry['posting_date']} {entry['posting_time']}")
-            print(f"   Actual Qty: {entry['actual_qty']}")
-            print(f"   Qty After Transaction: {entry['qty_after_transaction']}")
-            print(f"   Valuation Rate: {entry['valuation_rate']}")
-            
-            if entry['voucher_type'] == 'Stock Reconciliation':
-                latest_reconciliation_qty = flt(entry['qty_after_transaction'])
-                running_balance = latest_reconciliation_qty
-                print(f"   🔄 RECONCILIATION: Reset balance to {latest_reconciliation_qty}")
-            else:
-                running_balance += flt(entry['actual_qty'])
-                print(f"   ➕ Added {entry['actual_qty']}, Running balance: {running_balance}")
-        
-        print("\n" + "="*60)
-        print(f"📊 CALCULATION RESULT:")
-        
-        # Tính bằng function chính
-        calculated_qty = get_available_qty_by_invoice(item_code, warehouse, invoice_number)
-        print(f"Function result: {calculated_qty}")
-        print(f"Manual calculation: {running_balance}")
-        
-        if abs(calculated_qty - running_balance) < 0.001:
-            print("✅ Calculations match!")
-        else:
-            print("❌ Calculations don't match!")
-        
-        return {
-            "entries": entries,
-            "calculated_qty": calculated_qty,
-            "manual_calculation": running_balance,
-            "latest_reconciliation": latest_reconciliation_qty
-        }
-        
-    except Exception as e:
-        print(f"❌ Error in debug: {str(e)}")
-        import traceback
-        print(traceback.format_exc())
-
-def validate_stock_balance_by_invoice(item_code=None, warehouse=None, invoice_number=None):
-    """
-    Validate stock balance theo invoice number với tổng balance
-    """
-    print(f"\n📊 VALIDATING STOCK BALANCE BY INVOICE")
-    
-    conditions = ["sle.is_cancelled = 0", "sle.docstatus < 2"]
-    values = []
-    
-    if item_code:
-        conditions.append("sle.item_code = %s")
-        values.append(item_code)
-    
-    if warehouse:
-        conditions.append("sle.warehouse = %s")
-        values.append(warehouse)
-    
-    if invoice_number:
-        conditions.append("sle.custom_invoice_number = %s")
-        values.append(invoice_number)
-    
-    where_clause = " AND ".join(conditions)
-    
-    # Tính tổng balance theo từng invoice
-    query = f"""
-        SELECT 
-            sle.item_code,
-            sle.warehouse,
-            sle.custom_invoice_number,
-            SUM(CASE 
-                WHEN sle.voucher_type = 'Stock Reconciliation' 
-                THEN sle.qty_after_transaction 
-                ELSE sle.actual_qty 
-            END) as calculated_balance,
-            COUNT(*) as entry_count,
-            MAX(sle.posting_date) as last_transaction_date
-        FROM `tabStock Ledger Entry` sle
-        WHERE {where_clause}
-        AND sle.custom_invoice_number IS NOT NULL
-        AND sle.custom_invoice_number != ''
-        GROUP BY sle.item_code, sle.warehouse, sle.custom_invoice_number
-        ORDER BY sle.item_code, sle.warehouse, sle.custom_invoice_number
-    """
-    
-    results = frappe.db.sql(query, values, as_dict=True)
-    
-    print(f"Found {len(results)} item-warehouse-invoice combinations:")
-    print("="*80)
-    
-    validation_issues = []
-    
-    for result in results:
-        # Tính bằng function
-        function_result = get_available_qty_by_invoice(
-            result['item_code'], 
-            result['warehouse'], 
-            result['custom_invoice_number']
-        )
-        
-        difference = abs(function_result - result['calculated_balance'])
-        
-        print(f"Item: {result['item_code']}")
-        print(f"Warehouse: {result['warehouse']}")
-        print(f"Invoice: {result['custom_invoice_number']}")
-        print(f"SQL Calculated: {result['calculated_balance']}")
-        print(f"Function Result: {function_result}")
-        print(f"Difference: {difference}")
-        print(f"Entry Count: {result['entry_count']}")
-        print(f"Last Transaction: {result['last_transaction_date']}")
-        
-        if difference > 0.001:
-            print("❌ MISMATCH!")
-            validation_issues.append({
-                'item_code': result['item_code'],
-                'warehouse': result['warehouse'],
-                'invoice_number': result['custom_invoice_number'],
-                'sql_result': result['calculated_balance'],
-                'function_result': function_result,
-                'difference': difference
-            })
-        else:
-            print("✅ Match")
-        
-        print("-" * 40)
-    
-    if validation_issues:
-        print(f"\n❌ Found {len(validation_issues)} validation issues!")
-        for issue in validation_issues:
-            print(f"  - {issue['item_code']} | {issue['warehouse']} | {issue['invoice_number']}: diff={issue['difference']}")
-    else:
-        print(f"\n✅ All {len(results)} calculations are correct!")
-    
-    return {
-        "total_checked": len(results),
-        "issues_found": len(validation_issues),
-        "validation_issues": validation_issues,
-        "results": results
-    }
-
-def get_stock_ledger_entries_by_invoice(invoice_number, item_code=None, warehouse=None):
-    """
-    Lấy tất cả Stock Ledger Entries theo invoice number để review
-    """
-    conditions = [
-        "custom_invoice_number = %s",
-        "is_cancelled = 0",
-        "docstatus < 2"
-    ]
-    values = [invoice_number]
-    
-    if item_code:
-        conditions.append("item_code = %s")
-        values.append(item_code)
-    
-    if warehouse:
-        conditions.append("warehouse = %s")
-        values.append(warehouse)
-    
-    where_clause = " AND ".join(conditions)
-    
-    entries = frappe.db.sql(f"""
-        SELECT 
-            name,
-            posting_date,
-            posting_time,
-            voucher_type,
-            voucher_no,
-            item_code,
-            warehouse,
-            actual_qty,
-            qty_after_transaction,
-            valuation_rate,
-            stock_value_difference,
-            custom_invoice_number,
-            creation
-        FROM `tabStock Ledger Entry`
-        WHERE {where_clause}
-        ORDER BY item_code, warehouse, posting_date, posting_time, creation
-    """, values, as_dict=True)
-    
-    return entries
-
-'''
-# Cách sử dụng:
-
-# Import module
-import customize_erpnext.api.bulk_update_scripts.create_material_issue as material_issue_script
-
-# 1. Test debug functions:
-material_issue_script.test_posting_date_formats()
-material_issue_script.debug_posting_date_issue()
-
-# 2. Sử dụng file mặc định
-material_issue_script.create_material_issue()
-
-# 3. Hoặc chỉ định đường dẫn cụ thể
-material_issue_script.create_material_issue("/home/sonnt/frappe-bench/sites/erp-sonnt.tiqn.local/public/files/create_material_issue.xlsx")
-
-# 4. Hoặc test với dữ liệu mẫu
-material_issue_script.test_with_sample_data() 
-
-# 5. Web API calls (for frontend):
-material_issue_script.create_excel_template()
-material_issue_script.validate_excel_file('/files/uploaded_file.xlsx')
-material_issue_script.import_material_issue_from_excel('/files/uploaded_file.xlsx')
-'''
