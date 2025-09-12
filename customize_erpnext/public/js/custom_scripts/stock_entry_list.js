@@ -153,21 +153,33 @@ function setup_material_issue_dialog_handlers(dialog) {
 
 function download_material_issue_template(dialog) {
     frappe.show_alert({
-        message: __('Downloading template...'),
+        message: __('Generating template...'),
         indicator: 'blue'
     });
 
-    // Direct download of template file
-    const link = document.createElement('a');
-    link.href = '/files/templates/import_material_issue_template.xlsx';
-    link.download = 'import_material_issue_template.xlsx';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    frappe.call({
+        method: 'customize_erpnext.api.bulk_update_scripts.create_material_issue_template.create_material_issue_template',
+        callback: function (r) {
+            if (r.message && r.message.file_url) {
+                // Create download link
+                const link = document.createElement('a');
+                link.href = r.message.file_url;
+                link.download = 'import_material_issue_template.xlsx';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
 
-    frappe.show_alert({
-        message: __('Template downloaded successfully!'),
-        indicator: 'green'
+                frappe.show_alert({
+                    message: __('Template downloaded successfully!'),
+                    indicator: 'green'
+                });
+            } else {
+                frappe.msgprint(__('Error generating template'));
+            }
+        },
+        error: function (r) {
+            frappe.msgprint(__('Error downloading template: {0}', [r.message || 'Unknown error']));
+        }
     });
 }
 
