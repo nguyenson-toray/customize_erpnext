@@ -149,7 +149,7 @@
    "read_only": 1
   },
   {
-   "description": "Zero if less than 15 minutes",
+   "description": "Zero if less than 30 minutes",
    "fieldname": "actual_overtime",
    "fieldtype": "Float",
    "label": "Actual Overtime",
@@ -258,7 +258,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-09-08 16:05:47.354483",
+ "modified": "2025-09-13 16:16:32.270285",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Daily Timesheet",
