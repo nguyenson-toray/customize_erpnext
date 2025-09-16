@@ -47,6 +47,7 @@ doctype_js = {
     "Stock Reconciliation" : "public/js/custom_scripts/stock_reconciliation.js",
     "Employee": [
         "public/js/fingerprint_scanner_dialog.js",
+        "public/js/shared_fingerprint_sync.js",
         "public/js/custom_scripts/employee.js"
     ],
     "Employee Checkin": [ 
@@ -63,6 +64,7 @@ doctype_list_js = {
     "Stock Entry": "public/js/custom_scripts/stock_entry_list.js",
     "Employee": [
         "public/js/fingerprint_scanner_dialog.js",
+        "public/js/shared_fingerprint_sync.js",
         "public/js/custom_scripts/employee_list.js"
     ],
 }
@@ -186,8 +188,8 @@ scheduler_events = {
         #     "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.scheduler_jobs.auto_submit_custom_attendance"
         # ],
         
-        # Daily Timesheet auto sync and calculation at 21:00 every day
-        "0 21 * * *": [
+        # Daily Timesheet auto sync and calculation at 22:00 every day
+        "0 22 * * *": [
             "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.daily_timesheet_auto_sync_and_calculate"
         ],
         

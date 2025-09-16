@@ -1,4 +1,5 @@
 console.log('Employee list customization loaded successfully');
+// import apps/customize_erpnext/customize_erpnext/public/js/shared_fingerprint_sync.js
 
 frappe.listview_settings['Employee'] = {
     onload: function (listview) {
@@ -12,7 +13,7 @@ frappe.listview_settings['Employee'] = {
             show_sync_fingerprint_from_erp_to_attendance_machine_dialog();
         });
         listview.page.add_menu_item(__('Sync Fingerprint From ERP To Attendance Machines'), function () {
-            show_sync_fingerprint_from_attendance_machine_to_erp_dialog();
+            show_multi_employee_sync_dialog(listview);
         });
     }
 };
@@ -681,6 +682,52 @@ function save_fingerprint_to_erpnext(employee_id, finger_index, template_data, q
 
 // All complex functions removed - using standard Frappe dialog and alerts
 
+function show_multi_employee_sync_dialog(listview) {
+    // Get selected employees
+    const selected_employees = listview.get_checked_items();
+
+    if (selected_employees.length === 0) {
+        frappe.msgprint({
+            title: __('No Employees Selected'),
+            message: __('Please select at least one employee from the list to sync fingerprints to attendance machines.'),
+            indicator: 'orange'
+        });
+        return;
+    }
+
+    // Confirm action for multiple employees
+    if (selected_employees.length > 1) {
+        frappe.confirm(
+            __('You have selected {0} employees. Do you want to sync fingerprints for all of them to attendance machines?', [selected_employees.length]),
+            function() {
+                // User confirmed, proceed with sync
+                const employees = selected_employees.map(emp => ({
+                    employee_id: emp.name,
+                    employee_name: emp.employee_name || emp.name
+                }));
+
+                // Use shared sync dialog for multi-employee sync
+                window.showSharedSyncDialog(employees, {
+                    multi_employee: true,
+                    source: 'employee_list'
+                });
+            }
+        );
+    } else {
+        // Single employee selected
+        const employee = selected_employees[0];
+        const emp_data = {
+            employee_id: employee.name,
+            employee_name: employee.employee_name || employee.name
+        };
+
+        // Use shared sync dialog for single employee
+        window.showSharedSyncDialog([emp_data], {
+            source: 'employee_list'
+        });
+    }
+}
+
 function show_sync_fingerprint_from_attendance_machine_to_erp_dialog() {
     frappe.msgprint({
         title: __('Sync Fingerprint Data'),
@@ -691,8 +738,8 @@ function show_sync_fingerprint_from_attendance_machine_to_erp_dialog() {
 
 function show_sync_fingerprint_from_erp_to_attendance_machine_dialog() {
     frappe.msgprint({
-        title: __('Sync Fingerprint Data'),
-        message: __('show_sync_fingerprint_from_erp_to_attendance_machine_dialog() will synchronize fingerprint data from ERP to attendance devices. Implementation will be completed in the next phase.'),
+        title: __('Legacy Function'),
+        message: __('This function has been replaced by the new multi-employee sync. Please use "Sync Fingerprint From ERP To Attendance Machines" instead.'),
         indicator: 'blue'
     });
 }
