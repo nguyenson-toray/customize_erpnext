@@ -107,7 +107,7 @@ frappe.query_reports["Stock Balance Customize"] = {
 			"fieldname": "range",
 			"label": __("Ageing Range"),
 			"fieldtype": "Data",
-			"default": "180, 360, 720",
+			"default": "90, 180, 270, 360, 450, 540, 630, 420",
 			"depends_on": "eval:doc.show_stock_ageing_data && doc.summary_qty_by_invoice_number"
 		},
 		{
