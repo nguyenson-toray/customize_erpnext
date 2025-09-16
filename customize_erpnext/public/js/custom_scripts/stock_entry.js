@@ -67,6 +67,8 @@ frappe.ui.form.on('Stock Entry', {
 
         // Trim parent fields first
         trim_parent_fields(frm);
+        // Trim child table custom_invoice_number field
+        trim_child_invoice_numbers(frm);
         // Validate and set default warehouses
         validate_warehouse(frm);
         // Aggregate invoice numbers from child table to parent
@@ -481,6 +483,37 @@ function trim_parent_fields(frm) {
 
     if (updated_fields.length > 0) {
         console.log(`Trimmed and formatted parent fields: ${updated_fields.join(', ')}`);
+    }
+}
+
+// Function to trim custom_invoice_number in child table
+function trim_child_invoice_numbers(frm) {
+    if (!frm.doc.items || frm.doc.items.length === 0) {
+        return;
+    }
+
+    let trimmed_count = 0;
+
+    frm.doc.items.forEach(function (item) {
+        if (item.custom_invoice_number) {
+            let original_value = item.custom_invoice_number;
+
+            // Trim and clean the text
+            let cleaned_value = original_value.trim();
+            // Replace multiple spaces with single space
+            cleaned_value = cleaned_value.replace(/\s+/g, ' ');
+
+            // Only update if there was a change
+            if (original_value !== cleaned_value) {
+                frappe.model.set_value(item.doctype, item.name, 'custom_invoice_number', cleaned_value);
+                trimmed_count++;
+            }
+        }
+    });
+
+    if (trimmed_count > 0) {
+        console.log(`Trimmed ${trimmed_count} invoice numbers in child table`);
+        frm.refresh_field('items');
     }
 }
 
