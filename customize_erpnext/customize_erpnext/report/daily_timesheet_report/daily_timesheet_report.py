@@ -267,101 +267,66 @@ def get_columns(filters=None):
 def get_data(filters):
 	is_summary = filters and filters.get("summary")
 	show_detail_columns = filters and filters.get("detail_columns")
-	show_zero = filters and filters.get("show_zero", 1)  # Default to True (1)
 	
 	# Get date range conditions for filtering active employees
 	date_conditions = get_date_range_conditions(filters)
 	employee_conditions = get_employee_filter_conditions(filters)
 	
 	if is_summary:
-		# Summary mode - Show active employees + inactive employees with timesheet data
+		# Summary mode - Always show all active employees in period
 		employee_fields = ""
 		if show_detail_columns:
 			employee_fields = ", emp.date_of_joining, emp.relieving_date, emp.designation"
 		
-		if show_zero:
-			# Show all employees who were active during any part of the period + employees with timesheet data
-			
-			# Calculate period dates
-			if filters.get("date_type") == "Single Date" and filters.get("single_date"):
-				period_start = filters.get('single_date')
-				period_end = filters.get('single_date')
-			elif filters.get("date_type") == "Date Range":
-				period_start = filters.get("from_date", "1900-01-01")
-				period_end = filters.get("to_date", "2099-12-31")
-			elif filters.get("date_type") == "Monthly" and filters.get("month") and filters.get("year"):
-				month = int(filters.get("month"))
-				year = int(filters.get("year"))
-				if month == 1:
-					prev_month = 12
-					prev_year = year - 1
-				else:
-					prev_month = month - 1
-					prev_year = year
-				period_start = f"{prev_year}-{prev_month:02d}-26"
-				period_end = f"{year}-{month:02d}-25"
+		# Calculate period dates
+		if filters.get("date_type") == "Single Date" and filters.get("single_date"):
+			period_start = filters.get('single_date')
+			period_end = filters.get('single_date')
+		elif filters.get("date_type") == "Date Range":
+			period_start = filters.get("from_date", "1900-01-01")
+			period_end = filters.get("to_date", "2099-12-31")
+		elif filters.get("date_type") == "Monthly" and filters.get("month") and filters.get("year"):
+			month = int(filters.get("month"))
+			year = int(filters.get("year"))
+			if month == 1:
+				prev_month = 12
+				prev_year = year - 1
 			else:
-				period_start = "1900-01-01"
-				period_end = "2099-12-31"
-			
-			# Get all employees who were active during the period + employees with timesheet data
-			data = frappe.db.sql(f"""
-				SELECT
-					emp.name as employee,
-					emp.employee_name,
-					emp.department,
-					emp.custom_section,
-					emp.custom_group,
-					COALESCE(SUM(dt.working_hours), 0) as working_hours,
-					COALESCE(SUM(dt.actual_overtime), 0) as actual_overtime,
-					COALESCE(SUM(dt.approved_overtime), 0) as approved_overtime,
-					COALESCE(SUM(dt.overtime_hours), 0) as overtime_hours,
-					COALESCE(SUM(dt.working_hours + dt.overtime_hours), 0) as total_hours
-					{employee_fields}
-				FROM `tabEmployee` emp
-				LEFT JOIN `tabDaily Timesheet` dt ON emp.name = dt.employee 
-					AND ({date_conditions if date_conditions else '1=1'})
-				WHERE (
-					-- Show employees who were active during any part of the period
-					((emp.date_of_joining IS NULL OR emp.date_of_joining <= '{period_end}')
-					 AND (emp.relieving_date IS NULL OR emp.relieving_date >= '{period_start}'))
-					OR 
-					-- Show employees with timesheet data in the period
-					(emp.name IN (
-						SELECT DISTINCT employee 
-						FROM `tabDaily Timesheet` 
-						WHERE ({date_conditions if date_conditions else '1=1'})
-					))
-				)
-				{employee_conditions}
-				GROUP BY emp.name, emp.employee_name, emp.department, emp.custom_section, emp.custom_group
-				{', emp.date_of_joining, emp.relieving_date, emp.designation' if show_detail_columns else ''}
-				ORDER BY emp.name
-			""", filters, as_dict=1)
+				prev_month = month - 1
+				prev_year = year
+			period_start = f"{prev_year}-{prev_month:02d}-26"
+			period_end = f"{year}-{month:02d}-25"
 		else:
-			# Show only employees with timesheet data (existing behavior when Show Zero is off)
-			data = frappe.db.sql(f"""
-				SELECT
-					emp.name as employee,
-					emp.employee_name,
-					emp.department,
-					emp.custom_section,
-					emp.custom_group,
-					COALESCE(SUM(dt.working_hours), 0) as working_hours,
-					COALESCE(SUM(dt.actual_overtime), 0) as actual_overtime,
-					COALESCE(SUM(dt.approved_overtime), 0) as approved_overtime,
-					COALESCE(SUM(dt.overtime_hours), 0) as overtime_hours,
-					COALESCE(SUM(dt.working_hours + dt.overtime_hours), 0) as total_hours
-					{employee_fields}
-				FROM `tabEmployee` emp
-				INNER JOIN `tabDaily Timesheet` dt ON emp.name = dt.employee 
-					AND ({date_conditions if date_conditions else '1=1'})
-				WHERE 1=1
-				{employee_conditions}
-				GROUP BY emp.name, emp.employee_name, emp.department, emp.custom_section, emp.custom_group
-				{', emp.date_of_joining, emp.relieving_date, emp.designation' if show_detail_columns else ''}
-				ORDER BY emp.name
-			""", filters, as_dict=1)
+			period_start = "1900-01-01"
+			period_end = "2099-12-31"
+		
+		# Get all employees who were active during the period with LEFT JOIN to Daily Timesheet
+		data = frappe.db.sql(f"""
+			SELECT
+				emp.name as employee,
+				emp.employee_name,
+				emp.department,
+				emp.custom_section,
+				emp.custom_group,
+				COALESCE(SUM(dt.working_hours), 0) as working_hours,
+				COALESCE(SUM(dt.actual_overtime), 0) as actual_overtime,
+				COALESCE(SUM(dt.approved_overtime), 0) as approved_overtime,
+				COALESCE(SUM(dt.overtime_hours), 0) as overtime_hours,
+				COALESCE(SUM(dt.working_hours + dt.overtime_hours), 0) as total_hours
+				{employee_fields}
+			FROM `tabEmployee` emp
+			LEFT JOIN `tabDaily Timesheet` dt ON emp.name = dt.employee 
+				AND ({date_conditions if date_conditions else '1=1'})
+			WHERE (
+				-- Show employees who were active during any part of the period
+				((emp.date_of_joining IS NULL OR emp.date_of_joining <= '{period_end}')
+				 AND (emp.relieving_date IS NULL OR emp.relieving_date >= '{period_start}'))
+			)
+			{employee_conditions}
+			GROUP BY emp.name, emp.employee_name, emp.department, emp.custom_section, emp.custom_group
+			{', emp.date_of_joining, emp.relieving_date, emp.designation' if show_detail_columns else ''}
+			ORDER BY emp.name
+		""", filters, as_dict=1)
 		
 		# Apply decimal rounding to summary data and calculate working_day + coefficients
 		for row in data:
@@ -397,165 +362,180 @@ def get_data(filters):
 				else:
 					row['overtime_coefficient'] = 1.5
 	else:
-		# Detail mode - show individual records
-		if show_zero:
-			# Show all employees who were active during any part of the period + employees with timesheet data
-			
-			# Calculate period dates (same logic as summary mode)
-			if filters.get("date_type") == "Single Date" and filters.get("single_date"):
-				period_start = filters.get('single_date')
-				period_end = filters.get('single_date')
-			elif filters.get("date_type") == "Date Range":
-				period_start = filters.get("from_date", "1900-01-01")
-				period_end = filters.get("to_date", "2099-12-31")
-			elif filters.get("date_type") == "Monthly" and filters.get("month") and filters.get("year"):
-				month = int(filters.get("month"))
-				year = int(filters.get("year"))
-				if month == 1:
-					prev_month = 12
-					prev_year = year - 1
-				else:
-					prev_month = month - 1
-					prev_year = year
-				period_start = f"{prev_year}-{prev_month:02d}-26"
-				period_end = f"{year}-{month:02d}-25"
+		# Detail mode - Always show all active employees with individual daily records
+		
+		# Calculate period dates (same logic as summary mode)
+		if filters.get("date_type") == "Single Date" and filters.get("single_date"):
+			period_start = filters.get('single_date')
+			period_end = filters.get('single_date')
+		elif filters.get("date_type") == "Date Range":
+			period_start = filters.get("from_date", "1900-01-01")
+			period_end = filters.get("to_date", "2099-12-31")
+		elif filters.get("date_type") == "Monthly" and filters.get("month") and filters.get("year"):
+			month = int(filters.get("month"))
+			year = int(filters.get("year"))
+			if month == 1:
+				prev_month = 12
+				prev_year = year - 1
 			else:
-				period_start = "1900-01-01"
-				period_end = "2099-12-31"
-			
-			# Get all employees who were active during the period + employees with timesheet/attendance data
-			# Use UNION to combine timesheet records with attendance-only records
-			data = frappe.db.sql(f"""
-				(
-					SELECT
-						emp.name as employee,
-						emp.employee_name,
-						emp.department,
-						emp.custom_section,
-						emp.custom_group,
-						dt.attendance_date,
-						dt.shift,
-						dt.shift_determined_by,
-						dt.check_in,
-						dt.check_out,
-						COALESCE(dt.working_hours, 0) as working_hours,
-						COALESCE(dt.actual_overtime, 0) as actual_overtime,
-						COALESCE(dt.approved_overtime, 0) as approved_overtime,
-						COALESCE(dt.overtime_hours, 0) as overtime_hours,
-						COALESCE(dt.overtime_coefficient, 1.5) as overtime_coefficient,
-						COALESCE(dt.final_ot_with_coefficient, 0) as final_ot_with_coefficient,
-						COALESCE(dt.working_hours + dt.overtime_hours, 0) as total_hours,
-						dt.late_entry,
-						dt.early_exit,
-						dt.maternity_benefit,
-						dt.status,
-						emp.date_of_joining,
-						emp.relieving_date,
-						emp.designation,
-						dt.name,
-						'timesheet' as source_type
-					FROM `tabEmployee` emp
-					INNER JOIN `tabDaily Timesheet` dt ON emp.name = dt.employee 
-						AND (dt.docstatus <= 1) 
-						AND ({date_conditions if date_conditions else '1=1'})
-					WHERE (
-						-- Show employees who were active during any part of the period
-						((emp.date_of_joining IS NULL OR emp.date_of_joining <= '{period_end}')
-						 AND (emp.relieving_date IS NULL OR emp.relieving_date >= '{period_start}'))
-					)
-					{employee_conditions}
-				)
-				UNION ALL
-				(
-					SELECT
-						emp.name as employee,
-						emp.employee_name,
-						emp.department,
-						emp.custom_section,
-						emp.custom_group,
-						att.attendance_date,
-						att.shift,
-						NULL as shift_determined_by,
-						NULL as check_in,
-						NULL as check_out,
-						0 as working_hours,
-						0 as actual_overtime,
-						0 as approved_overtime,
-						0 as overtime_hours,
-						1.5 as overtime_coefficient,
-						0 as final_ot_with_coefficient,
-						0 as total_hours,
-						att.late_entry,
-						att.early_exit,
-						NULL as maternity_benefit,
-						att.status,
-						emp.date_of_joining,
-						emp.relieving_date,
-						emp.designation,
-						NULL as name,
-						'attendance' as source_type
-					FROM `tabEmployee` emp
-					INNER JOIN `tabAttendance` att ON emp.name = att.employee 
-						AND (att.docstatus <= 1) 
-						AND ({date_conditions.replace('dt.attendance_date', 'att.attendance_date') if date_conditions else '1=1'})
-					WHERE (
-						-- Show employees who were active during any part of the period
-						((emp.date_of_joining IS NULL OR emp.date_of_joining <= '{period_end}')
-						 AND (emp.relieving_date IS NULL OR emp.relieving_date >= '{period_start}'))
-					)
-					{employee_conditions}
-					-- Only include attendance records that don't have corresponding timesheet records
-					AND NOT EXISTS (
-						SELECT 1 FROM `tabDaily Timesheet` dt2 
-						WHERE dt2.employee = emp.name 
-						AND dt2.attendance_date = att.attendance_date
-						AND (dt2.docstatus <= 1)
-					)
-				)
-				ORDER BY attendance_date, employee
-			""", filters, as_dict=1)
+				prev_month = month - 1
+				prev_year = year
+			period_start = f"{prev_year}-{prev_month:02d}-26"
+			period_end = f"{year}-{month:02d}-25"
 		else:
-			# Show only employees with timesheet data (existing behavior when Show Zero is off)
-			dt_conditions = ["dt.docstatus <= 1"]
-			if date_conditions:
-				dt_conditions.append(date_conditions)
-			if employee_conditions:
-				dt_conditions.append(employee_conditions.replace('emp.', 'dt.'))
-			
-			where_clause = " AND ".join(dt_conditions)
-			
-			data = frappe.db.sql(f"""
-				SELECT
-					dt.employee,
-					dt.employee_name,
-					dt.department,
-					dt.custom_section,
-					dt.custom_group,
-					dt.attendance_date,
-					dt.shift,
-					dt.shift_determined_by,
-					dt.check_in,
-					dt.check_out,
-					dt.working_hours,
-					dt.actual_overtime,
-					dt.approved_overtime,
-					dt.overtime_hours,
-					dt.overtime_coefficient,
-					dt.final_ot_with_coefficient,
-					(dt.working_hours + dt.overtime_hours) as total_hours,
-					dt.late_entry,
-					dt.early_exit,
-					dt.maternity_benefit,
-					dt.status,
+			period_start = "1900-01-01"
+			period_end = "2099-12-31"
+		
+		# Get all employees who were active during the period with all their Daily Timesheet records
+		# Use LEFT JOIN to show employees even if they don't have timesheet data for some dates
+		data = frappe.db.sql(f"""
+			SELECT
+				emp.name as employee,
+				emp.employee_name,
+				emp.department,
+				emp.custom_section,
+				emp.custom_group,
+				dt.attendance_date,
+				dt.shift,
+				dt.shift_determined_by,
+				dt.check_in,
+				dt.check_out,
+				COALESCE(dt.working_hours, 0) as working_hours,
+				COALESCE(dt.actual_overtime, 0) as actual_overtime,
+				COALESCE(dt.approved_overtime, 0) as approved_overtime,
+				COALESCE(dt.overtime_hours, 0) as overtime_hours,
+				COALESCE(dt.overtime_coefficient, 1.5) as overtime_coefficient,
+				COALESCE(dt.final_ot_with_coefficient, 0) as final_ot_with_coefficient,
+				COALESCE(dt.working_hours + dt.overtime_hours, 0) as total_hours,
+				dt.late_entry,
+				dt.early_exit,
+				dt.maternity_benefit,
+				dt.status,
+				emp.date_of_joining,
+				emp.relieving_date,
+				emp.designation,
+				dt.name
+			FROM `tabEmployee` emp
+			LEFT JOIN `tabDaily Timesheet` dt ON emp.name = dt.employee 
+				AND (dt.docstatus <= 1) 
+				AND ({date_conditions if date_conditions else '1=1'})
+			WHERE (
+				-- Show employees who were active during any part of the period
+				((emp.date_of_joining IS NULL OR emp.date_of_joining <= '{period_end}')
+				 AND (emp.relieving_date IS NULL OR emp.relieving_date >= '{period_start}'))
+			)
+			{employee_conditions}
+			-- Only show records where there's either timesheet data OR we want to show all active employees
+			AND (dt.attendance_date IS NOT NULL)
+			ORDER BY dt.attendance_date, emp.name
+		""", filters, as_dict=1)
+		
+		# Add missing employee-date combinations for active employees without timesheet records
+		if data:
+			# Get all active employees in the period
+			active_employees = frappe.db.sql(f"""
+				SELECT DISTINCT emp.name as employee,
+					emp.employee_name,
+					emp.department,
+					emp.custom_section,
+					emp.custom_group,
 					emp.date_of_joining,
 					emp.relieving_date,
-					emp.designation,
-					dt.name
-				FROM `tabDaily Timesheet` dt
-				LEFT JOIN `tabEmployee` emp ON dt.employee = emp.name
-				WHERE {where_clause}
-				ORDER BY dt.attendance_date, dt.employee
+					emp.designation
+				FROM `tabEmployee` emp
+				WHERE (
+					-- Show employees who were active during any part of the period
+					((emp.date_of_joining IS NULL OR emp.date_of_joining <= '{period_end}')
+					 AND (emp.relieving_date IS NULL OR emp.relieving_date >= '{period_start}'))
+				)
+				{employee_conditions}
 			""", filters, as_dict=1)
+			
+			# Generate all dates in the period
+			from datetime import datetime, timedelta
+			if filters.get("date_type") == "Single Date" and filters.get("single_date"):
+				start_date = datetime.strptime(period_start, '%Y-%m-%d').date()
+				end_date = datetime.strptime(period_end, '%Y-%m-%d').date()
+			elif filters.get("date_type") == "Date Range":
+				start_date = datetime.strptime(period_start, '%Y-%m-%d').date()
+				end_date = datetime.strptime(period_end, '%Y-%m-%d').date()
+			elif filters.get("date_type") == "Monthly":
+				start_date = datetime.strptime(period_start, '%Y-%m-%d').date()
+				end_date = datetime.strptime(period_end, '%Y-%m-%d').date()
+			else:
+				start_date = datetime.strptime(period_start, '%Y-%m-%d').date()
+				end_date = datetime.strptime(period_end, '%Y-%m-%d').date()
+			
+			all_dates = []
+			current_date = start_date
+			while current_date <= end_date:
+				all_dates.append(current_date)
+				current_date += timedelta(days=1)
+			
+			# Check which employee-date combinations are missing
+			existing_records = set()
+			for row in data:
+				if row.get('attendance_date'):
+					emp_date_key = f"{row['employee']}-{row['attendance_date']}"
+					existing_records.add(emp_date_key)
+			
+			# Add missing records with empty timesheet data
+			missing_records = []
+			for emp in active_employees:
+				for date_obj in all_dates:
+					emp_date_key = f"{emp['employee']}-{date_obj}"
+					if emp_date_key not in existing_records:
+						# Check if employee was active on this specific date
+						emp_start = emp.get('date_of_joining')
+						emp_end = emp.get('relieving_date')
+						
+						# Convert to date objects if they're strings
+						if emp_start and isinstance(emp_start, str):
+							emp_start = datetime.strptime(emp_start, '%Y-%m-%d').date()
+						if emp_end and isinstance(emp_end, str):
+							emp_end = datetime.strptime(emp_end, '%Y-%m-%d').date()
+						
+						# Check if employee was active on this date
+						is_active_on_date = True
+						if emp_start and date_obj < emp_start:
+							is_active_on_date = False
+						if emp_end and date_obj > emp_end:
+							is_active_on_date = False
+						
+						if is_active_on_date:
+							missing_records.append({
+								'employee': emp['employee'],
+								'employee_name': emp['employee_name'],
+								'department': emp['department'],
+								'custom_section': emp['custom_section'],
+								'custom_group': emp['custom_group'],
+								'attendance_date': date_obj,
+								'shift': None,
+								'shift_determined_by': None,
+								'check_in': None,
+								'check_out': None,
+								'working_hours': 0,
+								'actual_overtime': 0,
+								'approved_overtime': 0,
+								'overtime_hours': 0,
+								'overtime_coefficient': 1.5,
+								'final_ot_with_coefficient': 0,
+								'total_hours': 0,
+								'late_entry': None,
+								'early_exit': None,
+								'maternity_benefit': None,
+								'status': None,  # Leave empty for missing records
+								'date_of_joining': emp['date_of_joining'],
+								'relieving_date': emp['relieving_date'],
+								'designation': emp['designation'],
+								'name': None
+							})
+			
+			# Add missing records to data
+			data.extend(missing_records)
+			
+			# Sort again by date and employee
+			data.sort(key=lambda x: (x.get('attendance_date') or datetime.min.date(), x.get('employee') or ''))
 		
 		# Apply decimal rounding to detail data and format time
 		for row in data:
@@ -724,7 +704,7 @@ def get_chart_data(data, filters):
 			]
 		},
 		"type": "bar",
-		"height": 300
+		"height": 150
 	}
 
 @frappe.whitelist()
@@ -737,8 +717,11 @@ def export_timesheet_excel(filters=None, report_data=None):
 		report_data = json.loads(report_data)
 	
 	# Always use fresh data from the report to ensure consistency
-	columns, data, message, chart = execute(filters)
-	employee_data = convert_report_data_to_excel_format(data, filters)
+	# Force summary = 0 for Excel export to get daily detail data
+	export_filters = filters.copy() if filters else {}
+	export_filters['summary'] = 0
+	columns, data, message, chart = execute(export_filters)
+	employee_data = convert_report_data_to_excel_format(data, export_filters)
 	
 	# Create Excel file
 	wb = openpyxl.Workbook()
@@ -847,143 +830,6 @@ def get_export_date_range(filters):
 		'date_type': filters.get("date_type", "Date Range")
 	}
 
-def get_timesheet_excel_data(filters):
-	"""Get employee data sorted by department, section, group for Excel export"""
-	# Get date range
-	date_range = get_export_date_range(filters)
-	from_date_str = date_range['from_date'].strftime('%Y-%m-%d')
-	to_date_str = date_range['to_date'].strftime('%Y-%m-%d')
-	
-	# Get all active employees in the period, sorted by department, section, group
-	employees = frappe.db.sql("""
-		SELECT 
-			emp.name as employee_id,
-			emp.employee_name,
-			emp.date_of_joining,
-			emp.relieving_date,
-			COALESCE(emp.custom_group, '') as custom_group,
-			COALESCE(emp.custom_section, '') as custom_section,
-			COALESCE(emp.department, '') as department,
-			COALESCE(emp.designation, '') as designation
-		FROM `tabEmployee` emp
-		WHERE emp.status = 'Active'
-		AND (emp.relieving_date IS NULL OR emp.relieving_date >= %(from_date)s)
-		AND emp.date_of_joining <= %(to_date)s
-		AND emp.department NOT IN ('Head of Branch - TIQN', 'Operations Manager - TIQN')
-		ORDER BY 
-			COALESCE(emp.department, '') ASC,
-			COALESCE(emp.custom_section, '') ASC, 
-			COALESCE(emp.custom_group, '') ASC,
-			COALESCE(emp.employee_name, '') ASC
-	""", {
-		'from_date': from_date_str,
-		'to_date': to_date_str
-	}, as_dict=1)
-	
-	# Get timesheet data for all employees in date range (prioritize over attendance)
-	timesheet_data = {}
-	attendance_data = {}
-	if employees:
-		employee_ids = [emp.employee_id for emp in employees]
-		employee_id_list = "', '".join(employee_ids)
-		
-		# First get timesheet records
-		timesheet_records = frappe.db.sql(f"""
-			SELECT 
-				employee,
-				attendance_date,
-				status,
-				working_hours
-			FROM `tabDaily Timesheet`
-			WHERE employee IN ('{employee_id_list}')
-			AND attendance_date BETWEEN %(from_date)s AND %(to_date)s
-			AND docstatus <= 1
-		""", {
-			'from_date': from_date_str,
-			'to_date': to_date_str
-		}, as_dict=1)
-		
-		# Index timesheet by employee and date
-		for record in timesheet_records:
-			emp_id = record.employee
-			date_key = record.attendance_date.strftime('%Y-%m-%d')
-			
-			if emp_id not in timesheet_data:
-				timesheet_data[emp_id] = {}
-			
-			timesheet_data[emp_id][date_key] = record
-		
-		# Then get attendance records as fallback
-		attendance_records = frappe.db.sql(f"""
-			SELECT 
-				employee,
-				attendance_date,
-				status,
-				working_hours
-			FROM `tabAttendance`
-			WHERE employee IN ('{employee_id_list}')
-			AND attendance_date BETWEEN %(from_date)s AND %(to_date)s
-			AND docstatus = 1
-		""", {
-			'from_date': from_date_str,
-			'to_date': to_date_str
-		}, as_dict=1)
-		
-		# Index attendance by employee and date
-		for record in attendance_records:
-			emp_id = record.employee
-			date_key = record.attendance_date.strftime('%Y-%m-%d')
-			
-			if emp_id not in attendance_data:
-				attendance_data[emp_id] = {}
-			
-			attendance_data[emp_id][date_key] = record
-	
-	# Combine employee and timesheet/attendance data
-	result = []
-	for emp in employees:
-		emp_timesheet = timesheet_data.get(emp.employee_id, {})
-		emp_attendance = attendance_data.get(emp.employee_id, {})
-		
-		# Build attendance data for each date
-		daily_data = {}
-		for date_obj in date_range['dates']:
-			date_key = date_obj.strftime('%Y-%m-%d')
-			
-			# Prioritize timesheet data over attendance data
-			record = emp_timesheet.get(date_key) or emp_attendance.get(date_key, {})
-			
-			# Determine what to show in cell (working days or leave status)
-			if record:
-				if record.get('status') == 'Present':
-					working_hours = record.get('working_hours', 0) or 0
-					if working_hours > 0:
-						# Convert working hours to working days (working_hours / 8)
-						working_days = decimal_round(working_hours / 8, 2)
-						daily_data[date_key] = working_days
-					else:
-						# Present but no working hours - show 0 for Show Zero=1 mode
-						daily_data[date_key] = 0
-				else:
-					# No working day - leave blank (không điền chữ status)
-					daily_data[date_key] = ''
-			else:
-				# No record - leave blank
-				daily_data[date_key] = ''
-		
-		result.append({
-			'employee_id': emp.employee_id,
-			'employee_name': emp.employee_name, 
-			'date_of_joining': emp.date_of_joining,
-			'relieving_date': emp.relieving_date,
-			'custom_group': emp.custom_group,
-			'custom_section': emp.custom_section,
-			'department': clean_department_name(emp.department),
-			'designation': emp.designation,
-			'daily_data': daily_data
-		})
-	
-	return result
 
 def clean_department_name(dept_name):
 	"""Remove '- TIQN' suffix from department names"""
@@ -1032,7 +878,7 @@ def convert_report_data_to_excel_format(report_data, filters):
 			working_hours = row.get('working_hours', 0) or 0
 			status = row.get('status', '')
 			
-			# For Detail Columns=1, Show Zero=1 mode: show all data including zeros
+			# Always show all data including zeros (show_zero filter removed)
 			# Use decimal rounding to match report calculations
 			if working_hours > 0:
 				working_days = decimal_round(working_hours / 8, 2)
@@ -1041,9 +887,69 @@ def convert_report_data_to_excel_format(report_data, filters):
 				# Present but no working hours - show 0
 				employee_data[employee_id]['daily_data'][date_key] = 0
 			else:
-				# No working day - leave blank for other statuses
+				# No working day - leave blank for other statuses or missing data
 				employee_data[employee_id]['daily_data'][date_key] = ''
 	
+	# Ensure all active employees in the period are included (for summary mode or missing employees)
+	# Get all active employees for the period
+	if filters.get("date_type") == "Single Date" and filters.get("single_date"):
+		period_start = filters.get('single_date')
+		period_end = filters.get('single_date')
+	elif filters.get("date_type") == "Date Range":
+		period_start = filters.get("from_date", "1900-01-01")
+		period_end = filters.get("to_date", "2099-12-31")
+	elif filters.get("date_type") == "Monthly" and filters.get("month") and filters.get("year"):
+		month = int(filters.get("month"))
+		year = int(filters.get("year"))
+		if month == 1:
+			prev_month = 12
+			prev_year = year - 1
+		else:
+			prev_month = month - 1
+			prev_year = year
+		period_start = f"{prev_year}-{prev_month:02d}-26"
+		period_end = f"{year}-{month:02d}-25"
+	else:
+		period_start = "1900-01-01"
+		period_end = "2099-12-31"
+	
+	# Get employee conditions for filtering
+	employee_conditions = get_employee_filter_conditions(filters)
+	
+	# Get all active employees that should be included
+	all_active_employees = frappe.db.sql(f"""
+		SELECT DISTINCT emp.name as employee,
+			emp.employee_name,
+			emp.department,
+			emp.custom_section,
+			emp.custom_group,
+			emp.date_of_joining,
+			emp.relieving_date,
+			emp.designation
+		FROM `tabEmployee` emp
+		WHERE (
+			-- Show employees who were active during any part of the period
+			((emp.date_of_joining IS NULL OR emp.date_of_joining <= '{period_end}')
+			 AND (emp.relieving_date IS NULL OR emp.relieving_date >= '{period_start}'))
+		)
+		{employee_conditions}
+	""", filters, as_dict=1)
+	
+	# Add missing employees to employee_data
+	for emp in all_active_employees:
+		if emp.employee not in employee_data:
+			employee_data[emp.employee] = {
+				'employee_id': emp.employee,
+				'employee_name': emp.employee_name or '',
+				'date_of_joining': emp.date_of_joining,
+				'relieving_date': emp.relieving_date,
+				'custom_group': emp.custom_group or '',
+				'custom_section': emp.custom_section or '',
+				'department': clean_department_name(emp.department or ''),
+				'designation': emp.designation or '',
+				'daily_data': {}
+			}
+
 	# Convert to list and sort by department, section, group, name
 	result = list(employee_data.values())
 	result.sort(key=lambda x: (

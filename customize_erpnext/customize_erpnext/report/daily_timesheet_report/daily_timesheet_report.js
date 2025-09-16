@@ -128,58 +128,51 @@ frappe.query_reports["Daily Timesheet Report"] = {
 			"description": __("Show detailed columns (Shift Determined By, Morning/Afternoon Hours, Total Hours, Late Entry, Early Exit, Maternity Benefit)")
 		},
 		{
-			"fieldname": "show_zero",
-			"label": __("Show Zero"),
-			"fieldtype": "Check",
-			"default": 1,
-			"description": __("Show employees with no timesheet data")
-		},
-		{
 			"fieldname": "chart_type",
 			"label": __("Chart Type"),
 			"fieldtype": "Select",
 			"options": "Department Summary\nTop 50 - Highest Overtime\nTop 50 - Highest Working Hours",
-			"default": "Department Summary",
+			"default": "Top 50 - Highest Overtime",
 			"description": __("Select chart visualization type")
 		}
 	],
 
-	"onload": function(report) {
+	"onload": function (report) {
 		// Setup chart type filter change listener
-		report.page.add_inner_button(__("Refresh Chart"), function() {
+		report.page.add_inner_button(__("Refresh Chart"), function () {
 			if (report.chart) {
 				report.refresh_chart();
 			}
 		});
-		
+
 		// Store reference to report for later use
 		window.daily_timesheet_report = report;
-		
+
 		// Listen for filter changes to refresh chart
 		$(document).off('change', '[data-fieldname="chart_type"]');
-		$(document).on('change', '[data-fieldname="chart_type"]', function() {
+		$(document).on('change', '[data-fieldname="chart_type"]', function () {
 			// Update global chart type variable
 			let new_chart_type = $(this).val() || "Department Summary";
 			window.daily_timesheet_chart_type = new_chart_type;
 			console.log("Chart type changed to:", new_chart_type);
-			
-			setTimeout(function() {
+
+			setTimeout(function () {
 				if (report.chart) {
 					report.refresh_chart();
 				}
 			}, 100);
 		});
-		
+
 		// Initialize chart type from default filter value
-		setTimeout(function() {
+		setTimeout(function () {
 			let chart_filter = report.get_filter_value("chart_type");
 			if (chart_filter) {
 				window.daily_timesheet_chart_type = chart_filter;
 			}
 		}, 500);
-		
+
 		// Add export Excel button (always shown)
-		report.page.add_inner_button(__('Export Excel - HR Template'), function() {
+		report.page.add_inner_button(__('Export Excel - HR Template'), function () {
 			export_timesheet_excel(report);
 		}, __('Actions'));
 	},
@@ -225,7 +218,7 @@ frappe.query_reports["Daily Timesheet Report"] = {
 
 		// Get chart type from global variable
 		let chart_type = window.daily_timesheet_chart_type || "Department Summary";
-		
+
 		// Fallback: try to get from report if available
 		if (window.daily_timesheet_report && window.daily_timesheet_report.get_filter_value) {
 			let filter_value = window.daily_timesheet_report.get_filter_value("chart_type");
@@ -305,7 +298,7 @@ function get_department_summary_chart(result, round_decimal) {
 			]
 		},
 		type: "bar",
-		height: 300,
+		height: 150,
 		colors: ["#36D7B7", "#FF9F43"]
 	};
 }
@@ -317,7 +310,7 @@ function get_top_overtime_chart(result, round_decimal) {
 	result.forEach(function (row) {
 		let emp_key = row.employee;
 		let emp_name = row.employee_name || row.employee;
-		
+
 		if (!employee_data[emp_key]) {
 			employee_data[emp_key] = {
 				employee: emp_key,
@@ -350,7 +343,7 @@ function get_top_overtime_chart(result, round_decimal) {
 			]
 		},
 		type: "bar",
-		height: 400,
+		height: 150,
 		colors: ["#FF9F43"],
 		axisOptions: {
 			xIsSeries: false
@@ -368,7 +361,7 @@ function get_top_working_hours_chart(result, round_decimal) {
 	result.forEach(function (row) {
 		let emp_key = row.employee;
 		let emp_name = row.employee_name || row.employee;
-		
+
 		if (!employee_data[emp_key]) {
 			employee_data[emp_key] = {
 				employee: emp_key,
@@ -401,7 +394,7 @@ function get_top_working_hours_chart(result, round_decimal) {
 			]
 		},
 		type: "bar",
-		height: 400,
+		height: 150,
 		colors: ["#36D7B7"],
 		axisOptions: {
 			xIsSeries: false
@@ -415,7 +408,7 @@ function get_top_working_hours_chart(result, round_decimal) {
 // Export Excel function
 function export_timesheet_excel(report) {
 	let filters = report.get_values();
-	
+
 	// Validate required date filters based on date type
 	if (!filters.date_type) {
 		frappe.msgprint({
@@ -425,7 +418,7 @@ function export_timesheet_excel(report) {
 		});
 		return;
 	}
-	
+
 	if (filters.date_type === 'Single Date' && !filters.single_date) {
 		frappe.msgprint({
 			title: __('Missing Filter'),
@@ -434,7 +427,7 @@ function export_timesheet_excel(report) {
 		});
 		return;
 	}
-	
+
 	if (filters.date_type === 'Date Range' && (!filters.from_date || !filters.to_date)) {
 		frappe.msgprint({
 			title: __('Missing Filters'),
@@ -443,7 +436,7 @@ function export_timesheet_excel(report) {
 		});
 		return;
 	}
-	
+
 	if (filters.date_type === 'Monthly' && (!filters.month || !filters.year)) {
 		frappe.msgprint({
 			title: __('Missing Filters'),
@@ -452,12 +445,12 @@ function export_timesheet_excel(report) {
 		});
 		return;
 	}
-	
+
 	frappe.show_alert({
 		message: __('Generating Excel file...'),
 		indicator: 'blue'
 	});
-	
+
 	// Get current report data 
 	let report_data = null;
 	if (report.data && report.data.length > 0) {
@@ -470,7 +463,7 @@ function export_timesheet_excel(report) {
 			filters: filters,
 			report_data: report_data
 		},
-		callback: function(r) {
+		callback: function (r) {
 			if (r.message && r.message.filecontent) {
 				// Convert base64 to blob
 				const byteCharacters = atob(r.message.filecontent);
@@ -479,8 +472,8 @@ function export_timesheet_excel(report) {
 					byteNumbers[i] = byteCharacters.charCodeAt(i);
 				}
 				const byteArray = new Uint8Array(byteNumbers);
-				const blob = new Blob([byteArray], {type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
-				
+				const blob = new Blob([byteArray], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+
 				// Create download link
 				const url = window.URL.createObjectURL(blob);
 				const link = document.createElement('a');
@@ -490,14 +483,14 @@ function export_timesheet_excel(report) {
 				link.click();
 				document.body.removeChild(link);
 				window.URL.revokeObjectURL(url);
-				
+
 				frappe.show_alert({
 					message: __('Excel file downloaded successfully!'),
 					indicator: 'green'
 				});
 			}
 		},
-		error: function(xhr) {
+		error: function (xhr) {
 			frappe.msgprint({
 				title: __('Export Error'),
 				message: __('Failed to generate Excel file. Please try again.'),
