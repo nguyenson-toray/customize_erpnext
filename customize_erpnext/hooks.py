@@ -188,13 +188,13 @@ scheduler_events = {
         #     "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.scheduler_jobs.auto_submit_custom_attendance"
         # ],
         
-        # Daily Timesheet auto sync and calculation at 22:00 every day
-        "0 22 * * *": [
+        # Daily Timesheet auto sync and calculation at 22:45 every day
+        "45 22 * * *": [
             "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.daily_timesheet_auto_sync_and_calculate"
         ],
         
-        # Monthly recalculation - 22:00 on 25th of every month, period : 26th of previous month to 25th of current month
-        "0 22 25 * *": [
+        # Monthly recalculation - 23:00 on Sunday (0 is Sunday)
+        "30 23 * * 0": [
             "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.monthly_timesheet_recalculation"
         ],
         
