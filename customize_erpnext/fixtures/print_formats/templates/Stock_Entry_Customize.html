@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phiếu Cấp Phát</title>
+    <style>
+      body {
+      font-family: Arial, sans-serif;
+      margin: 2px;
+      font-size: 12px;
+      padding-bottom: 20px;
+      position: relative;
+      }
+      @page {
+      size: A4 portrait;
+      margin: 5mm;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+      @bottom-center {
+      content: "Page " counter(page) " of " counter(pages) " | Printed on: {{ frappe.utils.now_datetime().strftime('%d/%m/%Y %H:%M:%S') }}";
+      font-size: 9px;
+      color: #666;
+      font-family: Arial, sans-serif;
+      }
+      }
+      html, body {
+      width: 210mm;
+      height: 297mm;
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      }
+      .header {
+      margin-bottom: 30px;
+      margin-top: 10px;
+      }
+      .header-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 20px;
+      }
+      .header-table td {
+      border: none;
+      padding: 10px;
+      vertical-align: middle;
+      }
+      .header-left {
+      width: 80px;
+      text-align: left;
+      }
+      .header-center {
+      text-align: center;
+      }
+      .header-center h1 {
+      margin: 5px 0;
+      font-size: 20px;
+      font-weight: bold;
+      }
+      .header-center .japanese {
+      font-size: 14px;
+      margin: 0;
+      }
+      .header-right {
+      width: 80px;
+      text-align: right;
+      }
+      .qr-content {
+      text-align: center;
+      }
+      .qr-number {
+      font-size: 10px;
+      font-weight: bold;
+      margin-top: 2px;
+      white-space: nowrap !important;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      width: 100px;
+      display: inline-block;
+      line-height: 1.2;
+      word-break: keep-all;
+      word-wrap: normal;
+      }
+      .info-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 15px;
+      margin-top: 30px;
+      }
+      .items-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 20px;
+      }
+      .footer-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 30px;
+      page-break-inside: avoid;
+      }
+      th, td {
+      border: 1px solid #000;
+      padding: 5px;
+      text-align: center;
+      font-size: 11px;
+      vertical-align: middle;
+      }
+      th {
+      background-color: #f0f0f0;
+      font-weight: bold;
+      }
+      .header-cell {
+      line-height: 1.2;
+      }
+      .vietnamese {
+      display: block;
+      font-weight: bold;
+      }
+      .japanese {
+      display: block;
+      font-size: 10px;
+      color: #666;
+      }
+      .text-left {
+      text-align: left;
+      }
+      .empty-row {
+      height: 40px;
+      }
+      @media print {
+      body {
+      margin: 5mm;
+      padding-bottom: 10mm;
+      font-size: 11px;
+      position: relative;
+      }
+      .qr-content img {
+      width: 70px !important;
+      height: 70px !important;
+      }
+      .info-table {
+      margin-top: 35px !important;
+      }
+      .footer-table {
+      page-break-inside: avoid;
+      margin-top: 40px;
+      }
+      }
+    </style>
+  </head>
+  <body>
+    {%- set item_codes = [] -%}
+    {%- for item in doc.items -%}
+    {%- if item.item_code -%}
+    {%- set _ = item_codes.append(item.item_code) -%}
+    {%- endif -%}
+    {%- endfor -%}
+    {%- set attributes_dict = {} -%}
+    {%- if item_codes -%}
+    {%- set attributes_result = frappe.db.sql("""
+    SELECT parent, attribute, attribute_value
+    FROM `tabItem Variant Attribute`
+    WHERE parent IN %(item_codes)s
+    AND attribute IN ('Color', 'Size', 'Colour')
+    AND disabled = 0
+    """, {"item_codes": item_codes}, as_dict=True) -%}
+    {%- for attr in attributes_result -%}
+    {%- if attr.parent not in attributes_dict -%}
+    {%- set _ = attributes_dict.update({attr.parent: {}}) -%}
+    {%- endif -%}
+    {%- set _ = attributes_dict[attr.parent].update({attr.attribute: attr.attribute_value}) -%}
+    {%- endfor -%}
+    {%- endif -%}
+    <!-- Header Section -->
+    <div class="header">
+      <table class="header-table">
+        <tr>
+          <td class="header-left">
+            <div style="width: 80px; height: 80px;"></div>
+          </td>
+          <td class="header-center">
+            <h1>PHIẾU CẤP PHÁT</h1>
+            <div class="japanese"><h1>払い出し伝票</h1></div>
+          </td>
+          <td class="header-right">
+            <!-- QR Code with local generation -->
+            <div class="qr-content">
+              {% set qr_data = frappe.utils.get_url() + "/app/stock-entry/" + doc.name %}
+              {% set qr_code_base64 = frappe.call("customize_erpnext.api.qr_label_print.generate_qr_code_base64", data=qr_data) %}
+              <img src="data:image/png;base64,{{ qr_code_base64 }}"
+              alt="QR Code" style="width: 80px; height: 80px;">
+              <div class="qr-number">
+                NO: {{ doc.custom_no }}
+              </div>
+            </div>
+          </td>
+        </tr>
+      </table>
+    </div>
+    <!-- Document Info Table -->
+    <table class="info-table">
+      <thead>
+        <tr>
+          <th class="header-cell">
+            <span class="vietnamese">Ngày kế hoạch</span>
+            <span class="japanese">払い出し日</span>
+          </th>
+          <th class="header-cell">
+            <span class="vietnamese">Đơn hàng</span>
+            <span class="japanese">プラント</span>
+          </th>
+          <th class="header-cell">
+            <span class="vietnamese">Mã hàng</span>
+            <span class="japanese">No</span>
+          </th>
+          <th class="header-cell">
+            <span class="vietnamese">Số lượng</span>
+            <span class="japanese">数量</span>
+          </th>
+          <th class="header-cell">
+            <span class="vietnamese">Size</span>
+            <span class="japanese">サイズ</span>
+          </th>
+          <th class="header-cell">
+            <span class="vietnamese">Màu</span>
+            <span class="japanese">カラー</span>
+          </th>
+          <th class="header-cell">
+            <span class="vietnamese">Ngày xuất hàng</span>
+            <span class="japanese">納期</span>
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>{{ frappe.utils.formatdate(doc.plan_date, "dd/MM/yyyy") if doc.plan_date else "" }}</td>
+          <td>{{ doc.custom_order_no or "" }}</td>
+          <td>{{ doc.custom_fg_style or "" }}</td>
+          <td>{{ doc.custom_fg_qty or "" }}</td>
+          <td>{{ doc.custom_fg_size or "" }}</td>
+          <td>{{ doc.custom_fg_color or "" }}</td>
+          <td>{{ frappe.utils.formatdate(doc.posting_date, "dd/MM/yyyy") if doc.posting_date else "" }}</td>
+        </tr>
+      </tbody>
+    </table>
+    <!-- Items Detail Table -->
+    <div style="margin-bottom: 10px; font-weight: bold; text-align: center;">CHI TIẾT 详細</div>
+    <table class="items-table">
+      <thead>
+        <tr>
+          <th style="width: 5%;">STT</th>
+          <th style="width: 20%;">
+            <span class="vietnamese">Chi tiết BTP/NPL</span>
+            <span class="japanese">品目分類</span>
+          </th>
+          <th style="width: 20%;">
+            <span class="vietnamese">ART NPL</span>
+            <span class="japanese">資材品番</span>
+          </th>
+          <th style="width: 10%;">
+            <span class="vietnamese">Size</span>
+            <span class="japanese">サイズ</span>
+          </th>
+          <th style="width: 15%;">
+            <span class="vietnamese">Màu</span>
+            <span class="japanese">色</span>
+          </th>
+          <th style="width: 10%;">
+            <span class="vietnamese">Số lượng</span>
+            <span class="japanese">数量</span>
+          </th>
+          <th style="width: 20%;">
+            <span class="vietnamese">Ghi chú</span>
+            <span class="japanese">備考</span>
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in doc.items %}
+        <tr>
+          <td>{{ loop.index }}</td>
+          <td class="text-left">{{ item.custom_btp_npl or "" }}</td>
+          <td class="text-left">{{ item.item_name or "" }}</td>
+          <td>
+            {%- set size_value = "" -%}
+            {%- if item.item_code and item.item_code in attributes_dict -%}
+            {%- set item_attrs = attributes_dict[item.item_code] -%}
+            {%- set size_value = item_attrs.get('Size', '') -%}
+            {%- endif -%}
+            {{ size_value or item.custom_size or "" }}
+          </td>
+          <td>
+            {%- set color_value = "" -%}
+            {%- if item.item_code and item.item_code in attributes_dict -%}
+            {%- set item_attrs = attributes_dict[item.item_code] -%}
+            {%- set color_value = item_attrs.get('Color', item_attrs.get('Colour', '')) -%}
+            {%- endif -%}
+            {{ color_value or item.custom_color or "" }}
+          </td>
+          <td>{{ item.qty }} {{ item.uom or "" }}</td>
+          <td class="text-left">{{ item.custom_remarks or "" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <!-- Footer Signature Table -->
+    <table class="footer-table">
+      <thead>
+        <tr>
+          <th class="header-cell" style="width: 25%;">
+            <span class="vietnamese">GHI CHÚ</span>
+            <span class="japanese">備考</span>
+          </th>
+          <th class="header-cell" style="width: 25%;">
+            <span class="vietnamese">KHO NGUYÊN LIỆU</span>
+            <span class="japanese">資材管理</span>
+          </th>
+          <th class="header-cell" style="width: 25%;">
+            <span class="vietnamese">LINE</span>
+            <span class="japanese">ライン</span>
+          </th>
+          <th class="header-cell" style="width: 25%;">
+            <span class="vietnamese">QC</span>
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="empty-row">
+          <td>{{ doc.custom_remarks or "" }}</td>
+          <td>&nbsp;</td>
+          <td>&nbsp;</td>
+          <td>&nbsp;</td>
+        </tr>
+      </tbody>
+    </table>
+  </body>
+</html>

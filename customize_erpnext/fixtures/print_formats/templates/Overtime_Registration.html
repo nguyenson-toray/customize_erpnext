@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <style>
+      body {
+      font-family: "Times New Roman", serif;
+      font-size: 11px;
+      line-height: 1.2;
+      margin: 3px;
+      padding: 5px;
+      position: relative;
+      counter-reset: page;
+      }
+      .header {
+      margin-bottom: 10px;
+      }
+      .company-info {
+      float: left;
+      width: 75%;
+      font-size: 10px;
+      line-height: 1.2;
+      }
+      .company-info .vietnamese {
+      font-style: italic;
+      font-weight: normal;
+      }
+      .document-info {
+      float: right;
+      width: 20%;
+      text-align: center;
+      font-size: 9px;
+      padding: 5px;
+      }
+      .document-number {
+      font-weight: bold;
+      margin-bottom: 5px;
+      font-size: 11px;
+      }
+      .barcode {
+      margin-top: 5px;
+      }
+      .qr-content {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      }
+      .title-section {
+      text-align: center;
+      margin-bottom: 10px;
+      clear: both;
+      padding-top: 10px;
+      }
+      .main-title {
+      font-size: 18px;
+      font-weight: bold;
+      margin-bottom: 3px;
+      }
+      .sub-title {
+      font-size: 16px;
+      font-weight: bold;
+      color: #666;
+      font-style: italic;
+      }
+      .form-info {
+      margin-bottom: 10px;
+      clear: both;
+      }
+      .info-row {
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      }
+      .info-label {
+      font-weight: bold;
+      min-width: 200px;
+      }
+      .info-label .vietnamese {
+      font-style: italic;
+      font-weight: normal;
+      }
+      .info-value {
+      flex: 1;
+      border-bottom: 1px solid #ccc;
+      padding-bottom: 1px;
+      min-height: 14px;
+      }
+      .info-value .vietnamese {
+      font-style: italic;
+      font-weight: normal;
+      }
+      .table-container {
+      margin: 10px 0;
+      }
+      .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      border: 1px solid #000;
+      font-size: 11px;
+      }
+      .data-table th {
+      background-color: #f5f5f5;
+      border: 1px solid #000;
+      padding: 1px;
+      text-align: center;
+      font-weight: bold;
+      vertical-align: middle;
+      font-size: 10px;
+      }
+      .data-table th .vietnamese {
+      font-style: italic;
+      font-weight: normal;
+      }
+      .data-table td {
+      border: 1px solid #000;
+      padding: 1px;
+      text-align: center;
+      vertical-align: middle;
+      }
+      .data-table td.text-left {
+      text-align: left;
+      }
+      .totals-section {
+      margin: 10px 0;
+      display: flex;
+      justify-content: space-between;
+      }
+      .totals-item {
+      flex: 1;
+      text-align: left;
+      }
+      .totals-text {
+      font-weight: bold;
+      font-size: 11px;
+      }
+      .totals-text .vietnamese {
+      font-style: italic;
+      font-weight: normal;
+      }
+      .footer {
+      margin-top: 10px;
+      page-break-inside: avoid;
+      }
+      .explanation-section {
+      margin-bottom: 10px;
+      }
+      .explanation-label {
+      font-weight: bold;
+      margin-bottom: 5px;
+      font-size: 11px;
+      }
+      .explanation-label .vietnamese {
+      font-style: italic;
+      font-weight: normal;
+      }
+      .explanation-lines {
+      height: 40px;
+      padding: 5px;
+      }
+      .explanation-line {
+      border-bottom: 1px solid #ccc;
+      margin-bottom: 8px;
+      height: 15px;
+      }
+      .signature-section {
+      display: flex;
+      justify-content: space-between;
+      text-align: center;
+      }
+      .signature-box {
+      width: 30%;
+      padding: 5px;
+      height: 80px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      }
+      .signature-title {
+      font-weight: bold;
+      margin-bottom: 3px;
+      font-size: 11px;
+      }
+      .signature-title-vn {
+      font-style: italic;
+      color: #666;
+      font-size: 9px;
+      margin-bottom: 15px;
+      }
+      .signature-space {
+      flex: 1;
+      margin: 5px 0;
+      }
+      .signature-role {
+      font-weight: bold;
+      margin-top: 15px;
+      font-size: 11px;
+      }
+      .signature-role-vn {
+      font-style: italic;
+      color: #666;
+      font-size: 9px;
+      }
+      .page-number {
+      position: fixed;
+      bottom: 15px;
+      right: 15px;
+      font-style: italic;
+      color: #666;
+      font-size: 9px;
+      }
+      @page {
+      /*top right bottom left;*/
+      margin: 0.4cm 0.4cm 0.4cm 0.6cm;
+      @bottom-right {
+      content: "Page " counter(page) " of " counter(pages);
+      font-family: "Times New Roman", serif;
+      font-style: italic;
+      color: #666;
+      font-size: 9px;
+      margin-bottom: 10px;
+      }
+      }
+      .clearfix::after {
+      content: "";
+      display: table;
+      clear: both;
+      }
+      @media print {
+      body {
+      margin: 0;
+      padding-left: 15px;
+      padding-right: 5px;
+      padding-top: 5px;
+      padding-bottom: 5px;
+      }
+      .page-break { page-break-before: always; }
+      .page-number {
+      display: none; /* Hide for print, use @page @bottom-right instead */
+      }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Header Section -->
+    <div class="header clearfix">
+      <div class="company-info">
+        <strong>TORAY INTERNATIONAL VIETNAM COMPANY LIMITED - QUANG NGAI BRANCH</strong><br>
+        <strong><span class="vietnamese">CÔNG TY TNHH TORAY INTERNATIONAL VIỆT NAM CN QUẢNG NGÃI</span></strong><br><br>
+        No. 09, Tu Do Boulevard, VSIP / <span class="vietnamese">Số 09, Đại Lộ Tự Do, KCN Việt Nam - Singapore</span><br>
+        Tho Phong Commune / <span class="vietnamese">Xã Thọ Phong</span><br>
+        Quang Ngai Province, Vietnam / <span class="vietnamese">Tỉnh Quảng Ngãi, Việt Nam</span>
+      </div>
+      <div class="document-info">
+        <div class="document-number">
+          No: {{ doc.name }}
+        </div>
+        <div class="barcode">
+          <!-- QR Code with local generation -->
+          <div class="qr-content">
+            {% set qr_data = frappe.utils.get_url() + "/app/overtime-registration/" + doc.name %}
+            {% set qr_code_base64 = frappe.call("customize_erpnext.api.qr_label_print.generate_qr_code_base64", data=qr_data) %}
+            {% if qr_code_base64 %}
+            <img src="data:image/png;base64,{{ qr_code_base64 }}"
+            alt="QR Code" style="width: 70px; height: 70px; border: none;">
+            {% else %}
+            <div style="width: 70px; height: 70px; border: 1px solid #ccc; display: flex; align-items: center; justify-content: center; font-size: 8px; text-align: center;">
+              {{ doc.name }}
+            </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="title-section">
+      <div class="main-title">OVERTIME/HOLIDAY WORK APPLICATION FORM</div>
+      <div class="sub-title">BẢN ĐĂNG KÝ LÀM THÊM GIỜ</div>
+    </div>
+    <!-- Form Information -->
+    <div class="form-info">
+      <div class="info-row">
+        <span class="info-label">Date/ <span class="vietnamese">Ngày yêu cầu</span>:</span>
+        <span class="info-value">
+          {% if doc.request_date %}
+          {{ frappe.utils.formatdate(doc.request_date, "dd/MM/yyyy") }}
+          {% endif %}
+          <!--&nbsp;&nbsp;&nbsp;&nbsp;(It must be approved by 15:00 / Phải được phê duyệt trước 15 giờ)-->
+        </span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">OT Location/<br><span class="vietnamese">Địa điểm làm thêm</span>:</span>
+        <span class="info-value">
+          Toray International Vietnam Company Limited - Quang Ngai Branch<br>
+          <span class="vietnamese">Công Ty TNHH Toray International Việt Nam - CN Quảng Ngãi</span>
+        </span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Group / <span class="vietnamese">Nhóm</span>:</span>
+        <span class="info-value">
+          {% set groups = [] %}
+          {% for row in doc.ot_employees %}
+          {% if row.group and row.group not in groups %}
+          {% set _ = groups.append(row.group) %}
+          {% endif %}
+          {% endfor %}
+          {{ groups | join(", ") }}
+        </span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Reason / <span class="vietnamese">Lý do</span>:</span>
+        <span class="info-value">{{ doc.reason_general or "" }}</span>
+      </div>
+    </div>
+    <!-- Data Table -->
+    <div class="table-container">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th style="width: 2%;">No<br><span class="vietnamese">STT</span></th>
+            <th style="width: 11%;">Employee Code<br><span class="vietnamese">MSNV</span></th>
+            <th style="width: 16%;">Full Name<br><span class="vietnamese">Họ tên</span></th>
+            <th style="width: 8%;">Group<br><span class="vietnamese">Nhóm</span></th>
+            <th style="width: 17%;">Date<br><span class="vietnamese">Ngày</span></th>
+            <th style="width: 9%;">Begin Time<br><span class="vietnamese">Giờ bắt đầu</span></th>
+            <th style="width: 9%;">End Time<br><span class="vietnamese">Giờ kết thúc</span></th>
+            <th style="width: 19%;">Reason<br><span class="vietnamese">Lý do</span></th>
+            <th style="width: 9%;">Signature<br><span class="vietnamese">Chữ ký</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% set employee_data = {} %}
+          <!-- Group data by employee -->
+          {% for row in doc.ot_employees %}
+          {% if row.employee not in employee_data %}
+          {% set _ = employee_data.update({
+          row.employee: {
+          'employee_name': row.employee_name,
+          'group': row.group,
+          'dates': [],
+          'times': [],
+          'reasons': []
+          }
+          }) %}
+          {% endif %}
+          {% if row.date %}
+          {% set _ = employee_data[row.employee]['dates'].append(frappe.utils.formatdate(row.date, "dd/MM/yy")) %}
+          {% endif %}
+          {% if row.begin_time and row.end_time %}
+          {% set begin_time_formatted = (row.begin_time|string)[:5] if row.begin_time else "" %}
+          {% set end_time_formatted = (row.end_time|string)[:5] if row.end_time else "" %}
+          {% set time_range = begin_time_formatted + " - " + end_time_formatted %}
+          {% set _ = employee_data[row.employee]['times'].append(time_range) %}
+          {% endif %}
+          {% if row.reason %}
+          {% set _ = employee_data[row.employee]['reasons'].append(row.reason) %}
+          {% endif %}
+          {% endfor %}
+          <!-- Display grouped data -->
+          {% set counter = [0] %}
+          {% for employee_id, data in employee_data.items() %}
+          {% set _ = counter.append(counter.pop() + 1) %}
+          <tr>
+            <td>{{ counter[0] }}</td>
+            <td>{{ employee_id }}</td>
+            <td class="text-left">{{ data.employee_name or "" }}</td>
+            <td>{{ data.group or "" }}</td>
+            <td class="text-left">
+              {% for date in data.dates | unique %}
+              {{ date }}{% if not loop.last %}&nbsp;&nbsp;{% endif %}
+              {% endfor %}
+            </td>
+            <td>
+              {% for time in data.times | unique %}
+              {{ time.split(' - ')[0] }}{% if not loop.last %}<br>{% endif %}
+              {% endfor %}
+            </td>
+            <td>
+              {% for time in data.times | unique %}
+              {{ time.split(' - ')[1] }}{% if not loop.last %}<br>{% endif %}
+              {% endfor %}
+            </td>
+            <td class="text-left">
+              {% for reason in data.reasons | unique %}
+              {{ reason }}{% if not loop.last %}<br>{% endif %}
+              {% endfor %}
+            </td>
+            <td style="height: 20px;"></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <!-- Totals Section -->
+    <div class="totals-section">
+      <div class="totals-item">
+        <div class="totals-text">Total Employees / <span class="vietnamese">Tổng số NV</span>: {{ doc.total_employees or 0 }}</div>
+      </div>
+      <div class="totals-item">
+        <div class="totals-text">Total Hours / <span class="vietnamese">Tổng số giờ</span>: {{ "%.1f"|format(doc.total_hours or 0) }}</div>
+      </div>
+    </div>
+    <!-- Footer Section -->
+    <div class="footer">
+      <div class="explanation-section">
+        <div class="explanation-label">
+          Other justifications/explanation (<span class="vietnamese">Giải trình khác</span>):
+        </div>
+        <div class="explanation-lines">
+          <div class="explanation-line"></div>
+          <div class="explanation-line"></div>
+        </div>
+      </div>
+      <div class="signature-section">
+        <div class="signature-box">
+          <div>
+            <div class="signature-title">Prepared by:</div>
+            <div class="signature-title-vn">Chuẩn bị bởi</div>
+          </div>
+          <div class="signature-space"></div>
+          <div class="signature-space"></div>
+          <div class="signature-space"></div>
+          <div>
+            <div class="signature-role">Leader</div>
+            <div class="signature-role-vn">Trưởng nhóm</div>
+          </div>
+        </div>
+        <div class="signature-box">
+          <div>
+            <div class="signature-title">Reviewed by:</div>
+            <div class="signature-title-vn">Xem xét bởi</div>
+          </div>
+          <div class="signature-space"></div>
+          <div class="signature-space"></div>
+          <div class="signature-space"></div>
+          <div>
+            <div class="signature-role">Department Manager</div>
+            <div class="signature-role-vn">Trưởng Bộ Phận</div>
+          </div>
+        </div>
+        <div class="signature-box">
+          <div>
+            <div class="signature-title">Approved by:</div>
+            <div class="signature-title-vn">Phê duyệt bởi</div>
+          </div>
+          <div class="signature-space"></div>
+          <div class="signature-space"></div>
+          <div class="signature-space"></div>
+          <div>
+            <div class="signature-role">Factory Manager</div>
+            <div class="signature-role-vn">Giám đốc Nhà máy</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- Page Number -->
+    <div class="page-number" id="pageNumber">
+      Page 1
+    </div>
+  </body>
+</html>

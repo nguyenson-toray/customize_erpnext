@@ -1,0 +1,171 @@
+body {
+  font-family: Arial, sans-serif;
+  margin: 20px;
+  font-size: 11px;
+  line-height: 1.3;
+}
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 20px;
+  border-bottom: 2px solid #000;
+  padding-bottom: 15px;
+}
+.header-left {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+.logo {
+  width: 120px;
+  height: auto;
+  margin-right: 20px;
+}
+.company-info {
+  padding-top: 30px;
+  font-size: 10px;
+  line-height: 1.2;
+  color: #000;
+  max-width: 400px;
+}
+.company-name {
+  font-weight: bold;
+  font-size: 11px;
+  color: #0066CC;
+  margin-bottom: 5px;
+}
+.company-address {
+  margin-bottom: 3px;
+}
+.header-right {
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+.request-no {
+  font-size: 10px;
+  margin-bottom: 10px;
+}
+.qr-code {
+  width: 80px;
+  height: 80px;
+  border: 1px solid #ccc;
+  background: #f9f9f9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  color: #666;
+}
+.form-title {
+  text-align: center;
+  margin: 20px 0;
+}
+.title-en {
+  font-size: 18px;
+  font-weight: bold;
+  color: #000;
+  margin-bottom: 5px;
+}
+.title-vi {
+  font-size: 14px;
+  font-style: italic;
+  color: #666;
+}
+.form-info {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  font-size: 10px;
+}
+.form-left, .form-right {
+  width: 48%;
+}
+.field-row {
+  display: flex;
+  margin-bottom: 8px;
+  align-items: center;
+}
+.field-label {
+  font-weight: bold;
+  min-width: 120px;
+  margin-right: 10px;
+}
+.field-value {
+  flex: 1;
+  border-bottom: 1px solid #000;
+  padding-bottom: 2px;
+  min-height: 16px;
+}
+.section-title {
+  font-weight: bold;
+  background-color: #f0f0f0;
+  padding: 5px 10px;
+  margin: 15px 0 10px 0;
+  border: 1px solid #000;
+}
+.employees-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 10px 0;
+  font-size: 10px;
+}
+.employees-table th,
+.employees-table td {
+  border: 1px solid #000;
+  padding: 5px;
+  text-align: left;
+}
+.employees-table th {
+  background-color: #f0f0f0;
+  font-weight: bold;
+  text-align: center;
+}
+.approval-section {
+  margin-top: 30px;
+  display: flex;
+  justify-content: space-between;
+}
+.margin-btm{
+  margin-bottom: 40px;
+}
+.approval-box {
+  width: 30%;
+  border: 1px solid #000;
+  padding: 10px;
+  text-align: center;
+}
+.eng-title {
+  font-weight: bold;
+  font-size: 11px;
+}
+.viet-title {
+  font-size: 10px;
+  text-transform: italic;
+}
+.signature-line {
+  border-top: 1px solid #000;
+  margin-top: 40px;
+  padding-top: 5px;
+  font-size: 9px;
+}
+.reason-box {
+  border: 1px solid #000;
+  padding: 10px;
+  margin: 10px 0;
+  min-height: 60px;
+}
+.note {
+  font-size: 9px;
+  color: #666;
+  margin-top: 20px;
+  font-style: italic;
+}
+.footer {
+  margin-top: 30px;
+  text-align: center;
+  font-size: 9px;
+  color: #666;
+}
