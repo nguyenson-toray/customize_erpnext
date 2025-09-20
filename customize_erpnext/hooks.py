@@ -151,6 +151,31 @@ fixtures = [
         "filters": {
             "module": "Customize Erpnext"
         }
+    },
+    # All Workflows
+    {
+        "doctype": "Workflow",
+        "filters": []  # Export all workflows
+    },
+    # All Workflow States
+    {
+        "doctype": "Workflow State",
+        "filters": []  # Export all workflow states
+    },
+    # All Workflow Action Masters
+    {
+        "doctype": "Workflow Action Master",
+        "filters": []  # Export all workflow actions
+    },
+    # All Workflow Transitions
+    {
+        "doctype": "Workflow Transition",
+        "filters": []  # Export all workflow transitions
+    },
+    # All Assignment Rules
+    {
+        "doctype": "Assignment Rule",
+        "filters": []  # Export all assignment rules
     }
 ]
 
