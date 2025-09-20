@@ -19,20 +19,35 @@ frappe.ui.form.on("Overtime Registration", {
                 method: 'frappe.client.get_list',
                 args: {
                     doctype: 'Employee',
-                    fields: ['name'],
+                    fields: ['name', 'employee_name'],
                     filters: {
                         'user_id': frappe.session.user
                     }
                 },
                 callback: function (r) {
                     if (r.message && r.message.length > 0) {
-                        frm.set_value('requested_by', r.message[0].name);
+                        const employee = r.message[0];
+                        frm.set_value('requested_by', employee.name);
+                        // Auto-fill approver based on requested_by
+                        set_approver_based_on_requested_by(frm, employee.name);
                     }
                 }
             });
         }
-    },
 
+        // Set query filter for approver field (same as Leave Application)
+        frm.set_query("approver", function () {
+            return {
+                query: "hrms.hr.doctype.department_approver.department_approver.get_approvers",
+                filters: {
+                    employee: frm.doc.requested_by,
+                    doctype: frm.doc.doctype,
+                },
+            };
+        });
+
+
+    },
     get_employees_button(frm) {
         show_employee_selection_dialog(frm);
     },
@@ -56,6 +71,26 @@ frappe.ui.form.on("Overtime Registration", {
 
         // Update registered groups summary when saving
         update_registered_groups(frm);
+    },
+
+    requested_by(frm) {
+        // Auto-fill approver when requested_by field changes
+        if (frm.doc.requested_by) {
+            set_approver_based_on_requested_by(frm, frm.doc.requested_by);
+        } else {
+            // Clear approver if requested_by is cleared
+            frm.set_value('approver', '');
+            frm.set_value('approver_full_name', '');
+        }
+    },
+
+    approver(frm) {
+        // Set approver full name when approver changes (get employee name, not user name)
+        if (frm.doc.approver) {
+            get_employee_name_from_user(frm, frm.doc.approver);
+        } else {
+            frm.set_value('approver_full_name', '');
+        }
     }
 });
 
@@ -1769,6 +1804,181 @@ function remove_empty_overtime_rows(frm, silent = false) {
             indicator: 'orange'
         });
     }
+}
+
+// Helper function to get employee full name
+function get_employee_full_name(employee_id, callback) {
+    frappe.call({
+        method: 'frappe.client.get_value',
+        args: {
+            doctype: 'Employee',
+            fieldname: 'employee_name',
+            filters: {
+                'name': employee_id
+            }
+        },
+        callback: function (r) {
+            if (r.message && r.message.employee_name) {
+                callback(r.message.employee_name);
+            } else {
+                callback('');
+            }
+        }
+    });
+}
+
+// Helper function to get approver full name from workflow actions
+function get_approver_full_name(frm) {
+    frappe.call({
+        method: 'frappe.client.get_list',
+        args: {
+            doctype: 'Workflow Action',
+            fields: ['user'],
+            filters: {
+                'reference_doctype': frm.doc.doctype,
+                'reference_name': frm.doc.name,
+                'status': 'Approved'
+            },
+            order_by: 'creation desc',
+            limit: 1
+        },
+        callback: function (r) {
+            if (r.message && r.message.length > 0) {
+                const approver_user = r.message[0].user;
+
+                // Get the approver's employee record
+                frappe.call({
+                    method: 'frappe.client.get_list',
+                    args: {
+                        doctype: 'Employee',
+                        fields: ['employee_name'],
+                        filters: {
+                            'user_id': approver_user
+                        },
+                        limit: 1
+                    },
+                    callback: function (emp_r) {
+                        if (emp_r.message && emp_r.message.length > 0) {
+                            frm.set_value('approver_full_name', emp_r.message[0].employee_name);
+                        } else {
+                            // Fallback to user's full name if no employee record
+                            frappe.call({
+                                method: 'frappe.client.get_value',
+                                args: {
+                                    doctype: 'User',
+                                    fieldname: 'full_name',
+                                    filters: {
+                                        'name': approver_user
+                                    }
+                                },
+                                callback: function (user_r) {
+                                    if (user_r.message && user_r.message.full_name) {
+                                        frm.set_value('approver_full_name', user_r.message.full_name);
+                                    }
+                                }
+                            });
+                        }
+                    }
+                });
+            }
+        }
+    });
+}
+
+// Function to auto-fill approver based on requested_by employee using HRMS pattern
+function set_approver_based_on_requested_by(frm, employee) {
+    if (!employee) {
+        return;
+    }
+
+    // Use the same method as Leave Application
+    frappe.call({
+        method: 'hrms.hr.doctype.leave_application.leave_application.get_leave_approver',
+        args: {
+            employee: employee
+        },
+        callback: function (r) {
+            if (r && r.message) {
+                frm.set_value('approver', r.message);
+
+                // Set the approver full name (get employee name, not user name)
+                if (r.message) {
+                    get_employee_name_from_user(frm, r.message);
+                }
+            } else {
+                frm.set_value('approver', '');
+                frm.set_value('approver_full_name', '');
+            }
+        },
+        error: function(r) {
+            frm.set_value('approver', '');
+            frm.set_value('approver_full_name', '');
+        }
+    });
+}
+
+// Helper function to get employee name from user ID for approver_full_name field
+function get_employee_name_from_user(frm, user_id) {
+    frappe.call({
+        method: 'frappe.client.get_value',
+        args: {
+            doctype: 'Employee',
+            fieldname: 'employee_name',
+            filters: {
+                'user_id': user_id
+            }
+        },
+        callback: function (emp_r) {
+            if (emp_r.message && emp_r.message.employee_name) {
+                frm.set_value('approver_full_name', emp_r.message.employee_name);
+            } else {
+                // Fallback to user's full name if no employee record found
+                frm.set_value('approver_full_name', frappe.user.full_name(user_id));
+            }
+        },
+        error: function(r) {
+            // Fallback to user's full name on error
+            frm.set_value('approver_full_name', frappe.user.full_name(user_id));
+        }
+    });
+}
+
+// Helper function to get employee name for approver full name field
+function get_employee_name_for_approver(frm, employee) {
+    frappe.call({
+        method: 'frappe.client.get_value',
+        args: {
+            doctype: 'Employee',
+            fieldname: 'employee_name',
+            filters: {
+                'name': employee
+            }
+        },
+        callback: function (emp_r) {
+            if (emp_r.message && emp_r.message.employee_name) {
+                frm.set_value('approver_full_name', emp_r.message.employee_name);
+            }
+        }
+    });
+}
+
+// Helper function to get user full name for approver full name field (fallback)
+function get_user_full_name_for_approver(frm, user) {
+    frappe.call({
+        method: 'frappe.client.get_value',
+        args: {
+            doctype: 'User',
+            fieldname: 'full_name',
+            filters: {
+                'name': user
+            }
+        },
+        callback: function (user_r) {
+            if (user_r.message && user_r.message.full_name) {
+                frm.set_value('approver_full_name', user_r.message.full_name);
+            }
+        }
+    });
 }
 
 
