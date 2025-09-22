@@ -18,9 +18,9 @@ frappe.ui.form.on('Custom Attendance', {
       }
 
       // Add test button for debugging
-      frm.add_custom_button(__('Test Overtime Structure'), function () {
-        frm.trigger('test_overtime_structure');
-      }, __('Debug'));
+      // frm.add_custom_button(__('Test Overtime Structure'), function () {
+      //   frm.trigger('test_overtime_structure');
+      // }, __('Debug'));
     }
 
     // Set filters for linked fields
@@ -43,30 +43,35 @@ frappe.ui.form.on('Custom Attendance', {
 
   // UPDATED: Load overtime details with new structure
   load_overtime_details: function (frm) {
-    if (!frm.doc.employee || !frm.doc.attendance_date) {
-      render_overtime_html(frm, { has_overtime: false });
-      return;
-    }
+  if (!frm.doc.employee || !frm.doc.attendance_date) {
+    render_overtime_html(frm, { has_overtime: false });
+    return;
+  }
 
-    frappe.call({
-      method: 'get_overtime_details',
-      doc: frm.doc,
-      callback: function (r) {
-        if (r.message) {
-          render_overtime_html(frm, r.message);
-        } else {
-          render_overtime_html(frm, { has_overtime: false });
-        }
-      },
-      error: function (r) {
-        console.error('Error loading overtime details:', r);
-        render_overtime_html(frm, { 
-          has_overtime: false, 
-          error: 'Failed to load overtime details. Please check if Overtime Registration structure exists.' 
-        });
+  frappe.call({
+    method: 'customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.api_methods.get_overtime_details_standalone',
+    args: {
+      employee: frm.doc.employee,
+      attendance_date: frm.doc.attendance_date,
+      check_in: frm.doc.check_in || null,
+      check_out: frm.doc.check_out || null
+    },
+    callback: function (r) {
+      if (r.message) {
+        render_overtime_html(frm, r.message);
+      } else {
+        render_overtime_html(frm, { has_overtime: false });
       }
-    });
-  },
+    },
+    error: function (r) {
+      console.error('Standalone API error:', r);
+      render_overtime_html(frm, { 
+        has_overtime: false, 
+        error: 'Unable to load overtime details'
+      });
+    }
+  });
+},
 
   // UPDATED: Recalculate overtime with new method
   recalculate_overtime_btn: function (frm) {
@@ -76,7 +81,7 @@ frappe.ui.form.on('Custom Attendance', {
     }
 
     frappe.call({
-      method: 'customize_erpnext.customize_erpnext.doctype.custom_attendance.recalculate_attendance_with_overtime_fixed',
+      method: 'customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.api_methods.recalculate_attendance_with_overtime',
       args: {
         attendance_name: frm.doc.name
       },
@@ -178,7 +183,7 @@ frappe.ui.form.on('Custom Attendance', {
 
     // Auto-calculate overtime in background
     frappe.call({
-      method: 'customize_erpnext.customize_erpnext.doctype.custom_attendance.recalculate_attendance_with_overtime_fixed',
+      method: 'customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.api_methods.recalculate_attendance_with_overtime',
       args: {
         attendance_name: frm.doc.name
       },
@@ -248,14 +253,17 @@ frappe.ui.form.on('Custom Attendance', {
     }
 
     frappe.call({
-      method: 'sync_from_checkin',
-      doc: frm.doc,
+      method: 'customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.api_methods.sync_from_checkin',
+        args: {
+          attendance_name: frm.doc.name  // Pass document name như argument
+      },
       freeze: true,
-      freeze_message: __('Syncing attendance data with overtime...'),
+      freeze_message: __('Syncing from check-in records...'),
       callback: function (r) {
         if (r.message) {
+          console.log(r.message.message);
           frappe.show_alert({
-            message: __('Sync Result: ') + r.message,
+            message: __('') + r.message.message,
             indicator: 'green'
           });
           
@@ -293,7 +301,7 @@ frappe.ui.form.on('Custom Attendance', {
 
             if (r.message.default_shift) {
               frm.set_value('shift', r.message.default_shift);
-            }
+            } 
           }
         }
       });
@@ -629,7 +637,7 @@ function render_connections_html_direct(frm, checkins) {
     `;
   }
 
-  // Set HTML to field
+  // Set HTML to field6
   try {
     frm.set_df_property('connections_html', 'options', html);
     frm.refresh_field('connections_html');

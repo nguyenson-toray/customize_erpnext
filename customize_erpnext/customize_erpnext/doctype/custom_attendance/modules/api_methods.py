@@ -650,3 +650,269 @@ def get_department_attendance_summary(department, date_from, date_to):
         
     except Exception as e:
         return {"success": False, "message": str(e)}
+
+@frappe.whitelist()
+def sync_from_checkin(attendance_name):
+    """
+    Sync attendance data from Employee Checkin records
+    FIXED: Đã sửa để hoạt động như API function
+    """
+    try:
+        if not attendance_name:
+            return {"success": False, "message": "Attendance name is required"}
+        
+        # LOAD DOCUMENT từ attendance_name (string)
+        doc = frappe.get_doc("Custom Attendance", attendance_name)
+        
+        if not doc.employee or not doc.attendance_date:
+            return {"success": False, "message": "Employee and attendance date required"}
+        
+        # Get all checkins for the employee on the attendance date
+        checkins = frappe.db.sql("""
+            SELECT name, time, log_type, device_id, shift
+            FROM `tabEmployee Checkin`
+            WHERE employee = %s 
+            AND DATE(time) = %s
+            ORDER BY time ASC
+        """, (doc.employee, doc.attendance_date), as_dict=True)  # ← SỬA: dùng doc.employee
+
+        if not checkins:
+            return {"success": False, "message": "No check-in records found for this date"}
+
+        # Get shift check-in/out type
+        shift_doc = None
+        check_in_out_type = "Alternating entries as IN and OUT during the same shift"
+
+        if checkins[0].get('shift'):
+            try:
+                shift_doc = frappe.get_doc("Shift Type", checkins[0].shift)
+                check_in_out_type = getattr(shift_doc, 'determine_check_in_and_check_out', 
+                                            "Alternating entries as IN and OUT during the same shift")
+                doc.shift = checkins[0].shift  # ← SỬA: dùng doc.shift
+            except:
+                pass
+
+        # Extract in_time và out_time
+        in_time, out_time = extract_in_out_times_api(checkins, check_in_out_type)
+
+        # Update attendance record
+        changes_made = []
+        
+        if in_time:
+            old_check_in = doc.check_in
+            doc.check_in = in_time
+            doc.in_time = in_time.time() if in_time else None
+            if str(old_check_in) != str(in_time):
+                changes_made.append("Check-in updated")
+
+        if out_time:
+            old_check_out = doc.check_out
+            doc.check_out = out_time
+            doc.out_time = out_time.time() if out_time else None
+            if str(old_check_out) != str(out_time):
+                changes_made.append("Check-out updated")
+
+        # Calculate working hours and status
+        old_status = doc.status
+        
+        if doc.check_in and doc.check_out:
+            doc.calculate_working_hours()
+            doc.status = "Present"
+        elif doc.check_in:
+            doc.status = "Present"
+        else:
+            doc.status = "Absent"
+
+        if old_status != doc.status:
+            changes_made.append(f"Status: {old_status} → {doc.status}")
+
+        # Check for late entry and early exit
+        check_late_early_api(doc)
+
+        # Update sync time
+        from frappe.utils import now_datetime
+        doc.last_sync_time = now_datetime()
+
+        # Save without triggering validation conflicts
+        try:
+            doc.flags.ignore_validate_update_after_submit = True
+            doc.flags.ignore_auto_sync = True
+            doc.flags.ignore_version = True
+            
+            if doc.docstatus == 1:  # Submitted document
+                doc.save(ignore_permissions=True)
+            else:  # Draft document
+                doc.save()
+
+            # Update employee checkin links after sync
+            if hasattr(doc, 'update_employee_checkin_links'):
+                doc.update_employee_checkin_links()
+
+            return {
+                "success": True,
+                "message": f"Synced successfully! Changes: {'; '.join(changes_made) if changes_made else 'No changes'}",
+                "changes": changes_made,
+                "working_hours": doc.working_hours,
+                "status": doc.status,
+                "checkins_found": len(checkins)
+            }
+            
+        except Exception as save_error:
+            return {
+                "success": False,
+                "message": f"Sync completed but save failed: {str(save_error)}"
+            }
+
+    except Exception as e:
+        error_msg = str(e)
+        frappe.log_error(f"Error syncing attendance {attendance_name}: {error_msg}", "API Sync From Checkin")
+        
+        # Simplify common error messages for users
+        if "Document has been modified" in error_msg:
+            simplified_msg = "Please refresh the page and try again"
+        elif "Duplicate entry" in error_msg:
+            simplified_msg = "This attendance record already exists"
+        else:
+            simplified_msg = f"Sync failed: {error_msg[:100]}..."
+
+        return {
+            "success": False,
+            "message": simplified_msg,
+            "error": error_msg
+        }
+
+
+def extract_in_out_times_api(logs, check_in_out_type):
+    """
+    Extract in_time và out_time từ logs
+    FIXED: Standalone function version
+    """
+    from frappe.utils import get_datetime
+    
+    try:
+        # Try to import ERPNext function
+        try:
+            from hrms.hr.doctype.employee_checkin.employee_checkin import find_index_in_dict
+        except ImportError:
+            # Fallback function
+            def find_index_in_dict(lst, key, value):
+                for i, item in enumerate(lst):
+                    if item.get(key) == value:
+                        return i
+                return None
+
+        in_time = None
+        out_time = None
+
+        if not logs:
+            return in_time, out_time
+
+        if check_in_out_type == "Alternating entries as IN and OUT during the same shift":
+            in_time = get_datetime(logs[0].time)
+            if len(logs) >= 2:
+                out_time = get_datetime(logs[-1].time)
+
+        elif check_in_out_type == "Strictly based on Log Type in Employee Checkin":
+            # Tìm first IN log
+            first_in_log_index = find_index_in_dict(logs, "log_type", "IN")
+            if first_in_log_index is not None:
+                in_time = get_datetime(logs[first_in_log_index].time)
+
+            # Tìm last OUT log (duyệt ngược)
+            last_out_log_index = find_index_in_dict(list(reversed(logs)), "log_type", "OUT")
+            if last_out_log_index is not None:
+                out_time = get_datetime(logs[len(logs) - 1 - last_out_log_index].time)
+
+        # Validation
+        if in_time and out_time and out_time <= in_time:
+            frappe.logger().warning(f"Invalid time order: out_time {out_time} <= in_time {in_time}")
+            out_time = None
+
+        return in_time, out_time
+
+    except Exception as e:
+        frappe.log_error(f"Error extracting in/out times: {str(e)}", "Extract Times API")
+        if logs:
+            return get_datetime(logs[0].time), get_datetime(logs[-1].time) if len(logs) > 1 else None
+        return None, None
+
+
+def check_late_early_api(doc):
+    """
+    Check for late entry and early exit based on shift timings
+    FIXED: Standalone function version
+    """
+    from frappe.utils import get_datetime
+    from datetime import time
+    
+    if not doc.shift:
+        return
+
+    try:
+        shift = frappe.get_doc("Shift Type", doc.shift)
+
+        # Reset flags
+        doc.late_entry = 0
+        doc.early_exit = 0
+
+        if doc.check_in and shift.start_time:
+            check_in_time = get_datetime(doc.check_in).time()
+            shift_start_time = timedelta_to_time_helper(shift.start_time)
+
+            if shift_start_time and isinstance(shift_start_time, time):
+                if check_in_time > shift_start_time:
+                    doc.late_entry = 1
+            else:
+                frappe.log_error(f"Invalid shift_start_time type: {type(shift_start_time)}", "API Late Check")
+
+        if doc.check_out and shift.end_time:
+            check_out_time = get_datetime(doc.check_out).time()
+            shift_end_time = timedelta_to_time_helper(shift.end_time)
+
+            if shift_end_time and isinstance(shift_end_time, time):
+                if check_out_time < shift_end_time:
+                    doc.early_exit = 1
+            else:
+                frappe.log_error(f"Invalid shift_end_time type: {type(shift_end_time)}", "API Early Check")
+
+    except Exception as e:
+        frappe.log_error(f"Error checking late/early: {str(e)}", "API Late/Early Check")
+
+
+def timedelta_to_time_helper(td):
+    """
+    Helper function to convert timedelta to time object
+    COPIED từ attendance_utils để tránh import error
+    """
+    from datetime import time
+    
+    if td is None:
+        return None
+    if hasattr(td, 'total_seconds'):
+        total_seconds = int(td.total_seconds())
+        hours = total_seconds // 3600
+        minutes = (total_seconds % 3600) // 60
+        seconds = total_seconds % 60
+        return time(hours, minutes, seconds)
+    else:
+        return td
+
+@frappe.whitelist()
+def get_overtime_details_standalone(employee, attendance_date, check_in=None, check_out=None):
+    """Standalone API để tránh TimestampMismatchError"""
+    try:
+        # Tạo temporary doc object
+        temp_doc = frappe._dict({
+            'employee': employee,
+            'attendance_date': attendance_date,
+            'check_in': check_in,
+            'check_out': check_out
+        })
+        
+        from .overtime_calculator import get_overtime_details_for_doc
+        result = get_overtime_details_for_doc(temp_doc)
+        return result
+        
+    except Exception as e:
+        frappe.log_error(f"Standalone overtime details error: {str(e)}")
+        return {"has_overtime": False, "error": str(e)}

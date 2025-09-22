@@ -1,5 +1,6 @@
 # Copyright (c) 2025, IT Team - TIQN and contributors
 # For license information, please see license.txt
+# overtime_calculator.py
 
 import frappe
 from frappe.utils import (
@@ -16,6 +17,7 @@ from .attendance_utils import parse_time_field_helper, timedelta_to_time_helper
 # Update modules/overtime_calculator.py
 # Remove status filter, only use docstatus
 
+# 
 def get_approved_overtime_requests_for_doc(doc):
     """Get OT requests for a document object - FIXED VERSION (DocStatus Only)"""
     try:
@@ -37,7 +39,7 @@ def get_approved_overtime_requests_for_doc(doc):
         # FIXED QUERY: Remove status filter, only use docstatus
         try:
             overtime_requests = frappe.db.sql("""
-                SELECT 
+                SELECT  
                     ot.name,
                     ot.request_date,
                     ot.docstatus,

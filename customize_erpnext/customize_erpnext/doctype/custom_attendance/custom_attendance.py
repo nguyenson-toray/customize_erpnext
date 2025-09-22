@@ -1,5 +1,6 @@
 # Copyright (c) 2025, IT Team - TIQN and contributors
 # For license information, please see license.txt
+# custom_attendance.py
 
 import frappe
 from frappe import _
@@ -24,6 +25,35 @@ from .modules.attendance_utils import timedelta_to_time_helper, parse_time_field
 from .modules.validators import validate_duplicate_attendance, validate_employee_active_on_date
 
 
+def get_registered_shift_for_employee(employee, attendance_date):
+    """
+    Kiểm tra employee có shift registration cho ngày này không
+    Return: shift name hoặc None
+    """
+    try:
+        target_date = getdate(attendance_date)
+        
+        # Query shift registration đã submit
+        result = frappe.db.sql("""
+            SELECT sr.shift
+            FROM `tabShift Registration` sr
+            INNER JOIN `tabShift Registration Detail` srd ON srd.parent = sr.name
+            WHERE srd.employee = %s
+            AND sr.docstatus = 1
+            AND %s BETWEEN srd.begin_date AND srd.end_date
+            ORDER BY sr.creation DESC
+            LIMIT 1
+        """, (employee, target_date), as_dict=True)
+        
+        if result:
+            return result[0].shift
+        return None
+        
+    except Exception as e:
+        frappe.log_error(f"Error getting registered shift: {str(e)}", "Shift Registration")
+        return None
+
+
 class CustomAttendance(Document):
     """
     Main Custom Attendance Document Class
@@ -34,6 +64,9 @@ class CustomAttendance(Document):
         """Validate attendance data"""
         # Check for duplicate attendance - including drafts
         validate_duplicate_attendance(self)
+        
+        # UPDATE: Check và set shift từ registration trước khi calculate
+        self.update_shift_from_registration()
         
         if self.check_in and self.check_out:
             self.calculate_working_hours()
@@ -60,6 +93,29 @@ class CustomAttendance(Document):
         # Remove attendance links from employee checkins
         self.remove_employee_checkin_links()
 
+    def update_shift_from_registration(self):
+        """
+        NEW METHOD: Update shift field from shift registration if available
+        """
+        try:
+            if not self.employee or not self.attendance_date:
+                return
+                
+            # Lấy registered shift
+            registered_shift = get_registered_shift_for_employee(self.employee, self.attendance_date)
+            
+            if registered_shift:
+                old_shift = self.shift
+                self.shift = registered_shift
+                
+                if old_shift != registered_shift:
+                    frappe.logger().info(f"Updated shift from {old_shift} to {registered_shift} for {self.employee}")
+                    
+        except Exception as e:
+            frappe.log_error(f"Error updating shift from registration: {str(e)}", "Shift Update")
+            # Don't block save on error
+            pass
+
     def calculate_working_hours(self):
         """Calculate working hours using realistic calculation logic"""
         if self.check_in and self.check_out:
@@ -72,71 +128,136 @@ class CustomAttendance(Document):
             else:
                 frappe.throw("Check-out time cannot be earlier than check-in time")
 
+    def calculate_break_overlap_safe(self, shift_doc, effective_start, effective_end):
+        """
+        SAFE VERSION: Calculate break overlap without complex errors
+        """
+        try:
+            # Simple approach: if working > 4h, deduct 1h break
+            working_duration = time_diff_in_hours(effective_end, effective_start)
+            
+            # Check if shift has break settings
+            has_break = getattr(shift_doc, 'has_break', False)
+            
+            if has_break and working_duration > 4:
+                return 1.0  # Standard 1-hour break
+            elif working_duration > 6:
+                return 1.0  # Assume 1-hour break for long shifts
+            else:
+                return 0.0  # No break for short shifts
+                
+        except Exception as e:
+            frappe.logger().warning(f"Error in break calculation: {e}")
+            # If working > 4h, assume 1h break
+            try:
+                working_duration = time_diff_in_hours(effective_end, effective_start)
+                return 1.0 if working_duration > 4 else 0.0
+            except:
+                return 0.0
+
     def calculate_realistic_working_hours(self, in_time, out_time):
         """
-        Tính working hours theo logic thực tế:
-        1. Effective start = max(check_in, shift_start)
-        2. Effective end = min(check_out, shift_end)  
-        3. Trừ break chỉ khi overlap
+        FIXED VERSION: Tính working hours an toàn với fallback logic
         """
-        
-        if not self.shift:
-            # Fallback: tính theo thời gian thực tế
-            total_hours = time_diff_in_hours(out_time, in_time)
-            return max(0, flt(total_hours, 2))
-        
         try:
-            # Lấy shift document
-            shift_doc = frappe.get_cached_doc("Shift Type", self.shift)
-            
-            if not shift_doc.start_time or not shift_doc.end_time:
-                # Fallback: tính theo thời gian thực tế
-                total_hours = time_diff_in_hours(out_time, in_time)
-                return max(0, flt(total_hours, 2))
-            
-            # Lấy ngày làm việc
-            work_date = in_time.date()
-            
-            # Convert timedelta to time (ERPNext stores time as timedelta)
-            shift_start_time = timedelta_to_time_helper(shift_doc.start_time)
-            shift_end_time = timedelta_to_time_helper(shift_doc.end_time)
-            
-            # Thời gian shift trong ngày
-            shift_start_datetime = datetime.combine(work_date, shift_start_time)
-            shift_end_datetime = datetime.combine(work_date, shift_end_time)
-            
-            # Xử lý shift qua ngày (VD: 22:00-06:00)
-            if shift_end_datetime <= shift_start_datetime:
-                if in_time.time() >= shift_start_time:
-                    # Check-in trong ngày hiện tại, end time sang ngày mai
-                    shift_end_datetime += timedelta(days=1)
-                else:
-                    # Check-in vào ngày mai, start time là ngày hôm trước
-                    shift_start_datetime -= timedelta(days=1)
-            
-            # Tính effective working time
-            effective_start = max(in_time, shift_start_datetime)
-            effective_end = min(out_time, shift_end_datetime)
-            
-            # Nếu effective_end <= effective_start → không có thời gian làm việc
-            if effective_end <= effective_start:
+            # Basic validation
+            if not in_time or not out_time:
+                return 0.0
+                
+            if out_time <= in_time:
+                frappe.logger().warning(f"Invalid time range: {in_time} to {out_time}")
                 return 0.0
             
-            # Tính tổng thời gian làm việc
-            total_working_hours = time_diff_in_hours(effective_end, effective_start)
+            # Calculate basic total hours
+            total_hours = time_diff_in_hours(out_time, in_time)
             
-            # Trừ break time nếu overlap
-            break_overlap_hours = self.calculate_break_overlap_realistic(shift_doc, effective_start, effective_end)
+            # Validation: reasonable time range
+            if total_hours <= 0 or total_hours > 24:
+                frappe.logger().warning(f"Unreasonable total hours: {total_hours}")
+                return 0.0
             
-            final_hours = total_working_hours - break_overlap_hours
+            # FALLBACK FIRST: Simple calculation if no shift
+            if not self.shift:
+                # Simple: total time - 1h break (if > 4h)
+                working_hours = total_hours - (1 if total_hours > 4 else 0)
+                return max(0, flt(working_hours, 2))
             
-            return max(0, flt(final_hours, 2))
+            # Try shift-based calculation
+            try:
+                shift_doc = frappe.get_cached_doc("Shift Type", self.shift)
+                
+                if not shift_doc.start_time or not shift_doc.end_time:
+                    # Fallback: simple calculation
+                    working_hours = total_hours - (1 if total_hours > 4 else 0)
+                    return max(0, flt(working_hours, 2))
+                
+                # Convert shift times safely
+                shift_start_time = timedelta_to_time_helper(shift_doc.start_time)
+                shift_end_time = timedelta_to_time_helper(shift_doc.end_time)
+                
+                if not shift_start_time or not shift_end_time:
+                    # Fallback: simple calculation
+                    working_hours = total_hours - (1 if total_hours > 4 else 0)
+                    return max(0, flt(working_hours, 2))
+                
+                # Calculate with shift constraints
+                work_date = in_time.date()
+                shift_start_datetime = datetime.combine(work_date, shift_start_time)
+                shift_end_datetime = datetime.combine(work_date, shift_end_time)
+                
+                # Handle overnight shifts
+                if shift_end_datetime <= shift_start_datetime:
+                    if in_time.time() >= shift_start_time:
+                        shift_end_datetime += timedelta(days=1)
+                    else:
+                        shift_start_datetime -= timedelta(days=1)
+                
+                # Calculate effective working time
+                effective_start = max(in_time, shift_start_datetime)
+                effective_end = min(out_time, shift_end_datetime)
+                
+                # CRITICAL FIX: Check for valid effective time range
+                if effective_end <= effective_start:
+                    # KHÔNG return 0! Dùng fallback calculation
+                    frappe.logger().warning(f"No overlap with shift {self.shift}, using simple calculation")
+                    working_hours = total_hours - (1 if total_hours > 4 else 0)
+                    return max(0, flt(working_hours, 2))
+                
+                # Calculate effective working hours
+                effective_working_hours = time_diff_in_hours(effective_end, effective_start)
+                
+                # Calculate break overlap safely
+                break_overlap_hours = self.calculate_break_overlap_safe(shift_doc, effective_start, effective_end)
+                
+                final_hours = effective_working_hours - break_overlap_hours
+                
+                # Validation: final hours should be reasonable
+                if final_hours <= 0:
+                    # Fallback: use simple calculation
+                    frappe.logger().warning(f"Calculated hours <= 0, using fallback")
+                    working_hours = total_hours - (1 if total_hours > 4 else 0)
+                    return max(0, flt(working_hours, 2))
+                
+                # Don't exceed total actual time
+                if final_hours > total_hours:
+                    final_hours = total_hours
+                
+                return flt(final_hours, 2)
+                
+            except Exception as shift_error:
+                frappe.log_error(f"Error with shift calculation: {str(shift_error)}", "Shift Calculation")
+                # Fallback: simple calculation
+                working_hours = total_hours - (1 if total_hours > 4 else 0)
+                return max(0, flt(working_hours, 2))
             
         except Exception as e:
-            frappe.log_error(f"Error in calculate_realistic_working_hours: {str(e)}", "Custom Attendance")
-            # Fallback: tính theo thời gian thực tế
-            total_hours = time_diff_in_hours(out_time, in_time)
-            return max(0, flt(total_hours, 2))
+            frappe.log_error(f"Error in calculate_realistic_working_hours: {str(e)}", "Working Hours Calc")
+            # Ultimate fallback
+            if out_time and in_time and out_time > in_time:
+                total_hours = time_diff_in_hours(out_time, in_time)
+                working_hours = total_hours - (1 if total_hours > 4 else 0)
+                return max(0, flt(working_hours, 2))
+            return 0.0
 
     def calculate_break_overlap_realistic(self, shift_doc, effective_start, effective_end):
         """Tính break overlap với thời gian làm việc hiệu quả"""
@@ -376,6 +497,47 @@ class CustomAttendance(Document):
             
         return result
 
+    @frappe.whitelist()
+    def recalculate_with_shift_registration(self):
+        """
+        NEW METHOD: Recalculate working hours với shift registration
+        """
+        try:
+            # Update shift from registration
+            self.update_shift_from_registration()
+            
+            # Recalculate working hours
+            if self.check_in and self.check_out:
+                self.calculate_working_hours()
+                
+                # Recalculate overtime
+                self.auto_calculate_overtime()
+                
+                # Save changes
+                self.flags.ignore_validate_update_after_submit = True
+                self.save(ignore_permissions=True)
+                
+                return {
+                    "success": True,
+                    "working_hours": self.working_hours,
+                    "overtime_hours": self.overtime_hours,
+                    "shift_used": self.shift,
+                    "message": f"Successfully recalculated with shift: {self.shift}"
+                }
+            else:
+                return {
+                    "success": False,
+                    "message": "Check-in and check-out times required"
+                }
+                
+        except Exception as e:
+            error_msg = f"Error recalculating with shift registration: {str(e)}"
+            frappe.log_error(error_msg, "Recalculate Shift Registration")
+            return {
+                "success": False,
+                "message": error_msg
+            }
+
     def recalculate_working_hours_with_overtime(self):
         """Update working hours including overtime"""
         try:
@@ -453,6 +615,13 @@ def on_checkin_creation(doc, method):
             new_attendance.auto_sync_enabled = 1
             new_attendance.status = "Absent"  # Default status
             
+            # UPDATED: Set shift từ registration hoặc default
+            registered_shift = get_registered_shift_for_employee(doc.employee, attendance_date)
+            if registered_shift:
+                new_attendance.shift = registered_shift
+            elif hasattr(employee_doc, 'default_shift') and employee_doc.default_shift:
+                new_attendance.shift = employee_doc.default_shift
+            
             # Skip duplicate check during auto creation
             new_attendance.flags.ignore_auto_sync = True
             new_attendance.flags.ignore_duplicate_check = True
@@ -462,3 +631,324 @@ def on_checkin_creation(doc, method):
             
         except Exception as e:
             frappe.log_error(f"Failed to create attendance from checkin: {str(e)}")
+
+# Bulk Update Attendance Shift & Working Hours
+# Thêm vào cuối file custom_attendance.py
+
+@frappe.whitelist()
+def update_submitted_attendance_with_shift_registration(attendance_name):
+    """
+    Update 1 attendance record đã submit với shift registration mới
+    """
+    try:
+        # Get attendance document
+        attendance_doc = frappe.get_doc("Custom Attendance", attendance_name)
+        
+        if attendance_doc.docstatus != 1:
+            return {
+                "success": False,
+                "message": "Only submitted attendance can be updated"
+            }
+        
+        # Check shift registration
+        old_shift = attendance_doc.shift
+        registered_shift = get_registered_shift_for_employee(
+            attendance_doc.employee, 
+            attendance_doc.attendance_date
+        )
+        
+        if not registered_shift:
+            return {
+                "success": False,
+                "message": "No shift registration found for this employee/date"
+            }
+        
+        if old_shift == registered_shift:
+            return {
+                "success": False,
+                "message": f"Shift already set to {registered_shift}"
+            }
+        
+        # Update submitted document
+        frappe.db.set_value("Custom Attendance", attendance_name, "shift", registered_shift)
+        
+        # Recalculate working hours
+        old_working_hours = attendance_doc.working_hours
+        
+        # Temporarily load document to recalculate
+        temp_doc = frappe.get_doc("Custom Attendance", attendance_name)
+        if temp_doc.check_in and temp_doc.check_out:
+            temp_doc.calculate_working_hours()
+            
+            # Update working hours in database
+            frappe.db.set_value("Custom Attendance", attendance_name, "working_hours", temp_doc.working_hours)
+            
+            # Also update overtime if needed
+            temp_doc.auto_calculate_overtime()
+            frappe.db.set_value("Custom Attendance", attendance_name, "overtime_hours", temp_doc.overtime_hours)
+        
+        frappe.db.commit()
+        
+        return {
+            "success": True,
+            "message": f"Updated shift from {old_shift} to {registered_shift}",
+            "old_shift": old_shift,
+            "new_shift": registered_shift,
+            "old_working_hours": old_working_hours,
+            "new_working_hours": temp_doc.working_hours,
+            "overtime_hours": temp_doc.overtime_hours
+        }
+        
+    except Exception as e:
+        frappe.log_error(f"Error updating submitted attendance: {str(e)}", "Update Submitted Attendance")
+        return {
+            "success": False,
+            "message": f"Error: {str(e)}"
+        }
+
+
+@frappe.whitelist()
+def bulk_update_attendance_with_shift_registration(filters=None):
+    """
+    Bulk update multiple attendance records với shift registration
+    
+    Args:
+        filters: dict - Filter conditions để chọn attendance records
+                Example: {
+                    "employee": "EMP001",
+                    "attendance_date": ["between", ["2025-01-01", "2025-01-31"]],
+                    "docstatus": 1
+                }
+    """
+    try:
+        if not filters:
+            filters = {}
+        
+        # Ensure only submitted documents
+        filters["docstatus"] = 1
+        
+        # Get attendance records
+        attendance_records = frappe.get_all("Custom Attendance",
+            filters=filters,
+            fields=["name", "employee", "employee_name", "attendance_date", "shift", "working_hours"]
+        )
+        
+        if not attendance_records:
+            return {
+                "success": False,
+                "message": "No attendance records found with given filters"
+            }
+        
+        updated_count = 0
+        skipped_count = 0
+        error_count = 0
+        results = []
+        
+        for record in attendance_records:
+            try:
+                # Check if employee has shift registration for this date
+                registered_shift = get_registered_shift_for_employee(
+                    record.employee, 
+                    record.attendance_date
+                )
+                
+                if not registered_shift:
+                    skipped_count += 1
+                    results.append({
+                        "name": record.name,
+                        "employee": record.employee,
+                        "date": str(record.attendance_date),
+                        "status": "skipped",
+                        "reason": "No shift registration found"
+                    })
+                    continue
+                
+                if record.shift == registered_shift:
+                    skipped_count += 1
+                    results.append({
+                        "name": record.name,
+                        "employee": record.employee,
+                        "date": str(record.attendance_date),
+                        "status": "skipped",
+                        "reason": f"Already has correct shift: {registered_shift}"
+                    })
+                    continue
+                
+                # Update the record
+                update_result = update_submitted_attendance_with_shift_registration(record.name)
+                
+                if update_result["success"]:
+                    updated_count += 1
+                    results.append({
+                        "name": record.name,
+                        "employee": record.employee,
+                        "date": str(record.attendance_date),
+                        "status": "updated",
+                        "old_shift": update_result["old_shift"],
+                        "new_shift": update_result["new_shift"],
+                        "old_working_hours": update_result["old_working_hours"],
+                        "new_working_hours": update_result["new_working_hours"]
+                    })
+                else:
+                    error_count += 1
+                    results.append({
+                        "name": record.name,
+                        "employee": record.employee,
+                        "date": str(record.attendance_date),
+                        "status": "error",
+                        "reason": update_result["message"]
+                    })
+                    
+            except Exception as e:
+                error_count += 1
+                results.append({
+                    "name": record.name,
+                    "employee": record.employee,
+                    "date": str(record.attendance_date),
+                    "status": "error",
+                    "reason": str(e)
+                })
+        
+        return {
+            "success": True,
+            "total_records": len(attendance_records),
+            "updated_count": updated_count,
+            "skipped_count": skipped_count,
+            "error_count": error_count,
+            "results": results,
+            "message": f"Processed {len(attendance_records)} records: {updated_count} updated, {skipped_count} skipped, {error_count} errors"
+        }
+        
+    except Exception as e:
+        frappe.log_error(f"Error in bulk update: {str(e)}", "Bulk Update Attendance")
+        return {
+            "success": False,
+            "message": f"Bulk update failed: {str(e)}"
+        }
+
+
+@frappe.whitelist()
+def get_attendance_records_for_update(employee=None, from_date=None, to_date=None):
+    """
+    Get list of attendance records that can be updated với shift registration
+    """
+    try:
+        filters = {
+            "docstatus": 1  # Only submitted
+        }
+        
+        if employee:
+            filters["employee"] = employee
+            
+        if from_date and to_date:
+            filters["attendance_date"] = ["between", [from_date, to_date]]
+        elif from_date:
+            filters["attendance_date"] = [">=", from_date]
+        elif to_date:
+            filters["attendance_date"] = ["<=", to_date]
+        
+        attendance_records = frappe.get_all("Custom Attendance",
+            filters=filters,
+            fields=[
+                "name", "employee", "employee_name", "attendance_date", 
+                "shift", "working_hours", "overtime_hours", "status"
+            ],
+            order_by="attendance_date desc"
+        )
+        
+        # Check each record for potential shift updates
+        updateable_records = []
+        
+        for record in attendance_records:
+            registered_shift = get_registered_shift_for_employee(
+                record.employee, 
+                record.attendance_date
+            )
+            
+            if registered_shift and registered_shift != record.shift:
+                record["has_registration"] = True
+                record["registered_shift"] = registered_shift
+                record["can_update"] = True
+                updateable_records.append(record)
+            else:
+                record["has_registration"] = bool(registered_shift)
+                record["registered_shift"] = registered_shift
+                record["can_update"] = False
+                # Add to list anyway for display
+                updateable_records.append(record)
+        
+        return {
+            "success": True,
+            "records": updateable_records,
+            "total_count": len(updateable_records),
+            "updateable_count": len([r for r in updateable_records if r["can_update"]])
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "message": f"Error getting records: {str(e)}"
+        }
+
+
+# Thêm method này vào class CustomAttendance
+
+@frappe.whitelist()
+def update_shift_and_recalculate(self):
+    """
+    Method để update shift và recalculate cho submitted document
+    """
+    try:
+        if self.docstatus != 1:
+            return {
+                "success": False,
+                "message": "Document must be submitted to update"
+            }
+        
+        # Get registered shift
+        registered_shift = get_registered_shift_for_employee(self.employee, self.attendance_date)
+        
+        if not registered_shift:
+            return {
+                "success": False,
+                "message": "No shift registration found"
+            }
+        
+        old_shift = self.shift
+        old_working_hours = self.working_hours
+        
+        if old_shift == registered_shift:
+            return {
+                "success": False,
+                "message": f"Shift already set to {registered_shift}"
+            }
+        
+        # Update fields in database (bypass submit validation)
+        frappe.db.set_value("Custom Attendance", self.name, "shift", registered_shift)
+        
+        # Reload and recalculate
+        self.reload()
+        if self.check_in and self.check_out:
+            self.calculate_working_hours()
+            self.auto_calculate_overtime()
+            
+            # Update in database
+            frappe.db.set_value("Custom Attendance", self.name, "working_hours", self.working_hours)
+            frappe.db.set_value("Custom Attendance", self.name, "overtime_hours", self.overtime_hours)
+        
+        frappe.db.commit()
+        
+        return {
+            "success": True,
+            "old_shift": old_shift,
+            "new_shift": registered_shift,
+            "old_working_hours": old_working_hours,
+            "new_working_hours": self.working_hours,
+            "message": f"Updated shift and recalculated working hours"
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "message": f"Error: {str(e)}"
+        }

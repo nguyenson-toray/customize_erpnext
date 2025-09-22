@@ -24,8 +24,18 @@ frappe.listview_settings['Custom Attendance'] = {
           listview.page.add_menu_item(__('Bulk Recalculate Overtime'), function () {
             show_bulk_overtime_recalculate_dialog();
           });
-
+          
+          
           console.log('Enhanced Custom Attendance buttons with overtime added successfully');
+
+              listview.page.add_menu_item(__('Update Shifts from Registration'), function() {
+                  show_bulk_update_dialog(listview);
+              });
+        
+              // Thêm button "Check Updateable Records"
+              listview.page.add_menu_item(__('Check Updateable Records'), function() {
+                  show_updateable_records_dialog();
+              });
         } catch (e) {
           console.error('Failed to add enhanced buttons:', e);
         }
@@ -1002,4 +1012,341 @@ function render_missing_attendance_html(dialog, data) {
   html += '</div>';
 
   dialog.set_df_property('missing_results_html', 'options', html);
+}
+
+
+// show update Shift from Registration dialog:
+// 2. DIALOG ĐỂ BULK UPDATE
+function show_bulk_update_dialog(listview) {
+    let dialog = new frappe.ui.Dialog({
+        title: __('Bulk Update Attendance Shifts'),
+        fields: [
+            {
+                fieldtype: 'HTML',
+                fieldname: 'description',
+                options: `
+                    <div class="alert alert-info">
+                        <strong>Bulk Update Shifts</strong><br>
+                        This will update shift and recalculate working hours for submitted attendance records 
+                        that have newer shift registrations.
+                    </div>
+                `
+            },
+            {
+                fieldtype: 'Link',
+                fieldname: 'employee',
+                label: 'Employee (Optional)',
+                options: 'Employee'
+            },
+            {
+                fieldtype: 'Date',
+                fieldname: 'from_date',
+                label: 'From Date'
+            },
+            {
+                fieldtype: 'Date', 
+                fieldname: 'to_date',
+                label: 'To Date'
+            },
+            {
+                fieldtype: 'Check',
+                fieldname: 'preview_mode',
+                label: 'Preview Only (Show records that will be updated)',
+                default: 1
+            }
+        ],
+        primary_action_label: __('Process'),
+        primary_action: function(values) {
+            if (values.preview_mode) {
+                preview_updateable_records(values, dialog);
+            } else {
+                execute_bulk_update(values, dialog);
+            }
+        }
+    });
+    
+    dialog.show();
+}
+
+// 3. PREVIEW RECORDS CẦN UPDATE
+function preview_updateable_records(filters, dialog) {
+    frappe.call({
+        method: 'customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.get_attendance_records_for_update',
+        args: {
+            employee: filters.employee,
+            from_date: filters.from_date,
+            to_date: filters.to_date
+        },
+        freeze: true,
+        freeze_message: __('Checking records...'),
+        callback: function(r) {
+            if (r.message && r.message.success) {
+                let data = r.message;
+                show_preview_results(data.records, data.updateable_count, dialog);
+            } else {
+                frappe.msgprint(__('Error: ') + (r.message ? r.message.message : 'Unknown error'));
+            }
+        }
+    });
+}
+
+// 4. HIỂN THỊ PREVIEW RESULTS
+function show_preview_results(records, updateable_count, parent_dialog) {
+    let html = `
+        <div class="preview-results">
+            <h4>Preview Results</h4>
+            <p><strong>Total Records:</strong> ${records.length}</p>
+            <p><strong>Can Update:</strong> ${updateable_count}</p>
+            
+            <table class="table table-bordered">
+                <thead>
+                    <tr>
+                        <th>Employee</th>
+                        <th>Date</th>
+                        <th>Current Shift</th>
+                        <th>Registered Shift</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+    
+    records.forEach(function(record) {
+        let statusClass = record.can_update ? 'text-success' : 'text-muted';
+        let statusText = record.can_update ? 'Will Update' : 'No Change';
+        
+        html += `
+            <tr>
+                <td>${record.employee_name || record.employee}</td>
+                <td>${record.attendance_date}</td>
+                <td>${record.shift || 'None'}</td>
+                <td>${record.registered_shift || 'None'}</td>
+                <td class="${statusClass}">${statusText}</td>
+            </tr>
+        `;
+    });
+    
+    html += `
+                </tbody>
+            </table>
+        </div>
+    `;
+    
+    let preview_dialog = new frappe.ui.Dialog({
+        title: __('Preview: Records to Update'),
+        fields: [
+            {
+                fieldtype: 'HTML',
+                fieldname: 'preview_html',
+                options: html
+            }
+        ],
+        primary_action_label: updateable_count > 0 ? __('Proceed with Update') : __('Close'),
+        primary_action: function() {
+            if (updateable_count > 0) {
+                preview_dialog.hide();
+                parent_dialog.set_value('preview_mode', 0);
+                parent_dialog.$wrapper.find('.btn-primary').click();
+            } else {
+                preview_dialog.hide();
+            }
+        },
+        secondary_action_label: __('Back'),
+        secondary_action: function() {
+            preview_dialog.hide();
+        }
+    });
+    
+    preview_dialog.show();
+}
+
+// 5. EXECUTE BULK UPDATE
+function execute_bulk_update(filters, dialog) {
+    frappe.confirm(__('Are you sure you want to update attendance records? This action cannot be undone.'), function() {
+        
+        let update_filters = {
+            docstatus: 1
+        };
+        
+        if (filters.employee) {
+            update_filters.employee = filters.employee;
+        }
+        
+        if (filters.from_date && filters.to_date) {
+            update_filters.attendance_date = ['between', [filters.from_date, filters.to_date]];
+        } else if (filters.from_date) {
+            update_filters.attendance_date = ['>=', filters.from_date];
+        } else if (filters.to_date) {
+            update_filters.attendance_date = ['<=', filters.to_date];
+        }
+        
+        frappe.call({
+            method: 'customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.bulk_update_attendance_with_shift_registration',
+            args: {
+                filters: update_filters
+            },
+            freeze: true,
+            freeze_message: __('Updating attendance records...'),
+            callback: function(r) {
+                dialog.hide();
+                
+                if (r.message && r.message.success) {
+                    show_bulk_update_results(r.message);
+                    // Refresh list view
+                    frappe.views.list_view && frappe.views.list_view['Custom Attendance'] && frappe.views.list_view['Custom Attendance'].refresh();
+                } else {
+                    frappe.msgprint(__('Error: ') + (r.message ? r.message.message : 'Unknown error'));
+                }
+            }
+        });
+    });
+}
+
+// 6. HIỂN THỊ KẾT QUẢ BULK UPDATE
+function show_bulk_update_results(result) {
+    let html = `
+        <div class="bulk-update-results">
+            <h4>Bulk Update Results</h4>
+            <div class="row">
+                <div class="col-md-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <h5 class="text-primary">${result.total_records}</h5>
+                            <p>Total Records</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <h5 class="text-success">${result.updated_count}</h5>
+                            <p>Updated</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <h5 class="text-warning">${result.skipped_count}</h5>
+                            <p>Skipped</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <h5 class="text-danger">${result.error_count}</h5>
+                            <p>Errors</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <h5>Detailed Results:</h5>
+            <table class="table table-bordered">
+                <thead>
+                    <tr>
+                        <th>Employee</th>
+                        <th>Date</th>
+                        <th>Status</th>
+                        <th>Details</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+    
+    result.results.forEach(function(record) {
+        let statusClass = '';
+        let details = '';
+        
+        switch(record.status) {
+            case 'updated':
+                statusClass = 'text-success';
+                details = `${record.old_shift} → ${record.new_shift}<br>Hours: ${record.old_working_hours} → ${record.new_working_hours}`;
+                break;
+            case 'skipped':
+                statusClass = 'text-warning';
+                details = record.reason;
+                break;
+            case 'error':
+                statusClass = 'text-danger';
+                details = record.reason;
+                break;
+        }
+        
+        html += `
+            <tr>
+                <td>${record.employee}</td>
+                <td>${record.date}</td>
+                <td class="${statusClass}">${record.status.toUpperCase()}</td>
+                <td>${details}</td>
+            </tr>
+        `;
+    });
+    
+    html += `
+                </tbody>
+            </table>
+        </div>
+    `;
+    
+    let results_dialog = new frappe.ui.Dialog({
+        title: __('Bulk Update Results'),
+        fields: [
+            {
+                fieldtype: 'HTML',
+                fieldname: 'results_html',
+                options: html
+            }
+        ],
+        primary_action_label: __('Close'),
+        primary_action: function() {
+            results_dialog.hide();
+        }
+    });
+    
+    results_dialog.show();
+}
+
+// 7. DIALOG ĐỂ CHECK UPDATEABLE RECORDS
+function show_updateable_records_dialog() {
+    let dialog = new frappe.ui.Dialog({
+        title: __('Check Updateable Records'),
+        fields: [
+            {
+                fieldtype: 'Link',
+                fieldname: 'employee',
+                label: 'Employee (Optional)',
+                options: 'Employee'
+            },
+            {
+                fieldtype: 'Date',
+                fieldname: 'from_date',
+                label: 'From Date',
+                default: frappe.datetime.add_months(frappe.datetime.get_today(), -1)
+            },
+            {
+                fieldtype: 'Date',
+                fieldname: 'to_date', 
+                label: 'To Date',
+                default: frappe.datetime.get_today()
+            }
+        ],
+        primary_action_label: __('Check'),
+        primary_action: function(values) {
+            frappe.call({
+                method: 'customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.get_attendance_records_for_update',
+                args: values,
+                freeze: true,
+                callback: function(r) {
+                    if (r.message && r.message.success) {
+                        dialog.hide();
+                        show_preview_results(r.message.records, r.message.updateable_count, null);
+                    }
+                }
+            });
+        }
+    });
+    
+    dialog.show();
 }

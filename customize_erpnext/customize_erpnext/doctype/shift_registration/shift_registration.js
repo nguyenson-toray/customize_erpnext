@@ -1,8 +1,6 @@
 // Copyright (c) 2025, IT Team - TIQN and contributors
 // For license information, please see license.txt
 
-// Approach tốt hơn: Ngăn chặn chọn trùng + Filter danh sách employee
-
 frappe.ui.form.on('Shift Registration', {
     refresh: function (frm) {
         // Set default cho End Date = Today + 7 days
@@ -11,6 +9,7 @@ frappe.ui.form.on('Shift Registration', {
             var defaultDate = frappe.datetime.add_days(today, 7);
             frm.set_value('end_date', defaultDate);
         }
+        
         // Auto-populate requested_by with current user's employee
         if (frm.is_new() && !frm.doc.requested_by) {
             frappe.call({
@@ -38,11 +37,42 @@ frappe.ui.form.on('Shift Registration', {
             frm.events.remove_empty_rows(frm);
         }, __('Actions'));
     },
-    // Khi thay đổi begin_time, cập nhật tất cả rows hiện có
-    begin_time: function (frm) {
-        if (frm.doc.begin_time) {
+    
+    // Khi thay đổi shift, cập nhật start_time và end_time từ Shift Type
+    shift: function(frm) {
+        if (frm.doc.shift) {
+            frappe.call({
+                method: 'frappe.client.get',
+                args: {
+                    doctype: 'Shift Type',
+                    name: frm.doc.shift
+                },
+                callback: function(r) {
+                    if (r.message) {
+                        // Cập nhật parent fields
+                        frm.set_value('start_time', r.message.start_time);
+                        frm.set_value('end_time', r.message.end_time);
+                        
+                        // Cập nhật tất cả rows hiện có trong child table
+                        if (frm.doc.employees_list) {
+                            frm.doc.employees_list.forEach(function (row) {
+                                frappe.model.set_value(row.doctype, row.name, 'begin_time', r.message.start_time);
+                                frappe.model.set_value(row.doctype, row.name, 'end_time', r.message.end_time);
+                                frappe.model.set_value(row.doctype, row.name, 'shift', frm.doc.shift);
+                            });
+                            frm.refresh_field('employees_list');
+                        }
+                    }
+                }
+            });
+        }
+    },
+    
+    // Khi thay đổi start_time, cập nhật tất cả rows hiện có
+    start_time: function (frm) {
+        if (frm.doc.start_time) {
             frm.doc.employees_list.forEach(function (row) {
-                frappe.model.set_value(row.doctype, row.name, 'begin_time', frm.doc.begin_time);
+                frappe.model.set_value(row.doctype, row.name, 'begin_time', frm.doc.start_time);
             });
             frm.refresh_field('employees_list');
         }
@@ -69,16 +99,6 @@ frappe.ui.form.on('Shift Registration', {
             });
         }
         frm.set_value('total_employees', total);
-    },
-
-    // Tính total employees khi load form
-    refresh: function (frm) {
-        frm.events.calculate_total_employees(frm);
-
-        // Add custom button to remove empty rows
-        frm.add_custom_button(__('Remove Empty Rows'), function () {
-            frm.events.remove_empty_rows(frm);
-        }, __('Actions'));
     },
 
     // Function to remove rows with empty employee or date
@@ -122,12 +142,10 @@ frappe.ui.form.on('Shift Registration Detail', {
     employees_list_add: function (frm, cdt, cdn) {
         var row = locals[cdt][cdn];
 
-        // Set begin_time từ parent
+        // Set begin_time và end_time từ parent
         if (frm.doc.begin_time) {
             frappe.model.set_value(cdt, cdn, 'begin_time', frm.doc.begin_time);
         }
-
-        // Set end_time từ parent  
         if (frm.doc.end_time) {
             frappe.model.set_value(cdt, cdn, 'end_time', frm.doc.end_time);
         }
@@ -136,13 +154,16 @@ frappe.ui.form.on('Shift Registration Detail', {
         if (frm.doc.begin_date) {
             frappe.model.set_value(cdt, cdn, 'begin_date', frm.doc.begin_date);
         }
-
         if (frm.doc.end_date) {
             frappe.model.set_value(cdt, cdn, 'end_date', frm.doc.end_date);
         }
 
+        // Set shift từ parent
+        if (frm.doc.shift) {
+            frappe.model.set_value(cdt, cdn, 'shift', frm.doc.shift);
+        }
+
         frm.refresh_field('employees_list');
-        // Không cần tính total vì chưa có employee
     },
 
     // Khi xóa row, cập nhật total employees
@@ -184,9 +205,9 @@ frappe.ui.form.on('Shift Registration Detail', {
                         }
                     });
 
-                    // Set lại time từ parent
-                    if (frm.doc.begin_time) {
-                        frappe.model.set_value(cdt, cdn, 'begin_time', frm.doc.begin_time);
+                    // Set lại thông tin từ parent
+                    if (frm.doc.start_time) {
+                        frappe.model.set_value(cdt, cdn, 'begin_time', frm.doc.start_time);
                     }
                     if (frm.doc.end_time) {
                         frappe.model.set_value(cdt, cdn, 'end_time', frm.doc.end_time);
@@ -197,21 +218,25 @@ frappe.ui.form.on('Shift Registration Detail', {
                     if (frm.doc.end_date) {
                         frappe.model.set_value(cdt, cdn, 'end_date', frm.doc.end_date);
                     }
+                    if (frm.doc.shift) {
+                        frappe.model.set_value(cdt, cdn, 'shift', frm.doc.shift);
+                    }
 
                     frm.refresh_field('employees_list');
-
-                    // Tính lại total employees sau khi clear duplicate
                     frm.events.calculate_total_employees(frm);
                 }, 100);
                 return;
             }
 
-            // Set time cho dòng hợp lệ
-            if (!row.begin_time && frm.doc.begin_time) {
-                frappe.model.set_value(cdt, cdn, 'begin_time', frm.doc.begin_time);
+            // Set thông tin cho dòng hợp lệ
+            if (!row.start_time && frm.doc.start_time) {
+                frappe.model.set_value(cdt, cdn, 'start_time', frm.doc.start_time);
             }
             if (!row.end_time && frm.doc.end_time) {
                 frappe.model.set_value(cdt, cdn, 'end_time', frm.doc.end_time);
+            }
+            if (!row.shift && frm.doc.shift) {
+                frappe.model.set_value(cdt, cdn, 'shift', frm.doc.shift);
             }
 
             // Tính toán total employees khi có employee được chọn
@@ -233,7 +258,7 @@ frappe.ui.form.on('Shift Registration Detail', {
             return false;
         }
 
-        // Validate shift values
+        // Validate shift values với Shift Type
         if (!validate_shift_values(frm)) {
             return false;
         }
@@ -248,7 +273,7 @@ frappe.ui.form.on('Shift Registration Detail', {
     }
 });
 
-// Optional: Thêm filter để ẩn employees đã được chọn
+// Set filter cho employee field để ẩn employees đã được chọn
 frappe.ui.form.on('Shift Registration Detail', {
     form_render: function (frm, cdt, cdn) {
         // Get employees đã được chọn
@@ -281,7 +306,7 @@ function validate_required_fields(frm) {
         if (!d.employee) missing_fields.push(__("Employee"));
         if (!d.begin_date) missing_fields.push(__("Begin Date"));
         if (!d.end_date) missing_fields.push(__("End Date"));
-        if (!d.begin_time) missing_fields.push(__("Begin Time"));
+        if (!d.start_time) missing_fields.push(__("Begin Time"));
         if (!d.end_time) missing_fields.push(__("End Time"));
 
         if (missing_fields.length > 0) {
@@ -302,7 +327,7 @@ function validate_duplicate_entries(frm) {
 
     for (let d of frm.doc.employees_list || []) {
         // Skip validation if required fields are missing - handled by validate_required_fields
-        if (!d.employee || !d.begin_date || !d.end_date || !d.begin_time || !d.end_time) {
+        if (!d.employee || !d.begin_date || !d.end_date || !d.start_time || !d.end_time) {
             return;
         }
 
@@ -312,7 +337,7 @@ function validate_duplicate_entries(frm) {
             employee_name: d.employee_name,
             begin_date: d.begin_date,
             end_date: d.end_date,
-            begin_time: d.begin_time,
+            start_time: d.start_time,
             end_time: d.end_time
         });
     }
@@ -327,12 +352,12 @@ function validate_duplicate_entries(frm) {
             if (entry1.employee === entry2.employee) {
                 // Check for date range overlap and time overlap
                 if (dates_overlap(entry1.begin_date, entry1.end_date, entry2.begin_date, entry2.end_date)) {
-                    if (times_overlap(entry1.begin_time, entry1.end_time, entry2.begin_time, entry2.end_time)) {
+                    if (times_overlap(entry1.start_time, entry1.end_time, entry2.start_time, entry2.end_time)) {
                         frappe.validated = false;
                         frappe.msgprint(__(`Row #{0} and Row #{1}: Overlapping shift entries for employee {2}. Entry 1: {3} to {4} ({5}-{6}), Entry 2: {7} to {8} ({9}-{10})`,
                             [entry1.idx, entry2.idx, entry1.employee_name,
-                            entry1.begin_date, entry1.end_date, entry1.begin_time, entry1.end_time,
-                            entry2.begin_date, entry2.end_date, entry2.begin_time, entry2.end_time]));
+                            entry1.begin_date, entry1.end_date, entry1.start_time, entry1.end_time,
+                            entry2.begin_date, entry2.end_date, entry2.start_time, entry2.end_time]));
                         return;
                     }
                 }
@@ -349,14 +374,14 @@ function check_conflicts_with_submitted_records(frm) {
     // Prepare data for server-side validation
     const entries_to_check = [];
     for (let d of frm.doc.employees_list) {
-        if (d.employee && d.begin_date && d.end_date && d.begin_time && d.end_time) {
+        if (d.employee && d.begin_date && d.end_date && d.start_time && d.end_time) {
             entries_to_check.push({
                 idx: d.idx,
                 employee: d.employee,
                 employee_name: d.employee_name,
                 begin_date: d.begin_date,
                 end_date: d.end_date,
-                begin_time: d.begin_time,
+                start_time: d.start_time,
                 end_time: d.end_time
             });
         }
@@ -382,8 +407,8 @@ function check_conflicts_with_submitted_records(frm) {
                 for (let conflict of r.message) {
                     frappe.msgprint(__(`Row #{0}: Overlapping shift entry for employee {1} from {2} to {3} ({4}-{5}). Existing: {6} to {7} ({8}-{9}) in <a href="/app/shift-registration/{10}" target="_blank">{10}</a>`,
                         [conflict.idx, conflict.employee_name,
-                        conflict.begin_date, conflict.end_date, conflict.begin_time, conflict.end_time,
-                        conflict.existing_begin_date, conflict.existing_end_date, conflict.existing_begin_time, conflict.existing_end_time,
+                        conflict.begin_date, conflict.end_date, conflict.start_time, conflict.end_time,
+                        conflict.existing_begin_date, conflict.existing_end_date, conflict.existing_start_time, conflict.existing_end_time,
                         conflict.existing_doc]));
                 }
             }
@@ -439,10 +464,9 @@ function times_overlap(from1, to1, from2, to2) {
     return overlap;
 }
 
-// Function to validate shift values - only allow "Shift 1" and "Shift 2"
+// Function to validate shift values - chấp nhận bất kỳ Shift Type nào có trong hệ thống
 function validate_shift_values(frm) {
     let hasErrors = false;
-    const allowedShifts = [__('Shift 1'), __('Shift 2')];
 
     for (let d of frm.doc.employees_list || []) {
         // Skip validation if employee is empty (will be handled by other validation)
@@ -450,9 +474,22 @@ function validate_shift_values(frm) {
             continue;
         }
         
-        if (d.shift && !allowedShifts.includes(d.shift)) {
-            frappe.msgprint(__('Row {0}: Only "{1}" and "{2}" are allowed. Found: {3}', [d.idx, __('Shift 1'), __('Shift 2'), d.shift]));
-            hasErrors = true;
+        // Kiểm tra xem shift có tồn tại trong Shift Type không
+        if (d.shift) {
+            frappe.call({
+                method: 'frappe.client.get',
+                args: {
+                    doctype: 'Shift Type',
+                    name: d.shift
+                },
+                async: false,
+                callback: function(r) {
+                    if (!r.message) {
+                        frappe.msgprint(__('Row {0}: Shift Type "{1}" does not exist', [d.idx, d.shift]));
+                        hasErrors = true;
+                    }
+                }
+            });
         }
     }
 
