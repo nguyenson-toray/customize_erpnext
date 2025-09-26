@@ -1,5 +1,6 @@
 {
  "actions": [],
+ "allow_import": 1,
  "autoname": "format:OTR-{YY}{MM}{DD}-{###}",
  "creation": "2025-08-08 23:33:14.711192",
  "default_view": "List",
@@ -144,7 +145,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2025-09-20 11:20:54.234688",
+ "modified": "2025-09-26 14:05:01.987176",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Overtime Registration",
