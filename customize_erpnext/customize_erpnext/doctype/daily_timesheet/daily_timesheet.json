@@ -1,12 +1,13 @@
 {
  "actions": [],
  "allow_import": 1,
- "autoname": "format:HRDTS-{YY}{MM}{DD}-{####} ",
+ "autoname": "naming_series:[naming_series]",
  "creation": "2025-09-03 13:19:19.387366",
  "doctype": "DocType",
  "document_type": "Document",
  "engine": "InnoDB",
  "field_order": [
+  "naming_series",
   "employee",
   "employee_name",
   "attendance_date",
@@ -254,15 +255,23 @@
   {
    "fieldname": "column_break_hucz",
    "fieldtype": "Column Break"
+  },
+  {
+   "default": "HRDTS-.YY..MM..DD.-.#####.",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "Series",
+   "options": "HRDTS-.YY..MM..DD.-.#####."
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-09-13 16:16:32.270285",
+ "modified": "2025-09-29 16:46:59.867597",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Daily Timesheet",
- "naming_rule": "Expression",
+ "naming_rule": "By \"Naming Series\" field",
  "owner": "Administrator",
  "permissions": [
   {
