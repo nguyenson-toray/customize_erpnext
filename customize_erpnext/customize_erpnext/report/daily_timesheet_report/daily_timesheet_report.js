@@ -175,6 +175,8 @@ frappe.query_reports["Daily Timesheet Report"] = {
 		report.page.add_inner_button(__('Export Excel - HR Template'), function () {
 			export_timesheet_excel(report);
 		}, __('Actions'));
+
+
 	},
 
 	"formatter": function (value, row, column, data, default_formatter) {
@@ -315,6 +317,7 @@ function get_top_overtime_chart(result, round_decimal) {
 			employee_data[emp_key] = {
 				employee: emp_key,
 				employee_name: emp_name,
+				custom_group: row.custom_group || 'N/A',
 				overtime_hours: 0
 			};
 		}
@@ -327,29 +330,72 @@ function get_top_overtime_chart(result, round_decimal) {
 		.sort((a, b) => (b.overtime_hours || 0) - (a.overtime_hours || 0))
 		.slice(0, 50); // Top 50
 
-	// Round values
+	// Create separate datasets for each color category
+	let green_employees = [];
+	let orange_employees = [];
+	let red_employees = [];
+	let all_labels = [];
+
 	sorted_employees.forEach(emp => {
 		emp.overtime_hours = round_decimal(emp.overtime_hours);
+
+		// Simple label - just employee name
+		all_labels.push(emp.employee_name);
+
+		// Categorize by Final OT ranges
+		if (emp.overtime_hours <= 30) {
+			green_employees.push(emp.overtime_hours);
+			orange_employees.push(0);
+			red_employees.push(0);
+		} else if (emp.overtime_hours > 30 && emp.overtime_hours <= 40) {
+			green_employees.push(0);
+			orange_employees.push(emp.overtime_hours);
+			red_employees.push(0);
+		} else {
+			green_employees.push(0);
+			orange_employees.push(0);
+			red_employees.push(emp.overtime_hours);
+		}
 	});
 
 	return {
 		data: {
-			labels: sorted_employees.map(emp => emp.employee_name),
+			labels: all_labels,
 			datasets: [
 				{
-					name: "Overtime Hours",
-					values: sorted_employees.map(emp => emp.overtime_hours)
+					name: "≤ 30 hours",
+					values: green_employees
+				},
+				{
+					name: "30-40 hours",
+					values: orange_employees
+				},
+				{
+					name: "> 40 hours",
+					values: red_employees
 				}
 			]
 		},
 		type: "bar",
 		height: 150,
-		colors: ["#FF9F43"],
+		colors: ["#28a745", "#fd7e14", "#dc3545"],
 		axisOptions: {
 			xIsSeries: false
 		},
 		barOptions: {
 			horizontal: true
+		},
+		tooltipOptions: {
+			formatTooltipX: function(label) {
+				return label; // Employee Name
+			},
+			formatTooltipY: function(value, label, index) {
+				// Only show non-zero values
+				if (value && value > 0) {
+					return value + " hours";
+				}
+				return null; // Hide zero values
+			}
 		}
 	};
 }
