@@ -104,8 +104,8 @@ if is_sunday:
 "on_update_after_submit": auto_recalc_on_overtime_registration_change
 
 # ✅ NEW: Employee Maternity Tracking hooks
-"on_update": auto_recalc_on_employee_maternity_change
-"after_insert": auto_recalc_on_employee_maternity_change
+"validate": check_maternity_tracking_changes  # So sánh old vs new TRƯỚC save
+"on_update": auto_recalc_on_maternity_tracking_change  # Recalculate SAU save
 ```
 
 ### Scheduled Job
@@ -272,12 +272,47 @@ MIN_MINUTES_CHECKIN_FILTER = 10        # Filter các lần chấm công < 10 ph�
 - **Smart Detection**: Chỉ trigger khi có thay đổi thực sự trong maternity tracking data
 - **Comprehensive Coverage**: Bao gồm pregnancy period, maternity leave, young child periods
 - **Date Range Calculation**: Tự động tính toán các ngày bị ảnh hưởng dựa trên maternity periods
+- **Background Processing**: LUÔN chạy ngầm để không block save operation, user nhận notification khi hoàn thành
+
+##### 📊 Cách tính số lượng Daily Timesheet cần recalculate:
+
+**Logic**: Lấy UNION của tất cả ngày trong OLD và NEW date ranges
+
+```python
+# Thu thập ngày từ NEW maternity tracking (sau khi thay đổi)
+for tracking in current_maternity_tracking:
+    for date in range(tracking.from_date, tracking.to_date):
+        affected_dates.add((employee, date))
+
+# Thu thập ngày từ OLD maternity tracking (trước khi thay đổi)
+for old_tracking in old_maternity_tracking:
+    for date in range(old_tracking.from_date, old_tracking.to_date):
+        affected_dates.add((employee, date))
+
+# SET tự động loại bỏ trùng lặp
+total_records = len(affected_dates)
+```
+
+**Ví dụ**:
+- OLD: 2025-04-05 đến 2025-09-24 (173 ngày)
+- NEW: 2025-04-05 đến 2025-09-26 (175 ngày)
+- **UNION**: 2025-04-05 đến 2025-09-26 = **175 ngày**
+
+**Tại sao cần UNION cả OLD và NEW?**
+- ✅ Nếu chỉ tính NEW: bỏ sót ngày bị XÓA (cần cập nhật để bỏ maternity benefit)
+- ✅ Nếu chỉ tính OLD: bỏ sót ngày THÊM MỚI (cần cập nhật để thêm maternity benefit)
+- ✅ UNION cả hai: đảm bảo recalculate TẤT CẢ ngày có khả năng bị thay đổi
 
 #### 🎯 **Đặc điểm của hệ thống tự động**:
-1. **⚡ Performance Optimized**: Background processing cho bulk operations
+1. **⚡ Performance Optimized**:
+   - Shift/Overtime Registration: ≤200 records = real-time, >200 = background
+   - **Employee Maternity: LUÔN background processing để save nhanh**
 2. **🛡️ Error Handling**: Lỗi trong recalculation không block workflow chính
-3. **👤 User Friendly**: Progress notification và completion alerts
-4. **📊 Data Consistency**: Batch commit để đảm bảo tính nhất quán
+3. **👤 User Friendly**:
+   - Immediate notification khi start processing
+   - Progress tracking cho background jobs
+   - Completion notification khi done
+4. **📊 Data Consistency**: Batch commit (100 records/batch) để đảm bảo tính nhất quán
 5. **🎯 Smart Processing**: Chỉ recalculate các Daily Timesheet records đã tồn tại
 
 ### ⚠️ **Lưu ý quan trọng**:

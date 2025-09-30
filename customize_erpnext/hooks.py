@@ -280,6 +280,11 @@ doc_events = {
         "has_permission": "customize_erpnext.overrides.overtime_request_permission",
         # Update overtime request status
         # "on_update": "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.on_overtime_request_approval"
+    },
+
+    "Employee": {
+        "validate": "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.check_maternity_tracking_changes",
+        "on_update": "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.auto_recalc_on_maternity_tracking_change"
     }
 }
  

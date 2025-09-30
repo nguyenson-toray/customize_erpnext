@@ -691,6 +691,136 @@ def background_recalculate_timesheets(affected_combinations, trigger_doc_type, t
 		raise e
 
 
+def check_maternity_tracking_changes(doc, method):
+	"""
+	Check if custom_maternity_tracking child table has any changes
+	Compare with database and store affected dates for later processing in on_update
+	"""
+	if not doc.custom_maternity_tracking:
+		return
+
+	# Get old data from database BEFORE save
+	old_doc_data = None
+	affected_combinations = set()
+
+	if not doc.is_new():
+		# Get old data from database
+		old_doc_data = frappe.db.sql("""
+			SELECT from_date, to_date, type, apply_pregnant_benefit
+			FROM `tabMaternity Tracking`
+			WHERE parent = %s AND parenttype = 'Employee'
+			ORDER BY idx
+		""", (doc.name,), as_dict=True)
+
+		# Create comparable structures
+		old_records = set()
+		for rec in old_doc_data:
+			old_records.add((
+				str(rec.get('from_date', '')),
+				str(rec.get('to_date', '')),
+				rec.get('type', ''),
+				rec.get('apply_pregnant_benefit', 0)
+			))
+
+		new_records = set()
+		for rec in doc.custom_maternity_tracking:
+			new_records.add((
+				str(rec.from_date or ''),
+				str(rec.to_date or ''),
+				rec.type or '',
+				rec.apply_pregnant_benefit or 0
+			))
+
+		# Check if there are any differences
+		if old_records != new_records:
+			# Collect all affected date ranges
+			# Process current maternity tracking records
+			for tracking in doc.custom_maternity_tracking:
+				if not tracking.from_date or not tracking.to_date:
+					continue
+
+				current_date = getdate(tracking.from_date)
+				end_date = getdate(tracking.to_date)
+
+				while current_date <= end_date:
+					affected_combinations.add((doc.name, current_date))
+					current_date = add_days(current_date, 1)
+
+			# Process old date ranges that might have been removed
+			for old_tracking in old_doc_data:
+				if not old_tracking.get('from_date') or not old_tracking.get('to_date'):
+					continue
+
+				current_date = getdate(old_tracking['from_date'])
+				end_date = getdate(old_tracking['to_date'])
+
+				while current_date <= end_date:
+					affected_combinations.add((doc.name, current_date))
+					current_date = add_days(current_date, 1)
+
+			# Store affected combinations for on_update hook
+			doc._maternity_affected_dates = list(affected_combinations)
+	else:
+		# New employee with maternity tracking
+		if doc.custom_maternity_tracking:
+			for tracking in doc.custom_maternity_tracking:
+				if not tracking.from_date or not tracking.to_date:
+					continue
+
+				current_date = getdate(tracking.from_date)
+				end_date = getdate(tracking.to_date)
+
+				while current_date <= end_date:
+					affected_combinations.add((doc.name, current_date))
+					current_date = add_days(current_date, 1)
+
+			doc._maternity_affected_dates = list(affected_combinations)
+
+
+def auto_recalc_on_maternity_tracking_change(doc, method):
+	"""
+	Tự động tính toán lại Daily Timesheet khi custom_maternity_tracking thay đổi
+	Use affected dates stored in validate hook
+	"""
+	try:
+		# Check if we have affected dates from validate hook
+		if not hasattr(doc, '_maternity_affected_dates'):
+			return
+
+		affected_combinations = set(doc._maternity_affected_dates)
+
+		if affected_combinations:
+			total_operations = len(affected_combinations)
+
+			# Always use background processing to avoid blocking save operation
+			job_id = f"maternity_recalc_{doc.name}_{int(frappe.utils.now_datetime().timestamp())}"
+
+			frappe.enqueue(
+				'customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.background_recalculate_timesheets',
+				queue='long',
+				timeout=1800,
+				job_id=job_id,
+				affected_combinations=list(affected_combinations),
+				trigger_doc_type="Employee",
+				trigger_doc_name=doc.name,
+				trigger_method=method,
+				batch_size=100
+			)
+
+			# Notify user immediately
+			frappe.msgprint(
+				f"Maternity tracking changes detected. Recalculating {total_operations} Daily Timesheet records in background. "
+				f"You will receive a notification when completed.",
+				title="Daily Timesheet Recalculation Started",
+				indicator="blue"
+			)
+
+	except Exception as e:
+		error_msg = f"Error in auto_recalc_on_maternity_tracking_change for {doc.name}: {str(e)}"
+		frappe.log_error(error_msg)
+		# Don't raise the error to prevent blocking the main operation
+
+
 
 
 
