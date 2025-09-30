@@ -325,15 +325,15 @@ def manual_monthly_recalculation(month=None, year=None):
 	"""
 	try:
 		from datetime import date
-		
+
 		if not month or not year:
 			today_date = date.today()
 			month = month or today_date.month
 			year = year or today_date.year
-		
+
 		month = int(month)
 		year = int(year)
-		
+
 		# Calculate period dates (26th previous month to 25th current month)
 		if month == 1:
 			prev_month = 12
@@ -341,16 +341,16 @@ def manual_monthly_recalculation(month=None, year=None):
 		else:
 			prev_month = month - 1
 			prev_year = year
-			
+
 		from_date = f"{prev_year}-{prev_month:02d}-26"
 		to_date = f"{year}-{month:02d}-25"
-		
+
 		frappe.logger().info(f"Manual monthly recalculation triggered for period: {from_date} to {to_date}")
-		
+
 		# Call the monthly recalculation function
 		# Temporarily override the date calculation
 		original_today = date.today
-		
+
 		try:
 			# Mock today to be the 25th of the target month for calculation
 			date.today = lambda: date(year, month, 25)
@@ -359,7 +359,343 @@ def manual_monthly_recalculation(month=None, year=None):
 		finally:
 			# Restore original today function
 			date.today = original_today
-			
+
 	except Exception as e:
 		frappe.log_error(f"Manual monthly recalculation failed: {str(e)}")
 		return {"status": "failed", "error": str(e)}
+
+def auto_recalc_on_shift_registration_change(doc, method):
+	"""
+	Tự động tính toán lại Daily Timesheet khi Shift Registration thay đổi
+	Smart processing: Auto-detect large operations and use background processing
+	"""
+	try:
+		affected_combinations = set()
+
+		# Current records - always process these
+		if doc.employees_list:
+			for detail in doc.employees_list:
+				if not detail.employee or not detail.begin_date or not detail.end_date:
+					continue
+
+				# Tạo range từ begin_date đến end_date
+				current_date = getdate(detail.begin_date)
+				end_date = getdate(detail.end_date)
+
+				while current_date <= end_date:
+					affected_combinations.add((detail.employee, current_date))
+					current_date = add_days(current_date, 1)
+
+		# For updates/cancellation, also process records that might have been deleted
+		if method in ['on_update_after_submit', 'on_cancel']:
+			# Get previously submitted version to find deleted records
+			if doc.name:  # Ensure doc is saved
+				old_records = get_previous_shift_registrations(doc.name)
+				for old_detail in old_records:
+					current_date = getdate(old_detail['begin_date'])
+					end_date = getdate(old_detail['end_date'])
+
+					while current_date <= end_date:
+						affected_combinations.add((old_detail['employee'], current_date))
+						current_date = add_days(current_date, 1)
+
+		if affected_combinations:
+			total_operations = len(affected_combinations)
+
+			# Smart threshold: If > 200 operations, use background processing
+			if total_operations > 200:
+				# Queue background job with progress tracking
+				job_id = f"shift_recalc_{doc.name}_{int(frappe.utils.now_datetime().timestamp())}"
+
+				frappe.enqueue(
+					'customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.background_recalculate_timesheets',
+					queue='long',  # Use long queue for large operations
+					timeout=1800,  # 30 minutes
+					job_id=job_id,
+					affected_combinations=list(affected_combinations),
+					trigger_doc_type="Shift Registration",
+					trigger_doc_name=doc.name,
+					trigger_method=method,
+					batch_size=100
+				)
+
+				# Notify user about background processing
+				frappe.msgprint(
+					f"Large operation detected ({total_operations} records). Processing in background (Job ID: {job_id}). "
+					f"You will receive a notification when completed.",
+					title="Background Processing Started",
+					indicator="blue"
+				)
+
+				frappe.logger().info(f"Shift Registration {method}: Queued {total_operations} records for background processing (Job: {job_id})")
+
+			else:
+				# Small operation, process immediately
+				processed = batch_recalculate_timesheets(affected_combinations, batch_size=50)
+				frappe.logger().info(f"Shift Registration {method}: Recalculated {processed} Daily Timesheet records for {doc.name}")
+
+	except Exception as e:
+		frappe.log_error(f"Error in auto_recalc_on_shift_registration_change for {doc.name}: {str(e)}")
+		# Don't raise the error to prevent blocking the main operation
+
+def auto_recalc_on_overtime_registration_change(doc, method):
+	"""
+	Tự động tính toán lại Daily Timesheet khi Overtime Registration thay đổi
+	Smart processing: Auto-detect large operations and use background processing
+	"""
+	try:
+		affected_combinations = set()
+
+		# Current records - always process these
+		if doc.ot_employees:
+			for detail in doc.ot_employees:
+				if not detail.employee or not detail.date:
+					continue
+
+				affected_combinations.add((detail.employee, getdate(detail.date)))
+
+		# For updates/cancellation, also process records that might have been deleted
+		if method in ['on_update_after_submit', 'on_cancel']:
+			# Get previously submitted version to find deleted records
+			if doc.name:  # Ensure doc is saved
+				old_records = get_previous_overtime_registrations(doc.name)
+				for old_detail in old_records:
+					affected_combinations.add((old_detail['employee'], getdate(old_detail['date'])))
+
+		if affected_combinations:
+			total_operations = len(affected_combinations)
+
+			# Smart threshold: If > 200 operations, use background processing
+			if total_operations > 200:
+				# Queue background job with progress tracking
+				job_id = f"overtime_recalc_{doc.name}_{int(frappe.utils.now_datetime().timestamp())}"
+
+				frappe.enqueue(
+					'customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.background_recalculate_timesheets',
+					queue='long',  # Use long queue for large operations
+					timeout=1800,  # 30 minutes
+					job_id=job_id,
+					affected_combinations=list(affected_combinations),
+					trigger_doc_type="Overtime Registration",
+					trigger_doc_name=doc.name,
+					trigger_method=method,
+					batch_size=100
+				)
+
+				# Notify user about background processing
+				frappe.msgprint(
+					f"Large operation detected ({total_operations} records). Processing in background (Job ID: {job_id}). "
+					f"You will receive a notification when completed.",
+					title="Background Processing Started",
+					indicator="blue"
+				)
+
+				frappe.logger().info(f"Overtime Registration {method}: Queued {total_operations} records for background processing (Job: {job_id})")
+
+			else:
+				# Small operation, process immediately
+				processed = batch_recalculate_timesheets(affected_combinations, batch_size=50)
+				frappe.logger().info(f"Overtime Registration {method}: Recalculated {processed} Daily Timesheet records for {doc.name}")
+
+	except Exception as e:
+		frappe.log_error(f"Error in auto_recalc_on_overtime_registration_change for {doc.name}: {str(e)}")
+		# Don't raise the error to prevent blocking the main operation
+
+def batch_recalculate_timesheets(affected_combinations, batch_size=50):
+	"""
+	Xử lý batch để tránh timeout với operations lớn
+	Returns number of successfully processed records
+	"""
+	total = len(affected_combinations)
+	processed = 0
+
+	# Convert set to list for batching
+	combinations_list = list(affected_combinations)
+
+	for i in range(0, total, batch_size):
+		batch = combinations_list[i:i + batch_size]
+
+		try:
+			for employee, date in batch:
+				existing_timesheet = frappe.db.exists("Daily Timesheet", {
+					"employee": employee,
+					"attendance_date": date
+				})
+
+				if existing_timesheet:
+					ts_doc = frappe.get_doc("Daily Timesheet", existing_timesheet)
+					ts_doc.calculate_all_fields()
+					ts_doc.save()
+					processed += 1
+
+			# Commit each batch
+			frappe.db.commit()
+
+		except Exception as e:
+			# Rollback batch on error and log
+			frappe.db.rollback()
+			frappe.log_error(f"Batch recalculation failed (batch {i//batch_size + 1}): {str(e)}")
+			# Continue with next batch instead of stopping completely
+
+	return processed
+
+def get_previous_shift_registrations(doc_name):
+	"""
+	Get previously committed Shift Registration Detail records from database
+	Used to detect deleted records during updates
+	"""
+	try:
+		return frappe.db.sql("""
+			SELECT employee, begin_date, end_date, shift
+			FROM `tabShift Registration Detail`
+			WHERE parent = %(doc_name)s
+		""", {"doc_name": doc_name}, as_dict=True)
+	except Exception:
+		return []
+
+def get_previous_overtime_registrations(doc_name):
+	"""
+	Get previously committed Overtime Registration Detail records from database
+	Used to detect deleted records during updates
+	"""
+	try:
+		return frappe.db.sql("""
+			SELECT employee, date, begin_time, end_time
+			FROM `tabOvertime Registration Detail`
+			WHERE parent = %(doc_name)s
+		""", {"doc_name": doc_name}, as_dict=True)
+	except Exception:
+		return []
+
+def background_recalculate_timesheets(affected_combinations, trigger_doc_type, trigger_doc_name, trigger_method, batch_size=100):
+	"""
+	Background job for processing large timesheet recalculations
+	Includes progress tracking and completion notifications
+	"""
+	import time
+	start_time = time.time()
+
+	try:
+		total_operations = len(affected_combinations)
+		processed = 0
+		errors = 0
+
+		frappe.publish_progress(
+			0,
+			title=f"Processing {trigger_doc_type} Changes",
+			description=f"Starting recalculation for {total_operations} Daily Timesheet records..."
+		)
+
+		# Process in batches
+		for i in range(0, total_operations, batch_size):
+			batch = affected_combinations[i:i + batch_size]
+			batch_processed = 0
+			batch_errors = 0
+
+			try:
+				for employee, date in batch:
+					try:
+						existing_timesheet = frappe.db.exists("Daily Timesheet", {
+							"employee": employee,
+							"attendance_date": date
+						})
+
+						if existing_timesheet:
+							ts_doc = frappe.get_doc("Daily Timesheet", existing_timesheet)
+							ts_doc.calculate_all_fields()
+							ts_doc.save()
+							batch_processed += 1
+					except Exception as e:
+						frappe.log_error(f"Error recalculating timesheet for {employee} on {date}: {str(e)}")
+						batch_errors += 1
+
+				# Commit batch
+				frappe.db.commit()
+				processed += batch_processed
+				errors += batch_errors
+
+				# Update progress
+				progress = min((i + batch_size) / total_operations * 100, 100)
+				frappe.publish_progress(
+					progress,
+					title=f"Processing {trigger_doc_type} Changes",
+					description=f"Processed {processed}/{total_operations} records ({errors} errors)"
+				)
+
+				# Brief pause to prevent overwhelming the system
+				if i % (batch_size * 5) == 0:  # Every 5 batches
+					time.sleep(0.1)
+
+			except Exception as e:
+				frappe.db.rollback()
+				frappe.log_error(f"Batch processing error (batch {i//batch_size + 1}): {str(e)}")
+				errors += len(batch)
+
+		# Final results
+		end_time = time.time()
+		processing_time = round(end_time - start_time, 2)
+
+		# Send completion notification
+		success_rate = (processed / total_operations * 100) if total_operations > 0 else 0
+
+		if errors == 0:
+			frappe.publish_realtime(
+				event='daily_timesheet_bulk_complete',
+				message={
+					"title": f"{trigger_doc_type} Processing Complete",
+					"message": f"Successfully recalculated {processed} Daily Timesheet records in {processing_time}s",
+					"indicator": "green",
+					"trigger_doc": trigger_doc_name
+				},
+				user=frappe.session.user
+			)
+		else:
+			frappe.publish_realtime(
+				event='daily_timesheet_bulk_complete',
+				message={
+					"title": f"{trigger_doc_type} Processing Complete with Errors",
+					"message": f"Processed {processed}/{total_operations} records ({success_rate:.1f}% success rate) in {processing_time}s. {errors} errors logged.",
+					"indicator": "orange",
+					"trigger_doc": trigger_doc_name
+				},
+				user=frappe.session.user
+			)
+
+		frappe.logger().info(f"Background recalculation completed: {processed} success, {errors} errors, {processing_time}s")
+
+		return {
+			"success": True,
+			"processed": processed,
+			"errors": errors,
+			"total": total_operations,
+			"processing_time": processing_time,
+			"success_rate": success_rate
+		}
+
+	except Exception as e:
+		error_msg = f"Background recalculation failed: {str(e)}"
+		frappe.log_error(error_msg)
+
+		# Send failure notification
+		frappe.publish_realtime(
+			event='daily_timesheet_bulk_complete',
+			message={
+				"title": f"{trigger_doc_type} Processing Failed",
+				"message": f"Background processing failed: {str(e)}",
+				"indicator": "red",
+				"trigger_doc": trigger_doc_name
+			},
+			user=frappe.session.user
+		)
+
+		raise e
+
+
+
+
+
+
+
+
+
+

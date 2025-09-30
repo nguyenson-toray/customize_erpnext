@@ -395,14 +395,16 @@ class DailyTimesheet(Document):
 		return time_diff_in_hours(afternoon_end, afternoon_start)
 	
 	def calculate_actual_overtime(self, check_in, check_out, shift_config, has_maternity=False):
-		"""Tính actual overtime (pre-shift + post-shift) với maternity benefit"""
+		"""Tính actual overtime (pre-shift + lunch-break + post-shift) với maternity benefit"""
 		if not check_in or not check_out:
 			return 0
-		
+
 		# Convert to datetime for calculation
 		shift_start = datetime.combine(check_in.date(), shift_config["start"])
 		shift_end = datetime.combine(check_in.date(), shift_config["end"])
-		
+		break_start = datetime.combine(check_in.date(), shift_config["break_start"])
+		break_end = datetime.combine(check_in.date(), shift_config["break_end"])
+
 		# Pre-shift overtime (đi sớm hơn giờ vào ca) - CHỈ tính nếu có đăng ký OT trước ca
 		pre_shift_ot = 0
 		if check_in < shift_start:
@@ -413,27 +415,40 @@ class DailyTimesheet(Document):
 				# Sử dụng MIN_MINUTES_PRE_SHIFT_OT (60 phút) làm ngưỡng tối thiểu
 				if pre_shift_ot * 60 < MIN_MINUTES_PRE_SHIFT_OT:
 					pre_shift_ot = 0
-		
+
+		# Lunch break overtime (NEW) - tính OT trong giờ nghỉ trưa
+		lunch_break_ot = 0
+		# Chỉ tính nếu shift có lunch break (break_start != break_end)
+		if shift_config["break_start"] != shift_config["break_end"]:
+			# Điều kiện: check-in sớm hơn nghỉ trưa + check-out trễ hơn nghỉ trưa + có đăng ký OT lunch
+			if (check_in < break_start and check_out > break_end and
+				self.check_lunch_break_ot_registration(break_start, break_end)):
+				# Tính toàn bộ lunch break period làm OT
+				lunch_break_ot = time_diff_in_hours(break_end, break_start)
+				# Apply minimum threshold
+				if lunch_break_ot * 60 < MIN_MINUTES_OT:
+					lunch_break_ot = 0
+
 		# Post-shift overtime (về trễ hơn giờ tan ca) - ADJUSTED for maternity benefit
 		post_shift_ot = 0
 		expected_end = shift_end
 		if has_maternity:
 			# Maternity benefit: được về sớm 1 giờ, nên chỉ tính OT khi về sau expected_end
 			expected_end = shift_end - timedelta(hours=1)
-		
+
 		# Chỉ tính post-shift OT khi check out trễ hơn 15 phút so với expected_end
 		if check_out > expected_end:
 			post_shift_ot = time_diff_in_hours(check_out, expected_end)
 			# Rule: Post-shift OT < 15 phút (0.25h) = 0
 			if post_shift_ot < 0.25:
 				post_shift_ot = 0
-		
-		total_ot = pre_shift_ot + post_shift_ot
-		
+
+		total_ot = pre_shift_ot + lunch_break_ot + post_shift_ot
+
 		# Apply MIN_MINUTES_OT threshold: bỏ qua OT nếu < 15 phút
 		if total_ot * 60 < MIN_MINUTES_OT:
 			total_ot = 0
-		
+
 		return total_ot
 	
 	def check_pre_shift_ot_registration(self, check_in, shift_start):
@@ -458,6 +473,31 @@ class DailyTimesheet(Document):
 			"check_in_time": check_in_time
 		}, as_dict=1)
 		
+		return registrations[0].count > 0 if registrations else False
+
+	def check_lunch_break_ot_registration(self, break_start, break_end):
+		"""Kiểm tra có đăng ký OT trong giờ nghỉ trưa không"""
+		break_start_time = break_start.time()
+		break_end_time = break_end.time()
+
+		registrations = frappe.db.sql("""
+			SELECT COUNT(*) as count
+			FROM `tabOvertime Registration Detail` ord
+			JOIN `tabOvertime Registration` or_doc ON ord.parent = or_doc.name
+			WHERE ord.employee = %(employee)s
+			  AND ord.date = %(date)s
+			  AND or_doc.docstatus = 1
+			  AND (
+				  -- OT registration overlaps with lunch break period
+				  (ord.begin_time <= %(break_end)s AND ord.end_time >= %(break_start)s)
+			  )
+		""", {
+			"employee": self.employee,
+			"date": self.attendance_date,
+			"break_start": break_start_time,
+			"break_end": break_end_time
+		}, as_dict=1)
+
 		return registrations[0].count > 0 if registrations else False
 	
 	def get_approved_overtime(self, shift_type):

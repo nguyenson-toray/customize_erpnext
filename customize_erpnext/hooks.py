@@ -251,7 +251,20 @@ doc_events = {
             "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.auto_cleanup_on_checkin_delete"
         ],
     },
-    
+
+    "Shift Registration": {
+        "on_submit": "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.auto_recalc_on_shift_registration_change",
+        "on_cancel": "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.auto_recalc_on_shift_registration_change",
+        "on_update_after_submit": "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.auto_recalc_on_shift_registration_change"
+    },
+
+    "Overtime Registration": {
+        "on_submit": "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.auto_recalc_on_overtime_registration_change",
+        "on_cancel": "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.auto_recalc_on_overtime_registration_change",
+        "on_update_after_submit": "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.auto_recalc_on_overtime_registration_change"
+    },
+
+
     "Shift Type": {
         "on_update": "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.on_shift_update"
     },

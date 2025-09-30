@@ -1,11 +1,28 @@
 # Daily Timesheet - Hệ Thống Chấm Công Tự Động
 
+## 🆕 **LATEST UPDATES** (Những thay đổi mới nhất)
+
+### 1. **Lunch Break Overtime (NEW)**
+- ✅ **Tính OT trong giờ nghỉ trưa**: Điều kiện check-in trước nghỉ trưa + check-out sau nghỉ trưa + có đăng ký OT lunch
+- ✅ **Logic tính**: Toàn bộ lunch break period với ngưỡng tối thiểu 15 phút
+- ✅ **Hàm mới**: `check_lunch_break_ot_registration()` kiểm tra đăng ký OT lunch
+
+### 2. **Enhanced Overtime Formula**
+- **Trước**: `Actual OT = Pre-shift + Post-shift`
+- **✅ Sau**: `Actual OT = Pre-shift + Lunch-break + Post-shift`
+
+### 3. **🔄 Auto Workflow Integration (NEW)**
+- ✅ **Smart Auto-Recalculation**: Khi Shift Registration/Overtime Registration thay đổi → Tự động tính lại Daily Timesheet
+- ✅ **Intelligent Processing**: ≤200 records = real-time, >200 records = background processing
+- ✅ **Full Lifecycle**: Submit/Cancel/Update after submit đều trigger auto-recalc
+- ✅ **Progress Tracking**: Notification và progress bar cho bulk operations
+
 ## 🎯 Tổng Quan
 
 **Daily Timesheet** tự động tính chấm công từ:
 - Employee Checkin/Checkout (máy chấm công)
-- Shift Registration (đăng ký ca)
-- Overtime Registration (đăng ký tăng ca)
+- Shift Registration (đăng ký ca) **← Có Auto-Recalc**
+- Overtime Registration (đăng ký tăng ca) **← Có Auto-Recalc**
 - Maternity Tracking (nhân viên nữ)
 
 ### Quy Tắc Cơ Bản
@@ -23,7 +40,7 @@
 1. Xác định Shift Type (Registration > Group > Default)
 2. Check Maternity Benefit (từ Maternity Tracking)
 3. Tính Working Hours = Morning + Afternoon (không bao gồm OT)
-4. Tính Actual OT = Pre-shift + Post-shift
+4. ✅ Tính Actual OT = Pre-shift + Lunch-break + Post-shift (NEW)
 5. Lấy Approved OT từ registrations
 6. Final OT = min(Actual, Approved)
 7. Overtime Coefficient (1.5/2.0/3.0)
@@ -72,8 +89,23 @@ if is_sunday:
 ```python
 # Employee Checkin hooks
 "after_insert": auto_sync_on_checkin_update
-"on_update": auto_sync_on_checkin_update  
+"on_update": auto_sync_on_checkin_update
 "on_trash": auto_cleanup_on_checkin_delete
+
+# ✅ NEW: Workflow Integration Hooks
+# Shift Registration hooks
+"on_submit": auto_recalc_on_shift_registration_change
+"on_cancel": auto_recalc_on_shift_registration_change
+"on_update_after_submit": auto_recalc_on_shift_registration_change
+
+# Overtime Registration hooks
+"on_submit": auto_recalc_on_overtime_registration_change
+"on_cancel": auto_recalc_on_overtime_registration_change
+"on_update_after_submit": auto_recalc_on_overtime_registration_change
+
+# ✅ NEW: Employee Maternity Tracking hooks
+"on_update": auto_recalc_on_employee_maternity_change
+"after_insert": auto_recalc_on_employee_maternity_change
 ```
 
 ### Scheduled Job
@@ -197,10 +229,11 @@ MIN_MINUTES_CHECKIN_FILTER = 10        # Filter các lần chấm công < 10 ph�
 - **Manual Reason Styling**: Màu đỏ nếu có, xám nếu không
 - **Responsive Table**: Tự động điều chỉnh width
 
-## 🎉 System Status: **FULLY OPERATIONAL + ENHANCED**
+## 🎉 System Status: **FULLY OPERATIONAL + ENHANCED + WORKFLOW INTEGRATED**
 
+### Core Functions
 - ✅ Real-time sync working
-- ✅ Daily job running at 21:00  
+- ✅ Daily job running at 21:00
 - ✅ Reports với overtime coefficient
 - ✅ Maternity benefit logic correct
 - ✅ Sunday logic implemented
@@ -209,3 +242,59 @@ MIN_MINUTES_CHECKIN_FILTER = 10        # Filter các lần chấm công < 10 ph�
 - ✅ **Enhanced multiple checkin logic**
 - ✅ **Dynamic algorithm dialog**
 - ✅ **Manual checkin reason display**
+
+### ✅ NEW: Workflow Integration
+- ✅ **Lunch Break Overtime**: Tính OT trong giờ nghỉ trưa
+- ✅ **Smart Auto-Recalculation**: Shift/Overtime Registration changes trigger auto-recalc
+- ✅ **Employee Maternity Integration**: Employee maternity tracking changes trigger auto-recalc
+- ✅ **Intelligent Processing**: Background processing cho bulk operations
+- ✅ **Error Handling**: Workflow errors không block main operations
+- ✅ **Progress Tracking**: Real-time notifications cho users
+
+---
+
+## ❓ **TRẢ LỜI CÂU HỎI: Workflow có tự động tính toán lại Daily Timesheet không?**
+
+### ✅ **CÓ - HOÀN TOÀN TỰ ĐỘNG**
+
+#### 🔄 Khi áp dụng Workflow cho **Shift Registration**:
+- **Submit/Cancel/Update after submit** → Tự động recalculate affected Daily Timesheet records
+- **Smart Detection**: ≤200 records = xử lý ngay, >200 records = background processing
+- **Comprehensive Coverage**: Bao gồm cả records bị xóa trong quá trình update
+
+#### 🔄 Khi áp dụng Workflow cho **Overtime Registration**:
+- **Submit/Cancel/Update after submit** → Tự động recalculate affected Daily Timesheet records
+- **Immediate Impact**: Thay đổi OT registration ảnh hưởng ngay đến Actual Overtime calculation
+- **✅ Lunch Break OT**: Hỗ trợ tính OT trong giờ nghỉ trưa với logic mới
+
+#### 🔄 Khi thay đổi **Employee Maternity Tracking** (NEW):
+- **Update/Insert** → Tự động recalculate affected Daily Timesheet records
+- **Smart Detection**: Chỉ trigger khi có thay đổi thực sự trong maternity tracking data
+- **Comprehensive Coverage**: Bao gồm pregnancy period, maternity leave, young child periods
+- **Date Range Calculation**: Tự động tính toán các ngày bị ảnh hưởng dựa trên maternity periods
+
+#### 🎯 **Đặc điểm của hệ thống tự động**:
+1. **⚡ Performance Optimized**: Background processing cho bulk operations
+2. **🛡️ Error Handling**: Lỗi trong recalculation không block workflow chính
+3. **👤 User Friendly**: Progress notification và completion alerts
+4. **📊 Data Consistency**: Batch commit để đảm bảo tính nhất quán
+5. **🎯 Smart Processing**: Chỉ recalculate các Daily Timesheet records đã tồn tại
+
+### ⚠️ **Lưu ý quan trọng**:
+- Chỉ recalculate các Daily Timesheet records **đã tồn tại**, không tạo mới records
+- Workflow errors sẽ được log nhưng không block main operation
+- Large operations (>200 records) sẽ được process trong background với progress tracking
+
+---
+
+## 🔥 **TỔNG KẾT: Auto-Recalculation Triggers**
+
+Hệ thống Daily Timesheet sẽ **TỰ ĐỘNG** tính toán lại khi:
+
+1. **✅ Employee Checkin**: Real-time update khi có checkin/checkout mới
+2. **✅ Shift Registration**: Submit/Cancel/Update workflow changes
+3. **✅ Overtime Registration**: Submit/Cancel/Update workflow changes
+4. **✅ Employee Maternity Tracking**: Thay đổi trong custom_maternity_tracking table
+5. **✅ Scheduled Job**: Daily sync lúc 22:45 hàng ngày
+
+**→ Kết quả**: Daily Timesheet luôn được update real-time và chính xác với mọi thay đổi liên quan!
