@@ -805,6 +805,8 @@ def shorten_name(full_name, max_length=24):
 def set_default_warehouse_by_brand(template_item, brand_warehouse_map):
     """
     Set default warehouse for item variants based on their Brand attribute
+    Only applies if is_customer_provided_item = 1
+    If is_customer_provided_item = 0, uses template's default warehouse
 
     Args:
         template_item: The template item name
@@ -815,6 +817,16 @@ def set_default_warehouse_by_brand(template_item, brand_warehouse_map):
     # Parse the brand_warehouse_map if it's a string
     if isinstance(brand_warehouse_map, str):
         brand_warehouse_map = json.loads(brand_warehouse_map)
+
+    # Get template item's default warehouse
+    template_doc = frappe.get_doc("Item", template_item)
+    template_warehouse = None
+    default_company = frappe.defaults.get_user_default("company")
+
+    for item_default in template_doc.item_defaults:
+        if item_default.company == default_company:
+            template_warehouse = item_default.default_warehouse
+            break
 
     # Get all variants of the template item
     variants = frappe.get_all(
@@ -827,45 +839,56 @@ def set_default_warehouse_by_brand(template_item, brand_warehouse_map):
         return
 
     updated_count = 0
-    default_company = frappe.defaults.get_user_default("company")
 
     for variant in variants:
-        # Get the Brand attribute value for this variant
-        brand_attr = frappe.db.get_value(
-            "Item Variant Attribute",
-            {
-                "parent": variant.name,
-                "attribute": "Brand"
-            },
-            "attribute_value"
-        )
+        # Get the item document
+        item_doc = frappe.get_doc("Item", variant.name)
 
-        if brand_attr and brand_attr in brand_warehouse_map:
-            warehouse = brand_warehouse_map[brand_attr]
+        # Determine which warehouse to use based on is_customer_provided_item
+        if item_doc.is_customer_provided_item == 1:
+            # Get the Brand attribute value for this variant
+            brand_attr = frappe.db.get_value(
+                "Item Variant Attribute",
+                {
+                    "parent": variant.name,
+                    "attribute": "Brand"
+                },
+                "attribute_value"
+            )
 
-            # Get the item document
-            item_doc = frappe.get_doc("Item", variant.name)
-
-            # Check if item_defaults already exists
-            existing_default = None
-            for item_default in item_doc.item_defaults:
-                if item_default.company == default_company:
-                    existing_default = item_default
-                    break
-
-            if existing_default:
-                # Update existing item_default
-                existing_default.default_warehouse = warehouse
+            if brand_attr and brand_attr in brand_warehouse_map:
+                warehouse = brand_warehouse_map[brand_attr]
             else:
-                # Add new item_default
-                item_doc.append("item_defaults", {
-                    "company": default_company,
-                    "default_warehouse": warehouse
-                })
+                # If brand not found in map, skip
+                continue
+        else:
+            # Use template's default warehouse
+            if template_warehouse:
+                warehouse = template_warehouse
+            else:
+                # If template has no default warehouse, skip
+                continue
 
-            # Save the document
-            item_doc.save(ignore_permissions=True)
-            updated_count += 1
+        # Check if item_defaults already exists
+        existing_default = None
+        for item_default in item_doc.item_defaults:
+            if item_default.company == default_company:
+                existing_default = item_default
+                break
+
+        if existing_default:
+            # Update existing item_default
+            existing_default.default_warehouse = warehouse
+        else:
+            # Add new item_default
+            item_doc.append("item_defaults", {
+                "company": default_company,
+                "default_warehouse": warehouse
+            })
+
+        # Save the document
+        item_doc.save(ignore_permissions=True)
+        updated_count += 1
 
     if updated_count > 0:
         frappe.db.commit()
