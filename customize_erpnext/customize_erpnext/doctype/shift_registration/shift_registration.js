@@ -6,11 +6,11 @@
 frappe.ui.form.on('Shift Registration', {
     refresh: function (frm) {
         // Set default cho End Date = Today + 7 days
-        if (!frm.doc.end_date) {
-            var today = frappe.datetime.get_today();
-            var defaultDate = frappe.datetime.add_days(today, 7);
-            frm.set_value('end_date', defaultDate);
-        }
+        // if (!frm.doc.end_date) {
+        //     var today = frappe.datetime.get_today();
+        //     var defaultDate = frappe.datetime.add_days(today, 7);
+        //     frm.set_value('end_date', defaultDate);
+        // }
         // Auto-populate requested_by with current user's employee
         if (frm.is_new() && !frm.doc.requested_by) {
             frappe.call({
@@ -29,9 +29,6 @@ frappe.ui.form.on('Shift Registration', {
                 }
             });
         }
-
-        // Calculate total employees
-        frm.events.calculate_total_employees(frm);
 
         // Add custom button to remove empty rows
         frm.add_custom_button(__('Remove Empty Rows'), function () {
@@ -71,14 +68,9 @@ frappe.ui.form.on('Shift Registration', {
         frm.set_value('total_employees', total);
     },
 
-    // Tính total employees khi load form
-    refresh: function (frm) {
+    // Tính total employees khi lưu form
+    before_save: function (frm) {
         frm.events.calculate_total_employees(frm);
-
-        // Add custom button to remove empty rows
-        frm.add_custom_button(__('Remove Empty Rows'), function () {
-            frm.events.remove_empty_rows(frm);
-        }, __('Actions'));
     },
 
     // Function to remove rows with empty employee or date
@@ -449,7 +441,7 @@ function validate_shift_values(frm) {
         if (!d.employee) {
             continue;
         }
-        
+
         if (d.shift && !allowedShifts.includes(d.shift)) {
             frappe.msgprint(__('Row {0}: Only "{1}" and "{2}" are allowed. Found: {3}', [d.idx, __('Shift 1'), __('Shift 2'), d.shift]));
             hasErrors = true;

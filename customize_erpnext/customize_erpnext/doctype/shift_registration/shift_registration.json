@@ -2,7 +2,7 @@
  "actions": [],
  "allow_import": 1,
  "allow_rename": 1,
- "autoname": "format:SR-{YY}{MM}{DD}-{###}",
+ "autoname": "naming_series:",
  "creation": "2025-07-29 19:43:59.722969",
  "doctype": "DocType",
  "engine": "InnoDB",
@@ -11,6 +11,7 @@
   "amended_from",
   "section_break_etmv",
   "request_date",
+  "naming_series",
   "requested_by",
   "request_by_full_name",
   "shift",
@@ -128,17 +129,23 @@
    "fieldtype": "Data",
    "label": "Request By",
    "read_only": 1
+  },
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "SR-.YY..MM..DD.-.####."
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2025-09-30 15:32:33.461010",
+ "modified": "2025-09-30 16:29:40.293777",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Shift Registration",
- "naming_rule": "Expression",
+ "naming_rule": "By \"Naming Series\" field",
  "owner": "Administrator",
  "permissions": [
   {

@@ -1,13 +1,14 @@
 {
  "actions": [],
  "allow_import": 1,
- "autoname": "format:OTR-{YY}{MM}{DD}-{###}",
+ "autoname": "naming_series:",
  "creation": "2025-08-08 23:33:14.711192",
  "default_view": "List",
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
+  "naming_series",
   "request_date",
   "reason_general",
   "column_break_kjuy",
@@ -140,16 +141,25 @@
    "fieldtype": "Data",
    "label": "Request By",
    "read_only": 1
+  },
+  {
+   "default": "OTR-.YY..MM..DD.-.####.",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "Series",
+   "options": "OTR-.YY..MM..DD.-.####.",
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2025-09-26 14:05:01.987176",
+ "modified": "2025-09-30 16:25:06.984562",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Overtime Registration",
- "naming_rule": "Expression",
+ "naming_rule": "By \"Naming Series\" field",
  "owner": "Administrator",
  "permissions": [
   {
