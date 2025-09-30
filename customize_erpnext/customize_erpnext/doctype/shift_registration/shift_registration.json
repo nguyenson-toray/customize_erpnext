@@ -1,5 +1,6 @@
 {
  "actions": [],
+ "allow_import": 1,
  "allow_rename": 1,
  "autoname": "format:SR-{YY}{MM}{DD}-{###}",
  "creation": "2025-07-29 19:43:59.722969",
@@ -133,7 +134,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2025-08-09 13:28:58.768902",
+ "modified": "2025-09-30 15:32:33.461010",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Shift Registration",
