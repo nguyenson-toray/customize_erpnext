@@ -800,3 +800,75 @@ def shorten_name(full_name, max_length=24):
     else:
         return text_processed
 
+
+@frappe.whitelist()
+def set_default_warehouse_by_brand(template_item, brand_warehouse_map):
+    """
+    Set default warehouse for item variants based on their Brand attribute
+
+    Args:
+        template_item: The template item name
+        brand_warehouse_map: Dictionary mapping Brand values to warehouse names
+    """
+    import json
+
+    # Parse the brand_warehouse_map if it's a string
+    if isinstance(brand_warehouse_map, str):
+        brand_warehouse_map = json.loads(brand_warehouse_map)
+
+    # Get all variants of the template item
+    variants = frappe.get_all(
+        "Item",
+        filters={"variant_of": template_item},
+        fields=["name"]
+    )
+
+    if not variants:
+        return
+
+    updated_count = 0
+    default_company = frappe.defaults.get_user_default("company")
+
+    for variant in variants:
+        # Get the Brand attribute value for this variant
+        brand_attr = frappe.db.get_value(
+            "Item Variant Attribute",
+            {
+                "parent": variant.name,
+                "attribute": "Brand"
+            },
+            "attribute_value"
+        )
+
+        if brand_attr and brand_attr in brand_warehouse_map:
+            warehouse = brand_warehouse_map[brand_attr]
+
+            # Get the item document
+            item_doc = frappe.get_doc("Item", variant.name)
+
+            # Check if item_defaults already exists
+            existing_default = None
+            for item_default in item_doc.item_defaults:
+                if item_default.company == default_company:
+                    existing_default = item_default
+                    break
+
+            if existing_default:
+                # Update existing item_default
+                existing_default.default_warehouse = warehouse
+            else:
+                # Add new item_default
+                item_doc.append("item_defaults", {
+                    "company": default_company,
+                    "default_warehouse": warehouse
+                })
+
+            # Save the document
+            item_doc.save(ignore_permissions=True)
+            updated_count += 1
+
+    if updated_count > 0:
+        frappe.db.commit()
+        frappe.msgprint(f"Updated default warehouse for {updated_count} variants")
+
+    return updated_count

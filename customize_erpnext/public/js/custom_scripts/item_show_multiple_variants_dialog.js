@@ -732,6 +732,25 @@ erpnext.item.show_multiple_variants_dialog = function (frm) {
         updateValueCounts(column);
     }
 
+    // Mapping Brand attribute to Default Warehouse
+    const BRAND_WAREHOUSE_MAP = {
+        'Akova': 'Material - HK - TIQN',
+        'Argyle Street': 'Material - HK - TIQN',
+        'Ariake': 'Material - JP - TIQN',
+        'Inov-8': 'Material - HK - TIQN',
+        'Mammut': 'Material - HK - TIQN',
+        'Mizuno': 'Material - JP - TIQN',
+        'Ortovox': 'Material - HK - TIQN',
+        'Shimano': 'Material - JP - TIQN',
+        'Snow Peak': 'Material - JP - TIQN',
+        'Stio': 'Material - HK - TIQN',
+        'Stio Azura': 'Material - HK - TIQN',
+        'Stio Fernos': 'Material - HK - TIQN',
+        'Teton': 'Material - HK - TIQN',
+        'Tnf': 'Material - JP - TIQN',
+        'Vital': 'Material - HK - TIQN'
+    };
+
     // Hàm xử lý tạo variant theo batch để tránh timeout
     function create_variants_in_batches(selected_attributes, use_template_image) {
         const batch_size = 10; // Mặc định batch size là 10
@@ -864,6 +883,19 @@ erpnext.item.show_multiple_variants_dialog = function (frm) {
 
                     variants_created += created_count;
                     update_progress(variants_created);
+
+                    // Set default warehouse based on Brand attribute after a delay to ensure variants are created
+                    if (batch_attributes['Brand']) {
+                        setTimeout(() => {
+                            frappe.call({
+                                method: 'customize_erpnext.api.utilities.set_default_warehouse_by_brand',
+                                args: {
+                                    template_item: frm.doc.name,
+                                    brand_warehouse_map: BRAND_WAREHOUSE_MAP
+                                }
+                            });
+                        }, 2000);
+                    }
 
                     // Xử lý batch tiếp theo
                     current_batch_index++;
