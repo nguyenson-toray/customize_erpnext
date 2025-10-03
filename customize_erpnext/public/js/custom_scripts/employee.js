@@ -62,16 +62,14 @@ frappe.ui.form.on('Employee', {
         setup_employee_image_cropper(frm);
     },
 
-    onload: function(frm) {
+    onload: function (frm) {
         // Setup image field with cropper on load
         setup_employee_image_cropper(frm);
     },
 
-    image: function(frm) {
-        // When image is uploaded, trigger cropper
-        if (frm.doc.image && !frm.__image_processing) {
-            show_image_cropper(frm);
-        }
+    image: function (frm) {
+        // Image upload is handled by custom FileUploader with auto-cropping
+        // No need to manually trigger cropper
 
         if (frm.is_new()) {
             // Auto-populate employee code and attendance device ID for new employees
@@ -236,9 +234,9 @@ frappe.ui.form.on('Employee', {
 
 // Maternity Tracking child table events
 frappe.ui.form.on('Maternity Tracking', {
-    type: function(frm, cdt, cdn) {
+    type: function (frm, cdt, cdn) {
         let row = locals[cdt][cdn];
-        
+
         // Auto-set apply_pregnant_benefit = 1 when type = 'Pregnant'
         if (row.type === 'Pregnant') {
             frappe.model.set_value(cdt, cdn, 'apply_pregnant_benefit', 1);
@@ -247,12 +245,12 @@ frappe.ui.form.on('Maternity Tracking', {
             frappe.model.set_value(cdt, cdn, 'apply_pregnant_benefit', 0);
         }
     },
-    
-    from_date: function(frm, cdt, cdn) {
+
+    from_date: function (frm, cdt, cdn) {
         validate_maternity_date_overlap(frm, cdt, cdn);
     },
-    
-    to_date: function(frm, cdt, cdn) {
+
+    to_date: function (frm, cdt, cdn) {
         validate_maternity_date_overlap(frm, cdt, cdn);
         validate_date_sequence(frm, cdt, cdn);
     }
@@ -261,11 +259,11 @@ frappe.ui.form.on('Maternity Tracking', {
 // Function to validate date sequence (from_date should be before to_date)
 function validate_date_sequence(frm, cdt, cdn) {
     let row = locals[cdt][cdn];
-    
+
     if (row.from_date && row.to_date) {
         let from_date = frappe.datetime.str_to_obj(row.from_date);
         let to_date = frappe.datetime.str_to_obj(row.to_date);
-        
+
         if (from_date >= to_date) {
             frappe.msgprint({
                 title: __('Invalid Date Range'),
@@ -276,7 +274,7 @@ function validate_date_sequence(frm, cdt, cdn) {
             return false;
         }
     }
-    
+
     return true;
 }
 
@@ -284,18 +282,18 @@ function validate_date_sequence(frm, cdt, cdn) {
 function validate_all_maternity_periods(frm) {
     let maternity_tracking = frm.doc.maternity_tracking || [];
     let valid_periods = [];
-    
+
     // First, validate each row for date sequence
     for (let i = 0; i < maternity_tracking.length; i++) {
         let row = maternity_tracking[i];
-        
+
         if (!row.from_date || !row.to_date) {
             continue; // Skip incomplete rows
         }
-        
+
         let from_date = frappe.datetime.str_to_obj(row.from_date);
         let to_date = frappe.datetime.str_to_obj(row.to_date);
-        
+
         // Check date sequence
         if (from_date >= to_date) {
             frappe.msgprint({
@@ -305,7 +303,7 @@ function validate_all_maternity_periods(frm) {
             });
             return false;
         }
-        
+
         valid_periods.push({
             idx: row.idx,
             type: row.type,
@@ -315,16 +313,16 @@ function validate_all_maternity_periods(frm) {
             to_date_str: frappe.datetime.str_to_user(row.to_date)
         });
     }
-    
+
     // Check for overlapping periods
     for (let i = 0; i < valid_periods.length; i++) {
         for (let j = i + 1; j < valid_periods.length; j++) {
             let period1 = valid_periods[i];
             let period2 = valid_periods[j];
-            
+
             // Check for overlap
             let has_overlap = (period1.from_date < period2.to_date && period1.to_date > period2.from_date);
-            
+
             if (has_overlap) {
                 frappe.msgprint({
                     title: __('Date Period Overlap Detected'),
@@ -338,43 +336,43 @@ function validate_all_maternity_periods(frm) {
             }
         }
     }
-    
+
     return true;
 }
 
 // Function to validate overlapping date periods
 function validate_maternity_date_overlap(frm, cdt, cdn) {
     let current_row = locals[cdt][cdn];
-    
+
     // Only validate if both dates are filled
     if (!current_row.from_date || !current_row.to_date) {
         return;
     }
-    
+
     let current_from = frappe.datetime.str_to_obj(current_row.from_date);
     let current_to = frappe.datetime.str_to_obj(current_row.to_date);
-    
+
     // Validate date sequence first
     if (current_from >= current_to) {
         return; // Will be handled by validate_date_sequence
     }
-    
+
     // Check for overlaps with other rows
     let maternity_tracking = frm.doc.maternity_tracking || [];
     let overlapping_rows = [];
-    
-    maternity_tracking.forEach(function(row) {
+
+    maternity_tracking.forEach(function (row) {
         // Skip current row and rows without both dates
         if (row.name === current_row.name || !row.from_date || !row.to_date) {
             return;
         }
-        
+
         let row_from = frappe.datetime.str_to_obj(row.from_date);
         let row_to = frappe.datetime.str_to_obj(row.to_date);
-        
+
         // Check for overlap: two periods overlap if one starts before the other ends
         let has_overlap = (current_from < row_to && current_to > row_from);
-        
+
         if (has_overlap) {
             overlapping_rows.push({
                 idx: row.idx,
@@ -384,25 +382,25 @@ function validate_maternity_date_overlap(frm, cdt, cdn) {
             });
         }
     });
-    
+
     if (overlapping_rows.length > 0) {
-        let overlap_details = overlapping_rows.map(row => 
+        let overlap_details = overlapping_rows.map(row =>
             `Row ${row.idx}: ${row.type} (${row.from_date} - ${row.to_date})`
         ).join('<br>');
-        
+
         frappe.msgprint({
             title: __('Date Period Overlap Detected'),
             message: __('The current date period overlaps with existing records:<br><br>{0}<br><br>Please adjust the dates to avoid overlapping periods.', [overlap_details]),
             indicator: 'red'
         });
-        
+
         // Clear both dates to force user to re-enter correct values
         frappe.model.set_value(cdt, cdn, 'from_date', '');
         frappe.model.set_value(cdt, cdn, 'to_date', '');
-        
+
         return false;
     }
-    
+
     return true;
 }
 
@@ -427,190 +425,259 @@ function toProperCase(str) {
     return result;
 }
 
-// Image cropper functions
+// ============================================================
+// IMAGE CROPPER CONFIGURATION
+// ============================================================
+// Set to true to enable custom 3:4 ratio image cropper
+// Set to false to use default Frappe upload (no cropping)
+const ENABLE_EMPLOYEE_IMAGE_CROPPER = false;
+//   const ENABLE_EMPLOYEE_IMAGE_CROPPER = true;
+//   2. Sửa hooks.py dòng 327-337: Uncomment các dòng Cropper.js:
+//   app_include_css = [
+//       "https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css"
+//   ]
+//   app_include_js = [
+//       "/assets/customize_erpnext/js/fingerprint_scanner_dialog.js",
+//       "https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"
+//   ]
+//   3. Build lại:
+//   bench build --app customize_erpnext && bench --site erp-sonnt.tiqn.local clear-cache
+// ============================================================
+
+// Image cropper functions - using custom Cropper.js
 function setup_employee_image_cropper(frm) {
     if (!frm.fields_dict.image) return;
 
-    // Add custom styling to image field
-    const image_wrapper = frm.fields_dict.image.$wrapper;
-    if (image_wrapper && !image_wrapper.find('.crop-image-btn').length) {
-        // Add a button to manually trigger crop if needed
-        const $btn = $('<button class="btn btn-xs btn-default crop-image-btn" style="margin-top: 5px;">')
-            .text(__('Crop Image (3:4)'))
-            .on('click', function() {
-                if (frm.doc.image) {
-                    show_image_cropper(frm);
-                } else {
-                    frappe.msgprint(__('Please upload an image first'));
+    const image_field = frm.fields_dict.image;
+
+    // Override the attach field's upload method completely
+    setTimeout(() => {
+        if (image_field && image_field.$wrapper) {
+            console.log('Setting up image field for Employee');
+
+            // Always hide camera-related buttons
+            image_field.$wrapper.find('[data-action="capture_image"]').hide();
+            image_field.$wrapper.find('.btn:contains("Take Photo")').hide();
+            image_field.$wrapper.find('.btn:contains("Chụp ảnh")').hide();
+            image_field.$wrapper.find('.webcam-container').hide();
+
+            // Only enable custom cropper if ENABLE_EMPLOYEE_IMAGE_CROPPER is true
+            if (!ENABLE_EMPLOYEE_IMAGE_CROPPER) {
+                console.log('Custom image cropper is DISABLED - using default upload');
+                return;
+            }
+
+            console.log('Custom image cropper is ENABLED');
+
+            // CRITICAL: Override FileUploader options to disable built-in cropper
+            // and use custom aspect ratio
+            const original_FileUploader = frappe.ui.FileUploader;
+
+            // Intercept FileUploader creation for this field
+            frappe.ui.FileUploader = class CustomFileUploader extends original_FileUploader {
+                constructor(opts) {
+                    // Check if this is for the employee image field
+                    if (opts && opts.doctype === 'Employee' && opts.fieldname === 'image') {
+                        console.log('Intercepting FileUploader for Employee image');
+                        // Disable built-in cropper
+                        opts.crop_image_aspect_ratio = null;
+
+                        // Store original on_success
+                        const original_on_success = opts.on_success;
+
+                        // Replace on_success to trigger our custom cropper
+                        opts.on_success = (file_doc) => {
+                            console.log('File uploaded, showing custom cropper');
+                            console.log('File doc:', file_doc);
+                            // Show our custom cropper instead
+                            if (file_doc && file_doc.file_url) {
+                                console.log('Reading file content from:', file_doc.file_url);
+                                // Use custom method to get file content as base64
+                                frappe.call({
+                                    method: 'customize_erpnext.api.employee.employee_utils.get_file_content_base64',
+                                    args: {
+                                        file_url: file_doc.file_url
+                                    },
+                                    callback: function (r) {
+                                        console.log('File content response:', r);
+                                        if (r.message) {
+                                            console.log('Base64 data received, length:', r.message.length);
+                                            // r.message contains base64 data URI
+                                            show_custom_image_cropper_dialog(frm, r.message, file_doc.file_name);
+                                        } else {
+                                            console.error('No base64 data in response');
+                                        }
+                                    },
+                                    error: function (err) {
+                                        console.error('Error reading file:', err);
+                                        frappe.msgprint({
+                                            title: __('Error'),
+                                            message: __('Failed to read uploaded file'),
+                                            indicator: 'red'
+                                        });
+                                    }
+                                });
+                            }
+                        };
+                    }
+                    super(opts);
                 }
-            });
-        image_wrapper.append($btn);
-    }
+            };
+
+            // Restore original FileUploader after field is initialized
+            setTimeout(() => {
+                frappe.ui.FileUploader = original_FileUploader;
+            }, 2000);
+        }
+    }, 500);
 }
 
-function show_image_cropper(frm) {
-    if (!frm.doc.image) return;
-
-    // Prevent recursive calls
-    if (frm.__showing_cropper) return;
-    frm.__showing_cropper = true;
-
-    // Create dialog with image cropper
-    const d = new frappe.ui.Dialog({
-        title: __('Crop Employee Image (3:4 Ratio)'),
+function show_custom_image_cropper_dialog(frm, imageDataUrl, fileName) {
+    // Create dialog with custom cropper
+    const dialog = new frappe.ui.Dialog({
+        title: __('Crop Image - Fixed Ratio 3:4 (Portrait)'),
+        size: 'large',
         fields: [
             {
                 fieldtype: 'HTML',
-                fieldname: 'cropper_container'
+                fieldname: 'cropper_container',
             }
         ],
-        primary_action_label: __('Crop & Save'),
-        primary_action: function() {
-            crop_and_save_image(frm, d);
+        primary_action_label: __('Crop & Upload'),
+        primary_action: function () {
+            const cropper = dialog.cropper_instance;
+            if (cropper) {
+                // Get cropped canvas
+                const canvas = cropper.getCroppedCanvas({
+                    maxWidth: 1200,
+                    maxHeight: 1600,
+                    imageSmoothingEnabled: true,
+                    imageSmoothingQuality: 'high',
+                });
+
+                // Convert to blob
+                canvas.toBlob(function (blob) {
+                    // Convert blob to base64
+                    const reader = new FileReader();
+                    reader.onloadend = function () {
+                        const base64data = reader.result;
+
+                        // Upload the cropped image
+                        upload_cropped_employee_image(frm, base64data, fileName, dialog);
+                    };
+                    reader.readAsDataURL(blob);
+                }, 'image/jpeg', 0.9);
+            }
         },
         secondary_action_label: __('Cancel'),
-        secondary_action: function() {
-            frm.__showing_cropper = false;
-            d.hide();
-        }
     });
 
-    d.show();
-    d.$wrapper.find('.modal-dialog').css('max-width', '800px');
+    dialog.show();
 
-    // Get full image URL
-    let image_url = frm.doc.image;
-    if (!image_url.startsWith('http')) {
-        image_url = window.location.origin + frm.doc.image;
-    }
+    // Wait for dialog to render, then initialize Cropper.js
+    dialog.$wrapper.find('.modal-dialog').css('max-width', '90%');
 
-    // Create image element for cropper
-    const container = d.fields_dict.cropper_container.$wrapper;
-    container.html(`
-        <div style="max-height: 500px; overflow: hidden;">
-            <img id="employee-image-cropper" src="${image_url}" style="max-width: 100%;">
-        </div>
-        <div style="margin-top: 10px; color: #888;">
-            <small>${__('Adjust the crop area to 3:4 ratio (portrait). The cropped image will be saved automatically.')}</small>
-        </div>
-    `);
-
-    // Initialize Cropper.js (using Frappe's built-in cropper if available)
     setTimeout(() => {
-        const image = document.getElementById('employee-image-cropper');
+        const container = dialog.fields_dict.cropper_container.$wrapper;
+        container.html(`
+            <div style="max-height: 70vh; overflow: hidden;">
+                <img id="image-to-crop" src="${imageDataUrl}" style="max-width: 100%; display: block;">
+            </div>
+            <div style="margin-top: 15px; padding: 10px; background: #f8f9fa; border-radius: 5px;">
+                <p style="margin: 0; color: #6c757d; font-size: 13px;">
+                    <strong>Instructions:</strong>
+                    Use mouse wheel to zoom, drag to move image.
+                    The crop box is fixed at 3:4 ratio (portrait).
+                </p>
+            </div>
+        `);
 
-        // Use frappe's ImageCropper if available, otherwise use basic crop
-        if (window.Cropper) {
-            frm.__cropper = new Cropper(image, {
-                aspectRatio: 3 / 4,
-                viewMode: 1,
-                autoCropArea: 1,
-                responsive: true,
-                background: false,
-                guides: true,
-                center: true,
-                highlight: true,
-                cropBoxMovable: true,
-                cropBoxResizable: true,
-                toggleDragModeOnDblclick: false
+        const image = document.getElementById('image-to-crop');
+
+        // Check if Cropper.js is available
+        if (typeof Cropper === 'undefined') {
+            frappe.msgprint({
+                title: __('Library Not Loaded'),
+                message: __('Cropper.js library is not available. Please refresh the page and try again.'),
+                indicator: 'red'
             });
-        } else {
-            // Fallback: load cropper.js from CDN
-            frappe.require([
-                'https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.min.css',
-                'https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.min.js'
-            ], () => {
-                frm.__cropper = new Cropper(image, {
-                    aspectRatio: 3 / 4,
-                    viewMode: 1,
-                    autoCropArea: 1,
-                    responsive: true,
-                    background: false,
-                    guides: true,
-                    center: true,
-                    highlight: true,
-                    cropBoxMovable: true,
-                    cropBoxResizable: true,
-                    toggleDragModeOnDblclick: false
-                });
-            });
+            dialog.hide();
+            return;
         }
-    }, 100);
+
+        // Initialize Cropper.js with fixed 3:4 aspect ratio
+        dialog.cropper_instance = new Cropper(image, {
+            aspectRatio: 3 / 4,  // Fixed 3:4 ratio (portrait)
+            viewMode: 1,
+            dragMode: 'move',
+            autoCropArea: 0.8,
+            restore: false,
+            guides: true,
+            center: true,
+            highlight: false,
+            cropBoxMovable: true,
+            cropBoxResizable: true,
+            toggleDragModeOnDblclick: false,
+            responsive: true,
+            background: true,
+            modal: true,
+            zoomable: true,
+            zoomOnWheel: true,
+            wheelZoomRatio: 0.1,
+        });
+    }, 300);
 }
 
-function crop_and_save_image(frm, dialog) {
-    if (!frm.__cropper) {
-        frappe.msgprint(__('Cropper not initialized'));
-        return;
-    }
-
-    // Get cropped canvas with 3:4 ratio (width:height = 3:4, portrait/vertical)
-    const canvas = frm.__cropper.getCroppedCanvas({
-        width: 600,   // width (3 parts)
-        height: 800,  // height (4 parts) - portrait orientation
-        imageSmoothingEnabled: true,
-        imageSmoothingQuality: 'high'
+function upload_cropped_employee_image(frm, base64data, fileName, dialog) {
+    // Show uploading message
+    frappe.show_alert({
+        message: __('Uploading image...'),
+        indicator: 'blue'
     });
 
-    if (!canvas) {
-        frappe.msgprint(__('Failed to crop image'));
-        return;
-    }
+    // Create file name
+    const employee_name = frm.doc.name || 'new';
+    const full_name = (frm.doc.employee_name || 'employee').replace(/\s+/g, '_');
+    const file_name = `${employee_name}_${full_name}.jpg`;
 
-    // Convert canvas to blob
-    canvas.toBlob(function(blob) {
-        // Create file name
-        const employee_name = frm.doc.name || 'new';
-        const full_name = (frm.doc.employee_name || 'employee').replace(/\s+/g, '_');
-        const file_name = `${employee_name}_${full_name}.jpg`;
+    // Upload to custom path
+    frappe.call({
+        method: 'customize_erpnext.api.employee.employee_utils.upload_employee_image',
+        args: {
+            employee_id: frm.doc.name,
+            employee_name: frm.doc.employee_name,
+            file_content: base64data,
+            file_name: file_name
+        },
+        callback: function (response) {
+            if (response.message) {
+                // Set the image value
+                frm.set_value('image', response.message.file_url);
 
-        // Create FormData for upload
-        const formData = new FormData();
-        formData.append('file', blob, file_name);
-        formData.append('is_private', 1);
-        formData.append('folder', 'Home');
-        formData.append('file_url', '');
-        formData.append('doctype', 'Employee');
-        formData.append('docname', frm.doc.name || '');
-        formData.append('fieldname', 'image');
+                dialog.hide();
 
-        // Set processing flag
-        frm.__image_processing = true;
-
-        // Upload file
-        frappe.call({
-            method: 'customize_erpnext.api.employee.employee_utils.upload_employee_image',
-            args: {
-                employee_id: frm.doc.name,
-                employee_name: frm.doc.employee_name,
-                file_content: canvas.toDataURL('image/jpeg', 0.9),
-                file_name: file_name
-            },
-            callback: function(r) {
-                frm.__image_processing = false;
-                frm.__showing_cropper = false;
-
-                if (r.message) {
-                    frm.set_value('image', r.message.file_url);
+                // Save the form to persist the image field
+                frm.save().then(() => {
                     frappe.show_alert({
                         message: __('Image cropped and saved successfully'),
                         indicator: 'green'
                     });
-                    dialog.hide();
-
-                    // Destroy cropper instance
-                    if (frm.__cropper) {
-                        frm.__cropper.destroy();
-                        frm.__cropper = null;
-                    }
-                } else {
-                    frappe.msgprint(__('Failed to save image'));
-                }
-            },
-            error: function() {
-                frm.__image_processing = false;
-                frm.__showing_cropper = false;
+                });
+            } else {
+                frappe.msgprint({
+                    title: __('Upload Failed'),
+                    message: __('Failed to save image'),
+                    indicator: 'red'
+                });
             }
-        });
-    }, 'image/jpeg', 0.9);
+        },
+        error: function (error) {
+            console.error('Error uploading image:', error);
+            frappe.msgprint({
+                title: __('Upload Error'),
+                message: __('Error uploading image. Please try again.'),
+                indicator: 'red'
+            });
+        }
+    });
 }

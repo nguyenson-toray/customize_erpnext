@@ -160,7 +160,7 @@ def upload_employee_image(employee_id, employee_name, file_content, file_name):
                 'file_name': final_file_name,
                 'file_url': relative_path,
                 'is_private': 1,
-                'folder': 'Home/employee_image',
+                'folder': 'Home',  # Use default Home folder
                 'attached_to_doctype': 'Employee',
                 'attached_to_name': employee_id,
                 'attached_to_field': 'image',
@@ -825,6 +825,51 @@ def search_employees_by_codes(employee_codes):
         frappe.logger().error(f"Error searching employees: {str(e)}\n{traceback.format_exc()}")
         frappe.log_error(f"Error: {str(e)}\n{traceback.format_exc()}", "Employee Search Error")
         return []
+
+
+@frappe.whitelist()
+def get_file_content_base64(file_url):
+    """
+    Get file content as base64 for cropping
+    Args:
+        file_url: File URL to read
+    Returns:
+        Base64 encoded file content
+    """
+    try:
+        site_path = get_site_path()
+        file_path = None
+
+        # Handle both private and public files
+        if file_url.startswith('/private/'):
+            file_path = os.path.join(site_path, file_url.lstrip('/'))
+        elif file_url.startswith('/files/'):
+            file_path = os.path.join(site_path, 'public', file_url.lstrip('/'))
+        else:
+            # Try as relative path from site/public
+            file_path = os.path.join(site_path, 'public', file_url.lstrip('/'))
+
+        if file_path and os.path.exists(file_path):
+            with open(file_path, 'rb') as f:
+                file_data = f.read()
+
+                # Determine image type from file extension
+                image_type = 'jpeg'
+                if file_url.lower().endswith('.png'):
+                    image_type = 'png'
+                elif file_url.lower().endswith('.gif'):
+                    image_type = 'gif'
+                elif file_url.lower().endswith('.jpg') or file_url.lower().endswith('.jpeg'):
+                    image_type = 'jpeg'
+
+                base64_data = base64.b64encode(file_data).decode('utf-8')
+                return f'data:image/{image_type};base64,{base64_data}'
+        else:
+            frappe.throw(_("File not found: {0}").format(file_url))
+
+    except Exception as e:
+        frappe.log_error(f"Error reading file: {str(e)}", "File Read Error")
+        frappe.throw(_("Failed to read file: {0}").format(str(e)))
 
 
 @frappe.whitelist()
