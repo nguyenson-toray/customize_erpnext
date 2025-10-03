@@ -264,6 +264,10 @@ doc_events = {
         "on_update_after_submit": "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.auto_recalc_on_overtime_registration_change"
     },
 
+    "Employee": {
+        "validate": "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.check_maternity_tracking_changes",
+        "on_update": "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.auto_recalc_on_maternity_tracking_change"
+    },
 
     "Shift Type": {
         "on_update": "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.on_shift_update"
@@ -282,10 +286,7 @@ doc_events = {
         # "on_update": "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.on_overtime_request_approval"
     },
 
-    "Employee": {
-        "validate": "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.check_maternity_tracking_changes",
-        "on_update": "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.auto_recalc_on_maternity_tracking_change"
-    }
+   
 }
  
 

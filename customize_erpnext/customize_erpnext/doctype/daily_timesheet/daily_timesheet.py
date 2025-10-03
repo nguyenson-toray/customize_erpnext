@@ -42,7 +42,12 @@ class DailyTimesheet(Document):
 		"""Main calculation function - tính toán tất cả các fields"""
 		if not self.employee or not self.attendance_date:
 			return
-		
+
+		# Validate attendance_date is not before employee's joining date
+		date_of_joining = frappe.db.get_value("Employee", self.employee, "date_of_joining")
+		if date_of_joining and getdate(self.attendance_date) < getdate(date_of_joining):
+			frappe.throw(f"Cannot create Daily Timesheet: Attendance date ({self.attendance_date}) is before employee's joining date ({date_of_joining})")
+
 		# Always generate additional info HTML first
 		self.generate_additional_info_html()
 		
@@ -923,10 +928,10 @@ def create_from_checkins(from_date, to_date, employee=None):
 		emp_conditions.append("emp.name = %(employee)s")
 		filters["employee"] = employee
 	
-	# Get ALL active employees
+	# Get ALL active employees with date_of_joining
 	active_employees = frappe.db.sql(f"""
-		SELECT emp.name as employee, emp.employee_name, emp.department, 
-		       emp.custom_section, emp.custom_group, emp.company
+		SELECT emp.name as employee, emp.employee_name, emp.department,
+		       emp.custom_section, emp.custom_group, emp.company, emp.date_of_joining
 		FROM `tabEmployee` emp
 		WHERE {' AND '.join(emp_conditions)}
 		ORDER BY emp.name
@@ -943,13 +948,17 @@ def create_from_checkins(from_date, to_date, employee=None):
 	while current_date <= end_date:
 		for emp_data in active_employees:
 			emp = emp_data.employee
-			
+
+			# Skip if attendance_date is before employee's joining date
+			if emp_data.date_of_joining and getdate(current_date) < getdate(emp_data.date_of_joining):
+				continue
+
 			# Check if Daily Timesheet already exists
 			existing_timesheet = frappe.db.exists("Daily Timesheet", {
 				"employee": emp,
 				"attendance_date": current_date
 			})
-			
+
 			if existing_timesheet:
 				# Update existing record
 				try:
@@ -974,7 +983,7 @@ def create_from_checkins(from_date, to_date, employee=None):
 						"custom_group": emp_data.custom_group,
 						"company": emp_data.company or frappe.defaults.get_user_default("Company")
 					})
-					
+
 					doc.calculate_all_fields()
 					doc.insert(ignore_permissions=True)
 					created_count += 1
@@ -982,7 +991,7 @@ def create_from_checkins(from_date, to_date, employee=None):
 					frappe.log_error(f"Error creating timesheet for {emp} on {current_date}: {str(e)}")
 					error_count += 1
 					continue
-		
+
 		current_date = add_days(current_date, 1)
 	
 	frappe.db.commit()
@@ -1122,10 +1131,10 @@ def create_from_checkins_hybrid(from_date, to_date, employee=None, batch_size=50
 		emp_conditions.append("emp.name = %(employee)s")
 		filters["employee"] = employee
 	
-	# Get ALL active employees
+	# Get ALL active employees with date_of_joining
 	active_employees = frappe.db.sql(f"""
-		SELECT emp.name as employee, emp.employee_name, emp.department, 
-		       emp.custom_section, emp.custom_group, emp.company
+		SELECT emp.name as employee, emp.employee_name, emp.department,
+		       emp.custom_section, emp.custom_group, emp.company, emp.date_of_joining
 		FROM `tabEmployee` emp
 		WHERE {' AND '.join(emp_conditions)}
 		ORDER BY emp.name
@@ -1162,14 +1171,18 @@ def create_from_checkins_hybrid(from_date, to_date, employee=None, batch_size=50
 			try:
 				for emp_data in emp_batch:
 					emp = emp_data.employee
-					
+
 					try:
+						# Skip if attendance_date is before employee's joining date
+						if emp_data.date_of_joining and getdate(current_date) < getdate(emp_data.date_of_joining):
+							continue
+
 						# Check if Daily Timesheet already exists
 						existing_timesheet = frappe.db.exists("Daily Timesheet", {
 							"employee": emp,
 							"attendance_date": current_date
 						})
-						
+
 						if existing_timesheet:
 							# Update existing record
 							doc = frappe.get_doc("Daily Timesheet", existing_timesheet)
@@ -1188,11 +1201,11 @@ def create_from_checkins_hybrid(from_date, to_date, employee=None, batch_size=50
 								"custom_group": emp_data.custom_group,
 								"company": emp_data.company or frappe.defaults.get_user_default("Company")
 							})
-							
+
 							doc.calculate_all_fields()
 							doc.insert(ignore_permissions=True)
 							batch_created += 1
-							
+
 					except Exception as e:
 						frappe.log_error(f"Error processing timesheet for {emp} on {current_date}: {str(e)}")
 						batch_errors += 1
@@ -1417,10 +1430,10 @@ def bulk_create_recalculate_hybrid(from_date, to_date, employee=None, batch_size
 		emp_conditions.append("emp.name = %(employee)s")
 		filters["employee"] = employee
 	
-	# Get ALL active employees
+	# Get ALL active employees with date_of_joining
 	active_employees = frappe.db.sql(f"""
-		SELECT emp.name as employee, emp.employee_name, emp.department, 
-		       emp.custom_section, emp.custom_group, emp.company
+		SELECT emp.name as employee, emp.employee_name, emp.department,
+		       emp.custom_section, emp.custom_group, emp.company, emp.date_of_joining
 		FROM `tabEmployee` emp
 		WHERE {' AND '.join(emp_conditions)}
 		ORDER BY emp.name
@@ -1457,14 +1470,18 @@ def bulk_create_recalculate_hybrid(from_date, to_date, employee=None, batch_size
 			try:
 				for emp_data in emp_batch:
 					emp = emp_data.employee
-					
+
 					try:
+						# Skip if attendance_date is before employee's joining date
+						if emp_data.date_of_joining and getdate(current_date) < getdate(emp_data.date_of_joining):
+							continue
+
 						# Check if Daily Timesheet already exists
 						existing_timesheet = frappe.db.exists("Daily Timesheet", {
 							"employee": emp,
 							"attendance_date": current_date
 						})
-						
+
 						if existing_timesheet:
 							# Update existing record - FULL RECALCULATION
 							doc = frappe.get_doc("Daily Timesheet", existing_timesheet)
@@ -1483,11 +1500,11 @@ def bulk_create_recalculate_hybrid(from_date, to_date, employee=None, batch_size
 								"custom_group": emp_data.custom_group,
 								"company": emp_data.company or frappe.defaults.get_user_default("Company")
 							})
-							
+
 							doc.calculate_all_fields()
 							doc.insert(ignore_permissions=True)
 							batch_created += 1
-							
+
 					except Exception as e:
 						frappe.log_error(f"Error processing timesheet for {emp} on {current_date}: {str(e)}")
 						batch_errors += 1
