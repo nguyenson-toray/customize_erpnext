@@ -5,6 +5,10 @@ frappe.listview_settings['Employee'] = {
     onload: function (listview) {
         console.log('Employee listview onload triggered');
         // Add individual menu items under Actions
+        // Add Employee Card menu item
+        listview.page.add_menu_item(__('Generate Employee Cards'), function () {
+            print_employee_cards(listview);
+        });
         listview.page.add_menu_item(__('Scan Fingerprint'), function () {
             show_get_fingerprint_dialog();
         });
@@ -12,6 +16,8 @@ frappe.listview_settings['Employee'] = {
         listview.page.add_menu_item(__('Sync Fingerprint From ERP To Attendance Machines'), function () {
             show_multi_employee_sync_dialog(listview);
         });
+
+
     }
 };
 
@@ -61,7 +67,7 @@ function show_get_fingerprint_dialog() {
                     fieldname: 'employee_name',
                     filters: { name: values.employee }
                 },
-                callback: function(r) {
+                callback: function (r) {
                     d.hide();
                     // Use shared FingerprintScannerDialog - same as Employee form
                     if (window.FingerprintScannerDialog && window.FingerprintScannerDialog.showForEmployee) {
@@ -148,5 +154,224 @@ function show_sync_fingerprint_from_attendance_machine_to_erp_dialog() {
         message: __('show_sync_fingerprint_from_attendance_machine_to_erp_dialog() will synchronize fingerprint data from attendance devices to ERP. Implementation will be completed in the next phase.'),
         indicator: 'blue'
     });
+}
+
+function show_employee_search_dialog() {
+    const d = new frappe.ui.Dialog({
+        title: __('Search Employees for Card Generation'),
+        fields: [
+            {
+                fieldname: 'search_info',
+                fieldtype: 'HTML',
+                options: '<p style="margin-bottom: 10px;">' + __('Enter employee codes (one per line)') + '</p>'
+            },
+            {
+                fieldname: 'employee_codes',
+                fieldtype: 'Small Text',
+                label: __('Employee Codes'),
+                reqd: 1,
+                description: __('Enter employee codes (name field), separated by new lines. Example:<br>TIQN-0001<br>TIQN-0002<br>TIQN-0003')
+            },
+            {
+                fieldname: 'with_barcode',
+                fieldtype: 'Check',
+                label: __('With Barcode'),
+                default: 0,
+                description: __('Include Code39 barcode below employee photo')
+            }
+        ],
+        primary_action_label: __('Generate Cards'),
+        primary_action: function (values) {
+            if (!values.employee_codes || !values.employee_codes.trim()) {
+                frappe.msgprint(__('Please enter at least one employee code'));
+                return;
+            }
+
+            d.hide();
+
+            // Split by new line and clean up
+            const employee_codes = values.employee_codes
+                .split('\n')
+                .map(code => code.trim())
+                .filter(code => code.length > 0);
+
+            if (employee_codes.length === 0) {
+                frappe.msgprint(__('Please enter at least one employee code'));
+                return;
+            }
+
+            if (employee_codes.length > 50) {
+                frappe.msgprint({
+                    title: __('Too Many Employees'),
+                    message: __('Please enter maximum 50 employees at a time. You entered {0} employees.', [employee_codes.length]),
+                    indicator: 'orange'
+                });
+                return;
+            }
+
+            // Show loading
+            frappe.show_alert({
+                message: __('Searching for employees...'),
+                indicator: 'blue'
+            });
+
+            // Search for employees
+            frappe.call({
+                method: 'customize_erpnext.api.employee.employee_utils.search_employees_by_codes',
+                args: {
+                    employee_codes: employee_codes
+                },
+                callback: function (r) {
+                    if (r.message && r.message.length > 0) {
+                        // Found employees, generate cards
+                        const employee_ids = r.message.map(emp => emp.name);
+
+                        frappe.show_alert({
+                            message: __('Found {0} employees. Generating cards...', [employee_ids.length]),
+                            indicator: 'blue'
+                        });
+
+                        generate_cards_for_employees(employee_ids, values.with_barcode);
+                    } else {
+                        frappe.msgprint({
+                            title: __('No Employees Found'),
+                            message: __('No employees found matching the provided codes.'),
+                            indicator: 'orange'
+                        });
+                    }
+                },
+                error: function () {
+                    frappe.msgprint({
+                        title: __('Error'),
+                        message: __('An error occurred while searching for employees.'),
+                        indicator: 'red'
+                    });
+                }
+            });
+        }
+    });
+
+    d.show();
+    d.$wrapper.find('.modal-dialog').css('max-width', '600px');
+}
+
+function generate_cards_for_employees(employee_ids, with_barcode) {
+    frappe.call({
+        method: 'customize_erpnext.api.employee.employee_utils.generate_employee_cards_pdf',
+        args: {
+            employee_ids: employee_ids,
+            with_barcode: with_barcode ? 1 : 0
+        },
+        callback: function (r) {
+            if (r.message && r.message.pdf_url) {
+                frappe.show_alert({
+                    message: __('Employee cards generated successfully'),
+                    indicator: 'green'
+                });
+
+                // Open PDF in new window
+                window.open(r.message.pdf_url, '_blank');
+            } else {
+                frappe.msgprint({
+                    title: __('Error'),
+                    message: __('Failed to generate employee cards PDF'),
+                    indicator: 'red'
+                });
+            }
+        },
+        error: function (r) {
+            frappe.msgprint({
+                title: __('Error'),
+                message: __('An error occurred while generating employee cards: {0}', [r.message || 'Unknown error']),
+                indicator: 'red'
+            });
+        }
+    });
+}
+
+function print_employee_cards(listview) {
+    // Get selected employees
+    const selected_employees = listview.get_checked_items();
+
+    if (selected_employees.length === 0) {
+        // Show dialog to search and select employees by name
+        show_employee_search_dialog();
+        return;
+    }
+
+    // Limit to 50 employees to avoid performance issues
+    if (selected_employees.length > 50) {
+        frappe.msgprint({
+            title: __('Too Many Employees'),
+            message: __('Please select maximum 50 employees at a time. You selected {0} employees.', [selected_employees.length]),
+            indicator: 'orange'
+        });
+        return;
+    }
+
+    // Show dialog with barcode option
+    const d = new frappe.ui.Dialog({
+        title: __('Generate Employee Cards'),
+        fields: [
+            {
+                fieldname: 'employee_count',
+                fieldtype: 'HTML',
+                options: `<p style="margin-bottom: 15px;">${__('Generate employee cards for {0} selected employee(s)?', [selected_employees.length])}</p>`
+            },
+            {
+                fieldname: 'with_barcode',
+                fieldtype: 'Check',
+                label: __('With Barcode'),
+                default: 0,
+                description: __('Include Code39 barcode below employee photo')
+            }
+        ],
+        primary_action_label: __('Generate'),
+        primary_action: function (values) {
+            d.hide();
+
+            // User confirmed, proceed with PDF generation
+            const employee_ids = selected_employees.map(emp => emp.name);
+
+            frappe.show_alert({
+                message: __('Generating employee cards...'),
+                indicator: 'blue'
+            });
+
+            frappe.call({
+                method: 'customize_erpnext.api.employee.employee_utils.generate_employee_cards_pdf',
+                args: {
+                    employee_ids: employee_ids,
+                    with_barcode: values.with_barcode ? 1 : 0
+                },
+                callback: function (r) {
+                    if (r.message && r.message.pdf_url) {
+                        frappe.show_alert({
+                            message: __('Employee cards generated successfully'),
+                            indicator: 'green'
+                        });
+
+                        // Open PDF in new window
+                        window.open(r.message.pdf_url, '_blank');
+                    } else {
+                        frappe.msgprint({
+                            title: __('Error'),
+                            message: __('Failed to generate employee cards PDF'),
+                            indicator: 'red'
+                        });
+                    }
+                },
+                error: function (r) {
+                    frappe.msgprint({
+                        title: __('Error'),
+                        message: __('An error occurred while generating employee cards: {0}', [r.message || 'Unknown error']),
+                        indicator: 'red'
+                    });
+                }
+            });
+        }
+    });
+
+    d.show();
 }
 

@@ -58,6 +58,21 @@ frappe.ui.form.on('Employee', {
             }, __('Actions'));
         }
 
+        // Setup image field with cropper
+        setup_employee_image_cropper(frm);
+    },
+
+    onload: function(frm) {
+        // Setup image field with cropper on load
+        setup_employee_image_cropper(frm);
+    },
+
+    image: function(frm) {
+        // When image is uploaded, trigger cropper
+        if (frm.doc.image && !frm.__image_processing) {
+            show_image_cropper(frm);
+        }
+
         if (frm.is_new()) {
             // Auto-populate employee code and attendance device ID for new employees
             if (!frm.doc.employee || !frm.doc.employee.startsWith('TIQN-')) {
@@ -410,4 +425,192 @@ function toProperCase(str) {
     });
 
     return result;
+}
+
+// Image cropper functions
+function setup_employee_image_cropper(frm) {
+    if (!frm.fields_dict.image) return;
+
+    // Add custom styling to image field
+    const image_wrapper = frm.fields_dict.image.$wrapper;
+    if (image_wrapper && !image_wrapper.find('.crop-image-btn').length) {
+        // Add a button to manually trigger crop if needed
+        const $btn = $('<button class="btn btn-xs btn-default crop-image-btn" style="margin-top: 5px;">')
+            .text(__('Crop Image (3:4)'))
+            .on('click', function() {
+                if (frm.doc.image) {
+                    show_image_cropper(frm);
+                } else {
+                    frappe.msgprint(__('Please upload an image first'));
+                }
+            });
+        image_wrapper.append($btn);
+    }
+}
+
+function show_image_cropper(frm) {
+    if (!frm.doc.image) return;
+
+    // Prevent recursive calls
+    if (frm.__showing_cropper) return;
+    frm.__showing_cropper = true;
+
+    // Create dialog with image cropper
+    const d = new frappe.ui.Dialog({
+        title: __('Crop Employee Image (3:4 Ratio)'),
+        fields: [
+            {
+                fieldtype: 'HTML',
+                fieldname: 'cropper_container'
+            }
+        ],
+        primary_action_label: __('Crop & Save'),
+        primary_action: function() {
+            crop_and_save_image(frm, d);
+        },
+        secondary_action_label: __('Cancel'),
+        secondary_action: function() {
+            frm.__showing_cropper = false;
+            d.hide();
+        }
+    });
+
+    d.show();
+    d.$wrapper.find('.modal-dialog').css('max-width', '800px');
+
+    // Get full image URL
+    let image_url = frm.doc.image;
+    if (!image_url.startsWith('http')) {
+        image_url = window.location.origin + frm.doc.image;
+    }
+
+    // Create image element for cropper
+    const container = d.fields_dict.cropper_container.$wrapper;
+    container.html(`
+        <div style="max-height: 500px; overflow: hidden;">
+            <img id="employee-image-cropper" src="${image_url}" style="max-width: 100%;">
+        </div>
+        <div style="margin-top: 10px; color: #888;">
+            <small>${__('Adjust the crop area to 3:4 ratio (portrait). The cropped image will be saved automatically.')}</small>
+        </div>
+    `);
+
+    // Initialize Cropper.js (using Frappe's built-in cropper if available)
+    setTimeout(() => {
+        const image = document.getElementById('employee-image-cropper');
+
+        // Use frappe's ImageCropper if available, otherwise use basic crop
+        if (window.Cropper) {
+            frm.__cropper = new Cropper(image, {
+                aspectRatio: 3 / 4,
+                viewMode: 1,
+                autoCropArea: 1,
+                responsive: true,
+                background: false,
+                guides: true,
+                center: true,
+                highlight: true,
+                cropBoxMovable: true,
+                cropBoxResizable: true,
+                toggleDragModeOnDblclick: false
+            });
+        } else {
+            // Fallback: load cropper.js from CDN
+            frappe.require([
+                'https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.min.css',
+                'https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.min.js'
+            ], () => {
+                frm.__cropper = new Cropper(image, {
+                    aspectRatio: 3 / 4,
+                    viewMode: 1,
+                    autoCropArea: 1,
+                    responsive: true,
+                    background: false,
+                    guides: true,
+                    center: true,
+                    highlight: true,
+                    cropBoxMovable: true,
+                    cropBoxResizable: true,
+                    toggleDragModeOnDblclick: false
+                });
+            });
+        }
+    }, 100);
+}
+
+function crop_and_save_image(frm, dialog) {
+    if (!frm.__cropper) {
+        frappe.msgprint(__('Cropper not initialized'));
+        return;
+    }
+
+    // Get cropped canvas with 3:4 ratio (width:height = 3:4, portrait/vertical)
+    const canvas = frm.__cropper.getCroppedCanvas({
+        width: 600,   // width (3 parts)
+        height: 800,  // height (4 parts) - portrait orientation
+        imageSmoothingEnabled: true,
+        imageSmoothingQuality: 'high'
+    });
+
+    if (!canvas) {
+        frappe.msgprint(__('Failed to crop image'));
+        return;
+    }
+
+    // Convert canvas to blob
+    canvas.toBlob(function(blob) {
+        // Create file name
+        const employee_name = frm.doc.name || 'new';
+        const full_name = (frm.doc.employee_name || 'employee').replace(/\s+/g, '_');
+        const file_name = `${employee_name}_${full_name}.jpg`;
+
+        // Create FormData for upload
+        const formData = new FormData();
+        formData.append('file', blob, file_name);
+        formData.append('is_private', 1);
+        formData.append('folder', 'Home');
+        formData.append('file_url', '');
+        formData.append('doctype', 'Employee');
+        formData.append('docname', frm.doc.name || '');
+        formData.append('fieldname', 'image');
+
+        // Set processing flag
+        frm.__image_processing = true;
+
+        // Upload file
+        frappe.call({
+            method: 'customize_erpnext.api.employee.employee_utils.upload_employee_image',
+            args: {
+                employee_id: frm.doc.name,
+                employee_name: frm.doc.employee_name,
+                file_content: canvas.toDataURL('image/jpeg', 0.9),
+                file_name: file_name
+            },
+            callback: function(r) {
+                frm.__image_processing = false;
+                frm.__showing_cropper = false;
+
+                if (r.message) {
+                    frm.set_value('image', r.message.file_url);
+                    frappe.show_alert({
+                        message: __('Image cropped and saved successfully'),
+                        indicator: 'green'
+                    });
+                    dialog.hide();
+
+                    // Destroy cropper instance
+                    if (frm.__cropper) {
+                        frm.__cropper.destroy();
+                        frm.__cropper = null;
+                    }
+                } else {
+                    frappe.msgprint(__('Failed to save image'));
+                }
+            },
+            error: function() {
+                frm.__image_processing = false;
+                frm.__showing_cropper = false;
+            }
+        });
+    }, 'image/jpeg', 0.9);
 }
