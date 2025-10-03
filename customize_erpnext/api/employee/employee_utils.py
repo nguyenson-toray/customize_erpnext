@@ -183,11 +183,11 @@ def upload_employee_image(employee_id, employee_name, file_content, file_name):
 
 
 @frappe.whitelist()
-def generate_employee_cards_pdf(employee_ids, with_barcode=0):
+def generate_employee_cards_pdf(employee_ids, with_barcode=0, page_size='A4'):
     """
     Generate PDF containing employee cards with layout:
-    - A4 portrait size, centered
-    - 2 columns, 5 rows (10 cards per page)
+    - A4 portrait: 2 columns, 5 rows (10 cards per page)
+    - A5 landscape: 2 columns, 2 rows (4 cards per page)
     - Card size: 86mm x 54mm
     - Left column (30mm): company logo (30mm) + employee photo (30mm x 40mm) + optional barcode
     - Right column: Full name (uppercase, bold, 20pt), employee code (bold, 18pt), custom_section (bold, 18pt)
@@ -204,7 +204,11 @@ def generate_employee_cards_pdf(employee_ids, with_barcode=0):
         # Convert with_barcode to boolean
         with_barcode = int(with_barcode) == 1
 
-        frappe.logger().info(f"Generating employee cards for {len(employee_ids)} employees")
+        # Validate page_size
+        if page_size not in ['A4', 'A5']:
+            page_size = 'A4'
+
+        frappe.logger().info(f"Generating employee cards for {len(employee_ids)} employees (page_size={page_size})")
 
         # Get employee data
         employees = []
@@ -226,8 +230,8 @@ def generate_employee_cards_pdf(employee_ids, with_barcode=0):
             frappe.throw(_("No valid employees found"))
 
         # Generate HTML for cards
-        frappe.logger().info(f"Generating HTML for employee cards (with_barcode={with_barcode})")
-        html = generate_employee_cards_html(employees, with_barcode=with_barcode)
+        frappe.logger().info(f"Generating HTML for employee cards (with_barcode={with_barcode}, page_size={page_size})")
+        html = generate_employee_cards_html(employees, with_barcode=with_barcode, page_size=page_size)
 
         # Debug: Save HTML to file for inspection
         # html_path = f'/tmp/employee_cards_{datetime.datetime.now().strftime("%Y%m%d_%H%M%S")}.html'
@@ -238,9 +242,10 @@ def generate_employee_cards_pdf(employee_ids, with_barcode=0):
         # Convert HTML to PDF with better error handling
         frappe.logger().info("Converting HTML to PDF")
         try:
-            pdf_data = get_pdf(html, {
-                'page-size': 'A4',
-                'orientation': 'Portrait',
+            # Set PDF options based on page size
+            pdf_options = {
+                'page-size': page_size,
+                'orientation': 'Landscape' if page_size == 'A5' else 'Portrait',
                 'margin-top': '10mm',
                 'margin-bottom': '10mm',
                 'margin-left': '12mm',
@@ -248,7 +253,8 @@ def generate_employee_cards_pdf(employee_ids, with_barcode=0):
                 'encoding': 'UTF-8',
                 'no-outline': None,
                 'enable-local-file-access': None  # Allow loading local images
-            })
+            }
+            pdf_data = get_pdf(html, pdf_options)
         except Exception as pdf_err:
             error_msg = str(pdf_err)
             frappe.logger().error(f"PDF generation error: {error_msg}")
@@ -302,47 +308,55 @@ def generate_employee_cards_pdf(employee_ids, with_barcode=0):
         frappe.throw(_("Failed to generate employee cards PDF: {0}").format(str(e)))
 
 
-def generate_employee_cards_html(employees, with_barcode=False):
+def generate_employee_cards_html(employees, with_barcode=False, page_size='A4'):
     """
     Generate HTML for employee cards with proper layout
+    - A4: portrait, 2x5 layout
+    - A5: landscape, 2x2 layout
     """
     # Get company logo
     company_logo = get_company_logo()
+
+    # Determine page orientation and size
+    page_orientation = 'landscape' if page_size == 'A5' else 'portrait'
 
     # CSS for card layout
     # Card size: 86mm x 54mm
     # Left column: 30mm (logo 30mm width + photo 30mm x 40mm)
     # Right column: remaining space (~54mm)
-    css = """
+    # A4: margin-bottom 0.5mm for 5 rows, A5: margin-bottom 1mm for 2 rows
+    card_row_margin = '1mm' if page_size == 'A5' else '0.5mm'
+
+    css = f"""
     <style>
-        @page {
-            size: A4 portrait;
+        @page {{
+            size: {page_size} {page_orientation};
             margin: 4mm 4mm;
-        }
+        }}
 
-        * {
+        * {{
             box-sizing: border-box;
-        }
+        }}
 
-        body {
+        body {{
             font-family: Arial, sans-serif;
             margin: 0;
             padding: 0;
-        }
+        }}
 
-        .cards-container {
+        .cards-container {{
             width: 173mm;
             margin-left: auto;
             margin-right: auto;
-        }
+        }}
 
-        .card-row {
+        .card-row {{
             width: 100%;
-            margin-bottom: 0.5mm;
+            margin-bottom: {card_row_margin};
             clear: both;
-        }
+        }}
 
-        .card {
+        .card {{
             width: 86mm;
             height: 53mm;
             border: 1px solid #333;
@@ -353,59 +367,59 @@ def generate_employee_cards_html(employees, with_barcode=False):
             background: white;
             position: relative;
             overflow: hidden;
-        }
+        }}
 
-        .card:nth-child(2n) {
+        .card:nth-child(2n) {{
             margin-right: 0;
-        }
+        }}
 
-        .card-inner {
+        .card-inner {{
             width: 100%;
             height: 100%;
             position: relative;
-        }
+        }}
 
-        .card-left {
+        .card-left {{
             width: 30mm;
             float: left;
             margin-right: 1mm;
-        }
+        }}
 
-        .company-logo {
+        .company-logo {{
             width: 30mm;
             height: auto;
             object-fit: contain;
             margin-bottom: 1mm;
             display: block;
-        }
+        }}
 
-        .employee-photo {
+        .employee-photo {{
             width: 30mm;
             height: 40mm;
             object-fit: cover;
             border: 1px solid #999;
             display: block;
             background: #f5f5f5;
-        }
+        }}
 
-        .card-right {
+        .card-right {{
             margin-left: 32mm;
             padding-top: 8mm;
             padding-left: 2mm;
             padding-right: 2mm;
             padding-bottom: 2mm;
             text-align: center;
-        }
+        }}
 
-        .employee-barcode {
+        .employee-barcode {{
             width: 30mm;
             height: auto;
             max-height: 5mm;
             margin-top: 0mm;
             display: block;
-        }
+        }}
 
-        .employee-name {
+        .employee-name {{
             font-size: 20pt !important;
             font-weight: bold;
             text-transform: uppercase;
@@ -414,37 +428,37 @@ def generate_employee_cards_html(employees, with_barcode=False):
             word-wrap: break-word;
             color: #000;
             text-align: center;
-        }
+        }}
 
-        .employee-code {
+        .employee-code {{
             font-size: 18pt !important;
             font-weight: bold;
             margin: 0 0 3mm 0;
             line-height: 1.0;
             color: #000;
             text-align: center;
-        }
+        }}
 
-        .employee-section {
+        .employee-section {{
             font-size: 18pt !important;
             font-weight: bold;
             margin: 0;
             line-height: 1.0;
             color: #000;
             text-align: center;
-        }
+        }}
 
-        .page-break {
+        .page-break {{
             page-break-after: always;
             clear: both;
-        }
+        }}
 
-        .clearfix {
+        .clearfix {{
             clear: both;
-        }
+        }}
 
         /* Back side styles */
-        .card-back {
+        .card-back {{
             width: 86mm;
             height: 53mm;
             border: none;
@@ -455,48 +469,54 @@ def generate_employee_cards_html(employees, with_barcode=False):
             background: white;
             position: relative;
             overflow: hidden;
-        }
+        }}
 
-        .card-back:nth-child(2n) {
+        .card-back:nth-child(2n) {{
             margin-right: 0;
-        }
+        }}
 
-        .card-back-title {
+        .card-back-title {{
             font-size: 14pt;
             font-weight: bold;
             text-align: center;
             margin-bottom: 3mm;
             color: #000;
-        }
+        }}
 
-        .card-back-content {
+        .card-back-content {{
             font-size: 9pt;
             line-height: 1.4;
             text-align: left;
             color: #000;
-        }
+            clear: both;
+        }}
 
-        .card-back-content ol {
+        .card-back-content ol {{
             margin: 0;
             padding-left: 5mm;
-        }
+        }}
 
-        .card-back-content li {
+        .card-back-content li {{
             margin-bottom: 1.5mm;
-        }
+        }}
     </style>
     """
 
     # Generate HTML for cards
     html_parts = [css, '<body><div class="cards-container">']
 
-    # Process employees in batches of 10 (2 columns x 5 rows)
-    cards_per_page = 10
+    # Determine cards per page based on page size
+    # A4: 2 columns x 5 rows = 10 cards
+    # A5: 2 columns x 2 rows = 4 cards
+    cards_per_page = 4 if page_size == 'A5' else 10
+    rows_per_page = 2 if page_size == 'A5' else 5
+    total_cards_on_page = cards_per_page  # 2 cards per row
+
     for page_idx in range(0, len(employees), cards_per_page):
         page_employees = employees[page_idx:page_idx + cards_per_page]
 
-        # FRONT SIDE: Create rows (5 rows per page, 2 cards per row)
-        for row_idx in range(0, 10, 2):  # Always create 5 rows
+        # FRONT SIDE: Create rows
+        for row_idx in range(0, total_cards_on_page, 2):  # 2 cards per row
             html_parts.append('<div class="card-row">')
 
             # Add 2 cards per row
@@ -517,14 +537,15 @@ def generate_employee_cards_html(employees, with_barcode=False):
         html_parts.append('<div class="page-break"></div>')
 
         # BACK SIDE: Rules (mirror layout for duplex printing)
-        for row_idx in range(0, 10, 2):  # 5 rows
+        for row_idx in range(0, total_cards_on_page, 2):
             html_parts.append('<div class="card-row">')
 
-            # Add 2 card backs per row
+            # Add 2 card backs per row - always show barcode on back
             for col_idx in range(2):
                 emp_idx = row_idx + col_idx
                 if emp_idx < len(page_employees):
-                    card_back_html = generate_card_back_html()
+                    emp = page_employees[emp_idx]
+                    card_back_html = generate_card_back_html(emp)
                     html_parts.append(card_back_html)
                 else:
                     # Empty card to maintain layout
@@ -578,7 +599,7 @@ def generate_single_card_html(employee, company_logo, with_barcode=False):
     return card
 
 
-def generate_card_back_html():
+def generate_card_back_html(employee):
     """Generate HTML for card back side with rules"""
     rules_html = '''
     <div class="card-back">

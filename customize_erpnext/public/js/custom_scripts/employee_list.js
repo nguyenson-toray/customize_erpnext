@@ -173,6 +173,14 @@ function show_employee_search_dialog() {
                 description: __('Enter employee codes (name field), separated by new lines. Example:<br>TIQN-0001<br>TIQN-0002<br>TIQN-0003')
             },
             {
+                fieldname: 'page_size',
+                fieldtype: 'Select',
+                label: __('Page Size'),
+                options: ['A4', 'A5'],
+                default: 'A4',
+                description: __('Select page size for the cards')
+            },
+            {
                 fieldname: 'with_barcode',
                 fieldtype: 'Check',
                 label: __('With Barcode'),
@@ -231,7 +239,7 @@ function show_employee_search_dialog() {
                             indicator: 'blue'
                         });
 
-                        generate_cards_for_employees(employee_ids, values.with_barcode);
+                        generate_cards_for_employees(employee_ids, values.with_barcode, values.page_size || 'A4');
                     } else {
                         frappe.msgprint({
                             title: __('No Employees Found'),
@@ -253,14 +261,18 @@ function show_employee_search_dialog() {
 
     d.show();
     d.$wrapper.find('.modal-dialog').css('max-width', '600px');
+
+    // Force reset to A4 default each time dialog opens
+    d.set_value('page_size', 'A4');
 }
 
-function generate_cards_for_employees(employee_ids, with_barcode) {
+function generate_cards_for_employees(employee_ids, with_barcode, page_size) {
     frappe.call({
         method: 'customize_erpnext.api.employee.employee_utils.generate_employee_cards_pdf',
         args: {
             employee_ids: employee_ids,
-            with_barcode: with_barcode ? 1 : 0
+            with_barcode: with_barcode ? 1 : 0,
+            page_size: page_size || 'A4'
         },
         callback: function (r) {
             if (r.message && r.message.pdf_url) {
@@ -309,7 +321,7 @@ function print_employee_cards(listview) {
         return;
     }
 
-    // Show dialog with barcode option
+    // Show dialog with page size and barcode option
     const d = new frappe.ui.Dialog({
         title: __('Generate Employee Cards'),
         fields: [
@@ -317,6 +329,14 @@ function print_employee_cards(listview) {
                 fieldname: 'employee_count',
                 fieldtype: 'HTML',
                 options: `<p style="margin-bottom: 15px;">${__('Generate employee cards for {0} selected employee(s)?', [selected_employees.length])}</p>`
+            },
+            {
+                fieldname: 'page_size',
+                fieldtype: 'Select',
+                label: __('Page Size'),
+                options: ['A4', 'A5'],
+                default: 'A4',
+                description: __('Select page size for the cards')
             },
             {
                 fieldname: 'with_barcode',
@@ -342,7 +362,8 @@ function print_employee_cards(listview) {
                 method: 'customize_erpnext.api.employee.employee_utils.generate_employee_cards_pdf',
                 args: {
                     employee_ids: employee_ids,
-                    with_barcode: values.with_barcode ? 1 : 0
+                    with_barcode: values.with_barcode ? 1 : 0,
+                    page_size: values.page_size || 'A4'
                 },
                 callback: function (r) {
                     if (r.message && r.message.pdf_url) {
@@ -373,5 +394,8 @@ function print_employee_cards(listview) {
     });
 
     d.show();
+
+    // Force reset to A4 default each time dialog opens
+    d.set_value('page_size', 'A4');
 }
 
