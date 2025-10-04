@@ -894,6 +894,171 @@ def get_file_content_base64(file_url):
 
 
 @frappe.whitelist()
+def update_employee_photo(employee_id, employee_name, new_file_url, old_file_url=None):
+    """
+    Update employee photo - rename file to '{name} {full_name}' format and delete old file
+    Args:
+        employee_id: Employee ID (name field)
+        employee_name: Employee full name
+        new_file_url: URL of newly uploaded file
+        old_file_url: URL of old file to delete (optional)
+    Returns:
+        Success status and new file name
+    """
+    try:
+        # Log input for debugging
+        frappe.logger().info(f"update_employee_photo called: employee_id={employee_id}, new_file_url={new_file_url}, old_file_url={old_file_url}")
+
+        # IMPORTANT: Don't delete old file yet, because new_file_url might reference the same File document
+        # if the filename happens to be the same. We'll delete it later after we've renamed the new file.
+
+        # Get site path
+        site_path = get_site_path()
+
+        # First, find the uploaded file's actual path from File document
+        # The new_file_url might be the file_name returned from upload, not the actual URL
+        uploaded_file_doc = None
+
+        # Try to find by file_url first
+        uploaded_file_doc = frappe.db.get_value('File', {'file_url': new_file_url}, ['name', 'file_url', 'file_name'], as_dict=True)
+
+        # If not found, try to find by file_name (in case new_file_url is actually the file name)
+        if not uploaded_file_doc:
+            uploaded_file_doc = frappe.db.get_value('File', {'file_name': new_file_url}, ['name', 'file_url', 'file_name'], as_dict=True)
+
+        # Also try searching for recently created files
+        if not uploaded_file_doc:
+            # Get most recent file uploaded (within last 5 minutes)
+            from frappe.utils import now_datetime, add_to_date
+            recent_time = add_to_date(now_datetime(), minutes=-5)
+            recent_files = frappe.get_all('File',
+                filters={
+                    'creation': ['>=', recent_time],
+                },
+                fields=['name', 'file_url', 'file_name'],
+                order_by='creation desc',
+                limit=20
+            )
+
+            # Try to match by filename
+            for f in recent_files:
+                if new_file_url in f.get('file_url', '') or new_file_url in f.get('file_name', ''):
+                    uploaded_file_doc = f
+                    break
+
+        if not uploaded_file_doc:
+            frappe.logger().error(f"File document not found for URL/name: {new_file_url}")
+            return {
+                'success': False,
+                'error': f'File document not found in database: {new_file_url}'
+            }
+
+        actual_file_url = uploaded_file_doc.get('file_url')
+
+        # Determine uploaded file's physical path
+        uploaded_file_path = None
+        if actual_file_url.startswith('/private/'):
+            uploaded_file_path = os.path.join(site_path, actual_file_url.lstrip('/'))
+        elif actual_file_url.startswith('/files/'):
+            uploaded_file_path = os.path.join(site_path, 'public', actual_file_url.lstrip('/'))
+        else:
+            # Handle relative paths
+            uploaded_file_path = os.path.join(site_path, 'public', 'files', actual_file_url.lstrip('/'))
+
+        if not uploaded_file_path or not os.path.exists(uploaded_file_path):
+            frappe.logger().error(f"Uploaded file not found on disk: {actual_file_url}, tried: {uploaded_file_path}")
+            return {
+                'success': False,
+                'error': f'Uploaded file not found on disk'
+            }
+
+        # Get file extension from uploaded file
+        file_ext = os.path.splitext(uploaded_file_path)[1] or '.jpg'
+
+        # Create new file name: "{employee_id} {employee_name}.ext"
+        new_file_name = f"{employee_id} {employee_name}{file_ext}"
+
+        # Create new file path in employee_photos directory
+        # Determine base directory (public or private)
+        if '/private/' in uploaded_file_path:
+            target_dir = os.path.join(site_path, 'private', 'files', 'employee_photos')
+        else:
+            target_dir = os.path.join(site_path, 'public', 'files', 'employee_photos')
+
+        # Create directory if it doesn't exist
+        if not os.path.exists(target_dir):
+            os.makedirs(target_dir, exist_ok=True)
+
+        new_file_path = os.path.join(target_dir, new_file_name)
+
+        # Rename file on disk
+        if uploaded_file_path != new_file_path:
+            # If file with new name exists, delete it first (in case of re-upload)
+            if os.path.exists(new_file_path):
+                os.remove(new_file_path)
+                frappe.logger().info(f"Deleted existing file: {new_file_path}")
+
+            os.rename(uploaded_file_path, new_file_path)
+            frappe.logger().info(f"Renamed file from {uploaded_file_path} to {new_file_path}")
+
+        # Determine new file URL based on directory
+        if '/private/' in uploaded_file_path:
+            new_file_url_updated = f"/private/files/employee_photos/{os.path.basename(new_file_path)}"
+        else:
+            new_file_url_updated = f"/files/employee_photos/{os.path.basename(new_file_path)}"
+
+        # Update File document
+        file_doc = frappe.get_doc('File', uploaded_file_doc['name'])
+        file_doc.file_name = new_file_name
+        file_doc.file_url = new_file_url_updated
+        file_doc.attached_to_doctype = 'Employee'
+        file_doc.attached_to_name = employee_id
+        file_doc.attached_to_field = 'image'
+        file_doc.save(ignore_permissions=True)
+
+        # Update Employee image field
+        frappe.db.set_value('Employee', employee_id, 'image', new_file_url_updated)
+
+        # NOW delete old file if exists and it's different from the new one
+        if old_file_url and old_file_url != new_file_url_updated:
+            try:
+                # Delete physical file first
+                old_physical_path = None
+                if old_file_url.startswith('/private/'):
+                    old_physical_path = os.path.join(site_path, old_file_url.lstrip('/'))
+                elif old_file_url.startswith('/files/'):
+                    old_physical_path = os.path.join(site_path, 'public', old_file_url.lstrip('/'))
+
+                if old_physical_path and os.path.exists(old_physical_path):
+                    os.remove(old_physical_path)
+                    frappe.logger().info(f"Deleted old physical file: {old_physical_path}")
+
+                # Then delete File document
+                old_file_doc = frappe.db.get_value('File', {'file_url': old_file_url}, 'name')
+                if old_file_doc and old_file_doc != uploaded_file_doc.get('name'):
+                    frappe.delete_doc('File', old_file_doc, ignore_permissions=True, force=True)
+                    frappe.logger().info(f"Deleted old file document: {old_file_url}")
+            except Exception as e:
+                frappe.logger().warning(f"Could not delete old file {old_file_url}: {str(e)}")
+
+        frappe.db.commit()
+
+        return {
+            'success': True,
+            'new_file_name': new_file_name,
+            'new_file_url': new_file_url_updated
+        }
+
+    except Exception as e:
+        frappe.logger().error(f"Error updating employee photo: {str(e)}")
+        frappe.log_error(f"Error: {str(e)}", "Update Employee Photo Error")
+        return {
+            'success': False,
+            'error': str(e)
+        }
+
+
+@frappe.whitelist()
 def debug_company_logo():
     """Debug method to check company logo"""
     result = []

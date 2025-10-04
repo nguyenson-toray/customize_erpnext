@@ -487,7 +487,7 @@ function show_update_employee_photo_dialog(listview) {
                 const formData = new FormData();
                 formData.append('file', file);
                 formData.append('is_private', 0);
-                formData.append('folder', 'Home/Attachments');
+                formData.append('folder', 'Home');
 
                 fetch('/api/method/upload_file', {
                     method: 'POST',
@@ -496,35 +496,35 @@ function show_update_employee_photo_dialog(listview) {
                     },
                     body: formData
                 })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.message) {
-                            uploaded_files.push({
-                                file_url: data.message.file_url,
-                                file_name: data.message.file_name
-                            });
-                            upload_success++;
-                        }
-                        upload_count++;
+                .then(response => response.json())
+                .then(data => {
+                    if (data.message) {
+                        uploaded_files.push({
+                            file_url: data.message.file_url,
+                            file_name: data.message.file_name
+                        });
+                        upload_success++;
+                    }
+                    upload_count++;
 
-                        if (upload_count === files.length) {
-                            is_uploading = false;
-                            status_div.html(
-                                '<p style="margin: 0; color: #28a745;">✓ Uploaded ' + upload_success + ' file(s) successfully. Click "Process Photos" to continue.</p>'
-                            );
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Upload error:', error);
-                        upload_count++;
+                    if (upload_count === files.length) {
+                        is_uploading = false;
+                        status_div.html(
+                            '<p style="margin: 0; color: #28a745;">✓ Uploaded ' + upload_success + ' file(s) successfully. Click "Process Photos" to continue.</p>'
+                        );
+                    }
+                })
+                .catch(error => {
+                    console.error('Upload error:', error);
+                    upload_count++;
 
-                        if (upload_count === files.length) {
-                            is_uploading = false;
-                            status_div.html(
-                                '<p style="margin: 0; color: ' + (upload_success > 0 ? '#28a745' : '#dc3545') + ';">✓ Uploaded ' + upload_success + ' of ' + files.length + ' file(s). Click "Process Photos" to continue.</p>'
-                            );
-                        }
-                    });
+                    if (upload_count === files.length) {
+                        is_uploading = false;
+                        status_div.html(
+                            '<p style="margin: 0; color: ' + (upload_success > 0 ? '#28a745' : '#dc3545') + ';">✓ Uploaded ' + upload_success + ' of ' + files.length + ' file(s). Click "Process Photos" to continue.</p>'
+                        );
+                    }
+                });
             });
         });
     }, 300);
@@ -577,7 +577,7 @@ function show_update_employee_photo_dialog(listview) {
                     filters: [
                         ['name', 'like', employeeCode + '%']
                     ],
-                    fields: ['name', 'employee_name'],
+                    fields: ['name', 'employee_name', 'image'],
                     limit: 1
                 },
                 callback: function (r) {
@@ -585,30 +585,40 @@ function show_update_employee_photo_dialog(listview) {
 
                     if (r.message && r.message.length > 0) {
                         const employee = r.message[0];
+                        const old_image = employee.image;
 
-                        // Update employee image
+                        // Rename and update employee image
                         frappe.call({
-                            method: 'frappe.client.set_value',
+                            method: 'customize_erpnext.api.employee.employee_utils.update_employee_photo',
                             args: {
-                                doctype: 'Employee',
-                                name: employee.name,
-                                fieldname: 'image',
-                                value: file.file_url
+                                employee_id: employee.name,
+                                employee_name: employee.employee_name,
+                                new_file_url: file.file_url,
+                                old_file_url: old_image
                             },
                             callback: function (update_r) {
-                                if (!update_r.exc) {
+                                if (!update_r.exc && update_r.message && update_r.message.success) {
                                     results.success.push({
                                         employee: employee.name,
                                         employee_name: employee.employee_name,
-                                        file: fileName
+                                        file: fileName,
+                                        new_file: update_r.message.new_file_name
                                     });
                                 } else {
                                     results.errors.push({
                                         file: fileName,
-                                        error: 'Update failed'
+                                        error: update_r.message?.error || 'Update failed'
                                     });
                                 }
 
+                                update_completed++;
+                                show_results_if_complete();
+                            },
+                            error: function (err) {
+                                results.errors.push({
+                                    file: fileName,
+                                    error: 'Server error'
+                                });
                                 update_completed++;
                                 show_results_if_complete();
                             }
