@@ -6,6 +6,9 @@ frappe.listview_settings['Employee'] = {
         console.log('Employee listview onload triggered');
         // Add individual menu items under Actions
         // Add Employee Card menu item
+        listview.page.add_menu_item(__('Update Employee Photo'), function () {
+            show_update_employee_photo_dialog(listview);
+        });
         listview.page.add_menu_item(__('Generate Employee Cards'), function () {
             print_employee_cards(listview);
         });
@@ -16,6 +19,7 @@ frappe.listview_settings['Employee'] = {
         listview.page.add_menu_item(__('Sync Fingerprint From ERP To Attendance Machines'), function () {
             show_multi_employee_sync_dialog(listview);
         });
+
 
 
     }
@@ -397,5 +401,275 @@ function print_employee_cards(listview) {
 
     // Force reset to A4 default each time dialog opens
     d.set_value('page_size', 'A4');
+}
+
+function show_update_employee_photo_dialog(listview) {
+    // Handle multiple file uploads
+    let uploaded_files = [];
+    let is_uploading = false;
+
+    let d = new frappe.ui.Dialog({
+        title: __('Update Employee Photo'),
+        fields: [
+            {
+                fieldname: 'photo_section',
+                fieldtype: 'Section Break',
+                label: __('Select Photos')
+            },
+            {
+                fieldname: 'file_upload',
+                fieldtype: 'HTML',
+                options: `
+                    <div class="form-group">
+                        <label class="control-label" style="padding-right: 0px;">
+                            ${__('Employee Photos')}
+                        </label>
+                        <input type="file" id="employee-photo-input" multiple accept="image/*"
+                               class="form-control" style="height: auto; padding: 6px 12px;">
+                        <p class="help-box small text-muted">
+                            ${__('Select multiple photos. File names should match employee name (first 9 characters, case insensitive). Example: TIQN-0003-Nguyen Van A.jpg')}
+                        </p>
+                    </div>
+                `
+            },
+            {
+                fieldname: 'upload_status',
+                fieldtype: 'HTML',
+                options: '<div id="upload-status" style="padding: 10px; background: #f0f4f7; border-radius: 5px; margin-top: 10px;">' +
+                    '<p style="margin: 0; color: #555;">' +
+                    '<strong>Note:</strong> The system will match the first 9 characters of the file name with employee name (case insensitive).' +
+                    '</p></div>'
+            }
+        ],
+        primary_action_label: __('Process Photos'),
+        primary_action(values) {
+            if (is_uploading) {
+                frappe.msgprint({
+                    title: __('Please Wait'),
+                    message: __('Files are still uploading. Please wait...'),
+                    indicator: 'orange'
+                });
+                return;
+            }
+
+            if (uploaded_files.length === 0) {
+                frappe.msgprint({
+                    title: __('No Files'),
+                    message: __('Please select at least one photo file'),
+                    indicator: 'orange'
+                });
+                return;
+            }
+
+            d.hide();
+            process_employee_photos();
+        }
+    });
+
+    d.show();
+
+    // Handle file input change
+    setTimeout(() => {
+        d.$wrapper.find('#employee-photo-input').on('change', function (e) {
+            const files = e.target.files;
+            if (files.length === 0) return;
+
+            is_uploading = true;
+            uploaded_files = [];
+
+            const status_div = d.$wrapper.find('#upload-status');
+            status_div.html('<p style="margin: 0; color: #007bff;">📤 Uploading ' + files.length + ' file(s)...</p>');
+
+            let upload_count = 0;
+            let upload_success = 0;
+
+            Array.from(files).forEach((file) => {
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('is_private', 0);
+                formData.append('folder', 'Home/Attachments');
+
+                fetch('/api/method/upload_file', {
+                    method: 'POST',
+                    headers: {
+                        'X-Frappe-CSRF-Token': frappe.csrf_token
+                    },
+                    body: formData
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.message) {
+                            uploaded_files.push({
+                                file_url: data.message.file_url,
+                                file_name: data.message.file_name
+                            });
+                            upload_success++;
+                        }
+                        upload_count++;
+
+                        if (upload_count === files.length) {
+                            is_uploading = false;
+                            status_div.html(
+                                '<p style="margin: 0; color: #28a745;">✓ Uploaded ' + upload_success + ' file(s) successfully. Click "Process Photos" to continue.</p>'
+                            );
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Upload error:', error);
+                        upload_count++;
+
+                        if (upload_count === files.length) {
+                            is_uploading = false;
+                            status_div.html(
+                                '<p style="margin: 0; color: ' + (upload_success > 0 ? '#28a745' : '#dc3545') + ';">✓ Uploaded ' + upload_success + ' of ' + files.length + ' file(s). Click "Process Photos" to continue.</p>'
+                            );
+                        }
+                    });
+            });
+        });
+    }, 300);
+
+    function process_employee_photos() {
+        if (uploaded_files.length === 0) {
+            return;
+        }
+
+        frappe.show_alert({
+            message: __('Processing {0} photo(s)...', [uploaded_files.length]),
+            indicator: 'blue'
+        });
+
+        let results = {
+            success: [],
+            not_found: [],
+            errors: []
+        };
+
+        let processed = 0;
+        let update_completed = 0;
+        let results_shown = false;
+
+        uploaded_files.forEach((file) => {
+            // Extract first 9 characters from filename (case insensitive)
+            const fileName = file.file_name.split('/').pop();
+            const employeeCode = fileName.substring(0, 9).toUpperCase();
+
+            // Search for employee with matching name (case insensitive)
+            frappe.call({
+                method: 'frappe.client.get_list',
+                args: {
+                    doctype: 'Employee',
+                    filters: [
+                        ['name', 'like', employeeCode + '%']
+                    ],
+                    fields: ['name', 'employee_name'],
+                    limit: 1
+                },
+                callback: function (r) {
+                    processed++;
+
+                    if (r.message && r.message.length > 0) {
+                        const employee = r.message[0];
+
+                        // Update employee image
+                        frappe.call({
+                            method: 'frappe.client.set_value',
+                            args: {
+                                doctype: 'Employee',
+                                name: employee.name,
+                                fieldname: 'image',
+                                value: file.file_url
+                            },
+                            callback: function (update_r) {
+                                if (!update_r.exc) {
+                                    results.success.push({
+                                        employee: employee.name,
+                                        employee_name: employee.employee_name,
+                                        file: fileName
+                                    });
+                                } else {
+                                    results.errors.push({
+                                        file: fileName,
+                                        error: 'Update failed'
+                                    });
+                                }
+
+                                update_completed++;
+                                show_results_if_complete();
+                            }
+                        });
+                    } else {
+                        results.not_found.push({
+                            file: fileName,
+                            code: employeeCode
+                        });
+                        update_completed++;
+                        show_results_if_complete();
+                    }
+                }
+            });
+        });
+
+        function show_results_if_complete() {
+            if (results_shown) return;
+            if (update_completed === uploaded_files.length) {
+                results_shown = true;
+                // Show results dialog
+                let results_html = '<div style="max-height: 400px; overflow-y: auto;">';
+
+                if (results.success.length > 0) {
+                    results_html += '<h4 style="color: green; margin-top: 0;">✓ Successfully Updated (' + results.success.length + ')</h4>';
+                    results_html += '<ul style="list-style: none; padding-left: 0;">';
+                    results.success.forEach(item => {
+                        results_html += '<li style="padding: 5px; background: #d4edda; margin-bottom: 5px; border-radius: 3px;">' +
+                            '<strong>' + item.employee + '</strong> - ' + item.employee_name + '<br>' +
+                            '<small style="color: #666;">File: ' + item.file + '</small></li>';
+                    });
+                    results_html += '</ul>';
+                }
+
+                if (results.not_found.length > 0) {
+                    results_html += '<h4 style="color: orange; margin-top: 15px;">⚠ Employee Not Found (' + results.not_found.length + ')</h4>';
+                    results_html += '<ul style="list-style: none; padding-left: 0;">';
+                    results.not_found.forEach(item => {
+                        results_html += '<li style="padding: 5px; background: #fff3cd; margin-bottom: 5px; border-radius: 3px;">' +
+                            '<strong>' + item.code + '</strong> - File: ' + item.file + '</li>';
+                    });
+                    results_html += '</ul>';
+                }
+
+                if (results.errors.length > 0) {
+                    results_html += '<h4 style="color: red; margin-top: 15px;">✗ Errors (' + results.errors.length + ')</h4>';
+                    results_html += '<ul style="list-style: none; padding-left: 0;">';
+                    results.errors.forEach(item => {
+                        results_html += '<li style="padding: 5px; background: #f8d7da; margin-bottom: 5px; border-radius: 3px;">' +
+                            item.file + ' - ' + item.error + '</li>';
+                    });
+                    results_html += '</ul>';
+                }
+
+                results_html += '</div>';
+
+                const results_dialog = new frappe.ui.Dialog({
+                    title: __('Update Results'),
+                    fields: [
+                        {
+                            fieldname: 'results',
+                            fieldtype: 'HTML',
+                            options: results_html
+                        }
+                    ]
+                });
+
+                results_dialog.show();
+                results_dialog.$wrapper.find('.modal-dialog').css('max-width', '700px');
+
+                // Refresh list view to show updated photos
+                if (results.success.length > 0 && listview) {
+                    listview.refresh();
+                }
+            }
+        }
+    }
 }
 
