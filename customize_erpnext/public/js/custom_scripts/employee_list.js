@@ -542,17 +542,32 @@ function show_update_employee_photo_dialog(listview) {
         let results = {
             success: [],
             not_found: [],
-            errors: []
+            errors: [],
+            duplicates: []
         };
 
         let processed = 0;
         let update_completed = 0;
         let results_shown = false;
+        let processed_codes = new Set();
 
         uploaded_files.forEach((file) => {
             // Extract first 9 characters from filename (case insensitive)
             const fileName = file.file_name.split('/').pop();
             const employeeCode = fileName.substring(0, 9).toUpperCase();
+
+            // Check if this employee code has already been processed
+            if (processed_codes.has(employeeCode)) {
+                results.duplicates.push({
+                    file: fileName,
+                    code: employeeCode
+                });
+                update_completed++;
+                show_results_if_complete();
+                return;
+            }
+
+            processed_codes.add(employeeCode);
 
             // Search for employee with matching name (case insensitive)
             frappe.call({
@@ -634,6 +649,16 @@ function show_update_employee_photo_dialog(listview) {
                     results.not_found.forEach(item => {
                         results_html += '<li style="padding: 5px; background: #fff3cd; margin-bottom: 5px; border-radius: 3px;">' +
                             '<strong>' + item.code + '</strong> - File: ' + item.file + '</li>';
+                    });
+                    results_html += '</ul>';
+                }
+
+                if (results.duplicates.length > 0) {
+                    results_html += '<h4 style="color: #6c757d; margin-top: 15px;">⚠ Duplicate Files Skipped (' + results.duplicates.length + ')</h4>';
+                    results_html += '<ul style="list-style: none; padding-left: 0;">';
+                    results.duplicates.forEach(item => {
+                        results_html += '<li style="padding: 5px; background: #e2e3e5; margin-bottom: 5px; border-radius: 3px;">' +
+                            '<strong>' + item.code + '</strong> - File: ' + item.file + ' (already processed)</li>';
                     });
                     results_html += '</ul>';
                 }
