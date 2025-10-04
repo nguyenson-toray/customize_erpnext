@@ -25,6 +25,7 @@
   {
    "columns": 2,
    "fetch_from": "employee.employee_name",
+   "fetch_if_empty": 1,
    "fieldname": "employee_name",
    "fieldtype": "Data",
    "in_list_view": 1,
@@ -76,7 +77,7 @@
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2025-09-05 12:30:08.722581",
+ "modified": "2025-10-03 11:21:06.687823",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Overtime Registration Detail",

@@ -11,7 +11,7 @@ import calendar
 def bulk_import_overtime(file_path=None):
     """
     Import hàng loạt Overtime Registration từ file Excel
-    Tạo 2 đăng ký mỗi tháng: 1-15 và 16-cuối tháng
+    Tạo 6 đăng ký mỗi tháng: 1-5, 6-10, 11-15, 16-20, 21-25 và 26-cuối tháng
     """
 
     # Tự động tìm file Excel cùng thư mục
@@ -49,7 +49,21 @@ def bulk_import_overtime(file_path=None):
             return
 
         # Thêm cột phân loại khoảng ngày
-        df['period'] = df['Date (OT Employees List)'].apply(lambda x: '1-15' if x.day <= 15 else '16-end')
+        def get_period(date):
+            if date.day <= 5:
+                return '1-5'
+            elif date.day <= 10:
+                return '6-10'
+            elif date.day <= 15:
+                return '11-15'
+            elif date.day <= 20:
+                return '16-20'
+            elif date.day <= 25:
+                return '21-25'
+            else:
+                return '26-end'
+
+        df['period'] = df['Date (OT Employees List)'].apply(get_period)
         df['month'] = df['Date (OT Employees List)'].dt.month
         df['year'] = df['Date (OT Employees List)'].dt.year
 
@@ -76,11 +90,23 @@ def bulk_import_overtime(file_path=None):
                 print(f"\n🔄 [{idx}/{len(grouped)}] Tháng {month}/{year} - Khoảng {period}")
 
                 # Xác định request_date và reason_general
-                if period == '1-15':
+                if period == '1-5':
                     request_date = f"{year}-{month:02d}-01"
+                    last_day = 5
+                elif period == '6-10':
+                    request_date = f"{year}-{month:02d}-06"
+                    last_day = 10
+                elif period == '11-15':
+                    request_date = f"{year}-{month:02d}-11"
                     last_day = 15
-                else:
+                elif period == '16-20':
                     request_date = f"{year}-{month:02d}-16"
+                    last_day = 20
+                elif period == '21-25':
+                    request_date = f"{year}-{month:02d}-21"
+                    last_day = 25
+                else:  # 26-end
+                    request_date = f"{year}-{month:02d}-26"
                     last_day = calendar.monthrange(year, month)[1]
 
                 month_name = month_names.get(month, str(month))
@@ -90,42 +116,65 @@ def bulk_import_overtime(file_path=None):
                 print(f"  📝 Reason: {reason_general}")
                 print(f"  👥 Số dòng nhân viên: {len(group_df)}")
 
-                # Tạo Overtime Registration document
-                ot_doc = frappe.new_doc("Overtime Registration")
-                ot_doc.request_date = getdate(request_date)
-                ot_doc.reason_general = reason_general
-
-                # Thêm chi tiết nhân viên
+                # Lọc nhân viên hợp lệ
+                valid_employees = []
                 for _, row in group_df.iterrows():
-                    # Kiểm tra Employee tồn tại
                     employee_id = row['Employee (OT Employees List)']
                     if not frappe.db.exists("Employee", employee_id):
                         print(f"  ⚠️  Employee không tồn tại: {employee_id}")
                         continue
 
-                    ot_doc.append("ot_employees", {
+                    valid_employees.append({
                         "date": getdate(row['Date (OT Employees List)']),
                         "employee": employee_id,
                         "begin_time": row['Begin Time (OT Employees List)'],
                         "end_time": row['End Time (OT Employees List)']
                     })
 
-                if len(ot_doc.ot_employees) == 0:
+                if len(valid_employees) == 0:
                     error_msg = f"Tháng {month}/{year} - {period}: Không có nhân viên hợp lệ"
                     print(f"  ❌ {error_msg}")
                     errors.append(error_msg)
                     error_count += 1
                     continue
 
-                # Lưu document
-                ot_doc.flags.ignore_permissions = True
-                ot_doc.insert()
+                # Tách phiếu nếu > 1000 dòng
+                batch_size = 1000
+                total_employees = len(valid_employees)
+                num_batches = (total_employees + batch_size - 1) // batch_size  # Làm tròn lên
 
-                # Commit
-                frappe.db.commit()
+                if total_employees > batch_size:
+                    print(f"  ⚠️  Tổng {total_employees} dòng > 1000, tách làm {num_batches} phiếu")
 
-                print(f"  ✅ Tạo thành công: {ot_doc.name} ({len(ot_doc.ot_employees)} employees)")
-                success_count += 1
+                for batch_num in range(num_batches):
+                    start_idx = batch_num * batch_size
+                    end_idx = min((batch_num + 1) * batch_size, total_employees)
+                    batch_employees = valid_employees[start_idx:end_idx]
+
+                    # Tạo reason với suffix nếu có nhiều batch
+                    if num_batches > 1:
+                        batch_reason = f"{reason_general} (Part {batch_num + 1}/{num_batches})"
+                    else:
+                        batch_reason = reason_general
+
+                    # Tạo Overtime Registration document
+                    ot_doc = frappe.new_doc("Overtime Registration")
+                    ot_doc.request_date = getdate(request_date)
+                    ot_doc.reason_general = batch_reason
+
+                    # Thêm chi tiết nhân viên
+                    for emp_data in batch_employees:
+                        ot_doc.append("ot_employees", emp_data)
+
+                    # Lưu document
+                    ot_doc.flags.ignore_permissions = True
+                    ot_doc.insert()
+
+                    # Commit
+                    frappe.db.commit()
+
+                    print(f"  ✅ Tạo thành công: {ot_doc.name} ({len(ot_doc.ot_employees)} employees)")
+                    success_count += 1
 
             except Exception as e:
                 error_msg = f"Tháng {month}/{year} - {period}: {str(e)}"
@@ -176,7 +225,7 @@ print("""
 3. Script sẽ tự động:
    ✅ Đọc sheet 'OT Registers - All'
    ✅ Lọc dữ liệu tháng 1-9/2025
-   ✅ Tạo 2 Overtime Registration mỗi tháng (1-15 và 16-cuối tháng)
+   ✅ Tạo 6 Overtime Registration mỗi tháng (1-5, 6-10, 11-15, 16-20, 21-25 và 26-cuối tháng)
    ✅ Điền chi tiết nhân viên vào bảng ot_employees
 
 📝 CẤU TRÚC DỮ LIỆU:
