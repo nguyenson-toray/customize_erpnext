@@ -6,10 +6,11 @@ window.FingerprintSyncManager = (function () {
 
     // Configuration
     const CONFIG = {
-        CONCURRENT_MACHINES: 7, // Number of machines to sync simultaneously
-        MACHINE_TIMEOUT: 10000, // 10 seconds per machine
+        CONCURRENT_MACHINES: 10, // Not used in "per-machine" strategy, kept for compatibility
+        MACHINE_TIMEOUT: 15000, // 15 seconds timeout per employee sync
         RETRY_ATTEMPTS: 2,
-        RETRY_DELAY: 1000 // 1 second
+        RETRY_DELAY: 1000, // 1 second
+        SYNC_STRATEGY: 'per-machine' // Each machine processes all employees sequentially, machines run in parallel
     };
 
     // Shared dialog instance
@@ -406,22 +407,31 @@ window.FingerprintSyncManager = (function () {
             updateSyncStatus(`✅ Found ${onlineMachines.length} online machines`, 'success');
             updateProgressBar(0, `Starting sync to ${onlineMachines.length} machines...`);
 
-            // Process each employee
-            for (let empIndex = 0; empIndex < currentSyncState.employees.length; empIndex++) {
-                // Check if sync was aborted
-                if (currentSyncState.abortController && currentSyncState.abortController.signal.aborted) {
-                    throw new Error('Sync aborted by user');
+            // Calculate total operations
+            const totalOperations = currentSyncState.employees.length * onlineMachines.length;
+            updateSyncStatus(`📊 Total operations: ${currentSyncState.employees.length} employees × ${onlineMachines.length} machines = ${totalOperations}`, 'info');
+            updateSyncStatus(`⚡ Strategy: Each machine processes all employees sequentially, machines run in parallel`, 'info');
+
+            // Start all machines in parallel - each machine processes all employees
+            const machinePromises = onlineMachines.map((machine, machineIndex) =>
+                syncAllEmployeesToSingleMachine(machine, machineIndex, currentSyncState.employees, totalOperations)
+            );
+
+            // Wait for all machines to complete
+            const machineResults = await Promise.allSettled(machinePromises);
+
+            // Process results
+            machineResults.forEach((result, machineIndex) => {
+                const machine = onlineMachines[machineIndex];
+
+                if (result.status === 'fulfilled') {
+                    updateSyncStatus(`\n✅ ${machine.device_name}: Completed all ${currentSyncState.employees.length} employees`, 'success');
+                    updateMachineStatus(machineIndex, 'success', '✅ Complete');
+                } else {
+                    updateSyncStatus(`\n❌ ${machine.device_name}: Failed - ${result.reason.message}`, 'danger');
+                    updateMachineStatus(machineIndex, 'danger', '❌ Failed');
                 }
-
-                const employee = currentSyncState.employees[empIndex];
-                const empProgress = Math.round((empIndex / currentSyncState.employees.length) * 100);
-
-                updateSyncStatus(`\n👤 Processing employee ${empIndex + 1}/${currentSyncState.employees.length}: ${employee.employee_name}`, 'info');
-                updateProgressBar(empProgress, `Processing ${employee.employee_name}...`);
-
-                // Sync this employee to all machines with controlled concurrency
-                await syncEmployeeToMachinesParallel(employee, onlineMachines);
-            }
+            });
 
             // Show final results
             showSyncSummary();
@@ -443,76 +453,63 @@ window.FingerprintSyncManager = (function () {
         }
     }
 
-    async function syncEmployeeToMachinesParallel(employee, machines) {
-        // Split machines into batches for controlled concurrency
-        const batches = [];
-        for (let i = 0; i < machines.length; i += CONFIG.CONCURRENT_MACHINES) {
-            batches.push(machines.slice(i, i + CONFIG.CONCURRENT_MACHINES));
-        }
+    async function syncAllEmployeesToSingleMachine(machine, machineIndex, employees, totalOperations) {
+        // This machine will process all employees sequentially
+        updateMachineStatus(machineIndex, 'warning', '🔄 Starting');
+        updateSyncStatus(`\n🖥️  ${machine.device_name}: Starting to process ${employees.length} employees...`, 'info');
 
-        updateSyncStatus(`  🔄 Syncing to ${machines.length} machines (${CONFIG.CONCURRENT_MACHINES} concurrent)...`, 'info');
+        let successCount = 0;
+        let failCount = 0;
 
-        // Process each batch in parallel
-        for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+        // Process each employee sequentially for this machine
+        for (let empIndex = 0; empIndex < employees.length; empIndex++) {
             // Check if sync was aborted
             if (currentSyncState.abortController && currentSyncState.abortController.signal.aborted) {
                 throw new Error('Sync aborted by user');
             }
 
-            const batch = batches[batchIndex];
-            updateSyncStatus(`  ⚡ Batch ${batchIndex + 1}/${batches.length}: Processing ${batch.length} machines...`, 'info');
+            const employee = employees[empIndex];
 
-            // Run machines in this batch in parallel
-            const batchPromises = batch.map((machine, machineIndex) =>
-                syncEmployeeToSingleMachine(employee, machine, batchIndex * CONFIG.CONCURRENT_MACHINES + machineIndex)
-            );
+            try {
+                updateMachineStatus(machineIndex, 'warning', `🔄 ${empIndex + 1}/${employees.length}`);
 
-            // Wait for all machines in this batch to complete
-            const batchResults = await Promise.allSettled(batchPromises);
+                // Call backend API to sync one employee to this machine
+                const result = await callFrappeMethod(
+                    'customize_erpnext.api.utilities.sync_employee_to_single_machine',
+                    {
+                        employee_id: employee.employee_id,
+                        machine_name: machine.name
+                    }
+                );
 
-            // Process results
-            batchResults.forEach((result, index) => {
-                const machineIndex = batchIndex * CONFIG.CONCURRENT_MACHINES + index;
-                const machine = batch[index];
+                if (result.success) {
+                    successCount++;
+                    currentSyncState.completedMachines++;
+                    updateSyncStatus(`  ✅ ${machine.device_name}: ${employee.employee_name} (${empIndex + 1}/${employees.length})`, 'success');
 
-                if (result.status === 'fulfilled') {
-                    updateMachineStatus(machineIndex, 'success', '✅ Complete');
-                    updateSyncStatus(`    ✅ ${machine.device_name}: ${result.value.message}`, 'success');
+                    // Update overall progress
+                    const overallProgress = Math.round((currentSyncState.completedMachines / totalOperations) * 100);
+                    updateProgressBar(overallProgress, `${currentSyncState.completedMachines}/${totalOperations} operations completed`);
                 } else {
-                    updateMachineStatus(machineIndex, 'danger', '❌ Failed');
-                    updateSyncStatus(`    ❌ ${machine.device_name}: ${result.reason.message}`, 'danger');
+                    failCount++;
+                    updateSyncStatus(`  ⚠️ ${machine.device_name}: ${employee.employee_name} - ${result.message}`, 'warning');
                 }
-            });
-
-            // Small delay between batches to avoid overwhelming the system
-            if (batchIndex < batches.length - 1) {
-                await new Promise(resolve => setTimeout(resolve, 500));
+            } catch (error) {
+                failCount++;
+                updateSyncStatus(`  ❌ ${machine.device_name}: ${employee.employee_name} - ${error.message}`, 'danger');
             }
         }
-    }
 
-    async function syncEmployeeToSingleMachine(employee, machine, machineIndex) {
-        updateMachineStatus(machineIndex, 'warning', '🔄 Syncing');
+        // Final status for this machine
+        updateMachineStatus(machineIndex, 'success', `✅ ${successCount}/${employees.length}`);
 
-        try {
-            // Call the original single employee sync method
-            const result = await callFrappeMethod(
-                'customize_erpnext.api.utilities.sync_employee_fingerprint_to_machines',
-                {
-                    employee_id: employee.employee_id,
-                    target_machine: machine.device_name // Pass specific machine if API supports it
-                }
-            );
-
-            if (result.success) {
-                currentSyncState.completedMachines++;
-                return { success: true, message: result.message || 'Sync completed' };
-            } else {
-                throw new Error(result.message || 'Sync failed');
-            }
-        } catch (error) {
-            throw new Error(error.message || 'Network error during sync');
-        }
+        return {
+            success: true,
+            machine: machine.device_name,
+            successCount: successCount,
+            failCount: failCount,
+            total: employees.length
+        };
     }
 
     function updateMachineStatus(machineIndex, type, status) {

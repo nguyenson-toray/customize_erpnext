@@ -405,81 +405,86 @@ def get_employees_for_fingerprint():
         frappe.log_error(frappe.get_traceback(), "Failed to get employees for fingerprint")
         return {"success": False, "message": str(e)}
 
+def _prepare_employee_sync_data(employee_id):
+    """Helper: Prepare employee data for fingerprint sync (DRY principle)"""
+    # Get employee data
+    employee = frappe.get_doc("Employee", employee_id,
+        ["employee", "employee_name", "attendance_device_id", "custom_privilege", "custom_password"])
+
+    if not employee.attendance_device_id:
+        return None, {
+            "success": False,
+            "message": f"Employee {employee.employee} does not have attendance_device_id"
+        }
+
+    # Get employee fingerprints
+    fingerprints_data = frappe.db.sql("""
+        SELECT finger_index, template_data
+        FROM `tabFingerprint Data`
+        WHERE parent = %s AND template_data IS NOT NULL AND template_data != ''
+        ORDER BY finger_index
+    """, employee_id, as_dict=True)
+
+    if not fingerprints_data:
+        return None, {
+            "success": False,
+            "message": f"Employee {employee.employee} has no fingerprint data"
+        }
+
+    fingerprints = [{"finger_index": fp.finger_index, "template_data": fp.template_data} for fp in fingerprints_data]
+
+    # Prepare privilege
+    try:
+        from zk import const
+        privilege_str = getattr(employee, 'custom_privilege', 'USER_DEFAULT')
+        privilege = const.USER_ADMIN if privilege_str == "USER_ADMIN" else const.USER_DEFAULT
+    except ImportError:
+        privilege = 14 if getattr(employee, 'custom_privilege', 'USER_DEFAULT') == "USER_ADMIN" else 0
+
+    # Prepare password
+    password_int = getattr(employee, 'custom_password', None)
+    password = str(password_int) if password_int and password_int != 0 else ""
+
+    employee_data = {
+        "employee": employee.employee,
+        "employee_name": employee.employee_name,
+        "attendance_device_id": employee.attendance_device_id,
+        "password": password,
+        "privilege": privilege,
+        "fingerprints": fingerprints
+    }
+
+    return employee_data, None
+
+
 @frappe.whitelist()
 def sync_employee_fingerprint_to_machines(employee_id):
-    """Sync employee fingerprint data to all enabled attendance machines"""
+    """Sync employee fingerprint data to all enabled attendance machines
+
+    NOTE: This function is kept for backward compatibility.
+    New code should use sync_employee_to_single_machine() for better parallelization.
+    """
     try:
-        # Get employee data, filter only required fields (excluding fingerprints child table)
-        employee = frappe.get_doc("Employee", employee_id, 
-            ["employee", "employee_name", "attendance_device_id", "custom_privilege", "custom_password"])
-        
-        if not employee.attendance_device_id:
-            return {
-                "success": False, 
-                "message": f"Employee {employee.employee} does not have attendance_device_id"
-            }
-        
+        # Use helper to prepare employee data (DRY)
+        employee_data, error = _prepare_employee_sync_data(employee_id)
+        if error:
+            return error
+
         # Get enabled attendance machines
         machines = frappe.get_list("Attendance Machine",
             filters={"enable": 1},
             fields=["name", "device_name", "ip_address", "port", "timeout", "force_udp", "ommit_ping"]
         )
-        
+
         if not machines:
             return {
                 "success": False,
                 "message": "No enabled attendance machines found"
             }
-        
-        # Get employee fingerprint data using direct SQL query for better performance
-        fingerprints_data = frappe.db.sql("""
-            SELECT finger_index, template_data
-            FROM `tabFingerprint Data`
-            WHERE parent = %s AND template_data IS NOT NULL AND template_data != ''
-            ORDER BY finger_index
-        """, employee_id, as_dict=True)
-        
-        fingerprints = []
-        for fp in fingerprints_data:
-            fingerprints.append({
-                "finger_index": fp.finger_index,
-                "template_data": fp.template_data
-            })
-        
-        if not fingerprints:
-            return {
-                "success": False,
-                "message": f"Employee {employee.employee} has no fingerprint data"
-            }
-        
-        # Prepare employee data for sync
-        # Import pyzk constants for privilege levels
-        try:
-            from zk import const
-            # Map string privilege to pyzk constants (int values)
-            privilege_str = getattr(employee, 'custom_privilege', 'USER_DEFAULT')
-            privilege = const.USER_ADMIN if privilege_str == "USER_ADMIN" else const.USER_DEFAULT
-        except ImportError:
-            # Fallback if const not available
-            privilege = 14 if getattr(employee, 'custom_privilege', 'USER_DEFAULT') == "USER_ADMIN" else 0
-        
-        # Convert password from int to string for machine
-        # If custom_password is 0 or None, it means no password
-        password_int = getattr(employee, 'custom_password', None)
-        password = str(password_int) if password_int and password_int != 0 else ""
-        
-        employee_data = {
-            "employee": employee.employee,
-            "employee_name": employee.employee_name,
-            "attendance_device_id": employee.attendance_device_id,
-            "password": password,
-            "privilege": privilege,
-            "fingerprints": fingerprints
-        }
-        
+
         sync_results = []
         success_count = 0
-        
+
         # Sync to each machine
         for machine in machines:
             try:
@@ -490,10 +495,10 @@ def sync_employee_fingerprint_to_machines(employee_id):
                     "success": result["success"],
                     "message": result["message"]
                 })
-                
+
                 if result["success"]:
                     success_count += 1
-                    
+
             except Exception as e:
                 sync_results.append({
                     "machine": machine.device_name,
@@ -501,7 +506,7 @@ def sync_employee_fingerprint_to_machines(employee_id):
                     "success": False,
                     "message": str(e)
                 })
-        
+
         # Create summary message
         total_machines = len(machines)
         if success_count == total_machines:
@@ -513,27 +518,74 @@ def sync_employee_fingerprint_to_machines(employee_id):
         else:
             status = "failed"
             message = f"Failed to sync to any machines"
-        
+
+        # Get privilege string for summary
+        try:
+            from zk import const
+            privilege_str = "USER_ADMIN" if employee_data["privilege"] == const.USER_ADMIN else "USER_DEFAULT"
+        except:
+            privilege_str = "USER_ADMIN" if employee_data["privilege"] == 14 else "USER_DEFAULT"
+
         return {
             "success": success_count > 0,
             "status": status,
             "message": message,
             "sync_results": sync_results,
             "summary": {
-                "employee": employee.employee,
-                "employee_name": employee.employee_name,
-                "attendance_device_id": employee.attendance_device_id,
-                "privilege": f"{privilege_str} ({privilege})",
-                "password": password if password else "No password set",
-                "fingerprints_count": len(fingerprints),
+                "employee": employee_data["employee"],
+                "employee_name": employee_data["employee_name"],
+                "attendance_device_id": employee_data["attendance_device_id"],
+                "privilege": f"{privilege_str} ({employee_data['privilege']})",
+                "password": employee_data["password"] if employee_data["password"] else "No password set",
+                "fingerprints_count": len(employee_data["fingerprints"]),
                 "machines_total": total_machines,
                 "machines_success": success_count,
                 "machines_failed": total_machines - success_count
             }
         }
-        
+
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), "Failed to sync employee fingerprint to machines")
+        return {
+            "success": False,
+            "message": f"Error: {str(e)}"
+        }
+
+@frappe.whitelist()
+def sync_employee_to_single_machine(employee_id, machine_name):
+    """Sync one employee to one specific machine (for parallel processing)"""
+    try:
+        # Use helper to prepare employee data (DRY)
+        employee_data, error = _prepare_employee_sync_data(employee_id)
+        if error:
+            return error
+
+        # Get specific machine
+        machine = frappe.get_doc("Attendance Machine", machine_name,
+            ["name", "device_name", "ip_address", "port", "timeout", "force_udp", "ommit_ping", "enable"])
+
+        if not machine.enable:
+            return {
+                "success": False,
+                "message": f"Machine {machine.device_name} is disabled"
+            }
+
+        # Sync to single machine
+        result = sync_to_single_machine(machine, employee_data)
+
+        if result["success"]:
+            return {
+                "success": True,
+                "message": f"Synced {employee_data['employee_name']} to {machine.device_name}"
+            }
+        else:
+            return {
+                "success": False,
+                "message": result["message"]
+            }
+
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), f"sync_employee_to_single_machine: {employee_id} -> {machine_name}")
         return {
             "success": False,
             "message": f"Error: {str(e)}"
@@ -691,38 +743,64 @@ def sync_to_single_machine(machine_config, employee_data):
 
 @frappe.whitelist()
 def get_enabled_attendance_machines():
-    """Get list of enabled attendance machines with connection status"""
+    """Get list of enabled attendance machines with parallel connection checks"""
     try:
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
         # Get enabled machines
         # filter : only get machines that are enabled =1 & master_device = 1
         machines = frappe.get_list("Attendance Machine",
             filters={"enable": 1, "master_device": 1},
             fields=["name", "device_name", "ip_address", "port", "timeout", "force_udp", "ommit_ping", "location"]
         )
-        
+
         if not machines:
             return {
                 "success": True,
                 "machines": [],
                 "message": "No enabled attendance machines found"
             }
-        
-        # Check connection status for each machine
+
         machines_with_status = []
-        for machine in machines:
-            connection_status = check_machine_connection(machine)
-            machine_info = {
-                "name": machine.name,
-                "device_name": machine.device_name,
-                "ip_address": machine.ip_address,
-                "port": machine.port or 4370,
-                "location": machine.location or "",
-                "connection_status": connection_status["status"],
-                "connection_message": connection_status["message"],
-                "response_time": connection_status.get("response_time", 0)
+
+        # Parallel connection checking with ThreadPoolExecutor
+        # Max workers: 15 concurrent threads (or number of machines if less)
+        with ThreadPoolExecutor(max_workers=min(len(machines), 15)) as executor:
+            # Submit all machine connection checks simultaneously
+            future_to_machine = {
+                executor.submit(check_machine_connection_fast, machine): machine
+                for machine in machines
             }
-            machines_with_status.append(machine_info)
-        
+
+            # Collect results as they complete (with 10s total timeout)
+            for future in as_completed(future_to_machine, timeout=10):
+                machine = future_to_machine[future]
+                try:
+                    connection_status = future.result()
+                    machine_info = {
+                        "name": machine.get("name"),
+                        "device_name": machine.get("device_name"),
+                        "ip_address": machine.get("ip_address"),
+                        "port": machine.get("port") or 4370,
+                        "location": machine.get("location") or "",
+                        "connection_status": connection_status["status"],
+                        "connection_message": connection_status["message"],
+                        "response_time": connection_status.get("response_time", 0)
+                    }
+                    machines_with_status.append(machine_info)
+                except Exception as e:
+                    # Fallback for failed connection checks
+                    machines_with_status.append({
+                        "name": machine.get("name"),
+                        "device_name": machine.get("device_name"),
+                        "ip_address": machine.get("ip_address"),
+                        "port": machine.get("port") or 4370,
+                        "location": machine.get("location") or "",
+                        "connection_status": "error",
+                        "connection_message": f"Check timeout: {str(e)}",
+                        "response_time": 0
+                    })
+
         return {
             "success": True,
             "machines": machines_with_status,
@@ -730,7 +808,7 @@ def get_enabled_attendance_machines():
             "online_machines": len([m for m in machines_with_status if m["connection_status"] == "online"]),
             "offline_machines": len([m for m in machines_with_status if m["connection_status"] == "offline"])
         }
-        
+
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), "Failed to get enabled attendance machines")
         return {
@@ -738,45 +816,74 @@ def get_enabled_attendance_machines():
             "message": f"Error: {str(e)}"
         }
 
-def check_machine_connection(machine_config):
-    """Check if attendance machine is reachable"""
+def check_machine_connection_fast(machine_config, timeout=2):
+    """Fast connection check with 2s timeout and caching"""
+    import socket
+    import time
+
     try:
-        import socket
-        import time
-        
-        ip_address = machine_config.ip_address
-        port = machine_config.port or 4370
-        timeout = 3  # Quick connection check
-        
+        # Handle both dict and object access
+        if isinstance(machine_config, dict):
+            ip_address = machine_config.get('ip_address')
+            port = machine_config.get('port') or 4370
+        else:
+            ip_address = machine_config.ip_address
+            port = machine_config.port or 4370
+
+        # Cache key for this machine
+        cache_key = f"machine_conn_{ip_address}_{port}"
+
+        # Check cache first (30 second cache)
+        try:
+            cached_status = frappe.cache().get_value(cache_key)
+            if cached_status:
+                return cached_status
+        except:
+            pass  # Cache might fail in thread context
+
         start_time = time.time()
-        
-        # Test TCP connection
+
+        # Test TCP connection with 2s timeout
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(timeout)
         result = sock.connect_ex((ip_address, port))
         sock.close()
-        
+
         response_time = round((time.time() - start_time) * 1000, 2)  # ms
-        
+
         if result == 0:
-            return {
+            status = {
                 "status": "online",
                 "message": f"Connected ({response_time}ms)",
                 "response_time": response_time
             }
         else:
-            return {
-                "status": "offline", 
+            status = {
+                "status": "offline",
                 "message": f"Connection failed (Error: {result})",
                 "response_time": 0
             }
-            
+
+        # Cache the result for 30 seconds
+        try:
+            frappe.cache().set_value(cache_key, status, expires_in_sec=30)
+        except:
+            pass  # Cache might fail in thread context
+
+        return status
+
     except Exception as e:
+        import traceback
         return {
             "status": "error",
             "message": f"Connection error: {str(e)}",
-            "response_time": 0
+            "response_time": 0,
+            "traceback": traceback.format_exc()
         }
+
+def check_machine_connection(machine_config):
+    """Check if attendance machine is reachable (legacy method - calls fast version)"""
+    return check_machine_connection_fast(machine_config, timeout=2)
 
 def shorten_name(full_name, max_length=24):
     """Shorten employee name if it exceeds max length and convert Vietnamese to non-accented"""
