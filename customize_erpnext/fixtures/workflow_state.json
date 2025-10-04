@@ -3,15 +3,6 @@
   "docstatus": 0,
   "doctype": "Workflow State",
   "icon": "",
-  "modified": "2025-01-24 10:36:21.399542",
-  "name": "Cancelled",
-  "style": "",
-  "workflow_state_name": "Cancelled"
- },
- {
-  "docstatus": 0,
-  "doctype": "Workflow State",
-  "icon": "",
   "modified": "2024-10-26 16:46:26.692567",
   "name": "Submitted",
   "style": "",
@@ -25,6 +16,42 @@
   "name": "Pending Second Approval",
   "style": "",
   "workflow_state_name": "Pending Second Approval"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2024-10-26 16:45:58.826112",
+  "name": "Pending First Approval",
+  "style": "",
+  "workflow_state_name": "Pending First Approval"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2025-01-24 10:36:21.399542",
+  "name": "Cancelled",
+  "style": "",
+  "workflow_state_name": "Cancelled"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "remove",
+  "modified": "2024-10-26 11:27:12.144995",
+  "name": "Rejected",
+  "style": "Danger",
+  "workflow_state_name": "Rejected"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2024-10-28 16:12:47.125362",
+  "name": "Draft",
+  "style": "",
+  "workflow_state_name": "Draft"
  },
  {
   "docstatus": 0,
@@ -43,32 +70,5 @@
   "name": "Pending",
   "style": "",
   "workflow_state_name": "Pending"
- },
- {
-  "docstatus": 0,
-  "doctype": "Workflow State",
-  "icon": "remove",
-  "modified": "2024-10-26 11:27:12.144995",
-  "name": "Rejected",
-  "style": "Danger",
-  "workflow_state_name": "Rejected"
- },
- {
-  "docstatus": 0,
-  "doctype": "Workflow State",
-  "icon": "",
-  "modified": "2024-10-26 16:45:58.826112",
-  "name": "Pending First Approval",
-  "style": "",
-  "workflow_state_name": "Pending First Approval"
- },
- {
-  "docstatus": 0,
-  "doctype": "Workflow State",
-  "icon": "",
-  "modified": "2024-10-28 16:12:47.125362",
-  "name": "Draft",
-  "style": "",
-  "workflow_state_name": "Draft"
  }
 ]

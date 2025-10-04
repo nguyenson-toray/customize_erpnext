@@ -1,7 +1,7 @@
 {
  "actions": [],
  "allow_import": 1,
- "autoname": "naming_series:[naming_series]",
+ "autoname": "hash",
  "creation": "2025-09-03 13:19:19.387366",
  "doctype": "DocType",
  "document_type": "Document",
@@ -257,21 +257,21 @@
    "fieldtype": "Column Break"
   },
   {
-   "default": "HRDTS-.YY..MM..DD.-.#####.",
+   "default": "HRDTS-.YY..MM.-.######.",
    "fieldname": "naming_series",
    "fieldtype": "Select",
    "hidden": 1,
    "label": "Series",
-   "options": "HRDTS-.YY..MM..DD.-.#####."
+   "options": "HRDTS-.YY..MM.-.######."
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-09-29 16:46:59.867597",
+ "modified": "2025-10-04 11:07:42.472739",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Daily Timesheet",
- "naming_rule": "By \"Naming Series\" field",
+ "naming_rule": "Random",
  "owner": "Administrator",
  "permissions": [
   {
