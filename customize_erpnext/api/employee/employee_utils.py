@@ -233,7 +233,7 @@ def generate_employee_cards_pdf(employee_ids, with_barcode=0, page_size='A4'):
         frappe.logger().info(f"Generating HTML for employee cards (with_barcode={with_barcode}, page_size={page_size})")
         html = generate_employee_cards_html(employees, with_barcode=with_barcode, page_size=page_size)
 
-        # Debug: Save HTML to file for inspection
+        # Debug: Save HTML to file for inspection (uncomment if needed)
         # html_path = f'/tmp/employee_cards_{datetime.datetime.now().strftime("%Y%m%d_%H%M%S")}.html'
         # with open(html_path, 'w', encoding='utf-8') as f:
         #     f.write(html)
@@ -243,16 +243,20 @@ def generate_employee_cards_pdf(employee_ids, with_barcode=0, page_size='A4'):
         frappe.logger().info("Converting HTML to PDF")
         try:
             # Set PDF options based on page size
+            # CRITICAL: Margins must match CSS @page margins
             pdf_options = {
                 'page-size': page_size,
                 'orientation': 'Landscape' if page_size == 'A5' else 'Portrait',
-                'margin-top': '10mm',
-                'margin-bottom': '10mm',
-                'margin-left': '12mm',
-                'margin-right': '12mm',
+                'margin-top': '5mm',
+                'margin-bottom': '5mm',
+                'margin-left': '5mm',
+                'margin-right': '5mm',
                 'encoding': 'UTF-8',
                 'no-outline': None,
-                'enable-local-file-access': None  # Allow loading local images
+                'enable-local-file-access': None,  # Allow loading local images
+                'dpi': 96,  # Standard DPI
+                'zoom': 1.0,  # NO SCALING
+                'disable-smart-shrinking': None  # Prevent auto-shrinking
             }
             pdf_data = get_pdf(html, pdf_options)
         except Exception as pdf_err:
@@ -321,39 +325,55 @@ def generate_employee_cards_html(employees, with_barcode=False, page_size='A4'):
     page_orientation = 'landscape' if page_size == 'A5' else 'portrait'
 
     # CSS for card layout
-    # Card size: 86mm x 54mm
-    # Left column: 30mm (logo 30mm width + photo 30mm x 40mm)
-    # Right column: remaining space (~54mm)
-    # A4: margin-bottom 0.5mm for 5 rows, A5: margin-bottom 1mm for 2 rows
-    card_row_margin = '1mm' if page_size == 'A5' else '0.5mm'
+    # Card size: 86mm x 53mm (EXACT - NO SCALING)
+    # Page A4: 210mm x 297mm, A5 landscape: 210mm x 148mm
+    # With margins 5mm: 210 - 10 = 200mm (usable width)
+    # A4: 297 - 10 = 287mm (usable height) - 5 rows with 0.5mm gap
+    # A5: 148 - 10 = 138mm (usable height) - 2 rows with 2mm gap
 
     css = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
         @page {{
             size: {page_size} {page_orientation};
-            margin: 4mm 4mm;
+            margin: 5mm;
         }}
 
         * {{
             box-sizing: border-box;
-        }}
-
-        body {{
-            font-family: 'Times New Roman', Times, serif;
             margin: 0;
             padding: 0;
         }}
 
+        html, body {{
+            font-family: 'Times New Roman', Times, serif;
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+        }}
+
         .cards-container {{
             width: 173mm;
-            margin-left: auto;
-            margin-right: auto;
+            margin: 0 auto;
+            padding: 0;
         }}
 
         .card-row {{
-            width: 100%;
-            margin-bottom: {card_row_margin};
+            width: 173mm;
+            height: 53mm;
+            margin: 0;
             clear: both;
+            page-break-inside: avoid;
+            display: block;
+        }}
+
+        .card-row:not(:last-child) {{
+            margin-bottom: {'1mm' if page_size == 'A5' else '0.5mm'};
         }}
 
         .card {{
@@ -361,12 +381,13 @@ def generate_employee_cards_html(employees, with_barcode=False, page_size='A4'):
             height: 53mm;
             border: 1px solid #333;
             padding: 1mm;
-            margin-right: 1mm;
-            margin-bottom: 0;
+            margin: 0 1mm 0 0;
             float: left;
             background: white;
             position: relative;
             overflow: hidden;
+            box-sizing: border-box;
+            page-break-inside: avoid;
         }}
 
         .card:nth-child(2n) {{
@@ -426,7 +447,7 @@ def generate_employee_cards_html(employees, with_barcode=False, page_size='A4'):
             font-weight: bold;
             text-transform: uppercase;
             margin: 0 0 3mm 0;
-            line-height: 1.2;
+            line-height: 1.3;
             word-wrap: break-word;
             color: #000;
             text-align: center;
@@ -440,7 +461,7 @@ def generate_employee_cards_html(employees, with_barcode=False, page_size='A4'):
             font-size: 18pt !important;
             font-weight: normal;
             margin: 0 0 3mm 0;
-            line-height: 1.4;
+            line-height: 1.3;
             color: #000;
             text-align: center;
         }}
@@ -449,9 +470,13 @@ def generate_employee_cards_html(employees, with_barcode=False, page_size='A4'):
             font-size: 18pt !important;
             font-weight: normal;
             margin: 0;
-            line-height: 1.4;
+            line-height: 1.3;
             color: #000;
             text-align: center;
+        }}
+
+        .employee-section.long-section {{
+            font-size: 14pt !important;
         }}
 
         .page-break {{
@@ -469,12 +494,13 @@ def generate_employee_cards_html(employees, with_barcode=False, page_size='A4'):
             height: 53mm;
             border: none;
             padding: 3mm;
-            margin-right: 1mm;
-            margin-bottom: 0;
+            margin: 0 1mm 0 0;
             float: left;
             background: white;
             position: relative;
             overflow: hidden;
+            box-sizing: border-box;
+            page-break-inside: avoid;
         }}
 
         .card-back:nth-child(2n) {{
@@ -482,19 +508,18 @@ def generate_employee_cards_html(employees, with_barcode=False, page_size='A4'):
         }}
 
         .card-back-title {{
-            font-size: 14pt;
+            font-size: 13pt;
             font-weight: bold;
             text-align: center;
-            margin-bottom: 3mm;
+            margin-bottom: 2mm;
             color: #000;
         }}
 
         .card-back-content {{
-            font-size: 9pt;
-            line-height: 1.4;
+            font-size: 8.5pt;
+            line-height: 1.3;
             text-align: left;
             color: #000;
-            clear: both;
         }}
 
         .card-back-content ol {{
@@ -503,9 +528,15 @@ def generate_employee_cards_html(employees, with_barcode=False, page_size='A4'):
         }}
 
         .card-back-content li {{
-            margin-bottom: 1.5mm;
+            margin-bottom: 1mm;
+        }}
+
+        .card-back-content ul {{
+            margin-top: 0.5mm;
+            padding-left: 5mm;
         }}
     </style>
+    </head>
     """
 
     # Generate HTML for cards
@@ -564,7 +595,7 @@ def generate_employee_cards_html(employees, with_barcode=False, page_size='A4'):
         if page_idx + cards_per_page < len(employees):
             html_parts.append('<div class="page-break"></div>')
 
-    html_parts.append('</div></body>')  # end cards-container
+    html_parts.append('</div></body></html>')  # end cards-container, body, html
 
     return ''.join(html_parts)
 
@@ -593,6 +624,12 @@ def generate_single_card_html(employee, company_logo, with_barcode=False):
     if name_length < 13:
         name_html = f'{employee_name}<br/>&nbsp;'
 
+    # Section logic: >= 19 chars -> use smaller font size
+    section_class = 'employee-section'
+    section_length = len(employee_section)
+    if section_length >= 19:
+        section_class = 'employee-section long-section'
+
     # Generate barcode HTML if requested
     barcode_html = ''
     if with_barcode:
@@ -610,7 +647,7 @@ def generate_single_card_html(employee, company_logo, with_barcode=False):
             <div class="card-right">
                 <div class="{name_class}">{name_html}</div>
                 <div class="employee-code">{employee_code}</div>
-                <div class="employee-section">{employee_section}</div>
+                <div class="{section_class}">{employee_section}</div>
             </div>
         </div>
     </div>
