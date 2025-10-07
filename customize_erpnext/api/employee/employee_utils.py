@@ -339,7 +339,7 @@ def generate_employee_cards_html(employees, with_barcode=False, page_size='A4'):
         }}
 
         body {{
-            font-family: Arial, sans-serif;
+            font-family: 'Times New Roman', Times, serif;
             margin: 0;
             padding: 0;
         }}
@@ -380,22 +380,24 @@ def generate_employee_cards_html(employees, with_barcode=False, page_size='A4'):
         }}
 
         .card-left {{
-            width: 30mm;
+            width: 28mm;
             float: left;
             margin-right: 1mm;
         }}
 
         .company-logo {{
-            width: 30mm;
+            width: 28mm;
             height: auto;
+            margin-top: 1mm;            
             object-fit: contain;
             margin-bottom: 1mm;
             display: block;
         }}
 
         .employee-photo {{
-            width: 30mm;
-            height: 40mm;
+            width: 28mm;
+            height: 37.33mm;
+            margin-top: 4mm;
             object-fit: cover;
             border: 1px solid #999;
             display: block;
@@ -403,16 +405,16 @@ def generate_employee_cards_html(employees, with_barcode=False, page_size='A4'):
         }}
 
         .card-right {{
-            margin-left: 32mm;
-            padding-top: 8mm;
-            padding-left: 2mm;
-            padding-right: 2mm;
+            margin-left: 30mm;
+            padding-top: 9mm;
+            padding-left: 0.5mm;
+            padding-right: 0.5mm;
             padding-bottom: 2mm;
             text-align: center;
         }}
 
         .employee-barcode {{
-            width: 30mm;
+            width: 28mm;
             height: auto;
             max-height: 5mm;
             margin-top: 0mm;
@@ -424,26 +426,30 @@ def generate_employee_cards_html(employees, with_barcode=False, page_size='A4'):
             font-weight: bold;
             text-transform: uppercase;
             margin: 0 0 3mm 0;
-            line-height: 1.0;
+            line-height: 1.2;
             word-wrap: break-word;
             color: #000;
             text-align: center;
         }}
 
+        .employee-name.long-name {{
+            font-size: 18pt !important;
+        }}
+
         .employee-code {{
             font-size: 18pt !important;
-            font-weight: bold;
+            font-weight: normal;
             margin: 0 0 3mm 0;
-            line-height: 1.0;
+            line-height: 1.4;
             color: #000;
             text-align: center;
         }}
 
         .employee-section {{
             font-size: 18pt !important;
-            font-weight: bold;
+            font-weight: normal;
             margin: 0;
-            line-height: 1.0;
+            line-height: 1.4;
             color: #000;
             text-align: center;
         }}
@@ -563,25 +569,6 @@ def generate_employee_cards_html(employees, with_barcode=False, page_size='A4'):
     return ''.join(html_parts)
 
 
-def abbreviate_name(full_name):
-    """
-    Abbreviate second word if name has 4+ words and length > 22 characters
-    Example: Nguyễn Đoàn Hương Giang => Nguyễn Đ Hương Giang
-    """
-    if not full_name:
-        return full_name
-
-    words = full_name.split()
-
-    # Check if name has 4+ words AND total length > 22
-    if len(words) >= 4 and len(full_name) > 22:
-        # Abbreviate the second word (index 1) to just first character
-        words[1] = words[1][0] if words[1] else words[1]
-        return ' '.join(words)
-
-    return full_name
-
-
 def generate_single_card_html(employee, company_logo, with_barcode=False):
     """Generate HTML for a single employee card"""
 
@@ -590,10 +577,21 @@ def generate_single_card_html(employee, company_logo, with_barcode=False):
 
     # Escape HTML special characters in text
     employee_name = frappe.utils.escape_html(employee.get('employee_name', ''))
-    # Abbreviate name if necessary
-    employee_name = abbreviate_name(employee_name)
     employee_code = frappe.utils.escape_html(employee.get('name', ''))
     employee_section = frappe.utils.escape_html(employee.get('custom_section', ''))
+
+    # Simple logic for name display
+    name_class = 'employee-name'
+    name_html = employee_name
+    name_length = len(employee_name)
+
+    # Rule 1: Name >= 20 chars -> use font size 18pt
+    if name_length >= 20:
+        name_class = 'employee-name long-name'
+
+    # Rule 2: Name < 13 chars -> add extra line
+    if name_length < 13:
+        name_html = f'{employee_name}<br/>&nbsp;'
 
     # Generate barcode HTML if requested
     barcode_html = ''
@@ -610,7 +608,7 @@ def generate_single_card_html(employee, company_logo, with_barcode=False):
                 {barcode_html}
             </div>
             <div class="card-right">
-                <div class="employee-name">{employee_name}</div>
+                <div class="{name_class}">{name_html}</div>
                 <div class="employee-code">{employee_code}</div>
                 <div class="employee-section">{employee_section}</div>
             </div>
