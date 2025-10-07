@@ -1027,7 +1027,7 @@ def get_processed_approvals_for_user(employee_id):
                 requested_by_name = frappe.get_value("Employee", record.requested_by, "employee_name")
                 record["requested_by_name"] = requested_by_name
         
-        frappe.log_error(f"Processed approvals for {employee_id}: {len(results)} records", "Approval Debug")
+        frappe.logger().debug(f"Processed approvals for {employee_id}: {len(results)} records")
         
         return results
         
@@ -1037,11 +1037,11 @@ def get_processed_approvals_for_user(employee_id):
 
 @frappe.whitelist()
 def get_pending_approvals_count(employee_id):
-    """Get count of pending approvals for badge display"""
+    """Get count of pending app rovals for badge display"""
     try:
         query = """
             SELECT COUNT(*) as count
-            FROM `tabOvertime Request`
+            FROM `tabOvertime Request` 
             WHERE 
                 docstatus = 1 
                 AND status IN ('Pending Manager Approval', 'Pending Factory Manager Approval')

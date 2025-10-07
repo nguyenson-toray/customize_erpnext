@@ -638,9 +638,23 @@ def on_checkin_creation(doc, method):
 @frappe.whitelist()
 def update_submitted_attendance_with_shift_registration(attendance_name):
     """
-    Update 1 attendance record đã submit với shift registration mới
+    FIXED VERSION: Update 1 attendance record đã submit với shift registration mới
     """
     try:
+        # Validate input
+        if not attendance_name:
+            return {
+                "success": False,
+                "message": "Attendance name is required"
+            }
+        
+        # Check if attendance exists
+        if not frappe.db.exists("Custom Attendance", attendance_name):
+            return {
+                "success": False,
+                "message": f"Attendance record {attendance_name} not found"
+            }
+        
         # Get attendance document
         attendance_doc = frappe.get_doc("Custom Attendance", attendance_name)
         
@@ -651,7 +665,7 @@ def update_submitted_attendance_with_shift_registration(attendance_name):
             }
         
         # Check shift registration
-        old_shift = attendance_doc.shift
+        old_shift = attendance_doc.shift or ""
         registered_shift = get_registered_shift_for_employee(
             attendance_doc.employee, 
             attendance_doc.attendance_date
@@ -669,59 +683,82 @@ def update_submitted_attendance_with_shift_registration(attendance_name):
                 "message": f"Shift already set to {registered_shift}"
             }
         
-        # Update submitted document
+        # Store old values
+        old_working_hours = attendance_doc.working_hours or 0
+        old_overtime_hours = attendance_doc.overtime_hours or 0
+        
+        # Update submitted document safely
         frappe.db.set_value("Custom Attendance", attendance_name, "shift", registered_shift)
         
-        # Recalculate working hours
-        old_working_hours = attendance_doc.working_hours
+        # Recalculate working hours if check times exist
+        new_working_hours = old_working_hours
+        new_overtime_hours = old_overtime_hours
         
-        # Temporarily load document to recalculate
-        temp_doc = frappe.get_doc("Custom Attendance", attendance_name)
-        if temp_doc.check_in and temp_doc.check_out:
-            temp_doc.calculate_working_hours()
-            
-            # Update working hours in database
-            frappe.db.set_value("Custom Attendance", attendance_name, "working_hours", temp_doc.working_hours)
-            
-            # Also update overtime if needed
-            temp_doc.auto_calculate_overtime()
-            frappe.db.set_value("Custom Attendance", attendance_name, "overtime_hours", temp_doc.overtime_hours)
+        if attendance_doc.check_in and attendance_doc.check_out:
+            try:
+                # Create temporary doc for calculation
+                temp_doc = frappe.get_doc("Custom Attendance", attendance_name)
+                temp_doc.reload()  # Reload to get updated shift
+                
+                # Recalculate
+                temp_doc.calculate_working_hours()
+                new_working_hours = temp_doc.working_hours or 0
+                
+                # Update working hours in database
+                frappe.db.set_value("Custom Attendance", attendance_name, "working_hours", new_working_hours)
+                
+                # Recalculate overtime
+                temp_doc.auto_calculate_overtime()
+                new_overtime_hours = temp_doc.overtime_hours or 0
+                frappe.db.set_value("Custom Attendance", attendance_name, "overtime_hours", new_overtime_hours)
+                
+            except Exception as calc_error:
+                frappe.log_error(f"Error recalculating hours for {attendance_name}: {str(calc_error)}", "Recalculation Error")
+                # Continue with shift update even if calculation fails
         
         frappe.db.commit()
         
         return {
             "success": True,
-            "message": f"Updated shift from {old_shift} to {registered_shift}",
+            "message": f"Updated shift from '{old_shift}' to '{registered_shift}'",
             "old_shift": old_shift,
             "new_shift": registered_shift,
             "old_working_hours": old_working_hours,
-            "new_working_hours": temp_doc.working_hours,
-            "overtime_hours": temp_doc.overtime_hours
+            "new_working_hours": new_working_hours,
+            "old_overtime_hours": old_overtime_hours,
+            "new_overtime_hours": new_overtime_hours
         }
         
     except Exception as e:
-        frappe.log_error(f"Error updating submitted attendance: {str(e)}", "Update Submitted Attendance")
+        error_msg = f"Error updating submitted attendance: {str(e)}"
+        frappe.log_error(error_msg, "Update Submitted Attendance Error")
         return {
             "success": False,
-            "message": f"Error: {str(e)}"
+            "message": error_msg,
+            "old_shift": "",
+            "new_shift": "",
+            "old_working_hours": 0,
+            "new_working_hours": 0
         }
 
 
 @frappe.whitelist()
 def bulk_update_attendance_with_shift_registration(filters=None):
     """
-    Bulk update multiple attendance records với shift registration
-    
-    Args:
-        filters: dict - Filter conditions để chọn attendance records
-                Example: {
-                    "employee": "EMP001",
-                    "attendance_date": ["between", ["2025-01-01", "2025-01-31"]],
-                    "docstatus": 1
-                }
+    FIXED VERSION: Bulk update multiple attendance records với shift registration
     """
     try:
-        if not filters:
+        # FIX: Ensure filters is dict
+        if filters is None:
+            filters = {}
+        elif isinstance(filters, str):
+            import json
+            try:
+                filters = json.loads(filters)
+            except:
+                filters = {}
+        
+        if not isinstance(filters, dict):
             filters = {}
         
         # Ensure only submitted documents
@@ -736,7 +773,9 @@ def bulk_update_attendance_with_shift_registration(filters=None):
         if not attendance_records:
             return {
                 "success": False,
-                "message": "No attendance records found with given filters"
+                "message": "No attendance records found with given filters",
+                "total_records": 0,
+                "results": []
             }
         
         updated_count = 0
@@ -757,6 +796,7 @@ def bulk_update_attendance_with_shift_registration(filters=None):
                     results.append({
                         "name": record.name,
                         "employee": record.employee,
+                        "employee_name": record.employee_name,
                         "date": str(record.attendance_date),
                         "status": "skipped",
                         "reason": "No shift registration found"
@@ -768,45 +808,64 @@ def bulk_update_attendance_with_shift_registration(filters=None):
                     results.append({
                         "name": record.name,
                         "employee": record.employee,
+                        "employee_name": record.employee_name,
                         "date": str(record.attendance_date),
                         "status": "skipped",
                         "reason": f"Already has correct shift: {registered_shift}"
                     })
                     continue
                 
-                # Update the record
+                # FIX: Update the record with proper error handling
                 update_result = update_submitted_attendance_with_shift_registration(record.name)
                 
-                if update_result["success"]:
+                # FIX: Ensure update_result is dict
+                if not isinstance(update_result, dict):
+                    error_count += 1
+                    results.append({
+                        "name": record.name,
+                        "employee": record.employee,
+                        "employee_name": record.employee_name,
+                        "date": str(record.attendance_date),
+                        "status": "error",
+                        "reason": f"Invalid response from update function: {str(update_result)}"
+                    })
+                    continue
+                
+                # Check if update was successful
+                if update_result.get("success", False):
                     updated_count += 1
                     results.append({
                         "name": record.name,
                         "employee": record.employee,
+                        "employee_name": record.employee_name,
                         "date": str(record.attendance_date),
                         "status": "updated",
-                        "old_shift": update_result["old_shift"],
-                        "new_shift": update_result["new_shift"],
-                        "old_working_hours": update_result["old_working_hours"],
-                        "new_working_hours": update_result["new_working_hours"]
+                        "old_shift": update_result.get("old_shift", ""),
+                        "new_shift": update_result.get("new_shift", ""),
+                        "old_working_hours": update_result.get("old_working_hours", 0),
+                        "new_working_hours": update_result.get("new_working_hours", 0)
                     })
                 else:
                     error_count += 1
                     results.append({
                         "name": record.name,
                         "employee": record.employee,
+                        "employee_name": record.employee_name,
                         "date": str(record.attendance_date),
                         "status": "error",
-                        "reason": update_result["message"]
+                        "reason": update_result.get("message", "Unknown error")
                     })
                     
-            except Exception as e:
+            except Exception as record_error:
                 error_count += 1
+                frappe.log_error(f"Error processing record {record.name}: {str(record_error)}", "Bulk Update Record Error")
                 results.append({
                     "name": record.name,
                     "employee": record.employee,
+                    "employee_name": getattr(record, 'employee_name', ''),
                     "date": str(record.attendance_date),
                     "status": "error",
-                    "reason": str(e)
+                    "reason": f"Processing error: {str(record_error)}"
                 })
         
         return {
@@ -820,11 +879,18 @@ def bulk_update_attendance_with_shift_registration(filters=None):
         }
         
     except Exception as e:
-        frappe.log_error(f"Error in bulk update: {str(e)}", "Bulk Update Attendance")
+        error_msg = f"Bulk update failed: {str(e)}"
+        frappe.log_error(error_msg, "Bulk Update Attendance Error")
         return {
             "success": False,
-            "message": f"Bulk update failed: {str(e)}"
+            "message": error_msg,
+            "total_records": 0,
+            "updated_count": 0,
+            "skipped_count": 0,
+            "error_count": 0,
+            "results": []
         }
+
 
 
 @frappe.whitelist()

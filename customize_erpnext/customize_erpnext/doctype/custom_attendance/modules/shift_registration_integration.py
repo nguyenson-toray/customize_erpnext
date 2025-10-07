@@ -277,7 +277,7 @@ def calculate_realistic_working_hours_with_shift(doc, in_time, out_time, shift_n
         # Lấy shift document
         shift_doc = frappe.get_cached_doc("Shift Type", shift_name)
         
-        if not shift_doc.start_time or not shift_doc.end_time:
+        if not shift_doc.start_time or not shift_doc.end_time: 
             # Fallback calculation
             total_hours = time_diff_in_hours(out_time, in_time)
             return max(0, flt(total_hours - 1, 2))  # Trừ 1h break
@@ -329,7 +329,7 @@ def calculate_break_overlap_for_shift(shift_doc, effective_start, effective_end)
     """Calculate break overlap with working time"""
     try:
         from .attendance_utils import timedelta_to_time_helper
-        from frappe.utils import time_diff_in_hours
+        from frappe.utils import time_difours
         
         # Check for break settings
         has_break = getattr(shift_doc, 'has_break', False)
@@ -344,14 +344,14 @@ def calculate_break_overlap_for_shift(shift_doc, effective_start, effective_end)
         
         if not (has_break or custom_has_break) or not break_start_time or not break_end_time:
             return 0.0
-        
+         
         # Parse break times
         break_start = timedelta_to_time_helper(break_start_time)
         break_end = timedelta_to_time_helper(break_end_time)
         
         if not break_start or not break_end:
             return 0.0
-        
+       
         # Calculate break period
         work_date = effective_start.date()
         break_start_datetime = datetime.combine(work_date, break_start)
@@ -392,7 +392,7 @@ def update_custom_attendance_with_registered_shift(doc):
         if shift_info["shift"]:
             doc.shift = shift_info["shift"]
         
-        # Tính lại working hours
+        # Tính lại working hours12,0000
         if doc.check_in and doc.check_out:
             calculation_result = calculate_working_hours_with_registered_shift(doc)
             doc.working_hours = calculation_result["working_hours"]
