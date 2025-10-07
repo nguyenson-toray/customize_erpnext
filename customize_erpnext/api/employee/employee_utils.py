@@ -563,6 +563,25 @@ def generate_employee_cards_html(employees, with_barcode=False, page_size='A4'):
     return ''.join(html_parts)
 
 
+def abbreviate_name(full_name):
+    """
+    Abbreviate second word if name has 4+ words and length > 22 characters
+    Example: Nguyễn Đoàn Hương Giang => Nguyễn Đ Hương Giang
+    """
+    if not full_name:
+        return full_name
+
+    words = full_name.split()
+
+    # Check if name has 4+ words AND total length > 22
+    if len(words) >= 4 and len(full_name) > 22:
+        # Abbreviate the second word (index 1) to just first character
+        words[1] = words[1][0] if words[1] else words[1]
+        return ' '.join(words)
+
+    return full_name
+
+
 def generate_single_card_html(employee, company_logo, with_barcode=False):
     """Generate HTML for a single employee card"""
 
@@ -571,6 +590,8 @@ def generate_single_card_html(employee, company_logo, with_barcode=False):
 
     # Escape HTML special characters in text
     employee_name = frappe.utils.escape_html(employee.get('employee_name', ''))
+    # Abbreviate name if necessary
+    employee_name = abbreviate_name(employee_name)
     employee_code = frappe.utils.escape_html(employee.get('name', ''))
     employee_section = frappe.utils.escape_html(employee.get('custom_section', ''))
 
