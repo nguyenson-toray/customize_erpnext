@@ -1,0 +1,64 @@
+[
+ {
+  "assign_condition": "workflow_state  == 'Pending'",
+  "assignment_days": [
+   {
+    "day": "Monday",
+    "parent": "Overtime Registration",
+    "parentfield": "assignment_days",
+    "parenttype": "Assignment Rule"
+   },
+   {
+    "day": "Tuesday",
+    "parent": "Overtime Registration",
+    "parentfield": "assignment_days",
+    "parenttype": "Assignment Rule"
+   },
+   {
+    "day": "Wednesday",
+    "parent": "Overtime Registration",
+    "parentfield": "assignment_days",
+    "parenttype": "Assignment Rule"
+   },
+   {
+    "day": "Thursday",
+    "parent": "Overtime Registration",
+    "parentfield": "assignment_days",
+    "parenttype": "Assignment Rule"
+   },
+   {
+    "day": "Friday",
+    "parent": "Overtime Registration",
+    "parentfield": "assignment_days",
+    "parenttype": "Assignment Rule"
+   },
+   {
+    "day": "Saturday",
+    "parent": "Overtime Registration",
+    "parentfield": "assignment_days",
+    "parenttype": "Assignment Rule"
+   },
+   {
+    "day": "Sunday",
+    "parent": "Overtime Registration",
+    "parentfield": "assignment_days",
+    "parenttype": "Assignment Rule"
+   }
+  ],
+  "close_condition": null,
+  "description": "Automatic Assignment",
+  "disabled": 1,
+  "docstatus": 0,
+  "doctype": "Assignment Rule",
+  "document_type": "Overtime Registration",
+  "due_date_based_on": "request_date",
+  "field": "approver",
+  "last_user": "son.nt@tiqn.com.vn",
+  "modified": "2025-10-04 10:25:37.690909",
+  "name": "Overtime Registration",
+  "priority": 0,
+  "rule": "Based on Field",
+  "unassign_condition": null,
+  "users": []
+ }
+]

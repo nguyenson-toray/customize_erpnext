@@ -316,13 +316,34 @@ def validate_excel_data_detailed(df):
                         result["success"] = False
                         continue
                     
-                    # Use cached warehouse lookup
-                    warehouse = warehouses_map.get(item['item_code'])
+                    # Check warehouse - priority: Excel > Default warehouse
+                    warehouse = None
+                    excel_warehouse = row.get('s_warehouse', '')
+                    
+                    if excel_warehouse and pd.notna(excel_warehouse) and str(excel_warehouse).strip():
+                        # Validate warehouse từ Excel có tồn tại không
+                        excel_warehouse = str(excel_warehouse).strip()
+                        if frappe.db.exists("Warehouse", excel_warehouse):
+                            warehouse = excel_warehouse
+                            logger.log_info(f"  Using warehouse from Excel: {warehouse} for item {item['item_code']}")
+                        else:
+                            result["validation_details"]["missing_warehouses"].append({
+                                "item_code": item['item_code'],
+                                "warehouse": f"Excel warehouse '{excel_warehouse}' not found",
+                                "row": row_number
+                            })
+                            result["success"] = False
+                            continue
+                    else:
+                        # Fallback to default warehouse
+                        warehouse = warehouses_map.get(item['item_code'])
+                        if warehouse:
+                            logger.log_info(f"  Using default warehouse: {warehouse} for item {item['item_code']}")
                     
                     if not warehouse:
                         result["validation_details"]["missing_warehouses"].append({
                             "item_code": item['item_code'],
-                            "warehouse": "No default warehouse",
+                            "warehouse": "No warehouse specified and no default warehouse",
                             "row": row_number
                         })
                         result["success"] = False
@@ -881,7 +902,8 @@ def validate_excel_columns(df):
     # Các cột optional
     optional_columns = [
         'posting_date',         # Ngày chứng từ
-        'posting_time'          # Thời gian chứng từ
+        'posting_time',         # Thời gian chứng từ
+        's_warehouse'           # Source warehouse (optional - fallback to default if not provided)
     ]
     
     missing_columns = [col for col in required_columns if col not in df.columns]
@@ -1257,12 +1279,31 @@ def add_item_to_stock_entry(stock_entry, row, row_number):
                 "message": f"Số lượng không hợp lệ: {qty}"
             }
         
-        # Use cached warehouse lookup
-        warehouse = warehouse_cache.get(item['item_code'])
+        # Determine warehouse - priority: Excel > Default warehouse
+        warehouse = None
+        excel_warehouse = row.get('s_warehouse', '')
+        
+        if excel_warehouse and pd.notna(excel_warehouse) and str(excel_warehouse).strip():
+            # Use warehouse from Excel
+            excel_warehouse = str(excel_warehouse).strip()
+            if frappe.db.exists("Warehouse", excel_warehouse):
+                warehouse = excel_warehouse
+                logger.log_info(f"  Using warehouse from Excel: {warehouse} for item {item['item_code']}")
+            else:
+                return {
+                    "success": False,
+                    "message": f"Excel warehouse '{excel_warehouse}' không tồn tại cho item {item['item_code']}"
+                }
+        else:
+            # Fallback to default warehouse
+            warehouse = warehouse_cache.get(item['item_code'])
+            if warehouse:
+                logger.log_info(f"  Using default warehouse: {warehouse} for item {item['item_code']}")
+        
         if not warehouse:
             return {
                 "success": False,
-                "message": f"Không tìm thấy default warehouse cho item {item['item_code']}"
+                "message": f"Không có warehouse nào được chỉ định và không tìm thấy default warehouse cho item {item['item_code']}"
             }
         
         # Kiểm tra invoice number

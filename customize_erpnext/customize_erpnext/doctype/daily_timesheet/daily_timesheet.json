@@ -1,0 +1,313 @@
+{
+ "actions": [],
+ "allow_import": 1,
+ "autoname": "hash",
+ "creation": "2025-09-03 13:19:19.387366",
+ "doctype": "DocType",
+ "document_type": "Document",
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "employee",
+  "employee_name",
+  "attendance_date",
+  "status",
+  "maternity_benefit",
+  "column_break_6",
+  "check_in",
+  "late_entry",
+  "check_out",
+  "early_exit",
+  "working_hours",
+  "column_break_ktbe",
+  "actual_overtime",
+  "approved_overtime",
+  "overtime_hours",
+  "overtime_coefficient",
+  "final_ot_with_coefficient",
+  "overtime_details_html",
+  "column_break_hucz",
+  "shift",
+  "shift_determined_by",
+  "section_break_19",
+  "company",
+  "department",
+  "custom_section",
+  "custom_group",
+  "leave_application",
+  "amended_from",
+  "column_break_snap",
+  "additional_info_html"
+ ],
+ "fields": [
+  {
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "in_global_search": 1,
+   "in_standard_filter": 1,
+   "label": "Employee",
+   "options": "Employee",
+   "read_only": 1,
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fetch_from": "employee.employee_name",
+   "fieldname": "employee_name",
+   "fieldtype": "Data",
+   "in_global_search": 1,
+   "label": "Employee Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "attendance_date",
+   "fieldtype": "Date",
+   "in_filter": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Attendance Date",
+   "read_only": 1,
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "Absent\nPresent\nPresent + OT\nHalf Day\nWork From Home\nOn Leave\nSunday",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "shift",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Shift",
+   "options": "Shift Type",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_6",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "check_in",
+   "fieldtype": "Datetime",
+   "label": "Check In",
+   "read_only": 1
+  },
+  {
+   "fieldname": "check_out",
+   "fieldtype": "Datetime",
+   "label": "Check Out",
+   "read_only": 1
+  },
+  {
+   "description": "Total normal working hours, excluding overtime",
+   "fieldname": "working_hours",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Working Hours",
+   "precision": "2",
+   "read_only": 1
+  },
+  {
+   "description": "Final overtime hours (min of actual vs approved)",
+   "fieldname": "overtime_hours",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Overtime Hours",
+   "precision": "2",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "late_entry",
+   "fieldtype": "Check",
+   "label": "Late Entry",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "early_exit",
+   "fieldtype": "Check",
+   "label": "Early Exit",
+   "read_only": 1
+  },
+  {
+   "description": "Sunday / Registration / Employee Group / Default",
+   "fieldname": "shift_determined_by",
+   "fieldtype": "Data",
+   "label": "Shift Determined By",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "maternity_benefit",
+   "fieldtype": "Check",
+   "label": "Maternity Benefit",
+   "read_only": 1
+  },
+  {
+   "description": "Zero if less than 30 minutes",
+   "fieldname": "actual_overtime",
+   "fieldtype": "Float",
+   "label": "Actual Overtime",
+   "precision": "2",
+   "read_only": 1
+  },
+  {
+   "description": "Submitted",
+   "fieldname": "approved_overtime",
+   "fieldtype": "Float",
+   "label": "Registered Overtime",
+   "precision": "2",
+   "read_only": 1
+  },
+  {
+   "fieldname": "overtime_details_html",
+   "fieldtype": "HTML",
+   "label": "Overtime Details",
+   "read_only": 1
+  },
+  {
+   "fieldname": "additional_info_html",
+   "fieldtype": "HTML",
+   "label": "Additional Information"
+  },
+  {
+   "fieldname": "section_break_19",
+   "fieldtype": "Section Break",
+   "label": "Additional Information"
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "fetch_from": "employee.department",
+   "fieldname": "department",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Department",
+   "options": "Department",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "employee.custom_section",
+   "fieldname": "custom_section",
+   "fieldtype": "Data",
+   "in_standard_filter": 1,
+   "label": "Section",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "employee.custom_group",
+   "fieldname": "custom_group",
+   "fieldtype": "Data",
+   "in_standard_filter": 1,
+   "label": "Group",
+   "read_only": 1
+  },
+  {
+   "fieldname": "leave_application",
+   "fieldtype": "Link",
+   "label": "Leave Application",
+   "options": "Leave Application"
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Daily Timesheet",
+   "print_hide": 1,
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "column_break_ktbe",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_snap",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "overtime_coefficient",
+   "fieldtype": "Float",
+   "label": "Overtime Coefficient",
+   "precision": "2",
+   "read_only": 1
+  },
+  {
+   "fieldname": "final_ot_with_coefficient",
+   "fieldtype": "Float",
+   "label": "Final OT - With Coefficient",
+   "precision": "2",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_hucz",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "HRDTS-.YY..MM.-.######.",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "Series",
+   "options": "HRDTS-.YY..MM.-.######."
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2025-10-04 11:07:42.472739",
+ "modified_by": "Administrator",
+ "module": "Customize Erpnext",
+ "name": "Daily Timesheet",
+ "naming_rule": "Random",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "HR Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "HR User",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "Employee"
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "employee_name",
+ "track_changes": 1,
+ "track_views": 1
+}

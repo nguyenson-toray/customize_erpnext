@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <style>
+      @media print {
+      body {
+      margin: 0;
+      padding-left: 15px;
+      padding-right: 5px;
+      padding-top: 5px;
+      padding-bottom: 5px;
+      }
+      .page-break { page-break-before: always; }
+      .page-number {
+      display: none;
+      }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Header Section -->
+    <div class="header clearfix">
+      <div class="company-info">
+        <strong>TORAY INTERNATIONAL VIETNAM COMPANY LIMITED - QUANG NGAI BRANCH</strong><br>
+        <strong><span class="vietnamese">CÔNG TY TNHH TORAY INTERNATIONAL VIỆT NAM CN QUẢNG NGÃI</span></strong><br><br>
+        No. 09, Tu Do Boulevard, VSIP / <span class="vietnamese">Số 09, Đại Lộ Tự Do, KCN Việt Nam - Singapore</span><br>
+        Tinh Tho Commune, Son Tinh District / <span class="vietnamese">Xã Tịnh Thọ, Huyện Sơn Tịnh</span><br>
+        Quang Ngai Province, Viet Nam / <span class="vietnamese">Tỉnh Quảng Ngãi, Việt Nam</span>
+      </div>
+      <div class="document-info">
+        <div class="document-number">
+          No: {{ doc.name }}
+        </div>
+        <div class="barcode">
+          <!-- QR Code with local generation -->
+          <div class="qr-content">
+            {% set qr_data = frappe.utils.get_url() + "/app/shift-registration/" + doc.name %}
+            {% set qr_code_base64 = frappe.call("customize_erpnext.api.qr_label_print.generate_qr_code_base64", data=qr_data) %}
+            {% if qr_code_base64 %}
+            <img src="data:image/png;base64,{{ qr_code_base64 }}"
+            alt="QR Code" style="width: 70px; height: 70px; border: none;">
+            {% else %}
+            <div style="width: 70px; height: 70px; border: 1px solid #ccc; display: flex; align-items: center; justify-content: center; font-size: 8px; text-align: center;">
+              {{ doc.name }}
+            </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="title-section">
+      <div class="main-title">SHIFT REGISTRATION FORM</div>
+      <div class="sub-title">BẢN ĐĂNG KÝ CA LÀM VIỆC</div>
+    </div>
+    <!-- Form Information -->
+    <div class="form-info">
+      <div class="info-row">
+        <span class="info-label">Request Date/ <span class="vietnamese">Ngày yêu cầu</span>:</span>
+        <span class="info-value">
+          {% if doc.request_date %}
+          {{ frappe.utils.formatdate(doc.request_date, "dd/MM/yyyy") }}
+          {% endif %}
+        </span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Requested By/<br><span class="vietnamese">Người yêu cầu</span>:</span>
+        <span class="info-value">
+          {{ doc.requested_by or "" }}
+        </span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Shift Type / <span class="vietnamese">Loại ca</span>:</span>
+        <span class="info-value">
+          {{ doc.shift or "" }}
+        </span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Work Date / <span class="vietnamese">Ngày làm việc</span>:</span>
+        <span class="info-value">
+          {% if doc.begin_date and doc.end_date %}
+          {% if doc.begin_date == doc.end_date %}
+          {{ frappe.utils.formatdate(doc.begin_date, "dd/MM/yyyy") }}
+          {% else %}
+          {{ frappe.utils.formatdate(doc.begin_date, "dd/MM/yyyy") }} - {{ frappe.utils.formatdate(doc.end_date, "dd/MM/yyyy") }}
+          {% endif %}
+          {% endif %}
+        </span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Work Time / <span class="vietnamese">Thời gian làm việc</span>:</span>
+        <span class="info-value">
+          {% if doc.begin_time and doc.end_time %}
+          {{ (doc.begin_time|string)[:5].rstrip(':') }} - {{ (doc.end_time|string)[:5].rstrip(':') }}
+          {% endif %}
+        </span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Group / <span class="vietnamese">Nhóm</span>:</span>
+        <span class="info-value">
+          {% set groups = [] %}
+          {% for row in doc.employees_list %}
+          {% if row.group and row.group not in groups %}
+          {% set _ = groups.append(row.group) %}
+          {% endif %}
+          {% endfor %}
+          {{ groups | join(", ") }}
+        </span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Reason / <span class="vietnamese">Lý do</span>:</span>
+        <span class="info-value">{{ doc.reason or "" }}</span>
+      </div>
+    </div>
+    <!-- Data Table -->
+    <div class="table-container">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th style="width: 3%;">No<br><span class="vietnamese">STT</span></th>
+            <th style="width: 12%;">Employee Code<br><span class="vietnamese">MSNV</span></th>
+            <th style="width: 18%;">Full Name<br><span class="vietnamese">Họ tên</span></th>
+            <th style="width: 8%;">Group<br><span class="vietnamese">Nhóm</span></th>
+            <th style="width: 12%;">Begin Date<br><span class="vietnamese">Ngày bắt đầu</span></th>
+            <th style="width: 12%;">End Date<br><span class="vietnamese">Ngày kết thúc</span></th>
+            <th style="width: 10%;">Begin Time<br><span class="vietnamese">Giờ bắt đầu</span></th>
+            <th style="width: 10%;">End Time<br><span class="vietnamese">Giờ kết thúc</span></th>
+            <th style="width: 15%;">Signature<br><span class="vietnamese">Chữ ký</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% set counter = [0] %}
+          {% for row in doc.employees_list %}
+          {% if row.employee %}
+          {% set _ = counter.append(counter.pop() + 1) %}
+          <tr>
+            <td>{{ counter[0] }}</td>
+            <td>{{ row.employee or "" }}</td>
+            <td class="text-left">{{ row.employee_name or "" }}</td>
+            <td>{{ row.group or "" }}</td>
+            <td>
+              {% if row.begin_date %}
+              {{ frappe.utils.formatdate(row.begin_date, "dd/MM/yy") }}
+              {% endif %}
+            </td>
+            <td>
+              {% if row.end_date %}
+              {{ frappe.utils.formatdate(row.end_date, "dd/MM/yy") }}
+              {% endif %}
+            </td>
+            <td>
+              {% if row.begin_time %}
+              {{ (row.begin_time|string)[:5].rstrip(':') }}
+              {% endif %}
+            </td>
+            <td>
+              {% if row.end_time %}
+              {{ (row.end_time|string)[:5].rstrip(':') }}
+              {% endif %}
+            </td>
+            <td style="height: 25px;"></td>
+          </tr>
+          {% endif %}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <!-- Totals Section -->
+    <div class="totals-section">
+      <div class="totals-item">
+        <div class="totals-text">Total Employees / <span class="vietnamese">Tổng số NV</span>: {{ doc.total_employees or 0 }}</div>
+      </div>
+      <div class="totals-item">
+        <div class="totals-text">Shift Type / <span class="vietnamese">Loại ca</span>: {{ doc.shift or "" }}</div>
+      </div>
+    </div>
+    <!-- Footer Section -->
+    <div class="footer">
+      <div class="explanation-section">
+        <div class="explanation-label">
+          Other justifications/explanation (<span class="vietnamese">Giải trình khác</span>):
+        </div>
+        <div class="explanation-lines">
+          <div class="explanation-line"></div>
+          <div class="explanation-line"></div>
+        </div>
+      </div>
+      <div class="signature-section">
+        <div class="signature-box">
+          <div>
+            <div class="signature-title">Prepared by:</div>
+            <div class="signature-title-vn">Chuẩn bị bởi</div>
+          </div>
+          <div class="signature-space"></div>
+          <div class="signature-space"></div>
+          <div class="signature-space"></div>
+          <div>
+            <div class="signature-role">Leader</div>
+            <div class="signature-role-vn">Trưởng nhóm</div>
+          </div>
+        </div>
+        <div class="signature-box">
+          <div>
+            <div class="signature-title">Reviewed by:</div>
+            <div class="signature-title-vn">Xem xét bởi</div>
+          </div>
+          <div class="signature-space"></div>
+          <div class="signature-space"></div>
+          <div class="signature-space"></div>
+          <div>
+            <div class="signature-role">Department Manager</div>
+            <div class="signature-role-vn">Trưởng Bộ Phận</div>
+          </div>
+        </div>
+        <div class="signature-box">
+          <div>
+            <div class="signature-title">Approved by:</div>
+            <div class="signature-title-vn">Phê duyệt bởi</div>
+          </div>
+          <div class="signature-space"></div>
+          <div class="signature-space"></div>
+          <div class="signature-space"></div>
+          <div>
+            <div class="signature-role">Factory Manager</div>
+            <div class="signature-role-vn">Giám đốc Nhà máy</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- Page Number -->
+    <div class="page-number" id="pageNumber">
+      Page 1
+    </div>
+  </body>
+</html>

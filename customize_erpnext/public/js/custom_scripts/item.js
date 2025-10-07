@@ -8,22 +8,22 @@ frappe.ui.form.on('Item', {
                 console.log('Current item_group:', frm.doc.item_group);
                 let current_user = frappe.session.user;
                 // Lấy role profile và thiết lập filter trước khi tiếp tục
-                await frappe.call({
-                    method: 'customize_erpnext.api.utilities.get_role_profile',
-                    args: {
-                        email: current_user
-                    },
-                    callback: function (r) {
-                        if (r.message) {
-                            const role_profile = r.message.role_profile;
-                            console.log("get_role_profile:", r.role_profile);
-                            // Setup filters ngay sau khi có role_profile
-                            setup_item_group_filters(frm, role_profile);
-                            // Setup validation ngay sau khi có role_profile 
-                            setup_item_group_validation(frm, role_profile);
-                        }
-                    }
-                });
+                // await frappe.call({
+                //     method: 'customize_erpnext.api.utilities.get_role_profile',
+                //     args: {
+                //         email: current_user
+                //     },
+                //     callback: function (r) {
+                //         if (r.message) {
+                //             const role_profile = r.message.role_profile;
+                //             console.log("get_role_profile:", r.role_profile);
+                //             // Setup filters ngay sau khi có role_profile
+                //             setup_item_group_filters(frm, role_profile);
+                //             // Setup validation ngay sau khi có role_profile 
+                //             setup_item_group_validation(frm, role_profile);
+                //         }
+                //     }
+                // });
 
             } catch (error) {
                 console.error("Error in onload:", error);
@@ -36,7 +36,7 @@ frappe.ui.form.on('Item', {
         if (!frm.doc.description) {
             frm.set_value('description', frm.doc.item_name);
         }
-        
+
         // Validate and manage barcode
         validate_and_manage_barcode(frm);
     },
@@ -169,13 +169,7 @@ function create_attributes(frm) {
             else {
                 frm.set_value('attributes', []);
             }
-            if (group.includes("Packing") || group.includes("Sewing")) {
-                frappe.msgprint({
-                    title: __('Notification'),
-                    indicator: 'green',
-                    message: __('Với nhóm Packing và Sewing, có thể có thuộc tính Info')
-                });
-            }
+
         }
     } catch (error) {
 
@@ -665,9 +659,9 @@ function validate_and_manage_barcode(frm) {
     if (frm.doc.barcodes && frm.doc.barcodes.length > 0) {
         // Barcode entry exists, check if it's correct
         barcode_entry = frm.doc.barcodes[0];
-        
-        if (barcode_entry.barcode !== frm.doc.item_code || 
-            barcode_entry.uom !== frm.doc.stock_uom || 
+
+        if (barcode_entry.barcode !== frm.doc.item_code ||
+            barcode_entry.uom !== frm.doc.stock_uom ||
             barcode_entry.barcode_type !== 'CODE-39') {
             needs_update = true;
         }
@@ -682,24 +676,24 @@ function validate_and_manage_barcode(frm) {
         frappe.model.set_value(new_barcode.doctype, new_barcode.name, 'barcode', frm.doc.item_code);
         frappe.model.set_value(new_barcode.doctype, new_barcode.name, 'uom', frm.doc.stock_uom);
         frappe.model.set_value(new_barcode.doctype, new_barcode.name, 'barcode_type', 'CODE-39');
-        
+
         frappe.show_alert({
             message: __('Auto-created barcode entry: {0}', [frm.doc.item_code]),
             indicator: 'green'
         });
-        
+
         console.log('Created new barcode entry for item:', frm.doc.item_code);
     } else if (needs_update) {
         // Update existing barcode entry
         frappe.model.set_value(barcode_entry.doctype, barcode_entry.name, 'barcode', frm.doc.item_code);
         frappe.model.set_value(barcode_entry.doctype, barcode_entry.name, 'uom', frm.doc.stock_uom);
         frappe.model.set_value(barcode_entry.doctype, barcode_entry.name, 'barcode_type', 'CODE-39');
-        
+
         frappe.show_alert({
             message: __('Updated barcode entry to: {0}', [frm.doc.item_code]),
             indicator: 'blue'
         });
-        
+
         console.log('Updated barcode entry for item:', frm.doc.item_code);
     }
 

@@ -13,6 +13,7 @@ def execute(filters=None):
         {"label": _("Employee Name"), "fieldname": "employee_name", "fieldtype": "Data", "width": 200},
         {"label": _("Department"), "fieldname": "department", "fieldtype": "Data", "width": 120},
         {"label": _("Group"), "fieldname": "custom_group", "fieldtype": "Data", "width": 150},
+        {"label": _("Shift"), "fieldname": "shift", "fieldtype": "Data", "width": 100},
         {"label": _("Designation"), "fieldname": "designation", "fieldtype": "Data", "width": 140},
         {"label": _("Status"), "fieldname": "status", "fieldtype": "Data", "width": 100},       
         {"label": _("Check-in Time"), "fieldname": "check_in_time", "fieldtype": "Datetime", "width": 180, "align": "left"},
@@ -32,6 +33,7 @@ def get_data(filters):
     custom_group = filters.get("custom_group")
     status_filter = filters.get("status")
     show_all_checkins = filters.get("show_all_checkins", 0)  # Checkbox mới
+    show_maternity_leave = filters.get("show_maternity_leave", 0)  # Checkbox Show Maternity Leave
     
     # Các điều kiện lọc bổ sung
     conditions = [] 
@@ -42,6 +44,13 @@ def get_data(filters):
     
     # Kết hợp các điều kiện
     additional_conditions = " AND " + " AND ".join(conditions) if conditions else ""
+    
+    # Maternity leave filter
+    maternity_filter = ""
+    if show_maternity_leave == 0:
+        # Default: Không hiển thị employees đang maternity leave
+        maternity_filter = " AND (ml.name IS NULL OR ml.type != 'Maternity Leave')"
+    # Nếu show_maternity_leave == 1: Hiển thị tất cả (bao gồm maternity leave)
     
     # Xây dựng truy vấn dựa trên checkbox
     if show_all_checkins:
@@ -56,15 +65,33 @@ def get_data(filters):
                 e.designation,
                 c.time AS check_in_time,
                 c.device_id,
+                c.custom_reason_for_manual_check_in,
                 CASE 
                     WHEN c.time IS NOT NULL THEN 'Present'
                     ELSE 'Absent' 
                 END AS status,
                 CASE 
+                    WHEN c.custom_reason_for_manual_check_in IS NOT NULL AND TRIM(c.custom_reason_for_manual_check_in) != '' 
+                    THEN CONCAT('Manual Add: ', c.custom_reason_for_manual_check_in)
                     WHEN c.time IS NOT NULL THEN NULL
                     WHEN ml.name IS NOT NULL AND ml.type = 'Maternity Leave' THEN 'Maternity Leave'
                     ELSE NULL
-                END AS status_info
+                END AS status_info,
+                COALESCE(
+                    (SELECT srd.shift
+                     FROM `tabShift Registration Detail` srd
+                     JOIN `tabShift Registration` sr ON srd.parent = sr.name
+                     WHERE srd.employee = e.name
+                       AND srd.begin_date <= '{report_date}'  
+                       AND srd.end_date >= '{report_date}'
+                       AND sr.docstatus = 1
+                     ORDER BY sr.creation DESC
+                     LIMIT 1),
+                    CASE 
+                        WHEN e.custom_group = 'Canteen' THEN 'Canteen'
+                        ELSE 'Day'
+                    END
+                ) AS shift
             FROM 
                 `tabEmployee` e
             -- Lấy tất cả check-in trong ngày
@@ -82,6 +109,7 @@ def get_data(filters):
             WHERE 
                 e.status = 'Active'
                 {additional_conditions}
+                {maternity_filter}
             ORDER BY 
                 status ASC, e.name, c.time
         """, as_dict=1)
@@ -98,28 +126,51 @@ def get_data(filters):
                 e.designation,
                 c.time AS check_in_time,
                 c.device_id,
+                c.custom_reason_for_manual_check_in,
                 CASE 
                     WHEN c.time IS NOT NULL THEN 'Present'
                     ELSE 'Absent' 
                 END AS status,
                 CASE 
+                    WHEN c.custom_reason_for_manual_check_in IS NOT NULL AND TRIM(c.custom_reason_for_manual_check_in) != '' 
+                    THEN CONCAT('Manual Add: ', c.custom_reason_for_manual_check_in)
                     WHEN c.time IS NOT NULL THEN NULL
                     WHEN ml.name IS NOT NULL AND ml.type = 'Maternity Leave' THEN 'Maternity Leave'
                     ELSE NULL
-                END AS status_info
+                END AS status_info,
+                COALESCE(
+                    (SELECT srd.shift
+                     FROM `tabShift Registration Detail` srd
+                     JOIN `tabShift Registration` sr ON srd.parent = sr.name
+                     WHERE srd.employee = e.name
+                       AND srd.begin_date <= '{report_date}'  
+                       AND srd.end_date >= '{report_date}'
+                       AND sr.docstatus = 1
+                     ORDER BY sr.creation DESC
+                     LIMIT 1),
+                    CASE 
+                        WHEN e.custom_group = 'Canteen' THEN 'Canteen'
+                        ELSE 'Day'
+                    END
+                ) AS shift
             FROM 
                 `tabEmployee` e
             LEFT JOIN 
                 (SELECT 
-                    employee, 
-                    MIN(time) AS time,
-                    device_id
+                    ec1.employee, 
+                    ec1.time,
+                    ec1.device_id,
+                    ec1.custom_reason_for_manual_check_in
                  FROM 
-                    `tabEmployee Checkin`
+                    `tabEmployee Checkin` ec1
                  WHERE 
-                    DATE(time) = '{report_date}'
-                 GROUP BY 
-                    employee) c
+                    DATE(ec1.time) = '{report_date}'
+                    AND ec1.time = (
+                        SELECT MIN(ec2.time)
+                        FROM `tabEmployee Checkin` ec2
+                        WHERE ec2.employee = ec1.employee
+                        AND DATE(ec2.time) = '{report_date}'
+                    )) c
             ON 
                 e.name = c.employee
             LEFT JOIN
@@ -131,6 +182,7 @@ def get_data(filters):
             WHERE 
                 e.status = 'Active'
                 {additional_conditions}
+                {maternity_filter}
             ORDER BY 
                 status ASC, e.name
         """, as_dict=1)

@@ -14,6 +14,14 @@ from zk.base import Finger
 from config import ATTENDANCE_DEVICES, FINGERPRINT_CONFIG
 from core.erpnext_api import ERPNextAPI
 
+# Import unidecode để xử lý tên tiếng Việt có dấu
+try:
+    from unidecode import unidecode
+    UNIDECODE_AVAILABLE = True
+except ImportError:
+    UNIDECODE_AVAILABLE = False
+    print("Warning: unidecode not available, using original Vietnamese names")
+
 logger = logging.getLogger(__name__)
 
 
@@ -130,16 +138,55 @@ class AttendanceDeviceSync:
         for device_id in device_ids:
             self.disconnect_device(device_id)
 
-    def sync_employee_to_device(self, zk: ZK, employee_data: Dict, 
+    def check_device_connection(self, zk: ZK, device_ip: str, device_port: int = 4370) -> bool:
+        """
+        Kiểm tra kết nối thiết bị trước khi thao tác
+
+        Args:
+            zk: ZK connection object
+            device_ip: Địa chỉ IP của thiết bị
+            device_port: Cổng kết nối (mặc định 4370)
+
+        Returns:
+            True nếu kết nối OK
+        """
+        try:
+            # Kiểm tra socket connection
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(3)
+            result = sock.connect_ex((device_ip, device_port))
+            sock.close()
+
+            if result != 0:
+                logger.error(f"❌ Thiết bị {device_ip}:{device_port} không thể kết nối - Lỗi: {result}")
+                return False
+
+            # Kiểm tra ZK connection còn sống
+            if not zk:
+                logger.error(f"❌ ZK connection object không hợp lệ")
+                return False
+
+            return True
+
+        except Exception as e:
+            logger.error(f"❌ Lỗi kiểm tra kết nối: {str(e)}")
+            return False
+
+    def sync_employee_to_device(self, zk: ZK, employee_data: Dict,
                                fingerprints: List[Dict]) -> bool:
         """
-        Đồng bộ dữ liệu một nhân viên đến thiết bị sử dụng phương pháp mới
-        
+        Đồng bộ dữ liệu một nhân viên đến thiết bị sử dụng phương pháp tối ưu
+
+        IMPROVEMENTS:
+        - Kiểm tra connection trước khi gửi
+        - Chỉ gửi templates có dữ liệu thực (tiết kiệm băng thông)
+        - Xử lý tên tiếng Việt có dấu với unidecode
+
         Args:
             zk: ZK connection object
             employee_data: Thông tin nhân viên (bao gồm attendance_device_id)
             fingerprints: Danh sách vân tay của nhân viên
-            
+
         Returns:
             True nếu đồng bộ thành công
         """
@@ -148,93 +195,89 @@ class AttendanceDeviceSync:
             if not employee_data:
                 logger.error("❌ Không có dữ liệu nhân viên")
                 return False
-                
+
             if not fingerprints:
                 logger.warning(f"⚠️ Nhân viên {employee_data.get('employee', 'Unknown')} không có dữ liệu vân tay")
                 return False
-            
+
             # Lấy attendance_device_id
             user_id = employee_data.get('attendance_device_id')
             if not user_id:
                 logger.error(f"❌ Nhân viên {employee_data.get('employee', 'Unknown')} chưa có attendance_device_id")
                 return False
-            
-            # # Chuyển đổi user_id sang số
-            # try:
-            #     user_id = int(user_id)
-            # except ValueError:
-            #     logger.error(f"❌ attendance_device_id không hợp lệ: {user_id}")
-            #     return False
-            
+
             logger.info(f"👤 Đang xử lý nhân viên: {employee_data['employee']} - {employee_data['employee_name']} (ID: {user_id})")
-            
+
+            # IMPROVEMENT 1: Kiểm tra connection trước khi gửi
+            device_ip = getattr(zk, '_ZK__address', 'unknown')
+            device_port = getattr(zk, '_ZK__port', 4370)
+            if not self.check_device_connection(zk, device_ip, device_port):
+                logger.error(f"❌ Kết nối thiết bị không khả dụng")
+                return False
+
             # Kiểm tra xem user đã tồn tại chưa
             existing_users = zk.get_users()
-            user_exists = any(u.user_id == user_id for u in existing_users) 
+            user_exists = any(str(u.user_id) == str(user_id) for u in existing_users)
             if user_exists:
                 logger.info(f"🗑️ User {user_id} đã tồn tại. Đang xóa user cũ...")
                 zk.delete_user(user_id=user_id)
                 logger.info(f"✅ Đã xóa user {user_id}.")
-                time.sleep(0.5)  # Cho thiết bị một chút thời gian
-            
-            # Tạo user mới
-            logger.info(f"➕ Tạo mới user {user_id}...") 
+                time.sleep(0.2)  # Giảm thời gian chờ từ 0.5s xuống 0.2s
+
+            # IMPROVEMENT 2: Tạo user mới với tên tiếng Việt đã xử lý
+            logger.info(f"➕ Tạo mới user {user_id}...")
             full_name = employee_data['employee_name']
-            shortened_name = self.shorted_name(full_name,24)  
-            print(f"   Tên đầy đủ: {full_name}, Tên rút gọn: {shortened_name}")
-            privilege= const.USER_ADMIN if employee_data['employee_name']=='USER_ADMIN' else const.USER_DEFAULT
-            print(f"   Quyền hạn: {privilege}")
-            password = str(employee_data['password']) if employee_data['password'] else None
-            print(f"   Mật khẩu: {password}")
-            if not password:
-                zk.set_user(user_id= user_id , name=shortened_name , privilege=privilege) 
+            shortened_name = self.shorten_name(full_name, 24)  # Sử dụng hàm mới có unidecode
+            logger.info(f"   Tên đầy đủ: {full_name}, Tên rút gọn: {shortened_name}")
+
+            privilege = employee_data.get('privilege', const.USER_DEFAULT)
+            password = str(employee_data['password']) if employee_data.get('password') else None
+
+            if password:
+                zk.set_user(user_id=user_id, name=shortened_name, privilege=privilege, password=password, group_id='')
             else:
-                zk.set_user(user_id= user_id , name=shortened_name , privilege=privilege, password= password)
-            print(f"   Tạo user thành công: {full_name} (ID: {user_id})")
+                zk.set_user(user_id=user_id, name=shortened_name, privilege=privilege, group_id='')
+
+            logger.info(f"   ✅ Tạo user thành công: {shortened_name} (ID: {user_id})")
+
             # Lấy lại thông tin user sau khi tạo
             users = zk.get_users()
-            user = next((u for u in users if u.user_id == user_id), None)
+            user = next((u for u in users if str(u.user_id) == str(user_id)), None)
             if not user:
                 logger.error(f"❌ Không thể tạo hoặc tìm thấy user {user_id} sau khi tạo.")
                 return False
-            uid_int = user.uid
-            # Chuẩn bị danh sách template để gửi
+
+            # IMPROVEMENT 3: Chỉ gửi templates có dữ liệu thực
+            fingerprint_lookup = {fp.get("finger_index"): fp for fp in fingerprints if fp.get("template_data")}
+
+            decoded_templates = {}
+            for finger_index, fp in fingerprint_lookup.items():
+                try:
+                    decoded_templates[finger_index] = base64.b64decode(fp["template_data"])
+                except Exception as e:
+                    logger.warning(f"   ⚠️ Không thể decode template ngón {finger_index}: {str(e)}")
+
+            # Chỉ tạo Finger objects cho các ngón có dữ liệu thực
             templates_to_send = []
-            success_count = 0
-            
-            # Tạo 10 Finger objects, với template thực cho các ngón có dữ liệu
-            for i in range(10):
-                # Tìm vân tay cho ngón tay này
-                finger_data = None
-                for fp in fingerprints:
-                    if fp.get('finger_index') == i and fp.get('template_data'):
-                        finger_data = fp
-                        break
-                
-                if finger_data:
-                    try:
-                        # Decode base64 template data
-                        template_bytes = base64.b64decode(finger_data['template_data'])
-                        finger_obj = Finger(uid=uid_int, fid=i, valid=True, template=template_bytes)
-                        templates_to_send.append(finger_obj)
-                        logger.info(f"   ✅ Chuẩn bị template cho ngón {i}")
-                        success_count += 1
-                    except Exception as e:
-                        logger.error(f"   ❌ Lỗi xử lý template ngón {i}: {str(e)}")
-                        finger_obj = Finger(uid=uid_int, fid=i, valid=False, template=b'')
-                        templates_to_send.append(finger_obj)
-                else:
-                    # Ngón tay không có dữ liệu, tạo template trống
-                    finger_obj = Finger(uid=uid_int, fid=i, valid=False, template=b'')
-                    templates_to_send.append(finger_obj)
-            
-            # Gửi tất cả template lên thiết bị
-            logger.info(f"📤 Gửi {success_count} template vân tay lên máy chấm công...")
-            
+            fingerprint_count = 0
+
+            for finger_index, template_data in decoded_templates.items():
+                finger_obj = Finger(uid=user.uid, fid=finger_index, valid=True, template=template_data)
+                templates_to_send.append(finger_obj)
+                fingerprint_count += 1
+                logger.info(f"   ✅ Chuẩn bị template cho ngón {finger_index}")
+
+            # Chỉ gửi nếu có templates hợp lệ
+            if not templates_to_send:
+                logger.warning(f"⚠️ Không có template hợp lệ nào để gửi")
+                return False
+
+            logger.info(f"📤 Gửi {fingerprint_count} template vân tay lên máy chấm công...")
+
             try:
                 zk.save_user_template(user, templates_to_send)
-                logger.info(f"✅ Đã gửi thành công {success_count} template cho user {uid_int}")
-                
+                logger.info(f"✅ Đã gửi thành công {fingerprint_count} template cho user {user.uid}")
+
                 # Ghi log đồng bộ
                 try:
                     self.erpnext_api.log_sync_history(
@@ -242,17 +285,17 @@ class AttendanceDeviceSync:
                         device_name=zk.get_device_name(),
                         employee_count=1,
                         status="success",
-                        message=f"Đồng bộ thành công {success_count} vân tay cho {employee_data['employee']}"
+                        message=f"Đồng bộ thành công {fingerprint_count} vân tay cho {employee_data['employee']}"
                     )
                 except Exception as e:
                     logger.error(f"❌ Lỗi ghi log đồng bộ: {str(e)}")
-                
+
                 return True
-                
+
             except Exception as e:
                 logger.error(f"❌ Lỗi khi gửi template: {str(e)}")
                 return False
-                
+
         except Exception as e:
             logger.error(f"❌ Lỗi đồng bộ nhân viên {employee_data.get('employee', 'Unknown')}: {str(e)}")
             return False
@@ -561,51 +604,53 @@ class AttendanceDeviceSync:
         finally:
             device_id = device_config.get('id', 1)
             self.disconnect_device(device_id)
-    def shorten_employee_name(full_name, max_length=24):
+    def shorten_name(self, full_name: str, max_length: int = 24) -> str:
         """
-        Rút gọn tên nhân viên nếu vượt quá độ dài tối đa
-        
+        Rút gọn tên nhân viên với xử lý tiếng Việt có dấu
+
+        IMPROVEMENTS:
+        - Sử dụng unidecode để chuyển đổi tiếng Việt có dấu thành không dấu
+        - Tương thích với thiết bị chấm công không hỗ trợ Unicode
+
         Args:
             full_name: Tên đầy đủ của nhân viên
-            max_length: Độ dài tối đa cho phép
-            
-        Returns:
-            Tên đã rút gọn
-        """
-        if not full_name or len(full_name) <= max_length:
-            return full_name
-            
-        # Tách các phần trong tên
-        name_parts = full_name.split()
-        
-        if len(name_parts) <= 2:
-            # Nếu chỉ có 1-2 phần, cắt ngắn đơn giản
-            return full_name[:max_length]
-        
-        # Lấy chữ cái đầu của các phần trừ phần cuối
-        initials = ''.join(part[0] for part in name_parts[:-1])
-        
-        # Kết hợp chữ cái đầu với phần cuối
-        shortened_name = f"{initials} {name_parts[-1]}"
-        
-        # Nếu vẫn dài quá, cắt ngắn
-        if len(shortened_name) > max_length:
-            return shortened_name[:max_length]
-        
-        return shortened_name           
-    def shorted_name(self, full_name: str, max_length=24):
-        # Loại bỏ khoảng trắng thừa
-        text_processed = ' '.join(full_name.split()).strip()
+            max_length: Độ dài tối đa cho phép (mặc định 24)
 
-        if len(text_processed) > max_length:
-            parts = text_processed.split()
-            if len(parts) > 1:
-                # Lấy chữ cái đầu của tất cả các phần trừ phần cuối cùng
-                initials = "".join(part[0].upper() for part in parts[:-1])
-                last_part = parts[-1]
-                return f"{initials} {last_part}"
-            else:
-                # Nếu chỉ có một từ và quá dài, trả về nguyên bản
-                return text_processed
+        Returns:
+            Tên đã rút gọn và chuẩn hóa
+
+        Examples:
+            "Nguyễn Văn An" -> "Nguyen Van An" (nếu <= 24)
+            "Nguyễn Thị Phương Thảo" -> "NTP Thao" (nếu > 24)
+        """
+        if not full_name:
+            return full_name
+
+        # IMPROVEMENT: Chuẩn hóa tiếng Việt có dấu
+        if UNIDECODE_AVAILABLE:
+            text_processed = unidecode(full_name)  # 'Nguyễn Văn A' → 'Nguyen Van A'
         else:
+            text_processed = full_name  # Fallback nếu không có unidecode
+
+        # Loại bỏ khoảng trắng thừa
+        text_processed = ' '.join(text_processed.split()).strip()
+
+        # Nếu đã đủ ngắn, trả về luôn
+        if len(text_processed) <= max_length:
             return text_processed
+
+        # Nếu quá dài, rút gọn
+        parts = text_processed.split()
+        if len(parts) > 1:
+            # Lấy chữ cái đầu của tất cả các phần trừ phần cuối cùng
+            initials = "".join(part[0].upper() for part in parts[:-1])
+            last_part = parts[-1]
+            shortened = f"{initials} {last_part}"
+
+            # Nếu vẫn dài quá, cắt bớt
+            if len(shortened) > max_length:
+                return shortened[:max_length]
+            return shortened
+        else:
+            # Nếu chỉ có một từ và quá dài, cắt ngắn
+            return text_processed[:max_length]

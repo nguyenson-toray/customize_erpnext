@@ -1,4 +1,5 @@
 // import apps/customize_erpnext/customize_erpnext/public/js/utilities.js
+// import apps/customize_erpnext/customize_erpnext/public/js/shared_fingerprint_sync.js
 
 // Store original employee value to prevent naming series interference
 window.original_employee_code = null;
@@ -56,6 +57,19 @@ frappe.ui.form.on('Employee', {
                 }
             }, __('Actions'));
         }
+
+        // Setup image field with cropper
+        setup_employee_image_cropper(frm);
+    },
+
+    onload: function (frm) {
+        // Setup image field with cropper on load
+        setup_employee_image_cropper(frm);
+    },
+
+    image: function (frm) {
+        // Image upload is handled by custom FileUploader with auto-cropping
+        // No need to manually trigger cropper
 
         if (frm.is_new()) {
             // Auto-populate employee code and attendance device ID for new employees
@@ -131,7 +145,12 @@ frappe.ui.form.on('Employee', {
     custom_sync_fingerprint_data_to_machine: function (frm) {
         // Handle sync fingerprint button click
         if (!frm.is_new() && frm.doc.name) {
-            show_sync_fingerprint_dialog(frm.doc.name, frm.doc.employee_name);
+            // Use shared sync dialog for single employee
+            const employee = {
+                employee_id: frm.doc.name,
+                employee_name: frm.doc.employee_name
+            };
+            window.showSharedSyncDialog([employee]);
         } else {
             frappe.msgprint({
                 title: __('Save Required'),
@@ -203,322 +222,189 @@ frappe.ui.form.on('Employee', {
             frappe.msgprint(__('Employee name should not contain numbers'));
             frappe.validated = false;
         }
+
+        // Validate maternity tracking date overlaps
+        if (frm.doc.maternity_tracking && frm.doc.maternity_tracking.length > 1) {
+            if (!validate_all_maternity_periods(frm)) {
+                frappe.validated = false;
+            }
+        }
     },
 });
 
-function show_sync_fingerprint_dialog(employee_id, employee_name) {
-    let d = new frappe.ui.Dialog({
-        title: __('🔄 Sync Fingerprints to Machines - {0}', [employee_name || employee_id]),
-        fields: [
-            {
-                fieldname: 'employee_info',
-                fieldtype: 'HTML',
-                options: `<div class="alert alert-info" style="margin-bottom: 15px;">
-                    <div class="d-flex align-items-center">
-                        <i class="fa fa-user" style="font-size: 20px; margin-right: 10px;"></i>
-                        <div>
-                            <strong>Employee:</strong> ${employee_name || employee_id}<br>
-                            <small class="text-muted">This will sync all fingerprint data to enabled attendance machines</small>
-                        </div>
-                    </div>
-                </div>`
-            },
-            {
-                fieldname: 'machines_section',
-                fieldtype: 'Section Break',
-                label: __('Attendance Machines')
-            },
-            {
-                fieldname: 'machines_list',
-                fieldtype: 'HTML',
-                options: '<div id="machines-list" style="background: #fff; border: 1px solid #dee2e6; border-radius: 8px; padding: 15px; margin-bottom: 15px;"><div class="text-center text-muted"><i class="fa fa-spinner fa-spin"></i> Loading machines...</div></div>'
-            },
-            {
-                fieldname: 'sync_section',
-                fieldtype: 'Section Break',
-                label: __('Sync Progress')
-            },
-            {
-                fieldname: 'sync_status',
-                fieldtype: 'HTML',
-                options: '<div id="sync-status" style="height: 200px; overflow-y: auto; padding: 15px; border-radius: 8px; background: #f8f9fa; border: 1px solid #dee2e6; font-family: monospace; font-size: 13px;"><div class="text-info">Ready to sync fingerprints to attendance machines...</div></div>'
-            }
-        ],
-        primary_action_label: __('🚀 Start Sync'),
-        primary_action: function () {
-            start_sync_process(employee_id, employee_name, d);
-        },
-        secondary_action_label: __('🔄 Refresh Machines'),
-        secondary_action: function () {
-            load_machines_list();
+// Maternity Tracking child table events
+frappe.ui.form.on('Maternity Tracking', {
+    type: function (frm, cdt, cdn) {
+        let row = locals[cdt][cdn];
+
+        // Auto-set apply_pregnant_benefit = 1 when type = 'Pregnant'
+        if (row.type === 'Pregnant') {
+            frappe.model.set_value(cdt, cdn, 'apply_pregnant_benefit', 1);
+        } else {
+            // Clear the field for other types since it's only relevant for Pregnant
+            frappe.model.set_value(cdt, cdn, 'apply_pregnant_benefit', 0);
         }
-    });
+    },
 
-    d.show();
+    from_date: function (frm, cdt, cdn) {
+        validate_maternity_date_overlap(frm, cdt, cdn);
+    },
 
-    // Make dialog larger
-    d.$wrapper.find('.modal-dialog').addClass('modal-xl');
-    d.$wrapper.find('.modal-content').css({
-        'border-radius': '12px',
-        'box-shadow': '0 10px 30px rgba(0,0,0,0.2)'
-    });
-    d.$wrapper.find('.modal-header').css({
-        'background': 'linear-gradient(135deg, #28a745 0%, #20c997 100%)',
-        'color': 'white',
-        'border-bottom': 'none',
-        'border-radius': '12px 12px 0 0'
-    });
+    to_date: function (frm, cdt, cdn) {
+        validate_maternity_date_overlap(frm, cdt, cdn);
+        validate_date_sequence(frm, cdt, cdn);
+    }
+});
 
-    // Load machines list after dialog is shown
-    setTimeout(() => {
-        load_machines_list();
-    }, 500);
+// Function to validate date sequence (from_date should be before to_date)
+function validate_date_sequence(frm, cdt, cdn) {
+    let row = locals[cdt][cdn];
+
+    if (row.from_date && row.to_date) {
+        let from_date = frappe.datetime.str_to_obj(row.from_date);
+        let to_date = frappe.datetime.str_to_obj(row.to_date);
+
+        if (from_date >= to_date) {
+            frappe.msgprint({
+                title: __('Invalid Date Range'),
+                message: __('From Date must be earlier than To Date'),
+                indicator: 'red'
+            });
+            frappe.model.set_value(cdt, cdn, 'to_date', '');
+            return false;
+        }
+    }
+
+    return true;
 }
 
-function load_machines_list() {
-    const machinesDiv = document.getElementById('machines-list');
-    if (!machinesDiv) return;
+// Function to validate all maternity tracking periods on form save
+function validate_all_maternity_periods(frm) {
+    let maternity_tracking = frm.doc.maternity_tracking || [];
+    let valid_periods = [];
 
-    // Show loading
-    machinesDiv.innerHTML = '<div class="text-center text-muted"><i class="fa fa-spinner fa-spin"></i> Checking attendance machines...</div>';
+    // First, validate each row for date sequence
+    for (let i = 0; i < maternity_tracking.length; i++) {
+        let row = maternity_tracking[i];
 
-    frappe.call({
-        method: 'customize_erpnext.api.utilities.get_enabled_attendance_machines',
-        callback: function (r) {
-            if (r.message && r.message.success) {
-                display_machines_list(r.message);
-            } else {
-                machinesDiv.innerHTML = `<div class="alert alert-warning"><i class="fa fa-exclamation-triangle"></i> ${r.message.message || 'Failed to load machines'}</div>`;
-            }
-        },
-        error: function (r) {
-            machinesDiv.innerHTML = `<div class="alert alert-danger"><i class="fa fa-times"></i> Error loading machines: ${r.exc || 'Unknown error'}</div>`;
+        if (!row.from_date || !row.to_date) {
+            continue; // Skip incomplete rows
         }
-    });
+
+        let from_date = frappe.datetime.str_to_obj(row.from_date);
+        let to_date = frappe.datetime.str_to_obj(row.to_date);
+
+        // Check date sequence
+        if (from_date >= to_date) {
+            frappe.msgprint({
+                title: __('Invalid Date Range'),
+                message: __('Row {0}: From Date must be earlier than To Date', [row.idx]),
+                indicator: 'red'
+            });
+            return false;
+        }
+
+        valid_periods.push({
+            idx: row.idx,
+            type: row.type,
+            from_date: from_date,
+            to_date: to_date,
+            from_date_str: frappe.datetime.str_to_user(row.from_date),
+            to_date_str: frappe.datetime.str_to_user(row.to_date)
+        });
+    }
+
+    // Check for overlapping periods
+    for (let i = 0; i < valid_periods.length; i++) {
+        for (let j = i + 1; j < valid_periods.length; j++) {
+            let period1 = valid_periods[i];
+            let period2 = valid_periods[j];
+
+            // Check for overlap
+            let has_overlap = (period1.from_date < period2.to_date && period1.to_date > period2.from_date);
+
+            if (has_overlap) {
+                frappe.msgprint({
+                    title: __('Date Period Overlap Detected'),
+                    message: __('Overlapping periods found:<br><br>Row {0}: {1} ({2} - {3})<br>Row {4}: {5} ({6} - {7})<br><br>Please adjust the dates to avoid overlapping periods.', [
+                        period1.idx, period1.type, period1.from_date_str, period1.to_date_str,
+                        period2.idx, period2.type, period2.from_date_str, period2.to_date_str
+                    ]),
+                    indicator: 'red'
+                });
+                return false;
+            }
+        }
+    }
+
+    return true;
 }
 
-function display_machines_list(data) {
-    const machinesDiv = document.getElementById('machines-list');
-    if (!machinesDiv || !data.machines) return;
+// Function to validate overlapping date periods
+function validate_maternity_date_overlap(frm, cdt, cdn) {
+    let current_row = locals[cdt][cdn];
 
-    const { machines, total_machines, online_machines, offline_machines } = data;
-
-    if (machines.length === 0) {
-        machinesDiv.innerHTML = `
-            <div class="alert alert-warning">
-                <i class="fa fa-exclamation-triangle me-2"></i>
-                <strong>No master machines found.</strong> Please set enable & master_device at least one attendance machine to proceed.
-            </div>
-        `;
+    // Only validate if both dates are filled
+    if (!current_row.from_date || !current_row.to_date) {
         return;
     }
 
-    // Compact summary header
-    let html = `
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <div class="d-flex align-items-center">
-                <i class="fa fa-desktop text-primary me-2"></i>
-                <strong>Attendance Machines (${total_machines})</strong>
-            </div>
-            <div class="d-flex align-items-center">
-                <small class="badge badge-success me-1">🟢 ${online_machines}</small>
-                <small class="badge badge-secondary me-1">🔴 ${offline_machines}</small>
-                <small class="text-muted ms-2">${new Date().toLocaleTimeString()}</small>
-            </div>
-        </div>
-    `;
+    let current_from = frappe.datetime.str_to_obj(current_row.from_date);
+    let current_to = frappe.datetime.str_to_obj(current_row.to_date);
 
-    // Compact table format for many machines
-    html += `
-        <div class="table-responsive">
-            <table class="table table-sm table-hover mb-2">
-                <thead class="table-light">
-                    <tr>
-                        <th style="width: 30%"><i class="fa fa-tag me-1"></i>Name</th>
-                        <th style="width: 35%"><i class="fa fa-network-wired me-1"></i>Address</th>
-                        <th style="width: 20%"><i class="fa fa-signal me-1"></i>Status</th>
-                        <th style="width: 15%"><i class="fa fa-clock-o me-1"></i>Response</th>
-                    </tr>
-                </thead>
-                <tbody>
-    `;
-
-    machines.forEach(machine => {
-        const statusIcon = machine.connection_status === 'online' ? '🟢' :
-            machine.connection_status === 'offline' ? '🔴' : '⚠️';
-        const statusColor = machine.connection_status === 'online' ? 'success' :
-            machine.connection_status === 'offline' ? 'danger' : 'warning';
-        const rowClass = machine.connection_status === 'online' ? 'table-success' :
-            machine.connection_status === 'offline' ? 'table-danger' : 'table-warning';
-
-        html += `
-            <tr class="${rowClass}" style="border-left: 3px solid var(--bs-${statusColor});">
-                <td>
-                    <strong>${machine.device_name}</strong>
-                    ${machine.location ? `<br><small class="text-muted">${machine.location}</small>` : ''}
-                </td>
-                <td>
-                    <span class="font-monospace">${machine.ip_address}:${machine.port}</span>
-                </td>
-                <td>
-                    <span class="badge badge-${statusColor}">${statusIcon} ${machine.connection_status.toUpperCase()}</span>
-                </td>
-                <td>
-                    ${machine.response_time > 0 ?
-                `<small class="text-muted">${machine.response_time}ms</small>` :
-                '<small class="text-muted">-</small>'
-            }
-                </td>
-            </tr>
-        `;
-    });
-
-    html += '</tbody></table></div>';
-
-    // Compact status summary
-    if (offline_machines > 0) {
-        html += `<div class="alert alert-warning py-2 mb-2">
-            <i class="fa fa-exclamation-triangle me-1"></i>
-            <small><strong>${offline_machines}</strong> machine(s) offline. Sync will only work with online machines.</small>
-        </div>`;
-    } else {
-        html += `<div class="alert alert-success py-2 mb-2">
-            <i class="fa fa-check-circle me-1"></i>
-            <small>All <strong>${online_machines}</strong> machines are online and ready for sync.</small>
-        </div>`;
+    // Validate date sequence first
+    if (current_from >= current_to) {
+        return; // Will be handled by validate_date_sequence
     }
 
-    machinesDiv.innerHTML = html;
-}
+    // Check for overlaps with other rows
+    let maternity_tracking = frm.doc.maternity_tracking || [];
+    let overlapping_rows = [];
 
-function start_sync_process(employee_id, employee_name, dialog) {
-    // Disable sync button
-    dialog.set_primary_action(__('Syncing...'), null);
-    dialog.disable_primary_action();
+    maternity_tracking.forEach(function (row) {
+        // Skip current row and rows without both dates
+        if (row.name === current_row.name || !row.from_date || !row.to_date) {
+            return;
+        }
 
-    update_sync_status('🔄 Starting sync process...', 'info');
-    update_sync_status(`📋 Employee: ${employee_name} (${employee_id})`, 'info');
-    update_sync_status('🔍 Checking attendance machines and employee data...', 'info');
+        let row_from = frappe.datetime.str_to_obj(row.from_date);
+        let row_to = frappe.datetime.str_to_obj(row.to_date);
 
-    frappe.call({
-        method: 'customize_erpnext.api.utilities.sync_employee_fingerprint_to_machines',
-        args: {
-            employee_id: employee_id
-        },
-        callback: function (r) {
-            if (r.message) {
-                handle_sync_response(r.message, dialog);
-            } else {
-                update_sync_status('❌ No response from server', 'danger');
-                reset_sync_button(dialog);
-            }
-        },
-        error: function (r) {
-            update_sync_status(`❌ Server error: ${r.exc || 'Unknown error'}`, 'danger');
-            reset_sync_button(dialog);
+        // Check for overlap: two periods overlap if one starts before the other ends
+        let has_overlap = (current_from < row_to && current_to > row_from);
+
+        if (has_overlap) {
+            overlapping_rows.push({
+                idx: row.idx,
+                type: row.type,
+                from_date: frappe.datetime.str_to_user(row.from_date),
+                to_date: frappe.datetime.str_to_user(row.to_date)
+            });
         }
     });
-}
 
-function handle_sync_response(response, dialog) {
-    if (response.success) {
-        update_sync_status(`✅ ${response.message}`, 'success');
+    if (overlapping_rows.length > 0) {
+        let overlap_details = overlapping_rows.map(row =>
+            `Row ${row.idx}: ${row.type} (${row.from_date} - ${row.to_date})`
+        ).join('<br>');
 
-        if (response.summary) {
-            const summary = response.summary;
-            update_sync_status('', 'info');
-            update_sync_status('📊 SYNC SUMMARY:', 'info');
-            update_sync_status(`   👤 Employee: ${summary.employee_name}`, 'info');
-            update_sync_status(`   🆔 Attendance ID: ${summary.attendance_device_id}`, 'info');
-            update_sync_status(`   🔐 Privilege: ${summary.privilege}`, 'info');
-            update_sync_status(`   🔑 Password: ${summary.password}`, 'info');
-            update_sync_status(`   👆 Fingerprints: ${summary.fingerprints_count}`, 'info');
-            update_sync_status(`   🖥️ Machines: ${summary.machines_success}/${summary.machines_total}`, 'info');
-        }
-
-        if (response.sync_results) {
-            update_sync_status('', 'info');
-            update_sync_status('🔧 MACHINE DETAILS:', 'info');
-
-            response.sync_results.forEach(result => {
-                const status = result.success ? '✅' : '❌';
-                const color = result.success ? 'success' : 'danger';
-                update_sync_status(`   ${status} ${result.machine} (${result.ip}): ${result.message}`, color);
-            });
-        }
-
-        if (response.status === 'success') {
-            frappe.show_alert({
-                message: __('Fingerprints synced successfully to all machines!'),
-                indicator: 'green'
-            });
-        } else if (response.status === 'partial') {
-            frappe.show_alert({
-                message: __('Fingerprints partially synced. Check details in dialog.'),
-                indicator: 'orange'
-            });
-        }
-    } else {
-        update_sync_status(`❌ Sync failed: ${response.message}`, 'danger');
-        frappe.show_alert({
-            message: __('Sync failed: ' + response.message),
+        frappe.msgprint({
+            title: __('Date Period Overlap Detected'),
+            message: __('The current date period overlaps with existing records:<br><br>{0}<br><br>Please adjust the dates to avoid overlapping periods.', [overlap_details]),
             indicator: 'red'
         });
+
+        // Clear both dates to force user to re-enter correct values
+        frappe.model.set_value(cdt, cdn, 'from_date', '');
+        frappe.model.set_value(cdt, cdn, 'to_date', '');
+
+        return false;
     }
 
-    reset_sync_button(dialog);
-
-    // Refresh machines list after sync to show updated status
-    setTimeout(() => {
-        update_sync_status('🔄 Refreshing machines status...', 'info');
-        load_machines_list();
-    }, 2000);
+    return true;
 }
 
-function update_sync_status(message, type = 'info') {
-    const statusDiv = document.getElementById('sync-status');
-    if (statusDiv && message) {
-        const timestamp = new Date().toLocaleTimeString();
-        let textClass = 'text-info';
-
-        if (type === 'success') {
-            textClass = 'text-success';
-        } else if (type === 'danger') {
-            textClass = 'text-danger';
-        } else if (type === 'warning') {
-            textClass = 'text-warning';
-        }
-
-        const logEntry = `<div class="log-entry ${textClass} mb-1"><strong>[${timestamp}]</strong> ${message}</div>`;
-        statusDiv.innerHTML += logEntry;
-
-        // Scroll to bottom
-        statusDiv.scrollTo({
-            top: statusDiv.scrollHeight,
-            behavior: 'smooth'
-        });
-    }
-}
-
-function reset_sync_button(dialog) {
-    dialog.set_primary_action(__('🚀 Start Sync'), function () {
-        // Clear previous status
-        const statusDiv = document.getElementById('sync-status');
-        if (statusDiv) {
-            statusDiv.innerHTML = '<div class="text-info">Ready to sync fingerprints to attendance machines...</div>';
-        }
-
-        // Get employee data from dialog
-        const employee_id = dialog.get_value('employee_id') || dialog.employee_id;
-        const employee_name = dialog.get_value('employee_name') || dialog.employee_name;
-        start_sync_process(employee_id, employee_name, dialog);
-    });
-    dialog.enable_primary_action();
-
-    // Store employee data for reuse
-    dialog.employee_id = arguments[0];
-    dialog.employee_name = arguments[1];
-}
+// Legacy sync dialog functions removed - now using shared_fingerprint_sync.js
 
 function toProperCase(str) {
     if (!str) return str;
@@ -537,4 +423,261 @@ function toProperCase(str) {
     });
 
     return result;
+}
+
+// ============================================================
+// IMAGE CROPPER CONFIGURATION
+// ============================================================
+// Set to true to enable custom 3:4 ratio image cropper
+// Set to false to use default Frappe upload (no cropping)
+const ENABLE_EMPLOYEE_IMAGE_CROPPER = false;
+//   const ENABLE_EMPLOYEE_IMAGE_CROPPER = true;
+//   2. Sửa hooks.py dòng 327-337: Uncomment các dòng Cropper.js:
+//   app_include_css = [
+//       "https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css"
+//   ]
+//   app_include_js = [
+//       "/assets/customize_erpnext/js/fingerprint_scanner_dialog.js",
+//       "https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"
+//   ]
+//   3. Build lại:
+//   bench build --app customize_erpnext && bench --site erp-sonnt.tiqn.local clear-cache
+// ============================================================
+
+// Image cropper functions - using custom Cropper.js
+function setup_employee_image_cropper(frm) {
+    if (!frm.fields_dict.image) return;
+
+    const image_field = frm.fields_dict.image;
+
+    // Override the attach field's upload method completely
+    setTimeout(() => {
+        if (image_field && image_field.$wrapper) {
+            console.log('Setting up image field for Employee');
+
+            // Always hide camera-related buttons
+            image_field.$wrapper.find('[data-action="capture_image"]').hide();
+            image_field.$wrapper.find('.btn:contains("Take Photo")').hide();
+            image_field.$wrapper.find('.btn:contains("Chụp ảnh")').hide();
+            image_field.$wrapper.find('.webcam-container').hide();
+
+            // Only enable custom cropper if ENABLE_EMPLOYEE_IMAGE_CROPPER is true
+            if (!ENABLE_EMPLOYEE_IMAGE_CROPPER) {
+                console.log('Custom image cropper is DISABLED - using default upload');
+                return;
+            }
+
+            console.log('Custom image cropper is ENABLED');
+
+            // CRITICAL: Override FileUploader options to disable built-in cropper
+            // and use custom aspect ratio
+            const original_FileUploader = frappe.ui.FileUploader;
+
+            // Intercept FileUploader creation for this field
+            frappe.ui.FileUploader = class CustomFileUploader extends original_FileUploader {
+                constructor(opts) {
+                    // Check if this is for the employee image field
+                    if (opts && opts.doctype === 'Employee' && opts.fieldname === 'image') {
+                        console.log('Intercepting FileUploader for Employee image');
+                        // Disable built-in cropper
+                        opts.crop_image_aspect_ratio = null;
+
+                        // Store original on_success
+                        const original_on_success = opts.on_success;
+
+                        // Replace on_success to trigger our custom cropper
+                        opts.on_success = (file_doc) => {
+                            console.log('File uploaded, showing custom cropper');
+                            console.log('File doc:', file_doc);
+                            // Show our custom cropper instead
+                            if (file_doc && file_doc.file_url) {
+                                console.log('Reading file content from:', file_doc.file_url);
+                                // Use custom method to get file content as base64
+                                frappe.call({
+                                    method: 'customize_erpnext.api.employee.employee_utils.get_file_content_base64',
+                                    args: {
+                                        file_url: file_doc.file_url
+                                    },
+                                    callback: function (r) {
+                                        console.log('File content response:', r);
+                                        if (r.message) {
+                                            console.log('Base64 data received, length:', r.message.length);
+                                            // r.message contains base64 data URI
+                                            show_custom_image_cropper_dialog(frm, r.message, file_doc.file_name);
+                                        } else {
+                                            console.error('No base64 data in response');
+                                        }
+                                    },
+                                    error: function (err) {
+                                        console.error('Error reading file:', err);
+                                        frappe.msgprint({
+                                            title: __('Error'),
+                                            message: __('Failed to read uploaded file'),
+                                            indicator: 'red'
+                                        });
+                                    }
+                                });
+                            }
+                        };
+                    }
+                    super(opts);
+                }
+            };
+
+            // Restore original FileUploader after field is initialized
+            setTimeout(() => {
+                frappe.ui.FileUploader = original_FileUploader;
+            }, 2000);
+        }
+    }, 500);
+}
+
+function show_custom_image_cropper_dialog(frm, imageDataUrl, fileName) {
+    // Create dialog with custom cropper
+    const dialog = new frappe.ui.Dialog({
+        title: __('Crop Image - Fixed Ratio 3:4 (Portrait)'),
+        size: 'large',
+        fields: [
+            {
+                fieldtype: 'HTML',
+                fieldname: 'cropper_container',
+            }
+        ],
+        primary_action_label: __('Crop & Upload'),
+        primary_action: function () {
+            const cropper = dialog.cropper_instance;
+            if (cropper) {
+                // Get cropped canvas
+                const canvas = cropper.getCroppedCanvas({
+                    maxWidth: 1200,
+                    maxHeight: 1600,
+                    imageSmoothingEnabled: true,
+                    imageSmoothingQuality: 'high',
+                });
+
+                // Convert to blob
+                canvas.toBlob(function (blob) {
+                    // Convert blob to base64
+                    const reader = new FileReader();
+                    reader.onloadend = function () {
+                        const base64data = reader.result;
+
+                        // Upload the cropped image
+                        upload_cropped_employee_image(frm, base64data, fileName, dialog);
+                    };
+                    reader.readAsDataURL(blob);
+                }, 'image/jpeg', 0.9);
+            }
+        },
+        secondary_action_label: __('Cancel'),
+    });
+
+    dialog.show();
+
+    // Wait for dialog to render, then initialize Cropper.js
+    dialog.$wrapper.find('.modal-dialog').css('max-width', '90%');
+
+    setTimeout(() => {
+        const container = dialog.fields_dict.cropper_container.$wrapper;
+        container.html(`
+            <div style="max-height: 70vh; overflow: hidden;">
+                <img id="image-to-crop" src="${imageDataUrl}" style="max-width: 100%; display: block;">
+            </div>
+            <div style="margin-top: 15px; padding: 10px; background: #f8f9fa; border-radius: 5px;">
+                <p style="margin: 0; color: #6c757d; font-size: 13px;">
+                    <strong>Instructions:</strong>
+                    Use mouse wheel to zoom, drag to move image.
+                    The crop box is fixed at 3:4 ratio (portrait).
+                </p>
+            </div>
+        `);
+
+        const image = document.getElementById('image-to-crop');
+
+        // Check if Cropper.js is available
+        if (typeof Cropper === 'undefined') {
+            frappe.msgprint({
+                title: __('Library Not Loaded'),
+                message: __('Cropper.js library is not available. Please refresh the page and try again.'),
+                indicator: 'red'
+            });
+            dialog.hide();
+            return;
+        }
+
+        // Initialize Cropper.js with fixed 3:4 aspect ratio
+        dialog.cropper_instance = new Cropper(image, {
+            aspectRatio: 3 / 4,  // Fixed 3:4 ratio (portrait)
+            viewMode: 1,
+            dragMode: 'move',
+            autoCropArea: 0.8,
+            restore: false,
+            guides: true,
+            center: true,
+            highlight: false,
+            cropBoxMovable: true,
+            cropBoxResizable: true,
+            toggleDragModeOnDblclick: false,
+            responsive: true,
+            background: true,
+            modal: true,
+            zoomable: true,
+            zoomOnWheel: true,
+            wheelZoomRatio: 0.1,
+        });
+    }, 300);
+}
+
+function upload_cropped_employee_image(frm, base64data, fileName, dialog) {
+    // Show uploading message
+    frappe.show_alert({
+        message: __('Uploading image...'),
+        indicator: 'blue'
+    });
+
+    // Create file name
+    const employee_name = frm.doc.name || 'new';
+    const full_name = (frm.doc.employee_name || 'employee').replace(/\s+/g, '_');
+    const file_name = `${employee_name}_${full_name}.jpg`;
+
+    // Upload to custom path
+    frappe.call({
+        method: 'customize_erpnext.api.employee.employee_utils.upload_employee_image',
+        args: {
+            employee_id: frm.doc.name,
+            employee_name: frm.doc.employee_name,
+            file_content: base64data,
+            file_name: file_name
+        },
+        callback: function (response) {
+            if (response.message) {
+                // Set the image value
+                frm.set_value('image', response.message.file_url);
+
+                dialog.hide();
+
+                // Save the form to persist the image field
+                frm.save().then(() => {
+                    frappe.show_alert({
+                        message: __('Image cropped and saved successfully'),
+                        indicator: 'green'
+                    });
+                });
+            } else {
+                frappe.msgprint({
+                    title: __('Upload Failed'),
+                    message: __('Failed to save image'),
+                    indicator: 'red'
+                });
+            }
+        },
+        error: function (error) {
+            console.error('Error uploading image:', error);
+            frappe.msgprint({
+                title: __('Upload Error'),
+                message: __('Error uploading image. Please try again.'),
+                indicator: 'red'
+            });
+        }
+    });
 }

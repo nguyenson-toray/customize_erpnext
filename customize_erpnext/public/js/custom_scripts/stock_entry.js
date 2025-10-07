@@ -4,8 +4,8 @@ frappe.ui.form.on('Stock Entry', {
         if (frm.doc.purpose === "Material Transfer for Manufacture" && frm.doc.work_order) {
             check_existing_material_transfers(frm);
         }
-        // Setup invoice selector for Material Issue
-        if (frm.doc.stock_entry_type === "Material Issue") {
+        // Setup invoice selector for Material Issue and Material Transfer
+        if (frm.doc.stock_entry_type === "Material Issue" || frm.doc.stock_entry_type === "Material Transfer") {
             setup_invoice_selector(frm);
         }
 
@@ -67,6 +67,8 @@ frappe.ui.form.on('Stock Entry', {
 
         // Trim parent fields first
         trim_parent_fields(frm);
+        // Trim child table custom_invoice_number field
+        trim_child_invoice_numbers(frm);
         // Validate and set default warehouses
         validate_warehouse(frm);
         // Aggregate invoice numbers from child table to parent
@@ -298,6 +300,51 @@ function validate_warehouse(frm) {
                     [empty_warehouse_rows.join(', ')])
             });
         }
+
+    } else if (frm.doc.stock_entry_type === "Material Transfer") {
+        // For Material Transfer, only auto-fill s_warehouse (source), t_warehouse (target) must be manually selected
+        frm.doc.items.forEach((item, index) => {
+            if (!item.s_warehouse && item.item_code) {
+                empty_warehouse_rows.push(index + 1);
+
+                // Get item details including default warehouse from item_defaults
+                let promise = frappe.call({
+                    method: 'frappe.client.get',
+                    args: {
+                        doctype: 'Item',
+                        name: item.item_code
+                    }
+                }).then(result => {
+                    if (result.message && result.message.item_defaults) {
+                        // Find default warehouse for current company
+                        let default_warehouse = null;
+                        for (let item_default of result.message.item_defaults) {
+                            if (item_default.company === frm.doc.company && item_default.default_warehouse) {
+                                default_warehouse = item_default.default_warehouse;
+                                break;
+                            }
+                        }
+
+                        if (default_warehouse) {
+                            // Only set source warehouse to default, target warehouse must be manually selected
+                            if (!item.s_warehouse) {
+                                frappe.model.set_value(item.doctype, item.name, "s_warehouse", default_warehouse);
+                            }
+                        }
+                    }
+                });
+                promises.push(promise);
+            }
+        });
+
+        if (empty_warehouse_rows.length > 0) {
+            frappe.msgprint({
+                title: __('Missing Source Warehouse'),
+                indicator: 'orange',
+                message: __('Source Warehouse was empty in row(s) {0}. Setting default warehouse from Item master. Please select Target Warehouse manually.',
+                    [empty_warehouse_rows.join(', ')])
+            });
+        }
     }
 
     // Wait for all warehouse assignments to complete, then refresh
@@ -481,6 +528,37 @@ function trim_parent_fields(frm) {
 
     if (updated_fields.length > 0) {
         console.log(`Trimmed and formatted parent fields: ${updated_fields.join(', ')}`);
+    }
+}
+
+// Function to trim custom_invoice_number in child table
+function trim_child_invoice_numbers(frm) {
+    if (!frm.doc.items || frm.doc.items.length === 0) {
+        return;
+    }
+
+    let trimmed_count = 0;
+
+    frm.doc.items.forEach(function (item) {
+        if (item.custom_invoice_number) {
+            let original_value = item.custom_invoice_number;
+
+            // Trim and clean the text
+            let cleaned_value = original_value.trim();
+            // Replace multiple spaces with single space
+            cleaned_value = cleaned_value.replace(/\s+/g, ' ');
+
+            // Only update if there was a change
+            if (original_value !== cleaned_value) {
+                frappe.model.set_value(item.doctype, item.name, 'custom_invoice_number', cleaned_value);
+                trimmed_count++;
+            }
+        }
+    });
+
+    if (trimmed_count > 0) {
+        console.log(`Trimmed ${trimmed_count} invoice numbers in child table`);
+        frm.refresh_field('items');
     }
 }
 
@@ -729,8 +807,13 @@ function setup_invoice_selector(frm) {
                 frappe.msgprint(__('Please select an item first'));
                 return;
             }
-            if (!row.s_warehouse) {
-                frappe.msgprint(__('Please select a warehouse'));
+            // Check warehouse based on stock entry type
+            if (frm.doc.stock_entry_type === "Material Issue" && !row.s_warehouse) {
+                frappe.msgprint(__('Please select a source warehouse'));
+                return;
+            }
+            if (frm.doc.stock_entry_type === "Material Transfer" && !row.s_warehouse) {
+                frappe.msgprint(__('Please select a source warehouse'));
                 return;
             }
 
@@ -769,9 +852,9 @@ function setup_invoice_selector(frm) {
 
 // Stock Entry Detail form handlers
 frappe.ui.form.on('Stock Entry Detail', {
-    items_add: function (frm, cdt, cdn) {
+    items_add: function (frm) {
         // Re-setup invoice selector when new row is added
-        if (frm.doc.stock_entry_type === "Material Issue") {
+        if (frm.doc.stock_entry_type === "Material Issue" || frm.doc.stock_entry_type === "Material Transfer") {
             setTimeout(() => {
                 setup_invoice_selector(frm);
             }, 100);
@@ -814,6 +897,12 @@ frappe.ui.form.on('Stock Entry Detail', {
                                     if (!row.t_warehouse) {
                                         frappe.model.set_value(cdt, cdn, 't_warehouse', default_warehouse);
                                     }
+                                } else if (frm.doc.stock_entry_type === "Material Transfer") {
+                                    // For Material Transfer, set s_warehouse (source warehouse) if not already set
+                                    if (!row.s_warehouse) {
+                                        frappe.model.set_value(cdt, cdn, 's_warehouse', default_warehouse);
+                                    }
+                                    // Note: t_warehouse (target warehouse) should be set manually by user for transfers
                                 }
                             }
                         }
@@ -823,7 +912,7 @@ frappe.ui.form.on('Stock Entry Detail', {
         }
 
         // Re-setup invoice selector when item is changed
-        if (frm.doc.stock_entry_type === "Material Issue") {
+        if (frm.doc.stock_entry_type === "Material Issue" || frm.doc.stock_entry_type === "Material Transfer") {
             setTimeout(() => {
                 setup_invoice_selector(frm);
             }, 100);
@@ -867,7 +956,6 @@ function show_invoice_selection_dialog(frm, row) {
     frm.invoice_dialog_open = true;
 
     // Fetch available stock by invoice
-    console.log('Fetching available stock by invoice for item:', row.item_code, 'in warehouse:', row.s_warehouse || frm.doc.from_warehouse);
     frappe.call({
         method: 'customize_erpnext.api.get_stock_by_invoice.get_stock_by_invoice',
         args: {
@@ -876,7 +964,6 @@ function show_invoice_selection_dialog(frm, row) {
             company: frm.doc.company
         },
         callback: function (r) {
-            console.log('Available stock by invoice:', r.message);
             if (!r.message || r.message.length === 0) {
                 frm.invoice_dialog_open = false;
                 frappe.msgprint(__('No stock available for this item with invoice information'));
@@ -1099,7 +1186,7 @@ function setup_warehouse_column_visibility(frm) {
         let grid = frm.fields_dict.items.grid;
 
         if (frm.doc.stock_entry_type === "Material Issue") {
-            // For Material Issue: Show s_warehouse, hide t_warehouse
+            // For Material Issue: Show s_warehouse, hide t_warehouse and custom_receive_date
             if (grid.docfields) {
                 grid.docfields.forEach(function (field) {
                     if (field.fieldname === 's_warehouse') {
@@ -1108,11 +1195,16 @@ function setup_warehouse_column_visibility(frm) {
                     } else if (field.fieldname === 't_warehouse') {
                         field.in_list_view = 0;
                         field.columns = 0;
+                    } else if (field.fieldname === 'custom_receive_date') {
+                        field.in_list_view = 0;
+                        field.columns = 0;
+                        field.read_only = 1;
+                        field.hidden = 1;
                     }
                 });
             }
         } else if (frm.doc.stock_entry_type === "Material Receipt") {
-            // For Material Receipt: Show t_warehouse, hide s_warehouse
+            // For Material Receipt: Show t_warehouse and custom_receive_date, hide s_warehouse
             if (grid.docfields) {
                 grid.docfields.forEach(function (field) {
                     if (field.fieldname === 't_warehouse') {
@@ -1121,6 +1213,30 @@ function setup_warehouse_column_visibility(frm) {
                     } else if (field.fieldname === 's_warehouse') {
                         field.in_list_view = 0;
                         field.columns = 0;
+                    } else if (field.fieldname === 'custom_receive_date') {
+                        // Show custom_receive_date for Material Receipt (especially for opening stock)
+                        field.in_list_view = 1;
+                        field.columns = 1;
+                        field.read_only = 0;
+                        field.hidden = 0;
+                    }
+                });
+            }
+        } else if (frm.doc.stock_entry_type === "Material Transfer") {
+            // For Material Transfer: Show both s_warehouse and t_warehouse, hide custom_receive_date
+            if (grid.docfields) {
+                grid.docfields.forEach(function (field) {
+                    if (field.fieldname === 's_warehouse') {
+                        field.in_list_view = 1;
+                        field.columns = 1;
+                    } else if (field.fieldname === 't_warehouse') {
+                        field.in_list_view = 1;
+                        field.columns = 1;
+                    } else if (field.fieldname === 'custom_receive_date') {
+                        field.in_list_view = 0;
+                        field.columns = 0;
+                        field.read_only = 1;
+                        field.hidden = 1;
                     }
                 });
             }

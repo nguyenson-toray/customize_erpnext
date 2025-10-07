@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Overtime Request - {{ doc.name }}</title>
+  </head>
+  <body>
+    <!-- Header -->
+    <div class="header">
+      <div class="header-left">
+        <img src="https://res.cloudinary.com/dd6yp2m05/image/upload/v1747721714/logo_2_lwdudk.png" alt="Toray Logo" class="logo">
+        <div class="company-info">
+          <div class="company-name">TORAY INTERNATIONAL VIETNAM COMPANY LIMITED - QUANG NGAI BRANCH</div>
+          <div class="company-address">CÔNG TY TNHH TORAY INTERNATIONAL VIỆT NAM CHI NHÁNH QUẢNG NGÃI</div>
+          <div class="company-address">No. 09, Tu Do Boulevard, VSIP - Số 09, Đại Lộ Tự Do, KCN VSIP, Việt Nam - Singapore</div>
+          <div class="company-address">Dung Quat Economic Zone, Binh Son District, Xa Tho Phong</div>
+          <div class="company-address">Quang Ngai Province, Viet Nam / Tỉnh Quảng Ngãi, Việt Nam</div>
+        </div>
+      </div>
+      <div class="header-right">
+        <div class="request-no">Request No.: {{ doc.name }}</div>
+        <div class="qr-code">
+          QR CODE
+        </div>
+      </div>
+    </div>
+    <!-- Form Title -->
+    <div class="form-title">
+      <div class="title-en">OVERTIME/HOLIDAY WORK APPLICATION FORM</div>`
+      <div class="title-vi">BẢN ĐĂNG KÝ LÀM THÊM GIỜ</div>
+    </div>
+    <!-- Form Information -->
+    <div class="form-info">
+      <div class="form-left">
+        <div class="field-row">
+          <span class="field-label">Date / Ngày yêu cầu:</span>
+          <span class="field-value">               {% if doc.request_date %}
+          {% set date_str = doc.request_date|string %}
+          {% if date_str|length == 10 %}
+          {% set year = date_str[:4] %}
+          {% set month = date_str[5:7] %}
+          {% set day = date_str[8:10] %}
+          {% set months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] %}
+          {{ day }}-{{ months[month|int - 1] }}-{{ year[2:] }}
+          {% else %}
+          {{ doc.request_date }}
+          {% endif %}
+          {% endif %} </span>
+        </div>
+        <div class="field-row">
+          <span class="field-label">OT Date / Ngày làm thêm:</span>
+          <span class="field-value">               {% if doc.request_date %}
+          {% set date_str = doc.ot_date|string %}
+          {% if date_str|length == 10 %}
+          {% set year = date_str[:4] %}
+          {% set month = date_str[5:7] %}
+          {% set day = date_str[8:10] %}
+          {% set months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] %}
+          {{ day }}-{{ months[month|int - 1] }}-{{ year[2:] }}
+          {% else %}
+          {{ doc.ot_date }}
+          {% endif %}
+          {% endif %}</span>
+        </div>
+        <div class="field-row">
+          <span class="field-label">Requested By / Người yêu cầu:</span>
+          <span class="field-value">{{ doc.requested_by }}</span>
+        </div>
+      </div>
+      <div class="form-right">
+        <div class="field-row">
+          <span class="field-label">Status / Trạng thái:</span>
+          <span class="field-value">{{ doc.status }}</span>
+        </div>
+        <div class="field-row">
+          <span class="field-label">Total Employees / Tổng nhân viên:</span>
+          <span class="field-value">{{ doc.total_employees or 0 }}</span>
+        </div>
+        <div class="field-row">
+          <span class="field-label">Total Hours / Tổng số giờ:</span>
+          <span class="field-value">{{ doc.total_hours or 0  }} hours</span>
+        </div>
+      </div>
+    </div>
+    <!-- OT Location -->
+    <div class="field-row" style="font-size:11px">
+      <span class="field-label">OT Location / Địa điểm làm thêm:</span>
+      <span class="field-value">TORAY INTERNATIONAL VIETNAM COMPANY LIMITED - QUANG NGAI BRANCH / CÔNG TY TNHH TORAY INTERNATIONAL VIỆT NAM CHI NHÁNH QUẢNG NGÃI</span>
+    </div>
+    <!-- Reason Section -->
+    <!--<div class="section-title">Reason for Overtime / Lý do làm thêm giờ</div>-->
+      <!--<div class="reason-box">-->
+        <!--    {{ doc.reason or "" }}-->
+        <!--</div>-->
+        <!-- Employee Details -->
+        {% if doc.ot_employees %}
+        <!--<div class="section-title">Employee Details / Thông tin nhân viên</div>-->
+          <table class="employees-table">
+            <thead>
+              <tr>
+                <th rowspan="2">No.<br>STT</th>
+                <th rowspan="2">Employee Name<br>Họ tên </th>
+                <th rowspan="2">Employee ID<br>Mã NV</th>
+                <!--<th rowspan="2">Department<br>Phòng ban</th>-->
+                <!--<th rowspan="2">Position<br>Chức vụ</th>-->
+                <!--<th colspan="2">Working Time / Thời gian làm việc</th>-->
+                  <th rowspan="2">Reason<br>Lý do</th>
+                  <th rowspan="2">Signature<br>Chữ ký</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for employee in doc.ot_employees %}
+                <tr>
+                  <td style="text-align: center;">{{ loop.index }}</td>
+                  <td>{{ employee.employee_name or "" }}</td>
+                  <td>{{ employee.employee or "" }}</td>
+                  <!--<td>{{ employee.department or "" }}</td>-->
+                    <!--<td>{{ employee.designation or "" }}</td>-->
+                      <!--<td>{{ employee.start_time or "" }}</td>-->
+                        <td>{{ doc.reason or "" }}</td>
+                        <!--<td style="text-align: center;">{{ employee.ot_hours or 0 }}</td>-->
+                          <td style="height: 40px;"></td>
+                        </tr>
+                        {% endfor %}
+                      </tbody>
+                    </table>
+                    {% endif %}
+                    <!-- Approval Section -->
+                    <div class="approval-section">
+                      <div class="approval-box">
+                        <div class='margin-btm'> <div class="eng-title" > Prepaired by: </div>  <div class="viet-title" >Xem xét bởi</div></div>
+                        <br> <br>
+                        <div> <div class="eng-title" > Leader </div>  <div class="viet-title" >Trưởng nhóm</div></div>
+                      </div>
+                      <div class="approval-box">
+                        <div class='margin-btm'> <div class="eng-title" > Reviewed by: </div>  <div class="viet-title" >Chấp thuận bởi</div></div>
+                        <br> <br>
+                        <div> <div class="eng-title" > Department Manager </div>  <div class="viet-title" >Trưởng bộ phận</div></div>
+                      </div>
+                      <div class="approval-box">
+                        <div class='margin-btm'> <div class="eng-title" > Approved by </div>  <div class="viet-title" >Phê duyệt bởi</div></div>
+                        <br> <br>
+                        <div> <div class="eng-title" > Factory Manager </div>  <div class="viet-title" >Giám đốc nhà máy</div></div>
+                      </div>
+                    </div>
+                    <!-- Additional Remarks -->
+                    {% if doc.remarks %}
+                    <div class="section-title">Additional Remarks / Ghi chú thêm</div>
+                    <div class="reason-box">
+                      {{ doc.remarks }}
+                    </div>
+                    {% endif %}
+                    <!-- Note -->
+                    <div class="note">
+                      ( It must be approved by 15:00 / Phải được phê duyệt trước 15 giờ )
+                    </div>
+                    <!-- Footer -->
+                    <div class="footer">
+                      This is a system generated document / Đây là tài liệu được tạo bởi hệ thống
+                    </div>
+                  </body>
+                </html>

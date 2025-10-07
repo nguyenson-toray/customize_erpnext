@@ -1170,52 +1170,18 @@ function download_template() {
         indicator: 'blue'
     });
 
-    // Use frappe.call to download the template file
-    frappe.call({
-        method: 'customize_erpnext.api.bulk_update_scripts.create_item_variants_improved_validate_data.download_template',
-        callback: function(r) {
-            if (r.message) {
-                // Convert base64 to blob and download
-                const byteCharacters = atob(r.message.file_data);
-                const byteNumbers = new Array(byteCharacters.length);
-                for (let i = 0; i < byteCharacters.length; i++) {
-                    byteNumbers[i] = byteCharacters.charCodeAt(i);
-                }
-                const byteArray = new Uint8Array(byteNumbers);
-                const blob = new Blob([byteArray], { 
-                    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
-                });
+    // Direct download from the specified template file
+    const link = document.createElement('a');
+    link.href = '/files/templates/create_item_variants_improved_template.xlsx';
+    link.download = 'create_item_variants_improved_template.xlsx';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
 
-                // Create download link
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = r.message.filename;
-                document.body.appendChild(a);
-                a.click();
-
-                // Cleanup
-                window.URL.revokeObjectURL(url);
-                document.body.removeChild(a);
-
-                frappe.show_alert({
-                    message: __('Template downloaded successfully!'),
-                    indicator: 'green'
-                }, 3);
-            } else {
-                frappe.show_alert({
-                    message: __('Error downloading template'),
-                    indicator: 'red'
-                }, 3);
-            }
-        },
-        error: function(r) {
-            frappe.show_alert({
-                message: __('Error downloading template: {0}', [r.message || 'Unknown error']),
-                indicator: 'red'
-            }, 3);
-        }
-    });
+    frappe.show_alert({
+        message: __('Template downloaded successfully!'),
+        indicator: 'green'
+    }, 3);
 }
 
 function validate_excel_data(dialog, values) {

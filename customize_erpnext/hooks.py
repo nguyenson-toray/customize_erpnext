@@ -47,8 +47,14 @@ doctype_js = {
     "Stock Reconciliation" : "public/js/custom_scripts/stock_reconciliation.js",
     "Employee": [
         "public/js/fingerprint_scanner_dialog.js",
+        "public/js/shared_fingerprint_sync.js",
         "public/js/custom_scripts/employee.js"
     ],
+    "Employee Checkin": [ 
+        "public/js/custom_scripts/employee_checkin.js"
+    ],
+
+    
     # Thêm các doctype khác  
 }
 
@@ -58,6 +64,7 @@ doctype_list_js = {
     "Stock Entry": "public/js/custom_scripts/stock_entry_list.js",
     "Employee": [
         "public/js/fingerprint_scanner_dialog.js",
+        "public/js/shared_fingerprint_sync.js",
         "public/js/custom_scripts/employee_list.js"
     ],
 }
@@ -87,11 +94,13 @@ fixtures = [
                     "Material Request Item",
                     "Production Plan",
                     "Employee",
+                    "Employee Checkin",
                     "Stock Entry Detail",
                     "Stock Reconciliation",
                     "Stock Reconciliation Item",
                     "Stock Ledger Entry",
-                    "Customer"
+                    "Customer",
+                    "Shift Type",
                 ]
             ],
             [
@@ -106,7 +115,7 @@ fixtures = [
         "doctype": "Workspace",
         "filters": [
             # Chỉ export một số workspace cụ thể
-            ["name", "in", ["Stock"]] 
+            ["name", "in", ["Stock","HR","Shift & Attendance"]] 
             # Để trống filter nếu muốn export tất cả
         ]
     },
@@ -119,7 +128,8 @@ fixtures = [
                 "Stock Entry Detail",
                 "Stock Reconciliation",
                 "Stock Reconciliation Item",
-                "Employee"
+                "Employee",
+                "Employee Checkin"
                 ]]
         ]
     },
@@ -141,6 +151,31 @@ fixtures = [
         "filters": {
             "module": "Customize Erpnext"
         }
+    },
+    # All Workflows
+    {
+        "doctype": "Workflow",
+        "filters": []  # Export all workflows
+    },
+    # All Workflow States
+    {
+        "doctype": "Workflow State",
+        "filters": []  # Export all workflow states
+    },
+    # All Workflow Action Masters
+    {
+        "doctype": "Workflow Action Master",
+        "filters": []  # Export all workflow actions
+    },
+    # All Workflow Transitions
+    {
+        "doctype": "Workflow Transition",
+        "filters": []  # Export all workflow transitions
+    },
+    # All Assignment Rules
+    {
+        "doctype": "Assignment Rule",
+        "filters": []  # Export all assignment rules
     }
 ]
 
@@ -154,32 +189,42 @@ data_import_before_import = [
 # Scheduler Events
 
 scheduler_events = {
-    "daily": [
-        # Daily attendance completion - chạy lúc 6:00 AM mỗi ngày
-        "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.scheduler_jobs.auto_daily_attendance_completion",
-        # Auto submit Custom Attendance - chạy lúc 7:00 AM mỗi ngày
-        "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.scheduler_jobs.auto_submit_custom_attendance"
-    ],
+    # "daily": [
+    #     # Daily attendance completion - chạy lúc 6:00 AM mỗi ngày
+    #     "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.scheduler_jobs.auto_daily_attendance_completion",
+    #     # Auto submit Custom Attendance - chạy lúc 7:00 AM mỗi ngày
+    #     "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.scheduler_jobs.auto_submit_custom_attendance"
+    # ],
     
-    "hourly": [
-        # Smart auto update - chỉ chạy khi shift kết thúc + tolerance
-        "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.scheduler_jobs.smart_auto_update_custom_attendance"
-    ],
+    # "hourly": [
+    #     # Smart auto update - chỉ chạy khi shift kết thúc + tolerance
+    #     "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.scheduler_jobs.smart_auto_update_custom_attendance"
+    # ],
     
     # Cron-based schedules (optional - có thể customize thời gian cụ thể)
     "cron": {
-        # Daily completion lúc 3:00 AM
-        "0 3 * * *": [
-            "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.scheduler_jobs.auto_daily_attendance_completion"
+        # # Daily completion lúc 3:00 AM
+        # "0 3 * * *": [
+        #     "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.scheduler_jobs.auto_daily_attendance_completion"
+        # ],
+        
+        # # Auto submit lúc 6:00 AM
+        # "0 6 * * *": [
+        #     "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.scheduler_jobs.auto_submit_custom_attendance"
+        # ],
+        
+        # Daily Timesheet auto sync and calculation at 22:45 every day
+        "45 22 * * *": [
+            "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.daily_timesheet_auto_sync_and_calculate"
         ],
         
-        # Auto submit lúc 6:00 AM
-        "0 6 * * *": [
-            "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.scheduler_jobs.auto_submit_custom_attendance"
+        # Monthly recalculation - 23:00 on Sunday (0 is Sunday)
+        "30 23 * * 0": [
+            "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.monthly_timesheet_recalculation"
         ],
         
-        # Smart auto update mỗi 30 phút (có thể adjust)
-        "*/30 * * * *": [
+        # Smart auto update mỗi 2 giờ
+        "0 */2 * * *": [
             "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.scheduler_jobs.smart_auto_update_custom_attendance"
         ]
     }
@@ -194,10 +239,36 @@ scheduler_events = {
 # Document Events
 doc_events = {
     "Employee Checkin": {
-        "on_update": "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.attendance_sync.on_checkin_update",
-        "after_insert": "customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.on_checkin_creation",
+        "on_update": [
+            "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.attendance_sync.on_checkin_update",
+            "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.auto_sync_on_checkin_update"
+        ],
+        "after_insert": [
+            "customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.on_checkin_creation",
+            "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.auto_sync_on_checkin_update"
+        ],
+        "on_trash": [
+            "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.auto_cleanup_on_checkin_delete"
+        ],
     },
-    
+
+    "Shift Registration": {
+        "on_submit": "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.auto_recalc_on_shift_registration_change",
+        "on_cancel": "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.auto_recalc_on_shift_registration_change",
+        "on_update_after_submit": "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.auto_recalc_on_shift_registration_change"
+    },
+
+    "Overtime Registration": {
+        "on_submit": "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.auto_recalc_on_overtime_registration_change",
+        "on_cancel": "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.auto_recalc_on_overtime_registration_change",
+        "on_update_after_submit": "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.auto_recalc_on_overtime_registration_change"
+    },
+
+    "Employee": {
+        "validate": "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.check_maternity_tracking_changes",
+        "on_update": "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.auto_recalc_on_maternity_tracking_change"
+    },
+
     "Shift Type": {
         "on_update": "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.on_shift_update"
     },
@@ -213,7 +284,9 @@ doc_events = {
         "has_permission": "customize_erpnext.overrides.overtime_request_permission",
         # Update overtime request status
         # "on_update": "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.on_overtime_request_approval"
-    }
+    },
+
+   
 }
  
 
@@ -253,6 +326,16 @@ doc_events = {
 # include js, css files in header of desk.html
 # app_include_css = "/assets/customize_erpnext/css/customize_erpnext.css"
 app_include_js = "/assets/customize_erpnext/js/fingerprint_scanner_dialog.js"
+
+# Include Cropper.js library for image cropping
+# Uncomment the lines below if ENABLE_EMPLOYEE_IMAGE_CROPPER = true in employee.js
+# app_include_css = [
+#     "https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css"
+# ]
+# app_include_js = [
+#     "/assets/customize_erpnext/js/fingerprint_scanner_dialog.js",
+#     "https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"
+# ]
 
 # include js, css files in header of web template
 # web_include_css = "/assets/customize_erpnext/css/customize_erpnext.css"

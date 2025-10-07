@@ -156,16 +156,18 @@ def generate_qr_code(data, size=None):
     )
     qr.add_data(data)
     qr.make(fit=True)
-    
+
     # Create QR code image
     qr_img = qr.make_image(fill_color="black", back_color="white")
-    
+
     # Convert to bytes
     img_buffer = BytesIO()
     qr_img.save(img_buffer, format='PNG')
     img_buffer.seek(0)
-    
-    # Create ReportLab Image
+
+    # Create ReportLab Image with default size if not provided
+    if size is None:
+        size = (12 * mm, 12 * mm)  # Default to 12mm x 12mm as used in the layout
     reportlab_img = ReportLabImage(img_buffer, width=size[0], height=size[1])
     return reportlab_img
 

@@ -52,6 +52,13 @@ frappe.ui.form.on('Stock Reconciliation', {
 
     },
     purpose: function (frm) {
+        // Setup invoice selector for Stock Reconciliation
+        if (frm.doc.purpose === "Stock Reconciliation") {
+            setTimeout(() => {
+                setup_invoice_selector_sr(frm);
+            }, 500);
+        }
+
         // Update Quick Add button state when purpose changes
         if (frm.opening_stock_quick_add_btn) {
             update_quick_add_button_state_sr(frm, frm.opening_stock_quick_add_btn);
@@ -86,6 +93,11 @@ frappe.ui.form.on('Stock Reconciliation', {
     refresh: function (frm) {
         // Setup listener to monitor selection changes
         setup_selection_monitor_sr(frm);
+
+        // Setup invoice selector for Stock Reconciliation
+        if (frm.doc.purpose === "Stock Reconciliation") {
+            setup_invoice_selector_sr(frm);
+        }
 
         // Always add Quick Add button (but handle disabled state)
         if (!frm.quick_add_btn_added) {
@@ -139,15 +151,18 @@ frappe.ui.form.on('Stock Reconciliation', {
     before_submit: function (frm) {
         let validation_errors = [];
         frm.doc.items.forEach(function (item, index) {
-            if (item.custom_receive_date) {
-                // Validate date format
-                let date_obj = new Date(item.custom_receive_date);
-                if (isNaN(date_obj.getTime())) {
-                    validation_errors.push(__('Row {0}: Invalid receive date format', [index + 1]));
+            if (frm.doc.purpose === 'Opening Stock') {
+                if (item.custom_receive_date) {
+                    // Validate date format
+                    let date_obj = new Date(item.custom_receive_date);
+                    if (isNaN(date_obj.getTime())) {
+                        validation_errors.push(__('Row {0}: Invalid receive date format', [index + 1]));
+                    }
+                } else {
+                    validation_errors.push(__('Row {0}: Receive date cannot be empty', [index + 1]));
                 }
-            } else {
-                validation_errors.push(__('Row {0}: Receive date cannot be empty', [index + 1]));
             }
+
             if (!item.custom_invoice_number) {
                 validation_errors.push(__('Row {0}: Invoice number cannot be empty', [index + 1]));
             }
@@ -1441,4 +1456,321 @@ function initialize_quick_add_button_sr(frm) {
             'pointer-events': 'auto'
         });
     }
+}
+
+// Function to setup invoice selector click handlers for Stock Reconciliation
+function setup_invoice_selector_sr(frm) {
+    console.log('Setting up invoice selector for Stock Reconciliation');
+
+    // Prevent multiple dialogs
+    if (frm.invoice_dialog_open) {
+        console.log('Invoice dialog already open, skipping setup');
+        return;
+    }
+
+    // Check if grid exists
+    if (!frm.fields_dict.items || !frm.fields_dict.items.grid) {
+        console.log('Grid not ready, retrying in 1 second');
+        setTimeout(() => {
+            setup_invoice_selector_sr(frm);
+        }, 1000);
+        return;
+    }
+
+    // Wait for grid to be ready
+    setTimeout(() => {
+        console.log('Setting up event handlers for invoice selector');
+
+        // Remove existing handlers first
+        frm.fields_dict.items.grid.wrapper.off('click.invoice_selector', 'input[data-fieldname="custom_invoice_number"]');
+        frm.fields_dict.items.grid.wrapper.off('focus.invoice_selector', 'input[data-fieldname="custom_invoice_number"]');
+
+        // Attach click handler to grid with namespace
+        frm.fields_dict.items.grid.wrapper.on('click.invoice_selector', 'input[data-fieldname="custom_invoice_number"]', function (e) {
+            console.log('Invoice number field clicked');
+            e.preventDefault();
+            e.stopPropagation();
+
+            // Prevent multiple dialogs
+            if (frm.invoice_dialog_open) {
+                console.log('Dialog already open, ignoring click');
+                return;
+            }
+
+            // Get the row index from the clicked element
+            let $row = $(this).closest('.grid-row');
+            let row_index = $row.attr('data-idx') - 1;
+            let row = frm.doc.items[row_index];
+
+            console.log('Row data:', row);
+
+            if (!row) {
+                console.log('No row found');
+                return;
+            }
+
+            // Only show dialog if item is selected
+            if (!row.item_code) {
+                frappe.msgprint(__('Please select an item first'));
+                return;
+            }
+            if (!row.warehouse) {
+                frappe.msgprint(__('Please select a warehouse'));
+                return;
+            }
+
+            console.log('Showing invoice selection dialog');
+            // Show invoice selection dialog
+            show_invoice_selection_dialog_sr(frm, row);
+        });
+
+        // Also handle focus event with namespace
+        frm.fields_dict.items.grid.wrapper.on('focus.invoice_selector', 'input[data-fieldname="custom_invoice_number"]', function (e) {
+            console.log('Invoice number field focused');
+
+            // Prevent multiple dialogs
+            if (frm.invoice_dialog_open) {
+                console.log('Dialog already open, ignoring focus');
+                return;
+            }
+
+            // Get the row index from the clicked element
+            let $row = $(this).closest('.grid-row');
+            let row_index = $row.attr('data-idx') - 1;
+            let row = frm.doc.items[row_index];
+
+            if (!row) return;
+
+            // Only show dialog if item is selected
+            if (!row.item_code) {
+                frappe.msgprint(__('Please select an item first'));
+                return;
+            }
+
+            console.log('Showing invoice selection dialog from focus');
+            // Show invoice selection dialog
+            show_invoice_selection_dialog_sr(frm, row);
+        });
+
+        console.log('Invoice selector event handlers attached successfully');
+    }, 500);
+}
+
+// Function to show invoice selection dialog for Stock Reconciliation
+function show_invoice_selection_dialog_sr(frm, row) {
+    // Mark dialog as open
+    frm.invoice_dialog_open = true;
+
+    // Fetch available stock by invoice
+    console.log('Fetching available stock by invoice for item:', row.item_code, 'in warehouse:', row.warehouse);
+    frappe.call({
+        method: 'customize_erpnext.api.get_stock_by_invoice.get_stock_by_invoice',
+        args: {
+            item_code: row.item_code,
+            warehouse: row.warehouse,
+            company: frm.doc.company
+        },
+        callback: function (r) {
+            console.log('Available stock by invoice:', r.message);
+            if (!r.message || r.message.length === 0) {
+                frm.invoice_dialog_open = false;
+                frappe.msgprint(__('No stock available for this item with invoice information'));
+                return;
+            }
+
+            // Calculate total available quantity and determine default quantity
+            let total_available_qty = r.message.reduce((sum, item) => sum + (item.available_qty || 0), 0);
+            let default_qty = row.qty || 0;
+
+            // Create dialog with grid and quantity field
+            let dialog = new frappe.ui.Dialog({
+                title: __('Select Invoice(s) for Item: <a href="/app/item/{0}" target="_blank">{0}</a><br>{1}', [row.item_code, row.custom_item_name_detail]),
+
+                fields: [
+                    {
+                        fieldname: 'quantity_info',
+                        fieldtype: 'HTML',
+                        options: `<div class="alert alert-info" style="margin-bottom: 15px;">
+                            <strong>Current Row Quantity:</strong> ${row.qty || 0}<br>
+                            <strong>Available Stock by Invoice:</strong> ${total_available_qty}
+                        </div>`
+                    },
+                    {
+                        fieldname: 'selected_quantity',
+                        fieldtype: 'Float',
+                        label: __('Actual Quantity'),
+                        default: default_qty,
+                        reqd: 1,
+                        description: __('Enter the actual quantity for stock reconciliation (can be 0 or negative if allowed)')
+                    },
+                    {
+                        fieldname: 'invoice_selection',
+                        fieldtype: 'Table',
+                        label: __('Available Stock by Invoice (Select multiple)'),
+                        cannot_add_rows: true,
+                        cannot_delete_rows: true,
+                        in_place_edit: false,
+                        data: r.message,
+                        fields: [
+                            {
+                                fieldname: 'invoice_number',
+                                fieldtype: 'Data',
+                                label: __('Invoice Number'),
+                                read_only: 1,
+                                in_list_view: 1,
+                                columns: 2
+                            },
+                            {
+                                fieldname: 'custom_item_name_detail',
+                                fieldtype: 'Data',
+                                label: __('Item Name Detail'),
+                                read_only: 1,
+                                in_list_view: 1,
+                                columns: 3
+                            },
+                            {
+                                fieldname: 'available_qty',
+                                fieldtype: 'Float',
+                                label: __('Qty Available'),
+                                read_only: 1,
+                                in_list_view: 1,
+                                columns: 1
+                            },
+                            {
+                                fieldname: 'stock_uom',
+                                fieldtype: 'Data',
+                                label: __('UOM'),
+                                read_only: 1,
+                                in_list_view: 1,
+                                columns: 1
+                            },
+                            {
+                                fieldname: 'warehouse',
+                                fieldtype: 'Link',
+                                options: 'Warehouse',
+                                label: __('Warehouse'),
+                                read_only: 1,
+                                in_list_view: 1,
+                                columns: 2
+                            },
+                            {
+                                fieldname: 'receive_date',
+                                fieldtype: 'Date',
+                                label: __('Date'),
+                                read_only: 1,
+                                in_list_view: 1,
+                                columns: 1
+                            }
+                        ]
+                    }
+                ],
+
+                size: 'extra-large',
+                primary_action_label: __('Add Selected Items'),
+                primary_action: function (values) {
+                    // Find selected rows
+                    let selected_rows = values.invoice_selection.filter(inv => inv.__checked);
+
+                    if (selected_rows.length === 0) {
+                        frappe.msgprint(__('Please select at least one invoice'));
+                        return;
+                    }
+
+                    // Validate selected quantity
+                    let selected_qty = values.selected_quantity;
+                    if (selected_qty === null || selected_qty === undefined || isNaN(selected_qty)) {
+                        frappe.msgprint(__('Please enter a valid quantity'));
+                        return;
+                    }
+
+                    // Process multiple selections with selected quantity
+                    process_multiple_invoice_selection_sr(frm, row, selected_rows, selected_qty);
+
+                    dialog.hide();
+                },
+                secondary_action_label: __('Cancel'),
+                secondary_action: function () {
+                    dialog.hide();
+                },
+                onhide: function () {
+                    // Always reset the dialog flag when dialog is hidden (any way)
+                    frm.invoice_dialog_open = false;
+                }
+            });
+
+            dialog.show();
+        },
+        error: function () {
+            frm.invoice_dialog_open = false;
+        }
+    });
+}
+
+// Function to process multiple invoice selections for Stock Reconciliation
+function process_multiple_invoice_selection_sr(frm, original_row, selected_invoices, selected_qty) {
+    let added_count = 0;
+    let updated_count = 0;
+
+    // Sort invoices by date (oldest first) to prioritize older invoices
+    selected_invoices.sort(function (a, b) {
+        let dateA = new Date(a.receive_date || '1900-01-01');
+        let dateB = new Date(b.receive_date || '1900-01-01');
+        return dateA - dateB;
+    });
+
+    selected_invoices.forEach(function (selected, index) {
+        if (index === 0) {
+            // First selection: update the current row with actual quantity
+            frappe.model.set_value(original_row.doctype, original_row.name, 'custom_invoice_number', selected.invoice_number);
+            frappe.model.set_value(original_row.doctype, original_row.name, 'qty', selected_qty);
+
+            // Set warehouse if not already set
+            if (!original_row.warehouse && selected.warehouse) {
+                frappe.model.set_value(original_row.doctype, original_row.name, 'warehouse', selected.warehouse);
+            }
+
+            // Set custom_receive_date for stock reconciliation
+            if (selected.receive_date) {
+                frappe.model.set_value(original_row.doctype, original_row.name, 'custom_receive_date', selected.receive_date);
+            }
+
+            updated_count++;
+        } else {
+            // Additional selections: create new rows with zero quantity (user can adjust manually)
+            let new_row = frm.add_child('items');
+
+            // Copy basic item data from original row
+            frappe.model.set_value(new_row.doctype, new_row.name, 'item_code', original_row.item_code);
+            frappe.model.set_value(new_row.doctype, new_row.name, 'warehouse', original_row.warehouse || selected.warehouse);
+
+            // Set invoice-specific data
+            frappe.model.set_value(new_row.doctype, new_row.name, 'custom_invoice_number', selected.invoice_number);
+            frappe.model.set_value(new_row.doctype, new_row.name, 'qty', 0); // Default to 0 for manual adjustment
+
+            // Set custom_receive_date for stock reconciliation
+            if (selected.receive_date) {
+                frappe.model.set_value(new_row.doctype, new_row.name, 'custom_receive_date', selected.receive_date);
+            }
+
+            added_count++;
+        }
+    });
+
+    // Refresh the grid
+    frm.refresh_field('items');
+
+    // Show success message
+    let message = '';
+    if (updated_count > 0 && added_count > 0) {
+        message = __('Updated current row (Qty: {0}) and added {1} new rows for manual quantity adjustment', [selected_qty, added_count]);
+    } else if (updated_count > 0) {
+        message = __('Updated current row with selected invoice (Actual Qty: {0})', [selected_qty]);
+    } else if (added_count > 0) {
+        message = __('Added {0} new rows with selected invoices for manual quantity adjustment', [added_count]);
+    }
+
+    frappe.show_alert({
+        message: message,
+        indicator: 'green'
+    }, 5);
 }

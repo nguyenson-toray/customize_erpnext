@@ -1,0 +1,35 @@
+{
+ "add_total_row": 1,
+ "columns": [],
+ "creation": "2025-09-03 14:00:00.000000",
+ "doctype": "Report",
+ "is_standard": "Yes",
+ "json": "{}",
+ "letter_head": "Letter Head",
+ "modified": "2025-09-03 14:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Customize Erpnext",
+ "name": "Daily Timesheet Report",
+ "owner": "Administrator",
+ "query": "",
+ "ref_doctype": "Daily Timesheet",
+ "report_name": "Daily Timesheet Report",
+ "report_type": "Script Report",
+ "roles": [
+  {
+   "role": "HR Manager"
+  },
+  {
+   "role": "HR User"
+  },
+  {
+   "role": "Employee"
+  },
+  {
+   "role": "Department Manager"
+  },
+  {
+   "role": "Factory Manager"
+  }
+ ]
+}

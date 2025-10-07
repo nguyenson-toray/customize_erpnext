@@ -1,35 +1,31 @@
 {
  "actions": [],
- "autoname": "format:OTR-{YY}{MM}{DD}-{###}",
+ "allow_import": 1,
+ "autoname": "naming_series:",
  "creation": "2025-08-08 23:33:14.711192",
  "default_view": "List",
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
-  "reason_general",
-  "column_break_qnut",
+  "naming_series",
   "request_date",
-  "requested_by",
-  "request_by_full_name",
-  "request_by_group",
+  "reason_general",
   "column_break_kjuy",
   "total_employees",
   "total_hours",
   "registered_groups",
+  "column_break_qnut",
+  "requested_by",
+  "requested_by_full_name",
+  "request_by_group",
+  "column_break_vede",
+  "approver",
+  "approver_full_name",
+  "remarks",
   "employees_section",
   "get_employees_button",
   "ot_employees",
-  "approval_section",
-  "manager_approver",
-  "column_break_16",
-  "factory_manager_approver",
-  "timestamps_section",
-  "manager_approved_on",
-  "column_break_20",
-  "factory_manager_approved_on",
-  "reason_section",
-  "remarks",
   "amended_from"
  ],
  "fields": [
@@ -81,58 +77,9 @@
    "reqd": 1
   },
   {
-   "collapsible": 1,
-   "fieldname": "approval_section",
-   "fieldtype": "Section Break",
-   "label": "Approval Details"
-  },
-  {
-   "fieldname": "manager_approver",
-   "fieldtype": "Link",
-   "label": "Department Manager",
-   "options": "Employee"
-  },
-  {
-   "fieldname": "column_break_16",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "factory_manager_approver",
-   "fieldtype": "Link",
-   "label": "Factory Manager",
-   "options": "Employee"
-  },
-  {
-   "fieldname": "timestamps_section",
-   "fieldtype": "Section Break",
-   "label": "Approval Timestamps"
-  },
-  {
-   "fieldname": "manager_approved_on",
-   "fieldtype": "Datetime",
-   "label": "Department Manager Approved On",
-   "read_only": 1
-  },
-  {
-   "fieldname": "column_break_20",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "factory_manager_approved_on",
-   "fieldtype": "Datetime",
-   "label": "Factory Manager Approved On",
-   "read_only": 1
-  },
-  {
-   "collapsible": 1,
-   "fieldname": "reason_section",
-   "fieldtype": "Section Break",
-   "label": "Reason & Remarks"
-  },
-  {
    "fieldname": "remarks",
-   "fieldtype": "Text",
-   "label": "Additional Remarks"
+   "fieldtype": "Small Text",
+   "label": "Remarks of Approver"
   },
   {
    "fieldname": "amended_from",
@@ -157,14 +104,6 @@
    "label": "General Reason for OT"
   },
   {
-   "fetch_from": "requested_by.employee_name",
-   "fetch_if_empty": 1,
-   "fieldname": "request_by_full_name",
-   "fieldtype": "Data",
-   "label": "Request By",
-   "read_only": 1
-  },
-  {
    "fetch_from": "requested_by.custom_group",
    "fetch_if_empty": 1,
    "fieldname": "request_by_group",
@@ -177,16 +116,50 @@
    "fieldtype": "Small Text",
    "label": "Registered Groups",
    "read_only": 1
+  },
+  {
+   "fieldname": "column_break_vede",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "approver",
+   "fieldtype": "Link",
+   "label": "Approver",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "approver_full_name",
+   "fieldtype": "Data",
+   "label": "Approver",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "requested_by.employee_name",
+   "fetch_if_empty": 1,
+   "fieldname": "requested_by_full_name",
+   "fieldtype": "Data",
+   "label": "Request By",
+   "read_only": 1
+  },
+  {
+   "default": "OTR-.YY..MM..DD.-.####.",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "Series",
+   "options": "OTR-.YY..MM..DD.-.####.",
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2025-08-09 09:56:12.424586",
+ "modified": "2025-09-30 16:25:06.984562",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Overtime Registration",
- "naming_rule": "Expression",
+ "naming_rule": "By \"Naming Series\" field",
  "owner": "Administrator",
  "permissions": [
   {

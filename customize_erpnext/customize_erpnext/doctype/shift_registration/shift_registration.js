@@ -29,9 +29,6 @@ frappe.ui.form.on('Shift Registration', {
             });
         }
 
-        // Calculate total employees
-        frm.events.calculate_total_employees(frm);
-
         // Add custom button to remove empty rows
         frm.add_custom_button(__('Remove Empty Rows'), function () {
             frm.events.remove_empty_rows(frm);

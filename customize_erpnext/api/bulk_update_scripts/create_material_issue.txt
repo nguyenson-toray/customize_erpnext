@@ -1,617 +1,596 @@
 
 ================================================================================
 MATERIAL ISSUE BULK CREATION LOG
-Started at: 2025-07-16 14:15:35
-Script: /home/sonnt/frappe-bench/apps/customize_erpnext/customize_erpnext/api/bulk_update_scripts/create_material_issue.py
+Started at: 2025-09-11 09:02:41
+Script: /home/frappe/frappe-bench/apps/customize_erpnext/customize_erpnext/api/bulk_update_scripts/create_material_issue.py
 ================================================================================
 
-[2025-07-16 14:15:35] [INFO] 
+[2025-09-11 09:02:41] [INFO] 
 ==================== BẮT ĐẦU TẠO MATERIAL ISSUE STOCK ENTRIES ====================
-[2025-07-16 14:15:35] [INFO] 📋 Sử dụng đường dẫn: ./erp-sonnt.tiqn.local/private/files/create_material_issue_teamplate.xlsx
-[2025-07-16 14:15:35] [INFO] 📋 Bắt đầu validation...
-[2025-07-16 14:15:35] [SUCCESS] ✅ File Excel hợp lệ với 14 cột
-[2025-07-16 14:15:35] [SUCCESS] ✅ Validation thành công
-[2025-07-16 14:15:35] [INFO] 📋 Bắt đầu xử lý file Excel...
-[2025-07-16 14:15:35] [INFO] 📋 Đang đọc file: ./erp-sonnt.tiqn.local/private/files/create_material_issue_teamplate.xlsx
-[2025-07-16 14:15:35] [INFO] 📋 Đã đọc được 196 dòng dữ liệu
-[2025-07-16 14:15:35] [INFO] 📋 Các cột: ['No', 'posting_date', 'posting_time', 'custom_no', 'custom_material_issue_purpose', 'qty', 'custom_fg_style', 'custom_fg_size', 'custom_fg_qty', 'custom_line', 'custom_fg_color', 'custom_note', 'custom_invoice_number', 'custom_item_name_detail']
-[2025-07-16 14:15:35] [INFO] 📋 Các cột optional có sẵn: ['posting_date', 'posting_time']
-[2025-07-16 14:15:35] [SUCCESS] ✅ Các cột Excel hợp lệ
-[2025-07-16 14:15:35] [SUCCESS] ✅ Sau khi làm sạch còn 196 dòng hợp lệ
-[2025-07-16 14:15:35] [INFO] 📋 Pre-loading item and warehouse data...
-[2025-07-16 14:15:35] [INFO] 📋 Cached 178 items and 178 warehouses
-[2025-07-16 14:15:35] [INFO] 📋 Tìm thấy 14 nhóm custom_no khác nhau
-[2025-07-16 14:15:35] [INFO] 📋 Processing batch 1: groups 1-10
-[2025-07-16 14:15:35] [INFO] 📋 Xử lý nhóm 1/14: DC001 với 2 items
-[2025-07-16 14:15:35] [INFO] 📋   Processing posting_date from Excel datetime: 2025-04-09 00:00:00 -> 2025-04-09
-[2025-07-16 14:15:35] [INFO] 📋   ✅ Set posting_date = 2025-04-09
-[2025-07-16 14:15:35] [INFO] 📋   Processing posting_time from string: 17:00:00
-[2025-07-16 14:15:35] [INFO] 📋   ✅ Set posting_time = 17:00:00
-[2025-07-16 14:15:35] [INFO] 📋   🔍 Debug fields set:
-[2025-07-16 14:15:35] [INFO] 📋     - set_posting_time: 1
-[2025-07-16 14:15:35] [INFO] 📋     - posting_date: 2025-04-09
-[2025-07-16 14:15:35] [INFO] 📋     - posting_time: 17:00:00
-[2025-07-16 14:15:35] [INFO] 📋   🔍 Before adding items:
-[2025-07-16 14:15:35] [INFO] 📋     - set_posting_time: 1
-[2025-07-16 14:15:35] [INFO] 📋     - posting_date: 2025-04-09
-[2025-07-16 14:15:35] [INFO] 📋     - posting_time: 17:00:00
-[2025-07-16 14:15:35] [SUCCESS] ✅   Item 1: C-022-09Y-000-0F-06 - Qty: 93.27
-[2025-07-16 14:15:35] [SUCCESS] ✅   Item 2: C-022-0B3-000-0F-06 - Qty: 277.52
-[2025-07-16 14:15:35] [INFO] 📋   Set from_warehouse: Material - HK - TIQN
-[2025-07-16 14:15:35] [INFO] 📋   Aggregated 1 invoice numbers: OV-TIQNVN-AIR 3. 20
-[2025-07-16 14:15:35] [INFO] 📋   🔍 Before save:
-[2025-07-16 14:15:35] [INFO] 📋     - set_posting_time: 1
-[2025-07-16 14:15:35] [INFO] 📋     - posting_date: 2025-04-09
-[2025-07-16 14:15:35] [INFO] 📋     - posting_time: 17:00:00
-[2025-07-16 14:15:35] [INFO] 📋   💾 Saving Stock Entry...
-[2025-07-16 14:15:35] [SUCCESS] ✅   ✅ Stock Entry saved: SE-2025-04-09-DC001-03
-[2025-07-16 14:15:35] [INFO] 📋   🔍 After save (reloaded from DB):
-[2025-07-16 14:15:35] [INFO] 📋     - set_posting_time: 1
-[2025-07-16 14:15:35] [INFO] 📋     - posting_date: 2025-04-09
-[2025-07-16 14:15:35] [INFO] 📋     - posting_time: 17:00:00
-[2025-07-16 14:15:35] [SUCCESS] ✅ Tạo thành công: SE-2025-04-09-DC001-03 với 2 items
-[2025-07-16 14:15:35] [INFO] 📋 Xử lý nhóm 2/14: PX008526 với 4 items
-[2025-07-16 14:15:35] [INFO] 📋   Processing posting_date from Excel datetime: 2025-05-08 00:00:00 -> 2025-05-08
-[2025-07-16 14:15:35] [INFO] 📋   ✅ Set posting_date = 2025-05-08
-[2025-07-16 14:15:35] [INFO] 📋   Processing posting_time from string: 17:00:00
-[2025-07-16 14:15:35] [INFO] 📋   ✅ Set posting_time = 17:00:00
-[2025-07-16 14:15:35] [INFO] 📋   🔍 Debug fields set:
-[2025-07-16 14:15:35] [INFO] 📋     - set_posting_time: 1
-[2025-07-16 14:15:35] [INFO] 📋     - posting_date: 2025-05-08
-[2025-07-16 14:15:35] [INFO] 📋     - posting_time: 17:00:00
-[2025-07-16 14:15:35] [INFO] 📋   🔍 Before adding items:
-[2025-07-16 14:15:35] [INFO] 📋     - set_posting_time: 1
-[2025-07-16 14:15:35] [INFO] 📋     - posting_date: 2025-05-08
-[2025-07-16 14:15:35] [INFO] 📋     - posting_time: 17:00:00
-[2025-07-16 14:15:35] [SUCCESS] ✅   Item 1: C-024-0EE-000-0F-04 - Qty: 25.45
-[2025-07-16 14:15:35] [SUCCESS] ✅   Item 2: C-023-06M-000-0F-04 - Qty: 37.49
-[2025-07-16 14:15:35] [SUCCESS] ✅   Item 3: C-024-06M-000-0F-04 - Qty: 27.46
-[2025-07-16 14:15:35] [SUCCESS] ✅   Item 4: C-023-0EE-000-0F-04 - Qty: 44.32
-[2025-07-16 14:15:35] [INFO] 📋   Set from_warehouse: Material - HK - TIQN
-[2025-07-16 14:15:35] [INFO] 📋   Aggregated 2 invoice numbers: OV-TIQNVN-SHIP 6.17; O202407003-01
-[2025-07-16 14:15:35] [INFO] 📋   🔍 Before save:
-[2025-07-16 14:15:35] [INFO] 📋     - set_posting_time: 1
-[2025-07-16 14:15:35] [INFO] 📋     - posting_date: 2025-05-08
-[2025-07-16 14:15:35] [INFO] 📋     - posting_time: 17:00:00
-[2025-07-16 14:15:35] [INFO] 📋   💾 Saving Stock Entry...
-[2025-07-16 14:15:36] [SUCCESS] ✅   ✅ Stock Entry saved: SE-2025-05-08-PX008526-15
-[2025-07-16 14:15:36] [INFO] 📋   🔍 After save (reloaded from DB):
-[2025-07-16 14:15:36] [INFO] 📋     - set_posting_time: 1
-[2025-07-16 14:15:36] [INFO] 📋     - posting_date: 2025-05-08
-[2025-07-16 14:15:36] [INFO] 📋     - posting_time: 17:00:00
-[2025-07-16 14:15:36] [SUCCESS] ✅ Tạo thành công: SE-2025-05-08-PX008526-15 với 4 items
-[2025-07-16 14:15:36] [INFO] 📋 Xử lý nhóm 3/14: PX009712 với 3 items
-[2025-07-16 14:15:36] [INFO] 📋   Processing posting_date from Excel datetime: 2025-06-02 00:00:00 -> 2025-06-02
-[2025-07-16 14:15:36] [INFO] 📋   ✅ Set posting_date = 2025-06-02
-[2025-07-16 14:15:36] [INFO] 📋   Processing posting_time from string: 17:00:00
-[2025-07-16 14:15:36] [INFO] 📋   ✅ Set posting_time = 17:00:00
-[2025-07-16 14:15:36] [INFO] 📋   🔍 Debug fields set:
-[2025-07-16 14:15:36] [INFO] 📋     - set_posting_time: 1
-[2025-07-16 14:15:36] [INFO] 📋     - posting_date: 2025-06-02
-[2025-07-16 14:15:36] [INFO] 📋     - posting_time: 17:00:00
-[2025-07-16 14:15:36] [INFO] 📋   🔍 Before adding items:
-[2025-07-16 14:15:36] [INFO] 📋     - set_posting_time: 1
-[2025-07-16 14:15:36] [INFO] 📋     - posting_date: 2025-06-02
-[2025-07-16 14:15:36] [INFO] 📋     - posting_time: 17:00:00
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 1: C-021-0CP-000-0F-06 - Qty: 1.5
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 2: C-00L-0B3-000-0F-06 - Qty: 1.5
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 3: C-01E-000-000-0F-06 - Qty: 0.5
-[2025-07-16 14:15:36] [INFO] 📋   Set from_warehouse: Material - HK - TIQN
-[2025-07-16 14:15:36] [INFO] 📋   Aggregated 2 invoice numbers: OV-TIQNVN-AIR 3. 20; TX0325-006
-[2025-07-16 14:15:36] [INFO] 📋   🔍 Before save:
-[2025-07-16 14:15:36] [INFO] 📋     - set_posting_time: 1
-[2025-07-16 14:15:36] [INFO] 📋     - posting_date: 2025-06-02
-[2025-07-16 14:15:36] [INFO] 📋     - posting_time: 17:00:00
-[2025-07-16 14:15:36] [INFO] 📋   💾 Saving Stock Entry...
-[2025-07-16 14:15:36] [SUCCESS] ✅   ✅ Stock Entry saved: SE-2025-06-02-PX009712-15
-[2025-07-16 14:15:36] [INFO] 📋   🔍 After save (reloaded from DB):
-[2025-07-16 14:15:36] [INFO] 📋     - set_posting_time: 1
-[2025-07-16 14:15:36] [INFO] 📋     - posting_date: 2025-06-02
-[2025-07-16 14:15:36] [INFO] 📋     - posting_time: 17:00:00
-[2025-07-16 14:15:36] [SUCCESS] ✅ Tạo thành công: SE-2025-06-02-PX009712-15 với 3 items
-[2025-07-16 14:15:36] [INFO] 📋 Xử lý nhóm 4/14: PX010599 với 2 items
-[2025-07-16 14:15:36] [INFO] 📋   Processing posting_date from Excel datetime: 2025-04-01 00:00:00 -> 2025-04-01
-[2025-07-16 14:15:36] [INFO] 📋   ✅ Set posting_date = 2025-04-01
-[2025-07-16 14:15:36] [INFO] 📋   Processing posting_time from string: 17:00:00
-[2025-07-16 14:15:36] [INFO] 📋   ✅ Set posting_time = 17:00:00
-[2025-07-16 14:15:36] [INFO] 📋   🔍 Debug fields set:
-[2025-07-16 14:15:36] [INFO] 📋     - set_posting_time: 1
-[2025-07-16 14:15:36] [INFO] 📋     - posting_date: 2025-04-01
-[2025-07-16 14:15:36] [INFO] 📋     - posting_time: 17:00:00
-[2025-07-16 14:15:36] [INFO] 📋   🔍 Before adding items:
-[2025-07-16 14:15:36] [INFO] 📋     - set_posting_time: 1
-[2025-07-16 14:15:36] [INFO] 📋     - posting_date: 2025-04-01
-[2025-07-16 14:15:36] [INFO] 📋     - posting_time: 17:00:00
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 1: C-021-0CP-000-0F-06 - Qty: 0.5
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 2: C-021-07X-000-0F-06 - Qty: 0.5
-[2025-07-16 14:15:36] [INFO] 📋   Set from_warehouse: Material - HK - TIQN
-[2025-07-16 14:15:36] [INFO] 📋   Aggregated 1 invoice numbers: OV-TIQNVN-AIR 3. 20
-[2025-07-16 14:15:36] [INFO] 📋   🔍 Before save:
-[2025-07-16 14:15:36] [INFO] 📋     - set_posting_time: 1
-[2025-07-16 14:15:36] [INFO] 📋     - posting_date: 2025-04-01
-[2025-07-16 14:15:36] [INFO] 📋     - posting_time: 17:00:00
-[2025-07-16 14:15:36] [INFO] 📋   💾 Saving Stock Entry...
-[2025-07-16 14:15:36] [SUCCESS] ✅   ✅ Stock Entry saved: SE-2025-04-01-PX010599-16
-[2025-07-16 14:15:36] [INFO] 📋   🔍 After save (reloaded from DB):
-[2025-07-16 14:15:36] [INFO] 📋     - set_posting_time: 1
-[2025-07-16 14:15:36] [INFO] 📋     - posting_date: 2025-04-01
-[2025-07-16 14:15:36] [INFO] 📋     - posting_time: 17:00:00
-[2025-07-16 14:15:36] [SUCCESS] ✅ Tạo thành công: SE-2025-04-01-PX010599-16 với 2 items
-[2025-07-16 14:15:36] [INFO] 📋 Xử lý nhóm 5/14: PX010884 với 2 items
-[2025-07-16 14:15:36] [INFO] 📋   Processing posting_date from Excel datetime: 2025-04-10 00:00:00 -> 2025-04-10
-[2025-07-16 14:15:36] [INFO] 📋   ✅ Set posting_date = 2025-04-10
-[2025-07-16 14:15:36] [INFO] 📋   Processing posting_time from string: 17:00:00
-[2025-07-16 14:15:36] [INFO] 📋   ✅ Set posting_time = 17:00:00
-[2025-07-16 14:15:36] [INFO] 📋   🔍 Debug fields set:
-[2025-07-16 14:15:36] [INFO] 📋     - set_posting_time: 1
-[2025-07-16 14:15:36] [INFO] 📋     - posting_date: 2025-04-10
-[2025-07-16 14:15:36] [INFO] 📋     - posting_time: 17:00:00
-[2025-07-16 14:15:36] [INFO] 📋   🔍 Before adding items:
-[2025-07-16 14:15:36] [INFO] 📋     - set_posting_time: 1
-[2025-07-16 14:15:36] [INFO] 📋     - posting_date: 2025-04-10
-[2025-07-16 14:15:36] [INFO] 📋     - posting_time: 17:00:00
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 1: C-021-0CP-000-0F-06 - Qty: 1.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 2: C-00L-09Y-000-0F-06 - Qty: 1.0
-[2025-07-16 14:15:36] [INFO] 📋   Set from_warehouse: Material - HK - TIQN
-[2025-07-16 14:15:36] [INFO] 📋   Aggregated 2 invoice numbers: OV-TIQNVN-AIR 3. 20; OV-TIQNVN-SEA 3.10
-[2025-07-16 14:15:36] [INFO] 📋   🔍 Before save:
-[2025-07-16 14:15:36] [INFO] 📋     - set_posting_time: 1
-[2025-07-16 14:15:36] [INFO] 📋     - posting_date: 2025-04-10
-[2025-07-16 14:15:36] [INFO] 📋     - posting_time: 17:00:00
-[2025-07-16 14:15:36] [INFO] 📋   💾 Saving Stock Entry...
-[2025-07-16 14:15:36] [SUCCESS] ✅   ✅ Stock Entry saved: SE-2025-04-10-PX010884-15
-[2025-07-16 14:15:36] [INFO] 📋   🔍 After save (reloaded from DB):
-[2025-07-16 14:15:36] [INFO] 📋     - set_posting_time: 1
-[2025-07-16 14:15:36] [INFO] 📋     - posting_date: 2025-04-10
-[2025-07-16 14:15:36] [INFO] 📋     - posting_time: 17:00:00
-[2025-07-16 14:15:36] [SUCCESS] ✅ Tạo thành công: SE-2025-04-10-PX010884-15 với 2 items
-[2025-07-16 14:15:36] [INFO] 📋 Xử lý nhóm 6/14: PX011045 với 2 items
-[2025-07-16 14:15:36] [INFO] 📋   Processing posting_date from Excel datetime: 2025-04-18 00:00:00 -> 2025-04-18
-[2025-07-16 14:15:36] [INFO] 📋   ✅ Set posting_date = 2025-04-18
-[2025-07-16 14:15:36] [INFO] 📋   Processing posting_time from string: 17:00:00
-[2025-07-16 14:15:36] [INFO] 📋   ✅ Set posting_time = 17:00:00
-[2025-07-16 14:15:36] [INFO] 📋   🔍 Debug fields set:
-[2025-07-16 14:15:36] [INFO] 📋     - set_posting_time: 1
-[2025-07-16 14:15:36] [INFO] 📋     - posting_date: 2025-04-18
-[2025-07-16 14:15:36] [INFO] 📋     - posting_time: 17:00:00
-[2025-07-16 14:15:36] [INFO] 📋   🔍 Before adding items:
-[2025-07-16 14:15:36] [INFO] 📋     - set_posting_time: 1
-[2025-07-16 14:15:36] [INFO] 📋     - posting_date: 2025-04-18
-[2025-07-16 14:15:36] [INFO] 📋     - posting_time: 17:00:00
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 1: C-021-0CP-000-0F-06 - Qty: 2.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 2: C-00L-0B3-000-0F-06 - Qty: 2.0
-[2025-07-16 14:15:36] [INFO] 📋   Set from_warehouse: Material - HK - TIQN
-[2025-07-16 14:15:36] [INFO] 📋   Aggregated 2 invoice numbers: OV-TIQNVN-AIR 3. 20; OV-TIQNVN-SEA 3.10
-[2025-07-16 14:15:36] [INFO] 📋   🔍 Before save:
-[2025-07-16 14:15:36] [INFO] 📋     - set_posting_time: 1
-[2025-07-16 14:15:36] [INFO] 📋     - posting_date: 2025-04-18
-[2025-07-16 14:15:36] [INFO] 📋     - posting_time: 17:00:00
-[2025-07-16 14:15:36] [INFO] 📋   💾 Saving Stock Entry...
-[2025-07-16 14:15:36] [SUCCESS] ✅   ✅ Stock Entry saved: SE-2025-04-18-PX011045-15
-[2025-07-16 14:15:36] [INFO] 📋   🔍 After save (reloaded from DB):
-[2025-07-16 14:15:36] [INFO] 📋     - set_posting_time: 1
-[2025-07-16 14:15:36] [INFO] 📋     - posting_date: 2025-04-18
-[2025-07-16 14:15:36] [INFO] 📋     - posting_time: 17:00:00
-[2025-07-16 14:15:36] [SUCCESS] ✅ Tạo thành công: SE-2025-04-18-PX011045-15 với 2 items
-[2025-07-16 14:15:36] [INFO] 📋 Xử lý nhóm 7/14: PX011055 với 16 items
-[2025-07-16 14:15:36] [INFO] 📋   Processing posting_date from Excel datetime: 2025-05-12 00:00:00 -> 2025-05-12
-[2025-07-16 14:15:36] [INFO] 📋   ✅ Set posting_date = 2025-05-12
-[2025-07-16 14:15:36] [INFO] 📋   Processing posting_time from string: 17:00:00
-[2025-07-16 14:15:36] [INFO] 📋   ✅ Set posting_time = 17:00:00
-[2025-07-16 14:15:36] [INFO] 📋   🔍 Debug fields set:
-[2025-07-16 14:15:36] [INFO] 📋     - set_posting_time: 1
-[2025-07-16 14:15:36] [INFO] 📋     - posting_date: 2025-05-12
-[2025-07-16 14:15:36] [INFO] 📋     - posting_time: 17:00:00
-[2025-07-16 14:15:36] [INFO] 📋   🔍 Before adding items:
-[2025-07-16 14:15:36] [INFO] 📋     - set_posting_time: 1
-[2025-07-16 14:15:36] [INFO] 📋     - posting_date: 2025-05-12
-[2025-07-16 14:15:36] [INFO] 📋     - posting_time: 17:00:00
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 1: G-097-0B4-08F-0F-06 - Qty: 2.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 2: G-097-0B4-046-0F-06 - Qty: 1.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 3: G-097-09Z-084-0F-06 - Qty: 3.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 4: G-097-09Z-08F-0F-06 - Qty: 2.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 5: G-03D-01P-07F-0F-06 - Qty: 3.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 6: G-027-005-06Y-0F-06 - Qty: 0.2
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 7: G-05E-000-02J-0F-06 - Qty: 100.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 8: G-03F-01S-02R-0F-06 - Qty: 5.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 9: G-03D-01S-07I-0F-06 - Qty: 2.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 10: G-03D-01S-07F-0F-06 - Qty: 3.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 11: G-05E-000-02Y-0F-06 - Qty: 100.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 12: G-097-0B4-084-0F-06 - Qty: 3.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 13: G-03F-01P-02R-0F-06 - Qty: 5.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 14: G-03D-01P-07I-0F-06 - Qty: 2.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 15: F-01S-000-000-0F-06-05Q - Qty: 5.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 16: F-00S-000-000-0F-04 - Qty: 4.0
-[2025-07-16 14:15:36] [INFO] 📋   Set from_warehouse: Material - HK - TIQN
-[2025-07-16 14:15:36] [INFO] 📋   Aggregated 6 invoice numbers: KO/TRH 0023/25 (22143); IV00083982-1; STIO,OV-TIVNQN-SEA 2.8; TX0325-006; SI-427215; 1C24TYY-193
-[2025-07-16 14:15:36] [INFO] 📋   🔍 Before save:
-[2025-07-16 14:15:36] [INFO] 📋     - set_posting_time: 1
-[2025-07-16 14:15:36] [INFO] 📋     - posting_date: 2025-05-12
-[2025-07-16 14:15:36] [INFO] 📋     - posting_time: 17:00:00
-[2025-07-16 14:15:36] [INFO] 📋   💾 Saving Stock Entry...
-[2025-07-16 14:15:36] [SUCCESS] ✅   ✅ Stock Entry saved: SE-2025-05-12-PX011055-15
-[2025-07-16 14:15:36] [INFO] 📋   🔍 After save (reloaded from DB):
-[2025-07-16 14:15:36] [INFO] 📋     - set_posting_time: 1
-[2025-07-16 14:15:36] [INFO] 📋     - posting_date: 2025-05-12
-[2025-07-16 14:15:36] [INFO] 📋     - posting_time: 17:00:00
-[2025-07-16 14:15:36] [SUCCESS] ✅ Tạo thành công: SE-2025-05-12-PX011055-15 với 16 items
-[2025-07-16 14:15:36] [INFO] 📋 Xử lý nhóm 8/14: PX011065 với 143 items
-[2025-07-16 14:15:36] [INFO] 📋   Processing posting_date from Excel datetime: 2025-06-05 00:00:00 -> 2025-06-05
-[2025-07-16 14:15:36] [INFO] 📋   ✅ Set posting_date = 2025-06-05
-[2025-07-16 14:15:36] [INFO] 📋   Processing posting_time from string: 17:00:00
-[2025-07-16 14:15:36] [INFO] 📋   ✅ Set posting_time = 17:00:00
-[2025-07-16 14:15:36] [INFO] 📋   🔍 Debug fields set:
-[2025-07-16 14:15:36] [INFO] 📋     - set_posting_time: 1
-[2025-07-16 14:15:36] [INFO] 📋     - posting_date: 2025-06-05
-[2025-07-16 14:15:36] [INFO] 📋     - posting_time: 17:00:00
-[2025-07-16 14:15:36] [INFO] 📋   🔍 Before adding items:
-[2025-07-16 14:15:36] [INFO] 📋     - set_posting_time: 1
-[2025-07-16 14:15:36] [INFO] 📋     - posting_date: 2025-06-05
-[2025-07-16 14:15:36] [INFO] 📋     - posting_time: 17:00:00
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 1: C-00P-06M-000-0F-04 - Qty: 60.44
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 2: C-00P-0EE-000-0F-04 - Qty: 7.9
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 3: G-04W-06M-000-0F-04 - Qty: 1263.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 4: G-03B-032-04E-0F-04 - Qty: 5.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 5: G-0B8-06J-02J-0F-04 - Qty: 2730.9
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 6: F-01S-000-000-0F-04-05V - Qty: 10.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 7: F-01S-000-000-0F-04-04I - Qty: 17.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 8: C-01D-0B8-000-0F-00 - Qty: 141.14
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 9: C-01D-06G-000-0F-00 - Qty: 380.05
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 10: C-01D-0G3-000-0F-00 - Qty: 125.5
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 11: G-038-031-02I-0F-04 - Qty: 1.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 12: G-038-01Z-02I-0F-04 - Qty: 6.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 13: G-038-031-02E-0F-04 - Qty: 7.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 14: G-038-01Z-02E-0F-04 - Qty: 2.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 15: G-03B-032-04I-0F-04 - Qty: 20.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 16: G-03B-032-04K-0F-04 - Qty: 3.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 17: G-0AY-000-02V-0F-00 - Qty: 35.1
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 18: G-0AY-000-02V-0F-04 - Qty: 45.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 19: G-08I-06M-08C-0F-00 - Qty: 442.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 20: G-08I-0AE-088-0F-00 - Qty: 370.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 21: G-08I-06Z-088-0F-00 - Qty: 412.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 22: G-08I-06M-088-0F-00 - Qty: 366.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 23: G-08I-0AE-084-0F-00 - Qty: 323.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 24: G-08I-06Z-084-0F-00 - Qty: 527.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 25: G-08I-06M-084-0F-00 - Qty: 347.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 26: G-08I-06Z-04V-0F-00 - Qty: 451.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 27: G-08I-06M-04V-0F-00 - Qty: 454.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 28: G-08I-0AE-046-0F-00 - Qty: 450.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 29: G-08I-06Z-046-0F-00 - Qty: 398.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 30: G-08I-06M-046-0F-00 - Qty: 478.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 31: G-08I-06Z-08C-0F-00 - Qty: 408.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 32: G-0B8-06J-04W-0F-04 - Qty: 72.1
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 33: G-0B8-06J-04F-0F-04 - Qty: 145.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 34: G-08I-0AE-08C-0F-00 - Qty: 464.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 35: G-08I-06Z-08F-0F-00 - Qty: 412.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 36: G-08M-06M-08F-0F-04 - Qty: 11.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 37: G-08M-06M-084-0F-04 - Qty: 11.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 38: C-01X-06J-000-0F-04 - Qty: 23.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 39: G-08M-06M-046-0F-04 - Qty: 6.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 40: G-08Q-06M-088-0F-04 - Qty: 66.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 41: G-08M-0EA-047-0F-04 - Qty: 1.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 42: C-024-06M-000-0F-00 - Qty: 280.2
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 43: G-08M-0EA-08H-0F-04 - Qty: 2.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 44: G-08M-0EA-087-0F-04 - Qty: 2.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 45: G-08M-06M-047-0F-04 - Qty: 2.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 46: G-08M-0EA-08C-0F-04 - Qty: 2.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 47: G-08M-0EA-084-0F-04 - Qty: 12.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 48: G-08M-0EA-08F-0F-04 - Qty: 10.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 49: G-08M-0EA-046-0F-04 - Qty: 4.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 50: G-08M-0EA-04V-0F-04 - Qty: 2.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 51: G-08M-0EA-088-0F-04 - Qty: 6.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 52: G-08N-0AB-046-0F-04 - Qty: 4.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 53: G-08L-06M-08F-0F-00 - Qty: 258.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 54: G-08L-06M-084-0F-00 - Qty: 250.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 55: G-08L-06M-046-0F-00 - Qty: 169.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 56: G-08K-06M-08F-0F-00 - Qty: 44.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 57: G-08K-06M-088-0F-00 - Qty: 59.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 58: G-08K-06M-084-0F-00 - Qty: 14.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 59: G-08K-06M-04V-0F-00 - Qty: 21.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 60: G-08K-06M-046-0F-00 - Qty: 22.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 61: G-08J-08L-08I-0F-00 - Qty: 452.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 62: G-08J-06M-08I-0F-00 - Qty: 470.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 63: G-08J-08L-08F-0F-00 - Qty: 199.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 64: G-08J-06M-08F-0F-00 - Qty: 66.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 65: G-08I-0AE-08F-0F-00 - Qty: 380.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 66: G-08J-06M-046-0F-00 - Qty: 66.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 67: G-08J-08L-046-0F-00 - Qty: 78.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 68: G-08J-06M-04V-0F-00 - Qty: 34.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 69: G-08J-08L-04V-0F-00 - Qty: 55.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 70: G-08J-06M-084-0F-00 - Qty: 393.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 71: G-08J-08L-084-0F-00 - Qty: 260.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 72: G-08J-06M-088-0F-00 - Qty: 451.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 73: G-08J-08L-088-0F-00 - Qty: 395.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 74: G-08J-06M-08C-0F-00 - Qty: 980.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 75: G-08J-08L-08C-0F-00 - Qty: 440.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 76: G-08I-06M-08F-0F-00 - Qty: 399.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 77: G-08N-0AB-04V-0F-04 - Qty: 3.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 78: G-0A6-000-02J-0F-00 - Qty: 58.2
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 79: G-0AC-000-081-0F-04 - Qty: 16.3
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 80: G-08W-000-000-0F-00 - Qty: 1679.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 81: G-08W-000-000-0F-00 - Qty: 1342.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 82: G-08W-000-000-0F-04 - Qty: 83.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 83: G-08P-06M-088-0F-00 - Qty: 46.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 84: G-08P-06M-084-0F-00 - Qty: 87.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 85: G-08O-06M-08I-0F-00 - Qty: 26.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 86: G-08O-06M-08C-0F-00 - Qty: 18.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 87: G-0AC-000-081-0F-00 - Qty: 33.7
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 88: G-08N-0EI-08F-0F-04 - Qty: 8.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 89: G-08N-0AB-08F-0F-04 - Qty: 8.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 90: G-08N-0EI-04V-0F-04 - Qty: 3.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 91: G-08N-0AB-085-0F-04 - Qty: 4.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 92: G-08N-0EI-085-0F-04 - Qty: 3.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 93: G-08N-0AB-084-0F-04 - Qty: 11.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 94: G-08N-0EI-084-0F-04 - Qty: 9.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 95: G-08N-0EI-046-0F-04 - Qty: 4.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 96: G-08N-0AB-089-0F-04 - Qty: 3.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 97: G-08N-0AB-088-0F-04 - Qty: 9.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 98: G-08N-0EI-088-0F-04 - Qty: 10.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 99: G-08N-0AB-08C-0F-04 - Qty: 2.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 100: G-08N-0EI-08C-0F-04 - Qty: 2.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 101: G-08N-0AB-08G-0F-04 - Qty: 2.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 102: G-08N-0EI-08G-0F-04 - Qty: 2.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 103: G-08N-0EI-089-0F-04 - Qty: 2.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 104: E-00H-0GN-02A-0F-00 - Qty: 169.2
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 105: C-027-0FT-000-0F-04 - Qty: 0.99
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 106: G-05I-06M-02Y-0F-00 - Qty: 393.9
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 107: G-05I-06M-02Y-0F-04 - Qty: 165.09
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 108: G-05I-06M-01G-0F-04 - Qty: 86.75
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 109: G-05I-06M-01G-0F-00 - Qty: 2118.18
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 110: G-08Q-06M-08F-0F-04 - Qty: 3.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 111: C-02B-06A-01L-0F-04 - Qty: 37.6
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 112: F-01V-000-000-0F-04 - Qty: 87.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 113: F-00U-06J-05P-0F-04 - Qty: 5.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 114: C-009-06M-000-0F-00 - Qty: 19.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 115: C-00A-06M-000-0F-00 - Qty: 191.63
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 116: G-00A-06T-000-0F-04 - Qty: 427.72
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 117: G-00B-06T-000-0F-00 - Qty: 245.82
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 118: F-01S-000-000-0F-00-04H - Qty: 19.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 119: E-00G-0GN-02A-0F-00 - Qty: 115.48
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 120: E-00G-0GN-02A-0F-04 - Qty: 165.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 121: F-01S-000-000-0F-00-04J - Qty: 26.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 122: F-01S-000-000-0F-00-05S - Qty: 6.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 123: F-01S-000-000-0F-00-05T - Qty: 30.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 124: F-01S-000-000-0F-00-05W - Qty: 11.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 125: F-01S-000-000-0F-00-04A - Qty: 41.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 126: C-00N-0AB-000-0F-04 - Qty: 171.1
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 127: C-00N-0DJ-000-0F-04 - Qty: 157.7
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 128: G-01C-032-02R-0F-00 - Qty: 4.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 129: G-01C-032-02U-0F-00 - Qty: 8.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 130: G-01C-032-02X-0F-00 - Qty: 3.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 131: G-01G-032-06B-0F-00 - Qty: 2.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 132: G-01G-032-06N-0F-00 - Qty: 2.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 133: G-01G-032-073-0F-00 - Qty: 8.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 134: G-01G-032-078-0F-00 - Qty: 5.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 135: G-01G-032-07B-0F-00 - Qty: 3.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 136: G-01G-032-067-0F-00 - Qty: 1.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 137: G-01C-032-02T-0F-00 - Qty: 5.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 138: G-02K-032-062-0F-00 - Qty: 2.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 139: G-02L-032-073-0F-00 - Qty: 1.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 140: G-02B-032-04E-0F-00 - Qty: 8.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 141: G-02B-032-03W-0F-00 - Qty: 2.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 142: G-02B-032-04B-0F-00 - Qty: 4.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 143: G-02L-032-078-0F-00 - Qty: 1.0
-[2025-07-16 14:15:36] [INFO] 📋   Set from_warehouse: Material - HK - TIQN
-[2025-07-16 14:15:36] [WARNING] ⚠️   Aggregated invoice numbers quá dài, cắt ngắn xuống 140 ký tự: T20240520-06; BF-113221; IV00071711-1; KO/TRH 0031/24 (22143); A-24050236; K20230713-06; IV00066606-1; A-23070146; KO/TRH 0060/23 (22115)...
-[2025-07-16 14:15:36] [INFO] 📋   Aggregated 32 invoice numbers: T20240520-06; BF-113221; IV00071711-1; KO/TRH 0031/24 (22143); A-24050236; K20230713-06; IV00066606-1; A-23070146; KO/TRH 0060/23 (22115)...
-[2025-07-16 14:15:36] [INFO] 📋   🔍 Before save:
-[2025-07-16 14:15:36] [INFO] 📋     - set_posting_time: 1
-[2025-07-16 14:15:36] [INFO] 📋     - posting_date: 2025-06-05
-[2025-07-16 14:15:36] [INFO] 📋     - posting_time: 17:00:00
-[2025-07-16 14:15:36] [INFO] 📋   💾 Saving Stock Entry...
-[2025-07-16 14:15:36] [SUCCESS] ✅   ✅ Stock Entry saved: SE-2025-06-05-PX011065-15
-[2025-07-16 14:15:36] [INFO] 📋   🔍 After save (reloaded from DB):
-[2025-07-16 14:15:36] [INFO] 📋     - set_posting_time: 1
-[2025-07-16 14:15:36] [INFO] 📋     - posting_date: 2025-06-05
-[2025-07-16 14:15:36] [INFO] 📋     - posting_time: 17:00:00
-[2025-07-16 14:15:36] [SUCCESS] ✅ Tạo thành công: SE-2025-06-05-PX011065-15 với 143 items
-[2025-07-16 14:15:36] [INFO] 📋 Xử lý nhóm 9/14: PX011082 với 4 items
-[2025-07-16 14:15:36] [INFO] 📋   Processing posting_date from Excel datetime: 2025-05-27 00:00:00 -> 2025-05-27
-[2025-07-16 14:15:36] [INFO] 📋   ✅ Set posting_date = 2025-05-27
-[2025-07-16 14:15:36] [INFO] 📋   Processing posting_time from string: 17:00:00
-[2025-07-16 14:15:36] [INFO] 📋   ✅ Set posting_time = 17:00:00
-[2025-07-16 14:15:36] [INFO] 📋   🔍 Debug fields set:
-[2025-07-16 14:15:36] [INFO] 📋     - set_posting_time: 1
-[2025-07-16 14:15:36] [INFO] 📋     - posting_date: 2025-05-27
-[2025-07-16 14:15:36] [INFO] 📋     - posting_time: 17:00:00
-[2025-07-16 14:15:36] [INFO] 📋   🔍 Before adding items:
-[2025-07-16 14:15:36] [INFO] 📋     - set_posting_time: 1
-[2025-07-16 14:15:36] [INFO] 📋     - posting_date: 2025-05-27
-[2025-07-16 14:15:36] [INFO] 📋     - posting_time: 17:00:00
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 1: G-027-005-06Y-0F-06 - Qty: 60.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 2: G-027-005-06Y-0F-06 - Qty: 51.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 3: G-05I-06M-02Y-0F-06 - Qty: 268.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 4: G-05I-06M-02Y-0F-06 - Qty: 127.02
-[2025-07-16 14:15:36] [INFO] 📋   Set from_warehouse: Material - JP - TIQN
-[2025-07-16 14:15:36] [INFO] 📋   Aggregated 2 invoice numbers: STIO,OV-TIVNQN-SEA 2.8; IN-25-00233
-[2025-07-16 14:15:36] [INFO] 📋   🔍 Before save:
-[2025-07-16 14:15:36] [INFO] 📋     - set_posting_time: 1
-[2025-07-16 14:15:36] [INFO] 📋     - posting_date: 2025-05-27
-[2025-07-16 14:15:36] [INFO] 📋     - posting_time: 17:00:00
-[2025-07-16 14:15:36] [INFO] 📋   💾 Saving Stock Entry...
-[2025-07-16 14:15:36] [SUCCESS] ✅   ✅ Stock Entry saved: SE-2025-05-27-PX011082-15
-[2025-07-16 14:15:36] [INFO] 📋   🔍 After save (reloaded from DB):
-[2025-07-16 14:15:36] [INFO] 📋     - set_posting_time: 1
-[2025-07-16 14:15:36] [INFO] 📋     - posting_date: 2025-05-27
-[2025-07-16 14:15:36] [INFO] 📋     - posting_time: 17:00:00
-[2025-07-16 14:15:36] [SUCCESS] ✅ Tạo thành công: SE-2025-05-27-PX011082-15 với 4 items
-[2025-07-16 14:15:36] [INFO] 📋 Xử lý nhóm 10/14: PX011083 với 3 items
-[2025-07-16 14:15:36] [INFO] 📋   Processing posting_date from Excel datetime: 2025-06-02 00:00:00 -> 2025-06-02
-[2025-07-16 14:15:36] [INFO] 📋   ✅ Set posting_date = 2025-06-02
-[2025-07-16 14:15:36] [INFO] 📋   Processing posting_time from string: 17:00:00
-[2025-07-16 14:15:36] [INFO] 📋   ✅ Set posting_time = 17:00:00
-[2025-07-16 14:15:36] [INFO] 📋   🔍 Debug fields set:
-[2025-07-16 14:15:36] [INFO] 📋     - set_posting_time: 1
-[2025-07-16 14:15:36] [INFO] 📋     - posting_date: 2025-06-02
-[2025-07-16 14:15:36] [INFO] 📋     - posting_time: 17:00:00
-[2025-07-16 14:15:36] [INFO] 📋   🔍 Before adding items:
-[2025-07-16 14:15:36] [INFO] 📋     - set_posting_time: 1
-[2025-07-16 14:15:36] [INFO] 📋     - posting_date: 2025-06-02
-[2025-07-16 14:15:36] [INFO] 📋     - posting_time: 17:00:00
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 1: G-03F-01P-02X-0F-06 - Qty: 2.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 2: G-03D-01P-079-0F-06 - Qty: 1.0
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 3: G-03F-01P-02S-0F-06 - Qty: 1.0
-[2025-07-16 14:15:36] [INFO] 📋   Set from_warehouse: Material - HK - TIQN
-[2025-07-16 14:15:36] [INFO] 📋   Aggregated 1 invoice numbers: IV00083982-1
-[2025-07-16 14:15:36] [INFO] 📋   🔍 Before save:
-[2025-07-16 14:15:36] [INFO] 📋     - set_posting_time: 1
-[2025-07-16 14:15:36] [INFO] 📋     - posting_date: 2025-06-02
-[2025-07-16 14:15:36] [INFO] 📋     - posting_time: 17:00:00
-[2025-07-16 14:15:36] [INFO] 📋   💾 Saving Stock Entry...
-[2025-07-16 14:15:36] [SUCCESS] ✅   ✅ Stock Entry saved: SE-2025-06-02-PX011083-15
-[2025-07-16 14:15:36] [INFO] 📋   🔍 After save (reloaded from DB):
-[2025-07-16 14:15:36] [INFO] 📋     - set_posting_time: 1
-[2025-07-16 14:15:36] [INFO] 📋     - posting_date: 2025-06-02
-[2025-07-16 14:15:36] [INFO] 📋     - posting_time: 17:00:00
-[2025-07-16 14:15:36] [SUCCESS] ✅ Tạo thành công: SE-2025-06-02-PX011083-15 với 3 items
-[2025-07-16 14:15:36] [INFO] 📋 Processing batch 2: groups 11-14
-[2025-07-16 14:15:36] [INFO] 📋 Xử lý nhóm 11/14: PX011291 với 2 items
-[2025-07-16 14:15:36] [INFO] 📋   Processing posting_date from Excel datetime: 2025-05-20 00:00:00 -> 2025-05-20
-[2025-07-16 14:15:36] [INFO] 📋   ✅ Set posting_date = 2025-05-20
-[2025-07-16 14:15:36] [INFO] 📋   Processing posting_time from string: 17:00:00
-[2025-07-16 14:15:36] [INFO] 📋   ✅ Set posting_time = 17:00:00
-[2025-07-16 14:15:36] [INFO] 📋   🔍 Debug fields set:
-[2025-07-16 14:15:36] [INFO] 📋     - set_posting_time: 1
-[2025-07-16 14:15:36] [INFO] 📋     - posting_date: 2025-05-20
-[2025-07-16 14:15:36] [INFO] 📋     - posting_time: 17:00:00
-[2025-07-16 14:15:36] [INFO] 📋   🔍 Before adding items:
-[2025-07-16 14:15:36] [INFO] 📋     - set_posting_time: 1
-[2025-07-16 14:15:36] [INFO] 📋     - posting_date: 2025-05-20
-[2025-07-16 14:15:36] [INFO] 📋     - posting_time: 17:00:00
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 1: C-021-07X-000-0F-06 - Qty: 1.5
-[2025-07-16 14:15:36] [SUCCESS] ✅   Item 2: C-00L-09Y-000-0F-06 - Qty: 1.5
-[2025-07-16 14:15:36] [INFO] 📋   Set from_warehouse: Material - HK - TIQN
-[2025-07-16 14:15:36] [INFO] 📋   Aggregated 2 invoice numbers: OV-TIQNVN-AIR 3. 20; OV-TIQNVN-SEA 3.10
-[2025-07-16 14:15:36] [INFO] 📋   🔍 Before save:
-[2025-07-16 14:15:36] [INFO] 📋     - set_posting_time: 1
-[2025-07-16 14:15:36] [INFO] 📋     - posting_date: 2025-05-20
-[2025-07-16 14:15:36] [INFO] 📋     - posting_time: 17:00:00
-[2025-07-16 14:15:36] [INFO] 📋   💾 Saving Stock Entry...
-[2025-07-16 14:15:37] [SUCCESS] ✅   ✅ Stock Entry saved: SE-2025-05-20-PX011291-15
-[2025-07-16 14:15:37] [INFO] 📋   🔍 After save (reloaded from DB):
-[2025-07-16 14:15:37] [INFO] 📋     - set_posting_time: 1
-[2025-07-16 14:15:37] [INFO] 📋     - posting_date: 2025-05-20
-[2025-07-16 14:15:37] [INFO] 📋     - posting_time: 17:00:00
-[2025-07-16 14:15:37] [SUCCESS] ✅ Tạo thành công: SE-2025-05-20-PX011291-15 với 2 items
-[2025-07-16 14:15:37] [INFO] 📋 Xử lý nhóm 12/14: PX011347 với 4 items
-[2025-07-16 14:15:37] [INFO] 📋   Processing posting_date from Excel datetime: 2025-05-27 00:00:00 -> 2025-05-27
-[2025-07-16 14:15:37] [INFO] 📋   ✅ Set posting_date = 2025-05-27
-[2025-07-16 14:15:37] [INFO] 📋   Processing posting_time from string: 17:00:00
-[2025-07-16 14:15:37] [INFO] 📋   ✅ Set posting_time = 17:00:00
-[2025-07-16 14:15:37] [INFO] 📋   🔍 Debug fields set:
-[2025-07-16 14:15:37] [INFO] 📋     - set_posting_time: 1
-[2025-07-16 14:15:37] [INFO] 📋     - posting_date: 2025-05-27
-[2025-07-16 14:15:37] [INFO] 📋     - posting_time: 17:00:00
-[2025-07-16 14:15:37] [INFO] 📋   🔍 Before adding items:
-[2025-07-16 14:15:37] [INFO] 📋     - set_posting_time: 1
-[2025-07-16 14:15:37] [INFO] 📋     - posting_date: 2025-05-27
-[2025-07-16 14:15:37] [INFO] 📋     - posting_time: 17:00:00
-[2025-07-16 14:15:37] [SUCCESS] ✅   Item 1: C-00L-09Y-000-0F-06 - Qty: 437.0
-[2025-07-16 14:15:37] [SUCCESS] ✅   Item 2: C-021-07X-000-0F-06 - Qty: 395.0
-[2025-07-16 14:15:37] [SUCCESS] ✅   Item 3: C-01E-000-000-0F-06 - Qty: 27.0
-[2025-07-16 14:15:37] [SUCCESS] ✅   Item 4: D-00B-000-01C-0F-06 - Qty: 83.0
-[2025-07-16 14:15:37] [INFO] 📋   Set from_warehouse: Material - HK - TIQN
-[2025-07-16 14:15:37] [INFO] 📋   Aggregated 4 invoice numbers: OV-TIQNVN-SEA 3.10; OV-TIQNVN-AIR 3. 20; TX0325-006; 3214580526
-[2025-07-16 14:15:37] [INFO] 📋   🔍 Before save:
-[2025-07-16 14:15:37] [INFO] 📋     - set_posting_time: 1
-[2025-07-16 14:15:37] [INFO] 📋     - posting_date: 2025-05-27
-[2025-07-16 14:15:37] [INFO] 📋     - posting_time: 17:00:00
-[2025-07-16 14:15:37] [INFO] 📋   💾 Saving Stock Entry...
-[2025-07-16 14:15:37] [SUCCESS] ✅   ✅ Stock Entry saved: SE-2025-05-27-PX011347-15
-[2025-07-16 14:15:37] [INFO] 📋   🔍 After save (reloaded from DB):
-[2025-07-16 14:15:37] [INFO] 📋     - set_posting_time: 1
-[2025-07-16 14:15:37] [INFO] 📋     - posting_date: 2025-05-27
-[2025-07-16 14:15:37] [INFO] 📋     - posting_time: 17:00:00
-[2025-07-16 14:15:37] [SUCCESS] ✅ Tạo thành công: SE-2025-05-27-PX011347-15 với 4 items
-[2025-07-16 14:15:37] [INFO] 📋 Xử lý nhóm 13/14: PX011348 với 5 items
-[2025-07-16 14:15:37] [INFO] 📋   Processing posting_date from Excel datetime: 2025-05-27 00:00:00 -> 2025-05-27
-[2025-07-16 14:15:37] [INFO] 📋   ✅ Set posting_date = 2025-05-27
-[2025-07-16 14:15:37] [INFO] 📋   Processing posting_time from string: 17:00:00
-[2025-07-16 14:15:37] [INFO] 📋   ✅ Set posting_time = 17:00:00
-[2025-07-16 14:15:37] [INFO] 📋   🔍 Debug fields set:
-[2025-07-16 14:15:37] [INFO] 📋     - set_posting_time: 1
-[2025-07-16 14:15:37] [INFO] 📋     - posting_date: 2025-05-27
-[2025-07-16 14:15:37] [INFO] 📋     - posting_time: 17:00:00
-[2025-07-16 14:15:37] [INFO] 📋   🔍 Before adding items:
-[2025-07-16 14:15:37] [INFO] 📋     - set_posting_time: 1
-[2025-07-16 14:15:37] [INFO] 📋     - posting_date: 2025-05-27
-[2025-07-16 14:15:37] [INFO] 📋     - posting_time: 17:00:00
-[2025-07-16 14:15:37] [SUCCESS] ✅   Item 1: C-00L-0B3-000-0F-06 - Qty: 187.28
-[2025-07-16 14:15:37] [SUCCESS] ✅   Item 2: C-021-0CP-000-0F-06 - Qty: 332.0
-[2025-07-16 14:15:37] [SUCCESS] ✅   Item 3: C-01E-000-000-0F-06 - Qty: 23.0
-[2025-07-16 14:15:37] [SUCCESS] ✅   Item 4: D-00B-000-01C-0F-06 - Qty: 17.0
-[2025-07-16 14:15:37] [SUCCESS] ✅   Item 5: C-00L-0B3-000-0F-06 - Qty: 180.72
-[2025-07-16 14:15:37] [INFO] 📋   Set from_warehouse: Material - HK - TIQN
-[2025-07-16 14:15:37] [INFO] 📋   Aggregated 4 invoice numbers: OV-TIQNVN-SEA 3.10; OV-TIQNVN-AIR 3. 20; TX0325-006; 3214580526
-[2025-07-16 14:15:37] [INFO] 📋   🔍 Before save:
-[2025-07-16 14:15:37] [INFO] 📋     - set_posting_time: 1
-[2025-07-16 14:15:37] [INFO] 📋     - posting_date: 2025-05-27
-[2025-07-16 14:15:37] [INFO] 📋     - posting_time: 17:00:00
-[2025-07-16 14:15:37] [INFO] 📋   💾 Saving Stock Entry...
-[2025-07-16 14:15:37] [SUCCESS] ✅   ✅ Stock Entry saved: SE-2025-05-27-PX011348-15
-[2025-07-16 14:15:37] [INFO] 📋   🔍 After save (reloaded from DB):
-[2025-07-16 14:15:37] [INFO] 📋     - set_posting_time: 1
-[2025-07-16 14:15:37] [INFO] 📋     - posting_date: 2025-05-27
-[2025-07-16 14:15:37] [INFO] 📋     - posting_time: 17:00:00
-[2025-07-16 14:15:37] [SUCCESS] ✅ Tạo thành công: SE-2025-05-27-PX011348-15 với 5 items
-[2025-07-16 14:15:37] [INFO] 📋 Xử lý nhóm 14/14: PX011808 với 4 items
-[2025-07-16 14:15:37] [INFO] 📋   Processing posting_date from Excel datetime: 2025-06-12 00:00:00 -> 2025-06-12
-[2025-07-16 14:15:37] [INFO] 📋   ✅ Set posting_date = 2025-06-12
-[2025-07-16 14:15:37] [INFO] 📋   Processing posting_time from string: 17:00:00
-[2025-07-16 14:15:37] [INFO] 📋   ✅ Set posting_time = 17:00:00
-[2025-07-16 14:15:37] [INFO] 📋   🔍 Debug fields set:
-[2025-07-16 14:15:37] [INFO] 📋     - set_posting_time: 1
-[2025-07-16 14:15:37] [INFO] 📋     - posting_date: 2025-06-12
-[2025-07-16 14:15:37] [INFO] 📋     - posting_time: 17:00:00
-[2025-07-16 14:15:37] [INFO] 📋   🔍 Before adding items:
-[2025-07-16 14:15:37] [INFO] 📋     - set_posting_time: 1
-[2025-07-16 14:15:37] [INFO] 📋     - posting_date: 2025-06-12
-[2025-07-16 14:15:37] [INFO] 📋     - posting_time: 17:00:00
-[2025-07-16 14:15:37] [SUCCESS] ✅   Item 1: G-097-09Z-046-0F-06 - Qty: 1.0
-[2025-07-16 14:15:37] [SUCCESS] ✅   Item 2: G-03D-01S-07S-0F-06 - Qty: 1.0
-[2025-07-16 14:15:37] [SUCCESS] ✅   Item 3: G-03F-01S-02T-0F-06 - Qty: 1.0
-[2025-07-16 14:15:37] [SUCCESS] ✅   Item 4: G-03F-01S-03B-0F-06 - Qty: 2.0
-[2025-07-16 14:15:37] [INFO] 📋   Set from_warehouse: Material - HK - TIQN
-[2025-07-16 14:15:37] [INFO] 📋   Aggregated 2 invoice numbers: KO/TRH 0023/25 (22143); IV00083982-1
-[2025-07-16 14:15:37] [INFO] 📋   🔍 Before save:
-[2025-07-16 14:15:37] [INFO] 📋     - set_posting_time: 1
-[2025-07-16 14:15:37] [INFO] 📋     - posting_date: 2025-06-12
-[2025-07-16 14:15:37] [INFO] 📋     - posting_time: 17:00:00
-[2025-07-16 14:15:37] [INFO] 📋   💾 Saving Stock Entry...
-[2025-07-16 14:15:37] [SUCCESS] ✅   ✅ Stock Entry saved: SE-2025-06-12-PX011808-14
-[2025-07-16 14:15:37] [INFO] 📋   🔍 After save (reloaded from DB):
-[2025-07-16 14:15:37] [INFO] 📋     - set_posting_time: 1
-[2025-07-16 14:15:37] [INFO] 📋     - posting_date: 2025-06-12
-[2025-07-16 14:15:37] [INFO] 📋     - posting_time: 17:00:00
-[2025-07-16 14:15:37] [SUCCESS] ✅ Tạo thành công: SE-2025-06-12-PX011808-14 với 4 items
-[2025-07-16 14:15:37] [INFO] 
+[2025-09-11 09:02:41] [INFO] 📋 Sử dụng đường dẫn: ./erp.tiqn.local/private/files/create_material_issue_teamplateffd6a8.xlsx
+[2025-09-11 09:02:41] [INFO] 📋 Bắt đầu validation...
+[2025-09-11 09:02:41] [SUCCESS] ✅ File Excel hợp lệ với 17 cột
+[2025-09-11 09:02:41] [SUCCESS] ✅ Validation thành công
+[2025-09-11 09:02:41] [INFO] 📋 Bắt đầu xử lý file Excel...
+[2025-09-11 09:02:41] [INFO] 📋 Đang đọc file: ./erp.tiqn.local/private/files/create_material_issue_teamplateffd6a8.xlsx
+[2025-09-11 09:02:41] [INFO] 📋 Đã đọc được 196 dòng dữ liệu
+[2025-09-11 09:02:41] [INFO] 📋 Các cột: ['Index', 'stock_entry_type', 'posting_date', 'posting_time', 'custom_no', 'custom_material_issue_purpose', 'custom_fg_size', 'custom_fg_style', 'custom_fg_qty', 'custom_line', 'custom_fg_color', 'custom_note', 'item_code', 'custom_item_name_detail', 'qty', 's_warehouse', 'custom_invoice_number']
+[2025-09-11 09:02:41] [INFO] 📋 Các cột optional có sẵn: ['posting_date', 'posting_time', 's_warehouse']
+[2025-09-11 09:02:41] [SUCCESS] ✅ Các cột Excel hợp lệ
+[2025-09-11 09:02:41] [SUCCESS] ✅ Sau khi làm sạch còn 196 dòng hợp lệ
+[2025-09-11 09:02:41] [INFO] 📋 Pre-loading item and warehouse data...
+[2025-09-11 09:02:41] [INFO] 📋 Cached 195 items and 195 warehouses
+[2025-09-11 09:02:41] [INFO] 📋 Tìm thấy 6 nhóm custom_no khác nhau
+[2025-09-11 09:02:41] [INFO] 📋 Processing batch 1: groups 1-6
+[2025-09-11 09:02:41] [INFO] 📋 Xử lý nhóm 1/6: PX010724 với 24 items
+[2025-09-11 09:02:41] [INFO] 📋   Processing posting_date from Excel datetime: 2025-04-05 00:00:00 -> 2025-04-05
+[2025-09-11 09:02:41] [INFO] 📋   ✅ Set posting_date = 2025-04-05
+[2025-09-11 09:02:41] [INFO] 📋   Processing posting_time from string: 17:00:00
+[2025-09-11 09:02:41] [INFO] 📋   ✅ Set posting_time = 17:00:00
+[2025-09-11 09:02:41] [INFO] 📋   🔍 Debug fields set:
+[2025-09-11 09:02:41] [INFO] 📋     - set_posting_time: 1
+[2025-09-11 09:02:41] [INFO] 📋     - posting_date: 2025-04-05
+[2025-09-11 09:02:41] [INFO] 📋     - posting_time: 17:00:00
+[2025-09-11 09:02:41] [INFO] 📋   🔍 Before adding items:
+[2025-09-11 09:02:41] [INFO] 📋     - set_posting_time: 1
+[2025-09-11 09:02:41] [INFO] 📋     - posting_date: 2025-04-05
+[2025-09-11 09:02:41] [INFO] 📋     - posting_time: 17:00:00
+[2025-09-11 09:02:41] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-02T-06M-08C-05-08-02K
+[2025-09-11 09:02:41] [SUCCESS] ✅   Item 1: F-02T-06M-08C-05-08-02K - Qty: 71.0
+[2025-09-11 09:02:41] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-02T-06M-08F-05-08-02K
+[2025-09-11 09:02:41] [SUCCESS] ✅   Item 2: F-02T-06M-08F-05-08-02K - Qty: 112.0
+[2025-09-11 09:02:41] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-02T-06M-08I-05-08-02K
+[2025-09-11 09:02:41] [SUCCESS] ✅   Item 3: F-02T-06M-08I-05-08-02K - Qty: 160.0
+[2025-09-11 09:02:41] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-02T-06M-08J-05-08-02K
+[2025-09-11 09:02:41] [SUCCESS] ✅   Item 4: F-02T-06M-08J-05-08-02K - Qty: 224.0
+[2025-09-11 09:02:41] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-02T-06M-084-05-08-02P
+[2025-09-11 09:02:41] [SUCCESS] ✅   Item 5: F-02T-06M-084-05-08-02P - Qty: 36.0
+[2025-09-11 09:02:41] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-02T-06M-088-05-08-02P
+[2025-09-11 09:02:41] [SUCCESS] ✅   Item 6: F-02T-06M-088-05-08-02P - Qty: 20.0
+[2025-09-11 09:02:41] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-02T-06M-08C-05-08-02P
+[2025-09-11 09:02:41] [SUCCESS] ✅   Item 7: F-02T-06M-08C-05-08-02P - Qty: 51.0
+[2025-09-11 09:02:41] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-02T-06M-08F-05-08-02P
+[2025-09-11 09:02:41] [SUCCESS] ✅   Item 8: F-02T-06M-08F-05-08-02P - Qty: 68.0
+[2025-09-11 09:02:41] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-02T-06M-08I-05-08-02P
+[2025-09-11 09:02:41] [SUCCESS] ✅   Item 9: F-02T-06M-08I-05-08-02P - Qty: 42.0
+[2025-09-11 09:02:41] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-02T-06M-08J-05-08-02P
+[2025-09-11 09:02:41] [SUCCESS] ✅   Item 10: F-02T-06M-08J-05-08-02P - Qty: 18.0
+[2025-09-11 09:02:41] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-02T-06M-084-05-08-02U
+[2025-09-11 09:02:41] [SUCCESS] ✅   Item 11: F-02T-06M-084-05-08-02U - Qty: 201.0
+[2025-09-11 09:02:41] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-02T-06M-088-05-08-02U
+[2025-09-11 09:02:41] [SUCCESS] ✅   Item 12: F-02T-06M-088-05-08-02U - Qty: 402.0
+[2025-09-11 09:02:41] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-02T-06M-08C-05-08-02U
+[2025-09-11 09:02:41] [SUCCESS] ✅   Item 13: F-02T-06M-08C-05-08-02U - Qty: 402.0
+[2025-09-11 09:02:41] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-02T-06M-08F-05-08-02U
+[2025-09-11 09:02:41] [SUCCESS] ✅   Item 14: F-02T-06M-08F-05-08-02U - Qty: 804.0
+[2025-09-11 09:02:41] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-02T-06M-08I-05-08-02U
+[2025-09-11 09:02:41] [SUCCESS] ✅   Item 15: F-02T-06M-08I-05-08-02U - Qty: 804.0
+[2025-09-11 09:02:41] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-02T-06M-08J-05-08-02U
+[2025-09-11 09:02:41] [SUCCESS] ✅   Item 16: F-02T-06M-08J-05-08-02U - Qty: 201.0
+[2025-09-11 09:02:41] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-02T-06M-084-05-08-032
+[2025-09-11 09:02:41] [SUCCESS] ✅   Item 17: F-02T-06M-084-05-08-032 - Qty: 201.0
+[2025-09-11 09:02:41] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-02T-06M-088-05-08-032
+[2025-09-11 09:02:41] [SUCCESS] ✅   Item 18: F-02T-06M-088-05-08-032 - Qty: 201.0
+[2025-09-11 09:02:41] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-02T-06M-08C-05-08-032
+[2025-09-11 09:02:41] [SUCCESS] ✅   Item 19: F-02T-06M-08C-05-08-032 - Qty: 2.0
+[2025-09-11 09:02:41] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-02T-06M-08F-05-08-032
+[2025-09-11 09:02:41] [SUCCESS] ✅   Item 20: F-02T-06M-08F-05-08-032 - Qty: 1.0
+[2025-09-11 09:02:41] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-02T-06M-08I-05-08-032
+[2025-09-11 09:02:41] [SUCCESS] ✅   Item 21: F-02T-06M-08I-05-08-032 - Qty: 1.0
+[2025-09-11 09:02:41] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-02T-06M-084-05-08-08D
+[2025-09-11 09:02:41] [SUCCESS] ✅   Item 22: F-02T-06M-084-05-08-08D - Qty: 1.0
+[2025-09-11 09:02:41] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-02T-06M-088-05-08-08D
+[2025-09-11 09:02:41] [SUCCESS] ✅   Item 23: F-02T-06M-088-05-08-08D - Qty: 7.0
+[2025-09-11 09:02:41] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-02T-06M-08C-05-08-08D
+[2025-09-11 09:02:41] [SUCCESS] ✅   Item 24: F-02T-06M-08C-05-08-08D - Qty: 7.0
+[2025-09-11 09:02:41] [INFO] 📋   Set from_warehouse: Material - HK - TIQN
+[2025-09-11 09:02:41] [INFO] 📋   Aggregated 8 invoice numbers: IV00083348-1; BF-114166; KO/TRH 0001/25 (22147); STIO MMT-TIQN-02; MR-PML/TORAY-02-25; 1K25TPP-6; 1K24TPP-78845; 1K24TPP-191195
+[2025-09-11 09:02:41] [INFO] 📋   🔍 Before save:
+[2025-09-11 09:02:41] [INFO] 📋     - set_posting_time: 1
+[2025-09-11 09:02:41] [INFO] 📋     - posting_date: 2025-04-05
+[2025-09-11 09:02:41] [INFO] 📋     - posting_time: 17:00:00
+[2025-09-11 09:02:41] [INFO] 📋   💾 Saving Stock Entry...
+[2025-09-11 09:02:41] [SUCCESS] ✅   ✅ Stock Entry saved: SE-2025-04-05-PX010724-01
+[2025-09-11 09:02:41] [INFO] 📋   🔍 After save (reloaded from DB):
+[2025-09-11 09:02:41] [INFO] 📋     - set_posting_time: 1
+[2025-09-11 09:02:41] [INFO] 📋     - posting_date: 2025-04-05
+[2025-09-11 09:02:41] [INFO] 📋     - posting_time: 17:00:00
+[2025-09-11 09:02:41] [SUCCESS] ✅ Tạo thành công: SE-2025-04-05-PX010724-01 với 24 items
+[2025-09-11 09:02:41] [INFO] 📋 Xử lý nhóm 2/6: PX010725 với 30 items
+[2025-09-11 09:02:41] [INFO] 📋   Processing posting_date from Excel datetime: 2025-04-05 00:00:00 -> 2025-04-05
+[2025-09-11 09:02:41] [INFO] 📋   ✅ Set posting_date = 2025-04-05
+[2025-09-11 09:02:41] [INFO] 📋   Processing posting_time from string: 17:00:00
+[2025-09-11 09:02:41] [INFO] 📋   ✅ Set posting_time = 17:00:00
+[2025-09-11 09:02:41] [INFO] 📋   🔍 Debug fields set:
+[2025-09-11 09:02:41] [INFO] 📋     - set_posting_time: 1
+[2025-09-11 09:02:41] [INFO] 📋     - posting_date: 2025-04-05
+[2025-09-11 09:02:41] [INFO] 📋     - posting_time: 17:00:00
+[2025-09-11 09:02:41] [INFO] 📋   🔍 Before adding items:
+[2025-09-11 09:02:41] [INFO] 📋     - set_posting_time: 1
+[2025-09-11 09:02:41] [INFO] 📋     - posting_date: 2025-04-05
+[2025-09-11 09:02:41] [INFO] 📋     - posting_time: 17:00:00
+[2025-09-11 09:02:41] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-02T-06M-08F-05-08-08D
+[2025-09-11 09:02:41] [SUCCESS] ✅   Item 1: F-02T-06M-08F-05-08-08D - Qty: 10.0
+[2025-09-11 09:02:41] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-02T-06M-08I-05-08-08D
+[2025-09-11 09:02:41] [SUCCESS] ✅   Item 2: F-02T-06M-08I-05-08-08D - Qty: 86.0
+[2025-09-11 09:02:41] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-02T-06M-08J-05-08-08D
+[2025-09-11 09:02:41] [SUCCESS] ✅   Item 3: F-02T-06M-08J-05-08-08D - Qty: 138.0
+[2025-09-11 09:02:41] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-02T-06M-084-05-08-08E
+[2025-09-11 09:02:41] [SUCCESS] ✅   Item 4: F-02T-06M-084-05-08-08E - Qty: 32.0
+[2025-09-11 09:02:41] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-02T-06M-088-05-08-08E
+[2025-09-11 09:02:41] [SUCCESS] ✅   Item 5: F-02T-06M-088-05-08-08E - Qty: 20.0
+[2025-09-11 09:02:41] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-02T-06M-08C-05-08-08E
+[2025-09-11 09:02:41] [SUCCESS] ✅   Item 6: F-02T-06M-08C-05-08-08E - Qty: 172.0
+[2025-09-11 09:02:41] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-02T-06M-08F-05-08-08E
+[2025-09-11 09:02:41] [SUCCESS] ✅   Item 7: F-02T-06M-08F-05-08-08E - Qty: 276.0
+[2025-09-11 09:02:41] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-02T-06M-08I-05-08-08E
+[2025-09-11 09:02:41] [SUCCESS] ✅   Item 8: F-02T-06M-08I-05-08-08E - Qty: 64.0
+[2025-09-11 09:02:41] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-02T-06M-08J-05-08-08E
+[2025-09-11 09:02:41] [SUCCESS] ✅   Item 9: F-02T-06M-08J-05-08-08E - Qty: 10.0
+[2025-09-11 09:02:41] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-02T-06M-088-05-08-03P
+[2025-09-11 09:02:41] [SUCCESS] ✅   Item 10: F-02T-06M-088-05-08-03P - Qty: 23.0
+[2025-09-11 09:02:41] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-02T-06M-04V-05-08-03S
+[2025-09-11 09:02:41] [SUCCESS] ✅   Item 11: F-02T-06M-04V-05-08-03S - Qty: 63.0
+[2025-09-11 09:02:41] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-02T-06M-088-05-08-03S
+[2025-09-11 09:02:41] [SUCCESS] ✅   Item 12: F-02T-06M-088-05-08-03S - Qty: 83.0
+[2025-09-11 09:02:41] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-02T-06M-084-05-08-03X
+[2025-09-11 09:02:41] [SUCCESS] ✅   Item 13: F-02T-06M-084-05-08-03X - Qty: 53.0
+[2025-09-11 09:02:41] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-02T-06M-088-05-08-03X
+[2025-09-11 09:02:41] [SUCCESS] ✅   Item 14: F-02T-06M-088-05-08-03X - Qty: 22.0
+[2025-09-11 09:02:41] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-02T-06M-08C-05-08-03X
+[2025-09-11 09:02:41] [SUCCESS] ✅   Item 15: F-02T-06M-08C-05-08-03X - Qty: 10.0
+[2025-09-11 09:02:41] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-02T-06M-08F-05-08-03X
+[2025-09-11 09:02:41] [SUCCESS] ✅   Item 16: F-02T-06M-08F-05-08-03X - Qty: 10.0
+[2025-09-11 09:02:41] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-02T-06M-08I-05-08-03X
+[2025-09-11 09:02:41] [SUCCESS] ✅   Item 17: F-02T-06M-08I-05-08-03X - Qty: 256.0
+[2025-09-11 09:02:41] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-02T-06M-08J-05-08-03X
+[2025-09-11 09:02:41] [SUCCESS] ✅   Item 18: F-02T-06M-08J-05-08-03X - Qty: 532.0
+[2025-09-11 09:02:41] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-02T-06M-084-05-08-03Z
+[2025-09-11 09:02:41] [SUCCESS] ✅   Item 19: F-02T-06M-084-05-08-03Z - Qty: 532.0
+[2025-09-11 09:02:41] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-02T-06M-088-05-08-03Z
+[2025-09-11 09:02:41] [SUCCESS] ✅   Item 20: F-02T-06M-088-05-08-03Z - Qty: 1064.0
+[2025-09-11 09:02:41] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-02T-06M-08C-05-08-03Z
+[2025-09-11 09:02:41] [SUCCESS] ✅   Item 21: F-02T-06M-08C-05-08-03Z - Qty: 1064.0
+[2025-09-11 09:02:41] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-02T-06M-08F-05-08-03Z
+[2025-09-11 09:02:41] [SUCCESS] ✅   Item 22: F-02T-06M-08F-05-08-03Z - Qty: 266.0
+[2025-09-11 09:02:41] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-02T-06M-08I-05-08-03Z
+[2025-09-11 09:02:41] [SUCCESS] ✅   Item 23: F-02T-06M-08I-05-08-03Z - Qty: 266.0
+[2025-09-11 09:02:41] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-02T-06M-00T-05-08-041
+[2025-09-11 09:02:41] [SUCCESS] ✅   Item 24: F-02T-06M-00T-05-08-041 - Qty: 266.0
+[2025-09-11 09:02:41] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-02T-06M-00U-05-08-041
+[2025-09-11 09:02:41] [SUCCESS] ✅   Item 25: F-02T-06M-00U-05-08-041 - Qty: 2.0
+[2025-09-11 09:02:41] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-02T-06M-00V-05-08-041
+[2025-09-11 09:02:41] [SUCCESS] ✅   Item 26: F-02T-06M-00V-05-08-041 - Qty: 2.0
+[2025-09-11 09:02:41] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-02T-06M-00W-05-08-041
+[2025-09-11 09:02:41] [SUCCESS] ✅   Item 27: F-02T-06M-00W-05-08-041 - Qty: 1.0
+[2025-09-11 09:02:41] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-02T-06M-00X-05-08-041
+[2025-09-11 09:02:41] [SUCCESS] ✅   Item 28: F-02T-06M-00X-05-08-041 - Qty: 1.0
+[2025-09-11 09:02:41] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-02T-06M-084-05-08-06D
+[2025-09-11 09:02:41] [SUCCESS] ✅   Item 29: F-02T-06M-084-05-08-06D - Qty: 10.0
+[2025-09-11 09:02:41] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-02T-06M-088-05-08-06D
+[2025-09-11 09:02:41] [SUCCESS] ✅   Item 30: F-02T-06M-088-05-08-06D - Qty: 9.0
+[2025-09-11 09:02:41] [INFO] 📋   Set from_warehouse: Material - HK - TIQN
+[2025-09-11 09:02:41] [INFO] 📋   Aggregated 7 invoice numbers: IV00083348-1; BF-114166; KO/TRH 0001/25 (22147); STIO MMT-TIQN-02; MR-PML/TORAY-02-25; 1K25TPP-6; 1K24TPP-191195
+[2025-09-11 09:02:41] [INFO] 📋   🔍 Before save:
+[2025-09-11 09:02:41] [INFO] 📋     - set_posting_time: 1
+[2025-09-11 09:02:41] [INFO] 📋     - posting_date: 2025-04-05
+[2025-09-11 09:02:41] [INFO] 📋     - posting_time: 17:00:00
+[2025-09-11 09:02:41] [INFO] 📋   💾 Saving Stock Entry...
+[2025-09-11 09:02:41] [SUCCESS] ✅   ✅ Stock Entry saved: SE-2025-04-05-PX010725-01
+[2025-09-11 09:02:41] [INFO] 📋   🔍 After save (reloaded from DB):
+[2025-09-11 09:02:41] [INFO] 📋     - set_posting_time: 1
+[2025-09-11 09:02:41] [INFO] 📋     - posting_date: 2025-04-05
+[2025-09-11 09:02:41] [INFO] 📋     - posting_time: 17:00:00
+[2025-09-11 09:02:41] [SUCCESS] ✅ Tạo thành công: SE-2025-04-05-PX010725-01 với 30 items
+[2025-09-11 09:02:41] [INFO] 📋 Xử lý nhóm 3/6: PX010728 với 10 items
+[2025-09-11 09:02:41] [INFO] 📋   Processing posting_date from Excel datetime: 2025-04-05 00:00:00 -> 2025-04-05
+[2025-09-11 09:02:41] [INFO] 📋   ✅ Set posting_date = 2025-04-05
+[2025-09-11 09:02:41] [INFO] 📋   Processing posting_time from string: 17:00:00
+[2025-09-11 09:02:41] [INFO] 📋   ✅ Set posting_time = 17:00:00
+[2025-09-11 09:02:41] [INFO] 📋   🔍 Debug fields set:
+[2025-09-11 09:02:41] [INFO] 📋     - set_posting_time: 1
+[2025-09-11 09:02:41] [INFO] 📋     - posting_date: 2025-04-05
+[2025-09-11 09:02:41] [INFO] 📋     - posting_time: 17:00:00
+[2025-09-11 09:02:41] [INFO] 📋   🔍 Before adding items:
+[2025-09-11 09:02:41] [INFO] 📋     - set_posting_time: 1
+[2025-09-11 09:02:41] [INFO] 📋     - posting_date: 2025-04-05
+[2025-09-11 09:02:41] [INFO] 📋     - posting_time: 17:00:00
+[2025-09-11 09:02:41] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-02T-086-088-05-08-032
+[2025-09-11 09:02:41] [SUCCESS] ✅   Item 1: F-02T-086-088-05-08-032 - Qty: 25.0
+[2025-09-11 09:02:41] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-02T-086-08C-05-08-032
+[2025-09-11 09:02:41] [SUCCESS] ✅   Item 2: F-02T-086-08C-05-08-032 - Qty: 87.0
+[2025-09-11 09:02:41] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-02T-086-08F-05-08-032
+[2025-09-11 09:02:41] [SUCCESS] ✅   Item 3: F-02T-086-08F-05-08-032 - Qty: 110.0
+[2025-09-11 09:02:41] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-02T-086-08I-05-08-032
+[2025-09-11 09:02:41] [SUCCESS] ✅   Item 4: F-02T-086-08I-05-08-032 - Qty: 69.0
+[2025-09-11 09:02:41] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-02T-086-084-05-08-08E
+[2025-09-11 09:02:41] [SUCCESS] ✅   Item 5: F-02T-086-084-05-08-08E - Qty: 23.0
+[2025-09-11 09:02:41] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-02T-086-088-05-08-08E
+[2025-09-11 09:02:41] [SUCCESS] ✅   Item 6: F-02T-086-088-05-08-08E - Qty: 38.0
+[2025-09-11 09:02:41] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-02T-086-08C-05-08-08E
+[2025-09-11 09:02:41] [SUCCESS] ✅   Item 7: F-02T-086-08C-05-08-08E - Qty: 63.0
+[2025-09-11 09:02:41] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-02T-086-08F-05-08-08E
+[2025-09-11 09:02:41] [SUCCESS] ✅   Item 8: F-02T-086-08F-05-08-08E - Qty: 556.0
+[2025-09-11 09:02:41] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-02T-086-08I-05-08-08E
+[2025-09-11 09:02:41] [SUCCESS] ✅   Item 9: F-02T-086-08I-05-08-08E - Qty: 292.0
+[2025-09-11 09:02:41] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-02T-086-08J-05-08-08E
+[2025-09-11 09:02:41] [SUCCESS] ✅   Item 10: F-02T-086-08J-05-08-08E - Qty: 448.0
+[2025-09-11 09:02:41] [INFO] 📋   Set from_warehouse: Material - HK - TIQN
+[2025-09-11 09:02:41] [INFO] 📋   Aggregated 3 invoice numbers: JINV/2025000572 &JINV/2024011868; TIHK-TIQN-01; IN-25-02779
+[2025-09-11 09:02:41] [INFO] 📋   🔍 Before save:
+[2025-09-11 09:02:41] [INFO] 📋     - set_posting_time: 1
+[2025-09-11 09:02:41] [INFO] 📋     - posting_date: 2025-04-05
+[2025-09-11 09:02:41] [INFO] 📋     - posting_time: 17:00:00
+[2025-09-11 09:02:41] [INFO] 📋   💾 Saving Stock Entry...
+[2025-09-11 09:02:42] [SUCCESS] ✅   ✅ Stock Entry saved: SE-2025-04-05-PX010728-01
+[2025-09-11 09:02:42] [INFO] 📋   🔍 After save (reloaded from DB):
+[2025-09-11 09:02:42] [INFO] 📋     - set_posting_time: 1
+[2025-09-11 09:02:42] [INFO] 📋     - posting_date: 2025-04-05
+[2025-09-11 09:02:42] [INFO] 📋     - posting_time: 17:00:00
+[2025-09-11 09:02:42] [SUCCESS] ✅ Tạo thành công: SE-2025-04-05-PX010728-01 với 10 items
+[2025-09-11 09:02:42] [INFO] 📋 Xử lý nhóm 4/6: PX010729 với 7 items
+[2025-09-11 09:02:42] [INFO] 📋   Processing posting_date from Excel datetime: 2025-04-01 00:00:00 -> 2025-04-01
+[2025-09-11 09:02:42] [INFO] 📋   ✅ Set posting_date = 2025-04-01
+[2025-09-11 09:02:42] [INFO] 📋   Processing posting_time from string: 17:00:00
+[2025-09-11 09:02:42] [INFO] 📋   ✅ Set posting_time = 17:00:00
+[2025-09-11 09:02:42] [INFO] 📋   🔍 Debug fields set:
+[2025-09-11 09:02:42] [INFO] 📋     - set_posting_time: 1
+[2025-09-11 09:02:42] [INFO] 📋     - posting_date: 2025-04-01
+[2025-09-11 09:02:42] [INFO] 📋     - posting_time: 17:00:00
+[2025-09-11 09:02:42] [INFO] 📋   🔍 Before adding items:
+[2025-09-11 09:02:42] [INFO] 📋     - set_posting_time: 1
+[2025-09-11 09:02:42] [INFO] 📋     - posting_date: 2025-04-01
+[2025-09-11 09:02:42] [INFO] 📋     - posting_time: 17:00:00
+[2025-09-11 09:02:42] [INFO] 📋   Using warehouse from Excel: Material - JP - TIQN for item F-03A-0HA-084-06-00-06T
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 1: F-03A-0HA-084-06-00-06T - Qty: 3.0
+[2025-09-11 09:02:42] [INFO] 📋   Using warehouse from Excel: Material - JP - TIQN for item F-03A-0HA-08F-06-00-06T
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 2: F-03A-0HA-08F-06-00-06T - Qty: 3.0
+[2025-09-11 09:02:42] [INFO] 📋   Using warehouse from Excel: Material - JP - TIQN for item F-03A-0HA-046-06-00-06T
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 3: F-03A-0HA-046-06-00-06T - Qty: 3.0
+[2025-09-11 09:02:42] [INFO] 📋   Using warehouse from Excel: Material - JP - TIQN for item F-03A-0HA-08R-06-00-06T
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 4: F-03A-0HA-08R-06-00-06T - Qty: 3.0
+[2025-09-11 09:02:42] [INFO] 📋   Using warehouse from Excel: Material - JP - TIQN for item F-03A-0HA-08S-06-00-06T
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 5: F-03A-0HA-08S-06-00-06T - Qty: 3.0
+[2025-09-11 09:02:42] [INFO] 📋   Using warehouse from Excel: Material - JP - TIQN for item F-03A-00W-08C-06-00-06T
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 6: F-03A-00W-08C-06-00-06T - Qty: 3.0
+[2025-09-11 09:02:42] [INFO] 📋   Using warehouse from Excel: Material - JP - TIQN for item F-03A-00W-088-06-00-06T
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 7: F-03A-00W-088-06-00-06T - Qty: 1.3
+[2025-09-11 09:02:42] [INFO] 📋   Set from_warehouse: Material - JP - TIQN
+[2025-09-11 09:02:42] [INFO] 📋   Aggregated 2 invoice numbers: STIO MMT-TIQN-02; IN-25-03180/03181
+[2025-09-11 09:02:42] [INFO] 📋   🔍 Before save:
+[2025-09-11 09:02:42] [INFO] 📋     - set_posting_time: 1
+[2025-09-11 09:02:42] [INFO] 📋     - posting_date: 2025-04-01
+[2025-09-11 09:02:42] [INFO] 📋     - posting_time: 17:00:00
+[2025-09-11 09:02:42] [INFO] 📋   💾 Saving Stock Entry...
+[2025-09-11 09:02:42] [SUCCESS] ✅   ✅ Stock Entry saved: SE-2025-04-01-PX010729-01
+[2025-09-11 09:02:42] [INFO] 📋   🔍 After save (reloaded from DB):
+[2025-09-11 09:02:42] [INFO] 📋     - set_posting_time: 1
+[2025-09-11 09:02:42] [INFO] 📋     - posting_date: 2025-04-01
+[2025-09-11 09:02:42] [INFO] 📋     - posting_time: 17:00:00
+[2025-09-11 09:02:42] [SUCCESS] ✅ Tạo thành công: SE-2025-04-01-PX010729-01 với 7 items
+[2025-09-11 09:02:42] [INFO] 📋 Xử lý nhóm 5/6: PX011065 với 121 items
+[2025-09-11 09:02:42] [INFO] 📋   Processing posting_date from Excel datetime: 2025-06-05 00:00:00 -> 2025-06-05
+[2025-09-11 09:02:42] [INFO] 📋   ✅ Set posting_date = 2025-06-05
+[2025-09-11 09:02:42] [INFO] 📋   Processing posting_time from string: 17:00:00
+[2025-09-11 09:02:42] [INFO] 📋   ✅ Set posting_time = 17:00:00
+[2025-09-11 09:02:42] [INFO] 📋   🔍 Debug fields set:
+[2025-09-11 09:02:42] [INFO] 📋     - set_posting_time: 1
+[2025-09-11 09:02:42] [INFO] 📋     - posting_date: 2025-06-05
+[2025-09-11 09:02:42] [INFO] 📋     - posting_time: 17:00:00
+[2025-09-11 09:02:42] [INFO] 📋   🔍 Before adding items:
+[2025-09-11 09:02:42] [INFO] 📋     - set_posting_time: 1
+[2025-09-11 09:02:42] [INFO] 📋     - posting_date: 2025-06-05
+[2025-09-11 09:02:42] [INFO] 📋     - posting_time: 17:00:00
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08I-0AE-084-0F-00
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 1: G-08I-0AE-084-0F-00 - Qty: 323.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08I-06Z-084-0F-00
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 2: G-08I-06Z-084-0F-00 - Qty: 527.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08I-06M-084-0F-00
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 3: G-08I-06M-084-0F-00 - Qty: 347.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08I-06Z-04V-0F-00
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 4: G-08I-06Z-04V-0F-00 - Qty: 451.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08I-06M-04V-0F-00
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 5: G-08I-06M-04V-0F-00 - Qty: 454.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08I-0AE-046-0F-00
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 6: G-08I-0AE-046-0F-00 - Qty: 450.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08I-06Z-046-0F-00
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 7: G-08I-06Z-046-0F-00 - Qty: 398.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08I-06M-046-0F-00
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 8: G-08I-06M-046-0F-00 - Qty: 478.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08I-06Z-08C-0F-00
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 9: G-08I-06Z-08C-0F-00 - Qty: 408.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-0B8-06J-04W-0F-04
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 10: G-0B8-06J-04W-0F-04 - Qty: 72.1
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-0B8-06J-04F-0F-04
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 11: G-0B8-06J-04F-0F-04 - Qty: 145.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08I-0AE-08C-0F-00
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 12: G-08I-0AE-08C-0F-00 - Qty: 464.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08I-06Z-08F-0F-00
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 13: G-08I-06Z-08F-0F-00 - Qty: 412.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08M-06M-08F-0F-04
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 14: G-08M-06M-08F-0F-04 - Qty: 11.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08M-06M-084-0F-04
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 15: G-08M-06M-084-0F-04 - Qty: 11.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item C-01X-06J-000-0F-04
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 16: C-01X-06J-000-0F-04 - Qty: 23.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08M-06M-046-0F-04
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 17: G-08M-06M-046-0F-04 - Qty: 6.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08Q-06M-088-0F-04
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 18: G-08Q-06M-088-0F-04 - Qty: 66.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08M-0EA-047-0F-04
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 19: G-08M-0EA-047-0F-04 - Qty: 1.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item C-024-06M-000-0F-00
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 20: C-024-06M-000-0F-00 - Qty: 280.2
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08M-0EA-08H-0F-04
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 21: G-08M-0EA-08H-0F-04 - Qty: 2.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08M-0EA-087-0F-04
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 22: G-08M-0EA-087-0F-04 - Qty: 2.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08M-06M-047-0F-04
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 23: G-08M-06M-047-0F-04 - Qty: 2.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08M-0EA-08C-0F-04
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 24: G-08M-0EA-08C-0F-04 - Qty: 2.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08M-0EA-084-0F-04
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 25: G-08M-0EA-084-0F-04 - Qty: 12.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08M-0EA-08F-0F-04
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 26: G-08M-0EA-08F-0F-04 - Qty: 10.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08M-0EA-046-0F-04
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 27: G-08M-0EA-046-0F-04 - Qty: 4.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08M-0EA-04V-0F-04
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 28: G-08M-0EA-04V-0F-04 - Qty: 2.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08M-0EA-088-0F-04
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 29: G-08M-0EA-088-0F-04 - Qty: 6.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08N-0AB-046-0F-04
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 30: G-08N-0AB-046-0F-04 - Qty: 4.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08L-06M-08F-0F-00
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 31: G-08L-06M-08F-0F-00 - Qty: 258.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08L-06M-084-0F-00
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 32: G-08L-06M-084-0F-00 - Qty: 250.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08L-06M-046-0F-00
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 33: G-08L-06M-046-0F-00 - Qty: 169.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08K-06M-08F-0F-00
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 34: G-08K-06M-08F-0F-00 - Qty: 44.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08K-06M-088-0F-00
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 35: G-08K-06M-088-0F-00 - Qty: 59.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08K-06M-084-0F-00
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 36: G-08K-06M-084-0F-00 - Qty: 14.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08K-06M-04V-0F-00
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 37: G-08K-06M-04V-0F-00 - Qty: 21.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08K-06M-046-0F-00
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 38: G-08K-06M-046-0F-00 - Qty: 22.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08J-08L-08I-0F-00
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 39: G-08J-08L-08I-0F-00 - Qty: 452.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08J-06M-08I-0F-00
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 40: G-08J-06M-08I-0F-00 - Qty: 470.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08J-08L-08F-0F-00
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 41: G-08J-08L-08F-0F-00 - Qty: 199.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08J-06M-08F-0F-00
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 42: G-08J-06M-08F-0F-00 - Qty: 66.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08I-0AE-08F-0F-00
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 43: G-08I-0AE-08F-0F-00 - Qty: 380.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08J-06M-046-0F-00
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 44: G-08J-06M-046-0F-00 - Qty: 66.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08J-08L-046-0F-00
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 45: G-08J-08L-046-0F-00 - Qty: 78.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08J-06M-04V-0F-00
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 46: G-08J-06M-04V-0F-00 - Qty: 34.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08J-08L-04V-0F-00
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 47: G-08J-08L-04V-0F-00 - Qty: 55.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08J-06M-084-0F-00
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 48: G-08J-06M-084-0F-00 - Qty: 393.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08J-08L-084-0F-00
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 49: G-08J-08L-084-0F-00 - Qty: 260.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08J-06M-088-0F-00
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 50: G-08J-06M-088-0F-00 - Qty: 451.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08J-08L-088-0F-00
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 51: G-08J-08L-088-0F-00 - Qty: 395.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08J-06M-08C-0F-00
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 52: G-08J-06M-08C-0F-00 - Qty: 980.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08J-08L-08C-0F-00
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 53: G-08J-08L-08C-0F-00 - Qty: 440.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08I-06M-08F-0F-00
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 54: G-08I-06M-08F-0F-00 - Qty: 399.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08N-0AB-04V-0F-04
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 55: G-08N-0AB-04V-0F-04 - Qty: 3.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-0A6-000-02J-0F-00
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 56: G-0A6-000-02J-0F-00 - Qty: 58.2
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-0AC-000-081-0F-04
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 57: G-0AC-000-081-0F-04 - Qty: 16.3
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08W-000-000-0F-00
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 58: G-08W-000-000-0F-00 - Qty: 1679.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08W-000-000-0F-00
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 59: G-08W-000-000-0F-00 - Qty: 1342.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08W-000-000-0F-04
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 60: G-08W-000-000-0F-04 - Qty: 83.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08P-06M-088-0F-00
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 61: G-08P-06M-088-0F-00 - Qty: 46.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08P-06M-084-0F-00
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 62: G-08P-06M-084-0F-00 - Qty: 87.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08O-06M-08I-0F-00
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 63: G-08O-06M-08I-0F-00 - Qty: 26.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08O-06M-08C-0F-00
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 64: G-08O-06M-08C-0F-00 - Qty: 18.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-0AC-000-081-0F-00
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 65: G-0AC-000-081-0F-00 - Qty: 33.7
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08N-0EI-08F-0F-04
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 66: G-08N-0EI-08F-0F-04 - Qty: 8.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08N-0AB-08F-0F-04
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 67: G-08N-0AB-08F-0F-04 - Qty: 8.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08N-0EI-04V-0F-04
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 68: G-08N-0EI-04V-0F-04 - Qty: 3.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08N-0AB-085-0F-04
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 69: G-08N-0AB-085-0F-04 - Qty: 4.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08N-0EI-085-0F-04
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 70: G-08N-0EI-085-0F-04 - Qty: 3.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08N-0AB-084-0F-04
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 71: G-08N-0AB-084-0F-04 - Qty: 11.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08N-0EI-084-0F-04
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 72: G-08N-0EI-084-0F-04 - Qty: 9.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08N-0EI-046-0F-04
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 73: G-08N-0EI-046-0F-04 - Qty: 4.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08N-0AB-089-0F-04
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 74: G-08N-0AB-089-0F-04 - Qty: 3.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08N-0AB-088-0F-04
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 75: G-08N-0AB-088-0F-04 - Qty: 9.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08N-0EI-088-0F-04
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 76: G-08N-0EI-088-0F-04 - Qty: 10.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08N-0AB-08C-0F-04
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 77: G-08N-0AB-08C-0F-04 - Qty: 2.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08N-0EI-08C-0F-04
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 78: G-08N-0EI-08C-0F-04 - Qty: 2.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08N-0AB-08G-0F-04
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 79: G-08N-0AB-08G-0F-04 - Qty: 2.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08N-0EI-08G-0F-04
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 80: G-08N-0EI-08G-0F-04 - Qty: 2.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08N-0EI-089-0F-04
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 81: G-08N-0EI-089-0F-04 - Qty: 2.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item E-00H-0GN-02A-0F-00
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 82: E-00H-0GN-02A-0F-00 - Qty: 169.2
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item C-027-0FT-000-0F-04
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 83: C-027-0FT-000-0F-04 - Qty: 0.99
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-05I-06M-02Y-0F-00
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 84: G-05I-06M-02Y-0F-00 - Qty: 393.9
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-05I-06M-02Y-0F-04
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 85: G-05I-06M-02Y-0F-04 - Qty: 165.09
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-05I-06M-01G-0F-04
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 86: G-05I-06M-01G-0F-04 - Qty: 86.75
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-05I-06M-01G-0F-00
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 87: G-05I-06M-01G-0F-00 - Qty: 2118.18
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-08Q-06M-08F-0F-04
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 88: G-08Q-06M-08F-0F-04 - Qty: 3.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item C-02B-06A-01L-0F-04
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 89: C-02B-06A-01L-0F-04 - Qty: 37.6
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item F-01V-000-000-0F-04
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 90: F-01V-000-000-0F-04 - Qty: 87.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item F-00U-06J-05P-0F-04
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 91: F-00U-06J-05P-0F-04 - Qty: 5.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item C-009-06M-000-0F-00
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 92: C-009-06M-000-0F-00 - Qty: 19.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item C-00A-06M-000-0F-00
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 93: C-00A-06M-000-0F-00 - Qty: 191.63
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-00A-06T-000-0F-04
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 94: G-00A-06T-000-0F-04 - Qty: 427.72
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-00B-06T-000-0F-00
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 95: G-00B-06T-000-0F-00 - Qty: 245.82
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item F-01S-000-000-0F-00-04H
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 96: F-01S-000-000-0F-00-04H - Qty: 19.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - JP - TIQN for item E-00G-0GN-02A-0F-00
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 97: E-00G-0GN-02A-0F-00 - Qty: 115.48
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - JP - TIQN for item E-00G-0GN-02A-0F-04
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 98: E-00G-0GN-02A-0F-04 - Qty: 165.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item F-01S-000-000-0F-00-04J
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 99: F-01S-000-000-0F-00-04J - Qty: 26.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item F-01S-000-000-0F-00-05S
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 100: F-01S-000-000-0F-00-05S - Qty: 6.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item F-01S-000-000-0F-00-05T
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 101: F-01S-000-000-0F-00-05T - Qty: 30.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item F-01S-000-000-0F-00-05W
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 102: F-01S-000-000-0F-00-05W - Qty: 11.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item F-01S-000-000-0F-00-04A
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 103: F-01S-000-000-0F-00-04A - Qty: 41.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item C-00N-0AB-000-0F-04
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 104: C-00N-0AB-000-0F-04 - Qty: 171.1
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item C-00N-0DJ-000-0F-04
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 105: C-00N-0DJ-000-0F-04 - Qty: 157.7
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-01C-032-02R-0F-00
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 106: G-01C-032-02R-0F-00 - Qty: 4.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-01C-032-02U-0F-00
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 107: G-01C-032-02U-0F-00 - Qty: 8.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-01C-032-02X-0F-00
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 108: G-01C-032-02X-0F-00 - Qty: 3.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-01G-032-06B-0F-00
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 109: G-01G-032-06B-0F-00 - Qty: 2.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-01G-032-06N-0F-00
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 110: G-01G-032-06N-0F-00 - Qty: 2.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-01G-032-073-0F-00
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 111: G-01G-032-073-0F-00 - Qty: 8.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-01G-032-078-0F-00
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 112: G-01G-032-078-0F-00 - Qty: 5.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-01G-032-07B-0F-00
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 113: G-01G-032-07B-0F-00 - Qty: 3.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-01G-032-067-0F-00
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 114: G-01G-032-067-0F-00 - Qty: 1.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-01C-032-02T-0F-00
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 115: G-01C-032-02T-0F-00 - Qty: 5.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-02K-032-062-0F-00
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 116: G-02K-032-062-0F-00 - Qty: 2.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-02L-032-073-0F-00
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 117: G-02L-032-073-0F-00 - Qty: 1.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-02B-032-04E-0F-00
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 118: G-02B-032-04E-0F-00 - Qty: 8.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-02B-032-03W-0F-00
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 119: G-02B-032-03W-0F-00 - Qty: 2.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-02B-032-04B-0F-00
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 120: G-02B-032-04B-0F-00 - Qty: 4.0
+[2025-09-11 09:02:42] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-02L-032-078-0F-00
+[2025-09-11 09:02:42] [SUCCESS] ✅   Item 121: G-02L-032-078-0F-00 - Qty: 1.0
+[2025-09-11 09:02:42] [INFO] 📋   Set from_warehouse: Material - HK - TIQN
+[2025-09-11 09:02:42] [WARNING] ⚠️   Aggregated invoice numbers quá dài, cắt ngắn xuống 140 ký tự: KO/TRH 0060/23 (22115); KO/TRH 0017/24 (22143); KO/TRH 0045/24 (22143); GO10264-358D24; OV-TRYSTS50023-TIQN-SEA9.11; A-23070146; A-240502...
+[2025-09-11 09:02:42] [INFO] 📋   Aggregated 26 invoice numbers: KO/TRH 0060/23 (22115); KO/TRH 0017/24 (22143); KO/TRH 0045/24 (22143); GO10264-358D24; OV-TRYSTS50023-TIQN-SEA9.11; A-23070146; A-240502...
+[2025-09-11 09:02:42] [INFO] 📋   🔍 Before save:
+[2025-09-11 09:02:42] [INFO] 📋     - set_posting_time: 1
+[2025-09-11 09:02:42] [INFO] 📋     - posting_date: 2025-06-05
+[2025-09-11 09:02:42] [INFO] 📋     - posting_time: 17:00:00
+[2025-09-11 09:02:42] [INFO] 📋   💾 Saving Stock Entry...
+[2025-09-11 09:02:43] [SUCCESS] ✅   ✅ Stock Entry saved: SE-2025-06-05-PX011065-01
+[2025-09-11 09:02:43] [INFO] 📋   🔍 After save (reloaded from DB):
+[2025-09-11 09:02:43] [INFO] 📋     - set_posting_time: 1
+[2025-09-11 09:02:43] [INFO] 📋     - posting_date: 2025-06-05
+[2025-09-11 09:02:43] [INFO] 📋     - posting_time: 17:00:00
+[2025-09-11 09:02:43] [SUCCESS] ✅ Tạo thành công: SE-2025-06-05-PX011065-01 với 121 items
+[2025-09-11 09:02:43] [INFO] 📋 Xử lý nhóm 6/6: PX011808 với 4 items
+[2025-09-11 09:02:43] [INFO] 📋   Processing posting_date from Excel datetime: 2025-06-12 00:00:00 -> 2025-06-12
+[2025-09-11 09:02:43] [INFO] 📋   ✅ Set posting_date = 2025-06-12
+[2025-09-11 09:02:43] [INFO] 📋   Processing posting_time from string: 17:00:00
+[2025-09-11 09:02:43] [INFO] 📋   ✅ Set posting_time = 17:00:00
+[2025-09-11 09:02:43] [INFO] 📋   🔍 Debug fields set:
+[2025-09-11 09:02:43] [INFO] 📋     - set_posting_time: 1
+[2025-09-11 09:02:43] [INFO] 📋     - posting_date: 2025-06-12
+[2025-09-11 09:02:43] [INFO] 📋     - posting_time: 17:00:00
+[2025-09-11 09:02:43] [INFO] 📋   🔍 Before adding items:
+[2025-09-11 09:02:43] [INFO] 📋     - set_posting_time: 1
+[2025-09-11 09:02:43] [INFO] 📋     - posting_date: 2025-06-12
+[2025-09-11 09:02:43] [INFO] 📋     - posting_time: 17:00:00
+[2025-09-11 09:02:43] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-097-09Z-046-0F-06
+[2025-09-11 09:02:43] [SUCCESS] ✅   Item 1: G-097-09Z-046-0F-06 - Qty: 1.0
+[2025-09-11 09:02:43] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-03D-01S-07S-0F-06
+[2025-09-11 09:02:43] [SUCCESS] ✅   Item 2: G-03D-01S-07S-0F-06 - Qty: 1.0
+[2025-09-11 09:02:43] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-03F-01S-02T-0F-06
+[2025-09-11 09:02:43] [SUCCESS] ✅   Item 3: G-03F-01S-02T-0F-06 - Qty: 1.0
+[2025-09-11 09:02:43] [INFO] 📋   Using default warehouse: Material - HK - TIQN for item G-03F-01S-03B-0F-06
+[2025-09-11 09:02:43] [SUCCESS] ✅   Item 4: G-03F-01S-03B-0F-06 - Qty: 2.0
+[2025-09-11 09:02:43] [INFO] 📋   Set from_warehouse: Material - HK - TIQN
+[2025-09-11 09:02:43] [INFO] 📋   Aggregated 2 invoice numbers: KO/TRH 0023/25 (22143); IV00083982-1
+[2025-09-11 09:02:43] [INFO] 📋   🔍 Before save:
+[2025-09-11 09:02:43] [INFO] 📋     - set_posting_time: 1
+[2025-09-11 09:02:43] [INFO] 📋     - posting_date: 2025-06-12
+[2025-09-11 09:02:43] [INFO] 📋     - posting_time: 17:00:00
+[2025-09-11 09:02:43] [INFO] 📋   💾 Saving Stock Entry...
+[2025-09-11 09:02:43] [SUCCESS] ✅   ✅ Stock Entry saved: SE-2025-06-12-PX011808-01
+[2025-09-11 09:02:43] [INFO] 📋   🔍 After save (reloaded from DB):
+[2025-09-11 09:02:43] [INFO] 📋     - set_posting_time: 1
+[2025-09-11 09:02:43] [INFO] 📋     - posting_date: 2025-06-12
+[2025-09-11 09:02:43] [INFO] 📋     - posting_time: 17:00:00
+[2025-09-11 09:02:43] [SUCCESS] ✅ Tạo thành công: SE-2025-06-12-PX011808-01 với 4 items
+[2025-09-11 09:02:43] [INFO] 
 ==================== KẾT QUẢ CUỐI CÙNG ====================
-[2025-07-16 14:15:37] [SUCCESS] ✅ Tạo thành công: 14 Stock Entry
-[2025-07-16 14:15:37] [INFO] 📋 Tổng items đã xử lý: 196
-[2025-07-16 14:15:37] [INFO] 📋 Danh sách Stock Entries đã tạo:
-[2025-07-16 14:15:37] [INFO] 📋   1. SE-2025-04-09-DC001-03
-[2025-07-16 14:15:37] [INFO] 📋   2. SE-2025-05-08-PX008526-15
-[2025-07-16 14:15:37] [INFO] 📋   3. SE-2025-06-02-PX009712-15
-[2025-07-16 14:15:37] [INFO] 📋   4. SE-2025-04-01-PX010599-16
-[2025-07-16 14:15:37] [INFO] 📋   5. SE-2025-04-10-PX010884-15
-[2025-07-16 14:15:37] [INFO] 📋   6. SE-2025-04-18-PX011045-15
-[2025-07-16 14:15:37] [INFO] 📋   7. SE-2025-05-12-PX011055-15
-[2025-07-16 14:15:37] [INFO] 📋   8. SE-2025-06-05-PX011065-15
-[2025-07-16 14:15:37] [INFO] 📋   9. SE-2025-05-27-PX011082-15
-[2025-07-16 14:15:37] [INFO] 📋   10. SE-2025-06-02-PX011083-15
-[2025-07-16 14:15:37] [INFO] 📋   11. SE-2025-05-20-PX011291-15
-[2025-07-16 14:15:37] [INFO] 📋   12. SE-2025-05-27-PX011347-15
-[2025-07-16 14:15:37] [INFO] 📋   13. SE-2025-05-27-PX011348-15
-[2025-07-16 14:15:37] [INFO] 📋   14. SE-2025-06-12-PX011808-14
-[2025-07-16 14:15:37] [SUCCESS] ✅ Đã commit thành công!
+[2025-09-11 09:02:43] [SUCCESS] ✅ Tạo thành công: 6 Stock Entry
+[2025-09-11 09:02:43] [INFO] 📋 Tổng items đã xử lý: 196
+[2025-09-11 09:02:43] [INFO] 📋 Danh sách Stock Entries đã tạo:
+[2025-09-11 09:02:43] [INFO] 📋   1. SE-2025-04-05-PX010724-01
+[2025-09-11 09:02:43] [INFO] 📋   2. SE-2025-04-05-PX010725-01
+[2025-09-11 09:02:43] [INFO] 📋   3. SE-2025-04-05-PX010728-01
+[2025-09-11 09:02:43] [INFO] 📋   4. SE-2025-04-01-PX010729-01
+[2025-09-11 09:02:43] [INFO] 📋   5. SE-2025-06-05-PX011065-01
+[2025-09-11 09:02:43] [INFO] 📋   6. SE-2025-06-12-PX011808-01
+[2025-09-11 09:02:43] [SUCCESS] ✅ Đã commit thành công!
 
 
 ================================================================================
 EXECUTION COMPLETED
-End time: 2025-07-16 14:15:37
-Duration: 0:00:01.327431
-Success Count: 14
+End time: 2025-09-11 09:02:43
+Duration: 0:00:02.678938
+Success Count: 6
 Error Count: 0
 Total Items: 196
-Log file: /home/sonnt/frappe-bench/apps/customize_erpnext/customize_erpnext/api/bulk_update_scripts/create_material_issue.txt
+Log file: /home/frappe/frappe-bench/apps/customize_erpnext/customize_erpnext/api/bulk_update_scripts/create_material_issue.txt
 ================================================================================

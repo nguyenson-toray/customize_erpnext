@@ -11,14 +11,6 @@ class OvertimeRegistration(Document):
         self.validate_duplicate_employees()
         self.validate_conflicting_ot_requests()
         self.calculate_totals_and_apply_reason()
-    
-    def before_save(self):
-        self.validate_duplicate_employees()
-        self.validate_conflicting_ot_requests()
-    
-    def before_insert(self):
-        self.validate_duplicate_employees()
-        self.validate_conflicting_ot_requests()
 
     def validate_duplicate_employees(self):
         """Prevent duplicate or overlapping overtime entries within the same form"""
