@@ -57,20 +57,6 @@ frappe.ui.form.on('Employee', {
                 }
             }, __('Actions'));
         }
-
-        // Setup image field with cropper
-        setup_employee_image_cropper(frm);
-    },
-
-    onload: function (frm) {
-        // Setup image field with cropper on load
-        setup_employee_image_cropper(frm);
-    },
-
-    image: function (frm) {
-        // Image upload is handled by custom FileUploader with auto-cropping
-        // No need to manually trigger cropper
-
         if (frm.is_new()) {
             // Auto-populate employee code and attendance device ID for new employees
             if (!frm.doc.employee || !frm.doc.employee.startsWith('TIQN-')) {
@@ -79,6 +65,7 @@ frappe.ui.form.on('Employee', {
                     callback: function (r) {
                         if (r.message) {
                             frm.set_value('employee', r.message);
+                            console.log('get_next_employee_code:', r.message);
                             // Store the original value
                             window.original_employee_code = r.message;
 
@@ -91,6 +78,7 @@ frappe.ui.form.on('Employee', {
                                     current_highest_id: employee_num
                                 },
                                 callback: function (series_r) {
+                                    console.log('set_series response:', series_r);
                                     // Series updated successfully
                                 }
                             });
@@ -118,7 +106,15 @@ frappe.ui.form.on('Employee', {
             // For existing employees, store current value
             window.original_employee_code = frm.doc.employee;
         }
+        // Setup image field with cropper
+        setup_employee_image_cropper(frm);
     },
+
+    onload: function (frm) {
+        // Setup image field with cropper on load
+        setup_employee_image_cropper(frm);
+    },
+
 
     custom_scan_fingerprint: async function (frm) {
         // Handle custom button field click
@@ -446,8 +442,8 @@ const ENABLE_EMPLOYEE_IMAGE_CROPPER = false;
 
 // Image cropper functions - using custom Cropper.js
 function setup_employee_image_cropper(frm) {
-    if (!frm.fields_dict.image) return;
-
+    if (!frm.fields_dict.image || !ENABLE_EMPLOYEE_IMAGE_CROPPER) return;
+    console.log('Initializing image cropper setup for Employee form');
     const image_field = frm.fields_dict.image;
 
     // Override the attach field's upload method completely
