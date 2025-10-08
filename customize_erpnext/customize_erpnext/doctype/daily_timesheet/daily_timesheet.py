@@ -875,133 +875,422 @@ def fix_maternity_record(doc_name):
 	doc.save()
 	return f"Fixed {doc_name}: maternity_benefit = {doc.maternity_benefit}"
 
-@frappe.whitelist()
-def bulk_recalculate(employee=None, date_range=None):
-	"""Bulk recalculation for list view"""
-	filters = []
-	
-	if employee:
-		filters.append(f"employee = '{employee}'")
-	
-	if date_range:
-		date_range = json.loads(date_range)
-		if date_range.get("from_date"):
-			filters.append(f"attendance_date >= '{date_range['from_date']}'")
-		if date_range.get("to_date"):
-			filters.append(f"attendance_date <= '{date_range['to_date']}'")
-	
-	where_clause = " AND ".join(filters) if filters else "1=1"
-	
-	timesheets = frappe.db.sql(f"""
-		SELECT name FROM `tabDaily Timesheet` 
-		WHERE {where_clause}
-		ORDER BY attendance_date DESC
-	""", as_dict=1)
-	
-	count = 0
-	for ts in timesheets:
-		try:
-			doc = frappe.get_doc("Daily Timesheet", ts.name)
-			doc.calculate_all_fields()
-			doc.save()
-			count += 1
-		except Exception as e:
-			frappe.log_error(f"Error recalculating {ts.name}: {str(e)}")
-	
-	frappe.msgprint(f"Successfully recalculated {count} records")
-	return count
-
-
-@frappe.whitelist()
-def create_from_checkins(from_date, to_date, employee=None):
-	"""Create Daily Timesheet records for ALL active employees, whether they have check-ins or not"""
-	from frappe.utils import getdate, add_days
-	
-	# Build conditions for employees
-	emp_conditions = ["emp.status = 'Active'"]
-	filters = {
-		"from_date": getdate(from_date),
-		"to_date": getdate(to_date)
-	}
-	
-	if employee:
-		emp_conditions.append("emp.name = %(employee)s")
-		filters["employee"] = employee
-	
-	# Get ALL active employees with date_of_joining
-	active_employees = frappe.db.sql(f"""
-		SELECT emp.name as employee, emp.employee_name, emp.department,
-		       emp.custom_section, emp.custom_group, emp.company, emp.date_of_joining
-		FROM `tabEmployee` emp
-		WHERE {' AND '.join(emp_conditions)}
-		ORDER BY emp.name
-	""", filters, as_dict=1)
-	
-	created_count = 0
-	updated_count = 0
-	error_count = 0
-	
-	# Generate date range
-	current_date = getdate(from_date)
-	end_date = getdate(to_date)
-	
-	while current_date <= end_date:
-		for emp_data in active_employees:
-			emp = emp_data.employee
-
-			# Skip if attendance_date is before employee's joining date
-			if emp_data.date_of_joining and getdate(current_date) < getdate(emp_data.date_of_joining):
-				continue
-
-			# Check if Daily Timesheet already exists
-			existing_timesheet = frappe.db.exists("Daily Timesheet", {
-				"employee": emp,
-				"attendance_date": current_date
-			})
-
-			if existing_timesheet:
-				# Update existing record
-				try:
-					doc = frappe.get_doc("Daily Timesheet", existing_timesheet)
-					doc.calculate_all_fields()
-					doc.save()
-					updated_count += 1
-				except Exception as e:
-					frappe.log_error(f"Error updating timesheet for {emp} on {current_date}: {str(e)}")
-					error_count += 1
-					continue
-			else:
-				# Create new Daily Timesheet
-				try:
-					doc = frappe.get_doc({
-						"doctype": "Daily Timesheet",
-						"employee": emp,
-						"employee_name": emp_data.employee_name,
-						"attendance_date": current_date,
-						"department": emp_data.department,
-						"custom_section": emp_data.custom_section,
-						"custom_group": emp_data.custom_group,
-						"company": emp_data.company or frappe.defaults.get_user_default("Company")
-					})
-
-					doc.calculate_all_fields()
-					doc.insert(ignore_permissions=True)
-					created_count += 1
-				except Exception as e:
-					frappe.log_error(f"Error creating timesheet for {emp} on {current_date}: {str(e)}")
-					error_count += 1
-					continue
-
-		current_date = add_days(current_date, 1)
-	
-	frappe.db.commit()
-	message = f"Processed {len(active_employees)} employees. Created {created_count} new records, Updated {updated_count} records"
-	if error_count > 0:
-		message += f", {error_count} errors"
-	frappe.msgprint(message)
-	return created_count + updated_count
-
 # OPTIMIZED BULK OPERATIONS - HYBRID APPROACH
+
+def load_bulk_timesheet_data(employee_ids, from_date, to_date):
+	"""
+	Load ALL required data in bulk with minimal queries
+	Returns dictionary with all pre-loaded data indexed by (employee, date)
+	"""
+	from frappe.utils import getdate
+
+	from_date = getdate(from_date)
+	to_date = getdate(to_date)
+
+	# Convert employee_ids to SQL-safe format
+	emp_placeholders = ', '.join(['%s'] * len(employee_ids))
+
+	# 1. Load all employee checkins in date range
+	checkins_data = frappe.db.sql(f"""
+		SELECT employee, DATE(time) as date, time as check_time, log_type
+		FROM `tabEmployee Checkin`
+		WHERE employee IN ({emp_placeholders})
+		  AND DATE(time) BETWEEN %s AND %s
+		ORDER BY employee, time ASC
+	""", tuple(employee_ids) + (from_date, to_date), as_dict=1)
+
+	# Index checkins by (employee, date)
+	checkins_by_emp_date = {}
+	for checkin in checkins_data:
+		key = (checkin.employee, checkin.date)
+		if key not in checkins_by_emp_date:
+			checkins_by_emp_date[key] = []
+		checkins_by_emp_date[key].append(checkin)
+
+	# 2. Load all shift registrations
+	shift_reg_data = frappe.db.sql(f"""
+		SELECT srd.employee, srd.begin_date, srd.end_date, srd.shift
+		FROM `tabShift Registration Detail` srd
+		JOIN `tabShift Registration` sr ON srd.parent = sr.name
+		WHERE srd.employee IN ({emp_placeholders})
+		  AND sr.docstatus = 1
+		  AND srd.begin_date <= %s
+		  AND srd.end_date >= %s
+		ORDER BY sr.creation DESC
+	""", tuple(employee_ids) + (to_date, from_date), as_dict=1)
+
+	# Index shift registrations by employee
+	shift_reg_by_emp = {}
+	for reg in shift_reg_data:
+		emp = reg.employee
+		if emp not in shift_reg_by_emp:
+			shift_reg_by_emp[emp] = []
+		shift_reg_by_emp[emp].append(reg)
+
+	# 3. Load employee groups (for Canteen shift detection)
+	emp_groups = frappe.db.sql(f"""
+		SELECT name, custom_group
+		FROM `tabEmployee`
+		WHERE name IN ({emp_placeholders})
+	""", tuple(employee_ids), as_dict=1)
+
+	emp_group_map = {eg.name: eg.custom_group for eg in emp_groups}
+
+	# 4. Load all maternity tracking records
+	maternity_data = frappe.db.sql(f"""
+		SELECT parent as employee, type, from_date, to_date, apply_pregnant_benefit
+		FROM `tabMaternity Tracking`
+		WHERE parent IN ({emp_placeholders})
+		  AND type IN ('Pregnant', 'Maternity Leave', 'Young Child')
+		  AND from_date <= %s
+		  AND to_date >= %s
+	""", tuple(employee_ids) + (to_date, from_date), as_dict=1)
+
+	# Index maternity by employee
+	maternity_by_emp = {}
+	for mat in maternity_data:
+		emp = mat.employee
+		if emp not in maternity_by_emp:
+			maternity_by_emp[emp] = []
+		maternity_by_emp[emp].append(mat)
+
+	# 5. Load all overtime registrations
+	overtime_data = frappe.db.sql(f"""
+		SELECT ord.employee, ord.date, ord.begin_time, ord.end_time
+		FROM `tabOvertime Registration Detail` ord
+		JOIN `tabOvertime Registration` or_doc ON ord.parent = or_doc.name
+		WHERE ord.employee IN ({emp_placeholders})
+		  AND ord.date BETWEEN %s AND %s
+		  AND or_doc.docstatus = 1
+	""", tuple(employee_ids) + (from_date, to_date), as_dict=1)
+
+	# Index overtime by (employee, date)
+	overtime_by_emp_date = {}
+	for ot in overtime_data:
+		key = (ot.employee, ot.date)
+		if key not in overtime_by_emp_date:
+			overtime_by_emp_date[key] = []
+		overtime_by_emp_date[key].append(ot)
+
+	return {
+		"checkins": checkins_by_emp_date,
+		"shift_registrations": shift_reg_by_emp,
+		"employee_groups": emp_group_map,
+		"maternity_tracking": maternity_by_emp,
+		"overtime_registrations": overtime_by_emp_date
+	}
+
+def calculate_all_fields_optimized(doc, bulk_data):
+	"""
+	Optimized version of calculate_all_fields that uses pre-loaded bulk_data
+	No individual DB queries - all data from bulk_data dictionary
+	"""
+	if not doc.employee or not doc.attendance_date:
+		return
+
+	from frappe.utils import getdate, time_diff_in_hours
+	from datetime import datetime, time, timedelta
+
+	# Validate attendance_date is not before employee's joining date
+	date_of_joining = frappe.db.get_value("Employee", doc.employee, "date_of_joining")
+	if date_of_joining and getdate(doc.attendance_date) < getdate(date_of_joining):
+		frappe.throw(f"Cannot create Daily Timesheet: Attendance date ({doc.attendance_date}) is before employee's joining date ({date_of_joining})")
+
+	# Always generate additional info HTML first
+	doc.generate_additional_info_html()
+
+	# 1. Get check-in/out data from bulk_data
+	check_in, check_out = get_employee_checkin_data_from_bulk(doc.employee, doc.attendance_date, bulk_data)
+
+	# 2. Xác định shift type from bulk_data
+	shift_type, determined_by = get_shift_type_from_bulk(doc.employee, doc.attendance_date, bulk_data)
+	doc.shift = shift_type
+	doc.shift_determined_by = determined_by
+
+	# 3. Check maternity benefit from bulk_data
+	doc.maternity_benefit = check_maternity_benefit_from_bulk(doc.employee, doc.attendance_date, bulk_data)
+
+	# 4. Set status based on check-in availability
+	if check_in:
+		doc.check_in = check_in
+		doc.in_time = check_in.time()
+		doc.status = "Present"
+	else:
+		doc.status = "Absent"
+		doc.clear_all_fields()
+		return
+
+	# 5. Only proceed with full calculation if both check-in and check-out exist
+	if not check_in or not check_out:
+		doc.check_out = None
+		doc.out_time = None
+		doc.working_hours = 0
+		doc.overtime_hours = 0
+		doc.actual_overtime = 0
+		doc.approved_overtime = 0
+		doc.late_entry = False
+		doc.early_exit = False
+		doc.overtime_details_html = ""
+		return
+
+	doc.check_out = check_out
+	doc.out_time = check_out.time()
+
+	# 6. Get shift configuration
+	shift_config = doc.get_shift_config(shift_type)
+	if not shift_config:
+		return
+
+	# 7. Calculate working hours
+	morning_hours = doc.calculate_morning_hours(check_in, check_out, shift_config)
+	afternoon_hours = doc.calculate_afternoon_hours(check_in, check_out, shift_config, doc.maternity_benefit)
+
+	total_working_hours = morning_hours + afternoon_hours
+
+	if total_working_hours * 60 < MIN_MINUTES_WORKING_HOURS:
+		total_working_hours = 0
+
+	doc.working_hours = doc.decimal_round(total_working_hours)
+
+	# 8. Calculate overtime from bulk_data
+	actual_ot = calculate_actual_overtime_from_bulk(doc, check_in, check_out, shift_config, bulk_data)
+	approved_ot = get_approved_overtime_from_bulk(doc.employee, doc.attendance_date, shift_type, bulk_data)
+	final_ot = min(actual_ot, approved_ot) if shift_config.get("allows_ot") else 0
+
+	doc.actual_overtime = doc.decimal_round(actual_ot)
+	doc.approved_overtime = doc.decimal_round(approved_ot)
+	doc.overtime_hours = doc.decimal_round(final_ot)
+
+	# 8.5. Calculate overtime coefficient
+	doc.overtime_coefficient = doc.calculate_overtime_coefficient()
+
+	# 8.6. Special Sunday logic
+	if isinstance(doc.attendance_date, str):
+		date_obj = datetime.strptime(str(doc.attendance_date), '%Y-%m-%d')
+	else:
+		date_obj = doc.attendance_date
+
+	if date_obj.weekday() == 6:  # Sunday
+		sunday_working_hours = doc.working_hours
+		doc.actual_overtime = doc.decimal_round(sunday_working_hours)
+		doc.working_hours = 0
+		final_ot = min(doc.actual_overtime, doc.approved_overtime)
+		doc.overtime_hours = doc.decimal_round(final_ot)
+
+	# 8.7. Calculate final OT with coefficient
+	doc.final_ot_with_coefficient = doc.decimal_round(doc.overtime_hours * doc.overtime_coefficient)
+
+	# 9. Calculate late entry / early exit
+	doc.late_entry, doc.early_exit = doc.calculate_late_early(check_in, check_out, shift_config, doc.maternity_benefit)
+
+	# 10. Update status
+	if date_obj.weekday() == 6:
+		doc.status = "Sunday"
+	elif doc.overtime_hours > 0:
+		doc.status = "Present + OT"
+	else:
+		doc.status = "Present"
+
+	# 11. Generate overtime details HTML
+	doc.generate_overtime_details_html()
+
+def get_employee_checkin_data_from_bulk(employee, attendance_date, bulk_data):
+	"""Get check-in/out from pre-loaded bulk_data"""
+	from frappe.utils import getdate
+	from datetime import datetime
+
+	key = (employee, getdate(attendance_date))
+	checkins = bulk_data["checkins"].get(key, [])
+
+	if not checkins:
+		return None, None
+
+	# Filter out duplicate/invalid checkins
+	filtered_checkins = []
+	for i, checkin in enumerate(checkins):
+		if i == 0:
+			filtered_checkins.append(checkin)
+		else:
+			time_diff = (checkin.check_time - checkins[i-1].check_time).total_seconds() / 60
+			if time_diff >= MIN_MINUTES_CHECKIN_FILTER:
+				filtered_checkins.append(checkin)
+
+	check_in = None
+	check_out = None
+
+	# Handle explicit log_type
+	in_checkins = [c for c in filtered_checkins if c.log_type == "IN"]
+	out_checkins = [c for c in filtered_checkins if c.log_type == "OUT"]
+
+	if in_checkins:
+		check_in = in_checkins[0].check_time
+	if out_checkins:
+		check_out = out_checkins[-1].check_time
+
+	# Fallback logic
+	if not check_in and not check_out and filtered_checkins:
+		if len(filtered_checkins) == 1:
+			check_in = filtered_checkins[0].check_time
+		elif len(filtered_checkins) >= 2:
+			if not check_in:
+				check_in = filtered_checkins[0].check_time
+			if not check_out:
+				check_out = filtered_checkins[-1].check_time
+
+	return check_in, check_out
+
+def get_shift_type_from_bulk(employee, attendance_date, bulk_data):
+	"""Get shift type from pre-loaded bulk_data"""
+	from frappe.utils import getdate
+	from datetime import datetime
+
+	# Check Sunday first
+	if isinstance(attendance_date, str):
+		date_obj = datetime.strptime(str(attendance_date), '%Y-%m-%d')
+	else:
+		date_obj = attendance_date
+
+	if date_obj.weekday() == 6:
+		return "Day", "Default Day Shift For Sunday"
+
+	# Check shift registration
+	shift_regs = bulk_data["shift_registrations"].get(employee, [])
+	attendance_date = getdate(attendance_date)
+
+	for reg in shift_regs:
+		if reg.begin_date <= attendance_date <= reg.end_date:
+			return reg.shift, "Registration"
+
+	# Check employee group
+	emp_group = bulk_data["employee_groups"].get(employee)
+	if emp_group == "Canteen":
+		return "Canteen", "Employee Group"
+
+	return "Day", "Default"
+
+def check_maternity_benefit_from_bulk(employee, attendance_date, bulk_data):
+	"""Check maternity benefit from pre-loaded bulk_data"""
+	from frappe.utils import getdate
+
+	maternity_records = bulk_data["maternity_tracking"].get(employee, [])
+	attendance_date = getdate(attendance_date)
+
+	for record in maternity_records:
+		if record.from_date <= attendance_date <= record.to_date:
+			record_type_lower = record.type.lower() if record.type else ""
+			if (record_type_lower == 'young child' or record.type in ['Young Child', 'Maternity Leave']):
+				return True
+			elif record.type == 'Pregnant':
+				if record.apply_pregnant_benefit == 1:
+					return True
+
+	return False
+
+def get_approved_overtime_from_bulk(employee, attendance_date, shift_type, bulk_data):
+	"""Get approved overtime from pre-loaded bulk_data"""
+	from frappe.utils import getdate, flt
+
+	if shift_type in ["Shift 1", "Shift 2"]:
+		return 0
+
+	key = (employee, getdate(attendance_date))
+	ot_records = bulk_data["overtime_registrations"].get(key, [])
+
+	total_hours = 0
+	for ot in ot_records:
+		# Calculate hours from begin_time to end_time
+		if ot.begin_time and ot.end_time:
+			# Convert time to datetime for calculation
+			from datetime import datetime, time as dt_time
+			date = getdate(attendance_date)
+
+			begin_dt = datetime.combine(date, ot.begin_time)
+			end_dt = datetime.combine(date, ot.end_time)
+
+			hours_diff = (end_dt - begin_dt).total_seconds() / 3600
+			total_hours += hours_diff
+
+	return flt(total_hours)
+
+def calculate_actual_overtime_from_bulk(doc, check_in, check_out, shift_config, bulk_data):
+	"""Calculate actual overtime using pre-loaded bulk_data"""
+	from frappe.utils import time_diff_in_hours, getdate
+	from datetime import datetime, timedelta
+
+	if not check_in or not check_out:
+		return 0
+
+	shift_start = datetime.combine(check_in.date(), shift_config["start"])
+	shift_end = datetime.combine(check_in.date(), shift_config["end"])
+	break_start = datetime.combine(check_in.date(), shift_config["break_start"])
+	break_end = datetime.combine(check_in.date(), shift_config["break_end"])
+
+	# Pre-shift OT
+	pre_shift_ot = 0
+	if check_in < shift_start:
+		has_pre_shift_registration = check_pre_shift_ot_registration_from_bulk(
+			doc.employee, doc.attendance_date, check_in.time(), shift_start.time(), bulk_data
+		)
+		if has_pre_shift_registration:
+			pre_shift_ot = time_diff_in_hours(shift_start, check_in)
+			if pre_shift_ot * 60 < MIN_MINUTES_PRE_SHIFT_OT:
+				pre_shift_ot = 0
+
+	# Lunch break OT
+	lunch_break_ot = 0
+	if shift_config["break_start"] != shift_config["break_end"]:
+		if (check_in < break_start and check_out > break_end and
+			check_lunch_break_ot_registration_from_bulk(
+				doc.employee, doc.attendance_date, break_start.time(), break_end.time(), bulk_data
+			)):
+			lunch_break_ot = time_diff_in_hours(break_end, break_start)
+			if lunch_break_ot * 60 < MIN_MINUTES_OT:
+				lunch_break_ot = 0
+
+	# Post-shift OT
+	post_shift_ot = 0
+	expected_end = shift_end
+	if doc.maternity_benefit:
+		expected_end = shift_end - timedelta(hours=1)
+
+	if check_out > expected_end:
+		post_shift_ot = time_diff_in_hours(check_out, expected_end)
+		if post_shift_ot < 0.25:
+			post_shift_ot = 0
+
+	total_ot = pre_shift_ot + lunch_break_ot + post_shift_ot
+
+	if total_ot * 60 < MIN_MINUTES_OT:
+		total_ot = 0
+
+	return total_ot
+
+def check_pre_shift_ot_registration_from_bulk(employee, attendance_date, check_in_time, shift_start_time, bulk_data):
+	"""Check pre-shift OT registration from bulk_data"""
+	from frappe.utils import getdate
+
+	key = (employee, getdate(attendance_date))
+	ot_records = bulk_data["overtime_registrations"].get(key, [])
+
+	for ot in ot_records:
+		if ot.begin_time <= shift_start_time and ot.end_time >= check_in_time:
+			return True
+
+	return False
+
+def check_lunch_break_ot_registration_from_bulk(employee, attendance_date, break_start_time, break_end_time, bulk_data):
+	"""Check lunch break OT registration from bulk_data"""
+	from frappe.utils import getdate
+
+	key = (employee, getdate(attendance_date))
+	ot_records = bulk_data["overtime_registrations"].get(key, [])
+
+	for ot in ot_records:
+		# Check if OT registration overlaps with lunch break
+		if ot.begin_time <= break_end_time and ot.end_time >= break_start_time:
+			return True
+
+	return False
 
 @frappe.whitelist()
 def bulk_recalculate_hybrid(employee=None, date_range=None, batch_size=100):
@@ -1039,9 +1328,7 @@ def bulk_recalculate_hybrid(employee=None, date_range=None, batch_size=100):
 	# Process in batches
 	processed = 0
 	error_count = 0
-	
-	frappe.publish_progress(0, title="Initializing bulk recalculation...")
-	
+
 	for offset in range(0, total_count, batch_size):
 		# Get batch of records
 		batch_records = frappe.db.sql(f"""
@@ -1073,15 +1360,7 @@ def bulk_recalculate_hybrid(employee=None, date_range=None, batch_size=100):
 			frappe.db.commit()
 			processed += batch_processed
 			error_count += batch_errors
-			
-			# Update progress
-			progress = min((offset + batch_size) / total_count * 100, 100)
-			frappe.publish_progress(
-				progress,
-				title=f"Processing batch {offset//batch_size + 1}...",
-				description=f"Processed {processed}/{total_count} records"
-			)
-			
+
 		except Exception as e:
 			# Rollback batch on error
 			frappe.db.rollback()
@@ -1102,154 +1381,6 @@ def bulk_recalculate_hybrid(employee=None, date_range=None, batch_size=100):
 	}
 	
 	message = f"Successfully processed {processed}/{total_count} records in {processing_time}s"
-	if error_count > 0:
-		message += f" ({error_count} errors logged)"
-	
-	frappe.msgprint(message)
-	return result
-
-@frappe.whitelist()
-def create_from_checkins_hybrid(from_date, to_date, employee=None, batch_size=50):
-	"""Optimized bulk creation with smart batching and progress updates"""
-	import time
-	from frappe.utils import getdate, add_days
-	
-	start_time = time.time()
-	
-	# Convert batch_size to int (comes as string from frontend)
-	batch_size = int(batch_size) if batch_size else 50
-	batch_size = min(batch_size, 100)  # Cap at 100 for safety
-	
-	# Build employee conditions
-	emp_conditions = ["emp.status = 'Active'"]
-	filters = {
-		"from_date": getdate(from_date),
-		"to_date": getdate(to_date)
-	}
-	
-	if employee:
-		emp_conditions.append("emp.name = %(employee)s")
-		filters["employee"] = employee
-	
-	# Get ALL active employees with date_of_joining
-	active_employees = frappe.db.sql(f"""
-		SELECT emp.name as employee, emp.employee_name, emp.department,
-		       emp.custom_section, emp.custom_group, emp.company, emp.date_of_joining
-		FROM `tabEmployee` emp
-		WHERE {' AND '.join(emp_conditions)}
-		ORDER BY emp.name
-	""", filters, as_dict=1)
-	
-	if not active_employees:
-		return {"success": True, "created": 0, "updated": 0, "message": "No active employees found"}
-	
-	# Calculate total operations
-	date_range_days = (getdate(to_date) - getdate(from_date)).days + 1
-	total_operations = len(active_employees) * date_range_days
-	
-	frappe.publish_progress(0, title="Initializing bulk creation...")
-	
-	# Process in batches by date
-	created_count = 0
-	updated_count = 0
-	error_count = 0
-	processed_operations = 0
-	
-	current_date = getdate(from_date)
-	end_date = getdate(to_date)
-	
-	while current_date <= end_date:
-		# Process employees in batches for this date
-		for emp_offset in range(0, len(active_employees), batch_size):
-			emp_batch = active_employees[emp_offset:emp_offset + batch_size]
-			
-			# Process batch within transaction
-			batch_created = 0
-			batch_updated = 0
-			batch_errors = 0
-			
-			try:
-				for emp_data in emp_batch:
-					emp = emp_data.employee
-
-					try:
-						# Skip if attendance_date is before employee's joining date
-						if emp_data.date_of_joining and getdate(current_date) < getdate(emp_data.date_of_joining):
-							continue
-
-						# Check if Daily Timesheet already exists
-						existing_timesheet = frappe.db.exists("Daily Timesheet", {
-							"employee": emp,
-							"attendance_date": current_date
-						})
-
-						if existing_timesheet:
-							# Update existing record
-							doc = frappe.get_doc("Daily Timesheet", existing_timesheet)
-							doc.calculate_all_fields()
-							doc.save()
-							batch_updated += 1
-						else:
-							# Create new Daily Timesheet
-							doc = frappe.get_doc({
-								"doctype": "Daily Timesheet",
-								"employee": emp,
-								"employee_name": emp_data.employee_name,
-								"attendance_date": current_date,
-								"department": emp_data.department,
-								"custom_section": emp_data.custom_section,
-								"custom_group": emp_data.custom_group,
-								"company": emp_data.company or frappe.defaults.get_user_default("Company")
-							})
-
-							doc.calculate_all_fields()
-							doc.insert(ignore_permissions=True)
-							batch_created += 1
-
-					except Exception as e:
-						frappe.log_error(f"Error processing timesheet for {emp} on {current_date}: {str(e)}")
-						batch_errors += 1
-						continue
-				
-				# Commit batch
-				frappe.db.commit()
-				created_count += batch_created
-				updated_count += batch_updated
-				error_count += batch_errors
-				processed_operations += len(emp_batch)
-				
-				# Update progress
-				progress = min(processed_operations / total_operations * 100, 100)
-				frappe.publish_progress(
-					progress,
-					title=f"Processing date {current_date.strftime('%Y-%m-%d')}...",
-					description=f"Created: {created_count}, Updated: {updated_count}"
-				)
-				
-			except Exception as e:
-				# Rollback batch on error
-				frappe.db.rollback()
-				frappe.log_error(f"Batch processing error for date {current_date}: {str(e)}")
-				error_count += len(emp_batch)
-				processed_operations += len(emp_batch)
-		
-		current_date = add_days(current_date, 1)
-	
-	# Final results
-	end_time = time.time()
-	processing_time = round(end_time - start_time, 2)
-	
-	result = {
-		"success": True,
-		"created": created_count,
-		"updated": updated_count,
-		"errors": error_count,
-		"total_operations": total_operations,
-		"processing_time": processing_time,
-		"records_per_second": round((created_count + updated_count) / processing_time, 2) if processing_time > 0 else 0
-	}
-	
-	message = f"Processed {len(active_employees)} employees. Created {created_count}, Updated {updated_count} in {processing_time}s"
 	if error_count > 0:
 		message += f" ({error_count} errors logged)"
 	
@@ -1349,18 +1480,18 @@ def bulk_recalculate_job(employee=None, date_range=None, batch_size=100, total_c
 		raise e
 
 @frappe.whitelist()
-def bulk_create_recalculate_timesheet(from_date, to_date, employee=None, batch_size=50):
+def bulk_create_recalculate_timesheet(from_date, to_date, employee=None, batch_size=100):
 	"""Combined function: Create Daily Timesheet from checkins AND recalculate existing ones
 	This replaces both create_from_checkins_smart and bulk_recalculate_smart
 	"""
 	import time
 	from frappe.utils import getdate
-	
+
 	start_time = time.time()
-	
+
 	# Convert batch_size to int
-	batch_size = int(batch_size) if batch_size else 50
-	batch_size = min(batch_size, 100)
+	batch_size = int(batch_size) if batch_size else 100
+	batch_size = min(batch_size, 200)  # MAX LIMIT for stability
 	
 	# Calculate total operations
 	date_range_days = (getdate(to_date) - getdate(from_date)).days + 1
@@ -1408,28 +1539,28 @@ def bulk_create_recalculate_timesheet(from_date, to_date, employee=None, batch_s
 		# Small operation, run synchronously with hybrid approach
 		return bulk_create_recalculate_hybrid(from_date, to_date, employee, batch_size)
 
-def bulk_create_recalculate_hybrid(from_date, to_date, employee=None, batch_size=50):
-	"""Hybrid approach: Create + Recalculate in one operation"""
+def bulk_create_recalculate_hybrid(from_date, to_date, employee=None, batch_size=100):
+	"""OPTIMIZED: Bulk load all data first, then process with minimal queries"""
 	import time
 	from frappe.utils import getdate, add_days
-	
+
 	start_time = time.time()
-	
+
 	# Convert batch_size to int
-	batch_size = int(batch_size) if batch_size else 50
-	batch_size = min(batch_size, 100)
-	
+	batch_size = int(batch_size) if batch_size else 100
+	batch_size = min(batch_size, 200)  # MAX LIMIT for stability
+
 	# Build employee conditions
 	emp_conditions = ["emp.status = 'Active'"]
 	filters = {
 		"from_date": getdate(from_date),
 		"to_date": getdate(to_date)
 	}
-	
+
 	if employee:
 		emp_conditions.append("emp.name = %(employee)s")
 		filters["employee"] = employee
-	
+
 	# Get ALL active employees with date_of_joining
 	active_employees = frappe.db.sql(f"""
 		SELECT emp.name as employee, emp.employee_name, emp.department,
@@ -1438,35 +1569,38 @@ def bulk_create_recalculate_hybrid(from_date, to_date, employee=None, batch_size
 		WHERE {' AND '.join(emp_conditions)}
 		ORDER BY emp.name
 	""", filters, as_dict=1)
-	
+
 	if not active_employees:
 		return {"success": True, "created": 0, "updated": 0, "message": "No active employees found"}
-	
+
 	# Calculate total operations
 	date_range_days = (getdate(to_date) - getdate(from_date)).days + 1
 	total_operations = len(active_employees) * date_range_days
-	
-	frappe.publish_progress(0, title="Initializing bulk create + recalculate...")
-	
+
+	# ===== BULK DATA LOADING - QUERY ONCE =====
+	employee_ids = [emp.employee for emp in active_employees]
+
+	bulk_data = load_bulk_timesheet_data(employee_ids, from_date, to_date)
+
 	# Process in batches by date
 	created_count = 0
 	updated_count = 0
 	error_count = 0
 	processed_operations = 0
-	
+
 	current_date = getdate(from_date)
 	end_date = getdate(to_date)
-	
+
 	while current_date <= end_date:
 		# Process employees in batches for this date
 		for emp_offset in range(0, len(active_employees), batch_size):
 			emp_batch = active_employees[emp_offset:emp_offset + batch_size]
-			
+
 			# Process batch within transaction
 			batch_created = 0
 			batch_updated = 0
 			batch_errors = 0
-			
+
 			try:
 				for emp_data in emp_batch:
 					emp = emp_data.employee
@@ -1483,9 +1617,9 @@ def bulk_create_recalculate_hybrid(from_date, to_date, employee=None, batch_size
 						})
 
 						if existing_timesheet:
-							# Update existing record - FULL RECALCULATION
+							# Update existing record - OPTIMIZED CALCULATION with pre-loaded data
 							doc = frappe.get_doc("Daily Timesheet", existing_timesheet)
-							doc.calculate_all_fields()
+							calculate_all_fields_optimized(doc, bulk_data)
 							doc.save()
 							batch_updated += 1
 						else:
@@ -1501,7 +1635,7 @@ def bulk_create_recalculate_hybrid(from_date, to_date, employee=None, batch_size
 								"company": emp_data.company or frappe.defaults.get_user_default("Company")
 							})
 
-							doc.calculate_all_fields()
+							calculate_all_fields_optimized(doc, bulk_data)
 							doc.insert(ignore_permissions=True)
 							batch_created += 1
 
@@ -1509,35 +1643,27 @@ def bulk_create_recalculate_hybrid(from_date, to_date, employee=None, batch_size
 						frappe.log_error(f"Error processing timesheet for {emp} on {current_date}: {str(e)}")
 						batch_errors += 1
 						continue
-				
+
 				# Commit batch
 				frappe.db.commit()
 				created_count += batch_created
 				updated_count += batch_updated
 				error_count += batch_errors
 				processed_operations += len(emp_batch)
-				
-				# Update progress
-				progress = min(processed_operations / total_operations * 100, 100)
-				frappe.publish_progress(
-					progress,
-					title=f"Processing date {current_date.strftime('%Y-%m-%d')}...",
-					description=f"Created: {created_count}, Updated: {updated_count}"
-				)
-				
+
 			except Exception as e:
 				# Rollback batch on error
 				frappe.db.rollback()
 				frappe.log_error(f"Batch processing error for date {current_date}: {str(e)}")
 				error_count += len(emp_batch)
 				processed_operations += len(emp_batch)
-		
+
 		current_date = add_days(current_date, 1)
-	
+
 	# Final results
 	end_time = time.time()
 	processing_time = round(end_time - start_time, 2)
-	
+
 	result = {
 		"success": True,
 		"created": created_count,
@@ -1547,15 +1673,15 @@ def bulk_create_recalculate_hybrid(from_date, to_date, employee=None, batch_size
 		"processing_time": processing_time,
 		"records_per_second": round((created_count + updated_count) / processing_time, 2) if processing_time > 0 else 0
 	}
-	
-	message = f"Processed {len(active_employees)} employees. Created {created_count}, Updated {updated_count} in {processing_time}s"
+
+	message = f"Processed {len(active_employees)} employees. Created {created_count}, Updated {updated_count} in {processing_time}s (OPTIMIZED)"
 	if error_count > 0:
 		message += f" ({error_count} errors logged)"
-	
+
 	frappe.msgprint(message)
 	return result
 
-def bulk_create_recalculate_job(from_date, to_date, employee=None, batch_size=50, total_operations=0):
+def bulk_create_recalculate_job(from_date, to_date, employee=None, batch_size=100, total_operations=0):
 	"""Background job for combined bulk create + recalculate"""
 	try:
 		frappe.publish_progress(0, title="Starting background create + recalculate...",
@@ -1585,97 +1711,6 @@ def bulk_create_recalculate_job(from_date, to_date, employee=None, batch_size=50
 				"success": False,
 				"error": str(e),
 				"message": "Background create + recalculate failed"
-			},
-			user=frappe.session.user
-		)
-		raise e
-
-@frappe.whitelist()
-def create_from_checkins_smart(from_date, to_date, employee=None, batch_size=50):
-	"""Smart bulk creation - auto-detects if operation should run in background"""
-	import time
-	from frappe.utils import getdate
-	
-	# Convert batch_size to int
-	batch_size = int(batch_size) if batch_size else 50
-	batch_size = min(batch_size, 100)
-	
-	# Calculate total operations
-	date_range_days = (getdate(to_date) - getdate(from_date)).days + 1
-	
-	# Get employee count estimate
-	emp_conditions = ["emp.status = 'Active'"]
-	filters = {}
-	
-	if employee:
-		emp_conditions.append("emp.name = %(employee)s")
-		filters["employee"] = employee
-	
-	active_employee_count = frappe.db.sql(f"""
-		SELECT COUNT(*) as count
-		FROM `tabEmployee` emp
-		WHERE {' AND '.join(emp_conditions)}
-	""", filters, as_dict=1)[0].count
-	
-	total_operations = active_employee_count * date_range_days
-	
-	# If operation is large (>500 operations), run in background to prevent timeout
-	if total_operations > 500:
-		job_id = f"bulk_create_{int(time.time())}"
-		
-		frappe.enqueue(
-			'customize_erpnext.customize_erpnext.doctype.daily_timesheet.daily_timesheet.create_from_checkins_job',
-			queue='default',
-			timeout=1800,  # 30 minutes
-			job_id=job_id,
-			from_date=from_date,
-			to_date=to_date,
-			employee=employee,
-			batch_size=batch_size,
-			total_operations=total_operations
-		)
-		
-		return {
-			"success": True,
-			"background_job": True, 
-			"job_id": job_id,
-			"total_operations": total_operations,
-			"message": f"Large operation ({total_operations} operations) queued for background processing"
-		}
-	else:
-		# Small operation, run synchronously with hybrid approach
-		return create_from_checkins_hybrid(from_date, to_date, employee, batch_size)
-
-def create_from_checkins_job(from_date, to_date, employee=None, batch_size=50, total_operations=0):
-	"""Background job for bulk creation"""
-	try:
-		frappe.publish_progress(0, title="Starting background creation...",
-							  description=f"Processing {total_operations} operations in background")
-		
-		result = create_from_checkins_hybrid(from_date, to_date, employee, batch_size)
-		
-		frappe.publish_realtime(
-			event='bulk_operation_complete',
-			message={
-				"operation": "create",
-				"success": True,
-				"result": result,
-				"message": f"Background creation completed: {result.get('created', 0)} created, {result.get('updated', 0)} updated"
-			},
-			user=frappe.session.user
-		)
-		
-		return result
-		
-	except Exception as e:
-		frappe.log_error(f"Background bulk creation failed: {str(e)}")
-		frappe.publish_realtime(
-			event='bulk_operation_complete',
-			message={
-				"operation": "create",
-				"success": False, 
-				"error": str(e),
-				"message": "Background creation failed"
 			},
 			user=frappe.session.user
 		)

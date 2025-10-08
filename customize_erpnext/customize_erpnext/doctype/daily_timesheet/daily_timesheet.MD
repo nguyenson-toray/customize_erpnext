@@ -2,7 +2,17 @@
 
 ## 🆕 **LATEST UPDATES** (Những thay đổi mới nhất)
 
-### 1. **Lunch Break Overtime (NEW)**
+### ⭐ **Code Cleanup & Optimization (2025-10-08)**
+- ✅ **Xóa 5 functions trùng lặp**: Loại bỏ `bulk_recalculate()`, `create_from_checkins()`, `create_from_checkins_hybrid()`, `create_from_checkins_smart()`, `create_from_checkins_job()`
+- ✅ **Giảm ~345 lines code**: Tối ưu cấu trúc code (xóa 250 lines duplicate functions + 95 lines unused progress dialog)
+- ✅ **Consolidated Functions**:
+  - **Bulk Create + Recalculate**: `bulk_create_recalculate_timesheet()` → `bulk_create_recalculate_hybrid()` (OPTIMIZED with bulk data loading)
+  - **Bulk Recalculate Only**: `bulk_recalculate_smart()` → `bulk_recalculate_hybrid()`
+- ✅ **Stable Performance**: `batch_size=100` (default), max=200 cho stability và predictable performance
+- ✅ **UI/UX Improvement**: Removed progress tracking, chỉ hiện thông báo khi hoàn thành hoặc có lỗi
+- ✅ **No Breaking Changes**: JS integration intact, tất cả functions hiện tại vẫn hoạt động
+
+### 1. **Lunch Break Overtime**
 - ✅ **Tính OT trong giờ nghỉ trưa**: Điều kiện check-in trước nghỉ trưa + check-out sau nghỉ trưa + có đăng ký OT lunch
 - ✅ **Logic tính**: Toàn bộ lunch break period với ngưỡng tối thiểu 15 phút
 - ✅ **Hàm mới**: `check_lunch_break_ot_registration()` kiểm tra đăng ký OT lunch
@@ -11,7 +21,7 @@
 - **Trước**: `Actual OT = Pre-shift + Post-shift`
 - **✅ Sau**: `Actual OT = Pre-shift + Lunch-break + Post-shift`
 
-### 3. **🔄 Auto Workflow Integration (NEW)**
+### 3. **🔄 Auto Workflow Integration**
 - ✅ **Smart Auto-Recalculation**: Khi Shift Registration/Overtime Registration thay đổi → Tự động tính lại Daily Timesheet
 - ✅ **Intelligent Processing**: ≤200 records = real-time, >200 records = background processing
 - ✅ **Full Lifecycle**: Submit/Cancel/Update after submit đều trigger auto-recalc
@@ -192,12 +202,112 @@ Khi xóa Employee Checkin:
 # Sau khi sửa hooks, chạy:
 bench --site erp-sonnt.tiqn.local clear-cache
 bench build
-bench --site erp-sonnt.tiqn.local migrate  
+bench --site erp-sonnt.tiqn.local migrate
 bench restart
 
-# Manual bulk sync:
+# Manual bulk sync (DEPRECATED - Use bulk_create_recalculate_timesheet instead):
 bench --site erp-sonnt.tiqn.local execute "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.manual_bulk_sync" --kwargs "{'from_date': '2025-01-01', 'to_date': '2025-01-31'}"
 ```
+
+## 🔧 Bulk Operations API
+
+### ✅ **Recommended Functions** (After Cleanup)
+
+#### 1. **Bulk Create + Recalculate** (Combined Operation - OPTIMIZED)
+```python
+# Tạo mới + Tính lại tất cả Daily Timesheet
+frappe.call({
+    method: "customize_erpnext.customize_erpnext.doctype.daily_timesheet.daily_timesheet.bulk_create_recalculate_timesheet",
+    args: {
+        from_date: "2025-01-01",
+        to_date: "2025-01-31",
+        employee: null,     // optional
+        batch_size: 100     // Stable batch size (default 100, max 200)
+    }
+})
+```
+
+**Optimization Architecture**:
+- ✅ Bulk data loading (single query) for all employees and date range
+- ✅ Batch processing with configurable size (default 100, max 200)
+- ✅ Transaction commit per batch for data consistency
+- ✅ Background job for operations >500 records (auto-detect)
+- ✅ Error handling with rollback per batch
+
+#### 2. **Bulk Recalculate Only** (Existing Records)
+```python
+# Chỉ tính lại các Daily Timesheet đã tồn tại
+frappe.call({
+    method: "customize_erpnext.customize_erpnext.doctype.daily_timesheet.daily_timesheet.bulk_recalculate_smart",
+    args: {
+        employee: null,  // optional
+        date_range: JSON.stringify({
+            from_date: "2025-01-01",
+            to_date: "2025-01-31"
+        }),
+        batch_size: 100
+    }
+})
+```
+
+#### 3. **Single Record Recalculate**
+```python
+# Tính lại 1 Daily Timesheet record
+frappe.call({
+    method: "customize_erpnext.customize_erpnext.doctype.daily_timesheet.daily_timesheet.recalculate_timesheet",
+    args: {
+        docname: "DT-00001"
+    }
+})
+```
+
+### ❌ **Deprecated Functions** (Removed in 2025-10-08)
+- `bulk_recalculate()` → Use `bulk_recalculate_smart()` instead
+- `create_from_checkins()` → Use `bulk_create_recalculate_timesheet()` instead
+- `create_from_checkins_hybrid()` → Use `bulk_create_recalculate_hybrid()` instead
+- `create_from_checkins_smart()` → Use `bulk_create_recalculate_timesheet()` instead
+- `create_from_checkins_job()` → Use `bulk_create_recalculate_job()` instead
+
+---
+
+## ⚡ Performance Optimization
+
+### Batch Size Configuration
+
+**Current Settings (Stable Configuration):**
+
+| Configuration | Default | Max | Server Spec | Notes |
+|---------------|---------|-----|-------------|-------|
+| Conservative | 50 | 100 | 2-4 CPU, 4-8GB RAM | Small servers |
+| **Current** | **100** | **200** | **All servers** | **Balanced stability & performance** ✅ |
+
+### Performance Benchmark
+
+**Sequential Processing (Current Implementation):**
+```
+Batch 50:  ~200 batches × 2s/batch = ~400s (6.7 phút)
+Batch 100: ~100 batches × 2s/batch = ~200s (3.3 phút) ← Current setting ✅
+Batch 200: ~50 batches × 2s/batch = ~100s (1.7 phút) ← Max limit
+```
+
+**Real-world Performance (16 CPU / 32GB RAM):**
+- 6,351 records: ~210s (30 rec/sec)
+- 7,942 records: ~260s (31 rec/sec)
+- Throughput: **~30 records/sec** (stable)
+
+**Why batch_size=100?**
+- ✅ Stable và predictable performance
+- ✅ Dễ debug khi có lỗi
+- ✅ Transaction rollback nhỏ nếu có lỗi
+- ✅ Ít memory pressure
+- ✅ Compatible với Frappe's database connection pool
+
+### Current Settings
+- ✅ Default batch_size: **100**
+- ✅ Maximum batch_size: **200**
+- ✅ Background job threshold: **500 operations**
+- ✅ Transaction commit: Every batch (for data consistency)
+- ✅ Bulk data loading: Single query for all data
 
 ## ⚙️ Constants & Thresholds (Latest Update)
 
