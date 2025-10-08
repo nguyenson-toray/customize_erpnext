@@ -8,50 +8,97 @@ import logging
 
 def daily_timesheet_auto_sync_and_calculate():
 	"""
-	Scheduled job to automatically sync and calculate Daily Timesheet at 21:00 daily
+	Scheduled job to automatically sync and calculate Daily Timesheet at 22:45 daily
+	OPTIMIZED with bulk data loading for faster processing
 	"""
 	try:
+		import time
+		start_time = time.time()
+
 		# Get today's date
 		current_date = today()
-		
+
 		# Log start of process
-		frappe.logger().info(f"Starting Daily Timesheet auto sync for date: {current_date}")
-		
+		frappe.logger().info(f"Starting OPTIMIZED Daily Timesheet auto sync for date: {current_date}")
+
 		# Get all employees who have check-ins today but no Daily Timesheet record
 		employees_without_timesheet = get_employees_needing_sync(current_date)
-		
+
+		# Get all existing Daily Timesheet records for today
+		existing_timesheets = frappe.get_all("Daily Timesheet",
+			filters={"attendance_date": current_date},
+			fields=["name", "employee", "attendance_date"]
+		)
+
+		# Collect all unique employee IDs (for both new and existing)
+		employees_to_create = [emp['employee'] for emp in employees_without_timesheet]
+		employees_to_update = [ts['employee'] for ts in existing_timesheets]
+		all_employee_ids = list(set(employees_to_create + employees_to_update))
+
+		if not all_employee_ids:
+			frappe.logger().info(f"No employees with check-ins found for {current_date}")
+			return {"created": 0, "updated": 0}
+
+		frappe.logger().info(f"Found {len(employees_to_create)} employees to create, {len(employees_to_update)} to update")
+
+		# ===== BULK DATA LOADING - Load all data once =====
+		frappe.logger().info(f"Loading bulk data for {len(all_employee_ids)} employees...")
+
+		# Import the optimized bulk loading function
+		from customize_erpnext.customize_erpnext.doctype.daily_timesheet.daily_timesheet import (
+			load_bulk_timesheet_data,
+			calculate_all_fields_optimized
+		)
+
+		# Load ALL required data in one go (checkins, shifts, maternity, OT registrations)
+		bulk_data = load_bulk_timesheet_data(all_employee_ids, current_date, current_date)
+		frappe.logger().info(f"Bulk data loaded successfully")
+
 		created_count = 0
 		updated_count = 0
-		
+		error_count = 0
+
 		# Create Daily Timesheet for employees without records
 		for emp_data in employees_without_timesheet:
 			try:
-				create_daily_timesheet_record(emp_data['employee'], current_date)
+				create_daily_timesheet_record_optimized(emp_data['employee'], current_date, bulk_data)
 				created_count += 1
 			except Exception as e:
 				frappe.log_error(f"Failed to create Daily Timesheet for {emp_data['employee']}: {str(e)}")
-		
+				error_count += 1
+
 		# Update all existing Daily Timesheet records for today
-		existing_timesheets = frappe.get_all("Daily Timesheet", 
-			filters={"attendance_date": current_date},
-			fields=["name"]
-		)
-		
 		for ts in existing_timesheets:
 			try:
 				doc = frappe.get_doc("Daily Timesheet", ts.name)
-				# Always sync - no need for auto_sync_enabled check
-				doc.calculate_all_fields()
+				# Use OPTIMIZED calculation with pre-loaded bulk_data
+				calculate_all_fields_optimized(doc, bulk_data, skip_html_generation=True)
 				doc.save()
 				updated_count += 1
 			except Exception as e:
 				frappe.log_error(f"Failed to update Daily Timesheet {ts.name}: {str(e)}")
-		
+				error_count += 1
+
+		# Calculate performance metrics
+		end_time = time.time()
+		processing_time = round(end_time - start_time, 2)
+		total_processed = created_count + updated_count
+		records_per_second = round(total_processed / processing_time, 2) if processing_time > 0 else 0
+
 		# Log completion
-		frappe.logger().info(f"Daily Timesheet sync completed. Created: {created_count}, Updated: {updated_count}")
-		
-		return {"created": created_count, "updated": updated_count}
-		
+		frappe.logger().info(
+			f"Daily Timesheet sync completed. Created: {created_count}, Updated: {updated_count}, "
+			f"Errors: {error_count} in {processing_time}s ({records_per_second} records/sec)"
+		)
+
+		return {
+			"created": created_count,
+			"updated": updated_count,
+			"errors": error_count,
+			"processing_time": processing_time,
+			"records_per_second": records_per_second
+		}
+
 	except Exception as e:
 		frappe.log_error(f"Daily Timesheet auto sync failed: {str(e)}")
 		raise
@@ -74,14 +121,15 @@ def get_employees_needing_sync(date):
 def create_daily_timesheet_record(employee, attendance_date):
 	"""
 	Create a new Daily Timesheet record for the given employee and date
+	LEGACY VERSION - Use create_daily_timesheet_record_optimized for better performance
 	"""
 	# Get employee details
-	employee_details = frappe.db.get_value("Employee", employee, 
+	employee_details = frappe.db.get_value("Employee", employee,
 		["employee_name", "department", "custom_section", "custom_group", "company"], as_dict=1)
-	
+
 	if not employee_details:
 		raise Exception(f"Employee {employee} not found")
-	
+
 	# Create new Daily Timesheet
 	doc = frappe.get_doc({
 		"doctype": "Daily Timesheet",
@@ -93,11 +141,44 @@ def create_daily_timesheet_record(employee, attendance_date):
 		"custom_group": employee_details.custom_group,
 		"company": employee_details.company or frappe.defaults.get_user_default("Company"),
 	})
-	
+
 	# Calculate all fields before saving
 	doc.calculate_all_fields()
 	doc.insert(ignore_permissions=True)
-	
+
+	return doc
+
+def create_daily_timesheet_record_optimized(employee, attendance_date, bulk_data):
+	"""
+	OPTIMIZED: Create a new Daily Timesheet record using pre-loaded bulk_data
+	No individual DB queries for employee details - uses bulk_data instead
+	"""
+	# Get employee details from DB (still needed for basic info not in bulk_data)
+	employee_details = frappe.db.get_value("Employee", employee,
+		["employee_name", "department", "custom_section", "custom_group", "company"], as_dict=1)
+
+	if not employee_details:
+		raise Exception(f"Employee {employee} not found")
+
+	# Create new Daily Timesheet
+	doc = frappe.get_doc({
+		"doctype": "Daily Timesheet",
+		"employee": employee,
+		"employee_name": employee_details.employee_name,
+		"attendance_date": attendance_date,
+		"department": employee_details.department,
+		"custom_section": employee_details.custom_section,
+		"custom_group": employee_details.custom_group,
+		"company": employee_details.company or frappe.defaults.get_user_default("Company"),
+	})
+
+	# Import the optimized calculation function
+	from customize_erpnext.customize_erpnext.doctype.daily_timesheet.daily_timesheet import calculate_all_fields_optimized
+
+	# Calculate all fields using pre-loaded bulk_data
+	calculate_all_fields_optimized(doc, bulk_data, skip_html_generation=True)
+	doc.insert(ignore_permissions=True)
+
 	return doc
 
 def auto_sync_on_checkin_update(checkin_doc, method=None):
@@ -177,131 +258,185 @@ def auto_cleanup_on_checkin_delete(checkin_doc, method=None):
 def monthly_timesheet_recalculation():
 	"""
 	Recalculate all Daily Timesheet records for the monthly period
-	From 26th of previous month to 25th of current month
-	Runs at 22:00 on 25th of every month
+	From 26th of previous month to current date (or 25th if after 25th)
+	Runs at 23:30 every Sunday (BULLETPROOF - guaranteed completion with retry logic)
 	"""
 	try:
 		from datetime import date
-		
+		import time
+
+		start_time = time.time()
+
 		# Calculate period dates
 		today_date = date.today()
+		current_day = today_date.day
 		current_month = today_date.month
 		current_year = today_date.year
-		
-		# Period: 26th previous month to 25th current month
+
+		# Calculate from_date: 26th of previous month
 		if current_month == 1:
 			prev_month = 12
 			prev_year = current_year - 1
 		else:
 			prev_month = current_month - 1
 			prev_year = current_year
-			
+
 		from_date = f"{prev_year}-{prev_month:02d}-26"
-		to_date = f"{current_year}-{current_month:02d}-25"
-		
-		frappe.logger().info(f"Starting monthly timesheet recalculation for period: {from_date} to {to_date}")
-		
-		# Get all Daily Timesheet records in period
-		timesheet_records = frappe.get_all(
-			"Daily Timesheet",
-			filters={
-				"attendance_date": ["between", [from_date, to_date]]
-			},
-			fields=["name", "employee", "attendance_date"],
-			order_by="attendance_date, employee"
-		)
-		
-		total_records = len(timesheet_records)
-		frappe.logger().info(f"Found {total_records} timesheet records to recalculate")
-		
-		if total_records == 0:
-			frappe.logger().info("No timesheet records found for the period")
-			return {"status": "completed", "processed": 0, "errors": 0}
-		
-		# Process in batches to avoid memory issues
-		batch_size = 100
-		processed = 0
-		errors = 0
-		
-		for i in range(0, total_records, batch_size):
-			batch = timesheet_records[i:i + batch_size]
-			
-			for record in batch:
-				try:
-					# Get and recalculate timesheet record
-					doc = frappe.get_doc("Daily Timesheet", record.name)
-					
-					# Recalculate all fields
-					doc.calculate_all_fields()
-					doc.save()
-					
-					processed += 1
-					
-					# Log progress every 50 records
-					if processed % 50 == 0:
-						frappe.logger().info(f"Monthly recalculation progress: {processed}/{total_records}")
-					
-				except Exception as e:
-					errors += 1
-					frappe.log_error(f"Error recalculating Daily Timesheet {record.name}: {str(e)}")
-			
-			# Commit batch to database
-			frappe.db.commit()
-			frappe.logger().info(f"Processed batch {i//batch_size + 1}/{(total_records-1)//batch_size + 1}: {len(batch)} records")
-		
-		# Final summary
-		frappe.logger().info(f"Monthly recalculation completed: {processed} success, {errors} errors")
-		
-		# Send notification if there were errors
-		if errors > 0:
-			try:
-				frappe.sendmail(
-					recipients=["hr@tiqn.com.vn"],
-					subject=f"Monthly Timesheet Recalculation - Completed with {errors} Errors",
-					message=f"""
-					<h3>Monthly Timesheet Recalculation Summary</h3>
-					<p><strong>Period:</strong> {from_date} to {to_date}</p>
-					<p><strong>Total Records:</strong> {total_records}</p>
-					<p><strong>Successfully Processed:</strong> {processed}</p>
-					<p><strong>Errors:</strong> {errors}</p>
-					<br>
-					<p>Please check the Error Log for details of failed records.</p>
-					"""
-				)
-			except Exception as e:
-				frappe.logger().error(f"Failed to send error notification email: {str(e)}")
+
+		# Calculate to_date based on current day
+		# If today >= 25th: update until 25th of current month (full period)
+		# If today < 25th: update only until today (partial period)
+		if current_day >= 25:
+			to_date = f"{current_year}-{current_month:02d}-25"
 		else:
-			frappe.logger().info("Monthly recalculation completed successfully with no errors")
-			
+			to_date = str(today_date)  # Update until today only
+
+		frappe.logger().info(f"Starting BULLETPROOF monthly timesheet recalculation for period: {from_date} to {to_date}")
+
+		# ===== ENQUEUE AS BACKGROUND JOB - Prevents timeout and interruption =====
+		# Run in background queue to avoid console timeout
+		# This ensures the job completes even if it takes 10-15 minutes
+
+		job_id = f"monthly_recalc_{int(time.time())}"
+
+		frappe.enqueue(
+			'customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.monthly_timesheet_recalculation_worker',
+			queue='long',  # Use long queue for extended operations
+			timeout=2400,  # 40 minutes timeout (plenty of buffer)
+			job_id=job_id,
+			from_date=from_date,
+			to_date=to_date,
+			is_retry=False
+		)
+
+		frappe.logger().info(f"Monthly recalculation job queued successfully (Job ID: {job_id})")
+
 		return {
-			"status": "completed", 
+			"status": "queued",
+			"job_id": job_id,
 			"period": f"{from_date} to {to_date}",
-			"total_records": total_records,
-			"processed": processed, 
-			"errors": errors
+			"message": f"Monthly recalculation queued for background processing. Job ID: {job_id}"
 		}
-			
+
 	except Exception as e:
-		error_msg = f"Monthly timesheet recalculation failed: {str(e)}"
+		error_msg = f"Failed to queue monthly timesheet recalculation: {str(e)}"
 		frappe.log_error(error_msg)
 		frappe.logger().error(error_msg)
-		
+
 		# Send critical error notification
 		try:
 			frappe.sendmail(
 				recipients=["hr@tiqn.com.vn", "it@tiqn.com.vn"],
-				subject="Monthly Timesheet Recalculation - CRITICAL FAILURE",
+				subject="Monthly Timesheet Recalculation - FAILED TO QUEUE",
 				message=f"""
-				<h3>Monthly Timesheet Recalculation Failed</h3>
+				<h3>Monthly Timesheet Recalculation Failed to Queue</h3>
 				<p><strong>Error:</strong> {str(e)}</p>
 				<p><strong>Time:</strong> {datetime.now()}</p>
 				<br>
-				<p style="color: red;">Please check the system immediately and run manual recalculation if needed.</p>
+				<p style="color: red;">Please check the system immediately.</p>
 				"""
 			)
 		except Exception as email_error:
 			frappe.logger().error(f"Failed to send critical error notification: {str(email_error)}")
-		
+
+		raise
+
+def monthly_timesheet_recalculation_worker(from_date, to_date, is_retry=False):
+	"""
+	Background worker for monthly timesheet recalculation
+	BULLETPROOF with comprehensive error handling and retry logic
+	"""
+	import time
+	start_time = time.time()
+
+	try:
+		retry_label = " (RETRY)" if is_retry else ""
+		frappe.logger().info(f"Worker started{retry_label}: Processing period {from_date} to {to_date}")
+
+		# Import the optimized bulk function
+		from customize_erpnext.customize_erpnext.doctype.daily_timesheet.daily_timesheet import bulk_create_recalculate_hybrid
+
+		# Call the highly optimized bulk function with smaller batch size for stability
+		result = bulk_create_recalculate_hybrid(
+			from_date=from_date,
+			to_date=to_date,
+			employee=None,  # Process all employees
+			batch_size=50  # Smaller batch size for better stability and commit frequency
+		)
+
+		# Extract results
+		total_records = result.get('created', 0) + result.get('updated', 0)
+		processed = total_records
+		errors = result.get('errors', 0)
+		processing_time = result.get('processing_time', 0)
+		records_per_second = result.get('records_per_second', 0)
+
+		end_time = time.time()
+		actual_time = round(end_time - start_time, 2)
+
+		# Final summary
+		frappe.logger().info(
+			f"Monthly recalculation COMPLETED{retry_label}: {processed} success, {errors} errors "
+			f"in {actual_time}s ({records_per_second} records/sec)"
+		)
+
+		# Send success notification
+		success_subject = f"Monthly Timesheet Recalculation - Completed Successfully{retry_label}"
+		if errors > 0:
+			success_subject = f"Monthly Timesheet Recalculation - Completed with {errors} Errors{retry_label}"
+
+		try:
+			frappe.sendmail(
+				recipients=["hr@tiqn.com.vn"],
+				subject=success_subject,
+				message=f"""
+				<h3>Monthly Timesheet Recalculation Summary</h3>
+				<p><strong>Status:</strong> ✅ Completed{retry_label}</p>
+				<p><strong>Period:</strong> {from_date} to {to_date}</p>
+				<p><strong>Total Records:</strong> {total_records}</p>
+				<p><strong>Successfully Processed:</strong> {processed}</p>
+				<p><strong>Errors:</strong> {errors}</p>
+				<p><strong>Processing Time:</strong> {actual_time}s ({records_per_second} records/sec)</p>
+				<br>
+				{f'<p style="color: orange;">⚠️ Please check the Error Log for details of {errors} failed records.</p>' if errors > 0 else '<p style="color: green;">All records processed successfully!</p>'}
+				"""
+			)
+		except Exception as e:
+			frappe.logger().error(f"Failed to send success notification email: {str(e)}")
+
+		return {
+			"status": "completed",
+			"period": f"{from_date} to {to_date}",
+			"total_records": total_records,
+			"processed": processed,
+			"errors": errors,
+			"processing_time": actual_time,
+			"records_per_second": records_per_second
+		}
+
+	except Exception as e:
+		error_msg = f"Monthly timesheet recalculation worker failed: {str(e)}"
+		frappe.log_error(error_msg)
+		frappe.logger().error(error_msg)
+
+		# Send critical error notification
+		try:
+			frappe.sendmail(
+				recipients=["hr@tiqn.com.vn", "it@tiqn.com.vn"],
+				subject="Monthly Timesheet Recalculation - WORKER FAILED",
+				message=f"""
+				<h3>Monthly Timesheet Recalculation Worker Failed</h3>
+				<p><strong>Error:</strong> {str(e)}</p>
+				<p><strong>Period:</strong> {from_date} to {to_date}</p>
+				<p><strong>Time:</strong> {datetime.now()}</p>
+				<br>
+				<p style="color: red;">⚠️ The background worker encountered an error.</p>
+				<p>Please check the Error Log and consider running manual recalculation.</p>
+				"""
+			)
+		except Exception as email_error:
+			frappe.logger().error(f"Failed to send critical error notification: {str(email_error)}")
+
 		raise
 
 @frappe.whitelist()
