@@ -927,14 +927,15 @@ def load_bulk_timesheet_data(employee_ids, from_date, to_date):
 			shift_reg_by_emp[emp] = []
 		shift_reg_by_emp[emp].append(reg)
 
-	# 3. Load employee groups (for Canteen shift detection)
-	emp_groups = frappe.db.sql(f"""
-		SELECT name, custom_group
+	# 3. Load employee groups AND joining dates (for Canteen shift detection + validation)
+	emp_data = frappe.db.sql(f"""
+		SELECT name, custom_group, date_of_joining
 		FROM `tabEmployee`
 		WHERE name IN ({emp_placeholders})
 	""", tuple(employee_ids), as_dict=1)
 
-	emp_group_map = {eg.name: eg.custom_group for eg in emp_groups}
+	emp_group_map = {ed.name: ed.custom_group for ed in emp_data}
+	emp_joining_map = {ed.name: ed.date_of_joining for ed in emp_data}
 
 	# 4. Load all maternity tracking records
 	maternity_data = frappe.db.sql(f"""
@@ -955,6 +956,7 @@ def load_bulk_timesheet_data(employee_ids, from_date, to_date):
 		maternity_by_emp[emp].append(mat)
 
 	# 5. Load all overtime registrations
+	# NOTE: MySQL TIME columns are returned as timedelta, so we need to convert them
 	overtime_data = frappe.db.sql(f"""
 		SELECT ord.employee, ord.date, ord.begin_time, ord.end_time
 		FROM `tabOvertime Registration Detail` ord
@@ -963,6 +965,22 @@ def load_bulk_timesheet_data(employee_ids, from_date, to_date):
 		  AND ord.date BETWEEN %s AND %s
 		  AND or_doc.docstatus = 1
 	""", tuple(employee_ids) + (from_date, to_date), as_dict=1)
+
+	# Convert timedelta to time objects for proper comparison
+	from datetime import time as dt_time, timedelta
+	for ot in overtime_data:
+		if isinstance(ot.begin_time, timedelta):
+			total_seconds = int(ot.begin_time.total_seconds())
+			hours = total_seconds // 3600
+			minutes = (total_seconds % 3600) // 60
+			seconds = total_seconds % 60
+			ot.begin_time = dt_time(hours, minutes, seconds)
+		if isinstance(ot.end_time, timedelta):
+			total_seconds = int(ot.end_time.total_seconds())
+			hours = total_seconds // 3600
+			minutes = (total_seconds % 3600) // 60
+			seconds = total_seconds % 60
+			ot.end_time = dt_time(hours, minutes, seconds)
 
 	# Index overtime by (employee, date)
 	overtime_by_emp_date = {}
@@ -976,11 +994,12 @@ def load_bulk_timesheet_data(employee_ids, from_date, to_date):
 		"checkins": checkins_by_emp_date,
 		"shift_registrations": shift_reg_by_emp,
 		"employee_groups": emp_group_map,
+		"employee_joining_dates": emp_joining_map,
 		"maternity_tracking": maternity_by_emp,
 		"overtime_registrations": overtime_by_emp_date
 	}
 
-def calculate_all_fields_optimized(doc, bulk_data):
+def calculate_all_fields_optimized(doc, bulk_data, skip_html_generation=False):
 	"""
 	Optimized version of calculate_all_fields that uses pre-loaded bulk_data
 	No individual DB queries - all data from bulk_data dictionary
@@ -991,13 +1010,14 @@ def calculate_all_fields_optimized(doc, bulk_data):
 	from frappe.utils import getdate, time_diff_in_hours
 	from datetime import datetime, time, timedelta
 
-	# Validate attendance_date is not before employee's joining date
-	date_of_joining = frappe.db.get_value("Employee", doc.employee, "date_of_joining")
+	# Validate attendance_date is not before employee's joining date (from bulk_data)
+	date_of_joining = bulk_data["employee_joining_dates"].get(doc.employee)
 	if date_of_joining and getdate(doc.attendance_date) < getdate(date_of_joining):
 		frappe.throw(f"Cannot create Daily Timesheet: Attendance date ({doc.attendance_date}) is before employee's joining date ({date_of_joining})")
 
-	# Always generate additional info HTML first
-	doc.generate_additional_info_html()
+	# Only generate additional info HTML if not skipped (for bulk operations)
+	if not skip_html_generation:
+		doc.generate_additional_info_html()
 
 	# 1. Get check-in/out data from bulk_data
 	check_in, check_out = get_employee_checkin_data_from_bulk(doc.employee, doc.attendance_date, bulk_data)
@@ -1619,7 +1639,7 @@ def bulk_create_recalculate_hybrid(from_date, to_date, employee=None, batch_size
 						if existing_timesheet:
 							# Update existing record - OPTIMIZED CALCULATION with pre-loaded data
 							doc = frappe.get_doc("Daily Timesheet", existing_timesheet)
-							calculate_all_fields_optimized(doc, bulk_data)
+							calculate_all_fields_optimized(doc, bulk_data, skip_html_generation=True)
 							doc.save()
 							batch_updated += 1
 						else:
@@ -1635,7 +1655,7 @@ def bulk_create_recalculate_hybrid(from_date, to_date, employee=None, batch_size
 								"company": emp_data.company or frappe.defaults.get_user_default("Company")
 							})
 
-							calculate_all_fields_optimized(doc, bulk_data)
+							calculate_all_fields_optimized(doc, bulk_data, skip_html_generation=True)
 							doc.insert(ignore_permissions=True)
 							batch_created += 1
 
