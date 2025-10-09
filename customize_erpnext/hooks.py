@@ -265,8 +265,19 @@ doc_events = {
     },
 
     "Employee": {
-        "validate": "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.check_maternity_tracking_changes",
-        "on_update": "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.auto_recalc_on_maternity_tracking_change"
+        "validate": [
+            "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.check_maternity_tracking_changes",
+            "customize_erpnext.api.employee.employee_validation.validate_employee_changes"
+        ],
+        "on_update": [
+            "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.auto_recalc_on_maternity_tracking_change",
+            "customize_erpnext.api.employee.erpnext_mongodb.sync_employee_to_mongodb"
+        ],
+        "after_insert": "customize_erpnext.api.employee.erpnext_mongodb.sync_employee_to_mongodb",
+        "on_trash": [
+            "customize_erpnext.api.employee.employee_validation.prevent_employee_deletion",
+            "customize_erpnext.api.employee.erpnext_mongodb.delete_employee_from_mongodb"
+        ]
     },
 
     "Shift Type": {

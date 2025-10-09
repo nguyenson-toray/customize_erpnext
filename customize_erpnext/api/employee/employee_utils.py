@@ -1115,6 +1115,30 @@ def update_employee_photo(employee_id, employee_name, new_file_url, old_file_url
 
 
 @frappe.whitelist()
+def allow_change_name_attendance_device_id(name):
+    """
+    Check if employee name and attendance_device_id can be changed
+    Returns False if employee has existing checkin records, True otherwise
+
+    Args:
+        name: Employee ID (name field)
+
+    Returns:
+        bool: True if changes are allowed, False if employee has checkin data
+    """
+    if not name:
+        return True
+
+    # Check if employee has any checkin records
+    checkin_exists = frappe.db.exists('Employee Checkin', {'employee': name})
+
+    if checkin_exists:
+        return False
+
+    return True
+
+
+@frappe.whitelist()
 def debug_company_logo():
     """Debug method to check company logo"""
     result = []
