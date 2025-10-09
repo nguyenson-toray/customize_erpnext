@@ -270,38 +270,19 @@ def generate_employee_cards_pdf(employee_ids, with_barcode=0, page_size='A4'):
 
         frappe.logger().info(f"PDF generated successfully, size: {len(pdf_data)} bytes")
 
-        # Save PDF to temp file
+        # Generate filename with timestamp
         timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
         pdf_filename = f'employee_cards_{timestamp}.pdf'
 
-        # Save to public files
-        with tempfile.NamedTemporaryFile(mode='wb', delete=False, suffix='.pdf') as tmp_file:
-            tmp_file.write(pdf_data)
-            tmp_file_path = tmp_file.name
+        # Convert to base64 for client download
+        pdf_base64 = base64.b64encode(pdf_data).decode('utf-8')
 
-        frappe.logger().info(f"PDF saved to temp file: {tmp_file_path}")
-
-        # Read and save as File document
-        with open(tmp_file_path, 'rb') as f:
-            file_doc = frappe.get_doc({
-                'doctype': 'File',
-                'file_name': pdf_filename,
-                'is_private': 0,
-                'folder': 'Home',
-                'content': f.read()
-            })
-            file_doc.save(ignore_permissions=True)
-
-        # Clean up temp file
-        os.unlink(tmp_file_path)
-
-        frappe.db.commit()
-
-        frappe.logger().info(f"Employee cards PDF created: {file_doc.file_url}")
+        frappe.logger().info(f"Employee cards PDF created: {pdf_filename}")
 
         return {
             'status': 'success',
-            'pdf_url': file_doc.file_url,
+            'pdf_data': pdf_base64,
+            'pdf_filename': pdf_filename,
             'message': f'Generated {len(employees)} employee cards'
         }
 
