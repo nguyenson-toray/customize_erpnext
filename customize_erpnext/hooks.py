@@ -271,7 +271,7 @@ doc_events = {
         ],
         "on_update": [
             "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.auto_recalc_on_maternity_tracking_change",
-            "customize_erpnext.api.employee.erpnext_mongodb.sync_employee_to_mongodb"
+            # "customize_erpnext.api.employee.erpnext_mongodb.sync_employee_to_mongodb"
         ],
         "after_insert": "customize_erpnext.api.employee.erpnext_mongodb.sync_employee_to_mongodb",
         "on_trash": [

@@ -141,7 +141,9 @@ class DailyTimesheet(Document):
 		self.final_ot_with_coefficient = self.decimal_round(self.overtime_hours * self.overtime_coefficient)
 		
 		# 9. Calculate late entry / early exit
-		self.late_entry, self.early_exit = self.calculate_late_early(check_in, check_out, shift_config, self.maternity_benefit)
+		late_entry_val, early_exit_val = self.calculate_late_early(check_in, check_out, shift_config, self.maternity_benefit)
+		self.late_entry = late_entry_val
+		self.early_exit = early_exit_val
 		
 		# 10. Update status based on date and overtime
 		from datetime import datetime
@@ -1101,7 +1103,26 @@ def calculate_all_fields_optimized(doc, bulk_data, skip_html_generation=False):
 	doc.final_ot_with_coefficient = doc.decimal_round(doc.overtime_hours * doc.overtime_coefficient)
 
 	# 9. Calculate late entry / early exit
-	doc.late_entry, doc.early_exit = doc.calculate_late_early(check_in, check_out, shift_config, doc.maternity_benefit)
+	try:
+		late_early_result = doc.calculate_late_early(check_in, check_out, shift_config, doc.maternity_benefit)
+		if isinstance(late_early_result, tuple) and len(late_early_result) == 2:
+			late_entry_val, early_exit_val = late_early_result
+			doc.late_entry = late_entry_val
+			doc.early_exit = early_exit_val
+		else:
+			frappe.log_error(
+				f"calculate_late_early returned unexpected type: {type(late_early_result)}, value: {late_early_result}",
+				"Daily Timesheet Calculate Late/Early Error"
+			)
+			doc.late_entry = False
+			doc.early_exit = False
+	except Exception as e:
+		frappe.log_error(
+			f"Error unpacking late_early for {doc.employee} on {doc.attendance_date}: {str(e)}\nResult type: {type(late_early_result) if 'late_early_result' in locals() else 'not assigned'}",
+			"Daily Timesheet Unpack Error"
+		)
+		doc.late_entry = False
+		doc.early_exit = False
 
 	# 10. Update status
 	if date_obj.weekday() == 6:
