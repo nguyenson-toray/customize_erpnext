@@ -41,6 +41,30 @@ function ensureFingerprintModule() {
 
 frappe.ui.form.on('Employee', {
     refresh: function (frm) {
+        // Check if employee can be modified (name and attendance_device_id)
+        if (!frm.is_new() && frm.doc.name) {
+            frappe.call({
+                method: 'customize_erpnext.api.employee.employee_utils.allow_change_name_attendance_device_id',
+                args: {
+                    name: frm.doc.name
+                },
+                callback: function(r) {
+                    if (!r.message) {
+                        // Employee has checkin records, set fields as read-only
+                        frm.set_df_property('employee', 'read_only', 1);
+                        frm.set_df_property('attendance_device_id', 'read_only', 1);
+
+                        // Add indicator
+                        frm.dashboard.add_indicator(__('Employee ID and Attendance Device ID are locked (has attendance records)'), 'orange');
+                    } else {
+                        // Allow editing
+                        frm.set_df_property('employee', 'read_only', 0);
+                        frm.set_df_property('attendance_device_id', 'read_only', 0);
+                    }
+                }
+            });
+        }
+
         // Add custom button for fingerprint scanning if not new record
         if (!frm.is_new() && frm.doc.name) {
             frm.add_custom_button(__('🔍 Scan Fingerprints'), async function () {
