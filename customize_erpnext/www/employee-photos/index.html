@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Employee Photos Gallery</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: #f5f7fa;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            padding: 20px 30px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            color: #2e3842;
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+
+        .stats {
+            color: #6c757d;
+            font-size: 14px;
+        }
+
+        .search-box {
+            margin: 10px 0;
+            padding: 10px;
+            flex: 1;
+            min-width: 250px;
+            border: 1px solid #d1d8dd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .controls-row {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .control-group label {
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 14px;
+            white-space: nowrap;
+        }
+
+        .control-group select {
+            padding: 6px 10px;
+            border: 1px solid #d1d8dd;
+            border-radius: 4px;
+            font-size: 14px;
+            cursor: pointer;
+            background-color: white;
+        }
+
+        .control-group input[type="checkbox"] {
+            cursor: pointer;
+            width: 16px;
+            height: 16px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 60px 20px;
+            color: #6c757d;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #5e64ff;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .gallery {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 20px;
+            padding: 20px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .photo-card {
+            background: #f8f9fa;
+            border-radius: 8px;
+            overflow: hidden;
+            transition: transform 0.2s, box-shadow 0.2s;
+            cursor: pointer;
+            border: 1px solid #e9ecef;
+        }
+
+        .photo-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .photo-card img {
+            width: 100%;
+            height: 250px;
+            object-fit: cover;
+            display: block;
+        }
+
+        .photo-info {
+            padding: 12px;
+        }
+
+        .employee-id {
+            font-weight: 600;
+            color: #2e3842;
+            font-size: 13px;
+            margin-bottom: 4px;
+            word-wrap: break-word;
+        }
+
+        .file-info {
+            color: #6c757d;
+            font-size: 11px;
+        }
+
+        .error {
+            text-align: center;
+            padding: 40px 20px;
+            color: #dc3545;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.9);
+        }
+
+        .modal-content {
+            margin: auto;
+            display: block;
+            max-width: 90%;
+            max-height: 90%;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        .close {
+            position: absolute;
+            top: 20px;
+            right: 35px;
+            color: #f1f1f1;
+            font-size: 40px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .close:hover {
+            color: #bbb;
+        }
+
+        .modal-caption {
+            text-align: center;
+            color: #ccc;
+            padding: 10px;
+            position: absolute;
+            bottom: 20px;
+            width: 100%;
+        }
+
+        .no-results {
+            text-align: center;
+            padding: 40px 20px;
+            color: #6c757d;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📸 Employee Photos Gallery</h1>
+            <div class="stats" id="stats">Loading...</div>
+            <div class="controls-row">
+                <input type="text" class="search-box" id="searchBox" placeholder="Search by employee ID or name...">
+
+                <div class="control-group">
+                    <label>
+                        <input type="checkbox" id="showActiveOnlyCheckbox" checked>
+                        <span>Show Active Employee</span>
+                    </label>
+                </div>
+
+                <div class="control-group">
+                    <label for="sortOrderSelect">Sort:</label>
+                    <select id="sortOrderSelect">
+                        <option value="desc">Z-A</option>
+                        <option value="asc">A-Z</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <p>Loading employee photos...</p>
+        </div>
+
+        <div id="error" class="error" style="display: none;"></div>
+
+        <div id="gallery" class="gallery" style="display: none;"></div>
+    </div>
+
+    <div id="modal" class="modal">
+        <span class="close">&times;</span>
+        <img class="modal-content" id="modalImg">
+        <div class="modal-caption" id="modalCaption"></div>
+    </div>
+
+    <script>
+        let allPhotos = [];
+        let filteredPhotos = [];
+
+        // Load photos on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            loadPhotos();
+
+            // Setup event listeners
+            document.getElementById('showActiveOnlyCheckbox').addEventListener('change', function () {
+                loadPhotos();
+            });
+
+            document.getElementById('sortOrderSelect').addEventListener('change', function () {
+                loadPhotos();
+            });
+        });
+
+        async function loadPhotos() {
+            try {
+                const showActiveOnly = document.getElementById('showActiveOnlyCheckbox').checked ? 1 : 0;
+                const sortOrder = document.getElementById('sortOrderSelect').value;
+                const response = await fetch(`/api/method/customize_erpnext.api.employee_photos_viewer.api.get_employee_photos?show_active_only=${showActiveOnly}&sort_order=${sortOrder}`);
+                const data = await response.json();
+
+                if (data.message && data.message.status === 'success') {
+                    allPhotos = data.message.photos;
+                    filteredPhotos = allPhotos;
+                    displayPhotos();
+                    updateStats();
+                } else {
+                    showError('Failed to load photos: ' + (data.message.message || 'Unknown error'));
+                }
+            } catch (error) {
+                showError('Error loading photos: ' + error.message);
+            }
+        }
+
+        function displayPhotos() {
+            const gallery = document.getElementById('gallery');
+            const loading = document.getElementById('loading');
+
+            loading.style.display = 'none';
+
+            if (filteredPhotos.length === 0) {
+                gallery.innerHTML = '<div class="no-results">No employee photos found.</div>';
+                gallery.style.display = 'block';
+                return;
+            }
+
+            gallery.innerHTML = filteredPhotos.map(photo => `
+                <div class="photo-card" onclick="openModal('${photo.url}', '${photo.display_name}')">
+                    <img src="${photo.url}" alt="${photo.display_name}" loading="lazy">
+                    <div class="photo-info">
+                        <div class="employee-id">${photo.display_name}</div>
+                        <div class="file-info">${formatFileSize(photo.size)}</div>
+                    </div>
+                </div>
+            `).join('');
+
+            gallery.style.display = 'grid';
+        }
+
+        function updateStats() {
+            const stats = document.getElementById('stats');
+            stats.textContent = `Total: ${allPhotos.length} photos | Showing: ${filteredPhotos.length}`;
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        }
+
+        function showError(message) {
+            const error = document.getElementById('error');
+            const loading = document.getElementById('loading');
+            error.textContent = message;
+            error.style.display = 'block';
+            loading.style.display = 'none';
+        }
+
+        // Search functionality
+        document.getElementById('searchBox').addEventListener('input', function (e) {
+            const searchTerm = e.target.value.toLowerCase();
+            filteredPhotos = allPhotos.filter(photo =>
+                photo.display_name.toLowerCase().includes(searchTerm)
+            );
+            displayPhotos();
+            updateStats();
+        });
+
+        // Modal functionality
+        const modal = document.getElementById('modal');
+        const modalImg = document.getElementById('modalImg');
+        const modalCaption = document.getElementById('modalCaption');
+        const closeBtn = document.getElementsByClassName('close')[0];
+
+        function openModal(url, caption) {
+            modal.style.display = 'block';
+            modalImg.src = url;
+            modalCaption.textContent = caption;
+        }
+
+        closeBtn.onclick = function () {
+            modal.style.display = 'none';
+        }
+
+        modal.onclick = function (e) {
+            if (e.target === modal) {
+                modal.style.display = 'none';
+            }
+        }
+
+        // Close modal with ESC key
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') {
+                modal.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+
+</html>
