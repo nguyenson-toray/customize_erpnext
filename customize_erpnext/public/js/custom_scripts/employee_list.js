@@ -279,14 +279,18 @@ function generate_cards_for_employees(employee_ids, with_barcode, page_size) {
             page_size: page_size || 'A4'
         },
         callback: function (r) {
-            if (r.message && r.message.pdf_url) {
+            if (r.message && r.message.pdf_data && r.message.pdf_filename) {
                 frappe.show_alert({
                     message: __('Employee cards generated successfully'),
                     indicator: 'green'
                 });
 
-                // Open PDF in new window
-                window.open(r.message.pdf_url, '_blank');
+                // Download PDF directly to client
+                const linkSource = `data:application/pdf;base64,${r.message.pdf_data}`;
+                const downloadLink = document.createElement('a');
+                downloadLink.href = linkSource;
+                downloadLink.download = r.message.pdf_filename;
+                downloadLink.click();
             } else {
                 frappe.msgprint({
                     title: __('Error'),
@@ -370,14 +374,18 @@ function print_employee_cards(listview) {
                     page_size: values.page_size || 'A4'
                 },
                 callback: function (r) {
-                    if (r.message && r.message.pdf_url) {
+                    if (r.message && r.message.pdf_data && r.message.pdf_filename) {
                         frappe.show_alert({
                             message: __('Employee cards generated successfully'),
                             indicator: 'green'
                         });
 
-                        // Open PDF in new window
-                        window.open(r.message.pdf_url, '_blank');
+                        // Download PDF directly to client
+                        const linkSource = `data:application/pdf;base64,${r.message.pdf_data}`;
+                        const downloadLink = document.createElement('a');
+                        downloadLink.href = linkSource;
+                        downloadLink.download = r.message.pdf_filename;
+                        downloadLink.click();
                     } else {
                         frappe.msgprint({
                             title: __('Error'),
@@ -496,35 +504,35 @@ function show_update_employee_photo_dialog(listview) {
                     },
                     body: formData
                 })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.message) {
-                        uploaded_files.push({
-                            file_url: data.message.file_url,
-                            file_name: data.message.file_name
-                        });
-                        upload_success++;
-                    }
-                    upload_count++;
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.message) {
+                            uploaded_files.push({
+                                file_url: data.message.file_url,
+                                file_name: data.message.file_name
+                            });
+                            upload_success++;
+                        }
+                        upload_count++;
 
-                    if (upload_count === files.length) {
-                        is_uploading = false;
-                        status_div.html(
-                            '<p style="margin: 0; color: #28a745;">✓ Uploaded ' + upload_success + ' file(s) successfully. Click "Process Photos" to continue.</p>'
-                        );
-                    }
-                })
-                .catch(error => {
-                    console.error('Upload error:', error);
-                    upload_count++;
+                        if (upload_count === files.length) {
+                            is_uploading = false;
+                            status_div.html(
+                                '<p style="margin: 0; color: #28a745;">✓ Uploaded ' + upload_success + ' file(s) successfully. Click "Process Photos" to continue.</p>'
+                            );
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Upload error:', error);
+                        upload_count++;
 
-                    if (upload_count === files.length) {
-                        is_uploading = false;
-                        status_div.html(
-                            '<p style="margin: 0; color: ' + (upload_success > 0 ? '#28a745' : '#dc3545') + ';">✓ Uploaded ' + upload_success + ' of ' + files.length + ' file(s). Click "Process Photos" to continue.</p>'
-                        );
-                    }
-                });
+                        if (upload_count === files.length) {
+                            is_uploading = false;
+                            status_div.html(
+                                '<p style="margin: 0; color: ' + (upload_success > 0 ? '#28a745' : '#dc3545') + ';">✓ Uploaded ' + upload_success + ' of ' + files.length + ' file(s). Click "Process Photos" to continue.</p>'
+                            );
+                        }
+                    });
             });
         });
     }, 300);
