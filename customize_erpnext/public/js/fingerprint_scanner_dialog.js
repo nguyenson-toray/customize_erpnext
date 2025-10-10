@@ -127,6 +127,30 @@ window.FingerprintScannerDialog = {
      * @param {string} employee_name - Employee name for display
      */
     showForEmployee: function (employee_id, employee_name = null) {
+        // BUGFIX: Clean up old dialog completely before creating new one
+        if (FingerprintScannerDialog.scan_dialog) {
+            try {
+                FingerprintScannerDialog.scan_dialog.hide();
+                FingerprintScannerDialog.scan_dialog.$wrapper.remove();
+            } catch (e) {
+                console.log('Error cleaning old dialog:', e);
+            }
+        }
+
+        // Reset all global state
+        FingerprintScannerDialog.scan_dialog = null;
+        FingerprintScannerDialog.scan_count = 0;
+        if (FingerprintScannerDialog.scan_attempts) {
+            FingerprintScannerDialog.scan_attempts = {};
+        }
+
+        // Small delay to ensure DOM cleanup is complete
+        setTimeout(() => {
+            FingerprintScannerDialog._createDialog(employee_id, employee_name);
+        }, 100);
+    },
+
+    _createDialog: function(employee_id, employee_name) {
         let d = new frappe.ui.Dialog({
             title: __('🔍 Fingerprint Scanner - {0}', [employee_name || employee_id]),
             fields: [
@@ -212,7 +236,7 @@ window.FingerprintScannerDialog = {
                 {
                     fieldname: 'scan_status',
                     fieldtype: 'HTML',
-                    options: '<div id="scan-status-container" style="background: #fff; border: 2px solid #e9ecef; border-radius: 8px; padding: 15px;"><div class="d-flex align-items-center mb-3"><i class="fa fa-desktop" style="font-size: 20px; color: #007bff; margin-right: 10px;"></i><h6 class="mb-0">Scanner Activity</h6></div><div id="scan-status" style="height: 180px; overflow-y: auto; padding: 10px; border-radius: 6px; background: #f8f9fa; font-family: \'Monaco\', \'Menlo\', \'Ubuntu Mono\', monospace; font-size: 13px; line-height: 1.4;"><div class="log-entry text-info"><strong>[' + new Date().toLocaleTimeString() + ']</strong> 🟢 Ready to scan fingerprints</div></div></div>'
+                    options: '<div id="scan-status-container" style="background: #fff; border: 2px solid #e9ecef; border-radius: 8px; padding: 15px;"><div class="d-flex align-items-center mb-3"><i class="fa fa-desktop" style="font-size: 20px; color: #007bff; margin-right: 10px;"></i><h6 class="mb-0">Scanner Activity</h6></div><div id="scan-status" style="height: 180px; overflow-y: auto; padding: 10px; border-radius: 6px; background: #f8f9fa; font-family: Monaco, Menlo, monospace; font-size: 13px; line-height: 1.4;"><div class="log-entry text-info"><strong>[' + new Date().toLocaleTimeString() + ']</strong> 🟢 Ready to scan fingerprints</div></div></div>'
                 },
                 {
                     fieldname: 'history_section',
@@ -247,6 +271,16 @@ window.FingerprintScannerDialog = {
                 d.set_value('finger_selection', '');
                 FingerprintScannerDialog.updateScanStatus('<div style="text-align: center; font-size: 1.2em; font-weight: bold; color: #007bff; margin: 10px 0;">🔄 Đã xóa dữ liệu - Sẵn sàng quét mới</div>', 'info');
                 FingerprintScannerDialog.updateFingerStatusDisplay([]);
+            }
+        });
+
+        // BUGFIX: Add cleanup on dialog close
+        d.$wrapper.on('hidden.bs.modal', function() {
+            // Clean up all references when dialog is closed
+            FingerprintScannerDialog.scan_dialog = null;
+            FingerprintScannerDialog.scan_count = 0;
+            if (FingerprintScannerDialog.scan_attempts) {
+                FingerprintScannerDialog.scan_attempts = {};
             }
         });
 
@@ -292,7 +326,13 @@ window.FingerprintScannerDialog = {
 
     updateFingerStatusDisplay: function (existing_fingers) {
         console.log('updateFingerStatusDisplay called with:', existing_fingers);
-        const fingerGrid = document.getElementById('finger-grid');
+
+        // BUGFIX: Use dialog-scoped selector instead of document.getElementById
+        // This prevents finding stale elements from previous dialogs
+        let fingerGrid = null;
+        if (FingerprintScannerDialog.scan_dialog && FingerprintScannerDialog.scan_dialog.$wrapper) {
+            fingerGrid = FingerprintScannerDialog.scan_dialog.$wrapper.find('#finger-grid')[0];
+        }
         console.log('fingerGrid element found:', !!fingerGrid);
 
         if (fingerGrid) {
@@ -333,10 +373,13 @@ window.FingerprintScannerDialog = {
             fingerGrid.innerHTML = grid_html;
             console.log('Fingerprint status display updated successfully');
         } else {
-            console.error('finger-grid element not found in DOM');
-            // Try to find it after a short delay
+            console.error('finger-grid element not found in dialog');
+            // Try to find it after a short delay using dialog scope
             setTimeout(() => {
-                const delayedGrid = document.getElementById('finger-grid');
+                let delayedGrid = null;
+                if (FingerprintScannerDialog.scan_dialog && FingerprintScannerDialog.scan_dialog.$wrapper) {
+                    delayedGrid = FingerprintScannerDialog.scan_dialog.$wrapper.find('#finger-grid')[0];
+                }
                 if (delayedGrid) {
                     console.log('Found finger-grid after delay, retrying...');
                     FingerprintScannerDialog.updateFingerStatusDisplay(existing_fingers);
@@ -453,7 +496,12 @@ window.FingerprintScannerDialog = {
     },
 
     updateScanStatus: function (message, type = 'info') {
-        const statusDiv = document.getElementById('scan-status');
+        // BUGFIX: Use dialog-scoped selector instead of document.getElementById
+        let statusDiv = null;
+        if (FingerprintScannerDialog.scan_dialog && FingerprintScannerDialog.scan_dialog.$wrapper) {
+            statusDiv = FingerprintScannerDialog.scan_dialog.$wrapper.find('#scan-status')[0];
+        }
+
         if (statusDiv && message !== '') {
             const timestamp = new Date().toLocaleTimeString();
             let textClass = 'text-info';
@@ -530,7 +578,13 @@ window.FingerprintScannerDialog = {
 
     addScanToHistory: function (employee_id, finger_name, template_size, status) {
         FingerprintScannerDialog.scan_count++;
-        const scanList = document.getElementById('scan-list');
+
+        // BUGFIX: Use dialog-scoped selector instead of document.getElementById
+        let scanList = null;
+        if (FingerprintScannerDialog.scan_dialog && FingerprintScannerDialog.scan_dialog.$wrapper) {
+            scanList = FingerprintScannerDialog.scan_dialog.$wrapper.find('#scan-list')[0];
+        }
+
         if (scanList) {
             // Clear "No scans yet" message
             if (FingerprintScannerDialog.scan_count === 1) {
