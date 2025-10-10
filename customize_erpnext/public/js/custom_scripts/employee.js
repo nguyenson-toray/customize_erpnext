@@ -67,7 +67,7 @@ frappe.ui.form.on('Employee', {
 
         // Add custom button for fingerprint scanning if not new record
         if (!frm.is_new() && frm.doc.name) {
-            frm.add_custom_button(__('🔍 Scan Fingerprints'), async function () {
+            frm.add_custom_button(__('🖐️ Scan Fingerprints'), async function () {
                 // Show fingerprint scanner dialog with fixed employee
                 const moduleReady = await ensureFingerprintModule();
                 if (moduleReady) {
@@ -77,6 +77,24 @@ frappe.ui.form.on('Employee', {
                         title: __('Module Loading Failed'),
                         message: __('Fingerprint Scanner module could not be loaded. Please refresh the page and try again.'),
                         indicator: 'red'
+                    });
+                }
+            },);
+            frm.add_custom_button(__('⬆️ Sync Fingerprints To Machines'), async function () {
+                // Show fingerprint scanner dialog with fixed employee
+                // Handle sync fingerprint button click
+                if (!frm.is_new() && frm.doc.name) {
+                    // Use shared sync dialog for single employee
+                    const employee = {
+                        employee_id: frm.doc.name,
+                        employee_name: frm.doc.employee_name
+                    };
+                    window.showSharedSyncDialog([employee]);
+                } else {
+                    frappe.msgprint({
+                        title: __('Save Required'),
+                        message: __('Please save the employee record first before syncing fingerprints.'),
+                        indicator: 'orange'
                     });
                 }
             },);
@@ -142,45 +160,8 @@ frappe.ui.form.on('Employee', {
     },
 
 
-    custom_scan_fingerprint: async function (frm) {
-        // Handle custom button field click
-        if (!frm.is_new() && frm.doc.name) {
-            const moduleReady = await ensureFingerprintModule();
-            if (moduleReady) {
-                window.FingerprintScannerDialog.showForEmployee(frm.doc.name, frm.doc.employee_name);
-            } else {
-                frappe.msgprint({
-                    title: __('Module Loading Failed'),
-                    message: __('Fingerprint Scanner module could not be loaded. Please refresh the page and try again.'),
-                    indicator: 'red'
-                });
-            }
-        } else {
-            frappe.msgprint({
-                title: __('Save Required'),
-                message: __('Please save the employee record first before scanning fingerprints.'),
-                indicator: 'orange'
-            });
-        }
-    },
 
-    custom_sync_fingerprint_data_to_machine: function (frm) {
-        // Handle sync fingerprint button click
-        if (!frm.is_new() && frm.doc.name) {
-            // Use shared sync dialog for single employee
-            const employee = {
-                employee_id: frm.doc.name,
-                employee_name: frm.doc.employee_name
-            };
-            window.showSharedSyncDialog([employee]);
-        } else {
-            frappe.msgprint({
-                title: __('Save Required'),
-                message: __('Please save the employee record first before syncing fingerprints.'),
-                indicator: 'orange'
-            });
-        }
-    },
+
 
     employee: function (frm) {
         // Store the employee value whenever it changes

@@ -1036,3 +1036,35 @@ def set_default_warehouse_by_brand(template_item, brand_warehouse_map):
         frappe.msgprint(f"Updated default warehouse for {updated_count} variants")
 
     return updated_count
+
+@frappe.whitelist()
+def delete_fingerprint_data(employee_id, finger_index):
+    """Delete fingerprint template data for a specific finger"""
+    try:
+        employee = frappe.get_doc("Employee", employee_id)
+
+        # Find and remove the fingerprint with matching finger_index
+        fingerprint_to_remove = None
+        for fp in employee.get("custom_fingerprints"):
+            if str(fp.finger_index) == str(finger_index):
+                fingerprint_to_remove = fp
+                break
+
+        if fingerprint_to_remove:
+            employee.remove(fingerprint_to_remove)
+            employee.save(ignore_permissions=True)
+            frappe.db.commit()
+
+            return {
+                "success": True,
+                "message": f"Deleted fingerprint for finger index {finger_index}"
+            }
+        else:
+            return {
+                "success": False,
+                "message": f"No fingerprint found for finger index {finger_index}"
+            }
+
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), "Failed to delete fingerprint data")
+        return {"success": False, "message": str(e)}
