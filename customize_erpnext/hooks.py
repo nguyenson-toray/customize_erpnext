@@ -335,18 +335,14 @@ doc_events = {
 # ------------------
 
 # include js, css files in header of desk.html
-# app_include_css = "/assets/customize_erpnext/css/customize_erpnext.css"
-app_include_js = "/assets/customize_erpnext/js/fingerprint_scanner_dialog.js"
-
 # Include Cropper.js library for image cropping
-# Uncomment the lines below if ENABLE_EMPLOYEE_IMAGE_CROPPER = true in employee.js
-# app_include_css = [
-#     "https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css"
-# ]
-# app_include_js = [
-#     "/assets/customize_erpnext/js/fingerprint_scanner_dialog.js",
-#     "https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"
-# ]
+app_include_css = [
+    "https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css"
+]
+app_include_js = [
+    "/assets/customize_erpnext/js/fingerprint_scanner_dialog.js",
+    "https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"
+]
 
 # include js, css files in header of web template
 # web_include_css = "/assets/customize_erpnext/css/customize_erpnext.css"

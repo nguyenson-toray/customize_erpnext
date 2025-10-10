@@ -6,17 +6,17 @@ frappe.listview_settings['Employee'] = {
         console.log('Employee listview onload triggered');
         // Add individual menu items under Actions
         // Add Employee Card menu item
-        listview.page.add_menu_item(__('Update Employee Photo'), function () {
+        listview.page.add_menu_item(__('1. Bulk Update Employee Photo'), function () {
             show_update_employee_photo_dialog(listview);
         });
-        listview.page.add_menu_item(__('Generate Employee Cards'), function () {
+        listview.page.add_menu_item(__('2. Generate Employee Cards'), function () {
             print_employee_cards(listview);
         });
-        listview.page.add_menu_item(__('Scan Fingerprint'), function () {
+        listview.page.add_menu_item(__('3. Scan Fingerprint'), function () {
             show_get_fingerprint_dialog();
         });
 
-        listview.page.add_menu_item(__('Sync Fingerprint From ERP To Attendance Machines'), function () {
+        listview.page.add_menu_item(__('4. Sync Fingerprint From ERP To Attendance Machines'), function () {
             show_multi_employee_sync_dialog(listview);
         });
 

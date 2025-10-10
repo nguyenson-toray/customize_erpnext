@@ -1096,6 +1096,218 @@ def update_employee_photo(employee_id, employee_name, new_file_url, old_file_url
 
 
 @frappe.whitelist()
+def process_employee_photo(employee_id, employee_name, image_data, remove_bg=0):
+    """
+    Process employee photo: crop to 3:4 ratio, resize to 450x600px, optionally remove background
+    Save to public/files/employee_photos/{employee_id} {employee_name}.jpg
+
+    Args:
+        employee_id: Employee ID (name field)
+        employee_name: Employee full name
+        image_data: Base64 encoded image data (already cropped by frontend)
+        remove_bg: Whether to remove background (0 or 1, default: 0)
+
+    Returns:
+        Dict with file_url and success status
+    """
+    try:
+        # Validate PIL availability
+        if Image is None:
+            frappe.throw(_("PIL (Pillow) library is not installed"))
+
+        # Decode base64 image
+        if ',' in image_data:
+            # Remove data:image/jpeg;base64, prefix if present
+            image_data = image_data.split(',')[1]
+
+        file_data = base64.b64decode(image_data)
+
+        # Open image with PIL
+        img = Image.open(io.BytesIO(file_data))
+
+        # Convert to RGB if necessary (remove alpha channel)
+        if img.mode in ('RGBA', 'LA', 'P'):
+            background = Image.new('RGB', img.size, (255, 255, 255))
+            if img.mode == 'P':
+                img = img.convert('RGBA')
+            background.paste(img, mask=img.split()[-1] if img.mode in ('RGBA', 'LA') else None)
+            img = background
+        elif img.mode != 'RGB':
+            img = img.convert('RGB')
+
+        # Resize to exactly 450x600px (image should already be 3:4 ratio from frontend crop)
+        img = img.resize((450, 600), Image.Resampling.LANCZOS)
+
+        # Remove background if requested (convert to int for safety)
+        remove_bg = int(remove_bg) if remove_bg else 0
+        if remove_bg == 1:
+            try:
+                from rembg import remove
+
+                # Convert PIL image to bytes
+                img_byte_arr = io.BytesIO()
+                img.save(img_byte_arr, format='PNG')
+                img_byte_arr = img_byte_arr.getvalue()
+
+                # Remove background
+                output = remove(img_byte_arr)
+
+                # Convert back to PIL Image
+                img_no_bg = Image.open(io.BytesIO(output))
+
+                # Create white background
+                background = Image.new('RGB', img_no_bg.size, (255, 255, 255))
+
+                # Paste image with removed background onto white background
+                if img_no_bg.mode == 'RGBA':
+                    background.paste(img_no_bg, mask=img_no_bg.split()[-1])
+                else:
+                    background.paste(img_no_bg)
+
+                img = background
+
+            except ImportError:
+                frappe.msgprint(_("rembg library not installed, skipping background removal"), indicator="orange")
+            except Exception as bg_error:
+                frappe.log_error(f"Error removing background: {str(bg_error)}", "Background Removal Error")
+                frappe.msgprint(_("Failed to remove background, using original image"), indicator="orange")
+
+        # Save to BytesIO with JPEG compression
+        output_buffer = io.BytesIO()
+        img.save(output_buffer, format='JPEG', quality=85, optimize=True)
+        output_data = output_buffer.getvalue()
+
+        # Clean up employee name for file path
+        clean_name = employee_name.replace(' ', ' ') if employee_name else 'employee'
+        # Remove invalid filename characters but keep Vietnamese characters
+        clean_name = re.sub(r'[<>:"/\\|?*]', '', clean_name)
+
+        # Create file name: {employee_id} {employee_name}.jpg
+        final_file_name = f"{employee_id} {clean_name}.jpg"
+
+        # Get site path
+        site_path = get_site_path()
+
+        # Create directory: public/files/employee_photos/
+        employee_photos_dir = os.path.join(site_path, 'public', 'files', 'employee_photos')
+
+        # Create directory if it doesn't exist
+        if not os.path.exists(employee_photos_dir):
+            os.makedirs(employee_photos_dir, exist_ok=True)
+
+        # Full file path
+        file_path = os.path.join(employee_photos_dir, final_file_name)
+
+        # Get old file URL to delete later
+        old_file_url = frappe.db.get_value('Employee', employee_id, 'image')
+
+        # Delete ALL old files attached to this employee's image field
+        # This includes: old photo + any temporary uploaded files
+        try:
+            # Get all File documents attached to this employee's image field
+            old_files = frappe.get_all('File',
+                filters={
+                    'attached_to_doctype': 'Employee',
+                    'attached_to_name': employee_id,
+                    'attached_to_field': 'image'
+                },
+                fields=['name', 'file_url', 'file_name']
+            )
+
+            for old_file in old_files:
+                try:
+                    # Delete physical file
+                    old_physical_path = None
+                    if old_file.file_url.startswith('/private/'):
+                        old_physical_path = os.path.join(site_path, old_file.file_url.lstrip('/'))
+                    elif old_file.file_url.startswith('/files/'):
+                        old_physical_path = os.path.join(site_path, 'public', old_file.file_url.lstrip('/'))
+
+                    if old_physical_path and os.path.exists(old_physical_path):
+                        os.remove(old_physical_path)
+                        frappe.logger().info(f"Deleted old file: {old_physical_path}")
+
+                    # Delete File document
+                    frappe.delete_doc('File', old_file.name, ignore_permissions=True, force=True)
+                    frappe.logger().info(f"Deleted File document: {old_file.file_name}")
+
+                except Exception as del_err:
+                    frappe.logger().warning(f"Could not delete file {old_file.file_name}: {str(del_err)}")
+
+            # Also search and delete any physical files matching this employee in both locations
+            # (to clean up orphaned files that may not have File documents)
+            try:
+                # Search in /files/ directory
+                files_dir = os.path.join(site_path, 'public', 'files')
+                # Search in /files/employee_photos/ directory
+                employee_photos_dir = os.path.join(site_path, 'public', 'files', 'employee_photos')
+
+                for search_dir in [files_dir, employee_photos_dir]:
+                    if os.path.exists(search_dir):
+                        # Find files matching pattern: {employee_id} *.jpg
+                        import glob
+                        pattern = os.path.join(search_dir, f"{employee_id} *.jpg")
+                        matching_files = glob.glob(pattern)
+
+                        for file_to_delete in matching_files:
+                            if os.path.exists(file_to_delete):
+                                os.remove(file_to_delete)
+                                frappe.logger().info(f"Deleted orphaned file: {file_to_delete}")
+            except Exception as cleanup_err:
+                frappe.logger().warning(f"Could not cleanup orphaned files: {str(cleanup_err)}")
+
+        except Exception as del_err:
+            frappe.logger().warning(f"Could not delete old files: {str(del_err)}")
+
+        # Save file to disk
+        with open(file_path, 'wb') as f:
+            f.write(output_data)
+
+        # Create file URL
+        file_url = f'/files/employee_photos/{final_file_name}'
+
+        # Create or update File document
+        existing_file = frappe.db.exists('File', {'file_url': file_url})
+
+        if existing_file:
+            # Update existing file record
+            file_doc = frappe.get_doc('File', existing_file)
+            file_doc.file_size = len(output_data)
+            file_doc.save(ignore_permissions=True)
+        else:
+            # Create new file record
+            file_doc = frappe.get_doc({
+                'doctype': 'File',
+                'file_name': final_file_name,
+                'file_url': file_url,
+                'is_private': 0,
+                'folder': 'Home',
+                'attached_to_doctype': 'Employee',
+                'attached_to_name': employee_id,
+                'attached_to_field': 'image',
+                'file_size': len(output_data)
+            })
+            file_doc.insert(ignore_permissions=True)
+
+        # Update Employee image field
+        frappe.db.set_value('Employee', employee_id, 'image', file_url)
+        frappe.db.commit()
+
+        return {
+            'status': 'success',
+            'file_url': file_url,
+            'file_name': final_file_name,
+            'message': _('Photo processed and saved successfully')
+        }
+
+    except Exception as e:
+        frappe.logger().error(f"Error processing employee photo: {str(e)}")
+        import traceback
+        frappe.log_error(f"Error: {str(e)}\n{traceback.format_exc()}", "Employee Photo Processing Error")
+        frappe.throw(_("Failed to process employee photo: {0}").format(str(e)))
+
+
+@frappe.whitelist()
 def allow_change_name_attendance_device_id(name):
     """
     Check if employee name and attendance_device_id can be changed
