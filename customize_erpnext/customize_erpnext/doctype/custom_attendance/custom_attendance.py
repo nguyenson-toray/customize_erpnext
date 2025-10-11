@@ -546,7 +546,6 @@ class CustomAttendance(Document):
                 
             from .modules.overtime_calculator import calculate_working_hours_with_overtime_for_doc
             result = calculate_working_hours_with_overtime_for_doc(self)
-            
             if result["working_hours"] > 0:
                 self.working_hours = result["working_hours"]
                 self.overtime_hours = result["overtime_hours"]
@@ -606,7 +605,6 @@ def on_checkin_creation(doc, method):
             # Check if employee wants auto attendance creation
             if not getattr(employee_doc, 'create_auto_attendance', True):
                 return
-                
             new_attendance = frappe.new_doc("Custom Attendance")
             new_attendance.employee = doc.employee
             new_attendance.employee_name = employee_doc.employee_name
@@ -617,6 +615,7 @@ def on_checkin_creation(doc, method):
             
             # UPDATED: Set shift từ registration hoặc default
             registered_shift = get_registered_shift_for_employee(doc.employee, attendance_date)
+            
             if registered_shift:
                 new_attendance.shift = registered_shift
             elif hasattr(employee_doc, 'default_shift') and employee_doc.default_shift:
