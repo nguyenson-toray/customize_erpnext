@@ -136,185 +136,59 @@ function show_bulk_create_recalculate_dialog() {
 
 // Execute Combined Bulk Create + Recalculate - HYBRID VERSION
 function execute_bulk_create_recalculate_hybrid(values, dialog) {
-	let progress_dialog = show_progress_dialog_hybrid(__('Creating and Recalculating Daily Timesheets...'));
 	dialog.hide();
-	
-	// Setup progress listener
-	frappe.realtime.on('progress', function(data) {
-		if (progress_dialog && progress_dialog.update_progress) {
-			progress_dialog.update_progress(data.progress || 0, data.title || 'Processing...', data.description || '');
-		}
-	});
-	
+
 	frappe.call({
 		method: "customize_erpnext.customize_erpnext.doctype.daily_timesheet.daily_timesheet.bulk_create_recalculate_timesheet",
 		args: {
 			from_date: values.from_date,
 			to_date: values.to_date,
 			employee: values.employee,
-			batch_size: 50  // Optimal batch size for combined operation
+			batch_size: 100  // Stable batch size (default 100, max 200)
 		},
-		freeze: false,
+		freeze: true,
+		freeze_message: __('Processing... Please wait'),
 		callback: function(r) {
-			// Stop listening to progress updates
-			frappe.realtime.off('progress');
-			
-			setTimeout(() => {
-				try {
-					progress_dialog.hide();
-				} catch (e) {
-					console.log('Progress dialog hide failed:', e);
-				}
-				
-				if (!r.exc && r.message && r.message.success) {
-					const result = r.message;
-					
-					// Check if this is a background job
-					if (result.background_job) {
-						show_background_job_dialog({
-							title: __('Large Operation Queued'),
-							message: result.message,
-							job_id: result.job_id,
-							operation_type: 'create_recalculate'
-						});
-					} else {
-						// Regular synchronous result
-						show_results_dialog_hybrid({
-							title: __('Bulk Create + Recalculate Results - OPTIMIZED'),
-							type: 'success',
-							result: result,
-							operation_type: 'create_recalculate'
-						});
-					}
+			if (!r.exc && r.message && r.message.success) {
+				const result = r.message;
+
+				// Check if this is a background job
+				if (result.background_job) {
+					show_background_job_dialog({
+						title: __('Large Operation Queued'),
+						message: result.message,
+						job_id: result.job_id,
+						operation_type: 'create_recalculate'
+					});
 				} else {
-					frappe.msgprint({
-						title: __('Error'),
-						message: __('Failed to create and recalculate Daily Timesheet records. Please check the error log.'),
-						indicator: 'red'
+					// Regular synchronous result
+					show_results_dialog_hybrid({
+						title: __('Bulk Create + Recalculate Results - OPTIMIZED'),
+						type: 'success',
+						result: result,
+						operation_type: 'create_recalculate'
 					});
 				}
-			}, 200);
-		},
-		error: function(r) {
-			frappe.realtime.off('progress');
-			
-			setTimeout(() => {
-				try {
-					progress_dialog.hide();
-				} catch (e) {
-					console.log('Progress dialog hide failed:', e);
-				}
-				
-				console.error('Bulk create + recalculate error:', r);
+			} else {
 				frappe.msgprint({
-					title: __('System Error'),
-					message: __('An error occurred during bulk create + recalculate. Please check browser console.'),
+					title: __('Error'),
+					message: __('Failed to create and recalculate Daily Timesheet records. Please check the error log.'),
 					indicator: 'red'
 				});
-			}, 200);
+			}
+		},
+		error: function(r) {
+			console.error('Bulk create + recalculate error:', r);
+			frappe.msgprint({
+				title: __('System Error'),
+				message: __('An error occurred during bulk create + recalculate. Please check browser console.'),
+				indicator: 'red'
+			});
 		}
 	});
 }
 
-
-// Progress Dialog Helper - HYBRID VERSION with Real-time Updates
-function show_progress_dialog_hybrid(message = __('Processing...')) {
-	let progress_dialog = new frappe.ui.Dialog({
-		title: __('Processing in Progress - OPTIMIZED'),
-		fields: [
-			{
-				fieldtype: 'HTML',
-				fieldname: 'progress_html',
-				options: `
-					<div class="text-center" style="padding: 30px;">
-						<div class="progress mb-3" style="height: 25px;">
-							<div class="progress-bar progress-bar-striped progress-bar-animated bg-primary" 
-								 role="progressbar" 
-								 id="bulk-progress-bar"
-								 style="width: 0%" 
-								 aria-valuenow="0" 
-								 aria-valuemin="0" 
-								 aria-valuemax="100">0%</div>
-						</div>
-						<h5 id="bulk-progress-title" style="margin-top: 20px;">${message}</h5>
-						<p id="bulk-progress-description" class="text-muted">Initializing batch processing...</p>
-						<div class="mt-3">
-							<small class="text-info">
-								⚡ Using optimized batch processing for better performance
-							</small>
-						</div>
-					</div>
-				`
-			}
-		],
-		no_submit_on_enter: true
-	});
-	
-	progress_dialog.show();
-	
-	// Update progress method
-	progress_dialog.update_progress = function(progress, title, description) {
-		try {
-			const progressBar = document.getElementById('bulk-progress-bar');
-			const progressTitle = document.getElementById('bulk-progress-title');
-			const progressDescription = document.getElementById('bulk-progress-description');
-			
-			if (progressBar) {
-				const roundedProgress = Math.round(progress);
-				progressBar.style.width = roundedProgress + '%';
-				progressBar.setAttribute('aria-valuenow', roundedProgress);
-				progressBar.textContent = roundedProgress + '%';
-				
-				// Change color based on progress
-				progressBar.className = 'progress-bar progress-bar-striped progress-bar-animated ';
-				if (progress < 25) {
-					progressBar.className += 'bg-info';
-				} else if (progress < 50) {
-					progressBar.className += 'bg-primary';
-				} else if (progress < 75) {
-					progressBar.className += 'bg-warning';
-				} else {
-					progressBar.className += 'bg-success';
-				}
-			}
-			
-			if (progressTitle && title) {
-				progressTitle.textContent = title;
-			}
-			
-			if (progressDescription && description) {
-				progressDescription.textContent = description;
-			}
-		} catch (e) {
-			console.log('Progress update error:', e);
-		}
-	};
-	
-	// Force close method
-	progress_dialog.force_close = function() {
-		try {
-			if (progress_dialog.$wrapper && progress_dialog.$wrapper.length) {
-				progress_dialog.$wrapper.modal('hide');
-				progress_dialog.$wrapper.remove();
-			}
-			if (progress_dialog.display) {
-				progress_dialog.display = false;
-			}
-			// Remove modal backdrop if exists
-			$('.modal-backdrop').remove();
-			// Remove modal-open class from body
-			$('body').removeClass('modal-open');
-			// Reset body padding
-			$('body').css('padding-right', '');
-		} catch (e) {
-			console.log('Dialog force close error:', e);
-		}
-	};
-	
-	return progress_dialog;
-}
-
-// Results Dialog Helper - HYBRID VERSION with Performance Stats
+// Results Dialog Helper - OPTIMIZED VERSION with Performance Stats
 function show_results_dialog_hybrid(options) {
 	const result = options.result;
 	let alert_class = options.type === 'success' ? 'alert-success' : 'alert-danger';

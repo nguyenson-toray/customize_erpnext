@@ -265,8 +265,19 @@ doc_events = {
     },
 
     "Employee": {
-        "validate": "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.check_maternity_tracking_changes",
-        "on_update": "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.auto_recalc_on_maternity_tracking_change"
+        "validate": [
+            "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.check_maternity_tracking_changes",
+            "customize_erpnext.api.employee.employee_validation.validate_employee_changes"
+        ],
+        "on_update": [
+            "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.auto_recalc_on_maternity_tracking_change",
+            # "customize_erpnext.api.employee.erpnext_mongodb.sync_employee_to_mongodb"
+        ],
+        "after_insert": "customize_erpnext.api.employee.erpnext_mongodb.sync_employee_to_mongodb",
+        "on_trash": [
+            "customize_erpnext.api.employee.employee_validation.prevent_employee_deletion",
+            "customize_erpnext.api.employee.erpnext_mongodb.delete_employee_from_mongodb"
+        ]
     },
 
     "Shift Type": {
@@ -324,18 +335,14 @@ doc_events = {
 # ------------------
 
 # include js, css files in header of desk.html
-# app_include_css = "/assets/customize_erpnext/css/customize_erpnext.css"
-app_include_js = "/assets/customize_erpnext/js/fingerprint_scanner_dialog.js"
-
 # Include Cropper.js library for image cropping
-# Uncomment the lines below if ENABLE_EMPLOYEE_IMAGE_CROPPER = true in employee.js
-# app_include_css = [
-#     "https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css"
-# ]
-# app_include_js = [
-#     "/assets/customize_erpnext/js/fingerprint_scanner_dialog.js",
-#     "https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"
-# ]
+app_include_css = [
+    "https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css"
+]
+app_include_js = [
+    "/assets/customize_erpnext/js/fingerprint_scanner_dialog.js",
+    "https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"
+]
 
 # include js, css files in header of web template
 # web_include_css = "/assets/customize_erpnext/css/customize_erpnext.css"

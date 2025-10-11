@@ -65,7 +65,7 @@ window.FingerprintSyncManager = (function () {
         const isMultiEmployee = currentSyncState.employees.length > 1;
         const title = isMultiEmployee
             ? __('🔄 Sync Fingerprints to Machines - {0} Employees', [currentSyncState.employees.length])
-            : __('🔄 Sync Fingerprints to Machines - {0}', [currentSyncState.employees[0].employee_name]);
+            : __('🔄 Sync Fingerprints to Machines - {0} {1}', [currentSyncState.employees[0].employee_id, currentSyncState.employees[0].employee_name]);
 
         syncDialog = new frappe.ui.Dialog({
             title: title,
@@ -111,7 +111,7 @@ window.FingerprintSyncManager = (function () {
                     // If sync is running, make secondary button an abort button
                     frappe.confirm(
                         __('Are you sure you want to abort the sync process? This will stop all ongoing operations.'),
-                        function() {
+                        function () {
                             abortSyncProcess();
                         }
                     );
@@ -122,11 +122,11 @@ window.FingerprintSyncManager = (function () {
         });
 
         // Add dialog close handler to prevent closing during sync
-        syncDialog.onhide = function() {
+        syncDialog.onhide = function () {
             if (currentSyncState.isRunning) {
                 frappe.confirm(
                     __('Sync is currently in progress. Closing this dialog will not stop the sync process, but you will lose the ability to monitor progress. Are you sure you want to close?'),
-                    function() {
+                    function () {
                         // User confirmed - allow close but warn about background process
                         frappe.show_alert({
                             message: __('Sync continues in background. Check console logs for progress.'),
@@ -136,7 +136,7 @@ window.FingerprintSyncManager = (function () {
                         syncDialog.onhide = null; // Remove this handler
                         syncDialog.hide();
                     },
-                    function() {
+                    function () {
                         // User cancelled - keep dialog open
                         return false;
                     }

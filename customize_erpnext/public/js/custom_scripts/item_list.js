@@ -24,13 +24,26 @@ frappe.listview_settings['Item'] = {
 
 function show_qr_label_dialog(listview) {
     let dialog = new frappe.ui.Dialog({
-        title: __('Print QR Labels (A4 - Tommy No.138). Enter to apply filter, Ctrl + Enter to generate PDF'),
+        title: __('Print QR Labels. Enter to apply filter, Ctrl + Enter to generate PDF'),
         fields: [
-
-            // {
-            //     fieldtype: 'Section Break',
-            //     label: __('Filters : Enter to apply filter, Ctrl+Enter to generate PDF')
-            // },
+            {
+                fieldtype: 'Section Break',
+                label: __('Page Format & Filter Settings')
+            },
+            {
+                fieldname: 'page_format',
+                fieldtype: 'Select',
+                label: __('Page Format'),
+                options: [
+                    { value: 'a5_landscape', label: __('A5 Landscape (3x4, 50x25mm)') },
+                    { value: 'a4_tommy', label: __('A4 - Tommy No.138 (5x20, 40x14mm)') }
+                ],
+                default: 'a5_landscape'
+            },
+            {
+                fieldname: 'cb0',
+                fieldtype: 'Column Break'
+            },
             {
                 fieldname: 'filter_type',
                 fieldtype: 'Select',
@@ -56,8 +69,9 @@ function show_qr_label_dialog(listview) {
                 default: 100,
             },
             {
-                fieldname: 'cb2',
-                fieldtype: 'Column Break'
+                fieldtype: 'Section Break',
+                label: __('Custom Filters'),
+                depends_on: 'eval:doc.filter_type=="filter"'
             },
             {
                 fieldname: 'item_code',
@@ -66,7 +80,7 @@ function show_qr_label_dialog(listview) {
                 depends_on: 'eval:doc.filter_type=="filter"'
             },
             {
-                fieldname: 'cb3',
+                fieldname: 'cb2',
                 fieldtype: 'Column Break'
             },
             {
@@ -76,7 +90,7 @@ function show_qr_label_dialog(listview) {
                 depends_on: 'eval:doc.filter_type=="filter"'
             },
             {
-                fieldname: 'cb4',
+                fieldname: 'cb3',
                 fieldtype: 'Column Break'
             },
             {
@@ -94,7 +108,7 @@ function show_qr_label_dialog(listview) {
                 }
             },
             {
-                fieldname: 'cb5',
+                fieldname: 'cb4',
                 fieldtype: 'Column Break'
             },
             {
@@ -531,12 +545,16 @@ function generate_qr_labels_pdf(values, listview, dialog) {
     // Extract item codes from selected items
     let item_codes = dialog.selected_items.map(item => item.item_code);
 
+    // Get page format from dialog
+    let page_format = dialog.get_value('page_format') || 'a5_landscape';
+
     frappe.call({
         method: 'customize_erpnext.api.qr_label_print.generate_qr_labels_pdf',
         args: {
             filters: {
                 item_codes: item_codes
-            }
+            },
+            page_format: page_format
         },
         callback: function (r) {
             // Restore button state

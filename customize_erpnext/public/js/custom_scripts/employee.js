@@ -41,9 +41,33 @@ function ensureFingerprintModule() {
 
 frappe.ui.form.on('Employee', {
     refresh: function (frm) {
+        // Check if employee can be modified (name and attendance_device_id)
+        if (!frm.is_new() && frm.doc.name) {
+            frappe.call({
+                method: 'customize_erpnext.api.employee.employee_utils.allow_change_name_attendance_device_id',
+                args: {
+                    name: frm.doc.name
+                },
+                callback: function (r) {
+                    if (!r.message) {
+                        // Employee has checkin records, set fields as read-only
+                        frm.set_df_property('employee', 'read_only', 1);
+                        frm.set_df_property('attendance_device_id', 'read_only', 1);
+
+                        // Add indicator
+                        frm.dashboard.add_indicator(__('Employee ID and Attendance Device ID are locked (has attendance records)'), 'orange');
+                    } else {
+                        // Allow editing
+                        frm.set_df_property('employee', 'read_only', 0);
+                        frm.set_df_property('attendance_device_id', 'read_only', 0);
+                    }
+                }
+            });
+        }
+
         // Add custom button for fingerprint scanning if not new record
         if (!frm.is_new() && frm.doc.name) {
-            frm.add_custom_button(__('🔍 Scan Fingerprints'), async function () {
+            frm.add_custom_button(__('🖐️ Scan Fingerprints'), async function () {
                 // Show fingerprint scanner dialog with fixed employee
                 const moduleReady = await ensureFingerprintModule();
                 if (moduleReady) {
@@ -55,22 +79,35 @@ frappe.ui.form.on('Employee', {
                         indicator: 'red'
                     });
                 }
-            }, __('Actions'));
+            },);
+            frm.add_custom_button(__('⬆️ Sync Fingerprints To Machines'), async function () {
+                // Show fingerprint scanner dialog with fixed employee
+                // Handle sync fingerprint button click
+                if (!frm.is_new() && frm.doc.name) {
+                    // Use shared sync dialog for single employee
+                    const employee = {
+                        employee_id: frm.doc.name,
+                        employee_name: frm.doc.employee_name
+                    };
+                    window.showSharedSyncDialog([employee]);
+                } else {
+                    frappe.msgprint({
+                        title: __('Save Required'),
+                        message: __('Please save the employee record first before syncing fingerprints.'),
+                        indicator: 'orange'
+                    });
+                }
+            },);
+
+            // Add Photo Management buttons
+            frm.add_custom_button(__('📷 Take Photo'), function () {
+                open_camera_dialog(frm);
+            },);
+
+            frm.add_custom_button(__('📁 Upload Photo'), function () {
+                open_file_upload_dialog(frm);
+            },);
         }
-
-        // Setup image field with cropper
-        setup_employee_image_cropper(frm);
-    },
-
-    onload: function (frm) {
-        // Setup image field with cropper on load
-        setup_employee_image_cropper(frm);
-    },
-
-    image: function (frm) {
-        // Image upload is handled by custom FileUploader with auto-cropping
-        // No need to manually trigger cropper
-
         if (frm.is_new()) {
             // Auto-populate employee code and attendance device ID for new employees
             if (!frm.doc.employee || !frm.doc.employee.startsWith('TIQN-')) {
@@ -79,6 +116,7 @@ frappe.ui.form.on('Employee', {
                     callback: function (r) {
                         if (r.message) {
                             frm.set_value('employee', r.message);
+                            console.log('get_next_employee_code:', r.message);
                             // Store the original value
                             window.original_employee_code = r.message;
 
@@ -91,6 +129,7 @@ frappe.ui.form.on('Employee', {
                                     current_highest_id: employee_num
                                 },
                                 callback: function (series_r) {
+                                    console.log('set_series response:', series_r);
                                     // Series updated successfully
                                 }
                             });
@@ -120,45 +159,9 @@ frappe.ui.form.on('Employee', {
         }
     },
 
-    custom_scan_fingerprint: async function (frm) {
-        // Handle custom button field click
-        if (!frm.is_new() && frm.doc.name) {
-            const moduleReady = await ensureFingerprintModule();
-            if (moduleReady) {
-                window.FingerprintScannerDialog.showForEmployee(frm.doc.name, frm.doc.employee_name);
-            } else {
-                frappe.msgprint({
-                    title: __('Module Loading Failed'),
-                    message: __('Fingerprint Scanner module could not be loaded. Please refresh the page and try again.'),
-                    indicator: 'red'
-                });
-            }
-        } else {
-            frappe.msgprint({
-                title: __('Save Required'),
-                message: __('Please save the employee record first before scanning fingerprints.'),
-                indicator: 'orange'
-            });
-        }
-    },
 
-    custom_sync_fingerprint_data_to_machine: function (frm) {
-        // Handle sync fingerprint button click
-        if (!frm.is_new() && frm.doc.name) {
-            // Use shared sync dialog for single employee
-            const employee = {
-                employee_id: frm.doc.name,
-                employee_name: frm.doc.employee_name
-            };
-            window.showSharedSyncDialog([employee]);
-        } else {
-            frappe.msgprint({
-                title: __('Save Required'),
-                message: __('Please save the employee record first before syncing fingerprints.'),
-                indicator: 'orange'
-            });
-        }
-    },
+
+
 
     employee: function (frm) {
         // Store the employee value whenever it changes
@@ -426,168 +429,300 @@ function toProperCase(str) {
 }
 
 // ============================================================
-// IMAGE CROPPER CONFIGURATION
-// ============================================================
-// Set to true to enable custom 3:4 ratio image cropper
-// Set to false to use default Frappe upload (no cropping)
-const ENABLE_EMPLOYEE_IMAGE_CROPPER = false;
-//   const ENABLE_EMPLOYEE_IMAGE_CROPPER = true;
-//   2. Sửa hooks.py dòng 327-337: Uncomment các dòng Cropper.js:
-//   app_include_css = [
-//       "https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css"
-//   ]
-//   app_include_js = [
-//       "/assets/customize_erpnext/js/fingerprint_scanner_dialog.js",
-//       "https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"
-//   ]
-//   3. Build lại:
-//   bench build --app customize_erpnext && bench --site erp-sonnt.tiqn.local clear-cache
+// EMPLOYEE PHOTO FUNCTIONS - TAKE PHOTO & UPLOAD PHOTO
 // ============================================================
 
-// Image cropper functions - using custom Cropper.js
-function setup_employee_image_cropper(frm) {
-    if (!frm.fields_dict.image) return;
+// Global variable to store camera stream
+let currentCameraStream = null;
 
-    const image_field = frm.fields_dict.image;
+// Open camera dialog to capture photo
+function open_camera_dialog(frm) {
+    const dialog = new frappe.ui.Dialog({
+        title: __('Take Photo'),
+        size: 'large',
+        fields: [
+            {
+                fieldtype: 'HTML',
+                fieldname: 'camera_container',
+            }
+        ],
+        primary_action_label: __('Capture'),
+        primary_action: function () {
+            const video = dialog.$wrapper.find('video')[0];
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0);
 
-    // Override the attach field's upload method completely
+            // Stop camera stream
+            stop_camera_stream();
+
+            // Get image data
+            const imageDataUrl = canvas.toDataURL('image/jpeg', 0.95);
+
+            // Close camera dialog
+            dialog.hide();
+
+            // Show cropper dialog
+            show_crop_dialog(frm, imageDataUrl);
+        },
+        secondary_action_label: __('Cancel'),
+        secondary_action: function () {
+            stop_camera_stream();
+            dialog.hide();
+        }
+    });
+
+    dialog.show();
+
+    // Make dialog full screen on mobile
+    if (window.innerWidth < 768) {
+        dialog.$wrapper.find('.modal-dialog').css({
+            'max-width': '100%',
+            'margin': '0',
+            'height': '100vh'
+        });
+    }
+
+    // Wait for dialog to be rendered, then initialize camera
     setTimeout(() => {
-        if (image_field && image_field.$wrapper) {
-            console.log('Setting up image field for Employee');
+        const container = dialog.fields_dict.camera_container.$wrapper;
 
-            // Always hide camera-related buttons
-            image_field.$wrapper.find('[data-action="capture_image"]').hide();
-            image_field.$wrapper.find('.btn:contains("Take Photo")').hide();
-            image_field.$wrapper.find('.btn:contains("Chụp ảnh")').hide();
-            image_field.$wrapper.find('.webcam-container').hide();
+        // Check if getUserMedia is supported
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            container.html(`
+                <div style="text-align: center; padding: 40px;">
+                    <div style="color: #d32f2f; font-size: 16px; margin-bottom: 20px;">
+                        ⚠️ Camera not available
+                    </div>
+                    <p style="color: #666; font-size: 14px; line-height: 1.6;">
+                        Camera access is not supported in this browser or requires HTTPS.<br><br>
+                        <strong>Solutions:</strong><br>
+                        • Access this page via HTTPS (https://...)<br>
+                        • Use a modern browser (Chrome, Firefox, Safari, Edge)<br>
+                        • Or use "Upload Photo" instead
+                    </p>
+                </div>
+            `);
 
-            // Only enable custom cropper if ENABLE_EMPLOYEE_IMAGE_CROPPER is true
-            if (!ENABLE_EMPLOYEE_IMAGE_CROPPER) {
-                console.log('Custom image cropper is DISABLED - using default upload');
-                return;
+            // Hide primary action button
+            dialog.get_primary_btn().hide();
+
+            return;
+        }
+
+        container.html(`
+            <div style="text-align: center;">
+                <video id="camera-preview" autoplay playsinline style="max-width: 100%; max-height: 60vh; background: #000;"></video>
+                <p style="margin-top: 10px; color: #888;">Position yourself in the frame and click Capture</p>
+            </div>
+        `);
+
+        const video = container.find('video')[0];
+
+        if (!video) {
+            frappe.msgprint({
+                title: __('Error'),
+                message: __('Could not initialize video element'),
+                indicator: 'red'
+            });
+            dialog.hide();
+            return;
+        }
+
+        // Request camera access - use rear camera on mobile
+        navigator.mediaDevices.getUserMedia({
+            video: {
+                facingMode: 'environment', // Rear camera
+                width: { ideal: 1280 },
+                height: { ideal: 1280 }
+            },
+            audio: false
+        }).then(function (stream) {
+            currentCameraStream = stream;
+            video.srcObject = stream;
+
+            // Play video explicitly (needed for some browsers)
+            video.play().catch(function (playErr) {
+                console.error('Error playing video:', playErr);
+            });
+        }).catch(function (err) {
+            console.error('Camera access error:', err);
+
+            let errorMsg = err.message;
+            if (err.name === 'NotAllowedError') {
+                errorMsg = 'Camera access denied. Please allow camera permission in your browser settings.';
+            } else if (err.name === 'NotFoundError') {
+                errorMsg = 'No camera found on this device.';
+            } else if (err.name === 'NotReadableError') {
+                errorMsg = 'Camera is already in use by another application.';
             }
 
-            console.log('Custom image cropper is ENABLED');
-
-            // CRITICAL: Override FileUploader options to disable built-in cropper
-            // and use custom aspect ratio
-            const original_FileUploader = frappe.ui.FileUploader;
-
-            // Intercept FileUploader creation for this field
-            frappe.ui.FileUploader = class CustomFileUploader extends original_FileUploader {
-                constructor(opts) {
-                    // Check if this is for the employee image field
-                    if (opts && opts.doctype === 'Employee' && opts.fieldname === 'image') {
-                        console.log('Intercepting FileUploader for Employee image');
-                        // Disable built-in cropper
-                        opts.crop_image_aspect_ratio = null;
-
-                        // Store original on_success
-                        const original_on_success = opts.on_success;
-
-                        // Replace on_success to trigger our custom cropper
-                        opts.on_success = (file_doc) => {
-                            console.log('File uploaded, showing custom cropper');
-                            console.log('File doc:', file_doc);
-                            // Show our custom cropper instead
-                            if (file_doc && file_doc.file_url) {
-                                console.log('Reading file content from:', file_doc.file_url);
-                                // Use custom method to get file content as base64
-                                frappe.call({
-                                    method: 'customize_erpnext.api.employee.employee_utils.get_file_content_base64',
-                                    args: {
-                                        file_url: file_doc.file_url
-                                    },
-                                    callback: function (r) {
-                                        console.log('File content response:', r);
-                                        if (r.message) {
-                                            console.log('Base64 data received, length:', r.message.length);
-                                            // r.message contains base64 data URI
-                                            show_custom_image_cropper_dialog(frm, r.message, file_doc.file_name);
-                                        } else {
-                                            console.error('No base64 data in response');
-                                        }
-                                    },
-                                    error: function (err) {
-                                        console.error('Error reading file:', err);
-                                        frappe.msgprint({
-                                            title: __('Error'),
-                                            message: __('Failed to read uploaded file'),
-                                            indicator: 'red'
-                                        });
-                                    }
-                                });
-                            }
-                        };
-                    }
-                    super(opts);
-                }
-            };
-
-            // Restore original FileUploader after field is initialized
-            setTimeout(() => {
-                frappe.ui.FileUploader = original_FileUploader;
-            }, 2000);
-        }
-    }, 500);
+            frappe.msgprint({
+                title: __('Camera Error'),
+                message: __(errorMsg),
+                indicator: 'red'
+            });
+            dialog.hide();
+        });
+    }, 300);
 }
 
-function show_custom_image_cropper_dialog(frm, imageDataUrl, fileName) {
-    // Create dialog with custom cropper
+// Stop camera stream
+function stop_camera_stream() {
+    if (currentCameraStream) {
+        currentCameraStream.getTracks().forEach(track => track.stop());
+        currentCameraStream = null;
+    }
+}
+
+// Open file upload dialog
+function open_file_upload_dialog(frm) {
+    const $input = $('<input type="file" accept="image/*" style="display: none;">');
+
+    $input.on('change', function (e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        // Check file size (max 5MB)
+        const maxSize = 5 * 1024 * 1024; // 5MB
+        if (file.size > maxSize) {
+            frappe.msgprint({
+                title: __('File Too Large'),
+                message: __('Please select an image smaller than 5MB'),
+                indicator: 'red'
+            });
+            return;
+        }
+
+        // Read file as data URL
+        const reader = new FileReader();
+        reader.onload = function (event) {
+            show_crop_dialog(frm, event.target.result);
+        };
+        reader.readAsDataURL(file);
+    });
+
+    $input.trigger('click');
+}
+
+// Show crop dialog with remove background option
+function show_crop_dialog(frm, imageDataUrl) {
     const dialog = new frappe.ui.Dialog({
-        title: __('Crop Image - Fixed Ratio 3:4 (Portrait)'),
+        title: __('Crop Photo - Ratio 3:4'),
         size: 'large',
         fields: [
             {
                 fieldtype: 'HTML',
                 fieldname: 'cropper_container',
+            },
+            {
+                fieldtype: 'Check',
+                fieldname: 'remove_bg',
+                label: __('Remove Background'),
+                default: 0
             }
         ],
-        primary_action_label: __('Crop & Upload'),
+        primary_action_label: __('Save Photo'),
         primary_action: function () {
             const cropper = dialog.cropper_instance;
-            if (cropper) {
-                // Get cropped canvas
-                const canvas = cropper.getCroppedCanvas({
-                    maxWidth: 1200,
-                    maxHeight: 1600,
-                    imageSmoothingEnabled: true,
-                    imageSmoothingQuality: 'high',
-                });
+            const remove_bg = dialog.get_value('remove_bg');
 
-                // Convert to blob
-                canvas.toBlob(function (blob) {
-                    // Convert blob to base64
-                    const reader = new FileReader();
-                    reader.onloadend = function () {
-                        const base64data = reader.result;
-
-                        // Upload the cropped image
-                        upload_cropped_employee_image(frm, base64data, fileName, dialog);
-                    };
-                    reader.readAsDataURL(blob);
-                }, 'image/jpeg', 0.9);
+            if (!cropper) {
+                frappe.msgprint(__('Cropper not initialized'));
+                return;
             }
+
+            // Get cropped canvas at original size
+            const canvas = cropper.getCroppedCanvas({
+                maxWidth: 2400,
+                maxHeight: 3200,
+                imageSmoothingEnabled: true,
+                imageSmoothingQuality: 'high',
+            });
+
+            // Convert to blob
+            canvas.toBlob(function (blob) {
+                const reader = new FileReader();
+                reader.onloadend = function () {
+                    const base64data = reader.result;
+
+                    // Show processing message
+                    frappe.show_alert({
+                        message: __('Processing photo...'),
+                        indicator: 'blue'
+                    });
+
+                    // Call backend to process photo
+                    frappe.call({
+                        method: 'customize_erpnext.api.employee.employee_utils.process_employee_photo',
+                        args: {
+                            employee_id: frm.doc.name,
+                            employee_name: frm.doc.employee_name,
+                            image_data: base64data,
+                            remove_bg: remove_bg ? 1 : 0
+                        },
+                        callback: function (r) {
+                            if (r.message && r.message.status === 'success') {
+                                dialog.hide();
+
+                                frappe.show_alert({
+                                    message: __('Photo saved successfully. Refreshing...'),
+                                    indicator: 'green'
+                                });
+
+                                // Reload the entire form to show the new image
+                                setTimeout(() => {
+                                    frm.reload_doc();
+                                }, 500);
+                            } else {
+                                frappe.msgprint({
+                                    title: __('Error'),
+                                    message: __('Failed to save photo'),
+                                    indicator: 'red'
+                                });
+                            }
+                        },
+                        error: function (err) {
+                            frappe.msgprint({
+                                title: __('Error'),
+                                message: __('Error processing photo: {0}', [err.message || 'Unknown error']),
+                                indicator: 'red'
+                            });
+                        }
+                    });
+                };
+                reader.readAsDataURL(blob);
+            }, 'image/jpeg', 0.92);
         },
         secondary_action_label: __('Cancel'),
     });
 
     dialog.show();
 
-    // Wait for dialog to render, then initialize Cropper.js
+    // Make dialog responsive
     dialog.$wrapper.find('.modal-dialog').css('max-width', '90%');
+
+    // Mobile full-screen
+    if (window.innerWidth < 768) {
+        dialog.$wrapper.find('.modal-dialog').css({
+            'max-width': '100%',
+            'margin': '0',
+            'height': '100vh'
+        });
+    }
 
     setTimeout(() => {
         const container = dialog.fields_dict.cropper_container.$wrapper;
         container.html(`
-            <div style="max-height: 70vh; overflow: hidden;">
+            <div style="max-height: 60vh; overflow: hidden; position: relative;">
                 <img id="image-to-crop" src="${imageDataUrl}" style="max-width: 100%; display: block;">
             </div>
             <div style="margin-top: 15px; padding: 10px; background: #f8f9fa; border-radius: 5px;">
                 <p style="margin: 0; color: #6c757d; font-size: 13px;">
                     <strong>Instructions:</strong>
-                    Use mouse wheel to zoom, drag to move image.
-                    The crop box is fixed at 3:4 ratio (portrait).
+                    Pinch to zoom, drag to move. Crop box is fixed at 3:4 ratio.
                 </p>
             </div>
         `);
@@ -598,19 +733,19 @@ function show_custom_image_cropper_dialog(frm, imageDataUrl, fileName) {
         if (typeof Cropper === 'undefined') {
             frappe.msgprint({
                 title: __('Library Not Loaded'),
-                message: __('Cropper.js library is not available. Please refresh the page and try again.'),
+                message: __('Cropper.js not loaded. Please refresh and try again.'),
                 indicator: 'red'
             });
             dialog.hide();
             return;
         }
 
-        // Initialize Cropper.js with fixed 3:4 aspect ratio
+        // Initialize Cropper.js with 3:4 aspect ratio
         dialog.cropper_instance = new Cropper(image, {
-            aspectRatio: 3 / 4,  // Fixed 3:4 ratio (portrait)
+            aspectRatio: 3 / 4,  // Fixed 3:4 ratio
             viewMode: 1,
             dragMode: 'move',
-            autoCropArea: 0.8,
+            autoCropArea: 0.85,
             restore: false,
             guides: true,
             center: true,
@@ -622,62 +757,10 @@ function show_custom_image_cropper_dialog(frm, imageDataUrl, fileName) {
             background: true,
             modal: true,
             zoomable: true,
+            zoomOnTouch: true,
             zoomOnWheel: true,
             wheelZoomRatio: 0.1,
         });
     }, 300);
 }
 
-function upload_cropped_employee_image(frm, base64data, fileName, dialog) {
-    // Show uploading message
-    frappe.show_alert({
-        message: __('Uploading image...'),
-        indicator: 'blue'
-    });
-
-    // Create file name
-    const employee_name = frm.doc.name || 'new';
-    const full_name = (frm.doc.employee_name || 'employee').replace(/\s+/g, '_');
-    const file_name = `${employee_name}_${full_name}.jpg`;
-
-    // Upload to custom path
-    frappe.call({
-        method: 'customize_erpnext.api.employee.employee_utils.upload_employee_image',
-        args: {
-            employee_id: frm.doc.name,
-            employee_name: frm.doc.employee_name,
-            file_content: base64data,
-            file_name: file_name
-        },
-        callback: function (response) {
-            if (response.message) {
-                // Set the image value
-                frm.set_value('image', response.message.file_url);
-
-                dialog.hide();
-
-                // Save the form to persist the image field
-                frm.save().then(() => {
-                    frappe.show_alert({
-                        message: __('Image cropped and saved successfully'),
-                        indicator: 'green'
-                    });
-                });
-            } else {
-                frappe.msgprint({
-                    title: __('Upload Failed'),
-                    message: __('Failed to save image'),
-                    indicator: 'red'
-                });
-            }
-        },
-        error: function (error) {
-            console.error('Error uploading image:', error);
-            frappe.msgprint({
-                title: __('Upload Error'),
-                message: __('Error uploading image. Please try again.'),
-                indicator: 'red'
-            });
-        }
-    });
-}

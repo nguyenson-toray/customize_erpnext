@@ -233,7 +233,7 @@ def generate_employee_cards_pdf(employee_ids, with_barcode=0, page_size='A4'):
         frappe.logger().info(f"Generating HTML for employee cards (with_barcode={with_barcode}, page_size={page_size})")
         html = generate_employee_cards_html(employees, with_barcode=with_barcode, page_size=page_size)
 
-        # Debug: Save HTML to file for inspection
+        # Debug: Save HTML to file for inspection (uncomment if needed)
         # html_path = f'/tmp/employee_cards_{datetime.datetime.now().strftime("%Y%m%d_%H%M%S")}.html'
         # with open(html_path, 'w', encoding='utf-8') as f:
         #     f.write(html)
@@ -243,16 +243,20 @@ def generate_employee_cards_pdf(employee_ids, with_barcode=0, page_size='A4'):
         frappe.logger().info("Converting HTML to PDF")
         try:
             # Set PDF options based on page size
+            # CRITICAL: Margins must match CSS @page margins
             pdf_options = {
                 'page-size': page_size,
                 'orientation': 'Landscape' if page_size == 'A5' else 'Portrait',
-                'margin-top': '10mm',
-                'margin-bottom': '10mm',
-                'margin-left': '12mm',
-                'margin-right': '12mm',
+                'margin-top': '5mm',
+                'margin-bottom': '5mm',
+                'margin-left': '5mm',
+                'margin-right': '5mm',
                 'encoding': 'UTF-8',
                 'no-outline': None,
-                'enable-local-file-access': None  # Allow loading local images
+                'enable-local-file-access': None,  # Allow loading local images
+                'dpi': 96,  # Standard DPI
+                'zoom': 1.0,  # NO SCALING
+                'disable-smart-shrinking': None  # Prevent auto-shrinking
             }
             pdf_data = get_pdf(html, pdf_options)
         except Exception as pdf_err:
@@ -266,38 +270,19 @@ def generate_employee_cards_pdf(employee_ids, with_barcode=0, page_size='A4'):
 
         frappe.logger().info(f"PDF generated successfully, size: {len(pdf_data)} bytes")
 
-        # Save PDF to temp file
+        # Generate filename with timestamp
         timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
         pdf_filename = f'employee_cards_{timestamp}.pdf'
 
-        # Save to public files
-        with tempfile.NamedTemporaryFile(mode='wb', delete=False, suffix='.pdf') as tmp_file:
-            tmp_file.write(pdf_data)
-            tmp_file_path = tmp_file.name
+        # Convert to base64 for client download
+        pdf_base64 = base64.b64encode(pdf_data).decode('utf-8')
 
-        frappe.logger().info(f"PDF saved to temp file: {tmp_file_path}")
-
-        # Read and save as File document
-        with open(tmp_file_path, 'rb') as f:
-            file_doc = frappe.get_doc({
-                'doctype': 'File',
-                'file_name': pdf_filename,
-                'is_private': 0,
-                'folder': 'Home',
-                'content': f.read()
-            })
-            file_doc.save(ignore_permissions=True)
-
-        # Clean up temp file
-        os.unlink(tmp_file_path)
-
-        frappe.db.commit()
-
-        frappe.logger().info(f"Employee cards PDF created: {file_doc.file_url}")
+        frappe.logger().info(f"Employee cards PDF created: {pdf_filename}")
 
         return {
             'status': 'success',
-            'pdf_url': file_doc.file_url,
+            'pdf_data': pdf_base64,
+            'pdf_filename': pdf_filename,
             'message': f'Generated {len(employees)} employee cards'
         }
 
@@ -321,39 +306,55 @@ def generate_employee_cards_html(employees, with_barcode=False, page_size='A4'):
     page_orientation = 'landscape' if page_size == 'A5' else 'portrait'
 
     # CSS for card layout
-    # Card size: 86mm x 54mm
-    # Left column: 30mm (logo 30mm width + photo 30mm x 40mm)
-    # Right column: remaining space (~54mm)
-    # A4: margin-bottom 0.5mm for 5 rows, A5: margin-bottom 1mm for 2 rows
-    card_row_margin = '1mm' if page_size == 'A5' else '0.5mm'
+    # Card size: 86mm x 53mm (EXACT - NO SCALING)
+    # Page A4: 210mm x 297mm, A5 landscape: 210mm x 148mm
+    # With margins 5mm: 210 - 10 = 200mm (usable width)
+    # A4: 297 - 10 = 287mm (usable height) - 5 rows with 0.5mm gap
+    # A5: 148 - 10 = 138mm (usable height) - 2 rows with 2mm gap
 
     css = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
         @page {{
             size: {page_size} {page_orientation};
-            margin: 4mm 4mm;
+            margin: 5mm;
         }}
 
         * {{
             box-sizing: border-box;
-        }}
-
-        body {{
-            font-family: 'Times New Roman', Times, serif;
             margin: 0;
             padding: 0;
         }}
 
+        html, body {{
+            font-family: 'Times New Roman', Times, serif;
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+        }}
+
         .cards-container {{
             width: 173mm;
-            margin-left: auto;
-            margin-right: auto;
+            margin: 0 auto;
+            padding: 0;
         }}
 
         .card-row {{
-            width: 100%;
-            margin-bottom: {card_row_margin};
+            width: 173mm;
+            height: 53mm;
+            margin: 0;
             clear: both;
+            page-break-inside: avoid;
+            display: block;
+        }}
+
+        .card-row:not(:last-child) {{
+            margin-bottom: {'1mm' if page_size == 'A5' else '0.5mm'};
         }}
 
         .card {{
@@ -361,12 +362,13 @@ def generate_employee_cards_html(employees, with_barcode=False, page_size='A4'):
             height: 53mm;
             border: 1px solid #333;
             padding: 1mm;
-            margin-right: 1mm;
-            margin-bottom: 0;
+            margin: 0 1mm 0 0;
             float: left;
             background: white;
             position: relative;
             overflow: hidden;
+            box-sizing: border-box;
+            page-break-inside: avoid;
         }}
 
         .card:nth-child(2n) {{
@@ -426,7 +428,7 @@ def generate_employee_cards_html(employees, with_barcode=False, page_size='A4'):
             font-weight: bold;
             text-transform: uppercase;
             margin: 0 0 3mm 0;
-            line-height: 1.2;
+            line-height: 1.3;
             word-wrap: break-word;
             color: #000;
             text-align: center;
@@ -440,7 +442,7 @@ def generate_employee_cards_html(employees, with_barcode=False, page_size='A4'):
             font-size: 18pt !important;
             font-weight: normal;
             margin: 0 0 3mm 0;
-            line-height: 1.4;
+            line-height: 1.3;
             color: #000;
             text-align: center;
         }}
@@ -449,9 +451,13 @@ def generate_employee_cards_html(employees, with_barcode=False, page_size='A4'):
             font-size: 18pt !important;
             font-weight: normal;
             margin: 0;
-            line-height: 1.4;
+            line-height: 1.3;
             color: #000;
             text-align: center;
+        }}
+
+        .employee-section.long-section {{
+            font-size: 14pt !important;
         }}
 
         .page-break {{
@@ -469,12 +475,13 @@ def generate_employee_cards_html(employees, with_barcode=False, page_size='A4'):
             height: 53mm;
             border: none;
             padding: 3mm;
-            margin-right: 1mm;
-            margin-bottom: 0;
+            margin: 0 1mm 0 0;
             float: left;
             background: white;
             position: relative;
             overflow: hidden;
+            box-sizing: border-box;
+            page-break-inside: avoid;
         }}
 
         .card-back:nth-child(2n) {{
@@ -482,19 +489,18 @@ def generate_employee_cards_html(employees, with_barcode=False, page_size='A4'):
         }}
 
         .card-back-title {{
-            font-size: 14pt;
+            font-size: 13pt;
             font-weight: bold;
             text-align: center;
-            margin-bottom: 3mm;
+            margin-bottom: 2mm;
             color: #000;
         }}
 
         .card-back-content {{
-            font-size: 9pt;
-            line-height: 1.4;
+            font-size: 8.5pt;
+            line-height: 1.3;
             text-align: left;
             color: #000;
-            clear: both;
         }}
 
         .card-back-content ol {{
@@ -503,9 +509,15 @@ def generate_employee_cards_html(employees, with_barcode=False, page_size='A4'):
         }}
 
         .card-back-content li {{
-            margin-bottom: 1.5mm;
+            margin-bottom: 1mm;
+        }}
+
+        .card-back-content ul {{
+            margin-top: 0.5mm;
+            padding-left: 5mm;
         }}
     </style>
+    </head>
     """
 
     # Generate HTML for cards
@@ -564,7 +576,7 @@ def generate_employee_cards_html(employees, with_barcode=False, page_size='A4'):
         if page_idx + cards_per_page < len(employees):
             html_parts.append('<div class="page-break"></div>')
 
-    html_parts.append('</div></body>')  # end cards-container
+    html_parts.append('</div></body></html>')  # end cards-container, body, html
 
     return ''.join(html_parts)
 
@@ -593,6 +605,12 @@ def generate_single_card_html(employee, company_logo, with_barcode=False):
     if name_length < 13:
         name_html = f'{employee_name}<br/>&nbsp;'
 
+    # Section logic: >= 19 chars -> use smaller font size
+    section_class = 'employee-section'
+    section_length = len(employee_section)
+    if section_length >= 19:
+        section_class = 'employee-section long-section'
+
     # Generate barcode HTML if requested
     barcode_html = ''
     if with_barcode:
@@ -610,7 +628,7 @@ def generate_single_card_html(employee, company_logo, with_barcode=False):
             <div class="card-right">
                 <div class="{name_class}">{name_html}</div>
                 <div class="employee-code">{employee_code}</div>
-                <div class="employee-section">{employee_section}</div>
+                <div class="{section_class}">{employee_section}</div>
             </div>
         </div>
     </div>
@@ -1075,6 +1093,242 @@ def update_employee_photo(employee_id, employee_name, new_file_url, old_file_url
             'success': False,
             'error': str(e)
         }
+
+
+@frappe.whitelist()
+def process_employee_photo(employee_id, employee_name, image_data, remove_bg=0):
+    """
+    Process employee photo: crop to 3:4 ratio, resize to 450x600px, optionally remove background
+    Save to public/files/employee_photos/{employee_id} {employee_name}.jpg
+
+    Args:
+        employee_id: Employee ID (name field)
+        employee_name: Employee full name
+        image_data: Base64 encoded image data (already cropped by frontend)
+        remove_bg: Whether to remove background (0 or 1, default: 0)
+
+    Returns:
+        Dict with file_url and success status
+    """
+    try:
+        # Validate PIL availability
+        if Image is None:
+            frappe.throw(_("PIL (Pillow) library is not installed"))
+
+        # Decode base64 image
+        if ',' in image_data:
+            # Remove data:image/jpeg;base64, prefix if present
+            image_data = image_data.split(',')[1]
+
+        file_data = base64.b64decode(image_data)
+
+        # Open image with PIL
+        img = Image.open(io.BytesIO(file_data))
+
+        # Convert to RGB if necessary (remove alpha channel)
+        if img.mode in ('RGBA', 'LA', 'P'):
+            background = Image.new('RGB', img.size, (255, 255, 255))
+            if img.mode == 'P':
+                img = img.convert('RGBA')
+            background.paste(img, mask=img.split()[-1] if img.mode in ('RGBA', 'LA') else None)
+            img = background
+        elif img.mode != 'RGB':
+            img = img.convert('RGB')
+
+        # Resize to exactly 450x600px (image should already be 3:4 ratio from frontend crop)
+        img = img.resize((450, 600), Image.Resampling.LANCZOS)
+
+        # Remove background if requested (convert to int for safety)
+        remove_bg = int(remove_bg) if remove_bg else 0
+        if remove_bg == 1:
+            try:
+                from rembg import remove
+
+                # Convert PIL image to bytes
+                img_byte_arr = io.BytesIO()
+                img.save(img_byte_arr, format='PNG')
+                img_byte_arr = img_byte_arr.getvalue()
+
+                # Remove background
+                output = remove(img_byte_arr)
+
+                # Convert back to PIL Image
+                img_no_bg = Image.open(io.BytesIO(output))
+
+                # Create white background
+                background = Image.new('RGB', img_no_bg.size, (255, 255, 255))
+
+                # Paste image with removed background onto white background
+                if img_no_bg.mode == 'RGBA':
+                    background.paste(img_no_bg, mask=img_no_bg.split()[-1])
+                else:
+                    background.paste(img_no_bg)
+
+                img = background
+
+            except ImportError:
+                frappe.msgprint(_("rembg library not installed, skipping background removal"), indicator="orange")
+            except Exception as bg_error:
+                frappe.log_error(f"Error removing background: {str(bg_error)}", "Background Removal Error")
+                frappe.msgprint(_("Failed to remove background, using original image"), indicator="orange")
+
+        # Save to BytesIO with JPEG compression
+        output_buffer = io.BytesIO()
+        img.save(output_buffer, format='JPEG', quality=85, optimize=True)
+        output_data = output_buffer.getvalue()
+
+        # Clean up employee name for file path
+        clean_name = employee_name.replace(' ', ' ') if employee_name else 'employee'
+        # Remove invalid filename characters but keep Vietnamese characters
+        clean_name = re.sub(r'[<>:"/\\|?*]', '', clean_name)
+
+        # Create file name: {employee_id} {employee_name}.jpg
+        final_file_name = f"{employee_id} {clean_name}.jpg"
+
+        # Get site path
+        site_path = get_site_path()
+
+        # Create directory: public/files/employee_photos/
+        employee_photos_dir = os.path.join(site_path, 'public', 'files', 'employee_photos')
+
+        # Create directory if it doesn't exist
+        if not os.path.exists(employee_photos_dir):
+            os.makedirs(employee_photos_dir, exist_ok=True)
+
+        # Full file path
+        file_path = os.path.join(employee_photos_dir, final_file_name)
+
+        # Get old file URL to delete later
+        old_file_url = frappe.db.get_value('Employee', employee_id, 'image')
+
+        # Delete ALL old files attached to this employee's image field
+        # This includes: old photo + any temporary uploaded files
+        try:
+            # Get all File documents attached to this employee's image field
+            old_files = frappe.get_all('File',
+                filters={
+                    'attached_to_doctype': 'Employee',
+                    'attached_to_name': employee_id,
+                    'attached_to_field': 'image'
+                },
+                fields=['name', 'file_url', 'file_name']
+            )
+
+            for old_file in old_files:
+                try:
+                    # Delete physical file
+                    old_physical_path = None
+                    if old_file.file_url.startswith('/private/'):
+                        old_physical_path = os.path.join(site_path, old_file.file_url.lstrip('/'))
+                    elif old_file.file_url.startswith('/files/'):
+                        old_physical_path = os.path.join(site_path, 'public', old_file.file_url.lstrip('/'))
+
+                    if old_physical_path and os.path.exists(old_physical_path):
+                        os.remove(old_physical_path)
+                        frappe.logger().info(f"Deleted old file: {old_physical_path}")
+
+                    # Delete File document
+                    frappe.delete_doc('File', old_file.name, ignore_permissions=True, force=True)
+                    frappe.logger().info(f"Deleted File document: {old_file.file_name}")
+
+                except Exception as del_err:
+                    frappe.logger().warning(f"Could not delete file {old_file.file_name}: {str(del_err)}")
+
+            # Also search and delete any physical files matching this employee in both locations
+            # (to clean up orphaned files that may not have File documents)
+            try:
+                # Search in /files/ directory
+                files_dir = os.path.join(site_path, 'public', 'files')
+                # Search in /files/employee_photos/ directory
+                employee_photos_dir = os.path.join(site_path, 'public', 'files', 'employee_photos')
+
+                for search_dir in [files_dir, employee_photos_dir]:
+                    if os.path.exists(search_dir):
+                        # Find files matching pattern: {employee_id} *.jpg
+                        import glob
+                        pattern = os.path.join(search_dir, f"{employee_id} *.jpg")
+                        matching_files = glob.glob(pattern)
+
+                        for file_to_delete in matching_files:
+                            if os.path.exists(file_to_delete):
+                                os.remove(file_to_delete)
+                                frappe.logger().info(f"Deleted orphaned file: {file_to_delete}")
+            except Exception as cleanup_err:
+                frappe.logger().warning(f"Could not cleanup orphaned files: {str(cleanup_err)}")
+
+        except Exception as del_err:
+            frappe.logger().warning(f"Could not delete old files: {str(del_err)}")
+
+        # Save file to disk
+        with open(file_path, 'wb') as f:
+            f.write(output_data)
+
+        # Create file URL
+        file_url = f'/files/employee_photos/{final_file_name}'
+
+        # Create or update File document
+        existing_file = frappe.db.exists('File', {'file_url': file_url})
+
+        if existing_file:
+            # Update existing file record
+            file_doc = frappe.get_doc('File', existing_file)
+            file_doc.file_size = len(output_data)
+            file_doc.save(ignore_permissions=True)
+        else:
+            # Create new file record
+            file_doc = frappe.get_doc({
+                'doctype': 'File',
+                'file_name': final_file_name,
+                'file_url': file_url,
+                'is_private': 0,
+                'folder': 'Home',
+                'attached_to_doctype': 'Employee',
+                'attached_to_name': employee_id,
+                'attached_to_field': 'image',
+                'file_size': len(output_data)
+            })
+            file_doc.insert(ignore_permissions=True)
+
+        # Update Employee image field
+        frappe.db.set_value('Employee', employee_id, 'image', file_url)
+        frappe.db.commit()
+
+        return {
+            'status': 'success',
+            'file_url': file_url,
+            'file_name': final_file_name,
+            'message': _('Photo processed and saved successfully')
+        }
+
+    except Exception as e:
+        frappe.logger().error(f"Error processing employee photo: {str(e)}")
+        import traceback
+        frappe.log_error(f"Error: {str(e)}\n{traceback.format_exc()}", "Employee Photo Processing Error")
+        frappe.throw(_("Failed to process employee photo: {0}").format(str(e)))
+
+
+@frappe.whitelist()
+def allow_change_name_attendance_device_id(name):
+    """
+    Check if employee name and attendance_device_id can be changed
+    Returns False if employee has existing checkin records, True otherwise
+
+    Args:
+        name: Employee ID (name field)
+
+    Returns:
+        bool: True if changes are allowed, False if employee has checkin data
+    """
+    if not name:
+        return True
+
+    # Check if employee has any checkin records
+    checkin_exists = frappe.db.exists('Employee Checkin', {'employee': name})
+
+    if checkin_exists:
+        return False
+
+    return True
 
 
 @frappe.whitelist()

@@ -127,130 +127,212 @@ window.FingerprintScannerDialog = {
      * @param {string} employee_name - Employee name for display
      */
     showForEmployee: function (employee_id, employee_name = null) {
+        // BUGFIX: Clean up old dialog completely before creating new one
+        if (FingerprintScannerDialog.scan_dialog) {
+            try {
+                FingerprintScannerDialog.scan_dialog.hide();
+                FingerprintScannerDialog.scan_dialog.$wrapper.remove();
+            } catch (e) {
+                console.log('Error cleaning old dialog:', e);
+            }
+        }
+
+        // Reset all global state
+        FingerprintScannerDialog.scan_dialog = null;
+        FingerprintScannerDialog.scan_count = 0;
+        if (FingerprintScannerDialog.scan_attempts) {
+            FingerprintScannerDialog.scan_attempts = {};
+        }
+
+        // Small delay to ensure DOM cleanup is complete
+        setTimeout(() => {
+            FingerprintScannerDialog._createDialog(employee_id, employee_name);
+        }, 100);
+    },
+
+    _createDialog: function (employee_id, employee_name) {
         let d = new frappe.ui.Dialog({
-            title: __('🔍 Fingerprint Scanner - {0}', [employee_name || employee_id]),
+            title: __('🔍 Fingerprint Scanner - {0} {1}', [employee_id, employee_name]),
             fields: [
                 {
-                    fieldname: 'employee_info',
+                    fieldname: 'left_column',
+                    fieldtype: 'Column Break',
+                    label: ''
+                },
+                {
+                    fieldname: 'finger_selection_visual',
                     fieldtype: 'HTML',
-                    options: `<div class="alert alert-info" style="margin-bottom: 15px;">
-                        <div class="d-flex align-items-center">
-                            <i class="fa fa-user" style="font-size: 20px; margin-right: 10px;"></i>
-                            <div>
-                                <strong>Employee:</strong> ${employee_name || employee_id}<br>
-                                <small class="text-muted">Scanning fingerprints for this employee only</small>
+                    options: `
+                        <style>
+                            .finger-selection-container {
+                                padding: 25px;
+                                background: #ffffff;
+                                border-radius: 12px;
+                                height: 100%;
+                                min-height: 600px;
+                                border: 1px solid #dee2e6;
+                            }
+                            .finger-selection-title {
+                                text-align: center;
+                                font-size: 1.5rem;
+                                font-weight: bold;
+                                color: #2c3e50;
+                                margin-bottom: 25px;
+                            }
+                            .finger-visual-container {
+                                width: 500px;
+                                height: auto;
+                                margin: 0 auto;
+                            }
+                            .finger-btn {
+                                position: relative;
+                                background: #e0e0e0;
+                                border-radius: 100px;
+                                padding: 13px;
+                                border: none;
+                                cursor: pointer;
+                                transition: all 0.3s ease-in-out;
+                            }
+                            .finger-btn:hover {
+                                background: #bdbdbd;
+                            }
+                            .finger-btn.selected {
+                                background: #ff9800;
+                                box-shadow: 0 0 0 4px rgba(255, 152, 0, 0.4);
+                                animation: pulse 1.5s infinite;
+                            }
+                            .finger-btn.enrolled {
+                                background: #4caf50;
+                                border-color: #2e7d32;
+                            }
+                            @keyframes pulse {
+                                0%, 100% { box-shadow: 0 0 0 4px rgba(255, 152, 0, 0.4); }
+                                50% { box-shadow: 0 0 0 8px rgba(255, 152, 0, 0.2); }
+                            }
+                            .finger-1 { top: 98px; left: 11px; }
+                            .finger-2 { top: 44px; left: 28px; }
+                            .finger-3 { top: 32px; left: 52px; }
+                            .finger-4 { top: 49px; left: 70px; }
+                            .finger-5 { top: 173px; left: 90px; }
+                            .finger-6 { top: 173px; left: 109px; }
+                            .finger-7 { top: 50px; left: 133px; }
+                            .finger-8 { top: 33px; left: 147px; }
+                            .finger-9 { top: 42px; left: 174px; }
+                            .finger-10 { top: 98px; left: 191px; }
+                            .selected-finger-display {
+                                text-align: center;
+                                margin-top: 25px;
+                                padding: 15px;
+                                background: white;
+                                border-radius: 8px;
+                                font-size: 1.2rem;
+                                font-weight: bold;
+                                color: #007bff;
+                                min-height: 50px;
+                            }
+                        </style>
+                        <div class="finger-selection-container">
+                            <div class="finger-selection-title">👆 Chọn Ngón Tay Để Quét</div>
+                            <div class="finger-visual-container">
+                                <button type="button" class="finger-btn finger-1" data-finger="0" data-finger-name="Ngón út trái" title="Ngón út trái"></button>
+                                <button type="button" class="finger-btn finger-2" data-finger="1" data-finger-name="Ngón áp út trái" title="Ngón áp út trái"></button>
+                                <button type="button" class="finger-btn finger-3" data-finger="2" data-finger-name="Ngón giữa trái" title="Ngón giữa trái"></button>
+                                <button type="button" class="finger-btn finger-4" data-finger="3" data-finger-name="Ngón trỏ trái" title="Ngón trỏ trái"></button>
+                                <button type="button" class="finger-btn finger-5" data-finger="4" data-finger-name="Ngón cái trái" title="Ngón cái trái"></button>
+                                <button type="button" class="finger-btn finger-6" data-finger="5" data-finger-name="Ngón cái phải" title="Ngón cái phải"></button>
+                                <button type="button" class="finger-btn finger-7" data-finger="6" data-finger-name="Ngón trỏ phải" title="Ngón trỏ phải"></button>
+                                <button type="button" class="finger-btn finger-8" data-finger="7" data-finger-name="Ngón giữa phải" title="Ngón giữa phải"></button>
+                                <button type="button" class="finger-btn finger-9" data-finger="8" data-finger-name="Ngón áp út phải" title="Ngón áp út phải"></button>
+                                <button type="button" class="finger-btn finger-10" data-finger="9" data-finger-name="Ngón út phải" title="Ngón út phải"></button>
+                                <svg version="1.0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 400">
+                                    <g id="left-hand">
+                                        <path fill="#F4C5B0" d="M159,374.3l-0.9-72.9c0,0,24.7-11.3,37.5-34.4c12.8-23.1,43.7-50.3,50.9-52.9c0,0,12-7.5,17-8c5-0.5,15.1,1,17-3.6c1.9-4.6-2.4-18-27.9-15.4c-25.5,2.6-33.6,13.4-43.8,14.6c-10.3,1.2-15.9-5.1-17.2-10.8c-1.4-5.6,0.9-33.7,1.9-41.2c1-7.4,10.5-38.3,14.4-55c3.9-16.7,10-47,2.6-55s-15.2,1-17.5,8c-2.3,6.9-10.3,35.4-13.6,42.9c-3.3,7.4-10.3,39.6-12.1,42.4c-1.8,2.8-4.4,8-9.5,4.6c-5.1-3.3,4.9-34.7,4.4-51.1s2.1-32.4,3.6-47.3c1.5-14.9-4.6-24.7-12.6-24.7s-12.1,9.5-14.1,26.2c-2.1,16.7-7.2,47.3-8.5,55.2c-1.3,8-1.8,32.6-5.9,36.7c-4.1,4.1-10.3,4.6-12.8-4.6c-2.6-9.2-2.6-29-6.2-41.9S97.2,43.8,97.2,43c0-0.8-1.3-14.6-12.3-14.4c-11,0.3-11.6,14.6-10,31.3c1.5,16.7,2.3,41.3,4.1,47.8c1.8,6.4,3.6,34.2,2.8,37c-0.8,2.8-9.2,10.3-17-3.9c-7.7-14.1-27.7-49.3-33.6-49.6c-5.9-0.3-9.8,2.1-10.3,11c-0.5,9,21.1,47.8,23.9,52.6c2.8,4.9,13.1,24.9,15.2,34c2.1,9.1-3.7,35.5-3.4,52.8c0.5,27.8,15.6,31.7,14.2,40.7c-0.5,3-2.7,91.8-2.7,91.8H159z"/>
+                                    </g>
+                                    <g id="right-hand">
+                                        <path fill="#F4C5B0" d="M441,374.3l0.9-72.9c0,0-24.7-11.3-37.5-34.4c-12.8-23.1-43.7-50.3-50.9-52.9c0,0-12-7.5-17-8c-5-0.5-15.1,1-17-3.6c-1.9-4.6,2.4-18,27.9-15.4c25.5,2.6,33.6,13.4,43.8,14.6c10.3,1.2,15.9-5.1,17.2-10.8c1.4-5.6-0.9-33.7-1.9-41.2c-1-7.4-10.5-38.3-14.4-55s-10-47-2.6-55c7.4-8,15.2,1,17.5,8c2.3,6.9,10.3,35.4,13.6,42.9c3.3,7.4,10.3,39.6,12.1,42.4c1.8,2.8,4.4,8,9.5,4.6c5.1-3.3-4.9-34.7-4.4-51.1S436,54,434.5,39.2c-1.5-14.9,4.6-24.7,12.6-24.7c8,0,12.1,9.5,14.1,26.2c2.1,16.7,7.2,47.3,8.5,55.2c1.3,8,1.8,32.6,5.9,36.7c4.1,4.1,10.3,4.6,12.8-4.6c2.6-9.2,2.6-29,6.2-41.9c3.6-12.8,8.2-42.4,8.2-43.1c0-0.8,1.3-14.6,12.3-14.4c11,0.3,11.6,14.6,10,31.3c-1.5,16.7-2.3,41.3-4.1,47.8s-3.6,34.2-2.8,37c0.8,2.8,9.2,10.3,17-3.9c7.7-14.1,27.7-49.3,33.6-49.6c5.9-0.3,9.8,2.1,10.3,11c0.5,9-21.1,47.8-23.9,52.6c-2.8,4.9-13.1,24.9-15.2,34c-2.1,9.1,3.7,35.5,3.4,52.8c-0.5,27.8-15.6,31.7-14.2,40.7c0.5,3,2.7,91.8,2.7,91.8H441z"/>
+                                    </g>
+                                </svg>
                             </div>
+                            <div id="selected-finger-display" class="selected-finger-display">
+                                Vui lòng chọn ngón tay từ hình trên
+                            </div>
+                            <input type="hidden" id="finger_selection_value" value="">
                         </div>
-                    </div>`
+                    `
                 },
                 {
-                    fieldname: 'finger_selection',
-                    fieldtype: 'Select',
-                    label: __('Select Finger'),
-                    options: [
-                        '',
-                        __('Left Little'),
-                        __('Left Ring'),
-                        __('Left Middle'),
-                        __('Left Index'),
-                        __('Left Thumb'),
-                        __('Right Thumb'),
-                        __('Right Index'),
-                        __('Right Middle'),
-                        __('Right Ring'),
-                        __('Right Little')
-                    ],
-                    reqd: 1,
-                    description: __('Choose which finger to scan'),
-                    change: function () {
-                        const finger_selection_name = this.get_value();
-
-                        if (finger_selection_name) {
-                            const finger_map = {
-                                'Left Little': 0, 'Left Ring': 1, 'Left Middle': 2, 'Left Index': 3, 'Left Thumb': 4,
-                                'Right Thumb': 5, 'Right Index': 6, 'Right Middle': 7, 'Right Ring': 8, 'Right Little': 9
-                            };
-                            const selected_finger_index = finger_map[finger_selection_name];
-
-                            frappe.call({
-                                method: 'customize_erpnext.api.utilities.get_employee_fingerprints_status',
-                                args: { employee_id: employee_id },
-                                callback: function (r) {
-                                    if (r.message && r.message.success) {
-                                        const existing_fingers = r.message.existing_fingers;
-                                        if (existing_fingers.includes(selected_finger_index)) {
-                                            frappe.confirm(
-                                                __('🔄 This finger already has fingerprint data. Replace it?'),
-                                                function () {
-                                                    // User confirmed to replace
-                                                },
-                                                function () {
-                                                    d.set_value('finger_selection', '');
-                                                }
-                                            );
-                                        }
-                                    }
-                                }
-                            });
-                        }
-                    }
-                },
-                {
-                    fieldname: 'scan_section',
-                    fieldtype: 'Section Break',
-                    label: __('Fingerprint Status')
-                },
-                {
-                    fieldname: 'finger_status_display',
-                    fieldtype: 'HTML',
-                    options: '<div id="finger-status-display" style="padding: 15px; border-radius: 8px; background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border: 1px solid #dee2e6; margin-bottom: 15px;"><div class="d-flex align-items-center mb-3"><i class="fa fa-hand-paper-o" style="font-size: 24px; color: #6c757d; margin-right: 10px;"></i><h6 class="mb-0 text-muted">Fingerprint Status Overview</h6></div><div id="finger-grid" class="row"></div></div>'
-                },
-                {
-                    fieldname: 'column_break_2',
-                    fieldtype: 'Column Break'
+                    fieldname: 'right_column',
+                    fieldtype: 'Column Break',
+                    label: ''
                 },
                 {
                     fieldname: 'scan_status',
                     fieldtype: 'HTML',
-                    options: '<div id="scan-status-container" style="background: #fff; border: 2px solid #e9ecef; border-radius: 8px; padding: 15px;"><div class="d-flex align-items-center mb-3"><i class="fa fa-desktop" style="font-size: 20px; color: #007bff; margin-right: 10px;"></i><h6 class="mb-0">Scanner Activity</h6></div><div id="scan-status" style="height: 180px; overflow-y: auto; padding: 10px; border-radius: 6px; background: #f8f9fa; font-family: \'Monaco\', \'Menlo\', \'Ubuntu Mono\', monospace; font-size: 13px; line-height: 1.4;"><div class="log-entry text-info"><strong>[' + new Date().toLocaleTimeString() + ']</strong> 🟢 Ready to scan fingerprints</div></div></div>'
-                },
-                {
-                    fieldname: 'history_section',
-                    fieldtype: 'Section Break',
-                    label: __('Recent Activity')
+                    options: '<div id="scan-status-container" style="background: #fff; border: 2px solid #e9ecef; border-radius: 8px; padding: 20px; margin-bottom: 20px;"><div class="d-flex align-items-center mb-3"><i class="fa fa-desktop" style="font-size: 22px; color: #007bff; margin-right: 10px;"></i><h5 class="mb-0">Scanner Activity</h5></div><div id="scan-status" style="height: 320px; overflow-y: auto; padding: 15px; border-radius: 6px; background: #f8f9fa; font-family: Monaco, Menlo, monospace; font-size: 13px; line-height: 1.4;"><div class="log-entry text-info"><strong>[' + new Date().toLocaleTimeString() + ']</strong> 🟢 Ready to scan fingerprints</div></div></div>'
                 },
                 {
                     fieldname: 'scan_history',
                     fieldtype: 'HTML',
-                    options: '<div id="scan-history-container" style="background: #fff; border: 1px solid #dee2e6; border-radius: 8px; padding: 15px;"><div class="d-flex align-items-center justify-content-between mb-3"><div class="d-flex align-items-center"><i class="fa fa-history" style="font-size: 18px; color: #28a745; margin-right: 8px;"></i><h6 class="mb-0">Recent Scans</h6></div><small class="text-muted">Last 10 scans</small></div><div id="scan-list" style="max-height: 120px; overflow-y: auto;"><div class="text-center text-muted py-3"><i class="fa fa-clock-o"></i> No scans yet</div></div></div>'
+                    options: '<div id="scan-history-container" style="background: #fff; border: 2px solid #dee2e6; border-radius: 8px; padding: 20px;"><div class="d-flex align-items-center justify-content-between mb-3"><div class="d-flex align-items-center"><i class="fa fa-history" style="font-size: 20px; color: #28a745; margin-right: 10px;"></i><h5 class="mb-0">Recent Activity</h5></div><small class="text-muted">Last 10 scans</small></div><div id="scan-list" style="max-height: 200px; overflow-y: auto;"><div class="text-center text-muted py-3"><i class="fa fa-clock-o"></i> No scans yet</div></div></div>'
                 }
             ],
-            primary_action_label: __('🔍 Start Scan'),
+            primary_action_label: __('🔍 Bắt Đầu Quét'),
             primary_action(values) {
-                if (!values.finger_selection) {
+                // Get finger selection from visual selector
+                const fingerSelectionValue = d.$wrapper.find('#finger_selection_value').val();
+
+                if (!fingerSelectionValue) {
                     frappe.msgprint({
-                        title: __('⚠️ Missing Information'),
-                        message: __('Please select a Finger before scanning.'),
+                        title: __('⚠️ Thiếu Thông Tin'),
+                        message: __('Vui lòng chọn ngón tay từ hình trên trước khi quét.'),
                         indicator: 'orange'
                     });
                     return;
                 }
+
+                // Parse finger selection (format: "index|name")
+                const [fingerIndex, fingerName] = fingerSelectionValue.split('|');
+
                 // Create values object with fixed employee
                 const scanValues = {
                     employee: employee_id,
-                    finger_selection: values.finger_selection
+                    finger_selection: fingerName,
+                    finger_index: parseInt(fingerIndex)
                 };
                 FingerprintScannerDialog.startFingerprintCapture(scanValues, d);
             },
-            secondary_action_label: __('🔄 Reset'),
+            secondary_action_label: __('🔄 Đặt Lại'),
             secondary_action() {
-                d.set_value('finger_selection', '');
+                // Clear visual finger selection
+                d.$wrapper.find('.finger-btn').removeClass('selected');
+                d.$wrapper.find('#selected-finger-display').html('Vui lòng chọn ngón tay từ hình trên').css('color', '#007bff');
+                d.$wrapper.find('#finger_selection_value').val('');
+
                 FingerprintScannerDialog.updateScanStatus('<div style="text-align: center; font-size: 1.2em; font-weight: bold; color: #007bff; margin: 10px 0;">🔄 Đã xóa dữ liệu - Sẵn sàng quét mới</div>', 'info');
-                FingerprintScannerDialog.updateFingerStatusDisplay([]);
+
+                // Re-initialize finger selection to reload enrolled status
+                setTimeout(() => {
+                    FingerprintScannerDialog.initializeFingerSelection(d, employee_id);
+                }, 100);
+            }
+        });
+
+        // BUGFIX: Add cleanup on dialog close
+        d.$wrapper.on('hidden.bs.modal', function () {
+            // Clean up all references when dialog is closed
+            FingerprintScannerDialog.scan_dialog = null;
+            FingerprintScannerDialog.scan_count = 0;
+            if (FingerprintScannerDialog.scan_attempts) {
+                FingerprintScannerDialog.scan_attempts = {};
             }
         });
 
         d.show();
+
+        // Initialize finger selection UI
+        setTimeout(() => {
+            FingerprintScannerDialog.initializeFingerSelection(d, employee_id);
+        }, 200);
 
         // Make dialog larger and add custom styling
         d.$wrapper.find('.modal-dialog').addClass('modal-xl');
@@ -272,87 +354,11 @@ window.FingerprintScannerDialog = {
         // Store the fixed employee ID in the dialog for use in reset function
         d.employee_id = employee_id;
 
-        // Load fingerprint status for the fixed employee after DOM is ready
-        setTimeout(() => {
-            // Initialize finger status display first
-            FingerprintScannerDialog.updateFingerStatusDisplay([]);
-
-            // Then load actual data
-            frappe.call({
-                method: 'customize_erpnext.api.utilities.get_employee_fingerprints_status',
-                args: { employee_id: employee_id },
-                callback: function (r) {
-                    if (r.message && r.message.success) {
-                        FingerprintScannerDialog.updateFingerStatusDisplay(r.message.existing_fingers);
-                    }
-                }
-            });
-        }, 300);
-    },
-
-    updateFingerStatusDisplay: function (existing_fingers) {
-        console.log('updateFingerStatusDisplay called with:', existing_fingers);
-        const fingerGrid = document.getElementById('finger-grid');
-        console.log('fingerGrid element found:', !!fingerGrid);
-
-        if (fingerGrid) {
-            // Ensure existing_fingers is an array
-            existing_fingers = existing_fingers || [];
-            if (!Array.isArray(existing_fingers)) {
-                console.warn('existing_fingers is not an array:', existing_fingers);
-                existing_fingers = [];
-            }
-
-            const finger_map_reverse = {
-                0: "Left Little", 1: "Left Ring", 2: "Left Middle", 3: "Left Index", 5: "Left Thumb",
-                5: "Right Thumb", 6: "Right Index", 7: "Right Middle", 8: "Right Ring", 9: "Right Little"
-            };
-
-            let grid_html = '';
-
-            // Left hand
-            grid_html += '<div class="col-md-6"><div class="card border-0 shadow-sm mb-3"><div class="card-header bg-primary text-white text-center py-2"><i class="fa fa-hand-o-left"></i> Left Hand</div><div class="card-body p-2">';
-            for (let i = 0; i < 5; i++) {
-                const has_data = existing_fingers.includes(i);
-                const status_icon = has_data ? '✅' : '⭕';
-                const status_color = has_data ? 'success' : 'secondary';
-                grid_html += `<div class="d-flex justify-content-between align-items-center py-1 px-2 border-bottom"><small><strong>${finger_map_reverse[i]}</strong></small><span class="badge badge-${status_color}">${status_icon} ${has_data ? 'Enrolled' : 'Empty'}</span></div>`;
-            }
-            grid_html += '</div></div></div>';
-
-            // Right hand  
-            grid_html += '<div class="col-md-6"><div class="card border-0 shadow-sm mb-3"><div class="card-header bg-info text-white text-center py-2"><i class="fa fa-hand-o-right"></i> Right Hand</div><div class="card-body p-2">';
-            for (let i = 5; i < 10; i++) {
-                const has_data = existing_fingers.includes(i);
-                const status_icon = has_data ? '✅' : '⭕';
-                const status_color = has_data ? 'success' : 'secondary';
-                grid_html += `<div class="d-flex justify-content-between align-items-center py-1 px-2 border-bottom"><small><strong>${finger_map_reverse[i]}</strong></small><span class="badge badge-${status_color}">${status_icon} ${has_data ? 'Enrolled' : 'Empty'}</span></div>`;
-            }
-            grid_html += '</div></div></div>';
-
-            fingerGrid.innerHTML = grid_html;
-            console.log('Fingerprint status display updated successfully');
-        } else {
-            console.error('finger-grid element not found in DOM');
-            // Try to find it after a short delay
-            setTimeout(() => {
-                const delayedGrid = document.getElementById('finger-grid');
-                if (delayedGrid) {
-                    console.log('Found finger-grid after delay, retrying...');
-                    FingerprintScannerDialog.updateFingerStatusDisplay(existing_fingers);
-                }
-            }, 500);
-        }
     },
 
     startFingerprintCapture: function (values, dialog) {
-        // Get finger index from selection
-        const finger_map = {
-            'Left Little': 0, 'Left Ring': 1, 'Left Middle': 2, 'Left Index': 3, 'Left Thumb': 4,
-            'Right Thumb': 5, 'Right Index': 6, 'Right Middle': 7, 'Right Ring': 8, 'Right Little': 9
-        };
-
-        const finger_index = finger_map[values.finger_selection];
+        // Get finger index from values (already parsed from visual selector)
+        const finger_index = values.finger_index;
 
         // Initialize scan attempt counter if not exists
         if (!FingerprintScannerDialog.scan_attempts) {
@@ -364,7 +370,7 @@ window.FingerprintScannerDialog = {
         FingerprintScannerDialog.scan_attempts[attempt_key] = 0;
 
         // Keep dialog open but disable scan button during process
-        dialog.set_primary_action(__('Scanning...'), null);
+        dialog.set_primary_action(__('Đang Quét...'), null);
         dialog.disable_primary_action();
 
         // Update status in dialog with scan attempt indicator
@@ -419,21 +425,19 @@ window.FingerprintScannerDialog = {
                         FingerprintScannerDialog.updateScanStatus(__('💾 Fingerprint saved to database successfully'), 'success');
                         FingerprintScannerDialog.addScanToHistory(employee_id, finger_name, final_template_size, 'success');
 
-                        // Refresh finger status display
-                        frappe.call({
-                            method: 'customize_erpnext.api.utilities.get_employee_fingerprints_status',
-                            args: { employee_id: employee_id },
-                            callback: function (r) {
-                                if (r.message && r.message.success) {
-                                    FingerprintScannerDialog.updateFingerStatusDisplay(r.message.existing_fingers);
-                                }
-                            }
-                        });
-
                         setTimeout(() => {
-                            dialog.set_value('finger_selection', '');
+                            // Clear visual finger selection
+                            dialog.$wrapper.find('.finger-btn').removeClass('selected');
+                            dialog.$wrapper.find('#selected-finger-display').html('Vui lòng chọn ngón tay từ hình trên').css('color', '#007bff');
+                            dialog.$wrapper.find('#finger_selection_value').val('');
+
                             FingerprintScannerDialog.updateScanStatus('<div style="text-align: center; font-size: 1.2em; font-weight: bold; color: #28a745; margin: 10px 0;">🟢 Sẵn sàng quét vân tay tiếp theo</div>', 'info');
                             FingerprintScannerDialog.resetScanButton(dialog);
+
+                            // Re-initialize finger selection to update enrolled status
+                            setTimeout(() => {
+                                FingerprintScannerDialog.initializeFingerSelection(dialog, employee_id);
+                            }, 100);
                         }, 1000);  // Optimized delay for faster workflow
                     } else {
                         FingerprintScannerDialog.updateScanStatus('<div style="text-align: center; font-size: 1.2em; font-weight: bold; color: #dc3545; margin: 10px 0;">❌ Lưu vào cơ sở dữ liệu thất bại</div>', 'danger');
@@ -453,7 +457,12 @@ window.FingerprintScannerDialog = {
     },
 
     updateScanStatus: function (message, type = 'info') {
-        const statusDiv = document.getElementById('scan-status');
+        // BUGFIX: Use dialog-scoped selector instead of document.getElementById
+        let statusDiv = null;
+        if (FingerprintScannerDialog.scan_dialog && FingerprintScannerDialog.scan_dialog.$wrapper) {
+            statusDiv = FingerprintScannerDialog.scan_dialog.$wrapper.find('#scan-status')[0];
+        }
+
         if (statusDiv && message !== '') {
             const timestamp = new Date().toLocaleTimeString();
             let textClass = 'text-info';
@@ -497,30 +506,32 @@ window.FingerprintScannerDialog = {
     },
 
     resetScanButton: function (dialog) {
-        dialog.set_primary_action(__('🔍 Start Scan'), function (values) {
-            if (!values.finger_selection) {
+        dialog.set_primary_action(__('🔍 Bắt Đầu Quét'), function (values) {
+            // Get finger selection from visual selector
+            const fingerSelectionValue = dialog.$wrapper.find('#finger_selection_value').val();
+
+            if (!fingerSelectionValue) {
                 frappe.msgprint({
-                    title: __('⚠️ Missing Information'),
-                    message: __('Please select a Finger before scanning.'),
+                    title: __('⚠️ Thiếu Thông Tin'),
+                    message: __('Vui lòng chọn ngón tay từ hình trên trước khi quét.'),
                     indicator: 'orange'
                 });
                 return;
             }
 
+            // Parse finger selection (format: "index|name")
+            const [fingerIndex, fingerName] = fingerSelectionValue.split('|');
+
             // Create values object with fixed employee from dialog
             const scanValues = {
                 employee: dialog.employee_id,
-                finger_selection: values.finger_selection
+                finger_selection: fingerName,
+                finger_index: parseInt(fingerIndex)
             };
 
             // Reset attempt counter when starting fresh scan
-            if (FingerprintScannerDialog.scan_attempts && scanValues.employee && scanValues.finger_selection) {
-                const finger_map = {
-                    'Left Little': 0, 'Left Ring': 1, 'Left Middle': 2, 'Left Index': 3, 'Left Thumb': 4,
-                    'Right Thumb': 5, 'Right Index': 6, 'Right Middle': 7, 'Right Ring': 8, 'Right Little': 9
-                };
-                const finger_index = finger_map[scanValues.finger_selection];
-                const attempt_key = `${scanValues.employee}_${finger_index}`;
+            if (FingerprintScannerDialog.scan_attempts && scanValues.employee) {
+                const attempt_key = `${scanValues.employee}_${scanValues.finger_index}`;
                 FingerprintScannerDialog.scan_attempts[attempt_key] = 0;
             }
             FingerprintScannerDialog.startFingerprintCapture(scanValues, dialog);
@@ -530,7 +541,13 @@ window.FingerprintScannerDialog = {
 
     addScanToHistory: function (employee_id, finger_name, template_size, status) {
         FingerprintScannerDialog.scan_count++;
-        const scanList = document.getElementById('scan-list');
+
+        // BUGFIX: Use dialog-scoped selector instead of document.getElementById
+        let scanList = null;
+        if (FingerprintScannerDialog.scan_dialog && FingerprintScannerDialog.scan_dialog.$wrapper) {
+            scanList = FingerprintScannerDialog.scan_dialog.$wrapper.find('#scan-list')[0];
+        }
+
         if (scanList) {
             // Clear "No scans yet" message
             if (FingerprintScannerDialog.scan_count === 1) {
@@ -796,6 +813,172 @@ window.FingerprintScannerDialog = {
             },
             error: function (r) {
                 callback(false, null);
+            }
+        });
+    },
+
+    // Initialize visual finger selection interface
+    initializeFingerSelection: function (dialog, employee_id) {
+        const fingerBtns = dialog.$wrapper.find('.finger-btn');
+        const selectedDisplay = dialog.$wrapper.find('#selected-finger-display');
+        const hiddenInput = dialog.$wrapper.find('#finger_selection_value');
+
+        // Check if already initialized (to avoid duplicate event handlers)
+        const alreadyInitialized = fingerBtns.data('initialized');
+
+        // Load enrolled fingers and mark them
+        frappe.call({
+            method: 'customize_erpnext.api.utilities.get_employee_fingerprints_status',
+            args: { employee_id: employee_id },
+            callback: function (r) {
+                if (r.message && r.message.success) {
+                    const enrolled = r.message.existing_fingers || [];
+                    // First remove all enrolled classes
+                    fingerBtns.removeClass('enrolled');
+                    // Then add enrolled class to existing fingers
+                    fingerBtns.each(function () {
+                        const fingerIndex = parseInt($(this).attr('data-finger'));
+                        if (enrolled.includes(fingerIndex)) {
+                            $(this).addClass('enrolled');
+                        }
+                    });
+                }
+            }
+        });
+
+        // Only attach event handlers once
+        if (!alreadyInitialized) {
+            // Variable to prevent click when double-clicking
+            let clickTimer = null;
+            let preventClick = false;
+
+            // Handle finger selection (single click with delay to check for double click)
+            fingerBtns.on('click', function () {
+                const $this = $(this);
+                const fingerIndex = parseInt($this.attr('data-finger'));
+                const fingerName = $this.attr('data-finger-name');
+
+                // Clear previous timer
+                clearTimeout(clickTimer);
+
+                // Wait to see if this is a double click
+                clickTimer = setTimeout(function () {
+                    if (!preventClick) {
+                        // This is a single click
+                        // Remove selection from all buttons
+                        fingerBtns.removeClass('selected');
+
+                        // Add selection to clicked button
+                        $this.addClass('selected');
+
+                        // Update display
+                        // ICON ARROW   ➡️➡️
+                        // ICON FINGERPRINT
+                        selectedDisplay.html(`✅ Đã chọn: <strong>${fingerName}</strong><br><small class="text-muted">Nhấn "Bắt Đầu Quét" để tiếp tục</small><br> <strong>KHI MÀN HÌNH HIỂN THỊ "ĐANG ĐỢI QUÉT VÂN TAY" ➡️ ĐẶT NGÓN TAY LÊN MÁY QUÉT 2S</strong><br> <strong>➡️SAU ĐÓ NHẤC NGÓN TAY LÊN</strong>`);
+                        selectedDisplay.css('color', '#28a745');
+
+                        // Store value in hidden input
+                        hiddenInput.val(fingerIndex + '|' + fingerName);
+
+                        // Check if finger is already enrolled
+                        if ($this.hasClass('enrolled')) {
+                            frappe.confirm(
+                                `🔄 Ngón tay "${fingerName}" đã có dữ liệu vân tay. Bạn có muốn thay thế không?`,
+                                function () {
+                                    // User confirmed - keep selection
+                                },
+                                function () {
+                                    // User cancelled - clear selection
+                                    fingerBtns.removeClass('selected');
+                                    selectedDisplay.html('Vui lòng chọn ngón tay từ hình trên');
+                                    selectedDisplay.css('color', '#007bff');
+                                    hiddenInput.val('');
+                                }
+                            );
+                        }
+                    }
+                    preventClick = false;
+                }, 250); // 250ms delay to detect double click
+            });
+
+            // Handle double click to delete enrolled fingerprint
+            fingerBtns.on('dblclick', function (e) {
+                e.preventDefault();
+                preventClick = true; // Prevent the single click handler
+                clearTimeout(clickTimer);
+
+                const fingerIndex = parseInt($(this).attr('data-finger'));
+                const fingerName = $(this).attr('data-finger-name');
+
+                // Only allow delete if finger is enrolled
+                if ($(this).hasClass('enrolled')) {
+                    frappe.confirm(
+                        `🗑️ Bạn có chắc chắn muốn xóa dữ liệu vân tay của <strong>${fingerName}</strong> không?<br><br><small class="text-danger">⚠️ Thao tác này không thể hoàn tác!</small>`,
+                        function () {
+                            // User confirmed - delete fingerprint
+                            FingerprintScannerDialog.deleteFingerprint(employee_id, fingerIndex, fingerName, dialog);
+                        },
+                        function () {
+                            // User cancelled - do nothing
+                        }
+                    );
+                }
+                // If not enrolled, do nothing (no message)
+            });
+
+            // Mark as initialized
+            fingerBtns.data('initialized', true);
+
+            // Initialize tooltips
+            dialog.$wrapper.find('[title]').tooltip();
+        }
+    },
+
+    // Delete fingerprint data
+    deleteFingerprint: function (employee_id, finger_index, finger_name, dialog) {
+        FingerprintScannerDialog.updateScanStatus(`🗑️ Đang xóa dữ liệu vân tay ${finger_name}...`, 'warning');
+
+        frappe.call({
+            method: 'customize_erpnext.api.utilities.delete_fingerprint_data',
+            args: {
+                employee_id: employee_id,
+                finger_index: finger_index
+            },
+            callback: function (r) {
+                if (r.message && r.message.success) {
+                    FingerprintScannerDialog.updateScanStatus(`✅ Đã xóa dữ liệu vân tay ${finger_name} thành công`, 'success');
+                    FingerprintScannerDialog.addScanToHistory(employee_id, finger_name + ' (Deleted)', 0, 'warning');
+
+                    // Clear selection if this finger was selected
+                    dialog.$wrapper.find('.finger-btn').removeClass('selected');
+                    dialog.$wrapper.find('#selected-finger-display').html('Vui lòng chọn ngón tay từ hình trên').css('color', '#007bff');
+                    dialog.$wrapper.find('#finger_selection_value').val('');
+
+                    // Reload finger status to update UI
+                    setTimeout(() => {
+                        FingerprintScannerDialog.initializeFingerSelection(dialog, employee_id);
+                    }, 500);
+
+                    frappe.show_alert({
+                        message: __(`✅ Đã xóa dữ liệu vân tay ${finger_name}`),
+                        indicator: 'green'
+                    }, 5);
+                } else {
+                    FingerprintScannerDialog.updateScanStatus(`❌ Xóa dữ liệu vân tay ${finger_name} thất bại`, 'danger');
+                    frappe.msgprint({
+                        title: __('❌ Lỗi'),
+                        message: __('Không thể xóa dữ liệu vân tay. Vui lòng thử lại.'),
+                        indicator: 'red'
+                    });
+                }
+            },
+            error: function (r) {
+                FingerprintScannerDialog.updateScanStatus(`❌ Lỗi khi xóa dữ liệu vân tay ${finger_name}`, 'danger');
+                frappe.msgprint({
+                    title: __('❌ Lỗi'),
+                    message: __('Đã xảy ra lỗi khi xóa dữ liệu vân tay.'),
+                    indicator: 'red'
+                });
             }
         });
     }

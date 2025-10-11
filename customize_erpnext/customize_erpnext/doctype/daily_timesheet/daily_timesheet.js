@@ -160,7 +160,9 @@ frappe.ui.form.on("Daily Timesheet", {
 											<h4 style="color: #e65100; margin-bottom: 10px;">🚀 Tính Tăng Ca (Overtime)</h4>
 											<ul style="margin-left: 20px;">
 												<li><strong>OT trước ca:</strong> Check in sớm hơn ca + có đăng ký OT (tối thiểu ${constants.MIN_MINUTES_PRE_SHIFT_OT} phút)</li>
+												<li><strong>OT giờ nghỉ trưa:</strong> Check in trước nghỉ trưa + check out sau nghỉ trưa + có đăng ký OT lunch (tối thiểu ${constants.MIN_MINUTES_OT} phút)</li>
 												<li><strong>OT sau ca:</strong> Check out trễ hơn tan ca (tối thiểu ${constants.MIN_MINUTES_OT} phút)</li>
+												<li><strong>Actual OT = OT trước ca + OT giờ nghỉ trưa + OT sau ca</strong></li>
 												<li><strong>Final OT = min(Actual OT, Registered OT)</strong></li>
 												<li><strong>Chủ nhật:</strong> Working hours chuyển thành Actual OT</li>
 											</ul>

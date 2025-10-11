@@ -592,14 +592,21 @@ def sync_employee_to_single_machine(employee_id, machine_name):
         }
 
 def sync_to_single_machine(machine_config, employee_data):
-    """Sync employee data to a single attendance machine"""
+    """Sync employee data to a single attendance machine
+
+    IMPROVEMENTS:
+    - Only sends fingers with actual data (bandwidth optimized)
+    - Detailed logging for troubleshooting
+    - Faster network connectivity check (3s timeout)
+    - Proper error handling and messages
+    """
     try:
         import socket
         from zk import ZK
         from zk.base import Finger
         import base64
         import time
-        
+
         # Prepare device config
         device_config = {
             "device_name": machine_config.device_name,
@@ -609,26 +616,34 @@ def sync_to_single_machine(machine_config, employee_data):
             "force_udp": machine_config.force_udp or True,
             "ommit_ping": machine_config.ommit_ping or True
         }
-        
+
+        # Log sync start
+        frappe.logger().info(f"🔄 Starting sync: {employee_data['employee']} -> {device_config['device_name']} ({device_config['ip_address']})")
+
         # Check network connectivity
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.settimeout(3)
             result = sock.connect_ex((device_config["ip_address"], device_config["port"]))
             sock.close()
-            
+
             if result != 0:
+                error_msg = f"Cannot connect to {device_config['ip_address']}:{device_config['port']}"
+                frappe.logger().error(f"❌ Network check failed: {error_msg}")
                 return {
                     "success": False,
-                    "message": f"Cannot connect to {device_config['ip_address']}:{device_config['port']}"
+                    "message": error_msg
                 }
         except Exception as e:
+            error_msg = f"Network error: {str(e)}"
+            frappe.logger().error(f"❌ Network exception: {error_msg}")
             return {
                 "success": False,
-                "message": f"Network error: {str(e)}"
+                "message": error_msg
             }
         
         # Connect to device
+        frappe.logger().info(f"🔌 Connecting to device {device_config['device_name']}...")
         zk = ZK(
             device_config["ip_address"],
             port=device_config["port"],
@@ -636,31 +651,36 @@ def sync_to_single_machine(machine_config, employee_data):
             force_udp=device_config["force_udp"],
             ommit_ping=device_config["ommit_ping"]
         )
-        
+
         conn = zk.connect()
         if not conn:
+            frappe.logger().error(f"❌ Failed to connect to device {device_config['device_name']}")
             return {
                 "success": False,
                 "message": "Failed to connect to device"
             }
-        
+
+        frappe.logger().info(f"✅ Connected to {device_config['device_name']}")
+
         try:
             # Disable device during sync
             conn.disable_device()
-            
+
             attendance_device_id = employee_data["attendance_device_id"]
-            
+
             # Check if user exists and delete if found
             existing_users = conn.get_users()
             user_exists = any(u.user_id == attendance_device_id for u in existing_users)
-            
+
             if user_exists:
+                frappe.logger().info(f"🗑️  User {attendance_device_id} exists, deleting old data...")
                 conn.delete_user(user_id=attendance_device_id)
                 time.sleep(0.1)  # Give device time to process
-            
+
             # Create new user
             full_name = employee_data["employee_name"]
             shortened_name = shorten_name(full_name, 24)
+            frappe.logger().info(f"➕ Creating user: {shortened_name} (ID: {attendance_device_id})")
             
             # Set user with correct parameter order and group_id
             password = employee_data.get("password", "")
@@ -694,13 +714,18 @@ def sync_to_single_machine(machine_config, employee_data):
                     "message": f"Could not create or find user {attendance_device_id}"
                 }
             
-            # Prepare fingerprint templates
+            # ============================================================
+            # OPTIMIZED: Only send fingers with actual data
+            # This reduces bandwidth and increases sync speed significantly
+            # ============================================================
+
+            # Prepare fingerprint templates - only for fingers with data
             templates_to_send = []
             fingerprint_count = 0
-            
+
             # Create fingerprint data lookup for fast access
             fingerprint_lookup = {fp.get("finger_index"): fp for fp in employee_data["fingerprints"] if fp.get("template_data")}
-            
+
             # Pre-decode all template data to avoid repeated base64 operations
             decoded_templates = {}
             for finger_index, fp in fingerprint_lookup.items():
@@ -708,34 +733,43 @@ def sync_to_single_machine(machine_config, employee_data):
                     decoded_templates[finger_index] = base64.b64decode(fp["template_data"])
                 except Exception:
                     pass  # Skip invalid templates
-            
-            # Create 10 Finger objects in batch (for all 10 fingers)
-            templates_to_send = []
-            for i in range(10):
-                if i in decoded_templates:
-                    finger_obj = Finger(uid=user.uid, fid=i, valid=True, template=decoded_templates[i])
-                    fingerprint_count += 1
-                else:
-                    finger_obj = Finger(uid=user.uid, fid=i, valid=False, template=b'')
+
+            # IMPROVEMENT: Only create Finger objects for fingers with actual data
+            # This is more efficient than sending 10 fingers with empty templates
+            for finger_index, template_data in decoded_templates.items():
+                finger_obj = Finger(uid=user.uid, fid=finger_index, valid=True, template=template_data)
                 templates_to_send.append(finger_obj)
-            
-            # Send all templates to device
+                fingerprint_count += 1
+
+            # Validate we have templates to send
+            if not templates_to_send:
+                return {
+                    "success": False,
+                    "message": f"No valid fingerprint templates to sync for user {attendance_device_id}"
+                }
+
+            # Send only valid templates to device (bandwidth optimized)
+            frappe.logger().info(f"📤 Sending {fingerprint_count} fingerprint templates to device...")
             conn.save_user_template(user, templates_to_send)
-            
+            frappe.logger().info(f"✅ Successfully synced {fingerprint_count} fingerprints for {employee_data['employee']}")
+
             return {
                 "success": True,
                 "message": f"Successfully synced {fingerprint_count} fingerprints for user {attendance_device_id}"
             }
-            
+
         finally:
             # Re-enable device and disconnect
             try:
                 conn.enable_device()
                 conn.disconnect()
-            except:
-                pass
-                
+                frappe.logger().info(f"🔌 Disconnected from {device_config['device_name']}")
+            except Exception as e:
+                frappe.logger().error(f"⚠️  Error during disconnect: {str(e)}")
+
     except Exception as e:
+        frappe.logger().error(f"❌ Sync error for {employee_data.get('employee', 'Unknown')}: {str(e)}")
+        frappe.log_error(frappe.get_traceback(), f"Sync error: {employee_data.get('employee', 'Unknown')}")
         return {
             "success": False,
             "message": f"Sync error: {str(e)}"
@@ -748,9 +782,9 @@ def get_enabled_attendance_machines():
         from concurrent.futures import ThreadPoolExecutor, as_completed
 
         # Get enabled machines
-        # filter : only get machines that are enabled =1 & master_device = 1
+        # filter : only get machines that are enabled =1
         machines = frappe.get_list("Attendance Machine",
-            filters={"enable": 1, "master_device": 1},
+            filters={"enable": 1},
             fields=["name", "device_name", "ip_address", "port", "timeout", "force_udp", "ommit_ping", "location"]
         )
 
@@ -1002,3 +1036,35 @@ def set_default_warehouse_by_brand(template_item, brand_warehouse_map):
         frappe.msgprint(f"Updated default warehouse for {updated_count} variants")
 
     return updated_count
+
+@frappe.whitelist()
+def delete_fingerprint_data(employee_id, finger_index):
+    """Delete fingerprint template data for a specific finger"""
+    try:
+        employee = frappe.get_doc("Employee", employee_id)
+
+        # Find and remove the fingerprint with matching finger_index
+        fingerprint_to_remove = None
+        for fp in employee.get("custom_fingerprints"):
+            if str(fp.finger_index) == str(finger_index):
+                fingerprint_to_remove = fp
+                break
+
+        if fingerprint_to_remove:
+            employee.remove(fingerprint_to_remove)
+            employee.save(ignore_permissions=True)
+            frappe.db.commit()
+
+            return {
+                "success": True,
+                "message": f"Deleted fingerprint for finger index {finger_index}"
+            }
+        else:
+            return {
+                "success": False,
+                "message": f"No fingerprint found for finger index {finger_index}"
+            }
+
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), "Failed to delete fingerprint data")
+        return {"success": False, "message": str(e)}
