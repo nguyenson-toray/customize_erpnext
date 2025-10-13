@@ -326,7 +326,7 @@ def monthly_timesheet_recalculation():
 		# Send critical error notification
 		try:
 			frappe.sendmail(
-				recipients=["hr@tiqn.com.vn", "it@tiqn.com.vn"],
+				recipients=["it@tiqn.com.vn"],
 				subject="Monthly Timesheet Recalculation - FAILED TO QUEUE",
 				message=f"""
 				<h3>Monthly Timesheet Recalculation Failed to Queue</h3>
@@ -387,7 +387,7 @@ def monthly_timesheet_recalculation_worker(from_date, to_date, is_retry=False):
 
 		try:
 			frappe.sendmail(
-				recipients=["hr@tiqn.com.vn"],
+				recipients=["it@tiqn.com.vn"],
 				subject=success_subject,
 				message=f"""
 				<h3>Monthly Timesheet Recalculation Summary</h3>
@@ -422,7 +422,7 @@ def monthly_timesheet_recalculation_worker(from_date, to_date, is_retry=False):
 		# Send critical error notification
 		try:
 			frappe.sendmail(
-				recipients=["hr@tiqn.com.vn", "it@tiqn.com.vn"],
+				recipients=["it@tiqn.com.vn"],
 				subject="Monthly Timesheet Recalculation - WORKER FAILED",
 				message=f"""
 				<h3>Monthly Timesheet Recalculation Worker Failed</h3>
@@ -954,6 +954,40 @@ def auto_recalc_on_maternity_tracking_change(doc, method):
 		error_msg = f"Error in auto_recalc_on_maternity_tracking_change for {doc.name}: {str(e)}"
 		frappe.log_error(error_msg)
 		# Don't raise the error to prevent blocking the main operation
+
+
+def send_sunday_overtime_alert_scheduled():
+	"""
+	Scheduled job to send Sunday overtime alert email
+	Runs every Monday at 08:00 AM to report previous Sunday's overtime
+	"""
+	try:
+		from frappe.utils import add_days, getdate
+		from datetime import datetime
+
+		# Get yesterday's date (should be Sunday if running on Monday)
+		yesterday = add_days(today(), -1)
+		yesterday_date = getdate(yesterday)
+
+		# Check if yesterday was actually Sunday (weekday 6)
+		if yesterday_date.weekday() != 6:
+			frappe.logger().info(f"Skipping Sunday overtime alert: {yesterday} was not Sunday")
+			return
+
+		frappe.logger().info(f"Sending Sunday overtime alert for {yesterday}")
+
+		# Import and call the alert function
+		from customize_erpnext.customize_erpnext.doctype.daily_timesheet.daily_timesheet import send_sunday_overtime_alert
+
+		# Call the function (it handles its own error logging and messaging)
+		send_sunday_overtime_alert(yesterday)
+
+		frappe.logger().info(f"Sunday overtime alert sent successfully for {yesterday}")
+
+	except Exception as e:
+		error_msg = f"Failed to send scheduled Sunday overtime alert: {str(e)}"
+		frappe.log_error(error_msg, "Sunday Overtime Alert Scheduler Error")
+		frappe.logger().error(error_msg)
 
 
 
