@@ -75,7 +75,7 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Status",
-   "options": "Absent\nPresent\nPresent + OT\nHalf Day\nWork From Home\nOn Leave\nSunday",
+   "options": "Absent\nPresent\nPresent + OT\nHalf Day\nWork From Home\nOn Leave\nSunday\nSunday, Lunch benefit",
    "read_only": 1,
    "reqd": 1
   },

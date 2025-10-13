@@ -422,7 +422,7 @@ def monthly_timesheet_recalculation_worker(from_date, to_date, is_retry=False):
 		# Send critical error notification
 		try:
 			frappe.sendmail(
-				recipients=["hr@tiqn.com.vn", "it@tiqn.com.vn"],
+				recipients=["it@tiqn.com.vn"],
 				subject="Monthly Timesheet Recalculation - WORKER FAILED",
 				message=f"""
 				<h3>Monthly Timesheet Recalculation Worker Failed</h3>
@@ -954,6 +954,32 @@ def auto_recalc_on_maternity_tracking_change(doc, method):
 		error_msg = f"Error in auto_recalc_on_maternity_tracking_change for {doc.name}: {str(e)}"
 		frappe.log_error(error_msg)
 		# Don't raise the error to prevent blocking the main operation
+
+
+def send_weekly_ot_report_scheduled():
+	"""
+	Scheduled job to send comprehensive weekly OT report
+	Runs every Monday at 08:00 AM
+	Includes: Sunday OT, Top weekly OT, Top monthly OT
+	"""
+	try:
+		frappe.logger().info("Starting scheduled weekly OT report")
+
+		# Import and call the comprehensive report function
+		from customize_erpnext.customize_erpnext.doctype.daily_timesheet.daily_timesheet import send_weekly_ot_report
+
+		# Call the function (it handles its own error logging and validation)
+		result = send_weekly_ot_report()
+
+		if result:
+			frappe.logger().info(f"Weekly OT report sent successfully: {result}")
+		else:
+			frappe.logger().info("Weekly OT report skipped (not Monday after Sunday)")
+
+	except Exception as e:
+		error_msg = f"Failed to send scheduled weekly OT report: {str(e)}"
+		frappe.log_error(error_msg, "Weekly OT Report Scheduler Error")
+		frappe.logger().error(error_msg)
 
 
 

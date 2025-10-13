@@ -217,8 +217,13 @@ scheduler_events = {
         "45 22 * * *": [
             "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.daily_timesheet_auto_sync_and_calculate"
         ],
-        
-        # Monthly recalculation - 23:00 on Sunday (0 is Sunday)
+
+        # Weekly OT report (Sunday OT + Top weekly + Top monthly) - Monday at 08:00 AM
+        "0 8 * * 1": [
+            "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.send_weekly_ot_report_scheduled"
+        ],
+
+        # Monthly recalculation - 23:30 on Sunday (0 is Sunday)
         "30 23 * * 0": [
             "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.monthly_timesheet_recalculation"
         ],

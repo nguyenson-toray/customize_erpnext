@@ -3,7 +3,7 @@
 
 import frappe
 from frappe.model.document import Document
-from frappe.utils import getdate, get_datetime, time_diff_in_hours, flt
+from frappe.utils import getdate, get_datetime, time_diff_in_hours, flt, today, add_days
 from datetime import datetime, time, timedelta
 import json
 from decimal import Decimal, ROUND_HALF_UP
@@ -16,6 +16,14 @@ MIN_MINUTES_OT = 30
 MIN_MINUTES_WORKING_HOURS = 10
 MIN_MINUTES_PRE_SHIFT_OT = 60
 MIN_MINUTES_CHECKIN_FILTER = 10 # Min munutes between checkins
+
+# Constants for Sunday overtime
+MIN_SUNDAY_OT_FOR_LUNCH_BENEFIT = 4  # Minimum 4 hours OT to get lunch benefit
+
+# Constants for payroll reporting
+PAYROLL_MANAGER_EMAILS = ["it@tiqn.com.vn"]  # List of payroll manager emails
+TOP_OT_NUMBER = 50  # Top N employees for OT reports
+MAX_MONTHLY_OT_HOURS = 40  # Maximum OT hours per month according to Vietnam law
 
 class DailyTimesheet(Document):
 	def before_save(self):
@@ -119,45 +127,55 @@ class DailyTimesheet(Document):
 		
 		# 8.5. Calculate overtime coefficient
 		self.overtime_coefficient = self.calculate_overtime_coefficient()
-		
+
 		# 8.6. Special Sunday logic
 		from datetime import datetime
 		if isinstance(self.attendance_date, str):
 			date_obj = datetime.strptime(str(self.attendance_date), '%Y-%m-%d')
 		else:
 			date_obj = self.attendance_date
-		
+
 		if date_obj.weekday() == 6:  # Sunday
-			# Bước 1 đã tính: Working hours như bình thường, Actual OT = 0
-			# Bước 2: Chuyển Working hours thành Actual OT, set Working hours = 0
-			sunday_working_hours = self.working_hours
-			self.actual_overtime = self.decimal_round(sunday_working_hours)
-			self.working_hours = 0
-			# Recalculate final OT với approved OT
-			final_ot = min(self.actual_overtime, self.approved_overtime)
-			self.overtime_hours = self.decimal_round(final_ot)
-		
-		# 8.7. Calculate final OT with coefficient
-		self.final_ot_with_coefficient = self.decimal_round(self.overtime_hours * self.overtime_coefficient)
-		
-		# 9. Calculate late entry / early exit
-		late_entry_val, early_exit_val = self.calculate_late_early(check_in, check_out, shift_config, self.maternity_benefit)
-		self.late_entry = late_entry_val
-		self.early_exit = early_exit_val
-		
-		# 10. Update status based on date and overtime
-		from datetime import datetime
-		if isinstance(self.attendance_date, str):
-			date_obj = datetime.strptime(str(self.attendance_date), '%Y-%m-%d')
+			# Get OT registrations for Sunday calculation
+			ot_registrations = frappe.db.sql("""
+				SELECT ord.begin_time, ord.end_time
+				FROM `tabOvertime Registration Detail` ord
+				JOIN `tabOvertime Registration` or_doc ON ord.parent = or_doc.name
+				WHERE ord.employee = %(employee)s
+				  AND ord.date = %(date)s
+				  AND or_doc.docstatus = 1
+			""", {"employee": self.employee, "date": self.attendance_date}, as_dict=1)
+
+			if ot_registrations:
+				# Apply Sunday logic using shared helper function
+				apply_sunday_logic(self, check_in, check_out, ot_registrations)
+			else:
+				# No OT registration on Sunday = Absent
+				self.status = "Absent"
+				self.working_hours = 0
+				self.actual_overtime = 0
+				self.approved_overtime = 0
+				self.overtime_hours = 0
+				self.final_ot_with_coefficient = 0
 		else:
-			date_obj = self.attendance_date
-		
-		if date_obj.weekday() == 6:  # Sunday
-			self.status = "Sunday"
-		elif self.overtime_hours > 0:
-			self.status = "Present + OT"
+			# 8.7. Calculate final OT with coefficient (normal days)
+			self.final_ot_with_coefficient = self.decimal_round(self.overtime_hours * self.overtime_coefficient)
+
+		# 9. Calculate late entry / early exit (skip for Sunday)
+		if date_obj.weekday() != 6:
+			late_entry_val, early_exit_val = self.calculate_late_early(check_in, check_out, shift_config, self.maternity_benefit)
+			self.late_entry = late_entry_val
+			self.early_exit = early_exit_val
 		else:
-			self.status = "Present"
+			self.late_entry = False
+			self.early_exit = False
+
+		# 10. Update status based on date and overtime (skip for Sunday, already set by apply_sunday_logic)
+		if date_obj.weekday() != 6:
+			if self.overtime_hours > 0:
+				self.status = "Present + OT"
+			else:
+				self.status = "Present"
 		
 		# 11. Generate overtime details HTML
 		self.generate_overtime_details_html()
@@ -289,28 +307,28 @@ class DailyTimesheet(Document):
 	def calculate_overtime_coefficient(self):
 		"""Calculate overtime coefficient based on day type
 		- Normal days (Monday-Saturday): 1.5
-		- Sunday: 2.0  
+		- Sunday: 2.0
 		- Holidays: 3.0
 		"""
 		from datetime import datetime
-		
+
 		if isinstance(self.attendance_date, str):
 			date_obj = datetime.strptime(str(self.attendance_date), '%Y-%m-%d')
 		else:
 			date_obj = self.attendance_date
-		
+
 		# Check if it's a holiday first (to be implemented - placeholder for now)
 		# TODO: Implement holiday checking logic
 		# if self.is_holiday(date_obj):
 		#     return 3.0
-		
+
 		# Check if it's Sunday
 		if date_obj.weekday() == 6:  # Sunday
 			return 2.0
-		
+
 		# Normal days (Monday-Saturday)
 		return 1.5
-	
+
 	def get_shift_config(self, shift_type):
 		"""Get shift configuration"""
 		SHIFT_CONFIGS = {
@@ -761,13 +779,550 @@ class DailyTimesheet(Document):
 			'check_in', 'check_out', 'working_hours', 'overtime_hours', 'actual_overtime',
 			'approved_overtime', 'late_entry', 'early_exit', 'maternity_benefit'
 		]
-		
+
 		for field in fields_to_clear:
 			setattr(self, field, 0 if field in ['working_hours', 'overtime_hours', 'actual_overtime', 'approved_overtime'] else None)
-		
+
 		self.status = "Absent"
 		self.overtime_details_html = ""
 		# Keep additional_info_html - don't clear it as it should always show check-in data and maternity info
+
+
+# ===== SUNDAY OVERTIME HELPER FUNCTIONS (Shared by single & bulk operations) =====
+
+def get_sunday_shift_config(ot_begin_time, ot_end_time):
+	"""
+	Get shift configuration for Sunday based on OT registration
+	Shift start/end = OT registration start/end
+	Lunch break: 12:00-13:00 if OT starts before 12:00 and ends after 13:00
+	"""
+	from datetime import time as dt_time, timedelta
+
+	# Convert timedelta to time if necessary (MySQL returns TIME as timedelta)
+	def to_time(t):
+		if isinstance(t, timedelta):
+			total_seconds = int(t.total_seconds())
+			hours = total_seconds // 3600
+			minutes = (total_seconds % 3600) // 60
+			seconds = total_seconds % 60
+			return dt_time(hours, minutes, seconds)
+		return t
+
+	ot_begin_time = to_time(ot_begin_time)
+	ot_end_time = to_time(ot_end_time)
+
+	shift_config = {
+		"start": ot_begin_time,
+		"end": ot_end_time,
+		"allows_ot": True
+	}
+
+	# Check if lunch break applies: OT starts before 12:00 and ends after 13:00
+	lunch_start = dt_time(12, 0)
+	lunch_end = dt_time(13, 0)
+
+	if ot_begin_time < lunch_start and ot_end_time > lunch_end:
+		shift_config["break_start"] = lunch_start
+		shift_config["break_end"] = lunch_end
+	else:
+		# No lunch break
+		shift_config["break_start"] = ot_begin_time
+		shift_config["break_end"] = ot_begin_time
+
+	return shift_config
+
+def calculate_sunday_overtime(check_in, check_out, ot_registrations):
+	"""
+	Calculate Sunday overtime based on OT registrations
+	Returns: (actual_ot, approved_ot, has_lunch_benefit)
+	"""
+	if not check_in or not check_out or not ot_registrations:
+		return 0, 0, False
+
+	from frappe.utils import time_diff_in_hours
+	from datetime import datetime, time as dt_time, timedelta
+
+	# Helper function to convert timedelta to time
+	def to_time(t):
+		if isinstance(t, timedelta):
+			total_seconds = int(t.total_seconds())
+			hours = total_seconds // 3600
+			minutes = (total_seconds % 3600) // 60
+			seconds = total_seconds % 60
+			return dt_time(hours, minutes, seconds)
+		return t
+
+	# Convert all begin_time and end_time from ot_registrations
+	for ot in ot_registrations:
+		ot.begin_time = to_time(ot.begin_time)
+		ot.end_time = to_time(ot.end_time)
+
+	# Get earliest OT start and latest OT end from registrations
+	ot_begin_time = min([ot.begin_time for ot in ot_registrations])
+	ot_end_time = max([ot.end_time for ot in ot_registrations])
+
+	# Get shift config based on OT registration
+	shift_config = get_sunday_shift_config(ot_begin_time, ot_end_time)
+
+	# Calculate approved OT (sum of all OT registrations, minus lunch break if applicable)
+	approved_ot = 0
+	lunch_start = dt_time(12, 0)
+	lunch_end = dt_time(13, 0)
+
+	for ot in ot_registrations:
+		begin_dt = datetime.combine(check_in.date(), ot.begin_time)
+		end_dt = datetime.combine(check_in.date(), ot.end_time)
+		ot_hours = time_diff_in_hours(end_dt, begin_dt)
+
+		# If OT registration contains lunch break (starts before 12:00 and ends after 13:00), subtract 1 hour
+		if ot.begin_time < lunch_start and ot.end_time > lunch_end:
+			ot_hours -= 1  # Subtract 1 hour for lunch break
+
+		approved_ot += ot_hours
+
+	# Calculate actual working time (check_in to check_out minus lunch break if applicable)
+	shift_start = datetime.combine(check_in.date(), shift_config["start"])
+	shift_end = datetime.combine(check_in.date(), shift_config["end"])
+	break_start = datetime.combine(check_in.date(), shift_config["break_start"])
+	break_end = datetime.combine(check_in.date(), shift_config["break_end"])
+
+	# Calculate working time before lunch
+	morning_start = max(check_in, shift_start)
+	morning_end = min(check_out, break_start)
+	morning_hours = time_diff_in_hours(morning_end, morning_start) if morning_end > morning_start else 0
+
+	# Calculate working time after lunch
+	afternoon_start = max(check_in, break_end)
+	afternoon_end = min(check_out, shift_end)
+	afternoon_hours = time_diff_in_hours(afternoon_end, afternoon_start) if afternoon_end > afternoon_start else 0
+
+	actual_ot = morning_hours + afternoon_hours
+
+	# Apply minimum threshold
+	if actual_ot * 60 < MIN_MINUTES_WORKING_HOURS:
+		actual_ot = 0
+
+	# Check lunch benefit: OT >= 4 hours and check_out after 13:00
+	has_lunch_benefit = False
+	from datetime import time as dt_time
+	if actual_ot >= MIN_SUNDAY_OT_FOR_LUNCH_BENEFIT and check_out.time() > dt_time(13, 0):
+		has_lunch_benefit = True
+
+	return actual_ot, approved_ot, has_lunch_benefit
+
+def apply_sunday_logic(doc, check_in, check_out, ot_registrations):
+	"""
+	Apply Sunday logic to document (shared between single & bulk operations)
+	This function modifies the document in place
+	"""
+	actual_ot, approved_ot, has_lunch_benefit = calculate_sunday_overtime(
+		check_in, check_out, ot_registrations
+	)
+
+	doc.working_hours = 0  # Sunday has no working hours
+	doc.actual_overtime = doc.decimal_round(actual_ot)
+	doc.approved_overtime = doc.decimal_round(approved_ot)
+	doc.overtime_hours = doc.decimal_round(min(actual_ot, approved_ot))
+
+	# Set status based on lunch benefit
+	if has_lunch_benefit:
+		doc.status = "Sunday, Lunch benefit"
+	else:
+		doc.status = "Sunday"
+
+	# Calculate final OT with coefficient
+	doc.overtime_coefficient = 2.0  # Sunday coefficient
+	doc.final_ot_with_coefficient = doc.decimal_round(doc.overtime_hours * doc.overtime_coefficient)
+
+	return has_lunch_benefit
+
+@frappe.whitelist()
+def send_sunday_overtime_alert(date):
+	"""
+	Send email alert for Sunday overtime records
+	- Alert payroll manager about Sunday overtime
+	- Highlight employees with >= 8 hours OT
+	"""
+	from frappe.utils import getdate, formatdate
+
+	date = getdate(date)
+
+	# Get all Sunday overtime records for the date
+	sunday_records = frappe.db.sql("""
+		SELECT
+			employee,
+			employee_name,
+			department,
+			check_in,
+			check_out,
+			overtime_hours,
+			status
+		FROM `tabDaily Timesheet`
+		WHERE attendance_date = %(date)s
+		  AND DAYOFWEEK(attendance_date) = 1
+		  AND overtime_hours > 0
+		ORDER BY overtime_hours DESC, employee_name
+	""", {"date": date}, as_dict=1)
+
+	if not sunday_records:
+		frappe.msgprint(f"No Sunday overtime records found for {formatdate(date)}")
+		return
+
+	# Build email content
+	subject = f"Cảnh báo thời gian tăng ca ngày Chủ nhật - {formatdate(date)}"
+
+	# HTML table - simple list without highlights
+	table_rows = ""
+	for record in sunday_records:
+		check_in_time = record.check_in.strftime("%H:%M") if record.check_in else "-"
+		check_out_time = record.check_out.strftime("%H:%M") if record.check_out else "-"
+
+		table_rows += f"""
+		<tr>
+			<td>{record.employee}</td>
+			<td>{record.employee_name}</td>
+			<td>{record.department or '-'}</td>
+			<td>{check_in_time}</td>
+			<td>{check_out_time}</td>
+			<td>{record.overtime_hours:.2f}</td>
+			<td>{record.status}</td>
+		</tr>
+		"""
+
+	message = f"""
+	<div style="font-family: Arial, sans-serif;">
+		<h2>Báo cáo tăng ca Chủ nhật - {formatdate(date)}</h2>
+		<p>Tổng số nhân viên tăng ca: <strong>{len(sunday_records)}</strong></p>
+
+		<table border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse; width: 100%; margin-top: 20px;">
+			<thead style="background-color: #007bff; color: white;">
+				<tr>
+					<th>Mã NV</th>
+					<th>Tên nhân viên</th>
+					<th>Nhóm</th>
+					<th>Giờ vào</th>
+					<th>Giờ ra</th>
+					<th>Giờ tăng ca</th>
+					<th>Trạng thái</th>
+				</tr>
+			</thead>
+			<tbody>
+				{table_rows}
+			</tbody>
+		</table>
+
+		<hr style="margin-top: 30px;">
+		<p style="color: #666; font-size: 12px;">
+			Email này được tự động gửi từ hệ thống ERPNext<br>
+			Người phụ trách: {', '.join(PAYROLL_MANAGER_EMAILS)}
+		</p>
+	</div>
+	"""
+
+	# Send email
+	try:
+		frappe.sendmail(
+			recipients=PAYROLL_MANAGER_EMAILS,
+			subject=subject,
+			message=message,
+			delayed=False
+		)
+		frappe.msgprint(f"Email alert sent to {', '.join(PAYROLL_MANAGER_EMAILS)} for {len(sunday_records)} Sunday overtime records")
+	except Exception as e:
+		frappe.log_error(f"Failed to send Sunday overtime alert: {str(e)}", "Sunday Overtime Alert Error")
+		frappe.throw(f"Failed to send email: {str(e)}")
+
+def get_top_ot_weekly(from_date, to_date, limit=TOP_OT_NUMBER):
+	"""
+	Get top N employees with highest overtime hours in a week
+	Returns list of dict with employee info and total OT hours
+	"""
+	from frappe.utils import getdate
+
+	records = frappe.db.sql("""
+		SELECT
+			employee,
+			employee_name,
+			custom_group,
+			SUM(overtime_hours) as total_ot_hours,
+			SUM(final_ot_with_coefficient) as total_ot_with_coef,
+			COUNT(*) as days_with_ot
+		FROM `tabDaily Timesheet`
+		WHERE attendance_date BETWEEN %(from_date)s AND %(to_date)s
+		  AND overtime_hours > 0
+		GROUP BY employee, employee_name, custom_group
+		ORDER BY total_ot_hours DESC
+		LIMIT %(limit)s
+	""", {"from_date": getdate(from_date), "to_date": getdate(to_date), "limit": limit}, as_dict=1)
+
+	return records
+
+def get_top_ot_monthly(from_date, to_date, limit=TOP_OT_NUMBER):
+	"""
+	Get top N employees with highest overtime hours in a month (payroll period: 26th to 25th)
+	Returns list of dict with employee info and total OT hours
+	"""
+	from frappe.utils import getdate
+
+	records = frappe.db.sql("""
+		SELECT
+			employee,
+			employee_name,
+			custom_group,
+			SUM(overtime_hours) as total_ot_hours,
+			SUM(final_ot_with_coefficient) as total_ot_with_coef,
+			COUNT(*) as days_with_ot,
+			SUM(CASE WHEN DAYOFWEEK(attendance_date) = 1 THEN overtime_hours ELSE 0 END) as sunday_ot_hours
+		FROM `tabDaily Timesheet`
+		WHERE attendance_date BETWEEN %(from_date)s AND %(to_date)s
+		  AND overtime_hours > 0
+		GROUP BY employee, employee_name, custom_group
+		ORDER BY total_ot_hours DESC
+		LIMIT %(limit)s
+	""", {"from_date": getdate(from_date), "to_date": getdate(to_date), "limit": limit}, as_dict=1)
+
+	return records
+
+@frappe.whitelist()
+def send_weekly_ot_report():
+	"""
+	Send comprehensive weekly OT report every Monday at 08:00 AM
+	Includes:
+	- Sunday overtime
+	- Top N weekly OT
+	- Top N monthly OT (current payroll period)
+	"""
+	from frappe.utils import add_days, getdate, formatdate, get_first_day, get_last_day
+	from datetime import datetime, timedelta
+
+	try:
+		# Calculate dates
+		today_date = getdate(today())
+
+		# Last Sunday (yesterday if running on Monday)
+		last_sunday = add_days(today_date, -1)
+
+		# Last week range (Monday to Sunday)
+		week_start = add_days(last_sunday, -6)  # Last Monday
+		week_end = last_sunday
+
+		# Current payroll month range (26th previous month to 25th current month)
+		current_day = today_date.day
+		current_month = today_date.month
+		current_year = today_date.year
+
+		if current_month == 1:
+			prev_month = 12
+			prev_year = current_year - 1
+		else:
+			prev_month = current_month - 1
+			prev_year = current_year
+
+		month_start = getdate(f"{prev_year}-{prev_month:02d}-26")
+		month_end = getdate(f"{current_year}-{current_month:02d}-25")
+
+		# Verify last_sunday is actually Sunday
+		if last_sunday.weekday() != 6:
+			frappe.logger().info(f"Skipping weekly report: {last_sunday} was not Sunday")
+			return
+
+		# 1. Get Sunday OT records
+		sunday_records = frappe.db.sql("""
+			SELECT
+				employee,
+				employee_name,
+				custom_group,
+				check_in,
+				check_out,
+				overtime_hours,
+				status
+			FROM `tabDaily Timesheet`
+			WHERE attendance_date = %(date)s
+			  AND DAYOFWEEK(attendance_date) = 1
+			  AND overtime_hours > 0
+			ORDER BY overtime_hours DESC
+		""", {"date": last_sunday}, as_dict=1)
+
+		# 2. Get top weekly OT
+		weekly_top_ot = get_top_ot_weekly(week_start, week_end, TOP_OT_NUMBER)
+
+		# 3. Get top monthly OT
+		monthly_top_ot = get_top_ot_monthly(month_start, month_end, TOP_OT_NUMBER)
+
+		# Build email HTML
+		subject = f"Báo cáo tăng ca - {formatdate(week_start)} đến {formatdate(week_end)}"
+
+		# Section 1: Sunday OT
+		sunday_html = ""
+		if sunday_records:
+			sunday_rows = ""
+			for record in sunday_records:
+				check_in_time = record.check_in.strftime("%H:%M") if record.check_in else "-"
+				check_out_time = record.check_out.strftime("%H:%M") if record.check_out else "-"
+
+				sunday_rows += f"""
+				<tr>
+					<td>{record.employee}</td>
+					<td>{record.employee_name}</td>
+					<td>{record.custom_group or '-'}</td>
+					<td>{check_in_time}</td>
+					<td>{check_out_time}</td>
+					<td>{record.overtime_hours:.2f}</td>
+					<td>{record.status}</td>
+				</tr>
+				"""
+
+			sunday_html = f"""
+			<div style="margin-bottom: 30px;">
+				<h3 style="color: #e65100; border-bottom: 2px solid #ff9800; padding-bottom: 10px;">☀️ Tăng ca Chủ nhật - {formatdate(last_sunday)}</h3>
+				<p>Tổng số nhân viên: <strong>{len(sunday_records)}</strong></p>
+				<table border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse; width: 100%; margin-top: 15px;">
+					<thead style="background-color: #ff9800; color: white;">
+						<tr>
+							<th>Mã NV</th>
+							<th>Tên nhân viên</th>
+							<th>Nhóm</th>
+							<th>Giờ vào</th>
+							<th>Giờ ra</th>
+							<th>Giờ OT</th>
+							<th>Trạng thái</th>
+						</tr>
+					</thead>
+					<tbody>
+						{sunday_rows}
+					</tbody>
+				</table>
+			</div>
+			"""
+		else:
+			sunday_html = f"""
+			<div style="margin-bottom: 30px;">
+				<h3 style="color: #e65100; border-bottom: 2px solid #ff9800; padding-bottom: 10px;">☀️ Tăng ca Chủ nhật - {formatdate(last_sunday)}</h3>
+				<p><em>Không có nhân viên tăng ca vào ngày Chủ nhật này.</em></p>
+			</div>
+			"""
+
+		# Section 2: Weekly Top OT (no highlights, just list)
+		weekly_rows = ""
+		for idx, record in enumerate(weekly_top_ot, 1):
+			weekly_rows += f"""
+			<tr>
+				<td>{idx}</td>
+				<td>{record.employee}</td>
+				<td>{record.employee_name}</td>
+				<td>{record.custom_group or '-'}</td>
+				<td>{record.total_ot_hours:.2f}</td>
+				<!-- <td>{record.total_ot_with_coef:.2f}</td> -->
+				<td>{record.days_with_ot}</td>
+			</tr>
+			"""
+
+		weekly_html = f"""
+		<div style="margin-bottom: 30px;">
+			<h3 style="color: #1976d2; border-bottom: 2px solid #2196f3; padding-bottom: 10px;">📊 Top {TOP_OT_NUMBER} tăng ca cao nhất tuần ({formatdate(week_start)} - {formatdate(week_end)})</h3>
+			<table border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse; width: 100%; margin-top: 15px;">
+				<thead style="background-color: #2196f3; color: white;">
+					<tr>
+						<th>STT</th>
+						<th>Mã NV</th>
+						<th>Tên nhân viên</th>
+						<th>Nhóm</th>
+						<th>Tổng giờ OT</th>
+						<!-- <th>OT có hệ số</th> -->
+						<th>Số ngày OT</th>
+					</tr>
+				</thead>
+				<tbody>
+					{weekly_rows if weekly_rows else '<tr><td colspan="6" style="text-align: center;"><em>Không có dữ liệu</em></td></tr>'}
+				</tbody>
+			</table>
+		</div>
+		"""
+
+		# Section 3: Monthly Top OT (highlight if >= 40h)
+		monthly_rows = ""
+		for idx, record in enumerate(monthly_top_ot, 1):
+			row_style = ""
+			if record.total_ot_hours >= MAX_MONTHLY_OT_HOURS:
+				row_style = ' style="background-color: #ffebee; font-weight: bold;"'
+
+			monthly_rows += f"""
+			<tr{row_style}>
+				<td>{idx}</td>
+				<td>{record.employee}</td>
+				<td>{record.employee_name}</td>
+				<td>{record.custom_group or '-'}</td>
+				<td>{record.total_ot_hours:.2f}</td>
+				<!-- <td>{record.total_ot_with_coef:.2f}</td> -->
+				<td>{record.days_with_ot}</td>
+				<td>{record.sunday_ot_hours:.2f}</td>
+			</tr>
+			"""
+
+		monthly_html = f"""
+		<div style="margin-bottom: 30px;">
+			<h3 style="color: #7b1fa2; border-bottom: 2px solid #9c27b0; padding-bottom: 10px;">📈 Top {TOP_OT_NUMBER} tăng ca cao nhất tháng ({formatdate(month_start)} - {formatdate(month_end)})</h3>
+			<p><em>Chu kỳ tính lương: ngày 26 tháng trước đến ngày 25 tháng hiện tại</em></p>
+			<p><em>Lưu ý: Các dòng highlight (nền đỏ nhạt) là nhân viên có OT >= {MAX_MONTHLY_OT_HOURS}h</em></p>
+			<table border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse; width: 100%; margin-top: 15px;">
+				<thead style="background-color: #9c27b0; color: white;">
+					<tr>
+						<th>STT</th>
+						<th>Mã NV</th>
+						<th>Tên nhân viên</th>
+						<th>Nhóm</th>
+						<th>Tổng giờ OT</th>
+						<!-- <th>OT có hệ số</th> -->
+						<th>Số ngày OT</th>
+						<th>OT Chủ nhật</th>
+					</tr>
+				</thead>
+				<tbody>
+					{monthly_rows if monthly_rows else '<tr><td colspan="7" style="text-align: center;"><em>Không có dữ liệu</em></td></tr>'}
+				</tbody>
+			</table>
+		</div>
+		"""
+
+		# Combine all sections
+		message = f"""
+		<div style="font-family: Arial, sans-serif;">
+			<h2 style="color: #333;">📋 Báo cáo tăng ca : {formatdate(week_start)} - {formatdate(week_end)}</h2> 
+			<hr style="margin: 20px 0;">
+
+			{sunday_html}
+			{weekly_html}
+			{monthly_html}
+
+			<hr style="margin-top: 30px;">
+			<p style="color: #666; font-size: 12px;">
+				Email này được tự động gửi từ hệ thống ERPNext<br> 
+			</p>
+		</div>
+		"""
+
+		# Send email
+		frappe.sendmail(
+			recipients=PAYROLL_MANAGER_EMAILS,
+			subject=subject,
+			message=message,
+			delayed=False
+		)
+
+		frappe.logger().info(f"Weekly OT report sent successfully to {', '.join(PAYROLL_MANAGER_EMAILS)}")
+
+		return {
+			"success": True,
+			"sunday_records": len(sunday_records),
+			"weekly_top": len(weekly_top_ot),
+			"monthly_top": len(monthly_top_ot)
+		}
+
+	except Exception as e:
+		error_msg = f"Failed to send weekly OT report: {str(e)}"
+		frappe.log_error(error_msg, "Weekly OT Report Error")
+		frappe.logger().error(error_msg)
+		raise
 
 
 @frappe.whitelist()
@@ -793,7 +1348,14 @@ def get_algorithm_constants():
 		"MIN_MINUTES_OT": MIN_MINUTES_OT,
 		"MIN_MINUTES_WORKING_HOURS": MIN_MINUTES_WORKING_HOURS,
 		"MIN_MINUTES_PRE_SHIFT_OT": MIN_MINUTES_PRE_SHIFT_OT,
-		"MIN_MINUTES_CHECKIN_FILTER": MIN_MINUTES_CHECKIN_FILTER
+		"MIN_MINUTES_CHECKIN_FILTER": MIN_MINUTES_CHECKIN_FILTER,
+		"MIN_SUNDAY_OT_FOR_LUNCH_BENEFIT": MIN_SUNDAY_OT_FOR_LUNCH_BENEFIT,
+		"PAYROLL_MANAGER_EMAILS": ", ".join(PAYROLL_MANAGER_EMAILS),  # Join list to string for display
+		"TOP_OT_NUMBER": TOP_OT_NUMBER,
+		"MAX_MONTHLY_OT_HOURS": MAX_MONTHLY_OT_HOURS,
+		"SUNDAY_OT_COEFFICIENT": 2.0,
+		"NORMAL_OT_COEFFICIENT": 1.5,
+		"HOLIDAY_OT_COEFFICIENT": 3.0
 	}
 
 
@@ -1093,44 +1655,57 @@ def calculate_all_fields_optimized(doc, bulk_data, skip_html_generation=False):
 		date_obj = doc.attendance_date
 
 	if date_obj.weekday() == 6:  # Sunday
-		sunday_working_hours = doc.working_hours
-		doc.actual_overtime = doc.decimal_round(sunday_working_hours)
-		doc.working_hours = 0
-		final_ot = min(doc.actual_overtime, doc.approved_overtime)
-		doc.overtime_hours = doc.decimal_round(final_ot)
+		# Get OT registrations from bulk_data
+		key = (doc.employee, getdate(doc.attendance_date))
+		ot_registrations = bulk_data["overtime_registrations"].get(key, [])
 
-	# 8.7. Calculate final OT with coefficient
-	doc.final_ot_with_coefficient = doc.decimal_round(doc.overtime_hours * doc.overtime_coefficient)
-
-	# 9. Calculate late entry / early exit
-	try:
-		late_early_result = doc.calculate_late_early(check_in, check_out, shift_config, doc.maternity_benefit)
-		if isinstance(late_early_result, tuple) and len(late_early_result) == 2:
-			late_entry_val, early_exit_val = late_early_result
-			doc.late_entry = late_entry_val
-			doc.early_exit = early_exit_val
+		if ot_registrations:
+			# Apply Sunday logic using shared helper function
+			apply_sunday_logic(doc, check_in, check_out, ot_registrations)
 		else:
+			# No OT registration on Sunday = Absent
+			doc.status = "Absent"
+			doc.working_hours = 0
+			doc.actual_overtime = 0
+			doc.approved_overtime = 0
+			doc.overtime_hours = 0
+			doc.final_ot_with_coefficient = 0
+	else:
+		# 8.7. Calculate final OT with coefficient (normal days)
+		doc.final_ot_with_coefficient = doc.decimal_round(doc.overtime_hours * doc.overtime_coefficient)
+
+	# 9. Calculate late entry / early exit (skip for Sunday)
+	if date_obj.weekday() != 6:
+		try:
+			late_early_result = doc.calculate_late_early(check_in, check_out, shift_config, doc.maternity_benefit)
+			if isinstance(late_early_result, tuple) and len(late_early_result) == 2:
+				late_entry_val, early_exit_val = late_early_result
+				doc.late_entry = late_entry_val
+				doc.early_exit = early_exit_val
+			else:
+				frappe.log_error(
+					f"calculate_late_early returned unexpected type: {type(late_early_result)}, value: {late_early_result}",
+					"Daily Timesheet Calculate Late/Early Error"
+				)
+				doc.late_entry = False
+				doc.early_exit = False
+		except Exception as e:
 			frappe.log_error(
-				f"calculate_late_early returned unexpected type: {type(late_early_result)}, value: {late_early_result}",
-				"Daily Timesheet Calculate Late/Early Error"
+				f"Error unpacking late_early for {doc.employee} on {doc.attendance_date}: {str(e)}\nResult type: {type(late_early_result) if 'late_early_result' in locals() else 'not assigned'}",
+				"Daily Timesheet Unpack Error"
 			)
 			doc.late_entry = False
 			doc.early_exit = False
-	except Exception as e:
-		frappe.log_error(
-			f"Error unpacking late_early for {doc.employee} on {doc.attendance_date}: {str(e)}\nResult type: {type(late_early_result) if 'late_early_result' in locals() else 'not assigned'}",
-			"Daily Timesheet Unpack Error"
-		)
+	else:
 		doc.late_entry = False
 		doc.early_exit = False
 
-	# 10. Update status
-	if date_obj.weekday() == 6:
-		doc.status = "Sunday"
-	elif doc.overtime_hours > 0:
-		doc.status = "Present + OT"
-	else:
-		doc.status = "Present"
+	# 10. Update status (skip for Sunday, already set by apply_sunday_logic)
+	if date_obj.weekday() != 6:
+		if doc.overtime_hours > 0:
+			doc.status = "Present + OT"
+		else:
+			doc.status = "Present"
 
 	# 11. Generate overtime details HTML
 	doc.generate_overtime_details_html()

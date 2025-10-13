@@ -5,34 +5,34 @@ frappe.ui.form.on("Daily Timesheet", {
 	refresh(frm) {
 		// Add custom buttons
 		if (!frm.is_new()) {
-			frm.add_custom_button(__('Recalculate Timesheet'), function() {
+			frm.add_custom_button(__('Recalculate Timesheet'), function () {
 				frappe.call({
 					method: "customize_erpnext.customize_erpnext.doctype.daily_timesheet.daily_timesheet.recalculate_timesheet",
 					args: {
 						docname: frm.doc.name
 					},
-					callback: function(r) {
+					callback: function (r) {
 						if (!r.exc) {
 							frm.reload_doc();
 						}
 					}
 				});
 			});
-			
-			frm.add_custom_button(__('Timesheet Algorithm'), function() {
+
+			frm.add_custom_button(__('Timesheet Algorithm'), function () {
 				frm.trigger('show_algorithm_dialog');
 			});
 		}
-		
+
 		// Refresh additional info HTML and overtime details
 		frm.trigger('refresh_additional_info_display');
-		
+
 		// Auto refresh overtime details when check-in/out changes
 		if (frm.doc.check_in && frm.doc.check_out) {
 			frm.trigger('update_overtime_details');
 		}
 	},
-	
+
 	refresh_additional_info_display(frm) {
 		// Force refresh additional_info_html field display
 		if (frm.doc.employee && frm.doc.attendance_date && !frm.is_new()) {
@@ -41,7 +41,7 @@ frappe.ui.form.on("Daily Timesheet", {
 				args: {
 					docname: frm.doc.name
 				},
-				callback: function(r) {
+				callback: function (r) {
 					if (r.message) {
 						frm.set_df_property('additional_info_html', 'options', r.message);
 						frm.refresh_field('additional_info_html');
@@ -55,20 +55,20 @@ frappe.ui.form.on("Daily Timesheet", {
 			}, 500);
 		}
 	},
-	
-	
+
+
 	employee(frm) {
 		// Auto-populate employee related fields
 		if (frm.doc.employee) {
-			frappe.db.get_value("Employee", frm.doc.employee, 
-				["employee_name", "department", "custom_section", "custom_group"], 
-				function(r) {
+			frappe.db.get_value("Employee", frm.doc.employee,
+				["employee_name", "department", "custom_section", "custom_group"],
+				function (r) {
 					if (r) {
 						frm.set_value("employee_name", r.employee_name);
 						frm.set_value("department", r.department);
 						frm.set_value("custom_section", r.custom_section);
 						frm.set_value("custom_group", r.custom_group);
-						
+
 						// Refresh additional info display when employee changes
 						if (frm.doc.attendance_date) {
 							frm.trigger('refresh_additional_info_display');
@@ -78,7 +78,7 @@ frappe.ui.form.on("Daily Timesheet", {
 			);
 		}
 	},
-	
+
 	attendance_date(frm) {
 		// Auto-calculate when date changes and refresh additional info
 		if (frm.doc.employee && frm.doc.attendance_date && !frm.is_new()) {
@@ -90,7 +90,7 @@ frappe.ui.form.on("Daily Timesheet", {
 			frm.trigger('refresh_additional_info_display');
 		}
 	},
-	
+
 	update_overtime_details(frm) {
 		// Update overtime details display
 		if (frm.doc.actual_overtime || frm.doc.approved_overtime) {
@@ -116,15 +116,15 @@ frappe.ui.form.on("Daily Timesheet", {
 			frm.set_df_property('overtime_details_html', 'options', html);
 		}
 	},
-	
+
 	show_algorithm_dialog() {
 		// Get constants from server first
 		frappe.call({
 			method: "customize_erpnext.customize_erpnext.doctype.daily_timesheet.daily_timesheet.get_algorithm_constants",
-			callback: function(r) {
+			callback: function (r) {
 				if (r.message) {
 					const constants = r.message;
-					
+
 					// Create and show algorithm explanation dialog
 					let dialog = new frappe.ui.Dialog({
 						title: 'Timesheet Algorithm - Thuật Toán Tính Giờ Làm Việc & Tăng Ca',
@@ -164,7 +164,19 @@ frappe.ui.form.on("Daily Timesheet", {
 												<li><strong>OT sau ca:</strong> Check out trễ hơn tan ca (tối thiểu ${constants.MIN_MINUTES_OT} phút)</li>
 												<li><strong>Actual OT = OT trước ca + OT giờ nghỉ trưa + OT sau ca</strong></li>
 												<li><strong>Final OT = min(Actual OT, Registered OT)</strong></li>
-												<li><strong>Chủ nhật:</strong> Working hours chuyển thành Actual OT</li>
+											</ul>
+										</div>
+
+										<div style="margin-bottom: 20px; background: #fff3e0; padding: 15px; border-radius: 8px; border-left: 4px solid #ff9800;">
+											<h4 style="color: #e65100; margin-bottom: 10px;">☀️ Tính Tăng Ca Chủ Nhật</h4>
+											<ul style="margin-left: 20px;">
+												<li><strong>Ca làm việc:</strong> Thời gian đăng ký OT (begin_time → end_time)</li>
+												<li><strong>Giờ nghỉ trưa:</strong> 12:00-13:00 (nếu OT bắt đầu trước 12h và kết thúc sau 13h)</li>
+												<li><strong>Working hours:</strong> Luôn = 0 (không tính working hours cho Chủ nhật)</li>
+												<li><strong>Actual OT:</strong> Tổng giờ làm thực tế (check_in → check_out, trừ giờ nghỉ trưa nếu có)</li>
+												<li><strong>Final OT:</strong> min(Actual OT, Registered OT)</li>
+												<li><strong>Hỗ trợ cơm trưa:</strong> OT >= ${constants.MIN_SUNDAY_OT_FOR_LUNCH_BENEFIT}h + check out sau 13:00 → Status = "Sunday, Lunch benefit"</li>
+												<li><strong>Không có OT registration:</strong> Status = "Absent"</li>
 											</ul>
 										</div>
 										
@@ -184,6 +196,7 @@ frappe.ui.form.on("Daily Timesheet", {
 												<li><strong>Present:</strong> Có check-in, không OT</li>
 												<li><strong>Present + OT:</strong> Có check-in và có OT</li>
 												<li><strong>Sunday:</strong> Làm việc vào Chủ nhật</li>
+												<li><strong>Sunday, Lunch benefit:</strong> Làm Chủ nhật >= ${constants.MIN_SUNDAY_OT_FOR_LUNCH_BENEFIT}h + check out sau 13:00</li>
 											</ul>
 										</div>
 										
@@ -194,6 +207,23 @@ frappe.ui.form.on("Daily Timesheet", {
 												<div><strong>MIN_MINUTES_WORKING_HOURS:</strong> ${constants.MIN_MINUTES_WORKING_HOURS} phút</div>
 												<div><strong>MIN_MINUTES_PRE_SHIFT_OT:</strong> ${constants.MIN_MINUTES_PRE_SHIFT_OT} phút</div>
 												<div><strong>MIN_MINUTES_CHECKIN_FILTER:</strong> ${constants.MIN_MINUTES_CHECKIN_FILTER} phút</div>
+												<div><strong>MIN_SUNDAY_OT_FOR_LUNCH_BENEFIT:</strong> ${constants.MIN_SUNDAY_OT_FOR_LUNCH_BENEFIT} giờ</div>
+											</div>
+										</div>
+
+										<div style="background: #e3f2fd; padding: 15px; border-radius: 8px; margin-top: 20px; border: 1px solid #2196f3;">
+											<h4 style="color: #1976d2; margin-bottom: 10px;">📩 Báo Cáo Tự Động - Weekly OT Report</h4>
+											<div style="font-family: monospace; font-size: 13px;">
+												<div><strong>Email người phụ trách Công, Lương:</strong> ${constants.PAYROLL_MANAGER_EMAILS}</div>
+												<div style="margin-top: 10px;"><strong>Thời gian gửi:</strong> Thứ Hai hàng tuần lúc 08:00 AM</div>
+												<div style="margin-top: 15px; font-size: 12px; color: #333;">
+													<strong>Nội dung báo cáo bao gồm:</strong>
+													<ol style="margin-left: 20px; margin-top: 5px;">
+														<li><strong>Sunday OT Records:</strong> Tất cả tăng ca Chủ nhật tuần trước</li>
+														<li><strong>Top ${constants.TOP_OT_NUMBER} Weekly OT:</strong> Nhân viên có tổng OT cao nhất tuần trước</li>
+														<li><strong>Top ${constants.TOP_OT_NUMBER} Monthly OT:</strong> Nhân viên có tổng OT cao nhất trong kỳ lương hiện tại (26 tháng trước → 25 tháng hiện tại) - <span style="color: #d32f2f;">Highlight nếu >= ${constants.MAX_MONTHLY_OT_HOURS}h</span></li>
+													</ol>
+												</div>
 											</div>
 										</div>
 									</div>
@@ -205,7 +235,7 @@ frappe.ui.form.on("Daily Timesheet", {
 							dialog.hide();
 						}
 					});
-					
+
 					dialog.show();
 				}
 			}
@@ -216,8 +246,8 @@ frappe.ui.form.on("Daily Timesheet", {
 
 // Report button for Monthly Timesheet
 frappe.ui.form.on("Daily Timesheet", {
-	onload: function(frm) {
-		frm.add_custom_button(__('Monthly Report'), function() {
+	onload: function (frm) {
+		frm.add_custom_button(__('Monthly Report'), function () {
 			frappe.set_route('query-report', 'Monthly Timesheet Report');
 		}, __('Reports'));
 	}
