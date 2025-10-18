@@ -20,8 +20,8 @@ MIN_MINUTES_CHECKIN_FILTER = 10 # Min munutes between checkins
 # Constants for Sunday overtime
 MIN_SUNDAY_OT_FOR_LUNCH_BENEFIT = 4  # Minimum 4 hours OT to get lunch benefit
 
-# Constants for payroll reporting
-PAYROLL_MANAGER_EMAILS = ["it@tiqn.com.vn"]  # List of payroll manager emails
+# Constants for payroll reporting 
+OVERTIME_ALERT_RERIPIENTS = ["it@tiqn.com.vn","loan.ptk@tiqn.com.vn","hoanh.ltk@tiqn.com.vn"]  # List of payroll manager emails
 TOP_OT_NUMBER = 50  # Top N employees for OT reports
 MAX_MONTHLY_OT_HOURS = 40  # Maximum OT hours per month according to Vietnam law
 
@@ -1014,7 +1014,7 @@ def send_sunday_overtime_alert(date):
 		<hr style="margin-top: 30px;">
 		<p style="color: #666; font-size: 12px;">
 			Email này được tự động gửi từ hệ thống ERPNext<br>
-			Người phụ trách: {', '.join(PAYROLL_MANAGER_EMAILS)}
+			Người phụ trách: {', '.join(OVERTIME_ALERT_RERIPIENTS)}
 		</p>
 	</div>
 	"""
@@ -1022,12 +1022,12 @@ def send_sunday_overtime_alert(date):
 	# Send email
 	try:
 		frappe.sendmail(
-			recipients=PAYROLL_MANAGER_EMAILS,
+			recipients=OVERTIME_ALERT_RERIPIENTS,
 			subject=subject,
 			message=message,
 			delayed=False
 		)
-		frappe.msgprint(f"Email alert sent to {', '.join(PAYROLL_MANAGER_EMAILS)} for {len(sunday_records)} Sunday overtime records")
+		frappe.msgprint(f"Email alert sent to {', '.join(OVERTIME_ALERT_RERIPIENTS)} for {len(sunday_records)} Sunday overtime records")
 	except Exception as e:
 		frappe.log_error(f"Failed to send Sunday overtime alert: {str(e)}", "Sunday Overtime Alert Error")
 		frappe.throw(f"Failed to send email: {str(e)}")
@@ -1303,13 +1303,13 @@ def send_weekly_ot_report():
 
 		# Send email
 		frappe.sendmail(
-			recipients=PAYROLL_MANAGER_EMAILS,
+			recipients=OVERTIME_ALERT_RERIPIENTS,
 			subject=subject,
 			message=message,
 			delayed=False
 		)
 
-		frappe.logger().info(f"Weekly OT report sent successfully to {', '.join(PAYROLL_MANAGER_EMAILS)}")
+		frappe.logger().info(f"Weekly OT report sent successfully to {', '.join(OVERTIME_ALERT_RERIPIENTS)}")
 
 		return {
 			"success": True,
@@ -1350,7 +1350,7 @@ def get_algorithm_constants():
 		"MIN_MINUTES_PRE_SHIFT_OT": MIN_MINUTES_PRE_SHIFT_OT,
 		"MIN_MINUTES_CHECKIN_FILTER": MIN_MINUTES_CHECKIN_FILTER,
 		"MIN_SUNDAY_OT_FOR_LUNCH_BENEFIT": MIN_SUNDAY_OT_FOR_LUNCH_BENEFIT,
-		"PAYROLL_MANAGER_EMAILS": ", ".join(PAYROLL_MANAGER_EMAILS),  # Join list to string for display
+		"OVERTIME_ALERT_RERIPIENTS": ", ".join(OVERTIME_ALERT_RERIPIENTS),  # Join list to string for display
 		"TOP_OT_NUMBER": TOP_OT_NUMBER,
 		"MAX_MONTHLY_OT_HOURS": MAX_MONTHLY_OT_HOURS,
 		"SUNDAY_OT_COEFFICIENT": 2.0,

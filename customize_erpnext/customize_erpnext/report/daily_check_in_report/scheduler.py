@@ -40,8 +40,7 @@ def send_daily_check_in_report():
         email_content = generate_email_content(report_date, stats, data)
 
         # Send email
-        recipients = ["it@tiqn.com.vn",  "ni.nht@tiqn.com.vn",  "hoanh.tk@tiqn.com.vn"]
-        # , "ni.nht@tiqn.com.vn"
+        recipients = ["it@tiqn.com.vn",  "ni.nht@tiqn.com.vn",  "hoanh.ltk@tiqn.com.vn"] 
         frappe.sendmail(
             recipients=recipients,
             subject=email_subject,
