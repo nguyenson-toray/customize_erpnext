@@ -4,17 +4,17 @@
 // List View customizations for Daily Timesheet
 frappe.listview_settings['Daily Timesheet'] = {
 	add_fields: ["employee_name", "attendance_date", "shift", "working_hours", "overtime_hours", "status"],
-	
-	onload: function(listview) {
+
+	onload: function (listview) {
 		// Add bulk action buttons only for HR Manager and System Manager
 		if (frappe.user.has_role('HR Manager') || frappe.user.has_role('System Manager')) {
-			setTimeout(function() {
+			setTimeout(function () {
 				try {
 					// Combined Bulk Create, Recalculate Timesheet button  
-					listview.page.add_menu_item(__("Bulk Create, Recalculate Timesheet"), function() {
+					listview.page.add_menu_item(__("Bulk Create, Recalculate Timesheet"), function () {
 						show_bulk_create_recalculate_dialog();
 					});
-					
+
 					console.log('Daily Timesheet list button added successfully');
 				} catch (e) {
 					console.error('Failed to add Daily Timesheet buttons:', e);
@@ -22,8 +22,8 @@ frappe.listview_settings['Daily Timesheet'] = {
 			}, 300);
 		}
 	},
-	
-	get_indicator: function(doc) {
+
+	get_indicator: function (doc) {
 		// Status indicators with color coding as requested
 		if (doc.status === "Present") {
 			if (doc.late_entry || doc.early_exit) {
@@ -101,35 +101,35 @@ function show_bulk_create_recalculate_dialog() {
 			}
 		],
 		primary_action_label: __('Create & Recalculate'),
-		primary_action: function(values) {
+		primary_action: function (values) {
 			if (!values.from_date || !values.to_date) {
 				frappe.msgprint(__('Please select both From Date and To Date'));
 				return;
 			}
-			
+
 			if (values.from_date > values.to_date) {
 				frappe.msgprint(__('From Date cannot be greater than To Date'));
 				return;
 			}
-			
+
 			// Check date range limit (30 days)
-			if (frappe.datetime.get_diff(values.to_date, values.from_date) > 30) {
-				frappe.msgprint(__('Date range too large. Maximum 30 days allowed.'));
+			if (frappe.datetime.get_diff(values.to_date, values.from_date) > 62) {
+				frappe.msgprint(__('Date range too large. Maximum 62 days allowed.'));
 				return;
 			}
-			
+
 			frappe.confirm(
 				__('Create and recalculate Daily Timesheet records for the period {0} to {1}?<br><br>This will:<br>• Create missing timesheet records<br>• Recalculate existing timesheet records<br>• Update working hours and overtime from latest data', [
 					frappe.datetime.str_to_user(values.from_date),
 					frappe.datetime.str_to_user(values.to_date)
 				]),
-				function() {
+				function () {
 					execute_bulk_create_recalculate_hybrid(values, dialog);
 				}
 			);
 		}
 	});
-	
+
 	dialog.show();
 }
 
@@ -148,7 +148,7 @@ function execute_bulk_create_recalculate_hybrid(values, dialog) {
 		},
 		freeze: true,
 		freeze_message: __('Processing... Please wait'),
-		callback: function(r) {
+		callback: function (r) {
 			if (!r.exc && r.message && r.message.success) {
 				const result = r.message;
 
@@ -177,7 +177,7 @@ function execute_bulk_create_recalculate_hybrid(values, dialog) {
 				});
 			}
 		},
-		error: function(r) {
+		error: function (r) {
 			console.error('Bulk create + recalculate error:', r);
 			frappe.msgprint({
 				title: __('System Error'),
@@ -193,12 +193,12 @@ function show_results_dialog_hybrid(options) {
 	const result = options.result;
 	let alert_class = options.type === 'success' ? 'alert-success' : 'alert-danger';
 	let indicator_class = options.type === 'success' ? 'green' : 'red';
-	
+
 	let performance_stats = '';
 	if (result && options.type === 'success') {
 		const throughput = result.records_per_second || 0;
 		const efficiency = result.errors ? ((result.processed || result.created + result.updated) / (result.total || result.total_operations) * 100).toFixed(1) : '100';
-		
+
 		if (options.operation_type === 'create') {
 			performance_stats = `
 				<div class="mt-3 p-3" style="background-color: #f8f9fa; border-radius: 8px;">
@@ -264,27 +264,27 @@ function show_results_dialog_hybrid(options) {
 			`;
 		}
 	}
-	
+
 	frappe.msgprint({
 		title: options.title,
 		message: `
 			<div class="alert ${alert_class}">
 				<h6 class="alert-heading">✅ Operation Completed Successfully!</h6>
-				${options.operation_type === 'create' ? 
-					`Bulk creation completed with optimized batch processing.` : 
-					options.operation_type === 'create_recalculate' ?
+				${options.operation_type === 'create' ?
+				`Bulk creation completed with optimized batch processing.` :
+				options.operation_type === 'create_recalculate' ?
 					`Combined bulk create + recalculate completed with optimized processing.` :
 					`Bulk recalculation completed with smart batching.`
-				}
+			}
 			</div>
 			${performance_stats}
 		`,
 		indicator: indicator_class,
 		wide: true
 	});
-	
+
 	// Refresh list view
-	setTimeout(function() {
+	setTimeout(function () {
 		if (cur_list && cur_list.doctype === 'Daily Timesheet') {
 			cur_list.refresh();
 		}
@@ -294,7 +294,7 @@ function show_results_dialog_hybrid(options) {
 // Background Job Dialog Helper
 function show_background_job_dialog(options) {
 	// Setup listener for background job completion
-	frappe.realtime.on('bulk_operation_complete', function(data) {
+	frappe.realtime.on('bulk_operation_complete', function (data) {
 		if (data.success) {
 			let title = '';
 			if (data.operation === 'create') {
@@ -304,7 +304,7 @@ function show_background_job_dialog(options) {
 			} else {
 				title = 'Background Recalculation Completed';
 			}
-			
+
 			show_results_dialog_hybrid({
 				title: __(title),
 				type: 'success',
@@ -318,11 +318,11 @@ function show_background_job_dialog(options) {
 				indicator: 'red'
 			});
 		}
-		
+
 		// Remove the listener after handling the event
 		frappe.realtime.off('bulk_operation_complete');
 	});
-	
+
 	frappe.msgprint({
 		title: options.title,
 		message: `
