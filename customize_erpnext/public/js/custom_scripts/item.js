@@ -38,7 +38,8 @@ frappe.ui.form.on('Item', {
         }
 
         // Validate and manage barcode
-        validate_and_manage_barcode(frm);
+        // COMMENTED OUT: Barcode is now auto-created via Python hook on item insert
+        // validate_and_manage_barcode(frm);
     },
     refresh: function (frm) {
         // Disable nút Single Variant
@@ -630,6 +631,9 @@ async function is_exists_item(item_group, item_name) {
 }
 
 /**
+ * COMMENTED OUT: Barcode management is now handled via Python hook
+ * This function is kept for reference but no longer used
+ *
  * Validate and manage barcode in tabItem Barcode table
  * - Check if barcode entry exists for this item
  * - If not exists, add new entry with barcode = item_code, uom = stock_uom, barcode_type = 'CODE-39'
@@ -637,6 +641,7 @@ async function is_exists_item(item_group, item_name) {
  * - Ensure only one barcode per item
  * @param {object} frm - The form object
  */
+/*
 function validate_and_manage_barcode(frm) {
     if (!frm.doc.item_code || !frm.doc.stock_uom) {
         return;
@@ -702,3 +707,4 @@ function validate_and_manage_barcode(frm) {
         frm.refresh_field('barcodes');
     }
 }
+*/

@@ -192,4 +192,75 @@ def verify_barcode_update():
         'incorrect': len(incorrect_barcodes)
     }
  
-update_all_items_barcode()
+# ====================================================================================
+# AUTO BARCODE MANAGEMENT ON ITEM INSERT/UPDATE
+# ====================================================================================
+
+def auto_add_barcode_on_item_save(doc, method=None):
+    """
+    Automatically add/update barcode when an item is inserted or saved.
+    This function is called via hooks.py on Item after_insert and validate events.
+
+    Rules:
+    - Ensure only 1 barcode per item
+    - Barcode value = item_code
+    - UOM = stock_uom
+    - Barcode type = CODE-39
+
+    Args:
+        doc: Item document object
+        method: Event method name (after_insert, validate, etc.)
+    """
+    # Skip if item_code or stock_uom is not set
+    if not doc.item_code or not doc.stock_uom:
+        return
+
+    # Get existing barcodes
+    existing_barcodes = doc.barcodes or []
+
+    # Case 1: Remove duplicate barcodes (keep only first)
+    if len(existing_barcodes) > 1:
+        frappe.logger().info(f"Item {doc.item_code}: Removing {len(existing_barcodes) - 1} duplicate barcodes")
+        doc.barcodes = [existing_barcodes[0]]
+        existing_barcodes = doc.barcodes
+
+    # Case 2: No barcode exists - create new one
+    if not existing_barcodes:
+        doc.append('barcodes', {
+            'barcode': doc.item_code,
+            'uom': doc.stock_uom,
+            'barcode_type': 'CODE-39'
+        })
+        frappe.logger().info(f"Item {doc.item_code}: Created new barcode")
+        return
+
+    # Case 3: Barcode exists - ensure it's correct
+    barcode_entry = existing_barcodes[0]
+    needs_update = False
+
+    if barcode_entry.barcode != doc.item_code:
+        barcode_entry.barcode = doc.item_code
+        needs_update = True
+
+    if barcode_entry.uom != doc.stock_uom:
+        barcode_entry.uom = doc.stock_uom
+        needs_update = True
+
+    if barcode_entry.barcode_type != 'CODE-39':
+        barcode_entry.barcode_type = 'CODE-39'
+        needs_update = True
+
+    if needs_update:
+        frappe.logger().info(f"Item {doc.item_code}: Updated barcode to match item_code and stock_uom")
+
+
+# ====================================================================================
+# MANUAL EXECUTION
+# ====================================================================================
+
+# Commented out auto-execution - only run manually via bench console
+# update_all_items_barcode()
+
+# How to run manually:
+# bench --site erp.tiqn.local execute customize_erpnext.api.bulk_update_scripts.item_update_barcode.update_all_items_barcode
+# bench --site erp.tiqn.local execute customize_erpnext.api.bulk_update_scripts.item_update_barcode.verify_barcode_update

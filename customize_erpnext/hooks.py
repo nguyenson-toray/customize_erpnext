@@ -307,7 +307,12 @@ doc_events = {
         # "on_update": "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.on_overtime_request_approval"
     },
 
-   
+    "Item": {
+        # Auto-add barcode when item is created or updated
+        # Using 'validate' event covers both insert and update cases
+        "validate": "customize_erpnext.api.bulk_update_scripts.item_update_barcode.auto_add_barcode_on_item_save"
+    },
+
 }
  
 
