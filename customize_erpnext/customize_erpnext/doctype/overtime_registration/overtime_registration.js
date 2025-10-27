@@ -3,6 +3,12 @@
 
 frappe.ui.form.on("Overtime Registration", {
     refresh(frm) {
+        // Hide Print button if document is not submitted
+        if (frm.doc.docstatus != 1) {
+            console.log("Hiding Print button for non-submitted document");
+            $("button[data-original-title=Print]").hide();
+            frm.page.menu.find('[data-label="Print"]').parent().parent().remove();
+        }
         // Add custom styling for the form
         frm.page.add_inner_button(__('Get Employees'), function () {
             show_employee_selection_dialog(frm);
