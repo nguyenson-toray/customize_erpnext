@@ -43,12 +43,6 @@ frappe.ui.form.on('Employee', {
     onload: function (frm) {
         // Load province options for both current and permanent address
         load_province_options(frm);
-        // if custom_permament_address_is_current_address is checked, set current address fields as read-only
-        if (frm.doc.custom_permament_address_is_current_address) {
-            frm.set_df_property('custom_current_address_village', 'read_only', 1);
-            frm.set_df_property('custom_current_address_commune', 'read_only', 1);
-            frm.set_df_property('custom_current_address_province', 'read_only', 1);
-        }
     },
 
     refresh: function (frm) {
@@ -176,60 +170,44 @@ frappe.ui.form.on('Employee', {
             window.original_employee_code = frm.doc.employee;
         }
     },
-    custom_permament_address_is_current_address: function (frm) {
-        if (frm.doc.custom_permament_address_is_current_address) {
-            // Copy permanent address fields to current address fields 
-            frm.set_value('custom_current_address_village', frm.doc.custom_permanent_address_village);
-            frm.set_value('custom_current_address_commune', frm.doc.custom_permanent_address_commune);
-            frm.set_value('custom_current_address_province', frm.doc.custom_permanent_address_province);
-            frm.set_value('custom_current_address_full', frm.doc.custom_permanent_address_full);
-            // set current address fields as read-only
-            frm.set_df_property('custom_current_address_village', 'read_only', 1);
-            frm.set_df_property('custom_current_address_commune', 'read_only', 1);
-            frm.set_df_property('custom_current_address_province', 'read_only', 1);
-        } else {
-            // un set current address fields as read-only 
-            frm.set_df_property('custom_current_address_village', 'read_only', 0);
-            frm.set_df_property('custom_current_address_commune', 'read_only', 0);
-            frm.set_df_property('custom_current_address_province', 'read_only', 0);
+    custom_copy_permanent_address_to_other_adress: function (frm) {
+        if (frm.doc.custom_copy_permanent_address_to_other_adress) {
+            console.log('Copy permanent address to current and origin address');
+            copy_address(frm, 'permanent', 'current');
+            copy_address(frm, 'permanent', 'place_of_origin');
         }
     },
+    // Current Address handlers
     custom_current_address_village: function (frm) {
-        build_address_full(frm);
+        build_address_full_for_type(frm, 'current');
     },
     custom_current_address_commune: function (frm) {
-        build_address_full(frm);
+        build_address_full_for_type(frm, 'current');
     },
     custom_current_address_province: function (frm) {
-        // When province changes, clear and reload commune options
-        if (frm.doc.custom_current_address_province) {
-            frm.set_value('custom_current_address_commune', '');
-            load_commune_options(frm, 'current', frm.doc.custom_current_address_province);
-        } else {
-            // If province is cleared, clear commune too
-            frm.set_value('custom_current_address_commune', '');
-            frm.set_df_property('custom_current_address_commune', 'options', []);
-        }
-        build_address_full(frm);
+        handle_province_change(frm, 'current');
     },
 
+    // Permanent Address handlers
     custom_permanent_address_village: function (frm) {
-        build_address_full(frm);
+        build_address_full_for_type(frm, 'permanent');
     },
     custom_permanent_address_commune: function (frm) {
-        build_address_full(frm);
+        build_address_full_for_type(frm, 'permanent');
     },
     custom_permanent_address_province: function (frm) {
-        // When province changes, clear and reload commune options
-        if (frm.doc.custom_permanent_address_province) {
-            frm.set_value('custom_permanent_address_commune', '');
-            load_commune_options(frm, 'permanent', frm.doc.custom_permanent_address_province);
-        } else {
-            // If province is cleared, clear commune too
-            frm.set_value('custom_permanent_address_commune', '');
-            frm.set_df_property('custom_permanent_address_commune', 'options', []);
-        }
-        build_address_full(frm);
+        handle_province_change(frm, 'permanent');
+    },
+
+    // Place of Origin Address handlers
+    custom_place_of_origin_address_village: function (frm) {
+        build_address_full_for_type(frm, 'place_of_origin');
+    },
+    custom_place_of_origin_address_commune: function (frm) {
+        build_address_full_for_type(frm, 'place_of_origin');
+    },
+    custom_place_of_origin_address_province: function (frm) {
+        handle_province_change(frm, 'place_of_origin');
     },
 
     before_save: function (frm) {
@@ -294,34 +272,116 @@ frappe.ui.form.on('Employee', {
                 frappe.validated = false;
             }
         }
-        build_address_full(frm);
+
+        // Build all address full fields before saving
+        build_address_full_for_type(frm, 'permanent');
+        build_address_full_for_type(frm, 'current');
+        build_address_full_for_type(frm, 'place_of_origin');
     },
 });
-// Build  address full
-function build_address_full(frm) {
-    let current_address_full = [];
-    if (frm.doc.custom_current_address_village) {
-        current_address_full.push(frm.doc.custom_current_address_village);
-    }
-    if (frm.doc.custom_current_address_commune) {
-        current_address_full.push(frm.doc.custom_current_address_commune);
-    }
-    if (frm.doc.custom_current_address_province) {
-        current_address_full.push(frm.doc.custom_current_address_province);
-    }
-    frm.set_value('custom_current_address_full', current_address_full.join(', '));
 
-    let permanent_address_full = [];
-    if (frm.doc.custom_permanent_address_village) {
-        permanent_address_full.push(frm.doc.custom_permanent_address_village);
+// ============================================================
+// ADDRESS MANAGEMENT - REUSABLE FUNCTIONS
+// ============================================================
+
+/**
+ * Address types configuration - centralized mapping for easy maintenance
+ */
+const ADDRESS_TYPES = {
+    permanent: {
+        province: 'custom_permanent_address_province',
+        commune: 'custom_permanent_address_commune',
+        village: 'custom_permanent_address_village',
+        full: 'custom_permanent_address_full'
+    },
+    current: {
+        province: 'custom_current_address_province',
+        commune: 'custom_current_address_commune',
+        village: 'custom_current_address_village',
+        full: 'custom_current_address_full'
+    },
+    place_of_origin: {
+        province: 'custom_place_of_origin_address_province',
+        commune: 'custom_place_of_origin_address_commune',
+        village: 'custom_place_of_origin_address_village',
+        full: 'custom_place_of_origin_address_full'
     }
-    if (frm.doc.custom_permanent_address_commune) {
-        permanent_address_full.push(frm.doc.custom_permanent_address_commune);
+};
+
+/**
+ * Handle province change - load communes and build address
+ * @param {object} frm - Form object
+ * @param {string} address_type - 'permanent', 'current', or 'place_of_origin'
+ */
+function handle_province_change(frm, address_type) {
+    const fields = ADDRESS_TYPES[address_type];
+    const province_value = frm.doc[fields.province];
+
+    if (province_value) {
+        // Clear commune value
+        frm.set_value(fields.commune, '');
+        // Load new commune options
+        load_commune_options_for_type(frm, address_type, province_value);
+    } else {
+        // If province is cleared, clear commune and its options
+        frm.set_value(fields.commune, '');
+        frm.set_df_property(fields.commune, 'options', []);
     }
-    if (frm.doc.custom_permanent_address_province) {
-        permanent_address_full.push(frm.doc.custom_permanent_address_province);
+
+    // Build full address
+    build_address_full_for_type(frm, address_type);
+}
+
+/**
+ * Build full address for a specific address type
+ * @param {object} frm - Form object
+ * @param {string} address_type - 'permanent', 'current', or 'place_of_origin'
+ */
+function build_address_full_for_type(frm, address_type) {
+    const fields = ADDRESS_TYPES[address_type];
+    let address_parts = [];
+
+    // Add village if exists
+    if (frm.doc[fields.village]) {
+        address_parts.push(frm.doc[fields.village]);
     }
-    frm.set_value('custom_permanent_address_full', permanent_address_full.join(', '));
+
+    // Add commune if exists
+    if (frm.doc[fields.commune]) {
+        address_parts.push(frm.doc[fields.commune]);
+    }
+
+    // Add province if exists
+    if (frm.doc[fields.province]) {
+        address_parts.push(frm.doc[fields.province]);
+    }
+
+    // Set full address
+    frm.set_value(fields.full, address_parts.join(', '));
+}
+
+/**
+ * Copy address from one type to another
+ * @param {object} frm - Form object
+ * @param {string} from_type - Source address type
+ * @param {string} to_type - Target address type
+ */
+function copy_address(frm, from_type, to_type) {
+    const from_fields = ADDRESS_TYPES[from_type];
+    const to_fields = ADDRESS_TYPES[to_type];
+
+    // Copy all address fields
+    frm.set_value(to_fields.village, frm.doc[from_fields.village]);
+    frm.set_value(to_fields.commune, frm.doc[from_fields.commune]);
+    frm.set_value(to_fields.province, frm.doc[from_fields.province]);
+
+    // Load communes for the copied province
+    if (frm.doc[from_fields.province]) {
+        load_commune_options_for_type(frm, to_type, frm.doc[from_fields.province]);
+    }
+
+    // Build full address
+    build_address_full_for_type(frm, to_type);
 }
 // Maternity Tracking child table events
 frappe.ui.form.on('Maternity Tracking', {
@@ -857,41 +917,40 @@ function show_crop_dialog(frm, imageDataUrl) {
 // ============================================================
 
 /**
- * Load province options from JSON (called on form load)
+ * Load province options from API (called on form load)
  */
 function load_province_options(frm) {
     frappe.call({
         method: 'customize_erpnext.api.address.get_provinces',
         callback: function (r) {
             if (r.message && r.message.length > 0) {
-                // Set province dropdown options for both current and permanent
-                frm.set_df_property('custom_current_address_province', 'options', r.message);
-                frm.set_df_property('custom_permanent_address_province', 'options', r.message);
+                // Set province dropdown options for all address types
+                Object.keys(ADDRESS_TYPES).forEach(address_type => {
+                    const fields = ADDRESS_TYPES[address_type];
+                    frm.set_df_property(fields.province, 'options', r.message);
 
-                // If current province already has a value, load its communes
-                if (frm.doc.custom_current_address_province) {
-                    load_commune_options(frm, 'current', frm.doc.custom_current_address_province);
-                }
-
-                // If permanent province already has a value, load its communes
-                if (frm.doc.custom_permanent_address_province) {
-                    load_commune_options(frm, 'permanent', frm.doc.custom_permanent_address_province);
-                }
+                    // If province already has a value, load its communes
+                    if (frm.doc[fields.province]) {
+                        load_commune_options_for_type(frm, address_type, frm.doc[fields.province]);
+                    }
+                });
             }
         }
     });
 }
 
 /**
- * Load commune options for selected province
+ * Load commune options for selected province and address type
  * @param {object} frm - Form object
- * @param {string} address_type - 'current' or 'permanent'
+ * @param {string} address_type - 'permanent', 'current', or 'place_of_origin'
  * @param {string} province_name - Province name_with_type
  */
-function load_commune_options(frm, address_type, province_name) {
-    if (!province_name) {
+function load_commune_options_for_type(frm, address_type, province_name) {
+    if (!province_name || !ADDRESS_TYPES[address_type]) {
         return;
     }
+
+    const fields = ADDRESS_TYPES[address_type];
 
     frappe.call({
         method: 'customize_erpnext.api.address.get_communes',
@@ -899,17 +958,12 @@ function load_commune_options(frm, address_type, province_name) {
             province_name: province_name
         },
         callback: function (r) {
-            // Determine which commune field to update based on address type
-            let commune_field = address_type === 'current'
-                ? 'custom_current_address_commune'
-                : 'custom_permanent_address_commune';
-
             if (r.message && r.message.length > 0) {
                 // Set commune dropdown options
-                frm.set_df_property(commune_field, 'options', r.message);
+                frm.set_df_property(fields.commune, 'options', r.message);
             } else {
                 // Clear commune options if no communes found
-                frm.set_df_property(commune_field, 'options', []);
+                frm.set_df_property(fields.commune, 'options', []);
             }
         }
     });
