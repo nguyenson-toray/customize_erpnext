@@ -20,10 +20,343 @@ frappe.listview_settings['Employee'] = {
             show_multi_employee_sync_dialog(listview);
         });
 
+        listview.page.add_menu_item(__('5. Bulk Update Holiday List'), function () {
+            show_bulk_update_holiday_dialog(listview);
+        });
 
 
     }
 };
+
+function show_bulk_update_holiday_dialog(listview) {
+    // Get selected employees
+    const selected_employees = listview.get_checked_items();
+
+    // Lấy danh sách Holiday List
+    frappe.call({
+        method: 'frappe.client.get_list',
+        args: {
+            doctype: 'Holiday List',
+            fields: ['name', 'holiday_list_name', 'from_date', 'to_date', 'total_holidays'],
+            filters: {},
+            order_by: 'from_date desc',
+            limit_page_length: 999
+        },
+        callback: function (r) {
+            if (r.message && r.message.length > 0) {
+                show_holiday_selection_dialog(selected_employees, r.message, listview);
+            } else {
+                frappe.msgprint({
+                    title: __('❌ Không Tìm Thấy Holiday List'),
+                    message: __('Không tìm thấy Holiday List nào trong hệ thống.'),
+                    indicator: 'red'
+                });
+            }
+        }
+    });
+}
+
+function show_holiday_selection_dialog(employees, holiday_lists, listview) {
+    let employee_names = employees.map(e => e.name);
+    let apply_to_all = false;
+
+    let d = new frappe.ui.Dialog({
+        title: __('🗓️ Cập Nhật Holiday List'),
+        fields: [
+            {
+                fieldname: 'apply_to_all_section',
+                fieldtype: 'Section Break',
+                label: __('🎯 Phạm Vi Áp Dụng')
+            },
+            {
+                fieldname: 'apply_to_all',
+                fieldtype: 'Check',
+                label: __('Áp dụng cho TẤT CẢ nhân viên Active'),
+                default: 0,
+                onchange: function() {
+                    apply_to_all = d.get_value('apply_to_all');
+                    update_employee_display();
+                }
+            },
+            {
+                fieldname: 'info_section',
+                fieldtype: 'Section Break'
+            },
+            {
+                fieldname: 'employee_info',
+                fieldtype: 'HTML'
+            },
+            {
+                fieldname: 'section_1',
+                fieldtype: 'Section Break',
+                label: __('📋 Danh Sách Nhân Viên')
+            },
+            {
+                fieldname: 'employee_list',
+                fieldtype: 'HTML'
+            },
+            {
+                fieldname: 'section_2',
+                fieldtype: 'Section Break',
+                label: __('🗓️ Chọn Holiday List')
+            },
+            {
+                fieldname: 'holiday_list',
+                fieldtype: 'Link',
+                label: __('Holiday List'),
+                options: 'Holiday List',
+                reqd: 1,
+                get_query: function () {
+                    return {
+                        filters: {}
+                    };
+                },
+                onchange: function () {
+                    const selected_holiday = d.get_value('holiday_list');
+                    if (selected_holiday) {
+                        const holiday_info = holiday_lists.find(h => h.name === selected_holiday);
+                        if (holiday_info) {
+                            let info_html = `
+                                <div style="padding: 10px; background: #e7f3ff; border-radius: 6px; margin-top: 10px;">
+                                    <strong>📅 ${holiday_info.holiday_list_name || holiday_info.name}</strong><br>
+                                    <small style="color: #666;">
+                                        Từ: ${holiday_info.from_date} → Đến: ${holiday_info.to_date}<br>
+                                        Tổng số ngày nghỉ: <strong>${holiday_info.total_holidays || 0}</strong>
+                                    </small>
+                                </div>
+                            `;
+                            d.fields_dict.holiday_info.$wrapper.html(info_html);
+                        }
+                    }
+                }
+            },
+            {
+                fieldname: 'column_break_1',
+                fieldtype: 'Column Break'
+            },
+            {
+                fieldname: 'holiday_info',
+                fieldtype: 'HTML'
+            }
+        ],
+        size: 'large',
+        primary_action_label: __('✅ Cập Nhật Ngay'),
+        primary_action(values) {
+            if (!values.holiday_list) {
+                frappe.msgprint({
+                    title: __('⚠️ Thiếu Thông Tin'),
+                    message: __('Vui lòng chọn Holiday List trước khi cập nhật.'),
+                    indicator: 'orange'
+                });
+                return;
+            }
+
+            // Xác định scope cập nhật
+            let target_employees = [];
+            let scope_text = '';
+
+            if (apply_to_all) {
+                target_employees = 'all';  // Flag để backend xử lý
+                scope_text = 'TẤT CẢ nhân viên Active trong hệ thống';
+            } else {
+                if (employee_names.length === 0) {
+                    frappe.msgprint({
+                        title: __('⚠️ Chưa Chọn Nhân Viên'),
+                        message: __('Vui lòng chọn ít nhất một nhân viên hoặc tick "Áp dụng cho TẤT CẢ nhân viên Active".'),
+                        indicator: 'orange'
+                    });
+                    return;
+                }
+                target_employees = employee_names;
+                scope_text = `<strong>${employee_names.length}</strong> nhân viên đã chọn`;
+            }
+
+            // Confirm action
+            frappe.confirm(
+                __('Bạn có chắc chắn muốn cập nhật Holiday List <strong>{0}</strong> cho {1}?', 
+                    [values.holiday_list, scope_text]),
+                function () {
+                    d.hide();
+
+                    // Call API to update
+                    frappe.call({
+                        method: 'customize_erpnext.api.employee.employee_utils.bulk_update_employee_holiday_list',
+                        args: {
+                            employees: target_employees,
+                            holiday_list: values.holiday_list
+                        },
+                        freeze: true,
+                        freeze_message: __('⏳ Đang cập nhật Holiday List...'),
+                        callback: function (r) {
+                            if (r.message && r.message.success) {
+                                // Show success message
+                                frappe.msgprint({
+                                    title: __('✅ Cập Nhật Thành Công'),
+                                    message: r.message.message,
+                                    indicator: 'green'
+                                });
+
+                                // Show summary
+                                frappe.show_alert({
+                                    message: __('Đã cập nhật {0}/{1} nhân viên', 
+                                        [r.message.updated_count, r.message.total_count]),
+                                    indicator: 'green'
+                                }, 10);
+
+                                // Refresh list
+                                listview.refresh();
+
+                                // Clear selected items
+                                listview.clear_checked_items();
+                            }
+                        },
+                        error: function (r) {
+                            frappe.msgprint({
+                                title: __('❌ Lỗi'),
+                                message: r.message || __('Có lỗi xảy ra khi cập nhật Holiday List'),
+                                indicator: 'red'
+                            });
+                        }
+                    });
+                }
+            );
+        }
+    });
+
+    // Function để cập nhật hiển thị
+    function update_employee_display() {
+        if (apply_to_all) {
+            // Lấy tổng số nhân viên Active
+            frappe.call({
+                method: 'frappe.client.get_count',
+                args: {
+                    doctype: 'Employee',
+                    filters: {
+                        status: 'Active'
+                    }
+                },
+                callback: function(r) {
+                    const total_active = r.message || 0;
+                    
+                    // Hiển thị info warning
+                    let info_html = `
+                        <div style="padding: 15px; background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); 
+                                    border-radius: 8px; color: white; margin-bottom: 10px;">
+                            <i class="fa fa-exclamation-triangle" style="font-size: 18px;"></i>
+                            <strong style="font-size: 16px;"> CẢNH BÁO: ÁP DỤNG CHO TẤT CẢ</strong><br>
+                            <span style="font-size: 14px;">
+                                Bạn đang chọn áp dụng cho <strong>${total_active}</strong> nhân viên Active trong hệ thống!
+                            </span>
+                        </div>
+                    `;
+                    d.fields_dict.employee_info.$wrapper.html(info_html);
+
+                    // Hiển thị placeholder thay vì list đầy đủ
+                    let placeholder_html = `
+                        <div style="padding: 40px; text-align: center; background: #f8f9fa; 
+                                    border: 2px dashed #dee2e6; border-radius: 8px;">
+                            <i class="fa fa-users" style="font-size: 48px; color: #6c757d; margin-bottom: 15px;"></i>
+                            <h4 style="color: #495057; margin: 10px 0;">Áp dụng cho TẤT CẢ nhân viên</h4>
+                            <p style="color: #6c757d; margin: 0;">
+                                Tổng số: <strong>${total_active}</strong> nhân viên Active<br>
+                                <small>Bỏ tick checkbox phía trên để chỉ áp dụng cho nhân viên đã chọn</small>
+                            </p>
+                        </div>
+                    `;
+                    d.fields_dict.employee_list.$wrapper.html(placeholder_html);
+                }
+            });
+        } else {
+            // Hiển thị thông tin nhân viên đã chọn
+            d.fields_dict.employee_info.$wrapper.html('');
+            
+            if (employees.length === 0) {
+                let no_selection_html = `
+                    <div style="padding: 40px; text-align: center; background: #fff3cd; 
+                                border: 2px dashed #ffc107; border-radius: 8px;">
+                        <i class="fa fa-hand-pointer-o" style="font-size: 48px; color: #856404; margin-bottom: 15px;"></i>
+                        <h4 style="color: #856404; margin: 10px 0;">Chưa chọn nhân viên nào</h4>
+                        <p style="color: #856404; margin: 0;">
+                            Vui lòng tick checkbox để chọn nhân viên từ danh sách<br>
+                            hoặc tick "Áp dụng cho TẤT CẢ nhân viên Active"
+                        </p>
+                    </div>
+                `;
+                d.fields_dict.employee_list.$wrapper.html(no_selection_html);
+            } else {
+                render_employee_list(employees);
+            }
+        }
+    }
+
+    // Function render danh sách nhân viên
+    function render_employee_list(emp_list) {
+        let employee_html = `
+            <div style="max-height: 320px; overflow-y: auto; border: 1px solid #d1d8dd; 
+                        border-radius: 8px; background: #f8f9fa;">
+                <table class="table table-sm table-hover mb-0" style="font-size: 13px;">
+                    <thead style="position: sticky; top: 0; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                                  color: white; z-index: 1;">
+                        <tr>
+                            <th style="width: 40px; padding: 8px;">#</th>
+                            <th style="padding: 8px;">Mã NV</th>
+                            <th style="padding: 8px;">Tên Nhân Viên</th>
+                            <th style="padding: 8px;">Holiday Hiện Tại</th>
+                        </tr>
+                    </thead>
+                    <tbody style="background: white;">
+        `;
+
+        emp_list.forEach((emp, index) => {
+            const rowColor = index % 2 === 0 ? '#ffffff' : '#f8f9fa';
+            employee_html += `
+                <tr style="background: ${rowColor};">
+                    <td class="text-muted" style="padding: 8px;">${index + 1}</td>
+                    <td style="padding: 8px;">
+                        <span style="background: #667eea; color: white; padding: 2px 8px; 
+                                     border-radius: 4px; font-size: 11px; font-weight: 600;">
+                            ${emp.name}
+                        </span>
+                    </td>
+                    <td style="padding: 8px;"><strong>${emp.employee_name || emp.name}</strong></td>
+                    <td style="padding: 8px;">
+                        ${emp.holiday_list 
+                            ? `<span style="background: #28a745; color: white; padding: 2px 8px; 
+                                       border-radius: 4px; font-size: 11px;">${emp.holiday_list}</span>` 
+                            : '<span style="color: #dc3545; font-style: italic;">⚠️ Chưa gán</span>'}
+                    </td>
+                </tr>
+            `;
+        });
+
+        employee_html += `
+                    </tbody>
+                </table>
+            </div>
+        `;
+
+        d.fields_dict.employee_list.$wrapper.html(employee_html);
+    }
+
+    // Initial display
+    update_employee_display();
+
+    // Show dialog
+    d.show();
+
+    // Style dialog
+    d.$wrapper.find('.modal-dialog').addClass('modal-lg');
+    d.$wrapper.find('.modal-content').css({
+        'border-radius': '12px',
+        'box-shadow': '0 10px 40px rgba(0,0,0,0.3)'
+    });
+    d.$wrapper.find('.modal-header').css({
+        'background': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        'color': 'white',
+        'border-bottom': 'none',
+        'border-radius': '12px 12px 0 0'
+    });
+}
 
 function show_get_fingerprint_dialog() {
     // Simple employee selector dialog that uses shared FingerprintScannerDialog

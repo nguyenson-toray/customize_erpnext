@@ -1,0 +1,175 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "naming_series:",
+ "creation": "2025-10-17 13:23:52.938275",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "issue_date",
+  "employee_section",
+  "employee",
+  "employee_name",
+  "department",
+  "column_break_xwa7",
+  "reissue_count",
+  "fiscal_year",
+  "section_break_items",
+  "employee_card",
+  "hat",
+  "water_bottle",
+  "uniform",
+  "column_break_fkl3",
+  "reason",
+  "comments",
+  "section_break_detailed",
+  "reissue_items",
+  "amended_from"
+ ],
+ "fields": [
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "EIR-.YYYY.-",
+   "default": "EIR-.YYYY.-",
+   "reqd": 1
+  },
+  {
+   "fieldname": "issue_date",
+   "fieldtype": "Date",
+   "label": "Issue Date",
+   "reqd": 1,
+   "default": "Today"
+  },
+  {
+   "fieldname": "employee_section",
+   "fieldtype": "Section Break",
+   "label": "Employee Information"
+  },
+  {
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "label": "Employee ID",
+   "options": "Employee",
+   "reqd": 1
+  },
+  {
+   "fieldname": "employee_name",
+   "fieldtype": "Data",
+   "label": "Employee Name",
+   "fetch_from": "employee.employee_name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "department",
+   "fieldtype": "Data",
+   "label": "Department",
+   "fetch_from": "employee.department",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_xwa7",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "reissue_count",
+   "fieldtype": "Int",
+   "label": "Reissue Count",
+   "read_only": 1,
+   "default": 1,
+   "description": "Number of times items have been reissued to this employee"
+  },
+  {
+   "fieldname": "section_break_items",
+   "fieldtype": "Section Break",
+   "label": "Reissue Items"
+  },
+  {
+   "fieldname": "employee_card",
+   "fieldtype": "Check",
+   "label": "Employee Card"
+  },
+  {
+   "fieldname": "hat",
+   "fieldtype": "Check",
+   "label": "Hat"
+  },
+  {
+   "fieldname": "water_bottle",
+   "fieldtype": "Check",
+   "label": "Water Bottle"
+  },
+  {
+   "fieldname": "uniform",
+   "fieldtype": "Check",
+   "label": "Uniform"
+  },
+  {
+   "fieldname": "column_break_fkl3",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "reason",
+   "fieldtype": "Select",
+   "label": "Reason",
+   "options": "Lost\nWorn Out\nDamaged\nOther"
+  },
+  {
+   "fieldname": "comments",
+   "fieldtype": "Small Text",
+   "label": "Comments"
+  },
+  {
+   "fieldname": "section_break_detailed",
+   "fieldtype": "Section Break",
+   "label": "Detailed Items",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "reissue_items",
+   "fieldtype": "Table",
+   "label": "Reissue Items List",
+   "options": "Reissue Item Detail"
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Employee Item Reissue",
+   "print_hide": 1,
+   "read_only": 1,
+   "search_index": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2025-10-17 13:23:52.938275",
+ "modified_by": "Administrator",
+ "module": "Customize Erpnext",
+ "name": "Employee Item Reissue",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

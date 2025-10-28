@@ -1370,3 +1370,93 @@ def debug_company_logo():
     return "\n".join(result)
 
 
+@frappe.whitelist()
+def bulk_update_employee_holiday_list(employees, holiday_list):
+    """
+    Bulk update Holiday List cho nhiều Employee
+    
+    Args:
+        employees: List các employee names (JSON string, list, hoặc 'all')
+        holiday_list: Tên của Holiday List cần gán
+    """
+    # Xử lý employees parameter
+    if employees == 'all':
+        # Lấy tất cả nhân viên Active
+        employees = frappe.get_all('Employee', 
+            filters={'status': 'Active'},
+            pluck='name'
+        )
+    elif isinstance(employees, str):
+        import json
+        employees = json.loads(employees)
+    
+    if not employees:
+        frappe.throw(_("Vui lòng chọn ít nhất 1 nhân viên"))
+    
+    if not holiday_list:
+        frappe.throw(_("Vui lòng chọn Holiday List"))
+    
+    # Kiểm tra Holiday List có tồn tại không
+    if not frappe.db.exists("Holiday List", holiday_list):
+        frappe.throw(_("Holiday List {0} không tồn tại").format(holiday_list))
+    
+    # Kiểm tra quyền
+    if not frappe.has_permission("Employee", "write"):
+        frappe.throw(_("Bạn không có quyền cập nhật Employee"))
+    
+    success_count = 0
+    error_list = []
+    updated_employees = []
+    
+    for emp_name in employees:
+        try:
+            # Kiểm tra employee tồn tại
+            if not frappe.db.exists("Employee", emp_name):
+                error_list.append(f"{emp_name}: Không tồn tại")
+                continue
+            
+            # Get current holiday list
+            current_holiday = frappe.db.get_value("Employee", emp_name, "holiday_list")
+            
+            # Update
+            frappe.db.set_value(
+                "Employee", 
+                emp_name, 
+                "holiday_list", 
+                holiday_list,
+                update_modified=True
+            )
+            
+            updated_employees.append({
+                "name": emp_name,
+                "old_holiday": current_holiday,
+                "new_holiday": holiday_list
+            })
+            
+            success_count += 1
+            
+        except Exception as e:
+            frappe.log_error(
+                message=frappe.get_traceback(),
+                title=f"Lỗi cập nhật Holiday List cho {emp_name}"
+            )
+            error_list.append(f"{emp_name}: {str(e)}")
+    
+    frappe.db.commit()
+    
+    # Tạo message
+    message = f"✅ Đã cập nhật Holiday List <strong>{holiday_list}</strong> cho <strong>{success_count}/{len(employees)}</strong> nhân viên"
+    
+    if error_list:
+        message += f"<br><br><b>❌ Lỗi ({len(error_list)}):</b><br>" + "<br>".join(error_list[:10])
+        if len(error_list) > 10:
+            message += f"<br>... và {len(error_list) - 10} lỗi khác"
+    
+    return {
+        "success": True,
+        "message": message,
+        "updated_count": success_count,
+        "total_count": len(employees),
+        "error_count": len(error_list),
+        "updated_employees": updated_employees
+    }

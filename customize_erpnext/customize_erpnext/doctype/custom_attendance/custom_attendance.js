@@ -636,7 +636,6 @@ function render_connections_html_direct(frm, checkins) {
       </div>
     `;
   }
-
   // Set HTML to field6
   try {
     frm.set_df_property('connections_html', 'options', html);
