@@ -300,6 +300,25 @@ def generate_employee_cards_pdf(employee_ids, with_barcode=0, page_size='A4'):
         frappe.log_error(f"Error: {str(e)}\n\nTraceback:\n{error_trace}", "Employee Cards PDF Error")
         frappe.throw(_("Failed to generate employee cards PDF: {0}").format(str(e)))
 
+def get_employee_reissue_count(employee_id):
+    """Get the reissue count for an employee from Employee Item Reissue doctype"""
+    # Default is 1 for first issuance
+    reissue_number = 1
+    
+    # Query the Employee Item Reissue doctype to get the latest reissue count
+    reissue_records = frappe.get_all(
+        "Employee Item Reissue",
+        filters={"employee": employee_id},
+        fields=["reissue_count"],
+        order_by="reissue_count desc",
+        limit=1
+    )
+    
+    # If reissue records exist, add 1 to the highest reissue_count
+    if reissue_records and reissue_records[0].get("reissue_count"):
+        reissue_number = reissue_records[0].get("reissue_count") + 1
+    
+    return reissue_number
 
 def generate_employee_cards_html(employees, with_barcode=False, page_size='A4'):
     """
@@ -415,6 +434,7 @@ def generate_employee_cards_html(employees, with_barcode=False, page_size='A4'):
         }}
 
         .card-right {{
+            
             margin-left: 30mm;
             padding-top: 9mm;
             padding-left: 0.5mm;
@@ -524,6 +544,13 @@ def generate_employee_cards_html(employees, with_barcode=False, page_size='A4'):
             margin-top: 0.5mm;
             padding-left: 5mm;
         }}
+        #reissue-number{{
+            position: absolute;
+            bottom: 0;
+            right: 1mm;
+            font-size: 8px;
+        }}
+        
     </style>
     </head>
     """
@@ -600,6 +627,9 @@ def generate_single_card_html(employee, company_logo, with_barcode=False):
     employee_code = frappe.utils.escape_html(employee.get('name', ''))
     employee_section = frappe.utils.escape_html(employee.get('custom_section', ''))
 
+    # Get the reissue number for this employee
+    reissue_number = get_employee_reissue_count(employee_code)
+
     # Simple logic for name display
     name_class = 'employee-name'
     name_html = employee_name
@@ -637,7 +667,9 @@ def generate_single_card_html(employee, company_logo, with_barcode=False):
                 <div class="{name_class}">{name_html}</div>
                 <div class="employee-code">{employee_code}</div>
                 <div class="{section_class}">{employee_section}</div>
+                
             </div>
+            <div id="reissue-number"> {reissue_number} </div>
         </div>
     </div>
     '''
