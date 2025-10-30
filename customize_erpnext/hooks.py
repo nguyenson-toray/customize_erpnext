@@ -279,6 +279,7 @@ doc_events = {
             # "customize_erpnext.api.employee.erpnext_mongodb.sync_employee_to_mongodb"
         ],
         "after_insert": "customize_erpnext.api.employee.erpnext_mongodb.sync_employee_to_mongodb",
+        "after_insert": "customize_erpnext.api.employee.auto_assignment.set_default_holiday_list",
         "on_trash": [
             "customize_erpnext.api.employee.employee_validation.prevent_employee_deletion",
             "customize_erpnext.api.employee.erpnext_mongodb.delete_employee_from_mongodb"
