@@ -216,8 +216,9 @@
           <div class="signature-title-vn">Phê duyệt bởi</div>
         </div>
         <div class="signature-space"></div>
-        {% if doc.workflow_state == "Approved" %}
-        <div class="approval-text">Approved on system<br>Đã phê duyệt trên hệ thống</div>
+        {% set has_active_workflow = frappe.db.exists("Workflow", {"document_type": doc.doctype, "is_active": 1}) %}
+        {% if has_active_workflow and doc.workflow_state == "Approved" %}
+        <!-- Hiển thị text "Approved on system" -->
         {% else %}
         <div class="signature-space"></div>
         {% endif %}

@@ -228,7 +228,15 @@ def generate_employee_cards_pdf(employee_ids, with_barcode=0, page_size='A4'):
 
         if not employees:
             frappe.throw(_("No valid employees found"))
-
+        if len(employees) %2 != 0:
+            # Ensure even number of employees for duplex printing
+            employees.append({
+                'name': '',
+                'employee_name': '',
+                'custom_section': '',
+                'image': ''
+            })
+            frappe.logger().info("Added placeholder employee to make even count")
         # Generate HTML for cards
         frappe.logger().info(f"Generating HTML for employee cards (with_barcode={with_barcode}, page_size={page_size})")
         html = generate_employee_cards_html(employees, with_barcode=with_barcode, page_size=page_size)

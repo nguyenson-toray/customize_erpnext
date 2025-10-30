@@ -4,12 +4,12 @@
 frappe.ui.form.on('Shift Registration', {
     refresh: function (frm) {
         // Set default cho End Date = Today + 7 days
-        if (!frm.doc.end_date) {
-            var today = frappe.datetime.get_today();
-            var defaultDate = frappe.datetime.add_days(today, 7);
-            frm.set_value('end_date', defaultDate);
-        }
-        
+        // if (!frm.doc.end_date) {
+        //     var today = frappe.datetime.get_today();
+        //     var defaultDate = frappe.datetime.add_days(today, 7);
+        //     frm.set_value('end_date', defaultDate);
+        // }
+
         // Auto-populate requested_by with current user's employee
         if (frm.is_new() && !frm.doc.requested_by) {
             frappe.call({
@@ -34,9 +34,9 @@ frappe.ui.form.on('Shift Registration', {
             frm.events.remove_empty_rows(frm);
         }, __('Actions'));
     },
-    
+
     // Khi thay đổi shift, cập nhật start_time và end_time từ Shift Type
-    shift: function(frm) {
+    shift: function (frm) {
         if (frm.doc.shift) {
             frappe.call({
                 method: 'frappe.client.get',
@@ -44,12 +44,12 @@ frappe.ui.form.on('Shift Registration', {
                     doctype: 'Shift Type',
                     name: frm.doc.shift
                 },
-                callback: function(r) {
+                callback: function (r) {
                     if (r.message) {
                         // Cập nhật parent fields
                         frm.set_value('start_time', r.message.start_time);
                         frm.set_value('end_time', r.message.end_time);
-                        
+
                         // Cập nhật tất cả rows hiện có trong child table
                         if (frm.doc.employees_list) {
                             frm.doc.employees_list.forEach(function (row) {
@@ -64,7 +64,7 @@ frappe.ui.form.on('Shift Registration', {
             });
         }
     },
-    
+
     // Khi thay đổi start_time, cập nhật tất cả rows hiện có
     start_time: function (frm) {
         if (frm.doc.start_time) {
@@ -470,7 +470,7 @@ function validate_shift_values(frm) {
         if (!d.employee) {
             continue;
         }
-        
+
         // Kiểm tra xem shift có tồn tại trong Shift Type không
         if (d.shift) {
             frappe.call({
@@ -480,7 +480,7 @@ function validate_shift_values(frm) {
                     name: d.shift
                 },
                 async: false,
-                callback: function(r) {
+                callback: function (r) {
                     if (!r.message) {
                         frappe.msgprint(__('Row {0}: Shift Type "{1}" does not exist', [d.idx, d.shift]));
                         hasErrors = true;

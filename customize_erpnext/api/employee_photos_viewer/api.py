@@ -5,12 +5,13 @@ from frappe import _
 
 
 @frappe.whitelist(allow_guest=False)
-def get_employee_photos(show_active_only=1, sort_order='asc'):
+def get_employee_photos(show_active_only=1, sort_order='asc', custom_group=''):
     """
     Get list of all employee photos from employee_photos folder.
     Args:
         show_active_only: 1 to show only Active employees (default), 0 to show all
         sort_order: 'asc' for A-Z, 'desc' for Z-A
+        custom_group: Filter by custom_group (optional)
     Returns list of photo info including filename, URL, file size, employee name, and modification time.
     """
     try:
@@ -31,8 +32,12 @@ def get_employee_photos(show_active_only=1, sort_order='asc'):
             # Only show Active employees
             filters['status'] = 'Active'
 
+        if custom_group:
+            # Filter by custom_group if provided
+            filters['custom_group'] = custom_group
+
         employees = frappe.db.get_all('Employee',
-            fields=['name', 'employee_name', 'status'],
+            fields=['name', 'employee_name', 'status', 'custom_group'],
             filters=filters
         )
 
@@ -41,7 +46,8 @@ def get_employee_photos(show_active_only=1, sort_order='asc'):
         # Create a mapping of employee_id -> employee info
         employee_map = {emp['name']: {
             'employee_name': emp['employee_name'],
-            'status': emp['status']
+            'status': emp['status'],
+            'custom_group': emp.get('custom_group', '')
         } for emp in employees}
 
         photos = []
@@ -71,6 +77,7 @@ def get_employee_photos(show_active_only=1, sort_order='asc'):
             # Get employee details
             employee_name = emp_info.get('employee_name', '') if emp_info else ''
             employee_status = emp_info.get('status', '') if emp_info else ''
+            employee_group = emp_info.get('custom_group', '') if emp_info else ''
 
             # Create display name in format: "TIQN-XXXX Employee Name"
             display_name = f"{employee_id} {employee_name}" if employee_id and employee_name else filename
@@ -83,7 +90,8 @@ def get_employee_photos(show_active_only=1, sort_order='asc'):
                 'modified': file_stat.st_mtime,
                 'employee_id': employee_id,
                 'employee_name': employee_name,
-                'status': employee_status
+                'status': employee_status,
+                'custom_group': employee_group
             })
 
         # Sort by display_name based on sort_order
@@ -98,6 +106,33 @@ def get_employee_photos(show_active_only=1, sort_order='asc'):
 
     except Exception as e:
         frappe.log_error(f"Error getting employee photos: {str(e)}", "Employee Photos Viewer Error")
+        return {
+            'status': 'error',
+            'message': str(e)
+        }
+
+
+@frappe.whitelist(allow_guest=False)
+def get_groups():
+    """
+    Get all available groups from the Employee table.
+    Returns list of unique custom_group values.
+    """
+    try:
+        groups = frappe.db.sql("""
+            SELECT DISTINCT custom_group
+            FROM `tabEmployee`
+            WHERE custom_group IS NOT NULL AND custom_group != ''
+            ORDER BY custom_group
+        """, as_dict=True)
+
+        return {
+            'status': 'success',
+            'groups': [g['custom_group'] for g in groups]
+        }
+
+    except Exception as e:
+        frappe.log_error(f"Error getting groups: {str(e)}", "Employee Photos Viewer Error")
         return {
             'status': 'error',
             'message': str(e)

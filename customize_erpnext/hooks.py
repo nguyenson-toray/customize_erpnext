@@ -218,9 +218,14 @@ scheduler_events = {
             "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.daily_timesheet_auto_sync_and_calculate"
         ],
 
-        # Weekly OT report (Sunday OT + Top weekly + Top monthly) - Monday at 08:00 AM
+        # Daily Check-in Report - Every day at 08:15 AM
+        "15 8 * * *": [
+            "customize_erpnext.customize_erpnext.report.daily_check_in_report.scheduler.send_daily_check_in_report"
+        ],
+
+        # Sunday overtime alert - Monday at 08:00 AM
         "0 8 * * 1": [
-            "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.send_weekly_ot_report_scheduled"
+            "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.send_sunday_overtime_alert_scheduled"
         ],
 
         # Monthly recalculation - 23:30 on Sunday (0 is Sunday)
@@ -303,7 +308,12 @@ doc_events = {
         # "on_update": "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.on_overtime_request_approval"
     },
 
-   
+    "Item": {
+        # Auto-add barcode when item is created or updated
+        # Using 'validate' event covers both insert and update cases
+        "validate": "customize_erpnext.api.bulk_update_scripts.item_update_barcode.auto_add_barcode_on_item_save"
+    },
+
 }
  
 

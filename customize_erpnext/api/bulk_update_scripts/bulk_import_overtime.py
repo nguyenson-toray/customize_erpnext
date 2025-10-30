@@ -32,7 +32,7 @@ def bulk_import_overtime(file_path=None):
     try:
         # Đọc Excel
         print("📖 Đọc file Excel...")
-        df = pd.read_excel(file_path, sheet_name='OT Registers - All')
+        df = pd.read_excel(file_path, sheet_name='OT Register - 1 to 5 Oct')
         print(f"✅ Đọc được {len(df)} dòng dữ liệu")
 
         # Chuyển đổi cột Date sang datetime
@@ -40,7 +40,7 @@ def bulk_import_overtime(file_path=None):
 
         # Lọc dữ liệu từ tháng 1 đến tháng 9 năm 2025
         df = df[(df['Date (OT Employees List)'].dt.year == 2025) &
-                (df['Date (OT Employees List)'].dt.month.between(1, 9))]
+                (df['Date (OT Employees List)'].dt.month.between(10, 10))]
 
         print(f"📊 Lọc dữ liệu từ tháng 1-9/2025: {len(df)} dòng")
 

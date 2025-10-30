@@ -956,6 +956,7 @@ def auto_recalc_on_maternity_tracking_change(doc, method):
 		# Don't raise the error to prevent blocking the main operation
 
 
+@frappe.whitelist()
 def send_sunday_overtime_alert_scheduled():
 	"""
 	Scheduled job to send Sunday overtime alert email

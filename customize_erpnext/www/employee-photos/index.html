@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Employee Photos Gallery</title>
+    <title>Thư viện ảnh nhân viên</title>
     <style>
         * {
             margin: 0;
@@ -90,6 +90,24 @@
             height: 16px;
         }
 
+        .control-group button {
+            padding: 6px 12px;
+            border: 1px solid #d1d8dd;
+            border-radius: 4px;
+            font-size: 14px;
+            cursor: pointer;
+            background-color: white;
+            transition: background-color 0.2s;
+        }
+
+        .control-group button:hover {
+            background-color: #f8f9fa;
+        }
+
+        .control-group button:active {
+            background-color: #e9ecef;
+        }
+
         .loading {
             text-align: center;
             padding: 60px 20px;
@@ -142,9 +160,15 @@
 
         .photo-card img {
             width: 100%;
-            height: 250px;
+            height: 200px;
             object-fit: cover;
             display: block;
+            background-color: #e9ecef;
+        }
+
+        /* Optimize image loading */
+        .photo-card img[loading="lazy"] {
+            min-height: 200px;
         }
 
         .photo-info {
@@ -157,6 +181,37 @@
             font-size: 13px;
             margin-bottom: 4px;
             word-wrap: break-word;
+        }
+
+        .employee-link {
+            text-decoration: none;
+            display: block;
+        }
+
+        .employee-link:hover {
+            text-decoration: underline;
+            opacity: 0.8;
+        }
+
+        .employee-id.inactive-employee {
+            color: #dc3545;
+        }
+
+        .status-badge {
+            display: inline-block;
+            background-color: #dc3545;
+            color: white;
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 3px;
+            margin-bottom: 4px;
+        }
+
+        .group-info {
+            color: #495057;
+            font-size: 11px;
+            margin-bottom: 4px;
+            font-style: italic;
         }
 
         .file-info {
@@ -229,31 +284,43 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>📸 Employee Photos Gallery</h1>
-            <div class="stats" id="stats">Loading...</div>
+            <h1>📸 Thư viện ảnh nhân viên</h1>
+            <div class="stats" id="stats">Đang tải...</div>
             <div class="controls-row">
-                <input type="text" class="search-box" id="searchBox" placeholder="Search by employee ID or name...">
+                <input type="text" class="search-box" id="searchBox"
+                    placeholder="Tìm kiếm theo mã hoặc tên nhân viên...">
 
                 <div class="control-group">
                     <label>
                         <input type="checkbox" id="showActiveOnlyCheckbox" checked>
-                        <span>Show Active Employee</span>
+                        <span>Chỉ hiển thị nhân viên đang làm việc</span>
                     </label>
                 </div>
 
                 <div class="control-group">
-                    <label for="sortOrderSelect">Sort:</label>
+                    <label for="groupSelect">Nhóm:</label>
+                    <select id="groupSelect">
+                        <option value="">Tất cả nhóm</option>
+                    </select>
+                </div>
+
+                <div class="control-group">
+                    <label for="sortOrderSelect">Sắp xếp:</label>
                     <select id="sortOrderSelect">
                         <option value="desc">Z-A</option>
                         <option value="asc">A-Z</option>
                     </select>
+                </div>
+
+                <div class="control-group">
+                    <button id="refreshBtn">🔄 Làm mới</button>
                 </div>
             </div>
         </div>
 
         <div id="loading" class="loading">
             <div class="spinner"></div>
-            <p>Loading employee photos...</p>
+            <p>Đang tải ảnh nhân viên...</p>
         </div>
 
         <div id="error" class="error" style="display: none;"></div>
@@ -271,38 +338,255 @@
         let allPhotos = [];
         let filteredPhotos = [];
 
+        // Cache configuration
+        const CACHE_CONFIG = {
+            GROUPS_KEY: 'employee_photos_groups',
+            GROUPS_EXPIRY: 7 * 24 * 60 * 60 * 1000, // 7 days
+            PHOTOS_KEY: 'employee_photos_data',
+            PHOTOS_EXPIRY: 24 * 60 * 60 * 1000, // 24 hours
+            TIMESTAMP_KEY: 'employee_photos_timestamp'
+        };
+
+        // Cache helper functions
+        function setCache(key, data, expiryMs) {
+            const now = new Date().getTime();
+            const item = {
+                data: data,
+                expiry: now + expiryMs
+            };
+            localStorage.setItem(key, JSON.stringify(item));
+        }
+
+        function getCache(key) {
+            const itemStr = localStorage.getItem(key);
+            if (!itemStr) return null;
+
+            try {
+                const item = JSON.parse(itemStr);
+                const now = new Date().getTime();
+
+                if (now > item.expiry) {
+                    localStorage.removeItem(key);
+                    return null;
+                }
+
+                return item.data;
+            } catch (e) {
+                localStorage.removeItem(key);
+                return null;
+            }
+        }
+
+        function clearCache() {
+            localStorage.removeItem(CACHE_CONFIG.GROUPS_KEY);
+            localStorage.removeItem(CACHE_CONFIG.PHOTOS_KEY);
+            localStorage.removeItem(CACHE_CONFIG.TIMESTAMP_KEY);
+        }
+
+        function updateTimestamp() {
+            const now = new Date().toLocaleString('vi-VN');
+            localStorage.setItem(CACHE_CONFIG.TIMESTAMP_KEY, now);
+            updateLastUpdateDisplay();
+        }
+
+        function updateLastUpdateDisplay() {
+            const timestamp = localStorage.getItem(CACHE_CONFIG.TIMESTAMP_KEY);
+            const statsEl = document.getElementById('stats');
+            if (timestamp && statsEl.textContent) {
+                const currentText = statsEl.textContent.split('|')[0] + '| ' +
+                    statsEl.textContent.split('|')[1];
+                statsEl.textContent = currentText + ` | Cập nhật: ${timestamp}`;
+            }
+        }
+
+        // Function to remove Vietnamese diacritics
+        function removeVietnameseTones(str) {
+            if (!str) return '';
+
+            str = str.toLowerCase();
+
+            // Remove Vietnamese diacritics
+            str = str.replace(/à|á|ạ|ả|ã|â|ầ|ấ|ậ|ẩ|ẫ|ă|ằ|ắ|ặ|ẳ|ẵ/g, 'a');
+            str = str.replace(/è|é|ẹ|ẻ|ẽ|ê|ề|ế|ệ|ể|ễ/g, 'e');
+            str = str.replace(/ì|í|ị|ỉ|ĩ/g, 'i');
+            str = str.replace(/ò|ó|ọ|ỏ|õ|ô|ồ|ố|ộ|ổ|ỗ|ơ|ờ|ớ|ợ|ở|ỡ/g, 'o');
+            str = str.replace(/ù|ú|ụ|ủ|ũ|ư|ừ|ứ|ự|ử|ữ/g, 'u');
+            str = str.replace(/ỳ|ý|ỵ|ỷ|ỹ/g, 'y');
+            str = str.replace(/đ/g, 'd');
+
+            return str;
+        }
+
+        // Force refresh function
+        async function refreshData() {
+            const loading = document.getElementById('loading');
+            loading.style.display = 'block';
+            document.getElementById('gallery').style.display = 'none';
+
+            clearCache();
+            await loadGroups(true);
+            await loadPhotos(true);
+
+            loading.style.display = 'none';
+        }
+
         // Load photos on page load
         window.addEventListener('DOMContentLoaded', () => {
+            loadGroups();
             loadPhotos();
 
             // Setup event listeners
             document.getElementById('showActiveOnlyCheckbox').addEventListener('change', function () {
-                loadPhotos();
+                applyFilters();
+            });
+
+            document.getElementById('groupSelect').addEventListener('change', function () {
+                applyFilters();
             });
 
             document.getElementById('sortOrderSelect').addEventListener('change', function () {
-                loadPhotos();
+                applyFilters();
+            });
+
+            document.getElementById('refreshBtn').addEventListener('click', function () {
+                refreshData();
             });
         });
 
-        async function loadPhotos() {
+        async function loadGroups(forceRefresh = false) {
             try {
-                const showActiveOnly = document.getElementById('showActiveOnlyCheckbox').checked ? 1 : 0;
-                const sortOrder = document.getElementById('sortOrderSelect').value;
-                const response = await fetch(`/api/method/customize_erpnext.api.employee_photos_viewer.api.get_employee_photos?show_active_only=${showActiveOnly}&sort_order=${sortOrder}`);
-                const data = await response.json();
+                let groups = null;
 
-                if (data.message && data.message.status === 'success') {
-                    allPhotos = data.message.photos;
-                    filteredPhotos = allPhotos;
-                    displayPhotos();
-                    updateStats();
-                } else {
-                    showError('Failed to load photos: ' + (data.message.message || 'Unknown error'));
+                // Try to get from cache first
+                if (!forceRefresh) {
+                    groups = getCache(CACHE_CONFIG.GROUPS_KEY);
+                }
+
+                // If no cache, fetch from API
+                if (!groups) {
+                    const response = await fetch('/api/method/customize_erpnext.api.employee_photos_viewer.api.get_groups');
+                    const data = await response.json();
+
+                    if (data.message && data.message.status === 'success') {
+                        groups = data.message.groups;
+                        // Cache the groups
+                        setCache(CACHE_CONFIG.GROUPS_KEY, groups, CACHE_CONFIG.GROUPS_EXPIRY);
+                    }
+                }
+
+                if (groups) {
+                    const groupSelect = document.getElementById('groupSelect');
+                    // Clear existing options except first one
+                    groupSelect.innerHTML = '<option value="">Tất cả nhóm</option>';
+
+                    // Add group options
+                    groups.forEach(group => {
+                        const option = document.createElement('option');
+                        option.value = group;
+                        option.textContent = group;
+                        groupSelect.appendChild(option);
+                    });
                 }
             } catch (error) {
-                showError('Error loading photos: ' + error.message);
+                console.error('Error loading groups:', error);
             }
+        }
+
+        async function loadPhotos(forceRefresh = false) {
+            try {
+                let photos = null;
+
+                // Try to get from cache first
+                if (!forceRefresh) {
+                    photos = getCache(CACHE_CONFIG.PHOTOS_KEY);
+                }
+
+                // If no cache, fetch from API
+                if (!photos) {
+                    const response = await fetch('/api/method/customize_erpnext.api.employee_photos_viewer.api.get_employee_photos?show_active_only=0&sort_order=asc&custom_group=');
+                    const data = await response.json();
+
+                    if (data.message && data.message.status === 'success') {
+                        photos = data.message.photos;
+                        // Cache all photos
+                        setCache(CACHE_CONFIG.PHOTOS_KEY, photos, CACHE_CONFIG.PHOTOS_EXPIRY);
+                        updateTimestamp();
+                    } else {
+                        showError('Không thể tải danh sách ảnh: ' + (data.message.message || 'Lỗi không xác định'));
+                        return;
+                    }
+                }
+
+                allPhotos = photos;
+
+                // Debug: Log status distribution
+                const statusCount = {};
+                allPhotos.forEach(p => {
+                    const status = p.status || '(empty)';
+                    statusCount[status] = (statusCount[status] || 0) + 1;
+                });
+                console.log('Employee status distribution:', statusCount);
+
+                applyFilters();
+            } catch (error) {
+                showError('Lỗi khi tải ảnh: ' + error.message);
+            }
+        }
+
+        function applyFilters() {
+            const showActiveOnly = document.getElementById('showActiveOnlyCheckbox').checked;
+            const sortOrder = document.getElementById('sortOrderSelect').value;
+            const customGroup = document.getElementById('groupSelect').value;
+            const searchTerm = document.getElementById('searchBox').value.toLowerCase();
+            const searchTermNoTones = removeVietnameseTones(searchTerm);
+
+            // Filter photos on client-side
+            filteredPhotos = allPhotos.filter(photo => {
+                // Filter by active status - only show Active employees
+                if (showActiveOnly) {
+                    // Skip if no status or status is not Active
+                    if (!photo.status || photo.status !== 'Active') {
+                        return false;
+                    }
+                }
+
+                // Filter by group
+                if (customGroup && photo.custom_group !== customGroup) {
+                    return false;
+                }
+
+                // Filter by search term
+                if (searchTerm) {
+                    const displayName = photo.display_name.toLowerCase();
+                    const displayNameNoTones = removeVietnameseTones(displayName);
+
+                    // Search both with and without tones
+                    if (!displayName.includes(searchTerm) && !displayNameNoTones.includes(searchTermNoTones)) {
+                        return false;
+                    }
+                }
+
+                return true;
+            });
+
+            // Sort photos
+            const reverse = (sortOrder === 'desc');
+            filteredPhotos.sort((a, b) => {
+                const nameA = a.display_name.toLowerCase();
+                const nameB = b.display_name.toLowerCase();
+                return reverse ? nameB.localeCompare(nameA) : nameA.localeCompare(nameB);
+            });
+
+            // Debug: Log filter results
+            console.log(`Filter applied - showActiveOnly: ${showActiveOnly}, customGroup: ${customGroup || 'All'}`);
+            console.log(`Result: ${filteredPhotos.length} photos (from ${allPhotos.length} total)`);
+            if (showActiveOnly) {
+                const nonActiveCount = allPhotos.filter(p => p.status !== 'Active').length;
+                console.log(`Filtered out ${nonActiveCount} non-Active employees`);
+            }
+
+            displayPhotos();
+            updateStats();
         }
 
         function displayPhotos() {
@@ -312,27 +596,40 @@
             loading.style.display = 'none';
 
             if (filteredPhotos.length === 0) {
-                gallery.innerHTML = '<div class="no-results">No employee photos found.</div>';
+                gallery.innerHTML = '<div class="no-results">Không tìm thấy ảnh nhân viên.</div>';
                 gallery.style.display = 'block';
                 return;
             }
 
-            gallery.innerHTML = filteredPhotos.map(photo => `
-                <div class="photo-card" onclick="openModal('${photo.url}', '${photo.display_name}')">
-                    <img src="${photo.url}" alt="${photo.display_name}" loading="lazy">
-                    <div class="photo-info">
-                        <div class="employee-id">${photo.display_name}</div>
-                        <div class="file-info">${formatFileSize(photo.size)}</div>
+            gallery.innerHTML = filteredPhotos.map(photo => {
+                const isInactive = photo.status === 'Left' || photo.status === 'Inactive';
+                const nameClass = isInactive ? 'employee-id inactive-employee' : 'employee-id';
+                const statusBadge = isInactive ? `<span class="status-badge">${photo.status}</span>` : '';
+                const groupInfo = photo.custom_group ? `<div class="group-info">📁 ${photo.custom_group}</div>` : '';
+                const employeeLink = photo.employee_id ? `/app/employee/${encodeURIComponent(photo.employee_id)}` : '#';
+
+                return `
+                    <div class="photo-card">
+                        <img src="${photo.url}" alt="${photo.display_name}" loading="lazy" onclick="openModal('${photo.url}', '${photo.display_name}')">
+                        <div class="photo-info">
+                            <a href="${employeeLink}" class="${nameClass} employee-link" onclick="event.stopPropagation()" target="_blank">
+                                ${photo.display_name}
+                            </a>
+                            ${statusBadge}
+                            ${groupInfo}
+                            <div class="file-info">${formatFileSize(photo.size)}</div>
+                        </div>
                     </div>
-                </div>
-            `).join('');
+                `;
+            }).join('');
 
             gallery.style.display = 'grid';
         }
 
         function updateStats() {
             const stats = document.getElementById('stats');
-            stats.textContent = `Total: ${allPhotos.length} photos | Showing: ${filteredPhotos.length}`;
+            stats.textContent = `Tổng số: ${allPhotos.length} ảnh | Hiển thị: ${filteredPhotos.length}`;
+            updateLastUpdateDisplay();
         }
 
         function formatFileSize(bytes) {
@@ -351,12 +648,17 @@
 
         // Search functionality
         document.getElementById('searchBox').addEventListener('input', function (e) {
-            const searchTerm = e.target.value.toLowerCase();
-            filteredPhotos = allPhotos.filter(photo =>
-                photo.display_name.toLowerCase().includes(searchTerm)
-            );
-            displayPhotos();
-            updateStats();
+            const searchTerm = e.target.value.trim();
+
+            // When user starts searching, reset filters to search in all employees
+            if (searchTerm) {
+                // Uncheck "Active only" checkbox
+                document.getElementById('showActiveOnlyCheckbox').checked = false;
+                // Reset group to "All"
+                document.getElementById('groupSelect').value = '';
+            }
+
+            applyFilters();
         });
 
         // Modal functionality
