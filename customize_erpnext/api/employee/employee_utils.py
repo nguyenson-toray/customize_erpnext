@@ -629,7 +629,7 @@ def generate_single_card_html(employee, company_logo, with_barcode=False):
 
     # Get the reissue number for this employee
     reissue_number = get_employee_reissue_count(employee_code)
-
+    reissue_display = reissue_number if reissue_number > 1 else ''
     # Simple logic for name display
     name_class = 'employee-name'
     name_html = employee_name
@@ -669,7 +669,7 @@ def generate_single_card_html(employee, company_logo, with_barcode=False):
                 <div class="{section_class}">{employee_section}</div>
                 
             </div>
-            <div id="reissue-number"> {reissue_number} </div>
+            <div id="reissue-number"> {reissue_display} </div>
         </div>
     </div>
     '''
