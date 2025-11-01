@@ -73,7 +73,7 @@ function show_holiday_selection_dialog(employees, holiday_lists, listview) {
                 fieldtype: 'Check',
                 label: __('Áp dụng cho TẤT CẢ nhân viên Active'),
                 default: 0,
-                onchange: function() {
+                onchange: function () {
                     apply_to_all = d.get_value('apply_to_all');
                     update_employee_display();
                 }
@@ -173,7 +173,7 @@ function show_holiday_selection_dialog(employees, holiday_lists, listview) {
 
             // Confirm action
             frappe.confirm(
-                __('Bạn có chắc chắn muốn cập nhật Holiday List <strong>{0}</strong> cho {1}?', 
+                __('Bạn có chắc chắn muốn cập nhật Holiday List <strong>{0}</strong> cho {1}?',
                     [values.holiday_list, scope_text]),
                 function () {
                     d.hide();
@@ -198,7 +198,7 @@ function show_holiday_selection_dialog(employees, holiday_lists, listview) {
 
                                 // Show summary
                                 frappe.show_alert({
-                                    message: __('Đã cập nhật {0}/{1} nhân viên', 
+                                    message: __('Đã cập nhật {0}/{1} nhân viên',
                                         [r.message.updated_count, r.message.total_count]),
                                     indicator: 'green'
                                 }, 10);
@@ -235,9 +235,9 @@ function show_holiday_selection_dialog(employees, holiday_lists, listview) {
                         status: 'Active'
                     }
                 },
-                callback: function(r) {
+                callback: function (r) {
                     const total_active = r.message || 0;
-                    
+
                     // Hiển thị info warning
                     let info_html = `
                         <div style="padding: 15px; background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); 
@@ -269,7 +269,7 @@ function show_holiday_selection_dialog(employees, holiday_lists, listview) {
         } else {
             // Hiển thị thông tin nhân viên đã chọn
             d.fields_dict.employee_info.$wrapper.html('');
-            
+
             if (employees.length === 0) {
                 let no_selection_html = `
                     <div style="padding: 40px; text-align: center; background: #fff3cd; 
@@ -320,10 +320,10 @@ function show_holiday_selection_dialog(employees, holiday_lists, listview) {
                     </td>
                     <td style="padding: 8px;"><strong>${emp.employee_name || emp.name}</strong></td>
                     <td style="padding: 8px;">
-                        ${emp.holiday_list 
-                            ? `<span style="background: #28a745; color: white; padding: 2px 8px; 
-                                       border-radius: 4px; font-size: 11px;">${emp.holiday_list}</span>` 
-                            : '<span style="color: #dc3545; font-style: italic;">⚠️ Chưa gán</span>'}
+                        ${emp.holiday_list
+                    ? `<span style="background: #28a745; color: white; padding: 2px 8px; 
+                                       border-radius: 4px; font-size: 11px;">${emp.holiday_list}</span>`
+                    : '<span style="color: #dc3545; font-style: italic;">⚠️ Chưa gán</span>'}
                     </td>
                 </tr>
             `;
@@ -518,12 +518,27 @@ function show_employee_search_dialog() {
                 description: __('Select page size for the cards')
             },
             {
+                fieldname: 'max_length_font_20',
+                fieldtype: 'Int',
+                label: __('Max Length for Font 20pt'),
+                default: 20,
+                description: __('Names shorter than this will use 20pt font (default: 20)')
+            },
+            {
+                fieldname: 'name_font_size',
+                fieldtype: 'Select',
+                label: __('Font Size for Long Names (pt)'),
+                options: ['19', '18', '17', '16'],
+                default: '18',
+                description: __('Font size for names >= max length (default: 18pt)')
+            },
+            {
                 fieldname: 'with_barcode',
                 fieldtype: 'Check',
                 label: __('With Barcode'),
                 default: 0,
                 description: __('Include Code39 barcode below employee photo')
-            }
+            },
         ],
         primary_action_label: __('Generate Cards'),
         primary_action: function (values) {
@@ -576,7 +591,7 @@ function show_employee_search_dialog() {
                             indicator: 'blue'
                         });
 
-                        generate_cards_for_employees(employee_ids, values.with_barcode, values.page_size || 'A4');
+                        generate_cards_for_employees(employee_ids, values.with_barcode, values.page_size || 'A4', values.name_font_size || 18, values.max_length_font_20 || 20);
                     } else {
                         frappe.msgprint({
                             title: __('No Employees Found'),
@@ -603,13 +618,15 @@ function show_employee_search_dialog() {
     d.set_value('page_size', 'A4');
 }
 
-function generate_cards_for_employees(employee_ids, with_barcode, page_size) {
+function generate_cards_for_employees(employee_ids, with_barcode, page_size, name_font_size, max_length_font_20) {
     frappe.call({
         method: 'customize_erpnext.api.employee.employee_utils.generate_employee_cards_pdf',
         args: {
             employee_ids: employee_ids,
             with_barcode: with_barcode ? 1 : 0,
-            page_size: page_size || 'A4'
+            page_size: page_size || 'A4',
+            name_font_size: name_font_size || 18,
+            max_length_font_20: max_length_font_20 || 20
         },
         callback: function (r) {
             if (r.message && r.message.pdf_data && r.message.pdf_filename) {
@@ -685,6 +702,21 @@ function print_employee_cards(listview) {
                 label: __('With Barcode'),
                 default: 0,
                 description: __('Include Code39 barcode below employee photo')
+            },
+            {
+                fieldname: 'max_length_font_20',
+                fieldtype: 'Int',
+                label: __('Max Length for Font 20pt'),
+                default: 20,
+                description: __('Names shorter than this will use 20pt font (default: 20)')
+            },
+            {
+                fieldname: 'name_font_size',
+                fieldtype: 'Select',
+                label: __('Font Size for Long Names (pt)'),
+                options: ['19', '18', '17', '16'],
+                default: '18',
+                description: __('Font size for names >= max length (default: 18pt)')
             }
         ],
         primary_action_label: __('Generate'),
@@ -704,7 +736,9 @@ function print_employee_cards(listview) {
                 args: {
                     employee_ids: employee_ids,
                     with_barcode: values.with_barcode ? 1 : 0,
-                    page_size: values.page_size || 'A4'
+                    page_size: values.page_size || 'A4',
+                    name_font_size: values.name_font_size || 18,
+                    max_length_font_20: values.max_length_font_20 || 20
                 },
                 callback: function (r) {
                     if (r.message && r.message.pdf_data && r.message.pdf_filename) {

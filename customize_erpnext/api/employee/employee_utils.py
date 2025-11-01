@@ -183,14 +183,18 @@ def upload_employee_image(employee_id, employee_name, file_content, file_name):
 
 
 @frappe.whitelist()
-def generate_employee_cards_pdf(employee_ids, with_barcode=0, page_size='A4'):
+def generate_employee_cards_pdf(employee_ids, with_barcode=0, page_size='A4', name_font_size=18, max_length_font_20=20):
     """
     Generate PDF containing employee cards with layout:
     - A4 portrait: 2 columns, 5 rows (10 cards per page)
     - A5 landscape: 2 columns, 2 rows (4 cards per page)
     - Card size: 86mm x 54mm
     - Left column (30mm): company logo (30mm) + employee photo (30mm x 40mm) + optional barcode
-    - Right column: Full name (uppercase, bold, 20pt), employee code (bold, 18pt), custom_section (bold, 18pt)
+    - Right column: Full name (uppercase, bold, customizable font size), employee code (bold, 18pt), custom_section (bold, 18pt)
+
+    Args:
+        max_length_font_20: Max name length to use 20pt font (default: 20)
+        name_font_size: Font size for names >= max_length_font_20 (default: 18)
     """
     import tempfile
     import datetime
@@ -208,7 +212,25 @@ def generate_employee_cards_pdf(employee_ids, with_barcode=0, page_size='A4'):
         if page_size not in ['A4', 'A5']:
             page_size = 'A4'
 
-        frappe.logger().info(f"Generating employee cards for {len(employee_ids)} employees (page_size={page_size})")
+        # Validate and convert name_font_size to int
+        try:
+            name_font_size = int(name_font_size) if name_font_size else 18
+            # Only allow specific values: 19, 18, 17, 16
+            if name_font_size not in [19, 18, 17, 16]:
+                name_font_size = 18
+        except (ValueError, TypeError):
+            name_font_size = 18
+
+        # Validate and convert max_length_font_20 to int
+        try:
+            max_length_font_20 = int(max_length_font_20) if max_length_font_20 else 20
+            # Ensure it's in reasonable range
+            if max_length_font_20 < 10 or max_length_font_20 > 50:
+                max_length_font_20 = 20
+        except (ValueError, TypeError):
+            max_length_font_20 = 20
+
+        frappe.logger().info(f"Generating employee cards for {len(employee_ids)} employees (page_size={page_size}, name_font_size={name_font_size}pt, max_length_font_20={max_length_font_20})")
 
         # Get employee data
         employees = []
@@ -238,8 +260,8 @@ def generate_employee_cards_pdf(employee_ids, with_barcode=0, page_size='A4'):
             })
             frappe.logger().info("Added placeholder employee to make even count")
         # Generate HTML for cards
-        frappe.logger().info(f"Generating HTML for employee cards (with_barcode={with_barcode}, page_size={page_size})")
-        html = generate_employee_cards_html(employees, with_barcode=with_barcode, page_size=page_size)
+        frappe.logger().info(f"Generating HTML for employee cards (with_barcode={with_barcode}, page_size={page_size}, name_font_size={name_font_size}pt, max_length_font_20={max_length_font_20})")
+        html = generate_employee_cards_html(employees, with_barcode=with_barcode, page_size=page_size, name_font_size=name_font_size, max_length_font_20=max_length_font_20)
 
         # Debug: Save HTML to file for inspection (uncomment if needed)
         # html_path = f'/tmp/employee_cards_{datetime.datetime.now().strftime("%Y%m%d_%H%M%S")}.html'
@@ -320,11 +342,13 @@ def get_employee_reissue_count(employee_id):
     
     return reissue_number
 
-def generate_employee_cards_html(employees, with_barcode=False, page_size='A4'):
+def generate_employee_cards_html(employees, with_barcode=False, page_size='A4', name_font_size=18, max_length_font_20=20):
     """
     Generate HTML for employee cards with proper layout
     - A4: portrait, 2x5 layout
     - A5: landscape, 2x2 layout
+    - name_font_size: font size for long names (default 18pt)
+    - max_length_font_20: threshold for switching to smaller font (default 20)
     """
     # Get company logo
     company_logo = get_company_logo()
@@ -435,7 +459,7 @@ def generate_employee_cards_html(employees, with_barcode=False, page_size='A4'):
 
         .card-right {{
             
-            margin-left: 30mm;
+            margin-left: 5mm;
             padding-top: 9mm;
             padding-left: 0.5mm;
             padding-right: 0.5mm;
@@ -463,7 +487,7 @@ def generate_employee_cards_html(employees, with_barcode=False, page_size='A4'):
         }}
 
         .employee-name.long-name {{
-            font-size: 18pt !important;
+            font-size: {name_font_size}pt !important;
         }}
 
         .employee-code {{
@@ -577,7 +601,7 @@ def generate_employee_cards_html(employees, with_barcode=False, page_size='A4'):
                 emp_idx = row_idx + col_idx
                 if emp_idx < len(page_employees):
                     emp = page_employees[emp_idx]
-                    card_html = generate_single_card_html(emp, company_logo, with_barcode)
+                    card_html = generate_single_card_html(emp, company_logo, with_barcode, max_length_font_20)
                     html_parts.append(card_html)
                 else:
                     # Empty card to maintain layout
@@ -616,8 +640,8 @@ def generate_employee_cards_html(employees, with_barcode=False, page_size='A4'):
     return ''.join(html_parts)
 
 
-def generate_single_card_html(employee, company_logo, with_barcode=False):
-    """Generate HTML for a single employee card"""
+def generate_single_card_html(employee, company_logo, with_barcode=False, max_length_font_20=20):
+    """Generate HTML for a single employee card with customizable name length threshold"""
 
     # Get employee image URL - always returns a valid base64 image or placeholder
     emp_image_url = get_full_image_url(employee.get('image', ''))
@@ -630,13 +654,14 @@ def generate_single_card_html(employee, company_logo, with_barcode=False):
     # Get the reissue number for this employee
     reissue_number = get_employee_reissue_count(employee_code)
     reissue_display = reissue_number if reissue_number > 1 else ''
-    # Simple logic for name display
+
+    # New logic: use max_length_font_20 as threshold
     name_class = 'employee-name'
     name_html = employee_name
     name_length = len(employee_name)
 
-    # Rule 1: Name >= 20 chars -> use font size 18pt
-    if name_length >= 20:
+    # Rule 1: Name >= max_length_font_20 -> use smaller font (long-name class)
+    if name_length >= max_length_font_20:
         name_class = 'employee-name long-name'
 
     # Rule 2: Name < 13 chars -> add extra line
