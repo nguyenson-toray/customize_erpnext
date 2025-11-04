@@ -40,15 +40,18 @@ def send_daily_check_in_report():
         # Calculate statistics
         stats = calculate_statistics(report_date, data, incomplete_checkins)
 
+        # Get last employee checkin time
+        last_checkin_time = get_last_employee_checkin_time()
+
         # Generate email content
         email_subject = f"Báo cáo hiện diện / vắng ngày {formatdate(report_date, 'dd/MM/yyyy')}"
-        email_content = generate_email_content(report_date, stats, data)
+        email_content = generate_email_content(report_date, stats, data, last_checkin_time)
 
         # Generate Excel file
         excel_file_path, excel_file_name = generate_excel_report(report_date, stats)
 
         # Send email with Excel attachment
-        recipients = ["it@tiqn.com.vn", "ni.nht@tiqn.com.vn", "hoanh.ltk@tiqn.com.vn"]
+        recipients = ["it@tiqn.com.vn"] #, "ni.nht@tiqn.com.vn", "hoanh.ltk@tiqn.com.vn"]
         # recipients = ["son.nt@tiqn.com.vn"]
         frappe.sendmail(
             recipients=recipients,
@@ -225,6 +228,28 @@ def get_incomplete_checkins(date):
 
     return incomplete_list
 
+def get_last_employee_checkin_time():
+    """
+    Get the last employee checkin time from the system
+    Returns formatted time string or None if no checkins found
+    """
+    try:
+        last_checkin = frappe.db.sql("""
+            SELECT MAX(time) as last_time
+            FROM `tabEmployee Checkin`
+        """, as_dict=True)
+
+        if last_checkin and last_checkin[0].get('last_time'):
+            last_time = last_checkin[0].get('last_time')
+            # Format as datetime string
+            if isinstance(last_time, str):
+                last_time = get_datetime(last_time)
+            return last_time.strftime("%H:%M:%S %d/%m/%Y")
+        return None
+    except Exception as e:
+        frappe.logger().error(f"Error getting last checkin time: {str(e)}")
+        return None
+
 def calculate_statistics(report_date, absent_data, incomplete_checkins):
     """
     Calculate statistics for the report:
@@ -278,12 +303,17 @@ def calculate_statistics(report_date, absent_data, incomplete_checkins):
         "incomplete_checkins": incomplete_sorted
     }
 
-def generate_email_content(report_date, stats, absent_data):
+def generate_email_content(report_date, stats, absent_data, last_checkin_time=None):
     """
     Generate HTML email content with statistics and two separate absent employee lists
     """
     formatted_date = formatdate(report_date, "dd/MM/yyyy")
     current_time = datetime.now().strftime("%H:%M:%S %d/%m/%Y")
+
+    # Format last checkin time message
+    last_data_time_msg = ""
+    if last_checkin_time:
+        last_data_time_msg = f"<br>Thời điểm chấm công sau cùng: {last_checkin_time}"
 
     # Build regular absent employee table (excluding maternity leave)
     absent_regular_rows = ""
@@ -469,7 +499,7 @@ def generate_email_content(report_date, stats, absent_data):
         <h2 style="color: #333;">Báo cáo hiện diện / vắng ngày {formatted_date}</h2>
 
         <div class="summary">
-        <h3 style="margin-top: 0; color: #555;">Email này được gửi tự động từ hệ thống ERPNext vào lúc {current_time}</h3> 
+        <h3 style="margin-top: 0; color: #555;">Email này được gửi tự động từ hệ thống ERPNext (Site: {get_current_frappe_site_name()}) vào lúc {current_time}{last_data_time_msg}</h3>
             <h3 style="margin-top: 0; color: #555;">Tổng quan:</h3>
             <div class="summary-item">
                 <strong>Số lượng nhân viên (Active):</strong>
@@ -822,7 +852,14 @@ def generate_excel_report(report_date, stats):
     wb.save(file_path)
 
     return file_path, file_name
-
+def get_current_frappe_site_name():
+    """
+    Returns the name of the current Frappe site.
+    """
+    if hasattr(frappe.local, 'site'):
+        return frappe.local.site
+    else:
+        return None
 # cmd test from web console
 '''
   frappe.call({
