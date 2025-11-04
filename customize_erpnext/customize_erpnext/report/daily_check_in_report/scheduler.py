@@ -33,9 +33,12 @@ def send_daily_check_in_report():
         # Get report data
         data = get_data(filters)
 
-        # Get incomplete check-ins from previous day
-        previous_date = add_days(report_date, -1)
-        incomplete_checkins = get_incomplete_checkins(previous_date)
+        # Get incomplete check-ins from day 26 of previous month to yesterday
+        from frappe.utils import get_first_day, add_months
+        current_month_first = get_first_day(report_date)
+        prev_month_26 = add_days(add_months(current_month_first, -1), 25)  # Day 26 of previous month
+        yesterday = add_days(report_date, -1)
+        incomplete_checkins = get_incomplete_checkins(prev_month_26, yesterday)
 
         # Calculate statistics
         stats = calculate_statistics(report_date, data, incomplete_checkins)
@@ -79,16 +82,19 @@ def send_daily_check_in_report():
             message=frappe.get_traceback()
         )
 
-def get_incomplete_checkins(date):
+def get_incomplete_checkins(start_date, end_date):
     """
-    Get list of employees who have incomplete check-ins for the given date
+    Get list of employees who have incomplete check-ins from start_date to end_date
     This includes:
-    - Employees with only 1 check-in (missing check-out)
+    - Employees with only 1 automatic check-in (device_id IS NOT NULL) (missing check-out)
     - Employees with NO check-in AFTER shift begin time (all check-ins are <= begin time)
     - Employees with NO check-out BEFORE shift end time (all check-outs are >= end time)
-    Returns list of employees with incomplete check-ins
+
+    Also retrieves manual check-ins (device_id IS NULL) for "Đã xử lý" column
+    Returns list of employees with incomplete check-ins, sorted by date DESC, employee_code ASC
     """
-    # Get all employees with their check-ins and shift information
+    # Get all employees with their automatic check-ins (device_id IS NOT NULL) and shift information
+    # For each employee-date combination
     employees_with_checkins = frappe.db.sql(f"""
         SELECT
             e.attendance_device_id,
@@ -97,6 +103,7 @@ def get_incomplete_checkins(date):
             e.department,
             e.custom_group,
             e.designation,
+            DATE(ec.time) AS checkin_date,
             MIN(ec.time) AS first_check_in,
             MAX(ec.time) AS last_check_out,
             COUNT(ec.name) AS checkin_count,
@@ -105,8 +112,8 @@ def get_incomplete_checkins(date):
                  FROM `tabShift Registration Detail` srd
                  JOIN `tabShift Registration` sr ON srd.parent = sr.name
                  WHERE srd.employee = e.name
-                   AND srd.begin_date <= '{date}'
-                   AND srd.end_date >= '{date}'
+                   AND srd.begin_date <= DATE(ec.time)
+                   AND srd.end_date >= DATE(ec.time)
                    AND sr.docstatus = 1
                  ORDER BY sr.creation DESC
                  LIMIT 1),
@@ -123,7 +130,9 @@ def get_incomplete_checkins(date):
             `tabEmployee Checkin` ec
         ON
             e.name = ec.employee
-            AND DATE(ec.time) = '{date}'
+            AND DATE(ec.time) >= '{start_date}'
+            AND DATE(ec.time) <= '{end_date}'
+            AND ec.device_id IS NOT NULL
         LEFT JOIN
             `tabShift Name` sn
         ON
@@ -132,8 +141,8 @@ def get_incomplete_checkins(date):
                  FROM `tabShift Registration Detail` srd
                  JOIN `tabShift Registration` sr ON srd.parent = sr.name
                  WHERE srd.employee = e.name
-                   AND srd.begin_date <= '{date}'
-                   AND srd.end_date >= '{date}'
+                   AND srd.begin_date <= DATE(ec.time)
+                   AND srd.end_date >= DATE(ec.time)
                    AND sr.docstatus = 1
                  ORDER BY sr.creation DESC
                  LIMIT 1),
@@ -145,17 +154,17 @@ def get_incomplete_checkins(date):
         WHERE
             e.status = 'Active'
         GROUP BY
-            e.name
+            e.name, DATE(ec.time)
         ORDER BY
-            e.custom_group, e.name
+            DATE(ec.time) DESC, e.name ASC
     """, as_dict=1)
 
     # Filter employees with incomplete check-ins
     incomplete_list = []
     for emp in employees_with_checkins:
         is_incomplete = False
-
         checkin_count = emp.get('checkin_count')
+        checkin_date = emp.get('checkin_date')
 
         # Rule 1: Only 1 check-in
         if checkin_count == 1:
@@ -188,12 +197,13 @@ def get_incomplete_checkins(date):
                 elif not isinstance(end_time, type(time_obj(0, 0, 0))):
                     end_time = None  # Invalid type, skip
 
-            # Get all check-in times for this employee
+            # Get all automatic check-in times for this employee on this date
             all_checkins = frappe.db.sql(f"""
                 SELECT time
                 FROM `tabEmployee Checkin`
                 WHERE employee = '{emp.get('employee_code')}'
-                  AND DATE(time) = '{date}'
+                  AND DATE(time) = '{checkin_date}'
+                  AND device_id IS NOT NULL
                 ORDER BY time
             """, as_dict=1)
 
@@ -224,6 +234,36 @@ def get_incomplete_checkins(date):
                     is_incomplete = True
 
         if is_incomplete:
+            # Get manual check-ins (device_id IS NULL) for this employee on this date
+            manual_checkins = frappe.db.sql(f"""
+                SELECT
+                    TIME(time) as checkin_time,
+                    custom_reason_for_manual_check_in,
+                    custom_other_reason_for_manual_check_in
+                FROM `tabEmployee Checkin`
+                WHERE employee = '{emp.get('employee_code')}'
+                  AND DATE(time) = '{checkin_date}'
+                  AND device_id IS NULL
+                ORDER BY time
+            """, as_dict=1)
+
+            # Format manual check-ins for "Đã xử lý" column
+            manual_checkin_times = []
+            reasons = []
+            other_reasons = []
+
+            for mc in manual_checkins:
+                if mc.get('checkin_time'):
+                    manual_checkin_times.append(str(mc.get('checkin_time')))
+                if mc.get('custom_reason_for_manual_check_in'):
+                    reasons.append(mc.get('custom_reason_for_manual_check_in'))
+                if mc.get('custom_other_reason_for_manual_check_in'):
+                    other_reasons.append(mc.get('custom_other_reason_for_manual_check_in'))
+
+            emp['manual_checkins'] = ', '.join(manual_checkin_times) if manual_checkin_times else ''
+            emp['reason_for_manual'] = ', '.join(set(reasons)) if reasons else ''
+            emp['other_reason_for_manual'] = ', '.join(set(other_reasons)) if other_reasons else ''
+
             incomplete_list.append(emp)
 
     return incomplete_list
@@ -277,8 +317,24 @@ def calculate_statistics(report_date, absent_data, incomplete_checkins):
     absent_regular = sorted(absent_regular, key=lambda x: (x.get("custom_group") or "").lower())
     absent_maternity = sorted(absent_maternity, key=lambda x: (x.get("custom_group") or "").lower())
 
-    # Sort incomplete check-ins by custom_group (A-Z)
-    incomplete_sorted = sorted(incomplete_checkins, key=lambda x: (x.get("custom_group") or "").lower())
+    # Sort incomplete check-ins by date DESC (newest first), then by employee_code ASC (A-Z)
+    incomplete_sorted = sorted(
+        incomplete_checkins,
+        key=lambda x: (
+            x.get("checkin_date") if x.get("checkin_date") else "",
+            x.get("employee_code") or ""
+        ),
+        reverse=True  # This will sort date DESC, but we need to handle employee_code separately
+    )
+    # Better sorting: date DESC, employee_code ASC
+    from datetime import date as date_type
+    incomplete_sorted = sorted(
+        incomplete_checkins,
+        key=lambda x: (
+            -(x.get("checkin_date").toordinal() if isinstance(x.get("checkin_date"), date_type) else 0),
+            x.get("employee_code") or ""
+        )
+    )
 
     # Count absent employees (excluding maternity leave)
     total_absent = len(absent_regular)
@@ -289,6 +345,9 @@ def calculate_statistics(report_date, absent_data, incomplete_checkins):
     # Count incomplete check-ins
     incomplete_count = len(incomplete_checkins)
 
+    # Count incomplete check-ins that have been processed (have manual check-ins)
+    incomplete_processed = len([emp for emp in incomplete_sorted if emp.get('manual_checkins', '')])
+
     # Calculate present employees
     total_present = total_employees - total_absent - maternity_count
 
@@ -298,6 +357,7 @@ def calculate_statistics(report_date, absent_data, incomplete_checkins):
         "total_absent": total_absent,
         "maternity_count": maternity_count,
         "incomplete_count": incomplete_count,
+        "incomplete_processed": incomplete_processed,
         "absent_regular": absent_regular,
         "absent_maternity": absent_maternity,
         "incomplete_checkins": incomplete_sorted
@@ -318,12 +378,15 @@ def generate_email_content(report_date, stats, absent_data, last_checkin_time=No
     # Build regular absent employee table (excluding maternity leave)
     absent_regular_rows = ""
     absent_regular_list = stats.get('absent_regular', [])
+    formatted_date = formatdate(report_date, "dd/MM/yyyy")
+
     if absent_regular_list:
         for idx, emp in enumerate(absent_regular_list, 1):
             status_info = emp.get("status_info") or ""
             absent_regular_rows += f"""
             <tr>
                 <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">{idx}</td>
+                <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">{formatted_date}</td>
                 <td style="border: 1px solid #ddd; padding: 8px;">{emp.get('attendance_device_id') or ''}</td>
                 <td style="border: 1px solid #ddd; padding: 8px;">{emp.get('employee_code') or ''}</td>
                 <td style="border: 1px solid #ddd; padding: 8px;">{emp.get('employee_name') or ''}</td>
@@ -337,7 +400,7 @@ def generate_email_content(report_date, stats, absent_data, last_checkin_time=No
     else:
         absent_regular_rows = """
         <tr>
-            <td colspan="9" style="border: 1px solid #ddd; padding: 8px; text-align: center; color: #999;">
+            <td colspan="10" style="border: 1px solid #ddd; padding: 8px; text-align: center; color: #999;">
                 Không có nhân viên vắng
             </td>
         </tr>
@@ -352,6 +415,7 @@ def generate_email_content(report_date, stats, absent_data, last_checkin_time=No
             maternity_leave_rows += f"""
             <tr>
                 <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">{idx}</td>
+                <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">{formatted_date}</td>
                 <td style="border: 1px solid #ddd; padding: 8px;">{emp.get('attendance_device_id') or ''}</td>
                 <td style="border: 1px solid #ddd; padding: 8px;">{emp.get('employee_code') or ''}</td>
                 <td style="border: 1px solid #ddd; padding: 8px;">{emp.get('employee_name') or ''}</td>
@@ -365,20 +429,26 @@ def generate_email_content(report_date, stats, absent_data, last_checkin_time=No
     else:
         maternity_leave_rows = """
         <tr>
-            <td colspan="9" style="border: 1px solid #ddd; padding: 8px; text-align: center; color: #999;">
+            <td colspan="10" style="border: 1px solid #ddd; padding: 8px; text-align: center; color: #999;">
                 Không có nhân viên nghỉ thai sản
             </td>
         </tr>
         """
 
-    # Build incomplete check-ins table (from previous day)
+    # Build incomplete check-ins table (from day 26 of previous month to yesterday)
     incomplete_checkin_rows = ""
     incomplete_list = stats.get('incomplete_checkins', [])
-    previous_date_formatted = formatdate(add_days(report_date, -1), "dd/MM/yyyy")
+    from frappe.utils import get_first_day, add_months
+    current_month_first = get_first_day(report_date)
+    prev_month_26 = add_days(add_months(current_month_first, -1), 25)
+    yesterday = add_days(report_date, -1)
+    date_range_formatted = f"{formatdate(prev_month_26, 'dd/MM/yyyy')} - {formatdate(yesterday, 'dd/MM/yyyy')}"
 
     if incomplete_list:
         for idx, emp in enumerate(incomplete_list, 1):
             checkin_count = emp.get('checkin_count') or 0
+            checkin_date = emp.get('checkin_date')
+            checkin_date_formatted = formatdate(checkin_date, "dd/MM/yyyy") if checkin_date else ""
 
             first_checkin = ""
             last_checkout = ""
@@ -454,9 +524,15 @@ def generate_email_content(report_date, stats, absent_data, last_checkin_time=No
                         last_checkout_time = get_datetime(last_checkout_time)
                     last_checkout = last_checkout_time.strftime("%H:%M:%S %d/%m/%Y")
 
+            # Get manual check-in info
+            manual_checkins = emp.get('manual_checkins', '')
+            reason_for_manual = emp.get('reason_for_manual', '')
+            other_reason_for_manual = emp.get('other_reason_for_manual', '')
+
             incomplete_checkin_rows += f"""
             <tr>
                 <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">{idx}</td>
+                <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">{checkin_date_formatted}</td>
                 <td style="border: 1px solid #ddd; padding: 8px;">{emp.get('attendance_device_id') or ''}</td>
                 <td style="border: 1px solid #ddd; padding: 8px;">{emp.get('employee_code') or ''}</td>
                 <td style="border: 1px solid #ddd; padding: 8px;">{emp.get('employee_name') or ''}</td>
@@ -467,12 +543,15 @@ def generate_email_content(report_date, stats, absent_data, last_checkin_time=No
                 <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">{first_checkin}</td>
                 <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">{last_checkout}</td>
                 <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">{checkin_count}</td>
+                <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">{manual_checkins}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">{reason_for_manual}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">{other_reason_for_manual}</td>
             </tr>
             """
     else:
         incomplete_checkin_rows = """
         <tr>
-            <td colspan="11" style="border: 1px solid #ddd; padding: 8px; text-align: center; color: #999;">
+            <td colspan="15" style="border: 1px solid #ddd; padding: 8px; text-align: center; color: #999;">
                 Không có nhân viên chấm công thiếu
             </td>
         </tr>
@@ -518,10 +597,13 @@ def generate_email_content(report_date, stats, absent_data, last_checkin_time=No
                 <span class="maternity">{stats['maternity_count']}</span> người
             </div>
             <div class="summary-item">
-                <strong>Số lượng chấm công thiếu ngày {previous_date_formatted}:</strong>
+                <strong>Số lượng chấm công thiếu từ {date_range_formatted}:</strong>
                 <span class="incomplete">{stats['incomplete_count']}</span> người
                 <br>
-                <small style="color: #666;">(Chỉ có 1 lần chấm công hoặc thiếu giờ chấm công vào/ra theo ca)</small>
+                <strong>Đã xử lý:</strong>
+                <span style="color: #4CAF50; font-weight: bold;">{stats['incomplete_processed']}</span> / <span class="incomplete">{stats['incomplete_count']}</span>
+                <br>
+                <small style="color: #666;">(Chỉ có 1 lần chấm công hoặc thiếu giờ chấm công vào/ra theo ca (Trên máy chấm công))</small>
             </div>
         </div>
 
@@ -529,15 +611,16 @@ def generate_email_content(report_date, stats, absent_data, last_checkin_time=No
         <table>
             <thead>
                 <tr>
-                    <th style="width: 5%; text-align: center;">STT</th>
-                    <th style="width: 8%;">Att ID</th>
-                    <th style="width: 10%;">Employee</th>
-                    <th style="width: 18%;">Employee Name</th>
-                    <th style="width: 12%;">Department</th>
-                    <th style="width: 12%;">Group</th>
-                    <th style="width: 10%;">Shift</th>
-                    <th style="width: 15%;">Designation</th>
-                    <th style="width: 10%; text-align: center;">Status Info</th>
+                    <th style="width: 4%; text-align: center;">STT</th>
+                    <th style="width: 6%; text-align: center;">Ngày</th>
+                    <th style="width: 7%;">Att ID</th>
+                    <th style="width: 9%;">Employee</th>
+                    <th style="width: 16%;">Employee Name</th>
+                    <th style="width: 11%;">Department</th>
+                    <th style="width: 11%;">Group</th>
+                    <th style="width: 9%;">Shift</th>
+                    <th style="width: 13%;">Designation</th>
+                    <th style="width: 9%; text-align: center;">Status Info</th>
                 </tr>
             </thead>
             <tbody>
@@ -549,27 +632,8 @@ def generate_email_content(report_date, stats, absent_data, last_checkin_time=No
         <table>
             <thead>
                 <tr>
-                    <th style="width: 5%; text-align: center;">STT</th>
-                    <th style="width: 8%;">Att ID</th>
-                    <th style="width: 10%;">Employee</th>
-                    <th style="width: 18%;">Employee Name</th>
-                    <th style="width: 12%;">Department</th>
-                    <th style="width: 12%;">Group</th>
-                    <th style="width: 10%;">Shift</th>
-                    <th style="width: 15%;">Designation</th>
-                    <th style="width: 10%; text-align: center;">Status Info</th>
-                </tr>
-            </thead>
-            <tbody>
-                {maternity_leave_rows}
-            </tbody>
-        </table>
-
-        <h3 style="color: #555; margin-top: 30px;">Danh sách nhân viên chấm công thiếu ngày {previous_date_formatted}:</h3>
-        <table>
-            <thead>
-                <tr>
                     <th style="width: 4%; text-align: center;">STT</th>
+                    <th style="width: 6%; text-align: center;">Ngày</th>
                     <th style="width: 7%;">Att ID</th>
                     <th style="width: 9%;">Employee</th>
                     <th style="width: 16%;">Employee Name</th>
@@ -577,9 +641,33 @@ def generate_email_content(report_date, stats, absent_data, last_checkin_time=No
                     <th style="width: 11%;">Group</th>
                     <th style="width: 9%;">Shift</th>
                     <th style="width: 13%;">Designation</th>
-                    <th style="width: 10%; text-align: center;">Check-in</th>
-                    <th style="width: 10%; text-align: center;">Check-out</th>
-                    <th style="width: 5%; text-align: center;">Số lần chấm</th>
+                    <th style="width: 9%; text-align: center;">Status Info</th>
+                </tr>
+            </thead>
+            <tbody>
+                {maternity_leave_rows}
+            </tbody>
+        </table>
+
+        <h3 style="color: #555; margin-top: 30px;">Danh sách nhân viên chấm công thiếu từ {date_range_formatted}:</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 3%; text-align: center;">STT</th>
+                    <th style="width: 6%; text-align: center;">Ngày</th>
+                    <th style="width: 6%;">Att ID</th>
+                    <th style="width: 8%;">Employee</th>
+                    <th style="width: 12%;">Employee Name</th>
+                    <th style="width: 10%;">Department</th>
+                    <th style="width: 8%;">Group</th>
+                    <th style="width: 7%;">Shift</th>
+                    <th style="width: 10%;">Designation</th>
+                    <th style="width: 8%; text-align: center;">Check-in</th>
+                    <th style="width: 8%; text-align: center;">Check-out</th>
+                    <th style="width: 4%; text-align: center;">Số lần chấm</th>
+                    <th style="width: 8%; text-align: center;">Đã xử lý</th>
+                    <th style="width: 6%;">Reason</th>
+                    <th style="width: 6%;">Other Reason</th>
                 </tr>
             </thead>
             <tbody>
@@ -606,10 +694,6 @@ def generate_excel_report(report_date, stats):
     # Remove default sheet
     wb.remove(wb.active)
 
-    # Get previous date for incomplete check-ins
-    previous_date = add_days(report_date, -1)
-    previous_date_formatted = formatdate(previous_date, "dd/MM/yyyy")
-
     # Define styles
     header_font = Font(name='Arial', size=11, bold=True, color='FFFFFF')
     header_fill = PatternFill(start_color='4CAF50', end_color='4CAF50', fill_type='solid')
@@ -627,8 +711,9 @@ def generate_excel_report(report_date, stats):
     )
 
     # Headers definition
-    headers = ['STT', 'Att ID', 'Employee', 'Employee Name', 'Department', 'Group', 'Shift', 'Designation', 'Status Info']
-    column_widths = [8, 12, 15, 25, 20, 20, 15, 20, 20]
+    headers = ['STT', 'Ngày', 'Att ID', 'Employee', 'Employee Name', 'Department', 'Group', 'Shift', 'Designation', 'Status Info']
+    column_widths = [8, 12, 12, 15, 25, 20, 20, 15, 20, 20]
+    formatted_date = formatdate(report_date, "dd/MM/yyyy")
 
     # Sheet 1: Danh sách nhân viên vắng (không bao gồm nghỉ thai sản)
     ws1 = wb.create_sheet("Absent")
@@ -648,6 +733,7 @@ def generate_excel_report(report_date, stats):
     for idx, emp in enumerate(absent_regular, 1):
         row_data = [
             idx,
+            formatted_date,
             emp.get('attendance_device_id') or '',
             emp.get('employee_code') or '',
             emp.get('employee_name') or '',
@@ -663,7 +749,8 @@ def generate_excel_report(report_date, stats):
         for col_num in range(1, len(headers) + 1):
             cell = ws1.cell(row=idx + 1, column=col_num)
             cell.font = cell_font
-            cell.alignment = center_alignment if col_num == 1 else cell_alignment
+            # Center align: STT (1), Ngày (2)
+            cell.alignment = center_alignment if col_num in [1, 2] else cell_alignment
             cell.border = border
 
     # Add Table format for sheet 1
@@ -692,6 +779,7 @@ def generate_excel_report(report_date, stats):
     for idx, emp in enumerate(absent_maternity, 1):
         row_data = [
             idx,
+            formatted_date,
             emp.get('attendance_device_id') or '',
             emp.get('employee_code') or '',
             emp.get('employee_name') or '',
@@ -707,7 +795,8 @@ def generate_excel_report(report_date, stats):
         for col_num in range(1, len(headers) + 1):
             cell = ws2.cell(row=idx + 1, column=col_num)
             cell.font = cell_font
-            cell.alignment = center_alignment if col_num == 1 else cell_alignment
+            # Center align: STT (1), Ngày (2)
+            cell.alignment = center_alignment if col_num in [1, 2] else cell_alignment
             cell.border = border
 
     # Add Table format for sheet 2
@@ -721,10 +810,15 @@ def generate_excel_report(report_date, stats):
     # Sheet 3: Danh sách nhân viên chấm công thiếu
     # Note: Sheet names cannot contain: / \ ? * [ ]
     # Replace / with - in date format
-    sheet3_date = formatdate(previous_date, "dd-MM-yyyy")
-    ws3 = wb.create_sheet(f"Missing Checkin {sheet3_date}")
-    headers_incomplete = ['STT', 'Att ID', 'Employee', 'Employee Name', 'Department', 'Group', 'Shift', 'Designation', 'Check-in', 'Check-out', 'Số lần chấm']
-    column_widths_incomplete = [8, 12, 15, 25, 20, 20, 15, 20, 20, 20, 15]
+    from frappe.utils import get_first_day, add_months
+    current_month_first = get_first_day(report_date)
+    prev_month_26 = add_days(add_months(current_month_first, -1), 25)
+    yesterday = add_days(report_date, -1)
+    sheet3_date_from = formatdate(prev_month_26, "dd-MM")
+    sheet3_date_to = formatdate(yesterday, "dd-MM")
+    ws3 = wb.create_sheet(f"Missing {sheet3_date_from} to {sheet3_date_to}")
+    headers_incomplete = ['STT', 'Ngày', 'Att ID', 'Employee', 'Employee Name', 'Department', 'Group', 'Shift', 'Designation', 'Check-in', 'Check-out', 'Số lần chấm', 'Đã xử lý', 'Reason', 'Other Reason']
+    column_widths_incomplete = [8, 12, 12, 15, 25, 20, 20, 15, 20, 20, 20, 15, 15, 15, 20]
     ws3.append(headers_incomplete)
 
     # Apply header styles for sheet 3
@@ -815,8 +909,18 @@ def generate_excel_report(report_date, stats):
                     last_checkout_time = get_datetime(last_checkout_time)
                 last_checkout = last_checkout_time.strftime("%H:%M:%S %d/%m/%Y")
 
+        # Get checkin date and format it
+        checkin_date = emp.get('checkin_date')
+        checkin_date_formatted = formatdate(checkin_date, "dd/MM/yyyy") if checkin_date else ""
+
+        # Get manual check-in info
+        manual_checkins = emp.get('manual_checkins', '')
+        reason_for_manual = emp.get('reason_for_manual', '')
+        other_reason_for_manual = emp.get('other_reason_for_manual', '')
+
         row_data = [
             idx,
+            checkin_date_formatted,
             emp.get('attendance_device_id') or '',
             emp.get('employee_code') or '',
             emp.get('employee_name') or '',
@@ -826,7 +930,10 @@ def generate_excel_report(report_date, stats):
             emp.get('designation') or '',
             first_checkin,
             last_checkout,
-            checkin_count
+            checkin_count,
+            manual_checkins,
+            reason_for_manual,
+            other_reason_for_manual
         ]
         ws3.append(row_data)
 
@@ -834,7 +941,8 @@ def generate_excel_report(report_date, stats):
         for col_num in range(1, len(headers_incomplete) + 1):
             cell = ws3.cell(row=idx + 1, column=col_num)
             cell.font = cell_font
-            cell.alignment = center_alignment if col_num in [1, 11] else cell_alignment
+            # Center align: STT (1), Ngày (2), Số lần chấm (12), Đã xử lý (13)
+            cell.alignment = center_alignment if col_num in [1, 2, 12, 13] else cell_alignment
             cell.border = border
 
     # Add Table format for sheet 3
