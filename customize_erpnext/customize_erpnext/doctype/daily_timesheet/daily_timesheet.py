@@ -2417,3 +2417,28 @@ def debug_timesheet_calculation(docname):
 		import traceback
 		traceback.print_exc()
 		return False
+
+
+@frappe.whitelist()
+def get_overtime_registrations(employee, attendance_date):
+	"""
+	Get Overtime Registration documents for a specific employee and date
+	Returns list of parent document names
+	"""
+	if not employee or not attendance_date:
+		return []
+
+	# Query child table to get parent documents
+	parents = frappe.db.sql("""
+		SELECT DISTINCT parent
+		FROM `tabOvertime Registration Detail`
+		WHERE employee = %s
+		AND date = %s
+		AND parenttype = 'Overtime Registration'
+	""", (employee, attendance_date), as_dict=1)
+
+	if not parents:
+		return []
+
+	# Return list of parent names
+	return [p.parent for p in parents]
