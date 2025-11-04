@@ -51,7 +51,7 @@ def send_daily_check_in_report():
         excel_file_path, excel_file_name = generate_excel_report(report_date, stats)
 
         # Send email with Excel attachment
-        recipients = ["it@tiqn.com.vn"] #, "ni.nht@tiqn.com.vn", "hoanh.ltk@tiqn.com.vn"]
+        recipients = ["it@tiqn.com.vn", "ni.nht@tiqn.com.vn", "hoanh.ltk@tiqn.com.vn","loan.ptk@tiqn.com.vn"]
         # recipients = ["son.nt@tiqn.com.vn"]
         frappe.sendmail(
             recipients=recipients,
