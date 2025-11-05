@@ -5,7 +5,7 @@
    "label": "Overtime Registration Quantity"
   }
  ],
- "content": "[{\"id\":\"kb3XPLg8lb\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Your Shortcuts</b></span>\",\"col\":12}},{\"id\":\"LxexctoATI\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Overtime Registration\",\"col\":3}},{\"id\":\"r3xmz_dQ3v\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"JVu8-FJZCu\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Reports &amp; Masters</b></span>\",\"col\":12}},{\"id\":\"2uIyyINHSa\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Overtime Registration Detail\",\"col\":3}},{\"id\":\"i7037Ntn6S\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Overtime Registration Quantity\",\"col\":3}},{\"id\":\"JDOkFASq9j\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"jsb9pySoyX\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Overtime Registration Quantity\",\"col\":12}}]",
+ "content": "[{\"id\":\"kb3XPLg8lb\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Your Shortcuts</b></span>\",\"col\":12}},{\"id\":\"LxexctoATI\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Overtime Registration\",\"col\":3}},{\"id\":\"0cAolDzckn\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Shift Registration\",\"col\":3}},{\"id\":\"r3xmz_dQ3v\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"JVu8-FJZCu\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Reports &amp; Masters</b></span>\",\"col\":12}},{\"id\":\"2uIyyINHSa\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Overtime Registration Detail\",\"col\":3}},{\"id\":\"i7037Ntn6S\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Overtime Registration Quantity\",\"col\":3}},{\"id\":\"JDOkFASq9j\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"jsb9pySoyX\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Overtime Registration Quantity\",\"col\":12}}]",
  "creation": "2025-08-13 10:18:33.643342",
  "custom_blocks": [],
  "docstatus": 0,
@@ -18,7 +18,7 @@
  "is_hidden": 0,
  "label": "Registration",
  "links": [],
- "modified": "2025-08-13 10:23:25.882343",
+ "modified": "2025-11-05 11:08:31.365848",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Registration",
@@ -35,6 +35,14 @@
  ],
  "sequence_id": 1.1,
  "shortcuts": [
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "Shift Registration",
+   "link_to": "Shift Registration",
+   "stats_filter": "[]",
+   "type": "DocType"
+  },
   {
    "color": "Green",
    "doc_view": "List",
