@@ -2,11 +2,15 @@ import frappe
 import re
 import os
 import base64
+import math
+import json
 from frappe import _
 from frappe.utils.file_manager import save_file
 from frappe.utils.pdf import get_pdf
 from frappe.utils import get_site_path
+from frappe.utils import getdate, nowdate, cint, flt, get_files_path, cstr
 import io
+from datetime import datetime
 try:
     from PIL import Image
 except:
@@ -45,7 +49,7 @@ def get_next_employee_code():
     # Fallback if pattern doesn't match
     return "TIQN-0001"
 
-@frappe.whitelist()
+@frappe.whitelist() 
 def get_next_attendance_device_id():
     """Generate next attendance_device_id"""
     # Get maximum attendance_device_id
@@ -434,8 +438,7 @@ def generate_employee_cards_html(employees, with_barcode=False, page_size='A4'):
         }}
 
         .card-right {{
-            
-            margin-left: 30mm;
+            margin-left: 5mm;
             padding-top: 9mm;
             padding-left: 0.5mm;
             padding-right: 0.5mm;
@@ -1485,10 +1488,10 @@ def bulk_update_employee_holiday_list(employees, holiday_list):
     frappe.db.commit()
     
     # Tạo message
-    message = f"✅ Đã cập nhật Holiday List <strong>{holiday_list}</strong> cho <strong>{success_count}/{len(employees)}</strong> nhân viên"
+    message = f" Đã cập nhật Holiday List <strong>{holiday_list}</strong> cho <strong>{success_count}/{len(employees)}</strong> nhân viên"
     
     if error_list:
-        message += f"<br><br><b>❌ Lỗi ({len(error_list)}):</b><br>" + "<br>".join(error_list[:10])
+        message += f"<br><br><b> Lỗi ({len(error_list)}):</b><br>" + "<br>".join(error_list[:10])
         if len(error_list) > 10:
             message += f"<br>... và {len(error_list) - 10} lỗi khác"
     
@@ -1500,3 +1503,1152 @@ def bulk_update_employee_holiday_list(employees, holiday_list):
         "error_count": len(error_list),
         "updated_employees": updated_employees
     }
+
+## Generate Employee List PDF ##
+
+@frappe.whitelist()
+def generate_employee_list_pdf(employees=None, company_name=None, include_department=1, 
+                              include_section=0, include_notes=1, page_size='A4', 
+                              orientation='Portrait'):
+    """
+    Generate a PDF list of employees with their photos and details
+    
+    Args:
+        employees: List of employee IDs or 'all' for all active employees
+        company_name: Title to display on the PDF
+        include_department: Whether to include department column (0 or 1)
+        include_section: Whether to include section column (0 or 1)
+        include_notes: Whether to include notes column (0 or 1)
+        page_size: A4 or Letter
+        orientation: Portrait or Landscape
+    
+    Returns:
+        dict: {
+            'success': True/False,
+            'file_url': URL to access the generated PDF,
+            'filename': PDF filename
+        }
+    """
+    try:
+        # Convert parameters from strings to correct types
+        include_department = cint(include_department)
+        include_section = cint(include_section)
+        include_notes = cint(include_notes)
+        
+        # Default company name if not provided
+        if not company_name:
+            company_name = frappe.db.get_single_value("Global Defaults", "default_company") or "Company"
+        
+        # Get employee data
+        employee_data = get_employee_data(employees, include_department, include_section)
+        
+        # Write debugging info to a file (scope, count, etc.)
+        debug_info = {
+            "total_employees": len(employee_data),
+            "with_images": sum(1 for e in employee_data if e.get('image_data')),
+            "scope": "all" if employees == 'all' else (
+                     "selected" if isinstance(employees, list) else "range"),
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }
+        
+        debug_file_path = os.path.join(frappe.get_site_path(), "public", "files", "pdf_debug_info.json")
+        with open(debug_file_path, "w") as f:
+            json.dump(debug_info, f)
+        
+        # Maximum employees per page - 12 is recommended
+        employees_per_page = 12
+        
+        # Calculate number of pages needed
+        total_employees = len(employee_data)
+        total_pages = math.ceil(total_employees / employees_per_page)
+        
+        # Generate HTML with proper pagination
+        html = generate_employee_list_html(
+            employee_data=employee_data,
+            company_name=company_name,
+            include_department=include_department,
+            include_section=include_section,
+            include_notes=include_notes,
+            orientation=orientation,
+            employees_per_page=employees_per_page,
+            total_pages=total_pages
+        )
+        
+        # Save HTML for debugging if needed
+        debug_html_path = os.path.join(frappe.get_site_path(), "public", "files", "employee_list_debug.html")
+        with open(debug_html_path, "w", encoding="utf-8") as f:
+            f.write(html)
+        
+        # Generate PDF
+        pdf_options = {
+            "page-size": page_size,
+            "orientation": orientation.lower(),
+            "margin-top": "15mm",
+            "margin-bottom": "15mm",
+            "margin-left": "10mm",
+            "margin-right": "10mm",
+            "print-media-type": True,
+            "dpi": 300,  # Higher DPI for better image quality
+            "enable-local-file-access": True
+        }
+        
+        pdf_data = get_pdf(html, options=pdf_options)
+        
+        # Create filename based on timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"Employee_List_{timestamp}.pdf"
+        
+        # IMPORTANT: Instead of returning Base64 data directly, save file to server
+        # and return a URL for direct download - this prevents Base64 encoding issues
+        output_path = os.path.join(frappe.get_site_path(), "public", "files", filename)
+        with open(output_path, "wb") as f:
+            f.write(pdf_data)
+            
+        # Generate URL for direct download
+        file_url = f"/files/{filename}"
+        
+        # Return success with file URL instead of Base64 data
+        return {
+            'success': True,
+            'file_url': file_url,
+            'filename': filename,
+            'employee_count': len(employee_data)
+        }
+    
+    except Exception as e:
+        # Write the error to a debug file
+        debug_file_path = os.path.join(frappe.get_site_path(), "public", "files", "pdf_error.txt")
+        with open(debug_file_path, "w") as f:
+            f.write(str(e))
+        
+        # Truncate error message
+        error_msg = str(e)
+        if len(error_msg) > 100:
+            error_msg = error_msg[:97] + "..."
+            
+        return {
+            'success': False, 
+            'error': error_msg,
+            'debug_file': debug_file_path
+        }
+
+def get_employee_data(employees=None, include_department=1, include_section=0):
+    """
+    Get employee data for the PDF
+    
+    Args:
+        employees: List of employee IDs or 'all' for all active employees
+        include_department: Whether to include department column
+        include_section: Whether to include section column
+    
+    Returns:
+        list: List of employee data dictionaries
+    """
+    fields = ["name", "employee_name", "image", "status"]
+    
+    if include_department:
+        fields.append("department")
+    
+    # Initialize section_field variable outside the conditional block
+    section_field = None
+    
+    if include_section:
+        # Check if section is a standard or custom field
+        # Try different field names that might be used for section
+        section_field_options = ["section", "custom_section", "department_section"]
+        
+        for field in section_field_options:
+            if frappe.db.exists("DocField", {"parent": "Employee", "fieldname": field}) or \
+               frappe.db.exists("Custom Field", {"dt": "Employee", "fieldname": field}):
+                section_field = field
+                break
+        
+        if section_field:
+            fields.append(section_field)
+    
+    # Build filters
+    filters = {"status": "Active"}
+    
+    # Handle different employee selection methods
+    if employees == 'all':
+        # All active employees - keep the default filter
+        pass
+    elif isinstance(employees, list):
+        # Specific employees selected or range of IDs
+        filters = {
+            "name": ["in", employees],
+            "status": "Active"  # Still filter for active only
+        }
+    elif employees:
+        # Single employee ID - convert to list
+        filters = {
+            "name": ["in", [employees]],
+            "status": "Active"
+        }
+    
+    # Log the filters for debugging
+    debug_file_path = os.path.join(frappe.get_site_path(), "public", "files", "filter_debug.json")
+    with open(debug_file_path, "w") as f:
+        json.dump({
+            "filters": filters,
+            "employees_type": str(type(employees)),
+            "employees_value": str(employees)[:100] if employees else None
+        }, f)
+    
+    # Fetch employee data
+    employee_data = frappe.get_all(
+        "Employee",
+        fields=fields,
+        filters=filters,
+        order_by="name"
+    )
+    
+    # Process employee images - with optimizations for size
+    for emp in employee_data:
+        # Try various methods to get the image
+        image_result = process_employee_photo_optimized(emp.get("image"), emp.get("name"))
+        
+        emp["image_data"] = image_result
+        
+        # Map section field if found - now section_field is always defined
+        if section_field and section_field in emp:
+            emp["section"] = emp.get(section_field)
+    
+    return employee_data
+
+def process_employee_photo_optimized(image_url, employee_id):
+    """
+    Process employee photo with optimizations for file size
+    
+    Args:
+        image_url: URL of the employee image
+        employee_id: Employee ID for direct lookup
+        
+    Returns:
+        str: Base64 encoded image data or empty string
+    """
+    try:
+        # Start with standard path processing
+        if image_url:
+            # Remove leading slash if present
+            if image_url.startswith("/"):
+                image_url = image_url[1:]
+            
+            # Get full path to image
+            site_path = frappe.get_site_path()
+            img_path = os.path.join(site_path, "public", image_url)
+            
+            # Check if file exists
+            if not os.path.exists(img_path):
+                # Try alternative path formats
+                alt_paths = [
+                    os.path.join(site_path, image_url),
+                    os.path.join(get_files_path(), os.path.basename(image_url)),
+                    os.path.join(site_path, "public", "files", os.path.basename(image_url)),
+                    os.path.join(site_path, "public", "files", "employee_photos", os.path.basename(image_url)),
+                    os.path.join(site_path, "private", "files", os.path.basename(image_url))
+                ]
+                
+                for path in alt_paths:
+                    if path and os.path.exists(path):
+                        img_path = path
+                        break
+                else:
+                    # Try to get from attachments
+                    attachments = frappe.get_all(
+                        "File",
+                        fields=["file_url", "file_name"],
+                        filters={
+                            "attached_to_doctype": "Employee",
+                            "attached_to_name": employee_id,
+                            "is_private": 0
+                        }
+                    )
+                    
+                    for attachment in attachments:
+                        file_url = attachment.get("file_url")
+                        if file_url and file_url.lower().endswith(('.jpg', '.jpeg', '.png')):
+                            img_path = os.path.join(site_path, "public", file_url.lstrip("/"))
+                            if os.path.exists(img_path):
+                                break
+                    else:
+                        # Generate a placeholder with initials
+                        return generate_placeholder_image(employee_id)
+        else:
+            # No image URL, generate placeholder
+            return generate_placeholder_image(employee_id)
+                
+        # Process the image with size optimizations
+        try:
+            # Open and resize image
+            img = Image.open(img_path)
+            
+            # Calculate desired size - smaller size to reduce PDF file size
+            # 1 inch = 2.54 cm
+            # 2cm = (2/2.54) inches = (2/2.54)*150 pixels
+            # 1.5cm = (1.5/2.54) inches = (1.5/2.54)*150 pixels
+            width_px = int((2/2.54) * 150)  # Using 150 DPI instead of 300 for smaller file size
+            height_px = int((1.5/2.54) * 150)
+            
+            # Resize maintaining aspect ratio
+            img.thumbnail((width_px, height_px), Image.Resampling.LANCZOS)
+            
+            # Convert to RGB if needed
+            if img.mode != 'RGB':
+                img = img.convert('RGB')
+            
+            # Convert to base64 with reduced quality for smaller size
+            buffered = io.BytesIO()
+            img.save(buffered, format="JPEG", quality=60)  # Lower quality (60 instead of 95)
+            img_str = base64.b64encode(buffered.getvalue()).decode()
+            
+            return img_str
+        except Exception:
+            # If image processing fails, create a placeholder
+            return generate_placeholder_image(employee_id)
+    except Exception:
+        # Silent error handling - return placeholder on any error
+        return generate_placeholder_image(employee_id)
+
+
+def generate_placeholder_image(employee_id):
+    """
+    Generate a placeholder image for employees without photos
+    
+    Args:
+        employee_id: Employee ID to generate placeholder for
+        
+    Returns:
+        str: Base64 encoded placeholder image
+    """
+    try:
+        # Get employee details for the placeholder
+        employee = frappe.get_doc("Employee", employee_id)
+        if not employee:
+            return ""
+            
+        # Create a colorful placeholder with initials
+        name_parts = employee.employee_name.split()
+        initials = ''.join([part[0].upper() for part in name_parts if part])[:2]
+        
+        # Create colored background based on name hash
+        name_hash = sum(ord(c) for c in employee.employee_name)
+        colors = [
+            (240, 98, 146),  # Pink
+            (186, 104, 200),  # Purple
+            (79, 195, 247),   # Blue
+            (77, 182, 172),   # Teal
+            (255, 213, 79),   # Yellow
+            (255, 167, 38),   # Orange
+            (229, 115, 115),  # Red
+            (124, 179, 66)    # Green
+        ]
+        
+        bg_color = colors[name_hash % len(colors)]
+        text_color = (255, 255, 255)
+        
+        # Create the image - smaller size to reduce file size
+        img_size = (120, 90)  # Reduced size (150 DPI instead of 300)
+        img = Image.new('RGB', img_size, color=bg_color)
+        
+        # Add text
+        try:
+            from PIL import ImageDraw, ImageFont
+            draw = ImageDraw.Draw(img)
+            
+            # Try to use a system font, fallback to default
+            try:
+                font_size = 40  # Smaller font
+                # Try to find a suitable font
+                font_paths = [
+                    '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',  # Linux
+                    '/usr/share/fonts/TTF/Arial.ttf',  # Some Linux distros
+                    '/Library/Fonts/Arial.ttf',  # MacOS
+                    'C:\\Windows\\Fonts\\Arial.ttf'  # Windows
+                ]
+                
+                font = None
+                for path in font_paths:
+                    if os.path.exists(path):
+                        font = ImageFont.truetype(path, font_size)
+                        break
+                        
+                if font is None:
+                    font = ImageFont.load_default()
+            except:
+                font = ImageFont.load_default()
+                
+            # Calculate text position to center it
+            text_width, text_height = draw.textsize(initials, font=font) if hasattr(draw, 'textsize') else (font_size, font_size)
+            position = ((img_size[0] - text_width) // 2, (img_size[1] - text_height) // 2)
+            
+            # Draw the text
+            draw.text(position, initials, fill=text_color, font=font)
+        except:
+            # If text drawing fails, just return a blank colored image
+            pass
+            
+        # Convert to base64 with lower quality
+        buffered = io.BytesIO()
+        img.save(buffered, format="JPEG", quality=60)
+        img_str = base64.b64encode(buffered.getvalue()).decode()
+        
+        return img_str
+    except Exception:
+        # Silent error handling - return empty string on any error
+        return ""
+
+
+
+def process_with_absolute_path(image_url):
+    """
+    Process image using absolute path approach
+    Args:
+        image_url: URL of the employee image
+        
+    Returns:
+        str: Base64 encoded image data or empty string
+    """
+    if not image_url:
+        return ""
+    
+    try:
+        # For URLs starting with /files/
+        if image_url.startswith('/files/'):
+            site_path = frappe.get_site_path()
+            img_path = os.path.join(site_path, "public", image_url.lstrip("/"))
+            
+            # If this specific path doesn't exist, try alternatives
+            if not os.path.exists(img_path):
+                # Try the employee_photos subdirectory
+                base_name = os.path.basename(image_url)
+                alt_path = os.path.join(site_path, "public", "files", "employee_photos", base_name)
+                if os.path.exists(alt_path):
+                    img_path = alt_path
+        else:
+            # Handle other URL formats
+            site_path = frappe.get_site_path()
+            img_path = os.path.join(site_path, "public", image_url.lstrip("/"))
+        
+        # Check if file exists
+        if not os.path.exists(img_path):
+            return ""
+        
+        # Open and resize image
+        img = Image.open(img_path)
+        
+        # Calculate desired size - 2cm x 1.5cm at 300 DPI
+        # 1 inch = 2.54 cm, 300 DPI means 300 pixels per inch
+        # 2cm = (2/2.54) inches = (2/2.54)*300 pixels ≈ 236 pixels
+        # 1.5cm = (1.5/2.54) inches = (1.5/2.54)*300 pixels ≈ 177 pixels
+        width_px = int((2/2.54) * 300)
+        height_px = int((1.5/2.54) * 300)
+        
+        # Resize maintaining aspect ratio and using high quality resampling
+        img.thumbnail((width_px, height_px), Image.Resampling.LANCZOS)
+        
+        # Convert to RGB if it's not (e.g., if it's RGBA with transparency)
+        if img.mode != 'RGB':
+            img = img.convert('RGB')
+        
+        # Convert to base64 with high quality JPEG
+        buffered = io.BytesIO()
+        img.save(buffered, format="JPEG", quality=95)
+        img_str = base64.b64encode(buffered.getvalue()).decode()
+        
+        return img_str
+    except Exception as e:
+        # Write error to a debug file
+        debug_file_path = os.path.join(frappe.get_site_path(), "public", "files", "image_processing_error.txt")
+        with open(debug_file_path, "a") as f:
+            f.write(f"Error processing {image_url}: {str(e)}\n")
+        return ""
+
+
+def process_employee_image(image_url):
+    """
+    Process employee image to proper size and quality
+    
+    Args:
+        image_url: URL of the employee image
+        
+    Returns:
+        str: Base64 encoded image data or empty string
+    """
+    if not image_url:
+        return ""
+    
+    try:
+        # Remove leading slash if present
+        if image_url.startswith("/"):
+            image_url = image_url[1:]
+        
+        # Get full path to image
+        site_path = frappe.get_site_path()
+        img_path = os.path.join(site_path, "public", image_url)
+        
+        # Check if file exists
+        if not os.path.exists(img_path):
+            # Try alternative path formats
+            alt_paths = [
+                os.path.join(site_path, image_url),
+                os.path.join(get_files_path(), os.path.basename(image_url)),
+                os.path.join(site_path, "public", "files", os.path.basename(image_url)),
+                os.path.join(site_path, "public", "files", "employee_photos", os.path.basename(image_url)),
+                os.path.join(site_path, "private", "files", os.path.basename(image_url)),
+                # Handle special case for file:// URLs
+                image_url.replace("file://", "") if image_url.startswith("file://") else "",
+                # Absolute path
+                image_url if os.path.isabs(image_url) else ""
+            ]
+            
+            for path in alt_paths:
+                if path and os.path.exists(path):
+                    img_path = path
+                    break
+            else:
+                return ""  # Image not found
+        
+        # Open and resize image
+        img = Image.open(img_path)
+        
+        # Calculate desired size - 2cm x 1.5cm at 300 DPI
+        width_px = int((2/2.54) * 300)
+        height_px = int((1.5/2.54) * 300)
+        
+        # Resize maintaining aspect ratio and using high quality resampling
+        img.thumbnail((width_px, height_px), Image.Resampling.LANCZOS)
+        
+        # Convert to RGB if it's not (e.g., if it's RGBA with transparency)
+        if img.mode != 'RGB':
+            img = img.convert('RGB')
+        
+        # Convert to base64 with high quality JPEG
+        buffered = io.BytesIO()
+        img.save(buffered, format="JPEG", quality=95)
+        img_str = base64.b64encode(buffered.getvalue()).decode()
+        
+        return img_str
+    except Exception as e:
+        debug_file_path = os.path.join(frappe.get_site_path(), "public", "files", "image_error.txt")
+        with open(debug_file_path, "a") as f:
+            f.write(f"Error processing {image_url}: {str(e)}\n")
+        return ""
+
+
+def process_image_direct(image_url):
+    """
+    Process image using direct URL without path manipulation
+    
+    Args:
+        image_url: URL of the employee image
+        
+    Returns:
+        str: Base64 encoded image data or empty string
+    """
+    if not image_url:
+        return ""
+    
+    try:
+        # Try to handle direct file paths
+        img_path = image_url
+        
+        # If it's a URL with domain, we can't process it locally
+        if re.match(r'^https?://', image_url):
+            return ""
+            
+        # Check if file exists directly
+        if not os.path.exists(img_path):
+            return ""
+        
+        # Open and resize image
+        img = Image.open(img_path)
+        
+        # Resize to 2cm x 1.5cm at 300 DPI
+        width_px = int((2/2.54) * 300)
+        height_px = int((1.5/2.54) * 300)
+        
+        # Resize maintaining aspect ratio
+        img.thumbnail((width_px, height_px), Image.Resampling.LANCZOS)
+        
+        # Convert to RGB if needed
+        if img.mode != 'RGB':
+            img = img.convert('RGB')
+        
+        # Convert to base64
+        buffered = io.BytesIO()
+        img.save(buffered, format="JPEG", quality=95)
+        img_str = base64.b64encode(buffered.getvalue()).decode()
+        
+        return img_str
+    except Exception:
+        # Silent error handling
+        return ""
+
+
+def get_image_from_attachments(employee_id):
+    """
+    Try to get employee image from file attachments
+    
+    Args:
+        employee_id: Employee ID
+        
+    Returns:
+        str: Base64 encoded image data or empty string
+    """
+    try:
+        # Get file attachments for the employee
+        attachments = frappe.get_all(
+            "File",
+            fields=["file_url", "file_name"],
+            filters={
+                "attached_to_doctype": "Employee",
+                "attached_to_name": employee_id,
+                "is_private": 0
+            }
+        )
+        
+        # Look for image files
+        image_extensions = [".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp"]
+        
+        for attachment in attachments:
+            file_url = attachment.get("file_url")
+            file_name = attachment.get("file_name", "").lower()
+            
+            # Check if it's an image file
+            if any(file_name.endswith(ext) for ext in image_extensions):
+                # Process the image
+                img_data = process_employee_image(file_url)
+                if img_data:
+                    return img_data
+        
+        return ""
+    except Exception:
+        # Silent error handling
+        return ""
+
+
+def get_image_from_employee_id(employee_id):
+    """
+    Try to get employee image directly using employee ID
+    
+    Args:
+        employee_id: Employee ID
+        
+    Returns:
+        str: Base64 encoded image data or empty string
+    """
+    try:
+        # Try standard locations where employee images might be stored
+        site_path = frappe.get_site_path()
+        
+        # Common patterns for employee image filenames
+        patterns = [
+            f"{employee_id}.jpg",
+            f"{employee_id}.jpeg",
+            f"{employee_id}.png",
+            f"{employee_id.lower()}.jpg",
+            f"{employee_id.lower()}.jpeg",
+            f"{employee_id.lower()}.png"
+        ]
+        
+        # Common directories for images
+        directories = [
+            os.path.join(site_path, "public", "files"),
+            os.path.join(site_path, "public", "files", "employees"),
+            os.path.join(site_path, "public", "files", "employee_photos"),
+            os.path.join(site_path, "public", "images"),
+            os.path.join(site_path, "public", "uploads"),
+            get_files_path()
+        ]
+        
+        # Try all combinations
+        for directory in directories:
+            if not os.path.exists(directory):
+                continue
+                
+            for pattern in patterns:
+                img_path = os.path.join(directory, pattern)
+                if os.path.exists(img_path):
+                    # Process the found image
+                    img = Image.open(img_path)
+                    
+                    # Resize to 2cm x 1.5cm at 300 DPI
+                    width_px = int((2/2.54) * 300)
+                    height_px = int((1.5/2.54) * 300)
+                    
+                    # Resize maintaining aspect ratio
+                    img.thumbnail((width_px, height_px), Image.Resampling.LANCZOS)
+                    
+                    # Convert to RGB if needed
+                    if img.mode != 'RGB':
+                        img = img.convert('RGB')
+                    
+                    # Convert to base64
+                    buffered = io.BytesIO()
+                    img.save(buffered, format="JPEG", quality=95)
+                    img_str = base64.b64encode(buffered.getvalue()).decode()
+                    
+                    return img_str
+        
+        return ""
+    except Exception:
+        # Silent error handling
+        return ""
+
+
+def find_image_by_employee_name(employee_id):
+    """
+    Try to find employee image by searching for files containing employee name
+    
+    Args:
+        employee_id: Employee ID
+        
+    Returns:
+        str: Base64 encoded image data or empty string
+    """
+    try:
+        # Get the employee name
+        employee = frappe.get_doc("Employee", employee_id)
+        if not employee or not employee.employee_name:
+            return ""
+        
+        employee_name = employee.employee_name.lower()
+        
+        # Get the directories to search in
+        site_path = frappe.get_site_path()
+        directories = [
+            os.path.join(site_path, "public", "files"),
+            os.path.join(site_path, "public", "files", "employees"),
+            os.path.join(site_path, "public", "files", "employee_photos"),
+            get_files_path()
+        ]
+        
+        # Search for image files that might contain the employee name or ID
+        for directory in directories:
+            if not os.path.exists(directory):
+                continue
+                
+            for filename in os.listdir(directory):
+                lower_filename = filename.lower()
+                
+                # Skip non-image files
+                if not any(lower_filename.endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.gif']):
+                    continue
+                    
+                # Check if filename contains employee ID or name
+                if employee_id.lower() in lower_filename or any(part in lower_filename for part in employee_name.split()):
+                    img_path = os.path.join(directory, filename)
+                    
+                    # Process the found image
+                    img = Image.open(img_path)
+                    
+                    # Resize to 2cm x 1.5cm at 300 DPI
+                    width_px = int((2/2.54) * 300)
+                    height_px = int((1.5/2.54) * 300)
+                    
+                    # Resize maintaining aspect ratio
+                    img.thumbnail((width_px, height_px), Image.Resampling.LANCZOS)
+                    
+                    # Convert to RGB if needed
+                    if img.mode != 'RGB':
+                        img = img.convert('RGB')
+                    
+                    # Convert to base64
+                    buffered = io.BytesIO()
+                    img.save(buffered, format="JPEG", quality=95)
+                    img_str = base64.b64encode(buffered.getvalue()).decode()
+                    
+                    return img_str
+        
+        return ""
+    except Exception:
+        # Silent error handling
+        return ""
+
+
+def get_placeholder_image(employee_id):
+    """
+    Generate a placeholder image for employees without photos
+    
+    Args:
+        employee_id: Employee ID to generate placeholder for
+        
+    Returns:
+        str: Base64 encoded placeholder image
+    """
+    try:
+        # Get employee details for the placeholder
+        employee = frappe.get_doc("Employee", employee_id)
+        if not employee:
+            return ""
+            
+        # Create a colorful placeholder with initials
+        name_parts = employee.employee_name.split()
+        initials = ''.join([part[0].upper() for part in name_parts if part])[:2]
+        
+        # Create colored background based on name hash
+        name_hash = sum(ord(c) for c in employee.employee_name)
+        colors = [
+            (240, 98, 146),  # Pink
+            (186, 104, 200),  # Purple
+            (79, 195, 247),   # Blue
+            (77, 182, 172),   # Teal
+            (255, 213, 79),   # Yellow
+            (255, 167, 38),   # Orange
+            (229, 115, 115),  # Red
+            (124, 179, 66)    # Green
+        ]
+        
+        bg_color = colors[name_hash % len(colors)]
+        text_color = (255, 255, 255)
+        
+        # Create the image
+        img_size = (236, 177)  # 2cm x 1.5cm at 300 DPI
+        img = Image.new('RGB', img_size, color=bg_color)
+        
+        # Add text
+        try:
+            from PIL import ImageDraw, ImageFont
+            draw = ImageDraw.Draw(img)
+            
+            # Try to use a system font, fallback to default
+            try:
+                font_size = 60
+                # Try to find a suitable font
+                font_paths = [
+                    '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',  # Linux
+                    '/usr/share/fonts/TTF/Arial.ttf',  # Some Linux distros
+                    '/Library/Fonts/Arial.ttf',  # MacOS
+                    'C:\\Windows\\Fonts\\Arial.ttf'  # Windows
+                ]
+                
+                font = None
+                for path in font_paths:
+                    if os.path.exists(path):
+                        font = ImageFont.truetype(path, font_size)
+                        break
+                        
+                if font is None:
+                    font = ImageFont.load_default()
+            except:
+                font = ImageFont.load_default()
+                
+            # Calculate text position to center it
+            text_width, text_height = draw.textsize(initials, font=font) if hasattr(draw, 'textsize') else (font_size, font_size)
+            position = ((img_size[0] - text_width) // 2, (img_size[1] - text_height) // 2)
+            
+            # Draw the text
+            draw.text(position, initials, fill=text_color, font=font)
+        except:
+            # If text drawing fails, just return a blank colored image
+            pass
+            
+        # Convert to base64
+        buffered = io.BytesIO()
+        img.save(buffered, format="JPEG", quality=90)
+        img_str = base64.b64encode(buffered.getvalue()).decode()
+        
+        return img_str
+    except Exception:
+        # Silent error handling
+        return ""
+
+
+def generate_employee_list_html(employee_data, company_name, include_department=1, 
+                               include_section=0, include_notes=1, orientation="Portrait",
+                               employees_per_page=12, total_pages=1):
+    """
+    Generate HTML for the employee list PDF with pagination
+    
+    Args:
+        employee_data: List of employee data dictionaries
+        company_name: Company name for the title
+        include_department: Whether to include department column
+        include_section: Whether to include section column
+        include_notes: Whether to include notes column
+        orientation: Page orientation
+        employees_per_page: Number of employees per page
+        total_pages: Total number of pages
+    
+    Returns:
+        str: HTML content for the PDF
+    """
+    # Start HTML with CSS styling
+    html = f"""
+    <!DOCTYPE html>
+    <html lang="vi">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Danh sách Nhân viên</title>
+        <style>
+            @page {{
+                size: {orientation.lower()};
+                margin: 15mm 10mm;
+            }}
+            body {{
+                font-family: Arial, sans-serif;
+                margin: 0;
+                padding: 0;
+                font-size: 10pt;
+            }}
+            .page-break {{
+                page-break-before: always;
+            }}
+            .container {{
+                width: 100%;
+                margin: 0 auto;
+            }}
+            .header {{
+                text-align: center;
+                font-size: 14pt;
+                font-weight: bold;
+                margin-bottom: 20px;
+            }}
+            table {{
+                width: 100%;
+                border-collapse: collapse;
+                page-break-inside: avoid;
+            }}
+            thead {{
+                display: table-header-group;
+            }}
+            tr {{
+                page-break-inside: avoid;
+            }}
+            th, td {{
+                border: 1px solid #000;
+                padding: 4px 6px;
+                text-align: center;
+                vertical-align: middle;
+                font-size: 9pt;
+            }}
+            th {{
+                background-color: #f2f2f2;
+                font-weight: bold;
+            }}
+            .employee-photo {{
+                width: 2cm;
+                height: 1.5cm;
+                object-fit: contain;
+            }}
+            .centered {{
+                text-align: center;
+            }}
+            .employee-id {{
+                font-weight: bold;
+            }}
+            .page-number {{
+                text-align: right;
+                margin-top: 10px;
+                font-size: 8pt;
+            }}
+            .no-results {{
+                padding: 30px;
+                text-align: center;
+                font-size: 14pt;
+                color: #888;
+            }}
+        </style>
+    </head>
+    <body>
+    """
+    
+    # Handle case where no employees are found
+    if len(employee_data) == 0:
+        html += f"""
+        <div class="container">
+            <div class="header">
+                DANH SÁCH CÔNG NHÂN VIÊN {company_name}
+            </div>
+            
+            <div class="no-results">
+                <p><strong>Không tìm thấy nhân viên nào trong phạm vi đã chọn.</strong></p>
+                <p>Vui lòng kiểm tra lại các điều kiện tìm kiếm.</p>
+            </div>
+        </div>
+        """
+        html += "</body></html>"
+        return html
+    
+    # Split employees into pages
+    pages = []
+    for i in range(0, len(employee_data), employees_per_page):
+        pages.append(employee_data[i:i+employees_per_page])
+    
+    # Generate each page
+    for page_num, page_employees in enumerate(pages, 1):
+        if page_num > 1:
+            # Add page break for all pages except the first
+            html += '<div class="page-break"></div>\n'
+        
+        html += f"""
+        <div class="container">
+            <div class="header">
+                DANH SÁCH CÔNG NHÂN VIÊN {company_name}
+            </div>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 5%;">STT</th>
+                        <th style="width: 15%;">Mã số nhân viên</th>
+                        <th style="width: {25 if include_department else 35}%;">Tên nhân viên</th>
+        """
+        
+        # Add optional column headers
+        if include_department:
+            html += '<th style="width: 15%;">Bộ phận</th>\n'
+        
+        if include_section:
+            html += '<th style="width: 10%;">Tổ</th>\n'
+        
+        # Add photo and notes column headers
+        html += f"""
+                        <th style="width: 10%;">Hình ảnh</th>
+        """
+        
+        if include_notes:
+            html += '<th style="width: 15%;">Ghi chú</th>\n'
+        
+        html += """
+                    </tr>
+                </thead>
+                <tbody>
+        """
+        
+        # Add employee rows
+        start_idx = (page_num - 1) * employees_per_page
+        for idx, emp in enumerate(page_employees):
+            global_idx = start_idx + idx
+            html += f"""
+                    <tr>
+                        <td>{global_idx + 1}</td>
+                        <td class="employee-id">{emp.get('name', '')}</td>
+                        <td>{emp.get('employee_name', '')}</td>
+            """
+            
+            # Add optional department and section columns
+            if include_department:
+                html += f'<td>{emp.get("department", "")}</td>\n'
+            
+            if include_section:
+                html += f'<td>{emp.get("section", "")}</td>\n'
+            
+            # Add photo column
+            html += f'<td><img src="data:image/jpeg;base64,{emp.get("image_data", "")}" class="employee-photo" alt="{emp.get("employee_name", "")}" onerror="this.style.display=\'none\'"></td>\n'
+            
+            # Add notes column if included
+            if include_notes:
+                html += '<td></td>\n'
+            
+            html += """
+                    </tr>
+            """
+        
+        # Close table
+        html += """
+                </tbody>
+            </table>
+            <div class="page-number">
+                Trang {page}/{total_pages}
+            </div>
+        </div>
+        """.format(page=page_num, total_pages=total_pages)
+    
+    # Close HTML
+    html += """
+    </body>
+    </html>
+    """
+    
+    return html
+
+
+
+@frappe.whitelist()
+def debug_employee_images():
+    """
+    Diagnostic function to debug employee images
+    
+    Returns:
+        dict: Debug information
+    """
+    try:
+        # Get a sample of employees with images
+        employees = frappe.get_all(
+            "Employee",
+            fields=["name", "employee_name", "image", "status"],
+            filters={"status": "Active"},
+            limit=10  # Get a good sample size
+        )
+        
+        debug_info = []
+        
+        for emp in employees:
+            image_url = emp.get("image")
+            employee_id = emp.get("name")
+            
+            # Process with detailed debugging
+            image_result = process_employee_photo_with_debug(image_url, employee_id)
+            
+            debug_info.append({
+                "employee": employee_id,
+                "employee_name": emp.get("employee_name"),
+                "image_url": image_url,
+                "has_image_data": bool(image_result.get("image_data")),
+                "debug": image_result.get("debug", {})
+            })
+        
+        # Try to save a sample image for direct verification
+        if len(employees) > 0:
+            emp = employees[0]
+            image_url = emp.get("image")
+            employee_id = emp.get("name")
+            
+            # Try all methods
+            image_result = process_employee_photo_with_debug(image_url, employee_id)
+            img_data = image_result.get("image_data", "")
+            
+            if img_data:
+                # Save a sample image for verification
+                sample_path = os.path.join(frappe.get_site_path(), "public", "files", f"sample_image_{employee_id}.jpg")
+                
+                try:
+                    with open(sample_path, "wb") as f:
+                        f.write(base64.b64decode(img_data))
+                    
+                    debug_info.append({
+                        "sample_image_saved": True,
+                        "sample_path": sample_path,
+                        "employee": employee_id
+                    })
+                except Exception as e:
+                    debug_info.append({
+                        "sample_image_saved": False,
+                        "error": str(e),
+                        "employee": employee_id
+                    })
+        
+        return {
+            "success": True,
+            "debug_info": debug_info
+        }
+    
+    except Exception as e:
+        # Write the full error to a debug file
+        debug_file_path = os.path.join(frappe.get_site_path(), "public", "files", "debug_error.txt")
+        with open(debug_file_path, "w") as f:
+            f.write(str(e))
+            
+        # Truncate error message for API response
+        error_msg = str(e)
+        if len(error_msg) > 100:
+            error_msg = error_msg[:97] + "..."
+            
+        return {
+            "success": False,
+            "error": error_msg,
+            "debug_file": debug_file_path
+        }

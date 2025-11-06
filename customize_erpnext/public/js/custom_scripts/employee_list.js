@@ -24,9 +24,421 @@ frappe.listview_settings['Employee'] = {
             show_bulk_update_holiday_dialog(listview);
         });
 
+        listview.page.add_menu_item(__('6. Generate Employee List PDF'), function () {
+            show_generate_employee_list_pdf_dialog(listview);
+        })
 
     }
 };
+
+function show_generate_employee_list_pdf_dialog(listview) {
+    // Get selected employees
+    const selected_employees = listview.get_checked_items();
+
+    let d = new frappe.ui.Dialog({
+        title: __('📋 Generate Employee List PDF'),
+        fields: [
+            {
+                fieldname: 'scope_section',
+                fieldtype: 'Section Break',
+                label: __('🎯 Phạm Vi Tạo PDF')
+            },
+            {
+                fieldname: 'select_scope',
+                fieldtype: 'Select',
+                label: __('Chọn Phạm Vi'),
+                options: [
+                    { label: 'Tất cả nhân viên Active', value: 'all_active' },
+                    { label: 'Chỉ những nhân viên đã chọn', value: 'selected' },
+                    { label: 'Theo khoảng mã số nhân viên', value: 'id_range' }
+                ],
+                default: selected_employees.length === 0 ? 'all_active' : 'selected',
+                onchange: function() {
+                    update_scope_display();
+                }
+            },
+            {
+                fieldname: 'employee_range',
+                fieldtype: 'Section Break',
+                label: __('🔢 Khoảng Mã Số Nhân Viên'),
+                depends_on: 'eval:doc.select_scope == "id_range"',
+                collapsible: 0
+            },
+            {
+                fieldname: 'id_prefix',
+                fieldtype: 'Data',
+                label: __('Tiền tố (Prefix)'),
+                default: 'TIQN-',
+                description: __('Tiền tố mã số nhân viên, ví dụ: TIQN-'),
+                depends_on: 'eval:doc.select_scope == "id_range"'
+            },
+            {
+                fieldname: 'id_start',
+                fieldtype: 'Data',
+                label: __('Mã số bắt đầu'),
+                placeholder: '0001',
+                description: __('Mã số nhân viên bắt đầu (không bao gồm tiền tố)'),
+                depends_on: 'eval:doc.select_scope == "id_range"'
+            },
+            {
+                fieldname: 'col_break1',
+                fieldtype: 'Column Break',
+                depends_on: 'eval:doc.select_scope == "id_range"'
+            },
+            {
+                fieldname: 'id_end',
+                fieldtype: 'Data',
+                label: __('Mã số kết thúc'),
+                placeholder: '0100',
+                description: __('Mã số nhân viên kết thúc (không bao gồm tiền tố)'),
+                depends_on: 'eval:doc.select_scope == "id_range"'
+            },
+            {
+                fieldname: 'range_help',
+                fieldtype: 'HTML',
+                depends_on: 'eval:doc.select_scope == "id_range"',
+                options: `
+                    <div style="padding: 10px; background-color: #f8f9fa; border-radius: 4px; margin-top: 10px; font-size: 12px;">
+                        <i class="fa fa-info-circle" style="color: #3498db;"></i> 
+                        <b>Ví dụ:</b> Nếu nhập ID Start = "0001" và ID End = "0100", 
+                        hệ thống sẽ tạo PDF cho tất cả nhân viên có mã từ TIQN-0001 đến TIQN-0100.
+                    </div>
+                `
+            },
+            {
+                fieldname: 'info_section',
+                fieldtype: 'Section Break'
+            },
+            {
+                fieldname: 'employee_info',
+                fieldtype: 'HTML'
+            },
+            {
+                fieldname: 'options_section',
+                fieldtype: 'Section Break',
+                label: __('📊 Tùy Chọn Báo Cáo')
+            },
+            {
+                fieldname: 'company_name',
+                fieldtype: 'Data',
+                label: __('Tên Công Ty (Tiêu đề)'),
+                default: 'CÔNG TY TNHH TORAY INTERNATIONAL VIET NAM - CHI NHANH QUẢNG NGÃI'
+            },
+            {
+                fieldname: 'include_department',
+                fieldtype: 'Check',
+                label: __('Hiển thị cột Bộ phận'),
+                default: 1
+            },
+            {
+                fieldname: 'include_section',
+                fieldtype: 'Check',
+                label: __('Hiển thị cột Tổ/Section'),
+                default: 0
+            },
+            {
+                fieldname: 'column_break_1',
+                fieldtype: 'Column Break'
+            },
+            {
+                fieldname: 'include_notes',
+                fieldtype: 'Check',
+                label: __('Hiển thị cột Ghi chú'),
+                default: 1
+            },
+            {
+                fieldname: 'page_size',
+                fieldtype: 'Select',
+                label: __('Kích thước trang'),
+                options: ['A4', 'Letter'],
+                default: 'A4'
+            },
+            {
+                fieldname: 'orientation',
+                fieldtype: 'Select',
+                label: __('Hướng giấy'),
+                options: ['Portrait', 'Landscape'],
+                default: 'Portrait'
+            }
+        ],
+        size: 'large',
+        primary_action_label: __('✅ Tạo PDF'),
+        primary_action(values) {
+            // Validate inputs
+            if (values.select_scope === 'id_range') {
+                if (!values.id_start || !values.id_end) {
+                    frappe.msgprint({
+                        title: __('⚠️ Thiếu Thông Tin'),
+                        message: __('Vui lòng điền cả mã số bắt đầu và mã số kết thúc.'),
+                        indicator: 'orange'
+                    });
+                    return;
+                }
+                
+                // Check if input is numeric
+                if (!/^\d+$/.test(values.id_start) || !/^\d+$/.test(values.id_end)) {
+                    frappe.msgprint({
+                        title: __('⚠️ Định Dạng Không Hợp Lệ'),
+                        message: __('Mã số nhân viên phải là các chữ số (không bao gồm tiền tố).'),
+                        indicator: 'orange'
+                    });
+                    return;
+                }
+                
+                // Convert to numbers for comparison
+                const start_num = parseInt(values.id_start, 10);
+                const end_num = parseInt(values.id_end, 10);
+                
+                // Check valid range
+                if (start_num > end_num) {
+                    frappe.msgprint({
+                        title: __('⚠️ Khoảng Không Hợp Lệ'),
+                        message: __('Mã số bắt đầu phải nhỏ hơn hoặc bằng mã số kết thúc.'),
+                        indicator: 'orange'
+                    });
+                    return;
+                }
+                
+                // Check if range is too large
+                if (end_num - start_num > 1000) {
+                    frappe.confirm(
+                        __('Khoảng mã số nhân viên bạn chọn rất lớn ({0} nhân viên). Bạn có chắc chắn muốn tiếp tục?', [end_num - start_num + 1]),
+                        () => {
+                            // User confirmed, proceed
+                            generatePDF(values);
+                        }
+                    );
+                    return;
+                }
+            } else if (values.select_scope === 'selected' && selected_employees.length === 0) {
+                frappe.msgprint({
+                    title: __('⚠️ Chưa Chọn Nhân Viên'),
+                    message: __('Vui lòng chọn ít nhất một nhân viên hoặc chọn phạm vi khác.'),
+                    indicator: 'orange'
+                });
+                return;
+            }
+            
+            // All validations passed, proceed to generate PDF
+            generatePDF(values);
+        }
+    });
+    
+    // Function to generate PDF based on selected scope and values
+    function generatePDF(values) {
+        // Hide dialog
+        d.hide();
+        
+        // Show loading message
+        frappe.show_alert({
+            message: __('Đang tạo PDF danh sách nhân viên...'),
+            indicator: 'blue'
+        });
+        
+        // Prepare employee scope
+        let employees;
+        let scope_description;
+        
+        if (values.select_scope === 'all_active') {
+            employees = 'all';
+            scope_description = 'Tất cả nhân viên Active';
+        } else if (values.select_scope === 'selected') {
+            employees = selected_employees.map(emp => emp.name);
+            scope_description = `${selected_employees.length} nhân viên đã chọn`;
+        } else if (values.select_scope === 'id_range') {
+            // Generate a list of employee IDs in the range
+            const start_num = parseInt(values.id_start, 10);
+            const end_num = parseInt(values.id_end, 10);
+            const prefix = values.id_prefix || 'TIQN-';
+            
+            // Create array of IDs
+            employees = [];
+            for (let i = start_num; i <= end_num; i++) {
+                // Format number with leading zeros
+                const padded_num = String(i).padStart(values.id_start.length, '0');
+                employees.push(`${prefix}${padded_num}`);
+            }
+            
+            scope_description = `Nhân viên từ ${prefix}${values.id_start} đến ${prefix}${values.id_end}`;
+        }
+        
+        // Call server method to generate PDF
+        frappe.call({
+            method: 'customize_erpnext.api.employee.employee_utils.generate_employee_list_pdf',
+            args: {
+                employees: employees,
+                company_name: values.company_name,
+                include_department: values.include_department ? 1 : 0,
+                include_section: values.include_section ? 1 : 0,
+                include_notes: values.include_notes ? 1 : 0,
+                page_size: values.page_size,
+                orientation: values.orientation
+            },
+            freeze: true,
+            freeze_message: __(`⏳ Đang tạo PDF cho ${scope_description}...`),
+            callback: function(r) {
+                if (r.message && r.message.success) {
+                    frappe.show_alert({
+                        message: __('Tạo PDF thành công!'),
+                        indicator: 'green'
+                    });
+
+                    // Get file URL and download directly
+                    if (r.message.file_url) {
+                        // Open PDF in a new tab
+                        const site_url = frappe.urllib.get_base_url();
+                        const file_url = site_url + r.message.file_url;
+                        
+                        // Create and click an invisible link to download
+                        const a = document.createElement('a');
+                        a.href = file_url;
+                        a.target = '_blank'; 
+                        a.download = r.message.filename || 'Employee_List.pdf';
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        
+                        frappe.show_alert({
+                            message: __('PDF đã sẵn sàng! Đang mở file...'),
+                            indicator: 'green'
+                        }, 4);
+                    } else {
+                        frappe.msgprint({
+                            title: __('❌ Lỗi'),
+                            message: __('Không tìm thấy URL file trong phản hồi'),
+                            indicator: 'red'
+                        });
+                    }
+                } else {
+                    frappe.msgprint({
+                        title: __('❌ Lỗi'),
+                        message: r.message?.error || __('Không thể tạo PDF danh sách nhân viên'),
+                        indicator: 'red'
+                    });
+                }
+            },
+            error: function(err) {
+                frappe.msgprint({
+                    title: __('❌ Lỗi'),
+                    message: __('Đã xảy ra lỗi khi tạo PDF: {0}', [err.message || 'Lỗi không xác định']),
+                    indicator: 'red'
+                });
+            }
+        });
+    }
+
+    // Function to update display based on scope selection
+    function update_scope_display() {
+        let scope_type = d.get_value('select_scope');
+        
+        if (scope_type === 'all_active') {
+            // Fetch count of active employees
+            frappe.call({
+                method: 'frappe.client.get_count',
+                args: {
+                    doctype: 'Employee',
+                    filters: {
+                        status: 'Active'
+                    }
+                },
+                callback: function(r) {
+                    const total_active = r.message || 0;
+                    
+                    // Display info message
+                    let info_html = `
+                        <div style="padding: 15px; background: linear-gradient(135deg, #4e54c8 0%, #8f94fb 100%); 
+                                    border-radius: 8px; color: white; margin-bottom: 10px;">
+                            <i class="fa fa-info-circle" style="font-size: 18px;"></i>
+                            <strong style="font-size: 16px;"> Tất Cả Nhân Viên Active</strong><br>
+                            <span style="font-size: 14px;">
+                                PDF sẽ bao gồm tất cả <strong>${total_active}</strong> nhân viên đang hoạt động trong hệ thống.
+                            </span>
+                        </div>
+                    `;
+                    d.fields_dict.employee_info.$wrapper.html(info_html);
+                }
+            });
+        } else if (scope_type === 'selected') {
+            if (selected_employees.length > 0) {
+                // Show selected employees info
+                let info_html = `
+                    <div style="padding: 15px; background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); 
+                                border-radius: 8px; color: white; margin-bottom: 10px;">
+                        <i class="fa fa-check-circle" style="font-size: 18px;"></i>
+                        <strong style="font-size: 16px;"> Nhân Viên Đã Chọn</strong><br>
+                        <span style="font-size: 14px;">
+                            PDF sẽ chỉ bao gồm <strong>${selected_employees.length}</strong> nhân viên đã chọn từ danh sách.
+                        </span>
+                    </div>
+                `;
+                d.fields_dict.employee_info.$wrapper.html(info_html);
+            } else {
+                // No employees selected
+                let info_html = `
+                    <div style="padding: 15px; background: linear-gradient(135deg, #ff9966 0%, #ff5e62 100%); 
+                                border-radius: 8px; color: white; margin-bottom: 10px;">
+                        <i class="fa fa-exclamation-triangle" style="font-size: 18px;"></i>
+                        <strong style="font-size: 16px;"> Chưa Chọn Nhân Viên</strong><br>
+                        <span style="font-size: 14px;">
+                            Vui lòng tick checkbox để chọn nhân viên từ danh sách hoặc chọn phạm vi khác.
+                        </span>
+                    </div>
+                `;
+                d.fields_dict.employee_info.$wrapper.html(info_html);
+            }
+        } else if (scope_type === 'id_range') {
+            // Show range info
+            let id_prefix = d.get_value('id_prefix') || 'TIQN-';
+            let id_start = d.get_value('id_start') || '????';
+            let id_end = d.get_value('id_end') || '????';
+            
+            let info_html = `
+                <div style="padding: 15px; background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%); 
+                            border-radius: 8px; color: white; margin-bottom: 10px;">
+                    <i class="fa fa-filter" style="font-size: 18px;"></i>
+                    <strong style="font-size: 16px;"> Theo Khoảng Mã Số</strong><br>
+                    <span style="font-size: 14px;">
+                        PDF sẽ bao gồm nhân viên có mã số từ <strong>${id_prefix}${id_start}</strong> đến <strong>${id_prefix}${id_end}</strong>.
+                        <br><small>Hệ thống sẽ lọc các mã nhân viên trong khoảng này có trạng thái Active.</small>
+                    </span>
+                </div>
+            `;
+            d.fields_dict.employee_info.$wrapper.html(info_html);
+            
+            // Set up event listeners for range fields to update the info display
+            d.fields_dict.id_prefix.$input.on('input', function() {
+                update_scope_display();
+            });
+            
+            d.fields_dict.id_start.$input.on('input', function() {
+                update_scope_display();
+            });
+            
+            d.fields_dict.id_end.$input.on('input', function() {
+                update_scope_display();
+            });
+        }
+    }
+
+    // Initial update
+    update_scope_display();
+
+    // Show dialog
+    d.show();
+
+    // Style dialog
+    d.$wrapper.find('.modal-dialog').addClass('modal-lg');
+    d.$wrapper.find('.modal-content').css({
+        'border-radius': '12px',
+        'box-shadow': '0 10px 40px rgba(0,0,0,0.3)'
+    });
+    d.$wrapper.find('.modal-header').css({
+        'background': 'linear-gradient(135deg, #4e54c8 0%, #8f94fb 100%)',
+        'color': 'white',
+        'border-bottom': 'none',
+        'border-radius': '12px 12px 0 0'
+    });
+}
 
 function show_bulk_update_holiday_dialog(listview) {
     // Get selected employees
