@@ -39,6 +39,12 @@ def get_columns():
             "width": 150
         },
         {
+            "fieldname": "group",
+            "label": _("Group"),
+            "fieldtype": "Data",
+            "width": 150
+        },
+        {
             "fieldname": "begin_time",
             "label": _("Begin Time"),
             "fieldtype": "Time",
@@ -112,6 +118,7 @@ def get_data(filters=None):
             detail.date,
             detail.employee,
             detail.employee_name,
+            detail.group,
             detail.begin_time,
             detail.end_time,
             detail.reason,

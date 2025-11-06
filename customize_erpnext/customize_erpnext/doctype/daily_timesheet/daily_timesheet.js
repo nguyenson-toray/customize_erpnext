@@ -94,6 +94,41 @@ frappe.ui.form.on("Daily Timesheet", {
 	update_overtime_details(frm) {
 		// Update overtime details display
 		if (frm.doc.actual_overtime || frm.doc.approved_overtime) {
+			// Create link to Overtime Registration list filtered by employee and date
+			let ot_link = '';
+			if (frm.doc.employee && frm.doc.attendance_date) {
+				// Create a unique function name to avoid conflicts
+				const funcName = `open_ot_reg_${frm.doc.employee.replace(/[^a-zA-Z0-9]/g, '_')}_${frm.doc.attendance_date.replace(/[^a-zA-Z0-9]/g, '_')}`;
+
+				// Store function in window object
+				window[funcName] = function () {
+					// Call server method to get matching Overtime Registration documents
+					frappe.call({
+						method: 'customize_erpnext.customize_erpnext.doctype.daily_timesheet.daily_timesheet.get_overtime_registrations',
+						args: {
+							employee: frm.doc.employee,
+							attendance_date: frm.doc.attendance_date
+						},
+						callback: function (r) {
+							if (r.message && r.message.length > 0) {
+								// Navigate to Overtime Registration list with filter
+								frappe.route_options = {
+									"name": ["in", r.message],
+									"docstatus": 1
+								};
+								frappe.set_route("List", "Overtime Registration");
+							} else {
+								frappe.msgprint(__('No Overtime Registration found for this employee and date.'));
+							}
+						}
+					});
+				};
+
+				ot_link = `<a href="#" onclick="window.${funcName}(); return false;" style="color: inherit; text-decoration: none;">Registered Overtime:</a>`;
+			} else {
+				ot_link = 'Registered Overtime:';
+			}
+
 			let html = `
 				<div class="overtime-summary">
 					<div class="row">
@@ -102,9 +137,8 @@ frappe.ui.form.on("Daily Timesheet", {
 							<div>${frm.doc.actual_overtime || 0} hours</div>
 						</div>
 						<div class="col-sm-4">
-							<label>Registered Overtime:</label>
-							<div>${frm.doc.approved_overtime || 0} hours</div>
-							<small style="color: #666;">(từ registration đã submit)</small>
+							<label>${ot_link}</label>
+							<div>${frm.doc.approved_overtime || 0} hours</div>							 
 						</div>
 						<div class="col-sm-4">
 							<label><strong>Final Overtime:</strong></label>
