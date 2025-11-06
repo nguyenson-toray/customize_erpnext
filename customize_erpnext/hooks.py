@@ -219,9 +219,9 @@ scheduler_events = {
         ],
 
         # Daily Check-in Report - Every day at 08:15 AM
-        "15 8 * * *": [
-            "customize_erpnext.customize_erpnext.report.daily_check_in_report.scheduler.send_daily_check_in_report"
-        ],
+        # "15 8 * * *": [
+        #     "customize_erpnext.customize_erpnext.report.daily_check_in_report.scheduler.send_daily_check_in_report"
+        # ],
 
         # Sunday overtime alert - Monday at 08:00 AM
         "0 8 * * 1": [
