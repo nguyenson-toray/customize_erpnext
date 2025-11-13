@@ -38,8 +38,9 @@ def decimal_round(value, places=DECIMAL_ROUND_NUMBER):
 def execute(filters=None):
 	columns = get_columns(filters)
 	data = get_data(filters)
-	
-	return columns, data, None, None
+
+	# Disable prepared report since this report only queries from DB
+	return columns, data, None, None, None, True
 
 
 def get_columns(filters=None):
@@ -315,13 +316,15 @@ def get_data(filters):
 				COALESCE(SUM(dt.working_hours + dt.overtime_hours), 0) as total_hours
 				{employee_fields}
 			FROM `tabEmployee` emp
-			LEFT JOIN `tabDaily Timesheet` dt ON emp.name = dt.employee 
+			LEFT JOIN `tabDaily Timesheet` dt ON emp.name = dt.employee
 				AND ({date_conditions if date_conditions else '1=1'})
 			WHERE (
 				-- Show employees who were active during any part of the period
 				((emp.date_of_joining IS NULL OR emp.date_of_joining <= '{period_end}')
 				 AND (emp.relieving_date IS NULL OR emp.relieving_date >= '{period_start}'))
 			)
+			-- Exclude Inactive employees
+			AND emp.status IN ('Active', 'Left')
 			{employee_conditions}
 			GROUP BY emp.name, emp.employee_name, emp.department, emp.custom_section, emp.custom_group
 			{', emp.date_of_joining, emp.relieving_date, emp.designation' if show_detail_columns else ''}
@@ -416,14 +419,16 @@ def get_data(filters):
 				emp.designation,
 				dt.name
 			FROM `tabEmployee` emp
-			LEFT JOIN `tabDaily Timesheet` dt ON emp.name = dt.employee 
-				AND (dt.docstatus <= 1) 
+			LEFT JOIN `tabDaily Timesheet` dt ON emp.name = dt.employee
+				AND (dt.docstatus <= 1)
 				AND ({date_conditions if date_conditions else '1=1'})
 			WHERE (
 				-- Show employees who were active during any part of the period
 				((emp.date_of_joining IS NULL OR emp.date_of_joining <= '{period_end}')
 				 AND (emp.relieving_date IS NULL OR emp.relieving_date >= '{period_start}'))
 			)
+			-- Exclude Inactive employees
+			AND emp.status IN ('Active', 'Left')
 			{employee_conditions}
 			-- Only show records where there's either timesheet data OR we want to show all active employees
 			AND (dt.attendance_date IS NOT NULL)
@@ -448,6 +453,8 @@ def get_data(filters):
 					((emp.date_of_joining IS NULL OR emp.date_of_joining <= '{period_end}')
 					 AND (emp.relieving_date IS NULL OR emp.relieving_date >= '{period_start}'))
 				)
+				-- Exclude Inactive employees
+				AND emp.status IN ('Active', 'Left')
 				{employee_conditions}
 			""", filters, as_dict=1)
 			
@@ -596,7 +603,7 @@ def get_data(filters):
 def get_date_range_conditions(filters):
 	"""Get SQL conditions for date range based on filter type"""
 	conditions = []
-	
+
 	if filters.get("date_type") == "Single Date":
 		if filters.get("single_date"):
 			return f"dt.attendance_date = '{filters.get('single_date')}'"
@@ -610,7 +617,7 @@ def get_date_range_conditions(filters):
 		if filters.get("month") and filters.get("year"):
 			month = int(filters.get("month"))
 			year = int(filters.get("year"))
-			
+
 			# Calculate previous month for monthly range (26th to 25th)
 			if month == 1:
 				prev_month = 12
@@ -618,12 +625,12 @@ def get_date_range_conditions(filters):
 			else:
 				prev_month = month - 1
 				prev_year = year
-			
+
 			from_date = f"{prev_year}-{prev_month:02d}-26"
 			to_date = f"{year}-{month:02d}-25"
-			
+
 			return f"dt.attendance_date >= '{from_date}' AND dt.attendance_date <= '{to_date}'"
-	
+
 	return None
 
 
@@ -932,6 +939,8 @@ def convert_report_data_to_excel_format(report_data, filters):
 			((emp.date_of_joining IS NULL OR emp.date_of_joining <= '{period_end}')
 			 AND (emp.relieving_date IS NULL OR emp.relieving_date >= '{period_start}'))
 		)
+		-- Exclude Inactive employees
+		AND emp.status IN ('Active', 'Left')
 		{employee_conditions}
 	""", filters, as_dict=1)
 	

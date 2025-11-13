@@ -14,7 +14,6 @@
   "department",
   "column_break_xwa7",
   "reissue_count",
-  "fiscal_year",
   "section_break_items",
   "employee_card",
   "hat",
@@ -29,19 +28,21 @@
  ],
  "fields": [
   {
+   "default": "EIR-.YYYY.-",
    "fieldname": "naming_series",
    "fieldtype": "Select",
+   "in_list_view": 1,
    "label": "Series",
    "options": "EIR-.YYYY.-",
-   "default": "EIR-.YYYY.-",
    "reqd": 1
   },
   {
+   "default": "Today",
    "fieldname": "issue_date",
    "fieldtype": "Date",
+   "in_list_view": 1,
    "label": "Issue Date",
-   "reqd": 1,
-   "default": "Today"
+   "reqd": 1
   },
   {
    "fieldname": "employee_section",
@@ -51,22 +52,23 @@
   {
    "fieldname": "employee",
    "fieldtype": "Link",
+   "in_list_view": 1,
    "label": "Employee ID",
    "options": "Employee",
    "reqd": 1
   },
   {
+   "fetch_from": "employee.employee_name",
    "fieldname": "employee_name",
    "fieldtype": "Data",
    "label": "Employee Name",
-   "fetch_from": "employee.employee_name",
    "read_only": 1
   },
   {
+   "fetch_from": "employee.department",
    "fieldname": "department",
    "fieldtype": "Data",
    "label": "Department",
-   "fetch_from": "employee.department",
    "read_only": 1
   },
   {
@@ -74,12 +76,12 @@
    "fieldtype": "Column Break"
   },
   {
+   "default": "1",
+   "description": "Number of times items have been reissued to this employee",
    "fieldname": "reissue_count",
    "fieldtype": "Int",
    "label": "Reissue Count",
-   "read_only": 1,
-   "default": 1,
-   "description": "Number of times items have been reissued to this employee"
+   "read_only": 1
   },
   {
    "fieldname": "section_break_items",
@@ -87,21 +89,25 @@
    "label": "Reissue Items"
   },
   {
+   "default": "0",
    "fieldname": "employee_card",
    "fieldtype": "Check",
    "label": "Employee Card"
   },
   {
+   "default": "0",
    "fieldname": "hat",
    "fieldtype": "Check",
    "label": "Hat"
   },
   {
+   "default": "0",
    "fieldname": "water_bottle",
    "fieldtype": "Check",
    "label": "Water Bottle"
   },
   {
+   "default": "0",
    "fieldname": "uniform",
    "fieldtype": "Check",
    "label": "Uniform"
@@ -122,10 +128,10 @@
    "label": "Comments"
   },
   {
+   "collapsible": 1,
    "fieldname": "section_break_detailed",
    "fieldtype": "Section Break",
-   "label": "Detailed Items",
-   "collapsible": 1
+   "label": "Detailed Items"
   },
   {
    "fieldname": "reissue_items",
@@ -148,13 +154,15 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2025-10-17 13:23:52.938275",
- "modified_by": "Administrator",
+ "modified": "2025-11-13 09:23:20.958226",
+ "modified_by": "vinh.nt@tiqn.com.vn",
  "module": "Customize Erpnext",
  "name": "Employee Item Reissue",
  "owner": "Administrator",
  "permissions": [
   {
+   "amend": 1,
+   "cancel": 1,
    "create": 1,
    "delete": 1,
    "email": 1,
