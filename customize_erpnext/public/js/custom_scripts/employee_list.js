@@ -122,20 +122,21 @@ function show_generate_employee_list_pdf_dialog(listview) {
                 fieldname: 'company_name',
                 fieldtype: 'Data',
                 label: __('Tên Công Ty (Tiêu đề)'),
-                default: 'CÔNG TY TNHH TORAY INTERNATIONAL VIET NAM - CHI NHANH QUẢNG NGÃI'
-            },
-            {
-                fieldname: 'include_department',
-                fieldtype: 'Check',
-                label: __('Hiển thị cột Bộ phận'),
-                default: 1
+                default: 'CÔNG TY TNHH TORAY INTERNATIONAL VIET NAM - CHI NHÁNH QUẢNG NGÃI'
             },
             {
                 fieldname: 'include_section',
                 fieldtype: 'Check',
                 label: __('Hiển thị cột Tổ/Section'),
+                default: 1
+            },
+            {
+                fieldname: 'include_department',
+                fieldtype: 'Check',
+                label: __('Hiển thị cột Bộ phận'),
                 default: 0
             },
+         
             {
                 fieldname: 'column_break_1',
                 fieldtype: 'Column Break'
@@ -304,14 +305,14 @@ function show_generate_employee_list_pdf_dialog(listview) {
                         }, 4);
                     } else {
                         frappe.msgprint({
-                            title: __('❌ Lỗi'),
+                            title: __('Error'),
                             message: __('Không tìm thấy URL file trong phản hồi'),
                             indicator: 'red'
                         });
                     }
                 } else {
                     frappe.msgprint({
-                        title: __('❌ Lỗi'),
+                        title: __('Error'),
                         message: r.message?.error || __('Không thể tạo PDF danh sách nhân viên'),
                         indicator: 'red'
                     });
@@ -319,7 +320,7 @@ function show_generate_employee_list_pdf_dialog(listview) {
             },
             error: function(err) {
                 frappe.msgprint({
-                    title: __('❌ Lỗi'),
+                    title: __('Error'),
                     message: __('Đã xảy ra lỗi khi tạo PDF: {0}', [err.message || 'Lỗi không xác định']),
                     indicator: 'red'
                 });
@@ -459,7 +460,7 @@ function show_bulk_update_holiday_dialog(listview) {
                 show_holiday_selection_dialog(selected_employees, r.message, listview);
             } else {
                 frappe.msgprint({
-                    title: __('❌ Không Tìm Thấy Holiday List'),
+                    title: __('Không Tìm Thấy Holiday List'),
                     message: __('Không tìm thấy Holiday List nào trong hệ thống.'),
                     indicator: 'red'
                 });
@@ -624,7 +625,7 @@ function show_holiday_selection_dialog(employees, holiday_lists, listview) {
                         },
                         error: function (r) {
                             frappe.msgprint({
-                                title: __('❌ Lỗi'),
+                                title: __('Error'),
                                 message: r.message || __('Có lỗi xảy ra khi cập nhật Holiday List'),
                                 indicator: 'red'
                             });
