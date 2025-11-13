@@ -449,12 +449,9 @@ def generate_employee_cards_html(employees, with_barcode=False, page_size='A4', 
             margin-bottom: 1mm;
             display: block;
         }}
-
         .employee-photo {{
-            width: 20mm;
-            height: 23.33mm !important;
-            max-width: 20mm;
-            max-height: 23.33mm !important;;
+            width: 28mm;
+            height: 37.33mm;
             margin-top: 4mm;
             object-fit: cover;
             border: 1px solid #999;
@@ -480,6 +477,7 @@ def generate_employee_cards_html(employees, with_barcode=False, page_size='A4', 
         }}
 
         .employee-name {{
+            text-align: center;
             font-size: 20pt !important;
             font-weight: bold;
             text-transform: uppercase;
@@ -2018,7 +2016,7 @@ def generate_employee_list_html(employee_data, company_name, include_department=
             .text-left {{
             text-align: left !important;
             }}
-            .employee-photo {{
+            .employee-photo-employee-list {{
                 width: 20mm;
                 height: 23.33mm !important;
                 max-width: 20mm;
@@ -2132,7 +2130,7 @@ def generate_employee_list_html(employee_data, company_name, include_department=
                 html += f'<td>{emp.get("section", "")}</td>\n'
             
             # Add photo column
-            html += f'<td><img src="data:image/jpeg;base64,{emp.get("image_data", "")}" class="employee-photo" alt="{emp.get("employee_name", "")}" onerror="this.style.display=\'none\'"></td>\n'
+            html += f'<td><img src="data:image/jpeg;base64,{emp.get("image_data", "")}" class="employee-photo-employee-list" alt="{emp.get("employee_name", "")}" onerror="this.style.display=\'none\'"></td>\n'
             
             # Add notes column if included
             if include_notes:
