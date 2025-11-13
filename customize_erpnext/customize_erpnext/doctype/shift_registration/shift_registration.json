@@ -43,7 +43,8 @@
   },
   {
    "fieldname": "section_break_etmv",
-   "fieldtype": "Section Break"
+   "fieldtype": "Section Break",
+   "label": "General Info"
   },
   {
    "default": "Today",
@@ -72,7 +73,7 @@
    "read_only": 1
   },
   {
-   "default": "Day",
+   "default": "Shift 1",
    "fieldname": "shift",
    "fieldtype": "Link",
    "label": "Shift",
@@ -87,7 +88,6 @@
    "fieldname": "start_time",
    "fieldtype": "Time",
    "label": "Start Time",
-   "insert_after": "end_date",
    "read_only": 1
   },
   {
@@ -111,7 +111,9 @@
   {
    "fieldname": "reason",
    "fieldtype": "Small Text",
-   "label": "Reason"
+   "in_list_view": 1,
+   "label": "Reason",
+   "reqd": 1
   },
   {
    "fieldname": "section_break_owph",
@@ -134,6 +136,7 @@
   {
    "fieldname": "naming_series",
    "fieldtype": "Select",
+   "hidden": 1,
    "label": "Series",
    "options": "SR-.YY..MM..DD.-.####."
   }
@@ -142,7 +145,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2025-10-04 08:31:40.227877",
+ "modified": "2025-11-08 14:25:57.727186",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Shift Registration",

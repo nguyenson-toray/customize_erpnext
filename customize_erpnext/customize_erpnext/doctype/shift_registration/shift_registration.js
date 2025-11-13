@@ -9,7 +9,12 @@ frappe.ui.form.on('Shift Registration', {
         //     var defaultDate = frappe.datetime.add_days(today, 7);
         //     frm.set_value('end_date', defaultDate);
         // }
-
+        // Hide Print button if document is not submitted
+        if (frm.doc.docstatus != 1) {
+            console.log("Hiding Print button for non-submitted document");
+            $("button[data-original-title=Print]").hide();
+            frm.page.menu.find('[data-label="Print"]').parent().parent().remove();
+        }
         // Auto-populate requested_by with current user's employee
         if (frm.is_new() && !frm.doc.requested_by) {
             frappe.call({
