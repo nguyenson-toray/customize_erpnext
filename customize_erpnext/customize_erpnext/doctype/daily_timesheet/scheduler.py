@@ -10,6 +10,7 @@ def daily_timesheet_auto_sync_and_calculate():
 	"""
 	Scheduled job to automatically sync and calculate Daily Timesheet at 22:45 daily
 	OPTIMIZED with bulk data loading for faster processing
+	UPDATED: Now processes ALL active employees (including absent employees)
 	"""
 	try:
 		import time
@@ -19,10 +20,10 @@ def daily_timesheet_auto_sync_and_calculate():
 		current_date = today()
 
 		# Log start of process
-		frappe.logger().info(f"Starting OPTIMIZED Daily Timesheet auto sync for date: {current_date}")
+		frappe.logger().info(f"Starting OPTIMIZED Daily Timesheet auto sync for ALL active employees on date: {current_date}")
 
-		# Get all employees who have check-ins today but no Daily Timesheet record
-		employees_without_timesheet = get_employees_needing_sync(current_date)
+		# Get ALL active employees (not just those with check-ins)
+		all_active_employees = get_all_active_employees(current_date)
 
 		# Get all existing Daily Timesheet records for today
 		existing_timesheets = frappe.get_all("Daily Timesheet",
@@ -31,15 +32,23 @@ def daily_timesheet_auto_sync_and_calculate():
 		)
 
 		# Collect all unique employee IDs (for both new and existing)
-		employees_to_create = [emp['employee'] for emp in employees_without_timesheet]
+		all_active_employee_ids = [emp['employee'] for emp in all_active_employees]
+		existing_timesheet_employee_ids = [ts['employee'] for ts in existing_timesheets]
+
+		# Employees that need NEW timesheet creation
+		employees_to_create = [emp for emp in all_active_employees if emp['employee'] not in existing_timesheet_employee_ids]
+
+		# Employees that need UPDATE
 		employees_to_update = [ts['employee'] for ts in existing_timesheets]
-		all_employee_ids = list(set(employees_to_create + employees_to_update))
+
+		# All employee IDs for bulk data loading
+		all_employee_ids = list(set(all_active_employee_ids + employees_to_update))
 
 		if not all_employee_ids:
-			frappe.logger().info(f"No employees with check-ins found for {current_date}")
+			frappe.logger().info(f"No active employees found for {current_date}")
 			return {"created": 0, "updated": 0}
 
-		frappe.logger().info(f"Found {len(employees_to_create)} employees to create, {len(employees_to_update)} to update")
+		frappe.logger().info(f"Found {len(employees_to_create)} employees to create, {len(employees_to_update)} to update (Total active: {len(all_active_employees)})")
 
 		# ===== BULK DATA LOADING - Load all data once =====
 		frappe.logger().info(f"Loading bulk data for {len(all_employee_ids)} employees...")
@@ -58,10 +67,10 @@ def daily_timesheet_auto_sync_and_calculate():
 		updated_count = 0
 		error_count = 0
 
-		# Create Daily Timesheet for employees without records
-		for emp_data in employees_without_timesheet:
+		# Create Daily Timesheet for employees without records (including absent employees)
+		for emp_data in employees_to_create:
 			try:
-				create_daily_timesheet_record_optimized(emp_data['employee'], current_date, bulk_data)
+				create_daily_timesheet_record_optimized_v2(emp_data, current_date, bulk_data)
 				created_count += 1
 			except Exception as e:
 				frappe.log_error(f"Failed to create Daily Timesheet for {emp_data['employee']}: {str(e)}")
@@ -103,25 +112,48 @@ def daily_timesheet_auto_sync_and_calculate():
 		frappe.log_error(f"Daily Timesheet auto sync failed: {str(e)}")
 		raise
 
-def get_employees_needing_sync(date):
+def get_all_active_employees(date):
 	"""
-	Get employees who have check-ins but no Daily Timesheet record for the given date
+	Get ALL active employees with their details
+	Includes:
+	- Active employees who already joined (date_of_joining <= target_date)
+	- Left employees who were still working on target date
+	  * relieving_date is the date employee LEFT (NOT working anymore)
+	  * So last working day = relieving_date - 1
+	  * Condition: target_date < relieving_date (employee still working on target_date)
+
+	UPDATED VERSION: Returns all employees regardless of check-in status
 	"""
 	return frappe.db.sql("""
-		SELECT DISTINCT ec.employee
-		FROM `tabEmployee Checkin` ec
-		WHERE DATE(ec.time) = %(date)s
-		AND NOT EXISTS (
-			SELECT 1 FROM `tabDaily Timesheet` dt 
-			WHERE dt.employee = ec.employee 
-			AND dt.attendance_date = %(date)s
+		SELECT
+			emp.name as employee,
+			emp.employee_name,
+			emp.department,
+			emp.custom_section,
+			emp.custom_group,
+			emp.company,
+			emp.date_of_joining,
+			emp.relieving_date,
+			emp.status
+		FROM `tabEmployee` emp
+		WHERE (
+			-- Active employees who already joined
+			(emp.status = 'Active'
+			 AND (emp.date_of_joining IS NULL OR emp.date_of_joining <= %(date)s))
+			OR
+			-- Left employees who were still working on this date
+			-- relieving_date is when they LEFT, so target_date must be BEFORE that
+			(emp.status = 'Left'
+			 AND (emp.date_of_joining IS NULL OR emp.date_of_joining <= %(date)s)
+			 AND (emp.relieving_date IS NULL OR emp.relieving_date > %(date)s))
 		)
+		ORDER BY emp.name
 	""", {"date": date}, as_dict=True)
 
 def create_daily_timesheet_record(employee, attendance_date):
 	"""
 	Create a new Daily Timesheet record for the given employee and date
-	LEGACY VERSION - Use create_daily_timesheet_record_optimized for better performance
+	Used by hooks (auto_sync_on_checkin_update)
 	"""
 	# Get employee details
 	employee_details = frappe.db.get_value("Employee", employee,
@@ -148,28 +180,22 @@ def create_daily_timesheet_record(employee, attendance_date):
 
 	return doc
 
-def create_daily_timesheet_record_optimized(employee, attendance_date, bulk_data):
+def create_daily_timesheet_record_optimized_v2(emp_data, attendance_date, bulk_data):
 	"""
-	OPTIMIZED: Create a new Daily Timesheet record using pre-loaded bulk_data
-	No individual DB queries for employee details - uses bulk_data instead
+	OPTIMIZED V2: Create a new Daily Timesheet record using pre-loaded bulk_data
+	Takes full employee data dict instead of just employee ID - NO extra DB query needed
+	UPDATED VERSION: More efficient - employee data already loaded from get_all_active_employees()
 	"""
-	# Get employee details from DB (still needed for basic info not in bulk_data)
-	employee_details = frappe.db.get_value("Employee", employee,
-		["employee_name", "department", "custom_section", "custom_group", "company"], as_dict=1)
-
-	if not employee_details:
-		raise Exception(f"Employee {employee} not found")
-
-	# Create new Daily Timesheet
+	# Create new Daily Timesheet using employee data already loaded
 	doc = frappe.get_doc({
 		"doctype": "Daily Timesheet",
-		"employee": employee,
-		"employee_name": employee_details.employee_name,
+		"employee": emp_data['employee'],
+		"employee_name": emp_data['employee_name'],
 		"attendance_date": attendance_date,
-		"department": employee_details.department,
-		"custom_section": employee_details.custom_section,
-		"custom_group": employee_details.custom_group,
-		"company": employee_details.company or frappe.defaults.get_user_default("Company"),
+		"department": emp_data.get('department'),
+		"custom_section": emp_data.get('custom_section'),
+		"custom_group": emp_data.get('custom_group'),
+		"company": emp_data.get('company') or frappe.defaults.get_user_default("Company"),
 	})
 
 	# Import the optimized calculation function
@@ -341,6 +367,61 @@ def monthly_timesheet_recalculation():
 
 		raise
 
+def cleanup_left_employee_timesheets(from_date, to_date):
+	"""
+	Cleanup Daily Timesheet records for Left employees that are no longer needed
+	Deletes records where:
+	- Employee status = 'Left'
+	- attendance_date >= relieving_date (employee already left on that date)
+	- working_hours = 0 (no actual work done)
+
+	Returns: Number of records deleted
+	"""
+	try:
+		# Find records to delete
+		records_to_delete = frappe.db.sql("""
+			SELECT dt.name, dt.employee, dt.attendance_date, e.relieving_date
+			FROM `tabDaily Timesheet` dt
+			INNER JOIN `tabEmployee` e ON dt.employee = e.name
+			WHERE e.status = 'Left'
+			AND e.relieving_date IS NOT NULL
+			AND dt.attendance_date >= e.relieving_date
+			AND dt.attendance_date BETWEEN %(from_date)s AND %(to_date)s
+			AND dt.working_hours = 0
+		""", {'from_date': from_date, 'to_date': to_date}, as_dict=True)
+
+		if not records_to_delete:
+			frappe.logger().info(f"Cleanup: No Left employee timesheets to delete for period {from_date} to {to_date}")
+			return 0
+
+		frappe.logger().info(f"Cleanup: Found {len(records_to_delete)} Daily Timesheet records to delete")
+
+		deleted_count = 0
+		for record in records_to_delete:
+			try:
+				frappe.delete_doc("Daily Timesheet", record.name, ignore_permissions=True, force=True)
+				deleted_count += 1
+
+				# Log detailed info for first 10 deletions
+				if deleted_count <= 10:
+					frappe.logger().info(
+						f"Deleted: {record.name} | Employee: {record.employee} | "
+						f"Date: {record.attendance_date} | Relieving: {record.relieving_date}"
+					)
+			except Exception as e:
+				frappe.log_error(f"Failed to delete Daily Timesheet {record.name}: {str(e)}")
+				continue
+
+		# Commit deletions
+		frappe.db.commit()
+
+		frappe.logger().info(f"Cleanup COMPLETED: Deleted {deleted_count}/{len(records_to_delete)} records")
+		return deleted_count
+
+	except Exception as e:
+		frappe.log_error(f"Cleanup failed: {str(e)}")
+		return 0
+
 def monthly_timesheet_recalculation_worker(from_date, to_date, is_retry=False):
 	"""
 	Background worker for monthly timesheet recalculation
@@ -371,13 +452,17 @@ def monthly_timesheet_recalculation_worker(from_date, to_date, is_retry=False):
 		processing_time = result.get('processing_time', 0)
 		records_per_second = result.get('records_per_second', 0)
 
+		# CLEANUP: Delete unnecessary Daily Timesheet for Left employees
+		frappe.logger().info(f"Starting cleanup for Left employees (date >= relieving_date, working_hours = 0)")
+		deleted_count = cleanup_left_employee_timesheets(from_date, to_date)
+
 		end_time = time.time()
 		actual_time = round(end_time - start_time, 2)
 
 		# Final summary
 		frappe.logger().info(
-			f"Monthly recalculation COMPLETED{retry_label}: {processed} success, {errors} errors "
-			f"in {actual_time}s ({records_per_second} records/sec)"
+			f"Monthly recalculation COMPLETED{retry_label}: {processed} success, {errors} errors, "
+			f"{deleted_count} deleted in {actual_time}s ({records_per_second} records/sec)"
 		)
 
 		# Send success notification
@@ -396,9 +481,11 @@ def monthly_timesheet_recalculation_worker(from_date, to_date, is_retry=False):
 				<p><strong>Total Records:</strong> {total_records}</p>
 				<p><strong>Successfully Processed:</strong> {processed}</p>
 				<p><strong>Errors:</strong> {errors}</p>
+				<p><strong>Deleted (Left employees):</strong> {deleted_count}</p>
 				<p><strong>Processing Time:</strong> {actual_time}s ({records_per_second} records/sec)</p>
 				<br>
 				{f'<p style="color: orange;">⚠️ Please check the Error Log for details of {errors} failed records.</p>' if errors > 0 else '<p style="color: green;">All records processed successfully!</p>'}
+				{f'<p style="color: blue;">🗑️ Cleanup: Deleted {deleted_count} unnecessary Daily Timesheet records for Left employees (date >= relieving_date, working_hours = 0)</p>' if deleted_count > 0 else ''}
 				"""
 			)
 		except Exception as e:
@@ -410,6 +497,7 @@ def monthly_timesheet_recalculation_worker(from_date, to_date, is_retry=False):
 			"total_records": total_records,
 			"processed": processed,
 			"errors": errors,
+			"deleted": deleted_count,
 			"processing_time": actual_time,
 			"records_per_second": records_per_second
 		}

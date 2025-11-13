@@ -11,7 +11,7 @@ frappe.query_reports["Daily Timesheet Report"] = {
 			"label": __("Date Type"),
 			"fieldtype": "Select",
 			"options": "Single Date\nDate Range\nMonthly",
-			"default": "Date Range",
+			"default": "Single Date",
 			"reqd": 1
 		},
 		{
@@ -111,7 +111,7 @@ frappe.query_reports["Daily Timesheet Report"] = {
 			"fieldname": "status",
 			"label": __("Status"),
 			"fieldtype": "Select",
-			"options": "\nPresent\nAbsent\nHalf Day\nWork From Home\nOn Leave\nSunday"
+			"options": "\nAbsent\nPresent\nPresent + OT\nHalf Day\nWork From Home\nOn Leave\nSunday\nSunday, Lunch benefit"
 		},
 		{
 			"fieldname": "summary",
@@ -216,6 +216,14 @@ frappe.query_reports["Daily Timesheet Report"] = {
 	"get_chart_data": function (columns, result) {
 		if (!result || result.length === 0) {
 			return null;
+		}
+
+		// Hide chart when single date filter is selected
+		if (window.daily_timesheet_report && window.daily_timesheet_report.get_filter_value) {
+			let date_type = window.daily_timesheet_report.get_filter_value("date_type");
+			if (date_type === "Single Date") {
+				return null;
+			}
 		}
 
 		// Get chart type from global variable
@@ -386,10 +394,10 @@ function get_top_overtime_chart(result, round_decimal) {
 			horizontal: true
 		},
 		tooltipOptions: {
-			formatTooltipX: function(label) {
+			formatTooltipX: function (label) {
 				return label; // Employee Name
 			},
-			formatTooltipY: function(value, label, index) {
+			formatTooltipY: function (value, label, index) {
 				// Only show non-zero values
 				if (value && value > 0) {
 					return value + " hours";

@@ -213,15 +213,20 @@ scheduler_events = {
         #     "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.scheduler_jobs.auto_submit_custom_attendance"
         # ],
         
-        # Daily Timesheet auto sync and calculation at 22:45 every day
+        # Daily Timesheet pre-creation at 06:00 every morning (before work starts)
+        "0 6 * * *": [
+            "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.daily_timesheet_auto_sync_and_calculate"
+        ],
+
+        # Daily Timesheet auto sync and calculation at 22:45 every day (end of day)
         "45 22 * * *": [
             "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.daily_timesheet_auto_sync_and_calculate"
         ],
 
         # Daily Check-in Report - Every day at 08:15 AM
-        # "15 8 * * *": [
-        #     "customize_erpnext.customize_erpnext.report.daily_check_in_report.scheduler.send_daily_check_in_report"
-        # ],
+        "15 8 * * *": [
+            "customize_erpnext.customize_erpnext.report.daily_check_in_report.scheduler.send_daily_check_in_report"
+        ],
 
         # Sunday overtime alert - Monday at 08:00 AM
         "0 8 * * 1": [
@@ -234,9 +239,9 @@ scheduler_events = {
         ],
         
         # Smart auto update mỗi 2 giờ
-        "0 */2 * * *": [
-            "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.scheduler_jobs.smart_auto_update_custom_attendance"
-        ]
+        # "0 */2 * * *": [
+        #     "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.scheduler_jobs.smart_auto_update_custom_attendance"
+        # ]
     }
 }
  
