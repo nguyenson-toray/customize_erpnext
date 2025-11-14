@@ -1,0 +1,242 @@
+{
+ "actions": [],
+ "autoname": "format:{vehicle_name}-{YY}{MM}{DD}-{##}",
+ "creation": "2025-10-27 13:00:54.996809",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "vehicle_name",
+  "vehicle_info",
+  "status",
+  "purpose",
+  "start_location",
+  "destination_location",
+  "column_break_pxgr",
+  "start_time",
+  "start_km",
+  "finish_time",
+  "finish_km",
+  "total_km",
+  "other_fees",
+  "other_fees_desc",
+  "note",
+  "request_date",
+  "request_time",
+  "column_break_qrgt",
+  "daily_pickup",
+  "daily_dropoff"
+ ],
+ "fields": [
+  {
+   "allow_in_quick_entry": 1,
+   "fieldname": "start_location",
+   "fieldtype": "Data",
+   "label": "Start Location"
+  },
+  {
+   "fieldname": "start_time",
+   "fieldtype": "Datetime",
+   "label": "Start Time"
+  },
+  {
+   "allow_in_quick_entry": 1,
+   "fieldname": "destination_location",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Destination Location"
+  },
+  {
+   "fieldname": "finish_time",
+   "fieldtype": "Datetime",
+   "label": "Finish Time"
+  },
+  {
+   "default": "now",
+   "fieldname": "request_time",
+   "fieldtype": "Time",
+   "label": "Request Time",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_pxgr",
+   "fieldtype": "Column Break"
+  },
+  {
+   "allow_in_quick_entry": 1,
+   "fieldname": "vehicle_name",
+   "fieldtype": "Link",
+   "in_filter": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Vehicle Name",
+   "options": "Vehicle List"
+  },
+  {
+   "allow_in_quick_entry": 1,
+   "fieldname": "purpose",
+   "fieldtype": "Data",
+   "in_filter": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Purpose"
+  },
+  {
+   "fieldname": "vehicle_info",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Vehicle Info",
+   "read_only": 1
+  },
+  {
+   "default": "\u0110ang \u0110\u1ed7",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_filter": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "\u0110ang \u0110\u1ed7\n\u0110ang Ch\u1ea1y\nHo\u00e0n Th\u00e0nh",
+   "read_only": 1
+  },
+  {
+   "fieldname": "start_km",
+   "fieldtype": "Int",
+   "label": "Start Km",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "finish_km",
+   "fieldtype": "Int",
+   "label": "Finish Km",
+   "non_negative": 1
+  },
+  {
+   "description": "VN\u0110",
+   "fieldname": "other_fees",
+   "fieldtype": "Int",
+   "label": "Other Fees"
+  },
+  {
+   "description": "M\u00f4 t\u1ea3 c\u00e1c chi ph\u00ed ph\u00e1t sinh",
+   "fieldname": "other_fees_desc",
+   "fieldtype": "Small Text",
+   "label": "Other Fees"
+  },
+  {
+   "fieldname": "note",
+   "fieldtype": "Small Text",
+   "label": "Note"
+  },
+  {
+   "fieldname": "total_km",
+   "fieldtype": "Int",
+   "label": "Total Km",
+   "non_negative": 1
+  },
+  {
+   "default": "Today",
+   "fieldname": "request_date",
+   "fieldtype": "Date",
+   "in_filter": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Request Date",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "daily_dropoff",
+   "fieldtype": "Check",
+   "label": "Daily Drop-off",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "daily_pickup",
+   "fieldtype": "Check",
+   "label": "Daily Pick-up",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_qrgt",
+   "fieldtype": "Column Break"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "is_calendar_and_gantt": 1,
+ "links": [],
+ "modified": "2025-11-14 09:10:45.811941",
+ "modified_by": "Administrator",
+ "module": "Customize Erpnext",
+ "name": "Vehicle Trip",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "HR Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "All",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Driver",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "HR User",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "quick_entry": 1,
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1,
+ "track_seen": 1
+}

@@ -1,0 +1,21 @@
+{
+ "add_total_row": 1,
+ "columns": [],
+ "creation": "2025-10-28 00:00:00.000000",
+ "doctype": "Report",
+ "is_standard": "Yes",
+ "json": "{}",
+ "modified": "2025-10-28 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Customize Erpnext",
+ "name": "Vehicle Trip Report",
+ "owner": "Administrator",
+ "ref_doctype": "Vehicle Trip",
+ "report_name": "Vehicle Trip Report",
+ "report_type": "Script Report",
+ "roles": [
+  {
+   "role": "System Manager"
+  }
+ ]
+}

@@ -1,6 +1,6 @@
 {
  "charts": [],
- "content": "[{\"id\":\"kb3XPLg8lb\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Your Shortcuts</b></span>\",\"col\":12}},{\"id\":\"LxexctoATI\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Employee Item Reissue\",\"col\":3}},{\"id\":\"r3xmz_dQ3v\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"JVu8-FJZCu\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Reports &amp; Masters</b></span>\",\"col\":12}},{\"id\":\"2uIyyINHSa\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Employee Item Reissue Report\",\"col\":3}},{\"id\":\"JDOkFASq9j\",\"type\":\"spacer\",\"data\":{\"col\":12}}]",
+ "content": "[{\"id\":\"kb3XPLg8lb\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Your Shortcuts</b></span>\",\"col\":12}},{\"id\":\"LxexctoATI\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Employee Item Reissue\",\"col\":3}},{\"id\":\"8hzWu91J25\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Vehicle Trip\",\"col\":3}},{\"id\":\"r3xmz_dQ3v\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"JVu8-FJZCu\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Reports &amp; Masters</b></span>\",\"col\":12}},{\"id\":\"2uIyyINHSa\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Employee Item Reissue Report\",\"col\":3}},{\"id\":\"yUZl6aS7H2\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Vehicle Trip Report\",\"col\":3}},{\"id\":\"JDOkFASq9j\",\"type\":\"spacer\",\"data\":{\"col\":12}}]",
  "creation": "2025-08-13 10:18:33.643342",
  "custom_blocks": [],
  "docstatus": 0,
@@ -13,7 +13,7 @@
  "is_hidden": 0,
  "label": "GA",
  "links": [],
- "modified": "2025-11-05 11:22:24.915483",
+ "modified": "2025-11-05 12:43:32.695245",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "GA",
@@ -26,6 +26,12 @@
  "roles": [
   {
    "role": "TIQN Staff"
+  },
+  {
+   "role": "Driver"
+  },
+  {
+   "role": "All"
   }
  ],
  "sequence_id": 1.1,
@@ -41,9 +47,25 @@
   {
    "color": "Grey",
    "doc_view": "List",
+   "label": "Vehicle Trip",
+   "link_to": "Vehicle Trip",
+   "stats_filter": "[]",
+   "type": "DocType"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "List",
    "label": "Employee Item Reissue Report",
    "link_to": "Employee Item Reissue",
    "report_ref_doctype": "Employee Item Reissue",
+   "type": "Report"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "Vehicle Trip Report",
+   "link_to": "Vehicle Trip Report",
+   "report_ref_doctype": "Vehicle Trip",
    "type": "Report"
   }
  ],

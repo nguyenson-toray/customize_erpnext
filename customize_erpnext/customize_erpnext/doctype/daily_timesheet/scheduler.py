@@ -5,6 +5,7 @@ import frappe
 from frappe.utils import today, add_days, getdate
 from datetime import datetime
 import logging
+from customize_erpnext.api.site_restriction import only_for_sites
 
 def daily_timesheet_auto_sync_and_calculate():
 	"""
@@ -281,6 +282,7 @@ def auto_cleanup_on_checkin_delete(checkin_doc, method=None):
 			except Exception as e:
 				frappe.log_error(f"Failed to update Daily Timesheet {existing_timesheet}: {str(e)}")
 
+@only_for_sites("erp.tiqn.local")
 def monthly_timesheet_recalculation():
 	"""
 	Recalculate all Daily Timesheet records for the monthly period
@@ -1045,6 +1047,7 @@ def auto_recalc_on_maternity_tracking_change(doc, method):
 
 
 @frappe.whitelist()
+@only_for_sites("erp.tiqn.local")
 def send_sunday_overtime_alert_scheduled():
 	"""
 	Scheduled job to send Sunday overtime alert email
