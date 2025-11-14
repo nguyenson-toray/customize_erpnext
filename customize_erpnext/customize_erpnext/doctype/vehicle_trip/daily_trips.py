@@ -13,9 +13,17 @@ def create_daily_trips_pickup():
 	"""
 	Scheduled task to create daily trips for all vehicles
 	Creates pickup per vehicle:
-	- 05:30 - Daily pickup (fixed_location_1 -> fixed_location_2) 
+	- 05:30 - Daily pickup (fixed_location_1 -> fixed_location_2)
+	Note: Does not run on Sundays
 	"""
 	try:
+		# Skip if today is Sunday (weekday 6)
+		from frappe.utils import nowdate, get_datetime
+		today_weekday = get_datetime(nowdate()).weekday()
+		if today_weekday == 6:  # Sunday
+			frappe.logger().info(_("Skipping daily pickup creation - Today is Sunday"))
+			return
+
 		# Get all active vehicles
 		vehicles = frappe.get_all(
 			"Vehicle List",
@@ -57,10 +65,18 @@ def create_daily_trips_pickup():
 def create_daily_trips_dropoff():
 	"""
 	Scheduled task to create daily trips for all vehicles
-	Creates dropoff per vehicle: 
+	Creates dropoff per vehicle:
 	- 17:00 - Daily dropoff (fixed_location_2 -> fixed_location_1)
+	Note: Does not run on Sundays
 	"""
 	try:
+		# Skip if today is Sunday (weekday 6)
+		from frappe.utils import nowdate, get_datetime
+		today_weekday = get_datetime(nowdate()).weekday()
+		if today_weekday == 6:  # Sunday
+			frappe.logger().info(_("Skipping daily dropoff creation - Today is Sunday"))
+			return
+
 		# Get all active vehicles
 		vehicles = frappe.get_all(
 			"Vehicle List",
