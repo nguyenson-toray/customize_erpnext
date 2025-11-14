@@ -73,6 +73,10 @@ class VehicleTrip(Document):
 		else:
 			self.status = "Đang Đỗ"
 
+		# Validate start_km against initial_odometer for first trip
+		if self.start_km is not None and self.vehicle_name:
+			self.validate_first_trip_odometer()
+
 		# Validate finish_km must be greater than start_km
 		# Only validate when trip is finished (has finish_time)
 		if self.finish_time and self.start_km is not None and self.finish_km is not None:
@@ -87,3 +91,37 @@ class VehicleTrip(Document):
 		# Calculate total_km if both start_km and finish_km are provided
 		if self.finish_km and self.start_km:
 			self.total_km = self.finish_km - self.start_km
+
+	def validate_first_trip_odometer(self):
+		"""
+		Validate that first trip start_km must be >= vehicle's initial_odometer
+		"""
+		# Get vehicle document
+		vehicle = frappe.get_doc("Vehicle List", self.vehicle_name)
+
+		# Check if vehicle has initial_odometer set
+		if not vehicle.initial_odometer:
+			return  # No validation needed if initial_odometer is not set
+
+		# Check if this is the first trip for this vehicle
+		# (no previous trips with finish_km)
+		existing_trips = frappe.db.count(
+			"Vehicle Trip",
+			filters={
+				"vehicle_name": self.vehicle_name,
+				"finish_km": ["is", "set"],
+				"name": ["!=", self.name] if not self.is_new() else ""
+			}
+		)
+
+		# If this is the first trip (no previous finished trips)
+		if existing_trips == 0:
+			if self.start_km < vehicle.initial_odometer:
+				frappe.throw(
+					_("This is the first trip for vehicle {0}. Start km ({1}) must be greater than or equal to the vehicle's initial odometer ({2}).").format(
+						self.vehicle_name,
+						self.start_km,
+						vehicle.initial_odometer
+					),
+					title=_("Invalid Start Km")
+				)

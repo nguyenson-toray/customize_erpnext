@@ -1,6 +1,6 @@
 {
  "charts": [],
- "content": "[{\"id\":\"kb3XPLg8lb\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Your Shortcuts</b></span>\",\"col\":12}},{\"id\":\"LxexctoATI\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Employee Item Reissue\",\"col\":3}},{\"id\":\"8hzWu91J25\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Vehicle Trip\",\"col\":3}},{\"id\":\"r3xmz_dQ3v\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"JVu8-FJZCu\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Reports &amp; Masters</b></span>\",\"col\":12}},{\"id\":\"2uIyyINHSa\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Employee Item Reissue Report\",\"col\":3}},{\"id\":\"yUZl6aS7H2\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Vehicle Trip Report\",\"col\":3}},{\"id\":\"JDOkFASq9j\",\"type\":\"spacer\",\"data\":{\"col\":12}}]",
+ "content": "[{\"id\":\"kb3XPLg8lb\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Your Shortcuts</b></span>\",\"col\":12}},{\"id\":\"LxexctoATI\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Employee Item Reissue\",\"col\":3}},{\"id\":\"8hzWu91J25\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"H\u00e0nh tr\u00ecnh xe\",\"col\":3}},{\"id\":\"0rOQafl4bw\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Vehicle List\",\"col\":3}},{\"id\":\"r3xmz_dQ3v\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"JVu8-FJZCu\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Reports &amp; Masters</b></span>\",\"col\":12}},{\"id\":\"2uIyyINHSa\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Employee Item Reissue Report\",\"col\":3}},{\"id\":\"yUZl6aS7H2\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Vehicle Trip Report\",\"col\":3}},{\"id\":\"JDOkFASq9j\",\"type\":\"spacer\",\"data\":{\"col\":12}}]",
  "creation": "2025-08-13 10:18:33.643342",
  "custom_blocks": [],
  "docstatus": 0,
@@ -13,7 +13,7 @@
  "is_hidden": 0,
  "label": "GA",
  "links": [],
- "modified": "2025-11-05 12:43:32.695245",
+ "modified": "2025-11-14 13:11:45.167317",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "GA",
@@ -47,8 +47,16 @@
   {
    "color": "Grey",
    "doc_view": "List",
-   "label": "Vehicle Trip",
+   "label": "H\u00e0nh tr\u00ecnh xe",
    "link_to": "Vehicle Trip",
+   "stats_filter": "[]",
+   "type": "DocType"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "Vehicle List",
+   "link_to": "Vehicle List",
    "stats_filter": "[]",
    "type": "DocType"
   },

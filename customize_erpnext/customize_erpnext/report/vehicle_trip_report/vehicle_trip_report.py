@@ -114,8 +114,7 @@ def get_data(filters):
 		FROM
 			`tabVehicle Trip`
 		WHERE
-			status = 'Hoàn Thành'
-			AND {conditions}
+			{conditions}
 		ORDER BY
 			request_date DESC, vehicle_name, start_time
 	""".format(conditions=conditions), filters, as_dict=1)
@@ -134,5 +133,9 @@ def get_conditions(filters):
 
 	if filters.get("vehicle_name"):
 		conditions.append("vehicle_name = %(vehicle_name)s")
+
+	# Only show finished trips if the filter is checked (default is checked)
+	if filters.get("only_show_finished_trip"):
+		conditions.append("status = 'Hoàn Thành'")
 
 	return " AND ".join(conditions) if conditions else "1=1"

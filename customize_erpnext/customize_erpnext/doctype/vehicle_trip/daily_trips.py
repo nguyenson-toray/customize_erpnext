@@ -23,7 +23,7 @@ def create_daily_trips_pickup():
 				"fixed_location_1": ["is", "set"],
 				"fixed_location_2": ["is", "set"]
 			},
-			fields=["name", "vehicle_name", "fixed_location_1", "fixed_location_2"]
+			fields=["name", "vehicle_name", "fixed_location_1", "fixed_location_2", "default_driver"]
 		)
 
 		if not vehicles:
@@ -68,7 +68,7 @@ def create_daily_trips_dropoff():
 				"fixed_location_1": ["is", "set"],
 				"fixed_location_2": ["is", "set"]
 			},
-			fields=["name", "vehicle_name", "fixed_location_1", "fixed_location_2"]
+			fields=["name", "vehicle_name", "fixed_location_1", "fixed_location_2", "default_driver"]
 		)
 
 		if not vehicles:
@@ -136,12 +136,33 @@ def create_trip_if_not_exists(vehicle, trip_type, start_location, destination_lo
 			"request_time": scheduled_time,
 			"start_location": start_location,
 			"destination_location": destination_location,
-			"purpose": _("Daily employee pickup") if trip_type == "pickup" else _("Daily employee dropoff"),
+			"purpose": _("Đón CNV hàng ngày") if trip_type == "pickup" else _("Trả CNV hàng ngày"),
 			"daily_pickup": 1 if trip_type == "pickup" else 0,
 			"daily_dropoff": 1 if trip_type == "dropoff" else 0
 		})
 
 		trip.insert(ignore_permissions=True)
+
+		# Assign default driver to the trip if available
+		vehicle_doc = frappe.get_doc("Vehicle List", vehicle.name)
+		if vehicle_doc.default_driver:
+			try:
+				from frappe.desk.form.assign_to import add as add_assignment
+				add_assignment({
+					"doctype": "Vehicle Trip",
+					"name": trip.name,
+					"assign_to": [vehicle_doc.default_driver],
+					"description": _("Auto-assigned from vehicle's default driver")
+				})
+				frappe.logger().info(
+					_("Assigned trip {0} to default driver {1}").format(trip.name, vehicle_doc.default_driver)
+				)
+			except Exception as assign_error:
+				frappe.log_error(
+					_("Error assigning driver to trip {0}: {1}").format(trip.name, str(assign_error)),
+					_("Driver Assignment Error")
+				)
+
 		frappe.db.commit()
 
 		frappe.logger().info(
@@ -213,7 +234,7 @@ def manual_create_trips_for_date(date_str):
 				"fixed_location_1": ["is", "set"],
 				"fixed_location_2": ["is", "set"]
 			},
-			fields=["name", "vehicle_name", "fixed_location_1", "fixed_location_2"]
+			fields=["name", "vehicle_name", "fixed_location_1", "fixed_location_2", "default_driver"]
 		)
 
 		if not vehicles:
@@ -384,6 +405,26 @@ def create_trip_for_date(vehicle, trip_type, start_location, destination_locatio
 		})
 
 		trip.insert(ignore_permissions=True)
+
+		# Assign default driver to the trip if available
+		if hasattr(vehicle, 'default_driver') and vehicle.default_driver:
+			try:
+				from frappe.desk.form.assign_to import add as add_assignment
+				add_assignment({
+					"doctype": "Vehicle Trip",
+					"name": trip.name,
+					"assign_to": [vehicle.default_driver],
+					"description": _("Auto-assigned from vehicle's default driver")
+				})
+				frappe.logger().info(
+					_("Assigned trip {0} to default driver {1}").format(trip.name, vehicle.default_driver)
+				)
+			except Exception as assign_error:
+				frappe.log_error(
+					_("Error assigning driver to trip {0}: {1}").format(trip.name, str(assign_error)),
+					_("Driver Assignment Error")
+				)
+
 		frappe.db.commit()
 
 		frappe.logger().info(

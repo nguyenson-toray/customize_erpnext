@@ -13,7 +13,9 @@
   "driver",
   "model",
   "number_of_seats",
-  "valid_from"
+  "initial_odometer",
+  "valid_from",
+  "default_driver"
  ],
  "fields": [
   {
@@ -62,12 +64,24 @@
    "fieldname": "valid_from",
    "fieldtype": "Date",
    "label": "Valid from"
+  },
+  {
+   "fieldname": "default_driver",
+   "fieldtype": "Link",
+   "label": "Default Driver",
+   "options": "User"
+  },
+  {
+   "fieldname": "initial_odometer",
+   "fieldtype": "Int",
+   "label": "Initial Odometer",
+   "non_negative": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-11-14 09:18:07.937850",
+ "modified": "2025-11-14 14:35:34.763000",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Vehicle List",

@@ -22,6 +22,12 @@ frappe.query_reports["Vehicle Trip Report"] = {
 			"label": __("Vehicle"),
 			"fieldtype": "Link",
 			"options": "Vehicle List"
+		},
+		{
+			"fieldname": "only_show_finished_trip",
+			"label": __("Only Show Finished Trip"),
+			"fieldtype": "Check",
+			"default": 1
 		}
 	]
 };
