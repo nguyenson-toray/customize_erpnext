@@ -177,6 +177,43 @@ fixtures = [
         "doctype": "Assignment Rule",
         "filters": []  # Export all assignment rules
     }
+    # ,
+    # # Custom Roles
+    # {
+    #     "doctype": "Role",
+    #     "filters": [
+    #         ["name", 
+    #         # "in", [
+    #             # "Driver",
+    #             # "Factory Manager",
+    #             # "Department Manager",
+    #             # "QA QC",
+    #             # "TIQN Staff"
+    #             # Add other custom roles here
+    #         # ]
+    #         ]
+    #     ]
+    # },
+    # # Role Profiles
+    # {
+    #     "doctype": "Role Profile",
+    #     "filters": []  # Export all role profiles
+    # },
+    # # Custom DocType permissions (Role Permission for DocType)
+    # {
+    #     "doctype": "Custom DocPerm",
+    #     "filters": [
+    #         ["parent", "in", [
+    #             "Sales Order",
+    #             "Vehicle Trip",
+    #             "Vehicle List",
+    #             "Shift Registration",
+    #             "Overtime Registration",
+    #             "Daily Timesheet",
+    #             # Add other custom doctypes here
+    #         ]]
+    #     ]
+    # }
 ]
 
 

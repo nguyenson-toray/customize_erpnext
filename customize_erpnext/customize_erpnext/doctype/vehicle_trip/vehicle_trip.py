@@ -145,3 +145,26 @@ class VehicleTrip(Document):
 					),
 					title=_("Invalid Start Km")
 				)
+
+	def after_insert(self):
+		"""
+		Auto-assign the default driver from Vehicle List to this Vehicle Trip
+		"""
+		if self.vehicle_name:
+			vehicle = frappe.get_doc("Vehicle List", self.vehicle_name)
+			if vehicle.default_driver:
+				# Use frappe's assign_to API to assign the default driver
+				from frappe.desk.form.assign_to import add
+				try:
+					add({
+						"assign_to": [vehicle.default_driver],
+						"doctype": self.doctype,
+						"name": self.name,
+						"description": _("Auto-assigned as default driver for {0}").format(self.vehicle_name)
+					})
+				except Exception as e:
+					# Log the error but don't fail the document creation
+					frappe.log_error(
+						message=str(e),
+						title=_("Failed to auto-assign driver to Vehicle Trip {0}").format(self.name)
+					)
