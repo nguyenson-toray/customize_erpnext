@@ -17,14 +17,14 @@ def get_columns():
 			"fieldname": "request_date",
 			"label": _("Date"),
 			"fieldtype": "Date",
-			"width": 110
+			"width": 100
 		},
 		{
 			"fieldname": "vehicle_name",
 			"label": _("Vehicle"),
 			"fieldtype": "Link",
 			"options": "Vehicle List",
-			"width": 100
+			"width": 80
 		},		
 		{
 			"fieldname": "trip_type",
@@ -60,19 +60,19 @@ def get_columns():
 			"fieldname": "start_km",
 			"label": _("Start Km"),
 			"fieldtype": "Int",
-			"width": 80
+			"width": 90
 		},
 		{
 			"fieldname": "finish_km",
 			"label": _("Finish Km"),
 			"fieldtype": "Int",
-			"width": 80
+			"width": 90
 		},
 		{
 			"fieldname": "total_km",
 			"label": _("Total Km"),
 			"fieldtype": "Int",
-			"width": 80
+			"width": 90
 		},
 		{
 			"fieldname": "other_fees",

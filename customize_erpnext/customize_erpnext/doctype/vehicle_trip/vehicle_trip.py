@@ -53,6 +53,26 @@ def get_max_km_for_vehicle(vehicle_name):
 
 
 class VehicleTrip(Document):
+	def autoname(self):
+		"""
+		Custom naming: {vehicle_name}-{YY}{MM}{DD}{HH}{mm}
+		Example: Bus 1-2511141530
+		"""
+		from frappe.utils import now_datetime
+
+		# Get current datetime
+		now = now_datetime()
+
+		# Format: vehicle_name-YYMMDDHHmm
+		self.name = "{vehicle}-{year}{month:02d}{day:02d}{hour:02d}{minute:02d}".format(
+			vehicle=self.vehicle_name,
+			year=now.strftime("%y"),
+			month=now.month,
+			day=now.day,
+			hour=now.hour,
+			minute=now.minute
+		)
+
 	def validate(self):
 		# Auto-populate vehicle info from Vehicle List
 		if self.vehicle_name:
