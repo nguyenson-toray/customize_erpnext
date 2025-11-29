@@ -69,14 +69,19 @@ class DailyTimesheet(Document):
 		
 		# 3. Check maternity benefit
 		self.maternity_benefit = self.check_maternity_benefit()
-		
-		# 4. Set status based on check-in availability (even if only check-in exists)
+
+		# 4. Set status based on check-in availability and maternity benefit
+		# NEW LOGIC: Only 3 statuses - Present, Absent, Maternity Leave
 		if check_in:
 			self.check_in = check_in
 			self.in_time = check_in.time()
-			self.status = "Present"  # Set Present if any check-in exists
+			self.status = "Present"  # Has check-in = Present (regardless of day or OT)
 		else:
-			self.status = "Absent"
+			# No check-in: Absent or Maternity Leave
+			if self.maternity_benefit:
+				self.status = "Maternity Leave"
+			else:
+				self.status = "Absent"
 			self.clear_all_fields()
 			return
 		
@@ -162,12 +167,9 @@ class DailyTimesheet(Document):
 			self.late_entry = False
 			self.early_exit = False
 
-		# 10. Update status based on date and overtime (skip for Sunday, already set by apply_sunday_logic)
-		if date_obj.weekday() != 6:
-			if self.overtime_hours > 0:
-				self.status = "Present + OT"
-			else:
-				self.status = "Present"
+		# 10. Status is already set correctly at the beginning
+		# NEW LOGIC: Status doesn't change based on OT or day of week
+		# Status remains "Present" if there was a check-in
 		
 		# 11. Generate overtime details HTML
 		self.generate_overtime_details_html()
@@ -769,13 +771,14 @@ class DailyTimesheet(Document):
 		"""Clear all calculated fields when no checkin data"""
 		fields_to_clear = [
 			'check_in', 'check_out', 'working_hours', 'overtime_hours', 'actual_overtime',
-			'approved_overtime', 'late_entry', 'early_exit', 'maternity_benefit'
+			'approved_overtime', 'late_entry', 'early_exit'
 		]
 
 		for field in fields_to_clear:
 			setattr(self, field, 0 if field in ['working_hours', 'overtime_hours', 'actual_overtime', 'approved_overtime'] else None)
 
-		self.status = "Absent"
+		# NEW LOGIC: Don't set status here - it's already set in calculate_all_fields()
+		# Status is either "Absent" or "Maternity Leave" based on maternity_benefit
 		self.overtime_details_html = ""
 		# Keep additional_info_html - don't clear it as it should always show check-in data and maternity info
 
@@ -949,11 +952,8 @@ def apply_sunday_logic(doc, check_in, check_out, ot_registrations, shift_config)
 		# With OT registration, use minimum
 		doc.overtime_hours = doc.decimal_round(min(actual_ot, approved_ot))
 
-	# Set status based on lunch benefit
-	if has_lunch_benefit:
-		doc.status = "Sunday, Lunch benefit"
-	else:
-		doc.status = "Sunday"
+	# NEW LOGIC: Status is already set to "Present" before this function
+	# Don't change status here - it remains "Present" for Sunday with check-in
 
 	# Calculate final OT with coefficient
 	doc.overtime_coefficient = 2.0  # Sunday coefficient
@@ -1570,13 +1570,18 @@ def calculate_all_fields_optimized(doc, bulk_data, skip_html_generation=False):
 	# 3. Check maternity benefit from bulk_data
 	doc.maternity_benefit = check_maternity_benefit_from_bulk(doc.employee, doc.attendance_date, bulk_data)
 
-	# 4. Set status based on check-in availability
+	# 4. Set status based on check-in availability and maternity benefit
+	# NEW LOGIC: Only 3 statuses - Present, Absent, Maternity Leave
 	if check_in:
 		doc.check_in = check_in
 		doc.in_time = check_in.time()
-		doc.status = "Present"
+		doc.status = "Present"  # Has check-in = Present (regardless of day or OT)
 	else:
-		doc.status = "Absent"
+		# No check-in: Absent or Maternity Leave
+		if doc.maternity_benefit:
+			doc.status = "Maternity Leave"
+		else:
+			doc.status = "Absent"
 		doc.clear_all_fields()
 		return
 
@@ -1667,12 +1672,9 @@ def calculate_all_fields_optimized(doc, bulk_data, skip_html_generation=False):
 		doc.late_entry = False
 		doc.early_exit = False
 
-	# 10. Update status (skip for Sunday, already set by apply_sunday_logic)
-	if date_obj.weekday() != 6:
-		if doc.overtime_hours > 0:
-			doc.status = "Present + OT"
-		else:
-			doc.status = "Present"
+	# 10. Status is already set correctly at the beginning
+	# NEW LOGIC: Status doesn't change based on OT or day of week
+	# Status remains "Present" if there was a check-in
 
 	# 11. Generate overtime details HTML
 	doc.generate_overtime_details_html()

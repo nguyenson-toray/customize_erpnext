@@ -67,11 +67,15 @@ frappe.query_reports["Daily Timesheet Report"] = {
 				return frappe.db.get_list('Employee', {
 					fields: ['custom_section'],
 					filters: {
-						'custom_section': ['like', '%' + txt + '%']
+						'custom_section': ['like', '%' + txt + '%'],
+						'custom_section': ['is', 'set']  // Exclude NULL values
 					},
 					group_by: 'custom_section'
 				}).then(function (data) {
-					return data.map(function (item) {
+					return data.filter(function (item) {
+						// Filter out null, undefined, empty string
+						return item.custom_section && item.custom_section.trim() !== '';
+					}).map(function (item) {
 						return {
 							value: item.custom_section,
 							label: item.custom_section
@@ -88,11 +92,15 @@ frappe.query_reports["Daily Timesheet Report"] = {
 				return frappe.db.get_list('Employee', {
 					fields: ['custom_group'],
 					filters: {
-						'custom_group': ['like', '%' + txt + '%']
+						'custom_group': ['like', '%' + txt + '%'],
+						'custom_group': ['is', 'set']  // Exclude NULL values
 					},
 					group_by: 'custom_group'
 				}).then(function (data) {
-					return data.map(function (item) {
+					return data.filter(function (item) {
+						// Filter out null, undefined, empty string
+						return item.custom_group && item.custom_group.trim() !== '';
+					}).map(function (item) {
 						return {
 							value: item.custom_group,
 							label: item.custom_group
@@ -101,18 +109,12 @@ frappe.query_reports["Daily Timesheet Report"] = {
 				});
 			}
 		},
-		{
-			"fieldname": "employee",
-			"label": __("Employee"),
-			"fieldtype": "Link",
-			"options": "Employee"
-		},
-		{
-			"fieldname": "status",
-			"label": __("Status"),
-			"fieldtype": "Select",
-			"options": "\nAbsent\nPresent\nPresent + OT\nHalf Day\nWork From Home\nOn Leave\nSunday\nSunday, Lunch benefit"
-		},
+		// {
+		// 	"fieldname": "employee",
+		// 	"label": __("Employee"),
+		// 	"fieldtype": "Link",
+		// 	"options": "Employee"
+		// },
 		{
 			"fieldname": "summary",
 			"label": __("Summary"),
@@ -133,7 +135,8 @@ frappe.query_reports["Daily Timesheet Report"] = {
 			"fieldtype": "Select",
 			"options": "Department Summary\nTop 50 - Highest Overtime\nTop 50 - Highest Working Hours",
 			"default": "Top 50 - Highest Overtime",
-			"description": __("Select chart visualization type")
+			"description": __("Select chart visualization type"),
+			"depends_on": "eval:doc.date_type!='Single Date'"
 		}
 	],
 
@@ -218,15 +221,23 @@ frappe.query_reports["Daily Timesheet Report"] = {
 			return null;
 		}
 
-		// Hide chart when single date filter is selected
+		// Show pie chart for Single Date - Status distribution (only if not summary mode)
 		if (window.daily_timesheet_report && window.daily_timesheet_report.get_filter_value) {
 			let date_type = window.daily_timesheet_report.get_filter_value("date_type");
-			if (date_type === "Single Date") {
+			let is_summary = window.daily_timesheet_report.get_filter_value("summary");
+
+			// Only show pie chart if Single Date AND NOT summary mode
+			if (date_type === "Single Date" && !is_summary) {
+				return get_status_distribution_chart(result);
+			}
+
+			// Hide chart if summary mode is enabled
+			if (is_summary) {
 				return null;
 			}
 		}
 
-		// Get chart type from global variable
+		// Get chart type from global variable for other date types
 		let chart_type = window.daily_timesheet_chart_type || "Department Summary";
 
 		// Fallback: try to get from report if available
@@ -456,6 +467,59 @@ function get_top_working_hours_chart(result, round_decimal) {
 		barOptions: {
 			horizontal: true
 		}
+	};
+}
+
+function get_status_distribution_chart(result) {
+	// Count employees by status
+	let status_counts = {
+		'Present': 0,
+		'Absent': 0,
+		'Maternity Leave': 0
+	};
+
+	result.forEach(function (row) {
+		let status = row.status;
+		if (status && status_counts.hasOwnProperty(status)) {
+			status_counts[status]++;
+		}
+	});
+
+	// Calculate total active employees
+	let total = status_counts['Present'] + status_counts['Absent'] + status_counts['Maternity Leave'];
+
+	// Calculate percentages
+	let present_pct = total > 0 ? Math.round((status_counts['Present'] / total) * 100) : 0;
+	let absent_pct = total > 0 ? Math.round((status_counts['Absent'] / total) * 100) : 0;
+	let maternity_pct = total > 0 ? Math.round((status_counts['Maternity Leave'] / total) * 100) : 0;
+
+	return {
+		data: {
+			labels: [
+				`Present: ${status_counts['Present']} (${present_pct}%)`,
+				`Absent: ${status_counts['Absent']} (${absent_pct}%)`,
+				`Maternity Leave: ${status_counts['Maternity Leave']} (${maternity_pct}%)`
+			],
+			datasets: [
+				{
+					name: `Total Active: ${total}`,
+					values: [
+						status_counts['Present'],
+						status_counts['Absent'],
+						status_counts['Maternity Leave']
+					]
+				}
+			]
+		},
+		type: "percentage",  // Donut chart
+		height: 300,
+		colors: ["#28a745", "#E20E20", "#FF69B4"],  // Green for Present, Red for Absent, Pink for Maternity
+		maxSlices: 10,
+		truncateLegends: false,
+		tooltipOptions: {
+			formatTooltipY: d => d + ""
+		},
+		title: `Total Active Employees: ${total}`
 	};
 }
 

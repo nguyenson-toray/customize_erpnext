@@ -268,10 +268,12 @@ def get_columns(filters=None):
 def get_data(filters):
 	is_summary = filters and filters.get("summary")
 	show_detail_columns = filters and filters.get("detail_columns")
-	
+
 	# Get date range conditions for filtering active employees
 	date_conditions = get_date_range_conditions(filters)
 	employee_conditions = get_employee_filter_conditions(filters)
+	# Note: Status filter will be applied AFTER loading data, not in SQL query
+	# because filtering in LEFT JOIN ON clause doesn't work as expected
 	
 	if is_summary:
 		# Summary mode - Always show all active employees in period
@@ -302,6 +304,7 @@ def get_data(filters):
 			period_end = "2099-12-31"
 		
 		# Get all employees who were active during the period with LEFT JOIN to Daily Timesheet
+		# Note: Don't filter by status here - will filter after loading
 		data = frappe.db.sql(f"""
 			SELECT
 				emp.name as employee,
@@ -391,6 +394,7 @@ def get_data(filters):
 		
 		# Get all employees who were active during the period with all their Daily Timesheet records
 		# Use LEFT JOIN to show employees even if they don't have timesheet data for some dates
+		# Note: Don't filter by status in query - will filter after loading
 		data = frappe.db.sql(f"""
 			SELECT
 				emp.name as employee,
@@ -592,7 +596,7 @@ def get_data(filters):
 							row['check_out'] = check_out_str  # Already time format
 				except:
 					pass  # Keep original value if formatting fails
-	
+
 	return data
 
 
@@ -637,35 +641,62 @@ def get_date_range_conditions(filters):
 def get_employee_filter_conditions(filters):
 	"""Get SQL conditions for employee filtering"""
 	conditions = []
-	
+
 	# Always exclude specific departments
 	conditions.append("emp.department NOT IN ('Head of Branch - TIQN', 'Operations Manager - TIQN')")
-	
+
 	if filters.get("department"):
 		if isinstance(filters.get("department"), list):
 			dept_list = "', '".join(filters.get("department"))
 			conditions.append(f"emp.department IN ('{dept_list}')")
 		else:
 			conditions.append(f"emp.department = '{filters.get('department')}'")
-	
+
 	if filters.get("custom_section"):
-		if isinstance(filters.get("custom_section"), list):
-			section_list = "', '".join(filters.get("custom_section"))
-			conditions.append(f"emp.custom_section IN ('{section_list}')")
+		section_value = filters.get("custom_section")
+		# MultiSelectList returns comma-separated string, not list
+		if isinstance(section_value, str) and ',' in section_value:
+			# Multiple values selected
+			section_list = [s.strip() for s in section_value.split(',') if s.strip() and s.strip() != 'undefined']
+			if section_list:
+				section_str = "', '".join(section_list)
+				conditions.append(f"emp.custom_section IN ('{section_str}')")
+		elif isinstance(section_value, list):
+			# Just in case it's a list
+			section_list = [s for s in section_value if s and s != 'undefined']
+			if section_list:
+				section_str = "', '".join(section_list)
+				conditions.append(f"emp.custom_section IN ('{section_str}')")
 		else:
-			conditions.append(f"emp.custom_section = '{filters.get('custom_section')}'")
-	
+			# Single value
+			if section_value and section_value != 'undefined':
+				conditions.append(f"emp.custom_section = '{section_value}'")
+
 	if filters.get("custom_group"):
-		if isinstance(filters.get("custom_group"), list):
-			group_list = "', '".join(filters.get("custom_group"))
-			conditions.append(f"emp.custom_group IN ('{group_list}')")
+		group_value = filters.get("custom_group")
+		# MultiSelectList returns comma-separated string, not list
+		if isinstance(group_value, str) and ',' in group_value:
+			# Multiple values selected
+			group_list = [g.strip() for g in group_value.split(',') if g.strip() and g.strip() != 'undefined']
+			if group_list:
+				group_str = "', '".join(group_list)
+				conditions.append(f"emp.custom_group IN ('{group_str}')")
+		elif isinstance(group_value, list):
+			# Just in case it's a list
+			group_list = [g for g in group_value if g and g != 'undefined']
+			if group_list:
+				group_str = "', '".join(group_list)
+				conditions.append(f"emp.custom_group IN ('{group_str}')")
 		else:
-			conditions.append(f"emp.custom_group = '{filters.get('custom_group')}'")
-	
+			# Single value
+			if group_value and group_value != 'undefined':
+				conditions.append(f"emp.custom_group = '{group_value}'")
+
 	if filters.get("employee"):
 		conditions.append(f"emp.name = '{filters.get('employee')}'")
-	
+
 	return " AND " + " AND ".join(conditions) if conditions else ""
+
 
 
 
@@ -921,7 +952,7 @@ def convert_report_data_to_excel_format(report_data, filters):
 		period_end = "2099-12-31"
 	
 	# Get employee conditions for filtering
-	employee_conditions = get_employee_filter_conditions(filters)
+	# employee_conditions = get_employee_filter_conditions(filters)
 	
 	# Get all active employees that should be included
 	all_active_employees = frappe.db.sql(f"""

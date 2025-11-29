@@ -7,6 +7,82 @@ from datetime import datetime
 import logging
 from customize_erpnext.api.site_restriction import only_for_sites
 
+def daily_timesheet_pre_create():
+	"""
+	Pre-create Daily Timesheet for ALL active employees at 06:00 AM
+	Creates empty records with Status = 'Absent' as default
+	Will be updated and calculated later at 22:45
+	"""
+	try:
+		import time
+		start_time = time.time()
+
+		# Get today's date
+		current_date = today()
+
+		# Log start of process
+		frappe.logger().info(f"Starting Daily Timesheet pre-creation for ALL active employees on date: {current_date}")
+
+		# Get ALL active employees
+		all_active_employees = get_all_active_employees(current_date)
+
+		# Get all existing Daily Timesheet records for today
+		existing_timesheets = frappe.get_all("Daily Timesheet",
+			filters={"attendance_date": current_date},
+			fields=["name", "employee"]
+		)
+		existing_employee_ids = [ts['employee'] for ts in existing_timesheets]
+
+		# Employees that need NEW timesheet creation (not yet created)
+		employees_to_create = [emp for emp in all_active_employees if emp['employee'] not in existing_employee_ids]
+
+		created_count = 0
+		error_count = 0
+
+		# Create empty Daily Timesheet records
+		for emp_data in employees_to_create:
+			try:
+				# Create new Daily Timesheet with basic info only
+				doc = frappe.get_doc({
+					"doctype": "Daily Timesheet",
+					"employee": emp_data['employee'],
+					"employee_name": emp_data['employee_name'],
+					"attendance_date": current_date,
+					"department": emp_data.get('department'),
+					"custom_section": emp_data.get('custom_section'),
+					"custom_group": emp_data.get('custom_group'),
+					"company": emp_data.get('company') or frappe.defaults.get_user_default("Company"),
+					"status": "Absent",  # Default status
+					"working_hours": 0,
+					"overtime_hours": 0
+				})
+				doc.insert(ignore_permissions=True)
+				created_count += 1
+			except Exception as e:
+				frappe.log_error(f"Failed to pre-create Daily Timesheet for {emp_data['employee']}: {str(e)}")
+				error_count += 1
+
+		# Calculate performance metrics
+		end_time = time.time()
+		processing_time = round(end_time - start_time, 2)
+
+		# Log completion
+		frappe.logger().info(
+			f"Daily Timesheet pre-creation completed. Created: {created_count}, "
+			f"Already exists: {len(existing_timesheets)}, Errors: {error_count} in {processing_time}s"
+		)
+
+		return {
+			"created": created_count,
+			"existing": len(existing_timesheets),
+			"errors": error_count,
+			"processing_time": processing_time
+		}
+
+	except Exception as e:
+		frappe.log_error(f"Daily Timesheet pre-creation failed: {str(e)}")
+		raise
+
 def daily_timesheet_auto_sync_and_calculate():
 	"""
 	Scheduled job to automatically sync and calculate Daily Timesheet at 22:45 daily

@@ -251,11 +251,13 @@ scheduler_events = {
         # ],
         
         # Daily Timesheet pre-creation at 06:00 every morning (before work starts)
+        # Creates empty records for all active employees with Status = 'Absent'
         "0 6 * * *": [
-            "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.daily_timesheet_auto_sync_and_calculate"
+            "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.daily_timesheet_pre_create"
         ],
 
         # Daily Timesheet auto sync and calculation at 22:45 every day (end of day)
+        # Updates and calculates all records based on check-ins and maternity tracking
         "45 22 * * *": [
             "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.daily_timesheet_auto_sync_and_calculate"
         ],
