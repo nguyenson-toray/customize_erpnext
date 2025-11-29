@@ -839,7 +839,12 @@ function validate_required_fields(frm) {
 function validate_time_order(frm) {
     for (let d of frm.doc.ot_employees || []) {
         if (d.begin_time && d.end_time) {
-            if (d.begin_time >= d.end_time) {
+            // Convert time strings to Date objects for proper comparison
+            const time_begin = new Date(`2000-01-01T${d.begin_time}`);
+            const time_end = new Date(`2000-01-01T${d.end_time}`);
+
+            if (time_begin >= time_end) {
+                console.log(`Invalid time order in row ${d.idx}: ${d.begin_time} >= ${d.end_time}`);
                 frappe.msgprint(__('Row #{0}: Giờ bắt đầu ({1}) phải nhỏ hơn giờ kết thúc ({2})', [d.idx, d.begin_time, d.end_time]));
                 frappe.validated = false;
                 return false;

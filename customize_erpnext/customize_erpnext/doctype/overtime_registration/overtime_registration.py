@@ -10,7 +10,7 @@ from datetime import time, datetime, timedelta
 class OvertimeRegistration(Document):
     def validate(self):
         """Validation khi lưu (Save) - theo thứ tự"""
-        # 1. Kiểm tra giờ OT phải nằm ngoài giờ làm việc
+        # 1. Kiểm tra giờ OT phải nằm ngoài giờ làm việc (bỏ qua ngày chủ nhật)
         self.validate_ot_outside_working_hours()
 
         # 2. Kiểm tra các trường hợp thai sản (handled by JS maternity dialog)
@@ -34,6 +34,11 @@ class OvertimeRegistration(Document):
 
         for d in self.ot_employees:
             if not d.employee or not d.date or not d.get("begin_time") or not d.get("end_time"):
+                continue
+
+            # Skip validation for Sundays
+            date_obj = getdate(d.date)
+            if date_obj.weekday() == 6:  # Sunday
                 continue
 
             # Get shift for employee
