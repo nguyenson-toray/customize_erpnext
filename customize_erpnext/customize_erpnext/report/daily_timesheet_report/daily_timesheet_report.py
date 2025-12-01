@@ -493,19 +493,19 @@ def get_data(filters):
 			# Add missing records with empty timesheet data
 			missing_records = []
 			for emp in active_employees:
+				# Parse employee dates ONCE per employee (not per date iteration) - Performance optimization
+				emp_start = emp.get('date_of_joining')
+				emp_end = emp.get('relieving_date')
+
+				# Convert to date objects if they're strings
+				if emp_start and isinstance(emp_start, str):
+					emp_start = datetime.strptime(emp_start, '%Y-%m-%d').date()
+				if emp_end and isinstance(emp_end, str):
+					emp_end = datetime.strptime(emp_end, '%Y-%m-%d').date()
+
 				for date_obj in all_dates:
 					emp_date_key = f"{emp['employee']}-{date_obj}"
 					if emp_date_key not in existing_records:
-						# Check if employee was active on this specific date
-						emp_start = emp.get('date_of_joining')
-						emp_end = emp.get('relieving_date')
-						
-						# Convert to date objects if they're strings
-						if emp_start and isinstance(emp_start, str):
-							emp_start = datetime.strptime(emp_start, '%Y-%m-%d').date()
-						if emp_end and isinstance(emp_end, str):
-							emp_end = datetime.strptime(emp_end, '%Y-%m-%d').date()
-						
 						# Check if employee was active on this date
 						is_active_on_date = True
 						if emp_start and date_obj < emp_start:
@@ -751,14 +751,14 @@ def export_timesheet_excel(filters=None, report_data=None):
 	import json
 	if isinstance(filters, str):
 		filters = json.loads(filters)
-	if isinstance(report_data, str):
+	if isinstance(report_data, str) and report_data:
 		report_data = json.loads(report_data)
 	
 	# Always use fresh data from the report to ensure consistency
 	# Force summary = 0 for Excel export to get daily detail data
 	export_filters = filters.copy() if filters else {}
 	export_filters['summary'] = 0
-	columns, data, message, chart = execute(export_filters)
+	columns, data, message, chart, skip_total_row, disable_prepared_report = execute(export_filters)
 	employee_data = convert_report_data_to_excel_format(data, export_filters)
 	
 	# Create Excel file
@@ -952,8 +952,8 @@ def convert_report_data_to_excel_format(report_data, filters):
 		period_end = "2099-12-31"
 	
 	# Get employee conditions for filtering
-	# employee_conditions = get_employee_filter_conditions(filters)
-	
+	employee_conditions = get_employee_filter_conditions(filters)
+
 	# Get all active employees that should be included
 	all_active_employees = frappe.db.sql(f"""
 		SELECT DISTINCT emp.name as employee,
