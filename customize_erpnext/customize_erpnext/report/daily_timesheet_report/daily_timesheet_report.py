@@ -643,7 +643,7 @@ def get_employee_filter_conditions(filters):
 	conditions = []
 
 	# Always exclude specific departments
-	conditions.append("emp.department NOT IN ('Head of Branch - TIQN', 'Operations Manager - TIQN')")
+	# conditions.append("emp.department NOT IN ('Head of Branch - TIQN', 'Operations Manager - TIQN')")
 
 	if filters.get("department"):
 		if isinstance(filters.get("department"), list):

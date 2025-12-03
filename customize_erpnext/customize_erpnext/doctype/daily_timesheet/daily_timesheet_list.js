@@ -11,7 +11,7 @@ frappe.listview_settings['Daily Timesheet'] = {
 			setTimeout(function () {
 				try {
 					// Combined Bulk Create, Recalculate Timesheet button  
-					listview.page.add_menu_item(__("Bulk Create, Recalculate Timesheet"), function () {
+					listview.page.add_menu_item(__("🧮1. Bulk Create, Recalculate Timesheet"), function () {
 						show_bulk_create_recalculate_dialog();
 					});
 
@@ -44,12 +44,12 @@ frappe.listview_settings['Daily Timesheet'] = {
 // Combined Bulk Create, Recalculate Timesheet Dialog
 function show_bulk_create_recalculate_dialog() {
 	let dialog = new frappe.ui.Dialog({
-		title: __("Bulk Create, Recalculate Timesheet"),
+		title: __("🧮 Bulk Create, Recalculate Timesheet"),
 		size: 'large',
 		fields: [
 			{
 				fieldtype: 'Section Break',
-				label: __('Date Range Selection')
+				label: __('📅 Date Range Selection')
 			},
 			{
 				fieldtype: 'Date',
@@ -81,7 +81,7 @@ function show_bulk_create_recalculate_dialog() {
 			},
 			{
 				fieldtype: 'Section Break',
-				label: __('Information')
+				label: __('ℹ️Information')
 			},
 			{
 				fieldtype: 'HTML',

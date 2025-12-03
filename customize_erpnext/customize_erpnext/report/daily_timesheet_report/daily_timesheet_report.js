@@ -175,9 +175,14 @@ frappe.query_reports["Daily Timesheet Report"] = {
 		}, 500);
 
 		// Add export Excel button (always shown)
-		report.page.add_inner_button(__('Export Excel - HR Template'), function () {
+		report.page.add_inner_button(__('⬇️1. Export Excel - C&B Template'), function () {
 			export_timesheet_excel(report);
-		}, __('Actions'));
+		},); // __('Actions'));
+
+		// Add send daily timesheet report button
+		report.page.add_inner_button(__('📩2. Send Report'), function () {
+			send_daily_timesheet_report_dialog(report);
+		},); //__('Actions'));
 
 
 	},
@@ -523,6 +528,122 @@ function get_status_distribution_chart(result) {
 	};
 }
 
+// Send Daily Timesheet Report dialog function
+function send_daily_timesheet_report_dialog(report) {
+	// Get current filters to suggest default date
+	let filters = report.get_values();
+	let default_date = frappe.datetime.get_today();
+
+	// Try to get date from current filters
+	if (filters.date_type === 'Single Date' && filters.single_date) {
+		default_date = filters.single_date;
+	}
+
+	// Create dialog
+	let d = new frappe.ui.Dialog({
+		title: __('Send Daily Timesheet Report'),
+		fields: [
+			{
+				fieldname: 'report_date',
+				label: __('Report Date'),
+				fieldtype: 'Date',
+				default: default_date,
+				reqd: 1,
+				description: __('Select the date for the report')
+			},
+			{
+				fieldname: 'recipients',
+				label: __('Email Recipients'),
+				fieldtype: 'Small Text',
+				reqd: 1,
+				default: 'it@tiqn.com.vn\nni.nht@tiqn.com.vn\nhoanh.ltk@tiqn.com.vn\nloan.ptk@tiqn.com.vn',
+				description: __('Enter one email address per line')
+			}
+		],
+		primary_action_label: __('Send Report'),
+		primary_action: function (values) {
+			// Validate email format - split by newlines or commas
+			let emails = values.recipients.split(/[\n,]/).map(e => e.trim()).filter(e => e.length > 0);
+			let invalid_emails = emails.filter(e => !frappe.utils.validate_type(e, 'email'));
+
+			if (invalid_emails.length > 0) {
+				frappe.msgprint({
+					title: __('Invalid Email'),
+					message: __('Please enter valid email addresses: ') + invalid_emails.join(', '),
+					indicator: 'red'
+				});
+				return;
+			}
+
+			// Disable dialog and show loading
+			d.get_primary_btn().prop('disabled', true);
+			d.get_primary_btn().html(__('Sending...'));
+
+			// // Show loading indicator
+			// frappe.show_alert({
+			// 	message: __('Sending report, please wait...'),
+			// 	indicator: 'blue'
+			// });
+
+			// Freeze all fields in dialog
+			d.fields_dict.report_date.df.read_only = 1;
+			d.fields_dict.recipients.df.read_only = 1;
+			d.fields_dict.report_date.refresh();
+			d.fields_dict.recipients.refresh();
+
+			// Call server method to send report
+			frappe.call({
+				method: 'customize_erpnext.customize_erpnext.report.daily_timesheet_report.scheduler.send_daily_time_sheet_report',
+				args: {
+					report_date: values.report_date,
+					recipients: values.recipients
+				},
+				freeze: true,
+				freeze_message: __('📨 Sending Daily Timesheet Report...'),
+				callback: function (r) {
+					if (r.message && r.message.status === 'success') {
+						frappe.show_alert({
+							message: __('Report sent successfully!'),
+							indicator: 'green'
+						}, 5);
+						// Auto close dialog on success
+						d.hide();
+					} else {
+						frappe.msgprint({
+							title: __('Error'),
+							message: r.message ? r.message.message : __('Failed to send report. Please check the error log.'),
+							indicator: 'red'
+						});
+						// Re-enable dialog on error
+						d.get_primary_btn().prop('disabled', false);
+						d.get_primary_btn().html(__('Send Report'));
+						d.fields_dict.report_date.df.read_only = 0;
+						d.fields_dict.recipients.df.read_only = 0;
+						d.fields_dict.report_date.refresh();
+						d.fields_dict.recipients.refresh();
+					}
+				},
+				error: function () {
+					frappe.msgprint({
+						title: __('Error'),
+						message: __('Failed to send report. Please try again or contact administrator.'),
+						indicator: 'red'
+					});
+					// Re-enable dialog on error
+					d.get_primary_btn().prop('disabled', false);
+					d.get_primary_btn().html(__('Send Report'));
+					d.fields_dict.report_date.df.read_only = 0;
+					d.fields_dict.recipients.df.read_only = 0;
+					d.fields_dict.report_date.refresh();
+					d.fields_dict.recipients.refresh();
+				}
+			});
+		}
+	});
+
+	d.show();
+}
+
 // Export Excel function
 function export_timesheet_excel(report) {
 	let filters = report.get_values();
@@ -608,7 +729,7 @@ function export_timesheet_excel(report) {
 				});
 			}
 		},
-		error: function (xhr) {
+		error: function () {
 			frappe.msgprint({
 				title: __('Export Error'),
 				message: __('Failed to generate Excel file. Please try again.'),

@@ -262,11 +262,14 @@ scheduler_events = {
             "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.daily_timesheet_auto_sync_and_calculate"
         ],
 
-        # Daily Check-in Report - Every day at 08:15 AM
+        # # Daily Check-in Report - Every day at 08:15 AM => removed
+        # "15 8 * * *": [
+        #     "customize_erpnext.customize_erpnext.report.daily_check_in_report.scheduler.send_daily_check_in_report"
+        # ],
+         # Daily TimeSheet Report - Every day at 08:15 AM
         "15 8 * * *": [
-            "customize_erpnext.customize_erpnext.report.daily_check_in_report.scheduler.send_daily_check_in_report"
+            "customize_erpnext.customize_erpnext.report.daily_timesheet_report.scheduler.send_daily_time_sheet_report"
         ],
-
         # Sunday overtime alert - Monday at 08:00 AM
         "0 8 * * 1": [
             "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.send_sunday_overtime_alert_scheduled"
