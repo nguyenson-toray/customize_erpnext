@@ -746,66 +746,176 @@ def get_chart_data(data, filters):
 	}
 
 @frappe.whitelist()
-def export_timesheet_excel(filters=None, report_data=None):
+def export_timesheet_excel(filters=None):
 	"""Export timesheet data to Excel format similar to the template"""
+	import json
+	import time
+	if isinstance(filters, str):
+		filters = json.loads(filters)
+
+	# Estimate operation size
+	date_range = get_export_date_range(filters)
+	num_days = len(date_range['dates'])
+
+	# Get employee count estimate
+	filters_temp = {
+		"from_date": date_range['from_date'],
+		"to_date": date_range['to_date']
+	}
+
+	emp_filter = ""
+	if filters.get('department'):
+		dept_list = filters['department'] if isinstance(filters['department'], list) else [filters['department']]
+		dept_str = "', '".join(dept_list)
+		emp_filter += f" AND emp.department IN ('{dept_str}')"
+
+	employee_count = frappe.db.sql(f"""
+		SELECT COUNT(DISTINCT emp.name) as count
+		FROM `tabEmployee` emp
+		WHERE (
+			(emp.status = 'Active'
+			 AND (emp.date_of_joining IS NULL OR emp.date_of_joining <= %(to_date)s))
+			OR
+			(emp.status = 'Left'
+			 AND (emp.date_of_joining IS NULL OR emp.date_of_joining <= %(to_date)s)
+			 AND (emp.relieving_date IS NULL OR emp.relieving_date > %(from_date)s))
+		)
+		{emp_filter}
+	""", filters_temp, as_dict=1)[0].count
+
+	total_operations = employee_count * num_days
+
+	# If operation is large (>1000 operations), run in background
+	if total_operations > 1000:
+		job_id = f"export_excel_{int(time.time())}"
+
+		frappe.enqueue(
+			'customize_erpnext.customize_erpnext.report.daily_timesheet_report.daily_timesheet_report.export_timesheet_excel_job',
+			queue='default',
+			timeout=1800,  # 30 minutes
+			job_id=job_id,
+			filters=filters
+		)
+
+		return {
+			'background_job': True,
+			'job_id': job_id,
+			'total_operations': total_operations,
+			'message': f'Large export ({employee_count} employees × {num_days} days = {total_operations} records) queued for background processing. You will receive a notification when ready.'
+		}
+
+	# Small operation - run synchronously
+	return export_timesheet_excel_sync(filters)
+
+def export_timesheet_excel_sync(filters):
+	"""Synchronous Excel export for small datasets"""
 	import json
 	if isinstance(filters, str):
 		filters = json.loads(filters)
-	if isinstance(report_data, str) and report_data:
-		report_data = json.loads(report_data)
-	
+
 	# Always use fresh data from the report to ensure consistency
 	# Force summary = 0 for Excel export to get daily detail data
 	export_filters = filters.copy() if filters else {}
 	export_filters['summary'] = 0
 	columns, data, message, chart, skip_total_row, disable_prepared_report = execute(export_filters)
 	employee_data = convert_report_data_to_excel_format(data, export_filters)
-	
+
 	# Create Excel file
 	wb = openpyxl.Workbook()
 	ws = wb.active
 	ws.title = "Timesheet"
-	
+
 	# Get date range based on current filters
 	date_range = get_export_date_range(filters)
-	
+
 	# Setup Excel headers and data
 	setup_excel_headers(ws, date_range, filters)
 	all_employees, current_row, first_employee_row = populate_employee_data(ws, employee_data, date_range)
-	
+
 	# Add total row (only if we have employees)
 	if first_employee_row is not None:
 		add_total_row(ws, all_employees, current_row, date_range, first_employee_row)
 	total_row_end = current_row + 1
-	
+
 	# Add footer with signatures and notes
 	add_excel_footer(ws, total_row_end, date_range)
-	
+
 	# Apply formatting (account for department headers + total row)
 	total_rows = len(all_employees) + len(employee_data) + 1  # employees + dept headers + total row
 	apply_excel_formatting(ws, total_rows, len(date_range['dates']), date_range)
-	
+
+	# Create filename
+	filename = f"Timesheet_{date_range['period_name']}.xlsx"
+	# Sanitize filename for file system
+	filename = filename.replace('/', '_').replace('\\', '_').replace(' ', '_')
+
 	# Save to temporary file
 	temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx')
 	wb.save(temp_file.name)
 	temp_file.close()
-	
-	# Read file content and encode as base64
-	import base64
-	with open(temp_file.name, 'rb') as f:
-		file_content = base64.b64encode(f.read()).decode('utf-8')
-	
-	# Clean up
-	os.unlink(temp_file.name)
-	
-	# Create filename
-	filename = f"Timesheet {date_range['period_name']}.xlsx"
-	
-	return {
-		'filecontent': file_content,
-		'filename': filename,
-		'type': 'binary'
-	}
+
+	# Save file to Frappe's private files
+	try:
+		with open(temp_file.name, 'rb') as f:
+			file_content = f.read()
+
+		# Create a File document in Frappe
+		file_doc = frappe.get_doc({
+			'doctype': 'File',
+			'file_name': filename,
+			'is_private': 0,  # Public file so it can be downloaded
+			'content': file_content
+		})
+		file_doc.save(ignore_permissions=True)
+		frappe.db.commit()
+
+		# Clean up temp file
+		os.unlink(temp_file.name)
+
+		return {
+			'file_url': file_doc.file_url,
+			'filename': filename
+		}
+	except Exception as e:
+		# Clean up temp file on error
+		if os.path.exists(temp_file.name):
+			os.unlink(temp_file.name)
+		frappe.log_error(f"Error saving Excel file: {str(e)}", "Timesheet Export Error")
+		frappe.throw(_("Failed to save Excel file. Please try again or contact support."))
+
+def export_timesheet_excel_job(filters):
+	"""Background job for Excel export"""
+	try:
+		frappe.publish_progress(0, title="Starting Excel export...",
+							  description="Generating timesheet Excel file in background")
+
+		result = export_timesheet_excel_sync(filters)
+
+		frappe.publish_realtime(
+			event='excel_export_complete',
+			message={
+				"success": True,
+				"file_url": result.get('file_url'),
+				"filename": result.get('filename'),
+				"message": f"Excel export completed! File: {result.get('filename')}"
+			},
+			user=frappe.session.user
+		)
+
+		return result
+
+	except Exception as e:
+		frappe.log_error(f"Background Excel export failed: {str(e)}", "Excel Export Error")
+		frappe.publish_realtime(
+			event='excel_export_complete',
+			message={
+				"success": False,
+				"error": str(e),
+				"message": "Excel export failed. Please try again or contact support."
+			},
+			user=frappe.session.user
+		)
+		raise e
 
 def get_export_date_range(filters):
 	"""Get date range based on current report filters"""
@@ -990,53 +1100,75 @@ def convert_report_data_to_excel_format(report_data, filters):
 				'daily_data': {}
 			}
 
-	# Convert to list and sort by department, section, group, name
+	# Convert to list and sort
 	result = list(employee_data.values())
-	result.sort(key=lambda x: (
-		x.get('department', '') or '',
-		x.get('custom_section', '') or '',
-		x.get('custom_group', '') or '',
-		x.get('employee_name', '') or ''
-	))
-	
-	# Group by department for Excel export
-	grouped_result = []
-	current_dept = None
-	dept_employees = []
-	
+
+	# Get sort order from filters (default: Ascending)
+	sort_order = filters.get('sort_order', 'Ascending')
+	is_descending = (sort_order == 'Descending')
+
+	# Get split_department option (default: True)
+	split_department = filters.get('split_department', 1)
+
+	# Sort by department, section, group, name (with optional reverse)
+	result.sort(
+		key=lambda x: (
+			x.get('department', '') or '',
+			x.get('custom_section', '') or '',
+			x.get('custom_group', '') or '',
+			x.get('employee_name', '') or ''
+		),
+		reverse=is_descending
+	)
+
+	# Ensure all employees have entries for all dates in range
 	for emp in result:
-		# Ensure all employees have entries for all dates in range
 		for date_obj in date_range['dates']:
 			date_key = date_obj.strftime('%Y-%m-%d')
 			if date_key not in emp['daily_data']:
 				emp['daily_data'][date_key] = ''
-		
-		emp_dept = emp.get('department', '') or 'No Department'
-		
-		if current_dept != emp_dept:
-			# Add previous department group
-			if current_dept is not None and dept_employees:
-				grouped_result.append({
-					'type': 'department_header',
-					'department': current_dept,
-					'employees': dept_employees
-				})
-			
-			# Start new department group
-			current_dept = emp_dept
-			dept_employees = [emp]
-		else:
-			dept_employees.append(emp)
-	
-	# Add the last department group
-	if current_dept is not None and dept_employees:
-		grouped_result.append({
-			'type': 'department_header',
-			'department': current_dept,
-			'employees': dept_employees
-		})
-	
-	return grouped_result
+
+	# Group by department if split_department is enabled
+	if split_department:
+		grouped_result = []
+		current_dept = None
+		dept_employees = []
+
+		for emp in result:
+			emp_dept = emp.get('department', '') or 'No Department'
+
+			if current_dept != emp_dept:
+				# Add previous department group
+				if current_dept is not None and dept_employees:
+					grouped_result.append({
+						'type': 'department_header',
+						'department': current_dept,
+						'employees': dept_employees
+					})
+
+				# Start new department group
+				current_dept = emp_dept
+				dept_employees = [emp]
+			else:
+				dept_employees.append(emp)
+
+		# Add the last department group
+		if current_dept is not None and dept_employees:
+			grouped_result.append({
+				'type': 'department_header',
+				'department': current_dept,
+				'employees': dept_employees
+			})
+
+		return grouped_result
+	else:
+		# No department grouping - return flat list
+		# Wrap in a single group for consistent structure
+		return [{
+			'type': 'no_department_header',
+			'department': 'All Employees',
+			'employees': result
+		}]
 
 def setup_excel_headers(ws, date_range, filters):
 	"""Setup Excel headers similar to template"""
@@ -1144,6 +1276,7 @@ def populate_employee_data(ws, employee_data, date_range):
 	special_rows = []  # Track department header rows (no borders)
 	
 	for dept_group in employee_data:
+		# Check if we should add department header
 		if dept_group.get('type') == 'department_header':
 			# Add department header row - only fill first cell, gray background for entire row
 			dept_name = dept_group['department']
@@ -1151,14 +1284,14 @@ def populate_employee_data(ws, employee_data, date_range):
 			dept_cell = ws.cell(row=current_row, column=1)
 			dept_cell.font = Font(name='Times New Roman', bold=True, size=10)
 			dept_cell.alignment = Alignment(horizontal='left', vertical='center')
-			
+
 			# Apply gray background to entire row (no borders)
 			for col in range(1, total_columns):
 				cell = ws.cell(row=current_row, column=col)
 				cell.fill = dept_fill
-			
+
 			current_row += 1
-			
+
 			# Add employees in this department
 			for emp in dept_group['employees']:
 				all_employees.append(emp)  # Track for totals
@@ -1168,7 +1301,18 @@ def populate_employee_data(ws, employee_data, date_range):
 				populate_single_employee_row(ws, emp, current_row, date_range, stt_counter)
 				stt_counter += 1
 				current_row += 1
-	
+
+		elif dept_group.get('type') == 'no_department_header':
+			# No department header - just add employees directly
+			for emp in dept_group['employees']:
+				all_employees.append(emp)  # Track for totals
+				# Track first employee row for formulas
+				if first_employee_row is None:
+					first_employee_row = current_row
+				populate_single_employee_row(ws, emp, current_row, date_range, stt_counter)
+				stt_counter += 1
+				current_row += 1
+
 	return all_employees, current_row, first_employee_row
 
 def populate_single_employee_row(ws, emp, row, date_range, stt_number):

@@ -2080,19 +2080,33 @@ def bulk_create_recalculate_timesheet(from_date, to_date, employee=None, batch_s
 	
 	# Calculate total operations
 	date_range_days = (getdate(to_date) - getdate(from_date)).days + 1
-	
-	# Get employee count estimate
-	emp_conditions = ["emp.status = 'Active'"]
-	filters = {}
-	
+
+	# Get employee count estimate - Include Active AND Left employees (for dates before relieving_date)
+	filters = {
+		"from_date": getdate(from_date),
+		"to_date": getdate(to_date)
+	}
+
+	emp_filter = ""
 	if employee:
-		emp_conditions.append("emp.name = %(employee)s")
+		emp_filter = "AND emp.name = %(employee)s"
 		filters["employee"] = employee
-	
+
 	active_employee_count = frappe.db.sql(f"""
-		SELECT COUNT(*) as count
+		SELECT COUNT(DISTINCT emp.name) as count
 		FROM `tabEmployee` emp
-		WHERE {' AND '.join(emp_conditions)}
+		WHERE (
+			-- Active employees who already joined
+			(emp.status = 'Active'
+			 AND (emp.date_of_joining IS NULL OR emp.date_of_joining <= %(to_date)s))
+			OR
+			-- Left employees who were still working during the date range
+			-- relieving_date is when they LEFT, so they work until relieving_date - 1
+			(emp.status = 'Left'
+			 AND (emp.date_of_joining IS NULL OR emp.date_of_joining <= %(to_date)s)
+			 AND (emp.relieving_date IS NULL OR emp.relieving_date > %(from_date)s))
+		)
+		{emp_filter}
 	""", filters, as_dict=1)[0].count
 	
 	total_operations = active_employee_count * date_range_days
@@ -2135,23 +2149,35 @@ def bulk_create_recalculate_hybrid(from_date, to_date, employee=None, batch_size
 	batch_size = int(batch_size) if batch_size else 100
 	batch_size = min(batch_size, 200)  # MAX LIMIT for stability
 
-	# Build employee conditions
-	emp_conditions = ["emp.status = 'Active'"]
+	# Build filters - Include Active AND Left employees (for dates before relieving_date)
 	filters = {
 		"from_date": getdate(from_date),
 		"to_date": getdate(to_date)
 	}
 
+	emp_filter = ""
 	if employee:
-		emp_conditions.append("emp.name = %(employee)s")
+		emp_filter = "AND emp.name = %(employee)s"
 		filters["employee"] = employee
 
-	# Get ALL active employees with date_of_joining
+	# Get ALL active employees (including Left employees who were working during date range)
 	active_employees = frappe.db.sql(f"""
 		SELECT emp.name as employee, emp.employee_name, emp.department,
-		       emp.custom_section, emp.custom_group, emp.company, emp.date_of_joining
+		       emp.custom_section, emp.custom_group, emp.company,
+		       emp.date_of_joining, emp.relieving_date, emp.status
 		FROM `tabEmployee` emp
-		WHERE {' AND '.join(emp_conditions)}
+		WHERE (
+			-- Active employees who already joined
+			(emp.status = 'Active'
+			 AND (emp.date_of_joining IS NULL OR emp.date_of_joining <= %(to_date)s))
+			OR
+			-- Left employees who were still working during the date range
+			-- relieving_date is when they LEFT, so they work until relieving_date - 1
+			(emp.status = 'Left'
+			 AND (emp.date_of_joining IS NULL OR emp.date_of_joining <= %(to_date)s)
+			 AND (emp.relieving_date IS NULL OR emp.relieving_date > %(from_date)s))
+		)
+		{emp_filter}
 		ORDER BY emp.name
 	""", filters, as_dict=1)
 
@@ -2194,6 +2220,12 @@ def bulk_create_recalculate_hybrid(from_date, to_date, employee=None, batch_size
 						# Skip if attendance_date is before employee's joining date
 						if emp_data.date_of_joining and getdate(current_date) < getdate(emp_data.date_of_joining):
 							continue
+
+						# Skip if employee has Left AND attendance_date >= relieving_date
+						# relieving_date is when they LEFT, so they work until relieving_date - 1
+						if emp_data.status == 'Left' and emp_data.relieving_date:
+							if getdate(current_date) >= getdate(emp_data.relieving_date):
+								continue
 
 						# Check if Daily Timesheet already exists
 						existing_timesheet = frappe.db.exists("Daily Timesheet", {

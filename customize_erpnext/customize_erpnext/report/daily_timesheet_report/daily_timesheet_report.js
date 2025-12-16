@@ -685,54 +685,115 @@ function export_timesheet_excel(report) {
 		return;
 	}
 
+	// Show export options dialog
+	let d = new frappe.ui.Dialog({
+		title: __('Export Excel Options'),
+		fields: [
+			{
+				fieldname: 'split_department',
+				label: __('Split by Department'),
+				fieldtype: 'Check',
+				default: 0,
+				description: __('Group employees by department with department headers')
+			},
+			{
+				fieldname: 'sort_order',
+				label: __('Sort by Employee'),
+				fieldtype: 'Select',
+				options: 'Ascending\nDescending',
+				default: 'Ascending',
+				description: __('Sort order for employee names')
+			}
+		],
+		primary_action_label: __('Export'),
+		primary_action: function (values) {
+			d.hide();
+
+			// Add export options to filters
+			filters.split_department = values.split_department ? 1 : 0;
+			filters.sort_order = values.sort_order;
+
+			// Call the actual export function
+			do_export_timesheet_excel(filters);
+		}
+	});
+
+	d.show();
+}
+
+// Actual export function (separated from dialog)
+function do_export_timesheet_excel(filters) {
 	frappe.show_alert({
 		message: __('Generating Excel file...'),
 		indicator: 'blue'
 	});
 
-	// Get current report data 
-	let report_data = null;
-	if (report.data && report.data.length > 0) {
-		report_data = report.data;
-	}
+	// Listen for background export completion
+	frappe.realtime.on('excel_export_complete', function (data) {
+		if (data.success) {
+			// Download file
+			window.open(data.file_url, '_blank');
+
+			frappe.show_alert({
+				message: data.message || __('Excel file generated successfully!'),
+				indicator: 'green'
+			}, 10);
+		} else {
+			frappe.msgprint({
+				title: __('Export Error'),
+				message: data.message || __('Failed to generate Excel file.'),
+				indicator: 'red'
+			});
+		}
+	});
 
 	frappe.call({
 		method: 'customize_erpnext.customize_erpnext.report.daily_timesheet_report.daily_timesheet_report.export_timesheet_excel',
 		args: {
-			filters: filters,
-			report_data: report_data
+			filters: filters
 		},
+		freeze: true,
+		freeze_message: __('Generating Excel file...'),
 		callback: function (r) {
-			if (r.message && r.message.filecontent) {
-				// Convert base64 to blob
-				const byteCharacters = atob(r.message.filecontent);
-				const byteNumbers = new Array(byteCharacters.length);
-				for (let i = 0; i < byteCharacters.length; i++) {
-					byteNumbers[i] = byteCharacters.charCodeAt(i);
+			if (r.message) {
+				// Check if it's a background job
+				if (r.message.background_job) {
+					frappe.show_alert({
+						message: r.message.message || __('Large export queued for background processing. You will be notified when ready.'),
+						indicator: 'blue'
+					}, 15);
+				} else if (r.message.file_url) {
+					// Immediate response - small dataset
+					window.open(r.message.file_url, '_blank');
+
+					frappe.show_alert({
+						message: __('Excel file generated successfully!'),
+						indicator: 'green'
+					});
 				}
-				const byteArray = new Uint8Array(byteNumbers);
-				const blob = new Blob([byteArray], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-
-				// Create download link
-				const url = window.URL.createObjectURL(blob);
-				const link = document.createElement('a');
-				link.href = url;
-				link.download = r.message.filename;
-				document.body.appendChild(link);
-				link.click();
-				document.body.removeChild(link);
-				window.URL.revokeObjectURL(url);
-
-				frappe.show_alert({
-					message: __('Excel file downloaded successfully!'),
-					indicator: 'green'
-				});
 			}
 		},
-		error: function () {
+		error: function (r) {
+			let error_message = __('Failed to generate Excel file. Please try again.');
+
+			// Check for specific error messages
+			if (r && r._server_messages) {
+				try {
+					let messages = JSON.parse(r._server_messages);
+					if (messages && messages.length > 0) {
+						let parsed = JSON.parse(messages[0]);
+						if (parsed && parsed.message) {
+							error_message = parsed.message;
+						}
+					}
+				} catch (e) {
+					// Use default error message
+				}
+			}
+
 			frappe.msgprint({
 				title: __('Export Error'),
-				message: __('Failed to generate Excel file. Please try again.'),
+				message: error_message,
 				indicator: 'red'
 			});
 		}
