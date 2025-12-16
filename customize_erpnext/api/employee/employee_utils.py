@@ -1972,7 +1972,7 @@ def generate_employee_list_html(employee_data, company_name, include_department=
         <style>
             @page {{
                 size: {orientation.lower()};
-                margin: 15mm 10mm;
+                margin: 2mm 15mm;
             }}
             body {{
                 font-family: Arial, sans-serif;
@@ -1987,7 +1987,7 @@ def generate_employee_list_html(employee_data, company_name, include_department=
             }}
             .header {{
                 text-align: center;
-                font-size: 14pt;
+                font-size: 12pt;
                 font-weight: bold;
                 margin-bottom: 20px;
             }}
@@ -2004,7 +2004,7 @@ def generate_employee_list_html(employee_data, company_name, include_department=
             }}
             th, td {{
                 border: 1px solid #000;
-                padding: 4px 6px;
+                padding: 2px 2px;
                 text-align: center;
                 vertical-align: middle;
                 font-size: 9pt;
@@ -2017,10 +2017,10 @@ def generate_employee_list_html(employee_data, company_name, include_department=
             text-align: left !important;
             }}
             .employee-photo-employee-list {{
-                width: 20mm;
-                height: 23.33mm !important;
-                max-width: 20mm;
-                max-height: 23.33mm !important;
+                width: 15mm;
+                height: 18.33mm !important;
+                max-width: 15mm;
+                max-height: 18.33mm !important;
                 object-fit: contain;
             }}
             .centered {{
@@ -2099,7 +2099,7 @@ def generate_employee_list_html(employee_data, company_name, include_department=
         
         # Add photo and notes column headers
         html += f"""
-                        <th style="width: 10%;">Hình ảnh</th>
+                        <th style="width: 9%;">Hình ảnh</th>
         """
         
         if include_notes:

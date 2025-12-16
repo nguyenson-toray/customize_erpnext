@@ -281,13 +281,13 @@ scheduler_events = {
         ],
 
         # Daily Vehicle Trips - Create pickup at 05:30 AM every day
-        "30 5 * * *": [
-            "customize_erpnext.customize_erpnext.doctype.vehicle_trip.daily_trips.create_daily_trips_pickup"
-        ],
+        # "30 5 * * *": [
+        #     "customize_erpnext.customize_erpnext.doctype.vehicle_trip.daily_trips.create_daily_trips_pickup"
+        # ],
          # Daily Vehicle Trips - Create dropoff at 16:45 AM every day
-        "45 16 * * *": [
-            "customize_erpnext.customize_erpnext.doctype.vehicle_trip.daily_trips.create_daily_trips_dropoff"
-        ],
+        # "45 16 * * *": [
+        #     "customize_erpnext.customize_erpnext.doctype.vehicle_trip.daily_trips.create_daily_trips_dropoff"
+        # ],
 
         # Smart auto update mỗi 2 giờ
         # "0 */2 * * *": [
