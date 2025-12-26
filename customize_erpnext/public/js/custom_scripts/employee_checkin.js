@@ -25,6 +25,25 @@ frappe.ui.form.on("Employee Checkin", {
 			frm.set_df_property("device_id", "read_only", 1);
 			frm.set_df_property("custom_reason_for_manual_check_in", "read_only", 0);
 		}
+
+		// Listen for realtime updates to reload form when log_type is auto-set
+		frappe.realtime.on("employee_checkin_updated", function (data) {
+			if (data.current_doc === frm.doc.name) {
+				frm.reload_doc();
+			}
+		});
 	},
+
+	onload: function (frm) {
+		// Setup realtime listener on form load
+		if (!frm.realtime_listener_setup) {
+			frappe.realtime.on("employee_checkin_updated", function (data) {
+				if (frm.doc.name && data.current_doc === frm.doc.name) {
+					frm.reload_doc();
+				}
+			});
+			frm.realtime_listener_setup = true;
+		}
+	}
 
 });

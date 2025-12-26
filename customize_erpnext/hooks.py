@@ -50,12 +50,12 @@ doctype_js = {
         "public/js/shared_fingerprint_sync.js",
         "public/js/custom_scripts/employee.js"
     ],
-    "Employee Checkin": [ 
+    "Employee Checkin": [
         "public/js/custom_scripts/employee_checkin.js"
     ],
+    "Attendance": "public/js/custom_scripts/attendance.js",
 
-    
-    # Thêm các doctype khác  
+    # Thêm các doctype khác
 }
 
 # List view customizations
@@ -67,6 +67,7 @@ doctype_list_js = {
         "public/js/shared_fingerprint_sync.js",
         "public/js/custom_scripts/employee_list.js"
     ],
+    "Attendance": "public/js/custom_scripts/attendance_list.js",
 }
  
 # Hướng dẫn sử dụng fixtures để export từ site A và import vào site B
@@ -101,6 +102,7 @@ fixtures = [
                     "Stock Ledger Entry",
                     "Customer",
                     "Shift Type",
+                    "Attendance"
                 ]
             ],
             [
@@ -307,14 +309,24 @@ doc_events = {
     "Employee Checkin": {
         "on_update": [
             "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.attendance_sync.on_checkin_update",
-            "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.auto_sync_on_checkin_update"
+            "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.auto_sync_on_checkin_update",
+            # "customize_erpnext.overrides.employee_checkin.employee_checkin_hooks.set_log_type_for_first_and_last_checkin",
+            # "customize_erpnext.overrides.employee_checkin.employee_checkin_hooks.update_attendance_on_checkin_update"
         ],
         "after_insert": [
             "customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.on_checkin_creation",
-            "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.auto_sync_on_checkin_update"
+            "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.auto_sync_on_checkin_update",
+            # "customize_erpnext.overrides.employee_checkin.employee_checkin_hooks.set_log_type_for_first_and_last_checkin",
+            # "customize_erpnext.overrides.employee_checkin.employee_checkin_hooks.update_attendance_on_checkin_insert"
         ],
         "on_trash": [
-            "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.auto_cleanup_on_checkin_delete"
+            "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.auto_cleanup_on_checkin_delete",
+        ],
+        "after_delete": [
+            # Update log type for remaining checkins after deletion (must run after delete to get correct first/last)
+            # "customize_erpnext.overrides.employee_checkin.employee_checkin_hooks.set_log_type_for_first_and_last_checkin",
+            # Update HRMS Attendance after checkin is deleted (recalculates from remaining checkins)
+            # "customize_erpnext.overrides.employee_checkin.employee_checkin_hooks.update_attendance_on_checkin_delete"
         ],
     },
 
@@ -325,9 +337,18 @@ doc_events = {
     },
 
     "Overtime Registration": {
-        "on_submit": "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.auto_recalc_on_overtime_registration_change",
-        "on_cancel": "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.auto_recalc_on_overtime_registration_change",
-        "on_update_after_submit": "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.auto_recalc_on_overtime_registration_change"
+        "on_submit": [
+            "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.auto_recalc_on_overtime_registration_change",
+            # "customize_erpnext.customize_erpnext.doctype.overtime_registration.overtime_registration_hooks.update_attendance_on_overtime_change"
+        ],
+        "on_cancel": [
+            "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.auto_recalc_on_overtime_registration_change",
+            # "customize_erpnext.customize_erpnext.doctype.overtime_registration.overtime_registration_hooks.update_attendance_on_overtime_change"
+        ],
+        "on_update_after_submit": [
+            "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.auto_recalc_on_overtime_registration_change",
+            # "customize_erpnext.customize_erpnext.doctype.overtime_registration.overtime_registration_hooks.update_attendance_on_overtime_change"
+        ]
     },
 
     "Employee": {
