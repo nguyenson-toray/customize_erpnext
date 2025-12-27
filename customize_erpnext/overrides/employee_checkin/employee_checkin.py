@@ -7,8 +7,10 @@ Implements attendance calculation with:
 - Pre-shift, lunch-break, and post-shift OT
 """
 import frappe
-from frappe.utils import flt, cint, time_diff_in_hours,getdate
+from frappe.utils import flt, cint, time_diff_in_hours, getdate, now_datetime
 from datetime import datetime, time, timedelta
+from collections import defaultdict
+import time as time_module
 from hrms.hr.doctype.employee_checkin.employee_checkin import (
 	update_attendance_in_checkins,handle_attendance_exception
 )
@@ -316,7 +318,6 @@ def custom_mark_attendance_and_link_log(
 	:param working_hours: (optional)Number of working hours for the given date.
 	"""
 	if not logs or len(logs)==0:
-		print(f"custom_mark_attendance_and_link_log for employee {employee} => NO LOGS => return")
 		return
 	log_names = [x.name for x in logs]
 	employee = logs[0].employee 
@@ -349,8 +350,6 @@ def custom_create_or_update_attendance(
 
 	Note: overtime_type parameter is kept for compatibility with HRMS but not used
 	"""
-	# print all parameters
-	print(f"custom_create_or_update_attendance called with employee={employee}, attendance_date={attendance_date}, shift={shift}, overtime_type={overtime_type}")
 	# Check maternity benefit
 	overtime_type = logs[0].get("overtime_type") if logs else None
 	late_entry = early_exit = False
@@ -358,8 +357,7 @@ def custom_create_or_update_attendance(
 	in_time = None
 	out_time = None
 	maternity_status = None
-	maternity_status, custom_maternity_benefit = check_employee_maternity_status(employee, attendance_date) 
-	print(f"       maternity_status: {maternity_status},       custom_maternity_benefit: {custom_maternity_benefit}   ")
+	maternity_status, custom_maternity_benefit = check_employee_maternity_status(employee, attendance_date)
 	attendance = None
 	shift_type_details = frappe.db.get_value(
 		"Shift Type",
@@ -382,9 +380,8 @@ def custom_create_or_update_attendance(
 		"shift": shift,
 		"custom_maternity_benefit": custom_maternity_benefit,
 		"standard_working_hours": shift_type_details.custom_standard_working_hours
-		} 
+		}
 	if attendance := get_existing_attendance(employee, attendance_date):
-		print("Updating existing attendance:", attendance.name)
 		# Update existing attendance
 		status = "Present"
 		custom_approved_overtime_duration = 0
@@ -392,9 +389,6 @@ def custom_create_or_update_attendance(
 		current_logs = [attendance.get("in_time"), attendance.get("out_time")]
 		combine_logs_times = list({log.time for log in logs}.union({t for t in current_logs if t}))
 		combine_logs_times.sort()
-		print("Current log times:", current_logs)
-		print("New log times:", [log.time for log in logs])
-		print("Combined log times:", combine_logs_times)
 		# Always set in_time to earliest
 		in_time = combine_logs_times[0]
 
@@ -440,7 +434,6 @@ def custom_create_or_update_attendance(
 		return frappe.get_doc("Attendance", attendance.name)
 	else:
 		# Create new attendance
-		print("====>>>>>Creating new attendance for employee:", employee, "on date:", attendance_date)
 		attendance = frappe.new_doc("Attendance")
 		attendance.employee = employee
 		attendance.attendance_date = attendance_date
@@ -500,3 +493,467 @@ def get_existing_attendance(employee, attendance_date):
 		attendance_doc = frappe.get_doc("Attendance", attendance_name)
 		return attendance_doc
 	return None
+
+
+def update_employee_checkin(doc, from_hook=True):
+	"""Update employee checkin with shift and log_type
+
+	Can be called from:
+	- Hook when employee_checkin: on_update, after_insert, after_delete
+	- bulk_update_employee_checkin function
+
+	Args:
+		doc: Employee Checkin document or name
+		from_hook: Whether called from hook (default True)
+
+	Returns:
+		Updated document
+	"""
+	# Load document if name is passed
+	if isinstance(doc, str):
+		doc = frappe.get_doc("Employee Checkin", doc)
+
+	# Fetch shift using default HRMS method
+	try:
+		doc.fetch_shift()
+	except Exception as e:
+		frappe.log_error(f"Error in fetch_shift for {doc.name}", str(e))
+
+	# If shift is None or empty after fetch_shift, set to 'Day' as default
+	# This ensures all checkins have a shift assigned even if they fall outside defined shift timings
+	if not doc.shift:
+		doc.shift = 'Day'
+		doc.offshift = 0
+		# Add comment to document
+		try:
+			doc.add_comment("Comment", text="Not found Shift for this checkin, set shift to default: Day")
+		except Exception:
+			pass
+
+	# Get all checkins for this employee on this date, ordered by time
+	checkin_date = getdate(doc.time)
+	checkins = frappe.get_all(
+		"Employee Checkin",
+		filters={
+			"employee": doc.employee,
+			"time": ["between", [f"{checkin_date} 00:00:00", f"{checkin_date} 23:59:59"]],
+		},
+		fields=["name", "log_type", "time"],
+		order_by="time ASC"
+	)
+
+	if not checkins:
+		return doc
+
+	# Update first check-in of the day to IN
+	first_checkin = checkins[0]
+	if first_checkin.log_type != "IN":
+		frappe.db.set_value("Employee Checkin", first_checkin.name, "log_type", "IN", update_modified=False)
+		if first_checkin.name == doc.name:
+			doc.log_type = "IN"
+
+	# Update last check-in of the day to OUT (if more than one)
+	if len(checkins) > 1:
+		last_checkin = checkins[-1]
+		if last_checkin.log_type != "OUT":
+			frappe.db.set_value("Employee Checkin", last_checkin.name, "log_type", "OUT", update_modified=False)
+			if last_checkin.name == doc.name:
+				doc.log_type = "OUT"
+	else:
+		# Only one checkin - set it to IN
+		if doc.log_type != "IN":
+			frappe.db.set_value("Employee Checkin", doc.name, "log_type", "IN", update_modified=False)
+			doc.log_type = "IN"
+
+	# Update shift and offshift fields in database directly
+	frappe.db.set_value("Employee Checkin", doc.name, {
+		"shift": doc.shift,
+		"offshift": doc.offshift
+	}, update_modified=False)
+
+	return doc
+
+
+@frappe.whitelist()
+def bulk_update_employee_checkin(from_date=None, to_date=None):
+	"""Bulk update employee checkins with shift and log_type - OPTIMIZED
+
+	Args:
+		from_date: Start date in yyyy-mm-dd format (optional)
+		to_date: End date in yyyy-mm-dd format (optional)
+
+	Usage:
+		# Update all checkins
+		bulk_update_employee_checkin()
+
+		# Update checkins in date range
+		bulk_update_employee_checkin('2024-01-01', '2024-12-31')
+
+	Performance optimizations:
+		- Batch size: 500 (vs 100)
+		- Pre-group checkins by (employee, date) to avoid repeated queries
+		- Use SQL CASE WHEN for bulk updates (single query per batch)
+		- Bulk add comments at the end
+	"""
+	print(f"\n{'='*80}")
+	print(f"🔄 BULK UPDATE EMPLOYEE CHECKINS")
+	print(f"{'='*80}")
+	start_time = time_module.time()
+
+	# Build SQL query with OR condition
+	conditions = ["(shift IS NULL OR log_type IS NULL OR offshift = 1)"]
+	params = {}
+
+	# Add date range filter if provided
+	if from_date and to_date:
+		conditions.append("time BETWEEN %(from_date)s AND %(to_date)s")
+		params["from_date"] = f"{from_date} 00:00:00"
+		params["to_date"] = f"{to_date} 23:59:59"
+	elif from_date:
+		conditions.append("time >= %(from_date)s")
+		params["from_date"] = f"{from_date} 00:00:00"
+	elif to_date:
+		conditions.append("time <= %(to_date)s")
+		params["to_date"] = f"{to_date} 23:59:59"
+
+	where_clause = " AND ".join(conditions)
+
+	# STEP 1: Get all employee checkins that need update
+	checkins = frappe.db.sql(f"""
+		SELECT name, employee, time, shift, log_type, offshift
+		FROM `tabEmployee Checkin`
+		WHERE {where_clause}
+		ORDER BY employee, time ASC
+	""", params, as_dict=1)
+
+	if not checkins:
+		print("   ℹ️  No employee checkins found to update")
+		return 0
+
+	print(f"   Found {len(checkins)} employee checkins to update")
+
+	# STEP 2: Pre-group checkins by (employee, date)
+	print("   📦 Grouping checkins by employee and date...")
+	checkins_by_date = defaultdict(list)
+
+	for checkin in checkins:
+		checkin_date = getdate(checkin.time)
+		key = (checkin.employee, checkin_date)
+		checkins_by_date[key].append(checkin)
+
+	print(f"   Found {len(checkins_by_date)} unique (employee, date) combinations")
+
+	# STEP 3: Process in batches and collect bulk updates
+	batch_size = 500
+	total_updated = 0
+	total_errors = 0
+	bulk_updates = []
+	checkins_need_comment = []  # Track checkins that need "set to Day" comment
+
+	print(f"   Processing in batches of {batch_size}...")
+
+	for i in range(0, len(checkins), batch_size):
+		batch = checkins[i:i + batch_size]
+		batch_num = (i // batch_size) + 1
+
+		for checkin in batch:
+			try:
+				# Get document (minimal load, no hooks)
+				doc = frappe.get_doc("Employee Checkin", checkin.name)
+				doc.flags.ignore_hooks = True
+
+				# Fetch shift using default HRMS method
+				try:
+					doc.fetch_shift()
+				except Exception as e:
+					frappe.log_error(f"Error in fetch_shift for {doc.name}", str(e))
+
+				# If shift is None or empty, set to 'Day' as default
+				set_to_day = False
+				if not doc.shift:
+					doc.shift = 'Day'
+					doc.offshift = 0
+					set_to_day = True
+
+				# Determine log_type based on position in day
+				checkin_date = getdate(doc.time)
+				key = (doc.employee, checkin_date)
+				day_checkins = checkins_by_date[key]
+
+				# Find position of this checkin in the day
+				if len(day_checkins) == 1:
+					# Only one checkin - set to IN
+					doc.log_type = "IN"
+				else:
+					# Multiple checkins - first = IN, last = OUT
+					if day_checkins[0].name == doc.name:
+						doc.log_type = "IN"
+					elif day_checkins[-1].name == doc.name:
+						doc.log_type = "OUT"
+					# Middle checkins keep their current log_type or set to None
+
+				# Collect data for bulk update
+				bulk_updates.append({
+					'name': doc.name,
+					'shift': doc.shift,
+					'offshift': doc.offshift,
+					'log_type': doc.log_type
+				})
+
+				# Track if need comment
+				if set_to_day:
+					checkins_need_comment.append(doc.name)
+
+				total_updated += 1
+
+			except Exception as e:
+				total_errors += 1
+				print(f"   ❌ Error processing checkin {checkin.name}: {str(e)}")
+				frappe.log_error(f"Error updating checkin {checkin.name}", str(e))
+
+		# STEP 4: Bulk update using SQL CASE WHEN (single query per batch)
+		if bulk_updates:
+			try:
+				names = [u['name'] for u in bulk_updates]
+
+				# Build CASE WHEN clauses for each field
+				shift_cases = " ".join([
+					f"WHEN '{u['name']}' THEN {frappe.db.escape(u['shift']) if u['shift'] else 'NULL'}"
+					for u in bulk_updates
+				])
+				offshift_cases = " ".join([
+					f"WHEN '{u['name']}' THEN {u['offshift']}"
+					for u in bulk_updates
+				])
+				log_type_cases = " ".join([
+					f"WHEN '{u['name']}' THEN {frappe.db.escape(u['log_type']) if u['log_type'] else 'NULL'}"
+					for u in bulk_updates
+				])
+
+				# Single UPDATE query with CASE WHEN
+				frappe.db.sql(f"""
+					UPDATE `tabEmployee Checkin`
+					SET
+						shift = CASE name {shift_cases} END,
+						offshift = CASE name {offshift_cases} END,
+						log_type = CASE name {log_type_cases} END,
+						modified = NOW(),
+						modified_by = %s
+					WHERE name IN ({','.join(['%s'] * len(names))})
+				""", [frappe.session.user] + names)
+
+				print(f"   ✅ Batch {batch_num} completed: {len(bulk_updates)} records updated")
+
+			except Exception as e:
+				print(f"   ❌ SQL Error in batch {batch_num}: {str(e)}")
+				frappe.log_error(f"Bulk SQL update error - batch {batch_num}", str(e))
+
+				# Fallback to individual updates
+				for update in bulk_updates:
+					try:
+						frappe.db.set_value(
+							"Employee Checkin",
+							update['name'],
+							{
+								'shift': update['shift'],
+								'offshift': update['offshift'],
+								'log_type': update['log_type']
+							},
+							update_modified=True
+						)
+					except Exception as e2:
+						print(f"   ❌ Fallback update failed for {update['name']}: {str(e2)}")
+
+			# Clear bulk_updates for next batch
+			bulk_updates = []
+
+		# Commit after each batch
+		frappe.db.commit()
+
+	# STEP 5: Bulk add comments for checkins set to 'Day'
+	if checkins_need_comment:
+		print(f"\n   💬 Adding comments to {len(checkins_need_comment)} checkins set to 'Day'...")
+		for checkin_name in checkins_need_comment:
+			try:
+				doc = frappe.get_doc("Employee Checkin", checkin_name)
+				doc.add_comment("Comment", text="Not found Shift for this checkin, set shift to default: Day")
+			except Exception:
+				pass  # Ignore comment errors
+		frappe.db.commit()
+
+	elapsed = time_module.time() - start_time
+	print(f"\n{'='*80}")
+	print(f"✅ BULK UPDATE COMPLETED")
+	print(f"   Total updated: {total_updated}/{len(checkins)}")
+	print(f"   Errors: {total_errors}")
+	print(f"   Time: {elapsed:.2f}s ({len(checkins)/elapsed:.1f} records/sec)")
+	print(f"{'='*80}\n")
+
+	return total_updated
+
+
+def update_remaining_checkins_after_delete(doc, method):
+	"""
+	Update log_type for remaining checkins after a checkin is deleted.
+
+	Called from after_delete hook, this function updates the remaining checkins
+	in the same day to ensure first checkin = IN and last checkin = OUT.
+
+	Args:
+		doc: Employee Checkin document that was deleted
+		method: Hook method name (after_delete)
+	"""
+	if not doc.employee or not doc.time:
+		return
+
+	checkin_date = getdate(doc.time)
+
+	# Get all remaining checkins for this employee on this date
+	remaining_checkins = frappe.get_all(
+		"Employee Checkin",
+		filters={
+			"employee": doc.employee,
+			"time": ["between", [f"{checkin_date} 00:00:00", f"{checkin_date} 23:59:59"]],
+		},
+		fields=["name", "log_type", "time"],
+		order_by="time ASC"
+	)
+
+	if not remaining_checkins:
+		return
+
+	# Update first checkin to IN
+	if remaining_checkins[0].log_type != "IN":
+		frappe.db.set_value("Employee Checkin", remaining_checkins[0].name, "log_type", "IN", update_modified=False)
+
+	# Update last checkin to OUT (if more than one)
+	if len(remaining_checkins) > 1:
+		if remaining_checkins[-1].log_type != "OUT":
+			frappe.db.set_value("Employee Checkin", remaining_checkins[-1].name, "log_type", "OUT", update_modified=False)
+
+
+def update_attendance_on_checkin_delete(doc, method):
+	"""
+	Update or delete attendance when employee checkin is deleted.
+
+	Logic:
+	- If there are remaining checkins: Recalculate attendance from remaining checkins
+	- If no remaining checkins: Delete the attendance record
+
+	Args:
+		doc: Employee Checkin document being deleted
+		method: Hook method name (after_delete)
+	"""
+	if not doc.employee or not doc.time:
+		return
+
+	employee = doc.employee
+	checkin_date = getdate(doc.time)
+	_recalculate_attendance(employee, checkin_date)
+
+
+def _recalculate_attendance(employee, checkin_date):
+	"""
+	Recalculate attendance for employee on specific date using remaining checkins.
+
+	Args:
+		employee: Employee ID
+		checkin_date: Date to recalculate
+	"""
+	# Lazy import to avoid circular import
+	from customize_erpnext.overrides.shift_type.shift_type_optimized import _core_process_attendance_logic_optimized
+
+	_core_process_attendance_logic_optimized(
+		[employee],
+		[checkin_date],
+		checkin_date,
+		checkin_date,
+		fore_get_logs=True
+	)
+
+
+def _is_peak_hours():
+
+	"""
+	Check if current time is during peak hours when mass checkins occur.
+
+	Peak hours:
+	- 07:30 to 07:55 
+	- 17:00 to 17:15
+	- 19:00 to 19:15
+
+	Returns:
+		bool: True if during peak hours, False otherwise
+	"""  
+	current_time = now_datetime().time()
+	hour = current_time.hour
+	minute = current_time.minute
+
+	# Morning shift start: 07:30 - 07:55
+	if hour == 7 and 30 <= minute <= 55:
+		return True 
+	
+	# Evening shift end: 17:00 - 17:15
+	if hour == 17 and minute <= 15:
+		return True
+
+	# Night shift end: 19:00 - 19:15
+	if hour == 19 and minute <= 15:
+		return True
+
+	return False
+
+
+def update_attendance_on_checkin_insert(doc, method):
+	"""
+	Recalculate attendance when a new employee checkin is created.
+	Skips recalculation during peak hours to avoid system overload.
+
+	Args:
+		doc: Employee Checkin document being inserted
+		method: Hook method name (after_insert)
+	"""
+	if not doc.employee or not doc.time:
+		return
+
+	# Skip attendance recalculation during peak hours
+	if _is_peak_hours():
+		return
+
+	employee = doc.employee
+	checkin_date = getdate(doc.time)
+
+	_recalculate_attendance(employee, checkin_date)
+
+
+def update_attendance_on_checkin_update(doc, method):
+	"""
+	Recalculate attendance when employee checkin is updated.
+	Skips recalculation during peak hours to avoid system overload.
+
+	Args:
+		doc: Employee Checkin document being updated
+		method: Hook method name (on_update)
+	"""
+	if not doc.employee or not doc.time:
+		return
+
+	# Skip attendance recalculation during peak hours
+	if _is_peak_hours():
+		return
+
+	employee = doc.employee
+	checkin_date = getdate(doc.time)
+
+	_recalculate_attendance(employee, checkin_date)
+
+
+'''
+ From bench console:
+  # Update all checkins with null shift or log_type
+  from customize_erpnext.overrides.employee_checkin.employee_checkin import bulk_update_employee_checkin
+  bulk_update_employee_checkin()
+
+  # Update checkins in a date range
+  bulk_update_employee_checkin('2025-10-28', '2025-10-28')
+'''

@@ -546,9 +546,9 @@ WHERE employee = 'TIQN-0031' AND DATE(time) = '2025-12-04'
 **If shift_start is NULL:**
 ```python
 # Manually fix this employee's checkins
-from customize_erpnext.overrides.shift_type.shift_type_optimized import bulk_update_checkin_shifts
+from customize_erpnext.overrides.employee_checkin.employee_checkin import bulk_update_employee_checkin
 
-bulk_update_checkin_shifts('2025-12-04', '2025-12-04')
+bulk_update_employee_checkin('2025-12-04', '2025-12-04')
 ```
 
 **Then re-run attendance processing:**
@@ -713,10 +713,10 @@ If you have a large backlog of checkins with null shifts:
 
 ```python
 # One-time cleanup job (run during off-hours)
-from customize_erpnext.overrides.shift_type.shift_type_optimized import bulk_update_checkin_shifts
+from customize_erpnext.overrides.employee_checkin.employee_checkin import bulk_update_employee_checkin
 
 # Fix last 90 days
-bulk_update_checkin_shifts('2025-09-01', '2025-12-23')
+bulk_update_employee_checkin('2025-09-01', '2025-12-23')
 ```
 
 **Estimated Time:** ~15 minutes for 50,000 checkins
@@ -753,21 +753,23 @@ bulk_update_checkin_shifts('2025-09-01', '2025-12-23')
 ### Source Files
 
 1. **`shift_type_optimized.py`** - Optimized implementation
-   - `custom_process_auto_attendance_for_all_shifts()` - HRMS hook wrapper (line 1043)
-   - `bulk_update_attendance_optimized()` - UI entry point (line 954)
-   - `_core_process_attendance_logic_optimized()` - Shared core logic (line 588)
-   - `bulk_update_checkin_shifts()` - SQL CASE WHEN updater (line 345)
-   - `bulk_insert_attendance_records()` - Fast bulk insert (line 454)
+   - `custom_process_auto_attendance_for_all_shifts()` - HRMS hook wrapper
+   - `bulk_update_attendance_optimized()` - UI entry point
+   - `_core_process_attendance_logic_optimized()` - Shared core logic
+   - `bulk_insert_attendance_records()` - Fast bulk insert
 
-2. **`shift_type.py`** - Original implementation (for reference)
+2. **`employee_checkin.py`** - Employee Checkin utilities
+   - `bulk_update_employee_checkin()` - Update shift, log_type, offshift (optimized with SQL CASE WHEN)
+
+3. **`shift_type.py`** - Original implementation (for reference)
    - Contains original CODE CŨ logic
    - Still used for some helper functions
 
-3. **`__init__.py`** - Monkey patching
+4. **`__init__.py`** - Monkey patching
    - Replaces HRMS functions with optimized versions
    - Runs on app import
 
-4. **`attendance_list.js`** - Frontend integration
+5. **`attendance_list.js`** - Frontend integration
    - Line 260: Calls optimized backend method
 
 ### Related Documentation

@@ -67,6 +67,7 @@ doctype_list_js = {
         "public/js/shared_fingerprint_sync.js",
         "public/js/custom_scripts/employee_list.js"
     ],
+    "Employee Checkin": "public/js/custom_scripts/employee_checkin_list.js",
     "Attendance": "public/js/custom_scripts/attendance_list.js",
 }
  
@@ -310,23 +311,23 @@ doc_events = {
         "on_update": [
             "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.attendance_sync.on_checkin_update",
             "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.auto_sync_on_checkin_update",
-            # "customize_erpnext.overrides.employee_checkin.employee_checkin_hooks.set_log_type_for_first_and_last_checkin",
-            # "customize_erpnext.overrides.employee_checkin.employee_checkin_hooks.update_attendance_on_checkin_update"
+            # "customize_erpnext.overrides.employee_checkin.employee_checkin.update_employee_checkin",
+            # "customize_erpnext.overrides.employee_checkin.employee_checkin.update_attendance_on_checkin_update"
         ],
         "after_insert": [
             "customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.on_checkin_creation",
             "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.auto_sync_on_checkin_update",
-            # "customize_erpnext.overrides.employee_checkin.employee_checkin_hooks.set_log_type_for_first_and_last_checkin",
-            # "customize_erpnext.overrides.employee_checkin.employee_checkin_hooks.update_attendance_on_checkin_insert"
+        #    "customize_erpnext.overrides.employee_checkin.employee_checkin.update_employee_checkin",
+            # "customize_erpnext.overrides.employee_checkin.employee_checkin.update_attendance_on_checkin_insert"
         ],
         "on_trash": [
             "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.auto_cleanup_on_checkin_delete",
         ],
         "after_delete": [
-            # Update log type for remaining checkins after deletion (must run after delete to get correct first/last)
-            # "customize_erpnext.overrides.employee_checkin.employee_checkin_hooks.set_log_type_for_first_and_last_checkin",
+            # Update log_type for remaining checkins after deletion (first -> IN, last -> OUT)
+            # "customize_erpnext.overrides.employee_checkin.employee_checkin.update_remaining_checkins_after_delete",
             # Update HRMS Attendance after checkin is deleted (recalculates from remaining checkins)
-            # "customize_erpnext.overrides.employee_checkin.employee_checkin_hooks.update_attendance_on_checkin_delete"
+            # "customize_erpnext.overrides.employee_checkin.employee_checkin.update_attendance_on_checkin_delete"
         ],
     },
 

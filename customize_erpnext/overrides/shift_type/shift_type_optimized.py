@@ -28,7 +28,7 @@ import time
 # ============================================================================
 
 # Optimized batch sizes
-EMPLOYEE_CHUNK_SIZE_OPTIMIZED = 100  # Increased from 20
+EMPLOYEE_CHUNK_SIZE_OPTIMIZED = 100
 BULK_INSERT_BATCH_SIZE = 500  # For bulk_insert operations
 CHECKIN_UPDATE_BATCH_SIZE = 1000  # For checkin updates (increased for faster processing)
 SPECIAL_HOUR_FORCE_UPDATE = [8, 23] 
@@ -339,147 +339,6 @@ def should_mark_attendance_cached(
 # OPTIMIZED BULK OPERATIONS
 # ============================================================================
 
-def bulk_update_checkin_shifts(from_date: str, to_date: str) -> int:
-	"""
-	Update null shifts in checkins using bulk SQL operations.
-	Much faster than individual save() calls.
-
-	Returns:
-		int: Number of checkins updated
-	"""
-	print(f"\n{'='*80}")
-	print(f"🔄 BULK UPDATE CHECKIN SHIFTS")
-	print(f"{'='*80}")
-	start = time.time()
-
-	# Get checkins with null shift
-	checkin_names = frappe.get_all(
-		"Employee Checkin",
-		filters={
-			"time": ["between", [from_date, to_date]],
-			"shift": ["is", "not set"],
-			"skip_auto_attendance": 0
-		},
-		fields=["name", "employee", "time"]
-	)
-
-	if not checkin_names:
-		print(f"   ℹ️  No checkins with null shift found")
-		return 0
-
-	print(f"   Found {len(checkin_names)} checkins with null shift")
-	print(f"   📦 Processing in batches of {CHECKIN_UPDATE_BATCH_SIZE}...")
-
-	# Batch update using fetch_shift() to update ALL fields (not just shift)
-	# This matches original logic and updates: shift, shift_start, shift_end, shift_actual_start, shift_actual_end
-	updated = 0
-	errors = 0
-	total_batches = (len(checkin_names) + CHECKIN_UPDATE_BATCH_SIZE - 1) // CHECKIN_UPDATE_BATCH_SIZE
-	batch_num = 0
-
-	for batch in create_batch(checkin_names, CHECKIN_UPDATE_BATCH_SIZE):
-		batch_num += 1
-		batch_start = time.time()
-
-		# Prepare bulk update data
-		bulk_updates = []
-
-		for checkin in batch:
-			try:
-				# Get the Employee Checkin document (minimal load)
-				checkin_doc = frappe.get_doc("Employee Checkin", checkin.name)
-
-				# Call fetch_shift() to calculate shift-related fields
-				# This updates: shift, shift_start, shift_end, shift_actual_start, shift_actual_end
-				checkin_doc.fetch_shift()
-
-				# Collect data for bulk update (instead of save())
-				bulk_updates.append({
-					'name': checkin_doc.name,
-					'shift': checkin_doc.shift,
-					'shift_start': checkin_doc.shift_start,
-					'shift_end': checkin_doc.shift_end,
-					'shift_actual_start': checkin_doc.shift_actual_start,
-					'shift_actual_end': checkin_doc.shift_actual_end
-				})
-				updated += 1
-
-			except Exception as e:
-				errors += 1
-				frappe.log_error(
-					message=f"Error processing checkin {checkin.name}: {str(e)}",
-					title="Bulk Update Checkin Fields Error"
-				)
-
-		# Bulk update using SQL CASE WHEN (FASTEST - single query for entire batch)
-		if bulk_updates:
-			try:
-				# Build CASE WHEN clauses for each field
-				names = [u['name'] for u in bulk_updates]
-
-				shift_cases = " ".join([f"WHEN '{u['name']}' THEN {frappe.db.escape(u['shift']) if u['shift'] else 'NULL'}" for u in bulk_updates])
-				shift_start_cases = " ".join([f"WHEN '{u['name']}' THEN {frappe.db.escape(str(u['shift_start'])) if u['shift_start'] else 'NULL'}" for u in bulk_updates])
-				shift_end_cases = " ".join([f"WHEN '{u['name']}' THEN {frappe.db.escape(str(u['shift_end'])) if u['shift_end'] else 'NULL'}" for u in bulk_updates])
-				shift_actual_start_cases = " ".join([f"WHEN '{u['name']}' THEN {frappe.db.escape(str(u['shift_actual_start'])) if u['shift_actual_start'] else 'NULL'}" for u in bulk_updates])
-				shift_actual_end_cases = " ".join([f"WHEN '{u['name']}' THEN {frappe.db.escape(str(u['shift_actual_end'])) if u['shift_actual_end'] else 'NULL'}" for u in bulk_updates])
-
-				# Single UPDATE query with CASE WHEN
-				frappe.db.sql(f"""
-					UPDATE `tabEmployee Checkin`
-					SET
-						shift = CASE name {shift_cases} END,
-						shift_start = CASE name {shift_start_cases} END,
-						shift_end = CASE name {shift_end_cases} END,
-						shift_actual_start = CASE name {shift_actual_start_cases} END,
-						shift_actual_end = CASE name {shift_actual_end_cases} END,
-						modified = NOW(),
-						modified_by = %s
-					WHERE name IN ({','.join(['%s'] * len(names))})
-				""", [frappe.session.user] + names)
-
-			except Exception as e:
-				frappe.log_error(
-					message=f"Error in bulk SQL CASE WHEN update: {str(e)}",
-					title="Bulk Update Checkin SQL Error"
-				)
-				print(f"   ❌ SQL Error in batch {batch_num}: {str(e)}")
-
-				# Fallback to individual updates if SQL fails
-				for update in bulk_updates:
-					try:
-						frappe.db.set_value(
-							"Employee Checkin",
-							update['name'],
-							{
-								'shift': update['shift'],
-								'shift_start': update['shift_start'],
-								'shift_end': update['shift_end'],
-								'shift_actual_start': update['shift_actual_start'],
-								'shift_actual_end': update['shift_actual_end']
-							},
-							update_modified=True
-						)
-					except Exception as e2:
-						frappe.log_error(
-							message=f"Error updating checkin {update['name']}: {str(e2)}",
-							title="Bulk Update Checkin Fallback Error"
-						)
-						print(f"   ❌ Error updating {update['name']}: {str(e2)}")
-
-		# Commit after each batch
-		frappe.db.commit()
-
-		# Progress update every batch
-		batch_elapsed = time.time() - batch_start
-		print(f"   📊 Progress: {updated}/{len(checkin_names)} ({batch_num}/{total_batches} batches) - {batch_elapsed:.2f}s/batch - Errors: {errors}")
-
-	elapsed = time.time() - start
-	print(f"   ✓ Updated {updated} checkins in {elapsed:.2f}s")
-	print(f"{'='*80}\n")
-
-	return updated
-
-
 def bulk_insert_attendance_records(attendance_list: List[Dict], ref_data: Dict) -> int:
 	"""
 	Bulk insert attendance records using frappe.db.bulk_insert.
@@ -704,7 +563,9 @@ def _core_process_attendance_logic_optimized(
 	# ========================================================================
 	# STEP 2: FIX NULL SHIFTS IN CHECKINS (Bulk Operation)
 	# ========================================================================
-	bulk_update_checkin_shifts(from_date_str, to_date_str)
+	# Update all checkins with null shift, offshift=1, or null log_type
+	from customize_erpnext.overrides.employee_checkin.employee_checkin import bulk_update_employee_checkin
+	bulk_update_employee_checkin(from_date_str, to_date_str)
 
 	# ========================================================================
 	# STEP 3: PROCESS AUTO-ENABLED SHIFTS (Optimized with Preloaded Data)

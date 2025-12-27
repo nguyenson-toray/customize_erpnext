@@ -26,6 +26,19 @@ frappe.ui.form.on("Employee Checkin", {
 			frm.set_df_property("custom_reason_for_manual_check_in", "read_only", 0);
 		}
 
+		// Add Update Fields button for saved documents
+		if (!frm.doc.__islocal) {
+			// Remove default HRMS "Fetch Shift" button (with delay to ensure it's removed)
+			setTimeout(() => {
+				frm.remove_custom_button(__('Fetch Shift'));
+			}, 100);
+
+			// Add our custom Update Fields button
+			frm.add_custom_button(__('🔄 Update Fields'), function() {
+				update_current_checkin(frm);
+			});
+		}
+
 		// Listen for realtime updates to reload form when log_type is auto-set
 		frappe.realtime.on("employee_checkin_updated", function (data) {
 			if (data.current_doc === frm.doc.name) {
@@ -47,3 +60,56 @@ frappe.ui.form.on("Employee Checkin", {
 	}
 
 });
+
+function update_current_checkin(frm) {
+	if (!frm.doc.time) {
+		frappe.msgprint({
+			title: __('Missing Time'),
+			message: __('Cannot update checkin without time field'),
+			indicator: 'red'
+		});
+		return;
+	}
+
+	// Get the date from the checkin time
+	let checkin_date = frappe.datetime.str_to_obj(frm.doc.time).toISOString().split('T')[0];
+
+	frappe.confirm(
+		__('Update fields (Shift, Log Type, Offshift) for this checkin?'),
+		function() {
+			// User confirmed, proceed with update
+			frappe.call({
+				method: 'customize_erpnext.overrides.employee_checkin.employee_checkin.bulk_update_employee_checkin',
+				args: {
+					from_date: checkin_date,
+					to_date: checkin_date
+				},
+				freeze: true,
+				freeze_message: __('Updating checkin...'),
+				callback: function(r) {
+					if (r.message !== undefined && r.message > 0) {
+						frappe.show_alert({
+							message: __('Checkin updated successfully'),
+							indicator: 'green'
+						});
+
+						// Reload the form to show updated values
+						frm.reload_doc();
+					} else {
+						frappe.show_alert({
+							message: __('No updates needed - fields are already set'),
+							indicator: 'blue'
+						});
+					}
+				},
+				error: function(r) {
+					frappe.msgprint({
+						title: __('Update Failed'),
+						message: __('An error occurred while updating checkin. Please check the error log.'),
+						indicator: 'red'
+					});
+				}
+			});
+		}
+	);
+}
