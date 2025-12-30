@@ -19,7 +19,6 @@ from customize_erpnext.api.employee.employee_utils import (
 )
 # Constants for minimum thresholds
 MIN_MINUTES_OT = 15                    # Minimum total OT
-MIN_MINUTES_WORKING_HOURS = 10         # Minimum working hours
 MIN_MINUTES_PRE_SHIFT_OT = 60          # Minimum pre-shift OT
 
 
@@ -239,10 +238,9 @@ def get_actual_overtime_duration(employee, attendance_date, in_time, out_time, s
 	if shift_type_details["custom_begin_break_time"] != shift_type_details["custom_end_break_time"]:
 		if (in_time < break_start and out_time > break_end and
 			check_lunch_break_ot_registration(employee, attendance_date, break_start.time(), break_end.time())):
-			lunch_break_ot = time_diff_in_hours(break_end, break_start)
-			# Apply minimum threshold
-			if lunch_break_ot * 60 < MIN_MINUTES_OT:
-				lunch_break_ot = 0
+				lunch_break_ot = time_diff_in_hours(break_end, break_start)
+		else:
+			lunch_break_ot = 0
 
 	# Post-shift overtime (adjusted for maternity benefit)
 	post_shift_ot = 0
@@ -601,7 +599,10 @@ def bulk_update_employee_checkin(from_date=None, to_date=None):
 	start_time = time_module.time()
 
 	# Build SQL query with OR condition
-	conditions = ["(shift IS NULL OR log_type IS NULL OR offshift = 1)"]
+	# CRITICAL: Update ALL checkins in date range to ensure correct shift from Shift Assignment
+	# This ensures all checkins for same employee-date have same shift
+	# Previous logic only updated NULL fields, causing inconsistent shift values
+	conditions = ["1=1"]  # Always true - will update all checkins in date range
 	params = {}
 
 	# Add date range filter if provided
@@ -615,6 +616,10 @@ def bulk_update_employee_checkin(from_date=None, to_date=None):
 	elif to_date:
 		conditions.append("time <= %(to_date)s")
 		params["to_date"] = f"{to_date} 23:59:59"
+	else:
+		# If no date range specified, only update checkins with NULL/incomplete fields
+		# This prevents updating all historical checkins unnecessarily
+		conditions.append("(shift IS NULL OR log_type IS NULL OR offshift = 1 OR shift_start IS NULL OR shift_end IS NULL OR shift_actual_start IS NULL OR shift_actual_end IS NULL)")
 
 	where_clause = " AND ".join(conditions)
 
@@ -643,6 +648,62 @@ def bulk_update_employee_checkin(from_date=None, to_date=None):
 
 	print(f"   Found {len(checkins_by_date)} unique (employee, date) combinations")
 
+	# STEP 2.5: Preload Shift Assignments for all employee-dates
+	print("   📦 Preloading Shift Assignments...")
+
+	# Get unique employees and date range
+	unique_employees = list(set(checkin.employee for checkin in checkins))
+	checkin_dates = [getdate(checkin.time) for checkin in checkins]
+	min_date = min(checkin_dates) if checkin_dates else None
+	max_date = max(checkin_dates) if checkin_dates else None
+
+	# Load shift assignments for date range
+	shift_assignments_by_employee = defaultdict(list)
+	if min_date and max_date:
+		assignments = frappe.get_all(
+			"Shift Assignment",
+			filters={
+				"employee": ["in", unique_employees],
+				"docstatus": 1,
+				"status": "Active",
+				"start_date": ["<=", max_date]
+			},
+			fields=["employee", "shift_type", "start_date", "end_date"]
+		)
+		for assign in assignments:
+			shift_assignments_by_employee[assign.employee].append(assign)
+
+	# Load employee default shifts
+	employee_defaults = {}
+	emp_data = frappe.get_all(
+		"Employee",
+		filters={"name": ["in", unique_employees]},
+		fields=["name", "default_shift"]
+	)
+	for emp in emp_data:
+		employee_defaults[emp.name] = emp.default_shift
+
+	print(f"   ✓ Loaded {len(assignments) if min_date and max_date else 0} shift assignments")
+
+	# Helper function to get shift for employee on date
+	def get_employee_shift_for_date(employee, checkin_date):
+		"""Get shift for employee on specific date from Shift Assignment or default shift"""
+		# Check shift assignments first (priority 1)
+		assignments = shift_assignments_by_employee.get(employee, [])
+		for assign in assignments:
+			if assign.start_date <= checkin_date:
+				if not assign.end_date or assign.end_date >= checkin_date:
+					if assign.shift_type:  # Ensure shift_type is not None
+						return assign.shift_type
+
+		# Fallback to default shift (priority 2)
+		default_shift = employee_defaults.get(employee)
+		if default_shift:
+			return default_shift
+
+		# Final fallback to 'Day' if no shift found (priority 3)
+		return 'Day'
+
 	# STEP 3: Process in batches and collect bulk updates
 	batch_size = 500
 	total_updated = 0
@@ -662,18 +723,56 @@ def bulk_update_employee_checkin(from_date=None, to_date=None):
 				doc = frappe.get_doc("Employee Checkin", checkin.name)
 				doc.flags.ignore_hooks = True
 
-				# Fetch shift using default HRMS method
-				try:
-					doc.fetch_shift()
-				except Exception as e:
-					frappe.log_error(f"Error in fetch_shift for {doc.name}", str(e))
+				# CRITICAL: Get shift for DATE from Shift Assignment (not from checkin TIME window)
+				# This ensures all checkins for same employee-date have same shift
+				checkin_date = getdate(doc.time)
 
-				# If shift is None or empty, set to 'Day' as default
+				# Get correct shift from Shift Assignment or employee default
+				doc.shift = get_employee_shift_for_date(doc.employee, checkin_date)
+				doc.offshift = 0
 				set_to_day = False
+
+				# Validate shift exists before proceeding
 				if not doc.shift:
-					doc.shift = 'Day'
-					doc.offshift = 0
-					set_to_day = True
+					frappe.log_error(f"No shift found for employee {doc.employee} on {checkin_date}", "Checkin Update Error")
+					doc.shift = 'Day'  # Safe fallback
+
+				# Populate shift timing fields
+				try:
+					from datetime import datetime, timedelta
+					from frappe.utils import get_time
+
+					# Verify shift type exists
+					if not frappe.db.exists("Shift Type", doc.shift):
+						frappe.log_error(f"Shift Type '{doc.shift}' not found for checkin {doc.name}", "Shift Type Missing")
+						doc.shift = 'Day'  # Fallback to Day shift
+
+					# Get shift type configuration
+					shift_type = frappe.get_cached_doc("Shift Type", doc.shift)
+
+					# Calculate shift start and end based on shift timings
+					# IMPORTANT: Frappe stores Time fields as timedelta, need to convert to time object
+					shift_start_time = get_time(shift_type.start_time)
+					shift_end_time = get_time(shift_type.end_time)
+
+					# Create shift_start datetime (shift start time on checkin date)
+					doc.shift_start = datetime.combine(checkin_date, shift_start_time)
+
+					# Create shift_end datetime (shift end time on checkin date, or next day if overnight)
+					doc.shift_end = datetime.combine(checkin_date, shift_end_time)
+					if shift_end_time < shift_start_time:
+						# Overnight shift
+						doc.shift_end += timedelta(days=1)
+
+					# For actual shift timings, add tolerance from shift type
+					begin_checkin_before = shift_type.begin_check_in_before_shift_start_time or 0
+					allow_checkout_after = shift_type.allow_check_out_after_shift_end_time or 0
+
+					doc.shift_actual_start = doc.shift_start - timedelta(minutes=begin_checkin_before)
+					doc.shift_actual_end = doc.shift_end + timedelta(minutes=allow_checkout_after)
+
+				except Exception as e:
+					frappe.log_error(f"Error populating shift timing for {doc.name}", str(e))
 
 				# Determine log_type based on position in day
 				checkin_date = getdate(doc.time)
@@ -697,7 +796,11 @@ def bulk_update_employee_checkin(from_date=None, to_date=None):
 					'name': doc.name,
 					'shift': doc.shift,
 					'offshift': doc.offshift,
-					'log_type': doc.log_type
+					'log_type': doc.log_type,
+					'shift_start': doc.shift_start,
+					'shift_end': doc.shift_end,
+					'shift_actual_start': doc.shift_actual_start,
+					'shift_actual_end': doc.shift_actual_end
 				})
 
 				# Track if need comment
@@ -716,6 +819,18 @@ def bulk_update_employee_checkin(from_date=None, to_date=None):
 			try:
 				names = [u['name'] for u in bulk_updates]
 
+				# Helper function to format datetime values for SQL
+				def format_datetime_for_sql(dt_value):
+					"""Format datetime value for SQL CASE WHEN"""
+					if dt_value is None:
+						return 'NULL'
+					# Convert datetime to string in SQL format
+					from datetime import datetime
+					if isinstance(dt_value, datetime):
+						# Format as 'YYYY-MM-DD HH:MM:SS'
+						return f"'{dt_value.strftime('%Y-%m-%d %H:%M:%S')}'"
+					return frappe.db.escape(str(dt_value))
+
 				# Build CASE WHEN clauses for each field
 				shift_cases = " ".join([
 					f"WHEN '{u['name']}' THEN {frappe.db.escape(u['shift']) if u['shift'] else 'NULL'}"
@@ -729,6 +844,22 @@ def bulk_update_employee_checkin(from_date=None, to_date=None):
 					f"WHEN '{u['name']}' THEN {frappe.db.escape(u['log_type']) if u['log_type'] else 'NULL'}"
 					for u in bulk_updates
 				])
+				shift_start_cases = " ".join([
+					f"WHEN '{u['name']}' THEN {format_datetime_for_sql(u['shift_start'])}"
+					for u in bulk_updates
+				])
+				shift_end_cases = " ".join([
+					f"WHEN '{u['name']}' THEN {format_datetime_for_sql(u['shift_end'])}"
+					for u in bulk_updates
+				])
+				shift_actual_start_cases = " ".join([
+					f"WHEN '{u['name']}' THEN {format_datetime_for_sql(u['shift_actual_start'])}"
+					for u in bulk_updates
+				])
+				shift_actual_end_cases = " ".join([
+					f"WHEN '{u['name']}' THEN {format_datetime_for_sql(u['shift_actual_end'])}"
+					for u in bulk_updates
+				])
 
 				# Single UPDATE query with CASE WHEN
 				frappe.db.sql(f"""
@@ -737,6 +868,10 @@ def bulk_update_employee_checkin(from_date=None, to_date=None):
 						shift = CASE name {shift_cases} END,
 						offshift = CASE name {offshift_cases} END,
 						log_type = CASE name {log_type_cases} END,
+						shift_start = CASE name {shift_start_cases} END,
+						shift_end = CASE name {shift_end_cases} END,
+						shift_actual_start = CASE name {shift_actual_start_cases} END,
+						shift_actual_end = CASE name {shift_actual_end_cases} END,
 						modified = NOW(),
 						modified_by = %s
 					WHERE name IN ({','.join(['%s'] * len(names))})
@@ -757,7 +892,11 @@ def bulk_update_employee_checkin(from_date=None, to_date=None):
 							{
 								'shift': update['shift'],
 								'offshift': update['offshift'],
-								'log_type': update['log_type']
+								'log_type': update['log_type'],
+								'shift_start': update['shift_start'],
+								'shift_end': update['shift_end'],
+								'shift_actual_start': update['shift_actual_start'],
+								'shift_actual_end': update['shift_actual_end']
 							},
 							update_modified=True
 						)

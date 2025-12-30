@@ -103,7 +103,8 @@ fixtures = [
                     "Stock Ledger Entry",
                     "Customer",
                     "Shift Type",
-                    "Attendance"
+                    "Attendance",
+                    "Leave Application"
                 ]
             ],
             [
@@ -256,13 +257,15 @@ scheduler_events = {
         # Daily Timesheet pre-creation at 06:00 every morning (before work starts)
         # Creates empty records for all active employees with Status = 'Absent'
         "0 6 * * *": [
-            "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.daily_timesheet_pre_create"
+            # Disable Daily Timesheet
+            # "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.daily_timesheet_pre_create"
         ],
 
         # Daily Timesheet auto sync and calculation at 22:45 every day (end of day)
         # Updates and calculates all records based on check-ins and maternity tracking
         "45 22 * * *": [
-            "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.daily_timesheet_auto_sync_and_calculate"
+             # Disable Daily Timesheet
+            # "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.daily_timesheet_auto_sync_and_calculate"
         ],
 
         # # Daily Check-in Report - Every day at 08:15 AM => removed
@@ -271,16 +274,21 @@ scheduler_events = {
         # ],
          # Daily TimeSheet Report - Every day at 08:15 AM
         "15 8 * * *": [
-            "customize_erpnext.customize_erpnext.report.daily_timesheet_report.scheduler.send_daily_time_sheet_report"
+            # Disable Daily Timesheet
+            # "customize_erpnext.customize_erpnext.report.daily_timesheet_report.scheduler.send_daily_time_sheet_report"
+            # Shift Attendance Report - Every day at 08:15 AM
+            "customize_erpnext.customize_erpnext.report.shift_attendance_customize.scheduler.send_daily_attendance_report_scheduled"
         ],
         # Sunday overtime alert - Monday at 08:00 AM
         "0 8 * * 1": [
-            "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.send_sunday_overtime_alert_scheduled"
+            # Disable Daily Timesheet
+            # "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.send_sunday_overtime_alert_scheduled"
         ],
 
         # Monthly recalculation - 23:30 on Sunday (0 is Sunday)
         "30 23 * * 0": [
-            "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.monthly_timesheet_recalculation"
+            # Disable Daily Timesheet
+            # "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.monthly_timesheet_recalculation"
         ],
 
         # Daily Vehicle Trips - Create pickup at 05:30 AM every day
@@ -309,56 +317,68 @@ scheduler_events = {
 doc_events = {
     "Employee Checkin": {
         "on_update": [
-            "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.attendance_sync.on_checkin_update",
-            "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.auto_sync_on_checkin_update",
-            # "customize_erpnext.overrides.employee_checkin.employee_checkin.update_employee_checkin",
-            # "customize_erpnext.overrides.employee_checkin.employee_checkin.update_attendance_on_checkin_update"
+            # "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.attendance_sync.on_checkin_update",
+            # Disable Daily Timesheet, replace by default Attendance of HRMS
+            # "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.auto_sync_on_checkin_update",
+            "customize_erpnext.overrides.employee_checkin.employee_checkin.update_employee_checkin",
+            "customize_erpnext.overrides.employee_checkin.employee_checkin.update_attendance_on_checkin_update"
         ],
         "after_insert": [
-            "customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.on_checkin_creation",
-            "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.auto_sync_on_checkin_update",
-        #    "customize_erpnext.overrides.employee_checkin.employee_checkin.update_employee_checkin",
-            # "customize_erpnext.overrides.employee_checkin.employee_checkin.update_attendance_on_checkin_insert"
+             # Disable Daily Timesheet, replace by default Attendance of HRMS
+            # "customize_erpnext.customize_erpnext.doctype.custom_attendance.custom_attendance.on_checkin_creation",
+            # "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.auto_sync_on_checkin_update",
+           "customize_erpnext.overrides.employee_checkin.employee_checkin.update_employee_checkin",
+            "customize_erpnext.overrides.employee_checkin.employee_checkin.update_attendance_on_checkin_insert"
         ],
         "on_trash": [
-            "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.auto_cleanup_on_checkin_delete",
+             # Disable Daily Timesheet, replace by default Attendance of HRMS
+            # "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.auto_cleanup_on_checkin_delete",
         ],
         "after_delete": [
             # Update log_type for remaining checkins after deletion (first -> IN, last -> OUT)
             # "customize_erpnext.overrides.employee_checkin.employee_checkin.update_remaining_checkins_after_delete",
             # Update HRMS Attendance after checkin is deleted (recalculates from remaining checkins)
-            # "customize_erpnext.overrides.employee_checkin.employee_checkin.update_attendance_on_checkin_delete"
+            "customize_erpnext.overrides.employee_checkin.employee_checkin.update_attendance_on_checkin_delete"
         ],
     },
-
-    "Shift Registration": {
-        "on_submit": "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.auto_recalc_on_shift_registration_change",
-        "on_cancel": "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.auto_recalc_on_shift_registration_change",
-        "on_update_after_submit": "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.auto_recalc_on_shift_registration_change"
-    },
+#    Disable Shift Registration - use Shift Assignment default 
+    # "Shift Registration": {
+    #     "on_submit": "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.auto_recalc_on_shift_registration_change",
+    #     "on_cancel": "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.auto_recalc_on_shift_registration_change",
+    #     "on_update_after_submit": "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.auto_recalc_on_shift_registration_change"
+    # },
 
     "Overtime Registration": {
         "on_submit": [
-            "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.auto_recalc_on_overtime_registration_change",
-            # "customize_erpnext.customize_erpnext.doctype.overtime_registration.overtime_registration_hooks.update_attendance_on_overtime_change"
+            # Disable Daily Timesheet, replace by default Attendance of HRMS
+            # "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.auto_recalc_on_overtime_registration_change",
+            "customize_erpnext.customize_erpnext.doctype.overtime_registration.overtime_registration_hooks.update_attendance_on_overtime_change"
         ],
         "on_cancel": [
-            "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.auto_recalc_on_overtime_registration_change",
-            # "customize_erpnext.customize_erpnext.doctype.overtime_registration.overtime_registration_hooks.update_attendance_on_overtime_change"
+            # Disable Daily Timesheet, replace by default Attendance of HRMS
+            # "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.auto_recalc_on_overtime_registration_change",
+            "customize_erpnext.customize_erpnext.doctype.overtime_registration.overtime_registration_hooks.update_attendance_on_overtime_change"
         ],
         "on_update_after_submit": [
-            "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.auto_recalc_on_overtime_registration_change",
-            # "customize_erpnext.customize_erpnext.doctype.overtime_registration.overtime_registration_hooks.update_attendance_on_overtime_change"
+            # Disable Daily Timesheet, replace by default Attendance of HRMS
+            # "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.auto_recalc_on_overtime_registration_change",
+            "customize_erpnext.customize_erpnext.doctype.overtime_registration.overtime_registration_hooks.update_attendance_on_overtime_change"
         ]
     },
 
     "Employee": {
         "validate": [
-            "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.check_maternity_tracking_changes",
+            # Check maternity tracking changes for attendance update
+            "customize_erpnext.overrides.employee.employee.check_maternity_tracking_changes_for_attendance",
+            # Disable -  Check maternity tracking changes for Daily Timesheet 
+            # "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.check_maternity_tracking_changes",
             "customize_erpnext.api.employee.employee_validation.validate_employee_changes"
         ],
         "on_update": [
-            "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.auto_recalc_on_maternity_tracking_change",
+            # Auto-update Attendance when maternity tracking changes
+            "customize_erpnext.overrides.employee.employee.auto_update_attendance_on_maternity_change",
+            # Disable -  Auto-recalc Daily Timesheet when maternity tracking changes (keep existing)
+            # "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.auto_recalc_on_maternity_tracking_change",
             # "customize_erpnext.api.employee.erpnext_mongodb.sync_employee_to_mongodb"
         ],
         "after_insert": "customize_erpnext.api.employee.erpnext_mongodb.sync_employee_to_mongodb",

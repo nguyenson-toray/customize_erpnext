@@ -372,46 +372,36 @@ function show_attendance_results_dialog_v2(options) {
 		return;
 	}
 
-	// Build shift details HTML table
-	// Convert per_shift object to array format
-	let shift_details_html = '';
-	let total_records = 0;
-	let total_new_or_updated = 0;
-
+	// Log shift details to console (not shown in dialog)
 	const per_shift = result.per_shift || {};
 
 	if (per_shift && Object.keys(per_shift).length > 0) {
-		shift_details_html = '<table class="table table-sm table-bordered mt-3"><thead class="thead-light"><tr><th>Shift</th><th class="text-center">Before</th><th class="text-center">After</th><th class="text-center">New/Updated</th></tr></thead><tbody>';
+		console.log("\n📊 Attendance by Shift:");
+		console.log("─".repeat(70));
+		console.log(`${'Shift'.padEnd(20)} ${'Before'.padStart(10)} ${'After'.padStart(10)} ${'New/Updated'.padStart(15)}`);
+		console.log("─".repeat(70));
+
+		let total_before = 0;
+		let total_after = 0;
+		let total_new_or_updated = 0;
 
 		for (const [shift_name, shift_data] of Object.entries(per_shift)) {
 			const before = shift_data.before || 0;
 			const after = shift_data.after || 0;
 			const new_or_updated = shift_data.new_or_updated || 0;
 
-			total_records += after;
+			total_before += before;
+			total_after += after;
 			total_new_or_updated += new_or_updated;
 
-			shift_details_html += `
-				<tr>
-					<td><strong>${shift_name}</strong></td>
-					<td class="text-center"><span class="badge badge-secondary">${before}</span></td>
-					<td class="text-center"><span class="badge badge-primary">${after}</span></td>
-					<td class="text-center"><span class="badge badge-${new_or_updated > 0 ? 'success' : 'secondary'}">${new_or_updated}</span></td>
-				</tr>
-			`;
+			console.log(`${shift_name.padEnd(20)} ${String(before).padStart(10)} ${String(after).padStart(10)} ${String(new_or_updated).padStart(15)}`);
 		}
 
-		shift_details_html += `
-			<tr class="table-info">
-				<td><strong>Total</strong></td>
-				<td class="text-center"><strong>-</strong></td>
-				<td class="text-center"><strong>${total_records}</strong></td>
-				<td class="text-center"><strong>${total_new_or_updated}</strong></td>
-			</tr>
-		`;
-		shift_details_html += '</tbody></table>';
+		console.log("─".repeat(70));
+		console.log(`${'Total'.padEnd(20)} ${String(total_before).padStart(10)} ${String(total_after).padStart(10)} ${String(total_new_or_updated).padStart(15)}`);
+		console.log("─".repeat(70));
 	} else {
-		shift_details_html = '<p class="text-muted mt-3">No shift details available</p>';
+		console.log("📊 No shift details available");
 	}
 
 	// Build employee stats message
@@ -441,9 +431,6 @@ function show_attendance_results_dialog_v2(options) {
 				</small>
 			</div>
 
-			<h6 class="text-primary mb-2">📊 Attendance by Shift</h6>
-			${shift_details_html}
-
 			${employee_stats_html}
 
 			${result.errors > 0 ? `
@@ -454,7 +441,7 @@ function show_attendance_results_dialog_v2(options) {
 				</div>
 			` : ''}
 
-			<p class="text-muted mt-3 mb-0"><small><i class="fa fa-info-circle"></i> Check browser console for detailed performance metrics</small></p>
+			<p class="text-muted mt-3 mb-0"><small><i class="fa fa-info-circle"></i> Check browser console for detailed shift breakdown and performance metrics</small></p>
 		`,
 		indicator: 'green',
 		wide: true
