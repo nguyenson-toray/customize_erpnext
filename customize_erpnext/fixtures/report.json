@@ -1,0 +1,157 @@
+[
+ {
+  "add_total_row": 0,
+  "add_translate_data": 0,
+  "columns": [],
+  "disabled": 0,
+  "docstatus": 0,
+  "doctype": "Report",
+  "filters": [],
+  "is_standard": "Yes",
+  "javascript": null,
+  "json": null,
+  "letter_head": null,
+  "modified": "2025-12-26 14:00:00",
+  "module": "Customize Erpnext",
+  "name": "Shift Attendance Customize",
+  "prepared_report": 0,
+  "query": null,
+  "ref_doctype": "Attendance",
+  "reference_report": null,
+  "report_name": "Shift Attendance Customize",
+  "report_script": null,
+  "report_type": "Script Report",
+  "roles": [
+   {
+    "role": "HR User"
+   },
+   {
+    "role": "System Manager"
+   },
+   {
+    "role": "HR Manager"
+   },
+   {
+    "role": "Employee Self Service"
+   },
+   {
+    "role": "Employee"
+   }
+  ],
+  "timeout": 0
+ },
+ {
+  "add_total_row": 1,
+  "add_translate_data": 0,
+  "columns": [],
+  "disabled": 0,
+  "docstatus": 0,
+  "doctype": "Report",
+  "filters": [],
+  "is_standard": "Yes",
+  "javascript": null,
+  "json": null,
+  "letter_head": null,
+  "modified": "2025-09-25 10:23:15.424538",
+  "module": "Customize Erpnext",
+  "name": "Stock Balance Customize",
+  "prepared_report": 0,
+  "query": null,
+  "ref_doctype": "Stock Ledger Entry",
+  "reference_report": null,
+  "report_name": "Stock Balance Customize",
+  "report_script": null,
+  "report_type": "Script Report",
+  "roles": [
+   {
+    "role": "Stock User"
+   },
+   {
+    "role": "Accounts Manager"
+   },
+   {
+    "role": "Stock Manager"
+   }
+  ],
+  "timeout": 300
+ },
+ {
+  "add_total_row": 1,
+  "add_translate_data": 0,
+  "columns": [],
+  "disabled": 0,
+  "docstatus": 0,
+  "doctype": "Report",
+  "filters": [],
+  "is_standard": "Yes",
+  "javascript": null,
+  "json": null,
+  "letter_head": null,
+  "modified": "2025-06-23 11:26:07.889463",
+  "module": "Customize Erpnext",
+  "name": "Stock Ledger Customize",
+  "prepared_report": 1,
+  "query": null,
+  "ref_doctype": "Stock Ledger Entry",
+  "reference_report": null,
+  "report_name": "Stock Ledger Customize",
+  "report_script": null,
+  "report_type": "Script Report",
+  "roles": [
+   {
+    "role": "Stock User"
+   },
+   {
+    "role": "Accounts Manager"
+   }
+  ],
+  "timeout": 300
+ },
+ {
+  "add_total_row": 1,
+  "add_translate_data": 0,
+  "columns": [],
+  "disabled": 0,
+  "docstatus": 0,
+  "doctype": "Report",
+  "filters": [],
+  "is_standard": "Yes",
+  "javascript": null,
+  "json": "{}",
+  "letter_head": null,
+  "modified": "2025-08-08 23:18:43.654198",
+  "module": "Customize Erpnext",
+  "name": "Overtime Registration",
+  "prepared_report": 0,
+  "query": null,
+  "ref_doctype": "Overtime Registration",
+  "reference_report": null,
+  "report_name": "Overtime Registration",
+  "report_script": null,
+  "report_type": "Script Report",
+  "roles": [
+   {
+    "role": "HR Manager"
+   },
+   {
+    "role": "Employee"
+   },
+   {
+    "role": "Department Manager"
+   },
+   {
+    "role": "Factory Manager"
+   },
+   {
+    "role": "TIQN Factory Manager"
+   },
+   {
+    "role": "TIQN Manager"
+   },
+   {
+    "role": "TIQN Staff"
+   }
+  ],
+  "timeout": 300
+ }
+]
