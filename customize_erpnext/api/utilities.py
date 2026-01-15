@@ -411,8 +411,7 @@ def _prepare_employee_sync_data(employee_id):
     Now supports syncing employees without fingerprint data - will sync user info only
     """
     # Get employee data
-    employee = frappe.get_doc("Employee", employee_id,
-        ["employee", "employee_name", "attendance_device_id", "custom_privilege", "custom_password"])
+    employee = frappe.get_doc("Employee", employee_id)
 
     if not employee.attendance_device_id:
         return None, {
@@ -559,8 +558,7 @@ def sync_employee_to_single_machine(employee_id, machine_name):
             return error
 
         # Get specific machine
-        machine = frappe.get_doc("Attendance Machine", machine_name,
-            ["name", "device_name", "ip_address", "port", "timeout", "force_udp", "ommit_ping", "enable"])
+        machine = frappe.get_doc("Attendance Machine", machine_name)
 
         if not machine.enable:
             return {
