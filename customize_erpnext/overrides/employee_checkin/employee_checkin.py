@@ -52,15 +52,18 @@ def check_maternity_benefit(employee, attendance_date):
 
 	return False
 
-def timedelta_to_time(td):
+def timedelta_to_time(td, default=None):
 	"""Convert timedelta to time object
 
 	Args:
-		td: timedelta or time object
+		td: timedelta or time object (can be None)
+		default: default value to return if td is None
 
 	Returns:
-		time object
+		time object or default value
 	"""
+	if td is None:
+		return default
 	if isinstance(td, time):
 		return td
 	elif isinstance(td, timedelta):
@@ -82,8 +85,16 @@ def calculate_morning_hours(check_in, check_out, shift_start_time, shift_break_s
 	if not check_in or not check_out:
 		return 0
 
-	shift_start = datetime.combine(check_in.date(), timedelta_to_time(shift_start_time))
-	break_start = datetime.combine(check_in.date(), timedelta_to_time(shift_break_start_time))
+	shift_start_t = timedelta_to_time(shift_start_time)
+	break_start_t = timedelta_to_time(shift_break_start_time)
+	if not shift_start_t:
+		return 0
+	# If no break time, use shift end as break start (full morning)
+	if not break_start_t:
+		break_start_t = shift_start_t
+
+	shift_start = datetime.combine(check_in.date(), shift_start_t)
+	break_start = datetime.combine(check_in.date(), break_start_t)
 
 	# Special case: check in before shift and check out before lunch
 	if check_in < shift_start and check_out <= break_start:
@@ -109,11 +120,20 @@ def calculate_afternoon_hours(check_in, check_out, shift_end_break_time, shift_e
 	"""
 	if not check_in or not check_out:
 		return 0
+
+	shift_end_t = timedelta_to_time(shift_end_time)
+	break_end_t = timedelta_to_time(shift_end_break_time)
+	if not shift_end_t:
+		return 0
+	# If no break time, use shift end as break end (full afternoon from shift start)
+	if not break_end_t:
+		break_end_t = shift_end_t
+
 	afternoon_hours = 0
-	break_end = datetime.combine(check_in.date(), timedelta_to_time(shift_end_break_time))
-	shift_end = datetime.combine(check_in.date(), timedelta_to_time(shift_end_time))
+	break_end = datetime.combine(check_in.date(), break_end_t)
+	shift_end = datetime.combine(check_in.date(), shift_end_t)
 	afternoon_start = check_in if check_in > break_end else break_end
-	
+
 	afternoon_end = check_out if check_out < shift_end else shift_end
 
 	if afternoon_end <= afternoon_start:
@@ -216,10 +236,25 @@ def get_actual_overtime_duration(employee, attendance_date, in_time, out_time, s
 	if not in_time or not out_time:
 		return 0
 
-	shift_start = datetime.combine(in_time.date(), timedelta_to_time(shift_type_details["start_time"]))
-	shift_end = datetime.combine(in_time.date(), timedelta_to_time(shift_type_details["end_time"]))
-	break_start = datetime.combine(in_time.date(), timedelta_to_time(shift_type_details["custom_begin_break_time"]))
-	break_end = datetime.combine(in_time.date(), timedelta_to_time(shift_type_details["custom_end_break_time"]))
+	# Get shift times - these are required
+	shift_start_time = timedelta_to_time(shift_type_details.get("start_time"))
+	shift_end_time = timedelta_to_time(shift_type_details.get("end_time"))
+	if not shift_start_time or not shift_end_time:
+		return 0
+
+	shift_start = datetime.combine(in_time.date(), shift_start_time)
+	shift_end = datetime.combine(in_time.date(), shift_end_time)
+
+	# Get break times - these are optional
+	break_start_time = timedelta_to_time(shift_type_details.get("custom_begin_break_time"))
+	break_end_time = timedelta_to_time(shift_type_details.get("custom_end_break_time"))
+	has_break = break_start_time and break_end_time
+	if has_break:
+		break_start = datetime.combine(in_time.date(), break_start_time)
+		break_end = datetime.combine(in_time.date(), break_end_time)
+	else:
+		break_start = None
+		break_end = None
 
 	# Pre-shift overtime (only if OT registration exists)
 	pre_shift_ot = 0
@@ -235,7 +270,7 @@ def get_actual_overtime_duration(employee, attendance_date, in_time, out_time, s
 
 	# Lunch break overtime (only if shift has lunch break and registration exists)
 	lunch_break_ot = 0
-	if shift_type_details["custom_begin_break_time"] != shift_type_details["custom_end_break_time"]:
+	if has_break and break_start_time != break_end_time:
 		if (in_time < break_start and out_time > break_end and
 			check_lunch_break_ot_registration(employee, attendance_date, break_start.time(), break_end.time())):
 				lunch_break_ot = time_diff_in_hours(break_end, break_start)
@@ -623,9 +658,10 @@ def bulk_update_employee_checkin(from_date=None, to_date=None):
 
 	where_clause = " AND ".join(conditions)
 
-	# STEP 1: Get all employee checkins that need update
+	# STEP 1: Get all employee checkins in date range (with all fields for comparison)
 	checkins = frappe.db.sql(f"""
-		SELECT name, employee, time, shift, log_type, offshift
+		SELECT name, employee, time, shift, log_type, offshift,
+			   shift_start, shift_end, shift_actual_start, shift_actual_end
 		FROM `tabEmployee Checkin`
 		WHERE {where_clause}
 		ORDER BY employee, time ASC
@@ -706,7 +742,9 @@ def bulk_update_employee_checkin(from_date=None, to_date=None):
 
 	# STEP 3: Process in batches and collect bulk updates
 	batch_size = 500
+	total_checked = 0
 	total_updated = 0
+	total_skipped = 0
 	total_errors = 0
 	bulk_updates = []
 	checkins_need_comment = []  # Track checkins that need "set to Day" comment
@@ -791,23 +829,46 @@ def bulk_update_employee_checkin(from_date=None, to_date=None):
 						doc.log_type = "OUT"
 					# Middle checkins keep their current log_type or set to None
 
-				# Collect data for bulk update
-				bulk_updates.append({
-					'name': doc.name,
-					'shift': doc.shift,
-					'offshift': doc.offshift,
-					'log_type': doc.log_type,
-					'shift_start': doc.shift_start,
-					'shift_end': doc.shift_end,
-					'shift_actual_start': doc.shift_actual_start,
-					'shift_actual_end': doc.shift_actual_end
-				})
+				# Check if any field has changed before adding to bulk update
+				total_checked += 1
+				has_changes = False
 
-				# Track if need comment
-				if set_to_day:
-					checkins_need_comment.append(doc.name)
+				# Compare new values with old values from database
+				if doc.shift != checkin.shift:
+					has_changes = True
+				elif doc.offshift != (checkin.offshift or 0):
+					has_changes = True
+				elif doc.log_type != checkin.log_type:
+					has_changes = True
+				elif doc.shift_start != checkin.shift_start:
+					has_changes = True
+				elif doc.shift_end != checkin.shift_end:
+					has_changes = True
+				elif doc.shift_actual_start != checkin.shift_actual_start:
+					has_changes = True
+				elif doc.shift_actual_end != checkin.shift_actual_end:
+					has_changes = True
 
-				total_updated += 1
+				# Only add to bulk update if there are actual changes
+				if has_changes:
+					bulk_updates.append({
+						'name': doc.name,
+						'shift': doc.shift,
+						'offshift': doc.offshift,
+						'log_type': doc.log_type,
+						'shift_start': doc.shift_start,
+						'shift_end': doc.shift_end,
+						'shift_actual_start': doc.shift_actual_start,
+						'shift_actual_end': doc.shift_actual_end
+					})
+
+					# Track if need comment
+					if set_to_day:
+						checkins_need_comment.append(doc.name)
+
+					total_updated += 1
+				else:
+					total_skipped += 1
 
 			except Exception as e:
 				total_errors += 1
@@ -923,9 +984,11 @@ def bulk_update_employee_checkin(from_date=None, to_date=None):
 	elapsed = time_module.time() - start_time
 	print(f"\n{'='*80}")
 	print(f"✅ BULK UPDATE COMPLETED")
-	print(f"   Total updated: {total_updated}/{len(checkins)}")
+	print(f"   Total checked: {total_checked}")
+	print(f"   Total updated: {total_updated} (records with changes)")
+	print(f"   Total skipped: {total_skipped} (no changes needed)")
 	print(f"   Errors: {total_errors}")
-	print(f"   Time: {elapsed:.2f}s ({len(checkins)/elapsed:.1f} records/sec)")
+	print(f"   Time: {elapsed:.2f}s ({total_checked/elapsed:.1f} records/sec)" if elapsed > 0 else "   Time: 0s")
 	print(f"{'='*80}\n")
 
 	return total_updated

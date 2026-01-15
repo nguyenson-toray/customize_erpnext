@@ -24,23 +24,24 @@ frappe.query_reports["Shift Attendance Customize"] = {
 			label: __("From Date"),
 			fieldtype: "Date",
 			reqd: 1,
-			default: function () {
-				// Default to 26th of previous month
-				let date = frappe.datetime.get_today();
-				let current_day = frappe.datetime.str_to_obj(date).getDate();
+			default: frappe.datetime.get_today(),
+			// function () {
+			// 	// Default to 26th of previous month
+			// 	let date = frappe.datetime.get_today();
+			// 	let current_day = frappe.datetime.str_to_obj(date).getDate();
 
-				// If current day is before 26th, go back to 26th of month before last
-				if (current_day < 26) {
-					date = frappe.datetime.add_months(date, -2);
-				} else {
-					date = frappe.datetime.add_months(date, -1);
-				}
+			// 	// If current day is before 26th, go back to 26th of month before last
+			// 	if (current_day < 26) {
+			// 		date = frappe.datetime.add_months(date, -2);
+			// 	} else {
+			// 		date = frappe.datetime.add_months(date, -1);
+			// 	}
 
-				// Set to 26th
-				let year = frappe.datetime.str_to_obj(date).getFullYear();
-				let month = frappe.datetime.str_to_obj(date).getMonth();
-				return frappe.datetime.obj_to_str(new Date(year, month, 26));
-			}(),
+			// 	// Set to 26th
+			// 	let year = frappe.datetime.str_to_obj(date).getFullYear();
+			// 	let month = frappe.datetime.str_to_obj(date).getMonth();
+			// 	return frappe.datetime.obj_to_str(new Date(year, month, 26));
+			// }(),
 		},
 		{
 			fieldname: "to_date",

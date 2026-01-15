@@ -48,6 +48,7 @@ doctype_js = {
     ],
     "Employee Checkin": "public/js/custom_scripts/employee_checkin.js",
     "Attendance": "public/js/custom_scripts/attendance.js",
+    "Shift Type": "public/js/custom_scripts/shift_type.js",
 }
 
 # List view customizations

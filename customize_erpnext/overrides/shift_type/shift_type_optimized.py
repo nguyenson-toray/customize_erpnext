@@ -35,6 +35,76 @@ SPECIAL_HOUR_FORCE_UPDATE = [8, 23]
 
 
 # ============================================================================
+# HELPER FUNCTIONS
+# ============================================================================
+
+def _check_attendance_changes(old_att: Dict, new_att: Dict) -> bool:
+	"""
+	Check if attendance data has changed.
+	Returns True if any relevant field is different, False if no changes.
+	"""
+	from frappe.utils import flt, get_datetime
+	from datetime import datetime
+
+	def normalize_datetime(val):
+		"""Normalize datetime to string without microseconds for comparison"""
+		if val is None:
+			return None
+		if isinstance(val, datetime):
+			return val.replace(microsecond=0).strftime("%Y-%m-%d %H:%M:%S")
+		if isinstance(val, str) and val:
+			try:
+				dt = get_datetime(val)
+				return dt.replace(microsecond=0).strftime("%Y-%m-%d %H:%M:%S")
+			except:
+				return val
+		return str(val) if val else None
+
+	# Fields to compare (most important fields first for early exit)
+	fields_to_compare = [
+		('status', None, False),           # (field, default, is_datetime)
+		('shift', None, False),
+		('in_time', None, True),           # datetime field
+		('out_time', None, True),          # datetime field
+		('working_hours', 0, False),
+		('late_entry', 0, False),
+		('early_exit', 0, False),
+		('leave_type', None, False),
+		('leave_application', None, False),
+		('half_day_status', None, False),
+		('custom_maternity_benefit', 0, False),
+		('actual_overtime_duration', 0, False),
+		('custom_approved_overtime_duration', 0, False),
+		('custom_final_overtime_duration', 0, False),
+		('overtime_type', None, False),
+		('standard_working_hours', 0, False),
+	]
+
+	for field, default, is_datetime in fields_to_compare:
+		old_val = old_att.get(field, default)
+		new_val = new_att.get(field, default)
+
+		# Handle numeric comparisons with tolerance
+		if isinstance(old_val, (int, float)) or isinstance(new_val, (int, float)):
+			if flt(old_val, 4) != flt(new_val, 4):
+				return True
+		# Handle datetime comparisons (normalize to ignore microseconds)
+		elif is_datetime:
+			old_norm = normalize_datetime(old_val)
+			new_norm = normalize_datetime(new_val)
+			if old_norm != new_norm:
+				return True
+		# Handle string/other comparisons
+		elif old_val != new_val:
+			old_str = str(old_val) if old_val else None
+			new_str = str(new_val) if new_val else None
+			if old_str != new_str:
+				return True
+
+	return False
+
+
+# ============================================================================
 # OPTIMIZED DATA PRELOADING
 # ============================================================================
 
@@ -142,7 +212,15 @@ def preload_reference_data(employee_list: List[str], from_date: str, to_date: st
 			"attendance_date": ["between", [from_date, to_date]],
 			"docstatus": ["!=", 2]
 		},
-		fields=["name", "employee", "attendance_date", "shift", "status", "leave_type", "leave_application"]
+		# Load ALL fields needed for _check_attendance_changes() comparison
+		fields=[
+			"name", "employee", "attendance_date", "shift", "status",
+			"leave_type", "leave_application", "half_day_status",
+			"in_time", "out_time", "working_hours", "late_entry", "early_exit",
+			"custom_maternity_benefit", "actual_overtime_duration",
+			"custom_approved_overtime_duration", "custom_final_overtime_duration",
+			"overtime_type", "standard_working_hours"
+		]
 	)
 	for att in existing:
 		key = (att.employee, att.attendance_date)
@@ -602,7 +680,9 @@ def _core_process_attendance_logic_optimized(
 	print(f"🚀 OPTIMIZED ATTENDANCE PROCESSING")
 	print(f"{'='*80}")
 	overall_start = time.time()
-
+	# if to_date > today(): to_date
+	if to_date > date.today():
+		to_date = date.today()
 	# Auto-detect fore_get_logs if not specified
 	# Similar logic to custom_get_employee_checkins
 	if fore_get_logs is None:
@@ -657,12 +737,13 @@ def _core_process_attendance_logic_optimized(
 	# ========================================================================
 	ref_data = preload_reference_data(employees, from_date_str, to_date_str)
 
-	# Count records before processing
+	# Count records before processing (exclude cancelled docstatus=2)
 	count_before = {}
 	for shift_name in ref_data['shifts'].keys():
 		count_before[shift_name] = frappe.db.count("Attendance", {
 			"shift": shift_name,
-			"attendance_date": ["between", [from_date, to_date]]
+			"attendance_date": ["between", [from_date, to_date]],
+			"docstatus": ["!=", 2]
 		})
 
 	# ========================================================================
@@ -826,7 +907,9 @@ def _core_process_attendance_logic_optimized(
 								'standard_working_hours': shift_data.get('custom_standard_working_hours', 0),
 								'log_names': []  # No checkins
 							}
-							attendance_to_update.append(absence_data)
+							# Check if data has actually changed before adding to update list
+							if _check_attendance_changes(old_att, absence_data):
+								attendance_to_update.append(absence_data)
 
 					# Update existing attendance records to Absent
 					if attendance_to_update:
@@ -1036,8 +1119,14 @@ def _core_process_attendance_logic_optimized(
 									att_data['half_day_status'] = 'Present'
 									att_data['modify_half_day_status'] = 1
 
-						attendance_to_update.append(att_data)
-						updated_keys.add(key)  # Mark as updated
+						# CHECK IF DATA HAS CHANGED before adding to update list
+						has_changes = _check_attendance_changes(old_att, att_data)
+						if has_changes:
+							attendance_to_update.append(att_data)
+							updated_keys.add(key)  # Mark as updated
+						else:
+							# No changes, but still mark as processed
+							updated_keys.add(key)
 					# else: Incremental mode already filtered by attendance="not set", shouldn't reach here
 				else:
 					# New attendance - will be inserted
@@ -1127,7 +1216,9 @@ def _core_process_attendance_logic_optimized(
 								'standard_working_hours': shift_data.get('custom_standard_working_hours', 0),
 								'log_names': []  # No checkins
 							}
-							attendance_to_update.append(absence_data)
+							# Check if data has actually changed before adding to update list
+							if _check_attendance_changes(old_att, absence_data):
+								attendance_to_update.append(absence_data)
 							updated_keys.add(key)
 
 			# Update existing attendance records (fore_get_logs=True only)
@@ -1136,21 +1227,8 @@ def _core_process_attendance_logic_optimized(
 				print(f"      🔄 Updating {len(attendance_to_update)} existing attendance records")
 				for att_data in attendance_to_update:
 					try:
-						# Get old attendance data for comparison
-						old_att_data = ref_data['existing_attendance'][(att_data['employee'], att_data['attendance_date'])]
-
-						# IMPORTANT: Only update if data actually changed (optimization)
-						# Compare key fields that matter
-						needs_update = (
-							old_att_data.get('status') != att_data.get('status', 'Present') or
-							str(old_att_data.get('in_time')) != str(att_data.get('in_time')) or
-							str(old_att_data.get('out_time')) != str(att_data.get('out_time')) or
-							old_att_data.get('working_hours') != att_data.get('working_hours', 0)
-						)
-
-						if not needs_update:
-							# Data unchanged, skip update
-							continue
+						# NOTE: All items in attendance_to_update are pre-filtered by _check_attendance_changes()
+						# so we know they have actual changes. No need to check again here.
 
 						# Update using SQL (faster, avoids "Cannot edit cancelled document" issue)
 						# Must cancel first, then update all fields, then resubmit in single operation
@@ -1325,33 +1403,42 @@ def _core_process_attendance_logic_optimized(
 		print(f"   ❌ Error marking absent: {str(e)}")
 
 	# ========================================================================
-	# STEP 5: CALCULATE STATISTICS FROM CACHED DATA (No slow queries!)
+	# STEP 5: CALCULATE STATISTICS FROM DATABASE (Accurate count after processing)
 	# ========================================================================
 	print(f"\n{'='*80}")
 	print(f"📊 CALCULATING FINAL STATISTICS (OPTIMIZED)")
 	print(f"{'='*80}")
 
-	# Use cached data instead of querying the database
-	# Count records by shift from cache
-	shift_counts = {}
-	employees_with_attendance_set = set()
+	# Query actual counts from database after processing (more accurate than cache)
+	count_after = {}
+	for shift_name in ref_data['shifts'].keys():
+		count_after[shift_name] = frappe.db.count("Attendance", {
+			"shift": shift_name,
+			"attendance_date": ["between", [from_date, to_date]],
+			"docstatus": ["!=", 2]
+		})
 
-	for (emp, _date), att_data in ref_data['existing_attendance'].items():
-		# Get shift from cached attendance data or default
-		shift = att_data.get('shift', 'Day')
-		shift_counts[shift] = shift_counts.get(shift, 0) + 1
-		employees_with_attendance_set.add(emp)
+	# Get employees with attendance from database
+	employees_with_attendance_set = set(frappe.get_all(
+		"Attendance",
+		filters={
+			"attendance_date": ["between", [from_date, to_date]],
+			"docstatus": ["!=", 2]
+		},
+		pluck="employee"
+	))
 
 	# Build per_shift statistics
-	for shift_name, final_count in shift_counts.items():
+	for shift_name in ref_data['shifts'].keys():
 		before_count = count_before.get(shift_name, 0)
+		after_count = count_after.get(shift_name, 0)
 		stats["per_shift"][shift_name] = {
 			"before": before_count,
-			"after": final_count,
-			"new_or_updated": final_count - before_count
+			"after": after_count,
+			"new_or_updated": after_count - before_count
 		}
 
-	# Add shifts that existed before but have no new records
+	# Add shifts that existed before but not in shifts list
 	for shift_name in count_before:
 		if shift_name not in stats["per_shift"]:
 			stats["per_shift"][shift_name] = {
@@ -1418,6 +1505,28 @@ def bulk_update_attendance_optimized(from_date, to_date, employees=None, batch_s
 	import json
 	from datetime import timedelta
 
+	# ========================================================================
+	# LOCK MECHANISM - Prevent concurrent bulk updates
+	# ========================================================================
+	lock_name = "bulk_update_attendance_lock"
+
+	# Check if another bulk update is already running
+	existing_lock = frappe.cache.get_value(lock_name)
+	if existing_lock:
+		lock_info = f"Started by {existing_lock.get('user', 'unknown')} at {existing_lock.get('started_at', 'unknown')}"
+		frappe.throw(
+			f"Another bulk update is already in progress. {lock_info}. Please wait for it to complete.",
+			title="Bulk Update In Progress"
+		)
+
+	# Set lock with 30 minute expiry (in case of crash)
+	frappe.cache.set_value(lock_name, {
+		"user": frappe.session.user,
+		"started_at": frappe.utils.now(),
+		"from_date": str(from_date),
+		"to_date": str(to_date)
+	}, expires_in_sec=1800)
+
 	# Parse employees
 	employee_list = None
 	if employees:
@@ -1432,6 +1541,8 @@ def bulk_update_attendance_optimized(from_date, to_date, employees=None, batch_s
 
 	# Validate
 	if from_date > to_date:
+		# Release lock before throwing
+		frappe.cache.delete_value(lock_name)
 		frappe.throw("From Date cannot be greater than To Date")
 
 	# Estimate workload
@@ -1509,6 +1620,12 @@ def bulk_update_attendance_optimized(from_date, to_date, employees=None, batch_s
 			"per_shift": stats["per_shift"]
 		}
 
+	except Exception as e:
+		# Release lock on error
+		frappe.cache.delete_value(lock_name)
+		frappe.log_error(f"Bulk update attendance error: {str(e)}", "Bulk Update Error")
+		raise
+
 	finally:
 		# Restore original parameters
 		print("🔙 Restoring original shift parameters...")
@@ -1522,6 +1639,9 @@ def bulk_update_attendance_optimized(from_date, to_date, employees=None, batch_s
 				print(f"✗ Error restoring {shift_name}: {str(e)}")
 
 		frappe.db.commit()
+
+	# Release lock after successful completion
+	frappe.cache.delete_value(lock_name)
 
 	return {
 		"success": True,

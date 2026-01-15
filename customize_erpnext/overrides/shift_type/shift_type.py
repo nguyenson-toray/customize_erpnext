@@ -15,9 +15,11 @@ from customize_erpnext.overrides.employee_checkin.employee_checkin import (
 from customize_erpnext.api.employee.employee_utils import (
 	check_employee_maternity_status
 )
+from customize_erpnext.overrides.shift_type.shift_type_optimized import (
+	SPECIAL_HOUR_FORCE_UPDATE
+)
 
 EMPLOYEE_CHUNK_SIZE = 20
-SPECIAL_HOUR_FORCE_UPDATE = [8, 23]
 @frappe.whitelist()
 def get_employee_checkins_name_with_null_shift(from_date: str, to_date: str) -> list[str]:
 	"""
@@ -160,7 +162,7 @@ def custom_update_last_sync_of_checkin():
 	is_special_hour = current_hour in SPECIAL_HOUR_FORCE_UPDATE  # 8AM or 11PM
 
 	fore_update = is_web_request or is_special_hour
-	print(f"-----++----custom_update_last_sync_of_checkin : fore_update = {fore_update}")
+	print(f"custom_update_last_sync_of_checkin : fore_update = {fore_update}")
 	for shift in shifts:
 		# CRITICAL: Use shift_end, not current_datetime
 		# shift_end = shift end time + grace period (e.g., 18:00 for 08:00-17:00 shift)
@@ -186,7 +188,9 @@ def custom_update_last_sync_of_checkin():
 			frappe.db.set_value(
 				"Shift Type", shift.name, "last_sync_of_checkin", current_datetime
 			)		
-			print(f"----------------custom_update_last_sync_of_checkin : {shift.name} => {current_datetime}")
+			print(f"	{shift.name} => {current_datetime}")
+	# Commit changes to database
+	frappe.db.commit()
 
 
 def custom_should_mark_attendance(self, employee: str, attendance_date: str) -> bool:
