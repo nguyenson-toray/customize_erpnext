@@ -544,8 +544,28 @@ def bulk_insert_attendance_records(attendance_list: List[Dict], ref_data: Dict) 
 		values = []
 		attendance_to_logs_mapping = []  # Track (att_name, log_names) for linking
 
+		# CRITICAL FIX: Double-check database for existing attendance before insert
+		# This prevents race conditions when multiple processes run simultaneously
+		batch_employees = list(set(att['employee'] for att in batch))
+		batch_dates = list(set(str(att['attendance_date']) for att in batch))
+
+		if batch_employees and batch_dates:
+			existing_in_db = frappe.db.sql("""
+				SELECT employee, attendance_date
+				FROM `tabAttendance`
+				WHERE employee IN %(employees)s
+				AND attendance_date IN %(dates)s
+				AND docstatus < 2
+			""", {'employees': batch_employees, 'dates': batch_dates}, as_dict=1)
+
+			# Add to cache to prevent duplicate inserts
+			for existing in existing_in_db:
+				key = (existing['employee'], existing['attendance_date'])
+				if key not in ref_data['existing_attendance']:
+					ref_data['existing_attendance'][key] = {'name': 'exists_in_db', 'shift': None}
+
 		for att in batch:
-			# Skip if already exists
+			# Skip if already exists (in cache OR just found in DB)
 			key = (att['employee'], att['attendance_date'])
 			if key in ref_data['existing_attendance']:
 				continue
@@ -770,9 +790,13 @@ def _core_process_attendance_logic_optimized(
 			# CRITICAL: Match custom_get_employee_checkins logic:
 			# - fore_get_logs=True (UI/special hour): NO attendance filter (get all checkins)
 			# - fore_get_logs=False (normal hook): Filter attendance="not set" (only unlinked checkins)
+			#
+			# CRITICAL FIX: Use from_date parameter instead of shift_data.process_attendance_after
+			# When called from hook (single employee, single date), we should only process that date
+			# Using process_attendance_after would process ALL dates from that config date
 			checkin_filters = {
 				"skip_auto_attendance": 0,
-				"time": [">=", shift_data.process_attendance_after],
+				"time": ["between", [f"{from_date_str} 00:00:00", f"{to_date_str} 23:59:59"]],
 				"shift": shift_name,
 				"offshift": 0,
 				"employee": ["in", employees] if employees else ["is", "set"]

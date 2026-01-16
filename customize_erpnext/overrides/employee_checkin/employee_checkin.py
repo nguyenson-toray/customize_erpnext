@@ -1057,21 +1057,41 @@ def update_attendance_on_checkin_delete(doc, method):
 def _recalculate_attendance(employee, checkin_date):
 	"""
 	Recalculate attendance for employee on specific date using remaining checkins.
+	Uses Redis lock to prevent race conditions when multiple checkins are processed simultaneously.
 
 	Args:
 		employee: Employee ID
 		checkin_date: Date to recalculate
 	"""
-	# Lazy import to avoid circular import
-	from customize_erpnext.overrides.shift_type.shift_type_optimized import _core_process_attendance_logic_optimized
+	# Use Redis lock to prevent duplicate attendance creation
+	# When multiple checkins for same employee-date are processed simultaneously,
+	# this ensures only one process creates/updates attendance at a time
+	lock_key = f"attendance_recalc:{employee}:{checkin_date}"
 
-	_core_process_attendance_logic_optimized(
-		[employee],
-		[checkin_date],
-		checkin_date,
-		checkin_date,
-		fore_get_logs=True
-	)
+	lock = frappe.cache().lock(lock_key, timeout=30)
+	acquired = lock.acquire(blocking=False)
+
+	if not acquired:
+		# Another process is already recalculating attendance for this employee-date
+		# Skip this recalculation - the other process will handle it
+		return
+
+	try:
+		# Lazy import to avoid circular import
+		from customize_erpnext.overrides.shift_type.shift_type_optimized import _core_process_attendance_logic_optimized
+
+		_core_process_attendance_logic_optimized(
+			[employee],
+			[checkin_date],
+			checkin_date,
+			checkin_date,
+			fore_get_logs=True
+		)
+	finally:
+		try:
+			lock.release()
+		except Exception:
+			pass  # Lock may have already expired
 
 
 def _is_peak_hours():
