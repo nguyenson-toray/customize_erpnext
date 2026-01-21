@@ -154,7 +154,7 @@ fixtures = [
     {
         "doctype": "Workspace",
         "filters": [
-            ["name", "in", ["HR", "Stock"]]
+            ["name", "in", ["HR", "Stock", "TIQN App"]]
         ]
     },
     # Workspace Sidebar customizations (v16+)
@@ -163,7 +163,8 @@ fixtures = [
         "filters": [
             ["name", "in", [
                 "Shift & Attendance",  # HRMS sidebar with custom reports
-                "Stock"  # Stock sidebar with custom reports
+                "Stock",  # Stock sidebar with custom reports
+                "TIQN App"  # TIQN App sidebar
             ]]
         ]
     },

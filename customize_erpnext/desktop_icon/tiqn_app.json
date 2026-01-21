@@ -1,0 +1,23 @@
+{
+ "app": "customize_erpnext",
+ "creation": "2026-01-21 15:25:48.073756",
+ "docstatus": 0,
+ "doctype": "Desktop Icon",
+ "hidden": 0,
+ "icon": "",
+ "icon_type": "Link",
+ "idx": 2,
+ "label": "TIQN App",
+ "link_to": "TIQN App",
+ "link_type": "Workspace Sidebar",
+ "logo_url": "/assets/customize_erpnext/images/tiqn_app_icon.svg",
+ "modified": "2026-01-21 16:48:29.081218",
+ "modified_by": "Administrator",
+ "name": "TIQN App",
+ "owner": "Administrator",
+ "parent_icon": "",
+ "restrict_removal": 0,
+ "roles": [],
+ "sidebar": "",
+ "standard": 1
+}
