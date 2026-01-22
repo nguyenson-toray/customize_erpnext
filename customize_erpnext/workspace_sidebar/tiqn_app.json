@@ -1,6 +1,6 @@
 {
  "app": "customize_erpnext",
- "creation": "2026-01-21 15:24:48.119962",
+ "creation": "2026-01-22 15:53:30.232304",
  "docstatus": 0,
  "doctype": "Workspace Sidebar",
  "header_icon": "tool",
@@ -56,7 +56,19 @@
   {
    "child": 1,
    "collapsible": 1,
-   "icon": "table",
+   "icon": "repeat",
+   "indent": 0,
+   "keep_closed": 0,
+   "label": "Employee Item Reissue",
+   "link_to": "Employee Item Reissue",
+   "link_type": "Report",
+   "show_arrow": 0,
+   "type": "Link"
+  },
+  {
+   "child": 1,
+   "collapsible": 1,
+   "icon": "calendar-clock",
    "indent": 0,
    "keep_closed": 0,
    "label": "Overtime Registration",
@@ -66,7 +78,7 @@
    "type": "Link"
   }
  ],
- "modified": "2026-01-21 15:24:48.119962",
+ "modified": "2026-01-22 15:53:52.276643",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "TIQN App",
