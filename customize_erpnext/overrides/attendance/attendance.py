@@ -18,15 +18,18 @@ def custom_attendance_validate(self):
 
 @frappe.whitelist()
 def get_attendance_custom_additional_info(employee, attendance_date):
-	"""Get detailed maternity benefit information for display
+	"""Get detailed maternity benefit and overtime registration information for display
 
 	Args:
 		employee: Employee ID
 		attendance_date: Date to check
 
 	Returns:
-		str: Formatted maternity benefit details or empty string
+		str: Formatted additional details or empty string
 	"""
+	details = []
+
+	# Get maternity records
 	maternity_records = frappe.db.sql("""
 		SELECT type, from_date, to_date, apply_pregnant_benefit
 		FROM `tabMaternity Tracking`
@@ -36,10 +39,6 @@ def get_attendance_custom_additional_info(employee, attendance_date):
 		  AND to_date >= %(date)s
 	""", {"employee": employee, "date": attendance_date}, as_dict=1)
 
-	if not maternity_records:
-		return ""
-
-	details = []
 	for record in maternity_records:
 		record_type = record.type
 		from_date = frappe.utils.formatdate(record.from_date, "dd/mm/yyyy")
@@ -55,14 +54,41 @@ def get_attendance_custom_additional_info(employee, attendance_date):
 		elif record.type == 'Young Child':
 			details.append(f"👶 {record_type}: {from_date} - {to_date}")
 
+	# Get overtime registration records
+	ot_records = frappe.db.sql("""
+		SELECT
+			otd.parent as ot_registration,
+			otd.begin_time,
+			otd.end_time,
+			ot.docstatus
+		FROM `tabOvertime Registration Detail` otd
+		INNER JOIN `tabOvertime Registration` ot ON ot.name = otd.parent
+		WHERE otd.employee = %(employee)s
+		  AND otd.date = %(date)s
+		  AND ot.docstatus IN (0, 1)
+		ORDER BY otd.begin_time
+	""", {"employee": employee, "date": attendance_date}, as_dict=1)
+
+	for ot in ot_records:
+		begin_time = str(ot.begin_time)[:5] if ot.begin_time else ""
+		end_time = str(ot.end_time)[:5] if ot.end_time else ""
+		status = "Submitted" if ot.docstatus == 1 else "Draft"
+		link = f'<a href="/app/overtime-registration/{ot.ot_registration}">{ot.ot_registration}</a>'
+		details.append(f"⏰ Overtime: {begin_time} - {end_time} ({status}) - {link}")
+
 	if not details:
 		return ""
 
-	return "\n".join([
+	result = [
 		"<b>Additional Information:</b>",
 		"<ul style='margin-top: 5px; margin-bottom: 0;'>",
 		*[f"<li>{detail}</li>" for detail in details],
-		"</ul>",
-		"<small style='color: #888;'>* Allow shift end time reduced by 1 houry</small>"
-	])
+		"</ul>"
+	]
+
+	# Add maternity note if there are maternity records
+	if maternity_records:
+		result.append("<small style='color: #888;'>* Allow shift end time reduced by 1 hour</small>")
+
+	return "\n".join(result)
 
