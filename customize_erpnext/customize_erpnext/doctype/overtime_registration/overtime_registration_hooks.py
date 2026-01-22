@@ -9,7 +9,7 @@ employees and dates using the same optimized logic as the main attendance proces
 
 import frappe
 from frappe.utils import getdate
-from datetime import timedelta
+from datetime import date, timedelta
 
 
 def update_attendance_on_overtime_change(doc, method):
@@ -31,7 +31,7 @@ def update_attendance_on_overtime_change(doc, method):
 		doc: Overtime Registration document
 		method: Hook method name (on_submit, on_cancel, on_update_after_submit)
 	"""
-	if not doc.details:
+	if not doc.ot_employees:
 		return
 
 	print(f"\n{'='*80}")
@@ -40,7 +40,7 @@ def update_attendance_on_overtime_change(doc, method):
 	print(f"   Document: {doc.name}")
 	print(f"   Status: {doc.docstatus}")
 	print(f"   Method: {method}")
-	print(f"   Details: {len(doc.details)} records")
+	print(f"   Details: {len(doc.ot_employees)} records")
 
 	# ========================================================================
 	# STEP 1: Collect affected employees and dates
@@ -48,10 +48,16 @@ def update_attendance_on_overtime_change(doc, method):
 	affected_employees = set()
 	affected_dates = set()
 
-	for detail in doc.details:
+	today = date.today()
+
+	for detail in doc.ot_employees:
 		if detail.employee and detail.date:
+			detail_date = getdate(detail.date)
+			# Skip future dates - cannot process attendance for dates after today
+			if detail_date > today:
+				continue
 			affected_employees.add(detail.employee)
-			affected_dates.add(getdate(detail.date))
+			affected_dates.add(detail_date)
 
 	if not affected_employees or not affected_dates:
 		print(f"   ⚠️  No valid employees or dates found in details")
@@ -94,8 +100,8 @@ def update_attendance_on_overtime_change(doc, method):
 		stats = _core_process_attendance_logic_optimized(
 			employees=employee_list,
 			days=date_list,
-			from_date=str(from_date),
-			to_date=str(to_date),
+			from_date=from_date,
+			to_date=to_date,
 			fore_get_logs=True  # Force full day recalculation
 		)
 
