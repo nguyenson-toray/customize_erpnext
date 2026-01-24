@@ -545,8 +545,9 @@ def export_attendance_excel(filters=None):
 
 	total_operations = employee_count * num_days
 
-	# If operation is large (>1000 operations), run in background
-	if total_operations > 1000:
+	# If operation is large (>30000 operations), run in background
+	# With ~850 employees, this allows up to ~35 days sync export
+	if total_operations > 30000:
 		job_id = f"export_excel_{int(time.time())}"
 
 		frappe.enqueue(
@@ -639,6 +640,15 @@ def export_attendance_excel_sync(filters):
 
 		# Clean up temp file
 		os.unlink(temp_file.name)
+
+		# Schedule file deletion after 2 minutes (enough time for download)
+		frappe.enqueue(
+			'customize_erpnext.customize_erpnext.report.shift_attendance_customize.shift_attendance_customize.delete_export_file',
+			queue='short',
+			timeout=300,
+			file_name=file_doc.name,
+			enqueue_after_commit=True
+		)
 
 		return {
 			'file_url': file_doc.file_url,
@@ -1314,3 +1324,21 @@ def apply_excel_formatting(ws, num_employees, num_dates, date_range):
 						# Only apply Sunday fill if not already a department/total row
 						if not cell.fill or cell.fill.start_color.rgb != 'FFE0E0E0':
 							cell.fill = sunday_fill
+
+
+def delete_export_file(file_name):
+	"""Delete exported Excel file after download
+	This function is called via background job after a delay to allow download to complete
+	"""
+	import time
+
+	# Wait 2 minutes before deleting to ensure download completes
+	time.sleep(120)
+
+	try:
+		if frappe.db.exists('File', file_name):
+			frappe.delete_doc('File', file_name, ignore_permissions=True)
+			frappe.db.commit()
+	except Exception as e:
+		# Log error but don't raise - file cleanup is not critical
+		frappe.log_error(f"Failed to delete export file {file_name}: {str(e)}", "Export File Cleanup")

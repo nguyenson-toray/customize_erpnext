@@ -192,6 +192,8 @@ function export_attendance_excel(report) {
 
 // Actual export function (separated from dialog)
 function do_export_attendance_excel(filters) {
+	console.log('do_export_attendance_excel called with filters:', filters);
+
 	frappe.show_alert({
 		message: __('Generating Excel file...'),
 		indicator: 'blue'
@@ -200,13 +202,20 @@ function do_export_attendance_excel(filters) {
 	// Listen for background export completion
 	frappe.realtime.on('excel_export_complete', function (data) {
 		if (data.success) {
-			// Download file
-			window.open(data.file_url, '_blank');
+			// Auto-download using iframe
+			let iframe = document.createElement('iframe');
+			iframe.style.display = 'none';
+			iframe.src = data.file_url;
+			document.body.appendChild(iframe);
+
+			setTimeout(() => {
+				document.body.removeChild(iframe);
+			}, 5000);
 
 			frappe.show_alert({
-				message: data.message || __('Excel file generated successfully!'),
+				message: __('Excel file downloaded successfully!'),
 				indicator: 'green'
-			}, 10);
+			}, 5);
 		} else {
 			frappe.msgprint({
 				title: __('Export Error'),
@@ -224,7 +233,9 @@ function do_export_attendance_excel(filters) {
 		freeze: true,
 		freeze_message: __('Generating Excel file...'),
 		callback: function (r) {
+			console.log('Export API response:', r);
 			if (r.message) {
+				console.log('Response message:', r.message);
 				// Check if it's a background job
 				if (r.message.background_job) {
 					frappe.show_alert({
@@ -233,16 +244,32 @@ function do_export_attendance_excel(filters) {
 					}, 15);
 				} else if (r.message.file_url) {
 					// Immediate response - small dataset
-					window.open(r.message.file_url, '_blank');
+					console.log('Downloading file from:', r.message.file_url);
+
+					// Auto-download using iframe (avoids popup blockers)
+					let iframe = document.createElement('iframe');
+					iframe.style.display = 'none';
+					iframe.src = r.message.file_url;
+					document.body.appendChild(iframe);
+
+					// Clean up iframe after download starts
+					setTimeout(() => {
+						document.body.removeChild(iframe);
+					}, 5000);
 
 					frappe.show_alert({
-						message: __('Excel file generated successfully!'),
+						message: __('Excel file downloaded successfully!'),
 						indicator: 'green'
-					});
+					}, 5);
+				} else {
+					console.log('No file_url or background_job in response');
 				}
+			} else {
+				console.log('No r.message in response, full response:', r);
 			}
 		},
 		error: function (r) {
+			console.log('Export API error:', r);
 			let error_message = __('Failed to generate Excel file. Please try again.');
 
 			// Check for specific error messages
