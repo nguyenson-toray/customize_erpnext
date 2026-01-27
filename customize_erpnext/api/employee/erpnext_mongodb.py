@@ -12,6 +12,7 @@ import frappe
 from frappe import _
 from pymongo import MongoClient, errors
 from datetime import datetime
+from customize_erpnext.api.site_restriction import only_for_sites
 
 # MongoDB connection settings
 MONGODB_HOST = "10.0.1.4"
@@ -120,6 +121,7 @@ def transform_employee_data(doc):
     return mongo_doc
 
 
+@only_for_sites("erp.tiqn.local")
 def sync_employee_to_mongodb(doc, method=None):
     """
     Sync Employee document to MongoDB
@@ -179,6 +181,7 @@ def sync_employee_to_mongodb(doc, method=None):
         )
 
 
+@only_for_sites("erp.tiqn.local")
 def delete_employee_from_mongodb(doc, method=None):
     """
     Delete Employee document from MongoDB

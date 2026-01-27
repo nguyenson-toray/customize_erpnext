@@ -379,7 +379,418 @@ deleted = cleanup_left_employee_timesheets('2025-10-26', '2025-11-10')
 # Returns: 48 (deleted 48 unnecessary records)
 ```
 
+## 📨 Daily Report Email System
+
+### Tổng Quan
+Hệ thống gửi email báo cáo chấm công tự động hàng ngày với:
+- **Email HTML**: 3 bảng thống kê (Vắng, Maternity Leave, Chấm công thiếu)
+- **File Excel**: 2 sheets (Dữ liệu chính + Chấm công thiếu)
+- **Thời điểm**: Có thể gửi thủ công hoặc tự động theo lịch
+
+### Cách Sử Dụng
+
+#### 1. Gửi Thủ Công
+Daily Timesheet Report → Actions → **📨2. Send Daily Timesheet Report**
+
+**Dialog Fields**:
+- **Report Date**: Ngày cần gửi báo cáo
+- **Email Recipients**: Danh sách email (mỗi email một dòng)
+  ```
+  it@tiqn.com.vn
+  ni.nht@tiqn.com.vn
+  hoanh.ltk@tiqn.com.vn
+  loan.ptk@tiqn.com.vn
+  ```
+
+**UX Features**:
+- ✅ Validate email format
+- ✅ Disable button khi đang gửi ("Sending...")
+- ✅ Freeze toàn màn hình với loading message
+- ✅ Tự động đóng dialog khi thành công
+- ✅ Re-enable dialog nếu có lỗi để thử lại
+
+### Email Content Structure
+
+#### Statistics Summary
+```
+Số lượng nhân viên (Active): 826 người
+Tổng số nhân viên hiện diện: 824 người
+Tổng số nhân viên vắng (không bao gồm Maternity Leave): 0 người
+Tổng số nhân viên Maternity Leave: 2 người
+Tổng số giờ làm việc: 6,475.50 giờ
+Tổng số giờ tăng ca: 145.25 giờ
+
+Thời điểm xử lý dữ liệu chấm công: 08:10:30 03/12/2025
+```
+
+#### Bảng 1: Nhân Viên Vắng (Không Bao Gồm Maternity Leave)
+- Danh sách nhân viên có `status = 'Absent'`
+- Columns: STT, Employee, Employee Name, Department, Group
+
+#### Bảng 2: Nhân Viên Maternity Leave
+- Danh sách nhân viên có `status = 'Maternity Leave'`
+- Columns: STT, Employee, Employee Name, Department, Group
+
+#### Bảng 3: Chấm Công Thiếu (Từ 26 Tháng Trước Đến Hôm Qua)
+- **3 trường hợp incomplete**:
+  1. Chỉ có 1 lần chấm công
+  2. Tất cả lần chấm trước giờ vào ca
+  3. Tất cả lần chấm sau giờ tan ca
+- **Columns**: STT, Ngày, Employee, Employee Name, Department, Group, Số lần chấm, Đã xử lý
+
+### Excel File Structure
+
+#### Sheet 1: "Absent-Maternity Leave-Present"
+Tất cả dữ liệu Daily Timesheet của ngày báo cáo.
+
+**Columns**:
+- STT, Ngày, Att ID, Employee, Employee Name
+- Department, Group, Shift, Designation
+- Check In, Check Out, Working Hours, Overtime, Status
+
+**Sắp xếp**: Absent → Maternity Leave → Present
+
+**Source Data**:
+```python
+all_employees = []
+all_employees.extend(stats.get('absent_employees', []))
+all_employees.extend(stats.get('maternity_employees', []))
+all_employees.extend(stats.get('present_employees', []))
+```
+
+#### Sheet 2: "Missing DD-MM to DD-MM"
+Dữ liệu chấm công thiếu từ ngày 26 tháng trước đến **hôm qua** (không phải hôm nay).
+
+**Columns**:
+- STT, Ngày, Att ID, Employee, Employee Name
+- Department, Group, Shift, Designation
+- Check-in, Check-out, Số lần chấm, Đã xử lý
+- Reason, Other Reason
+
+**Period Logic**:
+```python
+prev_month_26 = add_days(add_months(current_month_first, -1), 25)
+yesterday = add_days(report_date, -1)  # Not today!
+```
+
+### API Reference
+
+#### `send_daily_time_sheet_report(report_date=None, recipients=None)`
+Gửi báo cáo Daily Timesheet qua email.
+
+**Location**: `scheduler.py`
+
+**Decorator**:
+```python
+@frappe.whitelist()
+@only_for_sites("erp.tiqn.local")
+```
+
+**Parameters**:
+- `report_date` (str/date, optional): Ngày báo cáo. Default = today
+- `recipients` (str/list, optional): Email người nhận
+  - Format: Newline-separated hoặc comma-separated
+  - Example: `"email1@tiqn.com.vn\nemail2@tiqn.com.vn"`
+
+**Returns**:
+```python
+{
+    "status": "success",
+    "message": "Report sent successfully to N recipients"
+}
+```
+
+**Process Flow**:
+1. Parse `report_date` (string hoặc date object)
+2. Get data từ `get_data()` với filters:
+   - `date_type`: "Single Date"
+   - `single_date`: report_date
+   - `summary`: 0
+   - `detail_columns`: 1
+3. Calculate statistics: `calculate_timesheet_statistics()`
+4. Get incomplete check-ins (từ 26 tháng trước đến hôm qua)
+5. Generate HTML email (3 tables)
+6. Generate Excel file (2 sheets)
+7. Send email với attachment
+8. Cleanup temp Excel file
+
+**Example Usage**:
+```javascript
+frappe.call({
+    method: 'customize_erpnext.customize_erpnext.report.daily_timesheet_report.scheduler.send_daily_time_sheet_report',
+    args: {
+        report_date: '2025-12-03',
+        recipients: 'it@tiqn.com.vn\nni.nht@tiqn.com.vn'
+    },
+    freeze: true,
+    freeze_message: __('Sending Daily Timesheet Report...')
+})
+```
+
+### Helper Functions
+
+#### `calculate_timesheet_statistics(report_date, data)`
+Tính toán thống kê từ dữ liệu Daily Timesheet.
+
+**Returns**:
+```python
+{
+    "total_employees": 826,           # Total Active employees
+    "total_present": 824,             # Present + Sunday
+    "total_absent": 0,                # Absent (excluding maternity)
+    "maternity_count": 2,             # Maternity Leave count
+    "total_working_hours": 6475.50,
+    "total_overtime_hours": 145.25,
+    "total_actual_overtime": 150.00,
+    "total_approved_overtime": 145.25,
+    "present_employees": [...],       # List of employee dicts
+    "absent_employees": [...],
+    "maternity_employees": [...]
+}
+```
+
+**Status Classification**:
+```python
+if status == 'Present' or status == 'Sunday':
+    present_employees.append(row)
+elif status == 'Maternity Leave':
+    maternity_employees.append(row)
+elif status == 'Absent':
+    absent_employees.append(row)
+# Other statuses: Half Day, On Leave, etc. → NOT included!
+```
+
+**Deduplication**: Sử dụng `employee_data` dict để chỉ xử lý mỗi employee 1 lần (tránh duplicate).
+
+**Maternity Leave Count**:
+- Đếm số lượng nhân viên có `status = 'Maternity Leave'` trong Daily Timesheet
+- `maternity_count = len(maternity_employees)`
+
+#### `get_incomplete_checkins(start_date, end_date)`
+Lấy danh sách nhân viên chấm công không đầy đủ.
+
+**Query Source**: `tabEmployee Checkin` (docstatus <= 1)
+
+**Incomplete Logic** (3 rules):
+1. **Single check-in**: `checkin_count = 1`
+2. **All before shift**: Tất cả lần chấm < shift `begin_time`
+3. **All after shift**: Tất cả lần chấm > shift `end_time`
+
+**Returns**: List of dicts
+```python
+[{
+    'employee': 'TIQN-0001',
+    'employee_name': 'Nguyễn Văn A',
+    'department': 'Production',
+    'custom_group': 'Group 1',
+    'attendance_date': '2025-11-26',
+    'checkin_count': 1,
+    'first_check_in': datetime,
+    'last_check_out': datetime,
+    'begin_time': time,
+    'end_time': time,
+    'manual_checkins': 'Processed' hoặc ''
+}]
+```
+
+#### `generate_email_content(report_date, stats, data, last_checkin_time=None)`
+Tạo HTML content cho email.
+
+**Structure**:
+```html
+<div style="font-family: Arial, sans-serif;">
+    <h2>Báo cáo hiện diện / vắng ngày DD/MM/YYYY</h2>
+
+    <!-- Statistics -->
+    <div style="background-color: #f5f5f5; padding: 15px;">
+        <p><strong>Số lượng nhân viên (Active):</strong> N người</p>
+        ...
+    </div>
+
+    <!-- Table 1: Absent (excluding maternity) -->
+    <h3>1. Nhân viên vắng (Không bao gồm Maternity Leave)</h3>
+    <table border="1">...</table>
+
+    <!-- Table 2: Maternity Leave -->
+    <h3>2. Nhân viên Maternity Leave</h3>
+    <table border="1">...</table>
+
+    <!-- Table 3: Incomplete Check-ins -->
+    <h3>3. Chấm công thiếu (từ DD/MM đến DD/MM)</h3>
+    <table border="1">...</table>
+</div>
+```
+
+**Encoding**: UTF-8 (hỗ trợ tiếng Việt có dấu)
+
+#### `generate_excel_report(report_date, data, stats)`
+Tạo file Excel với openpyxl.
+
+**Returns**: `(file_path, file_name)`
+- `file_path`: Temp file path
+- `file_name`: `Daily_Timesheet_Report_DDMMYYYY.xlsx`
+
+**Styling**:
+- Header: Green background (#4CAF50), white bold text
+- Borders: Thin black borders
+- Alignment: Center for dates/numbers, left for text
+- Column widths: Optimized
+- Table style: TableStyleMedium1
+
+**Temp File Handling**:
+```python
+temp_dir = tempfile.gettempdir()
+file_path = os.path.join(temp_dir, file_name)
+wb.save(file_path)
+# ... send email ...
+os.remove(file_path)  # Cleanup
+```
+
+#### `get_last_employee_checkin_time()`
+Lấy thời gian Employee Checkin cuối cùng.
+
+**Query**:
+```sql
+SELECT MAX(time) as last_time
+FROM `tabEmployee Checkin`
+```
+
+**Returns**: `"HH:MM:SS DD/MM/YYYY"` hoặc `None`
+
+### Email Recipient Parsing
+
+**Client-side (JavaScript)**:
+```javascript
+// Split by newlines or commas, trim, filter empty
+let emails = values.recipients
+    .split(/[\n,]/)
+    .map(e => e.trim())
+    .filter(e => e.length > 0);
+
+// Validate each email
+let invalid_emails = emails.filter(e =>
+    !frappe.utils.validate_type(e, 'email')
+);
+```
+
+**Server-side (Python)**:
+```python
+import re
+
+if isinstance(recipients, str):
+    # Split by newlines and commas, remove empty strings
+    recipient_list = [
+        email.strip()
+        for email in re.split(r'[\n,]', recipients)
+        if email.strip()
+    ]
+else:
+    recipient_list = recipients
+```
+
+**Supports**:
+- ✅ Newline-separated (recommended)
+- ✅ Comma-separated (backward compatible)
+- ✅ Mixed format
+
+### Known Issues & Limitations
+
+#### 1. Status Support
+**Vấn đề**: Chỉ 4 status được hỗ trợ trong email report:
+- ✅ `Present`
+- ✅ `Sunday`
+- ✅ `Maternity Leave`
+- ✅ `Absent`
+
+**Not Supported**:
+- ❌ `Half Day` → Không xuất hiện trong email/Excel
+- ❌ `On Leave` → Không xuất hiện
+- ❌ `Work From Home` → Không xuất hiện
+- ❌ NULL/empty status → Không xuất hiện
+
+**Impact**: Số lượng employees trong email có thể < Total Active.
+
+#### 2. Department Filtering
+**Vấn đề**: Report luôn loại bỏ 2 departments:
+```python
+# Line 646 in daily_timesheet_report.py
+conditions.append(
+    "emp.department NOT IN ('Head of Branch - TIQN', 'Operations Manager - TIQN')"
+)
+```
+
+**Impact**: Employees trong 2 departments này sẽ KHÔNG xuất hiện trong báo cáo.
+
+#### 3. Data Discrepancy
+**Example**:
+- Total Active Employees: 826
+- Sheet 1 rows: 824
+- Missing: 2 employees
+
+**Possible Reasons**:
+1. Department bị excluded
+2. Status không được support
+3. Không có Daily Timesheet record (filtered out by `dt.attendance_date IS NOT NULL`)
+
+### Configuration
+
+**Site Restriction**:
+```python
+@only_for_sites("erp.tiqn.local")
+```
+
+**Default Recipients**:
+```python
+recipient_list = [
+    "it@tiqn.com.vn",
+    "ni.nht@tiqn.com.vn",
+    "hoanh.ltk@tiqn.com.vn",
+    "loan.ptk@tiqn.com.vn"
+]
+```
+
+**Incomplete Check-ins Period**:
+- Start: Day 26 of previous month
+- End: Yesterday (NOT today)
+
 ## 🔄 Update History
+
+### 2025-12-03: Email Report System
+**Added**:
+- ✅ Send Daily Timesheet Report button in Actions menu
+- ✅ Dialog với date picker + email recipients (one per line)
+- ✅ Email HTML với 3 bảng thống kê
+- ✅ Excel attachment với 2 sheets
+- ✅ Loading/frozen dialog during send
+- ✅ Auto-close dialog on success
+- ✅ Support newline + comma separated emails
+
+**Functions Added** (`scheduler.py`):
+- `send_daily_time_sheet_report()` - Main email function
+- `calculate_timesheet_statistics()` - Calculate stats from data
+- `get_incomplete_checkins()` - Query incomplete check-ins
+- `generate_email_content()` - Generate HTML with 3 tables
+- `generate_excel_report()` - Generate Excel with 2 sheets
+- `get_last_employee_checkin_time()` - Get last check-in time
+
+**Dialog Features** (`daily_timesheet_report.js`):
+- Validate email format (newline/comma separated)
+- Disable button: `d.get_primary_btn().prop('disabled', true)`
+- Change label: `d.get_primary_btn().html('Sending...')`
+- Freeze screen: `freeze: true, freeze_message: '...'`
+- Auto-close: `d.hide()` on success
+- Re-enable on error
+
+**Email Content**:
+- Subject: "Báo cáo hiện diện / vắng ngày DD/MM/YYYY"
+- 3 HTML tables: Absent, Maternity Leave, Incomplete Check-ins
+- Statistics summary
+- UTF-8 encoding
+
+**Excel Format**:
+- Sheet 1: All timesheet data (Absent → Maternity → Present)
+- Sheet 2: Incomplete check-ins (26 prev month to yesterday)
+- Green header (#4CAF50), borders, table format
 
 ### 2025-11-10: Full Employee Coverage + Cleanup + Morning Pre-Creation
 **Changes**:

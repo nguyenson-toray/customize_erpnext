@@ -219,6 +219,18 @@
             font-size: 11px;
         }
 
+        .phone-info,
+        .address-info {
+            color: #495057;
+            font-size: 11px;
+            margin-top: 4px;
+            word-wrap: break-word;
+        }
+
+        .phone-info {
+            font-weight: 500;
+        }
+
         .error {
             text-align: center;
             padding: 40px 20px;
@@ -294,6 +306,20 @@
                     <label>
                         <input type="checkbox" id="showActiveOnlyCheckbox" checked>
                         <span>Chỉ hiển thị nhân viên đang làm việc</span>
+                    </label>
+                </div>
+
+                <div class="control-group">
+                    <label>
+                        <input type="checkbox" id="showPhoneCheckbox">
+                        <span>SĐT</span>
+                    </label>
+                </div>
+
+                <div class="control-group">
+                    <label>
+                        <input type="checkbox" id="showAddressCheckbox">
+                        <span>Địa chỉ</span>
                     </label>
                 </div>
 
@@ -438,6 +464,32 @@
             // Setup event listeners
             document.getElementById('showActiveOnlyCheckbox').addEventListener('change', function () {
                 applyFilters();
+            });
+
+            document.getElementById('showPhoneCheckbox').addEventListener('change', function (e) {
+                if (e.target.checked) {
+                    // Ask for password
+                    const password = prompt('Nhập mật khẩu để xem số điện thoại:');
+                    if (password !== '1111') {
+                        alert('Mật khẩu không đúng!');
+                        e.target.checked = false;
+                        return;
+                    }
+                }
+                displayPhotos();
+            });
+
+            document.getElementById('showAddressCheckbox').addEventListener('change', function (e) {
+                if (e.target.checked) {
+                    // Ask for password
+                    const password = prompt('Nhập mật khẩu để xem địa chỉ:');
+                    if (password !== '1111') {
+                        alert('Mật khẩu không đúng!');
+                        e.target.checked = false;
+                        return;
+                    }
+                }
+                displayPhotos();
             });
 
             document.getElementById('groupSelect').addEventListener('change', function () {
@@ -592,6 +644,8 @@
         function displayPhotos() {
             const gallery = document.getElementById('gallery');
             const loading = document.getElementById('loading');
+            const showPhone = document.getElementById('showPhoneCheckbox').checked;
+            const showAddress = document.getElementById('showAddressCheckbox').checked;
 
             loading.style.display = 'none';
 
@@ -608,6 +662,12 @@
                 const groupInfo = photo.custom_group ? `<div class="group-info">📁 ${photo.custom_group}</div>` : '';
                 const employeeLink = photo.employee_id ? `/app/employee/${encodeURIComponent(photo.employee_id)}` : '#';
 
+                // Phone info
+                const phoneInfo = showPhone && photo.cell_number ? `<div class="phone-info">📱 ${photo.cell_number}</div>` : '';
+
+                // Address info
+                const addressInfo = showAddress && photo.custom_current_address_full ? `<div class="address-info">📍 ${photo.custom_current_address_full}</div>` : '';
+
                 return `
                     <div class="photo-card">
                         <img src="${photo.url}" alt="${photo.display_name}" loading="lazy" onclick="openModal('${photo.url}', '${photo.display_name}')">
@@ -617,6 +677,8 @@
                             </a>
                             ${statusBadge}
                             ${groupInfo}
+                            ${phoneInfo}
+                            ${addressInfo}
                             <div class="file-info">${formatFileSize(photo.size)}</div>
                         </div>
                     </div>

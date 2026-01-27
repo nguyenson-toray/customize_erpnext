@@ -1,0 +1,132 @@
+{
+ "actions": [],
+ "allow_import": 1,
+ "allow_rename": 1,
+ "creation": "2025-10-27 12:51:05.919734",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "id",
+  "vehicle_name",
+  "fixed_location_1",
+  "fixed_location_2",
+  "driver",
+  "model",
+  "number_of_seats",
+  "initial_odometer",
+  "valid_from",
+  "default_driver"
+ ],
+ "fields": [
+  {
+   "fieldname": "id",
+   "fieldtype": "Data",
+   "label": "ID"
+  },
+  {
+   "fieldname": "driver",
+   "fieldtype": "Data",
+   "label": "Driver"
+  },
+  {
+   "fieldname": "model",
+   "fieldtype": "Data",
+   "label": "Model"
+  },
+  {
+   "fieldname": "number_of_seats",
+   "fieldtype": "Int",
+   "label": "Number of Seats"
+  },
+  {
+   "fieldname": "vehicle_name",
+   "fieldtype": "Data",
+   "label": "Vehicle Name"
+  },
+  {
+   "fieldname": "fixed_location_1",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Fixed Location 1",
+   "options": "\nC\u00f4ng ty Toray\nVincom\nD\u1ed1c S\u1ecfi",
+   "reqd": 1
+  },
+  {
+   "description": "Default : C\u00f4ng ty Toray",
+   "fieldname": "fixed_location_2",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Fixed Location 2",
+   "options": "\nC\u00f4ng ty Toray\nVincom\nD\u1ed1c S\u1ecfi",
+   "reqd": 1
+  },
+  {
+   "fieldname": "valid_from",
+   "fieldtype": "Date",
+   "label": "Valid from"
+  },
+  {
+   "fieldname": "default_driver",
+   "fieldtype": "Link",
+   "label": "Default Driver",
+   "options": "User"
+  },
+  {
+   "fieldname": "initial_odometer",
+   "fieldtype": "Int",
+   "label": "Initial Odometer",
+   "non_negative": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2025-11-14 14:35:34.763000",
+ "modified_by": "Administrator",
+ "module": "Customize Erpnext",
+ "name": "Vehicle List",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "HR Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "HR User",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

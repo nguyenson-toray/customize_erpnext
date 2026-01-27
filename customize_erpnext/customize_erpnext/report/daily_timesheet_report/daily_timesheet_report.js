@@ -67,11 +67,15 @@ frappe.query_reports["Daily Timesheet Report"] = {
 				return frappe.db.get_list('Employee', {
 					fields: ['custom_section'],
 					filters: {
-						'custom_section': ['like', '%' + txt + '%']
+						'custom_section': ['like', '%' + txt + '%'],
+						'custom_section': ['is', 'set']  // Exclude NULL values
 					},
 					group_by: 'custom_section'
 				}).then(function (data) {
-					return data.map(function (item) {
+					return data.filter(function (item) {
+						// Filter out null, undefined, empty string
+						return item.custom_section && item.custom_section.trim() !== '';
+					}).map(function (item) {
 						return {
 							value: item.custom_section,
 							label: item.custom_section
@@ -88,11 +92,15 @@ frappe.query_reports["Daily Timesheet Report"] = {
 				return frappe.db.get_list('Employee', {
 					fields: ['custom_group'],
 					filters: {
-						'custom_group': ['like', '%' + txt + '%']
+						'custom_group': ['like', '%' + txt + '%'],
+						'custom_group': ['is', 'set']  // Exclude NULL values
 					},
 					group_by: 'custom_group'
 				}).then(function (data) {
-					return data.map(function (item) {
+					return data.filter(function (item) {
+						// Filter out null, undefined, empty string
+						return item.custom_group && item.custom_group.trim() !== '';
+					}).map(function (item) {
 						return {
 							value: item.custom_group,
 							label: item.custom_group
@@ -101,18 +109,12 @@ frappe.query_reports["Daily Timesheet Report"] = {
 				});
 			}
 		},
-		{
-			"fieldname": "employee",
-			"label": __("Employee"),
-			"fieldtype": "Link",
-			"options": "Employee"
-		},
-		{
-			"fieldname": "status",
-			"label": __("Status"),
-			"fieldtype": "Select",
-			"options": "\nAbsent\nPresent\nPresent + OT\nHalf Day\nWork From Home\nOn Leave\nSunday\nSunday, Lunch benefit"
-		},
+		// {
+		// 	"fieldname": "employee",
+		// 	"label": __("Employee"),
+		// 	"fieldtype": "Link",
+		// 	"options": "Employee"
+		// },
 		{
 			"fieldname": "summary",
 			"label": __("Summary"),
@@ -133,7 +135,8 @@ frappe.query_reports["Daily Timesheet Report"] = {
 			"fieldtype": "Select",
 			"options": "Department Summary\nTop 50 - Highest Overtime\nTop 50 - Highest Working Hours",
 			"default": "Top 50 - Highest Overtime",
-			"description": __("Select chart visualization type")
+			"description": __("Select chart visualization type"),
+			"depends_on": "eval:doc.date_type!='Single Date'"
 		}
 	],
 
@@ -172,9 +175,14 @@ frappe.query_reports["Daily Timesheet Report"] = {
 		}, 500);
 
 		// Add export Excel button (always shown)
-		report.page.add_inner_button(__('Export Excel - HR Template'), function () {
+		report.page.add_inner_button(__('⬇️1. Export Excel - C&B Template'), function () {
 			export_timesheet_excel(report);
-		}, __('Actions'));
+		},); // __('Actions'));
+
+		// Add send daily timesheet report button
+		report.page.add_inner_button(__('📩2. Send Report'), function () {
+			send_daily_timesheet_report_dialog(report);
+		},); //__('Actions'));
 
 
 	},
@@ -218,15 +226,23 @@ frappe.query_reports["Daily Timesheet Report"] = {
 			return null;
 		}
 
-		// Hide chart when single date filter is selected
+		// Show pie chart for Single Date - Status distribution (only if not summary mode)
 		if (window.daily_timesheet_report && window.daily_timesheet_report.get_filter_value) {
 			let date_type = window.daily_timesheet_report.get_filter_value("date_type");
-			if (date_type === "Single Date") {
+			let is_summary = window.daily_timesheet_report.get_filter_value("summary");
+
+			// Only show pie chart if Single Date AND NOT summary mode
+			if (date_type === "Single Date" && !is_summary) {
+				return get_status_distribution_chart(result);
+			}
+
+			// Hide chart if summary mode is enabled
+			if (is_summary) {
 				return null;
 			}
 		}
 
-		// Get chart type from global variable
+		// Get chart type from global variable for other date types
 		let chart_type = window.daily_timesheet_chart_type || "Department Summary";
 
 		// Fallback: try to get from report if available
@@ -459,6 +475,175 @@ function get_top_working_hours_chart(result, round_decimal) {
 	};
 }
 
+function get_status_distribution_chart(result) {
+	// Count employees by status
+	let status_counts = {
+		'Present': 0,
+		'Absent': 0,
+		'Maternity Leave': 0
+	};
+
+	result.forEach(function (row) {
+		let status = row.status;
+		if (status && status_counts.hasOwnProperty(status)) {
+			status_counts[status]++;
+		}
+	});
+
+	// Calculate total active employees
+	let total = status_counts['Present'] + status_counts['Absent'] + status_counts['Maternity Leave'];
+
+	// Calculate percentages
+	let present_pct = total > 0 ? Math.round((status_counts['Present'] / total) * 100) : 0;
+	let absent_pct = total > 0 ? Math.round((status_counts['Absent'] / total) * 100) : 0;
+	let maternity_pct = total > 0 ? Math.round((status_counts['Maternity Leave'] / total) * 100) : 0;
+
+	return {
+		data: {
+			labels: [
+				`Present: ${status_counts['Present']} (${present_pct}%)`,
+				`Absent: ${status_counts['Absent']} (${absent_pct}%)`,
+				`Maternity Leave: ${status_counts['Maternity Leave']} (${maternity_pct}%)`
+			],
+			datasets: [
+				{
+					name: `Total Active: ${total}`,
+					values: [
+						status_counts['Present'],
+						status_counts['Absent'],
+						status_counts['Maternity Leave']
+					]
+				}
+			]
+		},
+		type: "percentage",  // Donut chart
+		height: 300,
+		colors: ["#28a745", "#E20E20", "#FF69B4"],  // Green for Present, Red for Absent, Pink for Maternity
+		maxSlices: 10,
+		truncateLegends: false,
+		tooltipOptions: {
+			formatTooltipY: d => d + ""
+		},
+		title: `Total Active Employees: ${total}`
+	};
+}
+
+// Send Daily Timesheet Report dialog function
+function send_daily_timesheet_report_dialog(report) {
+	// Get current filters to suggest default date
+	let filters = report.get_values();
+	let default_date = frappe.datetime.get_today();
+
+	// Try to get date from current filters
+	if (filters.date_type === 'Single Date' && filters.single_date) {
+		default_date = filters.single_date;
+	}
+
+	// Create dialog
+	let d = new frappe.ui.Dialog({
+		title: __('Send Daily Timesheet Report'),
+		fields: [
+			{
+				fieldname: 'report_date',
+				label: __('Report Date'),
+				fieldtype: 'Date',
+				default: default_date,
+				reqd: 1,
+				description: __('Select the date for the report')
+			},
+			{
+				fieldname: 'recipients',
+				label: __('Email Recipients'),
+				fieldtype: 'Small Text',
+				reqd: 1,
+				default: 'it@tiqn.com.vn\nni.nht@tiqn.com.vn\nhoanh.ltk@tiqn.com.vn\nloan.ptk@tiqn.com.vn',
+				description: __('Enter one email address per line')
+			}
+		],
+		primary_action_label: __('Send Report'),
+		primary_action: function (values) {
+			// Validate email format - split by newlines or commas
+			let emails = values.recipients.split(/[\n,]/).map(e => e.trim()).filter(e => e.length > 0);
+			let invalid_emails = emails.filter(e => !frappe.utils.validate_type(e, 'email'));
+
+			if (invalid_emails.length > 0) {
+				frappe.msgprint({
+					title: __('Invalid Email'),
+					message: __('Please enter valid email addresses: ') + invalid_emails.join(', '),
+					indicator: 'red'
+				});
+				return;
+			}
+
+			// Disable dialog and show loading
+			d.get_primary_btn().prop('disabled', true);
+			d.get_primary_btn().html(__('Sending...'));
+
+			// // Show loading indicator
+			// frappe.show_alert({
+			// 	message: __('Sending report, please wait...'),
+			// 	indicator: 'blue'
+			// });
+
+			// Freeze all fields in dialog
+			d.fields_dict.report_date.df.read_only = 1;
+			d.fields_dict.recipients.df.read_only = 1;
+			d.fields_dict.report_date.refresh();
+			d.fields_dict.recipients.refresh();
+
+			// Call server method to send report
+			frappe.call({
+				method: 'customize_erpnext.customize_erpnext.report.daily_timesheet_report.scheduler.send_daily_time_sheet_report',
+				args: {
+					report_date: values.report_date,
+					recipients: values.recipients
+				},
+				freeze: true,
+				freeze_message: __('📨 Sending Daily Timesheet Report...'),
+				callback: function (r) {
+					if (r.message && r.message.status === 'success') {
+						frappe.show_alert({
+							message: __('Report sent successfully!'),
+							indicator: 'green'
+						}, 5);
+						// Auto close dialog on success
+						d.hide();
+					} else {
+						frappe.msgprint({
+							title: __('Error'),
+							message: r.message ? r.message.message : __('Failed to send report. Please check the error log.'),
+							indicator: 'red'
+						});
+						// Re-enable dialog on error
+						d.get_primary_btn().prop('disabled', false);
+						d.get_primary_btn().html(__('Send Report'));
+						d.fields_dict.report_date.df.read_only = 0;
+						d.fields_dict.recipients.df.read_only = 0;
+						d.fields_dict.report_date.refresh();
+						d.fields_dict.recipients.refresh();
+					}
+				},
+				error: function () {
+					frappe.msgprint({
+						title: __('Error'),
+						message: __('Failed to send report. Please try again or contact administrator.'),
+						indicator: 'red'
+					});
+					// Re-enable dialog on error
+					d.get_primary_btn().prop('disabled', false);
+					d.get_primary_btn().html(__('Send Report'));
+					d.fields_dict.report_date.df.read_only = 0;
+					d.fields_dict.recipients.df.read_only = 0;
+					d.fields_dict.report_date.refresh();
+					d.fields_dict.recipients.refresh();
+				}
+			});
+		}
+	});
+
+	d.show();
+}
+
 // Export Excel function
 function export_timesheet_excel(report) {
 	let filters = report.get_values();
@@ -500,54 +685,115 @@ function export_timesheet_excel(report) {
 		return;
 	}
 
+	// Show export options dialog
+	let d = new frappe.ui.Dialog({
+		title: __('Export Excel Options'),
+		fields: [
+			{
+				fieldname: 'split_department',
+				label: __('Split by Department'),
+				fieldtype: 'Check',
+				default: 0,
+				description: __('Group employees by department with department headers')
+			},
+			{
+				fieldname: 'sort_order',
+				label: __('Sort by Employee'),
+				fieldtype: 'Select',
+				options: 'Ascending\nDescending',
+				default: 'Ascending',
+				description: __('Sort order for employee names')
+			}
+		],
+		primary_action_label: __('Export'),
+		primary_action: function (values) {
+			d.hide();
+
+			// Add export options to filters
+			filters.split_department = values.split_department ? 1 : 0;
+			filters.sort_order = values.sort_order;
+
+			// Call the actual export function
+			do_export_timesheet_excel(filters);
+		}
+	});
+
+	d.show();
+}
+
+// Actual export function (separated from dialog)
+function do_export_timesheet_excel(filters) {
 	frappe.show_alert({
 		message: __('Generating Excel file...'),
 		indicator: 'blue'
 	});
 
-	// Get current report data 
-	let report_data = null;
-	if (report.data && report.data.length > 0) {
-		report_data = report.data;
-	}
+	// Listen for background export completion
+	frappe.realtime.on('excel_export_complete', function (data) {
+		if (data.success) {
+			// Download file
+			window.open(data.file_url, '_blank');
+
+			frappe.show_alert({
+				message: data.message || __('Excel file generated successfully!'),
+				indicator: 'green'
+			}, 10);
+		} else {
+			frappe.msgprint({
+				title: __('Export Error'),
+				message: data.message || __('Failed to generate Excel file.'),
+				indicator: 'red'
+			});
+		}
+	});
 
 	frappe.call({
 		method: 'customize_erpnext.customize_erpnext.report.daily_timesheet_report.daily_timesheet_report.export_timesheet_excel',
 		args: {
-			filters: filters,
-			report_data: report_data
+			filters: filters
 		},
+		freeze: true,
+		freeze_message: __('Generating Excel file...'),
 		callback: function (r) {
-			if (r.message && r.message.filecontent) {
-				// Convert base64 to blob
-				const byteCharacters = atob(r.message.filecontent);
-				const byteNumbers = new Array(byteCharacters.length);
-				for (let i = 0; i < byteCharacters.length; i++) {
-					byteNumbers[i] = byteCharacters.charCodeAt(i);
+			if (r.message) {
+				// Check if it's a background job
+				if (r.message.background_job) {
+					frappe.show_alert({
+						message: r.message.message || __('Large export queued for background processing. You will be notified when ready.'),
+						indicator: 'blue'
+					}, 15);
+				} else if (r.message.file_url) {
+					// Immediate response - small dataset
+					window.open(r.message.file_url, '_blank');
+
+					frappe.show_alert({
+						message: __('Excel file generated successfully!'),
+						indicator: 'green'
+					});
 				}
-				const byteArray = new Uint8Array(byteNumbers);
-				const blob = new Blob([byteArray], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-
-				// Create download link
-				const url = window.URL.createObjectURL(blob);
-				const link = document.createElement('a');
-				link.href = url;
-				link.download = r.message.filename;
-				document.body.appendChild(link);
-				link.click();
-				document.body.removeChild(link);
-				window.URL.revokeObjectURL(url);
-
-				frappe.show_alert({
-					message: __('Excel file downloaded successfully!'),
-					indicator: 'green'
-				});
 			}
 		},
-		error: function (xhr) {
+		error: function (r) {
+			let error_message = __('Failed to generate Excel file. Please try again.');
+
+			// Check for specific error messages
+			if (r && r._server_messages) {
+				try {
+					let messages = JSON.parse(r._server_messages);
+					if (messages && messages.length > 0) {
+						let parsed = JSON.parse(messages[0]);
+						if (parsed && parsed.message) {
+							error_message = parsed.message;
+						}
+					}
+				} catch (e) {
+					// Use default error message
+				}
+			}
+
 			frappe.msgprint({
 				title: __('Export Error'),
-				message: __('Failed to generate Excel file. Please try again.'),
+				message: error_message,
 				indicator: 'red'
 			});
 		}

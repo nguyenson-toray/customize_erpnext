@@ -7,8 +7,10 @@ from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.worksheet.table import Table, TableStyleInfo
 import os
 import tempfile
+from customize_erpnext.api.site_restriction import only_for_sites
 
 @frappe.whitelist()
+@only_for_sites("erp.tiqn.local")
 def send_daily_check_in_report():
     """
     Scheduled job to send Daily Check-in Report every day at 8:15 AM

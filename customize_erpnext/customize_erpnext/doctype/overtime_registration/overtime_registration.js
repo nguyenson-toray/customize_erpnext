@@ -19,6 +19,10 @@ frappe.ui.form.on("Overtime Registration", {
             remove_empty_overtime_rows(frm);
         }, __('Actions'));
 
+        // Reset validation flags when form refreshes
+        frm.maternity_check_done = false;
+        frm.ot_continuity_validated = false;
+
         // Auto-populate requested_by with current user's employee
         if (frm.is_new() && !frm.doc.requested_by) {
             frappe.call({
@@ -58,24 +62,44 @@ frappe.ui.form.on("Overtime Registration", {
         show_employee_selection_dialog(frm);
     },
 
+    before_save(frm) {
+        // Check for employees with maternity benefits needing time adjustment
+        if (!frm.maternity_check_done) {
+            let dialog_shown = check_maternity_benefit_adjustment(frm);
+            if (dialog_shown) {
+                return; // Stop here, dialog will handle save after user responds
+            }
+        }
+    },
+
     validate(frm) {
         // Auto-remove empty rows before validation
         remove_empty_overtime_rows(frm, true);
 
-        // Always validate required fields first
+        // Validate required fields
         if (!validate_required_fields(frm)) {
             return false;
         }
 
-        // Synchronous validation for immediate feedback
-        validate_duplicate_employees(frm);
+        // Validate time order: begin_time < end_time
+        if (!validate_time_order(frm)) {
+            return false;
+        }
 
-        // Check conflicts with submitted records (asynchronous)
-        check_conflicts_with_submitted_records(frm);
+        // Validate duplicate rows within form
+        if (!validate_duplicate_rows(frm)) {
+            return false;
+        }
 
+        // Validate single post-shift entry per employee per day
+        if (!validate_single_post_shift_entry(frm)) {
+            return false;
+        }
+
+        // Calculate totals
         calculate_totals_and_apply_reason(frm);
 
-        // Update registered groups summary when saving
+        // Update registered groups summary
         update_registered_groups(frm);
     },
 
@@ -809,6 +833,332 @@ function validate_required_fields(frm) {
         return false;
     }
     return true;
+}
+
+// Validate time order: begin_time < end_time
+function validate_time_order(frm) {
+    for (let d of frm.doc.ot_employees || []) {
+        if (d.begin_time && d.end_time) {
+            // Convert time strings to Date objects for proper comparison
+            const time_begin = new Date(`2000-01-01T${d.begin_time}`);
+            const time_end = new Date(`2000-01-01T${d.end_time}`);
+
+            if (time_begin >= time_end) {
+                console.log(`Invalid time order in row ${d.idx}: ${d.begin_time} >= ${d.end_time}`);
+                frappe.msgprint(__('Row #{0}: Giờ bắt đầu ({1}) phải nhỏ hơn giờ kết thúc ({2})', [d.idx, d.begin_time, d.end_time]));
+                frappe.validated = false;
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+// Validate duplicate rows within form (same employee, date, time)
+function validate_duplicate_rows(frm) {
+    const entries = [];
+
+    for (let d of frm.doc.ot_employees || []) {
+        if (!d.employee || !d.date || !d.begin_time || !d.end_time) {
+            continue;
+        }
+
+        entries.push({
+            idx: d.idx,
+            employee: d.employee,
+            employee_name: d.employee_name,
+            date: d.date,
+            begin_time: d.begin_time,
+            end_time: d.end_time
+        });
+    }
+
+    // Check for duplicates
+    for (let i = 0; i < entries.length; i++) {
+        for (let j = i + 1; j < entries.length; j++) {
+            const entry1 = entries[i];
+            const entry2 = entries[j];
+
+            // Same employee and date
+            if (entry1.employee === entry2.employee && entry1.date === entry2.date) {
+                // Check for exact match or time overlap
+                if (times_overlap(entry1.begin_time, entry1.end_time, entry2.begin_time, entry2.end_time)) {
+                    frappe.msgprint(__('Row {0} và {1}: Trùng lặp OT cho nhân viên {2} ngày {3}',
+                        [entry1.idx, entry2.idx, entry1.employee_name, entry1.date]));
+                    frappe.validated = false;
+                    return false;
+                }
+            }
+        }
+    }
+    return true;
+}
+
+// Validate that each employee has only one post-shift OT entry per day in this form
+// Multiple entries should be combined into one continuous entry
+function validate_single_post_shift_entry(frm) {
+    // Group entries by employee and date
+    const employee_date_entries = {};
+
+    for (let d of frm.doc.ot_employees || []) {
+        if (!d.employee || !d.date || !d.begin_time || !d.end_time) {
+            continue;
+        }
+
+        const key = `${d.employee}_${d.date}`;
+        if (!employee_date_entries[key]) {
+            employee_date_entries[key] = [];
+        }
+        employee_date_entries[key].push({
+            idx: d.idx,
+            employee: d.employee,
+            employee_name: d.employee_name,
+            date: d.date,
+            begin_time: d.begin_time,
+            end_time: d.end_time
+        });
+    }
+
+    // Check each employee-date group
+    for (let key in employee_date_entries) {
+        const entries = employee_date_entries[key];
+
+        // If only one entry, no need to check
+        if (entries.length <= 1) {
+            continue;
+        }
+
+        // If multiple entries, they should all be continuous (handled by Python validation)
+        // But we should warn that multiple entries for same employee should be combined
+        const rows = entries.map(e => e.idx).join(', ');
+        const employee_name = entries[0].employee_name;
+        const date = entries[0].date;
+
+        frappe.msgprint({
+            title: __('Cảnh báo'),
+            message: __('Rows {0}: Nhân viên {1} có {2} dòng OT trong ngày {3}. Nên gộp thành 1 dòng liên tục.',
+                [rows, employee_name, entries.length, date]),
+            indicator: 'orange'
+        });
+        frappe.validated = false;
+        return false;
+    }
+
+    return true;
+}
+
+// Validate OT time continuity with shift
+function validate_ot_continuity(frm) {
+    if (!frm.doc.ot_employees || frm.doc.ot_employees.length === 0) {
+        return;
+    }
+
+    // Prepare entries to check
+    const entries_to_check = [];
+    for (let d of frm.doc.ot_employees) {
+        if (d.employee && d.date && d.begin_time && d.end_time) {
+            entries_to_check.push({
+                idx: d.idx,
+                employee: d.employee,
+                employee_name: d.employee_name,
+                date: d.date,
+                begin_time: d.begin_time,
+                end_time: d.end_time
+            });
+        }
+    }
+
+    if (entries_to_check.length === 0) {
+        return;
+    }
+
+    // Call server to validate OT continuity
+    frappe.call({
+        method: 'customize_erpnext.customize_erpnext.doctype.overtime_registration.overtime_registration.validate_ot_entries_continuity',
+        args: {
+            entries: entries_to_check
+        },
+        async: false,
+        callback: function (r) {
+            if (r.message && r.message.length > 0) {
+                // Found errors
+                frappe.validated = false;
+
+                // Show all errors
+                for (let error of r.message) {
+                    frappe.msgprint({
+                        title: __('Lỗi giờ tăng ca'),
+                        message: __('Row {0}: <b>{1}</b> ({2}) - Ca {3}<br>{4}', [
+                            error.idx,
+                            error.employee_name,
+                            error.employee,
+                            error.shift_type,
+                            error.error
+                        ]),
+                        indicator: 'red'
+                    });
+                }
+            } else {
+                // Validation passed, set flag
+                frm.ot_continuity_validated = true;
+            }
+        }
+    });
+}
+
+// Check for maternity benefit time adjustment
+// Returns true if dialog was shown (save should stop), false otherwise
+function check_maternity_benefit_adjustment(frm) {
+    if (!frm.doc.ot_employees || frm.doc.ot_employees.length === 0) {
+        frm.maternity_check_done = true;
+        return false;
+    }
+
+    // Prepare entries to check
+    const entries_to_check = [];
+    for (let d of frm.doc.ot_employees) {
+        if (d.employee && d.date && d.begin_time && d.end_time) {
+            entries_to_check.push({
+                idx: d.idx,
+                employee: d.employee,
+                employee_name: d.employee_name,
+                date: d.date,
+                begin_time: d.begin_time,
+                end_time: d.end_time
+            });
+        }
+    }
+
+    if (entries_to_check.length === 0) {
+        frm.maternity_check_done = true;
+        return false;
+    }
+
+    let dialog_shown = false;
+
+    // Call server to check for maternity benefits
+    frappe.call({
+        method: 'customize_erpnext.customize_erpnext.doctype.overtime_registration.overtime_registration.check_employees_with_maternity_benefits',
+        args: {
+            entries: entries_to_check
+        },
+        async: false,
+        callback: function (r) {
+            if (r.message && r.message.length > 0) {
+                // Found employees with maternity benefits needing adjustment
+                frappe.validated = false;
+                dialog_shown = true;
+
+                // Build message with employee details including period dates and shift info
+                let employee_list = r.message.map(emp =>
+                    `• Row ${emp.idx}: <b>${emp.employee_name}</b> (${emp.employee}) - ${emp.benefit_type}<br>
+                     &nbsp;&nbsp;&nbsp;Giai đoạn: ${emp.from_date} - ${emp.to_date} | Ca: ${emp.shift_type} | Ngày OT: ${emp.date}`
+                ).join('<br>');
+
+                // Get shift end times for display (use first employee's times as example)
+                let shift_end = r.message[0].shift_end;
+                let adjusted_shift_end = r.message[0].adjusted_shift_end;
+
+                let dialog = new frappe.ui.Dialog({
+                    title: __('Điều chỉnh giờ tăng ca cho nhân viên có chế độ thai sản'),
+                    fields: [
+                        {
+                            fieldtype: 'HTML',
+                            options: `
+                                <div style="margin-bottom: 15px;">
+                                    <p>Các nhân viên sau đang trong giai đoạn <b>mang thai</b> hoặc <b>nuôi con nhỏ</b> và có giờ bắt đầu tăng ca lúc ${shift_end}:</p>
+                                    <div style="background-color: #f8f9fa; padding: 10px; border-radius: 4px; margin: 10px 0;">
+                                        ${employee_list}
+                                    </div>
+                                    <p style="color: #6c757d;">
+                                        <i>Những nhân viên này được phép kết thúc ca sớm hơn 1 giờ so với bình thường, do đó giờ tăng ca cũng sớm hơn 1 giờ.</i>
+                                    </p>
+                                    <p><b>Bạn có muốn điều chỉnh giờ bắt đầu và kết thúc sớm hơn 1 giờ không?</b></p>
+                                    <p style="color: #007bff;">
+                                        (${shift_end} → ${adjusted_shift_end}, giờ kết thúc cũng giảm 1 giờ tương ứng)
+                                    </p>
+                                </div>
+                            `
+                        }
+                    ],
+                    primary_action_label: __('Có, điều chỉnh giờ'),
+                    primary_action: function () {
+                        dialog.hide();
+                        // Adjust times for affected employees
+                        adjust_maternity_employee_times(frm, r.message);
+                        // Set flag to skip maternity check on next save
+                        frm.maternity_check_done = true;
+                        // Save the form
+                        frm.save();
+                    },
+                    secondary_action_label: __('Không, giữ nguyên'),
+                    secondary_action: function () {
+                        dialog.hide();
+                        // Set flag to skip maternity check on next save
+                        frm.maternity_check_done = true;
+                        // Save without adjustment
+                        frm.save();
+                    }
+                });
+
+                dialog.show();
+            } else {
+                // No employees need adjustment, mark as done
+                frm.maternity_check_done = true;
+            }
+        }
+    });
+
+    return dialog_shown;
+}
+
+// Adjust begin_time and end_time for employees with maternity benefits (-1 hour)
+function adjust_maternity_employee_times(frm, employees_to_adjust) {
+    // Create a map of idx to adjustment
+    const adjustment_map = new Map();
+    employees_to_adjust.forEach(emp => {
+        adjustment_map.set(emp.idx, true);
+    });
+
+    // Adjust times in child table
+    frm.doc.ot_employees.forEach(d => {
+        if (adjustment_map.has(d.idx)) {
+            // Subtract 1 hour from begin_time
+            d.begin_time = subtract_one_hour(d.begin_time);
+            // Subtract 1 hour from end_time
+            d.end_time = subtract_one_hour(d.end_time);
+        }
+    });
+
+    // Refresh the child table
+    frm.refresh_field('ot_employees');
+
+    frappe.show_alert({
+        message: __('Đã điều chỉnh giờ tăng ca cho {0} nhân viên có chế độ thai sản', [employees_to_adjust.length]),
+        indicator: 'green'
+    });
+}
+
+// Helper function to subtract 1 hour from time string
+function subtract_one_hour(time_str) {
+    if (!time_str) return time_str;
+
+    // Parse time string (format: HH:MM:SS or HH:MM)
+    const parts = time_str.split(':');
+    let hours = parseInt(parts[0]);
+    let minutes = parseInt(parts[1]);
+    let seconds = parts.length > 2 ? parseInt(parts[2]) : 0;
+
+    // Subtract 1 hour
+    hours = hours - 1;
+    if (hours < 0) {
+        hours = 23; // Wrap around to previous day
+    }
+
+    // Format back to string
+    return String(hours).padStart(2, '0') + ':' +
+        String(minutes).padStart(2, '0') + ':' +
+        String(seconds).padStart(2, '0');
 }
 
 function validate_duplicate_employees(frm) {
