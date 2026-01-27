@@ -318,9 +318,14 @@ doc_events = {
         # Using 'validate' event covers both insert and update cases
         "validate": "customize_erpnext.api.bulk_update_scripts.item_update_barcode.auto_add_barcode_on_item_save"
     },
+     "Shoe Rack": {
+        "validate": "customize_erpnext.customize_erpnext.doctype.shoe_rack.shoe_rack.validate",
+        "on_update": "customize_erpnext.customize_erpnext.doctype.shoe_rack.shoe_rack.on_update",
+        # "before_insert": "customize_erpnext.customize_erpnext.doctype.shoe_rack.shoe_rack.before_insert"
+    }
 
 }
- 
+
 
 # Fixtures (for initial setup)
 # fixtures = [

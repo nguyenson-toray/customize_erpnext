@@ -55,7 +55,7 @@ def update_all_items_barcode():
                      NOW(), NOW(), 'Administrator', 'Administrator', 0)
                 """, (item_code, item_code, stock_uom))
                 
-                print(f"  ✅ Created new barcode: {item_code}")
+                print(f"   Created new barcode: {item_code}")
                 stats['created'] += 1
             
             # Case 2: Barcode exists - CHECK & UPDATE
@@ -85,7 +85,7 @@ def update_all_items_barcode():
                     print(f"  🔄 Updated barcode: {item_code}")
                     stats['updated'] += 1
                 else:
-                    print(f"  ✅ Already correct: {item_code}")
+                    print(f"   Already correct: {item_code}")
             
             stats['processed'] += 1
             
@@ -112,7 +112,7 @@ def update_all_items_barcode():
     print(f"Duplicates cleaned: {stats['cleaned']}")
     print(f"Errors: {stats['errors']}")
     print("="*60)
-    print("✅ Barcode update completed!")
+    print(" Barcode update completed!")
     
     return stats
 
@@ -172,7 +172,7 @@ def verify_barcode_update():
             print(f"  - {item.name}")
     
     if items_multiple_barcodes:
-        print("\n⚠️ Items with multiple barcodes:")
+        print("\n Items with multiple barcodes:")
         for item in items_multiple_barcodes:
             print(f"  - {item.parent} ({item.count} barcodes)")
     
@@ -182,7 +182,7 @@ def verify_barcode_update():
             print(f"  - {item.parent}: {item.barcode} (Type: {item.barcode_type}, UOM: {item.uom})")
     
     if not items_without_barcode and not items_multiple_barcodes and not incorrect_barcodes:
-        print("\n✅ All barcodes are correct!")
+        print("\n All barcodes are correct!")
     
     return {
         'total_items': total_items,

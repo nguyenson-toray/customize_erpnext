@@ -660,7 +660,7 @@ def sync_to_single_machine(machine_config, employee_data):
                 "message": "Failed to connect to device"
             }
 
-        frappe.logger().info(f"✅ Connected to {device_config['device_name']}")
+        frappe.logger().info(f" Connected to {device_config['device_name']}")
 
         try:
             # Disable device during sync
@@ -751,7 +751,7 @@ def sync_to_single_machine(machine_config, employee_data):
             # Send only valid templates to device (bandwidth optimized)
             frappe.logger().info(f"📤 Sending {fingerprint_count} fingerprint templates to device...")
             conn.save_user_template(user, templates_to_send)
-            frappe.logger().info(f"✅ Successfully synced {fingerprint_count} fingerprints for {employee_data['employee']}")
+            frappe.logger().info(f" Successfully synced {fingerprint_count} fingerprints for {employee_data['employee']}")
 
             return {
                 "success": True,
@@ -765,7 +765,7 @@ def sync_to_single_machine(machine_config, employee_data):
                 conn.disconnect()
                 frappe.logger().info(f"🔌 Disconnected from {device_config['device_name']}")
             except Exception as e:
-                frappe.logger().error(f"⚠️  Error during disconnect: {str(e)}")
+                frappe.logger().error(f"  Error during disconnect: {str(e)}")
 
     except Exception as e:
         frappe.logger().error(f"❌ Sync error for {employee_data.get('employee', 'Unknown')}: {str(e)}")

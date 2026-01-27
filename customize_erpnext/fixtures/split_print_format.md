@@ -61,11 +61,11 @@ Tool sẽ tạo:
 
 ## Lợi ích
 
-- ✅ **File dễ đọc**: HTML/CSS được format đẹp với indentation
-- ✅ **Quản lý riêng biệt**: Mỗi print format một file JSON riêng
-- ✅ **Version control**: Dễ track changes cho từng print format
-- ✅ **Copy-paste friendly**: File HTML/CSS sẵn sàng để copy vào Web UI
-- ✅ **Không phụ thuộc hook**: Chạy độc lập, không cần cấu hình phức tạp
+-  **File dễ đọc**: HTML/CSS được format đẹp với indentation
+-  **Quản lý riêng biệt**: Mỗi print format một file JSON riêng
+-  **Version control**: Dễ track changes cho từng print format
+-  **Copy-paste friendly**: File HTML/CSS sẵn sàng để copy vào Web UI
+-  **Không phụ thuộc hook**: Chạy độc lập, không cần cấu hình phức tạp
 
 ## Lưu ý
 

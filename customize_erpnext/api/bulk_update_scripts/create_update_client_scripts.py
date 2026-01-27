@@ -28,7 +28,7 @@ def create_update_client_scripts(doc_type=None, script_name=None):
         total_files = count_js_files_in_subdirectories(SCRIPT_FOLDER_PARENT)
         
         if total_files == 0:
-            print("⚠️ Không tìm thấy file .js nào trong các thư mục con.")
+            print(" Không tìm thấy file .js nào trong các thư mục con.")
             return
         
         if not confirm_operation(f"Sẽ xử lý {total_files} file script trong tất cả các thư mục con. Tiếp tục?"):
@@ -40,14 +40,14 @@ def create_update_client_scripts(doc_type=None, script_name=None):
                   if os.path.isdir(os.path.join(SCRIPT_FOLDER_PARENT, d))]
         
         if not subdirs:
-            print("⚠️ Không tìm thấy thư mục con nào trong thư mục gốc.")
+            print(" Không tìm thấy thư mục con nào trong thư mục gốc.")
             return
         
         for sub_folder in subdirs:
             # Đệ quy gọi hàm này với doc_type là tên thư mục con, nhưng không cần xác nhận lại
             create_update_client_scripts_without_confirmation(doc_type=sub_folder)
         
-        print("✅ Đã hoàn thành xử lý toàn bộ thư mục con.")
+        print(" Đã hoàn thành xử lý toàn bộ thư mục con.")
         return
     
     # Trường hợp 2 và 3: doc_type đã được chỉ định
@@ -72,7 +72,7 @@ def create_update_client_scripts(doc_type=None, script_name=None):
     # Trường hợp 2: Xử lý tất cả các file trong thư mục
     js_files = [f for f in os.listdir(SCRIPT_FOLDER) if f.endswith(".js")]
     if not js_files:
-        print(f"⚠️ Không có file .js nào trong thư mục: {SCRIPT_FOLDER}")
+        print(f" Không có file .js nào trong thư mục: {SCRIPT_FOLDER}")
         return
     
     if not confirm_operation(f"Sẽ xử lý {len(js_files)} file script trong thư mục {doc_type}. Tiếp tục?"):
@@ -126,7 +126,7 @@ def confirm_operation(message):
     """
     Hiển thị thông báo xác nhận và trả về True nếu người dùng đồng ý, ngược lại trả về False
     """
-    response = input(f"\n⚠️ {message} (y/n): ")
+    response = input(f"\n {message} (y/n): ")
     return response.lower() in ['y', 'yes']
 
 def process_script_file(file_path, script_name, doc_type):
@@ -155,7 +155,7 @@ def process_script_file(file_path, script_name, doc_type):
             # Cập nhật script vào DB
             frappe.db.set_value("Client Script", script_name, "script", updated_script)
             frappe.db.commit()
-            print(f"✅ Đã cập nhật: {script_name}")
+            print(f" Đã cập nhật: {script_name}")
         else:
             # Tạo mới Client Script
             doc = frappe.new_doc("Client Script")
@@ -165,7 +165,7 @@ def process_script_file(file_path, script_name, doc_type):
             doc.enabled = 1  # Mặc định là bật
             doc.insert()
             frappe.db.commit()
-            print(f"✅ Đã tạo mới: {script_name} cho DocType: {doc_type}")
+            print(f" Đã tạo mới: {script_name} cho DocType: {doc_type}")
     
     except Exception as e:
         print(f"❌ Lỗi khi xử lý {os.path.basename(file_path)}: {e}")

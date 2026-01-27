@@ -4,11 +4,11 @@
 
 ### Mục Tiêu
 Tính toán **đầy đủ và chính xác** các thông tin chấm công:
-- ✅ Giờ làm buổi sáng
-- ✅ Giờ làm buổi chiều  
-- ✅ Giờ tăng ca thực tế (pre + post shift)
-- ✅ Giờ tăng ca được duyệt
-- ✅ Tổng giờ = sáng + chiều + min(approved, actual) OT
+-  Giờ làm buổi sáng
+-  Giờ làm buổi chiều  
+-  Giờ tăng ca thực tế (pre + post shift)
+-  Giờ tăng ca được duyệt
+-  Tổng giờ = sáng + chiều + min(approved, actual) OT
 
 ### Nguyên Tắc Đơn Giản
 1. **Chỉ 2 ca được phép OT**: Day và Canteen
@@ -19,10 +19,10 @@ Tính toán **đầy đủ và chính xác** các thông tin chấm công:
 
 | Shift Type | Giờ Làm | Nghỉ Trưa | OT | Maternity Benefit |
 |------------|---------|-----------|----|--------------------|
-| **Day** | 8:00-17:00 | 12:00-13:00 | ✅ | ✅ Về 16:00 = 8h |
-| **Canteen** | 7:00-16:00 | 11:00-12:00 | ✅ | ✅ Về 15:00 = 8h |
-| **Shift 1** | 6:00-14:00 | 10:00=10:00 | ❌ | ✅ Về 13:00 = 8h |
-| **Shift 2** | 14:00-22:00 | 18:00=18:00 | ❌ | ✅ Về 21:00 = 8h |
+| **Day** | 8:00-17:00 | 12:00-13:00 |  |  Về 16:00 = 8h |
+| **Canteen** | 7:00-16:00 | 11:00-12:00 |  |  Về 15:00 = 8h |
+| **Shift 1** | 6:00-14:00 | 10:00=10:00 | ❌ |  Về 13:00 = 8h |
+| **Shift 2** | 14:00-22:00 | 18:00=18:00 | ❌ |  Về 21:00 = 8h |
 
 ## 🔄 Sơ Đồ Thuật Toán
 
@@ -116,9 +116,9 @@ total_hours = morning_hours + afternoon_hours + final_ot
 | Scenario | Check In/Out | Maternity | Morning | Afternoon | Actual OT | Approved OT | Final OT | Total |
 |----------|--------------|-----------|---------|-----------|-----------|-------------|----------|-------|
 | **Bình thường** | 8:00→17:00 | ❌ | 4h | 4h | 0h | 0h | 0h | **8h** |
-| **Pregnant benefit** | 8:00→16:00 | ✅ | 4h | **4h** ✨ | 0h | 0h | 0h | **8h** |
+| **Pregnant benefit** | 8:00→16:00 |  | 4h | **4h** ✨ | 0h | 0h | 0h | **8h** |
 | **Có OT** | 7:00→19:00 | ❌ | 4h | 4h | 3h | 2h* | 2h | **10h** |
-| **Pregnant + OT** | 7:00→18:00 | ✅ | 4h | **4h** ✨ | 2h | 2h* | 2h | **10h** |
+| **Pregnant + OT** | 7:00→18:00 |  | 4h | **4h** ✨ | 2h | 2h* | 2h | **10h** |
 | **Đi muộn** | 8:30→17:00 | ❌ | 3.5h | 4h | 0h | 0h | 0h | **7.5h** |
 | **Về sớm** | 8:00→15:00 | ❌ | 4h | 2h | 0h | 0h | 0h | **6h** |
 
@@ -324,7 +324,7 @@ SHIFTS = {
 }
 ```
 
-## ✅ Validation Rules
+##  Validation Rules
 
 ```python
 def validate_attendance(employee, date, check_in, check_out):

@@ -1,0 +1,170 @@
+{
+ "actions": [],
+ "allow_import": 1,
+ "allow_rename": 1,
+ "autoname": "naming_series:",
+ "creation": "2025-12-03 10:42:48.172650",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "rack_display_name",
+  "rack_type",
+  "section_break_1",
+  "compartments",
+  "user_type",
+  "gender",
+  "status",
+  "section_break_2",
+  "compartment_1_employee",
+  "compartment_1_external_personnel",
+  "column_break_1",
+  "compartment_2_employee",
+  "compartment_2_external_personnel"
+ ],
+ "fields": [
+  {
+   "description": "RACK = Standard, G = Guest, J = Japanese, A = External Personnel",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "RACK-\nG-\nJ-\nA-",
+   "reqd": 1
+  },
+  {
+   "bold": 1,
+   "description": "Display name: 1, 2, J1, G1, A1...",
+   "fieldname": "rack_display_name",
+   "fieldtype": "Data",
+   "in_global_search": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Rack Name",
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "default": "Standard Employee",
+   "description": "Type determines naming series and personnel link",
+   "fieldname": "rack_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Rack Type",
+   "options": "Standard Employee\nGuest\nJapanese Employee\nExternal Personnel",
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_break_1",
+   "fieldtype": "Section Break",
+   "label": "Configuration"
+  },
+  {
+   "default": "1",
+   "fieldname": "compartments",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Compartments",
+   "options": "1\n2",
+   "reqd": 1
+  },
+  {
+   "default": "Employee",
+   "description": "Auto-set based on rack_type",
+   "fieldname": "user_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "User Type",
+   "options": "Employee\nExternal",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "gender",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Gender",
+   "options": "Male\nFemale",
+   "reqd": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Status",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_2",
+   "fieldtype": "Section Break",
+   "label": "Assignment"
+  },
+  {
+   "depends_on": "eval:doc.user_type=='Employee'",
+   "description": "For Standard and Japanese employees",
+   "fieldname": "compartment_1_employee",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Compartment 1 Employee",
+   "options": "Employee"
+  },
+  {
+   "depends_on": "eval:doc.user_type=='External'",
+   "description": "For Guests, Vendors, Cleaners, and Contractors",
+   "fieldname": "compartment_1_external_personnel",
+   "fieldtype": "Link",
+   "label": "Compartment 1 External Personnel",
+   "options": "External Personnel"
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:doc.compartments=='2' && doc.user_type=='Employee'",
+   "description": "For Standard and Japanese employees",
+   "fieldname": "compartment_2_employee",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Compartment 2 Employee",
+   "options": "Employee"
+  },
+  {
+   "depends_on": "eval:doc.compartments=='2' && doc.user_type=='External'",
+   "description": "For Guests, Vendors, Cleaners, and Contractors",
+   "fieldname": "compartment_2_external_personnel",
+   "fieldtype": "Link",
+   "label": "Compartment 2 External Personnel",
+   "options": "External Personnel"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-01-02 09:19:51.014059",
+ "modified_by": "Administrator",
+ "module": "Customize Erpnext",
+ "name": "Shoe Rack",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "rack_display_name",
+ "sort_order": "ASC",
+ "states": [],
+ "title_field": "rack_display_name"
+}

@@ -12,10 +12,10 @@
 
 | Shift | Giờ Làm | Nghỉ Trưa | OT | Maternity |
 |-------|---------|-----------|----|------------|
-| **Day** | 8:00-17:00 | 12:00-13:00 | ✅ | ✅ Về 16:00 |
-| **Canteen** | 7:00-16:00 | 11:00-12:00 | ✅ | ✅ Về 15:00 |
-| **Shift 1** | 6:00-14:00 | No break | ❌ | ✅ Về 13:00 |
-| **Shift 2** | 14:00-22:00 | No break | ❌ | ✅ Về 21:00 |
+| **Day** | 8:00-17:00 | 12:00-13:00 |  |  Về 16:00 |
+| **Canteen** | 7:00-16:00 | 11:00-12:00 |  |  Về 15:00 |
+| **Shift 1** | 6:00-14:00 | No break | ❌ |  Về 13:00 |
+| **Shift 2** | 14:00-22:00 | No break | ❌ |  Về 21:00 |
 
 ## ⚙️ Thuật Toán Tính Toán
 
@@ -82,23 +82,23 @@ Chạy **2 lần mỗi ngày** để đảm bảo coverage 100%:
 **Mục đích**: Tạo sẵn Daily Timesheet TRƯỚC khi nhân viên bắt đầu làm việc
 
 **Lợi ích**:
-- ✅ Nhân viên có record sẵn khi check-in (không cần đợi tạo real-time)
-- ✅ Reports sáng sớm đã có dữ liệu đầy đủ
-- ✅ Tránh race condition khi nhiều nhân viên check-in cùng lúc
-- ✅ Đảm bảo tất cả nhân viên active đều có record (kể cả sẽ vắng)
+-  Nhân viên có record sẵn khi check-in (không cần đợi tạo real-time)
+-  Reports sáng sớm đã có dữ liệu đầy đủ
+-  Tránh race condition khi nhiều nhân viên check-in cùng lúc
+-  Đảm bảo tất cả nhân viên active đều có record (kể cả sẽ vắng)
 
 #### 2. Evening Finalization (22:45 hàng ngày)
 **Mục đích**: Tổng hợp và finalize dữ liệu cuối ngày
 
 **Lợi ích**:
-- ✅ Update lại tất cả records với dữ liệu đầy đủ từ cả ngày
-- ✅ Tính toán overtime, maternity benefit chính xác
-- ✅ Chuẩn bị dữ liệu cho báo cáo ngày hôm sau
+-  Update lại tất cả records với dữ liệu đầy đủ từ cả ngày
+-  Tính toán overtime, maternity benefit chính xác
+-  Chuẩn bị dữ liệu cho báo cáo ngày hôm sau
 
 **Tạo/cập nhật Daily Timesheet cho:**
-- ✅ **TẤT CẢ nhân viên Active** (có hoặc không có check-in)
-- ✅ **Nhân viên vắng** (không check-in) → Quan trọng cho chấm công
-- ✅ **Nhân viên Left** còn làm việc (`relieving_date > current_date`)
+-  **TẤT CẢ nhân viên Active** (có hoặc không có check-in)
+-  **Nhân viên vắng** (không check-in) → Quan trọng cho chấm công
+-  **Nhân viên Left** còn làm việc (`relieving_date > current_date`)
 
 **Logic xử lý:**
 ```python
@@ -109,7 +109,7 @@ Chạy **2 lần mỗi ngày** để đảm bảo coverage 100%:
 
 # relieving_date là ngày ĐÃ NGHỈ (không làm việc)
 # VD: relieving_date = 2025-11-15
-#     → Ngày 14/11: VẪN làm việc → Tạo Daily Timesheet ✅
+#     → Ngày 14/11: VẪN làm việc → Tạo Daily Timesheet 
 #     → Ngày 15/11: ĐÃ NGHỈ → Không tạo ❌
 ```
 
@@ -138,7 +138,7 @@ Relieving Date: 2025-10-20 (đã nghỉ từ ngày 20/10)
 
 Daily Timesheet cho ngày 26/10, 27/10, 28/10... (sau khi nghỉ)
 → working_hours = 0
-→ ✅ XÓA (không cần thiết)
+→  XÓA (không cần thiết)
 ```
 
 ## 🔧 Bulk Operations API
@@ -274,19 +274,19 @@ bench mariadb < apps/customize_erpnext/customize_erpnext/customize_erpnext/docty
 ## 🎉 System Status
 
 ### Core Functions
-- ✅ Real-time sync từ Employee Checkin
-- ✅ Auto calculation với maternity benefit
-- ✅ Sunday logic đặc biệt
-- ✅ Overtime coefficient system
-- ✅ Lunch break overtime
-- ✅ Smart auto-recalculation (Shift/OT/Maternity changes)
-- ✅ Daily scheduled job (22:45) - **TẤT CẢ employees**
-- ✅ Weekly monthly recalculation (23:30 Chủ nhật)
-- ✅ **NEW**: Auto cleanup Left employee timesheets
-- ✅ Performance optimized (100+ rec/sec)
-- ✅ **NEW**: Include absent employees (no check-in)
-- ✅ **NEW**: Include Left employees (still working)
-- ✅ **NEW**: Respect relieving_date logic
+-  Real-time sync từ Employee Checkin
+-  Auto calculation với maternity benefit
+-  Sunday logic đặc biệt
+-  Overtime coefficient system
+-  Lunch break overtime
+-  Smart auto-recalculation (Shift/OT/Maternity changes)
+-  Daily scheduled job (22:45) - **TẤT CẢ employees**
+-  Weekly monthly recalculation (23:30 Chủ nhật)
+-  **NEW**: Auto cleanup Left employee timesheets
+-  Performance optimized (100+ rec/sec)
+-  **NEW**: Include absent employees (no check-in)
+-  **NEW**: Include Left employees (still working)
+-  **NEW**: Respect relieving_date logic
 
 ### Auto-Recalculation Triggers
 1. **Employee Checkin**: Real-time update
@@ -302,16 +302,16 @@ bench mariadb < apps/customize_erpnext/customize_erpnext/customize_erpnext/docty
 
 | Employee Type | Condition | Coverage |
 |--------------|-----------|----------|
-| Active (có check-in) | `status = 'Active'` | ✅ Tạo/cập nhật |
-| Active (vắng) | `status = 'Active'` | ✅ **TẠO MỚI** |
-| Left (còn làm việc) | `relieving_date > current_date` | ✅ **TẠO MỚI** |
+| Active (có check-in) | `status = 'Active'` |  Tạo/cập nhật |
+| Active (vắng) | `status = 'Active'` |  **TẠO MỚI** |
+| Left (còn làm việc) | `relieving_date > current_date` |  **TẠO MỚI** |
 | Left (đã nghỉ) | `relieving_date <= current_date` | ❌ Không tạo |
 | Chưa join | `date_of_joining > current_date` | ❌ Không tạo |
 
 **Example**: Ngày 2025-11-10
 - Total Active Employees: 815
 - Left (still working): 3 (relieving dates: 15/11, 21/11, 26/11)
-- Coverage: **818/818 (100%)** ✅
+- Coverage: **818/818 (100%)** 
 
 ## 📝 Key Functions Reference
 
@@ -383,13 +383,13 @@ deleted = cleanup_left_employee_timesheets('2025-10-26', '2025-11-10')
 
 ### 2025-11-10: Full Employee Coverage + Cleanup + Morning Pre-Creation
 **Changes**:
-- ✅ Daily sync now creates Daily Timesheet for ALL active employees
-- ✅ Include absent employees (no check-in) - critical for attendance tracking
-- ✅ Include Left employees still working (`relieving_date > current_date`)
-- ✅ Proper handling of `date_of_joining` and `relieving_date`
-- ✅ **NEW**: Morning pre-creation job (06:00) - create records before work starts
-- ✅ **NEW**: Automatic cleanup of unnecessary Daily Timesheet for Left employees
-- ✅ Performance: 100+ records/sec (88 new + 730 updated in 7.93s)
+-  Daily sync now creates Daily Timesheet for ALL active employees
+-  Include absent employees (no check-in) - critical for attendance tracking
+-  Include Left employees still working (`relieving_date > current_date`)
+-  Proper handling of `date_of_joining` and `relieving_date`
+-  **NEW**: Morning pre-creation job (06:00) - create records before work starts
+-  **NEW**: Automatic cleanup of unnecessary Daily Timesheet for Left employees
+-  Performance: 100+ records/sec (88 new + 730 updated in 7.93s)
 
 **Scheduled Jobs**:
 - **06:00 Morning**: Pre-create Daily Timesheet for all active employees
@@ -424,7 +424,7 @@ Cleanup Test:
   Period: 2025-10-26 to 2025-11-10
   Found: 48 unnecessary records
   Deleted: 48 records
-  Result: ✅ SUCCESS
+  Result:  SUCCESS
 ```
 
 ### 2025-10-08: Performance Optimization

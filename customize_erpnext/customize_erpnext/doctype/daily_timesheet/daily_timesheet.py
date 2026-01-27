@@ -754,7 +754,7 @@ class DailyTimesheet(Document):
 			info_html += f"""
 			<div style="margin-bottom: 12px; padding: 8px; border-left: 3px solid #ffc107; background: rgba(255, 193, 7, 0.05);">
 				<h6 style="margin: 0 0 5px 0; color: #ffc107;">
-					⚠️ No Active Benefits
+					 No Active Benefits
 				</h6>
 				<div style="font-size: 12px; color: #666;">
 					While maternity tracking records exist, no benefits are currently active based on current settings.
@@ -2402,7 +2402,7 @@ def debug_timesheet_calculation(docname):
 				
 				# Check if they match (within 0.01 tolerance)
 				if abs(final_actual_ot - doc.actual_overtime) < 0.01:
-					print('✅ ALGORITHM IS CORRECT')
+					print(' ALGORITHM IS CORRECT')
 					return True
 				else:
 					print('❌ ALGORITHM MISMATCH - Needs investigation')

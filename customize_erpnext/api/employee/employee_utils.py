@@ -65,6 +65,7 @@ def get_next_attendance_device_id():
     return str(max_id + 1)
 
 @frappe.whitelist()
+
 def set_series(prefix, current_highest_id):
     """Set naming series to prevent duplicate auto-generated IDs"""
     try:
@@ -347,7 +348,7 @@ def get_employee_reissue_count(employee_id):
 
 def generate_employee_cards_html(employees, with_barcode=False, page_size='A4', name_font_size=18, max_length_font_20=20):
     """
-    Generate HTML for employee cards with proper layout
+    Generate HTML for employee   cards with proper layout
     - A4: portrait, 2x5 layout
     - A5: landscape, 2x2 layout
     - name_font_size: font size for long names (default 18pt)
@@ -406,9 +407,9 @@ def generate_employee_cards_html(employees, with_barcode=False, page_size='A4', 
             page-break-inside: avoid;
             display: block;
         }}
-
+    
         .card-row:not(:last-child) {{
-            margin-bottom: {'1mm' if page_size == 'A5' else '0.5mm'};
+            margin-bottom: {'1mm' if page_size == 'A5' else '0.8mm'};
         }}
 
         .card {{
@@ -2128,7 +2129,7 @@ def generate_employee_list_html(employee_data, company_name, include_department=
             
             if include_section:
                 html += f'<td>{emp.get("section", "")}</td>\n'
-            
+                
             # Add photo column
             html += f'<td><img src="data:image/jpeg;base64,{emp.get("image_data", "")}" class="employee-photo-employee-list" alt="{emp.get("employee_name", "")}" onerror="this.style.display=\'none\'"></td>\n'
             
@@ -2139,7 +2140,7 @@ def generate_employee_list_html(employee_data, company_name, include_department=
             html += """
                     </tr>
             """
-        
+
         # Close table
         html += """
                 </tbody>
@@ -2148,7 +2149,7 @@ def generate_employee_list_html(employee_data, company_name, include_department=
         """
     
     # Close HTML
-    html += """
+    html += """ Tiqn123!
     </body>
     </html>
     """

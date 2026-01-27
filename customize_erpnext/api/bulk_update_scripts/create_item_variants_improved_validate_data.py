@@ -176,7 +176,7 @@ def validate_item_variants_data(file_path=None, file_url=None):
             return
             
         df = pd.read_excel(file_path)
-        print(f"✅ Successfully read Excel file with {len(df)} rows")
+        print(f" Successfully read Excel file with {len(df)} rows")
         
         # Validation results
         validation_results = []
@@ -244,7 +244,7 @@ def validate_item_variants_data(file_path=None, file_url=None):
                             missing_attributes[attr_name].add(attr_value)
                     
                     if missing_abbr:
-                        issues.append(f"⚠️  Missing abbreviations for: {', '.join(missing_abbr)}")
+                        issues.append(f"  Missing abbreviations for: {', '.join(missing_abbr)}")
                     
                     # Generate expected item_code (always include all attributes)
                     color_abbr = get_attribute_abbreviation("Color", color_value)
@@ -282,7 +282,7 @@ def validate_item_variants_data(file_path=None, file_url=None):
                     expected_detail = expected_detail.strip()
                     
                     if not issues:
-                        issues.append(f"✅ Will create: {expected_item_code}")
+                        issues.append(f" Will create: {expected_item_code}")
                         issues.append(f"   Detail: {expected_detail}")
             
             validation_results.append({
@@ -296,7 +296,7 @@ def validate_item_variants_data(file_path=None, file_url=None):
         print("=" * 60)
         
         total_rows = len(df)
-        valid_rows = sum(1 for result in validation_results if any("✅" in issue for issue in result["issues"]))
+        valid_rows = sum(1 for result in validation_results if any("" in issue for issue in result["issues"]))
         invalid_rows = total_rows - valid_rows
         
         print(f"Total rows: {total_rows}")
@@ -310,7 +310,7 @@ def validate_item_variants_data(file_path=None, file_url=None):
                 print(f"   - {template}")
         
         if missing_attributes:
-            print(f"\n⚠️  Missing Attribute Abbreviations:")
+            print(f"\n  Missing Attribute Abbreviations:")
             for attr_name, values in missing_attributes.items():
                 print(f"   {attr_name}: {', '.join(sorted(values))}")
         
@@ -324,20 +324,20 @@ def validate_item_variants_data(file_path=None, file_url=None):
         print("=" * 60)
         
         for result in validation_results:
-            if any("❌" in issue or "⚠️" in issue for issue in result["issues"]):
+            if any("❌" in issue or "" in issue for issue in result["issues"]):
                 print(f"\nRow {result['row']}: {result['item_name']}")
                 for issue in result["issues"]:
                     print(f"   {issue}")
         
         # Show some successful examples
-        print(f"\n✅ SUCCESSFUL EXAMPLES (first 5)")
+        print(f"\n SUCCESSFUL EXAMPLES (first 5)")
         print("=" * 60)
         success_count = 0
         for result in validation_results:
-            if any("✅" in issue for issue in result["issues"]) and success_count < 5:
+            if any("" in issue for issue in result["issues"]) and success_count < 5:
                 print(f"\nRow {result['row']}: {result['item_name']}")
                 for issue in result["issues"]:
-                    if "✅" in issue or "Detail:" in issue:
+                    if "" in issue or "Detail:" in issue:
                         print(f"   {issue}")
                 success_count += 1
         
@@ -384,7 +384,7 @@ def validate_item_variants_data(file_path=None, file_url=None):
             print(f"\n🎉 All data is valid! Ready to create {valid_rows} item variants.")
             print("💡 Expected item code format: TEMPLATE-COLOR-SIZE-BRAND-SEASON-INFO (with dash separators)")
         else:
-            print(f"\n⚠️  Found {invalid_rows} rows with issues. Please fix them before running the creation script.")
+            print(f"\n  Found {invalid_rows} rows with issues. Please fix them before running the creation script.")
         
         return {
             "total_rows": total_rows,
