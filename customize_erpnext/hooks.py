@@ -185,6 +185,14 @@ fixtures = [
                 "Stock Balance Customize",
             ]]
         ]
+    },
+    # Desktop Icons
+    # Export custom desktop icons for apps/modules
+    {
+        "doctype": "Desktop Icon",
+        "filters": [
+            ["name", "in", ["TIQN App", "Employee Photos"]]
+        ]
     }
 ]
 
