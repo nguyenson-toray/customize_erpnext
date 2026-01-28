@@ -1,0 +1,12 @@
+{
+  "files": {
+    "main.css": "/assets/customize_erpnext/static/css/main.f17ee9c0.css",
+    "main.js": "/assets/customize_erpnext/static/js/main.0783f592.js",
+    "static/media/male.png": "/assets/customize_erpnext/static/media/male.9962b0d3e8ead6ab0407.png",
+    "index.html": "/assets/customize_erpnext/index.html"
+  },
+  "entrypoints": [
+    "static/css/main.f17ee9c0.css",
+    "static/js/main.0783f592.js"
+  ]
+}
