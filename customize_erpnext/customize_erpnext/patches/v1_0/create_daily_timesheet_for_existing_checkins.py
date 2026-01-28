@@ -21,11 +21,11 @@ Option 3 - Custom date range:
 
 SAFETY:
 -------
--  No duplicates: Checks existing records before creating
--  Safe re-run: Can run multiple times safely
--  Batch processing: Commits every 50 records for memory efficiency
--  Error handling: Continues on individual record errors
--  Progress tracking: Shows progress during execution
+- ✅ No duplicates: Checks existing records before creating
+- ✅ Safe re-run: Can run multiple times safely
+- ✅ Batch processing: Commits every 50 records for memory efficiency
+- ✅ Error handling: Continues on individual record errors
+- ✅ Progress tracking: Shows progress during execution
 
 PERFORMANCE:
 ------------
@@ -109,7 +109,7 @@ def execute_migration(start_date, end_date):
 			ORDER BY ec.employee, DATE(ec.time)
 		""", {"start_date": start_date, "end_date": end_date}, as_dict=1)
 		
-		print(f" Found {len(employees_with_checkins)} employee-date combinations to process")
+		print(f"✅ Found {len(employees_with_checkins)} employee-date combinations to process")
 		print("")
 		
 		created_count = 0
@@ -147,7 +147,7 @@ def execute_migration(start_date, end_date):
 						["employee_name", "department", "custom_section", "custom_group", "company"], as_dict=1)
 					
 					if not employee_details:
-						print(f" Employee {employee} not found, skipping...")
+						print(f"⚠️ Employee {employee} not found, skipping...")
 						error_count += 1
 						continue
 					
@@ -193,13 +193,13 @@ def execute_migration(start_date, end_date):
 		print("🎉 MIGRATION COMPLETED SUCCESSFULLY!")
 		print("=" * 60)
 		print(f"📊 Final Results:")
-		print(f"   -  Created: {created_count} new Daily Timesheet records")
+		print(f"   - ✅ Created: {created_count} new Daily Timesheet records")
 		print(f"   - 🔄 Updated: {updated_count} existing records")
 		print(f"   - ❌ Errors: {error_count} failed records")
 		print(f"   - ⏱️ Time taken: {elapsed_total:.1f} seconds")
 		print(f"   - 📈 Average rate: {(created_count + updated_count) / elapsed_total * 60:.0f} records/min")
 		print("")
-		print(" All Employee Checkin data has been migrated to Daily Timesheet!")
+		print("✅ All Employee Checkin data has been migrated to Daily Timesheet!")
 		print("🔄 Auto-sync is now enabled for real-time updates.")
 		
 		return {
@@ -314,9 +314,9 @@ Essential for enabling Daily Timesheet functionality on existing systems.
 1️⃣ AUTOMATIC MIGRATION (Recommended):
    bench --site erp-sonnt.tiqn.local migrate
    
-    Runs automatically during migration
-    Processes last 30 days of data
-    Safe for production use
+   ✅ Runs automatically during migration
+   ✅ Processes last 30 days of data
+   ✅ Safe for production use
 
 2️⃣ MANUAL EXECUTION:  
    bench --site erp-sonnt.tiqn.local execute customize_erpnext.customize_erpnext.patches.v1_0.create_daily_timesheet_for_existing_checkins.execute
@@ -344,13 +344,13 @@ Essential for enabling Daily Timesheet functionality on existing systems.
 
 🛡️ SAFETY FEATURES:
 -------------------
- No duplicates - checks existing Daily Timesheet records
- Error handling - continues on individual record failures
- Batch commits - prevents memory issues
- Progress tracking - shows real-time progress
- Detailed logging - comprehensive success/error reporting
+✅ No duplicates - checks existing Daily Timesheet records
+✅ Error handling - continues on individual record failures
+✅ Batch commits - prevents memory issues
+✅ Progress tracking - shows real-time progress
+✅ Detailed logging - comprehensive success/error reporting
 
- PREREQUISITES:
+⚠️ PREREQUISITES:
 -----------------
 1. Daily Timesheet DocType must be installed
 2. Employee Checkin data should exist

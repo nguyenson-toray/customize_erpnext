@@ -12,10 +12,10 @@
 
 | Shift | Giờ Làm | Nghỉ Trưa | OT | Maternity |
 |-------|---------|-----------|----|------------|
-| **Day** | 8:00-17:00 | 12:00-13:00 |  |  Về 16:00 |
-| **Canteen** | 7:00-16:00 | 11:00-12:00 |  |  Về 15:00 |
-| **Shift 1** | 6:00-14:00 | No break | ❌ |  Về 13:00 |
-| **Shift 2** | 14:00-22:00 | No break | ❌ |  Về 21:00 |
+| **Day** | 8:00-17:00 | 12:00-13:00 | ✅ | ✅ Về 16:00 |
+| **Canteen** | 7:00-16:00 | 11:00-12:00 | ✅ | ✅ Về 15:00 |
+| **Shift 1** | 6:00-14:00 | No break | ❌ | ✅ Về 13:00 |
+| **Shift 2** | 14:00-22:00 | No break | ❌ | ✅ Về 21:00 |
 
 ## ⚙️ Thuật Toán Tính Toán
 
@@ -208,14 +208,14 @@ bench mariadb < apps/customize_erpnext/customize_erpnext/customize_erpnext/docty
 ## 🎉 System Status
 
 ### Core Functions
--  Real-time sync từ Employee Checkin
--  Auto calculation với maternity benefit
--  Sunday logic đặc biệt
--  Overtime coefficient system
--  Lunch break overtime
--  Smart auto-recalculation (Shift/OT/Maternity changes)
--  Daily scheduled job (22:45)
--  Performance optimized (20-30 rec/sec)
+- ✅ Real-time sync từ Employee Checkin
+- ✅ Auto calculation với maternity benefit
+- ✅ Sunday logic đặc biệt
+- ✅ Overtime coefficient system
+- ✅ Lunch break overtime
+- ✅ Smart auto-recalculation (Shift/OT/Maternity changes)
+- ✅ Daily scheduled job (22:45)
+- ✅ Performance optimized (20-30 rec/sec)
 
 ### Auto-Recalculation Triggers
 1. **Employee Checkin**: Real-time update

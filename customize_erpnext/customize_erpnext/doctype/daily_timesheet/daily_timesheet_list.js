@@ -237,7 +237,7 @@ function show_results_dialog_hybrid(options) {
 						</div>
 					</div>
 					<div class="mt-2">
-						<small class="text-success"> Combined create + recalculate operation (${result.total_operations} total operations)</small>
+						<small class="text-success">✅ Combined create + recalculate operation (${result.total_operations} total operations)</small>
 					</div>
 				</div>
 			`;
@@ -269,7 +269,7 @@ function show_results_dialog_hybrid(options) {
 		title: options.title,
 		message: `
 			<div class="alert ${alert_class}">
-				<h6 class="alert-heading"> Operation Completed Successfully!</h6>
+				<h6 class="alert-heading">✅ Operation Completed Successfully!</h6>
 				${options.operation_type === 'create' ?
 				`Bulk creation completed with optimized batch processing.` :
 				options.operation_type === 'create_recalculate' ?

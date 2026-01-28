@@ -9,24 +9,24 @@ Script: /home/frappe/frappe-bench/apps/customize_erpnext/customize_erpnext/api/b
 ==================== BẮT ĐẦU TẠO MATERIAL RECEIPT STOCK ENTRIES ====================
 [2025-09-11 16:01:58] [INFO] 📋 Sử dụng đường dẫn: ./erp.tiqn.local/public/files/import_material_receipt_template91c61b.xlsx
 [2025-09-11 16:01:58] [INFO] 📋 Bắt đầu validation...
-[2025-09-11 16:01:58] [SUCCESS]  File Excel hợp lệ với 12 cột
-[2025-09-11 16:01:58] [SUCCESS]  Validation thành công
+[2025-09-11 16:01:58] [SUCCESS] ✅ File Excel hợp lệ với 12 cột
+[2025-09-11 16:01:58] [SUCCESS] ✅ Validation thành công
 [2025-09-11 16:01:58] [INFO] 📋 Bắt đầu xử lý file Excel...
 [2025-09-11 16:01:58] [INFO] 📋 Đang đọc file: ./erp.tiqn.local/public/files/import_material_receipt_template91c61b.xlsx
 [2025-09-11 16:01:58] [INFO] 📋 Đã đọc được 172 dòng dữ liệu
 [2025-09-11 16:01:58] [INFO] 📋 Các cột: ['Index', 'stock_entry_type', 'posting_date', 'posting_time', 'custom_no', 'item_code', 'custom_item_name_detail', 't_warehouse', 'qty', 'custom_invoice_number', 'custom_note', 'custom_customs_declaration_number']
 [2025-09-11 16:01:58] [INFO] 📋 Các cột optional có sẵn: ['posting_date', 'posting_time', 't_warehouse']
-[2025-09-11 16:01:58] [SUCCESS]  Các cột Excel hợp lệ
-[2025-09-11 16:01:58] [SUCCESS]  Sau khi làm sạch còn 172 dòng hợp lệ
+[2025-09-11 16:01:58] [SUCCESS] ✅ Các cột Excel hợp lệ
+[2025-09-11 16:01:58] [SUCCESS] ✅ Sau khi làm sạch còn 172 dòng hợp lệ
 [2025-09-11 16:01:58] [INFO] 📋 Pre-loading item and warehouse data...
 [2025-09-11 16:01:58] [INFO] 📋 Cached 172 items and 172 warehouses
 [2025-09-11 16:01:58] [INFO] 📋 Tìm thấy 14 nhóm custom_no khác nhau
 [2025-09-11 16:01:58] [INFO] 📋 Processing batch 1: groups 1-10
 [2025-09-11 16:01:58] [INFO] 📋 Xử lý nhóm 1/14: 1739 với 6 items
 [2025-09-11 16:01:58] [INFO] 📋   Processing posting_date from Excel datetime: 2025-09-03 00:00:00 -> 2025-09-03
-[2025-09-11 16:01:58] [INFO] 📋    Set posting_date = 2025-09-03
+[2025-09-11 16:01:58] [INFO] 📋   ✅ Set posting_date = 2025-09-03
 [2025-09-11 16:01:58] [INFO] 📋   Processing posting_time from string: 08:00:00
-[2025-09-11 16:01:58] [INFO] 📋    Set posting_time = 08:00:00
+[2025-09-11 16:01:58] [INFO] 📋   ✅ Set posting_time = 08:00:00
 [2025-09-11 16:01:58] [INFO] 📋   🔍 Debug fields set:
 [2025-09-11 16:01:58] [INFO] 📋     - set_posting_time: 1
 [2025-09-11 16:01:58] [INFO] 📋     - posting_date: 2025-09-03
@@ -36,17 +36,17 @@ Script: /home/frappe/frappe-bench/apps/customize_erpnext/customize_erpnext/api/b
 [2025-09-11 16:01:58] [INFO] 📋     - posting_date: 2025-09-03
 [2025-09-11 16:01:58] [INFO] 📋     - posting_time: 08:00:00
 [2025-09-11 16:01:58] [INFO] 📋   Using warehouse from Excel: Material - Local - TIQN for item H-021-0KE-09E-06-00
-[2025-09-11 16:01:58] [SUCCESS]    Item 1: H-021-0KE-09E-06-00 - Qty: 30.0
+[2025-09-11 16:01:58] [SUCCESS] ✅   Item 1: H-021-0KE-09E-06-00 - Qty: 30.0
 [2025-09-11 16:01:58] [INFO] 📋   Using warehouse from Excel: Material - Local - TIQN for item H-021-0KH-09E-06-00
-[2025-09-11 16:01:58] [SUCCESS]    Item 2: H-021-0KH-09E-06-00 - Qty: 5.0
+[2025-09-11 16:01:58] [SUCCESS] ✅   Item 2: H-021-0KH-09E-06-00 - Qty: 5.0
 [2025-09-11 16:01:58] [INFO] 📋   Using warehouse from Excel: Material - Local - TIQN for item H-021-0KF-09E-06-00
-[2025-09-11 16:01:58] [SUCCESS]    Item 3: H-021-0KF-09E-06-00 - Qty: 41.0
+[2025-09-11 16:01:58] [SUCCESS] ✅   Item 3: H-021-0KF-09E-06-00 - Qty: 41.0
 [2025-09-11 16:01:58] [INFO] 📋   Using warehouse from Excel: Material - Local - TIQN for item H-021-0JO-09E-06-00
-[2025-09-11 16:01:58] [SUCCESS]    Item 4: H-021-0JO-09E-06-00 - Qty: 2.0
+[2025-09-11 16:01:58] [SUCCESS] ✅   Item 4: H-021-0JO-09E-06-00 - Qty: 2.0
 [2025-09-11 16:01:58] [INFO] 📋   Using warehouse from Excel: Material - Local - TIQN for item H-021-0KF-061-06-00
-[2025-09-11 16:01:58] [SUCCESS]    Item 5: H-021-0KF-061-06-00 - Qty: 69.0
+[2025-09-11 16:01:58] [SUCCESS] ✅   Item 5: H-021-0KF-061-06-00 - Qty: 69.0
 [2025-09-11 16:01:58] [INFO] 📋   Using warehouse from Excel: Material - Local - TIQN for item H-021-06M-061-06-00
-[2025-09-11 16:01:58] [SUCCESS]    Item 6: H-021-06M-061-06-00 - Qty: 41.0
+[2025-09-11 16:01:58] [SUCCESS] ✅   Item 6: H-021-06M-061-06-00 - Qty: 41.0
 [2025-09-11 16:01:58] [INFO] 📋   Set to_warehouse: Material - Local - TIQN
 [2025-09-11 16:01:58] [INFO] 📋   Aggregated 1 invoice numbers: 1C25TGH-4202
 [2025-09-11 16:01:58] [INFO] 📋   🔍 Before save:
@@ -54,17 +54,17 @@ Script: /home/frappe/frappe-bench/apps/customize_erpnext/customize_erpnext/api/b
 [2025-09-11 16:01:58] [INFO] 📋     - posting_date: 2025-09-03
 [2025-09-11 16:01:58] [INFO] 📋     - posting_time: 08:00:00
 [2025-09-11 16:01:58] [INFO] 📋   💾 Saving Stock Entry...
-[2025-09-11 16:01:59] [SUCCESS]     Stock Entry saved: SE-2025-09-03-1739-03
+[2025-09-11 16:01:59] [SUCCESS] ✅   ✅ Stock Entry saved: SE-2025-09-03-1739-03
 [2025-09-11 16:01:59] [INFO] 📋   🔍 After save (reloaded from DB):
 [2025-09-11 16:01:59] [INFO] 📋     - set_posting_time: 1
 [2025-09-11 16:01:59] [INFO] 📋     - posting_date: 2025-09-03
 [2025-09-11 16:01:59] [INFO] 📋     - posting_time: 8:00:00
-[2025-09-11 16:01:59] [SUCCESS]  Tạo thành công: SE-2025-09-03-1739-03 với 6 items
+[2025-09-11 16:01:59] [SUCCESS] ✅ Tạo thành công: SE-2025-09-03-1739-03 với 6 items
 [2025-09-11 16:01:59] [INFO] 📋 Xử lý nhóm 2/14: 1740 với 10 items
 [2025-09-11 16:01:59] [INFO] 📋   Processing posting_date from Excel datetime: 2025-09-03 00:00:00 -> 2025-09-03
-[2025-09-11 16:01:59] [INFO] 📋    Set posting_date = 2025-09-03
+[2025-09-11 16:01:59] [INFO] 📋   ✅ Set posting_date = 2025-09-03
 [2025-09-11 16:01:59] [INFO] 📋   Processing posting_time from string: 08:00:00
-[2025-09-11 16:01:59] [INFO] 📋    Set posting_time = 08:00:00
+[2025-09-11 16:01:59] [INFO] 📋   ✅ Set posting_time = 08:00:00
 [2025-09-11 16:01:59] [INFO] 📋   🔍 Debug fields set:
 [2025-09-11 16:01:59] [INFO] 📋     - set_posting_time: 1
 [2025-09-11 16:01:59] [INFO] 📋     - posting_date: 2025-09-03
@@ -74,25 +74,25 @@ Script: /home/frappe/frappe-bench/apps/customize_erpnext/customize_erpnext/api/b
 [2025-09-11 16:01:59] [INFO] 📋     - posting_date: 2025-09-03
 [2025-09-11 16:01:59] [INFO] 📋     - posting_time: 08:00:00
 [2025-09-11 16:01:59] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-04F-0DI-02J-05-08
-[2025-09-11 16:01:59] [SUCCESS]    Item 1: G-04F-0DI-02J-05-08 - Qty: 13500.0
+[2025-09-11 16:01:59] [SUCCESS] ✅   Item 1: G-04F-0DI-02J-05-08 - Qty: 13500.0
 [2025-09-11 16:01:59] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-04D-0D8-000-05-08
-[2025-09-11 16:01:59] [SUCCESS]    Item 2: G-04D-0D8-000-05-08 - Qty: 13700.0
+[2025-09-11 16:01:59] [SUCCESS] ✅   Item 2: G-04D-0D8-000-05-08 - Qty: 13700.0
 [2025-09-11 16:01:59] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-04E-0D8-000-05-08
-[2025-09-11 16:01:59] [SUCCESS]    Item 3: G-04E-0D8-000-05-08 - Qty: 13700.0
+[2025-09-11 16:01:59] [SUCCESS] ✅   Item 3: G-04E-0D8-000-05-08 - Qty: 13700.0
 [2025-09-11 16:01:59] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-049-0D8-000-05-08
-[2025-09-11 16:01:59] [SUCCESS]    Item 4: G-049-0D8-000-05-08 - Qty: 13700.0
+[2025-09-11 16:01:59] [SUCCESS] ✅   Item 4: G-049-0D8-000-05-08 - Qty: 13700.0
 [2025-09-11 16:01:59] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-09F-0GK-000-05-08
-[2025-09-11 16:01:59] [SUCCESS]    Item 5: G-09F-0GK-000-05-08 - Qty: 13700.0
+[2025-09-11 16:01:59] [SUCCESS] ✅   Item 5: G-09F-0GK-000-05-08 - Qty: 13700.0
 [2025-09-11 16:01:59] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-0A6-06J-01G-05-08
-[2025-09-11 16:01:59] [SUCCESS]    Item 6: G-0A6-06J-01G-05-08 - Qty: 1600.0
+[2025-09-11 16:01:59] [SUCCESS] ✅   Item 6: G-0A6-06J-01G-05-08 - Qty: 1600.0
 [2025-09-11 16:01:59] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-0A6-0GN-01G-05-08
-[2025-09-11 16:01:59] [SUCCESS]    Item 7: G-0A6-0GN-01G-05-08 - Qty: 1800.0
+[2025-09-11 16:01:59] [SUCCESS] ✅   Item 7: G-0A6-0GN-01G-05-08 - Qty: 1800.0
 [2025-09-11 16:01:59] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-04F-0D5-02J-05-08
-[2025-09-11 16:01:59] [SUCCESS]    Item 8: G-04F-0D5-02J-05-08 - Qty: 200.0
+[2025-09-11 16:01:59] [SUCCESS] ✅   Item 8: G-04F-0D5-02J-05-08 - Qty: 200.0
 [2025-09-11 16:01:59] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-09U-002-01G-05-08
-[2025-09-11 16:01:59] [SUCCESS]    Item 9: G-09U-002-01G-05-08 - Qty: 50.0
+[2025-09-11 16:01:59] [SUCCESS] ✅   Item 9: G-09U-002-01G-05-08 - Qty: 50.0
 [2025-09-11 16:01:59] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-09V-002-01G-05-08
-[2025-09-11 16:01:59] [SUCCESS]    Item 10: G-09V-002-01G-05-08 - Qty: 50.0
+[2025-09-11 16:01:59] [SUCCESS] ✅   Item 10: G-09V-002-01G-05-08 - Qty: 50.0
 [2025-09-11 16:01:59] [INFO] 📋   Set to_warehouse: Material - HK - TIQN
 [2025-09-11 16:01:59] [INFO] 📋   Aggregated 1 invoice numbers: KO/TRH 0078/25 (22117)
 [2025-09-11 16:01:59] [INFO] 📋   🔍 Before save:
@@ -100,17 +100,17 @@ Script: /home/frappe/frappe-bench/apps/customize_erpnext/customize_erpnext/api/b
 [2025-09-11 16:01:59] [INFO] 📋     - posting_date: 2025-09-03
 [2025-09-11 16:01:59] [INFO] 📋     - posting_time: 08:00:00
 [2025-09-11 16:01:59] [INFO] 📋   💾 Saving Stock Entry...
-[2025-09-11 16:01:59] [SUCCESS]     Stock Entry saved: SE-2025-09-03-1740-02
+[2025-09-11 16:01:59] [SUCCESS] ✅   ✅ Stock Entry saved: SE-2025-09-03-1740-02
 [2025-09-11 16:01:59] [INFO] 📋   🔍 After save (reloaded from DB):
 [2025-09-11 16:01:59] [INFO] 📋     - set_posting_time: 1
 [2025-09-11 16:01:59] [INFO] 📋     - posting_date: 2025-09-03
 [2025-09-11 16:01:59] [INFO] 📋     - posting_time: 8:00:00
-[2025-09-11 16:01:59] [SUCCESS]  Tạo thành công: SE-2025-09-03-1740-02 với 10 items
+[2025-09-11 16:01:59] [SUCCESS] ✅ Tạo thành công: SE-2025-09-03-1740-02 với 10 items
 [2025-09-11 16:01:59] [INFO] 📋 Xử lý nhóm 3/14: 1741 với 1 items
 [2025-09-11 16:01:59] [INFO] 📋   Processing posting_date from Excel datetime: 2025-09-03 00:00:00 -> 2025-09-03
-[2025-09-11 16:01:59] [INFO] 📋    Set posting_date = 2025-09-03
+[2025-09-11 16:01:59] [INFO] 📋   ✅ Set posting_date = 2025-09-03
 [2025-09-11 16:01:59] [INFO] 📋   Processing posting_time from string: 08:00:00
-[2025-09-11 16:01:59] [INFO] 📋    Set posting_time = 08:00:00
+[2025-09-11 16:01:59] [INFO] 📋   ✅ Set posting_time = 08:00:00
 [2025-09-11 16:01:59] [INFO] 📋   🔍 Debug fields set:
 [2025-09-11 16:01:59] [INFO] 📋     - set_posting_time: 1
 [2025-09-11 16:01:59] [INFO] 📋     - posting_date: 2025-09-03
@@ -120,7 +120,7 @@ Script: /home/frappe/frappe-bench/apps/customize_erpnext/customize_erpnext/api/b
 [2025-09-11 16:01:59] [INFO] 📋     - posting_date: 2025-09-03
 [2025-09-11 16:01:59] [INFO] 📋     - posting_time: 08:00:00
 [2025-09-11 16:01:59] [INFO] 📋   Using warehouse from Excel: Material - JP - TIQN for item G-06G-000-000-0E-08
-[2025-09-11 16:01:59] [SUCCESS]    Item 1: G-06G-000-000-0E-08 - Qty: 7416.0
+[2025-09-11 16:01:59] [SUCCESS] ✅   Item 1: G-06G-000-000-0E-08 - Qty: 7416.0
 [2025-09-11 16:01:59] [INFO] 📋   Set to_warehouse: Material - JP - TIQN
 [2025-09-11 16:01:59] [INFO] 📋   Aggregated 1 invoice numbers: 250804258
 [2025-09-11 16:01:59] [INFO] 📋   🔍 Before save:
@@ -128,17 +128,17 @@ Script: /home/frappe/frappe-bench/apps/customize_erpnext/customize_erpnext/api/b
 [2025-09-11 16:01:59] [INFO] 📋     - posting_date: 2025-09-03
 [2025-09-11 16:01:59] [INFO] 📋     - posting_time: 08:00:00
 [2025-09-11 16:01:59] [INFO] 📋   💾 Saving Stock Entry...
-[2025-09-11 16:01:59] [SUCCESS]     Stock Entry saved: SE-2025-09-03-1741-02
+[2025-09-11 16:01:59] [SUCCESS] ✅   ✅ Stock Entry saved: SE-2025-09-03-1741-02
 [2025-09-11 16:01:59] [INFO] 📋   🔍 After save (reloaded from DB):
 [2025-09-11 16:01:59] [INFO] 📋     - set_posting_time: 1
 [2025-09-11 16:01:59] [INFO] 📋     - posting_date: 2025-09-03
 [2025-09-11 16:01:59] [INFO] 📋     - posting_time: 8:00:00
-[2025-09-11 16:01:59] [SUCCESS]  Tạo thành công: SE-2025-09-03-1741-02 với 1 items
+[2025-09-11 16:01:59] [SUCCESS] ✅ Tạo thành công: SE-2025-09-03-1741-02 với 1 items
 [2025-09-11 16:01:59] [INFO] 📋 Xử lý nhóm 4/14: 1742 với 6 items
 [2025-09-11 16:01:59] [INFO] 📋   Processing posting_date from Excel datetime: 2025-09-04 00:00:00 -> 2025-09-04
-[2025-09-11 16:01:59] [INFO] 📋    Set posting_date = 2025-09-04
+[2025-09-11 16:01:59] [INFO] 📋   ✅ Set posting_date = 2025-09-04
 [2025-09-11 16:01:59] [INFO] 📋   Processing posting_time from string: 08:00:00
-[2025-09-11 16:01:59] [INFO] 📋    Set posting_time = 08:00:00
+[2025-09-11 16:01:59] [INFO] 📋   ✅ Set posting_time = 08:00:00
 [2025-09-11 16:01:59] [INFO] 📋   🔍 Debug fields set:
 [2025-09-11 16:01:59] [INFO] 📋     - set_posting_time: 1
 [2025-09-11 16:01:59] [INFO] 📋     - posting_date: 2025-09-04
@@ -148,17 +148,17 @@ Script: /home/frappe/frappe-bench/apps/customize_erpnext/customize_erpnext/api/b
 [2025-09-11 16:01:59] [INFO] 📋     - posting_date: 2025-09-04
 [2025-09-11 16:01:59] [INFO] 📋     - posting_time: 08:00:00
 [2025-09-11 16:01:59] [INFO] 📋   Using warehouse from Excel: Material - Local - TIQN for item F-03E-000-08Z-06-00-06T
-[2025-09-11 16:01:59] [SUCCESS]    Item 1: F-03E-000-08Z-06-00-06T - Qty: 396.0
+[2025-09-11 16:01:59] [SUCCESS] ✅   Item 1: F-03E-000-08Z-06-00-06T - Qty: 396.0
 [2025-09-11 16:01:59] [INFO] 📋   Using warehouse from Excel: Material - Local - TIQN for item F-03E-000-08Z-06-00-06Y
-[2025-09-11 16:01:59] [SUCCESS]    Item 2: F-03E-000-08Z-06-00-06Y - Qty: 155.0
+[2025-09-11 16:01:59] [SUCCESS] ✅   Item 2: F-03E-000-08Z-06-00-06Y - Qty: 155.0
 [2025-09-11 16:01:59] [INFO] 📋   Using warehouse from Excel: Material - Local - TIQN for item F-03E-000-08Z-06-00-07C
-[2025-09-11 16:01:59] [SUCCESS]    Item 3: F-03E-000-08Z-06-00-07C - Qty: 400.0
+[2025-09-11 16:01:59] [SUCCESS] ✅   Item 3: F-03E-000-08Z-06-00-07C - Qty: 400.0
 [2025-09-11 16:01:59] [INFO] 📋   Using warehouse from Excel: Material - Local - TIQN for item F-03E-000-08Z-06-00-07H
-[2025-09-11 16:01:59] [SUCCESS]    Item 4: F-03E-000-08Z-06-00-07H - Qty: 100.0
+[2025-09-11 16:01:59] [SUCCESS] ✅   Item 4: F-03E-000-08Z-06-00-07H - Qty: 100.0
 [2025-09-11 16:01:59] [INFO] 📋   Using warehouse from Excel: Material - Local - TIQN for item F-03E-000-08Z-06-00-08F
-[2025-09-11 16:01:59] [SUCCESS]    Item 5: F-03E-000-08Z-06-00-08F - Qty: 100.0
+[2025-09-11 16:01:59] [SUCCESS] ✅   Item 5: F-03E-000-08Z-06-00-08F - Qty: 100.0
 [2025-09-11 16:01:59] [INFO] 📋   Using warehouse from Excel: Material - Local - TIQN for item F-03F-000-090-06-00
-[2025-09-11 16:01:59] [SUCCESS]    Item 6: F-03F-000-090-06-00 - Qty: 2302.0
+[2025-09-11 16:01:59] [SUCCESS] ✅   Item 6: F-03F-000-090-06-00 - Qty: 2302.0
 [2025-09-11 16:01:59] [INFO] 📋   Set to_warehouse: Material - Local - TIQN
 [2025-09-11 16:01:59] [INFO] 📋   Aggregated 1 invoice numbers: 1C25TTP-6086
 [2025-09-11 16:01:59] [INFO] 📋   🔍 Before save:
@@ -166,17 +166,17 @@ Script: /home/frappe/frappe-bench/apps/customize_erpnext/customize_erpnext/api/b
 [2025-09-11 16:01:59] [INFO] 📋     - posting_date: 2025-09-04
 [2025-09-11 16:01:59] [INFO] 📋     - posting_time: 08:00:00
 [2025-09-11 16:01:59] [INFO] 📋   💾 Saving Stock Entry...
-[2025-09-11 16:01:59] [SUCCESS]     Stock Entry saved: SE-2025-09-04-1742-02
+[2025-09-11 16:01:59] [SUCCESS] ✅   ✅ Stock Entry saved: SE-2025-09-04-1742-02
 [2025-09-11 16:01:59] [INFO] 📋   🔍 After save (reloaded from DB):
 [2025-09-11 16:01:59] [INFO] 📋     - set_posting_time: 1
 [2025-09-11 16:01:59] [INFO] 📋     - posting_date: 2025-09-04
 [2025-09-11 16:01:59] [INFO] 📋     - posting_time: 8:00:00
-[2025-09-11 16:01:59] [SUCCESS]  Tạo thành công: SE-2025-09-04-1742-02 với 6 items
+[2025-09-11 16:01:59] [SUCCESS] ✅ Tạo thành công: SE-2025-09-04-1742-02 với 6 items
 [2025-09-11 16:01:59] [INFO] 📋 Xử lý nhóm 5/14: 1743 với 2 items
 [2025-09-11 16:01:59] [INFO] 📋   Processing posting_date from Excel datetime: 2025-09-04 00:00:00 -> 2025-09-04
-[2025-09-11 16:01:59] [INFO] 📋    Set posting_date = 2025-09-04
+[2025-09-11 16:01:59] [INFO] 📋   ✅ Set posting_date = 2025-09-04
 [2025-09-11 16:01:59] [INFO] 📋   Processing posting_time from string: 08:00:00
-[2025-09-11 16:01:59] [INFO] 📋    Set posting_time = 08:00:00
+[2025-09-11 16:01:59] [INFO] 📋   ✅ Set posting_time = 08:00:00
 [2025-09-11 16:01:59] [INFO] 📋   🔍 Debug fields set:
 [2025-09-11 16:01:59] [INFO] 📋     - set_posting_time: 1
 [2025-09-11 16:01:59] [INFO] 📋     - posting_date: 2025-09-04
@@ -186,9 +186,9 @@ Script: /home/frappe/frappe-bench/apps/customize_erpnext/customize_erpnext/api/b
 [2025-09-11 16:01:59] [INFO] 📋     - posting_date: 2025-09-04
 [2025-09-11 16:01:59] [INFO] 📋     - posting_time: 08:00:00
 [2025-09-11 16:01:59] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item C-01X-06J-000-05-08
-[2025-09-11 16:01:59] [SUCCESS]    Item 1: C-01X-06J-000-05-08 - Qty: 200.0
+[2025-09-11 16:01:59] [SUCCESS] ✅   Item 1: C-01X-06J-000-05-08 - Qty: 200.0
 [2025-09-11 16:01:59] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item C-01X-004-000-05-08
-[2025-09-11 16:01:59] [SUCCESS]    Item 2: C-01X-004-000-05-08 - Qty: 500.0
+[2025-09-11 16:01:59] [SUCCESS] ✅   Item 2: C-01X-004-000-05-08 - Qty: 500.0
 [2025-09-11 16:01:59] [INFO] 📋   Set to_warehouse: Material - HK - TIQN
 [2025-09-11 16:01:59] [INFO] 📋   Aggregated 1 invoice numbers: KO/TRH 0077/25 (22117)
 [2025-09-11 16:01:59] [INFO] 📋   🔍 Before save:
@@ -196,17 +196,17 @@ Script: /home/frappe/frappe-bench/apps/customize_erpnext/customize_erpnext/api/b
 [2025-09-11 16:01:59] [INFO] 📋     - posting_date: 2025-09-04
 [2025-09-11 16:01:59] [INFO] 📋     - posting_time: 08:00:00
 [2025-09-11 16:01:59] [INFO] 📋   💾 Saving Stock Entry...
-[2025-09-11 16:01:59] [SUCCESS]     Stock Entry saved: SE-2025-09-04-1743-02
+[2025-09-11 16:01:59] [SUCCESS] ✅   ✅ Stock Entry saved: SE-2025-09-04-1743-02
 [2025-09-11 16:01:59] [INFO] 📋   🔍 After save (reloaded from DB):
 [2025-09-11 16:01:59] [INFO] 📋     - set_posting_time: 1
 [2025-09-11 16:01:59] [INFO] 📋     - posting_date: 2025-09-04
 [2025-09-11 16:01:59] [INFO] 📋     - posting_time: 8:00:00
-[2025-09-11 16:01:59] [SUCCESS]  Tạo thành công: SE-2025-09-04-1743-02 với 2 items
+[2025-09-11 16:01:59] [SUCCESS] ✅ Tạo thành công: SE-2025-09-04-1743-02 với 2 items
 [2025-09-11 16:01:59] [INFO] 📋 Xử lý nhóm 6/14: 1744 với 6 items
 [2025-09-11 16:01:59] [INFO] 📋   Processing posting_date from Excel datetime: 2025-09-05 00:00:00 -> 2025-09-05
-[2025-09-11 16:01:59] [INFO] 📋    Set posting_date = 2025-09-05
+[2025-09-11 16:01:59] [INFO] 📋   ✅ Set posting_date = 2025-09-05
 [2025-09-11 16:01:59] [INFO] 📋   Processing posting_time from string: 08:00:00
-[2025-09-11 16:01:59] [INFO] 📋    Set posting_time = 08:00:00
+[2025-09-11 16:01:59] [INFO] 📋   ✅ Set posting_time = 08:00:00
 [2025-09-11 16:01:59] [INFO] 📋   🔍 Debug fields set:
 [2025-09-11 16:01:59] [INFO] 📋     - set_posting_time: 1
 [2025-09-11 16:01:59] [INFO] 📋     - posting_date: 2025-09-05
@@ -216,17 +216,17 @@ Script: /home/frappe/frappe-bench/apps/customize_erpnext/customize_erpnext/api/b
 [2025-09-11 16:01:59] [INFO] 📋     - posting_date: 2025-09-05
 [2025-09-11 16:01:59] [INFO] 📋     - posting_time: 08:00:00
 [2025-09-11 16:01:59] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-032-06M-08I-05-08-02T
-[2025-09-11 16:01:59] [SUCCESS]    Item 1: F-032-06M-08I-05-08-02T - Qty: 89.0
+[2025-09-11 16:01:59] [SUCCESS] ✅   Item 1: F-032-06M-08I-05-08-02T - Qty: 89.0
 [2025-09-11 16:01:59] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-032-06M-08C-05-08-02T
-[2025-09-11 16:01:59] [SUCCESS]    Item 2: F-032-06M-08C-05-08-02T - Qty: 649.0
+[2025-09-11 16:01:59] [SUCCESS] ✅   Item 2: F-032-06M-08C-05-08-02T - Qty: 649.0
 [2025-09-11 16:01:59] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-032-06M-088-05-08-02T
-[2025-09-11 16:01:59] [SUCCESS]    Item 3: F-032-06M-088-05-08-02T - Qty: 850.0
+[2025-09-11 16:01:59] [SUCCESS] ✅   Item 3: F-032-06M-088-05-08-02T - Qty: 850.0
 [2025-09-11 16:01:59] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-032-06M-084-05-08-02T
-[2025-09-11 16:01:59] [SUCCESS]    Item 4: F-032-06M-084-05-08-02T - Qty: 842.0
+[2025-09-11 16:01:59] [SUCCESS] ✅   Item 4: F-032-06M-084-05-08-02T - Qty: 842.0
 [2025-09-11 16:01:59] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-032-06M-08F-05-08-02T
-[2025-09-11 16:01:59] [SUCCESS]    Item 5: F-032-06M-08F-05-08-02T - Qty: 460.0
+[2025-09-11 16:01:59] [SUCCESS] ✅   Item 5: F-032-06M-08F-05-08-02T - Qty: 460.0
 [2025-09-11 16:01:59] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-032-06M-08J-05-08-02T
-[2025-09-11 16:01:59] [SUCCESS]    Item 6: F-032-06M-08J-05-08-02T - Qty: 166.0
+[2025-09-11 16:01:59] [SUCCESS] ✅   Item 6: F-032-06M-08J-05-08-02T - Qty: 166.0
 [2025-09-11 16:01:59] [INFO] 📋   Set to_warehouse: Material - HK - TIQN
 [2025-09-11 16:01:59] [INFO] 📋   Aggregated 1 invoice numbers: TY-1T-MMT178
 [2025-09-11 16:01:59] [INFO] 📋   🔍 Before save:
@@ -234,17 +234,17 @@ Script: /home/frappe/frappe-bench/apps/customize_erpnext/customize_erpnext/api/b
 [2025-09-11 16:01:59] [INFO] 📋     - posting_date: 2025-09-05
 [2025-09-11 16:01:59] [INFO] 📋     - posting_time: 08:00:00
 [2025-09-11 16:01:59] [INFO] 📋   💾 Saving Stock Entry...
-[2025-09-11 16:02:00] [SUCCESS]     Stock Entry saved: SE-2025-09-05-1744-02
+[2025-09-11 16:02:00] [SUCCESS] ✅   ✅ Stock Entry saved: SE-2025-09-05-1744-02
 [2025-09-11 16:02:00] [INFO] 📋   🔍 After save (reloaded from DB):
 [2025-09-11 16:02:00] [INFO] 📋     - set_posting_time: 1
 [2025-09-11 16:02:00] [INFO] 📋     - posting_date: 2025-09-05
 [2025-09-11 16:02:00] [INFO] 📋     - posting_time: 8:00:00
-[2025-09-11 16:02:00] [SUCCESS]  Tạo thành công: SE-2025-09-05-1744-02 với 6 items
+[2025-09-11 16:02:00] [SUCCESS] ✅ Tạo thành công: SE-2025-09-05-1744-02 với 6 items
 [2025-09-11 16:02:00] [INFO] 📋 Xử lý nhóm 7/14: 1745 với 9 items
 [2025-09-11 16:02:00] [INFO] 📋   Processing posting_date from Excel datetime: 2025-09-05 00:00:00 -> 2025-09-05
-[2025-09-11 16:02:00] [INFO] 📋    Set posting_date = 2025-09-05
+[2025-09-11 16:02:00] [INFO] 📋   ✅ Set posting_date = 2025-09-05
 [2025-09-11 16:02:00] [INFO] 📋   Processing posting_time from string: 08:00:00
-[2025-09-11 16:02:00] [INFO] 📋    Set posting_time = 08:00:00
+[2025-09-11 16:02:00] [INFO] 📋   ✅ Set posting_time = 08:00:00
 [2025-09-11 16:02:00] [INFO] 📋   🔍 Debug fields set:
 [2025-09-11 16:02:00] [INFO] 📋     - set_posting_time: 1
 [2025-09-11 16:02:00] [INFO] 📋     - posting_date: 2025-09-05
@@ -254,23 +254,23 @@ Script: /home/frappe/frappe-bench/apps/customize_erpnext/customize_erpnext/api/b
 [2025-09-11 16:02:00] [INFO] 📋     - posting_date: 2025-09-05
 [2025-09-11 16:02:00] [INFO] 📋     - posting_time: 08:00:00
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-03Q-02Y-06G-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 1: G-03Q-02Y-06G-05-08 - Qty: 50.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 1: G-03Q-02Y-06G-05-08 - Qty: 50.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-03Q-02Y-06M-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 2: G-03Q-02Y-06M-05-08 - Qty: 48.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 2: G-03Q-02Y-06M-05-08 - Qty: 48.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-01N-05S-000-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 3: F-01N-05S-000-05-08 - Qty: 800.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 3: F-01N-05S-000-05-08 - Qty: 800.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-01N-060-000-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 4: F-01N-060-000-05-08 - Qty: 900.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 4: F-01N-060-000-05-08 - Qty: 900.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-01N-07A-000-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 5: F-01N-07A-000-05-08 - Qty: 3100.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 5: F-01N-07A-000-05-08 - Qty: 3100.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-01N-092-000-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 6: F-01N-092-000-05-08 - Qty: 200.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 6: F-01N-092-000-05-08 - Qty: 200.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-01N-0AU-000-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 7: F-01N-0AU-000-05-08 - Qty: 400.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 7: F-01N-0AU-000-05-08 - Qty: 400.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-01N-0FW-000-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 8: F-01N-0FW-000-05-08 - Qty: 300.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 8: F-01N-0FW-000-05-08 - Qty: 300.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-01N-0GL-000-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 9: F-01N-0GL-000-05-08 - Qty: 1600.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 9: F-01N-0GL-000-05-08 - Qty: 1600.0
 [2025-09-11 16:02:00] [INFO] 📋   Set to_warehouse: Material - HK - TIQN
 [2025-09-11 16:02:00] [INFO] 📋   Aggregated 1 invoice numbers: TIHK-TIQN-24
 [2025-09-11 16:02:00] [INFO] 📋   🔍 Before save:
@@ -278,17 +278,17 @@ Script: /home/frappe/frappe-bench/apps/customize_erpnext/customize_erpnext/api/b
 [2025-09-11 16:02:00] [INFO] 📋     - posting_date: 2025-09-05
 [2025-09-11 16:02:00] [INFO] 📋     - posting_time: 08:00:00
 [2025-09-11 16:02:00] [INFO] 📋   💾 Saving Stock Entry...
-[2025-09-11 16:02:00] [SUCCESS]     Stock Entry saved: SE-2025-09-05-1745-02
+[2025-09-11 16:02:00] [SUCCESS] ✅   ✅ Stock Entry saved: SE-2025-09-05-1745-02
 [2025-09-11 16:02:00] [INFO] 📋   🔍 After save (reloaded from DB):
 [2025-09-11 16:02:00] [INFO] 📋     - set_posting_time: 1
 [2025-09-11 16:02:00] [INFO] 📋     - posting_date: 2025-09-05
 [2025-09-11 16:02:00] [INFO] 📋     - posting_time: 8:00:00
-[2025-09-11 16:02:00] [SUCCESS]  Tạo thành công: SE-2025-09-05-1745-02 với 9 items
+[2025-09-11 16:02:00] [SUCCESS] ✅ Tạo thành công: SE-2025-09-05-1745-02 với 9 items
 [2025-09-11 16:02:00] [INFO] 📋 Xử lý nhóm 8/14: 1746 với 4 items
 [2025-09-11 16:02:00] [INFO] 📋   Processing posting_date from Excel datetime: 2025-09-05 00:00:00 -> 2025-09-05
-[2025-09-11 16:02:00] [INFO] 📋    Set posting_date = 2025-09-05
+[2025-09-11 16:02:00] [INFO] 📋   ✅ Set posting_date = 2025-09-05
 [2025-09-11 16:02:00] [INFO] 📋   Processing posting_time from string: 08:00:00
-[2025-09-11 16:02:00] [INFO] 📋    Set posting_time = 08:00:00
+[2025-09-11 16:02:00] [INFO] 📋   ✅ Set posting_time = 08:00:00
 [2025-09-11 16:02:00] [INFO] 📋   🔍 Debug fields set:
 [2025-09-11 16:02:00] [INFO] 📋     - set_posting_time: 1
 [2025-09-11 16:02:00] [INFO] 📋     - posting_date: 2025-09-05
@@ -298,13 +298,13 @@ Script: /home/frappe/frappe-bench/apps/customize_erpnext/customize_erpnext/api/b
 [2025-09-11 16:02:00] [INFO] 📋     - posting_date: 2025-09-05
 [2025-09-11 16:02:00] [INFO] 📋     - posting_time: 08:00:00
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item C-01L-05R-000-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 1: C-01L-05R-000-05-08 - Qty: 571.32
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 1: C-01L-05R-000-05-08 - Qty: 571.32
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item C-01L-05X-000-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 2: C-01L-05X-000-05-08 - Qty: 669.16
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 2: C-01L-05X-000-05-08 - Qty: 669.16
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item C-01L-0FV-000-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 3: C-01L-0FV-000-05-08 - Qty: 484.63
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 3: C-01L-0FV-000-05-08 - Qty: 484.63
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item C-01L-0AT-000-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 4: C-01L-0AT-000-05-08 - Qty: 296.99
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 4: C-01L-0AT-000-05-08 - Qty: 296.99
 [2025-09-11 16:02:00] [INFO] 📋   Set to_warehouse: Material - HK - TIQN
 [2025-09-11 16:02:00] [INFO] 📋   Aggregated 1 invoice numbers: 19851451
 [2025-09-11 16:02:00] [INFO] 📋   🔍 Before save:
@@ -312,17 +312,17 @@ Script: /home/frappe/frappe-bench/apps/customize_erpnext/customize_erpnext/api/b
 [2025-09-11 16:02:00] [INFO] 📋     - posting_date: 2025-09-05
 [2025-09-11 16:02:00] [INFO] 📋     - posting_time: 08:00:00
 [2025-09-11 16:02:00] [INFO] 📋   💾 Saving Stock Entry...
-[2025-09-11 16:02:00] [SUCCESS]     Stock Entry saved: SE-2025-09-05-1746-02
+[2025-09-11 16:02:00] [SUCCESS] ✅   ✅ Stock Entry saved: SE-2025-09-05-1746-02
 [2025-09-11 16:02:00] [INFO] 📋   🔍 After save (reloaded from DB):
 [2025-09-11 16:02:00] [INFO] 📋     - set_posting_time: 1
 [2025-09-11 16:02:00] [INFO] 📋     - posting_date: 2025-09-05
 [2025-09-11 16:02:00] [INFO] 📋     - posting_time: 8:00:00
-[2025-09-11 16:02:00] [SUCCESS]  Tạo thành công: SE-2025-09-05-1746-02 với 4 items
+[2025-09-11 16:02:00] [SUCCESS] ✅ Tạo thành công: SE-2025-09-05-1746-02 với 4 items
 [2025-09-11 16:02:00] [INFO] 📋 Xử lý nhóm 9/14: 1747 với 113 items
 [2025-09-11 16:02:00] [INFO] 📋   Processing posting_date from Excel datetime: 2025-09-05 00:00:00 -> 2025-09-05
-[2025-09-11 16:02:00] [INFO] 📋    Set posting_date = 2025-09-05
+[2025-09-11 16:02:00] [INFO] 📋   ✅ Set posting_date = 2025-09-05
 [2025-09-11 16:02:00] [INFO] 📋   Processing posting_time from string: 08:00:00
-[2025-09-11 16:02:00] [INFO] 📋    Set posting_time = 08:00:00
+[2025-09-11 16:02:00] [INFO] 📋   ✅ Set posting_time = 08:00:00
 [2025-09-11 16:02:00] [INFO] 📋   🔍 Debug fields set:
 [2025-09-11 16:02:00] [INFO] 📋     - set_posting_time: 1
 [2025-09-11 16:02:00] [INFO] 📋     - posting_date: 2025-09-05
@@ -332,231 +332,231 @@ Script: /home/frappe/frappe-bench/apps/customize_erpnext/customize_erpnext/api/b
 [2025-09-11 16:02:00] [INFO] 📋     - posting_date: 2025-09-05
 [2025-09-11 16:02:00] [INFO] 📋     - posting_time: 08:00:00
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-00N-000-000-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 1: F-00N-000-000-05-08 - Qty: 12500.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 1: F-00N-000-000-05-08 - Qty: 12500.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-036-000-000-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 2: F-036-000-000-05-08 - Qty: 2100.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 2: F-036-000-000-05-08 - Qty: 2100.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-030-000-000-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 3: F-030-000-000-05-08 - Qty: 10400.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 3: F-030-000-000-05-08 - Qty: 10400.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-033-032-09F-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 4: G-033-032-09F-05-08 - Qty: 312.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 4: G-033-032-09F-05-08 - Qty: 312.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-033-0A2-09F-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 5: G-033-0A2-09F-05-08 - Qty: 63.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 5: G-033-0A2-09F-05-08 - Qty: 63.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-033-032-09G-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 6: G-033-032-09G-05-08 - Qty: 60.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 6: G-033-032-09G-05-08 - Qty: 60.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-033-0A2-09G-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 7: G-033-0A2-09G-05-08 - Qty: 10.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 7: G-033-0A2-09G-05-08 - Qty: 10.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-033-032-024-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 8: G-033-032-024-05-08 - Qty: 310.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 8: G-033-032-024-05-08 - Qty: 310.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-033-0A2-024-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 9: G-033-0A2-024-05-08 - Qty: 69.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 9: G-033-0A2-024-05-08 - Qty: 69.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-033-032-02C-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 10: G-033-032-02C-05-08 - Qty: 94.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 10: G-033-032-02C-05-08 - Qty: 94.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-033-07F-02C-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 11: G-033-07F-02C-05-08 - Qty: 34.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 11: G-033-07F-02C-05-08 - Qty: 34.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-033-0A2-02C-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 12: G-033-0A2-02C-05-08 - Qty: 3.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 12: G-033-0A2-02C-05-08 - Qty: 3.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-033-0AL-02C-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 13: G-033-0AL-02C-05-08 - Qty: 22.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 13: G-033-0AL-02C-05-08 - Qty: 22.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-033-0AM-02C-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 14: G-033-0AM-02C-05-08 - Qty: 48.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 14: G-033-0AM-02C-05-08 - Qty: 48.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-033-032-02I-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 15: G-033-032-02I-05-08 - Qty: 744.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 15: G-033-032-02I-05-08 - Qty: 744.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-033-07F-02I-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 16: G-033-07F-02I-05-08 - Qty: 86.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 16: G-033-07F-02I-05-08 - Qty: 86.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-033-0AL-02I-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 17: G-033-0AL-02I-05-08 - Qty: 49.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 17: G-033-0AL-02I-05-08 - Qty: 49.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-033-0AM-02I-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 18: G-033-0AM-02I-05-08 - Qty: 131.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 18: G-033-0AM-02I-05-08 - Qty: 131.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-033-032-02M-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 19: G-033-032-02M-05-08 - Qty: 19.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 19: G-033-032-02M-05-08 - Qty: 19.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-033-07F-02M-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 20: G-033-07F-02M-05-08 - Qty: 5.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 20: G-033-07F-02M-05-08 - Qty: 5.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-033-0AL-02M-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 21: G-033-0AL-02M-05-08 - Qty: 4.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 21: G-033-0AL-02M-05-08 - Qty: 4.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-033-0AM-02M-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 22: G-033-0AM-02M-05-08 - Qty: 4.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 22: G-033-0AM-02M-05-08 - Qty: 4.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-03E-055-02U-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 23: G-03E-055-02U-05-08 - Qty: 607.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 23: G-03E-055-02U-05-08 - Qty: 607.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-03E-05K-02U-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 24: G-03E-05K-02U-05-08 - Qty: 669.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 24: G-03E-05K-02U-05-08 - Qty: 669.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-03E-032-02U-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 25: G-03E-032-02U-05-08 - Qty: 99.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 25: G-03E-032-02U-05-08 - Qty: 99.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-03E-0A6-02U-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 26: G-03E-0A6-02U-05-08 - Qty: 380.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 26: G-03E-0A6-02U-05-08 - Qty: 380.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-03E-054-02X-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 27: G-03E-054-02X-05-08 - Qty: 33.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 27: G-03E-054-02X-05-08 - Qty: 33.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-03E-055-02X-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 28: G-03E-055-02X-05-08 - Qty: 297.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 28: G-03E-055-02X-05-08 - Qty: 297.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-03E-057-02X-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 29: G-03E-057-02X-05-08 - Qty: 311.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 29: G-03E-057-02X-05-08 - Qty: 311.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-03E-05K-02X-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 30: G-03E-05K-02X-05-08 - Qty: 1153.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 30: G-03E-05K-02X-05-08 - Qty: 1153.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-03E-032-02X-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 31: G-03E-032-02X-05-08 - Qty: 549.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 31: G-03E-032-02X-05-08 - Qty: 549.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-03E-0A2-02X-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 32: G-03E-0A2-02X-05-08 - Qty: 39.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 32: G-03E-0A2-02X-05-08 - Qty: 39.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-03E-0A6-02X-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 33: G-03E-0A6-02X-05-08 - Qty: 109.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 33: G-03E-0A6-02X-05-08 - Qty: 109.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-03E-054-031-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 34: G-03E-054-031-05-08 - Qty: 26.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 34: G-03E-054-031-05-08 - Qty: 26.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-03E-057-031-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 35: G-03E-057-031-05-08 - Qty: 60.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 35: G-03E-057-031-05-08 - Qty: 60.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-03E-05K-031-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 36: G-03E-05K-031-05-08 - Qty: 193.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 36: G-03E-05K-031-05-08 - Qty: 193.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-03E-032-031-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 37: G-03E-032-031-05-08 - Qty: 481.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 37: G-03E-032-031-05-08 - Qty: 481.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-03E-0A2-031-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 38: G-03E-0A2-031-05-08 - Qty: 23.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 38: G-03E-0A2-031-05-08 - Qty: 23.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-03Q-055-09H-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 39: G-03Q-055-09H-05-08 - Qty: 3.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 39: G-03Q-055-09H-05-08 - Qty: 3.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-03Q-032-09I-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 40: G-03Q-032-09I-05-08 - Qty: 11.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 40: G-03Q-032-09I-05-08 - Qty: 11.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-03Q-054-076-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 41: G-03Q-054-076-05-08 - Qty: 17.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 41: G-03Q-054-076-05-08 - Qty: 17.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-03Q-032-076-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 42: G-03Q-032-076-05-08 - Qty: 31.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 42: G-03Q-032-076-05-08 - Qty: 31.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-03Q-054-09J-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 43: G-03Q-054-09J-05-08 - Qty: 9.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 43: G-03Q-054-09J-05-08 - Qty: 9.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-03Q-032-09J-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 44: G-03Q-032-09J-05-08 - Qty: 25.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 44: G-03Q-032-09J-05-08 - Qty: 25.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-03Q-054-07C-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 45: G-03Q-054-07C-05-08 - Qty: 5.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 45: G-03Q-054-07C-05-08 - Qty: 5.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-03Q-032-07C-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 46: G-03Q-032-07C-05-08 - Qty: 23.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 46: G-03Q-032-07C-05-08 - Qty: 23.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-03Z-054-02U-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 47: G-03Z-054-02U-05-08 - Qty: 481.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 47: G-03Z-054-02U-05-08 - Qty: 481.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-03Z-055-02U-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 48: G-03Z-055-02U-05-08 - Qty: 2261.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 48: G-03Z-055-02U-05-08 - Qty: 2261.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-03Z-05K-02U-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 49: G-03Z-05K-02U-05-08 - Qty: 1044.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 49: G-03Z-05K-02U-05-08 - Qty: 1044.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-03Z-032-02U-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 50: G-03Z-032-02U-05-08 - Qty: 1859.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 50: G-03Z-032-02U-05-08 - Qty: 1859.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-03Z-041-02U-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 51: G-03Z-041-02U-05-08 - Qty: 897.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 51: G-03Z-041-02U-05-08 - Qty: 897.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-03Z-0A2-02U-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 52: G-03Z-0A2-02U-05-08 - Qty: 347.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 52: G-03Z-0A2-02U-05-08 - Qty: 347.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-03Z-054-02X-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 53: G-03Z-054-02X-05-08 - Qty: 1175.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 53: G-03Z-054-02X-05-08 - Qty: 1175.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-03Z-055-02X-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 54: G-03Z-055-02X-05-08 - Qty: 422.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 54: G-03Z-055-02X-05-08 - Qty: 422.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-03Z-05K-02X-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 55: G-03Z-05K-02X-05-08 - Qty: 368.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 55: G-03Z-05K-02X-05-08 - Qty: 368.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-03Z-032-02X-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 56: G-03Z-032-02X-05-08 - Qty: 4384.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 56: G-03Z-032-02X-05-08 - Qty: 4384.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-03Z-041-02X-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 57: G-03Z-041-02X-05-08 - Qty: 235.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 57: G-03Z-041-02X-05-08 - Qty: 235.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-03Z-0A2-02X-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 58: G-03Z-0A2-02X-05-08 - Qty: 875.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 58: G-03Z-0A2-02X-05-08 - Qty: 875.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-03Z-054-031-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 59: G-03Z-054-031-05-08 - Qty: 335.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 59: G-03Z-054-031-05-08 - Qty: 335.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-03Z-055-031-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 60: G-03Z-055-031-05-08 - Qty: 10.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 60: G-03Z-055-031-05-08 - Qty: 10.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-03Z-032-031-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 61: G-03Z-032-031-05-08 - Qty: 895.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 61: G-03Z-032-031-05-08 - Qty: 895.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-03Z-0A2-031-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 62: G-03Z-0A2-031-05-08 - Qty: 195.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 62: G-03Z-0A2-031-05-08 - Qty: 195.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-03Z-054-036-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 63: G-03Z-054-036-05-08 - Qty: 21.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 63: G-03Z-054-036-05-08 - Qty: 21.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-03Z-032-036-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 64: G-03Z-032-036-05-08 - Qty: 44.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 64: G-03Z-032-036-05-08 - Qty: 44.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-03Z-0A2-036-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 65: G-03Z-0A2-036-05-08 - Qty: 9.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 65: G-03Z-0A2-036-05-08 - Qty: 9.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-0E1-057-09K-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 66: G-0E1-057-09K-05-08 - Qty: 36.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 66: G-0E1-057-09K-05-08 - Qty: 36.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-0E1-01J-09K-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 67: G-0E1-01J-09K-05-08 - Qty: 80.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 67: G-0E1-01J-09K-05-08 - Qty: 80.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-0E1-032-09K-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 68: G-0E1-032-09K-05-08 - Qty: 129.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 68: G-0E1-032-09K-05-08 - Qty: 129.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-0E1-07F-09K-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 69: G-0E1-07F-09K-05-08 - Qty: 57.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 69: G-0E1-07F-09K-05-08 - Qty: 57.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-0E1-057-09L-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 70: G-0E1-057-09L-05-08 - Qty: 80.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 70: G-0E1-057-09L-05-08 - Qty: 80.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-0E1-01J-09L-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 71: G-0E1-01J-09L-05-08 - Qty: 198.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 71: G-0E1-01J-09L-05-08 - Qty: 198.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-0E1-032-09L-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 72: G-0E1-032-09L-05-08 - Qty: 377.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 72: G-0E1-032-09L-05-08 - Qty: 377.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-0E1-07F-09L-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 73: G-0E1-07F-09L-05-08 - Qty: 130.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 73: G-0E1-07F-09L-05-08 - Qty: 130.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-0E1-057-09M-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 74: G-0E1-057-09M-05-08 - Qty: 16.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 74: G-0E1-057-09M-05-08 - Qty: 16.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-0E1-01J-09M-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 75: G-0E1-01J-09M-05-08 - Qty: 57.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 75: G-0E1-01J-09M-05-08 - Qty: 57.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-0E1-032-09M-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 76: G-0E1-032-09M-05-08 - Qty: 177.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 76: G-0E1-032-09M-05-08 - Qty: 177.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-0E1-07F-09M-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 77: G-0E1-07F-09M-05-08 - Qty: 24.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 77: G-0E1-07F-09M-05-08 - Qty: 24.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-04R-0GO-000-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 78: G-04R-0GO-000-05-08 - Qty: 1600.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 78: G-04R-0GO-000-05-08 - Qty: 1600.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-05B-05U-02Y-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 79: G-05B-05U-02Y-05-08 - Qty: 131.67
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 79: G-05B-05U-02Y-05-08 - Qty: 131.67
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-05B-06M-02Y-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 80: G-05B-06M-02Y-05-08 - Qty: 131.67
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 80: G-05B-06M-02Y-05-08 - Qty: 131.67
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-05C-05Q-01G-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 81: G-05C-05Q-01G-05-08 - Qty: 91.44
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 81: G-05C-05Q-01G-05-08 - Qty: 91.44
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-05C-05T-01G-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 82: G-05C-05T-01G-05-08 - Qty: 365.76
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 82: G-05C-05T-01G-05-08 - Qty: 365.76
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-05C-06M-01G-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 83: G-05C-06M-01G-05-08 - Qty: 1097.29
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 83: G-05C-06M-01G-05-08 - Qty: 1097.29
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-05C-0KQ-01G-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 84: G-05C-0KQ-01G-05-08 - Qty: 182.88
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 84: G-05C-0KQ-01G-05-08 - Qty: 182.88
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-05C-0AS-01G-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 85: G-05C-0AS-01G-05-08 - Qty: 91.44
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 85: G-05C-0AS-01G-05-08 - Qty: 91.44
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-05C-0BL-01G-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 86: G-05C-0BL-01G-05-08 - Qty: 182.88
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 86: G-05C-0BL-01G-05-08 - Qty: 182.88
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-05C-0EO-01G-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 87: G-05C-0EO-01G-05-08 - Qty: 457.2
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 87: G-05C-0EO-01G-05-08 - Qty: 457.2
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-05C-0FU-01G-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 88: G-05C-0FU-01G-05-08 - Qty: 274.32
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 88: G-05C-0FU-01G-05-08 - Qty: 274.32
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-05C-0GO-01G-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 89: G-05C-0GO-01G-05-08 - Qty: 365.76
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 89: G-05C-0GO-01G-05-08 - Qty: 365.76
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-05H-05T-000-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 90: G-05H-05T-000-05-08 - Qty: 131.67
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 90: G-05H-05T-000-05-08 - Qty: 131.67
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-05H-05U-000-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 91: G-05H-05U-000-05-08 - Qty: 131.67
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 91: G-05H-05U-000-05-08 - Qty: 131.67
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-05H-06M-000-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 92: G-05H-06M-000-05-08 - Qty: 263.35
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 92: G-05H-06M-000-05-08 - Qty: 263.35
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item F-014-000-000-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 93: F-014-000-000-05-08 - Qty: 12500.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 93: F-014-000-000-05-08 - Qty: 12500.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-06O-000-000-05-08-08D
-[2025-09-11 16:02:00] [SUCCESS]    Item 94: G-06O-000-000-05-08-08D - Qty: 1000.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 94: G-06O-000-000-05-08-08D - Qty: 1000.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-06O-000-000-05-08-08E
-[2025-09-11 16:02:00] [SUCCESS]    Item 95: G-06O-000-000-05-08-08E - Qty: 1300.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 95: G-06O-000-000-05-08-08E - Qty: 1300.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-06P-000-000-05-08-03X
-[2025-09-11 16:02:00] [SUCCESS]    Item 96: G-06P-000-000-05-08-03X - Qty: 1200.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 96: G-06P-000-000-05-08-03X - Qty: 1200.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-06P-000-000-05-08-03Z
-[2025-09-11 16:02:00] [SUCCESS]    Item 97: G-06P-000-000-05-08-03Z - Qty: 1000.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 97: G-06P-000-000-05-08-03Z - Qty: 1000.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-06P-000-000-05-08-041
-[2025-09-11 16:02:00] [SUCCESS]    Item 98: G-06P-000-000-05-08-041 - Qty: 1000.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 98: G-06P-000-000-05-08-041 - Qty: 1000.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-06Q-000-000-05-08-088
-[2025-09-11 16:02:00] [SUCCESS]    Item 99: G-06Q-000-000-05-08-088 - Qty: 5100.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 99: G-06Q-000-000-05-08-088 - Qty: 5100.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-06Q-000-000-05-08-087
-[2025-09-11 16:02:00] [SUCCESS]    Item 100: G-06Q-000-000-05-08-087 - Qty: 2900.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 100: G-06Q-000-000-05-08-087 - Qty: 2900.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-06Q-000-000-05-08-027
-[2025-09-11 16:02:00] [SUCCESS]    Item 101: G-06Q-000-000-05-08-027 - Qty: 3300.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 101: G-06Q-000-000-05-08-027 - Qty: 3300.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-06Q-000-000-05-08-02B
-[2025-09-11 16:02:00] [SUCCESS]    Item 102: G-06Q-000-000-05-08-02B - Qty: 1100.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 102: G-06Q-000-000-05-08-02B - Qty: 1100.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-06R-000-000-05-08-08G
-[2025-09-11 16:02:00] [SUCCESS]    Item 103: G-06R-000-000-05-08-08G - Qty: 2200.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 103: G-06R-000-000-05-08-08G - Qty: 2200.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-06R-000-000-05-08-08H
-[2025-09-11 16:02:00] [SUCCESS]    Item 104: G-06R-000-000-05-08-08H - Qty: 1000.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 104: G-06R-000-000-05-08-08H - Qty: 1000.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-06S-000-000-05-08-08I
-[2025-09-11 16:02:00] [SUCCESS]    Item 105: G-06S-000-000-05-08-08I - Qty: 1000.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 105: G-06S-000-000-05-08-08I - Qty: 1000.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-06S-000-000-05-08-02K
-[2025-09-11 16:02:00] [SUCCESS]    Item 106: G-06S-000-000-05-08-02K - Qty: 1200.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 106: G-06S-000-000-05-08-02K - Qty: 1200.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-06S-000-000-05-08-02P
-[2025-09-11 16:02:00] [SUCCESS]    Item 107: G-06S-000-000-05-08-02P - Qty: 1300.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 107: G-06S-000-000-05-08-02P - Qty: 1300.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-06Z-000-000-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 108: G-06Z-000-000-05-08 - Qty: 12500.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 108: G-06Z-000-000-05-08 - Qty: 12500.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-0AB-06M-02Y-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 109: G-0AB-06M-02Y-05-08 - Qty: 1134.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 109: G-0AB-06M-02Y-05-08 - Qty: 1134.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-0AB-0GO-02Y-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 110: G-0AB-0GO-02Y-05-08 - Qty: 252.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 110: G-0AB-0GO-02Y-05-08 - Qty: 252.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-0AB-06M-04O-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 111: G-0AB-06M-04O-05-08 - Qty: 2268.0
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 111: G-0AB-06M-04O-05-08 - Qty: 2268.0
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-0BB-06M-06Y-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 112: G-0BB-06M-06Y-05-08 - Qty: 274.32
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 112: G-0BB-06M-06Y-05-08 - Qty: 274.32
 [2025-09-11 16:02:00] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-0BB-0F1-06Y-05-08
-[2025-09-11 16:02:00] [SUCCESS]    Item 113: G-0BB-0F1-06Y-05-08 - Qty: 91.44
+[2025-09-11 16:02:00] [SUCCESS] ✅   Item 113: G-0BB-0F1-06Y-05-08 - Qty: 91.44
 [2025-09-11 16:02:00] [INFO] 📋   Set to_warehouse: Material - HK - TIQN
 [2025-09-11 16:02:00] [INFO] 📋   Aggregated 1 invoice numbers: TIHK-TIQN-23
 [2025-09-11 16:02:00] [INFO] 📋   🔍 Before save:
@@ -564,17 +564,17 @@ Script: /home/frappe/frappe-bench/apps/customize_erpnext/customize_erpnext/api/b
 [2025-09-11 16:02:00] [INFO] 📋     - posting_date: 2025-09-05
 [2025-09-11 16:02:00] [INFO] 📋     - posting_time: 08:00:00
 [2025-09-11 16:02:00] [INFO] 📋   💾 Saving Stock Entry...
-[2025-09-11 16:02:01] [SUCCESS]     Stock Entry saved: SE-2025-09-05-1747-02
+[2025-09-11 16:02:01] [SUCCESS] ✅   ✅ Stock Entry saved: SE-2025-09-05-1747-02
 [2025-09-11 16:02:01] [INFO] 📋   🔍 After save (reloaded from DB):
 [2025-09-11 16:02:01] [INFO] 📋     - set_posting_time: 1
 [2025-09-11 16:02:01] [INFO] 📋     - posting_date: 2025-09-05
 [2025-09-11 16:02:01] [INFO] 📋     - posting_time: 8:00:00
-[2025-09-11 16:02:01] [SUCCESS]  Tạo thành công: SE-2025-09-05-1747-02 với 113 items
+[2025-09-11 16:02:01] [SUCCESS] ✅ Tạo thành công: SE-2025-09-05-1747-02 với 113 items
 [2025-09-11 16:02:01] [INFO] 📋 Xử lý nhóm 10/14: 1748 với 2 items
 [2025-09-11 16:02:01] [INFO] 📋   Processing posting_date from Excel datetime: 2025-09-06 00:00:00 -> 2025-09-06
-[2025-09-11 16:02:01] [INFO] 📋    Set posting_date = 2025-09-06
+[2025-09-11 16:02:01] [INFO] 📋   ✅ Set posting_date = 2025-09-06
 [2025-09-11 16:02:01] [INFO] 📋   Processing posting_time from string: 08:00:00
-[2025-09-11 16:02:01] [INFO] 📋    Set posting_time = 08:00:00
+[2025-09-11 16:02:01] [INFO] 📋   ✅ Set posting_time = 08:00:00
 [2025-09-11 16:02:01] [INFO] 📋   🔍 Debug fields set:
 [2025-09-11 16:02:01] [INFO] 📋     - set_posting_time: 1
 [2025-09-11 16:02:01] [INFO] 📋     - posting_date: 2025-09-06
@@ -584,9 +584,9 @@ Script: /home/frappe/frappe-bench/apps/customize_erpnext/customize_erpnext/api/b
 [2025-09-11 16:02:01] [INFO] 📋     - posting_date: 2025-09-06
 [2025-09-11 16:02:01] [INFO] 📋     - posting_time: 08:00:00
 [2025-09-11 16:02:01] [INFO] 📋   Using warehouse from Excel: Material - JP - TIQN for item H-01J-0IH-000-06-00
-[2025-09-11 16:02:01] [SUCCESS]    Item 1: H-01J-0IH-000-06-00 - Qty: 1.0
+[2025-09-11 16:02:01] [SUCCESS] ✅   Item 1: H-01J-0IH-000-06-00 - Qty: 1.0
 [2025-09-11 16:02:01] [INFO] 📋   Using warehouse from Excel: Material - JP - TIQN for item H-01J-0II-000-06-00
-[2025-09-11 16:02:01] [SUCCESS]    Item 2: H-01J-0II-000-06-00 - Qty: 2.0
+[2025-09-11 16:02:01] [SUCCESS] ✅   Item 2: H-01J-0II-000-06-00 - Qty: 2.0
 [2025-09-11 16:02:01] [INFO] 📋   Set to_warehouse: Material - JP - TIQN
 [2025-09-11 16:02:01] [INFO] 📋   Aggregated 1 invoice numbers: 1C25TAA-3649
 [2025-09-11 16:02:01] [INFO] 📋   🔍 Before save:
@@ -594,18 +594,18 @@ Script: /home/frappe/frappe-bench/apps/customize_erpnext/customize_erpnext/api/b
 [2025-09-11 16:02:01] [INFO] 📋     - posting_date: 2025-09-06
 [2025-09-11 16:02:01] [INFO] 📋     - posting_time: 08:00:00
 [2025-09-11 16:02:01] [INFO] 📋   💾 Saving Stock Entry...
-[2025-09-11 16:02:01] [SUCCESS]     Stock Entry saved: SE-2025-09-06-1748-02
+[2025-09-11 16:02:01] [SUCCESS] ✅   ✅ Stock Entry saved: SE-2025-09-06-1748-02
 [2025-09-11 16:02:01] [INFO] 📋   🔍 After save (reloaded from DB):
 [2025-09-11 16:02:01] [INFO] 📋     - set_posting_time: 1
 [2025-09-11 16:02:01] [INFO] 📋     - posting_date: 2025-09-06
 [2025-09-11 16:02:01] [INFO] 📋     - posting_time: 8:00:00
-[2025-09-11 16:02:01] [SUCCESS]  Tạo thành công: SE-2025-09-06-1748-02 với 2 items
+[2025-09-11 16:02:01] [SUCCESS] ✅ Tạo thành công: SE-2025-09-06-1748-02 với 2 items
 [2025-09-11 16:02:01] [INFO] 📋 Processing batch 2: groups 11-14
 [2025-09-11 16:02:01] [INFO] 📋 Xử lý nhóm 11/14: 1749 với 1 items
 [2025-09-11 16:02:01] [INFO] 📋   Processing posting_date from Excel datetime: 2025-09-06 00:00:00 -> 2025-09-06
-[2025-09-11 16:02:01] [INFO] 📋    Set posting_date = 2025-09-06
+[2025-09-11 16:02:01] [INFO] 📋   ✅ Set posting_date = 2025-09-06
 [2025-09-11 16:02:01] [INFO] 📋   Processing posting_time from string: 08:00:00
-[2025-09-11 16:02:01] [INFO] 📋    Set posting_time = 08:00:00
+[2025-09-11 16:02:01] [INFO] 📋   ✅ Set posting_time = 08:00:00
 [2025-09-11 16:02:01] [INFO] 📋   🔍 Debug fields set:
 [2025-09-11 16:02:01] [INFO] 📋     - set_posting_time: 1
 [2025-09-11 16:02:01] [INFO] 📋     - posting_date: 2025-09-06
@@ -615,7 +615,7 @@ Script: /home/frappe/frappe-bench/apps/customize_erpnext/customize_erpnext/api/b
 [2025-09-11 16:02:01] [INFO] 📋     - posting_date: 2025-09-06
 [2025-09-11 16:02:01] [INFO] 📋     - posting_time: 08:00:00
 [2025-09-11 16:02:01] [INFO] 📋   Using warehouse from Excel: Material - JP - TIQN for item G-0EC-06J-000-0E-05
-[2025-09-11 16:02:01] [SUCCESS]    Item 1: G-0EC-06J-000-0E-05 - Qty: 100.0
+[2025-09-11 16:02:01] [SUCCESS] ✅   Item 1: G-0EC-06J-000-0E-05 - Qty: 100.0
 [2025-09-11 16:02:01] [INFO] 📋   Set to_warehouse: Material - JP - TIQN
 [2025-09-11 16:02:01] [INFO] 📋   Aggregated 1 invoice numbers: T307708-341D25
 [2025-09-11 16:02:01] [INFO] 📋   🔍 Before save:
@@ -623,17 +623,17 @@ Script: /home/frappe/frappe-bench/apps/customize_erpnext/customize_erpnext/api/b
 [2025-09-11 16:02:01] [INFO] 📋     - posting_date: 2025-09-06
 [2025-09-11 16:02:01] [INFO] 📋     - posting_time: 08:00:00
 [2025-09-11 16:02:01] [INFO] 📋   💾 Saving Stock Entry...
-[2025-09-11 16:02:01] [SUCCESS]     Stock Entry saved: SE-2025-09-06-1749-02
+[2025-09-11 16:02:01] [SUCCESS] ✅   ✅ Stock Entry saved: SE-2025-09-06-1749-02
 [2025-09-11 16:02:01] [INFO] 📋   🔍 After save (reloaded from DB):
 [2025-09-11 16:02:01] [INFO] 📋     - set_posting_time: 1
 [2025-09-11 16:02:01] [INFO] 📋     - posting_date: 2025-09-06
 [2025-09-11 16:02:01] [INFO] 📋     - posting_time: 8:00:00
-[2025-09-11 16:02:01] [SUCCESS]  Tạo thành công: SE-2025-09-06-1749-02 với 1 items
+[2025-09-11 16:02:01] [SUCCESS] ✅ Tạo thành công: SE-2025-09-06-1749-02 với 1 items
 [2025-09-11 16:02:01] [INFO] 📋 Xử lý nhóm 12/14: 1750 với 4 items
 [2025-09-11 16:02:01] [INFO] 📋   Processing posting_date from Excel datetime: 2025-09-06 00:00:00 -> 2025-09-06
-[2025-09-11 16:02:01] [INFO] 📋    Set posting_date = 2025-09-06
+[2025-09-11 16:02:01] [INFO] 📋   ✅ Set posting_date = 2025-09-06
 [2025-09-11 16:02:01] [INFO] 📋   Processing posting_time from string: 08:00:00
-[2025-09-11 16:02:01] [INFO] 📋    Set posting_time = 08:00:00
+[2025-09-11 16:02:01] [INFO] 📋   ✅ Set posting_time = 08:00:00
 [2025-09-11 16:02:01] [INFO] 📋   🔍 Debug fields set:
 [2025-09-11 16:02:01] [INFO] 📋     - set_posting_time: 1
 [2025-09-11 16:02:01] [INFO] 📋     - posting_date: 2025-09-06
@@ -643,13 +643,13 @@ Script: /home/frappe/frappe-bench/apps/customize_erpnext/customize_erpnext/api/b
 [2025-09-11 16:02:01] [INFO] 📋     - posting_date: 2025-09-06
 [2025-09-11 16:02:01] [INFO] 📋     - posting_time: 08:00:00
 [2025-09-11 16:02:01] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item C-00Z-0FV-000-05-08
-[2025-09-11 16:02:01] [SUCCESS]    Item 1: C-00Z-0FV-000-05-08 - Qty: 366.67
+[2025-09-11 16:02:01] [SUCCESS] ✅   Item 1: C-00Z-0FV-000-05-08 - Qty: 366.67
 [2025-09-11 16:02:01] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item C-00Z-06M-000-05-08
-[2025-09-11 16:02:01] [SUCCESS]    Item 2: C-00Z-06M-000-05-08 - Qty: 3550.62
+[2025-09-11 16:02:01] [SUCCESS] ✅   Item 2: C-00Z-06M-000-05-08 - Qty: 3550.62
 [2025-09-11 16:02:01] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item C-00Z-08O-000-05-08
-[2025-09-11 16:02:01] [SUCCESS]    Item 3: C-00Z-08O-000-05-08 - Qty: 1130.2
+[2025-09-11 16:02:01] [SUCCESS] ✅   Item 3: C-00Z-08O-000-05-08 - Qty: 1130.2
 [2025-09-11 16:02:01] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item C-00Z-086-000-05-08
-[2025-09-11 16:02:01] [SUCCESS]    Item 4: C-00Z-086-000-05-08 - Qty: 1292.96
+[2025-09-11 16:02:01] [SUCCESS] ✅   Item 4: C-00Z-086-000-05-08 - Qty: 1292.96
 [2025-09-11 16:02:01] [INFO] 📋   Set to_warehouse: Material - HK - TIQN
 [2025-09-11 16:02:01] [INFO] 📋   Aggregated 1 invoice numbers: GR-250903QN
 [2025-09-11 16:02:01] [INFO] 📋   🔍 Before save:
@@ -657,17 +657,17 @@ Script: /home/frappe/frappe-bench/apps/customize_erpnext/customize_erpnext/api/b
 [2025-09-11 16:02:01] [INFO] 📋     - posting_date: 2025-09-06
 [2025-09-11 16:02:01] [INFO] 📋     - posting_time: 08:00:00
 [2025-09-11 16:02:01] [INFO] 📋   💾 Saving Stock Entry...
-[2025-09-11 16:02:01] [SUCCESS]     Stock Entry saved: SE-2025-09-06-1750-02
+[2025-09-11 16:02:01] [SUCCESS] ✅   ✅ Stock Entry saved: SE-2025-09-06-1750-02
 [2025-09-11 16:02:01] [INFO] 📋   🔍 After save (reloaded from DB):
 [2025-09-11 16:02:01] [INFO] 📋     - set_posting_time: 1
 [2025-09-11 16:02:01] [INFO] 📋     - posting_date: 2025-09-06
 [2025-09-11 16:02:01] [INFO] 📋     - posting_time: 8:00:00
-[2025-09-11 16:02:01] [SUCCESS]  Tạo thành công: SE-2025-09-06-1750-02 với 4 items
+[2025-09-11 16:02:01] [SUCCESS] ✅ Tạo thành công: SE-2025-09-06-1750-02 với 4 items
 [2025-09-11 16:02:01] [INFO] 📋 Xử lý nhóm 13/14: 1751 với 1 items
 [2025-09-11 16:02:01] [INFO] 📋   Processing posting_date from Excel datetime: 2025-09-08 00:00:00 -> 2025-09-08
-[2025-09-11 16:02:01] [INFO] 📋    Set posting_date = 2025-09-08
+[2025-09-11 16:02:01] [INFO] 📋   ✅ Set posting_date = 2025-09-08
 [2025-09-11 16:02:01] [INFO] 📋   Processing posting_time from string: 08:00:00
-[2025-09-11 16:02:01] [INFO] 📋    Set posting_time = 08:00:00
+[2025-09-11 16:02:01] [INFO] 📋   ✅ Set posting_time = 08:00:00
 [2025-09-11 16:02:01] [INFO] 📋   🔍 Debug fields set:
 [2025-09-11 16:02:01] [INFO] 📋     - set_posting_time: 1
 [2025-09-11 16:02:01] [INFO] 📋     - posting_date: 2025-09-08
@@ -677,7 +677,7 @@ Script: /home/frappe/frappe-bench/apps/customize_erpnext/customize_erpnext/api/b
 [2025-09-11 16:02:01] [INFO] 📋     - posting_date: 2025-09-08
 [2025-09-11 16:02:01] [INFO] 📋     - posting_time: 08:00:00
 [2025-09-11 16:02:01] [INFO] 📋   Using warehouse from Excel: Material - Local - TIQN for item H-01Q-0JW-058-05-08
-[2025-09-11 16:02:01] [SUCCESS]    Item 1: H-01Q-0JW-058-05-08 - Qty: 93.0
+[2025-09-11 16:02:01] [SUCCESS] ✅   Item 1: H-01Q-0JW-058-05-08 - Qty: 93.0
 [2025-09-11 16:02:01] [INFO] 📋   Set to_warehouse: Material - Local - TIQN
 [2025-09-11 16:02:01] [INFO] 📋   Aggregated 1 invoice numbers: 1C25TAC-554
 [2025-09-11 16:02:01] [INFO] 📋   🔍 Before save:
@@ -685,17 +685,17 @@ Script: /home/frappe/frappe-bench/apps/customize_erpnext/customize_erpnext/api/b
 [2025-09-11 16:02:01] [INFO] 📋     - posting_date: 2025-09-08
 [2025-09-11 16:02:01] [INFO] 📋     - posting_time: 08:00:00
 [2025-09-11 16:02:01] [INFO] 📋   💾 Saving Stock Entry...
-[2025-09-11 16:02:01] [SUCCESS]     Stock Entry saved: SE-2025-09-08-1751-02
+[2025-09-11 16:02:01] [SUCCESS] ✅   ✅ Stock Entry saved: SE-2025-09-08-1751-02
 [2025-09-11 16:02:01] [INFO] 📋   🔍 After save (reloaded from DB):
 [2025-09-11 16:02:01] [INFO] 📋     - set_posting_time: 1
 [2025-09-11 16:02:01] [INFO] 📋     - posting_date: 2025-09-08
 [2025-09-11 16:02:01] [INFO] 📋     - posting_time: 8:00:00
-[2025-09-11 16:02:01] [SUCCESS]  Tạo thành công: SE-2025-09-08-1751-02 với 1 items
+[2025-09-11 16:02:01] [SUCCESS] ✅ Tạo thành công: SE-2025-09-08-1751-02 với 1 items
 [2025-09-11 16:02:01] [INFO] 📋 Xử lý nhóm 14/14: 1752 với 7 items
 [2025-09-11 16:02:01] [INFO] 📋   Processing posting_date from Excel datetime: 2025-09-08 00:00:00 -> 2025-09-08
-[2025-09-11 16:02:01] [INFO] 📋    Set posting_date = 2025-09-08
+[2025-09-11 16:02:01] [INFO] 📋   ✅ Set posting_date = 2025-09-08
 [2025-09-11 16:02:01] [INFO] 📋   Processing posting_time from string: 08:00:00
-[2025-09-11 16:02:01] [INFO] 📋    Set posting_time = 08:00:00
+[2025-09-11 16:02:01] [INFO] 📋   ✅ Set posting_time = 08:00:00
 [2025-09-11 16:02:01] [INFO] 📋   🔍 Debug fields set:
 [2025-09-11 16:02:01] [INFO] 📋     - set_posting_time: 1
 [2025-09-11 16:02:01] [INFO] 📋     - posting_date: 2025-09-08
@@ -705,19 +705,19 @@ Script: /home/frappe/frappe-bench/apps/customize_erpnext/customize_erpnext/api/b
 [2025-09-11 16:02:01] [INFO] 📋     - posting_date: 2025-09-08
 [2025-09-11 16:02:01] [INFO] 📋     - posting_time: 08:00:00
 [2025-09-11 16:02:01] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-09U-002-01G-0E-08
-[2025-09-11 16:02:01] [SUCCESS]    Item 1: G-09U-002-01G-0E-08 - Qty: 100.0
+[2025-09-11 16:02:01] [SUCCESS] ✅   Item 1: G-09U-002-01G-0E-08 - Qty: 100.0
 [2025-09-11 16:02:01] [INFO] 📋   Using warehouse from Excel: Material - HK - TIQN for item G-09V-002-01G-0E-08
-[2025-09-11 16:02:01] [SUCCESS]    Item 2: G-09V-002-01G-0E-08 - Qty: 100.0
+[2025-09-11 16:02:01] [SUCCESS] ✅   Item 2: G-09V-002-01G-0E-08 - Qty: 100.0
 [2025-09-11 16:02:01] [INFO] 📋   Using warehouse from Excel: Material - JP - TIQN for item G-0F1-00H-01G-0E-08
-[2025-09-11 16:02:01] [SUCCESS]    Item 3: G-0F1-00H-01G-0E-08 - Qty: 1100.0
+[2025-09-11 16:02:01] [SUCCESS] ✅   Item 3: G-0F1-00H-01G-0E-08 - Qty: 1100.0
 [2025-09-11 16:02:01] [INFO] 📋   Using warehouse from Excel: Material - JP - TIQN for item G-0A9-00H-09N-0E-08
-[2025-09-11 16:02:01] [SUCCESS]    Item 4: G-0A9-00H-09N-0E-08 - Qty: 8900.0
+[2025-09-11 16:02:01] [SUCCESS] ✅   Item 4: G-0A9-00H-09N-0E-08 - Qty: 8900.0
 [2025-09-11 16:02:01] [INFO] 📋   Using warehouse from Excel: Material - JP - TIQN for item G-0AD-06J-081-0E-08
-[2025-09-11 16:02:01] [SUCCESS]    Item 5: G-0AD-06J-081-0E-08 - Qty: 4532.0
+[2025-09-11 16:02:01] [SUCCESS] ✅   Item 5: G-0AD-06J-081-0E-08 - Qty: 4532.0
 [2025-09-11 16:02:01] [INFO] 📋   Using warehouse from Excel: Material - JP - TIQN for item G-0AE-0GN-02Y-0E-08
-[2025-09-11 16:02:01] [SUCCESS]    Item 6: G-0AE-0GN-02Y-0E-08 - Qty: 750.0
+[2025-09-11 16:02:01] [SUCCESS] ✅   Item 6: G-0AE-0GN-02Y-0E-08 - Qty: 750.0
 [2025-09-11 16:02:01] [INFO] 📋   Using warehouse from Excel: Material - JP - TIQN for item G-0AE-0GN-04F-0E-08
-[2025-09-11 16:02:01] [SUCCESS]    Item 7: G-0AE-0GN-04F-0E-08 - Qty: 700.0
+[2025-09-11 16:02:01] [SUCCESS] ✅   Item 7: G-0AE-0GN-04F-0E-08 - Qty: 700.0
 [2025-09-11 16:02:01] [INFO] 📋   Set to_warehouse: Material - HK - TIQN
 [2025-09-11 16:02:01] [INFO] 📋   Aggregated 1 invoice numbers: KNQ 0544/25
 [2025-09-11 16:02:01] [INFO] 📋   🔍 Before save:
@@ -725,15 +725,15 @@ Script: /home/frappe/frappe-bench/apps/customize_erpnext/customize_erpnext/api/b
 [2025-09-11 16:02:01] [INFO] 📋     - posting_date: 2025-09-08
 [2025-09-11 16:02:01] [INFO] 📋     - posting_time: 08:00:00
 [2025-09-11 16:02:01] [INFO] 📋   💾 Saving Stock Entry...
-[2025-09-11 16:02:01] [SUCCESS]     Stock Entry saved: SE-2025-09-08-1752-02
+[2025-09-11 16:02:01] [SUCCESS] ✅   ✅ Stock Entry saved: SE-2025-09-08-1752-02
 [2025-09-11 16:02:01] [INFO] 📋   🔍 After save (reloaded from DB):
 [2025-09-11 16:02:01] [INFO] 📋     - set_posting_time: 1
 [2025-09-11 16:02:01] [INFO] 📋     - posting_date: 2025-09-08
 [2025-09-11 16:02:01] [INFO] 📋     - posting_time: 8:00:00
-[2025-09-11 16:02:01] [SUCCESS]  Tạo thành công: SE-2025-09-08-1752-02 với 7 items
+[2025-09-11 16:02:01] [SUCCESS] ✅ Tạo thành công: SE-2025-09-08-1752-02 với 7 items
 [2025-09-11 16:02:01] [INFO] 
 ==================== KẾT QUẢ CUỐI CÙNG ====================
-[2025-09-11 16:02:01] [SUCCESS]  Tạo thành công: 14 Stock Entry
+[2025-09-11 16:02:01] [SUCCESS] ✅ Tạo thành công: 14 Stock Entry
 [2025-09-11 16:02:01] [INFO] 📋 Tổng items đã xử lý: 172
 [2025-09-11 16:02:01] [INFO] 📋 Danh sách Stock Entries đã tạo:
 [2025-09-11 16:02:01] [INFO] 📋   1. SE-2025-09-03-1739-03
@@ -750,7 +750,7 @@ Script: /home/frappe/frappe-bench/apps/customize_erpnext/customize_erpnext/api/b
 [2025-09-11 16:02:01] [INFO] 📋   12. SE-2025-09-06-1750-02
 [2025-09-11 16:02:01] [INFO] 📋   13. SE-2025-09-08-1751-02
 [2025-09-11 16:02:01] [INFO] 📋   14. SE-2025-09-08-1752-02
-[2025-09-11 16:02:01] [SUCCESS]  Đã commit thành công!
+[2025-09-11 16:02:01] [SUCCESS] ✅ Đã commit thành công!
 
 
 ================================================================================

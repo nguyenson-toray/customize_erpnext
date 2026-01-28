@@ -18,7 +18,7 @@ Tài liệu này mô tả các thuật toán xác thực và logic nghiệp vụ
 **Độ phức tạp thời gian**: O(n²) với n là số lượng entries
 
 **Ví dụ**:
--  Hợp lệ: Nhân viên A (16:00-18:00) và Nhân viên A (18:00-20:00) - Thời gian kề nhau
+- ✅ Hợp lệ: Nhân viên A (16:00-18:00) và Nhân viên A (18:00-20:00) - Thời gian kề nhau
 - ❌ Không hợp lệ: Nhân viên A (16:00-18:00) và Nhân viên A (17:00-19:00) - Thời gian chồng chéo
 
 ### 2. validate_conflicting_ot_requests() - Kiểm tra xung đột với yêu cầu đã có
@@ -81,10 +81,10 @@ return time1Start < time2End && time2Start < time1End
 | Khoảng 1 | Khoảng 2 | Chồng chéo | Lý do |
 |----------|----------|------------|-------|
 | 16:00-18:00 | 18:00-20:00 | ❌ | Kề nhau (chạm điểm cuối) |
-| 16:00-18:00 | 17:00-19:00 |  | Chồng chéo |
+| 16:00-18:00 | 17:00-19:00 | ✅ | Chồng chéo |
 | 16:00-18:00 | 14:00-16:00 | ❌ | Kề nhau (chạm điểm đầu) |
-| 16:00-18:00 | 14:00-17:00 |  | Chồng chéo |
-| 16:00-18:00 | 17:00-17:30 |  | Khoảng này chứa khoảng kia |
+| 16:00-18:00 | 14:00-17:00 | ✅ | Chồng chéo |
+| 16:00-18:00 | 17:00-17:30 | ✅ | Khoảng này chứa khoảng kia |
 | 16:00-18:00 | 19:00-21:00 | ❌ | Hoàn toàn tách biệt |
 
 ## Chi tiết Triển khai

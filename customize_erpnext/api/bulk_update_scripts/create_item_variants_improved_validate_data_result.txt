@@ -10,1601 +10,1601 @@ Detailed Results:
 ------------------------------
 
 Row 2: 78NFBTR22YT
-    Will create: F-005-09W-091-0E-05-079
+   ✅ Will create: F-005-09W-091-0E-05-079
       Detail: 78NFBTR22YT FI WS TNF 25FW NS62517
 
 Row 3: 78NFBTR22YT
-    Will create: F-005-09W-092-0E-05-079
+   ✅ Will create: F-005-09W-092-0E-05-079
       Detail: 78NFBTR22YT FI WL TNF 25FW NS62517
 
 Row 4: 78NFBTR22YT
-    Will create: F-005-0C3-08F-0E-05-079
+   ✅ Will create: F-005-0C3-08F-0E-05-079
       Detail: 78NFBTR22YT MR XL TNF 25FW NS62517
 
 Row 5: 78NFBTR22YT
-    Will create: F-005-0C3-08E-0E-05-079
+   ✅ Will create: F-005-0C3-08E-0E-05-079
       Detail: 78NFBTR22YT MR WM TNF 25FW NS62517
 
 Row 6: 78NFBTR22YT
-    Will create: F-005-0B9-091-0E-05-079
+   ✅ Will create: F-005-0B9-091-0E-05-079
       Detail: 78NFBTR22YT K WS TNF 25FW NS62517
 
 Row 7: 78NFBTR22YT
-    Will create: F-005-0B9-092-0E-05-079
+   ✅ Will create: F-005-0B9-092-0E-05-079
       Detail: 78NFBTR22YT K WL TNF 25FW NS62517
 
 Row 8: STK-MAM-01
-    Will create: F-02T-0BL-088-05-08-00I
+   ✅ Will create: F-02T-0BL-088-05-08-00I
       Detail: STK-MAM-01 Marine M MAMMUT 26SS 1011-00323
 
 Row 9: STK-MAM-01
-    Will create: F-02T-0BL-088-05-08-00M
+   ✅ Will create: F-02T-0BL-088-05-08-00M
       Detail: STK-MAM-01 Marine M MAMMUT 26SS 1011-00333
 
 Row 10: STK-MAM-01
-    Will create: F-02T-0BL-088-05-08-015
+   ✅ Will create: F-02T-0BL-088-05-08-015
       Detail: STK-MAM-01 Marine M MAMMUT 26SS 1011-02471
 
 Row 11: STK-MAM-01
-    Will create: F-02T-0BL-088-05-08-018
+   ✅ Will create: F-02T-0BL-088-05-08-018
       Detail: STK-MAM-01 Marine M MAMMUT 26SS 1011-02481
 
 Row 12: STK-MAM-01
-    Will create: F-02T-0EN-088-05-08-00I
+   ✅ Will create: F-02T-0EN-088-05-08-00I
       Detail: STK-MAM-01 Silver Sage M MAMMUT 26SS 1011-00323
 
 Row 13: STK-MAM-01
-    Will create: F-02T-0EN-088-05-08-015
+   ✅ Will create: F-02T-0EN-088-05-08-015
       Detail: STK-MAM-01 Silver Sage M MAMMUT 26SS 1011-02471
 
 Row 14: STK-MAM-01
-    Will create: F-02T-0GO-088-05-08-02K
+   ✅ Will create: F-02T-0GO-088-05-08-02K
       Detail: STK-MAM-01 White M MAMMUT 26SS 1012-00950
 
 Row 15: STK-MAM-01
-    Will create: F-02T-0GO-088-05-08-02P
+   ✅ Will create: F-02T-0GO-088-05-08-02P
       Detail: STK-MAM-01 White M MAMMUT 26SS 1012-00960
 
 Row 16: STK-MAM-01
-    Will create: F-02T-0B1-08C-05-08-072
+   ✅ Will create: F-02T-0B1-08C-05-08-072
       Detail: STK-MAM-01 Iguana S MAMMUT 26SS M00028
 
 Row 17: STK-MAM-01
-    Will create: F-02T-0B1-08C-05-08-074
+   ✅ Will create: F-02T-0B1-08C-05-08-074
       Detail: STK-MAM-01 Iguana S MAMMUT 26SS M00029
 
 Row 18: STK-MAM-01
-    Will create: F-02T-0F1-08C-05-08-072
+   ✅ Will create: F-02T-0F1-08C-05-08-072
       Detail: STK-MAM-01 Strata S MAMMUT 26SS M00028
 
 Row 19: STK-MAM-01
-    Will create: F-02T-0F1-08C-05-08-074
+   ✅ Will create: F-02T-0F1-08C-05-08-074
       Detail: STK-MAM-01 Strata S MAMMUT 26SS M00029
 
 Row 20: STK-MAM-01
-    Will create: F-02T-0BP-08F-05-08-018
+   ✅ Will create: F-02T-0BP-08F-05-08-018
       Detail: STK-MAM-01 Marsh Xl MAMMUT 26SS 1011-02481
 
 Row 21: STK-MAM-01
-    Will create: F-02T-08Q-08I-05-08-072
+   ✅ Will create: F-02T-08Q-08I-05-08-072
       Detail: STK-MAM-01 Dark Sand Xs MAMMUT 26SS M00028
 
 Row 22: STK-MAM-01
-    Will create: F-02T-08Q-08I-05-08-074
+   ✅ Will create: F-02T-08Q-08I-05-08-074
       Detail: STK-MAM-01 Dark Sand Xs MAMMUT 26SS M00029
 
 Row 23: STK-MAM-01
-    Will create: F-02T-0EX-08I-05-08-072
+   ✅ Will create: F-02T-0EX-08I-05-08-072
       Detail: STK-MAM-01 Steel Xs MAMMUT 26SS M00028
 
 Row 24: STK-MAM-01
-    Will create: F-02T-0EX-08I-05-08-074
+   ✅ Will create: F-02T-0EX-08I-05-08-074
       Detail: STK-MAM-01 Steel Xs MAMMUT 26SS M00029
 
 Row 25: 78NFBTR22YT
-    Will create: F-005-0B9-08J-0E-05-076
+   ✅ Will create: F-005-0B9-08J-0E-05-076
       Detail: 78NFBTR22YT K XXL TNF 25FW NP22500P
 
 Row 26: 78NFBTR22YT
-    Will create: F-005-0CS-08F-0E-05-076
+   ✅ Will create: F-005-0CS-08F-0E-05-076
       Detail: 78NFBTR22YT NY XL TNF 25FW NP22500P
 
 Row 27: 78NFBTR22YT
-    Will create: F-005-0IT-08J-0E-05-076
+   ✅ Will create: F-005-0IT-08J-0E-05-076
       Detail: 78NFBTR22YT TR XXL TNF 25FW NP22500P
 
 Row 28: 78NFBTR22YT
-    Will create: F-005-0IU-08F-0E-05-076
+   ✅ Will create: F-005-0IU-08F-0E-05-076
       Detail: 78NFBTR22YT TB XL TNF 25FW NP22500P
 
 Row 29: 78NFBTR22YT
-    Will create: F-005-0CS-08F-0E-05-077
+   ✅ Will create: F-005-0CS-08F-0E-05-077
       Detail: 78NFBTR22YT NY XL TNF 25FW NP72500P
 
 Row 30: 7934034
-    Will create: G-0DY-0JH-02Q-06-00
+   ✅ Will create: G-0DY-0JH-02Q-06-00
       Detail: 7934034 058 17CM MIZUNO Blank
 
 Row 31: 7934034
-    Will create: G-0DY-032-02Q-06-00
+   ✅ Will create: G-0DY-032-02Q-06-00
       Detail: 7934034 580 17CM MIZUNO Blank
 
 Row 32: QA-HT
-    Will create: F-02A-000-000-05-08
+   ✅ Will create: F-02A-000-000-05-08
       Detail: QA-HT Blank Blank MAMMUT 26SS
 
 Row 33: NS5
-    Will create: G-0CN-000-000-06-00-07H
+   ✅ Will create: G-0CN-000-000-06-00-07H
       Detail: NS5 Blank Blank MIZUNO Blank F2JEC910
 
 Row 34: TMG904
-    Will create: G-0BP-00H-02V-06-00
+   ✅ Will create: G-0BP-00H-02V-06-00
       Detail: TMG904 31 2,5MM MIZUNO Blank
 
 Row 35: SVUG-S
-    Will create: G-0B8-06J-02J-06-00
+   ✅ Will create: G-0B8-06J-02J-06-00
       Detail: SVUG-S BK 15MM MIZUNO Blank
 
 Row 36: MMFK17090219
-    Will create: G-07R-06M-000-05-08
+   ✅ Will create: G-07R-06M-000-05-08
       Detail: MMFK17090219 Black Blank MAMMUT 26SS
 
 Row 37: MMFK17090219
-    Will create: G-07R-0EB-000-05-08
+   ✅ Will create: G-07R-0EB-000-05-08
       Detail: MMFK17090219 Savan Blank MAMMUT 26SS
 
 Row 38: MMFK17090219
-    Will create: G-07R-0EX-000-05-08
+   ✅ Will create: G-07R-0EX-000-05-08
       Detail: MMFK17090219 Steel Blank MAMMUT 26SS
 
 Row 39: MMFK18110272
-    Will create: G-07S-06M-000-05-08
+   ✅ Will create: G-07S-06M-000-05-08
       Detail: MMFK18110272 Black Blank MAMMUT 26SS
 
 Row 40: MMFK18110272
-    Will create: G-07S-0EB-000-05-08
+   ✅ Will create: G-07S-0EB-000-05-08
       Detail: MMFK18110272 Savan Blank MAMMUT 26SS
 
 Row 41: MMFK18110272
-    Will create: G-07S-0EX-000-05-08
+   ✅ Will create: G-07S-0EX-000-05-08
       Detail: MMFK18110272 Steel Blank MAMMUT 26SS
 
 Row 42: MMFK18110275
-    Will create: G-07T-06M-000-05-08
+   ✅ Will create: G-07T-06M-000-05-08
       Detail: MMFK18110275 Black Blank MAMMUT 26SS
 
 Row 43: MMFK18110275
-    Will create: G-07T-0EB-000-05-08
+   ✅ Will create: G-07T-0EB-000-05-08
       Detail: MMFK18110275 Savan Blank MAMMUT 26SS
 
 Row 44: MMFK18110275
-    Will create: G-07T-0EX-000-05-08
+   ✅ Will create: G-07T-0EX-000-05-08
       Detail: MMFK18110275 Steel Blank MAMMUT 26SS
 
 Row 45: LABMAM212
-    Will create: G-06X-000-00R-05-08
+   ✅ Will create: G-06X-000-00R-05-08
       Detail: LABMAM212 Blank 44 MAMMUT 26SS
 
 Row 46: LABMAM212
-    Will create: G-06X-000-00S-05-08
+   ✅ Will create: G-06X-000-00S-05-08
       Detail: LABMAM212 Blank 46 MAMMUT 26SS
 
 Row 47: LABMAM212
-    Will create: G-06X-000-00U-05-08
+   ✅ Will create: G-06X-000-00U-05-08
       Detail: LABMAM212 Blank 50 MAMMUT 26SS
 
 Row 48: LABMAM212
-    Will create: G-06X-000-00V-05-08
+   ✅ Will create: G-06X-000-00V-05-08
       Detail: LABMAM212 Blank 52 MAMMUT 26SS
 
 Row 49: LABMAM212
-    Will create: G-06X-000-00W-05-08
+   ✅ Will create: G-06X-000-00W-05-08
       Detail: LABMAM212 Blank 54 MAMMUT 26SS
 
 Row 50: LABMAM212
-    Will create: G-06X-000-00X-05-08
+   ✅ Will create: G-06X-000-00X-05-08
       Detail: LABMAM212 Blank 56 MAMMUT 26SS
 
 Row 51: LABMAM215
-    Will create: G-06Y-000-00R-05-08
+   ✅ Will create: G-06Y-000-00R-05-08
       Detail: LABMAM215 Blank 44 MAMMUT 26SS
 
 Row 52: LABMAM215
-    Will create: G-06Y-000-00S-05-08
+   ✅ Will create: G-06Y-000-00S-05-08
       Detail: LABMAM215 Blank 46 MAMMUT 26SS
 
 Row 53: LABMAM215
-    Will create: G-06Y-000-00L-05-08
+   ✅ Will create: G-06Y-000-00L-05-08
       Detail: LABMAM215 Blank 32 MAMMUT 26SS
 
 Row 54: LABMAM215
-    Will create: G-06Y-000-00M-05-08
+   ✅ Will create: G-06Y-000-00M-05-08
       Detail: LABMAM215 Blank 34 MAMMUT 26SS
 
 Row 55: LABMAM215
-    Will create: G-06Y-000-00N-05-08
+   ✅ Will create: G-06Y-000-00N-05-08
       Detail: LABMAM215 Blank 36 MAMMUT 26SS
 
 Row 56: LABMAM215
-    Will create: G-06Y-000-00P-05-08
+   ✅ Will create: G-06Y-000-00P-05-08
       Detail: LABMAM215 Blank 40 MAMMUT 26SS
 
 Row 57: LABMAM215
-    Will create: G-06Y-000-00Q-05-08
+   ✅ Will create: G-06Y-000-00Q-05-08
       Detail: LABMAM215 Blank 42 MAMMUT 26SS
 
 Row 58: LABSR-01
-    Will create: G-076-000-000-05-08-07I
+   ✅ Will create: G-076-000-000-05-08-07I
       Detail: LABSR-01 Blank Blank MAMMUT 26SS 1012-00950/5219065
 
 Row 59: LABSR-01
-    Will create: G-076-000-000-05-08-07J
+   ✅ Will create: G-076-000-000-05-08-07J
       Detail: LABSR-01 Blank Blank MAMMUT 26SS 1012-00960/5219065
 
 Row 60: LABSR-01
-    Will create: G-076-000-000-05-08-07K
+   ✅ Will create: G-076-000-000-05-08-07K
       Detail: LABSR-01 Blank Blank MAMMUT 26SS 1023-00980/5219065
 
 Row 61: LABSR-01
-    Will create: G-076-000-000-05-08-07L
+   ✅ Will create: G-076-000-000-05-08-07L
       Detail: LABSR-01 Blank Blank MAMMUT 26SS 1023-01020/5219065
 
 Row 62: NF-0451
-    Will create: F-01M-084-000-05-08
+   ✅ Will create: F-01M-084-000-05-08
       Detail: NF-0451 Clawt Blank MAMMUT 26SS
 
 Row 63: NF-0451
-    Will create: F-01M-0C4-000-05-08
+   ✅ Will create: F-01M-0C4-000-05-08
       Detail: NF-0451 Mshwt Blank MAMMUT 26SS
 
 Row 64: NF-0451
-    Will create: F-01M-092-000-05-08
+   ✅ Will create: F-01M-092-000-05-08
       Detail: NF-0451 Dmwht Blank MAMMUT 26SS
 
 Row 65: NF-0451
-    Will create: F-01M-0EK-000-05-08
+   ✅ Will create: F-01M-0EK-000-05-08
       Detail: NF-0451 Silvbk Blank MAMMUT 26SS
 
 Row 66: NF-0451
-    Will create: F-01M-060-000-05-08
+   ✅ Will create: F-01M-060-000-05-08
       Detail: NF-0451 Alpwt Blank MAMMUT 26SS
 
 Row 67: NF-0451
-    Will create: F-01M-0FW-000-05-08
+   ✅ Will create: F-01M-0FW-000-05-08
       Detail: NF-0451 Tswht Blank MAMMUT 26SS
 
 Row 68: NF-0453
-    Will create: F-01N-0C4-000-05-08
+   ✅ Will create: F-01N-0C4-000-05-08
       Detail: NF-0453 Mshwt Blank MAMMUT 26SS
 
 Row 69: NF-0453
-    Will create: F-01N-0EK-000-05-08
+   ✅ Will create: F-01N-0EK-000-05-08
       Detail: NF-0453 Silvbk Blank MAMMUT 26SS
 
 Row 70: LABCARE-08
-    Will create: G-06R-000-000-05-08-013
+   ✅ Will create: G-06R-000-000-05-08-013
       Detail: LABCARE-08 Blank Blank MAMMUT 26SS 1011-02420
 
 Row 71: LABCARE-02
-    Will create: G-06P-000-000-05-08-02T
+   ✅ Will create: G-06P-000-000-05-08-02T
       Detail: LABCARE-02 Blank Blank MAMMUT 26SS 1021-00413
 
 Row 72: LABSR-01
-    Will create: G-076-000-000-05-08-07M
+   ✅ Will create: G-076-000-000-05-08-07M
       Detail: LABSR-01 Blank Blank MAMMUT 26SS 1011-02420/5221065
 
 Row 73: LABSR-01
-    Will create: G-076-000-000-05-08-07N
+   ✅ Will create: G-076-000-000-05-08-07N
       Detail: LABSR-01 Blank Blank MAMMUT 26SS 1021-00413/5221065
 
 Row 74: LABSR-01
-    Will create: G-076-000-000-05-08-07O
+   ✅ Will create: G-076-000-000-05-08-07O
       Detail: LABSR-01 Blank Blank MAMMUT 26SS 105285/5221065
 
 Row 75: 8270392
-    Will create: G-03Q-0AL-077-05-08
+   ✅ Will create: G-03Q-0AL-077-05-08
       Detail: 8270392 H5001 72,5CM MAMMUT 26SS
 
 Row 76: 8270392
-    Will create: G-03Q-07F-079-05-08
+   ✅ Will create: G-03Q-07F-079-05-08
       Detail: 8270392 C2578 73,5CM MAMMUT 26SS
 
 Row 77: 8270392
-    Will create: G-03Q-032-062-05-08
+   ✅ Will create: G-03Q-032-062-05-08
       Detail: 8270392 580 60CM MAMMUT 26SS
 
 Row 78: 8270392
-    Will create: G-03Q-041-062-05-08
+   ✅ Will create: G-03Q-041-062-05-08
       Detail: 8270392 960 60CM MAMMUT 26SS
 
 Row 79: 8270392
-    Will create: G-03Q-055-062-05-08
+   ✅ Will create: G-03Q-055-062-05-08
       Detail: 8270392 0542P 60CM MAMMUT 26SS
 
 Row 80: 8270392
-    Will create: G-03Q-02Y-062-05-08
+   ✅ Will create: G-03Q-02Y-062-05-08
       Detail: 8270392 566 60CM MAMMUT 26SS
 
 Row 81: 8270392
-    Will create: G-03Q-032-06V-05-08
+   ✅ Will create: G-03Q-032-06V-05-08
       Detail: 8270392 580 69CM MAMMUT 26SS
 
 Row 82: 8270392
-    Will create: G-03Q-041-06V-05-08
+   ✅ Will create: G-03Q-041-06V-05-08
       Detail: 8270392 960 69CM MAMMUT 26SS
 
 Row 83: 8270392
-    Will create: G-03Q-02Y-06V-05-08
+   ✅ Will create: G-03Q-02Y-06V-05-08
       Detail: 8270392 566 69CM MAMMUT 26SS
 
 Row 84: 8058202
-    Will create: G-0CU-032-02K-05-08
+   ✅ Will create: G-0CU-032-02K-05-08
       Detail: 8058202 580 16,5CM MAMMUT 26SS
 
 Row 85: 8337372
-    Will create: G-0D7-032-07Q-05-0D
+   ✅ Will create: G-0D7-032-07Q-05-0D
       Detail: 8337372 580 80CM MAMMUT 27SS(SMS)
 
 Row 86: ME9013
-    Will create: D-00O-06M-000-05-08
+   ✅ Will create: D-00O-06M-000-05-08
       Detail: ME9013 Black Blank MAMMUT 26SS
 
 Row 87: MINI13
-    Will create: G-07Q-06J-000-05-08
+   ✅ Will create: G-07Q-06J-000-05-08
       Detail: MINI13 BK Blank MAMMUT 26SS
 
 Row 88: THMADEIRA
-    Will create: H-01Q-046-058-05-08
+   ✅ Will create: H-01Q-046-058-05-08
       Detail: THMADEIRA 1002 5000M MAMMUT 26SS
 
 Row 89: 78NFBTR22YT
-    Will create: F-005-082-088-0E-08-07P
+   ✅ Will create: F-005-082-088-0E-08-07P
       Detail: 78NFBTR22YT CL M TNF 26SS NP62515
 
 Row 90: 78NFBTR22YT
-    Will create: F-005-082-084-0E-08-07P
+   ✅ Will create: F-005-082-084-0E-08-07P
       Detail: 78NFBTR22YT CL L TNF 26SS NP62515
 
 Row 91: 78NFBTR22YT
-    Will create: F-005-082-08F-0E-08-07P
+   ✅ Will create: F-005-082-08F-0E-08-07P
       Detail: 78NFBTR22YT CL XL TNF 26SS NP62515
 
 Row 92: 78NFBTR22YT
-    Will create: F-005-0B9-088-0E-08-07P
+   ✅ Will create: F-005-0B9-088-0E-08-07P
       Detail: 78NFBTR22YT K M TNF 26SS NP62515
 
 Row 93: 78NFBTR22YT
-    Will create: F-005-0B9-084-0E-08-07P
+   ✅ Will create: F-005-0B9-084-0E-08-07P
       Detail: 78NFBTR22YT K L TNF 26SS NP62515
 
 Row 94: 78NFBTR22YT
-    Will create: F-005-0B9-08F-0E-08-07P
+   ✅ Will create: F-005-0B9-08F-0E-08-07P
       Detail: 78NFBTR22YT K XL TNF 26SS NP62515
 
 Row 95: 71NFCAU1Y
-    Will create: F-003-000-074-0E-08
+   ✅ Will create: F-003-000-074-0E-08
       Detail: 71NFCAU1Y Blank 70X77 TNF 26SS
 
 Row 96: NF-0453
-    Will create: F-01N-0JX-000-05-08
+   ✅ Will create: F-01N-0JX-000-05-08
       Detail: NF-0453 IGWHT Blank MAMMUT 26SS
 
 Row 97: NF-0453
-    Will create: F-01N-0JY-000-05-08
+   ✅ Will create: F-01N-0JY-000-05-08
       Detail: NF-0453 STEWT Blank MAMMUT 26SS
 
 Row 98: 8055072
-    Will create: G-033-057-01B-05-08
+   ✅ Will create: G-033-057-01B-05-08
       Detail: 8055072 1379P 10,5Cm MAMMUT 26SS
 
 Row 99: 8055072
-    Will create: G-033-057-01K-05-08
+   ✅ Will create: G-033-057-01K-05-08
       Detail: 8055072 1379P 11,5Cm MAMMUT 26SS
 
 Row 100: 8055072
-    Will create: G-033-057-01R-05-08
+   ✅ Will create: G-033-057-01R-05-08
       Detail: 8055072 1379P 12,5Cm MAMMUT 26SS
 
 Row 101: 8055072
-    Will create: G-033-057-01X-05-08
+   ✅ Will create: G-033-057-01X-05-08
       Detail: 8055072 1379P 12Cm MAMMUT 26SS
 
 Row 102: 8055072
-    Will create: G-033-07F-01X-05-08
+   ✅ Will create: G-033-07F-01X-05-08
       Detail: 8055072 C2578 12Cm MAMMUT 26SS
 
 Row 103: 8055072
-    Will create: G-033-057-01Z-05-08
+   ✅ Will create: G-033-057-01Z-05-08
       Detail: 8055072 1379P 13,5Cm MAMMUT 26SS
 
 Row 104: 8055072
-    Will create: G-033-057-02C-05-08
+   ✅ Will create: G-033-057-02C-05-08
       Detail: 8055072 1379P 14Cm MAMMUT 26SS
 
 Row 105: 8055072
-    Will create: G-033-057-02I-05-08
+   ✅ Will create: G-033-057-02I-05-08
       Detail: 8055072 1379P 15Cm MAMMUT 26SS
 
 Row 106: 8270392
-    Will create: G-03Q-05K-060-05-08
+   ✅ Will create: G-03Q-05K-060-05-08
       Detail: 8270392 501Na 60,5Cm MAMMUT 26SS
 
 Row 107: 8270392
-    Will create: G-03Q-032-060-05-08
+   ✅ Will create: G-03Q-032-060-05-08
       Detail: 8270392 580 60,5Cm MAMMUT 26SS
 
 Row 108: 8270392
-    Will create: G-03Q-0A6-060-05-08
+   ✅ Will create: G-03Q-0A6-060-05-08
       Detail: 8270392 Gb532 60,5Cm MAMMUT 26SS
 
 Row 109: 8270392
-    Will create: G-03Q-05K-068-05-08
+   ✅ Will create: G-03Q-05K-068-05-08
       Detail: 8270392 501Na 62,5Cm MAMMUT 26SS
 
 Row 110: 8270392
-    Will create: G-03Q-032-068-05-08
+   ✅ Will create: G-03Q-032-068-05-08
       Detail: 8270392 580 62,5Cm MAMMUT 26SS
 
 Row 111: 8270392
-    Will create: G-03Q-055-06E-05-08
+   ✅ Will create: G-03Q-055-06E-05-08
       Detail: 8270392 0542P 64,5Cm MAMMUT 26SS
 
 Row 112: 8270392
-    Will create: G-03Q-05K-06E-05-08
+   ✅ Will create: G-03Q-05K-06E-05-08
       Detail: 8270392 501Na 64,5Cm MAMMUT 26SS
 
 Row 113: 8270392
-    Will create: G-03Q-032-06E-05-08
+   ✅ Will create: G-03Q-032-06E-05-08
       Detail: 8270392 580 64,5Cm MAMMUT 26SS
 
 Row 114: 8270392
-    Will create: G-03Q-0A6-06E-05-08
+   ✅ Will create: G-03Q-0A6-06E-05-08
       Detail: 8270392 Gb532 64,5Cm MAMMUT 26SS
 
 Row 115: 8270392
-    Will create: G-03Q-057-06J-05-08
+   ✅ Will create: G-03Q-057-06J-05-08
       Detail: 8270392 1379P 65Cm MAMMUT 26SS
 
 Row 116: 8270392
-    Will create: G-03Q-05K-06J-05-08
+   ✅ Will create: G-03Q-05K-06J-05-08
       Detail: 8270392 501Na 65Cm MAMMUT 26SS
 
 Row 117: 8270392
-    Will create: G-03Q-032-06J-05-08
+   ✅ Will create: G-03Q-032-06J-05-08
       Detail: 8270392 580 65Cm MAMMUT 26SS
 
 Row 118: 8270392
-    Will create: G-03Q-055-06L-05-08
+   ✅ Will create: G-03Q-055-06L-05-08
       Detail: 8270392 0542P 66,5Cm MAMMUT 26SS
 
 Row 119: 8270392
-    Will create: G-03Q-05K-06L-05-08
+   ✅ Will create: G-03Q-05K-06L-05-08
       Detail: 8270392 501Na 66,5Cm MAMMUT 26SS
 
 Row 120: 8270392
-    Will create: G-03Q-0A6-06L-05-08
+   ✅ Will create: G-03Q-0A6-06L-05-08
       Detail: 8270392 Gb532 66,5Cm MAMMUT 26SS
 
 Row 121: 8270392
-    Will create: G-03Q-057-06O-05-08
+   ✅ Will create: G-03Q-057-06O-05-08
       Detail: 8270392 1379P 67Cm MAMMUT 26SS
 
 Row 122: 8270392
-    Will create: G-03Q-05K-06O-05-08
+   ✅ Will create: G-03Q-05K-06O-05-08
       Detail: 8270392 501Na 67Cm MAMMUT 26SS
 
 Row 123: 8270392
-    Will create: G-03Q-032-06O-05-08
+   ✅ Will create: G-03Q-032-06O-05-08
       Detail: 8270392 580 67Cm MAMMUT 26SS
 
 Row 124: 8270392
-    Will create: G-03Q-055-06Q-05-08
+   ✅ Will create: G-03Q-055-06Q-05-08
       Detail: 8270392 0542P 68,5Cm MAMMUT 26SS
 
 Row 125: 8270392
-    Will create: G-03Q-05K-06Q-05-08
+   ✅ Will create: G-03Q-05K-06Q-05-08
       Detail: 8270392 501Na 68,5Cm MAMMUT 26SS
 
 Row 126: 8270392
-    Will create: G-03Q-0A6-06Q-05-08
+   ✅ Will create: G-03Q-0A6-06Q-05-08
       Detail: 8270392 Gb532 68,5Cm MAMMUT 26SS
 
 Row 127: 8270392
-    Will create: G-03Q-05K-06V-05-08
+   ✅ Will create: G-03Q-05K-06V-05-08
       Detail: 8270392 501Na 69Cm MAMMUT 26SS
 
 Row 128: 8270392
-    Will create: G-03Q-032-06V-05-08
+   ✅ Will create: G-03Q-032-06V-05-08
       Detail: 8270392 580 69Cm MAMMUT 26SS
 
 Row 129: 8270392
-    Will create: G-03Q-032-073-05-08
+   ✅ Will create: G-03Q-032-073-05-08
       Detail: 8270392 580 70Cm MAMMUT 26SS
 
 Row 130: 8270392
-    Will create: G-03Q-057-076-05-08
+   ✅ Will create: G-03Q-057-076-05-08
       Detail: 8270392 1379P 71Cm MAMMUT 26SS
 
 Row 131: 8270392
-    Will create: G-03Q-05K-076-05-08
+   ✅ Will create: G-03Q-05K-076-05-08
       Detail: 8270392 501Na 71Cm MAMMUT 26SS
 
 Row 132: 8270392
-    Will create: G-03Q-0AL-077-05-08
+   ✅ Will create: G-03Q-0AL-077-05-08
       Detail: 8270392 H5001 72,5Cm MAMMUT 26SS
 
 Row 133: 8270392
-    Will create: G-03Q-032-078-05-08
+   ✅ Will create: G-03Q-032-078-05-08
       Detail: 8270392 580 72Cm MAMMUT 26SS
 
 Row 134: 8270392
-    Will create: G-03Q-057-07A-05-08
+   ✅ Will create: G-03Q-057-07A-05-08
       Detail: 8270392 1379P 73Cm MAMMUT 26SS
 
 Row 135: 8270392
-    Will create: G-03Q-05K-07A-05-08
+   ✅ Will create: G-03Q-05K-07A-05-08
       Detail: 8270392 501Na 73Cm MAMMUT 26SS
 
 Row 136: 8270392
-    Will create: G-03Q-032-07A-05-08
+   ✅ Will create: G-03Q-032-07A-05-08
       Detail: 8270392 580 73Cm MAMMUT 26SS
 
 Row 137: 8270392
-    Will create: G-03Q-0A2-07A-05-08
+   ✅ Will create: G-03Q-0A2-07A-05-08
       Detail: 8270392 G3020 73Cm MAMMUT 26SS
 
 Row 138: 8270392
-    Will create: G-03Q-057-07C-05-08
+   ✅ Will create: G-03Q-057-07C-05-08
       Detail: 8270392 1379P 74Cm MAMMUT 26SS
 
 Row 139: 8270392
-    Will create: G-03Q-05K-07C-05-08
+   ✅ Will create: G-03Q-05K-07C-05-08
       Detail: 8270392 501Na 74Cm MAMMUT 26SS
 
 Row 140: 8270392
-    Will create: G-03Q-0A2-07C-05-08
+   ✅ Will create: G-03Q-0A2-07C-05-08
       Detail: 8270392 G3020 74Cm MAMMUT 26SS
 
 Row 141: 8270392
-    Will create: G-03Q-057-07E-05-08
+   ✅ Will create: G-03Q-057-07E-05-08
       Detail: 8270392 1379P 75Cm MAMMUT 26SS
 
 Row 142: 8270392
-    Will create: G-03Q-05K-07E-05-08
+   ✅ Will create: G-03Q-05K-07E-05-08
       Detail: 8270392 501Na 75Cm MAMMUT 26SS
 
 Row 143: 8270392
-    Will create: G-03Q-032-07E-05-08
+   ✅ Will create: G-03Q-032-07E-05-08
       Detail: 8270392 580 75Cm MAMMUT 26SS
 
 Row 144: 8270392
-    Will create: G-03Q-0A2-07E-05-08
+   ✅ Will create: G-03Q-0A2-07E-05-08
       Detail: 8270392 G3020 75Cm MAMMUT 26SS
 
 Row 145: 8270392
-    Will create: G-03Q-032-07F-05-08
+   ✅ Will create: G-03Q-032-07F-05-08
       Detail: 8270392 580 76Cm MAMMUT 26SS
 
 Row 146: CLU2A-Q
-    Will create: G-04V-06M-000-05-08
+   ✅ Will create: G-04V-06M-000-05-08
       Detail: CLU2A-Q Black Blank MAMMUT 26SS
 
 Row 147: CM-5
-    Will create: G-0E4-0H7-000-06-00
+   ✅ Will create: G-0E4-0H7-000-06-00
       Detail: CM-5 09 Blank MIZUNO Blank
 
 Row 148: NF-0451
-    Will create: F-01M-05S-000-05-08
+   ✅ Will create: F-01M-05S-000-05-08
       Detail: NF-0451 Acwht Blank MAMMUT 26SS
 
 Row 149: NF-0451
-    Will create: F-01M-060-000-05-08
+   ✅ Will create: F-01M-060-000-05-08
       Detail: NF-0451 Alpwt Blank MAMMUT 26SS
 
 Row 150: NF-0451
-    Will create: F-01M-0AU-000-05-08
+   ✅ Will create: F-01M-0AU-000-05-08
       Detail: NF-0451 Howht Blank MAMMUT 26SS
 
 Row 151: NF-0451
-    Will create: F-01M-0FW-000-05-08
+   ✅ Will create: F-01M-0FW-000-05-08
       Detail: NF-0451 Tswht Blank MAMMUT 26SS
 
 Row 152: NF-0451
-    Will create: F-01M-0GL-000-05-08
+   ✅ Will create: F-01M-0GL-000-05-08
       Detail: NF-0451 Wb Blank MAMMUT 26SS
 
 Row 153: 8055072
-    Will create: G-033-01J-024-05-08
+   ✅ Will create: G-033-01J-024-05-08
       Detail: 8055072 219 13Cm MAMMUT 26SS
 
 Row 154: 8055072
-    Will create: G-033-057-02C-05-08
+   ✅ Will create: G-033-057-02C-05-08
       Detail: 8055072 1379P 14Cm MAMMUT 26SS
 
 Row 155: 8055072
-    Will create: G-033-057-02I-05-08
+   ✅ Will create: G-033-057-02I-05-08
       Detail: 8055072 1379P 15Cm MAMMUT 26SS
 
 Row 156: 8055072
-    Will create: G-033-01J-02I-05-08
+   ✅ Will create: G-033-01J-02I-05-08
       Detail: 8055072 219 15Cm MAMMUT 26SS
 
 Row 157: 8280023
-    Will create: G-03T-054-02U-05-08
+   ✅ Will create: G-03T-054-02U-05-08
       Detail: 8280023 0157P 19Cm MAMMUT 26SS
 
 Row 158: 8280023
-    Will create: G-03T-057-02U-05-08
+   ✅ Will create: G-03T-057-02U-05-08
       Detail: 8280023 1379P 19Cm MAMMUT 26SS
 
 Row 159: 8280023
-    Will create: G-03T-041-02U-05-08
+   ✅ Will create: G-03T-041-02U-05-08
       Detail: 8280023 960 19Cm MAMMUT 26SS
 
 Row 160: 8280023
-    Will create: G-03T-054-02X-05-08
+   ✅ Will create: G-03T-054-02X-05-08
       Detail: 8280023 0157P 20Cm MAMMUT 26SS
 
 Row 161: 8280023
-    Will create: G-03T-057-02X-05-08
+   ✅ Will create: G-03T-057-02X-05-08
       Detail: 8280023 1379P 20Cm MAMMUT 26SS
 
 Row 162: 8280023
-    Will create: G-03T-041-02X-05-08
+   ✅ Will create: G-03T-041-02X-05-08
       Detail: 8280023 960 20Cm MAMMUT 26SS
 
 Row 163: 8280023
-    Will create: G-03T-07F-02X-05-08
+   ✅ Will create: G-03T-07F-02X-05-08
       Detail: 8280023 C2578 20Cm MAMMUT 26SS
 
 Row 164: 8280023
-    Will create: G-03T-0A2-02X-05-08
+   ✅ Will create: G-03T-0A2-02X-05-08
       Detail: 8280023 G3020 20Cm MAMMUT 26SS
 
 Row 165: 8280023
-    Will create: G-03T-054-031-05-08
+   ✅ Will create: G-03T-054-031-05-08
       Detail: 8280023 0157P 21Cm MAMMUT 26SS
 
 Row 166: 8280023
-    Will create: G-03T-032-031-05-08
+   ✅ Will create: G-03T-032-031-05-08
       Detail: 8280023 580 21Cm MAMMUT 26SS
 
 Row 167: 8280023
-    Will create: G-03T-07F-031-05-08
+   ✅ Will create: G-03T-07F-031-05-08
       Detail: 8280023 C2578 21Cm MAMMUT 26SS
 
 Row 168: 8280023
-    Will create: G-03T-0A2-031-05-08
+   ✅ Will create: G-03T-0A2-031-05-08
       Detail: 8280023 G3020 21Cm MAMMUT 26SS
 
 Row 169: LABSR-01
-    Will create: G-076-000-000-05-08-07Q
+   ✅ Will create: G-076-000-000-05-08-07Q
       Detail: LABSR-01 Blank Blank MAMMUT 26SS 1011-02471/5223075
 
 Row 170: LABSR-01
-    Will create: G-076-000-000-05-08-07R
+   ✅ Will create: G-076-000-000-05-08-07R
       Detail: LABSR-01 Blank Blank MAMMUT 26SS 1011-02481/5223075
 
 Row 171: LABSR-01
-    Will create: G-076-000-000-05-08-07S
+   ✅ Will create: G-076-000-000-05-08-07S
       Detail: LABSR-01 Blank Blank MAMMUT 26SS 1012-00530/5223075
 
 Row 172: LABSR-01
-    Will create: G-076-000-000-05-08-07T
+   ✅ Will create: G-076-000-000-05-08-07T
       Detail: LABSR-01 Blank Blank MAMMUT 26SS 1012-00540/5223075
 
 Row 173: LABSR-01
-    Will create: G-076-000-000-05-08-07U
+   ✅ Will create: G-076-000-000-05-08-07U
       Detail: LABSR-01 Blank Blank MAMMUT 26SS 1012-00581/5223075
 
 Row 174: LABSR-01
-    Will create: G-076-000-000-05-08-07V
+   ✅ Will create: G-076-000-000-05-08-07V
       Detail: LABSR-01 Blank Blank MAMMUT 26SS 1012-00591/5223075
 
 Row 175: LABSR-01
-    Will create: G-076-000-000-05-08-07W
+   ✅ Will create: G-076-000-000-05-08-07W
       Detail: LABSR-01 Blank Blank MAMMUT 26SS 1012-00630/5223075
 
 Row 176: LABSR-01
-    Will create: G-076-000-000-05-08-07X
+   ✅ Will create: G-076-000-000-05-08-07X
       Detail: LABSR-01 Blank Blank MAMMUT 26SS 1012-00640/5223075
 
 Row 177: LABSR-01
-    Will create: G-076-000-000-05-08-07Y
+   ✅ Will create: G-076-000-000-05-08-07Y
       Detail: LABSR-01 Blank Blank MAMMUT 26SS 1012-00700/5223075
 
 Row 178: LABSR-01
-    Will create: G-076-000-000-05-08-07Z
+   ✅ Will create: G-076-000-000-05-08-07Z
       Detail: LABSR-01 Blank Blank MAMMUT 26SS 1012-00770/5223075
 
 Row 179: LABSR-01
-    Will create: G-076-000-000-05-08-080
+   ✅ Will create: G-076-000-000-05-08-080
       Detail: LABSR-01 Blank Blank MAMMUT 26SS 1012-00950/5223075
 
 Row 180: LABSR-01
-    Will create: G-076-000-000-05-08-081
+   ✅ Will create: G-076-000-000-05-08-081
       Detail: LABSR-01 Blank Blank MAMMUT 26SS 1012-00960/5223075
 
 Row 181: LABSR-01
-    Will create: G-076-000-000-05-08-082
+   ✅ Will create: G-076-000-000-05-08-082
       Detail: LABSR-01 Blank Blank MAMMUT 26SS 1021-01010/5223075
 
 Row 182: LABSR-01
-    Will create: G-076-000-000-05-08-083
+   ✅ Will create: G-076-000-000-05-08-083
       Detail: LABSR-01 Blank Blank MAMMUT 26SS 1021-01090/5223075
 
 Row 183: LABSR-01
-    Will create: G-076-000-000-05-08-084
+   ✅ Will create: G-076-000-000-05-08-084
       Detail: LABSR-01 Blank Blank MAMMUT 26SS 1023-00900/5223075
 
 Row 184: LABSR-01
-    Will create: G-076-000-000-05-08-085
+   ✅ Will create: G-076-000-000-05-08-085
       Detail: LABSR-01 Blank Blank MAMMUT 26SS 1023-00910/5223075
 
 Row 185: LABSR-01
-    Will create: G-076-000-000-05-08-086
+   ✅ Will create: G-076-000-000-05-08-086
       Detail: LABSR-01 Blank Blank MAMMUT 26SS 1023-00980/5223075
 
 Row 186: MAM-08
-    Will create: G-07C-0GO-000-05-08
+   ✅ Will create: G-07C-0GO-000-05-08
       Detail: MAM-08 White Blank MAMMUT 26SS
 
 Row 187: NW-1157
-    Will create: G-08E-05S-000-05-08
+   ✅ Will create: G-08E-05S-000-05-08
       Detail: NW-1157 Acwht Blank MAMMUT 26SS
 
 Row 188: NW-1157
-    Will create: G-08E-0GL-000-05-08
+   ✅ Will create: G-08E-0GL-000-05-08
       Detail: NW-1157 Wb Blank MAMMUT 26SS
 
 Row 189: T739410
-    Will create: G-0BB-06M-01G-05-08
+   ✅ Will create: G-0BB-06M-01G-05-08
       Detail: T739410 Black 10Mm MAMMUT 26SS
 
 Row 190: T739410
-    Will create: G-0BB-0KC-01G-05-08
+   ✅ Will create: G-0BB-0KC-01G-05-08
       Detail: T739410 STRAT 10Mm MAMMUT 26SS
 
 Row 191: STK-MAM-01
-    Will create: F-02T-06M-084-05-08-01B
+   ✅ Will create: F-02T-06M-084-05-08-01B
       Detail: STK-MAM-01 Black L MAMMUT 26SS 1011-02520
 
 Row 192: STK-MAM-01
-    Will create: F-02T-06M-084-05-08-01I
+   ✅ Will create: F-02T-06M-084-05-08-01I
       Detail: STK-MAM-01 Black L MAMMUT 26SS 1011-02530
 
 Row 193: STK-MAM-01
-    Will create: F-02T-06M-08F-05-08-01I
+   ✅ Will create: F-02T-06M-08F-05-08-01I
       Detail: STK-MAM-01 Black Xl MAMMUT 26SS 1011-02530
 
 Row 194: STK-MAM-01
-    Will create: F-02T-06M-084-05-08-027
+   ✅ Will create: F-02T-06M-084-05-08-027
       Detail: STK-MAM-01 Black L MAMMUT 26SS 1012-00630
 
 Row 195: STK-MAM-01
-    Will create: F-02T-06M-08F-05-08-027
+   ✅ Will create: F-02T-06M-08F-05-08-027
       Detail: STK-MAM-01 Black Xl MAMMUT 26SS 1012-00630
 
 Row 196: STK-MAM-01
-    Will create: F-02T-06M-08F-05-08-02B
+   ✅ Will create: F-02T-06M-08F-05-08-02B
       Detail: STK-MAM-01 Black Xl MAMMUT 26SS 1012-00640
 
 Row 197: STK-MAM-01
-    Will create: F-02T-08Q-08C-05-08-03X
+   ✅ Will create: F-02T-08Q-08C-05-08-03X
       Detail: STK-MAM-01 Dark Sand S MAMMUT 26SS 1023-00900
 
 Row 198: STK-MAM-01
-    Will create: F-02T-08Q-08F-05-08-03X
+   ✅ Will create: F-02T-08Q-08F-05-08-03X
       Detail: STK-MAM-01 Dark Sand Xl MAMMUT 26SS 1023-00900
 
 Row 199: STK-MAM-01
-    Will create: F-02T-08Q-08I-05-08-03X
+   ✅ Will create: F-02T-08Q-08I-05-08-03X
       Detail: STK-MAM-01 Dark Sand Xs MAMMUT 26SS 1023-00900
 
 Row 200: STK-MAM-01
-    Will create: F-02T-08Q-08J-05-08-03X
+   ✅ Will create: F-02T-08Q-08J-05-08-03X
       Detail: STK-MAM-01 Dark Sand Xxl MAMMUT 26SS 1023-00900
 
 Row 201: STK-MAM-01
-    Will create: F-02T-08Q-08F-05-08-03Z
+   ✅ Will create: F-02T-08Q-08F-05-08-03Z
       Detail: STK-MAM-01 Dark Sand Xl MAMMUT 26SS 1023-00910
 
 Row 202: STK-MAM-01
-    Will create: F-02T-08Q-08I-05-08-03Z
+   ✅ Will create: F-02T-08Q-08I-05-08-03Z
       Detail: STK-MAM-01 Dark Sand Xs MAMMUT 26SS 1023-00910
 
 Row 203: STK-MAM-01
-    Will create: F-02T-0KD-084-05-08-089
+   ✅ Will create: F-02T-0KD-084-05-08-089
       Detail: STK-MAM-01 Holunder-Acacia L MAMMUT 26SS 1012-00581
 
 Row 204: STK-MAM-01
-    Will create: F-02T-0KD-088-05-08-089
+   ✅ Will create: F-02T-0KD-088-05-08-089
       Detail: STK-MAM-01 Holunder-Acacia M MAMMUT 26SS 1012-00581
 
 Row 205: STK-MAM-01
-    Will create: F-02T-0KD-08C-05-08-089
+   ✅ Will create: F-02T-0KD-08C-05-08-089
       Detail: STK-MAM-01 Holunder-Acacia S MAMMUT 26SS 1012-00581
 
 Row 206: STK-MAM-01
-    Will create: F-02T-0KD-08F-05-08-089
+   ✅ Will create: F-02T-0KD-08F-05-08-089
       Detail: STK-MAM-01 Holunder-Acacia Xl MAMMUT 26SS 1012-00581
 
 Row 207: STK-MAM-01
-    Will create: F-02T-0KD-08J-05-08-089
+   ✅ Will create: F-02T-0KD-08J-05-08-089
       Detail: STK-MAM-01 Holunder-Acacia Xxl MAMMUT 26SS 1012-00581
 
 Row 208: STK-MAM-01
-    Will create: F-02T-0KD-084-05-08-08A
+   ✅ Will create: F-02T-0KD-084-05-08-08A
       Detail: STK-MAM-01 Holunder-Acacia L MAMMUT 26SS 1012-00591
 
 Row 209: STK-MAM-01
-    Will create: F-02T-0KD-088-05-08-08A
+   ✅ Will create: F-02T-0KD-088-05-08-08A
       Detail: STK-MAM-01 Holunder-Acacia M MAMMUT 26SS 1012-00591
 
 Row 210: STK-MAM-01
-    Will create: F-02T-0KD-08C-05-08-08A
+   ✅ Will create: F-02T-0KD-08C-05-08-08A
       Detail: STK-MAM-01 Holunder-Acacia S MAMMUT 26SS 1012-00591
 
 Row 211: STK-MAM-01
-    Will create: F-02T-0KD-08F-05-08-08A
+   ✅ Will create: F-02T-0KD-08F-05-08-08A
       Detail: STK-MAM-01 Holunder-Acacia Xl MAMMUT 26SS 1012-00591
 
 Row 212: STK-MAM-01
-    Will create: F-02T-0KD-08I-05-08-08A
+   ✅ Will create: F-02T-0KD-08I-05-08-08A
       Detail: STK-MAM-01 Holunder-Acacia Xs MAMMUT 26SS 1012-00591
 
 Row 213: STK-MAM-01
-    Will create: F-02T-0KD-084-05-08-08B
+   ✅ Will create: F-02T-0KD-084-05-08-08B
       Detail: STK-MAM-01 Holunder-Acacia L MAMMUT 26SS 1012-00700
 
 Row 214: STK-MAM-01
-    Will create: F-02T-0KD-088-05-08-08B
+   ✅ Will create: F-02T-0KD-088-05-08-08B
       Detail: STK-MAM-01 Holunder-Acacia M MAMMUT 26SS 1012-00700
 
 Row 215: STK-MAM-01
-    Will create: F-02T-0KD-08C-05-08-08B
+   ✅ Will create: F-02T-0KD-08C-05-08-08B
       Detail: STK-MAM-01 Holunder-Acacia S MAMMUT 26SS 1012-00700
 
 Row 216: STK-MAM-01
-    Will create: F-02T-0KD-08F-05-08-08B
+   ✅ Will create: F-02T-0KD-08F-05-08-08B
       Detail: STK-MAM-01 Holunder-Acacia Xl MAMMUT 26SS 1012-00700
 
 Row 217: STK-MAM-01
-    Will create: F-02T-0KD-08I-05-08-08B
+   ✅ Will create: F-02T-0KD-08I-05-08-08B
       Detail: STK-MAM-01 Holunder-Acacia Xs MAMMUT 26SS 1012-00700
 
 Row 218: STK-MAM-01
-    Will create: F-02T-0KD-08J-05-08-08B
+   ✅ Will create: F-02T-0KD-08J-05-08-08B
       Detail: STK-MAM-01 Holunder-Acacia Xxl MAMMUT 26SS 1012-00700
 
 Row 219: STK-MAM-01
-    Will create: F-02T-0KD-084-05-08-08C
+   ✅ Will create: F-02T-0KD-084-05-08-08C
       Detail: STK-MAM-01 Holunder-Acacia L MAMMUT 26SS 1012-00770
 
 Row 220: STK-MAM-01
-    Will create: F-02T-0KD-088-05-08-08C
+   ✅ Will create: F-02T-0KD-088-05-08-08C
       Detail: STK-MAM-01 Holunder-Acacia M MAMMUT 26SS 1012-00770
 
 Row 221: STK-MAM-01
-    Will create: F-02T-0KD-08C-05-08-08C
+   ✅ Will create: F-02T-0KD-08C-05-08-08C
       Detail: STK-MAM-01 Holunder-Acacia S MAMMUT 26SS 1012-00770
 
 Row 222: STK-MAM-01
-    Will create: F-02T-0KD-08F-05-08-08C
+   ✅ Will create: F-02T-0KD-08F-05-08-08C
       Detail: STK-MAM-01 Holunder-Acacia Xl MAMMUT 26SS 1012-00770
 
 Row 223: STK-MAM-01
-    Will create: F-02T-0KD-08I-05-08-08C
+   ✅ Will create: F-02T-0KD-08I-05-08-08C
       Detail: STK-MAM-01 Holunder-Acacia Xs MAMMUT 26SS 1012-00770
 
 Row 224: STK-MAM-01
-    Will create: F-02T-0BL-088-05-08-00I
+   ✅ Will create: F-02T-0BL-088-05-08-00I
       Detail: STK-MAM-01 Marine M MAMMUT 26SS 1011-00323
 
 Row 225: STK-MAM-01
-    Will create: F-02T-0BL-088-05-08-00M
+   ✅ Will create: F-02T-0BL-088-05-08-00M
       Detail: STK-MAM-01 Marine M MAMMUT 26SS 1011-00333
 
 Row 226: STK-MAM-01
-    Will create: F-02T-0BL-084-05-08-01I
+   ✅ Will create: F-02T-0BL-084-05-08-01I
       Detail: STK-MAM-01 Marine L MAMMUT 26SS 1011-02530
 
 Row 227: STK-MAM-01
-    Will create: F-02T-0BL-088-05-08-01I
+   ✅ Will create: F-02T-0BL-088-05-08-01I
       Detail: STK-MAM-01 Marine M MAMMUT 26SS 1011-02530
 
 Row 228: STK-MAM-01
-    Will create: F-02T-0BL-08C-05-08-01I
+   ✅ Will create: F-02T-0BL-08C-05-08-01I
       Detail: STK-MAM-01 Marine S MAMMUT 26SS 1011-02530
 
 Row 229: STK-MAM-01
-    Will create: F-02T-0BL-08F-05-08-01I
+   ✅ Will create: F-02T-0BL-08F-05-08-01I
       Detail: STK-MAM-01 Marine Xl MAMMUT 26SS 1011-02530
 
 Row 230: STK-MAM-01
-    Will create: F-02T-0BL-08I-05-08-01I
+   ✅ Will create: F-02T-0BL-08I-05-08-01I
       Detail: STK-MAM-01 Marine Xs MAMMUT 26SS 1011-02530
 
 Row 231: STK-MAM-01
-    Will create: F-02T-0BL-084-05-08-087
+   ✅ Will create: F-02T-0BL-084-05-08-087
       Detail: STK-MAM-01 Marine L MAMMUT 26SS 1012-00540
 
 Row 232: STK-MAM-01
-    Will create: F-02T-0BL-088-05-08-087
+   ✅ Will create: F-02T-0BL-088-05-08-087
       Detail: STK-MAM-01 Marine M MAMMUT 26SS 1012-00540
 
 Row 233: STK-MAM-01
-    Will create: F-02T-0BL-08C-05-08-087
+   ✅ Will create: F-02T-0BL-08C-05-08-087
       Detail: STK-MAM-01 Marine S MAMMUT 26SS 1012-00540
 
 Row 234: STK-MAM-01
-    Will create: F-02T-0BL-08F-05-08-087
+   ✅ Will create: F-02T-0BL-08F-05-08-087
       Detail: STK-MAM-01 Marine Xl MAMMUT 26SS 1012-00540
 
 Row 235: STK-MAM-01
-    Will create: F-02T-0BL-08I-05-08-087
+   ✅ Will create: F-02T-0BL-08I-05-08-087
       Detail: STK-MAM-01 Marine Xs MAMMUT 26SS 1012-00540
 
 Row 236: STK-MAM-01
-    Will create: F-02T-0BL-088-05-08-02B
+   ✅ Will create: F-02T-0BL-088-05-08-02B
       Detail: STK-MAM-01 Marine M MAMMUT 26SS 1012-00640
 
 Row 237: STK-MAM-01
-    Will create: F-02T-0BL-08C-05-08-02B
+   ✅ Will create: F-02T-0BL-08C-05-08-02B
       Detail: STK-MAM-01 Marine S MAMMUT 26SS 1012-00640
 
 Row 238: STK-MAM-01
-    Will create: F-02T-0BL-08F-05-08-02B
+   ✅ Will create: F-02T-0BL-08F-05-08-02B
       Detail: STK-MAM-01 Marine Xl MAMMUT 26SS 1012-00640
 
 Row 239: STK-MAM-01
-    Will create: F-02T-0BL-08I-05-08-02B
+   ✅ Will create: F-02T-0BL-08I-05-08-02B
       Detail: STK-MAM-01 Marine Xs MAMMUT 26SS 1012-00640
 
 Row 240: STK-MAM-01
-    Will create: F-02T-0EN-088-05-08-00I
+   ✅ Will create: F-02T-0EN-088-05-08-00I
       Detail: STK-MAM-01 Silver Sage M MAMMUT 26SS 1011-00323
 
 Row 241: STK-MAM-01
-    Will create: F-02T-0EN-088-05-08-015
+   ✅ Will create: F-02T-0EN-088-05-08-015
       Detail: STK-MAM-01 Silver Sage M MAMMUT 26SS 1011-02471
 
 Row 242: STK-MAM-01
-    Will create: F-02T-0EN-04V-05-08-088
+   ✅ Will create: F-02T-0EN-04V-05-08-088
       Detail: STK-MAM-01 Silver Sage 3Xl MAMMUT 26SS 1012-00530
 
 Row 243: STK-MAM-01
-    Will create: F-02T-0EN-084-05-08-088
+   ✅ Will create: F-02T-0EN-084-05-08-088
       Detail: STK-MAM-01 Silver Sage L MAMMUT 26SS 1012-00530
 
 Row 244: STK-MAM-01
-    Will create: F-02T-0EN-088-05-08-088
+   ✅ Will create: F-02T-0EN-088-05-08-088
       Detail: STK-MAM-01 Silver Sage M MAMMUT 26SS 1012-00530
 
 Row 245: STK-MAM-01
-    Will create: F-02T-0EN-08C-05-08-088
+   ✅ Will create: F-02T-0EN-08C-05-08-088
       Detail: STK-MAM-01 Silver Sage S MAMMUT 26SS 1012-00530
 
 Row 246: STK-MAM-01
-    Will create: F-02T-0EN-08F-05-08-088
+   ✅ Will create: F-02T-0EN-08F-05-08-088
       Detail: STK-MAM-01 Silver Sage Xl MAMMUT 26SS 1012-00530
 
 Row 247: STK-MAM-01
-    Will create: F-02T-0EN-08I-05-08-088
+   ✅ Will create: F-02T-0EN-08I-05-08-088
       Detail: STK-MAM-01 Silver Sage Xs MAMMUT 26SS 1012-00530
 
 Row 248: STK-MAM-01
-    Will create: F-02T-0EN-08J-05-08-088
+   ✅ Will create: F-02T-0EN-08J-05-08-088
       Detail: STK-MAM-01 Silver Sage Xxl MAMMUT 26SS 1012-00530
 
 Row 249: STK-MAM-01
-    Will create: F-02T-0EN-084-05-08-089
+   ✅ Will create: F-02T-0EN-084-05-08-089
       Detail: STK-MAM-01 Silver Sage L MAMMUT 26SS 1012-00581
 
 Row 250: STK-MAM-01
-    Will create: F-02T-0EN-088-05-08-089
+   ✅ Will create: F-02T-0EN-088-05-08-089
       Detail: STK-MAM-01 Silver Sage M MAMMUT 26SS 1012-00581
 
 Row 251: STK-MAM-01
-    Will create: F-02T-0EN-08C-05-08-089
+   ✅ Will create: F-02T-0EN-08C-05-08-089
       Detail: STK-MAM-01 Silver Sage S MAMMUT 26SS 1012-00581
 
 Row 252: STK-MAM-01
-    Will create: F-02T-0EN-08F-05-08-089
+   ✅ Will create: F-02T-0EN-08F-05-08-089
       Detail: STK-MAM-01 Silver Sage Xl MAMMUT 26SS 1012-00581
 
 Row 253: STK-MAM-01
-    Will create: F-02T-0EN-08J-05-08-089
+   ✅ Will create: F-02T-0EN-08J-05-08-089
       Detail: STK-MAM-01 Silver Sage Xxl MAMMUT 26SS 1012-00581
 
 Row 254: STK-MAM-01
-    Will create: F-02T-0EN-084-05-08-08A
+   ✅ Will create: F-02T-0EN-084-05-08-08A
       Detail: STK-MAM-01 Silver Sage L MAMMUT 26SS 1012-00591
 
 Row 255: STK-MAM-01
-    Will create: F-02T-0EN-088-05-08-08A
+   ✅ Will create: F-02T-0EN-088-05-08-08A
       Detail: STK-MAM-01 Silver Sage M MAMMUT 26SS 1012-00591
 
 Row 256: STK-MAM-01
-    Will create: F-02T-0EN-08C-05-08-08A
+   ✅ Will create: F-02T-0EN-08C-05-08-08A
       Detail: STK-MAM-01 Silver Sage S MAMMUT 26SS 1012-00591
 
 Row 257: STK-MAM-01
-    Will create: F-02T-0EN-08F-05-08-08A
+   ✅ Will create: F-02T-0EN-08F-05-08-08A
       Detail: STK-MAM-01 Silver Sage Xl MAMMUT 26SS 1012-00591
 
 Row 258: STK-MAM-01
-    Will create: F-02T-0EN-08I-05-08-08A
+   ✅ Will create: F-02T-0EN-08I-05-08-08A
       Detail: STK-MAM-01 Silver Sage Xs MAMMUT 26SS 1012-00591
 
 Row 259: STK-MAM-01
-    Will create: F-02T-0EN-04V-05-08-027
+   ✅ Will create: F-02T-0EN-04V-05-08-027
       Detail: STK-MAM-01 Silver Sage 3Xl MAMMUT 26SS 1012-00630
 
 Row 260: STK-MAM-01
-    Will create: F-02T-0EN-084-05-08-027
+   ✅ Will create: F-02T-0EN-084-05-08-027
       Detail: STK-MAM-01 Silver Sage L MAMMUT 26SS 1012-00630
 
 Row 261: STK-MAM-01
-    Will create: F-02T-0EN-088-05-08-027
+   ✅ Will create: F-02T-0EN-088-05-08-027
       Detail: STK-MAM-01 Silver Sage M MAMMUT 26SS 1012-00630
 
 Row 262: STK-MAM-01
-    Will create: F-02T-0EN-08C-05-08-027
+   ✅ Will create: F-02T-0EN-08C-05-08-027
       Detail: STK-MAM-01 Silver Sage S MAMMUT 26SS 1012-00630
 
 Row 263: STK-MAM-01
-    Will create: F-02T-0EN-08F-05-08-027
+   ✅ Will create: F-02T-0EN-08F-05-08-027
       Detail: STK-MAM-01 Silver Sage Xl MAMMUT 26SS 1012-00630
 
 Row 264: STK-MAM-01
-    Will create: F-02T-0EN-08I-05-08-027
+   ✅ Will create: F-02T-0EN-08I-05-08-027
       Detail: STK-MAM-01 Silver Sage Xs MAMMUT 26SS 1012-00630
 
 Row 265: STK-MAM-01
-    Will create: F-02T-0EN-08J-05-08-027
+   ✅ Will create: F-02T-0EN-08J-05-08-027
       Detail: STK-MAM-01 Silver Sage Xxl MAMMUT 26SS 1012-00630
 
 Row 266: STK-MAM-01
-    Will create: F-02T-0EN-084-05-08-02B
+   ✅ Will create: F-02T-0EN-084-05-08-02B
       Detail: STK-MAM-01 Silver Sage L MAMMUT 26SS 1012-00640
 
 Row 267: STK-MAM-01
-    Will create: F-02T-0EN-088-05-08-02B
+   ✅ Will create: F-02T-0EN-088-05-08-02B
       Detail: STK-MAM-01 Silver Sage M MAMMUT 26SS 1012-00640
 
 Row 268: STK-MAM-01
-    Will create: F-02T-0EN-08C-05-08-02B
+   ✅ Will create: F-02T-0EN-08C-05-08-02B
       Detail: STK-MAM-01 Silver Sage S MAMMUT 26SS 1012-00640
 
 Row 269: STK-MAM-01
-    Will create: F-02T-0EN-08F-05-08-02B
+   ✅ Will create: F-02T-0EN-08F-05-08-02B
       Detail: STK-MAM-01 Silver Sage Xl MAMMUT 26SS 1012-00640
 
 Row 270: STK-MAM-01
-    Will create: F-02T-0EN-08I-05-08-02B
+   ✅ Will create: F-02T-0EN-08I-05-08-02B
       Detail: STK-MAM-01 Silver Sage Xs MAMMUT 26SS 1012-00640
 
 Row 271: STK-MAM-01
-    Will create: F-02T-0EN-08J-05-08-02B
+   ✅ Will create: F-02T-0EN-08J-05-08-02B
       Detail: STK-MAM-01 Silver Sage Xxl MAMMUT 26SS 1012-00640
 
 Row 272: STK-MAM-01
-    Will create: F-02T-0EN-04V-05-08-08B
+   ✅ Will create: F-02T-0EN-04V-05-08-08B
       Detail: STK-MAM-01 Silver Sage 3Xl MAMMUT 26SS 1012-00700
 
 Row 273: STK-MAM-01
-    Will create: F-02T-0EN-084-05-08-08B
+   ✅ Will create: F-02T-0EN-084-05-08-08B
       Detail: STK-MAM-01 Silver Sage L MAMMUT 26SS 1012-00700
 
 Row 274: STK-MAM-01
-    Will create: F-02T-0EN-088-05-08-08B
+   ✅ Will create: F-02T-0EN-088-05-08-08B
       Detail: STK-MAM-01 Silver Sage M MAMMUT 26SS 1012-00700
 
 Row 275: STK-MAM-01
-    Will create: F-02T-0EN-08C-05-08-08B
+   ✅ Will create: F-02T-0EN-08C-05-08-08B
       Detail: STK-MAM-01 Silver Sage S MAMMUT 26SS 1012-00700
 
 Row 276: STK-MAM-01
-    Will create: F-02T-0EN-08F-05-08-08B
+   ✅ Will create: F-02T-0EN-08F-05-08-08B
       Detail: STK-MAM-01 Silver Sage Xl MAMMUT 26SS 1012-00700
 
 Row 277: STK-MAM-01
-    Will create: F-02T-0EN-08I-05-08-08B
+   ✅ Will create: F-02T-0EN-08I-05-08-08B
       Detail: STK-MAM-01 Silver Sage Xs MAMMUT 26SS 1012-00700
 
 Row 278: STK-MAM-01
-    Will create: F-02T-0EN-08J-05-08-08B
+   ✅ Will create: F-02T-0EN-08J-05-08-08B
       Detail: STK-MAM-01 Silver Sage Xxl MAMMUT 26SS 1012-00700
 
 Row 279: STK-MAM-01
-    Will create: F-02T-0EN-084-05-08-08C
+   ✅ Will create: F-02T-0EN-084-05-08-08C
       Detail: STK-MAM-01 Silver Sage L MAMMUT 26SS 1012-00770
 
 Row 280: STK-MAM-01
-    Will create: F-02T-0EN-088-05-08-08C
+   ✅ Will create: F-02T-0EN-088-05-08-08C
       Detail: STK-MAM-01 Silver Sage M MAMMUT 26SS 1012-00770
 
 Row 281: STK-MAM-01
-    Will create: F-02T-0EN-08C-05-08-08C
+   ✅ Will create: F-02T-0EN-08C-05-08-08C
       Detail: STK-MAM-01 Silver Sage S MAMMUT 26SS 1012-00770
 
 Row 282: STK-MAM-01
-    Will create: F-02T-0EN-08F-05-08-08C
+   ✅ Will create: F-02T-0EN-08F-05-08-08C
       Detail: STK-MAM-01 Silver Sage Xl MAMMUT 26SS 1012-00770
 
 Row 283: STK-MAM-01
-    Will create: F-02T-0EN-08I-05-08-08C
+   ✅ Will create: F-02T-0EN-08I-05-08-08C
       Detail: STK-MAM-01 Silver Sage Xs MAMMUT 26SS 1012-00770
 
 Row 284: STK-MAM-01
-    Will create: F-02T-0EN-08J-05-08-08C
+   ✅ Will create: F-02T-0EN-08J-05-08-08C
       Detail: STK-MAM-01 Silver Sage Xxl MAMMUT 26SS 1012-00770
 
 Row 285: STK-MAM-01
-    Will create: F-02T-0F1-084-05-08-02U
+   ✅ Will create: F-02T-0F1-084-05-08-02U
       Detail: STK-MAM-01 Strata L MAMMUT 26SS 1021-00800
 
 Row 286: STK-MAM-01
-    Will create: F-02T-0F1-088-05-08-02U
+   ✅ Will create: F-02T-0F1-088-05-08-02U
       Detail: STK-MAM-01 Strata M MAMMUT 26SS 1021-00800
 
 Row 287: STK-MAM-01
-    Will create: F-02T-0F1-08C-05-08-02U
+   ✅ Will create: F-02T-0F1-08C-05-08-02U
       Detail: STK-MAM-01 Strata S MAMMUT 26SS 1021-00800
 
 Row 288: STK-MAM-01
-    Will create: F-02T-0F1-08F-05-08-02U
+   ✅ Will create: F-02T-0F1-08F-05-08-02U
       Detail: STK-MAM-01 Strata Xl MAMMUT 26SS 1021-00800
 
 Row 289: STK-MAM-01
-    Will create: F-02T-0F1-08I-05-08-02U
+   ✅ Will create: F-02T-0F1-08I-05-08-02U
       Detail: STK-MAM-01 Strata Xs MAMMUT 26SS 1021-00800
 
 Row 290: STK-MAM-01
-    Will create: F-02T-0F1-08J-05-08-02U
+   ✅ Will create: F-02T-0F1-08J-05-08-02U
       Detail: STK-MAM-01 Strata Xxl MAMMUT 26SS 1021-00800
 
 Row 291: STK-MAM-01
-    Will create: F-02T-0F1-084-05-08-032
+   ✅ Will create: F-02T-0F1-084-05-08-032
       Detail: STK-MAM-01 Strata L MAMMUT 26SS 1021-00811
 
 Row 292: STK-MAM-01
-    Will create: F-02T-0F1-088-05-08-032
+   ✅ Will create: F-02T-0F1-088-05-08-032
       Detail: STK-MAM-01 Strata M MAMMUT 26SS 1021-00811
 
 Row 293: STK-MAM-01
-    Will create: F-02T-0F1-08C-05-08-032
+   ✅ Will create: F-02T-0F1-08C-05-08-032
       Detail: STK-MAM-01 Strata S MAMMUT 26SS 1021-00811
 
 Row 294: STK-MAM-01
-    Will create: F-02T-0F1-08F-05-08-032
+   ✅ Will create: F-02T-0F1-08F-05-08-032
       Detail: STK-MAM-01 Strata Xl MAMMUT 26SS 1021-00811
 
 Row 295: STK-MAM-01
-    Will create: F-02T-0F1-08I-05-08-032
+   ✅ Will create: F-02T-0F1-08I-05-08-032
       Detail: STK-MAM-01 Strata Xs MAMMUT 26SS 1021-00811
 
 Row 296: STK-MAM-01
-    Will create: F-02T-0F1-084-05-08-08E
+   ✅ Will create: F-02T-0F1-084-05-08-08E
       Detail: STK-MAM-01 Strata L MAMMUT 26SS 1021-01090
 
 Row 297: STK-MAM-01
-    Will create: F-02T-0F1-088-05-08-08E
+   ✅ Will create: F-02T-0F1-088-05-08-08E
       Detail: STK-MAM-01 Strata M MAMMUT 26SS 1021-01090
 
 Row 298: STK-MAM-01
-    Will create: F-02T-0F1-08C-05-08-08E
+   ✅ Will create: F-02T-0F1-08C-05-08-08E
       Detail: STK-MAM-01 Strata S MAMMUT 26SS 1021-01090
 
 Row 299: STK-MAM-01
-    Will create: F-02T-0F1-08F-05-08-08E
+   ✅ Will create: F-02T-0F1-08F-05-08-08E
       Detail: STK-MAM-01 Strata Xl MAMMUT 26SS 1021-01090
 
 Row 300: STK-MAM-01
-    Will create: F-02T-0F1-08I-05-08-08E
+   ✅ Will create: F-02T-0F1-08I-05-08-08E
       Detail: STK-MAM-01 Strata Xs MAMMUT 26SS 1021-01090
 
 Row 301: STK-MAM-01
-    Will create: F-02T-0F1-08J-05-08-08E
+   ✅ Will create: F-02T-0F1-08J-05-08-08E
       Detail: STK-MAM-01 Strata Xxl MAMMUT 26SS 1021-01090
 
 Row 302: STK-MAM-01
-    Will create: F-02T-0F1-084-05-08-06D
+   ✅ Will create: F-02T-0F1-084-05-08-06D
       Detail: STK-MAM-01 Strata L MAMMUT 26SS 105238
 
 Row 303: STK-MAM-01
-    Will create: F-02T-0F1-088-05-08-06D
+   ✅ Will create: F-02T-0F1-088-05-08-06D
       Detail: STK-MAM-01 Strata M MAMMUT 26SS 105238
 
 Row 304: STK-MAM-01
-    Will create: F-02T-0F1-08C-05-08-06D
+   ✅ Will create: F-02T-0F1-08C-05-08-06D
       Detail: STK-MAM-01 Strata S MAMMUT 26SS 105238
 
 Row 305: STK-MAM-01
-    Will create: F-02T-0F1-08F-05-08-06D
+   ✅ Will create: F-02T-0F1-08F-05-08-06D
       Detail: STK-MAM-01 Strata Xl MAMMUT 26SS 105238
 
 Row 306: STK-MAM-01
-    Will create: F-02T-0F1-08I-05-08-06D
+   ✅ Will create: F-02T-0F1-08I-05-08-06D
       Detail: STK-MAM-01 Strata Xs MAMMUT 26SS 105238
 
 Row 307: STK-MAM-01
-    Will create: F-02T-0F1-08J-05-08-06D
+   ✅ Will create: F-02T-0F1-08J-05-08-06D
       Detail: STK-MAM-01 Strata Xxl MAMMUT 26SS 105238
 
 Row 308: STK-MAM-01
-    Will create: F-02T-0F1-084-05-08-06E
+   ✅ Will create: F-02T-0F1-084-05-08-06E
       Detail: STK-MAM-01 Strata L MAMMUT 26SS 105239
 
 Row 309: STK-MAM-01
-    Will create: F-02T-0F1-088-05-08-06E
+   ✅ Will create: F-02T-0F1-088-05-08-06E
       Detail: STK-MAM-01 Strata M MAMMUT 26SS 105239
 
 Row 310: STK-MAM-01
-    Will create: F-02T-0F1-08C-05-08-06E
+   ✅ Will create: F-02T-0F1-08C-05-08-06E
       Detail: STK-MAM-01 Strata S MAMMUT 26SS 105239
 
 Row 311: STK-MAM-01
-    Will create: F-02T-0F1-08F-05-08-06E
+   ✅ Will create: F-02T-0F1-08F-05-08-06E
       Detail: STK-MAM-01 Strata Xl MAMMUT 26SS 105239
 
 Row 312: STK-MAM-01
-    Will create: F-02T-0F1-08I-05-08-06E
+   ✅ Will create: F-02T-0F1-08I-05-08-06E
       Detail: STK-MAM-01 Strata Xs MAMMUT 26SS 105239
 
 Row 313: STK-MAM-01
-    Will create: F-02T-0F1-08J-05-08-06E
+   ✅ Will create: F-02T-0F1-08J-05-08-06E
       Detail: STK-MAM-01 Strata Xxl MAMMUT 26SS 105239
 
 Row 314: STK-MAM-01
-    Will create: F-02T-0FV-04V-05-08-088
+   ✅ Will create: F-02T-0FV-04V-05-08-088
       Detail: STK-MAM-01 Tschiel 3Xl MAMMUT 26SS 1012-00530
 
 Row 315: STK-MAM-01
-    Will create: F-02T-0FV-084-05-08-088
+   ✅ Will create: F-02T-0FV-084-05-08-088
       Detail: STK-MAM-01 Tschiel L MAMMUT 26SS 1012-00530
 
 Row 316: STK-MAM-01
-    Will create: F-02T-0FV-088-05-08-088
+   ✅ Will create: F-02T-0FV-088-05-08-088
       Detail: STK-MAM-01 Tschiel M MAMMUT 26SS 1012-00530
 
 Row 317: STK-MAM-01
-    Will create: F-02T-0FV-08C-05-08-088
+   ✅ Will create: F-02T-0FV-08C-05-08-088
       Detail: STK-MAM-01 Tschiel S MAMMUT 26SS 1012-00530
 
 Row 318: STK-MAM-01
-    Will create: F-02T-0FV-08F-05-08-088
+   ✅ Will create: F-02T-0FV-08F-05-08-088
       Detail: STK-MAM-01 Tschiel Xl MAMMUT 26SS 1012-00530
 
 Row 319: STK-MAM-01
-    Will create: F-02T-0FV-08I-05-08-088
+   ✅ Will create: F-02T-0FV-08I-05-08-088
       Detail: STK-MAM-01 Tschiel Xs MAMMUT 26SS 1012-00530
 
 Row 320: STK-MAM-01
-    Will create: F-02T-0FV-08J-05-08-088
+   ✅ Will create: F-02T-0FV-08J-05-08-088
       Detail: STK-MAM-01 Tschiel Xxl MAMMUT 26SS 1012-00530
 
 Row 321: STK-MAM-01
-    Will create: F-02T-0FV-04V-05-08-027
+   ✅ Will create: F-02T-0FV-04V-05-08-027
       Detail: STK-MAM-01 Tschiel 3Xl MAMMUT 26SS 1012-00630
 
 Row 322: STK-MAM-01
-    Will create: F-02T-0FV-084-05-08-027
+   ✅ Will create: F-02T-0FV-084-05-08-027
       Detail: STK-MAM-01 Tschiel L MAMMUT 26SS 1012-00630
 
 Row 323: STK-MAM-01
-    Will create: F-02T-0FV-08C-05-08-027
+   ✅ Will create: F-02T-0FV-08C-05-08-027
       Detail: STK-MAM-01 Tschiel S MAMMUT 26SS 1012-00630
 
 Row 324: STK-MAM-01
-    Will create: F-02T-0FV-08F-05-08-027
+   ✅ Will create: F-02T-0FV-08F-05-08-027
       Detail: STK-MAM-01 Tschiel Xl MAMMUT 26SS 1012-00630
 
 Row 325: STK-MAM-01
-    Will create: F-02T-0FV-08I-05-08-027
+   ✅ Will create: F-02T-0FV-08I-05-08-027
       Detail: STK-MAM-01 Tschiel Xs MAMMUT 26SS 1012-00630
 
 Row 326: STK-MAM-01
-    Will create: F-02T-0FV-08J-05-08-027
+   ✅ Will create: F-02T-0FV-08J-05-08-027
       Detail: STK-MAM-01 Tschiel Xxl MAMMUT 26SS 1012-00630
 
 Row 327: STK-MAM-01
-    Will create: F-02T-0FV-04V-05-08-08D
+   ✅ Will create: F-02T-0FV-04V-05-08-08D
       Detail: STK-MAM-01 Tschiel 3Xl MAMMUT 26SS 1021-01010
 
 Row 328: STK-MAM-01
-    Will create: F-02T-0FV-084-05-08-08D
+   ✅ Will create: F-02T-0FV-084-05-08-08D
       Detail: STK-MAM-01 Tschiel L MAMMUT 26SS 1021-01010
 
 Row 329: STK-MAM-01
-    Will create: F-02T-0FV-088-05-08-08D
+   ✅ Will create: F-02T-0FV-088-05-08-08D
       Detail: STK-MAM-01 Tschiel M MAMMUT 26SS 1021-01010
 
 Row 330: STK-MAM-01
-    Will create: F-02T-0FV-08C-05-08-08D
+   ✅ Will create: F-02T-0FV-08C-05-08-08D
       Detail: STK-MAM-01 Tschiel S MAMMUT 26SS 1021-01010
 
 Row 331: STK-MAM-01
-    Will create: F-02T-0FV-08F-05-08-08D
+   ✅ Will create: F-02T-0FV-08F-05-08-08D
       Detail: STK-MAM-01 Tschiel Xl MAMMUT 26SS 1021-01010
 
 Row 332: STK-MAM-01
-    Will create: F-02T-0FV-08I-05-08-08D
+   ✅ Will create: F-02T-0FV-08I-05-08-08D
       Detail: STK-MAM-01 Tschiel Xs MAMMUT 26SS 1021-01010
 
 Row 333: STK-MAM-01
-    Will create: F-02T-0FV-08J-05-08-08D
+   ✅ Will create: F-02T-0FV-08J-05-08-08D
       Detail: STK-MAM-01 Tschiel Xxl MAMMUT 26SS 1021-01010
 
 Row 334: STK-MAM-01
-    Will create: F-02T-0FV-084-05-08-03P
+   ✅ Will create: F-02T-0FV-084-05-08-03P
       Detail: STK-MAM-01 Tschiel L MAMMUT 26SS 1022-00285
 
 Row 335: STK-MAM-01
-    Will create: F-02T-0FV-088-05-08-03P
+   ✅ Will create: F-02T-0FV-088-05-08-03P
       Detail: STK-MAM-01 Tschiel M MAMMUT 26SS 1022-00285
 
 Row 336: STK-MAM-01
-    Will create: F-02T-0FV-08F-05-08-03P
+   ✅ Will create: F-02T-0FV-08F-05-08-03P
       Detail: STK-MAM-01 Tschiel Xl MAMMUT 26SS 1022-00285
 
 Row 337: STK-MAM-01
-    Will create: F-02T-0FV-08I-05-08-03P
+   ✅ Will create: F-02T-0FV-08I-05-08-03P
       Detail: STK-MAM-01 Tschiel Xs MAMMUT 26SS 1022-00285
 
 Row 338: STK-MAM-01
-    Will create: F-02T-0FV-084-05-08-03S
+   ✅ Will create: F-02T-0FV-084-05-08-03S
       Detail: STK-MAM-01 Tschiel L MAMMUT 26SS 1022-02221
 
 Row 339: STK-MAM-01
-    Will create: F-02T-0FV-08F-05-08-03S
+   ✅ Will create: F-02T-0FV-08F-05-08-03S
       Detail: STK-MAM-01 Tschiel Xl MAMMUT 26SS 1022-02221
 
 Row 340: STK-MAM-01
-    Will create: F-02T-0FV-08I-05-08-03S
+   ✅ Will create: F-02T-0FV-08I-05-08-03S
       Detail: STK-MAM-01 Tschiel Xs MAMMUT 26SS 1022-02221
 
 Row 341: STK-MAM-01
-    Will create: F-02T-0FV-08J-05-08-03S
+   ✅ Will create: F-02T-0FV-08J-05-08-03S
       Detail: STK-MAM-01 Tschiel Xxl MAMMUT 26SS 1022-02221
 
 Row 342: STK-MAM-01
-    Will create: F-02T-0GO-084-05-08-087
+   ✅ Will create: F-02T-0GO-084-05-08-087
       Detail: STK-MAM-01 White L MAMMUT 26SS 1012-00540
 
 Row 343: STK-MAM-01
-    Will create: F-02T-0GO-088-05-08-087
+   ✅ Will create: F-02T-0GO-088-05-08-087
       Detail: STK-MAM-01 White M MAMMUT 26SS 1012-00540
 
 Row 344: STK-MAM-01
-    Will create: F-02T-0GO-08C-05-08-087
+   ✅ Will create: F-02T-0GO-08C-05-08-087
       Detail: STK-MAM-01 White S MAMMUT 26SS 1012-00540
 
 Row 345: STK-MAM-01
-    Will create: F-02T-0GO-08F-05-08-087
+   ✅ Will create: F-02T-0GO-08F-05-08-087
       Detail: STK-MAM-01 White Xl MAMMUT 26SS 1012-00540
 
 Row 346: STK-MAM-01
-    Will create: F-02T-0GO-08I-05-08-087
+   ✅ Will create: F-02T-0GO-08I-05-08-087
       Detail: STK-MAM-01 White Xs MAMMUT 26SS 1012-00540
 
 Row 347: STK-MAM-01
-    Will create: F-02T-0GO-088-05-08-02K
+   ✅ Will create: F-02T-0GO-088-05-08-02K
       Detail: STK-MAM-01 White M MAMMUT 26SS 1012-00950
 
 Row 348: STK-MAM-01
-    Will create: F-02T-0GO-088-05-08-02P
+   ✅ Will create: F-02T-0GO-088-05-08-02P
       Detail: STK-MAM-01 White M MAMMUT 26SS 1012-00960
 
 Row 349: THMADEIRA
-    Will create: H-01Q-046-058-05-08
+   ✅ Will create: H-01Q-046-058-05-08
       Detail: THMADEIRA 1002 5000M MAMMUT 26SS
 
 Row 350: PN/2015/2 ECO
-    Will create: G-0CB-000-09D-06-00
+   ✅ Will create: G-0CB-000-09D-06-00
       Detail: PN/2015/2 ECO Blank BETU MIZUNO Blank
 
 Row 351: 4899EDK-N
-    Will create: C-00G-0CG-000-0E-08
+   ✅ Will create: C-00G-0CG-000-0E-08
       Detail: 4899EDK-N N90 Blank TNF 26SS
 
 Row 352: RAGWG1
-    Will create: F-02B-000-000-0E-08
+   ✅ Will create: F-02B-000-000-0E-08
       Detail: RAGWG1 Blank Blank TNF 26SS
 
 Row 353: EC141P20
-    Will create: G-05M-087-000-0E-08
+   ✅ Will create: G-05M-087-000-0E-08
       Detail: EC141P20 Cle Blank TNF 26SS
 
 Row 354: NFH01
-    Will create: G-080-000-000-0E-08-07P
+   ✅ Will create: G-080-000-000-0E-08-07P
       Detail: NFH01 Blank Blank TNF 26SS NP62515
 
 Row 355: NFPL5
-    Will create: F-01O-000-000-0E-08
+   ✅ Will create: F-01O-000-000-0E-08
       Detail: NFPL5 Blank Blank TNF 26SS
 
 Row 356: TSGW724N
-    Will create: G-0BX-000-000-0E-08
+   ✅ Will create: G-0BX-000-000-0E-08
       Detail: TSGW724N Blank Blank TNF 26SS
 
 Row 357: 0DSPD54
-    Will create: G-005-000-000-0E-08
+   ✅ Will create: G-005-000-000-0E-08
       Detail: 0DSPD54 Blank Blank TNF 26SS
 
 Row 358: 2QM-SP1096
-    Will create: G-013-032-000-0E-08
+   ✅ Will create: G-013-032-000-0E-08
       Detail: 2QM-SP1096 580 Blank TNF 26SS
 
 Row 359: 2QM-SP1096
-    Will create: G-013-0KI-000-0E-08
+   ✅ Will create: G-013-0KI-000-0E-08
       Detail: 2QM-SP1096 884 Blank TNF 26SS
 
 Row 360: 2QM-SP1098
-    Will create: G-014-032-000-0E-08
+   ✅ Will create: G-014-032-000-0E-08
       Detail: 2QM-SP1098 580 Blank TNF 26SS
 
 Row 361: 2QM-SP1098
-    Will create: G-014-0KI-000-0E-08
+   ✅ Will create: G-014-0KI-000-0E-08
       Detail: 2QM-SP1098 884 Blank TNF 26SS
 
 Row 362: 3CT1009LHF
-    Will create: G-01U-030-06M-0E-08
+   ✅ Will create: G-01U-030-06M-0E-08
       Detail: 3CT1009LHF 576 66CM TNF 26SS
 
 Row 363: 3CT1009LHF
-    Will create: G-01U-030-06R-0E-08
+   ✅ Will create: G-01U-030-06R-0E-08
       Detail: 3CT1009LHF 576 68CM TNF 26SS
 
 Row 364: 3CT1009LHF
-    Will create: G-01U-030-073-0E-08
+   ✅ Will create: G-01U-030-073-0E-08
       Detail: 3CT1009LHF 576 70CM TNF 26SS
 
 Row 365: 3CT1009LHF
-    Will create: G-01U-032-06M-0E-08
+   ✅ Will create: G-01U-032-06M-0E-08
       Detail: 3CT1009LHF 580 66CM TNF 26SS
 
 Row 366: 3CT1009LHF
-    Will create: G-01U-032-06R-0E-08
+   ✅ Will create: G-01U-032-06R-0E-08
       Detail: 3CT1009LHF 580 68CM TNF 26SS
 
 Row 367: 3CT1009LHF
-    Will create: G-01U-032-073-0E-08
+   ✅ Will create: G-01U-032-073-0E-08
       Detail: 3CT1009LHF 580 70CM TNF 26SS
 
 Row 368: N3CDFBWFR0
-    Will create: G-07V-030-02X-0E-08
+   ✅ Will create: G-07V-030-02X-0E-08
       Detail: N3CDFBWFR0 576 20CM TNF 26SS
 
 Row 369: N3CDFBWFR0
-    Will create: G-07V-032-02X-0E-08
+   ✅ Will create: G-07V-032-02X-0E-08
       Detail: N3CDFBWFR0 580 20CM TNF 26SS
 
 Row 370: 1QN-SP1095
-    Will create: G-00O-032-000-0E-08
+   ✅ Will create: G-00O-032-000-0E-08
       Detail: 1QN-SP1095 580 Blank TNF 26SS
 
 Row 371: 1QN-SP1095
-    Will create: G-00O-0KI-000-0E-08
+   ✅ Will create: G-00O-0KI-000-0E-08
       Detail: 1QN-SP1095 884 Blank TNF 26SS
 
 Row 372: 1QN-SP1097
-    Will create: G-00P-032-000-0E-08
+   ✅ Will create: G-00P-032-000-0E-08
       Detail: 1QN-SP1097 580 Blank TNF 26SS
 
 Row 373: 1QN-SP1097
-    Will create: G-00P-0KI-000-0E-08
+   ✅ Will create: G-00P-0KI-000-0E-08
       Detail: 1QN-SP1097 884 Blank TNF 26SS
 
 Row 374: TG03-8PB
-    Will create: G-0BK-032-000-0E-08
+   ✅ Will create: G-0BK-032-000-0E-08
       Detail: TG03-8PB 580 Blank TNF 26SS
 
 Row 375: TG0313EDYE
-    Will create: G-0BJ-032-000-0E-08
+   ✅ Will create: G-0BJ-032-000-0E-08
       Detail: TG0313EDYE 580 Blank TNF 26SS
 
 Row 376: 6AY
-    Will create: G-02W-043-000-0E-08
+   ✅ Will create: G-02W-043-000-0E-08
       Detail: 6AY 998 Blank TNF 26SS
 
 Row 377: P55598
-    Will create: C-01K-06U-000-0E-08
+   ✅ Will create: C-01K-06U-000-0E-08
       Detail: P55598 Blk Blank TNF 26SS
 
 Row 378: 23RE1758119
-    Will create: G-00V-06J-02Y-0E-08
+   ✅ Will create: G-00V-06J-02Y-0E-08
       Detail: 23RE1758119 Bk 20Mm TNF 26SS
 
 Row 379: T7381
-    Will create: C-029-06C-000-0E-08
+   ✅ Will create: C-029-06C-000-0E-08
       Detail: T7381 B95 Blank TNF 26SS
 
 Row 380: CLTMECO
-    Will create: G-04T-06U-000-0E-08
+   ✅ Will create: G-04T-06U-000-0E-08
       Detail: CLTMECO Blk Blank TNF 26SS
 
 Row 381: CLX-1ECO
-    Will create: G-04X-06U-000-0E-08
+   ✅ Will create: G-04X-06U-000-0E-08
       Detail: CLX-1ECO Blk Blank TNF 26SS
 
 Row 382: CSN4-MECO
-    Will create: G-056-06U-000-0E-08
+   ✅ Will create: G-056-06U-000-0E-08
       Detail: CSN4-MECO Blk Blank TNF 26SS
 
 Row 383: OP586-3
-    Will create: G-08G-06U-000-0E-08
+   ✅ Will create: G-08G-06U-000-0E-08
       Detail: OP586-3 Blk Blank TNF 26SS
 
 Row 384: MC-10W
-    Will create: G-07P-0BH-000-0E-08
+   ✅ Will create: G-07P-0BH-000-0E-08
       Detail: MC-10W LG Blank TNF 26SS
 
 Row 385: EC141-SHEET
-    Will create: D-00H-087-000-0E-08
+   ✅ Will create: D-00H-087-000-0E-08
       Detail: EC141-SHEET Cle Blank TNF 26SS
 
 Row 386: MAM-100/B
-    Will create: G-07E-050-000-05-08
+   ✅ Will create: G-07E-050-000-05-08
       Detail: MAM-100/B 13918 Blank MAMMUT 26SS
 
 Row 387: MAM-100/B
-    Will create: G-07E-04Z-000-05-08
+   ✅ Will create: G-07E-04Z-000-05-08
       Detail: MAM-100/B 10998 Blank MAMMUT 26SS
 
 Row 388: MAM-110/B
-    Will create: G-07H-050-000-05-08
+   ✅ Will create: G-07H-050-000-05-08
       Detail: MAM-110/B 13918 Blank MAMMUT 26SS
 
 Row 389: MAM-110/B
-    Will create: G-07H-04Z-000-05-08
+   ✅ Will create: G-07H-04Z-000-05-08
       Detail: MAM-110/B 10998 Blank MAMMUT 26SS
 
 Row 390: MAM-120/B
-    Will create: G-07K-050-000-05-08
+   ✅ Will create: G-07K-050-000-05-08
       Detail: MAM-120/B 13918 Blank MAMMUT 26SS
 
 Row 391: MAM-120/B
-    Will create: G-07K-04Z-000-05-08
+   ✅ Will create: G-07K-04Z-000-05-08
       Detail: MAM-120/B 10998 Blank MAMMUT 26SS
 
 Row 392: MAM-102/B
-    Will create: G-07G-0KJ-000-05-08
+   ✅ Will create: G-07G-0KJ-000-05-08
       Detail: MAM-102/B 503 Blank MAMMUT 26SS
 
 Row 393: MAM-112/B
-    Will create: G-07J-0KJ-000-05-08
+   ✅ Will create: G-07J-0KJ-000-05-08
       Detail: MAM-112/B 503 Blank MAMMUT 26SS
 
 Row 394: MAM-122/B
-    Will create: G-07M-0KJ-000-05-08
+   ✅ Will create: G-07M-0KJ-000-05-08
       Detail: MAM-122/B 503 Blank MAMMUT 26SS
 
 Row 395: K75H
-    Will create: H-01J-0KK-000-06-00
+   ✅ Will create: H-01J-0KK-000-06-00
       Detail: K75H 180 Blank MIZUNO Blank
 
 Row 396: K75H
-    Will create: H-01J-0KL-000-06-00
+   ✅ Will create: H-01J-0KL-000-06-00
       Detail: K75H 380 Blank MIZUNO Blank
 
 Row 397: K75H
-    Will create: H-01J-0KM-000-06-00
+   ✅ Will create: H-01J-0KM-000-06-00
       Detail: K75H 652 Blank MIZUNO Blank
 
 Row 398: SK-YX0066C
-    Will create: C-01Z-0GO-000-05-08
+   ✅ Will create: C-01Z-0GO-000-05-08
       Detail: SK-YX0066C White Blank MAMMUT 26SS
 
 Row 399: 8055441
-    Will create: G-0CX-032-07J-06-00
+   ✅ Will create: G-0CX-032-07J-06-00
       Detail: 8055441 580 78CM MIZUNO Blank
 
 Row 400: NS5
-    Will create: G-0CN-000-000-06-00-000
+   ✅ Will create: G-0CN-000-000-06-00-000
       Detail: NS5 Blank Blank MIZUNO Blank Blank
 
 Row 401: LNT-18061
-    Will create: C-014-08S-000-05-08
+   ✅ Will create: C-014-08S-000-05-08
       Detail: LNT-18061 Deep Black Blank MAMMUT 26SS

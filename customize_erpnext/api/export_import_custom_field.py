@@ -92,16 +92,16 @@ def import_custom_fields_to_site(input_file, update_existing=True):
                 cf.update(cf_data)
                 cf.save()
                 updated_count += 1
-                print(f" Đã cập nhật Custom Field: {cf_data.get('dt')}.{cf_data.get('fieldname')}")
+                print(f"✅ Đã cập nhật Custom Field: {cf_data.get('dt')}.{cf_data.get('fieldname')}")
             elif not existing:
                 # Tạo custom field mới
                 cf = frappe.new_doc("Custom Field")
                 cf.update(cf_data)
                 cf.insert()
                 imported_count += 1
-                print(f" Đã tạo Custom Field: {cf_data.get('dt')}.{cf_data.get('fieldname')}")
+                print(f"✅ Đã tạo Custom Field: {cf_data.get('dt')}.{cf_data.get('fieldname')}")
             else:
-                print(f" Bỏ qua Custom Field đã tồn tại: {cf_data.get('dt')}.{cf_data.get('fieldname')}")
+                print(f"⚠️ Bỏ qua Custom Field đã tồn tại: {cf_data.get('dt')}.{cf_data.get('fieldname')}")
         
         except Exception as e:
             error_count += 1

@@ -33,7 +33,7 @@ def bulk_import_overtime(file_path=None):
         # Đọc Excel
         print("📖 Đọc file Excel...")
         df = pd.read_excel(file_path, sheet_name='OT Register - 1 to 5 Oct')
-        print(f" Đọc được {len(df)} dòng dữ liệu")
+        print(f"✅ Đọc được {len(df)} dòng dữ liệu")
 
         # Chuyển đổi cột Date sang datetime
         df['Date (OT Employees List)'] = pd.to_datetime(df['Date (OT Employees List)'])
@@ -121,7 +121,7 @@ def bulk_import_overtime(file_path=None):
                 for _, row in group_df.iterrows():
                     employee_id = row['Employee (OT Employees List)']
                     if not frappe.db.exists("Employee", employee_id):
-                        print(f"    Employee không tồn tại: {employee_id}")
+                        print(f"  ⚠️  Employee không tồn tại: {employee_id}")
                         continue
 
                     valid_employees.append({
@@ -144,7 +144,7 @@ def bulk_import_overtime(file_path=None):
                 num_batches = (total_employees + batch_size - 1) // batch_size  # Làm tròn lên
 
                 if total_employees > batch_size:
-                    print(f"    Tổng {total_employees} dòng > 1000, tách làm {num_batches} phiếu")
+                    print(f"  ⚠️  Tổng {total_employees} dòng > 1000, tách làm {num_batches} phiếu")
 
                 for batch_num in range(num_batches):
                     start_idx = batch_num * batch_size
@@ -173,7 +173,7 @@ def bulk_import_overtime(file_path=None):
                     # Commit
                     frappe.db.commit()
 
-                    print(f"   Tạo thành công: {ot_doc.name} ({len(ot_doc.ot_employees)} employees)")
+                    print(f"  ✅ Tạo thành công: {ot_doc.name} ({len(ot_doc.ot_employees)} employees)")
                     success_count += 1
 
             except Exception as e:
@@ -190,7 +190,7 @@ def bulk_import_overtime(file_path=None):
         # Báo cáo kết quả
         print("\n" + "=" * 80)
         print("📊 KẾT QUẢ CUỐI CÙNG:")
-        print(f" Thành công: {success_count}/{len(grouped)} registrations")
+        print(f"✅ Thành công: {success_count}/{len(grouped)} registrations")
         print(f"❌ Thất bại: {error_count}/{len(grouped)} registrations")
 
         if errors:
@@ -223,10 +223,10 @@ print("""
    script.run()
 
 3. Script sẽ tự động:
-    Đọc sheet 'OT Registers - All'
-    Lọc dữ liệu tháng 1-9/2025
-    Tạo 6 Overtime Registration mỗi tháng (1-5, 6-10, 11-15, 16-20, 21-25 và 26-cuối tháng)
-    Điền chi tiết nhân viên vào bảng ot_employees
+   ✅ Đọc sheet 'OT Registers - All'
+   ✅ Lọc dữ liệu tháng 1-9/2025
+   ✅ Tạo 6 Overtime Registration mỗi tháng (1-5, 6-10, 11-15, 16-20, 21-25 và 26-cuối tháng)
+   ✅ Điền chi tiết nhân viên vào bảng ot_employees
 
 📝 CẤU TRÚC DỮ LIỆU:
    - Date (OT Employees List) → date

@@ -61,7 +61,7 @@ Script: {__file__}
     
     def log_success(self, message, print_console=True):
         """Log thành công"""
-        self.log(f" {message}", "SUCCESS", print_console)
+        self.log(f"✅ {message}", "SUCCESS", print_console)
     
     def log_error(self, message, print_console=True):
         """Log lỗi"""
@@ -69,7 +69,7 @@ Script: {__file__}
     
     def log_warning(self, message, print_console=True):
         """Log cảnh báo"""
-        self.log(f" {message}", "WARNING", print_console)
+        self.log(f"⚠️ {message}", "WARNING", print_console)
     
     def log_info(self, message, print_console=True):
         """Log thông tin"""
@@ -907,22 +907,22 @@ def create_stock_entry_for_group(custom_no, group_df):
         # **QUAN TRỌNG**: Validate và set lại posting fields trước khi save
         if not getattr(stock_entry, 'set_posting_time', None):
             stock_entry.set_posting_time = 1
-            logger.log_warning(f"   Re-setting set_posting_time = 1")
+            logger.log_warning(f"  ⚠️ Re-setting set_posting_time = 1")
         
         # Đảm bảo posting_date không rỗng
         if not getattr(stock_entry, 'posting_date', None):
             stock_entry.posting_date = nowdate()
-            logger.log_warning(f"   Re-setting posting_date = {nowdate()}")
+            logger.log_warning(f"  ⚠️ Re-setting posting_date = {nowdate()}")
             
         # Đảm bảo posting_time không rỗng
         if not getattr(stock_entry, 'posting_time', None):
             stock_entry.posting_time = "17:00:00"
-            logger.log_warning(f"   Re-setting posting_time = 17:00:00")
+            logger.log_warning(f"  ⚠️ Re-setting posting_time = 17:00:00")
         
         # Lưu Stock Entry
         logger.log_info(f"  💾 Saving Stock Entry...")
         stock_entry.save()
-        logger.log_success(f"   Stock Entry saved: {stock_entry.name}")
+        logger.log_success(f"  ✅ Stock Entry saved: {stock_entry.name}")
         
         # Debug: Load lại document và kiểm tra posting fields sau khi save
         saved_doc = frappe.get_doc("Stock Entry", stock_entry.name)
@@ -991,7 +991,7 @@ def create_stock_entry_doc(first_row, custom_no):
     
     # Set posting_date
     stock_entry.posting_date = final_posting_date
-    logger.log_info(f"   Set posting_date = {final_posting_date}")
+    logger.log_info(f"  ✅ Set posting_date = {final_posting_date}")
     
     # Thiết lập posting_time
     posting_time_value = first_row.get('posting_time')
@@ -1020,7 +1020,7 @@ def create_stock_entry_doc(first_row, custom_no):
     
     # Set posting_time
     stock_entry.posting_time = final_posting_time
-    logger.log_info(f"   Set posting_time = {final_posting_time}")
+    logger.log_info(f"  ✅ Set posting_time = {final_posting_time}")
     
     # Debug: In ra các field đã set
     logger.log_info(f"  🔍 Debug fields set:")
@@ -1099,7 +1099,7 @@ def find_item_by_pattern(pattern_search):
             # Cache the result
             item_cache[pattern_search] = items[0]
             if logger:
-                logger.log_info(f"   Found exact match: {items[0]['item_code']} - {items[0]['custom_item_name_detail']}")
+                logger.log_info(f"  ✅ Found exact match: {items[0]['item_code']} - {items[0]['custom_item_name_detail']}")
             return items[0]
         
         # Cache negative result as well

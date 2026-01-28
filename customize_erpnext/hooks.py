@@ -322,9 +322,44 @@ doc_events = {
     "Item": {
         "validate": "customize_erpnext.api.bulk_update_scripts.item_update_barcode.auto_add_barcode_on_item_save"
     },
-}
 
-# CSS/JS Includes
+}
+ 
+
+# Fixtures (for initial setup)
+# fixtures = [
+#     {
+#         "doctype": "Custom Field",
+#         "filters": {
+#             "dt": ["in", ["Employee"]]
+#         }
+#     }
+# ]
+
+# boot_session = "customize_erpnext.override_methods.employee_checkin_or.apply_monkey_patch"
+# Hook on document methods and events
+# doc_events = {
+#     # "Item": {
+#     #     "after_insert": "customize_erpnext.doc_events.item.update_item_variant" 
+#     # }
+# } 
+# required_apps = []
+
+# Each item in the list will be shown as an app in the apps page
+# add_to_apps_screen = [
+# 	{
+# 		"name": "customize_erpnext",
+# 		"logo": "/assets/customize_erpnext/logo.png",
+# 		"title": "Customize Erpnext",
+# 		"route": "/customize_erpnext",
+# 		"has_permission": "customize_erpnext.api.permission.has_app_permission"
+# 	}
+# ]
+
+# Includes in <head>
+# ------------------
+
+# include js, css files in header of desk.html
 # Include Cropper.js library for image cropping
 app_include_css = [
     "https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css"

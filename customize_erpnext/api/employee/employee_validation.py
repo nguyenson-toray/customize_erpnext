@@ -41,7 +41,7 @@ def validate_employee_changes(doc, method=None):
             ['name', 'attendance_device_id'],
             as_dict=True
         )
-\
+
         if not old_doc:
             return
 

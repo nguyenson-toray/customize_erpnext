@@ -61,7 +61,7 @@ Script: {__file__}
     
     def log_success(self, message, print_console=True):
         """Log thành công"""
-        self.log(f" {message}", "SUCCESS", print_console)
+        self.log(f"✅ {message}", "SUCCESS", print_console)
     
     def log_error(self, message, print_console=True):
         """Log lỗi"""
@@ -69,7 +69,7 @@ Script: {__file__}
     
     def log_warning(self, message, print_console=True):
         """Log cảnh báo"""
-        self.log(f" {message}", "WARNING", print_console)
+        self.log(f"⚠️ {message}", "WARNING", print_console)
     
     def log_info(self, message, print_console=True):
         """Log thông tin"""
@@ -998,22 +998,22 @@ def create_stock_entry_for_group(custom_no, group_df):
         # Đảm bảo set_posting_time = 1 không bị override
         if not getattr(stock_entry, 'set_posting_time', None):
             stock_entry.set_posting_time = 1
-            logger.log_warning(f"   Re-setting set_posting_time = 1")
+            logger.log_warning(f"  ⚠️ Re-setting set_posting_time = 1")
         
         # Đảm bảo posting_date không rỗng
         if not getattr(stock_entry, 'posting_date', None):
             stock_entry.posting_date = nowdate()
-            logger.log_warning(f"   Re-setting posting_date = {nowdate()}")
+            logger.log_warning(f"  ⚠️ Re-setting posting_date = {nowdate()}")
             
         # Đảm bảo posting_time không rỗng
         if not getattr(stock_entry, 'posting_time', None):
             stock_entry.posting_time = "17:00:00"
-            logger.log_warning(f"   Re-setting posting_time = 17:00:00")
+            logger.log_warning(f"  ⚠️ Re-setting posting_time = 17:00:00")
         
         # Lưu Stock Entry
         logger.log_info(f"  💾 Saving Stock Entry...")
         stock_entry.save()
-        logger.log_success(f"   Stock Entry saved: {stock_entry.name}")
+        logger.log_success(f"  ✅ Stock Entry saved: {stock_entry.name}")
         
         # Debug: Load lại document và kiểm tra posting fields sau khi save
         saved_doc = frappe.get_doc("Stock Entry", stock_entry.name)
@@ -1082,7 +1082,7 @@ def create_stock_entry_doc(first_row, custom_no):
     
     # Set posting_date
     stock_entry.posting_date = final_posting_date
-    logger.log_info(f"   Set posting_date = {final_posting_date}")
+    logger.log_info(f"  ✅ Set posting_date = {final_posting_date}")
     
     # Thiết lập posting_time
     posting_time_value = first_row.get('posting_time')
@@ -1111,7 +1111,7 @@ def create_stock_entry_doc(first_row, custom_no):
     
     # Set posting_time
     stock_entry.posting_time = final_posting_time
-    logger.log_info(f"   Set posting_time = {final_posting_time}")
+    logger.log_info(f"  ✅ Set posting_time = {final_posting_time}")
     
     # Debug: In ra các field đã set
     logger.log_info(f"  🔍 Debug fields set:")
@@ -1201,7 +1201,7 @@ def find_item_by_pattern(pattern_search):
             # Cache the result
             item_cache[pattern_search] = items[0]
             if logger:
-                logger.log_info(f"   Found exact match: {items[0]['item_code']} - {items[0]['custom_item_name_detail']}")
+                logger.log_info(f"  ✅ Found exact match: {items[0]['item_code']} - {items[0]['custom_item_name_detail']}")
             return items[0]
         
         # Cache negative result as well
@@ -1448,7 +1448,7 @@ def debug_posting_date_issue():
             print(f"\n💾 Saving test document...")
             test_doc.save()
             
-            print(f" Saved with name: {test_doc.name}")
+            print(f"✅ Saved with name: {test_doc.name}")
             
             # Load lại và kiểm tra
             reloaded = frappe.get_doc("Stock Entry", test_doc.name)
@@ -1493,12 +1493,12 @@ def test_posting_date_formats():
         try:
             if hasattr(test_date, 'strftime'):
                 formatted = test_date.strftime('%Y-%m-%d')
-                print(f"   Formatted: {formatted}")
+                print(f"  ✅ Formatted: {formatted}")
             elif isinstance(test_date, str):
-                print(f"   String as-is: {test_date}")
+                print(f"  ✅ String as-is: {test_date}")
             else:
                 converted = str(test_date)
-                print(f"   Converted: {converted}")
+                print(f"  ✅ Converted: {converted}")
         except Exception as e:
             print(f"  ❌ Error: {str(e)}")
 
@@ -1601,7 +1601,7 @@ def validate_custom_item_name_detail_uniqueness():
             if len(duplicate_items) > 10:
                 print(f"  ... and {len(duplicate_items) - 10} more duplicates")
         else:
-            print(f"\n ALL CUSTOM_ITEM_NAME_DETAIL ARE UNIQUE!")
+            print(f"\n✅ ALL CUSTOM_ITEM_NAME_DETAIL ARE UNIQUE!")
         
         return {
             "total_items": total_items,
@@ -1704,7 +1704,7 @@ def test_item_lookup_performance():
         print(f"    - Success rate: {sum(pattern_results)}/{len(pattern_results)} ({sum(pattern_results)/len(pattern_results)*100:.1f}%)")
         
         improvement = ((pattern_time - exact_time) / pattern_time) * 100
-        print(f"\n Performance improvement: {improvement:.1f}% faster with exact match")
+        print(f"\n✅ Performance improvement: {improvement:.1f}% faster with exact match")
         
         return {
             "exact_time": exact_time,
@@ -1783,7 +1783,7 @@ def debug_available_qty_calculation(item_code, warehouse, invoice_number):
         print(f"Manual calculation: {running_balance}")
         
         if abs(calculated_qty - running_balance) < 0.001:
-            print(" Calculations match!")
+            print("✅ Calculations match!")
         else:
             print("❌ Calculations don't match!")
         
@@ -1880,7 +1880,7 @@ def validate_stock_balance_by_invoice(item_code=None, warehouse=None, invoice_nu
                 'difference': difference
             })
         else:
-            print(" Match")
+            print("✅ Match")
         
         print("-" * 40)
     
@@ -1889,7 +1889,7 @@ def validate_stock_balance_by_invoice(item_code=None, warehouse=None, invoice_nu
         for issue in validation_issues:
             print(f"  - {issue['item_code']} | {issue['warehouse']} | {issue['invoice_number']}: diff={issue['difference']}")
     else:
-        print(f"\n All {len(results)} calculations are correct!")
+        print(f"\n✅ All {len(results)} calculations are correct!")
     
     return {
         "total_checked": len(results),

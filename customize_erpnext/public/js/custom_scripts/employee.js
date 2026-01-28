@@ -43,12 +43,6 @@ frappe.ui.form.on('Employee', {
     onload: function (frm) {
         // Load province options for both current and permanent address
         load_province_options(frm);
-
-        // Store initial state of maternity tracking for change detection
-        if (!frm.is_new() && frm.doc.custom_maternity_tracking) {
-            console.log('📝 onload: Storing initial custom_maternity_tracking, count:', frm.doc.custom_maternity_tracking.length);
-            frm._initial_maternity_tracking = JSON.parse(JSON.stringify(frm.doc.custom_maternity_tracking));
-        }
     },
 
     refresh: function (frm) {
@@ -273,7 +267,7 @@ frappe.ui.form.on('Employee', {
         }
 
         // Validate maternity tracking date overlaps
-        if (frm.doc.custom_maternity_tracking && frm.doc.custom_maternity_tracking.length > 1) {
+        if (frm.doc.maternity_tracking && frm.doc.maternity_tracking.length > 1) {
             if (!validate_all_maternity_periods(frm)) {
                 frappe.validated = false;
             }
@@ -284,16 +278,7 @@ frappe.ui.form.on('Employee', {
         build_address_full_for_type(frm, 'current');
         build_address_full_for_type(frm, 'place_of_origin');
     },
-
 });
-
-
-// ============================================================
-// MATERNITY TRACKING - AUTO UPDATE HANDLED BY BACKEND
-// ============================================================
-// Backend hooks automatically detect and update attendance when maternity
-// tracking changes. See: customize_erpnext/overrides/employee/employee.py
-
 
 // ============================================================
 // ADDRESS MANAGEMENT - REUSABLE FUNCTIONS
@@ -446,17 +431,12 @@ function validate_date_sequence(frm, cdt, cdn) {
 
 // Function to validate all maternity tracking periods on form save
 function validate_all_maternity_periods(frm) {
-    let maternity_tracking = frm.doc.custom_maternity_tracking || [];
+    let maternity_tracking = frm.doc.maternity_tracking || [];
     let valid_periods = [];
 
     // First, validate each row for date sequence
     for (let i = 0; i < maternity_tracking.length; i++) {
         let row = maternity_tracking[i];
-
-        // Skip deleted rows
-        if (row.__deleted || row.__isdeleted) {
-            continue;
-        }
 
         if (!row.from_date || !row.to_date) {
             continue; // Skip incomplete rows
@@ -529,12 +509,12 @@ function validate_maternity_date_overlap(frm, cdt, cdn) {
     }
 
     // Check for overlaps with other rows
-    let maternity_tracking = frm.doc.custom_maternity_tracking || [];
+    let maternity_tracking = frm.doc.maternity_tracking || [];
     let overlapping_rows = [];
 
     maternity_tracking.forEach(function (row) {
-        // Skip deleted rows, current row, and rows without both dates
-        if (row.__deleted || row.__isdeleted || row.name === current_row.name || !row.from_date || !row.to_date) {
+        // Skip current row and rows without both dates
+        if (row.name === current_row.name || !row.from_date || !row.to_date) {
             return;
         }
 
@@ -989,5 +969,3 @@ function load_commune_options_for_type(frm, address_type, province_name) {
     });
 }
 
-
-console.log('✅ Employee.js Custom Script Loaded - Maternity Tracking Auto-Update Enabled');
