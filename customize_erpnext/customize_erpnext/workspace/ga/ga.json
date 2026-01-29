@@ -26,6 +26,12 @@
  "roles": [
   {
    "role": "TIQN Staff"
+  },
+  {
+   "role": "Driver"
+  },
+  {
+   "role": "All"
   }
  ],
  "sequence_id": 1.1,
@@ -49,9 +55,33 @@
   {
    "color": "Grey",
    "doc_view": "List",
+   "label": "H\u00e0nh tr\u00ecnh xe",
+   "link_to": "Vehicle Trip",
+   "stats_filter": "[]",
+   "type": "DocType"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "Vehicle List",
+   "link_to": "Vehicle List",
+   "stats_filter": "[]",
+   "type": "DocType"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "List",
    "label": "Employee Item Reissue Report",
    "link_to": "Employee Item Reissue",
    "report_ref_doctype": "Employee Item Reissue",
+   "type": "Report"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "Vehicle Trip Report",
+   "link_to": "Vehicle Trip Report",
+   "report_ref_doctype": "Vehicle Trip",
    "type": "Report"
   }
  ],

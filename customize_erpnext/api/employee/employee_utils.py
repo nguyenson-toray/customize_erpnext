@@ -1973,7 +1973,7 @@ def generate_employee_list_html(employee_data, company_name, include_department=
         <style>
             @page {{
                 size: {orientation.lower()};
-                margin: 15mm 10mm;
+                margin: 2mm 15mm;
             }}
             body {{
                 font-family: Arial, sans-serif;
@@ -1988,7 +1988,7 @@ def generate_employee_list_html(employee_data, company_name, include_department=
             }}
             .header {{
                 text-align: center;
-                font-size: 14pt;
+                font-size: 12pt;
                 font-weight: bold;
                 margin-bottom: 20px;
             }}
@@ -2005,7 +2005,7 @@ def generate_employee_list_html(employee_data, company_name, include_department=
             }}
             th, td {{
                 border: 1px solid #000;
-                padding: 4px 6px;
+                padding: 2px 2px;
                 text-align: center;
                 vertical-align: middle;
                 font-size: 9pt;
@@ -2018,10 +2018,10 @@ def generate_employee_list_html(employee_data, company_name, include_department=
             text-align: left !important;
             }}
             .employee-photo-employee-list {{
-                width: 20mm;
-                height: 23.33mm !important;
-                max-width: 20mm;
-                max-height: 23.33mm !important;
+                width: 15mm;
+                height: 18.33mm !important;
+                max-width: 15mm;
+                max-height: 18.33mm !important;
                 object-fit: contain;
             }}
             .centered {{
@@ -2100,7 +2100,7 @@ def generate_employee_list_html(employee_data, company_name, include_department=
         
         # Add photo and notes column headers
         html += f"""
-                        <th style="width: 10%;">Hình ảnh</th>
+                        <th style="width: 9%;">Hình ảnh</th>
         """
         
         if include_notes:
@@ -2155,3 +2155,207 @@ def generate_employee_list_html(employee_data, company_name, include_department=
     """
     
     return html
+def check_employee_maternity_status(employee, attendance_date):
+	apply_pregnant_benefit = False
+	maternity_status = None
+	maternity_records = frappe.db.sql("""
+		SELECT type, from_date, to_date, apply_pregnant_benefit
+		FROM `tabMaternity Tracking`
+		WHERE parent = %(employee)s
+		  AND type IN ('Pregnant', 'Maternity Leave', 'Young Child')
+		  AND from_date <= %(date)s
+		  AND to_date >= %(date)s
+	""", {"employee": employee, "date": attendance_date}, as_dict=1 )
+	
+	if maternity_records: 
+		maternity_status = maternity_records[0].type
+		if maternity_records[0].type == 'Young Child':
+			apply_pregnant_benefit = True
+		elif maternity_records[0].type == 'Pregnant' and maternity_records[0].apply_pregnant_benefit:
+			apply_pregnant_benefit = True
+
+	return maternity_status, apply_pregnant_benefit
+
+@frappe.whitelist()
+def get_employees_of_assigntment_shifts_on_date(shift_type, attendance_date):
+	"""
+	Get employee's list by shift for the given date
+    Args:
+		shift_type: Shift Type
+		attendance_date: Date to check 
+	Returns:
+        employees : List employee have assignment shift on day, this shift or None
+	""" 
+	# get assigntment first
+	employees = frappe.db.get_list(
+	"Shift Assignment",
+	fields=['employee'],
+	filters={
+	'shift_type': shift_type,
+	'start_date': ['<=', attendance_date],
+	'end_date': ['>=', attendance_date],
+	},
+	pluck='name') 
+	
+	return employees or None
+
+def is_employees_have_assigntment_shifts_on_date(employee, shift_type, attendance_date):
+	"""
+	Check if employee has assignment shift for the given date and shift type
+	Args:
+		employee: Employee ID to check
+		shift_type: Shift Type
+		attendance_date: Date to check
+	Returns:
+		bool: True if employee has assignment shift, False otherwise
+	"""
+	assignment = False
+
+	# Check if employee has shift assignment for the given date and shift type
+	assignment = frappe.db.exists(
+		"Shift Assignment",
+		{
+			'employee': employee,
+			'shift_type': shift_type,
+			'start_date': ['<=', attendance_date],
+			'end_date': ['>=', attendance_date],
+		}
+	)
+
+	return assignment
+
+@frappe.whitelist()
+def get_default_shift_of_employee(employee, attendance_date=None):
+	"""
+	Get employee's default shift, checking shift assignment first if date provided
+	Args:
+		employee: Employee ID
+		attendance_date: Optional date to check for shift assignment (default: None)
+	Returns:
+		str: Shift Type name or None
+	"""
+	shift = None
+
+	# If date is provided, check shift assignment first
+	if attendance_date:
+		shift_assignment = frappe.db.get_value(
+			"Shift Assignment",
+			{
+				"employee": employee,
+				"start_date": ["<=", attendance_date],
+				"docstatus": 1,
+				"status": "Active"
+			},
+			["shift_type", "end_date"],
+			as_dict=True,
+			order_by="start_date desc"
+		)
+
+		if shift_assignment:
+			# Check if assignment has end_date and it's before attendance_date
+			if not shift_assignment.end_date or getdate(shift_assignment.end_date) >= getdate(attendance_date):
+				shift = shift_assignment.shift_type
+				return shift
+
+	# Fallback to employee's default shift
+	default_shift = frappe.db.get_value("Employee", employee, "default_shift")
+
+	return default_shift
+
+@frappe.whitelist()
+def get_employees_active_in_date_range(from_date, to_date, custom_group=None, employee=None):
+	"""
+	Get list of employees active in the specified date range
+
+	Args:
+		from_date: Start date of the range
+		to_date: End date of the range
+		custom_group: Optional filter by custom_group
+		employee: Optional filter by specific employee name
+
+	Returns:
+		list: List of employee names (strings) active in the date range
+	"""
+	# Build WHERE conditions
+	conditions = []
+	values = {"from_date": from_date, "to_date": to_date}
+
+	# Base condition: Employee active during the date range
+	# An employee is considered active if:
+	# 1. Status = 'Active' AND joined before or on to_date
+	# 2. Status = 'Left' AND joined before or on to_date AND (not left yet OR left after from_date)
+	conditions.append("""
+		(
+			(emp.status = 'Active'
+			 AND (emp.date_of_joining IS NULL OR emp.date_of_joining <= %(to_date)s))
+			OR
+			(emp.status = 'Left'
+			 AND (emp.date_of_joining IS NULL OR emp.date_of_joining <= %(to_date)s)
+			 AND (emp.relieving_date IS NULL OR emp.relieving_date > %(from_date)s))
+		)
+	""")
+
+	# Optional filter by custom_group
+	if custom_group:
+		conditions.append("emp.custom_group = %(custom_group)s")
+		values["custom_group"] = custom_group
+
+	# Optional filter by specific employee
+	if employee:
+		conditions.append("emp.name = %(employee)s")
+		values["employee"] = employee
+
+	# Build final query
+	query = f"""
+		SELECT emp.name
+		FROM `tabEmployee` emp
+		WHERE {" AND ".join(conditions)}
+		ORDER BY emp.name
+	"""
+
+	# Execute query and return list of employee names
+	result = frappe.db.sql(query, values, as_dict=False)
+
+	# Extract employee names from result tuples
+	employee_names = [row[0] for row in result] if result else []
+
+	return employee_names
+
+@frappe.whitelist()
+def get_all_active_employees(date):
+	"""
+	Get ALL active employees with their details
+	Includes:
+	- Active employees who already joined (date_of_joining <= target_date)
+	- Left employees who were still working on target date
+	  * relieving_date is the date employee LEFT (NOT working anymore)
+	  * So last working day = relieving_date - 1
+	  * Condition: target_date < relieving_date (employee still working on target_date)
+
+	UPDATED VERSION: Returns all employees regardless of check-in status
+	"""
+	return frappe.db.sql("""
+		SELECT
+			emp.name as employee,
+			emp.employee_name,
+			emp.department,
+			emp.custom_section,
+			emp.custom_group,
+			emp.company,
+			emp.date_of_joining,
+			emp.relieving_date,
+			emp.status
+		FROM `tabEmployee` emp
+		WHERE (
+			-- Active employees who already joined
+			(emp.status = 'Active'
+			 AND (emp.date_of_joining IS NULL OR emp.date_of_joining <= %(date)s))
+			OR
+			-- Left employees who were still working on this date
+			-- relieving_date is when they LEFT, so target_date must be BEFORE that
+			(emp.status = 'Left'
+			 AND (emp.date_of_joining IS NULL OR emp.date_of_joining <= %(date)s)
+			 AND (emp.relieving_date IS NULL OR emp.relieving_date > %(date)s))
+		)
+		ORDER BY emp.name
+	""", {"date": date}, as_dict=True)

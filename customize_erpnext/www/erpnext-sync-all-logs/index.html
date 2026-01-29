@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ERPNext Sync All Logs</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f7fa; padding: 20px; }
+        .container { max-width: 1400px; margin: 0 auto; }
+        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 25px 30px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h1 { font-size: 28px; margin-bottom: 8px; }
+        .subtitle { opacity: 0.9; font-size: 14px; }
+        .card { background: white; border-radius: 8px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .card-title { font-size: 16px; font-weight: 600; color: #2e3842; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 2px solid #e9ecef; }
+        .log-controls { display: flex; gap: 15px; flex-wrap: wrap; align-items: center; }
+        .control-group { display: flex; align-items: center; gap: 8px; }
+        .control-group label { font-weight: 500; color: #495057; font-size: 14px; white-space: nowrap; }
+        select, input[type="text"] { padding: 8px 12px; border: 1px solid #d1d8dd; border-radius: 4px; font-size: 14px; background: white; }
+        select { min-width: 350px; cursor: pointer; }
+        input[type="text"] { min-width: 250px; }
+        .stats { color: #6c757d; font-size: 13px; padding: 10px; background: #f8f9fa; border-radius: 4px; }
+        .loading { text-align: center; padding: 40px 20px; color: #6c757d; }
+        .spinner { border: 3px solid #f3f3f3; border-top: 3px solid #667eea; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin: 0 auto 15px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .log-container { background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); padding: 20px; max-height: calc(100vh - 350px); overflow-y: auto; }
+        .log-line { padding: 8px 12px; margin-bottom: 4px; border-left: 3px solid #6c757d; background: #f8f9fa; border-radius: 3px; font-family: 'Consolas', monospace; font-size: 12px; line-height: 1.5; word-wrap: break-word; white-space: pre-wrap; }
+        .log-line.error { border-left-color: #dc3545; background: #fff5f5; }
+        .log-line.warning { border-left-color: #ffc107; background: #fffbeb; }
+        .log-line.info { border-left-color: #17a2b8; background: #f0f9ff; }
+        .no-logs { text-align: center; padding: 60px 20px; color: #6c757d; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📄 ERPNext Sync All Logs</h1>
+            <p class="subtitle">Xem log đồng bộ dữ liệu chấm công</p>
+        </div>
+
+        <div class="card">
+            <div class="card-title">Log Viewer</div>
+            <div class="log-controls">
+                <div class="control-group">
+                    <label for="logFile">File:</label>
+                    <select id="logFile" onchange="loadLog()">
+                        <option value="">-- Chọn file log --</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label for="filterLevel">Filter:</label>
+                    <select id="filterLevel" onchange="filterLines()">
+                        <option value="ALL">Tất cả</option>
+                        <option value="ERROR">Chỉ Error</option>
+                        <option value="WARNING">Warning+</option>
+                        <option value="INFO">Info+</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label for="searchText">Search:</label>
+                    <input type="text" id="searchText" placeholder="Tìm kiếm..." onkeyup="filterLines()">
+                </div>
+            </div>
+            <div id="stats" class="stats">Chọn file log để xem</div>
+        </div>
+
+        <div id="loading" class="loading" style="display:none;">
+            <div class="spinner"></div>
+            <p>Đang tải log...</p>
+        </div>
+
+        <div id="logContainer" class="log-container">
+            <div class="no-logs">
+                <p style="font-size:1.2em;">👆 Chọn file log ở trên</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let allLines = [];
+
+        // Load log files on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            loadLogFiles();
+        });
+
+        async function loadLogFiles() {
+            try {
+                const response = await fetch('/api/method/customize_erpnext.api.biometric_log_viewer.get_log_files');
+                const data = await response.json();
+
+                if (data.message && data.message.status === 'success') {
+                    const files = data.message.files;
+                    const select = document.getElementById('logFile');
+                    select.innerHTML = '<option value="">-- Chọn file log --</option>';
+
+                    files.forEach(file => {
+                        const option = document.createElement('option');
+                        option.value = file;
+                        option.textContent = file;
+                        select.appendChild(option);
+                    });
+
+                    // Auto-select and load logs.log if it exists
+                    if (files.includes('logs.log')) {
+                        select.value = 'logs.log';
+                        loadLog();
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading log files:', error);
+            }
+        }
+
+        async function loadLog() {
+            const logFile = document.getElementById('logFile').value;
+
+            if (!logFile) {
+                document.getElementById('logContainer').innerHTML = '<div class="no-logs"><p style="font-size:1.2em;">👆 Chọn file log</p></div>';
+                return;
+            }
+
+            const loading = document.getElementById('loading');
+            const logContainer = document.getElementById('logContainer');
+
+            loading.style.display = 'block';
+            logContainer.style.display = 'none';
+
+            try {
+                const response = await fetch('/api/method/customize_erpnext.api.biometric_log_viewer.get_log_content?log_file=' + encodeURIComponent(logFile));
+                const data = await response.json();
+
+                if (data.message && data.message.status === 'success') {
+                    allLines = data.message.content.split('\n').filter(line => line.trim());
+                    allLines.reverse(); // Newest first
+
+                    loading.style.display = 'none';
+                    logContainer.style.display = 'block';
+                    filterLines();
+                }
+            } catch (error) {
+                loading.style.display = 'none';
+                logContainer.innerHTML = '<div class="no-logs"><p style="color:#dc3545;">❌ Lỗi: ' + error.message + '</p></div>';
+                logContainer.style.display = 'block';
+            }
+        }
+
+        function filterLines() {
+            const filterLevel = document.getElementById('filterLevel').value;
+            const searchText = document.getElementById('searchText').value.toLowerCase();
+            const logContainer = document.getElementById('logContainer');
+
+            let filteredLines = allLines;
+
+            // Filter by level
+            if (filterLevel !== 'ALL') {
+                const levels = {
+                    'ERROR': ['ERROR', 'CRITICAL'],
+                    'WARNING': ['ERROR', 'CRITICAL', 'WARNING'],
+                    'INFO': ['ERROR', 'CRITICAL', 'WARNING', 'INFO']
+                };
+
+                filteredLines = filteredLines.filter(line => {
+                    return levels[filterLevel].some(level => line.includes(level));
+                });
+            }
+
+            // Filter by search text
+            if (searchText) {
+                filteredLines = filteredLines.filter(line => line.toLowerCase().includes(searchText));
+            }
+
+            // Display lines
+            if (filteredLines.length === 0) {
+                logContainer.innerHTML = '<div class="no-logs"><p>Không tìm thấy log phù hợp</p></div>';
+            } else {
+                let html = '';
+                filteredLines.forEach(line => {
+                    let className = 'log-line';
+
+                    if (line.includes('ERROR') || line.includes('CRITICAL')) {
+                        className += ' error';
+                    } else if (line.includes('WARNING')) {
+                        className += ' warning';
+                    } else if (line.includes('INFO')) {
+                        className += ' info';
+                    }
+
+                    html += `<div class="${className}">${escapeHtml(line)}</div>`;
+                });
+
+                logContainer.innerHTML = html;
+            }
+
+            // Update stats
+            const stats = document.getElementById('stats');
+            stats.textContent = `Hiển thị ${filteredLines.length} / ${allLines.length} dòng`;
+        }
+
+        function escapeHtml(text) {
+            const map = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            };
+            return text.replace(/[&<>"']/g, m => map[m]);
+        }
+    </script>
+</body>
+</html>

@@ -3,46 +3,25 @@
   "assign_condition": "workflow_state  == 'Pending'",
   "assignment_days": [
    {
-    "day": "Monday",
-    "parent": "Overtime Registration",
-    "parentfield": "assignment_days",
-    "parenttype": "Assignment Rule"
+    "day": "Monday"
    },
    {
-    "day": "Tuesday",
-    "parent": "Overtime Registration",
-    "parentfield": "assignment_days",
-    "parenttype": "Assignment Rule"
+    "day": "Tuesday"
    },
    {
-    "day": "Wednesday",
-    "parent": "Overtime Registration",
-    "parentfield": "assignment_days",
-    "parenttype": "Assignment Rule"
+    "day": "Wednesday"
    },
    {
-    "day": "Thursday",
-    "parent": "Overtime Registration",
-    "parentfield": "assignment_days",
-    "parenttype": "Assignment Rule"
+    "day": "Thursday"
    },
    {
-    "day": "Friday",
-    "parent": "Overtime Registration",
-    "parentfield": "assignment_days",
-    "parenttype": "Assignment Rule"
+    "day": "Friday"
    },
    {
-    "day": "Saturday",
-    "parent": "Overtime Registration",
-    "parentfield": "assignment_days",
-    "parenttype": "Assignment Rule"
+    "day": "Saturday"
    },
    {
-    "day": "Sunday",
-    "parent": "Overtime Registration",
-    "parentfield": "assignment_days",
-    "parenttype": "Assignment Rule"
+    "day": "Sunday"
    }
   ],
   "close_condition": null,

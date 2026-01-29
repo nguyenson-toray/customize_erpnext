@@ -1,0 +1,89 @@
+[
+ {
+  "docstatus": 0,
+  "doctype": "Role Profile",
+  "modified": "2025-02-28 09:52:46",
+  "name": "MD",
+  "role_profile": "MD",
+  "roles": [
+   {
+    "parent": "MD",
+    "parentfield": "roles",
+    "parenttype": "Role Profile",
+    "role": "Sales Manager"
+   },
+   {
+    "parent": "MD",
+    "parentfield": "roles",
+    "parenttype": "Role Profile",
+    "role": "Sales Master Manager"
+   },
+   {
+    "parent": "MD",
+    "parentfield": "roles",
+    "parenttype": "Role Profile",
+    "role": "Sales User"
+   },
+   {
+    "parent": "MD",
+    "parentfield": "roles",
+    "parenttype": "Role Profile",
+    "role": "TIQN Staff"
+   },
+   {
+    "parent": "MD",
+    "parentfield": "roles",
+    "parenttype": "Role Profile",
+    "role": "Stock User"
+   },
+   {
+    "parent": "MD",
+    "parentfield": "roles",
+    "parenttype": "Role Profile",
+    "role": "Manufacturing User"
+   },
+   {
+    "parent": "MD",
+    "parentfield": "roles",
+    "parenttype": "Role Profile",
+    "role": "Item Manager"
+   }
+  ]
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Role Profile",
+  "modified": "2025-05-09 14:03:41",
+  "name": "TIQN All Employee",
+  "role_profile": "TIQN All Employee",
+  "roles": [
+   {
+    "parent": "TIQN All Employee",
+    "parentfield": "roles",
+    "parenttype": "Role Profile",
+    "role": "Employee"
+   }
+  ]
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Role Profile",
+  "modified": "2025-08-08 23:20:33",
+  "name": "TIQN Staff",
+  "role_profile": "TIQN Staff",
+  "roles": [
+   {
+    "parent": "TIQN Staff",
+    "parentfield": "roles",
+    "parenttype": "Role Profile",
+    "role": "TIQN Staff"
+   },
+   {
+    "parent": "TIQN Staff",
+    "parentfield": "roles",
+    "parenttype": "Role Profile",
+    "role": "Employee"
+   }
+  ]
+ }
+]

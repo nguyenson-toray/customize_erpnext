@@ -406,10 +406,12 @@ def get_employees_for_fingerprint():
         return {"success": False, "message": str(e)}
 
 def _prepare_employee_sync_data(employee_id):
-    """Helper: Prepare employee data for fingerprint sync (DRY principle)"""
+    """Helper: Prepare employee data for fingerprint sync (DRY principle)
+
+    Now supports syncing employees without fingerprint data - will sync user info only
+    """
     # Get employee data
-    employee = frappe.get_doc("Employee", employee_id,
-        ["employee", "employee_name", "attendance_device_id", "custom_privilege", "custom_password"])
+    employee = frappe.get_doc("Employee", employee_id)
 
     if not employee.attendance_device_id:
         return None, {
@@ -417,7 +419,7 @@ def _prepare_employee_sync_data(employee_id):
             "message": f"Employee {employee.employee} does not have attendance_device_id"
         }
 
-    # Get employee fingerprints
+    # Get employee fingerprints (optional now)
     fingerprints_data = frappe.db.sql("""
         SELECT finger_index, template_data
         FROM `tabFingerprint Data`
@@ -425,13 +427,8 @@ def _prepare_employee_sync_data(employee_id):
         ORDER BY finger_index
     """, employee_id, as_dict=True)
 
-    if not fingerprints_data:
-        return None, {
-            "success": False,
-            "message": f"Employee {employee.employee} has no fingerprint data"
-        }
-
-    fingerprints = [{"finger_index": fp.finger_index, "template_data": fp.template_data} for fp in fingerprints_data]
+    # Prepare fingerprints list (empty if no data)
+    fingerprints = [{"finger_index": fp.finger_index, "template_data": fp.template_data} for fp in fingerprints_data] if fingerprints_data else []
 
     # Prepare privilege
     try:
@@ -561,8 +558,7 @@ def sync_employee_to_single_machine(employee_id, machine_name):
             return error
 
         # Get specific machine
-        machine = frappe.get_doc("Attendance Machine", machine_name,
-            ["name", "device_name", "ip_address", "port", "timeout", "force_udp", "ommit_ping", "enable"])
+        machine = frappe.get_doc("Attendance Machine", machine_name)
 
         if not machine.enable:
             return {
@@ -753,10 +749,18 @@ def sync_to_single_machine(machine_config, employee_data):
             conn.save_user_template(user, templates_to_send)
             frappe.logger().info(f" Successfully synced {fingerprint_count} fingerprints for {employee_data['employee']}")
 
-            return {
-                "success": True,
-                "message": f"Successfully synced {fingerprint_count} fingerprints for user {attendance_device_id}"
-            }
+                return {
+                    "success": True,
+                    "message": f"Successfully synced {fingerprint_count} fingerprints for user {attendance_device_id}"
+                }
+            else:
+                # No fingerprints, but user info was synced successfully
+                frappe.logger().info(f"✅ Successfully synced user info (no fingerprints) for {employee_data['employee']}")
+
+                return {
+                    "success": True,
+                    "message": f"Successfully synced user info for {attendance_device_id} (no fingerprint data)"
+                }
 
         finally:
             # Re-enable device and disconnect

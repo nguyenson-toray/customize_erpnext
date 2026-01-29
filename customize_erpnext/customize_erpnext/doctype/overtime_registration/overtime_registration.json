@@ -41,6 +41,7 @@
    "default": "Today",
    "fieldname": "request_date",
    "fieldtype": "Date",
+   "in_standard_filter": 1,
    "label": "Request Date",
    "read_only": 1
   },
@@ -139,6 +140,7 @@
    "fetch_if_empty": 1,
    "fieldname": "requested_by_full_name",
    "fieldtype": "Data",
+   "in_standard_filter": 1,
    "label": "Request By",
    "read_only": 1
   },
@@ -155,7 +157,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2025-09-30 16:25:06.984562",
+ "modified": "2025-11-28 09:15:43.951015",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Overtime Registration",

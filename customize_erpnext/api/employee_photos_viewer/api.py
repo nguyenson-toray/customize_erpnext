@@ -37,7 +37,7 @@ def get_employee_photos(show_active_only=1, sort_order='asc', custom_group=''):
             filters['custom_group'] = custom_group
 
         employees = frappe.db.get_all('Employee',
-            fields=['name', 'employee_name', 'status', 'custom_group'],
+            fields=['name', 'employee_name', 'status', 'custom_group', 'cell_number', 'custom_current_address_full'],
             filters=filters
         )
 
@@ -47,7 +47,9 @@ def get_employee_photos(show_active_only=1, sort_order='asc', custom_group=''):
         employee_map = {emp['name']: {
             'employee_name': emp['employee_name'],
             'status': emp['status'],
-            'custom_group': emp.get('custom_group', '')
+            'custom_group': emp.get('custom_group', ''),
+            'cell_number': emp.get('cell_number', ''),
+            'custom_current_address_full': emp.get('custom_current_address_full', '')
         } for emp in employees}
 
         photos = []
@@ -78,6 +80,8 @@ def get_employee_photos(show_active_only=1, sort_order='asc', custom_group=''):
             employee_name = emp_info.get('employee_name', '') if emp_info else ''
             employee_status = emp_info.get('status', '') if emp_info else ''
             employee_group = emp_info.get('custom_group', '') if emp_info else ''
+            cell_number = emp_info.get('cell_number', '') if emp_info else ''
+            custom_current_address_full = emp_info.get('custom_current_address_full', '') if emp_info else ''
 
             # Create display name in format: "TIQN-XXXX Employee Name"
             display_name = f"{employee_id} {employee_name}" if employee_id and employee_name else filename
@@ -91,7 +95,9 @@ def get_employee_photos(show_active_only=1, sort_order='asc', custom_group=''):
                 'employee_id': employee_id,
                 'employee_name': employee_name,
                 'status': employee_status,
-                'custom_group': employee_group
+                'custom_group': employee_group,
+                'cell_number': cell_number,
+                'custom_current_address_full': custom_current_address_full
             })
 
         # Sort by display_name based on sort_order
