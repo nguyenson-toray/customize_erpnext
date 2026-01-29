@@ -55,9 +55,9 @@ def bulk_update_users_from_file(file_path=None):
         
         print(f"📦 Tìm thấy {len(all_modules)} modules")
         if "TIQN App" in module_names:
-            print(f"✅ Module 'TIQN App' có sẵn")
+            print(f" Module 'TIQN App' có sẵn")
         else:
-            print(f"⚠️  Module 'TIQN App' KHÔNG có!")
+            print(f"  Module 'TIQN App' KHÔNG có!")
             
     except Exception as e:
         print(f"❌ Lỗi lấy modules: {str(e)}")
@@ -104,7 +104,7 @@ def bulk_update_users_from_file(file_path=None):
                 user_doc.new_password = new_password
                 print(f"  🔑 Password: {new_password}")
             else:
-                print(f"  ⚠️  Không tạo được password - thiếu Employee/ngày sinh")
+                print(f"    Không tạo được password - thiếu Employee/ngày sinh")
             
             # === 2. CLEAR VÀ SET ROLES ===
             user_doc.roles = []  # Xóa tất cả roles
@@ -147,7 +147,7 @@ def bulk_update_users_from_file(file_path=None):
             # Commit sau khi save thành công
             frappe.db.commit()
             
-            print(f"✅ Thành công: {user_id}")
+            print(f" Thành công: {user_id}")
             success_count += 1
             
         except Exception as e:
@@ -165,7 +165,7 @@ def bulk_update_users_from_file(file_path=None):
     # === BÁO CÁO KẾT QUẢ ===
     print("\n" + "=" * 60)
     print("📊 KẾT QUẢ CUỐI CÙNG:")
-    print(f"✅ Thành công: {success_count}/{len(user_ids)} users")
+    print(f" Thành công: {success_count}/{len(user_ids)} users")
     print(f"❌ Thất bại: {error_count}/{len(user_ids)} users")
     
     if errors:
@@ -201,11 +201,11 @@ print("""
    run()
 
 3. Script sẽ tự động áp dụng:
-   ✅ Role: TIQN Registration
-   ✅ Module: Chỉ allow TIQN App  
-   ✅ Workspace: Registration
-   ✅ Language: vi
-   ✅ Password: PROPER(EmployeeID) + ddmm
+    Role: TIQN Registration
+    Module: Chỉ allow TIQN App  
+    Workspace: Registration
+    Language: vi
+    Password: PROPER(EmployeeID) + ddmm
 """)
 
 # CHẠY SCRIPT:

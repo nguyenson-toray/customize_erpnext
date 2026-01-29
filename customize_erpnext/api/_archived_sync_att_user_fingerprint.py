@@ -103,7 +103,7 @@ class AttendanceDeviceSync:
                     'fingerprints': conn.get_fp_version()
                 }
                 
-                logger.info(f"✅ Kết nối thành công với {device_name}")
+                logger.info(f" Kết nối thành công với {device_name}")
                 logger.info(f"   📱 Model: {device_info['device_name']}")
                 logger.info(f"   🔢 Serial: {device_info['serial']}")
                 logger.info(f"   👥 Số người dùng: {device_info['users']}")
@@ -128,7 +128,7 @@ class AttendanceDeviceSync:
                 self.connected_devices[device_id].enable_device()
                 self.connected_devices[device_id].disconnect()
                 del self.connected_devices[device_id]
-                logger.info(f"✅ Đã ngắt kết nối thiết bị ID: {device_id}")
+                logger.info(f" Đã ngắt kết nối thiết bị ID: {device_id}")
             except Exception as e:
                 logger.error(f"❌ Lỗi ngắt kết nối: {str(e)}")
     
@@ -197,7 +197,7 @@ class AttendanceDeviceSync:
                 return False
 
             if not fingerprints:
-                logger.warning(f"⚠️ Nhân viên {employee_data.get('employee', 'Unknown')} không có dữ liệu vân tay")
+                logger.warning(f" Nhân viên {employee_data.get('employee', 'Unknown')} không có dữ liệu vân tay")
                 return False
 
             # Lấy attendance_device_id
@@ -221,7 +221,7 @@ class AttendanceDeviceSync:
             if user_exists:
                 logger.info(f"🗑️ User {user_id} đã tồn tại. Đang xóa user cũ...")
                 zk.delete_user(user_id=user_id)
-                logger.info(f"✅ Đã xóa user {user_id}.")
+                logger.info(f" Đã xóa user {user_id}.")
                 time.sleep(0.2)  # Giảm thời gian chờ từ 0.5s xuống 0.2s
 
             # IMPROVEMENT 2: Tạo user mới với tên tiếng Việt đã xử lý
@@ -238,7 +238,7 @@ class AttendanceDeviceSync:
             else:
                 zk.set_user(user_id=user_id, name=shortened_name, privilege=privilege, group_id='')
 
-            logger.info(f"   ✅ Tạo user thành công: {shortened_name} (ID: {user_id})")
+            logger.info(f"    Tạo user thành công: {shortened_name} (ID: {user_id})")
 
             # Lấy lại thông tin user sau khi tạo
             users = zk.get_users()
@@ -255,7 +255,7 @@ class AttendanceDeviceSync:
                 try:
                     decoded_templates[finger_index] = base64.b64decode(fp["template_data"])
                 except Exception as e:
-                    logger.warning(f"   ⚠️ Không thể decode template ngón {finger_index}: {str(e)}")
+                    logger.warning(f"    Không thể decode template ngón {finger_index}: {str(e)}")
 
             # Chỉ tạo Finger objects cho các ngón có dữ liệu thực
             templates_to_send = []
@@ -265,18 +265,18 @@ class AttendanceDeviceSync:
                 finger_obj = Finger(uid=user.uid, fid=finger_index, valid=True, template=template_data)
                 templates_to_send.append(finger_obj)
                 fingerprint_count += 1
-                logger.info(f"   ✅ Chuẩn bị template cho ngón {finger_index}")
+                logger.info(f"    Chuẩn bị template cho ngón {finger_index}")
 
             # Chỉ gửi nếu có templates hợp lệ
             if not templates_to_send:
-                logger.warning(f"⚠️ Không có template hợp lệ nào để gửi")
+                logger.warning(f" Không có template hợp lệ nào để gửi")
                 return False
 
             logger.info(f"📤 Gửi {fingerprint_count} template vân tay lên máy chấm công...")
 
             try:
                 zk.save_user_template(user, templates_to_send)
-                logger.info(f"✅ Đã gửi thành công {fingerprint_count} template cho user {user.uid}")
+                logger.info(f" Đã gửi thành công {fingerprint_count} template cho user {user.uid}")
 
                 # Ghi log đồng bộ
                 try:
@@ -335,13 +335,13 @@ class AttendanceDeviceSync:
                 # Kiểm tra attendance_device_id
                 attendance_id = emp.get('attendance_device_id')
                 if not attendance_id or str(attendance_id).strip() == "":
-                    logger.warning(f"⚠️ Nhân viên {emp['employee']} - {emp['employee_name']} chưa có ID máy chấm công")
+                    logger.warning(f" Nhân viên {emp['employee']} - {emp['employee_name']} chưa có ID máy chấm công")
                     continue
                     
                 try:
                     attendance_id = int(attendance_id)
                 except ValueError:
-                    logger.warning(f"⚠️ ID máy chấm công không hợp lệ cho nhân viên {emp['employee']}: {attendance_id}")
+                    logger.warning(f" ID máy chấm công không hợp lệ cho nhân viên {emp['employee']}: {attendance_id}")
                     continue
                     
                 # Kiểm tra vân tay
@@ -352,13 +352,13 @@ class AttendanceDeviceSync:
                         break
                         
                 if not has_valid_fingerprints:
-                    logger.warning(f"⚠️ Nhân viên {emp['employee']} - {emp['employee_name']} không có vân tay hợp lệ")
+                    logger.warning(f" Nhân viên {emp['employee']} - {emp['employee_name']} không có vân tay hợp lệ")
                     continue
                     
                 valid_employees.append(emp)
             
             if not valid_employees:
-                logger.warning(f"⚠️ Không có nhân viên nào hợp lệ để đồng bộ đến {device_name}")
+                logger.warning(f" Không có nhân viên nào hợp lệ để đồng bộ đến {device_name}")
                 return 0, 0
                 
             # Đồng bộ từng nhân viên
@@ -369,7 +369,7 @@ class AttendanceDeviceSync:
                 try:
                     if self.sync_employee_to_device(zk, emp, emp['fingerprints']):
                         success_count += 1
-                        logger.info(f"✅ Đã đồng bộ thành công nhân viên {emp['employee']} - {emp['employee_name']}")
+                        logger.info(f" Đã đồng bộ thành công nhân viên {emp['employee']} - {emp['employee_name']}")
                     else:
                         logger.error(f"❌ Không thể đồng bộ nhân viên {emp['employee']}")
                         
@@ -420,7 +420,7 @@ class AttendanceDeviceSync:
                 
                 # Kiểm tra dữ liệu vân tay
                 if not fingerprints:
-                    logger.warning(f"   ⚠️ Nhân viên không có dữ liệu vân tay để đồng bộ")
+                    logger.warning(f"    Nhân viên không có dữ liệu vân tay để đồng bộ")
                     continue
                     
                 # Kiểm tra template data
@@ -438,13 +438,13 @@ class AttendanceDeviceSync:
                     valid_fingerprints.append(fp)
                 
                 if not valid_fingerprints:
-                    logger.warning(f"   ⚠️ Không có vân tay hợp lệ để đồng bộ")
+                    logger.warning(f"    Không có vân tay hợp lệ để đồng bộ")
                     continue
                     
                 # Đồng bộ
                 if self.sync_employee_to_device(zk, employee, valid_fingerprints):
                     success_count += 1
-                    logger.info(f"   ✅ Đã đồng bộ thành công")
+                    logger.info(f"    Đã đồng bộ thành công")
                 else:
                     logger.error(f"   ❌ Đồng bộ thất bại")
             
@@ -461,7 +461,7 @@ class AttendanceDeviceSync:
             except Exception as e:
                 logger.error(f"❌ Lỗi ghi log đồng bộ: {str(e)}")
             
-            logger.info(f"\n✅ Hoàn thành đồng bộ: {success_count}/{total_count} nhân viên")
+            logger.info(f"\n Hoàn thành đồng bộ: {success_count}/{total_count} nhân viên")
             
         except Exception as e:
             logger.error(f"❌ Lỗi trong quá trình đồng bộ: {str(e)}")
@@ -502,7 +502,7 @@ class AttendanceDeviceSync:
         logger.info(f"{'='*60}")
         
         for device_name, (success, total) in results.items():
-            logger.info(f"✅ {device_name}: {success}/{total} nhân viên")
+            logger.info(f" {device_name}: {success}/{total} nhân viên")
         
         return results
     
@@ -523,7 +523,7 @@ class AttendanceDeviceSync:
             # Xóa user
             zk.delete_user(uid=user_id)
             
-            logger.info(f"✅ Đã xóa user ID: {user_id}")
+            logger.info(f" Đã xóa user ID: {user_id}")
             return True
             
         except Exception as e:
@@ -562,7 +562,7 @@ class AttendanceDeviceSync:
                 users_list.append(user_info)
             
             device_name = device_config.get('device_name', device_config.get('name', f"Device_{device_config.get('id', 1)}"))
-            logger.info(f"✅ Lấy được {len(users_list)} users từ {device_name}")
+            logger.info(f" Lấy được {len(users_list)} users từ {device_name}")
             
         except Exception as e:
             logger.error(f"❌ Lỗi lấy danh sách users: {str(e)}")
@@ -589,12 +589,12 @@ class AttendanceDeviceSync:
         
         try:
             device_name = device_config.get('device_name', device_config.get('name', f"Device_{device_config.get('id', 1)}"))
-            logger.warning(f"⚠️ Đang xóa toàn bộ dữ liệu trên {device_name}...")
+            logger.warning(f" Đang xóa toàn bộ dữ liệu trên {device_name}...")
             
             # Xóa tất cả users
             zk.clear_data()
             
-            logger.info(f"✅ Đã xóa toàn bộ dữ liệu trên {device_name}")
+            logger.info(f" Đã xóa toàn bộ dữ liệu trên {device_name}")
             return True
             
         except Exception as e:

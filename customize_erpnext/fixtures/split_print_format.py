@@ -149,7 +149,7 @@ def split_print_formats():
             # Tạo file HTML/CSS dễ đọc
             save_html_css_files(pf, print_formats_dir)
 
-    print(f"\n✅ Hoàn thành!")
+    print(f"\n Hoàn thành!")
     print(f"📂 Thư mục output: {print_formats_dir}")
     print(f"📋 Đã tạo {len(data)} files JSON")
     print(f"📄 Các file HTML/CSS trong: {os.path.join(print_formats_dir, 'templates')}")

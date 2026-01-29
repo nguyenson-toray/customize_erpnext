@@ -476,7 +476,7 @@ def monthly_timesheet_recalculation_worker(from_date, to_date, is_retry=False):
 				subject=success_subject,
 				message=f"""
 				<h3>Monthly Timesheet Recalculation Summary</h3>
-				<p><strong>Status:</strong> ✅ Completed{retry_label}</p>
+				<p><strong>Status:</strong>  Completed{retry_label}</p>
 				<p><strong>Period:</strong> {from_date} to {to_date}</p>
 				<p><strong>Total Records:</strong> {total_records}</p>
 				<p><strong>Successfully Processed:</strong> {processed}</p>
@@ -484,7 +484,7 @@ def monthly_timesheet_recalculation_worker(from_date, to_date, is_retry=False):
 				<p><strong>Deleted (Left employees):</strong> {deleted_count}</p>
 				<p><strong>Processing Time:</strong> {actual_time}s ({records_per_second} records/sec)</p>
 				<br>
-				{f'<p style="color: orange;">⚠️ Please check the Error Log for details of {errors} failed records.</p>' if errors > 0 else '<p style="color: green;">All records processed successfully!</p>'}
+				{f'<p style="color: orange;"> Please check the Error Log for details of {errors} failed records.</p>' if errors > 0 else '<p style="color: green;">All records processed successfully!</p>'}
 				{f'<p style="color: blue;">🗑️ Cleanup: Deleted {deleted_count} unnecessary Daily Timesheet records for Left employees (date >= relieving_date, working_hours = 0)</p>' if deleted_count > 0 else ''}
 				"""
 			)
@@ -518,7 +518,7 @@ def monthly_timesheet_recalculation_worker(from_date, to_date, is_retry=False):
 				<p><strong>Period:</strong> {from_date} to {to_date}</p>
 				<p><strong>Time:</strong> {datetime.now()}</p>
 				<br>
-				<p style="color: red;">⚠️ The background worker encountered an error.</p>
+				<p style="color: red;"> The background worker encountered an error.</p>
 				<p>Please check the Error Log and consider running manual recalculation.</p>
 				"""
 			)

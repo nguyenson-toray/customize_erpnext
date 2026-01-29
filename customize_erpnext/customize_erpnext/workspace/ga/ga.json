@@ -1,6 +1,6 @@
 {
  "charts": [],
- "content": "[{\"id\":\"kb3XPLg8lb\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Your Shortcuts</b></span>\",\"col\":12}},{\"id\":\"LxexctoATI\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Employee Item Reissue\",\"col\":3}},{\"id\":\"r3xmz_dQ3v\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"JVu8-FJZCu\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Reports &amp; Masters</b></span>\",\"col\":12}},{\"id\":\"2uIyyINHSa\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Employee Item Reissue Report\",\"col\":3}},{\"id\":\"JDOkFASq9j\",\"type\":\"spacer\",\"data\":{\"col\":12}}]",
+ "content": "[{\"id\":\"kb3XPLg8lb\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Your Shortcuts</b></span>\",\"col\":12}},{\"id\":\"LxexctoATI\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Employee Item Reissue\",\"col\":3}},{\"id\":\"r3xmz_dQ3v\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"IWnl-GD1VQ\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Shoe Rack Management\",\"col\":3}},{\"id\":\"JVu8-FJZCu\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Reports &amp; Masters</b></span>\",\"col\":12}},{\"id\":\"2uIyyINHSa\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Employee Item Reissue Report\",\"col\":3}},{\"id\":\"JDOkFASq9j\",\"type\":\"spacer\",\"data\":{\"col\":12}}]",
  "creation": "2025-08-13 10:18:33.643342",
  "custom_blocks": [],
  "docstatus": 0,
@@ -13,7 +13,7 @@
  "is_hidden": 0,
  "label": "GA",
  "links": [],
- "modified": "2025-11-05 11:22:24.915483",
+ "modified": "2025-11-29 12:59:50.805858",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "GA",
@@ -30,6 +30,14 @@
  ],
  "sequence_id": 1.1,
  "shortcuts": [
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "Shoe Rack Management",
+   "link_to": "Shoe Rack",
+   "stats_filter": "[]",
+   "type": "DocType"
+  },
   {
    "color": "Green",
    "doc_view": "List",

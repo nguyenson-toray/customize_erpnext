@@ -32,7 +32,7 @@ Mở file Excel đã tải và điền thông tin:
 1. Chọn file Excel đã hoàn thành
 2. Nhấp "Validate File" để kiểm tra dữ liệu
 3. Xem kết quả kiểm tra:
-   - ✅ **Thành công**: Hiển thị tổng số dòng hợp lệ
+   -  **Thành công**: Hiển thị tổng số dòng hợp lệ
    - ❌ **Lỗi**: Hiển thị danh sách lỗi cần sửa
 
 ### Bước 4: Tạo Stock Entry

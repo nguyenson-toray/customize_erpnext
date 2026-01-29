@@ -31,7 +31,7 @@ def create_update_server_scripts(reference_document_type=None, script_name=None)
         total_files = count_py_files_in_subdirectories(SERVER_SCRIPT_FOLDER_PARENT)
         
         if total_files == 0:
-            print("⚠️ Không tìm thấy file .py nào trong các thư mục con.")
+            print(" Không tìm thấy file .py nào trong các thư mục con.")
             return
         
         if not confirm_operation(f"Sẽ xử lý {total_files} file server script trong tất cả các thư mục con. Tiếp tục?"):
@@ -43,14 +43,14 @@ def create_update_server_scripts(reference_document_type=None, script_name=None)
                   if os.path.isdir(os.path.join(SERVER_SCRIPT_FOLDER_PARENT, d))]
         
         if not subdirs:
-            print("⚠️ Không tìm thấy thư mục con nào trong thư mục gốc.")
+            print(" Không tìm thấy thư mục con nào trong thư mục gốc.")
             return
         
         for sub_folder in subdirs:
             # Gọi hàm với reference_document_type là tên thư mục con, nhưng không cần xác nhận lại
             create_update_server_scripts_without_confirmation(reference_document_type=sub_folder)
         
-        print("✅ Đã hoàn thành xử lý toàn bộ thư mục con.")
+        print(" Đã hoàn thành xử lý toàn bộ thư mục con.")
         return
     
     # Trường hợp 2 và 3: reference_document_type đã được chỉ định
@@ -75,7 +75,7 @@ def create_update_server_scripts(reference_document_type=None, script_name=None)
     # Trường hợp 2: Xử lý tất cả các file trong thư mục
     py_files = [f for f in os.listdir(SCRIPT_FOLDER) if f.endswith(".py")]
     if not py_files:
-        print(f"⚠️ Không có file .py nào trong thư mục: {SCRIPT_FOLDER}")
+        print(f" Không có file .py nào trong thư mục: {SCRIPT_FOLDER}")
         return
     
     if not confirm_operation(f"Sẽ xử lý {len(py_files)} file server script trong thư mục {reference_document_type}. Tiếp tục?"):
@@ -129,7 +129,7 @@ def confirm_operation(message):
     """
     Hiển thị thông báo xác nhận và trả về True nếu người dùng đồng ý, ngược lại trả về False
     """
-    response = input(f"\n⚠️ {message} (y/n): ")
+    response = input(f"\n {message} (y/n): ")
     return response.lower() in ['y', 'yes']
 
 def extract_script_metadata(script_content):
@@ -266,7 +266,7 @@ def process_server_script_file(file_path, script_name):
                 frappe.db.set_value("Server Script", script_name, "doctype_event", metadata['doctype_event'])
                 
             frappe.db.commit()
-            print(f"✅ Đã cập nhật: {script_name}")
+            print(f" Đã cập nhật: {script_name}")
         else:
             # Tạo mới Server Script
             doc = frappe.new_doc("Server Script")
@@ -289,7 +289,7 @@ def process_server_script_file(file_path, script_name):
             frappe.db.commit()
             
             ref_doctype = metadata['reference_doctype'] or os.path.basename(os.path.dirname(file_path))
-            print(f"✅ Đã tạo mới: {script_name} cho DocType: {ref_doctype}")
+            print(f" Đã tạo mới: {script_name} cho DocType: {ref_doctype}")
     
     except Exception as e:
         print(f"❌ Lỗi khi xử lý {os.path.basename(file_path)}: {e}")
