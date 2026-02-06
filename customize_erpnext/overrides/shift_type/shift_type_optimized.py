@@ -1582,6 +1582,71 @@ def _core_process_attendance_logic_optimized(
 		print(f"   ❌ Error marking absent: {str(e)}")
 
 	# ========================================================================
+	# STEP 4b: CLEANUP ATTENDANCE FOR LEFT EMPLOYEES
+	# ========================================================================
+	# Delete attendance records created after employee's relieving_date (if no checkins).
+	# This handles race condition: hook runs before Data Import updates employee status.
+	print(f"\n{'='*80}")
+	print(f"🧹 CLEANUP ATTENDANCE FOR LEFT EMPLOYEES")
+	print(f"{'='*80}")
+	try:
+		# Find attendance after relieving_date that have NO linked checkins
+		invalid_attendance = frappe.db.sql("""
+			SELECT a.name, a.employee, a.employee_name, a.attendance_date, e.relieving_date
+			FROM `tabAttendance` a
+			JOIN `tabEmployee` e ON a.employee = e.name
+			WHERE e.status = 'Left'
+			  AND e.relieving_date IS NOT NULL
+			  AND a.attendance_date > e.relieving_date
+			  AND a.docstatus = 1
+			  AND a.attendance_date BETWEEN %(from_date)s AND %(to_date)s
+			  AND NOT EXISTS (
+				SELECT 1 FROM `tabEmployee Checkin` ec
+				WHERE ec.attendance = a.name
+			  )
+		""", {"from_date": from_date_str, "to_date": to_date_str}, as_dict=True)
+
+		if invalid_attendance:
+			att_names = [a.name for a in invalid_attendance]
+			# Delete attendance records (no checkins linked, safe to remove)
+			frappe.db.sql("""
+				DELETE FROM `tabAttendance`
+				WHERE name IN %(names)s
+			""", {"names": att_names})
+			print(f"   ✓ Deleted {len(att_names)} attendance records for left employees (no checkins)")
+			for a in invalid_attendance:
+				print(f"      - {a.employee} ({a.employee_name}): {a.attendance_date} (relieving: {a.relieving_date})")
+
+		# Find attendance after relieving_date that HAVE linked checkins → tag with warning
+		has_checkin_attendance = frappe.db.sql("""
+			SELECT a.name, a.employee, a.employee_name, a.attendance_date, e.relieving_date
+			FROM `tabAttendance` a
+			JOIN `tabEmployee` e ON a.employee = e.name
+			WHERE e.status = 'Left'
+			  AND e.relieving_date IS NOT NULL
+			  AND a.attendance_date > e.relieving_date
+			  AND a.docstatus = 1
+			  AND a.attendance_date BETWEEN %(from_date)s AND %(to_date)s
+			  AND EXISTS (
+				SELECT 1 FROM `tabEmployee Checkin` ec
+				WHERE ec.attendance = a.name
+			  )
+		""", {"from_date": from_date_str, "to_date": to_date_str}, as_dict=True)
+
+		if has_checkin_attendance:
+			print(f"   ⚠️ {len(has_checkin_attendance)} attendance records for left employees WITH checkins (tagging)")
+			for a in has_checkin_attendance:
+				print(f"      - {a.employee} ({a.employee_name}): {a.attendance_date} (relieving: {a.relieving_date})")
+
+		if not invalid_attendance and not has_checkin_attendance:
+			print(f"   ✓ No cleanup needed")
+
+		frappe.db.commit()
+	except Exception as e:
+		frappe.log_error(message=str(e), title="Cleanup Left Employee Attendance Error")
+		print(f"   ❌ Error during cleanup: {str(e)}")
+
+	# ========================================================================
 	# STEP 5: CALCULATE STATISTICS FROM DATABASE (Accurate count after processing)
 	# ========================================================================
 	print(f"\n{'='*80}")

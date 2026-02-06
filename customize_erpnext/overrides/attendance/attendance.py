@@ -29,6 +29,16 @@ def get_attendance_custom_additional_info(employee, attendance_date):
 	"""
 	details = []
 
+	# Check if employee has left before this attendance date
+	emp_data = frappe.db.get_value("Employee", employee,
+		["status", "relieving_date"], as_dict=True)
+	if emp_data and emp_data.status == "Left" and emp_data.relieving_date:
+		if frappe.utils.getdate(attendance_date) > emp_data.relieving_date:
+			relieving_str = frappe.utils.formatdate(emp_data.relieving_date, "dd/mm/yyyy")
+			details.append(
+				f"⚠️ Employee has left on {relieving_str} - attendance after relieving date"
+			)
+
 	# Get maternity records
 	maternity_records = frappe.db.sql("""
 		SELECT type, from_date, to_date, apply_pregnant_benefit
