@@ -356,13 +356,13 @@ function send_attendance_report_dialog(report) {
 					recipients: values.recipients
 				},
 				freeze: true,
-				freeze_message: __('📨 Sending Daily Attendance Report...'),
+				freeze_message: __('📨 Queuing Daily Attendance Report...'),
 				callback: function (r) {
 					if (r.message && r.message.status === 'success') {
 						frappe.show_alert({
-							message: __('Report sent successfully!'),
+							message: __('Report is being generated in background. Email will be sent shortly.'),
 							indicator: 'green'
-						}, 5);
+						}, 7);
 						// Auto close dialog on success
 						d.hide();
 					} else {

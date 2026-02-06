@@ -278,9 +278,9 @@ def get_report_summary(data, filters):
 		return None
 
 	if not data:
-		return None
+		return None 
 
-	present_records = on_leave_records = absent_records = late_entries = early_exits = 0
+	present_records = on_leave_records = maternity_records = absent_records = late_entries = early_exits = 0
 
 	for entry in data:
 		# Check status (may contain HTML tags after formatting)
@@ -289,7 +289,10 @@ def get_report_summary(data, filters):
 			if "Present" in status_text:
 				present_records += 1
 			elif "On Leave" in status_text or "Half Day" in status_text:
-				on_leave_records += 1
+				if entry.get("custom_leave_application_abbreviation") == "TS": # Leave Type : Nghỉ hưởng BHXH/ Social insurance leave - Thai sản
+					maternity_records += 1
+				else:
+					on_leave_records += 1
 			elif "Absent" in status_text:
 				absent_records += 1
 
@@ -303,6 +306,12 @@ def get_report_summary(data, filters):
 			"value": present_records,
 			"indicator": "Green",
 			"label": _("Present Records"),
+			"datatype": "Int",
+		},
+		{
+			"value": maternity_records,
+			"indicator": "Pink",
+			"label": _("Maternity Leave"),
 			"datatype": "Int",
 		},
 		{

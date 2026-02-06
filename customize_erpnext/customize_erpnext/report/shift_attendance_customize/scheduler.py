@@ -12,27 +12,51 @@ from customize_erpnext.api.site_restriction import only_for_sites
 @frappe.whitelist()
 def send_daily_attendance_report(report_date=None, recipients=None):
 	"""
-	Send Daily Attendance Report via email
-	Can be called manually from Report with custom date and recipients
+	Enqueue Daily Attendance Report to run in background.
+	Returns immediately so UI doesn't timeout.
+	"""
+	import re
 
-	Args:
-		report_date: Optional date string (YYYY-MM-DD format). Defaults to today.
-		recipients: Optional list or comma-separated string of email addresses.
-				   Defaults to predefined list.
+	# Parse recipients early for validation
+	if recipients:
+		if isinstance(recipients, str):
+			recipient_list = [email.strip() for email in re.split(r'[\n,]', recipients) if email.strip()]
+		else:
+			recipient_list = list(recipients)
+	else:
+		recipient_list = []
+
+	if not recipient_list:
+		return {"status": "error", "message": "No recipients specified"}
+
+	# Resolve report_date
+	if report_date:
+		if isinstance(report_date, str):
+			report_date_str = str(get_datetime(report_date).date())
+		else:
+			report_date_str = str(report_date)
+	else:
+		report_date_str = today()
+
+	frappe.enqueue(
+		_send_daily_attendance_report_job,
+		queue="long",
+		timeout=600,
+		report_date_str=report_date_str,
+		recipient_list=recipient_list
+	)
+
+	return {
+		"status": "success",
+		"message": f"Report is being generated and will be sent to {len(recipient_list)} recipients in background"
+	}
+
+
+def _send_daily_attendance_report_job(report_date_str, recipient_list):
+	"""
+	Background job: generate and send Daily Attendance Report via email.
 	"""
 	try:
-		# Get report date - use provided date or default to today
-		if report_date:
-			# Handle both string and date object inputs
-			if isinstance(report_date, str):
-				report_date_obj = get_datetime(report_date).date()
-			else:
-				report_date_obj = report_date
-			report_date_str = str(report_date_obj)
-		else:
-			report_date_obj = get_datetime(today()).date()
-			report_date_str = today()
-
 		# Import the report get_data function
 		from customize_erpnext.customize_erpnext.report.shift_attendance_customize.shift_attendance_customize import get_data
 
@@ -72,15 +96,6 @@ def send_daily_attendance_report(report_date=None, recipients=None):
 		# Generate Excel file
 		excel_file_path, excel_file_name = generate_excel_report(report_date_str, data, stats)
 
-		# Parse recipients
-		if recipients:
-			# Handle both list and newline/comma-separated string
-			if isinstance(recipients, str):
-				# Split by newlines and commas, remove empty strings
-				import re
-				recipient_list = [email.strip() for email in re.split(r'[\n,]', recipients) if email.strip()]
-			else:
-				recipient_list = recipients 
 		# Send email with Excel attachment
 		frappe.sendmail(
 			recipients=recipient_list,
@@ -101,21 +116,12 @@ def send_daily_attendance_report(report_date=None, recipients=None):
 
 		frappe.logger().info(f"Daily Attendance Report sent successfully for {report_date_str}")
 
-		return {
-			"status": "success",
-			"message": f"Report sent successfully to {len(recipient_list)} recipients"
-		}
-
 	except Exception as e:
 		frappe.logger().error(f"Error sending Daily Attendance Report: {str(e)}")
 		frappe.log_error(
 			title="Daily Attendance Report Scheduler Error",
 			message=frappe.get_traceback()
 		)
-		return {
-			"status": "error",
-			"message": str(e)
-		}
 
 
 def calculate_attendance_statistics(report_date, data):
@@ -134,11 +140,26 @@ def calculate_attendance_statistics(report_date, data):
 	present_employees = []
 	absent_employees = []
 	on_leave_employees = []
+	maternity_employees = []
+
+	MATERNITY_LEAVE_TYPE = "Nghỉ hưởng BHXH/ Social insurance leave - Thai sản"
 
 	total_working_hours = 0
 	total_actual_overtime = 0
 	total_approved_overtime = 0
 	total_final_overtime = 0
+
+	# Bulk-load employee details (designation, attendance_device_id) in ONE query
+	all_employees = set(row.get('employee') for row in data if row.get('employee'))
+	emp_details_map = {}
+	if all_employees:
+		emp_details = frappe.db.sql("""
+			SELECT name, designation, attendance_device_id
+			FROM `tabEmployee`
+			WHERE name IN %(employees)s
+		""", {"employees": list(all_employees)}, as_dict=True)
+		for ed in emp_details:
+			emp_details_map[ed.name] = ed
 
 	# Group data by employee
 	employee_data = {}
@@ -166,7 +187,8 @@ def calculate_attendance_statistics(report_date, data):
 			approved_overtime = row.get('custom_approved_overtime_duration', 0) or 0
 			final_overtime = row.get('final_overtime_duration', 0) or 0
 
-			# Get employee details for the lists
+			# Get employee details from pre-loaded map
+			emp_doc = emp_details_map.get(employee, {})
 			emp_info = {
 				'employee': employee,
 				'employee_name': row.get('employee_name'),
@@ -176,15 +198,9 @@ def calculate_attendance_statistics(report_date, data):
 				'leave_type': row.get('leave_type'),
 				'leave_application': row.get('leave_application'),
 				'half_day_status': row.get('half_day_status'),
-				'designation': '',  # Will need to get from Employee doctype
-				'attendance_device_id': ''  # Will need to get from Employee doctype
+				'designation': emp_doc.get('designation') or '',
+				'attendance_device_id': emp_doc.get('attendance_device_id') or ''
 			}
-
-			# Get additional employee details
-			emp_doc = frappe.get_value('Employee', employee, ['designation', 'attendance_device_id'], as_dict=True)
-			if emp_doc:
-				emp_info['designation'] = emp_doc.get('designation') or ''
-				emp_info['attendance_device_id'] = emp_doc.get('attendance_device_id') or ''
 
 			if status_clean == 'Present':
 				present_employees.append(emp_info)
@@ -193,7 +209,11 @@ def calculate_attendance_statistics(report_date, data):
 				total_approved_overtime += approved_overtime
 				total_final_overtime += final_overtime
 			elif status_clean == 'On Leave':
-				on_leave_employees.append(emp_info)
+				# Separate maternity leave from other leave types
+				if emp_info.get('leave_type') == MATERNITY_LEAVE_TYPE:
+					maternity_employees.append(emp_info)
+				else:
+					on_leave_employees.append(emp_info)
 			elif status_clean == 'Absent':
 				absent_employees.append(emp_info)
 
@@ -201,24 +221,28 @@ def calculate_attendance_statistics(report_date, data):
 	present_employees = sorted(present_employees, key=lambda x: (x.get("custom_group") or "").lower())
 	absent_employees = sorted(absent_employees, key=lambda x: (x.get("custom_group") or "").lower())
 	on_leave_employees = sorted(on_leave_employees, key=lambda x: (x.get("custom_group") or "").lower())
+	maternity_employees = sorted(maternity_employees, key=lambda x: (x.get("custom_group") or "").lower())
 
 	# Calculate counts
 	total_present = len(present_employees)
 	total_absent = len(absent_employees)
 	on_leave_count = len(on_leave_employees)
+	maternity_count = len(maternity_employees)
 
 	return {
 		"total_employees": total_employees,
 		"total_present": total_present,
 		"total_absent": total_absent,
 		"on_leave_count": on_leave_count,
+		"maternity_count": maternity_count,
 		"total_working_hours": round(total_working_hours, 2),
 		"total_actual_overtime": round(total_actual_overtime, 2),
 		"total_approved_overtime": round(total_approved_overtime, 2),
 		"total_final_overtime": round(total_final_overtime, 2),
 		"present_employees": present_employees,
 		"absent_employees": absent_employees,
-		"on_leave_employees": on_leave_employees
+		"on_leave_employees": on_leave_employees,
+		"maternity_employees": maternity_employees
 	}
 
 
@@ -245,11 +269,55 @@ def get_last_employee_checkin_time():
 		return None
 
 
+def _timedelta_to_time(td):
+	"""Convert timedelta to time object"""
+	if isinstance(td, timedelta):
+		total_seconds = int(td.total_seconds())
+		return time_obj(total_seconds // 3600, (total_seconds % 3600) // 60, total_seconds % 60)
+	return td
+
+
 def get_incomplete_checkins(start_date, end_date):
 	"""
-	Get list of employees who have incomplete check-ins from start_date to end_date
+	Get list of employees who have incomplete check-ins from start_date to end_date.
+	Optimized: eliminates correlated subqueries and N+1 query patterns.
 	"""
-	employees_with_checkins = frappe.db.sql(f"""
+	from collections import defaultdict
+
+	# Step 1: Pre-load shift registrations for the date range (1 query)
+	shift_reg_map = {}  # (employee, date) -> shift
+	shift_regs = frappe.db.sql("""
+		SELECT srd.employee, srd.shift, srd.begin_date, srd.end_date, sr.creation
+		FROM `tabShift Registration Detail` srd
+		JOIN `tabShift Registration` sr ON srd.parent = sr.name
+		WHERE sr.docstatus = 1
+		  AND srd.begin_date <= %(end_date)s
+		  AND srd.end_date >= %(start_date)s
+		ORDER BY sr.creation DESC
+	""", {"start_date": start_date, "end_date": end_date}, as_dict=True)
+
+	# Build map: (employee, date) -> shift (latest registration wins)
+	for sr in shift_regs:
+		emp = sr.employee
+		d = sr.begin_date
+		while d <= sr.end_date:
+			key = (emp, d)
+			if key not in shift_reg_map:
+				shift_reg_map[key] = sr.shift
+			d += timedelta(days=1)
+
+	# Step 2: Pre-load shift begin/end times (1 query)
+	shift_times = {}
+	for sn in frappe.db.sql("""
+		SELECT shift_name, begin_time, end_time FROM `tabShift Name`
+	""", as_dict=True):
+		shift_times[sn.shift_name] = {
+			'begin_time': _timedelta_to_time(sn.begin_time),
+			'end_time': _timedelta_to_time(sn.end_time)
+		}
+
+	# Step 3: Main query - simple aggregation, no correlated subqueries
+	employees_with_checkins = frappe.db.sql("""
 		SELECT
 			e.attendance_device_id,
 			e.name AS employee_code,
@@ -260,65 +328,88 @@ def get_incomplete_checkins(start_date, end_date):
 			DATE(ec.time) AS checkin_date,
 			MIN(ec.time) AS first_check_in,
 			MAX(ec.time) AS last_check_out,
-			COUNT(ec.name) AS checkin_count,
-			COALESCE(
-				(SELECT srd.shift
-				 FROM `tabShift Registration Detail` srd
-				 JOIN `tabShift Registration` sr ON srd.parent = sr.name
-				 WHERE srd.employee = e.name
-				   AND srd.begin_date <= DATE(ec.time)
-				   AND srd.end_date >= DATE(ec.time)
-				   AND sr.docstatus = 1
-				 ORDER BY sr.creation DESC
-				 LIMIT 1),
-				CASE
-					WHEN e.custom_group = 'Canteen' THEN 'Canteen'
-					ELSE 'Day'
-				END
-			) AS shift,
-			sn.begin_time,
-			sn.end_time
-		FROM
-			`tabEmployee` e
-		INNER JOIN
-			`tabEmployee Checkin` ec
-		ON
-			e.name = ec.employee
-			AND DATE(ec.time) >= '{start_date}'
-			AND DATE(ec.time) <= '{end_date}'
+			COUNT(ec.name) AS checkin_count
+		FROM `tabEmployee` e
+		INNER JOIN `tabEmployee Checkin` ec
+			ON e.name = ec.employee
+			AND ec.time >= %(start)s
+			AND ec.time < %(end)s
 			AND ec.device_id IS NOT NULL
-		LEFT JOIN
-			`tabShift Name` sn
-		ON
-			sn.shift_name = COALESCE(
-				(SELECT srd.shift
-				 FROM `tabShift Registration Detail` srd
-				 JOIN `tabShift Registration` sr ON srd.parent = sr.name
-				 WHERE srd.employee = e.name
-				   AND srd.begin_date <= DATE(ec.time)
-				   AND srd.end_date >= DATE(ec.time)
-				   AND sr.docstatus = 1
-				 ORDER BY sr.creation DESC
-				 LIMIT 1),
-				CASE
-					WHEN e.custom_group = 'Canteen' THEN 'Canteen'
-					ELSE 'Day'
-				END
-			)
-		WHERE
-			e.status = 'Active'
-		GROUP BY
-			e.name, DATE(ec.time)
-		ORDER BY
-			DATE(ec.time) DESC, e.name ASC
-	""", as_dict=1)
+		WHERE e.status = 'Active'
+		GROUP BY e.name, DATE(ec.time)
+		ORDER BY DATE(ec.time) DESC, e.name ASC
+	""", {
+		"start": f"{start_date} 00:00:00",
+		"end": f"{end_date} 23:59:59"
+	}, as_dict=True)
 
-	# Filter employees with incomplete check-ins
+	# Step 4: Resolve shift for each row using pre-loaded map
+	for emp in employees_with_checkins:
+		key = (emp.employee_code, emp.checkin_date)
+		shift = shift_reg_map.get(key)
+		if not shift:
+			shift = 'Canteen' if emp.custom_group == 'Canteen' else 'Day'
+		emp['shift'] = shift
+		times = shift_times.get(shift, {})
+		emp['begin_time'] = times.get('begin_time')
+		emp['end_time'] = times.get('end_time')
+
+	# Step 5: Pre-load ALL checkin times for candidates with >= 2 checkins (1 bulk query)
+	# Also pre-load all manual checkins for the date range
+	candidates = [(emp.get('employee_code'), emp.get('checkin_date')) for emp in employees_with_checkins]
+	if not candidates:
+		return []
+
+	# Get unique employees
+	candidate_employees = list(set(c[0] for c in candidates))
+
+	# Bulk load all device checkins (for Rule 2/3 check)
+	all_device_checkins = defaultdict(list)  # (employee, date) -> [time, ...]
+	device_rows = frappe.db.sql("""
+		SELECT employee, time
+		FROM `tabEmployee Checkin`
+		WHERE employee IN %(employees)s
+		  AND time >= %(start)s
+		  AND time < %(end)s
+		  AND device_id IS NOT NULL
+		ORDER BY employee, time
+	""", {
+		"employees": candidate_employees,
+		"start": f"{start_date} 00:00:00",
+		"end": f"{end_date} 23:59:59"
+	}, as_dict=True)
+	for row in device_rows:
+		key = (row.employee, row.time.date())
+		all_device_checkins[key].append(row.time)
+
+	# Bulk load all manual checkins
+	all_manual_checkins = defaultdict(list)  # (employee, date) -> [{...}, ...]
+	manual_rows = frappe.db.sql("""
+		SELECT employee, TIME(time) as checkin_time, time,
+			custom_reason_for_manual_check_in,
+			custom_other_reason_for_manual_check_in
+		FROM `tabEmployee Checkin`
+		WHERE employee IN %(employees)s
+		  AND time >= %(start)s
+		  AND time < %(end)s
+		  AND device_id IS NULL
+		ORDER BY employee, time
+	""", {
+		"employees": candidate_employees,
+		"start": f"{start_date} 00:00:00",
+		"end": f"{end_date} 23:59:59"
+	}, as_dict=True)
+	for row in manual_rows:
+		key = (row.employee, row.time.date())
+		all_manual_checkins[key].append(row)
+
+	# Step 6: Filter incomplete check-ins using pre-loaded data
 	incomplete_list = []
 	for emp in employees_with_checkins:
 		is_incomplete = False
 		checkin_count = emp.get('checkin_count')
 		checkin_date = emp.get('checkin_date')
+		employee_code = emp.get('employee_code')
 
 		# Rule 1: Only 1 check-in
 		if checkin_count == 1:
@@ -328,73 +419,22 @@ def get_incomplete_checkins(start_date, end_date):
 			begin_time = emp.get('begin_time')
 			end_time = emp.get('end_time')
 
-			# Convert begin_time to time object
-			if begin_time:
-				if isinstance(begin_time, timedelta):
-					total_seconds = int(begin_time.total_seconds())
-					hours = total_seconds // 3600
-					minutes = (total_seconds % 3600) // 60
-					seconds = total_seconds % 60
-					begin_time = time_obj(hours, minutes, seconds)
-
-			# Convert end_time to time object
-			if end_time:
-				if isinstance(end_time, timedelta):
-					total_seconds = int(end_time.total_seconds())
-					hours = total_seconds // 3600
-					minutes = (total_seconds % 3600) // 60
-					seconds = total_seconds % 60
-					end_time = time_obj(hours, minutes, seconds)
-
-			# Get all automatic check-in times
-			all_checkins = frappe.db.sql(f"""
-				SELECT time
-				FROM `tabEmployee Checkin`
-				WHERE employee = '{emp.get('employee_code')}'
-				  AND DATE(time) = '{checkin_date}'
-				  AND device_id IS NOT NULL
-				ORDER BY time
-			""", as_dict=1)
+			checkin_times = [t.time() for t in all_device_checkins.get((employee_code, checkin_date), [])]
 
 			# Rule 2: All check-ins <= begin_time
-			if begin_time and all_checkins and isinstance(begin_time, type(time_obj(0, 0, 0))):
-				all_before_or_at_begin = True
-				for checkin in all_checkins:
-					checkin_time = checkin.get('time').time()
-					if checkin_time > begin_time:
-						all_before_or_at_begin = False
-						break
-
-				if all_before_or_at_begin:
+			if begin_time and checkin_times and isinstance(begin_time, time_obj):
+				if all(ct <= begin_time for ct in checkin_times):
 					is_incomplete = True
 
 			# Rule 3: All check-ins >= end_time
-			if end_time and all_checkins and not is_incomplete and isinstance(end_time, type(time_obj(0, 0, 0))):
-				all_after_or_at_end = True
-				for checkin in all_checkins:
-					checkin_time = checkin.get('time').time()
-					if checkin_time < end_time:
-						all_after_or_at_end = False
-						break
-
-				if all_after_or_at_end:
+			if end_time and checkin_times and not is_incomplete and isinstance(end_time, time_obj):
+				if all(ct >= end_time for ct in checkin_times):
 					is_incomplete = True
 
 		if is_incomplete:
-			# Get manual check-ins
-			manual_checkins = frappe.db.sql(f"""
-				SELECT
-					TIME(time) as checkin_time,
-					custom_reason_for_manual_check_in,
-					custom_other_reason_for_manual_check_in
-				FROM `tabEmployee Checkin`
-				WHERE employee = '{emp.get('employee_code')}'
-				  AND DATE(time) = '{checkin_date}'
-				  AND device_id IS NULL
-				ORDER BY time
-			""", as_dict=1)
+			# Use pre-loaded manual checkins
+			manual_checkins = all_manual_checkins.get((employee_code, checkin_date), [])
 
-			# Format manual check-ins
 			manual_checkin_times = []
 			reasons = []
 			other_reasons = []
@@ -474,7 +514,38 @@ def generate_email_content(report_date, stats, data, last_checkin_time=None):
 		</tr>
 		"""
 
-	# Build on leave employee table
+	# Build maternity leave employee table
+	maternity_rows = ""
+	maternity_list = stats.get('maternity_employees', [])
+
+	if maternity_list:
+		for idx, emp in enumerate(maternity_list, 1):
+			maternity_rows += f"""
+			<tr>
+				<td style="border: 1px solid #ddd; padding: 8px; text-align: center;">{idx}</td>
+				<td style="border: 1px solid #ddd; padding: 8px; text-align: center;">{formatted_date}</td>
+				<td style="border: 1px solid #ddd; padding: 8px;">{emp.get('attendance_device_id') or ''}</td>
+				<td style="border: 1px solid #ddd; padding: 8px;">{emp.get('employee') or ''}</td>
+				<td style="border: 1px solid #ddd; padding: 8px;">{emp.get('employee_name') or ''}</td>
+				<td style="border: 1px solid #ddd; padding: 8px;">{emp.get('department') or ''}</td>
+				<td style="border: 1px solid #ddd; padding: 8px;">{emp.get('custom_group') or ''}</td>
+				<td style="border: 1px solid #ddd; padding: 8px;">{emp.get('shift') or ''}</td>
+				<td style="border: 1px solid #ddd; padding: 8px;">{emp.get('designation') or ''}</td>
+				<td style="border: 1px solid #ddd; padding: 8px;">{emp.get('leave_type') or ''}</td>
+				<td style="border: 1px solid #ddd; padding: 8px; text-align: center;">{emp.get('leave_application') or ''}</td>
+				<td style="border: 1px solid #ddd; padding: 8px; text-align: center;">{emp.get('half_day_status') or ''}</td>
+			</tr>
+			"""
+	else:
+		maternity_rows = """
+		<tr>
+			<td colspan="12" style="border: 1px solid #ddd; padding: 8px; text-align: center; color: #999;">
+				Không có nhân viên nghỉ thai sản
+			</td>
+		</tr>
+		"""
+
+	# Build on leave employee table (excluding maternity)
 	on_leave_rows = ""
 	on_leave_list = stats.get('on_leave_employees', [])
 
@@ -648,6 +719,10 @@ def generate_email_content(report_date, stats, data, last_checkin_time=None):
 				<span class="absent">{stats['total_absent']}</span> người
 			</div>
 			<div class="summary-item">
+				<strong>Số lượng nghỉ thai sản:</strong>
+				<span class="maternity">{stats['maternity_count']}</span> người
+			</div>
+			<div class="summary-item">
 				<strong>Số lượng nghỉ phép (On Leave / Half Day):</strong>
 				<span class="maternity">{stats['on_leave_count']}</span> người
 			</div>
@@ -682,6 +757,29 @@ def generate_email_content(report_date, stats, data, last_checkin_time=None):
 			</thead>
 			<tbody>
 				{absent_rows}
+			</tbody>
+		</table>
+
+		<h3 style="color: #555; margin-top: 30px;">Danh sách nhân viên nghỉ thai sản:</h3>
+		<table>
+			<thead>
+				<tr>
+					<th style="width: 4%; text-align: center;">STT</th>
+					<th style="width: 6%; text-align: center;">Ngày</th>
+					<th style="width: 7%;">Att ID</th>
+					<th style="width: 9%;">Employee</th>
+					<th style="width: 14%;">Employee Name</th>
+					<th style="width: 10%;">Department</th>
+					<th style="width: 9%;">Group</th>
+					<th style="width: 8%;">Shift</th>
+					<th style="width: 11%;">Designation</th>
+					<th style="width: 10%;">Leave Type</th>
+					<th style="width: 12%; text-align: center;">Leave Application</th>
+					<th style="width: 10%; text-align: center;">Status for Other Half</th>
+				</tr>
+			</thead>
+			<tbody>
+				{maternity_rows}
 			</tbody>
 		</table>
 
@@ -777,6 +875,7 @@ def generate_excel_report(report_date, data, stats):
 	# Combine all employee data sorted by status
 	all_data = []
 	all_data.extend(stats.get('absent_employees', []))
+	all_data.extend(stats.get('maternity_employees', []))
 	all_data.extend(stats.get('on_leave_employees', []))
 	all_data.extend(stats.get('present_employees', []))
 
@@ -795,6 +894,8 @@ def generate_excel_report(report_date, data, stats):
 		# Determine status
 		if emp in stats.get('absent_employees', []):
 			status = 'Absent'
+		elif emp in stats.get('maternity_employees', []):
+			status = 'Maternity Leave'
 		elif emp in stats.get('on_leave_employees', []):
 			status = 'On Leave'
 		else:
