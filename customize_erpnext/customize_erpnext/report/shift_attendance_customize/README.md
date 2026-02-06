@@ -136,9 +136,46 @@ Report được tối ưu cho performance:
 
 Truy cập: **Báo cáo > Shift Attendance Customize**
 
+## Export Excel - C&B Template
+
+### 3 Sheet trong file Excel
+
+1. **Timesheet** - Bảng chấm công
+2. **Overtime** - Bảng tổng hợp làm thêm giờ
+3. **Quy định nghỉ phép** - Bảng quy định các loại nghỉ phép
+
+### Quy tắc tính ngày công (Timesheet)
+
+| Loại | Abbreviation | Ngày công |
+|------|--------------|-----------|
+| Phép năm, Hưởng lương | P, P/2, MC, HS, HL, HL/2 | 1 |
+| Không lương, Nghỉ bù, BHXH | KL, NB, TS, DS, O, CO, OCO/2, OK/2, COK/2 | 0 |
+| Ốm/Con ốm - Đi làm/Phép năm | O/2, CO/2, OP/2, COP/2 | 0.5 |
+| Ốm/Con ốm - Đi trễ/về sớm ≤1h | OL/2, COL/2 | 0.4 |
+| Khác | Theo working_hours | 1−(8−giờ)/8 |
+
+### Hiển thị trên bảng công
+
+- **KL & working_hours = 0**: Hiển thị "KL"
+- **KL & working_hours > 0**: Hiển thị số giờ
+- **Ngày CN & Lễ**: Ô trống + tô màu xám, không tính ngày công
+
+### Tính OT (Overtime sheet)
+
+| Cột | Nội dung |
+|-----|----------|
+| Ngày | `custom_final_overtime_duration` (giữ nguyên) |
+| Total OT | Tổng `custom_final_overtime_duration` |
+| Total OT x Multiplier | Tổng (OT × hệ số theo loại ngày) |
+
+**Hệ số OT theo loại ngày:**
+- Ngày thường: `standard_multiplier`
+- Chủ nhật: `weekend_multiplier`
+- Ngày lễ: `public_holiday_multiplier`
+
 ---
 
-**Version:** 1.0
+**Version:** 1.1
 **Author:** TIQN
-**Date:** 2025-12-26
+**Date:** 2026-02-06
 **Based on:** HRMS v16 Shift Attendance Report

@@ -90,6 +90,7 @@ fixtures = [
                 "Customer",
                 "Shift Type",
                 "Attendance",
+                "Leave Type",
                 "Leave Application"
             ]],
             ["fieldname", "like", "custom%"]
@@ -107,6 +108,7 @@ fixtures = [
                 "Employee",
                 "Employee Checkin",
                 "Attendance",
+                "Leave Type",
             ]]
         ]
     },
@@ -326,6 +328,12 @@ doc_events = {
         "validate": "customize_erpnext.customize_erpnext.doctype.shoe_rack.shoe_rack.validate",
         "on_update": "customize_erpnext.customize_erpnext.doctype.shoe_rack.shoe_rack.on_update",
         # "before_insert": "customize_erpnext.customize_erpnext.doctype.shoe_rack.shoe_rack.before_insert"
+    },
+
+    # Leave Application Events
+    # - Handle dual leave cancellation (update attendance when LA cancelled)
+    "Leave Application": {
+        "on_cancel": "customize_erpnext.overrides.leave_application.leave_application.on_leave_application_cancel"
     }
 
 }

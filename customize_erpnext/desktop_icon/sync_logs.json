@@ -1,0 +1,21 @@
+{
+ "app": "customize_erpnext",
+ "bg_color": "blue",
+ "creation": "2026-02-06 08:07:35.215401",
+ "docstatus": 0,
+ "doctype": "Desktop Icon",
+ "hidden": 0,
+ "icon_type": "Link",
+ "idx": 23,
+ "label": "Sync Logs",
+ "link": "/erpnext-sync-all-logs",
+ "link_type": "External",
+ "logo_url": "/assets/customize_erpnext/images/log.svg",
+ "modified": "2026-02-06 08:07:49.232652",
+ "modified_by": "Administrator",
+ "name": "Sync Logs",
+ "owner": "Administrator",
+ "restrict_removal": 0,
+ "roles": [],
+ "standard": 1
+}

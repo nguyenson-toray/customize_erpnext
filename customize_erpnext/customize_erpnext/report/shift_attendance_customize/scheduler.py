@@ -961,7 +961,7 @@ def send_daily_attendance_report_scheduled():
 	report_date = nowdate()
 
 	# Default recipients
-	recipients = ["it@tiqn.com.vn", "hoanh.ltk@tiqn.com.vn", "loan.ptk@tiqn.com.vn", "ni.nht@tiqn.com.vn"]
+	recipients = ["it@tiqn.com.vn", "hoanh.ltk@tiqn.com.vn", "loan.ptk@tiqn.com.vn", "ni.nht@tiqn.com.vn", "binh.dtt@tiqn.com.vn"]
 	recipients_str = "\n".join(recipients)
 
 	try:

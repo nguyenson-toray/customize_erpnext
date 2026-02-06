@@ -194,11 +194,6 @@ function export_attendance_excel(report) {
 function do_export_attendance_excel(filters) {
 	console.log('do_export_attendance_excel called with filters:', filters);
 
-	frappe.show_alert({
-		message: __('Generating Excel file...'),
-		indicator: 'blue'
-	});
-
 	// Listen for background export completion
 	frappe.realtime.on('excel_export_complete', function (data) {
 		if (data.success) {
@@ -324,7 +319,7 @@ function send_attendance_report_dialog(report) {
 				label: __('Email Recipients'),
 				fieldtype: 'Small Text',
 				reqd: 1,
-				default: "it@tiqn.com.vn\nhoanh.ltk@tiqn.com.vn\nloan.ptk@tiqn.com.vn\nni.nht@tiqn.com.vn",
+				default: "it@tiqn.com.vn\nhoanh.ltk@tiqn.com.vn\nloan.ptk@tiqn.com.vn\nni.nht@tiqn.com.vn\nbinh.dtt@tiqn.com.vn",
 				description: __('Enter one email address per line')
 			}
 		],

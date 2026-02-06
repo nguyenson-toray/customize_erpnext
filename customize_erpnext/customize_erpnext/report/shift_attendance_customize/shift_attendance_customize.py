@@ -422,6 +422,8 @@ def get_query(filters):
 				attendance.custom_approved_overtime_duration,
 				attendance.custom_final_overtime_duration.as_("final_overtime_duration"),
 				attendance.custom_maternity_benefit,
+				attendance.custom_leave_application_abbreviation,
+				attendance.overtime_type,
 			)
 		except AttributeError:
 			pass
@@ -596,21 +598,48 @@ def export_attendance_excel_sync(filters):
 	# Get date range based on current filters
 	date_range = get_export_date_range(filters)
 
-	# Setup Excel headers and data
+	# Get holidays for formatting
+	holidays_set = get_holidays_in_range(date_range['from_date'], date_range['to_date'])
+
+	# Setup Excel headers and data for Timesheet
 	setup_excel_headers(ws, date_range, filters)
-	all_employees, current_row, first_employee_row = populate_employee_data(ws, employee_data, date_range)
+	all_employees, current_row, first_employee_row = populate_employee_data(ws, employee_data, date_range, 'timesheet')
 
 	# Add total row (only if we have employees)
 	if first_employee_row is not None:
-		add_total_row(ws, all_employees, current_row, date_range, first_employee_row)
+		add_total_row(ws, all_employees, current_row, date_range, first_employee_row, 'timesheet')
 	total_row_end = current_row + 1
 
 	# Add footer with signatures and notes
 	add_excel_footer(ws, total_row_end, date_range)
 
 	# Apply formatting (account for department headers + total row)
-	total_rows = len(all_employees) + len(employee_data) + 1  # employees + dept headers + total row
-	apply_excel_formatting(ws, total_rows, len(date_range['dates']), date_range)
+	# Only count actual department headers (not 'no_department_header' type)
+	dept_header_count = sum(1 for d in employee_data if d.get('type') == 'department_header')
+	total_rows = len(all_employees) + dept_header_count + 1  # employees + dept headers + total row
+	apply_excel_formatting(ws, total_rows, len(date_range['dates']), date_range, holidays_set, 'timesheet')
+
+	# ===== Create OverTime sheet =====
+	ws_ot = wb.create_sheet(title="Overtime")
+
+	# Setup Excel headers for OT sheet
+	setup_excel_headers_overtime(ws_ot, date_range, filters)
+	all_employees_ot, current_row_ot, first_employee_row_ot = populate_employee_data(ws_ot, employee_data, date_range, 'overtime')
+
+	# Add total row for OT sheet
+	if first_employee_row_ot is not None:
+		add_total_row(ws_ot, all_employees_ot, current_row_ot, date_range, first_employee_row_ot, 'overtime')
+	total_row_end_ot = current_row_ot + 1
+
+	# Add footer for OT sheet
+	add_excel_footer(ws_ot, total_row_end_ot, date_range)
+
+	# Apply formatting for OT sheet
+	total_rows_ot = len(all_employees_ot) + dept_header_count + 1  # reuse dept_header_count
+	apply_excel_formatting(ws_ot, total_rows_ot, len(date_range['dates']), date_range, holidays_set, 'overtime')
+
+	# ===== Create Leave Regulations sheet =====
+	add_leave_regulations_sheet(wb)
 
 	# Create filename
 	from frappe.utils import formatdate
@@ -738,6 +767,89 @@ def decimal_round(value, precision=2):
 	return float(Decimal(str(value)).quantize(Decimal(10) ** -precision, rounding=ROUND_HALF_UP))
 
 
+def get_holidays_in_range(from_date, to_date):
+	"""Get all holidays within a date range from all Holiday Lists"""
+	holidays = frappe.db.sql("""
+		SELECT DISTINCT h.holiday_date
+		FROM `tabHoliday` h
+		INNER JOIN `tabHoliday List` hl ON h.parent = hl.name
+		WHERE h.holiday_date BETWEEN %(from_date)s AND %(to_date)s
+	""", {"from_date": from_date, "to_date": to_date}, as_dict=1)
+
+	return set(h.holiday_date for h in holidays)
+
+
+def is_sunday_or_holiday(date_obj, holidays_set):
+	"""Check if a date is Sunday or a holiday"""
+	if date_obj.weekday() == 6:  # Sunday
+		return True
+	if date_obj in holidays_set:
+		return True
+	return False
+
+
+def get_overtime_multipliers():
+	"""Get multipliers from all Overtime Types"""
+	ot_types = frappe.get_all("Overtime Type", fields=[
+		"name", "standard_multiplier", "public_holiday_multiplier", "weekend_multiplier"
+	])
+	return {ot.name: ot for ot in ot_types}
+
+
+def calculate_working_day_for_excel(abbreviation, working_hours):
+	"""
+	Calculate working day value based on leave abbreviation and working hours.
+
+	Rules based on company leave regulations:
+	- 1 day for: P, P/2, MC, HS, HL, HL/2 (Phép năm, Ma chay, Hỉ sự, Nghỉ hưởng lương)
+	- 0 day for: KL, NB, TS, DS, O, CO, OCO/2, OK/2, COK/2 (Không lương, Nghỉ bù, Thai sản, Dưỡng sức, Ốm, Con ốm)
+	- 0.5 day for: O/2, CO/2, OP/2, COP/2 (Ốm/Con ốm - Đi làm/Phép năm nửa ngày)
+	- 0.4 day for: OL/2, COL/2 (Ốm/Con ốm - Đi trễ/về sớm ≤ 1 giờ)
+	- Other cases: 1 - (8 - working_hours) / 8
+	"""
+	# Define abbreviations for each category
+	full_day_abbrevs = ['P', 'P/2', 'MC', 'HS', 'HL', 'HL/2']
+	zero_day_abbrevs = ['KL', 'NB', 'TS', 'DS', 'O', 'CO', 'OCO/2', 'OK/2', 'COK/2']
+	half_day_abbrevs = ['O/2', 'CO/2', 'OP/2', 'COP/2']
+	point_four_day_abbrevs = ['OL/2', 'COL/2']  # 0.4 day for late/early ≤ 1 hour
+
+	if abbreviation in full_day_abbrevs:
+		return 1
+	elif abbreviation in zero_day_abbrevs:
+		return 0
+	elif abbreviation in half_day_abbrevs:
+		return 0.5
+	elif abbreviation in point_four_day_abbrevs:
+		return 0.4
+	else:
+		# Other cases: formula 1 - (8 - working_hours) / 8
+		working_hours = working_hours or 0
+		return decimal_round(1 - (8 - working_hours) / 8, 2)
+
+
+def get_excel_cell_display(abbreviation, working_hours):
+	"""
+	Get the value to display in Excel cell.
+
+	Rules:
+	- KL & working_hours = 0: show "KL"
+	- KL & working_hours > 0: show working_hours
+	- Other abbreviations: show the abbreviation
+	"""
+	if abbreviation == 'KL':
+		if working_hours and working_hours > 0:
+			return decimal_round(working_hours, 2)
+		else:
+			return 'KL'
+	elif abbreviation:
+		return abbreviation
+	else:
+		# No abbreviation - show working hours / 8 as working day
+		if working_hours and working_hours > 0:
+			return decimal_round(working_hours / 8, 2)
+		return ''
+
+
 def convert_attendance_data_to_excel_format(report_data, filters):
 	"""Convert report data to Excel format for attendance export"""
 	if not report_data:
@@ -745,6 +857,12 @@ def convert_attendance_data_to_excel_format(report_data, filters):
 
 	# Get date range for columns
 	date_range = get_export_date_range(filters)
+
+	# Get holidays in range for Sunday/holiday check
+	holidays_set = get_holidays_in_range(date_range['from_date'], date_range['to_date'])
+
+	# Get overtime multipliers
+	ot_multipliers = get_overtime_multipliers()
 
 	# Group data by employee
 	employee_data = {}
@@ -762,7 +880,10 @@ def convert_attendance_data_to_excel_format(report_data, filters):
 				'custom_group': row.get('custom_group', '') or '',
 				'department': clean_department_name(row.get('department', '') or ''),
 				'designation': '',  # Not available in Attendance, will get from Employee
-				'daily_data': {}
+				'daily_data': {},
+				'daily_working_day': {},  # Store calculated working day for total
+				'daily_overtime': {},  # Store raw OT for daily display
+				'daily_overtime_multiplied': {}  # Store OT x multiplier for total
 			}
 
 		# Add daily attendance data
@@ -771,23 +892,63 @@ def convert_attendance_data_to_excel_format(report_data, filters):
 			# Handle different date formats
 			if hasattr(attendance_date, 'strftime'):
 				date_key = attendance_date.strftime('%Y-%m-%d')
+				date_obj = attendance_date
 			else:
 				date_key = str(attendance_date)
+				from datetime import datetime
+				date_obj = datetime.strptime(date_key, '%Y-%m-%d').date()
 
-			# Convert working hours to working days
+			# Check if Sunday or holiday
+			is_off_day = is_sunday_or_holiday(date_obj, holidays_set)
+
+			# Get working hours and leave abbreviation
 			working_hours = row.get('working_hours', 0) or 0
+			abbreviation = row.get('custom_leave_application_abbreviation', '') or ''
 			status = row.get('status', '')
 
-			# Always show all data including zeros
-			if working_hours > 0:
-				working_days = decimal_round(working_hours / 8, 2)
-				employee_data[employee_id]['daily_data'][date_key] = working_days
+			# Get display value for Excel cell
+			display_value = get_excel_cell_display(abbreviation, working_hours)
+
+			# Calculate working day for total (0 for Sunday/holiday)
+			if is_off_day:
+				working_day = 0
+				# For off days, show empty instead of value
+				display_value = None  # Use None to mark as off day - will be empty in Excel
+			elif abbreviation:
+				working_day = calculate_working_day_for_excel(abbreviation, working_hours)
 			elif status and 'Present' in str(status):
-				# Present but no working hours - show 0
-				employee_data[employee_id]['daily_data'][date_key] = 0
+				# Present without abbreviation - use working hours
+				working_day = decimal_round(working_hours / 8, 2) if working_hours else 0
 			else:
-				# No working day - leave blank for other statuses or missing data
-				employee_data[employee_id]['daily_data'][date_key] = ''
+				working_day = 0
+
+			# Calculate overtime: store both raw OT and multiplied OT
+			final_ot = row.get('final_overtime_duration', 0) or 0
+			overtime_type = row.get('overtime_type', '') or ''
+			ot_multiplied = 0
+			if final_ot > 0 and overtime_type and overtime_type in ot_multipliers:
+				ot_info = ot_multipliers[overtime_type]
+				# Determine which multiplier to use based on day type
+				if date_obj in holidays_set:
+					multiplier = ot_info.get('public_holiday_multiplier', 1) or 1
+				elif date_obj.weekday() == 6:  # Sunday
+					multiplier = ot_info.get('weekend_multiplier', 1) or 1
+				else:
+					multiplier = ot_info.get('standard_multiplier', 1) or 1
+				ot_multiplied = decimal_round(final_ot * multiplier, 2)
+
+			# Store display value, working day and overtime
+			# Use None for off days (empty cell), '-' for missing data
+			if display_value is None:
+				employee_data[employee_id]['daily_data'][date_key] = ''  # Empty for off days
+			elif display_value == '':
+				employee_data[employee_id]['daily_data'][date_key] = '-'  # Missing data
+			else:
+				employee_data[employee_id]['daily_data'][date_key] = display_value
+			employee_data[employee_id]['daily_working_day'][date_key] = working_day
+			# Store raw OT for daily display and multiplied OT for total
+			employee_data[employee_id]['daily_overtime'][date_key] = decimal_round(final_ot, 2)
+			employee_data[employee_id]['daily_overtime_multiplied'][date_key] = ot_multiplied
 
 	# Get all active employees for the period
 	period_start = filters.get("from_date", "1900-01-01")
@@ -837,7 +998,10 @@ def convert_attendance_data_to_excel_format(report_data, filters):
 				'custom_group': emp.custom_group or '',
 				'department': clean_department_name(emp.department or ''),
 				'designation': emp.designation or '',
-				'daily_data': {}
+				'daily_data': {},
+				'daily_working_day': {},
+				'daily_overtime': {},
+				'daily_overtime_multiplied': {}
 			}
 		else:
 			# Update designation for existing employees
@@ -869,6 +1033,18 @@ def convert_attendance_data_to_excel_format(report_data, filters):
 			date_key = date_obj.strftime('%Y-%m-%d')
 			if date_key not in emp['daily_data']:
 				emp['daily_data'][date_key] = ''
+			if 'daily_working_day' not in emp:
+				emp['daily_working_day'] = {}
+			if date_key not in emp['daily_working_day']:
+				emp['daily_working_day'][date_key] = 0
+			if 'daily_overtime' not in emp:
+				emp['daily_overtime'] = {}
+			if date_key not in emp['daily_overtime']:
+				emp['daily_overtime'][date_key] = 0
+			if 'daily_overtime_multiplied' not in emp:
+				emp['daily_overtime_multiplied'] = {}
+			if date_key not in emp['daily_overtime_multiplied']:
+				emp['daily_overtime_multiplied'][date_key] = 0
 
 	# Group by department if split_department is enabled
 	if split_department:
@@ -1003,13 +1179,110 @@ def setup_excel_headers(ws, date_range, _filters):
 		cell.alignment = Alignment(horizontal='center')
 
 
-def populate_employee_data(ws, employee_data, date_range):
+def setup_excel_headers_overtime(ws, date_range, _filters):
+	"""Setup Excel headers for OverTime sheet"""
+	from openpyxl.styles import Font, Alignment
+
+	# Calculate total columns needed (extra column for OT x Multiplier)
+	total_cols = 8 + len(date_range['dates']) + 3  # Basic columns (8) + dates + total OT + total OT x multiplier + confirmation
+
+	# Row 1: Main title (merge and center)
+	ws.cell(row=1, column=1, value="EMPLOYEE OVERTIME SHEET")
+	ws.cell(row=1, column=1).font = Font(name='Times New Roman', size=12, bold=True)
+	ws.cell(row=1, column=1).alignment = Alignment(horizontal='center', vertical='center')
+	ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=total_cols)
+
+	# Row 2: Vietnamese title (merge and center)
+	ws.cell(row=2, column=1, value="BẢNG TỔNG HỢP LÀM THÊM GIỜ")
+	ws.cell(row=2, column=1).font = Font(name='Times New Roman', size=12, bold=True)
+	ws.cell(row=2, column=1).alignment = Alignment(horizontal='center', vertical='center')
+	ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=total_cols)
+
+	# Row 3: Period and date range (merge and center)
+	from_date_str = date_range['from_date'].strftime('%d %b %y')
+	to_date_str = date_range['to_date'].strftime('%d %b %y')
+	ws.cell(row=3, column=1, value=f"{date_range['period_name']} ({from_date_str} - {to_date_str})")
+	ws.cell(row=3, column=1).font = Font(name='Times New Roman', size=10)
+	ws.cell(row=3, column=1).alignment = Alignment(horizontal='center', vertical='center')
+	ws.merge_cells(start_row=3, start_column=1, end_row=3, end_column=total_cols)
+
+	# Row 5: Column headers
+	headers = [
+		"No./ STT",
+		"Employee ID /Mã NV",
+		"Full name/Họ tên",
+		"Ngày kí hợp đồng",
+		"Resign on/ Nghỉ việc",
+		"Line/ Chuyền",
+		"Section/ Bộ phận",
+		"Position/Chức vụ"
+	]
+
+	# Set fixed headers (columns 1-8) and merge with rows 6-7
+	for i, header in enumerate(headers, 1):
+		cell = ws.cell(row=5, column=i, value=header)
+		cell.font = Font(name='Times New Roman', bold=True, size=10)
+		cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+		# Merge each header cell with the 2 rows below (rows 6 and 7)
+		ws.merge_cells(start_row=5, start_column=i, end_row=7, end_column=i)
+
+	# Set last three headers: Total OT, Total OT x Multiplier, Confirmation
+	total_ot_col = 9 + len(date_range['dates'])
+	total_ot_multiplier_col = total_ot_col + 1
+	confirmation_col = total_ot_multiplier_col + 1
+
+	# Total OT column
+	ws.cell(row=5, column=total_ot_col, value="Total OT/Tổng OT")
+	ws.cell(row=5, column=total_ot_col).font = Font(name='Times New Roman', bold=True, size=10)
+	ws.cell(row=5, column=total_ot_col).alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+	ws.merge_cells(start_row=5, start_column=total_ot_col, end_row=7, end_column=total_ot_col)
+
+	# Total OT x Multiplier column
+	ws.cell(row=5, column=total_ot_multiplier_col, value="Total OT x Multiplier/Tổng OT x hệ số")
+	ws.cell(row=5, column=total_ot_multiplier_col).font = Font(name='Times New Roman', bold=True, size=10)
+	ws.cell(row=5, column=total_ot_multiplier_col).alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+	ws.merge_cells(start_row=5, start_column=total_ot_multiplier_col, end_row=7, end_column=total_ot_multiplier_col)
+
+	# Confirmation column
+	ws.cell(row=5, column=confirmation_col, value="Xác nhận")
+	ws.cell(row=5, column=confirmation_col).font = Font(name='Times New Roman', bold=True, size=10)
+	ws.cell(row=5, column=confirmation_col).alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+	ws.merge_cells(start_row=5, start_column=confirmation_col, end_row=7, end_column=confirmation_col)
+
+	# Merge and set "DATE IN THE MONTH/ NGÀY TRONG THÁNG" header
+	if len(date_range['dates']) > 0:
+		date_start_col = 9
+		date_end_col = 8 + len(date_range['dates'])
+		ws.cell(row=5, column=date_start_col, value="DATE IN THE MONTH/ NGÀY TRONG THÁNG")
+		ws.cell(row=5, column=date_start_col).font = Font(name='Times New Roman', bold=True, size=10)
+		ws.cell(row=5, column=date_start_col).alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+		ws.merge_cells(start_row=5, start_column=date_start_col, end_row=5, end_column=date_end_col)
+
+	# Row 6: Dates (only day number)
+	for i, date_obj in enumerate(date_range['dates']):
+		col = 9 + i  # Start from column 9
+		ws.cell(row=6, column=col, value=date_obj.day)  # Only day number
+		cell = ws.cell(row=6, column=col)
+		cell.font = Font(name='Times New Roman', size=9)
+		cell.alignment = Alignment(horizontal='center')
+
+	# Row 7: Day of week
+	for i, date_obj in enumerate(date_range['dates']):
+		col = 9 + i
+		day_of_week = date_obj.strftime('%a')[:1]  # First letter of day
+		ws.cell(row=7, column=col, value=day_of_week)
+		cell = ws.cell(row=7, column=col)
+		cell.font = Font(name='Times New Roman', size=9, bold=True)
+		cell.alignment = Alignment(horizontal='center')
+
+
+def populate_employee_data(ws, employee_data, date_range, sheet_type='timesheet'):
 	"""Populate employee data into Excel with department grouping"""
 	from openpyxl.styles import PatternFill, Font, Alignment
 
 	start_row = 8
 	current_row = start_row
-	total_columns = 9 + len(date_range['dates']) + 2  # Basic + dates + total + confirmation
+	total_columns = 8 + len(date_range['dates']) + 2  # Basic (8) + dates + total + confirmation
 
 	# Create light gray fill for department headers
 	dept_fill = PatternFill(start_color='E0E0E0', end_color='E0E0E0', fill_type='solid')
@@ -1041,7 +1314,7 @@ def populate_employee_data(ws, employee_data, date_range):
 				# Track first employee row for formulas
 				if first_employee_row is None:
 					first_employee_row = current_row
-				populate_single_employee_row(ws, emp, current_row, date_range, stt_counter)
+				populate_single_employee_row(ws, emp, current_row, date_range, stt_counter, sheet_type)
 				stt_counter += 1
 				current_row += 1
 
@@ -1052,14 +1325,14 @@ def populate_employee_data(ws, employee_data, date_range):
 				# Track first employee row for formulas
 				if first_employee_row is None:
 					first_employee_row = current_row
-				populate_single_employee_row(ws, emp, current_row, date_range, stt_counter)
+				populate_single_employee_row(ws, emp, current_row, date_range, stt_counter, sheet_type)
 				stt_counter += 1
 				current_row += 1
 
 	return all_employees, current_row, first_employee_row
 
 
-def populate_single_employee_row(ws, emp, row, date_range, stt_number):
+def populate_single_employee_row(ws, emp, row, date_range, stt_number, sheet_type='timesheet'):
 	"""Populate a single employee row"""
 	from datetime import datetime
 	from openpyxl.styles import Font, Alignment
@@ -1108,71 +1381,108 @@ def populate_single_employee_row(ws, emp, row, date_range, stt_number):
 		# Left-align these specific columns
 		cell.alignment = Alignment(horizontal='left', vertical='center')
 
-	# Daily attendance data
+	# Daily data based on sheet type
+	total_value = 0
+	total_ot_multiplied = 0  # For overtime sheet: sum of OT x multiplier
 	for j, date_obj in enumerate(date_range['dates']):
 		col = 9 + j
 		date_key = date_obj.strftime('%Y-%m-%d')
-		value = emp['daily_data'].get(date_key, '')
-		ws.cell(row=row, column=col, value=value)
+
+		if sheet_type == 'overtime':
+			# For overtime sheet: use daily_overtime (raw OT) for display
+			value = emp.get('daily_overtime', {}).get(date_key, 0) or 0
+			# Show value if > 0, otherwise empty
+			display_value = value if value > 0 else ''
+			total_value += value
+			# Sum up multiplied OT for the extra column
+			ot_mult = emp.get('daily_overtime_multiplied', {}).get(date_key, 0) or 0
+			total_ot_multiplied += ot_mult
+		else:
+			# For timesheet: use daily_data and daily_working_day
+			display_value = emp['daily_data'].get(date_key, '')
+			working_day = emp.get('daily_working_day', {}).get(date_key, 0) or 0
+			total_value += working_day
+
+		ws.cell(row=row, column=col, value=display_value)
 
 		# Center align attendance data with font
 		cell = ws.cell(row=row, column=col)
 		cell.font = Font(name='Times New Roman', size=8)
 		cell.alignment = Alignment(horizontal='center', vertical='center')
 
-	# Add total working days column with SUM formula
+	# Add total column with calculated value
 	total_col = 9 + len(date_range['dates'])
-	# Create SUM formula for this row's daily attendance data
-	start_col_letter = get_column_letter(9)  # First date column
-	end_col_letter = get_column_letter(8 + len(date_range['dates']))  # Last date column
-	sum_formula = f"=SUM({start_col_letter}{row}:{end_col_letter}{row})"
-	cell = ws.cell(row=row, column=total_col, value=sum_formula)
+	cell = ws.cell(row=row, column=total_col, value=decimal_round(total_value, 2))
 	cell.font = Font(name='Times New Roman', size=8)
 	cell.alignment = Alignment(horizontal='center', vertical='center')
 
-	# Add confirmation column (empty)
-	confirmation_col = total_col + 1
-	cell = ws.cell(row=row, column=confirmation_col, value='')
-	cell.font = Font(name='Times New Roman', size=8)
-	cell.alignment = Alignment(horizontal='center', vertical='center')
+	if sheet_type == 'overtime':
+		# Add Total OT x Multiplier column for overtime sheet
+		total_ot_mult_col = total_col + 1
+		cell = ws.cell(row=row, column=total_ot_mult_col, value=decimal_round(total_ot_multiplied, 2))
+		cell.font = Font(name='Times New Roman', size=8)
+		cell.alignment = Alignment(horizontal='center', vertical='center')
+
+		# Add confirmation column (empty)
+		confirmation_col = total_ot_mult_col + 1
+		cell = ws.cell(row=row, column=confirmation_col, value='')
+		cell.font = Font(name='Times New Roman', size=8)
+		cell.alignment = Alignment(horizontal='center', vertical='center')
+	else:
+		# Add confirmation column (empty) for timesheet
+		confirmation_col = total_col + 1
+		cell = ws.cell(row=row, column=confirmation_col, value='')
+		cell.font = Font(name='Times New Roman', size=8)
+		cell.alignment = Alignment(horizontal='center', vertical='center')
 
 
-def add_total_row(ws, _all_employees, total_row, date_range, first_employee_row):
-	"""Add total row at the end with SUM formulas"""
+def add_total_row(ws, _all_employees, total_row, date_range, first_employee_row, sheet_type='timesheet'):
+	"""Add total row at the end with SUM formula for total columns"""
 	from openpyxl.utils import get_column_letter
 	from openpyxl.styles import PatternFill, Font, Alignment
 
 	# Create light gray fill for total row
 	total_fill = PatternFill(start_color='E0E0E0', end_color='E0E0E0', fill_type='solid')
-	total_columns = 9 + len(date_range['dates']) + 2  # Basic + dates + total + confirmation
+
+	# Calculate total columns based on sheet type
+	if sheet_type == 'overtime':
+		total_columns = 8 + len(date_range['dates']) + 3  # Basic (8) + dates + total OT + total OT x mult + confirmation
+	else:
+		total_columns = 8 + len(date_range['dates']) + 2  # Basic (8) + dates + total + confirmation
 
 	ws.cell(row=total_row, column=1, value="TOTAL")
 	ws.cell(row=total_row, column=1).font = Font(name='Times New Roman', bold=True, size=8)
 	ws.cell(row=total_row, column=1).alignment = Alignment(horizontal='center', vertical='center')
 
-	# Add SUM formulas for each date column
-	last_employee_row = total_row - 1  # Row just before TOTAL row
+	# Date columns may contain text (abbreviations), so leave them empty in total row
 	for j, date_obj in enumerate(date_range['dates']):
 		col = 9 + j
-		col_letter = get_column_letter(col)
-		# Create SUM formula from first employee row to last employee row
-		sum_formula = f"=SUM({col_letter}{first_employee_row}:{col_letter}{last_employee_row})"
-		ws.cell(row=total_row, column=col, value=sum_formula)
+		cell = ws.cell(row=total_row, column=col, value='')
+		cell.font = Font(name='Times New Roman', bold=True, size=8)
+		cell.alignment = Alignment(horizontal='center', vertical='center')
 
-		ws.cell(row=total_row, column=col).font = Font(name='Times New Roman', bold=True, size=8)
-		ws.cell(row=total_row, column=col).alignment = Alignment(horizontal='center', vertical='center')
-
-	# Add grand total SUM formula in Total working days column
+	# Add grand total SUM formula in Total column
+	# This column contains numeric values, so SUM formula works
 	total_col = 9 + len(date_range['dates'])
 	total_col_letter = get_column_letter(total_col)
-	# Sum all individual employee total working days
+	last_employee_row = total_row - 1  # Row just before TOTAL row
+	# Sum all individual employee totals
 	grand_total_formula = f"=SUM({total_col_letter}{first_employee_row}:{total_col_letter}{last_employee_row})"
 	ws.cell(row=total_row, column=total_col, value=grand_total_formula)
 	ws.cell(row=total_row, column=total_col).font = Font(name='Times New Roman', bold=True, size=8)
 	ws.cell(row=total_row, column=total_col).alignment = Alignment(horizontal='center', vertical='center')
 
+	# For overtime sheet, add SUM formula for Total OT x Multiplier column
+	if sheet_type == 'overtime':
+		total_ot_mult_col = total_col + 1
+		total_ot_mult_col_letter = get_column_letter(total_ot_mult_col)
+		grand_total_mult_formula = f"=SUM({total_ot_mult_col_letter}{first_employee_row}:{total_ot_mult_col_letter}{last_employee_row})"
+		ws.cell(row=total_row, column=total_ot_mult_col, value=grand_total_mult_formula)
+		ws.cell(row=total_row, column=total_ot_mult_col).font = Font(name='Times New Roman', bold=True, size=8)
+		ws.cell(row=total_row, column=total_ot_mult_col).alignment = Alignment(horizontal='center', vertical='center')
+
 	# Add gray background to entire TOTAL row
-	for col in range(1, total_columns):
+	for col in range(1, total_columns + 1):
 		cell = ws.cell(row=total_row, column=col)
 		cell.fill = total_fill
 
@@ -1254,10 +1564,13 @@ def add_excel_footer(ws, current_row, date_range):
 	ws.cell(row=name_row, column=right_col).alignment = Alignment(horizontal='center', vertical='center')
 
 
-def apply_excel_formatting(ws, num_employees, num_dates, date_range):
+def apply_excel_formatting(ws, num_employees, num_dates, date_range, holidays_set=None, sheet_type='timesheet'):
 	"""Apply formatting to Excel worksheet"""
 	from openpyxl.utils import get_column_letter
 	from openpyxl.styles import Border, Side, PatternFill
+
+	if holidays_set is None:
+		holidays_set = set()
 
 	# Set column widths
 	ws.column_dimensions['A'].width = 8   # STT
@@ -1274,11 +1587,19 @@ def apply_excel_formatting(ws, num_employees, num_dates, date_range):
 		col_letter = get_column_letter(9 + i)
 		ws.column_dimensions[col_letter].width = 4
 
-	# Set width for total and confirmation columns
+	# Set width for total and confirmation columns based on sheet type
 	total_col = get_column_letter(9 + num_dates)
-	confirmation_col = get_column_letter(9 + num_dates + 1)
-	ws.column_dimensions[total_col].width = 9  # Total working days
-	ws.column_dimensions[confirmation_col].width = 12  # Xác nhận
+	ws.column_dimensions[total_col].width = 9  # Total working days / Total OT
+
+	if sheet_type == 'overtime':
+		# Extra column for Total OT x Multiplier
+		total_ot_mult_col = get_column_letter(9 + num_dates + 1)
+		confirmation_col = get_column_letter(9 + num_dates + 2)
+		ws.column_dimensions[total_ot_mult_col].width = 12  # Total OT x Multiplier
+		ws.column_dimensions[confirmation_col].width = 12  # Xác nhận
+	else:
+		confirmation_col = get_column_letter(9 + num_dates + 1)
+		ws.column_dimensions[confirmation_col].width = 12  # Xác nhận
 
 	# Set row heights
 	ws.row_dimensions[5].height = 30  # Header row
@@ -1295,35 +1616,117 @@ def apply_excel_formatting(ws, num_employees, num_dates, date_range):
 
 	# Header borders and background (light blue-gray)
 	header_fill = PatternFill(start_color='B0C4DE', end_color='B0C4DE', fill_type='solid')  # Light steel blue
-	sunday_fill = PatternFill(start_color='D3D3D3', end_color='D3D3D3', fill_type='solid')  # Gray for Sundays
+	off_day_fill = PatternFill(start_color='D3D3D3', end_color='D3D3D3', fill_type='solid')  # Gray for Sundays & holidays
 
-	# Calculate total columns including new ones
-	total_columns = 9 + num_dates + 2  # Basic + dates + confirmation + total
+	# Calculate total columns based on sheet type
+	if sheet_type == 'overtime':
+		total_columns = 8 + num_dates + 3  # Basic (8) + dates + total OT + total OT x mult + confirmation
+	else:
+		total_columns = 8 + num_dates + 2  # Basic (8) + dates + total + confirmation
 
-	# Apply to headers (rows 5-7)
+	# Apply to headers (rows 5-7) - also apply gray to Sunday/holiday columns in header
 	for row in range(5, 8):
-		for col in range(1, total_columns):
+		for col in range(1, total_columns + 1):
 			cell = ws.cell(row=row, column=col)
 			cell.border = thin_border
-			cell.fill = header_fill
+
+			# Check if this is a Sunday or holiday column
+			if col >= 9 and col < 9 + num_dates:
+				date_index = col - 9
+				if date_index < len(date_range['dates']):
+					date_obj = date_range['dates'][date_index]
+					if date_obj.weekday() == 6 or date_obj in holidays_set:
+						cell.fill = off_day_fill
+					else:
+						cell.fill = header_fill
+			else:
+				cell.fill = header_fill
 
 	# Apply to data rows (including total row)
 	for row in range(8, 8 + num_employees):  # num_employees already includes total row
-		for col in range(1, total_columns):
+		for col in range(1, total_columns + 1):
 			cell = ws.cell(row=row, column=col)
 
 			# Apply border to regular employee rows only
 			cell.border = thin_border
 
-			# Check if this is a Sunday column
+			# Check if this is a Sunday or holiday column
 			if col >= 9 and col < 9 + num_dates:  # Date columns only
 				date_index = col - 9
 				if date_index < len(date_range['dates']):
 					date_obj = date_range['dates'][date_index]
-					if date_obj.weekday() == 6:  # Sunday = 6 in Python weekday()
-						# Only apply Sunday fill if not already a department/total row
+					if date_obj.weekday() == 6 or date_obj in holidays_set:
+						# Apply off-day fill if not already a department/total row
 						if not cell.fill or cell.fill.start_color.rgb != 'FFE0E0E0':
-							cell.fill = sunday_fill
+							cell.fill = off_day_fill
+
+
+def add_leave_regulations_sheet(wb):
+	"""Add leave regulations sheet to the workbook"""
+	from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
+
+	ws = wb.create_sheet(title="Quy định nghỉ phép")
+
+	# Define the regulations data (matching original file exactly)
+	regulations = [
+		["Mục", "Nội dung", "Thời gian tính công (ngày)", "Thể hiện trên bảng công", "Trừ tiền thưởng chuyên cần/tháng", "Ghi chú"],
+		["Phép năm/ Annual leave", "Phép năm 1 ngày", "1", "P", "Không bị trừ", ""],
+		["Phép năm/ Annual leave", "Phép năm 1/2 ngày", "1", "P/2", "Không bị trừ", ""],
+		["Nghỉ hưởng lương/ Paid leave", "Ma chay (1 ngày)", "1", "MC", "Không bị trừ", ""],
+		["Nghỉ hưởng lương/ Paid leave", "Hỉ sự (1 ngày)", "1", "HS", "Không bị trừ", ""],
+		["Nghỉ hưởng lương/ Paid leave", "Nghỉ hưởng lương khác (1 ngày)", "1", "HL", "Không bị trừ", ""],
+		["Nghỉ hưởng lương/ Paid leave", "Nghỉ hưởng lương khác (1/2 ngày)", "1", "HL/2", "Không bị trừ", ""],
+		["Nghỉ không lương/ Unpaid leave", "Đi trễ hoặc Về sớm", "1−(Số\u00a0giờ\u00a0nghỉ/8)", "<1", "100.000 VND/ lần", "Làm tròn 1 số thập phân"],
+		["Nghỉ không lương/ Unpaid leave", "Nghỉ không lương (1 ngày)", "0", "KL", "Lần 1: 200.000 VND; Lần 2: 500.000 VND; Lần 3 trở đi: Toàn bộ tiền thưởng", ""],
+		["Nghỉ không lương/ Unpaid leave", "Nghỉ bù", "0", "NB", "", ""],
+		["Nghỉ hưởng BHXH/ Social insurance leave", "Nghỉ thai sản", "0", "TS", "Theo tỷ lệ ngày nghỉ thực tế (miễn trừ khám thai)", ""],
+		["Nghỉ hưởng BHXH/ Social insurance leave", "Nghỉ dưỡng sức", "0", "DS", "Theo tỷ lệ ngày nghỉ thực tế", ""],
+		["Nghỉ hưởng BHXH/ Social insurance leave", "Nghỉ ốm (1 ngày)", "0", "O", "Theo tỷ lệ ngày nghỉ thực tế", ""],
+		["Nghỉ hưởng BHXH/ Social insurance leave", "Con ốm (1 ngày)", "0", "CO", "Theo tỷ lệ ngày nghỉ thực tế", ""],
+		["Nghỉ hưởng BHXH/ Social insurance leave", "Nghỉ ốm - Đi làm (1/2 ngày)", "0.5", "O/2", "Theo tỷ lệ ngày nghỉ thực tế", ""],
+		["Nghỉ hưởng BHXH/ Social insurance leave", "Con ốm - Đi làm (1/2 ngày)", "0.5", "CO/2", "Theo tỷ lệ ngày nghỉ thực tế", ""],
+		["Nghỉ hưởng BHXH/ Social insurance leave", "Nghỉ ốm - Phép năm (1/2 ngày)", "0.5", "OP/2", "Theo tỷ lệ ngày nghỉ thực tế", ""],
+		["Nghỉ hưởng BHXH/ Social insurance leave", "Con ốm - Phép năm (1/2 ngày)", "0.5", "COP/2", "Theo tỷ lệ ngày nghỉ thực tế", ""],
+		["Nghỉ hưởng BHXH/ Social insurance leave", "Nghỉ ốm - Đi trễ/về sớm (Số giờ nghỉ\u00a0≤\u00a01 giờ)", "0.4", "OL/2", "100.000 VND/ lần", "Miễn trừ nếu có giấy xác nhận của bộ phận Y tế; Làm tròn 1 số thập phân"],
+		["Nghỉ hưởng BHXH/ Social insurance leave", "Con ốm - Đi trễ/về sớm (Số giờ nghỉ\u00a0≤\u00a01 giờ)", "0.4", "COL/2", "100.000 VND/ lần", "Làm tròn 1 số thập phân"],
+		["Nghỉ hưởng BHXH/ Social insurance leave", "Nghỉ ốm - Con ốm (1/2 ngày)", "0", "OCO/2", "Theo tỷ lệ ngày nghỉ thực tế", ""],
+		["Nghỉ hưởng BHXH/ Social insurance leave", "Nghỉ ốm - Không lương HOẶC Nghỉ ốm - Đi trễ/về sớm (1 giờ < Số giờ nghỉ < 4 giờ)", "0", "OK/2", "Lần 1: 200.000 VND; Lần 2: 500.000 VND; Lần 3 trở đi: Toàn bộ tiền thưởng", ""],
+		["Nghỉ hưởng BHXH/ Social insurance leave", "Con ốm - Không lương HOẶC Con ốm - Đi trễ/về sớm (1 giờ < Số giờ nghỉ < 4 giờ)", "0", "COK/2", "Lần 1: 200.000 VND; Lần 2: 500.000 VND; Lần 3 trở đi: Toàn bộ tiền thưởng", ""],
+	]
+
+	# Write data
+	for row_idx, row_data in enumerate(regulations, 1):
+		for col_idx, value in enumerate(row_data, 1):
+			cell = ws.cell(row=row_idx, column=col_idx, value=value)
+			cell.font = Font(name='Times New Roman', size=10, bold=(row_idx == 1))
+			cell.alignment = Alignment(horizontal='left', vertical='center', wrap_text=True)
+
+	# Apply formatting
+	thin_border = Border(
+		left=Side(style='thin'),
+		right=Side(style='thin'),
+		top=Side(style='thin'),
+		bottom=Side(style='thin')
+	)
+	header_fill = PatternFill(start_color='B0C4DE', end_color='B0C4DE', fill_type='solid')
+
+	# Set column widths
+	ws.column_dimensions['A'].width = 35
+	ws.column_dimensions['B'].width = 50
+	ws.column_dimensions['C'].width = 25
+	ws.column_dimensions['D'].width = 20
+	ws.column_dimensions['E'].width = 50
+	ws.column_dimensions['F'].width = 50
+
+	# Apply borders and header fill
+	for row_idx, row_data in enumerate(regulations, 1):
+		for col_idx in range(1, 7):
+			cell = ws.cell(row=row_idx, column=col_idx)
+			cell.border = thin_border
+			if row_idx == 1:
+				cell.fill = header_fill
+
+	return ws
 
 
 def delete_export_file(file_name):

@@ -465,5 +465,3 @@ function show_background_job_dialog_v2(options) {
 		indicator: 'blue'
 	});
 }
-
-console.log("✅ Bulk Update Attendance V2 (Optimized) loaded successfully");

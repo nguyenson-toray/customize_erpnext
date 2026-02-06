@@ -71,6 +71,7 @@ def _check_attendance_changes(old_att: Dict, new_att: Dict) -> bool:
 		('early_exit', 0, False),
 		('leave_type', None, False),
 		('leave_application', None, False),
+		('custom_leave_application_abbreviation', None, False),  # Leave abbreviation
 		('half_day_status', None, False),
 		('custom_maternity_benefit', 0, False),
 		('actual_overtime_duration', 0, False),
@@ -102,6 +103,40 @@ def _check_attendance_changes(old_att: Dict, new_att: Dict) -> bool:
 				return True
 
 	return False
+
+
+def determine_attendance_status(
+	working_hours: float,
+	working_hours_threshold_for_absent: float,
+	working_hours_threshold_for_half_day: float
+) -> str:
+	"""
+	Determine attendance status based on working hours thresholds.
+
+	This matches the original HRMS logic in ShiftType.get_attendance()
+	(shift_type.py:251-260).
+
+	Args:
+		working_hours: Total working hours calculated from checkins
+		working_hours_threshold_for_absent: Threshold below which status is "Absent"
+		working_hours_threshold_for_half_day: Threshold below which status is "Half Day"
+
+	Returns:
+		str: "Absent", "Half Day", or "Present"
+	"""
+	from frappe.utils import flt
+
+	# Match original HRMS logic exactly:
+	# 1. Check absent threshold first
+	if working_hours_threshold_for_absent and flt(working_hours) < flt(working_hours_threshold_for_absent):
+		return "Absent"
+
+	# 2. Check half day threshold
+	if working_hours_threshold_for_half_day and flt(working_hours) < flt(working_hours_threshold_for_half_day):
+		return "Half Day"
+
+	# 3. Default to Present
+	return "Present"
 
 
 # ============================================================================
@@ -158,12 +193,28 @@ def preload_reference_data(employee_list: List[str], from_date: str, to_date: st
 			"enable_late_entry_marking", "late_entry_grace_period",
 			"enable_early_exit_marking", "early_exit_grace_period",
 			"mark_auto_attendance_on_holidays", "process_attendance_after",
-			"last_sync_of_checkin"
+			"last_sync_of_checkin",
+			# CRITICAL: Add threshold fields for status determination (matches original HRMS logic)
+			"working_hours_threshold_for_half_day",
+			"working_hours_threshold_for_absent"
 		]
 	)
 	for shift in shifts:
 		data['shifts'][shift.name] = shift
 	print(f"   ✓ Loaded {len(data['shifts'])} shift types")
+
+	# 2b. Load Leave Type abbreviations (for custom_leave_application_abbreviation)
+	print(f"   Loading leave type abbreviations...")
+	data['leave_type_abbreviations'] = {}
+	leave_types = frappe.get_all(
+		"Leave Type",
+		fields=["name", "custom_abbreviation"]
+	)
+	for lt in leave_types:
+		# Use custom_abbreviation if set, otherwise first 2 chars of name
+		abbr = lt.custom_abbreviation if lt.custom_abbreviation else lt.name[:2].upper()
+		data['leave_type_abbreviations'][lt.name] = abbr
+	print(f"   ✓ Loaded {len(data['leave_type_abbreviations'])} leave type abbreviations")
 
 	# 3. Load shift assignments (for date range)
 	print(f"   Loading shift assignments...")
@@ -215,8 +266,9 @@ def preload_reference_data(employee_list: List[str], from_date: str, to_date: st
 		# Load ALL fields needed for _check_attendance_changes() comparison
 		fields=[
 			"name", "employee", "attendance_date", "shift", "status",
-			"leave_type", "leave_application", "half_day_status",
-			"in_time", "out_time", "working_hours", "late_entry", "early_exit",
+			"leave_type", "leave_application", "custom_leave_application_abbreviation",
+			"custom_leave_type_2", "custom_leave_application_2",  # Dual leave support
+			"half_day_status", "in_time", "out_time", "working_hours", "late_entry", "early_exit",
 			"custom_maternity_benefit", "actual_overtime_duration",
 			"custom_approved_overtime_duration", "custom_final_overtime_duration",
 			"overtime_type", "standard_working_hours"
@@ -326,13 +378,17 @@ def preload_reference_data(employee_list: List[str], from_date: str, to_date: st
 		current_date = getdate(record.from_date)
 		end_date = getdate(record.to_date)
 
+		# Get abbreviation for this leave type
+		leave_abbr = data['leave_type_abbreviations'].get(record.leave_type, record.leave_type[:2].upper())
+
 		while current_date <= end_date:
 			key = (record.employee, current_date)
 			data['leave_applications'][key] = {
 				'leave_type': record.leave_type,
 				'leave_application': record.leave_application,
 				'is_half_day': record.half_day,
-				'half_day_date': getdate(record.half_day_date) if record.half_day_date else None
+				'half_day_date': getdate(record.half_day_date) if record.half_day_date else None,
+				'abbreviation': leave_abbr
 			}
 			current_date = frappe.utils.add_days(current_date, 1)
 
@@ -397,7 +453,8 @@ def check_leave_status_cached(employee: str, attendance_date: date, ref_data: Di
 		dict: {
 			'status': 'On Leave' or 'Half Day',
 			'leave_type': leave type name,
-			'leave_application': leave application ID
+			'leave_application': leave application ID,
+			'abbreviation': combined abbreviation (e.g., 'P/2' for half day)
 		}
 		or None if no leave found
 	"""
@@ -410,19 +467,24 @@ def check_leave_status_cached(employee: str, attendance_date: date, ref_data: Di
 	# Check if it's half day
 	if leave_data['is_half_day'] and leave_data['half_day_date'] == attendance_date:
 		status = 'Half Day'
+		# Half day abbreviation format: "P/2"
+		abbreviation = f"{leave_data.get('abbreviation', '')}/2"
 	else:
 		status = 'On Leave'
+		# Full day abbreviation: just the leave type abbreviation
+		abbreviation = leave_data.get('abbreviation', '')
 
 	return {
 		'status': status,
 		'leave_type': leave_data['leave_type'],
-		'leave_application': leave_data['leave_application']
+		'leave_application': leave_data['leave_application'],
+		'abbreviation': abbreviation
 	}
 
 
 def get_employee_shift_cached(
 	employee: str,
-	attendance_date: date,
+	attendance_date,
 	ref_data: Dict
 ) -> Optional[str]:
 	"""
@@ -430,17 +492,35 @@ def get_employee_shift_cached(
 
 	Args:
 		employee: Employee ID
-		attendance_date: Date to check
+		attendance_date: Date to check (date or string)
 		ref_data: Preloaded reference data
 
 	Returns:
 		str: Shift name or None
 	"""
-	# Check shift assignments
+	# Ensure attendance_date is a date object
+	if isinstance(attendance_date, str):
+		attendance_date = getdate(attendance_date)
+	elif hasattr(attendance_date, 'date'):
+		# datetime object
+		attendance_date = attendance_date.date()
+
+	# Check shift assignments (sorted by start_date desc to prioritize newer assignments)
 	assignments = ref_data['shift_assignments'].get(employee, [])
-	for assign in assignments:
-		if assign.start_date <= attendance_date:
-			if not assign.end_date or assign.end_date >= attendance_date:
+	# Sort by start_date descending (newest first)
+	sorted_assignments = sorted(
+		assignments,
+		key=lambda x: getdate(x.start_date) if isinstance(x.start_date, str) else x.start_date,
+		reverse=True
+	)
+
+	for assign in sorted_assignments:
+		# Ensure dates are comparable
+		start_date = getdate(assign.start_date) if isinstance(assign.start_date, str) else assign.start_date
+		end_date = getdate(assign.end_date) if assign.end_date and isinstance(assign.end_date, str) else assign.end_date
+
+		if start_date <= attendance_date:
+			if not end_date or end_date >= attendance_date:
 				return assign.shift_type
 
 	# Fallback to default shift
@@ -582,6 +662,7 @@ def bulk_insert_attendance_records(attendance_list: List[Dict], ref_data: Dict) 
 				att.get('status', 'Present'),  # status
 				att.get('leave_type'),  # leave_type
 				att.get('leave_application'),  # leave_application
+				att.get('custom_leave_application_abbreviation'),  # custom_leave_application_abbreviation
 				att.get('company'),  # company
 				att.get('department'),  # department
 				att.get('working_hours', 0),  # working_hours
@@ -620,10 +701,11 @@ def bulk_insert_attendance_records(attendance_list: List[Dict], ref_data: Dict) 
 				sql = """
 					INSERT INTO `tabAttendance`
 					(name, employee, employee_name, attendance_date, shift, status, leave_type, leave_application,
-					 company, department, working_hours, in_time, out_time, late_entry, early_exit, custom_maternity_benefit,
-					 actual_overtime_duration, custom_approved_overtime_duration, custom_final_overtime_duration,
+					 custom_leave_application_abbreviation, company, department, working_hours, in_time, out_time,
+					 late_entry, early_exit, custom_maternity_benefit, actual_overtime_duration,
+					 custom_approved_overtime_duration, custom_final_overtime_duration,
 					 overtime_type, standard_working_hours, docstatus, creation, modified, owner, modified_by)
-					VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+					VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
 				"""
 
 				# Get cursor and use executemany
@@ -700,6 +782,11 @@ def _core_process_attendance_logic_optimized(
 	print(f"🚀 OPTIMIZED ATTENDANCE PROCESSING")
 	print(f"{'='*80}")
 	overall_start = time.time()
+
+	# Ensure to_date is a date object (not string)
+	if isinstance(to_date, str):
+		to_date = frappe.utils.getdate(to_date)
+
 	# if to_date > today(): to_date
 	if to_date > date.today():
 		to_date = date.today()
@@ -825,10 +912,9 @@ def _core_process_attendance_logic_optimized(
 				# CRITICAL: Use to_date (processing range end), not last_sync_of_checkin
 				# This allows processing current day even when shift hasn't ended yet
 				from datetime import datetime
-				from frappe.utils import getdate
 
 				# Convert to_date string to datetime at end of day
-				to_date_obj = getdate(to_date)
+				to_date_obj = frappe.utils.getdate(to_date)
 				end_of_to_date = datetime.combine(to_date_obj, datetime.max.time()).replace(microsecond=999999)
 
 				checkins = [
@@ -885,6 +971,7 @@ def _core_process_attendance_logic_optimized(
 								status = leave_status['status']
 								leave_type = leave_status['leave_type']
 								leave_application = leave_status['leave_application']
+								leave_abbreviation = leave_status.get('abbreviation')
 							else:
 								# No leave, no checkins → "Absent"
 								# Note: maternity_status is NOT a valid attendance status
@@ -892,6 +979,7 @@ def _core_process_attendance_logic_optimized(
 								status = 'Absent'
 								leave_type = None
 								leave_application = None
+								leave_abbreviation = None
 
 							# Step 4: Handle half_day_status for Half Day leave (per HRMS logic)
 							# Per HRMS attendance.py:357 - Default half_day_status = "Absent" for Half Day
@@ -916,6 +1004,7 @@ def _core_process_attendance_logic_optimized(
 								'status': status,
 								'leave_type': leave_type,
 								'leave_application': leave_application,
+								'custom_leave_application_abbreviation': leave_abbreviation,
 								'half_day_status': half_day_status,
 								'modify_half_day_status': modify_half_day_status,
 								'in_time': None,
@@ -950,6 +1039,9 @@ def _core_process_attendance_logic_optimized(
 										status = %(status)s,
 										leave_type = %(leave_type)s,
 										leave_application = %(leave_application)s,
+										custom_leave_application_abbreviation = %(custom_leave_application_abbreviation)s,
+										custom_leave_type_2 = %(custom_leave_type_2)s,
+										custom_leave_application_2 = %(custom_leave_application_2)s,
 										half_day_status = %(half_day_status)s,
 										modify_half_day_status = %(modify_half_day_status)s,
 										in_time = %(in_time)s,
@@ -972,6 +1064,9 @@ def _core_process_attendance_logic_optimized(
 									'status': att_data.get('status', 'Absent'),
 									'leave_type': att_data.get('leave_type'),
 									'leave_application': att_data.get('leave_application'),
+									'custom_leave_application_abbreviation': att_data.get('custom_leave_application_abbreviation'),
+									'custom_leave_type_2': att_data.get('custom_leave_type_2'),
+									'custom_leave_application_2': att_data.get('custom_leave_application_2'),
 									'half_day_status': att_data.get('half_day_status'),
 									'modify_half_day_status': att_data.get('modify_half_day_status', 0),
 									'in_time': att_data.get('in_time'),
@@ -1087,13 +1182,29 @@ def _core_process_attendance_logic_optimized(
 				if not correct_shift:
 					correct_shift = shift_name  # Fallback to checkin shift if no assignment/default
 
+				# CRITICAL: Determine attendance status based on working hours thresholds
+				# This matches original HRMS logic in ShiftType.get_attendance()
+				if working_hours == 0 and not in_time:
+					# No logs at all - should not reach here due to earlier filtering, but just in case
+					attendance_status = 'Absent'
+				elif working_hours == 0 and in_time and not out_time:
+					# Employee has IN but no OUT yet - mark as Present (they showed up)
+					# Working hours will be calculated when OUT is recorded
+					attendance_status = 'Present'
+				else:
+					attendance_status = determine_attendance_status(
+						working_hours=working_hours,
+						working_hours_threshold_for_absent=shift_data.get('working_hours_threshold_for_absent', 0),
+						working_hours_threshold_for_half_day=shift_data.get('working_hours_threshold_for_half_day', 0)
+					)
+
 				# Prepare attendance record with FULL fields (matches original)
 				att_data = {
 					'employee': employee,
 					'employee_name': emp_data.get('employee_name'),
 					'attendance_date': attendance_date,
 					'shift': correct_shift,  # Use correct shift from Shift Assignment
-					'status': 'Present',
+					'status': attendance_status,  # Use calculated status based on thresholds
 					'company': emp_data.get('company'),
 					'department': emp_data.get('department'),
 					'working_hours': working_hours,
@@ -1133,15 +1244,46 @@ def _core_process_attendance_logic_optimized(
 						if old_att.get('leave_type') or old_att.get('leave_application'):
 							att_data['leave_type'] = old_att.get('leave_type')
 							att_data['leave_application'] = old_att.get('leave_application')
-							# If old status was "Half Day" or "On Leave", preserve it
-							if old_att.get('status') in ['Half Day', 'On Leave']:
-								att_data['status'] = old_att.get('status')
 
-								# CRITICAL: Handle half_day_status for Half Day leave
-								# Per HRMS logic (attendance.py:357): When employee has checkin on Half Day → "Present"
+							# Preserve dual leave fields (for 2 separate Half Day LAs on same date)
+							if old_att.get('custom_leave_type_2'):
+								att_data['custom_leave_type_2'] = old_att.get('custom_leave_type_2')
+							if old_att.get('custom_leave_application_2'):
+								att_data['custom_leave_application_2'] = old_att.get('custom_leave_application_2')
+
+							# Calculate abbreviation if not already set
+							if old_att.get('custom_leave_application_abbreviation'):
+								att_data['custom_leave_application_abbreviation'] = old_att.get('custom_leave_application_abbreviation')
+							elif old_att.get('leave_type'):
+								# Calculate abbreviation from leave type
+								leave_abbr = ref_data.get('leave_type_abbreviations', {}).get(
+									old_att.get('leave_type'),
+									old_att.get('leave_type', '')[:2].upper()
+								)
 								if old_att.get('status') == 'Half Day':
+									att_data['custom_leave_application_abbreviation'] = f"{leave_abbr}/2"
+								else:
+									att_data['custom_leave_application_abbreviation'] = leave_abbr
+
+							# Status logic based on leave type and checkin:
+							# - Half Day leave → always "Half Day"
+							# - Full Day leave (On Leave) + has checkin → "Present"
+							# - Full Day leave (On Leave) + no checkin → "On Leave"
+							has_checkin = att_data.get('working_hours', 0) > 0 or att_data.get('in_time')
+
+							if old_att.get('status') == 'Half Day':
+								# Half Day leave: always preserve "Half Day"
+								att_data['status'] = 'Half Day'
+								# When employee has checkin on Half Day → half_day_status = "Present"
+								if has_checkin:
 									att_data['half_day_status'] = 'Present'
 									att_data['modify_half_day_status'] = 1
+							elif old_att.get('status') == 'On Leave':
+								# Full Day leave: status depends on checkin
+								if has_checkin:
+									att_data['status'] = 'Present'  # Has checkin → Present
+								else:
+									att_data['status'] = 'On Leave'  # No checkin → On Leave
 
 						# CHECK IF DATA HAS CHANGED before adding to update list
 						has_changes = _check_attendance_changes(old_att, att_data)
@@ -1194,6 +1336,7 @@ def _core_process_attendance_logic_optimized(
 								status = leave_status['status']
 								leave_type = leave_status['leave_type']
 								leave_application = leave_status['leave_application']
+								leave_abbreviation = leave_status.get('abbreviation')
 							else:
 								# No leave, no checkins → "Absent"
 								# Note: maternity_status is NOT a valid attendance status
@@ -1201,6 +1344,7 @@ def _core_process_attendance_logic_optimized(
 								status = 'Absent'
 								leave_type = None
 								leave_application = None
+								leave_abbreviation = None
 
 							# Step 4: Handle half_day_status for Half Day leave (per HRMS logic)
 							# Per HRMS attendance.py:357 - Default half_day_status = "Absent" for Half Day
@@ -1225,6 +1369,7 @@ def _core_process_attendance_logic_optimized(
 								'status': status,
 								'leave_type': leave_type,
 								'leave_application': leave_application,
+								'custom_leave_application_abbreviation': leave_abbreviation,
 								'half_day_status': half_day_status,
 								'modify_half_day_status': modify_half_day_status,
 								'in_time': None,
@@ -1268,6 +1413,9 @@ def _core_process_attendance_logic_optimized(
 							"status": att_data.get('status', 'Present'),
 							"leave_type": att_data.get('leave_type'),
 							"leave_application": att_data.get('leave_application'),
+							"custom_leave_application_abbreviation": att_data.get('custom_leave_application_abbreviation'),
+							"custom_leave_type_2": att_data.get('custom_leave_type_2'),
+							"custom_leave_application_2": att_data.get('custom_leave_application_2'),
 							"half_day_status": att_data.get('half_day_status'),
 							"modify_half_day_status": att_data.get('modify_half_day_status', 0),
 							"in_time": att_data.get('in_time'),
@@ -1291,6 +1439,9 @@ def _core_process_attendance_logic_optimized(
 								status = %(status)s,
 								leave_type = %(leave_type)s,
 								leave_application = %(leave_application)s,
+								custom_leave_application_abbreviation = %(custom_leave_application_abbreviation)s,
+								custom_leave_type_2 = %(custom_leave_type_2)s,
+								custom_leave_application_2 = %(custom_leave_application_2)s,
 								half_day_status = %(half_day_status)s,
 								modify_half_day_status = %(modify_half_day_status)s,
 								in_time = %(in_time)s,
@@ -1379,7 +1530,8 @@ def _core_process_attendance_logic_optimized(
 					# Get shift for this date
 					shift = get_employee_shift_cached(employee, day, ref_data)
 					if not shift:
-						shift = 'Day'
+						# Use employee's default_shift, fallback to 'Day' only if no default
+						shift = emp_data.get('default_shift') or 'Day'
 
 					# Check maternity status using cached data (for custom_maternity_benefit only)
 					maternity_status, custom_maternity_benefit = check_maternity_status_cached(employee, day, ref_data)
@@ -1393,11 +1545,13 @@ def _core_process_attendance_logic_optimized(
 						status = leave_status['status']
 						leave_type = leave_status['leave_type']
 						leave_application = leave_status['leave_application']
+						leave_abbreviation = leave_status.get('abbreviation')
 					else:
 						# No leave, no checkins → "Absent"
 						status = 'Absent'
 						leave_type = None
 						leave_application = None
+						leave_abbreviation = None
 
 					# Get shift details for standard_working_hours
 					shift_data = ref_data['shifts'].get(shift, {})
@@ -1410,6 +1564,7 @@ def _core_process_attendance_logic_optimized(
 						'status': status,
 						'leave_type': leave_type,
 						'leave_application': leave_application,
+						'custom_leave_application_abbreviation': leave_abbreviation,
 						'company': emp_data.get('company'),
 						'department': emp_data.get('department'),
 						'working_hours': 0,
