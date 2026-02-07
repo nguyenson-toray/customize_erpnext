@@ -41,9 +41,9 @@ def get_attendance_custom_additional_info(employee, attendance_date):
 
 	# Get maternity records
 	maternity_records = frappe.db.sql("""
-		SELECT type, from_date, to_date, apply_pregnant_benefit
-		FROM `tabMaternity Tracking`
-		WHERE parent = %(employee)s
+		SELECT type, from_date, to_date, apply_benefit
+		FROM `tabEmployee Maternity`
+		WHERE employee = %(employee)s
 		  AND type IN ('Pregnant', 'Maternity Leave', 'Young Child')
 		  AND from_date <= %(date)s
 		  AND to_date >= %(date)s
@@ -55,7 +55,7 @@ def get_attendance_custom_additional_info(employee, attendance_date):
 		to_date = frappe.utils.formatdate(record.to_date, "dd/mm/yyyy")
 
 		if record.type == 'Pregnant':
-			if record.apply_pregnant_benefit == 1:
+			if record.apply_benefit == 1:
 				details.append(f"🤰 {record_type}: {from_date} - {to_date} (Benefit Applied)")
 			else:
 				details.append(f"🤰 {record_type}: {from_date} - {to_date} (No Benefit)")

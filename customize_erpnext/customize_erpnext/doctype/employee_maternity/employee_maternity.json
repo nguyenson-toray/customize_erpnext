@@ -1,0 +1,164 @@
+{
+ "actions": [],
+ "allow_import": 1,
+ "allow_rename": 1,
+ "creation": "2026-02-06 16:11:17.468992",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "employee",
+  "group",
+  "date_of_joining",
+  "seniority",
+  "designation",
+  "column_break_halv",
+  "type",
+  "apply_benefit",
+  "from_date",
+  "to_date",
+  "estimated_due_date",
+  "date_of_birth",
+  "gestational_age",
+  "leave_application",
+  "note"
+ ],
+ "fields": [
+  {
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Employee",
+   "options": "Employee",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "employee.custom_group",
+   "fieldname": "group",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Group"
+  },
+  {
+   "fieldname": "type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Type",
+   "options": "Pregnant\nMaternity Leave\nYoung Child",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_halv",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "from_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "From Date",
+   "read_only_depends_on": "eval:doc.type == 'Maternity Leave'"
+  },
+  {
+   "fieldname": "to_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "To Date",
+   "read_only_depends_on": "eval:doc.type == 'Maternity Leave'"
+  },
+  {
+   "depends_on": "eval:doc.type == 'Pregnant';",
+   "fieldname": "estimated_due_date",
+   "fieldtype": "Date",
+   "label": "Estimated Due Date"
+  },
+  {
+   "depends_on": "eval:doc.type == 'Young Child'",
+   "fieldname": "date_of_birth",
+   "fieldtype": "Date",
+   "label": "Date of Birth"
+  },
+  {
+   "fetch_from": "employee.date_of_joining",
+   "fieldname": "date_of_joining",
+   "fieldtype": "Date",
+   "label": "Date of Joining"
+  },
+  {
+   "depends_on": "eval:doc.type == 'Pregnant'",
+   "description": "Months",
+   "fieldname": "seniority",
+   "fieldtype": "Int",
+   "is_virtual": 1,
+   "label": "Seniority",
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval:doc.type == 'Pregnant'",
+   "description": "Months",
+   "fieldname": "gestational_age",
+   "fieldtype": "Float",
+   "is_virtual": 1,
+   "label": "Gestational Age",
+   "precision": "1",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "employee.designation",
+   "fetch_if_empty": 1,
+   "fieldname": "designation",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Designation"
+  },
+  {
+   "default": "1",
+   "fieldname": "apply_benefit",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Apply Benefit",
+   "read_only_depends_on": "eval:doc.type == 'Maternity Leave'"
+  },
+  {
+   "depends_on": "eval:doc.type == 'Maternity Leave'",
+   "fieldname": "leave_application",
+   "fieldtype": "Link",
+   "label": "Leave Application",
+   "options": "Leave Application",
+   "read_only": 1
+  },
+  {
+   "fieldname": "note",
+   "fieldtype": "Small Text",
+   "label": "Note"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-02-07 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Customize Erpnext",
+ "name": "Employee Maternity",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

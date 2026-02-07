@@ -320,4 +320,88 @@ def on_leave_application_cancel(doc, method):
 	# Nếu is_la1 và không có LA2 → HRMS sẽ cancel attendance
 
 
+# =============================================================================
+# MATERNITY LEAVE SYNC: Leave Application → Employee Maternity
+# =============================================================================
+
+MATERNITY_LEAVE_TYPE = "Nghỉ hưởng BHXH/ Social insurance leave - Thai sản"
+
+
+def sync_maternity_leave_on_submit(doc, method):
+	"""
+	Hook on_submit: Create Employee Maternity record when maternity leave is submitted.
+	"""
+	if doc.leave_type != MATERNITY_LEAVE_TYPE:
+		return
+
+	# Check if Employee Maternity already exists for this LA
+	existing = frappe.db.exists("Employee Maternity", {"leave_application": doc.name})
+	if existing:
+		return
+
+	em = frappe.new_doc("Employee Maternity")
+	em.employee = doc.employee
+	em.type = "Maternity Leave"
+	em.from_date = doc.from_date
+	em.to_date = doc.to_date
+	em.apply_benefit = 1
+	em.leave_application = doc.name
+	em.flags.from_leave_application = True
+	em.insert(ignore_permissions=True)
+
+	frappe.msgprint(
+		_("Employee Maternity record {0} created automatically").format(
+			frappe.utils.get_link_to_form("Employee Maternity", em.name)
+		),
+		indicator="green",
+		alert=True
+	)
+
+
+def sync_maternity_leave_on_cancel(doc, method):
+	"""
+	Hook on_cancel: Delete Employee Maternity record when maternity leave is cancelled.
+	"""
+	if doc.leave_type != MATERNITY_LEAVE_TYPE:
+		return
+
+	existing = frappe.db.get_value("Employee Maternity",
+		{"leave_application": doc.name}, "name")
+
+	if existing:
+		frappe.delete_doc("Employee Maternity", existing, ignore_permissions=True, force=True)
+		frappe.msgprint(
+			_("Employee Maternity record {0} deleted").format(existing),
+			indicator="orange",
+			alert=True
+		)
+
+
+def sync_maternity_leave_on_update(doc, method):
+	"""
+	Hook on_update_after_submit: Update Employee Maternity dates when LA is amended.
+	"""
+	if doc.leave_type != MATERNITY_LEAVE_TYPE:
+		return
+
+	existing = frappe.db.get_value("Employee Maternity",
+		{"leave_application": doc.name}, "name")
+
+	if existing:
+		em = frappe.get_doc("Employee Maternity", existing)
+		if str(em.from_date) != str(doc.from_date) or str(em.to_date) != str(doc.to_date):
+			em.from_date = doc.from_date
+			em.to_date = doc.to_date
+			em.flags.from_leave_application = True
+			em.save(ignore_permissions=True)
+
+			frappe.msgprint(
+				_("Employee Maternity record {0} updated").format(
+					frappe.utils.get_link_to_form("Employee Maternity", em.name)
+				),
+				indicator="blue",
+				alert=True
+			)
+
+
 print("✅ Leave Application overrides loaded")

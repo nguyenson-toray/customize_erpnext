@@ -279,51 +279,44 @@ def preload_reference_data(employee_list: List[str], from_date: str, to_date: st
 		data['existing_attendance'][key] = att
 	print(f"   ✓ Loaded {len(data['existing_attendance'])} existing attendance records")
 
-	# 6. Load maternity tracking (child table in Employee)
+	# 6. Load maternity tracking (Employee Maternity standalone doctype)
 	print(f"   Loading maternity tracking...")
 	data['maternity_tracking'] = {}
 
-	# Check if Maternity Tracking child table exists
-	if frappe.db.exists("DocType", "Maternity Tracking"):
-		try:
-			# Query from child table - parent is employee ID
-			if employee_list:
-				# Specific employees
-				maternity_records = frappe.db.sql("""
-					SELECT parent as employee, type, from_date, to_date, apply_pregnant_benefit
-					FROM `tabMaternity Tracking`
-					WHERE parent IN %(employees)s
-					  AND type IN ('Pregnant', 'Maternity Leave', 'Young Child')
-					  AND from_date <= %(to_date)s
-					  AND to_date >= %(from_date)s
-				""", {
-					"employees": employee_list,
-					"from_date": from_date,
-					"to_date": to_date
-				}, as_dict=True)
-			else:
-				# All employees
-				maternity_records = frappe.db.sql("""
-					SELECT parent as employee, type, from_date, to_date, apply_pregnant_benefit
-					FROM `tabMaternity Tracking`
-					WHERE type IN ('Pregnant', 'Maternity Leave', 'Young Child')
-					  AND from_date <= %(to_date)s
-					  AND to_date >= %(from_date)s
-				""", {
-					"from_date": from_date,
-					"to_date": to_date
-				}, as_dict=True)
+	try:
+		if employee_list:
+			maternity_records = frappe.db.sql("""
+				SELECT employee, type, from_date, to_date, apply_benefit
+				FROM `tabEmployee Maternity`
+				WHERE employee IN %(employees)s
+				  AND type IN ('Pregnant', 'Maternity Leave', 'Young Child')
+				  AND from_date <= %(to_date)s
+				  AND to_date >= %(from_date)s
+			""", {
+				"employees": employee_list,
+				"from_date": from_date,
+				"to_date": to_date
+			}, as_dict=True)
+		else:
+			maternity_records = frappe.db.sql("""
+				SELECT employee, type, from_date, to_date, apply_benefit
+				FROM `tabEmployee Maternity`
+				WHERE type IN ('Pregnant', 'Maternity Leave', 'Young Child')
+				  AND from_date <= %(to_date)s
+				  AND to_date >= %(from_date)s
+			""", {
+				"from_date": from_date,
+				"to_date": to_date
+			}, as_dict=True)
 
-			for record in maternity_records:
-				if record.employee not in data['maternity_tracking']:
-					data['maternity_tracking'][record.employee] = []
-				data['maternity_tracking'][record.employee].append(record)
+		for record in maternity_records:
+			if record.employee not in data['maternity_tracking']:
+				data['maternity_tracking'][record.employee] = []
+			data['maternity_tracking'][record.employee].append(record)
 
-			print(f"   ✓ Loaded {len(maternity_records)} maternity tracking records")
-		except Exception as e:
-			print(f"   ⚠️  Error loading maternity tracking: {str(e)}")
-	else:
-		print(f"   ℹ️  Maternity Tracking child table not found (skipping - optional feature)")
+		print(f"   ✓ Loaded {len(maternity_records)} maternity tracking records")
+	except Exception as e:
+		print(f"   ⚠️  Error loading maternity tracking: {str(e)}")
 
 	# 7. Load Leave Applications (Approved leaves)
 	print(f"   Loading approved leave applications...")
@@ -425,12 +418,13 @@ def check_maternity_status_cached(employee: str, attendance_date: date, ref_data
 			maternity_status = record['type']
 			apply_pregnant_benefit = False
 
-			# Logic from original code:
+			# Logic:
 			# - Young Child: always apply benefit (reduce working hours)
-			# - Pregnant: only if apply_pregnant_benefit checkbox is ticked
-			if record['type'] == 'Young Child':
+			# - Maternity Leave: always apply benefit
+			# - Pregnant: only if apply_benefit checkbox is ticked
+			if record['type'] in ('Young Child', 'Maternity Leave'):
 				apply_pregnant_benefit = True
-			elif record['type'] == 'Pregnant' and record.get('apply_pregnant_benefit'):
+			elif record['type'] == 'Pregnant' and record.get('apply_benefit'):
 				apply_pregnant_benefit = True
 
 			return (maternity_status, apply_pregnant_benefit)

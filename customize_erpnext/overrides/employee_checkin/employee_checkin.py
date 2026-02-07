@@ -25,14 +25,14 @@ MIN_MINUTES_PRE_SHIFT_OT = 60          # Minimum pre-shift OT
 
 def check_maternity_benefit(employee, attendance_date):
 	"""Check if employee has maternity benefit
-	- Pregnant: Requires apply_pregnant_benefit = 1 in Maternity Tracking
+	- Pregnant: Requires apply_benefit = 1 in Employee Maternity
 	- Maternity Leave: Auto benefit
 	- Young Child: Auto benefit
 	"""
 	maternity_records = frappe.db.sql("""
-		SELECT type, from_date, to_date, apply_pregnant_benefit
-		FROM `tabMaternity Tracking`
-		WHERE parent = %(employee)s
+		SELECT type, from_date, to_date, apply_benefit
+		FROM `tabEmployee Maternity`
+		WHERE employee = %(employee)s
 		  AND type IN ('Pregnant', 'Maternity Leave', 'Young Child')
 		  AND from_date <= %(date)s
 		  AND to_date >= %(date)s
@@ -42,12 +42,10 @@ def check_maternity_benefit(employee, attendance_date):
 		return False
 
 	for record in maternity_records:
-		record_type_lower = record.type.lower() if record.type else ""
-		if (record_type_lower == 'young child' or
-			record.type in ['Young Child', 'Maternity Leave']):
+		if record.type in ('Young Child', 'Maternity Leave'):
 			return True
 		elif record.type == 'Pregnant':
-			if record.apply_pregnant_benefit == 1:
+			if record.apply_benefit == 1:
 				return True
 
 	return False

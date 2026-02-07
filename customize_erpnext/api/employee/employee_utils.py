@@ -2159,19 +2159,21 @@ def check_employee_maternity_status(employee, attendance_date):
 	apply_pregnant_benefit = False
 	maternity_status = None
 	maternity_records = frappe.db.sql("""
-		SELECT type, from_date, to_date, apply_pregnant_benefit
-		FROM `tabMaternity Tracking`
-		WHERE parent = %(employee)s
+		SELECT type, from_date, to_date, apply_benefit
+		FROM `tabEmployee Maternity`
+		WHERE employee = %(employee)s
 		  AND type IN ('Pregnant', 'Maternity Leave', 'Young Child')
 		  AND from_date <= %(date)s
 		  AND to_date >= %(date)s
-	""", {"employee": employee, "date": attendance_date}, as_dict=1 )
-	
-	if maternity_records: 
+	""", {"employee": employee, "date": attendance_date}, as_dict=1)
+
+	if maternity_records:
 		maternity_status = maternity_records[0].type
 		if maternity_records[0].type == 'Young Child':
 			apply_pregnant_benefit = True
-		elif maternity_records[0].type == 'Pregnant' and maternity_records[0].apply_pregnant_benefit:
+		elif maternity_records[0].type == 'Maternity Leave':
+			apply_pregnant_benefit = True
+		elif maternity_records[0].type == 'Pregnant' and maternity_records[0].apply_benefit:
 			apply_pregnant_benefit = True
 
 	return maternity_status, apply_pregnant_benefit

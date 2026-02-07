@@ -152,14 +152,6 @@ fixtures = [
         "doctype": "Assignment Rule",
         "filters": []
     },
-    # Workspace customizations
-    # NOTE: ERPNext v16 - Khi import sẽ OVERWRITE hoàn toàn workspace gốc
-    {
-        "doctype": "Workspace",
-        "filters": [
-            ["name", "in", ["HR", "Stock", "TIQN App"]]
-        ]
-    },
     # Workspace Sidebar customizations (v16+)
     {
         "doctype": "Workspace Sidebar",
@@ -196,6 +188,14 @@ fixtures = [
             ["name", "in", ["TIQN App", "Employee Photos"]]
         ]
     }
+]
+
+# After migrate hooks
+# - Add custom links to HRMS workspaces (People, Shift & Attendance)
+# - Drop orphan database tables
+after_migrate = [
+    "customize_erpnext.workspace_setup.setup_workspace_links",
+    # "customize_erpnext.workspace_setup.drop_orphan_tables",
 ]
 
 # Data import hooks
@@ -273,17 +273,12 @@ doc_events = {
 
     # Employee Events
     # - Validate employee changes
-    # - Auto-update Attendance when maternity tracking changes
     # - Sync to MongoDB
     # - Set default holiday list
     # - Prevent deletion
     "Employee": {
         "validate": [
-            "customize_erpnext.overrides.employee.employee.check_maternity_tracking_changes_for_attendance",
             "customize_erpnext.api.employee.employee_validation.validate_employee_changes"
-        ],
-        "on_update": [
-            "customize_erpnext.overrides.employee.employee.auto_update_attendance_on_maternity_change",
         ],
         "after_insert": [
             "customize_erpnext.api.employee.erpnext_mongodb.sync_employee_to_mongodb",
@@ -293,6 +288,16 @@ doc_events = {
             "customize_erpnext.api.employee.employee_validation.prevent_employee_deletion",
             "customize_erpnext.api.employee.erpnext_mongodb.delete_employee_from_mongodb"
         ]
+    },
+
+    # Employee Maternity Events
+    # - Validate maternity records
+    # - Auto-update Attendance when maternity tracking changes
+    "Employee Maternity": {
+        "validate": "customize_erpnext.customize_erpnext.doctype.employee_maternity.employee_maternity.validate_maternity",
+        "on_update": "customize_erpnext.customize_erpnext.doctype.employee_maternity.employee_maternity.on_maternity_update",
+        "after_insert": "customize_erpnext.customize_erpnext.doctype.employee_maternity.employee_maternity.on_maternity_insert",
+        "on_trash": "customize_erpnext.customize_erpnext.doctype.employee_maternity.employee_maternity.on_maternity_delete",
     },
 
     # Shift Type Events
@@ -332,8 +337,14 @@ doc_events = {
 
     # Leave Application Events
     # - Handle dual leave cancellation (update attendance when LA cancelled)
+    # - Sync maternity leave to Employee Maternity
     "Leave Application": {
-        "on_cancel": "customize_erpnext.overrides.leave_application.leave_application.on_leave_application_cancel"
+        "on_cancel": [
+            "customize_erpnext.overrides.leave_application.leave_application.on_leave_application_cancel",
+            "customize_erpnext.overrides.leave_application.leave_application.sync_maternity_leave_on_cancel",
+        ],
+        "on_submit": "customize_erpnext.overrides.leave_application.leave_application.sync_maternity_leave_on_submit",
+        "on_update_after_submit": "customize_erpnext.overrides.leave_application.leave_application.sync_maternity_leave_on_update",
     }
 
 }

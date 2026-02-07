@@ -405,16 +405,15 @@ def times_overlap(from1, to1, from2, to2):
 
 def check_maternity_benefit(employee, date):
     """Check if employee has maternity benefit on given date
-    Reuses same logic from daily_timesheet.py check_maternity_benefit method
-    - Pregnant with apply_pregnant_benefit=1: gets benefit
+    - Pregnant with apply_benefit=1: gets benefit
     - Maternity Leave: automatically gets benefit
     - Young Child: automatically gets benefit
     Returns: (has_benefit, benefit_type, from_date, to_date)
     """
     maternity_records = frappe.db.sql("""
-        SELECT type, from_date, to_date, apply_pregnant_benefit
-        FROM `tabMaternity Tracking`
-        WHERE parent = %(employee)s
+        SELECT type, from_date, to_date, apply_benefit
+        FROM `tabEmployee Maternity`
+        WHERE employee = %(employee)s
           AND type IN ('Pregnant', 'Maternity Leave', 'Young Child')
           AND from_date <= %(date)s
           AND to_date >= %(date)s
@@ -424,13 +423,12 @@ def check_maternity_benefit(employee, date):
         return False, None, None, None
 
     for record in maternity_records:
-        record_type_lower = record.type.lower() if record.type else ""
-        if (record_type_lower == 'young child' or
-            record.type in ['Young Child', 'Maternity Leave']):
-            benefit_type = "Nuôi con nhỏ" if record_type_lower == 'young child' or record.type == 'Young Child' else "Nghỉ thai sản"
-            return True, benefit_type, record.from_date, record.to_date
+        if record.type == 'Young Child':
+            return True, "Nuôi con nhỏ", record.from_date, record.to_date
+        elif record.type == 'Maternity Leave':
+            return True, "Nghỉ thai sản", record.from_date, record.to_date
         elif record.type == 'Pregnant':
-            if record.apply_pregnant_benefit == 1:
+            if record.apply_benefit == 1:
                 return True, "Mang thai", record.from_date, record.to_date
 
     return False, None, None, None
