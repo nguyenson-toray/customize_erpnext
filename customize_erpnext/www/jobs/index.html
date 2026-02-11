@@ -1,0 +1,261 @@
+{% extends "templates/web.html" %}
+{% block title %} {{ _("Job Openings") }} {% endblock title %}
+
+{% block page_content %}
+<meta id="data" data-filters="{{ all_filters }}" data-no-of-pages="{{ no_of_pages }}" />
+
+<!-- Hero Section -->
+<div class="jp-hero">
+	<div class="jp-hero-content">
+		<!-- Logo -->
+		<a href="/jobs" class="jp-logo">
+			<img src="/assets/customize_erpnext/images/logo_white.svg" alt="Logo" />
+		</a>
+
+		<h1 class="jp-hero-title">{{ _("Job Openings") }}</h1>
+
+		<!-- Search Bar -->
+		<div class="jp-search-bar">
+			<div class="jp-search-inner">
+				<svg class="jp-search-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+					<circle cx="11" cy="11" r="8"></circle>
+					<line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+				</svg>
+				<input type="search" name="query" id="search-box" class="jp-search-input desktop-filters mobile-filters"
+					placeholder="{{ _('Search job titles, keywords...') }}" aria-label="Jobs Search" />
+			</div>
+		</div>
+
+		<!-- Stats -->
+		<div class="jp-stats">
+			<div class="jp-stat-item">
+				<span class="jp-stat-number">{{ total_openings }}</span>
+				<span class="jp-stat-label">{{ _("Open Positions") }}</span>
+			</div>
+			{% if all_filters.get('location') %}
+			<div class="jp-stat-item">
+				<span class="jp-stat-number">{{ all_filters.location|length }}</span>
+				<span class="jp-stat-label">{{ _("Locations") }}</span>
+			</div>
+			{% endif %}
+			{% if all_filters.get('department') %}
+			<div class="jp-stat-item">
+				<span class="jp-stat-number">{{ all_filters.department|length }}</span>
+				<span class="jp-stat-label">{{ _("Departments") }}</span>
+			</div>
+			{% endif %}
+		</div>
+	</div>
+</div>
+
+<div class="jp-container">
+	<div class="jp-layout">
+		<!-- Desktop Filter Sidebar -->
+		<aside class="jp-sidebar d-none d-lg-block">
+			<div class="jp-filter-card">
+				<div class="jp-filter-header">
+					<h3 class="jp-filter-title">{{ _("Filters") }}</h3>
+					<a name="clear-filters" class="jp-clear-link" role="button">{{ _("Clear All") }}</a>
+				</div>
+
+				{% for name, values in all_filters.items() %}
+				<div class="jp-filter-group">
+					<p class="jp-filter-label">{{ name.title() | replace('_', ' ') }}</p>
+					{% for value in values %}
+					<div class="jp-checkbox-wrapper">
+						<input id="{{ 'desktop-' ~ value }}" name="{{ name }}" value="{{ value }}"
+							class="jp-checkbox desktop-filters" type="checkbox" role="button" />
+						<label class="jp-checkbox-label" for="{{ 'desktop-' ~ value }}" role="button">
+							{{ value }}
+						</label>
+					</div>
+					{% endfor %}
+				</div>
+				{% endfor %}
+			</div>
+		</aside>
+
+		<!-- Main Content -->
+		<main class="jp-main">
+			<!-- Toolbar -->
+			<div class="jp-toolbar">
+				<div class="jp-results-text">
+					{% set job_opening_count = job_openings|length %}
+					{{ _(frappe.utils.cstr(job_opening_count) + " " + ("result" if job_opening_count == 1 else "results")) }}
+				</div>
+
+				<div class="jp-toolbar-actions">
+					{% set sort = frappe.form_dict.sort %}
+					<button id="sort" class="jp-btn-icon" title="{{ _('Sort by Posting Date') }}">
+						<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+							{% if sort == 'asc' %}
+							<line x1="12" y1="19" x2="12" y2="5"></line>
+							<polyline points="5 12 12 5 19 12"></polyline>
+							{% else %}
+							<line x1="12" y1="5" x2="12" y2="19"></line>
+							<polyline points="19 12 12 19 5 12"></polyline>
+							{% endif %}
+						</svg>
+						<span class="d-none d-lg-inline">{{ _("Date") }}</span>
+					</button>
+
+					<button id="filter" class="jp-btn-icon d-lg-none" title="{{ _('Filters') }}">
+						<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+							<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+						</svg>
+						<span class="jp-filter-badge" style="display: none;">0</span>
+					</button>
+				</div>
+			</div>
+
+			<!-- Job Cards Grid -->
+			<div class="jp-grid">
+				{% for jo in job_openings %}
+				<div class="jp-card-wrapper">
+					<div id="{{ jo.route }}" name="card" class="jp-card" role="button">
+						<div class="jp-card-header">
+							<h3 class="jp-card-title" title="{{ jo.job_title }}">{{ jo.job_title }}</h3>
+							{% if jo.employment_type %}
+							<span class="jp-badge jp-badge-{{ jo.employment_type.lower().replace('-', '').replace(' ', '') }}">
+								{{ jo.employment_type }}
+							</span>
+							{% endif %}
+						</div>
+
+						<div class="jp-card-meta">
+							<span class="jp-company">{{ jo.company }}</span>
+							<span class="jp-sep">&middot;</span>
+							<span class="jp-date">{{ jo.posted_on }}</span>
+						</div>
+
+						<div class="jp-card-details">
+							{% if jo.location %}
+							<div class="jp-detail-item">
+								<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+									<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+									<circle cx="12" cy="10" r="3"></circle>
+								</svg>
+								<span>{{ jo.location }}</span>
+							</div>
+							{% endif %}
+
+							{% if jo.department %}
+							<div class="jp-detail-item">
+								<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+									<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+									<circle cx="9" cy="7" r="4"></circle>
+									<path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+									<path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+								</svg>
+								<span>{{ jo.department }}</span>
+							</div>
+							{% endif %}
+
+							{% if jo.publish_salary_range %}
+							<div class="jp-detail-item">
+								<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+									<line x1="12" y1="1" x2="12" y2="23"></line>
+									<path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+								</svg>
+								<span>
+									{% if jo.lower_range %}{{ frappe.format_value(frappe.utils.flt(jo.lower_range), currency=jo.currency) }}{% endif %}
+									{% if jo.lower_range and jo.upper_range %} - {% endif %}
+									{% if jo.upper_range %}{{ frappe.format_value(frappe.utils.flt(jo.upper_range), currency=jo.currency) }}{% endif %}
+									/ {{ jo.salary_per.lower() }}
+								</span>
+							</div>
+							{% endif %}
+						</div>
+
+						<div class="jp-card-footer">
+							{% if jo.publish_applications_received %}
+							<div class="jp-footer-item">
+								<span class="jp-footer-label">{{ _("Applications") }}</span>
+								<span class="jp-footer-value">{{ jo.no_of_applications }}</span>
+							</div>
+							{% endif %}
+							{% if jo.closes_on %}
+							<div class="jp-footer-item">
+								<span class="jp-footer-label">{{ _("Closes") }}</span>
+								<span class="jp-footer-value">{{ frappe.utils.format_date(jo.closes_on, "d MMM") }}</span>
+							</div>
+							{% endif %}
+						</div>
+					</div>
+				</div>
+				{% endfor %}
+			</div>
+
+			<!-- Pagination -->
+			{% if no_of_pages > 1 %}
+			<div class="jp-pagination">
+				{% set page = frappe.form_dict.page %}
+				{% set page = '1' if (not page or page|int > no_of_pages or page|int < 1) else page %}
+				<button id="previous" class="jp-page-btn">
+					<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<polyline points="15 18 9 12 15 6"></polyline>
+					</svg>
+				</button>
+
+				{% set initial_page = 1 if page|int == 1 else ((page|int / 3 + 0.5) | round(method='floor')|int * 3 - 2) %}
+				{% set no_of_displayed_pages = 5 if no_of_pages - initial_page > 5 else no_of_pages - initial_page + 1 %}
+				{% for i in range(no_of_displayed_pages) %}
+				{% set pg = i + initial_page %}
+				<button id="{{ pg }}" name="pagination" class="jp-page-btn {{ 'active' if pg|string == page }}">
+					{% if (loop.first and pg != 1) or (loop.last and pg != no_of_pages) %}
+					<span>...</span>
+					{% else %}
+					<span>{{ pg }}</span>
+					{% endif %}
+				</button>
+				{% endfor %}
+
+				<button id="next" class="jp-page-btn">
+					<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<polyline points="9 18 15 12 9 6"></polyline>
+					</svg>
+				</button>
+			</div>
+			{% endif %}
+		</main>
+	</div>
+</div>
+
+<!-- Mobile Filters Drawer -->
+<div id="filters-drawer" class="jp-drawer d-lg-none">
+	<div class="jp-drawer-header">
+		<h3 class="jp-drawer-title">{{ _("Filters") }}</h3>
+		<button name="close-filters-drawer" class="jp-drawer-close" aria-label="Close">
+			<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+				<line x1="18" y1="6" x2="6" y2="18"></line>
+				<line x1="6" y1="6" x2="18" y2="18"></line>
+			</svg>
+		</button>
+	</div>
+
+	<div class="jp-drawer-content">
+		{% for name, values in all_filters.items() %}
+		<div class="jp-filter-group">
+			<p class="jp-filter-label">{{ name.title() | replace('_', ' ') }}</p>
+			{% for value in values %}
+			<div class="jp-checkbox-wrapper">
+				<input id="{{ 'mobile-' ~ value }}" name="{{ name }}" value="{{ value }}"
+					class="jp-checkbox mobile-filters" type="checkbox" role="button" />
+				<label class="jp-checkbox-label" for="{{ 'mobile-' ~ value }}" role="button">
+					{{ value }}
+				</label>
+			</div>
+			{% endfor %}
+		</div>
+		{% endfor %}
+	</div>
+
+	<div class="jp-drawer-footer">
+		<button name="clear-filters" class="jp-drawer-clear">{{ _("Clear All") }}</button>
+		<button id="apply-filters" class="jp-drawer-apply">{{ _("Apply") }}</button>
+	</div>
+</div>
+
+<div id="overlay" name="close-filters-drawer" class="jp-overlay d-lg-none"></div>
+
+{% endblock page_content %}

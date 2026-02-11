@@ -91,7 +91,8 @@ fixtures = [
                 "Shift Type",
                 "Attendance",
                 "Leave Type",
-                "Leave Application"
+                "Leave Application",
+                "Job Applicant"
             ]],
             ["fieldname", "like", "custom%"]
         ]
@@ -132,26 +133,26 @@ fixtures = [
         }
     },
     # Workflow configurations
-    {
-        "doctype": "Workflow",
-        "filters": []  # Export all workflows
-    },
-    {
-        "doctype": "Workflow State",
-        "filters": []  # Export all workflow states
-    },
-    {
-        "doctype": "Workflow Action Master",
-        "filters": []  # Export all workflow actions
-    },
-    {
-        "doctype": "Workflow Transition",
-        "filters": []  # Export all workflow transitions
-    },
-    {
-        "doctype": "Assignment Rule",
-        "filters": []
-    },
+    # {
+    #     "doctype": "Workflow",
+    #     "filters": []  # Export all workflows
+    # },
+    # {
+    #     "doctype": "Workflow State",
+    #     "filters": []  # Export all workflow states
+    # },
+    # {
+    #     "doctype": "Workflow Action Master",
+    #     "filters": []  # Export all workflow actions
+    # },
+    # {
+    #     "doctype": "Workflow Transition",
+    #     "filters": []  # Export all workflow transitions
+    # },
+    # {
+    #     "doctype": "Assignment Rule",
+    #     "filters": []
+    # },
     # Workspace Sidebar customizations (v16+)
     {
         "doctype": "Workspace Sidebar",
@@ -185,7 +186,7 @@ fixtures = [
     {
         "doctype": "Desktop Icon",
         "filters": [
-            ["name", "in", ["TIQN App", "Employee Photos"]]
+            ["name", "in", ["TIQN App", "Employee Photos", "QR Code Generator", "Job Portal"]]
         ]
     }
 ]
@@ -393,3 +394,13 @@ app_include_js = [
     "/assets/customize_erpnext/js/fingerprint_scanner_dialog.js",
     "https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"
 ]
+
+# Include CSS and JS files in web pages (including web forms)
+web_include_css = [
+    "/assets/customize_erpnext/css/job_application_form.css"
+]
+
+web_include_js = [
+    "/assets/customize_erpnext/js/job_application_form.js"
+]
+

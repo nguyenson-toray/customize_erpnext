@@ -1,0 +1,468 @@
+/* Job Application Form - Flat Design */
+
+:root {
+    --ja-primary: #1e40af;
+    --ja-primary-light: #3b82f6;
+    --ja-primary-dark: #1e3a8a;
+    --ja-accent: #059669;
+    --ja-bg: #f8fafc;
+    --ja-white: #ffffff;
+    --ja-text: #1e293b;
+    --ja-text-secondary: #64748b;
+    --ja-text-muted: #94a3b8;
+    --ja-border: #e2e8f0;
+    --ja-radius: 8px;
+    --ja-radius-sm: 6px;
+}
+
+/* Page Background */
+body.web-form-page {
+    background: var(--ja-bg);
+    min-height: 100vh;
+}
+
+/* Form Container */
+.web-form-container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 0 1rem 2rem;
+}
+
+@media (min-width: 992px) {
+    .web-form-container {
+        max-width: 960px;
+    }
+}
+
+.web-form {
+    background: var(--ja-white);
+    border: 1px solid var(--ja-border);
+    border-radius: var(--ja-radius);
+    padding: 2rem;
+    position: relative;
+}
+
+/* Top accent line */
+.web-form::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: var(--ja-primary);
+    border-radius: var(--ja-radius) var(--ja-radius) 0 0;
+}
+
+/* Form Introduction */
+.web-form .form-intro {
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--ja-border);
+}
+
+.web-form .form-intro h3 {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--ja-text);
+    margin-bottom: 0.375rem;
+}
+
+.web-form .form-intro p {
+    color: var(--ja-text-secondary);
+    line-height: 1.5;
+    margin: 0;
+}
+
+/* Form Section */
+.web-form .form-section {
+    margin-bottom: 1.5rem;
+    padding: 1.25rem;
+    border-radius: var(--ja-radius-sm);
+}
+
+.web-form .form-section:nth-child(even) {
+    background: var(--ja-bg);
+}
+
+.web-form .section-head {
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: var(--ja-text);
+    margin-bottom: 1.25rem;
+    padding-bottom: 0.5rem;
+    padding-left: 0.5rem;
+    border-bottom: 1px solid var(--ja-border);
+    border-left: 3px solid var(--ja-primary);
+}
+
+/* Form Layout */
+.web-form .form-layout,
+.web-form .web-form-body > .row {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1.25rem;
+}
+
+@media (min-width: 768px) {
+    .web-form .form-layout,
+    .web-form .web-form-body > .row {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .web-form .form-layout .frappe-control[data-fieldtype="Text Editor"],
+    .web-form .form-layout .frappe-control[data-fieldtype="Text"],
+    .web-form .form-layout .frappe-control[data-fieldtype="Long Text"],
+    .web-form .form-layout .frappe-control[data-fieldtype="Small Text"],
+    .web-form .form-layout .frappe-control[data-fieldtype="Attach"],
+    .web-form .form-layout .frappe-control[data-fieldtype="Attach Image"],
+    .web-form .web-form-body > .row > .col-12,
+    .web-form .web-form-body > .row > [class*="col-"] .frappe-control[data-fieldtype="Text Editor"],
+    .web-form .web-form-body > .row > [class*="col-"] .frappe-control[data-fieldtype="Text"],
+    .web-form .web-form-body > .row > [class*="col-"] .frappe-control[data-fieldtype="Long Text"],
+    .web-form .web-form-body > .row > [class*="col-"] .frappe-control[data-fieldtype="Small Text"],
+    .web-form .web-form-body > .row > [class*="col-"] .frappe-control[data-fieldtype="Attach"],
+    .web-form .web-form-body > .row > [class*="col-"] .frappe-control[data-fieldtype="Attach Image"],
+    .web-form .web-form-body > .row > [class*="col-"] .frappe-control[data-fieldtype="Section Break"] {
+        grid-column: 1 / -1;
+    }
+}
+
+@media (min-width: 992px) {
+    .web-form {
+        padding: 2.5rem;
+    }
+}
+
+/* Form Fields */
+.web-form .frappe-control {
+    margin-bottom: 0;
+}
+
+.web-form .frappe-control label {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--ja-text);
+    margin-bottom: 0.375rem;
+    display: block;
+}
+
+.web-form .frappe-control label .reqd {
+    color: #dc2626;
+    margin-left: 0.125rem;
+}
+
+/* Input Fields */
+.web-form input[type="text"],
+.web-form input[type="email"],
+.web-form input[type="tel"],
+.web-form input[type="number"],
+.web-form input[type="date"],
+.web-form input[type="password"],
+.web-form select,
+.web-form textarea {
+    width: 100%;
+    padding: 0.625rem 0.875rem;
+    border: 1px solid var(--ja-border);
+    border-radius: var(--ja-radius-sm);
+    font-size: 0.9375rem;
+    color: var(--ja-text);
+    background: var(--ja-white);
+    outline: none;
+}
+
+.web-form input[type="text"]:focus,
+.web-form input[type="email"]:focus,
+.web-form input[type="tel"]:focus,
+.web-form input[type="number"]:focus,
+.web-form input[type="date"]:focus,
+.web-form input[type="password"]:focus,
+.web-form select:focus,
+.web-form textarea:focus {
+    border-color: var(--ja-primary);
+    box-shadow: 0 0 0 2px rgba(30, 64, 175, 0.1);
+}
+
+.web-form textarea {
+    min-height: 100px;
+    resize: vertical;
+    font-family: inherit;
+}
+
+/* File Upload */
+.web-form .file-upload-area {
+    border: 2px dashed var(--ja-border);
+    border-radius: var(--ja-radius-sm);
+    padding: 1.5rem;
+    text-align: center;
+    background: var(--ja-bg);
+    cursor: pointer;
+}
+
+.web-form .file-upload-area:hover {
+    border-color: var(--ja-primary-light);
+}
+
+.web-form .file-upload-area .upload-icon {
+    color: var(--ja-primary-light);
+    margin-bottom: 0.5rem;
+}
+
+.web-form .file-upload-area .upload-text {
+    font-size: 0.875rem;
+    color: var(--ja-text);
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+}
+
+.web-form .file-upload-area .upload-hint {
+    font-size: 0.8125rem;
+    color: var(--ja-text-secondary);
+}
+
+.web-form .attached-file {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.625rem 0.875rem;
+    background: var(--ja-bg);
+    border: 1px solid var(--ja-border);
+    border-radius: var(--ja-radius-sm);
+    margin-top: 0.5rem;
+}
+
+.web-form .attached-file-link {
+    flex: 1;
+    color: var(--ja-primary);
+    font-weight: 500;
+    font-size: 0.875rem;
+}
+
+/* Help Text */
+.web-form .help-box,
+.web-form .form-text {
+    font-size: 0.8125rem;
+    color: var(--ja-text-secondary);
+    margin-top: 0.375rem;
+    line-height: 1.4;
+}
+
+/* Error Messages */
+.web-form .invalid-feedback,
+.web-form .error-message {
+    color: #dc2626;
+    font-size: 0.8125rem;
+    margin-top: 0.375rem;
+    display: block;
+}
+
+.web-form .has-error input,
+.web-form .has-error select,
+.web-form .has-error textarea {
+    border-color: #dc2626;
+}
+
+/* Form Footer */
+.web-form-footer {
+    margin-top: 1.5rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--ja-border);
+}
+
+.web-form-footer .web-form-actions {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.web-form-footer .web-form-actions .right-area {
+    display: flex;
+    flex-direction: row;
+    gap: 0.75rem;
+    align-items: center;
+}
+
+/* Discard / Draft Button */
+.web-form-footer .web-form-actions .btn-default,
+.web-form-footer .web-form-actions .discard-btn,
+.web-form-footer .web-form-actions .btn-discard {
+    background: var(--ja-white);
+    color: var(--ja-text-secondary);
+    border: 1px solid var(--ja-border);
+    padding: 0.625rem 1.5rem;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    border-radius: var(--ja-radius-sm);
+    cursor: pointer;
+}
+
+.web-form-footer .web-form-actions .btn-default:hover,
+.web-form-footer .web-form-actions .discard-btn:hover,
+.web-form-footer .web-form-actions .btn-discard:hover {
+    background: var(--ja-bg);
+    border-color: var(--ja-text-muted);
+    color: var(--ja-text);
+}
+
+/* Submit Button */
+.web-form .btn-primary,
+.web-form button[type="submit"] {
+    background: var(--ja-primary);
+    color: #fff;
+    border: none;
+    padding: 0.625rem 2rem;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    border-radius: var(--ja-radius-sm);
+    cursor: pointer;
+}
+
+.web-form .btn-primary:hover,
+.web-form button[type="submit"]:hover {
+    background: var(--ja-primary-dark);
+}
+
+/* Success Message */
+.web-form .success-message,
+.web-form .alert-success {
+    background: var(--ja-accent);
+    color: #fff;
+    padding: 1.5rem;
+    border-radius: var(--ja-radius);
+    text-align: center;
+    margin-bottom: 1.5rem;
+}
+
+.web-form .success-message h3,
+.web-form .alert-success h3 {
+    font-size: 1.25rem;
+    font-weight: 700;
+    margin: 0 0 0.375rem;
+    color: #fff;
+}
+
+.web-form .success-message p,
+.web-form .alert-success p {
+    font-size: 1rem;
+    margin: 0;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.web-form .success-message .btn,
+.web-form .alert-success .btn {
+    margin-top: 1rem;
+    background: #fff;
+    color: var(--ja-accent);
+    padding: 0.625rem 1.5rem;
+    border-radius: var(--ja-radius-sm);
+    font-weight: 600;
+    text-decoration: none;
+    display: inline-block;
+}
+
+/* Loading State */
+.web-form .btn-primary.disabled,
+.web-form button[type="submit"].disabled,
+.web-form .btn-primary:disabled,
+.web-form button[type="submit"]:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Checkbox and Radio */
+.web-form input[type="checkbox"],
+.web-form input[type="radio"] {
+    width: 16px;
+    height: 16px;
+    border: 1.5px solid var(--ja-border);
+    border-radius: 3px;
+    cursor: pointer;
+    margin-right: 0.5rem;
+    accent-color: var(--ja-primary);
+}
+
+.web-form input[type="radio"] {
+    border-radius: 50%;
+}
+
+/* Select Dropdown */
+.web-form select {
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2364748b' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.875rem center;
+    padding-right: 2.5rem;
+}
+
+/* Mobile */
+@media (max-width: 767px) {
+    /* Remove Frappe's outer container padding on mobile */
+    .web-form-page .main-section,
+    .web-form-page .container {
+        padding-left: 0;
+        padding-right: 0;
+    }
+
+    .web-form-container {
+        padding: 0 0.5rem 1.5rem;
+        max-width: 100%;
+    }
+
+    .web-form {
+        padding: 1rem 0.75rem;
+        border-radius: 0;
+        border-left: none;
+        border-right: none;
+    }
+
+    .web-form .form-section {
+        padding: 0.75rem;
+    }
+
+    .web-form-footer .web-form-actions .right-area {
+        flex-direction: column-reverse;
+        width: 100%;
+    }
+
+    .web-form-footer .web-form-actions .right-area .btn-primary,
+    .web-form-footer .web-form-actions .right-area button[type="submit"],
+    .web-form-footer .web-form-actions .right-area .btn-default,
+    .web-form-footer .web-form-actions .right-area .discard-btn {
+        width: 100%;
+        text-align: center;
+    }
+
+    .web-form .btn-primary,
+    .web-form button[type="submit"] {
+        padding: 0.75rem 1.5rem;
+    }
+}
+
+/* Touch targets for mobile */
+@media (pointer: coarse) {
+    .web-form input[type="text"],
+    .web-form input[type="email"],
+    .web-form input[type="tel"],
+    .web-form input[type="number"],
+    .web-form select {
+        min-height: 44px;
+    }
+
+    .web-form .btn-primary,
+    .web-form button[type="submit"],
+    .web-form-footer .web-form-actions .btn-default {
+        min-height: 44px;
+    }
+}
+
+/* Accessibility */
+.web-form *:focus-visible {
+    outline: 2px solid var(--ja-primary);
+    outline-offset: 2px;
+}
+
+/* Print */
+@media print {
+    .web-form {
+        border: 1px solid #000;
+    }
+}
