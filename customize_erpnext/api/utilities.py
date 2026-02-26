@@ -738,17 +738,11 @@ def sync_to_single_machine(machine_config, employee_data):
                 fingerprint_count += 1
 
             # Validate we have templates to send
-            if not templates_to_send:
-                return {
-                    "success": False,
-                    "message": f"No valid fingerprint templates to sync for user {attendance_device_id}"
-                }
-
-            # Send only valid templates to device (bandwidth optimized)
-            frappe.logger().info(f"📤 Sending {fingerprint_count} fingerprint templates to device...")
-            conn.save_user_template(user, templates_to_send)
-            frappe.logger().info(f" Successfully synced {fingerprint_count} fingerprints for {employee_data['employee']}")
-
+            if templates_to_send:
+                # Send only valid templates to device (bandwidth optimized)
+                frappe.logger().info(f"📤 Sending {fingerprint_count} fingerprint templates to device...")
+                conn.save_user_template(user, templates_to_send)
+                frappe.logger().info(f" Successfully synced {fingerprint_count} fingerprints for {employee_data['employee']}")
                 return {
                     "success": True,
                     "message": f"Successfully synced {fingerprint_count} fingerprints for user {attendance_device_id}"

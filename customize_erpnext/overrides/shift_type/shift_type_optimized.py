@@ -553,7 +553,14 @@ def should_mark_attendance_cached(
 	ref_data: Dict
 ) -> bool:
 	"""
-	Determine if attendance should be marked (optimized with cache).
+	Determine if attendance should be marked for days WITHOUT check-ins.
+
+	IMPORTANT: This function is ONLY used for "no check-in" paths.
+	When employee HAS check-ins, attendance is always created (even on holidays/Sundays)
+	— that logic is handled separately in STEP 3 checkin processing.
+
+	Default behavior: Do NOT create attendance on Holiday & Sunday
+	unless employee has check-ins.
 
 	Args:
 		employee: Employee ID
@@ -564,11 +571,6 @@ def should_mark_attendance_cached(
 	Returns:
 		bool: True if should mark, False otherwise
 	"""
-	# Get shift details
-	shift_data = ref_data['shifts'].get(shift_name)
-	if shift_data and shift_data.mark_auto_attendance_on_holidays:
-		return True
-
 	# Check employee status
 	emp_data = ref_data['employees'].get(employee)
 	if not emp_data:
@@ -583,8 +585,12 @@ def should_mark_attendance_cached(
 		if emp_data.relieving_date <= attendance_date:
 			return False
 
-	# Check holiday
+	# Check holiday (from Holiday List) — no check-in means no attendance on holidays
 	if is_holiday_cached(employee, attendance_date, ref_data):
+		return False
+
+	# Check Sunday (weekday 6 = Sunday) — no check-in means no attendance on Sundays
+	if attendance_date.weekday() == 6:
 		return False
 
 	return True
@@ -1106,13 +1112,15 @@ def _core_process_attendance_logic_optimized(
 				attendance_date = key[1].date() if hasattr(key[1], 'date') else getdate(key[1])
 				employee = key[0]
 
-				# Check if should mark using cached data (no DB queries!)
-				if not should_mark_attendance_cached(employee, attendance_date, shift_name, ref_data):
-					print(f'-----should_mark_attendance_cached => {employee} {attendance_date} {ref_data} = > return')
+				# Employee HAS check-ins → only check employment status, NOT holidays/Sundays
+				# Holiday/Sunday check is only applied in "no check-in" paths (STEP 4 & fore_get_logs absent)
+				emp_data = ref_data['employees'].get(employee)
+				if not emp_data:
 					continue
-
-				# Get employee metadata from preloaded data
-				emp_data = ref_data['employees'].get(employee, {})
+				if emp_data.date_of_joining and emp_data.date_of_joining > attendance_date:
+					continue
+				if emp_data.status == "Left" and emp_data.relieving_date and emp_data.relieving_date <= attendance_date:
+					continue
 
 				# Check maternity status using cached data (MUST match original logic!)
 				maternity_status, custom_maternity_benefit = check_maternity_status_cached(employee, attendance_date, ref_data)
@@ -1520,6 +1528,11 @@ def _core_process_attendance_logic_optimized(
 					if emp_data.status == "Left" and emp_data.relieving_date:
 						if emp_data.relieving_date <= day:
 							continue
+
+					# Skip holidays and Sundays — no check-in means no attendance on these days
+					# Attendance on holidays/Sundays is only created when employee has actual check-ins (STEP 3)
+					if is_holiday_cached(employee, day, ref_data) or day.weekday() == 6:
+						continue
 
 					# Get shift for this date
 					shift = get_employee_shift_cached(employee, day, ref_data)

@@ -409,7 +409,7 @@ def generate_employee_cards_html(employees, with_barcode=False, page_size='A4', 
         }}
     
         .card-row:not(:last-child) {{
-            margin-bottom: {'1mm' if page_size == 'A5' else '0.8mm'};
+            margin-bottom: {'1mm' if page_size == 'A5' else '0.7mm'};
         }}
 
         .card {{
@@ -462,10 +462,10 @@ def generate_employee_cards_html(employees, with_barcode=False, page_size='A4', 
 
         .card-right {{
             margin-left: 5mm;
-            padding-top: 9mm;
+            padding-top: 8mm;
             padding-left: 0.5mm;
             padding-right: 0.5mm;
-            padding-bottom: 2mm;
+            padding-bottom: 0.5mm;
             text-align: left;
         }}
 

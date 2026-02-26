@@ -207,8 +207,8 @@ data_import_before_import = [
 # Scheduler Events
 scheduler_events = {
     "cron": {
-        # Daily Shift Attendance Report - Every day at 08:15 AM
-        "15 8 * * *": [
+        # Daily Shift Attendance Report - Every day at 08:05 AM
+        "5 8 * * *": [
             # Shift Attendance Report - Every day at 08:15 AM
             "customize_erpnext.customize_erpnext.report.shift_attendance_customize.scheduler.send_daily_attendance_report_scheduled"
         ],

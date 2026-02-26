@@ -52,10 +52,39 @@ def send_daily_attendance_report(report_date=None, recipients=None):
 	}
 
 
+def _is_holiday_or_sunday(date_str):
+	"""Check if date is a Holiday (from default company Holiday List) or Sunday."""
+	from frappe.utils import getdate
+
+	check_date = getdate(date_str)
+
+	# Check Sunday (weekday 6 = Sunday)
+	if check_date.weekday() == 6:
+		return True
+
+	# Check Holiday List from default company
+	default_company = frappe.defaults.get_defaults().get("company")
+	if default_company:
+		holiday_list = frappe.db.get_value("Company", default_company, "default_holiday_list")
+		if holiday_list and frappe.db.exists("Holiday", {
+			"parent": holiday_list,
+			"holiday_date": check_date
+		}):
+			return True
+
+	return False
+
+
 def _send_daily_attendance_report_job(report_date_str, recipient_list):
 	"""
 	Background job: generate and send Daily Attendance Report via email.
+	Skips sending on Holidays and Sundays.
 	"""
+	# Skip sending on Holiday & Sunday
+	if _is_holiday_or_sunday(report_date_str):
+		frappe.logger().info(f"Skipping Daily Attendance Report for {report_date_str} — Holiday or Sunday")
+		return
+
 	try:
 		# Import the report get_data function
 		from customize_erpnext.customize_erpnext.report.shift_attendance_customize.shift_attendance_customize import get_data
