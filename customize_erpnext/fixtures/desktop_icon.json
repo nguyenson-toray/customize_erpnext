@@ -1,6 +1,60 @@
 [
  {
   "app": "customize_erpnext",
+  "bg_color": "blue",
+  "docstatus": 0,
+  "doctype": "Desktop Icon",
+  "hidden": 0,
+  "icon": null,
+  "icon_image": null,
+  "icon_type": "Link",
+  "label": "Shoe Rack",
+  "link": "/desk/shoe-rack-dashboard",
+  "link_to": null,
+  "link_type": "External",
+  "logo_url": "/assets/customize_erpnext/images/shoe_rack.svg",
+  "modified": "2026-02-26 13:12:52.642908",
+  "name": "Shoe Rack",
+  "parent_icon": null,
+  "restrict_removal": 0,
+  "roles": [
+   {
+    "role": "HR Manager"
+   },
+   {
+    "role": "HR User"
+   },
+   {
+    "role": "Administrator"
+   }
+  ],
+  "sidebar": null,
+  "standard": 1
+ },
+ {
+  "app": "customize_erpnext",
+  "bg_color": "blue",
+  "docstatus": 0,
+  "doctype": "Desktop Icon",
+  "hidden": 0,
+  "icon": null,
+  "icon_image": null,
+  "icon_type": "Link",
+  "label": "Sync Logs",
+  "link": "/erpnext-sync-all-logs",
+  "link_to": null,
+  "link_type": "External",
+  "logo_url": "/assets/customize_erpnext/images/log.svg",
+  "modified": "2026-02-26 13:12:48.203315",
+  "name": "Sync Logs",
+  "parent_icon": null,
+  "restrict_removal": 0,
+  "roles": [],
+  "sidebar": null,
+  "standard": 1
+ },
+ {
+  "app": "customize_erpnext",
   "bg_color": null,
   "docstatus": 0,
   "doctype": "Desktop Icon",

@@ -1,0 +1,21 @@
+{
+ "app": "customize_erpnext",
+ "doctype": "Workspace Sidebar",
+ "docstatus": 0,
+ "for_user": "",
+ "header_icon": "",
+ "items": [
+  {
+   "hidden": 0,
+   "icon": "",
+   "label": "Shoe Rack",
+   "link_to": "/desk/shoe-rack-dashboard",
+   "link_type": "URL",
+   "type": "Link"
+  }
+ ],
+ "module": "Customize Erpnext",
+ "module_onboarding": "",
+ "name": "Shoe Rack",
+ "title": "Shoe Rack"
+}

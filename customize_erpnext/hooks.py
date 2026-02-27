@@ -5,20 +5,7 @@ app_description = "Customize Erpnext"
 app_email = "it@tiqn.com.vn"
 app_license = "mit"
 
-# Override HRMS app_home to fix redirect after login
-# HRMS sets app_home = "/desk/people" but this route doesn't exist
-# This setting ensures users are redirected to /desk instead
-app_home = "/desk"
 
-add_to_apps_screen = [
-	{
-		"name": app_name,
-		"logo": "/assets/erpnext/images/erpnext-logo.svg",
-		"title": app_title,
-		"route": "/desk",
-		"has_permission": "erpnext.check_app_permission",
-	}
-]
 
 # Customize JS scripts for default ERPNext DocTypes
 doctype_js = {
@@ -186,7 +173,14 @@ fixtures = [
     {
         "doctype": "Desktop Icon",
         "filters": [
-            ["name", "in", ["TIQN App", "Employee Photos", "QR Code Generator", "Job Portal"]]
+            ["name", "in", ["TIQN App", "Employee Photos", "QR Code Generator", "Job Portal", "Shoe Rack", "Sync Logs"]]
+        ]
+    },
+    # Workspace Sidebars for custom External link icons
+    {
+        "doctype": "Workspace Sidebar",
+        "filters": [
+            ["name", "in", ["Job Portal", "Employee Photos", "QR Code Generator", "Shoe Rack", "Sync Logs"]]
         ]
     }
 ]
@@ -194,10 +188,10 @@ fixtures = [
 # After migrate hooks
 # - Add custom links to HRMS workspaces (People, Shift & Attendance)
 # - Drop orphan database tables
-after_migrate = [
-    "customize_erpnext.workspace_setup.setup_workspace_links",
-    # "customize_erpnext.workspace_setup.drop_orphan_tables",
-]
+# after_migrate = [
+#     "customize_erpnext.workspace_setup.setup_workspace_links",
+#     # "customize_erpnext.workspace_setup.drop_orphan_tables",
+# ]
 
 # Data import hooks
 data_import_before_import = [
@@ -350,36 +344,7 @@ doc_events = {
 
 }
 
-
-# Fixtures (for initial setup)
-# fixtures = [
-#     {
-#         "doctype": "Custom Field",
-#         "filters": {
-#             "dt": ["in", ["Employee"]]
-#         }
-#     }
-# ]
-
-# boot_session = "customize_erpnext.override_methods.employee_checkin_or.apply_monkey_patch"
-# Hook on document methods and events
-# doc_events = {
-#     # "Item": {
-#     #     "after_insert": "customize_erpnext.doc_events.item.update_item_variant" 
-#     # }
-# } 
-# required_apps = []
-
-# Each item in the list will be shown as an app in the apps page
-# add_to_apps_screen = [
-# 	{
-# 		"name": "customize_erpnext",
-# 		"logo": "/assets/customize_erpnext/logo.png",
-# 		"title": "Customize Erpnext",
-# 		"route": "/customize_erpnext",
-# 		"has_permission": "customize_erpnext.api.permission.has_app_permission"
-# 	}
-# ]
+ 
 
 # Includes in <head>
 # ------------------
