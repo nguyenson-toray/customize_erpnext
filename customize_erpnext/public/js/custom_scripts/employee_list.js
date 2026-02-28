@@ -53,7 +53,7 @@ function show_generate_employee_list_pdf_dialog(listview) {
                     { label: 'Theo khoảng mã số nhân viên', value: 'id_range' }
                 ],
                 default: selected_employees.length === 0 ? 'all_active' : 'selected',
-                onchange: function() {
+                onchange: function () {
                     update_scope_display();
                 }
             },
@@ -136,7 +136,7 @@ function show_generate_employee_list_pdf_dialog(listview) {
                 label: __('Hiển thị cột Bộ phận'),
                 default: 0
             },
-         
+
             {
                 fieldname: 'column_break_1',
                 fieldtype: 'Column Break'
@@ -175,7 +175,7 @@ function show_generate_employee_list_pdf_dialog(listview) {
                     });
                     return;
                 }
-                
+
                 // Check if input is numeric
                 if (!/^\d+$/.test(values.id_start) || !/^\d+$/.test(values.id_end)) {
                     frappe.msgprint({
@@ -185,11 +185,11 @@ function show_generate_employee_list_pdf_dialog(listview) {
                     });
                     return;
                 }
-                
+
                 // Convert to numbers for comparison
                 const start_num = parseInt(values.id_start, 10);
                 const end_num = parseInt(values.id_end, 10);
-                
+
                 // Check valid range
                 if (start_num > end_num) {
                     frappe.msgprint({
@@ -199,7 +199,7 @@ function show_generate_employee_list_pdf_dialog(listview) {
                     });
                     return;
                 }
-                
+
                 // Check if range is too large
                 if (end_num - start_num > 1000) {
                     frappe.confirm(
@@ -219,27 +219,27 @@ function show_generate_employee_list_pdf_dialog(listview) {
                 });
                 return;
             }
-            
+
             // All validations passed, proceed to generate PDF
             generatePDF(values);
         }
     });
-    
+
     // Function to generate PDF based on selected scope and values
     function generatePDF(values) {
         // Hide dialog
         d.hide();
-        
+
         // Show loading message
         frappe.show_alert({
             message: __('Đang tạo PDF danh sách nhân viên...'),
             indicator: 'blue'
         });
-        
+
         // Prepare employee scope
         let employees;
         let scope_description;
-        
+
         if (values.select_scope === 'all_active') {
             employees = 'all';
             scope_description = 'Tất cả nhân viên Active';
@@ -251,7 +251,7 @@ function show_generate_employee_list_pdf_dialog(listview) {
             const start_num = parseInt(values.id_start, 10);
             const end_num = parseInt(values.id_end, 10);
             const prefix = values.id_prefix || 'TIQN-';
-            
+
             // Create array of IDs
             employees = [];
             for (let i = start_num; i <= end_num; i++) {
@@ -259,10 +259,10 @@ function show_generate_employee_list_pdf_dialog(listview) {
                 const padded_num = String(i).padStart(values.id_start.length, '0');
                 employees.push(`${prefix}${padded_num}`);
             }
-            
+
             scope_description = `Nhân viên từ ${prefix}${values.id_start} đến ${prefix}${values.id_end}`;
         }
-        
+
         // Call server method to generate PDF
         frappe.call({
             method: 'customize_erpnext.api.employee.employee_utils.generate_employee_list_pdf',
@@ -277,7 +277,7 @@ function show_generate_employee_list_pdf_dialog(listview) {
             },
             freeze: true,
             freeze_message: __(`⏳ Đang tạo PDF cho ${scope_description}...`),
-            callback: function(r) {
+            callback: function (r) {
                 if (r.message && r.message.success) {
                     frappe.show_alert({
                         message: __('Tạo PDF thành công!'),
@@ -289,16 +289,16 @@ function show_generate_employee_list_pdf_dialog(listview) {
                         // Open PDF in a new tab
                         const site_url = frappe.urllib.get_base_url();
                         const file_url = site_url + r.message.file_url;
-                        
+
                         // Create and click an invisible link to download
                         const a = document.createElement('a');
                         a.href = file_url;
-                        a.target = '_blank'; 
+                        a.target = '_blank';
                         a.download = r.message.filename || 'Employee_List.pdf';
                         document.body.appendChild(a);
                         a.click();
                         document.body.removeChild(a);
-                        
+
                         frappe.show_alert({
                             message: __('PDF đã sẵn sàng! Đang mở file...'),
                             indicator: 'green'
@@ -318,7 +318,7 @@ function show_generate_employee_list_pdf_dialog(listview) {
                     });
                 }
             },
-            error: function(err) {
+            error: function (err) {
                 frappe.msgprint({
                     title: __('Error'),
                     message: __('Đã xảy ra lỗi khi tạo PDF: {0}', [err.message || 'Lỗi không xác định']),
@@ -331,7 +331,7 @@ function show_generate_employee_list_pdf_dialog(listview) {
     // Function to update display based on scope selection
     function update_scope_display() {
         let scope_type = d.get_value('select_scope');
-        
+
         if (scope_type === 'all_active') {
             // Fetch count of active employees
             frappe.call({
@@ -342,9 +342,9 @@ function show_generate_employee_list_pdf_dialog(listview) {
                         status: 'Active'
                     }
                 },
-                callback: function(r) {
+                callback: function (r) {
                     const total_active = r.message || 0;
-                    
+
                     // Display info message
                     let info_html = `
                         <div style="padding: 15px; background: linear-gradient(135deg, #4e54c8 0%, #8f94fb 100%); 
@@ -392,7 +392,7 @@ function show_generate_employee_list_pdf_dialog(listview) {
             let id_prefix = d.get_value('id_prefix') || 'TIQN-';
             let id_start = d.get_value('id_start') || '????';
             let id_end = d.get_value('id_end') || '????';
-            
+
             let info_html = `
                 <div style="padding: 15px; background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%); 
                             border-radius: 8px; color: white; margin-bottom: 10px;">
@@ -405,17 +405,17 @@ function show_generate_employee_list_pdf_dialog(listview) {
                 </div>
             `;
             d.fields_dict.employee_info.$wrapper.html(info_html);
-            
+
             // Set up event listeners for range fields to update the info display
-            d.fields_dict.id_prefix.$input.on('input', function() {
+            d.fields_dict.id_prefix.$input.on('input', function () {
                 update_scope_display();
             });
-            
-            d.fields_dict.id_start.$input.on('input', function() {
+
+            d.fields_dict.id_start.$input.on('input', function () {
                 update_scope_display();
             });
-            
-            d.fields_dict.id_end.$input.on('input', function() {
+
+            d.fields_dict.id_end.$input.on('input', function () {
                 update_scope_display();
             });
         }
@@ -952,6 +952,14 @@ function show_employee_search_dialog() {
                 default: 0,
                 description: __('Include Code39 barcode below employee photo')
             },
+            {
+                fieldname: 'output_type',
+                fieldtype: 'Select',
+                label: __('Output Type'),
+                options: ['pdf', 'html'],
+                default: 'pdf',
+                description: __('pdf: tải xuống PDF ngay | html: mở tab mới, có thể chỉnh sửa & in')
+            },
         ],
         primary_action_label: __('Generate Cards'),
         primary_action: function (values) {
@@ -1004,7 +1012,7 @@ function show_employee_search_dialog() {
                             indicator: 'blue'
                         });
 
-                        generate_cards_for_employees(employee_ids, values.with_barcode, values.page_size || 'A4', values.name_font_size || 18, values.max_length_font_20 || 20);
+                        generate_cards_for_employees(employee_ids, values.with_barcode, values.page_size || 'A4', values.name_font_size || 18, values.max_length_font_20 || 20, values.output_type || 'pdf');
                     } else {
                         frappe.msgprint({
                             title: __('No Employees Found'),
@@ -1031,45 +1039,117 @@ function show_employee_search_dialog() {
     d.set_value('page_size', 'A4');
 }
 
-function generate_cards_for_employees(employee_ids, with_barcode, page_size, name_font_size, max_length_font_20) {
-    frappe.call({
-        method: 'customize_erpnext.api.employee.employee_utils.generate_employee_cards_pdf',
-        args: {
-            employee_ids: employee_ids,
-            with_barcode: with_barcode ? 1 : 0,
-            page_size: page_size || 'A4',
-            name_font_size: name_font_size || 18,
-            max_length_font_20: max_length_font_20 || 20
-        },
-        callback: function (r) {
-            if (r.message && r.message.pdf_data && r.message.pdf_filename) {
-                frappe.show_alert({
-                    message: __('Employee cards generated successfully'),
-                    indicator: 'green'
-                });
+function generate_cards_for_employees(employee_ids, with_barcode, page_size, name_font_size, max_length_font_20, output_type) {
+    output_type = output_type || 'pdf';
+    const common_args = {
+        employee_ids: employee_ids,
+        with_barcode: with_barcode ? 1 : 0,
+        page_size: page_size || 'A4',
+        name_font_size: name_font_size || 18,
+        max_length_font_20: max_length_font_20 || 20
+    };
 
-                // Download PDF directly to client
-                const linkSource = `data:application/pdf;base64,${r.message.pdf_data}`;
-                const downloadLink = document.createElement('a');
-                downloadLink.href = linkSource;
-                downloadLink.download = r.message.pdf_filename;
-                downloadLink.click();
-            } else {
-                frappe.msgprint({
-                    title: __('Error'),
-                    message: __('Failed to generate employee cards PDF'),
-                    indicator: 'red'
-                });
+    if (output_type === 'html') {
+        frappe.call({
+            method: 'customize_erpnext.api.employee.employee_utils.generate_employee_cards_html_api',
+            args: common_args,
+            callback: function (r) {
+                if (r.message && r.message.html) {
+                    frappe.show_alert({ message: __('Opening HTML in new tab...'), indicator: 'green' });
+                    open_employee_cards_html_tab(r.message.html);
+                } else {
+                    frappe.msgprint({ title: __('Error'), message: __('Failed to generate employee cards HTML'), indicator: 'red' });
+                }
+            },
+            error: function (r) {
+                frappe.msgprint({ title: __('Error'), message: __('An error occurred: {0}', [r.message || 'Unknown error']), indicator: 'red' });
             }
-        },
-        error: function (r) {
-            frappe.msgprint({
-                title: __('Error'),
-                message: __('An error occurred while generating employee cards: {0}', [r.message || 'Unknown error']),
-                indicator: 'red'
-            });
-        }
+        });
+    } else {
+        frappe.call({
+            method: 'customize_erpnext.api.employee.employee_utils.generate_employee_cards_pdf',
+            args: common_args,
+            callback: function (r) {
+                if (r.message && r.message.pdf_data && r.message.pdf_filename) {
+                    frappe.show_alert({ message: __('Employee cards generated successfully'), indicator: 'green' });
+                    const linkSource = `data:application/pdf;base64,${r.message.pdf_data}`;
+                    const downloadLink = document.createElement('a');
+                    downloadLink.href = linkSource;
+                    downloadLink.download = r.message.pdf_filename;
+                    downloadLink.click();
+                } else {
+                    frappe.msgprint({ title: __('Error'), message: __('Failed to generate employee cards PDF'), indicator: 'red' });
+                }
+            },
+            error: function (r) {
+                frappe.msgprint({ title: __('Error'), message: __('An error occurred: {0}', [r.message || 'Unknown error']), indicator: 'red' });
+            }
+        });
+    }
+}
+
+function open_employee_cards_html_tab(html) {
+    const inject = `
+<div id="ec-toolbar" style="position:fixed;top:0;left:0;right:0;z-index:9999;background:#2d3748;padding:6px 16px;display:flex;align-items:center;gap:8px;font-family:sans-serif;">
+    <span style="color:#a0aec0;font-size:13px;">Chọn Font Size ➡️ Bôi đen text ➡️ Áp dụng</span>
+    <label style="color:#e2e8f0;font-size:13px;">Font size:</label>
+    <input id="ec-fs" type="number" value="18" min="6" max="72" style="width:56px;padding:3px 6px;border-radius:4px;border:none;font-size:13px;">
+  
+    <span style="color:#e2e8f0;font-size:13px;">pt</span>
+    <button onmousedown="event.preventDefault()" onclick="applyFS()" style="padding:4px 14px;background:#4299e1;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:13px;">Áp dụng</button>
+    <button onclick="window.print()" style="padding:4px 14px;background:#48bb78;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:13px;">🖨️In</button>
+</div>
+<style>
+    @media screen { body { padding-top: 42px; } }
+    @media print {
+        #ec-toolbar { display: none !important; }
+        body { padding-top: 0 !important; margin: 0 !important; }
+        .page { margin-left: auto !important; margin-right: auto !important; }
+    }
+</style>
+<script>
+function applyFS() {
+    var pt = parseInt(document.getElementById('ec-fs').value, 10);
+    if (!pt || pt < 1) return;
+    var sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0 || sel.isCollapsed) {
+        alert('Hãy bôi đen (chọn) đoạn text cần đổi font size trước.');
+        return;
+    }
+    var range = sel.getRangeAt(0);
+    // Flatten existing font-size spans inside selection to avoid nesting conflicts
+    var frag = range.extractContents();
+    var tmp = document.createElement('div');
+    tmp.appendChild(frag);
+    tmp.querySelectorAll('span[style]').forEach(function(s) {
+        s.style.fontSize = '';
+        if (!s.getAttribute('style')) s.removeAttribute('style');
     });
+    var span = document.createElement('span');
+    span.style.fontSize = pt + 'pt';
+    while (tmp.firstChild) span.appendChild(tmp.firstChild);
+    range.insertNode(span);
+    sel.removeAllRanges();
+    var newRange = document.createRange();
+    newRange.selectNodeContents(span);
+    sel.addRange(newRange);
+}
+document.getElementById('ec-fs').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') { e.preventDefault(); applyFS(); }
+});
+</script>`;
+
+    const editable_html = html
+        .replace(/<body([^>]*)>/, (_m, attrs) => `<body${attrs} contenteditable="true">${inject}`);
+
+    const tab = window.open('', '_blank');
+    if (!tab) {
+        frappe.msgprint({ title: __('Popup Blocked'), message: __('Please allow popups for this site and try again.'), indicator: 'orange' });
+        return;
+    }
+    tab.document.open();
+    tab.document.write(editable_html);
+    tab.document.close();
 }
 
 function print_employee_cards(listview) {
@@ -1130,13 +1210,20 @@ function print_employee_cards(listview) {
                 options: ['19', '18', '17', '16'],
                 default: '18',
                 description: __('Font size for names >= max length (default: 18pt)')
+            },
+            {
+                fieldname: 'output_type',
+                fieldtype: 'Select',
+                label: __('Output Type'),
+                options: ['html', 'pdf'],
+                default: 'html',
+                description: __('HTML: Open in new tab, editable & printable | PDF: Download PDF file directly')
             }
         ],
         primary_action_label: __('Generate'),
         primary_action: function (values) {
             d.hide();
 
-            // User confirmed, proceed with PDF generation
             const employee_ids = selected_employees.map(emp => emp.name);
 
             frappe.show_alert({
@@ -1144,44 +1231,14 @@ function print_employee_cards(listview) {
                 indicator: 'blue'
             });
 
-            frappe.call({
-                method: 'customize_erpnext.api.employee.employee_utils.generate_employee_cards_pdf',
-                args: {
-                    employee_ids: employee_ids,
-                    with_barcode: values.with_barcode ? 1 : 0,
-                    page_size: values.page_size || 'A4',
-                    name_font_size: values.name_font_size || 18,
-                    max_length_font_20: values.max_length_font_20 || 20
-                },
-                callback: function (r) {
-                    if (r.message && r.message.pdf_data && r.message.pdf_filename) {
-                        frappe.show_alert({
-                            message: __('Employee cards generated successfully'),
-                            indicator: 'green'
-                        });
-
-                        // Download PDF directly to client
-                        const linkSource = `data:application/pdf;base64,${r.message.pdf_data}`;
-                        const downloadLink = document.createElement('a');
-                        downloadLink.href = linkSource;
-                        downloadLink.download = r.message.pdf_filename;
-                        downloadLink.click();
-                    } else {
-                        frappe.msgprint({
-                            title: __('Error'),
-                            message: __('Failed to generate employee cards PDF'),
-                            indicator: 'red'
-                        });
-                    }
-                },
-                error: function (r) {
-                    frappe.msgprint({
-                        title: __('Error'),
-                        message: __('An error occurred while generating employee cards: {0}', [r.message || 'Unknown error']),
-                        indicator: 'red'
-                    });
-                }
-            });
+            generate_cards_for_employees(
+                employee_ids,
+                values.with_barcode,
+                values.page_size || 'A4',
+                values.name_font_size || 18,
+                values.max_length_font_20 || 20,
+                values.output_type || 'pdf'
+            );
         }
     });
 

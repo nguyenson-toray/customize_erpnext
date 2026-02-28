@@ -188,6 +188,77 @@ def upload_employee_image(employee_id, employee_name, file_content, file_name):
 
 
 @frappe.whitelist()
+def generate_employee_cards_html_api(employee_ids, with_barcode=0, page_size='A4', name_font_size=18, max_length_font_20=20):
+    """
+    Generate HTML for employee cards (for preview/edit in browser tab).
+    Same parameters as generate_employee_cards_pdf but returns HTML string.
+    """
+    import traceback
+
+    try:
+        if isinstance(employee_ids, str):
+            employee_ids = json.loads(employee_ids)
+
+        with_barcode = int(with_barcode) == 1
+
+        if page_size not in ['A4', 'A5']:
+            page_size = 'A4'
+
+        try:
+            name_font_size = int(name_font_size) if name_font_size else 18
+            if name_font_size not in [19, 18, 17, 16]:
+                name_font_size = 18
+        except (ValueError, TypeError):
+            name_font_size = 18
+
+        try:
+            max_length_font_20 = int(max_length_font_20) if max_length_font_20 else 20
+            if max_length_font_20 < 10 or max_length_font_20 > 50:
+                max_length_font_20 = 20
+        except (ValueError, TypeError):
+            max_length_font_20 = 20
+
+        employees = []
+        for emp_id in employee_ids:
+            try:
+                emp = frappe.get_doc('Employee', emp_id)
+                employees.append({
+                    'name': emp.name,
+                    'employee_name': emp.employee_name or '',
+                    'custom_section': emp.custom_section or '',
+                    'image': emp.image or ''
+                })
+            except Exception as emp_err:
+                frappe.logger().error(f"Error loading employee {emp_id}: {str(emp_err)}")
+                continue
+
+        if not employees:
+            frappe.throw(_("No valid employees found"))
+
+        if len(employees) % 2 != 0:
+            employees.append({'name': '', 'employee_name': '', 'custom_section': '', 'image': ''})
+
+        html = generate_employee_cards_html(
+            employees,
+            with_barcode=with_barcode,
+            page_size=page_size,
+            name_font_size=name_font_size,
+            max_length_font_20=max_length_font_20
+        )
+
+        return {
+            'status': 'success',
+            'html': html,
+            'employee_count': len(employees)
+        }
+
+    except Exception as e:
+        error_trace = traceback.format_exc()
+        frappe.logger().error(f"Error generating employee cards HTML: {str(e)}\n{error_trace}")
+        frappe.throw(_("Failed to generate employee cards HTML: {0}").format(str(e)))
+
+
+@frappe.whitelist()
 def generate_employee_cards_pdf(employee_ids, with_barcode=0, page_size='A4', name_font_size=18, max_length_font_20=20):
     """
     Generate PDF containing employee cards with layout:
@@ -390,13 +461,19 @@ def generate_employee_cards_html(employees, with_barcode=False, page_size='A4', 
             margin: 0;
             padding: 0;
             width: 100%;
-            height: 100%;
         }}
 
         .cards-container {{
             width: 173mm;
             margin: 0 auto;
             padding: 0;
+        }}
+
+        @media print {{
+            .cards-container {{
+                margin-left: 13.5mm;
+                margin-right: 0;
+            }}
         }}
 
         .card-row {{
@@ -461,12 +538,16 @@ def generate_employee_cards_html(employees, with_barcode=False, page_size='A4', 
         }}
 
         .card-right {{
+            height: stretch;
             margin-left: 5mm;
             padding-top: 8mm;
             padding-left: 0.5mm;
             padding-right: 0.5mm;
-            padding-bottom: 0.5mm;
+            padding-bottom: 1mm;
             text-align: left;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
         }}
 
         .employee-barcode {{
@@ -589,56 +670,45 @@ def generate_employee_cards_html(employees, with_barcode=False, page_size='A4', 
     # A4: 2 columns x 5 rows = 10 cards
     # A5: 2 columns x 2 rows = 4 cards
     cards_per_page = 4 if page_size == 'A5' else 10
-    rows_per_page = 2 if page_size == 'A5' else 5
     total_cards_on_page = cards_per_page  # 2 cards per row
 
     for page_idx in range(0, len(employees), cards_per_page):
         page_employees = employees[page_idx:page_idx + cards_per_page]
 
-        # FRONT SIDE: Create rows
+        # FRONT SIDE
         for row_idx in range(0, total_cards_on_page, 2):  # 2 cards per row
             html_parts.append('<div class="card-row">')
-
-            # Add 2 cards per row
             for col_idx in range(2):
                 emp_idx = row_idx + col_idx
                 if emp_idx < len(page_employees):
                     emp = page_employees[emp_idx]
-                    card_html = generate_single_card_html(emp, company_logo, with_barcode, max_length_font_20)
-                    html_parts.append(card_html)
+                    html_parts.append(generate_single_card_html(emp, company_logo, with_barcode, max_length_font_20))
                 else:
-                    # Empty card to maintain layout
                     html_parts.append('<div class="card" style="visibility: hidden;"></div>')
-
             html_parts.append('<div class="clearfix"></div>')
             html_parts.append('</div>')  # end card-row
 
-        # Page break before back side
-        # html_parts.append('<div class="page-break"></div>')
+        # Page break between front and back
+        html_parts.append('<div class="page-break"></div>')
 
-        # BACK SIDE: Rules (mirror layout for duplex printing)
+        # BACK SIDE
         for row_idx in range(0, total_cards_on_page, 2):
             html_parts.append('<div class="card-row">')
-
-            # Add 2 card backs per row - always show barcode on back
             for col_idx in range(2):
                 emp_idx = row_idx + col_idx
                 if emp_idx < len(page_employees):
                     emp = page_employees[emp_idx]
-                    card_back_html = generate_card_back_html(emp)
-                    html_parts.append(card_back_html)
+                    html_parts.append(generate_card_back_html(emp))
                 else:
-                    # Empty card to maintain layout
                     html_parts.append('<div class="card-back" style="visibility: hidden;"></div>')
-
             html_parts.append('<div class="clearfix"></div>')
             html_parts.append('</div>')  # end card-row
 
-        # Add page break if not last batch
+        # Page break between batches (if not last)
         if page_idx + cards_per_page < len(employees):
             html_parts.append('<div class="page-break"></div>')
 
-    html_parts.append('</div></body></html>')  # end cards-container, body, html
+    html_parts.append('</div></body></html>')
 
     return ''.join(html_parts)
 
@@ -669,7 +739,7 @@ def generate_single_card_html(employee, company_logo, with_barcode=False, max_le
 
     # Rule 2: Name < 13 chars -> add extra line
     if name_length < 13:
-        name_html = f'{employee_name}<br/>&nbsp;'
+        name_html = f'{employee_name}<br/>'
 
     # Section logic: >= 19 chars -> use smaller font size
     section_class = 'employee-section'
@@ -706,7 +776,7 @@ def generate_single_card_html(employee, company_logo, with_barcode=False, max_le
 
 def generate_card_back_html(employee):
     """Generate HTML for card back side with rules"""
-    rules_html = '''
+    return '''
     <div class="card-back">
         <div class="card-back-title">QUY ĐỊNH SỬ DỤNG THẺ</div>
         <div class="card-back-content">
@@ -724,7 +794,6 @@ def generate_card_back_html(employee):
         </div>
     </div>
     '''
-    return rules_html
 
 
 def generate_barcode_code39(code):
