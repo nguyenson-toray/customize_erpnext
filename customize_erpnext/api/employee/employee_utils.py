@@ -188,7 +188,7 @@ def upload_employee_image(employee_id, employee_name, file_content, file_name):
 
 
 @frappe.whitelist()
-def generate_employee_cards_html_api(employee_ids, with_barcode=0, page_size='A4', name_font_size=18, max_length_font_20=20):
+def generate_employee_cards_html_api(employee_ids, with_barcode=0, page_size='A4', name_font_size=18, max_length_font_20=20, card_border_radius=1):
     """
     Generate HTML for employee cards (for preview/edit in browser tab).
     Same parameters as generate_employee_cards_pdf but returns HTML string.
@@ -200,6 +200,7 @@ def generate_employee_cards_html_api(employee_ids, with_barcode=0, page_size='A4
             employee_ids = json.loads(employee_ids)
 
         with_barcode = int(with_barcode) == 1
+        card_border_radius = int(card_border_radius) == 1
 
         if page_size not in ['A4', 'A5']:
             page_size = 'A4'
@@ -243,7 +244,8 @@ def generate_employee_cards_html_api(employee_ids, with_barcode=0, page_size='A4
             with_barcode=with_barcode,
             page_size=page_size,
             name_font_size=name_font_size,
-            max_length_font_20=max_length_font_20
+            max_length_font_20=max_length_font_20,
+            card_border_radius=card_border_radius
         )
 
         return {
@@ -259,7 +261,7 @@ def generate_employee_cards_html_api(employee_ids, with_barcode=0, page_size='A4
 
 
 @frappe.whitelist()
-def generate_employee_cards_pdf(employee_ids, with_barcode=0, page_size='A4', name_font_size=18, max_length_font_20=20):
+def generate_employee_cards_pdf(employee_ids, with_barcode=0, page_size='A4', name_font_size=18, max_length_font_20=20, card_border_radius=1):
     """
     Generate PDF containing employee cards with layout:
     - A4 portrait: 2 columns, 5 rows (10 cards per page)
@@ -282,6 +284,7 @@ def generate_employee_cards_pdf(employee_ids, with_barcode=0, page_size='A4', na
 
         # Convert with_barcode to boolean
         with_barcode = int(with_barcode) == 1
+        card_border_radius = int(card_border_radius) == 1
 
         # Validate page_size
         if page_size not in ['A4', 'A5']:
@@ -305,7 +308,7 @@ def generate_employee_cards_pdf(employee_ids, with_barcode=0, page_size='A4', na
         except (ValueError, TypeError):
             max_length_font_20 = 20
 
-        frappe.logger().info(f"Generating employee cards for {len(employee_ids)} employees (page_size={page_size}, name_font_size={name_font_size}pt, max_length_font_20={max_length_font_20})")
+        frappe.logger().info(f"Generating employee cards for {len(employee_ids)} employees (page_size={page_size}, name_font_size={name_font_size}pt, max_length_font_20={max_length_font_20}, card_border_radius={card_border_radius})")
 
         # Get employee data
         employees = []
@@ -325,7 +328,7 @@ def generate_employee_cards_pdf(employee_ids, with_barcode=0, page_size='A4', na
 
         if not employees:
             frappe.throw(_("No valid employees found"))
-        if len(employees) %2 != 0:
+        if len(employees) % 2 != 0:
             # Ensure even number of employees for duplex printing
             employees.append({
                 'name': '',
@@ -336,7 +339,7 @@ def generate_employee_cards_pdf(employee_ids, with_barcode=0, page_size='A4', na
             frappe.logger().info("Added placeholder employee to make even count")
         # Generate HTML for cards
         frappe.logger().info(f"Generating HTML for employee cards (with_barcode={with_barcode}, page_size={page_size}, name_font_size={name_font_size}pt, max_length_font_20={max_length_font_20})")
-        html = generate_employee_cards_html(employees, with_barcode=with_barcode, page_size=page_size, name_font_size=name_font_size, max_length_font_20=max_length_font_20)
+        html = generate_employee_cards_html(employees, with_barcode=with_barcode, page_size=page_size, name_font_size=name_font_size, max_length_font_20=max_length_font_20, card_border_radius=card_border_radius)
 
         # Debug: Save HTML to file for inspection (uncomment if needed)
         # html_path = f'/tmp/employee_cards_{datetime.datetime.now().strftime("%Y%m%d_%H%M%S")}.html'
@@ -417,19 +420,24 @@ def get_employee_reissue_count(employee_id):
     
     return reissue_number
 
-def generate_employee_cards_html(employees, with_barcode=False, page_size='A4', name_font_size=18, max_length_font_20=20):
+def generate_employee_cards_html(employees, with_barcode=False, page_size='A4', name_font_size=18, max_length_font_20=20, card_border_radius=True):
     """
-    Generate HTML for employee   cards with proper layout
+    Generate HTML for employee cards with proper layout
     - A4: portrait, 2x5 layout
     - A5: landscape, 2x2 layout
     - name_font_size: font size for long names (default 18pt)
     - max_length_font_20: threshold for switching to smaller font (default 20)
+    - card_border_radius: apply border-radius 2mm to card (default True)
     """
     # Get company logo
     company_logo = get_company_logo()
 
     # Determine page orientation and size
     page_orientation = 'landscape' if page_size == 'A5' else 'portrait'
+
+    # Border-radius value for .card and .employee-photo
+    card_radius_css = '2mm' if card_border_radius else '0'
+    photo_radius_css = '1.5mm' if card_border_radius else '0'
 
     # CSS for card layout
     # Card size: 86mm x 53mm (EXACT - NO SCALING)
@@ -492,7 +500,6 @@ def generate_employee_cards_html(employees, with_barcode=False, page_size='A4', 
         .card {{
             width: 86mm;
             height: 53mm;
-            border: 1px solid #333;
             padding: 1mm;
             margin: 0 1mm 0 0;
             float: left;
@@ -501,6 +508,22 @@ def generate_employee_cards_html(employees, with_barcode=False, page_size='A4', 
             overflow: hidden;
             box-sizing: border-box;
             page-break-inside: avoid;
+        }}
+
+        /* Overlay riêng để vẽ border + border-radius, tránh bug
+           overflow:hidden + border-radius trong wkhtmltopdf */
+        .card-border-overlay {{
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: 1px solid #333;
+            -webkit-border-radius: {card_radius_css};
+            border-radius: {card_radius_css};
+            box-sizing: border-box;
+            pointer-events: none;
+            z-index: 100;
         }}
 
         .card:nth-child(2n) {{
@@ -532,7 +555,9 @@ def generate_employee_cards_html(employees, with_barcode=False, page_size='A4', 
             height: 37.33mm;
             margin-top: 4mm;
             object-fit: cover;
-            border: 1px solid #999;
+            box-shadow: 0 0 0 1px #999;
+            -webkit-border-radius: {photo_radius_css};
+            border-radius: {photo_radius_css};
             display: block;
             background: #f5f5f5;
         }}
@@ -755,6 +780,7 @@ def generate_single_card_html(employee, company_logo, with_barcode=False, max_le
 
     card = f'''
     <div class="card">
+        <div class="card-border-overlay"></div>
         <div class="card-inner">
             <div class="card-left">
                 <img src="{company_logo}" class="company-logo" alt="Company Logo" />
@@ -765,7 +791,7 @@ def generate_single_card_html(employee, company_logo, with_barcode=False, max_le
                 <div class="{name_class}">{name_html}</div>
                 <div class="employee-code">{employee_code}</div>
                 <div class="{section_class}">{employee_section}</div>
-                
+
             </div>
             <div id="reissue-number"> {reissue_display} </div>
         </div>
