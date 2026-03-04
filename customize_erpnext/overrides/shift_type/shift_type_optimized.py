@@ -286,12 +286,15 @@ def preload_reference_data(employee_list: List[str], from_date: str, to_date: st
 	try:
 		if employee_list:
 			maternity_records = frappe.db.sql("""
-				SELECT employee, type, from_date, to_date, apply_benefit
+				SELECT employee, type, from_date,
+				       to_date, estimated_due_date,
+				       COALESCE(to_date, estimated_due_date) AS effective_to_date,
+				       apply_benefit
 				FROM `tabEmployee Maternity`
 				WHERE employee IN %(employees)s
 				  AND type IN ('Pregnant', 'Maternity Leave', 'Young Child')
 				  AND from_date <= %(to_date)s
-				  AND to_date >= %(from_date)s
+				  AND COALESCE(to_date, estimated_due_date) >= %(from_date)s
 			""", {
 				"employees": employee_list,
 				"from_date": from_date,
@@ -299,11 +302,14 @@ def preload_reference_data(employee_list: List[str], from_date: str, to_date: st
 			}, as_dict=True)
 		else:
 			maternity_records = frappe.db.sql("""
-				SELECT employee, type, from_date, to_date, apply_benefit
+				SELECT employee, type, from_date,
+				       to_date, estimated_due_date,
+				       COALESCE(to_date, estimated_due_date) AS effective_to_date,
+				       apply_benefit
 				FROM `tabEmployee Maternity`
 				WHERE type IN ('Pregnant', 'Maternity Leave', 'Young Child')
 				  AND from_date <= %(to_date)s
-				  AND to_date >= %(from_date)s
+				  AND COALESCE(to_date, estimated_due_date) >= %(from_date)s
 			""", {
 				"from_date": from_date,
 				"to_date": to_date
@@ -414,7 +420,11 @@ def check_maternity_status_cached(employee: str, attendance_date: date, ref_data
 
 	for record in maternity_records:
 		# Check if date is within the maternity period
-		if record['from_date'] <= attendance_date <= record['to_date']:
+		# effective_to_date = to_date if set, else estimated_due_date
+		effective_to_date = record.get('effective_to_date') or record.get('to_date') or record.get('estimated_due_date')
+		if not effective_to_date:
+			continue
+		if record['from_date'] <= attendance_date <= effective_to_date:
 			maternity_status = record['type']
 			apply_pregnant_benefit = False
 
