@@ -19,7 +19,7 @@ doctype_js = {
         "public/js/custom_scripts/item_show_multiple_variants_dialog.js"
     ],
     "Material Request": "public/js/custom_scripts/material_request.js",
-    "Purchase Order": "public/js/custom_scripts/purchase_order.js",
+    "Purchase Order": "public/purchase_order.js",
     "Item Attribute": [
         "public/js/custom_scripts/item_attribute.js",
         "public/js/custom_scripts/item_attribute_import.js"
@@ -311,12 +311,6 @@ doc_events = {
     # - Add custom_invoice_number and custom_receive_date to Stock Ledger Entry
     "Stock Reconciliation": {
         "on_submit": "customize_erpnext.api.stock_ledger.update_stock_ledger_invoice_number_receive_date.update_stock_ledger_invoice_number_receive_date"
-    },
-
-    # Overtime Request Events
-    # - Custom permission check
-    "Overtime Request": {
-        "has_permission": "customize_erpnext.overrides.overtime_request_permission",
     },
 
     # Item Events

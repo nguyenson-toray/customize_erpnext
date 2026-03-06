@@ -17,7 +17,7 @@ Expected Performance (30 days × 800 employees = 24,000 records):
 
 import frappe
 from itertools import groupby
-from datetime import timedelta, date
+from datetime import timedelta, date, datetime
 from frappe.utils import create_batch, getdate
 from collections import defaultdict
 from typing import Dict, List, Set, Optional, Tuple
@@ -392,6 +392,63 @@ def preload_reference_data(employee_list: List[str], from_date: str, to_date: st
 			current_date = frappe.utils.add_days(current_date, 1)
 
 	print(f"   ✓ Loaded {len(leave_records)} leave applications ({len(data['leave_applications'])} leave-days)")
+
+	# ============================================================================
+	# 8. Load Overtime Registrations (for Sunday attendance logic)
+	# ============================================================================
+	# Mục đích: Preload phiếu đăng ký OT đã submit (docstatus=1) để phục vụ
+	# tính công ngày Chủ Nhật trong STEP 3.
+	#
+	# Cấu trúc dữ liệu: {(employee_id, date): [{begin_time, end_time}, ...]}
+	# - Cho phép O(1) lookup theo (nhân viên, ngày)
+	# - Nhiều OT entries cùng ngày → lấy min(begin_time), max(end_time)
+	#
+	# Sử dụng tại STEP 3 - Sunday Override:
+	# - Có OT Registration → shift start/end = OT begin/end, tính working_hours
+	#   theo logic morning+afternoon cũ, trừ giờ nghỉ trưa từ shift config
+	# - Không có OT Registration → tính bình thường, OT = 0
+	# ============================================================================
+	print(f"   Loading overtime registrations...")
+	data['overtime_registrations'] = {}  # {(employee, date): [{begin_time, end_time}]}
+
+	try:
+		ot_filters = {
+			"from_date": from_date,
+			"to_date": to_date
+		}
+		if employee_list:
+			ot_filters["employees"] = tuple(employee_list)
+			ot_sql = """
+				SELECT ord.employee, ord.date, ord.begin_time, ord.end_time
+				FROM `tabOvertime Registration Detail` ord
+				JOIN `tabOvertime Registration` or_doc ON ord.parent = or_doc.name
+				WHERE or_doc.docstatus = 1
+				  AND ord.date BETWEEN %(from_date)s AND %(to_date)s
+				  AND ord.employee IN %(employees)s
+			"""
+		else:
+			ot_sql = """
+				SELECT ord.employee, ord.date, ord.begin_time, ord.end_time
+				FROM `tabOvertime Registration Detail` ord
+				JOIN `tabOvertime Registration` or_doc ON ord.parent = or_doc.name
+				WHERE or_doc.docstatus = 1
+				  AND ord.date BETWEEN %(from_date)s AND %(to_date)s
+			"""
+
+		ot_records = frappe.db.sql(ot_sql, ot_filters, as_dict=True)
+
+		for record in ot_records:
+			key = (record.employee, record.date)
+			if key not in data['overtime_registrations']:
+				data['overtime_registrations'][key] = []
+			data['overtime_registrations'][key].append({
+				'begin_time': record.begin_time,
+				'end_time': record.end_time
+			})
+
+		print(f"   ✓ Loaded {len(ot_records)} overtime registration entries")
+	except Exception as e:
+		print(f"   ⚠️  Error loading overtime registrations: {str(e)}")
 
 	elapsed = time.time() - start
 	print(f"   ⏱️  Preload completed in {elapsed:.2f}s")
@@ -1165,11 +1222,47 @@ def _core_process_attendance_logic_optimized(
 						'early_exit_grace_period': shift_data.get('early_exit_grace_period')
 					})
 
+					# ============================================================
+					# SUNDAY ATTENDANCE LOGIC (Chủ Nhật)
+					# ============================================================
+					# Thuật toán 2 giai đoạn:
+					#
+					# GIAI ĐOẠN 1 (TRƯỚC tính toán):
+					#   Nếu CN + có OT Registration → thay shift start/end
+					#   bằng OT begin_time/end_time (min/max nếu nhiều entries).
+					#   Ví dụ: OT 07:00-17:00 → shift = 07:00-17:00
+					#   → Hàm custom_calculate_working_hours_overtime sẽ tính
+					#     morning + afternoon theo shift mới (trừ giờ nghỉ trưa)
+					#   → VD: morning 07:00-11:30 = 4.5h + afternoon 12:30-17:00 = 4.5h = 9h
+					#
+					# GIAI ĐOẠN 2 (SAU tính toán):
+					#   Trường hợp B (có OT): Override in/out và overtime
+					#     - in_time/out_time = OT begin/end (thời gian đăng ký)
+					#     - actual_overtime = working_hours (toàn bộ CN là OT)
+					#     - approved_overtime = OT span - giờ nghỉ trưa
+					#     - final_overtime = min(actual, approved)
+					#   Trường hợp A (không có OT): OT = 0
+					#   Cả 2 trường hợp: late_entry = False, early_exit = False
+					# ============================================================
+
+					# --- GIAI ĐOẠN 1: Override shift boundaries nếu CN + có OT ---
+					is_sunday = attendance_date.weekday() == 6
+					sunday_ot_entries = None
+					if is_sunday:
+						sunday_ot_entries = ref_data.get('overtime_registrations', {}).get((employee, attendance_date), [])
+						if sunday_ot_entries:
+							# Lấy khoảng thời gian OT: min(begin) → max(end)
+							sunday_start = min(entry['begin_time'] for entry in sunday_ot_entries)
+							sunday_end = max(entry['end_time'] for entry in sunday_ot_entries)
+							# Thay shift start/end = OT begin/end
+							shift_type_details.start_time = sunday_start
+							shift_type_details.end_time = sunday_end
+
 					# CRITICAL: Maternity benefit reduces shift end_time by 1 hour (MUST match original logic!)
 					if custom_maternity_benefit:
-						from datetime import timedelta
 						shift_type_details.end_time = shift_type_details.end_time - timedelta(hours=1)
 
+					# Gọi hàm tính working_hours theo logic cũ (morning + afternoon - break)
 					working_hours, late_entry, early_exit, actual_overtime, approved_overtime, final_overtime, overtime_type = custom_calculate_working_hours_overtime(
 						employee,
 						attendance_date,
@@ -1178,6 +1271,48 @@ def _core_process_attendance_logic_optimized(
 						shift_type_details,
 						custom_maternity_benefit
 					)
+
+					# --- GIAI ĐOẠN 2: Override overtime và in/out nếu Chủ Nhật ---
+					if is_sunday:
+						if sunday_ot_entries:
+							# Trường hợp B: Chủ Nhật CÓ OT Registration
+
+							# Override in_time/out_time = thời gian đăng ký OT
+							# timedelta trick: datetime.min + timedelta -> .time() để convert timedelta -> time object
+							in_time = datetime.combine(attendance_date, (datetime.min + sunday_start).time())
+							out_time = datetime.combine(attendance_date, (datetime.min + sunday_end).time())
+
+							# Tính approved_overtime = tổng OT span - giờ nghỉ trưa (nếu trùng)
+							total_span_hours = (sunday_end - sunday_start).total_seconds() / 3600
+							break_start_td = shift_data.get('custom_begin_break_time')
+							break_end_td = shift_data.get('custom_end_break_time')
+							lunch_deduction = 0
+
+							if break_start_td and break_end_td and break_start_td != break_end_td:
+								# Kiểm tra OT span có trùng giờ nghỉ trưa không
+								if sunday_start < break_end_td and sunday_end > break_start_td:
+									overlap_start = max(sunday_start, break_start_td)
+									overlap_end = min(sunday_end, break_end_td)
+									if overlap_end > overlap_start:
+										lunch_deduction = (overlap_end - overlap_start).total_seconds() / 3600
+
+							# Toàn bộ giờ làm việc CN = actual overtime
+							actual_overtime = working_hours
+							# OT approved = tổng span trừ nghỉ trưa
+							approved_overtime = total_span_hours - lunch_deduction
+							final_overtime = min(approved_overtime, actual_overtime)
+							overtime_type = shift_data.get('overtime_type')
+						else:
+							# Trường hợp A: Chủ Nhật KHÔNG CÓ OT Registration → OT = 0
+							actual_overtime = 0
+							approved_overtime = 0
+							final_overtime = 0
+							overtime_type = None
+
+						# Chủ Nhật: không check late_entry / early_exit
+						late_entry = False
+						early_exit = False
+
 				else:
 					# Only 1 log or no logs - set defaults
 					working_hours = 0
@@ -1680,12 +1815,18 @@ def _core_process_attendance_logic_optimized(
 		})
 
 	# Get employees with attendance from database
+	# CRITICAL: Filter by employee list to get accurate count for the specific batch
+	# Without this filter, it counts ALL employees with attendance in the date range,
+	# causing incorrect counts when triggered by OT Registration hook (e.g., showing 37 instead of 2)
+	att_filters = {
+		"attendance_date": ["between", [from_date, to_date]],
+		"docstatus": ["!=", 2]
+	}
+	if employees:
+		att_filters["employee"] = ["in", employees]
 	employees_with_attendance_set = set(frappe.get_all(
 		"Attendance",
-		filters={
-			"attendance_date": ["between", [from_date, to_date]],
-			"docstatus": ["!=", 2]
-		},
+		filters=att_filters,
 		pluck="employee"
 	))
 

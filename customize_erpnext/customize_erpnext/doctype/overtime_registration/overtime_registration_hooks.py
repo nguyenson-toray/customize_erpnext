@@ -14,18 +14,10 @@ from datetime import date, timedelta
 
 def update_attendance_on_overtime_change(doc, method):
 	"""
-	Update attendance when overtime registration is submitted, cancelled, or updated
+	Update attendance when overtime registration is submitted, cancelled, or updated.
 
-	This hook is called when:
-	- on_submit: OT registration is approved
-	- on_cancel: OT registration is cancelled
-	- on_update_after_submit: OT registration is amended
-
-	Key improvements over the old version:
-	1. Uses _core_process_attendance_logic_optimized for consistency
-	2. Collects all affected employees and dates first
-	3. Processes in a single batch call for efficiency
-	4. Ensures the same logic as main attendance processing
+	This hook enqueues a background job to recalculate attendance for affected employees.
+	The submit/cancel action completes immediately without blocking the user.
 
 	Args:
 		doc: Overtime Registration document
@@ -34,112 +26,124 @@ def update_attendance_on_overtime_change(doc, method):
 	if not doc.ot_employees:
 		return
 
-	print(f"\n{'='*80}")
-	print(f"🔄 OVERTIME REGISTRATION HOOK TRIGGERED")
-	print(f"{'='*80}")
-	print(f"   Document: {doc.name}")
-	print(f"   Status: {doc.docstatus}")
-	print(f"   Method: {method}")
-	print(f"   Details: {len(doc.ot_employees)} records")
-
 	# ========================================================================
-	# STEP 1: Collect affected employees and dates
+	# Collect affected employees and dates from OTR detail
 	# ========================================================================
 	affected_employees = set()
 	affected_dates = set()
-
 	today = date.today()
 
 	for detail in doc.ot_employees:
 		if detail.employee and detail.date:
 			detail_date = getdate(detail.date)
-			# Skip future dates - cannot process attendance for dates after today
 			if detail_date > today:
 				continue
 			affected_employees.add(detail.employee)
 			affected_dates.add(detail_date)
 
 	if not affected_employees or not affected_dates:
-		print(f"   ⚠️  No valid employees or dates found in details")
 		return
 
-	# Convert to sorted lists for better logging
 	employee_list = sorted(list(affected_employees))
 	date_list = sorted(list(affected_dates))
-
-	print(f"   📋 Affected employees: {len(employee_list)}")
-	print(f"      {', '.join(employee_list[:5])}{' ...' if len(employee_list) > 5 else ''}")
-	print(f"   📅 Affected dates: {len(date_list)}")
-	print(f"      {', '.join(str(d) for d in date_list[:5])}{' ...' if len(date_list) > 5 else ''}")
-
-	# ========================================================================
-	# STEP 2: Calculate date range for processing
-	# ========================================================================
 	from_date = min(date_list)
 	to_date = max(date_list)
 
-	print(f"   📆 Processing range: {from_date} to {to_date}")
+	# ========================================================================
+	# Enqueue background job for attendance processing
+	# ========================================================================
+	frappe.enqueue(
+		"customize_erpnext.customize_erpnext.doctype.overtime_registration.overtime_registration_hooks._process_attendance_background",
+		queue="long",
+		timeout=600,
+		job_id=f"ot_attendance_{doc.name}",
+		doc_name=doc.name,
+		employee_list=employee_list,
+		date_list=[str(d) for d in date_list],  # serialize dates
+		from_date=str(from_date),
+		to_date=str(to_date),
+		user=frappe.session.user,
+		enqueue_after_commit=True
+	)
 
-	# ========================================================================
-	# STEP 3: Call optimized attendance processing
-	# ========================================================================
-	# Import the optimized core logic from shift_type_optimized
+	frappe.msgprint(
+		msg=f"Attendance update for {len(employee_list)} employees has been queued and will be processed shortly.",
+		title="Attendance Update Queued",
+		indicator="blue"
+	)
+
+
+def _process_attendance_background(doc_name, employee_list, date_list, from_date, to_date, user):
+	"""
+	Background job: recalculate attendance for employees affected by an OTR.
+
+	Args:
+		doc_name: Overtime Registration name (for logging)
+		employee_list: List of employee IDs
+		date_list: List of date strings
+		from_date: Start date string
+		to_date: End date string
+		user: User who triggered the action (for realtime notification)
+	"""
 	from customize_erpnext.overrides.shift_type.shift_type_optimized import (
 		_core_process_attendance_logic_optimized
 	)
 
-	try:
-		print(f"\n   🚀 Calling optimized attendance processing...")
+	# Convert date strings back to date objects
+	days = [getdate(d) for d in date_list]
+	logger = frappe.logger("overtime_registration", allow_site=True)
 
-		# CRITICAL: Use fore_get_logs=True (full day mode)
-		# This ensures attendance is RECALCULATED from ALL checkins, not just new ones
-		# This is necessary because:
-		# 1. Approved overtime amount changed (need to recalculate custom_approved_overtime_duration)
-		# 2. Final overtime depends on min(actual_overtime, approved_overtime)
-		# 3. We need to update existing attendance records, not create new ones
+	try:
+		logger.info(f"OT Attendance Background Job [{doc_name}]: {len(employee_list)} employees, {len(days)} dates")
+
 		stats = _core_process_attendance_logic_optimized(
 			employees=employee_list,
-			days=date_list,
+			days=days,
 			from_date=from_date,
 			to_date=to_date,
-			fore_get_logs=True  # Force full day recalculation
+			fore_get_logs=True
 		)
 
-		print(f"\n   ✅ Attendance processing completed")
-		print(f"      Records processed: {stats.get('actual_records', 0)}")
-		print(f"      Employees with attendance: {stats.get('employees_with_attendance', 0)}")
-		print(f"      Processing time: {stats.get('processing_time', 0):.2f}s")
-		print(f"      Errors: {stats.get('errors', 0)}")
+		logger.info(f"OT Attendance Background Job [{doc_name}]: completed, {stats.get('employees_with_attendance', 0)} employees updated")
 
+		# Send realtime notification to the user
 		if stats.get('errors', 0) > 0:
-			frappe.msgprint(
-				msg=f"Attendance updated with {stats.get('errors')} errors. Check Error Log for details.",
-				title="Attendance Update Warning",
-				indicator="orange"
+			frappe.publish_realtime(
+				"msgprint",
+				{
+					"message": f"[{doc_name}] Attendance updated with {stats.get('errors')} errors. Check Error Log.",
+					"title": "Attendance Update Warning",
+					"indicator": "orange"
+				},
+				user=user
 			)
 		else:
-			frappe.msgprint(
-				msg=f"Successfully updated attendance for {stats.get('employees_with_attendance', 0)} employees",
-				title="Attendance Updated",
-				indicator="green"
+			frappe.publish_realtime(
+				"msgprint",
+				{
+					"message": f"[{doc_name}] Successfully updated attendance for {stats.get('employees_with_attendance', 0)} employees",
+					"title": "Attendance Updated",
+					"indicator": "green"
+				},
+				user=user
 			)
 
 	except Exception as e:
-		error_msg = f"Error updating attendance for OT Registration {doc.name}: {str(e)}"
-		print(f"\n   ❌ {error_msg}")
+		error_msg = f"Error updating attendance for OT Registration {doc_name}: {str(e)}"
+		logger.error(error_msg)
 		frappe.log_error(
-			title=f"Overtime Registration Hook Error - {doc.name}",
+			title=f"OT Attendance Background Error - {doc_name}",
 			message=error_msg
 		)
-		frappe.throw(
-			msg=f"Failed to update attendance: {str(e)}",
-			title="Attendance Update Error"
+		frappe.publish_realtime(
+			"msgprint",
+			{
+				"message": f"[{doc_name}] Failed to update attendance: {str(e)}",
+				"title": "Attendance Update Error",
+				"indicator": "red"
+			},
+			user=user
 		)
-
-	finally:
-		print(f"{'='*80}")
-		print(f"✅ OVERTIME REGISTRATION HOOK COMPLETED")
-		print(f"{'='*80}\n")
 
 
 # ============================================================================
