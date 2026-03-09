@@ -1,0 +1,32 @@
+{
+ "content": null,
+ "creation": "2026-03-06 00:00:00",
+ "docstatus": 0,
+ "doctype": "Page",
+ "idx": 0,
+ "modified": "2026-03-09 08:24:47.597344",
+ "modified_by": "Administrator",
+ "module": "Health Check Up",
+ "name": "health-check-up-management",
+ "owner": "Administrator",
+ "page_name": "health-check-up-management",
+ "roles": [
+  {
+   "role": "HR User"
+  },
+  {
+   "role": "HR Manager"
+  },
+  {
+   "role": "Administrator"
+  },
+  {
+   "role": "Health Check Operator"
+  }
+ ],
+ "script": null,
+ "standard": "Yes",
+ "style": null,
+ "system_page": 0,
+ "title": "Health Check Up Management"
+}

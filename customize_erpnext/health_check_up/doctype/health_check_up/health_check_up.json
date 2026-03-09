@@ -1,0 +1,279 @@
+{
+ "actions": [],
+ "allow_import": 1,
+ "autoname": "hash",
+ "creation": "2026-03-06 00:00:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "section_break_info",
+  "date",
+  "hospital_code",
+  "health_check_type",
+  "column_break_info",
+  "employee",
+  "employee_name",
+  "gender",
+  "section_break_dept",
+  "department",
+  "custom_section",
+  "column_break_dept",
+  "custom_group",
+  "designation",
+  "pregnant",
+  "section_break_schedule",
+  "start_time",
+  "end_time",
+  "column_break_time",
+  "start_time_actual",
+  "end_time_actual",
+  "section_break_exam",
+  "x_ray",
+  "gynecological_exam",
+  "column_break_exam",
+  "note",
+  "section_break_result",
+  "result"
+ ],
+ "fields": [
+  {
+   "fieldname": "section_break_info",
+   "fieldtype": "Section Break",
+   "label": "Th\u00f4ng tin \u0111\u1ee3t kh\u00e1m"
+  },
+  {
+   "default": "Today",
+   "fieldname": "date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Date",
+   "reqd": 1
+  },
+  {
+   "description": "M\u00e3 code h\u1ed3 s\u01a1 t\u1eeb b\u1ec7nh vi\u1ec7n (4 k\u00fd t\u1ef1)",
+   "fieldname": "hospital_code",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Hospital Code",
+   "length": 10,
+   "reqd": 1
+  },
+  {
+   "default": "Kh\u00e1m s\u1ee9c kh\u1ecfe + B\u1ec7nh ngh\u1ec1 nghi\u1ec7p",
+   "fieldname": "health_check_type",
+   "fieldtype": "Select",
+   "in_standard_filter": 1,
+   "label": "Health Check Type",
+   "options": "\nKh\u00e1m s\u1ee9c kh\u1ecfe + B\u1ec7nh ngh\u1ec1 nghi\u1ec7p\nKh\u00e1m s\u1ee9c kh\u1ecfe\nKh\u00e1m s\u1ee9c kh\u1ecfe l\u00e0m b\u1ebfp",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_info",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Employee",
+   "options": "Employee",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "employee.employee_name",
+   "fieldname": "employee_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Employee Name",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "employee.gender",
+   "fieldname": "gender",
+   "fieldtype": "Data",
+   "label": "Gender",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_dept",
+   "fieldtype": "Section Break",
+   "label": "Th\u00f4ng tin ph\u00f2ng ban"
+  },
+  {
+   "fetch_from": "employee.department",
+   "fieldname": "department",
+   "fieldtype": "Link",
+   "label": "Department",
+   "options": "Department",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "employee.custom_section",
+   "fieldname": "custom_section",
+   "fieldtype": "Data",
+   "label": "Section",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_dept",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "employee.custom_group",
+   "fieldname": "custom_group",
+   "fieldtype": "Data",
+   "in_standard_filter": 1,
+   "label": "Group",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "employee.designation",
+   "fieldname": "designation",
+   "fieldtype": "Link",
+   "label": "Designation",
+   "options": "Designation",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.gender=='Female' || doc.gender=='N\u1eef'",
+   "description": "T\u1ef1 \u0111\u1ed9ng l\u1ea5y t\u1eeb Employee Maternity (type='Pregnant')",
+   "fieldname": "pregnant",
+   "fieldtype": "Check",
+   "label": "Pregnant",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_schedule",
+   "fieldtype": "Section Break",
+   "label": "L\u1ecbch kh\u00e1m"
+  },
+  {
+   "description": "Th\u1eddi gian d\u1ef1 ki\u1ebfn ph\u00e1t h\u1ed3 s\u01a1",
+   "fieldname": "start_time",
+   "fieldtype": "Time",
+   "label": "Start Time",
+   "reqd": 1
+  },
+  {
+   "description": "Th\u1eddi gian d\u1ef1 ki\u1ebfn thu h\u1ed3 s\u01a1",
+   "fieldname": "end_time",
+   "fieldtype": "Time",
+   "label": "End Time",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_time",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Th\u1eddi gian ph\u00e1t HS th\u1ef1c t\u1ebf (scan ho\u1eb7c nh\u1eadp th\u1ee7 c\u00f4ng)",
+   "fieldname": "start_time_actual",
+   "fieldtype": "Time",
+   "in_filter": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Start Time Actual"
+  },
+  {
+   "description": "Th\u1eddi gian thu HS th\u1ef1c t\u1ebf (scan ho\u1eb7c nh\u1eadp th\u1ee7 c\u00f4ng)",
+   "fieldname": "end_time_actual",
+   "fieldtype": "Time",
+   "label": "End Time Actual"
+  },
+  {
+   "fieldname": "section_break_exam",
+   "fieldtype": "Section Break",
+   "label": "H\u1ea1ng m\u1ee5c kh\u00e1m b\u1ed5 sung"
+  },
+  {
+   "default": "0",
+   "description": "C\u00f3 ch\u1ee5p X-Quang hay kh\u00f4ng (nh\u1eadp khi thu HS)",
+   "fieldname": "x_ray",
+   "fieldtype": "Check",
+   "label": "X-Ray"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.gender=='Female' || doc.gender=='N\u1eef'",
+   "description": "C\u00f3 kh\u00e1m ph\u1ee5 khoa hay kh\u00f4ng (nh\u1eadp khi thu HS)",
+   "fieldname": "gynecological_exam",
+   "fieldtype": "Check",
+   "label": "Gynecological Exam"
+  },
+  {
+   "fieldname": "column_break_exam",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "note",
+   "fieldtype": "Small Text",
+   "label": "Note"
+  },
+  {
+   "fieldname": "section_break_result",
+   "fieldtype": "Section Break",
+   "label": "K\u1ebft qu\u1ea3 kh\u00e1m"
+  },
+  {
+   "description": "K\u1ebft qu\u1ea3 kh\u00e1m t\u1eeb b\u1ec7nh vi\u1ec7n tr\u1ea3 v\u1ec1",
+   "fieldname": "result",
+   "fieldtype": "Text Editor",
+   "label": "Result"
+  }
+ ],
+ "links": [],
+ "modified": "2026-03-09 10:20:44.611439",
+ "modified_by": "Administrator",
+ "module": "Health Check Up",
+ "name": "Health Check-Up",
+ "naming_rule": "Random",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "import": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "HR User",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "import": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "HR Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "export": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Health Check Operator",
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "Employee"
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "start_time",
+ "sort_order": "ASC",
+ "states": [],
+ "track_changes": 1
+}

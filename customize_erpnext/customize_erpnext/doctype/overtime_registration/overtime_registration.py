@@ -571,7 +571,7 @@ def get_shift_config(shift_type):
         shift_doc = frappe.db.get_value(
             "Shift Type",
             shift_type,
-            ["start_time", "end_time", "custom_begin_break_time", "custom_end_break_time", "custom_allows_ot"],
+            ["start_time", "end_time", "custom_begin_break_time", "custom_end_break_time", "allow_overtime"],
             as_dict=True
         )
     except Exception:
@@ -602,7 +602,7 @@ def get_shift_config(shift_type):
         "end": end,
         "break_start": break_start or start,
         "break_end": break_end or start,
-        "allows_ot": bool(shift_doc.custom_allows_ot) if shift_doc.custom_allows_ot is not None else True
+        "allows_ot": bool(shift_doc.allow_overtime) if shift_doc.allow_overtime is not None else True
     }
 
     frappe.cache().set_value(cache_key, config, expires_in_sec=300)
