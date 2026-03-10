@@ -7,100 +7,58 @@ from frappe import _
 @frappe.whitelist(allow_guest=False)
 def get_employee_photos(show_active_only=1, sort_order='asc', custom_group=''):
     """
-    Get list of all employee photos from employee_photos folder.
+    Get list of all employees (with or without photos).
     Args:
         show_active_only: 1 to show only Active employees (default), 0 to show all
         sort_order: 'asc' for A-Z, 'desc' for Z-A
         custom_group: Filter by custom_group (optional)
-    Returns list of photo info including filename, URL, file size, employee name, and modification time.
+    Returns list of employee info including image URL, employee name, and date of joining.
     """
     try:
-        site_path = get_site_path()
-        photos_folder = os.path.join(site_path, 'public', 'files', 'employee_photos')
-
-        if not os.path.exists(photos_folder):
-            return {
-                'status': 'success',
-                'photos': [],
-                'total': 0,
-                'message': 'Employee photos folder does not exist'
-            }
-
-        # Get employees with their names and status from database
         filters = {}
         if int(show_active_only) == 1:
-            # Only show Active employees
             filters['status'] = 'Active'
 
         if custom_group:
-            # Filter by custom_group if provided
             filters['custom_group'] = custom_group
 
         employees = frappe.db.get_all('Employee',
-            fields=['name', 'employee_name', 'status', 'custom_group', 'cell_number', 'custom_current_address_full'],
+            fields=['name', 'employee_name', 'status', 'custom_group', 'cell_number', 'custom_current_address_full', 'image', 'date_of_joining'],
             filters=filters
         )
 
         frappe.logger().info(f"get_employee_photos: show_active_only={show_active_only}, found {len(employees)} employees")
 
-        # Create a mapping of employee_id -> employee info
-        employee_map = {emp['name']: {
-            'employee_name': emp['employee_name'],
-            'status': emp['status'],
-            'custom_group': emp.get('custom_group', ''),
-            'cell_number': emp.get('cell_number', ''),
-            'custom_current_address_full': emp.get('custom_current_address_full', '')
-        } for emp in employees}
-
         photos = []
-        for filename in os.listdir(photos_folder):
-            file_path = os.path.join(photos_folder, filename)
+        for emp in employees:
+            employee_id = emp['name']
+            employee_name = emp.get('employee_name', '')
+            display_name = f"{employee_id} {employee_name}" if employee_id and employee_name else employee_id
+            
+            # Format date of joining to string if present
+            date_of_joining_str = ''
+            if emp.get('date_of_joining'):
+                date_of_joining_str = emp['date_of_joining'].strftime('%Y-%m-%d') if hasattr(emp['date_of_joining'], 'strftime') else str(emp['date_of_joining'])
 
-            # Skip directories and hidden files
-            if os.path.isdir(file_path) or filename.startswith('.'):
-                continue
-
-            # Only include image files
-            if not filename.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.webp')):
-                continue
-
-            file_stat = os.stat(file_path)
-
-            # Extract employee_id from filename (format: "TIQN-XXXX Employee Name.jpg")
-            employee_id = filename.split(' ')[0] if ' ' in filename else None
-
-            # Get employee info
-            emp_info = employee_map.get(employee_id)
-
-            # If show_active_only is enabled and employee not found in filtered list, skip
-            if int(show_active_only) == 1 and not emp_info:
-                continue
-
-            # Get employee details
-            employee_name = emp_info.get('employee_name', '') if emp_info else ''
-            employee_status = emp_info.get('status', '') if emp_info else ''
-            employee_group = emp_info.get('custom_group', '') if emp_info else ''
-            cell_number = emp_info.get('cell_number', '') if emp_info else ''
-            custom_current_address_full = emp_info.get('custom_current_address_full', '') if emp_info else ''
-
-            # Create display name in format: "TIQN-XXXX Employee Name"
-            display_name = f"{employee_id} {employee_name}" if employee_id and employee_name else filename
+            url = emp.get('image', '')
+            filename = url.split('/')[-1] if url else ''
 
             photos.append({
                 'filename': filename,
                 'display_name': display_name,
-                'url': f'/files/employee_photos/{filename}',
-                'size': file_stat.st_size,
-                'modified': file_stat.st_mtime,
+                'url': url,
+                'size': 0, # Don't need real size for DB fetch unless we stat the file
+                'modified': 0,
                 'employee_id': employee_id,
                 'employee_name': employee_name,
-                'status': employee_status,
-                'custom_group': employee_group,
-                'cell_number': cell_number,
-                'custom_current_address_full': custom_current_address_full
+                'status': emp.get('status', ''),
+                'custom_group': emp.get('custom_group', ''),
+                'cell_number': emp.get('cell_number', ''),
+                'custom_current_address_full': emp.get('custom_current_address_full', ''),
+                'date_of_joining': date_of_joining_str
             })
 
-        # Sort by display_name based on sort_order
+        # Sort by display_name
         reverse = (sort_order == 'desc')
         photos.sort(key=lambda x: x['display_name'].lower(), reverse=reverse)
 
@@ -111,7 +69,7 @@ def get_employee_photos(show_active_only=1, sort_order='asc', custom_group=''):
         }
 
     except Exception as e:
-        frappe.log_error(f"Error getting employee photos: {str(e)}", "Employee Photos Viewer Error")
+        frappe.log_error(f"Error getting employees: {str(e)}", "Employee Photos Viewer Error")
         return {
             'status': 'error',
             'message': str(e)
