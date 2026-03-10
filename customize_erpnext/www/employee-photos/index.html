@@ -145,6 +145,8 @@
         }
 
         .photo-card {
+            position: relative;
+            /* needed for .edit-btn and .card-save-flash */
             background: #f8f9fa;
             border-radius: 8px;
             overflow: hidden;
@@ -290,7 +292,617 @@
             padding: 40px 20px;
             color: #6c757d;
         }
+
+        /* ── Edit button on photo card ── */
+        .edit-btn {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: rgba(0, 0, 0, 0.55);
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transform: scale(0.85);
+            transition: opacity 0.18s, transform 0.18s, background 0.18s;
+            z-index: 2;
+            backdrop-filter: blur(4px);
+            line-height: 1;
+        }
+
+        .photo-card:hover .edit-btn,
+        .photo-card:hover .upload-btn {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        .edit-btn:hover,
+        .upload-btn:hover {
+            background: rgba(79, 142, 255, 0.9);
+            transform: scale(1.1);
+        }
+
+        .upload-btn {
+            position: absolute;
+            top: 8px;
+            right: 44px;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: rgba(0, 0, 0, 0.55);
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transform: scale(0.85);
+            transition: opacity 0.18s, transform 0.18s, background 0.18s;
+            z-index: 2;
+            backdrop-filter: blur(4px);
+            line-height: 1;
+        }
+
+        /* ── Delete button on photo card ── */
+        .delete-btn {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: rgba(0, 0, 0, 0.55);
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transform: scale(0.85);
+            transition: opacity 0.18s, transform 0.18s, background 0.18s;
+            z-index: 2;
+            backdrop-filter: blur(4px);
+            line-height: 1;
+        }
+
+        .photo-card:hover .delete-btn {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        .delete-btn:hover {
+            background: rgba(220, 53, 69, 0.9);
+            transform: scale(1.1);
+        }
+
+        /* ── Delete confirm modal ── */
+        #deleteConfirmInput {
+            width: 100%;
+            padding: 9px 12px;
+            background: #1e2229;
+            border: 1px solid #323a48;
+            border-radius: 6px;
+            color: #dde3f0;
+            font-size: 15px;
+            outline: none;
+            font-family: 'DM Mono', monospace;
+            margin-top: 6px;
+        }
+
+        #deleteConfirmInput:focus {
+            border-color: #ff5a5a;
+        }
+
+        #deleteConfirmInput.match {
+            border-color: #22c97a;
+        }
+
+        #deleteConfirmBtn {
+            padding: 9px 20px;
+            background: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 7px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 700;
+            transition: opacity 0.15s;
+        }
+
+        #deleteConfirmBtn:disabled {
+            opacity: 0.35;
+            cursor: not-allowed;
+        }
+
+        #deleteConfirmBtn:not(:disabled):hover {
+            background: #b02a37;
+        }
+
+        /* ── Editor Modal overlay ── */
+        .editor-modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 9999;
+            background: rgba(0, 0, 0, 0.88);
+            backdrop-filter: blur(6px);
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            animation: fadeIn 0.18s ease;
+        }
+
+        .editor-modal-overlay.open {
+            display: flex;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        .editor-modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 96vw;
+            max-width: 1400px;
+            padding: 10px 14px;
+            background: #161920;
+            border-radius: 12px 12px 0 0;
+            border: 1px solid #252b35;
+            border-bottom: none;
+            flex-shrink: 0;
+        }
+
+        .editor-modal-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #dde3f0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .editor-modal-title .emp-name {
+            color: #4f8eff;
+            font-family: monospace;
+        }
+
+        .editor-modal-close {
+            width: 32px;
+            height: 32px;
+            background: #252b35;
+            border: 1px solid #323a48;
+            border-radius: 6px;
+            color: #9aa3b8;
+            cursor: pointer;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.15s;
+        }
+
+        .editor-modal-close:hover {
+            background: rgba(255, 90, 90, 0.15);
+            color: #ff5a5a;
+            border-color: rgba(255, 90, 90, 0.3);
+        }
+
+        .editor-iframe-wrap {
+            width: 96vw;
+            max-width: 1400px;
+            height: calc(96vh - 54px);
+            background: #0e1015;
+            border-radius: 0 0 12px 12px;
+            overflow: hidden;
+            border: 1px solid #252b35;
+            position: relative;
+        }
+
+        #photoEditorFrame {
+            width: 100%;
+            height: 100%;
+            border: none;
+            display: block;
+        }
+
+        /* ── Save success flash on card ── */
+        .card-save-flash {
+            position: absolute;
+            inset: 0;
+            background: rgba(34, 201, 122, 0.18);
+            border: 2px solid #22c97a;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s;
+            z-index: 3;
+        }
+
+        .card-save-flash.show {
+            opacity: 1;
+        }
+
+        /* ── Toast notification ── */
+        .editor-toast {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%) translateY(10px);
+            background: #1e2229;
+            color: #dde3f0;
+            padding: 10px 18px;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 500;
+            border: 1px solid #323a48;
+            box-shadow: 0 6px 24px rgba(0, 0, 0, .4);
+            opacity: 0;
+            transition: all 0.22s;
+            pointer-events: none;
+            z-index: 10000;
+            white-space: nowrap;
+        }
+
+        .editor-toast.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        .editor-toast.ok {
+            background: #1a3328;
+            border-color: rgba(34, 201, 122, .35);
+            color: #22c97a;
+        }
+
+        .editor-toast.err {
+            background: #2d1a1a;
+            border-color: rgba(255, 90, 90, .35);
+            color: #ff5a5a;
+        }
+
+        /* ── Upload choice / camera / crop modals ── */
+        .upload-modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 10001;
+            background: rgba(0, 0, 0, 0.82);
+            backdrop-filter: blur(6px);
+            align-items: center;
+            justify-content: center;
+        }
+
+        .upload-modal.open {
+            display: flex;
+        }
+
+        .upload-modal-box {
+            background: #161920;
+            border: 1px solid #252b35;
+            border-radius: 14px;
+            padding: 24px;
+            min-width: 320px;
+            max-width: 92vw;
+        }
+
+        .upload-modal-box h3 {
+            color: #dde3f0;
+            font-size: 15px;
+            margin-bottom: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .upload-modal-box h3 .emp-label {
+            color: #4f8eff;
+            font-family: monospace;
+            font-size: 13px;
+            font-weight: normal;
+        }
+
+        .upload-modal-close {
+            background: none;
+            border: none;
+            color: #9aa3b8;
+            cursor: pointer;
+            font-size: 18px;
+            padding: 0 4px;
+        }
+
+        .upload-modal-close:hover {
+            color: #ff5a5a;
+        }
+
+        /* Choice buttons */
+        .upload-choice-btns {
+            display: flex;
+            gap: 14px;
+        }
+
+        .upload-choice-btn {
+            flex: 1;
+            padding: 20px 12px;
+            background: #1e2229;
+            border: 1px solid #323a48;
+            border-radius: 10px;
+            color: #dde3f0;
+            cursor: pointer;
+            text-align: center;
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.15s;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .upload-choice-btn .choice-icon {
+            font-size: 28px;
+        }
+
+        .upload-choice-btn:hover {
+            background: #252b35;
+            border-color: #4f8eff;
+            color: #4f8eff;
+        }
+
+        /* Camera modal */
+        #cameraModal .upload-modal-box {
+            min-width: min(700px, 92vw);
+        }
+
+        #cameraPreview {
+            width: 100%;
+            max-height: 55vh;
+            background: #000;
+            border-radius: 8px;
+            display: block;
+        }
+
+        #cameraError {
+            color: #ff5a5a;
+            font-size: 13px;
+            padding: 20px;
+            text-align: center;
+            display: none;
+        }
+
+        .camera-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 14px;
+            justify-content: flex-end;
+        }
+
+        .btn-capture {
+            padding: 9px 22px;
+            background: #4f8eff;
+            color: white;
+            border: none;
+            border-radius: 7px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .btn-cancel-modal {
+            padding: 9px 16px;
+            background: #252b35;
+            color: #9aa3b8;
+            border: 1px solid #323a48;
+            border-radius: 7px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+
+        /* Crop modal */
+        #cropModal .upload-modal-box {
+            min-width: min(700px, 92vw);
+        }
+
+        #cropContainer {
+            max-height: 55vh;
+            overflow: hidden;
+            border-radius: 8px;
+            background: #000;
+        }
+
+        #imageToCrop {
+            display: block;
+            max-width: 100%;
+        }
+
+        .crop-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 14px;
+            justify-content: flex-end;
+        }
+
+        .btn-save-crop {
+            padding: 9px 22px;
+            background: #22c97a;
+            color: #0e1015;
+            border: none;
+            border-radius: 7px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        /* ══════════════════════════════════════
+           MOBILE RESPONSIVE
+           ══════════════════════════════════════ */
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+
+            /* Header */
+            .header {
+                padding: 12px 16px;
+                margin-bottom: 12px;
+            }
+
+            h1 {
+                font-size: 18px;
+                margin-bottom: 6px;
+            }
+
+            .stats {
+                font-size: 12px;
+            }
+
+            /* Controls: compact */
+            .controls-row {
+                gap: 8px;
+                margin-top: 8px;
+            }
+
+            .search-box {
+                min-width: unset;
+                width: 100%;
+                font-size: 16px;
+                /* prevent iOS zoom */
+            }
+
+            .control-group {
+                gap: 6px;
+            }
+
+            .control-group label {
+                font-size: 13px;
+            }
+
+            .control-group select {
+                font-size: 13px;
+                padding: 5px 8px;
+            }
+
+            .control-group button {
+                font-size: 13px;
+                padding: 6px 10px;
+            }
+
+            /* Ẩn text label, chỉ hiện icon trên mobile */
+            .ctrl-text {
+                display: none;
+            }
+
+            /* Gallery: 2 columns on phone */
+            .gallery {
+                grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+                gap: 10px;
+                padding: 12px;
+            }
+
+            /* Photo card */
+            .photo-card img {
+                height: 170px;
+            }
+
+            .photo-info {
+                padding: 8px 10px;
+            }
+
+            .employee-id {
+                font-size: 12px;
+            }
+
+            /* Edit/upload/delete buttons: always visible on mobile (no hover available) */
+            .photo-card .edit-btn,
+            .photo-card .upload-btn,
+            .photo-card .delete-btn {
+                opacity: 1;
+                transform: scale(1);
+            }
+
+            /* Editor modal: full screen on mobile */
+            .editor-modal-header,
+            .editor-iframe-wrap {
+                width: 100vw !important;
+                max-width: 100vw !important;
+                border-radius: 0 !important;
+            }
+
+            .editor-modal-overlay {
+                padding: 0;
+                align-items: flex-start;
+            }
+
+            /* Camera/crop modals */
+            .upload-modal-box {
+                padding: 16px;
+                border-radius: 10px;
+            }
+
+            .crop-actions {
+                justify-content: space-between;
+            }
+
+            /* Date filter: stacked */
+            .control-group input[type="date"] {
+                font-size: 13px;
+                padding: 5px 6px;
+            }
+        }
+
+        @media (max-width: 480px) {
+
+            /* Very small phones: 1 wider column */
+            .gallery {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 8px;
+                padding: 8px;
+            }
+
+            .photo-card img {
+                height: 150px;
+            }
+
+            /* Hide text labels, keep icons */
+            .ctrl-text {
+                display: none;
+            }
+
+            /* Upload choice buttons: stack vertically */
+            .upload-modal-box>div[style*="display: flex"] {
+                flex-direction: column !important;
+            }
+        }
     </style>
+    <!-- Cropper.js for crop step (same as employee.js) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
+    <script>
+        // Inject CSRF token from Frappe backend context
+        window.csrf_token = "{{ csrf_token }}";
+    </script>
 </head>
 
 <body>
@@ -303,42 +915,60 @@
                     placeholder="Tìm kiếm theo mã hoặc tên nhân viên...">
 
                 <div class="control-group">
-                    <label>
+                    <label title="Chỉ hiển thị nhân viên đang làm việc">
                         <input type="checkbox" id="showActiveOnlyCheckbox" checked>
-                        <span>Chỉ hiển thị nhân viên đang làm việc</span>
+                        <span class="ctrl-icon">✅</span><span class="ctrl-text"> Đang làm việc</span>
                     </label>
                 </div>
 
                 <div class="control-group">
-                    <label>
+                    <label title="Chỉ hiển thị nhân viên chưa có ảnh">
+                        <input type="checkbox" id="showNoPhotoOnlyCheckbox">
+                        <span class="ctrl-icon">🖼️</span><span class="ctrl-text"> Chưa có ảnh</span>
+                    </label>
+                </div>
+
+                <div class="control-group" title="Lọc theo ngày vào làm">
+                    <span class="ctrl-icon">📅</span><span class="ctrl-text"> </span>
+                    <input type="date" id="dateFilterFrom" title="Từ ngày" class="date-input">
+                    <span>-</span>
+                    <input type="date" id="dateFilterTo" title="Đến ngày" class="date-input">
+                </div>
+
+                <div class="control-group">
+                    <label title="Hiển thị số điện thoại">
                         <input type="checkbox" id="showPhoneCheckbox">
-                        <span>SĐT</span>
+                        <span class="ctrl-icon">📱</span><span class="ctrl-text"> SĐT</span>
                     </label>
                 </div>
 
                 <div class="control-group">
-                    <label>
+                    <label title="Hiển thị địa chỉ">
                         <input type="checkbox" id="showAddressCheckbox">
-                        <span>Địa chỉ</span>
+                        <span class="ctrl-icon">📍</span><span class="ctrl-text"> Địa chỉ</span>
                     </label>
                 </div>
 
                 <div class="control-group">
-                    <label for="groupSelect">Nhóm:</label>
-                    <select id="groupSelect">
+                    <span class="ctrl-icon" title="Lọc theo nhóm">🏷️</span>
+                    <select id="groupSelect" title="Lọc theo nhóm">
                         <option value="">Tất cả nhóm</option>
                     </select>
                 </div>
 
                 <div class="control-group">
-                    <label for="sortOrderSelect">Sắp xếp:</label>
-                    <select id="sortOrderSelect">
+                    <span class="ctrl-icon" title="Sắp xếp mã nhân viên">🔤</span>
+                    <select id="sortOrderSelect" title="Sắp xếp mã nhân viên">
                         <option value="desc">Z-A</option>
                         <option value="asc">A-Z</option>
                     </select>
                 </div>
 
-                <div class="control-group">
+                <div class="control-group" style="margin-left: auto; gap: 10px;">
+                    <button id="btnGlobalUpload" style="background:#4f8eff; color:white; border:none;">📤 Tải ảnh
+                        lên</button>
+                    <input type="file" id="globalPhotoInput" accept="image/*" multiple style="display:none;">
+
                     <button id="refreshBtn">🔄 Làm mới</button>
                 </div>
             </div>
@@ -352,6 +982,99 @@
         <div id="error" class="error" style="display: none;"></div>
 
         <div id="gallery" class="gallery" style="display: none;"></div>
+    </div>
+
+    <!-- Photo Editor Modal -->
+    <div class="editor-modal-overlay" id="editorModal">
+        <div class="editor-modal-header">
+            <div class="editor-modal-title">
+                <span>📷 Chỉnh ảnh thẻ</span>
+                <span class="emp-name" id="editorEmpName"></span>
+            </div>
+            <button class="editor-modal-close" onclick="closePhotoEditor()" title="Đóng (ESC)">✕</button>
+        </div>
+        <div class="editor-iframe-wrap">
+            <iframe id="photoEditorFrame" src="/employee-photos/photo_editor.html" allow="camera" title="Photo Editor">
+            </iframe>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="editor-toast" id="editorToast"></div>
+
+    <!-- Upload Choice Modal -->
+    <div class="upload-modal" id="uploadChoiceModal">
+        <div class="upload-modal-box">
+            <h3>
+                <span>📷 Cập nhật ảnh <span class="emp-label" id="choiceEmpLabel"></span></span>
+                <button class="upload-modal-close" onclick="closeUploadModals()">✕</button>
+            </h3>
+            <div class="upload-choice-btns">
+                <button class="upload-choice-btn" id="btnChoiceCamera" onclick="startCameraModal()">
+                    <span class="choice-icon">📸</span>
+                    Chụp ảnh
+                </button>
+                <button class="upload-choice-btn" id="btnChoiceFile" onclick="triggerFileInput()">
+                    <span class="choice-icon">📁</span>
+                    Chọn file
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Camera Modal -->
+    <div class="upload-modal" id="cameraModal">
+        <div class="upload-modal-box">
+            <h3>
+                <span>📸 Chụp ảnh — <span class="emp-label" id="cameraEmpLabel"></span></span>
+                <button class="upload-modal-close" onclick="stopCameraAndClose()">✕</button>
+            </h3>
+            <video id="cameraPreview" autoplay playsinline></video>
+            <div id="cameraError"></div>
+            <div class="camera-actions">
+                <button class="btn-cancel-modal" onclick="stopCameraAndClose()">Huỷ</button>
+                <button class="btn-capture" id="btnCapture" onclick="captureFrame()">📸 Chụp</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Crop Modal -->
+    <div class="upload-modal" id="cropModal">
+        <div class="upload-modal-box">
+            <h3>
+                <span>✂️ Cắt ảnh (3:4) — <span class="emp-label" id="cropEmpLabel"></span></span>
+                <button class="upload-modal-close" onclick="closeCropModal()">✕</button>
+            </h3>
+            <div id="cropContainer">
+                <img id="imageToCrop" src="" alt="crop">
+            </div>
+            <p style="margin:10px 0 4px; color:#8a95b0; font-size:12px;">Kéo để di chuyển · Scroll để zoom · Tỷ lệ cố
+                định 3:4</p>
+            <div class="crop-actions">
+                <button class="btn-cancel-modal" onclick="closeCropModal()">Huỷ</button>
+                <button class="btn-save-crop" onclick="saveCrop()">💾 Lưu ảnh</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hidden file input for file-pick flow -->
+    <input type="file" id="cardPhotoFileInput" accept="image/*" style="display:none;">
+
+    <!-- ── Delete confirmation modal ── -->
+    <div id="deleteModal" class="upload-modal" style="display:none;">
+        <div class="upload-modal-box" style="max-width:420px;">
+            <h3 style="color:#ff5a5a;margin:0 0 10px;font-size:16px;">🗑 Xóa ảnh nhân viên</h3>
+            <p id="deleteModalDesc" style="font-size:13px;color:#8a95b0;margin-bottom:16px;line-height:1.5;"></p>
+            <label style="font-size:12px;color:#8a95b0;display:block;">
+                Nhập mã nhân viên để xác nhận:
+            </label>
+            <input type="text" id="deleteConfirmInput" autocomplete="off" spellcheck="false" placeholder="VD: TIQN-1874"
+                oninput="checkDeleteInput()">
+            <div style="display:flex;gap:10px;margin-top:16px;justify-content:flex-end;align-items:center;">
+                <button class="btn-cancel-modal" onclick="closeDeleteModal()">Hủy</button>
+                <button id="deleteConfirmBtn" onclick="confirmDelete()" disabled>🗑 Xóa ảnh</button>
+            </div>
+        </div>
     </div>
 
     <div id="modal" class="modal">
@@ -369,7 +1092,7 @@
             GROUPS_KEY: 'employee_photos_groups',
             GROUPS_EXPIRY: 7 * 24 * 60 * 60 * 1000, // 7 days
             PHOTOS_KEY: 'employee_photos_data',
-            PHOTOS_EXPIRY: 24 * 60 * 60 * 1000, // 24 hours
+            PHOTOS_EXPIRY: 1 * 60 * 60 * 1000, // 1 hour
             TIMESTAMP_KEY: 'employee_photos_timestamp'
         };
 
@@ -500,6 +1223,24 @@
                 applyFilters();
             });
 
+            document.getElementById('showNoPhotoOnlyCheckbox').addEventListener('change', function () {
+                applyFilters();
+            });
+
+            document.getElementById('dateFilterFrom').addEventListener('change', function () {
+                applyFilters();
+            });
+
+            document.getElementById('dateFilterTo').addEventListener('change', function () {
+                applyFilters();
+            });
+
+            // Handle global upload click
+            document.getElementById('btnGlobalUpload').addEventListener('click', function () {
+                document.getElementById('globalPhotoInput').click();
+            });
+            document.getElementById('globalPhotoInput').addEventListener('change', handleGlobalPhotoUpload);
+
             document.getElementById('refreshBtn').addEventListener('click', function () {
                 refreshData();
             });
@@ -587,6 +1328,9 @@
 
         function applyFilters() {
             const showActiveOnly = document.getElementById('showActiveOnlyCheckbox').checked;
+            const showNoPhotoOnly = document.getElementById('showNoPhotoOnlyCheckbox').checked;
+            const dateFrom = document.getElementById('dateFilterFrom').value;
+            const dateTo = document.getElementById('dateFilterTo').value;
             const sortOrder = document.getElementById('sortOrderSelect').value;
             const customGroup = document.getElementById('groupSelect').value;
             const searchTerm = document.getElementById('searchBox').value.toLowerCase();
@@ -599,6 +1343,27 @@
                     // Skip if no status or status is not Active
                     if (!photo.status || photo.status !== 'Active') {
                         return false;
+                    }
+                }
+
+                // Filter by no photo
+                if (showNoPhotoOnly) {
+                    if (photo.url && photo.url !== '/assets/erpnext/images/default-avatar.png') {
+                        return false;
+                    }
+                }
+
+                // Filter by date of joining
+                if (dateFrom || dateTo) {
+                    if (!photo.date_of_joining) return false;
+                    const joinDate = new Date(photo.date_of_joining);
+                    if (dateFrom) {
+                        const fromDate = new Date(dateFrom);
+                        if (joinDate < fromDate) return false;
+                    }
+                    if (dateTo) {
+                        const toDate = new Date(dateTo);
+                        if (joinDate > toDate) return false;
                     }
                 }
 
@@ -668,9 +1433,18 @@
                 // Address info
                 const addressInfo = showAddress && photo.custom_current_address_full ? `<div class="address-info">📍 ${photo.custom_current_address_full}</div>` : '';
 
+                const photoUrl = photo.url || '/assets/erpnext/images/default-avatar.png';
+                const fileInfoStr = photo.size ? formatFileSize(photo.size) : '';
+                const dateOfJoiningStr = photo.date_of_joining ? `<div class="file-info" style="margin-top:4px;">Nhận việc: ${photo.date_of_joining}</div>` : '';
+
+                const photoJson = JSON.stringify(photo).replace(/"/g, '&quot;');
                 return `
                     <div class="photo-card">
-                        <img src="${photo.url}" alt="${photo.display_name}" loading="lazy" onclick="openModal('${photo.url}', '${photo.display_name}')">
+                        <img src="${photoUrl}" alt="${photo.display_name}" loading="lazy" onclick="openModal('${photoUrl}', '${photo.display_name}')">
+                        ${photo.url ? `<button class="edit-btn" onclick="openPhotoEditor(${photoJson}, event)" title="Chỉnh sửa ảnh">✏️</button>` : ''}
+                        <button class="upload-btn" onclick="openUploadDialog(${photoJson}, event)" title="Tải lên/Chụp ảnh">📷</button>
+                        ${photo.url ? `<button class="delete-btn" onclick="openDeleteDialog(${photoJson}, event)" title="Xóa ảnh">🗑</button>` : ''}
+                        <div class="card-save-flash">✓</div>
                         <div class="photo-info">
                             <a href="${employeeLink}" class="${nameClass} employee-link" onclick="event.stopPropagation()" target="_blank">
                                 ${photo.display_name}
@@ -679,7 +1453,8 @@
                             ${groupInfo}
                             ${phoneInfo}
                             ${addressInfo}
-                            <div class="file-info">${formatFileSize(photo.size)}</div>
+                            ${dateOfJoiningStr}
+                            <div class="file-info">${fileInfoStr}</div>
                         </div>
                     </div>
                 `;
@@ -745,10 +1520,497 @@
             }
         }
 
+        // ══════════════════════════════════════════════════
+        //  FRAPPE API HELPER
+        //  www page không có frappe JS object → dùng fetch
+        // ══════════════════════════════════════════════════
+
+        async function callFrappeMethod(method, args) {
+            // Dùng FormData thay JSON — Frappe validate CSRF từ form body,
+            // không phải từ header, trước khi parse JSON.
+            // Đây là cách frappe.call() hoạt động nội bộ.
+            const fd = new FormData();
+            fd.append('csrf_token', window.csrf_token);
+            for (const [k, v] of Object.entries(args)) {
+                fd.append(k, v === null || v === undefined ? '' : String(v));
+            }
+
+            const res = await fetch(`/api/method/${method}`, {
+                method: 'POST',
+                credentials: 'same-origin',
+                body: fd   // Content-Type tự động: multipart/form-data
+            });
+
+            if (res.status === 403) { location.reload(); throw new Error('Session expired'); }
+
+            let data;
+            try {
+                data = await res.json();
+            } catch (e) {
+                throw new Error(`HTTP ${res.status} — response không phải JSON`);
+            }
+
+            console.log('[callFrappeMethod]', method, '→', data);
+
+            if (data.exc) {
+                let serverMsg = '';
+                try {
+                    const msgs = JSON.parse(data._server_messages || '[]');
+                    serverMsg = msgs.map(m => {
+                        try { return JSON.parse(m).message; } catch { return m; }
+                    }).join(' ');
+                } catch { /* ignore */ }
+                throw new Error(serverMsg || data.exc_type || 'Server error');
+            }
+
+            return data.message;
+        }
+
+        // ══════════════════════════════════════════════════
+        //  PHOTO EDITOR INTEGRATION
+        // ══════════════════════════════════════════════════
+
+        let _editorCurrentPhoto = null;
+
+        function openPhotoEditor(photo, event) {
+            if (event) event.stopPropagation();
+            _editorCurrentPhoto = photo;
+            document.getElementById('editorEmpName').textContent =
+                `${photo.employee_id} · ${photo.display_name}`;
+            document.getElementById('editorModal').classList.add('open');
+            document.body.style.overflow = 'hidden';
+            sendToEditor();
+        }
+
+        function sendToEditor() {
+            const frame = document.getElementById('photoEditorFrame');
+            const photo = _editorCurrentPhoto;
+            if (!photo) return;
+            const msg = {
+                type: 'INIT_EDITOR',
+                imageUrl: photo.url.startsWith('http') ? photo.url : (location.origin + photo.url),
+                employeeId: photo.employee_id,
+                employeeName: photo.display_name
+            };
+            try {
+                frame.contentWindow.postMessage(msg, '*');
+            } catch (e) {
+                frame.onload = () => { frame.contentWindow.postMessage(msg, '*'); frame.onload = null; };
+            }
+        }
+
+        function closePhotoEditor() {
+            document.getElementById('editorModal').classList.remove('open');
+            document.body.style.overflow = '';
+            _editorCurrentPhoto = null;
+            const frame = document.getElementById('photoEditorFrame');
+            try { frame.contentWindow.postMessage({ type: 'CLOSE_EDITOR' }, '*'); } catch (e) { }
+        }
+
+        window.addEventListener('message', function (event) {
+            const data = event.data;
+            if (!data || !data.type) return;
+            if (data.type === 'SAVE_PHOTO') uploadToFrappe(data.employeeId, data.dataUrl);
+            if (data.type === 'CLOSE_EDITOR') closePhotoEditor();
+            if (data.type === 'EDITOR_READY') sendToEditor();
+        });
+
+        async function uploadToFrappe(employeeId, dataUrl) {
+            const photo = _editorCurrentPhoto;
+            const empName = photo ? (photo.employee_name || photo.display_name) : 'Employee';
+            showEditorToast('⏳ Đang lưu ảnh...', '');
+            try {
+                const r = await callFrappeMethod(
+                    'customize_erpnext.api.employee.employee_utils.process_employee_photo',
+                    { employee_id: employeeId, employee_name: empName, image_data: dataUrl, remove_bg: 0 }
+                );
+                if (r && r.status === 'success') {
+                    if (photo) { photo.url = r.file_url; }
+                    refreshPhotoCardImage(employeeId, r.file_url);
+                    // Cập nhật cache để reload page vẫn hiển thị ảnh mới
+                    setCache(CACHE_CONFIG.PHOTOS_KEY, allPhotos, CACHE_CONFIG.PHOTOS_EXPIRY);
+                    closePhotoEditor();
+                    showEditorToast(`✅ Đã cập nhật ảnh: ${empName}`, 'ok');
+                } else {
+                    const detail = r ? JSON.stringify(r) : 'No response';
+                    console.error('[uploadToFrappe] unexpected response:', r);
+                    showEditorToast(`⚠️ Lỗi server: ${detail}`, 'err');
+                }
+            } catch (err) {
+                showEditorToast(`⚠️ Lỗi: ${err.message}`, 'err');
+                console.error('[uploadToFrappe] error:', err);
+            }
+        }
+
+        function refreshPhotoCardImage(employeeId, newUrl) {
+            const gallery = document.querySelector('.gallery');
+            if (!gallery) return;
+            gallery.querySelectorAll('.photo-card').forEach(card => {
+                const link = card.querySelector('.employee-link');
+                if (link && link.href && link.href.includes(encodeURIComponent(employeeId))) {
+                    const img = card.querySelector('img');
+                    if (img) img.src = newUrl + '?t=' + Date.now();
+                    const flash = card.querySelector('.card-save-flash');
+                    if (flash) { flash.classList.add('show'); setTimeout(() => flash.classList.remove('show'), 1500); }
+                }
+            });
+            if (typeof allPhotos !== 'undefined') {
+                const p = allPhotos.find(x => x.employee_id === employeeId);
+                if (p) p.url = newUrl;
+            }
+        }
+
+        function dataUrlToBlob(dataUrl) {
+            const [header, b64] = dataUrl.split(',');
+            const mime = header.match(/:(.*?);/)[1];
+            const binary = atob(b64);
+            const arr = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) arr[i] = binary.charCodeAt(i);
+            return new Blob([arr], { type: mime });
+        }
+
+        function showEditorToast(msg, type = '') {
+            const el = document.getElementById('editorToast');
+            el.textContent = msg;
+            el.className = 'editor-toast show' + (type ? ' ' + type : '');
+            clearTimeout(el._tid);
+            el._tid = setTimeout(() => el.className = 'editor-toast', 3500);
+        }
+
+        // ══════════════════════════════════════════════════
+        //  PHOTO UPLOAD — CAMERA + FILE + CROP
+        //  Pattern từ employee.js, adapted cho www context
+        // ══════════════════════════════════════════════════
+
+        let _uploadCurrentPhoto = null;  // photo object đang upload
+        let _cameraStream = null;        // active camera stream
+        let _cropperInstance = null;     // Cropper.js instance
+
+        // ── Mở dialog chọn: camera hoặc file ──
+        function openUploadDialog(photo, event) {
+            if (event) event.stopPropagation();
+            _uploadCurrentPhoto = photo;
+            document.getElementById('choiceEmpLabel').textContent =
+                `${photo.employee_id} · ${photo.display_name}`;
+            document.getElementById('uploadChoiceModal').classList.add('open');
+        }
+
+        function closeUploadModals() {
+            document.getElementById('uploadChoiceModal').classList.remove('open');
+            document.getElementById('cameraModal').classList.remove('open');
+            document.getElementById('cropModal').classList.remove('open');
+            stopCameraStream();
+        }
+
+        // ── Camera flow ──
+        function startCameraModal() {
+            document.getElementById('uploadChoiceModal').classList.remove('open');
+            const photo = _uploadCurrentPhoto;
+            document.getElementById('cameraEmpLabel').textContent =
+                `${photo.employee_id} · ${photo.display_name}`;
+            document.getElementById('cameraError').style.display = 'none';
+            document.getElementById('btnCapture').style.display = '';
+            document.getElementById('cameraModal').classList.add('open');
+
+            const video = document.getElementById('cameraPreview');
+
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                document.getElementById('cameraError').innerHTML =
+                    '⚠️ Camera không khả dụng. Trang cần truy cập qua HTTPS hoặc dùng trình duyệt hiện đại.<br>' +
+                    'Vui lòng dùng chức năng <strong>Chọn file</strong>.';
+                document.getElementById('cameraError').style.display = 'block';
+                document.getElementById('cameraPreview').style.display = 'none';
+                document.getElementById('btnCapture').style.display = 'none';
+                return;
+            }
+
+            navigator.mediaDevices.getUserMedia({
+                video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 1280 } },
+                audio: false
+            }).then(function (stream) {
+                _cameraStream = stream;
+                video.srcObject = stream;
+                video.style.display = 'block';
+                video.play().catch(e => console.error('Video play error:', e));
+            }).catch(function (err) {
+                let msg = err.message;
+                if (err.name === 'NotAllowedError') msg = 'Quyền truy cập camera bị từ chối. Vui lòng cho phép trong cài đặt trình duyệt.';
+                if (err.name === 'NotFoundError') msg = 'Không tìm thấy camera trên thiết bị này.';
+                if (err.name === 'NotReadableError') msg = 'Camera đang được dùng bởi ứng dụng khác.';
+                document.getElementById('cameraError').textContent = '⚠️ ' + msg;
+                document.getElementById('cameraError').style.display = 'block';
+                document.getElementById('cameraPreview').style.display = 'none';
+                document.getElementById('btnCapture').style.display = 'none';
+            });
+        }
+
+        function stopCameraStream() {
+            if (_cameraStream) {
+                _cameraStream.getTracks().forEach(t => t.stop());
+                _cameraStream = null;
+            }
+            const video = document.getElementById('cameraPreview');
+            if (video) { video.srcObject = null; video.style.display = 'none'; }
+        }
+
+        function stopCameraAndClose() {
+            stopCameraStream();
+            document.getElementById('cameraModal').classList.remove('open');
+        }
+
+        function captureFrame() {
+            const video = document.getElementById('cameraPreview');
+            if (!video || !video.videoWidth) return;
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            canvas.getContext('2d').drawImage(video, 0, 0);
+            stopCameraStream();
+            document.getElementById('cameraModal').classList.remove('open');
+            openCropModal(canvas.toDataURL('image/jpeg', 0.95));
+        }
+
+        // ── File flow ──
+        function triggerFileInput() {
+            document.getElementById('uploadChoiceModal').classList.remove('open');
+            const inp = document.getElementById('cardPhotoFileInput');
+            inp.value = '';
+            inp.onchange = function () {
+                const file = inp.files[0];
+                if (!file) return;
+                if (file.size > 10 * 1024 * 1024) {
+                    showEditorToast('⚠️ File quá lớn (>10MB)', 'err');
+                    return;
+                }
+                const reader = new FileReader();
+                reader.onload = e => openCropModal(e.target.result);
+                reader.readAsDataURL(file);
+            };
+            inp.click();
+        }
+
+        // ── Crop flow (Cropper.js — giống employee.js) ──
+        function openCropModal(imageDataUrl) {
+            const photo = _uploadCurrentPhoto;
+            document.getElementById('cropEmpLabel').textContent =
+                `${photo.employee_id} · ${photo.display_name}`;
+
+            // Destroy previous instance if any
+            if (_cropperInstance) { _cropperInstance.destroy(); _cropperInstance = null; }
+
+            const img = document.getElementById('imageToCrop');
+            img.src = imageDataUrl;
+            document.getElementById('cropModal').classList.add('open');
+
+            // Wait for image to load before init Cropper
+            img.onload = function () {
+                if (typeof Cropper === 'undefined') {
+                    showEditorToast('⚠️ Cropper.js chưa tải, vui lòng thử lại', 'err');
+                    document.getElementById('cropModal').classList.remove('open');
+                    return;
+                }
+                _cropperInstance = new Cropper(img, {
+                    aspectRatio: 3 / 4,
+                    viewMode: 1,
+                    dragMode: 'move',
+                    autoCropArea: 0.85,
+                    restore: false,
+                    guides: true,
+                    center: true,
+                    highlight: false,
+                    cropBoxMovable: true,
+                    cropBoxResizable: true,
+                    toggleDragModeOnDblclick: false,
+                    responsive: true,
+                    zoomable: true,
+                    zoomOnTouch: true,
+                    zoomOnWheel: true,
+                    wheelZoomRatio: 0.1,
+                });
+            };
+        }
+
+        function closeCropModal() {
+            document.getElementById('cropModal').classList.remove('open');
+            if (_cropperInstance) { _cropperInstance.destroy(); _cropperInstance = null; }
+        }
+
+        function saveCrop() {
+            if (!_cropperInstance) return;
+            const canvas = _cropperInstance.getCroppedCanvas({
+                maxWidth: 2400, maxHeight: 3200,
+                imageSmoothingEnabled: true,
+                imageSmoothingQuality: 'high'
+            });
+            canvas.toBlob(function (blob) {
+                const reader = new FileReader();
+                reader.onloadend = function () {
+                    closeCropModal();
+                    const photo = _uploadCurrentPhoto;
+                    uploadEmployeePhoto(photo.employee_id, photo.employee_name, reader.result);
+                };
+                reader.readAsDataURL(blob);
+            }, 'image/jpeg', 0.92);
+        }
+
+        // ══════════════════════════════════════════════════
+        //  DELETE PHOTO
+        // ══════════════════════════════════════════════════
+        let _deleteCurrentPhoto = null;
+
+        function openDeleteDialog(photo, event) {
+            event.stopPropagation();
+            _deleteCurrentPhoto = photo;
+            document.getElementById('deleteModalDesc').textContent =
+                `Ảnh của "${photo.display_name}" sẽ bị xóa vĩnh viễn khỏi hệ thống và hồ sơ nhân viên.`;
+            const last4 = photo.employee_id.slice(-4);
+            document.querySelector('#deleteModal label').textContent =
+                `Nhập 4 số cuối mã nhân viên (${last4}) để xác nhận:`;
+            const inp = document.getElementById('deleteConfirmInput');
+            inp.placeholder = last4;
+            inp.value = '';
+            inp.classList.remove('match');
+            document.getElementById('deleteConfirmBtn').disabled = true;
+            document.getElementById('deleteModal').style.display = 'flex';
+            setTimeout(() => inp.focus(), 120);
+        }
+
+        function closeDeleteModal() {
+            document.getElementById('deleteModal').style.display = 'none';
+            _deleteCurrentPhoto = null;
+        }
+
+        function checkDeleteInput() {
+            const val = document.getElementById('deleteConfirmInput').value.trim();
+            const inp = document.getElementById('deleteConfirmInput');
+            const btn = document.getElementById('deleteConfirmBtn');
+            const last4 = _deleteCurrentPhoto ? _deleteCurrentPhoto.employee_id.slice(-4) : '';
+            const match = _deleteCurrentPhoto && val === last4;
+            btn.disabled = !match;
+            inp.classList.toggle('match', match);
+        }
+
+        async function confirmDelete() {
+            if (!_deleteCurrentPhoto) return;
+            const photo = _deleteCurrentPhoto;
+            closeDeleteModal();
+            showEditorToast(`⏳ Đang xóa ảnh ${photo.employee_id}...`, '');
+            try {
+                const r = await callFrappeMethod(
+                    'customize_erpnext.api.employee.employee_utils.delete_employee_photo',
+                    { employee_id: photo.employee_id }
+                );
+                if (r && r.status === 'success') {
+                    // Update in-memory data
+                    const p = allPhotos.find(x => x.employee_id === photo.employee_id);
+                    if (p) p.url = '';
+                    // Update cache
+                    setCache(CACHE_CONFIG.PHOTOS_KEY, allPhotos, CACHE_CONFIG.PHOTOS_EXPIRY);
+                    // Update card: default avatar + remove edit/delete buttons
+                    const gallery = document.querySelector('.gallery');
+                    if (gallery) {
+                        gallery.querySelectorAll('.photo-card').forEach(card => {
+                            const link = card.querySelector('.employee-link');
+                            if (link && link.href && link.href.includes(encodeURIComponent(photo.employee_id))) {
+                                const img = card.querySelector('img');
+                                if (img) img.src = '/assets/erpnext/images/default-avatar.png';
+                                card.querySelector('.edit-btn')?.remove();
+                                card.querySelector('.delete-btn')?.remove();
+                            }
+                        });
+                    }
+                    showEditorToast(`✅ Đã xóa ảnh: ${photo.display_name}`, 'ok');
+                } else {
+                    showEditorToast(`⚠️ Lỗi: ${r ? JSON.stringify(r) : 'No response'}`, 'err');
+                }
+            } catch (err) {
+                showEditorToast(`⚠️ Lỗi: ${err.message}`, 'err');
+                console.error('[confirmDelete] error:', err);
+            }
+        }
+
+        // ── Core upload — dùng chung với uploadToFrappe (editor) ──
+        async function uploadEmployeePhoto(employeeId, employeeName, imageDataUrl) {
+            showEditorToast(`⏳ Đang lưu ảnh cho ${employeeId}...`, '');
+            try {
+                const r = await callFrappeMethod(
+                    'customize_erpnext.api.employee.employee_utils.process_employee_photo',
+                    { employee_id: employeeId, employee_name: employeeName || 'Employee', image_data: imageDataUrl, remove_bg: 0 }
+                );
+                if (r && r.status === 'success') {
+                    refreshPhotoCardImage(employeeId, r.file_url);
+                    const p = allPhotos.find(x => x.employee_id === employeeId);
+                    if (p) p.url = r.file_url;
+                    // Cập nhật cache để reload page vẫn hiển thị ảnh mới
+                    setCache(CACHE_CONFIG.PHOTOS_KEY, allPhotos, CACHE_CONFIG.PHOTOS_EXPIRY);
+                    showEditorToast(`✅ Đã cập nhật ảnh: ${employeeName || employeeId}`, 'ok');
+                } else {
+                    const detail = r ? JSON.stringify(r) : 'No response';
+                    console.error('[uploadEmployeePhoto] unexpected response:', r);
+                    showEditorToast(`⚠️ Lỗi server: ${detail}`, 'err');
+                }
+            } catch (err) {
+                showEditorToast(`⚠️ Lỗi: ${err.message}`, 'err');
+                console.error('[uploadEmployeePhoto] error:', err);
+            }
+        }
+
+        // ── Global upload (batch by filename) ──
+        async function handleGlobalPhotoUpload(e) {
+            const files = e.target.files;
+            if (!files || files.length === 0) return;
+
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                const match = file.name.match(/^(TIQN-\d+)/i);
+                if (match) {
+                    const employeeId = match[1].toUpperCase();
+                    const emp = allPhotos.find(p => p.employee_id === employeeId);
+                    if (emp) {
+                        await new Promise(resolve => {
+                            const reader = new FileReader();
+                            reader.onload = function (ev) {
+                                uploadEmployeePhoto(employeeId, emp.employee_name, ev.target.result);
+                                resolve();
+                            };
+                            reader.readAsDataURL(file);
+                        });
+                    } else {
+                        showEditorToast(`Bỏ qua ${file.name}: không tìm thấy ${employeeId}`, 'err');
+                    }
+                } else {
+                    showEditorToast(`Bỏ qua ${file.name}: tên file thiếu mã TIQN-XXXX`, 'err');
+                }
+            }
+            e.target.value = '';
+        }
+
+        // Close upload modals on backdrop click
+        ['uploadChoiceModal', 'cameraModal', 'cropModal'].forEach(id => {
+            document.getElementById(id).addEventListener('click', function (e) {
+                if (e.target === this) {
+                    if (id === 'cameraModal') stopCameraStream();
+                    if (id === 'cropModal' && _cropperInstance) { _cropperInstance.destroy(); _cropperInstance = null; }
+                    this.classList.remove('open');
+                }
+            });
+        });
+
         // Close modal with ESC key
         document.addEventListener('keydown', function (e) {
             if (e.key === 'Escape') {
-                modal.style.display = 'none';
+                const editorModal = document.getElementById('editorModal');
+                if (editorModal && editorModal.classList.contains('open')) {
+                    closePhotoEditor();
+                } else if (document.getElementById('cropModal').classList.contains('open')) {
+                    closeCropModal();
+                } else if (document.getElementById('cameraModal').classList.contains('open')) {
+                    stopCameraAndClose();
+                } else if (document.getElementById('uploadChoiceModal').classList.contains('open')) {
+                    closeUploadModals();
+                } else {
+                    modal.style.display = 'none';
+                }
             }
         });
     </script>

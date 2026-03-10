@@ -556,11 +556,11 @@ function open_file_upload_dialog(frm) {
         if (!file) return;
 
         // Check file size (max 5MB)
-        const maxSize = 5 * 1024 * 1024; // 5MB
+        const maxSize = 10 * 1024 * 1024; // 10MB
         if (file.size > maxSize) {
             frappe.msgprint({
                 title: __('File Too Large'),
-                message: __('Please select an image smaller than 5MB'),
+                message: __('Please select an image smaller than 10MB'),
                 indicator: 'red'
             });
             return;
@@ -577,7 +577,6 @@ function open_file_upload_dialog(frm) {
     $input.trigger('click');
 }
 
-// Show crop dialog with remove background option
 function show_crop_dialog(frm, imageDataUrl) {
     const dialog = new frappe.ui.Dialog({
         title: __('Crop Photo - Ratio 3:4'),
@@ -586,18 +585,11 @@ function show_crop_dialog(frm, imageDataUrl) {
             {
                 fieldtype: 'HTML',
                 fieldname: 'cropper_container',
-            },
-            {
-                fieldtype: 'Check',
-                fieldname: 'remove_bg',
-                label: __('Remove Background'),
-                default: 0
             }
         ],
         primary_action_label: __('Save Photo'),
         primary_action: function () {
             const cropper = dialog.cropper_instance;
-            const remove_bg = dialog.get_value('remove_bg');
 
             if (!cropper) {
                 frappe.msgprint(__('Cropper not initialized'));
@@ -631,7 +623,6 @@ function show_crop_dialog(frm, imageDataUrl) {
                             employee_id: frm.doc.name,
                             employee_name: frm.doc.employee_name,
                             image_data: base64data,
-                            remove_bg: remove_bg ? 1 : 0
                         },
                         callback: function (r) {
                             if (r.message && r.message.status === 'success') {

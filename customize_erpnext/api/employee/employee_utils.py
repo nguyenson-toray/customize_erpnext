@@ -1258,16 +1258,15 @@ def update_employee_photo(employee_id, employee_name, new_file_url, old_file_url
 
 
 @frappe.whitelist()
-def process_employee_photo(employee_id, employee_name, image_data, remove_bg=0):
+def process_employee_photo(employee_id, employee_name, image_data):
     """
-    Process employee photo: crop to 3:4 ratio, resize to 450x600px, optionally remove background
+    Process employee photo: crop to 3:4 ratio, resize to 600x800px.
     Save to public/files/employee_photos/{employee_id} {employee_name}.jpg
 
     Args:
         employee_id: Employee ID (name field)
         employee_name: Employee full name
         image_data: Base64 encoded image data (already cropped by frontend)
-        remove_bg: Whether to remove background (0 or 1, default: 0)
 
     Returns:
         Dict with file_url and success status
@@ -1297,42 +1296,8 @@ def process_employee_photo(employee_id, employee_name, image_data, remove_bg=0):
         elif img.mode != 'RGB':
             img = img.convert('RGB')
 
-        # Resize to exactly 450x600px (image should already be 3:4 ratio from frontend crop)
-        img = img.resize((450, 600), Image.Resampling.LANCZOS)
-
-        # Remove background if requested (convert to int for safety)
-        remove_bg = int(remove_bg) if remove_bg else 0
-        if remove_bg == 1:
-            try:
-                from rembg import remove
-
-                # Convert PIL image to bytes
-                img_byte_arr = io.BytesIO()
-                img.save(img_byte_arr, format='PNG')
-                img_byte_arr = img_byte_arr.getvalue()
-
-                # Remove background
-                output = remove(img_byte_arr)
-
-                # Convert back to PIL Image
-                img_no_bg = Image.open(io.BytesIO(output))
-
-                # Create white background
-                background = Image.new('RGB', img_no_bg.size, (255, 255, 255))
-
-                # Paste image with removed background onto white background
-                if img_no_bg.mode == 'RGBA':
-                    background.paste(img_no_bg, mask=img_no_bg.split()[-1])
-                else:
-                    background.paste(img_no_bg)
-
-                img = background
-
-            except ImportError:
-                frappe.msgprint(_("rembg library not installed, skipping background removal"), indicator="orange")
-            except Exception as bg_error:
-                frappe.log_error(f"Error removing background: {str(bg_error)}", "Background Removal Error")
-                frappe.msgprint(_("Failed to remove background, using original image"), indicator="orange")
+        # Resize to exactly 600x800px (image should already be 3:4 ratio from frontend crop)
+        img = img.resize((600, 800), Image.Resampling.LANCZOS)
 
         # Save to BytesIO with JPEG compression
         output_buffer = io.BytesIO()
@@ -1340,9 +1305,9 @@ def process_employee_photo(employee_id, employee_name, image_data, remove_bg=0):
         output_data = output_buffer.getvalue()
 
         # Clean up employee name for file path
-        clean_name = employee_name.replace(' ', ' ') if employee_name else 'employee'
         # Remove invalid filename characters but keep Vietnamese characters
-        clean_name = re.sub(r'[<>:"/\\|?*]', '', clean_name)
+        clean_name = re.sub(r'[<>:"/\\|?*]', '', employee_name) if employee_name else 'employee'
+        clean_name = ' '.join(clean_name.split())  # Normalize multiple spaces to single
 
         # Create file name: {employee_id} {employee_name}.jpg
         final_file_name = f"{employee_id} {clean_name}.jpg"
@@ -1467,6 +1432,61 @@ def process_employee_photo(employee_id, employee_name, image_data, remove_bg=0):
         import traceback
         frappe.log_error(f"Error: {str(e)}\n{traceback.format_exc()}", "Employee Photo Processing Error")
         frappe.throw(_("Failed to process employee photo: {0}").format(str(e)))
+
+
+@frappe.whitelist()
+def delete_employee_photo(employee_id):
+    """
+    Delete employee photo file and clear Employee.image field.
+    """
+    try:
+        current_image = frappe.db.get_value('Employee', employee_id, 'image')
+        if not current_image:
+            return {'status': 'success', 'message': _('No photo to delete')}
+
+        site_path = get_site_path()
+
+        # Delete all File documents attached to this employee's image field
+        old_files = frappe.get_all('File',
+            filters={
+                'attached_to_doctype': 'Employee',
+                'attached_to_name': employee_id,
+                'attached_to_field': 'image'
+            },
+            fields=['name', 'file_url']
+        )
+        for f in old_files:
+            try:
+                if f.file_url.startswith('/private/'):
+                    p = os.path.join(site_path, f.file_url.lstrip('/'))
+                elif f.file_url.startswith('/files/'):
+                    p = os.path.join(site_path, 'public', f.file_url.lstrip('/'))
+                else:
+                    p = None
+                if p and os.path.exists(p):
+                    os.remove(p)
+                frappe.delete_doc('File', f.name, ignore_permissions=True, force=True)
+            except Exception as e:
+                frappe.logger().warning(f"delete_employee_photo: could not remove file {f.name}: {e}")
+
+        # Also remove physical file from current_image path (in case no File doc)
+        if current_image.startswith('/files/'):
+            p = os.path.join(site_path, 'public', current_image.lstrip('/'))
+            if os.path.exists(p):
+                try:
+                    os.remove(p)
+                except Exception:
+                    pass
+
+        # Clear Employee.image field
+        frappe.db.set_value('Employee', employee_id, 'image', '')
+        frappe.db.commit()
+
+        return {'status': 'success', 'message': _('Photo deleted successfully')}
+
+    except Exception as e:
+        frappe.log_error(f"Error deleting employee photo: {str(e)}", "Employee Photo Delete Error")
+        frappe.throw(_("Failed to delete employee photo: {0}").format(str(e)))
 
 
 @frappe.whitelist()
