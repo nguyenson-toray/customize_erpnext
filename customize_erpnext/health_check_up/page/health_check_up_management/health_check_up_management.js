@@ -374,15 +374,20 @@ function renderDashboard() {
         </div>
 
         <!-- Stat Cards -->
-        <div class="hc-stats-grid">
-            ${statCard("total", L.stat_total, s.total, null, "cyan", "👥")}
-            ${statCard("distributed", L.stat_distributed, s.distributed, s.total, "blue", "📤")}
-            ${statCard("completed", L.stat_completed, s.completed, s.total, "green", "✅")}
-            ${statCard("in_exam", L.stat_in_exam, s.in_exam, s.total, "yellow", "🔄")}
-            ${statCard("not_started", L.stat_not_started, s.not_started, s.total, "red", "❌")}
-            ${statCard("late_dist", L.stat_late_dist, s.late_dist, s.total, "red", "⏰")}
-            ${statCard("late_coll", L.stat_late_coll, s.late_coll, s.total, "orange", "⏳")}
-            ${statCard("pregnant", L.stat_pregnant, s.pregnant, s.total, "purple", "🤰")}
+        <div id="hc-stats-wrapper">
+            <div class="hc-stats-grid mb-3">
+                ${statCard("total", L.stat_total, s.total, null, "cyan", "👥")}            
+                ${statCard("completed", L.stat_completed, s.completed, s.total, "green", "✅")}
+                ${statCard("in_exam", L.stat_in_exam, s.in_exam, s.total, "yellow", "🔄")}
+                ${statCard("not_started", L.stat_not_started, s.not_started, s.total, "red", "❌")}
+            </div>
+            
+            <div class="hc-stats-grid mb-3">
+                ${statCard("distributed", L.stat_distributed, s.distributed, s.total, "blue", "📤")}
+                ${statCard("late_dist", L.stat_late_dist, s.late_dist, s.total, "red", "⏰")}
+                ${statCard("late_coll", L.stat_late_coll, s.late_coll, s.total, "orange", "⏳")}
+                ${statCard("pregnant", L.stat_pregnant, s.pregnant, s.total, "purple", "🤰")}
+            </div>
         </div>
 
         <!-- Charts (vertical stack: Group → Section) -->
@@ -445,22 +450,28 @@ function calcFilteredStats(records) {
 }
 
 function updateDashboardStats() {
-    // Surgically update only the stat card grid without re-rendering the whole dashboard
-    const $grid = $(".hc-stats-grid");
-    if ($grid.length === 0) return; // Dashboard not currently visible
+    const $wrapper = $("#hc-stats-wrapper");
+    if ($wrapper.length === 0) return; // Dashboard not currently visible
 
     const filtered = getDashboardFilteredRecords();
     const s = calcFilteredStats(filtered);
 
-    $grid.html(`
-        ${statCard("total", L.stat_total, s.total, null, "cyan", "👥")}
-        ${statCard("distributed", L.stat_distributed, s.distributed, s.total, "blue", "📤")}
-        ${statCard("completed", L.stat_completed, s.completed, s.total, "green", "✅")}
-        ${statCard("in_exam", L.stat_in_exam, s.in_exam, s.total, "yellow", "🔄")}
-        ${statCard("not_started", L.stat_not_started, s.not_started, s.total, "red", "❌")}
-        ${statCard("late_dist", L.stat_late_dist, s.late_dist, s.total, "red", "⏰")}
-        ${statCard("late_coll", L.stat_late_coll, s.late_coll, s.total, "orange", "⏳")}
-        ${statCard("pregnant", L.stat_pregnant, s.pregnant, s.total, "purple", "🤰")}
+    $wrapper.html(`
+        <div class="hc-stats-group-title">Nhóm 1: Tiến độ chung</div>
+        <div class="hc-stats-grid mb-3">
+            ${statCard("total", L.stat_total, s.total, null, "cyan", "👥")}    
+            ${statCard("completed", L.stat_completed, s.completed, s.total, "green", "✅")}
+            ${statCard("in_exam", L.stat_in_exam, s.in_exam, s.total, "yellow", "🔄")}
+            ${statCard("not_started", L.stat_not_started, s.not_started, s.total, "red", "❌")}
+        </div>
+        
+        <div class="hc-stats-group-title">Nhóm 2: Thông tin thêm</div>
+        <div class="hc-stats-grid mb-3">
+            ${statCard("distributed", L.stat_distributed, s.distributed, s.total, "blue", "📤")}
+            ${statCard("late_dist", L.stat_late_dist, s.late_dist, s.total, "red", "⏰")}
+            ${statCard("late_coll", L.stat_late_coll, s.late_coll, s.total, "orange", "⏳")}
+            ${statCard("pregnant", L.stat_pregnant, s.pregnant, s.total, "purple", "🤰")}
+        </div>
     `);
 
     // Re-attach click handlers for stat cards (they get replaced with the HTML above)
@@ -632,7 +643,7 @@ function statCard(type, label, value, total, color, icon) {
 }
 
 function renderHorizontalChart(containerId, dataArray, labelField) {
-    let maxVal = Math.max(...dataArray.map(d => d.distributed));
+    let maxVal = Math.max(...dataArray.map(d => d.total));
     if (maxVal === 0) maxVal = 1;
 
     let html = `<div class="hc-hchart">`;
@@ -640,15 +651,18 @@ function renderHorizontalChart(containerId, dataArray, labelField) {
         const label = item[labelField];
         const completed = item.completed;
         const in_exam = item.distributed - item.completed;
+        const not_started = item.total - item.distributed;
         const pctComp = (completed / maxVal) * 100;
         const pctExam = (in_exam / maxVal) * 100;
+        const pctNotSt = (not_started / maxVal) * 100;
 
         html += `
         <div class="hc-hchart-row">
-            <div class="hc-hchart-label" title="${label}">${label} <span class="hc-hchart-val">(${item.distributed})</span></div>
+            <div class="hc-hchart-label" title="${label}">${label} <span class="hc-hchart-val">(${item.total})</span></div>
             <div class="hc-hchart-bars">
                 <div class="hc-hchart-bar hc-hchart-bar-comp" style="width: ${pctComp}%" title="Hoàn thành: ${completed}"></div>
                 <div class="hc-hchart-bar hc-hchart-bar-exam" style="width: ${pctExam}%" title="Đang khám: ${in_exam}"></div>
+                <div class="hc-hchart-bar hc-hchart-bar-none" style="width: ${pctNotSt}%" title="Chưa khám: ${not_started}"></div>
             </div>
         </div>`;
     });
@@ -656,6 +670,7 @@ function renderHorizontalChart(containerId, dataArray, labelField) {
         <div class="hc-hchart-legend">
             <span class="hc-hchart-legend-item"><span class="hc-hchart-legend-color hc-bg-comp"></span> ${L.stat_completed}</span>
             <span class="hc-hchart-legend-item"><span class="hc-hchart-legend-color hc-bg-exam"></span> ${L.stat_in_exam}</span>
+            <span class="hc-hchart-legend-item"><span class="hc-hchart-legend-color hc-bg-none"></span> ${L.stat_not_started || "Chưa khám"}</span>
         </div>
     </div>`;
 
@@ -696,11 +711,12 @@ function renderCharts() {
                     datasets: [
                         { name: L.stat_completed, values: sectionArr.map((s) => s.completed) },
                         { name: L.stat_in_exam, values: sectionArr.map((s) => s.distributed - s.completed) },
+                        { name: L.stat_not_started || "Chưa khám", values: sectionArr.map((s) => s.total - s.distributed) },
                     ],
                 },
                 type: "bar",
                 height: 250,
-                colors: ["#10b981", "#f59e0b"],
+                colors: ["#10b981", "#f59e0b", "#ef4444"],
                 barOptions: { stacked: true, spaceRatio: 0.4 },
             });
 
@@ -729,11 +745,12 @@ function renderCharts() {
                     datasets: [
                         { name: L.stat_completed, values: groupArr.map((g) => g.completed) },
                         { name: L.stat_in_exam, values: groupArr.map((g) => g.distributed - g.completed) },
+                        { name: L.stat_not_started || "Chưa khám", values: groupArr.map((g) => g.total - g.distributed) },
                     ],
                 },
                 type: "bar",
                 height: 300,
-                colors: ["#10b981", "#f59e0b"],
+                colors: ["#10b981", "#f59e0b", "#ef4444"],
                 barOptions: { stacked: true, spaceRatio: 0.3 },
             });
 
@@ -1199,7 +1216,7 @@ function renderTable() {
                 if (isRecordLateForCollect(r)) {
                     diffs.push(`<span class="hc-orange" style="font-weight:bold;">⏳ Đang trễ T ${getMinutesDifference(r.end_time, getProactiveNowTime())}p</span>`);
                 }
-                
+
                 if (diffs.length > 0) {
                     diffHtml = diffs.join("<br>");
                 } else if ((r.start_time && r.start_time_actual) || (r.end_time && r.end_time_actual)) {
@@ -1519,27 +1536,27 @@ function recalculateStats() {
 
 function setupPollingAutoSync() {
     if (window.hcAutoSyncInterval) clearInterval(window.hcAutoSyncInterval);
-    
+
     window.hcAutoSyncInterval = setInterval(() => {
         if (!state.currentDate) return;
-        
+
         frappe.call({
             method: "customize_erpnext.health_check_up.api.health_check_api.get_health_check_data",
             args: { date: state.currentDate, hospital_code: null },
-            callback: function(r) {
-                if(r.message && r.message.records) {
+            callback: function (r) {
+                if (r.message && r.message.records) {
                     const newRecords = r.message.records;
-                    
+
                     // Generate hashes to compare if states changed
                     const currHash = state.records.reduce((acc, rec) => acc + (rec.start_time_actual || "") + (rec.end_time_actual || ""), "");
                     const newHash = newRecords.reduce((acc, rec) => acc + (rec.start_time_actual || "") + (rec.end_time_actual || ""), "");
-                    
+
                     if (currHash !== newHash) {
                         console.log("Auto-Sync: Data naturally changed. Updating ui...");
                         state.records = newRecords;
                         recalculateStats();
                         renderMiniBar();
-                        
+
                         // Surgical DOM update mimicking real-time
                         switch (state.activeTab) {
                             case "dashboard":
