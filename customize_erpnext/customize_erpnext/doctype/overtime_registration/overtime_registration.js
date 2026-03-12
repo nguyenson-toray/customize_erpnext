@@ -20,7 +20,7 @@ frappe.ui.form.on("Overtime Registration", {
         }, __('Actions'));
 
         // Reset validation flags when form refreshes
-        frm.maternity_check_done = false;
+        frm.pre_save_check_done = false;
         frm.ot_continuity_validated = false;
 
         // Auto-populate requested_by with current user's employee
@@ -63,10 +63,9 @@ frappe.ui.form.on("Overtime Registration", {
     },
 
     before_save(frm) {
-        // Check for employees with maternity benefits needing time adjustment
-        if (!frm.maternity_check_done) {
+        if (!frm.pre_save_check_done) {
             frappe.validated = false;
-            check_maternity_benefit_adjustment(frm);
+            check_all_before_save(frm);
             return false;
         }
     },
@@ -1036,6 +1035,152 @@ function check_maternity_benefit_adjustment(frm) {
             indicator: 'orange'
         });
         frm.maternity_check_done = true;
+        frm.save();
+    });
+}
+
+function check_all_before_save(frm) {
+    const entries_to_check = (frm.doc.ot_employees || [])
+        .filter(d => d.employee && d.date && d.begin_time && d.end_time)
+        .map(d => ({
+            idx: d.idx,
+            employee: d.employee,
+            employee_name: d.employee_name,
+            date: d.date,
+            begin_time: d.begin_time,
+            end_time: d.end_time
+        }));
+
+    if (entries_to_check.length === 0) {
+        frm.pre_save_check_done = true;
+        frm.save();
+        return;
+    }
+
+    Promise.all([
+        frappe.xcall(
+            'customize_erpnext.customize_erpnext.doctype.overtime_registration.overtime_registration.check_employees_with_maternity_benefits',
+            { entries: entries_to_check }
+        ),
+        frappe.xcall(
+            'customize_erpnext.customize_erpnext.doctype.overtime_registration.overtime_registration.check_overtime_conflicts',
+            { entries: entries_to_check, current_doc_name: frm.doc.name || 'new' }
+        )
+    ]).then(([maternity_results, conflict_results]) => {
+        const has_maternity = maternity_results && maternity_results.length > 0;
+        const has_conflicts = conflict_results && conflict_results.length > 0;
+
+        if (!has_maternity && !has_conflicts) {
+            frm.pre_save_check_done = true;
+            frm.save();
+            return;
+        }
+
+        const fields = [];
+
+        // --- Maternity section ---
+        if (has_maternity) {
+            const shift_end = maternity_results[0].shift_end;
+            const adjusted_shift_end = maternity_results[0].adjusted_shift_end;
+            const emp_list_html = maternity_results.map(emp => {
+                const emp_link = `<a href="/app/employee/${emp.employee}" target="_blank">${emp.employee}</a>`;
+                return `<li>Row ${emp.idx}: <b>${emp.employee_name}</b> (${emp_link}) — ${emp.benefit_type}
+                 &nbsp;|&nbsp; ${__('Ca')}: ${emp.shift_type}
+                 &nbsp;|&nbsp; ${__('Ngày OT')}: ${frappe.datetime.str_to_user(emp.date)}</li>`;
+            }).join('');
+            fields.push({
+                fieldtype: 'HTML',
+                options: `<div style="margin-bottom:12px;">
+                    <p style="color:#856404;background:#fff3cd;padding:8px;border-radius:4px;">
+                        <b>⚠ ${__('Nhân viên có chế độ thai sản')}</b>
+                    </p>
+                    <p>${__('Các nhân viên sau bắt đầu OT lúc')} <b>${shift_end}</b> ${__('nhưng đang trong chế độ thai sản/nuôi con nhỏ:')}</p>
+                    <ul style="font-size:13px;">${emp_list_html}</ul>
+                    <p style="color:#6c757d;font-size:12px;">${__('Điều chỉnh giờ sớm hơn 1 giờ')}: ${shift_end} → ${adjusted_shift_end}</p>
+                </div>`
+            });
+            fields.push({
+                fieldtype: 'Check',
+                fieldname: 'adjust_maternity',
+                label: __('Điều chỉnh giờ OT sớm hơn 1 giờ cho các nhân viên này'),
+                default: 1
+            });
+        }
+
+        // --- Conflicts section ---
+        if (has_conflicts) {
+            const rows_html = conflict_results.map(c => {
+                const date_str = frappe.datetime.str_to_user(c.date);
+                const emp_link = `<a href="/app/employee/${c.employee}" target="_blank">${c.employee}</a>`;
+                const doc_link = `<a href="/app/overtime-registration/${c.existing_doc}" target="_blank">${c.existing_doc}</a>`;
+                return `<tr>
+                    <td style="padding:4px 8px;">Row ${c.idx}</td>
+                    <td style="padding:4px 8px;"><b>${c.employee_name}</b><br><small>${emp_link}</small></td>
+                    <td style="padding:4px 8px;">${date_str}</td>
+                    <td style="padding:4px 8px;">${c.current_from} – ${c.current_to}</td>
+                    <td style="padding:4px 8px;">${doc_link}, Row ${c.existing_idx}: ${c.existing_from} – ${c.existing_to}</td>
+                </tr>`;
+            }).join('');
+
+            if (has_maternity) {
+                fields.push({ fieldtype: 'HTML', options: '<hr style="margin:12px 0;">' });
+            }
+
+            fields.push({
+                fieldtype: 'HTML',
+                options: `<div style="margin-bottom:12px;">
+                    <p style="color:#721c24;background:#f8d7da;padding:8px;border-radius:4px;">
+                        <b>✗ ${__('Xung đột với OT đã được duyệt')}</b>
+                    </p>
+                    <div style="overflow-x:auto;">
+                        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+                            <thead><tr style="background:#f5f5f5;">
+                                <th style="padding:4px 8px;text-align:left;">Row</th>
+                                <th style="padding:4px 8px;text-align:left;">${__('Nhân viên')}</th>
+                                <th style="padding:4px 8px;text-align:left;">${__('Ngày')}</th>
+                                <th style="padding:4px 8px;text-align:left;">${__('Giờ OT')}</th>
+                                <th style="padding:4px 8px;text-align:left;">${__('Trùng với')}</th>
+                            </tr></thead>
+                            <tbody>${rows_html}</tbody>
+                        </table>
+                    </div>
+                </div>`
+            });
+            fields.push({
+                fieldtype: 'Check',
+                fieldname: 'remove_conflicts',
+                label: __('Xóa các dòng bị trùng khỏi form này'),
+                default: 1
+            });
+        }
+
+        const dialog = new frappe.ui.Dialog({
+            title: __('Kiểm tra trước khi lưu'),
+            fields: fields,
+            primary_action_label: __('Lưu'),
+            primary_action: function () {
+                dialog.hide();
+                if (has_maternity && dialog.get_value('adjust_maternity')) {
+                    adjust_maternity_employee_times(frm, maternity_results);
+                }
+                if (has_conflicts && dialog.get_value('remove_conflicts')) {
+                    const conflict_idxs = new Set(conflict_results.map(c => c.idx));
+                    frm.doc.ot_employees = frm.doc.ot_employees.filter(d => !conflict_idxs.has(d.idx));
+                    frm.refresh_field('ot_employees');
+                }
+                frm.pre_save_check_done = true;
+                frm.save();
+            },
+            secondary_action_label: __('Hủy'),
+            secondary_action: function () {
+                dialog.hide();
+                // User reviews manually, do not save
+            }
+        });
+
+        dialog.show();
+    }).catch(() => {
+        frm.pre_save_check_done = true;
         frm.save();
     });
 }

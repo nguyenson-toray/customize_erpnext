@@ -925,7 +925,9 @@ def _core_process_attendance_logic_optimized(
 	# ========================================================================
 	# Update all checkins with null shift, offshift=1, or null log_type
 	from customize_erpnext.overrides.employee_checkin.employee_checkin import bulk_update_employee_checkin
-	bulk_update_employee_checkin(from_date_str, to_date_str)
+	# Pass employee filter when processing specific employees (e.g. hook for 1 employee)
+	# This avoids scanning all employees' checkins when only 1 is needed
+	bulk_update_employee_checkin(from_date_str, to_date_str, employees=employees if employees else None)
 
 	# ========================================================================
 	# STEP 3: PROCESS AUTO-ENABLED SHIFTS (Optimized with Preloaded Data)

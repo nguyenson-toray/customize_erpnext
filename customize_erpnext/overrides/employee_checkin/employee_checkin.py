@@ -7,7 +7,7 @@ Implements attendance calculation with:
 - Pre-shift, lunch-break, and post-shift OT
 """
 import frappe
-from frappe.utils import flt, cint, time_diff_in_hours, getdate, now_datetime
+from frappe.utils import flt, cint, time_diff_in_hours, getdate
 from datetime import datetime, time, timedelta
 from collections import defaultdict
 import time as time_module
@@ -606,7 +606,7 @@ def update_employee_checkin(doc, from_hook=True):
 
 
 @frappe.whitelist()
-def bulk_update_employee_checkin(from_date=None, to_date=None):
+def bulk_update_employee_checkin(from_date=None, to_date=None, employees=None):
 	"""Bulk update employee checkins with shift and log_type - OPTIMIZED
 
 	Args:
@@ -653,6 +653,15 @@ def bulk_update_employee_checkin(from_date=None, to_date=None):
 		# If no date range specified, only update checkins with NULL/incomplete fields
 		# This prevents updating all historical checkins unnecessarily
 		conditions.append("(shift IS NULL OR log_type IS NULL OR offshift = 1 OR shift_start IS NULL OR shift_end IS NULL OR shift_actual_start IS NULL OR shift_actual_end IS NULL)")
+
+	# Add employee filter if provided (scopes bulk update to specific employees)
+	if employees:
+		if len(employees) == 1:
+			conditions.append("employee = %(single_employee)s")
+			params["single_employee"] = employees[0]
+		else:
+			conditions.append("employee IN %(employees)s")
+			params["employees"] = tuple(employees)
 
 	where_clause = " AND ".join(conditions)
 
@@ -1054,80 +1063,50 @@ def update_attendance_on_checkin_delete(doc, method):
 
 def _recalculate_attendance(employee, checkin_date):
 	"""
-	Recalculate attendance for employee on specific date using remaining checkins.
-	Uses Redis lock to prevent race conditions when multiple checkins are processed simultaneously.
+	Enqueue background job to recalculate attendance for one employee on one date.
+	Uses job_id deduplication: multiple checkins for same employee+date within a short
+	window will only trigger one recalculation.
 
 	Args:
 		employee: Employee ID
-		checkin_date: Date to recalculate
+		checkin_date: Date to recalculate (date object or string)
 	"""
-	# Use Redis lock to prevent duplicate attendance creation
-	# When multiple checkins for same employee-date are processed simultaneously,
-	# this ensures only one process creates/updates attendance at a time
-	lock_key = f"attendance_recalc:{employee}:{checkin_date}"
-
-	lock = frappe.cache().lock(lock_key, timeout=30)
-	acquired = lock.acquire(blocking=False)
-
-	if not acquired:
-		# Another process is already recalculating attendance for this employee-date
-		# Skip this recalculation - the other process will handle it
-		return
-
-	try:
-		# Lazy import to avoid circular import
-		from customize_erpnext.overrides.shift_type.shift_type_optimized import _core_process_attendance_logic_optimized
-
-		_core_process_attendance_logic_optimized(
-			[employee],
-			[checkin_date],
-			checkin_date,
-			checkin_date,
-			fore_get_logs=True
-		)
-	finally:
-		try:
-			lock.release()
-		except Exception:
-			pass  # Lock may have already expired
+	job_id = f"att_recalc:{employee}:{checkin_date}"
+	frappe.enqueue(
+		"customize_erpnext.overrides.employee_checkin.employee_checkin._recalculate_attendance_background",
+		employee=employee,
+		checkin_date=str(checkin_date),
+		job_id=job_id,
+		queue="short",
+		timeout=120,
+		deduplicate=True
+	)
 
 
-def _is_peak_hours():
-
+def _recalculate_attendance_background(employee, checkin_date):
 	"""
-	Check if current time is during peak hours when mass checkins occur.
+	Background job: recalculate attendance for one employee on one date.
+	Called by frappe.enqueue from _recalculate_attendance.
 
-	Peak hours:
-	- 07:30 to 07:55 
-	- 17:00 to 17:15
-	- 19:00 to 19:15
+	Args:
+		employee: Employee ID
+		checkin_date: Date string (yyyy-mm-dd)
+	"""
+	from customize_erpnext.overrides.shift_type.shift_type_optimized import _core_process_attendance_logic_optimized
 
-	Returns:
-		bool: True if during peak hours, False otherwise
-	"""  
-	current_time = now_datetime().time()
-	hour = current_time.hour
-	minute = current_time.minute
-
-	# Morning shift start: 07:30 - 07:55
-	if hour == 7 and 30 <= minute <= 55:
-		return True 
-	
-	# Evening shift end: 17:00 - 17:15
-	if hour == 17 and minute <= 15:
-		return True
-
-	# Night shift end: 19:00 - 19:15
-	if hour == 19 and minute <= 15:
-		return True
-
-	return False
+	checkin_date_obj = getdate(checkin_date)
+	_core_process_attendance_logic_optimized(
+		[employee],
+		[checkin_date_obj],
+		checkin_date,
+		checkin_date,
+		fore_get_logs=True
+	)
 
 
 def update_attendance_on_checkin_insert(doc, method):
 	"""
-	Recalculate attendance when a new employee checkin is created.
-	Skips recalculation during peak hours to avoid system overload.
+	Enqueue attendance recalculation when a new employee checkin is created.
 
 	Args:
 		doc: Employee Checkin document being inserted
@@ -1136,20 +1115,12 @@ def update_attendance_on_checkin_insert(doc, method):
 	if not doc.employee or not doc.time:
 		return
 
-	# Skip attendance recalculation during peak hours
-	if _is_peak_hours():
-		return
-
-	employee = doc.employee
-	checkin_date = getdate(doc.time)
-
-	_recalculate_attendance(employee, checkin_date)
+	_recalculate_attendance(doc.employee, getdate(doc.time))
 
 
 def update_attendance_on_checkin_update(doc, method):
 	"""
-	Recalculate attendance when employee checkin is updated.
-	Skips recalculation during peak hours to avoid system overload.
+	Enqueue attendance recalculation when employee checkin is updated.
 
 	Args:
 		doc: Employee Checkin document being updated
@@ -1158,14 +1129,7 @@ def update_attendance_on_checkin_update(doc, method):
 	if not doc.employee or not doc.time:
 		return
 
-	# Skip attendance recalculation during peak hours
-	if _is_peak_hours():
-		return
-
-	employee = doc.employee
-	checkin_date = getdate(doc.time)
-
-	_recalculate_attendance(employee, checkin_date)
+	_recalculate_attendance(doc.employee, getdate(doc.time))
 
 
 '''
