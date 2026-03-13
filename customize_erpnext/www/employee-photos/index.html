@@ -899,6 +899,8 @@
     <!-- Cropper.js for crop step (same as employee.js) -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
+    <!-- Shared photo crop utilities (transparency detection + background fill) -->
+    <script src="/assets/customize_erpnext/js/photo_crop_shared.js"></script>
     <script>
         // Inject CSRF token from Frappe backend context
         window.csrf_token = "{{ csrf_token }}";
@@ -1048,6 +1050,15 @@
             <div id="cropContainer">
                 <img id="imageToCrop" src="" alt="crop">
             </div>
+            <!-- PNG transparency background picker — shown only when needed -->
+            <div id="www-crop-bg-row" style="display:none; margin-top:10px; padding:10px 12px;
+                background:#fff8e1; border:1px solid #ffe082; border-radius:5px;
+                align-items:center; gap:10px; flex-wrap:wrap;">
+                <span style="font-size:13px; color:#5d4037;">⚠️ Ảnh PNG có nền trong suốt. Chọn màu nền thay thế:</span>
+                <input type="color" id="www-crop-bg" value="#ffffff"
+                    style="width:36px; height:28px; padding:2px; border:1px solid #ccc; border-radius:3px; cursor:pointer;">
+                <span style="font-size:12px; color:#888;">(mặc định: trắng)</span>
+            </div>
             <p style="margin:10px 0 4px; color:#8a95b0; font-size:12px;">Kéo để di chuyển · Scroll để zoom · Tỷ lệ cố
                 định 3:4</p>
             <div class="crop-actions">
@@ -1069,7 +1080,8 @@
                 Nhập mã nhân viên để xác nhận:
             </label>
             <input type="text" id="deleteConfirmInput" autocomplete="off" spellcheck="false" placeholder="VD: TIQN-1874"
-                oninput="checkDeleteInput()">
+                oninput="checkDeleteInput()"
+                onkeydown="if(event.key==='Enter'&&!document.getElementById('deleteConfirmBtn').disabled)confirmDelete()">
             <div style="display:flex;gap:10px;margin-top:16px;justify-content:flex-end;align-items:center;">
                 <button class="btn-cancel-modal" onclick="closeDeleteModal()">Hủy</button>
                 <button id="deleteConfirmBtn" onclick="confirmDelete()" disabled>🗑 Xóa ảnh</button>
@@ -1645,19 +1657,37 @@
         function refreshPhotoCardImage(employeeId, newUrl) {
             const gallery = document.querySelector('.gallery');
             if (!gallery) return;
+            // Cập nhật allPhotos trước để photo object có url mới
+            const photoObj = typeof allPhotos !== 'undefined' ? allPhotos.find(x => x.employee_id === employeeId) : null;
+            if (photoObj) photoObj.url = newUrl;
+
             gallery.querySelectorAll('.photo-card').forEach(card => {
                 const link = card.querySelector('.employee-link');
-                if (link && link.href && link.href.includes(encodeURIComponent(employeeId))) {
-                    const img = card.querySelector('img');
-                    if (img) img.src = newUrl + '?t=' + Date.now();
-                    const flash = card.querySelector('.card-save-flash');
-                    if (flash) { flash.classList.add('show'); setTimeout(() => flash.classList.remove('show'), 1500); }
+                if (!link || !link.href.includes(encodeURIComponent(employeeId))) return;
+
+                const img = card.querySelector('img');
+                if (img) img.src = newUrl + '?t=' + Date.now();
+
+                // Thêm edit/delete button nếu chưa có (trường hợp upload lần đầu)
+                if (!card.querySelector('.edit-btn') && photoObj) {
+                    const editBtn = document.createElement('button');
+                    editBtn.className = 'edit-btn';
+                    editBtn.title = 'Chỉnh sửa ảnh';
+                    editBtn.textContent = '✏️';
+                    editBtn.addEventListener('click', e => { e.stopPropagation(); openPhotoEditor(photoObj, e); });
+                    card.insertBefore(editBtn, img.nextSibling);
+
+                    const delBtn = document.createElement('button');
+                    delBtn.className = 'delete-btn';
+                    delBtn.title = 'Xóa ảnh';
+                    delBtn.textContent = '🗑';
+                    delBtn.addEventListener('click', e => { e.stopPropagation(); openDeleteDialog(photoObj, e); });
+                    card.insertBefore(delBtn, editBtn.nextSibling);
                 }
+
+                const flash = card.querySelector('.card-save-flash');
+                if (flash) { flash.classList.add('show'); setTimeout(() => flash.classList.remove('show'), 1500); }
             });
-            if (typeof allPhotos !== 'undefined') {
-                const p = allPhotos.find(x => x.employee_id === employeeId);
-                if (p) p.url = newUrl;
-            }
         }
 
         function dataUrlToBlob(dataUrl) {
@@ -1685,6 +1715,8 @@
         let _uploadCurrentPhoto = null;  // photo object đang upload
         let _cameraStream = null;        // active camera stream
         let _cropperInstance = null;     // Cropper.js instance
+        let _cropHasTransparency = false; // detected PNG transparency
+        let _cropBgColor = '#ffffff';    // chosen background fill color
 
         // ── Mở dialog chọn: camera hoặc file ──
         function openUploadDialog(photo, event) {
@@ -1795,6 +1827,14 @@
             document.getElementById('cropEmpLabel').textContent =
                 `${photo.employee_id} · ${photo.display_name}`;
 
+            // Reset transparency state
+            _cropHasTransparency = false;
+            _cropBgColor = '#ffffff';
+            const pickerRow = document.getElementById('www-crop-bg-row');
+            const pickerInput = document.getElementById('www-crop-bg');
+            if (pickerRow) pickerRow.style.display = 'none';
+            if (pickerInput) pickerInput.value = '#ffffff';
+
             // Destroy previous instance if any
             if (_cropperInstance) { _cropperInstance.destroy(); _cropperInstance = null; }
 
@@ -1827,6 +1867,19 @@
                     zoomOnWheel: true,
                     wheelZoomRatio: 0.1,
                 });
+
+                // Detect PNG transparency and show color picker if needed
+                if (window.PhotoCropUtils) {
+                    PhotoCropUtils.hasTransparency(imageDataUrl).then(function (hasTrans) {
+                        _cropHasTransparency = hasTrans;
+                        if (hasTrans && pickerRow) {
+                            pickerRow.style.display = 'flex';
+                            if (pickerInput) {
+                                pickerInput.onchange = function () { _cropBgColor = this.value; };
+                            }
+                        }
+                    });
+                }
             };
         }
 
@@ -1842,6 +1895,12 @@
                 imageSmoothingEnabled: true,
                 imageSmoothingQuality: 'high'
             });
+
+            // Fill transparent background with chosen color before JPEG conversion
+            if (_cropHasTransparency && window.PhotoCropUtils) {
+                PhotoCropUtils.fillBackground(canvas, _cropBgColor);
+            }
+
             canvas.toBlob(function (blob) {
                 const reader = new FileReader();
                 reader.onloadend = function () {

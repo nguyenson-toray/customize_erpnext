@@ -1,5 +1,6 @@
 // import apps/customize_erpnext/customize_erpnext/public/js/utilities.js
 // import apps/customize_erpnext/customize_erpnext/public/js/shared_fingerprint_sync.js
+// import apps/customize_erpnext/customize_erpnext/public/js/photo_crop_shared.js
 
 // Store original employee value to prevent naming series interference
 window.original_employee_code = null;
@@ -578,6 +579,10 @@ function open_file_upload_dialog(frm) {
 }
 
 function show_crop_dialog(frm, imageDataUrl) {
+    // State for transparent-background handling
+    let _hasTransparency = false;
+    let _bgColor = '#ffffff';
+
     const dialog = new frappe.ui.Dialog({
         title: __('Crop Photo - Ratio 3:4'),
         size: 'large',
@@ -603,6 +608,11 @@ function show_crop_dialog(frm, imageDataUrl) {
                 imageSmoothingEnabled: true,
                 imageSmoothingQuality: 'high',
             });
+
+            // Fill transparent background with chosen color before converting to JPEG
+            if (_hasTransparency && window.PhotoCropUtils) {
+                PhotoCropUtils.fillBackground(canvas, _bgColor);
+            }
 
             // Convert to blob
             canvas.toBlob(function (blob) {
@@ -676,10 +686,15 @@ function show_crop_dialog(frm, imageDataUrl) {
 
     setTimeout(() => {
         const container = dialog.fields_dict.cropper_container.$wrapper;
+        const bgPickerHTML = window.PhotoCropUtils
+            ? PhotoCropUtils.bgPickerHTML('emp-crop-bg')
+            : '';
+
         container.html(`
             <div style="max-height: 60vh; overflow: hidden; position: relative;">
                 <img id="image-to-crop" src="${imageDataUrl}" style="max-width: 100%; display: block;">
             </div>
+            ${bgPickerHTML}
             <div style="margin-top: 15px; padding: 10px; background: #f8f9fa; border-radius: 5px;">
                 <p style="margin: 0; color: #6c757d; font-size: 13px;">
                     <strong>Instructions:</strong>
@@ -722,6 +737,23 @@ function show_crop_dialog(frm, imageDataUrl) {
             zoomOnWheel: true,
             wheelZoomRatio: 0.1,
         });
+
+        // Detect PNG transparency and show color picker if needed
+        if (window.PhotoCropUtils) {
+            PhotoCropUtils.hasTransparency(imageDataUrl).then(function (hasTrans) {
+                _hasTransparency = hasTrans;
+                if (hasTrans) {
+                    const pickerRow = document.getElementById('emp-crop-bg-row');
+                    const pickerInput = document.getElementById('emp-crop-bg');
+                    if (pickerRow) pickerRow.style.display = 'flex';
+                    if (pickerInput) {
+                        pickerInput.addEventListener('change', function () {
+                            _bgColor = this.value;
+                        });
+                    }
+                }
+            });
+        }
     }, 300);
 }
 

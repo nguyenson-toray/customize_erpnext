@@ -147,8 +147,8 @@ fixtures = [
             ["name", "in", [
                 "Shift & Attendance",  # HRMS sidebar with custom reports
                 "Stock",  # Stock sidebar with custom reports
-                "TIQN App",  # TIQN App sidebar
-                "Health Check Up"
+                # "TIQN App",  # TIQN App sidebar
+                # "Health Check Up"
             ]]
         ]
     },
@@ -171,22 +171,23 @@ fixtures = [
     },
     # Desktop Icons
     # Export custom desktop icons for apps/modules
-    {
-        "doctype": "Desktop Icon",
-        "filters": [
-            ["name", "in", ["TIQN App", "Employee Photos", "QR Code Generator", "Job Portal", "Shoe Rack", "Sync Logs", "Health Check Up"]]
-        ]
-    },
-    # Workspace Sidebars for custom External link icons
-    {
-        "doctype": "Workspace Sidebar",
-        "filters": [
-            ["name", "in", ["Job Portal", "Employee Photos", "QR Code Generator", "Shoe Rack", "Sync Logs","Health Check Up"]]
-        ]
-    }
+    # {
+    #     "doctype": "Desktop Icon",
+    #     "filters": [
+    #         ["name", "in", ["TIQN App", "Employee Photos", "QR Code Generator", "Job Portal", "Shoe Rack", "Sync Logs", "Health Check Up"]]
+    #     ]
+    # },
+    # # Workspace Sidebars for custom External link icons
+    # {
+    #     "doctype": "Workspace Sidebar",
+    #     "filters": [
+    #         ["name", "in", ["Job Portal", "Employee Photos", "QR Code Generator", "Shoe Rack", "Sync Logs","Health Check Up"]]
+    #     ]
+    # }
 ]
 
 # After migrate hooks
+# - Fix broken Desktop Icon link_to fields (Accounting, LMS)
 # - Add custom links to HRMS workspaces (People, Shift & Attendance)
 # - Drop orphan database tables
 # after_migrate = [

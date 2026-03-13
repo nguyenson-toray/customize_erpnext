@@ -7,13 +7,34 @@
   <title>Photo Editor – ERPNext</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core@4.20.0/dist/tf-core.min.js"></script>
-  <script
-    src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl@4.20.0/dist/tf-backend-webgl.min.js"></script>
-  <script
-    src="https://cdn.jsdelivr.net/npm/@tensorflow-models/body-segmentation@1.0.1/dist/body-segmentation.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1.1675465747/selfie_segmentation.js"
-    crossorigin="anonymous"></script>
+  <!-- @imgly: bắt đầu import ngay khi page load, warm-up model sau 1.5s -->
+  <script type="module">
+    const _p = import('https://esm.sh/@imgly/background-removal@1.4.5');
+    window.__imglyLoader = () => _p;
+
+    // Warm-up: tải ONNX model vào bộ nhớ ngay từ đầu (silent, background)
+    window.addEventListener('load', () => setTimeout(async () => {
+      try {
+        const lib = await _p;
+        const c = document.createElement('canvas');
+        c.width = 4; c.height = 4;
+        c.getContext('2d').fillStyle = '#888';
+        c.getContext('2d').fillRect(0, 0, 4, 4);
+        const blob = await new Promise(r => c.toBlob(r, 'image/png'));
+        await lib.removeBackground(blob, {
+          publicPath: location.origin + '/assets/customize_erpnext/bg_removal/',
+          model: 'medium',
+          output: { format: 'image/png', quality: 1 }
+        });
+        window.__imglyReady = true;
+      } catch (_) { /* silent */ }
+    }, 1500));
+  </script>
+  <!-- face-api.js: load ngay, expose as window.faceapi -->
+  <script type="module">
+    import * as faceapi from '/assets/customize_erpnext/face_api/face-api.esm.js';
+    window.faceapi = faceapi;
+  </script>
   <link
     href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@500&display=swap"
     rel="stylesheet">
@@ -736,6 +757,9 @@
       display: flex;
       flex-direction: column;
       gap: 6px;
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+      flex-shrink: 0;
     }
 
     /* Spin */
@@ -1011,15 +1035,9 @@
         font-size: 13px;
       }
 
-      /* Sticky save button at bottom of panel on mobile */
       .actions {
         padding: 10px 12px;
         gap: 8px;
-        position: sticky;
-        bottom: 0;
-        background: var(--surface);
-        border-top: 1px solid var(--border);
-        z-index: 2;
       }
 
       /* Mini preview: horizontal layout */
@@ -1078,6 +1096,9 @@
       <!-- Toolbar -->
       <div class="toolbar">
         <button class="tb on" id="tbView" onclick="setMode('view',this)">🖼 Xem</button>
+        <button class="tb" id="tbAuto" onclick="runAutoPipeline()" disabled
+          title="Tự động: nhận diện mặt → crop 3:4 → xóa nền → thay nền → làm đẹp">🤖 Tạo ảnh thẻ nhanh</button>
+        <div class="tb-sep"></div>
         <button class="tb" id="tbCrop" onclick="setMode('crop',this)" disabled>✂️ Cắt ảnh</button>
         <div class="tb-sep"></div>
         <button class="tb" id="tbBg" onclick="doRemoveBg()" disabled>🪄 Xóa nền AI</button>
@@ -1173,21 +1194,34 @@
 
         <!-- BG color -->
         <div class="sec" id="bgSec" style="display:none;">
-          <div class="sec-t">🎨 Màu nền</div>
+          <div class="sec-t">🎨 Nền ảnh thẻ</div>
           <div class="swatches">
-            <div class="sw on" style="background:#fff" onclick="setBg('#ffffff',this)" title="Trắng"></div>
-            <div class="sw" style="background:#aed6f1" onclick="setBg('#aed6f1',this)" title="Xanh dương"></div>
-            <div class="sw" style="background:#a9dfbf" onclick="setBg('#a9dfbf',this)" title="Xanh lá"></div>
-            <div class="sw" style="background:#fdf2e9" onclick="setBg('#fdf2e9',this)" title="Kem"></div>
-            <div class="sw" style="background:#eaf0fb" onclick="setBg('#eaf0fb',this)" title="Xanh nhạt"></div>
+            <div class="sw on" style="background:#f0f0f0;border:1px solid #ddd;" onclick="setBg('#f0f0f0',this)"
+              title="Xám nhạt (mặc định)"></div>
+            <div class="sw" style="background:#fff;border:1px solid #ddd;" onclick="setBg('#ffffff',this)"
+              title="Trắng"></div>
+            <div class="sw" style="background:#E8E8E8" onclick="setBg('#E8E8E8',this)" title="Xám nhạt"></div>
+            <div class="sw" style="background:#4A90D9" onclick="setBg('#4A90D9',this)" title="Xanh đậm (ngoại giao)">
+            </div>
+            <div class="sw" style="background:linear-gradient(to bottom,#F0F4F8,#FFFFFF)"
+              onclick="setBgGradient('#F0F4F8','#FFFFFF',this)" title="Trắng gradient"></div>
+            <div class="sw" style="background:linear-gradient(to bottom,#B8D4E8,#DAEAF5)"
+              onclick="setBgGradient('#B8D4E8','#DAEAF5',this)" title="Xanh gradient"></div>
             <div class="sw sw-trans" onclick="setBg('transparent',this)" title="Trong suốt"></div>
-            <input type="color" id="custBg" value="#ffffff" onchange="setBg(this.value,null)" title="Tùy chỉnh">
+            <input type="color" id="custBg" value="#f0f0f0" onchange="setBg(this.value,null)" title="Tùy chỉnh">
           </div>
         </div>
 
         <!-- Manual sliders -->
         <div class="sec">
           <div class="sec-t">🎛 Chỉnh thủ công</div>
+          <div class="pills" style="margin-bottom:10px;">
+            <button class="pill" onclick="applyFilterPreset('Tự nhiên')" title="Nhẹ nhàng, tự nhiên">🌿 Tự
+              nhiên</button>
+            <button class="pill" onclick="applyFilterPreset('Chuyên nghiệp')" title="Sắc nét, chuyên nghiệp">💼 Chuyên
+              nghiệp</button>
+            <button class="pill" onclick="applyFilterPreset('Tươi sáng')" title="Sáng, tươi trẻ">☀️ Tươi sáng</button>
+          </div>
           <div class="sl-row">
             <div class="sl-top"><span class="sl-name">☀️ Độ sáng</span><span class="sl-val" id="vB">0</span></div>
             <input type="range" id="sB" min="-100" max="100" value="0" oninput="sv('B')" onchange="applyFilters()">
@@ -1224,18 +1258,19 @@
             bộ lọc</button>
         </div>
 
-        <!-- Actions -->
-        <div class="actions">
-          <div class="btn-row">
-            <button class="btn btn-g" id="btnCropApply" onclick="applyCrop()" disabled>✅ Áp dụng cắt</button>
-            <button class="btn btn-g" id="btnUndo" onclick="undoBeautify()" disabled>↩️ Hoàn tác</button>
-          </div>
-          <button class="btn btn-ok" id="btnSave" onclick="saveAction()" disabled style="padding:11px;font-size:13px;"
-            id="btnSave">💾 Lưu PNG</button>
-        </div>
+      </div><!-- end panel-body -->
 
+      <!-- Actions: sticky footer, luôn hiển thị dù panel-body scroll -->
+      <div class="actions">
+        <div class="btn-row">
+          <button class="btn btn-g" id="btnCropApply" onclick="applyCrop()" disabled>✅ Áp dụng cắt</button>
+          <button class="btn btn-g" id="btnUndo" onclick="undoBeautify()" disabled>↩️ Hoàn tác</button>
+        </div>
+        <button class="btn btn-ok" id="btnSave" onclick="saveAction()" disabled style="padding:11px;font-size:13px;">💾
+          Lưu PNG</button>
       </div>
-    </div>
+
+    </div><!-- end panel -->
   </div>
 
   <div class="toast" id="toast"></div>
@@ -1261,14 +1296,16 @@
       base: null,   // ImageData – after crop/bg (filter source)
       bgRemoved: null,   // ImageData – transparent bg version
       hasBg: false,
-      bgColor: '#ffffff',
+      bgColor: '#f0f0f0',
       undoSnap: null,
       cropSrc: null,
+      origSrc: null,    // dataURL gốc cho split view "Gốc" – không đổi
       cropper: null,
       ratio: 3 / 4,
-      segmenter: null,
       segLoading: false,
       splitMode: true,
+      autoPending: false,   // true khi đang chờ user xác nhận crop trong auto pipeline
+      _cropSuggest: null,   // { x,y,width,height } gợi ý từ face detection
     };
 
     // ═══════════════════════════════════
@@ -1346,6 +1383,7 @@
         G.original = ctxB.getImageData(0, 0, w, h);
         G.base = copyID(G.original);
         G.cropSrc = src;
+        G.origSrc = src; _origImgEl = null; // ảnh gốc cho split view "Gốc"
         G.hasImage = true;
         G.hasBg = false;
         G.bgRemoved = null;
@@ -1373,7 +1411,7 @@
     }
 
     function enableUI() {
-      ['tbCrop', 'tbBg', 'tbReset', 'btnSave', 'bfyBtn', 'tbSplit'].forEach(id => {
+      ['tbAuto', 'tbCrop', 'tbBg', 'tbReset', 'btnSave', 'bfyBtn', 'tbSplit'].forEach(id => {
         const el = document.getElementById(id); if (el) el.disabled = false;
       });
     }
@@ -1426,6 +1464,13 @@
         G.cropper = new Cropper(ci, {
           aspectRatio: isNaN(G.ratio) ? NaN : G.ratio,
           viewMode: 1, autoCropArea: 0.88, background: false,
+          ready() {
+            // Áp dụng vùng crop gợi ý nếu có (từ auto pipeline)
+            if (G._cropSuggest) {
+              G.cropper.setData(G._cropSuggest);
+              G._cropSuggest = null;
+            }
+          }
         });
         document.getElementById('btnCropApply').disabled = false;
       }, 120);
@@ -1460,125 +1505,351 @@
       document.getElementById('barInfo').textContent = `${w} × ${h}`;
       updateMini();
       toast('✅ Đã cắt ảnh', 'ok');
+      // Nếu đang ở giữa auto pipeline → tiếp tục phase 2
+      if (G.autoPending) { G.autoPending = false; continueAutoPipeline(); }
     }
 
     // ═══════════════════════════════════
-    //  REMOVE BACKGROUND — MediaPipe
+    //  REMOVE BACKGROUND — @imgly/background-removal
     // ═══════════════════════════════════
+    const IMGLY_CDN = location.origin + '/assets/customize_erpnext/bg_removal/';
+    let _imglyLib = null; // cached after first import
+
+    // Core @imgly logic — dùng chung cho doRemoveBg() và runAutoPipeline()
+    // pctStart/pctEnd: khoảng % tiến trình để hiển thị
+    async function _removeBgCore(pctStart, pctEnd) {
+      if (!_imglyLib) {
+        showProg('📦', 'Đang tải thư viện AI...', pctStart, 'Chỉ tải 1 lần, lần sau dùng cache');
+        // Dùng module-context loader (window.__imglyLoader) để import.meta.url hoạt động đúng
+        // __imglyLoader được set bởi <script type="module"> ở header
+        let waited = 0;
+        while (!window.__imglyLoader && waited < 5000) {
+          await new Promise(r => setTimeout(r, 100));
+          waited += 100;
+        }
+        if (!window.__imglyLoader) throw new Error('@imgly loader chưa sẵn sàng');
+        _imglyLib = await window.__imglyLoader();
+      }
+      const { removeBackground } = _imglyLib;
+
+      workCv.width = G.base.width; workCv.height = G.base.height;
+      workCtx.putImageData(G.base, 0, 0);
+      const inputBlob = await new Promise(r => workCv.toBlob(r, 'image/png'));
+
+      const pctRange = pctEnd - pctStart - 5;
+      const config = {
+        publicPath: IMGLY_CDN,
+        model: 'medium',
+        output: { format: 'image/png', quality: 1 },
+        progress: (key, current, total) => {
+          if (total > 0) {
+            const pct = pctStart + Math.round((current / total) * pctRange);
+            const mb = `${(current / 1048576).toFixed(1)} / ${(total / 1048576).toFixed(1)} MB`;
+            showProg('🤖', `Tải model: ${key.split('/').pop() || key}`, Math.min(pct, pctEnd - 5), mb);
+          } else {
+            showProg('✂️', 'AI đang tách nền...', pctEnd - 5, '');
+          }
+        }
+      };
+
+      showProg('✂️', 'AI đang xử lý ảnh...', pctEnd - 3, 'Vui lòng chờ');
+      const resultBlob = await removeBackground(inputBlob, config);
+
+      const url = URL.createObjectURL(resultBlob);
+      const img = new Image();
+      img.src = url;
+      await new Promise((res, rej) => { img.onload = res; img.onerror = rej; });
+      const w = G.base.width, h = G.base.height;
+      const tc = document.createElement('canvas');
+      tc.width = w; tc.height = h;
+      tc.getContext('2d').drawImage(img, 0, 0, w, h);
+      G.bgRemoved = tc.getContext('2d').getImageData(0, 0, w, h);
+      URL.revokeObjectURL(url);
+      G.hasBg = true;
+    }
+
     async function doRemoveBg() {
       if (!G.hasImage || G.segLoading) return;
       G.segLoading = true;
       document.getElementById('tbBg').disabled = true;
-      showProg('🤖', 'Khởi động AI xóa nền...', 10, 'Tải model lần đầu ~15s');
-
       try {
-        if (!G.segmenter) {
-          await tf.setBackend('webgl'); await tf.ready();
-          G.segmenter = await bodySegmentation.createSegmenter(
-            bodySegmentation.SupportedModels.MediaPipeSelfieSegmentation,
-            { runtime: 'mediapipe', solutionPath: 'https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1.1675465747', modelType: 'general' }
-          );
-        }
-        showProg('✂️', 'Phân tích & tách nền...', 65, '');
-
-        // Use BEFORE canvas (original/base)
-        workCv.width = cvBefore.width; workCv.height = cvBefore.height;
-        workCtx.putImageData(G.base, 0, 0);
-
-        const seg = await G.segmenter.segmentPeople(workCv);
-        showProg('🎨', 'Làm mịn viền mask...', 85, '');
-
-        const w = G.base.width, h = G.base.height;
-        segCv.width = w; segCv.height = h;
-
-        const binMask = await bodySegmentation.toBinaryMask(
-          seg,
-          { r: 255, g: 255, b: 255, a: 255 },
-          { r: 0, g: 0, b: 0, a: 255 }
-        );
-        segCtx.putImageData(binMask, 0, 0);
-        const maskPx = segCtx.getImageData(0, 0, w, h);
-
-        // Build float alpha from mask
-        const rawA = new Float32Array(w * h);
-        for (let i = 0; i < w * h; i++) rawA[i] = maskPx.data[i * 4] > 128 ? 1 : 0;
-
-        // Pipeline: erode → dilate slightly → 3-pass gaussian → smoothstep
-        let alpha = erodeMask(rawA, w, h, 1);
-        alpha = dilate(alpha, w, h, 1);
-        alpha = gaussA(alpha, w, h, 2);
-        alpha = gaussA(alpha, w, h, 2);
-        alpha = gaussA(alpha, w, h, 1);
-        // Smooth-step
-        for (let i = 0; i < alpha.length; i++) {
-          const a = alpha[i];
-          alpha[i] = a <= 0 ? 0 : a >= 1 ? 1 : a * a * (3 - 2 * a);
-        }
-
-        const orig = G.base.data;
-        const out = new Uint8ClampedArray(orig.length);
-        for (let i = 0; i < w * h; i++) {
-          out[i * 4] = orig[i * 4];
-          out[i * 4 + 1] = orig[i * 4 + 1];
-          out[i * 4 + 2] = orig[i * 4 + 2];
-          out[i * 4 + 3] = Math.round(alpha[i] * 255);
-        }
-        G.bgRemoved = new ImageData(out, w, h);
-        G.hasBg = true;
+        await _removeBgCore(5, 90);
         applyBgColor(G.bgColor);
         hideProg();
         document.getElementById('bgSec').style.display = 'block';
         toast('🪄 Xóa nền thành công!', 'ok');
-
       } catch (e) {
-        console.error(e);
+        console.error('[doRemoveBg]', e);
         hideProg();
-        toast('⚠️ Dùng xóa nền thông minh...', '');
+        toast('⚠️ Lỗi AI, thử phương pháp dự phòng...', '');
         fallbackBg();
       }
       document.getElementById('tbBg').disabled = false;
       G.segLoading = false;
     }
 
-    function erodeMask(a, w, h, r) {
-      const o = new Float32Array(w * h);
-      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-        let m = 1;
-        for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
-          const nx = clamp01x(x + dx, w), ny = clamp01x(y + dy, h);
-          if (a[ny * w + nx] < m) m = a[ny * w + nx];
+    // ═══════════════════════════════════
+    //  FACE DETECTION — vladmandic/face-api.js (SSD MobileNet v1)
+    // ═══════════════════════════════════
+    const FACE_API_MODEL = location.origin + '/assets/customize_erpnext/face_api/models/';
+    let _faceApiModelLoaded = false;
+
+    async function _ensureFaceApi() {
+      // Chờ window.faceapi được set bởi <script type="module"> ở header
+      let waited = 0;
+      while (!window.faceapi && waited < 8000) {
+        await new Promise(r => setTimeout(r, 150));
+        waited += 150;
+      }
+      if (!window.faceapi) throw new Error('face-api.js chưa tải xong');
+      if (_faceApiModelLoaded) return;
+      await window.faceapi.nets.ssdMobilenetv1.loadFromUri(FACE_API_MODEL);
+      _faceApiModelLoaded = true;
+    }
+
+    // Trả về { box:{x,y,width,height}, score } hoặc null nếu không tìm thấy mặt
+    async function detectFace() {
+      showProg('👤', 'Tải model nhận diện mặt...', 18, 'SSD MobileNet v1 (~5.4MB, cache sau lần đầu)');
+      await _ensureFaceApi();
+      workCv.width = G.base.width; workCv.height = G.base.height;
+      workCtx.putImageData(G.base, 0, 0);
+      const detection = await window.faceapi.detectSingleFace(
+        workCv,
+        new window.faceapi.SsdMobilenetv1Options({ minConfidence: 0.3 })
+      );
+      console.log('[detectFace] result:', detection,
+        '| image:', G.base.width, '×', G.base.height);
+      if (!detection) {
+        console.warn('[detectFace] no face found — falling back to center crop');
+        return null;
+      }
+      const box = detection.box;
+      console.log('[detectFace] box:', box.x, box.y, box.width, box.height, 'score:', detection.score);
+      return {
+        box: { x: box.x, y: box.y, width: box.width, height: box.height },
+        score: detection.score
+      };
+    }
+
+    // ═══════════════════════════════════
+    //  SMART CROP — Tự động crop 3:4 theo khuôn mặt
+    // ═══════════════════════════════════
+    function doSmartCrop(faceResult) {
+      const sw = G.base.width, sh = G.base.height;
+      let cropX, cropY, cropW, cropH;
+
+      if (faceResult) {
+        const { box } = faceResult;
+        // SSD MobileNet trả về box từ cằm → đỉnh đầu (cả tóc)
+        // Ảnh thẻ chuẩn VN: đầu chiếm ~50% chiều cao, headroom ~20% trên đỉnh đầu
+        cropH = box.height / 0.50;          // head = 50% chiều cao crop
+        cropW = cropH * (3 / 4);
+        cropX = (box.x + box.width / 2) - cropW / 2;   // căn giữa theo mặt
+        cropY = box.y - box.height * 0.20;  // 20% headroom phía trên đỉnh đầu
+      } else {
+        // Không tìm thấy mặt: center crop
+        cropW = Math.min(sw, sh * 3 / 4);
+        cropH = cropW * 4 / 3;
+        cropX = (sw - cropW) / 2;
+        cropY = (sh - cropH) / 2;
+      }
+
+      // Scale nếu vùng crop vượt kích thước ảnh
+      if (cropW > sw) { cropW = sw; cropH = cropW * 4 / 3; }
+      if (cropH > sh) { cropH = sh; cropW = cropH * 3 / 4; }
+
+      // Clamp vào biên ảnh
+      cropX = Math.max(0, Math.min(cropX, sw - cropW));
+      cropY = Math.max(0, Math.min(cropY, sh - cropH));
+
+      // Vẽ crop ra canvas 300×400
+      const out = document.createElement('canvas');
+      out.width = 300; out.height = 400;
+      const octx = out.getContext('2d');
+      octx.imageSmoothingEnabled = true;
+      octx.imageSmoothingQuality = 'high';
+      // workCv đã có G.base từ detectFace, vẽ lại để chắc chắn
+      workCv.width = sw; workCv.height = sh;
+      workCtx.putImageData(G.base, 0, 0);
+      octx.drawImage(workCv, cropX, cropY, cropW, cropH, 0, 0, 300, 400);
+
+      // Cập nhật state
+      [cvBefore, cvAfter, workCv].forEach(cv => { cv.width = 300; cv.height = 400; });
+      ctxB.drawImage(out, 0, 0); ctxA.drawImage(out, 0, 0);
+      G.base = ctxB.getImageData(0, 0, 300, 400);
+      G.cropSrc = out.toDataURL();
+      G.hasBg = false; G.bgRemoved = null;
+      document.getElementById('barInfo').textContent = '300 × 400';
+      updateMini();
+    }
+
+    // ═══════════════════════════════════
+    //  PREPROCESS — Resize nếu ảnh quá lớn
+    // ═══════════════════════════════════
+    function preprocessResize() {
+      const MAX = 1600;
+      const w = G.base.width, h = G.base.height;
+      if (w <= MAX && h <= MAX) return;
+      const ratio = Math.min(MAX / w, MAX / h);
+      const nw = Math.round(w * ratio), nh = Math.round(h * ratio);
+      workCv.width = nw; workCv.height = nh;
+      workCtx.imageSmoothingEnabled = true;
+      workCtx.imageSmoothingQuality = 'high';
+      workCtx.putImageData(G.base, 0, 0); // tạm put để dùng drawImage
+      // Dùng cvBefore (đã có ảnh gốc) để drawImage scaled
+      const tmp = document.createElement('canvas');
+      tmp.width = nw; tmp.height = nh;
+      const tctx = tmp.getContext('2d');
+      tctx.imageSmoothingQuality = 'high';
+      tctx.drawImage(cvBefore, 0, 0, nw, nh);
+      [cvBefore, cvAfter, workCv].forEach(cv => { cv.width = nw; cv.height = nh; });
+      ctxB.drawImage(tmp, 0, 0); ctxA.drawImage(tmp, 0, 0);
+      G.base = ctxB.getImageData(0, 0, nw, nh);
+      G.cropSrc = tmp.toDataURL();
+      document.getElementById('barInfo').textContent = `${nw} × ${nh}`;
+      updateMini();
+    }
+
+    // ═══════════════════════════════════
+    //  AUTO PIPELINE — 1 nút, toàn bộ quy trình
+    // ═══════════════════════════════════
+    // Phase 1: resize → detect face → gợi ý crop trong Cropper UI → chờ user
+    async function runAutoPipeline() {
+      if (!G.hasImage || G.segLoading) return;
+      G.segLoading = true;
+      G.autoPending = false;
+      document.getElementById('tbAuto').disabled = true;
+      document.getElementById('tbBg').disabled = true;
+
+      G.undoSnap = { base: copyID(G.base), sliders: snapSliders() };
+      document.getElementById('btnUndo').disabled = false;
+
+      try {
+        showProg('🔄', 'Tiền xử lý ảnh...', 5, 'Resize về max 1600px');
+        preprocessResize();
+
+        showProg('👤', 'Nhận diện khuôn mặt...', 30, 'face-api SSD MobileNet');
+        let faceResult = null;
+        try { faceResult = await detectFace(); }
+        catch (fe) { console.warn('[runAutoPipeline] face detect failed:', fe); }
+
+        // Tính vùng crop gợi ý (head = 38% height, rộng hơn cho chuẩn ảnh thẻ)
+        const iw = G.base.width, ih = G.base.height;
+        if (faceResult) {
+          const { box } = faceResult;
+          let cH = box.height / 0.38;
+          let cW = cH * (3 / 4);
+          let cX = (box.x + box.width / 2) - cW / 2;
+          let cY = box.y - box.height * 0.20;
+          if (cW > iw) { cW = iw; cH = cW * 4 / 3; }
+          if (cH > ih) { cH = ih; cW = cH * 3 / 4; }
+          cX = Math.max(0, Math.min(cX, iw - cW));
+          cY = Math.max(0, Math.min(cY, ih - cH));
+          G._cropSuggest = { x: cX, y: cY, width: cW, height: cH, rotate: 0, scaleX: 1, scaleY: 1 };
+        } else {
+          const cW = Math.min(iw, ih * 3 / 4), cH = cW * 4 / 3;
+          G._cropSuggest = { x: (iw - cW) / 2, y: (ih - cH) / 2, width: cW, height: cH, rotate: 0, scaleX: 1, scaleY: 1 };
         }
-        o[y * w + x] = m;
+
+        // Đặt tỉ lệ 3:4 và mở Cropper UI
+        G.ratio = 3 / 4;
+        document.querySelectorAll('.pill').forEach(b => b.classList.remove('on'));
+        const p34 = document.querySelector('.pill[onclick*="3/4"]') || document.querySelector('.pill[onclick*="0.75"]');
+        if (p34) p34.classList.add('on');
+        hideProg();
+        setMode('crop', document.getElementById('tbCrop'));
+        G.autoPending = true;
+        const msg = faceResult
+          ? `✂️ Đã tìm thấy mặt (${Math.round(faceResult.score * 100)}%). Điều chỉnh crop rồi bấm ✅ Áp dụng cắt`
+          : '✂️ Không tìm thấy mặt — crop trung tâm. Điều chỉnh nếu cần rồi bấm ✅ Áp dụng cắt';
+        toast(msg, faceResult ? 'ok' : '');
+
+      } catch (e) {
+        console.error('[runAutoPipeline phase1]', e);
+        hideProg();
+        toast('⚠️ Lỗi: ' + (e.message || e), 'er');
       }
-      return o;
+
+      // Nhả lock để user tương tác với Cropper
+      G.segLoading = false;
+      document.getElementById('tbBg').disabled = false;
+      // tbAuto vẫn disabled cho đến khi phase 2 hoàn tất
     }
-    function dilate(a, w, h, r) {
-      const o = new Float32Array(w * h);
-      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-        let m = 0;
-        for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
-          const nx = clamp01x(x + dx, w), ny = clamp01x(y + dy, h);
-          if (a[ny * w + nx] > m) m = a[ny * w + nx];
+
+    // Phase 2: bg remove → bg replace → enhance (chạy sau khi user áp dụng crop)
+    async function continueAutoPipeline() {
+      if (!G.hasImage || G.segLoading) return;
+      G.segLoading = true;
+      document.getElementById('tbBg').disabled = true;
+
+      try {
+        showProg('🤖', 'Xóa nền AI...', 42, '@imgly background-removal');
+        await _removeBgCore(42, 85);
+
+        showProg('🎨', 'Thay nền...', 87, G.bgColor.startsWith('gradient:') ? 'Gradient' : G.bgColor);
+        applyBgColor(G.bgColor);
+        document.getElementById('bgSec').style.display = 'block';
+
+        showProg('✨', 'Làm đẹp tự động...', 93, 'Phân tích ảnh');
+        const p = analyzeDeep(G.base);
+        p.smooth = Math.max(p.smooth, 3); // minimum moderate smoothing for ID photo
+        applySliders(p);
+        applyFilters(); // filter áp dụng lên toàn ảnh (kể cả nền)
+
+        // Khôi phục màu nền sạch:
+        // lấy pixel người từ ảnh đã filter (màu đã enhance),
+        // giữ nguyên alpha gốc từ G.bgRemoved → composite lại lên nền gốc
+        if (G.bgRemoved && G.hasBg) {
+          const filtered = ctxA.getImageData(0, 0, cvAfter.width, cvAfter.height);
+          const newFg = new ImageData(new Uint8ClampedArray(filtered.data), filtered.width, filtered.height);
+          for (let i = 3; i < newFg.data.length; i += 4) {
+            newFg.data[i] = G.bgRemoved.data[i]; // restore alpha gốc
+          }
+          G.bgRemoved = newFg;
+          applyBgColor(G.bgColor); // re-composite: người enhanced + nền sạch
         }
-        o[y * w + x] = m;
+
+        hideProg();
+        toast('✅ Tạo ảnh thẻ hoàn tất!', 'ok');
+      } catch (e) {
+        console.error('[continueAutoPipeline]', e);
+        hideProg();
+        toast('⚠️ Lỗi: ' + (e.message || e), 'er');
       }
-      return o;
+
+      G.segLoading = false;
+      document.getElementById('tbAuto').disabled = false;
+      document.getElementById('tbBg').disabled = false;
     }
-    function gaussA(a, w, h, r) {
-      const sig = r * 0.7, k = [];
-      let ks = 0;
-      for (let i = -r; i <= r; i++) { const v = Math.exp(-i * i / (2 * sig * sig)); k.push(v); ks += v; }
-      for (let i = 0; i < k.length; i++) k[i] /= ks;
-      const t = new Float32Array(w * h), o = new Float32Array(w * h);
-      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-        let s = 0; for (let dx = -r; dx <= r; dx++) s += a[y * w + clamp01x(x + dx, w)] * k[dx + r]; t[y * w + x] = s;
-      }
-      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-        let s = 0; for (let dy = -r; dy <= r; dy++) s += t[clamp01x(y + dy, h) * w + x] * k[dy + r]; o[y * w + x] = s;
-      }
-      return o;
+
+    // ═══════════════════════════════════
+    //  GRADIENT BACKGROUND
+    // ═══════════════════════════════════
+    function setBgGradient(c1, c2, btn) {
+      document.querySelectorAll('.sw').forEach(b => b.classList.remove('on'));
+      if (btn) btn.classList.add('on');
+      applyBgColor('gradient:' + c1 + ',' + c2);
     }
-    function clamp01x(v, max) { return Math.max(0, Math.min(max - 1, v)); }
+
+    // ═══════════════════════════════════
+    //  FILTER PRESETS
+    // ═══════════════════════════════════
+    const FILTER_PRESETS = {
+      'Tự nhiên': { brightness: 2, contrast: 0, saturation: 0, smooth: 2, sharpness: 2, warmth: 3, highlights: 0, shadows: 0 },
+      'Chuyên nghiệp': { brightness: 5, contrast: 8, saturation: -5, smooth: 0, sharpness: 4, warmth: 0, highlights: 0, shadows: 0 },
+      'Tươi sáng': { brightness: 10, contrast: 5, saturation: 10, smooth: 3, sharpness: 3, warmth: 5, highlights: 5, shadows: 0 },
+    };
+
+    function applyFilterPreset(name) {
+      if (!G.hasImage) return;
+      const p = FILTER_PRESETS[name];
+      if (!p) return;
+      G.undoSnap = { base: copyID(G.base), sliders: snapSliders() };
+      document.getElementById('btnUndo').disabled = false;
+      applySliders(p);
+      applyFilters();
+      toast(`✨ Filter: ${name}`, 'ok');
+    }
 
     function fallbackBg() {
       const w = G.base.width, h = G.base.height, d = G.base.data;
@@ -1611,7 +1882,16 @@
       } else {
         cvAfter.classList.remove('checker');
         workCtx.clearRect(0, 0, w, h);
-        workCtx.fillStyle = color; workCtx.fillRect(0, 0, w, h);
+        // Hỗ trợ gradient format: 'gradient:#c1,#c2'
+        if (color.startsWith('gradient:')) {
+          const [c1, c2] = color.slice(9).split(',');
+          const grad = workCtx.createLinearGradient(0, 0, 0, h);
+          grad.addColorStop(0, c1); grad.addColorStop(1, c2);
+          workCtx.fillStyle = grad;
+        } else {
+          workCtx.fillStyle = color;
+        }
+        workCtx.fillRect(0, 0, w, h);
         const tc = document.createElement('canvas'); tc.width = w; tc.height = h;
         tc.getContext('2d').putImageData(G.bgRemoved, 0, 0);
         workCtx.drawImage(tc, 0, 0);
@@ -1639,6 +1919,7 @@
 
       setTimeout(() => {
         const p = analyzeDeep(G.base);
+        p.smooth = Math.max(p.smooth, 3); // minimum moderate smoothing for ID photo
         applySliders(p);
         applyFilters();
         document.getElementById('btnUndo').disabled = false;
@@ -2121,12 +2402,22 @@
     function cv(v) { return Math.max(0, Math.min(255, Math.round(v))); }
     function clampV(mn, mx, v) { return Math.max(mn, Math.min(mx, v)); }
 
+    let _origImgEl = null; // cached Image element for "Gốc" side of split
+
     function updateMini() {
-      // Draw after canvas to mini preview
       const mi = document.getElementById('miniImg');
       mi.src = cvAfter.toDataURL('image/png', 0.5);
-      // Also sync before canvas if base changed
-      if (G.base) ctxB.putImageData(G.base, 0, 0);
+      // cvBefore (Gốc) luôn hiển thị ảnh gốc ban đầu, scale theo kích thước hiện tại
+      if (G.origSrc) {
+        const tw = cvAfter.width, th = cvAfter.height;
+        cvBefore.width = tw; cvBefore.height = th;
+        if (!_origImgEl || _origImgEl.src !== G.origSrc) {
+          _origImgEl = new Image();
+          _origImgEl.src = G.origSrc;
+        }
+        const draw = () => ctxB.drawImage(_origImgEl, 0, 0, tw, th);
+        _origImgEl.complete ? draw() : (_origImgEl.onload = draw);
+      }
     }
 
     function toast(msg, type = '') {
@@ -2206,6 +2497,7 @@
         G.original = ctxB.getImageData(0, 0, w, h);
         G.base = copyID(G.original);
         G.cropSrc = url;
+        G.origSrc = url; _origImgEl = null;
         G.hasImage = true;
         G.hasBg = false;
         G.bgRemoved = null;
@@ -2228,7 +2520,8 @@
           [cvBefore, cvAfter, workCv].forEach(cv => { cv.width = w; cv.height = h; });
           ctxB.drawImage(img2, 0, 0); ctxA.drawImage(img2, 0, 0);
           G.original = ctxB.getImageData(0, 0, w, h); G.base = copyID(G.original);
-          G.cropSrc = tc.toDataURL(); G.hasImage = true; G.hasBg = false;
+          G.cropSrc = tc.toDataURL(); G.origSrc = G.cropSrc; _origImgEl = null;
+          G.hasImage = true; G.hasBg = false;
           resetSliders(); showSplit(); enableUI(); updateMini();
           toast('Đã tải ảnh ✓', 'ok');
         };
