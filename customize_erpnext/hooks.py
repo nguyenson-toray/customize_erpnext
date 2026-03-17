@@ -79,7 +79,8 @@ fixtures = [
                 "Attendance",
                 "Leave Type",
                 "Leave Application",
-                "Job Applicant"
+                "Job Applicant",
+                "Designation"
             ]],
             ["fieldname", "like", "custom%"]
         ]
@@ -225,7 +226,12 @@ scheduler_events = {
         # Smart auto update mỗi 2 giờ
         # "0 */2 * * *": [
         #     "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.scheduler_jobs.smart_auto_update_custom_attendance"
-        # ]
+        # ],
+
+        # Auto mark employees as Left - Every day at 00:00
+        "0 0 * * *": [
+            "customize_erpnext.overrides.employee.employee.auto_mark_employees_as_left"
+        ]
     }
 }
  

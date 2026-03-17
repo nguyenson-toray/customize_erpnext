@@ -84,8 +84,8 @@ class EmployeeMaternity(Document):
 		if overlapping:
 			rec = overlapping[0]
 			frappe.throw(
-				_("Date period overlaps with {0} ({1}: {2} - {3})").format(
-					rec.name, rec.type, rec.from_date, rec.to_date
+				_("Date period overlaps with Employee Maternity: {0} ({1}: {2} - {3})").format(
+					frappe.utils.get_link_to_form("Employee Maternity", rec.name), rec.type, rec.from_date, rec.to_date
 				)
 			)
 

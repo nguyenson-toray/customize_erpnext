@@ -380,25 +380,6 @@ function copy_address(frm, from_type, to_type) {
 // Legacy sync dialog functions removed - now using shared_fingerprint_sync.js
 // Maternity Tracking child table events removed - now managed by Employee Maternity doctype
 
-function toProperCase(str) {
-    if (!str) return str;
-
-    let result = str.trim().toLowerCase();
-
-    // First, handle regular word boundaries (spaces, punctuation)
-    result = result.replace(/\b\w/g, function (char) {
-        return char.toUpperCase();
-    });
-
-    // Special handling: ensure first non-number character is uppercase
-    // This handles cases like "26ss" → "26Ss"
-    result = result.replace(/^(\d*)([a-z])/, function (_, numbers, firstLetter) {
-        return numbers + firstLetter.toUpperCase();
-    });
-
-    return result;
-}
-
 // ============================================================
 // EMPLOYEE PHOTO FUNCTIONS - TAKE PHOTO & UPLOAD PHOTO
 // ============================================================
