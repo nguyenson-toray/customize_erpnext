@@ -4,6 +4,7 @@ import os
 import base64
 import math
 import json
+import time
 from frappe import _
 from frappe.utils.file_manager import save_file
 from frappe.utils.pdf import get_pdf
@@ -20,6 +21,270 @@ try:
     from barcode.writer import ImageWriter
 except:
     barcode = None
+
+# Cache rembg sessions theo model (avoid reload on each request)
+_rembg_sessions = {}
+# Thời điểm load session trong process này (model_name -> timestamp)
+_rembg_session_loaded_at = {}
+
+# CPU-only server (no GPU): tune ORT threads per model to avoid contention.
+# birefnet concurrent=2 → 8 threads × 2 workers = safe on 64GB
+# u2net    concurrent=10 → 4 threads × 10 workers = 5GB total
+_CPU_CORES = os.cpu_count() or 4
+_REMBG_ORT_THREADS = {
+    'birefnet-portrait': max(1, _CPU_CORES // 2),
+    'u2net':             max(1, _CPU_CORES // 4),
+}
+
+# Giới hạn RAM: sau mỗi inference, nếu RAM hệ thống > ngưỡng → evict session
+# 70% × 64GB = ~44GB cho rembg; birefnet ~13GB/worker → tối đa 3 workers giữ session
+_REMBG_RAM_LIMIT_PCT = 70   # % tổng RAM tối đa cho rembg sessions
+_REMBG_HEAVY_MODELS  = {'birefnet-portrait'}  # models cần kiểm soát RAM
+
+# Redis keys để đồng bộ idle-cleanup giữa các worker Gunicorn
+_REMBG_ACTIVE_KEY = 'rembg_last_used'    # timestamp lần dùng cuối
+_REMBG_EVICT_KEY  = 'rembg_evict_after'  # nếu session load trước ts này → cần evict
+_REMBG_IDLE_TTL   = 30 * 60              # 30 phút 
+
+
+def _evict_rembg_if_stale():
+    """Evict session trong process này nếu Redis báo đã quá idle."""
+    global _rembg_sessions, _rembg_session_loaded_at
+    if not _rembg_sessions:
+        return
+    try:
+        evict_after = frappe.cache().get_value(_REMBG_EVICT_KEY)
+        if not evict_after:
+            return
+        evict_after = float(evict_after)
+        # Xóa session nào được load TRƯỚC thời điểm evict được yêu cầu
+        should_evict = any(
+            _rembg_session_loaded_at.get(m, 0) < evict_after
+            for m in list(_rembg_sessions)
+        )
+        if should_evict:
+            _rembg_sessions.clear()
+            _rembg_session_loaded_at.clear()
+            frappe.cache().delete_value(_REMBG_EVICT_KEY)
+            frappe.logger().info('[rembg] Worker evicted stale sessions (lazy cleanup)')
+    except Exception:
+        pass  # Không để lỗi cache ảnh hưởng luồng chính
+
+_REMBG_LOCK_KEY = 'rembg_batch_lock'
+_REMBG_LOCK_TTL = 600  # 10 phút auto-expire phòng crash
+
+@frappe.whitelist()
+def batch_rembg_acquire_lock(session_id):
+    """Thử chiếm lock xử lý rembg. Trả về {acquired, holder}."""
+    cache = frappe.cache()
+    existing = cache.get_value(_REMBG_LOCK_KEY)
+    if existing:
+        try:
+            data = json.loads(existing) if isinstance(existing, str) else existing
+        except Exception:
+            data = {}
+        if data.get('session_id') == session_id:
+            # Renew TTL cho cùng session
+            cache.set_value(_REMBG_LOCK_KEY, json.dumps(data), expires_in_sec=_REMBG_LOCK_TTL)
+            return {'acquired': True}
+        return {'acquired': False, 'holder': data}
+    # Kiểm tra có ai đang xóa nền đơn lẻ (photo editor thủ công) không.
+    # Nếu _REMBG_ACTIVE_KEY được cập nhật trong 120s và không có batch lock
+    # → là single-edit đang chạy → chặn batch mới để tránh tranh RAM.
+    active_ts = cache.get_value(_REMBG_ACTIVE_KEY)
+    if active_ts:
+        try:
+            if time.time() - float(active_ts) < 120:
+                return {'acquired': False, 'holder': {
+                    'user': 'người dùng khác',
+                    'started_at': datetime.fromtimestamp(float(active_ts)).strftime('%H:%M:%S'),
+                    'type': 'single_edit',
+                }}
+        except Exception:
+            pass
+    lock_data = {
+        'user': frappe.session.user,
+        'session_id': session_id,
+        'started_at': datetime.now().strftime('%H:%M:%S'),
+    }
+    cache.set_value(_REMBG_LOCK_KEY, json.dumps(lock_data), expires_in_sec=_REMBG_LOCK_TTL)
+    return {'acquired': True}
+
+@frappe.whitelist()
+def batch_rembg_release_lock(session_id):
+    """Giải phóng lock + set evict flag ngay để workers xóa session sau batch.
+    Tránh tích lũy birefnet (~20GB/worker) giữa các lần batch liên tiếp.
+    """
+    global _rembg_sessions, _rembg_session_loaded_at
+    cache = frappe.cache()
+    existing = cache.get_value(_REMBG_LOCK_KEY)
+    if existing:
+        try:
+            data = json.loads(existing) if isinstance(existing, str) else existing
+        except Exception:
+            data = {}
+        if data.get('session_id') == session_id:
+            cache.delete_value(_REMBG_LOCK_KEY)
+
+    # Evict ngay trong process này + set flag cho tất cả workers khác
+    _rembg_sessions.clear()
+    _rembg_session_loaded_at.clear()
+    import gc; gc.collect()
+    evict_ts = time.time()
+    cache.set_value(_REMBG_EVICT_KEY, evict_ts, expires_in_sec=3600)
+    cache.delete_value(_REMBG_ACTIVE_KEY)
+    frappe.logger().info(f'[rembg] Post-batch evict triggered (evict_after={evict_ts})')
+    return {'ok': True}
+
+
+@frappe.whitelist()
+def cleanup_rembg_worker():
+    """Evict rembg session trong worker Gunicorn hiện tại.
+    Trả về evicted, pid, worker_count, locked.
+    Nếu locked=True: có batch đang chạy → frontend phải dừng evict ngay.
+    """
+    global _rembg_sessions, _rembg_session_loaded_at
+
+    # Đếm workers trước (dùng cho mọi trường hợp)
+    try:
+        import subprocess
+        r = subprocess.run(
+            ['pgrep', '-c', '-f', 'gunicorn.*frappe.app:application'],
+            capture_output=True, text=True
+        )
+        worker_count = int(r.stdout.strip()) if r.returncode == 0 else 9
+    except Exception:
+        worker_count = 9
+
+    # Không evict nếu có rembg đang chạy (batch lock HOẶC single-photo editor đang inference)
+    cache = frappe.cache()
+    if cache.get_value(_REMBG_LOCK_KEY):
+        return {'evicted': False, 'pid': os.getpid(), 'worker_count': worker_count, 'locked': True}
+    active_ts = cache.get_value(_REMBG_ACTIVE_KEY)
+    if active_ts:
+        try:
+            if time.time() - float(active_ts) < 120:  # Có inference trong 2 phút qua
+                return {'evicted': False, 'pid': os.getpid(), 'worker_count': worker_count, 'locked': True}
+        except Exception:
+            pass
+
+    had_session = bool(_rembg_sessions)
+    if had_session:
+        _rembg_sessions.clear()
+        _rembg_session_loaded_at.clear()
+        import gc; gc.collect()
+
+    return {'evicted': had_session, 'pid': os.getpid(), 'worker_count': worker_count, 'locked': False}
+
+@frappe.whitelist()
+def remove_bg_rembg(image_data, model_name='birefnet-portrait'):
+    """Server-side background removal via rembg. Returns PNG base64 data-url.
+    CPU-only: CPUExecutionProvider. OMP_NUM_THREADS tuned per model/concurrent.
+    """
+    try:
+        from rembg import remove as rembg_remove, new_session
+    except ImportError:
+        frappe.throw('rembg chưa được cài đặt. Chạy: pip install rembg')
+
+    global _rembg_sessions, _rembg_session_loaded_at
+
+    # Evict session nếu scheduler đã đánh dấu idle quá 15 phút
+    _evict_rembg_if_stale()
+
+    if model_name not in _rembg_sessions:
+        # Evict các model KHÁC trước khi load model mới — tránh birefnet+u2net cùng tồn tại
+        # (birefnet ~20GB, u2net ~0.5GB; giữ cả 2 → OOM trên server 64GB với 4 workers)
+        stale_models = [m for m in list(_rembg_sessions) if m != model_name]
+        if stale_models:
+            for m in stale_models:
+                del _rembg_sessions[m]
+                _rembg_session_loaded_at.pop(m, None)
+            import gc; gc.collect()
+            frappe.logger().info(f'[rembg] Evicted models {stale_models} before loading {model_name}')
+
+        n_threads = _REMBG_ORT_THREADS.get(model_name, max(1, _CPU_CORES // 2))
+        # new_session reads OMP_NUM_THREADS when creating sess_opts internally
+        old_omp = os.environ.get('OMP_NUM_THREADS')
+        os.environ['OMP_NUM_THREADS'] = str(n_threads)
+        _rembg_sessions[model_name] = new_session(model_name,
+            providers=['CPUExecutionProvider'])
+        _rembg_session_loaded_at[model_name] = time.time()
+        if old_omp is None:
+            os.environ.pop('OMP_NUM_THREADS', None)
+        else:
+            os.environ['OMP_NUM_THREADS'] = old_omp
+
+    # Cập nhật thời điểm dùng gần nhất — reset lại 15-phút idle timer
+    try:
+        frappe.cache().set_value(_REMBG_ACTIVE_KEY, time.time(),
+                                 expires_in_sec=_REMBG_IDLE_TTL * 3)
+    except Exception:
+        pass
+
+    session = _rembg_sessions[model_name]
+    raw = image_data.split(',')[1] if ',' in image_data else image_data
+    output_bytes = rembg_remove(base64.b64decode(raw), session=session)
+    import gc; gc.collect()  # Giải phóng intermediate tensors ONNX trước khi đo RAM
+
+    # Dynamic RAM guard: sau gc, đo RAM thực tế.
+    # Nếu tổng RAM đã dùng > _REMBG_RAM_LIMIT_PCT → evict session nặng khỏi worker này.
+    # Nếu còn dư → giữ session để tái dùng nhanh cho request tiếp theo.
+    # u2net (~0.5GB): không cần kiểm tra, luôn giữ.
+    if model_name in _REMBG_HEAVY_MODELS:
+        try:
+            import psutil
+            ram_pct = psutil.virtual_memory().percent
+            if ram_pct >= _REMBG_RAM_LIMIT_PCT:
+                _rembg_sessions.pop(model_name, None)
+                _rembg_session_loaded_at.pop(model_name, None)
+                gc.collect()
+                frappe.logger().info(
+                    f'[rembg] Evicted {model_name} — RAM {ram_pct:.1f}% >= {_REMBG_RAM_LIMIT_PCT}%'
+                )
+            else:
+                frappe.logger().debug(
+                    f'[rembg] Kept {model_name} session — RAM {ram_pct:.1f}% < {_REMBG_RAM_LIMIT_PCT}%'
+                )
+        except Exception:
+            # Fail-safe: không đọc được RAM → evict để an toàn
+            _rembg_sessions.pop(model_name, None)
+            _rembg_session_loaded_at.pop(model_name, None)
+            gc.collect()
+
+    return 'data:image/png;base64,' + base64.b64encode(output_bytes).decode('utf-8')
+
+
+def cleanup_rembg_sessions():
+    """Scheduler task (mỗi 1 phút): nếu rembg không được dùng > 15 phút,
+    set Redis evict flag để tất cả worker Gunicorn sẽ tự giải phóng session
+    khi nhận request tiếp theo.
+    """
+    global _rembg_sessions, _rembg_session_loaded_at
+    try:
+        cache = frappe.cache()
+        last_used = cache.get_value(_REMBG_ACTIVE_KEY)
+        if not last_used:
+            return  # Chưa từng dùng hoặc đã cleanup rồi
+
+        idle_seconds = time.time() - float(last_used)
+        if idle_seconds < _REMBG_IDLE_TTL:
+            return  # Vẫn trong 15 phút, giữ nguyên
+
+        # Quá 15 phút không dùng → yêu cầu tất cả worker evict
+        evict_ts = time.time()
+        cache.set_value(_REMBG_EVICT_KEY, evict_ts, expires_in_sec=3600)
+        cache.delete_value(_REMBG_ACTIVE_KEY)
+
+        # Giải phóng ngay trong process scheduler này
+        _rembg_sessions.clear()
+        _rembg_session_loaded_at.clear()
+
+        frappe.logger().info(
+            f'[rembg] Cleanup triggered after {idle_seconds:.0f}s idle '
+            f'(evict_after={evict_ts})'
+        )
+    except Exception as e:
+        frappe.logger().warning(f'[rembg] cleanup_rembg_sessions error: {e}')
 
 @frappe.whitelist()
 def get_next_employee_code():
@@ -1276,9 +1541,13 @@ def process_employee_photo(employee_id, employee_name, image_data):
         if Image is None:
             frappe.throw(_("PIL (Pillow) library is not installed"))
 
+        # Auto-detect format from data-url prefix
+        save_format = 'PNG' if image_data.startswith('data:image/png') else 'JPEG'
+        file_ext = 'png' if save_format == 'PNG' else 'jpg'
+
         # Decode base64 image
         if ',' in image_data:
-            # Remove data:image/jpeg;base64, prefix if present
+            # Remove data:image/...;base64, prefix if present
             image_data = image_data.split(',')[1]
 
         file_data = base64.b64decode(image_data)
@@ -1286,22 +1555,30 @@ def process_employee_photo(employee_id, employee_name, image_data):
         # Open image with PIL
         img = Image.open(io.BytesIO(file_data))
 
-        # Convert to RGB if necessary (remove alpha channel)
-        if img.mode in ('RGBA', 'LA', 'P'):
-            background = Image.new('RGB', img.size, (255, 255, 255))
-            if img.mode == 'P':
-                img = img.convert('RGBA')
-            background.paste(img, mask=img.split()[-1] if img.mode in ('RGBA', 'LA') else None)
-            img = background
-        elif img.mode != 'RGB':
-            img = img.convert('RGB')
+        if save_format == 'JPEG':
+            # Convert to RGB if necessary (remove alpha channel for JPEG)
+            if img.mode in ('RGBA', 'LA', 'P'):
+                background = Image.new('RGB', img.size, (255, 255, 255))
+                if img.mode == 'P':
+                    img = img.convert('RGBA')
+                background.paste(img, mask=img.split()[-1] if img.mode in ('RGBA', 'LA') else None)
+                img = background
+            elif img.mode != 'RGB':
+                img = img.convert('RGB')
+        else:
+            # PNG: preserve transparency if present, otherwise convert to RGBA
+            if img.mode not in ('RGBA', 'RGB'):
+                img = img.convert('RGBA') if 'A' in img.getbands() else img.convert('RGB')
 
         # Resize to exactly 600x800px (image should already be 3:4 ratio from frontend crop)
         img = img.resize((600, 800), Image.Resampling.LANCZOS)
 
-        # Save to BytesIO with JPEG compression
+        # Save to BytesIO
         output_buffer = io.BytesIO()
-        img.save(output_buffer, format='JPEG', quality=85, optimize=True)
+        if save_format == 'JPEG':
+            img.save(output_buffer, format='JPEG', quality=85, optimize=True)
+        else:
+            img.save(output_buffer, format='PNG', optimize=True)
         output_data = output_buffer.getvalue()
 
         # Clean up employee name for file path
@@ -1309,8 +1586,8 @@ def process_employee_photo(employee_id, employee_name, image_data):
         clean_name = re.sub(r'[<>:"/\\|?*]', '', employee_name) if employee_name else 'employee'
         clean_name = ' '.join(clean_name.split())  # Normalize multiple spaces to single
 
-        # Create file name: {employee_id} {employee_name}.jpg
-        final_file_name = f"{employee_id} {clean_name}.jpg"
+        # Create file name: {employee_id} {employee_name}.{ext}
+        final_file_name = f"{employee_id} {clean_name}.{file_ext}"
 
         # Get site path
         site_path = get_site_path()

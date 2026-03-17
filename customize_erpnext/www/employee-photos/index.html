@@ -1,10 +1,13 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="vi">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Thư viện ảnh nhân viên</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@500&display=swap"
+        rel="stylesheet">
     <style>
         * {
             margin: 0;
@@ -13,9 +16,10 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
             background: #f5f7fa;
             padding: 20px;
+            color: #2e3842;
         }
 
         .container {
@@ -40,6 +44,50 @@
         .stats {
             color: #6c757d;
             font-size: 14px;
+            margin-bottom: 20px;
+        }
+
+        /* Stat Chips */
+        .stat-chips {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 15px;
+        }
+
+        .chip-stat {
+            background: #f8f9fa;
+            padding: 6px 14px;
+            border-radius: 50px;
+            font-size: 13px;
+            color: #495057;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            border: 1px solid #e9ecef;
+            transition: all 0.2s;
+        }
+
+        .chip-stat b {
+            color: #2e3842;
+        }
+
+        .chip-stat.ok {
+            background: rgba(34, 201, 122, 0.1);
+            color: #1a8a53;
+            border-color: rgba(34, 201, 122, 0.2);
+        }
+
+        .chip-stat.warn {
+            background: rgba(240, 168, 48, 0.1);
+            color: #a36f1c;
+            border-color: rgba(240, 168, 48, 0.2);
+        }
+
+        .chip-stat.info {
+            background: rgba(79, 142, 255, 0.1);
+            color: #1a56cc;
+            border-color: rgba(79, 142, 255, 0.2);
         }
 
         .search-box {
@@ -90,22 +138,85 @@
             height: 16px;
         }
 
+        /* Toggle / Pill Switch */
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 32px;
+            height: 18px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .3s;
+            border-radius: 18px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 14px;
+            width: 14px;
+            left: 2px;
+            bottom: 2px;
+            background-color: white;
+            transition: .3s;
+            border-radius: 50%;
+        }
+
+        input:checked+.slider {
+            background-color: #4f8eff;
+        }
+
+        input:checked+.slider:before {
+            transform: translateX(14px);
+        }
+
         .control-group button {
-            padding: 6px 12px;
+            padding: 8px 16px;
             border: 1px solid #d1d8dd;
-            border-radius: 4px;
-            font-size: 14px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
             cursor: pointer;
             background-color: white;
-            transition: background-color 0.2s;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
         }
 
-        .control-group button:hover {
+        .control-group button#btnGlobalUpload {
+            background-color: #4f8eff;
+            color: white;
+            border-color: #3b7dec;
+        }
+
+        .control-group button#btnGlobalUpload:hover {
+            background-color: #3b7dec;
+            box-shadow: 0 4px 12px rgba(79, 142, 255, 0.25);
+        }
+
+        .control-group button#refreshBtn {
+            color: #6c757d;
+            background: transparent;
+        }
+
+        .control-group button#refreshBtn:hover {
             background-color: #f8f9fa;
-        }
-
-        .control-group button:active {
-            background-color: #e9ecef;
+            border-color: #c1c8cd;
         }
 
         .loading {
@@ -134,6 +245,21 @@
             }
         }
 
+        .toggle-switch-label {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .controls-row {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
         .gallery {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
@@ -142,6 +268,27 @@
             background: white;
             border-radius: 8px;
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        @media (min-width: 1400px) {
+            .gallery {
+                grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+                gap: 15px;
+            }
+
+            .employee-id {
+                font-size: 12px;
+            }
+
+            .photo-info {
+                padding: 8px;
+            }
+        }
+
+        @media (min-width: 1800px) {
+            .gallery {
+                grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            }
         }
 
         .photo-card {
@@ -160,17 +307,40 @@
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
         }
 
-        .photo-card img {
-            width: 100%;
-            height: 200px;
-            object-fit: cover;
-            display: block;
+        .photo-card .photo-img-wrap {
+            aspect-ratio: 3 / 4;
+            overflow: hidden;
             background-color: #e9ecef;
+            position: relative;
         }
 
-        /* Optimize image loading */
-        .photo-card img[loading="lazy"] {
-            min-height: 200px;
+        .photo-card img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+            transition: transform 0.4s;
+        }
+
+        .photo-card:hover img {
+            transform: scale(1.05);
+        }
+
+        /* Skeleton Animation */
+        .skeleton {
+            background: linear-gradient(90deg, #f0f0f0 25%, #f8f8f8 50%, #f0f0f0 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+        }
+
+        @keyframes shimmer {
+            0% {
+                background-position: 200% 0;
+            }
+
+            100% {
+                background-position: -200% 0;
+            }
         }
 
         .photo-info {
@@ -809,37 +979,92 @@
                 padding: 6px 10px;
             }
 
-            /* Ẩn text label, chỉ hiện icon trên mobile */
-            .ctrl-text {
+            /* Header */
+            .header {
+                padding: 15px;
+            }
+
+            .stat-chips {
+                gap: 8px;
+            }
+
+            .chip-stat {
+                padding: 4px 10px;
+                font-size: 12px;
+            }
+
+            #btnFilterToggle {
+                display: flex !important;
+            }
+
+            .filters-row {
                 display: none;
+                /* Hidden by default on mobile */
+                flex-direction: column;
+                align-items: stretch !important;
+                background: #f8f9fa;
+                padding: 15px;
+                border-radius: 8px;
+                margin-top: 10px;
+                border: 1px solid #e9ecef;
+            }
+
+            .filters-row .control-group {
+                justify-content: space-between;
+                padding: 8px 0;
+                border-bottom: 1px solid #eee;
+            }
+
+            .filters-row .control-group:last-child {
+                border-bottom: none;
+            }
+
+            .ctrl-text {
+                display: inline;
             }
 
             /* Gallery: 2 columns on phone */
             .gallery {
-                grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-                gap: 10px;
+                grid-template-columns: repeat(2, 1fr);
+                gap: 12px;
                 padding: 12px;
             }
 
             /* Photo card */
             .photo-card img {
-                height: 170px;
+                height: auto;
+                aspect-ratio: 3/4;
             }
 
-            .photo-info {
-                padding: 8px 10px;
+            /* Mobile action bar for photo cards */
+            .photo-card .photo-img-wrap::after {
+                content: '';
+                position: absolute;
+                inset: 0;
+                background: linear-gradient(to top, rgba(0, 0, 0, 0.7) 0%, transparent 60%);
+                opacity: 0;
+                transition: opacity 0.3s;
+                pointer-events: none;
             }
 
-            .employee-id {
-                font-size: 12px;
+            .photo-card:active .photo-img-wrap::after {
+                opacity: 1;
             }
 
-            /* Edit/upload/delete buttons: always visible on mobile (no hover available) */
             .photo-card .edit-btn,
             .photo-card .upload-btn,
             .photo-card .delete-btn {
+                opacity: 0;
+                transform: translateY(15px);
+                transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+                z-index: 2;
+            }
+
+            .photo-card:active .edit-btn,
+            .photo-card:active .upload-btn,
+            .photo-card:active .delete-btn {
                 opacity: 1;
-                transform: scale(1);
+                transform: translateY(0);
             }
 
             /* Editor modal: full screen on mobile */
@@ -881,13 +1106,10 @@
                 padding: 8px;
             }
 
-            .photo-card img {
-                height: 150px;
-            }
-
-            /* Hide text labels, keep icons */
+            /* Keep text labels visible for clarity */
             .ctrl-text {
-                display: none;
+                display: inline;
+                font-size: 12px;
             }
 
             /* Upload choice buttons: stack vertically */
@@ -895,83 +1117,773 @@
                 flex-direction: column !important;
             }
         }
+
+        /* ── Floating back to top button ── */
+        .back-to-top {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 50px;
+            height: 50px;
+            background: #4f8eff;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 15px rgba(79, 142, 255, 0.4);
+            z-index: 1000; /* Lower than editor Modal (9999) */
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            font-size: 20px;
+            outline: none;
+        }
+
+        .back-to-top.show {
+            display: flex;
+            animation: popIn 0.3s forwards;
+        }
+
+        @keyframes popIn {
+            from {
+                transform: scale(0) rotate(-180deg);
+                opacity: 0;
+            }
+
+            to {
+                transform: scale(1) rotate(0deg);
+                opacity: 1;
+            }
+        }
+
+        .back-to-top:hover {
+            transform: translateY(-5px) scale(1.1);
+            background: #3b7dec;
+            box-shadow: 0 6px 20px rgba(79, 142, 255, 0.5);
+        }
+
+        .back-to-top:active {
+            transform: scale(0.95);
+        }
+
+        /* ═══════════════════════════════════════════
+           MULTI-SELECT MODE
+           ═══════════════════════════════════════════ */
+        .btn-multi-select {
+            padding: 8px 16px;
+            border: 1px solid #4f8eff;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            background-color: white;
+            color: #4f8eff;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .btn-multi-select:hover,
+        .btn-multi-select.active {
+            background-color: #4f8eff;
+            color: white;
+        }
+
+        .gallery.multi-select-active .photo-card {
+            cursor: pointer;
+            user-select: none;
+        }
+        .gallery.multi-select-active .photo-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+        }
+        .gallery.multi-select-active .photo-card.selected {
+            outline: 3px solid #4f8eff;
+            outline-offset: 2px;
+            transform: scale(0.97);
+        }
+
+        .card-select-overlay {
+            display: none;
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            width: 22px;
+            height: 22px;
+            background: rgba(255,255,255,0.9);
+            border: 2px solid #aaa;
+            border-radius: 5px;
+            z-index: 10;
+            pointer-events: none;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+            transition: all 0.15s;
+            backdrop-filter: blur(2px);
+        }
+        .gallery.multi-select-active .card-select-overlay {
+            display: flex;
+        }
+        .gallery.multi-select-active .edit-btn,
+        .gallery.multi-select-active .upload-btn,
+        .gallery.multi-select-active .delete-btn {
+            display: none !important;
+        }
+        .photo-card.selected .card-select-overlay {
+            background: #4f8eff;
+            border-color: #4f8eff;
+            color: white;
+        }
+
+        /* ── Bulk toolbar (fixed bottom) ── */
+        .bulk-toolbar {
+            display: none;
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            z-index: 9000;
+            background: #161920;
+            border-top: 1px solid #252b35;
+            padding: 12px 20px;
+            box-shadow: 0 -4px 24px rgba(0,0,0,0.35);
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            animation: slideUp 0.2s ease;
+        }
+        .bulk-toolbar.show {
+            display: flex;
+        }
+        @keyframes slideUp {
+            from { transform: translateY(100%); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        .bulk-count {
+            color: #dde3f0;
+            font-size: 14px;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        .bulk-count span {
+            color: #4f8eff;
+            font-size: 18px;
+            font-weight: 700;
+        }
+        .bulk-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-left: auto;
+        }
+        .btn-bulk {
+            padding: 8px 14px;
+            border-radius: 7px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            transition: all 0.15s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .btn-bulk:disabled { opacity: 0.4; cursor: not-allowed; }
+        .btn-bulk-download {
+            background: #1e2229;
+            color: #4f8eff;
+            border: 1px solid #4f8eff;
+        }
+        .btn-bulk-download:not(:disabled):hover { background: rgba(79,142,255,0.15); }
+        .btn-bulk-id {
+            background: linear-gradient(135deg, #4f8eff, #00d4b0);
+            color: white;
+        }
+        .btn-bulk-id:not(:disabled):hover { box-shadow: 0 0 0 3px rgba(79,142,255,0.3); }
+        .btn-bulk-select-all {
+            background: #252b35;
+            color: #9aa3b8;
+            border: 1px solid #323a48;
+        }
+        .btn-bulk-select-all:hover { background: #2d3545; color: #dde3f0; }
+        .btn-bulk-exit {
+            background: transparent;
+            color: #ff5a5a;
+            border: 1px solid rgba(255,90,90,0.4);
+            padding: 8px 14px;
+            border-radius: 7px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .btn-bulk-exit:hover { background: rgba(255,90,90,0.1); }
+
+        @media (max-width: 600px) {
+            .bulk-toolbar { padding: 10px 12px; }
+            .bulk-actions { margin-left: 0; width: 100%; }
+            .btn-bulk { flex: 1; justify-content: center; font-size: 12px; padding: 7px 10px; }
+            .btn-bulk-exit { width: 100%; justify-content: center; }
+            /* batch enabled on mobile — processing is server-side (rembg) */
+            .btn-bulk-label { display: none; }
+        }
+
+        /* ═══════════════════════════════════════════
+           BATCH ID PHOTO MODAL
+           ═══════════════════════════════════════════ */
+        #batchIdModal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 10002;
+            background: rgba(0,0,0,0.88);
+            backdrop-filter: blur(6px);
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        #batchIdModal.open { display: flex; }
+        .batch-modal-box {
+            background: #161920;
+            border: 1px solid #252b35;
+            border-radius: 0;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .batch-modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 20px;
+            border-bottom: 1px solid #252b35;
+            flex-shrink: 0;
+        }
+        .batch-modal-header h3 {
+            color: #dde3f0;
+            font-size: 15px;
+            font-weight: 600;
+            margin: 0;
+        }
+        .batch-modal-progress {
+            padding: 10px 20px 14px;
+            background: #1e2229;
+            border-bottom: 1px solid #252b35;
+            flex-shrink: 0;
+        }
+        .batch-progress-text {
+            color: #8a95b0;
+            font-size: 12px;
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 6px;
+        }
+        .batch-progress-bar-wrap {
+            height: 4px;
+            background: #252b35;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+        .batch-progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #4f8eff, #00d4b0);
+            border-radius: 2px;
+            transition: width 0.3s;
+            width: 0%;
+        }
+        .batch-grid {
+            overflow-y: auto;
+            padding: 16px;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            grid-auto-rows: calc((100vh - 290px) / 2);
+            align-content: start;
+            gap: 12px;
+            flex: 1;
+            min-height: 0;
+        }
+        .batch-card {
+            background: #1e2229;
+            border: 2px solid #323a48;
+            border-radius: 10px;
+            overflow: hidden;
+            position: relative;
+            transition: all 0.2s;
+            display: flex;
+            flex-direction: column;
+        }
+        .batch-card.approved { border-color: #22c97a; box-shadow: 0 0 0 1px #22c97a; }
+        .batch-card.skipped { opacity: 0.4; border-color: #ff5a5a; }
+        .batch-card-img {
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
+            position: relative;
+            background: #0e1015;
+        }
+        .batch-card-img img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            display: block;
+        }
+        .batch-card-loading {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: #0e1015;
+            color: #8a95b0;
+            font-size: 11px;
+            gap: 8px;
+        }
+        .batch-card-loading .mini-spinner {
+            width: 22px;
+            height: 22px;
+            border: 2px solid #252b35;
+            border-top-color: #4f8eff;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        .batch-card-name {
+            color: #dde3f0;
+            font-size: 11px;
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            flex: 1;
+            min-width: 0;
+        }
+        .batch-card-id {
+            padding: 0 8px 6px;
+            color: #8a95b0;
+            font-size: 10px;
+            text-align: center;
+            font-family: monospace;
+        }
+        .batch-card-body {
+            display: flex;
+            flex: 1;
+            min-height: 0;
+        }
+        .batch-card-side {
+            width: 72px;
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            padding: 6px 5px;
+            border-left: 1px solid #252b35;
+            background: #191e26;
+            justify-content: center;
+        }
+        .batch-img-actions {
+            position: absolute;
+            bottom: 0; left: 0; right: 0;
+            display: flex;
+        }
+        .batch-card-bottom {
+            display: flex;
+            align-items: center;
+            padding: 4px 8px;
+            flex-shrink: 0;
+            border-top: 1px solid #252b35;
+        }
+        .btn-batch-approve, .btn-batch-skip {
+            flex: 1;
+            padding: 6px 4px;
+            border: none;
+            font-size: 11px; font-weight: 600;
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            gap: 3px; transition: all 0.15s;
+        }
+        .btn-batch-approve { background: rgba(34,201,122,0.88); color: white; }
+        .btn-batch-approve:hover,
+        .batch-card.approved .btn-batch-approve { background: #22c97a; }
+        .btn-batch-skip { background: rgba(255,90,90,0.88); color: white; }
+        .btn-batch-skip:hover,
+        .batch-card.skipped .btn-batch-skip { background: #ff5a5a; }
+
+        .batch-card-badge {
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            font-size: 11px;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+        }
+        .batch-card.approved .batch-card-badge { display: flex; background: #22c97a; color: #0e1015; }
+        .batch-card.skipped .batch-card-badge { display: flex; background: #ff5a5a; color: white; }
+
+        .batch-modal-footer {
+            padding: 14px 20px;
+            border-top: 1px solid #252b35;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            flex-shrink: 0;
+        }
+        @media (max-width: 600px) {
+            .batch-modal-footer { padding: 10px 12px; }
+            .batch-footer-row1 { flex-direction: column !important; align-items: flex-start !important; }
+            .batch-crop-global-btns { flex-wrap: wrap !important; }
+            #bgeModelRow, #bgeConcRow { padding-left: 0 !important; flex-wrap: wrap; }
+            #bgeConcHint { display: none; }
+            .btn-batch-save { font-size: 13px; padding: 8px 14px; }
+        }
+        .batch-footer-info { color: #8a95b0; font-size: 13px; }
+        .batch-footer-info b { color: #22c97a; }
+        .btn-batch-save {
+            padding: 10px 24px;
+            background: linear-gradient(135deg, #4f8eff, #00d4b0);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .btn-batch-save:disabled { opacity: 0.35; cursor: not-allowed; }
+        .btn-batch-save:not(:disabled):hover { box-shadow: 0 0 0 3px rgba(79,142,255,0.3); }
+        .btn-batch-cancel {
+            padding: 10px 16px;
+            background: #252b35;
+            color: #9aa3b8;
+            border: 1px solid #323a48;
+            border-radius: 8px;
+            font-size: 13px;
+            cursor: pointer;
+        }
+        .btn-batch-cancel:hover { background: #2d3545; color: #dde3f0; }
+        .batch-bg-swatches {
+            display: flex;
+            gap: 5px;
+            align-items: center;
+        }
+        .batch-bg-swatch {
+            width: 20px; height: 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: all 0.15s;
+            flex-shrink: 0;
+        }
+        .batch-bg-swatch.on {
+            border-color: #4f8eff;
+            box-shadow: 0 0 0 1px #4f8eff;
+        }
+        .batch-bg-swatch:hover:not(.on) { border-color: #8a95b0; }
+        .bcpreset-btn {
+            padding: 4px 2px;
+            background: #1a1f28; color: #8a95b0;
+            border: 1px solid #323a48; border-radius: 4px;
+            font-size: 11px; cursor: pointer; transition: all 0.15s;
+            text-align: center; min-width: 0;
+        }
+        .bcpreset-btn.active {
+            background: rgba(79,142,255,0.18);
+            color: #7fb3ff; border-color: rgba(79,142,255,0.5);
+        }
+        .bcpreset-btn:hover:not(.active) { background: #252b35; color: #dde3f0; }
+        .btn-bg-engine {
+            padding: 3px 8px;
+            background: #1a1f28; color: #8a95b0;
+            border: 1px solid #323a48; border-radius: 4px;
+            font-size: 11px; cursor: pointer; transition: all 0.15s;
+        }
+        .btn-bg-engine.active {
+            background: rgba(79,142,255,0.18);
+            color: #7fb3ff; border-color: rgba(79,142,255,0.5);
+        }
+        .btn-batch-adj {
+            padding: 5px 10px;
+            background: #252b35;
+            color: #9aa3b8;
+            border: 1px solid #323a48;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+        .btn-batch-adj:hover { background: #2d3545; color: #dde3f0; }
+
+        /* ── Download progress toast ── */
+        #downloadProgressToast {
+            position: fixed;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #1e2229;
+            border: 1px solid #323a48;
+            color: #dde3f0;
+            padding: 12px 20px;
+            border-radius: 10px;
+            font-size: 13px;
+            z-index: 10100;
+            display: none;
+            align-items: center;
+            gap: 10px;
+            box-shadow: 0 6px 24px rgba(0,0,0,.45);
+            white-space: nowrap;
+        }
+        #downloadProgressToast.show { display: flex; }
+        #downloadProgressToast .mini-spinner {
+            width: 16px; height: 16px;
+            border: 2px solid #323a48;
+            border-top-color: #4f8eff;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            flex-shrink: 0;
+        }
+        /* ═══════════════════════════════════════════
+           BATCH STEP 1 — original + crop overlay
+           ═══════════════════════════════════════════ */
+        .batch-step-bar {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+        }
+        .batch-step-pill {
+            padding: 3px 12px;
+            border-radius: 20px;
+            background: #252b35;
+            color: #8a95b0;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .batch-step-pill.active {
+            background: rgba(79,142,255,0.2);
+            color: #4f8eff;
+        }
+        .batch-step-pill.done {
+            background: rgba(34,201,122,0.15);
+            color: #22c97a;
+        }
+        .batch-step-arrow { color: #323a48; font-size: 11px; }
+
+        .batch-s1-card {
+            background: #1e2229;
+            border: 2px solid #323a48;
+            border-radius: 10px;
+            overflow: hidden;
+            transition: border-color 0.15s;
+        }
+        .batch-s1-card.crop-adjusted { border-color: #22c97a; }
+
+        .s1-img-wrap {
+            position: relative;
+            height: 200px;
+            background: #0e1015;
+            overflow: hidden;
+        }
+        .s1-img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            display: block;
+        }
+        .s1-crop-box {
+            position: absolute;
+            border: 2px solid #22c97a;
+            box-shadow: 0 0 0 2000px rgba(0,0,0,0.52);
+            z-index: 2;
+            display: none;
+            cursor: move;
+            touch-action: none;
+        }
+        .s1-crop-box:hover { border-color: #4fffb0; }
+        .s1-crop-box.dragging { border-color: #4f8eff; opacity: 0.9; }
+        .s1-crop-handle {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            background: #22c97a;
+            border: 2px solid #0e1015;
+            border-radius: 50%;
+            z-index: 3;
+        }
+        .s1-crop-handle[data-handle="nw"] { top: -6px;    left: -6px;   cursor: nw-resize; }
+        .s1-crop-handle[data-handle="ne"] { top: -6px;    right: -6px;  cursor: ne-resize; }
+        .s1-crop-handle[data-handle="sw"] { bottom: -6px; left: -6px;   cursor: sw-resize; }
+        .s1-crop-handle[data-handle="se"] { bottom: -6px; right: -6px;  cursor: se-resize; }
+        .s1-card-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 6px 8px;
+            gap: 6px;
+        }
+        .s1-card-name {
+            color: #dde3f0;
+            font-size: 11px;
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            flex: 1;
+        }
+        .s1-card-id {
+            color: #8a95b0;
+            font-size: 10px;
+            font-family: monospace;
+            white-space: nowrap;
+        }
+        .s1-adjust-btn {
+            padding: 3px 7px;
+            background: rgba(79,142,255,0.15);
+            color: #4f8eff;
+            border: 1px solid rgba(79,142,255,0.3);
+            border-radius: 4px;
+            font-size: 11px;
+            cursor: pointer;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+        .s1-adjust-btn:hover { background: rgba(79,142,255,0.3); }
+        .s1-no-photo {
+            height: 200px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #ff5a5a;
+            font-size: 11px;
+            flex-direction: column;
+            gap: 6px;
+            background: #1e2229;
+        }
     </style>
     <!-- Cropper.js for crop step (same as employee.js) -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
     <!-- Shared photo crop utilities (transparency detection + background fill) -->
     <script src="/assets/customize_erpnext/js/photo_crop_shared.js"></script>
+    <!-- Shared photo processing utilities (filters, analysis, bg detection) -->
+    <script src="/assets/customize_erpnext/js/photo_processing_utils.js"></script>
+    <!-- face-api.js for batch crop face detection -->
+    <script type="module">
+        import * as faceapi from '/assets/customize_erpnext/face_api/face-api.esm.js';
+        window.faceapi = faceapi;
+    </script>
     <script>
         // Inject CSRF token from Frappe backend context
         window.csrf_token = "{{ csrf_token }}";
+    </script>
+    <!-- Pre-load @imgly background-removal model so batch processing is fast -->
+    <script type="module">
+        const _p = import('https://esm.sh/@imgly/background-removal@1.4.5');
+        window.__batchImglyLoader = () => _p;
+        window.addEventListener('load', () => setTimeout(async () => {
+            if (window.__batchImglyLoader) await window.__batchImglyLoader().catch(() => {});
+        }, 3000));
     </script>
 </head>
 
 <body>
     <div class="container">
         <div class="header">
-            <h1>📸 Thư viện ảnh nhân viên</h1>
-            <div class="stats" id="stats">Đang tải...</div>
-            <div class="controls-row">
-                <input type="text" class="search-box" id="searchBox"
-                    placeholder="Tìm kiếm theo mã hoặc tên nhân viên...">
+            <div
+                style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; flex-wrap: wrap; gap: 15px;">
+                <h1 style="margin-bottom: 0;">📸 Thư viện ảnh nhân viên</h1>
+                <div class="stat-chips" id="statChips">
+                    <div class="chip-stat info"><span>👤</span> <b id="statTotal">--</b> nhân viên</div>
+                    <div class="chip-stat ok"><span>📸</span> <b id="statHasPhoto">--</b> có ảnh</div>
+                    <div class="chip-stat warn"><span>⚠️</span> <b id="statNoPhoto">--</b> chưa có</div>
+                    <div class="chip-stat" id="statUpdate" style="font-size: 11px; opacity: 0.7;">Đang tải...</div>
+                </div>
+            </div>
 
-                <div class="control-group">
-                    <label title="Chỉ hiển thị nhân viên đang làm việc">
-                        <input type="checkbox" id="showActiveOnlyCheckbox" checked>
-                        <span class="ctrl-icon">✅</span><span class="ctrl-text"> Đang làm việc</span>
-                    </label>
+            <div class="controls-container">
+                <!-- Row 1: Search + Actions -->
+                <div class="controls-row" style="margin-bottom: 12px;">
+                    <div style="position: relative; flex: 1; min-width: 250px;">
+                        <span
+                            style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); opacity: 0.5;">🔍</span>
+                        <input type="text" class="search-box" id="searchBox"
+                            placeholder="Tìm kiếm theo mã hoặc tên nhân viên..."
+                            style="width: 100%; margin: 0; padding-left: 36px;">
+                    </div>
+
+                    <div class="control-group" style="margin-left: auto;">
+                        <button id="btnFilterToggle" class="mobile-only" style="display: none;">🎚️ Bộ lọc</button>
+                        <button id="btnGlobalUpload" title='Tên file theo định dạng: Mã NV_Họ Tên&#10;VD: "TIQN-0148 Nguyễn Thái Sơn.JPG"'>📤 <span class="ctrl-text">Tải ảnh lên</span></button>
+                        <input type="file" id="globalPhotoInput" accept="image/*" multiple style="display:none;">
+                        <button id="btnMultiSelect" class="btn-multi-select">☑️ <span class="ctrl-text">Chọn nhiều</span></button>
+                        <button id="refreshBtn">🔄 <span class="ctrl-text">Làm mới</span></button>
+                    </div>
                 </div>
 
-                <div class="control-group">
-                    <label title="Chỉ hiển thị nhân viên chưa có ảnh">
-                        <input type="checkbox" id="showNoPhotoOnlyCheckbox">
-                        <span class="ctrl-icon">🖼️</span><span class="ctrl-text"> Chưa có ảnh</span>
-                    </label>
-                </div>
+                <!-- Row 2: Filters -->
+                <div class="controls-row filters-row" id="filtersRow">
+                    <div class="control-group">
+                        <label class="toggle-switch-label" title="Chỉ hiển thị nhân viên đang làm việc">
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="showActiveOnlyCheckbox" checked>
+                                <span class="slider"></span>
+                            </label>
+                            <span class="ctrl-text"> Đang làm việc</span>
+                        </label>
+                    </div>
 
-                <div class="control-group" title="Lọc theo ngày vào làm">
-                    <span class="ctrl-icon">📅</span><span class="ctrl-text"> </span>
-                    <input type="date" id="dateFilterFrom" title="Từ ngày" class="date-input">
-                    <span>-</span>
-                    <input type="date" id="dateFilterTo" title="Đến ngày" class="date-input">
-                </div>
+                    <div class="control-group">
+                        <label class="toggle-switch-label" title="Chỉ hiển thị nhân viên chưa có ảnh">
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="showNoPhotoOnlyCheckbox">
+                                <span class="slider"></span>
+                            </label>
+                            <span class="ctrl-text"> Chưa có ảnh</span>
+                        </label>
+                    </div>
 
-                <div class="control-group">
-                    <label title="Hiển thị số điện thoại">
-                        <input type="checkbox" id="showPhoneCheckbox">
-                        <span class="ctrl-icon">📱</span><span class="ctrl-text"> SĐT</span>
-                    </label>
-                </div>
+                    <div class="control-group" title="Lọc theo ngày vào làm">
+                        <span class="ctrl-icon">📅</span>
+                        <input type="date" id="dateFilterFrom" title="Từ ngày" class="date-input"
+                            style="padding: 4px 8px; border: 1px solid #d1d8dd; border-radius: 4px;">
+                        <span>-</span>
+                        <input type="date" id="dateFilterTo" title="Đến ngày" class="date-input"
+                            style="padding: 4px 8px; border: 1px solid #d1d8dd; border-radius: 4px;">
+                    </div>
 
-                <div class="control-group">
-                    <label title="Hiển thị địa chỉ">
-                        <input type="checkbox" id="showAddressCheckbox">
-                        <span class="ctrl-icon">📍</span><span class="ctrl-text"> Địa chỉ</span>
-                    </label>
-                </div>
+                    <div class="control-group">
+                        <span class="ctrl-icon" title="Lọc theo nhóm">🏷️</span>
+                        <select id="groupSelect" title="Lọc theo nhóm"
+                            style="padding: 4px 8px; border: 1px solid #d1d8dd; border-radius: 4px;">
+                            <option value="">Tất cả nhóm</option>
+                        </select>
+                    </div>
 
-                <div class="control-group">
-                    <span class="ctrl-icon" title="Lọc theo nhóm">🏷️</span>
-                    <select id="groupSelect" title="Lọc theo nhóm">
-                        <option value="">Tất cả nhóm</option>
-                    </select>
-                </div>
+                    <div class="control-group">
+                        <span class="ctrl-icon" title="Sắp xếp mã nhân viên">🔤</span>
+                        <select id="sortOrderSelect" title="Sắp xếp mã nhân viên"
+                            style="padding: 4px 8px; border: 1px solid #d1d8dd; border-radius: 4px;">
+                            <option value="desc">Z-A</option>
+                            <option value="asc">A-Z</option>
+                        </select>
+                    </div>
 
-                <div class="control-group">
-                    <span class="ctrl-icon" title="Sắp xếp mã nhân viên">🔤</span>
-                    <select id="sortOrderSelect" title="Sắp xếp mã nhân viên">
-                        <option value="desc">Z-A</option>
-                        <option value="asc">A-Z</option>
-                    </select>
-                </div>
-
-                <div class="control-group" style="margin-left: auto; gap: 10px;">
-                    <button id="btnGlobalUpload" style="background:#4f8eff; color:white; border:none;">📤 Tải ảnh
-                        lên</button>
-                    <input type="file" id="globalPhotoInput" accept="image/*" multiple style="display:none;">
-
-                    <button id="refreshBtn">🔄 Làm mới</button>
+                    <div class="control-group">
+                        <label class="toggle-switch-label" title="Hiển thị SĐT/Địa chỉ">
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="showExtraInfoCheckbox">
+                                <span class="slider"></span>
+                            </label>
+                            <span class="ctrl-text"> Hiện SĐT/Địa chỉ</span>
+                        </label>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1098,6 +2010,7 @@
     <script>
         let allPhotos = [];
         let filteredPhotos = [];
+        const sessionTimestamp = Date.now(); // Global timestamp for this session
 
         // Cache configuration
         const CACHE_CONFIG = {
@@ -1152,11 +2065,9 @@
 
         function updateLastUpdateDisplay() {
             const timestamp = localStorage.getItem(CACHE_CONFIG.TIMESTAMP_KEY);
-            const statsEl = document.getElementById('stats');
-            if (timestamp && statsEl.textContent) {
-                const currentText = statsEl.textContent.split('|')[0] + '| ' +
-                    statsEl.textContent.split('|')[1];
-                statsEl.textContent = currentText + ` | Cập nhật: ${timestamp}`;
+            const updateEl = document.getElementById('statUpdate');
+            if (timestamp && updateEl) {
+                updateEl.textContent = `Cập nhật: ${timestamp}`;
             }
         }
 
@@ -1180,15 +2091,23 @@
 
         // Force refresh function
         async function refreshData() {
+            const btn = document.getElementById('refreshBtn');
             const loading = document.getElementById('loading');
             loading.style.display = 'block';
             document.getElementById('gallery').style.display = 'none';
+            if (btn) { btn.disabled = true; btn.textContent = '⏳ Đang làm mới...'; }
 
+            // Giải phóng RAM rembg trên tất cả workers đồng thời với reload data
+            const evictPromise = _evictAllRembgWorkers();
             clearCache();
-            await loadGroups(true);
-            await loadPhotos(true);
+            await Promise.all([
+                loadGroups(true),
+                loadPhotos(true),
+                evictPromise
+            ]);
 
             loading.style.display = 'none';
+            if (btn) { btn.disabled = false; btn.innerHTML = '🔄 <span class="ctrl-text">Làm mới</span>'; }
         }
 
         // Load photos on page load
@@ -1201,23 +2120,10 @@
                 applyFilters();
             });
 
-            document.getElementById('showPhoneCheckbox').addEventListener('change', function (e) {
+            document.getElementById('showExtraInfoCheckbox').addEventListener('change', function (e) {
                 if (e.target.checked) {
                     // Ask for password
-                    const password = prompt('Nhập mật khẩu để xem số điện thoại:');
-                    if (password !== '1111') {
-                        alert('Mật khẩu không đúng!');
-                        e.target.checked = false;
-                        return;
-                    }
-                }
-                displayPhotos();
-            });
-
-            document.getElementById('showAddressCheckbox').addEventListener('change', function (e) {
-                if (e.target.checked) {
-                    // Ask for password
-                    const password = prompt('Nhập mật khẩu để xem địa chỉ:');
+                    const password = prompt('Nhập mật khẩu để xem số điện thoại và địa chỉ:');
                     if (password !== '1111') {
                         alert('Mật khẩu không đúng!');
                         e.target.checked = false;
@@ -1247,16 +2153,39 @@
                 applyFilters();
             });
 
-            // Handle global upload click
-            document.getElementById('btnGlobalUpload').addEventListener('click', function () {
-                document.getElementById('globalPhotoInput').click();
-            });
-            document.getElementById('globalPhotoInput').addEventListener('change', handleGlobalPhotoUpload);
-
             document.getElementById('refreshBtn').addEventListener('click', function () {
                 refreshData();
             });
+
+            // Filter toggle for mobile
+            document.getElementById('btnFilterToggle').addEventListener('click', function () {
+                const filtersRow = document.getElementById('filtersRow');
+                const isHidden = window.getComputedStyle(filtersRow).display === 'none';
+                filtersRow.style.display = isHidden ? 'flex' : 'none';
+                this.classList.toggle('active', isHidden);
+            });
+
+            // Back to Top button visibility
+            window.addEventListener('scroll', function () {
+                const btn = document.getElementById('backToTop');
+                if (btn) {
+                    if (window.scrollY > 400) {
+                        btn.classList.add('show');
+                    } else {
+                        btn.classList.remove('show');
+                    }
+                }
+            });
         });
+
+        // Swipe to close modal
+        let touchStartY = 0;
+        const modalEl = document.getElementById('modal');
+        modalEl.addEventListener('touchstart', e => { touchStartY = e.touches[0].clientY; }, { passive: true });
+        modalEl.addEventListener('touchend', e => {
+            const touchEndY = e.changedTouches[0].clientY;
+            if (touchEndY - touchStartY > 100) modalEl.style.display = 'none';
+        }, { passive: true });
 
         async function loadGroups(forceRefresh = false) {
             try {
@@ -1308,6 +2237,7 @@
 
                 // If no cache, fetch from API
                 if (!photos) {
+                    showSkeleton();
                     const response = await fetch('/api/method/customize_erpnext.api.employee_photos_viewer.api.get_employee_photos?show_active_only=0&sort_order=asc&custom_group=');
                     const data = await response.json();
 
@@ -1369,13 +2299,15 @@
                 if (dateFrom || dateTo) {
                     if (!photo.date_of_joining) return false;
                     const joinDate = new Date(photo.date_of_joining);
+                    if (isNaN(joinDate.getTime())) return true; // ignore invalid dates in data
+
                     if (dateFrom) {
                         const fromDate = new Date(dateFrom);
-                        if (joinDate < fromDate) return false;
+                        if (!isNaN(fromDate.getTime()) && joinDate < fromDate) return false;
                     }
                     if (dateTo) {
                         const toDate = new Date(dateTo);
-                        if (joinDate > toDate) return false;
+                        if (!isNaN(toDate.getTime()) && joinDate > toDate) return false;
                     }
                 }
 
@@ -1421,8 +2353,7 @@
         function displayPhotos() {
             const gallery = document.getElementById('gallery');
             const loading = document.getElementById('loading');
-            const showPhone = document.getElementById('showPhoneCheckbox').checked;
-            const showAddress = document.getElementById('showAddressCheckbox').checked;
+            const showExtraInfo = document.getElementById('showExtraInfoCheckbox').checked;
 
             loading.style.display = 'none';
 
@@ -1439,23 +2370,29 @@
                 const groupInfo = photo.custom_group ? `<div class="group-info">📁 ${photo.custom_group}</div>` : '';
                 const employeeLink = photo.employee_id ? `/app/employee/${encodeURIComponent(photo.employee_id)}` : '#';
 
-                // Phone info
-                const phoneInfo = showPhone && photo.cell_number ? `<div class="phone-info">📱 ${photo.cell_number}</div>` : '';
+                // Extra info (Phone & Address)
+                let extraInfoHtml = '';
+                if (showExtraInfo) {
+                    if (photo.cell_number) extraInfoHtml += `<div class="phone-info">📱 ${photo.cell_number}</div>`;
+                    if (photo.custom_current_address_full) extraInfoHtml += `<div class="address-info">📍 ${photo.custom_current_address_full}</div>`;
+                }
 
-                // Address info
-                const addressInfo = showAddress && photo.custom_current_address_full ? `<div class="address-info">📍 ${photo.custom_current_address_full}</div>` : '';
-
-                const photoUrl = photo.url || '/assets/erpnext/images/default-avatar.png';
+                const basePhotoUrl = photo.url || '/assets/erpnext/images/default-avatar.png';
+                // Add session timestamp to force fresh load if it's a real photo
+                const photoUrl = photo.url ? (basePhotoUrl + (basePhotoUrl.includes('?') ? '&' : '?') + 't=' + sessionTimestamp) : basePhotoUrl;
                 const fileInfoStr = photo.size ? formatFileSize(photo.size) : '';
-                const dateOfJoiningStr = photo.date_of_joining ? `<div class="file-info" style="margin-top:4px;">Nhận việc: ${photo.date_of_joining}</div>` : '';
+                const dateOfJoiningStr = photo.date_of_joining ? `<div class="file-info" style="margin-top:4px;">Nhận việc: ${photo.date_of_joining.split('-').reverse().join('/')}</div>` : '';
 
                 const photoJson = JSON.stringify(photo).replace(/"/g, '&quot;');
                 return `
-                    <div class="photo-card">
-                        <img src="${photoUrl}" alt="${photo.display_name}" loading="lazy" onclick="openModal('${photoUrl}', '${photo.display_name}')">
-                        ${photo.url ? `<button class="edit-btn" onclick="openPhotoEditor(${photoJson}, event)" title="Chỉnh sửa ảnh">✏️</button>` : ''}
-                        <button class="upload-btn" onclick="openUploadDialog(${photoJson}, event)" title="Tải lên/Chụp ảnh">📷</button>
-                        ${photo.url ? `<button class="delete-btn" onclick="openDeleteDialog(${photoJson}, event)" title="Xóa ảnh">🗑</button>` : ''}
+                    <div class="photo-card" data-emp-id="${photo.employee_id}" onclick="onCardClick(${photoJson}, '${photoUrl}', event)">
+                        <div class="photo-img-wrap">
+                            <div class="card-select-overlay">✓</div>
+                            <img src="${photoUrl}" alt="${photo.display_name}" loading="lazy">
+                            ${photo.url ? `<button class="edit-btn" onclick="openPhotoEditor(${photoJson}, event)" title="Chỉnh sửa ảnh">✏️</button>` : ''}
+                            <button class="upload-btn" onclick="openUploadDialog(${photoJson}, event)" title="Tải lên/Chụp ảnh">📷</button>
+                            ${photo.url ? `<button class="delete-btn" onclick="openDeleteDialog(${photoJson}, event)" title="Xóa ảnh">🗑</button>` : ''}
+                        </div>
                         <div class="card-save-flash">✓</div>
                         <div class="photo-info">
                             <a href="${employeeLink}" class="${nameClass} employee-link" onclick="event.stopPropagation()" target="_blank">
@@ -1463,8 +2400,7 @@
                             </a>
                             ${statusBadge}
                             ${groupInfo}
-                            ${phoneInfo}
-                            ${addressInfo}
+                            ${extraInfoHtml}
                             ${dateOfJoiningStr}
                             <div class="file-info">${fileInfoStr}</div>
                         </div>
@@ -1475,10 +2411,38 @@
             gallery.style.display = 'grid';
         }
 
+        function showSkeleton() {
+            const gallery = document.getElementById('gallery');
+            gallery.innerHTML = Array(12).fill(0).map(() => `
+                <div class="photo-card">
+                    <div class="photo-img-wrap skeleton"></div>
+                    <div class="photo-info">
+                        <div class="skeleton" style="height: 16px; width: 80%; margin-bottom: 8px; border-radius: 4px;"></div>
+                        <div class="skeleton" style="height: 12px; width: 60%; margin-bottom: 4px; border-radius: 4px;"></div>
+                        <div class="skeleton" style="height: 12px; width: 40%; border-radius: 4px;"></div>
+                    </div>
+                </div>
+            `).join('');
+            gallery.style.display = 'grid';
+            document.getElementById('loading').style.display = 'none';
+        }
+
         function updateStats() {
-            const stats = document.getElementById('stats');
-            stats.textContent = `Tổng số: ${allPhotos.length} ảnh | Hiển thị: ${filteredPhotos.length}`;
-            updateLastUpdateDisplay();
+            const statTotal = document.getElementById('statTotal');
+            const statHasPhoto = document.getElementById('statHasPhoto');
+            const statNoPhoto = document.getElementById('statNoPhoto');
+            const statUpdate = document.getElementById('statUpdate');
+
+            statTotal.textContent = allPhotos.length;
+
+            const hasPhotoCount = allPhotos.filter(p => p.url && p.url !== '/assets/erpnext/images/default-avatar.png').length;
+            statHasPhoto.textContent = hasPhotoCount;
+            statNoPhoto.textContent = allPhotos.length - hasPhotoCount;
+
+            const timestamp = localStorage.getItem(CACHE_CONFIG.TIMESTAMP_KEY);
+            if (timestamp) {
+                statUpdate.textContent = `Cập nhật: ${timestamp}`;
+            }
         }
 
         function formatFileSize(bytes) {
@@ -1497,16 +2461,6 @@
 
         // Search functionality
         document.getElementById('searchBox').addEventListener('input', function (e) {
-            const searchTerm = e.target.value.trim();
-
-            // When user starts searching, reset filters to search in all employees
-            if (searchTerm) {
-                // Uncheck "Active only" checkbox
-                document.getElementById('showActiveOnlyCheckbox').checked = false;
-                // Reset group to "All"
-                document.getElementById('groupSelect').value = '';
-            }
-
             applyFilters();
         });
 
@@ -1591,6 +2545,11 @@
                 `${photo.employee_id} · ${photo.display_name}`;
             document.getElementById('editorModal').classList.add('open');
             document.body.style.overflow = 'hidden';
+            
+            // Hide back to top button when editor is open
+            const btn = document.getElementById('backToTop');
+            if (btn) btn.classList.remove('show');
+
             sendToEditor();
         }
 
@@ -1657,16 +2616,20 @@
         function refreshPhotoCardImage(employeeId, newUrl) {
             const gallery = document.querySelector('.gallery');
             if (!gallery) return;
-            // Cập nhật allPhotos trước để photo object có url mới
+            
+            // Thêm timestamp vào URL ngay từ đây để persist vào data model
+            const bustedUrl = newUrl + (newUrl.includes('?') ? '&' : '?') + 't=' + Date.now();
+            
+            // Cập nhật allPhotos để photo object có url mới (kèm cache-buster)
             const photoObj = typeof allPhotos !== 'undefined' ? allPhotos.find(x => x.employee_id === employeeId) : null;
-            if (photoObj) photoObj.url = newUrl;
+            if (photoObj) photoObj.url = bustedUrl;
 
             gallery.querySelectorAll('.photo-card').forEach(card => {
                 const link = card.querySelector('.employee-link');
                 if (!link || !link.href.includes(encodeURIComponent(employeeId))) return;
 
                 const img = card.querySelector('img');
-                if (img) img.src = newUrl + '?t=' + Date.now();
+                if (img) img.src = bustedUrl;
 
                 // Thêm edit/delete button nếu chưa có (trường hợp upload lần đầu)
                 if (!card.querySelector('.edit-btn') && photoObj) {
@@ -1675,14 +2638,14 @@
                     editBtn.title = 'Chỉnh sửa ảnh';
                     editBtn.textContent = '✏️';
                     editBtn.addEventListener('click', e => { e.stopPropagation(); openPhotoEditor(photoObj, e); });
-                    card.insertBefore(editBtn, img.nextSibling);
+                    img.parentNode.insertBefore(editBtn, img.nextSibling);
 
                     const delBtn = document.createElement('button');
                     delBtn.className = 'delete-btn';
                     delBtn.title = 'Xóa ảnh';
                     delBtn.textContent = '🗑';
                     delBtn.addEventListener('click', e => { e.stopPropagation(); openDeleteDialog(photoObj, e); });
-                    card.insertBefore(delBtn, editBtn.nextSibling);
+                    img.parentNode.insertBefore(delBtn, editBtn.nextSibling);
                 }
 
                 const flash = card.querySelector('.card-save-flash');
@@ -1717,6 +2680,7 @@
         let _cropperInstance = null;     // Cropper.js instance
         let _cropHasTransparency = false; // detected PNG transparency
         let _cropBgColor = '#ffffff';    // chosen background fill color
+        let _cropOriginalFormat = 'jpeg'; // 'png' or 'jpeg' — for Feature 1
 
         // ── Mở dialog chọn: camera hoặc file ──
         function openUploadDialog(photo, event) {
@@ -1827,9 +2791,10 @@
             document.getElementById('cropEmpLabel').textContent =
                 `${photo.employee_id} · ${photo.display_name}`;
 
-            // Reset transparency state
+            // Reset transparency + format state
             _cropHasTransparency = false;
             _cropBgColor = '#ffffff';
+            _cropOriginalFormat = imageDataUrl.startsWith('data:image/png') ? 'png' : 'jpeg';
             const pickerRow = document.getElementById('www-crop-bg-row');
             const pickerInput = document.getElementById('www-crop-bg');
             if (pickerRow) pickerRow.style.display = 'none';
@@ -1901,6 +2866,8 @@
                 PhotoCropUtils.fillBackground(canvas, _cropBgColor);
             }
 
+            const mimeType = _cropOriginalFormat === 'png' ? 'image/png' : 'image/jpeg';
+            const quality = _cropOriginalFormat === 'png' ? undefined : 0.92;
             canvas.toBlob(function (blob) {
                 const reader = new FileReader();
                 reader.onloadend = function () {
@@ -1909,7 +2876,7 @@
                     uploadEmployeePhoto(photo.employee_id, photo.employee_name, reader.result);
                 };
                 reader.readAsDataURL(blob);
-            }, 'image/jpeg', 0.92);
+            }, mimeType, quality);
         }
 
         // ══════════════════════════════════════════════════
@@ -2044,6 +3011,1210 @@
             e.target.value = '';
         }
 
+        // ══════════════════════════════════════════════════
+        //  MULTI-SELECT MODE
+        // ══════════════════════════════════════════════════
+
+        let isMultiSelectMode = false;
+        let selectedEmpIds = new Set();
+
+        document.getElementById('btnMultiSelect').addEventListener('click', function () {
+            if (isMultiSelectMode) {
+                exitMultiSelect();
+            } else {
+                enterMultiSelect();
+            }
+        });
+
+        function enterMultiSelect() {
+            isMultiSelectMode = true;
+            selectedEmpIds.clear();
+            document.getElementById('btnMultiSelect').classList.add('active');
+            document.getElementById('gallery').classList.add('multi-select-active');
+            updateBulkToolbar();
+            document.getElementById('bulkToolbar').classList.add('show');
+            // Add bottom padding so toolbar doesn't cover cards
+            document.body.style.paddingBottom = '70px';
+        }
+
+        function exitMultiSelect() {
+            isMultiSelectMode = false;
+            selectedEmpIds.clear();
+            document.getElementById('btnMultiSelect').classList.remove('active');
+            const gallery = document.getElementById('gallery');
+            gallery.classList.remove('multi-select-active');
+            gallery.querySelectorAll('.photo-card.selected').forEach(c => c.classList.remove('selected'));
+            document.getElementById('bulkToolbar').classList.remove('show');
+            document.body.style.paddingBottom = '';
+        }
+
+        function onCardClick(photo, photoUrl, event) {
+            if (isMultiSelectMode) {
+                event.preventDefault();
+                event.stopPropagation();
+                toggleCardSelect(photo.employee_id);
+            } else {
+                // Original behavior: open modal if clicking on img area
+                if (event.target.tagName === 'IMG') {
+                    openModal(photoUrl, photo.display_name);
+                }
+            }
+        }
+
+        function toggleCardSelect(empId) {
+            const card = document.querySelector(`.photo-card[data-emp-id="${CSS.escape(empId)}"]`);
+            if (!card) return;
+            if (selectedEmpIds.has(empId)) {
+                selectedEmpIds.delete(empId);
+                card.classList.remove('selected');
+            } else {
+                selectedEmpIds.add(empId);
+                card.classList.add('selected');
+            }
+            updateBulkToolbar();
+        }
+
+        function bulkSelectAll() {
+            const gallery = document.getElementById('gallery');
+            const allCards = gallery.querySelectorAll('.photo-card[data-emp-id]');
+            const allSelected = allCards.length > 0 && allCards.length === selectedEmpIds.size;
+
+            if (allSelected) {
+                // Deselect all
+                selectedEmpIds.clear();
+                allCards.forEach(c => c.classList.remove('selected'));
+            } else {
+                // Select all visible
+                allCards.forEach(c => {
+                    const id = c.dataset.empId;
+                    if (id) {
+                        selectedEmpIds.add(id);
+                        c.classList.add('selected');
+                    }
+                });
+            }
+            updateBulkToolbar();
+        }
+
+        function updateBulkToolbar() {
+            const count = selectedEmpIds.size;
+            document.getElementById('bulkCount').textContent = count;
+
+            // Count how many selected have photos
+            const withPhoto = getSelectedPhotosWithPhoto().length;
+            const hasAny = withPhoto > 0;
+
+            document.getElementById('btnBulkDownload').disabled = !hasAny;
+            document.getElementById('btnBulkId').disabled = !hasAny;
+
+            // Toggle select-all button label
+            const gallery = document.getElementById('gallery');
+            const totalCards = gallery.querySelectorAll('.photo-card[data-emp-id]').length;
+            const selectAllBtn = document.getElementById('btnBulkSelectAll');
+            if (count > 0 && count === totalCards) {
+                selectAllBtn.textContent = '✕ Bỏ chọn tất';
+            } else {
+                selectAllBtn.textContent = '☑️ Chọn tất cả';
+            }
+        }
+
+        function getSelectedPhotosWithPhoto() {
+            return filteredPhotos.filter(p =>
+                selectedEmpIds.has(p.employee_id) &&
+                p.url && p.url !== '/assets/erpnext/images/default-avatar.png'
+            );
+        }
+
+        // ══════════════════════════════════════════════════
+        //  DOWNLOAD SELECTED PHOTOS
+        // ══════════════════════════════════════════════════
+
+        async function downloadSelectedPhotos() {
+            const photos = getSelectedPhotosWithPhoto();
+            if (photos.length === 0) {
+                showEditorToast('⚠️ Không có ảnh nào để tải (nhân viên chưa có ảnh sẽ bị bỏ qua)', 'err');
+                return;
+            }
+
+            const toast = document.getElementById('downloadProgressToast');
+            const toastText = document.getElementById('downloadProgressText');
+            toast.classList.add('show');
+
+            let downloaded = 0;
+            let failed = 0;
+
+            for (let i = 0; i < photos.length; i++) {
+                const photo = photos[i];
+                toastText.textContent = `Đang tải ${i + 1}/${photos.length}: ${photo.display_name}`;
+
+                try {
+                    // Strip cache-buster before downloading
+                    const cleanUrl = photo.url.split('?')[0];
+                    const response = await fetch(cleanUrl, { credentials: 'same-origin' });
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    const blob = await response.blob();
+
+                    const ext = blob.type === 'image/png' ? 'png' : 'jpg';
+                    const filename = `${photo.employee_id}_${photo.display_name.replace(/[/\\?%*:|"<>]/g, '_')}.${ext}`;
+
+                    const a = document.createElement('a');
+                    a.href = URL.createObjectURL(blob);
+                    a.download = filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(a.href);
+
+                    downloaded++;
+                    // Small delay between downloads to avoid browser blocking
+                    await new Promise(r => setTimeout(r, 200));
+                } catch (err) {
+                    console.warn('[downloadPhoto] failed for', photo.employee_id, err);
+                    failed++;
+                }
+            }
+
+            toast.classList.remove('show');
+
+            if (failed > 0) {
+                showEditorToast(`✅ Đã tải ${downloaded} ảnh (${failed} lỗi)`, 'ok');
+            } else {
+                showEditorToast(`✅ Đã tải ${downloaded} ảnh về thiết bị`, 'ok');
+            }
+        }
+
+        // ══════════════════════════════════════════════════
+        //  BATCH ID PHOTO — 2-STEP FLOW
+        //  Step 1: show originals + crop zones → user confirms
+        //  Step 2: show cropped results → user approves → save
+        // ══════════════════════════════════════════════════
+
+        // _batchCropData[empId] = { photo, sx, sy, sw, sh } (pixels in source)
+        let _batchCropData = {};
+        let _batchResults = {};
+        let _batchProcessing = false;
+        let _batchTotal = 0;
+        let _batchSessionId = null; // rembg lock session
+        // JPEG always uses best-quality AI ('medium'); PNG always skips bg removal
+        const _BATCH_CONCURRENCY = 3;
+        const BATCH_FILTER_PRESETS = {
+            'Tự nhiên':      { brightness: 2,  contrast: 0,  saturation: 0,  smooth: 2, sharpness: 2, warmth: 3,  highlights: 0, shadows: 0 },
+            'Chuyên nghiệp': { brightness: 5,  contrast: 8,  saturation: -5, smooth: 0, sharpness: 4, warmth: 0,  highlights: 0, shadows: 0 },
+            'Tươi sáng':     { brightness: 10, contrast: 5,  saturation: 10, smooth: 3, sharpness: 3, warmth: 5,  highlights: 5, shadows: 0 },
+        };
+        let _bgEngine = 'rembg'; // 'imgly' | 'rembg' — default rembg
+        let _rembgModel = 'birefnet-portrait'; // default birefnet (tốt hơn cho tóc)
+        let _rembgConcurrency = 2; // birefnet=2, RAM guard server-side tự điều chỉnh
+        let _batchBgColor = '#f0f0f0'; // default bg color for batch processing
+        let _batchCropAdjEmpId = null;
+        let _batchCropAdjCropper = null;
+
+        // ── Entry point ──
+        function startBatchIdPhoto() {
+            let photos = getSelectedPhotosWithPhoto();
+            if (photos.length === 0) {
+                showEditorToast('⚠️ Không có nhân viên nào có ảnh trong danh sách đã chọn', 'err');
+                return;
+            }
+            if (photos.length > 10) {
+                showEditorToast('⚠️ Đang chọn ' + photos.length + ' ảnh — vui lòng bỏ chọn bớt, tối đa 10 ảnh mỗi lần', 'err');
+                return;
+            }
+            _batchCropData = {};
+            _batchResults = {};
+            _batchProcessing = false;
+            _batchTotal = photos.length;
+
+            // Reset modal to step 1
+            document.getElementById('batchPill1').className = 'batch-step-pill active';
+            document.getElementById('batchPill2').className = 'batch-step-pill';
+            document.getElementById('batchProgressSection').style.display = 'none';
+            document.getElementById('batchFooterStep1').style.display = '';
+            document.getElementById('batchFooterStep2').style.display = 'none';
+            document.getElementById('batchStep1Count').textContent = photos.length;
+            document.getElementById('batchIdModal').classList.add('open');
+            document.body.style.overflow = 'hidden';
+
+            buildStep1Grid(photos);
+        }
+
+        // ── STEP 1: Build original photos grid with crop overlays ──
+        function buildStep1Grid(photos) {
+            const grid = document.getElementById('batchGrid');
+            const cols = photos.length <= 2 ? photos.length : Math.ceil(photos.length / 2);
+            grid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+
+            grid.innerHTML = photos.map(p => {
+                const imgUrl = p.url.split('?')[0] + '?t=' + Date.now();
+                return `
+                <div class="batch-s1-card" id="s1card_${p.employee_id}">
+                    <div class="s1-img-wrap" id="s1wrap_${p.employee_id}">
+                        <img class="s1-img" id="s1img_${p.employee_id}"
+                             src="${imgUrl}" alt="${p.display_name}"
+                             onload="onS1ImageLoaded('${p.employee_id}')">
+                        <div class="s1-crop-box" id="s1crop_${p.employee_id}"
+                             onmousedown="batchCropDragStart(event,'${p.employee_id}')"
+                             ontouchstart="batchCropDragStart(event,'${p.employee_id}')">
+                            <div class="s1-crop-handle" data-handle="nw"></div>
+                            <div class="s1-crop-handle" data-handle="ne"></div>
+                            <div class="s1-crop-handle" data-handle="sw"></div>
+                            <div class="s1-crop-handle" data-handle="se"></div>
+                        </div>
+                    </div>
+                    <div class="s1-card-footer">
+                        <div>
+                            <div class="s1-card-name">${p.display_name}</div>
+                            <div class="s1-card-id">${p.employee_id}</div>
+                        </div>
+                        <button class="s1-adjust-btn" onclick="openBatchCropAdjust('${p.employee_id}')">✂️ Chỉnh</button>
+                    </div>
+                </div>`;
+            }).join('');
+
+            // Store photo refs
+            photos.forEach(p => {
+                _batchCropData[p.employee_id] = { photo: p, sx: null, sy: null, sw: null, sh: null };
+            });
+        }
+
+        // ── Face detection for batch crop suggestion ──
+        const _BATCH_FACE_API_MODEL = location.origin + '/assets/customize_erpnext/face_api/models/';
+        let _batchFaceApiModelLoaded = false;
+
+        async function _ensureBatchFaceApi() {
+            let waited = 0;
+            while (!window.faceapi && waited < 8000) {
+                await new Promise(r => setTimeout(r, 150));
+                waited += 150;
+            }
+            if (!window.faceapi) throw new Error('face-api.js chưa sẵn sàng');
+            if (_batchFaceApiModelLoaded) return;
+            await window.faceapi.nets.ssdMobilenetv1.loadFromUri(_BATCH_FACE_API_MODEL);
+            _batchFaceApiModelLoaded = true;
+        }
+
+        async function onS1ImageLoaded(empId) {
+            const img = document.getElementById(`s1img_${empId}`);
+            if (!img || !img.naturalWidth) return;
+
+            // Show default geometric crop immediately (fast)
+            const def = computeDefaultCrop(img.naturalWidth, img.naturalHeight);
+            if (_batchCropData[empId]) {
+                _batchCropData[empId].sx = def.sx;
+                _batchCropData[empId].sy = def.sy;
+                _batchCropData[empId].sw = def.sw;
+                _batchCropData[empId].sh = def.sh;
+            }
+            updateCropBoxOverlay(empId);
+
+            // Async face detection — refine crop when done
+            try {
+                await _ensureBatchFaceApi();
+                const tc = document.createElement('canvas');
+                tc.width = img.naturalWidth; tc.height = img.naturalHeight;
+                tc.getContext('2d').drawImage(img, 0, 0);
+                const detection = await window.faceapi.detectSingleFace(
+                    tc,
+                    new window.faceapi.SsdMobilenetv1Options({ minConfidence: 0.3 })
+                );
+                if (!detection || !_batchCropData[empId]) return;
+
+                // Same formula as photo_editor.html runAutoPipeline
+                const iw = img.naturalWidth, ih = img.naturalHeight;
+                const box = detection.box;
+                let cH = box.height / 0.38;
+                let cW = cH * (3 / 4);
+                let cX = (box.x + box.width / 2) - cW / 2;
+                let cY = box.y - box.height * 0.55;
+                if (cW > iw) { cW = iw; cH = cW * 4 / 3; }
+                if (cH > ih) { cH = ih; cW = cH * 3 / 4; }
+                cX = Math.max(0, Math.min(cX, iw - cW));
+                cY = Math.max(0, Math.min(cY, ih - cH));
+                _batchCropData[empId].sx = Math.round(cX);
+                _batchCropData[empId].sy = Math.round(cY);
+                _batchCropData[empId].sw = Math.round(cW);
+                _batchCropData[empId].sh = Math.round(cH);
+                updateCropBoxOverlay(empId);
+            } catch (e) {
+                // Keep default crop silently if face detection fails
+                console.warn('[batchFaceDetect]', empId, e.message);
+            }
+        }
+
+        function computeDefaultCrop(srcW, srcH) {
+            const RATIO = 3 / 4;
+            // Tighter zoom: 58% of the constraining dimension
+            // For portrait images (srcW/srcH ≤ 0.75) this gives sw ≈ 58% of srcW
+            // For landscape/wide images height is the constraint
+            const ZOOM = 0.58;
+            let sw, sh;
+            if (srcW / srcH > RATIO) {
+                sh = srcH * ZOOM; sw = sh * RATIO;
+            } else {
+                sw = srcW * ZOOM; sh = sw / RATIO;
+            }
+            if (sw > srcW) { sw = srcW; sh = sw / RATIO; }
+            if (sh > srcH) { sh = srcH; sw = sh * RATIO; }
+            const sx = (srcW - sw) / 2;
+            // Face center is typically ~25% from top of image (not 35%).
+            // Place it at 22% from top of crop to give proper headroom.
+            const faceY = srcH * 0.25;
+            let sy = faceY - sh * 0.22;
+            sy = Math.max(0, Math.min(srcH - sh, sy));
+            return { sx: Math.round(sx), sy: Math.round(sy), sw: Math.round(sw), sh: Math.round(sh) };
+        }
+
+        function updateCropBoxOverlay(empId) {
+            const img  = document.getElementById(`s1img_${empId}`);
+            const wrap = document.getElementById(`s1wrap_${empId}`);
+            const box  = document.getElementById(`s1crop_${empId}`);
+            if (!img || !wrap || !box || !img.naturalWidth) return;
+            const d = _batchCropData[empId];
+            if (!d || d.sx === null) return;
+
+            const wW = wrap.offsetWidth, wH = wrap.offsetHeight;
+            const iW = img.naturalWidth,  iH = img.naturalHeight;
+            const scale = Math.min(wW / iW, wH / iH);
+            const dW = iW * scale, dH = iH * scale;
+            const oX = (wW - dW) / 2, oY = (wH - dH) / 2;
+
+            box.style.left   = (oX + d.sx * scale) + 'px';
+            box.style.top    = (oY + d.sy * scale) + 'px';
+            box.style.width  = (d.sw * scale) + 'px';
+            box.style.height = (d.sh * scale) + 'px';
+            box.style.display = 'block';
+        }
+
+        // ── Batch global crop adjustments (Feature 4) ──
+        function batchAdjustAllCropY(deltaFrac) {
+            Object.keys(_batchCropData).forEach(empId => {
+                const d = _batchCropData[empId];
+                if (!d || d.sx === null) return;
+                const img = document.getElementById(`s1img_${empId}`);
+                if (!img || !img.naturalHeight) return;
+                const delta = Math.round(img.naturalHeight * deltaFrac);
+                d.sy = Math.max(0, Math.min(d.sy + delta, img.naturalHeight - d.sh));
+                updateCropBoxOverlay(empId);
+            });
+        }
+
+        function batchAdjustAllCropZoom(factor) {
+            const RATIO = 3 / 4;
+            Object.keys(_batchCropData).forEach(empId => {
+                const d = _batchCropData[empId];
+                if (!d || d.sx === null) return;
+                const img = document.getElementById(`s1img_${empId}`);
+                if (!img) return;
+                const newSw = d.sw * factor;
+                const newSh = newSw / RATIO;
+                if (newSw < 30 || newSh < 40 || newSw > img.naturalWidth || newSh > img.naturalHeight) return;
+                const cx = d.sx + d.sw / 2, cy = d.sy + d.sh / 2;
+                d.sw = Math.round(newSw); d.sh = Math.round(newSh);
+                d.sx = Math.round(Math.max(0, Math.min(cx - d.sw / 2, img.naturalWidth - d.sw)));
+                d.sy = Math.round(Math.max(0, Math.min(cy - d.sh / 2, img.naturalHeight - d.sh)));
+                updateCropBoxOverlay(empId);
+            });
+        }
+
+        // ══════════════════════════════════════════════════════════
+        //  BATCH PHOTO PROCESSING — remove bg + beautify (ported from photo_editor.html)
+        // ══════════════════════════════════════════════════════════
+        const BATCH_IMGLY_CDN = location.origin + '/assets/customize_erpnext/bg_removal/';
+        let _batchImglyLib = null;
+
+        async function _batchEnsureImgly() {
+            if (_batchImglyLib) return _batchImglyLib;
+            let waited = 0;
+            while (!window.__batchImglyLoader && waited < 8000) {
+                await new Promise(r => setTimeout(r, 100)); waited += 100;
+            }
+            if (!window.__batchImglyLoader) throw new Error('@imgly loader not ready');
+            _batchImglyLib = await window.__batchImglyLoader();
+            return _batchImglyLib;
+        }
+
+        async function batchRemoveBg(imageData, model) {
+            const { removeBackground } = await _batchEnsureImgly();
+            const tc = document.createElement('canvas');
+            tc.width = imageData.width; tc.height = imageData.height;
+            tc.getContext('2d').putImageData(imageData, 0, 0);
+            // Use JPEG input: ~5x faster to encode than PNG, AI accepts any format
+            const inputBlob = await new Promise(r => tc.toBlob(r, 'image/jpeg', 0.92));
+            const resultBlob = await removeBackground(inputBlob, {
+                publicPath: BATCH_IMGLY_CDN, model: model || 'small',
+                output: { format: 'image/png', quality: 1 }
+            });
+            const url = URL.createObjectURL(resultBlob);
+            const img = new Image(); img.src = url;
+            await new Promise((res, rej) => { img.onload = res; img.onerror = rej; });
+            const out = document.createElement('canvas');
+            out.width = imageData.width; out.height = imageData.height;
+            out.getContext('2d').drawImage(img, 0, 0, out.width, out.height);
+            const result = out.getContext('2d').getImageData(0, 0, out.width, out.height);
+            URL.revokeObjectURL(url);
+            return result;
+        }
+
+        async function batchRemoveBgRembg(imageData) {
+            const tc = document.createElement('canvas');
+            tc.width = imageData.width; tc.height = imageData.height;
+            tc.getContext('2d').putImageData(imageData, 0, 0);
+            const resultDataUrl = await callFrappeMethod(
+                'customize_erpnext.api.employee.employee_utils.remove_bg_rembg',
+                { image_data: tc.toDataURL('image/jpeg', 0.92), model_name: _rembgModel }
+            );
+            const img = new Image(); img.src = resultDataUrl;
+            await new Promise((res, rej) => { img.onload = res; img.onerror = rej; });
+            const out = document.createElement('canvas');
+            out.width = imageData.width; out.height = imageData.height;
+            out.getContext('2d').drawImage(img, 0, 0, out.width, out.height);
+            return out.getContext('2d').getImageData(0, 0, out.width, out.height);
+        }
+
+        function setBgEngine(engine) {
+            _bgEngine = engine;
+            ['imgly', 'rembg'].forEach(e => {
+                document.getElementById(`bge_${e}`)?.classList.toggle('active', e === engine);
+            });
+            const modelRow = document.getElementById('bgeModelRow');
+            if (modelRow) modelRow.style.display = engine === 'rembg' ? 'flex' : 'none';
+            const concRow = document.getElementById('bgeConcRow');
+            if (concRow) concRow.style.display = engine === 'rembg' ? 'flex' : 'none';
+        }
+
+        function setRembgModel(model) {
+            _rembgModel = model;
+            document.getElementById('bgeModelSelect')?.querySelectorAll('button').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.model === model);
+            });
+            // birefnet: 2 concurrent, RAM guard server-side tự evict nếu >70% (44GB)
+            // u2net: 10 concurrent × ~500MB = 5GB
+            if (model === 'birefnet-portrait') setRembgConcurrency(2);
+            else setRembgConcurrency(10);
+        }
+
+        function setRembgConcurrency(n) {
+            _rembgConcurrency = n;
+            document.getElementById('bgeConcSelect')?.querySelectorAll('button').forEach(btn => {
+                btn.classList.toggle('active', +btn.dataset.n === n);
+            });
+        }
+
+        async function applyBatchPreset(empId, presetName) {
+            const result = _batchResults[empId];
+            if (!result || !result.rawDataUrl) return;
+            // Show spinner on card
+            const imgEl = document.getElementById(`bcimg_${empId}`);
+            if (imgEl) imgEl.style.opacity = '0.4';
+            try {
+                const img = new Image(); img.src = result.rawDataUrl;
+                await new Promise((res, rej) => { img.onload = res; img.onerror = rej; });
+                const c = document.createElement('canvas');
+                c.width = img.width; c.height = img.height;
+                c.getContext('2d').drawImage(img, 0, 0);
+                let imageData = c.getContext('2d').getImageData(0, 0, img.width, img.height);
+                const params = presetName === 'auto'
+                    ? PhotoProcessingUtils.analyzeDeep(imageData)
+                    : BATCH_FILTER_PRESETS[presetName];
+                imageData = PhotoProcessingUtils.applyFilters(imageData, params);
+                // Re-composite with clean bg to undo filter distortion on background pixels
+                if (result.bgRemovedDataUrl) {
+                    const bgImg = new Image(); bgImg.src = result.bgRemovedDataUrl;
+                    await new Promise((res, rej) => { bgImg.onload = res; bgImg.onerror = rej; });
+                    const bgC = document.createElement('canvas');
+                    bgC.width = bgImg.width; bgC.height = bgImg.height;
+                    bgC.getContext('2d').drawImage(bgImg, 0, 0);
+                    const alphaData = bgC.getContext('2d').getImageData(0, 0, bgC.width, bgC.height).data;
+                    const masked = new ImageData(new Uint8ClampedArray(imageData.data), imageData.width, imageData.height);
+                    for (let i = 3; i < masked.data.length; i += 4) masked.data[i] = alphaData[i];
+                    imageData = _compositeOnBg(masked, result.bgColor || _batchBgColor);
+                }
+                const out = document.createElement('canvas');
+                out.width = img.width; out.height = img.height;
+                out.getContext('2d').putImageData(imageData, 0, 0);
+                const newDataUrl = out.toDataURL('image/jpeg', 0.92);
+                result.dataUrl = newDataUrl;
+                result.preset = presetName;
+                if (imgEl) imgEl.src = newDataUrl;
+                // Update active state on preset buttons
+                const presetsEl = document.getElementById(`bcpresets_${empId}`);
+                if (presetsEl) presetsEl.querySelectorAll('.bcpreset-btn').forEach(btn => {
+                    btn.classList.toggle('active', btn.dataset.preset === presetName);
+                });
+            } finally {
+                if (imgEl) imgEl.style.opacity = '';
+            }
+        }
+
+        async function applyBatchBg(empId, color) {
+            const result = _batchResults[empId];
+            if (!result || !result.bgRemovedDataUrl) return;
+            const imgEl = document.getElementById(`bcimg_${empId}`);
+            if (imgEl) imgEl.style.opacity = '0.4';
+            try {
+                const img = new Image(); img.src = result.bgRemovedDataUrl;
+                await new Promise((res, rej) => { img.onload = res; img.onerror = rej; });
+                const c = document.createElement('canvas');
+                c.width = img.width; c.height = img.height;
+                c.getContext('2d').drawImage(img, 0, 0);
+                let imageData = c.getContext('2d').getImageData(0, 0, img.width, img.height);
+                imageData = _compositeOnBg(imageData, color);
+                result.bgColor = color;
+                const rawC = document.createElement('canvas');
+                rawC.width = img.width; rawC.height = img.height;
+                rawC.getContext('2d').putImageData(imageData, 0, 0);
+                result.rawDataUrl = rawC.toDataURL('image/jpeg', 0.92);
+                await applyBatchPreset(empId, result.preset);
+            } finally {
+                if (imgEl) imgEl.style.opacity = '';
+            }
+        }
+
+        async function applyBgToAll(color) {
+            _batchBgColor = color;
+            const empIds = Object.keys(_batchResults).filter(id => _batchResults[id].bgRemovedDataUrl);
+            await Promise.all(empIds.map(id => applyBatchBg(id, color)));
+        }
+
+        function setBatchBgSwatch(color, btnEl, scope) {
+            document.querySelectorAll(`.batch-bg-swatch[data-scope="${scope}"]`).forEach(b => b.classList.remove('on'));
+            if (btnEl) btnEl.classList.add('on');
+            if (scope === 'step1') {
+                _batchBgColor = color;
+            } else {
+                applyBgToAll(color);
+            }
+        }
+
+        async function applyPresetToAll(presetName) {
+            const empIds = Object.keys(_batchResults).filter(id => _batchResults[id].rawDataUrl);
+            // Update global active state
+            document.querySelectorAll('.bcpreset-global-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.preset === presetName);
+            });
+            await Promise.all(empIds.map(id => applyBatchPreset(id, presetName)));
+        }
+
+        // ── Image processing helpers now in PhotoProcessingUtils (photo_processing_utils.js) ──
+
+        // Composite ImageData onto a solid background color, returns new ImageData
+        function _compositeOnBg(imageData, color) {
+            const c = document.createElement('canvas');
+            c.width = imageData.width; c.height = imageData.height;
+            const ctx = c.getContext('2d');
+            if (color && color !== 'transparent') {
+                ctx.fillStyle = color;
+                ctx.fillRect(0, 0, c.width, c.height);
+            }
+            const tmp = document.createElement('canvas');
+            tmp.width = imageData.width; tmp.height = imageData.height;
+            tmp.getContext('2d').putImageData(imageData, 0, 0);
+            ctx.drawImage(tmp, 0, 0);
+            return ctx.getImageData(0, 0, c.width, c.height);
+        }
+
+        // Full pipeline: PNG → skip bg removal; JPEG → AI medium quality; then beautify
+        // Returns { dataUrl, timing }
+        async function processPhotoFull(croppedDataUrl, onProgress) {
+            const t0 = performance.now();
+
+            // 1. Load dataUrl → ImageData
+            const img = new Image(); img.src = croppedDataUrl;
+            await new Promise((res, rej) => { img.onload = res; img.onerror = rej; });
+            const tc = document.createElement('canvas');
+            tc.width = img.width; tc.height = img.height;
+            tc.getContext('2d').drawImage(img, 0, 0);
+            let imageData = tc.getContext('2d').getImageData(0, 0, img.width, img.height);
+            const tLoad = performance.now();
+
+            // 2. Background handling
+            const isPng = croppedDataUrl.startsWith('data:image/png');
+            // Check transparency directly from already-loaded imageData (no re-load needed)
+            const hasTrans = isPng && (function(d) {
+                for (let i = 3; i < d.length; i += 16) { if (d[i] < 255) return true; }
+                return false;
+            })(imageData.data);
+            const hasWhiteBg = !hasTrans && PhotoProcessingUtils.isWhiteBackground(imageData);
+            let bgMethod = '';
+
+            let bgRemovedDataUrl = null;
+            let bgRemovedImageData = null; // alpha mask kept in memory to re-composite after beautify
+            const _captureBgRemoved = (id) => {
+                const bc = document.createElement('canvas');
+                bc.width = id.width; bc.height = id.height;
+                bc.getContext('2d').putImageData(id, 0, 0);
+                return bc.toDataURL('image/png');
+            };
+
+            if (hasTrans) {
+                if (onProgress) onProgress('⏩ PNG có nền trong, composite trực tiếp...');
+                bgRemovedImageData = imageData;
+                bgRemovedDataUrl = _captureBgRemoved(imageData);
+                imageData = _compositeOnBg(imageData, _batchBgColor);
+                bgMethod = 'PNG-alpha';
+            } else if (isPng || hasWhiteBg) {
+                if (onProgress) onProgress('⏩ Bỏ qua xóa nền (PNG / nền trắng)...');
+                bgMethod = isPng ? 'PNG-skip' : 'white-skip';
+            } else {
+                // JPEG: remove bg via selected engine
+                if (onProgress) onProgress(_bgEngine === 'rembg' ? '🖥 Xóa nền rembg...' : '🤖 Xóa nền AI...');
+                const bgRemoved = _bgEngine === 'rembg'
+                    ? await batchRemoveBgRembg(imageData)
+                    : await batchRemoveBg(imageData, 'medium');
+                bgRemovedImageData = bgRemoved;
+                bgRemovedDataUrl = _captureBgRemoved(bgRemoved);
+                imageData = _compositeOnBg(bgRemoved, _batchBgColor);
+                bgMethod = _bgEngine === 'rembg' ? `rembg-${_rembgModel}` : 'imgly-medium';
+            }
+            const tBg = performance.now();
+
+            // 3. Store raw (post-bg, pre-beautify) for preset re-apply
+            const rawC = document.createElement('canvas');
+            rawC.width = imageData.width; rawC.height = imageData.height;
+            rawC.getContext('2d').putImageData(imageData, 0, 0);
+            const rawDataUrl = rawC.toDataURL('image/jpeg', 0.92);
+
+            // 4. Analyze + beautify (auto params)
+            if (onProgress) onProgress('✨ Làm đẹp...');
+            const params = PhotoProcessingUtils.analyzeDeep(imageData);
+            imageData = PhotoProcessingUtils.applyFilters(imageData, params);
+            // Re-composite with clean bg to undo filter distortion on background pixels
+            if (bgRemovedImageData) {
+                const alphaData = bgRemovedImageData.data;
+                const masked = new ImageData(new Uint8ClampedArray(imageData.data), imageData.width, imageData.height);
+                for (let i = 3; i < masked.data.length; i += 4) masked.data[i] = alphaData[i];
+                imageData = _compositeOnBg(masked, _batchBgColor);
+            }
+            const tBeautify = performance.now();
+
+            // 5. Return as JPEG dataUrl
+            const finalC = document.createElement('canvas');
+            finalC.width = img.width; finalC.height = img.height;
+            finalC.getContext('2d').putImageData(imageData, 0, 0);
+            const dataUrl = finalC.toDataURL('image/jpeg', 0.92);
+            const tEnd = performance.now();
+
+            const ms = (a, b) => Math.round(b - a);
+            const timing = {
+                load:     ms(t0, tLoad),
+                bg:       ms(tLoad, tBg),
+                beautify: ms(tBg, tBeautify),
+                encode:   ms(tBeautify, tEnd),
+                total:    ms(t0, tEnd),
+                bgMethod,
+            };
+            console.log(`[photo] ${img.width}×${img.height} | load:${timing.load}ms bg(${bgMethod}):${timing.bg}ms beautify:${timing.beautify}ms encode:${timing.encode}ms | total:${timing.total}ms`);
+
+            return { dataUrl, rawDataUrl, bgRemovedDataUrl, timing };
+        }
+
+        // ── Crop box drag (Step 1) ──
+        let _batchDragState = null;
+
+        function batchCropDragStart(e, empId) {
+            e.preventDefault();
+            e.stopPropagation();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            const d = _batchCropData[empId];
+            if (!d || d.sx === null) return;
+            const handle = e.target.dataset.handle || null; // null = move, 'nw'/'ne'/'sw'/'se' = resize
+            _batchDragState = { empId, startX: clientX, startY: clientY,
+                origSx: d.sx, origSy: d.sy, origSw: d.sw, origSh: d.sh, handle };
+            document.getElementById(`s1crop_${empId}`)?.classList.add('dragging');
+        }
+
+        document.addEventListener('mousemove', function (e) {
+            if (!_batchDragState) return;
+            batchCropDragMove(e.clientX, e.clientY);
+        });
+        document.addEventListener('touchmove', function (e) {
+            if (!_batchDragState) return;
+            e.preventDefault();
+            batchCropDragMove(e.touches[0].clientX, e.touches[0].clientY);
+        }, { passive: false });
+        document.addEventListener('mouseup',  batchCropDragEnd);
+        document.addEventListener('touchend', batchCropDragEnd);
+
+        // Keyboard shortcuts for batch crop (step 1 only)
+        document.addEventListener('keydown', function(e) {
+            const footer = document.getElementById('batchFooterStep1');
+            if (!footer || footer.style.display === 'none') return;
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+            switch (e.key) {
+                case 'ArrowUp':    e.preventDefault(); batchAdjustAllCropY(-0.03); break;
+                case 'ArrowDown':  e.preventDefault(); batchAdjustAllCropY(+0.03); break;
+                case '+': case '=': e.preventDefault(); batchAdjustAllCropZoom(1.1); break;
+                case '-': case '_': e.preventDefault(); batchAdjustAllCropZoom(0.9); break;
+            }
+        });
+
+        function batchCropDragMove(clientX, clientY) {
+            const { empId, startX, startY, origSx, origSy, origSw, origSh, handle } = _batchDragState;
+            const img  = document.getElementById(`s1img_${empId}`);
+            const wrap = document.getElementById(`s1wrap_${empId}`);
+            if (!img || !wrap) return;
+
+            const scale = Math.min(wrap.offsetWidth / img.naturalWidth, wrap.offsetHeight / img.naturalHeight);
+            const dx = (clientX - startX) / scale;
+            const dy = (clientY - startY) / scale;
+            const d  = _batchCropData[empId];
+            const MIN_SW = 60;
+
+            if (!handle) {
+                // Move
+                d.sx = Math.round(Math.max(0, Math.min(img.naturalWidth  - d.sw, origSx + dx)));
+                d.sy = Math.round(Math.max(0, Math.min(img.naturalHeight - d.sh, origSy + dy)));
+            } else {
+                // Resize — maintain 3:4 ratio, anchor at opposite corner
+                // Use dx to control width, compute sh from 3:4 ratio
+                let newSw, newSh, newSx, newSy;
+
+                if (handle === 'se') {          // anchor: top-left
+                    newSw = origSw + dx;
+                    newSx = origSx; newSy = origSy;
+                } else if (handle === 'sw') {   // anchor: top-right
+                    newSw = origSw - dx;
+                    newSx = origSx + origSw - newSw; newSy = origSy;
+                } else if (handle === 'ne') {   // anchor: bottom-left
+                    newSw = origSw + dx;
+                    newSx = origSx;
+                    newSy = origSy + origSh - newSw * 4 / 3;
+                } else {                        // nw — anchor: bottom-right
+                    newSw = origSw - dx;
+                    newSx = origSx + origSw - newSw;
+                    newSy = origSy + origSh - newSw * 4 / 3;
+                }
+
+                newSw = Math.max(MIN_SW, newSw);
+                newSh = newSw * 4 / 3;
+
+                // Clamp to image bounds
+                if (newSx < 0) { newSx = 0; }
+                if (newSy < 0) { newSy = 0; }
+                if (newSx + newSw > img.naturalWidth)  { newSw = img.naturalWidth  - newSx; newSh = newSw * 4/3; }
+                if (newSy + newSh > img.naturalHeight) { newSh = img.naturalHeight - newSy; newSw = newSh * 3/4; }
+
+                d.sx = Math.round(newSx);
+                d.sy = Math.round(newSy);
+                d.sw = Math.round(newSw);
+                d.sh = Math.round(newSh);
+            }
+            updateCropBoxOverlay(empId);
+        }
+
+        function batchCropDragEnd() {
+            if (!_batchDragState) return;
+            document.getElementById(`s1crop_${_batchDragState.empId}`)?.classList.remove('dragging');
+            _batchDragState = null;
+        }
+
+        // ── Crop adjust modal (Cropper.js) for one photo ──
+        function openBatchCropAdjust(empId) {
+            const d = _batchCropData[empId];
+            if (!d) return;
+            _batchCropAdjEmpId = empId;
+
+            document.getElementById('batchCropAdjLabel').textContent =
+                `${d.photo.employee_id} · ${d.photo.display_name}`;
+
+            if (_batchCropAdjCropper) { _batchCropAdjCropper.destroy(); _batchCropAdjCropper = null; }
+
+            const img = document.getElementById('batchCropImg');
+            img.src = d.photo.url.split('?')[0] + '?t=' + Date.now();
+            document.getElementById('batchCropAdjustModal').classList.add('open');
+
+            img.onload = function () {
+                if (typeof Cropper === 'undefined') return;
+                _batchCropAdjCropper = new Cropper(img, {
+                    aspectRatio: 3 / 4,
+                    viewMode: 1,
+                    dragMode: 'move',
+                    autoCropArea: 0.75,
+                    restore: false,
+                    guides: true,
+                    center: true,
+                    highlight: false,
+                    cropBoxMovable: true,
+                    cropBoxResizable: true,
+                    toggleDragModeOnDblclick: false,
+                    responsive: true,
+                    ready: function () {
+                        // Pre-set crop box from existing data
+                        if (d.sx !== null) {
+                            const iD = _batchCropAdjCropper.getImageData();
+                            const sc = iD.width / img.naturalWidth;
+                            _batchCropAdjCropper.setCropBoxData({
+                                left:   iD.left + d.sx * sc,
+                                top:    iD.top  + d.sy * sc,
+                                width:  d.sw * sc,
+                                height: d.sh * sc,
+                            });
+                        }
+                    }
+                });
+            };
+        }
+
+        function closeBatchCropAdjust() {
+            document.getElementById('batchCropAdjustModal').classList.remove('open');
+            if (_batchCropAdjCropper) { _batchCropAdjCropper.destroy(); _batchCropAdjCropper = null; }
+            _batchCropAdjEmpId = null;
+        }
+
+        function saveBatchCropAdjust() {
+            if (!_batchCropAdjCropper || !_batchCropAdjEmpId) return;
+            const cd = _batchCropAdjCropper.getData(true);
+            const empId = _batchCropAdjEmpId;
+            if (_batchCropData[empId]) {
+                _batchCropData[empId].sx = cd.x;
+                _batchCropData[empId].sy = cd.y;
+                _batchCropData[empId].sw = cd.width;
+                _batchCropData[empId].sh = cd.height;
+            }
+            closeBatchCropAdjust();
+            updateCropBoxOverlay(empId);
+            document.getElementById(`s1card_${empId}`)?.classList.add('crop-adjusted');
+        }
+
+        // ── Confirm step 1 → run step 2 ──
+        async function confirmCropZones() {
+            const entries = Object.values(_batchCropData).filter(d => d.sx !== null);
+            if (entries.length === 0) { showEditorToast('⚠️ Ảnh chưa tải xong, vui lòng chờ', 'err'); return; }
+
+            // Acquire rembg lock (only when using rembg engine)
+            if (_bgEngine === 'rembg') {
+                _batchSessionId = Math.random().toString(36).slice(2);
+                try {
+                    const lockRes = await callFrappeMethod(
+                        'customize_erpnext.api.employee.employee_utils.batch_rembg_acquire_lock',
+                        { session_id: _batchSessionId }
+                    );
+                    if (!lockRes || !lockRes.acquired) {
+                        const h = lockRes && lockRes.holder;
+                        const who = h ? `${h.user} (lúc ${h.started_at})` : 'người dùng khác';
+                        showEditorToast(`⚠️ ${who} đang xử lý ảnh hàng loạt. Vui lòng chờ hoàn tất rồi thử lại.`, 'err');
+                        _batchSessionId = null;
+                        return;
+                    }
+                } catch (e) {
+                    // Lỗi gọi API lock → vẫn cho tiếp tục (không block user)
+                    console.warn('[rembg lock] acquire failed:', e);
+                }
+            }
+
+            // Switch UI to step 2
+            document.getElementById('batchPill1').className = 'batch-step-pill done';
+            document.getElementById('batchPill2').className = 'batch-step-pill active';
+            document.getElementById('batchFooterStep1').style.display = 'none';
+            document.getElementById('batchFooterStep2').style.display = '';
+            document.getElementById('batchProgressSection').style.display = '';
+
+            _batchProcessing = true;
+            _batchTotal = entries.length;
+            _batchResults = {};
+
+            const grid = document.getElementById('batchGrid');
+            const cols = entries.length <= 2 ? entries.length : Math.ceil(entries.length / 2);
+            grid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+            grid.innerHTML = entries.map(({ photo: p }) => `
+                <div class="batch-card" id="bcard_${p.employee_id}" data-emp-id="${p.employee_id}">
+                    <div class="batch-card-body">
+                        <div class="batch-card-img" onclick="previewBatchCard('${p.employee_id}')" style="cursor:default;">
+                            <div class="batch-card-badge" id="bcbadge_${p.employee_id}"></div>
+                            <div class="batch-card-loading" id="bcload_${p.employee_id}">
+                                <div class="mini-spinner"></div>
+                                <span>Đang xử lý...</span>
+                            </div>
+                            <img id="bcimg_${p.employee_id}" src="" alt="${p.display_name}" style="display:none;">
+                            <div class="batch-img-actions" id="bcactions_${p.employee_id}" style="display:none;">
+                                <button class="btn-batch-approve" onclick="event.stopPropagation();setBatchStatus('${p.employee_id}', 'approved')">✓ Duyệt</button>
+                                <button class="btn-batch-skip" onclick="event.stopPropagation();setBatchStatus('${p.employee_id}', 'skipped')">✗ Bỏ qua</button>
+                            </div>
+                        </div>
+                        <div class="batch-card-side" id="bcpresets_${p.employee_id}" style="display:none;">
+                            <button class="bcpreset-btn active" data-preset="auto" onclick="applyBatchPreset('${p.employee_id}','auto')">Auto</button>
+                            <button class="bcpreset-btn" data-preset="Tự nhiên" onclick="applyBatchPreset('${p.employee_id}','Tự nhiên')">🌿</button>
+                            <button class="bcpreset-btn" data-preset="Chuyên nghiệp" onclick="applyBatchPreset('${p.employee_id}','Chuyên nghiệp')">💼</button>
+                            <button class="bcpreset-btn" data-preset="Tươi sáng" onclick="applyBatchPreset('${p.employee_id}','Tươi sáng')">☀️</button>
+                        </div>
+                    </div>
+                    <div class="batch-card-bottom">
+                        <div class="batch-card-name">${p.display_name}</div>
+                    </div>
+                </div>`).join('');
+
+            document.getElementById('batchProgressBar').style.width = '0%';
+            document.getElementById('batchProgressCounter').textContent = `0 / ${entries.length}`;
+            document.getElementById('batchProgressLabel').textContent = 'Đang xử lý: cắt ảnh, xóa nền, làm đẹp...';
+            updateBatchFooter();
+
+            await processBatchWithCrops(entries);
+        }
+
+        async function processBatchWithCrops(entries) {
+            const total = entries.length;
+            let done = 0;
+            const CONCURRENCY = _bgEngine === 'rembg' ? _rembgConcurrency : _BATCH_CONCURRENCY;
+            const _t0 = performance.now();
+
+            function onOneDone(photo, dataUrl, rawDataUrl, bgRemovedDataUrl, error, timing) {
+                const loading = document.getElementById(`bcload_${photo.employee_id}`);
+                const img     = document.getElementById(`bcimg_${photo.employee_id}`);
+                const actions = document.getElementById(`bcactions_${photo.employee_id}`);
+                const badge   = document.getElementById(`bcbadge_${photo.employee_id}`);
+
+                if (error || !dataUrl) {
+                    if (loading) loading.innerHTML = '<span style="color:#ff5a5a;font-size:11px;padding:8px;text-align:center;">Lỗi xử lý</span>';
+                    _batchResults[photo.employee_id] = { dataUrl: null, rawDataUrl: null, bgRemovedDataUrl: null, bgColor: _batchBgColor, preset: 'auto', approved: false, photo };
+                    setBatchStatus(photo.employee_id, 'skipped');
+                } else {
+                    _batchResults[photo.employee_id] = { dataUrl, rawDataUrl, bgRemovedDataUrl, bgColor: _batchBgColor, preset: 'auto', approved: true, photo };
+                    if (loading) loading.style.display = 'none';
+                    if (img) { img.src = dataUrl; img.style.display = 'block'; }
+                    if (actions) actions.style.display = 'flex';
+                    const presetsEl = document.getElementById(`bcpresets_${photo.employee_id}`);
+                    if (presetsEl) presetsEl.style.display = 'flex';
+                    if (badge) {
+                        badge.textContent = '✓';
+                        if (timing) {
+                            badge.title = `load:${timing.load}ms | bg(${timing.bgMethod}):${timing.bg}ms | beautify:${timing.beautify}ms | encode:${timing.encode}ms | tổng:${timing.total}ms`;
+                        }
+                    }
+                    const wrap = document.querySelector(`#bcard_${photo.employee_id} .batch-card-img`);
+                    if (wrap) wrap.style.cursor = 'zoom-in';
+                    setBatchStatus(photo.employee_id, 'approved');
+                }
+                done++;
+                const pct = Math.round((done / total) * 100);
+                document.getElementById('batchProgressBar').style.width = pct + '%';
+                document.getElementById('batchProgressCounter').textContent = `${done} / ${total}`;
+                document.getElementById('batchProgressLabel').textContent = `Đang xử lý... (${done}/${total})`;
+            }
+
+            let idx = 0;
+            async function runWorker() {
+                while (idx < entries.length) {
+                    const { photo, sx, sy, sw, sh } = entries[idx++];
+                    let lastErr = null;
+                    for (let attempt = 0; attempt < 2; attempt++) {
+                        try {
+                            if (attempt > 0) {
+                                await new Promise(r => setTimeout(r, 1500)); // chờ GC trên server
+                                document.getElementById('batchProgressLabel').textContent =
+                                    `${photo.display_name}: 🔄 Thử lại...`;
+                            }
+                            // Step A: client-side crop to 600×800
+                            const croppedDataUrl = await applyCropToPhoto(photo.url, sx, sy, sw, sh);
+                            // Step B: remove bg + white bg + beautify (all client-side)
+                            const { dataUrl: processedDataUrl, rawDataUrl, bgRemovedDataUrl, timing } = await processPhotoFull(croppedDataUrl, (msg) => {
+                                document.getElementById('batchProgressLabel').textContent =
+                                    `${photo.display_name}: ${msg}`;
+                            });
+                            // Step C: only store result locally — save to server after user approves
+                            onOneDone(photo, processedDataUrl, rawDataUrl, bgRemovedDataUrl, null, timing);
+                            lastErr = null;
+                            break;
+                        } catch (err) {
+                            lastErr = err;
+                            console.warn(`[batchProcess] attempt ${attempt + 1}`, photo.employee_id, err);
+                        }
+                    }
+                    if (lastErr) onOneDone(photo, null, null, null, lastErr);
+                }
+            }
+            await Promise.all(Array.from({ length: Math.min(CONCURRENCY, entries.length) }, runWorker));
+
+            _batchProcessing = false;
+            const totalSec = ((performance.now() - _t0) / 1000).toFixed(1);
+            document.getElementById('batchProgressLabel').textContent = `✅ Xử lý xong ${total} ảnh trong ${totalSec}s — Duyệt ảnh rồi nhấn Lưu`;
+            document.getElementById('batchProgressBar').style.width = '100%';
+            // Release rembg lock after processing completes
+            if (_batchSessionId) {
+                callFrappeMethod('customize_erpnext.api.employee.employee_utils.batch_rembg_release_lock',
+                    { session_id: _batchSessionId }).catch(() => {});
+                _batchSessionId = null;
+            }
+            updateBatchFooter();
+        }
+
+        async function applyCropToPhoto(url, sx, sy, sw, sh) {
+            return new Promise((resolve, reject) => {
+                // Preserve PNG format so processPhotoFull can skip AI bg removal for PNGs
+                const srcIsPng = /\.png(\?|$)/i.test(url);
+                const img = new Image();
+                img.onload = function () {
+                    try {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = 600; canvas.height = 800;
+                        const ctx = canvas.getContext('2d');
+                        if (!srcIsPng) {
+                            // JPEG: fill white to avoid black transparent areas
+                            ctx.fillStyle = '#ffffff';
+                            ctx.fillRect(0, 0, 600, 800);
+                        }
+                        ctx.drawImage(img, sx, sy, sw, sh, 0, 0, 600, 800);
+                        const mimeType = srcIsPng ? 'image/png' : 'image/jpeg';
+                        resolve(canvas.toDataURL(mimeType, srcIsPng ? undefined : 0.92));
+                    } catch (e) { reject(e); }
+                };
+                img.onerror = () => reject(new Error('Không tải được ảnh'));
+                img.src = url.split('?')[0] + '?t=' + Date.now();
+            });
+        }
+
+        function setBatchStatus(empId, status) {
+            const card  = document.getElementById(`bcard_${empId}`);
+            const badge = document.getElementById(`bcbadge_${empId}`);
+            if (!card) return;
+            card.classList.remove('approved', 'skipped');
+            card.classList.add(status);
+            if (badge) badge.textContent = status === 'approved' ? '✓' : '✕';
+            if (_batchResults[empId]) _batchResults[empId].approved = (status === 'approved');
+            updateBatchFooter();
+        }
+
+        function updateBatchFooter() {
+            const approvedCount = Object.values(_batchResults).filter(r => r.approved && r.dataUrl).length;
+            const saveBtn = document.getElementById('btnBatchSave');
+            const counterSpan = document.getElementById('batchApprovedCount');
+            const info = document.getElementById('batchFooterInfo');
+            if (counterSpan) counterSpan.textContent = approvedCount;
+            if (saveBtn) saveBtn.disabled = approvedCount === 0 || _batchProcessing;
+            if (_batchTotal > 0 && info) {
+                info.innerHTML = `Đã duyệt: <b>${approvedCount}</b> / ${_batchTotal} ảnh`;
+            }
+        }
+
+        function previewBatchCard(empId) {
+            const result = _batchResults[empId];
+            if (!result || !result.dataUrl) return;
+            const m = document.getElementById('modal');
+            const img = document.getElementById('modalImg');
+            // Enforce 3:4 ratio: fit by height, derive width
+            img.style.maxHeight = '85vh';
+            img.style.width = 'auto';
+            img.style.maxWidth = 'calc(85vh * 3 / 4)';
+            img.style.aspectRatio = '3 / 4';
+            img.style.objectFit = 'cover';
+            // Raise above batch modal
+            m.style.zIndex = '10050';
+            m._fromBatch = true;
+            openModal(result.dataUrl, result.photo.display_name + ' · ' + empId);
+        }
+
+        // Restore modal z-index when closed from batch context
+        const _origCloseBtn = document.getElementsByClassName('close')[0];
+        _origCloseBtn.addEventListener('click', _resetModalZ);
+        document.getElementById('modal').addEventListener('click', function (e) {
+            if (e.target === this) _resetModalZ();
+        });
+        function _resetModalZ() {
+            const m = document.getElementById('modal');
+            if (m._fromBatch) {
+                m.style.zIndex = '';
+                m._fromBatch = false;
+                const img = document.getElementById('modalImg');
+                img.style.maxHeight = '';
+                img.style.width = '';
+                img.style.maxWidth = '';
+                img.style.aspectRatio = '';
+                img.style.objectFit = '';
+            }
+        }
+
+        function closeBatchModal() {
+            document.getElementById('batchIdModal').classList.remove('open');
+            document.body.style.overflow = '';
+            closeBatchCropAdjust();
+            if (_batchSessionId) {
+                callFrappeMethod('customize_erpnext.api.employee.employee_utils.batch_rembg_release_lock',
+                    { session_id: _batchSessionId }).catch(() => {});
+                _batchSessionId = null;
+            }
+            // Ping tất cả Gunicorn workers để evict rembg sessions còn sót
+            _evictAllRembgWorkers().catch(() => {});
+        }
+
+        // Gọi cleanup_rembg_worker lặp lại cho đến khi tất cả workers round-robin đều evict xong.
+        // Dừng khi nhận 3 lần liên tiếp evicted=false (workers đều sạch).
+        async function _evictAllRembgWorkers(onDone) {
+            // Lần đầu lấy worker_count từ server, gọi đúng count×2 lần.
+            // Dừng ngay nếu server trả locked=true (batch của client khác đang chạy).
+            try {
+                const first = await callFrappeMethod(
+                    'customize_erpnext.api.employee.employee_utils.cleanup_rembg_worker', {}
+                );
+                if (first && first.locked) return; // Có client khác đang batch → không evict
+                const total = ((first && first.worker_count) || 9) * 2;
+                for (let i = 1; i < total; i++) {
+                    const r = await callFrappeMethod(
+                        'customize_erpnext.api.employee.employee_utils.cleanup_rembg_worker', {}
+                    ).catch(() => null);
+                    if (r && r.locked) return; // Dừng ngay nếu lock xuất hiện giữa chừng
+                    await new Promise(r => setTimeout(r, 150));
+                }
+            } catch (_) {}
+            if (onDone) onDone();
+        }
+
+        async function saveBatchApproved() {
+            const toSave = Object.values(_batchResults).filter(r => r.approved && r.dataUrl);
+            if (toSave.length === 0) return;
+
+            // Disable button to prevent double-save
+            const saveBtn = document.getElementById('btnBatchSave');
+            if (saveBtn) saveBtn.disabled = true;
+            const info = document.getElementById('batchFooterInfo');
+            if (info) info.innerHTML = '⏳ Đang lưu ảnh...';
+
+            let saved = 0, failed = 0;
+            for (const { dataUrl, photo } of toSave) {
+                let saveOk = false;
+                for (let attempt = 0; attempt < 3; attempt++) {
+                    if (attempt > 0) {
+                        if (info) info.innerHTML = `⏳ Chờ server khởi động lại... (thử ${attempt + 1}/3)`;
+                        await new Promise(r => setTimeout(r, 3000 * attempt));
+                    }
+                    try {
+                        const r = await callFrappeMethod(
+                            'customize_erpnext.api.employee.employee_utils.process_employee_photo',
+                            { employee_id: photo.employee_id, employee_name: photo.display_name,
+                              image_data: dataUrl, remove_bg: 0 }
+                        );
+                        if (r && r.status === 'success') {
+                            refreshPhotoCardImage(photo.employee_id, r.file_url);
+                            const p = allPhotos.find(x => x.employee_id === photo.employee_id);
+                            if (p) p.url = r.file_url;
+                            saved++;
+                            saveOk = true;
+                            break;
+                        } else {
+                            console.warn('[saveBatchApproved] unexpected response:', r);
+                        }
+                    } catch (err) {
+                        console.warn(`[saveBatchApproved] attempt ${attempt + 1}`, photo.employee_id, err);
+                    }
+                }
+                if (!saveOk) failed++;
+                if (info) info.innerHTML = `⏳ Đang lưu... ${saved + failed} / ${toSave.length}`;
+            }
+
+            setCache(CACHE_CONFIG.PHOTOS_KEY, allPhotos, CACHE_CONFIG.PHOTOS_EXPIRY);
+            closeBatchModal();
+            exitMultiSelect();
+            const msg = failed > 0
+                ? `✅ Đã lưu ${saved} ảnh · ⚠️ Thất bại ${failed}`
+                : `✅ Đã cập nhật ${saved} ảnh thẻ vào thư viện!`;
+            showEditorToast(msg, failed > 0 ? 'err' : 'ok');
+        }
+
+        // Bind btnMultiSelect also in DOMContentLoaded setup
+        document.getElementById('btnGlobalUpload').addEventListener('click', function () {
+            document.getElementById('globalPhotoInput').click();
+        });
+        document.getElementById('globalPhotoInput').addEventListener('change', handleGlobalPhotoUpload);
+
         // Close upload modals on backdrop click
         ['uploadChoiceModal', 'cameraModal', 'cropModal'].forEach(id => {
             document.getElementById(id).addEventListener('click', function (e) {
@@ -2055,11 +4226,23 @@
             });
         });
 
+        // Close batch modal on backdrop click
+        document.getElementById('batchIdModal').addEventListener('click', function (e) {
+            if (e.target === this && !_batchProcessing) closeBatchModal();
+        });
+        document.getElementById('batchCropAdjustModal').addEventListener('click', function (e) {
+            if (e.target === this) closeBatchCropAdjust();
+        });
+
         // Close modal with ESC key
         document.addEventListener('keydown', function (e) {
             if (e.key === 'Escape') {
                 const editorModal = document.getElementById('editorModal');
-                if (editorModal && editorModal.classList.contains('open')) {
+                if (document.getElementById('batchCropAdjustModal').classList.contains('open')) {
+                    closeBatchCropAdjust();
+                } else if (document.getElementById('batchIdModal').classList.contains('open')) {
+                    closeBatchModal();
+                } else if (editorModal && editorModal.classList.contains('open')) {
                     closePhotoEditor();
                 } else if (document.getElementById('cropModal').classList.contains('open')) {
                     closeCropModal();
@@ -2067,12 +4250,133 @@
                     stopCameraAndClose();
                 } else if (document.getElementById('uploadChoiceModal').classList.contains('open')) {
                     closeUploadModals();
+                } else if (isMultiSelectMode) {
+                    exitMultiSelect();
                 } else {
                     modal.style.display = 'none';
                 }
             }
         });
     </script>
+    <button id="backToTop" class="back-to-top" onclick="window.scrollTo({top: 0, behavior: 'smooth'})"
+        title="Lên đầu trang">
+        <span>⬆️</span>
+    </button>
+
+    <!-- ── Bulk Action Toolbar ── -->
+    <div class="bulk-toolbar" id="bulkToolbar">
+        <div class="bulk-count">Đã chọn <span id="bulkCount">0</span> nhân viên</div>
+        <div class="bulk-actions">
+            <button class="btn-bulk btn-bulk-select-all" id="btnBulkSelectAll" onclick="bulkSelectAll()">☑️ <span class="btn-bulk-label">Chọn tất cả</span></button>
+            <button class="btn-bulk btn-bulk-download" id="btnBulkDownload" disabled onclick="downloadSelectedPhotos()">⬇️ <span class="btn-bulk-label">Tải ảnh về</span></button>
+            <button class="btn-bulk btn-bulk-id" id="btnBulkId" disabled onclick="startBatchIdPhoto()">🤖 <span class="btn-bulk-label">Tạo ảnh thẻ hàng loạt</span></button>
+            <button class="btn-bulk-exit" onclick="exitMultiSelect()">✕ Thoát</button>
+        </div>
+    </div>
+
+    <!-- ── Batch ID Photo Modal ── -->
+    <div id="batchIdModal">
+        <div class="batch-modal-box">
+            <div class="batch-modal-header">
+                <h3>🤖 Tạo ảnh thẻ hàng loạt</h3>
+                <div class="batch-step-bar">
+                    <span class="batch-step-pill active" id="batchPill1">1 · Chọn vùng cắt</span>
+                    <span class="batch-step-arrow">›</span>
+                    <span class="batch-step-pill" id="batchPill2">2 · Duyệt kết quả</span>
+                </div>
+                <button class="editor-modal-close" id="btnBatchClose" onclick="closeBatchModal()">✕</button>
+            </div>
+            <div class="batch-modal-progress" id="batchProgressSection" style="display:none;">
+                <div class="batch-progress-text">
+                    <span id="batchProgressLabel">Đang xử lý ảnh...</span>
+                    <span id="batchProgressCounter">0 / 0</span>
+                </div>
+                <div class="batch-progress-bar-wrap">
+                    <div class="batch-progress-bar" id="batchProgressBar"></div>
+                </div>
+            </div>
+            <div class="batch-grid" id="batchGrid"></div>
+            <!-- Footer step 1 -->
+            <div class="batch-modal-footer" id="batchFooterStep1" style="flex-direction:row;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 16px;">
+                <span class="batch-footer-info" style="white-space:nowrap;flex-shrink:0;">Kéo khung xanh · Nhấn <b>✂️ Chỉnh</b> · Dùng phím <b>↑↓ +−</b></span>
+                <div style="width:1px;height:20px;background:#323a48;flex-shrink:0;"></div>
+                <span style="font-size:11px;color:#8a95b0;white-space:nowrap;flex-shrink:0;">Tất cả:</span>
+                <button class="btn-batch-adj" id="btnCropUp" onclick="batchAdjustAllCropY(-0.03)" title="↑ Lên (phím ↑)">↑ Lên</button>
+                <button class="btn-batch-adj" id="btnCropDown" onclick="batchAdjustAllCropY(+0.03)" title="↓ Xuống (phím ↓)">↓ Xuống</button>
+                <button class="btn-batch-adj" id="btnCropZoomIn" onclick="batchAdjustAllCropZoom(1.1)" title="Phóng to (phím +)">🔍+</button>
+                <button class="btn-batch-adj" id="btnCropZoomOut" onclick="batchAdjustAllCropZoom(0.9)" title="Thu nhỏ (phím −)">🔍−</button>
+                <div style="width:1px;height:20px;background:#323a48;flex-shrink:0;"></div>
+                <span style="color:#8a95b0;font-size:11px;white-space:nowrap;flex-shrink:0;">Màu nền:</span>
+                <div class="batch-bg-swatches" style="flex-shrink:0;">
+                    <div class="batch-bg-swatch on" data-scope="step1" style="background:#f0f0f0;" title="Xám nhạt (mặc định)" onclick="setBatchBgSwatch('#f0f0f0',this,'step1')"></div>
+                    <div class="batch-bg-swatch" data-scope="step1" style="background:#fff;border:1px solid #555;" title="Trắng" onclick="setBatchBgSwatch('#ffffff',this,'step1')"></div>
+                    <div class="batch-bg-swatch" data-scope="step1" style="background:#E8E8E8;" title="Xám nhạt" onclick="setBatchBgSwatch('#E8E8E8',this,'step1')"></div>
+                    <div class="batch-bg-swatch" data-scope="step1" style="background:#4A90D9;" title="Xanh đậm" onclick="setBatchBgSwatch('#4A90D9',this,'step1')"></div>
+                </div>
+                <div style="width:1px;height:20px;background:#323a48;flex-shrink:0;"></div>
+                <span style="color:#8a95b0;font-size:11px;white-space:nowrap;flex-shrink:0;">Xóa nền:</span>
+                <button class="btn-bg-engine" id="bge_imgly" onclick="setBgEngine('imgly')">JS (@imgly)</button>
+                <button class="btn-bg-engine active" id="bge_rembg" onclick="setBgEngine('rembg')">🖥 rembg</button>
+                <div id="bgeModelRow" style="display:flex;align-items:center;gap:4px;flex-shrink:0;">
+                    <span style="color:#8a95b0;font-size:11px;">Model:</span>
+                    <div id="bgeModelSelect" style="display:flex;gap:4px;">
+                        <button class="btn-bg-engine" data-model="u2net" onclick="setRembgModel('u2net')">u2net</button>
+                        <button class="btn-bg-engine active" data-model="birefnet-portrait" onclick="setRembgModel('birefnet-portrait')">birefnet</button>
+                    </div>
+                </div>
+                <div style="margin-left:auto;display:flex;gap:8px;align-items:center;flex-shrink:0;">
+                    <button class="btn-batch-cancel" onclick="closeBatchModal()">Hủy</button>
+                    <button class="btn-batch-save" id="btnConfirmCrops" onclick="confirmCropZones()">▶ Tiến hành xử lý (<span id="batchStep1Count">0</span>)</button>
+                </div>
+            </div>
+            <!-- Footer step 2 -->
+            <div class="batch-modal-footer" id="batchFooterStep2" style="display:none;flex-direction:row;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 16px;">
+                <span class="batch-footer-info" id="batchFooterInfo" style="white-space:nowrap;flex-shrink:0;"></span>
+                <div style="width:1px;height:20px;background:#323a48;flex-shrink:0;"></div>
+                <span style="color:#8a95b0;font-size:11px;white-space:nowrap;flex-shrink:0;">Màu nền:</span>
+                <div class="batch-bg-swatches" style="flex-shrink:0;">
+                    <div class="batch-bg-swatch on" data-scope="step2" style="background:#f0f0f0;" title="Xám nhạt (mặc định)" onclick="setBatchBgSwatch('#f0f0f0',this,'step2')"></div>
+                    <div class="batch-bg-swatch" data-scope="step2" style="background:#fff;border:1px solid #555;" title="Trắng" onclick="setBatchBgSwatch('#ffffff',this,'step2')"></div>
+                    <div class="batch-bg-swatch" data-scope="step2" style="background:#E8E8E8;" title="Xám nhạt" onclick="setBatchBgSwatch('#E8E8E8',this,'step2')"></div>
+                    <div class="batch-bg-swatch" data-scope="step2" style="background:#4A90D9;" title="Xanh đậm" onclick="setBatchBgSwatch('#4A90D9',this,'step2')"></div>
+                </div>
+                <div style="width:1px;height:20px;background:#323a48;flex-shrink:0;"></div>
+                <span style="color:#8a95b0;font-size:11px;white-space:nowrap;flex-shrink:0;">Áp dụng tất cả:</span>
+                <button class="btn-bg-engine bcpreset-global-btn active" data-preset="auto" onclick="applyPresetToAll('auto')">🤖 Auto</button>
+                <button class="btn-bg-engine bcpreset-global-btn" data-preset="Tự nhiên" onclick="applyPresetToAll('Tự nhiên')">🌿 Tự nhiên</button>
+                <button class="btn-bg-engine bcpreset-global-btn" data-preset="Chuyên nghiệp" onclick="applyPresetToAll('Chuyên nghiệp')">💼 Chuyên nghiệp</button>
+                <button class="btn-bg-engine bcpreset-global-btn" data-preset="Tươi sáng" onclick="applyPresetToAll('Tươi sáng')">☀️ Tươi sáng</button>
+                <div style="margin-left:auto;display:flex;gap:8px;align-items:center;flex-shrink:0;">
+                    <button class="btn-batch-cancel" onclick="closeBatchModal()">Đóng</button>
+                    <button class="btn-batch-save" id="btnBatchSave" disabled onclick="saveBatchApproved()">✅ Cập nhật thư viện (<span id="batchApprovedCount">0</span>)</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Batch Crop Adjust Modal (single photo crop for step 1) ── -->
+    <div class="upload-modal" id="batchCropAdjustModal">
+        <div class="upload-modal-box" style="min-width:min(700px,92vw);">
+            <h3>
+                <span>✂️ Chỉnh vùng cắt — <span class="emp-label" id="batchCropAdjLabel"></span></span>
+                <button class="upload-modal-close" onclick="closeBatchCropAdjust()">✕</button>
+            </h3>
+            <div id="batchCropContainer" style="max-height:55vh;overflow:hidden;border-radius:8px;background:#000;">
+                <img id="batchCropImg" src="" alt="crop">
+            </div>
+            <p style="margin:10px 0 4px;color:#8a95b0;font-size:12px;">Kéo để di chuyển · Scroll để zoom · Tỷ lệ cố định 3:4</p>
+            <div class="crop-actions">
+                <button class="btn-cancel-modal" onclick="closeBatchCropAdjust()">Huỷ</button>
+                <button class="btn-save-crop" onclick="saveBatchCropAdjust()">✓ Xác nhận vùng cắt</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Download progress toast ── -->
+    <div id="downloadProgressToast">
+        <div class="mini-spinner"></div>
+        <span id="downloadProgressText">Đang tải...</span>
+    </div>
 </body>
 
 </html>

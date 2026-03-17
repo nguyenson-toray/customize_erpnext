@@ -204,6 +204,10 @@ data_import_before_import = [
 # Scheduler Events
 scheduler_events = {
     "cron": {
+         # Chạy mỗi phút - Giải phóng RAM rembg sau 30 phút không dùng rembg để edit ảnh thẻ
+        "* * * * *": [
+            "customize_erpnext.api.employee.employee_utils.cleanup_rembg_sessions"
+        ],
         # Daily Shift Attendance Report - Every day at 08:05 AM
         "5 8 * * *": [
             # Shift Attendance Report - Every day at 08:15 AM

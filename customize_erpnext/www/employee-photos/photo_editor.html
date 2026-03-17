@@ -7,29 +7,11 @@
   <title>Photo Editor – ERPNext</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
-  <!-- @imgly: bắt đầu import ngay khi page load, warm-up model sau 1.5s -->
-  <script type="module">
-    const _p = import('https://esm.sh/@imgly/background-removal@1.4.5');
-    window.__imglyLoader = () => _p;
-
-    // Warm-up: tải ONNX model vào bộ nhớ ngay từ đầu (silent, background)
-    window.addEventListener('load', () => setTimeout(async () => {
-      try {
-        const lib = await _p;
-        const c = document.createElement('canvas');
-        c.width = 4; c.height = 4;
-        c.getContext('2d').fillStyle = '#888';
-        c.getContext('2d').fillRect(0, 0, 4, 4);
-        const blob = await new Promise(r => c.toBlob(r, 'image/png'));
-        await lib.removeBackground(blob, {
-          publicPath: location.origin + '/assets/customize_erpnext/bg_removal/',
-          model: 'medium',
-          output: { format: 'image/png', quality: 1 }
-        });
-        window.__imglyReady = true;
-      } catch (_) { /* silent */ }
-    }, 1500));
-  </script>
+  <!-- Shared photo processing utilities -->
+  <script src="/assets/customize_erpnext/js/photo_crop_shared.js"></script>
+  <script src="/assets/customize_erpnext/js/photo_processing_utils.js"></script>
+  <!-- rembg birefnet-portrait: server-side bg removal via Frappe API -->
+  <!-- @imgly không dùng nữa, xóa warm-up để tiết kiệm bộ nhớ browser -->
   <!-- face-api.js: load ngay, expose as window.faceapi -->
   <script type="module">
     import * as faceapi from '/assets/customize_erpnext/face_api/face-api.esm.js';
@@ -213,6 +195,20 @@
       flex-shrink: 0;
     }
 
+    /* Primary CTA for Auto Processing */
+    #tbAuto {
+      background: linear-gradient(135deg, #4f8eff, #00d4b0);
+      color: #fff;
+      border-color: transparent;
+      padding: 5px 14px;
+      font-weight: 700;
+    }
+
+    #tbAuto:not(:disabled):hover {
+      box-shadow: 0 0 0 3px rgba(79, 142, 255, .25);
+      transform: translateY(-1px);
+    }
+
     /* ── COMPARE STAGE ── */
     .stage {
       flex: 1;
@@ -264,6 +260,13 @@
       font-size: 12px;
       color: var(--t2);
       line-height: 1.6;
+    }
+
+    .ds span {
+      display: inline-block;
+      margin-top: 4px;
+      font-size: 11px;
+      opacity: 0.7;
     }
 
     .dbtn {
@@ -345,6 +348,41 @@
       background: linear-gradient(90deg, var(--primary), var(--accent));
       border-radius: 10px;
       transition: width .4s ease;
+    }
+
+    /* Step Indicator */
+    .prog-steps {
+      display: flex;
+      gap: 12px;
+      margin-top: 15px;
+    }
+
+    .ps {
+      font-size: 11px;
+      color: var(--t3);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      opacity: 0.5;
+    }
+
+    .ps.active {
+      color: var(--primary);
+      opacity: 1;
+      font-weight: 600;
+    }
+
+    .ps.done {
+      color: var(--green);
+      opacity: 1;
+    }
+
+    .ps-icon {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
     }
 
     /* ── SPLIT VIEW ── */
@@ -470,6 +508,94 @@
       display: flex;
       flex-direction: column;
       overflow: hidden;
+      position: relative;
+    }
+
+    /* Drag handle for mobile */
+    .panel-drag-handle {
+      display: none;
+      width: 36px;
+      height: 4px;
+      background: var(--b2);
+      border-radius: 2px;
+      margin: 8px auto 4px;
+      cursor: row-resize;
+      flex-shrink: 0;
+    }
+
+    /* Panel Tabs */
+    .panel-tabs {
+      display: none;
+      background: var(--bg);
+      padding: 4px;
+      margin: 8px 12px;
+      border-radius: 8px;
+      gap: 4px;
+    }
+
+    .panel-tab {
+      flex: 1;
+      padding: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      text-align: center;
+      border-radius: 6px;
+      cursor: pointer;
+      color: var(--t2);
+      transition: all 0.2s;
+    }
+
+    .panel-tab.on {
+      background: var(--s3);
+      color: var(--text);
+    }
+
+    /* Accordion */
+    .accordion {
+      border-bottom: 1px solid var(--border);
+    }
+
+    .accordion-header {
+      padding: 12px 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      user-select: none;
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .accordion-header:hover {
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .accordion-title {
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .9px;
+      color: var(--t3);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .accordion-icon {
+      font-size: 10px;
+      transition: transform 0.2s;
+      opacity: 0.5;
+    }
+
+    .accordion.closed .accordion-icon {
+      transform: rotate(-90deg);
+    }
+
+    .accordion-content {
+      padding: 0 14px 14px;
+    }
+
+    .accordion.closed .accordion-content {
+      display: none;
     }
 
     .panel-body {
@@ -691,6 +817,7 @@
       width: 100%;
       height: 3px;
       -webkit-appearance: none;
+      appearance: none;
       background: var(--b2);
       border-radius: 10px;
       outline: none;
@@ -911,14 +1038,21 @@
       .panel {
         border-left: none;
         border-top: 2px solid var(--border);
-        max-height: 42vh;
-        overflow-y: auto;
+        max-height: 50vh;
+        /* Increased from 40vh for better usability */
+        height: 50vh;
+        overflow-y: hidden;
         flex-direction: column;
+        transition: height 0.3s ease;
       }
 
       .panel-body {
         overflow-y: auto;
-        flex: none;
+        flex: 1;
+        /* Allow body to grow and scroll */
+        min-height: 0;
+        touch-action: pan-y;
+        /* Prioritize vertical scrolling over slider triggers */
       }
 
       /* Toolbar: scrollable row */
@@ -982,8 +1116,10 @@
       }
 
       input[type=range]::-webkit-slider-thumb {
-        width: 22px;
-        height: 22px;
+        width: 18px;
+        /* Reduced from 22px to avoid accidental trigger */
+        height: 18px;
+        box-shadow: 0 0 0 5px rgba(79, 142, 255, .1);
       }
 
       .pill {
@@ -1018,7 +1154,8 @@
       }
 
       .sl-row {
-        margin-bottom: 8px;
+        margin-bottom: 14px;
+        /* Increased from 8px for better touch separation */
       }
 
       .sl-name {
@@ -1102,9 +1239,17 @@
         <button class="tb" id="tbCrop" onclick="setMode('crop',this)" disabled>✂️ Cắt ảnh</button>
         <div class="tb-sep"></div>
         <button class="tb" id="tbBg" onclick="doRemoveBg()" disabled>🪄 Xóa nền AI</button>
+        <select id="bgEngineSelect" onchange="setEditorBgEngine(this.value)" disabled
+            title="Chọn engine xóa nền"
+            style="background:var(--s3);color:var(--text);border:1px solid var(--border);
+                   border-radius:6px;padding:3px 6px;font-size:11px;cursor:pointer;">
+            <option value="rembg-u2net">u2net</option>
+            <option value="rembg-birefnet">birefnet</option>
+            <option value="imgly">@imgly (JS)</option>
+        </select>
         <div class="tb-sep"></div>
         <!-- Compare toggle -->
-        <button class="tb on" id="tbSplit" onclick="toggleSplitMode()" disabled title="Kéo thanh giữa để so sánh">⇔ So
+        <button class="tb" id="tbSplit" onclick="toggleSplitMode()" disabled title="Kéo thanh giữa để so sánh">⇔ So
           sánh</button>
         <div class="tb-sep"></div>
         <button class="tb" id="tbReset" onclick="resetAll()" disabled style="margin-left:auto;color:var(--red);">🗑
@@ -1119,7 +1264,7 @@
           <div class="drop-box" id="dropBox" onclick="document.getElementById('fi').click()">
             <div class="di">🖼</div>
             <div class="dt">Chọn ảnh nhân viên</div>
-            <div class="ds">Kéo thả hoặc nhấn để tải lên<br>JPG · PNG · WEBP · tối đa 20MB</div>
+            <div class="ds">Kéo thả · Nhấn để chọn · Ctrl+V để dán<br><span>JPG · PNG · WEBP · tối đa 20MB</span></div>
             <button class="dbtn" type="button">📁 Chọn ảnh</button>
           </div>
         </div>
@@ -1133,6 +1278,20 @@
             <div class="prog-fill" id="progFill" style="width:0%"></div>
           </div>
           <div class="prog-sub" id="progSub"></div>
+          <div class="prog-steps" id="progSteps">
+            <div class="ps" id="ps-detect">
+              <div class="ps-icon"></div><span>Nhận diện</span>
+            </div>
+            <div class="ps" id="ps-crop">
+              <div class="ps-icon"></div><span>Cắt 3:4</span>
+            </div>
+            <div class="ps" id="ps-bg">
+              <div class="ps-icon"></div><span>Xóa nền</span>
+            </div>
+            <div class="ps" id="ps-beautify">
+              <div class="ps-icon"></div><span>Làm đẹp</span>
+            </div>
+          </div>
         </div>
 
         <!-- SPLIT: Before | After -->
@@ -1162,7 +1321,12 @@
     </div>
 
     <!-- RIGHT PANEL -->
-    <div class="panel">
+    <div class="panel" id="rightPanel">
+      <div class="panel-drag-handle" id="panelDragHandle"></div>
+      <div class="panel-tabs" id="panelTabs">
+        <div class="panel-tab on" onclick="switchPanelTab('adjust')">Điều chỉnh</div>
+        <div class="panel-tab" onclick="switchPanelTab('preview')">Xem trước</div>
+      </div>
       <div class="panel-body">
 
         <!-- Beautify CTA -->
@@ -1175,13 +1339,14 @@
         </div>
 
         <!-- Mini preview -->
-        <div class="mini-prev" id="miniPrev">
-          <div class="mini-lbl">Preview 3×4</div>
-          <img class="mini-img" id="miniImg" src="" alt="">
-          <div class="mini-sz">3 × 4 cm</div>
+        <div class="mini-prev" id="miniPrevSection">
+          <div class="mini-prev" id="miniPrev">
+            <div class="mini-lbl">Preview 3×4</div>
+            <img class="mini-img" id="miniImg" src="" alt="">
+            <div class="mini-sz">3 × 4 cm</div>
+          </div>
         </div>
 
-        <!-- Crop -->
         <div class="sec">
           <div class="sec-t">✂️ Tỉ lệ cắt</div>
           <div class="pills">
@@ -1213,49 +1378,52 @@
         </div>
 
         <!-- Manual sliders -->
-        <div class="sec">
-          <div class="sec-t">🎛 Chỉnh thủ công</div>
-          <div class="pills" style="margin-bottom:10px;">
-            <button class="pill" onclick="applyFilterPreset('Tự nhiên')" title="Nhẹ nhàng, tự nhiên">🌿 Tự
-              nhiên</button>
-            <button class="pill" onclick="applyFilterPreset('Chuyên nghiệp')" title="Sắc nét, chuyên nghiệp">💼 Chuyên
-              nghiệp</button>
-            <button class="pill" onclick="applyFilterPreset('Tươi sáng')" title="Sáng, tươi trẻ">☀️ Tươi sáng</button>
+        <div id="panelAdjustSection">
+          <div class="sec">
+            <div class="sec-t">🎛 Chỉnh thủ công</div>
+            <div class="pills" style="margin-bottom:10px;">
+              <button class="pill" onclick="applyFilterPreset('Tự nhiên')" title="Nhẹ nhàng, tự nhiên">🌿 Tự
+                nhiên</button>
+              <button class="pill" onclick="applyFilterPreset('Chuyên nghiệp')" title="Sắc nét, chuyên nghiệp">💼 Chuyên
+                nghiệp</button>
+              <button class="pill" onclick="applyFilterPreset('Tươi sáng')" title="Sáng, tươi trẻ">☀️ Tươi sáng</button>
+            </div>
+            <div class="sl-row">
+              <div class="sl-top"><span class="sl-name">☀️ Độ sáng</span><span class="sl-val" id="vB">0</span></div>
+              <input type="range" id="sB" min="-100" max="100" value="0" oninput="sv('B')" onchange="applyFilters()">
+            </div>
+            <div class="sl-row">
+              <div class="sl-top"><span class="sl-name">◑ Tương phản</span><span class="sl-val" id="vC">0</span></div>
+              <input type="range" id="sC" min="-100" max="100" value="0" oninput="sv('C')" onchange="applyFilters()">
+            </div>
+            <div class="sl-row">
+              <div class="sl-top"><span class="sl-name">🌈 Bão hòa màu</span><span class="sl-val" id="vS">0</span></div>
+              <input type="range" id="sS" min="-100" max="100" value="0" oninput="sv('S')" onchange="applyFilters()">
+            </div>
+            <div class="sl-row">
+              <div class="sl-top"><span class="sl-name">✨ Mịn da</span><span class="sl-val" id="vSm">0</span></div>
+              <input type="range" id="sSm" min="0" max="12" value="0" oninput="sv('Sm')" onchange="applyFilters()">
+            </div>
+            <div class="sl-row">
+              <div class="sl-top"><span class="sl-name">🔆 Sắc nét</span><span class="sl-val" id="vSh">0</span></div>
+              <input type="range" id="sSh" min="0" max="10" value="0" oninput="sv('Sh')" onchange="applyFilters()">
+            </div>
+            <div class="sl-row">
+              <div class="sl-top"><span class="sl-name">🌡️ Tông ấm/lạnh</span><span class="sl-val" id="vW">0</span>
+              </div>
+              <input type="range" id="sW" min="-60" max="60" value="0" oninput="sv('W')" onchange="applyFilters()">
+            </div>
+            <div class="sl-row">
+              <div class="sl-top"><span class="sl-name">💡 Vùng sáng</span><span class="sl-val" id="vHi">0</span></div>
+              <input type="range" id="sHi" min="-50" max="50" value="0" oninput="sv('Hi')" onchange="applyFilters()">
+            </div>
+            <div class="sl-row">
+              <div class="sl-top"><span class="sl-name">🌑 Vùng tối</span><span class="sl-val" id="vSh2">0</span></div>
+              <input type="range" id="sSh2" min="-50" max="50" value="0" oninput="sv('Sh2')" onchange="applyFilters()">
+            </div>
+            <button class="btn btn-g" style="width:100%;margin-top:4px;font-size:11px;" onclick="resetSliders()">↺ Reset
+              bộ lọc</button>
           </div>
-          <div class="sl-row">
-            <div class="sl-top"><span class="sl-name">☀️ Độ sáng</span><span class="sl-val" id="vB">0</span></div>
-            <input type="range" id="sB" min="-100" max="100" value="0" oninput="sv('B')" onchange="applyFilters()">
-          </div>
-          <div class="sl-row">
-            <div class="sl-top"><span class="sl-name">◑ Tương phản</span><span class="sl-val" id="vC">0</span></div>
-            <input type="range" id="sC" min="-100" max="100" value="0" oninput="sv('C')" onchange="applyFilters()">
-          </div>
-          <div class="sl-row">
-            <div class="sl-top"><span class="sl-name">🌈 Bão hòa màu</span><span class="sl-val" id="vS">0</span></div>
-            <input type="range" id="sS" min="-100" max="100" value="0" oninput="sv('S')" onchange="applyFilters()">
-          </div>
-          <div class="sl-row">
-            <div class="sl-top"><span class="sl-name">✨ Mịn da</span><span class="sl-val" id="vSm">0</span></div>
-            <input type="range" id="sSm" min="0" max="12" value="0" oninput="sv('Sm')" onchange="applyFilters()">
-          </div>
-          <div class="sl-row">
-            <div class="sl-top"><span class="sl-name">🔆 Sắc nét</span><span class="sl-val" id="vSh">0</span></div>
-            <input type="range" id="sSh" min="0" max="10" value="0" oninput="sv('Sh')" onchange="applyFilters()">
-          </div>
-          <div class="sl-row">
-            <div class="sl-top"><span class="sl-name">🌡️ Tông ấm/lạnh</span><span class="sl-val" id="vW">0</span></div>
-            <input type="range" id="sW" min="-60" max="60" value="0" oninput="sv('W')" onchange="applyFilters()">
-          </div>
-          <div class="sl-row">
-            <div class="sl-top"><span class="sl-name">💡 Vùng sáng</span><span class="sl-val" id="vHi">0</span></div>
-            <input type="range" id="sHi" min="-50" max="50" value="0" oninput="sv('Hi')" onchange="applyFilters()">
-          </div>
-          <div class="sl-row">
-            <div class="sl-top"><span class="sl-name">🌑 Vùng tối</span><span class="sl-val" id="vSh2">0</span></div>
-            <input type="range" id="sSh2" min="-50" max="50" value="0" oninput="sv('Sh2')" onchange="applyFilters()">
-          </div>
-          <button class="btn btn-g" style="width:100%;margin-top:4px;font-size:11px;" onclick="resetSliders()">↺ Reset
-            bộ lọc</button>
         </div>
 
       </div><!-- end panel-body -->
@@ -1281,6 +1449,37 @@
     // ═══════════════════════════════════
     //  STATE
     // ═══════════════════════════════════
+
+    function switchPanelTab(tab) {
+      const tabs = document.querySelectorAll('.panel-tab');
+      tabs.forEach(t => t.classList.remove('on'));
+      if (tab === 'adjust') {
+        tabs[0].classList.add('on');
+        document.getElementById('panelAdjustSection').style.display = 'block';
+        document.getElementById('miniPrevSection').style.display = 'none';
+      } else {
+        tabs[1].classList.add('on');
+        document.getElementById('panelAdjustSection').style.display = 'none';
+        document.getElementById('miniPrevSection').style.display = 'block';
+      }
+    }
+
+    // Drag to resize panel for mobile
+    let isDraggingPanel = false;
+    const panel = document.getElementById('rightPanel');
+    const handle = document.getElementById('panelDragHandle');
+
+    handle?.addEventListener('touchstart', () => { isDraggingPanel = true; }, { passive: true });
+    window.addEventListener('touchmove', (e) => {
+      if (!isDraggingPanel) return;
+      const touchY = e.touches[0].clientY;
+      const height = window.innerHeight - touchY;
+      if (height > 100 && height < window.innerHeight * 0.8) {
+        panel.style.maxHeight = height + 'px';
+      }
+    }, { passive: false });
+    window.addEventListener('touchend', () => { isDraggingPanel = false; });
+
     const cvBefore = document.getElementById('cvBefore');
     const cvAfter = document.getElementById('cvAfter');
     const ctxB = cvBefore.getContext('2d', { willReadFrequently: true });
@@ -1306,7 +1505,12 @@
       splitMode: true,
       autoPending: false,   // true khi đang chờ user xác nhận crop trong auto pipeline
       _cropSuggest: null,   // { x,y,width,height } gợi ý từ face detection
+      sourcePng: false,     // true khi ảnh nguồn là PNG (có thể có alpha)
     };
+
+    let _editorBgEngine = 'rembg';          // 'rembg' | 'imgly'
+    let _editorBgModel  = 'u2net';          // 'u2net' | 'birefnet-portrait'
+    let _editorImglyLib = null;             // lazy-loaded @imgly module
 
     // ═══════════════════════════════════
     //  DRAGGABLE DIVIDER
@@ -1354,6 +1558,7 @@
     document.getElementById('fi').addEventListener('change', e => {
       const f = e.target.files[0]; if (!f) return;
       if (f.size > 20 * 1024 * 1024) { toast('File quá lớn (tối đa 20MB)', 'er'); return; }
+      G.sourcePng = (f.type === 'image/png');
       const r = new FileReader();
       r.onload = ev => loadImg(ev.target.result);
       r.readAsDataURL(f);
@@ -1366,7 +1571,22 @@
     dropBox.addEventListener('drop', e => {
       e.preventDefault(); dropBox.classList.remove('over');
       const f = e.dataTransfer.files[0];
-      if (f?.type.startsWith('image/')) { const r = new FileReader(); r.onload = ev => loadImg(ev.target.result); r.readAsDataURL(f); }
+      if (f?.type.startsWith('image/')) {
+        G.sourcePng = (f.type === 'image/png');
+        const r = new FileReader();
+        r.onload = ev => loadImg(ev.target.result);
+        r.readAsDataURL(f);
+      }
+    });
+
+    window.addEventListener('paste', e => {
+      const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+      for (const item of items) {
+        if (item.type.indexOf('image') !== -1) {
+          const f = item.getAsFile();
+          const r = new FileReader(); r.onload = ev => loadImg(ev.target.result); r.readAsDataURL(f);
+        }
+      }
     });
 
     function loadImg(src) {
@@ -1411,7 +1631,7 @@
     }
 
     function enableUI() {
-      ['tbAuto', 'tbCrop', 'tbBg', 'tbReset', 'btnSave', 'bfyBtn', 'tbSplit'].forEach(id => {
+      ['tbAuto', 'tbCrop', 'tbBg', 'tbReset', 'btnSave', 'bfyBtn', 'tbSplit', 'bgEngineSelect'].forEach(id => {
         const el = document.getElementById(id); if (el) el.disabled = false;
       });
     }
@@ -1463,7 +1683,7 @@
         if (G.cropper) { G.cropper.destroy(); G.cropper = null; }
         G.cropper = new Cropper(ci, {
           aspectRatio: isNaN(G.ratio) ? NaN : G.ratio,
-          viewMode: 1, autoCropArea: 0.88, background: false,
+          viewMode: 1, autoCropArea: 0.60, background: false,
           ready() {
             // Áp dụng vùng crop gợi ý nếu có (từ auto pipeline)
             if (G._cropSuggest) {
@@ -1510,61 +1730,90 @@
     }
 
     // ═══════════════════════════════════
-    //  REMOVE BACKGROUND — @imgly/background-removal
+    //  REMOVE BACKGROUND — rembg birefnet-portrait (server-side)
     // ═══════════════════════════════════
-    const IMGLY_CDN = location.origin + '/assets/customize_erpnext/bg_removal/';
-    let _imglyLib = null; // cached after first import
-
-    // Core @imgly logic — dùng chung cho doRemoveBg() và runAutoPipeline()
-    // pctStart/pctEnd: khoảng % tiến trình để hiển thị
-    async function _removeBgCore(pctStart, pctEnd) {
-      if (!_imglyLib) {
-        showProg('📦', 'Đang tải thư viện AI...', pctStart, 'Chỉ tải 1 lần, lần sau dùng cache');
-        // Dùng module-context loader (window.__imglyLoader) để import.meta.url hoạt động đúng
-        // __imglyLoader được set bởi <script type="module"> ở header
-        let waited = 0;
-        while (!window.__imglyLoader && waited < 5000) {
-          await new Promise(r => setTimeout(r, 100));
-          waited += 100;
-        }
-        if (!window.__imglyLoader) throw new Error('@imgly loader chưa sẵn sàng');
-        _imglyLib = await window.__imglyLoader();
+    async function _callFrappe(method, args) {
+      const csrf = (window.parent && window.parent.csrf_token) || '';
+      const fd = new FormData();
+      fd.append('csrf_token', csrf);
+      for (const [k, v] of Object.entries(args))
+        fd.append(k, v === null || v === undefined ? '' : String(v));
+      const res = await fetch(`/api/method/${method}`, {
+        method: 'POST', credentials: 'same-origin', body: fd
+      });
+      if (res.status === 403) { location.reload(); throw new Error('Session expired'); }
+      const data = await res.json();
+      if (data.exc) {
+        let msg = '';
+        try { msg = JSON.parse(JSON.parse(data._server_messages || '[]')[0]).message; } catch {}
+        throw new Error(msg || data.exc_type || 'Server error');
       }
-      const { removeBackground } = _imglyLib;
+      return data.message;
+    }
+
+    async function _ensureImgly() {
+      if (_editorImglyLib) return _editorImglyLib;
+      _editorImglyLib = await import('https://esm.sh/@imgly/background-removal@1.4.5');
+      return _editorImglyLib;
+    }
+
+    async function _removeBgImgly(pctStart, pctEnd) {
+      showProg('🤖', 'Tải model @imgly...', pctStart, 'client-side · lần đầu ~30s');
+      const { removeBackground } = await _ensureImgly();
+      workCv.width = G.base.width; workCv.height = G.base.height;
+      workCtx.putImageData(G.base, 0, 0);
+      showProg('🤖', 'Xóa nền @imgly...', Math.round((pctStart + pctEnd) / 2), 'đang xử lý');
+      const inputBlob = await new Promise(r => workCv.toBlob(r, 'image/jpeg', 0.92));
+      const resultBlob = await removeBackground(inputBlob, {
+        publicPath: location.origin + '/assets/customize_erpnext/bg_removal/',
+        model: 'small',
+        output: { format: 'image/png', quality: 1 }
+      });
+      const url = URL.createObjectURL(resultBlob);
+      const img = new Image(); img.src = url;
+      await new Promise((res, rej) => { img.onload = res; img.onerror = rej; });
+      const w = G.base.width, h = G.base.height;
+      const tc = document.createElement('canvas'); tc.width = w; tc.height = h;
+      tc.getContext('2d').drawImage(img, 0, 0, w, h);
+      G.bgRemoved = tc.getContext('2d').getImageData(0, 0, w, h);
+      G.hasBg = true;
+      URL.revokeObjectURL(url);
+    }
+
+    function setEditorBgEngine(value) {
+      if (value === 'imgly') {
+        _editorBgEngine = 'imgly';
+        _editorBgModel  = 'imgly';
+      } else if (value === 'rembg-birefnet') {
+        _editorBgEngine = 'rembg';
+        _editorBgModel  = 'birefnet-portrait';
+      } else {
+        _editorBgEngine = 'rembg';
+        _editorBgModel  = 'u2net';
+      }
+    }
+
+    // Core rembg logic — dùng chung cho doRemoveBg() và continueAutoPipeline()
+    async function _removeBgCore(pctStart, pctEnd) {
+      showProg('🖥', 'Xóa nền rembg...', pctStart, `${_editorBgModel} · đang gửi lên server`);
 
       workCv.width = G.base.width; workCv.height = G.base.height;
       workCtx.putImageData(G.base, 0, 0);
-      const inputBlob = await new Promise(r => workCv.toBlob(r, 'image/png'));
+      const imageData = workCv.toDataURL('image/jpeg', 0.92);
 
-      const pctRange = pctEnd - pctStart - 5;
-      const config = {
-        publicPath: IMGLY_CDN,
-        model: 'medium',
-        output: { format: 'image/png', quality: 1 },
-        progress: (key, current, total) => {
-          if (total > 0) {
-            const pct = pctStart + Math.round((current / total) * pctRange);
-            const mb = `${(current / 1048576).toFixed(1)} / ${(total / 1048576).toFixed(1)} MB`;
-            showProg('🤖', `Tải model: ${key.split('/').pop() || key}`, Math.min(pct, pctEnd - 5), mb);
-          } else {
-            showProg('✂️', 'AI đang tách nền...', pctEnd - 5, '');
-          }
-        }
-      };
+      showProg('⏳', 'Đang xử lý trên server...', Math.round((pctStart + pctEnd) / 2), _editorBgModel);
+      const resultDataUrl = await _callFrappe(
+        'customize_erpnext.api.employee.employee_utils.remove_bg_rembg',
+        { image_data: imageData, model_name: _editorBgModel }
+      );
 
-      showProg('✂️', 'AI đang xử lý ảnh...', pctEnd - 3, 'Vui lòng chờ');
-      const resultBlob = await removeBackground(inputBlob, config);
-
-      const url = URL.createObjectURL(resultBlob);
-      const img = new Image();
-      img.src = url;
+      const img = new Image(); img.src = resultDataUrl;
       await new Promise((res, rej) => { img.onload = res; img.onerror = rej; });
       const w = G.base.width, h = G.base.height;
       const tc = document.createElement('canvas');
       tc.width = w; tc.height = h;
       tc.getContext('2d').drawImage(img, 0, 0, w, h);
       G.bgRemoved = tc.getContext('2d').getImageData(0, 0, w, h);
-      URL.revokeObjectURL(url);
       G.hasBg = true;
     }
 
@@ -1573,7 +1822,11 @@
       G.segLoading = true;
       document.getElementById('tbBg').disabled = true;
       try {
-        await _removeBgCore(5, 90);
+        if (_editorBgEngine === 'imgly') {
+          await _removeBgImgly(5, 90);
+        } else {
+          await _removeBgCore(5, 90);
+        }
         applyBgColor(G.bgColor);
         hideProg();
         document.getElementById('bgSec').style.display = 'block';
@@ -1645,7 +1898,7 @@
         cropH = box.height / 0.50;          // head = 50% chiều cao crop
         cropW = cropH * (3 / 4);
         cropX = (box.x + box.width / 2) - cropW / 2;   // căn giữa theo mặt
-        cropY = box.y - box.height * 0.20;  // 20% headroom phía trên đỉnh đầu
+        cropY = box.y - box.height * 0.55;  // 32% headroom phía trên đỉnh đầu
       } else {
         // Không tìm thấy mặt: center crop
         cropW = Math.min(sw, sh * 3 / 4);
@@ -1725,10 +1978,10 @@
       document.getElementById('btnUndo').disabled = false;
 
       try {
-        showProg('🔄', 'Tiền xử lý ảnh...', 5, 'Resize về max 1600px');
+        showProg('🔄', 'Tiền xử lý ảnh...', 5, 'Resize về max 1600px', 'detect');
         preprocessResize();
 
-        showProg('👤', 'Nhận diện khuôn mặt...', 30, 'face-api SSD MobileNet');
+        showProg('👤', 'Nhận diện khuôn mặt...', 30, 'face-api SSD MobileNet', 'detect');
         let faceResult = null;
         try { faceResult = await detectFace(); }
         catch (fe) { console.warn('[runAutoPipeline] face detect failed:', fe); }
@@ -1740,7 +1993,7 @@
           let cH = box.height / 0.38;
           let cW = cH * (3 / 4);
           let cX = (box.x + box.width / 2) - cW / 2;
-          let cY = box.y - box.height * 0.20;
+          let cY = box.y - box.height * 0.55;
           if (cW > iw) { cW = iw; cH = cW * 4 / 3; }
           if (cH > ih) { cH = ih; cW = cH * 3 / 4; }
           cX = Math.max(0, Math.min(cX, iw - cW));
@@ -1783,16 +2036,32 @@
       document.getElementById('tbBg').disabled = true;
 
       try {
-        showProg('🤖', 'Xóa nền AI...', 42, '@imgly background-removal');
-        await _removeBgCore(42, 85);
+        // Check if bg removal can be skipped (PNG or white background)
+        const skipBgRemoval = G.sourcePng || PhotoProcessingUtils.isWhiteBackground(G.base);
+        if (skipBgRemoval) {
+          showProg('⏩', 'Bỏ qua xóa nền (PNG/nền trắng)...', 70, '', 'bg');
+          if (G.sourcePng) {
+            // PNG có alpha → set bgRemoved từ G.base để composite lên bgColor
+            G.bgRemoved = new ImageData(new Uint8ClampedArray(G.base.data), G.base.width, G.base.height);
+            G.hasBg = true;
+            applyBgColor(G.bgColor);
+            document.getElementById('bgSec').style.display = 'block';
+          }
+        } else {
+          if (_editorBgEngine === 'imgly') {
+            await _removeBgImgly(42, 85);
+          } else {
+            showProg('🖥', 'Xóa nền rembg...', 42, _editorBgModel, 'bg');
+            await _removeBgCore(42, 85);
+          }
 
-        showProg('🎨', 'Thay nền...', 87, G.bgColor.startsWith('gradient:') ? 'Gradient' : G.bgColor);
-        applyBgColor(G.bgColor);
-        document.getElementById('bgSec').style.display = 'block';
+          showProg('🎨', 'Thay nền...', 87, G.bgColor.startsWith('gradient:') ? 'Gradient' : G.bgColor, 'bg');
+          applyBgColor(G.bgColor);
+          document.getElementById('bgSec').style.display = 'block';
+        }
 
-        showProg('✨', 'Làm đẹp tự động...', 93, 'Phân tích ảnh');
+        showProg('✨', 'Làm đẹp tự động...', 93, 'Phân tích ảnh', 'beautify');
         const p = analyzeDeep(G.base);
-        p.smooth = Math.max(p.smooth, 3); // minimum moderate smoothing for ID photo
         applySliders(p);
         applyFilters(); // filter áp dụng lên toàn ảnh (kể cả nền)
 
@@ -1919,7 +2188,6 @@
 
       setTimeout(() => {
         const p = analyzeDeep(G.base);
-        p.smooth = Math.max(p.smooth, 3); // minimum moderate smoothing for ID photo
         applySliders(p);
         applyFilters();
         document.getElementById('btnUndo').disabled = false;
@@ -1942,225 +2210,8 @@
     }
 
     function analyzeDeep(imageData) {
-      const d = imageData.data, W = imageData.width, H = imageData.height;
-
-      // ══ ZONE DEFINITIONS ══
-      // Tight face zone: center 50% width, top 15%→65% height (avoids bright walls)
-      const fX0 = Math.floor(W * 0.25), fX1 = Math.floor(W * 0.75);
-      const fY0 = Math.floor(H * 0.08), fY1 = Math.floor(H * 0.62);
-      // Wider skin zone: center 60%, top 5%→80%
-      const sX0 = Math.floor(W * 0.20), sX1 = Math.floor(W * 0.80);
-      const sY0 = Math.floor(H * 0.05), sY1 = Math.floor(H * 0.80);
-
-      let histFace = new Array(256).fill(0), histAll = new Array(256).fill(0);
-      let faceOp = 0, allOp = 0;
-      let fSumR = 0, fSumG = 0, fSumB = 0;
-      let allSumR = 0, allSumG = 0, allSumB = 0;
-      let skinN = 0, skinR = 0, skinG = 0, skinB = 0;
-      let skinLums = [];
-      // Count highlights/shadows ONLY inside face zone
-      let faceHighN = 0, faceShadN = 0;
-      let bgHighN = 0; // background bright pixels (outside face zone)
-
-      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-        const i = (y * W + x) * 4;
-        const r = d[i], g = d[i + 1], b = d[i + 2], a = d[i + 3];
-        if (a < 80) continue;
-        const lumV = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
-        const inFace = (x >= fX0 && x <= fX1 && y >= fY0 && y <= fY1);
-        const inSkinZone = (x >= sX0 && x <= sX1 && y >= sY0 && y <= sY1);
-
-        histAll[lumV]++; allSumR += r; allSumG += g; allSumB += b; allOp++;
-
-        if (inFace) {
-          histFace[lumV]++; fSumR += r; fSumG += g; fSumB += b; faceOp++;
-          if (lumV > 215) faceHighN++;
-          if (lumV < 55) faceShadN++;
-        } else {
-          if (lumV > 200) bgHighN++; // track background brights separately
-        }
-
-        // Skin detection only in skin zone (avoids counting bright background)
-        if (inSkinZone && isSkin(r, g, b)) {
-          skinN++; skinR += r; skinG += g; skinB += b;
-          if (skinLums.length < 10000) skinLums.push(lumV);
-        }
-      }
-      if (allOp === 0) return defaultParams();
-
-      // ── Use face zone as primary reference ──
-      const H2 = faceOp > 100 ? histFace : histAll;
-      const HOp = faceOp > 100 ? faceOp : allOp;
-      const SR = faceOp > 100 ? fSumR : allSumR;
-      const SG = faceOp > 100 ? fSumG : allSumG;
-      const SB = faceOp > 100 ? fSumB : allSumB;
-
-      let sLum = 0; for (let i = 0; i < 256; i++) sLum += i * H2[i];
-      const faceZoneLum = sLum / HOp;
-
-      // ── PRIMARY REFERENCE: skin pixel luminance (most accurate for portrait) ──
-      // Skin pixels are the actual face — walls/bg can't skew this
-      let skinMeanLum = faceZoneLum; // fallback
-      if (skinLums.length > 80) {
-        skinMeanLum = skinLums.reduce((a, b) => a + b, 0) / skinLums.length;
-      }
-      const meanLum = skinMeanLum; // use skin lum as truth
-
-      // Percentile p5→p95 on face zone histogram
-      let cum = 0, p5 = 0, p95 = 240;
-      for (let i = 0; i < 256; i++) {
-        cum += H2[i];
-        if (cum / HOp >= 0.05 && p5 === 0) p5 = i;
-        if (cum / HOp >= 0.95) { p95 = i; break; }
-      }
-      const range = p95 - p5;
-
-      // ── BRIGHTNESS — adaptive by SKIN luminance ──
-      // Skin lum reference by tone:
-      //   Dark skin:   60-100   → target ~120
-      //   Medium skin: 100-140  → target ~130
-      //   Light skin:  140-190  → this is NORMAL, target ~155 (do NOT reduce!)
-      //   Very light:  190-215  → slight reduce
-      //   Overexposed: >215     → reduce
-      let brightness = 0;
-      if (meanLum < 60) brightness = Math.round((120 - meanLum) * 0.70);  // very dark → +big
-      else if (meanLum < 90) brightness = Math.round((125 - meanLum) * 0.58);  // dark → +medium
-      else if (meanLum < 110) brightness = Math.round((125 - meanLum) * 0.42);  // medium-dark → +small
-      else if (meanLum < 125) brightness = Math.round((128 - meanLum) * 0.28);  // medium → tiny boost
-      else if (meanLum <= 190) brightness = 3;   // light-to-medium light: already good, tiny pop only
-      else if (meanLum <= 210) brightness = Math.round((195 - meanLum) * 0.25);  // a bit bright → tiny reduce, max -4
-      else brightness = Math.round((200 - meanLum) * 0.35);  // overexposed → reduce
-      brightness = clampV(-15, 40, brightness);  // hard cap: never reduce more than -15
-
-      // ── CONTRAST — based on face zone tonal range (p5→p95) ──
-      // High-lum images (bright rooms) naturally have wide range — don't add contrast
-      let contrast = 0;
-      if (range < 80) contrast = Math.round((155 - range) / 4.2);  // very flat → +big
-      else if (range < 120) contrast = Math.round((152 - range) / 5.0);  // flat → +medium
-      else if (range < 155) contrast = Math.round((150 - range) / 7.0);  // OK → tiny boost
-      else if (range < 190) contrast = 0;                             // good range → leave alone
-      else if (range > 230) contrast = -Math.round((range - 230) / 12);  // harsh → reduce slightly
-      contrast = clampV(-8, 20, contrast);
-
-      // ── HIGHLIGHTS / SHADOWS — FACE ZONE ONLY ──
-      const faceHighRatio = faceHighN / Math.max(faceOp, 1);
-      const faceShadRatio = faceShadN / Math.max(faceOp, 1);
-      // Only suppress highlights if face itself is blown (not background wall)
-      const highlights = faceHighRatio > 0.15 ? -Math.round(faceHighRatio * 50)
-        : faceHighRatio > 0.08 ? -Math.round(faceHighRatio * 30) : 0;
-      // Lift face shadows
-      const shadows = faceShadRatio > 0.18 ? Math.round(faceShadRatio * 30)
-        : faceShadRatio > 0.08 ? Math.round(faceShadRatio * 18) : 0;
-
-      // ── WHITE BALANCE — sample neutral background areas ──
-      // Strategy: find near-neutral pixels in image (gray wall background)
-      // Neutral pixels: max-min channel < 25, lum 100-230
-      let neutR = 0, neutG = 0, neutB = 0, neutN = 0;
-      const neutStep = 8;
-      for (let y = 0; y < H; y += neutStep) for (let x = 0; x < W; x += neutStep) {
-        const ii = (y * W + x) * 4;
-        if (d[ii + 3] < 80) continue;
-        const nr = d[ii], ng = d[ii + 1], nb = d[ii + 2];
-        const lumN = 0.299 * nr + 0.587 * ng + 0.114 * nb;
-        const chroma = Math.max(nr, ng, nb) - Math.min(nr, ng, nb);
-        // Near-neutral: low chroma, not too dark or too bright
-        if (chroma < 20 && lumN > 90 && lumN < 230) {
-          neutR += nr; neutG += ng; neutB += nb; neutN++;
-        }
-      }
-      let warmth = 0;
-      if (neutN > 30) {
-        // Neutral gray should have R≈G≈B. Any deviation = scene cast.
-        const nR = neutR / neutN, nG = neutG / neutN, nB = neutB / neutN;
-        const neutralMean = (nR + nG + nB) / 3;
-        const rDev = nR - neutralMean, bDev = nB - neutralMean;
-        // Blue cast in background → warm to compensate (but gently)
-        if (bDev > 12) warmth = clampV(-12, 12, Math.round(bDev * 0.35));
-        // Warm/yellow cast → cool slightly
-        if (rDev > 18) warmth = clampV(-12, 12, -Math.round(rDev * 0.22));
-        // If background is very neutral (dev<8), don't touch WB at all
-        if (Math.abs(rDev) < 8 && Math.abs(bDev) < 8) warmth = 0;
-      }
-      // Hard cap: portraits almost never need >±10 warmth correction
-      warmth = clampV(-10, 10, warmth);
-
-      // ── SKIN SMOOTH — local patch variance (more reliable) ──
-      const skinRatio = skinN / allOp;
-      let smooth = 0;
-      if (skinLums.length > 50) {
-        // Compute actual luminance std-dev of skin pixels
-        const sMean = skinLums.reduce((a, b) => a + b, 0) / skinLums.length;
-        const sVar = skinLums.reduce((s, v) => s + (v - sMean) ** 2, 0) / skinLums.length;
-        const sStd = Math.sqrt(sVar);
-        // std-dev > 14: rough/textured skin; 8-14: normal; < 8: very smooth
-        if (sStd > 22) smooth = Math.round(3 + (sStd - 22) * 0.18);
-        else if (sStd > 14) smooth = Math.round(1 + (sStd - 14) * 0.18);
-        else if (sStd > 8) smooth = 1;
-        else smooth = 0;
-        // Minimum smoothing for ID photo portrait (reduced to avoid over-smoothing)
-        if (skinRatio > 0.04) smooth = Math.max(smooth, 2);
-        else if (skinRatio > 0.02) smooth = Math.max(smooth, 1);
-        smooth = clampV(0, 8, smooth);
-      } else if (skinN > 50) {
-        smooth = 2; // light smooth for portrait with low skin ratio
-      }
-
-      // ── SATURATION — face-zone chroma ──
-      let chromaSum = 0, chromaN = 0;
-      for (let y = fY0; y < fY1; y += 2) for (let x = fX0; x < fX1; x += 2) {
-        const i = (y * W + x) * 4;
-        if (d[i + 3] < 80) continue;
-        chromaSum += Math.max(d[i], d[i + 1], d[i + 2]) - Math.min(d[i], d[i + 1], d[i + 2]);
-        chromaN++;
-      }
-      const avgChroma = chromaN > 0 ? chromaSum / chromaN : 50;
-      let saturation = 0;
-      if (avgChroma < 20) saturation = 8;
-      else if (avgChroma < 35) saturation = 5;
-      else if (avgChroma < 55) saturation = 3;
-      else if (avgChroma < 75) saturation = 1;
-      else saturation = 0;
-
-      // ── SHARPNESS — Laplacian on SKIN pixels only (avoids shirt edges) ──
-      let lapSum = 0, lapN = 0;
-      const step = 4;
-      for (let y = fY0 + 1; y < fY1 - 1; y += step) for (let x = fX0 + 1; x < fX1 - 1; x += step) {
-        const i = (y * W + x) * 4;
-        if (!isSkin(d[i], d[i + 1], d[i + 2])) continue; // ONLY skin pixels
-        const lC = lum(d, i), lL = lum(d, i - 4), lR = lum(d, i + 4);
-        const lU = lum(d, i - W * 4), lD = lum(d, i + W * 4);
-        lapSum += Math.abs(4 * lC - lL - lR - lU - lD); lapN++;
-      }
-      const avgLap = lapN > 10 ? lapSum / lapN : 6;
-      // Portrait sharpness capped at 5 (7 creates skin artifacts)
-      let sharpness = 0;
-      if (avgLap < 2) sharpness = 5;
-      else if (avgLap < 4) sharpness = 4;
-      else if (avgLap < 7) sharpness = 3;
-      else if (avgLap < 12) sharpness = 2;
-      else sharpness = 1;
-
-      // ── FINAL SANITY CHECK ──
-      // If face zone is clearly bright (>150) AND skin says reduce: don't overcorrect
-      if (faceZoneLum > 150 && brightness < -8) brightness = Math.max(brightness, -8);
-      // If face zone is dark (<100) AND skin says reduce: override to positive
-      if (faceZoneLum < 100 && brightness < 0) brightness = Math.max(0, brightness);
-      // Contrast: if we boosted brightness a lot, don't also slam contrast
-      if (brightness > 25 && contrast > 15) contrast = Math.min(contrast, 12);
-
-      return {
-        brightness, contrast, saturation, smooth,
-        sharpness, warmth,
-        highlights: clampV(-30, 15, highlights),
-        shadows: clampV(-10, 30, shadows),
-        _skin: Math.round(skinRatio * 100),
-        _lum: Math.round(skinMeanLum),
-        _faceLum: Math.round(faceZoneLum),
-      };
+      return PhotoProcessingUtils.analyzeDeep(imageData);
     }
-
-    function lum(d, i) { return 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]; }
-    function defaultParams() { return { brightness: 5, contrast: 5, saturation: 3, smooth: 3, sharpness: 3, warmth: 0, highlights: 0, shadows: 0, _skin: 0, _lum: 128 }; }
 
     function isSkin(r, g, b) {
       if (r < 40) return false;
@@ -2177,117 +2228,33 @@
     // ═══════════════════════════════════
     function applyFilters() {
       if (!G.base) return;
-
-      const B = +document.getElementById('sB').value;
-      const C = +document.getElementById('sC').value;
-      const S = +document.getElementById('sS').value;
-      const Sm = +document.getElementById('sSm').value;
-      const Sh = +document.getElementById('sSh').value;
-      const W2 = +document.getElementById('sW').value;
-      const Hi = +document.getElementById('sHi').value;
-      const Sh2 = +document.getElementById('sSh2').value;
-
-      let id = copyID(G.base);
-
-      // 1. Skin smooth (frequency separation)
-      if (Sm > 0) id = skinSmooth(id, Sm);
-
-      // 2. Shadows & Highlights (luminance-targeted)
-      if (Hi !== 0 || Sh2 !== 0) id = shadowsHighlights(id, Sh2, Hi);
-
-      // 3. Per-pixel color pipeline
-      const dd = id.data;
-      for (let i = 0; i < dd.length; i += 4) {
-        if (dd[i + 3] < 10) continue;
-        let r = dd[i], g = dd[i + 1], b = dd[i + 2];
-        const lumV = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-
-        // Warmth
-        if (W2 !== 0) {
-          r = cv(r + W2 * 1.6); b = cv(b - W2 * 1.1); g = cv(g + W2 * 0.1);
-        }
-        // Brightness (soft-power curve)
-        const bf = B / 100;
-        if (bf > 0) { r = cv(r + (255 - r) * bf * 0.85); g = cv(g + (255 - g) * bf * 0.85); b = cv(b + (255 - b) * bf * 0.85); }
-        else { r = cv(r * (1 + bf)); g = cv(g * (1 + bf)); b = cv(b * (1 + bf)); }
-        // Contrast (centered on 0.45 to preserve portrait midtones)
-        const cf = Math.pow((C + 100) / 100, 1.1);
-        r = cv(((r / 255 - 0.45) * cf + 0.45) * 255);
-        g = cv(((g / 255 - 0.45) * cf + 0.45) * 255);
-        b = cv(((b / 255 - 0.45) * cf + 0.45) * 255);
-        // Saturation (luma-preserving)
-        const lumP = 0.299 * r + 0.587 * g + 0.114 * b;
-        const sf = (S + 100) / 100;
-        r = cv(lumP + (r - lumP) * sf); g = cv(lumP + (g - lumP) * sf); b = cv(lumP + (b - lumP) * sf);
-
-        dd[i] = r; dd[i + 1] = g; dd[i + 2] = b;
-      }
-
-      // 4. Sharpness (unsharp mask)
-      if (Sh > 0) id = unsharpMask(id, Sh);
-
-      // 5. Subtle vignette for portrait feel (very light)
+      const params = {
+        brightness: +document.getElementById('sB').value,
+        contrast:   +document.getElementById('sC').value,
+        saturation: +document.getElementById('sS').value,
+        smooth:     +document.getElementById('sSm').value,
+        sharpness:  +document.getElementById('sSh').value,
+        warmth:     +document.getElementById('sW').value,
+        highlights: +document.getElementById('sHi').value,
+        shadows:    +document.getElementById('sSh2').value,
+      };
+      let id = PhotoProcessingUtils.applyFilters(copyID(G.base), params);
+      // Subtle vignette for portrait feel (very light)
       id = vignette(id, 0.08);
-
       ctxA.putImageData(id, 0, 0);
       updateMini();
     }
 
-    // Shadows / Highlights via luminance mask
     function shadowsHighlights(id, shadowBoost, highlightBoost) {
-      const d = id.data, out = new Uint8ClampedArray(d);
-      for (let i = 0; i < d.length; i += 4) {
-        if (d[i + 3] < 10) { out[i] = d[i]; out[i + 1] = d[i + 1]; out[i + 2] = d[i + 2]; out[i + 3] = d[i + 3]; continue; }
-        let r = d[i], g = d[i + 1], b = d[i + 2];
-        const L = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-        // Shadow mask: peaks at L=0 (fully dark)
-        const sMask = Math.pow(Math.max(0, 1 - L * 2), 1.5);
-        // Highlight mask: peaks at L=1
-        const hMask = Math.pow(Math.max(0, (L - 0.5) * 2), 1.5);
-        const sf = shadowBoost / 100, hf = highlightBoost / 100;
-        const adj = sMask * sf * 80 - hMask * hf * 80;
-        out[i] = cv(r + adj); out[i + 1] = cv(g + adj); out[i + 2] = cv(b + adj); out[i + 3] = d[i + 3];
-      }
-      return new ImageData(out, id.width, id.height);
+      return PhotoProcessingUtils.shadowsHighlights(id, shadowBoost, highlightBoost);
     }
 
-    // Frequency separation skin smooth + micro-brightening
     function skinSmooth(id, level) {
-      const w = id.width, h = id.height, src = id.data;
-      const r2 = Math.min(Math.ceil(level * 0.5), 4), str = level / 18;
-      const blur = boxBlur(src, w, h, r2);
-      const out = new Uint8ClampedArray(src);
-      // Micro skin brightening (lift skin ~3-6 levels) for fresher look
-      const skinLift = Math.round(level * 0.3); // level=5 → lift 1.5px (nhẹ hơn)
-      for (let i = 0; i < src.length; i += 4) {
-        if (src[i + 3] < 10) continue;
-        if (isSkin(src[i], src[i + 1], src[i + 2])) {
-          // Smooth (blend toward blur, keep fine detail via residual)
-          const nr = cv(blur[i] * str + src[i] * (1 - str) + (src[i] - blur[i]) * 0.18);
-          const ng = cv(blur[i + 1] * str + src[i + 1] * (1 - str) + (src[i + 1] - blur[i + 1]) * 0.18);
-          const nb = cv(blur[i + 2] * str + src[i + 2] * (1 - str) + (src[i + 2] - blur[i + 2]) * 0.18);
-          // Micro-brightening: lift skin tone slightly
-          out[i] = cv(nr + skinLift * 0.8);
-          out[i + 1] = cv(ng + skinLift * 0.6);
-          out[i + 2] = cv(nb + skinLift * 0.4);
-        }
-      }
-      return new ImageData(out, w, h);
+      return PhotoProcessingUtils.skinSmooth(id, level);
     }
 
-    // Unsharp mask
     function unsharpMask(id, level) {
-      const w = id.width, h = id.height, src = id.data;
-      const blur = boxBlur(src, w, h, 1);
-      const out = new Uint8ClampedArray(src);
-      const amt = level * 0.16;
-      for (let i = 0; i < src.length; i += 4) {
-        out[i] = cv(src[i] + amt * (src[i] - blur[i]));
-        out[i + 1] = cv(src[i + 1] + amt * (src[i + 1] - blur[i + 1]));
-        out[i + 2] = cv(src[i + 2] + amt * (src[i + 2] - blur[i + 2]));
-        out[i + 3] = src[i + 3];
-      }
-      return new ImageData(out, w, h);
+      return PhotoProcessingUtils.unsharpMask(id, level);
     }
 
     // Subtle portrait vignette
@@ -2306,22 +2273,6 @@
         out[i + 2] = cv(d[i + 2] * v); out[i + 3] = d[i + 3];
       }
       return new ImageData(out, w, h);
-    }
-
-    // Separable box blur
-    function boxBlur(data, w, h, r) {
-      const t = new Uint8ClampedArray(data.length), o = new Uint8ClampedArray(data.length);
-      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-        let sr = 0, sg = 0, sb = 0, c = 0;
-        for (let dx = -r; dx <= r; dx++) { const nx = Math.max(0, Math.min(w - 1, x + dx)), idx = (y * w + nx) * 4; sr += data[idx]; sg += data[idx + 1]; sb += data[idx + 2]; c++; }
-        const i = (y * w + x) * 4; t[i] = sr / c; t[i + 1] = sg / c; t[i + 2] = sb / c; t[i + 3] = data[i + 3];
-      }
-      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-        let sr = 0, sg = 0, sb = 0, c = 0;
-        for (let dy = -r; dy <= r; dy++) { const ny = Math.max(0, Math.min(h - 1, y + dy)), idx = (ny * w + x) * 4; sr += t[idx]; sg += t[idx + 1]; sb += t[idx + 2]; c++; }
-        const i = (y * w + x) * 4; o[i] = sr / c; o[i + 1] = sg / c; o[i + 2] = sb / c; o[i + 3] = data[i + 3];
-      }
-      return o;
     }
 
     // ═══════════════════════════════════
@@ -2385,13 +2336,27 @@
     // ═══════════════════════════════════
     //  PROGRESS
     // ═══════════════════════════════════
-    function showProg(icon, lbl, pct, sub) {
+    function showProg(icon, lbl, pct, sub, stepId = '') {
       const ps = document.getElementById('progScreen');
       ps.classList.add('on');
       document.getElementById('progIcon').textContent = icon;
       document.getElementById('progLbl').textContent = lbl;
       document.getElementById('progFill').style.width = pct + '%';
       document.getElementById('progSub').textContent = sub;
+
+      if (stepId) {
+        document.querySelectorAll('.ps').forEach(s => s.classList.remove('active'));
+        const activeStep = document.getElementById('ps-' + stepId);
+        if (activeStep) activeStep.classList.add('active');
+
+        // Mark previous steps as done
+        const steps = ['detect', 'crop', 'bg', 'beautify'];
+        const currentIdx = steps.indexOf(stepId);
+        steps.forEach((s, idx) => {
+          const el = document.getElementById('ps-' + s);
+          if (el) el.classList.toggle('done', idx < currentIdx);
+        });
+      }
     }
     function hideProg() { document.getElementById('progScreen').classList.remove('on'); }
 
@@ -2459,7 +2424,10 @@
         }
 
         // Load the image from URL
-        if (d.imageUrl) loadImageFromUrl(d.imageUrl);
+        if (d.imageUrl) {
+          G.sourcePng = d.imageUrl.startsWith('data:image/png');
+          loadImageFromUrl(d.imageUrl);
+        }
       }
 
       if (d.type === 'CLOSE_EDITOR') {
