@@ -6,25 +6,34 @@ frappe.listview_settings['Employee'] = {
         console.log('Employee listview onload triggered');
         // Add individual menu items under Actions
         // Add Employee Card menu item
-        listview.page.add_menu_item(__('1. Bulk Update Employee Photo'), function () {
+        listview.page.add_menu_item(__('1 Bulk Update Employee Photo'), function () {
             show_update_employee_photo_dialog(listview);
         });
-        listview.page.add_menu_item(__('2. Generate Employee Cards'), function () {
+        listview.page.add_menu_item(__('2 Generate Employee Cards'), function () {
             print_employee_cards(listview);
         });
-        listview.page.add_menu_item(__('3. Scan Fingerprint'), function () {
+        listview.page.add_menu_item(__('3 Scan Fingerprint'), function () {
             show_get_fingerprint_dialog();
         });
 
-        listview.page.add_menu_item(__('4. Sync Fingerprint From ERP To Attendance Machines'), function () {
+        listview.page.add_menu_item(__('4.1 Sync Fingerprint From ERP To Attendance Machines'), function () {
             show_multi_employee_sync_dialog(listview);
         });
 
-        listview.page.add_menu_item(__('5. Bulk Update Holiday List'), function () {
+        listview.page.add_menu_item(__('4.2 Sync Fingerprint From Attendance Machines to Other & ERP'), function () {
+            show_sync_fingerprint_from_machines_dialog(listview);
+        });
+        listview.page.add_menu_item(__('4.2 Sync Fingerprint From Attendance Machines to Other & ERP'), function () {
+            show_sync_fingerprint_from_machines_dialog(listview);
+        });
+        listview.page.add_menu_item(__('4.3 Delete fingerprint Data of Left Employees From Attendance Machines'), function () {
+            show_delete_left_employees_dialog();
+        });
+        listview.page.add_menu_item(__('5 Bulk Update Holiday List'), function () {
             show_bulk_update_holiday_dialog(listview);
         });
 
-        listview.page.add_menu_item(__('6. Generate Employee List PDF'), function () {
+        listview.page.add_menu_item(__('6 Generate Employee List PDF'), function () {
             show_generate_employee_list_pdf_dialog(listview);
         })
 
@@ -898,12 +907,809 @@ function show_multi_employee_sync_dialog(listview) {
     }
 }
 
-function show_sync_fingerprint_from_attendance_machine_to_erp_dialog() {
-    frappe.msgprint({
-        title: __('Sync Fingerprint Data'),
-        message: __('show_sync_fingerprint_from_attendance_machine_to_erp_dialog() will synchronize fingerprint data from attendance devices to ERP. Implementation will be completed in the next phase.'),
-        indicator: 'blue'
+// ---------------------------------------------------------------------------
+// 4.2. Sync Fingerprint From Attendance Machines to Other & ERP
+// ---------------------------------------------------------------------------
+
+function show_sync_fingerprint_from_machines_dialog(listview) {
+    const selected_employees = listview.get_checked_items();
+    frappe.show_alert({ message: __('Loading machines…'), indicator: 'blue' });
+    frappe.call({
+        method: 'customize_erpnext.api.biometric_sync.get_attendance_machines',
+        callback: function (r) {
+            if (!r.message || r.message.status !== 'success') {
+                frappe.msgprint({ title: __('Error'), message: __('Failed to load attendance machines'), indicator: 'red' });
+                return;
+            }
+            _fp_show_config_dialog(selected_employees, r.message.machines);
+        },
+        error: function () {
+            frappe.msgprint({ title: __('Error'), message: __('Failed to load attendance machines'), indicator: 'red' });
+        }
     });
+}
+
+function _fp_show_config_dialog(selected_employees, machines) {
+    const emp_count = selected_employees.length;
+    const def_master = machines.find(m => m.master_device) || machines[0];
+    const def_master_name = def_master ? def_master.name : '';
+
+    // --- Employee banner ---
+    let emp_info_html;
+    if (emp_count > 1) {
+        const list = selected_employees.slice(0, 5)
+            .map(e => `<strong>${e.employee_name || e.name}</strong> (${e.name})`).join(', ');
+        const more = emp_count > 5 ? ` <span class="text-muted">… +${emp_count - 5} more</span>` : '';
+        emp_info_html = `<div class="alert alert-info d-flex align-items-start" style="margin-bottom:0;padding:10px 14px">
+            <i class="fa fa-users" style="font-size:17px;margin-right:10px;margin-top:1px;flex-shrink:0"></i>
+            <div><strong>${emp_count} employees selected:</strong> ${list}${more}</div>
+        </div>`;
+    } else if (emp_count === 1) {
+        const e = selected_employees[0];
+        emp_info_html = `<div class="alert alert-info d-flex align-items-center" style="margin-bottom:0;padding:10px 14px">
+            <i class="fa fa-user" style="font-size:17px;margin-right:10px;flex-shrink:0"></i>
+            <div><strong>${e.employee_name || e.name}</strong> <span class="text-muted">(${e.name})</span></div>
+        </div>`;
+    } else {
+        emp_info_html = `<div class="alert alert-warning" style="margin-bottom:0;padding:10px 14px">
+            <i class="fa fa-exclamation-triangle"></i> No employees selected — enter IDs below.
+        </div>`;
+    }
+
+    // --- Master dropdown ---
+    const master_opts = machines.map(m =>
+        `<option value="${m.name}"${m.name === def_master_name ? ' selected' : ''}>` +
+        `${m.name}${m.device_name ? ' — ' + m.device_name : ''} (${m.ip_address || ''})</option>`
+    ).join('');
+
+    // --- Target list (read-only, always all machines except master) ---
+    function build_target_list(exclude) {
+        const targets = machines.filter(m => m.name !== exclude);
+        if (!targets.length) {
+            return `<div class="text-muted" style="padding:8px 4px">No other machines available</div>`;
+        }
+        return targets.map(m => {
+            const meta = [m.device_name, m.ip_address].filter(Boolean).join(' · ');
+            return `<div class="d-flex align-items-center" style="padding:6px 4px;border-bottom:1px solid #f0f0f0">
+                <i class="fa fa-check-circle text-success" style="margin-right:8px;flex-shrink:0"></i>
+                <strong style="margin-right:8px">${m.name}</strong>
+                <span class="text-muted" style="font-size:12px">${meta}</span>
+            </div>`;
+        }).join('');
+    }
+
+    const config_html = `<div style="padding:2px 0">
+        <div style="margin-bottom:12px">${emp_info_html}</div>
+
+        <div style="margin-bottom:14px">
+            <label style="font-size:12px;color:#6c757d;margin-bottom:4px;display:block">
+                Additional Employee IDs <span style="font-weight:normal">(one per line, optional)</span>
+            </label>
+            <textarea id="fp_extra_emp" class="form-control" rows="2"
+                placeholder="TIQN-0001&#10;TIQN-0002" style="font-size:13px;resize:vertical"></textarea>
+        </div>
+
+        <div style="display:flex;gap:16px;margin-bottom:14px;align-items:flex-end">
+            <div style="flex:1;min-width:0">
+                <label style="font-size:12px;color:#6c757d;margin-bottom:4px;display:block">
+                    <i class="fa fa-star text-warning"></i>
+                    <strong>Master Machine</strong>
+                    <span style="font-weight:normal"> — source of fingerprint data</span>
+                </label>
+                <select id="fp_master_sel" class="form-control" style="font-size:13px">
+                    ${master_opts}
+                </select>
+            </div>
+            <div style="flex:0 0 auto;padding-bottom:4px">
+                <label style="display:flex;align-items:center;gap:7px;cursor:pointer;
+                              font-weight:normal;margin:0;white-space:nowrap">
+                    <input type="checkbox" id="fp_sync_to_erp" checked style="width:15px;height:15px">
+                    <span style="font-size:13px">Sync to ERPNext</span>
+                </label>
+            </div>
+        </div>
+
+        <div>
+            <label style="font-size:12px;color:#6c757d;margin-bottom:6px;display:block">
+                <i class="fa fa-arrow-right" style="color:#17a2b8"></i>
+                <strong>Target Machines</strong>
+                <span style="font-weight:normal"> — all machines except master (auto)</span>
+            </label>
+            <div id="fp_target_list" style="border:1px solid #dee2e6;border-radius:6px;
+                 padding:4px 8px;background:#f8f9fa;max-height:220px;overflow-y:auto">
+                ${build_target_list(def_master_name)}
+            </div>
+        </div>
+    </div>`;
+
+    const d = new frappe.ui.Dialog({
+        title: __('🔁 Sync Fingerprint: Machine → Machine & ERP'),
+        fields: [{ fieldname: 'cfg', fieldtype: 'HTML', options: config_html }],
+        primary_action_label: __('🚀 Start Sync'),
+        primary_action: function () {
+            _fp_on_submit(d, selected_employees, machines);
+        },
+    });
+    d.show();
+
+    d.$wrapper.find('.modal-dialog').addClass('modal-xl');
+    d.$wrapper.find('.modal-content').css({ 'border-radius': '12px', 'box-shadow': '0 10px 30px rgba(0,0,0,0.2)' });
+    d.$wrapper.find('.modal-header').css({
+        'background': 'linear-gradient(135deg, #17a2b8 0%, #138496 100%)',
+        'color': 'white', 'border-bottom': 'none', 'border-radius': '12px 12px 0 0'
+    });
+    d.$wrapper.find('.modal-title,.modal-header .btn-modal-close').css('color', 'white');
+
+    // Master change → update target list display (always all except new master)
+    d.$wrapper.find('#fp_master_sel').on('change', function () {
+        d.$wrapper.find('#fp_target_list').html(build_target_list($(this).val()));
+    });
+}
+
+function _fp_on_submit(d, selected_employees, machines) {
+    const emp_set = new Set();
+    selected_employees.forEach(e => emp_set.add(e.name));
+    const manual_text = d.$wrapper.find('#fp_extra_emp').val() || '';
+    manual_text.split('\n').map(s => s.trim()).filter(Boolean).forEach(s => emp_set.add(s));
+    const employee_ids = [...emp_set];
+
+    if (!employee_ids.length) {
+        frappe.msgprint({ title: __('Missing Info'), message: __('No employees selected'), indicator: 'orange' });
+        return;
+    }
+
+    const master_machine = d.$wrapper.find('#fp_master_sel').val();
+    if (!master_machine) {
+        frappe.msgprint({ title: __('Missing Info'), message: __('No master machine selected'), indicator: 'orange' });
+        return;
+    }
+
+    // Always all machines except master — no user selection needed
+    const target_machines = machines.map(m => m.name).filter(n => n !== master_machine);
+    const sync_to_erp = d.$wrapper.find('#fp_sync_to_erp').is(':checked') ? 1 : 0;
+
+    if (!target_machines.length && !sync_to_erp) {
+        frappe.msgprint({ title: __('Missing Info'), message: __('No other machines available and ERP sync is off'), indicator: 'orange' });
+        return;
+    }
+
+    d.get_primary_btn().prop('disabled', true).text('⏳ Processing…');
+
+    frappe.call({
+        method: 'customize_erpnext.api.biometric_sync.resolve_employee_device_ids',
+        args: { employee_ids_json: JSON.stringify(employee_ids) },
+        callback: function (r) {
+            if (!r.message || r.message.status !== 'success') {
+                d.get_primary_btn().prop('disabled', false).text('🚀 Start Sync');
+                frappe.msgprint({ title: __('Error'), message: __('Could not fetch employee info'), indicator: 'red' });
+                return;
+            }
+            const resolved = r.message.employees;
+            const with_id = resolved.filter(e => e.attendance_device_id);
+            const without_id = resolved.filter(e => !e.attendance_device_id);
+            const user_ids = with_id.map(e => e.attendance_device_id);
+            const employees_for_sync = with_id.map(e => ({ employee_id: e.employee_id, employee_name: e.employee_name }));
+
+            if (!user_ids.length) {
+                d.get_primary_btn().prop('disabled', false).text('🚀 Start Sync');
+                frappe.msgprint({ title: __('Error'), message: __('None of the selected employees have an Attendance Device ID'), indicator: 'red' });
+                return;
+            }
+
+            if (sync_to_erp) {
+                frappe.call({
+                    method: 'customize_erpnext.api.biometric_sync.check_employees_fingerprints_in_erp',
+                    args: { employee_ids_json: JSON.stringify(with_id.map(e => e.employee_id)) },
+                    callback: function (r2) {
+                        const existing = (r2.message && r2.message.existing) || {};
+                        const conflicts = Object.entries(existing);
+                        const _do = () => _fp_start_sync(d, master_machine, target_machines, user_ids, employees_for_sync, sync_to_erp, without_id);
+                        if (conflicts.length) {
+                            const list = conflicts.map(([id, cnt]) => `${id} (${cnt} fingerprints)`).join(', ');
+                            frappe.confirm(
+                                `<b>${conflicts.length} employee(s)</b> already have fingerprint data in ERPNext:<br><i>${list}</i><br><br>Continuing will <b class="text-danger">overwrite</b> existing data. Confirm?`,
+                                _do,
+                                () => { d.get_primary_btn().prop('disabled', false).text('🚀 Start Sync'); }
+                            );
+                        } else {
+                            _do();
+                        }
+                    },
+                    error: function () {
+                        d.get_primary_btn().prop('disabled', false).text('🚀 Start Sync');
+                        frappe.msgprint({ title: __('Error'), message: __('Could not check existing ERP fingerprint data'), indicator: 'red' });
+                    }
+                });
+            } else {
+                _fp_start_sync(d, master_machine, target_machines, user_ids, employees_for_sync, sync_to_erp, without_id);
+            }
+        },
+        error: function () {
+            d.get_primary_btn().prop('disabled', false).text('🚀 Start Sync');
+            frappe.msgprint({ title: __('Error'), message: __('Could not fetch employee info'), indicator: 'red' });
+        }
+    });
+}
+
+function _fp_start_sync(d, master_machine, target_machines, user_ids, employees_for_sync, sync_to_erp, skipped) {
+    if (!sync_to_erp) {
+        // No ERP sync — skip background job, go directly to device sync
+        d.hide();
+        _fp_show_progress_dialog(null, master_machine, target_machines, employees_for_sync, user_ids.length, skipped, sync_to_erp);
+        return;
+    }
+
+    // ERP sync: enqueue background job (machine sync done from frontend after)
+    frappe.call({
+        method: 'customize_erpnext.api.biometric_sync.sync_fingerprints',
+        args: {
+            master_machine_name: master_machine,
+            target_machine_names_json: '[]',
+            user_ids_json: JSON.stringify(user_ids),
+            sync_to_erp: sync_to_erp,
+        },
+        callback: function (r) {
+            if (!r.message || r.message.status !== 'success') {
+                d.get_primary_btn().prop('disabled', false).text('🚀 Start Sync');
+                frappe.msgprint({ title: __('Error'), message: r.message && r.message.message || __('Failed to submit sync request'), indicator: 'red' });
+                return;
+            }
+            const job_id = r.message.job_id;
+            d.hide();
+            _fp_show_progress_dialog(job_id, master_machine, target_machines, employees_for_sync, user_ids.length, skipped, sync_to_erp);
+        },
+        error: function () {
+            d.get_primary_btn().prop('disabled', false).text('🚀 Start Sync');
+            frappe.msgprint({ title: __('Error'), message: __('Failed to submit sync request'), indicator: 'red' });
+        }
+    });
+}
+
+function _fp_show_progress_dialog(job_id, master_machine, target_machines, employees_for_sync, total_users, skipped, sync_to_erp) {
+    const dest_names = [...target_machines, ...(sync_to_erp ? ['ERPNext'] : [])];
+    const skipped_html = (skipped && skipped.length)
+        ? `<div class="alert alert-warning" style="margin-bottom:10px">
+               <i class="fa fa-exclamation-triangle"></i>
+               Skipped ${skipped.length} employee(s) with no Attendance Device ID:
+               ${skipped.map(e => `<code>${e.employee_id}</code>`).join(' ')}
+           </div>`
+        : '';
+
+    const prog_html = `
+        <div class="alert alert-info" style="margin-bottom:15px">
+            <div class="d-flex align-items-start">
+                <i class="fa fa-info-circle" style="font-size:20px;margin-right:10px;margin-top:2px"></i>
+                <div>
+                    <strong>Master:</strong> ${master_machine}
+                    &rarr; <strong>Target(s):</strong> ${dest_names.join(', ') || '(none)'}<br>
+                    <strong>Total users:</strong> ${total_users}
+                </div>
+            </div>
+        </div>
+        ${skipped_html}
+        <div style="margin-bottom:15px">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <strong>Overall Progress</strong>
+                <span id="fp_phase_text" class="text-muted" style="font-size:13px">⏳ Starting...</span>
+            </div>
+            <div class="progress mb-2" style="height:25px">
+                <div id="fp_prog_bar" class="progress-bar progress-bar-striped progress-bar-animated"
+                     role="progressbar" style="width:0%">0%</div>
+            </div>
+        </div>
+        <div id="fp_results_wrap" style="height:300px;overflow-y:auto;padding:15px;border-radius:8px;
+             background:#f8f9fa;border:1px solid #dee2e6;font-family:monospace;font-size:13px">
+            <div class="text-info">Waiting for sync results...</div>
+        </div>`;
+
+    const prog_d = new frappe.ui.Dialog({
+        title: __('📊 Fingerprint Sync Progress'),
+        fields: [{ fieldname: 'prog_html', fieldtype: 'HTML', options: prog_html }],
+        secondary_action_label: __('Close'),
+        secondary_action: function () { prog_d.hide(); },
+    });
+    prog_d.show();
+
+    prog_d.$wrapper.find('.modal-dialog').addClass('modal-xl');
+    prog_d.$wrapper.find('.modal-content').css({ 'border-radius': '12px', 'box-shadow': '0 10px 30px rgba(0,0,0,0.2)' });
+    prog_d.$wrapper.find('.modal-header').css({
+        'background': 'linear-gradient(135deg, #28a745 0%, #20c997 100%)',
+        'color': 'white', 'border-bottom': 'none', 'border-radius': '12px 12px 0 0'
+    });
+    prog_d.$wrapper.find('.modal-title,.modal-header .btn-modal-close').css('color', 'white');
+
+    const has_erp = !!sync_to_erp;
+    const has_devices = target_machines.length > 0;
+    // Phase 1 (ERP sync) occupies 0 → phase1_end%; Phase 2 (device sync) phase1_end → 100%
+    const phase1_end = has_erp ? (has_devices ? 50 : 100) : 0;
+
+    if (!has_erp) {
+        // No ERP sync — go straight to device sync
+        _fp_do_device_sync(prog_d, employees_for_sync, target_machines, [], 0, 100);
+        return;
+    }
+
+    // Phase 1: poll background job until done
+    const poll = setInterval(function () {
+        frappe.call({
+            method: 'customize_erpnext.api.biometric_sync.get_sync_job_status',
+            args: { job_id: job_id },
+            callback: function (r) {
+                if (!r.message || r.message.status !== 'success') return;
+                const data = r.message.data;
+
+                // Scale backend pct [0..100] → [0..phase1_end]
+                const scaled_pct = Math.round((data.progress_pct || 0) * phase1_end / 100);
+                _fp_update_progress(prog_d, {
+                    progress_pct: scaled_pct,
+                    phase: `[ERP] ${data.phase || ''}`,
+                    results: data.results || [],
+                    status: data.status,
+                });
+
+                if (data.status === 'done' || data.status === 'error') {
+                    clearInterval(poll);
+                    if (data.status === 'done' && has_devices) {
+                        // Phase 2: sync to devices using ERP data
+                        _fp_do_device_sync(prog_d, employees_for_sync, target_machines, data.results || [], phase1_end, 100);
+                    } else {
+                        _fp_finish_progress(prog_d, data.results || []);
+                    }
+                }
+            }
+        });
+    }, 2000);
+}
+
+function _fp_update_progress(prog_d, data) {
+    const w = prog_d.$wrapper;
+    if (!w.find('#fp_prog_bar').length) return;
+
+    const pct = data.progress_pct || 0;
+    const phase = data.phase || '';
+    const results = data.results || [];
+    const is_done = data.status === 'done';
+    const is_err = data.status === 'error';
+
+    w.find('#fp_prog_bar')
+        .css('width', pct + '%')
+        .text(pct + '%')
+        .toggleClass('progress-bar-success', is_done)
+        .toggleClass('progress-bar-danger', is_err);
+    w.find('#fp_phase_text').html((is_done ? '✅ ' : is_err ? '❌ ' : '⏳ ') + phase);
+
+    if (results.length > 0) {
+        const ok_count = results.filter(r => r.success).length;
+        const err_count = results.length - ok_count;
+        let log = `<div style="margin-bottom:8px;color:#555">
+            ${results.length} results &nbsp;·&nbsp;
+            <span style="color:#28a745">✔ ${ok_count} OK</span> &nbsp;
+            <span style="color:#dc3545">✘ ${err_count} Failed</span>
+        </div>`;
+        for (const res of results) {
+            const color = res.success ? '#28a745' : '#dc3545';
+            const icon = res.success ? '✔' : '✘';
+            log += `<div style="margin:3px 0;color:${color}">${icon} <strong>${res.user_id}</strong> → ${res.machine}: ${res.message}</div>`;
+        }
+        w.find('#fp_results_wrap').html(log);
+    }
+}
+
+async function _fp_do_device_sync(prog_d, employees, target_machines, erp_results, pct_start, pct_end) {
+    const total_calls = employees.length * target_machines.length;
+    const all_results = [...erp_results];
+    let done = 0;
+
+    if (total_calls === 0) {
+        _fp_finish_progress(prog_d, all_results);
+        return;
+    }
+
+    for (const machine of target_machines) {
+        for (const emp of employees) {
+            await new Promise(function (resolve) {
+                frappe.call({
+                    method: 'customize_erpnext.api.utilities.sync_employee_to_single_machine',
+                    args: { employee_id: emp.employee_id, machine_name: machine },
+                    callback: function (r) {
+                        done++;
+                        const pct = pct_start + Math.round(done / total_calls * (pct_end - pct_start));
+                        const ok = !!(r.message && r.message.success !== false && !r.exc);
+                        const msg = (r.message && (r.message.message || r.message.status)) || 'OK';
+                        all_results.push({ success: ok, user_id: emp.employee_id, machine: machine, message: msg });
+                        _fp_update_progress(prog_d, {
+                            progress_pct: pct,
+                            phase: `[Device] ${emp.employee_id} → ${machine}: ${ok ? 'OK' : 'Failed'}`,
+                            results: all_results,
+                            status: 'running',
+                        });
+                        resolve();
+                    },
+                    error: function () {
+                        done++;
+                        const pct = pct_start + Math.round(done / total_calls * (pct_end - pct_start));
+                        all_results.push({ success: false, user_id: emp.employee_id, machine: machine, message: 'Network error' });
+                        _fp_update_progress(prog_d, {
+                            progress_pct: pct,
+                            phase: `[Device] ${emp.employee_id} → ${machine}: Failed`,
+                            results: all_results,
+                            status: 'running',
+                        });
+                        resolve();
+                    }
+                });
+            });
+        }
+    }
+    _fp_finish_progress(prog_d, all_results);
+}
+
+function _fp_finish_progress(prog_d, results) {
+    const ok_count = results.filter(r => r.success).length;
+    const err_count = results.length - ok_count;
+    _fp_update_progress(prog_d, {
+        progress_pct: 100,
+        phase: `Done — ${ok_count} OK, ${err_count} failed`,
+        results: results,
+        status: 'done',
+    });
+    prog_d.$wrapper.find('#fp_prog_bar').removeClass('progress-bar-animated progress-bar-striped');
+}
+
+// ---------------------------------------------------------------------------
+// 4.3. Delete fingerprint Data of Left Employees From Attendance Machines
+// ---------------------------------------------------------------------------
+
+function show_delete_left_employees_dialog() {
+    const config_html = `<div style="padding:2px 0">
+        <div class="alert alert-warning d-flex align-items-start" style="margin-bottom:16px">
+            <i class="fa fa-exclamation-triangle" style="font-size:18px;margin-right:10px;margin-top:2px;flex-shrink:0"></i>
+            <div>
+                <strong>Important:</strong><br>
+                • Active employees will <strong>never</strong> be deleted.<br>
+                • ERPNext fingerprints will <strong>never</strong> be deleted — kept as backup, can re-sync anytime.<br>
+                • Only deletes from attendance machines employees who have <strong>left</strong> past the threshold.
+            </div>
+        </div>
+
+        <div style="display:flex;gap:20px;align-items:flex-end;margin-bottom:16px;flex-wrap:wrap">
+            <div style="flex:0 0 auto">
+                <label style="font-size:12px;color:#6c757d;margin-bottom:4px;display:block">
+                    <i class="fa fa-calendar"></i> Days after <code>relieving_date</code> before deleting
+                </label>
+                <select id="del_delay_days" class="form-control" style="font-size:13px;width:auto;min-width:120px">
+                    <option value="15">15 days</option>
+                    <option value="30">30 days</option>
+                    <option value="45" selected>45 days (default)</option>
+                    <option value="60">60 days</option>
+                </select>
+            </div>
+            <div style="flex:0 0 auto;padding-bottom:4px">
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:normal;margin:0">
+                    <input type="checkbox" id="del_include_unmatched" style="width:15px;height:15px">
+                    <span style="font-size:13px">
+                        Also delete user_ids <strong>not matched</strong> to any Employee in ERPNext
+                    </span>
+                </label>
+            </div>
+        </div>
+
+        <div class="text-muted" style="font-size:12px;padding:6px 0">
+            <i class="fa fa-info-circle"></i>
+            Click <strong>Scan</strong> to scan all enabled machines and preview the users that will be deleted.
+        </div>
+    </div>`;
+
+    const d = new frappe.ui.Dialog({
+        title: __('🗑️ Delete Left Employees From Machines'),
+        fields: [{ fieldname: 'cfg', fieldtype: 'HTML', options: config_html }],
+        primary_action_label: __('🔍 Scan All Machines'),
+        primary_action: function () {
+            const delay_days = parseInt(d.$wrapper.find('#del_delay_days').val()) || 45;
+            const include_unmatched = d.$wrapper.find('#del_include_unmatched').is(':checked') ? 1 : 0;
+
+            d.get_primary_btn().prop('disabled', true).text('⏳ Scanning...');
+            frappe.show_alert({ message: __('Scanning machines…'), indicator: 'blue' });
+
+            frappe.call({
+                method: 'customize_erpnext.api.biometric_sync.get_left_employees_on_machines',
+                args: { delay_days, include_unmatched },
+                callback: function (r) {
+                    d.hide();
+                    if (!r.message || r.message.status !== 'success') {
+                        frappe.msgprint({
+                            title: __('Error'),
+                            message: r.message ? r.message.message : 'Scan failed',
+                            indicator: 'red',
+                        });
+                        return;
+                    }
+                    _del_show_preview_dialog(r.message, { delay_days, include_unmatched });
+                },
+                error: function () {
+                    d.get_primary_btn().prop('disabled', false).text('🔍 Scan All Machines');
+                    frappe.msgprint({ title: __('Error'), message: __('Scan request failed'), indicator: 'red' });
+                },
+            });
+        },
+    });
+    d.show();
+    d.$wrapper.find('.modal-dialog').css('max-width', '640px');
+    d.$wrapper.find('.modal-content').css({ 'border-radius': '12px', 'box-shadow': '0 10px 30px rgba(0,0,0,0.2)' });
+    d.$wrapper.find('.modal-header').css({
+        'background': 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)',
+        'color': 'white', 'border-bottom': 'none', 'border-radius': '12px 12px 0 0',
+    });
+    d.$wrapper.find('.modal-title,.modal-header .btn-modal-close').css('color', 'white');
+}
+
+function _del_show_preview_dialog(scan_result, config) {
+    const users = scan_result.users_to_delete || [];
+    const machines_scanned = scan_result.machines_scanned || [];
+    const failed_machines = machines_scanned.filter(m => !m.success);
+
+    // --- Machines scan summary ---
+    const machines_html = machines_scanned.map(m => {
+        const icon = m.success
+            ? `<i class="fa fa-check-circle text-success"></i>`
+            : `<i class="fa fa-times-circle text-danger"></i>`;
+        const info = m.success
+            ? `${m.total_users} users`
+            : `<span class="text-danger">${m.error || 'Error'}</span>`;
+        return `<span style="display:inline-flex;align-items:center;gap:4px;margin:2px 6px 2px 0;
+                    font-size:12px;padding:2px 6px;background:#f0f0f0;border-radius:4px">
+            ${icon} <strong>${m.machine}</strong> (${info})
+        </span>`;
+    }).join('');
+
+    // --- Users table ---
+    let table_html = '';
+    if (!users.length) {
+        table_html = `<div class="alert alert-success">
+            <i class="fa fa-check-circle"></i>
+            <strong>No users to delete</strong> with the current settings.
+        </div>`;
+    } else {
+        const left_count = users.filter(u => u.reason_type === 'left_employee').length;
+        const unmatched_count = users.filter(u => u.reason_type === 'unmatched').length;
+
+        const rows = users.map((u, idx) => {
+            const group_tag = u.custom_group
+                ? `<span style="font-size:11px;padding:1px 5px;background:#d1ecf1;color:#0c5460;
+                    border-radius:3px;margin-left:4px">${u.custom_group}</span>`
+                : '';
+            const emp_cell = u.employee_id
+                ? `<strong>${u.employee_name || ''}</strong><br>
+                   <small class="text-muted">${u.employee_id}</small>${group_tag}`
+                : `<span class="text-muted fst-italic">— not in ERPNext</span>`;
+            const reason_badge = u.reason_type === 'left_employee'
+                ? `<span class="badge badge-warning" style="font-size:11px">Left</span>`
+                : `<span class="badge badge-secondary" style="font-size:11px">Unmatched</span>`;
+            const rd_cell = u.relieving_date
+                ? `${u.relieving_date}<br><small class="text-danger">+${u.days_since_relieving}d</small>`
+                : '—';
+            const machine_tags = (u.machines || []).map(m =>
+                `<span style="display:inline-block;font-size:11px;padding:1px 5px;
+                    background:#e9ecef;border-radius:3px;margin:1px 2px 1px 0">${m}</span>`
+            ).join('');
+            return `<tr>
+                <td style="text-align:center;width:36px;padding:6px 4px">
+                    <input type="checkbox" class="del-user-chk" data-idx="${idx}" checked
+                        style="width:14px;height:14px;cursor:pointer">
+                </td>
+                <td style="padding:6px 8px"><strong>${u.user_id}</strong></td>
+                <td style="padding:6px 8px">${emp_cell}</td>
+                <td style="padding:6px 8px">${reason_badge}<br><small class="text-muted">${u.reason}</small></td>
+                <td style="padding:6px 8px;white-space:nowrap">${rd_cell}</td>
+                <td style="padding:6px 8px">${machine_tags}</td>
+            </tr>`;
+        }).join('');
+
+        table_html = `
+        <div class="d-flex align-items-center justify-content-between" style="margin-bottom:8px">
+            <div style="font-size:13px">
+                <span class="badge badge-danger" style="font-size:12px">${users.length} users to delete</span>
+                &nbsp;
+                ${left_count ? `<span class="badge badge-warning" style="font-size:11px">${left_count} Left employee</span>&nbsp;` : ''}
+                ${unmatched_count ? `<span class="badge badge-secondary" style="font-size:11px">${unmatched_count} Unmatched</span>` : ''}
+            </div>
+            <div style="font-size:12px">
+                <a href="#" id="del_select_all" style="margin-right:10px">Select all</a>
+                <a href="#" id="del_deselect_all">Deselect all</a>
+            </div>
+        </div>
+        <div style="max-height:340px;overflow-y:auto;border:1px solid #dee2e6;border-radius:6px">
+            <table class="table table-sm table-hover" style="margin-bottom:0;font-size:13px">
+                <thead style="position:sticky;top:0;background:#f8f9fa;z-index:1">
+                    <tr>
+                        <th style="width:36px;text-align:center;padding:6px 4px"></th>
+                        <th style="padding:6px 8px">User ID</th>
+                        <th style="padding:6px 8px">Employee</th>
+                        <th style="padding:6px 8px">Reason</th>
+                        <th style="padding:6px 8px;white-space:nowrap">Relieving Date</th>
+                        <th style="padding:6px 8px">Machines</th>
+                    </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+            </table>
+        </div>`;
+    }
+
+    const failed_warn = failed_machines.length
+        ? `<div class="alert alert-warning" style="margin-bottom:12px;font-size:13px">
+               <i class="fa fa-exclamation-triangle"></i>
+               <strong>${failed_machines.length} machine(s) unreachable:</strong>
+               ${failed_machines.map(m => `<code>${m.machine}</code>`).join(', ')}
+           </div>`
+        : '';
+
+    const preview_html = `<div style="padding:2px 0">
+        <div style="margin-bottom:12px">
+            <div style="font-size:12px;color:#6c757d;margin-bottom:6px">
+                <i class="fa fa-server"></i> Machines scanned:
+            </div>
+            <div style="flex-wrap:wrap;display:flex">${machines_html}</div>
+        </div>
+        ${failed_warn}
+        <div style="font-size:12px;color:#6c757d;margin-bottom:8px">
+            <i class="fa fa-info-circle"></i>
+            Today: <strong>${scan_result.today}</strong> &nbsp;|&nbsp;
+            Threshold: <strong>${config.delay_days} days</strong> &nbsp;|&nbsp;
+            Total unique user IDs on devices: <strong>${scan_result.total_unique_user_ids}</strong> &nbsp;|&nbsp;
+            Kept (Active / within threshold): <strong>${scan_result.users_to_keep_count}</strong>
+        </div>
+        ${table_html}
+        <div class="alert alert-info d-flex align-items-start" style="margin-top:14px;margin-bottom:0;font-size:13px">
+            <i class="fa fa-lock" style="margin-right:8px;margin-top:2px;flex-shrink:0"></i>
+            <div>ERPNext fingerprint records will <strong>not</strong> be deleted
+            — kept as backup and can be re-synced to devices at any time.</div>
+        </div>
+    </div>`;
+
+    const prev_d = new frappe.ui.Dialog({
+        title: __('🗑️ Confirm Delete — Users To Be Removed From Machines'),
+        fields: [{ fieldname: 'preview', fieldtype: 'HTML', options: preview_html }],
+        primary_action_label: users.length ? __('🗑️ Delete Selected') : __('Close'),
+        primary_action: function () {
+            if (!users.length) { prev_d.hide(); return; }
+
+            // Collect checked users
+            const checked_indices = [];
+            prev_d.$wrapper.find('.del-user-chk:checked').each(function () {
+                checked_indices.push(parseInt($(this).data('idx')));
+            });
+            if (!checked_indices.length) {
+                frappe.show_alert({ message: __('No users selected'), indicator: 'orange' });
+                return;
+            }
+
+            const selected_users = checked_indices.map(i => users[i]);
+            const unique_machines = [...new Set(selected_users.flatMap(u => u.machines || []))];
+
+            frappe.confirm(
+                __('Delete <strong>{0} user(s)</strong> from <strong>{1} machine(s)</strong>?<br>' +
+                   '<small class="text-muted">ERPNext fingerprint records will be kept as backup.</small>',
+                   [selected_users.length, unique_machines.length]),
+                function () {
+                    prev_d.hide();
+                    _del_start_delete(selected_users);
+                }
+            );
+        },
+        secondary_action_label: __('Back'),
+        secondary_action: function () {
+            prev_d.hide();
+            show_delete_left_employees_dialog();
+        },
+    });
+    prev_d.show();
+
+    prev_d.$wrapper.find('.modal-dialog').addClass('modal-xl');
+    prev_d.$wrapper.find('.modal-content').css({ 'border-radius': '12px', 'box-shadow': '0 10px 30px rgba(0,0,0,0.2)' });
+    prev_d.$wrapper.find('.modal-header').css({
+        'background': 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)',
+        'color': 'white', 'border-bottom': 'none', 'border-radius': '12px 12px 0 0',
+    });
+    prev_d.$wrapper.find('.modal-title,.modal-header .btn-modal-close').css('color', 'white');
+
+    // Select/deselect all handlers
+    prev_d.$wrapper.on('click', '#del_select_all', function (e) {
+        e.preventDefault();
+        prev_d.$wrapper.find('.del-user-chk').prop('checked', true);
+    });
+    prev_d.$wrapper.on('click', '#del_deselect_all', function (e) {
+        e.preventDefault();
+        prev_d.$wrapper.find('.del-user-chk').prop('checked', false);
+    });
+}
+
+function _del_start_delete(selected_users) {
+    frappe.call({
+        method: 'customize_erpnext.api.biometric_sync.delete_users_from_machines',
+        args: { users_json: JSON.stringify(selected_users) },
+        callback: function (r) {
+            if (!r.message || r.message.status !== 'success') {
+                frappe.msgprint({
+                    title: __('Error'),
+                    message: (r.message && r.message.message) || 'Failed to start delete job',
+                    indicator: 'red',
+                });
+                return;
+            }
+            const job_id = r.message.job_id;
+            const total_ops = selected_users.reduce((n, u) => n + (u.machines || []).length, 0);
+            const unique_machines = [...new Set(selected_users.flatMap(u => u.machines || []))];
+            _del_show_progress_dialog(job_id, selected_users.length, total_ops, unique_machines);
+        },
+        error: function () {
+            frappe.msgprint({ title: __('Error'), message: __('Failed to submit delete job'), indicator: 'red' });
+        },
+    });
+}
+
+function _del_show_progress_dialog(job_id, user_count, total_ops, machines) {
+    const prog_html = `
+        <div class="alert alert-danger d-flex align-items-start" style="margin-bottom:15px">
+            <i class="fa fa-trash" style="font-size:20px;margin-right:10px;margin-top:2px"></i>
+            <div>
+                Deleting <strong>${user_count} users</strong> from
+                <strong>${machines.length} machine(s)</strong>: ${machines.join(', ')}<br>
+                <small class="text-muted">ERPNext fingerprint records are not affected.</small>
+            </div>
+        </div>
+        <div style="margin-bottom:15px">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <strong>Delete Progress</strong>
+                <span id="fp_phase_text" class="text-muted" style="font-size:13px">⏳ Starting...</span>
+            </div>
+            <div class="progress mb-2" style="height:25px">
+                <div id="fp_prog_bar" class="progress-bar progress-bar-striped progress-bar-animated bg-danger"
+                     role="progressbar" style="width:0%">0%</div>
+            </div>
+        </div>
+        <div id="fp_results_wrap" style="height:300px;overflow-y:auto;padding:15px;border-radius:8px;
+             background:#f8f9fa;border:1px solid #dee2e6;font-family:monospace;font-size:13px">
+            <div class="text-info">Waiting for results...</div>
+        </div>`;
+
+    const prog_d = new frappe.ui.Dialog({
+        title: __('🗑️ Delete Progress'),
+        fields: [{ fieldname: 'prog_html', fieldtype: 'HTML', options: prog_html }],
+        secondary_action_label: __('Close'),
+        secondary_action: function () { prog_d.hide(); },
+    });
+    prog_d.show();
+
+    prog_d.$wrapper.find('.modal-dialog').addClass('modal-xl');
+    prog_d.$wrapper.find('.modal-content').css({ 'border-radius': '12px', 'box-shadow': '0 10px 30px rgba(0,0,0,0.2)' });
+    prog_d.$wrapper.find('.modal-header').css({
+        'background': 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)',
+        'color': 'white', 'border-bottom': 'none', 'border-radius': '12px 12px 0 0',
+    });
+    prog_d.$wrapper.find('.modal-title,.modal-header .btn-modal-close').css('color', 'white');
+
+    const poll = setInterval(function () {
+        frappe.call({
+            method: 'customize_erpnext.api.biometric_sync.get_sync_job_status',
+            args: { job_id },
+            callback: function (r) {
+                if (!r.message || r.message.status !== 'success') return;
+                const data = r.message.data;
+
+                _fp_update_progress(prog_d, {
+                    progress_pct: data.progress_pct || 0,
+                    phase: data.phase || '',
+                    results: data.results || [],
+                    status: data.status,
+                });
+
+                if (data.status === 'done' || data.status === 'error') {
+                    clearInterval(poll);
+                    _fp_finish_progress(prog_d, data.results || []);
+                }
+            },
+        });
+    }, 1500);
 }
 
 function show_employee_search_dialog() {
