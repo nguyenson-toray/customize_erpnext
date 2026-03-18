@@ -792,8 +792,11 @@ function renderScanForm(mode) {
                 </label>
             </div>
 
-            <input type="text" class="hc-scan-input" id="scan-input"
-                   placeholder="${L.scan_placeholder}" autocomplete="off" />
+            <div class="hc-input-group" id="scan-input-group">
+                <span class="hc-input-prefix" id="scan-prefix" style="display:none;">TIQN-</span>
+                <input type="text" class="hc-scan-input" id="scan-input"
+                       placeholder="${L.scan_placeholder}" autocomplete="off" />
+            </div>
 
             ${!isDist
             ? `
@@ -845,11 +848,10 @@ function setupScanForm(mode) {
         let record = null;
 
         if (code) {
-            if (scanType === "employee" && code.length === 4) {
+            if (scanType === "employee" && /^\d{4}$/.test(code)) {
+                // Strictly 4 digits only
                 record = state.records.find(r => r.employee && r.employee.endsWith(code));
             } else if (scanType === "hospital") {
-                // For hospital code, it might be dynamically entered or pasted. 
-                // We'll show preview if it exactly matches an existing code.
                 record = state.records.find(r => r.hospital_code === code);
             }
         }
@@ -883,10 +885,23 @@ function setupScanForm(mode) {
         }
     });
 
-    // Also trigger when radio type changes
-    $(`input[name="scan_type_${mode}"]`).on("change", function () {
-        $input.trigger("input");
-    });
+    // Update input UI and trigger preview when scan type changes
+    function applyScanType() {
+        const scanType = $(`input[name="scan_type_${mode}"]:checked`).val();
+        if (scanType === "employee") {
+            $("#scan-prefix").show();
+            $input.attr("maxlength", 4).attr("placeholder", "4 số cuối mã NV").attr("inputmode", "numeric");
+            $("#scan-input-group").addClass("hc-input-group--employee");
+        } else {
+            $("#scan-prefix").hide();
+            $input.removeAttr("maxlength").attr("placeholder", L.scan_placeholder).removeAttr("inputmode");
+            $("#scan-input-group").removeClass("hc-input-group--employee");
+        }
+        $input.val("").trigger("input").focus();
+    }
+
+    $(`input[name="scan_type_${mode}"]`).on("change", applyScanType);
+    applyScanType();
     renderHistory();
 
     // Auto focus
@@ -946,8 +961,8 @@ async function doScan(mode) {
     const scanType = $(`input[name="scan_type_${mode}"]:checked`).val();
 
     if (scanType === "employee") {
-        if (code.length !== 4) {
-            showScanResult("error", "Vui lòng nhập đúng 4 ký tự cuối của mã nhân viên.");
+        if (!/^\d{4}$/.test(code)) {
+            showScanResult("error", "Mã nhân viên phải là đúng 4 chữ số (4 ký tự cuối mã NV).");
             $input.val("").focus();
             return;
         }
@@ -1064,6 +1079,13 @@ async function doScan(mode) {
             }
         });
         d.show();
+        // Allow pressing Enter to confirm
+        d.$wrapper.on("keydown.confirm_dialog", function(e) {
+            if (e.key === "Enter") {
+                e.preventDefault();
+                d.$wrapper.find(".btn-primary").click();
+            }
+        });
     } else {
         executeCall();
     }

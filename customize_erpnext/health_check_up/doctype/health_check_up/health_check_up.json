@@ -61,9 +61,8 @@
    "reqd": 1
   },
   {
-   "default": "Kh\u00e1m s\u1ee9c kh\u1ecfe + B\u1ec7nh ngh\u1ec1 nghi\u1ec7p",
    "fieldname": "health_check_type",
-   "fieldtype": "Select",
+   "fieldtype": "Data",
    "in_standard_filter": 1,
    "label": "Health Check Type",
    "options": "\nKh\u00e1m s\u1ee9c kh\u1ecfe + B\u1ec7nh ngh\u1ec1 nghi\u1ec7p\nKh\u00e1m s\u1ee9c kh\u1ecfe\nKh\u00e1m s\u1ee9c kh\u1ecfe l\u00e0m b\u1ebfp",
@@ -228,7 +227,7 @@
   }
  ],
  "links": [],
- "modified": "2026-03-09 15:56:22.604480",
+ "modified": "2026-03-18 14:46:47.489846",
  "modified_by": "Administrator",
  "module": "Health Check Up",
  "name": "Health Check-Up",

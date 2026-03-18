@@ -6,7 +6,7 @@
 # Realtime events are published for instant multi-client updates.
 
 import frappe
-from frappe.utils import nowtime, today, getdate, now_datetime
+from frappe.utils import nowtime, today, getdate, now_datetime, get_datetime
 
 
 # ===========================================================================
@@ -478,6 +478,76 @@ def _build_not_found_msg(hospital_code, employee, date):
     return frappe._(
         "Không tìm thấy hồ sơ khám cho mã <b>{0}</b> ngày <b>{1}</b>"
     ).format(identifier, date)
+
+
+# ===========================================================================
+# ADMIN BULK OPERATIONS
+# ===========================================================================
+
+@frappe.whitelist()
+def clear_actual_times(date):
+    """
+    Clear start_time_actual and end_time_actual for all Health Check-Up records
+    on the given date. Password validation is done on the client side (ddmm).
+    """
+    if not date:
+        frappe.throw("Vui lòng chọn ngày.")
+
+    records = frappe.get_all(
+        "Health Check-Up",
+        filters={"date": date},
+        fields=["name"],
+    )
+    if not records:
+        frappe.throw(f"Không có bảng ghi nào cho ngày {date}.")
+
+    count = 0
+    for r in records:
+        doc = frappe.get_doc("Health Check-Up", r["name"])
+        if doc.start_time_actual or doc.end_time_actual:
+            doc.start_time_actual = None
+            doc.end_time_actual = None
+            doc.save(ignore_permissions=True)
+            count += 1
+
+    frappe.db.commit()
+    return {"cleared": count, "total": len(records)}
+
+
+@frappe.whitelist()
+def change_date(from_date, to_date):
+    """
+    Change the date field of all Health Check-Up records from from_date to to_date.
+    Password validation is done on the client side (ddmm).
+    """
+    if not from_date or not to_date:
+        frappe.throw("Vui lòng cung cấp ngày nguồn và ngày đích.")
+
+    if from_date == to_date:
+        frappe.throw("Ngày đích phải khác ngày nguồn.")
+
+    # Prevent duplicate: if records already exist on to_date
+    existing = frappe.db.count("Health Check-Up", {"date": to_date})
+    if existing:
+        frappe.throw(
+            f"Đã có {existing} bảng ghi vào ngày {to_date}. Không thể chuyển để tránh trùng lặp."
+        )
+
+    records = frappe.get_all(
+        "Health Check-Up",
+        filters={"date": from_date},
+        fields=["name"],
+    )
+    if not records:
+        frappe.throw(f"Không có bảng ghi nào cho ngày {from_date}.")
+
+    count = len(records)
+    frappe.db.sql(
+        "UPDATE `tabHealth Check-Up` SET `date` = %s WHERE `date` = %s",
+        (to_date, from_date)
+    )
+    frappe.db.commit()
+    return {"updated": count}
 
 
 def _serialize_record(doc):

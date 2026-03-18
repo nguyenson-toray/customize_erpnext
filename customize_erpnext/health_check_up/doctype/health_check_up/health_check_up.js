@@ -18,12 +18,12 @@ frappe.ui.form.on("Health Check-Up", {
     gender(frm) {
         if (frm.doc.gender == 'Female') {
             frm.trigger("check_pregnant");
-            frm.frm.set_value("gynecological_exam", 1);
-            rm.set_df_property("gynecological_exam", "read_only", 0);
+            frm.set_value("gynecological_exam", 1);
+            frm.set_df_property("gynecological_exam", "read_only", 0);
         }
         else {
-            frm.frm.set_value("gynecological_exam", 0);
-            rm.set_df_property("gynecological_exam", "read_only", 1);
+            frm.set_value("gynecological_exam", 0);
+            frm.set_df_property("gynecological_exam", "read_only", 1);
         }
     },
     date(frm) {

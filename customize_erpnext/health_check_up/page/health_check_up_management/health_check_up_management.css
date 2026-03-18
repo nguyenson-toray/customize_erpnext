@@ -794,6 +794,53 @@
     accent-color: var(--hc-primary);
 }
 
+/* Input group with prefix (e.g. "TIQN-") */
+.hc-input-group {
+    display: flex;
+    align-items: center;
+    margin-bottom: 14px;
+    border: 2px solid var(--hc-border);
+    border-radius: var(--hc-radius);
+    overflow: hidden;
+    transition: border-color var(--hc-transition), box-shadow var(--hc-transition);
+    background: var(--hc-bg);
+}
+.hc-input-group:focus-within {
+    border-color: var(--hc-primary);
+    box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.1);
+    background: #FFFFFF;
+}
+.hc-input-prefix {
+    padding: 0 16px;
+    font-size: 24px;
+    font-family: var(--hc-mono);
+    font-weight: 700;
+    color: var(--hc-primary);
+    background: rgba(79, 70, 229, 0.07);
+    border-right: 2px solid var(--hc-border);
+    white-space: nowrap;
+    user-select: none;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+}
+.hc-input-group .hc-scan-input {
+    border: none;
+    border-radius: 0;
+    margin-bottom: 0;
+    flex: 1;
+    background: transparent;
+}
+.hc-input-group .hc-scan-input:focus {
+    border-color: transparent;
+    box-shadow: none;
+    background: transparent;
+}
+.hc-input-group--employee .hc-scan-input {
+    text-align: left;
+    letter-spacing: 0.3em;
+}
+
 /* Main scan input — LARGER for factory floor */
 .hc-scan-input {
     width: 100%;
