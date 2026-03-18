@@ -39,7 +39,7 @@ def _make_qr_image(content, size, use_logo):
 	return buf.getvalue()
 
 
-def _make_linear_barcode(barcode_type, content, width, write_text=True):
+def _make_linear_barcode(barcode_type, content, width, height=None, write_text=True):
 	import barcode as bc_lib
 	from barcode.writer import ImageWriter
 
@@ -57,7 +57,9 @@ def _make_linear_barcode(barcode_type, content, width, write_text=True):
 		content = _itf14_full(content)
 	writer = ImageWriter()
 	BarcodeClass = bc_lib.get_barcode_class(type_map[barcode_type])
-	bc_obj = BarcodeClass(content, writer=writer)
+	# Code 39: disable mod-43 checksum to match JsBarcode (manual mode) behaviour
+	kwargs = {"add_checksum": False} if barcode_type == "code39" else {}
+	bc_obj = BarcodeClass(content, writer=writer, **kwargs)
 	buf = BytesIO()
 	# Pass original `content` as the `text` arg so python-barcode displays it as-is
 	# instead of calling get_fullcode() which appends the internal check character.
@@ -73,7 +75,7 @@ def _make_linear_barcode(barcode_type, content, width, write_text=True):
 	buf.seek(0)
 	src = Image.open(buf)
 	w, h = src.size
-	new_h = max(1, int(h * width / w))
+	new_h = height if height else max(1, int(h * width / w))
 	img = src.resize((width, new_h), Image.LANCZOS)
 	out = BytesIO()
 	img.convert("RGB").save(out, format="PNG")
@@ -102,7 +104,7 @@ def _validate(barcode_type, content):
 			return f"Code 39: invalid chars {''.join(sorted(invalid))}. Allowed: A-Z, 0-9, - . $ / + % space"
 		return None
 
-		digit_types = {"ean13", "ean8", "upca", "itf"}
+	digit_types = {"ean13", "ean8", "upca", "itf"}
 	if barcode_type in digit_types:
 		if not re.match(r"^\d+$", content):
 			return f"{barcode_type.upper()} requires digits only (0–9)"
@@ -146,7 +148,7 @@ def generate_qr(content, size=500, use_logo=1):
 
 
 @frappe.whitelist()
-def generate_barcode_excel(barcode_type, file_b64, has_header=1, img_width=200, use_logo=1, show_text=1):
+def generate_barcode_excel(barcode_type, file_b64, has_header=1, img_width=200, img_height=None, use_logo=1, show_text=1):
 	"""
 	Read column A from an uploaded Excel file, generate a barcode for each row,
 	and embed the barcode image into column B.  Returns a base64-encoded .xlsx.
@@ -166,6 +168,7 @@ def generate_barcode_excel(barcode_type, file_b64, has_header=1, img_width=200, 
 
 	has_header = int(has_header)
 	img_width  = max(60, min(600, int(img_width or 200)))
+	img_height = max(20, min(1000, int(img_height))) if img_height else None
 	use_logo   = int(use_logo)
 	show_text  = int(show_text)
 
@@ -205,7 +208,12 @@ def generate_barcode_excel(barcode_type, file_b64, has_header=1, img_width=200, 
 		raw = ws.cell(row=row_idx, column=1).value
 		if raw is None:
 			continue
-		item = str(raw).strip()
+		# openpyxl returns numeric cells as float (e.g. 590123412345.0)
+		# Convert to int first to avoid "590123412345.0" being encoded into barcode
+		if isinstance(raw, float) and raw == int(raw):
+			item = str(int(raw))
+		else:
+			item = str(raw).strip()
 		if not item:
 			continue
 
@@ -225,11 +233,12 @@ def generate_barcode_excel(barcode_type, file_b64, has_header=1, img_width=200, 
 			gen_size = max(400, img_width * 2)
 			if is_qr:
 				img_bytes = _make_qr_image(item, gen_size, use_logo)
-				xl_h_row  = img_width
+				xl_h_row  = img_height if img_height else img_width
 			else:
-				img_bytes = _make_linear_barcode(barcode_type, item, gen_size, write_text=bool(show_text))
+				gen_height = max(40, img_height * 2) if img_height else None
+				img_bytes = _make_linear_barcode(barcode_type, item, gen_size, height=gen_height, write_text=bool(show_text))
 				src       = Image.open(BytesIO(img_bytes))
-				xl_h_row  = max(30, round(src.height * img_width / src.width))
+				xl_h_row  = img_height if img_height else max(30, round(src.height * img_width / src.width))
 
 			xl_img        = XLImage(BytesIO(img_bytes))
 			xl_img.width  = img_width
@@ -256,20 +265,22 @@ def generate_barcode_excel(barcode_type, file_b64, has_header=1, img_width=200, 
 
 
 @frappe.whitelist()
-def generate_barcode(barcode_type, contents, size=500, use_logo=1):
+def generate_barcode(barcode_type, contents, size=500, height=None, use_logo=1):
 	"""
 	Generate one or many barcodes in a single call.
 
 	Args:
 		barcode_type: 'qr' | 'code128' | 'code39' | 'ean13' | 'ean8' | 'upca' | 'itf'
 		contents    : JSON-encoded list of strings (one per barcode)
-		size        : output width in px (height scales proportionally for linear codes)
+		size        : output width in px
+		height      : output height in px (optional; proportional if omitted; ignored for QR)
 		use_logo    : 1/0 — embed logo in QR codes only
 
 	Returns:
 		list of { content, b64, error } dicts
 	"""
-	size = max(100, min(2000, int(size or 500)))
+	size     = max(100, min(2000, int(size or 500)))
+	height   = max(20, min(1000, int(height))) if height else None
 	use_logo = int(use_logo)
 
 	try:
@@ -292,7 +303,7 @@ def generate_barcode(barcode_type, contents, size=500, use_logo=1):
 			if barcode_type == "qr":
 				data = _make_qr_image(item, size, use_logo)
 			else:
-				data = _make_linear_barcode(barcode_type, item, size)
+				data = _make_linear_barcode(barcode_type, item, size, height=height)
 			results.append({"content": item, "b64": base64.b64encode(data).decode(), "error": None})
 		except Exception as e:
 			results.append({"content": item, "b64": None, "error": str(e)})

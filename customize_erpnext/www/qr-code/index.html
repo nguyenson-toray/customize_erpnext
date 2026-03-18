@@ -348,6 +348,10 @@ textarea:focus { outline: none; border-color: #1a5276; box-shadow: 0 0 0 3px rgb
 						<label class="lbl" for="size">Width (px)</label>
 						<input type="number" id="size" value="500" min="100" max="2000" step="50">
 					</div>
+					<div class="field" id="heightWrap" style="display:none">
+						<label class="lbl" for="barHeight">Height (px)</label>
+						<input type="number" id="barHeight" placeholder="auto" min="20" max="1000" step="10">
+					</div>
 					<div id="logoWrap" class="toggle-wrap">
 						<label class="toggle">
 							<input type="checkbox" id="logo" checked>
@@ -384,8 +388,12 @@ textarea:focus { outline: none; border-color: #1a5276; box-shadow: 0 0 0 3px rgb
 			<div class="form-group">
 				<div class="xl-opts">
 					<div class="field">
-						<label class="lbl" for="xlImgWidth">Image width (px)</label>
+						<label class="lbl" for="xlImgWidth">Width (px)</label>
 						<input type="number" id="xlImgWidth" value="200" min="60" max="600" step="20">
+					</div>
+					<div class="field" id="xlHeightWrap" style="display:none">
+						<label class="lbl" for="xlImgHeight">Height (px)</label>
+						<input type="number" id="xlImgHeight" placeholder="auto" min="20" max="600" step="10">
 					</div>
 					<div class="field" style="display:flex;flex-direction:column;gap:6px">
 						<label class="lbl" style="margin-bottom:0">Options</label>
@@ -540,6 +548,8 @@ function onTypeChange() {
 	document.getElementById('xlLogoWrap').style.display      = isQr ? '' : 'none';
 	document.getElementById('showTextWrap').style.display    = isQr ? 'none' : '';
 	document.getElementById('xlShowTextWrap').style.display  = isQr ? 'none' : '';
+	document.getElementById('heightWrap').style.display      = isQr ? 'none' : '';
+	document.getElementById('xlHeightWrap').style.display    = isQr ? 'none' : '';
 	document.getElementById('lineBadge').style.display       = isQr ? 'none' : '';
 	document.getElementById('batchHint').style.display       = isQr ? 'none' : '';
 	document.getElementById('qrHint').style.display          = isQr ? '' : 'none';
@@ -581,7 +591,7 @@ async function callApi(method, args) {
 }
 
 // ── 1D barcode via JsBarcode (client-side) ────────────────────────────────────
-function renderLinear(format, content, targetWidth, showText = true) {
+function renderLinear(format, content, targetWidth, targetHeight, showText = true) {
 	const canvas = document.createElement('canvas');
 	let errMsg = null;
 	try {
@@ -599,12 +609,13 @@ function renderLinear(format, content, targetWidth, showText = true) {
 	}
 	if (errMsg) return { content, b64: null, error: errMsg };
 
-	// Scale to targetWidth
+	const finalW = targetWidth  || canvas.width;
+	const finalH = targetHeight || Math.max(1, Math.round(canvas.height * finalW / canvas.width));
 	let src = canvas;
-	if (targetWidth && targetWidth !== canvas.width) {
+	if (finalW !== canvas.width || finalH !== canvas.height) {
 		const sc = document.createElement('canvas');
-		sc.width = targetWidth;
-		sc.height = Math.max(1, Math.round(canvas.height * targetWidth / canvas.width));
+		sc.width  = finalW;
+		sc.height = finalH;
 		sc.getContext('2d').drawImage(canvas, 0, 0, sc.width, sc.height);
 		src = sc;
 	}
@@ -613,11 +624,12 @@ function renderLinear(format, content, targetWidth, showText = true) {
 
 // ── Generate ──────────────────────────────────────────────────────────────────
 async function generate() {
-	const type     = document.getElementById('barcodeType').value;
-	const size     = parseInt(document.getElementById('size').value) || 500;
-	const useLogo  = document.getElementById('logo').checked ? 1 : 0;
-	const showText = document.getElementById('showText').checked;
-	const t        = TYPES[type];
+	const type      = document.getElementById('barcodeType').value;
+	const size      = parseInt(document.getElementById('size').value) || 500;
+	const heightVal = parseInt(document.getElementById('barHeight').value) || null;
+	const useLogo   = document.getElementById('logo').checked ? 1 : 0;
+	const showText  = document.getElementById('showText').checked;
+	const t         = TYPES[type];
 
 	// QR: entire textarea = one QR value (may contain newlines)
 	// 1D: each non-empty line = one barcode (batch)
@@ -638,7 +650,7 @@ async function generate() {
 			// 1D — client-side via JsBarcode, instant
 			const fmt = t.jsbarcode;
 			const normalized = type === 'code39' ? items.map(l => l.toUpperCase()) : items;
-			results = normalized.map(l => renderLinear(fmt, l, size, showText));
+			results = normalized.map(l => renderLinear(fmt, l, size, heightVal, showText));
 		} else {
 			// QR — backend (supports logo overlay, error correction)
 			results = await callApi(
@@ -777,11 +789,12 @@ function dzDrop(e)  {
 async function generateExcel() {
 	if (!xlFile) { alert('Please select an Excel file first.'); return; }
 
-	const type      = document.getElementById('barcodeType').value;
-	const imgWidth  = parseInt(document.getElementById('xlImgWidth').value) || 200;
-	const hasHeader = document.getElementById('xlHasHeader').checked ? 1 : 0;
-	const useLogo   = document.getElementById('xlLogo').checked ? 1 : 0;
-	const showText  = document.getElementById('xlShowText').checked ? 1 : 0;
+	const type       = document.getElementById('barcodeType').value;
+	const imgWidth   = parseInt(document.getElementById('xlImgWidth').value) || 200;
+	const imgHeight  = parseInt(document.getElementById('xlImgHeight').value) || null;
+	const hasHeader  = document.getElementById('xlHasHeader').checked ? 1 : 0;
+	const useLogo    = document.getElementById('xlLogo').checked ? 1 : 0;
+	const showText   = document.getElementById('xlShowText').checked ? 1 : 0;
 
 	const btn = document.getElementById('btnXl');
 	btn.disabled = true;
@@ -790,14 +803,16 @@ async function generateExcel() {
 
 	try {
 		const fileB64 = await fileToB64(xlFile);
-		const res = await callApi('customize_erpnext.api.qr_code.generate_barcode_excel', {
+		const apiArgs = {
 			barcode_type: type,
 			file_b64: fileB64,
 			has_header: hasHeader,
 			img_width: imgWidth,
 			use_logo: useLogo,
 			show_text: showText,
-		});
+		};
+		if (imgHeight) apiArgs.img_height = imgHeight;
+		const res = await callApi('customize_erpnext.api.qr_code.generate_barcode_excel', apiArgs);
 
 		// Trigger download
 		const bytes = b64ToBytes(res.file_b64);
