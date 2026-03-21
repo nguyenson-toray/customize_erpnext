@@ -34,13 +34,13 @@ const L = {
     chart_by_group: "Tiến độ theo Group",
     chart_overview: "Tổng quan trạng thái",
     scan_placeholder: "Scan hoặc nhập mã hồ sơ / mã nhân viên...",
-    btn_distribute: "⚡ Ghi nhận phát HS",
-    btn_collect: "⚡ Ghi nhận thu HS",
+    btn_distribute: "Ghi nhận phát HS",
+    btn_collect: "Ghi nhận thu HS",
     lbl_xray: "X-Quang",
     lbl_gynec: "Phụ khoa",
-    msg_success: "✓ Thành công",
-    msg_updated: "↻ Đã cập nhật lại",
-    msg_not_found: "✗ Không tìm thấy",
+    msg_success: "Thành công",
+    msg_updated: "Đã cập nhật lại",
+    msg_not_found: "Không tìm thấy",
     msg_error: "Lỗi",
     msg_input_required: "Vui lòng nhập mã hồ sơ hoặc mã nhân viên",
     msg_confirm_overwrite: "Đã có dữ liệu. Bạn có muốn cập nhật lại?",
@@ -64,10 +64,13 @@ const L = {
     recent_scans: "Lịch sử scan gần đây",
     no_results: "Không tìm thấy kết quả",
     loading: "Đang tải dữ liệu...",
-    settings_title: "⚙️ Cấu hình thời gian",
+    settings_title: "Cấu hình thời gian",
     allowed_late_dist: "Phút khám trễ cho phép",
     allowed_late_coll: "Phút nộp HS trễ cho phép",
     allowed_early_dist: "Phút khám sớm cho phép",
+    time_compare_mode: "Cách so sánh thời gian",
+    time_compare_datetime: "Kết hợp date & time",
+    time_compare_time_only: "Chỉ dựa vào time",
     btn_save: "Lưu",
     btn_reset: "Mặc định",
     stat_late_dist: "Trễ giờ phát HS",
@@ -96,6 +99,7 @@ const state = {
     allowedLateDistribute: 10,
     allowedLateCollect: 0,
     allowedEarlyDistribute: 10,
+    timeCompareMode: "datetime", // 'datetime' or 'time_only'
     chartLayout: "vertical", // 'vertical' or 'horizontal'
     // Sort
     sortField: null,
@@ -151,9 +155,6 @@ frappe.pages["health-check-up-management"].on_page_load = function (wrapper) {
     // Subscribe to realtime events
     setupRealtime();
     setupPollingAutoSync();
-
-    // Start clock
-    startClock();
 };
 
 function downloadExcel() {
@@ -172,6 +173,7 @@ frappe.pages["health-check-up-management"].on_page_show = function () {
 };
 
 frappe.pages["health-check-up-management"].on_page_hide = function () {
+    stopCameraScanner();
     // Unsubscribe to avoid memory leaks
     frappe.realtime.off("health_check_update");
     if (window.hcAutoSyncInterval) clearInterval(window.hcAutoSyncInterval);
@@ -186,17 +188,15 @@ function buildLayout() {
         <!-- Header Bar -->
         <div class="hc-header">
             <div class="hc-header-left">
-                <span class="hc-clock" id="hc-clock"></span> 
-                <span class="hc-mini-bar-text" id="hc-mini-bar-text">Tổng quan chung</span>
-                <div class="hc-mini-bar-wrap" id="hc-mini-bar" title="Tổng quan" style="display: none;"></div>
+                <div id="hc-dash-filters-wrap" style="display:none;"></div>
+                <span class="hc-sync-status" id="hc-sync-status"></span>
             </div>
             <div class="hc-tabs" id="hc-tabs">
-                <span class="hc-mini-bar-text" id="hc-mini-bar-text">Chọn ngày khám</span>
                 <select class="hc-date-select" id="hc-date-select" style="margin-right: 8px;"></select>
-                <button class="hc-tab active" data-tab="dashboard">📊 ${L.tab_dashboard}</button>
-                <button class="hc-tab" data-tab="distribute">📤 ${L.tab_distribute}</button>
-                <button class="hc-tab" data-tab="collect">📥 ${L.tab_collect}</button>
-                <button class="hc-tab" data-tab="list">📋 ${L.tab_list}</button>
+                <button class="hc-tab active" data-tab="dashboard">${L.tab_dashboard}</button>
+                <button class="hc-tab" data-tab="distribute">${L.tab_distribute}</button>
+                <button class="hc-tab" data-tab="collect">${L.tab_collect}</button>
+                <button class="hc-tab" data-tab="list">${L.tab_list}</button>
             </div>
         </div>
 
@@ -255,7 +255,6 @@ async function loadData(date) {
         frappe.msgprint("Lỗi tải dữ liệu: " + e.message);
     }
     renderActiveTab();
-    renderMiniBar();
 }
 
 // ============================================================
@@ -263,6 +262,10 @@ async function loadData(date) {
 // ============================================================
 function setupTabNavigation() {
     $(document).on("click", ".hc-tab", function () {
+        stopCameraScanner();
+        if (!$(this).hasClass("active") && $(this).data("tab") !== "dashboard") {
+            $("#hc-dash-filters-wrap").hide();
+        }
         if ($(this).hasClass("hc-tab-disabled")) {
             frappe.show_alert({ message: "Đợt khám sức khỏe này đã kết thúc. Bạn không thể thu hoặc phát HS.", indicator: "orange" });
             return;
@@ -275,37 +278,13 @@ function setupTabNavigation() {
     });
 }
 
-function renderMiniBar() {
-    if (!state.records || state.records.length === 0) {
-        $("#hc-mini-bar").hide();
-        return;
-    }
-    const stats = calcFilteredStats(state.records);
-    if (stats.total === 0) {
-        $("#hc-mini-bar").hide();
-        return;
-    }
-
-    const pctComp = (stats.completed / stats.total) * 100;
-    const pctExam = (stats.in_exam / stats.total) * 100;
-    const pctNot = (stats.not_started / stats.total) * 100;
-
-    const html = `
-        <div style="width: ${pctComp}%; background: var(--hc-green);" title="Hoàn thành: ${stats.completed}"></div>
-        <div style="width: ${pctExam}%; background: var(--hc-yellow);" title="Đang khám: ${stats.in_exam}"></div>
-        <div style="width: ${pctNot}%; background: var(--hc-red);" title="Chưa khám: ${stats.not_started}"></div>
-    `;
-
-    const $bar = $("#hc-mini-bar");
-    $bar.html(html).css("display", "flex");
-    $bar.attr("title", `Tổng quan tiến độ:\n- Hoàn thành: ${stats.completed}\n- Đang khám: ${stats.in_exam}\n- Chưa khám: ${stats.not_started}`);
-}
 
 function renderActiveTab() {
     const $content = $("#hc-content");
     switch (state.activeTab) {
         case "dashboard":
             $content.html(renderDashboard());
+            renderDashboardFilters();
             setupDashboardFilters();
             renderCharts();
             break;
@@ -327,52 +306,45 @@ function renderActiveTab() {
 // ============================================================
 // Dashboard Render
 // ============================================================
-function renderDashboard() {
-    // Get distinct values for filter dropdowns
+function renderDashboardFilters() {
     const startTimes = [...new Set(state.records.map(r => formatTime(r.start_time)).filter(t => t !== "—"))].sort();
     const sectionList = [...new Set(state.records.map(r => r.custom_section).filter(Boolean))].sort();
     const groupList = [...new Set(state.records.map(r => r.custom_group).filter(Boolean))].sort();
 
+    $("#hc-dash-filters-wrap").html(`
+        <div class="hc-dash-filter-item">
+            <label class="hc-dash-filter-label">Giờ bắt đầu</label>
+            <select class="hc-dash-filter-select" id="dash-filter-time">
+                <option value="all">Tất cả</option>
+                ${startTimes.map(t => `<option value="${t}" ${state.dashFilterStartTime === t ? 'selected' : ''}>${t}</option>`).join('')}
+            </select>
+        </div>
+        <div class="hc-dash-filter-item">
+            <label class="hc-dash-filter-label">Section</label>
+            <select class="hc-dash-filter-select" id="dash-filter-section">
+                <option value="all">Tất cả</option>
+                ${sectionList.map(s => `<option value="${s}" ${state.dashFilterSection === s ? 'selected' : ''}>${s}</option>`).join('')}
+            </select>
+        </div>
+        <div class="hc-dash-filter-item">
+            <label class="hc-dash-filter-label">Group</label>
+            <select class="hc-dash-filter-select" id="dash-filter-group">
+                <option value="all">Tất cả</option>
+                ${groupList.map(g => `<option value="${g}" ${state.dashFilterGroup === g ? 'selected' : ''}>${g}</option>`).join('')}
+            </select>
+        </div>
+        <button class="hc-dash-filter-reset" id="dash-filter-reset" title="Đặt lại bộ lọc">↺ Đặt lại</button>
+        <button class="hc-config-btn" id="dash-settings-btn" title="Cấu hình">Cấu hình</button>
+    `).css("display", "flex");
+}
+
+function renderDashboard() {
     // Apply dashboard filters
     const filtered = getDashboardFilteredRecords();
     const s = calcFilteredStats(filtered);
 
     return `
     <div class="hc-dashboard">
-        <!-- Filter Bar -->
-        <div class="hc-dash-filters">
-            <div class="hc-dash-filter-item">
-                <label class="hc-dash-filter-label">⏰ Giờ bắt đầu</label>
-                <select class="hc-dash-filter-select" id="dash-filter-time">
-                    <option value="all">Tất cả</option>
-                    ${startTimes.map(t => `<option value="${t}" ${state.dashFilterStartTime === t ? 'selected' : ''}>${t}</option>`).join('')}
-                </select>
-            </div>
-            <div class="hc-dash-filter-item">
-                <label class="hc-dash-filter-label">🏢 Section</label>
-                <select class="hc-dash-filter-select" id="dash-filter-section">
-                    <option value="all">Tất cả</option>
-                    ${sectionList.map(s => `<option value="${s}" ${state.dashFilterSection === s ? 'selected' : ''}>${s}</option>`).join('')}
-                </select>
-            </div>
-            <div class="hc-dash-filter-item">
-                <label class="hc-dash-filter-label">👥 Group</label>
-                <select class="hc-dash-filter-select" id="dash-filter-group">
-                    <option value="all">Tất cả</option>
-                    ${groupList.map(g => `<option value="${g}" ${state.dashFilterGroup === g ? 'selected' : ''}>${g}</option>`).join('')}
-                </select>
-            </div>
-            <button class="hc-dash-filter-reset" id="dash-filter-reset" title="Xóa bộ lọc">✕ Xóa lọc</button>
-            
-            <div style="margin-left: auto; display: flex; gap: 8px;">
-                <select class="hc-dash-filter-select" id="dash-filter-layout" title="Hướng biểu đồ">
-                    <option value="vertical" ${state.chartLayout === 'vertical' ? 'selected' : ''}>📊 Dọc</option>
-                    <option value="horizontal" ${state.chartLayout === 'horizontal' ? 'selected' : ''}>≡ Ngang</option>
-                </select>
-                <button class="hc-dash-filter-reset" id="dash-settings-btn" title="Cấu hình">⚙ Cấu hình</button>
-            </div>
-        </div>
-
         <!-- Stat Cards -->
         <div id="hc-stats-wrapper">
             <div class="hc-stats-grid mb-3">
@@ -384,13 +356,13 @@ function renderDashboard() {
             
             <div class="hc-stats-grid mb-3">
                 ${statCard("distributed", L.stat_distributed, s.distributed, s.total, "blue", "📤")}
-                ${statCard("late_dist", L.stat_late_dist, s.late_dist, s.total, "red", "⏰")}
-                ${statCard("late_coll", L.stat_late_coll, s.late_coll, s.total, "orange", "⏳")}
+                ${statCard("late_dist", L.stat_late_dist, s.late_dist, s.total, "red", "⏰", s.late_dist > 0)}
+                ${statCard("late_coll", L.stat_late_coll, s.late_coll, s.total, "orange", "⏳", s.late_coll > 0)}
                 ${statCard("pregnant", L.stat_pregnant, s.pregnant, s.total, "purple", "🤰")}
             </div>
         </div>
 
-        <!-- Charts (vertical stack: Group → Section) -->
+        <!-- Charts -->
         <div class="hc-charts-stack">
             <div class="hc-chart-card">
                 <div class="hc-chart-title">${L.chart_by_group}</div>
@@ -402,7 +374,6 @@ function renderDashboard() {
             </div>
         </div>
 
-        
     </div>`;
 }
 
@@ -468,8 +439,8 @@ function updateDashboardStats() {
         <div class="hc-stats-group-title">Nhóm 2: Thông tin thêm</div>
         <div class="hc-stats-grid mb-3">
             ${statCard("distributed", L.stat_distributed, s.distributed, s.total, "blue", "📤")}
-            ${statCard("late_dist", L.stat_late_dist, s.late_dist, s.total, "red", "⏰")}
-            ${statCard("late_coll", L.stat_late_coll, s.late_coll, s.total, "orange", "⏳")}
+            ${statCard("late_dist", L.stat_late_dist, s.late_dist, s.total, "red", "⏰", s.late_dist > 0)}
+            ${statCard("late_coll", L.stat_late_coll, s.late_coll, s.total, "orange", "⏳", s.late_coll > 0)}
             ${statCard("pregnant", L.stat_pregnant, s.pregnant, s.total, "purple", "🤰")}
         </div>
     `);
@@ -499,10 +470,6 @@ function setupDashboardFilters() {
         state.dashFilterStartTime = "all";
         state.dashFilterSection = "all";
         state.dashFilterGroup = "all";
-        renderActiveTab();
-    });
-    $("#dash-filter-layout").on("change", function () {
-        state.chartLayout = $(this).val();
         renderActiveTab();
     });
     $("#dash-settings-btn").on("click", function () {
@@ -535,6 +502,20 @@ function showSettingsDialog() {
                 fieldname: "allowed_early_dist",
                 label: L.allowed_early_dist,
                 default: state.allowedEarlyDistribute,
+            },
+            {
+                fieldtype: "Select",
+                fieldname: "time_compare_mode",
+                label: L.time_compare_mode,
+                options: `${L.time_compare_datetime}\n${L.time_compare_time_only}`,
+                default: state.timeCompareMode === "datetime" ? L.time_compare_datetime : L.time_compare_time_only,
+            },
+            {
+                fieldtype: "Select",
+                fieldname: "chart_layout",
+                label: "Hướng biểu đồ",
+                options: "Dọc\nNgang",
+                default: state.chartLayout === "vertical" ? "Dọc" : "Ngang",
             }
         ],
         primary_action_label: L.btn_save,
@@ -542,6 +523,8 @@ function showSettingsDialog() {
             state.allowedLateDistribute = values.allowed_late_dist;
             state.allowedLateCollect = values.allowed_late_coll;
             state.allowedEarlyDistribute = values.allowed_early_dist;
+            state.timeCompareMode = values.time_compare_mode === L.time_compare_datetime ? "datetime" : "time_only";
+            state.chartLayout = values.chart_layout === "Dọc" ? "vertical" : "horizontal";
             renderActiveTab();
             dialog.hide();
         },
@@ -551,7 +534,9 @@ function showSettingsDialog() {
         dialog.set_values({
             allowed_late_dist: 10,
             allowed_late_coll: 0,
-            allowed_early_dist: 10
+            allowed_early_dist: 10,
+            time_compare_mode: L.time_compare_datetime,
+            chart_layout: "Dọc",
         });
     });
 
@@ -578,32 +563,50 @@ function getStatModalData(type) {
 function showStatModal(type) {
     const records = getStatModalData(type);
 
-    // Build table HTML
-    let tableHtml = `
-        <div style="max-height: 400px; overflow-y: auto;">
-        <table class="table table-bordered text-sm" style="font-size: 11px;">
-            <thead style="position: sticky; top: 0; background: white; z-index: 1;">
-                <tr>
-                    <th>STT</th>
-                    <th>Mã HS</th>
-                    <th>Mã NV</th>
-                    <th>Họ tên</th>
-                    <th>Group</th>
-                    <th>TG Phát (Dự kiến)</th>
-                    <th>TG Thu (Dự kiến)</th>
-                    <th>TG Phát (Thực tế)</th>
-                    <th>TG Thu (Thực tế)</th>
-                </tr>
-            </thead>
-            <tbody>
-    `;
+    const cols = [
+        { label: "Mã HS",             field: "hospital_code",    cls: "hc-mono" },
+        { label: "Mã NV",             field: "employee",         cls: "hc-mono" },
+        { label: "Họ tên",            field: "employee_name",    cls: "hc-bold" },
+        { label: "Group",             field: "custom_group",     cls: "" },
+        { label: "Phát (DK)",         field: "start_time",       cls: "hc-mono" },
+        { label: "Thu (DK)",          field: "end_time",         cls: "hc-mono" },
+        { label: "Phát (TT)",         field: "start_time_actual",cls: "hc-mono" },
+        { label: "Thu (TT)",          field: "end_time_actual",  cls: "hc-mono" },
+    ];
 
-    if (records.length === 0) {
-        tableHtml += `<tr><td colspan="9" class="text-center text-muted">Không có dữ liệu</td></tr>`;
-    } else {
-        records.forEach((r, i) => {
-            tableHtml += `
+    let sortField = null;
+    let sortOrder = "asc";
+
+    function sortedRecords() {
+        if (!sortField) return records;
+        return [...records].sort((a, b) => {
+            const va = String(a[sortField] || "");
+            const vb = String(b[sortField] || "");
+            if (va < vb) return sortOrder === "asc" ? -1 : 1;
+            if (va > vb) return sortOrder === "asc" ? 1 : -1;
+            return 0;
+        });
+    }
+
+    function renderThead() {
+        return `<thead style="position: sticky; top: 0; background: var(--bg-color); z-index: 1;">
             <tr>
+                <th style="cursor:default;">#</th>
+                ${cols.map(c => {
+                    const icon = sortField === c.field ? (sortOrder === "asc" ? " ↑" : " ↓") : "";
+                    return `<th class="hc-stat-modal-th" data-field="${c.field}" style="cursor:pointer; user-select:none;">${c.label}${icon}</th>`;
+                }).join("")}
+            </tr>
+        </thead>`;
+    }
+
+    function renderTbody() {
+        const rows = sortedRecords();
+        if (rows.length === 0) {
+            return `<tbody><tr><td colspan="${cols.length + 1}" class="text-center text-muted">Không có dữ liệu</td></tr></tbody>`;
+        }
+        return `<tbody>${rows.map((r, i) => `
+            <tr class="${i % 2 ? 'hc-row-alt' : ''}">
                 <td>${i + 1}</td>
                 <td class="hc-mono">${r.hospital_code || ""}</td>
                 <td class="hc-mono">${r.employee || ""}</td>
@@ -613,34 +616,56 @@ function showStatModal(type) {
                 <td class="hc-mono">${formatTime(r.end_time)}</td>
                 <td class="hc-mono ${r.start_time_actual ? 'hc-green' : 'hc-muted'}">${formatTime(r.start_time_actual)}</td>
                 <td class="hc-mono ${r.end_time_actual ? 'hc-green' : 'hc-muted'}">${formatTime(r.end_time_actual)}</td>
-            </tr>`;
-        });
+            </tr>`).join("")}
+        </tbody>`;
     }
 
-    tableHtml += `</tbody></table></div>`;
+    function renderTable() {
+        return `<div style="max-height:420px; overflow-y:auto; overflow-x:auto;">
+            <table class="table table-bordered hc-stat-modal-table" style="font-size:11px;" id="stat-modal-table">
+                ${renderThead()}
+                ${renderTbody()}
+            </table>
+        </div>`;
+    }
 
     const dialog = new frappe.ui.Dialog({
         title: `Danh sách nhân viên (${records.length})`,
         size: "extra-large",
     });
 
-    $(dialog.body).html(tableHtml);
+    $(dialog.body).html(renderTable());
+
+    $(dialog.body).on("click", ".hc-stat-modal-th", function () {
+        const field = $(this).data("field");
+        if (sortField === field) {
+            sortOrder = sortOrder === "asc" ? "desc" : "asc";
+        } else {
+            sortField = field;
+            sortOrder = "asc";
+        }
+        $("#stat-modal-table thead").replaceWith(renderThead());
+        $("#stat-modal-table tbody").replaceWith(renderTbody());
+    });
+
     dialog.show();
 }
 
-function statCard(type, label, value, total, color, icon) {
+function statCard(type, label, value, total, color, icon, isAlert = false) {
     const pct =
         total != null && total > 0
             ? Math.round((value / total) * 100) + "%"
             : "";
+    const alertClass = isAlert ? " hc-stat-alert" : "";
     return `
-    <div class="hc-stat-card hc-stat-${color} clickable-card" data-type="${type}" style="cursor: pointer;">
+    <div class="hc-stat-card hc-stat-${color} clickable-card${alertClass}" data-type="${type}" style="cursor: pointer;">
         <div class="hc-stat-label">${label}</div>
         <div class="hc-stat-value">${(value || 0).toLocaleString()}</div>
         ${pct ? `<div class="hc-stat-pct">${pct} / ${total}</div>` : ""}
         <div class="hc-stat-icon">${icon}</div>
     </div>`;
 }
+
 
 function renderHorizontalChart(containerId, dataArray, labelField) {
     let maxVal = Math.max(...dataArray.map(d => d.total));
@@ -655,7 +680,6 @@ function renderHorizontalChart(containerId, dataArray, labelField) {
         const pctComp = (completed / maxVal) * 100;
         const pctExam = (in_exam / maxVal) * 100;
         const pctNotSt = (not_started / maxVal) * 100;
-
         html += `
         <div class="hc-hchart-row">
             <div class="hc-hchart-label" title="${label}">${label} <span class="hc-hchart-val">(${item.total})</span></div>
@@ -673,14 +697,15 @@ function renderHorizontalChart(containerId, dataArray, labelField) {
             <span class="hc-hchart-legend-item"><span class="hc-hchart-legend-color hc-bg-none"></span> ${L.stat_not_started || "Chưa khám"}</span>
         </div>
     </div>`;
-
     document.getElementById(containerId).innerHTML = html;
 }
 
-function renderCharts() {
-    // Compute chart data from filtered records
-    const filtered = getDashboardFilteredRecords();
+function getHcColor(name, fallback) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+}
 
+function renderCharts() {
+    const filtered = getDashboardFilteredRecords();
     const groups = {};
     const sections = {};
     filtered.forEach((r) => {
@@ -695,32 +720,24 @@ function renderCharts() {
         if (r.start_time_actual) sections[s].distributed++;
         if (r.end_time_actual) sections[s].completed++;
     });
-
     const groupArr = Object.entries(groups).map(([k, v]) => ({ group: k, ...v })).sort((a, b) => a.group.localeCompare(b.group));
     const sectionArr = Object.entries(sections).map(([k, v]) => ({ section: k, ...v })).sort((a, b) => b.total - a.total);
+    const colors = [getHcColor('--hc-green', '#10b981'), getHcColor('--hc-yellow', '#f59e0b'), getHcColor('--hc-red', '#ef4444')];
 
-    // Section chart
     if (sectionArr.length > 0) {
         if (state.chartLayout === "horizontal") {
             renderHorizontalChart("chart-section", sectionArr, "section");
         } else if (typeof frappe.Chart !== "undefined") {
             const labels = sectionArr.map((s) => s.section);
             new frappe.Chart("#chart-section", {
-                data: {
-                    labels: labels,
-                    datasets: [
-                        { name: L.stat_completed, values: sectionArr.map((s) => s.completed) },
-                        { name: L.stat_in_exam, values: sectionArr.map((s) => s.distributed - s.completed) },
-                        { name: L.stat_not_started || "Chưa khám", values: sectionArr.map((s) => s.total - s.distributed) },
-                    ],
-                },
-                type: "bar",
-                height: 250,
-                colors: ["#10b981", "#f59e0b", "#ef4444"],
+                data: { labels, datasets: [
+                    { name: L.stat_completed, values: sectionArr.map((s) => s.completed) },
+                    { name: L.stat_in_exam, values: sectionArr.map((s) => s.distributed - s.completed) },
+                    { name: L.stat_not_started || "Chưa khám", values: sectionArr.map((s) => s.total - s.distributed) },
+                ]},
+                type: "bar", height: 250, colors,
                 barOptions: { stacked: true, spaceRatio: 0.4 },
             });
-
-            // Frappe charts auto-truncates x-axis labels. We override + rotate 45° via CSS style:
             setTimeout(() => {
                 document.querySelectorAll("#chart-section .x.axis .tick text").forEach((el, idx) => {
                     if (labels[idx]) el.textContent = labels[idx];
@@ -733,27 +750,20 @@ function renderCharts() {
         }
     }
 
-    // Group chart
     if (groupArr.length > 0) {
         if (state.chartLayout === "horizontal") {
             renderHorizontalChart("chart-group", groupArr, "group");
         } else if (typeof frappe.Chart !== "undefined") {
             const labels = groupArr.map((g) => g.group);
             new frappe.Chart("#chart-group", {
-                data: {
-                    labels: labels,
-                    datasets: [
-                        { name: L.stat_completed, values: groupArr.map((g) => g.completed) },
-                        { name: L.stat_in_exam, values: groupArr.map((g) => g.distributed - g.completed) },
-                        { name: L.stat_not_started || "Chưa khám", values: groupArr.map((g) => g.total - g.distributed) },
-                    ],
-                },
-                type: "bar",
-                height: 300,
-                colors: ["#10b981", "#f59e0b", "#ef4444"],
+                data: { labels, datasets: [
+                    { name: L.stat_completed, values: groupArr.map((g) => g.completed) },
+                    { name: L.stat_in_exam, values: groupArr.map((g) => g.distributed - g.completed) },
+                    { name: L.stat_not_started || "Chưa khám", values: groupArr.map((g) => g.total - g.distributed) },
+                ]},
+                type: "bar", height: 300, colors,
                 barOptions: { stacked: true, spaceRatio: 0.3 },
             });
-
             setTimeout(() => {
                 document.querySelectorAll("#chart-group .x.axis .tick text").forEach((el, idx) => {
                     if (labels[idx]) el.textContent = labels[idx];
@@ -775,7 +785,6 @@ function renderScanForm(mode) {
     return `
     <div class="hc-scan-layout">
         <div class="hc-scan-card">
-            <div class="hc-scan-icon">${isDist ? "📤" : "📥"}</div>
             <h2 class="hc-scan-title">
                 ${isDist ? L.tab_distribute : L.tab_collect}
             </h2>
@@ -796,26 +805,31 @@ function renderScanForm(mode) {
                 <span class="hc-input-prefix" id="scan-prefix" style="display:none;">TIQN-</span>
                 <input type="text" class="hc-scan-input" id="scan-input"
                        placeholder="${L.scan_placeholder}" autocomplete="off" />
+                <button class="hc-camera-btn" id="scan-camera-btn" title="Quét mã bằng camera">📷 Camera</button>
             </div>
+            <div id="hc-qr-reader" style="display:none; margin: 8px 0; border-radius: 8px; overflow: hidden;"></div>
 
             ${!isDist
             ? `
             <div class="hc-scan-checkboxes" id="scan-checkboxes">
                 <label class="hc-checkbox-label" id="lbl-xray">
                     <input type="checkbox" id="chk-xray" checked />
-                    <span>🩻 ${L.lbl_xray}</span>
+                    <span>${L.lbl_xray}</span>
                 </label>
                 <label class="hc-checkbox-label" id="lbl-gynec">
                     <input type="checkbox" id="chk-gynec" />
-                    <span>♀ ${L.lbl_gynec}</span>
+                    <span>${L.lbl_gynec}</span>
                 </label>
             </div>`
             : ""
         }
 
-            <textarea class="hc-scan-input" id="scan-note" 
-                      placeholder="Ghi chú thêm (không bắt buộc)" rows="2"
-                      style="margin-bottom: 24px; font-size: 14px; padding: 10px 14px;resize: none;"></textarea>
+            <div class="hc-note-toggle-wrap">
+                <button class="hc-note-toggle-btn" id="note-toggle-btn" type="button">+ Ghi chú</button>
+                <textarea class="hc-scan-note" id="scan-note"
+                          placeholder="Ghi chú thêm (không bắt buộc)" rows="2"
+                          style="resize: none;"></textarea>
+            </div>
 
             <button class="hc-scan-btn hc-scan-btn-${isDist ? "blue" : "green"}"
                     id="scan-btn">
@@ -917,6 +931,38 @@ function setupScanForm(mode) {
 
     // Button click
     $btn.on("click", () => doScan(mode));
+
+    // Camera button
+    $("#scan-camera-btn").on("click", function () {
+        if (hcQrScanner) {
+            stopCameraScanner();
+        } else {
+            startCameraScanner(mode);
+        }
+    });
+
+    // Collapsible note toggle (mobile only — CSS controls visibility on desktop)
+    $("#note-toggle-btn").on("click", function () {
+        const $note = $("#scan-note");
+        const isOpen = $note.hasClass("hc-note-visible");
+        if (isOpen) {
+            $note.removeClass("hc-note-visible").blur();
+            $(this).text("+ Ghi chú");
+        } else {
+            $note.addClass("hc-note-visible").focus();
+            $(this).text("- Ẩn ghi chú");
+        }
+    });
+
+    // Auto-scroll submit button into view when keyboard opens on mobile
+    $input.on("focus", function () {
+        setTimeout(function () {
+            const $btn = $("#scan-btn");
+            if ($btn.length) {
+                $btn[0].scrollIntoView({ behavior: "smooth", block: "nearest" });
+            }
+        }, 400);
+    });
 }
 
 function populateScanHistory(mode) {
@@ -1152,10 +1198,10 @@ function renderHistory() {
             <span class="hc-history-name" style="font-weight: 600; min-width: 120px; text-overflow: ellipsis; overflow: hidden;">${h.name}</span>
             <span style="color: var(--hc-text-light); min-width: 60px;">${h.group || ''}</span>
             ${h.mode === "collect" ? `
-                <span style="color: var(--hc-text-light); min-width: 70px;">${h.xray ? '🩻 X-Quang' : ''}</span>
-                <span style="color: var(--hc-text-light); min-width: 75px;">${h.gynec ? '♀ Phụ khoa' : ''}</span>
+                <span style="color: var(--hc-text-light); min-width: 70px;">${h.xray ? 'X-Quang' : ''}</span>
+                <span style="color: var(--hc-text-light); min-width: 75px;">${h.gynec ? 'Phụ khoa' : ''}</span>
             ` : ''}
-            <span style="color: #f59e0b; font-style: italic; overflow: hidden; text-overflow: ellipsis; flex: 1;">${h.note ? `📝 ${h.note}` : ''}</span>
+            <span style="color: var(--hc-yellow); font-style: italic; overflow: hidden; text-overflow: ellipsis; flex: 1;">${h.note || ''}</span>
             <span class="hc-history-mode" style="font-weight: 600; min-width: 30px; text-align: right;">${h.mode === "distribute" ? "Phát" : "Thu"}</span>
         </div>`
         )
@@ -1223,20 +1269,25 @@ function renderTable() {
                 let diffHtml = "—";
                 let diffs = [];
                 if (r.start_time && r.start_time_actual) {
-                    const diffMin = getMinutesDifference(r.start_time, r.start_time_actual);
+                    const diffMin = getMinutesDiffByMode(r.start_time, r.start_time_actual, state.currentDate, state.currentDate);
                     if (diffMin > state.allowedLateDistribute) diffs.push(`<span class="hc-red">Đã trễ P ${diffMin}p</span>`);
                     else if (diffMin < -state.allowedEarlyDistribute) diffs.push(`<span class="hc-yellow">Sớm P ${Math.abs(diffMin)}p</span>`);
                 }
                 if (r.end_time && r.end_time_actual) {
-                    const diffMin = getMinutesDifference(r.end_time, r.end_time_actual);
+                    const diffMin = getMinutesDiffByMode(r.end_time, r.end_time_actual, state.currentDate, state.currentDate);
                     if (diffMin > state.allowedLateCollect) diffs.push(`<span class="hc-orange">Đã trễ T ${diffMin}p</span>`);
                 }
 
-                if (isRecordLateForDistribute(r)) {
-                    diffs.push(`<span class="hc-red" style="font-weight:bold;">⏳ Đang trễ P ${getMinutesDifference(r.start_time, getProactiveNowTime())}p</span>`);
+                const now = getProactiveNow();
+                const lateDistMin = getMinutesDiffByMode(r.start_time, now.time, state.currentDate, now.date);
+                const isLateDist = !r.start_time_actual && r.start_time && lateDistMin > state.allowedLateDistribute;
+                if (isLateDist) {
+                    diffs.push(`<span class="hc-red" style="font-weight:bold;">Đang trễ P ${lateDistMin}p</span>`);
                 }
-                if (isRecordLateForCollect(r)) {
-                    diffs.push(`<span class="hc-orange" style="font-weight:bold;">⏳ Đang trễ T ${getMinutesDifference(r.end_time, getProactiveNowTime())}p</span>`);
+                const lateCollMin = getMinutesDiffByMode(r.end_time, now.time, state.currentDate, now.date);
+                const isLateColl = r.start_time_actual && !r.end_time_actual && r.end_time && lateCollMin > state.allowedLateCollect;
+                if (isLateColl) {
+                    diffs.push(`<span class="hc-orange" style="font-weight:bold;">Đang trễ T ${lateCollMin}p</span>`);
                 }
 
                 if (diffs.length > 0) {
@@ -1245,14 +1296,21 @@ function renderTable() {
                     diffHtml = `<span class="hc-green">Đúng giờ</span>`;
                 }
 
+                const rowClass = [
+                    "hc-clickable-row",
+                    i % 2 ? "hc-row-alt" : "",
+                    isLateDist ? "hc-row-late-dist" : "",
+                    isLateColl ? "hc-row-late-coll" : "",
+                ].filter(Boolean).join(" ");
+
                 return `
-        <tr class="hc-clickable-row ${i % 2 ? "hc-row-alt" : ""}" data-name="${r.name}" title="Double click để mở chi tiết">
+        <tr class="${rowClass}" data-name="${r.name}" title="Double click để mở chi tiết">
             <td>${i + 1}</td>
             <td class="hc-mono">${r.hospital_code || ""}</td>
             <td class="hc-mono hc-dim">${r.employee || ""}</td>
             <td class="hc-bold">
                 ${r.employee_name || ""}
-                ${r.pregnant ? '<span class="hc-pregnant-badge">🤰</span>' : ""}
+                ${r.pregnant ? '<span class="hc-pregnant-badge">MT</span>' : ""}
             </td>
             <td class="${r.gender === "Nữ" || r.gender === "Female" ? "hc-pink" : "hc-cyan"}">${r.gender || ""}</td>
             <td class="hc-dim">${r.custom_group || ""}</td>
@@ -1372,30 +1430,62 @@ function getMinutesDifference(timePlanned, timeActual) {
     return 0;
 }
 
-function getProactiveNowTime() {
+// Returns minutes difference using full datetime (date + time) comparison
+function getMinutesDiffDatetime(datePlanned, timePlanned, dateActual, timeActual) {
+    const pad = s => String(s).split(":").slice(0, 2).map(x => x.padStart(2, "0")).join(":");
+    const dt1 = new Date(`${datePlanned}T${pad(timePlanned)}:00`);
+    const dt2 = new Date(`${dateActual}T${pad(timeActual)}:00`);
+    if (isNaN(dt1.getTime()) || isNaN(dt2.getTime())) return 0;
+    return Math.round((dt2 - dt1) / 60000);
+}
+
+// Returns {date, time} of "now" for the active mode
+function getProactiveNow() {
     const today = frappe.datetime.get_today();
-    if (state.currentDate === today) {
-        return frappe.datetime.now_time();
-    } else if (state.currentDate < today) {
-        return "23:59:59";
+    const nowTime = frappe.datetime.now_time();
+    if (state.timeCompareMode === "datetime") {
+        // datetime mode: use actual system time; future dates are never late
+        if (state.currentDate > today) return { date: state.currentDate, time: "00:00:00" };
+        return { date: today, time: nowTime };
     } else {
-        return "00:00:00";
+        // time_only mode: legacy proactive logic (only time matters)
+        if (state.currentDate === today) return { date: today, time: nowTime };
+        if (state.currentDate < today) return { date: state.currentDate, time: "23:59:59" };
+        return { date: state.currentDate, time: "00:00:00" };
     }
+}
+
+function getProactiveNowTime() {
+    return getProactiveNow().time;
+}
+
+// Minutes difference honoring state.timeCompareMode
+// datePlanned / dateActual are optional; default to state.currentDate for both
+function getMinutesDiffByMode(timePlanned, timeActual, datePlanned, dateActual) {
+    if (state.timeCompareMode === "datetime") {
+        return getMinutesDiffDatetime(
+            datePlanned || state.currentDate,
+            timePlanned,
+            dateActual || state.currentDate,
+            timeActual
+        );
+    }
+    return getMinutesDifference(timePlanned, timeActual);
 }
 
 function isRecordLateForDistribute(r) {
     if (r.start_time_actual) return false;
     if (!r.start_time) return false;
-    const nowTime = getProactiveNowTime();
-    return getMinutesDifference(r.start_time, nowTime) > state.allowedLateDistribute;
+    const now = getProactiveNow();
+    return getMinutesDiffByMode(r.start_time, now.time, state.currentDate, now.date) > state.allowedLateDistribute;
 }
 
 function isRecordLateForCollect(r) {
     if (!r.start_time_actual) return false;
     if (r.end_time_actual) return false;
     if (!r.end_time) return false;
-    const nowTime = getProactiveNowTime();
-    return getMinutesDifference(r.end_time, nowTime) > state.allowedLateCollect;
+    const now = getProactiveNow();
+    return getMinutesDiffByMode(r.end_time, now.time, state.currentDate, now.date) > state.allowedLateCollect;
 }
 function getStatus(r) {
     if (r.end_time_actual) return "completed";
@@ -1435,18 +1525,6 @@ function updateDateDisplay() {
     // Left empty as we now use the native select dropdown
 }
 
-function startClock() {
-    function update() {
-        const now = new Date();
-        const time =
-            String(now.getHours()).padStart(2, "0") +
-            ":" +
-            String(now.getMinutes()).padStart(2, "0");
-        $("#hc-clock").text(time);
-    }
-    update();
-    setInterval(update, 30000);
-}
 
 // ============================================================
 // Realtime
@@ -1484,9 +1562,6 @@ function setupRealtime() {
 
         // Recalculate stats
         recalculateStats();
-
-        // Update mini bar (always in header, always needs update)
-        renderMiniBar();
 
         // Targeted partial update per tab — avoids full re-render which breaks scan form focus
         switch (state.activeTab) {
@@ -1573,11 +1648,14 @@ function setupPollingAutoSync() {
                     const currHash = state.records.reduce((acc, rec) => acc + (rec.start_time_actual || "") + (rec.end_time_actual || ""), "");
                     const newHash = newRecords.reduce((acc, rec) => acc + (rec.start_time_actual || "") + (rec.end_time_actual || ""), "");
 
+                    // Update last-sync timestamp
+                    const nowStr = frappe.datetime.now_time().slice(0, 5);
+                    $("#hc-sync-status").attr("data-synced", "1").attr("title", `Đồng bộ lúc ${nowStr}`).text(nowStr);
+
                     if (currHash !== newHash) {
                         console.log("Auto-Sync: Data naturally changed. Updating ui...");
                         state.records = newRecords;
                         recalculateStats();
-                        renderMiniBar();
 
                         // Surgical DOM update mimicking real-time
                         switch (state.activeTab) {
@@ -1599,4 +1677,109 @@ function setupPollingAutoSync() {
             }
         });
     }, 3000); // Sync every 3 seconds
+}
+
+// ============================================================
+// Camera / Barcode Scanner
+// ============================================================
+let hcQrScanner = null;
+let hcQrLibLoaded = false;
+
+function loadQrLib(callback) {
+    if (hcQrLibLoaded) { callback(); return; }
+    const script = document.createElement('script');
+    script.src = 'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js';
+    script.onload = () => { hcQrLibLoaded = true; callback(); };
+    script.onerror = () => frappe.show_alert({ message: 'Không tải được thư viện camera.', indicator: 'red' });
+    document.head.appendChild(script);
+}
+
+function playScanBeep() {
+    try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.frequency.value = 1200;
+        gain.gain.setValueAtTime(0.3, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.15);
+    } catch (e) {}
+}
+
+function scanHaptic() {
+    if (navigator.vibrate) navigator.vibrate(120);
+}
+
+function startCameraScanner(mode) {
+    loadQrLib(() => {
+        const $reader = $('#hc-qr-reader');
+        const $btn = $('#scan-camera-btn');
+
+        if (hcQrScanner) {
+            try { hcQrScanner.clear(); } catch (e) {}
+            hcQrScanner = null;
+        }
+
+        $reader.html('<div class="hc-scan-line-wrap"><div class="hc-scan-line"></div></div>').show();
+        $btn.text('Dừng camera');
+
+        let lastScanned = '';
+        let scanCooldown = false;
+
+        // Responsive qrbox: 85% viewport width, tối đa 400px, cao 80px cho 1D barcode
+        const qrboxWidth = Math.min(Math.floor(window.innerWidth * 0.85), 400);
+
+        hcQrScanner = new Html5Qrcode('hc-qr-reader', {
+            formatsToSupport: [
+                Html5QrcodeSupportedFormats.CODE_39,
+                Html5QrcodeSupportedFormats.CODE_128,
+                Html5QrcodeSupportedFormats.QR_CODE
+            ],
+            verbose: false
+        });
+
+        hcQrScanner.start(
+            { facingMode: 'environment' },
+            { fps: 15, qrbox: { width: qrboxWidth, height: 80 } },
+            (decodedText) => {
+                // Strip Code 39 start/stop * markers, normalize whitespace
+                const cleanText = decodedText.trim().replace(/^\*+|\*+$/g, '').trim();
+                if (!cleanText) return;
+                if (scanCooldown || cleanText === lastScanned) return;
+
+                lastScanned = cleanText;
+                scanCooldown = true;
+
+                playScanBeep();
+                scanHaptic();
+
+                $('#scan-input').val(cleanText).trigger('input');
+                doScan(mode);
+
+                // Sau 2.5 giây: reset để sẵn sàng scan mã tiếp theo
+                setTimeout(() => {
+                    scanCooldown = false;
+                    lastScanned = '';
+                }, 2500);
+            },
+            () => {} // per-frame errors — bỏ qua
+        ).catch(err => {
+            frappe.show_alert({ message: 'Không mở được camera: ' + err, indicator: 'red' });
+            $reader.hide();
+            $btn.text('📷 Camera');
+        });
+    });
+}
+
+function stopCameraScanner() {
+    if (hcQrScanner) {
+        hcQrScanner.stop().catch(() => {});
+        hcQrScanner.clear().catch(() => {});
+        hcQrScanner = null;
+    }
+    $('#hc-qr-reader').hide();
+    $('#scan-camera-btn').text('📷 Camera');
 }

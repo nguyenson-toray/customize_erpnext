@@ -471,10 +471,10 @@
 
 .hc-stat-label {
     color: var(--hc-text-muted);
-    font-size: 16px;
-    font-weight: 900;
+    font-size: 11px;
+    font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.07em;
     margin-top: 4px;
     margin-right: 4px;
 }
@@ -871,6 +871,43 @@
     border-color: var(--hc-primary);
     box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.1);
     background: #FFFFFF;
+}
+
+/* Note toggle — chỉ áp dụng trên mobile (touch screen) */
+.hc-note-toggle-wrap {
+    margin-bottom: 16px;
+}
+
+/* Desktop: luôn hiện textarea, ẩn toggle button */
+.hc-note-toggle-btn {
+    display: none;
+}
+
+.hc-note-toggle-wrap .hc-scan-note {
+    display: block !important;
+    margin-bottom: 0;
+}
+
+/* Mobile: ẩn textarea mặc định, hiện toggle button */
+@media (pointer: coarse) {
+    .hc-note-toggle-btn {
+        display: inline-block;
+        background: none;
+        border: none;
+        padding: 0;
+        font-size: 13px;
+        color: var(--hc-text-muted);
+        cursor: pointer;
+        margin-bottom: 6px;
+    }
+
+    .hc-note-toggle-wrap .hc-scan-note {
+        display: none !important;
+    }
+
+    .hc-note-toggle-wrap .hc-scan-note.hc-note-visible {
+        display: block !important;
+    }
 }
 
 /* Note textarea */
@@ -1662,6 +1699,83 @@
 }
 
 /* ============================================================
+   Stat card — alert pulse (2.1)
+   ============================================================ */
+@keyframes hc-alert-pulse {
+    0%, 100% { box-shadow: var(--hc-shadow-sm); }
+    50%       { box-shadow: 0 0 0 5px rgba(220, 38, 38, 0.18), var(--hc-shadow); }
+}
+
+.hc-stat-alert {
+    animation: hc-alert-pulse 2s ease-in-out infinite, hc-fadeIn 0.4s ease-out both !important;
+}
+
+.hc-stat-alert .hc-stat-icon {
+    opacity: 0.5;
+}
+
+/* ============================================================
+   Charts side-by-side on wide screens (2.2)
+   ============================================================ */
+@media (min-width: 1280px) {
+    .hc-charts-stack {
+        flex-direction: row;
+    }
+
+    .hc-charts-stack .hc-chart-card {
+        flex: 1;
+        min-width: 0;
+    }
+}
+
+/* ============================================================
+   Sync status indicator (2.4)
+   ============================================================ */
+.hc-sync-status {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--hc-text-muted);
+    font-family: var(--hc-mono);
+    display: none;
+    align-items: center;
+    gap: 5px;
+    opacity: 0.7;
+}
+
+.hc-sync-status::before {
+    content: '';
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--hc-green);
+    flex-shrink: 0;
+}
+
+.hc-sync-status[data-synced="1"] {
+    display: flex;
+}
+
+/* ============================================================
+   Table rows — highlight khi trễ (2.5)
+   ============================================================ */
+.hc-row-late-dist {
+    background: #FEF2F2 !important;
+}
+
+.hc-row-late-dist:hover {
+    background: #FEE2E2 !important;
+}
+
+.hc-row-late-coll {
+    background: #FFF7ED !important;
+}
+
+.hc-row-late-coll:hover {
+    background: #FFEDD5 !important;
+}
+
+/* ============================================================
    Print styles
    ============================================================ */
 @media print {
@@ -1693,4 +1807,102 @@
         border: 1px solid #ddd;
         break-inside: avoid;
     }
+}
+
+/* Dashboard Filters in Header */
+#hc-dash-filters-wrap {
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+    padding: 4px 0;
+}
+
+#hc-dash-filters-wrap .hc-dash-filter-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+#hc-dash-filters-wrap .hc-dash-filter-label {
+    font-size: 10px;
+    color: var(--text-muted);
+    line-height: 1;
+}
+
+#hc-dash-filters-wrap .hc-dash-filter-select {
+    font-size: 12px;
+    padding: 2px 6px;
+    height: 28px;
+}
+
+#hc-dash-filters-wrap .hc-dash-filter-reset,
+#hc-dash-filters-wrap .hc-config-btn {
+    height: 28px;
+    font-size: 12px;
+    padding: 0 10px;
+    align-self: flex-end;
+}
+
+/* Camera Button — chỉ hiện trên mobile (touch screen) */
+.hc-camera-btn {
+    display: none;
+}
+
+@media (pointer: coarse) {
+    .hc-camera-btn {
+        display: inline-flex;
+        align-items: center;
+        padding: 0 14px;
+        border: 1px solid var(--border-color);
+        border-left: none;
+        border-radius: 0 6px 6px 0;
+        background: var(--control-bg);
+        color: var(--text-color);
+        cursor: pointer;
+        font-size: 13px;
+        white-space: nowrap;
+        height: 100%;
+        transition: background 0.15s, color 0.15s;
+    }
+
+    .hc-camera-btn:active {
+        background: var(--hc-primary);
+        color: #fff;
+    }
+}
+
+/* Stat Modal Table Row Hover */
+.hc-stat-modal-table tbody tr:hover td {
+    background: var(--fg-hover-color, rgba(0, 0, 0, 0.06)) !important;
+}
+
+/* Scan Line Animation */
+.hc-scan-line-wrap {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    pointer-events: none;
+    z-index: 10;
+    overflow: hidden;
+}
+
+.hc-scan-line {
+    position: absolute;
+    left: 5%;
+    width: 90%;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--hc-green), transparent);
+    box-shadow: 0 0 6px var(--hc-green);
+    animation: hc-scan-sweep 1.8s ease-in-out infinite;
+}
+
+@keyframes hc-scan-sweep {
+    0%   { top: 10%; opacity: 0.4; }
+    10%  { opacity: 1; }
+    90%  { opacity: 1; }
+    100% { top: 90%; opacity: 0.4; }
+}
+
+/* QR reader container needs relative positioning for overlay */
+#hc-qr-reader {
+    position: relative;
 }

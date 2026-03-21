@@ -586,7 +586,7 @@ window.FingerprintScannerDialog = {
                 <div class="scan-entry ${bgClass} border-0 rounded p-2 mb-2" style="background-color: rgba(var(--bs-${status === 'success' ? 'success' : status === 'warning' ? 'warning' : 'danger'}-rgb), 0.1);">
                     <div class="d-flex justify-content-between align-items-center">
                         <div class="d-flex align-items-center">
-                            <span class="badge badge-primary me-2">#${FingerprintScannerDialog.scan_count}</span>
+                            <span class="badge bg-primary text-white me-2">#${FingerprintScannerDialog.scan_count}</span>
                             <small><strong>${employee_id}</strong> - ${finger_name}</small>
                         </div>
                         <small class="${statusClass}">${statusIcon} ${status.toUpperCase()}</small>
@@ -807,6 +807,7 @@ window.FingerprintScannerDialog = {
 
         frappe.call({
             method: 'customize_erpnext.api.utilities.save_fingerprint_data',
+            type: 'POST',
             args: {
                 employee_id: employee_id,
                 finger_index: finger_index,
@@ -949,6 +950,7 @@ window.FingerprintScannerDialog = {
 
         frappe.call({
             method: 'customize_erpnext.api.utilities.delete_fingerprint_data',
+            type: 'POST',
             args: {
                 employee_id: employee_id,
                 finger_index: finger_index

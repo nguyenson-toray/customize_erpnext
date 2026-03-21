@@ -274,8 +274,8 @@ window.FingerprintSyncManager = (function () {
                     <strong>Attendance Machines (${total_machines})</strong>
                 </div>
                 <div class="d-flex align-items-center">
-                    <small class="badge badge-success me-1">🟢 ${online_machines}</small>
-                    <small class="badge badge-secondary me-1">🔴 ${offline_machines}</small>
+                    <small class="badge bg-success text-white me-1">🟢 ${online_machines}</small>
+                    <small class="badge bg-secondary text-white me-1">🔴 ${offline_machines}</small>
                     <small class="text-muted ms-2">${new Date().toLocaleTimeString()}</small>
                 </div>
             </div>
@@ -313,7 +313,7 @@ window.FingerprintSyncManager = (function () {
                         <span class="font-monospace">${machine.ip_address}:${machine.port}</span>
                     </td>
                     <td>
-                        <span class="badge badge-${statusColor}">${statusIcon} ${machine.connection_status.toUpperCase()}</span>
+                        <span class="badge bg-${statusColor} text-white">${statusIcon} ${machine.connection_status.toUpperCase()}</span>
                     </td>
                     <td>
                         ${machine.response_time > 0 ?
@@ -355,7 +355,7 @@ window.FingerprintSyncManager = (function () {
                         <div class="card-body p-2">
                             <div class="d-flex justify-content-between align-items-center">
                                 <small><strong>${machine.device_name}</strong></small>
-                                <span class="badge badge-secondary" id="machine-status-${index}">Waiting</span>
+                                <span class="badge bg-secondary text-white" id="machine-status-${index}">Waiting</span>
                             </div>
                             <div class="progress mt-1" style="height: 4px;">
                                 <div class="progress-bar" id="machine-progress-${index}"
@@ -517,7 +517,7 @@ window.FingerprintSyncManager = (function () {
         const progressBar = document.getElementById(`machine-progress-${machineIndex}`);
 
         if (statusBadge) {
-            statusBadge.className = `badge badge-${type}`;
+            statusBadge.className = `badge bg-${type} text-white`;
             statusBadge.textContent = status;
         }
 
@@ -637,6 +637,7 @@ window.FingerprintSyncManager = (function () {
 
             const call = frappe.call({
                 method: method,
+                type: 'POST',
                 args: args,
                 callback: function (r) {
                     if (currentSyncState.abortController && currentSyncState.abortController.signal.aborted) {

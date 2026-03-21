@@ -230,7 +230,7 @@ def sync_fingerprints(master_machine_name, target_machine_names_json, user_ids_j
 # Background worker function
 # ---------------------------------------------------------------------------
 
-def _run_sync_job(master_machine_name, target_machine_names, user_ids, cache_key, sync_to_erp=False):
+def _run_sync_job(master_machine_name, target_machine_names, user_ids, cache_key, sync_to_erp=False, job_id=None):
     """
     Actual sync logic running in Frappe background worker.
     Reads fingerprints from master, syncs to each target for selected user_ids.
@@ -701,7 +701,7 @@ def delete_users_from_machines(users_json):
         return {"status": "error", "message": str(e)}
 
 
-def _run_delete_job(users, cache_key):
+def _run_delete_job(users, cache_key, job_id=None):
     """
     Background worker: delete users from their machines.
     Groups by machine for efficiency (one connection per machine).

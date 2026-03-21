@@ -2,22 +2,23 @@
 
 frappe.listview_settings["Health Check-Up"] = {
     onload: function (listview) {
-        listview.page.add_menu_item("🧹Clear Actual Time - Only for IT", function () {
+        listview.page.add_menu_item(__("Clear Actual Time - Only for IT"), function () {
             hcAdminDialog({
-                title: "Clear Actual Time",
+                title: __("Clear Actual Time"),
                 hasToDate: false,
                 onConfirm: function (date) {
                     frappe.call({
                         method: "customize_erpnext.health_check_up.api.health_check_api.clear_actual_times",
                         args: { date: date },
                         freeze: true,
-                        freeze_message: "Clearing actual times...",
+                        freeze_message: __("Clearing actual times..."),
                         callback: function (r) {
                             if (r.message) {
-                                frappe.msgprint(
-                                    "Cleared " + r.message.cleared + " of " + r.message.total + " records for " + date,
-                                    "Done"
-                                );
+                                frappe.msgprint({
+                                    title: __("Done"),
+                                    message: __("Cleared {0} of {1} records for {2}", [r.message.cleared, r.message.total, date]),
+                                    indicator: "green"
+                                });
                                 listview.refresh();
                             }
                         }
@@ -26,22 +27,23 @@ frappe.listview_settings["Health Check-Up"] = {
             });
         });
 
-        listview.page.add_menu_item("📝Change Date - Only for IT", function () {
+        listview.page.add_menu_item(__("Change Date - Only for IT"), function () {
             hcAdminDialog({
-                title: "Change Date",
+                title: __("Change Date"),
                 hasToDate: true,
                 onConfirm: function (date, toDate) {
                     frappe.call({
                         method: "customize_erpnext.health_check_up.api.health_check_api.change_date",
                         args: { from_date: date, to_date: toDate },
                         freeze: true,
-                        freeze_message: "Changing date...",
+                        freeze_message: __("Changing date..."),
                         callback: function (r) {
                             if (r.message) {
-                                frappe.msgprint(
-                                    "Updated " + r.message.updated + " records from " + date + " to " + toDate,
-                                    "Done"
-                                );
+                                frappe.msgprint({
+                                    title: __("Done"),
+                                    message: __("Updated {0} records from {1} to {2}", [r.message.updated, date, toDate]),
+                                    indicator: "green"
+                                });
                                 listview.refresh();
                             }
                         }
@@ -53,56 +55,56 @@ frappe.listview_settings["Health Check-Up"] = {
 };
 
 function hcAdminDialog(opts) {
-    var todayYMD = frappe.datetime.get_today(); // YYYY-MM-DD
-    var expectedPwd = "1111";
+    const todayYMD = frappe.datetime.get_today();
+    const expectedPwd = "1111";
 
-    var toDateRow = opts.hasToDate
-        ? '<div class="form-group" style="margin-top:10px;">'
-        + '<label style="font-size:12px;font-weight:600;">New Date</label>'
-        + '<input type="date" id="hc-to-date" class="form-control input-sm" value="' + todayYMD + '" style="margin-top:4px;" />'
-        + '</div>'
-        : '';
+    const toDateRow = opts.hasToDate ? `
+        <div class="form-group" style="margin-top:10px">
+            <label class="control-label">${__("New Date")}</label>
+            <input type="date" id="hc-to-date" class="form-control input-sm" value="${todayYMD}">
+        </div>` : '';
 
-    var fields = [
+    const fields = [
         {
             fieldtype: "HTML",
             fieldname: "date_section",
-            options:
-                '<div class="form-group">'
-                + '<label style="font-size:12px;font-weight:600;">Date</label>'
-                + '<input type="date" id="hc-from-date" class="form-control input-sm" value="' + todayYMD + '" style="margin-top:4px;" />'
-                + '</div>'
-                + toDateRow
+            options: `
+                <div class="form-group">
+                    <label class="control-label">${__("Date")}</label>
+                    <input type="date" id="hc-from-date" class="form-control input-sm" value="${todayYMD}">
+                </div>
+                ${toDateRow}
+            `
         },
         {
-            label: "Password",
+            label: __("Password"),
             fieldname: "password",
             fieldtype: "Password"
         }
     ];
 
-    var dlg = new frappe.ui.Dialog({
+    const dlg = new frappe.ui.Dialog({
         title: opts.title,
         fields: fields,
-        primary_action_label: "Confirm",
+        primary_action_label: __("Confirm"),
         primary_action: function (values) {
-            var fromDate = dlg.$body.find("#hc-from-date").val();
-            var toDate = opts.hasToDate ? dlg.$body.find("#hc-to-date").val() : null;
+            const fromDate = dlg.$body.find("#hc-from-date").val();
+            const toDate = opts.hasToDate ? dlg.$body.find("#hc-to-date").val() : null;
 
             if (!fromDate) {
-                frappe.msgprint({ message: "Please select a date.", indicator: "red" });
+                frappe.msgprint({ message: __("Please select a date."), indicator: "red" });
                 return;
             }
             if (opts.hasToDate && !toDate) {
-                frappe.msgprint({ message: "Please select a new date.", indicator: "red" });
+                frappe.msgprint({ message: __("Please select a new date."), indicator: "red" });
                 return;
             }
             if (!values.password) {
-                frappe.msgprint({ message: "Please enter password.", indicator: "red" });
+                frappe.msgprint({ message: __("Please enter password."), indicator: "red" });
                 return;
             }
             if (values.password !== expectedPwd) {
-                frappe.msgprint({ message: "Wrong password!", indicator: "red" });
+                frappe.msgprint({ message: __("Wrong password."), indicator: "red" });
                 return;
             }
 

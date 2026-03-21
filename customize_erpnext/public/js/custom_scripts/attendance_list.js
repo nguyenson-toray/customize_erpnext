@@ -31,7 +31,7 @@ frappe.listview_settings['Attendance'] = {
 	onload: function (list_view) {
 		let me = this;
 		if (frappe.perm.has_perm("Attendance", 0, "create")) {
-			list_view.page.add_inner_button(__("🔄 Bulk Update Attendance"), function () {
+			list_view.page.add_inner_button(__("Bulk Update Attendance"), function () {
 				show_bulk_update_attendance(list_view, me);
 			});
 
@@ -49,12 +49,12 @@ frappe.listview_settings['Attendance'] = {
 
 function show_bulk_update_attendance(list_view, me) {
 	let dialog = new frappe.ui.Dialog({
-		title: __("🔄 Bulk Update Attendance"),
+		title: __("Bulk Update Attendance"),
 		size: 'large',
 		fields: [
 			{
 				fieldtype: 'Section Break',
-				label: __('📅 Date Range')
+				label: __('Date Range')
 			},
 			{
 				fieldtype: 'Date',
@@ -75,7 +75,7 @@ function show_bulk_update_attendance(list_view, me) {
 			},
 			{
 				fieldtype: 'Section Break',
-				label: __('🎯 Employee Filter (Optional)')
+				label: __('Employee Filter (Optional)')
 			},
 			{
 				fieldtype: 'Link',
@@ -109,7 +109,7 @@ function show_bulk_update_attendance(list_view, me) {
 
 			let days_diff = frappe.datetime.get_diff(values.to_date, values.from_date);
 			if (days_diff > 31) {
-				frappe.msgprint(__('⚠️ Date range too large. Maximum 31 days recommended for optimal performance.'));
+				frappe.msgprint(__('Date range too large. Maximum 31 days recommended for optimal performance.'));
 				return;
 			}
 
@@ -265,7 +265,7 @@ function execute_bulk_update_attendance_v2(values, employee_list, dialog, list_v
 			force_sync: values.force_sync || 0
 		},
 		freeze: true,
-		freeze_message: __('<div style="text-align:center"><i class="fa fa-spinner fa-spin fa-2x"></i><br><br>Processing attendance update...</div>'),
+		freeze_message: __('Processing attendance update...'),
 		callback: function (r) {
 			console.log("📡 Bulk Update Response:", r);
 
@@ -277,7 +277,7 @@ function execute_bulk_update_attendance_v2(values, employee_list, dialog, list_v
 					// Large dataset - Show background job info
 					console.log("🚀 Background job mode");
 					show_background_job_dialog_v2({
-						title: __('🚀 Background Processing Started'),
+						title: __('Background Processing Started'),
 						message: result.message,
 						job_id: result.job_id,
 						estimated_records: result.estimated_records
@@ -365,7 +365,7 @@ function show_attendance_results_dialog_v2(options) {
 	if (!result || Object.keys(result).length === 0) {
 		console.warn("⚠️ Empty result object, showing minimal info");
 		frappe.msgprint({
-			title: __('✅ Processing Complete'),
+			title: __('Processing Complete'),
 			message: __('Attendance update completed successfully.'),
 			indicator: 'green'
 		});
@@ -410,24 +410,24 @@ function show_attendance_results_dialog_v2(options) {
 		employee_stats_html = `
 			<div class="alert alert-info mt-3 mb-0">
 				<i class="fa fa-info-circle"></i>
-				<strong>Employee Summary:</strong><br>
-				- Total employees processed: ${result.total_employees}<br>
-				- Employees with attendance: ${result.employees_with_attendance || 0}<br>
-				- Employees skipped: ${result.employees_skipped} <small class="text-muted">(check server console for specific reasons)</small>
+				<strong>${__('Employee Summary')}:</strong><br>
+				- ${__('Total employees processed')}: ${result.total_employees}<br>
+				- ${__('Employees with attendance')}: ${result.employees_with_attendance || 0}<br>
+				- ${__('Employees skipped')}: ${result.employees_skipped} <small class="text-muted">(${__('check server console for specific reasons')})</small>
 			</div>
 		`;
 	}
 
 	// Simple dialog showing only main results
 	frappe.msgprint({
-		title: __('✅ Attendance Update Completed'),
+		title: __('Attendance Update Completed'),
 		message: `
 			<div class="alert alert-success mb-3">
-				<h6 class="alert-heading">✅ Operation Completed Successfully!</h6>
-				<p class="mb-1">Attendance records have been updated with latest check-in data.</p>
+				<h6 class="alert-heading">${__('Operation Completed Successfully')}</h6>
+				<p class="mb-1">${__('Attendance records have been updated with latest check-in data.')}</p>
 				<small class="text-muted">
-					${from_date && to_date ? `<i class="fa fa-calendar"></i> ${frappe.datetime.str_to_user(from_date)} to ${frappe.datetime.str_to_user(to_date)}` : ''}
-					${result.total_employees ? `&nbsp;&nbsp;|&nbsp;&nbsp;<i class="fa fa-users"></i> ${result.total_employees} employees processed` : ''}
+					${from_date && to_date ? `<i class="fa fa-calendar"></i> ${frappe.datetime.str_to_user(from_date)} ${__('to')} ${frappe.datetime.str_to_user(to_date)}` : ''}
+					${result.total_employees ? `&nbsp;&nbsp;|&nbsp;&nbsp;<i class="fa fa-users"></i> ${__("{0} employees processed", [result.total_employees])}` : ''}
 				</small>
 			</div>
 
@@ -436,12 +436,11 @@ function show_attendance_results_dialog_v2(options) {
 			${result.errors > 0 ? `
 				<div class="alert alert-warning mt-3 mb-0">
 					<i class="fa fa-exclamation-triangle"></i>
-					<strong>Note:</strong> ${result.errors} errors occurred.
-					Check <a href="/app/error-log">Error Log</a> for details.
-				</div>
+					<strong>${__('Note')}:</strong> ${__("{0} errors occurred.", [result.errors])}
+					${__('Check')} <a href="/app/error-log">${__('Error Log')}</a> ${__('for details.')}</div>
 			` : ''}
 
-			<p class="text-muted mt-3 mb-0"><small><i class="fa fa-info-circle"></i> Check browser console for detailed shift breakdown and performance metrics</small></p>
+			<p class="text-muted mt-3 mb-0"><small><i class="fa fa-info-circle"></i> ${__('Check browser console for detailed shift breakdown and performance metrics')}</small></p>
 		`,
 		indicator: 'green',
 		wide: true
@@ -456,9 +455,9 @@ function show_background_job_dialog_v2(options) {
 			<div class="alert alert-info">
 				<p class="mb-3">${options.message}</p>
 				<div>
-					<strong>📊 Records:</strong> ~${options.estimated_records}<br>
-					<strong>⏱️ Estimated time:</strong> ${Math.ceil(options.estimated_records / 50)} - ${Math.ceil(options.estimated_records / 30)} seconds<br>
-					<strong>🔔 Notification:</strong> You'll be notified when complete
+					<strong><i class="fa fa-list"></i> ${__('Records')}:</strong> ~${options.estimated_records}<br>
+					<strong><i class="fa fa-clock-o"></i> ${__('Estimated time')}:</strong> ${Math.ceil(options.estimated_records / 50)} - ${Math.ceil(options.estimated_records / 30)} ${__('seconds')}<br>
+					<strong><i class="fa fa-bell"></i> ${__('Notification')}:</strong> ${__("You'll be notified when complete")}
 				</div>
 			</div>
 		`,
