@@ -146,8 +146,10 @@ fixtures = [
         "doctype": "Workspace Sidebar",
         "filters": [
             ["name", "in", [
+                "People",  # HRMS sidebar with custom reports
                 "Shift & Attendance",  # HRMS sidebar with custom reports
                 "Stock",  # Stock sidebar with custom reports
+                
                 # "TIQN App",  # TIQN App sidebar
                 # "Health Check Up"
             ]]

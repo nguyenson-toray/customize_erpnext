@@ -1,0 +1,416 @@
+{
+ "actions": [],
+ "autoname": "field:employee",
+ "creation": "2026-03-19 16:08:04.178343",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "section_employee",
+  "employee",
+  "employee_name",
+  "col_break_1",
+  "date_of_joining",
+  "date_of_birth",
+  "cell_number",
+  "section_status",
+  "status",
+  "reject_reason",
+  "section_cccd",
+  "id_card_no",
+  "id_card_date_of_issue",
+  "id_card_place_of_issue",
+  "id_card_front_photo",
+  "id_card_back_photo",
+  "section_cmnd",
+  "id_card_cmnd_no",
+  "id_card_cmnd_date_of_issue",
+  "id_card_cmnd_place_of_issue",
+  "section_personal",
+  "marital_status",
+  "section_bank",
+  "no_bank_account",
+  "bank_name",
+  "bank_ac_no",
+  "bank_branch",
+  "section_education",
+  "education_level",
+  "col_break_edu",
+  "university",
+  "major",
+  "section_address",
+  "current_address_province",
+  "current_address_commune",
+  "current_address_village",
+  "current_address_full",
+  "section_permanent_address",
+  "permanent_address_province",
+  "permanent_address_commune",
+  "permanent_address_village",
+  "permanent_address_full",
+  "section_place_of_origin",
+  "place_of_origin_province",
+  "place_of_origin_commune",
+  "place_of_origin_village",
+  "place_of_origin_full",
+  "section_other_info",
+  "personal_email",
+  "number_of_childrens",
+  "col_break_other",
+  "emergency_contact_name",
+  "emergency_phone_number",
+  "column_break_iabt",
+  "shirt_size",
+  "shoe_size",
+  "tax_code"
+ ],
+ "fields": [
+  {
+   "fieldname": "section_employee",
+   "fieldtype": "Section Break",
+   "label": "Employee Information"
+  },
+  {
+   "bold": 1,
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Employee",
+   "options": "Employee",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "bold": 1,
+   "fetch_from": "employee.employee_name",
+   "fieldname": "employee_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Employee Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "col_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "employee.date_of_joining",
+   "fieldname": "date_of_joining",
+   "fieldtype": "Date",
+   "in_filter": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Date of Joining",
+   "read_only": 1
+  },
+  {
+   "fieldname": "date_of_birth",
+   "fieldtype": "Date",
+   "label": "Date of Birth"
+  },
+  {
+   "fetch_from": "employee.cell_number",
+   "fieldname": "cell_number",
+   "fieldtype": "Data",
+   "label": "Cell Number"
+  },
+  {
+   "fieldname": "section_status",
+   "fieldtype": "Section Break",
+   "label": "Status"
+  },
+  {
+   "bold": 1,
+   "default": "Pending Review",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "no_copy": 1,
+   "options": "Pending Review\nApproved\nRejected\nSynced"
+  },
+  {
+   "depends_on": "eval:doc.status=='Rejected'",
+   "fieldname": "reject_reason",
+   "fieldtype": "Small Text",
+   "label": "Reject Reason",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_cccd",
+   "fieldtype": "Section Break",
+   "label": "Citizen ID Card (CCCD)"
+  },
+  {
+   "fieldname": "id_card_no",
+   "fieldtype": "Data",
+   "label": "CCCD Number"
+  },
+  {
+   "fieldname": "id_card_date_of_issue",
+   "fieldtype": "Date",
+   "label": "CCCD - Date of Issue"
+  },
+  {
+   "fieldname": "id_card_place_of_issue",
+   "fieldtype": "Data",
+   "label": "CCCD - Place of Issue"
+  },
+  {
+   "fieldname": "id_card_front_photo",
+   "fieldtype": "Attach",
+   "label": "CCCD Front Photo"
+  },
+  {
+   "fieldname": "id_card_back_photo",
+   "fieldtype": "Attach",
+   "label": "CCCD Back Photo"
+  },
+  {
+   "fieldname": "section_cmnd",
+   "fieldtype": "Section Break",
+   "label": "Old ID Card (CMND)"
+  },
+  {
+   "fieldname": "id_card_cmnd_no",
+   "fieldtype": "Data",
+   "label": "CMND Number"
+  },
+  {
+   "fieldname": "id_card_cmnd_date_of_issue",
+   "fieldtype": "Date",
+   "label": "CMND - Date of Issue"
+  },
+  {
+   "fieldname": "id_card_cmnd_place_of_issue",
+   "fieldtype": "Data",
+   "label": "CMND - Place of Issue"
+  },
+  {
+   "fieldname": "section_personal",
+   "fieldtype": "Section Break",
+   "label": "Personal Information"
+  },
+  {
+   "fieldname": "marital_status",
+   "fieldtype": "Select",
+   "label": "Marital Status",
+   "options": "\nSingle\nMarried\nDivorced\nWidowed"
+  },
+  {
+   "fieldname": "section_bank",
+   "fieldtype": "Section Break",
+   "label": "Bank Information"
+  },
+  {
+   "default": "0",
+   "fieldname": "no_bank_account",
+   "fieldtype": "Check",
+   "label": "No Bank Account Yet (will open later)"
+  },
+  {
+   "fieldname": "bank_name",
+   "fieldtype": "Data",
+   "label": "Bank Name"
+  },
+  {
+   "fieldname": "bank_ac_no",
+   "fieldtype": "Data",
+   "label": "Bank Account No"
+  },
+  {
+   "fieldname": "bank_branch",
+   "fieldtype": "Data",
+   "label": "Bank Branch"
+  },
+  {
+   "fieldname": "section_education",
+   "fieldtype": "Section Break",
+   "label": "Educational Information"
+  },
+  {
+   "fieldname": "education_level",
+   "fieldtype": "Data",
+   "label": "Education Level"
+  },
+  {
+   "fieldname": "col_break_edu",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "university",
+   "fieldtype": "Data",
+   "label": "University / School"
+  },
+  {
+   "fieldname": "major",
+   "fieldtype": "Data",
+   "label": "Major"
+  },
+  {
+   "fieldname": "section_address",
+   "fieldtype": "Section Break",
+   "label": "Current Address"
+  },
+  {
+   "fieldname": "current_address_province",
+   "fieldtype": "Data",
+   "label": "Province / City"
+  },
+  {
+   "fieldname": "current_address_commune",
+   "fieldtype": "Data",
+   "label": "Commune / Ward"
+  },
+  {
+   "fieldname": "current_address_village",
+   "fieldtype": "Data",
+   "label": "House No. / Street"
+  },
+  {
+   "fieldname": "current_address_full",
+   "fieldtype": "Small Text",
+   "label": "Full Address",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_permanent_address",
+   "fieldtype": "Section Break",
+   "label": "Permanent Address (\u0110\u1ecba ch\u1ec9 h\u1ed9 kh\u1ea9u)"
+  },
+  {
+   "fieldname": "permanent_address_province",
+   "fieldtype": "Data",
+   "label": "Province / City"
+  },
+  {
+   "fieldname": "permanent_address_commune",
+   "fieldtype": "Data",
+   "label": "Commune / Ward"
+  },
+  {
+   "fieldname": "permanent_address_village",
+   "fieldtype": "Data",
+   "label": "House No. / Street"
+  },
+  {
+   "fieldname": "permanent_address_full",
+   "fieldtype": "Small Text",
+   "label": "Full Permanent Address",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_place_of_origin",
+   "fieldtype": "Section Break",
+   "label": "Place of Origin (\u0110\u1ecba ch\u1ec9 nguy\u00ean qu\u00e1n)"
+  },
+  {
+   "fieldname": "place_of_origin_province",
+   "fieldtype": "Data",
+   "label": "Province / City"
+  },
+  {
+   "fieldname": "place_of_origin_commune",
+   "fieldtype": "Data",
+   "label": "Commune / Ward"
+  },
+  {
+   "fieldname": "place_of_origin_village",
+   "fieldtype": "Data",
+   "label": "House No. / Street / Village"
+  },
+  {
+   "fieldname": "place_of_origin_full",
+   "fieldtype": "Small Text",
+   "label": "Full Place of Origin Address",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_other_info",
+   "fieldtype": "Section Break",
+   "label": "Other Information"
+  },
+  {
+   "fieldname": "personal_email",
+   "fieldtype": "Data",
+   "label": "Personal Email",
+   "options": "Email"
+  },
+  {
+   "fieldname": "number_of_childrens",
+   "fieldtype": "Int",
+   "label": "Number of Children"
+  },
+  {
+   "fieldname": "col_break_other",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "emergency_contact_name",
+   "fieldtype": "Data",
+   "label": "Emergency Contact Name"
+  },
+  {
+   "fieldname": "emergency_phone_number",
+   "fieldtype": "Data",
+   "label": "Emergency Contact Phone"
+  },
+  {
+   "fieldname": "column_break_iabt",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "shirt_size",
+   "fieldtype": "Data",
+   "label": "Shirt Size"
+  },
+  {
+   "fieldname": "shoe_size",
+   "fieldtype": "Data",
+   "label": "Shoe Size"
+  },
+  {
+   "fieldname": "tax_code",
+   "fieldtype": "Data",
+   "label": "Tax Code"
+  }
+ ],
+ "grid_page_length": 50,
+ "links": [],
+ "modified": "2026-03-21 16:31:46.864655",
+ "modified_by": "Administrator",
+ "module": "Customize Erpnext",
+ "name": "Employee Onboarding Form",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "HR Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "HR User",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "employee_name"
+}

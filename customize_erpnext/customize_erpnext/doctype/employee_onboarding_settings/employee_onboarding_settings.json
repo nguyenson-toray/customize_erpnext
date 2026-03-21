@@ -1,0 +1,168 @@
+{
+ "actions": [],
+ "creation": "2026-03-20 08:00:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "section_employee_list",
+  "filter_date",
+  "btn_add_by_date",
+  "btn_clear_all",
+  "col_break_filter",
+  "qr_info",
+  "section_break_rbjw",
+  "employees",
+  "section_break_sset",
+  "upload_cccd",
+  "number_of_childrens",
+  "personal_email",
+  "emergency_contact",
+  "tax_code",
+  "column_break_dqhr",
+  "shirt_size",
+  "shoe_size",
+  "column_break_kqhi",
+  "permanent_address",
+  "current_address",
+  "place_of_origin_address"
+ ],
+ "fields": [
+  {
+   "fieldname": "section_employee_list",
+   "fieldtype": "Section Break",
+   "label": "Ch\u1ecdn ng\u00e0y nh\u1eadn vi\u1ec7c \u27a1\ufe0f Th\u00eam nh\u00e2n vi\u00ean"
+  },
+  {
+   "default": "Today",
+   "fieldname": "filter_date",
+   "fieldtype": "Date",
+   "label": "Ng\u00e0y nh\u1eadn vi\u1ec7c"
+  },
+  {
+   "fieldname": "btn_add_by_date",
+   "fieldtype": "Button",
+   "label": "\u2795Th\u00eam nh\u00e2n vi\u00ean"
+  },
+  {
+   "fieldname": "col_break_filter",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "btn_clear_all",
+   "fieldtype": "Button",
+   "label": "\ud83e\uddf9X\u00f3a t\u1ea5t c\u1ea3"
+  },
+  {
+   "fieldname": "employees",
+   "fieldtype": "Table",
+   "label": "Employees",
+   "options": "Employee Onboarding Employee"
+  },
+  {
+   "description": "B\u1ea5m Add Row \u0111\u1ec3 th\u00eam nh\u00e2n vi\u00ean b\u1ea5t k\u1ef3",
+   "fieldname": "section_break_rbjw",
+   "fieldtype": "Section Break",
+   "label": "Danh s\u00e1ch chi ti\u1ebft"
+  },
+  {
+   "fieldname": "qr_info",
+   "fieldtype": "HTML",
+   "label": "QR"
+  },
+  {
+   "fieldname": "section_break_sset",
+   "fieldtype": "Section Break",
+   "label": "More Setting"
+  },
+  {
+   "default": "1",
+   "fieldname": "upload_cccd",
+   "fieldtype": "Check",
+   "label": "Upload CCCD"
+  },
+  {
+   "fieldname": "column_break_kqhi",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "current_address",
+   "fieldtype": "Check",
+   "label": "Current Address"
+  },
+  {
+   "default": "1",
+   "fieldname": "permanent_address",
+   "fieldtype": "Check",
+   "label": "Permanent Address"
+  },
+  {
+   "default": "1",
+   "fieldname": "place_of_origin_address",
+   "fieldtype": "Check",
+   "label": "Place of Origin Address"
+  },
+  {
+   "default": "1",
+   "fieldname": "number_of_childrens",
+   "fieldtype": "Check",
+   "label": "Number of children's"
+  },
+  {
+   "default": "1",
+   "fieldname": "personal_email",
+   "fieldtype": "Check",
+   "label": "Personal Email"
+  },
+  {
+   "default": "1",
+   "fieldname": "emergency_contact",
+   "fieldtype": "Check",
+   "label": "Emergency Contact "
+  },
+  {
+   "default": "1",
+   "fieldname": "tax_code",
+   "fieldtype": "Check",
+   "label": "Tax Code"
+  },
+  {
+   "fieldname": "column_break_dqhr",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "shirt_size",
+   "fieldtype": "Check",
+   "label": "Shirt Size"
+  },
+  {
+   "default": "1",
+   "fieldname": "shoe_size",
+   "fieldtype": "Check",
+   "label": "Shoe Size"
+  }
+ ],
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-03-21 16:34:29.122111",
+ "modified_by": "Administrator",
+ "module": "Customize Erpnext",
+ "name": "Employee Onboarding Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "read": 1,
+   "role": "HR Manager",
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "HR User"
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}
