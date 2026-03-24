@@ -240,6 +240,24 @@
     box-shadow: 0 2px 8px rgba(79, 70, 229, 0.3);
 }
 
+.hc-tab-count {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 1px 7px;
+    border-radius: 20px;
+    background: rgba(0,0,0,0.08);
+    color: inherit;
+    margin-left: 2px;
+    vertical-align: middle;
+    letter-spacing: 0;
+}
+
+.hc-tab.active .hc-tab-count {
+    background: rgba(255,255,255,0.25);
+    color: #fff;
+}
+
 .hc-tab.hc-tab-disabled {
     cursor: not-allowed;
     opacity: 0.4;
@@ -929,6 +947,42 @@
 
 .hc-scan-note:focus {
     border-color: var(--hc-primary);
+}
+
+/* Mini stats bar in collect tab */
+.hc-collect-mini-stats {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+}
+
+.hc-mini-stat-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: var(--hc-radius-xs);
+    font-size: 13px;
+    font-weight: 500;
+    border: 1px solid transparent;
+}
+
+.hc-mini-stat-cyan {
+    background: var(--hc-cyan-light);
+    border-color: var(--hc-cyan);
+    color: var(--hc-cyan);
+}
+
+.hc-mini-stat-purple {
+    background: var(--hc-purple-light);
+    border-color: var(--hc-purple);
+    color: var(--hc-purple);
+}
+
+.hc-mini-stat-item strong {
+    font-size: 15px;
+    font-weight: 700;
 }
 
 /* Checkboxes (X-Quang, Phụ khoa) */

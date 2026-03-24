@@ -14,7 +14,7 @@ class HealthCheckUp(Document):
         self.fetch_employee_info()
         self.check_pregnant_status()
         self.validate_hospital_code_unique()
-        self.validate_times()
+        # self.validate_times()
 
     def fetch_employee_info(self):
         """

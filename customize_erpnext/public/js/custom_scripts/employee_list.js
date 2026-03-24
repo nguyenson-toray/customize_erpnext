@@ -454,17 +454,17 @@ function show_holiday_selection_dialog(employees, holiday_lists, listview) {
     let apply_to_all = false;
 
     let d = new frappe.ui.Dialog({
-        title: __('Cập Nhật Holiday List'),
+        title: __('Update Holiday List'),
         fields: [
             {
                 fieldname: 'apply_to_all_section',
                 fieldtype: 'Section Break',
-                label: __('Phạm Vi Áp Dụng')
+                label: __('Apply To')
             },
             {
                 fieldname: 'apply_to_all',
                 fieldtype: 'Check',
-                label: __('Áp dụng cho TẤT CẢ nhân viên Active'),
+                label: __('Apply to ALL Active Employees'),
                 default: 0,
                 onchange: function () {
                     apply_to_all = d.get_value('apply_to_all');
@@ -482,7 +482,7 @@ function show_holiday_selection_dialog(employees, holiday_lists, listview) {
             {
                 fieldname: 'section_1',
                 fieldtype: 'Section Break',
-                label: __('Danh Sách Nhân Viên')
+                label: __('Employee List')
             },
             {
                 fieldname: 'employee_list',
@@ -491,7 +491,7 @@ function show_holiday_selection_dialog(employees, holiday_lists, listview) {
             {
                 fieldname: 'section_2',
                 fieldtype: 'Section Break',
-                label: __('Chọn Holiday List')
+                label: __('Select Holiday List')
             },
             {
                 fieldname: 'holiday_list',
@@ -513,8 +513,8 @@ function show_holiday_selection_dialog(employees, holiday_lists, listview) {
                                 <div class="alert alert-info" style="margin-top:10px">
                                     <strong>${holiday_info.holiday_list_name || holiday_info.name}</strong><br>
                                     <small>
-                                        ${__('Từ')}: ${holiday_info.from_date} → ${__('Đến')}: ${holiday_info.to_date}<br>
-                                        ${__('Tổng số ngày nghỉ')}: <strong>${holiday_info.total_holidays || 0}</strong>
+                                        ${__('From')}: ${holiday_info.from_date} → ${__('To')}: ${holiday_info.to_date}<br>
+                                        ${__('Total Holidays')}: <strong>${holiday_info.total_holidays || 0}</strong>
                                     </small>
                                 </div>
                             `;
@@ -533,12 +533,12 @@ function show_holiday_selection_dialog(employees, holiday_lists, listview) {
             }
         ],
         size: 'large',
-        primary_action_label: __('Cập Nhật Ngay'),
+        primary_action_label: __('Update Now'),
         primary_action(values) {
             if (!values.holiday_list) {
                 frappe.msgprint({
-                    title: __('Thiếu Thông Tin'),
-                    message: __('Vui lòng chọn Holiday List trước khi cập nhật.'),
+                    title: __('Missing Information'),
+                    message: __('Please select a Holiday List before updating.'),
                     indicator: 'orange'
                 });
                 return;
@@ -549,24 +549,24 @@ function show_holiday_selection_dialog(employees, holiday_lists, listview) {
             let scope_text = '';
 
             if (apply_to_all) {
-                target_employees = 'all';  // Flag để backend xử lý
-                scope_text = 'TẤT CẢ nhân viên Active trong hệ thống';
+                target_employees = 'all';  // Flag for backend to process
+                scope_text = __('ALL Active Employees in the system');
             } else {
                 if (employee_names.length === 0) {
                     frappe.msgprint({
-                        title: __('Chưa Chọn Nhân Viên'),
-                        message: __('Vui lòng chọn ít nhất một nhân viên hoặc tick "Áp dụng cho TẤT CẢ nhân viên Active".'),
+                        title: __('No Employee Selected'),
+                        message: __('Please select at least one employee or check "Apply to ALL Active Employees".'),
                         indicator: 'orange'
                     });
                     return;
                 }
                 target_employees = employee_names;
-                scope_text = `<strong>${employee_names.length}</strong> nhân viên đã chọn`;
+                scope_text = `<strong>${employee_names.length}</strong> ${__('selected employees')}`;
             }
 
             // Confirm action
             frappe.confirm(
-                __('Bạn có chắc chắn muốn cập nhật Holiday List <strong>{0}</strong> cho {1}?',
+                __('Are you sure you want to update Holiday List <strong>{0}</strong> for {1}?',
                     [values.holiday_list, scope_text]),
                 function () {
                     d.hide();
@@ -579,19 +579,19 @@ function show_holiday_selection_dialog(employees, holiday_lists, listview) {
                             holiday_list: values.holiday_list
                         },
                         freeze: true,
-                        freeze_message: __('Đang cập nhật Holiday List...'),
+                        freeze_message: __('Updating Holiday List...'),
                         callback: function (r) {
                             if (r.message && r.message.success) {
                                 // Show success message
                                 frappe.msgprint({
-                                    title: __('Cập Nhật Thành Công'),
+                                    title: __('Update Successful'),
                                     message: r.message.message,
                                     indicator: 'green'
                                 });
 
                                 // Show summary
                                 frappe.show_alert({
-                                    message: __('Đã cập nhật {0}/{1} nhân viên',
+                                    message: __('Updated {0}/{1} employees',
                                         [r.message.updated_count, r.message.total_count]),
                                     indicator: 'green'
                                 }, 10);
@@ -606,7 +606,7 @@ function show_holiday_selection_dialog(employees, holiday_lists, listview) {
                         error: function (r) {
                             frappe.msgprint({
                                 title: __('Error'),
-                                message: r.message || __('Có lỗi xảy ra khi cập nhật Holiday List'),
+                                message: r.message || __('An error occurred while updating Holiday List'),
                                 indicator: 'red'
                             });
                         }
@@ -634,8 +634,8 @@ function show_holiday_selection_dialog(employees, holiday_lists, listview) {
                     let info_html = `
                         <div class="alert alert-danger">
                             <i class="fa fa-exclamation-triangle"></i>
-                            <strong> CẢNH BÁO: ÁP DỤNG CHO TẤT CẢ</strong><br>
-                            Bạn đang chọn áp dụng cho <strong>${total_active}</strong> nhân viên Active trong hệ thống!
+                            <strong> ${__('WARNING: APPLYING TO ALL')}</strong><br>
+                            ${__('You are about to apply to')} <strong>${total_active}</strong> ${__('Active employees in the system!')}
                         </div>
                     `;
                     d.fields_dict.employee_info.$wrapper.html(info_html);
@@ -643,10 +643,10 @@ function show_holiday_selection_dialog(employees, holiday_lists, listview) {
                     let placeholder_html = `
                         <div style="padding:30px;text-align:center;border:2px dashed var(--border-color);border-radius:8px">
                             <i class="fa fa-users" style="font-size:36px;color:var(--text-muted);margin-bottom:12px"></i>
-                            <h4>${__('Áp dụng cho TẤT CẢ nhân viên')}</h4>
+                            <h4>${__('Apply to ALL Employees')}</h4>
                             <p class="text-muted">
-                                ${__('Tổng số')}: <strong>${total_active}</strong> ${__('nhân viên Active')}<br>
-                                <small>${__('Bỏ tick checkbox phía trên để chỉ áp dụng cho nhân viên đã chọn')}</small>
+                                ${__('Total')}: <strong>${total_active}</strong> ${__('Active employees')}<br>
+                                <small>${__('Uncheck the checkbox above to apply only to selected employees')}</small>
                             </p>
                         </div>
                     `;
@@ -661,10 +661,10 @@ function show_holiday_selection_dialog(employees, holiday_lists, listview) {
                 let no_selection_html = `
                     <div style="padding:30px;text-align:center;border:2px dashed var(--border-color);border-radius:8px">
                         <i class="fa fa-hand-pointer-o" style="font-size:36px;color:var(--text-muted);margin-bottom:12px"></i>
-                        <h4 class="text-muted">${__('Chưa chọn nhân viên nào')}</h4>
+                        <h4 class="text-muted">${__('No employees selected')}</h4>
                         <p class="text-muted">
-                            ${__('Vui lòng tick checkbox để chọn nhân viên từ danh sách')}<br>
-                            ${__('hoặc tick "Áp dụng cho TẤT CẢ nhân viên Active"')}
+                            ${__('Please check the checkboxes to select employees from the list')}<br>
+                            ${__('or check "Apply to ALL Active Employees"')}
                         </p>
                     </div>
                 `;
@@ -683,9 +683,9 @@ function show_holiday_selection_dialog(employees, holiday_lists, listview) {
                     <thead style="position:sticky;top:0;background:var(--bg-color);z-index:1">
                         <tr>
                             <th style="padding:8px">#</th>
-                            <th style="padding:8px">${__('Mã NV')}</th>
-                            <th style="padding:8px">${__('Tên Nhân Viên')}</th>
-                            <th style="padding:8px">${__('Holiday Hiện Tại')}</th>
+                            <th style="padding:8px">${__('Employee ID')}</th>
+                            <th style="padding:8px">${__('Employee Name')}</th>
+                            <th style="padding:8px">${__('Current Holiday List')}</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -702,7 +702,7 @@ function show_holiday_selection_dialog(employees, holiday_lists, listview) {
                     <td style="padding:8px">
                         ${emp.holiday_list
                     ? `<span class="indicator-pill green">${emp.holiday_list}</span>`
-                    : `<span class="indicator-pill orange">${__('Chưa gán')}</span>`}
+                    : `<span class="indicator-pill orange">${__('Not Assigned')}</span>`}
                     </td>
                 </tr>
             `;

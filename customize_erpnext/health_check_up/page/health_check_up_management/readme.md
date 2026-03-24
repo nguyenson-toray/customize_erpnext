@@ -3,8 +3,8 @@
 ## Tổng quan
 
 Trang quản lý khám sức khỏe nhân viên. Gồm 2 file chính:
-- **Frontend**: `health_check_up_management.js` (~1580 dòng)
-- **Backend**: `../../api/health_check_api.py` (~550 dòng)
+- **Frontend**: `health_check_up_management.js` (~1843 dòng)
+- **Backend**: `../../api/health_check_api.py`
 
 ---
 
@@ -18,8 +18,7 @@ Trang quản lý khám sức khỏe nhân viên. Gồm 2 file chính:
             ├── loadData(date)        → lấy toàn bộ record + stats
             ├── setupTabNavigation()  → gắn event tab
             ├── setupRealtime()       → lắng nghe Socket.IO
-            ├── setupPollingAutoSync()→ fallback polling 3 giây
-            └── startClock()         → đồng hồ header
+            └── setupPollingAutoSync()→ fallback polling (configurable, mặc định 3 giây)
 ```
 
 ---
@@ -28,27 +27,31 @@ Trang quản lý khám sức khỏe nhân viên. Gồm 2 file chính:
 
 ```javascript
 state = {
-    currentDate,          // ngày đang xem (YYYY-MM-DD)
-    dates,                // danh sách ngày có dữ liệu
-    records,              // mảng toàn bộ record ngày hiện tại
-    stats,                // { total, distributed, completed, in_exam, not_started, x_ray, gynecological_exam, pregnant }
-    groups,               // breakdown theo custom_group
-    sections,             // breakdown theo custom_section
-    activeTab,            // 'dashboard' | 'distribute' | 'collect' | 'list'
-    searchQuery,          // chuỗi tìm kiếm tab danh sách
-    statusFilter,         // filter trạng thái tab danh sách
-    scanHistory,          // lịch sử scan (top 50)
-    dashFilterStartTime,  // filter giờ hẹn trên dashboard
-    dashFilterSection,    // filter section trên dashboard
-    dashFilterGroup,      // filter group trên dashboard
-    allowedLateDistribute,// ngưỡng trễ phát HS (phút)
-    allowedLateCollect,   // ngưỡng trễ thu HS (phút)
+    currentDate,           // ngày đang xem (YYYY-MM-DD)
+    dates,                 // danh sách ngày có dữ liệu
+    records,               // mảng toàn bộ record ngày hiện tại
+    stats,                 // { total, distributed, completed, in_exam, not_started, x_ray, gynecological_exam, pregnant }
+    groups,                // breakdown theo custom_group (tính bởi recalculateStats)
+    sections,              // breakdown theo custom_section (tính bởi recalculateStats)
+    activeTab,             // 'dashboard' | 'distribute' | 'collect' | 'list'
+    searchQuery,           // chuỗi tìm kiếm tab danh sách
+    statusFilter,          // filter trạng thái tab danh sách
+    scanHistory,           // lịch sử scan (top 50)
+    dashFilterStartTime,   // filter giờ hẹn trên dashboard
+    dashFilterSection,     // filter section trên dashboard
+    dashFilterGroup,       // filter group trên dashboard
+    allowedLateDistribute, // ngưỡng trễ phát HS (phút)
+    allowedLateCollect,    // ngưỡng trễ thu HS (phút)
     allowedEarlyDistribute,// ngưỡng sớm phát HS (phút)
-    chartLayout,          // 'vertical' | 'horizontal'
-    sortField,            // cột đang sort
-    sortOrder,            // 'asc' | 'desc'
+    timeCompareMode,       // 'datetime' | 'time_only'
+    chartLayout,           // 'vertical' | 'horizontal'
+    pollingInterval,       // giây giữa các lần polling (mặc định 3, cấu hình qua dialog)
+    sortField,             // cột đang sort
+    sortOrder,             // 'asc' | 'desc'
 }
 ```
+
+> `state.groups` và `state.sections` được tính lại bởi `recalculateStats()` (không load từ server).
 
 ---
 
@@ -56,12 +59,35 @@ state = {
 
 | Tab | ID | Chức năng |
 |---|---|---|
-| Tổng quan | `dashboard` | Stat cards + biểu đồ Section/Group |
-| Phát Hồ Sơ | `distribute` | Scan phát hồ sơ, ghi `start_time_actual` |
-| Thu Hồ Sơ | `collect` | Scan thu hồ sơ, ghi `end_time_actual` |
+| Tổng quan | `dashboard` | Stat cards 3 nhóm + biểu đồ Section/Group |
+| Phát Hồ Sơ | `distribute` | Scan phát hồ sơ, ghi `start_time_actual`. Badge hiển thị `đã phát / tổng` |
+| Thu Hồ Sơ | `collect` | Scan thu hồ sơ, ghi `end_time_actual`. Badge hiển thị `đã thu / tổng` |
 | Danh Sách NV | `list` | Bảng toàn bộ NV, search/filter/sort, export Excel |
 
 > **Lưu ý**: Tab Phát/Thu bị **disable** nếu ngày được chọn là ngày trong quá khứ.
+
+---
+
+## Dashboard — Stat Cards
+
+Chia thành 3 nhóm, mỗi nhóm có tiêu đề:
+
+| Nhóm | Cards |
+|---|---|
+| Nhóm 1: Tiến độ chung | Tổng NV, Hoàn thành, Đang khám, Chưa khám |
+| Nhóm 2: Thông tin thêm | Đã phát HS, Trễ phát, Trễ thu, Mang thai |
+| Nhóm 3: Cận lâm sàng | X-Quang, Phụ khoa |
+
+Click vào bất kỳ card nào → mở modal danh sách NV thuộc nhóm đó (có sort).
+
+---
+
+## Tab Thu HS — Chi tiết
+
+- **Mini stats bar**: hiển thị tổng X-Quang và Phụ khoa đã thu trong ngày, cập nhật ngay sau mỗi scan thành công.
+- **Auto-check checkbox**: khi scan ra mã NV, tự động tick X-Quang (trừ NV mang thai) và Phụ khoa (chỉ NV nữ).
+- **Button text**: hiện tên NV + group khi scan. Nếu NV nữ mang thai → thêm emoji `🤰`.
+- **Reset form**: chỉ xoá input sau khi API thành công; nếu lỗi, input giữ nguyên để scan lại.
 
 ---
 
@@ -71,9 +97,10 @@ state = {
 ```
 loadDates() → render dropdown ngày
     → loadData(date) → gọi API get_health_check_data
-        → state.records / stats / groups / sections
+        → state.records / stats
+        → recalculateStats() → state.groups / sections
+        → updateTabCounts()
         → renderActiveTab()
-        → renderMiniBar()
 ```
 
 ### 2. Scan phát hồ sơ (distribute)
@@ -82,9 +109,9 @@ User nhập mã → setupScanForm('distribute') → live preview tên NV
     → Enter / nhấn nút → doScan('distribute')
         → kiểm tra: đã phát chưa? → hỏi xác nhận nếu có
         → gọi API scan_distribute(hospital_code/employee, date, note)
-        → showScanResult()
-        → addToHistory()
-        → state.records được cập nhật qua realtime event
+        → showScanResult() + addToHistory()
+        → cập nhật state.records[idx] trực tiếp
+        → recalculateStats() + updateTabCounts()
 ```
 
 ### 3. Scan thu hồ sơ (collect)
@@ -92,7 +119,8 @@ User nhập mã → setupScanForm('distribute') → live preview tên NV
 User nhập mã → doScan('collect')
     → kiểm tra: chưa phát? → hỏi nhập giờ phát thủ công
     → gọi API scan_collect(hospital_code/employee, date, x_ray, gynec, note, manual_start_time)
-    → tương tự distribute
+    → cập nhật state.records[idx] trực tiếp
+    → recalculateStats() + updateTabCounts() + renderCollectMiniStats()
 ```
 
 ### 4. Realtime sync
@@ -100,11 +128,12 @@ User nhập mã → doScan('collect')
 Backend publish 'health_check_update' (Socket.IO)
     → setupRealtime() nhận event
     → cập nhật record trong state.records (tìm theo name)
-    → recalculateStats()
-    → partial update UI (không re-render toàn trang, tránh mất focus form)
+    → recalculateStats() + updateTabCounts()
+    → partial update UI theo activeTab (không re-render toàn trang)
 
-Fallback: setupPollingAutoSync() → 3 giây/lần gọi get_health_check_data
+Fallback: setupPollingAutoSync() → state.pollingInterval giây/lần
     → so sánh hash để tránh update thừa
+    → nếu có thay đổi: recalculateStats() + updateTabCounts() + partial update
 ```
 
 ---
@@ -128,7 +157,7 @@ Hàm xác định: `getStatus(r)` → `'completed' | 'distributed' | 'pending'`
 | Hàm | Method | Mô tả |
 |---|---|---|
 | `get_health_check_dates()` | GET | Danh sách ngày có dữ liệu (desc) |
-| `get_health_check_data(date)` | GET | Toàn bộ records + stats + groups + sections |
+| `get_health_check_data(date)` | GET | Toàn bộ records + stats |
 | `scan_distribute(...)` | POST | Phát hồ sơ: ghi `start_time_actual = now()` |
 | `scan_collect(...)` | POST | Thu hồ sơ: ghi `end_time_actual = now()` |
 | `lookup_record(code, date)` | GET | Tìm record theo mã HS hoặc mã NV |
@@ -186,24 +215,30 @@ frappe.publish_realtime(
 
 | Hàm | Mô tả |
 |---|---|
-| `renderDashboard()` | Render filter + stat cards + biểu đồ |
+| `renderDashboard()` | Render stat cards 3 nhóm (có tiêu đề) + biểu đồ |
 | `getDashboardFilteredRecords()` | Filter records theo start_time/section/group |
-| `calcFilteredStats(records)` | Tính lại stats từ tập record đã filter |
-| `updateDashboardStats()` | Cập nhật stats card mà không re-render toàn bộ |
-| `showStatModal(type)` | Mở modal xem danh sách NV theo loại stat |
+| `calcFilteredStats(records)` | Tính stats từ tập record đã filter (bao gồm late_dist/late_coll) |
+| `updateDashboardStats()` | Cập nhật stat cards mà không re-render toàn bộ (dùng cho realtime) |
+| `showStatModal(type)` | Mở modal xem danh sách NV theo loại stat (có sort) |
 | `renderCharts()` | Vẽ biểu đồ Section + Group (Frappe Chart hoặc horizontal bar) |
-| `renderMiniBar()` | Progress bar nhỏ ở header |
 
 ### Scan Form
 
 | Hàm | Mô tả |
 |---|---|
 | `renderScanForm(mode)` | Render form scan (distribute/collect) |
-| `setupScanForm(mode)` | Gắn event: live preview, auto-check gynec, Enter submit |
-| `doScan(mode)` | Xử lý submit: validate → confirm nếu cần → gọi API |
+| `renderCollectMiniStats()` | Render HTML badge X-Quang/Phụ khoa từ state.stats (dùng chung 3 chỗ) |
+| `setupScanForm(mode)` | Gắn event: live preview, auto-check gynec, pregnant emoji, Enter submit |
+| `doScan(mode)` | Xử lý submit: validate → confirm nếu cần → gọi API → cập nhật state trực tiếp |
 | `showScanResult(type, msg, record)` | Hiển thị kết quả scan (success/update/error) |
 | `populateScanHistory(mode)` | Lọc và sort lịch sử scan từ state.records |
 | `renderHistory()` | Render bảng lịch sử scan |
+
+### Tab Badge / Counts
+
+| Hàm | Mô tả |
+|---|---|
+| `updateTabCounts()` | Cập nhật badge `đã phát/tổng` và `đã thu/tổng` trên tab buttons |
 
 ### Danh sách NV
 
@@ -218,11 +253,27 @@ frappe.publish_realtime(
 
 | Hàm | Mô tả |
 |---|---|
-| `getMinutesDifference(planned, actual)` | Tính chênh lệch phút (+ = trễ, - = sớm) |
+| `recalculateStats()` | Tính lại state.stats + state.groups + state.sections từ state.records |
+| `getMinutesDifference(planned, actual)` | Tính chênh lệch phút theo time only |
+| `getMinutesDiffDatetime(...)` | Tính chênh lệch phút theo full datetime |
+| `getMinutesDiffByMode(...)` | Wrapper chọn mode tính dựa theo state.timeCompareMode |
 | `isRecordLateForDistribute(r)` | So với ngưỡng `allowedLateDistribute` |
 | `isRecordLateForCollect(r)` | So với ngưỡng `allowedLateCollect` |
+| `getProactiveNow()` | Trả `{date, time}` của "now" theo mode và currentDate |
 | `formatTime(val)` | timedelta string → HH:MM hoặc "—" |
-| `getProactiveNowTime()` | now nếu hôm nay, "23:59:59" nếu quá khứ |
+
+---
+
+## Cấu hình (dialog "Cấu hình" trên Dashboard)
+
+| Tùy chọn | State key | Mặc định | Mô tả |
+|---|---|---|---|
+| Phút khám trễ cho phép | `allowedLateDistribute` | 10 | Ngưỡng highlight "Trễ phát" |
+| Phút nộp HS trễ cho phép | `allowedLateCollect` | 0 | Ngưỡng highlight "Trễ thu" |
+| Phút khám sớm cho phép | `allowedEarlyDistribute` | 10 | Ngưỡng highlight "Sớm phát" |
+| Cách so sánh thời gian | `timeCompareMode` | datetime | `datetime` hoặc `time_only` |
+| Hướng biểu đồ | `chartLayout` | vertical | `vertical` hoặc `horizontal` |
+| Polling interval (giây) | `pollingInterval` | 3 | Tần suất auto-sync fallback; restart polling khi thay đổi |
 
 ---
 
@@ -230,7 +281,7 @@ frappe.publish_realtime(
 
 ```
 name                  (Frappe doc ID)
-hospital_code         (mã hồ sơ, 4 ký tự)
+hospital_code         (mã hồ sơ)
 employee              (mã NV)
 employee_name
 gender
@@ -242,8 +293,8 @@ health_check_type
 pregnant              (boolean)
 start_time            (giờ hẹn phát)
 end_time              (giờ hẹn thu)
-start_time_actual     (thực tế phát - null nếu chưa phát)
-end_time_actual       (thực tế thu - null nếu chưa thu)
+start_time_actual     (thực tế phát — null nếu chưa phát)
+end_time_actual       (thực tế thu — null nếu chưa thu)
 x_ray                 (boolean)
 gynecological_exam    (boolean)
 note
@@ -254,7 +305,7 @@ note
 ## Debug nhanh
 
 ### Realtime không hoạt động?
-→ Kiểm tra `setupPollingAutoSync()` có chạy không (fallback 3s)
+→ Kiểm tra `setupPollingAutoSync()` có chạy không (fallback mặc định 3s)
 → Kiểm tra room name: `task_progress:health_check_updates`
 
 ### Scan báo không tìm thấy?
@@ -268,6 +319,12 @@ note
 ### Stats không khớp?
 → `recalculateStats()` tính lại từ `state.records` (phía client)
 → `calcFilteredStats()` dùng cho dashboard (có thể khác stats tổng nếu đang filter)
+→ Dashboard filter không ảnh hưởng `state.stats`, chỉ ảnh hưởng hiển thị cards
+
+### Mini stats X-Quang/Phụ khoa không cập nhật?
+→ Sau scan: cập nhật ngay qua `renderCollectMiniStats()`
+→ Qua realtime: cập nhật trong handler `case "collect"`
+→ Qua polling: cập nhật sau khi phát hiện hash thay đổi
 
 ### Export Excel lỗi?
 → `downloadExcel()` mở `/api/method/...get_excel_data?date=...`
@@ -282,7 +339,7 @@ health_check_up/
 ├── page/health_check_up_management/
 │   ├── health_check_up_management.js   ← Frontend chính
 │   ├── health_check_up_management.css  ← Style (light theme)
-│   ├── health_check_up_management.html ← Template rỗng (chỉ có #root div)
+│   ├── health_check_up_management.html ← Template rỗng
 │   ├── health_check_up_management.json ← Metadata page, roles
 │   └── readme.md                       ← File này
 ├── api/

@@ -485,7 +485,7 @@ def _build_not_found_msg(hospital_code, employee, date):
 # ===========================================================================
 
 @frappe.whitelist()
-def clear_actual_times(date):
+def clear_actual_data(date):
     """
     Clear start_time_actual and end_time_actual for all Health Check-Up records
     on the given date. Password validation is done on the client side (ddmm).
@@ -504,9 +504,11 @@ def clear_actual_times(date):
     count = 0
     for r in records:
         doc = frappe.get_doc("Health Check-Up", r["name"])
-        if doc.start_time_actual or doc.end_time_actual:
+        if doc.start_time_actual or doc.end_time_actual or doc.x_ray or doc.gynecological_exam:
             doc.start_time_actual = None
             doc.end_time_actual = None
+            doc.x_ray = None
+            doc.gynecological_exam = None
             doc.save(ignore_permissions=True)
             count += 1
 

@@ -21,7 +21,6 @@ const L = {
     tab_distribute: "Phát Hồ Sơ",
     tab_collect: "Thu Hồ Sơ",
     tab_list: "Danh Sách NV",
-    tab_late: "Trễ Giờ",
     stat_total: "Tổng nhân viên",
     stat_distributed: "Đã phát HS",
     stat_completed: "Hoàn thành",
@@ -32,18 +31,13 @@ const L = {
     stat_pregnant: "Mang thai",
     chart_by_section: "Tiến độ theo Section",
     chart_by_group: "Tiến độ theo Group",
-    chart_overview: "Tổng quan trạng thái",
     scan_placeholder: "Scan hoặc nhập mã hồ sơ / mã nhân viên...",
     btn_distribute: "Ghi nhận phát HS",
     btn_collect: "Ghi nhận thu HS",
-    lbl_xray: "X-Quang",
-    lbl_gynec: "Phụ khoa",
     msg_success: "Thành công",
     msg_updated: "Đã cập nhật lại",
     msg_not_found: "Không tìm thấy",
-    msg_error: "Lỗi",
     msg_input_required: "Vui lòng nhập mã hồ sơ hoặc mã nhân viên",
-    msg_confirm_overwrite: "Đã có dữ liệu. Bạn có muốn cập nhật lại?",
     col_stt: "#",
     col_code: "Mã HS",
     col_emp: "Mã NV",
@@ -52,8 +46,6 @@ const L = {
     col_group: "Group",
     col_dist: "Phát HS",
     col_coll: "Thu HS",
-    col_xray: "X-Ray",
-    col_gynec: "PK",
     col_status: "Trạng thái",
     col_time_diff: "Chênh lệch",
     status_pending: "Chưa khám",
@@ -101,6 +93,7 @@ const state = {
     allowedEarlyDistribute: 10,
     timeCompareMode: "datetime", // 'datetime' or 'time_only'
     chartLayout: "vertical", // 'vertical' or 'horizontal'
+    pollingInterval: 3, // seconds
     // Sort
     sortField: null,
     sortOrder: "asc",
@@ -163,7 +156,7 @@ function downloadExcel() {
         return;
     }
 
-    const reportWindow = window.open(`/api/method/customize_erpnext.health_check_up.api.health_check_api.get_excel_data?date=${state.currentDate}`);
+    window.open(`/api/method/customize_erpnext.health_check_up.api.health_check_api.get_excel_data?date=${state.currentDate}`);
 }
 
 frappe.pages["health-check-up-management"].on_page_show = function () {
@@ -194,8 +187,8 @@ function buildLayout() {
             <div class="hc-tabs" id="hc-tabs">
                 <select class="hc-date-select" id="hc-date-select" style="margin-right: 8px;"></select>
                 <button class="hc-tab active" data-tab="dashboard">${L.tab_dashboard}</button>
-                <button class="hc-tab" data-tab="distribute">${L.tab_distribute}</button>
-                <button class="hc-tab" data-tab="collect">${L.tab_collect}</button>
+                <button class="hc-tab" data-tab="distribute">${L.tab_distribute} <span class="hc-tab-count" id="tab-count-distribute"></span></button>
+                <button class="hc-tab" data-tab="collect">${L.tab_collect} <span class="hc-tab-count" id="tab-count-collect"></span></button>
                 <button class="hc-tab" data-tab="list">${L.tab_list}</button>
             </div>
         </div>
@@ -205,6 +198,14 @@ function buildLayout() {
             <div class="hc-loading" id="hc-loading">${L.loading}</div>
         </div>
     </div>`;
+}
+
+function updateTabCounts() {
+    const total = state.stats.total || 0;
+    const distributed = state.stats.distributed || 0;
+    const completed = state.stats.completed || 0;
+    $("#tab-count-distribute").text(total > 0 ? `${distributed}/${total}` : "");
+    $("#tab-count-collect").text(total > 0 ? `${completed}/${total}` : "");
 }
 
 // ============================================================
@@ -231,10 +232,7 @@ async function loadData(date) {
         if (r.message) {
             state.records = r.message.records || [];
             state.stats = r.message.stats || {};
-            state.groups = r.message.groups || [];
-            state.sections = r.message.sections || [];
             state.currentDate = r.message.date;
-            updateDateDisplay();
 
             // Disable distribute and collect tabs if current date > record date
             const today = frappe.datetime.get_today();
@@ -254,6 +252,8 @@ async function loadData(date) {
     } catch (e) {
         frappe.msgprint("Lỗi tải dữ liệu: " + e.message);
     }
+    recalculateStats();
+    updateTabCounts();
     renderActiveTab();
 }
 
@@ -347,18 +347,26 @@ function renderDashboard() {
     <div class="hc-dashboard">
         <!-- Stat Cards -->
         <div id="hc-stats-wrapper">
+            <div class="hc-stats-group-title">Nhóm 1: Tiến độ chung</div>
             <div class="hc-stats-grid mb-3">
-                ${statCard("total", L.stat_total, s.total, null, "cyan", "👥")}            
+                ${statCard("total", L.stat_total, s.total, null, "cyan", "👥")}
                 ${statCard("completed", L.stat_completed, s.completed, s.total, "green", "✅")}
                 ${statCard("in_exam", L.stat_in_exam, s.in_exam, s.total, "yellow", "🔄")}
                 ${statCard("not_started", L.stat_not_started, s.not_started, s.total, "red", "❌")}
             </div>
-            
+
+            <div class="hc-stats-group-title">Nhóm 2: Thông tin thêm</div>
             <div class="hc-stats-grid mb-3">
                 ${statCard("distributed", L.stat_distributed, s.distributed, s.total, "blue", "📤")}
                 ${statCard("late_dist", L.stat_late_dist, s.late_dist, s.total, "red", "⏰", s.late_dist > 0)}
                 ${statCard("late_coll", L.stat_late_coll, s.late_coll, s.total, "orange", "⏳", s.late_coll > 0)}
                 ${statCard("pregnant", L.stat_pregnant, s.pregnant, s.total, "purple", "🤰")}
+            </div>
+
+            <div class="hc-stats-group-title">Nhóm 3: Cận lâm sàng</div>
+            <div class="hc-stats-grid mb-3">
+                ${statCard("x_ray", L.stat_xray, s.x_ray, s.total, "cyan", "🔬")}
+                ${statCard("gynecological_exam", L.stat_gynec, s.gynecological_exam, s.total, "purple", "👩‍⚕️")}
             </div>
         </div>
 
@@ -443,6 +451,12 @@ function updateDashboardStats() {
             ${statCard("late_coll", L.stat_late_coll, s.late_coll, s.total, "orange", "⏳", s.late_coll > 0)}
             ${statCard("pregnant", L.stat_pregnant, s.pregnant, s.total, "purple", "🤰")}
         </div>
+
+        <div class="hc-stats-group-title">Nhóm 3: Cận lâm sàng</div>
+        <div class="hc-stats-grid mb-3">
+            ${statCard("x_ray", L.stat_xray, s.x_ray, s.total, "cyan", "🔬")}
+            ${statCard("gynecological_exam", L.stat_gynec, s.gynecological_exam, s.total, "purple", "👩‍⚕️")}
+        </div>
     `);
 
     // Re-attach click handlers for stat cards (they get replaced with the HTML above)
@@ -516,7 +530,14 @@ function showSettingsDialog() {
                 label: "Hướng biểu đồ",
                 options: "Dọc\nNgang",
                 default: state.chartLayout === "vertical" ? "Dọc" : "Ngang",
-            }
+            },
+            {
+                fieldtype: "Int",
+                fieldname: "polling_interval",
+                label: "Polling interval (giây)",
+                default: state.pollingInterval,
+                description: "Tần suất tự động đồng bộ dữ liệu. Mặc định: 3 giây.",
+            },
         ],
         primary_action_label: L.btn_save,
         primary_action(values) {
@@ -525,6 +546,11 @@ function showSettingsDialog() {
             state.allowedEarlyDistribute = values.allowed_early_dist;
             state.timeCompareMode = values.time_compare_mode === L.time_compare_datetime ? "datetime" : "time_only";
             state.chartLayout = values.chart_layout === "Dọc" ? "vertical" : "horizontal";
+            const newInterval = Math.max(1, parseInt(values.polling_interval) || 3);
+            if (newInterval !== state.pollingInterval) {
+                state.pollingInterval = newInterval;
+                setupPollingAutoSync(); // restart với interval mới
+            }
             renderActiveTab();
             dialog.hide();
         },
@@ -537,6 +563,7 @@ function showSettingsDialog() {
             allowed_early_dist: 10,
             time_compare_mode: L.time_compare_datetime,
             chart_layout: "Dọc",
+            polling_interval: 3,
         });
     });
 
@@ -556,6 +583,8 @@ function getStatModalData(type) {
         case "late_coll":
             return filtered.filter(r => isRecordLateForCollect(r));
         case "pregnant": return filtered.filter(r => r.pregnant);
+        case "x_ray": return filtered.filter(r => r.x_ray);
+        case "gynecological_exam": return filtered.filter(r => r.gynecological_exam);
         default: return [];
     }
 }
@@ -694,7 +723,7 @@ function renderHorizontalChart(containerId, dataArray, labelField) {
         <div class="hc-hchart-legend">
             <span class="hc-hchart-legend-item"><span class="hc-hchart-legend-color hc-bg-comp"></span> ${L.stat_completed}</span>
             <span class="hc-hchart-legend-item"><span class="hc-hchart-legend-color hc-bg-exam"></span> ${L.stat_in_exam}</span>
-            <span class="hc-hchart-legend-item"><span class="hc-hchart-legend-color hc-bg-none"></span> ${L.stat_not_started || "Chưa khám"}</span>
+            <span class="hc-hchart-legend-item"><span class="hc-hchart-legend-color hc-bg-none"></span> ${L.stat_not_started}</span>
         </div>
     </div>`;
     document.getElementById(containerId).innerHTML = html;
@@ -733,7 +762,7 @@ function renderCharts() {
                 data: { labels, datasets: [
                     { name: L.stat_completed, values: sectionArr.map((s) => s.completed) },
                     { name: L.stat_in_exam, values: sectionArr.map((s) => s.distributed - s.completed) },
-                    { name: L.stat_not_started || "Chưa khám", values: sectionArr.map((s) => s.total - s.distributed) },
+                    { name: L.stat_not_started, values: sectionArr.map((s) => s.total - s.distributed) },
                 ]},
                 type: "bar", height: 250, colors,
                 barOptions: { stacked: true, spaceRatio: 0.4 },
@@ -759,7 +788,7 @@ function renderCharts() {
                 data: { labels, datasets: [
                     { name: L.stat_completed, values: groupArr.map((g) => g.completed) },
                     { name: L.stat_in_exam, values: groupArr.map((g) => g.distributed - g.completed) },
-                    { name: L.stat_not_started || "Chưa khám", values: groupArr.map((g) => g.total - g.distributed) },
+                    { name: L.stat_not_started, values: groupArr.map((g) => g.total - g.distributed) },
                 ]},
                 type: "bar", height: 300, colors,
                 barOptions: { stacked: true, spaceRatio: 0.3 },
@@ -780,6 +809,13 @@ function renderCharts() {
 // ============================================================
 // Scan Form Render
 // ============================================================
+function renderCollectMiniStats() {
+    return `
+        <span class="hc-mini-stat-item hc-mini-stat-cyan">🔬 ${L.stat_xray}: <strong>${state.stats.x_ray || 0}</strong></span>
+        <span class="hc-mini-stat-item hc-mini-stat-purple">👩‍⚕️ ${L.stat_gynec}: <strong>${state.stats.gynecological_exam || 0}</strong></span>
+    `;
+}
+
 function renderScanForm(mode) {
     const isDist = mode === "distribute";
     return `
@@ -788,6 +824,10 @@ function renderScanForm(mode) {
             <h2 class="hc-scan-title">
                 ${isDist ? L.tab_distribute : L.tab_collect}
             </h2>
+            ${!isDist ? `
+            <div class="hc-collect-mini-stats" id="collect-mini-stats">
+                ${renderCollectMiniStats()}
+            </div>` : ''}
             <p class="hc-scan-subtitle">${L.scan_placeholder}</p>
 
             <div class="hc-scan-type-toggle">
@@ -814,11 +854,11 @@ function renderScanForm(mode) {
             <div class="hc-scan-checkboxes" id="scan-checkboxes">
                 <label class="hc-checkbox-label" id="lbl-xray">
                     <input type="checkbox" id="chk-xray" checked />
-                    <span>${L.lbl_xray}</span>
+                    <span>${L.stat_xray}</span>
                 </label>
                 <label class="hc-checkbox-label" id="lbl-gynec">
                     <input type="checkbox" id="chk-gynec" />
-                    <span>${L.lbl_gynec}</span>
+                    <span>${L.stat_gynec}</span>
                 </label>
             </div>`
             : ""
@@ -848,7 +888,6 @@ function renderScanForm(mode) {
 
 function setupScanForm(mode) {
     const $input = $("#scan-input");
-    const $note = $("#scan-note");
     const $btn = $("#scan-btn");
 
     populateScanHistory(mode);
@@ -873,7 +912,8 @@ function setupScanForm(mode) {
         // 1. Update Submit Button Text (Live Preview)
         if (record) {
             const groupText = record.custom_group ? ` - ${record.custom_group}` : "";
-            $btn.text(`Ghi nhận: ${record.employee_name}${groupText}`);
+            const pregnantTag = (mode === "collect" && record.pregnant) ? " 🤰" : "";
+            $btn.text(`Ghi nhận: ${record.employee_name}${groupText}${pregnantTag}`);
         } else {
             $btn.text(defaultBtnText);
         }
@@ -1054,19 +1094,39 @@ async function doScan(mode) {
 
                 showScanResult(msgType, msgText, rec);
                 addToHistory(rec, mode, msgType);
+
+                // Update local state immediately (don't wait for realtime)
+                if (rec) {
+                    const idx = state.records.findIndex(r => r.name === rec.name);
+                    if (idx !== -1) {
+                        if (mode === "distribute") {
+                            state.records[idx].start_time_actual = rec.start_time_actual;
+                        } else if (mode === "collect") {
+                            state.records[idx].end_time_actual = rec.end_time_actual;
+                            state.records[idx].x_ray = rec.x_ray;
+                            state.records[idx].gynecological_exam = rec.gynecological_exam;
+                        }
+                    }
+                    recalculateStats();
+                    updateTabCounts();
+                    if (mode === "collect") {
+                        $("#collect-mini-stats").html(renderCollectMiniStats());
+                    }
+                }
+
+                // Reset form only on success
+                $input.val("").trigger("input").focus();
+                $note.val("");
+                if (mode === "collect") {
+                    $("#chk-xray").prop("checked", true);
+                    $("#lbl-gynec").show();
+                    $("#chk-gynec").prop("checked", false);
+                }
             }
         } catch (e) {
             // frappe.throw from server automatically shows msgprint
             showScanResult("error", L.msg_not_found + ": " + code);
-        }
-
-        // Reset form
-        $input.val("").trigger("input").focus();
-        $note.val("");
-        if (mode === "collect") {
-            $("#chk-xray").prop("checked", true);
-            $("#lbl-gynec").show();
-            $("#chk-gynec").prop("checked", false);
+            $input.focus();
         }
     };
 
@@ -1455,10 +1515,6 @@ function getProactiveNow() {
     }
 }
 
-function getProactiveNowTime() {
-    return getProactiveNow().time;
-}
-
 // Minutes difference honoring state.timeCompareMode
 // datePlanned / dateActual are optional; default to state.currentDate for both
 function getMinutesDiffByMode(timePlanned, timeActual, datePlanned, dateActual) {
@@ -1521,10 +1577,6 @@ function showLoading() {
     );
 }
 
-function updateDateDisplay() {
-    // Left empty as we now use the native select dropdown
-}
-
 
 // ============================================================
 // Realtime
@@ -1539,7 +1591,6 @@ function setupRealtime() {
     }
 
     frappe.realtime.on("health_check_update", (data) => {
-        console.log("Health Check Realtime Update Received:", data);
         if (data.date !== state.currentDate) return;
 
         // Update record in local state
@@ -1562,6 +1613,7 @@ function setupRealtime() {
 
         // Recalculate stats
         recalculateStats();
+        updateTabCounts();
 
         // Targeted partial update per tab — avoids full re-render which breaks scan form focus
         switch (state.activeTab) {
@@ -1575,6 +1627,9 @@ function setupRealtime() {
                 const mode = state.activeTab === "distribute" ? "distribute" : "collect";
                 populateScanHistory(mode);
                 renderHistory();
+                if (state.activeTab === "collect") {
+                    $("#collect-mini-stats").html(renderCollectMiniStats());
+                }
                 break;
             case "list":
                 // Re-render only the table tbody
@@ -1653,9 +1708,9 @@ function setupPollingAutoSync() {
                     $("#hc-sync-status").attr("data-synced", "1").attr("title", `Đồng bộ lúc ${nowStr}`).text(nowStr);
 
                     if (currHash !== newHash) {
-                        console.log("Auto-Sync: Data naturally changed. Updating ui...");
                         state.records = newRecords;
                         recalculateStats();
+                        updateTabCounts();
 
                         // Surgical DOM update mimicking real-time
                         switch (state.activeTab) {
@@ -1667,16 +1722,19 @@ function setupPollingAutoSync() {
                                 const mode = state.activeTab === "distribute" ? "distribute" : "collect";
                                 populateScanHistory(mode);
                                 renderHistory();
+                                if (state.activeTab === "collect") {
+                                    $("#collect-mini-stats").html(renderCollectMiniStats());
+                                }
                                 break;
                             case "list":
-                                renderListTable();
+                                $("#hc-table-wrap").html(renderTable());
                                 break;
                         }
                     }
                 }
             }
         });
-    }, 3000); // Sync every 3 seconds
+    }, state.pollingInterval * 1000);
 }
 
 // ============================================================

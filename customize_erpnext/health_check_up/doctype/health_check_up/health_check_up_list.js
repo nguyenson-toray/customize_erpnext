@@ -2,16 +2,16 @@
 
 frappe.listview_settings["Health Check-Up"] = {
     onload: function (listview) {
-        listview.page.add_menu_item(__("Clear Actual Time - Only for IT"), function () {
+        listview.page.add_menu_item(__("Clear Actual Data - Only for IT"), function () {
             hcAdminDialog({
-                title: __("Clear Actual Time"),
+                title: __("Clear Actual Data"),
                 hasToDate: false,
                 onConfirm: function (date) {
                     frappe.call({
-                        method: "customize_erpnext.health_check_up.api.health_check_api.clear_actual_times",
+                        method: "customize_erpnext.health_check_up.api.health_check_api.clear_actual_data",
                         args: { date: date },
                         freeze: true,
-                        freeze_message: __("Clearing actual times..."),
+                        freeze_message: __("Clearing actual data..."),
                         callback: function (r) {
                             if (r.message) {
                                 frappe.msgprint({
