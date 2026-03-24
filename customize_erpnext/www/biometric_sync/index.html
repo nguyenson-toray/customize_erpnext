@@ -1,0 +1,2576 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ERPNext Sync All Logs</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+        /* ── CSS Variables ─────────────────────────────────────────── */
+        :root {
+            --bg: #f1f5f9;
+            --surface: #ffffff;
+            --border: #e2e8f0;
+            --border-2: #cbd5e1;
+            --text: #0f172a;
+            --text-2: #475569;
+            --text-3: #94a3b8;
+            --primary: #2563eb;
+            --success: #059669;
+            --warning: #d97706;
+            --danger: #dc2626;
+            --info: #0284c7;
+        }
+
+        /* ── Reset & Base ─────────────────────────────────────────── */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        /* ── Sticky Header ────────────────────────────────────────── */
+        .page-header {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            height: 52px;
+            background: #0f172a;
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            gap: 12px;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .page-header-icon {
+            width: 32px;
+            height: 32px;
+            background: var(--primary);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            flex-shrink: 0;
+        }
+
+        .page-header-titles {
+            display: flex;
+            flex-direction: column;
+            gap: 1px;
+        }
+
+        .page-header-title {
+            font-size: 14px;
+            font-weight: 700;
+            color: #ffffff;
+            line-height: 1.2;
+        }
+
+        .page-header-subtitle {
+            font-size: 11px;
+            color: #94a3b8;
+            line-height: 1.2;
+        }
+
+        /* ── Main wrap ────────────────────────────────────────────── */
+        .main-wrap {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 18px 20px 40px;
+        }
+
+        /* ── Tab Nav ──────────────────────────────────────────────── */
+        .tab-nav-wrap {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 4px;
+            margin-bottom: 18px;
+            display: flex;
+            gap: 3px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+        }
+
+        .tab-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 7px 14px;
+            border: none;
+            background: none;
+            cursor: pointer;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-2);
+            border-radius: 7px;
+            transition: all .18s;
+            white-space: nowrap;
+        }
+
+        .tab-btn:hover {
+            background: var(--bg);
+            color: var(--text);
+        }
+
+        .tab-btn.active {
+            background: var(--primary);
+            color: #ffffff;
+            box-shadow: 0 2px 6px rgba(37, 99, 235, .35);
+        }
+
+        .tab-btn.disabled {
+            color: var(--text-3);
+            cursor: not-allowed;
+        }
+
+        .tab-icon {
+            font-size: 14px;
+            line-height: 1;
+        }
+
+        .tab-label {
+            line-height: 1;
+        }
+
+        /* Tab panel animation */
+        .tab-panel {
+            display: none;
+        }
+
+        .tab-panel.active {
+            display: block;
+            animation: fadeIn .18s ease;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(4px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* ── Cards ────────────────────────────────────────────────── */
+        .card {
+            background: var(--surface);
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            padding: 18px 20px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+            margin-bottom: 16px;
+        }
+
+        .card-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text);
+            margin-bottom: 14px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* ── Form controls ────────────────────────────────────────── */
+        .form-row {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            align-items: flex-end;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .form-group label {
+            font-weight: 500;
+            color: var(--text-2);
+            font-size: 12px;
+        }
+
+        select,
+        input[type="text"],
+        input[type="date"] {
+            height: 34px;
+            padding: 0 10px;
+            border: 1px solid var(--border-2);
+            border-radius: 6px;
+            font-size: 13px;
+            font-family: 'DM Sans', sans-serif;
+            background: var(--surface);
+            color: var(--text);
+            transition: border-color .15s, box-shadow .15s;
+            outline: none;
+        }
+
+        select:focus,
+        input[type="text"]:focus,
+        input[type="date"]:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, .1);
+        }
+
+        select {
+            min-width: 280px;
+            cursor: pointer;
+        }
+
+        input[type="text"] {
+            min-width: 180px;
+        }
+
+        /* ── Buttons ──────────────────────────────────────────────── */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 13px;
+            font-weight: 500;
+            transition: opacity .15s, box-shadow .15s;
+            white-space: nowrap;
+        }
+
+        .btn:hover {
+            opacity: .88;
+        }
+
+        .btn:disabled {
+            opacity: .45;
+            cursor: not-allowed;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: #ffffff;
+        }
+
+        .btn-secondary {
+            background: #64748b;
+            color: #ffffff;
+        }
+
+        .btn-success {
+            background: var(--success);
+            color: #ffffff;
+        }
+
+        .btn-sm {
+            padding: 5px 11px;
+            font-size: 12px;
+        }
+
+        .btn-link {
+            background: none;
+            border: none;
+            color: var(--primary);
+            cursor: pointer;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 13px;
+            text-decoration: underline;
+            padding: 0;
+        }
+
+        /* Info / Warning / Danger button variants */
+        .btn-info,
+        .btn-info-sm {
+            background: var(--info);
+            color: #ffffff;
+        }
+
+        .btn-warning,
+        .btn-warn-sm {
+            background: var(--warning);
+            color: #ffffff;
+        }
+
+        .btn-danger,
+        .btn-danger-sm {
+            background: var(--danger);
+            color: #ffffff;
+        }
+
+        /* ── Toolbar (global actions) ─────────────────────────────── */
+        .global-actions,
+        .toolbar {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            align-items: center;
+            padding: 10px 16px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            margin-bottom: 16px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        }
+
+        /* ── Stats bar ────────────────────────────────────────────── */
+        .stats {
+            color: var(--text-2);
+            font-size: 12px;
+            padding: 6px 11px;
+            background: var(--bg);
+            border-radius: 6px;
+            border: 1px solid var(--border);
+        }
+
+        /* ── Loading spinner ──────────────────────────────────────── */
+        .loading {
+            text-align: center;
+            padding: 30px;
+            color: var(--text-3);
+            font-size: 13px;
+        }
+
+        .spinner {
+            border: 3px solid var(--border);
+            border-top: 3px solid var(--primary);
+            border-radius: 50%;
+            width: 28px;
+            height: 28px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 12px;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* ── Tab 1 Log styles ─────────────────────────────────────── */
+        .log-controls {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .control-group label {
+            font-weight: 500;
+            color: var(--text-2);
+            font-size: 13px;
+            white-space: nowrap;
+        }
+
+        .log-container {
+            background: var(--surface);
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            padding: 16px;
+            max-height: calc(100vh - 340px);
+            overflow-y: auto;
+        }
+
+        .log-line {
+            padding: 5px 10px;
+            margin-bottom: 2px;
+            border-left: 3px solid var(--text-3);
+            background: var(--bg);
+            border-radius: 4px;
+            font-family: 'JetBrains Mono', 'Consolas', monospace;
+            font-size: 11.5px;
+            line-height: 1.6;
+            word-wrap: break-word;
+            white-space: pre-wrap;
+            color: var(--text-2);
+        }
+
+        .log-line.error {
+            border-left-color: var(--danger);
+            background: #fff5f5;
+            color: #7f1d1d;
+        }
+
+        .log-line.warning {
+            border-left-color: var(--warning);
+            background: #fffbeb;
+            color: #78350f;
+        }
+
+        .log-line.info {
+            border-left-color: var(--info);
+            background: #f0f9ff;
+            color: #0c4a6e;
+        }
+
+        .no-logs {
+            text-align: center;
+            padding: 50px 20px;
+            color: var(--text-3);
+            font-size: 13px;
+        }
+
+        /* ── Tab 2 Fingerprint styles ─────────────────────────────── */
+        .section-num {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 20px;
+            height: 20px;
+            background: var(--primary);
+            color: #ffffff;
+            border-radius: 50%;
+            font-size: 11px;
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+
+        /* Machine list checkboxes */
+        .machine-list {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .machine-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 7px 12px;
+            border: 1px solid var(--border);
+            border-radius: 7px;
+            cursor: pointer;
+            transition: background .12s, border-color .12s;
+        }
+
+        .machine-item:hover {
+            background: var(--bg);
+            border-color: var(--border-2);
+        }
+
+        .machine-item input[type="checkbox"] {
+            width: 15px;
+            height: 15px;
+            cursor: pointer;
+            accent-color: var(--primary);
+        }
+
+        .machine-item label {
+            cursor: pointer;
+            flex: 1;
+            font-size: 13px;
+            color: var(--text);
+        }
+
+        .machine-item .badge {
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 10px;
+            background: var(--bg);
+            color: var(--text-2);
+            border: 1px solid var(--border);
+        }
+
+        .machine-item .badge.master {
+            background: #fef9c3;
+            color: #854d0e;
+            border-color: #fde68a;
+        }
+
+        /* User table */
+        .user-table-wrap {
+            overflow-x: auto;
+            max-height: 380px;
+            overflow-y: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        th {
+            background: var(--bg);
+            padding: 8px 12px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: .5px;
+            color: var(--text-2);
+            border-bottom: 2px solid var(--border);
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+
+        td {
+            padding: 7px 12px;
+            border-bottom: 1px solid var(--border);
+            vertical-align: middle;
+            color: var(--text);
+        }
+
+        tr:hover td {
+            background: #f8faff;
+        }
+
+        .badge-matched {
+            background: #dcfce7;
+            color: #14532d;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .badge-unmatched {
+            background: #fee2e2;
+            color: #7f1d1d;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 11px;
+        }
+
+        tr.unmatched td {
+            opacity: .55;
+        }
+
+        tr.unmatched input[type="checkbox"] {
+            cursor: not-allowed;
+        }
+
+        /* Progress area */
+        .progress-section {
+            display: none;
+        }
+
+        .progress-section.visible {
+            display: block;
+        }
+
+        .machine-progress {
+            margin-bottom: 10px;
+        }
+
+        .machine-progress-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: var(--text-2);
+            margin-bottom: 4px;
+        }
+
+        .progress-bar-wrap {
+            height: 6px;
+            background: var(--border);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary), #7c3aed);
+            border-radius: 3px;
+            transition: width .3s;
+        }
+
+        .result-log {
+            max-height: 220px;
+            overflow-y: auto;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11.5px;
+            background: #0f172a;
+            color: #cbd5e1;
+            padding: 12px 14px;
+            border-radius: 8px;
+            margin-top: 10px;
+            line-height: 1.7;
+        }
+
+        .result-log .ok {
+            color: #34d399;
+        }
+
+        .result-log .fail {
+            color: #f87171;
+        }
+
+        .result-log .info-line {
+            color: #93c5fd;
+        }
+
+        /* ── Alerts ───────────────────────────────────────────────── */
+        .alert {
+            padding: 10px 14px;
+            border-radius: 7px;
+            font-size: 13px;
+            margin-bottom: 10px;
+        }
+
+        .alert-info {
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            color: #1e40af;
+        }
+
+        .alert-warning {
+            background: #fffbeb;
+            border: 1px solid #fde68a;
+            color: #78350f;
+        }
+
+        .alert-danger {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            color: #7f1d1d;
+        }
+
+        .alert-success {
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            color: #14532d;
+        }
+
+        /* ── Tab 4.1 / 4.3 / Machines ─────────────────────────────── */
+        textarea.form-control {
+            width: 100%;
+            padding: 8px 10px;
+            border: 1px solid var(--border-2);
+            border-radius: 6px;
+            font-size: 13px;
+            font-family: 'DM Sans', sans-serif;
+            resize: vertical;
+            color: var(--text);
+            transition: border-color .15s, box-shadow .15s;
+            outline: none;
+        }
+
+        textarea.form-control:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, .1);
+        }
+
+        /* Machine management cards */
+        .machine-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 16px;
+        }
+
+        .machine-card {
+            background: var(--surface);
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            padding: 16px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+            transition: box-shadow .15s, border-color .15s;
+        }
+
+        .machine-card:hover {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            border-color: var(--border-2);
+        }
+
+        .machine-card.is-master {
+            border-top: 3px solid var(--warning);
+        }
+
+        .machine-card-head {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .machine-card-name {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--text);
+            flex: 1;
+        }
+
+        .machine-card-meta {
+            font-size: 12px;
+            color: var(--text-2);
+            margin: 2px 0;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .machine-card-actions {
+            display: flex;
+            gap: 6px;
+            margin-top: 12px;
+            flex-wrap: wrap;
+        }
+
+        .machine-info-panel {
+            margin-top: 12px;
+            padding: 12px;
+            background: var(--bg);
+            border-radius: 7px;
+            font-size: 12px;
+            border: 1px solid var(--border);
+            display: none;
+        }
+
+        .machine-info-panel.visible {
+            display: block;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px 20px;
+        }
+
+        .info-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .info-item .ilabel {
+            font-weight: 600;
+            color: var(--text-3);
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: .5px;
+        }
+
+        .info-item .ivalue {
+            color: var(--text);
+            font-size: 12.5px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* Delete preview */
+        .del-preview-wrap {
+            max-height: 340px;
+            overflow-y: auto;
+            border: 1px solid var(--border);
+            border-radius: 7px;
+        }
+
+        /* Capacity bar mini */
+        .cap-bar-wrap {
+            display: inline-block;
+            width: 80px;
+            height: 6px;
+            background: var(--border);
+            border-radius: 3px;
+            vertical-align: middle;
+            margin-left: 6px;
+        }
+
+        .cap-bar-inner {
+            height: 100%;
+            border-radius: 3px;
+            background: linear-gradient(90deg, var(--success), var(--primary));
+        }
+
+        /* All-machines info table */
+        .all-info-table-wrap {
+            overflow-x: auto;
+        }
+
+        #allMachinesInfoTable {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12.5px;
+        }
+
+        #allMachinesInfoTable th {
+            background: var(--bg);
+            color: var(--text-2);
+            font-weight: 600;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: .5px;
+            padding: 8px 10px;
+            text-align: left;
+            border-bottom: 2px solid var(--border);
+            white-space: nowrap;
+        }
+
+        #allMachinesInfoTable td {
+            padding: 7px 10px;
+            border-bottom: 1px solid var(--border);
+            vertical-align: middle;
+            white-space: nowrap;
+        }
+
+        #allMachinesInfoTable tr:hover td {
+            background: var(--bg);
+        }
+
+        #allMachinesInfoTable tr.row-error td {
+            color: var(--danger);
+        }
+
+        #allMachinesInfoTable tr.row-loading td {
+            color: var(--text-3);
+        }
+
+        .ai-cap {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .ai-cap-bar {
+            width: 60px;
+            height: 6px;
+            background: var(--border);
+            border-radius: 3px;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+
+        .ai-cap-fill {
+            height: 100%;
+            border-radius: 3px;
+        }
+
+        /* Source + Target side-by-side */
+        .fp-machines-row {
+            display: grid;
+            grid-template-columns: 340px 1fr;
+            gap: 14px;
+            align-items: start;
+            margin-bottom: 0;
+        }
+
+        .fp-machines-row .card {
+            margin-bottom: 0;
+        }
+
+        .fp-card-targets .machine-list {
+            max-height: 260px;
+        }
+
+        @media (max-width: 860px) {
+            .fp-machines-row {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        #fp41EmpTable {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12.5px;
+        }
+
+        #fp41EmpTable th {
+            background: var(--bg);
+            color: var(--text-2);
+            font-weight: 600;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: .5px;
+            padding: 6px 10px;
+            text-align: left;
+            border-bottom: 2px solid var(--border);
+            white-space: nowrap;
+        }
+
+        #fp41EmpTable td {
+            padding: 5px 10px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        #fp41EmpTable tr:hover td {
+            background: var(--bg);
+        }
+
+        #fp41EmpTable td.missing {
+            color: var(--text-3);
+            font-style: italic;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Sticky topbar -->
+    <header class="page-header">
+        <div class="page-header-icon">🖥</div>
+        <div class="page-header-titles">
+            <div class="page-header-title">Biometric Sync</div>
+            <div class="page-header-subtitle">Attendance machine data sync management</div>
+        </div>
+    </header>
+
+    <div class="main-wrap">
+
+        <!-- Tab Nav -->
+        <div class="tab-nav-wrap">
+            <button class="tab-btn active" data-tab="tab-logs" onclick="switchTab('tab-logs')">
+                <span class="tab-icon">📋</span><span class="tab-label">Logs</span>
+            </button>
+            <button class="tab-btn" data-tab="tab-fingerprint" onclick="switchTab('tab-fingerprint')">
+                <span class="tab-icon">🔄</span><span class="tab-label">Sync Device → Device &amp; ERP</span>
+            </button>
+            <button class="tab-btn" data-tab="tab-fp41" onclick="switchTab('tab-fp41')">
+                <span class="tab-icon">⬆</span><span class="tab-label">Sync ERP → Machines</span>
+            </button>
+            <button class="tab-btn" data-tab="tab-del43" onclick="switchTab('tab-del43')">
+                <span class="tab-icon">🗑</span><span class="tab-label">Remove Left Staff</span>
+            </button>
+            <button class="tab-btn" data-tab="tab-machines" onclick="switchTab('tab-machines')">
+                <span class="tab-icon">🖥</span><span class="tab-label">Machine Management</span>
+            </button>
+        </div>
+
+        <!-- ════════════════════════════════════════════════════════
+             TAB 1: SYNC LOGS
+        ════════════════════════════════════════════════════════ -->
+        <div id="tab-logs" class="tab-panel active">
+            <div class="card">
+                <div class="card-title">Log Viewer</div>
+                <div class="log-controls">
+                    <div class="control-group">
+                        <label for="logFile">File:</label>
+                        <select id="logFile" onchange="loadLog()">
+                            <option value="">-- Select log file --</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <label for="filterLevel">Filter:</label>
+                        <select id="filterLevel" onchange="filterLines()">
+                            <option value="ALL">All</option>
+                            <option value="ERROR">Errors only</option>
+                            <option value="WARNING">Warning+</option>
+                            <option value="INFO">Info+</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <label for="searchText">Search:</label>
+                        <input type="text" id="searchText" placeholder="Search..." onkeyup="filterLines()">
+                    </div>
+                </div>
+                <div id="stats" class="stats" style="margin-top:12px;">Select a log file to view</div>
+            </div>
+
+            <div id="loading" class="loading" style="display:none;">
+                <div class="spinner"></div>
+                <p>Loading log...</p>
+            </div>
+
+            <div id="logContainer" class="log-container">
+                <div class="no-logs">
+                    <p style="font-size:1.2em;">👆 Select a log file above</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ════════════════════════════════════════════════════════
+             TAB 2: SYNC FINGERPRINT
+        ════════════════════════════════════════════════════════ -->
+        <div id="tab-fingerprint" class="tab-panel">
+
+            <!-- Source + Target on same row -->
+            <div class="fp-machines-row">
+
+                <!-- Source machine -->
+                <div class="card fp-card-source">
+                    <div class="card-title">
+                        <span class="section-num">1</span>
+                        Source Device
+                    </div>
+                    <div class="form-group" style="margin-bottom:10px;">
+                        <label>Master / Source Machine</label>
+                        <select id="masterMachine" style="width:100%;">
+                            <option value="">-- Loading machines... --</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-primary" style="width:100%;" onclick="loadMasterUsers()">
+                        🔄 Load users from source machine
+                    </button>
+                    <div id="masterLoadStatus" style="margin-top:10px;"></div>
+                </div>
+
+                <!-- Target machines + ERP option -->
+                <div class="card fp-card-targets">
+                    <div class="card-title">
+                        <span class="section-num">2</span>
+                        Destinations
+                    </div>
+
+                    <!-- Sync to ERPNext toggle -->
+                    <label style="display:flex;align-items:center;gap:10px;padding:10px 12px;
+                                  border:1px solid var(--border);border-radius:var(--radius-sm);
+                                  margin-bottom:10px;cursor:pointer;background:var(--bg);">
+                        <input type="checkbox" id="fpSyncToErp" checked
+                            style="width:16px;height:16px;accent-color:var(--primary);cursor:pointer;">
+                        <div>
+                            <div style="font-size:13px;font-weight:600;color:var(--text);">Sync to ERPNext</div>
+                            <div style="font-size:11px;color:var(--text-3);">Save fingerprints data into Employee -
+                                Fingerprints table</div>
+                        </div>
+                    </label>
+
+                    <!-- Target devices -->
+                    <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
+                        <div
+                            style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3);flex:1;">
+                            Target Devices
+                        </div>
+                        <button class="btn btn-sm btn-secondary" style="padding:2px 8px;font-size:11px;"
+                            onclick="selectAllTargets(true)">All</button>
+                        <button class="btn btn-sm btn-secondary" style="padding:2px 8px;font-size:11px;"
+                            onclick="selectAllTargets(false)">None</button>
+                    </div>
+                    <div id="targetMachineList" class="machine-list" style="max-height:200px;">
+                        <div class="loading" style="padding:15px;">
+                            <div class="spinner"></div>
+                            <p>Loading...</p>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Section 3: Filter Employee -->
+            <div class="card">
+                <div class="card-title">
+                    <span class="section-num">3</span>
+                    Filter Employees from ERPNext
+                    <span style="font-size:12px;color:var(--text-3);font-weight:400;">(optional — leave blank to show
+                        all)</span>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Employee ID</label>
+                        <input type="text" id="filterEmpId" placeholder="TIQN-0001">
+                    </div>
+                    <div class="form-group">
+                        <label>Full Name</label>
+                        <input type="text" id="filterEmpName" placeholder="Enter name">
+                    </div>
+                    <div class="form-group">
+                        <label>Fingerprint ID</label>
+                        <input type="text" id="filterDeviceId" placeholder="001">
+                    </div>
+                    <div class="form-group">
+                        <label>Date of Joining ≥</label>
+                        <input type="date" id="filterJoinDate">
+                    </div>
+                    <button class="btn btn-primary" onclick="applyEmployeeFilter()">🔍 Filter</button>
+                    <button class="btn btn-secondary" onclick="clearEmployeeFilter()">✕ Clear</button>
+                </div>
+                <div id="filterStatus" style="margin-top:8px;"></div>
+            </div>
+
+            <!-- Section 4: User list -->
+            <div class="card">
+                <div class="card-title">
+                    <span class="section-num">4</span>
+                    Users on Source Machine
+                    <div style="margin-left:auto; display:flex; gap:8px;">
+                        <button class="btn btn-sm btn-secondary" onclick="selectAllUsers(true)">All</button>
+                        <button class="btn btn-sm btn-secondary" onclick="selectAllUsers(false)">None</button>
+                    </div>
+                </div>
+                <div id="userTableStats" class="stats" style="margin-bottom:12px;">No data loaded yet</div>
+                <div id="userTableWrap">
+                    <div class="no-logs">
+                        <p>👆 Click "Load users from source machine" above</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sync Button -->
+            <div style="text-align:center; margin-bottom:20px;">
+                <button class="btn btn-success" id="syncBtn" onclick="startSync()"
+                    style="padding:12px 32px; font-size:15px;" disabled>
+                    ▶ Sync Fingerprints
+                </button>
+                <div id="syncSummary" style="margin-top:8px; color:var(--text-2); font-size:13px;"></div>
+            </div>
+
+            <!-- Section 5: Progress -->
+            <div class="card progress-section" id="progressSection">
+                <div class="card-title">⏳ Sync Progress</div>
+                <div id="progressPhase" style="font-size:13px; color:var(--text-2); margin-bottom:12px;"></div>
+                <div id="machineProgressList"></div>
+                <div class="result-log" id="resultLog"></div>
+            </div>
+
+        </div><!-- end tab-fingerprint -->
+
+        <!-- ════════════════════════════════════════════════════════
+             TAB 4.1: ERP → ATTENDANCE MACHINES
+        ════════════════════════════════════════════════════════ -->
+        <div id="tab-fp41" class="tab-panel">
+
+            <div class="card">
+                <div class="card-title"><span class="section-num">1</span> Select Employees to Sync</div>
+                <div class="form-row" style="margin-bottom:10px;">
+                    <div class="form-group">
+                        <label>Scope</label>
+                        <select id="fp41Scope" onchange="onFp41ScopeChange()">
+                            <option value="all">All Active Employees</option>
+                            <option value="date">Employees joined from date ≥</option>
+                            <option value="manual">Manual input (Employee IDs)</option>
+                        </select>
+                    </div>
+                    <div class="form-group" id="fp41DateGroup" style="display:none;">
+                        <label>Date of Joining ≥</label>
+                        <input type="date" id="fp41JoinDate">
+                    </div>
+                </div>
+                <div id="fp41ManualGroup" style="display:none;margin-bottom:10px;">
+                    <label
+                        style="font-size:13px;font-weight:500;color:var(--text-2);display:block;margin-bottom:4px;">Employee
+                        IDs (one per line)</label>
+                    <textarea id="fp41ManualIds" class="form-control" rows="4"
+                        placeholder="TIQN-0001&#10;TIQN-0002&#10;TIQN-0003"></textarea>
+                </div>
+                <button class="btn btn-primary" onclick="fp41LoadEmployees()">🔍 Load Employees</button>
+                <div id="fp41EmpStatus" style="margin-top:8px;font-size:13px;"></div>
+                <div id="fp41EmpTableWrap" style="display:none;margin-top:12px;">
+                    <div class="all-info-table-wrap">
+                        <table id="fp41EmpTable">
+                            <thead>
+                                <tr>
+                                    <th style="width:32px;">#</th>
+                                    <th>Employee</th>
+                                    <th>Employee Name</th>
+                                    <th>Attendance Device ID</th>
+                                    <th>Group</th>
+                                </tr>
+                            </thead>
+                            <tbody id="fp41EmpTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title"><span class="section-num">2</span> Select Target Machines</div>
+                <div style="display:flex;gap:8px;margin-bottom:10px;">
+                    <button class="btn btn-sm btn-secondary" onclick="fp41SelectAllMachines(true)">All</button>
+                    <button class="btn btn-sm btn-secondary" onclick="fp41SelectAllMachines(false)">None</button>
+                </div>
+                <div id="fp41MachineList" class="machine-list">
+                    <div class="loading" style="padding:15px;">
+                        <div class="spinner"></div>
+                        <p>Loading machines...</p>
+                    </div>
+                </div>
+            </div>
+
+            <div style="text-align:center;margin-bottom:20px;">
+                <button class="btn btn-success" id="fp41SyncBtn" onclick="fp41StartSync()"
+                    style="padding:12px 32px;font-size:15px;" disabled>
+                    ▶ Sync ERP → Machines
+                </button>
+                <div id="fp41SyncSummary" style="margin-top:8px;color:var(--text-2);font-size:13px;"></div>
+            </div>
+
+            <div class="card progress-section" id="fp41ProgressSection">
+                <div class="card-title">⏳ Sync Progress — ERP → Machines</div>
+                <div id="fp41ProgressPhase" style="font-size:13px;color:var(--text-2);margin-bottom:8px;"></div>
+                <div class="progress-bar-wrap" style="margin-bottom:10px;">
+                    <div class="progress-bar" id="fp41ProgressBar" style="width:0%;"></div>
+                </div>
+                <div class="result-log" id="fp41ResultLog"></div>
+            </div>
+
+        </div><!-- end tab-fp41 -->
+
+        <!-- ════════════════════════════════════════════════════════
+             TAB 4.3: REMOVE LEFT STAFF FROM ATTENDANCE MACHINES
+        ════════════════════════════════════════════════════════ -->
+        <div id="tab-del43" class="tab-panel">
+
+            <div class="card">
+                <div class="alert alert-warning" style="margin-bottom:14px;">
+                    <strong>⚠ Important notes:</strong><br>
+                    • <strong>Active</strong> employees will <strong>NEVER</strong> be deleted.<br>
+                    • Fingerprint data in <strong>ERPNext is NEVER deleted</strong> — only removed from the attendance
+                    device.<br>
+                    • Only <strong>resigned</strong> employees past the configured delay threshold are removed.
+                </div>
+                <div class="form-row" style="flex-wrap:wrap;align-items:flex-end;gap:16px;">
+                    <div class="form-group">
+                        <label>Days to wait after <code>relieving_date</code></label>
+                        <select id="del43DelayDays">
+                            <option value="15">15 days</option>
+                            <option value="30">30 days</option>
+                            <option value="45" selected>45 days (default)</option>
+                            <option value="60">60 days</option>
+                            <option value="90">90 days</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="justify-content:flex-end;padding-bottom:2px;">
+                        <label
+                            style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:normal;margin:0;">
+                            <input type="checkbox" id="del43IncludeUnmatched"
+                                style="width:15px;height:15px;accent-color:var(--primary);">
+                            <span style="font-size:13px;">Also delete user_ids <strong>not matched</strong> to any
+                                employee in ERPNext</span>
+                        </label>
+                    </div>
+                </div>
+                <div style="margin-top:14px;display:flex;gap:10px;align-items:center;">
+                    <button class="btn btn-primary" id="del43ScanBtn" onclick="del43Scan()">🔍 Scan All
+                        Machines</button>
+                    <span id="del43ScanStatus" style="font-size:13px;color:var(--text-2);"></span>
+                </div>
+            </div>
+
+            <div id="del43PreviewSection" style="display:none;">
+                <div class="card">
+                    <div class="card-title">📋 Scan Results — Confirm Deletion</div>
+                    <div id="del43ScanSummary" style="margin-bottom:12px;"></div>
+                    <div id="del43PreviewTable"></div>
+                    <div style="margin-top:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+                        <button class="btn btn-danger" id="del43DeleteBtn" onclick="del43Delete()">🗑 Delete Selected
+                            Users</button>
+                        <button class="btn btn-secondary" onclick="del43ResetPreview()">✕ Cancel</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card progress-section" id="del43ProgressSection">
+                <div class="card-title">⏳ Deletion Progress</div>
+                <div id="del43ProgressPhase" style="font-size:13px;color:var(--text-2);margin-bottom:8px;"></div>
+                <div class="progress-bar-wrap" style="margin-bottom:10px;">
+                    <div class="progress-bar" id="del43ProgressBar" style="width:0%;"></div>
+                </div>
+                <div class="result-log" id="del43ResultLog"></div>
+            </div>
+
+        </div><!-- end tab-del43 -->
+
+        <!-- ════════════════════════════════════════════════════════
+             TAB MACHINES MANAGEMENT
+        ════════════════════════════════════════════════════════ -->
+        <div id="tab-machines" class="tab-panel">
+
+            <div class="global-actions toolbar">
+                <strong style="font-size:13px;color:var(--text-2);margin-right:4px;">Bulk actions:</strong>
+                <button class="btn btn-primary btn-sm" onclick="machinesRefresh()">🔄 Refresh</button>
+                <button class="btn btn-sm btn-info-sm" onclick="machinesSyncTimeAll()">🕐 Sync Time All</button>
+                <button class="btn btn-sm btn-danger-sm" onclick="machinesRebootAll()">🔁 Reboot All ⚠</button>
+                <button class="btn btn-sm" style="background:#7c3aed;color:#fff;" onclick="machinesLoadAllInfo()">📊
+                    Load Info All</button>
+                <span id="machinesGlobalStatus" style="font-size:13px;color:var(--text-2);margin-left:8px;"></span>
+            </div>
+
+            <div id="machinesLoadingArea" class="loading">
+                <div class="spinner"></div>
+                <p style="margin-top:8px;">Loading attendance machines...</p>
+            </div>
+
+            <div id="machineCardsGrid" class="machine-grid" style="display:none;"></div>
+
+            <!-- All-machines info table -->
+            <div id="allMachinesInfoSection" style="display:none;margin-top:18px;">
+                <div class="card">
+                    <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;">
+                        <span>📊 All Machines — Hardware Info</span>
+                        <span id="allInfoTimestamp"
+                            style="font-size:11px;color:var(--text-3);font-weight:normal;"></span>
+                    </div>
+                    <div class="all-info-table-wrap">
+                        <table id="allMachinesInfoTable">
+                            <thead>
+                                <tr>
+                                    <th>Machine</th>
+                                    <th>IP : Port</th>
+                                    <th>Firmware</th>
+                                    <th>Serial</th>
+                                    <th>Platform</th>
+                                    <th>FP Version</th>
+                                    <th>Users</th>
+                                    <th>Fingerprints</th>
+                                    <th>Records</th>
+                                    <th>Device Time</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="allMachinesInfoBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+        </div><!-- end tab-machines -->
+
+    </div><!-- end main-wrap -->
+
+    <script>
+        // ─── CSRF token — injected from Python context via Jinja ─────────────────
+        window.csrf_token = "{{ csrf_token }}";
+
+        // ─── Helper: parse Frappe error response ──────────────────────────────────────
+        function _parseFrappeError(data, httpStatus) {
+            let msg = '';
+            try { msg = JSON.parse(JSON.parse(data._server_messages || '[]')[0]).message; } catch { }
+            return msg || data.exc_type || data.exc || `HTTP ${httpStatus}`;
+        }
+
+        // ─── GET helper (read-only, no CSRF needed) ───────────────────────────────────
+        async function callGet(method, args) {
+            const params = new URLSearchParams();
+            for (const [k, v] of Object.entries(args || {})) {
+                if (v !== null && v !== undefined && v !== '') params.set(k, String(v));
+            }
+            const qs = params.toString();
+            const url = `/api/method/${method}` + (qs ? `?${qs}` : '');
+            const res = await fetch(url, { credentials: 'same-origin' });
+            if (res.status === 403 || res.status === 401) { location.reload(); throw new Error('Session expired'); }
+            let data;
+            try { data = await res.json(); }
+            catch (e) { throw new Error(`HTTP ${res.status} — response is not JSON`); }
+            if (!res.ok || data.exc || data.exc_type) throw new Error(_parseFrappeError(data, res.status));
+            if (data.message === undefined) throw new Error(`Server returned empty response (HTTP ${res.status})`);
+            return data.message;
+        }
+
+        // ─── POST helper (write operations, CSRF required) ────────────────────────────
+        async function callPost(method, args) {
+            const fd = new FormData();
+            fd.append('csrf_token', window.csrf_token);
+            for (const [k, v] of Object.entries(args || {})) {
+                fd.append(k, v === null || v === undefined ? '' : String(v));
+            }
+            const res = await fetch(`/api/method/${method}`, {
+                method: 'POST', credentials: 'same-origin', body: fd
+            });
+            if (res.status === 403 || res.status === 401) { location.reload(); throw new Error('Session expired'); }
+            let data;
+            try { data = await res.json(); }
+            catch (e) { throw new Error(`HTTP ${res.status} — response is not JSON`); }
+            if (!res.ok || data.exc || data.exc_type) throw new Error(_parseFrappeError(data, res.status));
+            if (data.message === undefined) throw new Error(`Server returned empty response (HTTP ${res.status})`);
+            return data.message;
+        }
+
+        // ─── Tab switching ────────────────────────────────────────────────────────────
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            const panel = document.getElementById(tabId);
+            if (panel) panel.classList.add('active');
+            const btn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
+            if (btn) btn.classList.add('active');
+            // Lazy actions on tab open
+            if (tabId === 'tab-machines' && !_machinesLoaded) loadMachineCards();
+            if (tabId === 'tab-fp41' && _allMachines.length) fp41RenderMachines();
+        }
+
+        function escapeHtml(text) {
+            const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+            return String(text).replace(/[&<>"']/g, m => map[m]);
+        }
+
+        // ════════════════════════════════════════════════════════════════════════════
+        // TAB 1 — LOG VIEWER
+        // ════════════════════════════════════════════════════════════════════════════
+        let allLines = [];
+
+        window.addEventListener('DOMContentLoaded', () => {
+            loadLogFiles();
+            loadMachinesForFingerprint();
+        });
+
+        async function loadLogFiles() {
+            try {
+                const res = await fetch('/api/method/customize_erpnext.api.biometric_log_viewer.get_log_files');
+                const data = await res.json();
+                if (data.message && data.message.status === 'success') {
+                    const files = data.message.files;
+                    const sel = document.getElementById('logFile');
+                    sel.innerHTML = '<option value="">-- Select log file --</option>';
+                    files.forEach(f => {
+                        const o = document.createElement('option');
+                        o.value = f; o.textContent = f;
+                        sel.appendChild(o);
+                    });
+                    if (files.includes('logs.log')) { sel.value = 'logs.log'; loadLog(); }
+                }
+            } catch (e) { console.error(e); }
+        }
+
+        async function loadLog() {
+            const logFile = document.getElementById('logFile').value;
+            const loading = document.getElementById('loading');
+            const logContainer = document.getElementById('logContainer');
+            if (!logFile) {
+                logContainer.innerHTML = '<div class="no-logs"><p style="font-size:1.2em;">👆 Select a log file</p></div>';
+                return;
+            }
+            loading.style.display = 'block';
+            logContainer.style.display = 'none';
+            try {
+                const res = await fetch('/api/method/customize_erpnext.api.biometric_log_viewer.get_log_content?log_file=' + encodeURIComponent(logFile));
+                const data = await res.json();
+                if (data.message && data.message.status === 'success') {
+                    allLines = data.message.content.split('\n').filter(l => l.trim());
+                    allLines.reverse();
+                }
+                loading.style.display = 'none';
+                logContainer.style.display = 'block';
+                filterLines();
+            } catch (e) {
+                loading.style.display = 'none';
+                logContainer.innerHTML = `<div class="no-logs"><p style="color:#dc3545;">❌ Error: ${escapeHtml(e.message)}</p></div>`;
+                logContainer.style.display = 'block';
+            }
+        }
+
+        function filterLines() {
+            const filterLevel = document.getElementById('filterLevel').value;
+            const searchText = document.getElementById('searchText').value.toLowerCase();
+            const logContainer = document.getElementById('logContainer');
+            let lines = allLines;
+            if (filterLevel !== 'ALL') {
+                const levels = { ERROR: ['ERROR', 'CRITICAL'], WARNING: ['ERROR', 'CRITICAL', 'WARNING'], INFO: ['ERROR', 'CRITICAL', 'WARNING', 'INFO'] };
+                lines = lines.filter(l => levels[filterLevel].some(lv => l.includes(lv)));
+            }
+            if (searchText) lines = lines.filter(l => l.toLowerCase().includes(searchText));
+            if (!lines.length) {
+                logContainer.innerHTML = '<div class="no-logs"><p>No matching log lines found</p></div>';
+            } else {
+                logContainer.innerHTML = lines.map(l => {
+                    let cls = 'log-line';
+                    if (l.includes('ERROR') || l.includes('CRITICAL')) cls += ' error';
+                    else if (l.includes('WARNING')) cls += ' warning';
+                    else if (l.includes('INFO')) cls += ' info';
+                    return `<div class="${cls}">${escapeHtml(l)}</div>`;
+                }).join('');
+            }
+            document.getElementById('stats').textContent = `Showing ${lines.length} / ${allLines.length} lines`;
+        }
+
+        // ════════════════════════════════════════════════════════════════════════════
+        // TAB 2 — SYNC FINGERPRINT
+        // ════════════════════════════════════════════════════════════════════════════
+
+        let _allMachines = [];       // full list of enabled machines
+        let _masterUsers = [];       // users returned from master device
+        let _filteredDeviceIds = null; // set of device IDs from ERPNext filter, or null (no filter)
+        let _pollTimer = null;
+
+        // ── Load machines ─────────────────────────────────────────────────────────────
+        async function loadMachinesForFingerprint() {
+            try {
+                const msg = await callGet('customize_erpnext.api.utilities.get_enabled_attendance_machines', {});
+                if (!msg.success) throw new Error(msg.message);
+                _allMachines = msg.machines;
+                renderMasterDropdown();
+                renderTargetMachines(null); // null = no master selected yet
+                fp41RenderMachines();       // also populate 4.1 machine list
+            } catch (e) {
+                document.getElementById('targetMachineList').innerHTML =
+                    `<div class="alert alert-danger">❌ Failed to load machines: ${escapeHtml(e.message)}</div>`;
+            }
+        }
+
+        function renderMasterDropdown() {
+            const sel = document.getElementById('masterMachine');
+            sel.innerHTML = '<option value="">-- Select source machine --</option>';
+            _allMachines.forEach(m => {
+                const o = document.createElement('option');
+                o.value = m.name;
+                const statusIcon = m.connection_status === 'online' ? '🟢' : '🔴';
+                o.textContent = `${statusIcon} ${m.name} — ${m.device_name} (${m.ip_address})`;
+                sel.appendChild(o);
+            });
+            sel.addEventListener('change', () => renderTargetMachines(sel.value));
+            renderTargetMachines(sel.value);
+        }
+
+        function renderTargetMachines(masterName) {
+            const wrap = document.getElementById('targetMachineList');
+            const targets = _allMachines.filter(m => m.name !== masterName);
+            if (!targets.length) {
+                wrap.innerHTML = '<div class="alert alert-info">No target machines (need at least 2 enabled machines)</div>';
+                updateSyncButton();
+                return;
+            }
+            wrap.innerHTML = targets.map(m => {
+                const isOnline = m.connection_status === 'online';
+                const statusIcon = isOnline ? '🟢' : '🔴';
+                return `
+        <label class="machine-item">
+            <input type="checkbox" class="target-machine-cb" value="${escapeHtml(m.name)}" checked>
+            <span class="machine-item-label">
+                ${statusIcon} <strong>${escapeHtml(m.name)}</strong> — ${escapeHtml(m.device_name)}
+                <span style="color:var(--text-3);">(${escapeHtml(m.ip_address)})</span>
+            </span>
+            ${m.response_time > 0 ? `<span class="badge">${m.response_time}ms</span>` : ''}
+        </label>`;
+            }).join('');
+            updateSyncButton();
+        }
+
+        function selectAllTargets(checked) {
+            document.querySelectorAll('.target-machine-cb').forEach(cb => cb.checked = checked);
+            updateSyncButton();
+        }
+
+        // ── Load master device users ──────────────────────────────────────────────────
+        async function loadMasterUsers() {
+            const masterName = document.getElementById('masterMachine').value;
+            if (!masterName) { alert('Please select a source machine'); return; }
+
+            const statusEl = document.getElementById('masterLoadStatus');
+            const tableWrap = document.getElementById('userTableWrap');
+            const statsEl = document.getElementById('userTableStats');
+
+            statusEl.innerHTML = '<div class="loading"><div class="spinner"></div><p>Connecting to source machine and reading users...</p></div>';
+            tableWrap.innerHTML = '';
+            statsEl.textContent = 'Loading...';
+
+            // Update target list to exclude selected master
+            renderTargetMachines(masterName);
+
+            try {
+                const msg = await callGet('customize_erpnext.api.biometric_sync.get_master_device_users', {
+                    machine_name: masterName
+                });
+                if (msg.status !== 'success') throw new Error(msg.message);
+
+                _masterUsers = msg.users;
+                _filteredDeviceIds = null; // reset filter
+                statusEl.innerHTML = `<div class="alert alert-success">✅ Loaded ${msg.total_on_device} users from ${escapeHtml(masterName)}</div>`;
+                renderUserTable(_masterUsers);
+            } catch (e) {
+                statusEl.innerHTML = `<div class="alert alert-danger">❌ Error: ${escapeHtml(e.message)}</div>`;
+                statsEl.textContent = 'Failed to load data';
+            }
+        }
+
+        // ── Employee filter ───────────────────────────────────────────────────────────
+        async function applyEmployeeFilter() {
+            const statusEl = document.getElementById('filterStatus');
+            const employee = document.getElementById('filterEmpId').value.trim();
+            const employee_name = document.getElementById('filterEmpName').value.trim();
+            const attendance_device_id = document.getElementById('filterDeviceId').value.trim();
+            const date_of_joining = document.getElementById('filterJoinDate').value;
+
+            if (!employee && !employee_name && !attendance_device_id && !date_of_joining) {
+                _filteredDeviceIds = null;
+                renderUserTable(_masterUsers);
+                statusEl.innerHTML = '';
+                return;
+            }
+
+            statusEl.innerHTML = '<span style="color:#6c757d;">🔍 Filtering...</span>';
+            try {
+                const msg = await callGet('customize_erpnext.api.biometric_sync.get_employees_for_sync', {
+                    employee, employee_name, attendance_device_id, date_of_joining
+                });
+                if (msg.status !== 'success') throw new Error(msg.message);
+                _filteredDeviceIds = new Set(msg.employees.map(e => String(e.attendance_device_id)).filter(Boolean));
+                statusEl.innerHTML = `<span style="color:#28a745;">✓ Found ${msg.count} matching employees</span>`;
+                renderUserTable(_masterUsers);
+            } catch (e) {
+                statusEl.innerHTML = `<span style="color:#dc3545;">❌ ${escapeHtml(e.message)}</span>`;
+            }
+        }
+
+        function clearEmployeeFilter() {
+            document.getElementById('filterEmpId').value = '';
+            document.getElementById('filterEmpName').value = '';
+            document.getElementById('filterDeviceId').value = '';
+            document.getElementById('filterJoinDate').value = '';
+            document.getElementById('filterStatus').innerHTML = '';
+            _filteredDeviceIds = null;
+            renderUserTable(_masterUsers);
+        }
+
+        // ── Render user table ─────────────────────────────────────────────────────────
+        function renderUserTable(users) {
+            const wrap = document.getElementById('userTableWrap');
+            const statsEl = document.getElementById('userTableStats');
+
+            if (!users || !users.length) {
+                wrap.innerHTML = '<div class="no-logs"><p>No users found on source machine</p></div>';
+                statsEl.textContent = '0 users';
+                updateSyncButton();
+                return;
+            }
+
+            // Apply device ID filter if active
+            let displayUsers = users;
+            if (_filteredDeviceIds !== null) {
+                displayUsers = users.filter(u => _filteredDeviceIds.has(String(u.user_id)));
+            }
+
+            const matched = displayUsers.filter(u => u.matched).length;
+            const total = displayUsers.length;
+            statsEl.textContent = `Showing ${total} users / ${matched} matched in ERPNext / ${total - matched} unmatched`;
+
+            if (!total) {
+                wrap.innerHTML = '<div class="no-logs"><p>No users match the filter criteria</p></div>';
+                updateSyncButton();
+                return;
+            }
+
+            const rows = displayUsers.map(u => {
+                const disabled = !u.matched ? 'disabled title="Not found in ERPNext"' : '';
+                const checked = u.matched ? 'checked' : '';
+                const rowCls = u.matched ? '' : 'unmatched';
+                const badge = u.matched
+                    ? `<span class="badge-matched">Matched</span>`
+                    : `<span class="badge-unmatched">Unmatched</span>`;
+                return `
+        <tr class="${rowCls}">
+            <td><input type="checkbox" class="user-cb" value="${escapeHtml(String(u.user_id))}" ${checked} ${disabled}></td>
+            <td>${escapeHtml(String(u.user_id))}</td>
+            <td>${escapeHtml(u.employee_name || u.device_name || '—')}</td>
+            <td>${escapeHtml(u.employee_id || '—')}</td>
+            <td>${escapeHtml(u.date_of_joining || '—')}</td>
+            <td>${badge}</td>
+        </tr>`;
+            }).join('');
+
+            wrap.innerHTML = `
+        <div class="user-table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width:40px;"><input type="checkbox" id="checkAllUsers" onchange="selectAllUsers(this.checked)" title="All / None"></th>
+                        <th>Device ID</th>
+                        <th>Employee Name</th>
+                        <th>Employee ID</th>
+                        <th>Date of Joining</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+            </table>
+        </div>`;
+
+            document.querySelectorAll('.user-cb').forEach(cb => cb.addEventListener('change', updateSyncButton));
+            updateSyncButton();
+        }
+
+        function selectAllUsers(checked) {
+            document.querySelectorAll('.user-cb:not([disabled])').forEach(cb => cb.checked = checked);
+            const allCb = document.getElementById('checkAllUsers');
+            if (allCb) allCb.checked = checked;
+            updateSyncButton();
+        }
+
+        // ── Sync button state ─────────────────────────────────────────────────────────
+        function updateSyncButton() {
+            const selectedUsers = [...document.querySelectorAll('.user-cb:checked')].length;
+            const checkedTargets = [...document.querySelectorAll('.target-machine-cb:checked')].length;
+            const syncToErp = document.getElementById('fpSyncToErp')?.checked ?? true;
+            const btn = document.getElementById('syncBtn');
+            const summary = document.getElementById('syncSummary');
+            const hasDestination = checkedTargets > 0 || syncToErp;
+            btn.disabled = (selectedUsers === 0 || !hasDestination);
+            if (selectedUsers === 0) {
+                summary.textContent = 'No users selected';
+            } else if (!hasDestination) {
+                summary.textContent = 'No destination selected';
+            } else {
+                const parts = [];
+                if (syncToErp) parts.push('ERPNext');
+                if (checkedTargets > 0) parts.push(`${checkedTargets} machine${checkedTargets > 1 ? 's' : ''}`);
+                summary.textContent = `▶ Sync ${selectedUsers} users → ${parts.join(' + ')}`;
+            }
+        }
+
+        // ── Helpers ───────────────────────────────────────────────────────────────────
+        function setProgressBar(destId, pct, label) {
+            const bar = document.getElementById(`mp_bar_${CSS.escape(destId)}`);
+            const lbl = document.getElementById(`mp_pct_${CSS.escape(destId)}`);
+            if (bar) bar.style.width = Math.min(100, pct) + '%';
+            if (lbl) lbl.textContent = label;
+        }
+
+        function buildProgressRow(id, label) {
+            return `
+        <div class="machine-progress" id="mp_${CSS.escape(id)}">
+            <div class="machine-progress-label">
+                <span>${escapeHtml(label)}</span>
+                <span id="mp_pct_${CSS.escape(id)}">⏸ Waiting...</span>
+            </div>
+            <div class="progress-bar-wrap"><div class="progress-bar" id="mp_bar_${CSS.escape(id)}" style="width:0%"></div></div>
+        </div>`;
+        }
+
+        // ── Start sync ────────────────────────────────────────────────────────────────
+        async function startSync() {
+            const masterName = document.getElementById('masterMachine').value;
+            const syncToErp = document.getElementById('fpSyncToErp').checked;
+
+            if (!masterName) { alert('Please select a source machine'); return; }
+
+            const selectedUserIds = [...document.querySelectorAll('.user-cb:checked')].map(cb => cb.value);
+            if (!selectedUserIds.length) { alert('No users selected'); return; }
+
+            // Targets: user-selected checkboxes (default = all except source)
+            const targetMachines = [...document.querySelectorAll('.target-machine-cb:checked')].map(cb => cb.value);
+
+            if (!syncToErp && targetMachines.length === 0) {
+                alert('No target machines selected. Check at least one machine or enable "Sync to ERPNext".');
+                return;
+            }
+
+            // Map device user_ids → ERPNext employee_ids (only matched users)
+            const matchedUsers = _masterUsers.filter(u =>
+                selectedUserIds.includes(String(u.user_id)) && u.matched && u.employee_id
+            );
+            const employeeIds = matchedUsers.map(u => u.employee_id);
+
+            // If syncing to ERP: check for existing fingerprints → ask for overwrite
+            if (syncToErp && employeeIds.length > 0) {
+                try {
+                    const checkMsg = await callPost(
+                        'customize_erpnext.api.biometric_sync.check_employees_fingerprints_in_erp',
+                        { employee_ids_json: JSON.stringify(employeeIds) }
+                    );
+                    const existing = checkMsg.existing || {};
+                    const existingCount = Object.keys(existing).length;
+                    if (existingCount > 0) {
+                        const preview = Object.entries(existing).slice(0, 5)
+                            .map(([id, cnt]) => {
+                                const u = matchedUsers.find(u => u.employee_id === id);
+                                return `  ${id} (${u ? u.employee_name || u.device_name || '' : ''}) — ${cnt} fingerprint(s)`;
+                            }).join('\n');
+                        const more = existingCount > 5 ? `\n  ...and ${existingCount - 5} more` : '';
+                        if (!confirm(
+                            `${existingCount} employee(s) already have fingerprints in ERPNext:\n${preview}${more}\n\nOverwrite existing data?`
+                        )) return;
+                    }
+                } catch (e) {
+                    if (!confirm(`Could not check existing fingerprints: ${e.message}\nContinue anyway?`)) return;
+                }
+            }
+
+            // Final confirm
+            const destParts = [];
+            if (syncToErp) destParts.push('ERPNext');
+            if (targetMachines.length) destParts.push(`${targetMachines.length} machine(s): ${targetMachines.join(', ')}`);
+            if (!confirm(`Sync ${selectedUserIds.length} user(s) from ${masterName}\n→ ${destParts.join('\n→ ')}`)) return;
+
+            const btn = document.getElementById('syncBtn');
+            btn.disabled = true;
+            btn.textContent = '⏳ Starting...';
+
+            // Build progress section
+            const ps = document.getElementById('progressSection');
+            ps.classList.add('visible');
+            document.getElementById('resultLog').innerHTML = '';
+            document.getElementById('progressPhase').textContent = 'Preparing...';
+
+            const progressRows = [];
+            if (syncToErp) progressRows.push(buildProgressRow('__erp__', '🗄 ERPNext'));
+            targetMachines.forEach(m => progressRows.push(buildProgressRow(m, m)));
+            document.getElementById('machineProgressList').innerHTML = progressRows.join('');
+
+            try {
+                if (!syncToErp) {
+                    // ── Device-to-device only ────────────────────────────────────────────
+                    document.getElementById('progressPhase').textContent = 'Phase 1: Device → Devices...';
+                    const msg = await callPost('customize_erpnext.api.biometric_sync.sync_fingerprints', {
+                        master_machine_name: masterName,
+                        target_machine_names_json: JSON.stringify(targetMachines),
+                        user_ids_json: JSON.stringify(selectedUserIds),
+                        sync_to_erp: '0',
+                    });
+                    if (msg.status !== 'success') throw new Error(msg.message);
+                    appendResultLog('info-line', `Job ${msg.job_id} submitted — polling...`);
+                    await pollSyncJob(msg.job_id, targetMachines, selectedUserIds.length, null);
+
+                } else {
+                    // ── Phase 1: Device → ERPNext ────────────────────────────────────────
+                    setProgressBar('__erp__', 5, '⏳ Phase 1 running...');
+                    document.getElementById('progressPhase').textContent = 'Phase 1: Reading fingerprints from device → ERPNext...';
+                    const msg = await callPost('customize_erpnext.api.biometric_sync.sync_fingerprints', {
+                        master_machine_name: masterName,
+                        target_machine_names_json: JSON.stringify([]),
+                        user_ids_json: JSON.stringify(selectedUserIds),
+                        sync_to_erp: '1',
+                    });
+                    if (msg.status !== 'success') throw new Error(msg.message);
+                    appendResultLog('info-line', `Phase 1 job ${msg.job_id} submitted — polling...`);
+                    await pollSyncJob(msg.job_id, [], selectedUserIds.length, '__erp__');
+
+                    // ── Phase 2: ERPNext → Devices ───────────────────────────────────────
+                    if (targetMachines.length > 0) {
+                        document.getElementById('progressPhase').textContent = 'Phase 2: Pushing fingerprints ERPNext → devices...';
+                        await runPhase2(employeeIds, matchedUsers, targetMachines);
+                    }
+                }
+
+                document.getElementById('progressPhase').textContent = '✅ Sync complete';
+                appendResultLog('info-line', '\n=== SYNC COMPLETE ===');
+            } catch (e) {
+                document.getElementById('progressPhase').textContent = '❌ Error: ' + e.message;
+                appendResultLog('fail', '❌ ' + e.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '▶ Sync Fingerprints';
+            }
+        }
+
+        // ── Phase 1 polling (background job) ─────────────────────────────────────────
+        function pollSyncJob(jobId, machines, totalUsers, erpDestId) {
+            return new Promise((resolve, reject) => {
+                if (_pollTimer) clearInterval(_pollTimer);
+                let lastCount = 0;
+
+                _pollTimer = setInterval(async () => {
+                    try {
+                        const msg = await callGet('customize_erpnext.api.biometric_sync.get_sync_job_status', { job_id: jobId });
+                        if (msg.status === 'not_found') return;
+                        const d = msg.data;
+                        const pct = d.progress_pct || 0;
+                        const doneUsers = d.done_users || 0;
+
+                        document.getElementById('progressPhase').textContent = d.phase || '';
+
+                        // Update progress bars
+                        const destIds = erpDestId ? [erpDestId] : machines;
+                        destIds.forEach(id => {
+                            if (d.status === 'done') setProgressBar(id, 100, '✅ Done');
+                            else if (d.status === 'running') setProgressBar(id, pct, `${pct}% (${doneUsers}/${totalUsers})`);
+                            else setProgressBar(id, pct, '⏸ Queued...');
+                        });
+
+                        // Append new result lines
+                        (d.results || []).slice(lastCount).forEach(r => {
+                            appendResultLog(r.success ? 'ok' : 'fail',
+                                `${r.success ? '✓' : '✗'} User ${r.user_id} → ${r.machine}: ${r.message}`);
+                        });
+                        lastCount = (d.results || []).length;
+
+                        if (d.status === 'done') {
+                            clearInterval(_pollTimer); _pollTimer = null;
+                            const ok = (d.results || []).filter(r => r.success).length;
+                            const fail = (d.results || []).length - ok;
+                            appendResultLog('info-line', `Phase 1 complete: ${ok} OK / ${fail} failed`);
+                            resolve();
+                        } else if (d.status === 'error') {
+                            clearInterval(_pollTimer); _pollTimer = null;
+                            reject(new Error(d.error || 'Phase 1 failed'));
+                        }
+                    } catch (e) {
+                        console.error('Poll error:', e);
+                    }
+                }, 1500);
+            });
+        }
+
+        // ── Phase 2: ERPNext → each device (sequential per machine) ──────────────────
+        async function runPhase2(employeeIds, matchedUsers, targetMachines) {
+            for (const machine of targetMachines) {
+                let ok = 0, fail = 0;
+                setProgressBar(machine, 2, `0/${employeeIds.length}`);
+
+                for (const empId of employeeIds) {
+                    try {
+                        const result = await callPost(
+                            'customize_erpnext.api.utilities.sync_employee_to_single_machine',
+                            { employee_id: empId, machine_name: machine }
+                        );
+                        if (result && result.success) {
+                            appendResultLog('ok', `✓ ${empId} → ${machine}: ${result.message}`);
+                            ok++;
+                        } else {
+                            appendResultLog('fail', `✗ ${empId} → ${machine}: ${result ? result.message : 'No response'}`);
+                            fail++;
+                        }
+                    } catch (e) {
+                        appendResultLog('fail', `✗ ${empId} → ${machine}: ${e.message}`);
+                        fail++;
+                    }
+                    const pct = Math.round((ok + fail) / employeeIds.length * 100);
+                    setProgressBar(machine, pct, `${ok + fail}/${employeeIds.length}`);
+                }
+
+                setProgressBar(machine, 100, `✅ ${ok} OK / ${fail} failed`);
+                appendResultLog('info-line', `--- ${machine}: ${ok} synced / ${fail} failed ---`);
+            }
+        }
+
+        function appendResultLog(cls, text) {
+            const el = document.getElementById('resultLog');
+            const span = document.createElement('div');
+            span.className = cls;
+            span.textContent = text;
+            el.appendChild(span);
+            el.scrollTop = el.scrollHeight;
+        }
+
+        // ── Wire up checkbox changes ──────────────────────────────────────────────────
+        document.addEventListener('change', e => {
+            if (e.target.id === 'fpSyncToErp') updateSyncButton();
+            if (e.target.classList.contains('target-machine-cb')) updateSyncButton();
+            if (e.target.classList.contains('fp41-machine-cb')) fp41UpdateSyncBtn();
+        });
+
+
+        // ════════════════════════════════════════════════════════════════════════════
+        // TAB 4.1 — ERP → ATTENDANCE MACHINES
+        // ════════════════════════════════════════════════════════════════════════════
+
+        let _fp41Employees = [];   // [{employee_id}]
+        let _fp41Syncing = false;
+
+        function onFp41ScopeChange() {
+            const scope = document.getElementById('fp41Scope').value;
+            document.getElementById('fp41DateGroup').style.display = scope === 'date' ? '' : 'none';
+            document.getElementById('fp41ManualGroup').style.display = scope === 'manual' ? '' : 'none';
+            _fp41Employees = [];
+            document.getElementById('fp41EmpStatus').innerHTML = '';
+            document.getElementById('fp41EmpTableWrap').style.display = 'none';
+            fp41UpdateSyncBtn();
+        }
+
+        function fp41RenderEmpTable(employees) {
+            const wrap = document.getElementById('fp41EmpTableWrap');
+            const tbody = document.getElementById('fp41EmpTableBody');
+            if (!employees.length) { wrap.style.display = 'none'; return; }
+            tbody.innerHTML = employees.map((e, i) => `
+                <tr>
+                    <td style="color:#adb5bd;">${i + 1}</td>
+                    <td><code>${escapeHtml(e.employee_id)}</code></td>
+                    <td>${escapeHtml(e.employee_name || '') || '<span class="missing">—</span>'}</td>
+                    <td>${escapeHtml(String(e.attendance_device_id ?? '')) || '<span class="missing">—</span>'}</td>
+                    <td>${escapeHtml(e.custom_group || '') || '<span class="missing">—</span>'}</td>
+                </tr>`).join('');
+            wrap.style.display = '';
+        }
+
+        async function fp41LoadEmployees() {
+            const scope = document.getElementById('fp41Scope').value;
+            const statusEl = document.getElementById('fp41EmpStatus');
+            statusEl.innerHTML = '<span style="color:#6c757d;">⏳ Loading...</span>';
+            _fp41Employees = [];
+            document.getElementById('fp41EmpTableWrap').style.display = 'none';
+            fp41UpdateSyncBtn();
+            try {
+                if (scope === 'manual') {
+                    const raw = (document.getElementById('fp41ManualIds').value || '').trim();
+                    const ids = raw.split('\n').map(s => s.trim()).filter(Boolean);
+                    if (!ids.length) { statusEl.innerHTML = '<span style="color:#dc3545;">❌ No Employee IDs entered</span>'; return; }
+                    _fp41Employees = ids.map(id => ({ employee_id: id, employee_name: '', attendance_device_id: '', custom_group: '' }));
+                    statusEl.innerHTML = `<span style="color:#28a745;">✓ ${ids.length} Employee IDs entered</span>`;
+                } else {
+                    const args = {};
+                    if (scope === 'date') {
+                        const d = document.getElementById('fp41JoinDate').value;
+                        if (d) args.date_of_joining = d;
+                    }
+                    const msg = await callGet('customize_erpnext.api.biometric_sync.get_employees_for_sync', args);
+                    if (msg.status !== 'success') throw new Error(msg.message);
+                    _fp41Employees = msg.employees.map(e => ({
+                        employee_id: e.name,
+                        employee_name: e.employee_name || '',
+                        attendance_device_id: e.attendance_device_id ?? '',
+                        custom_group: e.custom_group || '',
+                    }));
+                    statusEl.innerHTML = `<span style="color:#28a745;">✓ Loaded <strong>${msg.count}</strong> active employees</span>`;
+                }
+                fp41RenderEmpTable(_fp41Employees);
+            } catch (e) {
+                statusEl.innerHTML = `<span style="color:#dc3545;">❌ ${escapeHtml(e.message)}</span>`;
+            }
+            fp41UpdateSyncBtn();
+        }
+
+        function fp41SelectAllMachines(checked) {
+            document.querySelectorAll('.fp41-machine-cb').forEach(cb => cb.checked = checked);
+            fp41UpdateSyncBtn();
+        }
+
+        function fp41UpdateSyncBtn() {
+            const selMachines = [...document.querySelectorAll('.fp41-machine-cb:checked')].length;
+            const btn = document.getElementById('fp41SyncBtn');
+            const summary = document.getElementById('fp41SyncSummary');
+            if (!btn) return;
+            btn.disabled = (_fp41Employees.length === 0 || selMachines === 0 || _fp41Syncing);
+            if (_fp41Employees.length > 0 && selMachines > 0) {
+                const total = _fp41Employees.length * selMachines;
+                summary.textContent = `▶ Will sync ${_fp41Employees.length} employees → ${selMachines} machines (${total} operations)`;
+            } else if (_fp41Employees.length === 0) {
+                summary.textContent = 'Load employees first';
+            } else {
+                summary.textContent = 'No target machines selected';
+            }
+        }
+
+        function fp41RenderMachines() {
+            const wrap = document.getElementById('fp41MachineList');
+            if (!wrap) return;
+            if (!_allMachines.length) {
+                wrap.innerHTML = '<div class="alert alert-warning">No enabled machines found</div>';
+                return;
+            }
+            wrap.innerHTML = _allMachines.map(m => {
+                const icon = m.connection_status === 'online' ? '🟢' : '🔴';
+                const masterBadge = m.master_device ? '<span class="badge master">★ Master</span>' : '';
+                return `<label class="machine-item">
+                    <input type="checkbox" class="fp41-machine-cb" value="${escapeHtml(m.name)}"
+                        ${m.connection_status === 'online' ? 'checked' : ''}>
+                    <span class="machine-item-label">
+                        ${icon} <strong>${escapeHtml(m.name)}</strong> — ${escapeHtml(m.device_name || '')}
+                        <span style="color:#6c757d;">(${escapeHtml(m.ip_address)})</span>
+                    </span>
+                    ${masterBadge}
+                    ${m.response_time > 0 ? `<span class="badge">${m.response_time}ms</span>` : ''}
+                </label>`;
+            }).join('');
+            fp41UpdateSyncBtn();
+        }
+
+        async function fp41StartSync() {
+            const selMachines = [...document.querySelectorAll('.fp41-machine-cb:checked')].map(cb => cb.value);
+            if (!_fp41Employees.length || !selMachines.length) return;
+            const total = _fp41Employees.length * selMachines.length;
+            if (!confirm(`Confirm sync ${_fp41Employees.length} employees → ${selMachines.length} machines?\n(${total} total operations)`)) return;
+
+            _fp41Syncing = true;
+            fp41UpdateSyncBtn();
+
+            const ps = document.getElementById('fp41ProgressSection');
+            ps.classList.add('visible');
+            const logEl = document.getElementById('fp41ResultLog');
+            const phaseEl = document.getElementById('fp41ProgressPhase');
+            const barEl = document.getElementById('fp41ProgressBar');
+            logEl.innerHTML = '';
+
+            function appendLog(cls, text) {
+                const d = document.createElement('div');
+                d.className = cls; d.textContent = text;
+                logEl.appendChild(d); logEl.scrollTop = logEl.scrollHeight;
+            }
+
+            appendLog('info-line', `▶ Starting: ${_fp41Employees.length} employees × ${selMachines.length} machines = ${total} operations`);
+            let done = 0, okCount = 0, failCount = 0;
+
+            for (const machine of selMachines) {
+                for (const emp of _fp41Employees) {
+                    const empId = emp.employee_id;
+                    phaseEl.textContent = `Syncing: ${empId} → ${machine} (${done + 1}/${total})`;
+                    try {
+                        const msg = await callPost('customize_erpnext.api.utilities.sync_employee_to_single_machine', {
+                            employee_id: empId,
+                            machine_name: machine,
+                        });
+                        const ok = msg && msg.success !== false && msg.status !== 'error';
+                        const detail = msg ? (msg.message || msg.status || 'OK') : 'OK';
+                        if (ok) { okCount++; appendLog('ok', `✓ ${empId} → ${machine}: ${detail}`); }
+                        else { failCount++; appendLog('fail', `✗ ${empId} → ${machine}: ${detail}`); }
+                    } catch (e) {
+                        failCount++;
+                        appendLog('fail', `✗ ${empId} → ${machine}: ${e.message}`);
+                    }
+                    done++;
+                    barEl.style.width = Math.round(done / total * 100) + '%';
+                }
+            }
+
+            _fp41Syncing = false;
+            fp41UpdateSyncBtn();
+            phaseEl.textContent = `✅ Done: ${okCount} OK / ${failCount} errors`;
+            appendLog('info-line', `\n=== COMPLETE: ${okCount} OK / ${failCount} FAILED / ${total} total ===`);
+        }
+
+
+        // ════════════════════════════════════════════════════════════════════════════
+        // TAB 4.3 — REMOVE LEFT STAFF FROM ATTENDANCE MACHINES
+        // ════════════════════════════════════════════════════════════════════════════
+
+        let _del43ScanResult = null;
+        let _del43PollTimer = null;
+
+        async function del43Scan() {
+            const delayDays = parseInt(document.getElementById('del43DelayDays').value) || 45;
+            const inclUnmatched = document.getElementById('del43IncludeUnmatched').checked ? 1 : 0;
+            const btn = document.getElementById('del43ScanBtn');
+            const statusEl = document.getElementById('del43ScanStatus');
+
+            btn.disabled = true; btn.textContent = '⏳ Scanning...';
+            statusEl.textContent = 'Connecting and scanning all attendance machines...';
+            document.getElementById('del43PreviewSection').style.display = 'none';
+            document.getElementById('del43ProgressSection').classList.remove('visible');
+
+            try {
+                const msg = await callPost('customize_erpnext.api.biometric_sync.get_left_employees_on_machines', {
+                    delay_days: delayDays, include_unmatched: inclUnmatched,
+                });
+                if (msg.status !== 'success') throw new Error(msg.message);
+                _del43ScanResult = msg;
+                statusEl.textContent = '';
+                del43RenderPreview(msg);
+            } catch (e) {
+                statusEl.innerHTML = `<span style="color:#dc3545;">❌ ${escapeHtml(e.message)}</span>`;
+            }
+            btn.disabled = false; btn.textContent = '🔍 Scan All Machines';
+        }
+
+        function del43RenderPreview(result) {
+            const users = result.users_to_delete || [];
+            const machines = result.machines_scanned || [];
+
+            // Machines summary
+            const mHtml = machines.map(m => {
+                const icon = m.success ? '✅' : '❌';
+                const info = m.success ? `${m.total_users} users` : escapeHtml(m.error || 'Error');
+                return `<span style="display:inline-flex;align-items:center;gap:4px;margin:2px 6px 2px 0;
+                    font-size:12px;padding:2px 8px;background:#f0f0f0;border-radius:4px;">
+                    ${icon} <strong>${escapeHtml(m.machine)}</strong> (${info})
+                </span>`;
+            }).join('');
+
+            document.getElementById('del43ScanSummary').innerHTML = `
+                <div style="margin-bottom:10px;">
+                    <div style="font-size:12px;color:#6c757d;margin-bottom:6px;">Scanned machines:</div>
+                    <div style="flex-wrap:wrap;display:flex;">${mHtml}</div>
+                </div>
+                <div style="font-size:13px;color:#6c757d;margin-bottom:4px;">
+                    Today: <strong>${escapeHtml(result.today)}</strong> &nbsp;|&nbsp;
+                    Threshold: <strong>${result.delay_days} days</strong> &nbsp;|&nbsp;
+                    Total user IDs on devices: <strong>${result.total_unique_user_ids}</strong> &nbsp;|&nbsp;
+                    To keep: <strong>${result.users_to_keep_count}</strong>
+                </div>`;
+
+            const tableEl = document.getElementById('del43PreviewTable');
+            const delBtn = document.getElementById('del43DeleteBtn');
+
+            if (!users.length) {
+                tableEl.innerHTML = '<div class="alert alert-success">✅ No users need to be deleted with the current settings.</div>';
+                delBtn.style.display = 'none';
+            } else {
+                const leftCount = users.filter(u => u.reason_type === 'left_employee').length;
+                const unmatchedCount = users.filter(u => u.reason_type === 'unmatched').length;
+
+                const rows = users.map((u, idx) => {
+                    const empCell = u.employee_id
+                        ? `<strong>${escapeHtml(u.employee_name || '')}</strong><br><small>${escapeHtml(u.employee_id)}</small>`
+                        : `<em style="color:#999;">— not found in ERPNext</em>`;
+                    const rdCell = u.relieving_date
+                        ? `${escapeHtml(u.relieving_date)}<br><small style="color:#dc3545;">(+${u.days_since_relieving}d)</small>`
+                        : '—';
+                    const macTags = (u.machines || []).map(m =>
+                        `<span style="font-size:11px;padding:1px 5px;background:#e9ecef;border-radius:3px;margin:1px;">${escapeHtml(m)}</span>`
+                    ).join('');
+                    return `<tr>
+                        <td style="text-align:center;padding:6px 4px;">
+                            <input type="checkbox" class="del43-user-chk" data-idx="${idx}" checked style="width:14px;height:14px;">
+                        </td>
+                        <td style="padding:6px 8px;"><strong>${escapeHtml(String(u.user_id))}</strong></td>
+                        <td style="padding:6px 8px;">${empCell}</td>
+                        <td style="padding:6px 8px;font-size:12px;">${escapeHtml(u.reason)}</td>
+                        <td style="padding:6px 8px;font-size:12px;white-space:nowrap;">${rdCell}</td>
+                        <td style="padding:6px 8px;">${macTags}</td>
+                    </tr>`;
+                }).join('');
+
+                tableEl.innerHTML = `
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                        <div>
+                            <span style="background:#dc3545;color:white;padding:2px 8px;border-radius:10px;font-size:12px;">${users.length} users to delete</span>
+                            ${leftCount ? `<span style="background:#ffc107;color:#212529;padding:2px 8px;border-radius:10px;font-size:11px;margin-left:4px;">${leftCount} resigned</span>` : ''}
+                            ${unmatchedCount ? `<span style="background:#6c757d;color:white;padding:2px 8px;border-radius:10px;font-size:11px;margin-left:4px;">${unmatchedCount} unmatched</span>` : ''}
+                        </div>
+                        <div style="font-size:12px;">
+                            <a href="#" onclick="del43SelectAll(true);return false;" style="margin-right:8px;">All</a>
+                            <a href="#" onclick="del43SelectAll(false);return false;">None</a>
+                        </div>
+                    </div>
+                    <div class="del-preview-wrap">
+                        <table>
+                            <thead><tr>
+                                <th style="width:36px;"></th>
+                                <th>User ID</th><th>Employee</th><th>Reason</th><th>Relieving Date</th><th>Machine</th>
+                            </tr></thead>
+                            <tbody>${rows}</tbody>
+                        </table>
+                    </div>
+                    <div class="alert alert-info" style="margin-top:12px;font-size:13px;">
+                        🔒 Fingerprint data in ERPNext <strong>will not be deleted</strong> — it can be re-synced at any time.
+                    </div>`;
+                delBtn.style.display = '';
+            }
+            document.getElementById('del43PreviewSection').style.display = '';
+        }
+
+        function del43SelectAll(checked) {
+            document.querySelectorAll('.del43-user-chk').forEach(cb => cb.checked = checked);
+        }
+
+        function del43ResetPreview() {
+            document.getElementById('del43PreviewSection').style.display = 'none';
+            _del43ScanResult = null;
+        }
+
+        async function del43Delete() {
+            if (!_del43ScanResult) return;
+            const allUsers = _del43ScanResult.users_to_delete || [];
+            const checkedIdxs = [];
+            document.querySelectorAll('.del43-user-chk:checked').forEach(cb => checkedIdxs.push(parseInt(cb.dataset.idx)));
+            if (!checkedIdxs.length) { alert('No users selected'); return; }
+
+            const selected = checkedIdxs.map(i => allUsers[i]);
+            if (!confirm(`Confirm deletion of ${selected.length} user(s) from attendance machines?\nThis action CANNOT be undone.`)) return;
+
+            const deleteBtn = document.getElementById('del43DeleteBtn');
+            deleteBtn.disabled = true; deleteBtn.textContent = '⏳ Submitting job...';
+
+            const ps = document.getElementById('del43ProgressSection');
+            ps.classList.add('visible');
+            const logEl = document.getElementById('del43ResultLog');
+            const phaseEl = document.getElementById('del43ProgressPhase');
+            const barEl = document.getElementById('del43ProgressBar');
+            logEl.innerHTML = '';
+
+            function appendLog(cls, text) {
+                const d = document.createElement('div'); d.className = cls; d.textContent = text;
+                logEl.appendChild(d); logEl.scrollTop = logEl.scrollHeight;
+            }
+
+            try {
+                const msg = await callPost('customize_erpnext.api.biometric_sync.delete_users_from_machines', {
+                    users_json: JSON.stringify(selected),
+                });
+                if (msg.status !== 'success') throw new Error(msg.message);
+
+                const jobId = msg.job_id;
+                appendLog('info-line', `Job ${jobId} submitted — waiting for worker...`);
+                deleteBtn.textContent = '⏳ Deleting...';
+
+                if (_del43PollTimer) clearInterval(_del43PollTimer);
+                let lastCount = 0;
+                _del43PollTimer = setInterval(async () => {
+                    try {
+                        const st = await callGet('customize_erpnext.api.biometric_sync.get_sync_job_status', { job_id: jobId });
+                        if (!st || st.status === 'not_found') return;
+                        const d = st.data;
+                        phaseEl.textContent = d.phase || '';
+                        barEl.style.width = (d.progress_pct || 0) + '%';
+
+                        (d.results || []).slice(lastCount).forEach(r => {
+                            appendLog(r.success ? 'ok' : 'fail',
+                                `${r.success ? '✓' : '✗'} User ${r.user_id} ← ${r.machine}: ${r.message}`);
+                        });
+                        lastCount = (d.results || []).length;
+
+                        if (d.status === 'done' || d.status === 'error') {
+                            clearInterval(_del43PollTimer); _del43PollTimer = null;
+                            deleteBtn.disabled = false; deleteBtn.textContent = '🗑 Delete Selected Users';
+                            if (d.status === 'done') {
+                                const ok = (d.results || []).filter(r => r.success).length;
+                                const fail = (d.results || []).length - ok;
+                                appendLog('info-line', `\n=== DONE: ${ok} OK / ${fail} FAILED ===`);
+                                _del43ScanResult = null;
+                                document.getElementById('del43PreviewSection').style.display = 'none';
+                            } else {
+                                appendLog('fail', `=== ERROR: ${d.error || 'unknown'} ===`);
+                            }
+                        }
+                    } catch (ex) { console.error('del43 poll:', ex); }
+                }, 1500);
+            } catch (e) {
+                appendLog('fail', '❌ ' + e.message);
+                deleteBtn.disabled = false; deleteBtn.textContent = '🗑 Delete Selected Users';
+            }
+        }
+
+
+        // ════════════════════════════════════════════════════════════════════════════
+        // TAB MACHINES MANAGEMENT
+        // ════════════════════════════════════════════════════════════════════════════
+
+        let _machinesList = [];
+        let _machinesLoaded = false;
+
+        async function loadMachineCards() {
+            _machinesLoaded = true;
+            const gridEl = document.getElementById('machineCardsGrid');
+            const loadingEl = document.getElementById('machinesLoadingArea');
+            const statusEl = document.getElementById('machinesGlobalStatus');
+
+            loadingEl.style.display = 'block';
+            gridEl.style.display = 'none';
+            statusEl.textContent = '';
+
+            try {
+                const msg = await callGet('customize_erpnext.api.biometric_sync.get_attendance_machines', {});
+                if (msg.status !== 'success') throw new Error(msg.message || 'Failed to load machine list');
+                _machinesList = msg.machines || [];
+                renderMachineCards();
+                loadingEl.style.display = 'none';
+                gridEl.style.display = '';
+                statusEl.textContent = `${_machinesList.length} attendance machines`;
+            } catch (e) {
+                loadingEl.innerHTML = `<div class="alert alert-danger">❌ ${escapeHtml(e.message)}</div>`;
+            }
+        }
+
+        function machinesRefresh() {
+            _machinesLoaded = false;
+            loadMachineCards();
+        }
+
+        function renderMachineCards() {
+            const gridEl = document.getElementById('machineCardsGrid');
+            if (!_machinesList.length) {
+                gridEl.innerHTML = '<div class="alert alert-info">No enabled machines found in the system (Attendance Machine doctype).</div>';
+                return;
+            }
+            gridEl.innerHTML = _machinesList.map(m => {
+                const isMaster = m.master_device;
+                const masterBadge = isMaster
+                    ? '<span style="font-size:11px;background:#fef9c3;color:#854d0e;padding:1px 8px;border-radius:10px;margin-left:6px;border:1px solid #fde68a;">★ Master</span>'
+                    : '';
+                return `
+                <div class="machine-card${isMaster ? ' is-master' : ''}" id="mc_${CSS.escape(m.name)}">
+                    <div class="machine-card-head">
+                        <div class="machine-card-name">
+                            🖥 ${escapeHtml(m.name)}${masterBadge}
+                        </div>
+                    </div>
+                    <div class="machine-card-meta">📌 ${escapeHtml(m.device_name || '')}${m.model ? ' · ' + escapeHtml(m.model) : ''}</div>
+                    <div class="machine-card-meta">📡 ${escapeHtml(m.ip_address)}:${m.port || 4370}</div>
+                    ${m.location ? `<div class="machine-card-meta">📍 ${escapeHtml(m.location)}</div>` : ''}
+                    <div class="machine-card-actions">
+                        <button class="btn btn-sm btn-info-sm" onclick="machineGetInfo('${escapeHtml(m.name)}')">ℹ Info</button>
+                        <button class="btn btn-sm btn-warn-sm" onclick="machineSyncTime('${escapeHtml(m.name)}')">🕐 Sync Time</button>
+                        <button class="btn btn-sm btn-danger-sm" onclick="machineReboot('${escapeHtml(m.name)}')">🔁 Reboot</button>
+                    </div>
+                    <div class="machine-info-panel" id="mip_${CSS.escape(m.name)}">
+                        <span style="color:var(--text-3);font-size:12px;">Click <em>Info</em> to read device information...</span>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        async function machineGetInfo(machineName) {
+            const panelEl = document.getElementById(`mip_${CSS.escape(machineName)}`);
+            if (!panelEl) return;
+            panelEl.classList.add('visible');
+            panelEl.innerHTML = '<div style="display:flex;align-items:center;gap:8px;"><div class="spinner" style="width:18px;height:18px;border-width:2px;"></div> Connecting...</div>';
+
+            try {
+                const msg = await callPost('customize_erpnext.api.biometric_sync.machine_get_info', { machine_name: machineName });
+                if (msg.status !== 'success') throw new Error(msg.message);
+
+                function capBar(used, cap) {
+                    if (!cap) return '';
+                    const pct = Math.min(100, Math.round(used / cap * 100));
+                    const color = pct > 85 ? '#dc3545' : pct > 60 ? '#ffc107' : '#28a745';
+                    return `<span class="cap-bar-wrap"><span class="cap-bar-inner" style="width:${pct}%;background:${color};"></span></span>`;
+                }
+
+                const items = [
+                    { label: 'Firmware', value: msg.firmware_version || '—' },
+                    { label: 'Serial #', value: msg.serial_number || '—' },
+                    { label: 'Platform', value: msg.platform || '—' },
+                    { label: 'FP Version', value: msg.fp_version || '—' },
+                    { label: 'Device Name', value: msg.device_name || '—' },
+                    { label: 'MAC Address', value: msg.mac_address || '—' },
+                    {
+                        label: 'Users',
+                        value: `${msg.user_count} / ${msg.user_capacity || '?'}`,
+                        extra: capBar(msg.user_count, msg.user_capacity),
+                    },
+                    {
+                        label: 'Fingerprints',
+                        value: `${msg.fp_count} / ${msg.fp_capacity || '?'}`,
+                        extra: capBar(msg.fp_count, msg.fp_capacity),
+                    },
+                    {
+                        label: 'Attendance Records',
+                        value: `${msg.record_count} / ${msg.record_capacity || '?'}`,
+                        extra: capBar(msg.record_count, msg.record_capacity),
+                    },
+                    { label: 'Face', value: msg.face_count > 0 ? `${msg.face_count} / ${msg.face_capacity || '?'}` : '—' },
+                    { label: 'Device Time', value: msg.device_time || '—' },
+                    { label: 'Model (ERP)', value: msg.model || '—' },
+                ];
+
+                panelEl.innerHTML = `
+                    <div style="font-weight:600;font-size:12px;margin-bottom:10px;color:var(--text-2);">📊 Device Info</div>
+                    <div class="info-grid">
+                        ${items.map(it => `
+                        <div class="info-item">
+                            <span class="ilabel">${escapeHtml(it.label)}</span>
+                            <span class="ivalue">${escapeHtml(String(it.value))}${it.extra || ''}</span>
+                        </div>`).join('')}
+                    </div>
+                    <div style="margin-top:8px;font-size:11px;color:var(--text-3);">
+                        Updated at: ${new Date().toLocaleTimeString('en-US')}
+                        &nbsp;·&nbsp; <a href="#" onclick="machineGetInfo('${escapeHtml(machineName)}');return false;" style="font-size:11px;">Refresh</a>
+                    </div>`;
+            } catch (e) {
+                panelEl.innerHTML = `<span style="color:#dc3545;font-size:12px;">❌ ${escapeHtml(e.message)}</span>`;
+            }
+        }
+
+        async function machineSyncTime(machineName) {
+            const statusEl = document.getElementById('machinesGlobalStatus');
+            statusEl.textContent = `⏳ Syncing time on ${machineName}...`;
+            try {
+                const msg = await callPost('customize_erpnext.api.biometric_sync.machine_sync_time', { machine_name: machineName });
+                if (msg.status !== 'success') throw new Error(msg.message);
+                statusEl.textContent = `✅ ${machineName}: Time synced | Server: ${msg.server_time} | Device: ${msg.device_time}`;
+                setTimeout(() => { statusEl.textContent = `${_machinesList.length} attendance machines`; }, 6000);
+            } catch (e) {
+                statusEl.innerHTML = `<span style="color:#dc3545;">❌ ${escapeHtml(machineName)}: ${escapeHtml(e.message)}</span>`;
+            }
+        }
+
+        async function machineReboot(machineName) {
+            if (!confirm(`Reboot machine "${machineName}"?\nThe device will restart and disconnect for a few seconds.`)) return;
+            const statusEl = document.getElementById('machinesGlobalStatus');
+            statusEl.textContent = `⏳ Sending reboot command to ${machineName}...`;
+            try {
+                const msg = await callPost('customize_erpnext.api.biometric_sync.machine_reboot', { machine_name: machineName });
+                if (msg.status !== 'success') throw new Error(msg.message);
+                statusEl.textContent = `✅ ${machineName}: Reboot command sent`;
+                setTimeout(() => { statusEl.textContent = `${_machinesList.length} attendance machines`; }, 5000);
+            } catch (e) {
+                statusEl.innerHTML = `<span style="color:#dc3545;">❌ ${escapeHtml(machineName)}: ${escapeHtml(e.message)}</span>`;
+            }
+        }
+
+        async function machinesSyncTimeAll() {
+            if (!_machinesList.length) { alert('Machines not loaded'); return; }
+            if (!confirm(`Sync time for ALL ${_machinesList.length} machines?`)) return;
+            const statusEl = document.getElementById('machinesGlobalStatus');
+            statusEl.textContent = `⏳ Syncing time on ${_machinesList.length} machines (parallel)...`;
+
+            const results = await Promise.allSettled(
+                _machinesList.map(m => callPost('customize_erpnext.api.biometric_sync.machine_sync_time', { machine_name: m.name }))
+            );
+            const ok = results.filter(r => r.status === 'fulfilled' && r.value && r.value.status === 'success').length;
+            const fail = results.length - ok;
+            statusEl.textContent = `✅ Time sync done: ${ok} OK / ${fail} failed`;
+            setTimeout(() => { statusEl.textContent = `${_machinesList.length} attendance machines`; }, 6000);
+        }
+
+        async function machinesRebootAll() {
+            if (!_machinesList.length) { alert('Machines not loaded'); return; }
+            if (!confirm(`⚠ REBOOT ALL ${_machinesList.length} machines?\n\nAll devices will restart — this affects employees currently clocking in!`)) return;
+
+            const statusEl = document.getElementById('machinesGlobalStatus');
+            let done = 0;
+            for (const m of _machinesList) {
+                statusEl.textContent = `⏳ Reboot ${m.name}... (${done + 1}/${_machinesList.length})`;
+                try {
+                    await callPost('customize_erpnext.api.biometric_sync.machine_reboot', { machine_name: m.name });
+                } catch (e) {
+                    console.error(`Reboot ${m.name}:`, e.message);
+                }
+                done++;
+                await new Promise(r => setTimeout(r, 800));
+            }
+            statusEl.textContent = `✅ Reboot command sent to ${done} machines`;
+            setTimeout(() => { statusEl.textContent = `${_machinesList.length} attendance machines`; }, 6000);
+        }
+
+        async function machinesLoadAllInfo() {
+            if (!_machinesList.length) { alert('Machines not loaded'); return; }
+
+            const statusEl = document.getElementById('machinesGlobalStatus');
+            const section = document.getElementById('allMachinesInfoSection');
+            const tbody = document.getElementById('allMachinesInfoBody');
+            const tsEl = document.getElementById('allInfoTimestamp');
+
+            section.style.display = '';
+
+            // Pre-fill rows with loading state
+            tbody.innerHTML = _machinesList.map(m => `
+                <tr class="row-loading" id="ait_${CSS.escape(m.name)}">
+                    <td><strong>${escapeHtml(m.name)}</strong></td>
+                    <td>${escapeHtml(m.ip_address)}:${m.port || 4370}</td>
+                    <td colspan="9"><div style="display:flex;align-items:center;gap:8px;"><div class="spinner" style="width:14px;height:14px;border-width:2px;"></div> Connecting...</div></td>
+                </tr>`).join('');
+
+            section.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            statusEl.textContent = `⏳ Reading info from ${_machinesList.length} machines (parallel)...`;
+
+            function capCell(used, cap) {
+                if (!cap) return escapeHtml(String(used));
+                const pct = Math.min(100, Math.round(used / cap * 100));
+                const color = pct > 85 ? '#dc3545' : pct > 60 ? '#f0ad4e' : '#28a745';
+                return `<div class="ai-cap">
+                    <span>${used} / ${cap}</span>
+                    <div class="ai-cap-bar"><div class="ai-cap-fill" style="width:${pct}%;background:${color};"></div></div>
+                    <span style="color:${color};font-weight:600;">${pct}%</span>
+                </div>`;
+            }
+
+            const tasks = _machinesList.map(async m => {
+                const tr = document.getElementById(`ait_${CSS.escape(m.name)}`);
+                try {
+                    const msg = await callPost('customize_erpnext.api.biometric_sync.machine_get_info', { machine_name: m.name });
+                    if (!tr) return;
+                    if (msg.status !== 'success') throw new Error(msg.message || 'Error');
+                    tr.className = '';
+                    tr.innerHTML = `
+                        <td><strong>${escapeHtml(m.name)}</strong></td>
+                        <td style="font-family:monospace;">${escapeHtml(msg.ip_address || m.ip_address)}:${msg.port || m.port || 4370}</td>
+                        <td>${escapeHtml(msg.firmware_version || '—')}</td>
+                        <td style="font-family:monospace;">${escapeHtml(msg.serial_number || '—')}</td>
+                        <td>${escapeHtml(msg.platform || '—')}</td>
+                        <td>${escapeHtml(msg.fp_version || '—')}</td>
+                        <td>${capCell(msg.user_count, msg.user_capacity)}</td>
+                        <td>${capCell(msg.fp_count, msg.fp_capacity)}</td>
+                        <td>${capCell(msg.record_count, msg.record_capacity)}</td>
+                        <td style="font-family:monospace;white-space:nowrap;">${escapeHtml(msg.device_time || '—')}</td>
+                        <td><span style="color:#28a745;">✅ OK</span></td>`;
+                } catch (e) {
+                    if (!tr) return;
+                    tr.className = 'row-error';
+                    tr.innerHTML = `
+                        <td><strong>${escapeHtml(m.name)}</strong></td>
+                        <td>${escapeHtml(m.ip_address)}:${m.port || 4370}</td>
+                        <td colspan="9">❌ ${escapeHtml(e.message)}</td>`;
+                }
+            });
+
+            await Promise.allSettled(tasks);
+
+            const ok = tbody.querySelectorAll('tr:not(.row-error):not(.row-loading)').length;
+            const fail = tbody.querySelectorAll('tr.row-error').length;
+            tsEl.textContent = `Updated: ${new Date().toLocaleTimeString('en-US')}`;
+            statusEl.textContent = `📊 Info: ${ok} OK / ${fail} failed`;
+            setTimeout(() => { statusEl.textContent = `${_machinesList.length} attendance machines`; }, 8000);
+        }
+
+    </script>
+</body>
+
+</html>

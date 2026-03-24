@@ -23,12 +23,11 @@ frappe.listview_settings['Employee'] = {
         listview.page.add_menu_item(__('4.2 Sync Fingerprint From Attendance Machines to Other & ERP'), function () {
             show_sync_fingerprint_from_machines_dialog(listview);
         });
-        listview.page.add_menu_item(__('4.2 Sync Fingerprint From Attendance Machines to Other & ERP'), function () {
-            show_sync_fingerprint_from_machines_dialog(listview);
-        });
+
         listview.page.add_menu_item(__('4.3 Delete fingerprint Data of Left Employees From Attendance Machines'), function () {
             show_delete_left_employees_dialog();
         });
+
         listview.page.add_menu_item(__('5 Bulk Update Holiday List'), function () {
             show_bulk_update_holiday_dialog(listview);
         });
@@ -1516,8 +1515,8 @@ function _del_show_preview_dialog(scan_result, config) {
 
             frappe.confirm(
                 __('Delete <strong>{0} user(s)</strong> from <strong>{1} machine(s)</strong>?<br>' +
-                   '<small class="text-muted">ERPNext fingerprint records will be kept as backup.</small>',
-                   [selected_users.length, unique_machines.length]),
+                    '<small class="text-muted">ERPNext fingerprint records will be kept as backup.</small>',
+                    [selected_users.length, unique_machines.length]),
                 function () {
                     prev_d.hide();
                     _del_start_delete(selected_users);

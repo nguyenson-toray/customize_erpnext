@@ -805,3 +805,149 @@ def _run_delete_job(users, cache_key, job_id=None):
     except Exception as e:
         frappe.log_error(f"_run_delete_job error: {e}")
         _update({"status": "error", "error": str(e), "phase": f"Error: {e}"})
+
+
+# ---------------------------------------------------------------------------
+# 8. machine_reboot
+# ---------------------------------------------------------------------------
+
+@frappe.whitelist()
+def machine_reboot(machine_name):
+    """Send restart command to a ZK attendance machine."""
+    try:
+        doc = _get_machine_doc(machine_name)
+        cfg = _build_zk_device(doc)
+        conn = _connect_zk(cfg)
+        try:
+            conn.restart()
+        except Exception:
+            pass  # restart severs the connection immediately — exception is expected
+        finally:
+            try:
+                conn.disconnect()
+            except Exception:
+                pass
+        return {"status": "success", "machine": machine_name, "message": "Reboot command sent successfully"}
+    except Exception as e:
+        frappe.log_error(f"machine_reboot error: {e}")
+        return {"status": "error", "message": str(e)}
+
+
+# ---------------------------------------------------------------------------
+# 9. machine_sync_time
+# ---------------------------------------------------------------------------
+
+@frappe.whitelist()
+def machine_sync_time(machine_name):
+    """Sync machine clock to current server time."""
+    from datetime import datetime
+    try:
+        doc = _get_machine_doc(machine_name)
+        cfg = _build_zk_device(doc)
+        conn = _connect_zk(cfg)
+        device_time_str = "N/A"
+        try:
+            now = datetime.now()
+            conn.set_time(now)
+            try:
+                device_time = conn.get_time()
+                device_time_str = device_time.strftime("%Y-%m-%d %H:%M:%S") if device_time else "N/A"
+            except Exception:
+                pass
+        finally:
+            conn.disconnect()
+        return {
+            "status": "success",
+            "machine": machine_name,
+            "server_time": now.strftime("%Y-%m-%d %H:%M:%S"),
+            "device_time": device_time_str,
+        }
+    except Exception as e:
+        frappe.log_error(f"machine_sync_time error: {e}")
+        return {"status": "error", "message": str(e)}
+
+
+# ---------------------------------------------------------------------------
+# 10. machine_get_info
+# ---------------------------------------------------------------------------
+
+@frappe.whitelist()
+def machine_get_info(machine_name):
+    """
+    Read hardware & firmware info from ZK device.
+    Uses conn.read_sizes() to get user/finger/record counts + capacity.
+    """
+    try:
+        doc = _get_machine_doc(machine_name)
+        cfg = _build_zk_device(doc)
+        conn = _connect_zk(cfg)
+        try:
+            conn.disable_device()
+
+            # Read memory sizes — populates conn.users, conn.fingers, conn.records, etc.
+            try:
+                conn.read_sizes()
+            except Exception:
+                pass
+
+            def _safe(fn):
+                try:
+                    return fn()
+                except Exception:
+                    return ""
+
+            firmware_version = _safe(conn.get_firmware_version)
+            serial_number    = _safe(conn.get_serialnumber)
+            platform         = _safe(conn.get_platform)
+            mac_address      = _safe(conn.get_mac)
+            device_name_hw   = _safe(conn.get_device_name)
+            fp_version       = _safe(conn.get_fp_version)
+            device_time_str  = "N/A"
+            try:
+                dt = conn.get_time()
+                if dt:
+                    device_time_str = dt.strftime("%Y-%m-%d %H:%M:%S")
+            except Exception:
+                pass
+
+            users_count   = getattr(conn, "users", 0) or 0
+            users_cap     = getattr(conn, "users_cap", 0) or 0
+            fingers_count = getattr(conn, "fingers", 0) or 0
+            fingers_cap   = getattr(conn, "fingers_cap", 0) or 0
+            records_count = getattr(conn, "records", 0) or 0
+            rec_cap       = getattr(conn, "rec_cap", 0) or 0
+            faces_count   = getattr(conn, "faces", 0) or 0
+            faces_cap     = getattr(conn, "faces_cap", 0) or 0
+        finally:
+            try:
+                conn.enable_device()
+            except Exception:
+                pass
+            conn.disconnect()
+
+        return {
+            "status":           "success",
+            "machine":          machine_name,
+            "ip_address":       doc.ip_address,
+            "port":             doc.port,
+            "model":            doc.model or "",
+            "location":         doc.location or "",
+            "device_name":      device_name_hw or doc.device_name or "",
+            "firmware_version": str(firmware_version),
+            "serial_number":    str(serial_number),
+            "platform":         str(platform),
+            "mac_address":      str(mac_address),
+            "fp_version":       str(fp_version),
+            "user_count":       users_count,
+            "user_capacity":    users_cap,
+            "fp_count":         fingers_count,
+            "fp_capacity":      fingers_cap,
+            "record_count":     records_count,
+            "record_capacity":  rec_cap,
+            "face_count":       faces_count,
+            "face_capacity":    faces_cap,
+            "device_time":      device_time_str,
+        }
+    except Exception as e:
+        frappe.log_error(f"machine_get_info error: {e}")
+        return {"status": "error", "message": str(e)}
