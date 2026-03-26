@@ -98,6 +98,7 @@ fixtures = [
                 "Employee Checkin",
                 "Attendance",
                 "Leave Type",
+                "Employee Education"
             ]]
         ]
     },

@@ -1,12 +1,13 @@
 {
  "actions": [],
- "creation": "2026-03-20 08:00:00",
+ "creation": "2026-03-25 14:15:30.940975",
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
   "employee",
-  "employee_name"
+  "employee_name",
+  "group"
  ],
  "fields": [
   {
@@ -25,14 +26,21 @@
    "in_list_view": 1,
    "label": "Employee Name",
    "read_only": 1
+  },
+  {
+   "fetch_from": "employee.custom_group",
+   "fieldname": "group",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Group"
   }
  ],
  "istable": 1,
  "links": [],
- "modified": "2026-03-20 11:02:47.254964",
+ "modified": "2026-03-26 10:32:35.800734",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
- "name": "Employee Onboarding Employee",
+ "name": "Employee Self Update Employee",
  "owner": "Administrator",
  "permissions": [],
  "row_format": "Dynamic",

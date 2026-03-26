@@ -187,3 +187,69 @@ def convert_batch(codes, direction="old_to_new"):
 		return [new_to_old_map.get(code) for code in codes]
 
 	frappe.throw(_("Invalid direction. Use 'old_to_new' or 'new_to_old'."))
+
+
+@frappe.whitelist(allow_guest=True)
+def search_address_by_text(ward_name, district_name="", province_name=""):
+	"""
+	Find an old ward by text names and return the converted new administrative address.
+	Used to convert CCCD QR text address (e.g. "Xóm 1, Bình Nguyên, Bình Sơn, Quảng Ngãi")
+	to the new 2025 administrative format.
+
+	Returns: {old: {ten, quan_huyen, tinh}, new: {ma, ten, tinh_ma, tinh}} or None
+	"""
+	import unicodedata
+
+	def norm(s):
+		s = unicodedata.normalize("NFD", (s or "").strip().lower())
+		return "".join(c for c in s if unicodedata.category(c) != "Mn").strip()
+
+	wn = norm(ward_name)
+	dn = norm(district_name)
+	pn = norm(province_name)
+
+	if not wn:
+		return None
+
+	data = _load_data()
+	best = None
+	best_score = 0
+
+	for province in data:
+		p = norm(province["ten"])
+		if pn and pn not in p and p not in pn:
+			continue
+		for district in province.get("xa", []):
+			for old_ward in district.get("xa_cu", []):
+				w = norm(old_ward["ten"])
+				d = norm(old_ward.get("quan_huyen_cu", ""))
+
+				# Ward name must match
+				if wn == w:
+					score = 10
+				elif wn in w or w in wn:
+					score = 5
+				else:
+					continue
+
+				# Bonus for district match
+				if dn and (dn in d or d in dn):
+					score += 5
+
+				if score > best_score:
+					best_score = score
+					best = {
+						"old": {
+							"ten": old_ward["ten"],
+							"quan_huyen": old_ward.get("quan_huyen_cu", ""),
+							"tinh": old_ward.get("tinh_cu", province["ten"]),
+						},
+						"new": {
+							"ma": district["ma"],
+							"ten": district["ten"],
+							"tinh_ma": province["ma"],
+							"tinh": province["ten"],
+						},
+					}
+
+	return best

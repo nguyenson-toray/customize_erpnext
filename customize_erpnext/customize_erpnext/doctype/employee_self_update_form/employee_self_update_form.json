@@ -1,7 +1,7 @@
 {
  "actions": [],
  "autoname": "field:employee",
- "creation": "2026-03-19 16:08:04.178343",
+ "creation": "2026-03-25 08:00:00",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -10,11 +10,12 @@
   "employee_name",
   "col_break_1",
   "date_of_joining",
-  "date_of_birth",
-  "cell_number",
   "section_status",
   "status",
   "reject_reason",
+  "section_basic",
+  "date_of_birth",
+  "cell_number",
   "section_cccd",
   "id_card_no",
   "id_card_date_of_issue",
@@ -25,19 +26,20 @@
   "id_card_cmnd_no",
   "id_card_cmnd_date_of_issue",
   "id_card_cmnd_place_of_issue",
-  "section_personal",
-  "marital_status",
   "section_bank",
-  "no_bank_account",
-  "bank_name",
   "bank_ac_no",
   "bank_branch",
+  "section_insurance_tax",
+  "social_insurance_number",
+  "tax_code",
   "section_education",
   "education_level",
   "col_break_edu",
   "university",
   "major",
-  "section_address",
+  "section_work_history",
+  "work_history_json",
+  "section_current_address",
   "current_address_province",
   "current_address_commune",
   "current_address_village",
@@ -47,21 +49,31 @@
   "permanent_address_commune",
   "permanent_address_village",
   "permanent_address_full",
-  "section_place_of_origin",
+  "section_origin_address",
   "place_of_origin_province",
   "place_of_origin_commune",
   "place_of_origin_village",
   "place_of_origin_full",
-  "section_other_info",
+  "section_personal",
   "personal_email",
+  "marital_status",
   "number_of_childrens",
-  "col_break_other",
+  "section_emergency",
   "emergency_contact_name",
+  "relation",
   "emergency_phone_number",
-  "column_break_iabt",
+  "section_driving",
+  "driving_license",
+  "driving_license_note",
+  "section_uniform",
   "shirt_size",
   "shoe_size",
-  "tax_code"
+  "section_personal2",
+  "custom_strengths",
+  "custom_favorite_sport",
+  "custom_vegetarian",
+  "section_other_docs",
+  "other_docs_json"
  ],
  "fields": [
   {
@@ -103,17 +115,6 @@
    "read_only": 1
   },
   {
-   "fieldname": "date_of_birth",
-   "fieldtype": "Date",
-   "label": "Date of Birth"
-  },
-  {
-   "fetch_from": "employee.cell_number",
-   "fieldname": "cell_number",
-   "fieldtype": "Data",
-   "label": "Cell Number"
-  },
-  {
    "fieldname": "section_status",
    "fieldtype": "Section Break",
    "label": "Status"
@@ -136,6 +137,21 @@
    "label": "Reject Reason",
    "no_copy": 1,
    "read_only": 1
+  },
+  {
+   "fieldname": "section_basic",
+   "fieldtype": "Section Break",
+   "label": "Thông tin cơ bản"
+  },
+  {
+   "fieldname": "date_of_birth",
+   "fieldtype": "Date",
+   "label": "Date of Birth"
+  },
+  {
+   "fieldname": "cell_number",
+   "fieldtype": "Data",
+   "label": "Cell Number"
   },
   {
    "fieldname": "section_cccd",
@@ -188,31 +204,9 @@
    "label": "CMND - Place of Issue"
   },
   {
-   "fieldname": "section_personal",
-   "fieldtype": "Section Break",
-   "label": "Personal Information"
-  },
-  {
-   "fieldname": "marital_status",
-   "fieldtype": "Select",
-   "label": "Marital Status",
-   "options": "\nSingle\nMarried\nDivorced\nWidowed"
-  },
-  {
    "fieldname": "section_bank",
    "fieldtype": "Section Break",
-   "label": "Bank Information"
-  },
-  {
-   "default": "0",
-   "fieldname": "no_bank_account",
-   "fieldtype": "Check",
-   "label": "No Bank Account Yet (will open later)"
-  },
-  {
-   "fieldname": "bank_name",
-   "fieldtype": "Data",
-   "label": "Bank Name"
+   "label": "Bank Information (Vietcombank)"
   },
   {
    "fieldname": "bank_ac_no",
@@ -223,6 +217,21 @@
    "fieldname": "bank_branch",
    "fieldtype": "Data",
    "label": "Bank Branch"
+  },
+  {
+   "fieldname": "section_insurance_tax",
+   "fieldtype": "Section Break",
+   "label": "Bảo hiểm xã hội & Thuế"
+  },
+  {
+   "fieldname": "social_insurance_number",
+   "fieldtype": "Data",
+   "label": "Social Insurance Number"
+  },
+  {
+   "fieldname": "tax_code",
+   "fieldtype": "Data",
+   "label": "Tax Code"
   },
   {
    "fieldname": "section_education",
@@ -249,7 +258,18 @@
    "label": "Major"
   },
   {
-   "fieldname": "section_address",
+   "fieldname": "section_work_history",
+   "fieldtype": "Section Break",
+   "label": "Work History"
+  },
+  {
+   "fieldname": "work_history_json",
+   "fieldtype": "Long Text",
+   "label": "Work History JSON",
+   "description": "JSON array of work history rows. [] = no experience."
+  },
+  {
+   "fieldname": "section_current_address",
    "fieldtype": "Section Break",
    "label": "Current Address"
   },
@@ -301,7 +321,7 @@
    "read_only": 1
   },
   {
-   "fieldname": "section_place_of_origin",
+   "fieldname": "section_origin_address",
    "fieldtype": "Section Break",
    "label": "Place of Origin (\u0110\u1ecba ch\u1ec9 nguy\u00ean qu\u00e1n)"
   },
@@ -327,9 +347,9 @@
    "read_only": 1
   },
   {
-   "fieldname": "section_other_info",
+   "fieldname": "section_personal",
    "fieldtype": "Section Break",
-   "label": "Other Information"
+   "label": "Personal Information"
   },
   {
    "fieldname": "personal_email",
@@ -338,13 +358,20 @@
    "options": "Email"
   },
   {
+   "fieldname": "marital_status",
+   "fieldtype": "Select",
+   "label": "Marital Status",
+   "options": "\nSingle\nMarried\nDivorced\nWidowed"
+  },
+  {
    "fieldname": "number_of_childrens",
    "fieldtype": "Int",
    "label": "Number of Children"
   },
   {
-   "fieldname": "col_break_other",
-   "fieldtype": "Column Break"
+   "fieldname": "section_emergency",
+   "fieldtype": "Section Break",
+   "label": "Emergency Contact"
   },
   {
    "fieldname": "emergency_contact_name",
@@ -352,13 +379,35 @@
    "label": "Emergency Contact Name"
   },
   {
+   "fieldname": "relation",
+   "fieldtype": "Data",
+   "label": "Relationship"
+  },
+  {
    "fieldname": "emergency_phone_number",
    "fieldtype": "Data",
    "label": "Emergency Contact Phone"
   },
   {
-   "fieldname": "column_break_iabt",
-   "fieldtype": "Column Break"
+   "fieldname": "section_driving",
+   "fieldtype": "Section Break",
+   "label": "Driving License"
+  },
+  {
+   "default": "0",
+   "fieldname": "driving_license",
+   "fieldtype": "Check",
+   "label": "Has Driving License"
+  },
+  {
+   "fieldname": "driving_license_note",
+   "fieldtype": "Data",
+   "label": "Driving License Note"
+  },
+  {
+   "fieldname": "section_uniform",
+   "fieldtype": "Section Break",
+   "label": "Uniform Size"
   },
   {
    "fieldname": "shirt_size",
@@ -371,17 +420,43 @@
    "label": "Shoe Size"
   },
   {
-   "fieldname": "tax_code",
+   "fieldname": "section_personal2",
+   "fieldtype": "Section Break",
+   "label": "Thông tin bổ sung"
+  },
+  {
+   "fieldname": "custom_strengths",
    "fieldtype": "Data",
-   "label": "Tax Code"
+   "label": "Sở trường"
+  },
+  {
+   "fieldname": "custom_favorite_sport",
+   "fieldtype": "Data",
+   "label": "Môn thể thao yêu thích"
+  },
+  {
+   "fieldname": "custom_vegetarian",
+   "fieldtype": "Data",
+   "label": "Nhu cầu ăn chay"
+  },
+  {
+   "fieldname": "section_other_docs",
+   "fieldtype": "Section Break",
+   "label": "Giấy tờ khác"
+  },
+  {
+   "fieldname": "other_docs_json",
+   "fieldtype": "Long Text",
+   "label": "Other Documents (JSON)",
+   "description": "JSON array of uploaded file URLs. Not synced to Employee."
   }
  ],
  "grid_page_length": 50,
  "links": [],
- "modified": "2026-03-21 16:31:46.864655",
+ "modified": "2026-03-25 08:00:00",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
- "name": "Employee Onboarding Form",
+ "name": "Employee Self Update Form",
  "owner": "Administrator",
  "permissions": [
   {

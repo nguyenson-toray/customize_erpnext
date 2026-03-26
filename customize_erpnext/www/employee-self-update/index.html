@@ -1,0 +1,2650 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>Cập nhật thông tin nhân viên</title>
+  <script>window.csrf_token = "{{ csrf_token }}";</script>
+  <style>
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --primary: #1a6cff;
+      --primary-dark: #1557d4;
+      --success: #22c55e;
+      --danger: #ef4444;
+      --warning: #f59e0b;
+      --gray-50: #f9fafb;
+      --gray-100: #f3f4f6;
+      --gray-200: #e5e7eb;
+      --gray-300: #d1d5db;
+      --gray-400: #9ca3af;
+      --gray-600: #4b5563;
+      --gray-700: #374151;
+      --gray-800: #1f2937;
+      --radius: 12px;
+      --shadow: 0 2px 16px rgba(0, 0, 0, .10);
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      background: linear-gradient(160deg, #e8f0ff 0%, #f0f4ff 50%, #fafafa 100%);
+      min-height: 100vh;
+      padding: 16px;
+      color: var(--gray-800);
+      font-size: 16px;
+      line-height: 1.5;
+    }
+
+    .container {
+      max-width: 580px;
+      margin: 0 auto;
+    }
+
+    .header {
+      text-align: center;
+      padding: 24px 0 16px;
+    }
+
+    .header .logo {
+      font-size: 40px;
+      margin-bottom: 10px;
+      line-height: 1;
+    }
+
+    .header h1 {
+      font-size: 20px;
+      font-weight: 700;
+      line-height: 1.3;
+    }
+
+    .header p {
+      color: var(--gray-600);
+      font-size: 14px;
+      margin-top: 6px;
+    }
+
+    .steps {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      margin: 16px 0 20px;
+    }
+
+    .step-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .step-dot {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 700;
+      background: var(--gray-200);
+      color: var(--gray-400);
+      transition: all .3s;
+    }
+
+    .step-dot.active {
+      background: var(--primary);
+      color: #fff;
+    }
+
+    .step-dot.done {
+      background: var(--success);
+      color: #fff;
+    }
+
+    .step-label {
+      font-size: 10px;
+      color: var(--gray-400);
+      white-space: nowrap;
+    }
+
+    .step-dot.active+.step-label,
+    .step-dot.done+.step-label {
+      color: var(--gray-600);
+    }
+
+    .step-line {
+      flex: 1;
+      height: 2px;
+      background: var(--gray-200);
+      max-width: 32px;
+      transition: background .3s;
+      margin-bottom: 16px;
+    }
+
+    .step-line.done {
+      background: var(--success);
+    }
+
+    .card {
+      background: #fff;
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 20px 18px;
+      margin-bottom: 12px;
+    }
+
+    .section-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--primary);
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      margin: 20px 0 10px;
+      padding-bottom: 5px;
+      border-bottom: 2px solid var(--gray-100);
+    }
+
+    .section-title:first-child {
+      margin-top: 0;
+    }
+
+    .field-group {
+      margin-bottom: 14px;
+    }
+
+    .field-row {
+      display: flex;
+      gap: 10px;
+    }
+
+    .field-row .field-group {
+      flex: 1;
+      min-width: 0;
+    }
+
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--gray-600);
+      margin-bottom: 5px;
+    }
+
+    label .req {
+      color: var(--danger);
+      margin-left: 2px;
+    }
+
+    input[type="text"],
+    input[type="email"],
+    input[type="date"],
+    input[type="tel"],
+    input[type="number"],
+    select,
+    textarea {
+      width: 100%;
+      padding: 11px 12px;
+      font-size: 15px;
+      border: 2px solid var(--gray-200);
+      border-radius: 8px;
+      outline: none;
+      transition: border-color .2s;
+      background: #fff;
+      color: var(--gray-800);
+      appearance: none;
+      -webkit-appearance: none;
+    }
+
+    select {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%239ca3af' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      padding-right: 32px;
+    }
+
+    input:focus,
+    select:focus,
+    textarea:focus {
+      border-color: var(--primary);
+    }
+
+    input[readonly],
+    input[disabled] {
+      background: var(--gray-50);
+      color: var(--gray-400);
+      cursor: default;
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 64px;
+    }
+
+    input.field-valid,
+    select.field-valid {
+      border-color: var(--success);
+    }
+
+    input.field-invalid,
+    select.field-invalid {
+      border-color: var(--danger);
+    }
+
+    .field-hint {
+      font-size: 12px;
+      color: var(--gray-400);
+      margin-top: 4px;
+    }
+
+    .field-error {
+      font-size: 12px;
+      color: var(--danger);
+      margin-top: 4px;
+      display: none;
+    }
+
+    .btn {
+      padding: 13px 20px;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      border: none;
+      transition: all .2s;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: #fff;
+    }
+
+    .btn-primary:hover {
+      background: var(--primary-dark);
+    }
+
+    .btn-success {
+      background: var(--success);
+      color: #fff;
+    }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--primary);
+      border: 2px solid var(--primary);
+    }
+
+    .btn-danger {
+      background: var(--danger);
+      color: #fff;
+    }
+
+    .btn:disabled {
+      opacity: .6;
+      cursor: not-allowed;
+    }
+
+    .btn-row {
+      display: flex;
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    .btn-row .btn {
+      flex: 1;
+    }
+
+    .alert {
+      border-radius: 8px;
+      padding: 0;
+      font-size: 14px;
+      max-height: 0;
+      overflow: hidden;
+      transition: all .3s;
+      margin-bottom: 0;
+    }
+
+    .alert.show {
+      padding: 10px 12px;
+      max-height: 200px;
+      margin-bottom: 10px;
+    }
+
+    .alert-error {
+      background: #fef2f2;
+      color: #991b1b;
+      border: 1px solid #fecaca;
+    }
+
+    .alert-success {
+      background: #f0fdf4;
+      color: #166534;
+      border: 1px solid #bbf7d0;
+    }
+
+    .alert-info {
+      background: #eff6ff;
+      color: #1e40af;
+      border: 1px solid #bfdbfe;
+    }
+
+    .alert-warning {
+      background: #fffbeb;
+      color: #92400e;
+      border: 1px solid #fde68a;
+    }
+
+    .loader {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(255, 255, 255, .4);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin .6s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    #page-loader {
+      position: fixed;
+      inset: 0;
+      background: rgba(255, 255, 255, .9);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      z-index: 9999;
+      font-size: 14px;
+      color: var(--gray-600);
+    }
+
+    #page-loader.hidden {
+      display: none;
+    }
+
+    .step-panel {
+      display: none;
+    }
+
+    .step-panel.active {
+      display: block;
+    }
+
+    .emp-info-box {
+      background: var(--gray-50);
+      border: 1px solid var(--gray-200);
+      border-radius: 8px;
+      padding: 10px 14px;
+      margin-bottom: 16px;
+      font-size: 14px;
+    }
+
+    .emp-info-box strong {
+      display: block;
+      font-size: 15px;
+      margin-bottom: 2px;
+    }
+
+    .phone-box {
+      text-align: center;
+      padding: 8px 0;
+    }
+
+    .phone-box .hint {
+      font-size: 15px;
+      color: var(--gray-600);
+      margin-bottom: 20px;
+    }
+
+    .phone-box .emp-name {
+      font-weight: 700;
+      color: var(--gray-800);
+    }
+
+    .phone-input-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+
+    .phone-input-row span {
+      font-size: 22px;
+    }
+
+    #phone_code {
+      width: 80px;
+      text-align: center;
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: 6px;
+      border-radius: 10px;
+    }
+
+    /* Review */
+    .review-section {
+      margin-bottom: 16px;
+      border: 1px solid var(--gray-100);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .review-section-title {
+      background: var(--gray-50);
+      padding: 8px 12px;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--primary);
+      text-transform: uppercase;
+      letter-spacing: .05em;
+    }
+
+    .review-row {
+      display: flex;
+      border-top: 1px solid var(--gray-100);
+    }
+
+    .review-label {
+      padding: 8px 10px;
+      font-size: 13px;
+      color: var(--gray-600);
+      font-weight: 500;
+      width: 38%;
+      border-right: 1px solid var(--gray-100);
+      flex-shrink: 0;
+    }
+
+    .review-value {
+      padding: 8px 10px;
+      font-size: 14px;
+      font-weight: 600;
+      flex: 1;
+      word-break: break-word;
+    }
+
+    .review-empty {
+      color: var(--gray-400);
+      font-weight: 400;
+      font-style: italic;
+    }
+
+    /* Photo */
+    .photo-upload-pair {
+      display: flex;
+      gap: 10px;
+      margin-top: 8px;
+    }
+
+    .photo-upload-box {
+      flex: 1;
+      position: relative;
+    }
+
+    .photo-drop-zone {
+      border: 2px dashed var(--gray-300);
+      border-radius: 10px;
+      padding: 14px 8px;
+      text-align: center;
+      cursor: pointer;
+      min-height: 80px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      transition: border-color .2s, background .2s;
+    }
+
+    .photo-drop-zone.has-photo {
+      border-style: solid;
+      border-color: var(--success);
+      padding: 4px;
+      position: relative;
+    }
+
+    .photo-drop-zone .preview {
+      width: 100%;
+      height: 80px;
+      object-fit: cover;
+      border-radius: 8px;
+      display: block;
+    }
+
+    .photo-drop-zone .remove-photo {
+      position: absolute;
+      top: -6px;
+      right: -6px;
+      background: var(--danger);
+      color: #fff;
+      border: none;
+      border-radius: 50%;
+      width: 22px;
+      height: 22px;
+      font-size: 11px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .dz-icon {
+      font-size: 20px;
+    }
+
+    .dz-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--gray-600);
+    }
+
+    .dz-btns {
+      display: flex;
+      gap: 6px;
+      margin-top: 6px;
+    }
+
+    .dz-btns button {
+      padding: 5px 10px;
+      font-size: 12px;
+      border: 1.5px solid var(--primary);
+      background: #fff;
+      color: var(--primary);
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    .photo-uploading {
+      font-size: 13px;
+      color: var(--warning);
+      text-align: center;
+      margin-top: 4px;
+      display: none;
+    }
+
+    .photo-guide {
+      background: var(--gray-50);
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 13px;
+      margin-bottom: 8px;
+    }
+
+    .photo-guide ul {
+      padding-left: 16px;
+      margin-top: 6px;
+    }
+
+    .photo-guide li {
+      margin-bottom: 4px;
+      color: var(--gray-600);
+    }
+
+    /* QR overlay */
+    #qr_overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 9000;
+      background: rgba(0, 0, 0, .92);
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    #qr_viewport {
+      position: relative;
+      width: min(90vw, 360px);
+      height: min(90vw, 360px);
+      background: #000;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    #qr_viewport video {
+      position: absolute;
+      width: 100% !important;
+      height: 100% !important;
+      top: 0 !important;
+      left: 0 !important;
+      object-fit: cover;
+      z-index: 1;
+    }
+
+    #qr_scan_line,
+    #qr_center_box,
+    .qr-corner {
+      z-index: 10;
+    }
+
+    #qr_scan_line {
+      position: absolute;
+      left: 6px;
+      right: 6px;
+      height: 3px;
+      background: rgba(255, 60, 60, .85);
+      border-radius: 2px;
+      animation: qr_scan 2s linear infinite;
+    }
+
+    @keyframes qr_scan {
+      0% {
+        top: 0
+      }
+
+      50% {
+        top: calc(100% - 3px)
+      }
+
+      100% {
+        top: 0
+      }
+    }
+
+    .qr-corner {
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      border-color: #fff;
+      border-style: solid;
+    }
+
+    .qr-corner.tl {
+      top: 6px;
+      left: 6px;
+      border-width: 3px 0 0 3px;
+    }
+
+    .qr-corner.tr {
+      top: 6px;
+      right: 6px;
+      border-width: 3px 3px 0 0;
+    }
+
+    .qr-corner.bl {
+      bottom: 6px;
+      left: 6px;
+      border-width: 0 0 3px 3px;
+    }
+
+    .qr-corner.br {
+      bottom: 6px;
+      right: 6px;
+      border-width: 0 3px 3px 0;
+    }
+
+    #qr_viewport.detected {
+      border: 3px solid #22c55e;
+    }
+
+    #qr_center_box {
+      position: absolute;
+      width: 44%;
+      height: 44%;
+      top: 28%;
+      left: 28%;
+      border: 2px dashed rgba(255, 220, 0, .75);
+      border-radius: 6px;
+      pointer-events: none;
+    }
+
+    #qr_center_box::after {
+      content: "QR";
+      position: absolute;
+      bottom: -20px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 10px;
+      color: rgba(255, 220, 0, .75);
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    #btn_torch {
+      margin-top: 10px;
+      padding: 8px 20px;
+      background: rgba(255, 255, 255, .15);
+      border: 1px solid rgba(255, 255, 255, .3);
+      border-radius: 8px;
+      color: #fff;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: none;
+    }
+
+    #btn_torch.on {
+      background: rgba(255, 220, 0, .25);
+      border-color: rgba(255, 220, 0, .6);
+      color: #ffe066;
+    }
+
+    /* Work history table */
+    .wh-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+      margin-top: 8px;
+    }
+
+    .wh-table th {
+      background: var(--gray-50);
+      padding: 8px 6px;
+      text-align: left;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--gray-600);
+      border-bottom: 2px solid var(--gray-200);
+    }
+
+    .wh-table td {
+      padding: 6px;
+      border-bottom: 1px solid var(--gray-100);
+      vertical-align: middle;
+    }
+
+    .wh-table td input {
+      padding: 7px 8px;
+      font-size: 13px;
+      border-radius: 6px;
+    }
+
+    .wh-table .btn-del {
+      padding: 5px 10px;
+      font-size: 12px;
+      background: #fef2f2;
+      color: var(--danger);
+      border: 1px solid #fecaca;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    .btn-add-row {
+      padding: 8px 14px;
+      font-size: 13px;
+      background: var(--gray-50);
+      color: var(--primary);
+      border: 1.5px dashed var(--primary);
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      margin-top: 8px;
+    }
+
+    /* Status banners */
+    .status-banner {
+      border-radius: 10px;
+      padding: 12px 14px;
+      margin-bottom: 14px;
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    .status-banner.pending {
+      background: #fffbeb;
+      border: 1.5px solid #fde68a;
+      color: #92400e;
+    }
+
+    .status-banner.rejected {
+      background: #fef2f2;
+      border: 1.5px solid #fecaca;
+      color: #991b1b;
+    }
+
+    .status-banner.approved {
+      background: #f0fdf4;
+      border: 1.5px solid #bbf7d0;
+      color: #166534;
+    }
+
+    .status-banner.synced {
+      background: #eff6ff;
+      border: 1.5px solid #bfdbfe;
+      color: #1e40af;
+    }
+
+    /* Success screen */
+    .success-screen {
+      text-align: center;
+      padding: 20px 0;
+    }
+
+    .success-screen .check-icon {
+      font-size: 56px;
+      margin-bottom: 14px;
+    }
+
+    .success-screen h2 {
+      font-size: 22px;
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+
+    .success-screen p {
+      color: var(--gray-600);
+      font-size: 15px;
+      line-height: 1.7;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div id="page-loader">
+    <div class="loader" style="border-color:var(--gray-200);border-top-color:var(--primary)"></div>
+    Đang tải...
+  </div>
+
+  <div class="container">
+    <div class="header">
+      <div class="logo">
+        <img src="/assets/customize_erpnext/images/logo.svg" alt="Logo"
+          style="height:52px;max-width:180px;object-fit:contain" onerror="this.style.display='none'">
+      </div>
+      <h1>Cập nhật thông tin nhân viên</h1>
+      <p>Vui lòng điền đầy đủ và chính xác thông tin cá nhân</p>
+    </div>
+
+    <!-- Step indicator -->
+    <div class="steps">
+      <div class="step-item">
+        <div class="step-dot active" id="sdot1">1</div>
+        <div class="step-label">Chọn tên</div>
+      </div>
+      <div class="step-line" id="sline1"></div>
+      <div class="step-item">
+        <div class="step-dot" id="sdot2">2</div>
+        <div class="step-label">Xác thực</div>
+      </div>
+      <div class="step-line" id="sline2"></div>
+      <div class="step-item">
+        <div class="step-dot" id="sdot3">3</div>
+        <div class="step-label">Nhập thông tin</div>
+      </div>
+      <div class="step-line" id="sline3"></div>
+      <div class="step-item">
+        <div class="step-dot" id="sdot4">4</div>
+        <div class="step-label">Xác nhận</div>
+      </div>
+    </div>
+
+    <!-- ── STEP 1: Chọn nhân viên ── -->
+    <div class="step-panel active" id="step1">
+      <div class="card">
+        <div class="section-title">Bước 1 — Chọn tên của bạn</div>
+        <div class="field-group">
+          <label for="emp_select">Họ và tên <span class="req">*</span></label>
+          <select id="emp_select">
+            <option value="">-- Đang tải danh sách... --</option>
+          </select>
+        </div>
+        <div id="step1_alert" class="alert alert-error"></div>
+        <div style="margin-top:18px">
+          <button class="btn btn-primary" onclick="goStep2FromSelect()">Tiếp tục →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── STEP 2: Xác thực ── -->
+    <div class="step-panel" id="step2">
+      <div class="card">
+        <div class="section-title">Bước 2 — Xác thực danh tính</div>
+        <div class="phone-box">
+          <p class="hint">Xin chào <span class="emp-name" id="verify_name"></span>!<br>
+            <span id="step2_hint"></span>
+          </p>
+          <div class="phone-input-row">
+            <span>••••••••</span>
+            <input type="tel" id="phone_code" maxlength="2" pattern="[0-9]{2}" inputmode="numeric" placeholder="__"
+              onkeyup="if(this.value.length>=2) verifyIdentity()">
+          </div>
+          <div id="step2_alert" class="alert"></div>
+          <div class="btn-row">
+            <button class="btn btn-ghost" onclick="goStep1()">← Quay lại</button>
+            <button class="btn btn-primary" id="btn_verify" onclick="verifyIdentity()">Xác nhận</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── STEP 3: Nhập thông tin ── -->
+    <div class="step-panel" id="step3">
+      <div class="card">
+        <div class="emp-info-box" style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+          <strong id="info_emp_name" style="font-size:15px"></strong>
+          <span id="info_emp_id" style="color:var(--gray-400);font-size:13px;white-space:nowrap"></span>
+        </div>
+        <div id="status_banner" style="display:none"></div>
+        <!-- Dynamic form sections rendered by JS -->
+        <div id="form_sections"></div>
+        <div id="step3_alert" class="alert"></div>
+        <div class="btn-row">
+          <button class="btn btn-primary" id="btn_to_review" onclick="goToReview()">Xem lại thông tin →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── STEP 4: Xem lại ── -->
+    <div class="step-panel" id="step4">
+      <div class="card">
+        <div class="section-title" style="margin-bottom:14px">Xem lại thông tin trước khi lưu</div>
+        <div id="review_content"></div>
+        <div id="step4_alert" class="alert"></div>
+        <div class="btn-row" style="margin-top:16px">
+          <button class="btn btn-ghost" onclick="goBackToForm()">← Sửa lại</button>
+          <button class="btn btn-success" id="btn_submit" onclick="submitForm()">💾 Xác nhận & Lưu</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── SUCCESS ── -->
+    <div class="step-panel" id="step_success">
+      <div class="card">
+        <div class="success-screen">
+          <div class="check-icon">✅</div>
+          <h2>Thông tin đã được lưu!</h2>
+          <p>Cảm ơn bạn đã hoàn tất cập nhật thông tin.<br><br>
+            Phòng Nhân sự sẽ tổng hợp và liên hệ nếu cần bổ sung.<br><br>
+          </p>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /.container -->
+
+  <!-- QR Scanner Overlay -->
+  <div id="qr_overlay">
+    <p style="color:#fff;font-size:15px;font-weight:600;margin-bottom:16px;text-align:center">
+      Hướng mặt <strong>trước</strong> CCCD vào khung<br>
+      <span style="font-size:12px;font-weight:400;color:#94a3b8">Đặt mã QR vào ô vàng giữa — cách 5–10 cm, đủ ánh
+        sáng</span>
+    </p>
+    <div id="qr_viewport">
+      <div id="qr_scan_line"></div>
+      <div id="qr_center_box"></div>
+      <div class="qr-corner tl"></div>
+      <div class="qr-corner tr"></div>
+      <div class="qr-corner bl"></div>
+      <div class="qr-corner br"></div>
+    </div>
+    <div id="qr_status" style="color:#94a3b8;font-size:13px;margin-top:14px;text-align:center;min-height:20px">Đang khởi
+      động camera...</div>
+    <button id="btn_torch" onclick="toggleTorch()">🔦 Bật đèn</button>
+    <button onclick="closeQRScanner()"
+      style="margin-top:10px;padding:10px 32px;background:#fff;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;color:#374151">✕
+      Đóng</button>
+  </div>
+
+  <script>
+    // ─── Globals ─────────────────────────────────────────────────────────────────
+    const S = { employee_id: null, employee_name: null, has_phone: true, config: null, formStatus: null, readOnly: false, requireVerification: true };
+    let provinces_cache = null;
+    let communes_cache = {};
+
+    // ─── API helper ──────────────────────────────────────────────────────────────
+    async function api(method, args = {}) {
+      const fd = new FormData();
+      fd.append("csrf_token", window.csrf_token);
+      for (const [k, v] of Object.entries(args))
+        fd.append(k, v === null || v === undefined ? "" : String(v));
+      const res = await fetch(`/api/method/${method}`, { method: "POST", credentials: "same-origin", body: fd });
+      if (res.status === 403 || res.status === 401) { location.reload(); throw new Error("Session expired"); }
+      const data = await res.json();
+      if (data.exc) {
+        let msg = "";
+        try { msg = JSON.parse(JSON.parse(data._server_messages || "[]")[0]).message; } catch { }
+        throw new Error(msg || data.exc_type || "Lỗi server");
+      }
+      return data.message;
+    }
+
+    // ─── UI helpers ──────────────────────────────────────────────────────────────
+    function showAlert(id, msg, type = "error") {
+      const el = document.getElementById(id);
+      el.className = `alert alert-${type} show`;
+      el.innerHTML = (type === "error" ? "⚠️ " : type === "success" ? "✅ " : "ℹ️ ") + msg;
+    }
+    function hideAlert(id) { const el = document.getElementById(id); el.className = "alert"; el.innerHTML = ""; }
+    function setPageLoader(show) { document.getElementById("page-loader").className = show ? "" : "hidden"; }
+    function setStep(n) {
+      document.querySelectorAll(".step-panel").forEach(p => p.classList.remove("active"));
+      document.getElementById(n === "success" ? "step_success" : `step${n}`).classList.add("active");
+      for (let i = 1; i <= 4; i++) {
+        const dot = document.getElementById(`sdot${i}`);
+        const line = document.getElementById(`sline${i}`);
+        if (dot) dot.className = "step-dot" + (i < n ? " done" : i == n ? " active" : "");
+        if (line) line.className = "step-line" + (i < n ? " done" : "");
+      }
+      window.scrollTo(0, 0);
+    }
+    function fv(id) { const el = document.getElementById(id); return el ? el.value.trim() : ""; }
+    function sv(id, val) { const el = document.getElementById(id); if (el) { el.value = val ?? ""; _updateFieldColor(el); } }
+    function showEl(id, show) { const el = document.getElementById(id); if (el) el.style.display = show ? "" : "none"; }
+
+    // ─── Address helpers ─────────────────────────────────────────────────────────
+    const QN_CODE = "51";
+
+    async function loadProvinces() {
+      try {
+        provinces_cache = await api("customize_erpnext.api.address_converter.api.get_provinces");
+        ["cur", "per", "ori"].forEach(prefix => {
+          const sel = document.getElementById(`addr_${prefix}_province`);
+          if (!sel) return;
+          sel.innerHTML = `<option value="">-- Chọn Tỉnh/Thành phố --</option>`;
+          provinces_cache.forEach(p => {
+            const opt = document.createElement("option");
+            opt.value = p.ma; opt.textContent = p.ten;
+            sel.appendChild(opt);
+          });
+          sel.value = QN_CODE;
+        });
+        await Promise.all(["cur", "per", "ori"].map(p => loadCommunes(QN_CODE, p)));
+      } catch (e) { console.error("Load provinces:", e); }
+    }
+
+    async function loadCommunes(province_code, prefix, selected_val) {
+      const sel = document.getElementById(`addr_${prefix}_commune`);
+      if (!sel) return;
+      sel.innerHTML = `<option value="">-- Đang tải... --</option>`;
+      sel.disabled = true;
+      try {
+        if (!communes_cache[province_code]) {
+          communes_cache[province_code] = await api(
+            "customize_erpnext.api.address_converter.api.get_districts",
+            { province_code }
+          );
+        }
+        const items = communes_cache[province_code] || [];
+        sel.innerHTML = `<option value="">-- Chọn Phường/Xã --</option>`;
+        items.forEach(c => {
+          const opt = document.createElement("option");
+          opt.value = c.ten; opt.textContent = c.ten;
+          sel.appendChild(opt);
+        });
+        sel.disabled = false;
+        if (selected_val) sel.value = selected_val;
+        updateAddrPreview(prefix);
+      } catch (e) {
+        sel.innerHTML = `<option value="">-- Lỗi tải --</option>`;
+        sel.disabled = false;
+      }
+    }
+
+    async function onProvinceChange(prefix) {
+      const code = document.getElementById(`addr_${prefix}_province`)?.value;
+      const sel = document.getElementById(`addr_${prefix}_commune`);
+      if (!code) { if (sel) { sel.innerHTML = `<option value="">-- Chọn tỉnh trước --</option>`; sel.disabled = true; } updateAddrPreview(prefix); return; }
+      await loadCommunes(code, prefix);
+    }
+
+    function updateAddrPreview(prefix) {
+      const pSel = document.getElementById(`addr_${prefix}_province`);
+      const cSel = document.getElementById(`addr_${prefix}_commune`);
+      const village = fv(`addr_${prefix}_village`);
+      const commune = cSel ? cSel.value.trim() : "";
+      const province = pSel ? (pSel.options[pSel.selectedIndex]?.text || "") : "";
+      const parts = [village, commune, province].filter(Boolean);
+      const full = parts.join(", ");
+      sv(`addr_${prefix}_full_preview`, full);
+      showEl(`${prefix}_full_group`, !!full);
+    }
+
+    function getProvinceName(prefix) {
+      const pSel = document.getElementById(`addr_${prefix}_province`);
+      return pSel ? (pSel.options[pSel.selectedIndex]?.text || "") : "";
+    }
+
+    function toggleSameAddress(prefix_src, prefix_dst) {
+      const chk = document.getElementById(`same_as_${prefix_src}_${prefix_dst}`);
+      const fields = document.getElementById(`addr_${prefix_dst}_fields`);
+      if (!chk || !fields) return;
+      fields.style.display = chk.checked ? "none" : "";
+    }
+
+    // ─── CMND province ────────────────────────────────────────────────────────────
+    const OLD_PROVINCES = ["An Giang", "Bà Rịa - Vũng Tàu", "Bình Dương", "Bình Phước", "Bình Thuận", "Bình Định", "Bạc Liêu", "Bắc Giang", "Bắc Kạn", "Bắc Ninh", "Bến Tre", "Cao Bằng", "Cà Mau", "Cần Thơ", "Gia Lai", "Hoà Bình", "Hà Giang", "Hà Nam", "Hà Nội", "Hà Tĩnh", "Hưng Yên", "Hải Dương", "Hải Phòng", "Hậu Giang", "Hồ Chí Minh", "Huế", "Khánh Hòa", "Kiên Giang", "Kon Tum", "Lai Châu", "Long An", "Lào Cai", "Lâm Đồng", "Lạng Sơn", "Nam Định", "Nghệ An", "Ninh Bình", "Ninh Thuận", "Phú Thọ", "Phú Yên", "Quảng Bình", "Quảng Nam", "Quảng Ngãi", "Quảng Ninh", "Quảng Trị", "Sóc Trăng", "Sơn La", "Thanh Hóa", "Thái Bình", "Thái Nguyên", "Tiền Giang", "Trà Vinh", "Tuyên Quang", "Tây Ninh", "Vĩnh Long", "Vĩnh Phúc", "Yên Bái", "Điện Biên", "Đà Nẵng", "Đắk Lắk", "Đắk Nông", "Đồng Nai", "Đồng Tháp"];
+
+    function buildCmndProvinceSelect() {
+      const sel = document.getElementById("id_card_cmnd_province");
+      if (!sel) return;
+      OLD_PROVINCES.forEach(p => {
+        const opt = document.createElement("option");
+        opt.value = p; opt.textContent = p; sel.appendChild(opt);
+      });
+      sel.value = "Quảng Ngãi";
+      updateCmndPlace();
+      sel.addEventListener("change", updateCmndPlace);
+    }
+    function updateCmndPlace() {
+      const sel = document.getElementById("id_card_cmnd_province");
+      if (!sel) return;
+      const val = sel.value ? `CA Tỉnh ${sel.value}` : "";
+      sv("id_card_cmnd_place_of_issue", val);
+    }
+
+    // ─── STEP 1 ───────────────────────────────────────────────────────────────────
+    async function init() {
+      setPageLoader(true);
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const emp_param = params.get("emp");
+
+        // Load page settings (verification toggle) together with employee list
+        const [pageSettings] = await Promise.allSettled([
+          api("customize_erpnext.api.self_update.self_update_api.get_page_settings")
+        ]);
+        if (pageSettings.status === "fulfilled" && pageSettings.value) {
+          S.requireVerification = pageSettings.value.require_verification !== false;
+        }
+
+        if (emp_param) {
+          S.employee_id = emp_param;
+          S.employee_name = emp_param;
+          try {
+            const list = await api("customize_erpnext.api.self_update.self_update_api.get_eligible_employees");
+            const found = (list || []).find(e => e.employee_id === emp_param);
+            if (found) { S.employee_name = found.display_name; S.has_phone = found.has_phone; }
+          } catch (e) { console.warn("Could not load employee list:", e); }
+          if (S.requireVerification) {
+            document.getElementById("verify_name").textContent = S.employee_name;
+            _updateStep2UI();
+            setStep(2);
+          } else {
+            await loadStep3();
+          }
+        } else {
+          const list = await api("customize_erpnext.api.self_update.self_update_api.get_eligible_employees");
+          const sel = document.getElementById("emp_select");
+          if (!list || !list.length) {
+            sel.innerHTML = `<option value="">-- Không có nhân viên nào cần cập nhật --</option>`;
+          } else {
+            sel.innerHTML = `<option value="">-- Chọn tên của bạn --</option>`;
+            list.forEach(e => {
+              const opt = document.createElement("option");
+              opt.value = e.employee_id;
+              opt.textContent = `${e.display_name}${e.birth_year ? " — " + e.birth_year : ""}`;
+              opt.dataset.hasPhone = e.has_phone ? "1" : "0";
+              sel.appendChild(opt);
+            });
+          }
+          setStep(1);
+        }
+      } catch (e) {
+        console.error(e);
+        showAlert("step1_alert", "Không thể tải dữ liệu. Vui lòng thử lại.", "error");
+        setStep(1);
+      } finally {
+        setPageLoader(false);
+      }
+    }
+
+    function goStep2FromSelect() {
+      hideAlert("step1_alert");
+      const sel = document.getElementById("emp_select");
+      if (!sel.value) { showAlert("step1_alert", "Vui lòng chọn tên của bạn.", "error"); return; }
+      S.employee_id = sel.value;
+      S.employee_name = sel.options[sel.selectedIndex].textContent.split(" — ")[0];
+      S.has_phone = sel.options[sel.selectedIndex].dataset.hasPhone === "1";
+      if (!S.requireVerification) {
+        loadStep3();
+        return;
+      }
+      document.getElementById("verify_name").textContent = S.employee_name;
+      document.getElementById("phone_code").value = "";
+      hideAlert("step2_alert");
+      _updateStep2UI();
+      setStep(2);
+    }
+    function goStep1() { setStep(1); }
+
+    // ─── STEP 2 ───────────────────────────────────────────────────────────────────
+    function _updateStep2UI() {
+      const hint = document.getElementById("step2_hint");
+      if (S.has_phone) {
+        hint.innerHTML = `Nhập <strong>2 số cuối</strong> số điện thoại bạn đã cung cấp cho HR.`;
+      } else {
+        hint.innerHTML = `Nhập <strong>2 số ngày sinh</strong> (VD: ngày 05 → nhập <strong>05</strong>).`;
+      }
+      document.getElementById("phone_code").value = "";
+    }
+
+    async function verifyIdentity() {
+      hideAlert("step2_alert");
+      const val = document.getElementById("phone_code").value.trim();
+      if (!val || !/^\d{2}$/.test(val)) {
+        showAlert("step2_alert", "Vui lòng nhập đúng 2 chữ số.", "error"); return;
+      }
+      const btn = document.getElementById("btn_verify");
+      btn.disabled = true; btn.innerHTML = `<span class="loader"></span> Đang xác thực...`;
+      try {
+        const r = await api("customize_erpnext.api.self_update.self_update_api.verify_identity", {
+          employee_id: S.employee_id, code: val
+        });
+        if (r && r.valid) {
+          await loadStep3();
+        } else {
+          const msg = S.has_phone
+            ? "Số điện thoại không khớp. Vui lòng kiểm tra lại hoặc liên hệ HR."
+            : "Ngày sinh không khớp. Vui lòng nhập 2 số ngày sinh (VD: ngày 05 → nhập 05).";
+          showAlert("step2_alert", msg, "error");
+        }
+      } catch (e) {
+        showAlert("step2_alert", e.message || "Lỗi xác thực.", "error");
+      } finally {
+        btn.disabled = false; btn.textContent = "Xác nhận";
+      }
+    }
+
+    // ─── STEP 3 ───────────────────────────────────────────────────────────────────
+    async function loadStep3() {
+      setPageLoader(true);
+      try {
+        const [formData, config] = await Promise.all([
+          api("customize_erpnext.api.self_update.self_update_api.get_form_data", { employee_id: S.employee_id }),
+          api("customize_erpnext.api.self_update.self_update_api.get_field_config"),
+        ]);
+        S.config = config;
+        S.formStatus = formData.status || null;
+        S.readOnly = ["Approved", "Synced"].includes(S.formStatus);
+
+        document.getElementById("info_emp_name").textContent = formData.employee_name || S.employee_name;
+        document.getElementById("info_emp_id").textContent = S.employee_id;
+
+        // Status banner
+        const banner = document.getElementById("status_banner");
+        if (S.formStatus === "Pending Review") {
+          banner.className = "status-banner pending"; banner.style.display = "";
+          banner.innerHTML = "🟡 <strong>Đang chờ HR xem xét.</strong> Bạn có thể xem lại và cập nhật nếu cần.";
+        } else if (S.formStatus === "Rejected") {
+          banner.className = "status-banner rejected"; banner.style.display = "";
+          const reason = formData.reject_reason ? `<br>📌 Lý do: <em>${formData.reject_reason}</em>` : "";
+          banner.innerHTML = `🔴 <strong>Form bị từ chối.</strong> Vui lòng sửa và nộp lại.${reason}`;
+        } else if (S.formStatus === "Approved") {
+          banner.className = "status-banner approved"; banner.style.display = "";
+          banner.innerHTML = "🟢 <strong>Thông tin đã được duyệt.</strong> Không thể chỉnh sửa.";
+        } else if (S.formStatus === "Synced") {
+          banner.className = "status-banner synced"; banner.style.display = "";
+          banner.innerHTML = "🔵 <strong>Đã đồng bộ vào hệ thống.</strong> Không thể chỉnh sửa.";
+        } else {
+          banner.style.display = "none";
+        }
+
+        // Render form sections
+        renderAllSections(config);
+        loadProvinces();
+        buildCmndProvinceSelect();
+
+        // Fill data
+        if (formData.has_existing || formData.date_of_birth || formData.cell_number) {
+          fillFormData(formData);
+        }
+
+        // Read-only mode
+        if (S.readOnly) {
+          document.getElementById("btn_to_review").style.display = "none";
+          document.querySelectorAll("#form_sections input, #form_sections select, #form_sections textarea").forEach(el => {
+            el.disabled = true;
+          });
+        }
+
+        setStep(3);
+      } catch (e) {
+        showAlert("step2_alert", "Lỗi tải form. Vui lòng thử lại.", "error");
+        console.error(e);
+      } finally {
+        setPageLoader(false);
+      }
+    }
+
+    // ─── Section Renderers ────────────────────────────────────────────────────────
+    function renderAllSections(config) {
+      const container = document.getElementById("form_sections");
+      container.innerHTML = "";
+      (config.sections || []).forEach(section => {
+        let html = "";
+        switch (section.ui_type) {
+          case "standard": html = renderStandardSection(section); break;
+          case "special_cccd": html = renderCCCDSection(section); break;
+          case "address": html = renderAddressSection(section); break;
+          case "bank": html = renderBankSection(section); break;
+          case "driving_license": html = renderDrivingLicenseSection(section); break;
+          case "table": html = renderWorkHistorySection(section); break;
+          case "other_docs": html = renderOtherDocsSection(section); break;
+          default: html = renderStandardSection(section);
+        }
+        container.insertAdjacentHTML("beforeend", html);
+      });
+    }
+
+    function _renderField(f) {
+      const req = f.required ? `<span class="req">*</span>` : "";
+      const showWhenAttr = f.show_when ? `data-show-when='${JSON.stringify(f.show_when)}'` : "";
+      const reqAttr = f.required ? ' data-required="1"' : '';
+      let input = "";
+      if (f.fieldtype === "Date") {
+        input = `<input type="date" id="${f.form_field}" name="${f.form_field}"${reqAttr}>`;
+      } else if (f.fieldtype === "Int") {
+        input = `<input type="number" id="${f.form_field}" name="${f.form_field}" min="0" max="20" inputmode="numeric" placeholder="0"${reqAttr}>`;
+      } else if (f.fieldtype === "Select" && f.options) {
+        const defVal = f.default || "";
+        if (f.allow_other_input) {
+          const otherOption = f.other_option || "Khác";
+          const otherPh = f.other_placeholder || "Nhập chi tiết...";
+          let selHtml = `<select id="${f.form_field}_sel" onchange="onSelectWithOther('${f.form_field}')"${reqAttr}>`;
+          f.options.forEach(o => {
+            const val = (typeof o === "object") ? o.value : o;
+            const lbl = (typeof o === "object") ? (o.label || o.value || "-- Chọn --") : (o || "-- Chọn --");
+            const sel = (defVal && val === defVal) ? ' selected' : '';
+            selHtml += `<option value="${val}"${sel}>${lbl}</option>`;
+          });
+          selHtml += `</select>`;
+          input = selHtml +
+            `<div id="${f.form_field}_other_wrap" style="display:none;margin-top:6px">` +
+            `<input type="text" id="${f.form_field}_other_text" placeholder="${otherPh}" oninput="onSelectWithOther('${f.form_field}')">` +
+            `</div>` +
+            `<input type="hidden" id="${f.form_field}" value="${defVal}">`;
+        } else {
+          input = `<select id="${f.form_field}" name="${f.form_field}" onchange="onFieldChange('${f.form_field}')"${reqAttr}>`;
+          f.options.forEach(o => {
+            const val = (typeof o === "object") ? o.value : o;
+            const lbl = (typeof o === "object") ? (o.label || o.value || "-- Chọn --") : (o || "-- Chọn --");
+            const sel = (defVal && val === defVal) ? ' selected' : '';
+            input += `<option value="${val}"${sel}>${lbl}</option>`;
+          });
+          input += `</select>`;
+        }
+      } else if (f.fieldtype === "CmndProvince") {
+        // Special select populated by buildCmndProvinceSelect(); stores value via updateCmndPlace()
+        input = `<select id="id_card_cmnd_province"><option value="">-- Chọn tỉnh --</option></select>`;
+      } else {
+        const phAttr = f.placeholder ? ` placeholder="${f.placeholder}"` : "";
+        const mlAttr = f.maxlength ? ` maxlength="${f.maxlength}"` : "";
+        const imAttr = f.inputmode ? ` inputmode="${f.inputmode}"` : "";
+        const numOnInput = f.inputmode === "numeric" ? ` oninput="this.value=this.value.replace(/[^0-9]/g,'')"` : "";
+        input = `<input type="text" id="${f.form_field}" name="${f.form_field}"${phAttr}${mlAttr}${imAttr}${numOnInput}${reqAttr}>`;
+      }
+      const hint = f.hint ? `<div class="field-hint">${f.hint}</div>` : "";
+      return `<div class="field-group" id="fg_${f.form_field}" ${showWhenAttr}><label for="${f.form_field}">${f.label} ${req}</label>${input}${hint}</div>`;
+    }
+
+    function renderStandardSection(section) {
+      let html = `<div id="sec_${section.id}" class="sec-block">`;
+      html += `<div class="section-title">${section.label}</div>`;
+
+      // Group fields by row_id (fields with same row_id go in one field-row)
+      const groups = [];
+      const rowIdx = {};
+      section.fields.forEach(f => {
+        if (f.auto_generated || f.hidden) return;
+        if (f.row_id) {
+          if (rowIdx[f.row_id] === undefined) { rowIdx[f.row_id] = groups.length; groups.push([f]); }
+          else { groups[rowIdx[f.row_id]].push(f); }
+        } else {
+          groups.push([f]);
+        }
+      });
+
+      groups.forEach(grp => {
+        if (grp.length > 1) {
+          html += `<div class="field-row">` + grp.map(_renderField).join("") + `</div>`;
+        } else {
+          html += _renderField(grp[0]);
+        }
+      });
+
+      // Hidden auto-populated fields
+      section.fields.filter(f => f.hidden).forEach(f => {
+        html += `<input type="hidden" id="${f.form_field}" name="${f.form_field}">`;
+      });
+
+      html += `</div>`;
+      return html;
+    }
+
+    function renderCCCDSection(section) {
+      return `
+    <div id="sec_${section.id}" class="sec-block">
+      <div class="section-title" style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+        <span>${section.label}</span>
+        <button type="button" onclick="openQRScanner()"
+          style="flex-shrink:0;font-size:13px;padding:6px 12px;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;white-space:nowrap">
+          📷 Quét QR CCCD
+        </button>
+      </div>
+      <div id="qr_success_banner" style="display:none;background:#dcfce7;border:1px solid #86efac;border-radius:8px;padding:10px 12px;font-size:13px;color:#166534;margin-bottom:12px"></div>
+      <div class="field-group">
+        <label for="id_card_no">Số CCCD (12 số) <span class="req">*</span></label>
+        <input type="text" id="id_card_no" maxlength="12" inputmode="numeric" placeholder="12 chữ số">
+        <div class="field-error" id="err_id_card_no">Số CCCD phải gồm đúng 12 chữ số</div>
+      </div>
+      <div class="field-row">
+        <div class="field-group">
+          <label for="id_card_date_of_issue">Ngày cấp <span class="req">*</span></label>
+          <input type="date" id="id_card_date_of_issue">
+        </div>
+        <div class="field-group">
+          <label for="id_card_place_of_issue">Nơi cấp <span class="req">*</span></label>
+          <select id="id_card_place_of_issue">
+            <option value="">-- Chọn --</option>
+            <option value="Cục Cảnh sát Quản lý hành chính về Trật tự Xã Hội">Cục Cảnh sát QLHC về TTATXH</option>
+            <option value="Bộ Công An">Bộ Công An</option>
+          </select>
+        </div>
+      </div>
+      <!-- Photo upload -->
+      <div class="field-group">
+        <label>Ảnh CCCD</label>
+        <div class="photo-guide">
+          📷 <strong>Lưu ý khi chụp ảnh CCCD:</strong>
+          <ul>
+            <li>Đặt thẻ trên nền phẳng, đủ ánh sáng</li>
+            <li>Chụp thẳng, không bị nghiêng / mờ / che khuất</li>
+            <li>Chữ và số trên thẻ phải đọc được rõ ràng</li>
+          </ul>
+        </div>
+        <div class="photo-upload-pair">
+          <div class="photo-upload-box">
+            <div class="photo-drop-zone" id="zone_front">
+              <div class="dz-icon">🪪</div>
+              <div class="dz-label">Mặt trước</div>
+              <div class="dz-btns">
+                <button type="button" onclick="triggerFileInput('file_front_cam')">📷 Chụp</button>
+                <button type="button" onclick="triggerFileInput('file_front')">🖼 Thư viện</button>
+              </div>
+            </div>
+            <div class="photo-uploading" id="uploading_front">⏳ Đang tải lên...</div>
+          </div>
+          <div class="photo-upload-box">
+            <div class="photo-drop-zone" id="zone_back">
+              <div class="dz-icon">🪪</div>
+              <div class="dz-label">Mặt sau</div>
+              <div class="dz-btns">
+                <button type="button" onclick="triggerFileInput('file_back_cam')">📷 Chụp</button>
+                <button type="button" onclick="triggerFileInput('file_back')">🖼 Thư viện</button>
+              </div>
+            </div>
+            <div class="photo-uploading" id="uploading_back">⏳ Đang tải lên...</div>
+          </div>
+        </div>
+        <input type="file" id="file_front" accept="image/*" style="display:none" onchange="onPhotoSelected('front',this)">
+        <input type="file" id="file_back" accept="image/*" style="display:none" onchange="onPhotoSelected('back',this)">
+        <input type="file" id="file_front_cam" accept="image/*" capture="environment" style="display:none" onchange="onPhotoSelected('front',this)">
+        <input type="file" id="file_back_cam" accept="image/*" capture="environment" style="display:none" onchange="onPhotoSelected('back',this)">
+        <input type="hidden" id="id_card_front_photo">
+        <input type="hidden" id="id_card_back_photo">
+      </div>
+    </div>`;
+    }
+
+    function renderAddressSection(section) {
+      const prefixMap = { current_address: "cur", permanent_address: "per", origin_address: "ori" };
+      const prefix = prefixMap[section.id] || section.id;
+      const isRequired = (section.fields || []).some(f => f.required);
+      const req = isRequired ? `<span class="req">*</span>` : "";
+
+      let titleHtml = "";
+      const addrFieldsOpen = `<div id="addr_${prefix}_fields">`;
+      if (section.copy_from_section) {
+        const srcPrefixMap = { current_address: "cur" };
+        const srcP = srcPrefixMap[section.copy_from_section] || section.copy_from_section;
+        titleHtml = `
+        <div class="section-title" style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+          <span>${section.label}</span>
+          <label style="font-size:12px;font-weight:600;color:var(--primary);cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:5px">
+            <input type="checkbox" id="same_as_${srcP}_${prefix}" onchange="toggleSameAddress('${srcP}','${prefix}')"
+              style="width:16px;height:16px;padding:0;cursor:pointer;flex-shrink:0">
+            Giống địa chỉ hiện tại
+          </label>
+        </div>`;
+      } else {
+        titleHtml = `<div class="section-title">${section.label}</div>`;
+      }
+
+      return `
+    <div id="sec_${section.id}" class="sec-block">
+      ${titleHtml}
+      ${addrFieldsOpen}
+        <div class="field-row">
+          <div class="field-group">
+            <label for="addr_${prefix}_province">Tỉnh / Thành phố ${req}</label>
+            <select id="addr_${prefix}_province" onchange="onProvinceChange('${prefix}')">
+              <option value="">-- Đang tải... --</option>
+            </select>
+          </div>
+          <div class="field-group">
+            <label for="addr_${prefix}_commune">Phường / Xã ${req}</label>
+            <select id="addr_${prefix}_commune" disabled onchange="updateAddrPreview('${prefix}')">
+              <option value="">-- Chọn tỉnh --</option>
+            </select>
+          </div>
+        </div>
+        <div class="field-group">
+          <label for="addr_${prefix}_village">Số nhà / Đường / Thôn ${req}</label>
+          <input type="text" id="addr_${prefix}_village" placeholder="VD: 123 Đường Quang Trung" oninput="updateAddrPreview('${prefix}')">
+        </div>
+        <div class="field-group" id="${prefix}_full_group" style="display:none">
+          <label>Địa chỉ đầy đủ</label>
+          <input type="text" id="addr_${prefix}_full_preview" readonly>
+        </div>
+      </div>
+    </div>`;
+    }
+
+    function renderBankSection(section) {
+      const note = section.note || "";
+      return `
+    <div id="sec_${section.id}" class="sec-block">
+      <div class="section-title">${section.label}</div>
+      ${note ? `<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:10px 12px;font-size:13px;color:#92400e;margin-bottom:12px">💳 ${note}</div>` : ""}
+      <div class="field-row">
+        <div class="field-group">
+          <label for="bank_ac_no">Số tài khoản <span class="req">*</span></label>
+          <input type="text" id="bank_ac_no" inputmode="numeric" placeholder="Nhập số TK VCB (0 nếu chưa có)" data-required="1" oninput="updateBankBranchReq()">
+        </div>
+        <div class="field-group">
+          <label for="bank_branch">Chi nhánh <span id="bank_branch_req_lbl"><span class="req">*</span></span></label>
+          <input type="text" id="bank_branch" placeholder="VD: CN Quảng Ngãi" data-required="1">
+        </div>
+      </div>
+    </div>`;
+    }
+
+    function renderDrivingLicenseSection(section) {
+      const noteField = (section.fields || []).find(f => f.form_field === "driving_license_note");
+      const opts = (noteField && noteField.options) ? noteField.options : [];
+      const optsHtml = opts.map(o => `<option value="${o}">${o || "-- Chọn --"}</option>`).join("");
+      return `
+    <div id="sec_${section.id}" class="sec-block">
+      <div class="section-title">${section.label}</div>
+      <div class="field-group">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:15px;font-weight:600;color:var(--gray-700)">
+          <input type="checkbox" id="driving_license" onchange="onDrivingLicenseChange()"
+            style="width:18px;height:18px;padding:0;border-radius:4px;cursor:pointer;flex-shrink:0">
+          Tôi có bằng lái xe
+        </label>
+      </div>
+      <div id="driving_license_note_group" class="field-group">
+        <label for="driving_license_note_sel">Tình trạng bằng lái</label>
+        <select id="driving_license_note_sel" onchange="onDrivingNoteChange()">
+          ${optsHtml}
+        </select>
+        <div id="driving_license_other_group" class="field-group" style="display:none;margin-top:8px">
+          <input type="text" id="driving_license_other" placeholder="${(noteField && noteField.other_placeholder) || "Nhập ghi chú..."}">
+        </div>
+      </div>
+      <input type="hidden" id="driving_license_note">
+    </div>`;
+    }
+
+    function onDrivingLicenseChange() {
+      const checked = document.getElementById("driving_license").checked;
+      showEl("driving_license_note_group", !checked);
+      if (checked) { sv("driving_license_note", ""); }
+      else { onDrivingNoteChange(); }
+    }
+
+    function onDrivingNoteChange() {
+      const sel = document.getElementById("driving_license_note_sel");
+      const otherGroup = document.getElementById("driving_license_other_group");
+      const isOther = sel && sel.value === "Khác";
+      if (otherGroup) otherGroup.style.display = isOther ? "" : "none";
+      const noteField = document.getElementById("driving_license_note");
+      if (!sel) return;
+      if (isOther) {
+        const txt = fv("driving_license_other");
+        if (noteField) noteField.value = txt ? `Khác: ${txt}` : "";
+      } else {
+        if (noteField) noteField.value = sel.value;
+      }
+    }
+
+    function renderWorkHistorySection(section) {
+      const label = section.no_experience_label || "Chưa có kinh nghiệm làm việc";
+      const cols = section.columns || [];
+      const thHtml = cols.map(c => `<th>${c.label}${c.required ? " *" : ""}</th>`).join("") + "<th></th>";
+      return `
+    <div id="sec_${section.id}" class="sec-block">
+      <div class="section-title">${section.label}</div>
+      <div class="field-group">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:14px;font-weight:600;color:var(--gray-700)">
+          <input type="checkbox" id="no_experience_chk" onchange="onNoExperienceChange()"
+            style="width:18px;height:18px;padding:0;cursor:pointer;flex-shrink:0">
+          ${label}
+        </label>
+      </div>
+      <div id="work_history_table_wrap">
+        <table class="wh-table">
+          <thead><tr>${thHtml}</tr></thead>
+          <tbody id="work_history_tbody"></tbody>
+        </table>
+        <button type="button" class="btn-add-row" onclick="addWorkHistoryRow()">+ Thêm dòng</button>
+      </div>
+      <input type="hidden" id="work_history_json" value="[]">
+    </div>`;
+    }
+
+    // ─── Other Documents (multi-photo) ────────────────────────────────────────────
+    function renderOtherDocsSection(section) {
+      return `
+    <div id="sec_${section.id}" class="sec-block">
+      <div class="section-title">${section.label}</div>
+      <div class="photo-guide">📎 Tải lên ảnh giấy tờ khác: CCCD/ CMND photo công chứng, giấy xác nhận thông tin cư trú, giấy xác nhận hạnh kiểm, sơ yếu lý lịch, giấy khai sinh của con,...(Có thể tải nhiều ảnh).</div>
+      <div id="other_docs_grid" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px"></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button type="button" onclick="otherDocsTrigger('other_docs_cam')"
+          style="padding:8px 14px;font-size:13px;border:1.5px solid var(--primary);background:#fff;color:var(--primary);border-radius:8px;cursor:pointer;font-weight:600">📷 Chụp ảnh</button>
+        <button type="button" onclick="otherDocsTrigger('other_docs_file')"
+          style="padding:8px 14px;font-size:13px;border:1.5px solid var(--primary);background:#fff;color:var(--primary);border-radius:8px;cursor:pointer;font-weight:600">🖼 Từ thư viện</button>
+      </div>
+      <input type="file" id="other_docs_cam"  accept="image/*" capture="environment" style="display:none" multiple onchange="onOtherDocsSelected(this)">
+      <input type="file" id="other_docs_file" accept="image/*"                       style="display:none" multiple onchange="onOtherDocsSelected(this)">
+      <input type="hidden" id="other_docs_json" value="[]">
+    </div>`;
+    }
+
+    function otherDocsTrigger(id) { document.getElementById(id)?.click(); }
+
+    function _compressDataUrl(dataUrl, maxW, maxH, maxMB) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+          const c = document.createElement("canvas");
+          c.width = img.naturalWidth; c.height = img.naturalHeight;
+          c.getContext("2d").drawImage(img, 0, 0);
+          resolve(_resizeAndCompress(c, maxW, maxH, maxMB));
+        };
+        img.onerror = reject;
+        img.src = dataUrl;
+      });
+    }
+
+    async function onOtherDocsSelected(input) {
+      if (!input.files || !input.files.length) return;
+      for (const file of Array.from(input.files)) {
+        if (!file.type.startsWith("image/")) continue;
+        const rawUrl = await new Promise(r => { const rd = new FileReader(); rd.onload = e => r(e.target.result); rd.readAsDataURL(file); });
+        const div = _addOtherDocPreview(rawUrl, true);
+        try {
+          const dataUrl = await _compressDataUrl(rawUrl, 1920, 2560, 2);
+          const res = await api(
+            "customize_erpnext.api.self_update.self_update_api.upload_other_doc",
+            { employee_id: S.employee_id, image_data: dataUrl }
+          );
+          div.dataset.url = res.file_url;
+          div.querySelector(".od-spinner")?.remove();
+          _syncOtherDocsJSON();
+        } catch (e) {
+          div.remove();
+          _syncOtherDocsJSON();
+          alert("Lỗi upload ảnh: " + (e.message || "Lỗi không xác định"));
+        }
+      }
+      input.value = "";
+    }
+
+    function _addOtherDocPreview(dataUrl, uploading = false) {
+      const grid = document.getElementById("other_docs_grid");
+      if (!grid) return null;
+      const div = document.createElement("div");
+      div.style.cssText = "position:relative;width:90px;height:70px;flex-shrink:0";
+      div.innerHTML = `
+        <img src="${dataUrl}" style="width:90px;height:70px;object-fit:cover;border-radius:8px;border:1.5px solid var(--gray-200)">
+        <button type="button" onclick="removeOtherDoc(this)"
+          style="position:absolute;top:-6px;right:-6px;background:var(--danger);color:#fff;border:none;border-radius:50%;width:20px;height:20px;font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center">✕</button>
+        ${uploading ? '<div class="od-spinner" style="position:absolute;inset:0;background:rgba(0,0,0,.45);border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:18px">⏳</div>' : ''}`;
+      div.dataset.url = uploading ? "" : dataUrl;
+      grid.appendChild(div);
+      if (!uploading) _syncOtherDocsJSON();
+      return div;
+    }
+
+    function removeOtherDoc(btn) {
+      btn.closest("div[data-url]")?.remove();
+      _syncOtherDocsJSON();
+    }
+
+    function _syncOtherDocsJSON() {
+      const grid = document.getElementById("other_docs_grid");
+      if (!grid) return;
+      const urls = Array.from(grid.querySelectorAll("div[data-url]"))
+        .map(d => d.dataset.url).filter(u => u && u.startsWith("/files/"));
+      sv("other_docs_json", JSON.stringify(urls));
+    }
+
+    function _fillOtherDocs(jsonStr) {
+      try {
+        const urls = JSON.parse(jsonStr || "[]");
+        urls.forEach(url => _addOtherDocPreview(url));
+      } catch (e) { }
+    }
+
+    function onNoExperienceChange() {
+      const chk = document.getElementById("no_experience_chk");
+      showEl("work_history_table_wrap", !chk.checked);
+      if (chk.checked) {
+        sv("work_history_json", "[]");
+        document.getElementById("work_history_tbody").innerHTML = "";
+      }
+    }
+
+    function addWorkHistoryRow(data = {}) {
+      const tbody = document.getElementById("work_history_tbody");
+      if (!tbody) return;
+      const idx = tbody.children.length;
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+      <td><input type="text" id="wh_company_${idx}" value="${data.company_name || ""}" placeholder="Công ty..." oninput="updateWorkHistoryJSON()"></td>
+      <td><input type="text" id="wh_designation_${idx}" value="${data.designation || ""}" placeholder="Chức vụ..." oninput="updateWorkHistoryJSON()"></td>
+      <td><input type="text" id="wh_exp_${idx}" value="${data.total_experience || ""}" placeholder="VD: 2 năm" oninput="updateWorkHistoryJSON()"></td>
+      <td><button type="button" class="btn-del" onclick="removeWorkHistoryRow(this)">✕</button></td>`;
+      tbody.appendChild(tr);
+    }
+
+    function removeWorkHistoryRow(btn) {
+      btn.closest("tr").remove();
+      updateWorkHistoryJSON();
+    }
+
+    function updateWorkHistoryJSON() {
+      const tbody = document.getElementById("work_history_tbody");
+      if (!tbody) return;
+      const rows = [...tbody.querySelectorAll("tr")].map((tr, i) => ({
+        company_name: tr.querySelector(`[id^="wh_company_"]`)?.value?.trim() || "",
+        designation: tr.querySelector(`[id^="wh_designation_"]`)?.value?.trim() || "",
+        total_experience: tr.querySelector(`[id^="wh_exp_"]`)?.value?.trim() || "",
+      }));
+      sv("work_history_json", JSON.stringify(rows));
+    }
+
+    // show_when logic
+    function onFieldChange(fieldId) {
+      applyShowWhen();
+    }
+    function onSelectWithOther(fieldId) {
+      const selEl = document.getElementById(fieldId + "_sel");
+      const otherWrap = document.getElementById(fieldId + "_other_wrap");
+      const otherText = document.getElementById(fieldId + "_other_text");
+      const hidden = document.getElementById(fieldId);
+      if (!selEl || !hidden) return;
+      const isOther = selEl.value === "Khác";
+      if (otherWrap) otherWrap.style.display = isOther ? "" : "none";
+      if (isOther) {
+        hidden.value = otherText && otherText.value ? "Khác: " + otherText.value : "";
+      } else {
+        hidden.value = selEl.value;
+        if (otherText) otherText.value = "";
+      }
+      applyShowWhen();
+    }
+    function fillSelectWithOther(fieldId, value) {
+      const selEl = document.getElementById(fieldId + "_sel");
+      const otherWrap = document.getElementById(fieldId + "_other_wrap");
+      const otherText = document.getElementById(fieldId + "_other_text");
+      const hidden = document.getElementById(fieldId);
+      if (!selEl || !hidden) return;
+      hidden.value = value;
+      if (value && value.startsWith("Khác: ")) {
+        selEl.value = "Khác";
+        if (otherText) otherText.value = value.slice(6);
+        if (otherWrap) otherWrap.style.display = "";
+      } else {
+        selEl.value = value || "";
+        if (otherWrap) otherWrap.style.display = "none";
+      }
+    }
+    function applyShowWhen() {
+      document.querySelectorAll("[data-show-when]").forEach(el => {
+        try {
+          const rule = JSON.parse(el.dataset.showWhen);
+          const srcEl = document.getElementById(rule.field);
+          if (!srcEl) return;
+          const val = srcEl.type === "checkbox" ? (srcEl.checked ? 1 : 0) : srcEl.value;
+          let show = true;
+          if (rule.value !== undefined) show = String(val) === String(rule.value);
+          if (rule.not_value !== undefined) show = String(val) !== String(rule.not_value);
+          el.style.display = show ? "" : "none";
+        } catch (e) { }
+      });
+    }
+
+    // ─── Fill form ────────────────────────────────────────────────────────────────
+    function fillFormData(data) {
+      // Simple text/date/number fields
+      const directFields = [
+        "date_of_birth", "cell_number",
+        "id_card_no", "id_card_date_of_issue", "id_card_place_of_issue",
+        "id_card_cmnd_no", "id_card_cmnd_date_of_issue",
+        "bank_ac_no", "bank_branch",
+        "social_insurance_number", "tax_code",
+        "university", "major",
+        "personal_email", "emergency_contact_name", "relation", "emergency_phone_number",
+        "number_of_childrens", "shirt_size", "shoe_size",
+        "marital_status",
+        "custom_strengths", "custom_favorite_sport",
+      ];
+      directFields.forEach(f => { if (data[f] != null) sv(f, data[f]); });
+
+      // allow_other_input Select fields
+      ["education_level", "custom_vegetarian"].forEach(fieldId => {
+        if (data[fieldId] != null) fillSelectWithOther(fieldId, data[fieldId]);
+      });
+
+      // CCCD photos
+      ["front", "back"].forEach(side => {
+        const url = data[`id_card_${side}_photo`];
+        if (url) {
+          sv(`id_card_${side}_photo`, url);
+          const zone = document.getElementById(`zone_${side}`);
+          if (zone) {
+            zone.innerHTML = `<img class="preview" src="${url}"><button class="remove-photo" onclick="removePhoto('${side}',event)" title="Xóa ảnh">✕</button>`;
+            zone.classList.add("has-photo");
+          }
+        }
+      });
+
+      // CMND place of issue
+      if (data.id_card_cmnd_place_of_issue) {
+        const province = data.id_card_cmnd_place_of_issue.replace("CA Tỉnh ", "").trim();
+        sv("id_card_cmnd_province", province);
+        updateCmndPlace();
+      }
+
+      // Addresses (deferred until provinces load)
+      _addrFillPending = data;
+
+      // Work history
+      if (data.work_history_json) {
+        try {
+          const rows = JSON.parse(data.work_history_json);
+          if (rows.length === 0) {
+            const chk = document.getElementById("no_experience_chk");
+            if (chk) { chk.checked = true; onNoExperienceChange(); }
+          } else {
+            const tbody = document.getElementById("work_history_tbody");
+            if (tbody) { tbody.innerHTML = ""; rows.forEach(r => addWorkHistoryRow(r)); updateWorkHistoryJSON(); }
+          }
+        } catch (e) { }
+      } else {
+        // default: show table empty
+      }
+
+      // Driving license
+      if (data.driving_license !== undefined) {
+        const chk = document.getElementById("driving_license");
+        if (chk) { chk.checked = !!parseInt(data.driving_license || "0"); onDrivingLicenseChange(); }
+      }
+      if (data.driving_license_note) {
+        const note = data.driving_license_note;
+        const sel = document.getElementById("driving_license_note_sel");
+        const otherInput = document.getElementById("driving_license_other");
+        if (note.startsWith("Khác: ") && sel) {
+          sel.value = "Khác";
+          if (otherInput) otherInput.value = note.slice(6);
+          showEl("driving_license_other_group", true);
+        } else if (sel) {
+          sel.value = note;
+        }
+        sv("driving_license_note", note);
+      }
+
+      // Other documents
+      if (data.other_docs_json) _fillOtherDocs(data.other_docs_json);
+
+      applyShowWhen();
+    }
+
+    // Deferred address fill (waits for provinces to load)
+    let _addrFillPending = null;
+    const _origLoadCommunes = loadCommunes;
+
+    async function _fillAddressAfterProvinces(data) {
+      const prefixMap = { current_address: "cur", permanent_address: "per", origin_address: "ori" };
+      const addrMap = {
+        cur: { province: "current_address_province", commune: "current_address_commune", village: "current_address_village" },
+        per: { province: "permanent_address_province", commune: "permanent_address_commune", village: "permanent_address_village" },
+        ori: { province: "place_of_origin_province", commune: "place_of_origin_commune", village: "place_of_origin_village" },
+      };
+      for (const [prefix, keys] of Object.entries(addrMap)) {
+        const provinceName = data[keys.province];
+        if (provinceName && provinces_cache) {
+          const found = provinces_cache.find(p => p.ten === provinceName);
+          if (found) {
+            sv(`addr_${prefix}_province`, found.ma);
+            await loadCommunes(found.ma, prefix, data[keys.commune]);
+          }
+        }
+        if (data[keys.village]) sv(`addr_${prefix}_village`, data[keys.village]);
+        updateAddrPreview(prefix);
+      }
+    }
+
+    // Patch loadProvinces to trigger deferred fill
+    const _origLoadProvinces = loadProvinces;
+    loadProvinces = async function () {
+      await _origLoadProvinces();
+      if (_addrFillPending) {
+        await _fillAddressAfterProvinces(_addrFillPending);
+        _addrFillPending = null;
+      }
+    };
+
+    // ─── Photo upload ─────────────────────────────────────────────────────────────
+    function triggerFileInput(inputId) { document.getElementById(inputId)?.click(); }
+
+    function onPhotoSelected(side, input) {
+      if (!input.files || !input.files[0]) return;
+      if (!input.files[0].type.startsWith("image/")) { alert("Vui lòng chọn file ảnh."); return; }
+      const reader = new FileReader();
+      reader.onload = e => openCccdCropModal(side, e.target.result);
+      reader.readAsDataURL(input.files[0]);
+      input.value = "";
+    }
+
+    function showPhotoPreview(side, dataUrl, uploading) {
+      const zone = document.getElementById(`zone_${side}`);
+      if (!zone) return;
+      zone.innerHTML = `<img class="preview" src="${dataUrl}"><button class="remove-photo" onclick="removePhoto('${side}',event)" title="Xóa ảnh">✕</button>`;
+      zone.classList.add("has-photo");
+      const up = document.getElementById(`uploading_${side}`);
+      if (up) up.style.display = uploading ? "block" : "none";
+    }
+
+    function removePhoto(side, event) {
+      event.stopPropagation();
+      const label = side === "front" ? "Mặt trước" : "Mặt sau";
+      const zone = document.getElementById(`zone_${side}`);
+      if (!zone) return;
+      zone.innerHTML = `<div class="dz-icon">🪪</div><div class="dz-label">${label}</div>
+      <div class="dz-btns">
+        <button type="button" onclick="triggerFileInput('file_${side}_cam')">📷 Chụp</button>
+        <button type="button" onclick="triggerFileInput('file_${side}')">🖼 Thư viện</button>
+      </div>`;
+      zone.classList.remove("has-photo");
+      sv(`id_card_${side}_photo`, "");
+      const up = document.getElementById(`uploading_${side}`);
+      if (up) up.style.display = "none";
+    }
+
+    async function uploadPhoto(side, dataUrl) {
+      const up = document.getElementById(`uploading_${side}`);
+      if (up) up.style.display = "block";
+      try {
+        const res = await api("customize_erpnext.api.self_update.self_update_api.upload_cccd_photo",
+          { employee_id: S.employee_id, side, image_data: dataUrl });
+        sv(`id_card_${side}_photo`, res.file_url || "");
+        if (up) up.style.display = "none";
+        const zone = document.getElementById(`zone_${side}`);
+        if (zone) {
+          zone.innerHTML = `<img class="preview" src="${res.file_url}"><button class="remove-photo" onclick="removePhoto('${side}',event)" title="Xóa ảnh">✕</button>`;
+          zone.classList.add("has-photo");
+        }
+      } catch (e) {
+        if (up) up.style.display = "none";
+        removePhoto(side, { stopPropagation: () => { } });
+        alert(`Lỗi khi tải ảnh: ${e.message}`);
+      }
+    }
+
+    // ─── Validation ───────────────────────────────────────────────────────────────
+    function validateForm() {
+      // CCCD
+      const cccd = fv("id_card_no");
+      if (!cccd) { showAlert("step3_alert", "Vui lòng nhập số CCCD.", "error"); return false; }
+      if (!/^\d{12}$/.test(cccd)) {
+        document.getElementById("err_id_card_no").style.display = "block";
+        showAlert("step3_alert", "Số CCCD phải gồm đúng 12 chữ số.", "error"); return false;
+      }
+      document.getElementById("err_id_card_no").style.display = "none";
+      if (!fv("id_card_date_of_issue")) { showAlert("step3_alert", "Vui lòng nhập ngày cấp CCCD.", "error"); return false; }
+      if (!document.getElementById("id_card_place_of_issue")?.value) {
+        showAlert("step3_alert", "Vui lòng chọn nơi cấp CCCD.", "error"); return false;
+      }
+      // CMND (optional, but if filled must be exactly 9 digits)
+      const cmnd = fv("id_card_cmnd_no");
+      if (cmnd && !/^\d{9}$/.test(cmnd)) {
+        showAlert("step3_alert", "Số CMND cũ phải gồm đúng 9 chữ số.", "error"); return false;
+      }
+      // Bank
+      if (!fv("bank_ac_no")) { _markRequiredTouched(); showAlert("step3_alert", "Vui lòng nhập số tài khoản (nhập 0 nếu chưa có).", "error"); return false; }
+      if (fv("bank_ac_no") !== "0" && !fv("bank_branch")) { _markRequiredTouched(); showAlert("step3_alert", "Vui lòng nhập chi nhánh ngân hàng.", "error"); return false; }
+      // Address
+      const curAddrEl = document.getElementById("sec_current_address");
+      if (curAddrEl && curAddrEl.style.display !== "none") {
+        if (!document.getElementById("addr_cur_province")?.value) {
+          showAlert("step3_alert", "Vui lòng chọn Tỉnh/TP địa chỉ hiện tại.", "error"); return false;
+        }
+        if (!fv("addr_cur_commune")) {
+          showAlert("step3_alert", "Vui lòng chọn Phường/Xã địa chỉ hiện tại.", "error"); return false;
+        }
+        if (!fv("addr_cur_village")) {
+          showAlert("step3_alert", "Vui lòng nhập số nhà/đường địa chỉ hiện tại.", "error"); return false;
+        }
+      }
+      const perFields = document.getElementById("addr_per_fields");
+      if (perFields && perFields.style.display !== "none") {
+        if (!document.getElementById("addr_per_province")?.value) {
+          showAlert("step3_alert", "Vui lòng chọn Tỉnh/TP địa chỉ hộ khẩu.", "error"); return false;
+        }
+        if (!fv("addr_per_commune")) {
+          showAlert("step3_alert", "Vui lòng chọn Phường/Xã địa chỉ hộ khẩu.", "error"); return false;
+        }
+        if (!fv("addr_per_village")) {
+          showAlert("step3_alert", "Vui lòng nhập số nhà/đường địa chỉ hộ khẩu.", "error"); return false;
+        }
+      }
+      // Emergency contact
+      if (!fv("emergency_contact_name")) { _markRequiredTouched(); showAlert("step3_alert", "Vui lòng nhập tên người liên hệ khẩn cấp.", "error"); return false; }
+      const ePhone = fv("emergency_phone_number");
+      if (!ePhone) { _markRequiredTouched(); showAlert("step3_alert", "Vui lòng nhập SĐT liên hệ khẩn cấp.", "error"); return false; }
+      if (!/^\d{10}$/.test(ePhone)) { _markRequiredTouched(); showAlert("step3_alert", "SĐT liên hệ khẩn cấp phải đủ 10 chữ số.", "error"); return false; }
+      return true;
+    }
+
+    // ─── Review ───────────────────────────────────────────────────────────────────
+    function goToReview() {
+      hideAlert("step3_alert");
+      if (!validateForm()) return;
+
+      // Update driving license note from UI
+      if (!document.getElementById("driving_license")?.checked) onDrivingNoteChange();
+      updateWorkHistoryJSON();
+
+      const secVisible = id => { const el = document.getElementById(id); return el && el.style.display !== "none"; };
+      const frontUrl = fv("id_card_front_photo");
+      const backUrl = fv("id_card_back_photo");
+      const photoHtml = `<div style="display:flex;gap:8px;margin-top:4px">
+      ${frontUrl ? `<div style="text-align:center"><img src="${frontUrl}" style="width:100px;height:64px;object-fit:cover;border-radius:6px;border:1px solid var(--gray-200)"><div style="font-size:11px;color:var(--gray-400);margin-top:2px">Mặt trước ✅</div></div>` : '<div style="font-size:12px;color:var(--danger)">Mặt trước — Chưa có</div>'}
+      ${backUrl ? `<div style="text-align:center"><img src="${backUrl}" style="width:100px;height:64px;object-fit:cover;border-radius:6px;border:1px solid var(--gray-200)"><div style="font-size:11px;color:var(--gray-400);margin-top:2px">Mặt sau ✅</div></div>` : '<div style="font-size:12px;color:var(--danger)">Mặt sau — Chưa có</div>'}
+    </div>`;
+
+      const curProvName = getProvinceName("cur");
+      const perSameChk = document.getElementById("same_as_cur_per");
+      const perSame = perSameChk && perSameChk.checked;
+      const oriSameChk = document.getElementById("same_as_cur_ori");
+      const oriSame = oriSameChk && oriSameChk.checked;
+
+      const curAddr = [fv("addr_cur_village"), fv("addr_cur_commune"), curProvName].filter(Boolean).join(", ");
+      const perAddr = perSame ? curAddr : [fv("addr_per_village"), fv("addr_per_commune"), getProvinceName("per")].filter(Boolean).join(", ");
+      const oriAddr = oriSame ? curAddr : [fv("addr_ori_village"), fv("addr_ori_commune"), getProvinceName("ori")].filter(Boolean).join(", ");
+
+      // Work history display
+      let whDisplay = "Chưa nhập";
+      const noExp = document.getElementById("no_experience_chk")?.checked;
+      if (noExp) {
+        whDisplay = "Chưa có kinh nghiệm làm việc";
+      } else {
+        try {
+          const rows = JSON.parse(fv("work_history_json") || "[]");
+          if (rows.length) {
+            whDisplay = rows.map((r, i) => `${i + 1}. ${r.company_name}${r.designation ? " — " + r.designation : ""}${r.total_experience ? " (" + r.total_experience + ")" : ""}`).join("<br>");
+          }
+        } catch (e) { }
+      }
+
+      // Driving license display
+      const dlChecked = document.getElementById("driving_license")?.checked;
+      const dlNote = fv("driving_license_note");
+      const dlDisplay = dlChecked ? "Có bằng lái xe ✅" : (dlNote || "Không có / chưa đăng ký");
+
+      // Other docs photos
+      let otherDocsHtml = "";
+      try {
+        const otherUrls = JSON.parse(fv("other_docs_json") || "[]");
+        if (otherUrls.length) {
+          otherDocsHtml = `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px">` +
+            otherUrls.map((url, i) =>
+              `<div style="text-align:center">
+                <a href="${url}" target="_blank">
+                  <img src="${url}" style="width:100px;height:64px;object-fit:cover;border-radius:6px;border:1px solid var(--gray-200)"
+                    onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+                  <div style="display:none;width:100px;height:64px;background:var(--gray-100);border-radius:6px;border:1px solid var(--gray-200);align-items:center;justify-content:center;font-size:11px;color:var(--gray-400)">Không tải được</div>
+                </a>
+                <div style="font-size:11px;color:var(--gray-400);margin-top:2px">Ảnh ${i + 1}</div>
+              </div>`
+            ).join("") +
+            `</div>`;
+        }
+      } catch (e) {}
+
+      const sections = [
+        { show: true, title: "Thông tin cơ bản", rows: [["Ngày sinh", fv("date_of_birth")], ["SĐT", fv("cell_number")]] },
+        { show: secVisible("sec_cccd"), title: "CCCD", rows: [["Số CCCD", fv("id_card_no")], ["Ngày cấp", fv("id_card_date_of_issue")], ["Nơi cấp", fv("id_card_place_of_issue")], ["Ảnh CCCD", photoHtml]] },
+        { show: true, title: "CMND cũ", rows: [["Số CMND", fv("id_card_cmnd_no") || "(Không có)"], ["Ngày cấp", fv("id_card_cmnd_date_of_issue")], ["Nơi cấp", fv("id_card_cmnd_place_of_issue")]] },
+        { show: secVisible("sec_bank"), title: "Ngân hàng Vietcombank", rows: [["Số TK", fv("bank_ac_no")], ["Chi nhánh", fv("bank_branch")]] },
+        { show: secVisible("sec_insurance_tax"), title: "Bảo hiểm & Thuế", rows: [["Số BHXH", fv("social_insurance_number") || "(Chưa có)"], ["Mã số thuế", fv("tax_code") || "(Chưa có)"]] },
+        { show: true, title: "Học vấn", rows: [["Trình độ", fv("education_level")], ["Trường", fv("university")], ["Ngành", fv("major")]] },
+        { show: secVisible("sec_work_history"), title: "Kinh nghiệm làm việc", rows: [["Kinh nghiệm", whDisplay]] },
+        { show: secVisible("sec_current_address"), title: "Địa chỉ hiện tại", rows: [["Địa chỉ", curAddr]] },
+        { show: secVisible("sec_permanent_address"), title: "Địa chỉ hộ khẩu", rows: [["Địa chỉ", perAddr + (perSame ? " (giống địa chỉ hiện tại)" : "")]] },
+        { show: secVisible("sec_origin_address"), title: "Địa chỉ nguyên quán", rows: [["Địa chỉ", oriAddr]] },
+        { show: secVisible("sec_personal"), title: "Thông tin cá nhân", rows: [["Email", fv("personal_email") || "(Chưa có)"], ["Hôn nhân", fv("marital_status")], ["Số con", fv("number_of_childrens")]] },
+        { show: secVisible("sec_emergency"), title: "Liên hệ khẩn cấp", rows: [["Họ tên", fv("emergency_contact_name")], ["Quan hệ", fv("relation")], ["SĐT", fv("emergency_phone_number")]] },
+        { show: secVisible("sec_driving_license"), title: "Bằng lái xe", rows: [["Tình trạng", dlDisplay]] },
+        { show: secVisible("sec_uniform"), title: "Size đồng phục", rows: [["Size áo", fv("shirt_size")], ["Size giày/dép", fv("shoe_size")]] },
+        { show: !!otherDocsHtml, title: "Giấy tờ / tài liệu khác", rows: [["Ảnh đính kèm", otherDocsHtml]] },
+      ].filter(s => s.show);
+
+      let html = "";
+      sections.forEach(sec => {
+        html += `<div class="review-section"><div class="review-section-title">${sec.title}</div>`;
+        sec.rows.forEach(([label, val]) => {
+          const empty = !val;
+          html += `<div class="review-row"><div class="review-label">${label}</div><div class="review-value ${empty ? "review-empty" : ""}">${empty ? "Chưa nhập" : val}</div></div>`;
+        });
+        html += `</div>`;
+      });
+
+      document.getElementById("review_content").innerHTML = html;
+      setStep(4);
+    }
+
+    function goBackToForm() { setStep(3); }
+
+    // ─── Submit ───────────────────────────────────────────────────────────────────
+    async function submitForm() {
+      hideAlert("step4_alert");
+      const btn = document.getElementById("btn_submit");
+      btn.disabled = true; btn.innerHTML = `<span class="loader"></span> Đang lưu...`;
+
+      try {
+        // Build address values
+        const curProvName = getProvinceName("cur");
+        const curCommune = fv("addr_cur_commune");
+        const curVillage = fv("addr_cur_village");
+        const curFull = [curVillage, curCommune, curProvName].filter(Boolean).join(", ");
+
+        const perSameChk = document.getElementById("same_as_cur_per");
+        const perSame = perSameChk && perSameChk.checked;
+        const perProvName = perSame ? curProvName : getProvinceName("per");
+        const perCommune = perSame ? curCommune : fv("addr_per_commune");
+        const perVillage = perSame ? curVillage : fv("addr_per_village");
+        const perFull = perSame ? curFull : [perVillage, perCommune, perProvName].filter(Boolean).join(", ");
+
+        const oriSameChk = document.getElementById("same_as_cur_ori");
+        const oriSame = oriSameChk && oriSameChk.checked;
+        const oriProvName = oriSame ? curProvName : getProvinceName("ori");
+        const oriCommune = oriSame ? curCommune : fv("addr_ori_commune");
+        const oriVillage = oriSame ? curVillage : fv("addr_ori_village");
+        const oriFull = oriSame ? curFull : [oriVillage, oriCommune, oriProvName].filter(Boolean).join(", ");
+
+        // Driving license note from hidden field
+        if (!document.getElementById("driving_license")?.checked) onDrivingNoteChange();
+        updateWorkHistoryJSON();
+
+        await api("customize_erpnext.api.self_update.self_update_api.save_form_data", {
+          employee_id: S.employee_id,
+          date_of_birth: fv("date_of_birth"),
+          cell_number: fv("cell_number"),
+          id_card_no: fv("id_card_no"),
+          id_card_date_of_issue: fv("id_card_date_of_issue"),
+          id_card_place_of_issue: document.getElementById("id_card_place_of_issue")?.value || "",
+          id_card_front_photo: fv("id_card_front_photo"),
+          id_card_back_photo: fv("id_card_back_photo"),
+          id_card_cmnd_no: fv("id_card_cmnd_no"),
+          id_card_cmnd_date_of_issue: fv("id_card_cmnd_date_of_issue"),
+          id_card_cmnd_place_of_issue: fv("id_card_cmnd_place_of_issue"),
+          bank_ac_no: fv("bank_ac_no"),
+          bank_branch: fv("bank_branch"),
+          social_insurance_number: fv("social_insurance_number"),
+          tax_code: fv("tax_code"),
+          education_level: fv("education_level"),
+          university: fv("university"),
+          major: fv("major"),
+          work_history_json: fv("work_history_json") || "[]",
+          current_address_province: curProvName,
+          current_address_commune: curCommune,
+          current_address_village: curVillage,
+          current_address_full: curFull,
+          permanent_address_province: perProvName,
+          permanent_address_commune: perCommune,
+          permanent_address_village: perVillage,
+          permanent_address_full: perFull,
+          place_of_origin_province: oriProvName,
+          place_of_origin_commune: oriCommune,
+          place_of_origin_village: oriVillage,
+          place_of_origin_full: oriFull,
+          personal_email: fv("personal_email"),
+          marital_status: fv("marital_status"),
+          number_of_childrens: fv("number_of_childrens"),
+          emergency_contact_name: fv("emergency_contact_name"),
+          relation: fv("relation"),
+          emergency_phone_number: fv("emergency_phone_number"),
+          driving_license: document.getElementById("driving_license")?.checked ? "1" : "0",
+          driving_license_note: fv("driving_license_note"),
+          shirt_size: fv("shirt_size"),
+          shoe_size: fv("shoe_size"),
+          custom_strengths: fv("custom_strengths"),
+          custom_favorite_sport: fv("custom_favorite_sport"),
+          custom_vegetarian: fv("custom_vegetarian"),
+          other_docs_json: fv("other_docs_json") || "[]",
+        });
+        setStep("success");
+      } catch (e) {
+        showAlert("step4_alert", e.message || "Lỗi khi lưu. Vui lòng thử lại.", "error");
+      } finally {
+        btn.disabled = false; btn.innerHTML = "💾 Xác nhận & Lưu";
+      }
+    }
+
+    // ─── QR Scanner ───────────────────────────────────────────────────────────────
+    let _qrStream = null, _qrRaf = null, _qrVideo = null, _qrCanvas = null, _qrCtx = null;
+    let _torchOn = false, _qrDetected = false;
+
+    function _loadJsQr(cb) {
+      if (window.jsQR) return cb();
+      const s = document.createElement("script");
+      s.src = "https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js";
+      s.onload = cb;
+      s.onerror = () => { document.getElementById("qr_status").textContent = "Không thể tải thư viện quét QR."; };
+      document.head.appendChild(s);
+    }
+
+    function openQRScanner() {
+      document.getElementById("qr_overlay").style.display = "flex";
+      document.getElementById("qr_status").textContent = "Đang khởi động camera...";
+      document.getElementById("qr_viewport").classList.remove("detected");
+      _torchOn = false; _qrDetected = false;
+      const torchBtn = document.getElementById("btn_torch");
+      if (torchBtn) { torchBtn.textContent = "🔦 Bật đèn"; torchBtn.classList.remove("on"); torchBtn.style.display = "none"; }
+
+      _loadJsQr(() => {
+        navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } }
+        }).then(stream => {
+          _qrStream = stream;
+          _qrVideo = document.createElement("video");
+          _qrVideo.srcObject = stream;
+          _qrVideo.setAttribute("playsinline", "");
+          _qrVideo.muted = true;
+          document.getElementById("qr_viewport").appendChild(_qrVideo);
+
+          _qrCanvas = document.createElement("canvas");
+          _qrCanvas.style.display = "none";
+          document.body.appendChild(_qrCanvas);
+          _qrCtx = _qrCanvas.getContext("2d", { willReadFrequently: true });
+
+          _qrVideo.play().then(() => {
+            document.getElementById("qr_status").textContent = "Sẵn sàng quét...";
+            // Check torch support
+            const track = stream.getVideoTracks()[0];
+            if (track) {
+              try {
+                const caps = track.getCapabilities();
+                if (caps && caps.torch && torchBtn) { torchBtn.style.display = ""; torchBtn._track = track; }
+              } catch (e) { }
+            }
+            _qrScanLoop();
+          });
+        }).catch(err => {
+          document.getElementById("qr_status").textContent = "Không thể mở camera: " + (err.message || err);
+        });
+      });
+    }
+
+    function _qrScanLoop() {
+      if (_qrDetected || !_qrVideo || !_qrStream) return;
+      const vw = _qrVideo.videoWidth, vh = _qrVideo.videoHeight;
+      if (vw && vh) {
+        // Try 3 scales: full → 60% center → 35% center (upscaled to 900px each)
+        const crops = [
+          [0, 0, vw, vh],
+          [vw * 0.2, vh * 0.2, vw * 0.6, vh * 0.6],
+          [vw * 0.325, vh * 0.25, vw * 0.35, vh * 0.5],
+        ];
+        for (const [cx, cy, cw, ch] of crops) {
+          const out = 900;
+          _qrCanvas.width = out; _qrCanvas.height = Math.round(out * ch / cw);
+          _qrCtx.drawImage(_qrVideo, cx, cy, cw, ch, 0, 0, _qrCanvas.width, _qrCanvas.height);
+          // Contrast boost: stretch histogram
+          const id = _qrCtx.getImageData(0, 0, _qrCanvas.width, _qrCanvas.height);
+          _boostContrast(id);
+          _qrCtx.putImageData(id, 0, 0);
+          const id2 = _qrCtx.getImageData(0, 0, _qrCanvas.width, _qrCanvas.height);
+          const code = jsQR(id2.data, id2.width, id2.height, { inversionAttempts: "attemptBoth" });
+          if (code) {
+            const parsed = _parseVnCCCDQR(code.data);
+            if (parsed) { _qrDetected = true; _onQRDetected(parsed); return; }
+          }
+        }
+      }
+      _qrRaf = requestAnimationFrame(_qrScanLoop);
+    }
+
+    function _boostContrast(imageData) {
+      const d = imageData.data;
+      let mn = 255, mx = 0;
+      for (let i = 0; i < d.length; i += 4) {
+        const g = (d[i] * 77 + d[i + 1] * 150 + d[i + 2] * 29) >> 8;
+        if (g < mn) mn = g; if (g > mx) mx = g;
+      }
+      const range = mx - mn || 1;
+      for (let i = 0; i < d.length; i += 4) {
+        const g = Math.round((((d[i] * 77 + d[i + 1] * 150 + d[i + 2] * 29) >> 8) - mn) * 255 / range);
+        d[i] = d[i + 1] = d[i + 2] = g;
+      }
+    }
+
+    function toggleTorch() {
+      const btn = document.getElementById("btn_torch");
+      if (!btn || !btn._track) return;
+      _torchOn = !_torchOn;
+      btn._track.applyConstraints({ advanced: [{ torch: _torchOn }] }).catch(() => { });
+      btn.textContent = _torchOn ? "🔦 Tắt đèn" : "🔦 Bật đèn";
+      btn.classList.toggle("on", _torchOn);
+    }
+
+    function closeQRScanner() {
+      _qrDetected = false;
+      if (_qrRaf) { cancelAnimationFrame(_qrRaf); _qrRaf = null; }
+      if (_torchOn && _qrStream) {
+        const t = _qrStream.getVideoTracks()[0];
+        if (t) t.applyConstraints({ advanced: [{ torch: false }] }).catch(() => { });
+      }
+      if (_qrStream) { _qrStream.getTracks().forEach(t => t.stop()); _qrStream = null; }
+      if (_qrVideo) { _qrVideo.remove(); _qrVideo = null; }
+      if (_qrCanvas) { _qrCanvas.remove(); _qrCanvas = null; }
+      _qrCtx = null; _torchOn = false;
+      document.getElementById("qr_overlay").style.display = "none";
+    }
+
+    function _onQRDetected(parsed) {
+      document.getElementById("qr_viewport").classList.add("detected");
+      document.getElementById("qr_status").textContent = "✅ Đọc mã QR thành công!";
+      setTimeout(() => { closeQRScanner(); _fillFromCCCD(parsed); }, 500);
+    }
+
+    function _parseVnCCCDQR(text) {
+      const parts = text.split("|");
+      if (parts.length < 7) return null;
+      const cccd = parts[0].trim();
+      if (!/^\d{9,12}$/.test(cccd)) return null;
+      function toISO(s) {
+        s = s.trim();
+        if (s.length !== 8) return "";
+        return `${s.slice(4, 8)}-${s.slice(2, 4)}-${s.slice(0, 2)}`;
+      }
+      return { cccd, cmnd: parts[1].trim(), fullName: parts[2].trim(), dob: toISO(parts[3].trim()), gender: parts[4].trim(), address: parts[5].trim(), issueDate: toISO(parts[6].trim()) };
+    }
+
+    function _fillFromCCCD(data) {
+      if (data.cccd) sv("id_card_no", data.cccd);
+      if (data.issueDate) sv("id_card_date_of_issue", data.issueDate);
+      if (data.cccd && data.cccd.length === 12) {
+        const plEl = document.getElementById("id_card_place_of_issue");
+        if (plEl) plEl.value = "Cục Cảnh sát Quản lý hành chính về Trật tự Xã Hội";
+      }
+      if (data.cmnd && /^\d{9}$/.test(data.cmnd)) sv("id_card_cmnd_no", data.cmnd);
+      if (data.address) {
+        const parts = data.address.split(",").map(s => s.trim()).filter(Boolean);
+        if (parts.length >= 2) {
+          const provinceName = parts[parts.length - 1];
+          const districtName = parts.length >= 2 ? parts[parts.length - 2] : "";
+          const wardName = parts.length >= 3 ? parts[parts.length - 3] : "";
+          const street = parts.slice(0, Math.max(0, parts.length - 3)).join(", ");
+          sv("addr_per_village", street);
+          sv("addr_cur_village", street);
+          sv("addr_ori_village", street);
+          _autoSetCmndProvince(provinceName);
+          _convertCCCDAddress(wardName, districtName, provinceName, street);
+        } else {
+          sv("addr_per_village", data.address);
+        }
+      }
+      const banner = document.getElementById("qr_success_banner");
+      if (banner) {
+        banner.textContent = "✅ Đã quét mã QR CCCD thành công. Vui lòng kiểm tra và bổ sung thông tin còn thiếu.";
+        banner.style.display = "block";
+        banner.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }
+    }
+
+    function _matchCCCDProvince(provinceName) {
+      if (!provinces_cache) return;
+      const norm = s => s.toLowerCase().replace(/\s+/g, " ").trim();
+      const target = norm(provinceName);
+      const found = provinces_cache.find(p => norm(p.ten) === target || norm(p.ten).includes(target) || target.includes(norm(p.ten)));
+      if (found) {
+        for (const prefix of ["per", "cur", "ori"]) {
+          sv(`addr_${prefix}_province`, found.ma);
+          onProvinceChange(prefix);
+        }
+        const chk = document.getElementById("same_as_cur_per");
+        if (chk && chk.checked) { chk.checked = false; toggleSameAddress("cur", "per"); }
+      }
+    }
+
+    // ─── Address conversion from CCCD QR ────────────────────────────────────────
+    async function _convertCCCDAddress(wardName, districtName, provinceName, street) {
+      try {
+        const result = await api(
+          "customize_erpnext.api.address_converter.api.search_address_by_text",
+          { ward_name: wardName || "", district_name: districtName || "", province_name: provinceName || "" }
+        );
+        if (result && result.new) {
+          const newProv = provinces_cache && provinces_cache.find(
+            p => p.ma === result.new.tinh_ma || p.ten === result.new.tinh
+          );
+          if (newProv) {
+            sv("addr_per_province", newProv.ma);
+            await loadCommunes(newProv.ma, "per", result.new.ten);
+            const chk = document.getElementById("same_as_cur_per");
+            if (chk && chk.checked) { chk.checked = false; toggleSameAddress("cur", "per"); }
+            updateAddrPreview("per");
+            // Also fill current and origin addresses with same data
+            for (const prefix of ["cur", "ori"]) {
+              sv(`addr_${prefix}_province`, newProv.ma);
+              await loadCommunes(newProv.ma, prefix, result.new.ten);
+              updateAddrPreview(prefix);
+            }
+            return;
+          }
+        }
+      } catch (e) { /* fall through */ }
+      _matchCCCDProvince(provinceName);
+    }
+
+    function _autoSetCmndProvince(provinceName) {
+      const sel = document.getElementById("id_card_cmnd_province");
+      if (!sel || !provinceName) return;
+      const norm = s => s.toLowerCase().replace(/\s+/g, " ").trim();
+      const target = norm(provinceName);
+      for (const opt of sel.options) {
+        if (!opt.value) continue;
+        const v = norm(opt.value);
+        if (v === target || v.includes(target) || target.includes(v)) {
+          sel.value = opt.value;
+          updateCmndPlace();
+          return;
+        }
+      }
+      // Default if not matched
+      if (!sel.value) { sel.value = "Quảng Ngãi"; updateCmndPlace(); }
+    }
+
+    // ─── Bank branch conditional required ────────────────────────────────────────
+    function updateBankBranchReq() {
+      const acNo = (document.getElementById("bank_ac_no")?.value || "").trim();
+      const isZero = acNo === "0";
+      const lbl = document.getElementById("bank_branch_req_lbl");
+      if (lbl) lbl.innerHTML = isZero
+        ? '<span style="font-size:12px;font-weight:400;color:var(--gray-400)">(không bắt buộc)</span>'
+        : '<span class="req">*</span>';
+      const branchEl = document.getElementById("bank_branch");
+      if (branchEl) { branchEl.dataset.required = isZero ? "0" : "1"; _updateFieldColor(branchEl); }
+    }
+
+    // ─── Field validation colors ─────────────────────────────────────────────────
+    function _updateFieldColor(el) {
+      if (!el || el.readOnly || el.type === "hidden" || el.type === "checkbox") return;
+      const val = (el.value || "").trim();
+      el.classList.remove("field-valid", "field-invalid");
+      if (val) {
+        el.classList.add("field-valid");
+      } else if (el.dataset.required === "1" && el.dataset.touched === "1") {
+        el.classList.add("field-invalid");
+      }
+    }
+
+    function _markRequiredTouched() {
+      document.querySelectorAll("[data-required='1']").forEach(el => {
+        el.dataset.touched = "1";
+        _updateFieldColor(el);
+      });
+    }
+
+    // Event delegation — attach once, works for dynamically-rendered fields
+    document.addEventListener("blur", function (e) {
+      const el = e.target;
+      if (el.tagName && ["INPUT", "SELECT", "TEXTAREA"].includes(el.tagName) && !el.readOnly && el.type !== "hidden") {
+        el.dataset.touched = "1";
+        _updateFieldColor(el);
+      }
+    }, true);
+    document.addEventListener("input", function (e) {
+      const el = e.target;
+      if (el.tagName && ["INPUT", "SELECT", "TEXTAREA"].includes(el.tagName)) _updateFieldColor(el);
+    });
+    document.addEventListener("change", function (e) {
+      const el = e.target;
+      if (el.tagName && ["INPUT", "SELECT", "TEXTAREA"].includes(el.tagName)) _updateFieldColor(el);
+    });
+
+    document.addEventListener("DOMContentLoaded", init);
+  </script>
+
+  <!-- Cropper.js -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
+  <script src="/assets/customize_erpnext/js/photo_crop_shared.js"></script>
+
+  <!-- CCCD Crop Modal -->
+  <div id="cccd_crop_overlay"
+    style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.88);align-items:center;justify-content:center;padding:16px;">
+    <div
+      style="background:#fff;border-radius:14px;padding:18px;width:min(96vw,560px);max-height:92vh;overflow-y:auto;display:flex;flex-direction:column;gap:12px;">
+      <div style="font-weight:700;font-size:15px;color:#1f2937">✂️ Cắt ảnh CCCD — <span id="cccd_crop_label"></span>
+      </div>
+      <div style="font-size:12px;color:#6b7280">Kéo để căn chỉnh. Tỉ lệ cố định theo kích thước thẻ CCCD (85,6 × 54 mm).
+      </div>
+      <div style="max-height:55vh;overflow:hidden;border-radius:8px;background:#111">
+        <img id="cccd_image_to_crop" src="" alt="crop" style="max-width:100%;display:block">
+      </div>
+      <div id="cccd_crop_bg_row"
+        style="display:none;padding:10px 12px;background:#fff8e1;border:1px solid #ffe082;border-radius:8px;align-items:center;gap:10px;flex-wrap:wrap;">
+        <span style="font-size:13px;color:#5d4037">⚠️ Ảnh có nền trong suốt. Chọn màu nền:</span>
+        <input type="color" id="cccd_crop_bg_color" value="#ffffff"
+          style="width:36px;height:28px;padding:2px;border:1px solid #ccc;border-radius:3px;cursor:pointer">
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end">
+        <button onclick="closeCccdCropModal()"
+          style="padding:10px 20px;border:2px solid #e5e7eb;border-radius:8px;background:#fff;font-size:14px;font-weight:600;cursor:pointer;color:#374151">Hủy</button>
+        <button onclick="saveCccdCrop()"
+          style="padding:10px 20px;border:none;border-radius:8px;background:var(--primary);color:#fff;font-size:14px;font-weight:700;cursor:pointer">💾
+          Lưu ảnh</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const CCCD_ASPECT = 85.6 / 54;
+    const CCCD_MAX_W = 1920;
+    const CCCD_MAX_H = Math.round(1920 * 54 / 85.6);
+    const CCCD_MAX_MB = 3;
+    let _cccdCropSide = null, _cccdCropper = null, _cccdHasTrans = false, _cccdBgColor = "#ffffff";
+
+    function openCccdCropModal(side, dataUrl) {
+      _cccdCropSide = side; _cccdHasTrans = false; _cccdBgColor = "#ffffff";
+      document.getElementById("cccd_crop_label").textContent = side === "front" ? "Mặt trước" : "Mặt sau";
+      const bgRow = document.getElementById("cccd_crop_bg_row");
+      const bgInput = document.getElementById("cccd_crop_bg_color");
+      bgRow.style.display = "none"; bgInput.value = "#ffffff";
+      bgInput.onchange = function () { _cccdBgColor = this.value; };
+      if (_cccdCropper) { _cccdCropper.destroy(); _cccdCropper = null; }
+      const img = document.getElementById("cccd_image_to_crop");
+      img.src = dataUrl;
+      document.getElementById("cccd_crop_overlay").style.display = "flex";
+      img.onload = function () {
+        if (typeof Cropper === "undefined") { alert("Cropper chưa tải."); closeCccdCropModal(); return; }
+        _cccdCropper = new Cropper(img, {
+          aspectRatio: CCCD_ASPECT, viewMode: 1, dragMode: "move", autoCropArea: 0.92,
+          restore: false, guides: true, center: true, highlight: false,
+          cropBoxMovable: true, cropBoxResizable: true, toggleDragModeOnDblclick: false,
+          responsive: true, zoomable: true, zoomOnTouch: true, zoomOnWheel: true, wheelZoomRatio: 0.1,
+        });
+        if (window.PhotoCropUtils) {
+          PhotoCropUtils.hasTransparency(dataUrl).then(hasTrans => {
+            _cccdHasTrans = hasTrans;
+            if (hasTrans) bgRow.style.display = "flex";
+          });
+        }
+      };
+    }
+
+    function closeCccdCropModal() {
+      document.getElementById("cccd_crop_overlay").style.display = "none";
+      if (_cccdCropper) { _cccdCropper.destroy(); _cccdCropper = null; }
+    }
+
+    async function saveCccdCrop() {
+      if (!_cccdCropper) return;
+      const btn = document.querySelector("#cccd_crop_overlay button:last-child");
+      btn.disabled = true; btn.textContent = "⏳ Đang xử lý...";
+      try {
+        const raw = _cccdCropper.getCroppedCanvas({ maxWidth: 4096, maxHeight: 4096, imageSmoothingEnabled: true, imageSmoothingQuality: "high" });
+        if (_cccdHasTrans && window.PhotoCropUtils) PhotoCropUtils.fillBackground(raw, _cccdBgColor);
+        const dataUrl = await _resizeAndCompress(raw, CCCD_MAX_W, CCCD_MAX_H, CCCD_MAX_MB);
+        closeCccdCropModal();
+        const side = _cccdCropSide;
+        showPhotoPreview(side, dataUrl, true);
+        await uploadPhoto(side, dataUrl);
+      } finally {
+        btn.disabled = false; btn.textContent = "💾 Lưu ảnh";
+      }
+    }
+
+    function _resizeAndCompress(srcCanvas, maxW, maxH, maxMB) {
+      const maxBytes = maxMB * 1024 * 1024;
+      const scale = Math.min(maxW / srcCanvas.width, maxH / srcCanvas.height, 1);
+      const w = Math.max(1, Math.round(srcCanvas.width * scale));
+      const h = Math.max(1, Math.round(srcCanvas.height * scale));
+      const out = document.createElement("canvas");
+      out.width = w; out.height = h;
+      out.getContext("2d").drawImage(srcCanvas, 0, 0, w, h);
+      const qualities = [0.88, 0.80, 0.72, 0.64, 0.55, 0.45];
+      return new Promise(resolve => {
+        let idx = 0;
+        function attempt() {
+          out.toBlob(blob => {
+            if (blob.size <= maxBytes || idx >= qualities.length - 1) {
+              const reader = new FileReader();
+              reader.onloadend = () => resolve(reader.result);
+              reader.readAsDataURL(blob);
+            } else { idx++; attempt(); }
+          }, "image/jpeg", qualities[idx]);
+        }
+        attempt();
+      });
+    }
+  </script>
+</body>
+
+</html>

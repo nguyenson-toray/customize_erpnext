@@ -1,0 +1,209 @@
+{
+  "version": "2.0",
+  "sections": [
+
+    {
+      "id": "basic",
+      "label": "Thông tin cơ bản",
+      "ui_type": "standard",
+      "fields": [
+        { "form_field": "date_of_birth", "employee_field": "date_of_birth", "label": "Ngày sinh",     "fieldtype": "Date", "required": true,  "always_show": true, "row_id": "r1" },
+        { "form_field": "cell_number",   "employee_field": "cell_number",   "label": "Số điện thoại", "fieldtype": "Data", "required": true,  "always_show": true, "row_id": "r1" }
+      ]
+    },
+
+    {
+      "id": "cccd",
+      "label": "CCCD / Căn cước công dân",
+      "ui_type": "special_cccd",
+      "fields": [
+        { "form_field": "id_card_no",             "employee_field": "custom_id_card_no",             "label": "Số CCCD (12 số)", "fieldtype": "Data",   "required": true,  "always_show": true },
+        { "form_field": "id_card_date_of_issue",  "employee_field": "custom_id_card_date_of_issue",  "label": "Ngày cấp",        "fieldtype": "Date",   "required": true,  "always_show": true },
+        { "form_field": "id_card_place_of_issue", "employee_field": "custom_id_card_place_of_issue", "label": "Nơi cấp",         "fieldtype": "Data",   "required": true,  "always_show": true },
+        { "form_field": "id_card_front_photo",    "employee_field": null,                            "label": "Ảnh mặt trước",   "fieldtype": "Attach", "required": false, "always_show": true },
+        { "form_field": "id_card_back_photo",     "employee_field": null,                            "label": "Ảnh mặt sau",     "fieldtype": "Attach", "required": false, "always_show": true }
+      ]
+    },
+
+    {
+      "id": "cmnd",
+      "label": "CMND cũ (nếu có)",
+      "ui_type": "standard",
+      "fields": [
+        { "form_field": "id_card_cmnd_no",            "employee_field": "custom_id_card_cmnd_no",            "label": "Số CMND (9 số)", "fieldtype": "Data",        "required": false, "always_show": true, "placeholder": "9 chữ số", "maxlength": 9, "inputmode": "numeric" },
+        { "form_field": "id_card_cmnd_date_of_issue", "employee_field": "custom_id_card_cmnd_date_of_issue", "label": "Ngày cấp",       "fieldtype": "Date",        "required": false, "always_show": true, "row_id": "r1" },
+        { "form_field": "id_card_cmnd_province",      "employee_field": null,                                "label": "Tỉnh cấp",       "fieldtype": "CmndProvince","required": false, "always_show": true, "row_id": "r1" },
+        { "form_field": "id_card_cmnd_place_of_issue","employee_field": "custom_id_card_cmnd_place_of_issue","label": "Nơi cấp",        "fieldtype": "Data",        "required": false, "always_show": true, "hidden": true }
+      ]
+    },
+
+    {
+      "id": "bank",
+      "label": "Tài khoản ngân hàng (Vietcombank)",
+      "ui_type": "bank",
+      "bank_name_fixed": "Vietcombank",
+      "fields": [
+        { "form_field": "bank_ac_no",  "employee_field": "bank_ac_no",         "label": "Số tài khoản", "fieldtype": "Data", "required": true, "always_show": true },
+        { "form_field": "bank_branch", "employee_field": "custom_bank_branch", "label": "Chi nhánh",    "fieldtype": "Data", "required": true, "always_show": true, "required_unless_zero": "bank_ac_no" }
+      ]
+    },
+
+    {
+      "id": "insurance_tax",
+      "label": "Bảo hiểm xã hội & Thuế",
+      "ui_type": "standard",
+      "fields": [
+        { "form_field": "social_insurance_number", "employee_field": "custom_social_insurance_number", "label": "Số BHXH", "fieldtype": "Data", "required": false, "always_show": true, "row_id": "r1", "inputmode": "numeric", "maxlength": 12, "placeholder": "12 chữ số (đồng bộ CCCD)" },
+        { "form_field": "tax_code",                "employee_field": "custom_tax_code",                "label": "Mã số thuế",  "fieldtype": "Data", "required": false, "always_show": true, "row_id": "r1", "inputmode": "numeric", "maxlength": 12, "placeholder": "12 chữ số (đồng bộ CCCD)" }
+      ]
+    },
+
+    {
+      "id": "education",
+      "label": "Học vấn",
+      "ui_type": "standard",
+      "fields": [
+        { "form_field": "education_level", "employee_field": "education[level]", "label": "Trình độ học vấn", "fieldtype": "Select", "required": true, "always_show": true,
+          "options": ["", "Trung học cơ sở", "Trung học phổ thông", "Trung cấp", "Cao đẳng", "Đại học", "Thạc sĩ", "Khác"],
+          "default": "Trung học phổ thông",
+          "allow_other_input": true, "other_placeholder": "Nhập trình độ..." },
+        { "form_field": "university", "employee_field": "education[school_univ]", "label": "Trường",       "fieldtype": "Data", "required": true, "always_show": true },
+        { "form_field": "major",      "employee_field": "education[maj_opt_subj]","label": "Chuyên ngành", "fieldtype": "Data", "required": true, "always_show": true }
+      ]
+    },
+
+    {
+      "id": "work_history",
+      "label": "Kinh nghiệm làm việc",
+      "ui_type": "table",
+      "employee_field": "external_work_history",
+      "required": false,
+      "always_show": true,
+      "no_experience_checkbox": true,
+      "no_experience_label": "Chưa có kinh nghiệm làm việc",
+      "columns": [
+        { "field": "company_name",     "label": "Tên công ty",        "fieldtype": "Data", "required": true  },
+        { "field": "designation",      "label": "Chức vụ",            "fieldtype": "Data", "required": false },
+        { "field": "total_experience", "label": "Thời gian làm việc", "fieldtype": "Data", "required": false }
+      ]
+    },
+
+    {
+      "id": "current_address",
+      "label": "Địa chỉ hiện tại",
+      "ui_type": "address",
+      "autofill_from_qr": true,
+      "fields": [
+        { "form_field": "current_address_province", "employee_field": "custom_current_address_province", "label": "Tỉnh/Thành phố", "fieldtype": "Select", "required": true, "always_show": true },
+        { "form_field": "current_address_commune",  "employee_field": "custom_current_address_commune",  "label": "Phường/Xã",       "fieldtype": "Select", "required": true, "always_show": true },
+        { "form_field": "current_address_village",  "employee_field": "custom_current_address_village",  "label": "Số nhà/Thôn",     "fieldtype": "Data",   "required": true, "always_show": true },
+        { "form_field": "current_address_full",     "employee_field": "custom_current_address_full",     "label": "Địa chỉ đầy đủ", "fieldtype": "Data",   "required": true, "always_show": true, "auto_generated": true }
+      ]
+    },
+
+    {
+      "id": "permanent_address",
+      "label": "Địa chỉ hộ khẩu",
+      "ui_type": "address",
+      "autofill_from_qr": true,
+      "copy_from_section": "current_address",
+      "fields": [
+        { "form_field": "permanent_address_province", "employee_field": "custom_permanent_address_province", "label": "Tỉnh/Thành phố", "fieldtype": "Select", "required": true, "always_show": true },
+        { "form_field": "permanent_address_commune",  "employee_field": "custom_permanent_address_commune",  "label": "Phường/Xã",       "fieldtype": "Select", "required": true, "always_show": true },
+        { "form_field": "permanent_address_village",  "employee_field": "custom_permanent_address_village",  "label": "Số nhà/Thôn",     "fieldtype": "Data",   "required": true, "always_show": true },
+        { "form_field": "permanent_address_full",     "employee_field": "custom_permanent_address_full",     "label": "Địa chỉ đầy đủ", "fieldtype": "Data",   "required": true, "always_show": true, "auto_generated": true }
+      ]
+    },
+
+    {
+      "id": "origin_address",
+      "label": "Địa chỉ nguyên quán",
+      "ui_type": "address",
+      "copy_from_section": "current_address",
+      "fields": [
+        { "form_field": "place_of_origin_province", "employee_field": "custom_place_of_origin_address_province", "label": "Tỉnh/Thành phố", "fieldtype": "Select", "required": false, "always_show": true },
+        { "form_field": "place_of_origin_commune",  "employee_field": "custom_place_of_origin_address_commune",  "label": "Phường/Xã",       "fieldtype": "Select", "required": false, "always_show": true },
+        { "form_field": "place_of_origin_village",  "employee_field": "custom_place_of_origin_address_village",  "label": "Số nhà/Thôn",     "fieldtype": "Data",   "required": false, "always_show": true },
+        { "form_field": "place_of_origin_full",     "employee_field": "custom_place_of_origin_address_full",     "label": "Địa chỉ đầy đủ", "fieldtype": "Data",   "required": false, "always_show": true, "auto_generated": true }
+      ]
+    },
+
+    {
+      "id": "personal",
+      "label": "Thông tin cá nhân",
+      "ui_type": "standard",
+      "fields": [
+        { "form_field": "personal_email",      "employee_field": "personal_email",             "label": "Email cá nhân",       "fieldtype": "Data",   "required": false, "always_show": true, "placeholder": "abc@gmail.com" },
+        { "form_field": "marital_status",      "employee_field": "marital_status",             "label": "Tình trạng hôn nhân", "fieldtype": "Select", "required": true,  "always_show": true, "row_id": "r1",
+          "options": [
+            {"value": "", "label": "-- Chọn --"},
+            {"value": "Single",   "label": "Độc thân"},
+            {"value": "Married",  "label": "Đã kết hôn"},
+            {"value": "Divorced", "label": "Đã ly hôn"}
+          ]},
+        { "form_field": "number_of_childrens", "employee_field": "custom_number_of_childrens", "label": "Số con",              "fieldtype": "Int",    "required": false, "always_show": true, "row_id": "r1",
+          "show_when": { "field": "marital_status", "not_value": "Single" } }
+      ]
+    },
+
+    {
+      "id": "emergency",
+      "label": "Liên hệ khẩn cấp",
+      "ui_type": "standard",
+      "fields": [
+        { "form_field": "emergency_contact_name", "employee_field": "person_to_be_contacted", "label": "Tên người liên hệ",  "fieldtype": "Data", "required": true, "always_show": true, "row_id": "r1" },
+        { "form_field": "relation",               "employee_field": "relation",               "label": "Mối quan hệ",           "fieldtype": "Data", "required": false,"always_show": true, "row_id": "r1", "placeholder": "Bố, mẹ..." },
+        { "form_field": "emergency_phone_number", "employee_field": "emergency_phone_number", "label": "SĐT khẩn cấp",         "fieldtype": "Data", "required": true, "always_show": true, "row_id": "r1", "placeholder": "10 chữ số", "maxlength": 10, "inputmode": "numeric" }
+      ]
+    },
+
+    {
+      "id": "driving_license",
+      "label": "Bằng lái xe",
+      "ui_type": "driving_license",
+      "fields": [
+        { "form_field": "driving_license",      "employee_field": "custom_driving_license",      "label": "Có bằng lái xe",     "fieldtype": "Check",  "required": true,  "always_show": true },
+        { "form_field": "driving_license_note", "employee_field": "custom_driving_license_note", "label": "Tình trạng bằng lái", "fieldtype": "Select", "required": false, "always_show": true,
+          "show_when": { "field": "driving_license", "value": 0 },
+          "options": ["", "Chưa đăng ký", "Đang đợi ngày thi", "Đang đợi cấp GP", "Đã thi nhưng chưa đạt", "Khác"],
+          "allow_other_input": true,
+          "other_option": "Khác",
+          "other_placeholder": "Nhập ghi chú..."
+        }
+      ]
+    },
+
+    {
+      "id": "uniform",
+      "label": "Size đồng phục",
+      "ui_type": "standard",
+      "fields": [
+        { "form_field": "shirt_size", "employee_field": "custom_shirt_size", "label": "Size áo",       "fieldtype": "Data", "required": true, "always_show": true, "row_id": "r1" },
+        { "form_field": "shoe_size",  "employee_field": "custom_shoe_size",  "label": "Size giày/dép", "fieldtype": "Data", "required": true, "always_show": true, "row_id": "r1" }
+      ]
+    },
+
+    {
+      "id": "personal2",
+      "label": "Thông tin bổ sung",
+      "ui_type": "standard",
+      "fields": [
+        { "form_field": "custom_strengths",     "employee_field": "custom_strengths",     "label": "Sở trường",                 "fieldtype": "Data",   "required": false, "always_show": true, "row_id": "r1" },
+        { "form_field": "custom_favorite_sport","employee_field": "custom_favorite_sport","label": "Môn thể thao yêu thích",    "fieldtype": "Data",   "required": false, "always_show": true, "row_id": "r1" },
+        { "form_field": "custom_vegetarian",    "employee_field": "custom_vegetarian",    "label": "Nhu cầu ăn chay",           "fieldtype": "Select", "required": false, "always_show": true,
+          "options": ["Không", "Chay trường", "Chay rằm & mồng 1", "Khác"], "default": "Không",
+          "allow_other_input": true, "other_option": "Khác", "other_placeholder": "Nhập chi tiết..." }
+      ]
+    },
+
+    {
+      "id": "other_docs",
+      "label": "Giấy tờ khác",
+      "ui_type": "other_docs",
+      "fields": [
+        { "form_field": "other_docs_json", "employee_field": null, "label": "Ảnh giấy tờ khác", "fieldtype": "Long Text", "required": false, "always_show": true }
+      ]
+    }
+
+  ]
+}

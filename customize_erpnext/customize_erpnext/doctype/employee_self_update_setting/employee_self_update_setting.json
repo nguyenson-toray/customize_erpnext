@@ -1,0 +1,113 @@
+{
+ "actions": [],
+ "creation": "2026-03-25 14:15:30.875906",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "section_employees",
+  "qr_info",
+  "filter_date",
+  "group",
+  "btn_add_by_date",
+  "btn_clear_all",
+  "col_break_filter",
+  "employees",
+  "section_config",
+  "verified_by_date_of_birth_or_phone_number",
+  "field_config_json",
+  "btn_reset_config"
+ ],
+ "fields": [
+  {
+   "fieldname": "section_employees",
+   "fieldtype": "Section Break",
+   "label": "Danh s\u00e1ch nh\u00e2n vi\u00ean"
+  },
+  {
+   "default": "Today",
+   "fieldname": "filter_date",
+   "fieldtype": "Date",
+   "label": "Ng\u00e0y nh\u1eadn vi\u1ec7c"
+  },
+  {
+   "fieldname": "btn_add_by_date",
+   "fieldtype": "Button",
+   "label": "Th\u00eam nh\u00e2n vi\u00ean"
+  },
+  {
+   "fieldname": "btn_clear_all",
+   "fieldtype": "Button",
+   "label": "X\u00f3a t\u1ea5t c\u1ea3"
+  },
+  {
+   "fieldname": "col_break_filter",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "qr_info",
+   "fieldtype": "HTML",
+   "label": "QR & Link"
+  },
+  {
+   "fieldname": "employees",
+   "fieldtype": "Table",
+   "label": "Employees",
+   "options": "Employee Self Update Employee"
+  },
+  {
+   "fieldname": "section_config",
+   "fieldtype": "Section Break",
+   "label": "Field Configuration"
+  },
+  {
+   "description": "Ch\u1ec9 developer ch\u1ec9nh s\u1eeda. JSON config cho c\u00e1c section/field tr\u00ean form nh\u00e2n vi\u00ean.",
+   "fieldname": "field_config_json",
+   "fieldtype": "Long Text",
+   "label": "Field Config JSON"
+  },
+  {
+   "fieldname": "btn_reset_config",
+   "fieldtype": "Button",
+   "label": "\u21ba Reset to Default"
+  },
+  {
+   "default": "1",
+   "fieldname": "verified_by_date_of_birth_or_phone_number",
+   "fieldtype": "Check",
+   "label": "Verified by date of birth or phone number"
+  },
+  {
+   "fieldname": "group",
+   "fieldtype": "Link",
+   "label": "Group",
+   "options": "Group"
+  }
+ ],
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-03-26 11:38:49.472358",
+ "modified_by": "Administrator",
+ "module": "Customize Erpnext",
+ "name": "Employee Self Update Setting",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "read": 1,
+   "role": "HR Manager",
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "HR User"
+  },
+  {
+   "read": 1,
+   "role": "System Manager",
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}
