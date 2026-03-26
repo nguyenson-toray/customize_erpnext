@@ -115,6 +115,11 @@ def _send_daily_attendance_report_job(report_date_str, recipient_list):
 		stats['incomplete_count'] = len(incomplete_checkins)
 		stats['incomplete_processed'] = len([emp for emp in incomplete_checkins if emp.get('manual_checkins', '')])
 
+		# Get employees with status 'Left' but still have checkins on report date
+		left_with_checkins = get_left_employees_with_checkins(report_date_str)
+		stats['left_with_checkins'] = left_with_checkins
+		stats['left_with_checkins_count'] = len(left_with_checkins)
+
 		# Get last employee checkin time
 		last_checkin_time = get_last_employee_checkin_time()
 
@@ -485,6 +490,39 @@ def get_incomplete_checkins(start_date, end_date):
 	return incomplete_list
 
 
+def get_left_employees_with_checkins(report_date):
+	"""
+	Get employees with status 'Left' who still have checkins on report_date.
+	Used to alert HR to review these records.
+	"""
+	try:
+		rows = frappe.db.sql("""
+			SELECT
+				e.attendance_device_id,
+				e.name AS employee_code,
+				e.employee_name,
+				e.department,
+				e.custom_group,
+				e.designation,
+				e.date_of_joining,
+				e.relieving_date,
+				MIN(ec.time) AS first_check_in,
+				MAX(ec.time) AS last_check_out,
+				COUNT(ec.name) AS checkin_count
+			FROM `tabEmployee` e
+			INNER JOIN `tabEmployee Checkin` ec
+				ON e.name = ec.employee
+				AND DATE(ec.time) = %(report_date)s
+			WHERE e.status = 'Left'
+			GROUP BY e.name
+			ORDER BY e.custom_group, e.employee_name
+		""", {"report_date": report_date}, as_dict=True)
+		return rows
+	except Exception as e:
+		frappe.logger().error(f"Error getting left employees with checkins: {str(e)}")
+		return []
+
+
 def get_current_frappe_site_name():
 	"""Get current Frappe site name"""
 	try:
@@ -605,6 +643,42 @@ def generate_email_content(report_date, stats, data, last_checkin_time=None):
 		</tr>
 		"""
 
+	# Build "Left employees with checkins" warning table
+	left_checkin_rows = ""
+	left_checkin_list = stats.get('left_with_checkins', [])
+
+	if left_checkin_list:
+		for idx, emp in enumerate(left_checkin_list, 1):
+			first_in = emp.get('first_check_in')
+			last_out = emp.get('last_check_out')
+			first_in_str = first_in.strftime("%H:%M:%S %d/%m/%Y") if first_in and hasattr(first_in, 'strftime') else (str(first_in) if first_in else '')
+			last_out_str = last_out.strftime("%H:%M:%S %d/%m/%Y") if last_out and hasattr(last_out, 'strftime') else (str(last_out) if last_out else '')
+			relieving = emp.get('relieving_date')
+			relieving_str = formatdate(relieving, "dd/MM/yyyy") if relieving else ''
+			left_checkin_rows += f"""
+			<tr style="background-color: #FFF8E1;">
+				<td style="border: 1px solid #ddd; padding: 8px; text-align: center;">{idx}</td>
+				<td style="border: 1px solid #ddd; padding: 8px;">{emp.get('attendance_device_id') or ''}</td>
+				<td style="border: 1px solid #ddd; padding: 8px;">{emp.get('employee_code') or ''}</td>
+				<td style="border: 1px solid #ddd; padding: 8px;">{emp.get('employee_name') or ''}</td>
+				<td style="border: 1px solid #ddd; padding: 8px;">{emp.get('department') or ''}</td>
+				<td style="border: 1px solid #ddd; padding: 8px;">{emp.get('custom_group') or ''}</td>
+				<td style="border: 1px solid #ddd; padding: 8px;">{emp.get('designation') or ''}</td>
+				<td style="border: 1px solid #ddd; padding: 8px; text-align: center;">{relieving_str}</td>
+				<td style="border: 1px solid #ddd; padding: 8px; text-align: center;">{first_in_str}</td>
+				<td style="border: 1px solid #ddd; padding: 8px; text-align: center;">{last_out_str}</td>
+				<td style="border: 1px solid #ddd; padding: 8px; text-align: center;">{emp.get('checkin_count') or 0}</td>
+			</tr>
+			"""
+	else:
+		left_checkin_rows = """
+		<tr>
+			<td colspan="11" style="border: 1px solid #ddd; padding: 8px; text-align: center; color: #999;">
+				Không có trường hợp nào
+			</td>
+		</tr>
+		"""
+
 	# Build incomplete check-ins table
 	incomplete_checkin_rows = ""
 	incomplete_list = stats.get('incomplete_checkins', [])
@@ -712,6 +786,34 @@ def generate_email_content(report_date, stats, data, last_checkin_time=None):
 		</tr>
 		"""
 
+	# Build warning section for Left employees — only if there are any
+	left_with_checkins_count = stats.get('left_with_checkins_count', 0)
+	if left_with_checkins_count:
+		left_warning_section = f"""<h3 style="color: #D32F2F; margin-top: 20px;">&#9888; CẢNH BÁO: Nhân viên đã nghỉ việc (Left) nhưng vẫn có chấm công ngày {formatted_date}:</h3>
+	<p style="color: #B71C1C; font-size: 13px; margin: 0 0 10px 0;">Hãy kiểm tra lại trạng thái nhân viên và dữ liệu chấm công bên dưới!</p>
+	<table>
+		<thead>
+			<tr>
+				<th class="warning-header" style="width: 3%; text-align: center;">STT</th>
+				<th class="warning-header" style="width: 6%;">Att ID</th>
+				<th class="warning-header" style="width: 9%;">Employee</th>
+				<th class="warning-header" style="width: 14%;">Employee Name</th>
+				<th class="warning-header" style="width: 11%;">Department</th>
+				<th class="warning-header" style="width: 9%;">Group</th>
+				<th class="warning-header" style="width: 11%;">Designation</th>
+				<th class="warning-header" style="width: 9%; text-align: center;">Ngày nghỉ việc</th>
+				<th class="warning-header" style="width: 10%; text-align: center;">Check-in đầu</th>
+				<th class="warning-header" style="width: 10%; text-align: center;">Check-out cuối</th>
+				<th class="warning-header" style="width: 5%; text-align: center;">Số lần chấm</th>
+			</tr>
+		</thead>
+		<tbody>
+			{left_checkin_rows}
+		</tbody>
+	</table>"""
+	else:
+		left_warning_section = ""
+
 	html_content = f"""
 	<html>
 	<head>
@@ -727,6 +829,9 @@ def generate_email_content(report_date, stats, data, last_checkin_time=None):
 			.absent {{ color: #f44336; font-weight: bold; }}
 			.maternity {{ color: #FF9800; font-weight: bold; }}
 			.incomplete {{ color: #9C27B0; font-weight: bold; }}
+		.warning {{ color: #D32F2F; font-weight: bold; }}
+		.warning-box {{ background-color: #FFF3E0; border-left: 5px solid #FF5722; padding: 10px 15px; margin: 10px 0; border-radius: 3px; }}
+		th.warning-header {{ background-color: #FF5722; }}
 		</style>
 	</head>
 	<body>
@@ -766,7 +871,9 @@ def generate_email_content(report_date, stats, data, last_checkin_time=None):
 			</div>
 		</div>
 
-		<h3 style="color: #555;">Danh sách nhân viên vắng (không bao gồm nghỉ phép):</h3>
+	{left_warning_section}
+
+		<h3 style="color: #555; margin-top: 30px;">Danh sách nhân viên vắng (không bao gồm nghỉ phép):</h3>
 		<table>
 			<thead>
 				<tr>
@@ -834,6 +941,7 @@ def generate_email_content(report_date, stats, data, last_checkin_time=None):
 				{on_leave_rows}
 			</tbody>
 		</table>
+
 
 		<h3 style="color: #555; margin-top: 30px;">Danh sách nhân viên chấm công thiếu từ {date_range_formatted}:</h3>
 		<table>
