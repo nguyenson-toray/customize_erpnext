@@ -10,19 +10,58 @@ Prevent changes to name and attendance_device_id if employee has checkin records
 from __future__ import unicode_literals
 import frappe
 from frappe import _
-from customize_erpnext.api.employee.employee_utils import allow_change_name_attendance_device_id
+from customize_erpnext.api.employee.employee_utils import (
+    allow_change_name_attendance_device_id,
+    get_next_employee_code,
+    get_next_attendance_device_id,
+)
+
+
+def _split_employee_name_parts(employee_name):
+    """Tách họ tên đầy đủ → (first_name, middle_name, last_name)
+    VD: "Nguyễn Văn An" → ("Nguyễn", "Văn", "An")
+    """
+    parts = (employee_name or '').strip().split()
+    if not parts:
+        return ('', '', '')
+    if len(parts) == 1:
+        return (parts[0], '', '')
+    return (parts[0], ' '.join(parts[1:-1]), parts[-1])
+
+
+def before_insert_employee(doc, method=None):
+    """
+    Runs before _validate_mandatory() — split employee_name into first/middle/last_name
+    so mandatory fields are populated before Frappe checks them (critical for Data Import).
+    Also auto-fill employee code and attendance_device_id if not provided.
+    """
+    if doc.employee_name:
+        first, mid, last = _split_employee_name_parts(doc.employee_name)
+        doc.first_name = first
+        doc.middle_name = mid
+        doc.last_name = last
+
+    if not doc.employee:
+        doc.employee = get_next_employee_code()
+    if not doc.attendance_device_id:
+        doc.attendance_device_id = str(get_next_attendance_device_id())
 
 
 def validate_employee_changes(doc, method=None):
     """
     Validate Employee document before save
-    Prevent changes to name and attendance_device_id if employee has checkin records
-
-    Args:
-        doc: Employee document
-        method: Hook method name (validate, before_save, etc.)
+    - Tách employee_name → first/middle/last_name (luôn sync)
+    - Auto-fill employee code và attendance_device_id cho doc mới (import)
+    - Chặn thay đổi employee ID / attendance_device_id nếu đã có checkin
     """
-    # Skip validation for new documents
+    # --- 1. Tách họ tên (luôn chạy, kể cả import) ---
+    if doc.employee_name:
+        first, mid, last = _split_employee_name_parts(doc.employee_name)
+        doc.first_name = first
+        doc.middle_name = mid
+        doc.last_name = last
+
+    # Skip lock-protection for new documents (handled in before_insert)
     if doc.is_new():
         return
 

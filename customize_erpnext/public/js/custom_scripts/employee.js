@@ -47,6 +47,12 @@ frappe.ui.form.on('Employee', {
     },
 
     refresh: function (frm) {
+        // employee_name: editable; first/middle/last_name: read-only, auto-split from employee_name
+        frm.set_df_property('employee_name', 'read_only', 0);
+        frm.set_df_property('first_name', 'read_only', 1);
+        frm.set_df_property('last_name', 'read_only', 1);
+        frm.set_df_property('middle_name', 'read_only', 1);
+
         // Check if employee can be modified (name and attendance_device_id)
         if (!frm.is_new() && frm.doc.name) {
             frappe.call({
@@ -115,50 +121,29 @@ frappe.ui.form.on('Employee', {
             },);
         }
         if (frm.is_new()) {
-            // Auto-populate employee code and attendance device ID for new employees
-            if (!frm.doc.employee || !frm.doc.employee.startsWith('TIQN-')) {
-                frappe.call({
-                    method: 'customize_erpnext.api.employee.employee_utils.get_next_employee_code',
-                    callback: function (r) {
-                        if (r.message) {
-                            frm.set_value('employee', r.message);
-                            console.log('get_next_employee_code:', r.message);
-                            // Store the original value
-                            window.original_employee_code = r.message;
-
-                            // Update naming series to prevent duplicates
-                            let employee_num = parseInt(r.message.replace('TIQN-', '')) - 1;
-                            frappe.call({
-                                method: 'customize_erpnext.api.employee.employee_utils.set_series',
-                                args: {
-                                    prefix: 'TIQN-',
-                                    current_highest_id: employee_num
-                                },
-                                callback: function (series_r) {
-                                    console.log('set_series response:', series_r);
-                                    // Series updated successfully
-                                }
-                            });
-                            // Auto-populated employee code successfully
-                        }
+            // Load next ID suggestions — do NOT auto-fill; HR must click custom_generate_id
+            frappe.call({
+                method: 'customize_erpnext.api.employee.employee_utils.get_next_employee_code',
+                callback: function (r) {
+                    if (r.message) {
+                        frm._suggested_employee_code = r.message;
+                        const $inp = frm.fields_dict['employee'] && frm.fields_dict['employee'].$input;
+                        if ($inp) $inp.attr('placeholder', __('Suggested: {0}', [r.message]));
+                        _refresh_generate_id_description(frm);
                     }
-                });
-
-            } else {
-                // Store existing value
-                window.original_employee_code = frm.doc.employee;
-            }
-
-            if (!frm.doc.attendance_device_id) {
-                frappe.call({
-                    method: 'customize_erpnext.api.employee.employee_utils.get_next_attendance_device_id',
-                    callback: function (r) {
-                        if (r.message) {
-                            frm.set_value('attendance_device_id', r.message);
-                        }
+                }
+            });
+            frappe.call({
+                method: 'customize_erpnext.api.employee.employee_utils.get_next_attendance_device_id',
+                callback: function (r) {
+                    if (r.message) {
+                        frm._suggested_device_id = String(r.message);
+                        const $inp = frm.fields_dict['attendance_device_id'] && frm.fields_dict['attendance_device_id'].$input;
+                        if ($inp) $inp.attr('placeholder', __('Suggested: {0}', [r.message]));
+                        _refresh_generate_id_description(frm);
                     }
-                });
-            }
+                }
+            });
         } else {
             // For existing employees, store current value
             window.original_employee_code = frm.doc.employee;
@@ -170,6 +155,31 @@ frappe.ui.form.on('Employee', {
         if (frm.doc.employee && frm.doc.employee.startsWith('TIQN-')) {
             window.original_employee_code = frm.doc.employee;
         }
+    },
+
+    employee_name: function (frm) {
+        split_employee_name(frm);
+    },
+
+    custom_generate_id: function (frm) {
+        if (!frm._suggested_employee_code || !frm._suggested_device_id) {
+            frappe.show_alert({ message: __('Suggestions still loading, please try again in a moment.'), indicator: 'orange' });
+            return;
+        }
+        frm.set_value('employee', frm._suggested_employee_code);
+        frm.set_value('attendance_device_id', frm._suggested_device_id);
+
+        // Keep naming series counter in sync to avoid conflicts
+        const empNum = parseInt(frm._suggested_employee_code.replace('TIQN-', ''));
+        frappe.call({
+            method: 'customize_erpnext.api.employee.employee_utils.set_series',
+            args: { prefix: 'TIQN-', current_highest_id: empNum }
+        });
+
+        frappe.show_alert({
+            message: __('Filled: Employee ID {0} | Attendance Device ID {1}', [frm._suggested_employee_code, frm._suggested_device_id]),
+            indicator: 'green'
+        });
     },
     custom_copy_permanent_address_to_other_adress: function (frm) {
         if (frm.doc.custom_copy_permanent_address_to_other_adress) {
@@ -255,11 +265,12 @@ frappe.ui.form.on('Employee', {
             });
         }
 
-        // set employee_name = first_name + " " + midile_name + " " + last_name
-        if (frm.doc.first_name && frm.doc.last_name) {
-            frm.set_value('employee_name',
-                [frm.doc.first_name, frm.doc.middle_name, frm.doc.last_name].filter(Boolean).join(' ')
-            );
+        // Sync first/middle/last_name từ employee_name trước khi lưu
+        if (frm.doc.employee_name) {
+            const _parts = frm.doc.employee_name.trim().split(/\s+/).filter(Boolean);
+            frm.doc.first_name = _parts[0] || '';
+            frm.doc.last_name = _parts.length >= 2 ? _parts[_parts.length - 1] : '';
+            frm.doc.middle_name = _parts.length >= 3 ? _parts.slice(1, -1).join(' ') : '';
         }
         // check if employee_name icluding numbers throw error
         if (frm.doc.employee_name && /\d/.test(frm.doc.employee_name)) {
@@ -267,12 +278,58 @@ frappe.ui.form.on('Employee', {
             frappe.validated = false;
         }
 
+        // If only province is set (default suggestion, no commune selected) → clear the address
+        Object.keys(ADDRESS_TYPES).forEach(address_type => {
+            const fields = ADDRESS_TYPES[address_type];
+            if (frm.doc[fields.province] && !frm.doc[fields.commune]) {
+                frm.doc[fields.province] = '';
+                frm.doc[fields.village] = '';
+            }
+        });
+
         // Build all address full fields before saving
         build_address_full_for_type(frm, 'permanent');
         build_address_full_for_type(frm, 'current');
         build_address_full_for_type(frm, 'place_of_origin');
     },
 });
+
+// ============================================================
+// EMPLOYEE NAME SPLITTING FUNCTIONS
+// ============================================================
+
+/**
+ * Update the description of custom_generate_id button with current suggested IDs.
+ * Called after each API response so description updates as soon as either value arrives.
+ */
+function _refresh_generate_id_description(frm) {
+    const emp = frm._suggested_employee_code || '...';
+    const dev = frm._suggested_device_id || '...';
+    frm.set_df_property('custom_generate_id', 'description',
+        __('Suggested : Employee ID: {0} | Attendance Device ID: {1}', [emp, dev]));
+    frm.refresh_field('custom_generate_id');
+}
+
+/**
+ * Tách employee_name → first_name, middle_name, last_name rồi điền vào form
+ * VD: "Nguyễn Văn An" → first="Nguyễn", middle="Văn", last="An"
+ */
+function split_employee_name(frm) {
+    const fullName = (frm.doc.employee_name || '').trim();
+    const parts = fullName.split(/\s+/).filter(Boolean);
+    let first = '', mid = '', last = '';
+    if (parts.length === 1) {
+        first = parts[0];
+    } else if (parts.length >= 2) {
+        first = parts[0];
+        last = parts[parts.length - 1];
+        mid = parts.slice(1, -1).join(' ');
+    }
+    frm.set_value('first_name', first);
+    frm.set_value('middle_name', mid);
+    frm.set_value('last_name', last);
+}
+
 
 // ============================================================
 // ADDRESS MANAGEMENT - REUSABLE FUNCTIONS
@@ -742,55 +799,63 @@ function show_crop_dialog(frm, imageDataUrl) {
 // ADDRESS SELECTION FUNCTIONS - PROVINCE & COMMUNE
 // ============================================================
 
+// Province name → code lookup, populated once on form load
+const _province_code_map = {};
+
 /**
- * Load province options from API (called on form load)
+ * Load province options using the 2025 address API (consistent with employee-self-update).
+ * Stores province name (ten) in the field; keeps code (ma) in _province_code_map for district lookup.
  */
 function load_province_options(frm) {
     frappe.call({
-        method: 'customize_erpnext.api.address.get_provinces',
+        method: 'customize_erpnext.api.address_converter.api.get_provinces',
         callback: function (r) {
-            if (r.message && r.message.length > 0) {
-                // Set province dropdown options for all address types
-                Object.keys(ADDRESS_TYPES).forEach(address_type => {
-                    const fields = ADDRESS_TYPES[address_type];
-                    frm.set_df_property(fields.province, 'options', r.message);
+            if (!r.message || !r.message.length) return;
 
-                    // If province already has a value, load its communes
-                    if (frm.doc[fields.province]) {
-                        load_commune_options_for_type(frm, address_type, frm.doc[fields.province]);
-                    }
-                });
-            }
+            const province_names = r.message.map(p => {
+                _province_code_map[p.ten] = p.ma;
+                return p.ten;
+            });
+
+            const DEFAULT_PROVINCE = 'Tỉnh Quảng Ngãi';
+
+            Object.keys(ADDRESS_TYPES).forEach(address_type => {
+                const fields = ADDRESS_TYPES[address_type];
+                frm.set_df_property(fields.province, 'options', province_names);
+
+                if (frm.doc[fields.province]) {
+                    // Existing record — load communes for saved province
+                    load_commune_options_for_type(frm, address_type, frm.doc[fields.province]);
+                } else if (frm.is_new()) {
+                    // New employee — default all address provinces to Quảng Ngãi
+                    frm.set_value(fields.province, DEFAULT_PROVINCE);
+                    load_commune_options_for_type(frm, address_type, DEFAULT_PROVINCE);
+                }
+            });
         }
     });
 }
 
 /**
- * Load commune options for selected province and address type
- * @param {object} frm - Form object
- * @param {string} address_type - 'permanent', 'current', or 'place_of_origin'
- * @param {string} province_name - Province name_with_type
+ * Load district options for the selected province (2025 API: get_districts by province code).
+ * @param {object} frm
+ * @param {string} address_type - 'permanent' | 'current' | 'place_of_origin'
+ * @param {string} province_name - Province display name (ten), used to look up ma
  */
 function load_commune_options_for_type(frm, address_type, province_name) {
-    if (!province_name || !ADDRESS_TYPES[address_type]) {
-        return;
-    }
+    if (!province_name || !ADDRESS_TYPES[address_type]) return;
+
+    const province_code = _province_code_map[province_name];
+    if (!province_code) return;
 
     const fields = ADDRESS_TYPES[address_type];
 
     frappe.call({
-        method: 'customize_erpnext.api.address.get_communes',
-        args: {
-            province_name: province_name
-        },
+        method: 'customize_erpnext.api.address_converter.api.get_districts',
+        args: { province_code: province_code },
         callback: function (r) {
-            if (r.message && r.message.length > 0) {
-                // Set commune dropdown options
-                frm.set_df_property(fields.commune, 'options', r.message);
-            } else {
-                // Clear commune options if no communes found
-                frm.set_df_property(fields.commune, 'options', []);
-            }
+            const district_names = (r.message || []).map(d => d.ten);
+            frm.set_df_property(fields.commune, 'options', district_names);
         }
     });
 }

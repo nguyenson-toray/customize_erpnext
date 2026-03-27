@@ -287,6 +287,9 @@ doc_events = {
     # - Set default holiday list
     # - Prevent deletion
     "Employee": {
+        "before_insert": [
+            "customize_erpnext.api.employee.employee_validation.before_insert_employee"
+        ],
         "validate": [
             "customize_erpnext.api.employee.employee_validation.validate_employee_changes"
         ],
