@@ -556,28 +556,26 @@ def generate_email_content(report_date, stats, data, last_checkin_time=None):
 
 	if absent_list:
 		for idx, emp in enumerate(absent_list, 1):
+			bg = '#fafafa' if idx % 2 == 0 else '#ffffff'
 			absent_rows += f"""
-			<tr>
-				<td style="border: 1px solid #ddd; padding: 8px; text-align: center;">{idx}</td>
-				<td style="border: 1px solid #ddd; padding: 8px; text-align: center;">{formatted_date}</td>
-				<td style="border: 1px solid #ddd; padding: 8px;">{emp.get('attendance_device_id') or ''}</td>
-				<td style="border: 1px solid #ddd; padding: 8px;">{emp.get('employee') or ''}</td>
-				<td style="border: 1px solid #ddd; padding: 8px;">{emp.get('employee_name') or ''}</td>
-				<td style="border: 1px solid #ddd; padding: 8px;">{emp.get('department') or ''}</td>
-				<td style="border: 1px solid #ddd; padding: 8px;">{emp.get('custom_group') or ''}</td>
-				<td style="border: 1px solid #ddd; padding: 8px;">{emp.get('shift') or ''}</td>
-				<td style="border: 1px solid #ddd; padding: 8px;">{emp.get('designation') or ''}</td>
-				<td style="border: 1px solid #ddd; padding: 8px;">{emp.get('leave_type') or ''}</td>
-				<td style="border: 1px solid #ddd; padding: 8px; text-align: center;">{emp.get('leave_application') or ''}</td>
-				<td style="border: 1px solid #ddd; padding: 8px; text-align: center;">{emp.get('half_day_status') or ''}</td>
-			</tr>
-			"""
+			<tr style="background:{bg}">
+				<td class="dc">{idx}</td>
+				<td class="dc">{formatted_date}</td>
+				<td class="d">{emp.get('attendance_device_id') or ''}</td>
+				<td class="d">{emp.get('employee') or ''}</td>
+				<td class="d"><strong>{emp.get('employee_name') or ''}</strong></td>
+				<td class="d">{emp.get('department') or ''}</td>
+				<td class="d">{emp.get('custom_group') or ''}</td>
+				<td class="d">{emp.get('shift') or ''}</td>
+				<td class="d">{emp.get('designation') or ''}</td>
+				<td class="d">{emp.get('leave_type') or ''}</td>
+				<td class="dc">{emp.get('leave_application') or ''}</td>
+				<td class="dc">{emp.get('half_day_status') or ''}</td>
+			</tr>"""
 	else:
 		absent_rows = """
 		<tr>
-			<td colspan="12" style="border: 1px solid #ddd; padding: 8px; text-align: center; color: #999;">
-				Không có nhân viên vắng
-			</td>
+			<td colspan="12" class="empty-row">Không có nhân viên vắng</td>
 		</tr>
 		"""
 
@@ -587,28 +585,26 @@ def generate_email_content(report_date, stats, data, last_checkin_time=None):
 
 	if maternity_list:
 		for idx, emp in enumerate(maternity_list, 1):
+			bg = '#fafafa' if idx % 2 == 0 else '#ffffff'
 			maternity_rows += f"""
-			<tr>
-				<td style="border: 1px solid #ddd; padding: 8px; text-align: center;">{idx}</td>
-				<td style="border: 1px solid #ddd; padding: 8px; text-align: center;">{formatted_date}</td>
-				<td style="border: 1px solid #ddd; padding: 8px;">{emp.get('attendance_device_id') or ''}</td>
-				<td style="border: 1px solid #ddd; padding: 8px;">{emp.get('employee') or ''}</td>
-				<td style="border: 1px solid #ddd; padding: 8px;">{emp.get('employee_name') or ''}</td>
-				<td style="border: 1px solid #ddd; padding: 8px;">{emp.get('department') or ''}</td>
-				<td style="border: 1px solid #ddd; padding: 8px;">{emp.get('custom_group') or ''}</td>
-				<td style="border: 1px solid #ddd; padding: 8px;">{emp.get('shift') or ''}</td>
-				<td style="border: 1px solid #ddd; padding: 8px;">{emp.get('designation') or ''}</td>
-				<td style="border: 1px solid #ddd; padding: 8px;">{emp.get('leave_type') or ''}</td>
-				<td style="border: 1px solid #ddd; padding: 8px; text-align: center;">{emp.get('leave_application') or ''}</td>
-				<td style="border: 1px solid #ddd; padding: 8px; text-align: center;">{emp.get('half_day_status') or ''}</td>
-			</tr>
-			"""
+			<tr style="background:{bg}">
+				<td class="dc">{idx}</td>
+				<td class="dc">{formatted_date}</td>
+				<td class="d">{emp.get('attendance_device_id') or ''}</td>
+				<td class="d">{emp.get('employee') or ''}</td>
+				<td class="d"><strong>{emp.get('employee_name') or ''}</strong></td>
+				<td class="d">{emp.get('department') or ''}</td>
+				<td class="d">{emp.get('custom_group') or ''}</td>
+				<td class="d">{emp.get('shift') or ''}</td>
+				<td class="d">{emp.get('designation') or ''}</td>
+				<td class="d">{emp.get('leave_type') or ''}</td>
+				<td class="dc">{emp.get('leave_application') or ''}</td>
+				<td class="dc">{emp.get('half_day_status') or ''}</td>
+			</tr>"""
 	else:
 		maternity_rows = """
 		<tr>
-			<td colspan="12" style="border: 1px solid #ddd; padding: 8px; text-align: center; color: #999;">
-				Không có nhân viên nghỉ thai sản
-			</td>
+			<td colspan="12" class="empty-row">Không có nhân viên nghỉ thai sản</td>
 		</tr>
 		"""
 
@@ -618,28 +614,26 @@ def generate_email_content(report_date, stats, data, last_checkin_time=None):
 
 	if on_leave_list:
 		for idx, emp in enumerate(on_leave_list, 1):
+			bg = '#fafafa' if idx % 2 == 0 else '#ffffff'
 			on_leave_rows += f"""
-			<tr>
-				<td style="border: 1px solid #ddd; padding: 8px; text-align: center;">{idx}</td>
-				<td style="border: 1px solid #ddd; padding: 8px; text-align: center;">{formatted_date}</td>
-				<td style="border: 1px solid #ddd; padding: 8px;">{emp.get('attendance_device_id') or ''}</td>
-				<td style="border: 1px solid #ddd; padding: 8px;">{emp.get('employee') or ''}</td>
-				<td style="border: 1px solid #ddd; padding: 8px;">{emp.get('employee_name') or ''}</td>
-				<td style="border: 1px solid #ddd; padding: 8px;">{emp.get('department') or ''}</td>
-				<td style="border: 1px solid #ddd; padding: 8px;">{emp.get('custom_group') or ''}</td>
-				<td style="border: 1px solid #ddd; padding: 8px;">{emp.get('shift') or ''}</td>
-				<td style="border: 1px solid #ddd; padding: 8px;">{emp.get('designation') or ''}</td>
-				<td style="border: 1px solid #ddd; padding: 8px;">{emp.get('leave_type') or ''}</td>
-				<td style="border: 1px solid #ddd; padding: 8px; text-align: center;">{emp.get('leave_application') or ''}</td>
-				<td style="border: 1px solid #ddd; padding: 8px; text-align: center;">{emp.get('half_day_status') or ''}</td>
-			</tr>
-			"""
+			<tr style="background:{bg}">
+				<td class="dc">{idx}</td>
+				<td class="dc">{formatted_date}</td>
+				<td class="d">{emp.get('attendance_device_id') or ''}</td>
+				<td class="d">{emp.get('employee') or ''}</td>
+				<td class="d"><strong>{emp.get('employee_name') or ''}</strong></td>
+				<td class="d">{emp.get('department') or ''}</td>
+				<td class="d">{emp.get('custom_group') or ''}</td>
+				<td class="d">{emp.get('shift') or ''}</td>
+				<td class="d">{emp.get('designation') or ''}</td>
+				<td class="d">{emp.get('leave_type') or ''}</td>
+				<td class="dc">{emp.get('leave_application') or ''}</td>
+				<td class="dc">{emp.get('half_day_status') or ''}</td>
+			</tr>"""
 	else:
 		on_leave_rows = """
 		<tr>
-			<td colspan="12" style="border: 1px solid #ddd; padding: 8px; text-align: center; color: #999;">
-				Không có nhân viên nghỉ phép
-			</td>
+			<td colspan="12" class="empty-row">Không có nhân viên nghỉ phép</td>
 		</tr>
 		"""
 
@@ -656,26 +650,23 @@ def generate_email_content(report_date, stats, data, last_checkin_time=None):
 			relieving = emp.get('relieving_date')
 			relieving_str = formatdate(relieving, "dd/MM/yyyy") if relieving else ''
 			left_checkin_rows += f"""
-			<tr style="background-color: #FFF8E1;">
-				<td style="border: 1px solid #ddd; padding: 8px; text-align: center;">{idx}</td>
-				<td style="border: 1px solid #ddd; padding: 8px;">{emp.get('attendance_device_id') or ''}</td>
-				<td style="border: 1px solid #ddd; padding: 8px;">{emp.get('employee_code') or ''}</td>
-				<td style="border: 1px solid #ddd; padding: 8px;">{emp.get('employee_name') or ''}</td>
-				<td style="border: 1px solid #ddd; padding: 8px;">{emp.get('department') or ''}</td>
-				<td style="border: 1px solid #ddd; padding: 8px;">{emp.get('custom_group') or ''}</td>
-				<td style="border: 1px solid #ddd; padding: 8px;">{emp.get('designation') or ''}</td>
-				<td style="border: 1px solid #ddd; padding: 8px; text-align: center;">{relieving_str}</td>
-				<td style="border: 1px solid #ddd; padding: 8px; text-align: center;">{first_in_str}</td>
-				<td style="border: 1px solid #ddd; padding: 8px; text-align: center;">{last_out_str}</td>
-				<td style="border: 1px solid #ddd; padding: 8px; text-align: center;">{emp.get('checkin_count') or 0}</td>
-			</tr>
-			"""
+			<tr style="background:#fff8e1">
+				<td class="dc">{idx}</td>
+				<td class="d">{emp.get('attendance_device_id') or ''}</td>
+				<td class="d">{emp.get('employee_code') or ''}</td>
+				<td class="d"><strong>{emp.get('employee_name') or ''}</strong></td>
+				<td class="d">{emp.get('department') or ''}</td>
+				<td class="d">{emp.get('custom_group') or ''}</td>
+				<td class="d">{emp.get('designation') or ''}</td>
+				<td class="dc">{relieving_str}</td>
+				<td class="dc">{first_in_str}</td>
+				<td class="dc">{last_out_str}</td>
+				<td class="dc">{emp.get('checkin_count') or 0}</td>
+			</tr>"""
 	else:
 		left_checkin_rows = """
 		<tr>
-			<td colspan="11" style="border: 1px solid #ddd; padding: 8px; text-align: center; color: #999;">
-				Không có trường hợp nào
-			</td>
+			<td colspan="11" class="empty-row">Không có trường hợp nào</td>
 		</tr>
 		"""
 
@@ -758,220 +749,279 @@ def generate_email_content(report_date, stats, data, last_checkin_time=None):
 			reason_for_manual = emp.get('reason_for_manual', '')
 			other_reason_for_manual = emp.get('other_reason_for_manual', '')
 
+			bg = '#fafafa' if idx % 2 == 0 else '#ffffff'
+			processed_style = 'color:#1a7a4a;font-weight:700' if manual_checkins else 'color:#999'
 			incomplete_checkin_rows += f"""
-			<tr>
-				<td style="border: 1px solid #ddd; padding: 8px; text-align: center;">{idx}</td>
-				<td style="border: 1px solid #ddd; padding: 8px; text-align: center;">{checkin_date_formatted}</td>
-				<td style="border: 1px solid #ddd; padding: 8px;">{emp.get('attendance_device_id') or ''}</td>
-				<td style="border: 1px solid #ddd; padding: 8px;">{emp.get('employee_code') or ''}</td>
-				<td style="border: 1px solid #ddd; padding: 8px;">{emp.get('employee_name') or ''}</td>
-				<td style="border: 1px solid #ddd; padding: 8px;">{emp.get('department') or ''}</td>
-				<td style="border: 1px solid #ddd; padding: 8px;">{emp.get('custom_group') or ''}</td>
-				<td style="border: 1px solid #ddd; padding: 8px;">{emp.get('shift') or ''}</td>
-				<td style="border: 1px solid #ddd; padding: 8px;">{emp.get('designation') or ''}</td>
-				<td style="border: 1px solid #ddd; padding: 8px; text-align: center;">{first_checkin}</td>
-				<td style="border: 1px solid #ddd; padding: 8px; text-align: center;">{last_checkout}</td>
-				<td style="border: 1px solid #ddd; padding: 8px; text-align: center;">{checkin_count}</td>
-				<td style="border: 1px solid #ddd; padding: 8px; text-align: center;">{manual_checkins}</td>
-				<td style="border: 1px solid #ddd; padding: 8px;">{reason_for_manual}</td>
-				<td style="border: 1px solid #ddd; padding: 8px;">{other_reason_for_manual}</td>
-			</tr>
-			"""
+			<tr style="background:{bg}">
+				<td class="dc">{idx}</td>
+				<td class="dc">{checkin_date_formatted}</td>
+				<td class="d">{emp.get('attendance_device_id') or ''}</td>
+				<td class="d">{emp.get('employee_code') or ''}</td>
+				<td class="d"><strong>{emp.get('employee_name') or ''}</strong></td>
+				<td class="d">{emp.get('department') or ''}</td>
+				<td class="d">{emp.get('custom_group') or ''}</td>
+				<td class="d">{emp.get('shift') or ''}</td>
+				<td class="d">{emp.get('designation') or ''}</td>
+				<td class="dc">{first_checkin}</td>
+				<td class="dc">{last_checkout}</td>
+				<td class="dc">{checkin_count}</td>
+				<td class="dc" style="{processed_style}">{manual_checkins or '—'}</td>
+				<td class="d">{reason_for_manual}</td>
+				<td class="d">{other_reason_for_manual}</td>
+			</tr>"""
 	else:
 		incomplete_checkin_rows = """
 		<tr>
-			<td colspan="15" style="border: 1px solid #ddd; padding: 8px; text-align: center; color: #999;">
-				Không có nhân viên chấm công thiếu
-			</td>
+			<td colspan="15" class="empty-row">Không có nhân viên chấm công thiếu</td>
 		</tr>
 		"""
 
 	# Build warning section for Left employees — only if there are any
 	left_with_checkins_count = stats.get('left_with_checkins_count', 0)
 	if left_with_checkins_count:
-		left_warning_section = f"""<h3 style="color: #D32F2F; margin-top: 20px;">&#9888; CẢNH BÁO: Nhân viên đã nghỉ việc (Left) nhưng vẫn có chấm công ngày {formatted_date}:</h3>
-	<p style="color: #B71C1C; font-size: 13px; margin: 0 0 10px 0;">Hãy kiểm tra lại trạng thái nhân viên và dữ liệu chấm công bên dưới!</p>
-	<table>
-		<thead>
-			<tr>
-				<th class="warning-header" style="width: 3%; text-align: center;">STT</th>
-				<th class="warning-header" style="width: 6%;">Att ID</th>
-				<th class="warning-header" style="width: 9%;">Employee</th>
-				<th class="warning-header" style="width: 14%;">Employee Name</th>
-				<th class="warning-header" style="width: 11%;">Department</th>
-				<th class="warning-header" style="width: 9%;">Group</th>
-				<th class="warning-header" style="width: 11%;">Designation</th>
-				<th class="warning-header" style="width: 9%; text-align: center;">Ngày nghỉ việc</th>
-				<th class="warning-header" style="width: 10%; text-align: center;">Check-in đầu</th>
-				<th class="warning-header" style="width: 10%; text-align: center;">Check-out cuối</th>
-				<th class="warning-header" style="width: 5%; text-align: center;">Số lần chấm</th>
-			</tr>
-		</thead>
-		<tbody>
-			{left_checkin_rows}
-		</tbody>
-	</table>"""
+		left_warning_section = f"""
+	<div style="margin:24px 0 0;border:2px solid #e53935;border-radius:8px;overflow:hidden">
+		<div style="background:#e53935;padding:12px 18px;display:flex;align-items:center;gap:10px">
+			<span style="font-size:20px">🚨</span>
+			<div>
+				<div style="color:#fff;font-weight:700;font-size:15px">CẢNH BÁO: Nhân viên đã nghỉ việc vẫn có chấm công ngày {formatted_date}</div>
+				<div style="color:rgba(255,255,255,.85);font-size:12px;margin-top:2px">Kiểm tra lại trạng thái nhân viên và dữ liệu chấm công bên dưới</div>
+			</div>
+		</div>
+		<table class="dt" style="margin:0">
+			<thead>
+				<tr>
+					<th class="th-warn" style="width:3%;text-align:center">STT</th>
+					<th class="th-warn" style="width:5%">Att ID</th>
+					<th class="th-warn" style="width:8%">Employee</th>
+					<th class="th-warn" style="width:18%">Employee Name</th>
+					<th class="th-warn" style="width:10%">Department</th>
+					<th class="th-warn" style="width:8%">Group</th>
+					<th class="th-warn" style="width:14%">Designation</th>
+					<th class="th-warn" style="width:8%;text-align:center">Ngày nghỉ việc</th>
+					<th class="th-warn" style="width:9%;text-align:center">Check-in đầu</th>
+					<th class="th-warn" style="width:9%;text-align:center">Check-out cuối</th>
+					<th class="th-warn" style="width:5%;text-align:center">Số lần</th>
+				</tr>
+			</thead>
+			<tbody>{left_checkin_rows}</tbody>
+		</table>
+	</div>"""
 	else:
 		left_warning_section = ""
 
-	html_content = f"""
-	<html>
-	<head>
-		<style>
-			body {{ font-family: Arial, sans-serif; line-height: 1.6; }}
-			.summary {{ margin: 20px 0; padding: 15px; background-color: #f5f5f5; border-radius: 5px; }}
-			.summary-item {{ margin: 10px 0; font-size: 14px; }}
-			.summary-item strong {{ color: #333; }}
-			table {{ width: 100%; border-collapse: collapse; margin-top: 20px; }}
-			th {{ background-color: #4CAF50; color: white; padding: 10px; text-align: left; border: 1px solid #ddd; }}
-			.number {{ color: #2196F3; font-weight: bold; }}
-			.present {{ color: #4CAF50; font-weight: bold; }}
-			.absent {{ color: #f44336; font-weight: bold; }}
-			.maternity {{ color: #FF9800; font-weight: bold; }}
-			.incomplete {{ color: #9C27B0; font-weight: bold; }}
-		.warning {{ color: #D32F2F; font-weight: bold; }}
-		.warning-box {{ background-color: #FFF3E0; border-left: 5px solid #FF5722; padding: 10px 15px; margin: 10px 0; border-radius: 3px; }}
-		th.warning-header {{ background-color: #FF5722; }}
-		</style>
-	</head>
-	<body>
-		<h2 style="color: #333;">Báo cáo hiện diện / vắng ngày {formatted_date}</h2>
+	absent_count    = len(stats.get('absent_employees', []))
+	maternity_count = stats['maternity_count']
+	on_leave_count  = stats['on_leave_count']
+	incomplete_count = stats['incomplete_count']
+	incomplete_processed = stats['incomplete_processed']
+	site_name = get_current_frappe_site_name()
 
-		<div class="summary">
-			<h3 style="margin-top: 0; color: #555;">Email này được gửi tự động từ hệ thống ERPNext (Site: {get_current_frappe_site_name()}) vào lúc {current_time}{last_data_time_msg}</h3>
-			<h3 style="margin-top: 0; color: #555;">Tổng quan:</h3>
-			<div class="summary-item">
-				<strong>Số lượng nhân viên (Active):</strong>
-				<span class="number">{stats['total_employees']}</span> người
-			</div>
-			<div class="summary-item">
-				<strong>Số lượng hiện diện:</strong>
-				<span class="present">{stats['total_present']}</span> người
-			</div>
-			<div class="summary-item">
-				<strong>Số lượng vắng (không bao gồm nghỉ phép):</strong>
-				<span class="absent">{stats['total_absent']}</span> người
-			</div>
-			<div class="summary-item">
-				<strong>Số lượng nghỉ thai sản:</strong>
-				<span class="maternity">{stats['maternity_count']}</span> người
-			</div>
-			<div class="summary-item">
-				<strong>Số lượng nghỉ phép (On Leave / Half Day):</strong>
-				<span class="maternity">{stats['on_leave_count']}</span> người
-			</div>
-			<div class="summary-item">
-				<strong>Số lượng chấm công thiếu từ {date_range_formatted}:</strong>
-				<span class="incomplete">{stats['incomplete_count']}</span> trường hợp
-				<br>
-				<strong>Đã xử lý:</strong>
-				<span style="color: #4CAF50; font-weight: bold;">{stats['incomplete_processed']}</span> / <span class="incomplete">{stats['incomplete_count']}</span>
-				<br>
-				<small style="color: #666;">(Chỉ có 1 lần chấm công hoặc thiếu giờ chấm công vào/ra theo ca (Trên máy chấm công))</small>
-			</div>
-		</div>
+	html_content = f"""<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  body {{ margin:0; padding:0; background:#f0f2f5; font-family:Arial,sans-serif; font-size:13px; color:#333; }}
+  .wrap {{ max-width:1200px; margin:0 auto; background:#fff; }}
 
-	{left_warning_section}
+  /* ── Header ─────────────────────────────────────────── */
+  .hdr {{ background-color:#1b3a6b; background:linear-gradient(135deg,#1b3a6b 0%,#2874a6 100%); padding:22px 28px; }}
+  .hdr h1 {{ margin:0; color:#fff !important; font-size:20px; font-weight:700; letter-spacing:.3px; }}
+  .hdr p  {{ margin:5px 0 0; color:#d6e8f7 !important; font-size:12px; }}
 
-		<h3 style="color: #555; margin-top: 30px;">Danh sách nhân viên vắng (không bao gồm nghỉ phép):</h3>
-		<table>
-			<thead>
-				<tr>
-					<th style="width: 4%; text-align: center;">STT</th>
-					<th style="width: 6%; text-align: center;">Ngày</th>
-					<th style="width: 7%;">Att ID</th>
-					<th style="width: 9%;">Employee</th>
-					<th style="width: 14%;">Employee Name</th>
-					<th style="width: 10%;">Department</th>
-					<th style="width: 9%;">Group</th>
-					<th style="width: 8%;">Shift</th>
-					<th style="width: 11%;">Designation</th>
-					<th style="width: 10%;">Leave Type</th>
-					<th style="width: 12%; text-align: center;">Leave Application</th>
-					<th style="width: 10%; text-align: center;">Status for Other Half</th>
-				</tr>
-			</thead>
-			<tbody>
-				{absent_rows}
-			</tbody>
-		</table>
+  /* ── Disclaimer ─────────────────────────────────────── */
+  .notice {{ background:#fef9e7; border-left:4px solid #f39c12; padding:9px 18px;
+             font-size:12.5px; color:#7d6608; }}
 
-		<h3 style="color: #555; margin-top: 30px;">Danh sách nhân viên nghỉ thai sản:</h3>
-		<table>
-			<thead>
-				<tr>
-					<th style="width: 4%; text-align: center;">STT</th>
-					<th style="width: 6%; text-align: center;">Ngày</th>
-					<th style="width: 7%;">Att ID</th>
-					<th style="width: 9%;">Employee</th>
-					<th style="width: 14%;">Employee Name</th>
-					<th style="width: 10%;">Department</th>
-					<th style="width: 9%;">Group</th>
-					<th style="width: 8%;">Shift</th>
-					<th style="width: 11%;">Designation</th>
-					<th style="width: 10%;">Leave Type</th>
-					<th style="width: 12%; text-align: center;">Leave Application</th>
-					<th style="width: 10%; text-align: center;">Status for Other Half</th>
-				</tr>
-			</thead>
-			<tbody>
-				{maternity_rows}
-			</tbody>
-		</table>
+  /* ── Stat cards ─────────────────────────────────────── */
+  .stats {{ background:#f4f6f9; padding:16px 20px; border-bottom:1px solid #e0e4ea; }}
+  .stats table {{ width:100%; border-collapse:separate; border-spacing:8px; }}
+  .card {{ background:#fff; border-radius:8px; padding:12px 10px; text-align:center;
+           box-shadow:0 1px 4px rgba(0,0,0,.08); }}
+  .card .lbl {{ font-size:10.5px; color:#888; text-transform:uppercase;
+                letter-spacing:.4px; margin-bottom:5px; }}
+  .card .val {{ font-size:26px; font-weight:800; line-height:1.1; }}
+  .c-blue   {{ color:#1f618d; }}
+  .c-green  {{ color:#1a7a4a; }}
+  .c-red    {{ color:#c0392b; }}
+  .c-purple {{ color:#6c3483; }}
+  .c-orange {{ color:#ca6f1e; }}
+  .c-teal   {{ color:#117a65; }}
 
-		<h3 style="color: #555; margin-top: 30px;">Danh sách nhân viên nghỉ phép (On Leave / Half Day):</h3>
-		<table>
-			<thead>
-				<tr>
-					<th style="width: 4%; text-align: center;">STT</th>
-					<th style="width: 6%; text-align: center;">Ngày</th>
-					<th style="width: 7%;">Att ID</th>
-					<th style="width: 9%;">Employee</th>
-					<th style="width: 14%;">Employee Name</th>
-					<th style="width: 10%;">Department</th>
-					<th style="width: 9%;">Group</th>
-					<th style="width: 8%;">Shift</th>
-					<th style="width: 11%;">Designation</th>
-					<th style="width: 10%;">Leave Type</th>
-					<th style="width: 12%; text-align: center;">Leave Application</th>
-					<th style="width: 10%; text-align: center;">Status for Other Half</th>
-				</tr>
-			</thead>
-			<tbody>
-				{on_leave_rows}
-			</tbody>
-		</table>
+  /* ── Section header ──────────────────────────────────── */
+  .sec-hdr {{ padding:10px 20px; margin:0; font-size:13.5px; font-weight:700;
+              display:flex; align-items:center; gap:7px; }}
+  .sec-wrap {{ margin:22px 0 0; border:1px solid #e0e4ea; border-radius:8px; overflow:hidden; }}
 
+  /* ── Data table ──────────────────────────────────────── */
+  table.dt {{ width:100%; border-collapse:collapse; }}
+  table.dt th {{ padding:8px 10px; font-size:11.5px; font-weight:600;
+                 letter-spacing:.2px; text-align:left; }}
+  .d  {{ padding:7px 10px; font-size:12.5px; border-bottom:1px solid #f0f0f0;
+         vertical-align:middle; }}
+  .dc {{ padding:7px 10px; font-size:12.5px; border-bottom:1px solid #f0f0f0;
+         vertical-align:middle; text-align:center; }}
+  .empty-row {{ padding:14px; text-align:center; color:#aaa; font-style:italic;
+                border-bottom:1px solid #f0f0f0; }}
 
-		<h3 style="color: #555; margin-top: 30px;">Danh sách nhân viên chấm công thiếu từ {date_range_formatted}:</h3>
-		<table>
-			<thead>
-				<tr>
-					<th style="width: 3%; text-align: center;">STT</th>
-					<th style="width: 6%; text-align: center;">Ngày</th>
-					<th style="width: 6%;">Att ID</th>
-					<th style="width: 8%;">Employee</th>
-					<th style="width: 12%;">Employee Name</th>
-					<th style="width: 10%;">Department</th>
-					<th style="width: 8%;">Group</th>
-					<th style="width: 7%;">Shift</th>
-					<th style="width: 10%;">Designation</th>
-					<th style="width: 8%; text-align: center;">Check-in</th>
-					<th style="width: 8%; text-align: center;">Check-out</th>
-					<th style="width: 4%; text-align: center;">Số lần chấm</th>
-					<th style="width: 8%; text-align: center;">Đã xử lý</th>
-					<th style="width: 6%;">Reason</th>
-					<th style="width: 6%;">Other Reason</th>
-				</tr>
-			</thead>
-			<tbody>
-				{incomplete_checkin_rows}
-			</tbody>
-		</table>
+  /* per-section th colours */
+  .th-absent   {{ background:#c0392b; color:#fff; }}
+  .th-mat      {{ background:#6c3483; color:#fff; }}
+  .th-leave    {{ background:#1f618d; color:#fff; }}
+  .th-inc      {{ background:#117a65; color:#fff; }}
+  .th-warn     {{ background:#b03a2e; color:#fff; }}
 
-	</body>
-	</html>
-	"""
+  /* per-section sec-hdr colours */
+  .sh-absent {{ background:#fdf2f1; border-bottom:3px solid #c0392b; color:#922b21; }}
+  .sh-mat    {{ background:#f5eef8; border-bottom:3px solid #6c3483; color:#4a235a; }}
+  .sh-leave  {{ background:#eaf2fb; border-bottom:3px solid #1f618d; color:#1a4f7a; }}
+  .sh-inc    {{ background:#e8f8f5; border-bottom:3px solid #117a65; color:#0b5345; }}
+
+  /* ── Footer ──────────────────────────────────────────── */
+  .ftr {{ background:#f4f6f9; padding:14px 24px; text-align:center;
+          color:#aaa; font-size:11.5px; border-top:1px solid #dce1e8; margin-top:24px; }}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- Header -->
+  <div class="hdr" style="background-color:#1b3a6b;background:linear-gradient(135deg,#1b3a6b 0%,#2874a6 100%);padding:22px 28px;">
+    <h1 style="margin:0;color:#fff;font-size:20px;font-weight:700;letter-spacing:.3px;">📋 Báo cáo Hiện diện / Vắng &nbsp;—&nbsp; {formatted_date}</h1>
+    <p style="margin:5px 0 0;color:#d6e8f7;font-size:12px;">Tạo lúc {current_time}{last_data_time_msg}</p>
+  </div>
+
+  <!-- Disclaimer -->
+  <div class="notice">
+    ⚠️ <strong>Lưu ý:</strong> Dữ liệu có thể chưa bao gồm nhân viên mới nhận việc trong ngày — cần kiểm tra lại.
+  </div>
+
+  <!-- Stat cards -->
+  <div class="stats">
+    <table><tr>
+      <td><div class="card"><div class="lbl">👥 Tổng Active</div>
+          <div class="val c-blue">{stats['total_employees']}</div></div></td>
+      <td><div class="card"><div class="lbl">✅ Hiện diện</div>
+          <div class="val c-green">{stats['total_present']}</div></div></td>
+      <td><div class="card"><div class="lbl">❌ Vắng mặt</div>
+          <div class="val c-red">{absent_count}</div></div></td>
+      <td><div class="card"><div class="lbl">🤱 Thai sản</div>
+          <div class="val c-purple">{maternity_count}</div></div></td>
+      <td><div class="card"><div class="lbl">🏖 Nghỉ phép</div>
+          <div class="val c-orange">{on_leave_count}</div></div></td>
+      <td><div class="card">
+          <div class="lbl">⏱ Thiếu chấm</div>
+          <div class="val c-teal">{incomplete_count}</div>
+          <div style="font-size:11px;color:#888;margin-top:3px">
+            <span style="color:#1a7a4a;font-weight:700">{incomplete_processed}</span> / {incomplete_count} đã xử lý
+          </div>
+          <div style="font-size:10px;color:#aaa;margin-top:2px">{date_range_formatted}</div>
+      </div></td>
+    </tr></table>
+  </div>
+
+  {left_warning_section}
+
+  <!-- Absent -->
+  <div class="sec-wrap">
+    <div class="sec-hdr sh-absent">❌ Danh sách vắng mặt &nbsp;<span style="font-weight:400;font-size:12px">({absent_count} người)</span></div>
+    <table class="dt">
+      <thead><tr>
+        <th class="th-absent" style="width:3%;text-align:center">STT</th>
+        <th class="th-absent" style="width:6%;text-align:center">Ngày</th>
+        <th class="th-absent" style="width:6%">Att ID</th>
+        <th class="th-absent" style="width:8%">Employee</th>
+        <th class="th-absent" style="width:18%">Employee Name</th>
+        <th class="th-absent" style="width:9%">Department</th>
+        <th class="th-absent" style="width:8%">Group</th>
+        <th class="th-absent" style="width:7%">Shift</th>
+        <th class="th-absent" style="width:14%">Designation</th>
+        <th class="th-absent" style="width:9%">Leave Type</th>
+        <th class="th-absent" style="width:7%;text-align:center">Leave App.</th>
+        <th class="th-absent" style="width:7%;text-align:center">Half Day</th>
+      </tr></thead>
+      <tbody>{absent_rows}</tbody>
+    </table>
+  </div>
+
+  <!-- Maternity -->
+  <div class="sec-wrap">
+    <div class="sec-hdr sh-mat">🤱 Nghỉ thai sản &nbsp;<span style="font-weight:400;font-size:12px">({maternity_count} người)</span></div>
+    <table class="dt">
+      <thead><tr>
+        <th class="th-mat" style="width:3%;text-align:center">STT</th>
+        <th class="th-mat" style="width:6%;text-align:center">Ngày</th>
+        <th class="th-mat" style="width:6%">Att ID</th>
+        <th class="th-mat" style="width:8%">Employee</th>
+        <th class="th-mat" style="width:18%">Employee Name</th>
+        <th class="th-mat" style="width:9%">Department</th>
+        <th class="th-mat" style="width:8%">Group</th>
+        <th class="th-mat" style="width:7%">Shift</th>
+        <th class="th-mat" style="width:14%">Designation</th>
+        <th class="th-mat" style="width:9%">Leave Type</th>
+        <th class="th-mat" style="width:7%;text-align:center">Leave App.</th>
+        <th class="th-mat" style="width:7%;text-align:center">Half Day</th>
+      </tr></thead>
+      <tbody>{maternity_rows}</tbody>
+    </table>
+  </div>
+
+  <!-- On Leave -->
+  <div class="sec-wrap">
+    <div class="sec-hdr sh-leave">🏖 Nghỉ phép &nbsp;<span style="font-weight:400;font-size:12px">({on_leave_count} người)</span></div>
+    <table class="dt">
+      <thead><tr>
+        <th class="th-leave" style="width:3%;text-align:center">STT</th>
+        <th class="th-leave" style="width:6%;text-align:center">Ngày</th>
+        <th class="th-leave" style="width:6%">Att ID</th>
+        <th class="th-leave" style="width:8%">Employee</th>
+        <th class="th-leave" style="width:18%">Employee Name</th>
+        <th class="th-leave" style="width:9%">Department</th>
+        <th class="th-leave" style="width:8%">Group</th>
+        <th class="th-leave" style="width:7%">Shift</th>
+        <th class="th-leave" style="width:14%">Designation</th>
+        <th class="th-leave" style="width:9%">Leave Type</th>
+        <th class="th-leave" style="width:7%;text-align:center">Leave App.</th>
+        <th class="th-leave" style="width:7%;text-align:center">Half Day</th>
+      </tr></thead>
+      <tbody>{on_leave_rows}</tbody>
+    </table>
+  </div>
+
+  <!-- Incomplete check-ins -->
+  <div class="sec-wrap">
+    <div class="sec-hdr sh-inc">⏱ Chấm công thiếu &nbsp;<span style="font-weight:400;font-size:12px">({incomplete_count} TH &nbsp;·&nbsp; {date_range_formatted})</span></div>
+    <table class="dt">
+      <thead><tr>
+        <th class="th-inc" style="width:3%;text-align:center">STT</th>
+        <th class="th-inc" style="width:5%;text-align:center">Ngày</th>
+        <th class="th-inc" style="width:5%">Att ID</th>
+        <th class="th-inc" style="width:7%">Employee</th>
+        <th class="th-inc" style="width:14%">Employee Name</th>
+        <th class="th-inc" style="width:8%">Department</th>
+        <th class="th-inc" style="width:6%">Group</th>
+        <th class="th-inc" style="width:5%">Shift</th>
+        <th class="th-inc" style="width:12%">Designation</th>
+        <th class="th-inc" style="width:7%;text-align:center">Check-in</th>
+        <th class="th-inc" style="width:7%;text-align:center">Check-out</th>
+        <th class="th-inc" style="width:4%;text-align:center">Lần</th>
+        <th class="th-inc" style="width:6%;text-align:center">Đã xử lý</th>
+        <th class="th-inc" style="width:6%">Reason</th>
+        <th class="th-inc" style="width:7%">Other Reason</th>
+      </tr></thead>
+      <tbody>{incomplete_checkin_rows}</tbody>
+    </table>
+  </div>
+
+  <!-- Footer -->
+  <div class="ftr">
+    Gửi tự động từ <strong>ERPNext</strong> — Site: {site_name} &nbsp;|&nbsp; {current_time}
+  </div>
+
+</div>
+</body>
+</html>"""
 
 	return html_content
 
