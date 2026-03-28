@@ -3,7 +3,7 @@
 ## Tổng quan
 
 Trang quản lý khám sức khỏe nhân viên. Gồm 2 file chính:
-- **Frontend**: `health_check_up_management.js` (~1843 dòng)
+- **Frontend**: `health_check_up_management.js`
 - **Backend**: `../../api/health_check_api.py`
 
 ---
@@ -13,13 +13,19 @@ Trang quản lý khám sức khỏe nhân viên. Gồm 2 file chính:
 ```
 [Frappe Page]
     └── on_page_load()
-            ├── buildLayout()         → render HTML khung trang
+            ├── buildLayout()         → render HTML khung trang (bao gồm offline banner)
             ├── loadDates()           → lấy danh sách ngày có dữ liệu
             ├── loadData(date)        → lấy toàn bộ record + stats
             ├── setupTabNavigation()  → gắn event tab
+            └── (network listeners)   → online/offline events
+
+    └── on_page_show()                ← fires EVERY time page becomes visible (kể cả lần đầu)
             ├── setupRealtime()       → lắng nghe Socket.IO
-            └── setupPollingAutoSync()→ fallback polling (configurable, mặc định 3 giây)
+            ├── setupPollingAutoSync()→ fallback polling (configurable, mặc định 3 giây)
+            └── updateOfflineBanner() → hiển thị banner nếu có queue tồn đọng
 ```
+
+> **Lưu ý**: `setupRealtime()` và `setupPollingAutoSync()` chỉ đặt trong `on_page_show` (không trùng lặp ở `on_page_load`) vì `on_page_show` cũng fire lần đầu.
 
 ---
 
@@ -78,7 +84,22 @@ Chia thành 3 nhóm, mỗi nhóm có tiêu đề:
 | Nhóm 2: Thông tin thêm | Đã phát HS, Trễ phát, Trễ thu, Mang thai |
 | Nhóm 3: Cận lâm sàng | X-Quang, Phụ khoa |
 
-Click vào bất kỳ card nào → mở modal danh sách NV thuộc nhóm đó (có sort).
+Click vào bất kỳ card nào → mở modal danh sách NV thuộc nhóm đó.
+
+### Modal stat card
+- Có sort theo tất cả cột
+- Cột time (`start_time`, `end_time`, `start_time_actual`, `end_time_actual`) sort dùng `formatTime()` để pad giờ trước khi so sánh chuỗi — tránh lỗi `"9:xx" > "11:xx"`
+- Có cột **Ghi chú** (`note`)
+
+---
+
+## Biểu đồ (Charts)
+
+3 biểu đồ tiến độ: theo Giờ bắt đầu, theo Group, theo Section.
+
+- Label trục X hiển thị tổng số: `"08:00 (25)"`, `"Nhóm A (18)"`
+- Hỗ trợ 2 hướng: **vertical** (Frappe Chart stacked bar) và **horizontal** (custom bar)
+- Horizontal chart luôn hiển thị số tổng trong label
 
 ---
 
@@ -108,9 +129,10 @@ loadDates() → render dropdown ngày
 User nhập mã → setupScanForm('distribute') → live preview tên NV
     → Enter / nhấn nút → doScan('distribute')
         → kiểm tra: đã phát chưa? → hỏi xác nhận nếu có
+        → executeCall() với auto-retry 2 lần nếu network error
         → gọi API scan_distribute(hospital_code/employee, date, note)
         → showScanResult() + addToHistory()
-        → cập nhật state.records[idx] trực tiếp
+        → cập nhật state.records[idx] trực tiếp (start_time_actual + note)
         → recalculateStats() + updateTabCounts()
 ```
 
@@ -118,8 +140,9 @@ User nhập mã → setupScanForm('distribute') → live preview tên NV
 ```
 User nhập mã → doScan('collect')
     → kiểm tra: chưa phát? → hỏi nhập giờ phát thủ công
+    → executeCall() với auto-retry 2 lần nếu network error
     → gọi API scan_collect(hospital_code/employee, date, x_ray, gynec, note, manual_start_time)
-    → cập nhật state.records[idx] trực tiếp
+    → cập nhật state.records[idx] trực tiếp (end_time_actual + x_ray + gynec + note)
     → recalculateStats() + updateTabCounts() + renderCollectMiniStats()
 ```
 
@@ -138,6 +161,70 @@ Fallback: setupPollingAutoSync() → state.pollingInterval giây/lần
 
 ---
 
+## Xử lý lỗi mạng (Offline Queue)
+
+### Luồng khi mất kết nối
+```
+doScan() → executeCall() → lỗi network
+    → auto-retry tối đa 2 lần (delay 1.2s mỗi lần)
+    → vẫn lỗi → enqueueOfflineScan() → lưu vào localStorage
+    → updateOfflineBanner() → hiển thị banner đỏ + số lượng chờ
+
+window 'online' event → onNetworkOnline()
+    → flushOfflineQueue() → gửi lại từng item trong queue
+    → thành công: cập nhật state + addToHistory()
+    → thất bại (network): giữ lại trong queue
+    → thất bại (server error): bỏ qua (không retry)
+    → updateOfflineBanner() → ẩn banner khi queue rỗng
+```
+
+### Offline Banner
+- Hiển thị banner **đỏ** khi mất mạng: `"📡 Mất kết nối mạng — N scan đang chờ gửi"`
+- Chuyển **xanh** khi có mạng lại và đang flush: `"✅ Đã kết nối — N scan đang chờ gửi"`
+- Tự ẩn khi queue rỗng và đang online
+
+### Phân loại lỗi trong `executeCall`
+| Lỗi | Xử lý |
+|-----|-------|
+| Network error (`TypeError: Failed to fetch`, `!navigator.onLine`) | Retry 2 lần → queue |
+| HTTP 403 (session hết hạn) | Thông báo → reload trang sau 2s |
+| Server error (500, `frappe.throw`) | Hiện thông báo lỗi, giữ input |
+
+### localStorage key
+```
+"hc_offline_scan_queue"  →  [{mode, args, timestamp, date}, ...]
+```
+> Queue tồn tại qua reload trang. Khi vào lại trang khi online và có queue → tự flush sau 2 giây.
+
+### Các hàm offline
+| Hàm | Mô tả |
+|-----|-------|
+| `isNetworkError(e)` | Kiểm tra lỗi mạng vs server error |
+| `getOfflineQueue()` | Đọc queue từ localStorage |
+| `saveOfflineQueue(queue)` | Lưu queue vào localStorage |
+| `enqueueOfflineScan(mode, args)` | Thêm scan vào queue |
+| `flushOfflineQueue()` | Gửi lại tất cả scan trong queue |
+| `updateOfflineBanner()` | Cập nhật hiển thị banner |
+| `onNetworkOnline()` | Handler khi có mạng lại |
+| `onNetworkOffline()` | Handler khi mất mạng |
+
+---
+
+## Sort — Lưu ý kiểu Time
+
+Frappe Time field trả về dạng `"H:MM:SS"` (không pad số 0), ví dụ `"9:30:00"`.
+So sánh chuỗi thô sẽ sai: `"9:30" > "11:00"` vì `'9' > '1'`.
+
+**Fix**: Tất cả chỗ sort time field đều dùng `formatTime()` trước khi so sánh.
+`formatTime("9:30:00")` → `"09:30"` → so sánh chuỗi đúng.
+
+Áp dụng tại:
+- `populateScanHistory()` — sort lịch sử scan theo giờ thực tế
+- `renderTable()` — sort bảng danh sách NV
+- `showStatModal()` — sort bảng trong modal stat card
+
+---
+
 ## Trạng thái record
 
 ```
@@ -147,6 +234,14 @@ pending (chưa khám)
 ```
 
 Hàm xác định: `getStatus(r)` → `'completed' | 'distributed' | 'pending'`
+
+> **Lưu ý**: Filter "Đã phát HS" trong tab Danh sách chỉ hiện NV đang khám (`distributed` = `start_time_actual && !end_time_actual`), không bao gồm đã hoàn thành.
+
+---
+
+## Danh sách NV — Pregnant badge
+
+NV nữ mang thai hiển thị emoji `🤰` ngay sau tên trong bảng danh sách.
 
 ---
 
@@ -161,7 +256,7 @@ Hàm xác định: `getStatus(r)` → `'completed' | 'distributed' | 'pending'`
 | `scan_distribute(...)` | POST | Phát hồ sơ: ghi `start_time_actual = now()` |
 | `scan_collect(...)` | POST | Thu hồ sơ: ghi `end_time_actual = now()` |
 | `lookup_record(code, date)` | GET | Tìm record theo mã HS hoặc mã NV |
-| `get_excel_data(date)` | GET | Xuất file Excel |
+| `get_excel_data(date)` | GET | Xuất file Excel (bao gồm cột `Last Modified`) |
 
 ### `scan_distribute` — logic chi tiết
 ```python
@@ -207,6 +302,10 @@ frappe.publish_realtime(
 )
 ```
 
+### Excel export
+Cột xuất ra (theo thứ tự):
+`ID, Date, Hospital Code, Health Check Type, Employee, Start Time, End Time, Employee Name, Gender, Department, Section, Group, Designation, Pregnant, Start Time Actual, End Time Actual, X-Ray, Gynecological Exam, Note, Status, Result, Last Modified`
+
 ---
 
 ## Frontend — Các hàm quan trọng
@@ -219,8 +318,9 @@ frappe.publish_realtime(
 | `getDashboardFilteredRecords()` | Filter records theo start_time/section/group |
 | `calcFilteredStats(records)` | Tính stats từ tập record đã filter (bao gồm late_dist/late_coll) |
 | `updateDashboardStats()` | Cập nhật stat cards mà không re-render toàn bộ (dùng cho realtime) |
-| `showStatModal(type)` | Mở modal xem danh sách NV theo loại stat (có sort) |
-| `renderCharts()` | Vẽ biểu đồ Section + Group (Frappe Chart hoặc horizontal bar) |
+| `showStatModal(type)` | Mở modal xem danh sách NV theo loại stat (có sort + cột note) |
+| `renderCharts()` | Vẽ biểu đồ (label có tổng số). Frappe Chart hoặc horizontal bar |
+| `renderHorizontalChart()` | Bar chart ngang tự render (dùng khi chartLayout = 'horizontal') |
 
 ### Scan Form
 
@@ -230,8 +330,8 @@ frappe.publish_realtime(
 | `renderCollectMiniStats()` | Render HTML badge X-Quang/Phụ khoa từ state.stats (dùng chung 3 chỗ) |
 | `setupScanForm(mode)` | Gắn event: live preview, auto-check gynec, pregnant emoji, Enter submit |
 | `doScan(mode)` | Xử lý submit: validate → confirm nếu cần → gọi API → cập nhật state trực tiếp |
-| `showScanResult(type, msg, record)` | Hiển thị kết quả scan (success/update/error) |
-| `populateScanHistory(mode)` | Lọc và sort lịch sử scan từ state.records |
+| `showScanResult(type, msg, record)` | Hiển thị kết quả scan. type: `success`(xanh) / `update`(vàng) / `warning`(cam) / `error`(đỏ) |
+| `populateScanHistory(mode)` | Lọc và sort lịch sử scan từ state.records (sort dùng formatTime) |
 | `renderHistory()` | Render bảng lịch sử scan |
 
 ### Tab Badge / Counts
@@ -245,7 +345,7 @@ frappe.publish_realtime(
 | Hàm | Mô tả |
 |---|---|
 | `renderEmployeeList()` | Render layout tab danh sách |
-| `renderTable()` | Render bảng có sort, count, double-click mở doctype |
+| `renderTable()` | Render bảng có sort (time-aware), count, double-click mở doctype |
 | `filterRecords()` | Lọc theo statusFilter + searchQuery |
 | `setupListEvents()` | Gắn event search, filter button, sort header, double-click |
 
@@ -260,7 +360,7 @@ frappe.publish_realtime(
 | `isRecordLateForDistribute(r)` | So với ngưỡng `allowedLateDistribute` |
 | `isRecordLateForCollect(r)` | So với ngưỡng `allowedLateCollect` |
 | `getProactiveNow()` | Trả `{date, time}` của "now" theo mode và currentDate |
-| `formatTime(val)` | timedelta string → HH:MM hoặc "—" |
+| `formatTime(val)` | timedelta string → `HH:MM` (có pad zero) hoặc `"—"` |
 
 ---
 
@@ -330,6 +430,14 @@ note
 → `downloadExcel()` mở `/api/method/...get_excel_data?date=...`
 → Kiểm tra quyền và `build_xlsx_response()` trong Python
 
+### Lịch sử scan hiện sai thứ tự (09:xx trước 11:xx)?
+→ Frappe Time field trả `"H:MM:SS"` không pad → so sánh chuỗi sai
+→ Đã fix: `populateScanHistory()` dùng `formatTime()` trước khi sort
+
+### Scan mất khi mất mạng?
+→ Đã có offline queue: `localStorage["hc_offline_scan_queue"]`
+→ Tự flush khi `window.online` event hoặc khi vào lại trang và có mạng
+
 ---
 
 ## File liên quan
@@ -338,7 +446,7 @@ note
 health_check_up/
 ├── page/health_check_up_management/
 │   ├── health_check_up_management.js   ← Frontend chính
-│   ├── health_check_up_management.css  ← Style (light theme)
+│   ├── health_check_up_management.css  ← Style (light theme, offline banner)
 │   ├── health_check_up_management.html ← Template rỗng
 │   ├── health_check_up_management.json ← Metadata page, roles
 │   └── readme.md                       ← File này

@@ -45,7 +45,8 @@ def get_excel_data(date=None):
             gynecological_exam as 'Gynecological Exam',
             note as 'Note',
             IF(start_time_actual IS NOT NULL AND end_time_actual IS NOT NULL, 'Hoàn thành', IF(start_time_actual IS NOT NULL, 'Đang khám', 'Chưa khám')) as 'Status',
-            result as 'Result'
+            result as 'Result',
+            modified as 'Last Modified'
         FROM `tabHealth Check-Up`
         WHERE date = %(date)s
         ORDER BY start_time ASC, hospital_code ASC

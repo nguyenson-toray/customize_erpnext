@@ -31,6 +31,7 @@ const L = {
     stat_pregnant: "Mang thai",
     chart_by_section: "Tiến độ theo Section",
     chart_by_group: "Tiến độ theo Group",
+    chart_by_start_time: "Tiến độ theo Giờ bắt đầu dự kiến",
     scan_placeholder: "Scan hoặc nhập mã hồ sơ / mã nhân viên...",
     btn_distribute: "Ghi nhận phát HS",
     btn_collect: "Ghi nhận thu HS",
@@ -38,6 +39,12 @@ const L = {
     msg_updated: "Đã cập nhật lại",
     msg_not_found: "Không tìm thấy",
     msg_input_required: "Vui lòng nhập mã hồ sơ hoặc mã nhân viên",
+    msg_network_error: "Mất kết nối — scan đã lưu tạm, sẽ tự gửi khi có mạng",
+    msg_server_error: "Lỗi server. Vui lòng thử lại.",
+    msg_session_expired: "Phiên đăng nhập hết hạn, đang tải lại...",
+    msg_retrying: "Mất kết nối, đang thử lại",
+    msg_offline_queued: "scan đang chờ gửi",
+    msg_queue_flushed: "Đã đồng bộ tất cả scan còn tồn.",
     col_stt: "#",
     col_code: "Mã HS",
     col_emp: "Mã NV",
@@ -145,9 +152,15 @@ frappe.pages["health-check-up-management"].on_page_load = function (wrapper) {
     // Setup tab clicks
     setupTabNavigation();
 
-    // Subscribe to realtime events
-    setupRealtime();
-    setupPollingAutoSync();
+    // Network online/offline handling
+    window.addEventListener("online", onNetworkOnline);
+    window.addEventListener("offline", onNetworkOffline);
+    updateOfflineBanner();
+    // Nếu vào trang khi đang online và có queue từ session trước → flush ngay
+    if (navigator.onLine && getOfflineQueue().length > 0) {
+        // Delay nhỏ để trang load xong trước
+        setTimeout(() => flushOfflineQueue(), 2000);
+    }
 };
 
 function downloadExcel() {
@@ -160,9 +173,10 @@ function downloadExcel() {
 }
 
 frappe.pages["health-check-up-management"].on_page_show = function () {
-    // Re-subscribe realtime when returning to page
+    // Re-subscribe realtime when returning to page (also fires on first load)
     setupRealtime();
     setupPollingAutoSync();
+    updateOfflineBanner();
 };
 
 frappe.pages["health-check-up-management"].on_page_hide = function () {
@@ -170,6 +184,8 @@ frappe.pages["health-check-up-management"].on_page_hide = function () {
     // Unsubscribe to avoid memory leaks
     frappe.realtime.off("health_check_update");
     if (window.hcAutoSyncInterval) clearInterval(window.hcAutoSyncInterval);
+    window.removeEventListener("online", onNetworkOnline);
+    window.removeEventListener("offline", onNetworkOffline);
 };
 
 // ============================================================
@@ -178,6 +194,12 @@ frappe.pages["health-check-up-management"].on_page_hide = function () {
 function buildLayout() {
     return `
     <div class="hc-app">
+        <!-- Offline Banner -->
+        <div id="hc-offline-banner" class="hc-offline-banner" style="display:none;">
+            <span id="hc-offline-icon">📡</span>
+            <span id="hc-offline-text">Mất kết nối mạng</span>
+            <span id="hc-offline-queue-count"></span>
+        </div>
         <!-- Header Bar -->
         <div class="hc-header">
             <div class="hc-header-left">
@@ -373,12 +395,18 @@ function renderDashboard() {
         <!-- Charts -->
         <div class="hc-charts-stack">
             <div class="hc-chart-card">
-                <div class="hc-chart-title">${L.chart_by_group}</div>
-                <div id="chart-group"></div>
+                <div class="hc-chart-title">${L.chart_by_start_time}</div>
+                <div id="chart-start-time"></div>
             </div>
-            <div class="hc-chart-card">
-                <div class="hc-chart-title">${L.chart_by_section}</div>
-                <div id="chart-section"></div>
+            <div class="hc-charts-row">
+                <div class="hc-chart-card">
+                    <div class="hc-chart-title">${L.chart_by_group}</div>
+                    <div id="chart-group"></div>
+                </div>
+                <div class="hc-chart-card">
+                    <div class="hc-chart-title">${L.chart_by_section}</div>
+                    <div id="chart-section"></div>
+                </div>
             </div>
         </div>
 
@@ -601,16 +629,26 @@ function showStatModal(type) {
         { label: "Thu (DK)",          field: "end_time",         cls: "hc-mono" },
         { label: "Phát (TT)",         field: "start_time_actual",cls: "hc-mono" },
         { label: "Thu (TT)",          field: "end_time_actual",  cls: "hc-mono" },
+        { label: "Ghi chú",           field: "note",             cls: "" },
     ];
 
     let sortField = null;
     let sortOrder = "asc";
 
+    const TIME_FIELDS = ["start_time", "end_time", "start_time_actual", "end_time_actual"];
+
     function sortedRecords() {
         if (!sortField) return records;
         return [...records].sort((a, b) => {
-            const va = String(a[sortField] || "");
-            const vb = String(b[sortField] || "");
+            let va = a[sortField] || "";
+            let vb = b[sortField] || "";
+            if (TIME_FIELDS.includes(sortField)) {
+                va = formatTime(va);
+                vb = formatTime(vb);
+            } else {
+                va = String(va);
+                vb = String(vb);
+            }
             if (va < vb) return sortOrder === "asc" ? -1 : 1;
             if (va > vb) return sortOrder === "asc" ? 1 : -1;
             return 0;
@@ -645,6 +683,7 @@ function showStatModal(type) {
                 <td class="hc-mono">${formatTime(r.end_time)}</td>
                 <td class="hc-mono ${r.start_time_actual ? 'hc-green' : 'hc-muted'}">${formatTime(r.start_time_actual)}</td>
                 <td class="hc-mono ${r.end_time_actual ? 'hc-green' : 'hc-muted'}">${formatTime(r.end_time_actual)}</td>
+                <td style="max-width:200px; white-space:normal;">${r.note || ""}</td>
             </tr>`).join("")}
         </tbody>`;
     }
@@ -749,15 +788,52 @@ function renderCharts() {
         if (r.start_time_actual) sections[s].distributed++;
         if (r.end_time_actual) sections[s].completed++;
     });
+    const startTimes = {};
+    filtered.forEach((r) => {
+        const t = formatTime(r.start_time);
+        const key = (t && t !== "—") ? t : "Không xác định";
+        if (!startTimes[key]) startTimes[key] = { total: 0, distributed: 0, completed: 0 };
+        startTimes[key].total++;
+        if (r.start_time_actual) startTimes[key].distributed++;
+        if (r.end_time_actual) startTimes[key].completed++;
+    });
+    const startTimeArr = Object.entries(startTimes).map(([k, v]) => ({ slot: k, ...v })).sort((a, b) => a.slot.localeCompare(b.slot));
+
     const groupArr = Object.entries(groups).map(([k, v]) => ({ group: k, ...v })).sort((a, b) => a.group.localeCompare(b.group));
     const sectionArr = Object.entries(sections).map(([k, v]) => ({ section: k, ...v })).sort((a, b) => b.total - a.total);
     const colors = [getHcColor('--hc-green', '#10b981'), getHcColor('--hc-yellow', '#f59e0b'), getHcColor('--hc-red', '#ef4444')];
+
+    if (startTimeArr.length > 0) {
+        if (state.chartLayout === "horizontal") {
+            renderHorizontalChart("chart-start-time", startTimeArr, "slot");
+        } else if (typeof frappe.Chart !== "undefined") {
+            const labels = startTimeArr.map((s) => `${s.slot} (${s.total})`);
+            new frappe.Chart("#chart-start-time", {
+                data: { labels, datasets: [
+                    { name: L.stat_completed, values: startTimeArr.map((s) => s.completed) },
+                    { name: L.stat_in_exam, values: startTimeArr.map((s) => s.distributed - s.completed) },
+                    { name: L.stat_not_started, values: startTimeArr.map((s) => s.total - s.distributed) },
+                ]},
+                type: "bar", height: 250, colors,
+                barOptions: { stacked: true, spaceRatio: 0.4 },
+            });
+            setTimeout(() => {
+                document.querySelectorAll("#chart-start-time .x.axis .tick text").forEach((el, idx) => {
+                    if (labels[idx]) el.textContent = labels[idx];
+                    el.setAttribute("text-anchor", "end");
+                    el.style.transformBox = "fill-box";
+                    el.style.transformOrigin = "right center";
+                    el.style.transform = "rotate(-45deg)";
+                });
+            }, 500);
+        }
+    }
 
     if (sectionArr.length > 0) {
         if (state.chartLayout === "horizontal") {
             renderHorizontalChart("chart-section", sectionArr, "section");
         } else if (typeof frappe.Chart !== "undefined") {
-            const labels = sectionArr.map((s) => s.section);
+            const labels = sectionArr.map((s) => `${s.section} (${s.total})`);
             new frappe.Chart("#chart-section", {
                 data: { labels, datasets: [
                     { name: L.stat_completed, values: sectionArr.map((s) => s.completed) },
@@ -783,7 +859,7 @@ function renderCharts() {
         if (state.chartLayout === "horizontal") {
             renderHorizontalChart("chart-group", groupArr, "group");
         } else if (typeof frappe.Chart !== "undefined") {
-            const labels = groupArr.map((g) => g.group);
+            const labels = groupArr.map((g) => `${g.group} (${g.total})`);
             new frappe.Chart("#chart-group", {
                 data: { labels, datasets: [
                     { name: L.stat_completed, values: groupArr.map((g) => g.completed) },
@@ -1011,10 +1087,12 @@ function populateScanHistory(mode) {
     // Filter records that have the timeField set
     const scanned = state.records.filter(r => r[timeField]);
 
-    // Sort descending by time
+    // Sort descending by time — use formatTime to pad hours (e.g. "9:30" → "09:30") so string compare works correctly
     scanned.sort((a, b) => {
-        if (a[timeField] < b[timeField]) return 1;
-        if (a[timeField] > b[timeField]) return -1;
+        const ta = formatTime(a[timeField]);
+        const tb = formatTime(b[timeField]);
+        if (ta < tb) return 1;
+        if (ta > tb) return -1;
         return 0;
     });
 
@@ -1077,7 +1155,7 @@ async function doScan(mode) {
         args.gynecological_exam = $("#chk-gynec").is(":checked") ? 1 : 0;
     }
 
-    const executeCall = async () => {
+    const executeCall = async (retryCount = 0) => {
         try {
             const method = mode === "distribute"
                 ? `${API_BASE}.scan_distribute`
@@ -1106,6 +1184,7 @@ async function doScan(mode) {
                             state.records[idx].x_ray = rec.x_ray;
                             state.records[idx].gynecological_exam = rec.gynecological_exam;
                         }
+                        if (rec.note !== undefined) state.records[idx].note = rec.note;
                     }
                     recalculateStats();
                     updateTabCounts();
@@ -1124,9 +1203,26 @@ async function doScan(mode) {
                 }
             }
         } catch (e) {
-            // frappe.throw from server automatically shows msgprint
-            showScanResult("error", L.msg_not_found + ": " + code);
-            $input.focus();
+            if (isNetworkError(e)) {
+                if (retryCount < 2) {
+                    // Auto-retry tối đa 2 lần
+                    showScanResult("warning", `${L.msg_retrying} (${retryCount + 1}/2)...`);
+                    await new Promise(res => setTimeout(res, 1200));
+                    return executeCall(retryCount + 1);
+                }
+                // Vẫn lỗi → queue lại
+                enqueueOfflineScan(mode, args);
+                showScanResult("error", L.msg_network_error);
+                $input.val("").trigger("input").focus();
+                $note.val("");
+            } else if (e.httpStatus === 403 || (e.message && e.message.includes("403"))) {
+                showScanResult("error", L.msg_session_expired);
+                setTimeout(() => location.reload(), 2000);
+            } else {
+                // Server error (frappe.throw, 500, v.v.)
+                showScanResult("error", e.message || L.msg_server_error);
+                $input.focus();
+            }
         }
     };
 
@@ -1201,6 +1297,7 @@ function showScanResult(type, message, record) {
     const colors = {
         success: "green",
         update: "yellow",
+        warning: "orange",
         error: "red",
     };
     const color = colors[type] || "red";
@@ -1270,6 +1367,112 @@ function renderHistory() {
 }
 
 // ============================================================
+// Offline Queue & Network Error Handling
+// ============================================================
+const HC_OFFLINE_QUEUE_KEY = "hc_offline_scan_queue";
+
+function isNetworkError(e) {
+    if (!navigator.onLine) return true;
+    if (e instanceof TypeError && /fetch|Failed to fetch|NetworkError/i.test(e.message)) return true;
+    return false;
+}
+
+function getOfflineQueue() {
+    try { return JSON.parse(localStorage.getItem(HC_OFFLINE_QUEUE_KEY) || "[]"); } catch { return []; }
+}
+
+function saveOfflineQueue(queue) {
+    localStorage.setItem(HC_OFFLINE_QUEUE_KEY, JSON.stringify(queue));
+}
+
+function enqueueOfflineScan(mode, args) {
+    const queue = getOfflineQueue();
+    queue.push({ mode, args, timestamp: new Date().toISOString(), date: state.currentDate });
+    saveOfflineQueue(queue);
+    updateOfflineBanner();
+}
+
+function updateOfflineBanner() {
+    const queue = getOfflineQueue();
+    const isOffline = !navigator.onLine;
+    const $banner = $("#hc-offline-banner");
+    if (!$banner.length) return;
+
+    if (isOffline || queue.length > 0) {
+        $banner.show();
+        if (isOffline) {
+            $banner.removeClass("hc-offline-banner--online");
+            $("#hc-offline-icon").text("📡");
+            $("#hc-offline-text").text("Mất kết nối mạng");
+        } else {
+            $banner.addClass("hc-offline-banner--online");
+            $("#hc-offline-icon").text("✅");
+            $("#hc-offline-text").text("Đã kết nối —");
+        }
+        $("#hc-offline-queue-count").text(
+            queue.length > 0 ? `${queue.length} ${L.msg_offline_queued}` : ""
+        );
+    } else {
+        $banner.hide();
+    }
+}
+
+async function flushOfflineQueue() {
+    const queue = getOfflineQueue();
+    if (queue.length === 0) return;
+
+    updateOfflineBanner(); // show "đang đồng bộ"
+    const failed = [];
+    for (const item of queue) {
+        try {
+            const method = item.mode === "distribute"
+                ? `${API_BASE}.scan_distribute`
+                : `${API_BASE}.scan_collect`;
+            const r = await frappe.call({ method, args: item.args });
+            if (r.message && r.message.success) {
+                const rec = r.message.record;
+                if (rec) {
+                    const idx = state.records.findIndex(s => s.name === rec.name);
+                    if (idx !== -1) {
+                        if (item.mode === "distribute") {
+                            state.records[idx].start_time_actual = rec.start_time_actual;
+                        } else {
+                            state.records[idx].end_time_actual = rec.end_time_actual;
+                            state.records[idx].x_ray = rec.x_ray;
+                            state.records[idx].gynecological_exam = rec.gynecological_exam;
+                        }
+                    }
+                    addToHistory(rec, item.mode, "success");
+                }
+            }
+        } catch (e) {
+            if (isNetworkError(e)) {
+                failed.push(item); // giữ lại để retry sau
+            }
+            // Server error: bỏ qua, không retry
+        }
+    }
+
+    saveOfflineQueue(failed);
+    recalculateStats();
+    updateTabCounts();
+    updateOfflineBanner();
+
+    if (failed.length === 0 && queue.length > 0) {
+        frappe.show_alert({ message: L.msg_queue_flushed, indicator: "green" }, 3);
+    }
+}
+
+function onNetworkOnline() {
+    updateOfflineBanner();
+    flushOfflineQueue();
+}
+
+function onNetworkOffline() {
+    updateOfflineBanner();
+}
+
+// ============================================================
 // Employee List Render
 // ============================================================
 function renderEmployeeList() {
@@ -1302,10 +1505,10 @@ function renderTable() {
             let valA = a[state.sortField] || "";
             let valB = b[state.sortField] || "";
 
-            // Handle time fields sorting
-            if (['start_time_actual', 'end_time_actual'].includes(state.sortField)) {
-                valA = valA.toString();
-                valB = valB.toString();
+            // Handle time fields sorting — pad hours via formatTime so "9:30" sorts correctly vs "11:00"
+            if (['start_time_actual', 'end_time_actual', 'start_time', 'end_time'].includes(state.sortField)) {
+                valA = formatTime(valA);
+                valB = formatTime(valB);
             }
 
             if (valA < valB) return state.sortOrder === "asc" ? -1 : 1;
@@ -1370,7 +1573,7 @@ function renderTable() {
             <td class="hc-mono hc-dim">${r.employee || ""}</td>
             <td class="hc-bold">
                 ${r.employee_name || ""}
-                ${r.pregnant ? '<span class="hc-pregnant-badge">MT</span>' : ""}
+                ${r.pregnant ? ' 🤰' : ""}
             </td>
             <td class="${r.gender === "Nữ" || r.gender === "Female" ? "hc-pink" : "hc-cyan"}">${r.gender || ""}</td>
             <td class="hc-dim">${r.custom_group || ""}</td>

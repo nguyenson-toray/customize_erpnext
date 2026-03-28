@@ -1769,14 +1769,22 @@
 }
 
 /* ============================================================
-   Charts side-by-side on wide screens (2.2)
+   Charts layout (2.2)
    ============================================================ */
-@media (min-width: 1280px) {
-    .hc-charts-stack {
+
+/* Row 2: Group + Section side-by-side */
+.hc-charts-row {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+@media (min-width: 900px) {
+    .hc-charts-row {
         flex-direction: row;
     }
 
-    .hc-charts-stack .hc-chart-card {
+    .hc-charts-row .hc-chart-card {
         flex: 1;
         min-width: 0;
     }
@@ -1808,6 +1816,35 @@
 
 .hc-sync-status[data-synced="1"] {
     display: flex;
+}
+
+/* ============================================================
+   Offline Banner
+   ============================================================ */
+.hc-offline-banner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 16px;
+    background: #FEF2F2;
+    border-bottom: 2px solid #FCA5A5;
+    color: #B91C1C;
+    font-size: 13px;
+    font-weight: 600;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+.hc-offline-banner--online {
+    background: #F0FDF4;
+    border-bottom-color: #86EFAC;
+    color: #166534;
+}
+
+#hc-offline-queue-count {
+    font-weight: 700;
+    margin-left: 4px;
 }
 
 /* ============================================================
