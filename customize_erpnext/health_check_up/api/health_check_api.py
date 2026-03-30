@@ -44,7 +44,7 @@ def get_excel_data(date=None):
             x_ray as 'X-Ray',
             gynecological_exam as 'Gynecological Exam',
             note as 'Note',
-            IF(start_time_actual IS NOT NULL AND end_time_actual IS NOT NULL, 'Hoàn thành', IF(start_time_actual IS NOT NULL, 'Đang khám', 'Chưa khám')) as 'Status',
+            status as 'Status',
             result as 'Result',
             modified as 'Last Modified'
         FROM `tabHealth Check-Up`
@@ -152,9 +152,11 @@ def get_health_check_data(date=None):
             end_time,
             start_time_actual,
             end_time_actual,
+            status,
             x_ray,
             gynecological_exam,
-            note
+            note,
+            modified
         FROM `tabHealth Check-Up`
         WHERE date = %(date)s
         ORDER BY start_time ASC, hospital_code ASC
@@ -163,7 +165,7 @@ def get_health_check_data(date=None):
         as_dict=True,
     )
 
-    # Convert timedelta fields to string for JSON serialization
+    # Convert timedelta/datetime fields to string for JSON serialization
     for r in records:
         for tf in [
             "start_time",
@@ -173,13 +175,15 @@ def get_health_check_data(date=None):
         ]:
             if r.get(tf):
                 r[tf] = str(r[tf])
+        if r.get("modified"):
+            r["modified"] = str(r["modified"])
 
     # ---- Compute statistics ----
     total = len(records)
-    distributed = sum(1 for r in records if r.start_time_actual)
-    completed = sum(1 for r in records if r.end_time_actual)
-    in_exam = distributed - completed
-    not_started = total - distributed
+    completed = sum(1 for r in records if r.status == "Hoàn thành")
+    in_exam = sum(1 for r in records if r.status == "Đang khám")
+    distributed = completed + in_exam
+    not_started = sum(1 for r in records if r.status == "Chưa khám")
     x_ray_count = sum(1 for r in records if r.x_ray)
     gynec_count = sum(1 for r in records if r.gynecological_exam)
     pregnant_count = sum(1 for r in records if r.pregnant)
@@ -191,9 +195,9 @@ def get_health_check_data(date=None):
         if g not in groups:
             groups[g] = {"total": 0, "distributed": 0, "completed": 0}
         groups[g]["total"] += 1
-        if r.start_time_actual:
+        if r.status != "Chưa khám":
             groups[g]["distributed"] += 1
-        if r.end_time_actual:
+        if r.status == "Hoàn thành":
             groups[g]["completed"] += 1
 
     group_list = sorted(
@@ -208,9 +212,9 @@ def get_health_check_data(date=None):
         if s not in sections:
             sections[s] = {"total": 0, "distributed": 0, "completed": 0}
         sections[s]["total"] += 1
-        if r.start_time_actual:
+        if r.status != "Chưa khám":
             sections[s]["distributed"] += 1
-        if r.end_time_actual:
+        if r.status == "Hoàn thành":
             sections[s]["completed"] += 1
 
     section_list = sorted(
@@ -415,6 +419,7 @@ def _find_record(hospital_code=None, employee=None, date=None):
         "end_time",
         "start_time_actual",
         "end_time_actual",
+        "status",
         "x_ray",
         "gynecological_exam",
         "note",
@@ -518,6 +523,34 @@ def clear_actual_data(date):
 
 
 @frappe.whitelist()
+def recalculate_status_by_date(date):
+    """
+    Bulk-recalculate the status field for all Health Check-Up records on a given date.
+    Triggers validate() on each doc so compute_status() runs.
+    """
+    if not date:
+        frappe.throw("Vui lòng chọn ngày.")
+
+    records = frappe.get_all(
+        "Health Check-Up",
+        filters={"date": date},
+        fields=["name"],
+        order_by="creation asc",
+    )
+    if not records:
+        frappe.throw(f"Không có bản ghi nào cho ngày {date}.")
+
+    count = 0
+    for r in records:
+        doc = frappe.get_doc("Health Check-Up", r["name"])
+        doc.save(ignore_permissions=True)
+        count += 1
+
+    frappe.db.commit()
+    return {"updated": count, "total": len(records)}
+
+
+@frappe.whitelist()
 def change_date(from_date, to_date):
     """
     Change the date field of all Health Check-Up records from from_date to to_date.
@@ -578,6 +611,7 @@ def _serialize_record(doc):
         "end_time_actual": str(doc.end_time_actual)
         if doc.end_time_actual
         else None,
+        "status": doc.status,
         "x_ray": doc.x_ray,
         "gynecological_exam": doc.gynecological_exam,
         "note": doc.note,
@@ -615,6 +649,7 @@ def _publish_update(date, doc, action):
             "end_time_actual": str(doc.end_time_actual)
             if doc.end_time_actual
             else None,
+            "status": doc.status,
             "x_ray": doc.x_ray,
             "gynecological_exam": doc.gynecological_exam,
         },

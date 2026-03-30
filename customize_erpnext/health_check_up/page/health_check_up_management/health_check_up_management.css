@@ -1934,6 +1934,40 @@
     align-self: flex-end;
 }
 
+/* Tổng số hồ sơ cố định đầu trang */
+.hc-total-label {
+    font-size: 13px;
+    color: var(--hc-text-secondary);
+    padding: 4px 0 10px 2px;
+}
+.hc-total-label strong {
+    color: var(--hc-text);
+    font-size: 15px;
+}
+
+/* Frappe Time control compact trong filter bar */
+.hc-dash-filter-time-range .frappe-control {
+    margin: 0;
+}
+.hc-dash-filter-time-range .frappe-control .form-group {
+    margin-bottom: 0;
+}
+.hc-dash-filter-time-range .frappe-control .control-label,
+.hc-dash-filter-time-range .frappe-control .help-box {
+    display: none !important;
+}
+.hc-dash-filter-time-range .frappe-control .control-input-wrapper,
+.hc-dash-filter-time-range .frappe-control .control-input {
+    height: 28px;
+}
+.hc-dash-filter-time-range .frappe-control input.input-with-feedback {
+    height: 28px;
+    font-size: 12px;
+    padding: 2px 6px;
+    width: 90px;
+    min-width: 0;
+}
+
 /* Camera Button — chỉ hiện trên mobile (touch screen) */
 .hc-camera-btn {
     display: none;

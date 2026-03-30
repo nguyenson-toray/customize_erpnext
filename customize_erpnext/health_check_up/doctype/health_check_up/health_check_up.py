@@ -14,7 +14,17 @@ class HealthCheckUp(Document):
         self.fetch_employee_info()
         self.check_pregnant_status()
         self.validate_hospital_code_unique()
+        self.compute_status()
         # self.validate_times()
+
+    def compute_status(self):
+        """Auto-compute status based on actual times."""
+        if self.end_time_actual:
+            self.status = "Hoàn thành"
+        elif self.start_time_actual:
+            self.status = "Đang khám"
+        else:
+            self.status = "Chưa khám"
 
     def fetch_employee_info(self):
         """

@@ -10,6 +10,7 @@
   "date",
   "hospital_code",
   "health_check_type",
+  "status",
   "column_break_info",
   "employee",
   "employee_name",
@@ -227,10 +228,21 @@
    "fieldname": "result",
    "fieldtype": "Text Editor",
    "label": "Result"
+  },
+  {
+   "default": "Ch\u01b0a kh\u00e1m",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_filter": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Ch\u01b0a kh\u00e1m\n\u0110ang kh\u00e1m\nHo\u00e0n th\u00e0nh",
+   "read_only": 1
   }
  ],
  "links": [],
- "modified": "2026-03-28 07:23:49.164954",
+ "modified": "2026-03-30 11:24:57.391607",
  "modified_by": "Administrator",
  "module": "Health Check Up",
  "name": "Health Check-Up",

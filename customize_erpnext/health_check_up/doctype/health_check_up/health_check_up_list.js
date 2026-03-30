@@ -27,6 +27,31 @@ frappe.listview_settings["Health Check-Up"] = {
             });
         });
 
+        listview.page.add_menu_item(__("Recalculate Status - Only for IT"), function () {
+            hcAdminDialog({
+                title: __("Recalculate Status by Date"),
+                hasToDate: false,
+                onConfirm: function (date) {
+                    frappe.call({
+                        method: "customize_erpnext.health_check_up.api.health_check_api.recalculate_status_by_date",
+                        args: { date: date },
+                        freeze: true,
+                        freeze_message: __("Recalculating status..."),
+                        callback: function (r) {
+                            if (r.message) {
+                                frappe.msgprint({
+                                    title: __("Done"),
+                                    message: __("Updated {0} records for {1}", [r.message.updated, date]),
+                                    indicator: "green"
+                                });
+                                listview.refresh();
+                            }
+                        }
+                    });
+                }
+            });
+        });
+
         listview.page.add_menu_item(__("Change Date - Only for IT"), function () {
             hcAdminDialog({
                 title: __("Change Date"),

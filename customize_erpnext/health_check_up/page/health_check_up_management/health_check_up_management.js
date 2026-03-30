@@ -104,6 +104,9 @@ const state = {
     // Sort
     sortField: null,
     sortOrder: "asc",
+    // Dashboard time range filter (for phát/thu stats)
+    dashTimeFrom: "07:00",
+    dashTimeTo: "17:00",
 };
 
 // ============================================================
@@ -118,6 +121,7 @@ frappe.pages["health-check-up-management"].on_page_load = function (wrapper) {
 
     // Add download excel button
     page.add_inner_button("Tải file Excel", () => downloadExcel());
+    page.add_inner_button("Hướng dẫn sử dụng", () => showGuideDialog());
 
     // Build layout
     $(page.body).html(buildLayout());
@@ -162,6 +166,123 @@ frappe.pages["health-check-up-management"].on_page_load = function (wrapper) {
         setTimeout(() => flushOfflineQueue(), 2000);
     }
 };
+
+function showGuideDialog() {
+    const d = new frappe.ui.Dialog({
+        title: "Hướng dẫn sử dụng — Quản lý Khám Sức Khỏe",
+        size: "extra-large",
+    });
+
+    $(d.body).html(`
+    <style>
+        .hc-guide { font-size: 14px; color: #334155; line-height: 1.7; padding: 4px 0; }
+        .hc-guide h3 { font-size: 15px; font-weight: 700; color: #1e293b; margin: 20px 0 8px; padding-bottom: 6px; border-bottom: 2px solid #e2e8f0; }
+        .hc-guide h3:first-child { margin-top: 0; }
+        .hc-guide h4 { font-size: 13px; font-weight: 600; color: #4f46e5; margin: 14px 0 6px; }
+        .hc-guide p { margin-bottom: 8px; color: #475569; }
+        .hc-guide ul, .hc-guide ol { padding-left: 18px; margin-bottom: 8px; color: #475569; }
+        .hc-guide li { margin-bottom: 4px; }
+        .hc-guide code { font-family: monospace; font-size: 12px; background: #f1f5f9; border: 1px solid #e2e8f0; padding: 1px 5px; border-radius: 3px; color: #4f46e5; }
+        .hc-guide strong { color: #1e293b; }
+        .hc-guide .hg-badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 1px 8px; border-radius: 10px; }
+        .hc-guide .hg-green { background: #d1fae5; color: #065f46; }
+        .hc-guide .hg-yellow { background: #fef3c7; color: #92400e; }
+        .hc-guide .hg-gray { background: #f1f5f9; color: #475569; }
+        .hc-guide .hg-alert { background: #eff6ff; border: 1px solid #bfdbfe; border-left: 4px solid #3b82f6; border-radius: 6px; padding: 8px 12px; margin: 10px 0; color: #1e40af; font-size: 13px; }
+        .hc-guide .hg-warn { background: #fffbeb; border: 1px solid #fde68a; border-left: 4px solid #f59e0b; border-radius: 6px; padding: 8px 12px; margin: 10px 0; color: #92400e; font-size: 13px; }
+        .hg-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 10px 0; }
+        .hg-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 12px; }
+        .hg-card b { display: block; font-size: 13px; color: #1e293b; margin-bottom: 4px; }
+        .hg-card span { font-size: 12px; color: #64748b; }
+        .hg-table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 8px 0; }
+        .hg-table th, .hg-table td { padding: 8px 10px; text-align: left; border-bottom: 1px solid #e2e8f0; }
+        .hg-table th { background: #f8fafc; font-weight: 600; color: #334155; }
+        .hg-steps { counter-reset: s; list-style: none; padding: 0; }
+        .hg-steps li { counter-increment: s; display: flex; gap: 10px; align-items: flex-start; margin-bottom: 8px; }
+        .hg-steps li::before { content: counter(s); flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%; background: #4f46e5; color: #fff; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; margin-top: 2px; }
+    </style>
+    <div class="hc-guide">
+
+        <h3>📋 Giới thiệu</h3>
+        <p>Phần mềm hỗ trợ phát hành và thu nhận hồ sơ khám sức khỏe qua quét mã vạch, theo dõi tiến độ theo thời gian thực.</p>
+        <div class="hg-alert">Dữ liệu tập trung tại DocType <code>Health Check-Up</code>. Truy cập: <code>/desk/health-check-up-management</code></div>
+
+        <h3>🗂️ 4 Tab chính</h3>
+        <div class="hg-grid">
+            <div class="hg-card"><b>📊 Tổng Quan</b><span>Stat cards tiến độ, biểu đồ Section/Group/Giờ hẹn</span></div>
+            <div class="hg-card"><b>📥 Phát Hồ Sơ</b><span>Ghi nhận thời điểm NV đến lấy hồ sơ</span></div>
+            <div class="hg-card"><b>📤 Thu Hồ Sơ</b><span>Ghi nhận thời điểm NV nộp lại hồ sơ, ghi X-Quang / Phụ khoa</span></div>
+            <div class="hg-card"><b>📋 Danh Sách NV</b><span>Xem trạng thái từng NV, tìm kiếm, lọc, xuất Excel</span></div>
+        </div>
+        <div class="hg-warn">Tab Phát HS / Thu HS bị khóa nếu ngày được chọn là <strong>ngày trong quá khứ</strong>.</div>
+
+        <h3>📥 Phát Hồ Sơ</h3>
+        <ol class="hg-steps">
+            <li><span>Bấm tab <strong>Phát Hồ Sơ</strong>.</span></li>
+            <li><span>Quét mã vạch hoặc gõ <strong>4 số cuối</strong> mã NV.</span></li>
+            <li><span>Hệ thống hiển thị tên & nhóm NV trên nút xác nhận xanh.</span></li>
+            <li><span>(Tùy chọn) Nhập ghi chú nếu cần.</span></li>
+            <li><span>Bấm nút hoặc nhấn <code>Enter</code> để lưu.</span></li>
+        </ol>
+        <div class="hg-alert">Nếu hồ sơ đã phát trước đó, hệ thống hỏi xác nhận trước khi ghi đè.</div>
+
+        <h3>📤 Thu Hồ Sơ</h3>
+        <ol class="hg-steps">
+            <li><span>Bấm tab <strong>Thu Hồ Sơ</strong>.</span></li>
+            <li><span>Quét mã vạch hoặc gõ 4 số cuối mã NV.</span></li>
+            <li><span>Tích vào ô <strong>X-Quang</strong> / <strong>Phụ Khoa</strong> nếu hồ sơ có. <em>(Tự động tích Phụ khoa cho NV nữ.)</em></span></li>
+            <li><span>Bấm <strong>Ghi nhận</strong> để hoàn tất.</span></li>
+        </ol>
+        <div class="hg-warn">Nếu hồ sơ <strong>chưa được phát</strong>, hệ thống yêu cầu nhập giờ phát thủ công.</div>
+
+        <h3>📊 Dashboard Tổng quan</h3>
+        <h4>Nhóm thẻ thống kê</h4>
+        <div class="hg-grid">
+            <div class="hg-card">
+                <b>Tiến độ chung</b>
+                <span>👥 Tổng hồ sơ (cố định) · 📤 Đã phát HS · 🔄 Đang khám · ✅ Hoàn thành · 🔬 X-Quang · 👩‍⚕️ Phụ khoa</span>
+            </div>
+            <div class="hg-card">
+                <b>Thông tin thêm</b>
+                <span>👨 Nam · 👩 Nữ · 🤰 Mang thai · ⏰ Trễ giờ phát · ⏳ Trễ giờ thu · ❌ Chưa khám</span>
+            </div>
+        </div>
+        <p>Click vào thẻ → mở danh sách NV thuộc nhóm đó.</p>
+
+        <h4>Bộ lọc Dashboard</h4>
+        <ul>
+            <li><strong>Giờ bắt đầu / Section / Group</strong> — lọc theo lịch hẹn & phòng ban.</li>
+            <li><strong>Thời gian thu / phát HS</strong> — lọc theo giờ phát/thu thực tế (mặc định 07:00–17:00). Record chưa có actual time luôn được giữ.</li>
+        </ul>
+
+        <h3>🏷️ Trạng thái Hồ Sơ</h3>
+        <table class="hg-table">
+            <thead><tr><th>Trạng thái</th><th>Điều kiện</th></tr></thead>
+            <tbody>
+                <tr><td><span class="hg-badge hg-gray">Chưa khám</span></td><td>Chưa có giờ phát thực tế</td></tr>
+                <tr><td><span class="hg-badge hg-yellow">Đang khám</span></td><td>Có giờ phát, chưa có giờ thu</td></tr>
+                <tr><td><span class="hg-badge hg-green">Hoàn thành</span></td><td>Có cả giờ phát và giờ thu</td></tr>
+            </tbody>
+        </table>
+
+        <h3>📡 Mất kết nối mạng</h3>
+        <p>Scan vẫn được <strong>lưu tạm</strong> khi mất mạng. Khi có mạng trở lại, hệ thống tự động gửi lại toàn bộ.</p>
+
+        <h3>🔧 Admin (IT)</h3>
+        <p>Vào List View của <code>Health Check-Up</code> → menu góc phải:</p>
+        <table class="hg-table">
+            <thead><tr><th>Chức năng</th><th>Mô tả</th></tr></thead>
+            <tbody>
+                <tr><td><strong>Recalculate Status</strong></td><td>Tính lại Status hàng loạt theo ngày</td></tr>
+                <tr><td><strong>Clear Actual Data</strong></td><td>Xóa giờ phát/thu theo ngày (reset đợt khám)</td></tr>
+                <tr><td><strong>Change Date</strong></td><td>Chuyển toàn bộ dữ liệu từ ngày A sang ngày B</td></tr>
+            </tbody>
+        </table>
+
+    </div>`);
+
+    d.show();
+}
 
 function downloadExcel() {
     if (!state.records || state.records.length === 0) {
@@ -355,6 +476,14 @@ function renderDashboardFilters() {
                 ${groupList.map(g => `<option value="${g}" ${state.dashFilterGroup === g ? 'selected' : ''}>${g}</option>`).join('')}
             </select>
         </div>
+        <div class="hc-dash-filter-item hc-dash-filter-time-range">
+            <label class="hc-dash-filter-label">Thời gian phát / thu HS</label>
+            <div style="display:flex; align-items:center; gap:4px;">
+                <div id="dash-time-from-wrap"></div>
+                <span style="font-size:11px; color:var(--text-muted);">–</span>
+                <div id="dash-time-to-wrap"></div>
+            </div>
+        </div>
         <button class="hc-dash-filter-reset" id="dash-filter-reset" title="Đặt lại bộ lọc">↺ Đặt lại</button>
         <button class="hc-config-btn" id="dash-settings-btn" title="Cấu hình">Cấu hình</button>
     `).css("display", "flex");
@@ -369,26 +498,24 @@ function renderDashboard() {
     <div class="hc-dashboard">
         <!-- Stat Cards -->
         <div id="hc-stats-wrapper">
-            <div class="hc-stats-group-title">Nhóm 1: Tiến độ chung</div>
+            <div class="hc-stats-group-title">Tiến độ chung</div>
             <div class="hc-stats-grid mb-3">
-                ${statCard("total", L.stat_total, s.total, null, "cyan", "👥")}
-                ${statCard("completed", L.stat_completed, s.completed, s.total, "green", "✅")}
-                ${statCard("in_exam", L.stat_in_exam, s.in_exam, s.total, "yellow", "🔄")}
-                ${statCard("not_started", L.stat_not_started, s.not_started, s.total, "red", "❌")}
-            </div>
-
-            <div class="hc-stats-group-title">Nhóm 2: Thông tin thêm</div>
-            <div class="hc-stats-grid mb-3">
+                ${statCard("total", L.stat_total, state.records.length, null, "cyan", "👥")}
                 ${statCard("distributed", L.stat_distributed, s.distributed, s.total, "blue", "📤")}
-                ${statCard("late_dist", L.stat_late_dist, s.late_dist, s.total, "red", "⏰", s.late_dist > 0)}
-                ${statCard("late_coll", L.stat_late_coll, s.late_coll, s.total, "orange", "⏳", s.late_coll > 0)}
-                ${statCard("pregnant", L.stat_pregnant, s.pregnant, s.total, "purple", "🤰")}
-            </div>
-
-            <div class="hc-stats-group-title">Nhóm 3: Cận lâm sàng</div>
-            <div class="hc-stats-grid mb-3">
+                ${statCard("in_exam", L.stat_in_exam, s.in_exam, s.total, "yellow", "🔄")}
+                ${statCard("completed", L.stat_completed, s.completed, s.total, "green", "✅")}
                 ${statCard("x_ray", L.stat_xray, s.x_ray, s.total, "cyan", "🔬")}
                 ${statCard("gynecological_exam", L.stat_gynec, s.gynecological_exam, s.total, "purple", "👩‍⚕️")}
+            </div>
+
+            <div class="hc-stats-group-title">Thông tin thêm</div>
+            <div class="hc-stats-grid mb-3">
+                ${statCard("male", "Nam", s.male, s.total, "blue", "👨")}
+                ${statCard("female", "Nữ", s.female, s.total, "pink", "👩")}
+                ${statCard("pregnant", L.stat_pregnant, s.pregnant, s.total, "purple", "🤰")}
+                ${statCard("late_dist", L.stat_late_dist, s.late_dist, s.total, "red", "⏰", s.late_dist > 0)}
+                ${statCard("late_coll", L.stat_late_coll, s.late_coll, s.total, "orange", "⏳", s.late_coll > 0)}
+                ${statCard("not_started", L.stat_not_started, s.not_started, s.total, "red", "❌")}
             </div>
         </div>
 
@@ -426,13 +553,34 @@ function getDashboardFilteredRecords() {
         records = records.filter(r => r.custom_group === state.dashFilterGroup);
     }
 
+    // Filter by actual time range:
+    // - Chưa có actual time nào → luôn giữ lại (Chưa khám)
+    // - Có actual time → giữ nếu start_time_actual HOẶC end_time_actual nằm trong khoảng
+    if (state.dashTimeFrom || state.dashTimeTo) {
+        const pad = t => t ? String(t).split(":").slice(0, 2).map(x => x.padStart(2, "0")).join(":") : null;
+        const from = pad(state.dashTimeFrom);
+        const to = pad(state.dashTimeTo);
+        const inRange = t => {
+            const tp = pad(t);
+            if (!tp) return false;
+            if (from && tp < from) return false;
+            if (to && tp > to) return false;
+            return true;
+        };
+        records = records.filter(r => {
+            if (!r.start_time_actual && !r.end_time_actual) return true;
+            return inRange(r.start_time_actual) || inRange(r.end_time_actual);
+        });
+    }
+
     return records;
 }
 
 function calcFilteredStats(records) {
     const total = records.length;
-    const distributed = records.filter(r => r.start_time_actual).length;
-    const completed = records.filter(r => r.end_time_actual).length;
+    const completed = records.filter(r => r.status === "Hoàn thành").length;
+    const in_exam_count = records.filter(r => r.status === "Đang khám").length;
+    const distributed = completed + in_exam_count;
 
     let late_dist = 0;
     let late_coll = 0;
@@ -446,11 +594,13 @@ function calcFilteredStats(records) {
         total,
         distributed,
         completed,
-        in_exam: distributed - completed,
-        not_started: total - distributed,
+        in_exam: in_exam_count,
+        not_started: records.filter(r => r.status === "Chưa khám").length,
         x_ray: records.filter(r => r.x_ray).length,
         gynecological_exam: records.filter(r => r.gynecological_exam).length,
         pregnant: records.filter(r => r.pregnant).length,
+        male: records.filter(r => r.gender === "Nam" || r.gender === "Male").length,
+        female: records.filter(r => r.gender === "Nữ" || r.gender === "Female").length,
         late_dist,
         late_coll,
     };
@@ -464,26 +614,24 @@ function updateDashboardStats() {
     const s = calcFilteredStats(filtered);
 
     $wrapper.html(`
-        <div class="hc-stats-group-title">Nhóm 1: Tiến độ chung</div>
+        <div class="hc-stats-group-title">Tiến độ chung</div>
         <div class="hc-stats-grid mb-3">
-            ${statCard("total", L.stat_total, s.total, null, "cyan", "👥")}    
-            ${statCard("completed", L.stat_completed, s.completed, s.total, "green", "✅")}
-            ${statCard("in_exam", L.stat_in_exam, s.in_exam, s.total, "yellow", "🔄")}
-            ${statCard("not_started", L.stat_not_started, s.not_started, s.total, "red", "❌")}
-        </div>
-        
-        <div class="hc-stats-group-title">Nhóm 2: Thông tin thêm</div>
-        <div class="hc-stats-grid mb-3">
+            ${statCard("total", L.stat_total, state.records.length, null, "cyan", "👥")}
             ${statCard("distributed", L.stat_distributed, s.distributed, s.total, "blue", "📤")}
-            ${statCard("late_dist", L.stat_late_dist, s.late_dist, s.total, "red", "⏰", s.late_dist > 0)}
-            ${statCard("late_coll", L.stat_late_coll, s.late_coll, s.total, "orange", "⏳", s.late_coll > 0)}
-            ${statCard("pregnant", L.stat_pregnant, s.pregnant, s.total, "purple", "🤰")}
-        </div>
-
-        <div class="hc-stats-group-title">Nhóm 3: Cận lâm sàng</div>
-        <div class="hc-stats-grid mb-3">
+            ${statCard("in_exam", L.stat_in_exam, s.in_exam, s.total, "yellow", "🔄")}
+            ${statCard("completed", L.stat_completed, s.completed, s.total, "green", "✅")}
             ${statCard("x_ray", L.stat_xray, s.x_ray, s.total, "cyan", "🔬")}
             ${statCard("gynecological_exam", L.stat_gynec, s.gynecological_exam, s.total, "purple", "👩‍⚕️")}
+        </div>
+
+        <div class="hc-stats-group-title">Thông tin thêm</div>
+        <div class="hc-stats-grid mb-3">
+            ${statCard("male", "Nam", s.male, s.total, "blue", "👨")}
+            ${statCard("female", "Nữ", s.female, s.total, "pink", "👩")}
+            ${statCard("pregnant", L.stat_pregnant, s.pregnant, s.total, "purple", "🤰")}
+            ${statCard("late_dist", L.stat_late_dist, s.late_dist, s.total, "red", "⏰", s.late_dist > 0)}
+            ${statCard("late_coll", L.stat_late_coll, s.late_coll, s.total, "orange", "⏳", s.late_coll > 0)}
+            ${statCard("not_started", L.stat_not_started, s.not_started, s.total, "red", "❌")}
         </div>
     `);
 
@@ -508,10 +656,34 @@ function setupDashboardFilters() {
         state.dashFilterGroup = $(this).val();
         renderActiveTab();
     });
+    // Frappe Time controls for khoảng giờ TT
+    const ctrlFrom = frappe.ui.form.make_control({
+        parent: document.getElementById("dash-time-from-wrap"),
+        df: { fieldtype: "Time", fieldname: "dash_time_from", label: "", placeholder: "Từ giờ" },
+        render_input: true,
+    });
+    ctrlFrom.set_value(state.dashTimeFrom + ":00");
+    ctrlFrom.$input.on("change blur", function () {
+        const val = ctrlFrom.get_value();
+        if (val) { state.dashTimeFrom = val.slice(0, 5); updateDashboardStats(); }
+    });
+
+    const ctrlTo = frappe.ui.form.make_control({
+        parent: document.getElementById("dash-time-to-wrap"),
+        df: { fieldtype: "Time", fieldname: "dash_time_to", label: "", placeholder: "Đến giờ" },
+        render_input: true,
+    });
+    ctrlTo.set_value(state.dashTimeTo + ":00");
+    ctrlTo.$input.on("change blur", function () {
+        const val = ctrlTo.get_value();
+        if (val) { state.dashTimeTo = val.slice(0, 5); updateDashboardStats(); }
+    });
     $("#dash-filter-reset").on("click", function () {
         state.dashFilterStartTime = "all";
         state.dashFilterSection = "all";
         state.dashFilterGroup = "all";
+        state.dashTimeFrom = "07:00";
+        state.dashTimeTo = "17:00";
         renderActiveTab();
     });
     $("#dash-settings-btn").on("click", function () {
@@ -602,10 +774,10 @@ function getStatModalData(type) {
     const filtered = getDashboardFilteredRecords();
     switch (type) {
         case "total": return filtered;
-        case "distributed": return filtered.filter(r => r.start_time_actual);
-        case "completed": return filtered.filter(r => r.end_time_actual);
-        case "in_exam": return filtered.filter(r => r.start_time_actual && !r.end_time_actual);
-        case "not_started": return filtered.filter(r => !r.start_time_actual);
+        case "distributed": return filtered.filter(r => r.status !== "Chưa khám");
+        case "completed": return filtered.filter(r => r.status === "Hoàn thành");
+        case "in_exam": return filtered.filter(r => r.status === "Đang khám");
+        case "not_started": return filtered.filter(r => r.status === "Chưa khám");
         case "late_dist":
             return filtered.filter(r => isRecordLateForDistribute(r));
         case "late_coll":
@@ -613,6 +785,8 @@ function getStatModalData(type) {
         case "pregnant": return filtered.filter(r => r.pregnant);
         case "x_ray": return filtered.filter(r => r.x_ray);
         case "gynecological_exam": return filtered.filter(r => r.gynecological_exam);
+        case "male": return filtered.filter(r => r.gender === "Nam" || r.gender === "Male");
+        case "female": return filtered.filter(r => r.gender === "Nữ" || r.gender === "Female");
         default: return [];
     }
 }
@@ -621,15 +795,15 @@ function showStatModal(type) {
     const records = getStatModalData(type);
 
     const cols = [
-        { label: "Mã HS",             field: "hospital_code",    cls: "hc-mono" },
-        { label: "Mã NV",             field: "employee",         cls: "hc-mono" },
-        { label: "Họ tên",            field: "employee_name",    cls: "hc-bold" },
-        { label: "Group",             field: "custom_group",     cls: "" },
-        { label: "Phát (DK)",         field: "start_time",       cls: "hc-mono" },
-        { label: "Thu (DK)",          field: "end_time",         cls: "hc-mono" },
-        { label: "Phát (TT)",         field: "start_time_actual",cls: "hc-mono" },
-        { label: "Thu (TT)",          field: "end_time_actual",  cls: "hc-mono" },
-        { label: "Ghi chú",           field: "note",             cls: "" },
+        { label: "Mã HS", field: "hospital_code", cls: "hc-mono" },
+        { label: "Mã NV", field: "employee", cls: "hc-mono" },
+        { label: "Họ tên", field: "employee_name", cls: "hc-bold" },
+        { label: "Group", field: "custom_group", cls: "" },
+        { label: "Phát (DK)", field: "start_time", cls: "hc-mono" },
+        { label: "Thu (DK)", field: "end_time", cls: "hc-mono" },
+        { label: "Phát (TT)", field: "start_time_actual", cls: "hc-mono" },
+        { label: "Thu (TT)", field: "end_time_actual", cls: "hc-mono" },
+        { label: "Ghi chú", field: "note", cls: "" },
     ];
 
     let sortField = null;
@@ -660,9 +834,9 @@ function showStatModal(type) {
             <tr>
                 <th style="cursor:default;">#</th>
                 ${cols.map(c => {
-                    const icon = sortField === c.field ? (sortOrder === "asc" ? " ↑" : " ↓") : "";
-                    return `<th class="hc-stat-modal-th" data-field="${c.field}" style="cursor:pointer; user-select:none;">${c.label}${icon}</th>`;
-                }).join("")}
+            const icon = sortField === c.field ? (sortOrder === "asc" ? " ↑" : " ↓") : "";
+            return `<th class="hc-stat-modal-th" data-field="${c.field}" style="cursor:pointer; user-select:none;">${c.label}${icon}</th>`;
+        }).join("")}
             </tr>
         </thead>`;
     }
@@ -781,12 +955,12 @@ function renderCharts() {
         const s = r.custom_section || "Không xác định";
         if (!groups[g]) groups[g] = { total: 0, distributed: 0, completed: 0 };
         groups[g].total++;
-        if (r.start_time_actual) groups[g].distributed++;
-        if (r.end_time_actual) groups[g].completed++;
+        if (r.status !== "Chưa khám") groups[g].distributed++;
+        if (r.status === "Hoàn thành") groups[g].completed++;
         if (!sections[s]) sections[s] = { total: 0, distributed: 0, completed: 0 };
         sections[s].total++;
-        if (r.start_time_actual) sections[s].distributed++;
-        if (r.end_time_actual) sections[s].completed++;
+        if (r.status !== "Chưa khám") sections[s].distributed++;
+        if (r.status === "Hoàn thành") sections[s].completed++;
     });
     const startTimes = {};
     filtered.forEach((r) => {
@@ -794,8 +968,8 @@ function renderCharts() {
         const key = (t && t !== "—") ? t : "Không xác định";
         if (!startTimes[key]) startTimes[key] = { total: 0, distributed: 0, completed: 0 };
         startTimes[key].total++;
-        if (r.start_time_actual) startTimes[key].distributed++;
-        if (r.end_time_actual) startTimes[key].completed++;
+        if (r.status !== "Chưa khám") startTimes[key].distributed++;
+        if (r.status === "Hoàn thành") startTimes[key].completed++;
     });
     const startTimeArr = Object.entries(startTimes).map(([k, v]) => ({ slot: k, ...v })).sort((a, b) => a.slot.localeCompare(b.slot));
 
@@ -809,12 +983,14 @@ function renderCharts() {
         } else if (typeof frappe.Chart !== "undefined") {
             const labels = startTimeArr.map((s) => `${s.slot} (${s.total})`);
             new frappe.Chart("#chart-start-time", {
-                data: { labels, datasets: [
-                    { name: L.stat_completed, values: startTimeArr.map((s) => s.completed) },
-                    { name: L.stat_in_exam, values: startTimeArr.map((s) => s.distributed - s.completed) },
-                    { name: L.stat_not_started, values: startTimeArr.map((s) => s.total - s.distributed) },
-                ]},
-                type: "bar", height: 250, colors,
+                data: {
+                    labels, datasets: [
+                        { name: L.stat_completed, values: startTimeArr.map((s) => s.completed) },
+                        { name: L.stat_in_exam, values: startTimeArr.map((s) => s.distributed - s.completed) },
+                        { name: L.stat_not_started, values: startTimeArr.map((s) => s.total - s.distributed) },
+                    ]
+                },
+                type: "bar", height: 300, colors,
                 barOptions: { stacked: true, spaceRatio: 0.4 },
             });
             setTimeout(() => {
@@ -835,12 +1011,14 @@ function renderCharts() {
         } else if (typeof frappe.Chart !== "undefined") {
             const labels = sectionArr.map((s) => `${s.section} (${s.total})`);
             new frappe.Chart("#chart-section", {
-                data: { labels, datasets: [
-                    { name: L.stat_completed, values: sectionArr.map((s) => s.completed) },
-                    { name: L.stat_in_exam, values: sectionArr.map((s) => s.distributed - s.completed) },
-                    { name: L.stat_not_started, values: sectionArr.map((s) => s.total - s.distributed) },
-                ]},
-                type: "bar", height: 250, colors,
+                data: {
+                    labels, datasets: [
+                        { name: L.stat_completed, values: sectionArr.map((s) => s.completed) },
+                        { name: L.stat_in_exam, values: sectionArr.map((s) => s.distributed - s.completed) },
+                        { name: L.stat_not_started, values: sectionArr.map((s) => s.total - s.distributed) },
+                    ]
+                },
+                type: "bar", height: 300, colors,
                 barOptions: { stacked: true, spaceRatio: 0.4 },
             });
             setTimeout(() => {
@@ -861,11 +1039,13 @@ function renderCharts() {
         } else if (typeof frappe.Chart !== "undefined") {
             const labels = groupArr.map((g) => `${g.group} (${g.total})`);
             new frappe.Chart("#chart-group", {
-                data: { labels, datasets: [
-                    { name: L.stat_completed, values: groupArr.map((g) => g.completed) },
-                    { name: L.stat_in_exam, values: groupArr.map((g) => g.distributed - g.completed) },
-                    { name: L.stat_not_started, values: groupArr.map((g) => g.total - g.distributed) },
-                ]},
+                data: {
+                    labels, datasets: [
+                        { name: L.stat_completed, values: groupArr.map((g) => g.completed) },
+                        { name: L.stat_in_exam, values: groupArr.map((g) => g.distributed - g.completed) },
+                        { name: L.stat_not_started, values: groupArr.map((g) => g.total - g.distributed) },
+                    ]
+                },
                 type: "bar", height: 300, colors,
                 barOptions: { stacked: true, spaceRatio: 0.3 },
             });
@@ -1184,6 +1364,7 @@ async function doScan(mode) {
                             state.records[idx].x_ray = rec.x_ray;
                             state.records[idx].gynecological_exam = rec.gynecological_exam;
                         }
+                        if (rec.status) state.records[idx].status = rec.status;
                         if (rec.note !== undefined) state.records[idx].note = rec.note;
                     }
                     recalculateStats();
@@ -1282,7 +1463,7 @@ async function doScan(mode) {
         });
         d.show();
         // Allow pressing Enter to confirm
-        d.$wrapper.on("keydown.confirm_dialog", function(e) {
+        d.$wrapper.on("keydown.confirm_dialog", function (e) {
             if (e.key === "Enter") {
                 e.preventDefault();
                 d.$wrapper.find(".btn-primary").click();
@@ -1441,6 +1622,7 @@ async function flushOfflineQueue() {
                             state.records[idx].x_ray = rec.x_ray;
                             state.records[idx].gynecological_exam = rec.gynecological_exam;
                         }
+                        if (rec.status) state.records[idx].status = rec.status;
                     }
                     addToHistory(rec, item.mode, "success");
                 }
@@ -1620,6 +1802,9 @@ function filterRecords() {
             records = records.filter(r => isRecordLateForDistribute(r));
         } else if (state.statusFilter === "late_coll") {
             records = records.filter(r => isRecordLateForCollect(r));
+        } else if (state.statusFilter === "distributed") {
+            // "Đã phát HS" = tất cả có status !== "Chưa khám" (bao gồm cả Hoàn thành)
+            records = records.filter(r => r.status !== "Chưa khám");
         } else {
             records = records.filter((r) => {
                 const status = getStatus(r);
@@ -1747,8 +1932,8 @@ function isRecordLateForCollect(r) {
     return getMinutesDiffByMode(r.end_time, now.time, state.currentDate, now.date) > state.allowedLateCollect;
 }
 function getStatus(r) {
-    if (r.end_time_actual) return "completed";
-    if (r.start_time_actual) return "distributed";
+    if (r.status === "Hoàn thành") return "completed";
+    if (r.status === "Đang khám") return "distributed";
     return "pending";
 }
 
@@ -1810,9 +1995,9 @@ function setupRealtime() {
             if (data.start_time_actual) state.records[idx].start_time_actual = data.start_time_actual;
             if (data.end_time) state.records[idx].end_time = data.end_time;
             state.records[idx].x_ray = data.x_ray;
-            state.records[idx].gynecological_exam =
-                data.gynecological_exam;
+            state.records[idx].gynecological_exam = data.gynecological_exam;
         }
+        if (data.status) state.records[idx].status = data.status;
 
         // Recalculate stats
         recalculateStats();
@@ -1845,15 +2030,16 @@ function setupRealtime() {
 function recalculateStats() {
     const records = state.records;
     const total = records.length;
-    const distributed = records.filter((r) => r.start_time_actual).length;
-    const completed = records.filter((r) => r.end_time_actual).length;
+    const completed = records.filter((r) => r.status === "Hoàn thành").length;
+    const in_exam = records.filter((r) => r.status === "Đang khám").length;
+    const distributed = completed + in_exam;
 
     state.stats = {
         total,
         distributed,
         completed,
-        in_exam: distributed - completed,
-        not_started: total - distributed,
+        in_exam,
+        not_started: records.filter((r) => r.status === "Chưa khám").length,
         x_ray: records.filter((r) => r.x_ray).length,
         gynecological_exam: records.filter((r) => r.gynecological_exam)
             .length,
@@ -1870,14 +2056,14 @@ function recalculateStats() {
         if (!groups[g])
             groups[g] = { total: 0, distributed: 0, completed: 0 };
         groups[g].total++;
-        if (r.start_time_actual) groups[g].distributed++;
-        if (r.end_time_actual) groups[g].completed++;
+        if (r.status !== "Chưa khám") groups[g].distributed++;
+        if (r.status === "Hoàn thành") groups[g].completed++;
 
         if (!sections[s])
             sections[s] = { total: 0, distributed: 0, completed: 0 };
         sections[s].total++;
-        if (r.start_time_actual) sections[s].distributed++;
-        if (r.end_time_actual) sections[s].completed++;
+        if (r.status !== "Chưa khám") sections[s].distributed++;
+        if (r.status === "Hoàn thành") sections[s].completed++;
     });
 
     state.groups = Object.entries(groups)
@@ -1967,7 +2153,7 @@ function playScanBeep() {
         gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
         osc.start();
         osc.stop(ctx.currentTime + 0.15);
-    } catch (e) {}
+    } catch (e) { }
 }
 
 function scanHaptic() {
@@ -1980,7 +2166,7 @@ function startCameraScanner(mode) {
         const $btn = $('#scan-camera-btn');
 
         if (hcQrScanner) {
-            try { hcQrScanner.clear(); } catch (e) {}
+            try { hcQrScanner.clear(); } catch (e) { }
             hcQrScanner = null;
         }
 
@@ -2026,7 +2212,7 @@ function startCameraScanner(mode) {
                     lastScanned = '';
                 }, 2500);
             },
-            () => {} // per-frame errors — bỏ qua
+            () => { } // per-frame errors — bỏ qua
         ).catch(err => {
             frappe.show_alert({ message: 'Không mở được camera: ' + err, indicator: 'red' });
             $reader.hide();
@@ -2037,8 +2223,8 @@ function startCameraScanner(mode) {
 
 function stopCameraScanner() {
     if (hcQrScanner) {
-        hcQrScanner.stop().catch(() => {});
-        hcQrScanner.clear().catch(() => {});
+        hcQrScanner.stop().catch(() => { });
+        hcQrScanner.clear().catch(() => { });
         hcQrScanner = null;
     }
     $('#hc-qr-reader').hide();
