@@ -822,6 +822,114 @@
       color: #1e40af;
     }
 
+    /* Guide modal */
+    .guide-modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, .45);
+      z-index: 1000;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 20px 12px;
+      overflow-y: auto;
+    }
+
+    .guide-modal-overlay.open {
+      display: flex;
+    }
+
+    .guide-modal {
+      background: #fff;
+      border-radius: var(--radius);
+      box-shadow: 0 8px 40px rgba(0, 0, 0, .18);
+      width: 100%;
+      max-width: 620px;
+      margin: auto;
+    }
+
+    .guide-modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px 12px;
+      border-bottom: 1px solid var(--gray-200);
+    }
+
+    .guide-modal-header h2 {
+      font-size: 17px;
+      font-weight: 700;
+      color: var(--gray-800);
+      margin: 0;
+    }
+
+    .guide-modal-close {
+      background: none;
+      border: none;
+      font-size: 22px;
+      cursor: pointer;
+      color: var(--gray-400);
+      line-height: 1;
+      padding: 2px 6px;
+      border-radius: 6px;
+    }
+
+    .guide-modal-close:hover {
+      background: var(--gray-100);
+      color: var(--gray-700);
+    }
+
+    .guide-modal-body {
+      padding: 18px 20px 22px;
+      font-size: 14px;
+      line-height: 1.7;
+      color: var(--gray-700);
+      max-height: 72vh;
+      overflow-y: auto;
+    }
+
+    .guide-modal-body h2 {
+      font-size: 16px;
+      font-weight: 700;
+      margin: 16px 0 6px;
+      color: var(--gray-800);
+    }
+
+    .guide-modal-body h3 {
+      font-size: 14px;
+      font-weight: 700;
+      margin: 14px 0 5px;
+      color: var(--primary);
+    }
+
+    .guide-modal-body h4 {
+      font-size: 13px;
+      font-weight: 700;
+      margin: 12px 0 4px;
+      color: var(--gray-700);
+    }
+
+    .guide-modal-body ul,
+    .guide-modal-body ol {
+      padding-left: 20px;
+      margin: 4px 0 8px;
+    }
+
+    .guide-modal-body li {
+      margin-bottom: 4px;
+    }
+
+    .guide-modal-body code {
+      background: var(--gray-100);
+      border-radius: 4px;
+      padding: 1px 5px;
+      font-size: 13px;
+    }
+
+    .guide-modal-body p {
+      margin: 6px 0;
+    }
+
     /* Success screen */
     .success-screen {
       text-align: center;
@@ -898,8 +1006,10 @@
           </select>
         </div>
         <div id="step1_alert" class="alert alert-error"></div>
-        <div style="margin-top:18px">
+        <div style="margin-top:18px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
           <button class="btn btn-primary" onclick="goStep2FromSelect()">Tiếp tục →</button>
+          <button class="btn btn-ghost" id="btn_guide" onclick="openGuideModal()" style="display:none">📖 Hướng
+            dẫn</button>
         </div>
       </div>
     </div>
@@ -996,7 +1106,7 @@
 
   <script>
     // ─── Globals ─────────────────────────────────────────────────────────────────
-    const S = { employee_id: null, employee_name: null, has_phone: true, config: null, formStatus: null, readOnly: false, requireVerification: true };
+    const S = { employee_id: null, employee_name: null, has_phone: true, config: null, formStatus: null, readOnly: false, requireVerification: true, guide: "" };
     let provinces_cache = null;
     let communes_cache = {};
 
@@ -1141,6 +1251,26 @@
       sv("id_card_cmnd_place_of_issue", val);
     }
 
+    // ─── CCCD place of issue auto-fill ────────────────────────────────────────────
+    function getPlaceOfIssueByDate(isoDateStr) {
+      if (!isoDateStr) return "";
+      const d = new Date(isoDateStr);
+      if (d >= new Date("2024-07-01")) return "Bộ Công an";
+      if (d >= new Date("2018-10-10")) return "Cục Cảnh sát quản lý hành chính về trật tự xã hội";
+      return "Cục Cảnh sát đăng ký, quản lý cư trú và dữ liệu Quốc gia về dân cư";
+    }
+    function autoFillPlaceOfIssue(isoDateStr) {
+      const plEl = document.getElementById("id_card_place_of_issue");
+      if (!plEl) return;
+      const val = getPlaceOfIssueByDate(isoDateStr);
+      if (val) plEl.value = val;
+    }
+    function abbreviatePlaceOfIssue(str) {
+      return (str || "")
+        .replace(/quản lý hành chính/gi, "QLHC")
+        .replace(/trật tự xã hội/gi, "TTXH");
+    }
+
     // ─── STEP 1 ───────────────────────────────────────────────────────────────────
     async function init() {
       setPageLoader(true);
@@ -1154,6 +1284,10 @@
         ]);
         if (pageSettings.status === "fulfilled" && pageSettings.value) {
           S.requireVerification = pageSettings.value.require_verification !== false;
+          S.onlyScanQrCccd = pageSettings.value.only_scan_qr_cccd === true;
+          S.guide = pageSettings.value.guide || "";
+          const btnGuide = document.getElementById("btn_guide");
+          if (btnGuide && S.guide) btnGuide.style.display = "";
         }
 
         if (emp_param) {
@@ -1290,8 +1424,11 @@
 
         // Render form sections
         renderAllSections(config);
+        if (S.onlyScanQrCccd) _applyOnlyScanQrMode();
         loadProvinces();
         buildCmndProvinceSelect();
+        const _dateOfIssueEl = document.getElementById("id_card_date_of_issue");
+        if (_dateOfIssueEl) _dateOfIssueEl.addEventListener("change", function () { autoFillPlaceOfIssue(this.value); });
 
         // Fill data
         if (formData.has_existing || formData.date_of_birth || formData.cell_number) {
@@ -1431,6 +1568,12 @@
         </button>
       </div>
       <div id="qr_success_banner" style="display:none;background:#dcfce7;border:1px solid #86efac;border-radius:8px;padding:10px 12px;font-size:13px;color:#166534;margin-bottom:12px"></div>
+     <!-- for debug
+      <div id="qr_raw_text" style="display:none;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 12px;font-size:12px;color:#475569;margin-bottom:12px;word-break:break-all;font-family:monospace">
+        <div style="font-weight:600;margin-bottom:4px;font-family:sans-serif;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#94a3b8">Dữ liệu QR CCCD</div>
+        <span id="qr_raw_text_content"></span>
+      </div>
+       -->
       <div class="field-group">
         <label for="id_card_no">Số CCCD (12 số) <span class="req">*</span></label>
         <input type="text" id="id_card_no" maxlength="12" inputmode="numeric" placeholder="12 chữ số">
@@ -1445,8 +1588,9 @@
           <label for="id_card_place_of_issue">Nơi cấp <span class="req">*</span></label>
           <select id="id_card_place_of_issue">
             <option value="">-- Chọn --</option>
-            <option value="Cục Cảnh sát Quản lý hành chính về Trật tự Xã Hội">Cục Cảnh sát QLHC về TTATXH</option>
-            <option value="Bộ Công An">Bộ Công An</option>
+            <option value="Cục Cảnh sát đăng ký, quản lý cư trú và dữ liệu Quốc gia về dân cư">Cục Cảnh sát đăng ký, QLCT &amp; DLQG về dân cư</option>
+            <option value="Cục Cảnh sát quản lý hành chính về trật tự xã hội">Cục Cảnh sát QLHC về TTXH</option>
+            <option value="Bộ Công an">Bộ Công an</option>
           </select>
         </div>
       </div>
@@ -1504,15 +1648,17 @@
       let titleHtml = "";
       const addrFieldsOpen = `<div id="addr_${prefix}_fields">`;
       if (section.copy_from_section) {
-        const srcPrefixMap = { current_address: "cur" };
+        const srcPrefixMap = { current_address: "cur", permanent_address: "per" };
         const srcP = srcPrefixMap[section.copy_from_section] || section.copy_from_section;
+        const srcLabelMap = { current_address: "Giống địa chỉ hiện tại", permanent_address: "Giống địa chỉ hộ khẩu" };
+        const sameLabel = srcLabelMap[section.copy_from_section] || "Giống địa chỉ trên";
         titleHtml = `
         <div class="section-title" style="display:flex;align-items:center;justify-content:space-between;gap:8px">
           <span>${section.label}</span>
           <label style="font-size:12px;font-weight:600;color:var(--primary);cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:5px">
             <input type="checkbox" id="same_as_${srcP}_${prefix}" onchange="toggleSameAddress('${srcP}','${prefix}')"
               style="width:16px;height:16px;padding:0;cursor:pointer;flex-shrink:0">
-            Giống địa chỉ hiện tại
+            ${sameLabel}
           </label>
         </div>`;
       } else {
@@ -1551,18 +1697,20 @@
 
     function renderBankSection(section) {
       const note = section.note || "";
+      const acReq = (section.fields || []).find(f => f.form_field === "bank_ac_no")?.required !== false;
+      const brReq = (section.fields || []).find(f => f.form_field === "bank_branch")?.required !== false;
       return `
     <div id="sec_${section.id}" class="sec-block">
       <div class="section-title">${section.label}</div>
       ${note ? `<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:10px 12px;font-size:13px;color:#92400e;margin-bottom:12px">💳 ${note}</div>` : ""}
       <div class="field-row">
         <div class="field-group">
-          <label for="bank_ac_no">Số tài khoản <span class="req">*</span></label>
-          <input type="text" id="bank_ac_no" inputmode="numeric" placeholder="Nhập số TK VCB (0 nếu chưa có)" data-required="1" oninput="updateBankBranchReq()">
+          <label for="bank_ac_no">Số tài khoản ${acReq ? '<span class="req">*</span>' : ""}</label>
+          <input type="text" id="bank_ac_no" inputmode="numeric" placeholder="Nhập số TK VCB (0 nếu chưa có)"${acReq ? ' data-required="1"' : ""} oninput="updateBankBranchReq()">
         </div>
         <div class="field-group">
-          <label for="bank_branch">Chi nhánh <span id="bank_branch_req_lbl"><span class="req">*</span></span></label>
-          <input type="text" id="bank_branch" placeholder="VD: CN Quảng Ngãi" data-required="1">
+          <label for="bank_branch">Chi nhánh <span id="bank_branch_req_lbl">${brReq ? '<span class="req">*</span>' : ""}</span></label>
+          <input type="text" id="bank_branch" placeholder="VD: CN Quảng Ngãi"${brReq ? ' data-required="1"' : ""}>
         </div>
       </div>
     </div>`;
@@ -1914,6 +2062,7 @@
 
     // Deferred address fill (waits for provinces to load)
     let _addrFillPending = null;
+    let _qrAddrFilled = false;  // flag: QR đã fill địa chỉ hộ khẩu, không overwrite
     const _origLoadCommunes = loadCommunes;
 
     async function _fillAddressAfterProvinces(data) {
@@ -1924,6 +2073,8 @@
         ori: { province: "place_of_origin_province", commune: "place_of_origin_commune", village: "place_of_origin_village" },
       };
       for (const [prefix, keys] of Object.entries(addrMap)) {
+        // Nếu QR đã fill địa chỉ hộ khẩu (per) thì không overwrite
+        if (prefix === "per" && _qrAddrFilled) continue;
         const provinceName = data[keys.province];
         if (provinceName && provinces_cache) {
           const found = provinces_cache.find(p => p.ten === provinceName);
@@ -2004,7 +2155,43 @@
       }
     }
 
+    // ─── Only-scan-QR-CCCD mode ──────────────────────────────────────────────────
+    // Sections visible in QR-only mode: basic (DOB), cccd, cmnd, permanent_address
+    const _QR_SECTIONS = new Set(["basic", "cccd", "cmnd", "permanent_address"]);
+
+    function _applyOnlyScanQrMode() {
+      if (!S.config || !S.config.sections) return;
+      S.config.sections.forEach(sec => {
+        if (_QR_SECTIONS.has(sec.id)) return;
+        const el = document.getElementById("sec_" + sec.id);
+        if (el) el.style.display = "none";
+      });
+      // Show a notice above the form
+      const notice = document.createElement("div");
+      notice.style.cssText = "background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 14px;font-size:13px;color:#1e40af;margin-bottom:12px";
+      notice.innerHTML = "ℹ️ <strong>Chế độ cập nhật CCCD:</strong> Chỉ hiển thị các thông tin liên quan đến CCCD. Quét mã QR để điền tự động.";
+      const container = document.getElementById("form_sections");
+      if (container) container.insertAdjacentElement("beforebegin", notice);
+    }
+
     // ─── Validation ───────────────────────────────────────────────────────────────
+    // ─── Config-aware required helpers ───────────────────────────────────────────
+    function _fieldRequired(fieldId) {
+      if (!S.config || !S.config.sections) return true;
+      for (const sec of S.config.sections) {
+        const f = (sec.fields || []).find(f => f.form_field === fieldId);
+        if (f) return f.required !== false;
+      }
+      return true;
+    }
+
+    function _sectionHasRequired(sectionId) {
+      if (!S.config || !S.config.sections) return true;
+      const sec = S.config.sections.find(s => s.id === sectionId);
+      if (!sec) return false;
+      return (sec.fields || []).some(f => f.required !== false);
+    }
+
     function validateForm() {
       // CCCD
       const cccd = fv("id_card_no");
@@ -2024,23 +2211,14 @@
         showAlert("step3_alert", "Số CMND cũ phải gồm đúng 9 chữ số.", "error"); return false;
       }
       // Bank
-      if (!fv("bank_ac_no")) { _markRequiredTouched(); showAlert("step3_alert", "Vui lòng nhập số tài khoản (nhập 0 nếu chưa có).", "error"); return false; }
-      if (fv("bank_ac_no") !== "0" && !fv("bank_branch")) { _markRequiredTouched(); showAlert("step3_alert", "Vui lòng nhập chi nhánh ngân hàng.", "error"); return false; }
-      // Address
-      const curAddrEl = document.getElementById("sec_current_address");
-      if (curAddrEl && curAddrEl.style.display !== "none") {
-        if (!document.getElementById("addr_cur_province")?.value) {
-          showAlert("step3_alert", "Vui lòng chọn Tỉnh/TP địa chỉ hiện tại.", "error"); return false;
-        }
-        if (!fv("addr_cur_commune")) {
-          showAlert("step3_alert", "Vui lòng chọn Phường/Xã địa chỉ hiện tại.", "error"); return false;
-        }
-        if (!fv("addr_cur_village")) {
-          showAlert("step3_alert", "Vui lòng nhập số nhà/đường địa chỉ hiện tại.", "error"); return false;
-        }
+      const bankEl = document.getElementById("sec_bank");
+      if (bankEl && bankEl.style.display !== "none" && _fieldRequired("bank_ac_no")) {
+        if (!fv("bank_ac_no")) { _markRequiredTouched(); showAlert("step3_alert", "Vui lòng nhập số tài khoản (nhập 0 nếu chưa có).", "error"); return false; }
+        if (fv("bank_ac_no") !== "0" && _fieldRequired("bank_branch") && !fv("bank_branch")) { _markRequiredTouched(); showAlert("step3_alert", "Vui lòng nhập chi nhánh ngân hàng.", "error"); return false; }
       }
-      const perFields = document.getElementById("addr_per_fields");
-      if (perFields && perFields.style.display !== "none") {
+      // Address — permanent first, then current (cur fields hidden when "same as per" is checked)
+      const perAddrEl = document.getElementById("sec_permanent_address");
+      if (perAddrEl && perAddrEl.style.display !== "none" && _sectionHasRequired("permanent_address")) {
         if (!document.getElementById("addr_per_province")?.value) {
           showAlert("step3_alert", "Vui lòng chọn Tỉnh/TP địa chỉ hộ khẩu.", "error"); return false;
         }
@@ -2051,11 +2229,29 @@
           showAlert("step3_alert", "Vui lòng nhập số nhà/đường địa chỉ hộ khẩu.", "error"); return false;
         }
       }
+      const curAddrEl = document.getElementById("sec_current_address");
+      const curFields = document.getElementById("addr_cur_fields");
+      if (curAddrEl && curAddrEl.style.display !== "none" && curFields && curFields.style.display !== "none" && _sectionHasRequired("current_address")) {
+        if (!document.getElementById("addr_cur_province")?.value) {
+          showAlert("step3_alert", "Vui lòng chọn Tỉnh/TP địa chỉ hiện tại.", "error"); return false;
+        }
+        if (!fv("addr_cur_commune")) {
+          showAlert("step3_alert", "Vui lòng chọn Phường/Xã địa chỉ hiện tại.", "error"); return false;
+        }
+        if (!fv("addr_cur_village")) {
+          showAlert("step3_alert", "Vui lòng nhập số nhà/đường địa chỉ hiện tại.", "error"); return false;
+        }
+      }
       // Emergency contact
-      if (!fv("emergency_contact_name")) { _markRequiredTouched(); showAlert("step3_alert", "Vui lòng nhập tên người liên hệ khẩn cấp.", "error"); return false; }
-      const ePhone = fv("emergency_phone_number");
-      if (!ePhone) { _markRequiredTouched(); showAlert("step3_alert", "Vui lòng nhập SĐT liên hệ khẩn cấp.", "error"); return false; }
-      if (!/^\d{10}$/.test(ePhone)) { _markRequiredTouched(); showAlert("step3_alert", "SĐT liên hệ khẩn cấp phải đủ 10 chữ số.", "error"); return false; }
+      const emerEl = document.getElementById("sec_emergency");
+      if (emerEl && emerEl.style.display !== "none") {
+        if (_fieldRequired("emergency_contact_name") && !fv("emergency_contact_name")) { _markRequiredTouched(); showAlert("step3_alert", "Vui lòng nhập tên người liên hệ khẩn cấp.", "error"); return false; }
+        if (_fieldRequired("emergency_phone_number")) {
+          const ePhone = fv("emergency_phone_number");
+          if (!ePhone) { _markRequiredTouched(); showAlert("step3_alert", "Vui lòng nhập SĐT liên hệ khẩn cấp.", "error"); return false; }
+          if (!/^\d{10}$/.test(ePhone)) { _markRequiredTouched(); showAlert("step3_alert", "SĐT liên hệ khẩn cấp phải đủ 10 chữ số.", "error"); return false; }
+        }
+      }
       return true;
     }
 
@@ -2076,15 +2272,15 @@
       ${backUrl ? `<div style="text-align:center"><img src="${backUrl}" style="width:100px;height:64px;object-fit:cover;border-radius:6px;border:1px solid var(--gray-200)"><div style="font-size:11px;color:var(--gray-400);margin-top:2px">Mặt sau ✅</div></div>` : '<div style="font-size:12px;color:var(--danger)">Mặt sau — Chưa có</div>'}
     </div>`;
 
-      const curProvName = getProvinceName("cur");
-      const perSameChk = document.getElementById("same_as_cur_per");
-      const perSame = perSameChk && perSameChk.checked;
-      const oriSameChk = document.getElementById("same_as_cur_ori");
+      const perProvName = getProvinceName("per");
+      const curSameChk = document.getElementById("same_as_per_cur");
+      const curSame = curSameChk && curSameChk.checked;
+      const oriSameChk = document.getElementById("same_as_per_ori");
       const oriSame = oriSameChk && oriSameChk.checked;
 
-      const curAddr = [fv("addr_cur_village"), fv("addr_cur_commune"), curProvName].filter(Boolean).join(", ");
-      const perAddr = perSame ? curAddr : [fv("addr_per_village"), fv("addr_per_commune"), getProvinceName("per")].filter(Boolean).join(", ");
-      const oriAddr = oriSame ? curAddr : [fv("addr_ori_village"), fv("addr_ori_commune"), getProvinceName("ori")].filter(Boolean).join(", ");
+      const perAddr = [fv("addr_per_village"), fv("addr_per_commune"), perProvName].filter(Boolean).join(", ");
+      const curAddr = curSame ? perAddr : [fv("addr_cur_village"), fv("addr_cur_commune"), getProvinceName("cur")].filter(Boolean).join(", ");
+      const oriAddr = oriSame ? perAddr : [fv("addr_ori_village"), fv("addr_ori_commune"), getProvinceName("ori")].filter(Boolean).join(", ");
 
       // Work history display
       let whDisplay = "Chưa nhập";
@@ -2123,18 +2319,18 @@
             ).join("") +
             `</div>`;
         }
-      } catch (e) {}
+      } catch (e) { }
 
       const sections = [
         { show: true, title: "Thông tin cơ bản", rows: [["Ngày sinh", fv("date_of_birth")], ["SĐT", fv("cell_number")]] },
-        { show: secVisible("sec_cccd"), title: "CCCD", rows: [["Số CCCD", fv("id_card_no")], ["Ngày cấp", fv("id_card_date_of_issue")], ["Nơi cấp", fv("id_card_place_of_issue")], ["Ảnh CCCD", photoHtml]] },
+        { show: secVisible("sec_cccd"), title: "CCCD", rows: [["Số CCCD", fv("id_card_no")], ["Ngày cấp", fv("id_card_date_of_issue")], ["Nơi cấp", abbreviatePlaceOfIssue(fv("id_card_place_of_issue"))], ["Ảnh CCCD", photoHtml]] },
         { show: true, title: "CMND cũ", rows: [["Số CMND", fv("id_card_cmnd_no") || "(Không có)"], ["Ngày cấp", fv("id_card_cmnd_date_of_issue")], ["Nơi cấp", fv("id_card_cmnd_place_of_issue")]] },
         { show: secVisible("sec_bank"), title: "Ngân hàng Vietcombank", rows: [["Số TK", fv("bank_ac_no")], ["Chi nhánh", fv("bank_branch")]] },
         { show: secVisible("sec_insurance_tax"), title: "Bảo hiểm & Thuế", rows: [["Số BHXH", fv("social_insurance_number") || "(Chưa có)"], ["Mã số thuế", fv("tax_code") || "(Chưa có)"]] },
         { show: true, title: "Học vấn", rows: [["Trình độ", fv("education_level")], ["Trường", fv("university")], ["Ngành", fv("major")]] },
         { show: secVisible("sec_work_history"), title: "Kinh nghiệm làm việc", rows: [["Kinh nghiệm", whDisplay]] },
-        { show: secVisible("sec_current_address"), title: "Địa chỉ hiện tại", rows: [["Địa chỉ", curAddr]] },
-        { show: secVisible("sec_permanent_address"), title: "Địa chỉ hộ khẩu", rows: [["Địa chỉ", perAddr + (perSame ? " (giống địa chỉ hiện tại)" : "")]] },
+        { show: secVisible("sec_permanent_address"), title: "Địa chỉ hộ khẩu", rows: [["Địa chỉ", perAddr]] },
+        { show: secVisible("sec_current_address"), title: "Địa chỉ hiện tại", rows: [["Địa chỉ", curAddr + (curSame ? " (giống địa chỉ hộ khẩu)" : "")]] },
         { show: secVisible("sec_origin_address"), title: "Địa chỉ nguyên quán", rows: [["Địa chỉ", oriAddr]] },
         { show: secVisible("sec_personal"), title: "Thông tin cá nhân", rows: [["Email", fv("personal_email") || "(Chưa có)"], ["Hôn nhân", fv("marital_status")], ["Số con", fv("number_of_childrens")]] },
         { show: secVisible("sec_emergency"), title: "Liên hệ khẩn cấp", rows: [["Họ tên", fv("emergency_contact_name")], ["Quan hệ", fv("relation")], ["SĐT", fv("emergency_phone_number")]] },
@@ -2166,25 +2362,25 @@
       btn.disabled = true; btn.innerHTML = `<span class="loader"></span> Đang lưu...`;
 
       try {
-        // Build address values
-        const curProvName = getProvinceName("cur");
-        const curCommune = fv("addr_cur_commune");
-        const curVillage = fv("addr_cur_village");
-        const curFull = [curVillage, curCommune, curProvName].filter(Boolean).join(", ");
+        // Build address values — permanent is always filled independently
+        const perProvName = getProvinceName("per");
+        const perCommune = fv("addr_per_commune");
+        const perVillage = fv("addr_per_village");
+        const perFull = [perVillage, perCommune, perProvName].filter(Boolean).join(", ");
 
-        const perSameChk = document.getElementById("same_as_cur_per");
-        const perSame = perSameChk && perSameChk.checked;
-        const perProvName = perSame ? curProvName : getProvinceName("per");
-        const perCommune = perSame ? curCommune : fv("addr_per_commune");
-        const perVillage = perSame ? curVillage : fv("addr_per_village");
-        const perFull = perSame ? curFull : [perVillage, perCommune, perProvName].filter(Boolean).join(", ");
+        const curSameChk = document.getElementById("same_as_per_cur");
+        const curSame = curSameChk && curSameChk.checked;
+        const curProvName = curSame ? perProvName : getProvinceName("cur");
+        const curCommune = curSame ? perCommune : fv("addr_cur_commune");
+        const curVillage = curSame ? perVillage : fv("addr_cur_village");
+        const curFull = curSame ? perFull : [curVillage, curCommune, curProvName].filter(Boolean).join(", ");
 
-        const oriSameChk = document.getElementById("same_as_cur_ori");
+        const oriSameChk = document.getElementById("same_as_per_ori");
         const oriSame = oriSameChk && oriSameChk.checked;
-        const oriProvName = oriSame ? curProvName : getProvinceName("ori");
-        const oriCommune = oriSame ? curCommune : fv("addr_ori_commune");
-        const oriVillage = oriSame ? curVillage : fv("addr_ori_village");
-        const oriFull = oriSame ? curFull : [oriVillage, oriCommune, oriProvName].filter(Boolean).join(", ");
+        const oriProvName = oriSame ? perProvName : getProvinceName("ori");
+        const oriCommune = oriSame ? perCommune : fv("addr_ori_commune");
+        const oriVillage = oriSame ? perVillage : fv("addr_ori_village");
+        const oriFull = oriSame ? perFull : [oriVillage, oriCommune, oriProvName].filter(Boolean).join(", ");
 
         // Driving license note from hidden field
         if (!document.getElementById("driving_license")?.checked) onDrivingNoteChange();
@@ -2382,17 +2578,20 @@
         if (s.length !== 8) return "";
         return `${s.slice(4, 8)}-${s.slice(2, 4)}-${s.slice(0, 2)}`;
       }
-      return { cccd, cmnd: parts[1].trim(), fullName: parts[2].trim(), dob: toISO(parts[3].trim()), gender: parts[4].trim(), address: parts[5].trim(), issueDate: toISO(parts[6].trim()) };
+      return { cccd, cmnd: parts[1].trim(), fullName: parts[2].trim(), dob: toISO(parts[3].trim()), gender: parts[4].trim(), address: parts[5].trim(), issueDate: toISO(parts[6].trim()), raw: text };
     }
 
     function _fillFromCCCD(data) {
       if (data.cccd) sv("id_card_no", data.cccd);
-      if (data.issueDate) sv("id_card_date_of_issue", data.issueDate);
-      if (data.cccd && data.cccd.length === 12) {
-        const plEl = document.getElementById("id_card_place_of_issue");
-        if (plEl) plEl.value = "Cục Cảnh sát Quản lý hành chính về Trật tự Xã Hội";
+      if (data.issueDate) {
+        sv("id_card_date_of_issue", data.issueDate);
+        autoFillPlaceOfIssue(data.issueDate);
       }
       if (data.cmnd && /^\d{9}$/.test(data.cmnd)) sv("id_card_cmnd_no", data.cmnd);
+      // Ngày sinh
+      if (data.dob) sv("date_of_birth", data.dob);
+      // Địa chỉ QR = nơi thường trú (hộ khẩu) → chỉ điền permanent address (per)
+      _qrAddrFilled = true;  // ngăn _fillAddressAfterProvinces ghi đè địa chỉ hộ khẩu
       if (data.address) {
         const parts = data.address.split(",").map(s => s.trim()).filter(Boolean);
         if (parts.length >= 2) {
@@ -2401,8 +2600,6 @@
           const wardName = parts.length >= 3 ? parts[parts.length - 3] : "";
           const street = parts.slice(0, Math.max(0, parts.length - 3)).join(", ");
           sv("addr_per_village", street);
-          sv("addr_cur_village", street);
-          sv("addr_ori_village", street);
           _autoSetCmndProvince(provinceName);
           _convertCCCDAddress(wardName, districtName, provinceName, street);
         } else {
@@ -2411,9 +2608,32 @@
       }
       const banner = document.getElementById("qr_success_banner");
       if (banner) {
-        banner.textContent = "✅ Đã quét mã QR CCCD thành công. Vui lòng kiểm tra và bổ sung thông tin còn thiếu.";
+        const normName = s => (s || "").toLowerCase().normalize("NFD").replace(/\p{M}/gu, "").replace(/\s+/g, " ").trim();
+        const qrName = data.fullName || "";
+        const empName = S.employee_name || "";
+        const nameMismatch = qrName && empName && normName(qrName) !== normName(empName);
+        if (nameMismatch) {
+          banner.style.background = "#fef3c7";
+          banner.style.border = "1px solid #f59e0b";
+          banner.style.color = "#92400e";
+          banner.innerHTML = `⚠️ <strong>Tên trên CCCD không khớp!</strong> QR ghi: <strong>${qrName}</strong> — nhân viên: <strong>${empName}</strong>. Vui lòng kiểm tra lại.`;
+        } else {
+          banner.style.background = "";
+          banner.style.border = "";
+          banner.style.color = "";
+          const nameNote = qrName ? ` Họ tên: <strong>${qrName}</strong>.` : "";
+          banner.innerHTML = `✅ Đã quét mã QR CCCD thành công.${nameNote} Vui lòng kiểm tra và bổ sung thông tin còn thiếu.`;
+        }
         banner.style.display = "block";
         banner.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }
+      if (data.raw) {
+        const rawBox = document.getElementById("qr_raw_text");
+        const rawContent = document.getElementById("qr_raw_text_content");
+        if (rawBox && rawContent) {
+          rawContent.textContent = data.raw;
+          rawBox.style.display = "block";
+        }
       }
     }
 
@@ -2423,17 +2643,32 @@
       const target = norm(provinceName);
       const found = provinces_cache.find(p => norm(p.ten) === target || norm(p.ten).includes(target) || target.includes(norm(p.ten)));
       if (found) {
-        for (const prefix of ["per", "cur", "ori"]) {
-          sv(`addr_${prefix}_province`, found.ma);
-          onProvinceChange(prefix);
-        }
-        const chk = document.getElementById("same_as_cur_per");
+        // Địa chỉ QR = hộ khẩu → chỉ set permanent address (per)
+        sv("addr_per_province", found.ma);
+        onProvinceChange("per");
+        const chk = document.getElementById("same_as_per_cur");
         if (chk && chk.checked) { chk.checked = false; toggleSameAddress("cur", "per"); }
       }
     }
 
     // ─── Address conversion from CCCD QR ────────────────────────────────────────
     async function _convertCCCDAddress(wardName, districtName, provinceName, street) {
+      const _normP = s => s.toLowerCase().replace(/\s+/g, " ").trim();
+      const _pTarget = _normP(provinceName);
+      const quickProv = provinces_cache && provinces_cache.find(
+        p => _normP(p.ten) === _pTarget || _normP(p.ten).includes(_pTarget) || _pTarget.includes(_normP(p.ten))
+      );
+
+      // Bước 1: Set province + hiện loading commune ngay lập tức
+      if (quickProv) {
+        sv("addr_per_province", quickProv.ma);
+        const chk0 = document.getElementById("same_as_per_cur");
+        if (chk0 && chk0.checked) { chk0.checked = false; toggleSameAddress("cur", "per"); }
+        const cSel = document.getElementById("addr_per_commune");
+        if (cSel) { cSel.innerHTML = `<option value="">⏳ Đang xác định xã/phường...</option>`; cSel.disabled = true; }
+      }
+
+      // Bước 2: Gọi API tìm đơn vị hành chính mới để chọn commune
       try {
         const result = await api(
           "customize_erpnext.api.address_converter.api.search_address_by_text",
@@ -2446,20 +2681,22 @@
           if (newProv) {
             sv("addr_per_province", newProv.ma);
             await loadCommunes(newProv.ma, "per", result.new.ten);
-            const chk = document.getElementById("same_as_cur_per");
+            const chk = document.getElementById("same_as_per_cur");
             if (chk && chk.checked) { chk.checked = false; toggleSameAddress("cur", "per"); }
             updateAddrPreview("per");
-            // Also fill current and origin addresses with same data
-            for (const prefix of ["cur", "ori"]) {
-              sv(`addr_${prefix}_province`, newProv.ma);
-              await loadCommunes(newProv.ma, prefix, result.new.ten);
-              updateAddrPreview(prefix);
-            }
             return;
           }
         }
-      } catch (e) { /* fall through */ }
-      _matchCCCDProvince(provinceName);
+        // API trả về null (không tìm thấy xã cũ trong data 2025)
+        console.warn("[CCCD] search_address_by_text no result:", { wardName, districtName, provinceName, result });
+      } catch (e) {
+        console.error("[CCCD] search_address_by_text error:", e);
+      }
+      // Fallback: load communes (không chọn cụ thể, user tự chọn)
+      if (quickProv) {
+        await loadCommunes(quickProv.ma, "per");
+        updateAddrPreview("per");
+      }
     }
 
     function _autoSetCmndProvince(provinceName) {
@@ -2482,6 +2719,7 @@
 
     // ─── Bank branch conditional required ────────────────────────────────────────
     function updateBankBranchReq() {
+      if (!_fieldRequired("bank_branch")) return;
       const acNo = (document.getElementById("bank_ac_no")?.value || "").trim();
       const isZero = acNo === "0";
       const lbl = document.getElementById("bank_branch_req_lbl");
@@ -2644,7 +2882,35 @@
         attempt();
       });
     }
+
+    // ─── Guide modal ─────────────────────────────────────────────────────────────
+    function openGuideModal() {
+      const body = document.getElementById("guide_modal_body");
+      if (body) body.innerHTML = S.guide || "<p>Chưa có nội dung hướng dẫn.</p>";
+      const overlay = document.getElementById("guide_modal_overlay");
+      if (overlay) overlay.classList.add("open");
+      document.body.style.overflow = "hidden";
+    }
+    function closeGuideModal() {
+      const overlay = document.getElementById("guide_modal_overlay");
+      if (overlay) overlay.classList.remove("open");
+      document.body.style.overflow = "";
+    }
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") closeGuideModal();
+    });
   </script>
+
+  <!-- ── Guide modal ── -->
+  <div class="guide-modal-overlay" id="guide_modal_overlay" onclick="if(event.target===this)closeGuideModal()">
+    <div class="guide-modal">
+      <div class="guide-modal-header">
+        <h2>Hướng dẫn cập nhật thông tin nhân viên</h2>
+        <button class="guide-modal-close" onclick="closeGuideModal()" aria-label="Đóng">&#x2715;</button>
+      </div>
+      <div class="guide-modal-body" id="guide_modal_body"></div>
+    </div>
+  </div>
 </body>
 
 </html>

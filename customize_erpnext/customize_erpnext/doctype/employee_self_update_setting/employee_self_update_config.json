@@ -89,24 +89,10 @@
     },
 
     {
-      "id": "current_address",
-      "label": "Địa chỉ hiện tại",
-      "ui_type": "address",
-      "autofill_from_qr": true,
-      "fields": [
-        { "form_field": "current_address_province", "employee_field": "custom_current_address_province", "label": "Tỉnh/Thành phố", "fieldtype": "Select", "required": true, "always_show": true },
-        { "form_field": "current_address_commune",  "employee_field": "custom_current_address_commune",  "label": "Phường/Xã",       "fieldtype": "Select", "required": true, "always_show": true },
-        { "form_field": "current_address_village",  "employee_field": "custom_current_address_village",  "label": "Số nhà/Thôn",     "fieldtype": "Data",   "required": true, "always_show": true },
-        { "form_field": "current_address_full",     "employee_field": "custom_current_address_full",     "label": "Địa chỉ đầy đủ", "fieldtype": "Data",   "required": true, "always_show": true, "auto_generated": true }
-      ]
-    },
-
-    {
       "id": "permanent_address",
       "label": "Địa chỉ hộ khẩu",
       "ui_type": "address",
       "autofill_from_qr": true,
-      "copy_from_section": "current_address",
       "fields": [
         { "form_field": "permanent_address_province", "employee_field": "custom_permanent_address_province", "label": "Tỉnh/Thành phố", "fieldtype": "Select", "required": true, "always_show": true },
         { "form_field": "permanent_address_commune",  "employee_field": "custom_permanent_address_commune",  "label": "Phường/Xã",       "fieldtype": "Select", "required": true, "always_show": true },
@@ -116,10 +102,23 @@
     },
 
     {
+      "id": "current_address",
+      "label": "Địa chỉ hiện tại",
+      "ui_type": "address",
+      "copy_from_section": "permanent_address",
+      "fields": [
+        { "form_field": "current_address_province", "employee_field": "custom_current_address_province", "label": "Tỉnh/Thành phố", "fieldtype": "Select", "required": true, "always_show": true },
+        { "form_field": "current_address_commune",  "employee_field": "custom_current_address_commune",  "label": "Phường/Xã",       "fieldtype": "Select", "required": true, "always_show": true },
+        { "form_field": "current_address_village",  "employee_field": "custom_current_address_village",  "label": "Số nhà/Thôn",     "fieldtype": "Data",   "required": true, "always_show": true },
+        { "form_field": "current_address_full",     "employee_field": "custom_current_address_full",     "label": "Địa chỉ đầy đủ", "fieldtype": "Data",   "required": true, "always_show": true, "auto_generated": true }
+      ]
+    },
+
+    {
       "id": "origin_address",
       "label": "Địa chỉ nguyên quán",
       "ui_type": "address",
-      "copy_from_section": "current_address",
+      "copy_from_section": "permanent_address",
       "fields": [
         { "form_field": "place_of_origin_province", "employee_field": "custom_place_of_origin_address_province", "label": "Tỉnh/Thành phố", "fieldtype": "Select", "required": false, "always_show": true },
         { "form_field": "place_of_origin_commune",  "employee_field": "custom_place_of_origin_address_commune",  "label": "Phường/Xã",       "fieldtype": "Select", "required": false, "always_show": true },

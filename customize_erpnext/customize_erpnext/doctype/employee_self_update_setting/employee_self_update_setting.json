@@ -14,8 +14,10 @@
   "employees",
   "section_config",
   "verified_by_date_of_birth_or_phone_number",
+  "only_scan_qr_cccd",
   "field_config_json",
-  "btn_reset_config"
+  "btn_reset_config",
+  "guide"
  ],
  "fields": [
   {
@@ -81,11 +83,22 @@
    "fieldtype": "Link",
    "label": "Group",
    "options": "Group"
+  },
+  {
+   "default": "0",
+   "fieldname": "only_scan_qr_cccd",
+   "fieldtype": "Check",
+   "label": "Only Scan QR CCCD"
+  },
+  {
+   "fieldname": "guide",
+   "fieldtype": "Text Editor",
+   "label": "Guide"
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-03-26 11:38:49.472358",
+ "modified": "2026-03-30 16:16:03.833426",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Employee Self Update Setting",

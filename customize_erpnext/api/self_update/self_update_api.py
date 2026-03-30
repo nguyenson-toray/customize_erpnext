@@ -132,13 +132,15 @@ def get_page_settings():
     """
     result = frappe.db.sql(
         "SELECT `field`, `value` FROM `tabSingles`"
-        " WHERE `doctype`=%s AND `field` IN ('verified_by_date_of_birth_or_phone_number')",
+        " WHERE `doctype`=%s AND `field` IN ('verified_by_date_of_birth_or_phone_number', 'only_scan_qr_cccd', 'guide')",
         ("Employee Self Update Setting",),
         as_dict=True,
     )
     settings = {r["field"]: r["value"] for r in result}
     return {
         "require_verification": settings.get("verified_by_date_of_birth_or_phone_number", "1") != "0",
+        "only_scan_qr_cccd": settings.get("only_scan_qr_cccd", "0") == "1",
+        "guide": settings.get("guide") or "",
     }
 
 
