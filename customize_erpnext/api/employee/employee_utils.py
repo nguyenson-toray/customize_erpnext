@@ -340,11 +340,14 @@ def set_series(prefix, current_highest_id):
     Frappe to generate (desired + 1) on the next insert.
     """
     try:
-        # Store (current_highest_id - 1) so Frappe generates exactly current_highest_id
+        # Store (current_highest_id - 1) so Frappe generates exactly current_highest_id.
+        # No frappe.db.commit() here — the same connection sees its own uncommitted changes,
+        # so set_new_name() (called later in the same transaction) will read the updated value.
+        # Committing mid-transaction breaks MySQL REPEATABLE READ isolation and can cause
+        # TimestampMismatchError for concurrent UPDATE rows in the same Data Import batch.
         frappe.db.sql("""
             UPDATE tabSeries SET current = %s WHERE name = %s
         """, (current_highest_id - 1, prefix))
-        frappe.db.commit()
         return {"status": "success", "message": f"Series {prefix} updated to {current_highest_id}"}
         
     except Exception as e:
@@ -2722,3 +2725,377 @@ def get_all_active_employees(date):
 		)
 		ORDER BY emp.name
 	""", {"date": date}, as_dict=True)
+
+
+# =============================================================================
+# EXCEL / POWER QUERY API
+# =============================================================================
+
+_EMPLOYEE_FIELDS = [
+	# --- Thông tin cơ bản ---
+	"name as employee", "employee_name", "employee_number", "status", "company",
+	"naming_series", "salutation", "first_name", "middle_name", "last_name",
+	"gender", "date_of_birth", "blood_group", "marital_status",
+	"custom_number_of_childrens",
+
+	# --- Thông tin công việc ---
+	"date_of_joining", "employment_type", "department", "custom_section",
+	"custom_group", "designation", "custom_designation_vietnamese",
+	"custom_direct_indirect_", "grade", "branch", "reports_to",
+	"scheduled_confirmation_date", "final_confirmation_date",
+	"custom_number_of_probation_days", "contract_end_date", "date_of_retirement",
+	"notice_number_of_days", "holiday_list", "default_shift",
+
+	# --- CCCD / Hộ chiếu ---
+	"custom_id_card_no", "custom_id_card_date_of_issue", "custom_id_card_place_of_issue",
+	"custom_id_card_cmnd_no", "custom_id_card_cmnd_date_of_issue",
+	"custom_id_card_cmnd_place_of_issue",
+	"passport_number", "date_of_issue", "valid_upto", "place_of_issue",
+
+	# --- Địa chỉ thường trú ---
+	"custom_permanent_address_province", "custom_permanent_address_commune",
+	"custom_permanent_address_village", "custom_permanent_address_full",
+	"permanent_accommodation_type", "permanent_address",
+
+	# --- Địa chỉ hiện tại ---
+	"custom_current_address_province", "custom_current_address_commune",
+	"custom_current_address_village", "custom_current_address_full",
+	"current_accommodation_type", "current_address",
+
+	# --- Quê quán ---
+	"custom_place_of_origin_address_province", "custom_place_of_origin_address_commune",
+	"custom_place_of_origin_address_village", "custom_place_of_origin_address_full",
+
+	# --- Liên hệ ---
+	"cell_number", "personal_email", "company_email", "prefered_email",
+	"prefered_contact_email", "user_id",
+	"person_to_be_contacted", "relation", "emergency_phone_number",
+
+	# --- Lương / Tài chính ---
+	"salary_mode", "salary_currency", "ctc", "bank_name", "custom_bank_branch",
+	"bank_ac_no", "iban", "custom_tax_code", "custom_social_insurance_number",
+	"custom_privilege",
+
+	# --- Bảo hiểm y tế ---
+	"health_insurance_provider", "health_insurance_no",
+
+	# --- Học vấn ---
+	"custom_education_level", "custom_university", "custom_major",
+	"custom_education_detail",
+
+	# --- Thông tin thêm ---
+	"custom_shirt_size", "custom_shoe_size", "custom_driving_license",
+	"custom_driving_license_note", "custom_favorite_sport", "custom_vegetarian",
+	"custom_strengths",
+
+	# --- Phê duyệt ---
+	"leave_approver", "expense_approver", "shift_request_approver",
+	"payroll_cost_center", "employee_advance_account",
+
+	# --- Nghỉ việc ---
+	"resignation_letter_date", "relieving_date", "reason_for_leaving",
+	"leave_encashed", "encashment_date", "held_on", "new_workplace",
+
+	# --- Hệ thống ---
+	"attendance_device_id", "job_applicant",
+]
+
+# Basic field set (for field_set="basic" option)
+_EMPLOYEE_BASIC_FIELDS = [
+	"name as employee", "attendance_device_id", "employee_name", "status",
+	"gender", "grade", "date_of_birth", "date_of_joining", "department",
+	"custom_section", "custom_group", "designation", "relieving_date", "reason_for_leaving",
+]
+
+# English labels (fieldname -> English label)
+_EMPLOYEE_COLUMN_LABELS_EN = {
+	"employee": "Employee ID", "employee_name": "Full Name", 
+    "attendance_device_id": "Attendance Device ID", "status": "Status",	
+	"gender": "Gender", "date_of_birth": "Date of Birth","date_of_joining": "Date of Joining",
+    "department": "Department", "custom_section": "Section", "custom_group": "Group",
+	"designation": "Designation", "custom_designation_vietnamese": "Designation (Vietnamese)",
+    "cell_number": "Mobile",
+	"blood_group": "Blood Group", "marital_status": "Marital Status",
+    "bank_name": "Bank Name", "custom_bank_branch": "Bank Branch","bank_ac_no": "Bank Account No",
+	"custom_number_of_childrens": "Number of Children",
+	"employment_type": "Employment Type",	
+	"custom_direct_indirect_": "Direct / Indirect", "grade": "Grade",
+	"custom_number_of_probation_days": "Probation Days",
+	"contract_end_date": "Contract End Date", "date_of_retirement": "Date of Retirement",
+	"notice_number_of_days": "Notice (Days)", "holiday_list": "Holiday List",
+	"custom_id_card_no": "ID Card No (CCCD)", "custom_id_card_date_of_issue": "ID Card Date of Issue",
+	"custom_id_card_place_of_issue": "ID Card Place of Issue",
+	"custom_id_card_cmnd_no": "Old ID Card No (CMND)", "custom_id_card_cmnd_date_of_issue": "Old ID Card Date of Issue",
+	"custom_id_card_cmnd_place_of_issue": "Old ID Card Place of Issue",
+	"passport_number": "Passport Number", "date_of_issue": "Passport Date of Issue",
+	"valid_upto": "Passport Valid Up To", "place_of_issue": "Passport Place of Issue",
+	"custom_permanent_address_province": "Permanent Address - Province",
+	"custom_permanent_address_commune": "Permanent Address - Commune",
+	"custom_permanent_address_village": "Permanent Address - Village",
+	"custom_permanent_address_full": "Permanent Address - Full",
+	"permanent_accommodation_type": "Permanent Accommodation Type", "permanent_address": "Permanent Address",
+	"custom_current_address_province": "Current Address - Province",
+	"custom_current_address_commune": "Current Address - Commune",
+	"custom_current_address_village": "Current Address - Village",
+	"custom_current_address_full": "Current Address - Full",
+	"current_accommodation_type": "Current Accommodation Type", "current_address": "Current Address",
+	"custom_place_of_origin_address_province": "Place of Origin - Province",
+	"custom_place_of_origin_address_commune": "Place of Origin - Commune",
+	"custom_place_of_origin_address_village": "Place of Origin - Village",
+	"custom_place_of_origin_address_full": "Place of Origin - Full",
+	"personal_email": "Personal Email",
+	"company_email": "Company Email", "prefered_email": "Preferred Email",
+	"prefered_contact_email": "Preferred Contact Email", "user_id": "User ID",
+	"person_to_be_contacted": "Emergency Contact Name", "relation": "Relation",
+	"emergency_phone_number": "Emergency Phone",
+	"salary_mode": "Salary Mode", "salary_currency": "Salary Currency",
+	"ctc": "CTC", 
+	"custom_tax_code": "Tax Code", "custom_social_insurance_number": "Social Insurance No",
+	"custom_privilege": "Privilege",
+	"health_insurance_provider": "Health Insurance Provider", "health_insurance_no": "Health Insurance No",
+	"custom_education_level": "Education Level", "custom_university": "University",
+	"custom_major": "Major", "custom_education_detail": "Education Detail",
+	"custom_shirt_size": "Shirt Size", "custom_shoe_size": "Shoe Size",
+	"custom_driving_license": "Driving License", "custom_driving_license_note": "Driving License Note",
+	"custom_favorite_sport": "Favorite Sport", "custom_vegetarian": "Vegetarian",
+	"custom_strengths": "Strengths",
+	"leave_approver": "Leave Approver", "expense_approver": "Expense Approver",
+	"shift_request_approver": "Shift Request Approver", "payroll_cost_center": "Payroll Cost Center",
+	"employee_advance_account": "Employee Advance Account",
+	"resignation_letter_date": "Resignation Letter Date", "relieving_date": "Relieving Date",
+	"reason_for_leaving": "Reason for Leaving", "leave_encashed": "Leave Encashed",
+	"encashment_date": "Encashment Date", "held_on": "Exit Interview Held On",
+	"new_workplace": "New Workplace",
+	"job_applicant": "Job Applicant",
+}
+
+# Vietnamese labels (fieldname -> Vietnamese label)
+_EMPLOYEE_COLUMN_LABELS_VI = {
+	"employee": "Mã NV", "employee_name": "Họ và tên", "employee_number": "Số NV",
+	"status": "Trạng thái", "company": "Công ty", "naming_series": "Series",
+	"salutation": "Danh xưng", "first_name": "Tên", "middle_name": "Tên đệm",
+	"last_name": "Họ", "gender": "Giới tính", "date_of_birth": "Ngày sinh",
+	"blood_group": "Nhóm máu", "marital_status": "Tình trạng hôn nhân",
+	"custom_number_of_childrens": "Số con",
+	"date_of_joining": "Ngày vào làm", "employment_type": "Loại HĐ",
+	"department": "Phòng ban", "custom_section": "Bộ phận", "custom_group": "Nhóm",
+	"designation": "Chức vụ", "custom_designation_vietnamese": "Chức vụ (VN)",
+	"custom_direct_indirect_": "Direct/Indirect", "grade": "Cấp bậc",
+	"branch": "Chi nhánh", "reports_to": "Quản lý trực tiếp",
+	"scheduled_confirmation_date": "Ngày offer", "final_confirmation_date": "Ngày xác nhận",
+	"custom_number_of_probation_days": "Ngày thử việc",
+	"contract_end_date": "Ngày kết thúc HĐ", "date_of_retirement": "Ngày nghỉ hưu",
+	"notice_number_of_days": "Số ngày báo trước", "holiday_list": "Lịch nghỉ",
+	"default_shift": "Ca mặc định",
+	"custom_id_card_no": "Số CCCD", "custom_id_card_date_of_issue": "Ngày cấp CCCD",
+	"custom_id_card_place_of_issue": "Nơi cấp CCCD",
+	"custom_id_card_cmnd_no": "Số CMND", "custom_id_card_cmnd_date_of_issue": "Ngày cấp CMND",
+	"custom_id_card_cmnd_place_of_issue": "Nơi cấp CMND",
+	"passport_number": "Số hộ chiếu", "date_of_issue": "Ngày cấp HC",
+	"valid_upto": "Ngày hết hạn HC", "place_of_issue": "Nơi cấp HC",
+	"custom_permanent_address_province": "Thường trú - Tỉnh",
+	"custom_permanent_address_commune": "Thường trú - Xã",
+	"custom_permanent_address_village": "Thường trú - Thôn",
+	"custom_permanent_address_full": "Thường trú - Địa chỉ đầy đủ",
+	"permanent_accommodation_type": "Loại nơi thường trú", "permanent_address": "Địa chỉ thường trú",
+	"custom_current_address_province": "Hiện tại - Tỉnh",
+	"custom_current_address_commune": "Hiện tại - Xã",
+	"custom_current_address_village": "Hiện tại - Thôn",
+	"custom_current_address_full": "Hiện tại - Địa chỉ đầy đủ",
+	"current_accommodation_type": "Loại nơi ở hiện tại", "current_address": "Địa chỉ hiện tại",
+	"custom_place_of_origin_address_province": "Quê quán - Tỉnh",
+	"custom_place_of_origin_address_commune": "Quê quán - Xã",
+	"custom_place_of_origin_address_village": "Quê quán - Thôn",
+	"custom_place_of_origin_address_full": "Quê quán - Địa chỉ đầy đủ",
+	"cell_number": "Số điện thoại", "personal_email": "Email cá nhân",
+	"company_email": "Email công ty", "prefered_email": "Email ưu tiên",
+	"prefered_contact_email": "Loại email ưu tiên", "user_id": "User ID",
+	"person_to_be_contacted": "Người liên hệ khẩn", "relation": "Quan hệ",
+	"emergency_phone_number": "SĐT khẩn cấp",
+	"salary_mode": "Hình thức lương", "salary_currency": "Tiền tệ",
+	"ctc": "CTC", "bank_name": "Ngân hàng", "custom_bank_branch": "Chi nhánh NH",
+	"bank_ac_no": "Số tài khoản", "iban": "IBAN",
+	"custom_tax_code": "Mã số thuế", "custom_social_insurance_number": "Số BHXH",
+	"custom_privilege": "Quyền lợi",
+	"health_insurance_provider": "Nhà cung cấp BHYT", "health_insurance_no": "Số thẻ BHYT",
+	"custom_education_level": "Trình độ học vấn", "custom_university": "Trường",
+	"custom_major": "Ngành học", "custom_education_detail": "Chi tiết học vấn",
+	"custom_shirt_size": "Cỡ áo", "custom_shoe_size": "Cỡ giày",
+	"custom_driving_license": "Bằng lái xe", "custom_driving_license_note": "Ghi chú bằng lái",
+	"custom_favorite_sport": "Thể thao yêu thích", "custom_vegetarian": "Ăn chay",
+	"custom_strengths": "Điểm mạnh",
+	"leave_approver": "Người duyệt nghỉ phép", "expense_approver": "Người duyệt chi phí",
+	"shift_request_approver": "Người duyệt ca", "payroll_cost_center": "Cost Center lương",
+	"employee_advance_account": "Tài khoản ứng trước",
+	"resignation_letter_date": "Ngày nộp đơn", "relieving_date": "Ngày nghỉ việc",
+	"reason_for_leaving": "Lý do nghỉ", "leave_encashed": "Đã thanh toán phép?",
+	"encashment_date": "Ngày thanh toán phép", "held_on": "Ngày phỏng vấn thôi việc",
+	"new_workplace": "Nơi làm việc mới",
+	"attendance_device_id": "ID máy chấm công", "job_applicant": "Hồ sơ ứng tuyển",
+}
+
+
+@frappe.whitelist(allow_guest=True)
+def get_employees_for_excel(
+	status=None,
+	department=None,
+	custom_section=None,
+	custom_group=None,
+	date_of_joining_from=None,
+	date_of_joining_to=None,
+	include_left=0,
+	page=1,
+	page_size=500,
+	lang="en",
+	field_set="all",
+):
+	"""
+	API for Excel / Power Query – returns employee list with full or basic fields.
+
+	Params:
+		status            : 'Active' | 'Left' | 'Inactive' | None (all)
+		department        : filter by department name
+		custom_section    : filter by section name
+		custom_group      : filter by group name
+		date_of_joining_from / to : filter by joining date (YYYY-MM-DD)
+		include_left      : 1 = include resigned employees
+		page / page_size  : pagination (default 500 per page, max 2000)
+		lang              : 'en' (default) | 'vi'  – column label language
+		field_set         : 'all' (default) | 'basic'
+		                    basic = employee, attendance_device_id, employee_name,
+		                            status, gender, grade, date_of_birth,
+		                            date_of_joining, department, custom_section,
+		                            custom_group, designation, relieving_date,
+		                            reason_for_leaving
+
+	Returns:
+		{
+			"data"        : [...],
+			"columns"     : [...],   # column labels (EN or VI)
+			"col_keys"    : [...],   # actual field names
+			"total"       : int,
+			"page"        : int,
+			"page_size"   : int,
+			"total_pages" : int,
+		}
+	"""
+	page      = cint(page)
+	page_size = cint(page_size)
+	load_all  = page_size == 0           # page_size=0 → no LIMIT, return all
+	if not load_all and (page_size < 0 or page_size > 2000):
+		page_size = 500
+	if page < 1:
+		page = 1
+
+	# Choose field list
+	active_fields = _EMPLOYEE_BASIC_FIELDS if field_set == "basic" else _EMPLOYEE_FIELDS
+
+	# Choose label dict
+	label_dict = _EMPLOYEE_COLUMN_LABELS_VI if lang == "vi" else _EMPLOYEE_COLUMN_LABELS_EN
+
+	# Build WHERE clause
+	conditions = []
+	params = {}
+
+	if status:
+		conditions.append("emp.status = %(status)s")
+		params["status"] = status
+	elif not cint(include_left):
+		conditions.append("emp.status != 'Left'")
+
+	if department:
+		conditions.append("emp.department = %(department)s")
+		params["department"] = department
+
+	if custom_section:
+		conditions.append("emp.custom_section = %(custom_section)s")
+		params["custom_section"] = custom_section
+
+	if custom_group:
+		conditions.append("emp.custom_group = %(custom_group)s")
+		params["custom_group"] = custom_group
+
+	if date_of_joining_from:
+		conditions.append("emp.date_of_joining >= %(doj_from)s")
+		params["doj_from"] = date_of_joining_from
+
+	if date_of_joining_to:
+		conditions.append("emp.date_of_joining <= %(doj_to)s")
+		params["doj_to"] = date_of_joining_to
+
+	where_sql = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+
+	# Build SELECT list
+	select_fields = []
+	col_order = []
+	for f in active_fields:
+		if " as " in f:
+			actual, alias = f.split(" as ")
+			select_fields.append(f"emp.{actual.strip()} as `{alias.strip()}`")
+			col_order.append(alias.strip())
+		else:
+			select_fields.append(f"emp.`{f}`")
+			col_order.append(f)
+
+	select_sql = ", ".join(select_fields)
+
+	# Count
+	total = frappe.db.sql(
+		f"SELECT COUNT(*) FROM `tabEmployee` emp {where_sql}",
+		params
+	)[0][0]
+
+	# Data with pagination (or all at once)
+	if load_all:
+		rows = frappe.db.sql(
+			f"""
+			SELECT {select_sql}
+			FROM `tabEmployee` emp
+			{where_sql}
+			ORDER BY emp.name
+			""",
+			params,
+			as_dict=True,
+		)
+		page_size = total
+		page      = 1
+	else:
+		offset = (page - 1) * page_size
+		params["limit"]  = page_size
+		params["offset"] = offset
+		rows = frappe.db.sql(
+			f"""
+			SELECT {select_sql}
+			FROM `tabEmployee` emp
+			{where_sql}
+			ORDER BY emp.name
+			LIMIT %(limit)s OFFSET %(offset)s
+			""",
+			params,
+			as_dict=True,
+		)
+
+	# Sanitize: None → "", date → ISO string
+	cleaned = []
+	for row in rows:
+		r = {}
+		for k, v in row.items():
+			if v is None:
+				r[k] = ""
+			elif hasattr(v, "isoformat"):
+				r[k] = v.isoformat()
+			else:
+				r[k] = v
+		cleaned.append(r)
+
+	columns = [label_dict.get(f, f) for f in col_order]
+
+	return {
+		"data"        : cleaned,
+		"columns"     : columns,
+		"col_keys"    : col_order,
+		"total"       : total,
+		"page"        : page,
+		"page_size"   : page_size,
+		"total_pages" : math.ceil(total / page_size) if page_size else 1,
+	}
