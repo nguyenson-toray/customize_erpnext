@@ -2,9 +2,6 @@
 // import apps/customize_erpnext/customize_erpnext/public/js/shared_fingerprint_sync.js
 // import apps/customize_erpnext/customize_erpnext/public/js/photo_crop_shared.js
 
-// Store original employee value to prevent naming series interference
-window.original_employee_code = null;
-
 // Ensure FingerprintScannerDialog is available
 function ensureFingerprintModule() {
     return new Promise((resolve) => {
@@ -121,39 +118,27 @@ frappe.ui.form.on('Employee', {
             },);
         }
         if (frm.is_new()) {
-            // Load next ID suggestions — do NOT auto-fill; HR must click custom_generate_id
-            frappe.call({
-                method: 'customize_erpnext.api.employee.employee_utils.get_next_employee_code',
-                callback: function (r) {
-                    if (r.message) {
-                        frm._suggested_employee_code = r.message;
-                        const $inp = frm.fields_dict['employee'] && frm.fields_dict['employee'].$input;
-                        if ($inp) $inp.attr('placeholder', __('Suggested: {0}', [r.message]));
-                        _refresh_generate_id_description(frm);
+            // Auto-fill next employee code and attendance device ID
+            if (!frm.doc.employee) {
+                frappe.call({
+                    method: 'customize_erpnext.api.employee.employee_utils.get_next_employee_code',
+                    callback: function (r) {
+                        if (r.message && !frm.doc.employee) {
+                            frm.set_value('employee', r.message);
+                        }
                     }
-                }
-            });
-            frappe.call({
-                method: 'customize_erpnext.api.employee.employee_utils.get_next_attendance_device_id',
-                callback: function (r) {
-                    if (r.message) {
-                        frm._suggested_device_id = String(r.message);
-                        const $inp = frm.fields_dict['attendance_device_id'] && frm.fields_dict['attendance_device_id'].$input;
-                        if ($inp) $inp.attr('placeholder', __('Suggested: {0}', [r.message]));
-                        _refresh_generate_id_description(frm);
+                });
+            }
+            if (!frm.doc.attendance_device_id) {
+                frappe.call({
+                    method: 'customize_erpnext.api.employee.employee_utils.get_next_attendance_device_id',
+                    callback: function (r) {
+                        if (r.message && !frm.doc.attendance_device_id) {
+                            frm.set_value('attendance_device_id', String(r.message));
+                        }
                     }
-                }
-            });
-        } else {
-            // For existing employees, store current value
-            window.original_employee_code = frm.doc.employee;
-        }
-    },
-
-    employee: function (frm) {
-        // Store the employee value whenever it changes
-        if (frm.doc.employee && frm.doc.employee.startsWith('TIQN-')) {
-            window.original_employee_code = frm.doc.employee;
+                });
+            }
         }
     },
 
@@ -161,26 +146,6 @@ frappe.ui.form.on('Employee', {
         split_employee_name(frm);
     },
 
-    custom_generate_id: function (frm) {
-        if (!frm._suggested_employee_code || !frm._suggested_device_id) {
-            frappe.show_alert({ message: __('Suggestions still loading, please try again in a moment.'), indicator: 'orange' });
-            return;
-        }
-        frm.set_value('employee', frm._suggested_employee_code);
-        frm.set_value('attendance_device_id', frm._suggested_device_id);
-
-        // Keep naming series counter in sync to avoid conflicts
-        const empNum = parseInt(frm._suggested_employee_code.replace('TIQN-', ''));
-        frappe.call({
-            method: 'customize_erpnext.api.employee.employee_utils.set_series',
-            args: { prefix: 'TIQN-', current_highest_id: empNum }
-        });
-
-        frappe.show_alert({
-            message: __('Filled: Employee ID {0} | Attendance Device ID {1}', [frm._suggested_employee_code, frm._suggested_device_id]),
-            indicator: 'green'
-        });
-    },
     custom_copy_permanent_address_to_other_adress: function (frm) {
         if (frm.doc.custom_copy_permanent_address_to_other_adress) {
             console.log('Copy permanent address to current and origin address');
@@ -229,42 +194,6 @@ frappe.ui.form.on('Employee', {
             return;
         }
 
-        // Check for duplicate employee code
-        if (frm.doc.employee) {
-            frappe.call({
-                method: 'customize_erpnext.api.employee.employee_utils.check_duplicate_employee',
-                args: {
-                    employee_code: frm.doc.employee,
-                    current_doc_name: frm.doc.name
-                },
-                async: false,
-                callback: function (r) {
-                    if (r.message && r.message.exists) {
-                        frappe.msgprint(__('Employee code {0} already exists in the system', [frm.doc.employee]));
-                        frappe.validated = false;
-                    }
-                }
-            });
-        }
-
-        // Check for duplicate attendance device ID
-        if (frm.doc.attendance_device_id) {
-            frappe.call({
-                method: 'customize_erpnext.api.employee.employee_utils.check_duplicate_attendance_device_id',
-                args: {
-                    attendance_device_id: frm.doc.attendance_device_id,
-                    current_doc_name: frm.doc.name
-                },
-                async: false,
-                callback: function (r) {
-                    if (r.message && r.message.exists) {
-                        frappe.msgprint(__('Attendance Device ID {0} already exists in the system', [frm.doc.attendance_device_id]));
-                        frappe.validated = false;
-                    }
-                }
-            });
-        }
-
         // Sync first/middle/last_name từ employee_name trước khi lưu
         if (frm.doc.employee_name) {
             const _parts = frm.doc.employee_name.trim().split(/\s+/).filter(Boolean);
@@ -297,18 +226,6 @@ frappe.ui.form.on('Employee', {
 // ============================================================
 // EMPLOYEE NAME SPLITTING FUNCTIONS
 // ============================================================
-
-/**
- * Update the description of custom_generate_id button with current suggested IDs.
- * Called after each API response so description updates as soon as either value arrives.
- */
-function _refresh_generate_id_description(frm) {
-    const emp = frm._suggested_employee_code || '...';
-    const dev = frm._suggested_device_id || '...';
-    frm.set_df_property('custom_generate_id', 'description',
-        __('Suggested : Employee ID: {0} | Attendance Device ID: {1}', [emp, dev]));
-    frm.refresh_field('custom_generate_id');
-}
 
 /**
  * Tách employee_name → first_name, middle_name, last_name rồi điền vào form

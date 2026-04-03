@@ -332,42 +332,24 @@ def get_next_attendance_device_id():
 @frappe.whitelist()
 
 def set_series(prefix, current_highest_id):
-    """Set naming series to prevent duplicate auto-generated IDs"""
+    """Set naming series to prevent duplicate auto-generated IDs.
+
+    Stores (current_highest_id - 1) because Frappe's naming engine reads
+    tabSeries.current as the *last used* value and increments by 1 before
+    returning the next name.  Passing the desired number directly would cause
+    Frappe to generate (desired + 1) on the next insert.
+    """
     try:
-        # Always update the series value using direct SQL
+        # Store (current_highest_id - 1) so Frappe generates exactly current_highest_id
         frappe.db.sql("""
             UPDATE tabSeries SET current = %s WHERE name = %s
-        """, (current_highest_id, prefix))
+        """, (current_highest_id - 1, prefix))
         frappe.db.commit()
         return {"status": "success", "message": f"Series {prefix} updated to {current_highest_id}"}
         
     except Exception as e:
         frappe.log_error(f"Error updating series {prefix}: {str(e)}")
         return {"status": "error", "message": str(e)}
-
-@frappe.whitelist()
-def check_duplicate_employee(employee_code, current_doc_name=None):
-    """Check if employee code already exists"""
-    filters = {"employee": employee_code}
-    if current_doc_name:
-        filters["name"] = ["!=", current_doc_name]
-    
-    existing = frappe.db.exists("Employee", filters)
-    return {"exists": bool(existing), "employee_code": employee_code}
-
-@frappe.whitelist()
-def check_duplicate_attendance_device_id(attendance_device_id, current_doc_name=None):
-    """Check if attendance device ID already exists"""
-    if not attendance_device_id:
-        return {"exists": False, "attendance_device_id": attendance_device_id}
-
-    filters = {"attendance_device_id": attendance_device_id}
-    if current_doc_name:
-        filters["name"] = ["!=", current_doc_name]
-
-    existing = frappe.db.exists("Employee", filters)
-    return {"exists": bool(existing), "attendance_device_id": attendance_device_id}
-
 
 @frappe.whitelist()
 def upload_employee_image(employee_id, employee_name, file_content, file_name):
@@ -1769,25 +1751,12 @@ def delete_employee_photo(employee_id):
 @frappe.whitelist()
 def allow_change_name_attendance_device_id(name):
     """
-    Check if employee name and attendance_device_id can be changed
-    Returns False if employee has existing checkin records, True otherwise
-
-    Args:
-        name: Employee ID (name field)
-
-    Returns:
-        bool: True if changes are allowed, False if employee has checkin data
+    Returns True if employee ID and attendance_device_id may be changed.
+    Returns False if any Attendance record exists for this employee.
     """
     if not name:
         return True
-
-    # Check if employee has any checkin records
-    checkin_exists = frappe.db.exists('Employee Checkin', {'employee': name})
-
-    if checkin_exists:
-        return False
-
-    return True
+    return not bool(frappe.db.exists('Attendance', {'employee': name}))
 
 
 @frappe.whitelist()

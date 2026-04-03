@@ -4,16 +4,20 @@
 
 """
 Employee Validation
-Prevent changes to name and attendance_device_id if employee has checkin records
+- Auto-fill employee code and attendance_device_id on insert if not provided
+- Block changes to employee/attendance_device_id if Attendance records exist
+- Duplicate enforcement is handled by the unique constraint on the doctype fields
 """
 
 from __future__ import unicode_literals
+import re
 import frappe
 from frappe import _
 from customize_erpnext.api.employee.employee_utils import (
     allow_change_name_attendance_device_id,
     get_next_employee_code,
     get_next_attendance_device_id,
+    set_series,
 )
 
 
@@ -31,9 +35,11 @@ def _split_employee_name_parts(employee_name):
 
 def before_insert_employee(doc, method=None):
     """
-    Runs before _validate_mandatory() — split employee_name into first/middle/last_name
-    so mandatory fields are populated before Frappe checks them (critical for Data Import).
-    Also auto-fill employee code and attendance_device_id if not provided.
+    - Split employee_name → first/middle/last_name (critical for Data Import mandatory check)
+    - Auto-fill employee code and attendance_device_id if not provided
+    - Sync naming series so Frappe's set_new_name() (which runs AFTER before_insert with
+      autoname='naming_series:') generates the exact same code we intend.
+      set_series() stores (intended - 1) because Frappe does current + 1 on use.
     """
     if doc.employee_name:
         first, mid, last = _split_employee_name_parts(doc.employee_name)
@@ -43,81 +49,58 @@ def before_insert_employee(doc, method=None):
 
     if not doc.employee:
         doc.employee = get_next_employee_code()
+
+    # Sync series for any TIQN- code (auto-filled or pre-filled from Excel)
+    m = re.match(r'TIQN-(\d+)', doc.employee or '')
+    if m:
+        set_series('TIQN-', int(m.group(1)))
+
     if not doc.attendance_device_id:
         doc.attendance_device_id = str(get_next_attendance_device_id())
 
 
 def validate_employee_changes(doc, method=None):
     """
-    Validate Employee document before save
-    - Tách employee_name → first/middle/last_name (luôn sync)
-    - Auto-fill employee code và attendance_device_id cho doc mới (import)
-    - Chặn thay đổi employee ID / attendance_device_id nếu đã có checkin
+    - Sync first/middle/last_name from employee_name (always, including import)
+    - Block changes to employee ID / attendance_device_id if Attendance records exist
     """
-    # --- 1. Tách họ tên (luôn chạy, kể cả import) ---
     if doc.employee_name:
         first, mid, last = _split_employee_name_parts(doc.employee_name)
         doc.first_name = first
         doc.middle_name = mid
         doc.last_name = last
 
-    # Skip lock-protection for new documents (handled in before_insert)
-    if doc.is_new():
+    if doc.is_new() or not doc.name:
         return
 
-    # Get the original document from database
-    if not doc.name:
+    if allow_change_name_attendance_device_id(doc.name):
         return
 
-    # Check if employee can be modified
-    can_change = allow_change_name_attendance_device_id(doc.name)
+    old_doc = frappe.db.get_value(
+        'Employee', doc.name, ['name', 'attendance_device_id'], as_dict=True
+    )
+    if not old_doc:
+        return
 
-    if not can_change:
-        # Get old values from database
-        old_doc = frappe.db.get_value(
-            'Employee',
-            doc.name,
-            ['name', 'attendance_device_id'],
-            as_dict=True
+    if doc.name != old_doc.get('name'):
+        frappe.throw(
+            _("Cannot change Employee ID for {0} because this employee has existing Attendance records. Please contact HR administrator.").format(doc.name),
+            title=_("Employee ID Change Not Allowed")
         )
-\
-        if not old_doc:
-            return
 
-        # Check if name is being changed
-        if doc.name != old_doc.get('name'):
-            frappe.throw(
-                _("Cannot change Employee ID for {0} because this employee has existing attendance records (Employee Checkin). Please contact HR administrator if you need to make this change.").format(doc.name),
-                title=_("Employee ID Change Not Allowed")
-            )
-
-        # Check if attendance_device_id is being changed
-        old_attendance_id = str(old_doc.get('attendance_device_id') or '')
-        new_attendance_id = str(doc.get('attendance_device_id') or '')
-
-        if old_attendance_id != new_attendance_id:
-            frappe.throw(
-                _("Cannot change Attendance Device ID for {0} because this employee has existing attendance records (Employee Checkin). Current value: {1}. Please contact HR administrator if you need to make this change.").format(
-                    doc.name,
-                    old_attendance_id
-                ),
-                title=_("Attendance Device ID Change Not Allowed")
-            )
+    if str(old_doc.get('attendance_device_id') or '') != str(doc.get('attendance_device_id') or ''):
+        frappe.throw(
+            _("Cannot change Attendance Device ID for {0} because this employee has existing Attendance records. Current value: {1}. Please contact HR administrator.").format(
+                doc.name, old_doc.get('attendance_device_id') or ''
+            ),
+            title=_("Attendance Device ID Change Not Allowed")
+        )
 
 
 def prevent_employee_deletion(doc, method=None):
-    """
-    Prevent deletion of Employee if employee has checkin records
-
-    Args:
-        doc: Employee document
-        method: Hook method name (before_delete, on_trash, etc.)
-    """
-    # Check if employee has checkin records
-    can_delete = allow_change_name_attendance_device_id(doc.name)
-
-    if not can_delete:
+    """Prevent deletion if Attendance records exist."""
+    if not allow_change_name_attendance_device_id(doc.name):
         frappe.throw(
-            _("Cannot delete Employee {0} because this employee has existing attendance records (Employee Checkin).").format(doc.name),
+            _("Cannot delete Employee {0} because this employee has existing Attendance records.").format(doc.name),
             title=_("Employee Deletion Not Allowed")
         )
