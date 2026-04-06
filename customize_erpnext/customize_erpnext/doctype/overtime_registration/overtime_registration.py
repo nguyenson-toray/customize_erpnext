@@ -89,33 +89,47 @@ class OvertimeRegistration(Document):
         for eg in emp_groups:
             self._emp_group_cache[eg.name] = eg.custom_group
 
-        # Batch load maternity records
+        # Batch load maternity records (cấu trúc mới: 1 record/employee)
         self._maternity_cache = {}
         if dates:
             maternity_records = frappe.db.sql("""
-                SELECT employee, type, from_date, to_date, apply_benefit
+                SELECT employee,
+                       pregnant_from_date, pregnant_to_date, estimated_due_date,
+                       maternity_from_date, maternity_to_date,
+                       youg_child_from_date, youg_child_to_date,
+                       apply_benefit
                 FROM `tabEmployee Maternity`
                 WHERE employee IN %(employees)s
-                  AND type IN ('Pregnant', 'Maternity Leave', 'Young Child')
-                  AND from_date <= %(max_date)s
-                  AND to_date >= %(min_date)s
+                  AND (
+                    (maternity_from_date IS NOT NULL AND maternity_from_date <= %(max_date)s
+                     AND maternity_to_date IS NOT NULL AND maternity_to_date >= %(min_date)s)
+                    OR (pregnant_from_date IS NOT NULL AND pregnant_from_date <= %(max_date)s
+                        AND COALESCE(pregnant_to_date, estimated_due_date) >= %(min_date)s)
+                    OR (youg_child_from_date IS NOT NULL AND youg_child_from_date <= %(max_date)s
+                        AND youg_child_to_date IS NOT NULL AND youg_child_to_date >= %(min_date)s)
+                  )
             """, {"employees": list(employees), "min_date": min_date, "max_date": max_date}, as_dict=1)
 
-            # Group by employee to avoid O(n×m) nested loop
-            emp_maternity_index = {}
-            for rec in maternity_records:
-                emp_maternity_index.setdefault(rec.employee, []).append(rec)
-
+            from frappe.utils import getdate
             for emp, dt in employee_dates:
-                for rec in emp_maternity_index.get(emp, []):
-                    if str(rec.from_date) <= dt <= str(rec.to_date):
-                        if rec.type == 'Young Child':
-                            self._maternity_cache[(emp, dt)] = (True, "Nuôi con nhỏ", rec.from_date, rec.to_date)
-                        elif rec.type == 'Maternity Leave':
-                            self._maternity_cache[(emp, dt)] = (True, "Nghỉ thai sản", rec.from_date, rec.to_date)
-                        elif rec.type == 'Pregnant' and rec.apply_benefit == 1:
-                            self._maternity_cache[(emp, dt)] = (True, "Mang thai", rec.from_date, rec.to_date)
-                        break  # One maternity record per employee-date is sufficient
+                check_d = getdate(dt)
+                for rec in maternity_records:
+                    if rec.employee != emp:
+                        continue
+                    if rec.maternity_from_date and rec.maternity_to_date:
+                        if getdate(rec.maternity_from_date) <= check_d <= getdate(rec.maternity_to_date):
+                            self._maternity_cache[(emp, dt)] = (True, "Nghỉ thai sản", rec.maternity_from_date, rec.maternity_to_date)
+                            break
+                    if rec.youg_child_from_date and rec.youg_child_to_date:
+                        if getdate(rec.youg_child_from_date) <= check_d <= getdate(rec.youg_child_to_date):
+                            self._maternity_cache[(emp, dt)] = (True, "Nuôi con nhỏ", rec.youg_child_from_date, rec.youg_child_to_date)
+                            break
+                    if rec.pregnant_from_date:
+                        eff_to = rec.pregnant_to_date or rec.estimated_due_date
+                        if eff_to and getdate(rec.pregnant_from_date) <= check_d <= getdate(eff_to):
+                            if rec.apply_benefit == 1:
+                                self._maternity_cache[(emp, dt)] = (True, "Mang thai", rec.pregnant_from_date, eff_to)
+                                break
 
     def _get_shift_type_cached(self, employee, date):
         """Get shift type using pre-loaded cache."""
@@ -503,34 +517,41 @@ def times_overlap(from1, to1, from2, to2):
         return False
 
 def check_maternity_benefit(employee, date):
-    """Check if employee has maternity benefit on given date
-    - Pregnant with apply_benefit=1: gets benefit
-    - Maternity Leave: automatically gets benefit
-    - Young Child: automatically gets benefit
-    Returns: (has_benefit, benefit_type, from_date, to_date)
+    """Check if employee has maternity benefit on given date.
+    Returns: (has_benefit, benefit_type_vi, from_date, to_date)
+    Delegates benefit logic to check_employee_maternity_status (employee_utils).
+    Fetches date ranges only when a benefit is confirmed.
     """
-    maternity_records = frappe.db.sql("""
-        SELECT type, from_date, to_date, apply_benefit
-        FROM `tabEmployee Maternity`
-        WHERE employee = %(employee)s
-          AND type IN ('Pregnant', 'Maternity Leave', 'Young Child')
-          AND from_date <= %(date)s
-          AND to_date >= %(date)s
-    """, {"employee": employee, "date": date}, as_dict=1)
+    from customize_erpnext.api.employee.employee_utils import check_employee_maternity_status
 
-    if not maternity_records:
+    status, has_benefit = check_employee_maternity_status(employee, date)
+    if not has_benefit:
         return False, None, None, None
 
-    for record in maternity_records:
-        if record.type == 'Young Child':
-            return True, "Nuôi con nhỏ", record.from_date, record.to_date
-        elif record.type == 'Maternity Leave':
-            return True, "Nghỉ thai sản", record.from_date, record.to_date
-        elif record.type == 'Pregnant':
-            if record.apply_benefit == 1:
-                return True, "Mang thai", record.from_date, record.to_date
+    label_map = {
+        "Maternity Leave": "Nghỉ thai sản",
+        "Young Child": "Nuôi con nhỏ",
+        "Pregnant": "Mang thai",
+    }
+    vi_label = label_map.get(status)
 
-    return False, None, None, None
+    em = frappe.db.get_value(
+        "Employee Maternity", {"employee": employee},
+        ["maternity_from_date", "maternity_to_date",
+         "youg_child_from_date", "youg_child_to_date",
+         "pregnant_from_date", "pregnant_to_date", "estimated_due_date"],
+        as_dict=True
+    )
+    if not em:
+        return True, vi_label, None, None
+
+    if status == "Maternity Leave":
+        return True, vi_label, em.maternity_from_date, em.maternity_to_date
+    elif status == "Young Child":
+        return True, vi_label, em.youg_child_from_date, em.youg_child_to_date
+    else:  # Pregnant
+        eff_to = em.pregnant_to_date or em.estimated_due_date
+        return True, vi_label, em.pregnant_from_date, eff_to
 
 def get_shift_type(employee, date):
     """Get shift type for employee on date

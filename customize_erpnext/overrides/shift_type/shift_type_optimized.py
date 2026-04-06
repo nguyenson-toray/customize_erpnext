@@ -231,6 +231,13 @@ def preload_reference_data(employee_list: List[str], from_date: str, to_date: st
 	)
 	for assign in assignments:
 		data['shift_assignments'][assign.employee].append(assign)
+	# Pre-sort each employee's assignments by start_date desc (newest first) — done once here
+	# so get_employee_shift_cached() can iterate without re-sorting on every call
+	for emp_id in data['shift_assignments']:
+		data['shift_assignments'][emp_id].sort(
+			key=lambda x: getdate(x.start_date) if isinstance(x.start_date, str) else x.start_date,
+			reverse=True
+		)
 	print(f"   ✓ Loaded {len(assignments)} shift assignments for {len(data['shift_assignments'])} employees")
 
 	# 4. Load holidays (unique holiday lists only)
@@ -277,50 +284,90 @@ def preload_reference_data(employee_list: List[str], from_date: str, to_date: st
 	for att in existing:
 		key = (att.employee, att.attendance_date)
 		data['existing_attendance'][key] = att
+	# Pre-index by shift for O(1) per-shift lookup in STEP 3
+	# Without this, each shift iterates ALL existing_attendance → O(shifts × total_records)
+	data['existing_attendance_by_shift'] = defaultdict(dict)
+	for (emp, att_date), att in data['existing_attendance'].items():
+		shift_key = att.get('shift') or ''
+		data['existing_attendance_by_shift'][shift_key][(emp, att_date)] = att
 	print(f"   ✓ Loaded {len(data['existing_attendance'])} existing attendance records")
 
-	# 6. Load maternity tracking (Employee Maternity standalone doctype)
+	# 6. Load maternity tracking (Employee Maternity - cấu trúc mới: 1 record/employee)
 	print(f"   Loading maternity tracking...")
 	data['maternity_tracking'] = {}
 
 	try:
+		# Query mới: 1 record/employee với 3 cặp ngày riêng biệt
+		# Filter: record có ít nhất 1 giai đoạn overlap với [from_date, to_date]
+		params = {"from_date": from_date, "to_date": to_date}
+		date_overlap_filter = """
+			(
+			    (maternity_from_date IS NOT NULL AND maternity_from_date <= %(to_date)s
+			     AND maternity_to_date IS NOT NULL AND maternity_to_date >= %(from_date)s)
+			    OR
+			    (pregnant_from_date IS NOT NULL AND pregnant_from_date <= %(to_date)s
+			     AND COALESCE(pregnant_to_date, estimated_due_date) >= %(from_date)s)
+			    OR
+			    (youg_child_from_date IS NOT NULL AND youg_child_from_date <= %(to_date)s
+			     AND youg_child_to_date IS NOT NULL AND youg_child_to_date >= %(from_date)s)
+			)
+		"""
+
 		if employee_list:
-			maternity_records = frappe.db.sql("""
-				SELECT employee, type, from_date,
-				       to_date, estimated_due_date,
-				       COALESCE(to_date, estimated_due_date) AS effective_to_date,
-				       apply_benefit
-				FROM `tabEmployee Maternity`
-				WHERE employee IN %(employees)s
-				  AND type IN ('Pregnant', 'Maternity Leave', 'Young Child')
-				  AND from_date <= %(to_date)s
-				  AND COALESCE(to_date, estimated_due_date) >= %(from_date)s
-			""", {
-				"employees": employee_list,
-				"from_date": from_date,
-				"to_date": to_date
-			}, as_dict=True)
+			params["employees"] = employee_list
+			where_clause = f"employee IN %(employees)s AND {date_overlap_filter}"
 		else:
-			maternity_records = frappe.db.sql("""
-				SELECT employee, type, from_date,
-				       to_date, estimated_due_date,
-				       COALESCE(to_date, estimated_due_date) AS effective_to_date,
-				       apply_benefit
-				FROM `tabEmployee Maternity`
-				WHERE type IN ('Pregnant', 'Maternity Leave', 'Young Child')
-				  AND from_date <= %(to_date)s
-				  AND COALESCE(to_date, estimated_due_date) >= %(from_date)s
-			""", {
-				"from_date": from_date,
-				"to_date": to_date
-			}, as_dict=True)
+			where_clause = date_overlap_filter
 
-		for record in maternity_records:
-			if record.employee not in data['maternity_tracking']:
-				data['maternity_tracking'][record.employee] = []
-			data['maternity_tracking'][record.employee].append(record)
+		raw_records = frappe.db.sql(f"""
+			SELECT employee,
+			       pregnant_from_date, pregnant_to_date, estimated_due_date,
+			       maternity_from_date, maternity_to_date,
+			       youg_child_from_date, youg_child_to_date,
+			       apply_benefit
+			FROM `tabEmployee Maternity`
+			WHERE {where_clause}
+		""", params, as_dict=True)
 
-		print(f"   ✓ Loaded {len(maternity_records)} maternity tracking records")
+		# Chuyển mỗi record thành danh sách các "virtual periods" để
+		# check_maternity_status_cached có thể xử lý theo logic cũ
+		for rec in raw_records:
+			emp = rec.employee
+			if emp not in data['maternity_tracking']:
+				data['maternity_tracking'][emp] = []
+
+			# Pregnant period
+			if rec.pregnant_from_date:
+				eff_to = rec.pregnant_to_date or rec.estimated_due_date
+				if eff_to:
+					data['maternity_tracking'][emp].append({
+						"type": "Pregnant",
+						"from_date": getdate(rec.pregnant_from_date),
+						"effective_to_date": getdate(eff_to),
+						"estimated_due_date": rec.estimated_due_date,
+						"apply_benefit": rec.apply_benefit,
+					})
+
+			# Maternity Leave period
+			if rec.maternity_from_date and rec.maternity_to_date:
+				data['maternity_tracking'][emp].append({
+					"type": "Maternity Leave",
+					"from_date": getdate(rec.maternity_from_date),
+					"effective_to_date": getdate(rec.maternity_to_date),
+					"apply_benefit": 1,
+				})
+
+			# Young Child period
+			if rec.youg_child_from_date and rec.youg_child_to_date:
+				data['maternity_tracking'][emp].append({
+					"type": "Young Child",
+					"from_date": getdate(rec.youg_child_from_date),
+					"effective_to_date": getdate(rec.youg_child_to_date),
+					"apply_benefit": 1,
+				})
+
+		total_periods = sum(len(v) for v in data['maternity_tracking'].values())
+		print(f"   ✓ Loaded {len(raw_records)} maternity records → {total_periods} active periods")
 	except Exception as e:
 		print(f"   ⚠️  Error loading maternity tracking: {str(e)}")
 
@@ -371,27 +418,29 @@ def preload_reference_data(employee_list: List[str], from_date: str, to_date: st
 			"to_date": to_date
 		}, as_dict=True)
 
-	# Build index: (employee, date) -> leave details
-	# Expand each leave record to individual dates
+	# Build index: (employee, date) -> list of leave details
+	# Use list to support dual leave: 2 Half Day LAs on same date
 	for record in leave_records:
 		current_date = getdate(record.from_date)
 		end_date = getdate(record.to_date)
 
-		# Get abbreviation for this leave type
 		leave_abbr = data['leave_type_abbreviations'].get(record.leave_type, record.leave_type[:2].upper())
 
 		while current_date <= end_date:
 			key = (record.employee, current_date)
-			data['leave_applications'][key] = {
+			if key not in data['leave_applications']:
+				data['leave_applications'][key] = []
+			data['leave_applications'][key].append({
 				'leave_type': record.leave_type,
 				'leave_application': record.leave_application,
 				'is_half_day': record.half_day,
 				'half_day_date': getdate(record.half_day_date) if record.half_day_date else None,
 				'abbreviation': leave_abbr
-			}
+			})
 			current_date = frappe.utils.add_days(current_date, 1)
 
-	print(f"   ✓ Loaded {len(leave_records)} leave applications ({len(data['leave_applications'])} leave-days)")
+	total_leave_days = len(data['leave_applications'])
+	print(f"   ✓ Loaded {len(leave_records)} leave applications ({total_leave_days} leave-days)")
 
 	# ============================================================================
 	# 8. Load Overtime Registrations (for Sunday attendance logic)
@@ -504,42 +553,67 @@ def check_leave_status_cached(employee: str, attendance_date: date, ref_data: Di
 	Check if employee has approved leave on this date using preloaded data (no DB queries).
 
 	Based on HRMS attendance.py:check_leave_record() logic.
-
-	Args:
-		employee: Employee ID
-		attendance_date: Date to check
-		ref_data: Preloaded reference data
+	Supports dual leave: 2 Half Day LAs on the same date.
 
 	Returns:
 		dict: {
 			'status': 'On Leave' or 'Half Day',
-			'leave_type': leave type name,
-			'leave_application': leave application ID,
-			'abbreviation': combined abbreviation (e.g., 'P/2' for half day)
+			'leave_type': leave type name (LA1),
+			'leave_application': leave application ID (LA1),
+			'abbreviation': combined abbreviation,
+			'leave_type_2': second leave type (only for dual leave),
+			'leave_application_2': second leave application ID (only for dual leave),
 		}
 		or None if no leave found
 	"""
 	key = (employee, attendance_date)
-	leave_data = ref_data.get('leave_applications', {}).get(key)
+	leave_list = ref_data.get('leave_applications', {}).get(key)
 
-	if not leave_data:
+	if not leave_list:
 		return None
 
-	# Check if it's half day
-	if leave_data['is_half_day'] and leave_data['half_day_date'] == attendance_date:
-		status = 'Half Day'
-		# Half day abbreviation format: "P/2"
-		abbreviation = f"{leave_data.get('abbreviation', '')}/2"
-	else:
-		status = 'On Leave'
-		# Full day abbreviation: just the leave type abbreviation
-		abbreviation = leave_data.get('abbreviation', '')
+	# Filter to leaves active on this specific date
+	# (half-day LAs only count on their half_day_date)
+	active = []
+	for ld in leave_list:
+		if ld['is_half_day']:
+			if ld['half_day_date'] == attendance_date:
+				active.append(ld)
+		else:
+			active.append(ld)
 
+	if not active:
+		return None
+
+	if len(active) == 1:
+		ld = active[0]
+		if ld['is_half_day']:
+			status = 'Half Day'
+			abbreviation = f"{ld.get('abbreviation', '')}/2"
+		else:
+			status = 'On Leave'
+			abbreviation = ld.get('abbreviation', '')
+		return {
+			'status': status,
+			'leave_type': ld['leave_type'],
+			'leave_application': ld['leave_application'],
+			'abbreviation': abbreviation,
+			'leave_type_2': None,
+			'leave_application_2': None,
+		}
+
+	# Dual leave: 2 Half Day LAs on same date → Full day "On Leave"
+	la1, la2 = active[0], active[1]
+	abbr1 = la1.get('abbreviation', '')
+	abbr2 = la2.get('abbreviation', '')
+	combined_abbr = f"{abbr1}/{abbr2}" if abbr1 != abbr2 else abbr1
 	return {
-		'status': status,
-		'leave_type': leave_data['leave_type'],
-		'leave_application': leave_data['leave_application'],
-		'abbreviation': abbreviation
+		'status': 'On Leave',
+		'leave_type': la1['leave_type'],
+		'leave_application': la1['leave_application'],
+		'abbreviation': combined_abbr,
+		'leave_type_2': la2['leave_type'],
+		'leave_application_2': la2['leave_application'],
 	}
 
 
@@ -566,16 +640,10 @@ def get_employee_shift_cached(
 		# datetime object
 		attendance_date = attendance_date.date()
 
-	# Check shift assignments (sorted by start_date desc to prioritize newer assignments)
+	# Assignments are pre-sorted by start_date desc in preload_reference_data()
 	assignments = ref_data['shift_assignments'].get(employee, [])
-	# Sort by start_date descending (newest first)
-	sorted_assignments = sorted(
-		assignments,
-		key=lambda x: getdate(x.start_date) if isinstance(x.start_date, str) else x.start_date,
-		reverse=True
-	)
 
-	for assign in sorted_assignments:
+	for assign in assignments:
 		# Ensure dates are comparable
 		start_date = getdate(assign.start_date) if isinstance(assign.start_date, str) else assign.start_date
 		end_date = getdate(assign.end_date) if assign.end_date and isinstance(assign.end_date, str) else assign.end_date
@@ -647,7 +715,7 @@ def should_mark_attendance_cached(
 	if emp_data.date_of_joining and emp_data.date_of_joining > attendance_date:
 		return False
 
-	# Check if employee has left
+	# Check if employee has left — don't mark Absent on or after relieving_date
 	if emp_data.status == "Left" and emp_data.relieving_date:
 		if emp_data.relieving_date <= attendance_date:
 			return False
@@ -930,6 +998,37 @@ def _core_process_attendance_logic_optimized(
 	bulk_update_employee_checkin(from_date_str, to_date_str, employees=employees if employees else None)
 
 	# ========================================================================
+	# STEP 2b: CANCEL EXISTING ATTENDANCE FOR MATERNITY LEAVE EMPLOYEES
+	# Only runs in fore_get_logs mode (Bulk Update UI).
+	# Employee Maternity is the source of truth — no attendance should exist
+	# for employees in the "Maternity Leave" phase.
+	# ========================================================================
+	if fore_get_logs:
+		maternity_to_cancel = []
+		maternity_cancel_keys = []
+		for (emp, att_date), old_att in ref_data['existing_attendance'].items():
+			maternity_status, _ = check_maternity_status_cached(emp, att_date, ref_data)
+			if maternity_status == "Maternity Leave":
+				maternity_to_cancel.append(old_att['name'])
+				maternity_cancel_keys.append((emp, att_date))
+		if maternity_to_cancel:
+			for key in maternity_cancel_keys:
+				del ref_data['existing_attendance'][key]
+			placeholders = ', '.join(['%s'] * len(maternity_to_cancel))
+			# Unlink checkins first, then delete attendance records
+			frappe.db.sql(
+				f"UPDATE `tabEmployee Checkin` SET attendance = NULL"
+				f" WHERE attendance IN ({placeholders})",
+				tuple(maternity_to_cancel)
+			)
+			frappe.db.sql(
+				f"DELETE FROM `tabAttendance` WHERE name IN ({placeholders})",
+				tuple(maternity_to_cancel)
+			)
+			frappe.db.commit()
+			print(f"   🗑️ Deleted {len(maternity_to_cancel)} attendance records for Maternity Leave employees")
+
+	# ========================================================================
 	# STEP 3: PROCESS AUTO-ENABLED SHIFTS (Optimized with Preloaded Data)
 	# ========================================================================
 	print(f"\n{'='*80}")
@@ -955,12 +1054,21 @@ def _core_process_attendance_logic_optimized(
 				"time": ["between", [f"{from_date_str} 00:00:00", f"{to_date_str} 23:59:59"]],
 				"shift": shift_name,
 				"offshift": 0,
+				"shift_start": ["is", "set"],  # exclude checkins with no shift_start (ungroupable)
 				"employee": ["in", employees] if employees else ["is", "set"]
 			}
 
 			# Add attendance filter for incremental mode only
 			if not fore_get_logs:
 				checkin_filters["attendance"] = ("is", "not set")
+
+			# For fore_get_logs mode, push shift_actual_end filter to SQL to reduce Python-side filtering
+			# Full day mode: accept checkins where shift hasn't ended yet (shift_actual_end is NULL or future)
+			if fore_get_logs:
+				from datetime import datetime
+				to_date_obj = frappe.utils.getdate(to_date)
+				end_of_to_date = datetime.combine(to_date_obj, datetime.max.time()).replace(microsecond=999999)
+				checkin_filters["shift_actual_end"] = ["<", end_of_to_date]
 
 			checkins = frappe.get_all(
 				"Employee Checkin",
@@ -972,33 +1080,12 @@ def _core_process_attendance_logic_optimized(
 				order_by="employee, time"
 			)
 
-			# Filter checkins with shift_actual_end check (handle None values)
-			# Logic similar to custom_get_employee_checkins:
-			# - fore_get_logs = True (UI or hook 8h/23h): full day (< end_of_day 23:59:59 of to_date)
-			# - fore_get_logs = False (normal hook): incremental (< last_sync_of_checkin)
-			if fore_get_logs:
-				# Full day mode: filter by end of to_date instead of last_sync
-				# CRITICAL: Use to_date (processing range end), not last_sync_of_checkin
-				# This allows processing current day even when shift hasn't ended yet
-				from datetime import datetime
-
-				# Convert to_date string to datetime at end of day
-				to_date_obj = frappe.utils.getdate(to_date)
-				end_of_to_date = datetime.combine(to_date_obj, datetime.max.time()).replace(microsecond=999999)
-
-				checkins = [
-					c for c in checkins
-					if c.shift_actual_end is None or c.shift_actual_end < end_of_to_date
-				]
-			else:
-				# Incremental mode: filter by last_sync (original logic)
+			# Incremental mode: filter by last_sync (cannot push OR condition to frappe.get_all filters)
+			if not fore_get_logs and shift_data.last_sync_of_checkin:
 				checkins = [
 					c for c in checkins
 					if c.shift_actual_end is None or c.shift_actual_end < shift_data.last_sync_of_checkin
 				]
-
-			# CRITICAL: Filter out checkins with None shift_start (cannot group/sort these)
-			checkins = [c for c in checkins if c.shift_start is not None]
 
 			print(f"      Found {len(checkins)} checkins")
 
@@ -1008,18 +1095,14 @@ def _core_process_attendance_logic_optimized(
 				if fore_get_logs:
 					attendance_to_update = []
 
-					for (employee, att_date), old_att in ref_data['existing_attendance'].items():
-						# Only process attendance for this shift
-						# Handle case where attendance has no shift (default to employee's default shift)
-						old_shift = old_att.get('shift')
-						if old_shift and old_shift != shift_name:
-							# Has shift but doesn't match → skip
-							continue
-						elif not old_shift:
-							# No shift → use HRMS standard logic (Shift Assignment → Employee.default_shift)
-							emp_shift = get_employee_shift_cached(employee, att_date, ref_data)
-							if emp_shift != shift_name:
-								continue
+					# Use pre-indexed dict: only iterate records belonging to this shift
+					# Records with no shift stored under key '' — resolve dynamically
+					shift_existing = dict(ref_data['existing_attendance_by_shift'].get(shift_name, {}))
+					for (employee, att_date), old_att in ref_data['existing_attendance_by_shift'].get('', {}).items():
+						if get_employee_shift_cached(employee, att_date, ref_data) == shift_name:
+							shift_existing[(employee, att_date)] = old_att
+
+					for (employee, att_date), old_att in shift_existing.items():
 
 						# Check if should mark attendance for this employee/date
 						if should_mark_attendance_cached(employee, att_date, shift_name, ref_data):
@@ -1027,8 +1110,13 @@ def _core_process_attendance_logic_optimized(
 							emp_data = ref_data['employees'].get(employee, {})
 							shift_data = ref_data['shifts'].get(shift_name, {})
 
-							# Step 1: Check maternity status (for custom_maternity_benefit only)
+							# Step 1: Check maternity status
 							maternity_status, custom_maternity_benefit = check_maternity_status_cached(employee, att_date, ref_data)
+
+							# Skip: employee on maternity leave (not pregnant/young_child) without checkin
+							# → no attendance needed; Employee Maternity is the source of truth
+							if maternity_status == "Maternity Leave":
+								continue
 
 							# Step 2: Check Leave Application (PRIORITY 1)
 							# Based on HRMS attendance.py:check_leave_record() logic
@@ -1041,14 +1129,16 @@ def _core_process_attendance_logic_optimized(
 								leave_type = leave_status['leave_type']
 								leave_application = leave_status['leave_application']
 								leave_abbreviation = leave_status.get('abbreviation')
+								leave_type_2 = leave_status.get('leave_type_2')
+								leave_application_2 = leave_status.get('leave_application_2')
 							else:
 								# No leave, no checkins → "Absent"
-								# Note: maternity_status is NOT a valid attendance status
-								# It's only used for custom_maternity_benefit field
 								status = 'Absent'
 								leave_type = None
 								leave_application = None
 								leave_abbreviation = None
+								leave_type_2 = None
+								leave_application_2 = None
 
 							# Step 4: Handle half_day_status for Half Day leave (per HRMS logic)
 							# Per HRMS attendance.py:357 - Default half_day_status = "Absent" for Half Day
@@ -1069,11 +1159,13 @@ def _core_process_attendance_logic_optimized(
 								'employee': employee,
 								'attendance_date': att_date,
 								'attendance_name': old_att['name'],
-								'shift': correct_shift,  # Use correct shift from Shift Assignment
+								'shift': correct_shift,
 								'status': status,
 								'leave_type': leave_type,
 								'leave_application': leave_application,
 								'custom_leave_application_abbreviation': leave_abbreviation,
+								'custom_leave_type_2': leave_type_2,
+								'custom_leave_application_2': leave_application_2,
 								'half_day_status': half_day_status,
 								'modify_half_day_status': modify_half_day_status,
 								'in_time': None,
@@ -1087,7 +1179,7 @@ def _core_process_attendance_logic_optimized(
 								'custom_final_overtime_duration': 0,
 								'overtime_type': None,
 								'standard_working_hours': shift_data.get('custom_standard_working_hours', 0),
-								'log_names': []  # No checkins
+								'log_names': []
 							}
 							# Check if data has actually changed before adding to update list
 							if _check_attendance_changes(old_att, absence_data):
@@ -1188,11 +1280,15 @@ def _core_process_attendance_logic_optimized(
 					continue
 				if emp_data.date_of_joining and emp_data.date_of_joining > attendance_date:
 					continue
-				if emp_data.status == "Left" and emp_data.relieving_date and emp_data.relieving_date <= attendance_date:
+				if emp_data.status == "Left" and emp_data.relieving_date and emp_data.relieving_date < attendance_date:
 					continue
 
 				# Check maternity status using cached data (MUST match original logic!)
 				maternity_status, custom_maternity_benefit = check_maternity_status_cached(employee, attendance_date, ref_data)
+
+				# Skip: employee on maternity leave — no attendance created, even with checkins
+				if maternity_status == "Maternity Leave":
+					continue
 
 				# Get checkin names for linking to attendance (CRITICAL - matches original logic!)
 				log_names = [log.name for log in single_shift_logs]
@@ -1450,19 +1546,9 @@ def _core_process_attendance_logic_optimized(
 			# CRITICAL FIX: When fore_get_logs=True, if attendance exists but has NO checkins,
 			# it should be updated to Absent (checkins were deleted)
 			if fore_get_logs:
-				for (employee, att_date), old_att in ref_data['existing_attendance'].items():
+				# Reuse shift_existing built above (same shift filter logic, no re-iteration)
+				for (employee, att_date), old_att in shift_existing.items():
 					key = (employee, att_date)
-					# Only process attendance for this shift
-					# Handle case where attendance has no shift (default to employee's default shift)
-					old_shift = old_att.get('shift')
-					if old_shift and old_shift != shift_name:
-						# Has shift but doesn't match → skip
-						continue
-					elif not old_shift:
-						# No shift → use HRMS standard logic (Shift Assignment → Employee.default_shift)
-						emp_shift = get_employee_shift_cached(employee, att_date, ref_data)
-						if emp_shift != shift_name:
-							continue
 
 					# If attendance exists but was NOT updated (no checkins found), mark as Absent
 					if key not in updated_keys:
@@ -1472,8 +1558,13 @@ def _core_process_attendance_logic_optimized(
 							emp_data = ref_data['employees'].get(employee, {})
 							shift_data = ref_data['shifts'].get(shift_name, {})
 
-							# Step 1: Check maternity status (for custom_maternity_benefit only)
+							# Step 1: Check maternity status
 							maternity_status, custom_maternity_benefit = check_maternity_status_cached(employee, att_date, ref_data)
+
+							# Skip: employee on maternity leave (not pregnant/young_child) without checkin
+							# → no attendance needed; Employee Maternity is the source of truth
+							if maternity_status == "Maternity Leave":
+								continue
 
 							# Step 2: Check Leave Application (PRIORITY 1)
 							# Based on HRMS attendance.py:check_leave_record() logic
@@ -1481,23 +1572,21 @@ def _core_process_attendance_logic_optimized(
 
 							# Step 3: Determine attendance status
 							if leave_status:
-								# Has approved leave → "On Leave" or "Half Day"
 								status = leave_status['status']
 								leave_type = leave_status['leave_type']
 								leave_application = leave_status['leave_application']
 								leave_abbreviation = leave_status.get('abbreviation')
+								leave_type_2 = leave_status.get('leave_type_2')
+								leave_application_2 = leave_status.get('leave_application_2')
 							else:
-								# No leave, no checkins → "Absent"
-								# Note: maternity_status is NOT a valid attendance status
-								# It's only used for custom_maternity_benefit field
 								status = 'Absent'
 								leave_type = None
 								leave_application = None
 								leave_abbreviation = None
+								leave_type_2 = None
+								leave_application_2 = None
 
 							# Step 4: Handle half_day_status for Half Day leave (per HRMS logic)
-							# Per HRMS attendance.py:357 - Default half_day_status = "Absent" for Half Day
-							# When employee has NO checkin → half_day_status = "Absent"
 							if status == 'Half Day':
 								half_day_status = 'Absent'
 								modify_half_day_status = 0
@@ -1508,17 +1597,19 @@ def _core_process_attendance_logic_optimized(
 							# Determine correct shift from Shift Assignment
 							correct_shift = get_employee_shift_cached(employee, att_date, ref_data)
 							if not correct_shift:
-								correct_shift = shift_name  # Fallback to current shift
+								correct_shift = shift_name
 
 							absence_data = {
 								'employee': employee,
 								'attendance_date': att_date,
 								'attendance_name': old_att['name'],
-								'shift': correct_shift,  # Use correct shift from Shift Assignment
+								'shift': correct_shift,
 								'status': status,
 								'leave_type': leave_type,
 								'leave_application': leave_application,
 								'custom_leave_application_abbreviation': leave_abbreviation,
+								'custom_leave_type_2': leave_type_2,
+								'custom_leave_application_2': leave_application_2,
 								'half_day_status': half_day_status,
 								'modify_half_day_status': modify_half_day_status,
 								'in_time': None,
@@ -1532,9 +1623,8 @@ def _core_process_attendance_logic_optimized(
 								'custom_final_overtime_duration': 0,
 								'overtime_type': None,
 								'standard_working_hours': shift_data.get('custom_standard_working_hours', 0),
-								'log_names': []  # No checkins
+								'log_names': []
 							}
-							# Check if data has actually changed before adding to update list
 							if _check_attendance_changes(old_att, absence_data):
 								attendance_to_update.append(absence_data)
 							updated_keys.add(key)
@@ -1609,15 +1699,14 @@ def _core_process_attendance_logic_optimized(
 							WHERE name = %(name)s
 						""", {**update_data, 'name': att_name, 'user': frappe.session.user})
 
-						# Link/Unlink checkins to attendance (using bulk update for performance)
+						# Link checkins to attendance (parameterized to avoid SQL injection)
 						if att_data.get('log_names'):
-							# Link checkins to this attendance
-							log_names_str = "', '".join(att_data['log_names'])
-							frappe.db.sql(f"""
-								UPDATE `tabEmployee Checkin`
-								SET attendance = '{att_name}'
-								WHERE name IN ('{log_names_str}')
-							""")
+							placeholders = ', '.join(['%s'] * len(att_data['log_names']))
+							frappe.db.sql(
+								f"UPDATE `tabEmployee Checkin` SET attendance = %s"
+								f" WHERE name IN ({placeholders})",
+								[att_name] + att_data['log_names']
+							)
 						# else:
 						# 	# No checkins → Unlink any previously linked checkins
 						# 	frappe.db.sql(f"""
@@ -1687,27 +1776,35 @@ def _core_process_attendance_logic_optimized(
 						# Use employee's default_shift, fallback to 'Day' only if no default
 						shift = emp_data.get('default_shift') or 'Day'
 
-					# Check maternity status using cached data (for custom_maternity_benefit only)
+					# Check maternity status
 					maternity_status, custom_maternity_benefit = check_maternity_status_cached(employee, day, ref_data)
+
+					# Skip: employee on maternity leave — no attendance record needed
+					if maternity_status == "Maternity Leave":
+						continue
 
 					# Check Leave Application (PRIORITY 1)
 					leave_status = check_leave_status_cached(employee, day, ref_data)
 
 					# Determine attendance status based on priority
 					if leave_status:
-						# Has approved leave → "On Leave" or "Half Day"
 						status = leave_status['status']
 						leave_type = leave_status['leave_type']
 						leave_application = leave_status['leave_application']
 						leave_abbreviation = leave_status.get('abbreviation')
+						leave_type_2 = leave_status.get('leave_type_2')
+						leave_application_2 = leave_status.get('leave_application_2')
 					else:
-						# No leave, no checkins → "Absent"
 						status = 'Absent'
 						leave_type = None
 						leave_application = None
 						leave_abbreviation = None
+						leave_type_2 = None
+						leave_application_2 = None
 
-					# Get shift details for standard_working_hours
+					# Half Day with no checkin → half_day_status = "Absent" (per HRMS logic)
+					half_day_status = 'Absent' if status == 'Half Day' else None
+
 					shift_data = ref_data['shifts'].get(shift, {})
 
 					absent_to_create.append({
@@ -1719,6 +1816,10 @@ def _core_process_attendance_logic_optimized(
 						'leave_type': leave_type,
 						'leave_application': leave_application,
 						'custom_leave_application_abbreviation': leave_abbreviation,
+						'custom_leave_type_2': leave_type_2,
+						'custom_leave_application_2': leave_application_2,
+						'half_day_status': half_day_status,
+						'modify_half_day_status': 0,
 						'company': emp_data.get('company'),
 						'department': emp_data.get('department'),
 						'working_hours': 0,
@@ -1744,14 +1845,15 @@ def _core_process_attendance_logic_optimized(
 	print(f"🧹 CLEANUP ATTENDANCE FOR LEFT EMPLOYEES")
 	print(f"{'='*80}")
 	try:
-		# Find attendance after relieving_date that have NO linked checkins
+		# Find attendance on or after relieving_date that have NO linked checkins
+		# relieving_date is the last official day — Absent records on that day should be removed
 		invalid_attendance = frappe.db.sql("""
 			SELECT a.name, a.employee, a.employee_name, a.attendance_date, e.relieving_date
 			FROM `tabAttendance` a
 			JOIN `tabEmployee` e ON a.employee = e.name
 			WHERE e.status = 'Left'
 			  AND e.relieving_date IS NOT NULL
-			  AND a.attendance_date > e.relieving_date
+			  AND a.attendance_date >= e.relieving_date
 			  AND a.docstatus = 1
 			  AND a.attendance_date BETWEEN %(from_date)s AND %(to_date)s
 			  AND NOT EXISTS (
@@ -1771,14 +1873,14 @@ def _core_process_attendance_logic_optimized(
 			for a in invalid_attendance:
 				print(f"      - {a.employee} ({a.employee_name}): {a.attendance_date} (relieving: {a.relieving_date})")
 
-		# Find attendance after relieving_date that HAVE linked checkins → tag with warning
+		# Find attendance on or after relieving_date that HAVE linked checkins → tag with warning (keep)
 		has_checkin_attendance = frappe.db.sql("""
 			SELECT a.name, a.employee, a.employee_name, a.attendance_date, e.relieving_date
 			FROM `tabAttendance` a
 			JOIN `tabEmployee` e ON a.employee = e.name
 			WHERE e.status = 'Left'
 			  AND e.relieving_date IS NOT NULL
-			  AND a.attendance_date > e.relieving_date
+			  AND a.attendance_date >= e.relieving_date
 			  AND a.docstatus = 1
 			  AND a.attendance_date BETWEEN %(from_date)s AND %(to_date)s
 			  AND EXISTS (
@@ -1864,12 +1966,62 @@ def _core_process_attendance_logic_optimized(
 	employees_processed = stats["total_employees"]
 	employees_skipped = employees_processed - employees_with_attendance
 
+	# -----------------------------------------------------------------------
+	# Classify skipped employees by reason (for UI display)
+	# -----------------------------------------------------------------------
+	skipped_details = []
+	if employees_skipped > 0:
+		all_employees_set = set(employees)
+		skipped_set = all_employees_set - employees_with_attendance_set
+		maternity_tracking = ref_data.get('maternity_tracking', {})
+		from_date_d = getdate(from_date)
+		to_date_d = getdate(to_date)
+
+		for emp_id in sorted(skipped_set):
+			emp_data = ref_data['employees'].get(emp_id)
+			emp_name = emp_data.employee_name if emp_data else emp_id
+
+			# Reason 1: Maternity Leave phase overlaps date range
+			is_maternity = False
+			for period in maternity_tracking.get(emp_id, []):
+				if period.get('type') == 'Maternity Leave':
+					p_from = period.get('from_date')
+					p_to = period.get('effective_to_date')
+					if p_from and p_to and p_from <= to_date_d and p_to >= from_date_d:
+						is_maternity = True
+						break
+			if is_maternity:
+				skipped_details.append({"employee": emp_id, "employee_name": emp_name, "reason": "Maternity Leave"})
+				continue
+
+			# Reason 2: No shift assignment and no default shift
+			has_shift = bool(ref_data.get('shift_assignments', {}).get(emp_id)) or \
+			            bool(emp_data and emp_data.get('default_shift'))
+			if not has_shift:
+				skipped_details.append({"employee": emp_id, "employee_name": emp_name, "reason": "No shift assigned"})
+				continue
+
+			# Reason 3: Employee left / not yet joined for all days in range
+			if emp_data:
+				doj = emp_data.get('date_of_joining')
+				rel = emp_data.get('relieving_date')
+				if doj and getdate(doj) > to_date_d:
+					skipped_details.append({"employee": emp_id, "employee_name": emp_name, "reason": "Not yet joined"})
+					continue
+				if rel and getdate(rel) < from_date_d:
+					skipped_details.append({"employee": emp_id, "employee_name": emp_name, "reason": "Already left"})
+					continue
+
+			# Reason 4: All days in range are holidays / weekends (no checkins)
+			skipped_details.append({"employee": emp_id, "employee_name": emp_name, "reason": "No checkins / Holiday"})
+
 	stats.update({
 		"processing_time": processing_time,
 		"actual_records": total_new_or_updated,
 		"total_records_in_db": total_after,
 		"employees_with_attendance": employees_with_attendance,
 		"employees_skipped": employees_skipped,
+		"skipped_details": skipped_details,
 		"records_per_second": round(total_new_or_updated / processing_time, 2) if processing_time > 0 else 0
 	})
 
@@ -2018,6 +2170,7 @@ def bulk_update_attendance_optimized(from_date, to_date, employees=None, batch_s
 			"total_employees": stats["total_employees"],
 			"employees_with_attendance": stats["employees_with_attendance"],
 			"employees_skipped": stats["employees_skipped"],
+			"skipped_details": stats.get("skipped_details", []),
 			"total_days": stats["total_days"],
 			"processing_time": stats["processing_time"],
 			"records_per_second": stats["records_per_second"],
@@ -2116,7 +2269,7 @@ def custom_process_auto_attendance_for_all_shifts(employees=None, days=None):
 		current_datetime_check = frappe.flags.current_datetime or frappe.utils.now_datetime()
 		current_hour = current_datetime_check.hour
 		is_web_request = hasattr(frappe.local, 'request') and frappe.local.request
-		is_special_hour = current_hour in [8, 23]  # 8AM or 11PM
+		is_special_hour = current_hour in SPECIAL_HOUR_FORCE_UPDATE
 
 		if (is_web_request or is_special_hour):
 			current_date = getdate(current_datetime_check)

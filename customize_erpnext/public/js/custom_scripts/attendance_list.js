@@ -47,7 +47,33 @@ frappe.listview_settings['Attendance'] = {
 // BULK UPDATE ATTENDANCE V2 - Optimized (Daily Timesheet Pattern)
 // ============================================================================
 
+/** Build MM/YYYY option list descending from current month to 01/2026 */
+function _month_options() {
+	const today = frappe.datetime.get_today();
+	const [cy, cm] = today.split('-').map(Number);
+	const opts = ['']; // first blank = custom
+	let y = cy, m = cm;
+	while (y > 2025 || (y === 2025 && m >= 1)) {
+		opts.push(String(m).padStart(2, '0') + '/' + y);
+		if (--m === 0) { m = 12; y--; }
+	}
+	return opts.join('\n');
+}
+
+/** Convert MM/YYYY → { from_date: YYYY-MM-26 (prev month), to_date: YYYY-MM-25 } */
+function _month_to_range(mmyyyy) {
+	const [mm, yyyy] = mmyyyy.split('/').map(Number);
+	let pm = mm - 1, py = yyyy;
+	if (pm === 0) { pm = 12; py--; }
+	return {
+		from_date: `${py}-${String(pm).padStart(2, '0')}-26`,
+		to_date: `${yyyy}-${String(mm).padStart(2, '0')}-25`
+	};
+}
+
 function show_bulk_update_attendance(list_view, me) {
+	let _syncing = false; // prevent circular onchange triggers
+
 	let dialog = new frappe.ui.Dialog({
 		title: __("Bulk Update Attendance"),
 		size: 'large',
@@ -57,11 +83,41 @@ function show_bulk_update_attendance(list_view, me) {
 				label: __('Date Range')
 			},
 			{
+				fieldtype: 'Select',
+				fieldname: 'month_preset',
+				label: __('Month'),
+				options: _month_options(),
+				onchange: function () {
+					const val = dialog.get_value('month_preset');
+					if (!val || _syncing) return;
+					_syncing = true;
+					const { from_date, to_date } = _month_to_range(val);
+					const today = frappe.datetime.get_today();
+					dialog.set_value('from_date', from_date);
+					dialog.set_value('to_date', to_date > today ? today : to_date);
+					_syncing = false;
+				}
+			},
+			{
+				fieldtype: 'Column Break'
+			},
+			{
+				fieldtype: 'HTML',
+				options: '<div style="padding-top:22px;color:#8d99a6;font-size:12px">'
+					+ __('Or set dates manually below') + '</div>'
+			},
+			{
+				fieldtype: 'Section Break'
+			},
+			{
 				fieldtype: 'Date',
 				fieldname: 'from_date',
 				label: __('From Date'),
 				default: frappe.datetime.get_today(),
-				reqd: 1
+				reqd: 1,
+				onchange: function () {
+					if (!_syncing) dialog.set_value('month_preset', '');
+				}
 			},
 			{
 				fieldtype: 'Column Break'
@@ -71,7 +127,17 @@ function show_bulk_update_attendance(list_view, me) {
 				fieldname: 'to_date',
 				label: __('To Date'),
 				default: frappe.datetime.get_today(),
-				reqd: 1
+				reqd: 1,
+				onchange: function () {
+					if (!_syncing) dialog.set_value('month_preset', '');
+					// Clamp to today if future date entered manually
+					const today = frappe.datetime.get_today();
+					if (dialog.get_value('to_date') > today) {
+						_syncing = true;
+						dialog.set_value('to_date', today);
+						_syncing = false;
+					}
+				}
 			},
 			{
 				fieldtype: 'Section Break',
@@ -108,8 +174,8 @@ function show_bulk_update_attendance(list_view, me) {
 			}
 
 			let days_diff = frappe.datetime.get_diff(values.to_date, values.from_date);
-			if (days_diff > 31) {
-				frappe.msgprint(__('Date range too large. Maximum 31 days recommended for optimal performance.'));
+			if (days_diff > 92) { // ~3 months max for performance reasons
+				frappe.msgprint(__('Date range too large. Maximum 92 days recommended for optimal performance.'));
 				return;
 			}
 
@@ -350,8 +416,8 @@ function show_attendance_results_dialog_v2(options) {
 	console.log("- Employees Total:", result.total_employees || 0);
 	console.log("- Employees with Attendance:", result.employees_with_attendance || 0);
 	console.log("- Employees Skipped:", result.employees_skipped || 0);
-	if (result.employees_skipped > 0) {
-		console.warn(`⚠️ ${result.employees_skipped} employees were skipped - check server console for reasons`);
+	if (result.employees_skipped > 0 && result.skipped_details) {
+		console.log(`⚠️ ${result.employees_skipped} employees skipped:`, result.skipped_details);
 	}
 	console.log("- Days:", result.total_days || 0);
 	console.log("- Date Range:", from_date, "to", to_date);
@@ -409,11 +475,12 @@ function show_attendance_results_dialog_v2(options) {
 	if (result.employees_skipped && result.employees_skipped > 0) {
 		employee_stats_html = `
 			<div class="alert alert-info mt-3 mb-0">
-				<i class="fa fa-info-circle"></i>
-				<strong>${__('Employee Summary')}:</strong><br>
-				- ${__('Total employees processed')}: ${result.total_employees}<br>
-				- ${__('Employees with attendance')}: ${result.employees_with_attendance || 0}<br>
-				- ${__('Employees skipped')}: ${result.employees_skipped} <small class="text-muted">(${__('check server console for specific reasons')})</small>
+				<strong><i class="fa fa-users"></i> ${__('Employee Summary')}:</strong>
+				<div style="margin-top:4px">
+					${__('Total')}: <strong>${result.total_employees}</strong>
+					&nbsp;|&nbsp; ${__('With attendance')}: <strong>${result.employees_with_attendance || 0}</strong>
+					&nbsp;|&nbsp; ${__('Skipped')}: <strong>${result.employees_skipped}</strong>
+				</div>
 			</div>
 		`;
 	}
@@ -439,8 +506,6 @@ function show_attendance_results_dialog_v2(options) {
 					<strong>${__('Note')}:</strong> ${__("{0} errors occurred.", [result.errors])}
 					${__('Check')} <a href="/app/error-log">${__('Error Log')}</a> ${__('for details.')}</div>
 			` : ''}
-
-			<p class="text-muted mt-3 mb-0"><small><i class="fa fa-info-circle"></i> ${__('Check browser console for detailed shift breakdown and performance metrics')}</small></p>
 		`,
 		indicator: 'green',
 		wide: true

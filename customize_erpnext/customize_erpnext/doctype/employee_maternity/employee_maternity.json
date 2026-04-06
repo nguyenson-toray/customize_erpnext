@@ -2,25 +2,36 @@
  "actions": [],
  "allow_import": 1,
  "allow_rename": 1,
+ "autoname": "HR-EM-.#####.",
  "creation": "2026-02-06 16:11:17.468992",
+ "default_view": "List",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
   "employee",
-  "group",
+  "full_name",
   "date_of_joining",
-  "seniority",
-  "designation",
+  "group",
   "column_break_halv",
-  "type",
+  "designation",
+  "column_break_qrtt",
+  "status",
+  "note",
+  "section_maternity",
   "apply_benefit",
-  "from_date",
-  "to_date",
+  "pregnant_from_date",
+  "pregnant_to_date",
   "estimated_due_date",
-  "date_of_birth",
   "gestational_age",
-  "leave_application",
-  "note"
+  "seniority",
+  "column_break_ytbx",
+  "maternity_from_date",
+  "maternity_from_date_estimate",
+  "maternity_to_date",
+  "date_of_birth",
+  "column_break_zgfm",
+  "youg_child_from_date",
+  "youg_child_to_date"
  ],
  "fields": [
   {
@@ -36,74 +47,16 @@
    "fetch_from": "employee.custom_group",
    "fieldname": "group",
    "fieldtype": "Data",
+   "in_filter": 1,
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Group"
-  },
-  {
-   "fieldname": "type",
-   "fieldtype": "Select",
-   "in_list_view": 1,
-   "in_standard_filter": 1,
-   "label": "Type",
-   "options": "Pregnant\nMaternity Leave\nYoung Child",
-   "reqd": 1
-  },
-  {
-   "fieldname": "column_break_halv",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "from_date",
-   "fieldtype": "Date",
-   "in_list_view": 1,
-   "label": "From Date",
-   "read_only_depends_on": "eval:doc.type == 'Maternity Leave'",
-   "reqd": 1
-  },
-  {
-   "fieldname": "to_date",
-   "fieldtype": "Date",
-   "in_list_view": 1,
-   "label": "To Date",
-   "read_only_depends_on": "eval:doc.type == 'Maternity Leave'"
-  },
-  {
-   "depends_on": "eval:doc.type == 'Pregnant';",
-   "fieldname": "estimated_due_date",
-   "fieldtype": "Date",
-   "label": "Estimated Due Date"
-  },
-  {
-   "depends_on": "eval:doc.type == 'Young Child'",
-   "fieldname": "date_of_birth",
-   "fieldtype": "Date",
-   "label": "Date of Birth"
   },
   {
    "fetch_from": "employee.date_of_joining",
    "fieldname": "date_of_joining",
    "fieldtype": "Date",
    "label": "Date of Joining"
-  },
-  {
-   "depends_on": "eval:doc.type == 'Pregnant'",
-   "description": "Months",
-   "fieldname": "seniority",
-   "fieldtype": "Int",
-   "is_virtual": 1,
-   "label": "Seniority",
-   "read_only": 1
-  },
-  {
-   "depends_on": "eval:doc.type == 'Pregnant'",
-   "description": "Months",
-   "fieldname": "gestational_age",
-   "fieldtype": "Float",
-   "is_virtual": 1,
-   "label": "Gestational Age",
-   "precision": "1",
-   "read_only": 1
   },
   {
    "fetch_from": "employee.designation",
@@ -114,34 +67,132 @@
    "label": "Designation"
   },
   {
+   "fieldname": "column_break_halv",
+   "fieldtype": "Column Break"
+  },
+  {
    "default": "1",
    "fieldname": "apply_benefit",
    "fieldtype": "Check",
    "in_list_view": 1,
-   "label": "Apply Benefit",
-   "read_only_depends_on": "eval:doc.type == 'Maternity Leave'"
-  },
-  {
-   "depends_on": "eval:doc.type == 'Maternity Leave'",
-   "fieldname": "leave_application",
-   "fieldtype": "Link",
-   "label": "Leave Application",
-   "options": "Leave Application",
-   "read_only": 1
+   "label": "Apply Benefit"
   },
   {
    "fieldname": "note",
    "fieldtype": "Small Text",
    "label": "Note"
+  },
+  {
+   "fieldname": "pregnant_from_date",
+   "fieldtype": "Date",
+   "label": "Pregnant From Date"
+  },
+  {
+   "fieldname": "pregnant_to_date",
+   "fieldtype": "Date",
+   "label": "Pregnant To Date",
+   "read_only": 1
+  },
+  {
+   "fieldname": "estimated_due_date",
+   "fieldtype": "Date",
+   "label": "Estimated Due Date"
+  },
+  {
+   "description": "Months from Date of Joining to today",
+   "fieldname": "seniority",
+   "fieldtype": "Int",
+   "is_virtual": 1,
+   "label": "Seniority",
+   "read_only": 1
+  },
+  {
+   "description": "Months",
+   "fieldname": "gestational_age",
+   "fieldtype": "Float",
+   "is_virtual": 1,
+   "label": "Gestational Age",
+   "precision": "1",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_maternity",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "maternity_from_date",
+   "fieldtype": "Date",
+   "label": "Maternity From Date"
+  },
+  {
+   "fieldname": "maternity_to_date",
+   "fieldtype": "Date",
+   "label": "Maternity To Date"
+  },
+  {
+   "fieldname": "column_break_ytbx",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "youg_child_from_date",
+   "fieldtype": "Date",
+   "label": "Young Child From Date",
+   "read_only": 1
+  },
+  {
+   "fieldname": "youg_child_to_date",
+   "fieldtype": "Date",
+   "label": "Young Child To Date",
+   "read_only": 1
+  },
+  {
+   "fieldname": "date_of_birth",
+   "fieldtype": "Date",
+   "label": "Date of Birth"
+  },
+  {
+   "fieldname": "column_break_zgfm",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_qrtt",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_filter": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "\nPregnant\nMaternity Leave\nYoung Child\nInactive",
+   "read_only": 1
+  },
+  {
+   "fieldname": "maternity_from_date_estimate",
+   "fieldtype": "Date",
+   "label": "Maternity From Date Estimate"
+  },
+  {
+   "fetch_from": "employee.employee_name",
+   "fetch_if_empty": 1,
+   "fieldname": "full_name",
+   "fieldtype": "Data",
+   "in_filter": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Full Name",
+   "read_only": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-03-04 09:39:24.700649",
+ "modified": "2026-04-06 11:03:25.382111",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Employee Maternity",
+ "naming_rule": "Expression",
  "owner": "Administrator",
  "permissions": [
   {
@@ -153,6 +204,30 @@
    "read": 1,
    "report": 1,
    "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "HR User",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "HR Manager",
    "share": 1,
    "write": 1
   }

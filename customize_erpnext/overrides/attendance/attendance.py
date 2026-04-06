@@ -39,30 +39,52 @@ def get_attendance_custom_additional_info(employee, attendance_date):
 				f"⚠️ Employee has left on {relieving_str} - attendance after relieving date"
 			)
 
-	# Get maternity records
-	maternity_records = frappe.db.sql("""
-		SELECT type, from_date, to_date, apply_benefit
+	# Get maternity record (cấu trúc mới: 1 record/employee, 3 cặp ngày riêng)
+	em = frappe.db.sql("""
+		SELECT
+			pregnant_from_date, pregnant_to_date, estimated_due_date,
+			maternity_from_date, maternity_to_date,
+			youg_child_from_date, youg_child_to_date,
+			apply_benefit
 		FROM `tabEmployee Maternity`
 		WHERE employee = %(employee)s
-		  AND type IN ('Pregnant', 'Maternity Leave', 'Young Child')
-		  AND from_date <= %(date)s
-		  AND to_date >= %(date)s
-	""", {"employee": employee, "date": attendance_date}, as_dict=1)
+		LIMIT 1
+	""", {"employee": employee}, as_dict=1)
 
-	for record in maternity_records:
-		record_type = record.type
-		from_date = frappe.utils.formatdate(record.from_date, "dd/mm/yyyy")
-		to_date = frappe.utils.formatdate(record.to_date, "dd/mm/yyyy")
+	maternity_records = []  # dùng để kiểm tra có maternity không (cho note cuối)
 
-		if record.type == 'Pregnant':
-			if record.apply_benefit == 1:
-				details.append(f"🤰 {record_type}: {from_date} - {to_date} (Benefit Applied)")
-			else:
-				details.append(f"🤰 {record_type}: {from_date} - {to_date} (No Benefit)")
-		elif record.type == 'Maternity Leave':
-			details.append(f"🏠 {record_type}: {from_date} - {to_date}")
-		elif record.type == 'Young Child':
-			details.append(f"👶 {record_type}: {from_date} - {to_date}")
+	if em:
+		rec = em[0]
+		check_date = frappe.utils.getdate(attendance_date)
+
+		def _fmt(d):
+			return frappe.utils.formatdate(d, "dd/mm/yyyy") if d else "?"
+
+		# Pregnant period
+		if rec.pregnant_from_date:
+			eff_to = rec.pregnant_to_date or rec.estimated_due_date
+			if eff_to and rec.pregnant_from_date <= check_date <= frappe.utils.getdate(eff_to):
+				maternity_records.append(rec)
+				benefit_label = "Benefit Applied" if rec.apply_benefit == 1 else "No Benefit"
+				details.append(
+					f"🤰 Pregnant: {_fmt(rec.pregnant_from_date)} - {_fmt(eff_to)} ({benefit_label})"
+				)
+
+		# Maternity Leave period
+		if rec.maternity_from_date and rec.maternity_to_date:
+			if frappe.utils.getdate(rec.maternity_from_date) <= check_date <= frappe.utils.getdate(rec.maternity_to_date):
+				maternity_records.append(rec)
+				details.append(
+					f"🏠 Maternity Leave: {_fmt(rec.maternity_from_date)} - {_fmt(rec.maternity_to_date)}"
+				)
+
+		# Young Child period
+		if rec.youg_child_from_date and rec.youg_child_to_date:
+			if frappe.utils.getdate(rec.youg_child_from_date) <= check_date <= frappe.utils.getdate(rec.youg_child_to_date):
+				maternity_records.append(rec)
+				details.append(
+					f"👶 Young Child: {_fmt(rec.youg_child_from_date)} - {_fmt(rec.youg_child_to_date)}"
+				)
 
 	# Get overtime registration records
 	ot_records = frappe.db.sql("""

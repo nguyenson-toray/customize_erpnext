@@ -2520,25 +2520,40 @@ def generate_employee_list_html(employee_data, company_name, include_department=
     
     return html
 def check_employee_maternity_status(employee, attendance_date):
+	"""Cấu trúc mới: 1 record/employee với 3 cặp ngày riêng biệt."""
+	from frappe.utils import getdate
 	apply_pregnant_benefit = False
 	maternity_status = None
-	maternity_records = frappe.db.sql("""
-		SELECT type, from_date, to_date, apply_benefit
+
+	em = frappe.db.sql("""
+		SELECT pregnant_from_date, pregnant_to_date, estimated_due_date,
+		       maternity_from_date, maternity_to_date,
+		       youg_child_from_date, youg_child_to_date,
+		       apply_benefit
 		FROM `tabEmployee Maternity`
 		WHERE employee = %(employee)s
-		  AND type IN ('Pregnant', 'Maternity Leave', 'Young Child')
-		  AND from_date <= %(date)s
-		  AND to_date >= %(date)s
-	""", {"employee": employee, "date": attendance_date}, as_dict=1)
+		LIMIT 1
+	""", {"employee": employee}, as_dict=True)
 
-	if maternity_records:
-		maternity_status = maternity_records[0].type
-		if maternity_records[0].type == 'Young Child':
-			apply_pregnant_benefit = True
-		elif maternity_records[0].type == 'Maternity Leave':
-			apply_pregnant_benefit = True
-		elif maternity_records[0].type == 'Pregnant' and maternity_records[0].apply_benefit:
-			apply_pregnant_benefit = True
+	if not em:
+		return maternity_status, apply_pregnant_benefit
+
+	rec = em[0]
+	check_d = getdate(attendance_date)
+
+	if rec.maternity_from_date and rec.maternity_to_date:
+		if getdate(rec.maternity_from_date) <= check_d <= getdate(rec.maternity_to_date):
+			return "Maternity Leave", True
+
+	if rec.youg_child_from_date and rec.youg_child_to_date:
+		if getdate(rec.youg_child_from_date) <= check_d <= getdate(rec.youg_child_to_date):
+			return "Young Child", True
+
+	if rec.pregnant_from_date:
+		eff_to = rec.pregnant_to_date or rec.estimated_due_date
+		if eff_to and getdate(rec.pregnant_from_date) <= check_d <= getdate(eff_to):
+			apply_benefit = bool(rec.apply_benefit)
+			return "Pregnant", apply_benefit
 
 	return maternity_status, apply_pregnant_benefit
 

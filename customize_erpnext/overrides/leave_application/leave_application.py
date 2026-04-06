@@ -5,10 +5,12 @@ Override so với HRMS gốc:
 1. validate_attendance(): Chỉ block Full Day leave khi working_hours >= 8
 2. create_or_update_attendance(): Status logic + dual leave support
 3. on_leave_application_cancel(): Xử lý cancel đúng khi có dual leave
+4. CustomLeaveApplication.on_cancel(): Async cancel cho maternity leave (~180 ngày)
 
 HRMS gốc:
 - validate_attendance(): Block TẤT CẢ attendance "Present"/"Work From Home"
 - create_or_update_attendance(): status = "Half Day" or "On Leave" only
+- on_cancel(): cancel_attendance() lặp qua từng ngày đồng bộ → timeout với 6-month leave
 
 === validate_attendance() ===
 - Half Day leave: LUÔN cho phép
@@ -25,11 +27,17 @@ HRMS gốc:
 === Dual Leave ===
 - 2 Half Day LAs cùng ngày với 2 loại nghỉ phép khác nhau
 - LA2 lưu vào custom_leave_type_2, custom_leave_application_2
+
+=== Maternity Leave Cancel (async) ===
+- Skip cancel_attendance() đồng bộ của HRMS (180 vòng lặp db_set_value)
+- Attendance recalc được xử lý qua Employee Maternity hooks
+  → delete Employee Maternity → on_maternity_delete → background job
 """
 
 import frappe
 from frappe import _
 from frappe.utils import getdate, formatdate, get_link_to_form
+from hrms.hr.doctype.leave_application.leave_application import LeaveApplication
 
 
 # =============================================================================
@@ -48,6 +56,7 @@ FULL_DAY_WORKING_HOURS_THRESHOLD = 8
 def custom_validate_attendance(self):
 	"""
 	Override validate_attendance để cho phép leave trong hầu hết trường hợp.
+	Chỉ chạy khi status = Approved và docstatus = 1 (submitted).
 
 	HRMS gốc (leave_application.py:602-629):
 	- Block TẤT CẢ attendance có status "Present" hoặc "Work From Home"
@@ -58,6 +67,10 @@ def custom_validate_attendance(self):
 	  - Half Day leave: luôn cho phép
 	  - Full Day leave với working_hours < 8: cho phép
 	"""
+	# Chỉ validate khi Approved & submitted
+	if self.status != "Approved" or self.docstatus != 1:
+		return
+
 	from hrms.hr.doctype.leave_application.leave_application import AttendanceAlreadyMarkedError
 
 	# Query attendance
@@ -133,6 +146,7 @@ def custom_validate_attendance(self):
 def custom_create_or_update_attendance(self, attendance_name, date):
 	"""
 	Override create_or_update_attendance để hỗ trợ 2 Half Day LAs cùng ngày.
+	Chỉ chạy khi status = Approved và docstatus = 1 (submitted).
 
 	HRMS gốc (leave_application.py:316-349):
 	- status = "Half Day" nếu half_day_date match, ngược lại "On Leave"
@@ -146,6 +160,10 @@ def custom_create_or_update_attendance(self, attendance_name, date):
 	- Hỗ trợ 2 Half Day LAs riêng biệt cùng ngày
 	- LA2 được lưu vào custom_leave_type_2, custom_leave_application_2
 	"""
+	# Chỉ update attendance khi Approved & submitted
+	if self.status != "Approved" or self.docstatus != 1:
+		return
+
 	from customize_erpnext.overrides.leave_utils import (
 		get_leave_type_abbreviation,
 		get_combined_abbreviation,
@@ -321,87 +339,36 @@ def on_leave_application_cancel(doc, method):
 
 
 # =============================================================================
-# MATERNITY LEAVE SYNC: Leave Application → Employee Maternity
+# CLASS OVERRIDE: CustomLeaveApplication
 # =============================================================================
 
-MATERNITY_LEAVE_TYPE = "Nghỉ hưởng BHXH/ Social insurance leave - Thai sản"
-
-
-def sync_maternity_leave_on_submit(doc, method):
+class CustomLeaveApplication(LeaveApplication):
 	"""
-	Hook on_submit: Create Employee Maternity record when maternity leave is submitted.
+	Override LeaveApplication để fix timeout khi cancel leave dài ngày (thai sản ~6 tháng, v.v.)
+
+	Vấn đề HRMS gốc: cancel_attendance() lặp từng record, gọi db.set_value() riêng lẻ
+	(~180 lần cho 6 tháng) → timeout web request.
+
+	Ngoài ra: skip cancel_attendance() không đủ vì Frappe's check_no_back_links_exist()
+	(chạy sau on_cancel) throw LinkExistsError khi còn 180 submitted Attendance link tới LA.
+
+	Fix: 1 SQL batch UPDATE thay cho loop — áp dụng cho mọi leave type.
+	Maternity attendance recalc vẫn được xử lý qua Employee Maternity hooks khi EM được update/delete.
 	"""
-	if doc.leave_type != MATERNITY_LEAVE_TYPE:
-		return
 
-	# Check if Employee Maternity already exists for this LA
-	existing = frappe.db.exists("Employee Maternity", {"leave_application": doc.name})
-	if existing:
-		return
-
-	em = frappe.new_doc("Employee Maternity")
-	em.employee = doc.employee
-	em.type = "Maternity Leave"
-	em.from_date = doc.from_date
-	em.to_date = doc.to_date
-	em.apply_benefit = 1
-	em.leave_application = doc.name
-	em.flags.from_leave_application = True
-	em.insert(ignore_permissions=True)
-
-	frappe.msgprint(
-		_("Employee Maternity record {0} created automatically").format(
-			frappe.utils.get_link_to_form("Employee Maternity", em.name)
-		),
-		indicator="green",
-		alert=True
-	)
-
-
-def sync_maternity_leave_on_cancel(doc, method):
-	"""
-	Hook on_cancel: Delete Employee Maternity record when maternity leave is cancelled.
-	"""
-	if doc.leave_type != MATERNITY_LEAVE_TYPE:
-		return
-
-	existing = frappe.db.get_value("Employee Maternity",
-		{"leave_application": doc.name}, "name")
-
-	if existing:
-		frappe.delete_doc("Employee Maternity", existing, ignore_permissions=True, force=True)
-		frappe.msgprint(
-			_("Employee Maternity record {0} deleted").format(existing),
-			indicator="orange",
-			alert=True
-		)
-
-
-def sync_maternity_leave_on_update(doc, method):
-	"""
-	Hook on_update_after_submit: Update Employee Maternity dates when LA is amended.
-	"""
-	if doc.leave_type != MATERNITY_LEAVE_TYPE:
-		return
-
-	existing = frappe.db.get_value("Employee Maternity",
-		{"leave_application": doc.name}, "name")
-
-	if existing:
-		em = frappe.get_doc("Employee Maternity", existing)
-		if str(em.from_date) != str(doc.from_date) or str(em.to_date) != str(doc.to_date):
-			em.from_date = doc.from_date
-			em.to_date = doc.to_date
-			em.flags.from_leave_application = True
-			em.save(ignore_permissions=True)
-
-			frappe.msgprint(
-				_("Employee Maternity record {0} updated").format(
-					frappe.utils.get_link_to_form("Employee Maternity", em.name)
-				),
-				indicator="blue",
-				alert=True
-			)
+	def cancel_attendance(self):
+		"""Batch cancel attendance trong 1 SQL thay vì loop per-record của HRMS."""
+		from frappe.utils import now
+		if self.docstatus != 2:
+			return
+		frappe.db.sql("""
+			UPDATE `tabAttendance`
+			SET docstatus = 2, modified = %s, modified_by = %s
+			WHERE employee = %s
+			  AND attendance_date BETWEEN %s AND %s
+			  AND docstatus < 2
+			  AND status IN ('On Leave', 'Half Day')
+		""", (now(), frappe.session.user, self.employee, self.from_date, self.to_date))
 
 
 print("✅ Leave Application overrides loaded")

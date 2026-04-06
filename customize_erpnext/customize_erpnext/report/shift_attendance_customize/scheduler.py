@@ -10,10 +10,14 @@ import tempfile
 from customize_erpnext.api.site_restriction import only_for_sites
 
 @frappe.whitelist()
-def send_daily_attendance_report(report_date=None, recipients=None):
+def send_daily_attendance_report(report_date=None, recipients=None, force_update_attendance=0):
 	"""
 	Enqueue Daily Attendance Report to run in background.
 	Returns immediately so UI doesn't timeout.
+
+	Args:
+		force_update_attendance: 1 = recalculate attendance before generating report
+		                         0 = use existing attendance data as-is
 	"""
 	import re
 
@@ -38,17 +42,21 @@ def send_daily_attendance_report(report_date=None, recipients=None):
 	else:
 		report_date_str = today()
 
+	do_force_update = bool(int(force_update_attendance or 0))
+
 	frappe.enqueue(
 		_send_daily_attendance_report_job,
 		queue="long",
 		timeout=600,
 		report_date_str=report_date_str,
-		recipient_list=recipient_list
+		recipient_list=recipient_list,
+		force_update_attendance=do_force_update
 	)
 
+	action = "Recalculating attendance then generating" if do_force_update else "Generating"
 	return {
 		"status": "success",
-		"message": f"Report is being generated and will be sent to {len(recipient_list)} recipients in background"
+		"message": f"{action} report for {len(recipient_list)} recipients in background"
 	}
 
 
@@ -75,10 +83,13 @@ def _is_holiday_or_sunday(date_str):
 	return False
 
 
-def _send_daily_attendance_report_job(report_date_str, recipient_list):
+def _send_daily_attendance_report_job(report_date_str, recipient_list, force_update_attendance=False):
 	"""
 	Background job: generate and send Daily Attendance Report via email.
 	Skips sending on Holidays and Sundays.
+
+	Args:
+		force_update_attendance: True = recalculate attendance before generating report
 	"""
 	# Skip sending on Holiday & Sunday
 	if _is_holiday_or_sunday(report_date_str):
@@ -86,6 +97,20 @@ def _send_daily_attendance_report_job(report_date_str, recipient_list):
 		return
 
 	try:
+		# Recalculate attendance if requested
+		if force_update_attendance:
+			from customize_erpnext.overrides.shift_type.shift_type_optimized import _core_process_attendance_logic_optimized
+			from frappe.utils import getdate
+			frappe.logger().info(f"[Daily Report] Force updating attendance for {report_date_str}")
+			_core_process_attendance_logic_optimized(
+				employees=[],
+				days=[getdate(report_date_str)],
+				from_date=report_date_str,
+				to_date=report_date_str,
+				fore_get_logs=True
+			)
+			frappe.logger().info(f"[Daily Report] Attendance recalculation complete for {report_date_str}")
+
 		# Import the report get_data function
 		from customize_erpnext.customize_erpnext.report.shift_attendance_customize.shift_attendance_customize import get_data
 
@@ -119,6 +144,13 @@ def _send_daily_attendance_report_job(report_date_str, recipient_list):
 		left_with_checkins = get_left_employees_with_checkins(report_date_str)
 		stats['left_with_checkins'] = left_with_checkins
 		stats['left_with_checkins_count'] = len(left_with_checkins)
+
+		# Get early-checkout Day-shift employees (7 ≤ working_hours < 8, checkout 16:xx)
+		# These may be pregnant/nursing employees not yet registered in Employee Maternity
+		early_checkout_list, early_checkout_date = get_early_checkout_day_shift(report_date_str)
+		stats['early_checkout_list'] = early_checkout_list
+		stats['early_checkout_count'] = len(early_checkout_list)
+		stats['early_checkout_date'] = early_checkout_date
 
 		# Get last employee checkin time
 		last_checkin_time = get_last_employee_checkin_time()
@@ -167,8 +199,16 @@ def calculate_attendance_statistics(report_date, data):
 	- Total on leave (On Leave, Half Day)
 	- Working hours summary
 	"""
-	# Count total active employees
-	total_employees = frappe.db.count("Employee", filters={"status": "Active"})
+	# Count employees who were active on report_date
+	# (not current Active count — some may have left since then)
+	total_employees = frappe.db.sql("""
+		SELECT COUNT(*) FROM `tabEmployee`
+		WHERE (date_of_joining IS NULL OR date_of_joining <= %(date)s)
+		  AND (
+		      status = 'Active'
+		      OR (status = 'Left' AND relieving_date >= %(date)s)
+		  )
+	""", {"date": report_date})[0][0]
 
 	# Separate employees by status
 	present_employees = []
@@ -176,21 +216,28 @@ def calculate_attendance_statistics(report_date, data):
 	on_leave_employees = []
 	maternity_employees = []
 
-	MATERNITY_LEAVE_TYPE = "Nghỉ hưởng BHXH/ Social insurance leave - Thai sản"
-
 	total_working_hours = 0
 	total_actual_overtime = 0
 	total_approved_overtime = 0
 	total_final_overtime = 0
 
+	# Query Employee Maternity for employees on maternity leave on report_date
+	# (maternity_from_date..maternity_to_date only — not pregnant/young_child)
+	maternity_emp_set = set(frappe.db.sql_list("""
+		SELECT employee FROM `tabEmployee Maternity`
+		WHERE maternity_from_date <= %(date)s AND maternity_to_date >= %(date)s
+	""", {"date": report_date}))
+
 	# Bulk-load employee details (designation, attendance_device_id) in ONE query
 	all_employees = set(row.get('employee') for row in data if row.get('employee'))
+	# Also include maternity employees who may have no attendance record
+	all_employees.update(maternity_emp_set)
 	emp_details_map = {}
 	if all_employees:
 		emp_details = frappe.db.sql("""
-			SELECT name, designation, attendance_device_id
+			SELECT name, employee_name, department, custom_group, designation, attendance_device_id
 			FROM `tabEmployee`
-			WHERE name IN %(employees)s
+			WHERE name IN %(employees)s AND status = 'Active'
 		""", {"employees": list(all_employees)}, as_dict=True)
 		for ed in emp_details:
 			emp_details_map[ed.name] = ed
@@ -243,13 +290,36 @@ def calculate_attendance_statistics(report_date, data):
 				total_approved_overtime += approved_overtime
 				total_final_overtime += final_overtime
 			elif status_clean == 'On Leave':
-				# Separate maternity leave from other leave types
-				if emp_info.get('leave_type') == MATERNITY_LEAVE_TYPE:
-					maternity_employees.append(emp_info)
-				else:
-					on_leave_employees.append(emp_info)
+				on_leave_employees.append(emp_info)
 			elif status_clean == 'Absent':
 				absent_employees.append(emp_info)
+
+	# Add maternity employees from EM who have no attendance record (expected after simplification)
+	# Also move any maternity employee who appeared as Absent into maternity list
+	absent_emp_names = {e['employee'] for e in absent_employees}
+	for emp in maternity_emp_set:
+		emp_doc = emp_details_map.get(emp, {})
+		if not emp_doc:
+			continue  # Skip inactive or unknown employees
+		mat_info = {
+			'employee': emp,
+			'employee_name': emp_doc.get('employee_name', ''),
+			'department': emp_doc.get('department', ''),
+			'custom_group': emp_doc.get('custom_group', ''),
+			'shift': '',
+			'leave_type': None,
+			'leave_application': None,
+			'half_day_status': None,
+			'designation': emp_doc.get('designation') or '',
+			'attendance_device_id': emp_doc.get('attendance_device_id') or ''
+		}
+		if emp not in employee_data:
+			# No attendance record → add directly to maternity list
+			maternity_employees.append(mat_info)
+		elif emp in absent_emp_names:
+			# Was marked Absent (old data before fix) → move to maternity list
+			absent_employees = [e for e in absent_employees if e['employee'] != emp]
+			maternity_employees.append(mat_info)
 
 	# Sort lists by custom_group (A-Z)
 	present_employees = sorted(present_employees, key=lambda x: (x.get("custom_group") or "").lower())
@@ -488,6 +558,62 @@ def get_incomplete_checkins(start_date, end_date):
 			incomplete_list.append(emp)
 
 	return incomplete_list
+
+
+def get_early_checkout_day_shift(report_date):
+	"""
+	Lấy các attendance ngày hôm qua (ca Day) có:
+	  - last checkout 16:00–16:59
+	  - 7 <= working_hours < 8
+	Thứ Hai → lấy thứ Bảy tuần trước (bỏ qua CN).
+	Trả về (list, date_str).
+	"""
+	from frappe.utils import getdate
+
+	yesterday = add_days(report_date, -1)
+	yesterday_date = getdate(yesterday)
+	# Thứ Hai (weekday=0): hôm qua là CN → dùng thứ Bảy
+	if yesterday_date.weekday() == 6:
+		yesterday = add_days(yesterday, -1)
+		yesterday_date = getdate(yesterday)
+
+	yesterday_str = str(yesterday_date)
+
+	try:
+		rows = frappe.db.sql("""
+			SELECT
+				e.attendance_device_id,
+				a.employee,
+				e.employee_name,
+				e.department,
+				e.custom_group,
+				e.designation,
+				a.attendance_date,
+				a.working_hours,
+				a.shift,
+				MAX(ec.time) AS last_checkout
+			FROM `tabAttendance` a
+			JOIN `tabEmployee` e ON e.name = a.employee
+			LEFT JOIN `tabEmployee Checkin` ec
+				ON ec.employee = a.employee
+				AND DATE(ec.time) = a.attendance_date
+			WHERE a.attendance_date = %(yesterday)s
+			  AND a.shift LIKE 'Day%%'
+			  AND a.working_hours >= 7
+			  AND a.working_hours < 8
+			  AND a.docstatus = 1
+			GROUP BY
+				a.name, a.employee, a.attendance_date, a.working_hours, a.shift,
+				e.attendance_device_id, e.employee_name, e.department,
+				e.custom_group, e.designation
+			HAVING TIME(MAX(ec.time)) >= '16:00:00'
+			   AND TIME(MAX(ec.time)) <  '17:00:00'
+			ORDER BY e.custom_group, e.employee_name
+		""", {"yesterday": yesterday_str}, as_dict=True)
+		return rows, yesterday_str
+	except Exception as e:
+		frappe.logger().error(f"Error in get_early_checkout_day_shift: {str(e)}")
+		return [], yesterday_str
 
 
 def get_left_employees_with_checkins(report_date):
@@ -810,6 +936,70 @@ def generate_email_content(report_date, stats, data, last_checkin_time=None):
 	else:
 		left_warning_section = ""
 
+	# Build early-checkout table (7 ≤ working_hours < 8, checkout 16:xx, Day shift)
+	early_checkout_list = stats.get('early_checkout_list', [])
+	early_checkout_count = stats.get('early_checkout_count', 0)
+	early_checkout_date = stats.get('early_checkout_date', '')
+	early_checkout_date_fmt = formatdate(early_checkout_date, "dd/MM/yyyy") if early_checkout_date else ''
+
+	early_checkout_rows = ""
+	if early_checkout_list:
+		for idx, emp in enumerate(early_checkout_list, 1):
+			bg = '#fafafa' if idx % 2 == 0 else '#ffffff'
+			last_co = emp.get('last_checkout')
+			last_co_str = last_co.strftime("%H:%M:%S") if last_co and hasattr(last_co, 'strftime') else (str(last_co)[:8] if last_co else '')
+			wh = emp.get('working_hours') or 0
+			early_checkout_rows += f"""
+			<tr style="background:{bg}">
+				<td class="dc">{idx}</td>
+				<td class="dc">{early_checkout_date_fmt}</td>
+				<td class="d">{emp.get('attendance_device_id') or ''}</td>
+				<td class="d">{emp.get('employee') or ''}</td>
+				<td class="d"><strong>{emp.get('employee_name') or ''}</strong></td>
+				<td class="d">{emp.get('department') or ''}</td>
+				<td class="d">{emp.get('custom_group') or ''}</td>
+				<td class="d">{emp.get('shift') or ''}</td>
+				<td class="d">{emp.get('designation') or ''}</td>
+				<td class="dc">{last_co_str}</td>
+				<td class="dc">{wh:.2f}</td>
+			</tr>"""
+	else:
+		early_checkout_rows = """
+		<tr>
+			<td colspan="11" class="empty-row">Không có trường hợp nào</td>
+		</tr>
+		"""
+
+	if early_checkout_count:
+		early_checkout_section = f"""
+  <div style="margin:24px 0 0;border:2px solid #f57c00;border-radius:8px;overflow:hidden">
+    <div style="background:#f57c00;padding:12px 18px;display:flex;align-items:center;gap:10px">
+      <span style="font-size:20px">⚠️</span>
+      <div>
+        <div style="color:#fff;font-weight:700;font-size:15px">Về sớm bất thường — Ca Day ngày {early_checkout_date_fmt} &nbsp;<span style="font-weight:400;font-size:13px">({early_checkout_count} TH)</span></div>
+        <div style="color:rgba(255,255,255,.85);font-size:12px;margin-top:2px">Giờ làm 7–8h, checkout 16:xx — Có thể là nhân viên mang thai/nuôi con chưa cập nhật Employee Maternity</div>
+      </div>
+    </div>
+    <table class="dt" style="margin:0">
+      <thead><tr>
+        <th class="th-warn" style="width:3%;text-align:center">STT</th>
+        <th class="th-warn" style="width:5%;text-align:center">Ngày</th>
+        <th class="th-warn" style="width:5%">Att ID</th>
+        <th class="th-warn" style="width:8%">Employee</th>
+        <th class="th-warn" style="width:16%">Employee Name</th>
+        <th class="th-warn" style="width:10%">Department</th>
+        <th class="th-warn" style="width:8%">Group</th>
+        <th class="th-warn" style="width:6%">Shift</th>
+        <th class="th-warn" style="width:14%">Designation</th>
+        <th class="th-warn" style="width:8%;text-align:center">Check-out cuối</th>
+        <th class="th-warn" style="width:7%;text-align:center">Giờ làm</th>
+      </tr></thead>
+      <tbody>{early_checkout_rows}</tbody>
+    </table>
+  </div>"""
+	else:
+		early_checkout_section = ""
+
 	absent_count    = len(stats.get('absent_employees', []))
 	maternity_count = stats['maternity_count']
 	on_leave_count  = stats['on_leave_count']
@@ -894,7 +1084,7 @@ def generate_email_content(report_date, stats, data, last_checkin_time=None):
 
   <!-- Disclaimer -->
   <div class="notice">
-    ⚠️ <strong>Lưu ý:</strong> Dữ liệu có thể chưa bao gồm nhân viên mới nhận việc trong ngày — cần kiểm tra lại.
+    ⚠️ <strong>Lưu ý:</strong> Dữ liệu hiện diện có thể chưa bao gồm nhân viên mới nhận việc trong ngày, nhân viên làm ca 2 — cần kiểm tra lại.
   </div>
 
   <!-- Stat cards -->
@@ -911,7 +1101,7 @@ def generate_email_content(report_date, stats, data, last_checkin_time=None):
       <td><div class="card"><div class="lbl">🏖 Nghỉ phép</div>
           <div class="val c-orange">{on_leave_count}</div></div></td>
       <td><div class="card">
-          <div class="lbl">⏱ Thiếu chấm</div>
+          <div class="lbl">⏱ Chấm công thiếu</div>
           <div class="val c-teal">{incomplete_count}</div>
           <div style="font-size:11px;color:#888;margin-top:3px">
             <span style="color:#1a7a4a;font-weight:700">{incomplete_processed}</span> / {incomplete_count} đã xử lý
@@ -1013,6 +1203,8 @@ def generate_email_content(report_date, stats, data, last_checkin_time=None):
       <tbody>{incomplete_checkin_rows}</tbody>
     </table>
   </div>
+
+  {early_checkout_section}
 
   <!-- Footer -->
   <div class="ftr">

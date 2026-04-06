@@ -282,6 +282,15 @@ def get_report_summary(data, filters):
 
 	present_records = on_leave_records = maternity_records = absent_records = late_entries = early_exits = 0
 
+	# Maternity count from Employee Maternity (source of truth — no Leave Application needed)
+	from_date = filters.get("from_date") if filters else None
+	to_date = (filters.get("to_date") if filters else None) or from_date
+	if from_date:
+		maternity_records = frappe.db.count("Employee Maternity", filters=[
+			["maternity_from_date", "<=", to_date],
+			["maternity_to_date", ">=", from_date],
+		])
+
 	for entry in data:
 		# Check status (may contain HTML tags after formatting)
 		status_text = entry.get("status")
@@ -289,10 +298,7 @@ def get_report_summary(data, filters):
 			if "Present" in status_text:
 				present_records += 1
 			elif "On Leave" in status_text or "Half Day" in status_text:
-				if entry.get("custom_leave_application_abbreviation") == "TS": # Leave Type : Nghỉ hưởng BHXH/ Social insurance leave - Thai sản
-					maternity_records += 1
-				else:
-					on_leave_records += 1
+				on_leave_records += 1
 			elif "Absent" in status_text:
 				absent_records += 1
 

@@ -234,9 +234,10 @@ scheduler_events = {
         #     "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.scheduler_jobs.smart_auto_update_custom_attendance"
         # ],
 
-        # Auto mark employees as Left - Every day at 00:00
+        # Auto mark employees as Left + recalculate maternity status - Every day at 00:00
         "0 0 * * *": [
-            "customize_erpnext.overrides.employee.employee.auto_mark_employees_as_left"
+            "customize_erpnext.overrides.employee.employee.auto_mark_employees_as_left",
+            "customize_erpnext.customize_erpnext.doctype.employee_maternity.employee_maternity.scheduled_calculate_all_maternity_statuses",
         ]
     }
 }
@@ -247,6 +248,11 @@ scheduler_events = {
 # override_doctype_class = {
 #     "Stock Reconciliation": "customize_erpnext.override_methods.stock_reconciliation.custom_stock_reconciliation.CustomStockReconciliation"
 # }
+override_doctype_class = {
+    # Fix timeout khi cancel maternity leave (~6 tháng / ~180 ngày)
+    # Skip HRMS cancel_attendance() loop đồng bộ, dùng background job thay thế
+    "Leave Application": "customize_erpnext.overrides.leave_application.leave_application.CustomLeaveApplication"
+}
 # Document Events
 doc_events = {
     # Employee Checkin Events
@@ -303,13 +309,11 @@ doc_events = {
     },
 
     # Employee Maternity Events
-    # - Validate maternity records
-    # - Auto-update Attendance when maternity tracking changes
+    # - Auto-update Attendance when maternity date ranges change (UI + Data Import)
     "Employee Maternity": {
-        "validate": "customize_erpnext.customize_erpnext.doctype.employee_maternity.employee_maternity.validate_maternity",
-        "on_update": "customize_erpnext.customize_erpnext.doctype.employee_maternity.employee_maternity.on_maternity_update",
+        "on_update":    "customize_erpnext.customize_erpnext.doctype.employee_maternity.employee_maternity.on_maternity_update",
         "after_insert": "customize_erpnext.customize_erpnext.doctype.employee_maternity.employee_maternity.on_maternity_insert",
-        "on_trash": "customize_erpnext.customize_erpnext.doctype.employee_maternity.employee_maternity.on_maternity_delete",
+        "on_trash":     "customize_erpnext.customize_erpnext.doctype.employee_maternity.employee_maternity.on_maternity_delete",
     },
 
     # Shift Type Events
@@ -343,14 +347,10 @@ doc_events = {
 
     # Leave Application Events
     # - Handle dual leave cancellation (update attendance when LA cancelled)
-    # - Sync maternity leave to Employee Maternity
     "Leave Application": {
         "on_cancel": [
             "customize_erpnext.overrides.leave_application.leave_application.on_leave_application_cancel",
-            "customize_erpnext.overrides.leave_application.leave_application.sync_maternity_leave_on_cancel",
         ],
-        "on_submit": "customize_erpnext.overrides.leave_application.leave_application.sync_maternity_leave_on_submit",
-        "on_update_after_submit": "customize_erpnext.overrides.leave_application.leave_application.sync_maternity_leave_on_update",
     }
 
 }

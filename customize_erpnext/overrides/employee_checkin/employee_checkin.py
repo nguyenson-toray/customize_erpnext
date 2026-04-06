@@ -24,31 +24,11 @@ MIN_MINUTES_PRE_SHIFT_OT = 60          # Minimum pre-shift OT
 
 
 def check_maternity_benefit(employee, attendance_date):
-	"""Check if employee has maternity benefit
-	- Pregnant: Requires apply_benefit = 1 in Employee Maternity
-	- Maternity Leave: Auto benefit
-	- Young Child: Auto benefit
+	"""Check if employee has maternity benefit on attendance_date.
+	Delegates to check_employee_maternity_status (single source of truth in employee_utils).
 	"""
-	maternity_records = frappe.db.sql("""
-		SELECT type, from_date, to_date, apply_benefit
-		FROM `tabEmployee Maternity`
-		WHERE employee = %(employee)s
-		  AND type IN ('Pregnant', 'Maternity Leave', 'Young Child')
-		  AND from_date <= %(date)s
-		  AND to_date >= %(date)s
-	""", {"employee": employee, "date": attendance_date}, as_dict=1)
-
-	if not maternity_records:
-		return False
-
-	for record in maternity_records:
-		if record.type in ('Young Child', 'Maternity Leave'):
-			return True
-		elif record.type == 'Pregnant':
-			if record.apply_benefit == 1:
-				return True
-
-	return False
+	_, has_benefit = check_employee_maternity_status(employee, attendance_date)
+	return has_benefit
 
 def timedelta_to_time(td, default=None):
 	"""Convert timedelta to time object
@@ -1107,12 +1087,11 @@ def _recalculate_attendance_background(employee, checkin_date):
 def update_attendance_on_checkin_insert(doc, method):
 	"""
 	Enqueue attendance recalculation when a new employee checkin is created.
-
-	Args:
-		doc: Employee Checkin document being inserted
-		method: Hook method name (after_insert)
+	Skipped during bulk Data Import to prevent queue flooding (recalculate manually after import).
 	"""
 	if not doc.employee or not doc.time:
+		return
+	if getattr(frappe.flags, 'in_import', False):
 		return
 
 	_recalculate_attendance(doc.employee, getdate(doc.time))
@@ -1121,12 +1100,11 @@ def update_attendance_on_checkin_insert(doc, method):
 def update_attendance_on_checkin_update(doc, method):
 	"""
 	Enqueue attendance recalculation when employee checkin is updated.
-
-	Args:
-		doc: Employee Checkin document being updated
-		method: Hook method name (on_update)
+	Skipped during bulk Data Import to prevent queue flooding (recalculate manually after import).
 	"""
 	if not doc.employee or not doc.time:
+		return
+	if getattr(frappe.flags, 'in_import', False):
 		return
 
 	_recalculate_attendance(doc.employee, getdate(doc.time))
