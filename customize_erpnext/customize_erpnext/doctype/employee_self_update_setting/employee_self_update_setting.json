@@ -15,9 +15,9 @@
   "section_config",
   "verified_by_date_of_birth_or_phone_number",
   "only_scan_qr_cccd",
+  "guide",
   "field_config_json",
-  "btn_reset_config",
-  "guide"
+  "btn_reset_config"
  ],
  "fields": [
   {
@@ -51,6 +51,7 @@
    "label": "QR & Link"
   },
   {
+   "allow_bulk_edit": 1,
    "fieldname": "employees",
    "fieldtype": "Table",
    "label": "Employees",
@@ -98,7 +99,7 @@
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-03-30 16:16:03.833426",
+ "modified": "2026-03-31 13:25:42.711920",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Employee Self Update Setting",

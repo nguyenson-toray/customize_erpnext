@@ -7,7 +7,9 @@
  "field_order": [
   "employee",
   "employee_name",
-  "group"
+  "group",
+  "mobile",
+  "dob"
  ],
  "fields": [
   {
@@ -31,13 +33,27 @@
    "fetch_from": "employee.custom_group",
    "fieldname": "group",
    "fieldtype": "Data",
-   "in_list_view": 1,
    "label": "Group"
+  },
+  {
+   "fetch_from": "employee.cell_number",
+   "fieldname": "mobile",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Mobile",
+   "options": "Phone"
+  },
+  {
+   "fetch_from": "employee.date_of_birth",
+   "fieldname": "dob",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "DOB"
   }
  ],
  "istable": 1,
  "links": [],
- "modified": "2026-03-26 10:32:35.800734",
+ "modified": "2026-03-31 13:24:29.555553",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Employee Self Update Employee",
