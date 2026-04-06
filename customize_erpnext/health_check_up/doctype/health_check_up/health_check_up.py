@@ -54,22 +54,16 @@ class HealthCheckUp(Document):
     def check_pregnant_status(self):
         """
         Auto-check pregnant status for female employees.
-        Looks up Employee Maternity doctype where type='Pregnant'.
-        Adjust docstatus filter based on your workflow:
-          - docstatus=1 if Employee Maternity uses Submit workflow
-          - Remove docstatus filter if it uses Save only
+        Cấu trúc mới: kiểm tra pregnant_from_date có giá trị trên EM record của employee.
         """
         if self.gender not in ("Female", "Nữ"):
             self.pregnant = 0
             return
 
-        is_pregnant = frappe.db.exists(
+        is_pregnant = frappe.db.get_value(
             "Employee Maternity",
-            {
-                "employee": self.employee,
-                "type": "Pregnant",
-                # "docstatus": 1,  # Uncomment if using Submit workflow
-            },
+            {"employee": self.employee},
+            "pregnant_from_date",
         )
         self.pregnant = 1 if is_pregnant else 0
 

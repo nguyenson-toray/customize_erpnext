@@ -43,14 +43,13 @@ frappe.ui.form.on("Health Check-Up", {
         }
     },
     check_pregnant(frm) {
+        // Cấu trúc mới: kiểm tra pregnant_from_date có giá trị trên EM record
         if (frm.is_new() && (frm.doc.gender === "Female")) {
-            frappe.db.count("Employee Maternity", [
-                ["employee", "=", frm.doc.employee],
-                ["type", "=", "Pregnant"],
-                ["from_date", "<=", frm.doc.date],
-                ["to_date", ">=", frm.doc.date]
-            ]).then((count) => {
-                frm.set_value("pregnant", count > 0 ? 1 : 0);
+            frappe.db.get_value("Employee Maternity",
+                { employee: frm.doc.employee },
+                "pregnant_from_date"
+            ).then((r) => {
+                frm.set_value("pregnant", (r && r.message && r.message.pregnant_from_date) ? 1 : 0);
             });
         }
     },
