@@ -1,0 +1,118 @@
+{
+ "actions": [],
+ "creation": "2026-04-08 00:00:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "camera",
+  "nvr",
+  "channel_no",
+  "camera_name",
+  "location",
+  "priority",
+  "status",
+  "column_break_1",
+  "last_time_recorded",
+  "days_recorded",
+  "gap",
+  "offline_since"
+ ],
+ "fields": [
+  {
+   "fieldname": "camera",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Camera",
+   "options": "Camera",
+   "print_hide": 1
+  },
+  {
+   "fetch_from": "camera.nvr",
+   "fieldname": "nvr",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "NVR",
+   "print_hide": 1,
+   "read_only": 1
+  },
+  {
+   "fetch_from": "camera.channel_no",
+   "fieldname": "channel_no",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Channel No.",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "camera.camera_name",
+   "fieldname": "camera_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Camera Name",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "camera.location",
+   "fieldname": "location",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Location",
+   "read_only": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "Online\nOffline"
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "last_time_recorded",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Last Time Recorded"
+  },
+  {
+   "fieldname": "days_recorded",
+   "fieldtype": "Float",
+   "in_standard_filter": 1,
+   "label": "Days Recorded"
+  },
+  {
+   "fieldname": "gap",
+   "fieldtype": "Small Text",
+   "in_list_view": 1,
+   "label": "Gap Info"
+  },
+  {
+   "fieldname": "offline_since",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Offline Since"
+  },
+  {
+   "default": "0",
+   "fieldname": "priority",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Priority",
+   "non_negative": 1
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-04-08 16:46:27.977349",
+ "modified_by": "Administrator",
+ "module": "Network",
+ "name": "Video Recorded Detail",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

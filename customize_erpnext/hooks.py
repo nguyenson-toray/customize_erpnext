@@ -40,6 +40,7 @@ doctype_js = {
 
 # List view customizations
 doctype_list_js = {
+    "CCTV Tracking": "network/doctype/cctv_tracking/cctv_tracking.js",
     "Item": "public/js/custom_scripts/item_list.js",
     "Stock Entry": "public/js/custom_scripts/stock_entry_list.js",
     "Employee": [
@@ -238,7 +239,11 @@ scheduler_events = {
         "0 0 * * *": [
             "customize_erpnext.overrides.employee.employee.auto_mark_employees_as_left",
             "customize_erpnext.customize_erpnext.doctype.employee_maternity.employee_maternity.scheduled_calculate_all_maternity_statuses",
-        ]
+        ],
+        # NVR / CCTV Monitor - Every day at 07:00
+        "0 7 * * *": [
+            "customize_erpnext.network.utils.monitor_runner.run_all_nvr"
+        ],
     }
 }
  
