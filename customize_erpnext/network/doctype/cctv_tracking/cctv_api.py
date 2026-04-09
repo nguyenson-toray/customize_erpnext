@@ -4,6 +4,7 @@ cctv_api.py — REST API for CCTV Tracking data (Excel / Power Query integration
 Endpoints (allow_guest=True):
   cctv_detail   — Video Recorded Detail rows
   cctv_summary  — CCTV Tracking summary with shortest-storage camera
+  run_monitor   — Trigger run_all_nvr or run_monitor_for_nvr (no email)
 """
 import frappe
 
@@ -101,7 +102,7 @@ def cctv_detail(nvr=None, date=None):
     for r in rows:
         data.append({k: (str(r[k]) if r.get(k) is not None else "") for k in col_keys})
 
-    return {"columns": columns, "col_keys": col_keys, "data": data, "total": len(data)}
+    return {"columns": columns, "col_keys": col_keys, "data": data, "total": len(data), "endpoint": "cctv_detail"}
 
 
 # ─── cctv_summary ────────────────────────────────────────────────────────────
@@ -216,3 +217,38 @@ def cctv_summary(nvr=None, date=None):
         data.append(row)
 
     return {"columns": columns, "col_keys": col_keys, "data": data, "total": len(data)}
+
+
+# ─── run_monitor ─────────────────────────────────────────────────────────────
+
+@frappe.whitelist(allow_guest=True)
+def run_monitor(nvr=None):
+    """
+    Trigger CCTV monitor from Excel / Power Query (no email sent).
+
+    Parameters
+    ----------
+    nvr : str  — NVR name to run (optional).
+                 If omitted, runs all NVRs.
+
+    Returns
+    -------
+    { ok: bool, results: [...] }
+      Each result: { nvr, doc, ok } on success, or { nvr, error, ok: false }
+    """
+    from customize_erpnext.network.utils.monitor_runner import (
+        run_all_nvr,
+        run_monitor_for_nvr,
+    )
+
+    try:
+        if nvr:
+            doc_name = run_monitor_for_nvr(nvr_name=nvr, send_email=False)
+            return {"ok": True, "results": [{"nvr": nvr, "doc": doc_name, "ok": True}]}
+        else:
+            results = run_all_nvr(send_email=False)
+            all_ok = all(r.get("ok") for r in results)
+            return {"ok": all_ok, "results": results}
+    except Exception as e:
+        frappe.log_error(f"cctv_api.run_monitor: {e}", "Network")
+        return {"ok": False, "results": [], "error": str(e)}
