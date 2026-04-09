@@ -26,7 +26,7 @@ def auto_mark_employees_as_left():
         filters={
             "status": "Active",
             "relieving_date": ["<=", today_date],
-            "reason_for_leaving": ["is", "set"],
+            # "reason_for_leaving": ["is", "set"],
         },
         fields=["name", "employee_name", "relieving_date", "reason_for_leaving"],
     )
