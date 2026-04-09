@@ -47,7 +47,7 @@ def run_monitor_for_nvr(nvr_name, send_email=True):
 
     if not client.is_online():
         tracker.status = "Offline"
-        tracker.note   = f"Không thể kết nối tới {nvr_doc.host}:{nvr_doc.port}"
+        tracker.note   = f"Cannot connect to {nvr_doc.host}:{nvr_doc.port}"
         frappe.db.set_value("NVR", nvr_name, "status", "Offline")
         tracker.insert(ignore_permissions=True)
         frappe.db.commit()
@@ -153,24 +153,24 @@ def _send_email(tracker_doc):
     nvr_color     = "green" if tracker_doc.status == "Online" else "red"
     offline_color = "red" if tracker_doc.camera_offline else "green"
 
-    # ── Bảng tóm tắt NVR ──────────────────────────────────────
+    # ── NVR summary table ─────────────────────────────────────
     summary_html = f"""
-<h2 style='margin-bottom:4px'>Báo cáo giám sát CCTV — {tracker_doc.nvr}</h2>
+<h2 style='margin-bottom:4px'>CCTV Monitoring Report — {tracker_doc.nvr}</h2>
 <table border='1' cellpadding='5' style='border-collapse:collapse;font-size:13px;min-width:400px'>
-<tr><th style='background:#f0f0f0;text-align:left'>Thông tin</th><th style='background:#f0f0f0;text-align:left'>Giá trị</th></tr>
-<tr><td>Thời gian kiểm tra</td><td>{tracker_doc.date} {tracker_doc.time}</td></tr>
-<tr><td>Trạng thái NVR</td>
+<tr><th style='background:#f0f0f0;text-align:left'>Field</th><th style='background:#f0f0f0;text-align:left'>Value</th></tr>
+<tr><td>Check Time</td><td>{tracker_doc.date} {tracker_doc.time}</td></tr>
+<tr><td>NVR Status</td>
     <td><b style='color:{nvr_color}'>{tracker_doc.status}</b></td></tr>
 <tr><td>Online Since</td><td>{tracker_doc.up_time or 'N/A'}</td></tr>
 <tr><td>CPU / RAM</td><td>{tracker_doc.cpu or 'N/A'}% / {tracker_doc.ram or 'N/A'}%</td></tr>
 <tr><td>HDD</td><td style='font-size:12px'>{tracker_doc.hdd_summary or 'N/A'}</td></tr>
-<tr><td>Camera Online</td>
+<tr><td>Cameras Online</td>
     <td style='color:green;font-weight:bold'>{tracker_doc.camera_online} / {tracker_doc.camera_total}</td></tr>
-<tr><td>Camera Offline</td>
+<tr><td>Cameras Offline</td>
     <td style='color:{offline_color};font-weight:bold'>{tracker_doc.camera_offline}</td></tr>
 </table>"""
 
-    # ── Bảng camera offline (nếu có) ──────────────────────────
+    # ── Offline cameras table (only when there are offline cameras) ──
     offline_html = ""
     if offline_rows:
         rows_html = "".join(
@@ -183,7 +183,7 @@ def _send_email(tracker_doc):
             for r in offline_rows
         )
         offline_html = f"""
-<h3 style='color:red;margin-top:20px'>&#9888; Camera Offline ({len(offline_rows)})</h3>
+<h3 style='color:red;margin-top:20px'>&#9888; Offline Cameras ({len(offline_rows)})</h3>
 <table border='1' cellpadding='5' style='border-collapse:collapse;font-size:13px'>
 <tr style='background:#ffdddd'>
   <th>Ch.</th><th>Camera</th><th>Location</th><th>Offline Since</th>
@@ -191,13 +191,13 @@ def _send_email(tracker_doc):
 {rows_html}
 </table>"""
 
-    # ── Bảng chi tiết tất cả camera ───────────────────────────
+    # ── All cameras detail table ───────────────────────────────
     all_rows_html = ""
     for r in sorted(details, key=lambda x: x.channel_no or 0):
         if r.status == "Online":
             status_cell = "<td style='color:green;text-align:center'>&#10004; Online</td>"
             last_rec    = r.last_time_recorded or "—"
-            days_rec    = f"{r.days_recorded:.1f} ngày" if r.days_recorded else "—"
+            days_rec    = f"{r.days_recorded:.1f} days" if r.days_recorded else "—"
             offline_since = "—"
             gap_cell    = f"<td style='font-size:11px;color:#c60'>{r.gap or ''}</td>"
         else:
@@ -221,17 +221,17 @@ def _send_email(tracker_doc):
         )
 
     detail_html = f"""
-<h3 style='margin-top:24px'>Chi tiết tất cả camera ({len(details)})</h3>
+<h3 style='margin-top:24px'>All Cameras Detail ({len(details)})</h3>
 <table border='1' cellpadding='4' style='border-collapse:collapse;font-size:12px;width:100%'>
 <tr style='background:#e8f0fe'>
   <th>Ch.</th>
   <th>Camera</th>
   <th>Location</th>
-  <th>Trạng thái</th>
-  <th>Lưu trữ từ</th>
-  <th>Số ngày</th>
-  <th>Offline từ</th>
-  <th>Gap (7 ngày)</th>
+  <th>Status</th>
+  <th>Oldest Recording</th>
+  <th>Days Stored</th>
+  <th>Offline Since</th>
+  <th>Gap (7 days)</th>
 </tr>
 {all_rows_html}
 </table>"""

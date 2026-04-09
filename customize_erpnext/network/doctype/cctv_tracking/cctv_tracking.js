@@ -9,12 +9,12 @@ frappe.listview_settings["CCTV Tracking"] = {
 						fieldtype: "Link",
 						options: "NVR",
 						reqd: 0,
-						description: __("Để trống để chạy tất cả NVR"),
+						description: __("Leave blank to run all NVRs"),
 					},
 				],
 				function (values) {
 					frappe.show_alert({
-						message: __("Đang chạy giám sát..."),
+						message: __("Running monitor..."),
 						indicator: "orange",
 					});
 					frappe.call({
@@ -26,7 +26,7 @@ frappe.listview_settings["CCTV Tracking"] = {
 						callback(r) {
 							if (!r.exc) {
 								frappe.show_alert({
-									message: __("Hoàn tất! Đã tạo bản ghi mới."),
+									message: __("Done! New record created."),
 									indicator: "green",
 								});
 								listview.refresh();
@@ -34,8 +34,8 @@ frappe.listview_settings["CCTV Tracking"] = {
 						},
 					});
 				},
-				__("Chọn NVR"),
-				__("Chạy ngay")
+				__("Select NVR"),
+				__("Run Now")
 			);
 		}, __("Actions"));
 	},
