@@ -65,9 +65,10 @@
   },
   {
    "fieldname": "up_time",
-   "fieldtype": "Data",
-   "label": "Up Time",
-   "print_hide": 1
+   "fieldtype": "Datetime",
+   "label": "Online Since",
+   "print_hide": 1,
+   "read_only": 1
   },
   {
    "fieldname": "cpu",

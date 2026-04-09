@@ -14,7 +14,7 @@ def _parse_dt(iso_str):
                .strftime("%Y-%m-%d %H:%M:%S")
         )
     except Exception:
-        return iso_str
+        return None
 
 
 def _days_since(iso_str):
@@ -59,7 +59,7 @@ def run_monitor_for_nvr(nvr_name, send_email=True):
 
     # System status
     sys_st = client.get_system_status()
-    tracker.up_time = sys_st.get("uptime")
+    tracker.up_time = sys_st.get("uptime")   # Datetime: thời điểm NVR bắt đầu chạy
     tracker.cpu     = sys_st.get("cpu")
     tracker.ram     = sys_st.get("ram")
 
@@ -161,7 +161,7 @@ def _send_email(tracker_doc):
 <tr><td>Thời gian kiểm tra</td><td>{tracker_doc.date} {tracker_doc.time}</td></tr>
 <tr><td>Trạng thái NVR</td>
     <td><b style='color:{nvr_color}'>{tracker_doc.status}</b></td></tr>
-<tr><td>Uptime</td><td>{tracker_doc.up_time or 'N/A'}</td></tr>
+<tr><td>Online Since</td><td>{tracker_doc.up_time or 'N/A'}</td></tr>
 <tr><td>CPU / RAM</td><td>{tracker_doc.cpu or 'N/A'}% / {tracker_doc.ram or 'N/A'}%</td></tr>
 <tr><td>HDD</td><td style='font-size:12px'>{tracker_doc.hdd_summary or 'N/A'}</td></tr>
 <tr><td>Camera Online</td>

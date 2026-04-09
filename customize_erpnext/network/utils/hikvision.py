@@ -73,21 +73,19 @@ class HikvisionNVR:
     def get_system_status(self) -> dict:
         """
         Uptime: GET /ISAPI/System/status → DeviceStatus.deviceUpTime (giây)
+          → trả về datetime NVR bắt đầu chạy (now - uptime_seconds)
         CPU/RAM: DeviceStatus.cpuUsage/memoryUsage — trả None nếu không có hoặc = 0
         (firmware DS-9664NI-I8 V4.50.010 không expose CPU/RAM qua endpoint này)
         """
-        result = {"uptime": "N/A", "cpu": None, "ram": None}
+        result = {"uptime": None, "cpu": None, "ram": None}
         try:
             s = self._get("/ISAPI/System/status").get("DeviceStatus", {})
             up = s.get("deviceUpTime")
             if up:
                 secs = int(up)
-                d = secs // 86400
-                h = (secs % 86400) // 3600
-                m = (secs % 3600) // 60
-                sec = secs % 60
-                result["uptime"] = f"{d} ngày {h:02d}:{m:02d}:{sec:02d}"
-            # Dùng or "N/A" để bắt cả 0 (firmware trả 0 thay vì null)
+                online_since = datetime.now() - __import__("datetime").timedelta(seconds=secs)
+                result["uptime"] = online_since.strftime("%Y-%m-%d %H:%M:%S")
+            # Dùng or None để bắt cả 0 (firmware trả 0 thay vì null)
             cpu = s.get("cpuUsage") or s.get("CPUUsage") or None
             mem = s.get("memoryUsage") or s.get("MemoryUsage") or None
             result["cpu"] = cpu
@@ -286,8 +284,8 @@ class HikvisionNVR:
         # Fallback: Search API
         res = self._search_api(tid, start, end, 0)
         if res:
-            return res[0].get("timeSpan", {}).get("startTime", "N/A")
-        return "N/A"
+            return res[0].get("timeSpan", {}).get("startTime") or None
+        return None
 
     def get_latest_recording(self, cid) -> str:
         """Bản ghi mới nhất — ước tính thời điểm camera offline."""
@@ -311,10 +309,10 @@ class HikvisionNVR:
             if total > 0:
                 res = self._search_api(tid, "2020-01-01T00:00:00Z", end, total - 1)
                 if res:
-                    return res[0].get("timeSpan", {}).get("endTime", "N/A")
+                    return res[0].get("timeSpan", {}).get("endTime") or None
         except Exception:
             pass
-        return "N/A"
+        return None
 
     def get_recording_gaps(self, cid, days: int = 7, min_gap_minutes: int = 10) -> str:
         """
