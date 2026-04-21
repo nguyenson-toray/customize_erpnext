@@ -221,7 +221,7 @@ class HikvisionNVR:
 
     # ─── Recording History ────────────────────────────────────
 
-    def _search_api(self, tid: str, start: str, end: str, pos: int = 0) -> list:
+    def _search_api(self, tid: str, start: str, end: str, pos: int = 0, max_results: int = 1) -> list:
         xml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <CMSearchDescription>
     <searchID>{uuid.uuid4()}</searchID>
@@ -230,7 +230,7 @@ class HikvisionNVR:
         <startTime>{start}</startTime><endTime>{end}</endTime>
     </timeSpan></timeSpanList>
     <contentTypeList><contentType>video</contentType></contentTypeList>
-    <maxResults>1</maxResults>
+    <maxResults>{max_results}</maxResults>
     <searchResultPosition>{pos}</searchResultPosition>
     <metaDataList><metaData>//recordType.meta.std-cgi.com</metaData></metaDataList>
 </CMSearchDescription>"""
@@ -316,77 +316,72 @@ class HikvisionNVR:
 
     def get_recording_gaps(self, cid, days: int = 7, min_gap_minutes: int = 10) -> str:
         """
-        Phát hiện khoảng ngắt quãng trong ghi hình (record_gap.md).
+        Phát hiện khoảng ngắt quãng trong ghi hình.
         Kiểm tra [days] ngày gần nhất, báo cáo các gap > [min_gap_minutes] phút.
         Trả về chuỗi mô tả hoặc rỗng nếu không có gap.
+
+        NOTE: Không dùng searchResultPosition vì nhiều firmware Hikvision bỏ qua tham số
+        này và luôn trả kết quả từ đầu. Thay vào đó query từng khoảng 24h một lần.
         """
         from datetime import datetime as _dt, timedelta
 
+        def _parse_iso(s):
+            try:
+                s = s.strip()
+                if s.endswith("Z"):
+                    s = s[:-1] + "+00:00"
+                dt = _dt.fromisoformat(s)
+                if dt.tzinfo is None:
+                    # NVR trả naive theo giờ địa phương (UTC+7), không phải UTC
+                    dt = dt.replace(tzinfo=timezone(timedelta(hours=7)))
+                return dt
+            except Exception:
+                return None
+
         tid = self._get_track_id(cid)
         now_utc = _dt.now(timezone.utc)
-        start_utc = now_utc - timedelta(days=days)
-        start = start_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
-        end   = now_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
 
-        # Lấy tất cả segment trong khoảng thời gian (tối đa 200 kết quả)
+        # Query từng khoảng 24h để tránh firmware bỏ qua searchResultPosition
         segments = []
-        batch_size = 50
-        pos = 0
-        try:
-            # Đếm tổng số kết quả
-            xml_count = (
-                f"<?xml version='1.0' encoding='UTF-8'?>"
-                f"<CMSearchDescription>"
-                f"<searchID>{uuid.uuid4()}</searchID>"
-                f"<trackList><trackID>{tid}</trackID></trackList>"
-                f"<timeSpanList><timeSpan><startTime>{start}</startTime><endTime>{end}</endTime></timeSpan></timeSpanList>"
-                f"<contentTypeList><contentType>video</contentType></contentTypeList>"
-                f"<maxResults>0</maxResults>"
-                f"<searchResultPosition>0</searchResultPosition>"
-                f"<metaDataList><metaData>//recordType.meta.std-cgi.com</metaData></metaDataList>"
-                f"</CMSearchDescription>"
-            )
-            d = self._post("/ISAPI/ContentMgmt/search", xml_count)
-            root = d.get("CMSearchResult") or d.get("cmSearchResult") or {}
-            total = int(root.get("numOfMatches") or root.get("totalMatches") or 0)
-            if total == 0:
-                return ""
-
-            # Lấy tối đa 200 segment để tránh timeout
-            fetch_count = min(total, 200)
-            while pos < fetch_count:
-                batch = self._search_api(tid, start, end, pos)
-                if not batch:
-                    break
+        for d in range(days):
+            win_end   = now_utc - timedelta(days=d)
+            win_start = win_end - timedelta(hours=24)
+            s = win_start.strftime("%Y-%m-%dT%H:%M:%SZ")
+            e = win_end.strftime("%Y-%m-%dT%H:%M:%SZ")
+            try:
+                batch = self._search_api(tid, s, e, pos=0, max_results=100)
                 segments.extend(batch)
-                pos += len(batch)
-                if len(batch) < batch_size:
-                    break
-        except Exception:
-            return ""
+            except Exception:
+                pass
 
         if len(segments) < 2:
             return ""
 
-        # Sắp xếp theo startTime
-        def _parse_iso(s):
-            try:
-                return _dt.fromisoformat(s.replace("Z", "+00:00"))
-            except Exception:
-                return None
+        # Dedup + sort theo startTime
+        seen = set()
+        unique = []
+        for seg in segments:
+            ts = seg.get("timeSpan", {})
+            key = (ts.get("startTime", ""), ts.get("endTime", ""))
+            if key not in seen:
+                seen.add(key)
+                unique.append(seg)
+        unique.sort(key=lambda x: x.get("timeSpan", {}).get("startTime", ""))
 
-        segments.sort(key=lambda x: x.get("timeSpan", {}).get("startTime", ""))
+        if len(unique) < 2:
+            return ""
 
         # Tìm gap
         gaps = []
-        for i in range(len(segments) - 1):
-            end_t   = _parse_iso(segments[i].get("timeSpan", {}).get("endTime", ""))
-            start_t = _parse_iso(segments[i + 1].get("timeSpan", {}).get("startTime", ""))
+        for i in range(len(unique) - 1):
+            end_t   = _parse_iso(unique[i].get("timeSpan", {}).get("endTime", ""))
+            start_t = _parse_iso(unique[i + 1].get("timeSpan", {}).get("startTime", ""))
             if end_t and start_t:
                 diff_min = (start_t - end_t).total_seconds() / 60
                 if diff_min > min_gap_minutes:
-                    end_local   = end_t.astimezone().strftime("%m-%d %H:%M")
-                    start_local = start_t.astimezone().strftime("%m-%d %H:%M")
+                    # Hiển thị theo giờ NVR (UTC — đồng hồ NVR chạy UTC)
+                    end_local   = end_t.strftime("%m-%d %H:%M")
+                    start_local = start_t.strftime("%m-%d %H:%M")
                     hours = int(diff_min // 60)
                     mins  = int(diff_min % 60)
                     dur = f"{hours}h{mins:02d}m" if hours else f"{mins}m"
