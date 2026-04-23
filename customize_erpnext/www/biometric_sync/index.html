@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ERPNext Sync All Logs</title>
+    <title>Biometric Sync</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
@@ -1784,6 +1784,7 @@
             const btn = document.getElementById('syncBtn');
             btn.disabled = true;
             btn.textContent = '⏳ Starting...';
+            _anySyncRunning = true;
 
             // Build progress section
             const ps = document.getElementById('progressSection');
@@ -1839,6 +1840,7 @@
             } finally {
                 btn.disabled = false;
                 btn.textContent = '▶ Sync Fingerprints';
+                _anySyncRunning = false;
             }
         }
 
@@ -1892,8 +1894,10 @@
 
         // ── Phase 2: ERPNext → each device (sequential per machine) ──────────────────
         async function runPhase2(employeeIds, matchedUsers, targetMachines) {
-            for (const machine of targetMachines) {
-                let ok = 0, fail = 0;
+            // Strategy: all machines run in parallel, each machine processes all employees sequentially
+            // Same pattern as shared_fingerprint_sync.js (FingerprintSyncManager)
+            const machinePromises = targetMachines.map(async (machine) => {
+                let ok = 0, fail = 0, done = 0;
                 setProgressBar(machine, 2, `0/${employeeIds.length}`);
 
                 for (const empId of employeeIds) {
@@ -1913,13 +1917,15 @@
                         appendResultLog('fail', `✗ ${empId} → ${machine}: ${e.message}`);
                         fail++;
                     }
-                    const pct = Math.round((ok + fail) / employeeIds.length * 100);
-                    setProgressBar(machine, pct, `${ok + fail}/${employeeIds.length}`);
+                    done++;
+                    setProgressBar(machine, Math.round(done / employeeIds.length * 100), `${done}/${employeeIds.length}`);
                 }
 
                 setProgressBar(machine, 100, `✅ ${ok} OK / ${fail} failed`);
                 appendResultLog('info-line', `--- ${machine}: ${ok} synced / ${fail} failed ---`);
-            }
+            });
+
+            await Promise.allSettled(machinePromises);
         }
 
         function appendResultLog(cls, text) {
@@ -1945,6 +1951,15 @@
 
         let _fp41Employees = [];   // [{employee_id}]
         let _fp41Syncing = false;
+
+        // ── Guard: warn user if they try to leave while any sync is running ───────────
+        let _anySyncRunning = false;
+        window.addEventListener('beforeunload', e => {
+            if (_anySyncRunning) {
+                e.preventDefault();
+                e.returnValue = 'Sync đang chạy. Nếu rời trang bây giờ, dữ liệu sẽ bị sync một nửa. Bạn có chắc chắn muốn rời?';
+            }
+        });
 
         function onFp41ScopeChange() {
             const scope = document.getElementById('fp41Scope').value;
@@ -2060,6 +2075,7 @@
             if (!confirm(`Confirm sync ${_fp41Employees.length} employees → ${selMachines.length} machines?\n(${total} total operations)`)) return;
 
             _fp41Syncing = true;
+            _anySyncRunning = true;
             fp41UpdateSyncBtn();
 
             const ps = document.getElementById('fp41ProgressSection');
@@ -2076,12 +2092,17 @@
             }
 
             appendLog('info-line', `▶ Starting: ${_fp41Employees.length} employees × ${selMachines.length} machines = ${total} operations`);
+            appendLog('info-line', `⚡ Strategy: each machine runs in parallel, all employees per machine in sequence`);
             let done = 0, okCount = 0, failCount = 0;
 
-            for (const machine of selMachines) {
+            // Each machine gets its own async worker — all machines run in parallel simultaneously
+            // Within each machine: employees processed sequentially (1 connection at a time per machine)
+            const machinePromises = selMachines.map(async (machine) => {
+                appendLog('info-line', `── ▶ ${machine} started ──`);
+                let machineOk = 0, machineFail = 0;
+
                 for (const emp of _fp41Employees) {
                     const empId = emp.employee_id;
-                    phaseEl.textContent = `Syncing: ${empId} → ${machine} (${done + 1}/${total})`;
                     try {
                         const msg = await callPost('customize_erpnext.api.utilities.sync_employee_to_single_machine', {
                             employee_id: empId,
@@ -2089,18 +2110,24 @@
                         });
                         const ok = msg && msg.success !== false && msg.status !== 'error';
                         const detail = msg ? (msg.message || msg.status || 'OK') : 'OK';
-                        if (ok) { okCount++; appendLog('ok', `✓ ${empId} → ${machine}: ${detail}`); }
-                        else { failCount++; appendLog('fail', `✗ ${empId} → ${machine}: ${detail}`); }
+                        if (ok) { okCount++; machineOk++; appendLog('ok', `✓ ${empId} → ${machine}: ${detail}`); }
+                        else { failCount++; machineFail++; appendLog('fail', `✗ ${empId} → ${machine}: ${detail}`); }
                     } catch (e) {
-                        failCount++;
+                        failCount++; machineFail++;
                         appendLog('fail', `✗ ${empId} → ${machine}: ${e.message}`);
                     }
                     done++;
                     barEl.style.width = Math.round(done / total * 100) + '%';
+                    phaseEl.textContent = `Syncing... (${done}/${total}) | ✅ ${okCount} ❌ ${failCount}`;
                 }
-            }
+
+                appendLog('info-line', `── ✅ ${machine}: ${machineOk} OK / ${machineFail} failed ──`);
+            });
+
+            await Promise.allSettled(machinePromises);
 
             _fp41Syncing = false;
+            _anySyncRunning = false;
             fp41UpdateSyncBtn();
             phaseEl.textContent = `✅ Done: ${okCount} OK / ${failCount} errors`;
             appendLog('info-line', `\n=== COMPLETE: ${okCount} OK / ${failCount} FAILED / ${total} total ===`);

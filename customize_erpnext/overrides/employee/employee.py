@@ -11,23 +11,23 @@
 import frappe
 from frappe.utils import today, getdate
 
-
+@frappe.whitelist()
 def auto_mark_employees_as_left():
     """
     Scheduled daily at 00:00.
     Updates Employee status from 'Active' to 'Left' if:
-      - relieving_date <= today (last working day has arrived or passed)
-      - reason_for_leaving is not null/empty
+      - relieving_date not null and less than or equal to today
+    #   - reason_for_leaving is not null/empty
     """
     today_date = getdate(today())
 
     employees = frappe.get_all(
         "Employee",
-        filters={
-            "status": "Active",
-            "relieving_date": ["<=", today_date],
-            # "reason_for_leaving": ["is", "set"],
-        },
+        filters=[
+            ["relieving_date", "is", "set"],                    # not null
+            ["relieving_date", "<=", today()],                  # <= today
+           
+        ],
         fields=["name", "employee_name", "relieving_date", "reason_for_leaving"],
     )
 
