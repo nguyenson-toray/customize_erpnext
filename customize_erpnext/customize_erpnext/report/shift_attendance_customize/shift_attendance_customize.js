@@ -379,7 +379,8 @@ function send_attendance_report_dialog(report) {
 				args: {
 					report_date: values.report_date,
 					recipients: values.recipients,
-					force_update_attendance: values.force_update_attendance ? 1 : 0
+					force_update_attendance: values.force_update_attendance ? 1 : 0,
+					bypass_holiday_check: 1
 				},
 				freeze: true,
 				freeze_message: values.force_update_attendance

@@ -10,7 +10,7 @@ import tempfile
 from customize_erpnext.api.site_restriction import only_for_sites
 
 @frappe.whitelist()
-def send_daily_attendance_report(report_date=None, recipients=None, force_update_attendance=0):
+def send_daily_attendance_report(report_date=None, recipients=None, force_update_attendance=0, bypass_holiday_check=0):
 	"""
 	Enqueue Daily Attendance Report to run in background.
 	Returns immediately so UI doesn't timeout.
@@ -43,6 +43,7 @@ def send_daily_attendance_report(report_date=None, recipients=None, force_update
 		report_date_str = today()
 
 	do_force_update = bool(int(force_update_attendance or 0))
+	do_bypass = bool(int(bypass_holiday_check or 0))
 
 	frappe.enqueue(
 		_send_daily_attendance_report_job,
@@ -50,7 +51,8 @@ def send_daily_attendance_report(report_date=None, recipients=None, force_update
 		timeout=600,
 		report_date_str=report_date_str,
 		recipient_list=recipient_list,
-		force_update_attendance=do_force_update
+		force_update_attendance=do_force_update,
+		bypass_holiday_check=do_bypass
 	)
 
 	action = "Recalculating attendance then generating" if do_force_update else "Generating"
@@ -83,16 +85,17 @@ def _is_holiday_or_sunday(date_str):
 	return False
 
 
-def _send_daily_attendance_report_job(report_date_str, recipient_list, force_update_attendance=False):
+def _send_daily_attendance_report_job(report_date_str, recipient_list, force_update_attendance=False, bypass_holiday_check=False):
 	"""
 	Background job: generate and send Daily Attendance Report via email.
-	Skips sending on Holidays and Sundays.
+	Skips sending on Holidays and Sundays unless bypass_holiday_check is True (UI-triggered).
 
 	Args:
 		force_update_attendance: True = recalculate attendance before generating report
+		bypass_holiday_check: True = skip holiday/Sunday check (used when triggered from UI)
 	"""
-	# Skip sending on Holiday & Sunday
-	if _is_holiday_or_sunday(report_date_str):
+	# Skip sending on Holiday & Sunday (unless explicitly bypassed from UI)
+	if not bypass_holiday_check and _is_holiday_or_sunday(report_date_str):
 		frappe.logger().info(f"Skipping Daily Attendance Report for {report_date_str} — Holiday or Sunday")
 		return
 
