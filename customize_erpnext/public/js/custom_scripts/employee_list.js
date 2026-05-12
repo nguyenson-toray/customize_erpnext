@@ -36,6 +36,10 @@ frappe.listview_settings['Employee'] = {
             show_generate_employee_list_pdf_dialog(listview);
         })
 
+        listview.page.add_menu_item(__('7 Generate Users'), function () {
+            show_generate_users_dialog(listview);
+        });
+
     }
 };
 
@@ -2337,5 +2341,201 @@ function show_update_employee_photo_dialog(listview) {
             }
         }
     }
+}
+
+// ============================================================
+// 7. Generate Users from Employees
+// ============================================================
+function show_generate_users_dialog(listview) {
+    const selected = listview.get_checked_items();
+
+    if (selected.length > 0) {
+        const employee_list = selected.map(r => r.name);
+        frappe.confirm(
+            __('Sẽ xử lý {0} employee đang chọn. Tiếp tục?', [employee_list.length]),
+            () => run_generate_users(employee_list, 'TIQN All Employee')
+        );
+        return;
+    }
+
+    const d = new frappe.ui.Dialog({
+        title: __('Generate Users from Employees'),
+        size: 'large',
+        fields: [
+            {
+                fieldname: 'filter_section',
+                fieldtype: 'Section Break',
+                label: __('Filter Employees')
+            },
+            {
+                fieldname: 'department',
+                fieldtype: 'Link',
+                options: 'Department',
+                label: __('Department')
+            },
+            {
+                fieldname: 'custom_section',
+                fieldtype: 'Link',
+                options: 'Section',
+                label: __('Section')
+            },
+            { fieldname: 'col_break_1', fieldtype: 'Column Break' },
+            {
+                fieldname: 'custom_group',
+                fieldtype: 'Link',
+                options: 'Group',
+                label: __('Group')
+            },
+            {
+                fieldname: 'role_profile',
+                fieldtype: 'Link',
+                options: 'Role Profile',
+                label: __('Role Profile'),
+                default: 'TIQN All Employee',
+                reqd: 1
+            },
+            {
+                fieldname: 'ids_section',
+                fieldtype: 'Section Break',
+                label: __('Or Specify Employee IDs')
+            },
+            {
+                fieldname: 'employee_ids',
+                fieldtype: 'Small Text',
+                label: __('Employee IDs'),
+                description: __('Nhập mã nhân viên (TIQN-xxxx), phân cách bằng dấu phẩy hoặc xuống dòng. Nếu nhập, sẽ ưu tiên hơn các filter ở trên.')
+            },
+            {
+                fieldname: 'preview_section',
+                fieldtype: 'Section Break',
+                label: __('Preview')
+            },
+            {
+                fieldname: 'preview_html',
+                fieldtype: 'HTML',
+                options: `<div class="text-muted">${__('Nhấn "Preview" để xem số employee sẽ được xử lý.')}</div>`
+            }
+        ],
+        primary_action_label: __('Generate'),
+        primary_action(values) {
+            if (!values.role_profile) {
+                frappe.msgprint(__('Vui lòng chọn Role Profile'));
+                return;
+            }
+            preview_employees_for_user_generation(values).then(emp_list => {
+                if (!emp_list || emp_list.length === 0) {
+                    frappe.msgprint(__('Không có employee nào phù hợp với filter.'));
+                    return;
+                }
+                d.hide();
+                run_generate_users(emp_list, values.role_profile);
+            });
+        },
+        secondary_action_label: __('Preview'),
+        secondary_action(values) {
+            preview_employees_for_user_generation(values).then(emp_list => {
+                const count = (emp_list || []).length;
+                let html = `<div class="alert alert-info"><b>${__('Sẽ xử lý')}: ${count} employees</b></div>`;
+                if (count > 0 && count <= 100) {
+                    html += `<div style="max-height:200px;overflow:auto;font-size:11px;">`;
+                    html += emp_list.map(e => `<span class="badge" style="margin:2px">${frappe.utils.escape_html(e)}</span>`).join(' ');
+                    html += `</div>`;
+                }
+                d.fields_dict.preview_html.$wrapper.html(html);
+            });
+        }
+    });
+
+    d.show();
+}
+
+function preview_employees_for_user_generation(values) {
+    return frappe.call({
+        method: 'customize_erpnext.api.employee.employee_user.preview_employees_for_user_generation',
+        type: 'POST',
+        args: {
+            department: values.department || '',
+            custom_section: values.custom_section || '',
+            custom_group: values.custom_group || '',
+            employee_ids: values.employee_ids || ''
+        },
+        freeze: true,
+        freeze_message: __('Loading preview...')
+    }).then(r => r.message || []);
+}
+
+function run_generate_users(employee_list, role_profile) {
+    frappe.call({
+        method: 'customize_erpnext.api.employee.employee_user.generate_users_from_employees',
+        type: 'POST',
+        args: {
+            employee_list: JSON.stringify(employee_list),
+            role_profile: role_profile || 'TIQN All Employee'
+        },
+        freeze: true,
+        freeze_message: __('Đang tạo Users... ({0} employees)', [employee_list.length])
+    }).then(r => {
+        if (r.message) show_generate_users_summary(r.message);
+    });
+}
+
+function show_generate_users_summary(result) {
+    const total = (result.created || []).length
+        + (result.reactivated || []).length
+        + (result.skipped_company_email || []).length
+        + (result.skipped_no_email || []).length
+        + (result.skipped_invalid_email || []).length
+        + (result.skipped_exists || []).length
+        + (result.errors || []).length;
+
+    let html = `
+        <div style="font-family: monospace; font-size: 13px; line-height: 1.8;">
+            <div>✅ ${__('Tạo mới thành công')} : <b>${(result.created || []).length}</b></div>
+            <div>🔄 ${__('Reactivated (enable + add role + link)')} : <b>${(result.reactivated || []).length}</b></div>
+            <div>⏭️ ${__('Bỏ qua (đã có company email)')} : <b>${(result.skipped_company_email || []).length}</b></div>
+            <div>⏭️ ${__('Bỏ qua (không có email)')} : <b>${(result.skipped_no_email || []).length}</b></div>
+            <div>⏭️ ${__('Bỏ qua (email không hợp lệ)')} : <b>${(result.skipped_invalid_email || []).length}</b></div>
+            <div>⏭️ ${__('Bỏ qua (user đã đầy đủ)')} : <b>${(result.skipped_exists || []).length}</b></div>
+            <div>❌ ${__('Lỗi')} : <b>${(result.errors || []).length}</b></div>
+            <hr style="margin:8px 0">
+            <div>${__('Tổng xử lý')} : <b>${total} employees</b></div>
+        </div>
+    `;
+
+    const sections = [
+        { key: 'created', title: '✅ Created', color: '#28a745' },
+        { key: 'reactivated', title: '🔄 Reactivated', color: '#17a2b8' },
+        { key: 'skipped_company_email', title: '⏭️ Skipped — Company Email', color: '#6c757d' },
+        { key: 'skipped_no_email', title: '⏭️ Skipped — No Email', color: '#6c757d' },
+        { key: 'skipped_invalid_email', title: '⏭️ Skipped — Invalid Email', color: '#6c757d' },
+        { key: 'skipped_exists', title: '⏭️ Skipped — User Already Complete', color: '#6c757d' }
+    ];
+
+    sections.forEach(s => {
+        const arr = result[s.key] || [];
+        if (arr.length === 0) return;
+        html += `<details style="margin-top:8px"><summary style="cursor:pointer;color:${s.color}"><b>${s.title} (${arr.length})</b></summary>`;
+        html += `<div style="max-height:200px;overflow:auto;padding:6px;font-size:11px">`;
+        html += arr.map(e => `<div>${frappe.utils.escape_html(e)}</div>`).join('');
+        html += `</div></details>`;
+    });
+
+    if ((result.errors || []).length > 0) {
+        html += `<details open style="margin-top:8px"><summary style="cursor:pointer;color:#dc3545"><b>❌ Errors (${result.errors.length})</b></summary>`;
+        html += `<div style="max-height:240px;overflow:auto;padding:6px;font-size:11px">`;
+        html += result.errors.map(e =>
+            `<div style="margin-bottom:4px"><b>${frappe.utils.escape_html(e.employee)}</b>: <span style="color:#dc3545">${frappe.utils.escape_html(e.error)}</span></div>`
+        ).join('');
+        html += `</div></details>`;
+    }
+
+    const summary_dialog = new frappe.ui.Dialog({
+        title: __('Generate Users — Summary'),
+        size: 'large',
+        fields: [{ fieldname: 'summary', fieldtype: 'HTML', options: html }],
+        primary_action_label: __('Close'),
+        primary_action() { summary_dialog.hide(); }
+    });
+    summary_dialog.show();
 }
 
