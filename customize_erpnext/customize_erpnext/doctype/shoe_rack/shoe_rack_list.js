@@ -408,7 +408,7 @@ function bulk_edit_racks(values, dialog) {
                             },
                             callback: function(r) {
                                 if (r.message && r.message.success) {
-                                    frappe.show_alert({
+                                    frappe.show_alert({         
                                         message: __(' {0}', [r.message.message]),
                                         indicator: 'green'
                                     }, 7);
@@ -551,9 +551,8 @@ function show_bulk_delete_dialog() {
                     frappe.call({
                         method: 'customize_erpnext.customize_erpnext.doctype.shoe_rack.shoe_rack.bulk_delete_and_reset',
                         args: {
-                            series_prefix: values.series_prefix
-                        },
-                        callback: function(r) {
+                            series_prefix: values.series_prefix },
+                        callback: function(r) {z
                             if (r.message && r.message.success) {
                                 frappe.show_alert({
                                     message: __(' {0}', [r.message.message]),

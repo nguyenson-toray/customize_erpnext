@@ -29,10 +29,10 @@ def validate(doc, method):
     
     # Clear incompatible assignments
     clear_incompatible_assignments(doc)
-    
-    # Validate gender match (only for Employee racks)
-    validate_all_gender_matches(doc)
-    
+
+    # Check duplicate assignment across racks
+    check_duplicate_assignment(doc)
+
     # Validate compartments
     if doc.compartments == "1":
         doc.compartment_2_employee = None
@@ -79,6 +79,51 @@ def clear_incompatible_assignments(doc):
     else:
         doc.compartment_1_employee = None
         doc.compartment_2_employee = None
+
+def check_duplicate_assignment(doc):
+    """Check if employee/external personnel is already assigned to another Shoe Rack"""
+
+    checks = []
+
+    if doc.user_type == "Employee":
+        if doc.compartment_1_employee:
+            checks.append((doc.compartment_1_employee, "Compartment 1", "Employee"))
+        if doc.compartment_2_employee:
+            checks.append((doc.compartment_2_employee, "Compartment 2", "Employee"))
+    else:
+        if doc.compartment_1_external_personnel:
+            checks.append((doc.compartment_1_external_personnel, "Compartment 1", "External Personnel"))
+        if doc.compartment_2_external_personnel:
+            checks.append((doc.compartment_2_external_personnel, "Compartment 2", "External Personnel"))
+
+    current_name = doc.name or ""
+
+    for person_id, compartment_label, person_doctype in checks:
+        if person_doctype == "Employee":
+            existing = frappe.db.sql("""
+                SELECT name, rack_display_name FROM `tabShoe Rack`
+                WHERE name != %s
+                AND (compartment_1_employee = %s OR compartment_2_employee = %s)
+                LIMIT 1
+            """, (current_name, person_id, person_id), as_dict=True)
+            person_name = frappe.db.get_value("Employee", person_id, "employee_name") or person_id
+        else:
+            existing = frappe.db.sql("""
+                SELECT name, rack_display_name FROM `tabShoe Rack`
+                WHERE name != %s
+                AND (compartment_1_external_personnel = %s OR compartment_2_external_personnel = %s)
+                LIMIT 1
+            """, (current_name, person_id, person_id), as_dict=True)
+            person_name = frappe.db.get_value("External Personnel", person_id, "full_name") or person_id
+
+        if existing:
+            rack_name = existing[0].name
+            rack_display = existing[0].rack_display_name or rack_name
+            frappe.throw(_(
+                "{0}: {1} ({2}) đang được xếp tại Shoe Rack <b>{3}</b>. "
+                "Không thể xếp vào 2 rack khác nhau."
+            ).format(compartment_label, person_name, person_id, rack_display))
+
 
 def validate_all_gender_matches(doc):
     """Validate gender for compartments - Only for Employee racks"""
@@ -688,13 +733,12 @@ def get_empty_racks_in_range(start_number, end_number, series_prefix='RACK'):
         info = parse_rack_name(rack.name)
         rack.rack_number = info['number']
         rack.display_name = info['display_name']
-    
+
     return {
         "total": len(racks),
         "racks": racks
     }
-
-
+    
 @frappe.whitelist()
 def bulk_edit_empty_racks(start_number, end_number, gender=None, compartments=None, series_prefix='RACK'):
     """

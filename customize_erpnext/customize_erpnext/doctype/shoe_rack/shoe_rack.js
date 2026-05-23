@@ -21,6 +21,9 @@ frappe.ui.form.on('Shoe Rack', {
         
         // Show rack info
         show_rack_info(frm);
+        
+        // Check left employees
+        check_left_employees(frm);
     },
     
     rack_type: function(frm) {
@@ -42,20 +45,8 @@ frappe.ui.form.on('Shoe Rack', {
                 frm.set_value('user_type', 'External');
             }
             
-            // Show info about gender validation
-            if (frm.doc.rack_type === 'Standard Employee') {
-                frappe.show_alert({
-                    message: __('RACK type: Gender validation enabled'),
-                    indicator: 'blue'
-                }, 3);
-            } else {
-                frappe.show_alert({
-                    message: __('Guest/Japanese/External: Mixed gender allowed'),
-                    indicator: 'green'
-                }, 3);
-            }
         }
-        
+
         // Clear incompatible fields
         clear_incompatible_fields(frm);
     },
@@ -76,25 +67,16 @@ frappe.ui.form.on('Shoe Rack', {
         update_status_auto(frm);
     },
     
-    gender: function(frm) {
-        // Warn if changing gender with assignments
-        if (has_assignments(frm)) {
-            frappe.msgprint({
-                title: __('Warning'),
-                indicator: 'orange',
-                message: __('This rack has personnel assigned. Changing gender may cause validation errors.')
-            });
-        }
-    },
-    
     // Compartment 1 - Employee
     compartment_1_employee: function(frm) {
         update_status_auto(frm);
+        check_left_employees(frm);
     },
     
     // Compartment 2 - Employee
     compartment_2_employee: function(frm) {
         update_status_auto(frm);
+        check_left_employees(frm);
     },
     
     // Compartment 1 - External
@@ -166,18 +148,11 @@ function set_field_properties(frm) {
 }
 
 function set_personnel_filters(frm) {
-    if (!frm.doc.gender) return;
-    
     // Employee filters
     const employee_filter = {
         'status': 'Active'
     };
-    
-    // Only RACK validates gender
-    if (frm.doc.rack_type === 'Standard Employee' && frm.doc.gender) {
-        employee_filter['gender'] = frm.doc.gender;
-    }
-    
+
     frm.set_query('compartment_1_employee', function() {
         return { 
             filters: employee_filter,
@@ -283,6 +258,31 @@ function has_assignments(frm) {
               frm.doc.compartment_2_external_personnel);
 }
 
+function check_left_employees(frm) {
+    let check_employee = (fieldname) => {
+        let emp_id = frm.doc[fieldname];
+        if(emp_id) {
+            frappe.db.get_value('Employee', emp_id, 'status')
+                .then(r => {
+                    if(r && r.message && r.message.status === 'Left') {
+                        frm.set_df_property(fieldname, 'description', '<span class="text-danger"><i class="fa fa-exclamation-triangle"></i> Nhân viên này đã nghỉ việc (Left)</span>');
+                    } else {
+                        frm.set_df_property(fieldname, 'description', '');
+                    }
+                });
+        } else {
+            frm.set_df_property(fieldname, 'description', '');
+        }
+    };
+    
+    if (frm.doc.user_type === 'Employee') {
+        check_employee('compartment_1_employee');
+        if (frm.doc.compartments === '2' || frm.doc.compartment_2_employee) {
+            check_employee('compartment_2_employee');
+        }
+    }
+}
+
 // ==================== RACK INFO ====================
 
 function show_rack_info(frm) {
@@ -313,13 +313,6 @@ function show_rack_info(frm) {
         if (match) {
             html += `<strong>Number:</strong> ${parseInt(match[1])}<br>`;
         }
-    }
-    
-    // Gender validation info
-    if (frm.doc.rack_type === 'Standard Employee') {
-        html += '<strong>Validation:</strong> <span style="color: orange;">Gender validated </span><br>';
-    } else {
-        html += '<strong>Validation:</strong> <span style="color: green;">Mixed gender OK </span><br>';
     }
     
     html += '</div>';

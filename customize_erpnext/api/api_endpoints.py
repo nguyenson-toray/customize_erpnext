@@ -313,3 +313,360 @@ def test_load_layout():
     result = load_rack_layout()
     print(f"Loaded {len(result.get('blocks', []))} blocks")
     return result
+
+
+# ===============================================
+# 👟 SHOE RACK ASSIGNMENT ENDPOINTS
+# ===============================================
+
+@frappe.whitelist()
+def setup_assignment_field():
+    """
+    Add do_not_auto_suggest Check field to Shoe Rack doctype.
+    Run once: bench --site <site> execute customize_erpnext.api.api_endpoints.setup_assignment_field
+    """
+    try:
+        if frappe.db.exists("Custom Field", {"dt": "Shoe Rack", "fieldname": "do_not_auto_suggest"}):
+            return {"success": True, "message": "Field already exists"}
+
+        doc = frappe.get_doc({
+            "doctype": "Custom Field",
+            "dt": "Shoe Rack",
+            "fieldname": "do_not_auto_suggest",
+            "fieldtype": "Check",
+            "label": "Do Not Auto Suggest",
+            "insert_after": "gender",
+            "description": "Exclude this rack from auto-suggestion to new employees"
+        })
+        doc.insert(ignore_permissions=True)
+        frappe.db.commit()
+        return {"success": True, "message": "Field added successfully"}
+    except Exception as e:
+        frappe.log_error(f"setup_assignment_field error: {str(e)}")
+        return {"success": False, "message": str(e)}
+
+
+@frappe.whitelist()
+def get_today_joiners(date=None):
+    """
+    Return Active employees whose date_of_joining equals `date` (default today)
+    and who are not currently assigned to any Shoe Rack compartment.
+    """
+    try:
+        join_date = date or frappe.utils.today()
+
+        employees = frappe.get_all(
+            "Employee",
+            filters={"date_of_joining": join_date, "status": "Active"},
+            fields=["name", "employee_name", "gender", "date_of_joining", "department"],
+            limit_page_length=0
+        )
+
+        if not employees:
+            return {"success": True, "employees": [], "date": join_date,
+                    "total_joiners": 0, "already_assigned": 0}
+
+        # Collect every employee already occupying a compartment
+        assigned_employees = set()
+        for field in ["compartment_1_employee", "compartment_2_employee"]:
+            rows = frappe.get_all(
+                "Shoe Rack",
+                filters=[[field, "not in", ["", None]]],
+                fields=[field],
+                limit_page_length=0
+            )
+            for r in rows:
+                val = r.get(field)
+                if val:
+                    assigned_employees.add(val)
+
+        unassigned = [e for e in employees if e.name not in assigned_employees]
+
+        return {
+            "success": True,
+            "employees": unassigned,
+            "date": join_date,
+            "total_joiners": len(employees),
+            "already_assigned": len(employees) - len(unassigned)
+        }
+
+    except Exception as e:
+        frappe.log_error(f"get_today_joiners error: {str(e)}")
+        return {"success": False, "employees": [], "message": str(e)}
+
+
+@frappe.whitelist()
+def suggest_shoe_racks(employees):
+    """
+    Suggest the first available Standard Employee rack slot for each employee.
+    Matches on gender when both employee and rack have a gender set.
+    Excludes racks with do_not_auto_suggest = 1.
+
+    Args:
+        employees: JSON list of {"name": "...", "employee_name": "...", "gender": "..."}
+
+    Returns:
+        {"success": True, "suggestions": [...], "matched": N, "unmatched": N}
+    """
+    try:
+        if isinstance(employees, str):
+            employees = json.loads(employees)
+
+        _rack_fields = [
+            "name", "rack_display_name", "gender", "compartments",
+            "compartment_1_employee", "compartment_2_employee"
+        ]
+        _dna_exists = frappe.db.exists(
+            "Custom Field", {"dt": "Shoe Rack", "fieldname": "do_not_auto_suggest"}
+        )
+        if _dna_exists:
+            _rack_fields.append("do_not_auto_suggest")
+
+        available_racks = frappe.get_all(
+            "Shoe Rack",
+            filters={"rack_type": "Standard Employee"},
+            fields=_rack_fields,
+            order_by="rack_display_name asc",
+            limit_page_length=0
+        )
+
+        # Exclude racks marked do_not_auto_suggest (safe if field absent)
+        filtered_racks = [r for r in available_racks if not r.get("do_not_auto_suggest")]
+
+        # Build ordered list of available (rack, compartment) slots
+        available_slots = []
+        for rack in filtered_racks:
+            comp_count = int(rack.get("compartments") or 1)
+            gender = rack.get("gender") or ""
+
+            if not rack.get("compartment_1_employee"):
+                available_slots.append({
+                    "rack_name": rack.name,
+                    "rack_display_name": rack.rack_display_name,
+                    "compartment": 1,
+                    "gender": gender
+                })
+
+            if comp_count == 2 and not rack.get("compartment_2_employee"):
+                available_slots.append({
+                    "rack_name": rack.name,
+                    "rack_display_name": rack.rack_display_name,
+                    "compartment": 2,
+                    "gender": gender
+                })
+
+        suggestions = []
+        used_slots = set()
+
+        for emp in employees:
+            emp_id = emp.get("name") or emp.get("employee")
+            emp_gender = (emp.get("gender") or "").strip()
+
+            found = None
+            for slot in available_slots:
+                slot_key = (slot["rack_name"], slot["compartment"])
+                if slot_key in used_slots:
+                    continue
+                # Skip gender mismatch only when both sides have a gender value
+                if emp_gender and slot["gender"] and emp_gender != slot["gender"]:
+                    continue
+                found = slot
+                used_slots.add(slot_key)
+                break
+
+            suggestions.append({
+                "employee": emp_id,
+                "employee_name": emp.get("employee_name", emp_id),
+                "gender": emp_gender,
+                "rack_name": found["rack_name"] if found else None,
+                "rack_display_name": found["rack_display_name"] if found else None,
+                "compartment": found["compartment"] if found else None,
+                "suggested": found is not None
+            })
+
+        return {
+            "success": True,
+            "suggestions": suggestions,
+            "matched": sum(1 for s in suggestions if s["suggested"]),
+            "unmatched": sum(1 for s in suggestions if not s["suggested"])
+        }
+
+    except Exception as e:
+        frappe.log_error(f"suggest_shoe_racks error: {str(e)}")
+        return {"success": False, "suggestions": [], "message": str(e)}
+
+
+@frappe.whitelist()
+def assign_shoe_racks(assignments):
+    """
+    Assign employees to specific rack compartments.
+
+    Args:
+        assignments: JSON list of {"employee": "...", "rack_name": "...", "compartment": 1}
+
+    Returns:
+        {"success": True, "assigned": N, "errors": [...]}
+    """
+    try:
+        if isinstance(assignments, str):
+            assignments = json.loads(assignments)
+
+        assigned = 0
+        errors = []
+
+        for item in assignments:
+            emp = item.get("employee")
+            rack_name = item.get("rack_name")
+            compartment = int(item.get("compartment", 1))
+
+            if not emp or not rack_name:
+                errors.append(f"Missing employee or rack_name: {item}")
+                continue
+
+            try:
+                if not frappe.db.exists("Shoe Rack", rack_name):
+                    errors.append(f"Rack {rack_name} not found")
+                    continue
+
+                rack = frappe.get_doc("Shoe Rack", rack_name)
+                field = f"compartment_{compartment}_employee"
+
+                current = getattr(rack, field, None)
+                if current:
+                    errors.append(f"Rack {rack_name} compartment {compartment} already occupied by {current}")
+                    continue
+
+                setattr(rack, field, emp)
+                rack.save(ignore_permissions=True)
+                assigned += 1
+
+            except Exception as e:
+                errors.append(f"{rack_name}: {str(e)}")
+
+        frappe.db.commit()
+        return {"success": True, "assigned": assigned, "errors": errors}
+
+    except Exception as e:
+        frappe.log_error(f"assign_shoe_racks error: {str(e)}")
+        return {"success": False, "assigned": 0, "message": str(e)}
+
+
+@frappe.whitelist()
+def get_left_employees_in_racks():
+    """
+    Return all shoe rack compartments that are still assigned to an employee
+    whose status is 'Left'.
+    """
+    try:
+        racks = frappe.get_all(
+            "Shoe Rack",
+            filters=[
+                ["compartment_1_employee", "!=", ""],
+                ["compartment_1_employee", "is", "set"]
+            ],
+            fields=["name", "rack_display_name", "compartment_1_employee", "compartment_2_employee"],
+            limit_page_length=0,
+            or_filters=[
+                ["compartment_1_employee", "is", "set"],
+                ["compartment_2_employee", "is", "set"]
+            ]
+        )
+
+        # Fetch all employees with status Left in a single query for efficiency
+        left_set = set(
+            r.name for r in frappe.get_all(
+                "Employee",
+                filters={"status": "Left"},
+                fields=["name"],
+                limit_page_length=0
+            )
+        )
+
+        # Also fetch employee details we'll need
+        all_emp_ids = set()
+        for rack in racks:
+            if rack.get("compartment_1_employee"):
+                all_emp_ids.add(rack["compartment_1_employee"])
+            if rack.get("compartment_2_employee"):
+                all_emp_ids.add(rack["compartment_2_employee"])
+
+        emp_details = {}
+        if all_emp_ids:
+            for emp in frappe.get_all(
+                "Employee",
+                filters=[["name", "in", list(all_emp_ids)]],
+                fields=["name", "employee_name", "department", "status"],
+                limit_page_length=0
+            ):
+                emp_details[emp.name] = emp
+
+        items = []
+        for rack in racks:
+            for compartment in [1, 2]:
+                field = f"compartment_{compartment}_employee"
+                emp_id = rack.get(field)
+                if emp_id and emp_id in left_set:
+                    emp = emp_details.get(emp_id, {})
+                    items.append({
+                        "rack_name": rack.name,
+                        "rack_display_name": rack.get("rack_display_name") or rack.name,
+                        "compartment": compartment,
+                        "employee": emp_id,
+                        "employee_name": emp.get("employee_name") or emp_id,
+                        "department": emp.get("department") or "",
+                    })
+
+        items.sort(key=lambda x: (x["rack_display_name"], x["compartment"]))
+        return {"success": True, "items": items, "total": len(items)}
+
+    except Exception as e:
+        frappe.log_error(f"get_left_employees_in_racks error: {str(e)}")
+        return {"success": False, "items": [], "message": str(e)}
+
+
+@frappe.whitelist()
+def clear_left_employees_from_racks(items):
+    """
+    Clear the compartment field for the given list of {rack_name, compartment}.
+
+    Args:
+        items: JSON list of {"rack_name": "...", "compartment": 1}
+
+    Returns:
+        {"success": True, "cleared": N, "errors": [...]}
+    """
+    try:
+        if isinstance(items, str):
+            items = json.loads(items)
+
+        cleared = 0
+        errors = []
+
+        for item in items:
+            rack_name = item.get("rack_name")
+            compartment = int(item.get("compartment", 1))
+
+            if not rack_name:
+                errors.append(f"Missing rack_name: {item}")
+                continue
+
+            try:
+                if not frappe.db.exists("Shoe Rack", rack_name):
+                    errors.append(f"Rack {rack_name} not found")
+                    continue
+
+                rack = frappe.get_doc("Shoe Rack", rack_name)
+                field = f"compartment_{compartment}_employee"
+                setattr(rack, field, None)
+                rack.save(ignore_permissions=True)
+                cleared += 1
+
+            except Exception as e:
+                errors.append(f"{rack_name} C{compartment}: {str(e)}")
+
+        frappe.db.commit()
+        return {"success": True, "cleared": cleared, "errors": errors}
+
+    except Exception as e:
+        frappe.log_error(f"clear_left_employees_from_racks error: {str(e)}")
+        return {"success": False, "cleared": 0, "message": str(e)}
