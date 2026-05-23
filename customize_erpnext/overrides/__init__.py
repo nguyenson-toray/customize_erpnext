@@ -13,6 +13,8 @@ try:
 	import customize_erpnext.overrides.employee_checkin
 	import customize_erpnext.overrides.shift_type
 	import customize_erpnext.overrides.attendance
+	import customize_erpnext.overrides.leave_application
+	import customize_erpnext.overrides.earned_leave
 
 	frappe.logger().info("✅ All overrides loaded successfully (on import)")
 

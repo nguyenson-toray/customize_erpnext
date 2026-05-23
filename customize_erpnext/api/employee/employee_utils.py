@@ -4,6 +4,7 @@ import os
 import base64
 import math
 import json
+import time
 from frappe import _
 from frappe.utils.file_manager import save_file
 from frappe.utils.pdf import get_pdf
@@ -20,6 +21,270 @@ try:
     from barcode.writer import ImageWriter
 except:
     barcode = None
+
+# Cache rembg sessions theo model (avoid reload on each request)
+_rembg_sessions = {}
+# Thời điểm load session trong process này (model_name -> timestamp)
+_rembg_session_loaded_at = {}
+
+# CPU-only server (no GPU): tune ORT threads per model to avoid contention.
+# birefnet concurrent=2 → 8 threads × 2 workers = safe on 64GB
+# u2net    concurrent=10 → 4 threads × 10 workers = 5GB total
+_CPU_CORES = os.cpu_count() or 4
+_REMBG_ORT_THREADS = {
+    'birefnet-portrait': max(1, _CPU_CORES // 2),
+    'u2net':             max(1, _CPU_CORES // 4),
+}
+
+# Giới hạn RAM: sau mỗi inference, nếu RAM hệ thống > ngưỡng → evict session
+# 70% × 64GB = ~44GB cho rembg; birefnet ~13GB/worker → tối đa 3 workers giữ session
+_REMBG_RAM_LIMIT_PCT = 70   # % tổng RAM tối đa cho rembg sessions
+_REMBG_HEAVY_MODELS  = {'birefnet-portrait'}  # models cần kiểm soát RAM
+
+# Redis keys để đồng bộ idle-cleanup giữa các worker Gunicorn
+_REMBG_ACTIVE_KEY = 'rembg_last_used'    # timestamp lần dùng cuối
+_REMBG_EVICT_KEY  = 'rembg_evict_after'  # nếu session load trước ts này → cần evict
+_REMBG_IDLE_TTL   = 30 * 60              # 30 phút 
+
+
+def _evict_rembg_if_stale():
+    """Evict session trong process này nếu Redis báo đã quá idle."""
+    global _rembg_sessions, _rembg_session_loaded_at
+    if not _rembg_sessions:
+        return
+    try:
+        evict_after = frappe.cache().get_value(_REMBG_EVICT_KEY)
+        if not evict_after:
+            return
+        evict_after = float(evict_after)
+        # Xóa session nào được load TRƯỚC thời điểm evict được yêu cầu
+        should_evict = any(
+            _rembg_session_loaded_at.get(m, 0) < evict_after
+            for m in list(_rembg_sessions)
+        )
+        if should_evict:
+            _rembg_sessions.clear()
+            _rembg_session_loaded_at.clear()
+            frappe.cache().delete_value(_REMBG_EVICT_KEY)
+            frappe.logger().info('[rembg] Worker evicted stale sessions (lazy cleanup)')
+    except Exception:
+        pass  # Không để lỗi cache ảnh hưởng luồng chính
+
+_REMBG_LOCK_KEY = 'rembg_batch_lock'
+_REMBG_LOCK_TTL = 600  # 10 phút auto-expire phòng crash
+
+@frappe.whitelist()
+def batch_rembg_acquire_lock(session_id):
+    """Thử chiếm lock xử lý rembg. Trả về {acquired, holder}."""
+    cache = frappe.cache()
+    existing = cache.get_value(_REMBG_LOCK_KEY)
+    if existing:
+        try:
+            data = json.loads(existing) if isinstance(existing, str) else existing
+        except Exception:
+            data = {}
+        if data.get('session_id') == session_id:
+            # Renew TTL cho cùng session
+            cache.set_value(_REMBG_LOCK_KEY, json.dumps(data), expires_in_sec=_REMBG_LOCK_TTL)
+            return {'acquired': True}
+        return {'acquired': False, 'holder': data}
+    # Kiểm tra có ai đang xóa nền đơn lẻ (photo editor thủ công) không.
+    # Nếu _REMBG_ACTIVE_KEY được cập nhật trong 120s và không có batch lock
+    # → là single-edit đang chạy → chặn batch mới để tránh tranh RAM.
+    active_ts = cache.get_value(_REMBG_ACTIVE_KEY)
+    if active_ts:
+        try:
+            if time.time() - float(active_ts) < 120:
+                return {'acquired': False, 'holder': {
+                    'user': 'người dùng khác',
+                    'started_at': datetime.fromtimestamp(float(active_ts)).strftime('%H:%M:%S'),
+                    'type': 'single_edit',
+                }}
+        except Exception:
+            pass
+    lock_data = {
+        'user': frappe.session.user,
+        'session_id': session_id,
+        'started_at': datetime.now().strftime('%H:%M:%S'),
+    }
+    cache.set_value(_REMBG_LOCK_KEY, json.dumps(lock_data), expires_in_sec=_REMBG_LOCK_TTL)
+    return {'acquired': True}
+
+@frappe.whitelist()
+def batch_rembg_release_lock(session_id):
+    """Giải phóng lock + set evict flag ngay để workers xóa session sau batch.
+    Tránh tích lũy birefnet (~20GB/worker) giữa các lần batch liên tiếp.
+    """
+    global _rembg_sessions, _rembg_session_loaded_at
+    cache = frappe.cache()
+    existing = cache.get_value(_REMBG_LOCK_KEY)
+    if existing:
+        try:
+            data = json.loads(existing) if isinstance(existing, str) else existing
+        except Exception:
+            data = {}
+        if data.get('session_id') == session_id:
+            cache.delete_value(_REMBG_LOCK_KEY)
+
+    # Evict ngay trong process này + set flag cho tất cả workers khác
+    _rembg_sessions.clear()
+    _rembg_session_loaded_at.clear()
+    import gc; gc.collect()
+    evict_ts = time.time()
+    cache.set_value(_REMBG_EVICT_KEY, evict_ts, expires_in_sec=3600)
+    cache.delete_value(_REMBG_ACTIVE_KEY)
+    frappe.logger().info(f'[rembg] Post-batch evict triggered (evict_after={evict_ts})')
+    return {'ok': True}
+
+
+@frappe.whitelist()
+def cleanup_rembg_worker():
+    """Evict rembg session trong worker Gunicorn hiện tại.
+    Trả về evicted, pid, worker_count, locked.
+    Nếu locked=True: có batch đang chạy → frontend phải dừng evict ngay.
+    """
+    global _rembg_sessions, _rembg_session_loaded_at
+
+    # Đếm workers trước (dùng cho mọi trường hợp)
+    try:
+        import subprocess
+        r = subprocess.run(
+            ['pgrep', '-c', '-f', 'gunicorn.*frappe.app:application'],
+            capture_output=True, text=True
+        )
+        worker_count = int(r.stdout.strip()) if r.returncode == 0 else 9
+    except Exception:
+        worker_count = 9
+
+    # Không evict nếu có rembg đang chạy (batch lock HOẶC single-photo editor đang inference)
+    cache = frappe.cache()
+    if cache.get_value(_REMBG_LOCK_KEY):
+        return {'evicted': False, 'pid': os.getpid(), 'worker_count': worker_count, 'locked': True}
+    active_ts = cache.get_value(_REMBG_ACTIVE_KEY)
+    if active_ts:
+        try:
+            if time.time() - float(active_ts) < 120:  # Có inference trong 2 phút qua
+                return {'evicted': False, 'pid': os.getpid(), 'worker_count': worker_count, 'locked': True}
+        except Exception:
+            pass
+
+    had_session = bool(_rembg_sessions)
+    if had_session:
+        _rembg_sessions.clear()
+        _rembg_session_loaded_at.clear()
+        import gc; gc.collect()
+
+    return {'evicted': had_session, 'pid': os.getpid(), 'worker_count': worker_count, 'locked': False}
+
+@frappe.whitelist()
+def remove_bg_rembg(image_data, model_name='birefnet-portrait'):
+    """Server-side background removal via rembg. Returns PNG base64 data-url.
+    CPU-only: CPUExecutionProvider. OMP_NUM_THREADS tuned per model/concurrent.
+    """
+    try:
+        from rembg import remove as rembg_remove, new_session
+    except ImportError:
+        frappe.throw('rembg chưa được cài đặt. Chạy: pip install rembg')
+
+    global _rembg_sessions, _rembg_session_loaded_at
+
+    # Evict session nếu scheduler đã đánh dấu idle quá 15 phút
+    _evict_rembg_if_stale()
+
+    if model_name not in _rembg_sessions:
+        # Evict các model KHÁC trước khi load model mới — tránh birefnet+u2net cùng tồn tại
+        # (birefnet ~20GB, u2net ~0.5GB; giữ cả 2 → OOM trên server 64GB với 4 workers)
+        stale_models = [m for m in list(_rembg_sessions) if m != model_name]
+        if stale_models:
+            for m in stale_models:
+                del _rembg_sessions[m]
+                _rembg_session_loaded_at.pop(m, None)
+            import gc; gc.collect()
+            frappe.logger().info(f'[rembg] Evicted models {stale_models} before loading {model_name}')
+
+        n_threads = _REMBG_ORT_THREADS.get(model_name, max(1, _CPU_CORES // 2))
+        # new_session reads OMP_NUM_THREADS when creating sess_opts internally
+        old_omp = os.environ.get('OMP_NUM_THREADS')
+        os.environ['OMP_NUM_THREADS'] = str(n_threads)
+        _rembg_sessions[model_name] = new_session(model_name,
+            providers=['CPUExecutionProvider'])
+        _rembg_session_loaded_at[model_name] = time.time()
+        if old_omp is None:
+            os.environ.pop('OMP_NUM_THREADS', None)
+        else:
+            os.environ['OMP_NUM_THREADS'] = old_omp
+
+    # Cập nhật thời điểm dùng gần nhất — reset lại 15-phút idle timer
+    try:
+        frappe.cache().set_value(_REMBG_ACTIVE_KEY, time.time(),
+                                 expires_in_sec=_REMBG_IDLE_TTL * 3)
+    except Exception:
+        pass
+
+    session = _rembg_sessions[model_name]
+    raw = image_data.split(',')[1] if ',' in image_data else image_data
+    output_bytes = rembg_remove(base64.b64decode(raw), session=session)
+    import gc; gc.collect()  # Giải phóng intermediate tensors ONNX trước khi đo RAM
+
+    # Dynamic RAM guard: sau gc, đo RAM thực tế.
+    # Nếu tổng RAM đã dùng > _REMBG_RAM_LIMIT_PCT → evict session nặng khỏi worker này.
+    # Nếu còn dư → giữ session để tái dùng nhanh cho request tiếp theo.
+    # u2net (~0.5GB): không cần kiểm tra, luôn giữ.
+    if model_name in _REMBG_HEAVY_MODELS:
+        try:
+            import psutil
+            ram_pct = psutil.virtual_memory().percent
+            if ram_pct >= _REMBG_RAM_LIMIT_PCT:
+                _rembg_sessions.pop(model_name, None)
+                _rembg_session_loaded_at.pop(model_name, None)
+                gc.collect()
+                frappe.logger().info(
+                    f'[rembg] Evicted {model_name} — RAM {ram_pct:.1f}% >= {_REMBG_RAM_LIMIT_PCT}%'
+                )
+            else:
+                frappe.logger().debug(
+                    f'[rembg] Kept {model_name} session — RAM {ram_pct:.1f}% < {_REMBG_RAM_LIMIT_PCT}%'
+                )
+        except Exception:
+            # Fail-safe: không đọc được RAM → evict để an toàn
+            _rembg_sessions.pop(model_name, None)
+            _rembg_session_loaded_at.pop(model_name, None)
+            gc.collect()
+
+    return 'data:image/png;base64,' + base64.b64encode(output_bytes).decode('utf-8')
+
+
+def cleanup_rembg_sessions():
+    """Scheduler task (mỗi 1 phút): nếu rembg không được dùng > 15 phút,
+    set Redis evict flag để tất cả worker Gunicorn sẽ tự giải phóng session
+    khi nhận request tiếp theo.
+    """
+    global _rembg_sessions, _rembg_session_loaded_at
+    try:
+        cache = frappe.cache()
+        last_used = cache.get_value(_REMBG_ACTIVE_KEY)
+        if not last_used:
+            return  # Chưa từng dùng hoặc đã cleanup rồi
+
+        idle_seconds = time.time() - float(last_used)
+        if idle_seconds < _REMBG_IDLE_TTL:
+            return  # Vẫn trong 15 phút, giữ nguyên
+
+        # Quá 15 phút không dùng → yêu cầu tất cả worker evict
+        evict_ts = time.time()
+        cache.set_value(_REMBG_EVICT_KEY, evict_ts, expires_in_sec=3600)
+        cache.delete_value(_REMBG_ACTIVE_KEY)
+
+        # Giải phóng ngay trong process scheduler này
+        _rembg_sessions.clear()
+        _rembg_session_loaded_at.clear()
+
+        frappe.logger().info(
+            f'[rembg] Cleanup triggered after {idle_seconds:.0f}s idle '
+            f'(evict_after={evict_ts})'
+        )
+    except Exception as e:
+        frappe.logger().warning(f'[rembg] cleanup_rembg_sessions error: {e}')
 
 @frappe.whitelist()
 def get_next_employee_code():
@@ -67,42 +332,27 @@ def get_next_attendance_device_id():
 @frappe.whitelist()
 
 def set_series(prefix, current_highest_id):
-    """Set naming series to prevent duplicate auto-generated IDs"""
+    """Set naming series to prevent duplicate auto-generated IDs.
+
+    Stores (current_highest_id - 1) because Frappe's naming engine reads
+    tabSeries.current as the *last used* value and increments by 1 before
+    returning the next name.  Passing the desired number directly would cause
+    Frappe to generate (desired + 1) on the next insert.
+    """
     try:
-        # Always update the series value using direct SQL
+        # Store (current_highest_id - 1) so Frappe generates exactly current_highest_id.
+        # No frappe.db.commit() here — the same connection sees its own uncommitted changes,
+        # so set_new_name() (called later in the same transaction) will read the updated value.
+        # Committing mid-transaction breaks MySQL REPEATABLE READ isolation and can cause
+        # TimestampMismatchError for concurrent UPDATE rows in the same Data Import batch.
         frappe.db.sql("""
             UPDATE tabSeries SET current = %s WHERE name = %s
-        """, (current_highest_id, prefix))
-        frappe.db.commit()
+        """, (current_highest_id - 1, prefix))
         return {"status": "success", "message": f"Series {prefix} updated to {current_highest_id}"}
         
     except Exception as e:
         frappe.log_error(f"Error updating series {prefix}: {str(e)}")
         return {"status": "error", "message": str(e)}
-
-@frappe.whitelist()
-def check_duplicate_employee(employee_code, current_doc_name=None):
-    """Check if employee code already exists"""
-    filters = {"employee": employee_code}
-    if current_doc_name:
-        filters["name"] = ["!=", current_doc_name]
-    
-    existing = frappe.db.exists("Employee", filters)
-    return {"exists": bool(existing), "employee_code": employee_code}
-
-@frappe.whitelist()
-def check_duplicate_attendance_device_id(attendance_device_id, current_doc_name=None):
-    """Check if attendance device ID already exists"""
-    if not attendance_device_id:
-        return {"exists": False, "attendance_device_id": attendance_device_id}
-
-    filters = {"attendance_device_id": attendance_device_id}
-    if current_doc_name:
-        filters["name"] = ["!=", current_doc_name]
-
-    existing = frappe.db.exists("Employee", filters)
-    return {"exists": bool(existing), "attendance_device_id": attendance_device_id}
-
 
 @frappe.whitelist()
 def upload_employee_image(employee_id, employee_name, file_content, file_name):
@@ -188,7 +438,80 @@ def upload_employee_image(employee_id, employee_name, file_content, file_name):
 
 
 @frappe.whitelist()
-def generate_employee_cards_pdf(employee_ids, with_barcode=0, page_size='A4', name_font_size=18, max_length_font_20=20):
+def generate_employee_cards_html_api(employee_ids, with_barcode=0, page_size='A4', name_font_size=18, max_length_font_20=20, card_border_radius=1):
+    """
+    Generate HTML for employee cards (for preview/edit in browser tab).
+    Same parameters as generate_employee_cards_pdf but returns HTML string.
+    """
+    import traceback
+
+    try:
+        if isinstance(employee_ids, str):
+            employee_ids = json.loads(employee_ids)
+
+        with_barcode = int(with_barcode) == 1
+        card_border_radius = int(card_border_radius) == 1
+
+        if page_size not in ['A4', 'A5']:
+            page_size = 'A4'
+
+        try:
+            name_font_size = int(name_font_size) if name_font_size else 18
+            if name_font_size not in [19, 18, 17, 16]:
+                name_font_size = 18
+        except (ValueError, TypeError):
+            name_font_size = 18
+
+        try:
+            max_length_font_20 = int(max_length_font_20) if max_length_font_20 else 20
+            if max_length_font_20 < 10 or max_length_font_20 > 50:
+                max_length_font_20 = 20
+        except (ValueError, TypeError):
+            max_length_font_20 = 20
+
+        employees = []
+        for emp_id in employee_ids:
+            try:
+                emp = frappe.get_doc('Employee', emp_id)
+                employees.append({
+                    'name': emp.name,
+                    'employee_name': emp.employee_name or '',
+                    'custom_section': emp.custom_section or '',
+                    'image': emp.image or ''
+                })
+            except Exception as emp_err:
+                frappe.logger().error(f"Error loading employee {emp_id}: {str(emp_err)}")
+                continue
+
+        if not employees:
+            frappe.throw(_("No valid employees found"))
+
+        if len(employees) % 2 != 0:
+            employees.append({'name': '', 'employee_name': '', 'custom_section': '', 'image': ''})
+
+        html = generate_employee_cards_html(
+            employees,
+            with_barcode=with_barcode,
+            page_size=page_size,
+            name_font_size=name_font_size,
+            max_length_font_20=max_length_font_20,
+            card_border_radius=card_border_radius
+        )
+
+        return {
+            'status': 'success',
+            'html': html,
+            'employee_count': len(employees)
+        }
+
+    except Exception as e:
+        error_trace = traceback.format_exc()
+        frappe.logger().error(f"Error generating employee cards HTML: {str(e)}\n{error_trace}")
+        frappe.throw(_("Failed to generate employee cards HTML: {0}").format(str(e)))
+
+
+@frappe.whitelist()
+def generate_employee_cards_pdf(employee_ids, with_barcode=0, page_size='A4', name_font_size=18, max_length_font_20=20, card_border_radius=1):
     """
     Generate PDF containing employee cards with layout:
     - A4 portrait: 2 columns, 5 rows (10 cards per page)
@@ -211,6 +534,7 @@ def generate_employee_cards_pdf(employee_ids, with_barcode=0, page_size='A4', na
 
         # Convert with_barcode to boolean
         with_barcode = int(with_barcode) == 1
+        card_border_radius = int(card_border_radius) == 1
 
         # Validate page_size
         if page_size not in ['A4', 'A5']:
@@ -234,7 +558,7 @@ def generate_employee_cards_pdf(employee_ids, with_barcode=0, page_size='A4', na
         except (ValueError, TypeError):
             max_length_font_20 = 20
 
-        frappe.logger().info(f"Generating employee cards for {len(employee_ids)} employees (page_size={page_size}, name_font_size={name_font_size}pt, max_length_font_20={max_length_font_20})")
+        frappe.logger().info(f"Generating employee cards for {len(employee_ids)} employees (page_size={page_size}, name_font_size={name_font_size}pt, max_length_font_20={max_length_font_20}, card_border_radius={card_border_radius})")
 
         # Get employee data
         employees = []
@@ -254,7 +578,7 @@ def generate_employee_cards_pdf(employee_ids, with_barcode=0, page_size='A4', na
 
         if not employees:
             frappe.throw(_("No valid employees found"))
-        if len(employees) %2 != 0:
+        if len(employees) % 2 != 0:
             # Ensure even number of employees for duplex printing
             employees.append({
                 'name': '',
@@ -265,7 +589,7 @@ def generate_employee_cards_pdf(employee_ids, with_barcode=0, page_size='A4', na
             frappe.logger().info("Added placeholder employee to make even count")
         # Generate HTML for cards
         frappe.logger().info(f"Generating HTML for employee cards (with_barcode={with_barcode}, page_size={page_size}, name_font_size={name_font_size}pt, max_length_font_20={max_length_font_20})")
-        html = generate_employee_cards_html(employees, with_barcode=with_barcode, page_size=page_size, name_font_size=name_font_size, max_length_font_20=max_length_font_20)
+        html = generate_employee_cards_html(employees, with_barcode=with_barcode, page_size=page_size, name_font_size=name_font_size, max_length_font_20=max_length_font_20, card_border_radius=card_border_radius)
 
         # Debug: Save HTML to file for inspection (uncomment if needed)
         # html_path = f'/tmp/employee_cards_{datetime.datetime.now().strftime("%Y%m%d_%H%M%S")}.html'
@@ -346,19 +670,24 @@ def get_employee_reissue_count(employee_id):
     
     return reissue_number
 
-def generate_employee_cards_html(employees, with_barcode=False, page_size='A4', name_font_size=18, max_length_font_20=20):
+def generate_employee_cards_html(employees, with_barcode=False, page_size='A4', name_font_size=18, max_length_font_20=20, card_border_radius=True):
     """
-    Generate HTML for employee   cards with proper layout
+    Generate HTML for employee cards with proper layout
     - A4: portrait, 2x5 layout
     - A5: landscape, 2x2 layout
     - name_font_size: font size for long names (default 18pt)
     - max_length_font_20: threshold for switching to smaller font (default 20)
+    - card_border_radius: apply border-radius 2mm to card (default True)
     """
     # Get company logo
     company_logo = get_company_logo()
 
     # Determine page orientation and size
     page_orientation = 'landscape' if page_size == 'A5' else 'portrait'
+
+    # Border-radius value for .card and .employee-photo
+    card_radius_css = '2mm' if card_border_radius else '0'
+    photo_radius_css = '1.5mm' if card_border_radius else '0'
 
     # CSS for card layout
     # Card size: 86mm x 53mm (EXACT - NO SCALING)
@@ -390,13 +719,19 @@ def generate_employee_cards_html(employees, with_barcode=False, page_size='A4', 
             margin: 0;
             padding: 0;
             width: 100%;
-            height: 100%;
         }}
 
         .cards-container {{
             width: 173mm;
             margin: 0 auto;
             padding: 0;
+        }}
+
+        @media print {{
+            .cards-container {{
+                margin-left: 13.5mm;
+                margin-right: 0;
+            }}
         }}
 
         .card-row {{
@@ -409,13 +744,12 @@ def generate_employee_cards_html(employees, with_barcode=False, page_size='A4', 
         }}
     
         .card-row:not(:last-child) {{
-            margin-bottom: {'1mm' if page_size == 'A5' else '0.8mm'};
+            margin-bottom: {'1mm' if page_size == 'A5' else '0.7mm'};
         }}
 
         .card {{
             width: 86mm;
             height: 53mm;
-            border: 1px solid #333;
             padding: 1mm;
             margin: 0 1mm 0 0;
             float: left;
@@ -424,6 +758,22 @@ def generate_employee_cards_html(employees, with_barcode=False, page_size='A4', 
             overflow: hidden;
             box-sizing: border-box;
             page-break-inside: avoid;
+        }}
+
+        /* Overlay riêng để vẽ border + border-radius, tránh bug
+           overflow:hidden + border-radius trong wkhtmltopdf */
+        .card-border-overlay {{
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: 1px solid #333;
+            -webkit-border-radius: {card_radius_css};
+            border-radius: {card_radius_css};
+            box-sizing: border-box;
+            pointer-events: none;
+            z-index: 100;
         }}
 
         .card:nth-child(2n) {{
@@ -455,18 +805,24 @@ def generate_employee_cards_html(employees, with_barcode=False, page_size='A4', 
             height: 37.33mm;
             margin-top: 4mm;
             object-fit: cover;
-            border: 1px solid #999;
+            box-shadow: 0 0 0 1px #999;
+            -webkit-border-radius: {photo_radius_css};
+            border-radius: {photo_radius_css};
             display: block;
             background: #f5f5f5;
         }}
 
         .card-right {{
+            height: stretch;
             margin-left: 5mm;
-            padding-top: 9mm;
+            padding-top: 8mm;
             padding-left: 0.5mm;
             padding-right: 0.5mm;
-            padding-bottom: 2mm;
+            padding-bottom: 1mm;
             text-align: left;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
         }}
 
         .employee-barcode {{
@@ -589,56 +945,45 @@ def generate_employee_cards_html(employees, with_barcode=False, page_size='A4', 
     # A4: 2 columns x 5 rows = 10 cards
     # A5: 2 columns x 2 rows = 4 cards
     cards_per_page = 4 if page_size == 'A5' else 10
-    rows_per_page = 2 if page_size == 'A5' else 5
     total_cards_on_page = cards_per_page  # 2 cards per row
 
     for page_idx in range(0, len(employees), cards_per_page):
         page_employees = employees[page_idx:page_idx + cards_per_page]
 
-        # FRONT SIDE: Create rows
+        # FRONT SIDE
         for row_idx in range(0, total_cards_on_page, 2):  # 2 cards per row
             html_parts.append('<div class="card-row">')
-
-            # Add 2 cards per row
             for col_idx in range(2):
                 emp_idx = row_idx + col_idx
                 if emp_idx < len(page_employees):
                     emp = page_employees[emp_idx]
-                    card_html = generate_single_card_html(emp, company_logo, with_barcode, max_length_font_20)
-                    html_parts.append(card_html)
+                    html_parts.append(generate_single_card_html(emp, company_logo, with_barcode, max_length_font_20))
                 else:
-                    # Empty card to maintain layout
                     html_parts.append('<div class="card" style="visibility: hidden;"></div>')
-
             html_parts.append('<div class="clearfix"></div>')
             html_parts.append('</div>')  # end card-row
 
-        # Page break before back side
-        # html_parts.append('<div class="page-break"></div>')
+        # Page break between front and back
+        html_parts.append('<div class="page-break"></div>')
 
-        # BACK SIDE: Rules (mirror layout for duplex printing)
+        # BACK SIDE
         for row_idx in range(0, total_cards_on_page, 2):
             html_parts.append('<div class="card-row">')
-
-            # Add 2 card backs per row - always show barcode on back
             for col_idx in range(2):
                 emp_idx = row_idx + col_idx
                 if emp_idx < len(page_employees):
                     emp = page_employees[emp_idx]
-                    card_back_html = generate_card_back_html(emp)
-                    html_parts.append(card_back_html)
+                    html_parts.append(generate_card_back_html(emp))
                 else:
-                    # Empty card to maintain layout
                     html_parts.append('<div class="card-back" style="visibility: hidden;"></div>')
-
             html_parts.append('<div class="clearfix"></div>')
             html_parts.append('</div>')  # end card-row
 
-        # Add page break if not last batch
+        # Page break between batches (if not last)
         if page_idx + cards_per_page < len(employees):
             html_parts.append('<div class="page-break"></div>')
 
-    html_parts.append('</div></body></html>')  # end cards-container, body, html
+    html_parts.append('</div></body></html>')
 
     return ''.join(html_parts)
 
@@ -669,7 +1014,7 @@ def generate_single_card_html(employee, company_logo, with_barcode=False, max_le
 
     # Rule 2: Name < 13 chars -> add extra line
     if name_length < 13:
-        name_html = f'{employee_name}<br/>&nbsp;'
+        name_html = f'{employee_name}<br/>'
 
     # Section logic: >= 19 chars -> use smaller font size
     section_class = 'employee-section'
@@ -685,6 +1030,7 @@ def generate_single_card_html(employee, company_logo, with_barcode=False, max_le
 
     card = f'''
     <div class="card">
+        <div class="card-border-overlay"></div>
         <div class="card-inner">
             <div class="card-left">
                 <img src="{company_logo}" class="company-logo" alt="Company Logo" />
@@ -695,7 +1041,7 @@ def generate_single_card_html(employee, company_logo, with_barcode=False, max_le
                 <div class="{name_class}">{name_html}</div>
                 <div class="employee-code">{employee_code}</div>
                 <div class="{section_class}">{employee_section}</div>
-                
+
             </div>
             <div id="reissue-number"> {reissue_display} </div>
         </div>
@@ -706,7 +1052,7 @@ def generate_single_card_html(employee, company_logo, with_barcode=False, max_le
 
 def generate_card_back_html(employee):
     """Generate HTML for card back side with rules"""
-    rules_html = '''
+    return '''
     <div class="card-back">
         <div class="card-back-title">QUY ĐỊNH SỬ DỤNG THẺ</div>
         <div class="card-back-content">
@@ -724,7 +1070,6 @@ def generate_card_back_html(employee):
         </div>
     </div>
     '''
-    return rules_html
 
 
 def generate_barcode_code39(code):
@@ -1163,16 +1508,15 @@ def update_employee_photo(employee_id, employee_name, new_file_url, old_file_url
 
 
 @frappe.whitelist()
-def process_employee_photo(employee_id, employee_name, image_data, remove_bg=0):
+def process_employee_photo(employee_id, employee_name, image_data):
     """
-    Process employee photo: crop to 3:4 ratio, resize to 450x600px, optionally remove background
+    Process employee photo: crop to 3:4 ratio, resize to 600x800px.
     Save to public/files/employee_photos/{employee_id} {employee_name}.jpg
 
     Args:
         employee_id: Employee ID (name field)
         employee_name: Employee full name
         image_data: Base64 encoded image data (already cropped by frontend)
-        remove_bg: Whether to remove background (0 or 1, default: 0)
 
     Returns:
         Dict with file_url and success status
@@ -1182,9 +1526,13 @@ def process_employee_photo(employee_id, employee_name, image_data, remove_bg=0):
         if Image is None:
             frappe.throw(_("PIL (Pillow) library is not installed"))
 
+        # Auto-detect format from data-url prefix
+        save_format = 'PNG' if image_data.startswith('data:image/png') else 'JPEG'
+        file_ext = 'png' if save_format == 'PNG' else 'jpg'
+
         # Decode base64 image
         if ',' in image_data:
-            # Remove data:image/jpeg;base64, prefix if present
+            # Remove data:image/...;base64, prefix if present
             image_data = image_data.split(',')[1]
 
         file_data = base64.b64decode(image_data)
@@ -1192,65 +1540,39 @@ def process_employee_photo(employee_id, employee_name, image_data, remove_bg=0):
         # Open image with PIL
         img = Image.open(io.BytesIO(file_data))
 
-        # Convert to RGB if necessary (remove alpha channel)
-        if img.mode in ('RGBA', 'LA', 'P'):
-            background = Image.new('RGB', img.size, (255, 255, 255))
-            if img.mode == 'P':
-                img = img.convert('RGBA')
-            background.paste(img, mask=img.split()[-1] if img.mode in ('RGBA', 'LA') else None)
-            img = background
-        elif img.mode != 'RGB':
-            img = img.convert('RGB')
-
-        # Resize to exactly 450x600px (image should already be 3:4 ratio from frontend crop)
-        img = img.resize((450, 600), Image.Resampling.LANCZOS)
-
-        # Remove background if requested (convert to int for safety)
-        remove_bg = int(remove_bg) if remove_bg else 0
-        if remove_bg == 1:
-            try:
-                from rembg import remove
-
-                # Convert PIL image to bytes
-                img_byte_arr = io.BytesIO()
-                img.save(img_byte_arr, format='PNG')
-                img_byte_arr = img_byte_arr.getvalue()
-
-                # Remove background
-                output = remove(img_byte_arr)
-
-                # Convert back to PIL Image
-                img_no_bg = Image.open(io.BytesIO(output))
-
-                # Create white background
-                background = Image.new('RGB', img_no_bg.size, (255, 255, 255))
-
-                # Paste image with removed background onto white background
-                if img_no_bg.mode == 'RGBA':
-                    background.paste(img_no_bg, mask=img_no_bg.split()[-1])
-                else:
-                    background.paste(img_no_bg)
-
+        if save_format == 'JPEG':
+            # Convert to RGB if necessary (remove alpha channel for JPEG)
+            if img.mode in ('RGBA', 'LA', 'P'):
+                background = Image.new('RGB', img.size, (255, 255, 255))
+                if img.mode == 'P':
+                    img = img.convert('RGBA')
+                background.paste(img, mask=img.split()[-1] if img.mode in ('RGBA', 'LA') else None)
                 img = background
+            elif img.mode != 'RGB':
+                img = img.convert('RGB')
+        else:
+            # PNG: preserve transparency if present, otherwise convert to RGBA
+            if img.mode not in ('RGBA', 'RGB'):
+                img = img.convert('RGBA') if 'A' in img.getbands() else img.convert('RGB')
 
-            except ImportError:
-                frappe.msgprint(_("rembg library not installed, skipping background removal"), indicator="orange")
-            except Exception as bg_error:
-                frappe.log_error(f"Error removing background: {str(bg_error)}", "Background Removal Error")
-                frappe.msgprint(_("Failed to remove background, using original image"), indicator="orange")
+        # Resize to exactly 600x800px (image should already be 3:4 ratio from frontend crop)
+        img = img.resize((600, 800), Image.Resampling.LANCZOS)
 
-        # Save to BytesIO with JPEG compression
+        # Save to BytesIO
         output_buffer = io.BytesIO()
-        img.save(output_buffer, format='JPEG', quality=85, optimize=True)
+        if save_format == 'JPEG':
+            img.save(output_buffer, format='JPEG', quality=85, optimize=True)
+        else:
+            img.save(output_buffer, format='PNG', optimize=True)
         output_data = output_buffer.getvalue()
 
         # Clean up employee name for file path
-        clean_name = employee_name.replace(' ', ' ') if employee_name else 'employee'
         # Remove invalid filename characters but keep Vietnamese characters
-        clean_name = re.sub(r'[<>:"/\\|?*]', '', clean_name)
+        clean_name = re.sub(r'[<>:"/\\|?*]', '', employee_name) if employee_name else 'employee'
+        clean_name = ' '.join(clean_name.split())  # Normalize multiple spaces to single
 
-        # Create file name: {employee_id} {employee_name}.jpg
-        final_file_name = f"{employee_id} {clean_name}.jpg"
+        # Create file name: {employee_id} {employee_name}.{ext}
+        final_file_name = f"{employee_id} {clean_name}.{file_ext}"
 
         # Get site path
         site_path = get_site_path()
@@ -1375,27 +1697,69 @@ def process_employee_photo(employee_id, employee_name, image_data, remove_bg=0):
 
 
 @frappe.whitelist()
+def delete_employee_photo(employee_id):
+    """
+    Delete employee photo file and clear Employee.image field.
+    """
+    try:
+        current_image = frappe.db.get_value('Employee', employee_id, 'image')
+        if not current_image:
+            return {'status': 'success', 'message': _('No photo to delete')}
+
+        site_path = get_site_path()
+
+        # Delete all File documents attached to this employee's image field
+        old_files = frappe.get_all('File',
+            filters={
+                'attached_to_doctype': 'Employee',
+                'attached_to_name': employee_id,
+                'attached_to_field': 'image'
+            },
+            fields=['name', 'file_url']
+        )
+        for f in old_files:
+            try:
+                if f.file_url.startswith('/private/'):
+                    p = os.path.join(site_path, f.file_url.lstrip('/'))
+                elif f.file_url.startswith('/files/'):
+                    p = os.path.join(site_path, 'public', f.file_url.lstrip('/'))
+                else:
+                    p = None
+                if p and os.path.exists(p):
+                    os.remove(p)
+                frappe.delete_doc('File', f.name, ignore_permissions=True, force=True)
+            except Exception as e:
+                frappe.logger().warning(f"delete_employee_photo: could not remove file {f.name}: {e}")
+
+        # Also remove physical file from current_image path (in case no File doc)
+        if current_image.startswith('/files/'):
+            p = os.path.join(site_path, 'public', current_image.lstrip('/'))
+            if os.path.exists(p):
+                try:
+                    os.remove(p)
+                except Exception:
+                    pass
+
+        # Clear Employee.image field
+        frappe.db.set_value('Employee', employee_id, 'image', '')
+        frappe.db.commit()
+
+        return {'status': 'success', 'message': _('Photo deleted successfully')}
+
+    except Exception as e:
+        frappe.log_error(f"Error deleting employee photo: {str(e)}", "Employee Photo Delete Error")
+        frappe.throw(_("Failed to delete employee photo: {0}").format(str(e)))
+
+
+@frappe.whitelist()
 def allow_change_name_attendance_device_id(name):
     """
-    Check if employee name and attendance_device_id can be changed
-    Returns False if employee has existing checkin records, True otherwise
-
-    Args:
-        name: Employee ID (name field)
-
-    Returns:
-        bool: True if changes are allowed, False if employee has checkin data
+    Returns True if employee ID and attendance_device_id may be changed.
+    Returns False if any Attendance record exists for this employee.
     """
     if not name:
         return True
-
-    # Check if employee has any checkin records
-    checkin_exists = frappe.db.exists('Employee Checkin', {'employee': name})
-
-    if checkin_exists:
-        return False
-
-    return True
+    return not bool(frappe.db.exists('Attendance', {'employee': name}))
 
 
 @frappe.whitelist()
@@ -2156,23 +2520,40 @@ def generate_employee_list_html(employee_data, company_name, include_department=
     
     return html
 def check_employee_maternity_status(employee, attendance_date):
+	"""Cấu trúc mới: 1 record/employee với 3 cặp ngày riêng biệt."""
+	from frappe.utils import getdate
 	apply_pregnant_benefit = False
 	maternity_status = None
-	maternity_records = frappe.db.sql("""
-		SELECT type, from_date, to_date, apply_pregnant_benefit
-		FROM `tabMaternity Tracking`
-		WHERE parent = %(employee)s
-		  AND type IN ('Pregnant', 'Maternity Leave', 'Young Child')
-		  AND from_date <= %(date)s
-		  AND to_date >= %(date)s
-	""", {"employee": employee, "date": attendance_date}, as_dict=1 )
-	
-	if maternity_records: 
-		maternity_status = maternity_records[0].type
-		if maternity_records[0].type == 'Young Child':
-			apply_pregnant_benefit = True
-		elif maternity_records[0].type == 'Pregnant' and maternity_records[0].apply_pregnant_benefit:
-			apply_pregnant_benefit = True
+
+	em = frappe.db.sql("""
+		SELECT pregnant_from_date, pregnant_to_date, estimated_due_date,
+		       maternity_from_date, maternity_to_date,
+		       youg_child_from_date, youg_child_to_date,
+		       apply_benefit
+		FROM `tabEmployee Maternity`
+		WHERE employee = %(employee)s
+		LIMIT 1
+	""", {"employee": employee}, as_dict=True)
+
+	if not em:
+		return maternity_status, apply_pregnant_benefit
+
+	rec = em[0]
+	check_d = getdate(attendance_date)
+
+	if rec.maternity_from_date and rec.maternity_to_date:
+		if getdate(rec.maternity_from_date) <= check_d <= getdate(rec.maternity_to_date):
+			return "Maternity Leave", True
+
+	if rec.youg_child_from_date and rec.youg_child_to_date:
+		if getdate(rec.youg_child_from_date) <= check_d <= getdate(rec.youg_child_to_date):
+			return "Young Child", True
+
+	if rec.pregnant_from_date:
+		eff_to = rec.pregnant_to_date or rec.estimated_due_date
+		if eff_to and getdate(rec.pregnant_from_date) <= check_d <= getdate(eff_to):
+			apply_benefit = bool(rec.apply_benefit)
+			return "Pregnant", apply_benefit
 
 	return maternity_status, apply_pregnant_benefit
 
@@ -2359,3 +2740,377 @@ def get_all_active_employees(date):
 		)
 		ORDER BY emp.name
 	""", {"date": date}, as_dict=True)
+
+
+# =============================================================================
+# EXCEL / POWER QUERY API
+# =============================================================================
+
+_EMPLOYEE_FIELDS = [
+	# --- Thông tin cơ bản ---
+	"name as employee", "employee_name", "employee_number", "status", "company",
+	"naming_series", "salutation", "first_name", "middle_name", "last_name",
+	"gender", "date_of_birth", "blood_group", "marital_status",
+	"custom_number_of_childrens",
+
+	# --- Thông tin công việc ---
+	"date_of_joining", "employment_type", "department", "custom_section",
+	"custom_group", "designation", "custom_designation_vietnamese",
+	"custom_direct_indirect_", "grade", "branch", "reports_to",
+	"scheduled_confirmation_date", "final_confirmation_date",
+	"custom_number_of_probation_days", "contract_end_date", "date_of_retirement",
+	"notice_number_of_days", "holiday_list", "default_shift",
+
+	# --- CCCD / Hộ chiếu ---
+	"custom_id_card_no", "custom_id_card_date_of_issue", "custom_id_card_place_of_issue",
+	"custom_id_card_cmnd_no", "custom_id_card_cmnd_date_of_issue",
+	"custom_id_card_cmnd_place_of_issue",
+	"passport_number", "date_of_issue", "valid_upto", "place_of_issue",
+
+	# --- Địa chỉ thường trú ---
+	"custom_permanent_address_province", "custom_permanent_address_commune",
+	"custom_permanent_address_village", "custom_permanent_address_full",
+	"permanent_accommodation_type", "permanent_address",
+
+	# --- Địa chỉ hiện tại ---
+	"custom_current_address_province", "custom_current_address_commune",
+	"custom_current_address_village", "custom_current_address_full",
+	"current_accommodation_type", "current_address",
+
+	# --- Quê quán ---
+	"custom_place_of_origin_address_province", "custom_place_of_origin_address_commune",
+	"custom_place_of_origin_address_village", "custom_place_of_origin_address_full",
+
+	# --- Liên hệ ---
+	"cell_number", "personal_email", "company_email", "prefered_email",
+	"prefered_contact_email", "user_id",
+	"person_to_be_contacted", "relation", "emergency_phone_number",
+
+	# --- Lương / Tài chính ---
+	"salary_mode", "salary_currency", "ctc", "bank_name", "custom_bank_branch",
+	"bank_ac_no", "iban", "custom_tax_code", "custom_social_insurance_number",
+	"custom_privilege",
+
+	# --- Bảo hiểm y tế ---
+	"health_insurance_provider", "health_insurance_no",
+
+	# --- Học vấn ---
+	"custom_education_level", "custom_university", "custom_major",
+	"custom_education_detail",
+
+	# --- Thông tin thêm ---
+	"custom_shirt_size", "custom_shoe_size", "custom_driving_license",
+	"custom_driving_license_note", "custom_favorite_sport", "custom_vegetarian",
+	"custom_strengths",
+
+	# --- Phê duyệt ---
+	"leave_approver", "expense_approver", "shift_request_approver",
+	"payroll_cost_center", "employee_advance_account",
+
+	# --- Nghỉ việc ---
+	"resignation_letter_date", "relieving_date", "reason_for_leaving",
+	"leave_encashed", "encashment_date", "held_on", "new_workplace",
+
+	# --- Hệ thống ---
+	"attendance_device_id", "job_applicant",
+]
+
+# Basic field set (for field_set="basic" option)
+_EMPLOYEE_BASIC_FIELDS = [
+	"name as employee", "attendance_device_id", "employee_name", "status",
+	"gender", "grade", "date_of_birth", "date_of_joining", "department",
+	"custom_section", "custom_group", "designation", "relieving_date", "reason_for_leaving",
+]
+
+# English labels (fieldname -> English label)
+_EMPLOYEE_COLUMN_LABELS_EN = {
+	"employee": "Employee ID", "employee_name": "Full Name", 
+    "attendance_device_id": "Attendance Device ID", "status": "Status",	
+	"gender": "Gender", "date_of_birth": "Date of Birth","date_of_joining": "Date of Joining",
+    "department": "Department", "custom_section": "Section", "custom_group": "Group",
+	"designation": "Designation", "custom_designation_vietnamese": "Designation (Vietnamese)",
+    "cell_number": "Mobile",
+	"blood_group": "Blood Group", "marital_status": "Marital Status",
+    "bank_name": "Bank Name", "custom_bank_branch": "Bank Branch","bank_ac_no": "Bank Account No",
+	"custom_number_of_childrens": "Number of Children",
+	"employment_type": "Employment Type",	
+	"custom_direct_indirect_": "Direct / Indirect", "grade": "Grade",
+	"custom_number_of_probation_days": "Probation Days",
+	"contract_end_date": "Contract End Date", "date_of_retirement": "Date of Retirement",
+	"notice_number_of_days": "Notice (Days)", "holiday_list": "Holiday List",
+	"custom_id_card_no": "ID Card No (CCCD)", "custom_id_card_date_of_issue": "ID Card Date of Issue",
+	"custom_id_card_place_of_issue": "ID Card Place of Issue",
+	"custom_id_card_cmnd_no": "Old ID Card No (CMND)", "custom_id_card_cmnd_date_of_issue": "Old ID Card Date of Issue",
+	"custom_id_card_cmnd_place_of_issue": "Old ID Card Place of Issue",
+	"passport_number": "Passport Number", "date_of_issue": "Passport Date of Issue",
+	"valid_upto": "Passport Valid Up To", "place_of_issue": "Passport Place of Issue",
+	"custom_permanent_address_province": "Permanent Address - Province",
+	"custom_permanent_address_commune": "Permanent Address - Commune",
+	"custom_permanent_address_village": "Permanent Address - Village",
+	"custom_permanent_address_full": "Permanent Address - Full",
+	"permanent_accommodation_type": "Permanent Accommodation Type", "permanent_address": "Permanent Address",
+	"custom_current_address_province": "Current Address - Province",
+	"custom_current_address_commune": "Current Address - Commune",
+	"custom_current_address_village": "Current Address - Village",
+	"custom_current_address_full": "Current Address - Full",
+	"current_accommodation_type": "Current Accommodation Type", "current_address": "Current Address",
+	"custom_place_of_origin_address_province": "Place of Origin - Province",
+	"custom_place_of_origin_address_commune": "Place of Origin - Commune",
+	"custom_place_of_origin_address_village": "Place of Origin - Village",
+	"custom_place_of_origin_address_full": "Place of Origin - Full",
+	"personal_email": "Personal Email",
+	"company_email": "Company Email", "prefered_email": "Preferred Email",
+	"prefered_contact_email": "Preferred Contact Email", "user_id": "User ID",
+	"person_to_be_contacted": "Emergency Contact Name", "relation": "Relation",
+	"emergency_phone_number": "Emergency Phone",
+	"salary_mode": "Salary Mode", "salary_currency": "Salary Currency",
+	"ctc": "CTC", 
+	"custom_tax_code": "Tax Code", "custom_social_insurance_number": "Social Insurance No",
+	"custom_privilege": "Privilege",
+	"health_insurance_provider": "Health Insurance Provider", "health_insurance_no": "Health Insurance No",
+	"custom_education_level": "Education Level", "custom_university": "University",
+	"custom_major": "Major", "custom_education_detail": "Education Detail",
+	"custom_shirt_size": "Shirt Size", "custom_shoe_size": "Shoe Size",
+	"custom_driving_license": "Driving License", "custom_driving_license_note": "Driving License Note",
+	"custom_favorite_sport": "Favorite Sport", "custom_vegetarian": "Vegetarian",
+	"custom_strengths": "Strengths",
+	"leave_approver": "Leave Approver", "expense_approver": "Expense Approver",
+	"shift_request_approver": "Shift Request Approver", "payroll_cost_center": "Payroll Cost Center",
+	"employee_advance_account": "Employee Advance Account",
+	"resignation_letter_date": "Resignation Letter Date", "relieving_date": "Relieving Date",
+	"reason_for_leaving": "Reason for Leaving", "leave_encashed": "Leave Encashed",
+	"encashment_date": "Encashment Date", "held_on": "Exit Interview Held On",
+	"new_workplace": "New Workplace",
+	"job_applicant": "Job Applicant",
+}
+
+# Vietnamese labels (fieldname -> Vietnamese label)
+_EMPLOYEE_COLUMN_LABELS_VI = {
+	"employee": "Mã NV", "employee_name": "Họ và tên", "employee_number": "Số NV",
+	"status": "Trạng thái", "company": "Công ty", "naming_series": "Series",
+	"salutation": "Danh xưng", "first_name": "Tên", "middle_name": "Tên đệm",
+	"last_name": "Họ", "gender": "Giới tính", "date_of_birth": "Ngày sinh",
+	"blood_group": "Nhóm máu", "marital_status": "Tình trạng hôn nhân",
+	"custom_number_of_childrens": "Số con",
+	"date_of_joining": "Ngày vào làm", "employment_type": "Loại HĐ",
+	"department": "Phòng ban", "custom_section": "Bộ phận", "custom_group": "Nhóm",
+	"designation": "Chức vụ", "custom_designation_vietnamese": "Chức vụ (VN)",
+	"custom_direct_indirect_": "Direct/Indirect", "grade": "Cấp bậc",
+	"branch": "Chi nhánh", "reports_to": "Quản lý trực tiếp",
+	"scheduled_confirmation_date": "Ngày offer", "final_confirmation_date": "Ngày xác nhận",
+	"custom_number_of_probation_days": "Ngày thử việc",
+	"contract_end_date": "Ngày kết thúc HĐ", "date_of_retirement": "Ngày nghỉ hưu",
+	"notice_number_of_days": "Số ngày báo trước", "holiday_list": "Lịch nghỉ",
+	"default_shift": "Ca mặc định",
+	"custom_id_card_no": "Số CCCD", "custom_id_card_date_of_issue": "Ngày cấp CCCD",
+	"custom_id_card_place_of_issue": "Nơi cấp CCCD",
+	"custom_id_card_cmnd_no": "Số CMND", "custom_id_card_cmnd_date_of_issue": "Ngày cấp CMND",
+	"custom_id_card_cmnd_place_of_issue": "Nơi cấp CMND",
+	"passport_number": "Số hộ chiếu", "date_of_issue": "Ngày cấp HC",
+	"valid_upto": "Ngày hết hạn HC", "place_of_issue": "Nơi cấp HC",
+	"custom_permanent_address_province": "Thường trú - Tỉnh",
+	"custom_permanent_address_commune": "Thường trú - Xã",
+	"custom_permanent_address_village": "Thường trú - Thôn",
+	"custom_permanent_address_full": "Thường trú - Địa chỉ đầy đủ",
+	"permanent_accommodation_type": "Loại nơi thường trú", "permanent_address": "Địa chỉ thường trú",
+	"custom_current_address_province": "Hiện tại - Tỉnh",
+	"custom_current_address_commune": "Hiện tại - Xã",
+	"custom_current_address_village": "Hiện tại - Thôn",
+	"custom_current_address_full": "Hiện tại - Địa chỉ đầy đủ",
+	"current_accommodation_type": "Loại nơi ở hiện tại", "current_address": "Địa chỉ hiện tại",
+	"custom_place_of_origin_address_province": "Quê quán - Tỉnh",
+	"custom_place_of_origin_address_commune": "Quê quán - Xã",
+	"custom_place_of_origin_address_village": "Quê quán - Thôn",
+	"custom_place_of_origin_address_full": "Quê quán - Địa chỉ đầy đủ",
+	"cell_number": "Số điện thoại", "personal_email": "Email cá nhân",
+	"company_email": "Email công ty", "prefered_email": "Email ưu tiên",
+	"prefered_contact_email": "Loại email ưu tiên", "user_id": "User ID",
+	"person_to_be_contacted": "Người liên hệ khẩn", "relation": "Quan hệ",
+	"emergency_phone_number": "SĐT khẩn cấp",
+	"salary_mode": "Hình thức lương", "salary_currency": "Tiền tệ",
+	"ctc": "CTC", "bank_name": "Ngân hàng", "custom_bank_branch": "Chi nhánh NH",
+	"bank_ac_no": "Số tài khoản", "iban": "IBAN",
+	"custom_tax_code": "Mã số thuế", "custom_social_insurance_number": "Số BHXH",
+	"custom_privilege": "Quyền lợi",
+	"health_insurance_provider": "Nhà cung cấp BHYT", "health_insurance_no": "Số thẻ BHYT",
+	"custom_education_level": "Trình độ học vấn", "custom_university": "Trường",
+	"custom_major": "Ngành học", "custom_education_detail": "Chi tiết học vấn",
+	"custom_shirt_size": "Cỡ áo", "custom_shoe_size": "Cỡ giày",
+	"custom_driving_license": "Bằng lái xe", "custom_driving_license_note": "Ghi chú bằng lái",
+	"custom_favorite_sport": "Thể thao yêu thích", "custom_vegetarian": "Ăn chay",
+	"custom_strengths": "Điểm mạnh",
+	"leave_approver": "Người duyệt nghỉ phép", "expense_approver": "Người duyệt chi phí",
+	"shift_request_approver": "Người duyệt ca", "payroll_cost_center": "Cost Center lương",
+	"employee_advance_account": "Tài khoản ứng trước",
+	"resignation_letter_date": "Ngày nộp đơn", "relieving_date": "Ngày nghỉ việc",
+	"reason_for_leaving": "Lý do nghỉ", "leave_encashed": "Đã thanh toán phép?",
+	"encashment_date": "Ngày thanh toán phép", "held_on": "Ngày phỏng vấn thôi việc",
+	"new_workplace": "Nơi làm việc mới",
+	"attendance_device_id": "ID máy chấm công", "job_applicant": "Hồ sơ ứng tuyển",
+}
+
+
+@frappe.whitelist(allow_guest=True)
+def get_employees_for_excel(
+	status=None,
+	department=None,
+	custom_section=None,
+	custom_group=None,
+	date_of_joining_from=None,
+	date_of_joining_to=None,
+	include_left=0,
+	page=1,
+	page_size=500,
+	lang="en",
+	field_set="all",
+):
+	"""
+	API for Excel / Power Query – returns employee list with full or basic fields.
+
+	Params:
+		status            : 'Active' | 'Left' | 'Inactive' | None (all)
+		department        : filter by department name
+		custom_section    : filter by section name
+		custom_group      : filter by group name
+		date_of_joining_from / to : filter by joining date (YYYY-MM-DD)
+		include_left      : 1 = include resigned employees
+		page / page_size  : pagination (default 500 per page, max 2000)
+		lang              : 'en' (default) | 'vi'  – column label language
+		field_set         : 'all' (default) | 'basic'
+		                    basic = employee, attendance_device_id, employee_name,
+		                            status, gender, grade, date_of_birth,
+		                            date_of_joining, department, custom_section,
+		                            custom_group, designation, relieving_date,
+		                            reason_for_leaving
+
+	Returns:
+		{
+			"data"        : [...],
+			"columns"     : [...],   # column labels (EN or VI)
+			"col_keys"    : [...],   # actual field names
+			"total"       : int,
+			"page"        : int,
+			"page_size"   : int,
+			"total_pages" : int,
+		}
+	"""
+	page      = cint(page)
+	page_size = cint(page_size)
+	load_all  = page_size == 0           # page_size=0 → no LIMIT, return all
+	if not load_all and (page_size < 0 or page_size > 2000):
+		page_size = 500
+	if page < 1:
+		page = 1
+
+	# Choose field list
+	active_fields = _EMPLOYEE_BASIC_FIELDS if field_set == "basic" else _EMPLOYEE_FIELDS
+
+	# Choose label dict
+	label_dict = _EMPLOYEE_COLUMN_LABELS_VI if lang == "vi" else _EMPLOYEE_COLUMN_LABELS_EN
+
+	# Build WHERE clause
+	conditions = []
+	params = {}
+
+	if status:
+		conditions.append("emp.status = %(status)s")
+		params["status"] = status
+	elif not cint(include_left):
+		conditions.append("emp.status != 'Left'")
+
+	if department:
+		conditions.append("emp.department = %(department)s")
+		params["department"] = department
+
+	if custom_section:
+		conditions.append("emp.custom_section = %(custom_section)s")
+		params["custom_section"] = custom_section
+
+	if custom_group:
+		conditions.append("emp.custom_group = %(custom_group)s")
+		params["custom_group"] = custom_group
+
+	if date_of_joining_from:
+		conditions.append("emp.date_of_joining >= %(doj_from)s")
+		params["doj_from"] = date_of_joining_from
+
+	if date_of_joining_to:
+		conditions.append("emp.date_of_joining <= %(doj_to)s")
+		params["doj_to"] = date_of_joining_to
+
+	where_sql = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+
+	# Build SELECT list
+	select_fields = []
+	col_order = []
+	for f in active_fields:
+		if " as " in f:
+			actual, alias = f.split(" as ")
+			select_fields.append(f"emp.{actual.strip()} as `{alias.strip()}`")
+			col_order.append(alias.strip())
+		else:
+			select_fields.append(f"emp.`{f}`")
+			col_order.append(f)
+
+	select_sql = ", ".join(select_fields)
+
+	# Count
+	total = frappe.db.sql(
+		f"SELECT COUNT(*) FROM `tabEmployee` emp {where_sql}",
+		params
+	)[0][0]
+
+	# Data with pagination (or all at once)
+	if load_all:
+		rows = frappe.db.sql(
+			f"""
+			SELECT {select_sql}
+			FROM `tabEmployee` emp
+			{where_sql}
+			ORDER BY emp.name
+			""",
+			params,
+			as_dict=True,
+		)
+		page_size = total
+		page      = 1
+	else:
+		offset = (page - 1) * page_size
+		params["limit"]  = page_size
+		params["offset"] = offset
+		rows = frappe.db.sql(
+			f"""
+			SELECT {select_sql}
+			FROM `tabEmployee` emp
+			{where_sql}
+			ORDER BY emp.name
+			LIMIT %(limit)s OFFSET %(offset)s
+			""",
+			params,
+			as_dict=True,
+		)
+
+	# Sanitize: None → "", date → ISO string
+	cleaned = []
+	for row in rows:
+		r = {}
+		for k, v in row.items():
+			if v is None:
+				r[k] = ""
+			elif hasattr(v, "isoformat"):
+				r[k] = v.isoformat()
+			else:
+				r[k] = v
+		cleaned.append(r)
+
+	columns = [label_dict.get(f, f) for f in col_order]
+
+	return {
+		"data"        : cleaned,
+		"columns"     : columns,
+		"col_keys"    : col_order,
+		"total"       : total,
+		"page"        : page,
+		"page_size"   : page_size,
+		"total_pages" : math.ceil(total / page_size) if page_size else 1,
+	}

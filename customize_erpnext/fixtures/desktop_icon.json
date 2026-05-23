@@ -1,6 +1,114 @@
 [
  {
   "app": "customize_erpnext",
+  "bg_color": "gray",
+  "docstatus": 0,
+  "doctype": "Desktop Icon",
+  "hidden": 0,
+  "icon": null,
+  "icon_image": null,
+  "icon_type": "Link",
+  "label": "Health Check Up",
+  "link": null,
+  "link_to": "Health Check Up",
+  "link_type": "Workspace Sidebar",
+  "logo_url": "/assets/customize_erpnext/images/doctor.svg",
+  "modified": "2026-03-09 00:00:00",
+  "name": "Health Check Up",
+  "parent_icon": null,
+  "restrict_removal": 0,
+  "roles": [
+   {
+    "role": "HR Manager"
+   },
+   {
+    "role": "HR User"
+   },
+   {
+    "role": "Administrator"
+   }
+  ],
+  "sidebar": null,
+  "standard": 1
+ },
+ {
+  "app": "customize_erpnext",
+  "bg_color": "blue",
+  "docstatus": 0,
+  "doctype": "Desktop Icon",
+  "hidden": 0,
+  "icon": null,
+  "icon_image": null,
+  "icon_type": "Link",
+  "label": "Shoe Rack",
+  "link": "/desk/shoe-rack-dashboard",
+  "link_to": null,
+  "link_type": "External",
+  "logo_url": "/assets/customize_erpnext/images/shoe_rack.svg",
+  "modified": "2026-02-26 13:12:52.642908",
+  "name": "Shoe Rack",
+  "parent_icon": null,
+  "restrict_removal": 0,
+  "roles": [
+   {
+    "role": "HR Manager"
+   },
+   {
+    "role": "HR User"
+   },
+   {
+    "role": "Administrator"
+   }
+  ],
+  "sidebar": null,
+  "standard": 1
+ },
+ {
+  "app": "customize_erpnext",
+  "bg_color": "blue",
+  "docstatus": 0,
+  "doctype": "Desktop Icon",
+  "hidden": 1,
+  "icon": null,
+  "icon_image": null,
+  "icon_type": "Link",
+  "label": "Sync Logs",
+  "link": "/erpnext-sync-all-logs",
+  "link_to": null,
+  "link_type": "External",
+  "logo_url": "/assets/customize_erpnext/images/log.svg",
+  "modified": "2026-03-24 00:00:00",
+  "name": "Sync Logs",
+  "parent_icon": null,
+  "restrict_removal": 0,
+  "roles": [],
+  "sidebar": null,
+  "standard": 1
+ },
+ {
+  "app": "customize_erpnext",
+  "bg_color": "blue",
+  "docstatus": 0,
+  "doctype": "Desktop Icon",
+  "hidden": 0,
+  "icon": null,
+  "icon_image": null,
+  "icon_type": "Link",
+  "label": "Biometric Sync",
+  "link": "/biometric_sync",
+  "link_to": null,
+  "link_type": "External",
+  "logo_url": "/assets/customize_erpnext/images/biometric_sync.svg",
+  "modified": "2026-03-24 00:00:00",
+  "name": "Biometric Sync",
+  "parent_icon": null,
+  "restrict_removal": 0,
+  "roles": [],
+  "sidebar": null,
+  "standard": 1
+ },
+ {
+  "app": "customize_erpnext",
   "bg_color": null,
   "docstatus": 0,
   "doctype": "Desktop Icon",
@@ -13,7 +121,7 @@
   "link_to": "TIQN App",
   "link_type": "Workspace Sidebar",
   "logo_url": "/assets/customize_erpnext/images/tiqn_app_icon_4.svg",
-  "modified": "2026-01-28 08:51:45.309881",
+  "modified": "2026-01-28 14:33:07.807690",
   "name": "TIQN App",
   "parent_icon": "",
   "restrict_removal": 0,
@@ -45,7 +153,7 @@
   "link_to": null,
   "link_type": "External",
   "logo_url": "/assets/customize_erpnext/images/gallery.svg",
-  "modified": "2026-01-28 08:55:31.617509",
+  "modified": "2026-01-28 14:33:13.614408",
   "name": "Employee Photos",
   "parent_icon": null,
   "restrict_removal": 0,
@@ -62,5 +170,49 @@
   ],
   "sidebar": null,
   "standard": 0
+ },
+ {
+  "app": "customize_erpnext",
+  "bg_color": "blue",
+  "docstatus": 0,
+  "doctype": "Desktop Icon",
+  "hidden": 0,
+  "icon": null,
+  "icon_image": null,
+  "icon_type": "Link",
+  "label": "Job Portal",
+  "link": "/jobs",
+  "link_to": null,
+  "link_type": "External",
+  "logo_url": "/assets/customize_erpnext/images/talent_search.svg",
+  "modified": "2026-02-11 11:08:23.170083",
+  "name": "Job Portal",
+  "parent_icon": null,
+  "restrict_removal": 0,
+  "roles": [],
+  "sidebar": null,
+  "standard": 1
+ },
+ {
+  "app": "customize_erpnext",
+  "bg_color": "blue",
+  "docstatus": 0,
+  "doctype": "Desktop Icon",
+  "hidden": 0,
+  "icon": null,
+  "icon_image": null,
+  "icon_type": "Link",
+  "label": "QR Code Generator",
+  "link": "/qr-code",
+  "link_to": null,
+  "link_type": "External",
+  "logo_url": "/assets/customize_erpnext/images/qr_code.svg",
+  "modified": "2026-02-11 11:04:58.802616",
+  "name": "QR Code Generator",
+  "parent_icon": null,
+  "restrict_removal": 0,
+  "roles": [],
+  "sidebar": null,
+  "standard": 1
  }
 ]

@@ -31,7 +31,7 @@ frappe.listview_settings['Attendance'] = {
 	onload: function (list_view) {
 		let me = this;
 		if (frappe.perm.has_perm("Attendance", 0, "create")) {
-			list_view.page.add_inner_button(__("🔄 Bulk Update Attendance"), function () {
+			list_view.page.add_inner_button(__("Bulk Update Attendance"), function () {
 				show_bulk_update_attendance(list_view, me);
 			});
 
@@ -47,21 +47,77 @@ frappe.listview_settings['Attendance'] = {
 // BULK UPDATE ATTENDANCE V2 - Optimized (Daily Timesheet Pattern)
 // ============================================================================
 
+/** Build MM/YYYY option list descending from current month to 01/2026 */
+function _month_options() {
+	const today = frappe.datetime.get_today();
+	const [cy, cm] = today.split('-').map(Number);
+	const opts = ['']; // first blank = custom
+	let y = cy, m = cm;
+	while (y > 2025 || (y === 2025 && m >= 1)) {
+		opts.push(String(m).padStart(2, '0') + '/' + y);
+		if (--m === 0) { m = 12; y--; }
+	}
+	return opts.join('\n');
+}
+
+/** Convert MM/YYYY → { from_date: YYYY-MM-26 (prev month), to_date: YYYY-MM-25 } */
+function _month_to_range(mmyyyy) {
+	const [mm, yyyy] = mmyyyy.split('/').map(Number);
+	let pm = mm - 1, py = yyyy;
+	if (pm === 0) { pm = 12; py--; }
+	return {
+		from_date: `${py}-${String(pm).padStart(2, '0')}-26`,
+		to_date: `${yyyy}-${String(mm).padStart(2, '0')}-25`
+	};
+}
+
 function show_bulk_update_attendance(list_view, me) {
+	let _syncing = false; // prevent circular onchange triggers
+
 	let dialog = new frappe.ui.Dialog({
-		title: __("🔄 Bulk Update Attendance"),
+		title: __("Bulk Update Attendance"),
 		size: 'large',
 		fields: [
 			{
 				fieldtype: 'Section Break',
-				label: __('📅 Date Range')
+				label: __('Date Range')
+			},
+			{
+				fieldtype: 'Select',
+				fieldname: 'month_preset',
+				label: __('Month'),
+				options: _month_options(),
+				onchange: function () {
+					const val = dialog.get_value('month_preset');
+					if (!val || _syncing) return;
+					_syncing = true;
+					const { from_date, to_date } = _month_to_range(val);
+					const today = frappe.datetime.get_today();
+					dialog.set_value('from_date', from_date);
+					dialog.set_value('to_date', to_date > today ? today : to_date);
+					_syncing = false;
+				}
+			},
+			{
+				fieldtype: 'Column Break'
+			},
+			{
+				fieldtype: 'HTML',
+				options: '<div style="padding-top:22px;color:#8d99a6;font-size:12px">'
+					+ __('Or set dates manually below') + '</div>'
+			},
+			{
+				fieldtype: 'Section Break'
 			},
 			{
 				fieldtype: 'Date',
 				fieldname: 'from_date',
 				label: __('From Date'),
 				default: frappe.datetime.get_today(),
-				reqd: 1
+				reqd: 1,
+				onchange: function () {
+					if (!_syncing) dialog.set_value('month_preset', '');
+				}
 			},
 			{
 				fieldtype: 'Column Break'
@@ -71,11 +127,21 @@ function show_bulk_update_attendance(list_view, me) {
 				fieldname: 'to_date',
 				label: __('To Date'),
 				default: frappe.datetime.get_today(),
-				reqd: 1
+				reqd: 1,
+				onchange: function () {
+					if (!_syncing) dialog.set_value('month_preset', '');
+					// Clamp to today if future date entered manually
+					const today = frappe.datetime.get_today();
+					if (dialog.get_value('to_date') > today) {
+						_syncing = true;
+						dialog.set_value('to_date', today);
+						_syncing = false;
+					}
+				}
 			},
 			{
 				fieldtype: 'Section Break',
-				label: __('🎯 Employee Filter (Optional)')
+				label: __('Employee Filter (Optional)')
 			},
 			{
 				fieldtype: 'Link',
@@ -108,8 +174,8 @@ function show_bulk_update_attendance(list_view, me) {
 			}
 
 			let days_diff = frappe.datetime.get_diff(values.to_date, values.from_date);
-			if (days_diff > 31) {
-				frappe.msgprint(__('⚠️ Date range too large. Maximum 31 days recommended for optimal performance.'));
+			if (days_diff > 92) { // ~3 months max for performance reasons
+				frappe.msgprint(__('Date range too large. Maximum 92 days recommended for optimal performance.'));
 				return;
 			}
 
@@ -265,7 +331,7 @@ function execute_bulk_update_attendance_v2(values, employee_list, dialog, list_v
 			force_sync: values.force_sync || 0
 		},
 		freeze: true,
-		freeze_message: __('<div style="text-align:center"><i class="fa fa-spinner fa-spin fa-2x"></i><br><br>Processing attendance update...</div>'),
+		freeze_message: __('Processing attendance update...'),
 		callback: function (r) {
 			console.log("📡 Bulk Update Response:", r);
 
@@ -277,7 +343,7 @@ function execute_bulk_update_attendance_v2(values, employee_list, dialog, list_v
 					// Large dataset - Show background job info
 					console.log("🚀 Background job mode");
 					show_background_job_dialog_v2({
-						title: __('🚀 Background Processing Started'),
+						title: __('Background Processing Started'),
 						message: result.message,
 						job_id: result.job_id,
 						estimated_records: result.estimated_records
@@ -350,8 +416,8 @@ function show_attendance_results_dialog_v2(options) {
 	console.log("- Employees Total:", result.total_employees || 0);
 	console.log("- Employees with Attendance:", result.employees_with_attendance || 0);
 	console.log("- Employees Skipped:", result.employees_skipped || 0);
-	if (result.employees_skipped > 0) {
-		console.warn(`⚠️ ${result.employees_skipped} employees were skipped - check server console for reasons`);
+	if (result.employees_skipped > 0 && result.skipped_details) {
+		console.log(`⚠️ ${result.employees_skipped} employees skipped:`, result.skipped_details);
 	}
 	console.log("- Days:", result.total_days || 0);
 	console.log("- Date Range:", from_date, "to", to_date);
@@ -365,7 +431,7 @@ function show_attendance_results_dialog_v2(options) {
 	if (!result || Object.keys(result).length === 0) {
 		console.warn("⚠️ Empty result object, showing minimal info");
 		frappe.msgprint({
-			title: __('✅ Processing Complete'),
+			title: __('Processing Complete'),
 			message: __('Attendance update completed successfully.'),
 			indicator: 'green'
 		});
@@ -409,25 +475,26 @@ function show_attendance_results_dialog_v2(options) {
 	if (result.employees_skipped && result.employees_skipped > 0) {
 		employee_stats_html = `
 			<div class="alert alert-info mt-3 mb-0">
-				<i class="fa fa-info-circle"></i>
-				<strong>Employee Summary:</strong><br>
-				- Total employees processed: ${result.total_employees}<br>
-				- Employees with attendance: ${result.employees_with_attendance || 0}<br>
-				- Employees skipped: ${result.employees_skipped} <small class="text-muted">(check server console for specific reasons)</small>
+				<strong><i class="fa fa-users"></i> ${__('Employee Summary')}:</strong>
+				<div style="margin-top:4px">
+					${__('Total')}: <strong>${result.total_employees}</strong>
+					&nbsp;|&nbsp; ${__('With attendance')}: <strong>${result.employees_with_attendance || 0}</strong>
+					&nbsp;|&nbsp; ${__('Skipped')}: <strong>${result.employees_skipped}</strong>
+				</div>
 			</div>
 		`;
 	}
 
 	// Simple dialog showing only main results
 	frappe.msgprint({
-		title: __('✅ Attendance Update Completed'),
+		title: __('Attendance Update Completed'),
 		message: `
 			<div class="alert alert-success mb-3">
-				<h6 class="alert-heading">✅ Operation Completed Successfully!</h6>
-				<p class="mb-1">Attendance records have been updated with latest check-in data.</p>
+				<h6 class="alert-heading">${__('Operation Completed Successfully')}</h6>
+				<p class="mb-1">${__('Attendance records have been updated with latest check-in data.')}</p>
 				<small class="text-muted">
-					${from_date && to_date ? `<i class="fa fa-calendar"></i> ${frappe.datetime.str_to_user(from_date)} to ${frappe.datetime.str_to_user(to_date)}` : ''}
-					${result.total_employees ? `&nbsp;&nbsp;|&nbsp;&nbsp;<i class="fa fa-users"></i> ${result.total_employees} employees processed` : ''}
+					${from_date && to_date ? `<i class="fa fa-calendar"></i> ${frappe.datetime.str_to_user(from_date)} ${__('to')} ${frappe.datetime.str_to_user(to_date)}` : ''}
+					${result.total_employees ? `&nbsp;&nbsp;|&nbsp;&nbsp;<i class="fa fa-users"></i> ${__("{0} employees processed", [result.total_employees])}` : ''}
 				</small>
 			</div>
 
@@ -436,12 +503,9 @@ function show_attendance_results_dialog_v2(options) {
 			${result.errors > 0 ? `
 				<div class="alert alert-warning mt-3 mb-0">
 					<i class="fa fa-exclamation-triangle"></i>
-					<strong>Note:</strong> ${result.errors} errors occurred.
-					Check <a href="/app/error-log">Error Log</a> for details.
-				</div>
+					<strong>${__('Note')}:</strong> ${__("{0} errors occurred.", [result.errors])}
+					${__('Check')} <a href="/app/error-log">${__('Error Log')}</a> ${__('for details.')}</div>
 			` : ''}
-
-			<p class="text-muted mt-3 mb-0"><small><i class="fa fa-info-circle"></i> Check browser console for detailed shift breakdown and performance metrics</small></p>
 		`,
 		indicator: 'green',
 		wide: true
@@ -456,14 +520,12 @@ function show_background_job_dialog_v2(options) {
 			<div class="alert alert-info">
 				<p class="mb-3">${options.message}</p>
 				<div>
-					<strong>📊 Records:</strong> ~${options.estimated_records}<br>
-					<strong>⏱️ Estimated time:</strong> ${Math.ceil(options.estimated_records / 50)} - ${Math.ceil(options.estimated_records / 30)} seconds<br>
-					<strong>🔔 Notification:</strong> You'll be notified when complete
+					<strong><i class="fa fa-list"></i> ${__('Records')}:</strong> ~${options.estimated_records}<br>
+					<strong><i class="fa fa-clock-o"></i> ${__('Estimated time')}:</strong> ${Math.ceil(options.estimated_records / 50)} - ${Math.ceil(options.estimated_records / 30)} ${__('seconds')}<br>
+					<strong><i class="fa fa-bell"></i> ${__('Notification')}:</strong> ${__("You'll be notified when complete")}
 				</div>
 			</div>
 		`,
 		indicator: 'blue'
 	});
 }
-
-console.log("✅ Bulk Update Attendance V2 (Optimized) loaded successfully");

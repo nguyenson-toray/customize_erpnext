@@ -5,20 +5,7 @@ app_description = "Customize Erpnext"
 app_email = "it@tiqn.com.vn"
 app_license = "mit"
 
-# Override HRMS app_home to fix redirect after login
-# HRMS sets app_home = "/desk/people" but this route doesn't exist
-# This setting ensures users are redirected to /desk instead
-app_home = "/desk"
 
-add_to_apps_screen = [
-	{
-		"name": app_name,
-		"logo": "/assets/erpnext/images/erpnext-logo.svg",
-		"title": app_title,
-		"route": "/desk",
-		"has_permission": "erpnext.check_app_permission",
-	}
-]
 
 # Customize JS scripts for default ERPNext DocTypes
 doctype_js = {
@@ -32,7 +19,7 @@ doctype_js = {
         "public/js/custom_scripts/item_show_multiple_variants_dialog.js"
     ],
     "Material Request": "public/js/custom_scripts/material_request.js",
-    "Purchase Order": "public/js/custom_scripts/purchase_order.js",
+    "Purchase Order": "public/purchase_order.js",
     "Item Attribute": [
         "public/js/custom_scripts/item_attribute.js",
         "public/js/custom_scripts/item_attribute_import.js"
@@ -53,6 +40,7 @@ doctype_js = {
 
 # List view customizations
 doctype_list_js = {
+    "CCTV Tracking": "network/doctype/cctv_tracking/cctv_tracking_list.js",
     "Item": "public/js/custom_scripts/item_list.js",
     "Stock Entry": "public/js/custom_scripts/stock_entry_list.js",
     "Employee": [
@@ -90,7 +78,10 @@ fixtures = [
                 "Customer",
                 "Shift Type",
                 "Attendance",
-                "Leave Application"
+                "Leave Type",
+                "Leave Application",
+                "Job Applicant",
+                "Designation"
             ]],
             ["fieldname", "like", "custom%"]
         ]
@@ -107,6 +98,8 @@ fixtures = [
                 "Employee",
                 "Employee Checkin",
                 "Attendance",
+                "Leave Type",
+                "Employee Education"
             ]]
         ]
     },
@@ -130,44 +123,47 @@ fixtures = [
         }
     },
     # Workflow configurations
-    {
-        "doctype": "Workflow",
-        "filters": []  # Export all workflows
-    },
-    {
-        "doctype": "Workflow State",
-        "filters": []  # Export all workflow states
-    },
-    {
-        "doctype": "Workflow Action Master",
-        "filters": []  # Export all workflow actions
-    },
-    {
-        "doctype": "Workflow Transition",
-        "filters": []  # Export all workflow transitions
-    },
-    {
-        "doctype": "Assignment Rule",
-        "filters": []
-    },
-    # Workspace customizations
-    # NOTE: ERPNext v16 - Khi import sẽ OVERWRITE hoàn toàn workspace gốc
-    {
-        "doctype": "Workspace",
-        "filters": [
-            ["name", "in", ["HR", "Stock", "TIQN App"]]
-        ]
-    },
+    # {
+    #     "doctype": "Workflow",
+    #     "filters": []  # Export all workflows
+    # },
+    # {
+    #     "doctype": "Workflow State",
+    #     "filters": []  # Export all workflow states
+    # },
+    # {
+    #     "doctype": "Workflow Action Master",
+    #     "filters": []  # Export all workflow actions
+    # },
+    # {
+    #     "doctype": "Workflow Transition",
+    #     "filters": []  # Export all workflow transitions
+    # },
+    # {
+    #     "doctype": "Assignment Rule",
+    #     "filters": []
+    # },
     # Workspace Sidebar customizations (v16+)
     {
         "doctype": "Workspace Sidebar",
         "filters": [
             ["name", "in", [
+                # "HR Setup",  # HRMS sidebar with custom reports
                 "Shift & Attendance",  # HRMS sidebar with custom reports
                 "Stock",  # Stock sidebar with custom reports
-                "TIQN App"  # TIQN App sidebar
+                
+                # "TIQN App",  # TIQN App sidebar
+                # "Health Check Up"
             ]]
-        ]
+        ] 
+    },
+    {
+        "doctype": "Workspace",
+        "filters": [
+            ["name", "in", [
+                "HR Setup",  
+            ]]
+        ] 
     },
     # Custom Reports
     # WHY NEEDED:
@@ -188,13 +184,29 @@ fixtures = [
     },
     # Desktop Icons
     # Export custom desktop icons for apps/modules
-    {
-        "doctype": "Desktop Icon",
-        "filters": [
-            ["name", "in", ["TIQN App", "Employee Photos"]]
-        ]
-    }
+    # {
+    #     "doctype": "Desktop Icon",
+    #     "filters": [
+    #         ["name", "in", ["TIQN App", "Employee Photos", "QR Code Generator", "Job Portal", "Shoe Rack", "Sync Logs", "Health Check Up"]]
+    #     ]
+    # },
+    # # Workspace Sidebars for custom External link icons
+    # {
+    #     "doctype": "Workspace Sidebar",
+    #     "filters": [
+    #         ["name", "in", ["Job Portal", "Employee Photos", "QR Code Generator", "Shoe Rack", "Sync Logs","Health Check Up"]]
+    #     ]
+    # }
 ]
+
+# After migrate hooks
+# - Fix broken Desktop Icon link_to fields (Accounting, LMS)
+# - Add custom links to HRMS workspaces (People, Shift & Attendance)
+# - Drop orphan database tables
+# after_migrate = [
+#     "customize_erpnext.workspace_setup.setup_workspace_links",
+#     # "customize_erpnext.workspace_setup.drop_orphan_tables",
+# ]
 
 # Data import hooks
 data_import_before_import = [
@@ -204,9 +216,12 @@ data_import_before_import = [
 # Scheduler Events
 scheduler_events = {
     "cron": {
-        # Daily Shift Attendance Report - Every day at 08:15 AM
-        "15 8 * * *": [
-            # Shift Attendance Report - Every day at 08:15 AM
+         # Chạy mỗi phút - Giải phóng RAM rembg sau 30 phút không dùng rembg để edit ảnh thẻ
+        "* * * * *": [
+            "customize_erpnext.api.employee.employee_utils.cleanup_rembg_sessions"
+        ],
+         # Shift Attendance Report - Every day at 08:10 AM
+        "10 8 * * *": [           
             "customize_erpnext.customize_erpnext.report.shift_attendance_customize.scheduler.send_daily_attendance_report_scheduled"
         ],
         # Sunday overtime alert - Monday at 08:00 AM
@@ -226,7 +241,17 @@ scheduler_events = {
         # Smart auto update mỗi 2 giờ
         # "0 */2 * * *": [
         #     "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.scheduler_jobs.smart_auto_update_custom_attendance"
-        # ]
+        # ],
+
+        # Auto mark employees as Left + recalculate maternity status - Every day at 00:00
+        "0 0 * * *": [
+            "customize_erpnext.overrides.employee.employee.auto_mark_employees_as_left",
+            "customize_erpnext.customize_erpnext.doctype.employee_maternity.employee_maternity.scheduled_calculate_all_maternity_statuses",
+        ],
+        # NVR / CCTV Monitor - Every day at 07:00 (gap_days=1, min_gap=10)
+        "0 7 * * *": [
+            "customize_erpnext.network.utils.monitor_runner.run_all_nvr_daily"
+        ],
     }
 }
  
@@ -236,6 +261,11 @@ scheduler_events = {
 # override_doctype_class = {
 #     "Stock Reconciliation": "customize_erpnext.override_methods.stock_reconciliation.custom_stock_reconciliation.CustomStockReconciliation"
 # }
+override_doctype_class = {
+    # Fix timeout khi cancel maternity leave (~6 tháng / ~180 ngày)
+    # Skip HRMS cancel_attendance() loop đồng bộ, dùng background job thay thế
+    "Leave Application": "customize_erpnext.overrides.leave_application.leave_application.CustomLeaveApplication"
+}
 # Document Events
 doc_events = {
     # Employee Checkin Events
@@ -271,26 +301,32 @@ doc_events = {
 
     # Employee Events
     # - Validate employee changes
-    # - Auto-update Attendance when maternity tracking changes
     # - Sync to MongoDB
     # - Set default holiday list
     # - Prevent deletion
     "Employee": {
+        "before_insert": [
+            "customize_erpnext.api.employee.employee_validation.before_insert_employee"
+        ],
         "validate": [
-            "customize_erpnext.overrides.employee.employee.check_maternity_tracking_changes_for_attendance",
             "customize_erpnext.api.employee.employee_validation.validate_employee_changes"
         ],
-        "on_update": [
-            "customize_erpnext.overrides.employee.employee.auto_update_attendance_on_maternity_change",
-        ],
         "after_insert": [
-            "customize_erpnext.api.employee.erpnext_mongodb.sync_employee_to_mongodb",
+            # "customize_erpnext.api.employee.erpnext_mongodb.sync_employee_to_mongodb",
             "customize_erpnext.api.employee.auto_assignment.set_default_holiday_list"
         ],
         "on_trash": [
             "customize_erpnext.api.employee.employee_validation.prevent_employee_deletion",
-            "customize_erpnext.api.employee.erpnext_mongodb.delete_employee_from_mongodb"
+            # "customize_erpnext.api.employee.erpnext_mongodb.delete_employee_from_mongodb"
         ]
+    },
+
+    # Employee Maternity Events
+    # - Auto-update Attendance when maternity date ranges change (UI + Data Import)
+    "Employee Maternity": {
+        "on_update":    "customize_erpnext.customize_erpnext.doctype.employee_maternity.employee_maternity.on_maternity_update",
+        "after_insert": "customize_erpnext.customize_erpnext.doctype.employee_maternity.employee_maternity.on_maternity_insert",
+        "on_trash":     "customize_erpnext.customize_erpnext.doctype.employee_maternity.employee_maternity.on_maternity_delete",
     },
 
     # Shift Type Events
@@ -311,12 +347,6 @@ doc_events = {
         "on_submit": "customize_erpnext.api.stock_ledger.update_stock_ledger_invoice_number_receive_date.update_stock_ledger_invoice_number_receive_date"
     },
 
-    # Overtime Request Events
-    # - Custom permission check
-    "Overtime Request": {
-        "has_permission": "customize_erpnext.overrides.overtime_request_permission",
-    },
-
     # Item Events
     # - Auto-add barcode when item is created or updated
     "Item": {
@@ -326,40 +356,19 @@ doc_events = {
         "validate": "customize_erpnext.customize_erpnext.doctype.shoe_rack.shoe_rack.validate",
         "on_update": "customize_erpnext.customize_erpnext.doctype.shoe_rack.shoe_rack.on_update",
         # "before_insert": "customize_erpnext.customize_erpnext.doctype.shoe_rack.shoe_rack.before_insert"
+    },
+
+    # Leave Application Events
+    # - Handle dual leave cancellation (update attendance when LA cancelled)
+    "Leave Application": {
+        "on_cancel": [
+            "customize_erpnext.overrides.leave_application.leave_application.on_leave_application_cancel",
+        ],
     }
 
 }
 
-
-# Fixtures (for initial setup)
-# fixtures = [
-#     {
-#         "doctype": "Custom Field",
-#         "filters": {
-#             "dt": ["in", ["Employee"]]
-#         }
-#     }
-# ]
-
-# boot_session = "customize_erpnext.override_methods.employee_checkin_or.apply_monkey_patch"
-# Hook on document methods and events
-# doc_events = {
-#     # "Item": {
-#     #     "after_insert": "customize_erpnext.doc_events.item.update_item_variant" 
-#     # }
-# } 
-# required_apps = []
-
-# Each item in the list will be shown as an app in the apps page
-# add_to_apps_screen = [
-# 	{
-# 		"name": "customize_erpnext",
-# 		"logo": "/assets/customize_erpnext/logo.png",
-# 		"title": "Customize Erpnext",
-# 		"route": "/customize_erpnext",
-# 		"has_permission": "customize_erpnext.api.permission.has_app_permission"
-# 	}
-# ]
+ 
 
 # Includes in <head>
 # ------------------
@@ -374,3 +383,13 @@ app_include_js = [
     "/assets/customize_erpnext/js/fingerprint_scanner_dialog.js",
     "https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"
 ]
+
+# Include CSS and JS files in web pages (including web forms)
+web_include_css = [
+    "/assets/customize_erpnext/css/job_application_form.css"
+]
+
+web_include_js = [
+    "/assets/customize_erpnext/js/job_application_form.js"
+]
+

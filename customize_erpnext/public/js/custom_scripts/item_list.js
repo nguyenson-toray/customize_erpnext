@@ -161,7 +161,7 @@ function show_qr_label_dialog(listview) {
     // Add custom buttons in the desired order
     dialog.page = {
         add_action_item: function (label, action, group) {
-            let btn = $(`<button class="btn btn-default btn-sm" style="margin-left: 10px;">${label}</button>`);
+            let btn = $(`<button class="btn btn-default btn-sm" style="margin-left:8px;">${label}</button>`);
             btn.click(action);
             dialog.$wrapper.find('.modal-footer .standard-actions').append(btn);
             return btn;
@@ -190,26 +190,20 @@ function show_qr_label_dialog(listview) {
     });
 
     // Add buttons in the desired order: Add to List, Clear List, Generate PDF
-    setTimeout(() => {
-        // 1. "Add to List" button (after Apply Filter)
-        let add_btn = dialog.page.add_action_item(__('Add to List'), function () {
-            add_selected_items_to_list(dialog);
-        });
-        add_btn.addClass('btn-warning');
+    let add_btn = dialog.page.add_action_item(__('Add to List'), function () {
+        add_selected_items_to_list(dialog);
+    });
+    add_btn.addClass('btn-warning');
 
-        // 2. "Clear List" button  
-        let clear_btn = dialog.page.add_action_item(__('Clear List'), function () {
-            clear_selected_items_list(dialog);
-        });
-        clear_btn.addClass('btn-danger');
+    let clear_btn = dialog.page.add_action_item(__('Clear List'), function () {
+        clear_selected_items_list(dialog);
+    });
+    clear_btn.addClass('btn-danger');
 
-        // 3. "Generate PDF" button (last)
-        let generate_btn = dialog.page.add_action_item(__('Generate PDF'), function () {
-            generate_qr_labels_pdf(dialog.get_values(), null, dialog);
-        });
-        generate_btn.addClass('btn-primary');
-        generate_btn.css('font-weight', 'bold');
-    }, 100);
+    let generate_btn = dialog.page.add_action_item(__('Generate PDF'), function () {
+        generate_qr_labels_pdf(dialog.get_values(), null, dialog);
+    });
+    generate_btn.addClass('btn-primary font-weight-bold');
 
     // Initialize preview and selected items display
     setTimeout(() => {
@@ -252,13 +246,13 @@ function preview_items(values, dialog) {
                 dialog.filtered_items = r.message;
 
                 let items = r.message; // Show all items
-                let select_all_text = `Select All (${r.message.length} items)`;
+                let select_all_text = __('Select All ({0} items)', [r.message.length]);
 
                 let html = `
                     <div class="row" style="margin-bottom: 15px; align-items: center;">
                         <div class="col-md-4">
                             <div class="alert alert-info" style="margin-bottom: 0; padding: 8px 12px;">
-                                <strong>Total Items Found:</strong> ${r.message.length}
+                                <strong>${__('Total Items Found')}:</strong> ${r.message.length}
                             </div>
                         </div>
                         <div class="col-md-4">
@@ -273,11 +267,11 @@ function preview_items(values, dialog) {
                         <table class="table table-bordered">
                             <thead>
                                 <tr>
-                                    <th width="50px">Select</th>
-                                    <th>Item Code</th>
-                                    <th>Item Name Detail</th>
-                                    <th>Item Group</th>
-                                    <th>Created</th>
+                                    <th width="50px">${__('Select')}</th>
+                                    <th>${__('Item Code')}</th>
+                                    <th>${__('Item Name Detail')}</th>
+                                    <th>${__('Item Group')}</th>
+                                    <th>${__('Created')}</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -487,9 +481,9 @@ function update_selected_items_display(dialog) {
                     <thead>
                         <tr>
                             <th width="30px">#</th>
-                            <th>Item Code</th>
-                            <th>Item Name Detail</th>
-                            <th width="80px">Action</th>
+                            <th>${__('Item Code')}</th>
+                            <th>${__('Item Name Detail')}</th>
+                            <th width="80px">${__('Action')}</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -660,8 +654,8 @@ function show_quick_check_item_dialog() {
                     <div id="qr-scanner-container">
                         <div id="qr-reader" style="width: 100%; max-width: 600px; margin: 0 auto;"></div>
                         <div class="text-center mt-3">
-                            <button class="btn btn-primary" id="start-qr-scan-btn">Start QR Scanning</button>
-                            <button class="btn btn-secondary" id="stop-qr-scan-btn" style="display: none;">Stop QR Scanning</button>
+                            <button class="btn btn-primary" id="start-qr-scan-btn">${__('Start QR Scanning')}</button>
+                            <button class="btn btn-secondary" id="stop-qr-scan-btn" style="display: none;">${__('Stop QR Scanning')}</button>
                         </div>
                         <div id="qr-scan-result" class="mt-3"></div>
                     </div>
@@ -703,7 +697,7 @@ function show_quick_check_item_dialog() {
 
     dialog.show();
 
-    // Initialize dialog handlers
+    // Initialize dialog handlers after dialog fields have rendered
     setTimeout(() => {
         setup_quick_check_dialog_handlers(dialog);
         toggle_search_fields(dialog);
@@ -804,7 +798,7 @@ function start_qr_scanner(dialog) {
                 // Handle successful scan
                 $('#qr-scan-result').html(`
                     <div class="alert alert-success">
-                        <strong>QR Code Detected:</strong> ${decodedText}
+                        <strong>${__('QR Code Detected')}:</strong> ${decodedText}
                     </div>
                 `);
 
@@ -905,9 +899,9 @@ function display_item_information(dialog, item) {
                 <div class="card-body">
                     <div class="row">
                         <div class="col-12">
-                            <p><strong>Item Name Detail:</strong> ${item.custom_item_name_detail || 'N/A'}</p>
-                            <p><strong>Item Group:</strong> ${item.item_group || 'N/A'}</p>
-                            <p><strong>Stock UOM:</strong> ${item.stock_uom || 'N/A'}</p>
+                            <p><strong>${__('Item Name Detail')}:</strong> ${item.custom_item_name_detail || __('N/A')}</p>
+                            <p><strong>${__('Item Group')}:</strong> ${item.item_group || __('N/A')}</p>
+                            <p><strong>${__('Stock UOM')}:</strong> ${item.stock_uom || __('N/A')}</p>
                         </div>
                     </div>
                 </div>
@@ -920,16 +914,16 @@ function display_item_information(dialog, item) {
                 <div class="card-body">
                     <div class="row">
                         <div class="col-md-6">
-                            <p><strong>Item Name:</strong> ${item.item_name || 'N/A'}</p>
-                            <p><strong>Item Name Detail:</strong> ${item.custom_item_name_detail || 'N/A'}</p>
+                            <p><strong>${__('Item Name')}:</strong> ${item.item_name || __('N/A')}</p>
+                            <p><strong>${__('Item Name Detail')}:</strong> ${item.custom_item_name_detail || __('N/A')}</p>
                         </div>
                         <div class="col-md-3">
-                            <p><strong>Item Group:</strong> ${item.item_group || 'N/A'}</p>
-                            <p><strong>Stock UOM:</strong> ${item.stock_uom || 'N/A'}</p>
+                            <p><strong>${__('Item Group')}:</strong> ${item.item_group || __('N/A')}</p>
+                            <p><strong>${__('Stock UOM')}:</strong> ${item.stock_uom || __('N/A')}</p>
                         </div>
                         <div class="col-md-3">
-                            <p><strong>Is Stock Item:</strong> ${item.is_stock_item ? 'Yes' : 'No'}</p>
-                            <p><strong>Status:</strong> ${item.disabled ? 'Disabled' : 'Active'}</p>
+                            <p><strong>${__('Is Stock Item')}:</strong> ${item.is_stock_item ? __('Yes') : __('No')}</p>
+                            <p><strong>${__('Status')}:</strong> ${item.disabled ? __('Disabled') : __('Active')}</p>
                         </div>
                     </div>
                 </div>
@@ -956,7 +950,7 @@ function load_stock_information(dialog, item_code) {
         callback: function (r) {
             if (r.message && r.message.length > 0) {
                 let html = '<div class="table-responsive"><table class="table table-sm table-striped">';
-                html += '<thead><tr><th>Warehouse</th><th>Available Qty</th><th>Reserved Qty</th><th>Planned Qty</th><th>Projected Qty</th></tr></thead><tbody>';
+                html += `<thead><tr><th>${__('Warehouse')}</th><th>${__('Available Qty')}</th><th>${__('Reserved Qty')}</th><th>${__('Planned Qty')}</th><th>${__('Projected Qty')}</th></tr></thead><tbody>`;
 
                 r.message.forEach(bin => {
                     html += `<tr>
@@ -998,7 +992,7 @@ function load_transaction_history(dialog, item_code) {
         callback: function (r) {
             if (r.message && r.message.length > 0) {
                 let html = '<div class="table-responsive"><table class="table table-sm table-striped">';
-                html += '<thead><tr><th>Date</th><th>Time</th><th>Voucher Type</th><th>Voucher No</th><th>Warehouse</th><th>Qty Change</th><th>Qty After</th></tr></thead><tbody>';
+                html += `<thead><tr><th>${__('Date')}</th><th>${__('Time')}</th><th>${__('Voucher Type')}</th><th>${__('Voucher No')}</th><th>${__('Warehouse')}</th><th>${__('Qty Change')}</th><th>${__('Qty After')}</th></tr></thead><tbody>`;
 
                 r.message.forEach(entry => {
                     const qty_change = entry.actual_qty || 0;
@@ -1165,21 +1159,17 @@ function show_create_item_variants_dialog(listview) {
 
     // Initially disable primary action
     dialog.get_primary_btn().prop('disabled', true);
-    
+
     dialog.show();
-    
+
     // Add download template button
-    setTimeout(() => {
-        let template_btn = $(`<button class="btn btn-info btn-sm" style="margin-right: 10px;">
-            <i class="fa fa-download"></i> ${__('Download Template')}
-        </button>`);
-        
-        template_btn.click(function() {
-            download_template();
-        });
-        
-        dialog.$wrapper.find('.modal-footer .standard-actions').prepend(template_btn);
-    }, 100);
+    let template_btn = $(`<button class="btn btn-info btn-sm" style="margin-right:8px;">
+        <i class="fa fa-download"></i> ${__('Download Template')}
+    </button>`);
+    template_btn.click(function () {
+        download_template();
+    });
+    dialog.$wrapper.find('.modal-footer .standard-actions').prepend(template_btn);
 }
 
 function download_template() {
@@ -1240,18 +1230,18 @@ function validate_excel_data(dialog, values) {
                 if (r.message.invalid_rows === 0) {
                     dialog.get_primary_btn().prop('disabled', false);
                     frappe.show_alert({
-                        message: __('✅ Validation passed! Ready to create {0} item variants', [r.message.valid_rows]),
+                        message: __('Validation passed! Ready to create {0} item variants', [r.message.valid_rows]),
                         indicator: 'green'
                     }, 5);
                 } else {
                     dialog.get_primary_btn().prop('disabled', true);
                     frappe.show_alert({
-                        message: __('⚠️ Validation failed! Please fix {0} issues before creating variants', [r.message.invalid_rows]),
+                        message: __('Validation failed! Please fix {0} issues before creating variants', [r.message.invalid_rows]),
                         indicator: 'orange'
                     }, 5);
                 }
             } else {
-                dialog.set_value('validation_results', '<div class="alert alert-danger">❌ Validation failed. Please check your Excel file format.</div>');
+                dialog.set_value('validation_results', `<div class="alert alert-danger">${__('Validation failed. Please check your Excel file format.')}</div>`);
                 dialog.get_primary_btn().prop('disabled', true);
             }
         },
@@ -1260,8 +1250,8 @@ function validate_excel_data(dialog, values) {
             dialog.get_secondary_btn().prop('disabled', false).text(__('Validate Data'));
             dialog.get_primary_btn().prop('disabled', true);
             
-            dialog.set_value('validation_results', 
-                `<div class="alert alert-danger">❌ Error during validation: ${r.message || 'Unknown error'}</div>`
+            dialog.set_value('validation_results',
+                `<div class="alert alert-danger">${__('Error during validation')}: ${r.message || __('Unknown error')}</div>`
             );
             frappe.msgprint(__('Error validating Excel data: {0}', [r.message || 'Unknown error']));
         }
@@ -1276,22 +1266,22 @@ function display_validation_results(dialog, results) {
         <div class="row">
             <div class="col-md-3">
                 <div class="alert ${results.invalid_rows === 0 ? 'alert-success' : 'alert-warning'}">
-                    <strong>Total Rows:</strong> ${results.total_rows}
+                    <strong>${__('Total Rows')}:</strong> ${results.total_rows}
                 </div>
             </div>
             <div class="col-md-3">
                 <div class="alert alert-success">
-                    <strong>Valid Rows:</strong> ${results.valid_rows}
+                    <strong>${__('Valid Rows')}:</strong> ${results.valid_rows}
                 </div>
             </div>
             <div class="col-md-3">
                 <div class="alert ${results.invalid_rows === 0 ? 'alert-success' : 'alert-danger'}">
-                    <strong>Invalid Rows:</strong> ${results.invalid_rows}
+                    <strong>${__('Invalid Rows')}:</strong> ${results.invalid_rows}
                 </div>
             </div>
             <div class="col-md-3">
                 <div class="alert ${results.invalid_rows === 0 ? 'alert-success' : 'alert-info'}">
-                    <strong>Status:</strong> ${results.invalid_rows === 0 ? '✅ Ready' : '⚠️ Issues Found'}
+                    <strong>${__('Status')}:</strong> ${results.invalid_rows === 0 ? __('Ready') : __('Issues Found')}
                 </div>
             </div>
         </div>
@@ -1299,13 +1289,13 @@ function display_validation_results(dialog, results) {
 
     // Issues section
     if (results.invalid_rows > 0) {
-        html += '<div class="alert alert-warning"><strong>⚠️ Issues Found:</strong></div>';
+        html += `<div class="alert alert-warning"><strong>${__('Issues Found')}:</strong></div>`;
         
         if (results.missing_templates && results.missing_templates.length > 0) {
             html += `
                 <div class="card mb-3">
-                    <div class="card-header bg-danger text-white">
-                        <strong>❌ Missing Templates (${results.missing_templates.length})</strong>
+                    <div class="card-header">
+                        <strong class="text-danger">${__('Missing Templates')} (${results.missing_templates.length})</strong>
                     </div>
                     <div class="card-body">
                         <ul class="mb-0">
@@ -1319,8 +1309,8 @@ function display_validation_results(dialog, results) {
         if (results.missing_attributes && Object.keys(results.missing_attributes).length > 0) {
             html += `
                 <div class="card mb-3">
-                    <div class="card-header bg-warning text-dark">
-                        <strong>⚠️ Missing Attribute Abbreviations</strong>
+                    <div class="card-header">
+                        <strong class="text-warning">${__('Missing Attribute Abbreviations')}</strong>
                     </div>
                     <div class="card-body">
             `;
@@ -1335,8 +1325,8 @@ function display_validation_results(dialog, results) {
         if (results.duplicate_variants && results.duplicate_variants.length > 0) {
             html += `
                 <div class="card mb-3">
-                    <div class="card-header bg-danger text-white">
-                        <strong>❌ Duplicate Variants (${results.duplicate_variants.length})</strong>
+                    <div class="card-header">
+                        <strong class="text-danger">${__('Duplicate Variants')} (${results.duplicate_variants.length})</strong>
                     </div>
                     <div class="card-body">
                         <ul class="mb-0">
@@ -1352,15 +1342,15 @@ function display_validation_results(dialog, results) {
     if (results.valid_rows > 0) {
         html += `
             <div class="alert alert-success">
-                <strong>✅ ${results.valid_rows} rows are ready for item variant creation</strong>
+                <strong>${__('{0} rows are ready for item variant creation', [results.valid_rows])}</strong>
             </div>
         `;
-        
+
         if (results.invalid_rows === 0) {
             html += `
                 <div class="alert alert-info">
-                    <strong>💡 Expected Format:</strong> Item codes will be created with format: TEMPLATE-COLOR-SIZE-BRAND-SEASON-INFO (using dash separators)
-                    <br><strong>💡 Valid Values:</strong> "Blank" is treated as a valid attribute value for missing data
+                    <strong>${__('Expected Format')}:</strong> ${__('Item codes will be created with format: TEMPLATE-COLOR-SIZE-BRAND-SEASON-INFO (using dash separators)')}
+                    <br><strong>${__('Valid Values')}:</strong> ${__('"Blank" is treated as a valid attribute value for missing data')}
                 </div>
             `;
         }
@@ -1404,25 +1394,25 @@ function create_item_variants_from_excel(dialog, values) {
                         
                         // Show success alert
                         frappe.show_alert({
-                            message: __('✅ Item variants creation completed! Check results below.'),
+                            message: __('Item variants creation completed! Check results below.'),
                             indicator: 'green'
                         }, 5);
-                        
+
                         // Refresh list view if available
-                        if (cur_list) {
-                            cur_list.refresh();
+                        if (listview) {
+                            listview.refresh();
                         }
                     } else {
-                        dialog.set_value('creation_results', '<div class="alert alert-danger">❌ Creation failed. Please check the logs.</div>');
+                        dialog.set_value('creation_results', `<div class="alert alert-danger">${__('Creation failed. Please check the logs.')}</div>`);
                     }
                 },
                 error: function(r) {
                     // Re-enable buttons
                     dialog.get_primary_btn().prop('disabled', false).text(__('Create Variants'));
                     dialog.get_secondary_btn().prop('disabled', false);
-                    
-                    dialog.set_value('creation_results', 
-                        `<div class="alert alert-danger">❌ Error during creation: ${r.message || 'Unknown error'}</div>`
+
+                    dialog.set_value('creation_results',
+                        `<div class="alert alert-danger">${__('Error during creation')}: ${r.message || __('Unknown error')}</div>`
                     );
                     frappe.msgprint(__('Error creating item variants: {0}', [r.message || 'Unknown error']));
                 }
@@ -1434,22 +1424,22 @@ function create_item_variants_from_excel(dialog, values) {
 function display_creation_results(dialog, results) {
     let html = `
         <div class="alert alert-success">
-            <strong>✅ Item Variants Creation Completed!</strong>
+            <strong>${__('Item Variants Creation Completed!')}</strong>
         </div>
         <div class="row">
             <div class="col-md-4">
                 <div class="alert alert-info">
-                    <strong>Total Processed:</strong> ${results.total_rows || 0}
+                    <strong>${__('Total Processed')}:</strong> ${results.total_rows || 0}
                 </div>
             </div>
             <div class="col-md-4">
                 <div class="alert alert-success">
-                    <strong>Successfully Created:</strong> ${results.success_count || 0}
+                    <strong>${__('Successfully Created')}:</strong> ${results.success_count || 0}
                 </div>
             </div>
             <div class="col-md-4">
                 <div class="alert ${results.error_count > 0 ? 'alert-danger' : 'alert-success'}">
-                    <strong>Errors:</strong> ${results.error_count || 0}
+                    <strong>${__('Errors')}:</strong> ${results.error_count || 0}
                 </div>
             </div>
         </div>
@@ -1459,7 +1449,7 @@ function display_creation_results(dialog, results) {
         html += `
             <div class="card">
                 <div class="card-header">
-                    <strong>📋 Detailed Results</strong>
+                    <strong>${__('Detailed Results')}</strong>
                 </div>
                 <div class="card-body" style="max-height: 400px; overflow-y: auto;">
                     <table class="table table-sm table-striped">
@@ -1473,12 +1463,11 @@ function display_creation_results(dialog, results) {
         `;
         
         results.results.forEach(result => {
-            let status_class = result.indexOf('✅') >= 0 ? 'text-success' : 'text-danger';
+            let is_success = result.indexOf('✅') >= 0 || result.toLowerCase().startsWith('created');
+            let status_class = is_success ? 'text-success' : 'text-danger';
             html += `
                 <tr>
-                    <td class="${status_class}">
-                        ${result.indexOf('✅') >= 0 ? '✅ Success' : '❌ Error'}
-                    </td>
+                    <td class="${status_class}">${is_success ? __('Success') : __('Error')}</td>
                     <td>${result}</td>
                 </tr>
             `;
@@ -1490,7 +1479,7 @@ function display_creation_results(dialog, results) {
     if (results.log_file) {
         html += `
             <div class="alert alert-info">
-                <strong>📄 Log File:</strong> Detailed logs saved to <code>${results.log_file}</code>
+                <strong>${__('Log File')}:</strong> ${__('Detailed logs saved to')} <code>${results.log_file}</code>
             </div>
         `;
     }

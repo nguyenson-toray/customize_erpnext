@@ -1,8 +1,6 @@
 // import apps/customize_erpnext/customize_erpnext/public/js/utilities.js
 // import apps/customize_erpnext/customize_erpnext/public/js/shared_fingerprint_sync.js
-
-// Store original employee value to prevent naming series interference
-window.original_employee_code = null;
+// import apps/customize_erpnext/customize_erpnext/public/js/photo_crop_shared.js
 
 // Ensure FingerprintScannerDialog is available
 function ensureFingerprintModule() {
@@ -46,6 +44,12 @@ frappe.ui.form.on('Employee', {
     },
 
     refresh: function (frm) {
+        // employee_name: editable; first/middle/last_name: read-only, auto-split from employee_name
+        frm.set_df_property('employee_name', 'read_only', 0);
+        frm.set_df_property('first_name', 'read_only', 1);
+        frm.set_df_property('last_name', 'read_only', 1);
+        frm.set_df_property('middle_name', 'read_only', 1);
+
         // Check if employee can be modified (name and attendance_device_id)
         if (!frm.is_new() && frm.doc.name) {
             frappe.call({
@@ -114,62 +118,34 @@ frappe.ui.form.on('Employee', {
             },);
         }
         if (frm.is_new()) {
-            // Auto-populate employee code and attendance device ID for new employees
-            if (!frm.doc.employee || !frm.doc.employee.startsWith('TIQN-')) {
+            // Auto-fill next employee code and attendance device ID
+            if (!frm.doc.employee) {
                 frappe.call({
                     method: 'customize_erpnext.api.employee.employee_utils.get_next_employee_code',
                     callback: function (r) {
-                        if (r.message) {
+                        if (r.message && !frm.doc.employee) {
                             frm.set_value('employee', r.message);
-                            console.log('get_next_employee_code:', r.message);
-                            // Store the original value
-                            window.original_employee_code = r.message;
-
-                            // Update naming series to prevent duplicates
-                            let employee_num = parseInt(r.message.replace('TIQN-', '')) - 1;
-                            frappe.call({
-                                method: 'customize_erpnext.api.employee.employee_utils.set_series',
-                                args: {
-                                    prefix: 'TIQN-',
-                                    current_highest_id: employee_num
-                                },
-                                callback: function (series_r) {
-                                    console.log('set_series response:', series_r);
-                                    // Series updated successfully
-                                }
-                            });
-                            // Auto-populated employee code successfully
                         }
                     }
                 });
-
-            } else {
-                // Store existing value
-                window.original_employee_code = frm.doc.employee;
             }
-
             if (!frm.doc.attendance_device_id) {
                 frappe.call({
                     method: 'customize_erpnext.api.employee.employee_utils.get_next_attendance_device_id',
                     callback: function (r) {
-                        if (r.message) {
-                            frm.set_value('attendance_device_id', r.message);
+                        if (r.message && !frm.doc.attendance_device_id) {
+                            frm.set_value('attendance_device_id', String(r.message));
                         }
                     }
                 });
             }
-        } else {
-            // For existing employees, store current value
-            window.original_employee_code = frm.doc.employee;
         }
     },
 
-    employee: function (frm) {
-        // Store the employee value whenever it changes
-        if (frm.doc.employee && frm.doc.employee.startsWith('TIQN-')) {
-            window.original_employee_code = frm.doc.employee;
-        }
+    employee_name: function (frm) {
+        split_employee_name(frm);
     },
+
     custom_copy_permanent_address_to_other_adress: function (frm) {
         if (frm.doc.custom_copy_permanent_address_to_other_adress) {
             console.log('Copy permanent address to current and origin address');
@@ -218,47 +194,12 @@ frappe.ui.form.on('Employee', {
             return;
         }
 
-        // Check for duplicate employee code
-        if (frm.doc.employee) {
-            frappe.call({
-                method: 'customize_erpnext.api.employee.employee_utils.check_duplicate_employee',
-                args: {
-                    employee_code: frm.doc.employee,
-                    current_doc_name: frm.doc.name
-                },
-                async: false,
-                callback: function (r) {
-                    if (r.message && r.message.exists) {
-                        frappe.msgprint(__('Employee code {0} already exists in the system', [frm.doc.employee]));
-                        frappe.validated = false;
-                    }
-                }
-            });
-        }
-
-        // Check for duplicate attendance device ID
-        if (frm.doc.attendance_device_id) {
-            frappe.call({
-                method: 'customize_erpnext.api.employee.employee_utils.check_duplicate_attendance_device_id',
-                args: {
-                    attendance_device_id: frm.doc.attendance_device_id,
-                    current_doc_name: frm.doc.name
-                },
-                async: false,
-                callback: function (r) {
-                    if (r.message && r.message.exists) {
-                        frappe.msgprint(__('Attendance Device ID {0} already exists in the system', [frm.doc.attendance_device_id]));
-                        frappe.validated = false;
-                    }
-                }
-            });
-        }
-
-        // set employee_name = first_name + " " + midile_name + " " + last_name
-        if (frm.doc.first_name && frm.doc.last_name) {
-            frm.set_value('employee_name',
-                [frm.doc.first_name, frm.doc.middle_name, frm.doc.last_name].filter(Boolean).join(' ')
-            );
+        // Sync first/middle/last_name từ employee_name trước khi lưu
+        if (frm.doc.employee_name) {
+            const _parts = frm.doc.employee_name.trim().split(/\s+/).filter(Boolean);
+            frm.doc.first_name = _parts[0] || '';
+            frm.doc.last_name = _parts.length >= 2 ? _parts[_parts.length - 1] : '';
+            frm.doc.middle_name = _parts.length >= 3 ? _parts.slice(1, -1).join(' ') : '';
         }
         // check if employee_name icluding numbers throw error
         if (frm.doc.employee_name && /\d/.test(frm.doc.employee_name)) {
@@ -266,12 +207,14 @@ frappe.ui.form.on('Employee', {
             frappe.validated = false;
         }
 
-        // Validate maternity tracking date overlaps
-        if (frm.doc.maternity_tracking && frm.doc.maternity_tracking.length > 1) {
-            if (!validate_all_maternity_periods(frm)) {
-                frappe.validated = false;
+        // If only province is set (default suggestion, no commune selected) → clear the address
+        Object.keys(ADDRESS_TYPES).forEach(address_type => {
+            const fields = ADDRESS_TYPES[address_type];
+            if (frm.doc[fields.province] && !frm.doc[fields.commune]) {
+                frm.doc[fields.province] = '';
+                frm.doc[fields.village] = '';
             }
-        }
+        });
 
         // Build all address full fields before saving
         build_address_full_for_type(frm, 'permanent');
@@ -279,6 +222,31 @@ frappe.ui.form.on('Employee', {
         build_address_full_for_type(frm, 'place_of_origin');
     },
 });
+
+// ============================================================
+// EMPLOYEE NAME SPLITTING FUNCTIONS
+// ============================================================
+
+/**
+ * Tách employee_name → first_name, middle_name, last_name rồi điền vào form
+ * VD: "Nguyễn Văn An" → first="Nguyễn", middle="Văn", last="An"
+ */
+function split_employee_name(frm) {
+    const fullName = (frm.doc.employee_name || '').trim();
+    const parts = fullName.split(/\s+/).filter(Boolean);
+    let first = '', mid = '', last = '';
+    if (parts.length === 1) {
+        first = parts[0];
+    } else if (parts.length >= 2) {
+        first = parts[0];
+        last = parts[parts.length - 1];
+        mid = parts.slice(1, -1).join(' ');
+    }
+    frm.set_value('first_name', first);
+    frm.set_value('middle_name', mid);
+    frm.set_value('last_name', last);
+}
+
 
 // ============================================================
 // ADDRESS MANAGEMENT - REUSABLE FUNCTIONS
@@ -383,198 +351,8 @@ function copy_address(frm, from_type, to_type) {
     // Build full address
     build_address_full_for_type(frm, to_type);
 }
-// Maternity Tracking child table events
-frappe.ui.form.on('Maternity Tracking', {
-    type: function (frm, cdt, cdn) {
-        let row = locals[cdt][cdn];
-
-        // Auto-set apply_pregnant_benefit = 1 when type = 'Pregnant'
-        if (row.type === 'Pregnant') {
-            frappe.model.set_value(cdt, cdn, 'apply_pregnant_benefit', 1);
-        } else {
-            // Clear the field for other types since it's only relevant for Pregnant
-            frappe.model.set_value(cdt, cdn, 'apply_pregnant_benefit', 0);
-        }
-    },
-
-    from_date: function (frm, cdt, cdn) {
-        validate_maternity_date_overlap(frm, cdt, cdn);
-    },
-
-    to_date: function (frm, cdt, cdn) {
-        validate_maternity_date_overlap(frm, cdt, cdn);
-        validate_date_sequence(frm, cdt, cdn);
-    }
-});
-
-// Function to validate date sequence (from_date should be before to_date)
-function validate_date_sequence(frm, cdt, cdn) {
-    let row = locals[cdt][cdn];
-
-    if (row.from_date && row.to_date) {
-        let from_date = frappe.datetime.str_to_obj(row.from_date);
-        let to_date = frappe.datetime.str_to_obj(row.to_date);
-
-        if (from_date >= to_date) {
-            frappe.msgprint({
-                title: __('Invalid Date Range'),
-                message: __('From Date must be earlier than To Date'),
-                indicator: 'red'
-            });
-            frappe.model.set_value(cdt, cdn, 'to_date', '');
-            return false;
-        }
-    }
-
-    return true;
-}
-
-// Function to validate all maternity tracking periods on form save
-function validate_all_maternity_periods(frm) {
-    let maternity_tracking = frm.doc.maternity_tracking || [];
-    let valid_periods = [];
-
-    // First, validate each row for date sequence
-    for (let i = 0; i < maternity_tracking.length; i++) {
-        let row = maternity_tracking[i];
-
-        if (!row.from_date || !row.to_date) {
-            continue; // Skip incomplete rows
-        }
-
-        let from_date = frappe.datetime.str_to_obj(row.from_date);
-        let to_date = frappe.datetime.str_to_obj(row.to_date);
-
-        // Check date sequence
-        if (from_date >= to_date) {
-            frappe.msgprint({
-                title: __('Invalid Date Range'),
-                message: __('Row {0}: From Date must be earlier than To Date', [row.idx]),
-                indicator: 'red'
-            });
-            return false;
-        }
-
-        valid_periods.push({
-            idx: row.idx,
-            type: row.type,
-            from_date: from_date,
-            to_date: to_date,
-            from_date_str: frappe.datetime.str_to_user(row.from_date),
-            to_date_str: frappe.datetime.str_to_user(row.to_date)
-        });
-    }
-
-    // Check for overlapping periods
-    for (let i = 0; i < valid_periods.length; i++) {
-        for (let j = i + 1; j < valid_periods.length; j++) {
-            let period1 = valid_periods[i];
-            let period2 = valid_periods[j];
-
-            // Check for overlap
-            let has_overlap = (period1.from_date < period2.to_date && period1.to_date > period2.from_date);
-
-            if (has_overlap) {
-                frappe.msgprint({
-                    title: __('Date Period Overlap Detected'),
-                    message: __('Overlapping periods found:<br><br>Row {0}: {1} ({2} - {3})<br>Row {4}: {5} ({6} - {7})<br><br>Please adjust the dates to avoid overlapping periods.', [
-                        period1.idx, period1.type, period1.from_date_str, period1.to_date_str,
-                        period2.idx, period2.type, period2.from_date_str, period2.to_date_str
-                    ]),
-                    indicator: 'red'
-                });
-                return false;
-            }
-        }
-    }
-
-    return true;
-}
-
-// Function to validate overlapping date periods
-function validate_maternity_date_overlap(frm, cdt, cdn) {
-    let current_row = locals[cdt][cdn];
-
-    // Only validate if both dates are filled
-    if (!current_row.from_date || !current_row.to_date) {
-        return;
-    }
-
-    let current_from = frappe.datetime.str_to_obj(current_row.from_date);
-    let current_to = frappe.datetime.str_to_obj(current_row.to_date);
-
-    // Validate date sequence first
-    if (current_from >= current_to) {
-        return; // Will be handled by validate_date_sequence
-    }
-
-    // Check for overlaps with other rows
-    let maternity_tracking = frm.doc.maternity_tracking || [];
-    let overlapping_rows = [];
-
-    maternity_tracking.forEach(function (row) {
-        // Skip current row and rows without both dates
-        if (row.name === current_row.name || !row.from_date || !row.to_date) {
-            return;
-        }
-
-        let row_from = frappe.datetime.str_to_obj(row.from_date);
-        let row_to = frappe.datetime.str_to_obj(row.to_date);
-
-        // Check for overlap: two periods overlap if one starts before the other ends
-        let has_overlap = (current_from < row_to && current_to > row_from);
-
-        if (has_overlap) {
-            overlapping_rows.push({
-                idx: row.idx,
-                type: row.type,
-                from_date: frappe.datetime.str_to_user(row.from_date),
-                to_date: frappe.datetime.str_to_user(row.to_date)
-            });
-        }
-    });
-
-    if (overlapping_rows.length > 0) {
-        let overlap_details = overlapping_rows.map(row =>
-            `Row ${row.idx}: ${row.type} (${row.from_date} - ${row.to_date})`
-        ).join('<br>');
-
-        frappe.msgprint({
-            title: __('Date Period Overlap Detected'),
-            message: __('The current date period overlaps with existing records:<br><br>{0}<br><br>Please adjust the dates to avoid overlapping periods.', [overlap_details]),
-            indicator: 'red'
-        });
-
-        // Clear both dates to force user to re-enter correct values
-        frappe.model.set_value(cdt, cdn, 'from_date', '');
-        frappe.model.set_value(cdt, cdn, 'to_date', '');
-
-        return false;
-    }
-
-    return true;
-}
-
 // Legacy sync dialog functions removed - now using shared_fingerprint_sync.js
-
-function toProperCase(str) {
-    if (!str) return str;
-
-    let result = str.trim().toLowerCase();
-
-    // First, handle regular word boundaries (spaces, punctuation)
-    result = result.replace(/\b\w/g, function (char) {
-        return char.toUpperCase();
-    });
-
-    // Special handling: ensure first non-number character is uppercase
-    // This handles cases like "26ss" → "26Ss"
-    result = result.replace(/^(\d*)([a-z])/, function (_, numbers, firstLetter) {
-        return numbers + firstLetter.toUpperCase();
-    });
-
-    return result;
-}
+// Maternity Tracking child table events removed - now managed by Employee Maternity doctype
 
 // ============================================================
 // EMPLOYEE PHOTO FUNCTIONS - TAKE PHOTO & UPLOAD PHOTO
@@ -734,11 +512,11 @@ function open_file_upload_dialog(frm) {
         if (!file) return;
 
         // Check file size (max 5MB)
-        const maxSize = 5 * 1024 * 1024; // 5MB
+        const maxSize = 10 * 1024 * 1024; // 10MB
         if (file.size > maxSize) {
             frappe.msgprint({
                 title: __('File Too Large'),
-                message: __('Please select an image smaller than 5MB'),
+                message: __('Please select an image smaller than 10MB'),
                 indicator: 'red'
             });
             return;
@@ -755,8 +533,11 @@ function open_file_upload_dialog(frm) {
     $input.trigger('click');
 }
 
-// Show crop dialog with remove background option
 function show_crop_dialog(frm, imageDataUrl) {
+    // State for transparent-background handling
+    let _hasTransparency = false;
+    let _bgColor = '#ffffff';
+
     const dialog = new frappe.ui.Dialog({
         title: __('Crop Photo - Ratio 3:4'),
         size: 'large',
@@ -764,18 +545,11 @@ function show_crop_dialog(frm, imageDataUrl) {
             {
                 fieldtype: 'HTML',
                 fieldname: 'cropper_container',
-            },
-            {
-                fieldtype: 'Check',
-                fieldname: 'remove_bg',
-                label: __('Remove Background'),
-                default: 0
             }
         ],
         primary_action_label: __('Save Photo'),
         primary_action: function () {
             const cropper = dialog.cropper_instance;
-            const remove_bg = dialog.get_value('remove_bg');
 
             if (!cropper) {
                 frappe.msgprint(__('Cropper not initialized'));
@@ -789,6 +563,11 @@ function show_crop_dialog(frm, imageDataUrl) {
                 imageSmoothingEnabled: true,
                 imageSmoothingQuality: 'high',
             });
+
+            // Fill transparent background with chosen color before converting to JPEG
+            if (_hasTransparency && window.PhotoCropUtils) {
+                PhotoCropUtils.fillBackground(canvas, _bgColor);
+            }
 
             // Convert to blob
             canvas.toBlob(function (blob) {
@@ -809,7 +588,6 @@ function show_crop_dialog(frm, imageDataUrl) {
                             employee_id: frm.doc.name,
                             employee_name: frm.doc.employee_name,
                             image_data: base64data,
-                            remove_bg: remove_bg ? 1 : 0
                         },
                         callback: function (r) {
                             if (r.message && r.message.status === 'success') {
@@ -863,10 +641,15 @@ function show_crop_dialog(frm, imageDataUrl) {
 
     setTimeout(() => {
         const container = dialog.fields_dict.cropper_container.$wrapper;
+        const bgPickerHTML = window.PhotoCropUtils
+            ? PhotoCropUtils.bgPickerHTML('emp-crop-bg')
+            : '';
+
         container.html(`
             <div style="max-height: 60vh; overflow: hidden; position: relative;">
                 <img id="image-to-crop" src="${imageDataUrl}" style="max-width: 100%; display: block;">
             </div>
+            ${bgPickerHTML}
             <div style="margin-top: 15px; padding: 10px; background: #f8f9fa; border-radius: 5px;">
                 <p style="margin: 0; color: #6c757d; font-size: 13px;">
                     <strong>Instructions:</strong>
@@ -909,6 +692,23 @@ function show_crop_dialog(frm, imageDataUrl) {
             zoomOnWheel: true,
             wheelZoomRatio: 0.1,
         });
+
+        // Detect PNG transparency and show color picker if needed
+        if (window.PhotoCropUtils) {
+            PhotoCropUtils.hasTransparency(imageDataUrl).then(function (hasTrans) {
+                _hasTransparency = hasTrans;
+                if (hasTrans) {
+                    const pickerRow = document.getElementById('emp-crop-bg-row');
+                    const pickerInput = document.getElementById('emp-crop-bg');
+                    if (pickerRow) pickerRow.style.display = 'flex';
+                    if (pickerInput) {
+                        pickerInput.addEventListener('change', function () {
+                            _bgColor = this.value;
+                        });
+                    }
+                }
+            });
+        }
     }, 300);
 }
 
@@ -916,55 +716,63 @@ function show_crop_dialog(frm, imageDataUrl) {
 // ADDRESS SELECTION FUNCTIONS - PROVINCE & COMMUNE
 // ============================================================
 
+// Province name → code lookup, populated once on form load
+const _province_code_map = {};
+
 /**
- * Load province options from API (called on form load)
+ * Load province options using the 2025 address API (consistent with employee-self-update).
+ * Stores province name (ten) in the field; keeps code (ma) in _province_code_map for district lookup.
  */
 function load_province_options(frm) {
     frappe.call({
-        method: 'customize_erpnext.api.address.get_provinces',
+        method: 'customize_erpnext.api.address_converter.api.get_provinces',
         callback: function (r) {
-            if (r.message && r.message.length > 0) {
-                // Set province dropdown options for all address types
-                Object.keys(ADDRESS_TYPES).forEach(address_type => {
-                    const fields = ADDRESS_TYPES[address_type];
-                    frm.set_df_property(fields.province, 'options', r.message);
+            if (!r.message || !r.message.length) return;
 
-                    // If province already has a value, load its communes
-                    if (frm.doc[fields.province]) {
-                        load_commune_options_for_type(frm, address_type, frm.doc[fields.province]);
-                    }
-                });
-            }
+            const province_names = r.message.map(p => {
+                _province_code_map[p.ten] = p.ma;
+                return p.ten;
+            });
+
+            const DEFAULT_PROVINCE = 'Tỉnh Quảng Ngãi';
+
+            Object.keys(ADDRESS_TYPES).forEach(address_type => {
+                const fields = ADDRESS_TYPES[address_type];
+                frm.set_df_property(fields.province, 'options', province_names);
+
+                if (frm.doc[fields.province]) {
+                    // Existing record — load communes for saved province
+                    load_commune_options_for_type(frm, address_type, frm.doc[fields.province]);
+                } else if (frm.is_new()) {
+                    // New employee — default all address provinces to Quảng Ngãi
+                    frm.set_value(fields.province, DEFAULT_PROVINCE);
+                    load_commune_options_for_type(frm, address_type, DEFAULT_PROVINCE);
+                }
+            });
         }
     });
 }
 
 /**
- * Load commune options for selected province and address type
- * @param {object} frm - Form object
- * @param {string} address_type - 'permanent', 'current', or 'place_of_origin'
- * @param {string} province_name - Province name_with_type
+ * Load district options for the selected province (2025 API: get_districts by province code).
+ * @param {object} frm
+ * @param {string} address_type - 'permanent' | 'current' | 'place_of_origin'
+ * @param {string} province_name - Province display name (ten), used to look up ma
  */
 function load_commune_options_for_type(frm, address_type, province_name) {
-    if (!province_name || !ADDRESS_TYPES[address_type]) {
-        return;
-    }
+    if (!province_name || !ADDRESS_TYPES[address_type]) return;
+
+    const province_code = _province_code_map[province_name];
+    if (!province_code) return;
 
     const fields = ADDRESS_TYPES[address_type];
 
     frappe.call({
-        method: 'customize_erpnext.api.address.get_communes',
-        args: {
-            province_name: province_name
-        },
+        method: 'customize_erpnext.api.address_converter.api.get_districts',
+        args: { province_code: province_code },
         callback: function (r) {
-            if (r.message && r.message.length > 0) {
-                // Set commune dropdown options
-                frm.set_df_property(fields.commune, 'options', r.message);
-            } else {
-                // Clear commune options if no communes found
-                frm.set_df_property(fields.commune, 'options', []);
-            }
+            const district_names = (r.message || []).map(d => d.ten);
+            frm.set_df_property(fields.commune, 'options', district_names);
         }
     });
 }

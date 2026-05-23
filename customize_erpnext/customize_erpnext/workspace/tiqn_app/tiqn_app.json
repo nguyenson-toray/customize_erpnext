@@ -1,8 +1,8 @@
 {
  "app": "customize_erpnext",
  "charts": [],
- "content": "[{\"id\":\"tiqn_header_1\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Your Shortcuts</b></span>\",\"col\":12}},{\"id\":\"tiqn_shortcut_2\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Overtime Registration\",\"col\":3}},{\"id\":\"ykw3Eqhhgj\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Overtime Registration Report\",\"col\":3}},{\"id\":\"W6ldlEA1Ym\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Overtime Registration Quantity Report\",\"col\":3}},{\"id\":\"tiqn_spacer_1\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"tiqn_shortcut_1\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Employee Item Reissue\",\"col\":3}},{\"id\":\"bDniOCBcUj\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Employee Item Reissue Report\",\"col\":3}},{\"id\":\"_GhwyCa-Ws\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"uuNau1kSnb\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Vehicle Trip\",\"col\":3}},{\"id\":\"A1SxXPJCmJ\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Vehicle List\",\"col\":3}},{\"id\":\"g9r_m81kag\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Vehicle Trip Report\",\"col\":3}}]",
- "creation": "2026-01-22 15:49:21.787338",
+ "content": "[{\"id\":\"tiqn_header_1\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Your Shortcuts</b></span>\",\"col\":12}},{\"id\":\"tiqn_spacer_1\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"gg0jkb55vq\",\"type\":\"card\",\"data\":{\"card_name\":\"OT\",\"col\":4}},{\"id\":\"2r1vZ-j4ag\",\"type\":\"card\",\"data\":{\"card_name\":\"Employee Item Reissue\",\"col\":4}},{\"id\":\"s0wHG4LpHp\",\"type\":\"card\",\"data\":{\"card_name\":\"Vehicle\",\"col\":4}},{\"id\":\"_GhwyCa-Ws\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"XHqsd18WfF\",\"type\":\"card\",\"data\":{\"card_name\":\"Shoe Rack\",\"col\":4}}]",
+ "creation": "2026-01-29 13:19:43.446927",
  "custom_blocks": [],
  "docstatus": 0,
  "doctype": "Workspace",
@@ -13,8 +13,152 @@
  "indicator_color": "blue",
  "is_hidden": 0,
  "label": "TIQN App",
- "links": [],
- "modified": "2026-01-22 15:52:37.934147",
+ "links": [
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "OT",
+   "link_count": 3,
+   "link_to": "Overtime Registration",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Overtime Registration",
+   "link_count": 0,
+   "link_to": "Overtime Registration",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Overtime Registration Report",
+   "link_count": 0,
+   "link_to": "Overtime Registration",
+   "link_type": "Report",
+   "onboard": 0,
+   "report_ref_doctype": "Overtime Registration",
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Overtime Registration Quantity Report",
+   "link_count": 0,
+   "link_to": "Overtime Registration Quantity",
+   "link_type": "Report",
+   "onboard": 0,
+   "report_ref_doctype": "Overtime Registration",
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Employee Item Reissue",
+   "link_count": 2,
+   "link_to": "Employee Item Reissue",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Employee Item Reissue",
+   "link_count": 0,
+   "link_to": "Employee Item Reissue",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Employee Item Reissue Report",
+   "link_count": 0,
+   "link_to": "Employee Item Reissue",
+   "link_type": "Report",
+   "onboard": 0,
+   "report_ref_doctype": "Employee Item Reissue",
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Vehicle",
+   "link_count": 3,
+   "link_to": "Vehicle",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Vehicle List",
+   "link_count": 0,
+   "link_to": "Vehicle List",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Vehicle Trip",
+   "link_count": 0,
+   "link_to": "Vehicle Trip",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Vehicle Trip Report",
+   "link_count": 0,
+   "link_to": "Vehicle Trip Report",
+   "link_type": "Report",
+   "onboard": 0,
+   "report_ref_doctype": "Vehicle Trip",
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Shoe Rack",
+   "link_count": 2,
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Shoe Rack",
+   "link_count": 0,
+   "link_to": "Shoe Rack",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Shoer Rack Dashboard",
+   "link_count": 0,
+   "link_to": "shoe-rack-dashboard",
+   "link_type": "Page",
+   "onboard": 0,
+   "type": "Link"
+  }
+ ],
+ "modified": "2026-01-29 13:22:40.128348",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "TIQN App",
@@ -26,72 +170,7 @@
  "restrict_to_domain": "",
  "roles": [],
  "sequence_id": 2.0,
- "shortcuts": [
-  {
-   "color": "Blue",
-   "doc_view": "List",
-   "label": "Employee Item Reissue",
-   "link_to": "Employee Item Reissue",
-   "stats_filter": "[]",
-   "type": "DocType"
-  },
-  {
-   "color": "Grey",
-   "doc_view": "List",
-   "label": "Overtime Registration",
-   "link_to": "Overtime Registration",
-   "report_ref_doctype": "Overtime Registration",
-   "type": "DocType"
-  },
-  {
-   "color": "Grey",
-   "doc_view": "List",
-   "label": "Overtime Registration Report",
-   "link_to": "Overtime Registration",
-   "report_ref_doctype": "Overtime Registration",
-   "type": "Report"
-  },
-  {
-   "color": "Grey",
-   "doc_view": "List",
-   "label": "Vehicle Trip Report",
-   "link_to": "Vehicle Trip Report",
-   "report_ref_doctype": "Vehicle Trip",
-   "type": "Report"
-  },
-  {
-   "color": "Grey",
-   "doc_view": "List",
-   "label": "Vehicle List",
-   "link_to": "Vehicle List",
-   "stats_filter": "[]",
-   "type": "DocType"
-  },
-  {
-   "color": "Grey",
-   "doc_view": "List",
-   "label": "Overtime Registration Quantity Report",
-   "link_to": "Overtime Registration Quantity",
-   "report_ref_doctype": "Overtime Registration",
-   "type": "Report"
-  },
-  {
-   "color": "Grey",
-   "doc_view": "List",
-   "label": "Employee Item Reissue Report",
-   "link_to": "Employee Item Reissue",
-   "report_ref_doctype": "Employee Item Reissue",
-   "type": "Report"
-  },
-  {
-   "color": "Grey",
-   "doc_view": "List",
-   "label": "Vehicle Trip",
-   "link_to": "Vehicle Trip",
-   "stats_filter": "[]",
-   "type": "DocType"
-  }
- ],
+ "shortcuts": [],
  "title": "TIQN App",
  "type": "Workspace"
 }

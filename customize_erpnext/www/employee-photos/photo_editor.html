@@ -1,0 +1,2522 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Photo Editor – ERPNext</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
+  <!-- Shared photo processing utilities -->
+  <script src="/assets/customize_erpnext/js/photo_crop_shared.js"></script>
+  <script src="/assets/customize_erpnext/js/photo_processing_utils.js"></script>
+  <!-- rembg birefnet-portrait: server-side bg removal via Frappe API -->
+  <!-- @imgly không dùng nữa, xóa warm-up để tiết kiệm bộ nhớ browser -->
+  <!-- face-api.js: load ngay, expose as window.faceapi -->
+  <script type="module">
+    import * as faceapi from '/assets/customize_erpnext/face_api/face-api.esm.js';
+    window.faceapi = faceapi;
+  </script>
+  <link
+    href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@500&display=swap"
+    rel="stylesheet">
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0
+    }
+
+    :root {
+      --bg: #0e1015;
+      --surface: #161920;
+      --s2: #1e2229;
+      --s3: #252b35;
+      --border: #252b35;
+      --b2: #323a48;
+      --primary: #4f8eff;
+      --pg: rgba(79, 142, 255, .2);
+      --accent: #00d4b0;
+      --red: #ff5a5a;
+      --text: #dde3f0;
+      --t2: #8a95b0;
+      --t3: #4a5268;
+      --green: #22c97a;
+      --amber: #f0a830;
+    }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── TOP BAR ── */
+    .bar {
+      height: 48px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      gap: 10px;
+      flex-shrink: 0;
+      z-index: 10;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .logo-dot {
+      width: 28px;
+      height: 28px;
+      background: linear-gradient(135deg, #4f8eff, #00d4b0);
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+      font-size: 14px;
+    }
+
+    .bar-sep {
+      width: 1px;
+      height: 18px;
+      background: var(--border);
+      margin: 0 4px;
+    }
+
+    .chip {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 12px;
+      letter-spacing: .4px;
+    }
+
+    .chip-teal {
+      color: var(--accent);
+      background: rgba(0, 212, 176, .1);
+      border: 1px solid rgba(0, 212, 176, .2);
+    }
+
+    .chip-blue {
+      color: var(--primary);
+      background: rgba(79, 142, 255, .1);
+      border: 1px solid rgba(79, 142, 255, .2);
+    }
+
+    .bar-right {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    #barInfo {
+      font-size: 11px;
+      color: var(--t3);
+      font-family: 'DM Mono', monospace;
+    }
+
+    /* ── LAYOUT ── */
+    .app {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 272px;
+      overflow: hidden;
+    }
+
+    /* ── CANVAS ZONE ── */
+    .zone {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* Toolbar */
+    .toolbar {
+      height: 42px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 12px;
+      gap: 2px;
+      flex-shrink: 0;
+    }
+
+    .tb {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 5px 9px;
+      border: 1px solid transparent;
+      background: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--t2);
+      font-family: inherit;
+      white-space: nowrap;
+      transition: all .12s;
+    }
+
+    .tb:hover {
+      background: var(--s2);
+      color: var(--text);
+      border-color: var(--border);
+    }
+
+    .tb.on {
+      background: var(--pg);
+      color: var(--primary);
+      border-color: rgba(79, 142, 255, .35);
+    }
+
+    .tb:disabled {
+      opacity: .3;
+      cursor: not-allowed;
+    }
+
+    .tb-sep {
+      width: 1px;
+      height: 16px;
+      background: var(--border);
+      margin: 0 3px;
+      flex-shrink: 0;
+    }
+
+    /* Primary CTA for Auto Processing */
+    #tbAuto {
+      background: linear-gradient(135deg, #4f8eff, #00d4b0);
+      color: #fff;
+      border-color: transparent;
+      padding: 5px 14px;
+      font-weight: 700;
+    }
+
+    #tbAuto:not(:disabled):hover {
+      box-shadow: 0 0 0 3px rgba(79, 142, 255, .25);
+      transform: translateY(-1px);
+    }
+
+    /* ── COMPARE STAGE ── */
+    .stage {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+      background: #0a0c0f;
+    }
+
+    /* Drop screen */
+    .drop-screen {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 5;
+    }
+
+    .drop-box {
+      width: 460px;
+      border: 2px dashed var(--b2);
+      border-radius: 14px;
+      padding: 52px 28px;
+      text-align: center;
+      cursor: pointer;
+      transition: .2s;
+      background: var(--surface);
+    }
+
+    .drop-box:hover,
+    .drop-box.over {
+      border-color: var(--primary);
+      background: rgba(79, 142, 255, .04);
+    }
+
+    .di {
+      font-size: 40px;
+      margin-bottom: 12px;
+      opacity: .55;
+    }
+
+    .dt {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    .ds {
+      font-size: 12px;
+      color: var(--t2);
+      line-height: 1.6;
+    }
+
+    .ds span {
+      display: inline-block;
+      margin-top: 4px;
+      font-size: 11px;
+      opacity: 0.7;
+    }
+
+    .dbtn {
+      margin-top: 16px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--primary);
+      color: #fff;
+      padding: 9px 18px;
+      border-radius: 7px;
+      font-size: 13px;
+      font-weight: 600;
+      font-family: inherit;
+      border: none;
+      cursor: pointer;
+    }
+
+    #fi {
+      display: none;
+    }
+
+    /* Progress overlay */
+    .prog-screen {
+      position: absolute;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 14px;
+      z-index: 6;
+      background: rgba(10, 12, 15, .85);
+      backdrop-filter: blur(4px);
+    }
+
+    .prog-screen.on {
+      display: flex;
+    }
+
+    .prog-icon {
+      font-size: 38px;
+      animation: pulse 1.1s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        transform: scale(1)
+      }
+
+      50% {
+        transform: scale(1.1)
+      }
+    }
+
+    .prog-lbl {
+      font-size: 14px;
+      color: var(--t2);
+      font-family: 'DM Mono', monospace;
+    }
+
+    .prog-sub {
+      font-size: 11px;
+      color: var(--t3);
+    }
+
+    .prog-track {
+      width: 320px;
+      height: 4px;
+      background: var(--s3);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .prog-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--primary), var(--accent));
+      border-radius: 10px;
+      transition: width .4s ease;
+    }
+
+    /* Step Indicator */
+    .prog-steps {
+      display: flex;
+      gap: 12px;
+      margin-top: 15px;
+    }
+
+    .ps {
+      font-size: 11px;
+      color: var(--t3);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      opacity: 0.5;
+    }
+
+    .ps.active {
+      color: var(--primary);
+      opacity: 1;
+      font-weight: 600;
+    }
+
+    .ps.done {
+      color: var(--green);
+      opacity: 1;
+    }
+
+    .ps-icon {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    /* ── SPLIT VIEW ── */
+    .split-wrap {
+      position: absolute;
+      inset: 0;
+      display: none;
+    }
+
+    .split-wrap.on {
+      display: flex;
+    }
+
+    .split-half {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .split-half canvas {
+      max-width: 100%;
+      max-height: 100%;
+      display: block;
+      border-radius: 0;
+    }
+
+    /* Labels */
+    .split-label {
+      position: absolute;
+      top: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .8px;
+      text-transform: uppercase;
+      padding: 4px 10px;
+      border-radius: 20px;
+      pointer-events: none;
+      z-index: 2;
+    }
+
+    .label-before {
+      background: rgba(0, 0, 0, .55);
+      color: #aaa;
+      border: 1px solid rgba(255, 255, 255, .1);
+    }
+
+    .label-after {
+      background: rgba(79, 142, 255, .2);
+      color: var(--primary);
+      border: 1px solid rgba(79, 142, 255, .3);
+    }
+
+    /* Divider */
+    .divider-line {
+      width: 1px;
+      background: rgba(255, 255, 255, .25);
+      position: relative;
+      flex-shrink: 0;
+      cursor: col-resize;
+      z-index: 4;
+    }
+
+    .divider-handle {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 12px rgba(0, 0, 0, .4);
+      cursor: col-resize;
+      font-size: 14px;
+      color: #333;
+      user-select: none;
+    }
+
+    .divider-handle::before,
+    .divider-handle::after {
+      content: '‹';
+      font-size: 13px;
+      color: #666;
+      line-height: 1;
+    }
+
+    .divider-handle::after {
+      content: '›';
+    }
+
+    /* Single canvas view (crop mode) */
+    .single-wrap {
+      position: absolute;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+
+    .single-wrap.on {
+      display: flex;
+    }
+
+    #cropImg {
+      max-width: 100%;
+      max-height: 100%;
+      display: block;
+    }
+
+    /* ── RIGHT PANEL ── */
+    .panel {
+      background: var(--surface);
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* Drag handle for mobile */
+    .panel-drag-handle {
+      display: none;
+      width: 36px;
+      height: 4px;
+      background: var(--b2);
+      border-radius: 2px;
+      margin: 8px auto 4px;
+      cursor: row-resize;
+      flex-shrink: 0;
+    }
+
+    /* Panel Tabs */
+    .panel-tabs {
+      display: none;
+      background: var(--bg);
+      padding: 4px;
+      margin: 8px 12px;
+      border-radius: 8px;
+      gap: 4px;
+    }
+
+    .panel-tab {
+      flex: 1;
+      padding: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      text-align: center;
+      border-radius: 6px;
+      cursor: pointer;
+      color: var(--t2);
+      transition: all 0.2s;
+    }
+
+    .panel-tab.on {
+      background: var(--s3);
+      color: var(--text);
+    }
+
+    /* Accordion */
+    .accordion {
+      border-bottom: 1px solid var(--border);
+    }
+
+    .accordion-header {
+      padding: 12px 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      user-select: none;
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .accordion-header:hover {
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .accordion-title {
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .9px;
+      color: var(--t3);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .accordion-icon {
+      font-size: 10px;
+      transition: transform 0.2s;
+      opacity: 0.5;
+    }
+
+    .accordion.closed .accordion-icon {
+      transform: rotate(-90deg);
+    }
+
+    .accordion-content {
+      padding: 0 14px 14px;
+    }
+
+    .accordion.closed .accordion-content {
+      display: none;
+    }
+
+    .panel-body {
+      flex: 1;
+      overflow-y: auto;
+      overflow-x: hidden;
+    }
+
+    .panel-body::-webkit-scrollbar {
+      width: 3px;
+    }
+
+    .panel-body::-webkit-scrollbar-thumb {
+      background: var(--b2);
+      border-radius: 10px;
+    }
+
+    /* Beautify CTA */
+    .bfy-box {
+      padding: 14px;
+      background: linear-gradient(135deg, rgba(79, 142, 255, .1), rgba(0, 212, 176, .06));
+      border-bottom: 1px solid var(--border);
+    }
+
+    .bfy-btn {
+      width: 100%;
+      padding: 13px;
+      border: none;
+      border-radius: 9px;
+      background: linear-gradient(135deg, #4f8eff, #00d4b0);
+      color: #fff;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all .18s;
+      letter-spacing: .1px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .bfy-btn:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 24px rgba(79, 142, 255, .35);
+    }
+
+    .bfy-btn:disabled {
+      opacity: .35;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .bfy-sub {
+      margin-top: 7px;
+      font-size: 11px;
+      color: var(--t3);
+      text-align: center;
+      line-height: 1.5;
+    }
+
+    /* Mini preview */
+    .mini-prev {
+      display: none;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      flex-direction: column;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .mini-prev.on {
+      display: flex;
+    }
+
+    .mini-lbl {
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .8px;
+      color: var(--t3);
+    }
+
+    .mini-img {
+      width: 60px;
+      height: 80px;
+      object-fit: cover;
+      border-radius: 5px;
+      border: 2px solid var(--primary);
+      box-shadow: 0 0 0 3px rgba(79, 142, 255, .15);
+    }
+
+    .mini-sz {
+      font-size: 10px;
+      color: var(--t3);
+      font-family: 'DM Mono', monospace;
+    }
+
+    /* Section */
+    .sec {
+      padding: 11px 14px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .sec-t {
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .9px;
+      color: var(--t3);
+      margin-bottom: 9px;
+    }
+
+    /* Ratio pills */
+    .pills {
+      display: flex;
+      gap: 5px;
+      flex-wrap: wrap;
+    }
+
+    .pill {
+      padding: 4px 10px;
+      border: 1.5px solid var(--b2);
+      background: var(--s2);
+      border-radius: 20px;
+      cursor: pointer;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--t2);
+      font-family: inherit;
+      transition: all .12s;
+    }
+
+    .pill:hover {
+      border-color: var(--primary);
+      color: var(--primary);
+    }
+
+    .pill.on {
+      border-color: var(--primary);
+      background: rgba(79, 142, 255, .12);
+      color: var(--primary);
+    }
+
+    /* BG swatches */
+    .swatches {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .sw {
+      width: 26px;
+      height: 26px;
+      border-radius: 5px;
+      border: 2px solid transparent;
+      cursor: pointer;
+      transition: all .12s;
+      flex-shrink: 0;
+    }
+
+    .sw:hover {
+      transform: scale(1.1);
+    }
+
+    .sw.on {
+      border-color: var(--primary);
+      transform: scale(1.15);
+      box-shadow: 0 0 0 3px rgba(79, 142, 255, .2);
+    }
+
+    .sw-trans {
+      background-image: linear-gradient(45deg, #333 25%, transparent 25%), linear-gradient(-45deg, #333 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #333 75%), linear-gradient(-45deg, transparent 75%, #333 75%);
+      background-size: 7px 7px;
+      background-position: 0 0, 0 3.5px, 3.5px -3.5px, -3.5px 0;
+    }
+
+    #custBg {
+      width: 26px;
+      height: 26px;
+      border-radius: 5px;
+      border: 2px solid var(--b2);
+      cursor: pointer;
+      padding: 1px;
+      background: none;
+    }
+
+    /* Sliders */
+    .sl-row {
+      margin-bottom: 10px;
+    }
+
+    .sl-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 4px;
+    }
+
+    .sl-name {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--t2);
+    }
+
+    .sl-val {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--primary);
+      font-family: 'DM Mono', monospace;
+      background: rgba(79, 142, 255, .1);
+      padding: 1px 6px;
+      border-radius: 3px;
+      min-width: 28px;
+      text-align: center;
+    }
+
+    input[type=range] {
+      width: 100%;
+      height: 3px;
+      -webkit-appearance: none;
+      appearance: none;
+      background: var(--b2);
+      border-radius: 10px;
+      outline: none;
+      cursor: pointer;
+    }
+
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 13px;
+      height: 13px;
+      background: var(--primary);
+      border-radius: 50%;
+      box-shadow: 0 0 0 3px rgba(79, 142, 255, .18);
+    }
+
+    /* Buttons */
+    .btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      padding: 8px 11px;
+      border-radius: 7px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      border: 1.5px solid transparent;
+      transition: all .12s;
+    }
+
+    .btn-g {
+      background: var(--s2);
+      border-color: var(--b2);
+      color: var(--t2);
+    }
+
+    .btn-g:hover {
+      color: var(--text);
+    }
+
+    .btn-ok {
+      background: var(--green);
+      color: #fff;
+    }
+
+    .btn-ok:hover {
+      background: #1aad6c;
+    }
+
+    .btn:disabled {
+      opacity: .3;
+      cursor: not-allowed;
+    }
+
+    .btn-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+
+    .actions {
+      padding: 11px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+      flex-shrink: 0;
+    }
+
+    /* Spin */
+    .spin {
+      display: inline-block;
+      width: 13px;
+      height: 13px;
+      border: 2px solid rgba(255, 255, 255, .3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: sp .6s linear infinite;
+    }
+
+    @keyframes sp {
+      to {
+        transform: rotate(360deg)
+      }
+    }
+
+    /* Stats badges */
+    .stats-row {
+      display: flex;
+      gap: 5px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+
+    .stat-badge {
+      font-size: 10px;
+      font-weight: 600;
+      padding: 3px 7px;
+      border-radius: 5px;
+      font-family: 'DM Mono', monospace;
+    }
+
+    .sb-blue {
+      background: rgba(79, 142, 255, .12);
+      color: var(--primary);
+    }
+
+    .sb-teal {
+      background: rgba(0, 212, 176, .1);
+      color: var(--accent);
+    }
+
+    .sb-amber {
+      background: rgba(240, 168, 48, .1);
+      color: var(--amber);
+    }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      bottom: 18px;
+      left: 50%;
+      transform: translateX(-50%) translateY(8px);
+      background: var(--s2);
+      color: var(--text);
+      padding: 9px 16px;
+      border-radius: 9px;
+      font-size: 12px;
+      font-weight: 500;
+      border: 1px solid var(--b2);
+      box-shadow: 0 6px 24px rgba(0, 0, 0, .4);
+      opacity: 0;
+      transition: all .22s;
+      pointer-events: none;
+      z-index: 999;
+      white-space: nowrap;
+    }
+
+    .toast.on {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    .toast.ok {
+      background: #1a3328;
+      border-color: rgba(34, 201, 122, .3);
+      color: var(--green);
+    }
+
+    .toast.er {
+      background: #2d1a1a;
+      border-color: rgba(255, 90, 90, .3);
+      color: var(--red);
+    }
+
+    /* Checker bg for transparent */
+    .checker {
+      background-image: linear-gradient(45deg, #1e1e1e 25%, transparent 25%), linear-gradient(-45deg, #1e1e1e 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #1e1e1e 75%), linear-gradient(-45deg, transparent 75%, #1e1e1e 75%);
+      background-size: 12px 12px;
+      background-position: 0 0, 0 6px, 6px -6px, -6px 0;
+    }
+
+    /* ══════════════════════════════════════
+   MOBILE RESPONSIVE  ≤ 640px
+   ══════════════════════════════════════ */
+    @media (max-width: 640px) {
+
+      /* Top bar */
+      .bar {
+        height: 42px;
+        padding: 0 10px;
+        gap: 6px;
+      }
+
+      .logo-dot {
+        width: 22px;
+        height: 22px;
+        font-size: 11px;
+      }
+
+      .logo {
+        font-size: 0;
+        gap: 0;
+      }
+
+      /* hide text, keep icon */
+      .logo-dot {
+        font-size: 14px;
+      }
+
+      /* restore icon size */
+      .bar-sep {
+        display: none;
+      }
+
+      .chip {
+        font-size: 9px;
+        padding: 2px 6px;
+      }
+
+      #barInfo {
+        font-size: 9px;
+      }
+
+      /* Stack layout: canvas on top, panel below */
+      .app {
+        grid-template-columns: 1fr;
+        grid-template-rows: 1fr auto;
+      }
+
+      .zone {
+        min-height: 0;
+      }
+
+      /* Panel becomes bottom sheet */
+      .panel {
+        border-left: none;
+        border-top: 2px solid var(--border);
+        max-height: 50vh;
+        /* Increased from 40vh for better usability */
+        height: 50vh;
+        overflow-y: hidden;
+        flex-direction: column;
+        transition: height 0.3s ease;
+      }
+
+      .panel-body {
+        overflow-y: auto;
+        flex: 1;
+        /* Allow body to grow and scroll */
+        min-height: 0;
+        touch-action: pan-y;
+        /* Prioritize vertical scrolling over slider triggers */
+      }
+
+      /* Toolbar: scrollable row */
+      .toolbar {
+        height: auto;
+        min-height: 44px;
+        padding: 4px 8px;
+        overflow-x: auto;
+        gap: 2px;
+        flex-wrap: nowrap;
+      }
+
+      .toolbar::-webkit-scrollbar {
+        display: none;
+      }
+
+      .tb {
+        padding: 8px 10px;
+        font-size: 11px;
+        flex-shrink: 0;
+      }
+
+      .tb-sep {
+        height: 14px;
+        margin: 0 2px;
+      }
+
+      /* Drop box */
+      .drop-box {
+        width: min(320px, calc(100vw - 32px));
+        padding: 28px 16px;
+      }
+
+      .di {
+        font-size: 32px;
+      }
+
+      .dt {
+        font-size: 14px;
+      }
+
+      .ds {
+        font-size: 11px;
+      }
+
+      .dbtn {
+        padding: 8px 14px;
+        font-size: 12px;
+      }
+
+      /* Touch-friendly controls */
+      .sw,
+      #custBg {
+        width: 36px;
+        height: 36px;
+        border-radius: 7px;
+      }
+
+      input[type=range] {
+        height: 4px;
+      }
+
+      input[type=range]::-webkit-slider-thumb {
+        width: 18px;
+        /* Reduced from 22px to avoid accidental trigger */
+        height: 18px;
+        box-shadow: 0 0 0 5px rgba(79, 142, 255, .1);
+      }
+
+      .pill {
+        padding: 7px 13px;
+        font-size: 12px;
+      }
+
+      .pills {
+        gap: 6px;
+      }
+
+      /* Panel sections */
+      .bfy-box {
+        padding: 10px 12px;
+      }
+
+      .bfy-btn {
+        padding: 11px;
+        font-size: 13px;
+      }
+
+      .bfy-sub {
+        font-size: 10px;
+      }
+
+      .sec {
+        padding: 10px 12px;
+      }
+
+      .sec-t {
+        margin-bottom: 8px;
+      }
+
+      .sl-row {
+        margin-bottom: 14px;
+        /* Increased from 8px for better touch separation */
+      }
+
+      .sl-name {
+        font-size: 12px;
+      }
+
+      .sl-val {
+        font-size: 11px;
+      }
+
+      /* Buttons */
+      .btn {
+        padding: 10px 12px;
+        font-size: 13px;
+      }
+
+      .actions {
+        padding: 10px 12px;
+        gap: 8px;
+      }
+
+      /* Mini preview: horizontal layout */
+      .mini-prev {
+        flex-direction: row;
+        gap: 10px;
+        padding: 8px 12px;
+        align-items: center;
+      }
+
+      .mini-img {
+        width: 45px;
+        height: 60px;
+        flex-shrink: 0;
+      }
+
+      .mini-lbl {
+        margin-bottom: 2px;
+      }
+
+      /* Divider handle: bigger touch target */
+      .divider-handle {
+        width: 44px;
+        height: 44px;
+      }
+
+      /* Progress bar */
+      .prog-track {
+        width: calc(100vw - 48px);
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- TOP BAR -->
+  <div class="bar">
+    <div class="logo">
+      <div class="logo-dot">📷</div>TIQN Studio
+    </div>
+    <div class="bar-sep"></div>
+    <span class="chip chip-teal">ERPNext · Ảnh Thẻ</span>
+    <span class="chip chip-blue">AI</span>
+    <div class="bar-right">
+      <span id="barInfo"></span>
+    </div>
+  </div>
+
+  <!-- APP -->
+  <div class="app">
+
+    <!-- LEFT: CANVAS ZONE -->
+    <div class="zone">
+
+      <!-- Toolbar -->
+      <div class="toolbar">
+        <button class="tb on" id="tbView" onclick="setMode('view',this)">🖼 Xem</button>
+        <button class="tb" id="tbAuto" onclick="runAutoPipeline()" disabled
+          title="Tự động: nhận diện mặt → crop 3:4 → xóa nền → thay nền → làm đẹp">🤖 Tạo ảnh thẻ nhanh</button>
+        <div class="tb-sep"></div>
+        <button class="tb" id="tbCrop" onclick="setMode('crop',this)" disabled>✂️ Cắt ảnh</button>
+        <div class="tb-sep"></div>
+        <button class="tb" id="tbBg" onclick="doRemoveBg()" disabled>🪄 Xóa nền AI</button>
+        <select id="bgEngineSelect" onchange="setEditorBgEngine(this.value)" disabled
+            title="Chọn engine xóa nền"
+            style="background:var(--s3);color:var(--text);border:1px solid var(--border);
+                   border-radius:6px;padding:3px 6px;font-size:11px;cursor:pointer;">
+            <option value="rembg-u2net">u2net</option>
+            <option value="rembg-birefnet">birefnet</option>
+            <option value="imgly">@imgly (JS)</option>
+        </select>
+        <div class="tb-sep"></div>
+        <!-- Compare toggle -->
+        <button class="tb" id="tbSplit" onclick="toggleSplitMode()" disabled title="Kéo thanh giữa để so sánh">⇔ So
+          sánh</button>
+        <div class="tb-sep"></div>
+        <button class="tb" id="tbReset" onclick="resetAll()" disabled style="margin-left:auto;color:var(--red);">🗑
+          Reset</button>
+      </div>
+
+      <!-- Stage -->
+      <div class="stage" id="stage">
+
+        <!-- Drop screen -->
+        <div class="drop-screen" id="dropScreen">
+          <div class="drop-box" id="dropBox" onclick="document.getElementById('fi').click()">
+            <div class="di">🖼</div>
+            <div class="dt">Chọn ảnh nhân viên</div>
+            <div class="ds">Kéo thả · Nhấn để chọn · Ctrl+V để dán<br><span>JPG · PNG · WEBP · tối đa 20MB</span></div>
+            <button class="dbtn" type="button">📁 Chọn ảnh</button>
+          </div>
+        </div>
+        <input type="file" id="fi" accept="image/*">
+
+        <!-- Progress -->
+        <div class="prog-screen" id="progScreen">
+          <div class="prog-icon" id="progIcon">🪄</div>
+          <div class="prog-lbl" id="progLbl">Đang xử lý...</div>
+          <div class="prog-track">
+            <div class="prog-fill" id="progFill" style="width:0%"></div>
+          </div>
+          <div class="prog-sub" id="progSub"></div>
+          <div class="prog-steps" id="progSteps">
+            <div class="ps" id="ps-detect">
+              <div class="ps-icon"></div><span>Nhận diện</span>
+            </div>
+            <div class="ps" id="ps-crop">
+              <div class="ps-icon"></div><span>Cắt 3:4</span>
+            </div>
+            <div class="ps" id="ps-bg">
+              <div class="ps-icon"></div><span>Xóa nền</span>
+            </div>
+            <div class="ps" id="ps-beautify">
+              <div class="ps-icon"></div><span>Làm đẹp</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- SPLIT: Before | After -->
+        <div class="split-wrap" id="splitWrap">
+          <!-- Before -->
+          <div class="split-half" id="halfBefore">
+            <div class="split-label label-before">Gốc</div>
+            <canvas id="cvBefore"></canvas>
+          </div>
+          <!-- Draggable divider -->
+          <div class="divider-line" id="divLine">
+            <div class="divider-handle" id="divHandle"></div>
+          </div>
+          <!-- After -->
+          <div class="split-half" id="halfAfter">
+            <div class="split-label label-after">Sau chỉnh sửa</div>
+            <canvas id="cvAfter"></canvas>
+          </div>
+        </div>
+
+        <!-- Single (crop) view -->
+        <div class="single-wrap" id="singleWrap">
+          <img id="cropImg" alt="">
+        </div>
+
+      </div>
+    </div>
+
+    <!-- RIGHT PANEL -->
+    <div class="panel" id="rightPanel">
+      <div class="panel-drag-handle" id="panelDragHandle"></div>
+      <div class="panel-tabs" id="panelTabs">
+        <div class="panel-tab on" onclick="switchPanelTab('adjust')">Điều chỉnh</div>
+        <div class="panel-tab" onclick="switchPanelTab('preview')">Xem trước</div>
+      </div>
+      <div class="panel-body">
+
+        <!-- Beautify CTA -->
+        <div class="bfy-box">
+          <button class="bfy-btn" id="bfyBtn" onclick="smartBeautify()" disabled>
+            ✨ Làm Đẹp Tự Động
+          </button>
+          <div class="bfy-sub">Phân tích · Cân sáng · Mịn da · Sắc nét · Cân màu</div>
+          <div class="stats-row" id="bfyStats" style="display:none;"></div>
+        </div>
+
+        <!-- Mini preview -->
+        <div class="mini-prev" id="miniPrevSection">
+          <div class="mini-prev" id="miniPrev">
+            <div class="mini-lbl">Preview 3×4</div>
+            <img class="mini-img" id="miniImg" src="" alt="">
+            <div class="mini-sz">3 × 4 cm</div>
+          </div>
+        </div>
+
+        <div class="sec">
+          <div class="sec-t">✂️ Tỉ lệ cắt</div>
+          <div class="pills">
+            <button class="pill on" onclick="setRatio(3/4,this)">3:4 📛</button>
+            <button class="pill" onclick="setRatio(1,this)">1:1</button>
+            <button class="pill" onclick="setRatio(2/3,this)">2:3</button>
+            <button class="pill" onclick="setRatio(NaN,this)">Tự do</button>
+          </div>
+        </div>
+
+        <!-- BG color -->
+        <div class="sec" id="bgSec" style="display:none;">
+          <div class="sec-t">🎨 Nền ảnh thẻ</div>
+          <div class="swatches">
+            <div class="sw on" style="background:#f0f0f0;border:1px solid #ddd;" onclick="setBg('#f0f0f0',this)"
+              title="Xám nhạt (mặc định)"></div>
+            <div class="sw" style="background:#fff;border:1px solid #ddd;" onclick="setBg('#ffffff',this)"
+              title="Trắng"></div>
+            <div class="sw" style="background:#E8E8E8" onclick="setBg('#E8E8E8',this)" title="Xám nhạt"></div>
+            <div class="sw" style="background:#4A90D9" onclick="setBg('#4A90D9',this)" title="Xanh đậm (ngoại giao)">
+            </div>
+            <div class="sw" style="background:linear-gradient(to bottom,#F0F4F8,#FFFFFF)"
+              onclick="setBgGradient('#F0F4F8','#FFFFFF',this)" title="Trắng gradient"></div>
+            <div class="sw" style="background:linear-gradient(to bottom,#B8D4E8,#DAEAF5)"
+              onclick="setBgGradient('#B8D4E8','#DAEAF5',this)" title="Xanh gradient"></div>
+            <div class="sw sw-trans" onclick="setBg('transparent',this)" title="Trong suốt"></div>
+            <input type="color" id="custBg" value="#f0f0f0" onchange="setBg(this.value,null)" title="Tùy chỉnh">
+          </div>
+        </div>
+
+        <!-- Manual sliders -->
+        <div id="panelAdjustSection">
+          <div class="sec">
+            <div class="sec-t">🎛 Chỉnh thủ công</div>
+            <div class="pills" style="margin-bottom:10px;">
+              <button class="pill" onclick="applyFilterPreset('Tự nhiên')" title="Nhẹ nhàng, tự nhiên">🌿 Tự
+                nhiên</button>
+              <button class="pill" onclick="applyFilterPreset('Chuyên nghiệp')" title="Sắc nét, chuyên nghiệp">💼 Chuyên
+                nghiệp</button>
+              <button class="pill" onclick="applyFilterPreset('Tươi sáng')" title="Sáng, tươi trẻ">☀️ Tươi sáng</button>
+            </div>
+            <div class="sl-row">
+              <div class="sl-top"><span class="sl-name">☀️ Độ sáng</span><span class="sl-val" id="vB">0</span></div>
+              <input type="range" id="sB" min="-100" max="100" value="0" oninput="sv('B')" onchange="applyFilters()">
+            </div>
+            <div class="sl-row">
+              <div class="sl-top"><span class="sl-name">◑ Tương phản</span><span class="sl-val" id="vC">0</span></div>
+              <input type="range" id="sC" min="-100" max="100" value="0" oninput="sv('C')" onchange="applyFilters()">
+            </div>
+            <div class="sl-row">
+              <div class="sl-top"><span class="sl-name">🌈 Bão hòa màu</span><span class="sl-val" id="vS">0</span></div>
+              <input type="range" id="sS" min="-100" max="100" value="0" oninput="sv('S')" onchange="applyFilters()">
+            </div>
+            <div class="sl-row">
+              <div class="sl-top"><span class="sl-name">✨ Mịn da</span><span class="sl-val" id="vSm">0</span></div>
+              <input type="range" id="sSm" min="0" max="12" value="0" oninput="sv('Sm')" onchange="applyFilters()">
+            </div>
+            <div class="sl-row">
+              <div class="sl-top"><span class="sl-name">🔆 Sắc nét</span><span class="sl-val" id="vSh">0</span></div>
+              <input type="range" id="sSh" min="0" max="10" value="0" oninput="sv('Sh')" onchange="applyFilters()">
+            </div>
+            <div class="sl-row">
+              <div class="sl-top"><span class="sl-name">🌡️ Tông ấm/lạnh</span><span class="sl-val" id="vW">0</span>
+              </div>
+              <input type="range" id="sW" min="-60" max="60" value="0" oninput="sv('W')" onchange="applyFilters()">
+            </div>
+            <div class="sl-row">
+              <div class="sl-top"><span class="sl-name">💡 Vùng sáng</span><span class="sl-val" id="vHi">0</span></div>
+              <input type="range" id="sHi" min="-50" max="50" value="0" oninput="sv('Hi')" onchange="applyFilters()">
+            </div>
+            <div class="sl-row">
+              <div class="sl-top"><span class="sl-name">🌑 Vùng tối</span><span class="sl-val" id="vSh2">0</span></div>
+              <input type="range" id="sSh2" min="-50" max="50" value="0" oninput="sv('Sh2')" onchange="applyFilters()">
+            </div>
+            <button class="btn btn-g" style="width:100%;margin-top:4px;font-size:11px;" onclick="resetSliders()">↺ Reset
+              bộ lọc</button>
+          </div>
+        </div>
+
+      </div><!-- end panel-body -->
+
+      <!-- Actions: sticky footer, luôn hiển thị dù panel-body scroll -->
+      <div class="actions">
+        <div class="btn-row">
+          <button class="btn btn-g" id="btnCropApply" onclick="applyCrop()" disabled>✅ Áp dụng cắt</button>
+          <button class="btn btn-g" id="btnUndo" onclick="undoBeautify()" disabled>↩️ Hoàn tác</button>
+        </div>
+        <button class="btn btn-ok" id="btnSave" onclick="saveAction()" disabled style="padding:11px;font-size:13px;">💾
+          Lưu PNG</button>
+      </div>
+
+    </div><!-- end panel -->
+  </div>
+
+  <div class="toast" id="toast"></div>
+  <canvas id="segCv" style="display:none;"></canvas>
+  <canvas id="workCv" style="display:none;"></canvas>
+
+  <script>
+    // ═══════════════════════════════════
+    //  STATE
+    // ═══════════════════════════════════
+
+    function switchPanelTab(tab) {
+      const tabs = document.querySelectorAll('.panel-tab');
+      tabs.forEach(t => t.classList.remove('on'));
+      if (tab === 'adjust') {
+        tabs[0].classList.add('on');
+        document.getElementById('panelAdjustSection').style.display = 'block';
+        document.getElementById('miniPrevSection').style.display = 'none';
+      } else {
+        tabs[1].classList.add('on');
+        document.getElementById('panelAdjustSection').style.display = 'none';
+        document.getElementById('miniPrevSection').style.display = 'block';
+      }
+    }
+
+    // Drag to resize panel for mobile
+    let isDraggingPanel = false;
+    const panel = document.getElementById('rightPanel');
+    const handle = document.getElementById('panelDragHandle');
+
+    handle?.addEventListener('touchstart', () => { isDraggingPanel = true; }, { passive: true });
+    window.addEventListener('touchmove', (e) => {
+      if (!isDraggingPanel) return;
+      const touchY = e.touches[0].clientY;
+      const height = window.innerHeight - touchY;
+      if (height > 100 && height < window.innerHeight * 0.8) {
+        panel.style.maxHeight = height + 'px';
+      }
+    }, { passive: false });
+    window.addEventListener('touchend', () => { isDraggingPanel = false; });
+
+    const cvBefore = document.getElementById('cvBefore');
+    const cvAfter = document.getElementById('cvAfter');
+    const ctxB = cvBefore.getContext('2d', { willReadFrequently: true });
+    const ctxA = cvAfter.getContext('2d', { willReadFrequently: true });
+    const segCv = document.getElementById('segCv');
+    const segCtx = segCv.getContext('2d', { willReadFrequently: true });
+    const workCv = document.getElementById('workCv');
+    const workCtx = workCv.getContext('2d', { willReadFrequently: true });
+
+    let G = {
+      hasImage: false,
+      original: null,   // ImageData – never modified
+      base: null,   // ImageData – after crop/bg (filter source)
+      bgRemoved: null,   // ImageData – transparent bg version
+      hasBg: false,
+      bgColor: '#f0f0f0',
+      undoSnap: null,
+      cropSrc: null,
+      origSrc: null,    // dataURL gốc cho split view "Gốc" – không đổi
+      cropper: null,
+      ratio: 3 / 4,
+      segLoading: false,
+      splitMode: true,
+      autoPending: false,   // true khi đang chờ user xác nhận crop trong auto pipeline
+      _cropSuggest: null,   // { x,y,width,height } gợi ý từ face detection
+      sourcePng: false,     // true khi ảnh nguồn là PNG (có thể có alpha)
+    };
+
+    let _editorBgEngine = 'rembg';          // 'rembg' | 'imgly'
+    let _editorBgModel  = 'u2net';          // 'u2net' | 'birefnet-portrait'
+    let _editorImglyLib = null;             // lazy-loaded @imgly module
+
+    // ═══════════════════════════════════
+    //  DRAGGABLE DIVIDER
+    // ═══════════════════════════════════
+    (function initDivider() {
+      const div = document.getElementById('divLine');
+      const wrap = document.getElementById('splitWrap');
+      let dragging = false;
+
+      div.addEventListener('mousedown', e => { dragging = true; e.preventDefault(); });
+      div.addEventListener('touchstart', e => { dragging = true; }, { passive: true });
+
+      document.addEventListener('mousemove', e => {
+        if (!dragging) return;
+        moveDivider(e.clientX);
+      });
+      document.addEventListener('touchmove', e => {
+        if (!dragging) return;
+        moveDivider(e.touches[0].clientX);
+      }, { passive: true });
+      document.addEventListener('mouseup', () => dragging = false);
+      document.addEventListener('touchend', () => dragging = false);
+
+      function moveDivider(clientX) {
+        const rect = wrap.getBoundingClientRect();
+        let pct = ((clientX - rect.left) / rect.width) * 100;
+        pct = Math.max(10, Math.min(90, pct));
+        document.getElementById('halfBefore').style.flex = pct + ' 0 0';
+        document.getElementById('halfAfter').style.flex = (100 - pct) + ' 0 0';
+        // Resize canvases to fit
+        syncCanvasSizes();
+      }
+    })();
+
+    function syncCanvasSizes() {
+      if (!G.base) return;
+      const bRect = document.getElementById('halfBefore').getBoundingClientRect();
+      const aRect = document.getElementById('halfAfter').getBoundingClientRect();
+      // Canvas display via CSS max-width/max-height already; nothing extra needed
+    }
+
+    // ═══════════════════════════════════
+    //  UPLOAD
+    // ═══════════════════════════════════
+    document.getElementById('fi').addEventListener('change', e => {
+      const f = e.target.files[0]; if (!f) return;
+      if (f.size > 20 * 1024 * 1024) { toast('File quá lớn (tối đa 20MB)', 'er'); return; }
+      G.sourcePng = (f.type === 'image/png');
+      const r = new FileReader();
+      r.onload = ev => loadImg(ev.target.result);
+      r.readAsDataURL(f);
+      e.target.value = '';
+    });
+
+    const dropBox = document.getElementById('dropBox');
+    dropBox.addEventListener('dragover', e => { e.preventDefault(); dropBox.classList.add('over'); });
+    dropBox.addEventListener('dragleave', () => dropBox.classList.remove('over'));
+    dropBox.addEventListener('drop', e => {
+      e.preventDefault(); dropBox.classList.remove('over');
+      const f = e.dataTransfer.files[0];
+      if (f?.type.startsWith('image/')) {
+        G.sourcePng = (f.type === 'image/png');
+        const r = new FileReader();
+        r.onload = ev => loadImg(ev.target.result);
+        r.readAsDataURL(f);
+      }
+    });
+
+    window.addEventListener('paste', e => {
+      const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+      for (const item of items) {
+        if (item.type.indexOf('image') !== -1) {
+          const f = item.getAsFile();
+          const r = new FileReader(); r.onload = ev => loadImg(ev.target.result); r.readAsDataURL(f);
+        }
+      }
+    });
+
+    function loadImg(src) {
+      const img = new Image();
+      img.onload = () => {
+        const w = img.width, h = img.height;
+
+        // Setup both canvases same size
+        [cvBefore, cvAfter, workCv].forEach(cv => { cv.width = w; cv.height = h; });
+
+        ctxB.drawImage(img, 0, 0);
+        ctxA.drawImage(img, 0, 0);
+
+        G.original = ctxB.getImageData(0, 0, w, h);
+        G.base = copyID(G.original);
+        G.cropSrc = src;
+        G.origSrc = src; _origImgEl = null; // ảnh gốc cho split view "Gốc"
+        G.hasImage = true;
+        G.hasBg = false;
+        G.bgRemoved = null;
+
+        resetSliders();
+        showSplit();
+        enableUI();
+        updateMini();
+        document.getElementById('barInfo').textContent = `${w} × ${h}`;
+        toast('Đã tải ảnh ✓', 'ok');
+      };
+      img.src = src;
+    }
+
+    function showSplit() {
+      document.getElementById('dropScreen').style.display = 'none';
+      document.getElementById('splitWrap').classList.add('on');
+      document.getElementById('miniPrev').classList.add('on');
+
+      // Style canvases
+      [cvBefore, cvAfter].forEach(cv => {
+        cv.style.maxWidth = '100%';
+        cv.style.maxHeight = '100%';
+      });
+    }
+
+    function enableUI() {
+      ['tbAuto', 'tbCrop', 'tbBg', 'tbReset', 'btnSave', 'bfyBtn', 'tbSplit', 'bgEngineSelect'].forEach(id => {
+        const el = document.getElementById(id); if (el) el.disabled = false;
+      });
+    }
+
+    // ═══════════════════════════════════
+    //  SPLIT / COMPARE MODE
+    // ═══════════════════════════════════
+    function toggleSplitMode() {
+      G.splitMode = !G.splitMode;
+      const btn = document.getElementById('tbSplit');
+      btn.classList.toggle('on', G.splitMode);
+      // In non-split: show only after canvas centered
+      // In split: show both
+      // For simplicity both canvases are always rendered; split just shows divider
+      document.getElementById('divLine').style.display = G.splitMode ? '' : 'none';
+      document.getElementById('halfBefore').style.display = G.splitMode ? '' : 'none';
+      if (!G.splitMode) {
+        document.getElementById('halfAfter').style.flex = '1';
+      } else {
+        document.getElementById('halfBefore').style.flex = '1';
+        document.getElementById('halfAfter').style.flex = '1';
+      }
+    }
+
+    // ═══════════════════════════════════
+    //  MODE / CROP
+    // ═══════════════════════════════════
+    function setMode(mode, btn) {
+      document.querySelectorAll('.tb').forEach(b => b.classList.remove('on'));
+      document.getElementById('tbSplit').classList.toggle('on', G.splitMode);
+      if (btn) btn.classList.add('on');
+
+      if (mode === 'crop') {
+        if (!G.hasImage) return;
+        activateCropper();
+      } else {
+        deactivateCropper();
+      }
+    }
+
+    function activateCropper() {
+      document.getElementById('splitWrap').classList.remove('on');
+      const sw = document.getElementById('singleWrap');
+      sw.classList.add('on');
+      const ci = document.getElementById('cropImg');
+      ci.src = G.cropSrc;
+
+      setTimeout(() => {
+        if (G.cropper) { G.cropper.destroy(); G.cropper = null; }
+        G.cropper = new Cropper(ci, {
+          aspectRatio: isNaN(G.ratio) ? NaN : G.ratio,
+          viewMode: 1, autoCropArea: 0.60, background: false,
+          ready() {
+            // Áp dụng vùng crop gợi ý nếu có (từ auto pipeline)
+            if (G._cropSuggest) {
+              G.cropper.setData(G._cropSuggest);
+              G._cropSuggest = null;
+            }
+          }
+        });
+        document.getElementById('btnCropApply').disabled = false;
+      }, 120);
+    }
+
+    function deactivateCropper() {
+      document.getElementById('singleWrap').classList.remove('on');
+      document.getElementById('splitWrap').classList.add('on');
+      if (G.cropper) { G.cropper.destroy(); G.cropper = null; }
+      document.getElementById('btnCropApply').disabled = true;
+    }
+
+    function setRatio(r, btn) {
+      G.ratio = r;
+      document.querySelectorAll('.pill').forEach(b => b.classList.remove('on'));
+      btn.classList.add('on');
+      if (G.cropper) G.cropper.setAspectRatio(isNaN(r) ? NaN : r);
+    }
+
+    function applyCrop() {
+      if (!G.cropper) return;
+      const cc = G.cropper.getCroppedCanvas({ maxWidth: 1800, maxHeight: 2400 });
+      const w = cc.width, h = cc.height;
+      [cvBefore, cvAfter, workCv].forEach(cv => { cv.width = w; cv.height = h; });
+      ctxB.drawImage(cc, 0, 0);
+      ctxA.drawImage(cc, 0, 0);
+      G.base = ctxB.getImageData(0, 0, w, h);
+      G.hasBg = false; G.bgRemoved = null;
+      document.getElementById('bgSec').style.display = 'none';
+      G.cropSrc = cc.toDataURL();
+      setMode('view', document.getElementById('tbView'));
+      document.getElementById('barInfo').textContent = `${w} × ${h}`;
+      updateMini();
+      toast('✅ Đã cắt ảnh', 'ok');
+      // Nếu đang ở giữa auto pipeline → tiếp tục phase 2
+      if (G.autoPending) { G.autoPending = false; continueAutoPipeline(); }
+    }
+
+    // ═══════════════════════════════════
+    //  REMOVE BACKGROUND — rembg birefnet-portrait (server-side)
+    // ═══════════════════════════════════
+    async function _callFrappe(method, args) {
+      const csrf = (window.parent && window.parent.csrf_token) || '';
+      const fd = new FormData();
+      fd.append('csrf_token', csrf);
+      for (const [k, v] of Object.entries(args))
+        fd.append(k, v === null || v === undefined ? '' : String(v));
+      const res = await fetch(`/api/method/${method}`, {
+        method: 'POST', credentials: 'same-origin', body: fd
+      });
+      if (res.status === 403) { location.reload(); throw new Error('Session expired'); }
+      const data = await res.json();
+      if (data.exc) {
+        let msg = '';
+        try { msg = JSON.parse(JSON.parse(data._server_messages || '[]')[0]).message; } catch {}
+        throw new Error(msg || data.exc_type || 'Server error');
+      }
+      return data.message;
+    }
+
+    async function _ensureImgly() {
+      if (_editorImglyLib) return _editorImglyLib;
+      _editorImglyLib = await import('https://esm.sh/@imgly/background-removal@1.4.5');
+      return _editorImglyLib;
+    }
+
+    async function _removeBgImgly(pctStart, pctEnd) {
+      showProg('🤖', 'Tải model @imgly...', pctStart, 'client-side · lần đầu ~30s');
+      const { removeBackground } = await _ensureImgly();
+      workCv.width = G.base.width; workCv.height = G.base.height;
+      workCtx.putImageData(G.base, 0, 0);
+      showProg('🤖', 'Xóa nền @imgly...', Math.round((pctStart + pctEnd) / 2), 'đang xử lý');
+      const inputBlob = await new Promise(r => workCv.toBlob(r, 'image/jpeg', 0.92));
+      const resultBlob = await removeBackground(inputBlob, {
+        publicPath: location.origin + '/assets/customize_erpnext/bg_removal/',
+        model: 'small',
+        output: { format: 'image/png', quality: 1 }
+      });
+      const url = URL.createObjectURL(resultBlob);
+      const img = new Image(); img.src = url;
+      await new Promise((res, rej) => { img.onload = res; img.onerror = rej; });
+      const w = G.base.width, h = G.base.height;
+      const tc = document.createElement('canvas'); tc.width = w; tc.height = h;
+      tc.getContext('2d').drawImage(img, 0, 0, w, h);
+      G.bgRemoved = tc.getContext('2d').getImageData(0, 0, w, h);
+      G.hasBg = true;
+      URL.revokeObjectURL(url);
+    }
+
+    function setEditorBgEngine(value) {
+      if (value === 'imgly') {
+        _editorBgEngine = 'imgly';
+        _editorBgModel  = 'imgly';
+      } else if (value === 'rembg-birefnet') {
+        _editorBgEngine = 'rembg';
+        _editorBgModel  = 'birefnet-portrait';
+      } else {
+        _editorBgEngine = 'rembg';
+        _editorBgModel  = 'u2net';
+      }
+    }
+
+    // Core rembg logic — dùng chung cho doRemoveBg() và continueAutoPipeline()
+    async function _removeBgCore(pctStart, pctEnd) {
+      showProg('🖥', 'Xóa nền rembg...', pctStart, `${_editorBgModel} · đang gửi lên server`);
+
+      workCv.width = G.base.width; workCv.height = G.base.height;
+      workCtx.putImageData(G.base, 0, 0);
+      const imageData = workCv.toDataURL('image/jpeg', 0.92);
+
+      showProg('⏳', 'Đang xử lý trên server...', Math.round((pctStart + pctEnd) / 2), _editorBgModel);
+      const resultDataUrl = await _callFrappe(
+        'customize_erpnext.api.employee.employee_utils.remove_bg_rembg',
+        { image_data: imageData, model_name: _editorBgModel }
+      );
+
+      const img = new Image(); img.src = resultDataUrl;
+      await new Promise((res, rej) => { img.onload = res; img.onerror = rej; });
+      const w = G.base.width, h = G.base.height;
+      const tc = document.createElement('canvas');
+      tc.width = w; tc.height = h;
+      tc.getContext('2d').drawImage(img, 0, 0, w, h);
+      G.bgRemoved = tc.getContext('2d').getImageData(0, 0, w, h);
+      G.hasBg = true;
+    }
+
+    async function doRemoveBg() {
+      if (!G.hasImage || G.segLoading) return;
+      G.segLoading = true;
+      document.getElementById('tbBg').disabled = true;
+      try {
+        if (_editorBgEngine === 'imgly') {
+          await _removeBgImgly(5, 90);
+        } else {
+          await _removeBgCore(5, 90);
+        }
+        applyBgColor(G.bgColor);
+        hideProg();
+        document.getElementById('bgSec').style.display = 'block';
+        toast('🪄 Xóa nền thành công!', 'ok');
+      } catch (e) {
+        console.error('[doRemoveBg]', e);
+        hideProg();
+        toast('⚠️ Lỗi AI, thử phương pháp dự phòng...', '');
+        fallbackBg();
+      }
+      document.getElementById('tbBg').disabled = false;
+      G.segLoading = false;
+    }
+
+    // ═══════════════════════════════════
+    //  FACE DETECTION — vladmandic/face-api.js (SSD MobileNet v1)
+    // ═══════════════════════════════════
+    const FACE_API_MODEL = location.origin + '/assets/customize_erpnext/face_api/models/';
+    let _faceApiModelLoaded = false;
+
+    async function _ensureFaceApi() {
+      // Chờ window.faceapi được set bởi <script type="module"> ở header
+      let waited = 0;
+      while (!window.faceapi && waited < 8000) {
+        await new Promise(r => setTimeout(r, 150));
+        waited += 150;
+      }
+      if (!window.faceapi) throw new Error('face-api.js chưa tải xong');
+      if (_faceApiModelLoaded) return;
+      await window.faceapi.nets.ssdMobilenetv1.loadFromUri(FACE_API_MODEL);
+      _faceApiModelLoaded = true;
+    }
+
+    // Trả về { box:{x,y,width,height}, score } hoặc null nếu không tìm thấy mặt
+    async function detectFace() {
+      showProg('👤', 'Tải model nhận diện mặt...', 18, 'SSD MobileNet v1 (~5.4MB, cache sau lần đầu)');
+      await _ensureFaceApi();
+      workCv.width = G.base.width; workCv.height = G.base.height;
+      workCtx.putImageData(G.base, 0, 0);
+      const detection = await window.faceapi.detectSingleFace(
+        workCv,
+        new window.faceapi.SsdMobilenetv1Options({ minConfidence: 0.3 })
+      );
+      console.log('[detectFace] result:', detection,
+        '| image:', G.base.width, '×', G.base.height);
+      if (!detection) {
+        console.warn('[detectFace] no face found — falling back to center crop');
+        return null;
+      }
+      const box = detection.box;
+      console.log('[detectFace] box:', box.x, box.y, box.width, box.height, 'score:', detection.score);
+      return {
+        box: { x: box.x, y: box.y, width: box.width, height: box.height },
+        score: detection.score
+      };
+    }
+
+    // ═══════════════════════════════════
+    //  SMART CROP — Tự động crop 3:4 theo khuôn mặt
+    // ═══════════════════════════════════
+    function doSmartCrop(faceResult) {
+      const sw = G.base.width, sh = G.base.height;
+      let cropX, cropY, cropW, cropH;
+
+      if (faceResult) {
+        const { box } = faceResult;
+        // SSD MobileNet trả về box từ cằm → đỉnh đầu (cả tóc)
+        // Ảnh thẻ chuẩn VN: đầu chiếm ~50% chiều cao, headroom ~20% trên đỉnh đầu
+        cropH = box.height / 0.50;          // head = 50% chiều cao crop
+        cropW = cropH * (3 / 4);
+        cropX = (box.x + box.width / 2) - cropW / 2;   // căn giữa theo mặt
+        cropY = box.y - box.height * 0.55;  // 32% headroom phía trên đỉnh đầu
+      } else {
+        // Không tìm thấy mặt: center crop
+        cropW = Math.min(sw, sh * 3 / 4);
+        cropH = cropW * 4 / 3;
+        cropX = (sw - cropW) / 2;
+        cropY = (sh - cropH) / 2;
+      }
+
+      // Scale nếu vùng crop vượt kích thước ảnh
+      if (cropW > sw) { cropW = sw; cropH = cropW * 4 / 3; }
+      if (cropH > sh) { cropH = sh; cropW = cropH * 3 / 4; }
+
+      // Clamp vào biên ảnh
+      cropX = Math.max(0, Math.min(cropX, sw - cropW));
+      cropY = Math.max(0, Math.min(cropY, sh - cropH));
+
+      // Vẽ crop ra canvas 300×400
+      const out = document.createElement('canvas');
+      out.width = 300; out.height = 400;
+      const octx = out.getContext('2d');
+      octx.imageSmoothingEnabled = true;
+      octx.imageSmoothingQuality = 'high';
+      // workCv đã có G.base từ detectFace, vẽ lại để chắc chắn
+      workCv.width = sw; workCv.height = sh;
+      workCtx.putImageData(G.base, 0, 0);
+      octx.drawImage(workCv, cropX, cropY, cropW, cropH, 0, 0, 300, 400);
+
+      // Cập nhật state
+      [cvBefore, cvAfter, workCv].forEach(cv => { cv.width = 300; cv.height = 400; });
+      ctxB.drawImage(out, 0, 0); ctxA.drawImage(out, 0, 0);
+      G.base = ctxB.getImageData(0, 0, 300, 400);
+      G.cropSrc = out.toDataURL();
+      G.hasBg = false; G.bgRemoved = null;
+      document.getElementById('barInfo').textContent = '300 × 400';
+      updateMini();
+    }
+
+    // ═══════════════════════════════════
+    //  PREPROCESS — Resize nếu ảnh quá lớn
+    // ═══════════════════════════════════
+    function preprocessResize() {
+      const MAX = 1600;
+      const w = G.base.width, h = G.base.height;
+      if (w <= MAX && h <= MAX) return;
+      const ratio = Math.min(MAX / w, MAX / h);
+      const nw = Math.round(w * ratio), nh = Math.round(h * ratio);
+      workCv.width = nw; workCv.height = nh;
+      workCtx.imageSmoothingEnabled = true;
+      workCtx.imageSmoothingQuality = 'high';
+      workCtx.putImageData(G.base, 0, 0); // tạm put để dùng drawImage
+      // Dùng cvBefore (đã có ảnh gốc) để drawImage scaled
+      const tmp = document.createElement('canvas');
+      tmp.width = nw; tmp.height = nh;
+      const tctx = tmp.getContext('2d');
+      tctx.imageSmoothingQuality = 'high';
+      tctx.drawImage(cvBefore, 0, 0, nw, nh);
+      [cvBefore, cvAfter, workCv].forEach(cv => { cv.width = nw; cv.height = nh; });
+      ctxB.drawImage(tmp, 0, 0); ctxA.drawImage(tmp, 0, 0);
+      G.base = ctxB.getImageData(0, 0, nw, nh);
+      G.cropSrc = tmp.toDataURL();
+      document.getElementById('barInfo').textContent = `${nw} × ${nh}`;
+      updateMini();
+    }
+
+    // ═══════════════════════════════════
+    //  AUTO PIPELINE — 1 nút, toàn bộ quy trình
+    // ═══════════════════════════════════
+    // Phase 1: resize → detect face → gợi ý crop trong Cropper UI → chờ user
+    async function runAutoPipeline() {
+      if (!G.hasImage || G.segLoading) return;
+      G.segLoading = true;
+      G.autoPending = false;
+      document.getElementById('tbAuto').disabled = true;
+      document.getElementById('tbBg').disabled = true;
+
+      G.undoSnap = { base: copyID(G.base), sliders: snapSliders() };
+      document.getElementById('btnUndo').disabled = false;
+
+      try {
+        showProg('🔄', 'Tiền xử lý ảnh...', 5, 'Resize về max 1600px', 'detect');
+        preprocessResize();
+
+        showProg('👤', 'Nhận diện khuôn mặt...', 30, 'face-api SSD MobileNet', 'detect');
+        let faceResult = null;
+        try { faceResult = await detectFace(); }
+        catch (fe) { console.warn('[runAutoPipeline] face detect failed:', fe); }
+
+        // Tính vùng crop gợi ý (head = 38% height, rộng hơn cho chuẩn ảnh thẻ)
+        const iw = G.base.width, ih = G.base.height;
+        if (faceResult) {
+          const { box } = faceResult;
+          let cH = box.height / 0.38;
+          let cW = cH * (3 / 4);
+          let cX = (box.x + box.width / 2) - cW / 2;
+          let cY = box.y - box.height * 0.55;
+          if (cW > iw) { cW = iw; cH = cW * 4 / 3; }
+          if (cH > ih) { cH = ih; cW = cH * 3 / 4; }
+          cX = Math.max(0, Math.min(cX, iw - cW));
+          cY = Math.max(0, Math.min(cY, ih - cH));
+          G._cropSuggest = { x: cX, y: cY, width: cW, height: cH, rotate: 0, scaleX: 1, scaleY: 1 };
+        } else {
+          const cW = Math.min(iw, ih * 3 / 4), cH = cW * 4 / 3;
+          G._cropSuggest = { x: (iw - cW) / 2, y: (ih - cH) / 2, width: cW, height: cH, rotate: 0, scaleX: 1, scaleY: 1 };
+        }
+
+        // Đặt tỉ lệ 3:4 và mở Cropper UI
+        G.ratio = 3 / 4;
+        document.querySelectorAll('.pill').forEach(b => b.classList.remove('on'));
+        const p34 = document.querySelector('.pill[onclick*="3/4"]') || document.querySelector('.pill[onclick*="0.75"]');
+        if (p34) p34.classList.add('on');
+        hideProg();
+        setMode('crop', document.getElementById('tbCrop'));
+        G.autoPending = true;
+        const msg = faceResult
+          ? `✂️ Đã tìm thấy mặt (${Math.round(faceResult.score * 100)}%). Điều chỉnh crop rồi bấm ✅ Áp dụng cắt`
+          : '✂️ Không tìm thấy mặt — crop trung tâm. Điều chỉnh nếu cần rồi bấm ✅ Áp dụng cắt';
+        toast(msg, faceResult ? 'ok' : '');
+
+      } catch (e) {
+        console.error('[runAutoPipeline phase1]', e);
+        hideProg();
+        toast('⚠️ Lỗi: ' + (e.message || e), 'er');
+      }
+
+      // Nhả lock để user tương tác với Cropper
+      G.segLoading = false;
+      document.getElementById('tbBg').disabled = false;
+      // tbAuto vẫn disabled cho đến khi phase 2 hoàn tất
+    }
+
+    // Phase 2: bg remove → bg replace → enhance (chạy sau khi user áp dụng crop)
+    async function continueAutoPipeline() {
+      if (!G.hasImage || G.segLoading) return;
+      G.segLoading = true;
+      document.getElementById('tbBg').disabled = true;
+
+      try {
+        // Check if bg removal can be skipped (PNG or white background)
+        const skipBgRemoval = G.sourcePng || PhotoProcessingUtils.isWhiteBackground(G.base);
+        if (skipBgRemoval) {
+          showProg('⏩', 'Bỏ qua xóa nền (PNG/nền trắng)...', 70, '', 'bg');
+          if (G.sourcePng) {
+            // PNG có alpha → set bgRemoved từ G.base để composite lên bgColor
+            G.bgRemoved = new ImageData(new Uint8ClampedArray(G.base.data), G.base.width, G.base.height);
+            G.hasBg = true;
+            applyBgColor(G.bgColor);
+            document.getElementById('bgSec').style.display = 'block';
+          }
+        } else {
+          if (_editorBgEngine === 'imgly') {
+            await _removeBgImgly(42, 85);
+          } else {
+            showProg('🖥', 'Xóa nền rembg...', 42, _editorBgModel, 'bg');
+            await _removeBgCore(42, 85);
+          }
+
+          showProg('🎨', 'Thay nền...', 87, G.bgColor.startsWith('gradient:') ? 'Gradient' : G.bgColor, 'bg');
+          applyBgColor(G.bgColor);
+          document.getElementById('bgSec').style.display = 'block';
+        }
+
+        showProg('✨', 'Làm đẹp tự động...', 93, 'Phân tích ảnh', 'beautify');
+        const p = analyzeDeep(G.base);
+        applySliders(p);
+        applyFilters(); // filter áp dụng lên toàn ảnh (kể cả nền)
+
+        // Khôi phục màu nền sạch:
+        // lấy pixel người từ ảnh đã filter (màu đã enhance),
+        // giữ nguyên alpha gốc từ G.bgRemoved → composite lại lên nền gốc
+        if (G.bgRemoved && G.hasBg) {
+          const filtered = ctxA.getImageData(0, 0, cvAfter.width, cvAfter.height);
+          const newFg = new ImageData(new Uint8ClampedArray(filtered.data), filtered.width, filtered.height);
+          for (let i = 3; i < newFg.data.length; i += 4) {
+            newFg.data[i] = G.bgRemoved.data[i]; // restore alpha gốc
+          }
+          G.bgRemoved = newFg;
+          applyBgColor(G.bgColor); // re-composite: người enhanced + nền sạch
+        }
+
+        hideProg();
+        toast('✅ Tạo ảnh thẻ hoàn tất!', 'ok');
+      } catch (e) {
+        console.error('[continueAutoPipeline]', e);
+        hideProg();
+        toast('⚠️ Lỗi: ' + (e.message || e), 'er');
+      }
+
+      G.segLoading = false;
+      document.getElementById('tbAuto').disabled = false;
+      document.getElementById('tbBg').disabled = false;
+    }
+
+    // ═══════════════════════════════════
+    //  GRADIENT BACKGROUND
+    // ═══════════════════════════════════
+    function setBgGradient(c1, c2, btn) {
+      document.querySelectorAll('.sw').forEach(b => b.classList.remove('on'));
+      if (btn) btn.classList.add('on');
+      applyBgColor('gradient:' + c1 + ',' + c2);
+    }
+
+    // ═══════════════════════════════════
+    //  FILTER PRESETS
+    // ═══════════════════════════════════
+    const FILTER_PRESETS = {
+      'Tự nhiên': { brightness: 2, contrast: 0, saturation: 0, smooth: 2, sharpness: 2, warmth: 3, highlights: 0, shadows: 0 },
+      'Chuyên nghiệp': { brightness: 5, contrast: 8, saturation: -5, smooth: 0, sharpness: 4, warmth: 0, highlights: 0, shadows: 0 },
+      'Tươi sáng': { brightness: 10, contrast: 5, saturation: 10, smooth: 3, sharpness: 3, warmth: 5, highlights: 5, shadows: 0 },
+    };
+
+    function applyFilterPreset(name) {
+      if (!G.hasImage) return;
+      const p = FILTER_PRESETS[name];
+      if (!p) return;
+      G.undoSnap = { base: copyID(G.base), sliders: snapSliders() };
+      document.getElementById('btnUndo').disabled = false;
+      applySliders(p);
+      applyFilters();
+      toast(`✨ Filter: ${name}`, 'ok');
+    }
+
+    function fallbackBg() {
+      const w = G.base.width, h = G.base.height, d = G.base.data;
+      const corners = [[0, 0], [w - 1, 0], [0, h - 1], [w - 1, h - 1], [Math.floor(w / 2), 0]];
+      let br = 0, bg_ = 0, bb = 0;
+      corners.forEach(([cx, cy]) => { const i = (cy * w + cx) * 4; br += d[i]; bg_ += d[i + 1]; bb += d[i + 2]; });
+      br /= corners.length; bg_ /= corners.length; bb /= corners.length;
+      const out = new Uint8ClampedArray(d);
+      const thr = 45;
+      for (let i = 0; i < d.length; i += 4) {
+        const dist = Math.sqrt((d[i] - br) ** 2 + (d[i + 1] - bg_) ** 2 + (d[i + 2] - bb) ** 2);
+        out[i + 3] = dist < thr ? Math.round((dist / thr) * 200) : 255;
+      }
+      G.bgRemoved = new ImageData(out, w, h); G.hasBg = true;
+      applyBgColor(G.bgColor);
+      document.getElementById('bgSec').style.display = 'block';
+      toast('🪄 Xóa nền (chế độ thông minh)', 'ok');
+    }
+
+    function applyBgColor(color) {
+      if (!G.bgRemoved) return;
+      G.bgColor = color;
+      const w = G.bgRemoved.width, h = G.bgRemoved.height;
+      workCv.width = w; workCv.height = h;
+
+      if (color === 'transparent') {
+        workCtx.clearRect(0, 0, w, h);
+        workCtx.putImageData(G.bgRemoved, 0, 0);
+        cvAfter.classList.add('checker');
+      } else {
+        cvAfter.classList.remove('checker');
+        workCtx.clearRect(0, 0, w, h);
+        // Hỗ trợ gradient format: 'gradient:#c1,#c2'
+        if (color.startsWith('gradient:')) {
+          const [c1, c2] = color.slice(9).split(',');
+          const grad = workCtx.createLinearGradient(0, 0, 0, h);
+          grad.addColorStop(0, c1); grad.addColorStop(1, c2);
+          workCtx.fillStyle = grad;
+        } else {
+          workCtx.fillStyle = color;
+        }
+        workCtx.fillRect(0, 0, w, h);
+        const tc = document.createElement('canvas'); tc.width = w; tc.height = h;
+        tc.getContext('2d').putImageData(G.bgRemoved, 0, 0);
+        workCtx.drawImage(tc, 0, 0);
+      }
+      G.base = workCtx.getImageData(0, 0, w, h);
+      applyFilters();
+    }
+
+    function setBg(color, btn) {
+      document.querySelectorAll('.sw').forEach(b => b.classList.remove('on'));
+      if (btn) btn.classList.add('on');
+      applyBgColor(color);
+    }
+
+    // ═══════════════════════════════════
+    //  SMART BEAUTIFY — Pro Pipeline
+    // ═══════════════════════════════════
+    function smartBeautify() {
+      if (!G.hasImage) return;
+      const btn = document.getElementById('bfyBtn');
+      btn.innerHTML = '<span class="spin"></span> Phân tích ảnh...';
+      btn.disabled = true;
+
+      G.undoSnap = { base: copyID(G.base), sliders: snapSliders() };
+
+      setTimeout(() => {
+        const p = analyzeDeep(G.base);
+        applySliders(p);
+        applyFilters();
+        document.getElementById('btnUndo').disabled = false;
+
+        // Show stats
+        const stats = document.getElementById('bfyStats');
+        stats.style.display = 'flex';
+        stats.innerHTML =
+          `<span class="stat-badge sb-blue">Sáng ${p.brightness > 0 ? '+' : ''}${p.brightness}</span>` +
+          `<span class="stat-badge sb-teal">Mịn ${p.smooth}/10</span>` +
+          `<span class="stat-badge sb-amber">Sắc nét ${p.sharpness}</span>` +
+          (p.warmth !== 0 ? `<span class="stat-badge sb-blue">Tông ${p.warmth > 0 ? '+' : ''}${p.warmth}</span>` : '') +
+          `<span class="stat-badge sb-teal">Da ${p._lum}</span>` +
+          `<span class="stat-badge sb-amber">Vùng ${p._faceLum || '—'}</span>`;
+
+        btn.innerHTML = '✨ Làm Đẹp Thông Minh';
+        btn.disabled = false;
+        toast(`✨ Phân tích xong · Da lum=${p._lum} (${p._skin}%) · Sáng ${p.brightness > 0 ? '+' : ''}${p.brightness}`, 'ok');
+      }, 40);
+    }
+
+    function analyzeDeep(imageData) {
+      return PhotoProcessingUtils.analyzeDeep(imageData);
+    }
+
+    function isSkin(r, g, b) {
+      if (r < 40) return false;
+      const Y = 0.299 * r + 0.587 * g + 0.114 * b;
+      const Cb = 128 - 0.168736 * r - 0.331264 * g + 0.5 * b;
+      const Cr = 128 + 0.5 * r - 0.418688 * g - 0.081312 * b;
+      const ycc = Y > 50 && Cb >= 74 && Cb <= 132 && Cr >= 128 && Cr <= 180;
+      const rgb = r > 95 && g > 40 && b > 20 && r > g && r > b && (r - Math.min(g, b)) > 15 && Math.abs(r - g) > 10;
+      return ycc || rgb;
+    }
+
+    // ═══════════════════════════════════
+    //  FILTER PIPELINE
+    // ═══════════════════════════════════
+    function applyFilters() {
+      if (!G.base) return;
+      const params = {
+        brightness: +document.getElementById('sB').value,
+        contrast:   +document.getElementById('sC').value,
+        saturation: +document.getElementById('sS').value,
+        smooth:     +document.getElementById('sSm').value,
+        sharpness:  +document.getElementById('sSh').value,
+        warmth:     +document.getElementById('sW').value,
+        highlights: +document.getElementById('sHi').value,
+        shadows:    +document.getElementById('sSh2').value,
+      };
+      let id = PhotoProcessingUtils.applyFilters(copyID(G.base), params);
+      // Subtle vignette for portrait feel (very light)
+      id = vignette(id, 0.08);
+      ctxA.putImageData(id, 0, 0);
+      updateMini();
+    }
+
+    function shadowsHighlights(id, shadowBoost, highlightBoost) {
+      return PhotoProcessingUtils.shadowsHighlights(id, shadowBoost, highlightBoost);
+    }
+
+    function skinSmooth(id, level) {
+      return PhotoProcessingUtils.skinSmooth(id, level);
+    }
+
+    function unsharpMask(id, level) {
+      return PhotoProcessingUtils.unsharpMask(id, level);
+    }
+
+    // Subtle portrait vignette
+    function vignette(id, strength) {
+      const w = id.width, h = id.height, d = id.data;
+      const out = new Uint8ClampedArray(d);
+      const cx = w / 2, cy = h / 2, maxD = Math.sqrt(cx * cx + cy * cy);
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+        const i = (y * w + x) * 4;
+        if (d[i + 3] < 10) { out[i] = d[i]; out[i + 1] = d[i + 1]; out[i + 2] = d[i + 2]; out[i + 3] = d[i + 3]; continue; }
+        const dx = (x - cx) / cx, dy = (y - cy) / cy;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        // Vignette only at corners (dist > 0.7)
+        const v = dist > 0.7 ? (1 - strength * (dist - 0.7) / 0.3) : 1;
+        out[i] = cv(d[i] * v); out[i + 1] = cv(d[i + 1] * v);
+        out[i + 2] = cv(d[i + 2] * v); out[i + 3] = d[i + 3];
+      }
+      return new ImageData(out, w, h);
+    }
+
+    // ═══════════════════════════════════
+    //  SLIDERS
+    // ═══════════════════════════════════
+    const KEYS = ['B', 'C', 'S', 'Sm', 'Sh', 'W', 'Hi', 'Sh2'];
+    function sv(k) { document.getElementById('v' + k).textContent = document.getElementById('s' + k).value; }
+    function applySliders(p) {
+      setKV('B', p.brightness); setKV('C', p.contrast); setKV('S', p.saturation);
+      setKV('Sm', p.smooth); setKV('Sh', p.sharpness); setKV('W', p.warmth);
+      setKV('Hi', p.highlights || 0); setKV('Sh2', p.shadows || 0);
+    }
+    function setKV(k, v) { document.getElementById('s' + k).value = v; document.getElementById('v' + k).textContent = v; }
+    function snapSliders() { return KEYS.reduce((o, k) => { o[k] = +document.getElementById('s' + k).value; return o }, {}); }
+    function resetSliders() {
+      KEYS.forEach(k => setKV(k, 0));
+      if (G.base) { ctxA.putImageData(G.base, 0, 0); updateMini(); }
+    }
+
+    // ═══════════════════════════════════
+    //  UNDO / RESET
+    // ═══════════════════════════════════
+    function undoBeautify() {
+      if (!G.undoSnap) return;
+      G.base = copyID(G.undoSnap.base);
+      ctxB.putImageData(G.base, 0, 0);
+      applySliders(G.undoSnap.sliders);
+      applyFilters();
+      document.getElementById('btnUndo').disabled = true;
+      document.getElementById('bfyStats').style.display = 'none';
+      toast('Đã hoàn tác', '');
+    }
+
+    function resetAll() {
+      if (!G.original) return;
+      if (!confirm('Reset về ảnh gốc?')) return;
+      const w = G.original.width, h = G.original.height;
+      [cvBefore, cvAfter, workCv].forEach(cv => { cv.width = w; cv.height = h; });
+      ctxB.putImageData(G.original, 0, 0);
+      ctxA.putImageData(G.original, 0, 0);
+      G.base = copyID(G.original); G.hasBg = false; G.bgRemoved = null;
+      document.getElementById('bgSec').style.display = 'none';
+      document.getElementById('bfyStats').style.display = 'none';
+      cvAfter.classList.remove('checker');
+      G.cropSrc = null;
+      resetSliders(); updateMini();
+      toast('Đã reset ảnh gốc', '');
+    }
+
+    // ═══════════════════════════════════
+    //  SAVE PNG
+    // ═══════════════════════════════════
+    function savePNG() {
+      const link = document.createElement('a');
+      link.download = `anh-the-${Date.now()}.png`;
+      link.href = cvAfter.toDataURL('image/png');
+      link.click();
+      toast('💾 Đã lưu PNG!', 'ok');
+    }
+
+    // ═══════════════════════════════════
+    //  PROGRESS
+    // ═══════════════════════════════════
+    function showProg(icon, lbl, pct, sub, stepId = '') {
+      const ps = document.getElementById('progScreen');
+      ps.classList.add('on');
+      document.getElementById('progIcon').textContent = icon;
+      document.getElementById('progLbl').textContent = lbl;
+      document.getElementById('progFill').style.width = pct + '%';
+      document.getElementById('progSub').textContent = sub;
+
+      if (stepId) {
+        document.querySelectorAll('.ps').forEach(s => s.classList.remove('active'));
+        const activeStep = document.getElementById('ps-' + stepId);
+        if (activeStep) activeStep.classList.add('active');
+
+        // Mark previous steps as done
+        const steps = ['detect', 'crop', 'bg', 'beautify'];
+        const currentIdx = steps.indexOf(stepId);
+        steps.forEach((s, idx) => {
+          const el = document.getElementById('ps-' + s);
+          if (el) el.classList.toggle('done', idx < currentIdx);
+        });
+      }
+    }
+    function hideProg() { document.getElementById('progScreen').classList.remove('on'); }
+
+    // ═══════════════════════════════════
+    //  UTILS
+    // ═══════════════════════════════════
+    function copyID(id) { return new ImageData(new Uint8ClampedArray(id.data), id.width, id.height); }
+    function cv(v) { return Math.max(0, Math.min(255, Math.round(v))); }
+    function clampV(mn, mx, v) { return Math.max(mn, Math.min(mx, v)); }
+
+    let _origImgEl = null; // cached Image element for "Gốc" side of split
+
+    function updateMini() {
+      const mi = document.getElementById('miniImg');
+      mi.src = cvAfter.toDataURL('image/png', 0.5);
+      // cvBefore (Gốc) luôn hiển thị ảnh gốc ban đầu, scale theo kích thước hiện tại
+      if (G.origSrc) {
+        const tw = cvAfter.width, th = cvAfter.height;
+        cvBefore.width = tw; cvBefore.height = th;
+        if (!_origImgEl || _origImgEl.src !== G.origSrc) {
+          _origImgEl = new Image();
+          _origImgEl.src = G.origSrc;
+        }
+        const draw = () => ctxB.drawImage(_origImgEl, 0, 0, tw, th);
+        _origImgEl.complete ? draw() : (_origImgEl.onload = draw);
+      }
+    }
+
+    function toast(msg, type = '') {
+      const el = document.getElementById('toast');
+      el.textContent = msg; el.className = 'toast on' + (type ? ' ' + type : '');
+      clearTimeout(el._t); el._t = setTimeout(() => el.className = 'toast', 3200);
+    }
+
+    // ══════════════════════════════════════════════════
+    //  ERPNEXT INTEGRATION — postMessage bridge
+    // ══════════════════════════════════════════════════
+    let _erpnextMode = false;
+    let _erpEmployeeId = null;
+
+    // Notify parent that editor is ready
+    window.addEventListener('load', function () {
+      window.parent.postMessage({ type: 'EDITOR_READY' }, '*');
+    });
+
+    // Receive messages from parent (index.html)
+    window.addEventListener('message', function (event) {
+      const d = event.data;
+      if (!d || !d.type) return;
+
+      if (d.type === 'INIT_EDITOR') {
+        // Set ERPNext mode
+        _erpnextMode = true;
+        _erpEmployeeId = d.employeeId || null;
+
+        // Update UI
+        const btn = document.getElementById('btnSave');
+        if (btn) {
+          btn.innerHTML = '📤 Lưu vào hệ thống';
+          btn.style.background = 'linear-gradient(135deg,#22c97a,#15a85e)';
+        }
+        const barInfo = document.getElementById('barInfo');
+        if (barInfo && d.employeeName) {
+          barInfo.textContent = d.employeeId + ' · ' + d.employeeName;
+        }
+
+        // Load the image from URL
+        if (d.imageUrl) {
+          G.sourcePng = d.imageUrl.startsWith('data:image/png');
+          loadImageFromUrl(d.imageUrl);
+        }
+      }
+
+      if (d.type === 'CLOSE_EDITOR') {
+        // Reset state silently (no confirm dialog)
+        if (G.original) {
+          const w = G.original.width, h = G.original.height;
+          [cvBefore, cvAfter, workCv].forEach(cv => { cv.width = w; cv.height = h; });
+          ctxB.putImageData(G.original, 0, 0);
+          ctxA.putImageData(G.original, 0, 0);
+          G.base = copyID(G.original); G.hasBg = false; G.bgRemoved = null; G.cropSrc = null;
+          document.getElementById('bgSec').style.display = 'none';
+          document.getElementById('bfyStats').style.display = 'none';
+          cvAfter.classList.remove('checker');
+          resetSliders(); updateMini();
+        }
+        _erpnextMode = false;
+        _erpEmployeeId = null;
+        const btn = document.getElementById('btnSave');
+        if (btn) {
+          btn.innerHTML = '💾 Lưu PNG';
+          btn.style.background = '';
+        }
+      }
+    });
+
+    // Load image from URL (cross-origin safe via canvas)
+    function loadImageFromUrl(url) {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        const w = img.width, h = img.height;
+        [cvBefore, cvAfter, workCv].forEach(cv => { cv.width = w; cv.height = h; });
+        ctxB.drawImage(img, 0, 0);
+        ctxA.drawImage(img, 0, 0);
+        G.original = ctxB.getImageData(0, 0, w, h);
+        G.base = copyID(G.original);
+        G.cropSrc = url;
+        G.origSrc = url; _origImgEl = null;
+        G.hasImage = true;
+        G.hasBg = false;
+        G.bgRemoved = null;
+        resetSliders();
+        showSplit();
+        enableUI();
+        updateMini();
+        document.getElementById('barInfo').textContent =
+          (document.getElementById('barInfo').textContent || '') +
+          '  |  ' + w + ' × ' + h;
+        toast('Đã tải ảnh ✓', 'ok');
+      };
+      img.onerror = () => {
+        // Fallback: try without crossOrigin
+        const img2 = new Image();
+        img2.onload = () => {
+          const w = img2.width, h = img2.height;
+          const tc = document.createElement('canvas'); tc.width = w; tc.height = h;
+          tc.getContext('2d').drawImage(img2, 0, 0);
+          [cvBefore, cvAfter, workCv].forEach(cv => { cv.width = w; cv.height = h; });
+          ctxB.drawImage(img2, 0, 0); ctxA.drawImage(img2, 0, 0);
+          G.original = ctxB.getImageData(0, 0, w, h); G.base = copyID(G.original);
+          G.cropSrc = tc.toDataURL(); G.origSrc = G.cropSrc; _origImgEl = null;
+          G.hasImage = true; G.hasBg = false;
+          resetSliders(); showSplit(); enableUI(); updateMini();
+          toast('Đã tải ảnh ✓', 'ok');
+        };
+        img2.onerror = () => toast('⚠️ Không tải được ảnh', 'er');
+        img2.src = url;
+      };
+      img.src = url;
+    }
+
+    // Override saveAction: ERPNext mode → postMessage, normal mode → download PNG
+    function saveAction() {
+      if (_erpnextMode && _erpEmployeeId) {
+        // Send edited image to parent window
+        const dataUrl = cvAfter.toDataURL('image/png');
+        window.parent.postMessage({
+          type: 'SAVE_PHOTO',
+          dataUrl: dataUrl,
+          employeeId: _erpEmployeeId
+        }, '*');
+        toast('📤 Đang lưu vào hệ thống...', 'ok');
+      } else {
+        // Standalone mode: download PNG
+        savePNG();
+      }
+    }
+
+  </script>
+</body>
+
+</html>

@@ -194,11 +194,6 @@ function export_attendance_excel(report) {
 function do_export_attendance_excel(filters) {
 	console.log('do_export_attendance_excel called with filters:', filters);
 
-	frappe.show_alert({
-		message: __('Generating Excel file...'),
-		indicator: 'blue'
-	});
-
 	// Listen for background export completion
 	frappe.realtime.on('excel_export_complete', function (data) {
 		if (data.success) {
@@ -297,6 +292,17 @@ function do_export_attendance_excel(filters) {
 }
 
 // Send Attendance Report dialog function
+function _reset_dialog_fields(d) {
+	d.get_primary_btn().prop('disabled', false);
+	d.get_primary_btn().html(__('Send Report'));
+	['report_date', 'recipients', 'force_update_attendance'].forEach(f => {
+		if (d.fields_dict[f]) {
+			d.fields_dict[f].df.read_only = 0;
+			d.fields_dict[f].refresh();
+		}
+	});
+}
+
 function send_attendance_report_dialog(report) {
 	// Get current filters to suggest default date
 	let filters = report.get_values();
@@ -320,11 +326,21 @@ function send_attendance_report_dialog(report) {
 				description: __('Select the date for the report')
 			},
 			{
+				fieldname: 'force_update_attendance',
+				label: __('Force Update Attendance'),
+				fieldtype: 'Check',
+				default: 0,
+				description: __('Recalculate all attendance before sending emails. Deselect this option to only aggregate and send emails from existing data.')
+			},
+			{
+				fieldtype: 'Section Break'
+			},
+			{
 				fieldname: 'recipients',
 				label: __('Email Recipients'),
 				fieldtype: 'Small Text',
 				reqd: 1,
-				default: "it@tiqn.com.vn\nhoanh.ltk@tiqn.com.vn\nloan.ptk@tiqn.com.vn\nni.nht@tiqn.com.vn",
+				default: "it@tiqn.com.vn\nhoanh.ltk@tiqn.com.vn\nloan.ptk@tiqn.com.vn\nni.nht@tiqn.com.vn\nbinh.dtt@tiqn.com.vn",
 				description: __('Enter one email address per line')
 			}
 		],
@@ -345,29 +361,37 @@ function send_attendance_report_dialog(report) {
 
 			// Disable dialog and show loading
 			d.get_primary_btn().prop('disabled', true);
-			d.get_primary_btn().html(__('Sending...'));
+			d.get_primary_btn().html(values.force_update_attendance
+				? __('Updating & Sending...')
+				: __('Sending...'));
 
 			// Freeze all fields in dialog
 			d.fields_dict.report_date.df.read_only = 1;
 			d.fields_dict.recipients.df.read_only = 1;
+			d.fields_dict.force_update_attendance.df.read_only = 1;
 			d.fields_dict.report_date.refresh();
 			d.fields_dict.recipients.refresh();
+			d.fields_dict.force_update_attendance.refresh();
 
 			// Call server method to send report
 			frappe.call({
 				method: 'customize_erpnext.customize_erpnext.report.shift_attendance_customize.scheduler.send_daily_attendance_report',
 				args: {
 					report_date: values.report_date,
-					recipients: values.recipients
+					recipients: values.recipients,
+					force_update_attendance: values.force_update_attendance ? 1 : 0,
+					bypass_holiday_check: 1
 				},
 				freeze: true,
-				freeze_message: __('📨 Sending Daily Attendance Report...'),
+				freeze_message: values.force_update_attendance
+					? __('⏳ Updating attendance & queuing report...')
+					: __('📨 Queuing Daily Attendance Report...'),
 				callback: function (r) {
 					if (r.message && r.message.status === 'success') {
 						frappe.show_alert({
-							message: __('Report sent successfully!'),
+							message: __('Report is being generated in background. Email will be sent shortly.'),
 							indicator: 'green'
-						}, 5);
+						}, 7);
 						// Auto close dialog on success
 						d.hide();
 					} else {
@@ -377,12 +401,7 @@ function send_attendance_report_dialog(report) {
 							indicator: 'red'
 						});
 						// Re-enable dialog on error
-						d.get_primary_btn().prop('disabled', false);
-						d.get_primary_btn().html(__('Send Report'));
-						d.fields_dict.report_date.df.read_only = 0;
-						d.fields_dict.recipients.df.read_only = 0;
-						d.fields_dict.report_date.refresh();
-						d.fields_dict.recipients.refresh();
+						_reset_dialog_fields(d);
 					}
 				},
 				error: function () {
@@ -391,13 +410,7 @@ function send_attendance_report_dialog(report) {
 						message: __('Failed to send report. Please try again or contact administrator.'),
 						indicator: 'red'
 					});
-					// Re-enable dialog on error
-					d.get_primary_btn().prop('disabled', false);
-					d.get_primary_btn().html(__('Send Report'));
-					d.fields_dict.report_date.df.read_only = 0;
-					d.fields_dict.recipients.df.read_only = 0;
-					d.fields_dict.report_date.refresh();
-					d.fields_dict.recipients.refresh();
+					_reset_dialog_fields(d);
 				}
 			});
 		}

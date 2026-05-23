@@ -1,0 +1,51 @@
+{
+ "app": "customize_erpnext",
+ "creation": "2026-03-06 16:24:50.792897",
+ "docstatus": 0,
+ "doctype": "Workspace Sidebar",
+ "header_icon": "healthcare",
+ "idx": 0,
+ "items": [
+  {
+   "child": 0,
+   "collapsible": 1,
+   "icon": "list",
+   "indent": 0,
+   "keep_closed": 0,
+   "label": "Health Check-Up",
+   "link_to": "Health Check-Up",
+   "link_type": "DocType",
+   "show_arrow": 0,
+   "type": "Link"
+  },
+  {
+   "child": 0,
+   "collapsible": 1,
+   "indent": 0,
+   "keep_closed": 0,
+   "label": "Reports",
+   "link_type": "DocType",
+   "show_arrow": 0,
+   "type": "Section Break"
+  },
+  {
+   "child": 0,
+   "collapsible": 1,
+   "icon": "panel-top",
+   "indent": 0,
+   "keep_closed": 0,
+   "label": "Health Check-Up Management",
+   "link_to": "health-check-up-management",
+   "link_type": "Page",
+   "show_arrow": 0,
+   "type": "Link"
+  }
+ ],
+ "modified": "2026-03-07 16:43:41.251109",
+ "modified_by": "Administrator",
+ "module": "Health Check Up",
+ "name": "Health Check Up",
+ "owner": "Administrator",
+ "standard": 1,
+ "title": "Health Check Up"
+}

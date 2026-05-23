@@ -13,7 +13,7 @@ if (!erpnext.item._original_show_multiple_variants_dialog) {
 }
 
 erpnext.item.show_multiple_variants_dialog = function (frm) {
-    var me = this;
+    const me = this;
 
     let promises = [];
     let attr_val_fields = {};
@@ -211,7 +211,7 @@ erpnext.item.show_multiple_variants_dialog = function (frm) {
                 fieldtype: 'HTML',
                 fieldname: `${name}_status`,
                 options: `<div class="value-status-area" data-attribute="${name}" style="margin-bottom: 10px; display: none;">
-                    <div class="status-content" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px; background: #f9f9f9; font-size: 11px; line-height: 1.4;">
+                    <div class="status-content" style="padding: 8px; border: 1px solid var(--border-color); border-radius: 4px; background: var(--bg-color); font-size: 11px; line-height: 1.4;">
                         <div class="status-info" style="margin-bottom: 5px;"></div>
                         <div class="missing-values" style="margin-bottom: 8px;"></div>
                         <button class="btn btn-primary btn-xs import-missing-btn" style="display: none;">
@@ -227,13 +227,13 @@ erpnext.item.show_multiple_variants_dialog = function (frm) {
                 fieldname: `${name}_checkbox_containers`,
                 options: `<div class="checkbox-containers" data-attribute="${name}">
                     <div class="checked-container mb-2" style="display:none;">
-                        <div class="checked-header font-weight-bold text-success" style="padding: 5px 0; margin-bottom: 5px; border-bottom: 1px solid #ccc;">
+                        <div class="checked-header font-weight-bold text-success" style="padding: 5px 0; margin-bottom: 5px; border-bottom: 1px solid var(--border-color);">
                             ${__('Selected Values')} <span class="selected-values-count">(0)</span>
                         </div>
                         <div class="checked-checkboxes"></div>
                     </div>
                     <div class="unchecked-container">
-                        <div class="unchecked-header font-weight-bold" style="padding: 5px 0; margin-bottom: 5px; border-bottom: 1px solid #ccc;">
+                        <div class="unchecked-header font-weight-bold" style="padding: 5px 0; margin-bottom: 5px; border-bottom: 1px solid var(--border-color);">
                             ${__('Available Values')} <span class="available-values-count">(${attr_dict[name].length})</span>
                         </div>
                         <div class="unchecked-checkboxes"></div>
@@ -623,40 +623,35 @@ erpnext.item.show_multiple_variants_dialog = function (frm) {
         // Existing values
         if (existing_values.length > 0) {
             statusHtml += `<div style="margin-bottom: 8px;">`;
-            statusHtml += `<span style="color: green; font-weight: bold;">✓ ${existing_values.length} existing:</span> `;
-            statusHtml += existing_values.map(v => `<span style="color: green;">${v}</span>`).join(', ');
+            statusHtml += `<strong class="text-success">${existing_values.length} ${__('existing')}:</strong> `;
+            statusHtml += existing_values.map(v => `<span class="text-success">${v}</span>`).join(', ');
             statusHtml += `</div>`;
         }
 
         // Missing values (including those with similar matches)
         if (missing_values.length > 0) {
             statusHtml += `<div style="margin-bottom: 8px;">`;
-            statusHtml += `<span style="color: red; font-weight: bold;">✗ ${missing_values.length} missing : `;
-            statusHtml += missing_values.map(v => `<span style="color: red;">${v}</span>`).join(', ');
+            statusHtml += `<strong class="text-danger">${missing_values.length} ${__('missing')}:</strong> `;
+            statusHtml += missing_values.map(v => `<span class="text-danger">${v}</span>`).join(', ');
             statusHtml += `</div>`;
         }
 
         // Similar values warning (subset of missing values)
         if (missing_with_similar.length > 0) {
-            statusHtml += `<div style="margin-bottom: 8px; padding: 8px; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px;">`;
-            statusHtml += `<span style="color: #856404; font-weight: bold;">⚠ ${missing_with_similar.length} of the missing values have similar existing entries:</span><br>`;
+            statusHtml += `<div class="alert alert-warning" style="margin-bottom: 8px; padding: 8px;">`;
+            statusHtml += `<strong>${missing_with_similar.length} ${__('of the missing values have similar existing entries')}:</strong><br>`;
 
             missing_with_similar.forEach(item => {
                 statusHtml += `<div style="margin: 4px 0; font-size: 11px;">`;
-                statusHtml += `<span style="color: #d63384; font-weight: bold;">"${item.input}"</span> `;
+                statusHtml += `<strong>"${item.input}"</strong> `;
 
-                statusHtml += `<span style="color: #856404;">Similar to: `;
+                statusHtml += `${__('Similar to')}: `;
                 item.matches.forEach((match, index) => {
-                    statusHtml += `<span style="color: #0d6efd;">`;
-                    statusHtml += `"${match.value}"`;
-                    statusHtml += `</span>`;
+                    statusHtml += `<span class="text-primary">"${match.value}"</span>`;
                     if (index < item.matches.length - 1) statusHtml += ', ';
                 });
                 statusHtml += `</div>`;
             });
-            statusHtml += `<div style="margin-top: 5px; font-size: 10px; color: #856404; font-style: italic;">`;
-            // statusHtml += `Note: These will still be imported as new values. Edit manually if you want to use existing values instead.`;
-            statusHtml += `</div>`;
             statusHtml += `</div>`;
         }
 
@@ -1208,8 +1203,8 @@ erpnext.item.show_multiple_variants_dialog = function (frm) {
                     });
 
                     // Set tooltips
-                    textarea.attr('title', `Search & Bulk Input for ${attribute_name}\nPress Ctrl+Enter to apply\nGreen = existing, Red = missing\nSimilar values show as warnings but will be imported as new`);
-                    textarea.attr('placeholder', `${attribute_name} values (one per line)\nCtrl+Enter to apply\nSimilar values → warnings + import as new`);
+                    textarea.attr('title', __('Search & Bulk Input for {0}. Press Ctrl+Enter to apply. Green = existing, Red = missing.', [attribute_name]));
+                    textarea.attr('placeholder', __('Enter {0} values (one per line). Ctrl+Enter to apply.', [attribute_name]));
                 }
             });
 
@@ -1218,8 +1213,8 @@ erpnext.item.show_multiple_variants_dialog = function (frm) {
                 let input = $(this);
                 let fieldname = input.attr('data-fieldname');
                 let attribute_name = fieldname.replace('_search', '');
-                input.attr('title', `Search ${attribute_name} values (case-insensitive)`);
-                input.attr('placeholder', `Search ${attribute_name}...`);
+                input.attr('title', __('Search {0} values (case-insensitive)', [attribute_name]));
+                input.attr('placeholder', __('Search {0}...', [attribute_name]));
             });
         }, 200);
 

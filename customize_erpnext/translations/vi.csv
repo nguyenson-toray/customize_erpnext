@@ -250,4 +250,43 @@ Minimum required: item_name,Tối thiểu yêu cầu: item_name
 "Số km kết thúc phải lớn hơn số km bắt đầu","Số km kết thúc phải lớn hơn số km bắt đầu"
 "Chuyến đi đã hoàn thành","Chuyến đi đã hoàn thành"
 "Clear","Xóa"
+
+# Job Portal - Job Openings page
+"Job Openings","Các vị trí tuyển dụng"
+"Search job titles, keywords...","Tìm kiếm vị trí, từ khóa..."
+"Open Positions","Vị trí đang tuyển"
+"Locations","Địa điểm"
+"Departments","Phòng ban"
+"Filters","Bộ lọc"
+"Clear All","Xóa tất cả"
+"Posting Date","Ngày đăng"
+"Applications:","Số đơn ứng tuyển:"
+"Closes:","Hạn chót:"
+"Apply","Áp dụng"
+"result","kết quả"
+"results","kết quả"
+
+# Job Portal - Job Detail page
+"Apply Now","Ứng tuyển ngay"
+"Opening closed.","Đã đóng tuyển dụng."
+"Location","Địa điểm"
+"Department","Phòng ban"
+"Salary Range","Mức lương"
+"Employment Type","Loại hình"
+"Applications Received","Đơn đã nhận"
+"Closes On","Hạn chót"
+"Closed On","Đã đóng"
+
+# Job Portal - Job Application form
+"Job Application","Đơn ứng tuyển"
+"Click to upload or drag and drop","Nhấp để tải lên hoặc kéo thả"
+"Please enter a valid email address","Vui lòng nhập địa chỉ email hợp lệ"
+"Please enter a valid phone number","Vui lòng nhập số điện thoại hợp lệ"
+"Submitting...","Đang gửi..."
+
+# Job Portal - Frappe web form built-in strings
+"Submit","Gửi đơn"
+"Discard","Hủy bỏ"
+"Thank you for applying.","Cảm ơn bạn đã ứng tuyển."
+"Not Saved","Chưa lưu"
  

@@ -1,0 +1,412 @@
+{% extends "templates/web.html" %}
+
+{% block style %}
+<style>
+    :root {
+        --jd-primary: #1e40af;
+        --jd-primary-light: #3b82f6;
+        --jd-primary-dark: #1e3a8a;
+        --jd-bg: #f8fafc;
+        --jd-white: #ffffff;
+        --jd-text: #1e293b;
+        --jd-text-secondary: #64748b;
+        --jd-border: #e2e8f0;
+        --jd-radius: 8px;
+    }
+
+    .jd-page {
+        background: var(--jd-bg);
+        min-height: 100vh;
+    }
+
+    .jd-header {
+        background: var(--jd-primary);
+        padding: 2rem 1.5rem 1.75rem;
+        margin-bottom: 1.5rem;
+        color: #fff;
+    }
+
+    .jd-header-content {
+        max-width: 1000px;
+        margin: 0 auto;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 1.5rem;
+        flex-wrap: wrap;
+        position: relative;
+    }
+
+    /* Logo */
+    .jd-logo {
+        position: absolute;
+        top: 0;
+        left: 0;
+        display: block;
+        line-height: 0;
+    }
+
+    .jd-logo img {
+        height: 36px;
+        width: auto;
+    }
+
+    .jd-header-info {
+        flex: 1;
+        min-width: 250px;
+        padding-top: 2.5rem;
+    }
+
+    .jd-title {
+        font-size: 1.75rem;
+        font-weight: 700;
+        margin: 0 0 0.5rem;
+        color: #fff;
+        line-height: 1.2;
+    }
+
+    .jd-meta {
+        font-size: 1rem;
+        color: rgba(255, 255, 255, 0.85);
+    }
+
+    .jd-company {
+        font-weight: 600;
+    }
+
+    .jd-cta-desktop {
+        flex-shrink: 0;
+        align-self: flex-end;
+    }
+
+    .jd-btn-apply {
+        display: inline-block;
+        padding: 0.75rem 2rem;
+        background: #fff;
+        color: var(--jd-primary);
+        font-weight: 600;
+        font-size: 1rem;
+        border-radius: var(--jd-radius);
+        text-decoration: none;
+    }
+
+    .jd-btn-apply:hover {
+        color: var(--jd-primary-dark);
+    }
+
+    .jd-closed-badge {
+        padding: 0.75rem 1.5rem;
+        background: rgba(255, 255, 255, 0.15);
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        border-radius: var(--jd-radius);
+        font-weight: 600;
+        color: #fff;
+    }
+
+    .jd-container {
+        max-width: 1000px;
+        margin: 0 auto;
+        padding: 0 1.5rem 3rem;
+    }
+
+    .jd-info-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 0.75rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .jd-info-card {
+        background: var(--jd-white);
+        border: 1px solid var(--jd-border);
+        border-radius: var(--jd-radius);
+        padding: 1rem 1.25rem;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .jd-icon-wrapper {
+        width: 40px;
+        height: 40px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+    .jd-icon-wrapper svg {
+        width: 20px;
+        height: 20px;
+    }
+
+    .jd-icon-purple { background: #f3e8ff; }
+    .jd-icon-purple svg { color: #7c3aed; }
+    .jd-icon-blue { background: #dbeafe; }
+    .jd-icon-blue svg { color: #2563eb; }
+    .jd-icon-green { background: #d1fae5; }
+    .jd-icon-green svg { color: #059669; }
+    .jd-icon-yellow { background: #fef3c7; }
+    .jd-icon-yellow svg { color: #d97706; }
+    .jd-icon-orange { background: #ffedd5; }
+    .jd-icon-orange svg { color: #ea580c; }
+    .jd-icon-red { background: #fee2e2; }
+    .jd-icon-red svg { color: #dc2626; }
+
+    .jd-info-label {
+        font-size: 0.6875rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--jd-text-secondary);
+        margin-bottom: 0.125rem;
+        font-weight: 600;
+    }
+
+    .jd-info-value {
+        font-size: 0.9375rem;
+        font-weight: 600;
+        color: var(--jd-text);
+    }
+
+    .jd-description {
+        background: var(--jd-white);
+        border: 1px solid var(--jd-border);
+        border-radius: var(--jd-radius);
+        padding: 1.5rem;
+        line-height: 1.7;
+        color: var(--jd-text);
+    }
+
+    .jd-description h1,
+    .jd-description h2,
+    .jd-description h3 {
+        color: var(--jd-text);
+        margin-top: 1.25rem;
+        margin-bottom: 0.75rem;
+        font-weight: 700;
+    }
+
+    .jd-description h1 { font-size: 1.5rem; }
+    .jd-description h2 { font-size: 1.25rem; }
+    .jd-description h3 { font-size: 1.125rem; }
+
+    .jd-description ul,
+    .jd-description ol {
+        margin-left: 1.25rem;
+        margin-bottom: 1rem;
+    }
+
+    .jd-description li {
+        margin-bottom: 0.375rem;
+    }
+
+    .jd-mobile-sticky {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: var(--jd-white);
+        padding: 0.75rem 1rem;
+        border-top: 1px solid var(--jd-border);
+        z-index: 100;
+    }
+
+    .jd-mobile-sticky .jd-btn-apply {
+        width: 100%;
+        text-align: center;
+        padding: 0.75rem;
+    }
+
+    @media (max-width: 767px) {
+        .jd-header {
+            padding: 1.5rem 1rem;
+        }
+
+        .jd-header-content {
+            flex-direction: column;
+        }
+
+        .jd-header-info {
+            padding-top: 2rem;
+        }
+
+        .jd-title {
+            font-size: 1.375rem;
+        }
+
+        .jd-logo img {
+            height: 28px;
+        }
+
+        .jd-container {
+            padding: 0 1rem 2rem;
+        }
+
+        .jd-info-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .jd-description {
+            padding: 1.25rem;
+            margin-bottom: 4rem;
+        }
+    }
+</style>
+{% endblock style %}
+
+{% block page_content %}
+<div class="jd-page">
+    <div class="jd-header">
+        <div class="jd-header-content">
+            <a href="/jobs" class="jd-logo">
+                <img src="/assets/customize_erpnext/images/logo_white.svg" alt="Logo" />
+            </a>
+            <div class="jd-header-info">
+                <h1 class="jd-title">{{ job_title }}</h1>
+                <div class="jd-meta">
+                    <span class="jd-company">{{ company }}</span>
+                    <span> &middot; {{ posted_on }}</span>
+                </div>
+            </div>
+            <div class="jd-cta-desktop d-none d-md-block">
+                {% if status == "Open" %}
+                <a class="jd-btn-apply"
+                    href="/{{ job_application_route or 'job_application' }}/new?job_title={{ name }}">
+                    {{ _("Apply Now") }}
+                </a>
+                {% else %}
+                <div class="jd-closed-badge">
+                    {{ _("Opening closed.") }}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="jd-container">
+        <div class="jd-info-grid">
+            {% if location %}
+            <div class="jd-info-card">
+                <div class="jd-icon-wrapper jd-icon-purple">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                        <circle cx="12" cy="10" r="3"></circle>
+                    </svg>
+                </div>
+                <div>
+                    <div class="jd-info-label">{{ _("Location") }}</div>
+                    <div class="jd-info-value">{{ location }}</div>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if department %}
+            <div class="jd-info-card">
+                <div class="jd-icon-wrapper jd-icon-blue">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="9" cy="7" r="4"></circle>
+                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                    </svg>
+                </div>
+                <div>
+                    <div class="jd-info-label">{{ _("Department") }}</div>
+                    <div class="jd-info-value">{{ department }}</div>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if publish_salary_range %}
+            <div class="jd-info-card">
+                <div class="jd-icon-wrapper jd-icon-green">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="12" y1="1" x2="12" y2="23"></line>
+                        <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                    </svg>
+                </div>
+                <div>
+                    <div class="jd-info-label">{{ _("Salary Range") }}</div>
+                    <div class="jd-info-value">
+                        {% if lower_range %}{{ frappe.format_value(frappe.utils.flt(lower_range), currency=currency) }}{% endif %}
+                        {% if lower_range and upper_range %} - {% endif %}
+                        {% if upper_range %}{{ frappe.format_value(frappe.utils.flt(upper_range), currency=currency) }}{% endif %}
+                        / {{ salary_per.lower() }}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if employment_type %}
+            <div class="jd-info-card">
+                <div class="jd-icon-wrapper jd-icon-yellow">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
+                        <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
+                    </svg>
+                </div>
+                <div>
+                    <div class="jd-info-label">{{ _("Employment Type") }}</div>
+                    <div class="jd-info-value">{{ employment_type }}</div>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if publish_applications_received %}
+            <div class="jd-info-card">
+                <div class="jd-icon-wrapper jd-icon-orange">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="9" cy="7" r="4"></circle>
+                    </svg>
+                </div>
+                <div>
+                    <div class="jd-info-label">{{ _("Applications Received") }}</div>
+                    <div class="jd-info-value">{{ no_of_applications }}</div>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if (status == 'Open' and closes_on) or (status == 'Closed' and closed_on) %}
+            <div class="jd-info-card">
+                <div class="jd-icon-wrapper jd-icon-red">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                        <line x1="16" y1="2" x2="16" y2="6"></line>
+                        <line x1="8" y1="2" x2="8" y2="6"></line>
+                        <line x1="3" y1="10" x2="21" y2="10"></line>
+                    </svg>
+                </div>
+                <div>
+                    <div class="jd-info-label">
+                        {{ _("Closes On") if status == "Open" else _("Closed On") }}
+                    </div>
+                    <div class="jd-info-value">
+                        {{ frappe.utils.format_date(closes_on if status == "Open" else closed_on, "d MMM, YYYY") }}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        {% if description %}
+        <div class="jd-description">
+            {{ description }}
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="jd-mobile-sticky d-md-none">
+        {% if status == "Open" %}
+        <a class="jd-btn-apply" href="/{{ job_application_route or 'job_application' }}/new?job_title={{ name }}">
+            {{ _("Apply Now") }}
+        </a>
+        {% else %}
+        <div class="jd-closed-badge" style="text-align: center; width: 100%;">
+            {{ _("Opening closed.") }}
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock page_content %}

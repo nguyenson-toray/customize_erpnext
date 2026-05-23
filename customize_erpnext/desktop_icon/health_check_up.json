@@ -1,0 +1,31 @@
+{
+ "app": "customize_erpnext",
+ "bg_color": "gray",
+ "creation": "2026-03-11 15:25:18.172653",
+ "docstatus": 0,
+ "doctype": "Desktop Icon",
+ "hidden": 0,
+ "icon_type": "Link",
+ "idx": 25,
+ "label": "Health Check Up",
+ "link_to": "Health Check Up",
+ "link_type": "Workspace Sidebar",
+ "logo_url": "/assets/customize_erpnext/images/doctor.svg",
+ "modified": "2026-03-11 16:38:29.866031",
+ "modified_by": "Administrator",
+ "name": "Health Check Up",
+ "owner": "Administrator",
+ "restrict_removal": 0,
+ "roles": [
+  {
+   "role": "HR Manager"
+  },
+  {
+   "role": "HR User"
+  },
+  {
+   "role": "Administrator"
+  }
+ ],
+ "standard": 1
+}

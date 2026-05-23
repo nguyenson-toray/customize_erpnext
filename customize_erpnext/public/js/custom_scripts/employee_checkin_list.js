@@ -1,19 +1,17 @@
 frappe.listview_settings['Employee Checkin'] = {
 	onload: function (listview) {
-		// Add Bulk Update action button
-		listview.page.add_inner_button(__('🔄️ Bulk Update Employee Checkin Fields'), function () {
-			show_bulk_update_dialog();
+		listview.page.add_inner_button(__('Bulk Update Employee Checkin Fields'), function () {
+			show_bulk_update_dialog(listview);
 		});
 	}
 };
 
-function show_bulk_update_dialog() {
-	// Create dialog
+function show_bulk_update_dialog(listview) {
 	let d = new frappe.ui.Dialog({
-		title: __('🔄️ Bulk Update Employee Checkin Fields'),
+		title: __('Bulk Update Employee Checkin Fields'),
 		fields: [
 			{
-				label: __('📅 Date Range'),
+				label: __('Date Range'),
 				fieldname: 'date_range_section',
 				fieldtype: 'Section Break'
 			},
@@ -23,8 +21,9 @@ function show_bulk_update_dialog() {
 				fieldtype: 'Date',
 				default: frappe.datetime.add_days(frappe.datetime.get_today(), -30),
 				reqd: 1
-			}, {
-				fieldname: 'column_break',
+			},
+			{
+				fieldname: 'col_break_1',
 				fieldtype: 'Column Break'
 			},
 			{
@@ -35,28 +34,26 @@ function show_bulk_update_dialog() {
 				reqd: 1
 			},
 			{
-				fieldname: 'column_break',
+				fieldname: 'info_section',
 				fieldtype: 'Section Break'
 			},
 			{
-				label: __('Info'),
 				fieldname: 'info',
 				fieldtype: 'HTML',
-				options: `<div class="text-muted small">
-					<p><strong>ℹ️ This will update:</strong></p>
-					<ul>
-						<li>Shift field (using fetch_shift)</li>
-						<li>Log Type (IN/OUT based on time)</li>
-						<li>Offshift flag</li>
+				options: `<div class="alert alert-info" style="margin:4px 0">
+					<p class="mb-1"><strong>${__('This will update')}:</strong></p>
+					<ul class="mb-1">
+						<li>${__('Shift field (using fetch_shift)')}</li>
+						<li>${__('Log Type (IN/OUT based on time)')}</li>
+						<li>${__('Offshift flag')}</li>
 					</ul>
-					<p class="text-warning"><strong>Note:</strong> Only checkins with missing shift or log_type will be updated.</p>
+					<p class="mb-0"><small class="text-muted">${__('Only checkins with missing shift or log_type will be updated.')}</small></p>
 				</div>`
 			}
 		],
 		size: 'small',
 		primary_action_label: __('Update'),
 		primary_action(values) {
-			// Validate dates
 			if (values.from_date > values.to_date) {
 				frappe.msgprint({
 					title: __('Invalid Date Range'),
@@ -66,7 +63,6 @@ function show_bulk_update_dialog() {
 				return;
 			}
 
-			// Call backend function
 			frappe.call({
 				method: 'customize_erpnext.overrides.employee_checkin.employee_checkin.bulk_update_employee_checkin',
 				args: {
@@ -82,15 +78,11 @@ function show_bulk_update_dialog() {
 							message: __('Successfully updated {0} employee checkin(s)', [r.message]),
 							indicator: 'green'
 						});
-
-						// Refresh the list view
-						cur_list.refresh();
-
-						// Close dialog
 						d.hide();
+						if (listview) listview.refresh();
 					}
 				},
-				error: function (r) {
+				error: function () {
 					frappe.msgprint({
 						title: __('Update Failed'),
 						message: __('An error occurred while updating checkins. Please check the error log.'),

@@ -29,5 +29,6 @@ def get_context(context):
 
     # User is logged in and has permission, allow access to the page
     context.no_cache = 1
+    context.csrf_token = frappe.sessions.get_csrf_token()
 
     return context

@@ -3,13 +3,16 @@
 
 import frappe
 from frappe.model.document import Document
-from frappe.utils import get_time, time_diff_in_hours, getdate
+from frappe.utils import get_time, time_diff_in_hours, getdate, flt
 from frappe import _
 from datetime import time, datetime, timedelta
 
 class OvertimeRegistration(Document):
     def validate(self):
         """Validation khi lưu (Save) - theo thứ tự"""
+        # Pre-load shift and maternity data for all employees to avoid N+1 queries
+        self._preload_employee_data()
+
         # 1. Kiểm tra giờ OT phải nằm ngoài giờ làm việc (bỏ qua ngày chủ nhật)
         self.validate_ot_outside_working_hours()
 
@@ -27,6 +30,135 @@ class OvertimeRegistration(Document):
         # Calculate totals
         self.calculate_totals_and_apply_reason()
 
+    def _preload_employee_data(self):
+        """Pre-load shift and maternity data for all employees to avoid N+1 queries."""
+        if not self.ot_employees:
+            self._shift_cache = {}
+            self._maternity_cache = {}
+            return
+
+        # Collect unique employee-date pairs
+        employee_dates = set()
+        employees = set()
+        dates = set()
+        for d in self.ot_employees:
+            if d.employee and d.date:
+                employee_dates.add((d.employee, str(d.date)))
+                employees.add(d.employee)
+                dates.add(str(d.date))
+
+        if not employees:
+            self._shift_cache = {}
+            self._maternity_cache = {}
+            return
+
+        # Batch load shift registrations
+        self._shift_reg_cache = {}
+        if dates:
+            min_date = min(dates)
+            max_date = max(dates)
+            shift_regs = frappe.db.sql("""
+                SELECT srd.employee, srd.begin_date, srd.end_date, srd.shift
+                FROM `tabShift Registration Detail` srd
+                JOIN `tabShift Registration` sr ON srd.parent = sr.name
+                WHERE srd.employee IN %(employees)s
+                  AND srd.begin_date <= %(max_date)s
+                  AND srd.end_date >= %(min_date)s
+                  AND sr.docstatus = 1
+                ORDER BY sr.creation DESC
+            """, {"employees": list(employees), "min_date": min_date, "max_date": max_date}, as_dict=1)
+
+            # Group by employee to avoid O(n×m) nested loop
+            emp_shift_index = {}
+            for reg in shift_regs:
+                emp_shift_index.setdefault(reg.employee, []).append(reg)
+
+            for emp, dt in employee_dates:
+                for reg in emp_shift_index.get(emp, []):
+                    if str(reg.begin_date) <= dt <= str(reg.end_date):
+                        self._shift_reg_cache[(emp, dt)] = reg.shift
+                        break  # ORDER BY creation DESC → first match is most recent
+
+        # Batch load employee groups
+        self._emp_group_cache = {}
+        emp_groups = frappe.get_all(
+            "Employee",
+            filters={"name": ["in", list(employees)]},
+            fields=["name", "custom_group"]
+        )
+        for eg in emp_groups:
+            self._emp_group_cache[eg.name] = eg.custom_group
+
+        # Batch load maternity records (cấu trúc mới: 1 record/employee)
+        self._maternity_cache = {}
+        if dates:
+            maternity_records = frappe.db.sql("""
+                SELECT employee,
+                       pregnant_from_date, pregnant_to_date, estimated_due_date,
+                       maternity_from_date, maternity_to_date,
+                       youg_child_from_date, youg_child_to_date,
+                       apply_benefit
+                FROM `tabEmployee Maternity`
+                WHERE employee IN %(employees)s
+                  AND (
+                    (maternity_from_date IS NOT NULL AND maternity_from_date <= %(max_date)s
+                     AND maternity_to_date IS NOT NULL AND maternity_to_date >= %(min_date)s)
+                    OR (pregnant_from_date IS NOT NULL AND pregnant_from_date <= %(max_date)s
+                        AND COALESCE(pregnant_to_date, estimated_due_date) >= %(min_date)s)
+                    OR (youg_child_from_date IS NOT NULL AND youg_child_from_date <= %(max_date)s
+                        AND youg_child_to_date IS NOT NULL AND youg_child_to_date >= %(min_date)s)
+                  )
+            """, {"employees": list(employees), "min_date": min_date, "max_date": max_date}, as_dict=1)
+
+            from frappe.utils import getdate
+            for emp, dt in employee_dates:
+                check_d = getdate(dt)
+                for rec in maternity_records:
+                    if rec.employee != emp:
+                        continue
+                    if rec.maternity_from_date and rec.maternity_to_date:
+                        if getdate(rec.maternity_from_date) <= check_d <= getdate(rec.maternity_to_date):
+                            self._maternity_cache[(emp, dt)] = (True, "Nghỉ thai sản", rec.maternity_from_date, rec.maternity_to_date)
+                            break
+                    if rec.youg_child_from_date and rec.youg_child_to_date:
+                        if getdate(rec.youg_child_from_date) <= check_d <= getdate(rec.youg_child_to_date):
+                            self._maternity_cache[(emp, dt)] = (True, "Nuôi con nhỏ", rec.youg_child_from_date, rec.youg_child_to_date)
+                            break
+                    if rec.pregnant_from_date:
+                        eff_to = rec.pregnant_to_date or rec.estimated_due_date
+                        if eff_to and getdate(rec.pregnant_from_date) <= check_d <= getdate(eff_to):
+                            if rec.apply_benefit == 1:
+                                self._maternity_cache[(emp, dt)] = (True, "Mang thai", rec.pregnant_from_date, eff_to)
+                                break
+
+    def _get_shift_type_cached(self, employee, date):
+        """Get shift type using pre-loaded cache."""
+        date_str = str(date)
+        date_obj = getdate(date) if isinstance(date, str) else date
+
+        if date_obj.weekday() == 6:
+            return "Day", "Default Day Shift For Sunday"
+
+        # Check shift registration cache
+        cached = self._shift_reg_cache.get((employee, date_str))
+        if cached:
+            return cached, "Registration"
+
+        # Check employee group cache
+        emp_group = self._emp_group_cache.get(employee)
+        if emp_group == "Canteen":
+            return "Canteen", "Employee Group"
+
+        return "Day", "Default"
+
+    def _check_maternity_cached(self, employee, date):
+        """Check maternity benefit using pre-loaded cache."""
+        date_str = str(date)
+        cached = self._maternity_cache.get((employee, date_str))
+        if cached:
+            return cached
+        return False, None, None, None
+
     def validate_ot_outside_working_hours(self):
         """Validate OT must be outside working hours"""
         if not self.ot_employees:
@@ -41,8 +173,8 @@ class OvertimeRegistration(Document):
             if date_obj.weekday() == 6:  # Sunday
                 continue
 
-            # Get shift for employee
-            shift_type, _source = get_shift_type(d.employee, d.date)
+            # Get shift for employee (using batch-loaded cache)
+            shift_type, _source = self._get_shift_type_cached(d.employee, d.date)
             shift_config = get_shift_config(shift_type)
 
             if not shift_config:
@@ -52,8 +184,8 @@ class OvertimeRegistration(Document):
             if not shift_config.get("allows_ot", True):
                 frappe.throw(_("Row #{0}: Ca {1} không được phép đăng ký tăng ca").format(d.idx, shift_type))
 
-            # Check if employee has maternity benefit
-            has_benefit, _type, _from, _to = check_maternity_benefit(d.employee, d.date)
+            # Check if employee has maternity benefit (using batch-loaded cache)
+            has_benefit, _type, _from, _to = self._check_maternity_cached(d.employee, d.date)
 
             # Validate OT is outside working hours (relaxed mode)
             is_valid, error_msg = validate_ot_continuity_with_shift(
@@ -64,7 +196,11 @@ class OvertimeRegistration(Document):
                 frappe.throw(_("Row #{0}: {1}").format(d.idx, error_msg))
 
     def validate_ot_continuity_same_day(self):
-        """Validate OT entries are continuous with each other on the same day"""
+        """Validate OT entries are continuous with each other on the same day (zone-aware).
+
+        Cho phép 1 nhóm OT trước ca và 1 nhóm OT sau ca trong cùng ngày.
+        Mỗi nhóm phải liên tục nội bộ, nhưng 2 nhóm không cần liên tục với nhau.
+        """
         if not self.ot_employees:
             return
 
@@ -87,82 +223,50 @@ class OvertimeRegistration(Document):
             # Sort entries by begin_time
             sorted_entries = sorted(entries, key=lambda x: get_time(x.get("begin_time")))
 
-            # Get shift info
+            # Get shift info (using batch-loaded cache)
             employee = sorted_entries[0].employee
             date = sorted_entries[0].date
-            shift_type, _source = get_shift_type(employee, date)
+            shift_type, _source = self._get_shift_type_cached(employee, date)
             shift_config = get_shift_config(shift_type)
 
             if not shift_config:
                 continue
 
-            has_benefit, _type, _from, _to = check_maternity_benefit(employee, date)
+            has_benefit, _type, _from, _to = self._check_maternity_cached(employee, date)
 
-            # For maternity, shift ends 1 hour earlier
             if has_benefit:
                 shift_end_dt = datetime.combine(datetime.today(), shift_config["end"])
                 effective_shift_end = (shift_end_dt - timedelta(hours=1)).time()
             else:
                 effective_shift_end = shift_config["end"]
 
-            # Check first entry starts at shift end
-            first_entry = sorted_entries[0]
-            first_begin = get_time(first_entry.get("begin_time"))
+            shift_start = shift_config["start"]
 
-            if first_begin != effective_shift_end:
-                frappe.throw(_("Row #{0}: Giờ tăng ca đầu tiên phải bắt đầu ngay sau ca ({1})").format(
-                    first_entry.idx, effective_shift_end.strftime("%H:%M")
-                ))
+            # Split entries into pre-shift and post-shift zones
+            pre_shift = [e for e in sorted_entries if get_time(e.get("end_time")) <= shift_start]
+            post_shift = [e for e in sorted_entries if get_time(e.get("begin_time")) >= effective_shift_end]
 
-            # Check each subsequent entry is continuous with previous
-            for i in range(1, len(sorted_entries)):
-                prev_entry = sorted_entries[i - 1]
-                curr_entry = sorted_entries[i]
-
+            # Check internal continuity within pre-shift zone
+            for i in range(1, len(pre_shift)):
+                prev_entry = pre_shift[i - 1]
+                curr_entry = pre_shift[i]
                 prev_end = get_time(prev_entry.get("end_time"))
                 curr_begin = get_time(curr_entry.get("begin_time"))
-
                 if curr_begin != prev_end:
-                    frappe.throw(_("Row #{0}: Giờ tăng ca phải liên tục với OT trước đó (Row #{1} kết thúc lúc {2})").format(
+                    frappe.throw(_("Row #{0}: Giờ tăng ca trước ca phải liên tục với OT trước đó (Row #{1} kết thúc lúc {2})").format(
                         curr_entry.idx, prev_entry.idx, prev_end.strftime("%H:%M")
                     ))
 
-    def validate_ot_continuity_strict(self):
-        """Validate that all OT entries are continuous with shift or other OT entries"""
-        if not self.ot_employees:
-            return
-
-        # Prepare entries
-        entries = []
-        for d in self.ot_employees:
-            if d.employee and d.date and d.get("begin_time") and d.get("end_time"):
-                entries.append({
-                    "idx": d.idx,
-                    "employee": d.employee,
-                    "employee_name": d.employee_name,
-                    "date": str(d.date),
-                    "begin_time": str(d.get("begin_time")),
-                    "end_time": str(d.get("end_time"))
-                })
-
-        if not entries:
-            return
-
-        # Call validation with strict_mode=True
-        errors = validate_ot_entries_continuity(entries, strict_mode=True)
-
-        if errors:
-            error_messages = []
-            for error in errors:
-                error_messages.append(_("Row {0}: {1} ({2}) - Ca {3}: {4}").format(
-                    error["idx"],
-                    error["employee_name"],
-                    error["employee"],
-                    error["shift_type"],
-                    error["error"]
-                ))
-
-            frappe.throw("<br>".join(error_messages), title=_("Lỗi giờ tăng ca"))
+            # Check internal continuity within post-shift zone
+            for i in range(1, len(post_shift)):
+                prev_entry = post_shift[i - 1]
+                curr_entry = post_shift[i]
+                prev_end = get_time(prev_entry.get("end_time"))
+                curr_begin = get_time(curr_entry.get("begin_time"))
+                if curr_begin != prev_end:
+                    frappe.throw(_("Row #{0}: Giờ tăng ca sau ca phải liên tục với OT trước đó (Row #{1} kết thúc lúc {2})").format(
+                        curr_entry.idx, prev_entry.idx, prev_end.strftime("%H:%M")
+                    ))
 
     def validate_duplicate_employees(self):
         """Prevent duplicate or overlapping overtime entries within the same form"""
@@ -220,7 +324,7 @@ class OvertimeRegistration(Document):
             to_time = d.get("end_time")
 
             existing_entries = frappe.db.sql("""
-                SELECT child.parent, child.begin_time as `from`, child.end_time as `to`
+                SELECT child.parent, child.idx, child.begin_time as `from`, child.end_time as `to`, child.date
                 FROM `tabOvertime Registration Detail` as child
                 JOIN `tabOvertime Registration` as parent ON child.parent = parent.name
                 WHERE child.employee = %(employee)s
@@ -239,66 +343,71 @@ class OvertimeRegistration(Document):
                 if times_overlap(from_time, to_time, existing.get("from"), existing.get("to")):
                     conflicting_doc = existing.get("parent")
                     doc_link = f'<a href="/app/overtime-registration/{conflicting_doc}" target="_blank">{conflicting_doc}</a>'
-                    frappe.throw(_("Row {0}: Employee {1} already has overtime on {2} ({3}-{4}). Conflicts with {5}").format(
+                    frappe.throw(_("Row {0}: Employee {1} already has overtime on {2} ({3}-{4}). Conflicts with {5}, Row {6}: {7}-{8}").format(
                         d.idx,
                         d.employee_name,
                         d.date,
                         from_time,
                         to_time,
-                        doc_link
+                        doc_link,
+                        existing.get("idx"),
+                        existing.get("from"),
+                        existing.get("to")
                     ))
 
-            # Check continuity with existing submitted OT
+            # Check continuity with existing submitted OT (zone-aware)
+            # OT trước ca và OT sau ca không cần liên tục với nhau,
+            # chỉ cần liên tục với các OT cùng zone (trước ca hoặc sau ca).
             if existing_entries:
                 from_time_obj = get_time(from_time)
                 to_time_obj = get_time(to_time)
 
-                # Check if this entry is continuous with any existing entry
-                is_continuous = False
-                for existing in existing_entries:
-                    existing_from = get_time(existing.get("from"))
-                    existing_to = get_time(existing.get("to"))
+                shift_type, _source = self._get_shift_type_cached(d.employee, d.date)
+                shift_config = get_shift_config(shift_type)
 
-                    # This entry starts where existing ends
-                    if from_time_obj == existing_to:
-                        is_continuous = True
-                        break
+                if shift_config:
+                    has_benefit, _type, _from, _to = self._check_maternity_cached(d.employee, d.date)
 
-                    # This entry ends where existing starts
-                    if to_time_obj == existing_from:
-                        is_continuous = True
-                        break
+                    if has_benefit:
+                        shift_end_dt = datetime.combine(datetime.today(), shift_config["end"])
+                        effective_shift_end = (shift_end_dt - timedelta(hours=1)).time()
+                    else:
+                        effective_shift_end = shift_config["end"]
 
-                # If not continuous with existing, check if it starts at shift end
-                if not is_continuous:
-                    shift_type, _source = get_shift_type(d.employee, d.date)
-                    shift_config = get_shift_config(shift_type)
+                    shift_start = shift_config["start"]
 
-                    if shift_config:
-                        has_benefit, _type, _from, _to = check_maternity_benefit(d.employee, d.date)
+                    # Classify new entry
+                    is_pre_shift = to_time_obj <= shift_start
+                    is_post_shift = from_time_obj >= effective_shift_end
 
-                        if has_benefit:
-                            shift_end_dt = datetime.combine(datetime.today(), shift_config["end"])
-                            effective_shift_end = (shift_end_dt - timedelta(hours=1)).time()
-                        else:
-                            effective_shift_end = shift_config["end"]
+                    # Filter existing entries to same zone only
+                    same_zone_entries = []
+                    for existing in existing_entries:
+                        existing_from = get_time(existing.get("from"))
+                        existing_to = get_time(existing.get("to"))
+                        existing_is_pre = existing_to <= shift_start
+                        existing_is_post = existing_from >= effective_shift_end
+                        if (is_pre_shift and existing_is_pre) or (is_post_shift and existing_is_post):
+                            same_zone_entries.append(existing)
 
-                        # If entry starts at shift end, it's valid (first OT of the day)
-                        if from_time_obj == effective_shift_end:
-                            is_continuous = True
+                    # Only check continuity against same-zone entries
+                    if same_zone_entries:
+                        is_continuous = any(
+                            from_time_obj == get_time(e.get("to")) or to_time_obj == get_time(e.get("from"))
+                            for e in same_zone_entries
+                        )
 
-                if not is_continuous:
-                    # Get all existing OT times for error message
-                    existing_times = ", ".join([f"{e.get('from')}-{e.get('to')}" for e in existing_entries])
-                    existing_docs = ", ".join([f'<a href="/app/overtime-registration/{e.get("parent")}" target="_blank">{e.get("parent")}</a>' for e in existing_entries])
+                        if not is_continuous:
+                            existing_times = ", ".join([f"{e.get('from')}-{e.get('to')}" for e in same_zone_entries])
+                            existing_docs = ", ".join([f'<a href="/app/overtime-registration/{e.get("parent")}" target="_blank">{e.get("parent")}</a>' for e in same_zone_entries])
 
-                    frappe.throw(_("Row {0}: OT {1}-{2} không liên tục với OT đã đăng ký ({3}). Xem: {4}").format(
-                        d.idx,
-                        from_time,
-                        to_time,
-                        existing_times,
-                        existing_docs
-                    ))
+                            frappe.throw(_("Row {0}: OT {1}-{2} không liên tục với OT đã đăng ký ({3}). Xem: {4}").format(
+                                d.idx,
+                                from_time,
+                                to_time,
+                                existing_times,
+                                existing_docs
+                            ))
 
     def calculate_totals_and_apply_reason(self):
         """Manage general reason field and calculate totals"""
@@ -317,14 +426,14 @@ class OvertimeRegistration(Document):
                 distinct_employees.add(d.employee)
 
             if d.get("begin_time") and d.get("end_time"):
-                total_hours += time_diff_in_hours(d.end_time, d.get("begin_time"))
-            
+                total_hours = flt(total_hours + time_diff_in_hours(d.end_time, d.get("begin_time")), 2)
+
             if d.reason:
                 child_reasons.add(d.reason.strip())
 
         # Update totals
         self.total_employees = len(distinct_employees)
-        self.total_hours = total_hours
+        self.total_hours = flt(total_hours, 2)
 
         # If general reason is empty, populate it from unique child reasons
         if not self.reason_general and child_reasons:
@@ -343,6 +452,7 @@ def check_overtime_conflicts(entries, current_doc_name="new"):
     Server method to check conflicts with submitted overtime registrations
     Called from JavaScript validation
     """
+    frappe.has_permission("Overtime Registration", "read", throw=True)
     import json
     if isinstance(entries, str):
         entries = json.loads(entries)
@@ -352,31 +462,34 @@ def check_overtime_conflicts(entries, current_doc_name="new"):
     for entry in entries:
         # Query for existing overtime registrations for same employee and date
         existing_entries = frappe.db.sql("""
-            SELECT child.parent, child.begin_time as `from`, child.end_time as `to`, child.employee_name
+            SELECT child.parent, child.idx, child.begin_time as `from`, child.end_time as `to`, child.employee_name, child.date
             FROM `tabOvertime Registration Detail` as child
             JOIN `tabOvertime Registration` as parent ON child.parent = parent.name
             WHERE child.employee = %(employee)s
             AND child.date = %(date)s
             AND parent.name != %(current_doc_name)s
             AND parent.docstatus = 1
+            ORDER BY child.begin_time
         """, {
             "employee": entry["employee"],
             "date": entry["date"],
             "current_doc_name": current_doc_name
         }, as_dict=1)
-        
+
         # Check for overlaps
         for existing in existing_entries:
             if times_overlap(entry["begin_time"], entry["end_time"], existing["from"], existing["to"]):
                 conflicts.append({
                     "idx": entry["idx"],
+                    "employee": entry["employee"],
                     "employee_name": entry["employee_name"],
                     "date": entry["date"],
                     "current_from": entry["begin_time"],
                     "current_to": entry["end_time"],
                     "existing_from": existing["from"],
                     "existing_to": existing["to"],
-                    "existing_doc": existing["parent"]
+                    "existing_doc": existing["parent"],
+                    "existing_idx": existing["idx"]
                 })
     
     return conflicts
@@ -399,41 +512,46 @@ def times_overlap(from1, to1, from2, to2):
         overlap = condition1 and condition2
 
         return overlap
-    except Exception:
-        # If there's any error in time conversion, assume no overlap
+    except Exception as e:
+        frappe.log_error(f"times_overlap error: {e}", "OT Time Overlap Check")
         return False
 
 def check_maternity_benefit(employee, date):
-    """Check if employee has maternity benefit on given date
-    Reuses same logic from daily_timesheet.py check_maternity_benefit method
-    - Pregnant with apply_pregnant_benefit=1: gets benefit
-    - Maternity Leave: automatically gets benefit
-    - Young Child: automatically gets benefit
-    Returns: (has_benefit, benefit_type, from_date, to_date)
+    """Check if employee has maternity benefit on given date.
+    Returns: (has_benefit, benefit_type_vi, from_date, to_date)
+    Delegates benefit logic to check_employee_maternity_status (employee_utils).
+    Fetches date ranges only when a benefit is confirmed.
     """
-    maternity_records = frappe.db.sql("""
-        SELECT type, from_date, to_date, apply_pregnant_benefit
-        FROM `tabMaternity Tracking`
-        WHERE parent = %(employee)s
-          AND type IN ('Pregnant', 'Maternity Leave', 'Young Child')
-          AND from_date <= %(date)s
-          AND to_date >= %(date)s
-    """, {"employee": employee, "date": date}, as_dict=1)
+    from customize_erpnext.api.employee.employee_utils import check_employee_maternity_status
 
-    if not maternity_records:
+    status, has_benefit = check_employee_maternity_status(employee, date)
+    if not has_benefit:
         return False, None, None, None
 
-    for record in maternity_records:
-        record_type_lower = record.type.lower() if record.type else ""
-        if (record_type_lower == 'young child' or
-            record.type in ['Young Child', 'Maternity Leave']):
-            benefit_type = "Nuôi con nhỏ" if record_type_lower == 'young child' or record.type == 'Young Child' else "Nghỉ thai sản"
-            return True, benefit_type, record.from_date, record.to_date
-        elif record.type == 'Pregnant':
-            if record.apply_pregnant_benefit == 1:
-                return True, "Mang thai", record.from_date, record.to_date
+    label_map = {
+        "Maternity Leave": "Nghỉ thai sản",
+        "Young Child": "Nuôi con nhỏ",
+        "Pregnant": "Mang thai",
+    }
+    vi_label = label_map.get(status)
 
-    return False, None, None, None
+    em = frappe.db.get_value(
+        "Employee Maternity", {"employee": employee},
+        ["maternity_from_date", "maternity_to_date",
+         "youg_child_from_date", "youg_child_to_date",
+         "pregnant_from_date", "pregnant_to_date", "estimated_due_date"],
+        as_dict=True
+    )
+    if not em:
+        return True, vi_label, None, None
+
+    if status == "Maternity Leave":
+        return True, vi_label, em.maternity_from_date, em.maternity_to_date
+    elif status == "Young Child":
+        return True, vi_label, em.youg_child_from_date, em.youg_child_to_date
+    else:  # Pregnant
+        eff_to = em.pregnant_to_date or em.estimated_due_date
+        return True, vi_label, em.pregnant_from_date, eff_to
 
 def get_shift_type(employee, date):
     """Get shift type for employee on date
@@ -473,41 +591,59 @@ def get_shift_type(employee, date):
     return "Day", "Default"
 
 def get_shift_config(shift_type):
-    """Get shift configuration
-    Reuses same config from daily_timesheet.py
+    """Get shift configuration from Shift Type DocType with caching.
+
+    Reads from DB and caches for 5 minutes to avoid repeated queries.
+    Falls back to hardcoded defaults if the Shift Type is not found.
     """
-    SHIFT_CONFIGS = {
-        "Day": {
-            "start": time(8, 0),
-            "end": time(17, 0),
-            "break_start": time(12, 0),
-            "break_end": time(13, 0),
-            "allows_ot": True
-        },
-        "Canteen": {
-            "start": time(7, 0),
-            "end": time(16, 0),
-            "break_start": time(11, 0),
-            "break_end": time(12, 0),
-            "allows_ot": True
-        },
-        "Shift 1": {
-            "start": time(6, 0),
-            "end": time(14, 0),
-            "break_start": time(10, 0),
-            "break_end": time(10, 0),
-            "allows_ot": False
-        },
-        "Shift 2": {
-            "start": time(14, 0),
-            "end": time(22, 0),
-            "break_start": time(18, 0),
-            "break_end": time(18, 0),
-            "allows_ot": False
-        }
+    if not shift_type:
+        return None
+
+    cache_key = f"ot_shift_config:{shift_type}"
+    cached = frappe.cache().get_value(cache_key)
+    if cached:
+        return cached
+
+    try:
+        shift_doc = frappe.db.get_value(
+            "Shift Type",
+            shift_type,
+            ["start_time", "end_time", "custom_begin_break_time", "custom_end_break_time", "allow_overtime"],
+            as_dict=True
+        )
+    except Exception:
+        shift_doc = None
+
+    if not shift_doc:
+        return None
+
+    def _to_time(val):
+        """Convert timedelta or time string to time object."""
+        if isinstance(val, timedelta):
+            total_seconds = int(val.total_seconds())
+            hours = total_seconds // 3600
+            minutes = (total_seconds % 3600) // 60
+            return time(hours, minutes)
+        return get_time(val) if val else None
+
+    start = _to_time(shift_doc.start_time)
+    end = _to_time(shift_doc.end_time)
+    break_start = _to_time(shift_doc.custom_begin_break_time)
+    break_end = _to_time(shift_doc.custom_end_break_time)
+
+    if not start or not end:
+        return None
+
+    config = {
+        "start": start,
+        "end": end,
+        "break_start": break_start or start,
+        "break_end": break_end or start,
+        "allows_ot": bool(shift_doc.allow_overtime) if shift_doc.allow_overtime is not None else True
     }
 
-    return SHIFT_CONFIGS.get(shift_type)
+    frappe.cache().set_value(cache_key, config, expires_in_sec=300)
+    return config
 
 def validate_ot_continuity_with_shift(begin_time, end_time, shift_config, has_maternity=False, other_ot_entries=None, strict_mode=False):
     """Validate that OT time is continuous with shift or other OT entries
@@ -623,6 +759,7 @@ def check_employees_with_maternity_benefits(entries):
     and their begin_time starts at their shift end time
     Returns list of employees who need time adjustment (-1h)
     """
+    frappe.has_permission("Overtime Registration", "read", throw=True)
     import json
 
     if isinstance(entries, str):
@@ -694,6 +831,7 @@ def validate_ot_entries_continuity(entries, strict_mode=False):
     strict_mode=True (submit): require exact continuity with shift or other OT
     Returns list of errors for invalid entries
     """
+    frappe.has_permission("Overtime Registration", "read", throw=True)
     import json
 
     if isinstance(entries, str):
