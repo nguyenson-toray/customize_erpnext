@@ -1683,6 +1683,20 @@ function show_employee_search_dialog() {
                 default: 'pdf',
                 description: __('pdf: tải xuống PDF ngay | html: mở tab mới, có thể chỉnh sửa & in')
             },
+            {
+                fieldname: 'bg_color',
+                fieldtype: 'Color',
+                label: __('Background Color'),
+                default: '#ffffff',
+                description: __('Background color applied to both page and card')
+            },
+            {
+                fieldname: 'border_color',
+                fieldtype: 'Color',
+                label: __('Border Color'),
+                default: '#000000',
+                description: __('Color of the card border')
+            },
         ],
         primary_action_label: __('Generate Cards'),
         primary_action: function (values) {
@@ -1735,7 +1749,7 @@ function show_employee_search_dialog() {
                             indicator: 'blue'
                         });
 
-                        generate_cards_for_employees(employee_ids, values.with_barcode, values.page_size || 'A4', values.name_font_size || 18, values.max_length_font_20 || 20, values.output_type || 'pdf');
+                        generate_cards_for_employees(employee_ids, values.with_barcode, values.page_size || 'A4', values.name_font_size || 18, values.max_length_font_20 || 20, values.output_type || 'pdf', undefined, values.bg_color || '#ffffff', values.border_color || '#000000');
                     } else {
                         frappe.msgprint({
                             title: __('No Employees Found'),
@@ -1762,7 +1776,7 @@ function show_employee_search_dialog() {
     d.set_value('page_size', 'A4');
 }
 
-function generate_cards_for_employees(employee_ids, with_barcode, page_size, name_font_size, max_length_font_20, output_type, card_border_radius) {
+function generate_cards_for_employees(employee_ids, with_barcode, page_size, name_font_size, max_length_font_20, output_type, card_border_radius, bg_color, border_color) {
     output_type = output_type || 'html';
     const common_args = {
         employee_ids: employee_ids,
@@ -1770,7 +1784,9 @@ function generate_cards_for_employees(employee_ids, with_barcode, page_size, nam
         page_size: page_size || 'A4',
         name_font_size: name_font_size || 18,
         max_length_font_20: max_length_font_20 || 20,
-        card_border_radius: card_border_radius !== undefined ? card_border_radius : 1
+        card_border_radius: card_border_radius !== undefined ? card_border_radius : 1,
+        bg_color: bg_color || '#ffffff',
+        border_color: border_color || '#000000'
     };
 
     if (output_type === 'html') {
@@ -2016,6 +2032,20 @@ function print_employee_cards(listview) {
                 default: 0,
                 description: __('Áp dụng border-radius: 2mm cho viền thẻ')
             },
+            {
+                fieldname: 'bg_color',
+                fieldtype: 'Color',
+                label: __('Màu nền'),
+                default: '#ffffff',
+                description: __('Màu nền áp dụng cho cả trang và thẻ')
+            },
+            {
+                fieldname: 'border_color',
+                fieldtype: 'Color',
+                label: __('Màu viền'),
+                default: '#000000',
+                description: __('Màu đường viền của thẻ')
+            },
             // ── Font ─────────────────────────────────────────────
             {
                 fieldname: 'font_section',
@@ -2061,7 +2091,9 @@ function print_employee_cards(listview) {
                 values.name_font_size || 18,
                 values.max_length_font_20 || 20,
                 values.output_type || 'html',
-                values.card_border_radius ? 1 : 0
+                values.card_border_radius ? 1 : 0,
+                values.bg_color || '#ffffff',
+                values.border_color || '#000000'
             );
         }
     });

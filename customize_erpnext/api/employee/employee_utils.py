@@ -438,7 +438,7 @@ def upload_employee_image(employee_id, employee_name, file_content, file_name):
 
 
 @frappe.whitelist()
-def generate_employee_cards_html_api(employee_ids, with_barcode=0, page_size='A4', name_font_size=18, max_length_font_20=20, card_border_radius=1):
+def generate_employee_cards_html_api(employee_ids, with_barcode=0, page_size='A4', name_font_size=18, max_length_font_20=20, card_border_radius=1, bg_color='#ffffff', border_color='#000000'):
     """
     Generate HTML for employee cards (for preview/edit in browser tab).
     Same parameters as generate_employee_cards_pdf but returns HTML string.
@@ -451,6 +451,8 @@ def generate_employee_cards_html_api(employee_ids, with_barcode=0, page_size='A4
 
         with_barcode = int(with_barcode) == 1
         card_border_radius = int(card_border_radius) == 1
+        bg_color = _sanitize_hex_color(bg_color, default='#ffffff')
+        border_color = _sanitize_hex_color(border_color, default='#000000')
 
         if page_size not in ['A4', 'A5']:
             page_size = 'A4'
@@ -495,7 +497,9 @@ def generate_employee_cards_html_api(employee_ids, with_barcode=0, page_size='A4
             page_size=page_size,
             name_font_size=name_font_size,
             max_length_font_20=max_length_font_20,
-            card_border_radius=card_border_radius
+            card_border_radius=card_border_radius,
+            bg_color=bg_color,
+            border_color=border_color
         )
 
         return {
@@ -511,7 +515,7 @@ def generate_employee_cards_html_api(employee_ids, with_barcode=0, page_size='A4
 
 
 @frappe.whitelist()
-def generate_employee_cards_pdf(employee_ids, with_barcode=0, page_size='A4', name_font_size=18, max_length_font_20=20, card_border_radius=1):
+def generate_employee_cards_pdf(employee_ids, with_barcode=0, page_size='A4', name_font_size=18, max_length_font_20=20, card_border_radius=1, bg_color='#ffffff', border_color='#000000'):
     """
     Generate PDF containing employee cards with layout:
     - A4 portrait: 2 columns, 5 rows (10 cards per page)
@@ -535,6 +539,8 @@ def generate_employee_cards_pdf(employee_ids, with_barcode=0, page_size='A4', na
         # Convert with_barcode to boolean
         with_barcode = int(with_barcode) == 1
         card_border_radius = int(card_border_radius) == 1
+        bg_color = _sanitize_hex_color(bg_color, default='#ffffff')
+        border_color = _sanitize_hex_color(border_color, default='#000000')
 
         # Validate page_size
         if page_size not in ['A4', 'A5']:
@@ -589,7 +595,7 @@ def generate_employee_cards_pdf(employee_ids, with_barcode=0, page_size='A4', na
             frappe.logger().info("Added placeholder employee to make even count")
         # Generate HTML for cards
         frappe.logger().info(f"Generating HTML for employee cards (with_barcode={with_barcode}, page_size={page_size}, name_font_size={name_font_size}pt, max_length_font_20={max_length_font_20})")
-        html = generate_employee_cards_html(employees, with_barcode=with_barcode, page_size=page_size, name_font_size=name_font_size, max_length_font_20=max_length_font_20, card_border_radius=card_border_radius)
+        html = generate_employee_cards_html(employees, with_barcode=with_barcode, page_size=page_size, name_font_size=name_font_size, max_length_font_20=max_length_font_20, card_border_radius=card_border_radius, bg_color=bg_color, border_color=border_color)
 
         # Debug: Save HTML to file for inspection (uncomment if needed)
         # html_path = f'/tmp/employee_cards_{datetime.datetime.now().strftime("%Y%m%d_%H%M%S")}.html'
@@ -670,7 +676,18 @@ def get_employee_reissue_count(employee_id):
     
     return reissue_number
 
-def generate_employee_cards_html(employees, with_barcode=False, page_size='A4', name_font_size=18, max_length_font_20=20, card_border_radius=True):
+def _sanitize_hex_color(value, default='#ffffff'):
+    """Allow only #RGB or #RRGGBB hex colors to avoid CSS injection."""
+    import re
+    if not value:
+        return default
+    value = str(value).strip()
+    if re.fullmatch(r'#[0-9A-Fa-f]{6}|#[0-9A-Fa-f]{3}', value):
+        return value
+    return default
+
+
+def generate_employee_cards_html(employees, with_barcode=False, page_size='A4', name_font_size=18, max_length_font_20=20, card_border_radius=True, bg_color='#ffffff', border_color='#000000'):
     """
     Generate HTML for employee cards with proper layout
     - A4: portrait, 2x5 layout
@@ -688,6 +705,10 @@ def generate_employee_cards_html(employees, with_barcode=False, page_size='A4', 
     # Border-radius value for .card and .employee-photo
     card_radius_css = '2mm' if card_border_radius else '0'
     photo_radius_css = '1.5mm' if card_border_radius else '0'
+
+    # Sanitize colors (only #RGB / #RRGGBB allowed)
+    bg_color = _sanitize_hex_color(bg_color, default='#ffffff')
+    border_color = _sanitize_hex_color(border_color, default='#000000')
 
     # CSS for card layout
     # Card size: 86mm x 53mm (EXACT - NO SCALING)
@@ -719,6 +740,7 @@ def generate_employee_cards_html(employees, with_barcode=False, page_size='A4', 
             margin: 0;
             padding: 0;
             width: 100%;
+            background: {bg_color};
         }}
 
         .cards-container {{
@@ -753,7 +775,7 @@ def generate_employee_cards_html(employees, with_barcode=False, page_size='A4', 
             padding: 1mm;
             margin: 0 1mm 0 0;
             float: left;
-            background: white;
+            background: {bg_color};
             position: relative;
             overflow: hidden;
             box-sizing: border-box;
@@ -768,7 +790,7 @@ def generate_employee_cards_html(employees, with_barcode=False, page_size='A4', 
             left: 0;
             width: 100%;
             height: 100%;
-            border: 1px solid #333;
+            border: 1px solid {border_color};
             -webkit-border-radius: {card_radius_css};
             border-radius: {card_radius_css};
             box-sizing: border-box;

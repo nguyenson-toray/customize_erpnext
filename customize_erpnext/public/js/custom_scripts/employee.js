@@ -188,8 +188,8 @@ frappe.ui.form.on('Employee', {
 
     before_save: function (frm) {
         // Ensure employee code follows TIQN-XXXX format
-        if (frm.doc.employee && !frm.doc.employee.startsWith('TIQN-')) {
-            frappe.msgprint(__('Employee code should follow TIQN-XXXX format'));
+        if (frm.doc.employee && !frm.doc.employee.startsWith('TIQN-') && !frm.doc.employee.startsWith('TT-') ) {
+            frappe.msgprint(__('Employee code should follow TIQN-XXXX or TT-XXXX format'));
             frappe.validated = false;
             return;
         }
