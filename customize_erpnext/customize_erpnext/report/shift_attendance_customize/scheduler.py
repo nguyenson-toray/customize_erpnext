@@ -202,6 +202,7 @@ def calculate_attendance_statistics(report_date, data):
 	- Total on leave (On Leave, Half Day)
 	- Working hours summary
 	"""
+	prefix = "TIQN"
 	# Count employees who were active on report_date
 	# (not current Active count — some may have left since then)
 	total_employees = frappe.db.sql("""
@@ -209,8 +210,9 @@ def calculate_attendance_statistics(report_date, data):
 		WHERE (date_of_joining IS NULL OR date_of_joining <= %(date)s)
 		  AND (
 		      status = 'Active'
-		      OR (status = 'Left' AND relieving_date >= %(date)s)
+		      OR (status = 'Left' AND relieving_date >= %(date)s)			   
 		  )
+		  AND employee LIKE %(prefix)s
 	""", {"date": report_date})[0][0]
 
 	# Separate employees by status

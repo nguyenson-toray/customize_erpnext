@@ -913,6 +913,7 @@ def _core_process_attendance_logic_optimized(
 	Returns:
 		dict: Processing statistics
 	"""
+	prefix = "TIQN" 
 	print(f"\n{'='*80}")
 	print(f"🚀 OPTIMIZED ATTENDANCE PROCESSING")
 	print(f"{'='*80}")
@@ -925,6 +926,7 @@ def _core_process_attendance_logic_optimized(
 	# if to_date > today(): to_date
 	if to_date > date.today():
 		to_date = date.today()
+
 	# Auto-detect fore_get_logs if not specified
 	# Similar logic to custom_get_employee_checkins
 	if fore_get_logs is None:
@@ -968,12 +970,13 @@ def _core_process_attendance_logic_optimized(
 				  status = 'Active'
 				  OR (status = 'Left' AND (relieving_date IS NULL OR relieving_date >= %(from_date)s))
 			  )
+			  AND employee LIKE %(prefix)s
 			ORDER BY name
-		""", {"from_date": from_date, "to_date": to_date}, pluck=True)
+		""", {"from_date": from_date, "to_date": to_date, "prefix": f"{prefix}%"}, pluck=True)
 		stats["total_employees"] = len(employees)
 
 	print(f"   Processing {stats['total_employees']} employees × {stats['total_days']} days")
-
+	
 	# ========================================================================
 	# STEP 1: PRELOAD ALL REFERENCE DATA
 	# ========================================================================
