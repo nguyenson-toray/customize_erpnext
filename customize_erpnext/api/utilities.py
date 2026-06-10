@@ -1016,6 +1016,11 @@ def set_default_warehouse_by_brand(template_item, brand_warehouse_map):
                 break
 
         if existing_default:
+            # Nếu kho đã đúng → BỎ QUA, không save để không đổi "modified" của variant cũ.
+            # (Trước đây luôn save mọi variant cùng template → tạo vài variant mới lại "đụng"
+            #  toàn bộ variant cũ, làm thay đổi last modified của chúng.)
+            if existing_default.default_warehouse == warehouse:
+                continue
             # Update existing item_default
             existing_default.default_warehouse = warehouse
         else:
@@ -1025,7 +1030,7 @@ def set_default_warehouse_by_brand(template_item, brand_warehouse_map):
                 "default_warehouse": warehouse
             })
 
-        # Save the document
+        # Save the document (chỉ khi thực sự có thay đổi kho)
         item_doc.save(ignore_permissions=True)
         updated_count += 1
 

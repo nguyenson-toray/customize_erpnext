@@ -784,6 +784,7 @@ erpnext.item.show_multiple_variants_dialog = function (frm) {
 
         let total_variants = attribute_names.reduce((a, name) => a * selected_attributes[name].length, 1);
         let variants_created = 0;
+        let skipped_variants = [];   // các item trùng đã bị bỏ qua (báo bằng show_alert ở cuối)
         let progress_dialog;
         let brand_selected = !!(selected_attributes['Brand'] && selected_attributes['Brand'].length);
 
@@ -865,6 +866,13 @@ erpnext.item.show_multiple_variants_dialog = function (frm) {
                     message: __('{0} variants created successfully.', [variants_created]),
                     indicator: 'green'
                 });
+                // Thông báo các variant trùng đã bỏ qua (nếu có)
+                if (skipped_variants.length) {
+                    frappe.show_alert({
+                        message: __('Bỏ qua {0} variant đã tồn tại: {1}', [skipped_variants.length, skipped_variants.join(', ')]),
+                        indicator: 'orange'
+                    }, 10);
+                }
             };
             // Gán Default Warehouse theo Brand — gọi MỘT lần sau khi tạo xong (best-effort vì
             // việc tạo variant có thể chạy nền; có thể chạy lại bằng nút trên form Item nếu cần).
@@ -886,10 +894,20 @@ erpnext.item.show_multiple_variants_dialog = function (frm) {
             let args = calls[call_index];
             let expected = args[row_attr].length; // số variant của sub-grid này
             frappe.call({
-                method: 'erpnext.controllers.item_variant.enqueue_multiple_variant_creation',
+                method: 'customize_erpnext.api.item.create_variants.enqueue_multiple_variant_creation',
                 args: { item: frm.doc.name, args: args, use_template_image: use_template_image },
                 callback: function (r) {
-                    variants_created += (typeof r.message === 'number') ? r.message : expected;
+                    let res = r.message;
+                    if (res && typeof res === 'object') {
+                        // chạy đồng bộ: { created, skipped }
+                        variants_created += (res.created || 0);
+                        if (res.skipped && res.skipped.length) {
+                            skipped_variants = skipped_variants.concat(res.skipped);
+                        }
+                    } else {
+                        // "queued" (chạy nền) hoặc số → cộng theo dự kiến
+                        variants_created += (typeof res === 'number') ? res : expected;
+                    }
                     update_progress(variants_created);
                     call_index++;
                     process_next();
