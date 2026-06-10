@@ -30,8 +30,15 @@ def execute(filters=None):
 	columns = get_columns(filters)
 	items = get_items(filters)
 	sl_entries = get_stock_ledger_entries(filters, items)
+	# Resolve batch from Serial and Batch Bundle (v16) for the Batch No column / filter
+	batch_filtered = enrich_batch_info(filters, sl_entries)
 	item_details = get_item_details(items, sl_entries, include_uom, filters)
-	opening_row = get_opening_balance(filters, columns, sl_entries)
+
+	if batch_filtered:
+		# Item-level opening doesn't apply to a single roll; use the batch's own opening balance
+		opening_row = get_batch_opening_row(filters)
+	else:
+		opening_row = get_opening_balance(filters, columns, sl_entries)
 
 	precision = cint(frappe.db.get_single_value("System Settings", "float_precision"))
 
@@ -44,6 +51,9 @@ def execute(filters=None):
 	actual_qty = 0
 	if opening_row:
 		actual_qty = opening_row.get("qty_after_transaction")
+
+	# Running balance for the filtered batch (per-roll), starting from its opening
+	batch_running = flt(opening_row.get("qty_after_transaction")) if (batch_filtered and opening_row) else 0.0
 
 	inventory_dimension_filters_applied = check_inventory_dimension_filters_applied(filters)
 
@@ -70,7 +80,11 @@ def execute(filters=None):
 			if clean_variant_data:
 				sle.update(clean_variant_data)
 
-		if inventory_dimension_filters_applied:
+		if batch_filtered:
+			# Per-roll running balance (actual_qty already overridden to this batch's qty)
+			batch_running = flt(batch_running + flt(sle.actual_qty), precision)
+			sle.update({"qty_after_transaction": batch_running})
+		elif inventory_dimension_filters_applied:
 			actual_qty += flt(sle.actual_qty, precision)
 
 			if sle.voucher_type == "Stock Reconciliation" and not sle.actual_qty:
@@ -201,6 +215,12 @@ def get_columns(filters):
 				"width": 160,
 			},
 			{
+				"label": _("Batch No"),
+				"fieldname": "batch_no",
+				"fieldtype": "Data",
+				"width": 160,
+			},
+			{
 				"label": _("Item Group"),
 				"fieldname": "item_group",
 				"fieldtype": "Link",
@@ -225,19 +245,9 @@ def get_columns(filters):
 		fixed_order_attributes = ["Color", "Size", "Brand", "Season", "Info"]
 		variant_attributes = get_variants_attributes()
 		
-		# Add attributes in fixed order first
+		# Only the canonical attributes (skip stray/duplicate ones like an unused "Colour")
 		for attr_name in fixed_order_attributes:
 			if attr_name in variant_attributes:
-				columns.append({
-					"label": _(attr_name),
-					"fieldname": attr_name,
-					"fieldtype": "Data",
-					"width": 100,
-				})
-		
-		# Add any remaining attributes not in the fixed order
-		for attr_name in variant_attributes:
-			if attr_name not in fixed_order_attributes:
 				columns.append({
 					"label": _(attr_name),
 					"fieldname": attr_name,
@@ -271,6 +281,8 @@ def get_stock_ledger_entries(filters, items):
 			sle.qty_after_transaction,
 			sle.voucher_no,
 			sle.custom_invoice_number,  # Use directly from Stock Ledger Entry
+			sle.batch_no,
+			sle.serial_and_batch_bundle,
 			se.custom_note.as_("note"),
 		)
 		.where((sle.docstatus < 2) & (sle.is_cancelled == 0) & (sle.posting_datetime[from_date:to_date]))
@@ -303,9 +315,90 @@ def get_stock_ledger_entries(filters, items):
 	if filters.get("custom_invoice_number"):
 		query = query.where(sle.custom_invoice_number == filters.get("custom_invoice_number"))
 
+	if filters.get("batch_no"):
+		# v16 keeps batch in Serial and Batch Bundle (sle.batch_no is NULL for bundle entries),
+		# so match either the legacy column or any bundle containing this batch.
+		sbe = frappe.qb.DocType("Serial and Batch Entry")
+		bundles = frappe.qb.from_(sbe).select(sbe.parent).where(sbe.batch_no == filters.get("batch_no"))
+		query = query.where(
+			(sle.batch_no == filters.get("batch_no")) | sle.serial_and_batch_bundle.isin(bundles)
+		)
+
 	query = apply_warehouse_filter(query, sle, filters)
 
 	return query.run(as_dict=True)
+
+
+def enrich_batch_info(filters, sl_entries):
+	"""Fill the Batch No column from Serial and Batch Bundle (sle.batch_no is NULL in v16).
+
+	- Without a batch filter: show all batches of the transaction (comma-separated) on one row.
+	- With a batch filter: show that batch and override actual_qty with the batch's per-roll qty.
+	Returns True if a specific batch_no filter is active.
+	"""
+	batch_filter = filters.get("batch_no")
+	bundle_names = list({d.serial_and_batch_bundle for d in sl_entries if d.get("serial_and_batch_bundle")})
+
+	bundle_map = {}
+	if bundle_names:
+		sbe = frappe.qb.DocType("Serial and Batch Entry")
+		rows = (
+			frappe.qb.from_(sbe)
+			.select(sbe.parent, sbe.batch_no, sbe.qty)
+			.where(sbe.parent.isin(bundle_names))
+		).run(as_dict=True)
+		for r in rows:
+			bundle_map.setdefault(r.parent, []).append(r)
+
+	for d in sl_entries:
+		sb_rows = bundle_map.get(d.get("serial_and_batch_bundle"))
+		if not sb_rows:
+			continue
+		if batch_filter:
+			d.actual_qty = sum(flt(x.qty) for x in sb_rows if x.batch_no == batch_filter)
+			d.batch_no = batch_filter
+		else:
+			d.batch_no = ", ".join(x.batch_no for x in sb_rows if x.batch_no)
+
+	return bool(batch_filter)
+
+
+def get_batch_opening_qty(filters):
+	"""Net qty of a specific batch before from_date (bundle entries + legacy sle.batch_no)."""
+	batch_no = filters.get("batch_no")
+	from_date = filters.get("from_date")
+	if not (batch_no and from_date):
+		return 0.0
+
+	params = {"batch_no": batch_no, "from_date": from_date}
+	cond = "sle.is_cancelled = 0 AND sle.docstatus < 2 AND sle.posting_date < %(from_date)s"
+	if filters.get("company"):
+		cond += " AND sle.company = %(company)s"
+		params["company"] = filters.get("company")
+
+	bundle_qty = frappe.db.sql(
+		f"""SELECT COALESCE(SUM(sbe.qty), 0)
+			FROM `tabSerial and Batch Entry` sbe
+			JOIN `tabStock Ledger Entry` sle ON sle.serial_and_batch_bundle = sbe.parent
+			WHERE sbe.batch_no = %(batch_no)s AND {cond}""",
+		params,
+	)[0][0]
+
+	legacy_qty = frappe.db.sql(
+		f"""SELECT COALESCE(SUM(sle.actual_qty), 0)
+			FROM `tabStock Ledger Entry` sle
+			WHERE sle.batch_no = %(batch_no)s AND {cond}""",
+		params,
+	)[0][0]
+
+	return flt(bundle_qty) + flt(legacy_qty)
+
+
+def get_batch_opening_row(filters):
+	qty = get_batch_opening_qty(filters)
+	if not qty:
+		return None
+	return {"item_code": _("'Opening'"), "qty_after_transaction": qty}
 
 
 def get_inventory_dimension_fields():

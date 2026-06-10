@@ -207,12 +207,22 @@ def auto_add_barcode_on_item_save(doc, method=None):
     - UOM = stock_uom
     - Barcode type = CODE-39
 
+    Scope:
+    - Chỉ tạo/cập nhật barcode cho item thuộc các nhóm (Item Group) có tên bắt đầu
+      bằng A, B, C, D, E, F, G, H — tức các nhóm nguyên phụ liệu sản xuất & thành phẩm.
+      Các nhóm khác (công cụ, dịch vụ, ...) được bỏ qua.
+
     Args:
         doc: Item document object
         method: Event method name (after_insert, validate, etc.)
     """
     # Skip if item_code or stock_uom is not set
     if not doc.item_code or not doc.stock_uom:
+        return
+
+    # Chỉ áp dụng cho các nhóm nguyên phụ liệu sản xuất & thành phẩm (Item Group bắt đầu A–H)
+    item_group = (doc.item_group or "").strip()
+    if not item_group or item_group[0].upper() not in "ABCDEFGH":
         return
 
     # Get existing barcodes

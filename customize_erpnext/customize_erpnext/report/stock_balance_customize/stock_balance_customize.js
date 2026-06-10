@@ -37,36 +37,37 @@ frappe.query_reports["Stock Balance Customize"] = {
 			"width": "100px"
 		},
 		{
-			"fieldname": "item",
+			"fieldname": "item_code",
 			"label": __("Item"),
-			"fieldtype": "Link",
+			"fieldtype": "MultiSelectList",
 			"options": "Item",
 			"width": "100px",
-			"get_query": function () {
-				var item_group = frappe.query_report.get_filter_value('item_group');
-				if (item_group) {
-					return {
-						filters: {
-							'item_group': item_group
-						}
-					};
-				}
+			get_data: async function (txt) {
+				let item_group = frappe.query_report.get_filter_value('item_group');
+				let filters = { ...(item_group && { item_group }) };
+				let { message: data } = await frappe.call({
+					method: "erpnext.controllers.queries.item_query",
+					args: {
+						doctype: "Item", txt: txt, searchfield: "name",
+						start: 0, page_len: 20, filters: filters, as_dict: 1
+					}
+				});
+				return (data || []).map(({ name, ...rest }) => ({
+					value: name, description: Object.values(rest).join(", ")
+				}));
 			}
 		},
 		{
 			"fieldname": "warehouse",
 			"label": __("Warehouse"),
-			"fieldtype": "Link",
+			"fieldtype": "MultiSelectList",
 			"options": "Warehouse",
 			"width": "100px",
-			"get_query": function () {
-				var company = frappe.query_report.get_filter_value('company');
-				return {
-					filters: {
-						'company': company,
-						'is_group': 0
-					}
-				};
+			get_data: function (txt) {
+				let company = frappe.query_report.get_filter_value('company');
+				let warehouse_type = frappe.query_report.get_filter_value('warehouse_type');
+				let filters = { ...(company && { company }), ...(warehouse_type && { warehouse_type }) };
+				return frappe.db.get_link_options("Warehouse", txt, filters);
 			}
 		},
 		{
@@ -74,13 +75,6 @@ frappe.query_reports["Stock Balance Customize"] = {
 			"label": __("Warehouse Type"),
 			"fieldtype": "Link",
 			"options": "Warehouse Type",
-			"width": "100px"
-		},
-		{
-			"fieldname": "include_uom",
-			"label": __("Include UOM"),
-			"fieldtype": "Link",
-			"options": "UOM",
 			"width": "100px"
 		},
 		{
@@ -97,6 +91,13 @@ frappe.query_reports["Stock Balance Customize"] = {
 			"description": __("Show stock balance grouped by Invoice Number")
 		},
 		{
+			"fieldname": "group_by_batch",
+			"label": __("Group by Batch"),
+			"fieldtype": "Check",
+			"default": 0,
+			"description": __("Tách từng cuộn (batch) thành 1 dòng — dùng cho vải")
+		},
+		{
 			"fieldname": "show_stock_ageing_data",
 			"label": __("Show Stock Ageing Data"),
 			"fieldtype": "Check",
@@ -107,7 +108,7 @@ frappe.query_reports["Stock Balance Customize"] = {
 			"fieldname": "range",
 			"label": __("Ageing Range"),
 			"fieldtype": "Data",
-			"default": "90, 180, 270, 360, 450, 540, 630, 420",
+			"default": "90, 180, 270, 360, 450, 540, 630, 720",
 			"depends_on": "eval:doc.show_stock_ageing_data && doc.summary_qty_by_invoice_number"
 		},
 		{

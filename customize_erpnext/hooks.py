@@ -11,7 +11,8 @@ app_license = "mit"
 doctype_js = {
     "Stock Entry": [
         "public/js/custom_scripts/stock_entry.js",
-        "public/js/custom_scripts/stock_entry_quick_import.js"
+        "public/js/custom_scripts/stock_entry_quick_import.js",
+        "public/js/custom_scripts/serial_batch_selector_custom.js"
     ],
     "BOM": "public/js/custom_scripts/bom.js",
     "Item": [
@@ -36,6 +37,7 @@ doctype_js = {
     "Employee Checkin": "public/js/custom_scripts/employee_checkin.js",
     "Attendance": "public/js/custom_scripts/attendance.js",
     "Shift Type": "public/js/custom_scripts/shift_type.js",
+    "Batch": "public/js/custom_scripts/batch.js",
 }
 
 # List view customizations
@@ -81,7 +83,8 @@ fixtures = [
                 "Leave Type",
                 "Leave Application",
                 "Job Applicant",
-                "Designation"
+                "Designation",
+                "Batch"
             ]],
             ["fieldname", "like", "custom%"]
         ]
@@ -268,6 +271,15 @@ override_doctype_class = {
 }
 # Document Events
 doc_events = {
+    # Batch Events
+    # - Populate custom_color from the item's Color attribute
+    # - Auto-generate batch_id (template|color|lot|roll) on Excel/Data Import when empty
+    "Batch": {
+        "before_insert": [
+            "customize_erpnext.api.batch.batch_utils.set_batch_defaults"
+        ]
+    },
+
     # Employee Checkin Events
     # - Update checkin log_type (IN/OUT)
     # - Auto-update HRMS Attendance based on checkins

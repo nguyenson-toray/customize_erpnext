@@ -21,6 +21,18 @@ erpnext.item.show_multiple_variants_dialog = function (frm) {
     // Định nghĩa thứ tự cố định cho attributes
     const FIXED_ATTRIBUTE_ORDER = ['Color', 'Size', 'Brand', 'Season', 'Info'];
 
+    // Fieldname namespaced cho checkbox giá trị — tránh trùng khi CÙNG một giá trị
+    // xuất hiện ở 2 attribute khác nhau (vd "2024" ở cả Season & Info) gây đụng tên field.
+    const VALUE_FIELD_SEP = '___';
+    function value_fieldname(attr, value) {
+        return `${attr}${VALUE_FIELD_SEP}${value}`;
+    }
+    function value_from_fieldname(fieldname) {
+        if (!fieldname) return '';
+        const idx = fieldname.indexOf(VALUE_FIELD_SEP);
+        return idx === -1 ? fieldname : fieldname.slice(idx + VALUE_FIELD_SEP.length);
+    }
+
     // Hàm chuyển đổi sang PROPER case (như Excel) - in hoa chữ cái đầu mỗi từ, giữ khoảng trắng
     function toProperCase(str) {
         if (!str) return str;
@@ -247,7 +259,7 @@ erpnext.item.show_multiple_variants_dialog = function (frm) {
                 fields.push({
                     fieldtype: 'Check',
                     label: value,
-                    fieldname: value,
+                    fieldname: value_fieldname(name, value),
                     default: 0,
                     onchange: function () {
                         let selected_attributes = get_selected_attributes();
@@ -424,10 +436,20 @@ erpnext.item.show_multiple_variants_dialog = function (frm) {
         });
     }
 
-    // Lấy mã viết tắt cuối cùng dựa trên loại thuộc tính
+    // Lấy mã viết tắt LỚN NHẤT (theo base-36) — không dựa vào thứ tự idx vì có thể bị xoá/đảo
     function getLastAbbreviation(attributeName, existingValues = []) {
         if (existingValues.length > 0) {
-            return existingValues[existingValues.length - 1].abbr;
+            let maxAbbr = null;
+            let maxVal = -1;
+            existingValues.forEach(v => {
+                const abbr = (v.abbr || '').toUpperCase();
+                const val = parseInt(abbr, 36);
+                if (!isNaN(val) && val > maxVal) {
+                    maxVal = val;
+                    maxAbbr = abbr;
+                }
+            });
+            if (maxAbbr) return maxAbbr;
         }
 
         // Mã mặc định dựa trên loại thuộc tính
@@ -748,34 +770,22 @@ erpnext.item.show_multiple_variants_dialog = function (frm) {
 
     // Hàm xử lý tạo variant theo batch để tránh timeout
     function create_variants_in_batches(selected_attributes, use_template_image) {
-        const batch_size = 10; // Mặc định batch size là 10
-
-        // Tạo danh sách các tổ hợp thuộc tính theo thứ tự cố định
-        let ordered_attributes = {};
+        // Thứ tự attribute cố định + chỉ giữ attribute có chọn giá trị
         let attribute_names = [];
-
         FIXED_ATTRIBUTE_ORDER.forEach(attr => {
-            if (selected_attributes[attr]) {
-                ordered_attributes[attr] = selected_attributes[attr];
-                attribute_names.push(attr);
-            }
+            if (selected_attributes[attr] && selected_attributes[attr].length) attribute_names.push(attr);
         });
-
-        // Thêm các attributes còn lại
         Object.keys(selected_attributes).forEach(attr => {
-            if (!ordered_attributes[attr]) {
-                ordered_attributes[attr] = selected_attributes[attr];
+            if (!attribute_names.includes(attr) && selected_attributes[attr] && selected_attributes[attr].length) {
                 attribute_names.push(attr);
             }
         });
+        if (!attribute_names.length) return;
 
-        let attribute_values = attribute_names.map(name => ordered_attributes[name]);
-
-        // Tổng số biến thể cần tạo
-        let total_variants = attribute_values.reduce((a, b) => a * b.length, 1);
-        let current_batch_index = 0;
+        let total_variants = attribute_names.reduce((a, name) => a * selected_attributes[name].length, 1);
         let variants_created = 0;
         let progress_dialog;
+        let brand_selected = !!(selected_attributes['Brand'] && selected_attributes['Brand'].length);
 
         // Tạo progress dialog để hiển thị tiến trình
         function show_progress_dialog() {
@@ -808,103 +818,90 @@ erpnext.item.show_multiple_variants_dialog = function (frm) {
             progress_dialog.$wrapper.find('.variants-created').text(created_count);
         }
 
-        // Tạo các tổ hợp theo Cartesian product
-        function get_combinations(arrays, current = [], index = 0, results = []) {
-            if (index === arrays.length) {
-                results.push([...current]);
-                return;
-            }
+        // Trục "hàng" = attribute có NHIỀU giá trị nhất → ít lần gọi server nhất.
+        // Mỗi call = đúng 1 sub-grid (các prefix cố định × giá trị trục hàng) nên KHÔNG tạo thừa,
+        // và Cartesian mỗi call <= MAX_PER_CALL nên không chạm giới hạn server.
+        let row_attr = attribute_names.reduce(
+            (best, name) => selected_attributes[name].length > selected_attributes[best].length ? name : best,
+            attribute_names[0]
+        );
+        let prefix_attrs = attribute_names.filter(n => n !== row_attr);
 
-            for (let i = 0; i < arrays[index].length; i++) {
-                current[index] = arrays[index][i];
-                get_combinations(arrays, current, index + 1, results);
-            }
-
-            return results;
+        function cartesian(arrays) {
+            return arrays.reduce((acc, arr) => {
+                let res = [];
+                acc.forEach(p => arr.forEach(v => res.push(p.concat([v]))));
+                return res;
+            }, [[]]);
         }
 
-        // Lấy tất cả các tổ hợp thuộc tính
-        let all_combinations = get_combinations(attribute_values);
-
-        // Chia thành các batch nhỏ hơn
-        let batches = [];
-        for (let i = 0; i < all_combinations.length; i += batch_size) {
-            batches.push(all_combinations.slice(i, i + batch_size));
+        // Chunk giá trị trục hàng (server chặn >= 600 variant/lần)
+        const MAX_PER_CALL = 450;
+        let row_chunks = [];
+        let row_values = selected_attributes[row_attr];
+        for (let i = 0; i < row_values.length; i += MAX_PER_CALL) {
+            row_chunks.push(row_values.slice(i, i + MAX_PER_CALL));
         }
 
-        // Hàm xử lý từng batch
-        function process_batch() {
-            if (current_batch_index >= batches.length) {
-                // Hoàn thành tất cả các batch
-                setTimeout(() => {
-                    progress_dialog.hide();
-                    frappe.show_alert({
-                        message: __("{0} variants created successfully.", [variants_created]),
-                        indicator: 'green'
-                    });
-                }, 1000);
-                return;
-            }
-
-            let current_batch = batches[current_batch_index];
-            let batch_attributes = {};
-
-            // Chuyển đổi định dạng cho batch hiện tại theo thứ tự cố định
-            attribute_names.forEach((attr_name, attr_index) => {
-                batch_attributes[attr_name] = [];
-                current_batch.forEach(combination => {
-                    if (!batch_attributes[attr_name].includes(combination[attr_index])) {
-                        batch_attributes[attr_name].push(combination[attr_index]);
-                    }
-                });
+        // Danh sách call: mỗi call = { prefix_attr: [1 value], ..., row_attr: [chunk] }
+        let calls = [];
+        cartesian(prefix_attrs.map(n => selected_attributes[n])).forEach(combo => {
+            row_chunks.forEach(chunk => {
+                let args = {};
+                prefix_attrs.forEach((attr, i) => { args[attr] = [combo[i]]; });
+                args[row_attr] = chunk;
+                calls.push(args);
             });
+        });
 
-            // Gọi API để tạo biến thể cho batch hiện tại
+        let total_calls = calls.length;
+        let call_index = 0;
+
+        function finish() {
+            update_progress(variants_created);
+            let done_alert = function () {
+                progress_dialog.hide();
+                frappe.show_alert({
+                    message: __('{0} variants created successfully.', [variants_created]),
+                    indicator: 'green'
+                });
+            };
+            // Gán Default Warehouse theo Brand — gọi MỘT lần sau khi tạo xong (best-effort vì
+            // việc tạo variant có thể chạy nền; có thể chạy lại bằng nút trên form Item nếu cần).
+            if (brand_selected) {
+                setTimeout(() => {
+                    frappe.call({
+                        method: 'customize_erpnext.api.utilities.set_default_warehouse_by_brand',
+                        args: { template_item: frm.doc.name, brand_warehouse_map: BRAND_WAREHOUSE_MAP },
+                        always: done_alert
+                    });
+                }, 2000);
+            } else {
+                setTimeout(done_alert, 500);
+            }
+        }
+
+        function process_next() {
+            if (call_index >= total_calls) { finish(); return; }
+            let args = calls[call_index];
+            let expected = args[row_attr].length; // số variant của sub-grid này
             frappe.call({
                 method: 'erpnext.controllers.item_variant.enqueue_multiple_variant_creation',
-                args: {
-                    item: frm.doc.name,
-                    args: batch_attributes,
-                    use_template_image: use_template_image
-                },
+                args: { item: frm.doc.name, args: args, use_template_image: use_template_image },
                 callback: function (r) {
-                    let created_count = 0;
-                    if (r.message === 'queued') {
-                        // Nếu job được xếp hàng đợi, ước tính số biến thể được tạo
-                        created_count = current_batch.length;
-                    } else if (typeof r.message === 'number') {
-                        created_count = r.message;
-                    }
-
-                    variants_created += created_count;
+                    variants_created += (typeof r.message === 'number') ? r.message : expected;
                     update_progress(variants_created);
-
-                    // Set default warehouse based on Brand attribute after a delay to ensure variants are created
-                    if (batch_attributes['Brand']) {
-                        setTimeout(() => {
-                            frappe.call({
-                                method: 'customize_erpnext.api.utilities.set_default_warehouse_by_brand',
-                                args: {
-                                    template_item: frm.doc.name,
-                                    brand_warehouse_map: BRAND_WAREHOUSE_MAP
-                                }
-                            });
-                        }, 2000);
-                    }
-
-                    // Xử lý batch tiếp theo
-                    current_batch_index++;
-                    setTimeout(process_batch, 1000); // Đợi 1 giây giữa các batch để tránh tải quá mức
+                    call_index++;
+                    process_next();
                 },
                 error: function (err) {
                     frappe.msgprint({
                         title: __('Error Creating Variants'),
                         indicator: 'red',
-                        message: __('An error occurred processing batch {0}. {1} variants were created before the error.',
-                            [current_batch_index + 1, variants_created])
+                        message: __('An error occurred (call {0}/{1}). {2} variants were created before the error.',
+                            [call_index + 1, total_calls, variants_created])
                     });
-
-                    console.error("Variant creation error:", err);
+                    console.error('Variant creation error:', err);
                     progress_dialog.hide();
                 }
             });
@@ -912,7 +909,7 @@ erpnext.item.show_multiple_variants_dialog = function (frm) {
 
         // Bắt đầu xử lý
         show_progress_dialog();
-        process_batch();
+        process_next();
     }
 
     // Hàm load attribute values
@@ -1055,7 +1052,7 @@ erpnext.item.show_multiple_variants_dialog = function (frm) {
                 // Restore và apply selected values (bao gồm cả values mới import)
                 Object.keys(selectedValues).forEach(attr => {
                     selectedValues[attr].forEach(value => {
-                        let checkbox = me.multiple_variant_dialog.get_field(value);
+                        let checkbox = me.multiple_variant_dialog.get_field(value_fieldname(attr, value));
                         if (checkbox) {
                             checkbox.set_value(1);
                         }
@@ -1133,7 +1130,7 @@ erpnext.item.show_multiple_variants_dialog = function (frm) {
                 // Restore selected values
                 Object.keys(selected_values).forEach(attr => {
                     selected_values[attr].forEach(value => {
-                        let checkbox = me.multiple_variant_dialog.get_field(value);
+                        let checkbox = me.multiple_variant_dialog.get_field(value_fieldname(attr, value));
                         if (checkbox) {
                             checkbox.set_value(1);
                         }
@@ -1150,7 +1147,7 @@ erpnext.item.show_multiple_variants_dialog = function (frm) {
 
     function make_and_show_dialog(fields) {
         me.multiple_variant_dialog = new frappe.ui.Dialog({
-            title: __('Select Attribute Values. Least one value from each of the attributes.'),
+            title: __('Select Attribute Values (at least one value from each attribute).'),
             fields: [
                 frm.doc.image ? {
                     fieldtype: 'Check',
@@ -1337,7 +1334,9 @@ erpnext.item.show_multiple_variants_dialog = function (frm) {
             let checked_opts = $(col).find('.checkbox input');
             checked_opts.each((i, opt) => {
                 if ($(opt).is(':checked')) {
-                    temp_attributes[attribute_name].push($(opt).attr('data-fieldname') || $(opt).next('label').text().trim());
+                    let fn = $(opt).attr('data-fieldname');
+                    let val = fn ? value_from_fieldname(fn) : $(opt).next('label').text().trim();
+                    temp_attributes[attribute_name].push(val);
                 }
             });
         });

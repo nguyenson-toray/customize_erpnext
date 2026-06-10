@@ -69,6 +69,8 @@ frappe.ui.form.on('Stock Entry', {
         trim_parent_fields(frm);
         // Trim child table custom_invoice_number field
         trim_child_invoice_numbers(frm);
+        // Ràng buộc: mọi dòng phải có Invoice Number TRƯỚC KHI LƯU (không chỉ khi submit)
+        validate_invoice_numbers(frm);
         // Validate and set default warehouses
         validate_warehouse(frm);
         // Aggregate invoice numbers from child table to parent
@@ -801,7 +803,6 @@ function setup_invoice_selector(frm) {
             let row = frm.doc.items[row_index];
 
             if (!row) return;
-
             // Only show dialog if item is selected
             if (!row.item_code) {
                 frappe.msgprint(__('Please select an item first'));
@@ -837,7 +838,6 @@ function setup_invoice_selector(frm) {
             let row = frm.doc.items[row_index];
 
             if (!row) return;
-
             // Only show dialog if item is selected
             if (!row.item_code) {
                 frappe.msgprint(__('Please select an item first'));

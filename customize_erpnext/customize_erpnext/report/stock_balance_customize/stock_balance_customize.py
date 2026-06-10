@@ -31,6 +31,8 @@ class StockBalanceFilter(TypedDict):
     show_stock_ageing_data: bool
     show_variant_attributes: bool
     summary_qty_by_invoice_number: bool
+    group_by_batch: bool
+    batch_no: str | None
     show_value: bool
     range: str | None
     include_zero_stock_items: bool
@@ -57,6 +59,7 @@ class StockBalanceReportCustomized:
         self.company_currency = self._get_company_currency()
         self.float_precision = cint(frappe.db.get_default("float_precision")) or 3
         self.inventory_dimensions = self._get_inventory_dimension_fields()
+        self.batch_lotroll = {}
 
     def _get_company_currency(self) -> str:
         """Get company currency with fallback"""
@@ -99,7 +102,11 @@ class StockBalanceReportCustomized:
     def _prepare_report_data(self):
         """Prepare final report data with aging and variant information"""
         self.item_warehouse_map = self._get_item_warehouse_map()
-        
+
+        # Lot/Roll detail for batch rows
+        if self.filters.get("group_by_batch") or self.filters.get("batch_no"):
+            self.batch_lotroll = self._get_batch_lot_roll_map()
+
         # Generate FIFO queue for aging calculation
         self.filters["show_warehouse_wise_stock"] = True
         item_wise_fifo_queue = CustomizedFIFOSlots(self.filters, self.sle_entries).generate()
@@ -150,6 +157,13 @@ class StockBalanceReportCustomized:
         # Add reserved stock
         report_data["reserved_stock"] = sre_details.get((report_data.item_code, report_data.warehouse), 0.0)
 
+        # Add Lot / Roll detail for batch rows
+        if report_data.get("batch_no") and self.batch_lotroll:
+            batch = self.batch_lotroll.get(report_data.batch_no)
+            if batch:
+                report_data["lot_number"] = batch.get("custom_lot_number") or ""
+                report_data["roll_number"] = batch.get("custom_roll_number") or ""
+
     def _get_fifo_key(self, report_data):
         """Get FIFO key based on grouping settings"""
         if self.filters.get("summary_qty_by_invoice_number"):
@@ -188,6 +202,10 @@ class StockBalanceReportCustomized:
         self.opening_vouchers = self._get_opening_vouchers()
         self.sle_entries = self.sle_query.run(as_dict=True)
 
+        # v16 stores batch in Serial and Batch Bundle, so split bundle-based SLEs into per-batch rows
+        if self.filters.get("group_by_batch") or self.filters.get("batch_no"):
+            self.sle_entries = self._expand_entries_by_batch(self.sle_entries)
+
         # Process each SLE entry
         for entry in self.sle_entries:
             group_by_key = self._get_group_by_key(entry)
@@ -205,6 +223,61 @@ class StockBalanceReportCustomized:
                 self._initialize_warehouse_data(item_warehouse_map, group_by_key, entry)
 
         return self._filter_items_with_no_transactions(item_warehouse_map)
+
+    def _get_batch_lot_roll_map(self):
+        """Map batch_no -> {custom_lot_number, custom_roll_number} for the Lot/Roll detail columns."""
+        batch_nos = list({rd.get("batch_no") for rd in self.item_warehouse_map.values() if rd.get("batch_no")})
+        if not batch_nos:
+            return {}
+        rows = frappe.get_all(
+            "Batch",
+            filters={"name": ["in", batch_nos]},
+            fields=["name", "custom_lot_number", "custom_roll_number"],
+        )
+        return {r.name: r for r in rows}
+
+    def _expand_entries_by_batch(self, entries):
+        """Split each bundle-backed SLE into one row per batch.
+
+        In v16 the batch is stored on the Serial and Batch Bundle (sle.batch_no is NULL),
+        so to group/filter by batch we expand each entry using its Serial and Batch Entry
+        rows, replacing actual_qty / stock_value_difference with the per-batch (signed) values.
+        """
+        bundle_names = list({e.serial_and_batch_bundle for e in entries if e.get("serial_and_batch_bundle")})
+        bundle_map = {}
+        if bundle_names:
+            sbe = frappe.qb.DocType("Serial and Batch Entry")
+            rows = (
+                frappe.qb.from_(sbe)
+                .select(sbe.parent, sbe.batch_no, sbe.qty, sbe.stock_value_difference, sbe.incoming_rate)
+                .where(sbe.parent.isin(bundle_names))
+            ).run(as_dict=True)
+            for r in rows:
+                bundle_map.setdefault(r.parent, []).append(r)
+
+        batch_filter = self.filters.get("batch_no")
+        expanded = []
+        for entry in entries:
+            bundle = entry.get("serial_and_batch_bundle")
+            sb_rows = bundle_map.get(bundle) if bundle else None
+            if sb_rows:
+                for sb in sb_rows:
+                    if batch_filter and sb.batch_no != batch_filter:
+                        continue
+                    new_entry = frappe._dict(entry)
+                    new_entry.batch_no = sb.batch_no
+                    new_entry.actual_qty = flt(sb.qty)
+                    new_entry.stock_value_difference = flt(sb.stock_value_difference)
+                    if sb.get("incoming_rate"):
+                        new_entry.valuation_rate = sb.incoming_rate
+                    expanded.append(new_entry)
+            else:
+                # Legacy / non-bundle entry: keep as-is (batch_no already on the SLE if any)
+                if batch_filter and (entry.get("batch_no") or "") != batch_filter:
+                    continue
+                expanded.append(entry)
+
+        return expanded
 
     def _process_sle_entry(self, item_warehouse_map, entry, group_by_key):
         """Process single Stock Ledger Entry"""
@@ -248,11 +321,19 @@ class StockBalanceReportCustomized:
     def _initialize_warehouse_data(self, item_warehouse_map, group_by_key, entry):
         """Initialize warehouse data structure"""
         opening_data = self.opening_data.get(group_by_key, {})
-        
+
         # Extract invoice number from group key
         invoice_number = ""
         if self.filters.get("summary_qty_by_invoice_number") and len(group_by_key) >= 4:
             invoice_number = group_by_key[3] or ""
+
+        # Extract batch_no from group key (positioned after invoice_number if present)
+        batch_no = ""
+        if self.filters.get("group_by_batch"):
+            inv_offset = 1 if self.filters.get("summary_qty_by_invoice_number") else 0
+            batch_idx = 3 + inv_offset
+            if len(group_by_key) > batch_idx:
+                batch_no = group_by_key[batch_idx] or ""
 
         item_warehouse_map[group_by_key] = frappe._dict({
             "item_code": entry.item_code,
@@ -263,6 +344,7 @@ class StockBalanceReportCustomized:
             "stock_uom": entry.stock_uom,
             "item_name": entry.item_name,
             "invoice_number": invoice_number,
+            "batch_no": batch_no,
             "opening_qty": opening_data.get("bal_qty", 0.0),
             "opening_val": opening_data.get("bal_val", 0.0),
             "in_qty": 0.0,
@@ -281,6 +363,9 @@ class StockBalanceReportCustomized:
 
         if self.filters.get("summary_qty_by_invoice_number"):
             group_by_key.append(row.get("custom_invoice_number") or "")
+
+        if self.filters.get("group_by_batch"):
+            group_by_key.append(row.get("batch_no") or "")
 
         for fieldname in self.inventory_dimensions:
             if row.get(fieldname) and (self.filters.get(fieldname) or self.filters.get("show_dimension_wise_stock")):
@@ -311,8 +396,15 @@ class StockBalanceReportCustomized:
 
         # Apply additional filters
         for fieldname in ["warehouse", "item_code", "item_group", "warehouse_type"]:
-            if self.filters.get(fieldname):
-                query = query.where(table[fieldname] == self.filters.get(fieldname))
+            value = self.filters.get(fieldname)
+            if not value:
+                continue
+            if isinstance(value, (list, tuple)):
+                # A closing balance is keyed by a single criterion; only reuse it for a single selection.
+                if len(value) != 1:
+                    continue
+                value = value[0]
+            query = query.where(table[fieldname] == value)
 
         return query.run(as_dict=True)
 
@@ -328,6 +420,7 @@ class StockBalanceReportCustomized:
                 sle.item_code, sle.warehouse, sle.posting_date, sle.actual_qty,
                 sle.valuation_rate, sle.company, sle.voucher_type, sle.qty_after_transaction,
                 sle.stock_value_difference, sle.voucher_no, sle.batch_no, sle.serial_no,
+                sle.serial_and_batch_bundle,
                 sle.custom_invoice_number, sle.custom_receive_date, sle.custom_is_opening_stock,
                 item_table.item_group, item_table.stock_uom, item_table.item_name,
             )
@@ -371,11 +464,21 @@ class StockBalanceReportCustomized:
             query = query.where(item_table.item_group.isin([*children, item_group]))
 
         for field in ["item_code", "brand"]:
-            if self.filters.get(field):
-                if field == "item_code":
-                    query = query.where(item_table.name == self.filters.get(field))
-                else:
-                    query = query.where(item_table[field] == self.filters.get(field))
+            value = self.filters.get(field)
+            if not value:
+                continue
+            if field == "item_code":
+                items = value if isinstance(value, (list, tuple)) else [value]
+                query = query.where(item_table.name.isin(items))
+            else:
+                query = query.where(item_table[field] == value)
+
+        if batch_no := self.filters.get("batch_no"):
+            # v16 keeps batch in Serial and Batch Bundle (sle.batch_no is NULL for bundle-based
+            # entries), so match either the legacy column or any bundle containing this batch.
+            sbe = frappe.qb.DocType("Serial and Batch Entry")
+            bundles = frappe.qb.from_(sbe).select(sbe.parent).where(sbe.batch_no == batch_no)
+            query = query.where((sle.batch_no == batch_no) | sle.serial_and_batch_bundle.isin(bundles))
 
         return query
 
@@ -391,6 +494,12 @@ class StockBalanceReportCustomized:
         # Invoice number column
         if self.filters.get("summary_qty_by_invoice_number"):
             columns.append({"label": _("Invoice Number"), "fieldname": "invoice_number", "fieldtype": "Data", "width": 140})
+
+        # Batch No column (+ Lot / Roll detail for fabric rolls)
+        if self.filters.get("group_by_batch") or self.filters.get("batch_no"):
+            columns.append({"label": _("Batch No"), "fieldname": "batch_no", "fieldtype": "Link", "options": "Batch", "width": 160})
+            columns.append({"label": _("Lot Number"), "fieldname": "lot_number", "fieldtype": "Data", "width": 90})
+            columns.append({"label": _("Roll Number"), "fieldname": "roll_number", "fieldtype": "Data", "width": 90})
 
         # Dimension columns
         if self.filters.get("show_dimension_wise_stock"):
@@ -471,18 +580,17 @@ class StockBalanceReportCustomized:
             ])
 
     def _add_variant_columns(self, columns):
-        """Add variant attribute columns"""
+        """Add variant attribute columns.
+
+        Only the canonical attributes are shown. Stray/duplicate Item Attributes that are not
+        part of the variant model (e.g. an unused "Colour" alongside the real "Color") are skipped
+        so the report does not render empty redundant columns.
+        """
         ordered_attributes = ["Color", "Size", "Brand", "Season", "Info"]
         all_attributes = self._get_variant_attributes()
-        
-        # Add ordered attributes first
+
         for att_name in ordered_attributes:
             if att_name in all_attributes:
-                columns.append({"label": att_name, "fieldname": att_name, "width": 100})
-        
-        # Add remaining attributes
-        for att_name in all_attributes:
-            if att_name not in ordered_attributes:
                 columns.append({"label": att_name, "fieldname": att_name, "width": 100})
 
     def _add_additional_uom_columns(self):
@@ -629,7 +737,7 @@ class StockBalanceReportCustomized:
         for group_by_key, qty_dict in iwb_map.items():
             has_transactions = False
             for key, val in qty_dict.items():
-                if key in ["item_code", "warehouse", "item_name", "item_group", "stock_uom", "company", "invoice_number", "currency"]:
+                if key in ["item_code", "warehouse", "item_name", "item_group", "stock_uom", "company", "invoice_number", "batch_no", "currency"]:
                     continue
                 if key in self.inventory_dimensions:
                     continue
@@ -654,8 +762,8 @@ class CustomizedFIFOSlots(FIFOSlots):
     def generate(self) -> dict:
         """Generate FIFO slots with invoice grouping support"""
         try:
-            from erpnext.stock.doctype.serial_and_batch_bundle.test_serial_and_batch_bundle import get_serial_nos_from_bundle
-        except ImportError:
+            from erpnext.stock.serial_batch_bundle import get_serial_nos_from_bundle
+        except Exception:
             def get_serial_nos_from_bundle(bundle_name):
                 return []
 

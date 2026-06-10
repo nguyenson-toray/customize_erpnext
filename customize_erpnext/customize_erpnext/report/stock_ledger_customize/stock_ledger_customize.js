@@ -66,6 +66,17 @@ frappe.query_reports["Stock Ledger Customize"] = {
 			width: "160",
 		},
 		{
+			fieldname: "batch_no",
+			label: __("Batch No"),
+			fieldtype: "Link",
+			options: "Batch",
+			width: "160",
+			get_query: function() {
+				var item_code = frappe.query_report.get_filter_value('item_code');
+				return { filters: item_code ? { item: item_code } : {} };
+			}
+		},
+		{
 			fieldname: "stock_entry_type",
 			label: __("Stock Entry Type"),
 			fieldtype: "Select",
