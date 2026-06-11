@@ -1,5 +1,6 @@
 import frappe
-from frappe.utils import now_datetime, getdate, get_time
+from frappe.utils import now_datetime, getdate, get_time, sbool
+from rq.timeouts import JobTimeoutException
 from customize_erpnext.network.utils.hikvision import HikvisionNVR
 
 
@@ -45,8 +46,13 @@ def _parse_recipients(recipients):
 
 
 @frappe.whitelist()
-def run_monitor_for_nvr(nvr_name, send_email=True, recipients=None, gap_days=7, gap_min_minutes=10):
-    """Chạy monitor cho một NVR, tạo CCTV Tracking record."""
+def run_monitor_for_nvr(nvr_name, send_email=True, recipients=None, gap_days=7, gap_min_minutes=10, check_gaps=False):
+    """Chạy monitor cho một NVR, tạo CCTV Tracking record.
+
+    check_gaps: mặc định tắt — get_recording_gaps phải search bản ghi trên NVR
+    cho từng camera nên rất chậm (job có thể chạy >10 phút khi bật).
+    """
+    check_gaps = sbool(check_gaps)
     nvr_doc = frappe.get_doc("NVR", nvr_name)
     now = now_datetime()
 
@@ -127,7 +133,8 @@ def run_monitor_for_nvr(nvr_name, send_email=True, recipients=None, gap_days=7, 
             oldest = client.get_oldest_recording(cam["id"])
             row.last_time_recorded = _parse_dt(oldest)
             row.days_recorded      = _days_since(oldest)
-            row.gap = client.get_recording_gaps(cam["id"], days=gap_days, min_gap_minutes=gap_min_minutes)
+            if check_gaps:
+                row.gap = client.get_recording_gaps(cam["id"], days=gap_days, min_gap_minutes=gap_min_minutes)
         else:
             latest = client.get_latest_recording(cam["id"])
             row.offline_since = _parse_dt(latest)
@@ -141,7 +148,7 @@ def run_monitor_for_nvr(nvr_name, send_email=True, recipients=None, gap_days=7, 
 
 
 @frappe.whitelist()
-def run_all_nvr(send_email=True, recipients=None, gap_days=7, gap_min_minutes=10):
+def run_all_nvr(send_email=True, recipients=None, gap_days=7, gap_min_minutes=10, check_gaps=False):
     """Chạy monitor cho tất cả NVR — gọi từ scheduler hoặc "Run Now" button."""
     results = []
     for nvr_name in frappe.get_all("NVR", pluck="name", order_by="name asc"):
@@ -152,8 +159,13 @@ def run_all_nvr(send_email=True, recipients=None, gap_days=7, gap_min_minutes=10
                 recipients=recipients,
                 gap_days=gap_days,
                 gap_min_minutes=gap_min_minutes,
+                check_gaps=check_gaps,
             )
             results.append({"nvr": nvr_name, "doc": doc_name, "ok": True})
+        except JobTimeoutException:
+            # Không nuốt timeout của RQ — nếu nuốt, worker sẽ SIGKILL horse
+            # ("Work-horse terminated unexpectedly")
+            raise
         except Exception as e:
             frappe.log_error(f"Network - NVR Monitor [{nvr_name}]: {e}", "Network")
             results.append({"nvr": nvr_name, "error": str(e), "ok": False})
@@ -161,8 +173,22 @@ def run_all_nvr(send_email=True, recipients=None, gap_days=7, gap_min_minutes=10
 
 
 def run_all_nvr_daily():
-    """Gọi từ scheduler hàng ngày — gap_days=1, recipients mặc định."""
-    run_all_nvr(send_email=True, gap_days=1, gap_min_minutes=10)
+    """Gọi từ scheduler hàng ngày — gap_days=1, recipients mặc định.
+
+    Đẩy sang long queue: 2 NVR × ~85 camera, mỗi camera 2-3 HTTP call
+    nên tổng thời gian > 300s (timeout mặc định của queue default).
+    """
+    frappe.enqueue(
+        "customize_erpnext.network.utils.monitor_runner.run_all_nvr",
+        queue="long",
+        timeout=3600,
+        job_id="nvr_monitor_daily",
+        deduplicate=True,
+        send_email=True,
+        gap_days=1,
+        gap_min_minutes=10,
+        check_gaps=False,
+    )
 
 
 def _hdd_status_color(status: str) -> str:

@@ -20,10 +20,18 @@ frappe.listview_settings["CCTV Tracking"] = {
 					},
 					{ fieldtype: "Column Break" },
 					{
+						label: __("Check Recording Gaps"),
+						fieldname: "check_gaps",
+						fieldtype: "Check",
+						default: 0,
+						description: __("Slow: searches recordings on the NVR for every camera"),
+					},
+					{
 						label: __("Gap Check (days)"),
 						fieldname: "gap_days",
 						fieldtype: "Int",
 						default: 7,
+						depends_on: "check_gaps",
 						description: __("Number of past days to scan for recording gaps"),
 					},
 					{
@@ -31,6 +39,7 @@ frappe.listview_settings["CCTV Tracking"] = {
 						fieldname: "gap_min_minutes",
 						fieldtype: "Int",
 						default: 10,
+						depends_on: "check_gaps",
 						description: __("Only report gaps longer than this"),
 					},
 				],
@@ -49,12 +58,14 @@ frappe.listview_settings["CCTV Tracking"] = {
 								recipients,
 								gap_days: values.gap_days || 7,
 								gap_min_minutes: values.gap_min_minutes || 10,
+								check_gaps: values.check_gaps || 0,
 							  }
 							: {
 								send_email,
 								recipients,
 								gap_days: values.gap_days || 7,
 								gap_min_minutes: values.gap_min_minutes || 10,
+								check_gaps: values.check_gaps || 0,
 							  },
 						type: "POST",
 						callback(r) {
