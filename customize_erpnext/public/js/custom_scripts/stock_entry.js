@@ -69,8 +69,9 @@ frappe.ui.form.on('Stock Entry', {
         trim_parent_fields(frm);
         // Trim child table custom_invoice_number field
         trim_child_invoice_numbers(frm);
-        // Ràng buộc: mọi dòng phải có Invoice Number TRƯỚC KHI LƯU (không chỉ khi submit)
-        validate_invoice_numbers(frm);
+        // Lưu ý: KHÔNG validate Invoice Number ở đây (validate = trước mỗi lần lưu).
+        // Vì bấm 'Add Batch Nos' sẽ lưu document giữa chừng (tạo Serial and Batch Bundle)
+        // khi user chưa nhập xong invoice → bị chặn. Chỉ ràng buộc khi Submit (before_submit).
         // Validate and set default warehouses
         validate_warehouse(frm);
         // Aggregate invoice numbers from child table to parent
@@ -174,13 +175,12 @@ function validate_no(frm) {
         return;
     }
     let custom_no = frm.doc.custom_no ? frm.doc.custom_no.trim() : '';
-    // validate custom_no field : not allow empty, must be unique, not dupplicate with exiting stock entry
+    // validate custom_no field : not allow empty (chỉ chặn khi Submit, không phải opening stock)
     if (!frm.doc.custom_no || frm.doc.custom_no.trim() === '') {
-        if (frm.custom_is_opening_stock === 0) {
-            frappe.throw(__('No# cannot be empty'));
+        if (frm.doc.custom_is_opening_stock != 1) {
+            frappe.throw(__('No# is required.'));
             return;
         }
-
     }
     // Check if custom_no already exists in the submitted Stock Entry documents
     // frappe.call({

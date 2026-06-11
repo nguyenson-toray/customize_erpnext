@@ -3338,7 +3338,7 @@
   "label": "No#",
   "length": 0,
   "link_filters": null,
-  "mandatory_depends_on": "eval:doc.custom_is_opening_stock!=1;",
+  "mandatory_depends_on": "",
   "modified": "2025-06-14 12:23:04.252419",
   "module": null,
   "name": "Stock Entry-custom_no",
