@@ -286,14 +286,14 @@ doc_events = {
     "Employee Checkin": {
         "on_update": [
             "customize_erpnext.overrides.employee_checkin.employee_checkin.update_employee_checkin",
-            "customize_erpnext.overrides.employee_checkin.employee_checkin.update_attendance_on_checkin_update"
+            # "customize_erpnext.overrides.employee_checkin.employee_checkin.update_attendance_on_checkin_update"
         ],
         "after_insert": [
             "customize_erpnext.overrides.employee_checkin.employee_checkin.update_employee_checkin",
-            "customize_erpnext.overrides.employee_checkin.employee_checkin.update_attendance_on_checkin_insert"
+            # "customize_erpnext.overrides.employee_checkin.employee_checkin.update_attendance_on_checkin_insert"
         ],
         "after_delete": [
-            "customize_erpnext.overrides.employee_checkin.employee_checkin.update_attendance_on_checkin_delete"
+            # "customize_erpnext.overrides.employee_checkin.employee_checkin.update_attendance_on_checkin_delete"
         ],
     },
 
