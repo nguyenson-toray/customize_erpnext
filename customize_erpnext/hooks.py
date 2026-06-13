@@ -89,6 +89,17 @@ fixtures = [
             ["fieldname", "like", "custom%"]
         ]
     },
+    # Uniform Control DocType permissions
+    {
+        "doctype": "DocPerm",
+        "filters": [
+            ["parent", "in", [
+                "Uniform Setting",
+                "Uniform Allocation",
+                "Employee Uniform Profile",
+            ]]
+        ]
+    },
     # Property customizations
     {
         "doctype": "Property Setter",
@@ -154,7 +165,8 @@ fixtures = [
                 # "HR Setup",  # HRMS sidebar with custom reports
                 "Shift & Attendance",  # HRMS sidebar with custom reports
                 "Stock",  # Stock sidebar with custom reports
-                
+                "Uniform Control",  # Uniform Control module sidebar
+
                 # "TIQN App",  # TIQN App sidebar
                 # "Health Check Up"
             ]]
@@ -255,6 +267,10 @@ scheduler_events = {
         "0 7 * * *": [
             "customize_erpnext.network.utils.monitor_runner.run_all_nvr_daily"
         ],
+        # Uniform Control - Weekly alert every Monday at 08:30 AM
+        "30 8 * * 1": [
+            "customize_erpnext.uniform_control.api.uniform_scheduler.send_weekly_uniform_alert"
+        ],
     }
 }
  
@@ -316,16 +332,23 @@ doc_events = {
     # - Sync to MongoDB
     # - Set default holiday list
     # - Prevent deletion
+    # - Auto-create Uniform Profile on new employee
     "Employee": {
         "before_insert": [
             "customize_erpnext.api.employee.employee_validation.before_insert_employee"
         ],
         "validate": [
-            "customize_erpnext.api.employee.employee_validation.validate_employee_changes"
+            "customize_erpnext.api.employee.employee_validation.validate_employee_changes",
         ],
         "after_insert": [
             # "customize_erpnext.api.employee.erpnext_mongodb.sync_employee_to_mongodb",
-            "customize_erpnext.api.employee.auto_assignment.set_default_holiday_list"
+            "customize_erpnext.api.employee.auto_assignment.set_default_holiday_list",
+            "customize_erpnext.uniform_control.api.onboarding.create_uniform_profile_on_employee_insert",
+        ],
+        # on_update (not validate): runs after DB insert + after_insert, so the
+        # uniform profile exists and department/gender policies can match
+        "on_update": [
+            "customize_erpnext.uniform_control.api.onboarding.maybe_create_onboarding_allocation",
         ],
         "on_trash": [
             "customize_erpnext.api.employee.employee_validation.prevent_employee_deletion",
@@ -366,7 +389,11 @@ doc_events = {
     },
      "Shoe Rack": {
         "validate": "customize_erpnext.customize_erpnext.doctype.shoe_rack.shoe_rack.validate",
-        "on_update": "customize_erpnext.customize_erpnext.doctype.shoe_rack.shoe_rack.on_update",
+        "on_update": [
+            "customize_erpnext.customize_erpnext.doctype.shoe_rack.shoe_rack.on_update",
+            # Sync shoe_rack_location on Employee Uniform Profile
+            "customize_erpnext.uniform_control.api.shoe_rack_sync.sync_profiles_on_rack_update",
+        ],
         # "before_insert": "customize_erpnext.customize_erpnext.doctype.shoe_rack.shoe_rack.before_insert"
     },
 

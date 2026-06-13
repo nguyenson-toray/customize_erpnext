@@ -1,0 +1,211 @@
+{
+ "actions": [],
+ "autoname": "field:employee",
+ "creation": "2026-06-05 00:00:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "employee",
+  "employee_name",
+  "column_break_info",
+  "department",
+  "group",
+  "designation",
+  "column_break_status",
+  "employment_status",
+  "relieving_date",
+  "section_sizes",
+  "uniform_gender",
+  "shirt_item",
+  "shirt_size",
+  "column_break_sizes",
+  "hat_color",
+  "shoe_size",
+  "shoe_rack_location",
+  "has_water_bottle",
+  "section_items",
+  "items",
+  "section_notes",
+  "notes"
+ ],
+ "fields": [
+  {
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Employee",
+   "options": "Employee",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fetch_from": "employee.employee_name",
+   "fieldname": "employee_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Employee Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_info",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "employee.department",
+   "fieldname": "department",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Department",
+   "options": "Department",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "employee.designation",
+   "fieldname": "designation",
+   "fieldtype": "Link",
+   "label": "Designation",
+   "options": "Designation",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_status",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "employee.status",
+   "fieldname": "employment_status",
+   "fieldtype": "Data",
+   "label": "Employment Status",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "employee.relieving_date",
+   "fieldname": "relieving_date",
+   "fieldtype": "Date",
+   "label": "Relieving Date",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_sizes",
+   "fieldtype": "Section Break",
+   "label": "Uniform Sizes"
+  },
+  {
+   "fieldname": "uniform_gender",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Uniform Gender",
+   "options": "\nMale\nFemale"
+  },
+  {
+   "description": "Which shirt/polo template this employee receives. Any template can be assigned regardless of gender.",
+   "fieldname": "shirt_item",
+   "fieldtype": "Link",
+   "label": "Assigned Shirt Item",
+   "options": "Item"
+  },
+  {
+   "fieldname": "shirt_size",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Shirt Size",
+   "options": "\nS\nM\nL\nXL\n2XL\n3XL"
+  },
+  {
+   "fieldname": "column_break_sizes",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "hat_color",
+   "fieldtype": "Select",
+   "label": "Cap Color",
+   "options": "\nBlue\nGreen\nRed"
+  },
+  {
+   "fieldname": "shoe_size",
+   "fieldtype": "Select",
+   "label": "Shoe Size",
+   "options": "\n29\n30\n31\n32\n33\n34\n35\n36\n37\n38\n39\n40\n41\n42\n43\n44"
+  },
+  {
+   "description": "Auto-loaded from Shoe Rack assignment (each rack holds 1\u20132 employees).",
+   "fieldname": "shoe_rack_location",
+   "fieldtype": "Data",
+   "label": "Shoe Rack Location",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "has_water_bottle",
+   "fieldtype": "Check",
+   "label": "Issued Bottle"
+  },
+  {
+   "fieldname": "section_items",
+   "fieldtype": "Section Break",
+   "label": "Issuance Tracking"
+  },
+  {
+   "fieldname": "items",
+   "fieldtype": "Table",
+   "label": "Uniform Items",
+   "options": "Employee Uniform Item"
+  },
+  {
+   "fieldname": "section_notes",
+   "fieldtype": "Section Break",
+   "label": "Notes"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Notes"
+  },
+  {
+   "fetch_from": "employee.custom_group",
+   "fetch_if_empty": 1,
+   "fieldname": "group",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Group",
+   "options": "Department",
+   "read_only": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-06-11 16:00:00",
+ "modified_by": "Administrator",
+ "module": "Uniform Control",
+ "name": "Employee Uniform Profile",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Uniform Manager",
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

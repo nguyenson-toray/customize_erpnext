@@ -1,0 +1,139 @@
+{
+ "actions": [],
+ "creation": "2026-06-05 00:00:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "uniform_warehouse",
+  "uniform_item_group",
+  "employee_id_prefix",
+  "reminder_days_before",
+  "column_break_top",
+  "enable_weekly_alert",
+  "auto_create_onboarding_allocation",
+  "low_stock_use_reorder",
+  "section_alert",
+  "alert_recipients",
+  "section_policies",
+  "policies",
+  "section_notes",
+  "notes"
+ ],
+ "fields": [
+  {
+   "fieldname": "uniform_warehouse",
+   "fieldtype": "Link",
+   "label": "Uniform Warehouse",
+   "options": "Warehouse"
+  },
+  {
+   "description": "Item Group of all uniform items — drives item filters on Uniform Profile and Policies.",
+   "fieldname": "uniform_item_group",
+   "fieldtype": "Link",
+   "label": "Uniform Item Group",
+   "options": "Item Group"
+  },
+  {
+   "description": "Only employees whose ID starts with this prefix are managed (e.g. TIQN). Others (interns...) are ignored.",
+   "fieldname": "employee_id_prefix",
+   "fieldtype": "Data",
+   "label": "Employee ID Prefix"
+  },
+  {
+   "fieldname": "reminder_days_before",
+   "fieldtype": "Int",
+   "label": "Remind Days Before Due",
+   "default": "30"
+  },
+  {
+   "fieldname": "column_break_top",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "enable_weekly_alert",
+   "fieldtype": "Check",
+   "label": "Enable Weekly Alert",
+   "default": "1"
+  },
+  {
+   "fieldname": "auto_create_onboarding_allocation",
+   "fieldtype": "Check",
+   "label": "Auto Create Allocation on Onboarding",
+   "default": "1"
+  },
+  {
+   "fieldname": "low_stock_use_reorder",
+   "fieldtype": "Check",
+   "label": "Use Item Reorder Level for Low Stock Alert",
+   "default": "1"
+  },
+  {
+   "fieldname": "section_alert",
+   "fieldtype": "Section Break",
+   "label": "Alert Recipients"
+  },
+  {
+   "fieldname": "alert_recipients",
+   "fieldtype": "Small Text",
+   "label": "Alert Recipients (comma-separated emails)"
+  },
+  {
+   "fieldname": "section_policies",
+   "fieldtype": "Section Break",
+   "label": "Allocation Policies"
+  },
+  {
+   "fieldname": "policies",
+   "fieldtype": "Table",
+   "label": "Policies",
+   "options": "Uniform Policy"
+  },
+  {
+   "fieldname": "section_notes",
+   "fieldtype": "Section Break",
+   "label": "Notes"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Text Editor",
+   "label": "Notes"
+  }
+ ],
+ "links": [],
+ "modified": "2026-06-11 14:00:00",
+ "modified_by": "Administrator",
+ "module": "Uniform Control",
+ "name": "Uniform Setting",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 0,
+   "delete": 0,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Uniform Manager",
+   "share": 0,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1,
+ "issingle": 1
+}

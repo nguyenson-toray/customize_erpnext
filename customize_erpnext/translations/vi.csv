@@ -289,4 +289,130 @@ Minimum required: item_name,Tối thiểu yêu cầu: item_name
 "Discard","Hủy bỏ"
 "Thank you for applying.","Cảm ơn bạn đã ứng tuyển."
 "Not Saved","Chưa lưu"
- 
+ Uniform Control,Quản lý đồng phục
+Uniform Setting,Cài đặt đồng phục
+Uniform Warehouse,Kho đồng phục
+Remind Days Before Due,Số ngày nhắc trước hạn
+Enable Weekly Alert,Bật cảnh báo hàng tuần
+Auto Create Allocation on Onboarding,Tự sinh cấp phát khi onboarding
+Use Item Reorder Level for Low Stock Alert,Dùng ngưỡng tồn tối thiểu để cảnh báo
+Alert Recipients (comma-separated emails),Người nhận cảnh báo (email phân tách bằng dấu phẩy)
+Allocation Policies,Quy định cấp phát
+Uniform Policy,Quy định đồng phục
+Uniform Type,Loại đồng phục
+Applies To,Áp dụng cho
+All,Tất cả
+Department,Phòng ban
+Designation,Chức danh
+Gender,Giới tính
+First Issue Qty,SL cấp lần đầu
+Eligible After (Days),Đủ điều kiện sau (ngày)
+Reissue Cycle (Months),Chu kỳ cấp bổ sung (tháng)
+Reissue Qty per Cycle,SL mỗi lần bổ sung
+Active,Kích hoạt
+Employee Uniform Profile,Hồ sơ đồng phục nhân viên
+Uniform Gender,Giới tính đồng phục
+Male,Nam
+Female,Nữ
+Shirt Size,Size áo
+Hat Type,Loại mũ
+Office,Văn phòng
+Leader,Leader
+Sub-leader,Sub-leader
+Sewing Worker,Công nhân may
+Cutting Worker,Công nhân cắt
+Shoe Size,Size dép
+Shoe Rack Location,Vị trí để dép
+Issued Water Bottle,Đã cấp bình nước
+Issuance Tracking,Theo dõi cấp phát
+Employee Uniform Item,Chi tiết đồng phục nhân viên
+Last Issue Date,Ngày cấp gần nhất
+Last Issue Qty,SL lần gần nhất
+Total Issued Qty,Tổng đã cấp
+Next Due Date,Hạn cấp kế tiếp
+Status,Trạng thái
+Not Issued,Chưa cấp
+Due Soon,Sắp đến hạn
+Overdue,Quá hạn
+Uniform Allocation,Phiếu cấp phát đồng phục
+Posting Date,Ngày cấp
+Allocation Type,Loại cấp phát
+New Issue,Cấp mới
+Supplement,Cấp bổ sung
+Replacement,Thay thế
+Issue From Warehouse,Kho xuất
+Filters (for building item list),Lọc (để xây dựng danh sách cấp phát)
+Filter by Uniform Type,Lọc theo loại đồng phục
+Filter by Department,Lọc theo phòng ban
+Allocation Items,Chi tiết cấp phát
+Total Qty,Tổng số lượng
+Uniform Allocation Item,Chi tiết phiếu cấp phát
+Item (Variant),Mặt hàng (biến thể)
+Available Qty,Tồn hiện có
+Issue Reason,Lý do cấp
+Periodic Supplement,Bổ sung định kỳ
+Damaged,Hỏng
+Size Change,Đổi size
+Remark,Ghi chú
+Uniform Manager,Quản lý đồng phục
+Uniform Profile,Hồ sơ đồng phục
+Uniform Employee,Nhân viên (đồng phục)
+Insufficient stock for the following items:<br>,Không đủ tồn kho cho các mặt hàng sau:<br>
+"{0}: needs {1} in total but only {2} available in {3}.","{0}: cần tổng {1} nhưng chỉ còn {2} trong kho {3}."
+"Replacement allocations are selected manually. Set a Uniform Type or Department filter to narrow the employee list.","Cấp thay thế phải chọn thủ công. Hãy đặt bộ lọc Loại đồng phục hoặc Phòng ban để thu hẹp danh sách nhân viên."
+"Row {0}: Employee {1} not found.","Dòng {0}: Không tìm thấy nhân viên {1}."
+"Row {0}: Employee {1} is not Active or has a relieving date.","Dòng {0}: Nhân viên {1} không ở trạng thái Active hoặc đã có ngày nghỉ việc."
+Variant Source,Thông số chọn variant
+One-Time Issue,Cấp một lần
+Hat Color,Màu mũ
+Blue,Xanh dương
+Green,Xanh lá
+Red,Đỏ
+"Which profile field supplies the variant attribute value. Required for templates with variants.","Field nào trong hồ sơ cung cấp giá trị attribute của variant. Bắt buộc với item có variant."
+"Issue once only (e.g. water bottle) — never in Supplement, no reissue due date. Auto-suggest only for employees with 'Issued Water Bottle' checked.","Chỉ cấp một lần (vd: bình nước) — không cấp bổ sung, không có hạn cấp lại. Chỉ tự đề xuất cho nhân viên có tick 'Cấp bình nước'."
+Assigned Shirt Item,Áo được gán
+Assigned per Employee,Gán theo hồ sơ nhân viên
+Uniform Dashboard,Dashboard Đồng phục
+"Which shirt/polo template this employee receives. Any template can be assigned regardless of gender.","Template áo/polo nhân viên này được cấp. Có thể gán bất kỳ template nào, không phụ thuộc giới tính."
+"Employee matches this template only when it is set as 'Assigned Shirt Item' in their uniform profile (use for shirts/polos).","Nhân viên chỉ khớp template này khi nó được chọn ở 'Áo được gán' trong hồ sơ đồng phục (dùng cho áo/polo)."
+Uniform Item Group,Nhóm item đồng phục
+"Item Group of all uniform items — drives item filters on Uniform Profile and Policies.","Nhóm item chứa toàn bộ đồng phục — quyết định bộ lọc item trên Hồ sơ đồng phục và Policies."
+New Allocation,Tạo cấp phát
+Receive Stock,Nhập kho
+Allocation History,Lịch sử cấp phát
+Uniform Profiles,Hồ sơ đồng phục
+Issued Qty by Month,Số lượng cấp theo tháng
+Issued Qty by Department,Số lượng cấp theo phòng ban
+Employees Due for Issue,Nhân viên đến hạn cấp
+Uniform Stock,Tồn kho đồng phục
+Variants in Stock,Variant có tồn
+Low Stock,Tồn thấp
+Allocations (30 days),Cấp phát 30 ngày
+Stock Value,Giá trị tồn
+"Uniform Warehouse is not configured in Uniform Setting.","Chưa cấu hình Kho đồng phục trong Uniform Setting."
+Shoe Rack Dashboard,Dashboard Vị trí để dép
+"Auto-loaded from Shoe Rack assignment (each rack holds 1–2 employees).","Tự động lấy từ phân bổ Shoe Rack (mỗi rack chứa 1–2 nhân viên)."
+Joining Date From,Ngày nhận việc từ
+Joining Date To,Ngày nhận việc đến
+Get Employees,Lấy danh sách nhân viên
+Select Allocation Type first.,Chọn Loại cấp phát trước.
+Fetching eligible employees...,Đang lọc nhân viên đủ điều kiện...
+Replace the current items?,Thay thế các dòng hiện tại?
+No eligible employees found.,Không tìm thấy nhân viên đủ điều kiện.
+Added {0} row(s).,Đã thêm {0} dòng.
+Skipped {0} row(s) without a resolvable item:,Bỏ qua {0} dòng không xác định được item:
+Export Excel,Xuất Excel
+Group,Nhóm
+Employee ID Prefix,Tiền tố mã nhân viên
+"Only employees whose ID starts with this prefix are managed (e.g. TIQN). Others (interns...) are ignored.","Chỉ quản lý đồng phục cho nhân viên có mã bắt đầu bằng tiền tố này (vd: TIQN). Các nhân viên khác (thực tập sinh...) được bỏ qua."
+Filter by Group,Lọc theo Nhóm
+Filter by Gender,Lọc theo Giới tính
+"Replacement allocations are selected manually. Set a Uniform Type, Department, Group or Gender filter to narrow the employee list.","Cấp thay thế phải chọn thủ công. Hãy đặt bộ lọc Loại đồng phục, Phòng ban, Nhóm hoặc Giới tính để thu hẹp danh sách nhân viên."
+"Row {0}: {1} already received {2} (last issued {3}). Use Supplement or Replacement.","Dòng {0}: {1} đã được cấp {2} (lần gần nhất {3}). Hãy dùng Cấp bổ sung hoặc Thay thế."
+"Row {0}: {1} has never been issued {2}. Use New Issue instead.","Dòng {0}: {1} chưa từng được cấp {2}. Hãy dùng Cấp mới."
+Rows do not match the Allocation Type:<br>,Các dòng không khớp với Loại cấp phát:<br>
+Cap Color,Màu mũ
+Issued Bottle,Cấp bình nước
+"Issue once only (e.g. bottle) — never in Supplement, no reissue due date. Auto-suggest only for employees with 'Issued Bottle' checked.","Chỉ cấp một lần (vd: bình nước) — không cấp bổ sung, không có hạn cấp lại. Chỉ tự đề xuất cho nhân viên có tick 'Cấp bình nước'."
+"The following rows have empty Invoice Number: {0}","Các dòng sau thiếu Số hóa đơn (No#): {0}"
+"Missing Invoice Number","Thiếu Số hóa đơn"

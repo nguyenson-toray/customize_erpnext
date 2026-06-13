@@ -1,0 +1,66 @@
+{
+ "actions": [],
+ "creation": "2026-06-05 00:00:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "item_template",
+  "last_issue_date",
+  "last_issue_qty",
+  "total_issued_qty",
+  "next_due_date",
+  "status"
+ ],
+ "fields": [
+  {
+   "fieldname": "item_template",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Uniform Type",
+   "options": "Item",
+   "reqd": 1
+  },
+  {
+   "fieldname": "last_issue_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Last Issue Date"
+  },
+  {
+   "fieldname": "last_issue_qty",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Last Issue Qty"
+  },
+  {
+   "fieldname": "total_issued_qty",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Total Issued Qty"
+  },
+  {
+   "fieldname": "next_due_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Next Due Date"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "Not Issued\nActive\nDue Soon\nOverdue"
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-06-05 00:00:00",
+ "modified_by": "Administrator",
+ "module": "Uniform Control",
+ "name": "Employee Uniform Item",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}
