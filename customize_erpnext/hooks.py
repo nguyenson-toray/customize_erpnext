@@ -106,6 +106,7 @@ fixtures = [
         "filters": [
             ["doc_type", "in", [
                 "Item",
+                 "Stock Entry",
                 "Stock Entry Detail",
                 "Stock Reconciliation",
                 "Stock Reconciliation Item",
@@ -130,10 +131,14 @@ fixtures = [
         }
     },
     # Custom print formats
+    # NOTE: only export standard=No formats here. standard=Yes formats are
+    # auto-saved as app source code under customize_erpnext/print_format/ (dev mode),
+    # so including them here would duplicate them.
     {
         "doctype": "Print Format",
         "filters": {
-            "module": "Customize Erpnext"
+            "module": "Customize Erpnext",
+            "standard": "No"
         }
     },
     # Workflow configurations
@@ -371,8 +376,10 @@ doc_events = {
     },
 
     # Stock Entry Events
+    # - Chặn Submit nếu dòng items thiếu Invoice Number (chốt chặn server-side)
     # - Add custom_invoice_number and custom_receive_date to Stock Ledger Entry
     "Stock Entry": {
+        "before_submit": "customize_erpnext.api.stock_entry.stock_entry_validation.validate_invoice_numbers",
         "on_submit": "customize_erpnext.api.stock_ledger.update_stock_ledger_invoice_number_receive_date.update_stock_ledger_invoice_number_receive_date"
     },
 
@@ -406,8 +413,6 @@ doc_events = {
     }
 
 }
-
- 
 
 # Includes in <head>
 # ------------------
