@@ -54,7 +54,7 @@
   "disable_sidebar_stats": 0,
   "docstatus": 0,
   "doctype": "List View Settings",
-  "fields": "[{\"fieldname\":\"stock_entry_type\",\"label\":\"Stock Entry Type\"},{\"fieldname\":\"posting_date\",\"label\":\"Posting Date\"},{\"fieldname\":\"custom_no\",\"label\":\"No#\"},{\"fieldname\":\"custom_line\",\"label\":\"Line\"},{\"fieldname\":\"custom_invoice_number\",\"label\":\"Invoice number\"},{\"fieldname\":\"status_field\",\"label\":\"Status\"}]",
+  "fields": "[{\"fieldname\":\"stock_entry_type\",\"label\":\"Stock Entry Type\"},{\"fieldname\":\"posting_date\",\"label\":\"Posting Date\"},{\"fieldname\":\"custom_line\",\"label\":\"Line\"},{\"fieldname\":\"custom_invoice_number\",\"label\":\"Invoice number\"},{\"fieldname\":\"status_field\",\"label\":\"Status\"}]",
   "modified": "2025-07-04 08:24:18.378910",
   "name": "Stock Entry",
   "show_tags": 0

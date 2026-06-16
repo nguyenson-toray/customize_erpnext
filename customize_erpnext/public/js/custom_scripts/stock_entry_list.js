@@ -446,7 +446,6 @@ function display_import_results(import_result, dialog) {
             import_result.created_entries.map(name => ({
                 name: name,
                 posting_date: '',
-                custom_no: '',
                 custom_invoice_number: '',
                 items_count: ''
             }));
@@ -471,7 +470,6 @@ function display_import_results(import_result, dialog) {
                     <th style="width: 5%;">#</th>
                     <th style="width: 20%;">${__('Stock Entry')}</th>
                     <th style="width: 15%;">${__('Posting Date')}</th>
-                    <th style="width: 15%;">${__('No')}</th>
                     <th style="width: 25%;">${__('Invoice Number')}</th>
                     <th style="width: 10%;">${__('Items')}</th>
                     <th style="width: 10%;">${__('Action')}</th>
@@ -482,7 +480,6 @@ function display_import_results(import_result, dialog) {
         display_entries.forEach((entry, idx) => {
             const entry_name = entry.name || entry;
             const posting_date = entry.posting_date || '';
-            const custom_no = entry.custom_no || '';
             const custom_invoice_number = entry.custom_invoice_number || '';
             const items_count = entry.items_count || '';
 
@@ -491,7 +488,6 @@ function display_import_results(import_result, dialog) {
                     <td>${idx + 1}</td>
                     <td><a href="/app/stock-entry/${entry_name}" target="_blank" class="text-primary">${entry_name}</a></td>
                     <td>${posting_date}</td>
-                    <td>${custom_no}</td>
                     <td title="${custom_invoice_number}">
                         ${custom_invoice_number.length > 20 ? custom_invoice_number.substring(0, 20) + '...' : custom_invoice_number}
                     </td>
@@ -993,7 +989,6 @@ function display_receipt_import_results(import_result, dialog) {
             import_result.created_entries.map(name => ({
                 name: name,
                 posting_date: '',
-                custom_no: '',
                 custom_invoice_number: '',
                 items_count: ''
             }));
@@ -1018,7 +1013,6 @@ function display_receipt_import_results(import_result, dialog) {
                     <th style="width: 5%;">#</th>
                     <th style="width: 20%;">${__('Stock Entry')}</th>
                     <th style="width: 15%;">${__('Posting Date')}</th>
-                    <th style="width: 15%;">${__('No')}</th>
                     <th style="width: 25%;">${__('Invoice Number')}</th>
                     <th style="width: 10%;">${__('Items')}</th>
                     <th style="width: 10%;">${__('Action')}</th>
@@ -1029,7 +1023,6 @@ function display_receipt_import_results(import_result, dialog) {
         display_entries.forEach((entry, idx) => {
             const entry_name = entry.name || entry;
             const posting_date = entry.posting_date || '';
-            const custom_no = entry.custom_no || '';
             const custom_invoice_number = entry.custom_invoice_number || '';
             const items_count = entry.items_count || '';
 
@@ -1038,7 +1031,6 @@ function display_receipt_import_results(import_result, dialog) {
                     <td>${idx + 1}</td>
                     <td><a href="/app/stock-entry/${entry_name}" target="_blank" class="text-primary">${entry_name}</a></td>
                     <td>${posting_date}</td>
-                    <td>${custom_no}</td>
                     <td title="${custom_invoice_number}">
                         ${custom_invoice_number.length > 20 ? custom_invoice_number.substring(0, 20) + '...' : custom_invoice_number}
                     </td>

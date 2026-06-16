@@ -11,6 +11,10 @@ frappe.ui.form.on('Stock Entry', {
 
         // Setup warehouse column visibility based on stock entry type
         setup_warehouse_column_visibility(frm);
+
+        // Khoá Stock Entry Type khi đã có custom_name (đã sinh tên phiếu)
+        // → tránh user đổi purpose làm lệch prefix tên (PN/PX/PC).
+        frm.set_df_property('stock_entry_type', 'read_only', frm.doc.custom_name ? 1 : 0);
     },
 
     work_order: function (frm) {
@@ -85,14 +89,48 @@ frappe.ui.form.on('Stock Entry', {
         // Setup warehouse column visibility when stock entry type changes
         setup_warehouse_column_visibility(frm);
     },
+    before_save: function (frm) {
+        set_custom_name(frm);
+    },
     before_submit: function (frm) {
         validate_invoice_numbers(frm);
-        validate_no(frm);
         validate_receive_date(frm);
         set_value_for_custom_note(frm);
 
     },
 });
+
+// Sinh custom_name dùng cho naming_series = {custom_name}.-.####
+// - Chỉ áp dụng prefix theo stock_entry_type (PN/PX/PC) khi có warehouse
+//   (to_warehouse, from_warehouse, hoặc s_warehouse/t_warehouse trong bảng items)
+//   bắt đầu bằng 'Material'.
+// - Mặc định: custom_name = SE + YYMM.
+function set_custom_name(frm) {
+    if (!frm) return;
+
+    // Ngày hiện tại dạng YYMM
+    const formattedDate = new Date().toISOString().slice(2, 7).replace(/-/g, '');
+
+    const starts_with_material = (w) => typeof w === 'string' && w.startsWith('Material');
+    const has_material_warehouse =
+        starts_with_material(frm.doc.to_warehouse) ||
+        starts_with_material(frm.doc.from_warehouse) ||
+        (frm.doc.items || []).some(
+            (row) => starts_with_material(row.s_warehouse) || starts_with_material(row.t_warehouse)
+        );
+
+    let prefix = 'SE';
+    if (has_material_warehouse) {
+        switch (frm.doc.stock_entry_type) {
+            case 'Material Receipt': prefix = 'PN'; break;
+            case 'Material Issue': prefix = 'PX'; break;
+            case 'Material Transfer': prefix = 'PC'; break;
+            default: prefix = 'SE';
+        }
+    }
+
+    frm.set_value('custom_name', prefix + formattedDate);
+}
 set_value_for_custom_note = function (frm) {
     // if custom_is_opening_stock = 1     Set custom_note = current custom_note value + items[item_name, custom_invoice_number]
     if (!frm.doc.custom_note) {
@@ -163,53 +201,6 @@ function validate_receive_date(frm) {
 
 }
 
-function validate_no(frm) {
-    console.log('Validating custom_no field:', frm.doc.custom_no);
-    if (frm.doc.custom_is_opening_stock === 1) {
-        // set custom_no format:  'Opening Stock'& posting_date & 3 random digits
-
-        frm.set_value('custom_no', `Opening Stock ${frm.doc.posting_date ? frappe.datetime.str_to_user(frm.doc.posting_date) : frappe.datetime.nowdate()} ${Math.floor(100 + Math.random() * 900)}`);
-        console.log('Setting custom_no to:', frm.doc.custom_no);
-        // set custom_no to read only    
-        frm.set_df_property('custom_no', 'read_only', 1);
-        return;
-    }
-    let custom_no = frm.doc.custom_no ? frm.doc.custom_no.trim() : '';
-    // validate custom_no field : not allow empty (chỉ chặn khi Submit, không phải opening stock)
-    if (!frm.doc.custom_no || frm.doc.custom_no.trim() === '') {
-        if (frm.doc.custom_is_opening_stock != 1) {
-            frappe.throw(__('No# is required.'));
-            return;
-        }
-    }
-    // Check if custom_no already exists in the submitted Stock Entry documents
-    // frappe.call({
-    //     method: "frappe.client.get_list",
-    //     args: {
-    //         doctype: "Stock Entry",
-    //         filters: {
-    //             custom_no: custom_no,
-    //             // Only check submitted or draft documents
-    //             docstatus: ["!=", 2], // Not cancelled
-    //             name: ["!=", frm.doc.name] // Exclude current document
-    //         },
-    //         fields: ["name"]
-    //     },
-    //     callback: function (r) {
-    //         if (r.message && r.message.length > 0) {
-    //             // If a document with the same custom_no exists, throw an error , link to the document
-    //             let existing_docs = r.message.map(doc => `<a href="/app/stock-entry/${doc.name}" target="_blank">${doc.name}</a>`).join(', ');
-    //             frappe.validated = false; // Prevent form submission
-    //             // Show error message with links to existing documents
-    //             frappe.msgprint({
-    //                 title: __('Duplicate No# Found'),
-    //                 message: __('No#: "{0}" already exists in the following Stock Entry documents: {1}', [custom_no, existing_docs]),
-    //                 indicator: 'red'
-    //             });
-    //         }
-    //     }
-    // });
-}
 // Function to validate warehouse in items table
 function validate_warehouse(frm) {
     if (!frm.doc.items || frm.doc.items.length === 0) {
@@ -365,7 +356,11 @@ function validate_invoice_numbers(frm) {
 
     let empty_invoice_rows = [];
 
+    // Chỉ bắt buộc Invoice Number cho dòng có kho bắt đầu bằng 'Material'.
+    const is_material = (w) => typeof w === 'string' && w.startsWith('Material');
+
     frm.doc.items.forEach(function (item, index) {
+        if (!is_material(item.s_warehouse) && !is_material(item.t_warehouse)) return;
         if (!item.custom_invoice_number || !item.custom_invoice_number.trim()) {
             empty_invoice_rows.push({
                 row_number: index + 1,
@@ -469,10 +464,6 @@ function trim_parent_fields(frm) {
         },
         {
             field: 'custom_note',
-            camel_case: false
-        },
-        {
-            field: 'custom_no',
             camel_case: false
         }
     ];
