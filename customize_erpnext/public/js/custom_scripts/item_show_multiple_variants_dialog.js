@@ -37,10 +37,15 @@ erpnext.item.show_multiple_variants_dialog = function (frm) {
     function toProperCase(str) {
         if (!str) return str;
 
+        // Capitalize the first letter of each word. A word starts at the start
+        // of the string or right after any non-letter/non-number character.
+        // Uses Unicode property escapes (\p{L}) with /u so Vietnamese diacritic
+        // letters (ư, ơ, ậ, đ, ...) count as letters — \w/\b mis-detect
+        // boundaries inside words, e.g. "dương" → "DươNg".
         return str.trim()
             .toLowerCase()
-            .replace(/\b\w/g, function (char) {
-                return char.toUpperCase();
+            .replace(/(^|[^\p{L}\p{N}])(\p{L})/gu, function (_, sep, char) {
+                return sep + char.toLocaleUpperCase('vi');
             });
     }
 

@@ -9,18 +9,22 @@ function toProperCase(str) {
   if (!str) return str;
 
   let result = str.trim().toLowerCase();
-  
-  // First, handle regular word boundaries (spaces, punctuation)
-  result = result.replace(/\b\w/g, function (char) {
-    return char.toUpperCase();
+
+  // Capitalize the first letter of each word. A word starts at the beginning
+  // of the string or right after any character that is not a letter/number.
+  // Uses Unicode property escapes (\p{L}) with the /u flag so Vietnamese
+  // diacritic letters (ư, ơ, ậ, đ, ...) are treated as letters — \w/\b would
+  // mis-detect boundaries inside words like "dương" → "DươNg".
+  result = result.replace(/(^|[^\p{L}\p{N}])(\p{L})/gu, function (_, sep, char) {
+    return sep + char.toLocaleUpperCase('vi');
   });
-  
-  // Special handling: ensure first non-number character is uppercase
+
+  // Special handling: ensure first letter after leading digits is uppercase
   // This handles cases like "26ss" → "26Ss"
-  result = result.replace(/^(\d*)([a-z])/, function(_, numbers, firstLetter) {
-    return numbers + firstLetter.toUpperCase();
+  result = result.replace(/^(\d+)(\p{L})/u, function (_, numbers, firstLetter) {
+    return numbers + firstLetter.toLocaleUpperCase('vi');
   });
-  
+
   return result;
 }
 
