@@ -1261,6 +1261,25 @@
                 </div>
             </div>
 
+            <div class="card">
+                <div class="card-title">🎯 Delete a Specific Employee</div>
+                <div style="font-size:13px;color:var(--text-2);margin-bottom:12px;">
+                    Remove one specific employee's <code>user_id</code> from the attendance devices —
+                    fingerprint data in ERPNext is <strong>never</strong> deleted.
+                    <strong>Active</strong> employees cannot be deleted.
+                </div>
+                <div class="form-row" style="align-items:flex-end;gap:12px;flex-wrap:wrap;">
+                    <div class="form-group" style="flex:1;min-width:240px;">
+                        <label>Employee ID / Device ID / Name</label>
+                        <input type="text" id="del43FindInput" placeholder="e.g. HR-EMP-00012, 1042, or Nguyen Van A"
+                            onkeydown="if(event.key==='Enter')del43FindEmp();">
+                    </div>
+                    <button class="btn btn-primary" id="del43FindBtn" onclick="del43FindEmp()">🔍 Find</button>
+                    <span id="del43FindStatus" style="font-size:13px;color:var(--text-2);"></span>
+                </div>
+                <div id="del43FindResult" style="margin-top:14px;display:none;"></div>
+            </div>
+
             <div class="card progress-section" id="del43ProgressSection">
                 <div class="card-title">⏳ Deletion Progress</div>
                 <div id="del43ProgressPhase" style="font-size:13px;color:var(--text-2);margin-bottom:8px;"></div>
@@ -2273,7 +2292,15 @@
             if (!confirm(`Confirm deletion of ${selected.length} user(s) from attendance machines?\nThis action CANNOT be undone.`)) return;
 
             const deleteBtn = document.getElementById('del43DeleteBtn');
-            deleteBtn.disabled = true; deleteBtn.textContent = '⏳ Submitting job...';
+            del43RunDeleteJob(selected, deleteBtn, '🗑 Delete Selected Users', () => {
+                _del43ScanResult = null;
+                document.getElementById('del43PreviewSection').style.display = 'none';
+            });
+        }
+
+        // Shared submit + poll for both bulk and specific-employee deletion.
+        async function del43RunDeleteJob(selected, btn, defaultLabel, onDone) {
+            btn.disabled = true; btn.textContent = '⏳ Submitting job...';
 
             const ps = document.getElementById('del43ProgressSection');
             ps.classList.add('visible');
@@ -2281,6 +2308,7 @@
             const phaseEl = document.getElementById('del43ProgressPhase');
             const barEl = document.getElementById('del43ProgressBar');
             logEl.innerHTML = '';
+            barEl.style.width = '0%';
 
             function appendLog(cls, text) {
                 const d = document.createElement('div'); d.className = cls; d.textContent = text;
@@ -2295,7 +2323,7 @@
 
                 const jobId = msg.job_id;
                 appendLog('info-line', `Job ${jobId} submitted — waiting for worker...`);
-                deleteBtn.textContent = '⏳ Deleting...';
+                btn.textContent = '⏳ Deleting...';
 
                 if (_del43PollTimer) clearInterval(_del43PollTimer);
                 let lastCount = 0;
@@ -2315,13 +2343,12 @@
 
                         if (d.status === 'done' || d.status === 'error') {
                             clearInterval(_del43PollTimer); _del43PollTimer = null;
-                            deleteBtn.disabled = false; deleteBtn.textContent = '🗑 Delete Selected Users';
+                            btn.disabled = false; btn.textContent = defaultLabel;
                             if (d.status === 'done') {
                                 const ok = (d.results || []).filter(r => r.success).length;
                                 const fail = (d.results || []).length - ok;
                                 appendLog('info-line', `\n=== DONE: ${ok} OK / ${fail} FAILED ===`);
-                                _del43ScanResult = null;
-                                document.getElementById('del43PreviewSection').style.display = 'none';
+                                if (onDone) onDone();
                             } else {
                                 appendLog('fail', `=== ERROR: ${d.error || 'unknown'} ===`);
                             }
@@ -2330,8 +2357,140 @@
                 }, 1500);
             } catch (e) {
                 appendLog('fail', '❌ ' + e.message);
-                deleteBtn.disabled = false; deleteBtn.textContent = '🗑 Delete Selected Users';
+                btn.disabled = false; btn.textContent = defaultLabel;
             }
+        }
+
+        // ── Tab 4 — Delete a specific employee (targeted) ───────────────────
+        let _del43FindResult = null;
+
+        async function del43FindEmp() {
+            const query = document.getElementById('del43FindInput').value.trim();
+            const btn = document.getElementById('del43FindBtn');
+            const statusEl = document.getElementById('del43FindStatus');
+            const resultEl = document.getElementById('del43FindResult');
+            _del43FindResult = null;
+            resultEl.style.display = 'none';
+            if (!query) { statusEl.textContent = 'Please enter an Employee ID, Device ID or name'; return; }
+
+            btn.disabled = true; btn.textContent = '⏳ Finding...';
+            statusEl.textContent = 'Searching employee and scanning machines...';
+            try {
+                const msg = await callPost('customize_erpnext.api.biometric_sync.find_employee_on_machines', { query });
+                statusEl.textContent = '';
+                del43RenderFind(msg);
+            } catch (e) {
+                statusEl.innerHTML = `<span style="color:#dc3545;">❌ ${escapeHtml(e.message)}</span>`;
+            }
+            btn.disabled = false; btn.textContent = '🔍 Find';
+        }
+
+        function del43RenderFind(msg) {
+            const resultEl = document.getElementById('del43FindResult');
+            resultEl.style.display = '';
+
+            if (msg.status === 'error') {
+                resultEl.innerHTML = `<div class="alert alert-warning">⚠ ${escapeHtml(msg.message || 'Not found')}</div>`;
+                return;
+            }
+
+            if (msg.status === 'multiple') {
+                const rows = (msg.candidates || []).map(c =>
+                    `<tr style="cursor:pointer;" onclick="del43PickCandidate('${escapeHtml(c.employee_id).replace(/'/g, "\\'")}')">
+                        <td style="padding:6px 8px;"><strong>${escapeHtml(c.employee_id)}</strong></td>
+                        <td style="padding:6px 8px;">${escapeHtml(c.employee_name || '')}</td>
+                        <td style="padding:6px 8px;">${escapeHtml(c.attendance_device_id || '—')}</td>
+                        <td style="padding:6px 8px;">${escapeHtml(c.status || '')}</td>
+                    </tr>`).join('');
+                resultEl.innerHTML = `
+                    <div style="font-size:13px;margin-bottom:6px;">Multiple matches — pick one:</div>
+                    <div class="del-preview-wrap"><table>
+                        <thead><tr><th>Employee ID</th><th>Name</th><th>Device ID</th><th>Status</th></tr></thead>
+                        <tbody>${rows}</tbody>
+                    </table></div>`;
+                return;
+            }
+
+            const emp = msg.employee || {};
+            const empCard = `
+                <div style="font-size:13px;margin-bottom:10px;">
+                    <strong>${escapeHtml(emp.employee_name || '')}</strong>
+                    <small>(${escapeHtml(emp.employee_id || '')})</small> &nbsp;|&nbsp;
+                    Device ID: <strong>${escapeHtml(emp.attendance_device_id || '—')}</strong> &nbsp;|&nbsp;
+                    Status: <strong>${escapeHtml(emp.status || '')}</strong>
+                    ${emp.relieving_date ? ` &nbsp;|&nbsp; Relieved: ${escapeHtml(emp.relieving_date)}` : ''}
+                </div>`;
+
+            if (msg.status === 'blocked') {
+                resultEl.innerHTML = empCard +
+                    `<div class="alert alert-warning">🔒 ${escapeHtml(msg.message)}</div>`;
+                return;
+            }
+
+            // status === 'success'
+            _del43FindResult = msg;
+            const found = msg.found_on || [];
+            if (!found.length) {
+                resultEl.innerHTML = empCard +
+                    `<div class="alert alert-success">✅ This user_id was not found on any device — nothing to delete.</div>`;
+                return;
+            }
+
+            const machineRows = found.map((f, idx) =>
+                `<tr>
+                    <td style="text-align:center;padding:6px 4px;">
+                        <input type="checkbox" class="del43-find-chk" data-idx="${idx}" checked style="width:14px;height:14px;">
+                    </td>
+                    <td style="padding:6px 8px;"><strong>${escapeHtml(f.machine)}</strong>
+                        ${f.device_name ? `<br><small>${escapeHtml(f.device_name)}</small>` : ''}</td>
+                    <td style="padding:6px 8px;">${escapeHtml(f.on_device_name || '')}</td>
+                </tr>`).join('');
+
+            resultEl.innerHTML = empCard + `
+                <div style="font-size:13px;color:#6c757d;margin-bottom:6px;">
+                    Found on <strong>${found.length}</strong> device(s):
+                </div>
+                <div class="del-preview-wrap"><table>
+                    <thead><tr><th style="width:36px;"></th><th>Machine</th><th>Name on device</th></tr></thead>
+                    <tbody>${machineRows}</tbody>
+                </table></div>
+                <div class="alert alert-info" style="margin-top:12px;font-size:13px;">
+                    🔒 Fingerprint data in ERPNext <strong>will not be deleted</strong>.
+                </div>
+                <div style="margin-top:14px;">
+                    <button class="btn btn-danger" id="del43FindDeleteBtn" onclick="del43SpecificDelete()">🗑 Delete from selected devices</button>
+                </div>`;
+        }
+
+        function del43PickCandidate(empId) {
+            document.getElementById('del43FindInput').value = empId;
+            del43FindEmp();
+        }
+
+        function del43SpecificDelete() {
+            if (!_del43FindResult) return;
+            const emp = _del43FindResult.employee || {};
+            const found = _del43FindResult.found_on || [];
+            const machines = [];
+            document.querySelectorAll('.del43-find-chk:checked').forEach(cb => {
+                const f = found[parseInt(cb.dataset.idx)];
+                if (f) machines.push(f.machine);
+            });
+            if (!machines.length) { alert('No devices selected'); return; }
+
+            if (!confirm(`Delete user_id ${emp.attendance_device_id} (${emp.employee_name}) from ${machines.length} device(s)?\nThis action CANNOT be undone.`)) return;
+
+            const selected = [{
+                user_id: emp.attendance_device_id,
+                employee_id: emp.employee_id,
+                employee_name: emp.employee_name,
+                machines: machines,
+            }];
+            const btn = document.getElementById('del43FindDeleteBtn');
+            del43RunDeleteJob(selected, btn, '🗑 Delete from selected devices', () => {
+                _del43FindResult = null;
+                document.getElementById('del43FindResult').style.display = 'none';
+            });
         }
 
 

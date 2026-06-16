@@ -210,13 +210,29 @@ Phân loại: `reason_type='left_employee'` (nghỉ việc) vs `'unmatched'` (kh
 ```
 1. Thu thập selected users từ checkbox
 2. confirm("N users — cannot be undone")
-3. POST biometric_sync.delete_users_from_machines(users_json)
-   → {job_id}
-4. Polling GET get_sync_job_status?job_id=<id> mỗi 1500ms
-   → cập nhật progress bar
-   → append log kết quả từng user × machine
+3. del43RunDeleteJob(selected, ...)  ← helper chung
+   → POST biometric_sync.delete_users_from_machines(users_json) → {job_id}
+   → Polling GET get_sync_job_status?job_id=<id> mỗi 1500ms
+   → cập nhật progress bar + append log kết quả từng user × machine
    → done/error → dừng timer
 ```
+
+#### Xóa 1 nhân viên cụ thể (targeted)
+
+Card riêng **"🎯 Delete a Specific Employee"** — xóa `user_id` của **đúng 1 nhân viên** khỏi máy, không cần scan toàn bộ.
+
+**Luồng**:
+1. Nhập **Employee ID / Device ID / Tên** → `del43FindEmp()`.
+2. `POST biometric_sync.find_employee_on_machines(query)`:
+   - Match Employee theo `name` hoặc `attendance_device_id` (exact), fallback LIKE `employee_name`/`name`.
+   - `status='multiple'` → hiển thị bảng candidates, click để chọn (`del43PickCandidate`).
+   - `status='blocked'` → nhân viên **Active**, **KHÔNG cho xóa** (quy tắc an toàn giống bulk).
+   - `status='success'` → scan tất cả máy enabled, trả `found_on:[{machine, device_name, on_device_name}]`.
+3. Render bảng máy (checkbox per-machine, checked all) → `del43SpecificDelete()`:
+   - Build payload `[{user_id, employee_id, employee_name, machines}]`.
+   - confirm → `del43RunDeleteJob(...)` (dùng chung progress/poll với bulk).
+
+**An toàn**: Nhân viên **Active không bao giờ bị xóa**; dữ liệu vân tay trong ERPNext **không bị xóa**.
 
 ---
 
@@ -271,6 +287,7 @@ Mỗi card hiển thị: tên, device name, IP:port, location, badge "★ Master
 | `biometric_sync.sync_fingerprints` | Tạo background job đồng bộ vân tay từ thiết bị |
 | `utilities.sync_employee_to_single_machine` | Đẩy 1 nhân viên xuống 1 máy |
 | `biometric_sync.get_left_employees_on_machines` | Scan nhân viên cần xóa khỏi máy |
+| `biometric_sync.find_employee_on_machines` | Tìm 1 nhân viên cụ thể + scan máy chứa user_id (chặn Active) |
 | `biometric_sync.delete_users_from_machines` | Tạo background job xóa users khỏi máy |
 | `biometric_sync.machine_get_info` | Đọc hardware info từ thiết bị |
 | `biometric_sync.machine_sync_time` | Đồng bộ thời gian thiết bị |

@@ -808,6 +808,154 @@ def _run_delete_job(users, cache_key, job_id=None):
 
 
 # ---------------------------------------------------------------------------
+# 7b. find_employee_on_machines  (locate a specific employee's user_id)
+# ---------------------------------------------------------------------------
+
+@frappe.whitelist()
+def find_employee_on_machines(query):
+    """
+    Locate a SINGLE employee's user_id across all enabled attendance machines,
+    so it can be removed individually (targeted delete).
+
+    `query` is matched against Employee: exact `name` (Employee ID) or
+    `attendance_device_id` first, then a LIKE fallback on `employee_name`/`name`.
+
+    Safety: Active employees are NEVER deletable here (same rule as the bulk
+    scan). For Active matches we return status='blocked' without scanning.
+
+    Returns one of:
+      {status:'multiple', candidates:[{employee_id, employee_name, status, attendance_device_id}]}
+      {status:'blocked',  employee:{...}, message}
+      {status:'success',  employee:{...}, found_on:[{machine, device_name, on_device_name}],
+                          machines_scanned:[...], today}
+      {status:'error',    message}
+    """
+    try:
+        query = (query or "").strip()
+        if not query:
+            return {"status": "error", "message": "Please enter an Employee ID, Device ID or name"}
+
+        emp_fields = ["name", "employee_name", "status", "attendance_device_id", "relieving_date"]
+
+        # 1) Exact match on Employee ID or attendance_device_id
+        candidates = frappe.get_all(
+            "Employee",
+            filters={"name": query},
+            fields=emp_fields,
+        ) or frappe.get_all(
+            "Employee",
+            filters={"attendance_device_id": query},
+            fields=emp_fields,
+        )
+
+        # 2) Fallback: LIKE on name / employee_name
+        if not candidates:
+            candidates = frappe.get_all(
+                "Employee",
+                filters={"employee_name": ["like", f"%{query}%"]},
+                fields=emp_fields,
+                limit_page_length=11,
+            )
+            if not candidates:
+                candidates = frappe.get_all(
+                    "Employee",
+                    filters={"name": ["like", f"%{query}%"]},
+                    fields=emp_fields,
+                    limit_page_length=11,
+                )
+
+        if not candidates:
+            return {"status": "error", "message": f"No employee found for '{query}'"}
+
+        if len(candidates) > 1:
+            return {
+                "status": "multiple",
+                "candidates": [{
+                    "employee_id": c["name"],
+                    "employee_name": c["employee_name"],
+                    "status": c["status"],
+                    "attendance_device_id": c.get("attendance_device_id") or "",
+                } for c in candidates[:10]],
+            }
+
+        emp = candidates[0]
+        emp_info = {
+            "employee_id": emp["name"],
+            "employee_name": emp["employee_name"],
+            "status": emp["status"],
+            "attendance_device_id": emp.get("attendance_device_id") or "",
+            "relieving_date": str(emp["relieving_date"]) if emp.get("relieving_date") else None,
+        }
+
+        # Safety: never allow deleting an Active employee
+        if emp["status"] == "Active":
+            return {
+                "status": "blocked",
+                "employee": emp_info,
+                "message": "This employee is Active — their user_id cannot be deleted from the devices.",
+            }
+
+        device_id = emp_info["attendance_device_id"]
+        if not device_id:
+            return {
+                "status": "error",
+                "message": f"Employee {emp['name']} has no attendance_device_id set",
+            }
+
+        # Scan every enabled machine for this user_id
+        machines = frappe.get_all(
+            "Attendance Machine",
+            filters={"enable": 1},
+            fields=["name", "ip_address", "port", "timeout", "force_udp", "ommit_ping", "device_name"],
+            order_by="name asc",
+        )
+        if not machines:
+            return {"status": "error", "message": "No enabled attendance machines found"}
+
+        found_on = []
+        machine_results = []
+        target = str(device_id)
+        for m in machines:
+            dev_cfg = _build_zk_device(frappe._dict(m))
+            try:
+                conn = _connect_zk(dev_cfg)
+                conn.disable_device()
+                try:
+                    zk_users = conn.get_users()
+                finally:
+                    conn.enable_device()
+                    conn.disconnect()
+                hit = next((u for u in zk_users if str(u.user_id) == target), None)
+                machine_results.append({
+                    "machine": m["name"], "device_name": m.get("device_name", ""),
+                    "total_users": len(zk_users), "success": True,
+                })
+                if hit:
+                    found_on.append({
+                        "machine": m["name"],
+                        "device_name": m.get("device_name", ""),
+                        "on_device_name": hit.name,
+                    })
+            except Exception as e:
+                machine_results.append({
+                    "machine": m["name"], "device_name": m.get("device_name", ""),
+                    "total_users": 0, "success": False, "error": str(e),
+                })
+
+        return {
+            "status": "success",
+            "employee": emp_info,
+            "found_on": found_on,
+            "machines_scanned": machine_results,
+            "today": str(frappe.utils.getdate(frappe.utils.today())),
+        }
+
+    except Exception as e:
+        frappe.log_error(f"find_employee_on_machines error: {e}")
+        return {"status": "error", "message": str(e)}
+
+
+# ---------------------------------------------------------------------------
 # 8. machine_reboot
 # ---------------------------------------------------------------------------
 
