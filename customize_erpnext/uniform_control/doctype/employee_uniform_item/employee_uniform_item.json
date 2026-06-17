@@ -16,9 +16,10 @@
    "fieldname": "item_template",
    "fieldtype": "Link",
    "in_list_view": 1,
-   "label": "Uniform Type",
+   "label": "Item",
    "options": "Item",
-   "reqd": 1
+   "reqd": 1,
+   "description": "The exact variant issued (e.g. Áo thun nữ S, Mũ Đỏ)."
   },
   {
    "fieldname": "last_issue_date",

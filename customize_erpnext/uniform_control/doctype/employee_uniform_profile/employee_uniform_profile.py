@@ -1,35 +1,42 @@
 import frappe
-from frappe import _
 from frappe.model.document import Document
 from frappe.utils import cint, today, add_months, date_diff, getdate
 
-from customize_erpnext.uniform_control.utils import get_policy_for_item, get_shoe_rack_for_employee
+from customize_erpnext.uniform_control.utils import (
+    get_reissue_months,
+    get_shoe_rack_for_employee,
+    apply_default_rules,
+)
 
 
 class EmployeeUniformProfile(Document):
     def validate(self):
+        setting = frappe.get_single("Uniform Setting")  # loaded once for this save
         self.shoe_rack_location = get_shoe_rack_for_employee(self.employee)
-        self._refresh_items()
+        # Fill shirt/cap defaults from rules when empty (unless manually overridden)
+        if not self.manual_override and self.employee:
+            apply_default_rules(self, setting=setting, force=False)
+        self._refresh_items(setting)
 
-    def _refresh_items(self):
+    def _refresh_items(self, setting):
         """Recompute next_due_date + status on every save — single source of
         truth. Lets HR backfill history manually (item + last_issue_date) and
         get due dates generated automatically."""
-        reminder_days = (
-            cint(frappe.db.get_single_value("Uniform Setting", "reminder_days_before")) or 30
-        )
+        reminder_days = cint(setting.reminder_days_before) or 30
         for row in self.items or []:
-            row.next_due_date = self._compute_next_due(row)
+            row.next_due_date = self._compute_next_due(row, setting)
             row.status = _compute_item_status(row, reminder_days)
 
-    def _compute_next_due(self, row):
+    def _compute_next_due(self, row, setting):
         if not row.last_issue_date:
             return None
-        policy = get_policy_for_item(row.item_template, self.employee)
-        if not policy or policy.get("one_time_issue"):
-            return None
-        cycle = cint(policy.get("reissue_cycle_months"))
+        cycle = get_reissue_months(_template_of(row.item_template), self.employee, setting)
         return add_months(row.last_issue_date, cycle) if cycle else None
+
+
+def _template_of(item):
+    """Template of an item (variant_of), or the item itself if it's a template."""
+    return (frappe.db.get_value("Item", item, "variant_of") or item) if item else item
 
 
 def _compute_item_status(row, reminder_days=30):
@@ -46,22 +53,25 @@ def _compute_item_status(row, reminder_days=30):
     return "Active"
 
 
-def update_profile_after_allocation(employee, item_template, qty, posting_date):
-    """Called from Uniform Allocation controller after submit.
+def update_profile_after_allocation(employee, item_code, qty, posting_date):
+    """Called from Uniform Allocation controller after submit. Stores the exact
+    variant issued; rows are grouped per template (one slot per garment type).
     next_due_date and status are computed in validate on save."""
     profile_name = frappe.db.get_value("Employee Uniform Profile", {"employee": employee})
     if not profile_name:
         return
 
+    template = _template_of(item_code)
     profile = frappe.get_doc("Employee Uniform Profile", profile_name)
-    row = next((r for r in profile.items if r.item_template == item_template), None)
+    row = next((r for r in profile.items if _template_of(r.item_template) == template), None)
     if row:
+        row.item_template = item_code
         row.last_issue_date = posting_date
         row.last_issue_qty = qty
         row.total_issued_qty = (row.total_issued_qty or 0) + qty
     else:
         profile.append("items", {
-            "item_template": item_template,
+            "item_template": item_code,
             "last_issue_date": posting_date,
             "last_issue_qty": qty,
             "total_issued_qty": qty,
@@ -81,19 +91,20 @@ def revert_profile_after_cancel(employee, item_template):
         return
 
     profile = frappe.get_doc("Employee Uniform Profile", profile_name)
-    row = next((r for r in profile.items if r.item_template == item_template), None)
+    row = next((r for r in profile.items if _template_of(r.item_template) == item_template), None)
     if not row:
         return
 
     history = frappe.db.sql(
         """
-        SELECT uai.qty, ua.posting_date
+        SELECT uai.qty, uai.item_code, ua.posting_date
         FROM `tabUniform Allocation Item` uai
         INNER JOIN `tabUniform Allocation` ua ON ua.name = uai.parent
         INNER JOIN `tabItem` i ON i.name = uai.item_code
         WHERE uai.docstatus = 1
           AND uai.employee = %s
           AND COALESCE(NULLIF(i.variant_of, ''), i.name) = %s
+        ORDER BY ua.posting_date ASC
         """,
         (employee, item_template),
         as_dict=True,
@@ -103,9 +114,9 @@ def revert_profile_after_cancel(employee, item_template):
         last_date = max(getdate(h.posting_date) for h in history)
         row.total_issued_qty = sum(cint(h.qty) for h in history)
         row.last_issue_date = last_date
-        row.last_issue_qty = sum(
-            cint(h.qty) for h in history if getdate(h.posting_date) == last_date
-        )
+        last = [h for h in history if getdate(h.posting_date) == last_date]
+        row.last_issue_qty = sum(cint(h.qty) for h in last)
+        row.item_template = last[-1].item_code  # exact variant of the latest issue
     else:
         row.total_issued_qty = 0
         row.last_issue_qty = 0

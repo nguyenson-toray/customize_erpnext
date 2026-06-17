@@ -1,0 +1,144 @@
+{
+ "actions": [],
+ "creation": "2026-06-16 01:00:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "category",
+  "item",
+  "is_active",
+  "column_break_cond",
+  "grade",
+  "designation",
+  "group",
+  "section",
+  "gender",
+  "column_break_qty",
+  "first_qty",
+  "eligible_after_days",
+  "reissue_months",
+  "reissue_qty",
+  "one_time",
+  "priority"
+ ],
+ "fields": [
+  {
+   "fieldname": "category",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Category",
+   "options": "Shirt\nCap\nShoe\nBottle",
+   "reqd": 1,
+   "description": "One item per category per employee (most specific rule wins)."
+  },
+  {
+   "fieldname": "item",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Item",
+   "options": "Item",
+   "reqd": 1,
+   "description": "Shirt/Shoe: a template. Cap: an exact variant. Bottle: the single item."
+  },
+  {
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Active",
+   "default": "1"
+  },
+  {
+   "fieldname": "column_break_cond",
+   "fieldtype": "Column Break",
+   "label": "Who (blank = any)"
+  },
+  {
+   "fieldname": "grade",
+   "fieldtype": "Link",
+   "label": "Grade",
+   "options": "Employee Grade"
+  },
+  {
+   "fieldname": "designation",
+   "fieldtype": "Link",
+   "label": "Designation",
+   "options": "Designation"
+  },
+  {
+   "fieldname": "group",
+   "fieldtype": "Link",
+   "label": "Group",
+   "options": "Group",
+   "description": "Employee's custom_group (e.g. Line 01)."
+  },
+  {
+   "fieldname": "section",
+   "fieldtype": "Link",
+   "label": "Section",
+   "options": "Section",
+   "description": "Employee's custom_section — a Section contains many Groups (e.g. Sewing)."
+  },
+  {
+   "fieldname": "gender",
+   "fieldtype": "Select",
+   "label": "Gender",
+   "options": "\nMale\nFemale"
+  },
+  {
+   "fieldname": "column_break_qty",
+   "fieldtype": "Column Break",
+   "label": "How many / when"
+  },
+  {
+   "fieldname": "first_qty",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "First Issue Qty",
+   "default": "1"
+  },
+  {
+   "fieldname": "eligible_after_days",
+   "fieldtype": "Int",
+   "label": "Eligible After (Days)",
+   "default": "0"
+  },
+  {
+   "fieldname": "reissue_months",
+   "fieldtype": "Int",
+   "label": "Reissue Cycle (Months)",
+   "default": "0",
+   "description": "0 = no periodic reissue."
+  },
+  {
+   "fieldname": "reissue_qty",
+   "fieldtype": "Int",
+   "label": "Reissue Qty per Cycle",
+   "default": "0"
+  },
+  {
+   "fieldname": "one_time",
+   "fieldtype": "Check",
+   "label": "One-Time Issue",
+   "default": "0",
+   "description": "Issue once only (e.g. bottle); never in Supplement; needs 'Issued Bottle' on profile."
+  },
+  {
+   "fieldname": "priority",
+   "fieldtype": "Int",
+   "label": "Priority",
+   "default": "0",
+   "description": "Higher wins when two rules match equally."
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-06-16 01:00:00",
+ "modified_by": "Administrator",
+ "module": "Uniform Control",
+ "name": "Uniform Rule",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

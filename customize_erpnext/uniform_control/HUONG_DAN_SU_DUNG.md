@@ -35,7 +35,7 @@ Cấu hình chung: Item Group = `U-Uniform`, `Maintain Stock = 1`, không bật 
 
 1. Thêm Attribute Value vào attribute `Size` hoặc `Color` (nếu chưa có).
 2. Mở template → **Create Variants** cho giá trị mới.
-3. Cập nhật options của field tương ứng trong Employee Uniform Profile (Shirt Size / Cap Color / Shoe Size) nếu giá trị mới chưa nằm trong danh sách chọn.
+3. Cập nhật options của field tương ứng trong Employee Uniform Profile (Shirt Size / Shoe Size) nếu giá trị mới chưa nằm trong danh sách chọn.
 
 ## 1.4 Tạo Warehouse
 
@@ -64,46 +64,60 @@ Vào **Uniform Setting** (DocType Single):
 | Auto Create Onboarding Allocation | ✅ (tự sinh draft cấp phát khi có nhân viên mới đủ điều kiện) |
 | Low Stock Use Reorder | ✅ |
 
-### Bảng Policies (Quy định cấp phát)
+### Bảng Rules (Quy tắc cấp phát — gộp 1 bảng)
 
-Mỗi dòng = quy định cho 1 loại đồng phục × 1 nhóm đối tượng:
+**Một bảng duy nhất** trả lời: AI (Grade/Designation/Group/Section/Gender) nhận **MÓN GÌ**, **MẤY CÁI**, **CHU KỲ** nào. Mỗi **Category** (Shirt/Cap/Shoe/Bottle) chỉ cấp 1 món/người — dòng cụ thể thắng dòng chung.
 
 | Field | Ý nghĩa |
 |---|---|
-| Uniform Type | Item template (Uniform T-Shirt Male, Cap, Shoe, ...) |
-| **Variant Source** | Field nào trong hồ sơ NV quyết định variant: **Shirt Size** (áo) / **Cap Color** (mũ) / **Shoe Size** (giày). **Bắt buộc** với item có variant; bỏ trống với item đơn |
-| **One-Time Issue** | ✅ = cấp một lần (bình nước): không cấp bổ sung, không có hạn cấp lại, chỉ tự đề xuất cho NV có tick "Issued Bottle" |
-| Applies To | All / Department / Designation / Gender |
-| Department + Group | điền khi Applies To = Department |
-| Designation | điền khi Applies To = Designation |
-| Gender | điền khi Applies To = Gender |
-| First Issue Qty | SL cấp lần đầu |
-| Eligible After (Days) | đủ điều kiện sau N ngày làm việc (tính từ ngày vào) |
-| Reissue Cycle (Months) | chu kỳ cấp bổ sung; **0 = không cấp bổ sung** |
-| Reissue Qty per Cycle | SL mỗi lần bổ sung |
-| Active | bật/tắt dòng quy định |
+| **Category** | Shirt / Cap / Shoe / Bottle — "khe" đồng phục (1 món/người/category) |
+| **Item** | Kết quả: Shirt/Shoe → **template**; Cap → **variant Mũ cụ thể**; Bottle → item đơn |
+| Grade / Designation / Group / Section / Gender | Điều kiện, **để trống = áp dụng tất cả**. Group = `custom_group` (tổ, vd Line 01); Section = `custom_section` (bộ phận, chứa nhiều Group) |
+| First Issue Qty / Eligible After (Days) | SL cấp lần đầu / đủ ĐK sau N ngày làm việc |
+| Reissue Cycle (Months) / Reissue Qty | chu kỳ + SL cấp bổ sung (**0 = không cấp bổ sung**) |
+| One-Time Issue | ✅ = cấp 1 lần (mũ/dép/bình nước): không cấp bổ sung định kỳ; cấp lại qua Replacement |
+| Priority / Active | ưu tiên khi hoà / bật-tắt |
 
-**Bộ policies mẫu cho item hiện tại** (quy định thời gian **không phân biệt giới tính** — Applies To = All):
+#### Cách chọn rule khi nhân viên khớp nhiều dòng (cùng Category)
 
-| Uniform Type | Variant Source | One-Time | Assigned per Employee | Applies To |
-|---|---|---|---|---|
-| Uniform T-Shirt Male | Shirt Size | | ✅ | All |
-| Uniform T-Shirt Female | Shirt Size | | ✅ | All |
-| Uniform Shirt Male | Shirt Size | | ✅ | All |
-| Uniform Shirt Female | Shirt Size | | ✅ | All |
-| Cap | Cap Color | | | All |
-| Shoe | Shoe Size | | | All |
-| Bottle | *(trống — item đơn)* | ✅ | | All |
+Mỗi điều kiện **được điền VÀ khớp** với nhân viên cộng một "điểm cụ thể"; điều kiện để trống = áp dụng mọi người (không tính điểm):
 
-> **Áo gán thủ công theo nhân viên**: 4 template áo đều tick `Assigned per Employee` — nhân viên chỉ được đề xuất đúng template đã chọn ở field **Áo được gán (Assigned Shirt Item)** trong hồ sơ. HR có thể gán áo nữ cho nhân viên nam và ngược lại. 4 dòng policy áo nên có cùng thông số thời gian (chu kỳ, SL) vì quy định không phân biệt giới tính.
+| Điều kiện | Điểm |
+|---|---|
+| Designation | 16 |
+| Group | 8 |
+| Section | 4 |
+| Grade | 2 |
+| Gender | 1 |
 
-**Độ ưu tiên khi 1 nhân viên khớp nhiều dòng** (không phụ thuộc thứ tự trong bảng):
+- `rank` của 1 rule = **tổng điểm** các điều kiện khớp. Trong cùng 1 Category, rule có **rank cao nhất thắng** (cụ thể hơn → thắng), và mỗi nhân viên chỉ nhận **1 món/Category**.
+- **Designation nặng nhất (16)** — nặng hơn cả Group+Section+Grade+Gender cộng lại (8+4+2+1 = 15). Nên rule theo Designation luôn thắng các rule theo tầng tổ chức.
+- Vì là **tổng điểm**: rule khớp `Designation+Gender` (16+1=17) thắng rule khớp `Group+Section+Grade` (8+4+2=14).
+- Field **Priority chỉ phá hoà** khi 2 rule có **cùng rank** (hiếm, vd 2 rule cùng theo Designation) — **KHÔNG đè** được rule cụ thể hơn. Muốn một rule "thắng tuyệt đối" → thêm điều kiện Designation hoặc tách rule riêng cho nhóm hẹp đó.
 
-```
-Department + Group  >  Department  >  Designation  >  Gender  >  All
-```
+> **Ví dụ** (Category = Cap): Rule X `Designation = QC Worker` (rank 16) vs Rule Y `Group = Line 03, Gender = Female` (rank 8+1=9). Nhân viên QC Worker ở Line 03 nữ → nhận **Rule X** (Mũ QC) vì 16 > 9.
 
-Ví dụ: có dòng "All: polo 2 cái" và dòng "Department Sewing: polo 3 cái" → công nhân may được áp dòng 3 cái.
+**Bộ Rules mẫu (đã cài sẵn):**
+
+| Category | Item | Grade | Designation | Gender | Qty | Cycle | One-Time |
+|---|---|---|---|---|---|---|---|
+| Shirt | Áo sơ mi nam | Staff/Leader/Sub Leader/Manager | | Male | 2 | 6 | |
+| Shirt | Áo sơ mi nữ | Staff/Leader/Sub Leader/Manager | | Female | 2 | 6 | |
+| Shirt | Áo thun nam | Worker | | Male | 2 | 6 | |
+| Shirt | Áo thun nữ | Worker | | Female | 2 | 6 | |
+| Cap | Mũ Xanh Lá (Nv VP) | Staff | | | 1 | 0 | ✅ |
+| Cap | Mũ Xanh Dương Đậm (May) | | Sewing Worker | | 1 | 0 | ✅ |
+| Cap | Mũ Đỏ (QC) | | QC Worker | | 1 | 0 | ✅ |
+| Shoe | Dép | | | | 1 | 0 | ✅ |
+| Bottle | Bình nước | | | | 1 | 0 | ✅ |
+
+> **Áo & Mũ** lưu trên hồ sơ ở field **Áo được gán** / **Mũ được gán** — Rules chỉ điền mặc định, HR sửa tay được (lớp override). **Size áo/giày** là số đo cá nhân → nhập ở hồ sơ. **Dép/Bình nước** không cần gán trước — Rule (điều kiện) quyết định ai được cấp.
+
+**Áp dụng:**
+- Nút **Apply Defaults to All** (Uniform Setting) → điền Áo/Mũ **còn trống** cho mọi hồ sơ chưa khoá (giữ nguyên dữ liệu đã có).
+- Nút **Apply Defaults** (từng hồ sơ) → ghi đè theo rule cho riêng người đó.
+- Tự điền field còn trống khi lưu hồ sơ (onboarding).
+- Tick **Manual Override** ở hồ sơ → bỏ qua khi Apply hàng loạt.
 
 ## 1.7 Phân quyền
 
@@ -125,8 +139,7 @@ Ví dụ: có dòng "All: polo 2 cái" và dòng "Department Sewing: polo 3 cái
 
 | Triệu chứng | Nguyên nhân / cách xử lý |
 |---|---|
-| `Variant Source is not set in Uniform Policy for X` | Policy của template X chưa chọn Variant Source → IT bổ sung trong Uniform Setting |
-| `Profile missing value for 'Shirt Size'` (hoặc Cap Color / Shoe Size) | Hồ sơ nhân viên chưa điền thông số đó → HR bổ sung profile |
+| `Profile missing value for 'Shirt Size'` (hoặc Shoe Size) | Hồ sơ nhân viên chưa điền thông số đó → HR bổ sung profile |
 | `No variant found for X with Size = Y` | Variant chưa được tạo cho giá trị đó → tạo thêm variant (§1.3) |
 | Submit Allocation báo "Insufficient stock" | Tổng SL theo từng variant (cộng dồn nhiều dòng) vượt tồn kho Uniform → nhập kho trước |
 | Email weekly không gửi | Kiểm tra Enable Weekly Alert + Alert Recipients trong Uniform Setting; xem Error Log với title "Uniform Weekly Alert Error" |
@@ -140,7 +153,7 @@ Lỗi nền được ghi vào **Error Log** (Desk → Error Log).
 
 ## 2.1 Khái niệm nhanh
 
-- **Employee Uniform Profile** (Hồ sơ đồng phục): 1 hồ sơ / nhân viên — lưu size áo, giới tính, loại mũ, size dép, vị trí để dép, cờ cấp bình nước; kèm bảng theo dõi đã cấp gì, khi nào đến hạn.
+- **Employee Uniform Profile** (Hồ sơ đồng phục): 1 hồ sơ / nhân viên — lưu size áo, giới tính, loại mũ, size dép, vị trí để dép; kèm bảng theo dõi đã cấp gì, khi nào đến hạn.
 - **Uniform Allocation** (Chứng từ cấp phát): 1 chứng từ cấp cho **nhiều nhân viên** cùng lúc. Submit xong hệ thống tự trừ kho và cập nhật hồ sơ — HR không cần thao tác kho.
 
 ## 2.2 Bước 1 — Hoàn thiện hồ sơ đồng phục
@@ -149,15 +162,15 @@ Hồ sơ được tạo tự động khi nhân viên mới vào. HR mở **Emplo
 
 | Field | Ghi chú |
 |---|---|
-| **Assigned Shirt Item (Áo được gán)** | Chọn template áo nhân viên này nhận (T-Shirt Male / T-Shirt Female / Shirt Male / Shirt Female). **Gán tự do, không phụ thuộc giới tính** — có thể gán áo nữ cho nhân viên nam và ngược lại |
+| **Assigned Shirt Item (Áo được gán)** | Template áo nhân viên nhận. **Tự điền từ Quy tắc gán mặc định** (§1.6b); sửa tay được, gán tự do không phụ thuộc giới tính |
+| **Assigned Cap Item (Mũ được gán)** | Variant Mũ cụ thể (theo màu/vai trò). **Tự điền từ Quy tắc gán mặc định**; sửa tay được |
+| **Manual Override (Khoá thủ công)** | Tick = giữ nguyên áo/mũ đã sửa tay, bỏ qua khi chạy Apply Defaults hàng loạt |
 | Uniform Gender | Male / Female (thông tin tham khảo) |
-| Shirt Size | S / M / L / XL / 2XL / 3XL — dùng chung cho polo & sơ mi |
-| Cap Color | Blue / Green / Red |
-| Shoe Size | 29 → 44 (chỉ chọn size đã có variant trong kho; thêm size mới xem §1.3) |
+| Shirt Size | S / M / L / XL — size áo |
+| Shoe Size | size dép (chỉ chọn size đã có variant trong kho; thêm size mới xem §1.3) |
 | Shoe Rack Location | **read-only, tự động** lấy Rack Name từ DocType Shoe Rack (mỗi rack chứa 1–2 nhân viên). Muốn đổi vị trí → sửa phân bổ trong Shoe Rack, profile tự cập nhật |
-| Issued Bottle | ✅ nếu nhân viên thuộc diện được cấp bình nước |
 
-**Đổi áo cho nhân viên**: chỉ cần đổi Assigned Shirt Item rồi Save. Template mới chưa từng cấp → nhân viên sẽ xuất hiện ở danh sách *Cấp mới* cho template đó. Lịch sử được giữ nguyên ở 2 nơi: bảng Issuance Tracking (mỗi loại đã cấp một dòng riêng) và nhật ký thay đổi hồ sơ (menu ⋯ → **History** trên form).
+**Đổi áo cho nhân viên**: đổi Assigned Shirt Item (tick Manual Override nếu là ngoại lệ) rồi Save. Template mới chưa từng cấp → nhân viên sẽ xuất hiện ở danh sách *Cấp mới* cho template đó. Lịch sử được giữ nguyên ở 2 nơi: bảng Issuance Tracking (mỗi loại đã cấp một dòng riêng) và nhật ký thay đổi hồ sơ (menu ⋯ → **History** trên form).
 
 > ⚠️ Hồ sơ thiếu thông số nào thì khi cấp phát hệ thống không tự điền được variant tương ứng — dòng đó sẽ báo lỗi thiếu thông tin.
 
@@ -205,25 +218,25 @@ Khi Submit, hệ thống tự động:
 
 **Hủy chứng từ**: mở Allocation đã submit → Cancel. Phiếu xuất kho bị hủy theo, tồn kho hoàn lại, hồ sơ nhân viên được tính lại theo các đợt cấp còn lại.
 
-## 2.5 Quy tắc riêng cho bình nước (item "Cấp một lần")
+## 2.5 Item "Cấp một lần" (Mũ / Dép / Bình nước)
 
-- Chỉ cấp cho nhân viên có tick **Issued Bottle** trong hồ sơ.
-- Cấp **một lần duy nhất** (policy đánh dấu One-Time Issue) — không bao giờ xuất hiện trong danh sách Cấp bổ sung, không có hạn cấp lại.
-- Nhân viên làm hỏng/mất → tạo Allocation loại **Replacement**, thêm dòng thủ công.
+- Ai được cấp do **điều kiện trong Rule** quyết định (Grade/Designation/Group/Section).
+- Cấp **một lần** (Rule đánh dấu One-Time Issue) — không xuất hiện trong Cấp bổ sung, không có hạn cấp lại.
+- Hỏng/mất/đổi → tạo Allocation loại **Replacement**, thêm dòng thủ công.
 
 ## 2.6 Nhập lịch sử cấp phát cũ (trước khi dùng ERP)
 
 Nếu đã cấp đồng phục/trừ kho ngoài hệ thống, **nhập tay lịch sử vào hồ sơ** để hệ thống tự tính hạn cấp tiếp theo — không cần tạo chứng từ giả:
 
 1. Mở **Employee Uniform Profile** của nhân viên → bảng **Issuance Tracking**, thêm dòng:
-   - `Uniform Type` = template (Uniform T-Shirt Male, Hat, Shoe, ...)
+   - `Item` = **variant cụ thể** đã cấp (vd `Áo thun nữ S`, `Mũ Đỏ`, `Dép 27`)
    - `Last Issue Date` = ngày cấp thực tế gần nhất
    - `Last Issue Qty` và `Total Issued Qty` = số lượng đã cấp (Total > 0 để hệ thống biết "đã cấp", không đưa vào danh sách Cấp mới nữa)
 2. **Save** → hệ thống **tự tính** `Next Due Date` (= Last Issue Date + chu kỳ trong policy) và `Status` (Còn hạn / Sắp đến hạn / Quá hạn).
 
 Từ đó trở đi, nhân viên tự xuất hiện trong danh sách *Cấp bổ sung* khi đến hạn, và đợt cấp tiếp theo làm trên ERP bình thường.
 
-**Nhập hàng loạt**: dùng **Data Import** trên DocType Employee Uniform Profile (Update Existing Records), cột: `ID` (= mã nhân viên), `Uniform Type (Uniform Items)`, `Last Issue Date (Uniform Items)`, `Last Issue Qty (Uniform Items)`, `Total Issued Qty (Uniform Items)`. Next Due Date và Status không cần nhập — tự tính khi import.
+**Nhập hàng loạt**: dùng **Data Import** trên DocType Employee Uniform Profile (Update Existing Records), cột: `ID` (= mã nhân viên), `Item (Uniform Items)` = variant cụ thể, `Last Issue Date (Uniform Items)`, `Last Issue Qty (Uniform Items)`, `Total Issued Qty (Uniform Items)`. Next Due Date và Status không cần nhập — tự tính khi import.
 
 > Hồ sơ của toàn bộ nhân viên Active đã được tạo sẵn (973 hồ sơ). Nếu sau này cần tạo lại hàng loạt: `bench --site erp.tiqn.local execute customize_erpnext.uniform_control.api.onboarding.backfill_uniform_profiles`
 

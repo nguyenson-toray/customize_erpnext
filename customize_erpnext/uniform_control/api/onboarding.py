@@ -5,7 +5,7 @@ from frappe.utils import cint, today, date_diff, getdate
 from customize_erpnext.uniform_control.utils import (
     build_variant_cache,
     get_variant_for_profile,
-    get_policy_for_template,
+    get_rules_by_category,
     get_employee_id_prefix,
     is_managed_employee,
 )
@@ -86,38 +86,36 @@ def maybe_create_onboarding_allocation(doc, method=None):
         "designation": doc.designation,
         "gender": doc.gender,
         "custom_group": doc.get("custom_group"),
+        "custom_section": doc.get("custom_section"),
     }
 
-    templates = []
-    seen = set()
-    for p in setting.policies or []:
-        if p.is_active and p.item_template not in seen:
-            templates.append(p.item_template)
-            seen.add(p.item_template)
-    if not templates:
+    rules = get_rules_by_category(emp_data, setting)
+    if not rules:
         return
 
-    variant_cache = build_variant_cache(templates)
+    cache_templates = [t for t in [profile.shirt_item] if t]
+    for cat, rule in rules.items():
+        if cat == "Shoe":
+            cache_templates.append(rule.item)
+    variant_cache = build_variant_cache(cache_templates)
 
     alloc_items = []
-    for template in templates:
-        policy = get_policy_for_template(template, setting, emp_data)
-        if not policy:
-            continue
-        if days_working < policy["eligible_after_days"]:
+    for cat, rule in rules.items():
+        if days_working < cint(rule.eligible_after_days):
             continue
 
-        # Shirt templates: only the one assigned in the profile
-        if policy["assign_per_employee"] and (profile.shirt_item or "") != template:
-            continue
-
-        # One-time items (water bottle): only employees flagged for it
-        if policy["one_time_issue"] and not cint(profile.has_water_bottle):
-            continue
-
-        item_code, err = get_variant_for_profile(
-            template, profile, variant_cache, policy["variant_source"]
-        )
+        if cat == "Shirt":
+            template = profile.shirt_item or rule.item
+            if not template:
+                continue
+            item_code, err = get_variant_for_profile(template, profile, variant_cache, "Shirt Size")
+        elif cat == "Cap":
+            item_code = profile.cap_item or rule.item
+            err = None
+        elif cat == "Shoe":
+            item_code, err = get_variant_for_profile(rule.item, profile, variant_cache, "Shoe Size")
+        else:  # Bottle / other single item — rule conditions decide who gets it
+            item_code, err = rule.item, None
         if not item_code:
             continue
 
@@ -126,7 +124,7 @@ def maybe_create_onboarding_allocation(doc, method=None):
             "employee_name": doc.employee_name,
             "department": doc.department,
             "item_code": item_code,
-            "qty": cint(policy["first_issue_qty"]) or 1,
+            "qty": cint(rule.first_qty) or 1,
             "issue_reason": "New Issue",
         })
 

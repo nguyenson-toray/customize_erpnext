@@ -50,13 +50,11 @@ def get_shoe_rack_for_employee(employee):
 
 
 def get_profile_value_for_source(profile, variant_source):
-    """Map a Uniform Policy variant_source to the profile field value,
+    """Map a Uniform Rule variant_by to the profile field value,
     converted to the matching Item Attribute value."""
     if variant_source == "Shirt Size":
         v = profile.shirt_size
         return SIZE_ATTR_MAP.get(v, v)
-    if variant_source == "Cap Color":
-        return profile.hat_color
     if variant_source == "Shoe Size":
         return profile.shoe_size
     return None
@@ -120,7 +118,7 @@ def build_variant_cache(templates):
 def get_variant_for_profile(item_template, profile, variant_cache=None, variant_source=None):
     """
     Resolve the correct item variant given a template and an Employee Uniform Profile.
-    Templates use exactly 1 variant attribute; variant_source (from Uniform Policy)
+    Templates use exactly 1 variant attribute; variant_source (from Uniform Rule)
     says which profile field supplies its value.
     Returns (item_code, error_message).
     """
@@ -139,7 +137,7 @@ def get_variant_for_profile(item_template, profile, variant_cache=None, variant_
         return item_template, None
 
     if not variant_source:
-        return None, f"Variant Source is not set in Uniform Policy for {item_template}"
+        return None, f"Variant By is not set in Uniform Rule for {item_template}"
 
     value = get_profile_value_for_source(profile, variant_source)
     if not value:
@@ -160,113 +158,153 @@ def get_variant_for_profile(item_template, profile, variant_cache=None, variant_
     return None, f"No variant found for {item_template} with {attr} = {value}"
 
 
-def _policy_match_rank(p, emp_data):
-    """
-    Specificity rank: Department+Group=5 > Department=4 > Designation=3
-    > Gender=2 > All=1. 0 = does not match this employee.
-    """
-    if p.applies_to == "All":
-        return 1
-    if p.applies_to == "Gender":
-        emp_gender = emp_data.get("gender") or ""
-        mapped_emp = GENDER_ATTR_MAP.get(emp_gender, emp_gender)
-        mapped_policy = GENDER_ATTR_MAP.get(p.gender, p.gender)
-        return 2 if mapped_emp and mapped_emp == mapped_policy else 0
-    if p.applies_to == "Designation":
-        return 3 if p.designation and emp_data.get("designation") == p.designation else 0
-    if p.applies_to == "Department":
-        if not p.department or emp_data.get("department") != p.department:
-            return 0
-        if p.group:
-            return 5 if emp_data.get("custom_group") == p.group else 0
-        return 4
-    return 0
 
 
-def get_policy_for_template(item_template, setting, emp_data):
-    """
-    Return the most specific active Uniform Policy row for a template + employee data.
-    setting: Uniform Setting doc; emp_data: dict with department/designation/gender/custom_group.
-    """
-    if not setting or not setting.policies:
-        return None
+# ───────────────────────────── Unified rule engine ─────────────────────────
+# One table (Uniform Setting.rules) answers: WHO (Grade/Designation/Section/
+# Gender) gets WHICH item, HOW MANY, and the reissue CYCLE. One item per
+# Category (Shirt/Cap/Shoe/Bottle) per employee — most specific rule wins.
 
-    best = None
-    best_rank = 0
-    for p in setting.policies:
-        if not p.is_active or p.item_template != item_template:
-            continue
-        rank = _policy_match_rank(p, emp_data or {})
-        if rank > best_rank:
-            best, best_rank = p, rank
+def _rule_match_rank(rule, emp_data):
+    """Each set condition must match; None = no match. Specificity (most→least):
+    Designation(16) > Group(8) > Section(4) > Grade(2) > Gender(1).
+    Group = Employee.custom_group; Section = Employee.custom_section (broader)."""
+    rank = 0
+    if rule.designation:
+        if emp_data.get("designation") != rule.designation:
+            return None
+        rank += 16
+    if rule.group:
+        if emp_data.get("custom_group") != rule.group:
+            return None
+        rank += 8
+    if rule.section:
+        if emp_data.get("custom_section") != rule.section:
+            return None
+        rank += 4
+    if rule.grade:
+        if emp_data.get("grade") != rule.grade:
+            return None
+        rank += 2
+    if rule.gender:
+        if emp_data.get("gender") != rule.gender:
+            return None
+        rank += 1
+    return rank
 
-    if best:
-        return {
-            "first_issue_qty": cint(best.first_issue_qty),
-            "eligible_after_days": cint(best.eligible_after_days),
-            "reissue_cycle_months": cint(best.reissue_cycle_months),
-            "reissue_qty": cint(best.reissue_qty),
-            "variant_source": best.variant_source,
-            "one_time_issue": cint(best.one_time_issue),
-            "assign_per_employee": cint(best.assign_per_employee),
-        }
-    return None
 
-
-def get_policy_for_item(item_code, employee=None, setting=None, emp_data=None):
-    """
-    Return the best-matching Uniform Policy row for an item + employee combination.
-    Resolves the item's template, then delegates to get_policy_for_template.
-    """
-    template = frappe.db.get_value("Item", item_code, "variant_of") or item_code
-
+def get_rules_by_category(emp_data, setting=None):
+    """Return {category: rule_doc} — the most specific active rule per category
+    for the given employee data."""
     if setting is None:
         setting = frappe.get_single("Uniform Setting")
 
-    if emp_data is None:
-        emp_data = {}
-        if employee:
-            emp_data = frappe.db.get_value(
-                "Employee",
-                employee,
-                ["department", "designation", "gender", "custom_group"],
-                as_dict=True,
-            ) or {}
+    best = {}  # category -> (sortkey, rule)
+    for r in setting.rules or []:
+        if not r.is_active or not r.item or not r.category:
+            continue
+        rank = _rule_match_rank(r, emp_data or {})
+        if rank is None:
+            continue
+        key = (rank, cint(r.priority), -r.idx)
+        if r.category not in best or key > best[r.category][0]:
+            best[r.category] = (key, r)
+    return {cat: val[1] for cat, val in best.items()}
 
-    return get_policy_for_template(template, setting, emp_data)
+
+def get_default_assignments(emp_data, setting=None):
+    """{'Shirt': item_template, 'Cap': item_variant} from the matching rules."""
+    rules = get_rules_by_category(emp_data, setting)
+    out = {}
+    if "Shirt" in rules:
+        out["Shirt"] = rules["Shirt"].item
+    if "Cap" in rules:
+        out["Cap"] = rules["Cap"].item
+    return out
+
+
+def _emp_data_for(employee):
+    return frappe.db.get_value(
+        "Employee", employee,
+        ["designation", "grade", "gender", "custom_group", "custom_section", "department"],
+        as_dict=True,
+    ) or {}
+
+
+def apply_default_rules(profile, setting=None, force=False):
+    """Pre-fill profile.shirt_item / cap_item from rules.
+    force=False fills only empty fields; force=True overwrites. Returns changed
+    fieldnames; does not save."""
+    assigns = get_default_assignments(_emp_data_for(profile.employee), setting)
+    changed = []
+    for target, fieldname in (("Shirt", "shirt_item"), ("Cap", "cap_item")):
+        item = assigns.get(target)
+        if not item:
+            continue
+        if (force or not profile.get(fieldname)) and profile.get(fieldname) != item:
+            profile.set(fieldname, item)
+            changed.append(fieldname)
+    return changed
+
+
+def get_reissue_months(item_template, employee, setting=None):
+    """Reissue cycle (months) for a tracking row's template, from the employee's
+    matching rule. 0 = no reissue."""
+    if setting is None:
+        setting = frappe.get_single("Uniform Setting")
+    profile = frappe.db.get_value(
+        "Employee Uniform Profile", {"employee": employee},
+        ["shirt_item", "cap_item"], as_dict=True,
+    ) or frappe._dict()
+    rules = get_rules_by_category(_emp_data_for(employee), setting)
+
+    for cat, rule in rules.items():
+        if rule.one_time:
+            tmpl = None
+        elif cat == "Shirt":
+            tmpl = item_template if item_template in (rule.item, profile.shirt_item) else None
+        elif cat == "Cap":
+            cap_it = profile.cap_item or rule.item
+            base = frappe.db.get_value("Item", cap_it, "variant_of") or cap_it if cap_it else None
+            tmpl = item_template if base == item_template else None
+        else:  # Shoe / Bottle
+            tmpl = item_template if rule.item == item_template else None
+        if tmpl is not None:
+            return cint(rule.reissue_months)
+    return 0
 
 
 def _load_profiles(employee_names):
-    """Load all Employee Uniform Profiles + items for given employees in 2 queries.
-    Returns {employee: profile_dict_with_items}."""
+    """Load profiles + tracking rows for employees in 2 queries."""
     if not employee_names:
         return {}
-
     profiles = frappe.get_all(
         "Employee Uniform Profile",
         filters={"employee": ["in", employee_names]},
-        fields=[
-            "name", "employee", "uniform_gender", "shirt_item", "shirt_size",
-            "hat_color", "shoe_size", "shoe_rack_location", "has_water_bottle",
-        ],
+        fields=["name", "employee", "uniform_gender", "shirt_item", "shirt_size",
+                "cap_item", "shoe_size", "shoe_rack_location"],
     )
     by_name = {}
     for p in profiles:
         p["items"] = []
         by_name[p.name] = p
-
     if by_name:
         rows = frappe.get_all(
             "Employee Uniform Item",
-            filters={
-                "parent": ["in", list(by_name.keys())],
-                "parenttype": "Employee Uniform Profile",
-            },
+            filters={"parent": ["in", list(by_name.keys())],
+                     "parenttype": "Employee Uniform Profile"},
             fields=["parent", "item_template", "total_issued_qty", "next_due_date"],
         )
+        # item_template now holds the exact variant — resolve its template for grouping
+        items = {r.item_template for r in rows if r.item_template}
+        tmpl_of = {}
+        if items:
+            for it in frappe.get_all("Item", filters={"name": ["in", list(items)]},
+                                     fields=["name", "variant_of"]):
+                tmpl_of[it.name] = it.variant_of or it.name
         for r in rows:
+            r["template"] = tmpl_of.get(r.item_template, r.item_template)
             by_name[r.parent]["items"].append(r)
-
     return {p.employee: p for p in profiles}
 
 
@@ -286,10 +324,7 @@ def get_eligible_employees_for_allocation(
     joining_date_from=None, joining_date_to=None,
     group=None, gender=None,
 ):
-    """
-    Return list of employees eligible for given allocation_type.
-    Each entry includes suggested item_code, qty, available_qty.
-    """
+    """Employees eligible for the allocation type, with suggested item + qty."""
     if allocation_type == "Replacement" and not (uniform_type or department or group or gender):
         frappe.throw(
             _("Replacement allocations are selected manually. "
@@ -298,8 +333,9 @@ def get_eligible_employees_for_allocation(
 
     warehouse = get_uniform_warehouse()
     setting = frappe.get_single("Uniform Setting")
+    if not setting.rules:
+        return []
 
-    # Base filter: Active employees without relieving_date
     filters = {"status": "Active", "relieving_date": ["is", "not set"]}
     prefix = get_employee_id_prefix()
     if prefix:
@@ -318,36 +354,40 @@ def get_eligible_employees_for_allocation(
         filters["date_of_joining"] = ["<=", joining_date_to]
 
     employees = frappe.get_all(
-        "Employee",
-        filters=filters,
-        fields=[
-            "name", "employee_name", "department", "designation", "gender",
-            "custom_group", "date_of_joining",
-        ],
+        "Employee", filters=filters,
+        fields=["name", "employee_name", "department", "designation", "grade",
+                "gender", "custom_group", "custom_section", "date_of_joining"],
         order_by="name asc",
     )
-
-    # Determine which templates to check
-    if uniform_type:
-        templates = [uniform_type]
-    else:
-        templates = []
-        seen = set()
-        for p in setting.policies or []:
-            if p.is_active and p.item_template not in seen:
-                templates.append(p.item_template)
-                seen.add(p.item_template)
-
-    if not employees or not templates:
+    if not employees:
         return []
 
-    variant_cache = build_variant_cache(templates)
     profiles = _load_profiles([e.name for e in employees])
-    bin_qty = _load_bin_qty(warehouse)
 
+    # Caches: variant resolution for shirt/shoe templates; variant_of for caps
+    cache_templates = set()
+    cap_items = set()
+    for r in setting.rules:
+        if not r.is_active or not r.item:
+            continue
+        if r.category in ("Shirt", "Shoe"):
+            cache_templates.add(r.item)
+        elif r.category == "Cap":
+            cap_items.add(r.item)
+    for p in profiles.values():
+        if p.get("shirt_item"):
+            cache_templates.add(p["shirt_item"])
+        if p.get("cap_item"):
+            cap_items.add(p["cap_item"])
+    variant_cache = build_variant_cache(list(cache_templates))
+    cap_variant_of = {}
+    if cap_items:
+        for it in frappe.get_all("Item", filters={"name": ["in", list(cap_items)]},
+                                 fields=["name", "variant_of"]):
+            cap_variant_of[it.name] = it.variant_of or it.name
+
+    bin_qty = _load_bin_qty(warehouse)
     today_date = getdate(today())
-    # Supplement looks ahead: include employees due within the reminder window
-    # so HR can prepare before the actual due date
     supplement_cutoff = add_days(today_date, cint(setting.reminder_days_before) or 30)
     results = []
 
@@ -357,74 +397,77 @@ def get_eligible_employees_for_allocation(
         )
         profile = profiles.get(emp.name)
         emp_data = {
-            "department": emp.department,
-            "designation": emp.designation,
-            "gender": emp.gender,
-            "custom_group": emp.custom_group,
+            "department": emp.department, "designation": emp.designation,
+            "grade": emp.grade, "gender": emp.gender,
+            "custom_group": emp.custom_group, "custom_section": emp.custom_section,
         }
 
-        for template in templates:
-            policy = get_policy_for_template(template, setting, emp_data)
-            if not policy:
+        for cat, rule in get_rules_by_category(emp_data, setting).items():
+            is_exact = cat in ("Cap", "Bottle")
+            if cat == "Shirt":
+                chosen = (profile.shirt_item if profile else None) or rule.item
+                template = chosen
+                var_by = "Shirt Size"
+            elif cat == "Cap":
+                chosen = (profile.cap_item if profile else None) or rule.item
+                template = cap_variant_of.get(chosen, chosen)
+                var_by = None
+            elif cat == "Shoe":
+                chosen = rule.item
+                template = rule.item
+                var_by = "Shoe Size"
+            else:  # Bottle
+                chosen = rule.item
+                template = rule.item
+                var_by = None
+            if not chosen:
                 continue
 
-            # Shirt templates are assigned manually per employee in the profile
-            # (any template regardless of gender)
-            if policy["assign_per_employee"]:
-                if not profile or (profile.shirt_item or "") != template:
-                    continue
+            if uniform_type and uniform_type not in (template, chosen):
+                continue
 
-            # One-time items (water bottle): never in Supplement, and only
-            # auto-suggested for employees flagged for it
-            if policy["one_time_issue"]:
-                if allocation_type == "Supplement":
-                    continue
-                if not (profile and cint(profile.has_water_bottle)):
-                    continue
+            # one_time = issue once: never in Supplement (no periodic reissue).
+            # Who gets it is decided by the rule's conditions.
+            one_time = cint(rule.one_time)
+            if one_time and allocation_type == "Supplement":
+                continue
 
-            # Check eligibility per allocation_type
             if allocation_type == "New Issue":
-                if days_working < policy["eligible_after_days"]:
+                if days_working < cint(rule.eligible_after_days):
                     continue
                 if profile and any(
-                    r.item_template == template and cint(r.total_issued_qty) > 0
+                    r.get("template") == template and cint(r.total_issued_qty) > 0
                     for r in profile["items"]
                 ):
                     continue
-                qty = policy["first_issue_qty"]
-
+                qty = cint(rule.first_qty)
             elif allocation_type == "Supplement":
-                if not profile:
+                if one_time or not profile:
                     continue
                 item_row = next(
-                    (r for r in profile["items"] if r.item_template == template), None
+                    (r for r in profile["items"] if r.get("template") == template), None
                 )
                 if not item_row or not item_row.next_due_date:
                     continue
                 if getdate(item_row.next_due_date) > supplement_cutoff:
                     continue
-                qty = policy["reissue_qty"]
-
-            else:  # Replacement — only employees who already received this item
+                qty = cint(rule.reissue_qty)
+            else:  # Replacement
                 if not profile or not any(
-                    r.item_template == template and cint(r.total_issued_qty) > 0
+                    r.get("template") == template and cint(r.total_issued_qty) > 0
                     for r in profile["items"]
                 ):
                     continue
                 qty = 1
-
             if not qty:
                 continue
 
-            if profile:
-                item_code, err = get_variant_for_profile(
-                    template, profile, variant_cache, policy["variant_source"]
-                )
-            else:
+            if not profile:
                 item_code, err = None, "No uniform profile"
-
-            uses_shoe_size = policy["variant_source"] == "Shoe Size"
-            shoe_rack = (profile.shoe_rack_location if profile else "") or ""
+            elif is_exact:
+                item_code, err = chosen, None
+            else:
+                item_code, err = get_variant_for_profile(template, profile, variant_cache, var_by)
 
             results.append({
                 "employee": emp.name,
@@ -435,7 +478,7 @@ def get_eligible_employees_for_allocation(
                 "item_error": err,
                 "qty": qty,
                 "available_qty": flt(bin_qty.get(item_code, 0)) if item_code else 0,
-                "shoe_rack_location": shoe_rack if uses_shoe_size else "",
+                "shoe_rack_location": (profile.shoe_rack_location if profile else "") if cat == "Shoe" else "",
             })
 
     return results

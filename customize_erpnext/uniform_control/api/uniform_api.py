@@ -7,7 +7,6 @@ from customize_erpnext.uniform_control.utils import (
     get_eligible_employees_for_allocation,
     get_uniform_warehouse,
     get_item_available_qty,
-    get_policy_for_template,
 )
 
 
@@ -35,10 +34,20 @@ def get_eligible_employees(
     )
 
 
+ALLOWED_HEADER_FIELDS = {
+    "naming_series", "posting_date", "allocation_type", "company", "set_warehouse",
+    "uniform_type_filter", "department_filter", "group_filter", "gender_filter",
+    "joining_date_from", "joining_date_to",
+}
+ALLOWED_ITEM_FIELDS = {
+    "employee", "item_code", "qty", "issue_reason", "shoe_rack_location", "remark",
+}
+
+
 @frappe.whitelist(methods=["POST"])
 def create_allocation(header, items):
     """
-    Create a Draft Uniform Allocation from payload.
+    Create a Draft Uniform Allocation from payload (only whitelisted fields).
     header: dict with posting_date, allocation_type, company, set_warehouse, etc.
     items: list of dicts (employee, item_code, qty, issue_reason, ...)
     """
@@ -50,9 +59,9 @@ def create_allocation(header, items):
         items = frappe.parse_json(items)
 
     alloc = frappe.new_doc("Uniform Allocation")
-    alloc.update(header)
-    for item in items:
-        alloc.append("items", item)
+    alloc.update({k: v for k, v in (header or {}).items() if k in ALLOWED_HEADER_FIELDS})
+    for item in items or []:
+        alloc.append("items", {k: v for k, v in item.items() if k in ALLOWED_ITEM_FIELDS})
 
     alloc.insert(ignore_permissions=True)
     return alloc.name
@@ -177,8 +186,8 @@ def get_dashboard_summary():
 
 @frappe.whitelist()
 def get_due_items(limit=100):
-    """Employees with uniform items Due Soon / Overdue (Active employees only).
-    Includes the profile size/color for the template (per policy variant_source)."""
+    """Employees with uniform items Due Soon / Overdue (Active managed employees).
+    item_template holds the exact variant; `size` is its size/color attribute."""
     _check_permission(doctype="Employee Uniform Profile")
 
     from customize_erpnext.uniform_control.utils import get_employee_id_prefix
@@ -189,10 +198,8 @@ def get_due_items(limit=100):
     rows = frappe.db.sql(
         f"""
         SELECT
-            p.employee, p.employee_name, p.department,
-            eui.item_template, eui.last_issue_date, eui.next_due_date, eui.status,
-            p.shirt_size, p.hat_color, p.shoe_size,
-            e.designation, e.gender, e.custom_group
+            p.employee, p.employee_name, p.department, e.custom_group,
+            eui.item_template, eui.last_issue_date, eui.next_due_date, eui.status
         FROM `tabEmployee Uniform Item` eui
         INNER JOIN `tabEmployee Uniform Profile` p ON p.name = eui.parent
         INNER JOIN `tabEmployee` e ON e.name = p.employee
@@ -206,22 +213,53 @@ def get_due_items(limit=100):
         as_dict=True,
     )
 
-    setting = frappe.get_single("Uniform Setting")
-    source_field = {"Shirt Size": "shirt_size", "Cap Color": "hat_color", "Shoe Size": "shoe_size"}
+    # item_template is the exact variant — show its size/color attribute value
+    variants = {r.item_template for r in rows if r.item_template}
+    attr_val = {}
+    if variants:
+        for a in frappe.get_all(
+            "Item Variant Attribute",
+            filters={"parent": ["in", list(variants)]},
+            fields=["parent", "attribute_value"],
+        ):
+            attr_val.setdefault(a.parent, a.attribute_value)
+
     for r in rows:
-        emp_data = {
-            "department": r.department,
-            "designation": r.designation,
-            "gender": r.gender,
-            "custom_group": r.custom_group,
-        }
-        policy = get_policy_for_template(r.item_template, setting, emp_data)
-        field = source_field.get(policy.get("variant_source")) if policy else None
-        r["size"] = r.get(field) or "" if field else ""
-        for k in ("shirt_size", "hat_color", "shoe_size", "designation", "gender"):
-            r.pop(k, None)
+        r["size"] = attr_val.get(r.item_template, "")
 
     return rows
+
+
+@frappe.whitelist(methods=["POST"])
+def apply_default_rules(employee=None):
+    """Apply Default Rules to one profile (employee given) or ALL managed
+    profiles without Manual Override. Returns count of profiles changed."""
+    _check_permission(doctype="Employee Uniform Profile", ptype="write")
+
+    from customize_erpnext.uniform_control import utils
+
+    setting = frappe.get_single("Uniform Setting")
+    filters = {}
+    if employee:
+        filters["employee"] = employee
+    else:
+        filters["manual_override"] = 0
+
+    # Single employee = explicit intent → overwrite. Bulk = fill empty only,
+    # so real per-person assignments (e.g. imported shirts) are preserved.
+    force = bool(employee)
+    names = frappe.get_all("Employee Uniform Profile", filters=filters, pluck="name")
+    changed = 0
+    for name in names:
+        profile = frappe.get_doc("Employee Uniform Profile", name)
+        if not employee and profile.manual_override:
+            continue
+        fields = utils.apply_default_rules(profile, setting=setting, force=force)
+        if fields:
+            profile.save(ignore_permissions=True)
+            changed += 1
+
+    return {"profiles": len(names), "changed": changed}
 
 
 @frappe.whitelist()

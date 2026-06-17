@@ -416,3 +416,19 @@ Issued Bottle,Cấp bình nước
 "Issue once only (e.g. bottle) — never in Supplement, no reissue due date. Auto-suggest only for employees with 'Issued Bottle' checked.","Chỉ cấp một lần (vd: bình nước) — không cấp bổ sung, không có hạn cấp lại. Chỉ tự đề xuất cho nhân viên có tick 'Cấp bình nước'."
 "The following rows have empty Invoice Number: {0}","Các dòng sau thiếu Số hóa đơn (No#): {0}"
 "Missing Invoice Number","Thiếu Số hóa đơn"
+Uniform Default Rule,Quy tắc gán mặc định
+Default Assignment Rules,Quy tắc gán mặc định
+Default Rules,Quy tắc mặc định
+Target,Đối tượng
+Shirt,Áo
+Cap,Mũ
+Section,Tổ/Bộ phận
+Grade,Cấp bậc
+Priority,Ưu tiên
+Assigned Cap Item,Mũ được gán
+Manual Override,Khoá thủ công
+Apply Defaults,Áp dụng mặc định
+Apply Defaults to All,Áp dụng mặc định cho tất cả
+Defaults applied,Đã áp dụng mặc định
+"Apply default rules to all profiles without Manual Override?","Áp dụng quy tắc mặc định cho tất cả hồ sơ chưa khoá thủ công?"
+"Updated {0} of {1} profiles.","Đã cập nhật {0}/{1} hồ sơ."

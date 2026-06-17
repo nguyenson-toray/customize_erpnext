@@ -78,18 +78,22 @@ class UniformAllocation(Document):
         if not employees:
             return
 
+        # Tracking stores the exact variant; group by template (variant_of)
         issued = {}
         for r in frappe.db.sql(
             """
-            SELECT p.employee, eui.item_template, eui.total_issued_qty, eui.last_issue_date
+            SELECT p.employee,
+                   COALESCE(NULLIF(i.variant_of, ''), i.name) AS template,
+                   eui.total_issued_qty, eui.last_issue_date
             FROM `tabEmployee Uniform Item` eui
             INNER JOIN `tabEmployee Uniform Profile` p ON p.name = eui.parent
+            INNER JOIN `tabItem` i ON i.name = eui.item_template
             WHERE p.employee IN %(employees)s
             """,
             {"employees": employees},
             as_dict=True,
         ):
-            issued[(r.employee, r.item_template)] = r
+            issued[(r.employee, r.template)] = r
 
         problems = []
         for row in self.items or []:
@@ -167,7 +171,7 @@ class UniformAllocation(Document):
         for row in self.items or []:
             update_profile_after_allocation(
                 employee=row.employee,
-                item_template=_get_template(row.item_code),
+                item_code=row.item_code,
                 qty=cint(row.qty),
                 posting_date=self.posting_date,
             )
