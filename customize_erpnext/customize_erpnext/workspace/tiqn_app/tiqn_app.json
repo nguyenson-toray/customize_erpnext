@@ -1,7 +1,7 @@
 {
  "app": "customize_erpnext",
  "charts": [],
- "content": "[{\"id\":\"tiqn_header_1\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Your Shortcuts</b></span>\",\"col\":12}},{\"id\":\"tiqn_spacer_1\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"gg0jkb55vq\",\"type\":\"card\",\"data\":{\"card_name\":\"OT\",\"col\":4}},{\"id\":\"2r1vZ-j4ag\",\"type\":\"card\",\"data\":{\"card_name\":\"Employee Item Reissue\",\"col\":4}},{\"id\":\"s0wHG4LpHp\",\"type\":\"card\",\"data\":{\"card_name\":\"Vehicle\",\"col\":4}},{\"id\":\"_GhwyCa-Ws\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"XHqsd18WfF\",\"type\":\"card\",\"data\":{\"card_name\":\"Shoe Rack\",\"col\":4}}]",
+ "content": "[{\"id\":\"tiqn_header_1\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Your Shortcuts</b></span>\",\"col\":12}},{\"id\":\"tiqn_spacer_1\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"gg0jkb55vq\",\"type\":\"card\",\"data\":{\"card_name\":\"OT\",\"col\":4}},{\"id\":\"2r1vZ-j4ag\",\"type\":\"card\",\"data\":{\"card_name\":\"Employee Item Reissue\",\"col\":4}},{\"id\":\"s0wHG4LpHp\",\"type\":\"card\",\"data\":{\"card_name\":\"Vehicle\",\"col\":4}},{\"id\":\"_GhwyCa-Ws\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"XHqsd18WfF\",\"type\":\"card\",\"data\":{\"card_name\":\"Shoe Rack\",\"col\":4}},{\"id\":\"IE7s3_-H7x\",\"type\":\"card\",\"data\":{\"card_name\":\"Uniform\",\"col\":4}}]",
  "creation": "2026-01-29 13:19:43.446927",
  "custom_blocks": [],
  "docstatus": 0,
@@ -156,9 +156,58 @@
    "link_type": "Page",
    "onboard": 0,
    "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Uniform",
+   "link_count": 4,
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Uniform Setting",
+   "link_count": 0,
+   "link_to": "Uniform Setting",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Employee Uniform Profile",
+   "link_count": 0,
+   "link_to": "Employee Uniform Profile",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Uniform Allocation",
+   "link_count": 0,
+   "link_to": "Uniform Allocation",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Uniform Dashboard",
+   "link_count": 0,
+   "link_to": "uniform-dashboard",
+   "link_type": "Page",
+   "onboard": 0,
+   "type": "Link"
   }
  ],
- "modified": "2026-01-29 13:22:40.128348",
+ "modified": "2026-06-11 11:42:07.307351",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "TIQN App",
