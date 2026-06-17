@@ -89,17 +89,6 @@ fixtures = [
             ["fieldname", "like", "custom%"]
         ]
     },
-    # Uniform Control DocType permissions
-    {
-        "doctype": "DocPerm",
-        "filters": [
-            ["parent", "in", [
-                "Uniform Setting",
-                "Uniform Allocation",
-                "Employee Uniform Profile",
-            ]]
-        ]
-    },
     # Property customizations
     {
         "doctype": "Property Setter",
