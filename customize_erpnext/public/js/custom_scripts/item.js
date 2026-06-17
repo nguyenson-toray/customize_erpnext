@@ -238,6 +238,17 @@ const default_item_config = {
         is_sales_item: 0,
         include_item_in_manufacturing: 0,
         is_fixed_asset: 1
+    },
+    'Uniform': {
+        stock_uom: 'Pcs',
+        has_variants: 0,
+        is_purchase_item: 1,
+        default_material_request_type: 'Purchase',
+        is_customer_provided_item: 0,
+        is_sales_item: 0,
+        include_item_in_manufacturing: 0,
+        is_fixed_asset: 0,
+        is_stock_item: 1
     }
 };
 
@@ -262,6 +273,9 @@ async function update_default_warehouse(frm) {
 async function get_default_warehouse(frm) {
     if (frm.doc.item_group && frm.doc.item_group.includes('B-Finished Goods')) {
         return 'Finished Goods - TIQN';
+    }
+    if (frm.doc.item_group && frm.doc.item_group.includes('Uniform')) {
+        return 'Uniform - TIQN';
     }
     if (frm.doc.is_customer_provided_item) {
         const customer = frm.doc.customer || '';
