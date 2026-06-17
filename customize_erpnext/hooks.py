@@ -368,6 +368,7 @@ doc_events = {
     # - Chặn Submit nếu dòng items thiếu Invoice Number (chốt chặn server-side)
     # - Add custom_invoice_number and custom_receive_date to Stock Ledger Entry
     "Stock Entry": {
+        "autoname": "customize_erpnext.api.stock_entry.naming.autoname",
         "before_submit": "customize_erpnext.api.stock_entry.stock_entry_validation.validate_invoice_numbers",
         "on_submit": "customize_erpnext.api.stock_ledger.update_stock_ledger_invoice_number_receive_date.update_stock_ledger_invoice_number_receive_date"
     },

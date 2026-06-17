@@ -12,9 +12,9 @@ frappe.ui.form.on('Stock Entry', {
         // Setup warehouse column visibility based on stock entry type
         setup_warehouse_column_visibility(frm);
 
-        // Khoá Stock Entry Type khi đã có custom_name (đã sinh tên phiếu)
+        // Khoá Stock Entry Type khi phiếu đã được đặt tên (không phải bản nháp mới)
         // → tránh user đổi purpose làm lệch prefix tên (PN/PX/PC).
-        frm.set_df_property('stock_entry_type', 'read_only', frm.doc.custom_name ? 1 : 0);
+        frm.set_df_property('stock_entry_type', 'read_only', frm.is_new() ? 0 : 1);
     },
 
     work_order: function (frm) {
@@ -88,9 +88,8 @@ frappe.ui.form.on('Stock Entry', {
     stock_entry_type: function (frm) {
         // Setup warehouse column visibility when stock entry type changes
         setup_warehouse_column_visibility(frm);
-    },
-    before_save: function (frm) {
-        set_custom_name(frm);
+        // Gắn/gỡ selector invoice theo loại phiếu (Receipt: gõ tay; Issue/Transfer: chọn)
+        setup_invoice_selector(frm);
     },
     before_submit: function (frm) {
         validate_invoice_numbers(frm);
@@ -100,37 +99,9 @@ frappe.ui.form.on('Stock Entry', {
     },
 });
 
-// Sinh custom_name dùng cho naming_series = {custom_name}.-.####
-// - Chỉ áp dụng prefix theo stock_entry_type (PN/PX/PC) khi có warehouse
-//   (to_warehouse, from_warehouse, hoặc s_warehouse/t_warehouse trong bảng items)
-//   bắt đầu bằng 'Material'.
-// - Mặc định: custom_name = SE + YYMM.
-function set_custom_name(frm) {
-    if (!frm) return;
-
-    // Ngày hiện tại dạng YYMM
-    const formattedDate = new Date().toISOString().slice(2, 7).replace(/-/g, '');
-
-    const starts_with_material = (w) => typeof w === 'string' && w.startsWith('Material');
-    const has_material_warehouse =
-        starts_with_material(frm.doc.to_warehouse) ||
-        starts_with_material(frm.doc.from_warehouse) ||
-        (frm.doc.items || []).some(
-            (row) => starts_with_material(row.s_warehouse) || starts_with_material(row.t_warehouse)
-        );
-
-    let prefix = 'SE';
-    if (has_material_warehouse) {
-        switch (frm.doc.stock_entry_type) {
-            case 'Material Receipt': prefix = 'PN'; break;
-            case 'Material Issue': prefix = 'PX'; break;
-            case 'Material Transfer': prefix = 'PC'; break;
-            default: prefix = 'SE';
-        }
-    }
-
-    frm.set_value('custom_name', prefix + formattedDate);
-}
+// Lưu ý: name (và custom_no nếu đang trống) của Stock Entry được sinh SERVER-SIDE
+// ở customize_erpnext/api/stock_entry/naming.py (doc_event "autoname"),
+// theo format {PN|PX|PC|SE}{YYYYMM}-{####}, reset mỗi tháng.
 set_value_for_custom_note = function (frm) {
     // if custom_is_opening_stock = 1     Set custom_note = current custom_note value + items[item_name, custom_invoice_number]
     if (!frm.doc.custom_note) {
@@ -772,11 +743,21 @@ function setup_invoice_selector(frm) {
         return;
     }
 
+    // Chỉ bật chọn invoice cho Material Issue / Transfer (xuất/chuyển kho: chọn invoice từ tồn).
+    // Material Receipt (nhập kho): nhập invoice THỦ CÔNG → không gắn selector.
+    const selector_enabled = frm.doc.stock_entry_type === "Material Issue"
+        || frm.doc.stock_entry_type === "Material Transfer";
+
     // Wait for grid to be ready
     setTimeout(() => {
-        // Remove existing handlers first
+        // Remove existing handlers first (luôn gỡ để khi đổi loại phiếu không còn handler cũ)
         frm.fields_dict.items.grid.wrapper.off('click', 'input[data-fieldname="custom_invoice_number"]');
         frm.fields_dict.items.grid.wrapper.off('focus', 'input[data-fieldname="custom_invoice_number"]');
+
+        // Nhập kho hoặc loại khác → để user gõ invoice tay, không gắn handler
+        if (!selector_enabled) {
+            return;
+        }
 
         // Attach click handler to grid
         frm.fields_dict.items.grid.wrapper.on('click', 'input[data-fieldname="custom_invoice_number"]', function (e) {
@@ -797,6 +778,10 @@ function setup_invoice_selector(frm) {
             // Only show dialog if item is selected
             if (!row.item_code) {
                 frappe.msgprint(__('Please select an item first'));
+                return;
+            }
+            // Nhập kho (Receipt) không dùng selector → bỏ qua (an toàn dù không gắn handler)
+            if (frm.doc.stock_entry_type !== "Material Issue" && frm.doc.stock_entry_type !== "Material Transfer") {
                 return;
             }
             // Check warehouse based on stock entry type
@@ -832,6 +817,10 @@ function setup_invoice_selector(frm) {
             // Only show dialog if item is selected
             if (!row.item_code) {
                 frappe.msgprint(__('Please select an item first'));
+                return;
+            }
+            // Nhập kho (Receipt) không dùng selector → bỏ qua (an toàn dù không gắn handler)
+            if (frm.doc.stock_entry_type !== "Material Issue" && frm.doc.stock_entry_type !== "Material Transfer") {
                 return;
             }
 
