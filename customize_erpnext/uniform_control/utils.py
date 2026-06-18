@@ -137,11 +137,11 @@ def get_variant_for_profile(item_template, profile, variant_cache=None, variant_
         return item_template, None
 
     if not variant_source:
-        return None, f"Variant By is not set in Uniform Rule for {item_template}"
+        return None, _("Variant By is not set in Uniform Rule for {0}").format(item_template)
 
     value = get_profile_value_for_source(profile, variant_source)
     if not value:
-        return None, f"Profile missing value for '{variant_source}'"
+        return None, _("Profile missing {0}").format(_(variant_source))
 
     attributes = entry["attributes"]
     if len(attributes) != 1:
@@ -155,7 +155,7 @@ def get_variant_for_profile(item_template, profile, variant_cache=None, variant_
         if v_map.get(attr) == value:
             return variant_name, None
 
-    return None, f"No variant found for {item_template} with {attr} = {value}"
+    return None, _("No variant for {0} with size/color {1}").format(item_template, value)
 
 
 
@@ -247,9 +247,9 @@ def apply_default_rules(profile, setting=None, force=False):
     return changed
 
 
-def get_reissue_months(item_template, employee, setting=None):
-    """Reissue cycle (months) for a tracking row's template, from the employee's
-    matching rule. 0 = no reissue."""
+def get_rule_for_tracking(item_template, employee, setting=None):
+    """Return the Uniform Rule whose category resolves to this tracking template
+    for the employee, or None."""
     if setting is None:
         setting = frappe.get_single("Uniform Setting")
     profile = frappe.db.get_value(
@@ -259,19 +259,26 @@ def get_reissue_months(item_template, employee, setting=None):
     rules = get_rules_by_category(_emp_data_for(employee), setting)
 
     for cat, rule in rules.items():
-        if rule.one_time:
-            tmpl = None
-        elif cat == "Shirt":
-            tmpl = item_template if item_template in (rule.item, profile.shirt_item) else None
+        if cat == "Shirt":
+            if item_template in (rule.item, profile.shirt_item):
+                return rule
         elif cat == "Cap":
             cap_it = profile.cap_item or rule.item
-            base = frappe.db.get_value("Item", cap_it, "variant_of") or cap_it if cap_it else None
-            tmpl = item_template if base == item_template else None
+            base = (frappe.db.get_value("Item", cap_it, "variant_of") or cap_it) if cap_it else None
+            if base == item_template:
+                return rule
         else:  # Shoe / Bottle
-            tmpl = item_template if rule.item == item_template else None
-        if tmpl is not None:
-            return cint(rule.reissue_months)
-    return 0
+            if rule.item == item_template:
+                return rule
+    return None
+
+
+def get_reissue_months(item_template, employee, setting=None):
+    """Reissue cycle (months) for a tracking row's template. 0 = no reissue."""
+    rule = get_rule_for_tracking(item_template, employee, setting)
+    if not rule or rule.one_time:
+        return 0
+    return cint(rule.reissue_months)
 
 
 def _load_profiles(employee_names):

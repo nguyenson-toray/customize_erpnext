@@ -89,20 +89,24 @@ frappe.pages['uniform-dashboard'].on_page_load = function (wrapper) {
 			],
 		},
 		stock: {
-			sort_by: 'item_code',
+			sort_by: 'item_name',
 			dir: 1,
 			rows: [],
 			columns: [
-				{ key: 'item_code', label: __('Item'),
-					render: (r) => `<a href="/app/item/${encodeURIComponent(r.item_code)}">${esc(r.item_code)}</a>` },
-				{ key: 'item_name', label: __('Item Name') },
+				{ key: 'item_name', label: __('Item Name'),
+					render: (r) => `<a href="/app/item/${encodeURIComponent(r.item_code)}">${esc(r.item_name || r.item_code)}</a>` },
 				{ key: 'actual_qty', label: __('Qty'), numeric: true },
 				{ key: 'reorder_level', label: __('Reorder Level'), numeric: true,
 					render: (r) => flt(r.reorder_level) || '' },
-				{ key: 'stock_value', label: __('Stock Value'), numeric: true,
-					render: (r) => format_currency(flt(r.stock_value)) },
 			],
-			row_style: (r) => (r.low_stock ? 'background: var(--red-50); color: var(--red-600); font-weight:600;' : ''),
+			// Red = out of stock (0); Orange = below reorder level
+			row_style: (r) => {
+				const qty = flt(r.actual_qty);
+				const lvl = flt(r.reorder_level);
+				if (qty === 0) return 'background: var(--red-100); color: var(--red-700); font-weight:600;';
+				if (lvl > 0 && qty < lvl) return 'background: var(--orange-100); color: var(--orange-700); font-weight:600;';
+				return '';
+			},
 		},
 	};
 

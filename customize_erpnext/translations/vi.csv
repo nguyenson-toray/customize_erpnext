@@ -432,3 +432,27 @@ Apply Defaults to All,Áp dụng mặc định cho tất cả
 Defaults applied,Đã áp dụng mặc định
 "Apply default rules to all profiles without Manual Override?","Áp dụng quy tắc mặc định cho tất cả hồ sơ chưa khoá thủ công?"
 "Updated {0} of {1} profiles.","Đã cập nhật {0}/{1} hồ sơ."
+Create Missing Profiles,Tạo hồ sơ còn thiếu
+"Create Uniform Profiles for all Active employees who do not have one?","Tạo Hồ sơ đồng phục cho mọi nhân viên Active chưa có?"
+Creating profiles...,Đang tạo hồ sơ...
+"Created {0} profile(s) of {1} active employees.","Đã tạo {0} hồ sơ / {1} nhân viên Active."
+Sync Shoe Rack Locations,Đồng bộ vị trí để dép
+"Re-sync Shoe Rack Location on all profiles from Shoe Rack assignments?","Đồng bộ lại Vị trí để dép cho mọi hồ sơ từ Shoe Rack?"
+Syncing...,Đang đồng bộ...
+"Updated {0} of {1} profiles ({2} employees have a rack).","Đã cập nhật {0}/{1} hồ sơ ({2} NV có rack)."
+Profile missing {0},Hồ sơ thiếu {0}
+"No variant for {0} with size/color {1}","Không có variant của {0} cho size/màu {1}"
+"Variant By is not set in Uniform Rule for {0}","Chưa đặt Variant By trong Uniform Rule cho {0}"
+"Skipped {0} employee(s) — missing size or no variant (fill the profile, then retry):","Bỏ qua {0} nhân viên — thiếu size hoặc chưa có variant (bổ sung hồ sơ rồi thử lại):"
+Send Alert Now,Gửi cảnh báo ngay
+Sending alert...,Đang gửi cảnh báo...
+"Alert sent to {0} recipient(s) — {1} short, {2} due.","Đã gửi cảnh báo tới {0} người — {1} mục thiếu, {2} đến hạn."
+No Alert Recipients configured.,Chưa cấu hình Người nhận cảnh báo.
+Nothing to alert (no low stock / due employees).,Không có gì để cảnh báo (không tồn thấp / không ai đến hạn).
+Weekly Alert is disabled.,Cảnh báo hàng tuần đang tắt.
+Alert not sent.,Chưa gửi cảnh báo.
+Help,Hướng dẫn
+"Row {0}: Issue Reason must be one of: {1}","Dòng {0}: Lý do cấp phải là một trong: {1}"
+"Issue Reason does not match Allocation Type ({0}):<br>","Lý do cấp không khớp Loại cấp phát ({0}):<br>"
+Issue Reason,Lý do cấp
+"Issue Reason cleared on row(s) {0}: not valid for Allocation Type '{1}'. Please choose {2}.","Đã xoá Lý do cấp ở dòng {0}: không hợp lệ với Loại cấp phát '{1}'. Vui lòng chọn {2}."

@@ -12,59 +12,68 @@ def _check_permission():
 @frappe.whitelist()
 def get_uniform_stock_excel(company=None, item_template=None):
     """
-    Return current stock of all uniform variants at the Uniform warehouse,
-    with reorder levels and low-stock flag.
+    Return current stock of ALL stockable uniform variants (item_group =
+    Uniform Item Group), including items with qty 0 / no Bin record, with
+    reorder levels and low-stock flag.
     """
     _check_permission()
 
     warehouse = frappe.db.get_single_value("Uniform Setting", "uniform_warehouse")
+    item_group = frappe.db.get_single_value("Uniform Setting", "uniform_item_group") or "U-Uniform"
     if not warehouse:
         return []
 
-    filters = {"warehouse": warehouse}
+    item_filters = {
+        "item_group": item_group, "is_stock_item": 1,
+        "has_variants": 0, "disabled": 0,
+    }
     if item_template:
-        # Get all variants of this template
-        variants = frappe.get_all(
-            "Item", filters={"variant_of": item_template, "disabled": 0}, pluck="name"
-        )
-        filters["item_code"] = ["in", variants] if variants else ["in", [item_template]]
+        item_filters["variant_of"] = item_template
 
-    bins = frappe.get_all(
-        "Bin",
-        filters=filters,
-        fields=["item_code", "actual_qty", "reserved_qty", "ordered_qty"],
-        order_by="item_code asc",
+    items = frappe.get_all(
+        "Item", filters=item_filters,
+        fields=["name", "item_name", "variant_of", "valuation_rate"],
+        order_by="name asc",
     )
+    if not items:
+        return []
+    names = [i.name for i in items]
+
+    # Left-join Bin (qty 0 when no Bin) + reorder levels — one query each
+    bin_map = {
+        b.item_code: b
+        for b in frappe.get_all(
+            "Bin", filters={"warehouse": warehouse, "item_code": ["in", names]},
+            fields=["item_code", "actual_qty", "reserved_qty"],
+        )
+    }
+    reorder_map = {
+        r.parent: r
+        for r in frappe.get_all(
+            "Item Reorder", filters={"warehouse": warehouse, "parent": ["in", names]},
+            fields=["parent", "warehouse_reorder_level", "warehouse_reorder_qty"],
+        )
+    }
 
     results = []
-    for b in bins:
-        item = frappe.db.get_value(
-            "Item", b.item_code,
-            ["item_name", "variant_of", "valuation_rate"],
-            as_dict=True,
-        ) or {}
-
-        # Get reorder level
-        reorder = frappe.db.get_value(
-            "Item Reorder",
-            {"parent": b.item_code, "warehouse": warehouse},
-            ["warehouse_reorder_level", "warehouse_reorder_qty"],
-            as_dict=True,
-        ) or {}
-
-        reorder_level = flt(reorder.get("warehouse_reorder_level"))
-        low_stock = 1 if b.actual_qty <= reorder_level and reorder_level > 0 else 0
+    for it in items:
+        b = bin_map.get(it.name)
+        actual = flt(b.actual_qty) if b else 0
+        reserved = flt(b.reserved_qty) if b else 0
+        ro = reorder_map.get(it.name)
+        reorder_level = flt(ro.warehouse_reorder_level) if ro else 0
+        low_stock = 1 if reorder_level > 0 and actual <= reorder_level else 0
 
         results.append({
-            "item_code": b.item_code,
-            "item_name": item.get("item_name"),
-            "template": item.get("variant_of") or b.item_code,
-            "actual_qty": flt(b.actual_qty),
-            "reserved_qty": flt(b.reserved_qty),
+            "item_code": it.name,
+            "item_name": it.item_name,
+            "template": it.variant_of or it.name,
+            "actual_qty": actual,
+            "reserved_qty": reserved,
             "reorder_level": reorder_level,
-            "reorder_qty": flt(reorder.get("warehouse_reorder_qty")),
-            "valuation_rate": flt(item.get("valuation_rate")),
-            "stock_value": flt(b.actual_qty) * flt(item.get("valuation_rate")),
+            "reorder_qty": flt(ro.warehouse_reorder_qty) if ro else 0,
+            "valuation_rate": flt(it.valuation_rate),
+            "stock_value": actual * flt(it.valuation_rate),
             "low_stock": low_stock,
             "warehouse": warehouse,
         })

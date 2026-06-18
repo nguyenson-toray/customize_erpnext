@@ -1,5 +1,6 @@
 {
  "actions": [],
+ "allow_import": 1,
  "autoname": "field:employee",
  "creation": "2026-06-05 00:00:00",
  "doctype": "DocType",
@@ -119,6 +120,7 @@
    "fieldname": "shirt_size",
    "fieldtype": "Select",
    "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Shirt Size",
    "options": "\nS\nM\nL\nXL\n2XL\n3XL"
   },
@@ -184,7 +186,7 @@
   }
  ],
  "links": [],
- "modified": "2026-06-16 16:51:11.924911",
+ "modified": "2026-06-18 08:18:09.058199",
  "modified_by": "Administrator",
  "module": "Uniform Control",
  "name": "Employee Uniform Profile",

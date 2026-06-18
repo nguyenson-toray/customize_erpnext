@@ -1,156 +1,184 @@
-"""Weekly scheduler for Uniform Control — low stock + due employees alerts."""
+"""Weekly scheduler for Uniform Control — stock vs upcoming demand + due employees."""
 import frappe
-from frappe import _
-from frappe.utils import flt, cint, today, getdate, date_diff, add_days
+from frappe.utils import flt, cint, today, getdate, add_days
 
 
-def send_weekly_uniform_alert():
+def send_weekly_uniform_alert(force=False):
     """
-    Runs weekly. Sends one email to alert_recipients with:
-    1. Low-stock variants
-    2. Employees due for reissue within reminder_days_before
+    One email to alert_recipients with:
+      1. Uniform stock (ALL U-Uniform variants, incl. 0) vs qty needed for the
+         next reissue → flags shortages.
+      2. Employees due for reissue (with the qty to issue).
+    Weekly via scheduler. force=True (manual button) ignores the enable toggle,
+    sends even when nothing is urgent, returns a summary, and re-raises errors.
     """
     try:
         setting = frappe.get_single("Uniform Setting")
-        if not cint(setting.enable_weekly_alert):
+        if not force and not cint(setting.enable_weekly_alert):
             return
 
         recipients = [r.strip() for r in (setting.alert_recipients or "").split(",") if r.strip()]
         if not recipients:
-            return
+            return {"sent": False, "reason": "no_recipients"} if force else None
 
         warehouse = setting.uniform_warehouse
+        item_group = setting.uniform_item_group or "U-Uniform"
         reminder_days = cint(setting.reminder_days_before) or 30
         today_date = getdate(today())
         alert_cutoff = add_days(today_date, reminder_days)
 
-        # ── Low stock section ──
-        low_stock_rows = []
-        if warehouse:
-            bins = frappe.get_all(
-                "Bin",
-                filters={"warehouse": warehouse},
-                fields=["item_code", "actual_qty"],
-                order_by="item_code asc",
-            )
-            reorders = {
-                r.parent: r
-                for r in frappe.get_all(
-                    "Item Reorder",
-                    filters={"warehouse": warehouse},
-                    fields=["parent", "warehouse_reorder_level", "warehouse_reorder_qty"],
-                )
-            }
-            for b in bins:
-                reorder = reorders.get(b.item_code)
-                rl = flt(reorder.warehouse_reorder_level) if reorder else 0
-                if rl > 0 and flt(b.actual_qty) <= rl:
-                    item_name = frappe.db.get_value("Item", b.item_code, "item_name") or b.item_code
-                    low_stock_rows.append({
-                        "item_code": b.item_code,
-                        "item_name": item_name,
-                        "actual_qty": flt(b.actual_qty),
-                        "reorder_level": rl,
-                        "reorder_qty": flt(reorder.warehouse_reorder_qty),
-                    })
+        from customize_erpnext.uniform_control.utils import (
+            is_managed_employee, get_rule_for_tracking,
+        )
 
-        # ── Due employees section ──
+        # ── Employees due for reissue (+ qty needed per variant) ──
         due_rows = []
+        needed = {}  # variant item_code -> total qty needed next reissue
         due_items = frappe.get_all(
             "Employee Uniform Item",
             filters={
-                "next_due_date": ["between", [today_date, alert_cutoff]],
-                "status": ["in", ["Active", "Due Soon", "Overdue"]],
+                # due-soon AND overdue: next_due on/before the reminder cutoff
+                "next_due_date": ["<=", alert_cutoff],
+                "status": ["in", ["Due Soon", "Overdue"]],
             },
             fields=["parent", "item_template", "next_due_date", "status"],
             order_by="next_due_date asc",
         )
-        from customize_erpnext.uniform_control.utils import is_managed_employee
-
         for di in due_items:
             profile = frappe.db.get_value(
-                "Employee Uniform Profile",
-                di.parent,
-                ["employee", "employee_name", "department"],
-                as_dict=True,
+                "Employee Uniform Profile", di.parent,
+                ["employee", "employee_name", "department"], as_dict=True,
             ) or {}
-            if not profile.get("employee"):
+            emp = profile.get("employee")
+            if not emp or not is_managed_employee(emp):
                 continue
-            if not is_managed_employee(profile["employee"]):
+            if frappe.db.get_value("Employee", emp, "status") != "Active":
                 continue
-            emp_status = frappe.db.get_value("Employee", profile["employee"], "status")
-            if emp_status != "Active":
-                continue
+            variant = di.item_template
+            template = frappe.db.get_value("Item", variant, "variant_of") or variant
+            rule = get_rule_for_tracking(template, emp, setting)
+            qty = cint(rule.reissue_qty) if rule and not rule.one_time else 0
+            needed[variant] = needed.get(variant, 0) + qty
             due_rows.append({
-                "employee": profile["employee"],
+                "employee": emp,
                 "employee_name": profile.get("employee_name"),
                 "department": profile.get("department"),
-                "item_template": di.item_template,
+                "item_template": variant,
+                "qty": qty,
                 "next_due_date": str(di.next_due_date),
                 "status": di.status,
             })
 
-        if not low_stock_rows and not due_rows:
-            return
+        # ── Stock: ALL U-Uniform stockable variants (include 0 qty) ──
+        bin_qty, reorder_lvl = {}, {}
+        if warehouse:
+            bin_qty = {
+                b.item_code: flt(b.actual_qty)
+                for b in frappe.get_all("Bin", filters={"warehouse": warehouse},
+                                        fields=["item_code", "actual_qty"])
+            }
+            reorder_lvl = {
+                r.parent: flt(r.warehouse_reorder_level)
+                for r in frappe.get_all("Item Reorder", filters={"warehouse": warehouse},
+                                        fields=["parent", "warehouse_reorder_level"])
+            }
 
-        # ── Build email ──
-        low_table = _build_low_stock_table(low_stock_rows)
-        due_table = _build_due_table(due_rows)
+        stock_rows = []
+        short_count = 0
+        for it in frappe.get_all(
+            "Item",
+            filters={"item_group": item_group, "is_stock_item": 1,
+                     "has_variants": 0, "disabled": 0},
+            fields=["name", "item_name"], order_by="name asc",
+        ):
+            actual = bin_qty.get(it.name, 0)
+            need = needed.get(it.name, 0)
+            remaining = actual - need
+            rl = reorder_lvl.get(it.name, 0)
+            if need > 0 and remaining < 0:
+                status = "THIẾU"
+                short_count += 1
+            elif rl > 0 and actual <= rl:
+                status = "Tồn thấp"
+            else:
+                status = "Đủ"
+            stock_rows.append({
+                "item_code": it.name, "item_name": it.item_name,
+                "actual_qty": actual, "needed": need, "remaining": remaining,
+                "reorder_level": rl, "status": status,
+            })
 
-        subject = f"[Uniform] Weekly Alert — {today()}"
+        if not stock_rows and not due_rows:
+            return {"sent": False, "reason": "nothing_to_alert"} if force else None
+        if not force and not due_rows and short_count == 0:
+            return  # weekly: nothing urgent (no shortage, no one due)
+
+        # ── Build & send email ──
+        subject = f"[Uniform] Cảnh báo tồn kho & đến hạn — {today()}"
         message = f"""
-        <h3>Uniform Control — Weekly Alert</h3>
-
-        <h4>1. Low Stock Variants ({len(low_stock_rows)} items)</h4>
-        {low_table}
-
-        <h4>2. Employees Due for Reissue ({len(due_rows)} rows)</h4>
-        {due_table}
-
-        <p><a href="/app/uniform-allocation">Open Uniform Dashboard</a></p>
+        <h3>Uniform Control — Cảnh báo</h3>
+        <h4>1. Tồn kho đồng phục — đủ cho đợt cấp tới? ({short_count} mục THIẾU)</h4>
+        {_build_stock_table(stock_rows)}
+        <h4>2. Nhân viên đến hạn cấp ({len(due_rows)} dòng)</h4>
+        {_build_due_table(due_rows)}
+        <p><a href="/app/uniform-dashboard">Mở Uniform Dashboard</a></p>
         """
-
-        frappe.sendmail(
-            recipients=recipients,
-            subject=subject,
-            message=message,
-            now=True,
-        )
+        frappe.sendmail(recipients=recipients, subject=subject, message=message, now=True)
         frappe.db.commit()
+
+        return {
+            "sent": True, "recipients": recipients,
+            "short": short_count, "due": len(due_rows),
+        } if force else None
 
     except Exception:
         frappe.log_error(frappe.get_traceback(), "Uniform Weekly Alert Error")
+        if force:
+            raise
 
 
-def _build_low_stock_table(rows):
+@frappe.whitelist()
+def send_uniform_alert_now():
+    """Manual trigger for the alert (Uniform Setting button)."""
+    frappe.only_for(("System Manager", "Uniform Manager"))
+    return send_weekly_uniform_alert(force=True) or {"sent": False, "reason": "disabled"}
+
+
+def _build_stock_table(rows):
     if not rows:
-        return "<p>No low-stock items.</p>"
+        return "<p>Chưa có item đồng phục.</p>"
     html = (
         "<table border='1' cellpadding='4' cellspacing='0'>"
-        "<tr><th>Item Code</th><th>Item Name</th><th>Actual Qty</th>"
-        "<th>Reorder Level</th><th>Reorder Qty</th></tr>"
+        "<tr><th>Item</th><th>Tên</th><th>Tồn</th><th>Cần cấp tới</th>"
+        "<th>Sau khi cấp</th><th>Ngưỡng</th><th>Trạng thái</th></tr>"
     )
     for r in rows:
+        bg = "#ffd6d6" if r["status"] == "THIẾU" else ("#fff3cd" if r["status"] == "Tồn thấp" else "")
+        style = f" style='background:{bg}'" if bg else ""
         html += (
-            f"<tr><td>{r['item_code']}</td><td>{r['item_name']}</td>"
-            f"<td>{r['actual_qty']}</td><td>{r['reorder_level']}</td>"
-            f"<td>{r['reorder_qty']}</td></tr>"
+            f"<tr{style}><td>{r['item_code']}</td><td>{r['item_name'] or ''}</td>"
+            f"<td align='right'>{r['actual_qty']:g}</td>"
+            f"<td align='right'>{r['needed']:g}</td>"
+            f"<td align='right'>{r['remaining']:g}</td>"
+            f"<td align='right'>{r['reorder_level']:g}</td>"
+            f"<td>{r['status']}</td></tr>"
         )
     return html + "</table>"
 
 
 def _build_due_table(rows):
     if not rows:
-        return "<p>No employees due.</p>"
+        return "<p>Không có nhân viên đến hạn.</p>"
     html = (
         "<table border='1' cellpadding='4' cellspacing='0'>"
-        "<tr><th>Employee</th><th>Name</th><th>Department</th>"
-        "<th>Uniform Type</th><th>Due Date</th><th>Status</th></tr>"
+        "<tr><th>Mã NV</th><th>Tên</th><th>Phòng ban</th><th>Đồng phục</th>"
+        "<th>SL cần cấp</th><th>Hạn</th><th>Trạng thái</th></tr>"
     )
     for r in rows:
         html += (
-            f"<tr><td>{r['employee']}</td><td>{r['employee_name']}</td>"
-            f"<td>{r['department']}</td><td>{r['item_template']}</td>"
+            f"<tr><td>{r['employee']}</td><td>{r['employee_name'] or ''}</td>"
+            f"<td>{r['department'] or ''}</td><td>{r['item_template']}</td>"
+            f"<td align='right'>{r['qty']}</td>"
             f"<td>{r['next_due_date']}</td><td>{r['status']}</td></tr>"
         )
     return html + "</table>"

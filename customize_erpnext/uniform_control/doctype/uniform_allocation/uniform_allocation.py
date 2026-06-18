@@ -9,15 +9,24 @@ from customize_erpnext.uniform_control.doctype.employee_uniform_profile.employee
     revert_profile_after_cancel,
 )
 
+# Issue Reason values allowed per Allocation Type (keeps the two fields consistent)
+ALLOWED_REASONS = {
+    "New Issue": ["New Issue"],
+    "Supplement": ["Periodic Supplement"],
+    "Replacement": ["Damaged", "Size Change"],
+}
+
 
 class UniformAllocation(Document):
     def validate(self):
         self._set_defaults()
+        self._normalize_issue_reasons()
         self._fill_available_qty()
         self._calc_total_qty()
 
     def before_submit(self):
         self._check_active_employees()
+        self._check_issue_reasons()
         self._check_type_consistency()
         self._check_stock()
 
@@ -53,6 +62,45 @@ class UniformAllocation(Document):
 
     def _calc_total_qty(self):
         self.total_qty = sum(cint(r.qty) for r in self.items or [])
+
+    def _normalize_issue_reasons(self):
+        """Keep Issue Reason consistent with Allocation Type:
+        - single-reason types (New Issue / Supplement) → force that reason;
+        - Replacement → clear any reason that isn't Damaged / Size Change so a
+          stale value (e.g. New Issue) can't linger; HR re-picks before submit."""
+        allowed = ALLOWED_REASONS.get(self.allocation_type) or []
+        cleared = []
+        for row in self.items or []:
+            if len(allowed) == 1:
+                row.issue_reason = allowed[0]
+            elif row.issue_reason and row.issue_reason not in allowed:
+                cleared.append(str(row.idx))
+                row.issue_reason = None
+        if cleared:
+            frappe.msgprint(
+                _("Issue Reason cleared on row(s) {0}: not valid for Allocation Type "
+                  "'{1}'. Please choose {2}.").format(
+                    ", ".join(cleared), self.allocation_type, " / ".join(allowed)
+                ),
+                title=_("Issue Reason"), indicator="orange",
+            )
+
+    def _check_issue_reasons(self):
+        allowed = ALLOWED_REASONS.get(self.allocation_type, [])
+        bad = []
+        for row in self.items or []:
+            if row.issue_reason not in allowed:
+                bad.append(
+                    _("Row {0}: Issue Reason must be one of: {1}").format(
+                        row.idx, ", ".join(allowed)
+                    )
+                )
+        if bad:
+            frappe.throw(
+                _("Issue Reason does not match Allocation Type ({0}):<br>").format(
+                    self.allocation_type
+                ) + "<br>".join(bad)
+            )
 
     def _check_active_employees(self):
         for row in self.items or []:
