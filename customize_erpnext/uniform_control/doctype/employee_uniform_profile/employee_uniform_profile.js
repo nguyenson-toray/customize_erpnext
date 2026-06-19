@@ -12,12 +12,6 @@ frappe.ui.form.on('Employee Uniform Profile', {
 			if (frm._uniform_item_group) filters.item_group = frm._uniform_item_group;
 			return { filters };
 		});
-		// Issuance Tracking holds the exact variant issued
-		frm.set_query('item_template', 'items', () => {
-			const filters = { has_variants: 0 };
-			if (frm._uniform_item_group) filters.item_group = frm._uniform_item_group;
-			return { filters };
-		});
 	},
 	onload(frm) {
 		frappe.db
@@ -25,6 +19,12 @@ frappe.ui.form.on('Employee Uniform Profile', {
 			.then((v) => (frm._uniform_item_group = v));
 	},
 	refresh(frm) {
+		// Issuance Tracking is an auto rollup from Uniform Allocation — read-only.
+		// (Source of truth = Uniform Allocation. Legacy backfill via Data Import.)
+		frm.set_df_property('items', 'read_only', 1);
+		frm.set_df_property('items', 'cannot_add_rows', 1);
+		frm.set_df_property('items', 'cannot_delete_rows', 1);
+
 		if (!frm.is_new()) {
 			frm.add_custom_button(__('Apply Defaults'), () => {
 				frappe.call({
@@ -33,6 +33,22 @@ frappe.ui.form.on('Employee Uniform Profile', {
 					freeze: true,
 					callback() {
 						frappe.show_alert({ message: __('Defaults applied'), indicator: 'green' });
+						frm.reload_doc();
+					},
+				});
+			});
+			frm.add_custom_button(__('Rebuild Tracking'), () => {
+				frappe.call({
+					method: 'customize_erpnext.uniform_control.api.uniform_api.rebuild_tracking',
+					args: { employee: frm.doc.employee },
+					freeze: true,
+					freeze_message: __('Rebuilding from allocations...'),
+					callback(r) {
+						const m = r.message || {};
+						frappe.show_alert({
+							message: __('Tracking rebuilt ({0} item types).', [m.rebuilt || 0]),
+							indicator: 'green',
+						});
 						frm.reload_doc();
 					},
 				});

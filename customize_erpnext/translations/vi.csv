@@ -382,7 +382,7 @@ Receive Stock,Nhập kho
 Allocation History,Lịch sử cấp phát
 Uniform Profiles,Hồ sơ đồng phục
 Issued Qty by Month,Số lượng cấp theo tháng
-Issued Qty by Department,Số lượng cấp theo phòng ban
+Issued Qty by Group,Số lượng cấp theo nhóm
 Employees Due for Issue,Nhân viên đến hạn cấp
 Uniform Stock,Tồn kho đồng phục
 Variants in Stock,Variant có tồn
@@ -456,3 +456,30 @@ Help,Hướng dẫn
 "Issue Reason does not match Allocation Type ({0}):<br>","Lý do cấp không khớp Loại cấp phát ({0}):<br>"
 Issue Reason,Lý do cấp
 "Issue Reason cleared on row(s) {0}: not valid for Allocation Type '{1}'. Please choose {2}.","Đã xoá Lý do cấp ở dòng {0}: không hợp lệ với Loại cấp phát '{1}'. Vui lòng chọn {2}."
+Rebuild Tracking,Dựng lại theo dõi
+Rebuilding from allocations...,Đang dựng lại từ chứng từ cấp...
+"Tracking rebuilt ({0} item types).","Đã dựng lại theo dõi ({0} loại)."
+Due Date From,Hạn cấp từ
+Due Date To,Hạn cấp đến
+"Supplement only: list employees whose next reissue is due within this range.","Chỉ Cấp bổ sung: liệt kê NV có hạn cấp kế tiếp nằm trong khoảng này."
+Overdue Only,Chỉ quá hạn
+"Supplement only: list only employees already past due (overdue).","Chỉ Cấp bổ sung: chỉ liệt kê NV đã quá hạn."
+"Added {0} row(s); total {1}.","Đã thêm {0} dòng; tổng {1}."
+"Skipped {0} already in the list.","Bỏ qua {0} đã có trong danh sách."
+Duplicates Removed,Đã loại trùng
+"Removed {0} duplicate row(s) (same employee + item):<br>","Đã loại {0} dòng trùng (cùng NV + item):<br>"
+Seed Test Tracking,Tạo dữ liệu test
+"Add test Issuance Tracking (Bottle/Cap/Shoe, issued on joining date) to all profiles?","Thêm dữ liệu test Issuance Tracking (Bình nước/Mũ/Dép, cấp theo ngày vào) cho mọi hồ sơ?"
+Seeding test data...,Đang tạo dữ liệu test...
+"Added {0} tracking rows to {1} of {2} profiles.","Đã thêm {0} dòng theo dõi cho {1}/{2} hồ sơ."
+Uniform Tracking,Theo dõi cấp phát đồng phục
+Section,Bộ phận
+Total,Tổng
+Open in Uniform Tracking,Mở trong Theo dõi cấp phát
+View in Uniform Tracking,Xem trong Theo dõi cấp phát
+Uniform Type,Loại đồng phục
+Last Issue Date,Ngày cấp gần nhất
+Last Qty,SL gần nhất
+Total Qty,Tổng SL
+Next Due Date,Hạn kế tiếp
+Issuance Tracking,Theo dõi cấp phát

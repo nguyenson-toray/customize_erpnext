@@ -20,6 +20,7 @@ ALLOWED_REASONS = {
 class UniformAllocation(Document):
     def validate(self):
         self._set_defaults()
+        self._dedupe_items()
         self._normalize_issue_reasons()
         self._fill_available_qty()
         self._calc_total_qty()
@@ -62,6 +63,26 @@ class UniformAllocation(Document):
 
     def _calc_total_qty(self):
         self.total_qty = sum(cint(r.qty) for r in self.items or [])
+
+    def _dedupe_items(self):
+        """Remove duplicate rows (same employee + item) — can pile up from
+        repeated 'Get Employees'. Keep the first, warn about the rest."""
+        seen = set()
+        kept, removed = [], []
+        for row in self.items or []:
+            key = (row.employee, row.item_code)
+            if key in seen:
+                removed.append("{0} / {1}".format(row.employee, row.item_code))
+                continue
+            seen.add(key)
+            kept.append(row)
+        if removed:
+            self.set("items", kept)
+            frappe.msgprint(
+                _("Removed {0} duplicate row(s) (same employee + item):<br>").format(len(removed))
+                + "<br>".join(removed),
+                title=_("Duplicates Removed"), indicator="orange",
+            )
 
     def _normalize_issue_reasons(self):
         """Keep Issue Reason consistent with Allocation Type:

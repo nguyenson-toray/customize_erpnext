@@ -187,6 +187,7 @@ def get_uniform_cost_excel(group_by="department", from_date=None, to_date=None):
             se.posting_date,
             sed.custom_uniform_allocation AS allocation,
             e.department,
+            e.custom_group AS custom_group,
             e.employee_name
         FROM `tabStock Entry Detail` sed
         JOIN `tabStock Entry` se ON se.name = sed.parent
@@ -214,6 +215,16 @@ def get_uniform_cost_excel(group_by="department", from_date=None, to_date=None):
             k = r.department or "Unknown"
             if k not in summary:
                 summary[k] = {"department": k, "total_cost": 0, "total_qty": 0}
+            summary[k]["total_cost"] += flt(r.cost)
+            summary[k]["total_qty"] += flt(r.qty)
+        return list(summary.values())
+
+    elif group_by == "group":
+        summary = {}
+        for r in rows:
+            k = r.custom_group or "Unknown"
+            if k not in summary:
+                summary[k] = {"custom_group": k, "total_cost": 0, "total_qty": 0}
             summary[k]["total_cost"] += flt(r.cost)
             summary[k]["total_qty"] += flt(r.qty)
         return list(summary.values())

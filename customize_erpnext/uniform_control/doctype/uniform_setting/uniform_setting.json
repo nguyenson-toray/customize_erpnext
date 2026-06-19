@@ -52,6 +52,7 @@
   },
   {
    "default": "1",
+   "description": "Every Monday at 08:30 AM",
    "fieldname": "enable_weekly_alert",
    "fieldtype": "Check",
    "label": "Enable Weekly Alert"
@@ -107,7 +108,7 @@
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-06-17 08:23:42.917438",
+ "modified": "2026-06-19 09:49:05.616360",
  "modified_by": "Administrator",
  "module": "Uniform Control",
  "name": "Uniform Setting",

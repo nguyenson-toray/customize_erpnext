@@ -20,6 +20,9 @@
   "column_break_mwtz",
   "joining_date_from",
   "joining_date_to",
+  "due_date_from",
+  "due_date_to",
+  "overdue_only",
   "section_items",
   "items",
   "section_summary",
@@ -116,6 +119,24 @@
    "fieldname": "joining_date_to",
    "fieldtype": "Date",
    "label": "Joining Date To"
+  },
+  {
+   "description": "Supplement only: list employees whose next reissue is due within this range.",
+   "fieldname": "due_date_from",
+   "fieldtype": "Date",
+   "label": "Due Date From"
+  },
+  {
+   "fieldname": "due_date_to",
+   "fieldtype": "Date",
+   "label": "Due Date To"
+  },
+  {
+   "default": "0",
+   "description": "Supplement only: list only employees already past due (overdue).",
+   "fieldname": "overdue_only",
+   "fieldtype": "Check",
+   "label": "Overdue Only"
   },
   {
    "fieldname": "section_items",

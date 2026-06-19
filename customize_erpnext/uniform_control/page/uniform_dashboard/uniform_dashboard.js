@@ -18,6 +18,7 @@ frappe.pages['uniform-dashboard'].on_page_load = function (wrapper) {
 		frappe.new_doc('Stock Entry');
 	});
 	page.add_inner_button(__('Allocation History'), () => frappe.set_route('List', 'Uniform Allocation'));
+	page.add_inner_button(__('Uniform Tracking'), () => frappe.set_route('query-report', 'Uniform Tracking'));
 	page.add_inner_button(__('Uniform Profiles'), () => frappe.set_route('List', 'Employee Uniform Profile'));
 	page.add_inner_button(__('Shoe Rack Dashboard'), () => frappe.set_route('shoe-rack-dashboard'));
 	page.add_inner_button(__('Export Excel'), () => {
@@ -33,7 +34,7 @@ frappe.pages['uniform-dashboard'].on_page_load = function (wrapper) {
 					<h6>${__('Issued Qty by Month')}</h6><div data-chart="month"></div>
 				</div></div>
 				<div class="col-md-6"><div class="frappe-card" style="padding:15px; margin-bottom:15px;">
-					<h6>${__('Issued Qty by Department')}</h6><div data-chart="dept"></div>
+					<h6>${__('Issued Qty by Group')}</h6><div data-chart="group"></div>
 				</div></div>
 			</div>
 			<div class="row"><div class="col-12">
@@ -56,8 +57,11 @@ frappe.pages['uniform-dashboard'].on_page_load = function (wrapper) {
 					<div class="d-flex justify-content-between align-items-center" style="margin-bottom:8px;">
 						<h6 style="margin:0;">${__('Employees Due for Issue')}
 							<span class="text-muted" data-count="due"></span></h6>
-						<input type="text" class="form-control input-sm" data-filter="due"
-							placeholder="${__('Search')}..." style="max-width:240px;">
+						<div class="d-flex align-items-center" style="gap:12px;">
+							<a href="#" data-open-tracking style="font-size:var(--text-sm); white-space:nowrap;">${__('Open in Uniform Tracking')} →</a>
+							<input type="text" class="form-control input-sm" data-filter="due"
+								placeholder="${__('Search')}..." style="max-width:240px;">
+						</div>
 					</div>
 					<div data-table="due"></div>
 				</div>
@@ -87,26 +91,6 @@ frappe.pages['uniform-dashboard'].on_page_load = function (wrapper) {
 				{ key: 'status', label: __('Status'),
 					render: (r) => `<span class="indicator-pill ${r.status === 'Overdue' ? 'red' : 'orange'}">${__(r.status)}</span>` },
 			],
-		},
-		stock: {
-			sort_by: 'item_name',
-			dir: 1,
-			rows: [],
-			columns: [
-				{ key: 'item_name', label: __('Item Name'),
-					render: (r) => `<a href="/app/item/${encodeURIComponent(r.item_code)}">${esc(r.item_name || r.item_code)}</a>` },
-				{ key: 'actual_qty', label: __('Qty'), numeric: true },
-				{ key: 'reorder_level', label: __('Reorder Level'), numeric: true,
-					render: (r) => flt(r.reorder_level) || '' },
-			],
-			// Red = out of stock (0); Orange = below reorder level
-			row_style: (r) => {
-				const qty = flt(r.actual_qty);
-				const lvl = flt(r.reorder_level);
-				if (qty === 0) return 'background: var(--red-100); color: var(--red-700); font-weight:600;';
-				if (lvl > 0 && qty < lvl) return 'background: var(--orange-100); color: var(--orange-700); font-weight:600;';
-				return '';
-			},
 		},
 	};
 
@@ -151,6 +135,79 @@ frappe.pages['uniform-dashboard'].on_page_load = function (wrapper) {
 		apply_filter(key);
 	}
 
+	// Longest common prefix of a group's item names = the template (Uniform Type)
+	// display name; the remainder of each name is the variant (size / colour).
+	function common_prefix(names) {
+		if (!names.length) return '';
+		let p = names[0] || '';
+		for (let i = 1; i < names.length; i++) {
+			const s = names[i] || '';
+			let j = 0;
+			while (j < p.length && j < s.length && p[j] === s[j]) j++;
+			p = p.slice(0, j);
+			if (!p) break;
+		}
+		return p.trim();
+	}
+
+	// Stock as a matrix: one column per uniform type, rows = its variants' bin qty.
+	function render_stock(rows) {
+		const $el = $body.find('[data-table="stock"]');
+		$body.find('[data-count="stock"]').text(rows.length ? `(${rows.length})` : '');
+		if (!rows.length) return $el.html(no_data);
+
+		// Group variants by template, then build one column per template.
+		const groups = {};
+		rows.forEach((r) => {
+			const key = r.template || r.item_code;
+			(groups[key] = groups[key] || []).push(r);
+		});
+
+		const cols = Object.keys(groups).map((key) => {
+			const items = groups[key];
+			const name = common_prefix(items.map((x) => x.item_name || '')) || key;
+			const variants = items
+				.map((x) => {
+					let label = (x.item_name || '').slice(name.length).trim();
+					if (!label) label = '—';
+					return { label, qty: flt(x.actual_qty), item_code: x.item_code };
+				})
+				.sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true, sensitivity: 'base' }));
+			return { name, variants, total: variants.reduce((s, v) => s + v.qty, 0) };
+		}).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+
+		const max_rows = Math.max(...cols.map((c) => c.variants.length));
+
+		let html = `<div style="max-height:70vh; overflow:auto;">
+			<table class="table table-sm table-bordered" style="margin-bottom:0; min-width:${cols.length * 140}px;">
+			<thead><tr>`;
+		cols.forEach((c, i) => {
+			html += `<th data-col="${i}" title="${esc(c.name)}" style="position:sticky; top:0; z-index:1;
+				background:var(--card-bg); white-space:nowrap; max-width:160px; overflow:hidden;
+				text-overflow:ellipsis;">${esc(c.name)}</th>`;
+		});
+		html += '</tr></thead><tbody>';
+		for (let r = 0; r < max_rows; r++) {
+			html += '<tr>';
+			cols.forEach((c, i) => {
+				const v = c.variants[r];
+				if (!v) return (html += `<td data-col="${i}"></td>`);
+				const zero = v.qty === 0 ? 'color:var(--red-600); font-weight:600;' : '';
+				html += `<td data-col="${i}" style="${zero}">
+					<a href="/app/item/${encodeURIComponent(v.item_code)}" style="color:inherit;">${esc(v.label)}</a>
+					<span style="float:right;">${v.qty}</span></td>`;
+			});
+			html += '</tr>';
+		}
+		html += '</tbody><tfoot><tr>';
+		cols.forEach((c, i) => {
+			html += `<th data-col="${i}" style="position:sticky; bottom:0; background:var(--card-bg);">
+				<span class="text-muted">${__('Total')}</span><span style="float:right;">${c.total}</span></th>`;
+		});
+		$el.html(html + '</tr></tfoot></table></div>');
+		apply_filter('stock');
+	}
+
 	// Click on header → toggle sort
 	$body.on('click', 'th[data-sort]', function () {
 		const key = $(this).closest('[data-table]').attr('data-table');
@@ -167,20 +224,51 @@ frappe.pages['uniform-dashboard'].on_page_load = function (wrapper) {
 		apply_filter(key);
 	});
 
+	// Drill-down: KPI cards → Uniform Tracking report (pre-filtered). Delegated
+	// because cards are re-rendered on every load().
+	$body.on('click', '[data-route]', function () {
+		frappe.route_options = JSON.parse($(this).attr('data-route'));
+		frappe.set_route('query-report', 'Uniform Tracking');
+	});
+
+	// "Open in Uniform Tracking" link above the due table (full, unfiltered).
+	$body.find('[data-open-tracking]').on('click', function (e) {
+		e.preventDefault();
+		frappe.set_route('query-report', 'Uniform Tracking');
+	});
+
 	function apply_filter(key) {
 		const q = ($body.find(`[data-filter="${key}"]`).val() || '').toLowerCase();
+		if (key === 'stock') {
+			// Stock is a matrix → hide whole columns whose uniform type doesn't match.
+			$body.find('[data-table="stock"] thead th').each(function () {
+				const i = $(this).attr('data-col');
+				const show = $(this).text().toLowerCase().includes(q);
+				$body.find(`[data-table="stock"] [data-col="${i}"]`).toggle(show);
+			});
+			return;
+		}
 		$body.find(`[data-table="${key}"] tbody tr`).each(function () {
 			$(this).toggle($(this).text().toLowerCase().includes(q));
 		});
 	}
 
 	// ── Cards & charts ───────────────────────────────────────────────────────
-	function card(label, value, color) {
+	function card(label, value, color, route) {
+		// `route` (optional) = query-report filter object; makes the card a drill-down
+		// into the Uniform Tracking report.
+		const attrs = route
+			? ` data-route='${esc(JSON.stringify(route))}' style="padding:12px 15px; cursor:pointer;"`
+			: ' style="padding:12px 15px;"';
+		const hint = route
+			? `<div class="text-muted" style="font-size:var(--text-xs);">${__('View in Uniform Tracking')} →</div>`
+			: '';
 		return `
 			<div class="col" style="min-width:150px;">
-				<div class="frappe-card" style="padding:12px 15px;">
+				<div class="frappe-card"${attrs}>
 					<div class="text-muted" style="font-size:var(--text-sm);">${label}</div>
 					<div style="font-size:24px; font-weight:600; color:${color || 'var(--text-color)'};">${value}</div>
+					${hint}
 				</div>
 			</div>`;
 	}
@@ -189,8 +277,8 @@ frappe.pages['uniform-dashboard'].on_page_load = function (wrapper) {
 		$body.find('[data-section="cards"]').html(
 			card(__('Variants in Stock'), s.total_variants_in_stock) +
 			card(__('Low Stock'), s.low_stock_variants, s.low_stock_variants ? 'var(--red-500)' : 'var(--green-500)') +
-			card(__('Due Soon'), s.employees_due_soon, s.employees_due_soon ? 'var(--orange-500)' : undefined) +
-			card(__('Overdue'), s.employees_overdue, s.employees_overdue ? 'var(--red-500)' : undefined) +
+			card(__('Due Soon'), s.employees_due_soon, s.employees_due_soon ? 'var(--orange-500)' : undefined, { status: 'Due Soon' }) +
+			card(__('Overdue'), s.employees_overdue, s.employees_overdue ? 'var(--red-500)' : undefined, { status: 'Overdue' }) +
 			card(__('Allocations (30 days)'), s.allocations_last_30_days)
 		);
 		if (!s.warehouse) {
@@ -227,12 +315,12 @@ frappe.pages['uniform-dashboard'].on_page_load = function (wrapper) {
 
 		frappe.call({ method: `${API}.uniform_excel_api.get_uniform_stock_excel` })
 			.then((r) => {
-				TABLES.stock.rows = r.message || [];
-				// Auto-expand the collapsible section when low stock needs attention
-				if (TABLES.stock.rows.some((x) => x.low_stock)) {
+				const rows = r.message || [];
+				// Auto-expand the collapsible section when something is out of stock
+				if (rows.some((x) => flt(x.actual_qty) === 0)) {
 					$body.find('details[data-section="stock"]').attr('open', '');
 				}
-				render_table('stock');
+				render_stock(rows);
 			});
 
 		frappe.call({ method: `${API}.uniform_excel_api.get_uniform_cost_excel`, args: { group_by: 'period' } })
@@ -241,8 +329,8 @@ frappe.pages['uniform-dashboard'].on_page_load = function (wrapper) {
 				render_chart('month', rows, 'period');
 			});
 
-		frappe.call({ method: `${API}.uniform_excel_api.get_uniform_cost_excel`, args: { group_by: 'department' } })
-			.then((r) => render_chart('dept', r.message || [], 'department'));
+		frappe.call({ method: `${API}.uniform_excel_api.get_uniform_cost_excel`, args: { group_by: 'group' } })
+			.then((r) => render_chart('group', r.message || [], 'custom_group'));
 	}
 
 	load();

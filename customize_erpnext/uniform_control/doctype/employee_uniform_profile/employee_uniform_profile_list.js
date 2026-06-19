@@ -46,5 +46,32 @@ frappe.listview_settings['Employee Uniform Profile'] = {
 				}
 			);
 		});
+
+		// Administrator-only: seed Issuance Tracking with test data
+		if (frappe.session.user === 'Administrator') {
+			listview.page.add_inner_button(__('Seed Test Tracking'), () => {
+				frappe.confirm(
+					__('Add test Issuance Tracking (Bottle/Cap/Shoe, issued on joining date) to all profiles?'),
+					() => {
+						frappe.call({
+							method: 'customize_erpnext.uniform_control.api.onboarding.seed_test_tracking',
+							freeze: true,
+							freeze_message: __('Seeding test data...'),
+							callback(r) {
+								const m = r.message || {};
+								frappe.msgprint(
+									__('Added {0} tracking rows to {1} of {2} profiles.', [
+										m.added || 0,
+										m.profiles_updated || 0,
+										m.total_profiles || 0,
+									])
+								);
+								listview.refresh();
+							},
+						});
+					}
+				);
+			});
+		}
 	},
 };

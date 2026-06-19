@@ -152,8 +152,9 @@ Lỗi nền được ghi vào **Error Log** (Desk → Error Log).
 
 ## 2.1 Khái niệm nhanh
 
-- **Employee Uniform Profile** (Hồ sơ đồng phục): 1 hồ sơ / nhân viên — lưu size áo, giới tính, loại mũ, size dép, vị trí để dép; kèm bảng theo dõi đã cấp gì, khi nào đến hạn.
-- **Uniform Allocation** (Chứng từ cấp phát): 1 chứng từ cấp cho **nhiều nhân viên** cùng lúc. Submit xong hệ thống tự trừ kho và cập nhật hồ sơ — HR không cần thao tác kho.
+- **Uniform Allocation** (Chứng từ cấp phát) = **nguồn sự thật** của lịch sử cấp: 1 chứng từ cho nhiều NV, có Stock Entry, audit đầy đủ. Submit → tự trừ kho & cập nhật hồ sơ.
+- **Employee Uniform Profile → Issuance Tracking** = **bảng tổng hợp tự động (read-only)** suy ra từ các Allocation: loại đã cấp, ngày gần nhất, **hạn kế tiếp + trạng thái** — phục vụ tính điều kiện cấp & nhắc hạn. Không sửa tay; nếu nghi lệch, bấm **Rebuild Tracking** trên hồ sơ để dựng lại từ Allocation.
+- **Employee Uniform Profile** còn lưu: size áo, giới tính, áo/mũ được gán, vị trí để dép.
 
 ## 2.2 Bước 1 — Hoàn thiện hồ sơ đồng phục
 
@@ -201,9 +202,12 @@ Khi nhận hàng từ nhà cung cấp:
    |---|---|---|
    | **New Issue** (Cấp mới) | Chưa từng được cấp loại đó **và** đủ ngày làm việc theo quy định | ❌ Chặn dòng của người **đã** được cấp loại đó (báo ngày cấp gần nhất, gợi ý dùng Supplement/Replacement) |
    | **Supplement** (Cấp bổ sung) | Đã được cấp **và** đến hạn hoặc **sắp đến hạn trong N ngày tới** (N = Reminder Days Before trong Setting, mặc định 30 — để HR chuẩn bị trước) | ❌ Chặn dòng của người **chưa từng** được cấp loại đó (gợi ý dùng New Issue) |
-   | **Replacement** (Thay thế) | Chỉ người **đã được cấp** loại đó — hỏng / đổi size / mất; chọn thủ công, bắt buộc có filter thu hẹp | Không chặn thêm (van thủ công có kiểm soát) |
-3. Kho xuất và Company tự điền; khoanh vùng bằng các filter: **Loại đồng phục**, **Phòng ban**, **Ngày nhận việc từ/đến** (lọc theo date_of_joining).
-4. Bấm nút **Get Employees (Lấy danh sách nhân viên)** → hệ thống tự đổ vào bảng Items các nhân viên đủ điều kiện kèm variant đúng size, SL theo policy, tồn kho từng dòng. Dòng nào thiếu thông số (chưa điền size, chưa gán áo...) sẽ được liệt kê để HR bổ sung hồ sơ rồi bấm lại. Vẫn có thể thêm/sửa/xóa dòng thủ công sau khi đổ.
+   | **Replacement** (Thay thế) | Hỏng / đổi size / mất — **HR thêm từng người thủ công** (không lọc, không Get Employees) | Không chặn thêm (van thủ công có kiểm soát) |
+3. **Bộ lọc hiện theo Allocation Type:**
+   - **New Issue**: Loại đồng phục, Phòng ban/Nhóm/Giới tính, **Ngày nhận việc từ/đến**.
+   - **Supplement**: Loại đồng phục, Phòng ban/Nhóm/Giới tính, **Hạn cấp từ/đến** + **Chỉ quá hạn** (lọc theo `next_due`; bỏ trống = đến hạn trong N ngày nhắc + quá hạn). *(Ẩn ngày nhận việc.)*
+   - **Replacement**: ẩn toàn bộ filter — thêm tay từng người.
+4. Bấm **Get Employees** (New Issue/Supplement) → **cộng dồn** NV đủ điều kiện vào bảng Items (bấm nhiều lần với bộ lọc khác nhau để gộp; **dòng trùng tự bỏ qua**). Dòng thiếu size/variant được liệt kê để HR bổ sung hồ sơ rồi bấm lại. Vẫn thêm/sửa/xóa tay được. Lưu sẽ **tự loại dòng trùng** (cùng NV + item) kèm cảnh báo.
 5. **Save** (Draft) → kiểm tra lại → **Submit**.
 
 Khi Submit, hệ thống tự động:
@@ -223,19 +227,17 @@ Khi Submit, hệ thống tự động:
 - Cấp **một lần** (Rule đánh dấu One-Time Issue) — không xuất hiện trong Cấp bổ sung, không có hạn cấp lại.
 - Hỏng/mất/đổi → tạo Allocation loại **Replacement**, thêm dòng thủ công.
 
-## 2.6 Nhập lịch sử cấp phát cũ (trước khi dùng ERP)
+## 2.6 Nhập lịch sử cấp phát cũ (trước khi dùng ERP) — chỉ làm 1 lần
 
-Nếu đã cấp đồng phục/trừ kho ngoài hệ thống, **nhập tay lịch sử vào hồ sơ** để hệ thống tự tính hạn cấp tiếp theo — không cần tạo chứng từ giả:
+> Issuance Tracking trên form là **read-only** (không sửa tay). Việc nhập lịch sử cũ chỉ làm **một lần ban đầu** qua **Data Import** (chạy server-side, bỏ qua read-only). Từ khi dùng ERP, mọi cấp phát đi qua **Uniform Allocation** và Tracking tự cập nhật.
 
-1. Mở **Employee Uniform Profile** của nhân viên → bảng **Issuance Tracking**, thêm dòng:
-   - `Item` = **variant cụ thể** đã cấp (vd `Áo thun nữ S`, `Mũ Đỏ`, `Dép 27`)
-   - `Last Issue Date` = ngày cấp thực tế gần nhất
-   - `Last Issue Qty` và `Total Issued Qty` = số lượng đã cấp (Total > 0 để hệ thống biết "đã cấp", không đưa vào danh sách Cấp mới nữa)
-2. **Save** → hệ thống **tự tính** `Next Due Date` (= Last Issue Date + chu kỳ trong policy) và `Status` (Còn hạn / Sắp đến hạn / Quá hạn).
+**Nhập hàng loạt (Data Import)** trên DocType Employee Uniform Profile (Update Existing Records), cột:
+`ID` (= mã nhân viên), `Item (Uniform Items)` = **variant cụ thể** đã cấp (vd `Áo thun nữ S`, `Mũ Đỏ - Qc`, `Dép 27`), `Last Issue Date (Uniform Items)`, `Last Issue Qty (Uniform Items)`, `Total Issued Qty (Uniform Items)`.
+→ Next Due Date và Status **không cần nhập** — tự tính khi import (từ chu kỳ trong Rule).
 
-Từ đó trở đi, nhân viên tự xuất hiện trong danh sách *Cấp bổ sung* khi đến hạn, và đợt cấp tiếp theo làm trên ERP bình thường.
+Từ đó NV tự xuất hiện trong danh sách *Cấp bổ sung* khi đến hạn; các đợt sau làm bằng Uniform Allocation.
 
-**Nhập hàng loạt**: dùng **Data Import** trên DocType Employee Uniform Profile (Update Existing Records), cột: `ID` (= mã nhân viên), `Item (Uniform Items)` = variant cụ thể, `Last Issue Date (Uniform Items)`, `Last Issue Qty (Uniform Items)`, `Total Issued Qty (Uniform Items)`. Next Due Date và Status không cần nhập — tự tính khi import.
+> **Nút Rebuild Tracking** (trên từng hồ sơ): dựng lại Tracking từ các Allocation đã submit khi nghi dữ liệu lệch. Dòng lịch sử cũ (nhập tay, không có Allocation) được **giữ nguyên**.
 
 > Hồ sơ của toàn bộ nhân viên Active đã được tạo sẵn (973 hồ sơ). Nếu sau này cần tạo lại hàng loạt: `bench --site erp.tiqn.local execute customize_erpnext.uniform_control.api.onboarding.backfill_uniform_profiles`
 

@@ -113,6 +113,9 @@ def send_weekly_uniform_alert(force=False):
         if not force and not due_rows and short_count == 0:
             return  # weekly: nothing urgent (no shortage, no one due)
 
+        # Due table sorted ascending by employee id
+        due_rows.sort(key=lambda r: r["employee"])
+
         # ── Build & send email ──
         subject = f"[Uniform] Cảnh báo tồn kho & đến hạn — {today()}"
         message = f"""

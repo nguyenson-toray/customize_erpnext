@@ -21,7 +21,8 @@ def _check_permission(doctype="Uniform Allocation", ptype="read"):
 def get_eligible_employees(
     allocation_type, uniform_type=None, department=None,
     joining_date_from=None, joining_date_to=None,
-    group=None, gender=None,
+    group=None, gender=None, due_date_from=None, due_date_to=None,
+    overdue_only=0,
 ):
     """
     Return employees eligible for the given allocation_type.
@@ -31,6 +32,7 @@ def get_eligible_employees(
     return get_eligible_employees_for_allocation(
         allocation_type, uniform_type, department,
         joining_date_from, joining_date_to, group, gender,
+        due_date_from, due_date_to, overdue_only,
     )
 
 
@@ -198,7 +200,7 @@ def get_due_items(limit=100):
     rows = frappe.db.sql(
         f"""
         SELECT
-            p.employee, p.employee_name, p.department, e.custom_group,
+            p.employee, p.employee_name, p.department, e.custom_section, e.custom_group,
             eui.item_template, eui.last_issue_date, eui.next_due_date, eui.status
         FROM `tabEmployee Uniform Item` eui
         INNER JOIN `tabEmployee Uniform Profile` p ON p.name = eui.parent
@@ -228,6 +230,53 @@ def get_due_items(limit=100):
         r["size"] = attr_val.get(r.item_template, "")
 
     return rows
+
+
+@frappe.whitelist(methods=["POST"])
+def rebuild_tracking(employee):
+    """Re-sync an employee's Issuance Tracking from SUBMITTED Uniform Allocations
+    (the source of truth). Templates with allocations are recomputed; legacy rows
+    with no allocation are left untouched. Then next_due/status are refreshed."""
+    _check_permission(doctype="Employee Uniform Profile", ptype="write")
+    from customize_erpnext.uniform_control.doctype.employee_uniform_profile.employee_uniform_profile import _template_of
+
+    name = frappe.db.get_value("Employee Uniform Profile", {"employee": employee})
+    if not name:
+        return {"ok": False}
+
+    rows = frappe.db.sql(
+        """
+        SELECT uai.item_code, uai.qty, ua.posting_date,
+               COALESCE(NULLIF(i.variant_of, ''), i.name) AS template
+        FROM `tabUniform Allocation Item` uai
+        JOIN `tabUniform Allocation` ua ON ua.name = uai.parent
+        JOIN `tabItem` i ON i.name = uai.item_code
+        WHERE uai.docstatus = 1 AND uai.employee = %s
+        ORDER BY ua.posting_date ASC
+        """,
+        employee, as_dict=True,
+    )
+    agg = {}
+    for r in rows:
+        a = agg.setdefault(r.template, {"total": 0, "last": None, "item": None, "last_qty": 0})
+        a["total"] += cint(r.qty)
+        d = frappe.utils.getdate(r.posting_date)
+        if a["last"] is None or d > a["last"]:
+            a["last"], a["item"], a["last_qty"] = d, r.item_code, cint(r.qty)
+        elif d == a["last"]:
+            a["last_qty"] += cint(r.qty)
+            a["item"] = r.item_code
+
+    profile = frappe.get_doc("Employee Uniform Profile", name)
+    by_tmpl = {_template_of(row.item_template): row for row in profile.items}
+    for tmpl, a in agg.items():
+        row = by_tmpl.get(tmpl) or profile.append("items", {})
+        row.item_template = a["item"]
+        row.last_issue_date = a["last"]
+        row.last_issue_qty = a["last_qty"]
+        row.total_issued_qty = a["total"]
+    profile.save(ignore_permissions=True)  # validate refreshes next_due/status
+    return {"ok": True, "rebuilt": len(agg)}
 
 
 @frappe.whitelist(methods=["POST"])
@@ -280,30 +329,25 @@ def export_dashboard_excel():
 
     ws_due = wb.create_sheet("Employees Due for Issue")
     ws_due.append([
-        "Employee", "Employee Name", "Department", "Group", "Uniform Type",
+        "Employee", "Employee Name", "Department", "Section", "Group", "Uniform Type",
         "Size", "Last Issue Date", "Next Due Date", "Status",
     ])
     for r in get_due_items(limit=100000):
         ws_due.append([
             r.get("employee"), r.get("employee_name"), r.get("department"),
-            r.get("custom_group"), r.get("item_template"), r.get("size"),
-            str(r.get("last_issue_date") or ""), str(r.get("next_due_date") or ""),
-            r.get("status"),
+            r.get("custom_section"), r.get("custom_group"), r.get("item_template"),
+            r.get("size"), str(r.get("last_issue_date") or ""),
+            str(r.get("next_due_date") or ""), r.get("status"),
         ])
 
     ws_stock = wb.create_sheet("Uniform Stock")
-    ws_stock.append([
-        "Item Code", "Item Name", "Template", "Actual Qty", "Reserved Qty",
-        "Reorder Level", "Reorder Qty", "Valuation Rate", "Stock Value",
-        "Low Stock", "Warehouse",
-    ])
+    ws_stock.append(["Item Name", "Template", "Size", "Actual Qty", "Warehouse"])
     for r in get_uniform_stock_excel():
-        ws_stock.append([
-            r.get("item_code"), r.get("item_name"), r.get("template"),
-            r.get("actual_qty"), r.get("reserved_qty"), r.get("reorder_level"),
-            r.get("reorder_qty"), r.get("valuation_rate"), r.get("stock_value"),
-            r.get("low_stock"), r.get("warehouse"),
-        ])
+        name = r.get("item_name") or ""
+        tmpl = r.get("template") or ""
+        # Size = the variant suffix of the item name (template name stripped off)
+        size = name[len(tmpl):].strip() if tmpl and name.startswith(tmpl) else ""
+        ws_stock.append([name, tmpl, size, r.get("actual_qty"), r.get("warehouse")])
 
     for ws in (ws_due, ws_stock):
         for cell in ws[1]:

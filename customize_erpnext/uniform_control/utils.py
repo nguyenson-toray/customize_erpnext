@@ -329,9 +329,11 @@ def _load_bin_qty(warehouse):
 def get_eligible_employees_for_allocation(
     allocation_type, uniform_type=None, department=None,
     joining_date_from=None, joining_date_to=None,
-    group=None, gender=None,
+    group=None, gender=None, due_date_from=None, due_date_to=None,
+    overdue_only=0,
 ):
-    """Employees eligible for the allocation type, with suggested item + qty."""
+    """Employees eligible for the allocation type, with suggested item + qty.
+    due_date_from/to and overdue_only (Supplement only) narrow by next reissue date."""
     if allocation_type == "Replacement" and not (uniform_type or department or group or gender):
         frappe.throw(
             _("Replacement allocations are selected manually. "
@@ -456,7 +458,17 @@ def get_eligible_employees_for_allocation(
                 )
                 if not item_row or not item_row.next_due_date:
                     continue
-                if getdate(item_row.next_due_date) > supplement_cutoff:
+                nd = getdate(item_row.next_due_date)
+                if cint(overdue_only):
+                    if nd >= today_date:  # only past-due items
+                        continue
+                elif due_date_from or due_date_to:
+                    # explicit due-date range overrides the default reminder cutoff
+                    if due_date_from and nd < getdate(due_date_from):
+                        continue
+                    if due_date_to and nd > getdate(due_date_to):
+                        continue
+                elif nd > supplement_cutoff:
                     continue
                 qty = cint(rule.reissue_qty)
             else:  # Replacement

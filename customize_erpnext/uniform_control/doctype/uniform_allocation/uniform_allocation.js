@@ -20,16 +20,46 @@ frappe.ui.form.on('Uniform Allocation', {
 			.then((v) => (frm._uniform_item_group = v));
 	},
 	refresh(frm) {
-		if (frm.doc.docstatus === 0) {
-			frm.add_custom_button(__('Get Employees'), () => get_employees(frm));
-		}
-		frm.add_custom_button(__('Help'), () => show_help());
+		setup_buttons(frm);
 		toggle_reason_readonly(frm); // read-only only — must NOT dirty the form
+		toggle_filters(frm);
 	},
 	allocation_type(frm) {
+		setup_buttons(frm);
 		apply_reason_rules(frm);
+		toggle_filters(frm);
 	},
 });
+
+// Get Employees only for New Issue / Supplement (Replacement = manual per person).
+function setup_buttons(frm) {
+	frm.clear_custom_buttons();
+	if (frm.doc.docstatus === 0 && frm.doc.allocation_type !== 'Replacement') {
+		frm.add_custom_button(__('Get Employees'), () => get_employees(frm));
+	}
+	frm.add_custom_button(__('Help'), () => show_help());
+}
+
+// Filters shown per Allocation Type:
+//  - New Issue : type/dept/group/gender + joining date
+//  - Supplement: type/dept/group/gender + due date / overdue (no joining date)
+//  - Replacement: none (HR adds each person manually)
+const FILTERS_BY_TYPE = {
+	'New Issue': ['uniform_type_filter', 'department_filter', 'group_filter', 'gender_filter',
+		'joining_date_from', 'joining_date_to'],
+	Supplement: ['uniform_type_filter', 'department_filter', 'group_filter', 'gender_filter',
+		'due_date_from', 'due_date_to', 'overdue_only'],
+	Replacement: [],
+};
+const ALL_FILTERS = ['uniform_type_filter', 'department_filter', 'group_filter', 'gender_filter',
+	'joining_date_from', 'joining_date_to', 'due_date_from', 'due_date_to', 'overdue_only'];
+
+function toggle_filters(frm) {
+	const visible = FILTERS_BY_TYPE[frm.doc.allocation_type] || [];
+	ALL_FILTERS.forEach((f) => frm.set_df_property(f, 'hidden', visible.includes(f) ? 0 : 1));
+	// Replacement: hide the whole filter section
+	frm.set_df_property('section_filters', 'hidden', frm.doc.allocation_type === 'Replacement' ? 1 : 0);
+}
 
 // Issue Reason values allowed per Allocation Type (mirror of the server)
 const ALLOWED_REASONS = {
@@ -107,13 +137,13 @@ function show_help() {
 				<ul>
 					<li><b>New Issue (Cấp mới)</b>: NV chưa từng được cấp loại đó & đủ ngày làm việc.</li>
 					<li><b>Supplement (Cấp bổ sung)</b>: NV <b>sắp đến hạn + quá hạn</b> (theo chu kỳ).</li>
-					<li><b>Replacement (Thay thế)</b>: hỏng / đổi size / mất — chọn thủ công (bắt buộc đặt 1 bộ lọc).</li>
+					<li><b>Replacement (Thay thế)</b>: hỏng / đổi size / mất — HR <b>thêm từng người thủ công</b> (không lọc, không Get Employees).</li>
 				</ul>
 			</li>
-			<li><b>Đặt bộ lọc</b> (tùy chọn): Loại đồng phục, Phòng ban, Nhóm, Giới tính, Ngày nhận việc.</li>
-			<li><b>Bấm nút "Get Employees"</b> → tự đổ nhân viên đủ điều kiện vào bảng Items, kèm đúng variant theo size + số lượng.
+			<li><b>Đặt bộ lọc</b> (tùy chọn): Loại đồng phục, Phòng ban, Nhóm, Giới tính, Ngày nhận việc; riêng <b>Hạn cấp từ/đến</b> &amp; <b>Chỉ quá hạn</b> chỉ hiện khi loại = Supplement.</li>
+			<li><b>Bấm nút "Get Employees"</b> → <b>cộng dồn</b> nhân viên đủ điều kiện vào bảng Items (bấm nhiều lần với bộ lọc khác nhau để gộp; dòng trùng tự bỏ qua).
 				<br><span class="text-muted">NV thiếu Size áo/dép sẽ bị <b>bỏ qua</b> kèm cảnh báo — bổ sung hồ sơ rồi bấm lại.</span></li>
-			<li><b>Kiểm tra / chỉnh</b> bảng Items nếu cần (thêm, xoá, đổi SL).</li>
+			<li><b>Kiểm tra / chỉnh</b> bảng Items nếu cần (thêm, xoá, đổi SL). Lưu sẽ tự <b>loại dòng trùng</b> (cùng NV + item).</li>
 			<li><b>Save → Submit</b>: tạo 1 phiếu xuất kho (Material Issue), trừ tồn, cập nhật hồ sơ + hạn cấp kế tiếp.
 				<br><span class="text-muted">Bị chặn nếu: NV không Active / thiếu tồn kho / dòng không khớp Loại cấp phát.</span></li>
 			<li><b>Hủy</b>: Cancel → hủy phiếu xuất, hoàn tồn kho, tính lại hồ sơ.</li>
@@ -129,43 +159,49 @@ function get_employees(frm) {
 		frappe.msgprint(__('Select Allocation Type first.'));
 		return;
 	}
-	const run = () =>
-		frappe.call({
-			method: 'customize_erpnext.uniform_control.api.uniform_api.get_eligible_employees',
-			args: {
-				allocation_type: frm.doc.allocation_type,
-				uniform_type: frm.doc.uniform_type_filter || null,
-				department: frm.doc.department_filter || null,
-				group: frm.doc.group_filter || null,
-				gender: frm.doc.gender_filter || null,
-				joining_date_from: frm.doc.joining_date_from || null,
-				joining_date_to: frm.doc.joining_date_to || null,
-			},
-			freeze: true,
-			freeze_message: __('Fetching eligible employees...'),
-			callback(r) {
-				fill_items(frm, r.message || []);
-			},
-		});
-
-	if ((frm.doc.items || []).length) {
-		frappe.confirm(__('Replace the current items?'), run);
-	} else {
-		run();
-	}
+	frappe.call({
+		method: 'customize_erpnext.uniform_control.api.uniform_api.get_eligible_employees',
+		args: {
+			allocation_type: frm.doc.allocation_type,
+			uniform_type: frm.doc.uniform_type_filter || null,
+			department: frm.doc.department_filter || null,
+			group: frm.doc.group_filter || null,
+			gender: frm.doc.gender_filter || null,
+			joining_date_from: frm.doc.joining_date_from || null,
+			joining_date_to: frm.doc.joining_date_to || null,
+			due_date_from: frm.doc.due_date_from || null,
+			due_date_to: frm.doc.due_date_to || null,
+			overdue_only: frm.doc.overdue_only ? 1 : 0,
+		},
+		freeze: true,
+		freeze_message: __('Fetching eligible employees...'),
+		callback(r) {
+			fill_items(frm, r.message || []);
+		},
+	});
 }
 
+// Append (accumulate) to the items list across Get Employees runs; skip rows
+// already present (same employee + item) and rows without a resolvable item.
 function fill_items(frm, rows) {
 	const reason_map = { 'New Issue': 'New Issue', 'Supplement': 'Periodic Supplement' };
 	const issue_reason = reason_map[frm.doc.allocation_type] || '';
 
-	frm.clear_table('items');
+	const seen = new Set((frm.doc.items || []).map((r) => `${r.employee}|${r.item_code}`));
 	const skipped = [];
+	let added = 0;
+	let dup = 0;
 	rows.forEach((r) => {
 		if (!r.item_code) {
 			skipped.push(`${r.employee} — ${r.item_template}: ${r.item_error || ''}`);
 			return;
 		}
+		const key = `${r.employee}|${r.item_code}`;
+		if (seen.has(key)) {
+			dup++;
+			return;
+		}
+		seen.add(key);
 		const row = frm.add_child('items');
 		row.employee = r.employee;
 		row.employee_name = r.employee_name;
@@ -175,22 +211,20 @@ function fill_items(frm, rows) {
 		row.available_qty = r.available_qty;
 		row.issue_reason = issue_reason;
 		row.shoe_rack_location = r.shoe_rack_location;
+		added++;
 	});
 	frm.refresh_field('items');
 
-	if (!rows.length) {
-		frappe.msgprint(__('No eligible employees found.'));
-		return;
-	}
-	let msg = __('Added {0} row(s).', [frm.doc.items.length]);
+	let msg = __('Added {0} row(s); total {1}.', [added, (frm.doc.items || []).length]);
+	if (dup) msg += '<br>' + __('Skipped {0} already in the list.', [dup]);
 	if (skipped.length) {
 		msg +=
 			'<br><br><b>' +
 			__('Skipped {0} employee(s) — missing size or no variant (fill the profile, then retry):', [
 				skipped.length,
 			]) +
-			'</b>';
-		msg += '<br>' + skipped.map(frappe.utils.escape_html).join('<br>');
+			'</b><br>' +
+			skipped.map(frappe.utils.escape_html).join('<br>');
 	}
 	frappe.msgprint({ title: __('Get Employees'), message: msg, indicator: skipped.length ? 'orange' : 'green' });
 }
