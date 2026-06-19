@@ -11,7 +11,6 @@
   "reminder_days_before",
   "column_break_top",
   "enable_weekly_alert",
-  "auto_create_onboarding_allocation",
   "low_stock_use_reorder",
   "section_alert",
   "alert_recipients",
@@ -56,12 +55,6 @@
    "fieldname": "enable_weekly_alert",
    "fieldtype": "Check",
    "label": "Enable Weekly Alert"
-  },
-  {
-   "default": "1",
-   "fieldname": "auto_create_onboarding_allocation",
-   "fieldtype": "Check",
-   "label": "Auto Create Allocation on Onboarding"
   },
   {
    "default": "1",

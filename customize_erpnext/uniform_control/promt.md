@@ -88,7 +88,6 @@ Cấu hình hệ thống + bảng quy định cấp phát.
 | `reminder_days_before` | Số ngày cảnh báo trước hạn | Int | mặc định 30 |
 | `enable_weekly_alert` | Bật cảnh báo hàng tuần | Check | mặc định 1 |
 | `alert_recipients` | Người nhận email | Small Text | danh sách email, phân tách dấu phẩy |
-| `auto_create_onboarding_allocation` | Tự sinh cấp phát khi onboarding | Check | mặc định 1 |
 | `low_stock_use_reorder` | Dùng Reorder Level làm ngưỡng | Check | mặc định 1 |
 | `policies` | Quy định cấp phát | Table | → `Uniform Policy` |
 | `notes` | Ghi chú | Text Editor | |
@@ -230,7 +229,7 @@ Workspace/Page hiển thị: số tồn mỗi variant; cảnh báo nhân viên s
 
 ### 7.1 Onboarding (HRMS)
 - Hook `Employee` (after_insert / validate): tự tạo `Employee Uniform Profile` (link 2 chiều với `uniform_profile`).
-- Khi nhân viên Active và đủ `eligible_after_days`: nếu `auto_create_onboarding_allocation` bật → sinh **draft** `Uniform Allocation` loại `Cấp mới`, auto-điền dòng theo policy `first_issue_qty` + size trong profile. HR review rồi submit.
+- **Không** tự sinh `Uniform Allocation` khi onboarding. HR tự tạo Allocation và dùng **Get Employees** để gộp nhiều nhân viên vào một chứng từ khi cần.
 
 ### 7.2 Weekly check (Frappe Scheduler — `scheduler_events` weekly)
 Hàm quét và gửi email tới `alert_recipients`:
@@ -307,7 +306,6 @@ Hàm quét và gửi email tới `alert_recipients`:
 - [ ] Chặn submit khi qty > tồn.
 - [ ] Submit sinh đúng 1 Material Issue (không kho đích) + cập nhật profile/next_due_date.
 - [ ] Cancel hoàn tác đúng tồn & theo dõi.
-- [ ] Onboarding sinh draft allocation cấp mới.
 - [ ] Weekly email báo tồn thấp + NV đến hạn.
 - [ ] Chỉ Admin & Uniform Manager truy cập được.
 - [ ] API `_excel` gọi được từ Power Query.

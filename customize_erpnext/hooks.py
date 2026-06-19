@@ -339,11 +339,6 @@ doc_events = {
             "customize_erpnext.api.employee.auto_assignment.set_default_holiday_list",
             "customize_erpnext.uniform_control.api.onboarding.create_uniform_profile_on_employee_insert",
         ],
-        # on_update (not validate): runs after DB insert + after_insert, so the
-        # uniform profile exists and department/gender policies can match
-        "on_update": [
-            "customize_erpnext.uniform_control.api.onboarding.maybe_create_onboarding_allocation",
-        ],
         "on_trash": [
             "customize_erpnext.api.employee.employee_validation.prevent_employee_deletion",
             # "customize_erpnext.api.employee.erpnext_mongodb.delete_employee_from_mongodb"
