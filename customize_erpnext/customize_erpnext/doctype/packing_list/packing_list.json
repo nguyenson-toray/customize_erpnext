@@ -1,0 +1,284 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "format:{no}",
+ "creation": "2026-06-19 15:53:55.749481",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "section_header",
+  "date",
+  "contract_no",
+  "no",
+  "style",
+  "size_color_summary",
+  "column_break_ystx",
+  "destination",
+  "customer",
+  "description_of_goods",
+  "total_carton_detail",
+  "column_break_header",
+  "total_carton",
+  "total_quantity",
+  "total_net_weight",
+  "total_gross_weight",
+  "total_cbm",
+  "total_containers",
+  "section_carton",
+  "column_break_msjo",
+  "carton_types",
+  "column_break_duux",
+  "container_type",
+  "combine_mode",
+  "small_carton_threshold",
+  "generate_btn",
+  "section_input",
+  "items_text",
+  "column_break_input",
+  "weight_text",
+  "section_details",
+  "details"
+ ],
+ "fields": [
+  {
+   "fieldname": "section_header",
+   "fieldtype": "Section Break",
+   "label": "General"
+  },
+  {
+   "fieldname": "no",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "No",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "default": "Today",
+   "fieldname": "date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Date"
+  },
+  {
+   "fieldname": "contract_no",
+   "fieldtype": "Data",
+   "label": "Contract No"
+  },
+  {
+   "fieldname": "style",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Style"
+  },
+  {
+   "fieldname": "column_break_header",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "customer",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Customer"
+  },
+  {
+   "fieldname": "destination",
+   "fieldtype": "Data",
+   "label": "Destination"
+  },
+  {
+   "fieldname": "description_of_goods",
+   "fieldtype": "Small Text",
+   "label": "Description of Goods"
+  },
+  {
+   "fieldname": "section_carton",
+   "fieldtype": "Section Break",
+   "label": "Carton & Container"
+  },
+  {
+   "columns": 2,
+   "description": "One row per carton type. Assign every size used in the Quantity Table to exactly one carton type.",
+   "fieldname": "carton_types",
+   "fieldtype": "Table",
+   "label": "Carton Types",
+   "options": "Packing List Carton Type",
+   "print_hide": 1,
+   "reqd": 1
+  },
+  {
+   "default": "40HC",
+   "fieldname": "container_type",
+   "fieldtype": "Select",
+   "label": "Container Type",
+   "options": "20GP\n40GP\n42GP\n40HC\n45HC",
+   "print_hide": 1
+  },
+  {
+   "default": "No Combine",
+   "description": "How partial (leftover) pieces are merged into mixed cartons to reduce carton count.",
+   "fieldname": "combine_mode",
+   "fieldtype": "Select",
+   "label": "Combine Leftover Cartons",
+   "options": "No Combine\nBy Color\nBy Size\nBy Color & Size",
+   "print_hide": 1
+  },
+  {
+   "default": "0",
+   "description": "When 2+ carton types: full cartons use the larger box; a carton with total pcs \u2264 this value uses the smaller box. 0 = small box for any not-yet-full carton.",
+   "fieldname": "small_carton_threshold",
+   "fieldtype": "Int",
+   "label": "Use Small Carton When Pcs \u2264",
+   "print_hide": 1
+  },
+  {
+   "collapsible": 1,
+   "description": "Data table from Excel \u27a1\ufe0f Copy \u27a1\ufe0f Paste",
+   "fieldname": "section_input",
+   "fieldtype": "Section Break",
+   "label": "Input Tables"
+  },
+  {
+   "description": "<p>Copy from Excel (c\u00e1c c\u1ed9t c\u00e1ch nhau b\u1eb1ng Tab). M\u1ed7i d\u00f2ng = 1 (m\u00e0u + size). C\u1ed9t SKU/UPC tu\u1ef3 ch\u1ecdn.</p><p>Color&nbsp;&nbsp;Size&nbsp;&nbsp;Quantity&nbsp;&nbsp;SKU&nbsp;&nbsp;UPC<br>Boundary Black&nbsp;&nbsp;SM&nbsp;&nbsp;39&nbsp;&nbsp;200333-116-SM&nbsp;&nbsp;196926047493<br>Boundary Black&nbsp;&nbsp;MD&nbsp;&nbsp;130&nbsp;&nbsp;200333-116-MD&nbsp;&nbsp;196926047509</p>",
+   "fieldname": "items_text",
+   "fieldtype": "Code",
+   "label": "1. Items (Color, Size, Quantity, SKU, UPC)",
+   "print_hide": 1,
+   "reqd": 1
+  },
+  {
+   "description": "<p>Example:</p>\n<p>Size Weight<br>SM 0.4<br>MD 0.5<br>LG 0.6<br>XL 0.7<br>XXL 0.8</p>",
+   "fieldname": "weight_text",
+   "fieldtype": "Code",
+   "label": "2. Net Weight per Piece (kg, by size)",
+   "print_hide": 1
+  },
+  {
+   "fieldname": "column_break_input",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "generate_btn",
+   "fieldtype": "Button",
+   "label": "Generate Carton Detail"
+  },
+  {
+   "fieldname": "section_details",
+   "fieldtype": "Section Break",
+   "label": "Carton Details"
+  },
+  {
+   "allow_bulk_edit": 1,
+   "fieldname": "details",
+   "fieldtype": "Table",
+   "label": "Packing List Detail",
+   "options": "Packing List Detail"
+  },
+  {
+   "fieldname": "total_quantity",
+   "fieldtype": "Int",
+   "label": "Total Quantity",
+   "read_only": 1
+  },
+  {
+   "fieldname": "total_carton",
+   "fieldtype": "Int",
+   "label": "Total Carton",
+   "read_only": 1
+  },
+  {
+   "fieldname": "total_containers",
+   "fieldtype": "Int",
+   "label": "Total Containers",
+   "print_hide": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "total_net_weight",
+   "fieldtype": "Float",
+   "label": "Total Net Weight (kg)",
+   "precision": "2",
+   "read_only": 1
+  },
+  {
+   "fieldname": "total_gross_weight",
+   "fieldtype": "Float",
+   "label": "Total Gross Weight (kg)",
+   "precision": "2",
+   "read_only": 1
+  },
+  {
+   "fieldname": "total_cbm",
+   "fieldtype": "Float",
+   "label": "Total CBM (m3)",
+   "precision": "2",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_duux",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_ystx",
+   "fieldtype": "Column Break"
+  },
+  {
+   "columns": 1,
+   "fieldname": "column_break_msjo",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "total_carton_detail",
+   "fieldtype": "HTML",
+   "is_virtual": 1,
+   "label": "Total Carton Detail",
+   "print_hide": 1
+  },
+  {
+   "fieldname": "size_color_summary",
+   "fieldtype": "HTML",
+   "is_virtual": 1,
+   "label": "Size/Color Summary"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-06-23 09:02:55.819794",
+ "modified_by": "Administrator",
+ "module": "Customize Erpnext",
+ "name": "Packing List",
+ "naming_rule": "Expression (old style)",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Stock User",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}
