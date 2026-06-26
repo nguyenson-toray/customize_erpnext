@@ -720,18 +720,18 @@ function show_crop_dialog(frm, imageDataUrl) {
 const _province_code_map = {};
 
 /**
- * Load province options using the 2025 address API (consistent with employee-self-update).
- * Stores province name (ten) in the field; keeps code (ma) in _province_code_map for district lookup.
+ * Load province options using the vn_address DB API (consistent with employee-self-update-info).
+ * Stores province name (name) in the field; keeps code in _province_code_map for ward lookup.
  */
 function load_province_options(frm) {
     frappe.call({
-        method: 'customize_erpnext.api.address_converter.api.get_provinces',
+        method: 'customize_erpnext.api.vn_address.vn_address_api.get_provinces',
         callback: function (r) {
             if (!r.message || !r.message.length) return;
 
             const province_names = r.message.map(p => {
-                _province_code_map[p.ten] = p.ma;
-                return p.ten;
+                _province_code_map[p.name] = p.code;
+                return p.name;
             });
 
             const DEFAULT_PROVINCE = 'Tỉnh Quảng Ngãi';
@@ -754,10 +754,12 @@ function load_province_options(frm) {
 }
 
 /**
- * Load district options for the selected province (2025 API: get_districts by province code).
+ * Load ward (commune/phường-xã) options for the selected province
+ * (vn_address DB API: get_wards by province code).
+ * Note: the Employee field is named `*_commune`, which maps to a "ward" in the API.
  * @param {object} frm
  * @param {string} address_type - 'permanent' | 'current' | 'place_of_origin'
- * @param {string} province_name - Province display name (ten), used to look up ma
+ * @param {string} province_name - Province display name (name), used to look up code
  */
 function load_commune_options_for_type(frm, address_type, province_name) {
     if (!province_name || !ADDRESS_TYPES[address_type]) return;
@@ -768,11 +770,11 @@ function load_commune_options_for_type(frm, address_type, province_name) {
     const fields = ADDRESS_TYPES[address_type];
 
     frappe.call({
-        method: 'customize_erpnext.api.address_converter.api.get_districts',
+        method: 'customize_erpnext.api.vn_address.vn_address_api.get_wards',
         args: { province_code: province_code },
         callback: function (r) {
-            const district_names = (r.message || []).map(d => d.ten);
-            frm.set_df_property(fields.commune, 'options', district_names);
+            const ward_names = (r.message || []).map(d => d.name);
+            frm.set_df_property(fields.commune, 'options', ward_names);
         }
     });
 }

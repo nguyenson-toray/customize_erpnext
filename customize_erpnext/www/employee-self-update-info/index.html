@@ -1,0 +1,645 @@
+{% raw %}
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>Cập nhật thông tin nhân viên</title>
+  <link rel="stylesheet" href="/employee-self-update-info/style.css?v=2">
+</head>
+
+<body>
+  <header class="top">
+    <img class="logo" src="/assets/customize_erpnext/images/logo_white.png" alt="logo">
+    <div class="company" id="company_name"></div>
+    <h1>Cập nhật thông tin nhân viên</h1>
+    <p>Kiểm tra thông tin của bạn và cập nhật những mục có thay đổi</p>
+  </header>
+
+  <div class="wrap">
+    <!-- Step 1: choose employee -->
+    <div class="card" id="picker_card">
+      <h2><span class="dot"></span>Chọn nhân viên</h2>
+      <div class="field combo" style="margin-bottom:0">
+        <label class="fl" for="emp_search">Mã nhân viên hoặc Họ tên</label>
+        <input type="text" id="emp_search" autocomplete="off" placeholder="Đang tải danh sách…" disabled
+          oninput="onEmpSearch()" onfocus="onEmpSearch()" onkeydown="onEmpKey(event)">
+        <div id="emp_results" class="combo-list hidden"></div>
+        <div class="hint">Gõ mã nhân viên (VD: TIQN-0148) hoặc tên để tìm nhanh.</div>
+      </div>
+    </div>
+
+    <!-- Step 1b: identity verification (only when enabled) -->
+    <div class="card hidden" id="verify_card">
+      <h2><span class="dot"></span>Xác thực danh tính</h2>
+      <div class="field" style="margin-bottom:0">
+        <label class="fl" for="verify_input">Nhập 2 số cuối của <b>ngày sinh</b> của bạn</label>
+        <input type="text" id="verify_input" inputmode="numeric" maxlength="2"
+          placeholder="VD: sinh ngày 05/09 → nhập 05" oninput="this.value=this.value.replace(/[^0-9]/g,'')"
+          onkeydown="if(event.key==='Enter')doVerify()">
+        <div class="hint">Bước này giúp đảm bảo đúng là bạn đang cập nhật thông tin của mình.</div>
+        <button class="btn-primary" style="margin-top:12px;width:100%" onclick="doVerify()">Xác thực</button>
+      </div>
+    </div>
+
+    <!-- Step 2: dynamic form -->
+    <div id="form_area" class="hidden">
+      <div class="legend">
+        <span class="sw"></span> Ô được tô vàng = giá trị bạn vừa thay đổi
+        <span id="status_wrap" style="margin-left:auto"></span>
+      </div>
+      <div id="sections"></div>
+
+      <!-- Free-text remarks (always shown) -->
+      <div class="card">
+        <h2><span class="dot"></span>Ghi chú thêm</h2>
+        <div class="field" style="margin-bottom:0">
+          <label class="fl" for="f__remarks">Nếu có thông tin cần cập nhật thêm, vui lòng ghi vào đây</label>
+          <textarea id="f__remarks" placeholder="(Không bắt buộc)…"></textarea>
+        </div>
+      </div>
+    </div>
+
+    <!-- Success -->
+    <div id="success_area" class="card success hidden">
+      <div class="ico">✅</div>
+      <h2>Đã gửi thông tin!</h2>
+      <p class="muted">Cảm ơn bạn. Bộ phận nhân sự sẽ tiếp nhận thông tin này.<br>Bạn có thể tải bản PDF để lưu lại.</p>
+      <button class="btn-primary" id="pdf_btn" style="max-width:280px;margin:14px auto 0" onclick="downloadPdf()">📄 Tải
+        PDF thông tin đã gửi</button>
+      <button style="max-width:280px;margin:10px auto 0;background:#e2e8f0;color:#334155"
+        onclick="location.reload()">Cập nhật lại (nếu cần)</button>
+    </div>
+  </div>
+
+  <div class="submitbar hidden" id="submitbar">
+    <div class="inner">
+      <span class="muted" id="emp_label"></span>
+      <button class="btn-primary" id="submit_btn" onclick="submitForm()">Gửi thông tin</button>
+    </div>
+  </div>
+
+  <!-- QR Scanner Overlay (CCCD) -->
+  <div id="qr_overlay">
+    <p style="color:#fff;font-size:15px;font-weight:600;margin-bottom:16px;text-align:center">
+      Hướng mặt CCCD có <strong>mã QR</strong> vào khung<br>
+      <span style="font-size:12px;font-weight:400;color:#94a3b8">Đặt mã QR vào ô vàng giữa — cách 5–10 cm, đủ ánh
+        sáng</span>
+    </p>
+    <div id="qr_viewport">
+      <div id="qr_scan_line"></div>
+      <div id="qr_center_box"></div>
+      <div class="qr-corner tl"></div>
+      <div class="qr-corner tr"></div>
+      <div class="qr-corner bl"></div>
+      <div class="qr-corner br"></div>
+    </div>
+    <div id="qr_status" style="color:#94a3b8;font-size:13px;margin-top:14px;text-align:center;min-height:20px">Đang khởi
+      động camera...</div>
+    <button id="btn_torch" onclick="toggleTorch()">🔦 Bật đèn</button>
+    <button onclick="closeQRScanner()"
+      style="margin-top:10px;padding:10px 32px;background:#fff;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;color:#374151">✕
+      Đóng</button>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    window.csrf_token = "{% endraw %}{{ csrf_token }}{% raw %}";
+    window.COMPANY = "{% endraw %}{{ company }}{% raw %}";
+    const REMARKS_KEY = "__remarks";
+
+    const M = {
+      config: "customize_erpnext.api.self_update_info.self_update_info_api.get_field_config",
+      employees: "customize_erpnext.api.self_update_info.self_update_info_api.get_eligible_employees",
+      verify: "customize_erpnext.api.self_update_info.self_update_info_api.verify_employee",
+      formData: "customize_erpnext.api.self_update_info.self_update_info_api.get_form_data",
+      save: "customize_erpnext.api.self_update_info.self_update_info_api.save_form_data",
+      pdf: "customize_erpnext.api.self_update_info.self_update_info_api.download_submission_pdf",
+      provinces: "customize_erpnext.api.vn_address.vn_address_api.get_provinces",
+      wards: "customize_erpnext.api.vn_address.vn_address_api.get_wards",
+    };
+
+    // Company name in the header (injected via Jinja, set after load).
+    document.addEventListener("DOMContentLoaded", () => {
+      const el = document.getElementById("company_name");
+      if (el) el.textContent = window.COMPANY || "";
+    });
+
+    const S = { employee_id: null, employee_name: null, config: null, original: {}, values: {}, verifyCode: null, fieldByName: {} };
+
+    // CCCD QR scan: only offered when this Employee field is configured.
+    const CCCD_FIELD = "custom_id_card_no";              // số CCCD
+    const CCCD_ISSUE_FIELD = "custom_id_card_date_of_issue";  // ngày cấp
+    const CCCD_CMND_FIELD = "custom_id_card_cmnd_no";    // số CMND cũ
+    let provincesCache = null;
+    const wardsCache = {};
+
+    async function api(method, args = {}) {
+      const fd = new FormData();
+      fd.append("csrf_token", window.csrf_token);
+      for (const [k, v] of Object.entries(args))
+        fd.append(k, v === null || v === undefined ? "" : (typeof v === "object" ? JSON.stringify(v) : String(v)));
+      const res = await fetch(`/api/method/${method}`, { method: "POST", credentials: "same-origin", body: fd });
+      if (res.status === 403) { location.reload(); throw new Error("Phiên đã hết hạn"); }
+      const data = await res.json();
+      if (data.exc) {
+        let msg = "";
+        try { msg = JSON.parse(JSON.parse(data._server_messages || "[]")[0]).message; } catch { }
+        throw new Error(msg || data.exc_type || "Lỗi máy chủ");
+      }
+      return data.message;
+    }
+
+    function esc(s) {
+      return String(s == null ? "" : s).replace(/[&<>"']/g, c => (
+        { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    }
+
+    function toast(msg, ok = false) {
+      const t = document.getElementById("toast");
+      t.textContent = msg; t.style.background = ok ? "#166534" : "#111827";
+      t.classList.add("show"); setTimeout(() => t.classList.remove("show"), 2600);
+    }
+
+    // ---------- employee search combobox ----------
+    let allEmps = [];          // [{employee_id, display_name, submitted, _hay}]
+    let comboMatches = [];     // current filtered list
+    let comboActive = -1;      // keyboard-highlighted index
+
+    function deburr(s) {
+      return String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "")
+        .replace(/đ/g, "d").replace(/Đ/g, "D").toLowerCase();
+    }
+
+    (async function init() {
+      const inp = document.getElementById("emp_search");
+      try {
+        const emps = await api(M.employees);
+        allEmps = emps.map(e => ({ ...e, _hay: deburr(e.display_name + " " + e.employee_id) }));
+        inp.disabled = false;
+        inp.placeholder = "Gõ mã hoặc tên để tìm…";
+        document.addEventListener("click", (ev) => {
+          if (!ev.target.closest(".combo")) hideEmpResults();
+        });
+        const url = new URLSearchParams(location.search);
+        const pre = url.get("emp");
+        const match = pre && allEmps.find(e => e.employee_id === pre);
+        if (match) { pickEmp(match); }
+      } catch (e) { toast(e.message); inp.placeholder = "Không tải được danh sách"; }
+    })();
+
+    function onEmpSearch() {
+      const q = deburr(document.getElementById("emp_search").value.trim());
+      comboMatches = !q ? allEmps.slice(0, 50)
+        : allEmps.filter(e => e._hay.includes(q)).slice(0, 50);
+      comboActive = -1;
+      renderEmpResults(q);
+    }
+
+    function renderEmpResults(q) {
+      const box = document.getElementById("emp_results");
+      if (!comboMatches.length) {
+        box.innerHTML = `<div class="combo-empty">Không tìm thấy nhân viên phù hợp</div>`;
+        box.classList.remove("hidden"); return;
+      }
+      box.innerHTML = comboMatches.map((e, i) =>
+        `<div class="combo-item${i === comboActive ? ' active' : ''}" data-id="${esc(e.employee_id)}" onclick="pickEmpById('${esc(e.employee_id)}')">
+        <span>${esc(e.display_name)}${e.submitted ? ' <span class="ok">✓</span>' : ''}</span>
+        <span class="code">${esc(e.employee_id)}</span>
+      </div>`).join("");
+      box.classList.remove("hidden");
+    }
+
+    function hideEmpResults() { document.getElementById("emp_results").classList.add("hidden"); }
+
+    function onEmpKey(ev) {
+      const box = document.getElementById("emp_results");
+      if (box.classList.contains("hidden")) return;
+      if (ev.key === "ArrowDown") { ev.preventDefault(); comboActive = Math.min(comboActive + 1, comboMatches.length - 1); renderEmpResults(); scrollActive(); }
+      else if (ev.key === "ArrowUp") { ev.preventDefault(); comboActive = Math.max(comboActive - 1, 0); renderEmpResults(); scrollActive(); }
+      else if (ev.key === "Enter") { ev.preventDefault(); const i = comboActive >= 0 ? comboActive : 0; if (comboMatches[i]) pickEmp(comboMatches[i]); }
+      else if (ev.key === "Escape") { hideEmpResults(); }
+    }
+
+    function scrollActive() {
+      const el = document.querySelectorAll("#emp_results .combo-item")[comboActive];
+      if (el) el.scrollIntoView({ block: "nearest" });
+    }
+
+    function pickEmpById(id) { const e = allEmps.find(x => x.employee_id === id); if (e) pickEmp(e); }
+
+    function pickEmp(e) {
+      document.getElementById("emp_search").value = `${e.display_name} (${e.employee_id})`;
+      hideEmpResults();
+      onEmpSelected(e.employee_id);
+    }
+
+    function resetForm() {
+      document.getElementById("verify_card").classList.add("hidden");
+      document.getElementById("form_area").classList.add("hidden");
+      document.getElementById("submitbar").classList.add("hidden");
+    }
+
+    // Decide between verification gate and loading the form directly.
+    async function onEmpSelected(empId) {
+      try {
+        resetForm();
+        S.employee_id = empId; S.verifyCode = null;
+        if (!S.config) S.config = await api(M.config);
+        if (S.config.require_dob) {
+          const vc = document.getElementById("verify_card");
+          vc.classList.remove("hidden");
+          const vi = document.getElementById("verify_input");
+          vi.value = ""; vi.focus();
+        } else {
+          loadForm(empId, null);
+        }
+      } catch (e) { toast(e.message); }
+    }
+
+    async function doVerify() {
+      const code = (document.getElementById("verify_input").value || "").trim();
+      if (!code) { toast("Vui lòng nhập mã xác thực"); return; }
+      try {
+        const r = await api(M.verify, { employee_id: S.employee_id, code });
+        if (r && r.valid) {
+          document.getElementById("verify_card").classList.add("hidden");
+          loadForm(S.employee_id, code);
+        } else {
+          toast("Mã xác thực không đúng. Vui lòng thử lại.");
+        }
+      } catch (e) { toast(e.message); }
+    }
+
+    async function loadForm(empId, code) {
+      try {
+        S.verifyCode = code || null;
+        document.getElementById("submit_btn").disabled = true;
+        if (!S.config) S.config = await api(M.config);
+        const fd = await api(M.formData, { employee_id: empId, code: code || "" });
+        S.employee_id = empId; S.employee_name = fd.employee_name;
+        S.original = fd.original || {}; S.values = fd.values || {};
+        renderForm();
+        document.getElementById("f__remarks").value = fd.remarks || "";
+        document.getElementById("emp_label").textContent = `${fd.employee_name || empId}`;
+        const sw = document.getElementById("status_wrap");
+        sw.innerHTML = fd.status ?
+          `<span id="status_pill" class="${fd.status === 'Submitted' ? 'pill-sub' : 'pill-draft'}">${fd.status === 'Submitted' ? 'Đã gửi' : 'Bản nháp'}</span>` : "";
+        document.getElementById("form_area").classList.remove("hidden");
+        document.getElementById("submitbar").classList.remove("hidden");
+        document.getElementById("success_area").classList.add("hidden");
+        document.getElementById("submit_btn").disabled = false;
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      } catch (e) { toast(e.message); }
+    }
+
+    // ---------- render ----------
+    function renderForm() {
+      const root = document.getElementById("sections");
+      if (!S.config.sections.length) {
+        root.innerHTML =
+          `<div class="card"><div class="empty">Chưa có trường nào được cấu hình.<br>Liên hệ bộ phận nhân sự.</div></div>`; return;
+      }
+
+      root.innerHTML = S.config.sections.map(sec => {
+        let provFieldInSection = null;
+        const fieldsHtml = sec.fields.map(f => {
+          if (f.widget === "Address Province") provFieldInSection = f.fieldname;
+          return renderField(f, provFieldInSection);
+        }).join("");
+        return `<div class="card"><h2><span class="dot"></span>${esc(sec.label)}</h2>${fieldsHtml}</div>`;
+      }).join("");
+
+      // wire up + index fields by name
+      S.fieldByName = {};
+      S.config.sections.forEach(sec => sec.fields.forEach(f => {
+        S.fieldByName[f.fieldname] = f;
+        const el = document.getElementById("f_" + f.fieldname);
+        if (!el) return;
+        const ev = (f.fieldtype === "Check") ? "change" : "input";
+        el.addEventListener(ev, () => markChanged(f));
+      }));
+      initAddressWidgets();
+    }
+
+    function renderField(f, provField) {
+      const id = "f_" + f.fieldname;
+      const ro = f.read_only ? " ro" : "";
+      const roAttr = f.read_only ? " disabled" : "";
+      const req = f.required ? `<span class="req">*</span>` : "";
+      const val = S.values[f.fieldname];
+      let input = "";
+
+      if (f.widget === "Address Province") {
+        input = `<select id="${id}" class="addr-province" data-fieldname="${f.fieldname}"${roAttr}><option value="">— Chọn tỉnh/thành —</option></select>`;
+      } else if (f.widget === "Address Ward") {
+        input = `<select id="${id}" class="addr-ward" data-fieldname="${f.fieldname}" data-prov-field="${provField || ''}"${roAttr}><option value="">— Chọn phường/xã —</option></select>`;
+      } else if (f.fieldtype === "Check") {
+        const ck = (val === 1 || val === "1" || val === true) ? " checked" : "";
+        input = `<div class="chk"><input type="checkbox" id="${id}"${ck}${roAttr}><span class="muted">Có</span></div>`;
+      } else if (f.fieldtype === "Select") {
+        const opts = (f.options || []).map(o => `<option value="${esc(o)}"${String(val || "") === String(o) ? " selected" : ""}>${esc(o || "— Chọn —")}</option>`).join("");
+        input = `<select id="${id}"${roAttr}>${opts}</select>`;
+      } else if (["Small Text", "Text", "Long Text"].includes(f.fieldtype)) {
+        input = `<textarea id="${id}"${roAttr}>${esc(val || "")}</textarea>`;
+      } else if (["Int", "Float", "Currency"].includes(f.fieldtype)) {
+        input = `<input type="number" id="${id}" value="${esc(val == null ? "" : val)}"${roAttr}>`;
+      } else if (f.fieldtype === "Date") {
+        input = `<input type="date" id="${id}" value="${esc(val || "")}"${roAttr}>`;
+      } else {
+        const t = f.fieldtype === "Phone" ? "text" : "text";
+        input = `<input type="${t}" id="${id}" value="${esc(val || "")}"${roAttr}>`;
+      }
+      // CCCD QR scan — shown only for the CCCD number field; manual input stays.
+      const scanUi = (f.fieldname === CCCD_FIELD && !f.read_only)
+        ? `<button type="button" class="qr-scan-btn" onclick="openQRScanner()">📷 Quét mã QR trên CCCD</button>
+         <div class="hint">Quét QR để điền nhanh & chính xác số CCCD / ngày cấp / số CMND cũ — hoặc nhập tay bên dưới.</div>`
+        : "";
+      return `<div class="field${ro}" id="fg_${f.fieldname}">
+      <label class="fl" for="${id}">${esc(f.label)} ${req}<span class="badge-changed">đã đổi</span></label>
+      ${scanUi}${input}</div>`;
+    }
+
+    // ---------- changed tracking ----------
+    function currentValue(f) {
+      const el = document.getElementById("f_" + f.fieldname);
+      if (!el) return "";
+      if (f.fieldtype === "Check") return el.checked ? 1 : 0;
+      if (f.widget === "Address Province" || f.widget === "Address Ward") {
+        const opt = el.options[el.selectedIndex];
+        return opt ? (opt.getAttribute("data-name") || "") : "";
+      }
+      return el.value;
+    }
+
+    function norm(v) { return (v === null || v === undefined) ? "" : String(v); }
+
+    function markChanged(f) {
+      const fg = document.getElementById("fg_" + f.fieldname);
+      if (!fg) return;
+      const changed = norm(currentValue(f)) !== norm(S.original[f.fieldname]);
+      fg.classList.toggle("changed", changed);
+    }
+
+    // ---------- address cascade ----------
+    async function loadProvinces() {
+      if (!provincesCache) provincesCache = await api(M.provinces);
+      return provincesCache;
+    }
+    async function loadWards(code) {
+      if (!code) return [];
+      if (!wardsCache[code]) wardsCache[code] = await api(M.wards, { province_code: code });
+      return wardsCache[code];
+    }
+
+    async function initAddressWidgets() {
+      const provSelects = [...document.querySelectorAll("select.addr-province")];
+      if (provSelects.length === 0 && document.querySelectorAll("select.addr-ward").length === 0) return;
+      const provinces = await loadProvinces();
+
+      for (const psel of provSelects) {
+        const fname = psel.dataset.fieldname;
+        psel.innerHTML = `<option value="">— Chọn tỉnh/thành —</option>` +
+          provinces.map(p => `<option value="${esc(p.code)}" data-name="${esc(p.name)}">${esc(p.name)}</option>`).join("");
+        // prefill by saved name
+        const savedName = norm(S.values[fname]);
+        if (savedName) {
+          const opt = [...psel.options].find(o => o.getAttribute("data-name") === savedName);
+          if (opt) psel.value = opt.value;
+        }
+        psel.addEventListener("change", () => onProvinceChange(psel));
+      }
+
+      // populate dependent wards for prefilled provinces
+      for (const psel of provSelects) {
+        if (psel.value) await fillWards(psel, true);
+      }
+
+      // wards without a province widget — still init prefill if empty
+      for (const wsel of document.querySelectorAll("select.addr-ward")) {
+        const f = { fieldname: wsel.dataset.fieldname, widget: "Address Ward" };
+        markChanged(f);
+      }
+    }
+
+    async function onProvinceChange(psel) {
+      await fillWards(psel, false);
+      markChanged({ fieldname: psel.dataset.fieldname, widget: "Address Province" });
+    }
+
+    async function fillWards(psel, prefill) {
+      const code = psel.value;
+      const wards = await loadWards(code);
+      // ward selects paired to this province field
+      const fname = psel.dataset.fieldname;
+      const wsels = [...document.querySelectorAll(`select.addr-ward[data-prov-field="${fname}"]`)];
+      for (const wsel of wsels) {
+        const wf = wsel.dataset.fieldname;
+        wsel.innerHTML = `<option value="">— Chọn phường/xã —</option>` +
+          wards.map(w => `<option value="${esc(w.code)}" data-name="${esc(w.name)}">${esc(w.name)}</option>`).join("");
+        if (prefill) {
+          const savedName = norm(S.values[wf]);
+          if (savedName) {
+            const opt = [...wsel.options].find(o => o.getAttribute("data-name") === savedName);
+            if (opt) wsel.value = opt.value;
+          }
+        } else {
+          wsel.value = "";
+        }
+        markChanged({ fieldname: wf, widget: "Address Ward" });
+      }
+    }
+
+    // ---------- submit ----------
+    async function submitForm() {
+      const data = {};
+      const missing = [];
+      for (const sec of S.config.sections) {
+        for (const f of sec.fields) {
+          if (f.read_only) continue;
+          const v = currentValue(f);
+          data[f.fieldname] = v;
+          if (f.required && (v === null || v === undefined || String(v).trim() === "")) missing.push(f.label);
+        }
+      }
+      if (missing.length) { toast("Vui lòng nhập: " + missing.join(", ")); return; }
+      data[REMARKS_KEY] = (document.getElementById("f__remarks").value || "").trim();
+
+      const btn = document.getElementById("submit_btn");
+      btn.disabled = true; btn.textContent = "Đang gửi…";
+      try {
+        const r = await api(M.save, { employee_id: S.employee_id, data, code: S.verifyCode || "" });
+        document.getElementById("form_area").classList.add("hidden");
+        document.getElementById("submitbar").classList.add("hidden");
+        document.getElementById("picker_card").classList.add("hidden");
+        document.getElementById("success_area").classList.remove("hidden");
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      } catch (e) { toast(e.message); btn.disabled = false; btn.textContent = "Gửi thông tin"; }
+    }
+
+    // ---------- PDF download (after submit) ----------
+    async function downloadPdf() {
+      const btn = document.getElementById("pdf_btn");
+      const old = btn.textContent;
+      btn.disabled = true; btn.textContent = "Đang tạo PDF…";
+      try {
+        const fd = new FormData();
+        fd.append("csrf_token", window.csrf_token);
+        fd.append("employee_id", S.employee_id);
+        fd.append("code", S.verifyCode || "");
+        const res = await fetch(`/api/method/${M.pdf}`, { method: "POST", credentials: "same-origin", body: fd });
+        if (!res.ok) throw new Error("Không tạo được PDF");
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const d = new Date();
+        const p = n => String(n).padStart(2, "0");
+        const stamp = `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}`;
+        const fname = `${S.employee_id} ${(S.employee_name || "").trim()} ${stamp}.pdf`.replace(/\s+/g, " ").trim();
+        const a = document.createElement("a");
+        a.href = url; a.download = fname;
+        document.body.appendChild(a); a.click(); a.remove();
+        URL.revokeObjectURL(url);
+      } catch (e) { toast(e.message || "Lỗi tạo PDF"); }
+      finally { btn.disabled = false; btn.textContent = old; }
+    }
+
+    // ---------- CCCD QR scanner (copied from employee-self-update) ----------
+    let _qrStream = null, _qrRaf = null, _qrVideo = null, _qrCanvas = null, _qrCtx = null, _torchOn = false, _qrDetected = false;
+
+    function _loadJsQr(cb) {
+      if (window.jsQR) return cb();
+      const s = document.createElement("script");
+      s.src = "https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js";
+      s.onload = cb;
+      s.onerror = () => { document.getElementById("qr_status").textContent = "Không thể tải thư viện quét QR."; };
+      document.head.appendChild(s);
+    }
+
+    function openQRScanner() {
+      document.getElementById("qr_overlay").style.display = "flex";
+      document.getElementById("qr_status").textContent = "Đang khởi động camera...";
+      document.getElementById("qr_viewport").classList.remove("detected");
+      _torchOn = false; _qrDetected = false;
+      const torchBtn = document.getElementById("btn_torch");
+      if (torchBtn) { torchBtn.textContent = "🔦 Bật đèn"; torchBtn.classList.remove("on"); torchBtn.style.display = "none"; }
+
+      _loadJsQr(() => {
+        navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } }
+        }).then(stream => {
+          _qrStream = stream;
+          _qrVideo = document.createElement("video");
+          _qrVideo.srcObject = stream;
+          _qrVideo.setAttribute("playsinline", "");
+          _qrVideo.muted = true;
+          document.getElementById("qr_viewport").appendChild(_qrVideo);
+          _qrCanvas = document.createElement("canvas");
+          _qrCanvas.style.display = "none";
+          document.body.appendChild(_qrCanvas);
+          _qrCtx = _qrCanvas.getContext("2d", { willReadFrequently: true });
+          _qrVideo.play().then(() => {
+            document.getElementById("qr_status").textContent = "Sẵn sàng quét...";
+            const track = stream.getVideoTracks()[0];
+            if (track) { try { const caps = track.getCapabilities(); if (caps && caps.torch && torchBtn) { torchBtn.style.display = ""; torchBtn._track = track; } } catch (e) { } }
+            _qrScanLoop();
+          });
+        }).catch(err => {
+          document.getElementById("qr_status").textContent = "Không thể mở camera: " + (err.message || err);
+        });
+      });
+    }
+
+    function _qrScanLoop() {
+      if (_qrDetected || !_qrVideo || !_qrStream) return;
+      const vw = _qrVideo.videoWidth, vh = _qrVideo.videoHeight;
+      if (vw && vh) {
+        const crops = [
+          [0, 0, vw, vh],
+          [vw * 0.2, vh * 0.2, vw * 0.6, vh * 0.6],
+          [vw * 0.325, vh * 0.25, vw * 0.35, vh * 0.5],
+        ];
+        for (const [cx, cy, cw, ch] of crops) {
+          const out = 900;
+          _qrCanvas.width = out; _qrCanvas.height = Math.round(out * ch / cw);
+          _qrCtx.drawImage(_qrVideo, cx, cy, cw, ch, 0, 0, _qrCanvas.width, _qrCanvas.height);
+          const idd = _qrCtx.getImageData(0, 0, _qrCanvas.width, _qrCanvas.height);
+          _boostContrast(idd);
+          _qrCtx.putImageData(idd, 0, 0);
+          const id2 = _qrCtx.getImageData(0, 0, _qrCanvas.width, _qrCanvas.height);
+          const code = jsQR(id2.data, id2.width, id2.height, { inversionAttempts: "attemptBoth" });
+          if (code) {
+            const parsed = _parseVnCCCDQR(code.data);
+            if (parsed) { _qrDetected = true; _onQRDetected(parsed); return; }
+          }
+        }
+      }
+      _qrRaf = requestAnimationFrame(_qrScanLoop);
+    }
+
+    function _boostContrast(imageData) {
+      const d = imageData.data;
+      let mn = 255, mx = 0;
+      for (let i = 0; i < d.length; i += 4) { const g = (d[i] * 77 + d[i + 1] * 150 + d[i + 2] * 29) >> 8; if (g < mn) mn = g; if (g > mx) mx = g; }
+      const range = mx - mn || 1;
+      for (let i = 0; i < d.length; i += 4) { const g = Math.round((((d[i] * 77 + d[i + 1] * 150 + d[i + 2] * 29) >> 8) - mn) * 255 / range); d[i] = d[i + 1] = d[i + 2] = g; }
+    }
+
+    function toggleTorch() {
+      const btn = document.getElementById("btn_torch");
+      if (!btn || !btn._track) return;
+      _torchOn = !_torchOn;
+      btn._track.applyConstraints({ advanced: [{ torch: _torchOn }] }).catch(() => { });
+      btn.textContent = _torchOn ? "🔦 Tắt đèn" : "🔦 Bật đèn";
+      btn.classList.toggle("on", _torchOn);
+    }
+
+    function closeQRScanner() {
+      _qrDetected = false;
+      if (_qrRaf) { cancelAnimationFrame(_qrRaf); _qrRaf = null; }
+      if (_torchOn && _qrStream) { const t = _qrStream.getVideoTracks()[0]; if (t) t.applyConstraints({ advanced: [{ torch: false }] }).catch(() => { }); }
+      if (_qrStream) { _qrStream.getTracks().forEach(t => t.stop()); _qrStream = null; }
+      if (_qrVideo) { _qrVideo.remove(); _qrVideo = null; }
+      if (_qrCanvas) { _qrCanvas.remove(); _qrCanvas = null; }
+      _qrCtx = null; _torchOn = false;
+      document.getElementById("qr_overlay").style.display = "none";
+    }
+
+    function _onQRDetected(parsed) {
+      document.getElementById("qr_viewport").classList.add("detected");
+      document.getElementById("qr_status").textContent = "✅ Đọc mã QR thành công!";
+      setTimeout(() => { closeQRScanner(); _fillFromCCCD(parsed); }, 500);
+    }
+
+    function _parseVnCCCDQR(text) {
+      const parts = text.split("|");
+      if (parts.length < 7) return null;
+      const cccd = parts[0].trim();
+      if (!/^\d{9,12}$/.test(cccd)) return null;
+      function toISO(s) { s = s.trim(); if (s.length !== 8) return ""; return `${s.slice(4, 8)}-${s.slice(2, 4)}-${s.slice(0, 2)}`; }
+      return { cccd, cmnd: parts[1].trim(), issueDate: toISO(parts[6].trim()) };
+    }
+
+    // Set a configured field's value (if present) and flag it as changed.
+    function _setCccdField(fieldname, value) {
+      const f = S.fieldByName[fieldname];
+      if (!f || f.read_only) return;
+      const el = document.getElementById("f_" + fieldname);
+      if (!el) return;
+      el.value = value;
+      markChanged(f);
+    }
+
+    // Fill only: số CCCD, ngày cấp, số CMND cũ (per requirement).
+    function _fillFromCCCD(data) {
+      if (data.cccd) _setCccdField(CCCD_FIELD, data.cccd);
+      if (data.issueDate) _setCccdField(CCCD_ISSUE_FIELD, data.issueDate);
+      if (data.cmnd && /^\d{9}$/.test(data.cmnd)) _setCccdField(CCCD_CMND_FIELD, data.cmnd);
+      toast("Đã điền thông tin từ QR CCCD", true);
+    }
+  </script>
+</body>
+
+</html>
+{% endraw %}

@@ -1,0 +1,114 @@
+{
+ "actions": [],
+ "creation": "2026-06-26 09:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "employee_fieldname",
+  "label_vi",
+  "column_break_1",
+  "section_label",
+  "widget",
+  "column_break_2",
+  "required",
+  "read_only",
+  "section_custom",
+  "is_custom",
+  "custom_fieldtype",
+  "custom_options"
+ ],
+ "fields": [
+  {
+   "description": "Employee fieldname, or a free-form key when 'Custom field' is checked.",
+   "fieldname": "employee_fieldname",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Fieldname / Key",
+   "reqd": 1
+  },
+  {
+   "description": "Vietnamese label shown to employees. If empty, the Employee field's default (English) label is used.",
+   "fieldname": "label_vi",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Label (Tiếng Việt)"
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "General",
+   "fieldname": "section_label",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Section"
+  },
+  {
+   "default": "Auto",
+   "fieldname": "widget",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Widget",
+   "options": "Auto\nAddress Province\nAddress Ward"
+  },
+  {
+   "fieldname": "column_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "required",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Required"
+  },
+  {
+   "default": "0",
+   "fieldname": "read_only",
+   "fieldtype": "Check",
+   "label": "Read Only"
+  },
+  {
+   "fieldname": "section_custom",
+   "fieldtype": "Section Break",
+   "label": "Custom field (not in Employee)"
+  },
+  {
+   "default": "0",
+   "description": "Check if this field does NOT exist on the Employee doctype. Its value is stored in the submission only (never written to / read from Employee).",
+   "fieldname": "is_custom",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Custom"
+  },
+  {
+   "default": "Data",
+   "depends_on": "is_custom",
+   "fieldname": "custom_fieldtype",
+   "fieldtype": "Select",
+   "label": "Custom Field Type",
+   "options": "Data\nDate\nDatetime\nTime\nInt\nFloat\nSelect\nCheck\nSmall Text\nText\nPhone"
+  },
+  {
+   "depends_on": "eval:doc.is_custom && doc.custom_fieldtype=='Select'",
+   "description": "One option per line (only for Select).",
+   "fieldname": "custom_options",
+   "fieldtype": "Small Text",
+   "label": "Custom Options"
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-06-26 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Customize Erpnext",
+ "name": "Employee Self Update Info Field",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

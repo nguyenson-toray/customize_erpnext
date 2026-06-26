@@ -1,0 +1,189 @@
+{
+ "actions": [],
+ "creation": "2026-06-26 09:00:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "section_employees",
+  "info_html",
+  "filter_date",
+  "department",
+  "custom_section",
+  "group",
+  "btn_add_by_date",
+  "btn_clear_all",
+  "col_break_filter",
+  "employees",
+  "section_security",
+  "validate_by_dob",
+  "col_break_security",
+  "bypass_code",
+  "section_fields",
+  "fields_intro",
+  "btn_add_field",
+  "btn_add_custom_field",
+  "selected_fields",
+  "section_new_join",
+  "new_join_intro",
+  "btn_apply_new_join_preset",
+  "selected_fields_for_new_join"
+ ],
+ "fields": [
+  {
+   "fieldname": "section_employees",
+   "fieldtype": "Section Break",
+   "label": "Eligible Employees"
+  },
+  {
+   "default": "Today",
+   "fieldname": "filter_date",
+   "fieldtype": "Date",
+   "label": "Date of Joining"
+  },
+  {
+   "fieldname": "group",
+   "fieldtype": "Link",
+   "label": "Group",
+   "options": "Group"
+  },
+  {
+   "fieldname": "department",
+   "fieldtype": "Link",
+   "label": "Department",
+   "options": "Department"
+  },
+  {
+   "fieldname": "custom_section",
+   "fieldtype": "Link",
+   "label": "Section",
+   "options": "Section"
+  },
+  {
+   "fieldname": "btn_add_by_date",
+   "fieldtype": "Button",
+   "label": "Add Employees"
+  },
+  {
+   "fieldname": "btn_clear_all",
+   "fieldtype": "Button",
+   "label": "Clear All"
+  },
+  {
+   "fieldname": "col_break_filter",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "info_html",
+   "fieldtype": "HTML",
+   "label": "Info"
+  },
+  {
+   "allow_bulk_edit": 1,
+   "fieldname": "employees",
+   "fieldtype": "Table",
+   "label": "Employees",
+   "options": "Employee Self Update Employee"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "section_security",
+   "fieldtype": "Section Break",
+   "label": "Verification"
+  },
+  {
+   "default": "0",
+   "description": "Require the employee to enter the last 2 digits of their day of birth before they can load/submit the form (anti-spam, prevents updating someone else's data).",
+   "fieldname": "validate_by_dob",
+   "fieldtype": "Check",
+   "label": "Validate by DOB"
+  },
+  {
+   "fieldname": "col_break_security",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Admin-only bypass code. Never shown on the public page. Accepted in place of the DOB digits when an employee's stored date of birth is wrong and they cannot verify.",
+   "fieldname": "bypass_code",
+   "fieldtype": "Int",
+   "label": "Bypass Code"
+  },
+  {
+   "fieldname": "section_fields",
+   "fieldtype": "Section Break",
+   "label": "Fields shown to employees"
+  },
+  {
+   "fieldname": "fields_intro",
+   "fieldtype": "HTML",
+   "label": "Fields Intro"
+  },
+  {
+   "fieldname": "btn_add_field",
+   "fieldtype": "Button",
+   "label": "+ Add Employee Field"
+  },
+  {
+   "fieldname": "btn_add_custom_field",
+   "fieldtype": "Button",
+   "label": "+ Add Custom Field"
+  },
+  {
+   "allow_bulk_edit": 1,
+   "fieldname": "selected_fields",
+   "fieldtype": "Table",
+   "label": "Selected Fields",
+   "options": "Employee Self Update Info Field"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "section_new_join",
+   "fieldtype": "Section Break",
+   "label": "New-Join Preset"
+  },
+  {
+   "fieldname": "new_join_intro",
+   "fieldtype": "HTML",
+   "label": "New-Join Intro"
+  },
+  {
+   "fieldname": "btn_apply_new_join_preset",
+   "fieldtype": "Button",
+   "label": "\u21a7 Fill Selected Fields from Preset"
+  },
+  {
+   "allow_bulk_edit": 1,
+   "description": "A reusable set of basic fields for newly-joined employees. Use the button above to copy these into Selected Fields (the list actually shown on the page).",
+   "fieldname": "selected_fields_for_new_join",
+   "fieldtype": "Table",
+   "label": "Selected Fields for New Join",
+   "options": "Employee Self Update Info Field"
+  }
+ ],
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-06-26 15:54:21.763595",
+ "modified_by": "Administrator",
+ "module": "Customize Erpnext",
+ "name": "Employee Self Update Info Setting",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "read": 1,
+   "role": "HR Manager",
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "HR User"
+  },
+  {
+   "read": 1,
+   "role": "System Manager",
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}
