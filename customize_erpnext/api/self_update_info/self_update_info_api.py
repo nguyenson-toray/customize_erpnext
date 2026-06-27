@@ -52,7 +52,9 @@ def _get_setting():
 
 
 def _selected_rows(setting):
-	return [r for r in (setting.selected_fields or []) if r.employee_fieldname]
+	# Only rows explicitly enabled (enable=1) are exposed on the public page.
+	# This single chokepoint governs rendering, save validation and export.
+	return [r for r in (setting.selected_fields or []) if r.employee_fieldname and r.enable]
 
 
 def _build_config():

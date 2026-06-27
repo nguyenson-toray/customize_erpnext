@@ -1,6 +1,6 @@
 {
  "actions": [],
- "creation": "2026-06-26 09:00:00.000000",
+ "creation": "2026-06-26 09:00:00",
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
@@ -13,6 +13,7 @@
   "column_break_2",
   "required",
   "read_only",
+  "enable",
   "section_custom",
   "is_custom",
   "custom_fieldtype",
@@ -32,7 +33,7 @@
    "fieldname": "label_vi",
    "fieldtype": "Data",
    "in_list_view": 1,
-   "label": "Label (Tiếng Việt)"
+   "label": "Label (Ti\u1ebfng Vi\u1ec7t)"
   },
   {
    "fieldname": "column_break_1",
@@ -68,6 +69,7 @@
    "default": "0",
    "fieldname": "read_only",
    "fieldtype": "Check",
+   "in_list_view": 1,
    "label": "Read Only"
   },
   {
@@ -97,11 +99,18 @@
    "fieldname": "custom_options",
    "fieldtype": "Small Text",
    "label": "Custom Options"
+  },
+  {
+   "default": "1",
+   "fieldname": "enable",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Enable"
   }
  ],
  "istable": 1,
  "links": [],
- "modified": "2026-06-26 09:00:00.000000",
+ "modified": "2026-06-27 12:59:33.914769",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Employee Self Update Info Field",
