@@ -2,3 +2,4 @@ customize_erpnext.patches.add_attendance_performance_indexes
 customize_erpnext.patches.add_batch_custom_fields
 customize_erpnext.patches.add_batch_color_field
 customize_erpnext.patches.add_batch_initial_qty_field
+customize_erpnext.patches.remove_shift_registration_and_custom_attendance

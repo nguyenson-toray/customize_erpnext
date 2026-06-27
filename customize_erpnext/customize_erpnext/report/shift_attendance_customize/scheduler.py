@@ -1,6 +1,6 @@
 import frappe
 from frappe import _
-from frappe.utils import today, formatdate, get_datetime, add_days
+from frappe.utils import today, formatdate, get_datetime, add_days, getdate
 from datetime import datetime, time as time_obj, timedelta
 import openpyxl
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
@@ -213,7 +213,7 @@ def calculate_attendance_statistics(report_date, data):
 		      OR (status = 'Left' AND relieving_date >= %(date)s)			   
 		  )
 		  AND employee LIKE %(prefix)s
-	""", {"date": report_date})[0][0]
+	""", {"date": report_date, "prefix": f"{prefix}%"})[0][0]
 
 	# Separate employees by status
 	present_employees = []
@@ -393,23 +393,29 @@ def get_incomplete_checkins(start_date, end_date):
 	"""
 	from collections import defaultdict
 
-	# Step 1: Pre-load shift registrations for the date range (1 query)
+	# Step 1: Pre-load Shift Assignments for the date range (1 query)
+	# Shift Registration is deprecated/unused — shift overrides now come from
+	# the standard Shift Assignment doctype (end_date NULL = open-ended).
+	range_start = getdate(start_date)
+	range_end = getdate(end_date)
 	shift_reg_map = {}  # (employee, date) -> shift
 	shift_regs = frappe.db.sql("""
-		SELECT srd.employee, srd.shift, srd.begin_date, srd.end_date, sr.creation
-		FROM `tabShift Registration Detail` srd
-		JOIN `tabShift Registration` sr ON srd.parent = sr.name
-		WHERE sr.docstatus = 1
-		  AND srd.begin_date <= %(end_date)s
-		  AND srd.end_date >= %(start_date)s
-		ORDER BY sr.creation DESC
+		SELECT employee, shift_type AS shift, start_date, end_date
+		FROM `tabShift Assignment`
+		WHERE docstatus = 1
+		  AND status = 'Active'
+		  AND start_date <= %(end_date)s
+		  AND (end_date IS NULL OR end_date >= %(start_date)s)
+		ORDER BY start_date DESC, creation DESC
 	""", {"start_date": start_date, "end_date": end_date}, as_dict=True)
 
-	# Build map: (employee, date) -> shift (latest registration wins)
+	# Build map: (employee, date) -> shift (latest assignment wins).
+	# Clamp each assignment to the report range; open-ended ones run to range_end.
 	for sr in shift_regs:
 		emp = sr.employee
-		d = sr.begin_date
-		while d <= sr.end_date:
+		d = max(getdate(sr.start_date), range_start)
+		sr_end = min(getdate(sr.end_date), range_end) if sr.end_date else range_end
+		while d <= sr_end:
 			key = (emp, d)
 			if key not in shift_reg_map:
 				shift_reg_map[key] = sr.shift
@@ -457,7 +463,9 @@ def get_incomplete_checkins(start_date, end_date):
 		key = (emp.employee_code, emp.checkin_date)
 		shift = shift_reg_map.get(key)
 		if not shift:
-			shift = 'Canteen' if emp.custom_group == 'Canteen' else 'Day'
+			# Default shift is 'Day'; non-Day shifts (incl. Canteen) come from
+			# Shift Assignment, not from custom_group.
+			shift = 'Day'
 		emp['shift'] = shift
 		times = shift_times.get(shift, {})
 		emp['begin_time'] = times.get('begin_time')
@@ -1089,7 +1097,7 @@ def generate_email_content(report_date, stats, data, last_checkin_time=None):
 
   <!-- Disclaimer -->
   <div class="notice">
-    ⚠️ <strong>Lưu ý:</strong> Dữ liệu hiện diện có thể chưa bao gồm nhân viên mới nhận việc trong ngày, nhân viên làm ca 2 — cần kiểm tra lại.
+    ⚠️ <strong>Lưu ý:</strong> Dữ liệu hiện diện có thể chưa bao gồm nhân viên mới nhận việc trong ngày, nhân viên đã nghỉ việc nhưng chưa cập nhật, nhân viên làm ca 2 — cần kiểm tra lại.
   </div>
 
   <!-- Stat cards -->

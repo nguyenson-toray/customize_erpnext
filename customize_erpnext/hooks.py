@@ -52,6 +52,7 @@ doctype_list_js = {
     ],
     "Employee Checkin": "public/js/custom_scripts/employee_checkin_list.js",
     "Attendance": "public/js/custom_scripts/attendance_list.js",
+    "Shift Assignment": "public/js/custom_scripts/shift_assignment_list.js",
 }
 
 # Fixtures Configuration
@@ -247,11 +248,6 @@ scheduler_events = {
         #     "customize_erpnext.customize_erpnext.doctype.vehicle_trip.daily_trips.create_daily_trips_dropoff"
         # ],
 
-        # Smart auto update mỗi 2 giờ
-        # "0 */2 * * *": [
-        #     "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.scheduler_jobs.smart_auto_update_custom_attendance"
-        # ],
-
         # Auto mark employees as Left + recalculate maternity status - Every day at 00:00
         "0 0 * * *": [
             "customize_erpnext.overrides.employee.employee.auto_mark_employees_as_left",
@@ -351,12 +347,6 @@ doc_events = {
         "on_update":    "customize_erpnext.customize_erpnext.doctype.employee_maternity.employee_maternity.on_maternity_update",
         "after_insert": "customize_erpnext.customize_erpnext.doctype.employee_maternity.employee_maternity.on_maternity_insert",
         "on_trash":     "customize_erpnext.customize_erpnext.doctype.employee_maternity.employee_maternity.on_maternity_delete",
-    },
-
-    # Shift Type Events
-    # - Update related attendance records when shift type changes
-    "Shift Type": {
-        "on_update": "customize_erpnext.customize_erpnext.doctype.custom_attendance.modules.on_shift_update"
     },
 
     # Stock Entry Events

@@ -52,42 +52,42 @@ class OvertimeRegistration(Document):
             self._maternity_cache = {}
             return
 
-        # Batch load shift registrations
-        self._shift_reg_cache = {}
+        # Batch load Shift Assignments (Shift Registration is deprecated/removed)
+        self._shift_assign_cache = {}
         if dates:
             min_date = min(dates)
             max_date = max(dates)
-            shift_regs = frappe.db.sql("""
-                SELECT srd.employee, srd.begin_date, srd.end_date, srd.shift
-                FROM `tabShift Registration Detail` srd
-                JOIN `tabShift Registration` sr ON srd.parent = sr.name
-                WHERE srd.employee IN %(employees)s
-                  AND srd.begin_date <= %(max_date)s
-                  AND srd.end_date >= %(min_date)s
-                  AND sr.docstatus = 1
-                ORDER BY sr.creation DESC
+            shift_assigns = frappe.db.sql("""
+                SELECT employee, shift_type AS shift, start_date, end_date
+                FROM `tabShift Assignment`
+                WHERE employee IN %(employees)s
+                  AND docstatus = 1
+                  AND status = 'Active'
+                  AND start_date <= %(max_date)s
+                  AND (end_date IS NULL OR end_date >= %(min_date)s)
+                ORDER BY start_date DESC, creation DESC
             """, {"employees": list(employees), "min_date": min_date, "max_date": max_date}, as_dict=1)
 
             # Group by employee to avoid O(n×m) nested loop
             emp_shift_index = {}
-            for reg in shift_regs:
-                emp_shift_index.setdefault(reg.employee, []).append(reg)
+            for a in shift_assigns:
+                emp_shift_index.setdefault(a.employee, []).append(a)
 
             for emp, dt in employee_dates:
-                for reg in emp_shift_index.get(emp, []):
-                    if str(reg.begin_date) <= dt <= str(reg.end_date):
-                        self._shift_reg_cache[(emp, dt)] = reg.shift
-                        break  # ORDER BY creation DESC → first match is most recent
+                for a in emp_shift_index.get(emp, []):
+                    if str(a.start_date) <= dt and (a.end_date is None or dt <= str(a.end_date)):
+                        self._shift_assign_cache[(emp, dt)] = a.shift
+                        break  # newest assignment first (ORDER BY start_date DESC)
 
-        # Batch load employee groups
-        self._emp_group_cache = {}
-        emp_groups = frappe.get_all(
+        # Batch load employee default shifts (fallback after Shift Assignment)
+        self._emp_default_shift_cache = {}
+        emp_rows = frappe.get_all(
             "Employee",
             filters={"name": ["in", list(employees)]},
-            fields=["name", "custom_group"]
+            fields=["name", "default_shift"]
         )
-        for eg in emp_groups:
-            self._emp_group_cache[eg.name] = eg.custom_group
+        for er in emp_rows:
+            self._emp_default_shift_cache[er.name] = er.default_shift
 
         # Batch load maternity records (cấu trúc mới: 1 record/employee)
         self._maternity_cache = {}
@@ -132,22 +132,23 @@ class OvertimeRegistration(Document):
                                 break
 
     def _get_shift_type_cached(self, employee, date):
-        """Get shift type using pre-loaded cache."""
+        """Get shift type using pre-loaded cache.
+        Priority: Sunday -> Day, Shift Assignment, Employee default_shift, then Day."""
         date_str = str(date)
         date_obj = getdate(date) if isinstance(date, str) else date
 
         if date_obj.weekday() == 6:
             return "Day", "Default Day Shift For Sunday"
 
-        # Check shift registration cache
-        cached = self._shift_reg_cache.get((employee, date_str))
+        # Shift Assignment (priority 1)
+        cached = self._shift_assign_cache.get((employee, date_str))
         if cached:
-            return cached, "Registration"
+            return cached, "Shift Assignment"
 
-        # Check employee group cache
-        emp_group = self._emp_group_cache.get(employee)
-        if emp_group == "Canteen":
-            return "Canteen", "Employee Group"
+        # Employee default shift (priority 2)
+        default_shift = self._emp_default_shift_cache.get(employee)
+        if default_shift:
+            return default_shift, "Default Shift"
 
         return "Day", "Default"
 
@@ -554,8 +555,8 @@ def check_maternity_benefit(employee, date):
         return True, vi_label, em.pregnant_from_date, eff_to
 
 def get_shift_type(employee, date):
-    """Get shift type for employee on date
-    Reuses same logic from daily_timesheet.py get_shift_type method
+    """Get shift type for employee on date.
+    Priority: Sunday -> Day, Shift Assignment, Employee default_shift, then Day.
     """
     # Check if it's Sunday
     if isinstance(date, str):
@@ -566,26 +567,26 @@ def get_shift_type(employee, date):
     if date_obj.weekday() == 6:  # Sunday
         return "Day", "Default Day Shift For Sunday"
 
-    # Priority 1: Shift Registration Detail
-    shift_reg = frappe.db.sql("""
-        SELECT srd.shift
-        FROM `tabShift Registration Detail` srd
-        JOIN `tabShift Registration` sr ON srd.parent = sr.name
-        WHERE srd.employee = %(employee)s
-          AND srd.begin_date <= %(date)s
-          AND srd.end_date >= %(date)s
-          AND sr.docstatus = 1
-        ORDER BY sr.creation DESC
+    # Priority 1: Shift Assignment
+    shift_assign = frappe.db.sql("""
+        SELECT shift_type
+        FROM `tabShift Assignment`
+        WHERE employee = %(employee)s
+          AND docstatus = 1
+          AND status = 'Active'
+          AND start_date <= %(date)s
+          AND (end_date IS NULL OR end_date >= %(date)s)
+        ORDER BY start_date DESC, creation DESC
         LIMIT 1
     """, {"employee": employee, "date": date}, as_dict=1)
 
-    if shift_reg:
-        return shift_reg[0].shift, "Registration"
+    if shift_assign:
+        return shift_assign[0].shift_type, "Shift Assignment"
 
-    # Priority 2: Employee custom_group
-    emp_group = frappe.db.get_value("Employee", employee, "custom_group")
-    if emp_group == "Canteen":
-        return "Canteen", "Employee Group"
+    # Priority 2: Employee default shift
+    default_shift = frappe.db.get_value("Employee", employee, "default_shift")
+    if default_shift:
+        return default_shift, "Default Shift"
 
     # Default: Day shift
     return "Day", "Default"

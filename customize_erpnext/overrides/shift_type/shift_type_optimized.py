@@ -652,9 +652,10 @@ def get_employee_shift_cached(
 			if not end_date or end_date >= attendance_date:
 				return assign.shift_type
 
-	# Fallback to default shift
+	# Priority: Shift Assignment (above) -> employee default_shift -> 'Day'
+	# (all null => default 'Day' so a shift is always resolved)
 	emp_data = ref_data['employees'].get(employee)
-	return emp_data.default_shift if emp_data else None
+	return (emp_data.default_shift or 'Day') if emp_data else 'Day'
 
 
 def is_holiday_cached(
@@ -1092,18 +1093,24 @@ def _core_process_attendance_logic_optimized(
 
 			print(f"      Found {len(checkins)} checkins")
 
+			# Build the set of existing attendance that belongs to THIS shift, once per
+			# shift iteration. Used by the fore_get_logs "mark Absent" passes in both the
+			# no-checkins branch (below) and the has-checkins branch (further down).
+			# Defining it here (not only inside `if not checkins`) prevents an
+			# UnboundLocalError / stale reuse from a previous shift iteration.
+			# Records with no shift are stored under key '' — resolve their shift dynamically.
+			shift_existing = {}
+			if fore_get_logs:
+				shift_existing = dict(ref_data['existing_attendance_by_shift'].get(shift_name, {}))
+				for (employee, att_date), old_att in ref_data['existing_attendance_by_shift'].get('', {}).items():
+					if get_employee_shift_cached(employee, att_date, ref_data) == shift_name:
+						shift_existing[(employee, att_date)] = old_att
+
 			if not checkins:
 				# CRITICAL FIX: When fore_get_logs=True and no checkins found,
 				# check existing attendance and update to Absent if needed
 				if fore_get_logs:
 					attendance_to_update = []
-
-					# Use pre-indexed dict: only iterate records belonging to this shift
-					# Records with no shift stored under key '' — resolve dynamically
-					shift_existing = dict(ref_data['existing_attendance_by_shift'].get(shift_name, {}))
-					for (employee, att_date), old_att in ref_data['existing_attendance_by_shift'].get('', {}).items():
-						if get_employee_shift_cached(employee, att_date, ref_data) == shift_name:
-							shift_existing[(employee, att_date)] = old_att
 
 					for (employee, att_date), old_att in shift_existing.items():
 
