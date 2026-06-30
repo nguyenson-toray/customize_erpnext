@@ -24,20 +24,23 @@
    "fieldname": "uniform_warehouse",
    "fieldtype": "Link",
    "label": "Uniform Warehouse",
-   "options": "Warehouse"
+   "options": "Warehouse",
+   "read_only": 1
   },
   {
    "description": "Item Group of all uniform items \u2014 drives item filters on Uniform Profile and Policies.",
    "fieldname": "uniform_item_group",
    "fieldtype": "Link",
    "label": "Uniform Item Group",
-   "options": "Item Group"
+   "options": "Item Group",
+   "read_only": 1
   },
   {
    "description": "Only employees whose ID starts with this prefix are managed (e.g. TIQN). Others (interns...) are ignored.",
    "fieldname": "employee_id_prefix",
    "fieldtype": "Data",
-   "label": "Employee ID Prefix"
+   "label": "Employee ID Prefix",
+   "read_only": 1
   },
   {
    "default": "30",
@@ -101,7 +104,7 @@
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-06-19 09:49:05.616360",
+ "modified": "2026-06-30 13:22:04.387843",
  "modified_by": "Administrator",
  "module": "Uniform Control",
  "name": "Uniform Setting",

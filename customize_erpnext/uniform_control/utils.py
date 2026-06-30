@@ -501,3 +501,87 @@ def get_eligible_employees_for_allocation(
             })
 
     return results
+
+
+def reissue_demand(to_date, setting=None, prefix=None):
+    """Reissue demand for current managed Active employees up to `to_date`,
+    counting EVERY reissue cycle in [next_due, to_date] (not just the next one).
+
+    Shared by the dashboard (Employees Due / stock "needed") and the Forecast
+    re-issue mode. Returns:
+      {"rows":   [per employee-item: + size, reissue_months, cycles,
+                  qty_per_cycle, total_qty],
+       "needed": {variant: Σ total_qty},
+       "meta":   {variant: {"template":.., "category":.., "size":..}}}
+    """
+    from frappe.utils import add_months
+
+    if setting is None:
+        setting = frappe.get_single("Uniform Setting")
+    if prefix is None:
+        prefix = get_employee_id_prefix()
+    to_date = getdate(to_date)
+    prefix_cond = "AND p.employee LIKE %(prefix)s" if prefix else ""
+
+    rows = frappe.db.sql(
+        f"""
+        SELECT p.employee, p.employee_name, p.department, e.custom_section, e.custom_group,
+               eui.item_template, eui.last_issue_date, eui.next_due_date, eui.status
+        FROM `tabEmployee Uniform Item` eui
+        INNER JOIN `tabEmployee Uniform Profile` p ON p.name = eui.parent
+        INNER JOIN `tabEmployee` e ON e.name = p.employee
+        WHERE eui.next_due_date IS NOT NULL AND eui.next_due_date <= %(to_date)s
+          AND e.status = 'Active' {prefix_cond}
+        ORDER BY eui.next_due_date ASC
+        """,
+        {"to_date": to_date, "prefix": f"{prefix}%"}, as_dict=True,
+    )
+
+    # Variant size/colour attribute for display
+    variants = {r.item_template for r in rows if r.item_template}
+    attr_val = {}
+    if variants:
+        for a in frappe.get_all(
+            "Item Variant Attribute",
+            filters={"parent": ["in", list(variants)]},
+            fields=["parent", "attribute_value"],
+        ):
+            attr_val.setdefault(a.parent, a.attribute_value)
+
+    template_of, rule_cache, needed, meta = {}, {}, {}, {}
+    for r in rows:
+        variant = r.item_template
+        r["size"] = attr_val.get(variant, "")
+        if variant not in template_of:
+            template_of[variant] = frappe.db.get_value("Item", variant, "variant_of") or variant
+        template = template_of[variant]
+
+        key = (r.employee, template)
+        if key not in rule_cache:
+            rule_cache[key] = get_rule_for_tracking(template, r.employee, setting)
+        rule = rule_cache[key]
+        qpc = cint(rule.reissue_qty) if rule else 0
+        months = 0 if (not rule or rule.one_time) else cint(rule.reissue_months)
+
+        # Count reissue occurrences within [next_due, to_date]
+        cycles = 1
+        if months > 0:
+            nd = getdate(r.next_due_date)
+            cycles = 0
+            while add_months(nd, cycles * months) <= to_date:
+                cycles += 1
+        total = cycles * qpc
+
+        r["reissue_months"] = months
+        r["qty_per_cycle"] = qpc
+        r["cycles"] = cycles
+        r["total_qty"] = total
+        needed[variant] = needed.get(variant, 0) + total
+        if variant not in meta:
+            meta[variant] = {
+                "template": template,
+                "category": (rule.category if rule else None),
+                "size": r["size"],
+            }
+
+    return {"rows": rows, "needed": needed, "meta": meta}

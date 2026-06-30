@@ -1,7 +1,7 @@
 // Uniform Control — Dashboard (Desk Page)
 // Route: /app/uniform-dashboard
-// All data comes from uniform_api / uniform_excel_api — HR never opens raw stock reports.
-// Labels are English wrapped in __() and translated via translations/vi.csv.
+// Uses Frappe-native building blocks (frappe.DataTable, frappe.Chart) — only the
+// summary cards are light custom HTML. Data comes from uniform_api / uniform_excel_api.
 
 frappe.pages['uniform-dashboard'].on_page_load = function (wrapper) {
 	const API = 'customize_erpnext.uniform_control.api';
@@ -19,16 +19,55 @@ frappe.pages['uniform-dashboard'].on_page_load = function (wrapper) {
 	});
 	page.add_inner_button(__('Allocation History'), () => frappe.set_route('List', 'Uniform Allocation'));
 	page.add_inner_button(__('Uniform Tracking'), () => frappe.set_route('query-report', 'Uniform Tracking'));
+	page.add_inner_button(__('Demand Forecast'), () => frappe.set_route('List', 'Uniform Demand Forecast'));
 	page.add_inner_button(__('Uniform Profiles'), () => frappe.set_route('List', 'Employee Uniform Profile'));
 	page.add_inner_button(__('Shoe Rack Dashboard'), () => frappe.set_route('shoe-rack-dashboard'));
 	page.add_inner_button(__('Export Excel'), () => {
-		window.open('/api/method/customize_erpnext.uniform_control.api.uniform_api.export_dashboard_excel');
+		const due_before = $body.find('[data-due-before]').val() || '';
+		const params = new URLSearchParams({ due_before });
+		if (selected_forecasts.length) params.set('forecasts', JSON.stringify(selected_forecasts));
+		window.open('/api/method/customize_erpnext.uniform_control.api.uniform_api.export_dashboard_excel?' + params.toString());
 	});
 	page.add_inner_button(__('Refresh'), () => load());
 
 	const $body = $(`
 		<div class="uniform-dashboard" style="padding: 0 var(--padding-md);">
 			<div class="row" data-section="cards" style="margin-bottom: 15px;"></div>
+
+			<!-- HERO: stock purchasing plan -->
+			<div class="row"><div class="col-12">
+				<div class="frappe-card" style="padding:15px; margin-bottom:15px;">
+					<div class="d-flex justify-content-between align-items-center flex-wrap" style="gap:10px; margin-bottom:10px;">
+						<h6 style="margin:0;">${__('Stock Plan')}
+							<span class="text-muted" data-count="plan"></span></h6>
+						<div class="d-flex align-items-center flex-wrap" style="gap:10px;">
+							<span class="text-muted" style="font-size:var(--text-sm); white-space:nowrap;">${__('Reissue due on/before')}</span>
+							<input type="date" class="form-control input-sm" data-due-before style="max-width:150px;">
+							<button class="btn btn-xs btn-default" data-include-forecast>${__('Include Forecast Demand')}…</button>
+						</div>
+					</div>
+					<div class="text-muted" data-forecast-note style="font-size:var(--text-sm); margin-bottom:6px;"></div>
+					<div data-table="plan"></div>
+				</div>
+			</div></div>
+
+			<!-- Collapsed: employees due for issue -->
+			<div class="row"><div class="col-12">
+				<div class="frappe-card" style="padding:15px; margin-bottom:15px;">
+					<details data-section="due">
+						<summary style="cursor:pointer; user-select:none;">
+							<h6 style="display:inline; margin:0;">${__('Employees Due for Issue')}</h6>
+							<span class="text-muted" data-count="due"></span>
+						</summary>
+						<div class="d-flex justify-content-end align-items-center" style="gap:12px; margin:8px 0;">
+							<a href="#" data-open-tracking style="font-size:var(--text-sm); white-space:nowrap;">${__('Open in Uniform Tracking')} →</a>
+						</div>
+						<div data-table="due"></div>
+					</details>
+				</div>
+			</div></div>
+
+			<!-- Charts -->
 			<div class="row">
 				<div class="col-md-6"><div class="frappe-card" style="padding:15px; margin-bottom:15px;">
 					<h6>${__('Issued Qty by Month')}</h6><div data-chart="month"></div>
@@ -37,226 +76,162 @@ frappe.pages['uniform-dashboard'].on_page_load = function (wrapper) {
 					<h6>${__('Issued Qty by Group')}</h6><div data-chart="group"></div>
 				</div></div>
 			</div>
-			<div class="row"><div class="col-12">
-				<div class="frappe-card" style="padding:15px; margin-bottom:15px;">
-					<details data-section="stock">
-						<summary style="cursor:pointer; user-select:none;">
-							<h6 style="display:inline; margin:0;">${__('Uniform Stock')}</h6>
-							<span class="text-muted" data-count="stock"></span>
-						</summary>
-						<div class="d-flex justify-content-end" style="margin:8px 0;">
-							<input type="text" class="form-control input-sm" data-filter="stock"
-								placeholder="${__('Search')}..." style="max-width:240px;">
-						</div>
-						<div data-table="stock"></div>
-					</details>
-				</div>
-			</div></div>
-			<div class="row"><div class="col-12">
-				<div class="frappe-card" style="padding:15px; margin-bottom:15px;">
-					<div class="d-flex justify-content-between align-items-center" style="margin-bottom:8px;">
-						<h6 style="margin:0;">${__('Employees Due for Issue')}
-							<span class="text-muted" data-count="due"></span></h6>
-						<div class="d-flex align-items-center" style="gap:12px;">
-							<a href="#" data-open-tracking style="font-size:var(--text-sm); white-space:nowrap;">${__('Open in Uniform Tracking')} →</a>
-							<input type="text" class="form-control input-sm" data-filter="due"
-								placeholder="${__('Search')}..." style="max-width:240px;">
-						</div>
-					</div>
-					<div data-table="due"></div>
-				</div>
-			</div></div>
 		</div>
 	`).appendTo(page.main);
 
 	const esc = frappe.utils.escape_html;
-	const no_data = `<p class="text-muted">${__('No data')}</p>`;
 
-	// ── Table definitions ────────────────────────────────────────────────────
-	const TABLES = {
-		due: {
-			sort_by: 'employee',
-			dir: 1,
-			rows: [],
-			columns: [
-				{ key: 'employee', label: __('Employee'),
-					render: (r) => `<a href="/app/employee-uniform-profile/${encodeURIComponent(r.employee)}">${esc(r.employee)}</a>` },
-				{ key: 'employee_name', label: __('Employee Name') },
-				{ key: 'department', label: __('Department') },
-				{ key: 'custom_group', label: __('Group') },
-				{ key: 'item_template', label: __('Uniform Type') },
-				{ key: 'size', label: __('Size') },
-				{ key: 'next_due_date', label: __('Next Due Date'),
-					render: (r) => frappe.datetime.str_to_user(r.next_due_date) || '' },
-				{ key: 'status', label: __('Status'),
-					render: (r) => `<span class="indicator-pill ${r.status === 'Overdue' ? 'red' : 'orange'}">${__(r.status)}</span>` },
-			],
-		},
-	};
+	// ── DataTables (Frappe native) ───────────────────────────────────────────
+	const STATUS_COLOR = { Overdue: 'red', 'Due Soon': 'orange', Active: 'green', 'Not Issued': 'gray' };
 
-	function sort_rows(t) {
-		const { sort_by, dir } = t;
-		const col = t.columns.find((c) => c.key === sort_by) || {};
-		t.rows.sort((a, b) => {
-			let va = a[sort_by], vb = b[sort_by];
-			if (col.numeric) return (flt(va) - flt(vb)) * dir;
-			va = (va === null || va === undefined) ? '' : String(va);
-			vb = (vb === null || vb === undefined) ? '' : String(vb);
-			return va.localeCompare(vb, undefined, { numeric: true, sensitivity: 'base' }) * dir;
+	const plan_columns = [
+		{ name: __('Uniform Type'), width: 150, editable: false },
+		{ name: __('Item'), width: 200,
+			format: (v) => `<a href="/app/item/${encodeURIComponent(v)}">${esc(v)}</a>` },
+		{ name: __('Stock'), width: 90, align: 'right' },
+		{ name: __('Reissue Need'), width: 120, align: 'right' },
+		{ name: __('Forecast Need'), width: 120, align: 'right' },
+		{ name: __('Total Need'), width: 100, align: 'right', format: (v) => `<b>${v || 0}</b>` },
+		{ name: __('Shortfall'), width: 100, align: 'right',
+			format: (v) => (flt(v) > 0 ? `<b style="color:var(--red-600)">${v}</b>` : '') },
+	];
+
+	const due_columns = [
+		{ name: __('Employee'), width: 100,
+			format: (v) => `<a href="/app/employee-uniform-profile/${encodeURIComponent(v)}">${esc(v)}</a>` },
+		{ name: __('Employee Name'), width: 160 },
+		{ name: __('Department'), width: 130 },
+		{ name: __('Group'), width: 100 },
+		{ name: __('Uniform Type'), width: 130 },
+		{ name: __('Size'), width: 60 },
+		{ name: __('Qty/Cycle'), width: 80, align: 'right' },
+		{ name: __('Cycles'), width: 70, align: 'right' },
+		{ name: __('Total Qty'), width: 80, align: 'right' },
+		{ name: __('Next Due Date'), width: 110, format: (v) => frappe.datetime.str_to_user(v) || '' },
+		{ name: __('Status'), width: 90,
+			format: (v) => `<span class="indicator-pill ${STATUS_COLOR[v] || 'gray'}">${__(v)}</span>` },
+	];
+
+	// Columns are read-only (no inline editing) on this dashboard.
+	const PLAN_COLS = plan_columns.map((c) => ({ editable: false, ...c }));
+	const DUE_COLS = due_columns.map((c) => ({ editable: false, ...c }));
+
+	function make_dt(el, columns) {
+		return new frappe.DataTable(el, {
+			columns, data: [],
+			layout: 'fluid',
+			inlineFilters: true,
+			serialNoColumn: false,
+			checkboxColumn: false,
+			cellHeight: 34,
+			noDataMessage: __('No data'),
 		});
 	}
 
-	function render_table(key) {
-		const t = TABLES[key];
-		const $el = $body.find(`[data-table="${key}"]`);
-		$body.find(`[data-count="${key}"]`).text(t.rows.length ? `(${t.rows.length})` : '');
-		if (!t.rows.length) return $el.html(no_data);
+	// ── Stock purchasing plan ────────────────────────────────────────────────
+	let stock_rows = [];
+	let needed_map = {};          // reissue demand (multi-cycle, from due items)
+	let forecast_needed = {};     // optional new-hire demand (selected forecasts)
+	let selected_forecasts = [];  // names of the included forecasts (for export)
+	let plan_dt = null;
 
-		sort_rows(t);
-
-		let html = `<div style="max-height:70vh; overflow:auto;">
-			<table class="table table-sm" style="margin-bottom:0;"><thead><tr>`;
-		t.columns.forEach((c) => {
-			const arrow = t.sort_by === c.key ? (t.dir === 1 ? ' ▲' : ' ▼') : '';
-			html += `<th data-sort="${c.key}" style="cursor:pointer; position:sticky; top:0;
-				background: var(--card-bg); z-index:1; ${c.numeric ? 'text-align:right;' : ''}">${c.label}${arrow}</th>`;
+	function build_plan() {
+		const data = stock_rows.map((x) => {
+			const reissue = flt(needed_map[x.item_code]);
+			const forecast = flt(forecast_needed[x.item_code]);
+			const total = reissue + forecast;
+			return [
+				x.template || x.item_code, x.item_code, flt(x.actual_qty),
+				reissue, forecast, total, total - flt(x.actual_qty),
+			];
 		});
-		html += '</tr></thead><tbody>';
-		t.rows.forEach((r) => {
-			const style = t.row_style ? t.row_style(r) : '';
-			html += `<tr style="${style}">`;
-			t.columns.forEach((c) => {
-				const val = c.render ? c.render(r) : esc(r[c.key] === null || r[c.key] === undefined ? '' : String(r[c.key]));
-				html += `<td ${c.numeric ? 'class="text-right"' : ''}>${val}</td>`;
-			});
-			html += '</tr>';
-		});
-		$el.html(html + '</tbody></table></div>');
-		apply_filter(key);
+		$body.find('[data-count="plan"]').text(data.length ? `(${data.length})` : '');
+		if (!plan_dt) plan_dt = make_dt($body.find('[data-table="plan"]')[0], PLAN_COLS);
+		plan_dt.refresh(data, PLAN_COLS);
 	}
 
-	// Longest common prefix of a group's item names = the template (Uniform Type)
-	// display name; the remainder of each name is the variant (size / colour).
-	function common_prefix(names) {
-		if (!names.length) return '';
-		let p = names[0] || '';
-		for (let i = 1; i < names.length; i++) {
-			const s = names[i] || '';
-			let j = 0;
-			while (j < p.length && j < s.length && p[j] === s[j]) j++;
-			p = p.slice(0, j);
-			if (!p) break;
-		}
-		return p.trim();
+	// ── Employees due (lazy — built when the <details> is first opened, since a
+	// DataTable needs a visible container to size itself) ──────────────────────
+	let due_dt = null;
+	let due_data = [];
+
+	function render_due(rows) {
+		$body.find('[data-count="due"]').text(rows.length ? `(${rows.length})` : '');
+		due_data = rows.map((r) => [
+			r.employee, r.employee_name, r.department, r.custom_group, r.item_template,
+			r.size, r.qty_per_cycle, r.cycles, r.total_qty, r.next_due_date, r.status,
+		]);
+		refresh_due_dt();
 	}
 
-	// Stock as a matrix: one column per uniform type, rows = its variants' bin qty.
-	function render_stock(rows) {
-		const $el = $body.find('[data-table="stock"]');
-		$body.find('[data-count="stock"]').text(rows.length ? `(${rows.length})` : '');
-		if (!rows.length) return $el.html(no_data);
-
-		// Group variants by template, then build one column per template.
-		const groups = {};
-		rows.forEach((r) => {
-			const key = r.template || r.item_code;
-			(groups[key] = groups[key] || []).push(r);
-		});
-
-		const cols = Object.keys(groups).map((key) => {
-			const items = groups[key];
-			const name = common_prefix(items.map((x) => x.item_name || '')) || key;
-			const variants = items
-				.map((x) => {
-					let label = (x.item_name || '').slice(name.length).trim();
-					if (!label) label = '—';
-					return { label, qty: flt(x.actual_qty), item_code: x.item_code };
-				})
-				.sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true, sensitivity: 'base' }));
-			return { name, variants, total: variants.reduce((s, v) => s + v.qty, 0) };
-		}).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
-
-		const max_rows = Math.max(...cols.map((c) => c.variants.length));
-
-		let html = `<div style="max-height:70vh; overflow:auto;">
-			<table class="table table-sm table-bordered" style="margin-bottom:0; min-width:${cols.length * 140}px;">
-			<thead><tr>`;
-		cols.forEach((c, i) => {
-			html += `<th data-col="${i}" title="${esc(c.name)}" style="position:sticky; top:0; z-index:1;
-				background:var(--card-bg); white-space:nowrap; max-width:160px; overflow:hidden;
-				text-overflow:ellipsis;">${esc(c.name)}</th>`;
-		});
-		html += '</tr></thead><tbody>';
-		for (let r = 0; r < max_rows; r++) {
-			html += '<tr>';
-			cols.forEach((c, i) => {
-				const v = c.variants[r];
-				if (!v) return (html += `<td data-col="${i}"></td>`);
-				const zero = v.qty === 0 ? 'color:var(--red-600); font-weight:600;' : '';
-				html += `<td data-col="${i}" style="${zero}">
-					<a href="/app/item/${encodeURIComponent(v.item_code)}" style="color:inherit;">${esc(v.label)}</a>
-					<span style="float:right;">${v.qty}</span></td>`;
-			});
-			html += '</tr>';
-		}
-		html += '</tbody><tfoot><tr>';
-		cols.forEach((c, i) => {
-			html += `<th data-col="${i}" style="position:sticky; bottom:0; background:var(--card-bg);">
-				<span class="text-muted">${__('Total')}</span><span style="float:right;">${c.total}</span></th>`;
-		});
-		$el.html(html + '</tr></tfoot></table></div>');
-		apply_filter('stock');
+	function refresh_due_dt() {
+		if (!$body.find('details[data-section="due"]').prop('open')) return;
+		if (!due_dt) due_dt = make_dt($body.find('[data-table="due"]')[0], DUE_COLS);
+		due_dt.refresh(due_data, DUE_COLS);
 	}
+	$body.find('details[data-section="due"]').on('toggle', refresh_due_dt);
 
-	// Click on header → toggle sort
-	$body.on('click', 'th[data-sort]', function () {
-		const key = $(this).closest('[data-table]').attr('data-table');
-		const t = TABLES[key];
-		const col = $(this).attr('data-sort');
-		t.dir = t.sort_by === col ? -t.dir : 1;
-		t.sort_by = col;
-		render_table(key);
-	});
-
-	// Quick client-side filter: hide rows not matching the search text
-	$body.find('[data-filter]').on('input', function () {
-		const key = $(this).attr('data-filter');
-		apply_filter(key);
-	});
-
-	// Drill-down: KPI cards → Uniform Tracking report (pre-filtered). Delegated
-	// because cards are re-rendered on every load().
+	// ── Handlers ─────────────────────────────────────────────────────────────
+	// Drill-down: KPI cards → Uniform Tracking report (pre-filtered).
 	$body.on('click', '[data-route]', function () {
 		frappe.route_options = JSON.parse($(this).attr('data-route'));
 		frappe.set_route('query-report', 'Uniform Tracking');
 	});
 
-	// "Open in Uniform Tracking" link above the due table (full, unfiltered).
 	$body.find('[data-open-tracking]').on('click', function (e) {
 		e.preventDefault();
 		frappe.set_route('query-report', 'Uniform Tracking');
 	});
 
-	function apply_filter(key) {
-		const q = ($body.find(`[data-filter="${key}"]`).val() || '').toLowerCase();
-		if (key === 'stock') {
-			// Stock is a matrix → hide whole columns whose uniform type doesn't match.
-			$body.find('[data-table="stock"] thead th').each(function () {
-				const i = $(this).attr('data-col');
-				const show = $(this).text().toLowerCase().includes(q);
-				$body.find(`[data-table="stock"] [data-col="${i}"]`).toggle(show);
-			});
-			return;
-		}
-		$body.find(`[data-table="${key}"] tbody tr`).each(function () {
-			$(this).toggle($(this).text().toLowerCase().includes(q));
+	// Reissue horizon filter: default = today (only items due now). Choosing a
+	// forecast below sets this to that demand's To Date.
+	$body.find('[data-due-before]')
+		.val(frappe.datetime.get_today())
+		.on('change', () => load_due());
+
+	// Include selected Uniform Demand Forecast(s) into the plan's Forecast Need.
+	$body.find('[data-include-forecast]').on('click', () => {
+		const dialog = new frappe.ui.Dialog({
+			title: __('Include Forecast Demand'),
+			fields: [{
+				fieldname: 'forecasts',
+				fieldtype: 'MultiSelectList',
+				label: __('Uniform Demand Forecast'),
+				get_data: (txt) => frappe.db.get_link_options('Uniform Demand Forecast', txt),
+			}],
+			primary_action_label: __('Apply'),
+			primary_action(values) {
+				dialog.hide();
+				const names = values.forecasts || [];
+				selected_forecasts = names;
+				const note = $body.find('[data-forecast-note]');
+				if (!names.length) {
+					// Cleared → back to today's reissue demand only
+					forecast_needed = {};
+					note.text('');
+					$body.find('[data-due-before]').val(frappe.datetime.get_today());
+					load_due();
+					return;
+				}
+				frappe.call({
+					method: `${API}.uniform_api.get_forecast_needed`,
+					args: { forecasts: names },
+				}).then((r) => {
+					const msg = r.message || {};
+					forecast_needed = msg.needed || {};
+					// Take the forecast's quantities AND its due date (To Date) as horizon
+					if (msg.to_date) $body.find('[data-due-before]').val(msg.to_date);
+					note.text(`+ ${__('Forecast')}: ${names.join(', ')}`
+						+ (msg.to_date ? ` — ${__('due')} ${frappe.datetime.str_to_user(msg.to_date)}` : ''));
+					load_due();   // recompute reissue up to the forecast's To Date, then build_plan
+				});
+			},
 		});
-	}
+		dialog.show();
+	});
 
 	// ── Cards & charts ───────────────────────────────────────────────────────
 	function card(label, value, color, route) {
-		// `route` (optional) = query-report filter object; makes the card a drill-down
-		// into the Uniform Tracking report.
 		const attrs = route
 			? ` data-route='${esc(JSON.stringify(route))}' style="padding:12px 15px; cursor:pointer;"`
 			: ' style="padding:12px 15px;"';
@@ -290,7 +265,7 @@ frappe.pages['uniform-dashboard'].on_page_load = function (wrapper) {
 
 	function render_chart(selector, rows, label_key) {
 		const $el = $body.find(`[data-chart="${selector}"]`).empty();
-		if (!rows.length) return $el.html(no_data);
+		if (!rows.length) return $el.html(`<p class="text-muted">${__('No data')}</p>`);
 		new frappe.Chart($el[0], {
 			data: {
 				labels: rows.map((r) => r[label_key] || '—'),
@@ -303,24 +278,29 @@ frappe.pages['uniform-dashboard'].on_page_load = function (wrapper) {
 	}
 
 	// ── Data loading ─────────────────────────────────────────────────────────
+	function load_due() {
+		const due_before = $body.find('[data-due-before]').val() || null;
+		return frappe.call({
+			method: `${API}.uniform_api.get_due_items`,
+			args: { limit: 100000, due_before },
+		}).then((r) => {
+			const msg = r.message || {};
+			needed_map = msg.needed || {};
+			render_due(msg.rows || []);
+			build_plan();   // refresh the Reissue Need column
+		});
+	}
+
 	function load() {
 		frappe.call({ method: `${API}.uniform_api.get_dashboard_summary` })
 			.then((r) => render_cards(r.message || {}));
 
-		frappe.call({ method: `${API}.uniform_api.get_due_items`, args: { limit: 100000 } })
-			.then((r) => {
-				TABLES.due.rows = r.message || [];
-				render_table('due');
-			});
+		load_due();
 
 		frappe.call({ method: `${API}.uniform_excel_api.get_uniform_stock_excel` })
 			.then((r) => {
-				const rows = r.message || [];
-				// Auto-expand the collapsible section when something is out of stock
-				if (rows.some((x) => flt(x.actual_qty) === 0)) {
-					$body.find('details[data-section="stock"]').attr('open', '');
-				}
-				render_stock(rows);
+				stock_rows = r.message || [];
+				build_plan();
 			});
 
 		frappe.call({ method: `${API}.uniform_excel_api.get_uniform_cost_excel`, args: { group_by: 'period' } })

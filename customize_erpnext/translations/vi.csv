@@ -475,6 +475,61 @@ Seeding test data...,Đang tạo dữ liệu test...
 Uniform Tracking,Theo dõi cấp phát đồng phục
 Section,Bộ phận
 Total,Tổng
+Due on/before,Đến hạn vào/trước
+Reuse Old Item (no stock issue),Tái sử dụng đồ cũ (không xuất kho)
+Demand Forecast,Dự toán nhu cầu
+Uniform Demand Forecast,Dự toán nhu cầu đồng phục
+Headcount Basis,Cơ sở số lượng
+Compute from Staffing Plan,Tính từ Kế hoạch nhân sự
+Forecast Qty,SL dự toán
+Current Stock,Tồn hiện tại
+Shortfall,Thiếu hụt
+Total Forecast Qty,Tổng SL dự toán
+Total Shortfall vs Stock,Tổng thiếu hụt so tồn
+Computing demand...,Đang tính nhu cầu...
+Shirt Breakdown (Gender / Size),Phân tích áo (Giới tính / Size)
+Total shirts,Tổng áo
+Dress shirt (Áo sơ mi),Áo sơ mi
+T-shirt (Áo thun),Áo thun
+Current Shirt Ratio (calculation basis),Tỉ lệ áo hiện tại (cơ sở tính)
+No current employee data.,Chưa có dữ liệu nhân viên hiện tại.
+As of {0},Tính đến {0}
+Include Forecast Demand,Cộng nhu cầu dự toán
+Forecast,Dự toán
+Help,Trợ giúp
+Download Excel,Tải Excel
+Uniform Demand Forecast — Guide,Dự toán nhu cầu đồng phục — Hướng dẫn
+Purpose,Mục đích
+Steps,Các bước
+How it is calculated,Cách tính
+Current Shirt Ratio,Tỉ lệ áo hiện tại
+"Estimate uniform demand for planned new hires (from an HRMS Staffing Plan) so stock can be prepared in advance.","Dự toán nhu cầu đồng phục cho nhân viên sẽ tuyển mới (từ Staffing Plan của HRMS) để chuẩn bị/nhập kho trước."
+"Pick a Staffing Plan and Headcount Basis (Vacancies = number to recruit). Save.","Chọn Staffing Plan và Cơ sở số lượng (Vacancies = số cần tuyển). Lưu."
+"Click ""Compute from Staffing Plan"".","Bấm ""Tính từ Kế hoạch nhân sự""."
+"Review / edit the Forecast Qty column, then Save. Use it to plan stock purchases.","Kiểm tra / sửa cột SL dự toán rồi Lưu. Dùng để lập kế hoạch nhập kho."
+"For each designation, the planned headcount is spread across the grade / gender / group / section mix of current employees in that designation (a brand-new ""…-Trainee"" falls back to its base designation). Uniform Rules then give the items and first-issue quantity; shirt quantities are split into sizes using the size distribution of current staff.","Với mỗi chức danh, số lượng tuyển được chia theo cơ cấu cấp bậc / giới tính / nhóm / bộ phận của nhân viên hiện hữu cùng chức danh (chức danh mới ""…-Trainee"" sẽ dùng chức danh gốc). Rules cho ra item và số lượng cấp lần đầu; số áo chia theo size dựa trên phân bố size của nhân viên hiện tại."
+"The reference distribution that drives the split — always covers both Áo sơ mi & Áo thun, computed company-wide as of the forecast creation date.","Phân bố tham chiếu để chia tỷ lệ — luôn gồm cả Áo sơ mi & Áo thun, tính toàn công ty đến ngày tạo dự toán."
+Exports two sheets — Forecast and Current Ratio.,Xuất 2 sheet — Forecast và Current Ratio.
+Stock Plan,Kế hoạch nhập kho
+due,đến hạn
+Reissue due on/before,Cấp lại đến hạn vào/trước
+Reissue Need,Cần cấp lại
+Forecast Need,Cần dự toán
+Total Need,Tổng cần
+Stock,Tồn
+Qty/Cycle,SL/chu kỳ
+Item,Mặt hàng
+Cycles,Số chu kỳ
+Total Qty,Tổng SL
+Mode,Chế độ
+New Hires,Người mới
+Re-issue,Cấp lại
+Both,Cả hai
+Designations to Recruit,Chức danh cần tuyển
+Headcount to Recruit,Số cần tuyển
+Recruitment Plan (New Hires),Kế hoạch tuyển dụng (Người mới)
+Compute,Tính toán
+Add at least one designation in the Recruitment Plan.,Thêm ít nhất một chức danh trong Kế hoạch tuyển dụng.
 Open in Uniform Tracking,Mở trong Theo dõi cấp phát
 View in Uniform Tracking,Xem trong Theo dõi cấp phát
 Uniform Type,Loại đồng phục

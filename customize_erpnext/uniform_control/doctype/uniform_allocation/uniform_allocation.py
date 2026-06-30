@@ -189,9 +189,12 @@ class UniformAllocation(Document):
             )
 
     def _check_stock(self):
-        # Multiple rows can share the same variant — check the aggregated qty
+        # Multiple rows can share the same variant — check the aggregated qty.
+        # Reuse-old-item rows come from recovered stock, not the warehouse → skip.
         required = {}
         for row in self.items or []:
+            if row.reuse_old_item:
+                continue
             required[row.item_code] = required.get(row.item_code, 0) + cint(row.qty)
 
         shortage = []
@@ -209,6 +212,12 @@ class UniformAllocation(Document):
             )
 
     def _create_stock_entry(self):
+        # Reuse-old-item rows don't move warehouse stock — exclude them.
+        issue_rows = [r for r in (self.items or []) if not r.reuse_old_item]
+        if not issue_rows:
+            # Everything is a reused item → no stock movement, no Stock Entry.
+            return
+
         se = frappe.new_doc("Stock Entry")
         se.stock_entry_type = "Material Issue"
         se.posting_date = self.posting_date
@@ -216,7 +225,7 @@ class UniformAllocation(Document):
         se.from_warehouse = self.set_warehouse
 
         # One detail row per allocation row, tagged with employee for traceability
-        for row in self.items or []:
+        for row in issue_rows:
             se.append("items", {
                 "item_code": row.item_code,
                 "qty": cint(row.qty),

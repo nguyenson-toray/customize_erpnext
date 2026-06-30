@@ -1,0 +1,187 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "format:UNI-FCAST-{#####}",
+ "creation": "2026-06-19 00:00:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "mode",
+  "company",
+  "column_break_1",
+  "warehouse",
+  "from_date",
+  "to_date",
+  "section_lines",
+  "lines",
+  "section_break_gnxw",
+  "current_ratio_html",
+  "section_summary",
+  "shirt_breakdown_html",
+  "total_forecast_qty",
+  "total_shortfall",
+  "section_items",
+  "items",
+  "section_notes",
+  "notes"
+ ],
+ "fields": [
+  {
+   "default": "New Hires",
+   "description": "New Hires = recruitment plan below; Re-issue = upcoming reissue demand up to To Date; Both = sum.",
+   "fieldname": "mode",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Mode",
+   "options": "New Hires\nRe-issue\nBoth",
+   "reqd": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Company",
+   "options": "Company"
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Defaults to the Uniform Setting warehouse.",
+   "fieldname": "warehouse",
+   "fieldtype": "Link",
+   "label": "Warehouse",
+   "options": "Warehouse"
+  },
+  {
+   "fieldname": "from_date",
+   "fieldtype": "Date",
+   "label": "From Date"
+  },
+  {
+   "description": "Re-issue demand is counted up to this date (defaults to today + 1 year).",
+   "fieldname": "to_date",
+   "fieldtype": "Date",
+   "label": "To Date"
+  },
+  {
+   "depends_on": "eval:doc.mode!='Re-issue'",
+   "fieldname": "section_lines",
+   "fieldtype": "Section Break",
+   "label": "Recruitment Plan (New Hires)"
+  },
+  {
+   "depends_on": "eval:doc.mode!='Re-issue'",
+   "fieldname": "lines",
+   "fieldtype": "Table",
+   "label": "Designations to Recruit",
+   "options": "Uniform Demand Forecast Line"
+  },
+  {
+   "fieldname": "section_break_gnxw",
+   "fieldtype": "Section Break",
+   "label": "Current Ratio"
+  },
+  {
+   "fieldname": "current_ratio_html",
+   "fieldtype": "HTML",
+   "label": "Current Shirt Ratio (calculation basis)"
+  },
+  {
+   "fieldname": "section_summary",
+   "fieldtype": "Section Break",
+   "label": "Forecast Ration"
+  },
+  {
+   "fieldname": "shirt_breakdown_html",
+   "fieldtype": "HTML",
+   "label": "Shirt Breakdown (Gender / Size)"
+  },
+  {
+   "default": "0",
+   "fieldname": "total_forecast_qty",
+   "fieldtype": "Int",
+   "label": "Total Forecast Qty",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "total_shortfall",
+   "fieldtype": "Int",
+   "label": "Total Shortfall vs Stock",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_items",
+   "fieldtype": "Section Break",
+   "label": "Forecast Items"
+  },
+  {
+   "allow_bulk_edit": 1,
+   "fieldname": "items",
+   "fieldtype": "Table",
+   "label": "Items",
+   "options": "Uniform Demand Forecast Item"
+  },
+  {
+   "fieldname": "section_notes",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Notes"
+  }
+ ],
+ "links": [],
+ "modified": "2026-06-30 16:25:31.162303",
+ "modified_by": "Administrator",
+ "module": "Uniform Control",
+ "name": "Uniform Demand Forecast",
+ "naming_rule": "Expression (old style)",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Uniform Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "HR Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

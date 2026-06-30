@@ -1,7 +1,7 @@
 """Phase B — Action APIs & Phase C — Dashboard APIs for Uniform Control."""
 import frappe
 from frappe import _
-from frappe.utils import flt, cint, today
+from frappe.utils import flt, cint, today, add_days
 
 from customize_erpnext.uniform_control.utils import (
     get_eligible_employees_for_allocation,
@@ -187,49 +187,65 @@ def get_dashboard_summary():
 
 
 @frappe.whitelist()
-def get_due_items(limit=100):
-    """Employees with uniform items Due Soon / Overdue (Active managed employees).
-    item_template holds the exact variant; `size` is its size/color attribute."""
+def get_due_items(limit=100, due_before=None):
+    """Employees with uniform items due for reissue up to `due_before` (Active
+    managed employees), counting EVERY reissue cycle in the horizon.
+
+    Default `due_before` = today + 1 year. Each row carries qty_per_cycle,
+    cycles and total_qty; `needed` aggregates total_qty (multi-cycle) per variant.
+    Returns {"rows": [...], "needed": {variant: total_qty}}."""
     _check_permission(doctype="Employee Uniform Profile")
 
-    from customize_erpnext.uniform_control.utils import get_employee_id_prefix
+    from customize_erpnext.uniform_control.utils import reissue_demand
 
-    prefix = get_employee_id_prefix()
-    prefix_cond = "AND p.employee LIKE %(prefix)s" if prefix else ""
+    to_date = due_before or add_days(today(), 365)
+    res = reissue_demand(to_date)
+    rows = res["rows"]
+    # `qty` kept as the per-cycle qty for backward-compatible callers
+    for r in rows:
+        r["qty"] = r["qty_per_cycle"]
+    if cint(limit):
+        rows = rows[: cint(limit)]
+    return {"rows": rows, "needed": res["needed"]}
+
+
+@frappe.whitelist()
+def get_forecast_needed(forecasts):
+    """Demand of the given Uniform Demand Forecast(s) for the dashboard plan.
+    Returns {"needed": {item: total_qty}, "to_date": latest forecast To Date}.
+    The dashboard uses to_date as the reissue horizon (the demand's due date).
+    `forecasts` = JSON list or comma-separated string of forecast names."""
+    _check_permission(doctype="Uniform Demand Forecast")
+
+    import json
+    if isinstance(forecasts, str):
+        try:
+            names = json.loads(forecasts)
+        except (ValueError, TypeError):
+            names = [f.strip() for f in forecasts.split(",") if f.strip()]
+    else:
+        names = forecasts or []
+    if not names:
+        return {"needed": {}, "to_date": None}
 
     rows = frappe.db.sql(
-        f"""
-        SELECT
-            p.employee, p.employee_name, p.department, e.custom_section, e.custom_group,
-            eui.item_template, eui.last_issue_date, eui.next_due_date, eui.status
-        FROM `tabEmployee Uniform Item` eui
-        INNER JOIN `tabEmployee Uniform Profile` p ON p.name = eui.parent
-        INNER JOIN `tabEmployee` e ON e.name = p.employee
-        WHERE eui.status IN ('Due Soon', 'Overdue')
-          AND e.status = 'Active'
-          {prefix_cond}
-        ORDER BY eui.next_due_date ASC
-        LIMIT %(limit)s
+        """
+        SELECT item_code, SUM(forecast_qty) q
+        FROM `tabUniform Demand Forecast Item`
+        WHERE parent IN %(names)s
+        GROUP BY item_code
         """,
-        {"limit": cint(limit) or 100, "prefix": f"{prefix}%"},
-        as_dict=True,
+        {"names": list(names)}, as_dict=True,
     )
+    needed = {r.item_code: cint(r.q) for r in rows}
 
-    # item_template is the exact variant — show its size/color attribute value
-    variants = {r.item_template for r in rows if r.item_template}
-    attr_val = {}
-    if variants:
-        for a in frappe.get_all(
-            "Item Variant Attribute",
-            filters={"parent": ["in", list(variants)]},
-            fields=["parent", "attribute_value"],
-        ):
-            attr_val.setdefault(a.parent, a.attribute_value)
-
-    for r in rows:
-        r["size"] = attr_val.get(r.item_template, "")
-
-    return rows
+    to_dates = [
+        d for d in frappe.get_all(
+            "Uniform Demand Forecast", filters={"name": ["in", list(names)]}, pluck="to_date"
+        ) if d
+    ]
+    to_date = str(max(to_dates)) if to_dates else None
+    return {"needed": needed, "to_date": to_date}
 
 
 @frappe.whitelist(methods=["POST"])
@@ -312,9 +328,12 @@ def apply_default_rules(employee=None):
 
 
 @frappe.whitelist()
-def export_dashboard_excel():
-    """Download dashboard data as .xlsx — sheet 1: Employees Due for Issue,
-    sheet 2: Uniform Stock."""
+def export_dashboard_excel(due_before=None, forecasts=None):
+    """Download dashboard data as .xlsx — matches the on-screen view:
+      sheet 1 "Stock Purchasing Plan": Stock vs Reissue/Forecast need + shortfall;
+      sheet 2 "Employees Due for Issue": reissue rows with cycles (multi-cycle).
+    `due_before` = reissue horizon (default today + 1y); `forecasts` = optional
+    Uniform Demand Forecast names whose demand is added to Forecast Need."""
     _check_permission()
 
     import openpyxl
@@ -323,33 +342,47 @@ def export_dashboard_excel():
 
     from customize_erpnext.uniform_control.api.uniform_excel_api import get_uniform_stock_excel
 
+    horizon = due_before or add_days(today(), 365)
+    due = get_due_items(limit=100000, due_before=horizon)
+    due_rows, reissue = due["rows"], due["needed"]
+    forecast_need = get_forecast_needed(forecasts)["needed"] if forecasts else {}
+
     wb = openpyxl.Workbook()
     wb.remove(wb.active)
     bold = Font(bold=True)
 
+    # Sheet 1 — purchasing plan (one row per variant)
+    ws_plan = wb.create_sheet("Stock Plan")
+    ws_plan.append([
+        "Uniform Type", "Item", "Stock", "Reissue Need", "Forecast Need",
+        "Total Need", "Shortfall", "Warehouse",
+    ])
+    for r in get_uniform_stock_excel():
+        code = r.get("item_code")
+        stock = cint(r.get("actual_qty"))
+        rn = cint(reissue.get(code, 0))
+        fn = cint(forecast_need.get(code, 0))
+        total = rn + fn
+        ws_plan.append([
+            r.get("template"), r.get("item_name") or code, stock, rn, fn,
+            total, max(0, total - stock), r.get("warehouse"),
+        ])
+
+    # Sheet 2 — employees due, with reissue cycles in the horizon
     ws_due = wb.create_sheet("Employees Due for Issue")
     ws_due.append([
         "Employee", "Employee Name", "Department", "Section", "Group", "Uniform Type",
-        "Size", "Last Issue Date", "Next Due Date", "Status",
+        "Size", "Qty/Cycle", "Cycles", "Total Qty", "Last Issue Date", "Next Due Date", "Status",
     ])
-    for r in get_due_items(limit=100000):
+    for r in due_rows:
         ws_due.append([
             r.get("employee"), r.get("employee_name"), r.get("department"),
             r.get("custom_section"), r.get("custom_group"), r.get("item_template"),
-            r.get("size"), str(r.get("last_issue_date") or ""),
-            str(r.get("next_due_date") or ""), r.get("status"),
+            r.get("size"), r.get("qty_per_cycle"), r.get("cycles"), r.get("total_qty"),
+            str(r.get("last_issue_date") or ""), str(r.get("next_due_date") or ""), r.get("status"),
         ])
 
-    ws_stock = wb.create_sheet("Uniform Stock")
-    ws_stock.append(["Item Name", "Template", "Size", "Actual Qty", "Warehouse"])
-    for r in get_uniform_stock_excel():
-        name = r.get("item_name") or ""
-        tmpl = r.get("template") or ""
-        # Size = the variant suffix of the item name (template name stripped off)
-        size = name[len(tmpl):].strip() if tmpl and name.startswith(tmpl) else ""
-        ws_stock.append([name, tmpl, size, r.get("actual_qty"), r.get("warehouse")])
-
-    for ws in (ws_due, ws_stock):
+    for ws in (ws_plan, ws_due):
         for cell in ws[1]:
             cell.font = bold
 
