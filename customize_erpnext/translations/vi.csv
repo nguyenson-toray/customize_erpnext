@@ -530,6 +530,39 @@ Headcount to Recruit,Số cần tuyển
 Recruitment Plan (New Hires),Kế hoạch tuyển dụng (Người mới)
 Compute,Tính toán
 Add at least one designation in the Recruitment Plan.,Thêm ít nhất một chức danh trong Kế hoạch tuyển dụng.
+Forecast Breakdown,Phân tích dự toán
+Review — incomplete coverage,Rà soát — chưa bao phủ đủ
+"To Date ({0}) cannot be before From Date ({1}).","To Date ({0}) không được trước From Date ({1})."
+To Date is in the past — re-issue demand may be empty.,To Date ở quá khứ — nhu cầu cấp lại có thể rỗng.
+"Designations with no current employees to infer from (no demand generated — add manually):","Chức danh chưa có nhân viên để suy (không sinh nhu cầu — nhập tay):"
+"Categories not fully covered by any rule — some headcount got no item (add manually):","Nhóm không được rule bao phủ hết — có người không nhận được món (nhập tay):"
+"Sizes with no matching item variant (create the variant, then recompute):","Size chưa có item variant tương ứng (tạo variant rồi tính lại):"
+"Duplicate designation(s) in the Recruitment Plan: {0}. Enter each designation only once (combine the headcount).","Chức danh bị trùng trong Kế hoạch tuyển dụng: {0}. Mỗi chức danh chỉ nhập một dòng (gộp số lượng)."
+Please review — some hires are not fully covered,Vui lòng rà soát — một số người chưa đủ đồ
+Designations with no current employees,Chức danh chưa có nhân viên
+"There are no current employees in these roles, so their needs could not be estimated. Add the items manually:","Các chức danh này chưa có nhân viên hiện tại nên chưa suy được nhu cầu. Hãy nhập tay:"
+People with no matching rule,Người không khớp rule nào
+"These new hires match no rule for the item type below, so nothing was forecast for them. Add a Uniform Rule or enter manually:","Những người tuyển mới này không khớp rule nào cho loại đồ bên dưới nên chưa được tính. Hãy thêm Uniform Rule hoặc nhập tay:"
+"These new hires match no rule for the item type below (usually a blank Grade). Set Grade on the plan line, add a Uniform Rule, or enter manually:","Những người tuyển mới này không khớp rule nào cho loại đồ bên dưới (thường do trống Grade). Hãy đặt Grade trên dòng tuyển, thêm Uniform Rule, hoặc nhập tay:"
+grade,cấp bậc
+Company-wide,Toàn công ty
+"includes reissue; the Reissue Need column is hidden to avoid double-counting","đã gồm nhu cầu cấp lại; cột Cần re-issue được ẩn để tránh tính lặp"
+Recompute Due Dates,Tính lại hạn cấp
+"Recompute next due date & status on all profiles? Run this after changing a rule's Reissue Cycle (Months).","Tính lại hạn kế tiếp & trạng thái cho toàn bộ hồ sơ? Chạy sau khi đổi Chu kỳ cấp lại (tháng) của quy tắc."
+Recomputing due dates...,Đang tính lại hạn...
+"Recomputed {0} of {1} profiles.","Đã tính lại {0}/{1} hồ sơ."
+Recruited designations,Chức danh tuyển
+basis of Forecast Items,cơ sở của Forecast Items
+general reference,tham chiếu chung
+Sizes with no product variant,Size chưa có sản phẩm
+"These sizes have no item variant yet — create the variant, then click Forecast again:","Các size này chưa có item variant — hãy tạo variant rồi bấm Forecast lại:"
+people,người
+missing,thiếu
+shirt,áo
+cap,mũ
+shoe,dép
+water bottle,bình nước
+no,không có
 Open in Uniform Tracking,Mở trong Theo dõi cấp phát
 View in Uniform Tracking,Xem trong Theo dõi cấp phát
 Uniform Type,Loại đồng phục

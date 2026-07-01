@@ -167,23 +167,26 @@ def get_variant_for_profile(item_template, profile, variant_cache=None, variant_
 
 def _rule_match_rank(rule, emp_data):
     """Each set condition must match; None = no match. Specificity (most→least):
-    Designation(16) > Group(8) > Section(4) > Grade(2) > Gender(1).
-    Group = Employee.custom_group; Section = Employee.custom_section (broader)."""
+    Designation(16) > Grade(8) > Group(4) > Section(2) > Gender(1).
+    Role level (Grade) outranks team (Group) and department (Section): a Leader
+    gets the Leader item regardless of their group/section. Only an exact
+    Designation rule overrides the grade. Group = Employee.custom_group;
+    Section = Employee.custom_section (broadest)."""
     rank = 0
     if rule.designation:
         if emp_data.get("designation") != rule.designation:
             return None
         rank += 16
+    if rule.grade:
+        if emp_data.get("grade") != rule.grade:
+            return None
+        rank += 8
     if rule.group:
         if emp_data.get("custom_group") != rule.group:
             return None
-        rank += 8
+        rank += 4
     if rule.section:
         if emp_data.get("custom_section") != rule.section:
-            return None
-        rank += 4
-    if rule.grade:
-        if emp_data.get("grade") != rule.grade:
             return None
         rank += 2
     if rule.gender:

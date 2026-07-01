@@ -23,6 +23,26 @@ frappe.listview_settings['Employee Uniform Profile'] = {
 			);
 		});
 
+		listview.page.add_inner_button(__('Recompute Due Dates'), () => {
+			frappe.confirm(
+				__('Recompute next due date & status on all profiles? Run this after changing a rule\'s Reissue Cycle (Months).'),
+				() => {
+					frappe.call({
+						method: 'customize_erpnext.uniform_control.api.uniform_api.recompute_all_tracking',
+						freeze: true,
+						freeze_message: __('Recomputing due dates...'),
+						callback(r) {
+							const m = r.message || {};
+							frappe.msgprint(
+								__('Recomputed {0} of {1} profiles.', [m.recomputed || 0, m.profiles || 0])
+							);
+							listview.refresh();
+						},
+					});
+				}
+			);
+		});
+
 		listview.page.add_inner_button(__('Sync Shoe Rack Locations'), () => {
 			frappe.confirm(
 				__('Re-sync Shoe Rack Location on all profiles from Shoe Rack assignments?'),

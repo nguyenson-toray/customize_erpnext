@@ -7,6 +7,7 @@
  "engine": "InnoDB",
  "field_order": [
   "designation",
+  "grade",
   "headcount"
  ],
  "fields": [
@@ -17,6 +18,14 @@
    "label": "Designation",
    "options": "Designation",
    "reqd": 1
+  },
+  {
+   "description": "Optional — pins the grade for grade-based rules (shirts). Leave blank to infer from current employees of the designation.",
+   "fieldname": "grade",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Grade",
+   "options": "Employee Grade"
   },
   {
    "default": "0",

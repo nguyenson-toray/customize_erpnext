@@ -212,8 +212,11 @@ def get_due_items(limit=100, due_before=None):
 @frappe.whitelist()
 def get_forecast_needed(forecasts):
     """Demand of the given Uniform Demand Forecast(s) for the dashboard plan.
-    Returns {"needed": {item: total_qty}, "to_date": latest forecast To Date}.
-    The dashboard uses to_date as the reissue horizon (the demand's due date).
+    Returns {"needed": {item: total_qty}, "to_date": latest To Date,
+             "has_reissue": bool, "reissue_names": [...]}.
+    `has_reissue` flags forecasts whose items already include reissue demand
+    (mode Re-issue/Both) — the dashboard must not add its own reissue on top,
+    otherwise the reissue portion is double-counted.
     `forecasts` = JSON list or comma-separated string of forecast names."""
     _check_permission(doctype="Uniform Demand Forecast")
 
@@ -226,7 +229,7 @@ def get_forecast_needed(forecasts):
     else:
         names = forecasts or []
     if not names:
-        return {"needed": {}, "to_date": None}
+        return {"needed": {}, "to_date": None, "has_reissue": False, "reissue_names": []}
 
     rows = frappe.db.sql(
         """
@@ -239,13 +242,21 @@ def get_forecast_needed(forecasts):
     )
     needed = {r.item_code: cint(r.q) for r in rows}
 
-    to_dates = [
-        d for d in frappe.get_all(
-            "Uniform Demand Forecast", filters={"name": ["in", list(names)]}, pluck="to_date"
-        ) if d
-    ]
-    to_date = str(max(to_dates)) if to_dates else None
-    return {"needed": needed, "to_date": to_date}
+    metas = frappe.get_all(
+        "Uniform Demand Forecast", filters={"name": ["in", list(names)]},
+        fields=["name", "to_date", "mode"],
+    )
+    reissue_names = [m.name for m in metas if m.mode in ("Re-issue", "Both")]
+    # To Date is only meaningful for reissue forecasts — it is the reissue horizon.
+    # New-Hires forecasts don't set the dashboard's reissue cutoff (their To Date
+    # is unused/stale), so only consider To Dates from Re-issue/Both forecasts.
+    to_dates = [m.to_date for m in metas if m.to_date and m.mode in ("Re-issue", "Both")]
+    return {
+        "needed": needed,
+        "to_date": str(max(to_dates)) if to_dates else None,
+        "has_reissue": bool(reissue_names),
+        "reissue_names": reissue_names,
+    }
 
 
 @frappe.whitelist(methods=["POST"])
@@ -293,6 +304,35 @@ def rebuild_tracking(employee):
         row.total_issued_qty = a["total"]
     profile.save(ignore_permissions=True)  # validate refreshes next_due/status
     return {"ok": True, "rebuilt": len(agg)}
+
+
+@frappe.whitelist(methods=["POST"])
+def recompute_all_tracking():
+    """Recompute next_due_date + status on every managed Uniform Profile.
+    Run this after changing a rule's Reissue Cycle (Months): the stored
+    next_due_date is only refreshed when a profile is saved, so existing
+    tracking keeps the OLD cycle until this bulk recompute runs.
+    Profile.validate() does the recomputation on save."""
+    frappe.only_for(("System Manager", "Uniform Manager"))
+
+    from customize_erpnext.uniform_control.utils import get_employee_id_prefix
+    prefix = get_employee_id_prefix()
+    filters = {}
+    if prefix:
+        filters["employee"] = ["like", f"{prefix}%"]
+
+    names = frappe.get_all("Employee Uniform Profile", filters=filters, pluck="name")
+    done = 0
+    for i, name in enumerate(names, start=1):
+        try:
+            frappe.get_doc("Employee Uniform Profile", name).save(ignore_permissions=True)
+            done += 1
+        except Exception:
+            frappe.log_error(frappe.get_traceback(), f"Recompute tracking failed: {name}")
+        if i % 200 == 0:
+            frappe.db.commit()
+    frappe.db.commit()
+    return {"ok": True, "profiles": len(names), "recomputed": done}
 
 
 @frappe.whitelist(methods=["POST"])

@@ -17,10 +17,10 @@ frappe.pages['uniform-dashboard'].on_page_load = function (wrapper) {
 		frappe.route_options = { stock_entry_type: 'Material Receipt' };
 		frappe.new_doc('Stock Entry');
 	});
-	page.add_inner_button(__('Allocation History'), () => frappe.set_route('List', 'Uniform Allocation'));
-	page.add_inner_button(__('Uniform Tracking'), () => frappe.set_route('query-report', 'Uniform Tracking'));
-	page.add_inner_button(__('Demand Forecast'), () => frappe.set_route('List', 'Uniform Demand Forecast'));
-	page.add_inner_button(__('Uniform Profiles'), () => frappe.set_route('List', 'Employee Uniform Profile'));
+	// page.add_inner_button(__('Allocation History'), () => frappe.set_route('List', 'Uniform Allocation'));
+	// page.add_inner_button(__('Uniform Tracking'), () => frappe.set_route('query-report', 'Uniform Tracking'));
+	// page.add_inner_button(__('Demand Forecast'), () => frappe.set_route('List', 'Uniform Demand Forecast'));
+	// page.add_inner_button(__('Uniform Profiles'), () => frappe.set_route('List', 'Employee Uniform Profile'));
 	page.add_inner_button(__('Shoe Rack Dashboard'), () => frappe.set_route('shoe-rack-dashboard'));
 	page.add_inner_button(__('Export Excel'), () => {
 		const due_before = $body.find('[data-due-before]').val() || '';
@@ -86,19 +86,25 @@ frappe.pages['uniform-dashboard'].on_page_load = function (wrapper) {
 
 	const plan_columns = [
 		{ name: __('Uniform Type'), width: 150, editable: false },
-		{ name: __('Item'), width: 200,
-			format: (v) => `<a href="/app/item/${encodeURIComponent(v)}">${esc(v)}</a>` },
+		{
+			name: __('Item'), width: 200,
+			format: (v) => `<a href="/app/item/${encodeURIComponent(v)}">${esc(v)}</a>`
+		},
 		{ name: __('Stock'), width: 90, align: 'right' },
 		{ name: __('Reissue Need'), width: 120, align: 'right' },
 		{ name: __('Forecast Need'), width: 120, align: 'right' },
 		{ name: __('Total Need'), width: 100, align: 'right', format: (v) => `<b>${v || 0}</b>` },
-		{ name: __('Shortfall'), width: 100, align: 'right',
-			format: (v) => (flt(v) > 0 ? `<b style="color:var(--red-600)">${v}</b>` : '') },
+		{
+			name: __('Shortfall'), width: 100, align: 'right',
+			format: (v) => (flt(v) > 0 ? `<b style="color:var(--red-600)">${v}</b>` : '')
+		},
 	];
 
 	const due_columns = [
-		{ name: __('Employee'), width: 100,
-			format: (v) => `<a href="/app/employee-uniform-profile/${encodeURIComponent(v)}">${esc(v)}</a>` },
+		{
+			name: __('Employee'), width: 100,
+			format: (v) => `<a href="/app/employee-uniform-profile/${encodeURIComponent(v)}">${esc(v)}</a>`
+		},
 		{ name: __('Employee Name'), width: 160 },
 		{ name: __('Department'), width: 130 },
 		{ name: __('Group'), width: 100 },
@@ -108,8 +114,10 @@ frappe.pages['uniform-dashboard'].on_page_load = function (wrapper) {
 		{ name: __('Cycles'), width: 70, align: 'right' },
 		{ name: __('Total Qty'), width: 80, align: 'right' },
 		{ name: __('Next Due Date'), width: 110, format: (v) => frappe.datetime.str_to_user(v) || '' },
-		{ name: __('Status'), width: 90,
-			format: (v) => `<span class="indicator-pill ${STATUS_COLOR[v] || 'gray'}">${__(v)}</span>` },
+		{
+			name: __('Status'), width: 90,
+			format: (v) => `<span class="indicator-pill ${STATUS_COLOR[v] || 'gray'}">${__(v)}</span>`
+		},
 	];
 
 	// Columns are read-only (no inline editing) on this dashboard.
@@ -131,13 +139,16 @@ frappe.pages['uniform-dashboard'].on_page_load = function (wrapper) {
 	// ── Stock purchasing plan ────────────────────────────────────────────────
 	let stock_rows = [];
 	let needed_map = {};          // reissue demand (multi-cycle, from due items)
-	let forecast_needed = {};     // optional new-hire demand (selected forecasts)
+	let forecast_needed = {};     // optional demand from selected forecasts
 	let selected_forecasts = [];  // names of the included forecasts (for export)
+	let forecast_has_reissue = false;  // a selected forecast already includes reissue
 	let plan_dt = null;
 
 	function build_plan() {
 		const data = stock_rows.map((x) => {
-			const reissue = flt(needed_map[x.item_code]);
+			// A Re-issue/Both forecast already contains reissue demand → don't add
+			// the dashboard's own reissue on top (would double-count).
+			const reissue = forecast_has_reissue ? 0 : flt(needed_map[x.item_code]);
 			const forecast = flt(forecast_needed[x.item_code]);
 			const total = reissue + forecast;
 			return [
@@ -208,6 +219,7 @@ frappe.pages['uniform-dashboard'].on_page_load = function (wrapper) {
 				if (!names.length) {
 					// Cleared → back to today's reissue demand only
 					forecast_needed = {};
+					forecast_has_reissue = false;
 					note.text('');
 					$body.find('[data-due-before]').val(frappe.datetime.get_today());
 					load_due();
@@ -219,10 +231,19 @@ frappe.pages['uniform-dashboard'].on_page_load = function (wrapper) {
 				}).then((r) => {
 					const msg = r.message || {};
 					forecast_needed = msg.needed || {};
+					forecast_has_reissue = !!msg.has_reissue;
 					// Take the forecast's quantities AND its due date (To Date) as horizon
 					if (msg.to_date) $body.find('[data-due-before]').val(msg.to_date);
-					note.text(`+ ${__('Forecast')}: ${names.join(', ')}`
-						+ (msg.to_date ? ` — ${__('due')} ${frappe.datetime.str_to_user(msg.to_date)}` : ''));
+					let txt = `+ ${__('Forecast')}: ${names.join(', ')}`
+						+ (msg.to_date ? ` — ${__('due')} ${frappe.datetime.str_to_user(msg.to_date)}` : '');
+					if (forecast_has_reissue) {
+						// Forecast already contains reissue → dashboard's own reissue is suppressed
+						txt += ` — ⚠ ${__('includes reissue; the Reissue Need column is hidden to avoid double-counting')}`;
+						note.css('color', 'var(--orange-600)');
+					} else {
+						note.css('color', '');
+					}
+					note.text(txt);
 					load_due();   // recompute reissue up to the forecast's To Date, then build_plan
 				});
 			},

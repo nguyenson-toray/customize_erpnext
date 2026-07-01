@@ -81,6 +81,7 @@
    "label": "Uniform Rules"
   },
   {
+   "allow_bulk_edit": 1,
    "fieldname": "rules",
    "fieldtype": "Table",
    "label": "Rules",
@@ -104,7 +105,7 @@
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-06-30 13:22:04.387843",
+ "modified": "2026-07-01 08:23:59.693475",
  "modified_by": "Administrator",
  "module": "Uniform Control",
  "name": "Uniform Setting",

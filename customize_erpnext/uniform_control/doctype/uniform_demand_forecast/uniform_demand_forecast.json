@@ -55,11 +55,13 @@
    "options": "Warehouse"
   },
   {
+   "depends_on": "eval:doc.mode!='New Hires'",
    "fieldname": "from_date",
    "fieldtype": "Date",
    "label": "From Date"
   },
   {
+   "depends_on": "eval:doc.mode!='New Hires'",
    "description": "Re-issue demand is counted up to this date (defaults to today + 1 year).",
    "fieldname": "to_date",
    "fieldtype": "Date",
@@ -86,12 +88,12 @@
   {
    "fieldname": "current_ratio_html",
    "fieldtype": "HTML",
-   "label": "Current Shirt Ratio (calculation basis)"
+   "label": "Current Shirt Ratio"
   },
   {
    "fieldname": "section_summary",
    "fieldtype": "Section Break",
-   "label": "Forecast Ration"
+   "label": "Forecast Breakdown"
   },
   {
    "fieldname": "shirt_breakdown_html",
