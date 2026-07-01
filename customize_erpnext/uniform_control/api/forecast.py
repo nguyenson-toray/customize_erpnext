@@ -60,7 +60,7 @@ def compute(forecast):
             # Spread headcount across the (grade, gender, group, section) segments
             # of current employees of this designation so grade-based shirt rules
             # and group/section caps resolve correctly.
-            segs = _segments(d.designation, prefix, seg_cache, pin_grade=d.get("grade") or None)
+            segs = _segments(d.designation, prefix, seg_cache)
             if not segs:
                 unmapped.append((d.designation, headcount))
                 continue
@@ -215,8 +215,11 @@ def current_shirt_ratio(forecast, basis="Company"):
 
 @frappe.whitelist()
 def export_forecast_excel(forecast, basis="Company"):
-    """Download the forecast as .xlsx — sheet 1: Forecast items, sheet 2: the
-    current shirt ratio (scope = basis: Company or Recruited)."""
+    """Download the whole forecast as .xlsx:
+      - Info: header fields (mode, dates, warehouse, totals, notes);
+      - Recruitment Plan: the Designations to Recruit lines;
+      - Forecast: the computed items;
+      - Current Ratio (Recruited) and Current Ratio (Company): both scopes."""
     if not frappe.has_permission("Uniform Demand Forecast", "read"):
         frappe.throw(_("Not permitted"), frappe.PermissionError)
 
@@ -228,22 +231,53 @@ def export_forecast_excel(forecast, basis="Company"):
     wb = openpyxl.Workbook()
     wb.remove(wb.active)
     bold = Font(bold=True)
+    header_rows = []  # (worksheet, row_index_of_header) to bold afterwards
 
+    # 1) Info — the record header
+    ws_info = wb.create_sheet("Info")
+    for k, v in [
+        ("Forecast", doc.name),
+        ("Mode", doc.mode),
+        ("Company", doc.company),
+        ("Warehouse", doc.warehouse),
+        ("From Date", str(doc.from_date or "")),
+        ("To Date", str(doc.to_date or "")),
+        ("Total Forecast Qty", doc.total_forecast_qty),
+        ("Total Shortfall vs Stock", doc.total_shortfall),
+        ("Notes", doc.notes or ""),
+    ]:
+        ws_info.append([k, v])
+    for row in ws_info.iter_rows(min_col=1, max_col=1):
+        row[0].font = bold
+
+    # 2) Recruitment Plan — the Designations to Recruit lines
+    ws_plan = wb.create_sheet("Recruitment Plan")
+    ws_plan.append(["Designation", "Headcount to Recruit"])
+    header_rows.append((ws_plan, 1))
+    for l in doc.lines:
+        ws_plan.append([l.designation, l.headcount])
+
+    # 3) Forecast — computed items
     ws = wb.create_sheet("Forecast")
     ws.append(["Item", "Uniform Type", "Size", "Category", "Forecast Qty", "Current Stock"])
+    header_rows.append((ws, 1))
     for r in doc.items:
         ws.append([r.item_code, r.template, r.size, r.category, r.forecast_qty, r.current_stock])
 
-    ws2 = wb.create_sheet("Current Ratio")
-    ws2.append(["Type", "Gender", "Size", "Employees"])
-    for row in current_shirt_ratio(forecast, basis).get("rows", []):
-        t = (row["template"] or "").lower()
-        typ = "Áo sơ mi" if "sơ mi" in t else ("Áo thun" if "thun" in t else row["template"])
-        gender = "Nữ" if "nữ" in t else ("Nam" if "nam" in t else "")
-        ws2.append([typ, gender, row["size"], row["qty"]])
+    # 4) Current Ratio — BOTH scopes
+    for scope, title in [("Recruited", "Current Ratio (Recruited)"),
+                         ("Company", "Current Ratio (Company)")]:
+        ws_r = wb.create_sheet(title)
+        ws_r.append(["Type", "Gender", "Size", "Employees"])
+        header_rows.append((ws_r, 1))
+        for row in current_shirt_ratio(forecast, scope).get("rows", []):
+            t = (row["template"] or "").lower()
+            typ = "Áo sơ mi" if "sơ mi" in t else ("Áo thun" if "thun" in t else row["template"])
+            gender = "Nữ" if "nữ" in t else ("Nam" if "nam" in t else "")
+            ws_r.append([typ, gender, row["size"], row["qty"]])
 
-    for w in (ws, ws2):
-        for cell in w[1]:
+    for ws_x, idx in header_rows:
+        for cell in ws_x[idx]:
             cell.font = bold
 
     buf = BytesIO()

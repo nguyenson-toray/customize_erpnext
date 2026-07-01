@@ -23,7 +23,7 @@ frappe.pages['uniform-dashboard'].on_page_load = function (wrapper) {
 	// page.add_inner_button(__('Uniform Profiles'), () => frappe.set_route('List', 'Employee Uniform Profile'));
 	page.add_inner_button(__('Shoe Rack Dashboard'), () => frappe.set_route('shoe-rack-dashboard'));
 	page.add_inner_button(__('Export Excel'), () => {
-		const due_before = $body.find('[data-due-before]').val() || '';
+		const due_before = due_before_ctl.get_value() || '';
 		const params = new URLSearchParams({ due_before });
 		if (selected_forecasts.length) params.set('forecasts', JSON.stringify(selected_forecasts));
 		window.open('/api/method/customize_erpnext.uniform_control.api.uniform_api.export_dashboard_excel?' + params.toString());
@@ -42,7 +42,7 @@ frappe.pages['uniform-dashboard'].on_page_load = function (wrapper) {
 							<span class="text-muted" data-count="plan"></span></h6>
 						<div class="d-flex align-items-center flex-wrap" style="gap:10px;">
 							<span class="text-muted" style="font-size:var(--text-sm); white-space:nowrap;">${__('Reissue due on/before')}</span>
-							<input type="date" class="form-control input-sm" data-due-before style="max-width:150px;">
+							<div data-due-before style="width:150px;"></div>
 							<button class="btn btn-xs btn-default" data-include-forecast>${__('Include Forecast Demand')}…</button>
 						</div>
 					</div>
@@ -194,11 +194,16 @@ frappe.pages['uniform-dashboard'].on_page_load = function (wrapper) {
 		frappe.set_route('query-report', 'Uniform Tracking');
 	});
 
-	// Reissue horizon filter: default = today (only items due now). Choosing a
+	// Reissue horizon filter — native Frappe Date control (respects the user's
+	// date format). Default = today (only items due now); choosing a Re-issue/Both
 	// forecast below sets this to that demand's To Date.
-	$body.find('[data-due-before]')
-		.val(frappe.datetime.get_today())
-		.on('change', () => load_due());
+	const due_before_ctl = frappe.ui.form.make_control({
+		parent: $body.find('[data-due-before]')[0],
+		df: { fieldtype: 'Date', fieldname: 'due_before', placeholder: __('Today') },
+		render_input: true,
+	});
+	due_before_ctl.set_value(frappe.datetime.get_today());
+	due_before_ctl.$input.on('change', () => load_due());
 
 	// Include selected Uniform Demand Forecast(s) into the plan's Forecast Need.
 	$body.find('[data-include-forecast]').on('click', () => {
@@ -221,7 +226,7 @@ frappe.pages['uniform-dashboard'].on_page_load = function (wrapper) {
 					forecast_needed = {};
 					forecast_has_reissue = false;
 					note.text('');
-					$body.find('[data-due-before]').val(frappe.datetime.get_today());
+					due_before_ctl.set_value(frappe.datetime.get_today());
 					load_due();
 					return;
 				}
@@ -233,7 +238,7 @@ frappe.pages['uniform-dashboard'].on_page_load = function (wrapper) {
 					forecast_needed = msg.needed || {};
 					forecast_has_reissue = !!msg.has_reissue;
 					// Take the forecast's quantities AND its due date (To Date) as horizon
-					if (msg.to_date) $body.find('[data-due-before]').val(msg.to_date);
+					if (msg.to_date) due_before_ctl.set_value(msg.to_date);
 					let txt = `+ ${__('Forecast')}: ${names.join(', ')}`
 						+ (msg.to_date ? ` — ${__('due')} ${frappe.datetime.str_to_user(msg.to_date)}` : '');
 					if (forecast_has_reissue) {
@@ -300,7 +305,7 @@ frappe.pages['uniform-dashboard'].on_page_load = function (wrapper) {
 
 	// ── Data loading ─────────────────────────────────────────────────────────
 	function load_due() {
-		const due_before = $body.find('[data-due-before]').val() || null;
+		const due_before = due_before_ctl.get_value() || null;
 		return frappe.call({
 			method: `${API}.uniform_api.get_due_items`,
 			args: { limit: 100000, due_before },

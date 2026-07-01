@@ -1,7 +1,7 @@
 {
  "actions": [],
  "allow_rename": 1,
- "autoname": "format:UNI-FCAST-{#####}",
+ "autoname": "UNI-FCAST-.YY.###",
  "creation": "2026-06-19 00:00:00",
  "doctype": "DocType",
  "engine": "InnoDB",
@@ -58,6 +58,7 @@
    "depends_on": "eval:doc.mode!='New Hires'",
    "fieldname": "from_date",
    "fieldtype": "Date",
+   "in_standard_filter": 1,
    "label": "From Date"
   },
   {
@@ -65,6 +66,7 @@
    "description": "Re-issue demand is counted up to this date (defaults to today + 1 year).",
    "fieldname": "to_date",
    "fieldtype": "Date",
+   "in_standard_filter": 1,
    "label": "To Date"
   },
   {
@@ -74,6 +76,7 @@
    "label": "Recruitment Plan (New Hires)"
   },
   {
+   "allow_bulk_edit": 1,
    "depends_on": "eval:doc.mode!='Re-issue'",
    "fieldname": "lines",
    "fieldtype": "Table",
@@ -104,6 +107,7 @@
    "default": "0",
    "fieldname": "total_forecast_qty",
    "fieldtype": "Int",
+   "in_list_view": 1,
    "label": "Total Forecast Qty",
    "read_only": 1
   },
@@ -137,11 +141,11 @@
   }
  ],
  "links": [],
- "modified": "2026-06-30 16:25:31.162303",
+ "modified": "2026-07-01 16:45:49.315925",
  "modified_by": "Administrator",
  "module": "Uniform Control",
  "name": "Uniform Demand Forecast",
- "naming_rule": "Expression (old style)",
+ "naming_rule": "Expression",
  "owner": "Administrator",
  "permissions": [
   {

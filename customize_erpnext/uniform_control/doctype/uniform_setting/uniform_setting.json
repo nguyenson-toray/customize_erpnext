@@ -11,13 +11,8 @@
   "reminder_days_before",
   "column_break_top",
   "enable_weekly_alert",
-  "low_stock_use_reorder",
   "section_alert",
-  "alert_recipients",
-  "section_rules",
-  "rules",
-  "section_notes",
-  "notes"
+  "alert_recipients"
  ],
  "fields": [
   {
@@ -60,12 +55,6 @@
    "label": "Enable Weekly Alert"
   },
   {
-   "default": "1",
-   "fieldname": "low_stock_use_reorder",
-   "fieldtype": "Check",
-   "label": "Use Item Reorder Level for Low Stock Alert"
-  },
-  {
    "fieldname": "section_alert",
    "fieldtype": "Section Break",
    "label": "Alert Recipients"
@@ -74,29 +63,6 @@
    "fieldname": "alert_recipients",
    "fieldtype": "Small Text",
    "label": "Alert Recipients (comma-separated emails)"
-  },
-  {
-   "fieldname": "section_rules",
-   "fieldtype": "Section Break",
-   "label": "Uniform Rules"
-  },
-  {
-   "allow_bulk_edit": 1,
-   "fieldname": "rules",
-   "fieldtype": "Table",
-   "label": "Rules",
-   "options": "Uniform Rule"
-  },
-  {
-   "fieldname": "section_notes",
-   "fieldtype": "Section Break",
-   "label": "Notes"
-  },
-  {
-   "fieldname": "notes",
-   "fieldtype": "Text Editor",
-   "label": "Notes",
-   "read_only": 1
   },
   {
    "fieldname": "column_break_lqvx",

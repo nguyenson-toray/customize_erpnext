@@ -161,24 +161,52 @@ def get_variant_for_profile(item_template, profile, variant_cache=None, variant_
 
 
 # ───────────────────────────── Unified rule engine ─────────────────────────
-# One table (Uniform Setting.rules) answers: WHO (Grade/Designation/Section/
-# Gender) gets WHICH item, HOW MANY, and the reissue CYCLE. One item per
+# The standalone "Uniform Rule" DocType answers: WHO (Grade/Designation/Group/
+# Section/Gender) gets WHICH item, HOW MANY, and the reissue CYCLE. One item per
 # Category (Shirt/Cap/Shoe/Bottle) per employee — most specific rule wins.
+# Grade & Designation are MULTI-select (a rule may list several).
+
+def load_active_rules():
+    """All active Uniform Rule records with their grades/designations resolved
+    into sets. Cached per request (frappe.local) so repeated matching is cheap."""
+    cached = getattr(frappe.local, "_uniform_rules_cache", None)
+    if cached is not None:
+        return cached
+
+    rules = frappe.get_all(
+        "Uniform Rule", filters={"is_active": 1},
+        fields=["name", "category", "item", "group", "section", "gender",
+                "first_qty", "eligible_after_days", "reissue_months", "reissue_qty",
+                "one_time", "priority"],
+    )
+    gmap, dmap = {}, {}
+    for g in frappe.get_all("Uniform Rule Grade", filters={"parenttype": "Uniform Rule"},
+                            fields=["parent", "grade"]):
+        gmap.setdefault(g.parent, set()).add(g.grade)
+    for d in frappe.get_all("Uniform Rule Designation", filters={"parenttype": "Uniform Rule"},
+                            fields=["parent", "designation"]):
+        dmap.setdefault(d.parent, set()).add(d.designation)
+    for r in rules:
+        r.grades = gmap.get(r.name, set())
+        r.designations = dmap.get(r.name, set())
+    frappe.local._uniform_rules_cache = rules
+    return rules
+
 
 def _rule_match_rank(rule, emp_data):
     """Each set condition must match; None = no match. Specificity (most→least):
     Designation(16) > Grade(8) > Group(4) > Section(2) > Gender(1).
     Role level (Grade) outranks team (Group) and department (Section): a Leader
     gets the Leader item regardless of their group/section. Only an exact
-    Designation rule overrides the grade. Group = Employee.custom_group;
-    Section = Employee.custom_section (broadest)."""
+    Designation rule overrides the grade. Grade/Designation are multi-select —
+    the employee matches if their value is in the rule's list (blank = any)."""
     rank = 0
-    if rule.designation:
-        if emp_data.get("designation") != rule.designation:
+    if rule.designations:
+        if emp_data.get("designation") not in rule.designations:
             return None
         rank += 16
-    if rule.grade:
-        if emp_data.get("grade") != rule.grade:
+    if rule.grades:
+        if emp_data.get("grade") not in rule.grades:
             return None
         rank += 8
     if rule.group:
@@ -197,19 +225,17 @@ def _rule_match_rank(rule, emp_data):
 
 
 def get_rules_by_category(emp_data, setting=None):
-    """Return {category: rule_doc} — the most specific active rule per category
-    for the given employee data."""
-    if setting is None:
-        setting = frappe.get_single("Uniform Setting")
-
+    """Return {category: rule} — the most specific active rule per category for
+    the given employee data. `setting` is accepted for call-site compatibility
+    but no longer used (rules are their own DocType)."""
     best = {}  # category -> (sortkey, rule)
-    for r in setting.rules or []:
-        if not r.is_active or not r.item or not r.category:
+    for r in load_active_rules():
+        if not r.item or not r.category:
             continue
         rank = _rule_match_rank(r, emp_data or {})
         if rank is None:
             continue
-        key = (rank, cint(r.priority), -r.idx)
+        key = (rank, cint(r.priority), r.name)  # name = stable tiebreaker
         if r.category not in best or key > best[r.category][0]:
             best[r.category] = (key, r)
     return {cat: val[1] for cat, val in best.items()}
@@ -345,7 +371,8 @@ def get_eligible_employees_for_allocation(
 
     warehouse = get_uniform_warehouse()
     setting = frappe.get_single("Uniform Setting")
-    if not setting.rules:
+    active_rules = load_active_rules()
+    if not active_rules:
         return []
 
     filters = {"status": "Active", "relieving_date": ["is", "not set"]}
@@ -379,8 +406,8 @@ def get_eligible_employees_for_allocation(
     # Caches: variant resolution for shirt/shoe templates; variant_of for caps
     cache_templates = set()
     cap_items = set()
-    for r in setting.rules:
-        if not r.is_active or not r.item:
+    for r in active_rules:
+        if not r.item:
             continue
         if r.category in ("Shirt", "Shoe"):
             cache_templates.add(r.item)
