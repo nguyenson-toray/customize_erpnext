@@ -67,6 +67,9 @@ def _build_config():
 	sections = {}
 	order = []
 	for row in rows:
+		# Skip fields explicitly disabled via the "Enable" toggle.
+		if not row.enable:
+			continue
 		if row.is_custom:
 			# Free-form field that does NOT exist on Employee — defined entirely
 			# by the row. Stored in the submission only.
@@ -86,6 +89,7 @@ def _build_config():
 				"read_only": bool(row.read_only),
 				"widget": "Auto",
 				"custom": True,
+				**_validation_meta(row),
 			}
 		else:
 			df = df_by_name.get(row.employee_fieldname)
@@ -113,6 +117,7 @@ def _build_config():
 				"read_only": bool(row.read_only),
 				"widget": row.widget or "Auto",
 				"custom": False,
+				**_validation_meta(row),
 			}
 
 		sec = row.section_label or "General"
@@ -122,6 +127,78 @@ def _build_config():
 		sections[sec]["fields"].append(field)
 
 	return {"sections": [sections[s] for s in order]}
+
+
+def _validation_meta(row):
+	"""Validation attributes copied from a config row into the field dict."""
+	return {
+		"validation": row.validation or "",
+		"min_length": int(row.min_length or 0),
+		"max_length": int(row.max_length or 0),
+		"regex": row.regex or "",
+	}
+
+
+# Built-in patterns for the preset validation types.
+_VALIDATION_PATTERNS = {
+	"Digits": (r"^\d+$", "chỉ gồm chữ số"),
+	"Phone": (r"^0\d{9}$", "số điện thoại VN 10 số, bắt đầu bằng 0"),
+	"Email": (r"^[^@\s]+@[^@\s]+\.[^@\s]+$", "email hợp lệ"),
+	"CCCD": (r"^\d{12}$", "đúng 12 chữ số"),
+	"CMND": (r"^\d{9}$", "đúng 9 chữ số"),
+}
+
+
+def _validate_value(field, value):
+	"""Return an error message (str) if `value` fails the field's validation,
+	else None. Empty values pass here (handled by the required check)."""
+	import re
+
+	val = "" if value is None else str(value).strip()
+	if val == "":
+		return None
+
+	label = field.get("label") or field.get("fieldname")
+	min_len = field.get("min_length") or 0
+	max_len = field.get("max_length") or 0
+	if min_len and len(val) < min_len:
+		return _("{0}: tối thiểu {1} ký tự").format(label, min_len)
+	if max_len and len(val) > max_len:
+		return _("{0}: tối đa {1} ký tự").format(label, max_len)
+
+	vtype = field.get("validation") or ""
+	if not vtype:
+		return None
+
+	if vtype in ("Past", "Future"):
+		try:
+			dv = frappe.utils.getdate(val)
+		except Exception:
+			return None  # not a parseable date → don't block
+		tv = frappe.utils.getdate(frappe.utils.today())
+		if vtype == "Past" and dv > tv:
+			return _("{0}: không được ở tương lai").format(label)
+		if vtype == "Future" and dv < tv:
+			return _("{0}: không được ở quá khứ").format(label)
+		return None
+
+	if vtype == "Regex":
+		pattern = field.get("regex") or ""
+		if not pattern:
+			return None
+		try:
+			ok = re.match(pattern, val) is not None
+		except re.error:
+			return None  # invalid config regex → don't block the employee
+		return None if ok else _("{0}: không đúng định dạng").format(label)
+
+	spec = _VALIDATION_PATTERNS.get(vtype)
+	if not spec:
+		return None
+	pattern, desc = spec
+	if re.match(pattern, val) is None:
+		return _("{0}: phải là {1}").format(label, desc)
+	return None
 
 
 def _config_fieldnames(config):
@@ -330,6 +407,18 @@ def save_form_data(employee_id, data, code=None):
 					missing.append(f["label"])
 	if missing:
 		frappe.throw(_("Please fill required fields: {0}").format(", ".join(missing)))
+
+	# Format validation (mirrors the client; server is the source of truth).
+	errors = []
+	for sec in config["sections"]:
+		for f in sec["fields"]:
+			if f["read_only"]:
+				continue
+			err = _validate_value(f, clean.get(f["fieldname"]))
+			if err:
+				errors.append(err)
+	if errors:
+		frappe.throw("<br>".join(errors))
 
 	employee_name = frappe.db.get_value("Employee", employee_id, "employee_name")
 

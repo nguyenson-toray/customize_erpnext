@@ -6,7 +6,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
   <title>Cập nhật thông tin nhân viên</title>
-  <link rel="stylesheet" href="/employee-self-update-info/style.css?v=2">
+  <link rel="stylesheet" href="/employee-self-update-info/style.css?v=3">
 </head>
 
 <body>
@@ -133,6 +133,9 @@
     const CCCD_FIELD = "custom_id_card_no";              // số CCCD
     const CCCD_ISSUE_FIELD = "custom_id_card_date_of_issue";  // ngày cấp
     const CCCD_CMND_FIELD = "custom_id_card_cmnd_no";    // số CMND cũ
+    const CCCD_EXPIRE_FIELD = "custom_id_card__date_of_expired";  // ngày hết hạn (tự tính theo luật)
+    const DOB_FIELD = "date_of_birth";                   // ngày sinh (điền nếu field có trên form)
+    const DEFAULT_PROVINCE = "Tỉnh Quảng Ngãi";          // mặc định điền khi tỉnh còn trống
     let provincesCache = null;
     const wardsCache = {};
 
@@ -347,15 +350,19 @@
       } else if (["Int", "Float", "Currency"].includes(f.fieldtype)) {
         input = `<input type="number" id="${id}" value="${esc(val == null ? "" : val)}"${roAttr}>`;
       } else if (f.fieldtype === "Date") {
-        input = `<input type="date" id="${id}" value="${esc(val || "")}"${roAttr}>`;
+        let dattr = "";
+        if (f.validation === "Past") dattr = ` max="${todayISO()}"`;
+        else if (f.validation === "Future") dattr = ` min="${todayISO()}"`;
+        input = `<input type="date" id="${id}" value="${esc(val || "")}"${dattr}${roAttr}>`;
       } else {
-        const t = f.fieldtype === "Phone" ? "text" : "text";
-        input = `<input type="${t}" id="${id}" value="${esc(val || "")}"${roAttr}>`;
+        input = `<input type="text" id="${id}" value="${esc(val || "")}"${valAttrs(f)}${roAttr}>`;
       }
       // CCCD QR scan — shown only for the CCCD number field; manual input stays.
       const scanUi = (f.fieldname === CCCD_FIELD && !f.read_only)
         ? `<button type="button" class="qr-scan-btn" onclick="openQRScanner()">📷 Quét mã QR trên CCCD</button>
-         <div class="hint">Quét QR để điền nhanh & chính xác số CCCD / ngày cấp / số CMND cũ — hoặc nhập tay bên dưới.</div>`
+         <button type="button" class="qr-scan-btn alt" onclick="document.getElementById('cccd_photo_input').click()">🖼️ Chụp / chọn ảnh CCCD (nếu quét khó)</button>
+         <input type="file" id="cccd_photo_input" accept="image/*" capture="environment" style="display:none" onchange="onCccdPhoto(event)">
+         <div class="hint">Quét QR để điền nhanh số CCCD / ngày cấp / số CMND cũ. QR nhỏ/mờ khó quét trực tiếp thì bấm "Chụp ảnh" để chụp gần & rõ — hoặc nhập tay bên dưới.</div>`
         : "";
       return `<div class="field${ro}" id="fg_${f.fieldname}">
       <label class="fl" for="${id}">${esc(f.label)} ${req}<span class="badge-changed">đã đổi</span></label>
@@ -403,11 +410,14 @@
         const fname = psel.dataset.fieldname;
         psel.innerHTML = `<option value="">— Chọn tỉnh/thành —</option>` +
           provinces.map(p => `<option value="${esc(p.code)}" data-name="${esc(p.name)}">${esc(p.name)}</option>`).join("");
-        // prefill by saved name
+        // prefill by saved name; if empty → default to Quảng Ngãi
         const savedName = norm(S.values[fname]);
         if (savedName) {
           const opt = [...psel.options].find(o => o.getAttribute("data-name") === savedName);
           if (opt) psel.value = opt.value;
+        } else {
+          const def = [...psel.options].find(o => o.getAttribute("data-name") === DEFAULT_PROVINCE);
+          if (def) psel.value = def.value;
         }
         psel.addEventListener("change", () => onProvinceChange(psel));
       }
@@ -452,19 +462,79 @@
       }
     }
 
+    // ---------- validation (mirrors server) ----------
+    const VAL_PATTERNS = {
+      Digits: [/^\d+$/, "chỉ gồm chữ số"],
+      Phone: [/^0\d{9}$/, "số điện thoại VN 10 số, bắt đầu bằng 0"],
+      Email: [/^[^@\s]+@[^@\s]+\.[^@\s]+$/, "email hợp lệ"],
+      CCCD: [/^\d{12}$/, "đúng 12 chữ số"],
+      CMND: [/^\d{9}$/, "đúng 9 chữ số"],
+    };
+
+    function validateField(f, value) {
+      const val = (value == null ? "" : String(value)).trim();
+      if (val === "") return "";
+      const label = f.label || f.fieldname;
+      if (f.min_length && val.length < f.min_length) return `${label}: tối thiểu ${f.min_length} ký tự`;
+      if (f.max_length && val.length > f.max_length) return `${label}: tối đa ${f.max_length} ký tự`;
+      const v = f.validation || "";
+      if (!v) return "";
+      if (v === "Past" || v === "Future") {
+        const dv = new Date(val);
+        if (isNaN(dv.getTime())) return "";
+        const t = new Date(); t.setHours(0, 0, 0, 0); dv.setHours(0, 0, 0, 0);
+        if (v === "Past" && dv > t) return `${label}: không được ở tương lai`;
+        if (v === "Future" && dv < t) return `${label}: không được ở quá khứ`;
+        return "";
+      }
+      if (v === "Regex") {
+        if (!f.regex) return "";
+        try { return new RegExp(f.regex).test(val) ? "" : `${label}: không đúng định dạng`; } catch { return ""; }
+      }
+      const spec = VAL_PATTERNS[v];
+      if (!spec) return "";
+      return spec[0].test(val) ? "" : `${label}: phải là ${spec[1]}`;
+    }
+
+    function todayISO() {
+      const d = new Date();
+      const p = n => String(n).padStart(2, "0");
+      return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+    }
+
+    // Input attributes (maxlength / inputmode / digit-strip) from validation config.
+    function valAttrs(f) {
+      const v = f.validation || "";
+      let maxlen = f.max_length || 0;
+      if (v === "CCCD") maxlen = 12;
+      else if (v === "CMND") maxlen = 9;
+      else if (v === "Phone") maxlen = 10;
+      let attrs = maxlen ? ` maxlength="${maxlen}"` : "";
+      if (["Digits", "CCCD", "CMND", "Phone"].includes(v)) {
+        attrs += ` inputmode="numeric" oninput="this.value=this.value.replace(/[^0-9]/g,'')"`;
+      } else if (v === "Email") {
+        attrs += ` inputmode="email"`;
+      }
+      return attrs;
+    }
+
     // ---------- submit ----------
     async function submitForm() {
       const data = {};
       const missing = [];
+      const invalid = [];
       for (const sec of S.config.sections) {
         for (const f of sec.fields) {
           if (f.read_only) continue;
           const v = currentValue(f);
           data[f.fieldname] = v;
-          if (f.required && (v === null || v === undefined || String(v).trim() === "")) missing.push(f.label);
+          if (f.required && (v === null || v === undefined || String(v).trim() === "")) { missing.push(f.label); continue; }
+          const err = validateField(f, v);
+          if (err) invalid.push(err);
         }
       }
       if (missing.length) { toast("Vui lòng nhập: " + missing.join(", ")); return; }
+      if (invalid.length) { toast(invalid.join(" · ")); return; }
       data[REMARKS_KEY] = (document.getElementById("f__remarks").value || "").trim();
 
       const btn = document.getElementById("submit_btn");
@@ -618,7 +688,32 @@
       const cccd = parts[0].trim();
       if (!/^\d{9,12}$/.test(cccd)) return null;
       function toISO(s) { s = s.trim(); if (s.length !== 8) return ""; return `${s.slice(4, 8)}-${s.slice(2, 4)}-${s.slice(0, 2)}`; }
-      return { cccd, cmnd: parts[1].trim(), issueDate: toISO(parts[6].trim()) };
+      // QR format (pipe): [0]CCCD [1]CMND [2]tên [3]ngày sinh(ddmmyyyy) [4]giới tính [5]địa chỉ [6]ngày cấp(ddmmyyyy)
+      return { cccd, cmnd: parts[1].trim(), dob: toISO(parts[3].trim()), issueDate: toISO(parts[6].trim()) };
+    }
+
+    // Tính ngày hết hạn CCCD theo Luật Căn cước 2023, dựa trên tuổi tại thời điểm cấp.
+    // Mốc gia hạn: 14 / 25 / 40 / 60. Cấp trong vòng 2 năm trước 1 mốc → tính sang mốc kế tiếp.
+    // Cấp từ 58 tuổi trở lên → không thời hạn (trả về "").
+    function _cccdExpiryISO(dobISO, issueISO) {
+      const dp = /^(\d{4})-(\d{2})-(\d{2})/.exec(dobISO || "");
+      const ip = /^(\d{4})-(\d{2})-(\d{2})/.exec(issueISO || "");
+      if (!dp || !ip) return "";
+      const dob = { y: +dp[1], mo: +dp[2], d: +dp[3] };
+      const iss = { y: +ip[1], mo: +ip[2], d: +ip[3] };
+      let age = iss.y - dob.y;
+      if (iss.mo < dob.mo || (iss.mo === dob.mo && iss.d < dob.d)) age--;
+      const ms = [14, 25, 40, 60];
+      let expAge = null;
+      for (let i = 0; i < ms.length; i++) {
+        if (age < ms[i]) {
+          expAge = (age >= ms[i] - 2) ? (i + 1 < ms.length ? ms[i + 1] : null) : ms[i];
+          break;
+        }
+      }
+      if (expAge === null) return "";  // ≥ 60 hoặc cấp trong 2 năm trước 60 → không thời hạn
+      const p = n => String(n).padStart(2, "0");
+      return `${dob.y + expAge}-${p(dob.mo)}-${p(dob.d)}`;
     }
 
     // Set a configured field's value (if present) and flag it as changed.
@@ -631,12 +726,75 @@
       markChanged(f);
     }
 
-    // Fill only: số CCCD, ngày cấp, số CMND cũ (per requirement).
+    // Fill: số CCCD, ngày cấp, số CMND cũ + ngày hết hạn (tự tính theo luật từ DOB + ngày cấp).
     function _fillFromCCCD(data) {
       if (data.cccd) _setCccdField(CCCD_FIELD, data.cccd);
       if (data.issueDate) _setCccdField(CCCD_ISSUE_FIELD, data.issueDate);
       if (data.cmnd && /^\d{9}$/.test(data.cmnd)) _setCccdField(CCCD_CMND_FIELD, data.cmnd);
+      if (data.dob) _setCccdField(DOB_FIELD, data.dob);  // chỉ điền nếu field date_of_birth có trên form
+      const expiry = _cccdExpiryISO(data.dob, data.issueDate);
+      if (expiry) _setCccdField(CCCD_EXPIRE_FIELD, expiry);
       toast("Đã điền thông tin từ QR CCCD", true);
+    }
+
+    // ---------- P5: decode QR from a captured/selected photo (high-res still) ----------
+    function _loadImage(file) {
+      return new Promise((resolve, reject) => {
+        const url = URL.createObjectURL(file);
+        const img = new Image();
+        img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+        img.onerror = (e) => { URL.revokeObjectURL(url); reject(e); };
+        img.src = url;
+      });
+    }
+
+    // Try many crop rects × scales × (raw / contrast-boosted) on a still image.
+    function _decodeImageForQR(img) {
+      const W = img.naturalWidth, H = img.naturalHeight;
+      if (!W || !H) return null;
+      const cv = document.createElement("canvas");
+      const cx = cv.getContext("2d", { willReadFrequently: true });
+
+      const rects = [[0, 0, 1, 1], [0.2, 0.2, 0.6, 0.6], [0.3, 0.3, 0.4, 0.4], [0.375, 0.375, 0.25, 0.25]];
+      // 3×3 overlapping grid of 40% tiles (QR may not be centered in the photo)
+      for (let gy = 0; gy < 3; gy++) for (let gx = 0; gx < 3; gx++) rects.push([gx * 0.3, gy * 0.3, 0.4, 0.4]);
+
+      for (const [fx, fy, fw, fh] of rects) {
+        const sx = Math.floor(fx * W), sy = Math.floor(fy * H);
+        const sw = Math.floor(fw * W), sh = Math.floor(fh * H);
+        if (sw < 40 || sh < 40) continue;
+        // upscale the crop so its shorter side ≈ 1200px (bounded)
+        const scale = Math.min(3, Math.max(1, 1200 / Math.min(sw, sh)));
+        const cw = Math.min(1800, Math.round(sw * scale)), ch = Math.min(1800, Math.round(sh * scale));
+        cv.width = cw; cv.height = ch;
+        cx.drawImage(img, sx, sy, sw, sh, 0, 0, cw, ch);
+        let idata = cx.getImageData(0, 0, cw, ch);
+        let code = jsQR(idata.data, cw, ch, { inversionAttempts: "attemptBoth" });
+        if (!code) {
+          _boostContrast(idata); cx.putImageData(idata, 0, 0);
+          const id2 = cx.getImageData(0, 0, cw, ch);
+          code = jsQR(id2.data, cw, ch, { inversionAttempts: "attemptBoth" });
+        }
+        if (code) { const p = _parseVnCCCDQR(code.data); if (p) return p; }
+      }
+      return null;
+    }
+
+    async function onCccdPhoto(ev) {
+      const file = ev.target && ev.target.files && ev.target.files[0];
+      ev.target.value = "";  // allow re-selecting the same file
+      if (!file) return;
+      toast("Đang đọc ảnh CCCD…");
+      _loadJsQr(async () => {
+        try {
+          const img = await _loadImage(file);
+          const parsed = _decodeImageForQR(img);
+          if (parsed) _fillFromCCCD(parsed);
+          else toast("Không đọc được QR từ ảnh. Chụp lại gần hơn, đủ sáng, lấy nét vào ô QR.");
+        } catch (e) {
+          toast("Không mở được ảnh. Thử lại.");
+        }
+      });
     }
   </script>
 </body>

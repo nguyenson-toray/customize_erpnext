@@ -91,6 +91,8 @@ Singleton. HR cấu hình ở đây.
 | `selected_fields` | Table | **Các field thực sự hiển thị trên form** (nguồn quyết định page) |
 | `selected_fields_for_new_join` | Table | **Preset** field cơ bản cho nhân viên mới — KHÔNG ảnh hưởng page trực tiếp |
 
+**Nút "Help"** (toolbar): mở dialog (extra-large) hướng dẫn toàn bộ cách dùng Setting này.
+
 **Nút "+ Add Employee Field"** (`employee_self_update_info_setting.js`): mở dialog đọc `frappe.get_meta("Employee")`, liệt kê field hợp lệ (gồm custom field) → tick chọn. Custom field mới của Employee **tự xuất hiện** trong danh sách.
 
 **Nút "+ Add Custom Field"**: thêm field **tự do, KHÔNG thuộc doctype Employee** (vd ghi chú, khảo sát…). Nhập: `key` (id lưu trữ), `label_vi`, `fieldtype` (Data/Date/Int/Select/Check/…), `options` (nếu Select), section, required. Giá trị chỉ lưu trong submission (`data_json`), **không đọc/ghi Employee**.
@@ -162,7 +164,7 @@ Dùng DB `vn_address` (2 cấp sau sáp nhập 2025). Xem `api/vn_address/readme
 - Field có `widget = Address Province` → select tỉnh (`get_provinces`).
 - Field có `widget = Address Ward` → select phường/xã, **phụ thuộc tỉnh cùng section** (`get_wards(province_code)`).
 - **Lưu vào Employee field là TÊN đầy đủ** (`full_name`, vd "Phường Ba Đình"), dùng `code` chỉ để cascade nội bộ (option `value=code`, `data-name=full_name`). Tương thích dữ liệu cũ vốn lưu tên.
-- Pre-fill: match tên đã lưu với option theo `data-name`.
+- Pre-fill: match tên đã lưu với option theo `data-name`. Nếu tỉnh còn **trống** → tự điền mặc định **"Tỉnh Quảng Ngãi"** (`DEFAULT_PROVINCE`); không tô "đã đổi", nhưng sẽ được lưu khi submit.
 
 ---
 
@@ -186,14 +188,19 @@ Dùng DB `vn_address` (2 cấp sau sáp nhập 2025). Xem `api/vn_address/readme
 ## Quét QR CCCD (điền nhanh — tùy chọn)
 
 Copy từ trang cũ, **rút gọn chỉ lấy 3 trường**: số CCCD, ngày cấp, số CMND cũ.
-
+- QR mẫu :
+ - 051089009620|212869262|Nguyễn Thái Sơn|04071989|Nam|Xóm 1, Thôn Phước Bình, Bình Nguyên, Bình Sơn, Quảng Ngãi|12082021
+ - 051200012093|212588805|Nguyễn Thành Vinh|01062000|Nam|131/9/2 đường Hùng Vương, Tổ 5, Trần Hưng Đạo, TP. Quảng Ngãi, Quảng Ngãi|30052025||||
 - **Chỉ hiện nút "📷 Quét mã QR trên CCCD"** khi field `custom_id_card_no` có trong `selected_fields` (gắn ngay trên ô nhập số CCCD).
 - Quét chỉ là **tùy chọn điền nhanh & chính xác** — ô nhập tay vẫn luôn có, nhân viên có thể tự gõ.
 - Thư viện `jsQR` load từ CDN (`jsqr@1.4.0`). Quét đa tỉ lệ (full → crop 60% → crop 35%, upscale 900px) + tăng tương phản (histogram stretch) để đọc QR nhỏ trên CCCD. Có nút bật đèn flash nếu thiết bị hỗ trợ.
 - Format QR CCCD (pipe-separated): `parts[0]`=CCCD, `parts[1]`=CMND cũ, `parts[6]`=ngày cấp (ddmmyyyy → ISO).
-- Điền vào (chỉ khi field tương ứng có trong config): `custom_id_card_no`, `custom_id_card_date_of_issue`, `custom_id_card_cmnd_no` — và đánh dấu "đã đổi". CMND chỉ điền nếu đủ 9 số.
+- Điền vào (chỉ khi field tương ứng có trong config): `custom_id_card_no`, `custom_id_card_date_of_issue`, `custom_id_card_cmnd_no`, `date_of_birth` (ngày sinh, parts[3]) — và đánh dấu "đã đổi". CMND chỉ điền nếu đủ 9 số. Ngày cấp/ngày sinh trong QR là **ddmmyyyy** → `toISO` đổi sang `yyyy-mm-dd` (đã verify với CCCD thật; `<input type=date>` hiển thị theo locale trình duyệt nhưng giá trị lưu luôn đúng ISO).
+- **Ngày hết hạn CCCD (`custom_id_card__date_of_expired`) tự tính** vì QR không chứa: `_cccdExpiryISO(dob, issueDate)` theo Luật Căn cước 2023 — mốc 14/25/40/60 tuổi, cấp trong 2 năm trước mốc → tính sang mốc kế; cấp ≥58 tuổi → không thời hạn (bỏ trống). VD: sinh 04/07/1989, cấp 12/08/2021 (32 tuổi) → hết hạn 04/07/2029 (40 tuổi).
 
 > Khác trang cũ: **không** parse địa chỉ / không điền ngày sinh / không xử lý ảnh CCCD — đúng yêu cầu chỉ lấy CCCD + ngày cấp + CMND cũ.
+
+**Fallback "Chụp / chọn ảnh CCCD" (cho QR nhỏ ~1.5cm trên CCCD cũ):** nút thứ 2 dùng `<input type="file" accept="image/*" capture="environment">` → mở camera app (tự lấy nét, ảnh độ phân giải cao). Ảnh tĩnh được decode bằng `_decodeImageForQR`: thử nhiều vùng cắt (full + center 60/40/25% + lưới 3×3 tile 40%) × upscale ~1200px × (ảnh gốc + tăng tương phản) → jsQR. Đáng tin hơn quét trực tiếp khi QR nhỏ/mờ; vẫn nhập tay được. (Đây là bước P5; các bước P1 BarcodeDetector / P2 zoom-focus / ZXing-wasm để dành nếu cần.)
 
 ---
 

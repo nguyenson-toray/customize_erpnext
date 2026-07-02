@@ -411,6 +411,16 @@ button:disabled {
   background: #0284c7
 }
 
+.qr-scan-btn.alt {
+  background: #fff;
+  color: #0284c7;
+  border: 1px solid #0ea5e9
+}
+
+.qr-scan-btn.alt:hover {
+  background: #f0f9ff
+}
+
 /* QR overlay */
 #qr_overlay {
   display: none;

@@ -6,6 +6,8 @@ frappe.ui.form.on("Employee Self Update Info Setting", {
 		// Bypass code is for Administrator only — hide it from HR users.
 		frm.toggle_display("bypass_code", frappe.session.user === "Administrator");
 
+		frm.add_custom_button(__("Help"), () => show_setting_help());
+
 		_render_self_update_qr(frm);
 		frm.get_field("fields_intro").$wrapper.html(
 			`<div class="text-muted small">${__(
@@ -48,7 +50,7 @@ frappe.ui.form.on("Employee Self Update Info Setting", {
 			() => {
 				const COPY = [
 					"employee_fieldname", "label_vi", "section_label", "widget",
-					"required", "read_only", "is_custom", "custom_fieldtype", "custom_options",
+					"required", "read_only", "enable", "is_custom", "custom_fieldtype", "custom_options",
 				];
 				frm.clear_table("selected_fields");
 				preset.forEach((src) => {
@@ -273,4 +275,62 @@ function open_field_picker(frm) {
 		});
 		d.show();
 	});
+}
+
+// Usage guide shown by the "Help" toolbar button.
+function show_setting_help() {
+	const html = `
+<div style="font-size:13px;line-height:1.6">
+  <p><b>Cấu hình trang nhân viên tự cập nhật thông tin</b> — <a href="/employee-self-update-info" target="_blank">/employee-self-update-info</a></p>
+
+  <h5>1. Eligible Employees (nhân viên được phép)</h5>
+  <ul>
+    <li>Chọn bộ lọc: <b>Date of Joining</b> / <b>Group</b> / <b>Department</b> / <b>Section</b> (ít nhất 1) → bấm <b>Add Employees</b> để thêm NV Active khớp lọc.</li>
+    <li><b>Clear All</b>: xoá danh sách + reset bộ lọc.</li>
+    <li>Chỉ NV trong bảng này mới cập nhật được.</li>
+  </ul>
+
+  <h5>2. Verification (xác thực)</h5>
+  <ul>
+    <li><b>Validate by DOB</b>: bắt NV nhập <b>2 số cuối ngày sinh</b> trước khi xem/gửi (chống spam, tránh sửa nhầm người).</li>
+    <li><b>Bypass Code</b> (chỉ Administrator thấy): mã 2 chữ số thay cho ngày sinh khi DOB trong hệ thống bị sai.</li>
+  </ul>
+
+  <h5>3. Fields shown to employees (Selected Fields) — <i>quyết định field hiển thị</i></h5>
+  <ul>
+    <li><b>+ Add Employee Field</b>: chọn field bất kỳ của Employee (kể cả custom field).</li>
+    <li><b>+ Add Custom Field</b>: field tự do KHÔNG thuộc Employee (chỉ lưu trong bản khai).</li>
+    <li>Cột trong bảng:
+      <ul>
+        <li><b>Label (Tiếng Việt)</b>: nhãn hiển thị; trống → dùng nhãn gốc của field.</li>
+        <li><b>Section</b>: các field cùng Section gom vào 1 nhóm trên trang.</li>
+        <li><b>Widget</b>: <i>Auto</i> thông thường; <i>Address Province</i> / <i>Address Ward</i> cho địa chỉ (Tỉnh → Phường/Xã).</li>
+        <li><b>Required</b>: bắt buộc nhập. <b>Read Only</b>: chỉ cho xem. <b>Enable</b>: tắt để ẩn field mà không xoá.</li>
+        <li><b>Validation</b>: Digits / Phone / Email / CCCD (12 số) / CMND (9 số) / Past (ngày ≤ hôm nay) / Future (ngày ≥ hôm nay) / Regex; kèm Min/Max Length.</li>
+      </ul>
+    </li>
+  </ul>
+
+  <h5>4. New-Join Preset</h5>
+  <ul>
+    <li>Bảng field mẫu cho nhân viên mới. Nút <b>Fill Selected Fields from Preset</b> sẽ <b>thay thế</b> toàn bộ Selected Fields bằng preset.</li>
+  </ul>
+
+  <h5>5. Chia sẻ & kết xuất</h5>
+  <ul>
+    <li><b>Mã QR + link</b> ở đầu form: gửi cho NV để tự khai.</li>
+    <li>List <i>Employee Self Update Info</i> → <b>Download Excel</b> (2 sheet New/Old, dùng import lại vào Employee). NV có thể <b>tải PDF</b> sau khi gửi.</li>
+    <li>Quét/chụp <b>QR CCCD</b> tự điền số CCCD, ngày cấp, CMND cũ, ngày sinh & tự tính ngày hết hạn.</li>
+  </ul>
+
+  <p style="color:#b45309"><b>Lưu ý:</b> mọi thay đổi phải bấm <b>Save</b> mới có hiệu lực. Dữ liệu NV khai <b>không</b> tự ghi vào Employee — chỉ export/PDF.</p>
+</div>`;
+	const d = new frappe.ui.Dialog({
+		title: __("Hướng dẫn sử dụng"),
+		size: "extra-large",
+		fields: [{ fieldtype: "HTML", fieldname: "guide", options: `<div style="max-height:70vh;overflow:auto;padding-right:6px">${html}</div>` }],
+		primary_action_label: __("Đóng"),
+		primary_action() { d.hide(); },
+	});
+	d.show();
 }

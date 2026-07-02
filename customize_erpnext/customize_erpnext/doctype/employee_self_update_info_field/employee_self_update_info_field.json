@@ -14,6 +14,12 @@
   "required",
   "read_only",
   "enable",
+  "section_validation",
+  "validation",
+  "column_break_val",
+  "min_length",
+  "max_length",
+  "regex",
   "section_custom",
   "is_custom",
   "custom_fieldtype",
@@ -33,7 +39,7 @@
    "fieldname": "label_vi",
    "fieldtype": "Data",
    "in_list_view": 1,
-   "label": "Label (Ti\u1ebfng Vi\u1ec7t)"
+   "label": "Label (Tiếng Việt)"
   },
   {
    "fieldname": "column_break_1",
@@ -73,6 +79,51 @@
    "label": "Read Only"
   },
   {
+   "default": "1",
+   "fieldname": "enable",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Enable"
+  },
+  {
+   "fieldname": "section_validation",
+   "fieldtype": "Section Break",
+   "label": "Validation"
+  },
+  {
+   "description": "Format check applied on the entered value (client + server). Digits = only 0-9; Phone = VN 10 digits starting 0; CCCD = 12 digits; CMND = 9 digits; Past = date not in the future (DOB, issue date); Future = date not in the past (expiry date); Regex = use the pattern below.",
+   "fieldname": "validation",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Validation",
+   "options": "\nDigits\nPhone\nEmail\nCCCD\nCMND\nPast\nFuture\nRegex"
+  },
+  {
+   "fieldname": "column_break_val",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "description": "Minimum length (0 = no limit).",
+   "fieldname": "min_length",
+   "fieldtype": "Int",
+   "label": "Min Length"
+  },
+  {
+   "default": "0",
+   "description": "Maximum length (0 = no limit).",
+   "fieldname": "max_length",
+   "fieldtype": "Int",
+   "label": "Max Length"
+  },
+  {
+   "depends_on": "eval:doc.validation=='Regex'",
+   "description": "Custom regular expression (used when Validation = Regex).",
+   "fieldname": "regex",
+   "fieldtype": "Data",
+   "label": "Regex"
+  },
+  {
    "fieldname": "section_custom",
    "fieldtype": "Section Break",
    "label": "Custom field (not in Employee)"
@@ -99,18 +150,11 @@
    "fieldname": "custom_options",
    "fieldtype": "Small Text",
    "label": "Custom Options"
-  },
-  {
-   "default": "1",
-   "fieldname": "enable",
-   "fieldtype": "Check",
-   "in_list_view": 1,
-   "label": "Enable"
   }
  ],
  "istable": 1,
  "links": [],
- "modified": "2026-06-27 12:59:33.914769",
+ "modified": "2026-06-27 13:30:00.000000",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Employee Self Update Info Field",
