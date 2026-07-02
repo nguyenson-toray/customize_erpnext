@@ -19,7 +19,7 @@ frappe.listview_settings['Uniform Rule'] = {
 				}
 			);
 		});
-		listview.page.add_inner_button(__('Hướng dẫn cài đặt'), () => show_rule_setup_guide());
+		listview.page.add_inner_button(__('Setup Guide'), () => show_rule_setup_guide());
 	},
 };
 

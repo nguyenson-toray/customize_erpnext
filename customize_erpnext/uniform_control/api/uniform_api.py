@@ -372,8 +372,9 @@ def export_dashboard_excel(due_before=None, forecasts=None):
     """Download dashboard data as .xlsx — matches the on-screen view:
       sheet 1 "Stock Purchasing Plan": Stock vs Reissue/Forecast need + shortfall;
       sheet 2 "Employees Due for Issue": reissue rows with cycles (multi-cycle).
-    `due_before` = reissue horizon (default today + 1y); `forecasts` = optional
-    Uniform Demand Forecast names whose demand is added to Forecast Need."""
+    `due_before` = reissue horizon (default today); `forecasts` = optional
+    Uniform Demand Forecast names whose demand is added to Forecast Need
+    (a Re-issue/Both forecast replaces the reissue column — no double count)."""
     _check_permission()
 
     import openpyxl
@@ -382,10 +383,19 @@ def export_dashboard_excel(due_before=None, forecasts=None):
 
     from customize_erpnext.uniform_control.api.uniform_excel_api import get_uniform_stock_excel
 
-    horizon = due_before or add_days(today(), 365)
+    # Default horizon = today (same as the dashboard's default filter)
+    horizon = due_before or today()
     due = get_due_items(limit=100000, due_before=horizon)
     due_rows, reissue = due["rows"], due["needed"]
-    forecast_need = get_forecast_needed(forecasts)["needed"] if forecasts else {}
+
+    forecast_need = {}
+    if forecasts:
+        fn = get_forecast_needed(forecasts)
+        forecast_need = fn["needed"]
+        if fn["has_reissue"]:
+            # The forecast already contains reissue demand — adding the
+            # dashboard's own reissue would double-count it (same rule as the UI).
+            reissue = {}
 
     wb = openpyxl.Workbook()
     wb.remove(wb.active)

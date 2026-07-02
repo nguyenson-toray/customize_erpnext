@@ -16,3 +16,5 @@ class UniformRule(Document):
                 self.category, self.item))
         elif self.category == "Cap" and not variant_of:
             frappe.throw(_("Cap item must be an exact variant, got template {0}.").format(self.item))
+        elif self.category == "Bottle" and has_variants:
+            frappe.throw(_("Bottle item must be a single stock item, got template {0}.").format(self.item))

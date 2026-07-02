@@ -606,7 +606,10 @@ def reissue_demand(to_date, setting=None, prefix=None):
         r["qty_per_cycle"] = qpc
         r["cycles"] = cycles
         r["total_qty"] = total
-        needed[variant] = needed.get(variant, 0) + total
+        # Rows with no matching rule / reissue_qty 0 stay visible in the due
+        # list (data to review) but must not pollute the stock plan with zeros.
+        if total > 0:
+            needed[variant] = needed.get(variant, 0) + total
         if variant not in meta:
             meta[variant] = {
                 "template": template,

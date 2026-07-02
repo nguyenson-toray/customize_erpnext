@@ -386,47 +386,38 @@ def _ratio_sql(field, where, params):
     return {r.k: r.c / total for r in rows} if total else {}
 
 
-def _segments(designation, prefix, cache, pin_grade=None):
+def _segments(designation, prefix, cache):
     """Distribution of (grade, gender, group, section) among current employees of
     this designation → list of (emp_data, fraction). Drives rule matching so a
     planned hire's likely grade/group/section/gender mix is reflected.
 
-    `pin_grade` (from the recruitment line) forces the grade for every segment —
-    so grade-based rules (shirts) resolve even for a brand-new designation. When
-    the designation has no current staff:
-      • fall back to the base designation ("Sewing Worker-Trainee" → "Sewing Worker");
-      • if still none and a grade is pinned, fall back to the company-wide gender
-        mix with that grade (group/section unknown)."""
-    key = (designation, pin_grade)
-    if key in cache:
-        return cache[key]
-    segs = _segments_query(designation, prefix, pin_grade)
+    A designation with no current staff (e.g. a brand-new "...-Trainee") falls
+    back to the base designation before the first dash ("Sewing Worker-Trainee"
+    → "Sewing Worker"). Still empty → caller reports it as unmapped."""
+    if designation in cache:
+        return cache[designation]
+    segs = _segments_query(designation, prefix)
     if not segs:
         base = re.split(r"[-–—]", designation, maxsplit=1)[0].strip()
         if base and base != designation:
-            segs = _segments_query(base, prefix, pin_grade)
-    if not segs and pin_grade:
-        segs = _segments_companywide(designation, prefix, pin_grade)
-    cache[key] = segs
+            segs = _segments_query(base, prefix)
+    cache[designation] = segs
     return segs
 
 
-def _segments_query(designation, prefix, pin_grade=None):
-    # When grade is pinned, distribute over gender/group/section only (grade fixed).
-    grade_sel = "%(pin_grade)s AS grade" if pin_grade else "e.grade AS grade"
-    grade_grp = "" if pin_grade else "e.grade, "
+def _segments_query(designation, prefix):
     pcond = " AND e.name LIKE %(prefix)s" if prefix else ""
     rows = frappe.db.sql(
         f"""
-        SELECT {grade_sel}, p.uniform_gender AS gender,
+        SELECT e.grade AS grade, p.uniform_gender AS gender,
                e.custom_group AS custom_group, e.custom_section AS custom_section,
                COUNT(*) c
         FROM `tabEmployee` e
         JOIN `tabEmployee Uniform Profile` p ON p.employee = e.name
         WHERE e.status = 'Active' AND e.designation = %(designation)s {pcond}
-        GROUP BY {grade_grp}p.uniform_gender, e.custom_group, e.custom_section
+        GROUP BY e.grade, p.uniform_gender, e.custom_group, e.custom_section
         """,
-        {"designation": designation, "prefix": f"{prefix}%", "pin_grade": pin_grade}, as_dict=True,
+        {"designation": designation, "prefix": f"{prefix}%"}, as_dict=True,
     )
     total = sum(r.c for r in rows)
     return [
@@ -434,29 +425,6 @@ def _segments_query(designation, prefix, pin_grade=None):
           "custom_group": r.custom_group, "custom_section": r.custom_section}, r.c / total)
         for r in rows
     ] if total else []
-
-
-def _segments_companywide(designation, prefix, pin_grade):
-    """Brand-new designation with a pinned grade → company-wide gender mix,
-    group/section unknown (None). Ensures grade+gender shirt rules still resolve."""
-    pcond = " AND e.name LIKE %(prefix)s" if prefix else ""
-    rows = frappe.db.sql(
-        f"""
-        SELECT p.uniform_gender AS gender, COUNT(*) c
-        FROM `tabEmployee` e JOIN `tabEmployee Uniform Profile` p ON p.employee = e.name
-        WHERE e.status = 'Active' AND p.uniform_gender IN ('Male','Female') {pcond}
-        GROUP BY p.uniform_gender
-        """,
-        {"prefix": f"{prefix}%"}, as_dict=True,
-    )
-    total = sum(r.c for r in rows)
-    dist = ({r.gender: r.c / total for r in rows} if total
-            else {"Male": 0.5, "Female": 0.5})
-    return [
-        ({"designation": designation, "grade": pin_grade, "gender": g,
-          "custom_group": None, "custom_section": None}, frac)
-        for g, frac in dist.items()
-    ]
 
 
 def _size_mix(designation, gender, field, prefix, cache):
