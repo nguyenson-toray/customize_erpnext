@@ -4,7 +4,15 @@
 
 Hệ thống đồng bộ vân tay từ ERP đến các máy chấm công với tính năng **song song hoàn toàn** (fully parallel) để tối ưu tốc độ xử lý.
 
-**Cập nhật mới nhất:** 2025-10-04
+**Cập nhật mới nhất: 2026-07-03 — Batch sync + refactor DocType**
+- ✅ **Batch per-machine**: API mới `utilities.sync_employees_to_machine_batch(machine_name, employee_ids)` — mỗi máy kết nối **1 lần cho cả batch** (chunk 20 nhân viên/request, `CONFIG.CHUNK_SIZE`), `get_users()` chỉ gọi **1 lần/batch** thay vì 2 lần/nhân viên → nhanh hơn 5–10 lần, máy chỉ bị disable 1 lần/chunk
+- ✅ **Realtime progress**: server publish event `fingerprint_machine_sync_progress` qua `frappe.publish_realtime` → UI hiện tiến trình từng nhân viên qua socketio
+- ✅ **Retry Failed**: summary liệt kê nhân viên lỗi kèm lý do; nút "🔁 Retry Failed (N)" chỉ sync lại các cặp (nhân viên, máy) thất bại
+- ✅ **DocType mới**: máy chấm công chuyển từ DocType `Attendance Machine` (nhiều bản ghi, đã xóa) sang Single DocType **`Attendance Machine Setting`** (bảng con `machines` = `Attendance Machine Detail`; cấu hình kết nối port/timeout/force_udp/ommit_ping dùng chung ở cấp cha). Truy cập qua helper `api/attendance_machines.py` (`get_machines`/`get_machine`). Identifier máy trong mọi API = **`device_name`** (trả về trong key `name` để tương thích ngược)
+- ✅ **Fix bug**: `force_udp or True` cũ ép luôn UDP bất kể cấu hình — nay tôn trọng giá trị cài đặt
+- ℹ️ API cũ `sync_employee_to_single_machine` (1 người/1 máy) vẫn giữ — www/biometric_sync đang dùng
+
+**Cập nhật 2025-10-04**
 - ✅ **Chiến lược Per-Machine**: Mỗi máy xử lý tuần tự tất cả nhân viên, các máy chạy song song
 - ✅ **Parallel machine loading**: Kiểm tra trạng thái máy với ThreadPoolExecutor (99.9% faster)
 - ✅ **Redis cache layer**: Cache 30s cho machine status

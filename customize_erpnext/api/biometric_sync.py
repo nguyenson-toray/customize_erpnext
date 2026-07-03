@@ -9,19 +9,20 @@ import time
 import base64
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+from customize_erpnext.api.attendance_machines import get_machine, get_machines
+
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
 def _get_machine_doc(machine_name):
-    """Return Attendance Machine doc as dict."""
-    doc = frappe.get_doc("Attendance Machine", machine_name)
-    return doc
+    """Return machine config as dict (from Attendance Machine Setting)."""
+    return frappe._dict(get_machine(machine_name))
 
 
 def _build_zk_device(doc):
-    """Build ZK device config dict from Attendance Machine doc."""
+    """Build ZK device config dict from machine config."""
     return {
         "ip": doc.ip_address,
         "port": int(doc.port or 4370),
@@ -71,13 +72,7 @@ def _shorten_name(full_name, max_length=24):
 @frappe.whitelist()
 def get_attendance_machines():
     """Return list of enabled Attendance Machines."""
-    machines = frappe.get_all(
-        "Attendance Machine",
-        filters={"enable": 1},
-        fields=["name", "id", "device_name", "ip_address", "port", "model",
-                "location", "master_device", "timeout", "force_udp", "ommit_ping"],
-        order_by="id asc",
-    )
+    machines = get_machines(enabled_only=True)
     return {"status": "success", "machines": machines}
 
 
@@ -523,12 +518,7 @@ def get_left_employees_on_machines(delay_days=45, include_unmatched=0):
         include_unmatched = int(include_unmatched)
         today_date = frappe.utils.getdate(frappe.utils.today())
 
-        machines = frappe.get_all(
-            "Attendance Machine",
-            filters={"enable": 1},
-            fields=["name", "ip_address", "port", "timeout", "force_udp", "ommit_ping", "device_name"],
-            order_by="name asc",
-        )
+        machines = get_machines(enabled_only=True)
         if not machines:
             return {"status": "error", "message": "No enabled attendance machines found"}
 
@@ -716,12 +706,8 @@ def _run_delete_job(users, cache_key, job_id=None):
     try:
         _update({"status": "running", "phase": "Starting deletion..."})
 
-        # Build machine config lookup from Attendance Machine doctype
-        machines = frappe.get_all(
-            "Attendance Machine",
-            filters={"enable": 1},
-            fields=["name", "ip_address", "port", "timeout", "force_udp", "ommit_ping"],
-        )
+        # Build machine config lookup from Attendance Machine Setting
+        machines = get_machines(enabled_only=True)
         machine_cfg = {m["name"]: _build_zk_device(frappe._dict(m)) for m in machines}
 
         # Group user_ids by machine for batched single-connection deletes
@@ -903,12 +889,7 @@ def find_employee_on_machines(query):
             }
 
         # Scan every enabled machine for this user_id
-        machines = frappe.get_all(
-            "Attendance Machine",
-            filters={"enable": 1},
-            fields=["name", "ip_address", "port", "timeout", "force_udp", "ommit_ping", "device_name"],
-            order_by="name asc",
-        )
+        machines = get_machines(enabled_only=True)
         if not machines:
             return {"status": "error", "message": "No enabled attendance machines found"}
 

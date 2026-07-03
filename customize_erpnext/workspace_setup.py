@@ -286,12 +286,20 @@ def _setup_shift_attendance_workspace():
 	# correct cards before making any additions.
 	changed = _fix_misplaced_links(doc) or changed
 
-	# New card "Attendance Machine" + link "Attendance Machine" (DocType)
+	# Remove stale links to the old "Attendance Machine" doctype
+	# (replaced by the single doctype "Attendance Machine Setting")
+	for link in list(doc.links):
+		if link.type == "Link" and link.link_to == "Attendance Machine":
+			doc.links.remove(link)
+			changed = True
+
+	# New card "Attendance Machine" + link "Attendance Machine Setting"
+	# (single doctype holding all machines in a child table).
 	# Must be added BEFORE _add_link_to_card calls so that the "Overtime"
 	# card is no longer the last card and its boundary is well-defined.
 	if _add_card_with_link(
-		doc, "Attendance Machine", "Attendance Machine",
-		"Attendance Machine", "DocType",
+		doc, "Attendance Machine", "Attendance Machine Setting",
+		"Attendance Machine Setting", "DocType",
 	):
 		changed = True
 

@@ -1,6 +1,8 @@
 import frappe
 from frappe import _
 
+from customize_erpnext.api.attendance_machines import get_machine, get_machines
+
 # Python code (get_role_profile)
 @frappe.whitelist()
 def get_role_profile(email=None):
@@ -378,7 +380,7 @@ def get_employee_fingerprints_status(employee_id):
 def get_finger_name(finger_index):
     """Get standardized finger name from index"""
     finger_names = {
-        0: "Left Little",1: "Left Ring",  2: "Left Middle", 3: "Left Index", 5: "Left Thumb", 
+        0: "Left Little", 1: "Left Ring", 2: "Left Middle", 3: "Left Index", 4: "Left Thumb",
         5: "Right Thumb", 6: "Right Index", 7: "Right Middle", 8: "Right Ring", 9: "Right Little"
     }
     return finger_names.get(finger_index, f"Finger {finger_index}")
@@ -468,10 +470,7 @@ def sync_employee_fingerprint_to_machines(employee_id):
             return error
 
         # Get enabled attendance machines
-        machines = frappe.get_list("Attendance Machine",
-            filters={"enable": 1},
-            fields=["name", "device_name", "ip_address", "port", "timeout", "force_udp", "ommit_ping"]
-        )
+        machines = [frappe._dict(m) for m in get_machines(enabled_only=True)]
 
         if not machines:
             return {
@@ -557,8 +556,8 @@ def sync_employee_to_single_machine(employee_id, machine_name):
         if error:
             return error
 
-        # Get specific machine
-        machine = frappe.get_doc("Attendance Machine", machine_name)
+        # Get specific machine (by device_name)
+        machine = frappe._dict(get_machine(machine_name))
 
         if not machine.enable:
             return {
@@ -587,6 +586,215 @@ def sync_employee_to_single_machine(employee_id, machine_name):
             "message": f"Error: {str(e)}"
         }
 
+def _publish_machine_sync_progress(payload):
+    """Push per-employee sync progress to the initiating user (socketio)."""
+    try:
+        frappe.publish_realtime(
+            "fingerprint_machine_sync_progress",
+            payload,
+            user=frappe.session.user,
+        )
+    except Exception:
+        pass  # progress is best-effort; never break the sync for it
+
+
+@frappe.whitelist()
+def sync_employees_to_machine_batch(machine_name, employee_ids):
+    """Sync multiple employees to ONE machine over a SINGLE connection.
+
+    Replaces N calls of sync_employee_to_single_machine with one call:
+    connect once, disable device once, get_users() once, then upsert each
+    employee (delete + set_user + templates — same per-employee behavior as
+    the single sync). Per-employee progress is published via
+    frappe.publish_realtime (event: fingerprint_machine_sync_progress).
+
+    Returns per-employee results:
+      {success, machine, total, success_count, failed_count,
+       results: [{employee, employee_name, success, fingerprints_synced, error}]}
+    """
+    import json as _json
+    import socket
+    import base64
+    import time
+    from zk import ZK
+    from zk.base import Finger, User
+
+    if isinstance(employee_ids, str):
+        employee_ids = _json.loads(employee_ids)
+
+    machine = frappe._dict(get_machine(machine_name))
+    results = []
+
+    def record(emp_id, emp_name, success, fp_count=0, error=None):
+        results.append({
+            "employee": emp_id,
+            "employee_name": emp_name,
+            "success": success,
+            "fingerprints_synced": fp_count,
+            "error": error,
+        })
+        _publish_machine_sync_progress({
+            "machine": machine.device_name,
+            "employee": emp_id,
+            "employee_name": emp_name,
+            "success": success,
+            "fingerprints_synced": fp_count,
+            "error": error,
+            "done": len(results),
+            "total": len(employee_ids),
+        })
+
+    def summary():
+        success_count = sum(1 for r in results if r["success"])
+        return {
+            "success": success_count > 0,
+            "machine": machine.device_name,
+            "total": len(employee_ids),
+            "success_count": success_count,
+            "failed_count": len(results) - success_count,
+            "results": results,
+        }
+
+    if not machine.enable:
+        for emp_id in employee_ids:
+            record(emp_id, emp_id, False, error=f"Machine {machine.device_name} is disabled")
+        return summary()
+
+    # Prepare all employee data up front (DB reads before touching the device)
+    prepared = []
+    for emp_id in employee_ids:
+        try:
+            employee_data, error = _prepare_employee_sync_data(emp_id)
+        except Exception as e:
+            # e.g. Employee does not exist — must not kill the whole batch
+            employee_data, error = None, {"message": str(e)}
+        if error:
+            record(emp_id, emp_id, False, error=error.get("message"))
+        else:
+            prepared.append(employee_data)
+
+    if not prepared:
+        return summary()
+
+    # Quick network check (once per batch)
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(3)
+        reachable = sock.connect_ex((machine.ip_address, machine.port)) == 0
+        sock.close()
+    except Exception:
+        reachable = False
+
+    if not reachable:
+        msg = f"Cannot connect to {machine.ip_address}:{machine.port}"
+        for employee_data in prepared:
+            record(employee_data["employee"], employee_data["employee_name"], False, error=msg)
+        return summary()
+
+    # Connect once for the whole batch
+    zk = ZK(
+        machine.ip_address,
+        port=machine.port,
+        timeout=machine.timeout,
+        force_udp=bool(machine.force_udp),
+        ommit_ping=bool(machine.ommit_ping),
+    )
+    conn = None
+    try:
+        conn = zk.connect()
+        if not conn:
+            raise Exception("Failed to connect to device")
+
+        conn.disable_device()
+
+        # ONE get_users() per batch: build user_id -> user map and track next free uid.
+        # (The old per-employee sync called get_users() twice per employee —
+        # the main bottleneck on devices with thousands of users.)
+        existing_users = conn.get_users()
+        users_by_id = {u.user_id: u for u in existing_users}
+        next_uid = max((u.uid for u in existing_users), default=0) + 1
+
+        for employee_data in prepared:
+            emp_id = employee_data["employee"]
+            emp_name = employee_data["employee_name"]
+            device_id = employee_data["attendance_device_id"]
+
+            last_error = None
+            for attempt in range(2):  # 1 retry per employee
+                try:
+                    existing = users_by_id.get(device_id)
+                    if existing:
+                        uid = existing.uid
+                        conn.delete_user(uid=existing.uid, user_id=device_id)
+                        time.sleep(0.1)
+                    else:
+                        uid = next_uid
+                        next_uid += 1
+
+                    short_name = shorten_name(emp_name, 24)
+                    privilege = employee_data.get("privilege", 0)
+                    password = employee_data.get("password", "") or ""
+
+                    conn.set_user(
+                        uid=uid,
+                        name=short_name,
+                        privilege=privilege,
+                        password=password,
+                        group_id="",
+                        user_id=device_id,
+                    )
+                    # save_user_template requires a real zk User instance
+                    # (it repacks the user record into the template packet);
+                    # building it locally avoids another get_users() round-trip
+                    user = User(uid, short_name, privilege, password, "", device_id)
+                    # keep the map current so a duplicate device_id later in the
+                    # batch (or a retry) reuses this uid instead of allocating
+                    users_by_id[device_id] = user
+
+                    templates_to_send = []
+                    for fp in employee_data["fingerprints"]:
+                        if not fp.get("template_data"):
+                            continue
+                        try:
+                            template_bytes = base64.b64decode(fp["template_data"])
+                        except Exception:
+                            continue
+                        templates_to_send.append(
+                            Finger(uid=uid, fid=fp["finger_index"], valid=True, template=template_bytes))
+
+                    if templates_to_send:
+                        conn.save_user_template(user, templates_to_send)
+
+                    record(emp_id, emp_name, True, fp_count=len(templates_to_send))
+                    last_error = None
+                    break
+                except Exception as e:
+                    last_error = str(e)
+                    time.sleep(0.3)
+
+            if last_error is not None:
+                record(emp_id, emp_name, False, error=last_error)
+
+        return summary()
+
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(),
+                         f"sync_employees_to_machine_batch: {machine_name}")
+        msg = f"Device error: {str(e)}"
+        done_ids = {r["employee"] for r in results}
+        for employee_data in prepared:
+            if employee_data["employee"] not in done_ids:
+                record(employee_data["employee"], employee_data["employee_name"], False, error=msg)
+        return summary()
+    finally:
+        if conn:
+            try:
+                conn.enable_device()
+                conn.disconnect()
+            except Exception:
+                pass
+
+
 def sync_to_single_machine(machine_config, employee_data):
     """Sync employee data to a single attendance machine
 
@@ -604,13 +812,15 @@ def sync_to_single_machine(machine_config, employee_data):
         import time
 
         # Prepare device config
+        # NOTE: use bool(...) — the old `force_udp or True` forced the flag ON
+        # regardless of the configured value
         device_config = {
             "device_name": machine_config.device_name,
             "ip_address": machine_config.ip_address,
             "port": machine_config.port or 4370,
             "timeout": machine_config.timeout or 10,
-            "force_udp": machine_config.force_udp or True,
-            "ommit_ping": machine_config.ommit_ping or True
+            "force_udp": bool(machine_config.force_udp),
+            "ommit_ping": bool(machine_config.ommit_ping)
         }
 
         # Log sync start
@@ -779,12 +989,8 @@ def get_enabled_attendance_machines():
     try:
         from concurrent.futures import ThreadPoolExecutor, as_completed
 
-        # Get enabled machines
-        # filter : only get machines that are enabled =1
-        machines = frappe.get_list("Attendance Machine",
-            filters={"enable": 1},
-            fields=["name", "device_name", "ip_address", "port", "timeout", "force_udp", "ommit_ping", "location"]
-        )
+        # Get enabled machines (from Attendance Machine Setting single doctype)
+        machines = get_machines(enabled_only=True)
 
         if not machines:
             return {

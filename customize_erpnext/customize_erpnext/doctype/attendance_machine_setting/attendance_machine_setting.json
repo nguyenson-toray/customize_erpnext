@@ -1,0 +1,97 @@
+{
+ "actions": [],
+ "creation": "2026-07-03 14:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "connection_section",
+  "default_port",
+  "timeout",
+  "column_break_conn",
+  "force_udp",
+  "ommit_ping",
+  "machines_section",
+  "machines"
+ ],
+ "fields": [
+  {
+   "fieldname": "connection_section",
+   "fieldtype": "Section Break",
+   "label": "Connection Settings (applied to all machines)"
+  },
+  {
+   "default": "4370",
+   "fieldname": "default_port",
+   "fieldtype": "Int",
+   "label": "Port",
+   "reqd": 1
+  },
+  {
+   "default": "10",
+   "fieldname": "timeout",
+   "fieldtype": "Int",
+   "label": "Timeout (seconds)",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_conn",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "force_udp",
+   "fieldtype": "Check",
+   "label": "Force UDP"
+  },
+  {
+   "default": "1",
+   "fieldname": "ommit_ping",
+   "fieldtype": "Check",
+   "label": "Omit Ping"
+  },
+  {
+   "fieldname": "machines_section",
+   "fieldtype": "Section Break",
+   "label": "Attendance Machines"
+  },
+  {
+   "fieldname": "machines",
+   "fieldtype": "Table",
+   "label": "Machines",
+   "options": "Attendance Machine Detail"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-07-03 14:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Customize Erpnext",
+ "name": "Attendance Machine Setting",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "Administrator",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

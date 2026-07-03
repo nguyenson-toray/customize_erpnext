@@ -1,0 +1,75 @@
+{
+ "actions": [],
+ "creation": "2026-07-03 14:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "device_name",
+  "ip_address",
+  "enable",
+  "master_device",
+  "location",
+  "model"
+ ],
+ "fields": [
+  {
+   "fieldname": "device_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Device Name",
+   "reqd": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "ip_address",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "IP Address",
+   "reqd": 1,
+   "columns": 2
+  },
+  {
+   "default": "1",
+   "fieldname": "enable",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Enable",
+   "columns": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "master_device",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Master Device",
+   "columns": 1
+  },
+  {
+   "fieldname": "location",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Location",
+   "columns": 2
+  },
+  {
+   "default": "ZKTeco F21Lite/ID",
+   "fieldname": "model",
+   "fieldtype": "Data",
+   "label": "Model",
+   "columns": 2
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-07-03 14:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Customize Erpnext",
+ "name": "Attendance Machine Detail",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

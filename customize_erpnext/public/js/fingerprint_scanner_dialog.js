@@ -1,12 +1,32 @@
 /**
  * Fingerprint Scanner Dialog - Shared Module
  * Can be used from Employee Form and Employee List
+ *
+ * v2.0 — REQUIRES Fingerprint Scanner Bridge v2.0+:
+ * - Job-based capture + SSE realtime events (no log polling / string parsing).
+ * - Persistent scanner session: scanner connects once when the dialog opens
+ *   and disconnects when it closes (not per finger).
+ * - Reloads the Employee form after a fingerprint is saved (prevents
+ *   "Document has been modified" conflicts).
  */
 
 window.FingerprintScannerDialog = {
 
     // Desktop Bridge API Configuration
     DESKTOP_BRIDGE_URL: 'http://127.0.0.1:8080/api',
+
+    // Bridge connection state
+    bridge_mode: null,       // 'v2' | null (bridge v2+ required — no legacy fallback)
+    bridge_version: null,
+
+    // Active v2 capture state
+    active_event_source: null,
+    active_job_id: null,
+    scanning: false,
+
+    // Global variables for tracking
+    scan_dialog: null,
+    scan_count: 0,
 
     // Vietnamese error messages mapping from bridge ERROR_CODES
     VIETNAMESE_ERROR_CODES: {
@@ -23,6 +43,8 @@ window.FingerprintScannerDialog = {
         2002: "Lỗi quét vân tay",
         2003: "Chất lượng vân tay thấp",
         2004: "Mẫu vân tay không hợp lệ",
+        2005: "Vân tay không khớp với lần quét đầu (có thể đã đổi ngón)",
+        2006: "Đã hủy quét",
 
         // Process errors (3xxx)
         3001: "Ghép mẫu vân tay thất bại",
@@ -42,7 +64,7 @@ window.FingerprintScannerDialog = {
 
         // Check for error codes in message
         for (const [code, translation] of Object.entries(FingerprintScannerDialog.VIETNAMESE_ERROR_CODES)) {
-            if (message.includes(code)) {
+            if (String(message).includes(code)) {
                 return translation;
             }
         }
@@ -50,76 +72,25 @@ window.FingerprintScannerDialog = {
         // Check for common English phrases and translate
         const translations = {
             'Scanner not connected': 'Máy quét chưa kết nối',
+            'Another scan is already in progress': 'Đang có phiên quét khác — vui lòng đợi',
+            'Scan timeout': 'Hết thời gian chờ quét',
             'Timeout': 'Hết thời gian chờ',
             'Connection failed': 'Kết nối thất bại',
             'Initialization failed': 'Khởi tạo thất bại',
             'Scan failed': 'Quét thất bại',
             'Network error': 'Lỗi mạng',
-            'Device not found': 'Không tìm thấy thiết bị'
+            'Device not found': 'Không tìm thấy thiết bị',
+            'Could not connect to scanner': 'Không kết nối được máy quét'
         };
 
         for (const [english, vietnamese] of Object.entries(translations)) {
-            if (message.includes(english)) {
-                return message.replace(english, vietnamese);
+            if (String(message).includes(english)) {
+                return String(message).replace(english, vietnamese);
             }
         }
 
         return message;
     },
-
-    // Function to translate bridge messages to Vietnamese
-    translateBridgeMessage: function (message) {
-        if (!message) return message;
-
-
-        // Handle structured log messages from bridge - exact matching only
-        if (message === 'S1/3:waiting') {
-            return '🔵 LẦN 1: ĐANG ĐỢI QUÉT VÂN TAY';
-        }
-        if (message === 'S2/3:waiting') {
-            return '🟡 LẦN 2: ĐANG ĐỢI QUÉT VÂN TAY';
-        }
-        if (message === 'S3/3:waiting') {
-            return '🟠 LẦN 3: ĐANG ĐỢI QUÉT VÂN TAY';
-        }
-        // Skip raw success codes - bridge already provides detailed success messages
-        // if ((message.includes('S1/3:2') && !message.includes('S1/3:2001')) ||
-        //     (message.includes('S2/3:2') && !message.includes('S2/3:2001')) ||
-        //     (message.includes('S3/3:2') && !message.includes('S3/3:2001'))) {
-        //     return '✅ QUÉT THÀNH CÔNG!';
-        // }
-        if (message.includes('S1/3:2001') || message.includes('S2/3:2001') || message.includes('S3/3:2001')) {
-            return '❌ Hết thời gian chờ quét';
-        }
-        if (message.match(/E:[^:]+:[0-9]+:[0-9]+:3$/) || message.includes('ENROLLMENT_COMPLETE')) {
-            return '✅ HOÀN TẤT ĐĂNG KÝ VÂN TAY';
-        }
-
-        // Direct translations
-        const bridgeTranslations = {
-            'Ready for scan': 'Sẵn sàng quét',
-            'Please place finger on scanner': 'Vui lòng đặt ngón tay lên máy quét',
-            'Scan completed': 'Quét hoàn tất',
-            'Quality': 'Chất lượng',
-            'ENROLLMENT COMPLETED': 'HOÀN TẤT ĐĂNG KÝ',
-            'Fingerprint enrollment completed': 'Hoàn tất đăng ký vân tay',
-            'Waiting for fingerprint': 'Đang chờ vân tay',
-            'MERGE:START': 'Bắt đầu ghép mẫu vân tay',
-            'Next scan ready': 'Sẵn sàng cho lần quét tiếp theo'
-        };
-
-        for (const [english, vietnamese] of Object.entries(bridgeTranslations)) {
-            if (message.includes(english)) {
-                message = message.replace(english, vietnamese);
-            }
-        }
-
-        return message;
-    },
-
-    // Global variables for tracking
-    scan_dialog: null,
-    scan_count: 0,
 
     /**
      * Show fingerprint scanner dialog for Employee Form (fixed employee)
@@ -127,7 +98,8 @@ window.FingerprintScannerDialog = {
      * @param {string} employee_name - Employee name for display
      */
     showForEmployee: function (employee_id, employee_name = null) {
-        // BUGFIX: Clean up old dialog completely before creating new one
+        // Clean up old dialog completely before creating new one
+        FingerprintScannerDialog._teardown(false);
         if (FingerprintScannerDialog.scan_dialog) {
             try {
                 FingerprintScannerDialog.scan_dialog.hide();
@@ -140,9 +112,6 @@ window.FingerprintScannerDialog = {
         // Reset all global state
         FingerprintScannerDialog.scan_dialog = null;
         FingerprintScannerDialog.scan_count = 0;
-        if (FingerprintScannerDialog.scan_attempts) {
-            FingerprintScannerDialog.scan_attempts = {};
-        }
 
         // Small delay to ensure DOM cleanup is complete
         setTimeout(() => {
@@ -287,28 +256,7 @@ window.FingerprintScannerDialog = {
             ],
             primary_action_label: __('🔍 Bắt Đầu Quét'),
             primary_action(values) {
-                // Get finger selection from visual selector
-                const fingerSelectionValue = d.$wrapper.find('#finger_selection_value').val();
-
-                if (!fingerSelectionValue) {
-                    frappe.msgprint({
-                        title: __('⚠️ Thiếu Thông Tin'),
-                        message: __('Vui lòng chọn ngón tay từ hình trên trước khi quét.'),
-                        indicator: 'orange'
-                    });
-                    return;
-                }
-
-                // Parse finger selection (format: "index|name")
-                const [fingerIndex, fingerName] = fingerSelectionValue.split('|');
-
-                // Create values object with fixed employee
-                const scanValues = {
-                    employee: employee_id,
-                    finger_selection: fingerName,
-                    finger_index: parseInt(fingerIndex)
-                };
-                FingerprintScannerDialog.startFingerprintCapture(scanValues, d);
+                FingerprintScannerDialog._onScanButtonClick(d);
             },
             secondary_action_label: __('🔄 Đặt Lại'),
             secondary_action() {
@@ -326,14 +274,11 @@ window.FingerprintScannerDialog = {
             }
         });
 
-        // BUGFIX: Add cleanup on dialog close
+        // Cleanup on dialog close: stop SSE, cancel running job, disconnect scanner
         d.$wrapper.on('hidden.bs.modal', function () {
-            // Clean up all references when dialog is closed
+            FingerprintScannerDialog._teardown(true);
             FingerprintScannerDialog.scan_dialog = null;
             FingerprintScannerDialog.scan_count = 0;
-            if (FingerprintScannerDialog.scan_attempts) {
-                FingerprintScannerDialog.scan_attempts = {};
-            }
         });
 
         d.show();
@@ -363,110 +308,383 @@ window.FingerprintScannerDialog = {
         // Store the fixed employee ID in the dialog for use in reset function
         d.employee_id = employee_id;
 
+        // Detect bridge version and pre-connect the scanner (persistent session)
+        FingerprintScannerDialog.detectAndInitBridge();
     },
 
-    startFingerprintCapture: function (values, dialog) {
-        // Get finger index from values (already parsed from visual selector)
-        const finger_index = values.finger_index;
+    _onScanButtonClick: function (dialog) {
+        // Get finger selection from visual selector
+        const fingerSelectionValue = dialog.$wrapper.find('#finger_selection_value').val();
 
-        // Initialize scan attempt counter if not exists
-        if (!FingerprintScannerDialog.scan_attempts) {
-            FingerprintScannerDialog.scan_attempts = {};
+        if (!fingerSelectionValue) {
+            frappe.msgprint({
+                title: __('⚠️ Thiếu Thông Tin'),
+                message: __('Vui lòng chọn ngón tay từ hình trên trước khi quét.'),
+                indicator: 'orange'
+            });
+            return;
         }
 
-        // Reset attempt counter for this finger
-        const attempt_key = `${values.employee}_${finger_index}`;
-        FingerprintScannerDialog.scan_attempts[attempt_key] = 0;
+        // Parse finger selection (format: "index|name")
+        const [fingerIndex, fingerName] = fingerSelectionValue.split('|');
+
+        const scanValues = {
+            employee: dialog.employee_id,
+            finger_selection: fingerName,
+            finger_index: parseInt(fingerIndex)
+        };
+        FingerprintScannerDialog.startFingerprintCapture(scanValues, dialog);
+    },
+
+    // ------------------------------------------------------------- bridge detection
+
+    _fetchWithTimeout: function (url, options = {}, timeoutMs = 2000) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+        return fetch(url, Object.assign({}, options, { signal: controller.signal }))
+            .finally(() => clearTimeout(timeoutId));
+    },
+
+    /**
+     * Detect bridge v2 and pre-connect the scanner.
+     * Bridge v2+ is REQUIRED — there is no fallback to the old bridge.
+     */
+    detectAndInitBridge: function (callback) {
+        const FSD = FingerprintScannerDialog;
+        FSD._fetchWithTimeout(`${FSD.DESKTOP_BRIDGE_URL}/version`, {}, 2000)
+            .then(r => { if (!r.ok) throw new Error('no version endpoint'); return r.json(); })
+            .then(data => {
+                FSD.bridge_mode = 'v2';
+                FSD.bridge_version = data.version;
+                FSD.updateScanStatus(`🔌 Đã kết nối app Fingerprint Scanner v${data.version}`, 'success');
+                // Pre-connect scanner so the first scan starts instantly
+                FSD._fetchWithTimeout(`${FSD.DESKTOP_BRIDGE_URL}/scanner/initialize`, { method: 'POST' }, 8000)
+                    .then(r => r.json())
+                    .then(init => {
+                        if (init.success) {
+                            FSD.updateScanStatus('🟢 Máy quét sẵn sàng — chọn ngón tay và bấm "Bắt Đầu Quét"', 'success');
+                        } else {
+                            FSD.updateScanStatus(`⚠️ ${FSD.translateErrorMessage(init.message)} — kiểm tra USB máy quét`, 'warning');
+                        }
+                        if (callback) callback(FSD.bridge_mode);
+                    })
+                    .catch(() => {
+                        FSD.updateScanStatus('⚠️ Không khởi tạo được máy quét — sẽ thử lại khi bấm quét', 'warning');
+                        if (callback) callback(FSD.bridge_mode);
+                    });
+            })
+            .catch(() => {
+                FSD.bridge_mode = null;
+                FSD.updateScanStatus('❌ Không kết nối được app Fingerprint Scanner v2 — kiểm tra: (1) app đã chạy chưa (cần bản v2.0+); (2) nếu app đang chạy mà vẫn lỗi, xem console của app — có dòng "CORS:BLOCKED" thì thêm origin đó vào bridge_config.json', 'danger');
+                if (callback) callback(FSD.bridge_mode);
+            });
+    },
+
+    // ------------------------------------------------------------- capture entry point
+
+    startFingerprintCapture: function (values, dialog) {
+        const FSD = FingerprintScannerDialog;
+        if (FSD.scanning) return;
+
+        const finger_index = values.finger_index;
 
         // Keep dialog open but disable scan button during process
         dialog.set_primary_action(__('Đang Quét...'), null);
         dialog.disable_primary_action();
+        FSD.scanning = true;
 
-        // Update status in dialog with scan attempt indicator
-        FingerprintScannerDialog.updateScanStatus('<div style="text-align: center; font-size: 1.5em; font-weight: bold; color: #007bff; margin: 10px 0;">🔍 Bắt đầu quét vân tay...</div>', 'info');
-        FingerprintScannerDialog.updateScanStatus('📡 Kiểm tra kết nối app Fingerprint Scanner...', 'info');
-        FingerprintScannerDialog.updateScanStatus('<div style="text-align: center; font-size: 1.2em; font-weight: bold; color: #28a745; margin: 8px 0;">📋 Quy trình: LẦN 1 → LẦN 2 → LẦN 3 → Ghép → Hoàn tất</div>', 'info');
+        FSD.updateScanStatus('<div style="text-align: center; font-size: 1.5em; font-weight: bold; color: #007bff; margin: 10px 0;">🔍 Bắt đầu quét vân tay...</div>', 'info');
 
-        // Step 1: Check desktop bridge availability
-        FingerprintScannerDialog.checkDesktopBridgeStatus(function (bridgeAvailable) {
-            if (!bridgeAvailable) {
-                FingerprintScannerDialog.updateScanStatus('<div style="text-align: center; font-size: 1.3em; font-weight: bold; color: #dc3545; margin: 10px 0;">❌ Kết nối app Fingerprint Scanner thất bại!</div>', 'danger');
-                FingerprintScannerDialog.updateScanStatus('Vui lòng kiểm tra kết nối USB của máy quét & khởi động lại app Fingerprint Scanner.', 'danger');
-                FingerprintScannerDialog.resetScanButton(dialog);
-                return;
+        const proceed = (mode) => {
+            if (mode === 'v2') {
+                FSD.captureV2(values.employee, finger_index, values.finger_selection, dialog);
+            } else {
+                FSD.updateScanStatus('<div style="text-align: center; font-size: 1.3em; font-weight: bold; color: #dc3545; margin: 10px 0;">❌ Kết nối app Fingerprint Scanner thất bại!</div>', 'danger');
+                FSD.updateScanStatus('Vui lòng kiểm tra kết nối USB của máy quét & khởi động lại app Fingerprint Scanner.', 'danger');
+                FSD._finishScan(dialog);
+            }
+        };
+
+        if (FSD.bridge_mode) {
+            proceed(FSD.bridge_mode);
+        } else {
+            // Bridge was not reachable when the dialog opened — retry detection now
+            FSD.detectAndInitBridge(proceed);
+        }
+    },
+
+    _finishScan: function (dialog) {
+        FingerprintScannerDialog.scanning = false;
+        FingerprintScannerDialog.active_job_id = null;
+        if (FingerprintScannerDialog.active_event_source) {
+            try { FingerprintScannerDialog.active_event_source.close(); } catch (e) { /* noop */ }
+            FingerprintScannerDialog.active_event_source = null;
+        }
+        FingerprintScannerDialog.resetScanButton(dialog);
+    },
+
+    // ------------------------------------------------------------- v2 flow (jobs + SSE)
+
+    captureV2: function (employee_id, finger_index, finger_name, dialog) {
+        const FSD = FingerprintScannerDialog;
+
+        FSD._fetchWithTimeout(`${FSD.DESKTOP_BRIDGE_URL}/fingerprint/capture`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ employee_id: employee_id, finger_index: finger_index })
+        }, 10000)
+            .then(r => r.json())
+            .then(data => {
+                if (!data.success || !data.job_id) {
+                    FSD.updateScanStatus(`❌ ${FSD.translateErrorMessage(data.message || 'Không bắt đầu được phiên quét')}`, 'danger');
+                    FSD._finishScan(dialog);
+                    return;
+                }
+                FSD._listenJobEvents(data.job_id, employee_id, finger_index, finger_name, dialog);
+            })
+            .catch(error => {
+                console.error('Error starting capture job:', error);
+                FSD.updateScanStatus('❌ Không kết nối được app Fingerprint Scanner', 'danger');
+                FSD._finishScan(dialog);
+            });
+    },
+
+    _listenJobEvents: function (jobId, employee_id, finger_index, finger_name, dialog) {
+        const FSD = FingerprintScannerDialog;
+        FSD.active_job_id = jobId;
+
+        let finished = false;
+        let lastSeq = 0;
+
+        const es = new EventSource(`${FSD.DESKTOP_BRIDGE_URL}/events/${jobId}`);
+        FSD.active_event_source = es;
+
+        // Safety net: whole enrollment should never exceed 3 scans x 30s + overhead
+        const watchdog = setTimeout(() => {
+            if (finished) return;
+            finished = true;
+            try { es.close(); } catch (e) { /* noop */ }
+            FSD._pollJobResult(jobId, employee_id, finger_index, finger_name, dialog);
+        }, 180000);
+
+        const finish = () => {
+            finished = true;
+            clearTimeout(watchdog);
+            try { es.close(); } catch (e) { /* noop */ }
+            FSD.active_event_source = null;
+        };
+
+        es.onmessage = (e) => {
+            if (finished) return;
+            let evt;
+            try { evt = JSON.parse(e.data); } catch (err) { return; }
+
+            // SSE reconnect replays history — skip already-rendered events
+            if (typeof evt.seq === 'number' && evt.seq > 0) {
+                if (evt.seq <= lastSeq) return;
+                lastSeq = evt.seq;
             }
 
-            FingerprintScannerDialog.updateScanStatus('✅ Đã kết nối app Fingerprint Scanner. Đang khởi tạo máy quét...', 'success');
+            const done = FSD.handleBridgeEvent(evt, employee_id, finger_index, finger_name, dialog);
+            if (done) finish();
+        };
 
-            // Step 2: Initialize scanner via desktop bridge
-            FingerprintScannerDialog.initializeScannerViaBridge(function (success, message) {
-                if (success) {
-                    FingerprintScannerDialog.updateScanStatus(__('🔍 Máy quét sẵn sàng ! Bắt đầu quét ...'), 'success');
+        es.onerror = () => {
+            // EventSource auto-reconnects; seq dedup makes the replay safe.
+            // If the bridge died completely the watchdog will finish the job.
+        };
+    },
 
-                    // Step 3: Capture fingerprint
-                    setTimeout(() => {
-                        FingerprintScannerDialog.captureFingerprintData(values.employee, finger_index, values.finger_selection, dialog);
-                    }, 500);
-
+    _pollJobResult: function (jobId, employee_id, finger_index, finger_name, dialog) {
+        const FSD = FingerprintScannerDialog;
+        FSD._fetchWithTimeout(`${FSD.DESKTOP_BRIDGE_URL}/fingerprint/job/${jobId}`, {}, 5000)
+            .then(r => r.json())
+            .then(data => {
+                if (data.success && data.status === 'completed' && data.result) {
+                    FSD._onEnrollmentComplete(data.result, employee_id, finger_index, finger_name, dialog);
                 } else {
-                    FingerprintScannerDialog.updateScanStatus(__('❌ Khởi tạo máy quét thất bại: ' + message), 'danger');
-                    FingerprintScannerDialog.resetScanButton(dialog);
+                    FSD.updateScanStatus('❌ Phiên quét không hoàn tất (mất kết nối với app)', 'danger');
+                    FSD.addScanToHistory(employee_id, finger_name, 0, 'failed');
+                    FSD._finishScan(dialog);
                 }
+            })
+            .catch(() => {
+                FSD.updateScanStatus('❌ Mất kết nối với app Fingerprint Scanner', 'danger');
+                FSD.addScanToHistory(employee_id, finger_name, 0, 'failed');
+                FSD._finishScan(dialog);
             });
+    },
+
+    /**
+     * Render one structured bridge event. Returns true when the job is finished.
+     */
+    handleBridgeEvent: function (evt, employee_id, finger_index, finger_name, dialog) {
+        const FSD = FingerprintScannerDialog;
+
+        const banner = (text, theme) => {
+            const themes = {
+                blue: 'background: linear-gradient(135deg, #e3f2fd, #bbdefb); color: #1976d2;',
+                green: 'background: linear-gradient(135deg, #e8f5e8, #c8e6c9); color: #388e3c;',
+                orange: 'background: linear-gradient(135deg, #fff3e0, #ffe0b2); color: #f57c00;',
+                red: 'background: linear-gradient(135deg, #ffebee, #ffcdd2); color: #c62828;'
+            };
+            return `<div style="text-align: center; font-size: 1.6em; font-weight: bold; margin: 12px 0; padding: 10px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); ${themes[theme] || themes.blue}">${text}</div>`;
+        };
+
+        switch (evt.type) {
+            case 'job_started':
+                FSD.updateScanStatus(`🖐️ Đăng ký vân tay: <strong>${finger_name}</strong> (quét ${evt.total || 3} lần)`, 'info');
+                return false;
+
+            case 'scan_waiting': {
+                const icons = { 1: '🔵', 2: '🟡', 3: '🟠' };
+                FSD.updateScanStatus(
+                    banner(`${icons[evt.attempt] || '🔵'} LẦN ${evt.attempt}/${evt.total}: ĐẶT NGÓN TAY LÊN MÁY QUÉT`, 'blue'),
+                    'info');
+                return false;
+            }
+
+            case 'scan_success':
+                FSD.updateScanStatus(
+                    banner(`✅ LẦN ${evt.attempt} QUÉT THÀNH CÔNG (Chất lượng: ${evt.quality}%)`, 'green'),
+                    'success');
+                return false;
+
+            case 'lift_finger':
+                FSD.updateScanStatus(
+                    banner('🖐️ NHẤC NGÓN TAY RA KHỎI MÁY QUÉT', 'orange'),
+                    'warning');
+                return false;
+
+            case 'scan_retry': {
+                const reason = FSD.VIETNAMESE_ERROR_CODES[evt.code] || evt.message || 'Lỗi quét';
+                FSD.updateScanStatus(
+                    banner(`⚠️ ${reason}<br><span style="font-size: 0.75em;">Quét lại lần ${evt.attempt} (còn ${evt.retries_left} lần thử)</span>`, 'orange'),
+                    'warning');
+                return false;
+            }
+
+            case 'merge_start':
+                FSD.updateScanStatus('🔗 Đang ghép 3 mẫu vân tay...', 'info');
+                return false;
+
+            case 'complete':
+                FSD._onEnrollmentComplete(evt, employee_id, finger_index, finger_name, dialog);
+                return true;
+
+            case 'failed': {
+                const reason = FSD.VIETNAMESE_ERROR_CODES[evt.code] || FSD.translateErrorMessage(evt.message) || 'Lỗi không xác định';
+                FSD.updateScanStatus(banner(`❌ ĐĂNG KÝ VÂN TAY THẤT BẠI<br><span style="font-size: 0.75em;">${reason}</span>`, 'red'), 'danger');
+                FSD.addScanToHistory(employee_id, finger_name, 0, 'failed');
+                FSD._finishScan(dialog);
+                return true;
+            }
+
+            default:
+                return false;
+        }
+    },
+
+    _onEnrollmentComplete: function (result, employee_id, finger_index, finger_name, dialog) {
+        const FSD = FingerprintScannerDialog;
+
+        FSD.updateScanStatus(
+            `<div style="text-align: center; font-size: 1.6em; font-weight: bold; margin: 12px 0; padding: 10px; border-radius: 8px; background: linear-gradient(135deg, #e8f5e8, #c8e6c9); color: #388e3c; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">✅ HOÀN TẤT ĐĂNG KÝ VÂN TAY (Chất lượng: ${result.quality_score}%)</div>`,
+            'success');
+
+        // Bridge detected this template matches another finger scanned this session
+        if (result.duplicate_of !== undefined && result.duplicate_of !== null) {
+            FSD.updateScanStatus(
+                `⚠️ <strong>Cảnh báo:</strong> Vân tay này rất giống ngón đã quét trước đó trong phiên này (độ trùng khớp ${result.duplicate_score}). Kiểm tra lại xem có quét nhầm ngón không.`,
+                'warning');
+        }
+
+        FSD.saveFingerprintToERPNext(employee_id, finger_index, result.template_data, result.quality_score, function (saveSuccess) {
+            if (saveSuccess) {
+                FSD.updateScanStatus(__('💾 Đã lưu vân tay vào cơ sở dữ liệu'), 'success');
+                FSD.addScanToHistory(employee_id, finger_name, result.template_size, 'success');
+                FSD.reloadEmployeeForm(employee_id);
+
+                setTimeout(() => {
+                    // Clear visual finger selection
+                    dialog.$wrapper.find('.finger-btn').removeClass('selected');
+                    dialog.$wrapper.find('#selected-finger-display').html('Vui lòng chọn ngón tay từ hình trên').css('color', '#007bff');
+                    dialog.$wrapper.find('#finger_selection_value').val('');
+
+                    FSD.updateScanStatus('<div style="text-align: center; font-size: 1.2em; font-weight: bold; color: #28a745; margin: 10px 0;">🟢 Sẵn sàng quét vân tay tiếp theo</div>', 'info');
+                    FSD._finishScan(dialog);
+
+                    // Re-initialize finger selection to update enrolled status
+                    setTimeout(() => {
+                        FSD.initializeFingerSelection(dialog, employee_id);
+                    }, 100);
+                }, 800);
+            } else {
+                FSD.updateScanStatus('<div style="text-align: center; font-size: 1.2em; font-weight: bold; color: #dc3545; margin: 10px 0;">❌ Lưu vào cơ sở dữ liệu thất bại</div>', 'danger');
+                FSD.addScanToHistory(employee_id, finger_name, 0, 'failed');
+                FSD._finishScan(dialog);
+            }
+            // Keep the scanner session alive for the next finger;
+            // the bridge disconnects when the dialog closes (or after idle timeout).
         });
     },
 
-    captureFingerprintData: function (employee_id, finger_index, finger_name, dialog) {
-        FingerprintScannerDialog.updateScanStatus(__('🔄 Starting fingerprint enrollment process...'), 'info');
+    // ------------------------------------------------------------- shared helpers
 
-        // Use direct enrollment via bridge (single API call with real-time updates)
-        FingerprintScannerDialog.captureFingerprintViaBridge(employee_id, finger_index, function (success, data, message) {
-            if (success) {
-                const final_template_data = data.template_data;
-                const final_template_size = data.template_size;
-                const quality_score = data.quality_score || data.quality || 0; // Try different property names re, data_keys: Object.keys(data) });
+    disconnectScannerViaBridge: function () {
+        FingerprintScannerDialog._fetchWithTimeout(`${FingerprintScannerDialog.DESKTOP_BRIDGE_URL}/scanner/disconnect`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        }, 3000)
+            .then(response => response.json())
+            .then(data => console.log('Scanner disconnected:', data.success))
+            .catch(error => console.error('Error disconnecting scanner:', error));
+    },
 
-                FingerprintScannerDialog.updateScanStatus(`✅ Fingerprint enrollment completed! (${final_template_size} bytes, Quality: ${quality_score})`, 'success');
+    /**
+     * Cleanup when the dialog closes or is replaced.
+     * @param {boolean} disconnect - also release the scanner on the bridge
+     */
+    _teardown: function (disconnect) {
+        const FSD = FingerprintScannerDialog;
 
-                // Save to ERPNext database   
-                FingerprintScannerDialog.saveFingerprintToERPNext(employee_id, finger_index, final_template_data, quality_score, function (saveSuccess, fingerprintId) {
-                    if (saveSuccess) {
-                        FingerprintScannerDialog.updateScanStatus(__('💾 Fingerprint saved to database successfully'), 'success');
-                        FingerprintScannerDialog.addScanToHistory(employee_id, finger_name, final_template_size, 'success');
+        if (FSD.active_event_source) {
+            try { FSD.active_event_source.close(); } catch (e) { /* noop */ }
+            FSD.active_event_source = null;
+        }
 
-                        setTimeout(() => {
-                            // Clear visual finger selection
-                            dialog.$wrapper.find('.finger-btn').removeClass('selected');
-                            dialog.$wrapper.find('#selected-finger-display').html('Vui lòng chọn ngón tay từ hình trên').css('color', '#007bff');
-                            dialog.$wrapper.find('#finger_selection_value').val('');
+        // Cancel a running v2 job so the bridge stops waiting for a finger
+        if (FSD.active_job_id && FSD.bridge_mode === 'v2') {
+            FSD._fetchWithTimeout(`${FSD.DESKTOP_BRIDGE_URL}/fingerprint/cancel/${FSD.active_job_id}`,
+                { method: 'POST' }, 2000).catch(() => { /* noop */ });
+        }
+        FSD.active_job_id = null;
+        FSD.scanning = false;
 
-                            FingerprintScannerDialog.updateScanStatus('<div style="text-align: center; font-size: 1.2em; font-weight: bold; color: #28a745; margin: 10px 0;">🟢 Sẵn sàng quét vân tay tiếp theo</div>', 'info');
-                            FingerprintScannerDialog.resetScanButton(dialog);
+        if (disconnect && FSD.bridge_mode) {
+            // Small delay so a just-cancelled job can release the scanner first
+            setTimeout(() => FSD.disconnectScannerViaBridge(), 300);
+        }
+    },
 
-                            // Re-initialize finger selection to update enrolled status
-                            setTimeout(() => {
-                                FingerprintScannerDialog.initializeFingerSelection(dialog, employee_id);
-                            }, 100);
-                        }, 1000);  // Optimized delay for faster workflow
-                    } else {
-                        FingerprintScannerDialog.updateScanStatus('<div style="text-align: center; font-size: 1.2em; font-weight: bold; color: #dc3545; margin: 10px 0;">❌ Lưu vào cơ sở dữ liệu thất bại</div>', 'danger');
-                        FingerprintScannerDialog.addScanToHistory(employee_id, finger_name, 0, 'failed');
-                        FingerprintScannerDialog.resetScanButton(dialog);
-                    }
-                    FingerprintScannerDialog.disconnectScannerViaBridge();
-                });
-            } else {
-                FingerprintScannerDialog.updateScanStatus(`<div style="text-align: center; font-size: 1.2em; font-weight: bold; color: #dc3545; margin: 10px 0;">❌ ĐĂNG KÝ VÂN TAY THẤT BẠI</div>`, 'danger');
-                FingerprintScannerDialog.updateScanStatus(`Chi tiết lỗi: ${FingerprintScannerDialog.translateErrorMessage(message)}`, 'danger');
-                FingerprintScannerDialog.addScanToHistory(employee_id, finger_name, 0, 'failed');
-                FingerprintScannerDialog.resetScanButton(dialog);
-                FingerprintScannerDialog.disconnectScannerViaBridge();
+    /**
+     * Reload the open Employee form so it picks up the fingerprint child rows
+     * saved server-side (prevents "Document has been modified" on next save).
+     */
+    reloadEmployeeForm: function (employee_id) {
+        try {
+            if (typeof cur_frm !== 'undefined' && cur_frm &&
+                cur_frm.doctype === 'Employee' && cur_frm.doc && cur_frm.doc.name === employee_id &&
+                !cur_frm.is_dirty()) {
+                cur_frm.reload_doc();
             }
-        });
+        } catch (e) {
+            console.warn('Could not reload employee form:', e);
+        }
     },
 
     updateScanStatus: function (message, type = 'info') {
-        // BUGFIX: Use dialog-scoped selector instead of document.getElementById
+        // Use dialog-scoped selector instead of document.getElementById
         let statusDiv = null;
         if (FingerprintScannerDialog.scan_dialog && FingerprintScannerDialog.scan_dialog.$wrapper) {
             statusDiv = FingerprintScannerDialog.scan_dialog.$wrapper.find('#scan-status')[0];
@@ -488,13 +706,11 @@ window.FingerprintScannerDialog = {
                 icon = '⚠️';
             }
 
-            // Check if message contains HTML (attempt number display)
+            // Check if message contains HTML (banner display)
             let logEntry;
             if (message.includes('<div style=')) {
-                // Special handling for HTML content (attempt display)
                 logEntry = `<div class="log-entry mb-1">${message}</div>`;
             } else {
-                // Regular text message
                 logEntry = `<div class="log-entry ${textClass} mb-1"><strong>[${timestamp}]</strong> ${icon} ${message}</div>`;
             }
 
@@ -515,35 +731,8 @@ window.FingerprintScannerDialog = {
     },
 
     resetScanButton: function (dialog) {
-        dialog.set_primary_action(__('🔍 Bắt Đầu Quét'), function (values) {
-            // Get finger selection from visual selector
-            const fingerSelectionValue = dialog.$wrapper.find('#finger_selection_value').val();
-
-            if (!fingerSelectionValue) {
-                frappe.msgprint({
-                    title: __('⚠️ Thiếu Thông Tin'),
-                    message: __('Vui lòng chọn ngón tay từ hình trên trước khi quét.'),
-                    indicator: 'orange'
-                });
-                return;
-            }
-
-            // Parse finger selection (format: "index|name")
-            const [fingerIndex, fingerName] = fingerSelectionValue.split('|');
-
-            // Create values object with fixed employee from dialog
-            const scanValues = {
-                employee: dialog.employee_id,
-                finger_selection: fingerName,
-                finger_index: parseInt(fingerIndex)
-            };
-
-            // Reset attempt counter when starting fresh scan
-            if (FingerprintScannerDialog.scan_attempts && scanValues.employee) {
-                const attempt_key = `${scanValues.employee}_${scanValues.finger_index}`;
-                FingerprintScannerDialog.scan_attempts[attempt_key] = 0;
-            }
-            FingerprintScannerDialog.startFingerprintCapture(scanValues, dialog);
+        dialog.set_primary_action(__('🔍 Bắt Đầu Quét'), function () {
+            FingerprintScannerDialog._onScanButtonClick(dialog);
         });
         dialog.enable_primary_action();
     },
@@ -551,7 +740,7 @@ window.FingerprintScannerDialog = {
     addScanToHistory: function (employee_id, finger_name, template_size, status) {
         FingerprintScannerDialog.scan_count++;
 
-        // BUGFIX: Use dialog-scoped selector instead of document.getElementById
+        // Use dialog-scoped selector instead of document.getElementById
         let scanList = null;
         if (FingerprintScannerDialog.scan_dialog && FingerprintScannerDialog.scan_dialog.$wrapper) {
             scanList = FingerprintScannerDialog.scan_dialog.$wrapper.find('#scan-list')[0];
@@ -608,182 +797,6 @@ window.FingerprintScannerDialog = {
         }
     },
 
-    // Desktop Bridge API Functions
-    checkDesktopBridgeStatus: function (callback) {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 2000);  // Optimized for faster response
-
-        fetch(`${FingerprintScannerDialog.DESKTOP_BRIDGE_URL}/test`, {
-            method: 'GET',
-            signal: controller.signal
-        })
-            .then(response => {
-                clearTimeout(timeoutId);
-                return response.json();
-            })
-            .then(data => {
-                callback(data.success);
-            })
-            .catch(error => {
-                clearTimeout(timeoutId);
-                console.error('Desktop bridge not available:', error);
-
-                // No popup dialog - error is already shown in Scanner Activity
-                callback(false);
-            });
-    },
-
-    initializeScannerViaBridge: function (callback) {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 6000);  // Optimized timeout
-
-        fetch(`${FingerprintScannerDialog.DESKTOP_BRIDGE_URL}/scanner/initialize`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            signal: controller.signal
-        })
-            .then(response => {
-                clearTimeout(timeoutId);
-                return response.json();
-            })
-            .then(data => {
-                callback(data.success, data.message);
-            })
-            .catch(error => {
-                clearTimeout(timeoutId);
-                console.error('Error initializing scanner:', error);
-                callback(false, 'Scanner initialization timeout or network error');
-            });
-    },
-
-    captureFingerprintViaBridge: function (employee_id, finger_index, callback) {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 30000);  // Increased timeout for reliability
-
-        // Start polling logs for real-time updates BEFORE making the capture request
-        const pollInterval = FingerprintScannerDialog.startLogPolling();
-
-        // Very small delay to ensure polling is active before bridge starts logging
-        setTimeout(() => {
-            fetch(`${FingerprintScannerDialog.DESKTOP_BRIDGE_URL}/fingerprint/capture`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    employee_id: employee_id,
-                    finger_index: finger_index
-                }),
-                signal: controller.signal
-            })
-                .then(response => {
-                    clearTimeout(timeoutId);
-                    return response.json();
-                })
-                .then(data => {
-                    // Small delay to catch any final logs before stopping polling
-                    setTimeout(() => {
-                        FingerprintScannerDialog.stopLogPolling(pollInterval);
-                    }, 500);
-                    callback(data.success, data, data.message);
-                })
-                .catch(error => {
-                    clearTimeout(timeoutId);
-                    console.error('Error capturing fingerprint:', error);
-                    // Stop polling on error
-                    FingerprintScannerDialog.stopLogPolling(pollInterval);
-                    callback(false, null, 'Fingerprint capture timeout or network error');
-                });
-        }, 50);  // Reduced delay to catch early logs
-    },
-
-    startLogPolling: function () {
-        // Start polling from 1 second ago to catch early logs
-        let startTime = new Date();
-        startTime.setSeconds(startTime.getSeconds() - 1);
-        let lastTimestamp = startTime.toTimeString().substring(0, 8);
-
-        const pollLogs = () => {
-            fetch(`${FingerprintScannerDialog.DESKTOP_BRIDGE_URL}/logs/since?since=${lastTimestamp}`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success && data.logs && data.logs.length > 0) {
-                        data.logs.forEach(log => {
-                            // Display bridge logs in Scanner Activity with Vietnamese translation
-                            // Show only essential user-facing messages
-                            if (log.message.includes('S1/3:waiting') || log.message.includes('S2/3:waiting') || log.message.includes('S3/3:waiting') ||
-                                log.message.includes('MERGE') ||
-                                log.message.includes('✅ LẦN') || log.message.includes('QUÉT THÀNH CÔNG') ||
-                                log.message.includes('Sẵn sàng') || log.message.includes('nhấc tay') ||
-                                (log.message.includes('Starting fingerprint') && log.message === '🔄 Starting fingerprint enrollment process...') ||
-                                (log.message.includes('ENROLL:') && log.message.startsWith('ENROLL:') && !log.message.includes('ENROLL:START:') && !log.message.includes('ENROLL:OK:'))) {
-
-                                let logType = 'info';
-                                if (log.level === 'success') logType = 'success';
-                                else if (log.level === 'error') logType = 'danger';
-                                else if (log.level === 'warning') logType = 'warning';
-                                else if (log.level === 'in_progress') logType = 'warning';
-                                else if (log.level === 'waiting') logType = 'info';
-
-                                // Translate bridge messages to Vietnamese
-                                let displayMessage = FingerprintScannerDialog.translateBridgeMessage(log.message);
-
-                                // Style important messages with larger fonts and backgrounds
-                                if (displayMessage.includes('LẦN 1') || displayMessage.includes('LẦN 2') || displayMessage.includes('LẦN 3') || displayMessage.includes('ĐỢI QUÉT')) {
-                                    displayMessage = `<div style="text-align: center; font-size: 1.8em; font-weight: bold; margin: 15px 0; padding: 10px; background: linear-gradient(135deg, #e3f2fd, #bbdefb); border-radius: 8px; color: #1976d2; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">${displayMessage}</div>`;
-                                } else if (displayMessage.includes('THÀNH CÔNG') || displayMessage.includes('HOÀN TẤT')) {
-                                    displayMessage = `<div style="text-align: center; font-size: 1.6em; font-weight: bold; margin: 15px 0; padding: 10px; background: linear-gradient(135deg, #e8f5e8, #c8e6c9); border-radius: 8px; color: #388e3c; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">${displayMessage}</div>`;
-                                } else if (displayMessage.includes('SẴN SÀNG') || displayMessage.includes('máy quét')) {
-                                    displayMessage = `<div style="text-align: center; font-size: 1.5em; font-weight: bold; margin: 12px 0; padding: 8px; background: linear-gradient(135deg, #fff3e0, #ffcc02); border-radius: 8px; color: #f57c00; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">${displayMessage}</div>`;
-                                }
-
-                                FingerprintScannerDialog.updateScanStatus(displayMessage, logType);
-                            }
-                            lastTimestamp = log.timestamp;
-                        });
-                    }
-                })
-                .catch(error => {
-                    console.warn('Log polling error:', error);
-                });
-        };
-
-        // Poll every 200ms during scan for more responsive updates
-        return setInterval(pollLogs, 200);
-    },
-
-    stopLogPolling: function (intervalId) {
-        if (intervalId) {
-            clearInterval(intervalId);
-        }
-    },
-
-    disconnectScannerViaBridge: function () {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 2000);
-
-        fetch(`${FingerprintScannerDialog.DESKTOP_BRIDGE_URL}/scanner/disconnect`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            signal: controller.signal
-        })
-            .then(response => {
-                clearTimeout(timeoutId);
-                return response.json();
-            })
-            .then(data => {
-                console.log('Scanner disconnected:', data.success);
-            })
-            .catch(error => {
-                clearTimeout(timeoutId);
-                console.error('Error disconnecting scanner:', error);
-            });
-    },
-
     saveFingerprintToERPNext: function (employee_id, finger_index, template_data, quality_score, callback) {
         // Handle optional quality_score parameter (backward compatibility)
         if (typeof quality_score === 'function') {
@@ -791,8 +804,6 @@ window.FingerprintScannerDialog = {
             quality_score = 0;
         }
         quality_score = quality_score || 0;
-
-        console.log('saveFingerprintToERPNext called with:', { employee_id, finger_index, quality_score, template_data: template_data ? 'DATA_PRESENT' : 'NO_DATA' });
 
         if (!employee_id) {
             console.error('employee_id is missing!');
@@ -821,7 +832,7 @@ window.FingerprintScannerDialog = {
                     callback(false, null);
                 }
             },
-            error: function (r) {
+            error: function () {
                 callback(false, null);
             }
         });
@@ -882,9 +893,7 @@ window.FingerprintScannerDialog = {
                         $this.addClass('selected');
 
                         // Update display
-                        // ICON ARROW   ➡️➡️
-                        // ICON FINGERPRINT
-                        selectedDisplay.html(`✅ Đã chọn: <strong>${fingerName}</strong><br><small class="text-muted">Nhấn "Bắt Đầu Quét" để tiếp tục</small><br> <strong>KHI MÀN HÌNH HIỂN THỊ "ĐANG ĐỢI QUÉT VÂN TAY" ➡️ ĐẶT NGÓN TAY LÊN MÁY QUÉT 2S</strong><br> <strong>➡️SAU ĐÓ NHẤC NGÓN TAY LÊN</strong>`);
+                        selectedDisplay.html(`✅ Đã chọn: <strong>${fingerName}</strong><br><small class="text-muted">Nhấn "Bắt Đầu Quét" để tiếp tục</small><br> <strong>KHI MÀN HÌNH HIỂN THỊ "ĐẶT NGÓN TAY LÊN MÁY QUÉT" ➡️ ĐẶT NGÓN TAY LÊN MÁY QUÉT 2S</strong><br> <strong>➡️KHI MÀN HÌNH HIỂN THỊ "NHẤC NGÓN TAY" ➡️ NHẤC NGÓN TAY LÊN</strong>`);
                         selectedDisplay.css('color', '#28a745');
 
                         // Store value in hidden input
@@ -959,6 +968,7 @@ window.FingerprintScannerDialog = {
                 if (r.message && r.message.success) {
                     FingerprintScannerDialog.updateScanStatus(`✅ Đã xóa dữ liệu vân tay ${finger_name} thành công`, 'success');
                     FingerprintScannerDialog.addScanToHistory(employee_id, finger_name + ' (Deleted)', 0, 'warning');
+                    FingerprintScannerDialog.reloadEmployeeForm(employee_id);
 
                     // Clear selection if this finger was selected
                     dialog.$wrapper.find('.finger-btn').removeClass('selected');
@@ -983,7 +993,7 @@ window.FingerprintScannerDialog = {
                     });
                 }
             },
-            error: function (r) {
+            error: function () {
                 FingerprintScannerDialog.updateScanStatus(`❌ Lỗi khi xóa dữ liệu vân tay ${finger_name}`, 'danger');
                 frappe.msgprint({
                     title: __('❌ Lỗi'),
@@ -994,4 +1004,3 @@ window.FingerprintScannerDialog = {
         });
     }
 };
-

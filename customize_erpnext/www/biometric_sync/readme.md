@@ -2,6 +2,19 @@
 
 Trang quản lý đồng bộ dữ liệu chấm công vân tay giữa các máy chấm công (ZKTeco / compatible) và ERPNext.
 
+> **Cập nhật 2026-07-03 — refactor DocType máy chấm công:**
+> DocType `Attendance Machine` (nhiều bản ghi `att_machine_*`) đã **bị xóa**, thay bằng Single DocType
+> **`Attendance Machine Setting`** với bảng con `machines` (child DocType `Attendance Machine Detail`:
+> device_name, ip_address, enable, master_device, location, model). Cấu hình kết nối
+> (port, timeout, force_udp, ommit_ping) đặt ở cấp cha, dùng chung cho mọi máy.
+> Mọi truy cập cấu hình máy đi qua helper `customize_erpnext/api/attendance_machines.py`
+> (`get_machines(enabled_only)` / `get_machine(name)`). **Identifier máy = `device_name`**
+> (các API vẫn trả về trong key `name` nên JS của trang này không đổi — machine card giờ hiển thị
+> "Machine 1" thay vì "att_machine_1").
+> Ngoài ra `utilities.sync_employees_to_machine_batch(machine_name, employee_ids)` mới cho phép
+> đẩy nhiều nhân viên xuống 1 máy trên **1 kết nối duy nhất** (nhanh hơn nhiều so với gọi lặp
+> `sync_employee_to_single_machine`).
+
 ---
 
 ## Kiến trúc tổng quan
@@ -286,6 +299,7 @@ Mỗi card hiển thị: tên, device name, IP:port, location, badge "★ Master
 | `biometric_sync.check_employees_fingerprints_in_erp` | Kiểm tra nhân viên đã có vân tay trong ERP chưa |
 | `biometric_sync.sync_fingerprints` | Tạo background job đồng bộ vân tay từ thiết bị |
 | `utilities.sync_employee_to_single_machine` | Đẩy 1 nhân viên xuống 1 máy |
+| `utilities.sync_employees_to_machine_batch` | Đẩy NHIỀU nhân viên xuống 1 máy trên 1 kết nối (nhanh, có realtime progress) |
 | `biometric_sync.get_left_employees_on_machines` | Scan nhân viên cần xóa khỏi máy |
 | `biometric_sync.find_employee_on_machines` | Tìm 1 nhân viên cụ thể + scan máy chứa user_id (chặn Active) |
 | `biometric_sync.delete_users_from_machines` | Tạo background job xóa users khỏi máy |

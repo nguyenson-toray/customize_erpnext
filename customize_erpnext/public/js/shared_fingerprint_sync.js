@@ -6,11 +6,10 @@ window.FingerprintSyncManager = (function () {
 
     // Configuration
     const CONFIG = {
-        CONCURRENT_MACHINES: 10, // Not used in "per-machine" strategy, kept for compatibility
-        MACHINE_TIMEOUT: 15000, // 15 seconds timeout per employee sync
-        RETRY_ATTEMPTS: 2,
-        RETRY_DELAY: 1000, // 1 second
-        SYNC_STRATEGY: 'per-machine' // Each machine processes all employees sequentially, machines run in parallel
+        // Employees per batch request. Each machine gets one server call per
+        // chunk; the server keeps ONE device connection per call (fast) while
+        // chunking keeps individual HTTP requests well under gunicorn timeout.
+        CHUNK_SIZE: 20
     };
 
     // Shared dialog instance
@@ -19,8 +18,9 @@ window.FingerprintSyncManager = (function () {
         isRunning: false,
         employees: [],
         totalMachines: 0,
-        completedMachines: 0,
-        syncResults: [],
+        completedOperations: 0,
+        failedOperations: [],   // [{employee_id, employee_name, machine, error}]
+        realtimeBound: false,
         abortController: null // For canceling ongoing sync operations
     };
 
@@ -46,6 +46,11 @@ window.FingerprintSyncManager = (function () {
             });
             return;
         }
+
+        // Reset state from any previous run
+        currentSyncState.completedOperations = 0;
+        currentSyncState.failedOperations = [];
+        currentSyncState.isRunning = false;
 
         // Normalize employee data
         currentSyncState.employees = validEmployees.map(emp => {
@@ -115,6 +120,8 @@ window.FingerprintSyncManager = (function () {
                             abortSyncProcess();
                         }
                     );
+                } else if (currentSyncState.failedOperations.length > 0) {
+                    retryFailedOperations();
                 } else {
                     loadMachinesList();
                 }
@@ -369,14 +376,32 @@ window.FingerprintSyncManager = (function () {
         gridDiv.innerHTML = html;
     }
 
+    // Live per-employee progress pushed from the server during batch sync
+    // (event published by utilities.sync_employees_to_machine_batch)
+    function bindRealtimeProgress() {
+        if (currentSyncState.realtimeBound) return;
+        if (frappe.realtime && frappe.realtime.on) {
+            frappe.realtime.on('fingerprint_machine_sync_progress', function (data) {
+                if (!currentSyncState.isRunning || !data) return;
+                if (data.success) {
+                    updateSyncStatus(`  ✅ ${data.machine}: ${data.employee_name || data.employee} (${data.fingerprints_synced} fingerprints)`, 'success');
+                } else {
+                    updateSyncStatus(`  ⚠️ ${data.machine}: ${data.employee_name || data.employee} — ${data.error || 'failed'}`, 'warning');
+                }
+            });
+            currentSyncState.realtimeBound = true;
+        }
+    }
+
     // Multi-threaded sync implementation
     async function startMultiThreadedSync() {
         if (currentSyncState.isRunning) return;
 
         currentSyncState.isRunning = true;
-        currentSyncState.completedMachines = 0;
-        currentSyncState.syncResults = [];
+        currentSyncState.completedOperations = 0;
+        currentSyncState.failedOperations = [];
         currentSyncState.abortController = new AbortController();
+        bindRealtimeProgress();
 
         // Disable sync button and update secondary button to show abort
         syncDialog.set_primary_action(__('Syncing...'), null);
@@ -410,11 +435,11 @@ window.FingerprintSyncManager = (function () {
             // Calculate total operations
             const totalOperations = currentSyncState.employees.length * onlineMachines.length;
             updateSyncStatus(`📊 Total operations: ${currentSyncState.employees.length} employees × ${onlineMachines.length} machines = ${totalOperations}`, 'info');
-            updateSyncStatus(`⚡ Strategy: Each machine processes all employees sequentially, machines run in parallel`, 'info');
+            updateSyncStatus(`⚡ Strategy: one device connection per batch of ${CONFIG.CHUNK_SIZE} employees, machines run in parallel`, 'info');
 
             // Start all machines in parallel - each machine processes all employees
             const machinePromises = onlineMachines.map((machine, machineIndex) =>
-                syncAllEmployeesToSingleMachine(machine, machineIndex, currentSyncState.employees, totalOperations)
+                syncEmployeesToMachineInChunks(machine, machineIndex, currentSyncState.employees, totalOperations)
             );
 
             // Wait for all machines to complete
@@ -453,55 +478,61 @@ window.FingerprintSyncManager = (function () {
         }
     }
 
-    async function syncAllEmployeesToSingleMachine(machine, machineIndex, employees, totalOperations) {
-        // This machine will process all employees sequentially
+    async function syncEmployeesToMachineInChunks(machine, machineIndex, employees, totalOperations) {
+        // One server call per chunk; the server keeps a single device
+        // connection per call and returns per-employee results.
         updateMachineStatus(machineIndex, 'warning', '🔄 Starting');
-        updateSyncStatus(`\n🖥️  ${machine.device_name}: Starting to process ${employees.length} employees...`, 'info');
+        updateSyncStatus(`\n🖥️  ${machine.device_name}: Syncing ${employees.length} employees (batches of ${CONFIG.CHUNK_SIZE})...`, 'info');
 
         let successCount = 0;
         let failCount = 0;
+        let processed = 0;
 
-        // Process each employee sequentially for this machine
-        for (let empIndex = 0; empIndex < employees.length; empIndex++) {
+        for (let start = 0; start < employees.length; start += CONFIG.CHUNK_SIZE) {
             // Check if sync was aborted
             if (currentSyncState.abortController && currentSyncState.abortController.signal.aborted) {
                 throw new Error('Sync aborted by user');
             }
 
-            const employee = employees[empIndex];
+            const chunk = employees.slice(start, start + CONFIG.CHUNK_SIZE);
+            const employeeById = {};
+            chunk.forEach(e => { employeeById[e.employee_id] = e; });
 
-            try {
-                updateMachineStatus(machineIndex, 'warning', `🔄 ${empIndex + 1}/${employees.length}`);
+            const result = await callFrappeMethod(
+                'customize_erpnext.api.utilities.sync_employees_to_machine_batch',
+                {
+                    machine_name: machine.name,
+                    employee_ids: JSON.stringify(chunk.map(e => e.employee_id))
+                }
+            );
 
-                // Call backend API to sync one employee to this machine
-                const result = await callFrappeMethod(
-                    'customize_erpnext.api.utilities.sync_employee_to_single_machine',
-                    {
-                        employee_id: employee.employee_id,
-                        machine_name: machine.name
-                    }
-                );
-
-                if (result.success) {
+            (result.results || []).forEach(r => {
+                processed++;
+                currentSyncState.completedOperations++;
+                if (r.success) {
                     successCount++;
-                    currentSyncState.completedMachines++;
-                    updateSyncStatus(`  ✅ ${machine.device_name}: ${employee.employee_name} (${empIndex + 1}/${employees.length})`, 'success');
-
-                    // Update overall progress
-                    const overallProgress = Math.round((currentSyncState.completedMachines / totalOperations) * 100);
-                    updateProgressBar(overallProgress, `${currentSyncState.completedMachines}/${totalOperations} operations completed`);
                 } else {
                     failCount++;
-                    updateSyncStatus(`  ⚠️ ${machine.device_name}: ${employee.employee_name} - ${result.message}`, 'warning');
+                    const emp = employeeById[r.employee] || {};
+                    currentSyncState.failedOperations.push({
+                        employee_id: r.employee,
+                        employee_name: r.employee_name || emp.employee_name || r.employee,
+                        machine: machine.device_name,
+                        machine_name: machine.name,
+                        error: r.error || 'Unknown error'
+                    });
                 }
-            } catch (error) {
-                failCount++;
-                updateSyncStatus(`  ❌ ${machine.device_name}: ${employee.employee_name} - ${error.message}`, 'danger');
-            }
+            });
+
+            updateMachineStatus(machineIndex, 'warning', `🔄 ${processed}/${employees.length}`);
+            const overallProgress = Math.round((currentSyncState.completedOperations / totalOperations) * 100);
+            updateProgressBar(overallProgress, `${currentSyncState.completedOperations}/${totalOperations} operations completed`);
         }
 
         // Final status for this machine
-        updateMachineStatus(machineIndex, 'success', `✅ ${successCount}/${employees.length}`);
+        updateMachineStatus(machineIndex,
+            failCount === 0 ? 'success' : 'warning',
+            `${failCount === 0 ? '✅' : '⚠️'} ${successCount}/${employees.length}`);
 
         return {
             success: true,
@@ -510,6 +541,73 @@ window.FingerprintSyncManager = (function () {
             failCount: failCount,
             total: employees.length
         };
+    }
+
+    async function retryFailedOperations() {
+        // Re-sync only the failed (employee, machine) pairs from the last run
+        const failures = currentSyncState.failedOperations.slice();
+        if (failures.length === 0 || currentSyncState.isRunning) return;
+
+        currentSyncState.isRunning = true;
+        currentSyncState.failedOperations = [];
+        currentSyncState.abortController = new AbortController();
+        bindRealtimeProgress();
+
+        syncDialog.set_primary_action(__('Retrying...'), null);
+        syncDialog.disable_primary_action();
+        syncDialog.set_secondary_action_label(__('🛑 Abort Sync'));
+
+        updateSyncStatus(`\n🔁 Retrying ${failures.length} failed operation(s)...`, 'info');
+
+        // Group failures by machine
+        const byMachine = {};
+        failures.forEach(f => {
+            if (!byMachine[f.machine_name]) byMachine[f.machine_name] = { machine: f.machine, employees: [] };
+            byMachine[f.machine_name].employees.push(f);
+        });
+
+        try {
+            await Promise.allSettled(Object.entries(byMachine).map(async ([machineName, group]) => {
+                for (let start = 0; start < group.employees.length; start += CONFIG.CHUNK_SIZE) {
+                    if (currentSyncState.abortController && currentSyncState.abortController.signal.aborted) return;
+                    const chunk = group.employees.slice(start, start + CONFIG.CHUNK_SIZE);
+                    const result = await callFrappeMethod(
+                        'customize_erpnext.api.utilities.sync_employees_to_machine_batch',
+                        {
+                            machine_name: machineName,
+                            employee_ids: JSON.stringify(chunk.map(e => e.employee_id))
+                        }
+                    );
+                    (result.results || []).forEach(r => {
+                        if (!r.success) {
+                            currentSyncState.failedOperations.push({
+                                employee_id: r.employee,
+                                employee_name: r.employee_name || r.employee,
+                                machine: group.machine,
+                                machine_name: machineName,
+                                error: r.error || 'Unknown error'
+                            });
+                        }
+                    });
+                }
+            }));
+
+            const stillFailed = currentSyncState.failedOperations.length;
+            if (stillFailed === 0) {
+                updateSyncStatus(`✅ Retry completed — all ${failures.length} operation(s) succeeded`, 'success');
+                frappe.show_alert({ message: __('Retry successful!'), indicator: 'green' });
+            } else {
+                updateSyncStatus(`⚠️ Retry completed — ${failures.length - stillFailed} fixed, ${stillFailed} still failing:`, 'warning');
+                currentSyncState.failedOperations.forEach(f =>
+                    updateSyncStatus(`   • ${f.machine}: ${f.employee_name} — ${f.error}`, 'danger'));
+            }
+        } catch (error) {
+            updateSyncStatus(`❌ Retry failed: ${error.message}`, 'danger');
+        } finally {
+            currentSyncState.isRunning = false;
+            currentSyncState.abortController = null;
+            resetSyncButton();
+        }
     }
 
     function updateMachineStatus(machineIndex, type, status) {
@@ -568,12 +666,25 @@ window.FingerprintSyncManager = (function () {
 
     function showSyncSummary() {
         const totalOperations = currentSyncState.employees.length * currentSyncState.totalMachines;
-        const successRate = Math.round((currentSyncState.completedMachines / totalOperations) * 100);
+        const failed = currentSyncState.failedOperations.length;
+        const succeeded = Math.max(currentSyncState.completedOperations - failed, 0);
+        const successRate = totalOperations ? Math.round((succeeded / totalOperations) * 100) : 0;
 
         updateSyncStatus('\n📊 SYNC SUMMARY:', 'info');
         updateSyncStatus(`   👥 Employees processed: ${currentSyncState.employees.length}`, 'info');
-        updateSyncStatus(`   🖥️ Machine operations: ${currentSyncState.completedMachines}/${totalOperations}`, 'info');
+        updateSyncStatus(`   🖥️ Machine operations: ${succeeded}/${totalOperations} succeeded`, 'info');
         updateSyncStatus(`   📈 Success rate: ${successRate}%`, 'info');
+
+        // Per-employee failure list with reasons
+        if (failed > 0) {
+            updateSyncStatus(`\n❌ Failed operations (${failed}):`, 'danger');
+            currentSyncState.failedOperations.slice(0, 30).forEach(f =>
+                updateSyncStatus(`   • ${f.machine}: ${f.employee_name} — ${f.error}`, 'danger'));
+            if (failed > 30) {
+                updateSyncStatus(`   ... and ${failed - 30} more`, 'danger');
+            }
+            updateSyncStatus(`👉 Use the "🔁 Retry Failed" button to re-sync only the failed employees.`, 'warning');
+        }
 
         updateProgressBar(100, `Completed: ${successRate}% success rate`);
 
@@ -605,8 +716,10 @@ window.FingerprintSyncManager = (function () {
         });
         syncDialog.enable_primary_action();
 
-        // Reset secondary button back to refresh
-        syncDialog.set_secondary_action_label(__('🔄 Refresh Machines'));
+        // Secondary button: retry failed ops if any, otherwise refresh machines
+        const failed = currentSyncState.failedOperations.length;
+        syncDialog.set_secondary_action_label(
+            failed > 0 ? __('🔁 Retry Failed ({0})', [failed]) : __('🔄 Refresh Machines'));
     }
 
     function abortSyncProcess() {
