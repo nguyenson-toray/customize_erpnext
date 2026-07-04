@@ -1753,6 +1753,13 @@
 
     async function _ensureImgly() {
       if (_editorImglyLib) return _editorImglyLib;
+      // Ưu tiên loader đã preload ở trang cha (cùng origin) — tránh tải lại lib từ CDN
+      try {
+        if (window.parent && window.parent !== window && window.parent.__batchImglyLoader) {
+          _editorImglyLib = await window.parent.__batchImglyLoader();
+          return _editorImglyLib;
+        }
+      } catch (e) { /* standalone / cross-origin → fallback CDN */ }
       _editorImglyLib = await import('https://esm.sh/@imgly/background-removal@1.4.5');
       return _editorImglyLib;
     }
@@ -1799,7 +1806,20 @@
 
       workCv.width = G.base.width; workCv.height = G.base.height;
       workCtx.putImageData(G.base, 0, 0);
-      const imageData = workCv.toDataURL('image/jpeg', 0.92);
+      // Cap input ở 1000px: mask sau đó được scale lại, chất lượng gần như không đổi
+      // nhưng inference CPU nhanh hơn nhiều lần (nhất là birefnet)
+      const REMBG_MAX = 1000;
+      let sendCv = workCv;
+      if (workCv.width > REMBG_MAX || workCv.height > REMBG_MAX) {
+        const k = Math.min(REMBG_MAX / workCv.width, REMBG_MAX / workCv.height);
+        sendCv = document.createElement('canvas');
+        sendCv.width = Math.round(workCv.width * k);
+        sendCv.height = Math.round(workCv.height * k);
+        const sctx = sendCv.getContext('2d');
+        sctx.imageSmoothingQuality = 'high';
+        sctx.drawImage(workCv, 0, 0, sendCv.width, sendCv.height);
+      }
+      const imageData = sendCv.toDataURL('image/jpeg', 0.92);
 
       showProg('⏳', 'Đang xử lý trên server...', Math.round((pctStart + pctEnd) / 2), _editorBgModel);
       const resultDataUrl = await _callFrappe(
@@ -1915,24 +1935,24 @@
       cropX = Math.max(0, Math.min(cropX, sw - cropW));
       cropY = Math.max(0, Math.min(cropY, sh - cropH));
 
-      // Vẽ crop ra canvas 300×400
+      // Vẽ crop ra canvas 600×800 (kích thước ảnh thẻ chuẩn — tránh server upscale gây mờ)
       const out = document.createElement('canvas');
-      out.width = 300; out.height = 400;
+      out.width = 600; out.height = 800;
       const octx = out.getContext('2d');
       octx.imageSmoothingEnabled = true;
       octx.imageSmoothingQuality = 'high';
       // workCv đã có G.base từ detectFace, vẽ lại để chắc chắn
       workCv.width = sw; workCv.height = sh;
       workCtx.putImageData(G.base, 0, 0);
-      octx.drawImage(workCv, cropX, cropY, cropW, cropH, 0, 0, 300, 400);
+      octx.drawImage(workCv, cropX, cropY, cropW, cropH, 0, 0, 600, 800);
 
       // Cập nhật state
-      [cvBefore, cvAfter, workCv].forEach(cv => { cv.width = 300; cv.height = 400; });
+      [cvBefore, cvAfter, workCv].forEach(cv => { cv.width = 600; cv.height = 800; });
       ctxB.drawImage(out, 0, 0); ctxA.drawImage(out, 0, 0);
-      G.base = ctxB.getImageData(0, 0, 300, 400);
+      G.base = ctxB.getImageData(0, 0, 600, 800);
       G.cropSrc = out.toDataURL();
       G.hasBg = false; G.bgRemoved = null;
-      document.getElementById('barInfo').textContent = '300 × 400';
+      document.getElementById('barInfo').textContent = '600 × 800';
       updateMini();
     }
 
@@ -2327,7 +2347,13 @@
     // ═══════════════════════════════════
     function savePNG() {
       const link = document.createElement('a');
-      link.download = `anh-the-${Date.now()}.png`;
+      // Tên file: "{employee_id} {full_name}.png" khi có thông tin nhân viên
+      let base = `anh-the-${Date.now()}`;
+      if (_erpEmployeeId) {
+        base = (_erpEmployeeId + (_erpEmployeeName ? ' ' + _erpEmployeeName : ''))
+          .replace(/[/\\?%*:|"<>]/g, '').trim();
+      }
+      link.download = `${base}.png`;
       link.href = cvAfter.toDataURL('image/png');
       link.click();
       toast('💾 Đã lưu PNG!', 'ok');
@@ -2396,6 +2422,7 @@
     // ══════════════════════════════════════════════════
     let _erpnextMode = false;
     let _erpEmployeeId = null;
+    let _erpEmployeeName = null;
 
     // Notify parent that editor is ready
     window.addEventListener('load', function () {
@@ -2411,6 +2438,7 @@
         // Set ERPNext mode
         _erpnextMode = true;
         _erpEmployeeId = d.employeeId || null;
+        _erpEmployeeName = d.employeeName || null;
 
         // Update UI
         const btn = document.getElementById('btnSave');
@@ -2445,6 +2473,7 @@
         }
         _erpnextMode = false;
         _erpEmployeeId = null;
+        _erpEmployeeName = null;
         const btn = document.getElementById('btnSave');
         if (btn) {
           btn.innerHTML = '💾 Lưu PNG';

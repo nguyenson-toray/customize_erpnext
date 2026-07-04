@@ -262,7 +262,7 @@
 
         .gallery {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(var(--card-min, 200px), 1fr));
             gap: 20px;
             padding: 20px;
             background: white;
@@ -272,7 +272,6 @@
 
         @media (min-width: 1400px) {
             .gallery {
-                grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
                 gap: 15px;
             }
 
@@ -285,11 +284,6 @@
             }
         }
 
-        @media (min-width: 1800px) {
-            .gallery {
-                grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-            }
-        }
 
         .photo-card {
             position: relative;
@@ -1606,6 +1600,15 @@
             transition: all 0.15s;
         }
 
+        .btn-batch-orig {
+            background: rgba(90, 110, 140, 0.88);
+            color: white;
+        }
+
+        .btn-batch-orig:hover {
+            background: #5a6e8c;
+        }
+
         .btn-batch-approve {
             background: rgba(34, 201, 122, 0.88);
             color: white;
@@ -2015,6 +2018,93 @@
             gap: 6px;
             background: #1e2229;
         }
+
+        /* ── Clickable stat chips ── */
+        .chip-stat.clickable { cursor: pointer; user-select: none; transition: transform .1s, box-shadow .15s; }
+        .chip-stat.clickable:hover { transform: translateY(-1px); box-shadow: 0 2px 6px rgba(0,0,0,.15); }
+        .chip-stat.chip-active { outline: 2px solid #4A90D9; outline-offset: 1px; }
+
+        /* ── Group-by section headers ── */
+        .group-header {
+            grid-column: 1 / -1;
+            position: sticky;
+            top: 0;
+            z-index: 5;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 12px;
+            margin: 4px -4px 0;
+            background: #eef3f8;
+            border-left: 4px solid #4A90D9;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        .group-header .gh-count { font-weight: 400; color: #667; font-size: 12px; }
+        .group-header .gh-select {
+            margin-left: auto;
+            font-size: 12px;
+            padding: 3px 10px;
+            border: 1px solid #b9c6d3;
+            border-radius: 5px;
+            background: #fff;
+            cursor: pointer;
+        }
+        .group-header .gh-select:hover { background: #4A90D9; color: #fff; border-color: #4A90D9; }
+
+        /* ── Card size segmented control ── */
+        .card-size-seg { display: inline-flex; border: 1px solid #d1d8dd; border-radius: 5px; overflow: hidden; }
+        .card-size-seg button {
+            border: none; background: #fff; padding: 4px 10px; cursor: pointer; font-size: 12px;
+            border-right: 1px solid #d1d8dd;
+        }
+        .card-size-seg button:last-child { border-right: none; }
+        .card-size-seg button.on { background: #4A90D9; color: #fff; }
+
+        /* ── Modal navigation + actions ── */
+        .modal-nav {
+            position: fixed;
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 1002;
+            background: rgba(0,0,0,.45);
+            color: #fff;
+            border: none;
+            font-size: 30px;
+            width: 52px;
+            height: 72px;
+            border-radius: 8px;
+            cursor: pointer;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-nav:hover { background: rgba(0,0,0,.7); }
+        .modal-nav.prev { left: 12px; }
+        .modal-nav.next { right: 12px; }
+        .modal-actions {
+            position: fixed;
+            bottom: 18px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1002;
+            display: none;
+            gap: 10px;
+        }
+        .modal-actions button {
+            background: rgba(20,22,28,.85);
+            color: #fff;
+            border: 1px solid rgba(255,255,255,.25);
+            border-radius: 8px;
+            padding: 9px 16px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        .modal-actions button:hover { background: rgba(74,144,217,.9); }
+        @media (max-width: 640px) {
+            .modal-nav { width: 40px; height: 56px; font-size: 22px; }
+        }
     </style>
     <!-- Cropper.js for crop step (same as employee.js) -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
@@ -2049,9 +2139,9 @@
                 style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; flex-wrap: wrap; gap: 15px;">
                 <h1 style="margin-bottom: 0;">📸 Thư viện ảnh nhân viên</h1>
                 <div class="stat-chips" id="statChips">
-                    <div class="chip-stat info"><span>👤</span> <b id="statTotal">--</b> nhân viên</div>
-                    <div class="chip-stat ok"><span>📸</span> <b id="statHasPhoto">--</b> có ảnh</div>
-                    <div class="chip-stat warn"><span>⚠️</span> <b id="statNoPhoto">--</b> chưa có</div>
+                    <div class="chip-stat info clickable" id="chipTotal" title="Xóa hết bộ lọc"><span>👤</span> <b id="statTotal">--</b> nhân viên</div>
+                    <div class="chip-stat ok clickable" id="chipHasPhoto" title="Chỉ hiện nhân viên đã có ảnh"><span>📸</span> <b id="statHasPhoto">--</b> có ảnh</div>
+                    <div class="chip-stat warn clickable" id="chipNoPhoto" title="Chỉ hiện nhân viên chưa có ảnh"><span>⚠️</span> <b id="statNoPhoto">--</b> chưa có</div>
                     <div class="chip-stat" id="statUpdate" style="font-size: 11px; opacity: 0.7;">Đang tải...</div>
                 </div>
             </div>
@@ -2070,7 +2160,7 @@
                     <div class="control-group" style="margin-left: auto;">
                         <button id="btnFilterToggle" class="mobile-only" style="display: none;">🎚️ Bộ lọc</button>
                         <button id="btnGlobalUpload"
-                            title='Tên file theo định dạng: Mã NV_Họ Tên&#10;VD: "TIQN-0148 Nguyễn Thái Sơn.JPG"'>📤
+                            title='Tên file bắt đầu bằng mã nhân viên, cách họ tên bằng dấu cách&#10;VD: "TIQN-0148 Nguyễn Thái Sơn.JPG"'>📤
                             <span class="ctrl-text">Tải ảnh lên</span></button>
                         <input type="file" id="globalPhotoInput" accept="image/*" multiple style="display:none;">
                         <button id="btnMultiSelect" class="btn-multi-select">☑️ <span class="ctrl-text">Chọn
@@ -2120,11 +2210,32 @@
 
                     <div class="control-group">
                         <span class="ctrl-icon" title="Sắp xếp mã nhân viên">🔤</span>
-                        <select id="sortOrderSelect" title="Sắp xếp mã nhân viên"
+                        <select id="sortOrderSelect" title="Sắp xếp"
                             style="padding: 4px 8px; border: 1px solid #d1d8dd; border-radius: 4px;">
                             <option value="desc">Z-A</option>
                             <option value="asc">A-Z</option>
+                            <option value="joining_desc">Mới vào trước</option>
+                            <option value="nophoto_first">Thiếu ảnh trước</option>
                         </select>
+                    </div>
+
+                    <div class="control-group">
+                        <label class="toggle-switch-label" title="Nhóm gallery theo bộ phận">
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="groupByCheckbox">
+                                <span class="slider"></span>
+                            </label>
+                            <span class="ctrl-text"> Nhóm theo bộ phận</span>
+                        </label>
+                    </div>
+
+                    <div class="control-group" title="Cỡ thẻ ảnh">
+                        <span class="ctrl-icon">🔳</span>
+                        <div class="card-size-seg" id="cardSizeSeg">
+                            <button data-size="140">S</button>
+                            <button data-size="200" class="on">M</button>
+                            <button data-size="260">L</button>
+                        </div>
                     </div>
 
                     <div class="control-group">
@@ -2255,8 +2366,15 @@
 
     <div id="modal" class="modal">
         <span class="close">&times;</span>
+        <button class="modal-nav prev" id="modalPrev" title="Ảnh trước (←)">‹</button>
+        <button class="modal-nav next" id="modalNext" title="Ảnh sau (→)">›</button>
         <img class="modal-content" id="modalImg">
         <div class="modal-caption" id="modalCaption"></div>
+        <div class="modal-actions" id="modalActions">
+            <button id="modalBtnEdit" title="Chỉnh sửa ảnh">✏️ Sửa</button>
+            <button id="modalBtnDownload" title="Tải ảnh về">⬇️ Tải</button>
+            <button id="modalBtnDelete" title="Xóa ảnh">🗑 Xóa</button>
+        </div>
     </div>
 
     <script>
@@ -2364,8 +2482,40 @@
 
         // Load photos on page load
         window.addEventListener('DOMContentLoaded', () => {
+            restoreFiltersFromUrl();
+            restoreCardSize();
+            setupStatChips();
+
+            // Khôi phục lựa chọn engine/model/màu nền batch từ lần dùng trước
+            try {
+                const eng = localStorage.getItem('ep_bg_engine');
+                if (eng === 'imgly' || eng === 'rembg') setBgEngine(eng);
+                const model = localStorage.getItem('ep_rembg_model');
+                if (model === 'u2net' || model === 'birefnet-portrait') setRembgModel(model);
+                const bg = localStorage.getItem('ep_batch_bg');
+                if (bg && /^#[0-9a-fA-F]{6}$/.test(bg)) {
+                    _batchBgColor = bg;
+                    const sw = [...document.querySelectorAll('.batch-bg-swatch[data-scope="step1"]')]
+                        .find(el => (el.getAttribute('onclick') || '').toLowerCase().includes(bg.toLowerCase()));
+                    if (sw) {
+                        document.querySelectorAll('.batch-bg-swatch[data-scope="step1"]').forEach(b => b.classList.remove('on'));
+                        sw.classList.add('on');
+                    }
+                }
+            } catch (e) { }
             loadGroups();
             loadPhotos();
+
+            document.getElementById('groupByCheckbox').addEventListener('change', function () {
+                applyFilters();
+            });
+
+            // Card size S/M/L
+            document.querySelectorAll('#cardSizeSeg button').forEach(btn => {
+                btn.addEventListener('click', function () {
+                    setCardSize(this.dataset.size);
+                });
+            });
 
             // Setup event listeners
             document.getElementById('showActiveOnlyCheckbox').addEventListener('change', function () {
@@ -2472,6 +2622,13 @@
                         option.textContent = group;
                         groupSelect.appendChild(option);
                     });
+
+                    // Áp dụng group từ URL (nếu có) sau khi options đã sẵn sàng
+                    if (_pendingUrlGroup && groups.includes(_pendingUrlGroup)) {
+                        groupSelect.value = _pendingUrlGroup;
+                        _pendingUrlGroup = '';
+                        applyFilters();
+                    }
                 }
             } catch (error) {
                 console.error('Error loading groups:', error);
@@ -2547,6 +2704,13 @@
                     }
                 }
 
+                // Filter by has photo (toggled via stat chip)
+                if (_hasPhotoOnly) {
+                    if (!photo.url || photo.url === '/assets/erpnext/images/default-avatar.png') {
+                        return false;
+                    }
+                }
+
                 // Filter by date of joining
                 if (dateFrom || dateTo) {
                     if (!photo.date_of_joining) return false;
@@ -2583,12 +2747,18 @@
             });
 
             // Sort photos
-            const reverse = (sortOrder === 'desc');
-            filteredPhotos.sort((a, b) => {
-                const nameA = a.display_name.toLowerCase();
-                const nameB = b.display_name.toLowerCase();
-                return reverse ? nameB.localeCompare(nameA) : nameA.localeCompare(nameB);
-            });
+            const byName = (a, b) => a.display_name.toLowerCase().localeCompare(b.display_name.toLowerCase());
+            const hasPic = p => !!(p.url && p.url !== '/assets/erpnext/images/default-avatar.png');
+            if (sortOrder === 'joining_desc') {
+                // Mới vào trước — không có ngày thì xuống cuối
+                filteredPhotos.sort((a, b) =>
+                    (b.date_of_joining || '').localeCompare(a.date_of_joining || '') || byName(a, b));
+            } else if (sortOrder === 'nophoto_first') {
+                filteredPhotos.sort((a, b) => (hasPic(a) - hasPic(b)) || byName(a, b));
+            } else {
+                const reverse = (sortOrder === 'desc');
+                filteredPhotos.sort((a, b) => reverse ? byName(b, a) : byName(a, b));
+            }
 
             // Debug: Log filter results
             console.log(`Filter applied - showActiveOnly: ${showActiveOnly}, customGroup: ${customGroup || 'All'}`);
@@ -2600,6 +2770,110 @@
 
             displayPhotos();
             updateStats();
+            syncFiltersToUrl();
+        }
+
+        // ══════════════════════════════════════════════════
+        //  URL STATE — bộ lọc lưu vào querystring (F5/share giữ nguyên)
+        // ══════════════════════════════════════════════════
+        let _hasPhotoOnly = false;
+        let _urlRestoring = false;
+
+        function syncFiltersToUrl() {
+            if (_urlRestoring) return;
+            const p = new URLSearchParams();
+            const q = document.getElementById('searchBox').value.trim();
+            if (q) p.set('q', q);
+            if (!document.getElementById('showActiveOnlyCheckbox').checked) p.set('all', '1');
+            if (document.getElementById('showNoPhotoOnlyCheckbox').checked) p.set('nophoto', '1');
+            if (_hasPhotoOnly) p.set('hasphoto', '1');
+            const group = document.getElementById('groupSelect').value;
+            if (group) p.set('group', group);
+            const from = document.getElementById('dateFilterFrom').value;
+            if (from) p.set('from', from);
+            const to = document.getElementById('dateFilterTo').value;
+            if (to) p.set('to', to);
+            const sort = document.getElementById('sortOrderSelect').value;
+            if (sort !== 'desc') p.set('sort', sort);
+            if (document.getElementById('groupByCheckbox').checked) p.set('groupby', '1');
+            const qs = p.toString();
+            history.replaceState(null, '', qs ? '?' + qs : location.pathname);
+        }
+
+        function restoreFiltersFromUrl() {
+            const p = new URLSearchParams(location.search);
+            if (![...p.keys()].length) return;
+            _urlRestoring = true;
+            try {
+                if (p.get('q')) document.getElementById('searchBox').value = p.get('q');
+                if (p.get('all') === '1') document.getElementById('showActiveOnlyCheckbox').checked = false;
+                if (p.get('nophoto') === '1') document.getElementById('showNoPhotoOnlyCheckbox').checked = true;
+                _hasPhotoOnly = p.get('hasphoto') === '1';
+                if (p.get('from')) document.getElementById('dateFilterFrom').value = p.get('from');
+                if (p.get('to')) document.getElementById('dateFilterTo').value = p.get('to');
+                if (p.get('sort')) document.getElementById('sortOrderSelect').value = p.get('sort');
+                if (p.get('groupby') === '1') document.getElementById('groupByCheckbox').checked = true;
+                // group select được set lại sau khi loadGroups() đổ options
+                _pendingUrlGroup = p.get('group') || '';
+                updateChipStates();
+            } finally {
+                _urlRestoring = false;
+            }
+        }
+        let _pendingUrlGroup = '';
+
+        // ══════════════════════════════════════════════════
+        //  CLICKABLE STAT CHIPS
+        // ══════════════════════════════════════════════════
+        function updateChipStates() {
+            document.getElementById('chipNoPhoto').classList.toggle('chip-active',
+                document.getElementById('showNoPhotoOnlyCheckbox').checked);
+            document.getElementById('chipHasPhoto').classList.toggle('chip-active', _hasPhotoOnly);
+        }
+
+        function setupStatChips() {
+            document.getElementById('chipNoPhoto').addEventListener('click', () => {
+                const cb = document.getElementById('showNoPhotoOnlyCheckbox');
+                cb.checked = !cb.checked;
+                if (cb.checked) _hasPhotoOnly = false;
+                updateChipStates();
+                applyFilters();
+            });
+            document.getElementById('chipHasPhoto').addEventListener('click', () => {
+                _hasPhotoOnly = !_hasPhotoOnly;
+                if (_hasPhotoOnly) document.getElementById('showNoPhotoOnlyCheckbox').checked = false;
+                updateChipStates();
+                applyFilters();
+            });
+            document.getElementById('chipTotal').addEventListener('click', () => {
+                // Reset toàn bộ bộ lọc
+                document.getElementById('searchBox').value = '';
+                document.getElementById('showActiveOnlyCheckbox').checked = true;
+                document.getElementById('showNoPhotoOnlyCheckbox').checked = false;
+                _hasPhotoOnly = false;
+                document.getElementById('dateFilterFrom').value = '';
+                document.getElementById('dateFilterTo').value = '';
+                document.getElementById('groupSelect').value = '';
+                document.getElementById('sortOrderSelect').value = 'desc';
+                updateChipStates();
+                applyFilters();
+            });
+        }
+
+        // ══════════════════════════════════════════════════
+        //  CARD SIZE S/M/L
+        // ══════════════════════════════════════════════════
+        function setCardSize(size) {
+            document.documentElement.style.setProperty('--card-min', size + 'px');
+            document.querySelectorAll('#cardSizeSeg button').forEach(b =>
+                b.classList.toggle('on', b.dataset.size === String(size)));
+            try { localStorage.setItem('ep_card_size', String(size)); } catch (e) { }
+        }
+
+        function restoreCardSize() {
+            let size = '200';
+            try { size = localStorage.getItem('ep_card_size') || '200'; } catch (e) { }
+            setCardSize(size);
         }
 
         function displayPhotos() {
@@ -2615,52 +2889,105 @@
                 return;
             }
 
-            gallery.innerHTML = filteredPhotos.map(photo => {
-                const isInactive = photo.status === 'Left' || photo.status === 'Inactive';
-                const nameClass = isInactive ? 'employee-id inactive-employee' : 'employee-id';
-                const statusBadge = isInactive ? `<span class="status-badge">${photo.status}</span>` : '';
-                const groupInfo = photo.custom_group ? `<div class="group-info">📁 ${photo.custom_group}</div>` : '';
-                const employeeLink = photo.employee_id ? `/app/employee/${encodeURIComponent(photo.employee_id)}` : '#';
+            // Build list of HTML items: cards, optionally interleaved with group headers
+            const groupBy = document.getElementById('groupByCheckbox').checked;
+            let items = [];
+            if (groupBy) {
+                // Ổn định: giữ thứ tự sort hiện tại trong từng nhóm
+                const groups = new Map();
+                filteredPhotos.forEach(p => {
+                    const g = p.custom_group || 'Chưa phân nhóm';
+                    if (!groups.has(g)) groups.set(g, []);
+                    groups.get(g).push(p);
+                });
+                [...groups.keys()].sort((a, b) => a.localeCompare(b)).forEach(g => {
+                    const list = groups.get(g);
+                    const gEsc = g.replace(/"/g, '&quot;');
+                    items.push(`
+                        <div class="group-header">📁 ${g} <span class="gh-count">(${list.length})</span>
+                            <button class="gh-select" onclick="selectGroup(&quot;${gEsc}&quot;)">☑️ Chọn nhóm</button>
+                        </div>`);
+                    list.forEach(p => items.push(buildCardHtml(p, showExtraInfo)));
+                });
+            } else {
+                items = filteredPhotos.map(p => buildCardHtml(p, showExtraInfo));
+            }
 
-                // Extra info (Phone & Address)
-                let extraInfoHtml = '';
-                if (showExtraInfo) {
-                    if (photo.cell_number) extraInfoHtml += `<div class="phone-info">📱 ${photo.cell_number}</div>`;
-                    if (photo.custom_current_address_full) extraInfoHtml += `<div class="address-info">📍 ${photo.custom_current_address_full}</div>`;
-                }
-
-                const basePhotoUrl = photo.url || '/assets/erpnext/images/default-avatar.png';
-                // Add session timestamp to force fresh load if it's a real photo
-                const photoUrl = photo.url ? (basePhotoUrl + (basePhotoUrl.includes('?') ? '&' : '?') + 't=' + sessionTimestamp) : basePhotoUrl;
-                const fileInfoStr = photo.size ? formatFileSize(photo.size) : '';
-                const dateOfJoiningStr = photo.date_of_joining ? `<div class="file-info" style="margin-top:4px;">Nhận việc: ${photo.date_of_joining.split('-').reverse().join('/')}</div>` : '';
-
-                const photoJson = JSON.stringify(photo).replace(/"/g, '&quot;');
-                return `
-                    <div class="photo-card" data-emp-id="${photo.employee_id}" onclick="onCardClick(${photoJson}, '${photoUrl}', event)">
-                        <div class="photo-img-wrap">
-                            <div class="card-select-overlay">✓</div>
-                            <img src="${photoUrl}" alt="${photo.display_name}" loading="lazy">
-                            ${photo.url ? `<button class="edit-btn" onclick="openPhotoEditor(${photoJson}, event)" title="Chỉnh sửa ảnh">✏️</button>` : ''}
-                            <button class="upload-btn" onclick="openUploadDialog(${photoJson}, event)" title="Tải lên/Chụp ảnh">📷</button>
-                            ${photo.url ? `<button class="delete-btn" onclick="openDeleteDialog(${photoJson}, event)" title="Xóa ảnh">🗑</button>` : ''}
-                        </div>
-                        <div class="card-save-flash">✓</div>
-                        <div class="photo-info">
-                            <a href="${employeeLink}" class="${nameClass} employee-link" onclick="event.stopPropagation()" target="_blank">
-                                ${photo.display_name}
-                            </a>
-                            ${statusBadge}
-                            ${groupInfo}
-                            ${extraInfoHtml}
-                            ${dateOfJoiningStr}
-                            <div class="file-info">${fileInfoStr}</div>
-                        </div>
-                    </div>
-                `;
-            }).join('');
-
+            // Chunked render: 60 card đầu ngay lập tức, phần còn lại theo frame
+            const renderToken = ++_renderToken;
+            const FIRST = 60, CHUNK = 120;
+            gallery.innerHTML = items.slice(0, FIRST).join('');
             gallery.style.display = 'grid';
+            let pos = FIRST;
+            function renderNext() {
+                if (renderToken !== _renderToken) return; // filter mới đè lên → hủy
+                if (pos >= items.length) return;
+                gallery.insertAdjacentHTML('beforeend', items.slice(pos, pos + CHUNK).join(''));
+                pos += CHUNK;
+                requestAnimationFrame(renderNext);
+            }
+            if (pos < items.length) requestAnimationFrame(renderNext);
+        }
+
+        let _renderToken = 0;
+
+        function buildCardHtml(photo, showExtraInfo) {
+            const isInactive = photo.status === 'Left' || photo.status === 'Inactive';
+            const nameClass = isInactive ? 'employee-id inactive-employee' : 'employee-id';
+            const statusBadge = isInactive ? `<span class="status-badge">${photo.status}</span>` : '';
+            const groupInfo = photo.custom_group ? `<div class="group-info">📁 ${photo.custom_group}</div>` : '';
+            const employeeLink = photo.employee_id ? `/app/employee/${encodeURIComponent(photo.employee_id)}` : '#';
+
+            // Extra info (Phone & Address)
+            let extraInfoHtml = '';
+            if (showExtraInfo) {
+                if (photo.cell_number) extraInfoHtml += `<div class="phone-info">📱 ${photo.cell_number}</div>`;
+                if (photo.custom_current_address_full) extraInfoHtml += `<div class="address-info">📍 ${photo.custom_current_address_full}</div>`;
+            }
+
+            const basePhotoUrl = photo.url || '/assets/erpnext/images/default-avatar.png';
+            // Add session timestamp to force fresh load if it's a real photo
+            const photoUrl = photo.url ? (basePhotoUrl + (basePhotoUrl.includes('?') ? '&' : '?') + 't=' + sessionTimestamp) : basePhotoUrl;
+            const fileInfoStr = photo.size ? formatFileSize(photo.size) : '';
+            const dateOfJoiningStr = photo.date_of_joining ? `<div class="file-info" style="margin-top:4px;">Nhận việc: ${photo.date_of_joining.split('-').reverse().join('/')}</div>` : '';
+            const selectedClass = selectedEmpIds.has(photo.employee_id) ? ' selected' : '';
+
+            const photoJson = JSON.stringify(photo).replace(/"/g, '&quot;');
+            return `
+                <div class="photo-card${selectedClass}" data-emp-id="${photo.employee_id}" onclick="onCardClick(${photoJson}, '${photoUrl}', event)">
+                    <div class="photo-img-wrap">
+                        <div class="card-select-overlay">✓</div>
+                        <img src="${photoUrl}" alt="${photo.display_name}" loading="lazy">
+                        ${photo.url ? `<button class="edit-btn" onclick="openPhotoEditor(${photoJson}, event)" title="Chỉnh sửa ảnh">✏️</button>` : ''}
+                        <button class="upload-btn" onclick="openUploadDialog(${photoJson}, event)" title="Tải lên/Chụp ảnh">📷</button>
+                        ${photo.url ? `<button class="delete-btn" onclick="openDeleteDialog(${photoJson}, event)" title="Xóa ảnh">🗑</button>` : ''}
+                    </div>
+                    <div class="card-save-flash">✓</div>
+                    <div class="photo-info">
+                        <a href="${employeeLink}" class="${nameClass} employee-link" onclick="event.stopPropagation()" target="_blank">
+                            ${photo.display_name}
+                        </a>
+                        ${statusBadge}
+                        ${groupInfo}
+                        ${extraInfoHtml}
+                        ${dateOfJoiningStr}
+                        <div class="file-info">${fileInfoStr}</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Chọn cả nhóm (từ group header) — tự bật multi-select nếu chưa bật
+        function selectGroup(groupName) {
+            if (!isMultiSelectMode) enterMultiSelect();
+            filteredPhotos.forEach(p => {
+                if ((p.custom_group || 'Chưa phân nhóm') === groupName) {
+                    selectedEmpIds.add(p.employee_id);
+                    const card = document.querySelector(`.photo-card[data-emp-id="${CSS.escape(p.employee_id)}"]`);
+                    if (card) card.classList.add('selected');
+                }
+            });
+            updateBulkToolbar();
         }
 
         function showSkeleton() {
@@ -2722,21 +3049,92 @@
         const modalCaption = document.getElementById('modalCaption');
         const closeBtn = document.getElementsByClassName('close')[0];
 
-        function openModal(url, caption) {
+        // Modal có 2 chế độ: preview đơn thuần (2 tham số) và duyệt nhân viên (kèm empId)
+        let _modalList = [];   // danh sách photo có ảnh, theo thứ tự hiển thị
+        let _modalIdx = -1;
+
+        function openModal(url, caption, empId) {
             modal.style.display = 'block';
             modalImg.src = url;
             modalCaption.textContent = caption;
+
+            const nav = !!empId;
+            if (nav) {
+                const order = getDisplayOrderIds();
+                const byId = new Map(filteredPhotos.map(p => [p.employee_id, p]));
+                _modalList = order.map(id => byId.get(id)).filter(p => p && p.url);
+                _modalIdx = _modalList.findIndex(p => p.employee_id === empId);
+            } else {
+                _modalList = []; _modalIdx = -1;
+            }
+            const show = nav && _modalIdx !== -1;
+            document.getElementById('modalPrev').style.display = show && _modalIdx > 0 ? 'flex' : 'none';
+            document.getElementById('modalNext').style.display = show && _modalIdx < _modalList.length - 1 ? 'flex' : 'none';
+            document.getElementById('modalActions').style.display = show ? 'flex' : 'none';
         }
 
-        closeBtn.onclick = function () {
-            modal.style.display = 'none';
+        function modalGoto(idx) {
+            if (idx < 0 || idx >= _modalList.length) return;
+            _modalIdx = idx;
+            const p = _modalList[idx];
+            const url = p.url + (p.url.includes('?') ? '&' : '?') + 't=' + sessionTimestamp;
+            modalImg.src = url;
+            modalCaption.textContent = `${p.display_name}  (${idx + 1}/${_modalList.length})`;
+            document.getElementById('modalPrev').style.display = idx > 0 ? 'flex' : 'none';
+            document.getElementById('modalNext').style.display = idx < _modalList.length - 1 ? 'flex' : 'none';
         }
+
+        function closeModal() {
+            modal.style.display = 'none';
+            _modalList = []; _modalIdx = -1;
+        }
+
+        closeBtn.onclick = closeModal;
 
         modal.onclick = function (e) {
-            if (e.target === modal) {
-                modal.style.display = 'none';
-            }
+            if (e.target === modal) closeModal();
         }
+
+        document.getElementById('modalPrev').addEventListener('click', e => {
+            e.stopPropagation(); modalGoto(_modalIdx - 1);
+        });
+        document.getElementById('modalNext').addEventListener('click', e => {
+            e.stopPropagation(); modalGoto(_modalIdx + 1);
+        });
+
+        document.addEventListener('keydown', function (e) {
+            if (modal.style.display !== 'block') return;
+            if (e.key === 'Escape') { closeModal(); }
+            else if (e.key === 'ArrowLeft') { modalGoto(_modalIdx - 1); }
+            else if (e.key === 'ArrowRight') { modalGoto(_modalIdx + 1); }
+        });
+
+        // Action buttons trong modal
+        document.getElementById('modalBtnEdit').addEventListener('click', function (e) {
+            e.stopPropagation();
+            const p = _modalList[_modalIdx];
+            if (!p) return;
+            closeModal();
+            openPhotoEditor(p);
+        });
+        document.getElementById('modalBtnDownload').addEventListener('click', async function (e) {
+            e.stopPropagation();
+            const p = _modalList[_modalIdx];
+            if (!p) return;
+            try {
+                await downloadOnePhoto(p);
+                showEditorToast(`✅ Đã tải ảnh: ${p.display_name}`, 'ok');
+            } catch (err) {
+                showEditorToast(`⚠️ Lỗi tải ảnh: ${err.message}`, 'err');
+            }
+        });
+        document.getElementById('modalBtnDelete').addEventListener('click', function (e) {
+            e.stopPropagation();
+            const p = _modalList[_modalIdx];
+            if (!p) return;
+            closeModal();
+            openDeleteDialog(p, { stopPropagation() { } });
+        });
 
         // ══════════════════════════════════════════════════
         //  FRAPPE API HELPER
@@ -2813,7 +3211,7 @@
                 type: 'INIT_EDITOR',
                 imageUrl: photo.url.startsWith('http') ? photo.url : (location.origin + photo.url),
                 employeeId: photo.employee_id,
-                employeeName: photo.display_name
+                employeeName: photo.employee_name
             };
             try {
                 frame.contentWindow.postMessage(msg, '*');
@@ -3240,30 +3638,29 @@
 
             for (let i = 0; i < files.length; i++) {
                 const file = files[i];
-                // filter filename pattern TIQN-XXXX or TT-XXXX (case-insensitive)
-                const match = file.name.match(/^(TIQN-\d+)/i) || file.name.match(/^(TT-\d+)/i);
-                // const match = file.name.match(/^(TIQN-\d+)/i);
-                // const match2 = file.name.match(/^(TT-\d+)/i);
-                if (match) {
-                    const employeeId = match[1].toUpperCase();
-                    const emp = allPhotos.find(p => p.employee_id === employeeId);
-                    if (emp) {
-                        await new Promise(resolve => {
-                            const reader = new FileReader();
-                            reader.onload = function (ev) {
-                                uploadEmployeePhoto(employeeId, emp.employee_name, ev.target.result);
-                                resolve();
-                            };
-                            reader.readAsDataURL(file);
-                            // add console log for debugging
-                            console.log(`Processing file: ${file.name} for employee ID: ${employeeId}`);
-                        });
-                    } else {
-                        showEditorToast(`Bỏ qua ${file.name}: không tìm thấy ${employeeId}`, 'err');
-                        console.log(`No employee found with ID: ${employeeId} for file: ${file.name}`); // debug log
-                    }
+                // Employee code = first space-separated token of the file name (without extension)
+                let firstToken = file.name.replace(/\.[^.]+$/, '').trim().split(/\s+/)[0] || '';
+                // Cắt ký tự thừa dính sau mã (VD "TIQN-2267." / "TIQN-2267_Nguyen" → "TIQN-2267")
+                const codeMatch = firstToken.match(/^([A-Za-z]+-\d+)/);
+                if (codeMatch) firstToken = codeMatch[1];
+
+                if (firstToken) {
+                    const employeeId = firstToken.toUpperCase();
+                    const emp = allPhotos.find(p => (p.employee_id || '').toUpperCase() === employeeId);
+                    // Không thấy trong cache vẫn upload — server tự validate nhân viên
+                    // tồn tại và lấy tên từ DB (nhân viên mới tạo chưa có trong cache)
+                    if (!emp) console.log(`[globalUpload] ${employeeId} not in cached list — uploading anyway (server validates)`);
+                    await new Promise(resolve => {
+                        const reader = new FileReader();
+                        reader.onload = function (ev) {
+                            uploadEmployeePhoto(employeeId, emp ? emp.employee_name : '', ev.target.result);
+                            resolve();
+                        };
+                        reader.readAsDataURL(file);
+                        console.log(`Processing file: ${file.name} for employee ID: ${employeeId}`);
+                    });
                 } else {
-                    showEditorToast(`Bỏ qua ${file.name}: tên file thiếu mã TIQN-XXXX`, 'err');
+                    showEditorToast(`Bỏ qua ${file.name}: tên file phải bắt đầu bằng mã nhân viên`, 'err');
                     console.log(`Filename does not match pattern for file: ${file.name}`); // debug log
                 }
             }
@@ -3299,6 +3696,7 @@
         function exitMultiSelect() {
             isMultiSelectMode = false;
             selectedEmpIds.clear();
+            _lastSelectedEmpId = null;
             document.getElementById('btnMultiSelect').classList.remove('active');
             const gallery = document.getElementById('gallery');
             gallery.classList.remove('multi-select-active');
@@ -3307,21 +3705,56 @@
             document.body.style.paddingBottom = '';
         }
 
+        let _lastSelectedEmpId = null;
+
         function onCardClick(photo, photoUrl, event) {
             if (isMultiSelectMode) {
                 event.preventDefault();
                 event.stopPropagation();
-                toggleCardSelect(photo.employee_id);
+                toggleCardSelect(photo.employee_id, event.shiftKey);
             } else {
                 // Original behavior: open modal if clicking on img area
                 if (event.target.tagName === 'IMG') {
-                    openModal(photoUrl, photo.display_name);
+                    openModal(photoUrl, photo.display_name, photo.employee_id);
                 }
             }
         }
 
-        function toggleCardSelect(empId) {
-            const card = document.querySelector(`.photo-card[data-emp-id="${CSS.escape(empId)}"]`);
+        // Thứ tự hiển thị hiện tại (theo filter/sort/group) — dùng cho Shift+click
+        function getDisplayOrderIds() {
+            if (document.getElementById('groupByCheckbox').checked) {
+                const groups = new Map();
+                filteredPhotos.forEach(p => {
+                    const g = p.custom_group || 'Chưa phân nhóm';
+                    if (!groups.has(g)) groups.set(g, []);
+                    groups.get(g).push(p.employee_id);
+                });
+                return [...groups.keys()].sort((a, b) => a.localeCompare(b))
+                    .flatMap(g => groups.get(g));
+            }
+            return filteredPhotos.map(p => p.employee_id);
+        }
+
+        function toggleCardSelect(empId, shiftKey = false) {
+            const gallery = document.getElementById('gallery');
+            if (shiftKey && _lastSelectedEmpId && _lastSelectedEmpId !== empId) {
+                // Shift+click: chọn cả dải từ lần click trước tới card này
+                const order = getDisplayOrderIds();
+                const i1 = order.indexOf(_lastSelectedEmpId);
+                const i2 = order.indexOf(empId);
+                if (i1 !== -1 && i2 !== -1) {
+                    const [from, to] = i1 < i2 ? [i1, i2] : [i2, i1];
+                    for (let i = from; i <= to; i++) {
+                        selectedEmpIds.add(order[i]);
+                        const c = gallery.querySelector(`.photo-card[data-emp-id="${CSS.escape(order[i])}"]`);
+                        if (c) c.classList.add('selected');
+                    }
+                    _lastSelectedEmpId = empId;
+                    updateBulkToolbar();
+                    return;
+                }
+            }
+            const card = gallery.querySelector(`.photo-card[data-emp-id="${CSS.escape(empId)}"]`);
             if (!card) return;
             if (selectedEmpIds.has(empId)) {
                 selectedEmpIds.delete(empId);
@@ -3329,28 +3762,23 @@
             } else {
                 selectedEmpIds.add(empId);
                 card.classList.add('selected');
+                _lastSelectedEmpId = empId;
             }
             updateBulkToolbar();
         }
 
         function bulkSelectAll() {
             const gallery = document.getElementById('gallery');
-            const allCards = gallery.querySelectorAll('.photo-card[data-emp-id]');
-            const allSelected = allCards.length > 0 && allCards.length === selectedEmpIds.size;
+            // Dựa trên dữ liệu đã lọc (không phụ thuộc card đã render xong hay chưa)
+            const allSelected = filteredPhotos.length > 0 &&
+                filteredPhotos.every(p => selectedEmpIds.has(p.employee_id));
 
             if (allSelected) {
-                // Deselect all
                 selectedEmpIds.clear();
-                allCards.forEach(c => c.classList.remove('selected'));
+                gallery.querySelectorAll('.photo-card.selected').forEach(c => c.classList.remove('selected'));
             } else {
-                // Select all visible
-                allCards.forEach(c => {
-                    const id = c.dataset.empId;
-                    if (id) {
-                        selectedEmpIds.add(id);
-                        c.classList.add('selected');
-                    }
-                });
+                filteredPhotos.forEach(p => selectedEmpIds.add(p.employee_id));
+                gallery.querySelectorAll('.photo-card[data-emp-id]').forEach(c => c.classList.add('selected'));
             }
             updateBulkToolbar();
         }
@@ -3367,14 +3795,10 @@
             document.getElementById('btnBulkId').disabled = !hasAny;
 
             // Toggle select-all button label
-            const gallery = document.getElementById('gallery');
-            const totalCards = gallery.querySelectorAll('.photo-card[data-emp-id]').length;
             const selectAllBtn = document.getElementById('btnBulkSelectAll');
-            if (count > 0 && count === totalCards) {
-                selectAllBtn.textContent = '✕ Bỏ chọn tất';
-            } else {
-                selectAllBtn.textContent = '☑️ Chọn tất cả';
-            }
+            const allSelected = filteredPhotos.length > 0 &&
+                filteredPhotos.every(p => selectedEmpIds.has(p.employee_id));
+            selectAllBtn.textContent = allSelected ? '✕ Bỏ chọn tất' : '☑️ Chọn tất cả';
         }
 
         function getSelectedPhotosWithPhoto() {
@@ -3388,6 +3812,103 @@
         //  DOWNLOAD SELECTED PHOTOS
         // ══════════════════════════════════════════════════
 
+        // ── Tên file chuẩn: "{employee_id} {full_name}.ext" ──
+        function photoFileName(photo, ext) {
+            const safeName = (photo.employee_name || '').replace(/[/\\?%*:|"<>]/g, '').trim();
+            return `${photo.employee_id}${safeName ? ' ' + safeName : ''}.${ext}`;
+        }
+
+        function triggerBlobDownload(blob, filename) {
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(a.href);
+        }
+
+        async function fetchPhotoBlob(photo) {
+            // Strip cache-buster before downloading
+            const cleanUrl = photo.url.split('?')[0];
+            const response = await fetch(cleanUrl, { credentials: 'same-origin' });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            return response.blob();
+        }
+
+        async function downloadOnePhoto(photo) {
+            const blob = await fetchPhotoBlob(photo);
+            const ext = blob.type === 'image/png' ? 'png' : 'jpg';
+            triggerBlobDownload(blob, photoFileName(photo, ext));
+        }
+
+        // ── ZIP writer (store-only, không nén — JPEG/PNG đã nén sẵn) ──
+        // Tự viết ~70 dòng thay vì tải JSZip từ CDN (mạng nội bộ không internet vẫn chạy)
+        const _crcTable = (() => {
+            const t = new Uint32Array(256);
+            for (let n = 0; n < 256; n++) {
+                let c = n;
+                for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+                t[n] = c >>> 0;
+            }
+            return t;
+        })();
+
+        function _crc32(bytes) {
+            let c = 0xFFFFFFFF;
+            for (let i = 0; i < bytes.length; i++) c = _crcTable[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8);
+            return (c ^ 0xFFFFFFFF) >>> 0;
+        }
+
+        // entries: [{ name: 'file.jpg', data: Uint8Array }] → Blob (application/zip)
+        function buildZipStore(entries) {
+            const enc = new TextEncoder();
+            const parts = [];       // các mảnh của file zip
+            const central = [];     // central directory records
+            let offset = 0;
+            const now = new Date();
+            const dosTime = ((now.getHours() << 11) | (now.getMinutes() << 5) | (now.getSeconds() >> 1)) & 0xFFFF;
+            const dosDate = (((now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate()) & 0xFFFF;
+
+            const u16 = v => new Uint8Array([v & 0xFF, (v >> 8) & 0xFF]);
+            const u32 = v => new Uint8Array([v & 0xFF, (v >>> 8) & 0xFF, (v >>> 16) & 0xFF, (v >>> 24) & 0xFF]);
+
+            for (const { name, data } of entries) {
+                const nameBytes = enc.encode(name);
+                const crc = _crc32(data);
+                // Local file header — flag bit 11 (0x0800): tên file UTF-8
+                const header = [
+                    u32(0x04034b50), u16(20), u16(0x0800), u16(0),
+                    u16(dosTime), u16(dosDate), u32(crc),
+                    u32(data.length), u32(data.length),
+                    u16(nameBytes.length), u16(0)
+                ];
+                central.push({ nameBytes, crc, size: data.length, offset });
+                const headerLen = 30 + nameBytes.length;
+                parts.push(...header, nameBytes, data);
+                offset += headerLen + data.length;
+            }
+
+            const cdStart = offset;
+            for (const e of central) {
+                parts.push(
+                    u32(0x02014b50), u16(20), u16(20), u16(0x0800), u16(0),
+                    u16(dosTime), u16(dosDate), u32(e.crc),
+                    u32(e.size), u32(e.size),
+                    u16(e.nameBytes.length), u16(0), u16(0), u16(0), u16(0),
+                    u32(0), u32(e.offset), e.nameBytes
+                );
+                offset += 46 + e.nameBytes.length;
+            }
+            // End of central directory
+            parts.push(
+                u32(0x06054b50), u16(0), u16(0),
+                u16(central.length), u16(central.length),
+                u32(offset - cdStart), u32(cdStart), u16(0)
+            );
+            return new Blob(parts, { type: 'application/zip' });
+        }
+
         async function downloadSelectedPhotos() {
             const photos = getSelectedPhotosWithPhoto();
             if (photos.length === 0) {
@@ -3395,50 +3916,69 @@
                 return;
             }
 
+            // 1 ảnh → tải trực tiếp, không cần zip
+            if (photos.length === 1) {
+                try {
+                    await downloadOnePhoto(photos[0]);
+                    showEditorToast(`✅ Đã tải ảnh: ${photos[0].display_name}`, 'ok');
+                } catch (err) {
+                    showEditorToast(`⚠️ Lỗi tải ảnh: ${err.message}`, 'err');
+                }
+                return;
+            }
+
             const toast = document.getElementById('downloadProgressToast');
             const toastText = document.getElementById('downloadProgressText');
             toast.classList.add('show');
 
-            let downloaded = 0;
-            let failed = 0;
-
-            for (let i = 0; i < photos.length; i++) {
-                const photo = photos[i];
-                toastText.textContent = `Đang tải ${i + 1}/${photos.length}: ${photo.display_name}`;
-
-                try {
-                    // Strip cache-buster before downloading
-                    const cleanUrl = photo.url.split('?')[0];
-                    const response = await fetch(cleanUrl, { credentials: 'same-origin' });
-                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                    const blob = await response.blob();
-
-                    const ext = blob.type === 'image/png' ? 'png' : 'jpg';
-                    const filename = `${photo.employee_id}_${photo.display_name.replace(/[/\\?%*:|"<>]/g, '_')}.${ext}`;
-
-                    const a = document.createElement('a');
-                    a.href = URL.createObjectURL(blob);
-                    a.download = filename;
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(a.href);
-
-                    downloaded++;
-                    // Small delay between downloads to avoid browser blocking
-                    await new Promise(r => setTimeout(r, 200));
-                } catch (err) {
-                    console.warn('[downloadPhoto] failed for', photo.employee_id, err);
-                    failed++;
+            // Fetch song song 4 ảnh — không còn multi-download nên không cần delay
+            const results = new Array(photos.length);
+            let done = 0, failed = 0, idx = 0;
+            async function fetchWorker() {
+                while (idx < photos.length) {
+                    const i = idx++;
+                    const photo = photos[i];
+                    try {
+                        const blob = await fetchPhotoBlob(photo);
+                        const ext = blob.type === 'image/png' ? 'png' : 'jpg';
+                        results[i] = {
+                            name: photoFileName(photo, ext),
+                            data: new Uint8Array(await blob.arrayBuffer())
+                        };
+                    } catch (err) {
+                        console.warn('[downloadPhoto] failed for', photo.employee_id, err);
+                        failed++;
+                    }
+                    done++;
+                    toastText.textContent = `Đang tải ${done}/${photos.length} ảnh...`;
                 }
             }
+            await Promise.all(Array.from({ length: Math.min(4, photos.length) }, fetchWorker));
 
-            toast.classList.remove('show');
+            const entries = results.filter(Boolean);
+            if (entries.length === 0) {
+                toast.classList.remove('show');
+                showEditorToast('⚠️ Không tải được ảnh nào', 'err');
+                return;
+            }
 
-            if (failed > 0) {
-                showEditorToast(`✅ Đã tải ${downloaded} ảnh (${failed} lỗi)`, 'ok');
-            } else {
-                showEditorToast(`✅ Đã tải ${downloaded} ảnh về thiết bị`, 'ok');
+            toastText.textContent = `Đang nén ${entries.length} ảnh...`;
+            await new Promise(r => setTimeout(r, 50)); // cho toast kịp vẽ
+
+            try {
+                const zipBlob = buildZipStore(entries);
+                const d = new Date();
+                const pad = n => String(n).padStart(2, '0');
+                const zipName = `anh-nhan-vien_${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}_${entries.length}anh.zip`;
+                triggerBlobDownload(zipBlob, zipName);
+                toast.classList.remove('show');
+                showEditorToast(failed > 0
+                    ? `✅ Đã nén ${entries.length} ảnh vào 1 file zip (${failed} lỗi)`
+                    : `✅ Đã tải ${entries.length} ảnh trong 1 file zip`, 'ok');
+            } catch (err) {
+                toast.classList.remove('show');
+                showEditorToast(`⚠️ Lỗi nén zip: ${err.message}`, 'err');
+                console.error('[downloadSelectedPhotos] zip error:', err);
             }
         }
 
@@ -3495,6 +4035,66 @@
             document.body.style.overflow = 'hidden';
 
             buildStep1Grid(photos);
+
+            // Warm-up AI ngay khi mở modal — model load ngầm trong lúc user chỉnh khung crop
+            prepareBatchAi();
+        }
+
+        // ══════════════════════════════════════════════════
+        //  AI WARM-UP — load model rembg trước khi user bấm xử lý
+        // ══════════════════════════════════════════════════
+        let _rembgWarmupPromise = null;
+        let _rembgWarmupKey = '';
+
+        async function prepareBatchAi() {
+            const chip = document.getElementById('batchAiStatus');
+            if (_bgEngine !== 'rembg') {
+                if (chip) chip.style.display = 'none';
+                return;
+            }
+            // Chiếm lock sớm: vừa giữ chỗ cho user này, vừa tránh warm-up bị server
+            // coi là "single edit của người khác" rồi chặn lock lúc bấm xử lý
+            if (!_batchSessionId) {
+                const sid = Math.random().toString(36).slice(2);
+                try {
+                    const lockRes = await callFrappeMethod(
+                        'customize_erpnext.api.employee.employee_utils.batch_rembg_acquire_lock',
+                        { session_id: sid });
+                    if (!lockRes || !lockRes.acquired) {
+                        if (chip) { chip.style.display = ''; chip.textContent = '⏳ Máy chủ AI đang bận — sẽ thử lại khi bắt đầu xử lý'; }
+                        return;
+                    }
+                    _batchSessionId = sid;
+                } catch (e) {
+                    console.warn('[prepareBatchAi] lock failed:', e);
+                    return;
+                }
+            }
+            warmupRembg();
+        }
+
+        function warmupRembg() {
+            const key = _rembgModel;
+            if (_rembgWarmupPromise && _rembgWarmupKey === key) return; // đã/đang warm model này
+            _rembgWarmupKey = key;
+            const chip = document.getElementById('batchAiStatus');
+            if (chip) { chip.style.display = ''; chip.textContent = '🔥 Đang khởi động AI nền...'; }
+            // Ảnh 32×32 trắng — đủ để worker load model, xử lý tức thì
+            const c = document.createElement('canvas'); c.width = 32; c.height = 32;
+            const cx = c.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, 32, 32);
+            const tiny = c.toDataURL('image/jpeg', 0.8);
+            // birefnet chạy concurrency 2 → warm 2 worker; u2net load nhanh, 1 là đủ
+            const n = key === 'birefnet-portrait' ? 2 : 1;
+            _rembgWarmupPromise = Promise.allSettled(Array.from({ length: n }, () =>
+                callFrappeMethod('customize_erpnext.api.employee.employee_utils.remove_bg_rembg',
+                    { image_data: tiny, model_name: key })
+            )).then(rs => {
+                if (_rembgWarmupKey !== key) return;
+                const ok = rs.some(r => r.status === 'fulfilled');
+                if (chip && document.getElementById('batchIdModal').classList.contains('open')) {
+                    chip.textContent = ok ? '✅ AI nền sẵn sàng' : '⚠️ AI nền lỗi khởi động';
+                }
+            });
         }
 
         // ── STEP 1: Build original photos grid with crop overlays ──
@@ -3567,6 +4167,10 @@
             updateCropBoxOverlay(empId);
 
             // Async face detection — refine crop when done
+            // Xếp hàng tối đa 2 detection đồng thời để UI không khựng
+            try {
+                await _faceSlotAcquire();
+            } catch (e) { return; }
             try {
                 await _ensureBatchFaceApi();
                 const tc = document.createElement('canvas');
@@ -3597,7 +4201,22 @@
             } catch (e) {
                 // Keep default crop silently if face detection fails
                 console.warn('[batchFaceDetect]', empId, e.message);
+            } finally {
+                _faceSlotRelease();
             }
+        }
+
+        // Semaphore: giới hạn 2 face-detection đồng thời
+        let _faceSlotActive = 0;
+        const _faceSlotWaiters = [];
+        async function _faceSlotAcquire() {
+            if (_faceSlotActive >= 2) await new Promise(r => _faceSlotWaiters.push(r));
+            _faceSlotActive++;
+        }
+        function _faceSlotRelease() {
+            _faceSlotActive = Math.max(0, _faceSlotActive - 1);
+            const w = _faceSlotWaiters.shift();
+            if (w) w();
         }
 
         function computeDefaultCrop(srcW, srcH) {
@@ -3739,6 +4358,9 @@
             if (modelRow) modelRow.style.display = engine === 'rembg' ? 'flex' : 'none';
             const concRow = document.getElementById('bgeConcRow');
             if (concRow) concRow.style.display = engine === 'rembg' ? 'flex' : 'none';
+            try { localStorage.setItem('ep_bg_engine', engine); } catch (e) { }
+            // Đổi engine khi modal đang mở → warm-up lại (hoặc ẩn chip nếu imgly)
+            if (document.getElementById('batchIdModal').classList.contains('open')) prepareBatchAi();
         }
 
         function setRembgModel(model) {
@@ -3750,6 +4372,9 @@
             // u2net: 10 concurrent × ~500MB = 5GB
             if (model === 'birefnet-portrait') setRembgConcurrency(2);
             else setRembgConcurrency(10);
+            try { localStorage.setItem('ep_rembg_model', model); } catch (e) { }
+            // Đổi model khi modal đang mở → warm model mới
+            if (_bgEngine === 'rembg' && document.getElementById('batchIdModal').classList.contains('open')) prepareBatchAi();
         }
 
         function setRembgConcurrency(n) {
@@ -3791,7 +4416,7 @@
                 const out = document.createElement('canvas');
                 out.width = img.width; out.height = img.height;
                 out.getContext('2d').putImageData(imageData, 0, 0);
-                const newDataUrl = out.toDataURL('image/jpeg', 0.92);
+                const newDataUrl = out.toDataURL('image/jpeg', 0.95);
                 result.dataUrl = newDataUrl;
                 result.preset = presetName;
                 if (imgEl) imgEl.src = newDataUrl;
@@ -3822,7 +4447,7 @@
                 const rawC = document.createElement('canvas');
                 rawC.width = img.width; rawC.height = img.height;
                 rawC.getContext('2d').putImageData(imageData, 0, 0);
-                result.rawDataUrl = rawC.toDataURL('image/jpeg', 0.92);
+                result.rawDataUrl = rawC.toDataURL('image/jpeg', 0.95);
                 await applyBatchPreset(empId, result.preset);
             } finally {
                 if (imgEl) imgEl.style.opacity = '';
@@ -3840,6 +4465,7 @@
             if (btnEl) btnEl.classList.add('on');
             if (scope === 'step1') {
                 _batchBgColor = color;
+                try { localStorage.setItem('ep_batch_bg', color); } catch (e) { }
             } else {
                 applyBgToAll(color);
             }
@@ -3874,20 +4500,17 @@
 
         // Full pipeline: PNG → skip bg removal; JPEG → AI medium quality; then beautify
         // Returns { dataUrl, timing }
-        async function processPhotoFull(croppedDataUrl, onProgress) {
+        // cropped = { canvas, isPng } — nhận canvas trực tiếp, không encode/decode JPEG trung gian
+        async function processPhotoFull(cropped, onProgress) {
             const t0 = performance.now();
 
-            // 1. Load dataUrl → ImageData
-            const img = new Image(); img.src = croppedDataUrl;
-            await new Promise((res, rej) => { img.onload = res; img.onerror = rej; });
-            const tc = document.createElement('canvas');
-            tc.width = img.width; tc.height = img.height;
-            tc.getContext('2d').drawImage(img, 0, 0);
-            let imageData = tc.getContext('2d').getImageData(0, 0, img.width, img.height);
+            // 1. ImageData trực tiếp từ canvas crop (lossless — không mất chất lượng vòng nén)
+            const W = cropped.canvas.width, H = cropped.canvas.height;
+            let imageData = cropped.canvas.getContext('2d').getImageData(0, 0, W, H);
             const tLoad = performance.now();
 
             // 2. Background handling
-            const isPng = croppedDataUrl.startsWith('data:image/png');
+            const isPng = cropped.isPng;
             // Check transparency directly from already-loaded imageData (no re-load needed)
             const hasTrans = isPng && (function (d) {
                 for (let i = 3; i < d.length; i += 16) { if (d[i] < 255) return true; }
@@ -3931,7 +4554,7 @@
             const rawC = document.createElement('canvas');
             rawC.width = imageData.width; rawC.height = imageData.height;
             rawC.getContext('2d').putImageData(imageData, 0, 0);
-            const rawDataUrl = rawC.toDataURL('image/jpeg', 0.92);
+            const rawDataUrl = rawC.toDataURL('image/jpeg', 0.95);
 
             // 4. Analyze + beautify (auto params)
             if (onProgress) onProgress('✨ Làm đẹp...');
@@ -3946,11 +4569,11 @@
             }
             const tBeautify = performance.now();
 
-            // 5. Return as JPEG dataUrl
+            // 5. Return as JPEG dataUrl (0.95 — ảnh thẻ ưu tiên chất lượng)
             const finalC = document.createElement('canvas');
-            finalC.width = img.width; finalC.height = img.height;
+            finalC.width = W; finalC.height = H;
             finalC.getContext('2d').putImageData(imageData, 0, 0);
-            const dataUrl = finalC.toDataURL('image/jpeg', 0.92);
+            const dataUrl = finalC.toDataURL('image/jpeg', 0.95);
             const tEnd = performance.now();
 
             const ms = (a, b) => Math.round(b - a);
@@ -3962,7 +4585,7 @@
                 total: ms(t0, tEnd),
                 bgMethod,
             };
-            console.log(`[photo] ${img.width}×${img.height} | load:${timing.load}ms bg(${bgMethod}):${timing.bg}ms beautify:${timing.beautify}ms encode:${timing.encode}ms | total:${timing.total}ms`);
+            console.log(`[photo] ${W}×${H} | load:${timing.load}ms bg(${bgMethod}):${timing.bg}ms beautify:${timing.beautify}ms encode:${timing.encode}ms | total:${timing.total}ms`);
 
             return { dataUrl, rawDataUrl, bgRemovedDataUrl, timing };
         }
@@ -4144,8 +4767,9 @@
             if (entries.length === 0) { showEditorToast('⚠️ Ảnh chưa tải xong, vui lòng chờ', 'err'); return; }
 
             // Acquire rembg lock (only when using rembg engine)
+            // Tái dùng session đã chiếm lúc mở modal (prepareBatchAi) — cùng ID thì server chỉ renew TTL
             if (_bgEngine === 'rembg') {
-                _batchSessionId = Math.random().toString(36).slice(2);
+                if (!_batchSessionId) _batchSessionId = Math.random().toString(36).slice(2);
                 try {
                     const lockRes = await callFrappeMethod(
                         'customize_erpnext.api.employee.employee_utils.batch_rembg_acquire_lock',
@@ -4189,6 +4813,13 @@
                             </div>
                             <img id="bcimg_${p.employee_id}" src="" alt="${p.display_name}" style="display:none;">
                             <div class="batch-img-actions" id="bcactions_${p.employee_id}" style="display:none;">
+                                <button class="btn-batch-orig" title="Giữ để xem ảnh gốc (so sánh trước/sau)"
+                                    onclick="event.stopPropagation()"
+                                    onmousedown="event.stopPropagation();batchCompare('${p.employee_id}',1)"
+                                    onmouseup="batchCompare('${p.employee_id}',0)"
+                                    onmouseleave="batchCompare('${p.employee_id}',0)"
+                                    ontouchstart="event.stopPropagation();event.preventDefault();batchCompare('${p.employee_id}',1)"
+                                    ontouchend="batchCompare('${p.employee_id}',0)">👁 Gốc</button>
                                 <button class="btn-batch-approve" onclick="event.stopPropagation();setBatchStatus('${p.employee_id}', 'approved')">✓ Duyệt</button>
                                 <button class="btn-batch-skip" onclick="event.stopPropagation();setBatchStatus('${p.employee_id}', 'skipped')">✗ Bỏ qua</button>
                             </div>
@@ -4219,7 +4850,7 @@
             const CONCURRENCY = _bgEngine === 'rembg' ? _rembgConcurrency : _BATCH_CONCURRENCY;
             const _t0 = performance.now();
 
-            function onOneDone(photo, dataUrl, rawDataUrl, bgRemovedDataUrl, error, timing) {
+            function onOneDone(photo, dataUrl, rawDataUrl, bgRemovedDataUrl, error, timing, origDataUrl) {
                 const loading = document.getElementById(`bcload_${photo.employee_id}`);
                 const img = document.getElementById(`bcimg_${photo.employee_id}`);
                 const actions = document.getElementById(`bcactions_${photo.employee_id}`);
@@ -4227,10 +4858,10 @@
 
                 if (error || !dataUrl) {
                     if (loading) loading.innerHTML = '<span style="color:#ff5a5a;font-size:11px;padding:8px;text-align:center;">Lỗi xử lý</span>';
-                    _batchResults[photo.employee_id] = { dataUrl: null, rawDataUrl: null, bgRemovedDataUrl: null, bgColor: _batchBgColor, preset: 'auto', approved: false, photo };
+                    _batchResults[photo.employee_id] = { dataUrl: null, rawDataUrl: null, bgRemovedDataUrl: null, origDataUrl: null, bgColor: _batchBgColor, preset: 'auto', approved: false, photo };
                     setBatchStatus(photo.employee_id, 'skipped');
                 } else {
-                    _batchResults[photo.employee_id] = { dataUrl, rawDataUrl, bgRemovedDataUrl, bgColor: _batchBgColor, preset: 'auto', approved: true, photo };
+                    _batchResults[photo.employee_id] = { dataUrl, rawDataUrl, bgRemovedDataUrl, origDataUrl, bgColor: _batchBgColor, preset: 'auto', approved: true, photo };
                     if (loading) loading.style.display = 'none';
                     if (img) { img.src = dataUrl; img.style.display = 'block'; }
                     if (actions) actions.style.display = 'flex';
@@ -4265,15 +4896,17 @@
                                 document.getElementById('batchProgressLabel').textContent =
                                     `${photo.display_name}: 🔄 Thử lại...`;
                             }
-                            // Step A: client-side crop to 600×800
-                            const croppedDataUrl = await applyCropToPhoto(photo.url, sx, sy, sw, sh);
+                            // Step A: client-side crop to 600×800 (canvas thô, không encode trung gian)
+                            const cropped = await applyCropToPhoto(photo.url, sx, sy, sw, sh);
+                            // Ảnh gốc sau crop — cho nút "giữ để so sánh" ở step 2
+                            const origDataUrl = cropped.canvas.toDataURL('image/jpeg', 0.9);
                             // Step B: remove bg + white bg + beautify (all client-side)
-                            const { dataUrl: processedDataUrl, rawDataUrl, bgRemovedDataUrl, timing } = await processPhotoFull(croppedDataUrl, (msg) => {
+                            const { dataUrl: processedDataUrl, rawDataUrl, bgRemovedDataUrl, timing } = await processPhotoFull(cropped, (msg) => {
                                 document.getElementById('batchProgressLabel').textContent =
                                     `${photo.display_name}: ${msg}`;
                             });
                             // Step C: only store result locally — save to server after user approves
-                            onOneDone(photo, processedDataUrl, rawDataUrl, bgRemovedDataUrl, null, timing);
+                            onOneDone(photo, processedDataUrl, rawDataUrl, bgRemovedDataUrl, null, timing, origDataUrl);
                             lastErr = null;
                             break;
                         } catch (err) {
@@ -4299,6 +4932,7 @@
             updateBatchFooter();
         }
 
+        // Trả về { canvas, isPng } — canvas thô, không encode JPEG trung gian (giữ chất lượng)
         async function applyCropToPhoto(url, sx, sy, sw, sh) {
             return new Promise((resolve, reject) => {
                 // Preserve PNG format so processPhotoFull can skip AI bg removal for PNGs
@@ -4315,13 +4949,21 @@
                             ctx.fillRect(0, 0, 600, 800);
                         }
                         ctx.drawImage(img, sx, sy, sw, sh, 0, 0, 600, 800);
-                        const mimeType = srcIsPng ? 'image/png' : 'image/jpeg';
-                        resolve(canvas.toDataURL(mimeType, srcIsPng ? undefined : 0.92));
+                        resolve({ canvas, isPng: srcIsPng });
                     } catch (e) { reject(e); }
                 };
                 img.onerror = () => reject(new Error('Không tải được ảnh'));
                 img.src = url.split('?')[0] + '?t=' + Date.now();
             });
+        }
+
+        // Giữ nút "👁 Gốc" → hiện ảnh crop gốc; thả ra → ảnh đã xử lý
+        function batchCompare(empId, showOrig) {
+            const r = _batchResults[empId];
+            const img = document.getElementById(`bcimg_${empId}`);
+            if (!r || !img) return;
+            if (showOrig && r.origDataUrl) img.src = r.origDataUrl;
+            else if (r.dataUrl) img.src = r.dataUrl;
         }
 
         function setBatchStatus(empId, status) {
@@ -4393,8 +5035,9 @@
                     { session_id: _batchSessionId }).catch(() => { });
                 _batchSessionId = null;
             }
-            // Ping tất cả Gunicorn workers để evict rembg sessions còn sót
-            _evictAllRembgWorkers().catch(() => { });
+            // KHÔNG evict rembg session khi đóng — giữ model warm cho lượt sau
+            // (RAM guard 70% + idle cleanup 30' trên server lo việc dọn;
+            //  nút "Làm mới" vẫn evict thủ công nếu cần giải phóng RAM ngay)
         }
 
         // Gọi cleanup_rembg_worker lặp lại cho đến khi tất cả workers round-robin đều evict xong.
@@ -4430,38 +5073,46 @@
             if (info) info.innerHTML = '⏳ Đang lưu ảnh...';
 
             let saved = 0, failed = 0;
-            for (const { dataUrl, photo } of toSave) {
-                let saveOk = false;
-                for (let attempt = 0; attempt < 3; attempt++) {
-                    if (attempt > 0) {
-                        if (info) info.innerHTML = `⏳ Chờ server khởi động lại... (thử ${attempt + 1}/3)`;
-                        await new Promise(r => setTimeout(r, 3000 * attempt));
-                    }
-                    try {
-                        const r = await callFrappeMethod(
-                            'customize_erpnext.api.employee.employee_utils.process_employee_photo',
-                            {
-                                employee_id: photo.employee_id, employee_name: photo.display_name,
-                                image_data: dataUrl, remove_bg: 0
-                            }
-                        );
-                        if (r && r.status === 'success') {
-                            refreshPhotoCardImage(photo.employee_id, r.file_url);
-                            const p = allPhotos.find(x => x.employee_id === photo.employee_id);
-                            if (p) p.url = r.file_url;
-                            saved++;
-                            saveOk = true;
-                            break;
-                        } else {
-                            console.warn('[saveBatchApproved] unexpected response:', r);
+            // Lưu song song 4 ảnh một lúc — server chỉ resize PIL, rất nhẹ
+            const SAVE_CONCURRENCY = 4;
+            let saveIdx = 0;
+            async function saveWorker() {
+                while (saveIdx < toSave.length) {
+                    const { dataUrl, photo } = toSave[saveIdx++];
+                    let saveOk = false;
+                    for (let attempt = 0; attempt < 3; attempt++) {
+                        if (attempt > 0) {
+                            if (info) info.innerHTML = `⏳ Chờ server khởi động lại... (thử ${attempt + 1}/3)`;
+                            await new Promise(r => setTimeout(r, 3000 * attempt));
                         }
-                    } catch (err) {
-                        console.warn(`[saveBatchApproved] attempt ${attempt + 1}`, photo.employee_id, err);
+                        try {
+                            const r = await callFrappeMethod(
+                                'customize_erpnext.api.employee.employee_utils.process_employee_photo',
+                                {
+                                    employee_id: photo.employee_id, employee_name: photo.employee_name,
+                                    image_data: dataUrl, remove_bg: 0
+                                }
+                            );
+                            if (r && r.status === 'success') {
+                                refreshPhotoCardImage(photo.employee_id, r.file_url);
+                                const p = allPhotos.find(x => x.employee_id === photo.employee_id);
+                                if (p) p.url = r.file_url;
+                                saved++;
+                                saveOk = true;
+                                break;
+                            } else {
+                                console.warn('[saveBatchApproved] unexpected response:', r);
+                            }
+                        } catch (err) {
+                            console.warn(`[saveBatchApproved] attempt ${attempt + 1}`, photo.employee_id, err);
+                        }
                     }
+                    if (!saveOk) failed++;
+                    if (info) info.innerHTML = `⏳ Đang lưu... ${saved + failed} / ${toSave.length}`;
                 }
-                if (!saveOk) failed++;
-                if (info) info.innerHTML = `⏳ Đang lưu... ${saved + failed} / ${toSave.length}`;
             }
+            await Promise.all(Array.from(
+                { length: Math.min(SAVE_CONCURRENCY, toSave.length) }, saveWorker));
 
             setCache(CACHE_CONFIG.PHOTOS_KEY, allPhotos, CACHE_CONFIG.PHOTOS_EXPIRY);
             closeBatchModal();
@@ -4499,11 +5150,23 @@
 
         // Close modal with ESC key
         document.addEventListener('keydown', function (e) {
+            // Enter ở step 2 → lưu các ảnh đã duyệt
+            if (e.key === 'Enter' && document.getElementById('batchIdModal').classList.contains('open')) {
+                if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+                const f2 = document.getElementById('batchFooterStep2');
+                const saveBtn = document.getElementById('btnBatchSave');
+                if (f2 && f2.style.display !== 'none' && saveBtn && !saveBtn.disabled && !_batchProcessing) {
+                    e.preventDefault();
+                    saveBatchApproved();
+                }
+                return;
+            }
             if (e.key === 'Escape') {
                 const editorModal = document.getElementById('editorModal');
                 if (document.getElementById('batchCropAdjustModal').classList.contains('open')) {
                     closeBatchCropAdjust();
                 } else if (document.getElementById('batchIdModal').classList.contains('open')) {
+                    if (_batchProcessing && !confirm('Đang xử lý ảnh — thoát sẽ hủy kết quả. Tiếp tục thoát?')) return;
                     closeBatchModal();
                 } else if (editorModal && editorModal.classList.contains('open')) {
                     closePhotoEditor();
@@ -4567,6 +5230,8 @@
                 style="flex-direction:row;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 16px;">
                 <span class="batch-footer-info" style="white-space:nowrap;flex-shrink:0;">Kéo khung xanh · Nhấn <b>✂️
                         Chỉnh</b> · Dùng phím <b>↑↓ +−</b></span>
+                <span id="batchAiStatus"
+                    style="display:none;font-size:11px;color:#8a95b0;white-space:nowrap;flex-shrink:0;"></span>
                 <div style="width:1px;height:20px;background:#323a48;flex-shrink:0;"></div>
                 <span style="font-size:11px;color:#8a95b0;white-space:nowrap;flex-shrink:0;">Tất cả:</span>
                 <button class="btn-batch-adj" id="btnCropUp" onclick="batchAdjustAllCropY(-0.03)"

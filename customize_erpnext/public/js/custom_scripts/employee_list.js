@@ -2029,7 +2029,7 @@ function print_employee_cards(listview) {
                 fieldname: 'card_border_radius',
                 fieldtype: 'Check',
                 label: __('Bo góc thẻ (2mm)'),
-                default: 0,
+                default: 1,
                 description: __('Áp dụng border-radius: 2mm cho viền thẻ')
             },
             {
@@ -2137,7 +2137,7 @@ function show_update_employee_photo_dialog(listview) {
                         <input type="file" id="employee-photo-input" multiple accept="image/*"
                                class="form-control" style="height: auto; padding: 6px 12px;">
                         <p class="help-box small text-muted">
-                            ${__('Select multiple photos. File names should start with the employee code (first 9 characters). Example: TIQN-0003-Nguyen Van A.jpg')}
+                            ${__('Select multiple photos. File name must start with the employee code followed by a space. Example: TIQN-0003 Nguyen Van A.jpg')}
                         </p>
                     </div>
                 `
@@ -2202,7 +2202,18 @@ function show_update_employee_photo_dialog(listview) {
 
         for (const file of files) {
             const fileName = file.name;
-            const employeeCode = fileName.substring(0, 9).toUpperCase();
+            // Employee code = first space-separated token of the file name (without extension)
+            let employeeCode = fileName.replace(/\.[^.]+$/, '').trim().split(/\s+/)[0].toUpperCase();
+            // Strip trailing junk after the code (e.g. "TIQN-2267." / "TIQN-2267_A" → "TIQN-2267")
+            const codeMatch = employeeCode.match(/^([A-Z]+-\d+)/);
+            if (codeMatch) employeeCode = codeMatch[1];
+
+            if (!employeeCode) {
+                results.errors.push({ file: fileName, error: __('Cannot extract employee code from file name') });
+                update_completed++;
+                show_results_if_complete();
+                continue;
+            }
 
             if (processed_codes.has(employeeCode)) {
                 results.duplicates.push({ file: fileName, code: employeeCode });
@@ -2213,13 +2224,13 @@ function show_update_employee_photo_dialog(listview) {
 
             processed_codes.add(employeeCode);
 
-            // Find employee by code prefix
+            // Find employee by exact code (first token of file name)
             await new Promise(resolve => {
                 frappe.call({
                     method: 'frappe.client.get_list',
                     args: {
                         doctype: 'Employee',
-                        filters: [['name', 'like', employeeCode + '%']],
+                        filters: [['name', '=', employeeCode]],
                         fields: ['name', 'employee_name'],
                         limit: 1
                     },

@@ -6,7 +6,7 @@ Tính năng cho phép chụp ảnh hoặc upload ảnh cho nhân viên với cá
 - Upload ảnh từ thư viện
 - Crop ảnh theo tỷ lệ 3:4
 - Tùy chọn xóa phông nền (AI)
-- Tự động resize về 450x600px
+- Tự động resize về 600x800px
 - Lưu vào thư mục cố định: `public/files/employee_photos/`
 - Tự động xóa ảnh cũ khi upload ảnh mới
 
@@ -112,7 +112,7 @@ bench clear-cache
    - Convert về RGB (xóa alpha channel)
 
 2. **Resize**
-   - Resize chính xác về 450x600px
+   - Resize chính xác về 600x800px
    - Sử dụng LANCZOS resampling (chất lượng cao)
 
 3. **Xóa phông nền (nếu chọn)**
@@ -182,10 +182,13 @@ bench clear-cache
   - `/files/employee_photos/` (file đúng vị trí)
 
 ### Định dạng file
-- Tên file: `{employee_id} {employee_name}.jpg`
+- Tên file: `{employee_id} {employee_name}.jpg` (hoặc `.png` nếu ảnh có nền trong suốt)
+- `employee_name` do **server tự lấy từ DB** theo `employee_id` — không tin giá trị client gửi
 - Ví dụ: `TIQN-0148 Nguyễn Thái Sơn.jpg`
-- Kích thước: 450x600px (3:4 ratio)
-- Format: JPEG, quality 85%
+- Kích thước: 600x800px (3:4 ratio)
+- Format: JPEG quality 85% / PNG
+- File tải về (download) cũng theo cùng định dạng tên: `{employee_id} {employee_name}.{ext}`
+- Bulk upload theo tên file: mã nhân viên = từ đầu tiên của tên file (tách theo dấu cách), VD `TIQN-0003 Nguyen Van A.jpg`
 
 ### Thư mục .gitkeep
 - File `/apps/customize_erpnext/customize_erpnext/public/files/employee_photos/.gitkeep`

@@ -112,10 +112,10 @@ def batch_rembg_acquire_lock(session_id):
 
 @frappe.whitelist()
 def batch_rembg_release_lock(session_id):
-    """Giải phóng lock + set evict flag ngay để workers xóa session sau batch.
-    Tránh tích lũy birefnet (~20GB/worker) giữa các lần batch liên tiếp.
+    """Giải phóng lock sau batch. KHÔNG evict session ngay:
+    giữ model warm cho batch kế tiếp (tránh cold-start birefnet ~30-60s/worker).
+    RAM guard 70% trong remove_bg_rembg + idle cleanup 30 phút lo việc dọn.
     """
-    global _rembg_sessions, _rembg_session_loaded_at
     cache = frappe.cache()
     existing = cache.get_value(_REMBG_LOCK_KEY)
     if existing:
@@ -125,15 +125,6 @@ def batch_rembg_release_lock(session_id):
             data = {}
         if data.get('session_id') == session_id:
             cache.delete_value(_REMBG_LOCK_KEY)
-
-    # Evict ngay trong process này + set flag cho tất cả workers khác
-    _rembg_sessions.clear()
-    _rembg_session_loaded_at.clear()
-    import gc; gc.collect()
-    evict_ts = time.time()
-    cache.set_value(_REMBG_EVICT_KEY, evict_ts, expires_in_sec=3600)
-    cache.delete_value(_REMBG_ACTIVE_KEY)
-    frappe.logger().info(f'[rembg] Post-batch evict triggered (evict_after={evict_ts})')
     return {'ok': True}
 
 
@@ -353,89 +344,6 @@ def set_series(prefix, current_highest_id):
     except Exception as e:
         frappe.log_error(f"Error updating series {prefix}: {str(e)}")
         return {"status": "error", "message": str(e)}
-
-@frappe.whitelist()
-def upload_employee_image(employee_id, employee_name, file_content, file_name):
-    """
-    Upload and save employee image to fixed path /private/files/employee_image/{name}_{full_name}.jpg
-    Args:
-        employee_id: Employee ID (name field)
-        employee_name: Employee full name
-        file_content: Base64 encoded image data
-        file_name: Original file name
-    """
-    try:
-        # Decode base64 image
-        if ',' in file_content:
-            # Remove data:image/jpeg;base64, prefix if present
-            file_content = file_content.split(',')[1]
-
-        file_data = base64.b64decode(file_content)
-
-        # Clean up employee name for file path
-        clean_name = employee_name.replace(' ', '_') if employee_name else 'employee'
-        clean_name = re.sub(r'[^\w\-_]', '', clean_name)
-
-        # Create fixed file name: {employee_id}_{full_name}.jpg
-        final_file_name = f"{employee_id}_{clean_name}.jpg"
-
-        # Create directory path: /private/files/employee_image/
-        site_path = frappe.utils.get_site_path()
-        employee_image_dir = os.path.join(site_path, 'private', 'files', 'employee_image')
-
-        # Create directory if it doesn't exist
-        if not os.path.exists(employee_image_dir):
-            os.makedirs(employee_image_dir, exist_ok=True)
-
-        # Full file path
-        file_path = os.path.join(employee_image_dir, final_file_name)
-
-        # Save file to disk
-        with open(file_path, 'wb') as f:
-            f.write(file_data)
-
-        # Create File document in Frappe
-        # Use relative path from site directory
-        relative_path = f'/private/files/employee_image/{final_file_name}'
-
-        # Check if file record already exists
-        existing_file = frappe.db.exists('File', {
-            'file_url': relative_path
-        })
-
-        if existing_file:
-            # Update existing file record
-            file_doc = frappe.get_doc('File', existing_file)
-            file_doc.file_size = len(file_data)
-            file_doc.save(ignore_permissions=True)
-        else:
-            # Create new file record
-            file_doc = frappe.get_doc({
-                'doctype': 'File',
-                'file_name': final_file_name,
-                'file_url': relative_path,
-                'is_private': 1,
-                'folder': 'Home',  # Use default Home folder
-                'attached_to_doctype': 'Employee',
-                'attached_to_name': employee_id,
-                'attached_to_field': 'image',
-                'file_size': len(file_data)
-            })
-            file_doc.insert(ignore_permissions=True)
-
-        frappe.db.commit()
-
-        return {
-            'status': 'success',
-            'file_url': relative_path,
-            'file_name': final_file_name,
-            'message': 'Image uploaded successfully'
-        }
-
-    except Exception as e:
-        frappe.log_error(f"Error uploading employee image: {str(e)}", "Employee Image Upload Error")
-        frappe.throw(_("Failed to upload employee image: {0}").format(str(e)))
-
 
 @frappe.whitelist()
 def generate_employee_cards_html_api(employee_ids, with_barcode=0, page_size='A4', name_font_size=18, max_length_font_20=20, card_border_radius=1, bg_color='#ffffff', border_color='#000000'):
@@ -1365,171 +1273,6 @@ def get_file_content_base64(file_url):
 
 
 @frappe.whitelist()
-def update_employee_photo(employee_id, employee_name, new_file_url, old_file_url=None):
-    """
-    Update employee photo - rename file to '{name} {full_name}' format and delete old file
-    Args:
-        employee_id: Employee ID (name field)
-        employee_name: Employee full name
-        new_file_url: URL of newly uploaded file
-        old_file_url: URL of old file to delete (optional)
-    Returns:
-        Success status and new file name
-    """
-    try:
-        # Log input for debugging
-        frappe.logger().info(f"update_employee_photo called: employee_id={employee_id}, new_file_url={new_file_url}, old_file_url={old_file_url}")
-
-        # IMPORTANT: Don't delete old file yet, because new_file_url might reference the same File document
-        # if the filename happens to be the same. We'll delete it later after we've renamed the new file.
-
-        # Get site path
-        site_path = get_site_path()
-
-        # First, find the uploaded file's actual path from File document
-        # The new_file_url might be the file_name returned from upload, not the actual URL
-        uploaded_file_doc = None
-
-        # Try to find by file_url first
-        uploaded_file_doc = frappe.db.get_value('File', {'file_url': new_file_url}, ['name', 'file_url', 'file_name'], as_dict=True)
-
-        # If not found, try to find by file_name (in case new_file_url is actually the file name)
-        if not uploaded_file_doc:
-            uploaded_file_doc = frappe.db.get_value('File', {'file_name': new_file_url}, ['name', 'file_url', 'file_name'], as_dict=True)
-
-        # Also try searching for recently created files
-        if not uploaded_file_doc:
-            # Get most recent file uploaded (within last 5 minutes)
-            from frappe.utils import now_datetime, add_to_date
-            recent_time = add_to_date(now_datetime(), minutes=-5)
-            recent_files = frappe.get_all('File',
-                filters={
-                    'creation': ['>=', recent_time],
-                },
-                fields=['name', 'file_url', 'file_name'],
-                order_by='creation desc',
-                limit=20
-            )
-
-            # Try to match by filename
-            for f in recent_files:
-                if new_file_url in f.get('file_url', '') or new_file_url in f.get('file_name', ''):
-                    uploaded_file_doc = f
-                    break
-
-        if not uploaded_file_doc:
-            frappe.logger().error(f"File document not found for URL/name: {new_file_url}")
-            return {
-                'success': False,
-                'error': f'File document not found in database: {new_file_url}'
-            }
-
-        actual_file_url = uploaded_file_doc.get('file_url')
-
-        # Determine uploaded file's physical path
-        uploaded_file_path = None
-        if actual_file_url.startswith('/private/'):
-            uploaded_file_path = os.path.join(site_path, actual_file_url.lstrip('/'))
-        elif actual_file_url.startswith('/files/'):
-            uploaded_file_path = os.path.join(site_path, 'public', actual_file_url.lstrip('/'))
-        else:
-            # Handle relative paths
-            uploaded_file_path = os.path.join(site_path, 'public', 'files', actual_file_url.lstrip('/'))
-
-        if not uploaded_file_path or not os.path.exists(uploaded_file_path):
-            frappe.logger().error(f"Uploaded file not found on disk: {actual_file_url}, tried: {uploaded_file_path}")
-            return {
-                'success': False,
-                'error': f'Uploaded file not found on disk'
-            }
-
-        # Get file extension from uploaded file
-        file_ext = os.path.splitext(uploaded_file_path)[1] or '.jpg'
-
-        # Create new file name: "{employee_id} {employee_name}.ext"
-        new_file_name = f"{employee_id} {employee_name}{file_ext}"
-
-        # Create new file path in employee_photos directory
-        # Determine base directory (public or private)
-        if '/private/' in uploaded_file_path:
-            target_dir = os.path.join(site_path, 'private', 'files', 'employee_photos')
-        else:
-            target_dir = os.path.join(site_path, 'public', 'files', 'employee_photos')
-
-        # Create directory if it doesn't exist
-        if not os.path.exists(target_dir):
-            os.makedirs(target_dir, exist_ok=True)
-
-        new_file_path = os.path.join(target_dir, new_file_name)
-
-        # Rename file on disk
-        if uploaded_file_path != new_file_path:
-            # If file with new name exists, delete it first (in case of re-upload)
-            if os.path.exists(new_file_path):
-                os.remove(new_file_path)
-                frappe.logger().info(f"Deleted existing file: {new_file_path}")
-
-            os.rename(uploaded_file_path, new_file_path)
-            frappe.logger().info(f"Renamed file from {uploaded_file_path} to {new_file_path}")
-
-        # Determine new file URL based on directory
-        if '/private/' in uploaded_file_path:
-            new_file_url_updated = f"/private/files/employee_photos/{os.path.basename(new_file_path)}"
-        else:
-            new_file_url_updated = f"/files/employee_photos/{os.path.basename(new_file_path)}"
-
-        # Update File document
-        file_doc = frappe.get_doc('File', uploaded_file_doc['name'])
-        file_doc.file_name = new_file_name
-        file_doc.file_url = new_file_url_updated
-        file_doc.attached_to_doctype = 'Employee'
-        file_doc.attached_to_name = employee_id
-        file_doc.attached_to_field = 'image'
-        file_doc.save(ignore_permissions=True)
-
-        # Update Employee image field
-        frappe.db.set_value('Employee', employee_id, 'image', new_file_url_updated)
-
-        # NOW delete old file if exists and it's different from the new one
-        if old_file_url and old_file_url != new_file_url_updated:
-            try:
-                # Delete physical file first
-                old_physical_path = None
-                if old_file_url.startswith('/private/'):
-                    old_physical_path = os.path.join(site_path, old_file_url.lstrip('/'))
-                elif old_file_url.startswith('/files/'):
-                    old_physical_path = os.path.join(site_path, 'public', old_file_url.lstrip('/'))
-
-                if old_physical_path and os.path.exists(old_physical_path):
-                    os.remove(old_physical_path)
-                    frappe.logger().info(f"Deleted old physical file: {old_physical_path}")
-
-                # Then delete File document
-                old_file_doc = frappe.db.get_value('File', {'file_url': old_file_url}, 'name')
-                if old_file_doc and old_file_doc != uploaded_file_doc.get('name'):
-                    frappe.delete_doc('File', old_file_doc, ignore_permissions=True, force=True)
-                    frappe.logger().info(f"Deleted old file document: {old_file_url}")
-            except Exception as e:
-                frappe.logger().warning(f"Could not delete old file {old_file_url}: {str(e)}")
-
-        frappe.db.commit()
-
-        return {
-            'success': True,
-            'new_file_name': new_file_name,
-            'new_file_url': new_file_url_updated
-        }
-
-    except Exception as e:
-        frappe.logger().error(f"Error updating employee photo: {str(e)}")
-        frappe.log_error(f"Error: {str(e)}", "Update Employee Photo Error")
-        return {
-            'success': False,
-            'error': str(e)
-        }
-
-
-@frappe.whitelist()
 def process_employee_photo(employee_id, employee_name, image_data):
     """
     Process employee photo: crop to 3:4 ratio, resize to 600x800px.
@@ -1577,8 +1320,17 @@ def process_employee_photo(employee_id, employee_name, image_data):
             if img.mode not in ('RGBA', 'RGB'):
                 img = img.convert('RGBA') if 'A' in img.getbands() else img.convert('RGB')
 
-        # Resize to exactly 600x800px (image should already be 3:4 ratio from frontend crop)
-        img = img.resize((600, 800), Image.Resampling.LANCZOS)
+        # Resize to exactly 600x800px, PRESERVING aspect ratio.
+        # Frontend crop flows already send 3:4; raw uploads (bulk by filename) may be
+        # any ratio (e.g. 9:16 phone photo) — center-crop to 3:4 instead of squashing.
+        # centering=(0.5, 0.4): hơi lệch lên trên — khuôn mặt thường ở nửa trên ảnh chân dung.
+        if img.size == (600, 800):
+            pass  # đã đúng kích thước (batch/editor gửi 600×800) — bỏ resample thừa
+        elif abs((img.width / img.height) - 0.75) > 0.01:
+            from PIL import ImageOps
+            img = ImageOps.fit(img, (600, 800), Image.Resampling.LANCZOS, centering=(0.5, 0.4))
+        else:
+            img = img.resize((600, 800), Image.Resampling.LANCZOS)
 
         # Save to BytesIO
         output_buffer = io.BytesIO()
@@ -1587,6 +1339,12 @@ def process_employee_photo(employee_id, employee_name, image_data):
         else:
             img.save(output_buffer, format='PNG', optimize=True)
         output_data = output_buffer.getvalue()
+
+        # Employee name from DB is the source of truth — client value only as fallback
+        db_employee_name = frappe.db.get_value('Employee', employee_id, 'employee_name')
+        if db_employee_name is None:
+            frappe.throw(_("Employee {0} not found").format(employee_id))
+        employee_name = db_employee_name or employee_name
 
         # Clean up employee name for file path
         # Remove invalid filename characters but keep Vietnamese characters
@@ -1609,11 +1367,13 @@ def process_employee_photo(employee_id, employee_name, image_data):
         # Full file path
         file_path = os.path.join(employee_photos_dir, final_file_name)
 
-        # Get old file URL to delete later
-        old_file_url = frappe.db.get_value('Employee', employee_id, 'image')
+        # Save new file to disk FIRST — if this fails, the old photo stays intact
+        with open(file_path, 'wb') as f:
+            f.write(output_data)
 
         # Delete ALL old files attached to this employee's image field
         # This includes: old photo + any temporary uploaded files
+        # (physical file just written above is always skipped)
         try:
             # Get all File documents attached to this employee's image field
             old_files = frappe.get_all('File',
@@ -1634,7 +1394,8 @@ def process_employee_photo(employee_id, employee_name, image_data):
                     elif old_file.file_url.startswith('/files/'):
                         old_physical_path = os.path.join(site_path, 'public', old_file.file_url.lstrip('/'))
 
-                    if old_physical_path and os.path.exists(old_physical_path):
+                    if (old_physical_path and os.path.exists(old_physical_path)
+                            and os.path.abspath(old_physical_path) != os.path.abspath(file_path)):
                         os.remove(old_physical_path)
                         frappe.logger().info(f"Deleted old file: {old_physical_path}")
 
@@ -1653,14 +1414,23 @@ def process_employee_photo(employee_id, employee_name, image_data):
                 # Search in /files/employee_photos/ directory
                 employee_photos_dir = os.path.join(site_path, 'public', 'files', 'employee_photos')
 
+                import glob
                 for search_dir in [files_dir, employee_photos_dir]:
                     if os.path.exists(search_dir):
-                        # Find files matching pattern: {employee_id} *.jpg
-                        import glob
-                        pattern = os.path.join(search_dir, f"{employee_id} *.jpg")
-                        matching_files = glob.glob(pattern)
+                        # Find files matching pattern: {employee_id} *.jpg / *.png
+                        matching_files = []
+                        for pattern_ext in ('jpg', 'png'):
+                            pattern = os.path.join(search_dir, f"{employee_id} *.{pattern_ext}")
+                            matching_files.extend(glob.glob(pattern))
+                        # Also catch "{employee_id}.jpg" (code only, no name)
+                        for pattern_ext in ('jpg', 'png'):
+                            exact = os.path.join(search_dir, f"{employee_id}.{pattern_ext}")
+                            if os.path.exists(exact):
+                                matching_files.append(exact)
 
                         for file_to_delete in matching_files:
+                            if os.path.abspath(file_to_delete) == os.path.abspath(file_path):
+                                continue  # never delete the file just written
                             if os.path.exists(file_to_delete):
                                 os.remove(file_to_delete)
                                 frappe.logger().info(f"Deleted orphaned file: {file_to_delete}")
@@ -1669,10 +1439,6 @@ def process_employee_photo(employee_id, employee_name, image_data):
 
         except Exception as del_err:
             frappe.logger().warning(f"Could not delete old files: {str(del_err)}")
-
-        # Save file to disk
-        with open(file_path, 'wb') as f:
-            f.write(output_data)
 
         # Create file URL
         file_url = f'/files/employee_photos/{final_file_name}'
