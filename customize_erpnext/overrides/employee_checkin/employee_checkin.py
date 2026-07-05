@@ -17,9 +17,13 @@ from hrms.hr.doctype.employee_checkin.employee_checkin import (
 from customize_erpnext.api.employee.employee_utils import (
 	check_employee_maternity_status
 )
-# Constants for minimum thresholds
-MIN_MINUTES_OT = 15                    # Minimum total OT
-MIN_MINUTES_PRE_SHIFT_OT = 60          # Minimum pre-shift OT
+from customize_erpnext.customize_erpnext.doctype.attendance_calculation_setting.attendance_calculation_setting import (
+	get_attendance_settings,
+	floor_ot_to_block,
+	floor_working_to_block,
+)
+# Minimum OT thresholds now live in Attendance Calculation Setting
+# (min_ot_minutes / min_pre_shift_ot_minutes), read via get_attendance_settings()
 
 
 
@@ -118,12 +122,19 @@ def calculate_afternoon_hours(check_in, check_out, shift_end_break_time, shift_e
 		return 0
 	afternoon_hours = time_diff_in_hours(afternoon_end, afternoon_start)
 	if afternoon_hours > 0 and has_maternity:
-		# Add 1 hour for maternity benefit if applicable
-		afternoon_hours += 1
+		# Maternity benefit: leave early but still counted as full hours
+		afternoon_hours += flt(get_attendance_settings().maternity_benefit_hours)
 	return afternoon_hours
 
 
-def custom_calculate_working_hours_overtime(employee, attendance_date, in_time, out_time, shift_type_details, has_maternity_benefit=False):
+def custom_calculate_working_hours_overtime(employee, attendance_date, in_time, out_time, shift_type_details, has_maternity_benefit=False, ot_entries=None):
+	"""Calculate working hours + overtime for one (employee, date).
+
+	ot_entries: optional preloaded list of OT registration entries
+	[{begin_time, end_time}] for this (employee, date). When provided (even an
+	empty list), ALL overtime lookups run in-memory — no DB queries. When None,
+	falls back to per-call DB queries (legacy path).
+	"""
 	# Initialize all variables
 	total_hours = 0
 	actual_overtime_duration = 0
@@ -140,20 +151,17 @@ def custom_calculate_working_hours_overtime(employee, attendance_date, in_time, 
 	afternoon_hours = calculate_afternoon_hours(in_time, out_time, shift_type_details.custom_end_break_time, shift_type_details.end_time, has_maternity_benefit)
 	total_hours = morning_hours + afternoon_hours
 
-	if out_time >= shift_end + timedelta(minutes=cint(shift_type_details.custom_overtime_minutes_threshold)):
-		actual_overtime_duration = get_actual_overtime_duration(
-			employee,
-			attendance_date,
-			in_time,
-			out_time,
-			shift_type_details
-		) or 0
-		
-	else:
-		actual_overtime_duration = 0
-		
-	custom_approved_overtime_duration = get_approved_overtime(employee, attendance_date)
-	custom_final_overtime_duration = min(custom_approved_overtime_duration, actual_overtime_duration)
+	# Working hours floored to working_block_minutes (default 1 = unchanged)
+	total_hours = floor_working_to_block(total_hours)
+
+	# Per-segment OT (pre / lunch / post) — final = Σ min(actual, approved)
+	# per segment, NOT a global clamp (LEGACY_APP_TIMESHEET_ALGORITHM.md §7.10)
+	segments = calculate_overtime_segments(
+		employee, attendance_date, in_time, out_time, shift_type_details, ot_entries=ot_entries
+	)
+	actual_overtime_duration = segments.actual
+	custom_approved_overtime_duration = segments.approved
+	custom_final_overtime_duration = segments.final
 	# Check late entry
 	if (
 		cint(shift_type_details.enable_late_entry_marking)
@@ -175,16 +183,10 @@ def custom_calculate_working_hours_overtime(employee, attendance_date, in_time, 
 
 
 
-def get_approved_overtime(employee, attendance_date):
-	"""Get approved overtime from Overtime Registration
-
-	Returns:
-		float: Total approved overtime hours from submitted registrations
-	"""
-
-	# Query submitted overtime registrations (docstatus = 1)
-	approved_ot = frappe.db.sql("""
-		SELECT SUM(TIMESTAMPDIFF(MINUTE, ord.begin_time, ord.end_time) / 60.0) as total_hours
+def _fetch_ot_entries(employee, attendance_date):
+	"""Fetch submitted OT registration entries for one (employee, date)."""
+	return frappe.db.sql("""
+		SELECT ord.begin_time, ord.end_time
 		FROM `tabOvertime Registration Detail` ord
 		JOIN `tabOvertime Registration` or_doc ON ord.parent = or_doc.name
 		WHERE ord.employee = %(employee)s
@@ -192,128 +194,141 @@ def get_approved_overtime(employee, attendance_date):
 		  AND or_doc.docstatus = 1
 	""", {"employee": employee, "date": attendance_date}, as_dict=1)
 
-	return flt(approved_ot[0].total_hours) if approved_ot and approved_ot[0].total_hours else 0
+
+def _span_hours(entries):
+	"""Span (max end - min begin) in hours of a list of (begin_td, end_td) tuples."""
+	earliest = min(b for b, _ in entries)
+	latest = max(t for _, t in entries)
+	return max((latest - earliest).total_seconds() / 3600.0, 0)
 
 
-def get_actual_overtime_duration(employee, attendance_date, in_time, out_time, shift_type_details):
-	"""Calculate actual overtime
+def calculate_overtime_segments(employee, attendance_date, in_time, out_time, shift_type_details, ot_entries=None):
+	"""
+	Per-segment OT calculation per LEGACY_APP_TIMESHEET_ALGORITHM.md §7.
 
-	Overtime = Pre-shift OT + Lunch break OT + Post-shift OT
+	Segments: pre-shift / lunch-break / post-shift (+ Sunday approved).
+	- approved per zone = span (max end - min begin) of that zone's registrations
+	- PRE actual = shift_start - in_time, CAPPED at pre approved (§7.4);
+	  min threshold = min_pre_shift_ot_minutes; only when pre registration exists
+	- POST actual = out_time - shift_end, NOT capped by registration (§7.5);
+	  gated by Shift Type custom_overtime_minutes_threshold; min = min_ot_minutes
+	- LUNCH counted only when allow_ot_in_rest_time setting is ON, a registration
+	  covers the break AND check-ins span the break (§7.8); fully approved
+	- final = SUM of min(actual, approved) PER SEGMENT — never a global
+	  clamp(total_actual, total_approved) (§7.10)
+	- in_time/out_time may be None (0/1 checkin): actual/final stay 0 but
+	  approved is still computed for display (§7.9)
+	- Sunday: approved = span of ALL entries minus overlap with the shift's
+	  configured lunch break; the optimized Sunday block overrides actual/final
 
-	Args:
-		employee: Employee ID
-		attendance_date: Attendance date
-		check_in: Check-in datetime
-		check_out: Check-out datetime
-		shift_config: Shift configuration dict
-		has_maternity: Whether employee has maternity benefit
+	shift_type_details.end_time may already be maternity-adjusted by the caller.
+	All OT values are floored to ot_block_minutes via floor_ot_to_block().
 
 	Returns:
-		float: Total actual overtime hours
+		frappe._dict(actual, approved, final)
 	"""
-	if not in_time or not out_time:
-		return 0
+	settings = get_attendance_settings()
+	result = frappe._dict(actual=0.0, approved=0.0, final=0.0)
 
-	# Get shift times - these are required
-	shift_start_time = timedelta_to_time(shift_type_details.get("start_time"))
-	shift_end_time = timedelta_to_time(shift_type_details.get("end_time"))
-	if not shift_start_time or not shift_end_time:
-		return 0
+	if ot_entries is None:
+		ot_entries = _fetch_ot_entries(employee, attendance_date)
 
-	shift_start = datetime.combine(in_time.date(), shift_start_time)
-	shift_end = datetime.combine(in_time.date(), shift_end_time)
+	shift_start_t = timedelta_to_time(shift_type_details.get("start_time"))
+	shift_end_t = timedelta_to_time(shift_type_details.get("end_time"))
+	if not shift_start_t or not shift_end_t:
+		return result
 
-	# Get break times - these are optional
-	break_start_time = timedelta_to_time(shift_type_details.get("custom_begin_break_time"))
-	break_end_time = timedelta_to_time(shift_type_details.get("custom_end_break_time"))
-	has_break = break_start_time and break_end_time
+	base_date = in_time.date() if in_time else getdate(attendance_date)
+	shift_start_dt = datetime.combine(base_date, shift_start_t)
+	shift_end_dt = datetime.combine(base_date, shift_end_t)
+
+	break_start_t = timedelta_to_time(shift_type_details.get("custom_begin_break_time"))
+	break_end_t = timedelta_to_time(shift_type_details.get("custom_end_break_time"))
+	has_break = bool(break_start_t and break_end_t and break_start_t != break_end_t)
+
+	# Normalize entries to (begin_td, end_td) tuples
+	entries = []
+	for e in (ot_entries or []):
+		b, t = e.get("begin_time"), e.get("end_time")
+		if b is not None and t is not None and t > b:
+			entries.append((b, t))
+
+	# ------------------------------------------------------------------
+	# Sunday: approved = span of all entries - lunch break overlap (shift
+	# config per site decision); actual/final are overridden by the caller
+	# (Sunday block in shift_type_optimized) for days with checkins.
+	# ------------------------------------------------------------------
+	is_sunday = getdate(attendance_date).weekday() == 6
+	if is_sunday:
+		if entries:
+			approved = _span_hours(entries)
+			if has_break:
+				earliest = min(b for b, _ in entries)
+				latest = max(t for _, t in entries)
+				bs = timedelta(hours=break_start_t.hour, minutes=break_start_t.minute)
+				be = timedelta(hours=break_end_t.hour, minutes=break_end_t.minute)
+				overlap_start = max(earliest, bs)
+				overlap_end = min(latest, be)
+				if overlap_end > overlap_start:
+					approved -= (overlap_end - overlap_start).total_seconds() / 3600.0
+			result.approved = flt(approved)
+		if out_time and out_time > shift_end_dt:
+			result.actual = floor_ot_to_block((out_time - shift_end_dt).total_seconds() / 3600.0)
+		result.final = min(result.actual, result.approved)
+		return result
+
+	# Zone classification (weekday)
+	shift_start_td = timedelta(hours=shift_start_t.hour, minutes=shift_start_t.minute, seconds=shift_start_t.second)
+	shift_end_td = timedelta(hours=shift_end_t.hour, minutes=shift_end_t.minute, seconds=shift_end_t.second)
+
+	pre_entries = [(b, t) for b, t in entries if t <= shift_start_td]
+	post_entries = [(b, t) for b, t in entries if b >= shift_end_td]
+	lunch_entries = []
 	if has_break:
-		break_start = datetime.combine(in_time.date(), break_start_time)
-		break_end = datetime.combine(in_time.date(), break_end_time)
-	else:
-		break_start = None
-		break_end = None
+		bs = timedelta(hours=break_start_t.hour, minutes=break_start_t.minute)
+		be = timedelta(hours=break_end_t.hour, minutes=break_end_t.minute)
+		lunch_entries = [(b, t) for b, t in entries if b <= bs and t >= be]
 
-	# Pre-shift overtime (only if OT registration exists)
-	pre_shift_ot = 0
-	if in_time < shift_start:
-		has_pre_shift_reg = check_pre_shift_ot_registration(
-			employee, attendance_date, in_time.time(), shift_start.time()
-		)
-		if has_pre_shift_reg:
-			pre_shift_ot = time_diff_in_hours(shift_start, in_time)
-			# Apply minimum threshold
-			if pre_shift_ot * 60 < MIN_MINUTES_PRE_SHIFT_OT:
-				pre_shift_ot = 0
+	# --- PRE-SHIFT segment ---
+	if pre_entries:
+		pre_approved = flt(_span_hours(pre_entries))
+		pre_actual = 0
+		# actual requires BOTH checkins (§7.9: no lastOut → otActual = 0)
+		if in_time and out_time and in_time < shift_start_dt:
+			raw = (shift_start_dt - in_time).total_seconds() / 3600.0
+			raw = min(raw, pre_approved)  # cap actual at registered span (§7.4)
+			pre_actual = floor_ot_to_block(raw, min_minutes=settings.min_pre_shift_ot_minutes)
+		result.actual += pre_actual
+		result.approved += pre_approved
+		result.final += min(pre_actual, pre_approved)
 
-	# Lunch break overtime (only if shift has lunch break and registration exists)
-	lunch_break_ot = 0
-	if has_break and break_start_time != break_end_time:
-		if (in_time < break_start and out_time > break_end and
-			check_lunch_break_ot_registration(employee, attendance_date, break_start.time(), break_end.time())):
-				lunch_break_ot = time_diff_in_hours(break_end, break_start)
-		else:
-			lunch_break_ot = 0
+	# --- POST-SHIFT segment ---
+	# actual is computed even WITHOUT a registration (visible in reports);
+	# final stays 0 in that case because approved = 0
+	post_actual = 0
+	if in_time and out_time:
+		ot_threshold = cint(shift_type_details.get("custom_overtime_minutes_threshold"))
+		if out_time >= shift_end_dt + timedelta(minutes=ot_threshold):
+			raw = (out_time - shift_end_dt).total_seconds() / 3600.0
+			post_actual = floor_ot_to_block(raw)
+	post_approved = flt(_span_hours(post_entries)) if post_entries else 0
+	result.actual += post_actual
+	result.approved += post_approved
+	result.final += min(post_actual, post_approved)
 
-	# Post-shift overtime (adjusted for maternity benefit)
-	post_shift_ot = 0
-	expected_end = shift_end 
-	if out_time > expected_end:
-		post_shift_ot = time_diff_in_hours(out_time, expected_end)
-		if post_shift_ot < MIN_MINUTES_OT / 60:
-			post_shift_ot = 0
+	# --- LUNCH-BREAK segment (fully approved when counted, §7.8) ---
+	if lunch_entries and cint(settings.allow_ot_in_rest_time) and has_break and in_time and out_time:
+		break_start_dt = datetime.combine(base_date, break_start_t)
+		break_end_dt = datetime.combine(base_date, break_end_t)
+		if in_time < break_start_dt and out_time > break_end_dt:
+			lunch_hours = flt((break_end_dt - break_start_dt).total_seconds() / 3600.0)
+			result.actual += lunch_hours
+			result.approved += lunch_hours
+			result.final += lunch_hours
 
-	total_ot = pre_shift_ot + lunch_break_ot + post_shift_ot
-
-	# Apply minimum total OT threshold
-	if total_ot * 60 < MIN_MINUTES_OT:
-		total_ot = 0
-
-	return total_ot
-
-
-def check_pre_shift_ot_registration(employee, attendance_date, check_in_time, shift_start_time):
-	"""Check if pre-shift OT registration exists"""
-	registrations = frappe.db.sql("""
-		SELECT COUNT(*) as count
-		FROM `tabOvertime Registration Detail` ord
-		JOIN `tabOvertime Registration` or_doc ON ord.parent = or_doc.name
-		WHERE ord.employee = %(employee)s
-		  AND ord.date = %(date)s
-		  AND or_doc.docstatus = 1
-		  AND ord.begin_time <= %(shift_start_time)s
-		  AND ord.end_time >= %(check_in_time)s
-	""", {
-		"employee": employee,
-		"date": attendance_date,
-		"shift_start_time": shift_start_time,
-		"check_in_time": check_in_time
-	}, as_dict=1)
-
-	return registrations[0].count > 0 if registrations else False
+	return result
 
 
-def check_lunch_break_ot_registration(employee, attendance_date, break_start_time, break_end_time):
-	"""Check if lunch break OT registration exists"""
-	registrations = frappe.db.sql("""
-		SELECT COUNT(*) as count
-		FROM `tabOvertime Registration Detail` ord
-		JOIN `tabOvertime Registration` or_doc ON ord.parent = or_doc.name
-		WHERE ord.employee = %(employee)s
-		  AND ord.date = %(date)s
-		  AND or_doc.docstatus = 1
-		  AND (
-			  -- OT registration overlaps with lunch break period
-			  (ord.begin_time <= %(break_end)s AND ord.end_time >= %(break_start)s)
-		  )
-	""", {
-		"employee": employee,
-		"date": attendance_date,
-		"break_start": break_start_time,
-		"break_end": break_end_time
-	}, as_dict=1)
-
-	return registrations[0].count > 0 if registrations else False
 
 def custom_mark_attendance_and_link_log(
 	logs, 
@@ -376,10 +391,12 @@ def custom_create_or_update_attendance(
 		["start_time", "end_time", "custom_begin_break_time", "custom_end_break_time", "custom_standard_working_hours", "overtime_type","custom_overtime_minutes_threshold", "enable_late_entry_marking", "late_entry_grace_period", "enable_early_exit_marking", "early_exit_grace_period"],
 		as_dict=True
 	)
-	# Maternity benefit: reduce shift end_time by 60 minutes
+	# Maternity benefit: reduce shift end_time by maternity_benefit_hours (setting)
 	if custom_maternity_benefit:
 		# shift_type_details.end_time is a timedelta object (e.g., timedelta(hours=17) for 17:00)
-		shift_type_details.end_time = shift_type_details.end_time - timedelta(hours=1)
+		shift_type_details.end_time = shift_type_details.end_time - timedelta(
+			hours=flt(get_attendance_settings().maternity_benefit_hours)
+		)
 
 	# Initialize status (will be set to "Present" if updating existing attendance)
 	status = "Present"
@@ -434,12 +451,13 @@ def custom_create_or_update_attendance(
 			"status": status,
 			"in_time": in_time,
 			"out_time": out_time,
-			"working_hours": working_hours,
+			# Decimal rounding per reference §12: working 2dp, OT 1dp
+			"working_hours": flt(working_hours, 2),
 			"late_entry": late_entry,
 			"early_exit": early_exit,
-			"actual_overtime_duration": actual_overtime_duration,
-			"custom_approved_overtime_duration": custom_approved_overtime_duration,
-			"custom_final_overtime_duration": custom_final_overtime_duration,
+			"actual_overtime_duration": flt(actual_overtime_duration, 1),
+			"custom_approved_overtime_duration": flt(custom_approved_overtime_duration, 1),
+			"custom_final_overtime_duration": flt(custom_final_overtime_duration, 1),
 			"overtime_type": overtime_type})
 		frappe.db.set_value("Attendance", attendance.name, attendance_update_data)
 		return frappe.get_doc("Attendance", attendance.name)
@@ -530,14 +548,14 @@ def update_employee_checkin(doc, from_hook=True):
 	except Exception as e:
 		frappe.log_error(f"Error in fetch_shift for {doc.name}", str(e))
 
-	# If shift is None or empty after fetch_shift, set to 'Day' as default
+	# If shift is None or empty after fetch_shift, use the configured default shift
 	# This ensures all checkins have a shift assigned even if they fall outside defined shift timings
 	if not doc.shift:
-		doc.shift = 'Day'
+		doc.shift = get_attendance_settings().default_shift
 		doc.offshift = 0
 		# Add comment to document
 		try:
-			doc.add_comment("Comment", text="Not found Shift for this checkin, set shift to default: Day")
+			doc.add_comment("Comment", text=f"Not found Shift for this checkin, set shift to default: {doc.shift}")
 		except Exception:
 			pass
 
@@ -724,8 +742,8 @@ def bulk_update_employee_checkin(from_date=None, to_date=None, employees=None):
 		if default_shift:
 			return default_shift
 
-		# Final fallback to 'Day' if no shift found (priority 3)
-		return 'Day'
+		# Final fallback to configured default shift (priority 3)
+		return get_attendance_settings().default_shift
 
 	# STEP 3: Process in batches and collect bulk updates
 	batch_size = 500
@@ -734,7 +752,6 @@ def bulk_update_employee_checkin(from_date=None, to_date=None, employees=None):
 	total_skipped = 0
 	total_errors = 0
 	bulk_updates = []
-	checkins_need_comment = []  # Track checkins that need "set to Day" comment
 
 	print(f"   Processing in batches of {batch_size}...")
 
@@ -744,115 +761,90 @@ def bulk_update_employee_checkin(from_date=None, to_date=None, employees=None):
 
 		for checkin in batch:
 			try:
-				# Get document (minimal load, no hooks)
-				doc = frappe.get_doc("Employee Checkin", checkin.name)
-				doc.flags.ignore_hooks = True
+				# All fields needed are already in the SQL row — no frappe.get_doc
+				# per checkin (that was the main bottleneck of this function)
 
 				# CRITICAL: Get shift for DATE from Shift Assignment (not from checkin TIME window)
 				# This ensures all checkins for same employee-date have same shift
-				checkin_date = getdate(doc.time)
+				checkin_date = getdate(checkin.time)
 
 				# Get correct shift from Shift Assignment or employee default
-				doc.shift = get_employee_shift_for_date(doc.employee, checkin_date)
-				doc.offshift = 0
-				set_to_day = False
-
-				# Validate shift exists before proceeding
-				if not doc.shift:
-					frappe.log_error(f"No shift found for employee {doc.employee} on {checkin_date}", "Checkin Update Error")
-					doc.shift = 'Day'  # Safe fallback
+				new_shift = get_employee_shift_for_date(checkin.employee, checkin_date)
+				new_offshift = 0
 
 				# Populate shift timing fields
+				new_shift_start = new_shift_end = None
+				new_shift_actual_start = new_shift_actual_end = None
 				try:
-					from datetime import datetime, timedelta
 					from frappe.utils import get_time
 
 					# Verify shift type exists
-					if not frappe.db.exists("Shift Type", doc.shift):
-						frappe.log_error(f"Shift Type '{doc.shift}' not found for checkin {doc.name}", "Shift Type Missing")
-						doc.shift = 'Day'  # Fallback to Day shift
+					if not frappe.db.exists("Shift Type", new_shift):
+						frappe.log_error(f"Shift Type '{new_shift}' not found for checkin {checkin.name}", "Shift Type Missing")
+						new_shift = get_attendance_settings().default_shift
 
-					# Get shift type configuration
-					shift_type = frappe.get_cached_doc("Shift Type", doc.shift)
+					# Get shift type configuration (cached — 1 load per shift type)
+					shift_type = frappe.get_cached_doc("Shift Type", new_shift)
 
-					# Calculate shift start and end based on shift timings
 					# IMPORTANT: Frappe stores Time fields as timedelta, need to convert to time object
 					shift_start_time = get_time(shift_type.start_time)
 					shift_end_time = get_time(shift_type.end_time)
 
-					# Create shift_start datetime (shift start time on checkin date)
-					doc.shift_start = datetime.combine(checkin_date, shift_start_time)
-
-					# Create shift_end datetime (shift end time on checkin date, or next day if overnight)
-					doc.shift_end = datetime.combine(checkin_date, shift_end_time)
+					new_shift_start = datetime.combine(checkin_date, shift_start_time)
+					new_shift_end = datetime.combine(checkin_date, shift_end_time)
 					if shift_end_time < shift_start_time:
 						# Overnight shift
-						doc.shift_end += timedelta(days=1)
+						new_shift_end += timedelta(days=1)
 
 					# For actual shift timings, add tolerance from shift type
 					begin_checkin_before = shift_type.begin_check_in_before_shift_start_time or 0
 					allow_checkout_after = shift_type.allow_check_out_after_shift_end_time or 0
 
-					doc.shift_actual_start = doc.shift_start - timedelta(minutes=begin_checkin_before)
-					doc.shift_actual_end = doc.shift_end + timedelta(minutes=allow_checkout_after)
+					new_shift_actual_start = new_shift_start - timedelta(minutes=begin_checkin_before)
+					new_shift_actual_end = new_shift_end + timedelta(minutes=allow_checkout_after)
 
 				except Exception as e:
-					frappe.log_error(f"Error populating shift timing for {doc.name}", str(e))
+					frappe.log_error(f"Error populating shift timing for {checkin.name}", str(e))
 
 				# Determine log_type based on position in day
-				checkin_date = getdate(doc.time)
-				key = (doc.employee, checkin_date)
-				day_checkins = checkins_by_date[key]
+				day_checkins = checkins_by_date[(checkin.employee, checkin_date)]
 
-				# Find position of this checkin in the day
+				new_log_type = checkin.log_type
 				if len(day_checkins) == 1:
 					# Only one checkin - set to IN
-					doc.log_type = "IN"
+					new_log_type = "IN"
 				else:
 					# Multiple checkins - first = IN, last = OUT
-					if day_checkins[0].name == doc.name:
-						doc.log_type = "IN"
-					elif day_checkins[-1].name == doc.name:
-						doc.log_type = "OUT"
-					# Middle checkins keep their current log_type or set to None
+					if day_checkins[0].name == checkin.name:
+						new_log_type = "IN"
+					elif day_checkins[-1].name == checkin.name:
+						new_log_type = "OUT"
+					# Middle checkins keep their current log_type
 
 				# Check if any field has changed before adding to bulk update
 				total_checked += 1
-				has_changes = False
-
-				# Compare new values with old values from database
-				if doc.shift != checkin.shift:
-					has_changes = True
-				elif doc.offshift != (checkin.offshift or 0):
-					has_changes = True
-				elif doc.log_type != checkin.log_type:
-					has_changes = True
-				elif doc.shift_start != checkin.shift_start:
-					has_changes = True
-				elif doc.shift_end != checkin.shift_end:
-					has_changes = True
-				elif doc.shift_actual_start != checkin.shift_actual_start:
-					has_changes = True
-				elif doc.shift_actual_end != checkin.shift_actual_end:
-					has_changes = True
+				has_changes = (
+					new_shift != checkin.shift
+					or new_offshift != (checkin.offshift or 0)
+					or new_log_type != checkin.log_type
+					or new_shift_start != checkin.shift_start
+					or new_shift_end != checkin.shift_end
+					or new_shift_actual_start != checkin.shift_actual_start
+					or new_shift_actual_end != checkin.shift_actual_end
+				)
 
 				# Only add to bulk update if there are actual changes
 				if has_changes:
 					bulk_updates.append({
-						'name': doc.name,
-						'shift': doc.shift,
-						'offshift': doc.offshift,
-						'log_type': doc.log_type,
-						'shift_start': doc.shift_start,
-						'shift_end': doc.shift_end,
-						'shift_actual_start': doc.shift_actual_start,
-						'shift_actual_end': doc.shift_actual_end
+						'name': checkin.name,
+						'shift': new_shift,
+						'offshift': new_offshift,
+						'log_type': new_log_type,
+						'shift_start': new_shift_start,
+						'shift_end': new_shift_end,
+						'shift_actual_start': new_shift_actual_start,
+						'shift_actual_end': new_shift_actual_end
 					})
-
-					# Track if need comment
-					if set_to_day:
-						checkins_need_comment.append(doc.name)
-
 					total_updated += 1
 				else:
 					total_skipped += 1
@@ -955,17 +947,6 @@ def bulk_update_employee_checkin(from_date=None, to_date=None, employees=None):
 			bulk_updates = []
 
 		# Commit after each batch
-		frappe.db.commit()
-
-	# STEP 5: Bulk add comments for checkins set to 'Day'
-	if checkins_need_comment:
-		print(f"\n   💬 Adding comments to {len(checkins_need_comment)} checkins set to 'Day'...")
-		for checkin_name in checkins_need_comment:
-			try:
-				doc = frappe.get_doc("Employee Checkin", checkin_name)
-				doc.add_comment("Comment", text="Not found Shift for this checkin, set shift to default: Day")
-			except Exception:
-				pass  # Ignore comment errors
 		frappe.db.commit()
 
 	elapsed = time_module.time() - start_time

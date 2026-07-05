@@ -4,7 +4,7 @@
 frappe.query_reports["Shift Attendance Customize"] = {
 	onload: function (report) {
 		// Add export Excel button
-		report.page.add_inner_button(__('⬇️1. Export Excel - C&B Template'), function () {
+		report.page.add_inner_button(__('⬇️1. Export Excel'), function () {
 			export_attendance_excel(report);
 		});
 

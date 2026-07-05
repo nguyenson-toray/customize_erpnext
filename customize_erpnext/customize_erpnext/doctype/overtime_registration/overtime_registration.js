@@ -1185,21 +1185,21 @@ function check_all_before_save(frm) {
     });
 }
 
-// Adjust begin_time and end_time for employees with maternity benefits (-1 hour)
+// Adjust begin_time and end_time for employees with maternity benefits
+// (offset comes from server: Attendance Calculation Setting → maternity_benefit_hours)
 function adjust_maternity_employee_times(frm, employees_to_adjust) {
-    // Create a map of idx to adjustment
+    // Create a map of idx to adjustment hours
     const adjustment_map = new Map();
     employees_to_adjust.forEach(emp => {
-        adjustment_map.set(emp.idx, true);
+        adjustment_map.set(emp.idx, emp.adjust_hours || 1);
     });
 
     // Adjust times in child table
     frm.doc.ot_employees.forEach(d => {
         if (adjustment_map.has(d.idx)) {
-            // Subtract 1 hour from begin_time
-            d.begin_time = subtract_one_hour(d.begin_time);
-            // Subtract 1 hour from end_time
-            d.end_time = subtract_one_hour(d.end_time);
+            const hours = adjustment_map.get(d.idx);
+            d.begin_time = subtract_hours(d.begin_time, hours);
+            d.end_time = subtract_hours(d.end_time, hours);
         }
     });
 
@@ -1212,8 +1212,8 @@ function adjust_maternity_employee_times(frm, employees_to_adjust) {
     });
 }
 
-// Helper function to subtract 1 hour from time string
-function subtract_one_hour(time_str) {
+// Helper function to subtract N hours (can be fractional, e.g. 0.5) from time string
+function subtract_hours(time_str, hours_to_subtract) {
     if (!time_str) return time_str;
 
     // Parse time string (format: HH:MM:SS or HH:MM)
@@ -1222,15 +1222,14 @@ function subtract_one_hour(time_str) {
     let minutes = parseInt(parts[1]);
     let seconds = parts.length > 2 ? parseInt(parts[2]) : 0;
 
-    // Subtract 1 hour
-    hours = hours - 1;
-    if (hours < 0) {
-        hours = 23; // Wrap around to previous day
+    let total_minutes = hours * 60 + minutes - Math.round((hours_to_subtract || 1) * 60);
+    if (total_minutes < 0) {
+        total_minutes += 24 * 60; // Wrap around to previous day
     }
 
     // Format back to string
-    return String(hours).padStart(2, '0') + ':' +
-        String(minutes).padStart(2, '0') + ':' +
+    return String(Math.floor(total_minutes / 60)).padStart(2, '0') + ':' +
+        String(total_minutes % 60).padStart(2, '0') + ':' +
         String(seconds).padStart(2, '0');
 }
 

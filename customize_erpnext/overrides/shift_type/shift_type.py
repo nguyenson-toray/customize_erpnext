@@ -15,8 +15,8 @@ from customize_erpnext.overrides.employee_checkin.employee_checkin import (
 from customize_erpnext.api.employee.employee_utils import (
 	check_employee_maternity_status
 )
-from customize_erpnext.overrides.shift_type.shift_type_optimized import (
-	SPECIAL_HOUR_FORCE_UPDATE
+from customize_erpnext.customize_erpnext.doctype.attendance_calculation_setting.attendance_calculation_setting import (
+	get_force_update_hours
 )
 
 EMPLOYEE_CHUNK_SIZE = 20
@@ -95,7 +95,7 @@ def custom_get_employee_checkins(self) -> list[dict]:
 	print(f"custom_get_employee_checkins called for Shift Type: {self.name}") 
 	fore_get_logs = False
 	# Check if this is a web request (UI) or background job (hook)
-	if (hasattr(frappe.local, 'request') and frappe.local.request) or frappe.utils.now_datetime().hour == 8   or frappe.utils.now_datetime().hour == 23:
+	if (hasattr(frappe.local, 'request') and frappe.local.request) or frappe.utils.now_datetime().hour in get_force_update_hours():
 		# Call from UI or 8h or 23h : process full day checkins
 		fore_get_logs = True
 	if fore_get_logs:
@@ -159,7 +159,7 @@ def custom_update_last_sync_of_checkin():
 	current_datetime = frappe.flags.current_datetime or frappe.utils.now_datetime()
 	current_hour = frappe.utils.now_datetime().hour
 	is_web_request = hasattr(frappe.local, 'request') and frappe.local.request
-	is_special_hour = current_hour in SPECIAL_HOUR_FORCE_UPDATE  # 8AM or 11PM
+	is_special_hour = current_hour in get_force_update_hours()  # from setting, default 8AM/11PM
 
 	fore_update = is_web_request or is_special_hour
 	print(f"custom_update_last_sync_of_checkin : fore_update = {fore_update}")

@@ -572,3 +572,38 @@ Total Qty,Tổng SL
 Next Due Date,Hạn kế tiếp
 Issuance Tracking,Theo dõi cấp phát
 Setup Guide,Hướng dẫn cài đặt
+Row #{0}: Begin Time ({1}) must be before End Time ({2}),Dòng #{0}: Giờ bắt đầu ({1}) phải nhỏ hơn giờ kết thúc ({2})
+Attendance Calculation Setting,Cài đặt tính toán chấm công
+Minimum OT Minutes,Số phút OT tối thiểu
+Minimum Pre-Shift OT Minutes,Số phút OT trước ca tối thiểu
+Total overtime below this many minutes is not counted (applies to post-shift OT and to the daily total),Tổng OT dưới số phút này sẽ không được tính (áp dụng cho OT sau ca và tổng OT trong ngày)
+Pre-shift overtime below this many minutes is not counted,OT trước ca dưới số phút này sẽ không được tính
+Shift & Processing,Ca & Xử lý
+Default Shift,Ca mặc định
+Shift used when an employee has no Shift Assignment and no default shift (also used for Sunday OT registration),Ca dùng khi nhân viên không có Phân ca và không có ca mặc định (cũng dùng cho đăng ký OT Chủ Nhật)
+Employee ID Prefix,Tiền tố mã nhân viên
+Only employees whose ID starts with this prefix are processed when no explicit employee list is given,Chỉ xử lý nhân viên có mã bắt đầu bằng tiền tố này khi không truyền danh sách nhân viên cụ thể
+Full Update Hours,Giờ chạy cập nhật toàn bộ
+"Hours of day (0-23, comma separated) when the hourly job runs a FULL day reprocess instead of incremental","Các giờ trong ngày (0-23, cách nhau dấu phẩy) mà job hằng giờ chạy xử lý lại TOÀN BỘ ngày thay vì chỉ phần mới"
+Maternity & Leave,Thai sản & Nghỉ phép
+Maternity Benefit Hours,Số giờ quyền lợi thai sản
+Hours the shift end is reduced for employees with maternity benefit (leave early but still counted as full hours),Số giờ được giảm cuối ca cho nhân viên hưởng chế độ thai sản (về sớm nhưng vẫn tính đủ giờ)
+Full Day Leave Block Hours,Số giờ chặn nghỉ phép cả ngày
+Block Full Day Leave Application when the employee already has attendance with at least this many working hours,Chặn đơn nghỉ phép cả ngày khi nhân viên đã có chấm công với ít nhất số giờ làm việc này
+Anomaly Note (Attendance custom_note),Ghi chú bất thường (Attendance custom_note)
+Early/Late Threshold Minutes,Ngưỡng phút đến sớm/về trễ
+Flag check-in/check-out earlier/later than the shift by at least this many minutes without an OT Registration,Đánh dấu chấm công sớm/trễ hơn ca từ số phút này trở lên mà không có Đăng ký tăng ca
+Female Checkout Check From,Kiểm tra nữ checkout từ
+Start of the checkout window that flags female employees without an Employee Maternity record,Đầu khung giờ checkout để đánh dấu nhân viên nữ chưa có hồ sơ thai sản
+Female Checkout Check To,Kiểm tra nữ checkout đến
+End of the checkout window (exclusive),Cuối khung giờ checkout (không bao gồm)
+"Full Update Hours must be comma-separated hours between 0 and 23, e.g. 8,23","Giờ chạy cập nhật toàn bộ phải là các giờ từ 0 đến 23 cách nhau dấu phẩy, vd: 8,23"
+OT Block Minutes,Block làm tròn OT (phút)
+"OT is floored to this block in minutes (e.g. 30: 45 min becomes 30 min, 89 min becomes 60 min). 1 = floor to whole minutes only","OT được làm tròn xuống theo block phút này (vd 30: 45' thành 30', 89' thành 60'). 1 = chỉ làm tròn xuống phút"
+Allow OT In Rest Time,Cho phép OT giờ nghỉ trưa
+Count registered lunch-break overtime when check-ins span the break. Off = lunch-break OT registrations are ignored,Tính OT giờ nghỉ trưa đã đăng ký khi chấm công phủ qua giờ nghỉ. Tắt = bỏ qua đăng ký OT giờ nghỉ trưa
+Working Block Minutes,Block làm tròn giờ làm (phút)
+Working hours are floored to this block in minutes. 1 = no rounding,Giờ làm được làm tròn xuống theo block phút này. 1 = không làm tròn
+Exclude Employee IDs,Mã nhân viên loại trừ
+Comma-separated employee IDs excluded from attendance processing,Danh sách mã nhân viên (cách nhau dấu phẩy) bị loại khỏi tính toán chấm công
+Overtime below this many minutes is not counted (applies per segment: post-shift OT),OT dưới số phút này sẽ không được tính (áp dụng theo từng đoạn: OT sau ca)

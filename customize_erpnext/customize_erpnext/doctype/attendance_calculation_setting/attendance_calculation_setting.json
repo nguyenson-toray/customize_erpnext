@@ -1,0 +1,209 @@
+{
+ "actions": [],
+ "creation": "2026-07-04 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "overtime_section",
+  "min_ot_minutes",
+  "ot_block_minutes",
+  "column_break_ot",
+  "min_pre_shift_ot_minutes",
+  "allow_ot_in_rest_time",
+  "shift_processing_section",
+  "default_shift",
+  "employee_id_prefix",
+  "working_block_minutes",
+  "column_break_shift",
+  "force_update_hours",
+  "exclude_employee_ids",
+  "maternity_leave_section",
+  "maternity_benefit_hours",
+  "column_break_mat",
+  "full_day_leave_block_hours",
+  "anomaly_note_section",
+  "note_early_late_threshold_minutes",
+  "column_break_note",
+  "female_checkout_check_from",
+  "female_checkout_check_to"
+ ],
+ "fields": [
+  {
+   "fieldname": "overtime_section",
+   "fieldtype": "Section Break",
+   "label": "Overtime"
+  },
+  {
+   "default": "30",
+   "description": "Overtime below this many minutes is not counted (applies per segment: post-shift OT)",
+   "fieldname": "min_ot_minutes",
+   "fieldtype": "Int",
+   "label": "Minimum OT Minutes"
+  },
+  {
+   "default": "1",
+   "description": "OT is floored to this block in minutes (e.g. 30: 45 min becomes 30 min, 89 min becomes 60 min). 1 = floor to whole minutes only",
+   "fieldname": "ot_block_minutes",
+   "fieldtype": "Int",
+   "label": "OT Block Minutes"
+  },
+  {
+   "fieldname": "column_break_ot",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "60",
+   "description": "Pre-shift overtime below this many minutes is not counted",
+   "fieldname": "min_pre_shift_ot_minutes",
+   "fieldtype": "Int",
+   "label": "Minimum Pre-Shift OT Minutes"
+  },
+  {
+   "default": "0",
+   "description": "Count registered lunch-break overtime when check-ins span the break. Off = lunch-break OT registrations are ignored",
+   "fieldname": "allow_ot_in_rest_time",
+   "fieldtype": "Check",
+   "label": "Allow OT In Rest Time"
+  },
+  {
+   "fieldname": "shift_processing_section",
+   "fieldtype": "Section Break",
+   "label": "Shift & Processing"
+  },
+  {
+   "default": "Day",
+   "description": "Shift used when an employee has no Shift Assignment and no default shift (also used for Sunday OT registration)",
+   "fieldname": "default_shift",
+   "fieldtype": "Link",
+   "label": "Default Shift",
+   "options": "Shift Type"
+  },
+  {
+   "default": "TIQN",
+   "description": "Only employees whose ID starts with this prefix are processed when no explicit employee list is given",
+   "fieldname": "employee_id_prefix",
+   "fieldtype": "Data",
+   "label": "Employee ID Prefix"
+  },
+  {
+   "default": "1",
+   "description": "Working hours are floored to this block in minutes. 1 = no rounding",
+   "fieldname": "working_block_minutes",
+   "fieldtype": "Int",
+   "label": "Working Block Minutes"
+  },
+  {
+   "fieldname": "column_break_shift",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "8,23",
+   "description": "Hours of day (0-23, comma separated) when the hourly job runs a FULL day reprocess instead of incremental",
+   "fieldname": "force_update_hours",
+   "fieldtype": "Data",
+   "label": "Full Update Hours"
+  },
+  {
+   "description": "Comma-separated employee IDs excluded from attendance processing",
+   "fieldname": "exclude_employee_ids",
+   "fieldtype": "Small Text",
+   "label": "Exclude Employee IDs"
+  },
+  {
+   "fieldname": "maternity_leave_section",
+   "fieldtype": "Section Break",
+   "label": "Maternity & Leave"
+  },
+  {
+   "default": "1.0",
+   "description": "Hours the shift end is reduced for employees with maternity benefit (leave early but still counted as full hours)",
+   "fieldname": "maternity_benefit_hours",
+   "fieldtype": "Float",
+   "label": "Maternity Benefit Hours",
+   "precision": "1"
+  },
+  {
+   "fieldname": "column_break_mat",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "8",
+   "description": "Block Full Day Leave Application when the employee already has attendance with at least this many working hours",
+   "fieldname": "full_day_leave_block_hours",
+   "fieldtype": "Float",
+   "label": "Full Day Leave Block Hours",
+   "precision": "1"
+  },
+  {
+   "fieldname": "anomaly_note_section",
+   "fieldtype": "Section Break",
+   "label": "Anomaly Note (Attendance custom_note)"
+  },
+  {
+   "default": "60",
+   "description": "Flag check-in/check-out earlier/later than the shift by at least this many minutes without an OT Registration",
+   "fieldname": "note_early_late_threshold_minutes",
+   "fieldtype": "Int",
+   "label": "Early/Late Threshold Minutes"
+  },
+  {
+   "fieldname": "column_break_note",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "16:00:00",
+   "description": "Start of the checkout window that flags female employees without an Employee Maternity record",
+   "fieldname": "female_checkout_check_from",
+   "fieldtype": "Time",
+   "label": "Female Checkout Check From"
+  },
+  {
+   "default": "17:00:00",
+   "description": "End of the checkout window (exclusive)",
+   "fieldname": "female_checkout_check_to",
+   "fieldtype": "Time",
+   "label": "Female Checkout Check To"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-07-04 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Customize Erpnext",
+ "name": "Attendance Calculation Setting",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "Administrator",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "HR Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

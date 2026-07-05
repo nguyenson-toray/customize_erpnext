@@ -439,6 +439,10 @@ def get_query(filters):
 				attendance.custom_maternity_benefit,
 				attendance.custom_leave_application_abbreviation,
 				attendance.overtime_type,
+				# Extra fields for the Excel export sheets (Detail/Summary/Shift/Important Note)
+				attendance.custom_note,
+				employee.attendance_device_id,
+				employee.custom_section,
 			)
 		except AttributeError:
 			pass
@@ -655,6 +659,19 @@ def export_attendance_excel_sync(filters):
 
 	# ===== Create Leave Regulations sheet =====
 	add_leave_regulations_sheet(wb)
+
+	# ===== Legacy timesheet-app style sheets (Important Note / Detail / Summary / Shift) =====
+	# Failure here must not break the original sheets — log and continue
+	try:
+		add_important_note_sheet(wb, data)
+		add_detail_sheet(wb, data)
+		add_summary_sheet(wb, data)
+		add_shift_matrix_sheet(wb, data, date_range)
+	except Exception as e:
+		frappe.log_error(
+			f"Error building timesheet-style sheets: {str(e)}",
+			"Attendance Export Extra Sheets Error"
+		)
 
 	# Create filename
 	from frappe.utils import formatdate
@@ -1760,3 +1777,278 @@ def delete_export_file(file_name):
 	except Exception as e:
 		# Log error but don't raise - file cleanup is not critical
 		frappe.log_error(f"Failed to delete export file {file_name}: {str(e)}", "Export File Cleanup")
+
+
+# ============================================================================
+# LEGACY TIMESHEET-APP STYLE SHEETS
+# Mirrors the Excel export of the old Dart timesheet app (see
+# overrides/shift_type/LEGACY_APP_TIMESHEET_ALGORITHM.md §13 and the reference file
+# Timesheet_260526_260625_*.xlsx): Important Note / Detail / Summary / Shift.
+# Data source: the same get_data() detail rows used by the existing sheets.
+# ============================================================================
+
+DETAIL_SHEET_HEADERS = [
+	"No", "Date", "Employee ID", "Finger ID", "Full name", "Department",
+	"Section", "Group", "Shift", "First In", "Last Out",
+	"Working (hour)", "Working (day)", "OT Actual (hours)",
+	"OT Approved (hours)", "OT Final", "Note Checkin", "Note Sunday",
+	"Joining Date", "Resign Date",
+]
+
+SUMMARY_SHEET_HEADERS = [
+	"No", "Employee ID", "Full name", "Department", "Section", "Group",
+	"Total Working (hours)", "Total Working (days)", "Total OT Actual (hours)",
+	"Total OT Approved (hours)", "Total OT Final (hours)",
+	"Joining Date", "Resign Date",
+]
+
+
+def _style_sheet_header(ws, row_idx, num_cols):
+	"""Bold + fill + center for a header row (same look as the other sheets)."""
+	from openpyxl.styles import Font, PatternFill, Alignment
+	fill = PatternFill(start_color="D9E1F2", end_color="D9E1F2", fill_type="solid")
+	for col in range(1, num_cols + 1):
+		cell = ws.cell(row=row_idx, column=col)
+		cell.font = Font(bold=True)
+		cell.fill = fill
+		cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+
+def _split_attendance_notes(row):
+	"""
+	Build (note_checkin, note_sunday) for one attendance row, like the legacy
+	app's attNote2/attNote3: flags (late/early/maternity/leave) + the parts of
+	custom_note, with "Sunday ..." parts going to note_sunday.
+	"""
+	checkin_parts = []
+	if row.get("late_entry"):
+		checkin_parts.append("Late entry")
+	if row.get("early_exit"):
+		checkin_parts.append("Early exit")
+	if row.get("custom_maternity_benefit"):
+		checkin_parts.append("Maternity benefit")
+	if row.get("custom_leave_application_abbreviation"):
+		checkin_parts.append(f"Leave: {row.get('custom_leave_application_abbreviation')}")
+
+	sunday_parts = []
+	for part in (row.get("custom_note") or "").split(";"):
+		part = part.strip()
+		if not part:
+			continue
+		if part.startswith("Sunday"):
+			sunday_parts.append(part)
+		else:
+			checkin_parts.append(part)
+
+	return "; ".join(checkin_parts), "; ".join(sunday_parts)
+
+
+def add_important_note_sheet(wb, data):
+	"""Anomaly sheet: [Resigned + Att] and [Ra 16-17h] rows from custom_note."""
+	from openpyxl.styles import Font
+	from frappe.utils import now_datetime, get_datetime
+
+	ws = wb.create_sheet(title="Important Note")
+	ws.cell(row=1, column=1, value=f"Important Note — generated {now_datetime().strftime('%d/%m/%Y %H:%M')}")
+	ws.cell(row=1, column=1).font = Font(bold=True, size=12)
+	ws.cell(row=3, column=1, value="Type")
+	ws.cell(row=3, column=2, value="Detail")
+	_style_sheet_header(ws, 3, 2)
+
+	row_idx = 4
+	for row in data:
+		note = row.get("custom_note") or ""
+		if not note:
+			continue
+
+		out_str = ""
+		if row.get("out_time"):
+			try:
+				out_str = get_datetime(row.get("out_time")).strftime("%H:%M")
+			except Exception:
+				out_str = str(row.get("out_time"))
+		detail = (
+			f"{row.get('attendance_date')} {row.get('employee')} {row.get('employee_name')}"
+			f" — last out {out_str} (shift: {row.get('shift')})"
+		)
+
+		if "Left employee" in note:
+			ws.cell(row=row_idx, column=1, value="[Resigned + Att]")
+			ws.cell(row=row_idx, column=2, value=detail)
+			row_idx += 1
+		if "Female checkout" in note:
+			ws.cell(row=row_idx, column=1, value="[Ra 16-17h]")
+			ws.cell(row=row_idx, column=2, value=detail)
+			row_idx += 1
+
+	if row_idx == 4:
+		ws.cell(row=4, column=1, value="—")
+		ws.cell(row=4, column=2, value="No anomalies detected")
+
+	ws.column_dimensions["A"].width = 18
+	ws.column_dimensions["B"].width = 95
+	ws.freeze_panes = "A4"
+
+
+def add_detail_sheet(wb, data):
+	"""One row per (employee × date) with the legacy app's 20 columns."""
+	ws = wb.create_sheet(title="Detail")
+
+	for col, header in enumerate(DETAIL_SHEET_HEADERS, 1):
+		ws.cell(row=1, column=col, value=header)
+	_style_sheet_header(ws, 1, len(DETAIL_SHEET_HEADERS))
+
+	row_idx = 2
+	for no, row in enumerate(data, 1):
+		note_checkin, note_sunday = _split_attendance_notes(row)
+		values = [
+			no,
+			row.get("attendance_date"),
+			row.get("employee"),
+			row.get("attendance_device_id"),
+			row.get("employee_name"),
+			clean_department_name(row.get("department")),
+			row.get("custom_section"),
+			row.get("custom_group"),
+			row.get("shift"),
+			row.get("in_time"),
+			row.get("out_time"),
+			flt(row.get("working_hours"), 2),
+			flt(row.get("working_day"), 2),
+			flt(row.get("actual_overtime_duration"), 1),
+			flt(row.get("custom_approved_overtime_duration"), 1),
+			flt(row.get("final_overtime_duration"), 1),
+			note_checkin,
+			note_sunday,
+			row.get("date_of_joining"),
+			row.get("relieving_date"),
+		]
+		for col, value in enumerate(values, 1):
+			cell = ws.cell(row=row_idx, column=col, value=value)
+			if col == 2 or col in (19, 20):  # Date / Joining / Resign
+				cell.number_format = "dd/mm/yyyy"
+			elif col in (10, 11):  # First In / Last Out
+				cell.number_format = "hh:mm:ss"
+			elif col in (12, 13):  # Working hour/day
+				cell.number_format = "0.00"
+			elif col in (14, 15, 16):  # OT columns
+				cell.number_format = "0.0"
+		row_idx += 1
+
+	widths = [5, 11, 12, 9, 24, 12, 12, 14, 10, 10, 10, 9, 9, 9, 9, 9, 40, 30, 11, 11]
+	for i, width in enumerate(widths, 1):
+		ws.column_dimensions[ws.cell(row=1, column=i).column_letter].width = width
+	ws.freeze_panes = "A2"
+
+
+def add_summary_sheet(wb, data):
+	"""One row per employee with period totals (legacy app Summary sheet).
+
+	Total Working (days) = SUM of the per-day rounded working_day values
+	(LEGACY_APP_TIMESHEET_ALGORITHM.md §11 — do NOT recompute total_hours / 8).
+	"""
+	ws = wb.create_sheet(title="Summary")
+
+	for col, header in enumerate(SUMMARY_SHEET_HEADERS, 1):
+		ws.cell(row=1, column=col, value=header)
+	_style_sheet_header(ws, 1, len(SUMMARY_SHEET_HEADERS))
+
+	agg = {}
+	for row in data:
+		emp = row.get("employee")
+		if emp not in agg:
+			agg[emp] = {
+				"employee_name": row.get("employee_name"),
+				"department": clean_department_name(row.get("department")),
+				"custom_section": row.get("custom_section"),
+				"custom_group": row.get("custom_group"),
+				"date_of_joining": row.get("date_of_joining"),
+				"relieving_date": row.get("relieving_date"),
+				"hours": 0.0, "days": 0.0, "ot_actual": 0.0, "ot_approved": 0.0, "ot_final": 0.0,
+			}
+		entry = agg[emp]
+		entry["hours"] += flt(row.get("working_hours"))
+		entry["days"] += flt(row.get("working_day"))
+		entry["ot_actual"] += flt(row.get("actual_overtime_duration"))
+		entry["ot_approved"] += flt(row.get("custom_approved_overtime_duration"))
+		entry["ot_final"] += flt(row.get("final_overtime_duration"))
+
+	row_idx = 2
+	for no, emp in enumerate(sorted(agg), 1):
+		entry = agg[emp]
+		values = [
+			no, emp, entry["employee_name"], entry["department"],
+			entry["custom_section"], entry["custom_group"],
+			flt(entry["hours"], 2), flt(entry["days"], 2),
+			flt(entry["ot_actual"], 1), flt(entry["ot_approved"], 1), flt(entry["ot_final"], 1),
+			entry["date_of_joining"], entry["relieving_date"],
+		]
+		for col, value in enumerate(values, 1):
+			cell = ws.cell(row=row_idx, column=col, value=value)
+			if col in (7, 8):
+				cell.number_format = "0.00"
+			elif col in (9, 10, 11):
+				cell.number_format = "0.0"
+			elif col in (12, 13):
+				cell.number_format = "dd/mm/yyyy"
+		row_idx += 1
+
+	widths = [5, 12, 24, 12, 12, 14, 12, 12, 11, 11, 11, 11, 11]
+	for i, width in enumerate(widths, 1):
+		ws.column_dimensions[ws.cell(row=1, column=i).column_letter].width = width
+	ws.freeze_panes = "A2"
+
+
+def add_shift_matrix_sheet(wb, data, date_range):
+	"""
+	Employee × date matrix of shift names (legacy app Shift sheet).
+	Only rotating-shift employees (>= 1 day on 'Shift 1'/'Shift 2' in range);
+	date columns exclude Sundays; blank cell = no attendance that day.
+	"""
+	from frappe.utils import getdate
+
+	ws = wb.create_sheet(title="Shift")
+
+	dates = [d for d in date_range["dates"] if d.weekday() != 6]
+
+	emp_info = {}
+	shift_by_emp_date = {}
+	rotating = set()
+	for row in data:
+		emp = row.get("employee")
+		emp_info[emp] = row
+		shift = row.get("shift") or ""
+		shift_by_emp_date[(emp, getdate(row.get("attendance_date")))] = shift
+		if shift.startswith("Shift "):
+			rotating.add(emp)
+
+	headers = ["Employee ID", "Full Name", "Group", "Joining Date", "Resign Date"] + [
+		d.strftime("%d/%m") for d in dates
+	]
+	for col, header in enumerate(headers, 1):
+		ws.cell(row=1, column=col, value=header)
+	_style_sheet_header(ws, 1, len(headers))
+
+	members = sorted(rotating, key=lambda e: (emp_info[e].get("custom_group") or "", e))
+	if not members:
+		# No Shift 1/Shift 2 attendance in range (rotating shifts not yet
+		# assigned in ERP) — leave an explanatory row instead of an empty sheet
+		ws.cell(row=2, column=1, value="No rotating-shift (Shift 1/Shift 2) employees in this period")
+		return
+	row_idx = 2
+	for emp in members:
+		info = emp_info[emp]
+		ws.cell(row=row_idx, column=1, value=emp)
+		ws.cell(row=row_idx, column=2, value=info.get("employee_name"))
+		ws.cell(row=row_idx, column=3, value=info.get("custom_group"))
+		doj_cell = ws.cell(row=row_idx, column=4, value=info.get("date_of_joining"))
+		doj_cell.number_format = "dd/mm/yyyy"
+		rel_cell = ws.cell(row=row_idx, column=5, value=info.get("relieving_date"))
+		rel_cell.number_format = "dd/mm/yyyy"
+		for col, d in enumerate(dates, 6):
+			ws.cell(row=row_idx, column=col, value=shift_by_emp_date.get((emp, d), ""))
+		row_idx += 1
+
+	for i, width in enumerate([12, 24, 14, 11, 11] + [8] * len(dates), 1):
+		ws.column_dimensions[ws.cell(row=1, column=i).column_letter].width = width
+	ws.freeze_panes = "F2"

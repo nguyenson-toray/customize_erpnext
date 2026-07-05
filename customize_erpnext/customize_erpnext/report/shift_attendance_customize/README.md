@@ -175,7 +175,26 @@ Truy cập: **Báo cáo > Shift Attendance Customize**
 
 ---
 
-**Version:** 1.1
+## Excel Export — 7 sheets (từ 2026-07-05)
+
+Nút **Export Excel** trên report (`export_attendance_excel`) xuất file gồm:
+
+### Sheet gốc (giữ nguyên)
+1. **Timesheet** — bảng công theo ngày (kiểu C&B template)
+2. **Overtime** — bảng OT theo ngày
+3. **Quy định nghỉ phép** — copy từ file quy định
+
+### Sheet mới — cấu trúc giống app chấm công cũ (LEGACY_APP_TIMESHEET_ALGORITHM.md §13)
+4. **Important Note** — bất thường: `[Resigned + Att]` (đã nghỉ việc còn chấm công), `[Ra 16-17h]` (nữ checkout 16-17h chưa có hồ sơ thai sản). Nguồn: field `custom_note` của Attendance.
+5. **Detail** — 1 dòng/nhân viên/ngày, 20 cột: No, Date, Employee ID, Finger ID (`attendance_device_id`), Full name, Department, Section, Group, Shift, First In, Last Out, Working (hour) `0.00`, Working (day) `0.00`, OT Actual/Approved/Final `0.0`, Note Checkin (flags Late/Early/Maternity/Leave + custom_note), Note Sunday, Joining/Resign Date.
+6. **Summary** — 1 dòng/nhân viên: tổng giờ, tổng công (= Σ working_day theo ngày đã làm tròn), tổng 3 loại OT.
+7. **Shift** — ma trận NV ca xoay (có ≥1 ngày Shift 1/Shift 2) × ngày (bỏ Chủ Nhật), cell = tên ca.
+
+Lưu ý: export >30.000 records (NV × ngày) tự chuyển background job; file public tự xóa sau 2 phút.
+
+---
+
+**Version:** 1.2
 **Author:** TIQN
-**Date:** 2026-02-06
+**Date:** 2026-07-05
 **Based on:** HRMS v16 Shift Attendance Report

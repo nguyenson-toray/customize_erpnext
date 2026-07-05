@@ -304,15 +304,15 @@ doc_events = {
     },
 
     # Overtime Registration Events
-    # - Update HRMS Attendance when overtime is submitted/cancelled/updated
+    # - Update HRMS Attendance when overtime is submitted/cancelled
+    # (no on_update_after_submit: no field has allow_on_submit, the event
+    #  never fires — re-add together with allow_on_submit if post-submit
+    #  edits are ever enabled)
     "Overtime Registration": {
         "on_submit": [
             "customize_erpnext.customize_erpnext.doctype.overtime_registration.overtime_registration_hooks.update_attendance_on_overtime_change"
         ],
         "on_cancel": [
-            "customize_erpnext.customize_erpnext.doctype.overtime_registration.overtime_registration_hooks.update_attendance_on_overtime_change"
-        ],
-        "on_update_after_submit": [
             "customize_erpnext.customize_erpnext.doctype.overtime_registration.overtime_registration_hooks.update_attendance_on_overtime_change"
         ]
     },
@@ -381,8 +381,11 @@ doc_events = {
 
     # Leave Application Events
     # - Handle dual leave cancellation (update attendance when LA cancelled)
+    # CRITICAL: must run BEFORE cancel — HRMS on_cancel calls cancel_attendance()
+    # (controller method chạy trước doc_events hook), nếu để on_cancel thì swap
+    # LA2→LA1 không bao giờ chạy vì attendance đã bị cancel (docstatus=2)
     "Leave Application": {
-        "on_cancel": [
+        "before_cancel": [
             "customize_erpnext.overrides.leave_application.leave_application.on_leave_application_cancel",
         ],
     }

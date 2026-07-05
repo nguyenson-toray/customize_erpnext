@@ -44,9 +44,11 @@ from hrms.hr.doctype.leave_application.leave_application import LeaveApplication
 # CONFIGURATION
 # =============================================================================
 
-# Số giờ làm việc tối thiểu để block Full Day leave
-# Chỉ block khi: Full Day leave AND working_hours >= này
-FULL_DAY_WORKING_HOURS_THRESHOLD = 8
+# Số giờ làm việc tối thiểu để block Full Day leave lấy từ
+# Attendance Calculation Setting (full_day_leave_block_hours, mặc định 8)
+from customize_erpnext.customize_erpnext.doctype.attendance_calculation_setting.attendance_calculation_setting import (
+	get_attendance_settings
+)
 
 
 # =============================================================================
@@ -74,6 +76,9 @@ def custom_validate_attendance(self):
 	from hrms.hr.doctype.leave_application.leave_application import AttendanceAlreadyMarkedError
 
 	# Query attendance
+	# NOTE: không filter half_day_status trong SQL — điều kiện `!=` của SQL loại
+	# luôn record NULL (Present luôn có half_day_status NULL) khiến toàn bộ
+	# validate thành no-op. Lọc "Absent" trong Python bên dưới.
 	attendance_records = frappe.get_all(
 		"Attendance",
 		filters=[
@@ -81,9 +86,8 @@ def custom_validate_attendance(self):
 			["attendance_date", "between", [self.from_date, self.to_date]],
 			["status", "in", ["Present", "Work From Home"]],
 			["docstatus", "=", 1],
-			["half_day_status", "!=", "Absent"],
 		],
-		fields=["name", "attendance_date", "working_hours"],
+		fields=["name", "attendance_date", "working_hours", "half_day_status"],
 		order_by="attendance_date",
 	)
 
@@ -92,8 +96,13 @@ def custom_validate_attendance(self):
 
 	blocking_attendance = []
 	allowed_attendance = []
+	full_day_block_hours = frappe.utils.flt(get_attendance_settings().full_day_leave_block_hours)
 
 	for att in attendance_records:
+		# Nửa ngày còn lại vắng mặt → không tính là ngày làm việc đầy đủ
+		if att.half_day_status == "Absent":
+			continue
+
 		attendance_date = att.attendance_date
 		working_hours = att.working_hours or 0
 
@@ -105,8 +114,8 @@ def custom_validate_attendance(self):
 			})
 			continue
 
-		# Full Day leave: chỉ block nếu working_hours >= threshold
-		if working_hours >= FULL_DAY_WORKING_HOURS_THRESHOLD:
+		# Full Day leave: chỉ block nếu working_hours >= threshold (setting)
+		if working_hours >= full_day_block_hours:
 			blocking_attendance.append(att)
 		else:
 			allowed_attendance.append({
@@ -129,7 +138,7 @@ def custom_validate_attendance(self):
 		frappe.throw(
 			_("Cannot apply Full Day leave. Employee {0} has full working hours ({1}h) on: {2}").format(
 				self.employee,
-				FULL_DAY_WORKING_HOURS_THRESHOLD,
+				full_day_block_hours,
 				"<br><ul><li>" + "</li><li>".join(
 					get_link_to_form("Attendance", a.name, label=f"{formatdate(a.attendance_date)} ({a.working_hours}h)")
 					for a in blocking_attendance
@@ -357,7 +366,13 @@ class CustomLeaveApplication(LeaveApplication):
 	"""
 
 	def cancel_attendance(self):
-		"""Batch cancel attendance trong 1 SQL thay vì loop per-record của HRMS."""
+		"""Batch cancel attendance trong 1 SQL thay vì loop per-record của HRMS.
+
+		Khác HRMS gốc: CHỈ cancel attendance thuộc chính LA này (hoặc không link
+		LA nào — legacy). Bắt buộc với dual-leave: hook before_cancel đã swap
+		LA2→LA1 trước đó, attendance sau swap có leave_application = LA2 ≠ LA
+		đang cancel nên phải được giữ nguyên.
+		"""
 		from frappe.utils import now
 		if self.docstatus != 2:
 			return
@@ -368,7 +383,8 @@ class CustomLeaveApplication(LeaveApplication):
 			  AND attendance_date BETWEEN %s AND %s
 			  AND docstatus < 2
 			  AND status IN ('On Leave', 'Half Day')
-		""", (now(), frappe.session.user, self.employee, self.from_date, self.to_date))
+			  AND (leave_application IS NULL OR leave_application = %s)
+		""", (now(), frappe.session.user, self.employee, self.from_date, self.to_date, self.name))
 
 
 print("✅ Leave Application overrides loaded")

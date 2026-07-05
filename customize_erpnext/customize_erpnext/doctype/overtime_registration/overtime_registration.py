@@ -7,11 +7,32 @@ from frappe.utils import get_time, time_diff_in_hours, getdate, flt
 from frappe import _
 from datetime import time, datetime, timedelta
 
+from customize_erpnext.customize_erpnext.doctype.attendance_calculation_setting.attendance_calculation_setting import (
+    get_attendance_settings,
+)
+
+
+def get_maternity_benefit_hours():
+    """Hours the shift end is reduced for maternity benefit (from settings)."""
+    return flt(get_attendance_settings().maternity_benefit_hours)
+
+
+def maternity_adjusted_end(shift_end):
+    """Shift end time reduced by maternity benefit hours."""
+    shift_end_dt = datetime.combine(datetime.today(), shift_end)
+    return (shift_end_dt - timedelta(hours=get_maternity_benefit_hours())).time()
+
+
 class OvertimeRegistration(Document):
     def validate(self):
         """Validation khi lưu (Save) - theo thứ tự"""
         # Pre-load shift and maternity data for all employees to avoid N+1 queries
         self._preload_employee_data()
+
+        # 0. begin_time < end_time (server-side — JS check can be bypassed
+        #    by Data Import / API; inverted times would pass zone checks and
+        #    add negative hours to total_hours)
+        self.validate_time_order()
 
         # 1. Kiểm tra giờ OT phải nằm ngoài giờ làm việc (bỏ qua ngày chủ nhật)
         self.validate_ot_outside_working_hours()
@@ -29,6 +50,15 @@ class OvertimeRegistration(Document):
 
         # Calculate totals
         self.calculate_totals_and_apply_reason()
+
+    def validate_time_order(self):
+        """Begin time must be before end time on every row."""
+        for d in self.ot_employees or []:
+            if d.get("begin_time") and d.get("end_time"):
+                if get_time(d.get("begin_time")) >= get_time(d.get("end_time")):
+                    frappe.throw(_("Row #{0}: Begin Time ({1}) must be before End Time ({2})").format(
+                        d.idx, d.get("begin_time"), d.get("end_time")
+                    ))
 
     def _preload_employee_data(self):
         """Pre-load shift and maternity data for all employees to avoid N+1 queries."""
@@ -138,7 +168,7 @@ class OvertimeRegistration(Document):
         date_obj = getdate(date) if isinstance(date, str) else date
 
         if date_obj.weekday() == 6:
-            return "Day", "Default Day Shift For Sunday"
+            return get_attendance_settings().default_shift, "Default Shift For Sunday"
 
         # Shift Assignment (priority 1)
         cached = self._shift_assign_cache.get((employee, date_str))
@@ -150,7 +180,7 @@ class OvertimeRegistration(Document):
         if default_shift:
             return default_shift, "Default Shift"
 
-        return "Day", "Default"
+        return get_attendance_settings().default_shift, "Default"
 
     def _check_maternity_cached(self, employee, date):
         """Check maternity benefit using pre-loaded cache."""
@@ -236,8 +266,7 @@ class OvertimeRegistration(Document):
             has_benefit, _type, _from, _to = self._check_maternity_cached(employee, date)
 
             if has_benefit:
-                shift_end_dt = datetime.combine(datetime.today(), shift_config["end"])
-                effective_shift_end = (shift_end_dt - timedelta(hours=1)).time()
+                effective_shift_end = maternity_adjusted_end(shift_config["end"])
             else:
                 effective_shift_end = shift_config["end"]
 
@@ -320,24 +349,35 @@ class OvertimeRegistration(Document):
         if not self.ot_employees:
             return
 
-        for d in self.ot_employees:
-            from_time = d.get("begin_time")
-            to_time = d.get("end_time")
-
-            existing_entries = frappe.db.sql("""
-                SELECT child.parent, child.idx, child.begin_time as `from`, child.end_time as `to`, child.date
+        # Single batched query for ALL rows (was 1 query per child row),
+        # indexed by (employee, date) in Python
+        employees = list({d.employee for d in self.ot_employees if d.employee})
+        dates = list({str(d.date) for d in self.ot_employees if d.date})
+        existing_index = {}
+        if employees and dates:
+            rows = frappe.db.sql("""
+                SELECT child.employee, child.date, child.parent, child.idx,
+                       child.begin_time as `from`, child.end_time as `to`
                 FROM `tabOvertime Registration Detail` as child
                 JOIN `tabOvertime Registration` as parent ON child.parent = parent.name
-                WHERE child.employee = %(employee)s
-                AND child.date = %(date)s
+                WHERE child.employee IN %(employees)s
+                AND child.date IN %(dates)s
                 AND parent.name != %(current_doc_name)s
                 AND parent.docstatus = 1
                 ORDER BY child.begin_time
             """, {
-                "employee": d.employee,
-                "date": d.date,
+                "employees": employees,
+                "dates": dates,
                 "current_doc_name": self.name or "new"
             }, as_dict=1)
+            for r in rows:
+                existing_index.setdefault((r.employee, str(r.date)), []).append(r)
+
+        for d in self.ot_employees:
+            from_time = d.get("begin_time")
+            to_time = d.get("end_time")
+
+            existing_entries = existing_index.get((d.employee, str(d.date)), [])
 
             # Check for overlaps
             for existing in existing_entries:
@@ -370,8 +410,7 @@ class OvertimeRegistration(Document):
                     has_benefit, _type, _from, _to = self._check_maternity_cached(d.employee, d.date)
 
                     if has_benefit:
-                        shift_end_dt = datetime.combine(datetime.today(), shift_config["end"])
-                        effective_shift_end = (shift_end_dt - timedelta(hours=1)).time()
+                        effective_shift_end = maternity_adjusted_end(shift_config["end"])
                     else:
                         effective_shift_end = shift_config["end"]
 
@@ -565,7 +604,7 @@ def get_shift_type(employee, date):
         date_obj = date
 
     if date_obj.weekday() == 6:  # Sunday
-        return "Day", "Default Day Shift For Sunday"
+        return get_attendance_settings().default_shift, "Default Shift For Sunday"
 
     # Priority 1: Shift Assignment
     shift_assign = frappe.db.sql("""
@@ -588,8 +627,8 @@ def get_shift_type(employee, date):
     if default_shift:
         return default_shift, "Default Shift"
 
-    # Default: Day shift
-    return "Day", "Default"
+    # Default: configured default shift
+    return get_attendance_settings().default_shift, "Default"
 
 def get_shift_config(shift_type):
     """Get shift configuration from Shift Type DocType with caching.
@@ -669,10 +708,9 @@ def validate_ot_continuity_with_shift(begin_time, end_time, shift_config, has_ma
     break_start = shift_config["break_start"]
     break_end = shift_config["break_end"]
 
-    # For maternity, shift ends 1 hour earlier
+    # For maternity, shift ends earlier by maternity_benefit_hours (setting)
     if has_maternity:
-        shift_end_dt = datetime.combine(datetime.today(), shift_end)
-        maternity_shift_end = (shift_end_dt - timedelta(hours=1)).time()
+        maternity_shift_end = maternity_adjusted_end(shift_end)
     else:
         maternity_shift_end = shift_end
 
@@ -801,11 +839,11 @@ def check_employees_with_maternity_benefits(entries):
             from_date_str = from_date.strftime("%d/%m/%Y") if from_date else ""
             to_date_str = to_date.strftime("%d/%m/%Y") if to_date else ""
 
-            # Calculate adjusted times (-1 hour)
-            shift_end_dt = datetime.combine(datetime.today(), shift_end)
-            adjusted_shift_end = (shift_end_dt - timedelta(hours=1)).time()
+            # Calculate adjusted times (shift end - maternity benefit hours)
+            adjusted_shift_end = maternity_adjusted_end(shift_end)
 
             employees_needing_adjustment.append({
+                "adjust_hours": get_maternity_benefit_hours(),  # JS uses this to shift begin/end times
                 "idx": entry.get("idx"),
                 "employee": employee,
                 "employee_name": employee_name,
