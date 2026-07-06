@@ -274,10 +274,20 @@ def on_maternity_delete(doc, method):
 
 
 def _queue_attendance_recalculation(doc, trigger):
-	"""Queue background job để recalculate attendance cho các ngày bị ảnh hưởng.
+	"""Queue background job để recalculate attendance cho các ngày bị ảnh hưởng
+	(CHỈ cho employee của record này).
 	Hoạt động cho cả: UI save, Data Import (add new / update if exist), on_trash.
+
+	Gated by setting recalc_attendance_on_maternity_change (default OFF):
+	khi tắt, attendance cập nhật ở lần chạy full kế tiếp hoặc Bulk Update thủ công.
 	"""
 	try:
+		from customize_erpnext.customize_erpnext.doctype.attendance_calculation_setting.attendance_calculation_setting import (
+			get_attendance_settings,
+		)
+		if not frappe.utils.cint(get_attendance_settings().recalc_attendance_on_maternity_change):
+			return
+
 		if not hasattr(doc, "_maternity_affected_dates") or not doc._maternity_affected_dates:
 			return
 
@@ -339,6 +349,12 @@ def background_update_attendance_for_maternity(employee, affected_dates_json, fr
 		from customize_erpnext.overrides.shift_type.shift_type_optimized import (
 			_core_process_attendance_logic_optimized,
 		)
+		from customize_erpnext.customize_erpnext.doctype.attendance_calculation_setting.attendance_calculation_setting import is_peak_time
+
+		# Skip during check-in/out peak windows — next full run catches up
+		if is_peak_time():
+			frappe.logger().info(f"[Maternity] Peak time — skipped recalc for {employee}")
+			return
 
 		# Parse và lọc ngày <= today
 		raw_dates   = json.loads(affected_dates_json)

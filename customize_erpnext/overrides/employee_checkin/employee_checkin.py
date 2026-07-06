@@ -184,14 +184,19 @@ def custom_calculate_working_hours_overtime(employee, attendance_date, in_time, 
 
 
 def _fetch_ot_entries(employee, attendance_date):
-	"""Fetch submitted OT registration entries for one (employee, date)."""
-	return frappe.db.sql("""
+	"""Fetch OT registration entries for one (employee, date).
+
+	Submitted only by default; Draft + Submitted when the include_draft_ot
+	setting is ON (same rule as the bulk preload).
+	"""
+	from customize_erpnext.customize_erpnext.doctype.attendance_calculation_setting.attendance_calculation_setting import get_ot_docstatus_condition
+	return frappe.db.sql(f"""
 		SELECT ord.begin_time, ord.end_time
 		FROM `tabOvertime Registration Detail` ord
 		JOIN `tabOvertime Registration` or_doc ON ord.parent = or_doc.name
 		WHERE ord.employee = %(employee)s
 		  AND ord.date = %(date)s
-		  AND or_doc.docstatus = 1
+		  AND {get_ot_docstatus_condition("or_doc")}
 	""", {"employee": employee, "date": attendance_date}, as_dict=1)
 
 
@@ -1002,19 +1007,24 @@ def update_remaining_checkins_after_delete(doc, method):
 			frappe.db.set_value("Employee Checkin", remaining_checkins[-1].name, "log_type", "OUT", update_modified=False)
 
 
+def _checkin_recalc_enabled():
+	"""Gate for per-checkin attendance recalc hooks — setting
+	recalc_attendance_on_checkin_change (default OFF: changes picked up at the
+	next full run or a manual Bulk Update)."""
+	return cint(get_attendance_settings().recalc_attendance_on_checkin_change)
+
+
 def update_attendance_on_checkin_delete(doc, method):
 	"""
-	Update or delete attendance when employee checkin is deleted.
-
-	Logic:
-	- If there are remaining checkins: Recalculate attendance from remaining checkins
-	- If no remaining checkins: Delete the attendance record
+	Recalculate attendance (that employee, that date only) when a checkin is deleted.
 
 	Args:
 		doc: Employee Checkin document being deleted
 		method: Hook method name (after_delete)
 	"""
 	if not doc.employee or not doc.time:
+		return
+	if not _checkin_recalc_enabled():
 		return
 
 	employee = doc.employee
@@ -1053,6 +1063,11 @@ def _recalculate_attendance_background(employee, checkin_date):
 		employee: Employee ID
 		checkin_date: Date string (yyyy-mm-dd)
 	"""
+	from customize_erpnext.customize_erpnext.doctype.attendance_calculation_setting.attendance_calculation_setting import is_peak_time
+	if is_peak_time():
+		frappe.logger().info(f"[att_recalc] Peak time — skipped recalc for {employee} {checkin_date}")
+		return
+
 	from customize_erpnext.overrides.shift_type.shift_type_optimized import _core_process_attendance_logic_optimized
 
 	checkin_date_obj = getdate(checkin_date)
@@ -1067,12 +1082,15 @@ def _recalculate_attendance_background(employee, checkin_date):
 
 def update_attendance_on_checkin_insert(doc, method):
 	"""
-	Enqueue attendance recalculation when a new employee checkin is created.
+	Enqueue attendance recalculation (that employee, that date) when a new
+	checkin is created. Gated by recalc_attendance_on_checkin_change setting.
 	Skipped during bulk Data Import to prevent queue flooding (recalculate manually after import).
 	"""
 	if not doc.employee or not doc.time:
 		return
 	if getattr(frappe.flags, 'in_import', False):
+		return
+	if not _checkin_recalc_enabled():
 		return
 
 	_recalculate_attendance(doc.employee, getdate(doc.time))
@@ -1080,12 +1098,15 @@ def update_attendance_on_checkin_insert(doc, method):
 
 def update_attendance_on_checkin_update(doc, method):
 	"""
-	Enqueue attendance recalculation when employee checkin is updated.
+	Enqueue attendance recalculation (that employee, that date) when a checkin
+	is updated. Gated by recalc_attendance_on_checkin_change setting.
 	Skipped during bulk Data Import to prevent queue flooding (recalculate manually after import).
 	"""
 	if not doc.employee or not doc.time:
 		return
 	if getattr(frappe.flags, 'in_import', False):
+		return
+	if not _checkin_recalc_enabled():
 		return
 
 	_recalculate_attendance(doc.employee, getdate(doc.time))

@@ -225,6 +225,10 @@ data_import_before_import = [
 
 # Scheduler Events
 scheduler_events = {
+    "hourly": [
+        # Delete attendance Excel export files older than 45 minutes
+        "customize_erpnext.customize_erpnext.report.shift_attendance_customize.shift_attendance_customize.cleanup_export_files",
+    ],
     "cron": {
          # Chạy mỗi phút - Giải phóng RAM rembg sau 30 phút không dùng rembg để edit ảnh thẻ
         "* * * * *": [
@@ -289,22 +293,26 @@ doc_events = {
     # Employee Checkin Events
     # - Update checkin log_type (IN/OUT)
     # - Auto-update HRMS Attendance based on checkins
+    # Attendance-recalc hooks are GATED by Attendance Calculation Setting →
+    # "Recalc Attendance on Checkin Save/Delete" (default OFF = no-op)
     "Employee Checkin": {
         "on_update": [
             "customize_erpnext.overrides.employee_checkin.employee_checkin.update_employee_checkin",
-            # "customize_erpnext.overrides.employee_checkin.employee_checkin.update_attendance_on_checkin_update"
+            "customize_erpnext.overrides.employee_checkin.employee_checkin.update_attendance_on_checkin_update",
         ],
         "after_insert": [
             "customize_erpnext.overrides.employee_checkin.employee_checkin.update_employee_checkin",
-            # "customize_erpnext.overrides.employee_checkin.employee_checkin.update_attendance_on_checkin_insert"
+            "customize_erpnext.overrides.employee_checkin.employee_checkin.update_attendance_on_checkin_insert",
         ],
         "after_delete": [
-            # "customize_erpnext.overrides.employee_checkin.employee_checkin.update_attendance_on_checkin_delete"
+            "customize_erpnext.overrides.employee_checkin.employee_checkin.update_attendance_on_checkin_delete",
         ],
     },
 
-    # Overtime Registration Events
-    # - Update HRMS Attendance when overtime is submitted/cancelled
+    # Overtime Registration Events — gated by Attendance Calculation Setting
+    # "Recalc Attendance on OT Submit/Cancel" (default OFF).
+    # on_update/on_trash only act on DRAFTS and only when include_draft_ot is
+    # ON (drafts count toward attendance → edits/deletes must recalc too).
     # (no on_update_after_submit: no field has allow_on_submit, the event
     #  never fires — re-add together with allow_on_submit if post-submit
     #  edits are ever enabled)
@@ -314,6 +322,12 @@ doc_events = {
         ],
         "on_cancel": [
             "customize_erpnext.customize_erpnext.doctype.overtime_registration.overtime_registration_hooks.update_attendance_on_overtime_change"
+        ],
+        "on_update": [
+            "customize_erpnext.customize_erpnext.doctype.overtime_registration.overtime_registration_hooks.update_attendance_on_overtime_draft_change"
+        ],
+        "on_trash": [
+            "customize_erpnext.customize_erpnext.doctype.overtime_registration.overtime_registration_hooks.update_attendance_on_overtime_draft_change"
         ]
     },
 

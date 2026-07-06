@@ -27,6 +27,7 @@ from customize_erpnext.customize_erpnext.doctype.attendance_calculation_setting.
 	get_attendance_settings,
 	get_force_update_hours,
 	get_excluded_employee_ids,
+	is_peak_time,
 )
 
 # ============================================================================
@@ -474,22 +475,26 @@ def preload_reference_data(employee_list: List[str], from_date: str, to_date: st
 			"from_date": from_date,
 			"to_date": to_date
 		}
+		# Submitted only, or Draft + Submitted when include_draft_ot setting is ON
+		from customize_erpnext.customize_erpnext.doctype.attendance_calculation_setting.attendance_calculation_setting import get_ot_docstatus_condition
+		ot_docstatus_cond = get_ot_docstatus_condition("or_doc")
+
 		if employee_list:
 			ot_filters["employees"] = tuple(employee_list)
-			ot_sql = """
+			ot_sql = f"""
 				SELECT ord.employee, ord.date, ord.begin_time, ord.end_time
 				FROM `tabOvertime Registration Detail` ord
 				JOIN `tabOvertime Registration` or_doc ON ord.parent = or_doc.name
-				WHERE or_doc.docstatus = 1
+				WHERE {ot_docstatus_cond}
 				  AND ord.date BETWEEN %(from_date)s AND %(to_date)s
 				  AND ord.employee IN %(employees)s
 			"""
 		else:
-			ot_sql = """
+			ot_sql = f"""
 				SELECT ord.employee, ord.date, ord.begin_time, ord.end_time
 				FROM `tabOvertime Registration Detail` ord
 				JOIN `tabOvertime Registration` or_doc ON ord.parent = or_doc.name
-				WHERE or_doc.docstatus = 1
+				WHERE {ot_docstatus_cond}
 				  AND ord.date BETWEEN %(from_date)s AND %(to_date)s
 			"""
 
@@ -2327,6 +2332,12 @@ def custom_process_auto_attendance_for_all_shifts(employees=None, days=None):
 		Same format as original function for compatibility
 	"""
 	from datetime import timedelta
+
+	# Skip during configured check-in/out peak windows (peak_times setting) —
+	# the next hourly/full run catches up. Manual UI Bulk Update is NOT gated.
+	if is_peak_time():
+		print("⏸️  Peak time window — skipping scheduled attendance processing")
+		return {"success": True, "skipped": "peak_time"}
 
 	# Determine date range from shift type settings
 	# HRMS uses each shift's process_attendance_after and last_sync_of_checkin

@@ -6,6 +6,23 @@ from frappe import _
 from frappe.utils import cint, flt
 
 
+# ============================================================================
+# EXPORT CONFIG & SHARED STYLES
+# ============================================================================
+# Sync/async threshold. Benchmark 2026-07-05 (1021 emp x 30 days = 25k rows):
+# full pipeline 22.4s (query 1.5s, 2 legacy sheets 10.5s, 4 new sheets 3.7s,
+# save 6.1s) -> 45k records ~ 35-40s, still safe for a sync web request.
+EXPORT_ASYNC_THRESHOLD = 45000
+
+# Shared openpyxl style objects — constructing Font/Alignment per cell inside
+# the populate loops costs seconds on 25k+ row exports (openpyxl styles are
+# immutable and safe to share)
+from openpyxl.styles import Font as _XFont, Alignment as _XAlignment
+STYLE_CELL_FONT = _XFont(name='Times New Roman', size=8)
+STYLE_ALIGN_CENTER = _XAlignment(horizontal='center', vertical='center')
+STYLE_ALIGN_LEFT = _XAlignment(horizontal='left', vertical='center')
+
+
 def execute(filters=None):
 	columns = get_columns(filters)
 	data = get_data(filters)
@@ -550,6 +567,13 @@ def export_attendance_excel(filters=None):
 		dept_str = "', '".join(dept_list)
 		emp_filter += f" AND emp.department IN ('{dept_str}')"
 
+	# Only employees matching the configured ID prefix are exported
+	from customize_erpnext.customize_erpnext.doctype.attendance_calculation_setting.attendance_calculation_setting import get_attendance_settings
+	emp_prefix = (get_attendance_settings().employee_id_prefix or "").strip()
+	if emp_prefix:
+		filters_temp["emp_prefix"] = f"{emp_prefix}%"
+		emp_filter += " AND emp.name LIKE %(emp_prefix)s"
+
 	employee_count = frappe.db.sql(f"""
 		SELECT COUNT(DISTINCT emp.name) as count
 		FROM `tabEmployee` emp
@@ -566,32 +590,43 @@ def export_attendance_excel(filters=None):
 
 	total_operations = employee_count * num_days
 
-	# If operation is large (>30000 operations), run in background
-	# With ~850 employees, this allows up to ~35 days sync export
-	if total_operations > 30000:
-		job_id = f"export_excel_{int(time.time())}"
+	# Large exports run in background (see EXPORT_ASYNC_THRESHOLD benchmark note)
+	if total_operations > EXPORT_ASYNC_THRESHOLD:
+		# Dedup per user+range: double-clicking Export does not start a second job
+		job_id = f"export_excel_{frappe.session.user}_{date_range['from_date']}_{date_range['to_date']}"
 
-		frappe.enqueue(
+		job = frappe.enqueue(
 			'customize_erpnext.customize_erpnext.report.shift_attendance_customize.shift_attendance_customize.export_attendance_excel_job',
 			queue='default',
 			timeout=1800,  # 30 minutes
 			job_id=job_id,
+			deduplicate=True,
 			filters=filters
 		)
+
+		if job is None:
+			# Duplicate dropped — a job for this user+range is already queued/running
+			return {
+				'background_job': True,
+				'job_id': job_id,
+				'total_operations': total_operations,
+				'message': 'This export is already running. Please wait for the notification.'
+			}
 
 		return {
 			'background_job': True,
 			'job_id': job_id,
 			'total_operations': total_operations,
-			'message': f'Large export ({employee_count} employees × {num_days} days = {total_operations} records) queued for background processing. You will receive a notification when ready.'
+			'message': f'Large export ({employee_count} employees × {num_days} days = {total_operations} records) queued for background processing. You will receive a notification (bell icon) when ready.'
 		}
 
 	# Small operation - run synchronously
 	return export_attendance_excel_sync(filters)
 
 
-def export_attendance_excel_sync(filters):
-	"""Synchronous Excel export for small datasets"""
+def export_attendance_excel_sync(filters, is_background=False):
+	"""Excel export pipeline. is_background=True adds realtime progress updates
+	and a longer file retention (user may come back later for the download)."""
 	import json
 	import openpyxl
 	import tempfile
@@ -600,6 +635,10 @@ def export_attendance_excel_sync(filters):
 	if isinstance(filters, str):
 		filters = json.loads(filters)
 
+	def _progress(percent, description):
+		if is_background:
+			frappe.publish_progress(percent, title="Export Excel", description=description)
+
 	# Always use fresh data from the report to ensure consistency
 	# Force summary = 0 for Excel export to get daily detail data
 	export_filters = filters.copy() if filters else {}
@@ -607,7 +646,17 @@ def export_attendance_excel_sync(filters):
 
 	# Get data using existing get_data function
 	data = get_data(export_filters)
+
+	# Excel export only includes employees matching the configured ID prefix
+	# (Attendance Calculation Setting → Employee ID Prefix, e.g. TIQN) —
+	# excludes Intern-%/test IDs. On-screen report is NOT filtered.
+	from customize_erpnext.customize_erpnext.doctype.attendance_calculation_setting.attendance_calculation_setting import get_attendance_settings
+	emp_prefix = (get_attendance_settings().employee_id_prefix or "").strip()
+	if emp_prefix:
+		data = [r for r in data if str(r.get("employee") or "").startswith(emp_prefix)]
+
 	employee_data = convert_attendance_data_to_excel_format(data, export_filters)
+	_progress(15, "Data loaded — building Timesheet sheet...")
 
 	# Create Excel file
 	wb = openpyxl.Workbook()
@@ -637,6 +686,7 @@ def export_attendance_excel_sync(filters):
 	dept_header_count = sum(1 for d in employee_data if d.get('type') == 'department_header')
 	total_rows = len(all_employees) + dept_header_count + 1  # employees + dept headers + total row
 	apply_excel_formatting(ws, total_rows, len(date_range['dates']), date_range, holidays_set, 'timesheet')
+	_progress(40, "Timesheet done — building Overtime sheet...")
 
 	# ===== Create OverTime sheet =====
 	ws_ot = wb.create_sheet(title="Overtime")
@@ -656,6 +706,7 @@ def export_attendance_excel_sync(filters):
 	# Apply formatting for OT sheet
 	total_rows_ot = len(all_employees_ot) + dept_header_count + 1  # reuse dept_header_count
 	apply_excel_formatting(ws_ot, total_rows_ot, len(date_range['dates']), date_range, holidays_set, 'overtime')
+	_progress(65, "Overtime done — building Detail/Summary sheets...")
 
 	# ===== Create Leave Regulations sheet =====
 	add_leave_regulations_sheet(wb)
@@ -672,6 +723,7 @@ def export_attendance_excel_sync(filters):
 			f"Error building timesheet-style sheets: {str(e)}",
 			"Attendance Export Extra Sheets Error"
 		)
+	_progress(85, "Saving Excel file...")
 
 	# Create filename
 	from frappe.utils import formatdate
@@ -702,15 +754,21 @@ def export_attendance_excel_sync(filters):
 		# Clean up temp file
 		os.unlink(temp_file.name)
 
-		# Schedule file deletion after 2 minutes (enough time for download)
-		frappe.enqueue(
-			'customize_erpnext.customize_erpnext.report.shift_attendance_customize.shift_attendance_customize.delete_export_file',
-			queue='short',
-			timeout=300,
-			file_name=file_doc.name,
-			enqueue_after_commit=True
-		)
+		# File cleanup:
+		# - sync: delete after 2 minutes (user downloads immediately)
+		# - background: NO per-file job — a sleeping delete job would occupy a
+		#   worker for the whole retention window. The hourly scheduler task
+		#   cleanup_export_files() removes export files older than 45 minutes.
+		if not is_background:
+			frappe.enqueue(
+				'customize_erpnext.customize_erpnext.report.shift_attendance_customize.shift_attendance_customize.delete_export_file',
+				queue='short',
+				timeout=300,
+				file_name=file_doc.name,
+				enqueue_after_commit=True
+			)
 
+		_progress(100, "Export complete")
 		return {
 			'file_url': file_doc.file_url,
 			'filename': filename
@@ -729,7 +787,21 @@ def export_attendance_excel_job(filters):
 		frappe.publish_progress(0, title="Starting Excel export...",
 							  description="Generating attendance Excel file in background")
 
-		result = export_attendance_excel_sync(filters)
+		result = export_attendance_excel_sync(filters, is_background=True)
+
+		# Bell notification with download link — survives page navigation
+		# (the realtime event below is lost if the user left the page)
+		try:
+			frappe.get_doc({
+				'doctype': 'Notification Log',
+				'subject': f"Excel export ready: {result.get('filename')}",
+				'for_user': frappe.session.user,
+				'type': 'Alert',
+				'email_content': f"<a href='{result.get('file_url')}'>Download {result.get('filename')}</a> (file kept for 30 minutes)",
+			}).insert(ignore_permissions=True)
+			frappe.db.commit()
+		except Exception:
+			frappe.log_error(frappe.get_traceback(), "Export Notification Log Error")
 
 		frappe.publish_realtime(
 			event='excel_export_complete',
@@ -1131,13 +1203,13 @@ def setup_excel_headers(ws, date_range, _filters):
 	# Row 1: Main title (merge and center)
 	ws.cell(row=1, column=1, value="EMPLOYEE TIMESHEET")
 	ws.cell(row=1, column=1).font = Font(name='Times New Roman', size=12, bold=True)
-	ws.cell(row=1, column=1).alignment = Alignment(horizontal='center', vertical='center')
+	ws.cell(row=1, column=1).alignment = STYLE_ALIGN_CENTER
 	ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=total_cols)
 
 	# Row 2: Vietnamese title (merge and center)
 	ws.cell(row=2, column=1, value="BẢNG CHẤM CÔNG NHÂN VIÊN")
 	ws.cell(row=2, column=1).font = Font(name='Times New Roman', size=12, bold=True)
-	ws.cell(row=2, column=1).alignment = Alignment(horizontal='center', vertical='center')
+	ws.cell(row=2, column=1).alignment = STYLE_ALIGN_CENTER
 	ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=total_cols)
 
 	# Row 3: Period and date range (merge and center)
@@ -1145,7 +1217,7 @@ def setup_excel_headers(ws, date_range, _filters):
 	to_date_str = date_range['to_date'].strftime('%d %b %y')
 	ws.cell(row=3, column=1, value=f"{date_range['period_name']} ({from_date_str} - {to_date_str})")
 	ws.cell(row=3, column=1).font = Font(name='Times New Roman', size=10)
-	ws.cell(row=3, column=1).alignment = Alignment(horizontal='center', vertical='center')
+	ws.cell(row=3, column=1).alignment = STYLE_ALIGN_CENTER
 	ws.merge_cells(start_row=3, start_column=1, end_row=3, end_column=total_cols)
 
 	# Row 5: Column headers
@@ -1221,13 +1293,13 @@ def setup_excel_headers_overtime(ws, date_range, _filters):
 	# Row 1: Main title (merge and center)
 	ws.cell(row=1, column=1, value="EMPLOYEE OVERTIME SHEET")
 	ws.cell(row=1, column=1).font = Font(name='Times New Roman', size=12, bold=True)
-	ws.cell(row=1, column=1).alignment = Alignment(horizontal='center', vertical='center')
+	ws.cell(row=1, column=1).alignment = STYLE_ALIGN_CENTER
 	ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=total_cols)
 
 	# Row 2: Vietnamese title (merge and center)
 	ws.cell(row=2, column=1, value="BẢNG TỔNG HỢP LÀM THÊM GIỜ")
 	ws.cell(row=2, column=1).font = Font(name='Times New Roman', size=12, bold=True)
-	ws.cell(row=2, column=1).alignment = Alignment(horizontal='center', vertical='center')
+	ws.cell(row=2, column=1).alignment = STYLE_ALIGN_CENTER
 	ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=total_cols)
 
 	# Row 3: Period and date range (merge and center)
@@ -1235,7 +1307,7 @@ def setup_excel_headers_overtime(ws, date_range, _filters):
 	to_date_str = date_range['to_date'].strftime('%d %b %y')
 	ws.cell(row=3, column=1, value=f"{date_range['period_name']} ({from_date_str} - {to_date_str})")
 	ws.cell(row=3, column=1).font = Font(name='Times New Roman', size=10)
-	ws.cell(row=3, column=1).alignment = Alignment(horizontal='center', vertical='center')
+	ws.cell(row=3, column=1).alignment = STYLE_ALIGN_CENTER
 	ws.merge_cells(start_row=3, start_column=1, end_row=3, end_column=total_cols)
 
 	# Row 5: Column headers
@@ -1331,7 +1403,7 @@ def populate_employee_data(ws, employee_data, date_range, sheet_type='timesheet'
 			ws.cell(row=current_row, column=1, value=dept_name)
 			dept_cell = ws.cell(row=current_row, column=1)
 			dept_cell.font = Font(name='Times New Roman', bold=True, size=10)
-			dept_cell.alignment = Alignment(horizontal='left', vertical='center')
+			dept_cell.alignment = STYLE_ALIGN_LEFT
 
 			# Apply gray background to entire row
 			for col in range(1, total_columns):
@@ -1409,9 +1481,9 @@ def populate_single_employee_row(ws, emp, row, date_range, stt_number, sheet_typ
 	# Set font and alignment for employee data (size 8)
 	for col in range(1, 9):  # Columns 1-8
 		cell = ws.cell(row=row, column=col)
-		cell.font = Font(name='Times New Roman', size=8)
+		cell.font = STYLE_CELL_FONT
 		# Left-align these specific columns
-		cell.alignment = Alignment(horizontal='left', vertical='center')
+		cell.alignment = STYLE_ALIGN_LEFT
 
 	# Daily data based on sheet type
 	total_value = 0
@@ -1439,33 +1511,33 @@ def populate_single_employee_row(ws, emp, row, date_range, stt_number, sheet_typ
 
 		# Center align attendance data with font
 		cell = ws.cell(row=row, column=col)
-		cell.font = Font(name='Times New Roman', size=8)
-		cell.alignment = Alignment(horizontal='center', vertical='center')
+		cell.font = STYLE_CELL_FONT
+		cell.alignment = STYLE_ALIGN_CENTER
 
 	# Add total column with calculated value
 	total_col = 9 + len(date_range['dates'])
 	cell = ws.cell(row=row, column=total_col, value=decimal_round(total_value, 2))
-	cell.font = Font(name='Times New Roman', size=8)
-	cell.alignment = Alignment(horizontal='center', vertical='center')
+	cell.font = STYLE_CELL_FONT
+	cell.alignment = STYLE_ALIGN_CENTER
 
 	if sheet_type == 'overtime':
 		# Add Total OT x Multiplier column for overtime sheet
 		total_ot_mult_col = total_col + 1
 		cell = ws.cell(row=row, column=total_ot_mult_col, value=decimal_round(total_ot_multiplied, 2))
-		cell.font = Font(name='Times New Roman', size=8)
-		cell.alignment = Alignment(horizontal='center', vertical='center')
+		cell.font = STYLE_CELL_FONT
+		cell.alignment = STYLE_ALIGN_CENTER
 
 		# Add confirmation column (empty)
 		confirmation_col = total_ot_mult_col + 1
 		cell = ws.cell(row=row, column=confirmation_col, value='')
-		cell.font = Font(name='Times New Roman', size=8)
-		cell.alignment = Alignment(horizontal='center', vertical='center')
+		cell.font = STYLE_CELL_FONT
+		cell.alignment = STYLE_ALIGN_CENTER
 	else:
 		# Add confirmation column (empty) for timesheet
 		confirmation_col = total_col + 1
 		cell = ws.cell(row=row, column=confirmation_col, value='')
-		cell.font = Font(name='Times New Roman', size=8)
-		cell.alignment = Alignment(horizontal='center', vertical='center')
+		cell.font = STYLE_CELL_FONT
+		cell.alignment = STYLE_ALIGN_CENTER
 
 
 def add_total_row(ws, _all_employees, total_row, date_range, first_employee_row, sheet_type='timesheet'):
@@ -1484,14 +1556,14 @@ def add_total_row(ws, _all_employees, total_row, date_range, first_employee_row,
 
 	ws.cell(row=total_row, column=1, value="TOTAL")
 	ws.cell(row=total_row, column=1).font = Font(name='Times New Roman', bold=True, size=8)
-	ws.cell(row=total_row, column=1).alignment = Alignment(horizontal='center', vertical='center')
+	ws.cell(row=total_row, column=1).alignment = STYLE_ALIGN_CENTER
 
 	# Date columns may contain text (abbreviations), so leave them empty in total row
 	for j, date_obj in enumerate(date_range['dates']):
 		col = 9 + j
 		cell = ws.cell(row=total_row, column=col, value='')
 		cell.font = Font(name='Times New Roman', bold=True, size=8)
-		cell.alignment = Alignment(horizontal='center', vertical='center')
+		cell.alignment = STYLE_ALIGN_CENTER
 
 	# Add grand total SUM formula in Total column
 	# This column contains numeric values, so SUM formula works
@@ -1502,7 +1574,7 @@ def add_total_row(ws, _all_employees, total_row, date_range, first_employee_row,
 	grand_total_formula = f"=SUM({total_col_letter}{first_employee_row}:{total_col_letter}{last_employee_row})"
 	ws.cell(row=total_row, column=total_col, value=grand_total_formula)
 	ws.cell(row=total_row, column=total_col).font = Font(name='Times New Roman', bold=True, size=8)
-	ws.cell(row=total_row, column=total_col).alignment = Alignment(horizontal='center', vertical='center')
+	ws.cell(row=total_row, column=total_col).alignment = STYLE_ALIGN_CENTER
 
 	# For overtime sheet, add SUM formula for Total OT x Multiplier column
 	if sheet_type == 'overtime':
@@ -1511,7 +1583,7 @@ def add_total_row(ws, _all_employees, total_row, date_range, first_employee_row,
 		grand_total_mult_formula = f"=SUM({total_ot_mult_col_letter}{first_employee_row}:{total_ot_mult_col_letter}{last_employee_row})"
 		ws.cell(row=total_row, column=total_ot_mult_col, value=grand_total_mult_formula)
 		ws.cell(row=total_row, column=total_ot_mult_col).font = Font(name='Times New Roman', bold=True, size=8)
-		ws.cell(row=total_row, column=total_ot_mult_col).alignment = Alignment(horizontal='center', vertical='center')
+		ws.cell(row=total_row, column=total_ot_mult_col).alignment = STYLE_ALIGN_CENTER
 
 	# Add gray background to entire TOTAL row
 	for col in range(1, total_columns + 1):
@@ -1539,12 +1611,12 @@ def add_excel_footer(ws, current_row, date_range):
 	date_col = min(total_columns - 10, 25)  # Adjust based on total columns
 	ws.cell(row=date_row, column=date_col, value=date_str_en)
 	ws.cell(row=date_row, column=date_col).font = Font(name='Times New Roman', size=10)
-	ws.cell(row=date_row, column=date_col).alignment = Alignment(horizontal='center', vertical='center')
+	ws.cell(row=date_row, column=date_col).alignment = STYLE_ALIGN_CENTER
 
 	date_row_vn = date_row + 1
 	ws.cell(row=date_row_vn, column=date_col, value=date_str_vn)
 	ws.cell(row=date_row_vn, column=date_col).font = Font(name='Times New Roman', size=10)
-	ws.cell(row=date_row_vn, column=date_col).alignment = Alignment(horizontal='center', vertical='center')
+	ws.cell(row=date_row_vn, column=date_col).alignment = STYLE_ALIGN_CENTER
 
 	# Signature section
 	signature_row = date_row_vn + 1
@@ -1553,47 +1625,47 @@ def add_excel_footer(ws, current_row, date_range):
 	# Left signature (Col 3 area) - Prepared by
 	ws.cell(row=signature_row, column=3, value="Prepared by")
 	ws.cell(row=signature_row, column=3).font = Font(name='Times New Roman', bold=True, size=10)
-	ws.cell(row=signature_row, column=3).alignment = Alignment(horizontal='center', vertical='center')
+	ws.cell(row=signature_row, column=3).alignment = STYLE_ALIGN_CENTER
 
 	# Middle signature (Col 15 area) - Verified by
 	middle_col = min(15, total_columns // 2)
 	ws.cell(row=signature_row, column=middle_col, value="Verified by")
 	ws.cell(row=signature_row, column=middle_col).font = Font(name='Times New Roman', bold=True, size=10)
-	ws.cell(row=signature_row, column=middle_col).alignment = Alignment(horizontal='center', vertical='center')
+	ws.cell(row=signature_row, column=middle_col).alignment = STYLE_ALIGN_CENTER
 
 	# Right signature (Col 29 area) - Approved by
 	right_col = min(total_columns - 5, date_col)
 	ws.cell(row=signature_row, column=right_col, value="Approved by")
 	ws.cell(row=signature_row, column=right_col).font = Font(name='Times New Roman', bold=True, size=10)
-	ws.cell(row=signature_row, column=right_col).alignment = Alignment(horizontal='center', vertical='center')
+	ws.cell(row=signature_row, column=right_col).alignment = STYLE_ALIGN_CENTER
 
 	# Job titles
 	title_row = signature_row + 1
 	ws.cell(row=title_row, column=3, value="C&B Executive")
 	ws.cell(row=title_row, column=3).font = Font(name='Times New Roman', size=10)
-	ws.cell(row=title_row, column=3).alignment = Alignment(horizontal='center', vertical='center')
+	ws.cell(row=title_row, column=3).alignment = STYLE_ALIGN_CENTER
 
 	ws.cell(row=title_row, column=middle_col, value="Office Department Manager")
 	ws.cell(row=title_row, column=middle_col).font = Font(name='Times New Roman', size=10)
-	ws.cell(row=title_row, column=middle_col).alignment = Alignment(horizontal='center', vertical='center')
+	ws.cell(row=title_row, column=middle_col).alignment = STYLE_ALIGN_CENTER
 
 	ws.cell(row=title_row, column=right_col, value="Head of Branch")
 	ws.cell(row=title_row, column=right_col).font = Font(name='Times New Roman', size=10)
-	ws.cell(row=title_row, column=right_col).alignment = Alignment(horizontal='center', vertical='center')
+	ws.cell(row=title_row, column=right_col).alignment = STYLE_ALIGN_CENTER
 
 	# Names
 	name_row = signature_row + 6
 	ws.cell(row=name_row, column=3, value="Phạm Thị Kim Loan")
 	ws.cell(row=name_row, column=3).font = Font(name='Times New Roman', size=10)
-	ws.cell(row=name_row, column=3).alignment = Alignment(horizontal='center', vertical='center')
+	ws.cell(row=name_row, column=3).alignment = STYLE_ALIGN_CENTER
 
 	ws.cell(row=name_row, column=middle_col, value="Nguyễn Thị Yến Ni")
 	ws.cell(row=name_row, column=middle_col).font = Font(name='Times New Roman', size=10)
-	ws.cell(row=name_row, column=middle_col).alignment = Alignment(horizontal='center', vertical='center')
+	ws.cell(row=name_row, column=middle_col).alignment = STYLE_ALIGN_CENTER
 
 	ws.cell(row=name_row, column=right_col, value="KITAJIMA MOTOHARU")
 	ws.cell(row=name_row, column=right_col).font = Font(name='Times New Roman', size=10)
-	ws.cell(row=name_row, column=right_col).alignment = Alignment(horizontal='center', vertical='center')
+	ws.cell(row=name_row, column=right_col).alignment = STYLE_ALIGN_CENTER
 
 
 def apply_excel_formatting(ws, num_employees, num_dates, date_range, holidays_set=None, sheet_type='timesheet'):
@@ -1762,12 +1834,12 @@ def add_leave_regulations_sheet(wb):
 
 
 def delete_export_file(file_name):
-	"""Delete exported Excel file after download
-	This function is called via background job after a delay to allow download to complete
+	"""Delete a SYNC-exported Excel file after 2 minutes (download window).
+	Background exports are cleaned by cleanup_export_files() instead — a long
+	sleep here would occupy a worker for the whole retention window.
 	"""
 	import time
 
-	# Wait 2 minutes before deleting to ensure download completes
 	time.sleep(120)
 
 	try:
@@ -2052,3 +2124,25 @@ def add_shift_matrix_sheet(wb, data, date_range):
 	for i, width in enumerate([12, 24, 14, 11, 11] + [8] * len(dates), 1):
 		ws.column_dimensions[ws.cell(row=1, column=i).column_letter].width = width
 	ws.freeze_panes = "F2"
+
+
+def cleanup_export_files():
+	"""Hourly scheduler task: delete attendance export files older than 45
+	minutes (covers background exports — kept ~30+ min so the user can return
+	via the bell notification — plus any leftovers from crashed jobs)."""
+	old_files = frappe.get_all(
+		"File",
+		filters={
+			"file_name": ["like", "Attendance\\_%.xlsx"],
+			"is_private": 0,
+			"creation": ["<", frappe.utils.add_to_date(frappe.utils.now_datetime(), minutes=-45)],
+		},
+		pluck="name",
+	)
+	for name in old_files:
+		try:
+			frappe.delete_doc("File", name, ignore_permissions=True)
+		except Exception:
+			frappe.log_error(frappe.get_traceback(), "Export File Cleanup Error")
+	if old_files:
+		frappe.db.commit()

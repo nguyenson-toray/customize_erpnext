@@ -776,20 +776,20 @@ def validate_ot_continuity_with_shift(begin_time, end_time, shift_config, has_ma
             return True, None
 
         # Invalid: OT overlaps with working hours
-        if has_maternity:
-            return False, _("Giờ tăng ca phải nằm ngoài giờ làm việc (trước {0}, trong giờ nghỉ trưa {1}-{2}, hoặc sau {3})").format(
-                shift_start.strftime("%H:%M"),
-                break_start.strftime("%H:%M"),
-                break_end.strftime("%H:%M"),
-                maternity_shift_end.strftime("%H:%M")
-            )
-        else:
-            return False, _("Giờ tăng ca phải nằm ngoài giờ làm việc (trước {0}, trong giờ nghỉ trưa {1}-{2}, hoặc sau {3})").format(
-                shift_start.strftime("%H:%M"),
-                break_start.strftime("%H:%M"),
-                break_end.strftime("%H:%M"),
-                shift_end.strftime("%H:%M")
-            )
+        # if has_maternity:
+        #     return False, _("Giờ tăng ca phải nằm ngoài giờ làm việc (trước {0}, trong giờ nghỉ trưa {1}-{2}, hoặc sau {3})").format(
+        #         shift_start.strftime("%H:%M"),
+        #         break_start.strftime("%H:%M"),
+        #         break_end.strftime("%H:%M"),
+        #         maternity_shift_end.strftime("%H:%M")
+        #     )
+        # else:
+        #     return False, _("Giờ tăng ca phải nằm ngoài giờ làm việc (trước {0}, trong giờ nghỉ trưa {1}-{2}, hoặc sau {3})").format(
+        #         shift_start.strftime("%H:%M"),
+        #         break_start.strftime("%H:%M"),
+        #         break_end.strftime("%H:%M"),
+        #         shift_end.strftime("%H:%M")
+        #     )
 
 @frappe.whitelist()
 def check_employees_with_maternity_benefits(entries):

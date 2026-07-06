@@ -4,11 +4,19 @@
 frappe.ui.form.on("Overtime Registration", {
     refresh(frm) {
         // Hide Print button if document is not submitted
-        if (frm.doc.docstatus != 1) {
+        frappe.db.get_single_value('Attendance Calculation Setting', 'include_draft_ot')
+            .then(val => {
+                console.log("Attendance Calculation Setting: include_draft_ot :", val);
+                if (val === 0 && frm.doc.docstatus != 1) {
+                    $("button[data-original-title=Print]").hide();
+                    frm.page.menu.find('[data-label="Print"]').parent().parent().remove();
+                }
+            });
+        // if (frm.doc.docstatus != 1) {
 
-            $("button[data-original-title=Print]").hide();
-            frm.page.menu.find('[data-label="Print"]').parent().parent().remove();
-        }
+        //     $("button[data-original-title=Print]").hide();
+        //     frm.page.menu.find('[data-label="Print"]').parent().parent().remove();
+        // }
         // Add custom styling for the form
         frm.page.add_inner_button(__('Get Employees'), function () {
             show_employee_selection_dialog(frm);

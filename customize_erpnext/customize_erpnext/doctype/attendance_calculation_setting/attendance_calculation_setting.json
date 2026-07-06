@@ -1,6 +1,6 @@
 {
  "actions": [],
- "creation": "2026-07-04 12:00:00.000000",
+ "creation": "2026-07-04 12:00:00",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -10,6 +10,13 @@
   "column_break_ot",
   "min_pre_shift_ot_minutes",
   "allow_ot_in_rest_time",
+  "include_draft_ot",
+  "recalc_triggers_section",
+  "recalc_attendance_on_ot_change",
+  "column_break_recalc",
+  "recalc_attendance_on_maternity_change",
+  "column_break_rula",
+  "recalc_attendance_on_checkin_change",
   "shift_processing_section",
   "default_shift",
   "employee_id_prefix",
@@ -17,6 +24,8 @@
   "column_break_shift",
   "force_update_hours",
   "exclude_employee_ids",
+  "peak_times",
+  "peak_window_minutes",
   "maternity_leave_section",
   "maternity_benefit_hours",
   "column_break_mat",
@@ -25,7 +34,9 @@
   "note_early_late_threshold_minutes",
   "column_break_note",
   "female_checkout_check_from",
-  "female_checkout_check_to"
+  "female_checkout_check_to",
+  "algorithm_section",
+  "algorithm_help"
  ],
  "fields": [
   {
@@ -66,6 +77,44 @@
    "label": "Allow OT In Rest Time"
   },
   {
+   "default": "0",
+   "description": "Also count Overtime Registrations still in Draft (not yet submitted). Overlapping registrations in the same zone (pre- or post-shift) are merged as min(begin) - max(end)",
+   "fieldname": "include_draft_ot",
+   "fieldtype": "Check",
+   "label": "Include Draft OT Registrations"
+  },
+  {
+   "description": "Off = attendance picks up changes at the next full run (Full Update Hours) or a manual Bulk Update",
+   "fieldname": "recalc_triggers_section",
+   "fieldtype": "Section Break",
+   "label": "Auto Recalc Triggers"
+  },
+  {
+   "default": "0",
+   "description": "Queue an attendance recalculation immediately when an Overtime Registration is submitted or cancelled (affected employees/dates only). When Include Draft OT Registrations is also ON, saving/deleting a Draft OTR recalculates too",
+   "fieldname": "recalc_attendance_on_ot_change",
+   "fieldtype": "Check",
+   "label": "Recalc Attendance on OT Submit/Cancel"
+  },
+  {
+   "fieldname": "column_break_recalc",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "description": "Queue an attendance recalculation for THAT employee's affected dates when an Employee Maternity record is saved or deleted",
+   "fieldname": "recalc_attendance_on_maternity_change",
+   "fieldtype": "Check",
+   "label": "Recalc Attendance on Maternity Save/Delete"
+  },
+  {
+   "default": "0",
+   "description": "Queue an attendance recalculation for THAT employee on THAT date when an Employee Checkin is created, updated or deleted (deduplicated; skipped during Data Import)",
+   "fieldname": "recalc_attendance_on_checkin_change",
+   "fieldtype": "Check",
+   "label": "Recalc Attendance on Checkin Save/Delete"
+  },
+  {
    "fieldname": "shift_processing_section",
    "fieldtype": "Section Break",
    "label": "Shift & Processing"
@@ -80,7 +129,7 @@
   },
   {
    "default": "TIQN",
-   "description": "Only employees whose ID starts with this prefix are processed when no explicit employee list is given",
+   "description": "Only employees whose ID starts with this prefix are processed when no explicit employee list is given, and only they are included in the Shift Attendance Customize Excel export",
    "fieldname": "employee_id_prefix",
    "fieldtype": "Data",
    "label": "Employee ID Prefix"
@@ -108,6 +157,20 @@
    "fieldname": "exclude_employee_ids",
    "fieldtype": "Small Text",
    "label": "Exclude Employee IDs"
+  },
+  {
+   "default": "07:40,16:00,17:00,19:00,20:00",
+   "description": "Comma-separated start times (HH:MM) of daily check-in/out peak periods. Automatic attendance calculation (hourly job + auto-recalc triggers) is SKIPPED during these windows and caught up by the next full run. Clear the field to disable. Manual Bulk Update from the UI is never blocked",
+   "fieldname": "peak_times",
+   "fieldtype": "Data",
+   "label": "Peak Times (skip calculation)"
+  },
+  {
+   "default": "20",
+   "description": "Length in minutes of each peak window",
+   "fieldname": "peak_window_minutes",
+   "fieldtype": "Int",
+   "label": "Peak Window Minutes"
   },
   {
    "fieldname": "maternity_leave_section",
@@ -163,12 +226,28 @@
    "fieldname": "female_checkout_check_to",
    "fieldtype": "Time",
    "label": "Female Checkout Check To"
+  },
+  {
+   "fieldname": "column_break_rula",
+   "fieldtype": "Column Break"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "algorithm_section",
+   "fieldtype": "Section Break",
+   "label": "Thuật toán tính công (tra cứu)"
+  },
+  {
+   "fieldname": "algorithm_help",
+   "fieldtype": "HTML",
+   "label": "Algorithm Help",
+   "options": "<div style=\"font-size:13px;line-height:1.55;max-width:960px\">\n<h4>📖 Thuật toán tính công — tra cứu nhanh</h4>\n<p><i>Nguồn gốc: port từ app chấm công cũ (xem <code>overrides/shift_type/LEGACY_APP_TIMESHEET_ALGORITHM.md</code>). Engine: <code>shift_type_optimized.py</code> + <code>employee_checkin.py</code>.</i></p>\n\n<h5>1. Khi nào hệ thống tính?</h5>\n<ul>\n<li><b>Job hằng giờ</b>: chạy incremental (chỉ checkin chưa gắn attendance). Vào các giờ trong <b>Full Update Hours</b> (mặc định 8h, 23h) → chạy lại <b>TOÀN BỘ</b> ngày trong range.</li>\n<li><b>Trigger tự động</b> (section Auto Recalc Triggers, mặc định TẮT): submit/hủy phiếu OT · lưu/xóa hồ sơ Thai sản (chỉ NV đó) · tạo/sửa/xóa Checkin (chỉ NV đó, ngày đó).</li>\n<li><b>Giờ cao điểm</b> (Peak Times): mọi tính toán TỰ ĐỘNG bị bỏ qua trong khung [giờ, +Peak Window Minutes), bù ở lần chạy kế. Bulk Update thủ công từ report KHÔNG bị chặn.</li>\n<li>NV trong <b>Exclude Employee IDs</b> bị loại hoàn toàn khỏi tính toán.</li>\n</ul>\n\n<h5>2. Xác định ca</h5>\n<p>Ưu tiên: <b>Shift Assignment</b> (mới nhất còn hiệu lực) → <b>Default Shift trên hồ sơ NV</b> → setting <b>Default Shift</b>. Giờ ca, giờ nghỉ trưa, grace trễ/sớm lấy từ Shift Type.</p>\n\n<h5>3. Giờ công (working_hours)</h5>\n<ul>\n<li>Vào = log sớm nhất, Ra = log muộn nhất trong ngày. Chỉ 1 log → Present, 0 giờ.</li>\n<li><b>Sáng</b> = [max(vào, đầu ca) → min(ra, đầu nghỉ trưa)] · <b>Chiều</b> = [max(vào, cuối nghỉ trưa) → min(ra, cuối ca)]. Nghỉ trưa không tính.</li>\n<li><b>Thai sản/con nhỏ</b> (Employee Maternity): cuối ca giảm <b>Maternity Benefit Hours</b> (mặc định 1h) nhưng vẫn tính đủ giờ — về đúng giờ giảm = đủ công; về sớm hơn trừ đúng phần sớm.</li>\n<li>Status theo ngưỡng của Shift Type (Absent / Half Day / Present). Lưu làm tròn 2 số lẻ; <b>Working Block Minutes</b> &gt; 1 thì floor theo block.</li>\n</ul>\n\n<h5>4. Tăng ca (OT) — tính THEO TỪNG ĐOẠN</h5>\n<ul>\n<li>Nguồn: phiếu Đăng ký tăng ca đã submit (bật <b>Include Draft OT Registrations</b> → tính cả Nháp). Nhiều phiếu trùng cùng vùng → gộp min(bắt đầu)→max(kết thúc).</li>\n<li><b>Trước ca</b>: duyệt = span đăng ký trước ca; thực tế = đầu ca − giờ vào, TỐI ĐA bằng duyệt, dưới <b>Minimum Pre-Shift OT Minutes</b> (60') → 0.</li>\n<li><b>Sau ca</b>: thực tế = giờ ra − cuối ca (không giới hạn bởi đăng ký), dưới <b>Minimum OT Minutes</b> (30') → 0; duyệt = span đăng ký sau ca. Không đăng ký → thực tế vẫn hiển thị, final = 0.</li>\n<li><b>Nghỉ trưa</b>: chỉ tính khi bật <b>Allow OT In Rest Time</b> + có đăng ký trùm giờ nghỉ + checkin phủ qua giờ nghỉ; duyệt 100%.</li>\n<li><b>OT Final = Σ min(thực tế, duyệt) CỦA TỪNG ĐOẠN</b> — không lấy min của tổng. Mọi giá trị floor theo <b>OT Block Minutes</b>; lưu 1 số lẻ.</li>\n<li>Thiếu log (0/1 lần chấm): duyệt vẫn hiển thị, thực tế/final = 0.</li>\n</ul>\n\n<h5>5. Chủ Nhật</h5>\n<ul>\n<li>Có đăng ký OT → giờ ca CN = min→max của đăng ký; <b>toàn bộ giờ làm chuyển thành OT thực tế, working_hours = 0</b> (CN không tính công); duyệt = span − giờ nghỉ trưa của ca; final = min.</li>\n<li>Không đăng ký → OT thực tế vẫn hiển thị, duyệt/final = 0, working_hours = 0.</li>\n<li>⚠️ Report lương ngày CN phải đọc cột OT, KHÔNG đọc working_hours. Không chấm công CN → không tạo attendance.</li>\n</ul>\n\n<h5>6. Ngày không có checkin</h5>\n<p>Thai sản (giai đoạn nghỉ hẳn) → KHÔNG tạo attendance. Có đơn nghỉ phép → On Leave / Half Day (hỗ trợ 2 đơn nửa ngày). Còn lại → Absent. Ngày lễ/CN không checkin → không tạo. Đã nghỉ việc → dọn attendance sau ngày nghỉ.</p>\n\n<h5>7. Ghi chú bất thường (field custom_note — hệ thống tự ghi đè, KHÔNG sửa tay)</h5>\n<ul>\n<li>Đã nghỉ việc còn chấm công · Đến sớm/về trễ ≥ <b>Early/Late Threshold Minutes</b> mà không có đăng ký OT đúng vùng · Đi làm CN (có/không đăng ký; &gt;4h phủ giờ trưa → phụ cấp cơm) · Nữ checkout trong <b>Female Checkout From–To</b> mà chưa có hồ sơ Thai sản (chỉ ca kết thúc = cuối khung) · Chỉ 1 lần chấm / thiếu VÀO / thiếu RA.</li>\n</ul>\n\n<p><i>Chi tiết đầy đủ: <code>overrides/shift_type/OPTIMIZATION_GUIDE.md</code> · <code>QUICK_REFERENCE.md</code></i></p>\n</div>"
   }
  ],
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-07-04 12:00:00.000000",
+ "modified": "2026-07-06 08:50:36.606448",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Attendance Calculation Setting",
@@ -203,6 +282,7 @@
    "write": 1
   }
  ],
+ "row_format": "Dynamic",
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": []

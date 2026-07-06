@@ -4,7 +4,9 @@
 
 ## Settings (change here, not in code)
 
-`/app/attendance-calculation-setting` — Attendance Calculation Setting (Single):
+`/app/attendance-calculation-setting` — Attendance Calculation Setting (Single).
+The form has a built-in Vietnamese algorithm reference (collapsible section
+"Thuật toán tính công (tra cứu)").
 
 | Setting | Default | Meaning |
 |---|---|---|
@@ -13,12 +15,17 @@
 | OT Block Minutes | 1 | Floor OT to block (30 → 45'→30') |
 | Working Block Minutes | 1 | 1 = no rounding of working hours |
 | Allow OT In Rest Time | OFF | OFF = registered lunch-break OT ignored |
+| Include Draft OT Registrations | OFF | ON = count Draft OTRs too; same-zone overlaps merged min(begin)-max(end) |
+| Recalc Attendance on OT Submit/Cancel | OFF | ON = queue recalc when OTR submitted/cancelled; +draft flag ON = draft save/delete recalc too |
+| Recalc Attendance on Maternity Save/Delete | OFF | ON = recalc that employee's affected dates on Employee Maternity save/delete |
+| Recalc Attendance on Checkin Save/Delete | OFF | ON = recalc that employee+date on checkin insert/update/delete (deduped) |
 | Exclude Employee IDs | — | CSV, skipped from processing entirely |
 | Maternity Benefit Hours | 1.0 | Shift end reduced, hours still credited |
 | Full Day Leave Block Hours | 8 | Block full-day LA when already worked ≥ this |
 | Default Shift | Day | Fallback when no assignment/default |
 | Employee ID Prefix | TIQN | Fallback employee query filter |
 | Full Update Hours | 8,23 | Hours when hourly job does FULL reprocess |
+| Peak Times / Window Minutes | 07:40,16:00,17:00,19:00,20:00 / 20 | AUTOMATIC calculation skipped in these windows (manual Bulk Update never blocked); clear Peak Times to disable |
 | Early/Late Threshold Minutes | 60 | custom_note anomaly threshold |
 | Female Checkout From/To | 16:00–17:00 | Maternity-suspect window (Day-shift only) |
 

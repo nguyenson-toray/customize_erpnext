@@ -45,15 +45,17 @@ Mode detection (`fore_get_logs`):
 
 ## Configuration — "Attendance Calculation Setting" (Single DocType)
 
-`/app/attendance-calculation-setting` — all business rules live here (code falls back to DEFAULTS when blank):
-min_ot_minutes=30, min_pre_shift_ot_minutes=60, ot_block_minutes=1, working_block_minutes=1,
-allow_ot_in_rest_time=0, exclude_employee_ids, maternity_benefit_hours=1.0,
-full_day_leave_block_hours=8, default_shift=Day, employee_id_prefix=TIQN,
-force_update_hours="8,23", note_early_late_threshold_minutes=60,
-female_checkout_check_from/to=16:00/17:00.
+`/app/attendance-calculation-setting` — all business rules live here (code falls back to DEFAULTS when blank). The form embeds a Vietnamese algorithm quick-reference (HTML section).
 
-Access: `get_attendance_settings()` (get_cached_doc + DEFAULTS), `get_force_update_hours()`,
-`get_excluded_employee_ids()`, `floor_ot_to_block()`, `floor_working_to_block()`.
+- **OT**: min_ot_minutes=30, min_pre_shift_ot_minutes=60, ot_block_minutes=1, allow_ot_in_rest_time=0, include_draft_ot=0 (ON = Draft OTRs count; same-zone overlaps merged as span min→max).
+- **Auto Recalc Triggers** (all default OFF — changes wait for the next full run): recalc_attendance_on_ot_change (OTR submit/cancel; with include_draft_ot also draft save/delete, deduped, quiet on save), recalc_attendance_on_maternity_change (that employee only), recalc_attendance_on_checkin_change (that employee+date, deduped, skipped on Data Import).
+- **Shift & Processing**: default_shift=Day, employee_id_prefix=TIQN, working_block_minutes=1, force_update_hours="8,23", exclude_employee_ids, peak_times="07:40,16:00,17:00,19:00,20:00" + peak_window_minutes=20 (**is_peak_time()** skips the hourly hook and all 3 recalc background jobs during these windows; manual Bulk Update never blocked).
+- **Maternity & Leave**: maternity_benefit_hours=1.0, full_day_leave_block_hours=8.
+- **Anomaly note**: note_early_late_threshold_minutes=60, female_checkout_check_from/to=16:00/17:00.
+
+Access helpers (settings controller): `get_attendance_settings()`, `get_force_update_hours()`,
+`get_excluded_employee_ids()`, `get_ot_docstatus_condition()`, `is_peak_time()`,
+`floor_ot_to_block()`, `floor_working_to_block()`.
 
 Performance tuning (batch sizes) stays hardcoded in `shift_type_optimized.py`.
 

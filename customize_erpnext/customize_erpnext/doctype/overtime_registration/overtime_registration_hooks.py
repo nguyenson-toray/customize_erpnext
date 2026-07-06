@@ -14,15 +14,59 @@ from datetime import date, timedelta
 
 def update_attendance_on_overtime_change(doc, method):
 	"""
-	Update attendance when overtime registration is submitted, cancelled, or updated.
+	Update attendance when overtime registration is submitted or cancelled.
 
 	This hook enqueues a background job to recalculate attendance for affected employees.
 	The submit/cancel action completes immediately without blocking the user.
 
 	Args:
 		doc: Overtime Registration document
-		method: Hook method name (on_submit, on_cancel, on_update_after_submit)
+		method: Hook method name (on_submit, on_cancel)
 	"""
+	# Gated by setting (default OFF): when off, attendance picks up OT changes
+	# at the next full run (Full Update Hours) or a manual Bulk Update
+	from customize_erpnext.customize_erpnext.doctype.attendance_calculation_setting.attendance_calculation_setting import (
+		get_attendance_settings,
+	)
+	if not frappe.utils.cint(get_attendance_settings().recalc_attendance_on_ot_change):
+		return
+
+	_collect_and_enqueue_attendance_update(doc)
+
+
+def update_attendance_on_overtime_draft_change(doc, method):
+	"""
+	DRAFT OTR save/delete: drafts only affect attendance when the
+	include_draft_ot setting is ON — in that case editing or deleting a draft
+	must recalc too (same recalc_attendance_on_ot_change gate as submit/cancel).
+
+	quiet=True on saves: no popup spam while HR is still composing the form
+	(job_id + deduplicate collapse repeated saves of the same doc).
+
+	Args:
+		doc: Overtime Registration document (docstatus 0)
+		method: Hook method name (on_update, on_trash)
+	"""
+	if doc.docstatus != 0:
+		# submit/cancel path is handled by update_attendance_on_overtime_change
+		return
+
+	from customize_erpnext.customize_erpnext.doctype.attendance_calculation_setting.attendance_calculation_setting import (
+		get_attendance_settings,
+	)
+	settings = get_attendance_settings()
+	if not frappe.utils.cint(settings.recalc_attendance_on_ot_change):
+		return
+	if not frappe.utils.cint(settings.include_draft_ot):
+		# drafts don't count toward attendance → nothing to recalc
+		return
+
+	_collect_and_enqueue_attendance_update(doc, quiet=(method == "on_update"))
+
+
+def _collect_and_enqueue_attendance_update(doc, quiet=False):
+	"""Collect affected (employee, date) pairs from OTR detail and enqueue the
+	attendance recalculation background job (deduplicated per OTR name)."""
 	if not doc.ot_employees:
 		return
 
@@ -57,6 +101,7 @@ def update_attendance_on_overtime_change(doc, method):
 		queue="long",
 		timeout=600,
 		job_id=f"ot_attendance_{doc.name}",
+		deduplicate=True,  # repeated draft saves collapse into one queued job
 		doc_name=doc.name,
 		employee_list=employee_list,
 		date_list=[str(d) for d in date_list],  # serialize dates
@@ -66,11 +111,12 @@ def update_attendance_on_overtime_change(doc, method):
 		enqueue_after_commit=True
 	)
 
-	frappe.msgprint(
-		msg=f"Attendance update for {len(employee_list)} employees has been queued and will be processed shortly.",
-		title="Attendance Update Queued",
-		indicator="blue"
-	)
+	if not quiet:
+		frappe.msgprint(
+			msg=f"Attendance update for {len(employee_list)} employees has been queued and will be processed shortly.",
+			title="Attendance Update Queued",
+			indicator="blue"
+		)
 
 
 def _process_attendance_background(doc_name, employee_list, date_list, from_date, to_date, user):
@@ -88,10 +134,17 @@ def _process_attendance_background(doc_name, employee_list, date_list, from_date
 	from customize_erpnext.overrides.shift_type.shift_type_optimized import (
 		_core_process_attendance_logic_optimized
 	)
+	from customize_erpnext.customize_erpnext.doctype.attendance_calculation_setting.attendance_calculation_setting import is_peak_time
+
+	logger = frappe.logger("overtime_registration", allow_site=True)
+
+	# Skip during check-in/out peak windows — next full run catches up
+	if is_peak_time():
+		logger.info(f"OT Attendance Background Job [{doc_name}]: peak time — skipped")
+		return
 
 	# Convert date strings back to date objects
 	days = [getdate(d) for d in date_list]
-	logger = frappe.logger("overtime_registration", allow_site=True)
 
 	try:
 		logger.info(f"OT Attendance Background Job [{doc_name}]: {len(employee_list)} employees, {len(days)} dates")
