@@ -4,6 +4,7 @@ Reuses ZK logic from biometric-attendance-sync-tool
 """
 
 import frappe
+from customize_erpnext.api.biometric_auth import check_biometric_access
 import json
 import time
 import base64
@@ -72,6 +73,7 @@ def _shorten_name(full_name, max_length=24):
 @frappe.whitelist()
 def get_attendance_machines():
     """Return list of enabled Attendance Machines."""
+    check_biometric_access()
     machines = get_machines(enabled_only=True)
     return {"status": "success", "machines": machines}
 
@@ -86,6 +88,7 @@ def get_master_device_users(machine_name):
     Connect to master machine, get all users, cross-match with ERPNext employees.
     Returns list of users with matched employee info.
     """
+    check_biometric_access()
     try:
         doc = _get_machine_doc(machine_name)
         device_cfg = _build_zk_device(doc)
@@ -145,6 +148,7 @@ def get_master_device_users(machine_name):
 @frappe.whitelist()
 def get_employees_for_sync(employee="", employee_name="", attendance_device_id="", date_of_joining=""):
     """Filter active employees for display. Used to pre-filter before loading device users."""
+    check_biometric_access()
     try:
         filters = {"status": "Active"}
         if employee:
@@ -179,6 +183,7 @@ def sync_fingerprints(master_machine_name, target_machine_names_json, user_ids_j
     Enqueue background job to sync fingerprints from master to target machines.
     Returns job_id for polling.
     """
+    check_biometric_access()
     try:
         target_machine_names = json.loads(target_machine_names_json)
         user_ids = json.loads(user_ids_json)
@@ -446,6 +451,7 @@ def _get_finger_name(finger_index):
 @frappe.whitelist()
 def resolve_employee_device_ids(employee_ids_json):
     """Convert ERPNext employee IDs to attendance_device_id (ZK user_id)."""
+    check_biometric_access()
     try:
         employee_ids = json.loads(employee_ids_json)
         employees = frappe.get_all(
@@ -472,6 +478,7 @@ def resolve_employee_device_ids(employee_ids_json):
 @frappe.whitelist()
 def check_employees_fingerprints_in_erp(employee_ids_json):
     """Check which employees already have fingerprints in ERP (custom_fingerprints child table)."""
+    check_biometric_access()
     try:
         employee_ids = json.loads(employee_ids_json)
         existing = {}
@@ -488,11 +495,12 @@ def check_employees_fingerprints_in_erp(employee_ids_json):
 @frappe.whitelist()
 def get_sync_job_status(job_id):
     """Poll sync job status from Redis cache."""
+    check_biometric_access()
     try:
         cache_key = f"biometric_sync:{job_id}"
         data = frappe.cache().get_value(cache_key)  # trả về dict trực tiếp
         if not data:
-            return {"status": "not_found", "message": "Job không tồn tại hoặc đã hết hạn"}
+            return {"status": "not_found", "message": "Job not found or expired"}
         return {"status": "success", "data": data}
     except Exception as e:
         return {"status": "error", "message": str(e)}
@@ -513,6 +521,7 @@ def get_left_employees_on_machines(delay_days=45, include_unmatched=0):
       - ERPNext fingerprint data is NEVER touched (kept as backup).
     Returns preview data for user confirmation.
     """
+    check_biometric_access()
     try:
         delay_days = int(delay_days)
         include_unmatched = int(include_unmatched)
@@ -657,6 +666,7 @@ def delete_users_from_machines(users_json):
     users_json: [{user_id, machines:[...], ...}, ...]
     NEVER touches ERPNext fingerprint data (kept as backup for re-sync).
     """
+    check_biometric_access()
     try:
         users = json.loads(users_json)
         if not users:
@@ -816,6 +826,7 @@ def find_employee_on_machines(query):
                           machines_scanned:[...], today}
       {status:'error',    message}
     """
+    check_biometric_access()
     try:
         query = (query or "").strip()
         if not query:
@@ -943,6 +954,7 @@ def find_employee_on_machines(query):
 @frappe.whitelist()
 def machine_reboot(machine_name):
     """Send restart command to a ZK attendance machine."""
+    check_biometric_access()
     try:
         doc = _get_machine_doc(machine_name)
         cfg = _build_zk_device(doc)
@@ -969,6 +981,7 @@ def machine_reboot(machine_name):
 @frappe.whitelist()
 def machine_sync_time(machine_name):
     """Sync machine clock to current server time."""
+    check_biometric_access()
     from datetime import datetime
     try:
         doc = _get_machine_doc(machine_name)
@@ -1006,6 +1019,7 @@ def machine_get_info(machine_name):
     Read hardware & firmware info from ZK device.
     Uses conn.read_sizes() to get user/finger/record counts + capacity.
     """
+    check_biometric_access()
     try:
         doc = _get_machine_doc(machine_name)
         cfg = _build_zk_device(doc)

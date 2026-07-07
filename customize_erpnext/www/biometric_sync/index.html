@@ -22,6 +22,7 @@
             --warning: #d97706;
             --danger: #dc2626;
             --info: #0284c7;
+            --radius-sm: 6px;
         }
 
         /* ── Reset & Base ─────────────────────────────────────────── */
@@ -483,7 +484,8 @@
             accent-color: var(--primary);
         }
 
-        .machine-item label {
+        .machine-item label,
+        .machine-item-label {
             cursor: pointer;
             flex: 1;
             font-size: 13px;
@@ -1425,12 +1427,11 @@
         });
 
         async function loadLogFiles() {
+            const sel = document.getElementById('logFile');
             try {
-                const res = await fetch('/api/method/customize_erpnext.api.biometric_log_viewer.get_log_files');
-                const data = await res.json();
-                if (data.message && data.message.status === 'success') {
-                    const files = data.message.files;
-                    const sel = document.getElementById('logFile');
+                const msg = await callGet('customize_erpnext.api.biometric_log_viewer.get_log_files');
+                if (msg && msg.status === 'success') {
+                    const files = msg.files;
                     sel.innerHTML = '<option value="">-- Select log file --</option>';
                     files.forEach(f => {
                         const o = document.createElement('option');
@@ -1439,7 +1440,10 @@
                     });
                     if (files.includes('logs.log')) { sel.value = 'logs.log'; loadLog(); }
                 }
-            } catch (e) { console.error(e); }
+            } catch (e) {
+                console.error(e);
+                sel.innerHTML = `<option value="">❌ Failed to load log files: ${escapeHtml(e.message)}</option>`;
+            }
         }
 
         async function loadLog() {
@@ -1453,10 +1457,9 @@
             loading.style.display = 'block';
             logContainer.style.display = 'none';
             try {
-                const res = await fetch('/api/method/customize_erpnext.api.biometric_log_viewer.get_log_content?log_file=' + encodeURIComponent(logFile));
-                const data = await res.json();
-                if (data.message && data.message.status === 'success') {
-                    allLines = data.message.content.split('\n').filter(l => l.trim());
+                const msg = await callGet('customize_erpnext.api.biometric_log_viewer.get_log_content', { log_file: logFile });
+                if (msg && msg.status === 'success') {
+                    allLines = msg.content.split('\n').filter(l => l.trim());
                     allLines.reverse();
                 }
                 loading.style.display = 'none';
@@ -1473,10 +1476,16 @@
             const filterLevel = document.getElementById('filterLevel').value;
             const searchText = document.getElementById('searchText').value.toLowerCase();
             const logContainer = document.getElementById('logContainer');
+            // Match the level as a separate log column ("\tERROR\t", " - ERROR - ", "ERROR:"),
+            // not as a plain substring — message bodies may contain those words
+            function lineLevel(l) {
+                const m = l.match(/(?:^|\t| - |\s)(ERROR|CRITICAL|WARNING|INFO|DEBUG)(?:\t| - |:|\s|$)/);
+                return m ? m[1] : null;
+            }
             let lines = allLines;
             if (filterLevel !== 'ALL') {
                 const levels = { ERROR: ['ERROR', 'CRITICAL'], WARNING: ['ERROR', 'CRITICAL', 'WARNING'], INFO: ['ERROR', 'CRITICAL', 'WARNING', 'INFO'] };
-                lines = lines.filter(l => levels[filterLevel].some(lv => l.includes(lv)));
+                lines = lines.filter(l => levels[filterLevel].includes(lineLevel(l)));
             }
             if (searchText) lines = lines.filter(l => l.toLowerCase().includes(searchText));
             if (!lines.length) {
@@ -1484,9 +1493,10 @@
             } else {
                 logContainer.innerHTML = lines.map(l => {
                     let cls = 'log-line';
-                    if (l.includes('ERROR') || l.includes('CRITICAL')) cls += ' error';
-                    else if (l.includes('WARNING')) cls += ' warning';
-                    else if (l.includes('INFO')) cls += ' info';
+                    const lv = lineLevel(l);
+                    if (lv === 'ERROR' || lv === 'CRITICAL') cls += ' error';
+                    else if (lv === 'WARNING') cls += ' warning';
+                    else if (lv === 'INFO') cls += ' info';
                     return `<div class="${cls}">${escapeHtml(l)}</div>`;
                 }).join('');
             }
@@ -1803,7 +1813,7 @@
             const btn = document.getElementById('syncBtn');
             btn.disabled = true;
             btn.textContent = '⏳ Starting...';
-            _anySyncRunning = true;
+            _syncRunningCount++;
 
             // Build progress section
             const ps = document.getElementById('progressSection');
@@ -1857,57 +1867,86 @@
                 document.getElementById('progressPhase').textContent = '❌ Error: ' + e.message;
                 appendResultLog('fail', '❌ ' + e.message);
             } finally {
-                btn.disabled = false;
                 btn.textContent = '▶ Sync Fingerprints';
-                _anySyncRunning = false;
+                _syncRunningCount--;
+                // recompute disabled state + summary from current selection
+                // instead of unconditionally enabling with stale state
+                updateSyncButton();
             }
+        }
+
+        // ── Shared job-status poller ──────────────────────────────────────────────────
+        // Handles server-level errors, jobs that never appear, and an overall timeout,
+        // so the UI can never get stuck polling forever. onData(d) runs on each update;
+        // resolves with final data on d.status='done', rejects on any failure.
+        function pollJobStatus(jobId, onData, opts = {}) {
+            const intervalMs = opts.intervalMs || 1500;
+            const maxNotFound = opts.maxNotFound || 20;             // ~30s for a job that never appears
+            const timeoutMs = opts.timeoutMs || 15 * 60 * 1000;     // hard cap on total polling time
+            let notFoundCount = 0;
+            const startedAt = Date.now();
+            let timer = null;
+            const promise = new Promise((resolve, reject) => {
+                const stop = (fn, arg) => { clearInterval(timer); timer = null; fn(arg); };
+                timer = setInterval(async () => {
+                    try {
+                        if (Date.now() - startedAt > timeoutMs)
+                            return stop(reject, new Error('Timed out waiting for the background job to finish'));
+                        const msg = await callGet('customize_erpnext.api.biometric_sync.get_sync_job_status', { job_id: jobId });
+                        if (!msg || msg.status === 'not_found') {
+                            if (++notFoundCount >= maxNotFound)
+                                return stop(reject, new Error('Job not found or expired — the background worker may be down'));
+                            return;
+                        }
+                        if (msg.status === 'error')
+                            return stop(reject, new Error(msg.message || 'Failed to read job status'));
+                        notFoundCount = 0;
+                        const d = msg.data;
+                        if (!d) return;
+                        onData(d);
+                        if (d.status === 'done') return stop(resolve, d);
+                        if (d.status === 'error') return stop(reject, new Error(d.error || 'Job failed'));
+                    } catch (e) {
+                        // transient network error — keep polling, the timeout is the backstop
+                        console.error('Poll error:', e);
+                    }
+                }, intervalMs);
+            });
+            promise.cancel = () => { if (timer) { clearInterval(timer); timer = null; } };
+            return promise;
         }
 
         // ── Phase 1 polling (background job) ─────────────────────────────────────────
         function pollSyncJob(jobId, machines, totalUsers, erpDestId) {
-            return new Promise((resolve, reject) => {
-                if (_pollTimer) clearInterval(_pollTimer);
-                let lastCount = 0;
+            if (_pollTimer && _pollTimer.cancel) _pollTimer.cancel();
+            let lastCount = 0;
 
-                _pollTimer = setInterval(async () => {
-                    try {
-                        const msg = await callGet('customize_erpnext.api.biometric_sync.get_sync_job_status', { job_id: jobId });
-                        if (msg.status === 'not_found') return;
-                        const d = msg.data;
-                        const pct = d.progress_pct || 0;
-                        const doneUsers = d.done_users || 0;
+            _pollTimer = pollJobStatus(jobId, d => {
+                const pct = d.progress_pct || 0;
+                const doneUsers = d.done_users || 0;
 
-                        document.getElementById('progressPhase').textContent = d.phase || '';
+                document.getElementById('progressPhase').textContent = d.phase || '';
 
-                        // Update progress bars
-                        const destIds = erpDestId ? [erpDestId] : machines;
-                        destIds.forEach(id => {
-                            if (d.status === 'done') setProgressBar(id, 100, '✅ Done');
-                            else if (d.status === 'running') setProgressBar(id, pct, `${pct}% (${doneUsers}/${totalUsers})`);
-                            else setProgressBar(id, pct, '⏸ Queued...');
-                        });
+                // Update progress bars
+                const destIds = erpDestId ? [erpDestId] : machines;
+                destIds.forEach(id => {
+                    if (d.status === 'done') setProgressBar(id, 100, '✅ Done');
+                    else if (d.status === 'running') setProgressBar(id, pct, `${pct}% (${doneUsers}/${totalUsers})`);
+                    else setProgressBar(id, pct, '⏸ Queued...');
+                });
 
-                        // Append new result lines
-                        (d.results || []).slice(lastCount).forEach(r => {
-                            appendResultLog(r.success ? 'ok' : 'fail',
-                                `${r.success ? '✓' : '✗'} User ${r.user_id} → ${r.machine}: ${r.message}`);
-                        });
-                        lastCount = (d.results || []).length;
+                // Append new result lines
+                (d.results || []).slice(lastCount).forEach(r => {
+                    appendResultLog(r.success ? 'ok' : 'fail',
+                        `${r.success ? '✓' : '✗'} User ${r.user_id} → ${r.machine}: ${r.message}`);
+                });
+                lastCount = (d.results || []).length;
+            });
 
-                        if (d.status === 'done') {
-                            clearInterval(_pollTimer); _pollTimer = null;
-                            const ok = (d.results || []).filter(r => r.success).length;
-                            const fail = (d.results || []).length - ok;
-                            appendResultLog('info-line', `Phase 1 complete: ${ok} OK / ${fail} failed`);
-                            resolve();
-                        } else if (d.status === 'error') {
-                            clearInterval(_pollTimer); _pollTimer = null;
-                            reject(new Error(d.error || 'Phase 1 failed'));
-                        }
-                    } catch (e) {
-                        console.error('Poll error:', e);
-                    }
-                }, 1500);
+            return _pollTimer.then(d => {
+                const ok = (d.results || []).filter(r => r.success).length;
+                const fail = (d.results || []).length - ok;
+                appendResultLog('info-line', `Phase 1 complete: ${ok} OK / ${fail} failed`);
             });
         }
 
@@ -1972,11 +2011,13 @@
         let _fp41Syncing = false;
 
         // ── Guard: warn user if they try to leave while any sync is running ───────────
-        let _anySyncRunning = false;
+        // Counter (not boolean): Tab 2 and Tab 3 syncs can overlap; the guard must
+        // stay armed until ALL of them finish.
+        let _syncRunningCount = 0;
         window.addEventListener('beforeunload', e => {
-            if (_anySyncRunning) {
+            if (_syncRunningCount > 0) {
                 e.preventDefault();
-                e.returnValue = 'Sync đang chạy. Nếu rời trang bây giờ, dữ liệu sẽ bị sync một nửa. Bạn có chắc chắn muốn rời?';
+                e.returnValue = 'A sync is still running. Leaving now will abort it halfway. Are you sure you want to leave?';
             }
         });
 
@@ -2094,8 +2135,9 @@
             if (!confirm(`Confirm sync ${_fp41Employees.length} employees → ${selMachines.length} machines?\n(${total} total operations)`)) return;
 
             _fp41Syncing = true;
-            _anySyncRunning = true;
+            _syncRunningCount++;
             fp41UpdateSyncBtn();
+            try {
 
             const ps = document.getElementById('fp41ProgressSection');
             ps.classList.add('visible');
@@ -2145,11 +2187,15 @@
 
             await Promise.allSettled(machinePromises);
 
-            _fp41Syncing = false;
-            _anySyncRunning = false;
-            fp41UpdateSyncBtn();
             phaseEl.textContent = `✅ Done: ${okCount} OK / ${failCount} errors`;
             appendLog('info-line', `\n=== COMPLETE: ${okCount} OK / ${failCount} FAILED / ${total} total ===`);
+
+            } finally {
+                // always release the flags, or the beforeunload guard stays armed forever
+                _fp41Syncing = false;
+                _syncRunningCount--;
+                fp41UpdateSyncBtn();
+            }
         }
 
 
@@ -2325,36 +2371,25 @@
                 appendLog('info-line', `Job ${jobId} submitted — waiting for worker...`);
                 btn.textContent = '⏳ Deleting...';
 
-                if (_del43PollTimer) clearInterval(_del43PollTimer);
+                if (_del43PollTimer && _del43PollTimer.cancel) _del43PollTimer.cancel();
                 let lastCount = 0;
-                _del43PollTimer = setInterval(async () => {
-                    try {
-                        const st = await callGet('customize_erpnext.api.biometric_sync.get_sync_job_status', { job_id: jobId });
-                        if (!st || st.status === 'not_found') return;
-                        const d = st.data;
-                        phaseEl.textContent = d.phase || '';
-                        barEl.style.width = (d.progress_pct || 0) + '%';
+                _del43PollTimer = pollJobStatus(jobId, d => {
+                    phaseEl.textContent = d.phase || '';
+                    barEl.style.width = (d.progress_pct || 0) + '%';
 
-                        (d.results || []).slice(lastCount).forEach(r => {
-                            appendLog(r.success ? 'ok' : 'fail',
-                                `${r.success ? '✓' : '✗'} User ${r.user_id} ← ${r.machine}: ${r.message}`);
-                        });
-                        lastCount = (d.results || []).length;
+                    (d.results || []).slice(lastCount).forEach(r => {
+                        appendLog(r.success ? 'ok' : 'fail',
+                            `${r.success ? '✓' : '✗'} User ${r.user_id} ← ${r.machine}: ${r.message}`);
+                    });
+                    lastCount = (d.results || []).length;
+                });
 
-                        if (d.status === 'done' || d.status === 'error') {
-                            clearInterval(_del43PollTimer); _del43PollTimer = null;
-                            btn.disabled = false; btn.textContent = defaultLabel;
-                            if (d.status === 'done') {
-                                const ok = (d.results || []).filter(r => r.success).length;
-                                const fail = (d.results || []).length - ok;
-                                appendLog('info-line', `\n=== DONE: ${ok} OK / ${fail} FAILED ===`);
-                                if (onDone) onDone();
-                            } else {
-                                appendLog('fail', `=== ERROR: ${d.error || 'unknown'} ===`);
-                            }
-                        }
-                    } catch (ex) { console.error('del43 poll:', ex); }
-                }, 1500);
+                const d = await _del43PollTimer;
+                btn.disabled = false; btn.textContent = defaultLabel;
+                const ok = (d.results || []).filter(r => r.success).length;
+                const fail = (d.results || []).length - ok;
+                appendLog('info-line', `\n=== DONE: ${ok} OK / ${fail} FAILED ===`);
+                if (onDone) onDone();
             } catch (e) {
                 appendLog('fail', '❌ ' + e.message);
                 btn.disabled = false; btn.textContent = defaultLabel;
@@ -2395,8 +2430,10 @@
             }
 
             if (msg.status === 'multiple') {
+                // data-attribute + listener instead of inline onclick: dataset returns the
+                // HTML-decoded raw value, so IDs with quotes can't break the handler
                 const rows = (msg.candidates || []).map(c =>
-                    `<tr style="cursor:pointer;" onclick="del43PickCandidate('${escapeHtml(c.employee_id).replace(/'/g, "\\'")}')">
+                    `<tr style="cursor:pointer;" class="del43-candidate" data-emp-id="${escapeHtml(c.employee_id)}">
                         <td style="padding:6px 8px;"><strong>${escapeHtml(c.employee_id)}</strong></td>
                         <td style="padding:6px 8px;">${escapeHtml(c.employee_name || '')}</td>
                         <td style="padding:6px 8px;">${escapeHtml(c.attendance_device_id || '—')}</td>
@@ -2408,6 +2445,8 @@
                         <thead><tr><th>Employee ID</th><th>Name</th><th>Device ID</th><th>Status</th></tr></thead>
                         <tbody>${rows}</tbody>
                     </table></div>`;
+                resultEl.querySelectorAll('.del43-candidate').forEach(tr =>
+                    tr.addEventListener('click', () => del43PickCandidate(tr.dataset.empId)));
                 return;
             }
 
@@ -2551,15 +2590,19 @@
                     <div class="machine-card-meta">📡 ${escapeHtml(m.ip_address)}:${m.port || 4370}</div>
                     ${m.location ? `<div class="machine-card-meta">📍 ${escapeHtml(m.location)}</div>` : ''}
                     <div class="machine-card-actions">
-                        <button class="btn btn-sm btn-info-sm" onclick="machineGetInfo('${escapeHtml(m.name)}')">ℹ Info</button>
-                        <button class="btn btn-sm btn-warn-sm" onclick="machineSyncTime('${escapeHtml(m.name)}')">🕐 Sync Time</button>
-                        <button class="btn btn-sm btn-danger-sm" onclick="machineReboot('${escapeHtml(m.name)}')">🔁 Reboot</button>
+                        <button class="btn btn-sm btn-info-sm machine-action" data-action="info" data-machine="${escapeHtml(m.name)}">ℹ Info</button>
+                        <button class="btn btn-sm btn-warn-sm machine-action" data-action="time" data-machine="${escapeHtml(m.name)}">🕐 Sync Time</button>
+                        <button class="btn btn-sm btn-danger-sm machine-action" data-action="reboot" data-machine="${escapeHtml(m.name)}">🔁 Reboot</button>
                     </div>
                     <div class="machine-info-panel" id="mip_${CSS.escape(m.name)}">
                         <span style="color:var(--text-3);font-size:12px;">Click <em>Info</em> to read device information...</span>
                     </div>
                 </div>`;
             }).join('');
+            // data-attribute + listeners instead of inline onclick with interpolated names
+            const actions = { info: machineGetInfo, time: machineSyncTime, reboot: machineReboot };
+            gridEl.querySelectorAll('.machine-action').forEach(btn =>
+                btn.addEventListener('click', () => actions[btn.dataset.action](btn.dataset.machine)));
         }
 
         async function machineGetInfo(machineName) {
@@ -2617,8 +2660,12 @@
                     </div>
                     <div style="margin-top:8px;font-size:11px;color:var(--text-3);">
                         Updated at: ${new Date().toLocaleTimeString('en-US')}
-                        &nbsp;·&nbsp; <a href="#" onclick="machineGetInfo('${escapeHtml(machineName)}');return false;" style="font-size:11px;">Refresh</a>
+                        &nbsp;·&nbsp; <a href="#" class="mip-refresh" style="font-size:11px;">Refresh</a>
                     </div>`;
+                panelEl.querySelector('.mip-refresh').addEventListener('click', ev => {
+                    ev.preventDefault();
+                    machineGetInfo(machineName);
+                });
             } catch (e) {
                 panelEl.innerHTML = `<span style="color:#dc3545;font-size:12px;">❌ ${escapeHtml(e.message)}</span>`;
             }

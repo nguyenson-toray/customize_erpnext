@@ -3,12 +3,14 @@ API endpoints for biometric log viewer
 """
 
 import frappe
+from customize_erpnext.api.biometric_auth import check_biometric_access
 import os
 
 
 @frappe.whitelist()
 def get_log_files():
     """Get list of available log files"""
+    check_biometric_access()
     try:
         # Path to biometric sync tool logs
         log_dir = '/home/frappe/frappe-bench/apps/biometric-attendance-sync-tool/logs'
@@ -44,6 +46,7 @@ def get_log_files():
 @frappe.whitelist()
 def get_log_content(log_file):
     """Get content of a specific log file"""
+    check_biometric_access()
     try:
         # Validate file name (security check)
         if not log_file or '..' in log_file or '/' in log_file or '\\' in log_file:

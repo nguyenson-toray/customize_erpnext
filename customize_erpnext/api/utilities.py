@@ -1,4 +1,5 @@
 import frappe
+from customize_erpnext.api.biometric_auth import check_biometric_access
 from frappe import _
 
 from customize_erpnext.api.attendance_machines import get_machine, get_machines
@@ -288,6 +289,7 @@ def export_master_data_item_attribute():
 @frappe.whitelist()
 def get_employee_fingerprint_data(employee_id):
     """Get employee fingerprint data for display"""
+    check_biometric_access()
     emp = frappe.get_doc("Employee", employee_id)
     return {
         "employee": emp.employee,
@@ -298,6 +300,7 @@ def get_employee_fingerprint_data(employee_id):
 @frappe.whitelist()
 def save_fingerprint_data(employee_id, finger_index, template_data, quality_score=0):
     """Saves fingerprint template data to the Employee document."""
+    check_biometric_access()
     try:
         employee = frappe.get_doc("Employee", employee_id)
         
@@ -339,6 +342,7 @@ def save_fingerprint_data(employee_id, finger_index, template_data, quality_scor
 @frappe.whitelist()
 def update_fingerprint_names(employee_id):
     """Update finger names for existing fingerprints that don't have names set"""
+    check_biometric_access()
     try:
         employee = frappe.get_doc("Employee", employee_id)
         updated_count = 0
@@ -366,6 +370,7 @@ def update_fingerprint_names(employee_id):
 @frappe.whitelist()
 def get_employee_fingerprints_status(employee_id):
     """Returns a list of finger_index for which fingerprint data exists for the given employee."""
+    check_biometric_access()
     try:
         employee = frappe.get_doc("Employee", employee_id)
         existing_fingers = []
@@ -396,6 +401,7 @@ def get_finger_index(finger_name):
 @frappe.whitelist()
 def get_employees_for_fingerprint():
     """Get employees sorted by employee code (descending) for fingerprint dialog"""
+    check_biometric_access()
     try:
         employees = frappe.get_list("Employee", 
             fields=["name", "employee", "employee_name", "attendance_device_id"],
@@ -463,6 +469,7 @@ def sync_employee_fingerprint_to_machines(employee_id):
     NOTE: This function is kept for backward compatibility.
     New code should use sync_employee_to_single_machine() for better parallelization.
     """
+    check_biometric_access()
     try:
         # Use helper to prepare employee data (DRY)
         employee_data, error = _prepare_employee_sync_data(employee_id)
@@ -550,6 +557,7 @@ def sync_employee_fingerprint_to_machines(employee_id):
 @frappe.whitelist()
 def sync_employee_to_single_machine(employee_id, machine_name):
     """Sync one employee to one specific machine (for parallel processing)"""
+    check_biometric_access()
     try:
         # Use helper to prepare employee data (DRY)
         employee_data, error = _prepare_employee_sync_data(employee_id)
@@ -612,6 +620,7 @@ def sync_employees_to_machine_batch(machine_name, employee_ids):
       {success, machine, total, success_count, failed_count,
        results: [{employee, employee_name, success, fingerprints_synced, error}]}
     """
+    check_biometric_access()
     import json as _json
     import socket
     import base64
@@ -986,6 +995,7 @@ def sync_to_single_machine(machine_config, employee_data):
 @frappe.whitelist()
 def get_enabled_attendance_machines():
     """Get list of enabled attendance machines with parallel connection checks"""
+    check_biometric_access()
     try:
         from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -1249,6 +1259,7 @@ def set_default_warehouse_by_brand(template_item, brand_warehouse_map):
 @frappe.whitelist()
 def delete_fingerprint_data(employee_id, finger_index):
     """Delete fingerprint template data for a specific finger"""
+    check_biometric_access()
     try:
         employee = frappe.get_doc("Employee", employee_id)
 

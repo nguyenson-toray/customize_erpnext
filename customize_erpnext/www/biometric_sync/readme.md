@@ -34,7 +34,9 @@ Server (Frappe whitelisted methods)
 **CSRF**: Token được inject từ Python context qua Jinja (`window.csrf_token = "{{ csrf_token }}"`).
 Frappe validate CSRF từ **form body** — không dùng header. Tất cả POST dùng `FormData` với `csrf_token` appended.
 
-**Authentication**: `index.py` kiểm tra `frappe.session.user == "Guest"`, nếu đúng redirect về `/login?redirect-to=/biometric_sync`.
+**Authentication & Authorization**: `index.py` kiểm tra `frappe.session.user == "Guest"`, nếu đúng redirect về `/login?redirect-to=/biometric_sync`. Ngoài ra page và **toàn bộ 25 API biometric** (trong `api/biometric_sync.py`, `api/biometric_log_viewer.py`, và các hàm fingerprint/machine của `api/utilities.py`) yêu cầu một trong các role: **System Manager / HR Manager / HR User** — check qua `api/biometric_auth.py` (`check_biometric_access()` gọi ở đầu mỗi whitelisted method, chống gọi thẳng `/api/method/`). Các hàm không thuộc biometric trong `utilities.py` (item/warehouse) không bị khóa.
+
+**Job polling (client)**: mọi polling job dùng chung helper `pollJobStatus()` — tự dừng khi: server trả `status='error'`, job không xuất hiện sau ~30s (worker chết/job hết hạn), hoặc quá 15 phút. UI không bao giờ bị treo poll vô hạn.
 
 ---
 
