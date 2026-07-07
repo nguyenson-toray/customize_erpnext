@@ -280,6 +280,17 @@ Mỗi card hiển thị: tên, device name, IP:port, location, badge "★ Master
 
 ---
 
+### Tab 6 — Manual Re-sync
+
+**Mục đích**: Port các chức năng manual của tool CLI `biometric-attendance-sync-tool` (menu `erpnext_re_sync_all.py`) lên web — không cần SSH. Backend: `customize_erpnext/api/biometric_resync.py`; job nền dùng chung cache format `biometric_sync:{job_id}` nên client poll bằng `pollJobStatus()` sẵn có. Không đụng state của tool (status.json cursor, Mongo watermark) — duplicate được ERPNext tự chặn nên chạy song song với service auto an toàn.
+
+| Card | API | Ghi chú |
+|------|-----|---------|
+| Re-sync Device → ERPNext | `POST biometric_resync.resync_device_logs(machine_names_json, from_date, to_date)` | Chọn máy (checkbox) + khoảng ngày; đọc log từ máy qua pyzk (enable_device trong finally, retry 3 lần nếu máy đang bị service auto giữ); insert qua `add_log_based_on_employee_field` gọi trực tiếp |
+| Sync MongoDB → ERPNext | `POST biometric_resync.resync_mongodb_logs(from_date, to_date)` | Query AttLog theo khoảng ngày (biên UTC = quy ước local-as-UTC của DB); config kết nối trong `site_config.json` (keys `biometric_mongodb_*`, `biometric_sync_only_machine0`) |
+| Sync OT MongoDB → ERPNext | `POST biometric_resync.sync_ot_from_mongodb(from_date)` | Group theo requestNo, dedup theo `reason_general` "Request number: X", conflict-check từng employee/date/time; insert `Overtime Registration` qua ORM |
+| Delete OT | `POST biometric_resync.preview_delete_ot` + `delete_ot(from_date, to_date, confirm_text)` | **Chỉ System Manager** (card ẩn với user khác — `index.py` inject `is_system_manager`); bắt buộc Preview + gõ `DELETE`; xóa qua ORM (trim child rows / delete_doc), KHÔNG raw SQL; doc đã submit còn row ngoài range → skip kèm cảnh báo |
+
 ## API endpoints sử dụng
 
 ### GET (read-only)

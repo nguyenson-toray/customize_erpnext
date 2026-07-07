@@ -790,6 +790,10 @@ def validate_ot_continuity_with_shift(begin_time, end_time, shift_config, has_ma
         #         break_end.strftime("%H:%M"),
         #         shift_end.strftime("%H:%M")
         #     )
+        # The rejection above is intentionally disabled for save (relaxed mode) —
+        # but the function must still return a tuple, otherwise the caller's
+        # `is_valid, error_msg = ...` crashes with "cannot unpack NoneType"
+        return True, None
 
 @frappe.whitelist()
 def check_employees_with_maternity_benefits(entries):

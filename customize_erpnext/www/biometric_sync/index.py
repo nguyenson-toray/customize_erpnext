@@ -20,5 +20,8 @@ def get_context(context):
     # get_csrf_token() generates one if the session does not have it yet,
     # while session.data.csrf_token can be None and would break every POST
     context.csrf_token = frappe.sessions.get_csrf_token()
+    # Delete-OT card on the Manual Re-sync tab is shown only to System Managers
+    # (the API enforces this server-side as well)
+    context.is_system_manager = "System Manager" in frappe.get_roles()
 
     return context

@@ -949,6 +949,9 @@
             <button class="tab-btn" data-tab="tab-machines" onclick="switchTab('tab-machines')">
                 <span class="tab-icon">🖥</span><span class="tab-label">Machine Management</span>
             </button>
+            <button class="tab-btn" data-tab="tab-resync" onclick="switchTab('tab-resync')">
+                <span class="tab-icon">🔧</span><span class="tab-label">Manual Re-sync</span>
+            </button>
         </div>
 
         <!-- ════════════════════════════════════════════════════════
@@ -1348,11 +1351,101 @@
 
         </div><!-- end tab-machines -->
 
+        <!-- ════════════════════════════════════════════════════════
+             TAB 6: MANUAL RE-SYNC (ported from CLI tool manual menu)
+        ════════════════════════════════════════════════════════ -->
+        <div id="tab-resync" class="tab-panel">
+
+            <div class="card">
+                <div class="card-title"><span class="section-num">1</span> 🔁 Re-sync Device → ERPNext (date range)</div>
+                <div style="font-size:12.5px;color:var(--text-2);margin-bottom:10px;">
+                    Re-read attendance logs directly from the selected machines and push them to ERPNext.
+                    Existing checkins are skipped automatically (duplicate-safe).
+                </div>
+                <div style="display:flex;gap:8px;margin-bottom:8px;">
+                    <button class="btn btn-sm btn-secondary" onclick="rsSelectAllMachines(true)">All</button>
+                    <button class="btn btn-sm btn-secondary" onclick="rsSelectAllMachines(false)">None</button>
+                </div>
+                <div id="rsMachineList" class="machine-list" style="margin-bottom:10px;">
+                    <div class="loading" style="padding:15px;">
+                        <div class="spinner"></div>
+                        <p>Loading machines...</p>
+                    </div>
+                </div>
+                <div class="form-row" style="margin-bottom:10px;">
+                    <div class="form-group"><label>From date</label><input type="date" id="rsDevFrom"></div>
+                    <div class="form-group"><label>To date</label><input type="date" id="rsDevTo"></div>
+                </div>
+                <button class="btn btn-primary" id="rsDevBtn" onclick="rsRunDeviceResync()">▶ Re-sync from devices</button>
+            </div>
+
+            <div class="card">
+                <div class="card-title"><span class="section-num">2</span> 🗄 Sync MongoDB → ERPNext (date range)</div>
+                <div style="font-size:12.5px;color:var(--text-2);margin-bottom:10px;">
+                    Sync attendance checkins from MongoDB (AttLog) for a date range. Duplicate-safe.
+                    Does not touch the auto-sync watermark.
+                </div>
+                <div class="form-row" style="margin-bottom:10px;">
+                    <div class="form-group"><label>From date</label><input type="date" id="rsMongoFrom"></div>
+                    <div class="form-group"><label>To date</label><input type="date" id="rsMongoTo"></div>
+                </div>
+                <button class="btn btn-primary" id="rsMongoBtn" onclick="rsRunMongoResync()">▶ Sync from MongoDB</button>
+            </div>
+
+            <div class="card">
+                <div class="card-title"><span class="section-num">3</span> 📋 Sync OT MongoDB → ERPNext</div>
+                <div style="font-size:12.5px;color:var(--text-2);margin-bottom:10px;">
+                    Create Overtime Registrations from MongoDB (OtRegister) for the OT date range.
+                    Requests that already exist (or where every employee already has that OT) are skipped.
+                </div>
+                <div class="form-row" style="margin-bottom:10px;">
+                    <div class="form-group"><label>OT date from</label><input type="date" id="rsOtFrom"></div>
+                    <div class="form-group"><label>OT date to</label><input type="date" id="rsOtTo"></div>
+                </div>
+                <button class="btn btn-primary" id="rsOtBtn" onclick="rsRunOtSync()">▶ Sync OT from MongoDB</button>
+            </div>
+
+            <div class="card" id="rsDeleteOtCard" style="display:none;border:1px solid var(--danger);">
+                <div class="card-title" style="color:#c0392b;">⚠️ Delete OT in ERPNext — System Manager only</div>
+                <div class="alert alert-warning" style="margin-bottom:10px;font-size:12.5px;">
+                    Deletes Overtime Registration detail rows whose date falls in the range (via the Frappe ORM —
+                    documents are trimmed or deleted properly, submitted docs with rows outside the range are skipped).
+                    Run <strong>Preview</strong> first, then type <strong>DELETE</strong> to enable the delete button.
+                </div>
+                <div class="form-row" style="margin-bottom:10px;">
+                    <div class="form-group"><label>From date</label><input type="date" id="rsDelFrom"></div>
+                    <div class="form-group"><label>To date</label><input type="date" id="rsDelTo"></div>
+                </div>
+                <button class="btn btn-sm btn-secondary" onclick="rsPreviewDeleteOt()">🔍 Preview (dry-run)</button>
+                <div id="rsDelPreview" style="margin-top:10px;font-size:13px;"></div>
+                <div id="rsDelConfirmZone" style="display:none;margin-top:10px;">
+                    <label style="font-size:13px;font-weight:500;display:block;margin-bottom:4px;">
+                        Type <strong>DELETE</strong> to confirm:</label>
+                    <div style="display:flex;gap:8px;align-items:center;">
+                        <input type="text" id="rsDelConfirm" oninput="rsDelConfirmInput()" autocomplete="off"
+                               style="width:160px;padding:6px 10px;border:1px solid var(--border-2);border-radius:6px;">
+                        <button class="btn btn-sm btn-danger-sm" id="rsDelBtn" onclick="rsRunDeleteOt()" disabled>🗑 Delete OT</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card progress-section" id="rsProgressSection">
+                <div class="card-title">⏳ Job Progress</div>
+                <div id="rsProgressPhase" style="font-size:13px;color:var(--text-2);margin-bottom:8px;"></div>
+                <div class="progress-bar-wrap" style="margin-bottom:10px;">
+                    <div class="progress-bar" id="rsProgressBar" style="width:0%;"></div>
+                </div>
+                <div class="result-log" id="rsResultLog"></div>
+            </div>
+
+        </div><!-- end tab-resync -->
+
     </div><!-- end main-wrap -->
 
     <script>
         // ─── CSRF token — injected from Python context via Jinja ─────────────────
         window.csrf_token = "{{ csrf_token }}";
+        window.is_system_manager = {{ 1 if is_system_manager else 0 }};
 
         // ─── Helper: parse Frappe error response ──────────────────────────────────────
         function _parseFrappeError(data, httpStatus) {
@@ -1408,6 +1501,7 @@
             if (btn) btn.classList.add('active');
             // Lazy actions on tab open
             if (tabId === 'tab-machines' && !_machinesLoaded) loadMachineCards();
+            if (tabId === 'tab-resync') rsInitTab();
             if (tabId === 'tab-fp41' && _allMachines.length) fp41RenderMachines();
         }
 
@@ -2801,6 +2895,177 @@
             tsEl.textContent = `Updated: ${new Date().toLocaleTimeString('en-US')}`;
             statusEl.textContent = `📊 Info: ${ok} OK / ${fail} failed`;
             setTimeout(() => { statusEl.textContent = `${_machinesList.length} attendance machines`; }, 8000);
+        }
+
+        // ════════════════════════════════════════════════════════════════════════════
+        // TAB 6 — MANUAL RE-SYNC (device/MongoDB/OT re-sync + delete OT)
+        // ════════════════════════════════════════════════════════════════════════════
+
+        let _rsMachinesLoaded = false;
+        let _rsRunning = false;
+
+        function rsInitTab() {
+            if (!_rsMachinesLoaded) { _rsMachinesLoaded = true; rsLoadMachines(); }
+            const today = new Date().toISOString().slice(0, 10);
+            ['rsDevFrom', 'rsDevTo', 'rsMongoFrom', 'rsMongoTo', 'rsOtFrom', 'rsOtTo', 'rsDelFrom', 'rsDelTo'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el && !el.value) el.value = today;
+            });
+            if (window.is_system_manager) document.getElementById('rsDeleteOtCard').style.display = '';
+        }
+
+        async function rsLoadMachines() {
+            const listEl = document.getElementById('rsMachineList');
+            try {
+                const msg = await callGet('customize_erpnext.api.utilities.get_enabled_attendance_machines');
+                if (!msg || !msg.success || !msg.machines) throw new Error((msg && msg.message) || 'Failed to load machines');
+                listEl.innerHTML = msg.machines.map(m => {
+                    const mname = m.name || m.device_name;
+                    const online = m.connection_status === 'online';
+                    return `
+                    <div class="machine-item">
+                        <input type="checkbox" class="rs-machine-cb" value="${escapeHtml(mname)}" ${online ? 'checked' : ''}>
+                        <span class="machine-item-label">${escapeHtml(m.device_name || mname)}
+                            <small style="color:var(--text-3)">${escapeHtml(m.ip_address || '')}</small></span>
+                        <span class="badge">${online ? '🟢' : '🔴'}</span>
+                    </div>`;
+                }).join('');
+            } catch (e) {
+                listEl.innerHTML = `<div class="alert alert-warning">❌ ${escapeHtml(e.message)}</div>`;
+            }
+        }
+
+        function rsSelectAllMachines(checked) {
+            document.querySelectorAll('.rs-machine-cb').forEach(cb => { cb.checked = checked; });
+        }
+
+        // Generic runner: submit whitelisted method returning {job_id}, then poll into
+        // the shared progress card. One job at a time for this tab.
+        async function rsRunJob(btnId, btnLabel, method, args) {
+            if (_rsRunning) return;
+            const btn = document.getElementById(btnId);
+            const phaseEl = document.getElementById('rsProgressPhase');
+            const barEl = document.getElementById('rsProgressBar');
+            const logEl = document.getElementById('rsResultLog');
+            document.getElementById('rsProgressSection').classList.add('visible');
+            logEl.innerHTML = '';
+            const log = (cls, text) => {
+                const d = document.createElement('div');
+                d.className = cls; d.textContent = text;
+                logEl.appendChild(d); logEl.scrollTop = logEl.scrollHeight;
+            };
+
+            _rsRunning = true;
+            _syncRunningCount++;
+            btn.disabled = true; btn.textContent = '⏳ Running...';
+            barEl.style.width = '0%';
+            try {
+                const msg = await callPost(method, args);
+                if (msg.status !== 'success') throw new Error(msg.message || 'Failed to submit job');
+                log('info-line', `Job ${msg.job_id} submitted — waiting for worker...`);
+                let lastCount = 0;
+                const d = await pollJobStatus(msg.job_id, dd => {
+                    phaseEl.textContent = dd.phase || '';
+                    barEl.style.width = (dd.progress_pct || 0) + '%';
+                    (dd.results || []).slice(lastCount).forEach(r =>
+                        log(r.success ? 'ok' : 'fail',
+                            `${r.success ? '✓' : '✗'} [${r.machine}]${r.user_id && r.user_id !== '-' ? ' ' + r.user_id + ':' : ''} ${r.message}`));
+                    lastCount = (dd.results || []).length;
+                });
+                barEl.style.width = '100%';
+                phaseEl.textContent = d.phase || '✅ Done';
+                log('info-line', `\n=== ${d.phase || 'DONE'} ===`);
+                return d;
+            } catch (e) {
+                phaseEl.textContent = '❌ ' + e.message;
+                log('fail', '❌ ' + e.message);
+            } finally {
+                _rsRunning = false;
+                _syncRunningCount--;
+                btn.disabled = false; btn.textContent = btnLabel;
+            }
+        }
+
+        function rsRunDeviceResync() {
+            const machines = [...document.querySelectorAll('.rs-machine-cb:checked')].map(cb => cb.value);
+            const from = document.getElementById('rsDevFrom').value;
+            const to = document.getElementById('rsDevTo').value;
+            if (!machines.length) { alert('Select at least one machine'); return; }
+            if (!from || !to) { alert('Pick a date range'); return; }
+            if (!confirm(`Re-sync ${machines.length} machine(s) for ${from} → ${to}?\nExisting checkins are skipped automatically.`)) return;
+            rsRunJob('rsDevBtn', '▶ Re-sync from devices',
+                'customize_erpnext.api.biometric_resync.resync_device_logs',
+                { machine_names_json: JSON.stringify(machines), from_date: from, to_date: to });
+        }
+
+        function rsRunMongoResync() {
+            const from = document.getElementById('rsMongoFrom').value;
+            const to = document.getElementById('rsMongoTo').value;
+            if (!from || !to) { alert('Pick a date range'); return; }
+            if (!confirm(`Sync MongoDB checkins for ${from} → ${to}?`)) return;
+            rsRunJob('rsMongoBtn', '▶ Sync from MongoDB',
+                'customize_erpnext.api.biometric_resync.resync_mongodb_logs',
+                { from_date: from, to_date: to });
+        }
+
+        function rsRunOtSync() {
+            const from = document.getElementById('rsOtFrom').value;
+            const to = document.getElementById('rsOtTo').value;
+            if (!from || !to) { alert('Pick an OT date range'); return; }
+            if (!confirm(`Sync OT registrations from MongoDB for OT dates ${from} → ${to}?`)) return;
+            rsRunJob('rsOtBtn', '▶ Sync OT from MongoDB',
+                'customize_erpnext.api.biometric_resync.sync_ot_from_mongodb',
+                { from_date: from, to_date: to });
+        }
+
+        async function rsPreviewDeleteOt() {
+            const from = document.getElementById('rsDelFrom').value;
+            const to = document.getElementById('rsDelTo').value;
+            const el = document.getElementById('rsDelPreview');
+            const zone = document.getElementById('rsDelConfirmZone');
+            zone.style.display = 'none';
+            document.getElementById('rsDelConfirm').value = '';
+            document.getElementById('rsDelBtn').disabled = true;
+            if (!from || !to) { alert('Pick a date range'); return; }
+            el.innerHTML = '⏳ Loading preview...';
+            try {
+                const msg = await callPost('customize_erpnext.api.biometric_resync.preview_delete_ot',
+                    { from_date: from, to_date: to });
+                if (msg.status !== 'success') throw new Error(msg.message || 'Preview failed');
+                let html = `<div style="margin-bottom:6px;"><strong style="color:#c0392b;">${msg.detail_count}</strong>
+                    OT detail row(s) in <strong>${msg.parent_count}</strong> registration(s) will be affected.</div>`;
+                if (msg.sample && msg.sample.length) {
+                    html += `<div class="all-info-table-wrap"><table>
+                        <thead><tr><th>Registration</th><th>Employee</th><th>Name</th><th>Date</th><th>Begin</th><th>End</th></tr></thead>
+                        <tbody>${msg.sample.map(r => `
+                            <tr><td>${escapeHtml(r.parent)}</td><td>${escapeHtml(r.employee || '')}</td>
+                            <td>${escapeHtml(r.employee_name || '')}</td><td>${escapeHtml(r.date)}</td>
+                            <td>${escapeHtml(r.begin_time)}</td><td>${escapeHtml(r.end_time)}</td></tr>`).join('')}
+                        </tbody></table></div>`;
+                    if (msg.detail_count > msg.sample.length) {
+                        html += `<div style="color:var(--text-3);font-size:12px;">Showing first ${msg.sample.length} of ${msg.detail_count} rows.</div>`;
+                    }
+                }
+                el.innerHTML = html;
+                zone.style.display = msg.detail_count > 0 ? '' : 'none';
+            } catch (e) {
+                el.innerHTML = `<span style="color:#dc3545;">❌ ${escapeHtml(e.message)}</span>`;
+            }
+        }
+
+        function rsDelConfirmInput() {
+            document.getElementById('rsDelBtn').disabled =
+                document.getElementById('rsDelConfirm').value !== 'DELETE';
+        }
+
+        function rsRunDeleteOt() {
+            const from = document.getElementById('rsDelFrom').value;
+            const to = document.getElementById('rsDelTo').value;
+            const confirmText = document.getElementById('rsDelConfirm').value;
+            if (!confirm(`⚠️ PERMANENTLY delete OT detail rows for ${from} → ${to}?\nThis cannot be undone.`)) return;
+            rsRunJob('rsDelBtn', '🗑 Delete OT',
+                'customize_erpnext.api.biometric_resync.delete_ot',
+                { from_date: from, to_date: to, confirm_text: confirmText });
         }
 
     </script>
