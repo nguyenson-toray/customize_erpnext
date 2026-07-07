@@ -24,6 +24,15 @@ ON `tabEmployee Checkin` (shift, time);
 CREATE INDEX IF NOT EXISTS idx_emp_checkin_emp_shift_time
 ON `tabEmployee Checkin` (employee, shift, time);
 
+-- Index for the unlink UPDATE that frappe runs on every Attendance deletion:
+--   UPDATE `tabEmployee Checkin` SET attendance = NULL WHERE attendance = '<name>'
+-- Without it each deleted Attendance full-scans the whole checkin table (800k+ rows,
+-- ~1s each) — the 8AM/11PM force-update runs get killed by the 25-min RQ timeout
+-- whenever many attendance docs must be recreated (e.g. after a checkin backfill).
+-- Applied to production 2026-07-07.
+CREATE INDEX IF NOT EXISTS idx_emp_checkin_attendance
+ON `tabEmployee Checkin` (attendance);
+
 -- ============================================================================
 -- 2. ATTENDANCE INDEXES
 -- ============================================================================

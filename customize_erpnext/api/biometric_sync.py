@@ -208,9 +208,12 @@ def sync_fingerprints(master_machine_name, target_machine_names_json, user_ids_j
         }, expires_in_sec=3600)
 
         # Enqueue — KHÔNG truyền job_id= (Frappe dùng làm RQ job identifier, không phải kwarg)
+        # queue="default": the single long-queue worker is often occupied for 1h+ by the
+        # hourly HRMS process_auto_attendance job — interactive biometric jobs must not
+        # wait behind it. Job-level timeout still allows a long run.
         frappe.enqueue(
             "customize_erpnext.api.biometric_sync._run_sync_job",
-            queue="long",
+            queue="default",
             timeout=3600,
             master_machine_name=master_machine_name,
             target_machine_names=target_machine_names,
@@ -686,9 +689,10 @@ def delete_users_from_machines(users_json):
             "total_count": total_ops,
         }, expires_in_sec=3600)
 
+        # queue="default": see _run_sync_job enqueue — don't wait behind hourly HR jobs
         frappe.enqueue(
             "customize_erpnext.api.biometric_sync._run_delete_job",
-            queue="long",
+            queue="default",
             timeout=3600,
             users=users,
             cache_key=cache_key,
