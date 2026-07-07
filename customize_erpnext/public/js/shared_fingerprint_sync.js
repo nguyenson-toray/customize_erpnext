@@ -185,7 +185,7 @@ window.FingerprintSyncManager = (function () {
                                 ${employeeList}
                                 ${moreText}
                             </ul>
-                            <small class="text-muted">Fingerprints will be synced to all enabled attendance machines simultaneously</small>
+                            <small class="text-muted">Fingerprints will be synced to the machines selected below (all online machines are pre-selected)</small>
                         </div>
                     </div>
                 </div>
@@ -198,7 +198,7 @@ window.FingerprintSyncManager = (function () {
                         <i class="fa fa-user" style="font-size: 20px; margin-right: 10px;"></i>
                         <div>
                             <strong>Employee:</strong> ${emp.employee_name} (${emp.employee_id})<br>
-                            <small class="text-muted">Fingerprints will be synced to all enabled attendance machines</small>
+                            <small class="text-muted">Fingerprints will be synced to the machines selected below (all online machines are pre-selected)</small>
                         </div>
                     </div>
                 </div>
@@ -279,8 +279,11 @@ window.FingerprintSyncManager = (function () {
                 <div class="d-flex align-items-center">
                     <i class="fa fa-desktop text-primary me-2"></i>
                     <strong>Attendance Machines (${total_machines})</strong>
+                    <button type="button" class="btn btn-xs btn-default ms-3" id="fp-sync-select-all" style="margin-left:12px;">☑ Select All</button>
+                    <button type="button" class="btn btn-xs btn-default ms-1" id="fp-sync-unselect-all" style="margin-left:6px;">☐ Unselect All</button>
                 </div>
                 <div class="d-flex align-items-center">
+                    <small class="badge bg-primary text-white me-1" id="fp-sync-selected-count"></small>
                     <small class="badge bg-success text-white me-1">🟢 ${online_machines}</small>
                     <small class="badge bg-secondary text-white me-1">🔴 ${offline_machines}</small>
                     <small class="text-muted ms-2">${new Date().toLocaleTimeString()}</small>
@@ -293,8 +296,9 @@ window.FingerprintSyncManager = (function () {
                 <table class="table table-sm table-hover mb-2">
                     <thead class="table-light">
                         <tr>
-                            <th style="width: 30%"><i class="fa fa-tag me-1"></i>Name</th>
-                            <th style="width: 35%"><i class="fa fa-network-wired me-1"></i>Address</th>
+                            <th style="width: 5%; text-align:center"><i class="fa fa-check-square-o"></i></th>
+                            <th style="width: 27%"><i class="fa fa-tag me-1"></i>Name</th>
+                            <th style="width: 33%"><i class="fa fa-network-wired me-1"></i>Address</th>
                             <th style="width: 20%"><i class="fa fa-signal me-1"></i>Status</th>
                             <th style="width: 15%"><i class="fa fa-clock-o me-1"></i>Response</th>
                         </tr>
@@ -309,9 +313,14 @@ window.FingerprintSyncManager = (function () {
                 machine.connection_status === 'offline' ? 'danger' : 'warning';
             const rowClass = machine.connection_status === 'online' ? 'table-success' :
                 machine.connection_status === 'offline' ? 'table-danger' : 'table-warning';
+            const isOnline = machine.connection_status === 'online';
 
             html += `
                 <tr class="${rowClass}" style="border-left: 3px solid var(--bs-${statusColor});">
+                    <td style="text-align:center; vertical-align:middle;">
+                        <input type="checkbox" class="fp-sync-machine-cb" data-machine-name="${frappe.utils.escape_html(machine.device_name)}"
+                               ${isOnline ? 'checked' : 'disabled'} style="width:16px;height:16px;cursor:${isOnline ? 'pointer' : 'not-allowed'};">
+                    </td>
                     <td>
                         <strong>${machine.device_name}</strong>
                         ${machine.location ? `<br><small class="text-muted">${machine.location}</small>` : ''}
@@ -347,7 +356,49 @@ window.FingerprintSyncManager = (function () {
         }
 
         machinesDiv.innerHTML = html;
-        updateMachineProgressGrid(machines.filter(m => m.connection_status === 'online'));
+        currentSyncState.machines = machines;
+
+        // Wire up machine selection (checkbox per machine + select/unselect all)
+        machinesDiv.querySelectorAll('.fp-sync-machine-cb').forEach(cb =>
+            cb.addEventListener('change', onMachineSelectionChange));
+        const selAll = machinesDiv.querySelector('#fp-sync-select-all');
+        const unselAll = machinesDiv.querySelector('#fp-sync-unselect-all');
+        if (selAll) selAll.addEventListener('click', () => setAllMachineCheckboxes(true));
+        if (unselAll) unselAll.addEventListener('click', () => setAllMachineCheckboxes(false));
+
+        onMachineSelectionChange();
+    }
+
+    function setAllMachineCheckboxes(checked) {
+        document.querySelectorAll('.fp-sync-machine-cb:not(:disabled)').forEach(cb => { cb.checked = checked; });
+        onMachineSelectionChange();
+    }
+
+    function getSelectedMachineNames() {
+        return [...document.querySelectorAll('.fp-sync-machine-cb:checked')].map(cb => cb.dataset.machineName);
+    }
+
+    function onMachineSelectionChange() {
+        const selectedNames = new Set(getSelectedMachineNames());
+        const selectedOnline = (currentSyncState.machines || [])
+            .filter(m => m.connection_status === 'online' && selectedNames.has(m.device_name));
+
+        currentSyncState.totalMachines = selectedOnline.length;
+
+        const countBadge = document.getElementById('fp-sync-selected-count');
+        if (countBadge) countBadge.textContent = `☑ ${selectedOnline.length} selected`;
+
+        // Rebuild the per-machine progress grid for the selected machines only
+        updateMachineProgressGrid(selectedOnline);
+
+        // No machine selected -> block Start Sync (unless a sync is already running)
+        if (syncDialog && !currentSyncState.isRunning) {
+            if (selectedOnline.length === 0) {
+                syncDialog.disable_primary_action();
+            } else {
+                syncDialog.enable_primary_action();
+            }
+        }
     }
 
     function updateMachineProgressGrid(onlineMachines) {
@@ -423,10 +474,13 @@ window.FingerprintSyncManager = (function () {
                 throw new Error(machinesResponse.message || 'Failed to get machines list');
             }
 
-            const onlineMachines = machinesResponse.machines.filter(m => m.connection_status === 'online');
+            // Only sync to machines the user left checked in the machines list
+            const selectedNames = new Set(getSelectedMachineNames());
+            const onlineMachines = machinesResponse.machines.filter(
+                m => m.connection_status === 'online' && selectedNames.has(m.device_name));
 
             if (onlineMachines.length === 0) {
-                throw new Error('No online machines available for sync');
+                throw new Error('No machine selected for sync — tick at least one online machine in the list');
             }
 
             updateSyncStatus(`✅ Found ${onlineMachines.length} online machines`, 'success');

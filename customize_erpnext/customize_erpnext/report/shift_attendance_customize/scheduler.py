@@ -1561,8 +1561,9 @@ def send_daily_attendance_report_scheduled():
 	recipients_str = "\n".join(recipients)
 
 	try:
-		# Call the main send function
-		result = send_daily_attendance_report(report_date, recipients_str)
+		# Force update: recalculate today's attendance right before sending so the
+		# 08:15 email reflects the latest checkins (cron moved from 08:10 to 08:15)
+		result = send_daily_attendance_report(report_date, recipients_str, force_update_attendance=1)
 
 		frappe.logger().info(f"Daily attendance report scheduled send completed for {report_date}: {result}")
 		return result
