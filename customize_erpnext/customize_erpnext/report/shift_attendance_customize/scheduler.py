@@ -221,6 +221,11 @@ def calculate_attendance_statistics(report_date, data):
 	on_leave_employees = []
 	maternity_employees = []
 
+	# Per-shift headcount + detail list for specific shifts (email sections)
+	shift_stats = {}          # shift -> {"total", "present", "absent", "on_leave"}
+	shift_detail_names = ("Shift 2",)
+	shift_detail_employees = []
+
 	total_working_hours = 0
 	total_actual_overtime = 0
 	total_approved_overtime = 0
@@ -299,6 +304,27 @@ def calculate_attendance_statistics(report_date, data):
 			elif status_clean == 'Absent':
 				absent_employees.append(emp_info)
 
+			# Per-shift headcount
+			shift_name = row.get('shift') or 'No Shift'
+			ss = shift_stats.setdefault(shift_name, {"total": 0, "present": 0, "absent": 0, "on_leave": 0})
+			ss["total"] += 1
+			if status_clean == 'Present':
+				ss["present"] += 1
+			elif status_clean == 'Absent':
+				ss["absent"] += 1
+			elif status_clean == 'On Leave':
+				ss["on_leave"] += 1
+
+			# Detail rows for selected shifts (e.g. Shift 2 — starts 14:00, morning
+			# email would otherwise only show them mixed into the absent list)
+			if shift_name in shift_detail_names:
+				in_time = row.get('in_time')
+				shift_detail_employees.append({
+					**emp_info,
+					'status_clean': status_clean,
+					'in_time': in_time.strftime('%H:%M') if hasattr(in_time, 'strftime') else (str(in_time)[11:16] if in_time else '')
+				})
+
 	# Add maternity employees from EM who have no attendance record (expected after simplification)
 	# Also move any maternity employee who appeared as Absent into maternity list
 	absent_emp_names = {e['employee'] for e in absent_employees}
@@ -351,7 +377,9 @@ def calculate_attendance_statistics(report_date, data):
 		"present_employees": present_employees,
 		"absent_employees": absent_employees,
 		"on_leave_employees": on_leave_employees,
-		"maternity_employees": maternity_employees
+		"maternity_employees": maternity_employees,
+		"shift_stats": shift_stats,
+		"shift_detail_employees": sorted(shift_detail_employees, key=lambda x: (x.get("custom_group") or "").lower())
 	}
 
 
@@ -1020,6 +1048,77 @@ def generate_email_content(report_date, stats, data, last_checkin_time=None):
 	incomplete_processed = stats['incomplete_processed']
 	site_name = get_current_frappe_site_name()
 
+	# ── Per-shift headcount summary (skip shifts with no employees) ──
+	shift_stats = stats.get('shift_stats') or {}
+	shift_stat_rows = ""
+	for shift_name in sorted(shift_stats):
+		ss = shift_stats[shift_name]
+		if not ss.get("total"):
+			continue
+		shift_stat_rows += f"""
+      <tr>
+        <td class="d"><strong>{shift_name}</strong></td>
+        <td class="dc"><strong>{ss['total']}</strong></td>
+        <td class="dc" style="color:#1a7a4a;font-weight:700">{ss['present']}</td>
+        <td class="dc" style="color:#c0392b;font-weight:700">{ss['absent']}</td>
+        <td class="dc" style="color:#ca6f1e;font-weight:700">{ss['on_leave']}</td>
+      </tr>"""
+	if shift_stat_rows:
+		shift_stats_section = f"""
+  <!-- Per-shift headcount -->
+  <div class="sec-wrap">
+    <div class="sec-hdr sh-leave">📊 Thống kê theo ca</div>
+    <table class="dt">
+      <thead><tr>
+        <th class="th-leave" style="width:30%">Ca</th>
+        <th class="th-leave" style="width:17%;text-align:center">Tổng</th>
+        <th class="th-leave" style="width:17%;text-align:center">Hiện diện</th>
+        <th class="th-leave" style="width:17%;text-align:center">Vắng</th>
+        <th class="th-leave" style="width:19%;text-align:center">Nghỉ phép</th>
+      </tr></thead>
+      <tbody>{shift_stat_rows}</tbody>
+    </table>
+  </div>"""
+	else:
+		shift_stats_section = ""
+
+	# ── Shift 2 employee detail list ──
+	shift_detail_list = stats.get('shift_detail_employees') or []
+	shift2_rows = ""
+	for idx, emp in enumerate(shift_detail_list, 1):
+		st = emp.get('status_clean') or ''
+		st_color = {'Present': '#1a7a4a', 'Absent': '#c0392b', 'On Leave': '#ca6f1e'}.get(st, '#333')
+		shift2_rows += f"""
+      <tr>
+        <td class="dc">{idx}</td>
+        <td class="d">{emp.get('employee') or ''}</td>
+        <td class="d">{emp.get('employee_name') or ''}</td>
+        <td class="d">{emp.get('custom_group') or ''}</td>
+        <td class="d">{emp.get('designation') or ''}</td>
+        <td class="dc">{emp.get('in_time') or ''}</td>
+        <td class="dc" style="color:{st_color};font-weight:700">{st}</td>
+      </tr>"""
+	if shift2_rows:
+		shift2_section = f"""
+  <!-- Shift 2 detail -->
+  <div class="sec-wrap">
+    <div class="sec-hdr sh-inc">🌙 Danh sách nhân viên Shift 2 &nbsp;<span style="font-weight:400;font-size:12px">({len(shift_detail_list)} người — ca 14:00-22:00, trạng thái tại thời điểm tạo báo cáo)</span></div>
+    <table class="dt">
+      <thead><tr>
+        <th class="th-inc" style="width:4%;text-align:center">STT</th>
+        <th class="th-inc" style="width:12%">Mã NV</th>
+        <th class="th-inc" style="width:26%">Họ tên</th>
+        <th class="th-inc" style="width:16%">Group</th>
+        <th class="th-inc" style="width:20%">Chức danh</th>
+        <th class="th-inc" style="width:10%;text-align:center">Giờ vào</th>
+        <th class="th-inc" style="width:12%;text-align:center">Trạng thái</th>
+      </tr></thead>
+      <tbody>{shift2_rows}</tbody>
+    </table>
+  </div>"""
+	else:
+		shift2_section = ""
+
 	html_content = f"""<!DOCTYPE html>
 <html>
 <head>
@@ -1123,6 +1222,10 @@ def generate_email_content(report_date, stats, data, last_checkin_time=None):
       </div></td>
     </tr></table>
   </div>
+
+  {shift_stats_section}
+
+  {shift2_section}
 
   {left_warning_section}
 
