@@ -2,12 +2,22 @@
 hikvision.py — HikvisionNVR class
 Giao tiếp với NVR Hikvision qua ISAPI (HTTP REST + Digest Auth)
 Dựa trên docs_sample/src/nvr.py đã test thực tế.
+
+Quy ước thời gian (probe thực tế 2026-07-08 trên cả 2 NVR):
+- Đồng hồ NVR chạy giờ địa phương Asia/Ho_Chi_Minh (NTP, timeZone CST-7:00).
+- ISAPI search nhận và trả wall-clock giờ NVR, hậu tố "Z" KHÔNG có nghĩa UTC.
+- Vì vậy mọi cửa sổ query build từ datetime.now() (server cùng tz với NVR),
+  và timestamp trả về được giữ nguyên wall-clock, chỉ bỏ hậu tố tz.
+- searchResultPosition bị firmware bỏ qua (luôn trả từ đầu) → paginate bằng
+  cách dời startTime, không dùng pos.
+- DailyDistribution trả 400 Invalid XML trên firmware hiện tại → cache flag
+  _daily_dist_supported để không lặp lại request hỏng cho từng camera.
 """
 import uuid
 import requests
 import xmltodict
 from requests.auth import HTTPDigestAuth
-from datetime import datetime, timezone
+from datetime import datetime, timedelta
 import urllib3
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -22,6 +32,13 @@ class HikvisionNVR:
         self.session   = requests.Session()
         self.session.verify = False
         self._track_map = None  # cache cho track discovery
+        self._daily_dist_supported = None  # None = chưa thử, False = firmware không hỗ trợ
+
+    def close(self):
+        try:
+            self.session.close()
+        except Exception:
+            pass
 
     # ─── HTTP helpers ─────────────────────────────────────────
 
@@ -221,6 +238,45 @@ class HikvisionNVR:
 
     # ─── Recording History ────────────────────────────────────
 
+    @staticmethod
+    def _fmt_time(dt) -> str:
+        """Datetime → chuỗi ISAPI. Hậu tố Z bắt buộc theo format nhưng NVR hiểu là giờ local."""
+        return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    @staticmethod
+    def _parse_naive(s):
+        """Chuỗi ISAPI → naive datetime giữ nguyên wall-clock (bỏ Z/offset, không đổi giờ)."""
+        if not s:
+            return None
+        try:
+            dt = datetime.fromisoformat(str(s).strip().replace("Z", ""))
+            return dt.replace(tzinfo=None) if dt.tzinfo else dt
+        except Exception:
+            return None
+
+    def _collect_segments(self, tid: str, start: str, end: str) -> list:
+        """Lấy toàn bộ segment trong cửa sổ [start, end].
+
+        Firmware bỏ qua searchResultPosition nên paginate bằng cách dời
+        startTime qua endTime lớn nhất đã thấy, dừng khi batch < 100.
+        """
+        segments = []
+        cursor = start
+        for _ in range(20):  # chặn trên 2000 segment / cửa sổ
+            batch = self._search_api(tid, cursor, end, pos=0, max_results=100)
+            if not batch:
+                break
+            segments.extend(batch)
+            if len(batch) < 100:
+                break
+            ends = [b.get("timeSpan", {}).get("endTime") for b in batch]
+            ends = [e for e in ends if e]
+            new_cursor = max(ends) if ends else None
+            if not new_cursor or new_cursor <= cursor:
+                break
+            cursor = new_cursor
+        return segments
+
     def _search_api(self, tid: str, start: str, end: str, pos: int = 0, max_results: int = 1) -> list:
         xml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <CMSearchDescription>
@@ -245,13 +301,10 @@ class HikvisionNVR:
         except Exception:
             return []
 
-    def get_oldest_recording(self, cid) -> str:
-        """Bản ghi cũ nhất — dùng DailyDistribution, fallback sang Search API."""
-        tid = self._get_track_id(cid)
-        start = "2020-01-01T00:00:00Z"
-        end = datetime.now().strftime("%Y-%m-%dT23:59:59Z")
-
-        # Ưu tiên DailyDistribution (nhanh hơn)
+    def _daily_distribution_days(self, tid: str, start: str, end: str) -> list:
+        """Danh sách ngày có ghi hình (sorted). [] nếu firmware không hỗ trợ/không có."""
+        if self._daily_dist_supported is False:
+            return []
         try:
             xml = (
                 f"<?xml version='1.0' encoding='UTF-8'?>"
@@ -270,48 +323,102 @@ class HikvisionNVR:
             days = root.get("DailyDistribution") or root.get("dailyDistribution") or []
             if isinstance(days, dict):
                 days = [days]
-            recorded_days = sorted(
+            self._daily_dist_supported = True
+            return sorted(
                 day.get("day")
                 for day in days
                 if str(day.get("record") or day.get("recorded") or "").lower()
                 in ("true", "1")
             )
-            if recorded_days:
-                return f"{recorded_days[0]}T00:00:00Z"
         except Exception:
-            pass
+            # Firmware hiện tại trả 400 Invalid XML — không thử lại cho camera khác
+            self._daily_dist_supported = False
+            return []
 
-        # Fallback: Search API
+    def _window_has_recording(self, tid: str, age_days: int, now=None) -> bool:
+        """Cửa sổ 24h "age_days ngày trước" có ít nhất 1 segment không (1 call, ~0.1s)."""
+        now = now or datetime.now()
+        win_end   = now - timedelta(days=age_days)
+        win_start = win_end - timedelta(hours=24)
+        return bool(
+            self._search_api(tid, self._fmt_time(win_start), self._fmt_time(win_end), 0, 1)
+        )
+
+    def _oldest_by_window_scan(self, tid: str, max_days: int = 150) -> str:
+        """Tìm bản ghi cũ nhất bằng cửa sổ 24h — dùng khi search span dài bị
+        firmware từ chối (NVR-Insite trả 500 cho span nhiều tháng).
+
+        Nhị phân trên "tuổi" cửa sổ: retention xoá cuốn chiếu nên tính có/không
+        dữ liệu gần như đơn điệu theo tuổi (~log2(max_days) call/camera).
+        """
+        now = datetime.now()
+
+        # Neo: tìm một cửa sổ chắc chắn có dữ liệu
+        if self._window_has_recording(tid, 0, now):
+            anchor = 0
+        else:
+            anchor = next(
+                (d for d in range(7, max_days, 7) if self._window_has_recording(tid, d, now)),
+                None,
+            )
+            if anchor is None:
+                return None
+
+        # Nhị phân: lo luôn có dữ liệu, hi coi như không
+        lo, hi = anchor, max_days
+        while hi - lo > 1:
+            mid = (lo + hi) // 2
+            if self._window_has_recording(tid, mid, now):
+                lo = mid
+            else:
+                hi = mid
+
+        # Bản ghi cũ nhất nằm trong cửa sổ tuổi lo
+        win_end   = now - timedelta(days=lo)
+        win_start = win_end - timedelta(hours=24)
+        segs = self._collect_segments(tid, self._fmt_time(win_start), self._fmt_time(win_end))
+        starts = [s.get("timeSpan", {}).get("startTime") for s in segs]
+        starts = [s for s in starts if s]
+        return min(starts) if starts else None
+
+    def get_oldest_recording(self, cid) -> str:
+        """Bản ghi cũ nhất — DailyDistribution → search full-range → quét cửa sổ 24h."""
+        tid = self._get_track_id(cid)
+        start = "2020-01-01T00:00:00Z"
+        end = self._fmt_time(datetime.now().replace(hour=23, minute=59, second=59))
+
+        # Ưu tiên DailyDistribution (nhanh nhất) — nếu firmware hỗ trợ
+        recorded_days = self._daily_distribution_days(tid, start, end)
+        if recorded_days:
+            return f"{recorded_days[0]}T00:00:00"
+
+        # Search full-range, pos=0 = cũ nhất — chạy tốt trên NVR-Outsite
         res = self._search_api(tid, start, end, 0)
         if res:
             return res[0].get("timeSpan", {}).get("startTime") or None
-        return None
 
-    def get_latest_recording(self, cid) -> str:
-        """Bản ghi mới nhất — ước tính thời điểm camera offline."""
+        # Fallback: NVR-Insite trả 500 cho span dài → quét nhị phân cửa sổ 24h
+        return self._oldest_by_window_scan(tid)
+
+    def get_latest_recording(self, cid, max_lookback_days: int = 120) -> str:
+        """Bản ghi mới nhất — ước tính thời điểm camera offline.
+
+        Không dùng searchResultPosition (firmware bỏ qua → sẽ trả bản ghi CŨ nhất)
+        và không search span dài (firmware Insite trả 500/timeout). Quét lùi từng
+        cửa sổ 24h từ hiện tại, cửa sổ đầu tiên có segment → endTime lớn nhất.
+        Camera offline thường mới ngừng gần đây nên thoát sớm sau vài call.
+        """
         tid = self._get_track_id(cid)
-        end = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-        try:
-            xml = (
-                f"<?xml version='1.0' encoding='UTF-8'?>"
-                f"<CMSearchDescription>"
-                f"<searchID>{uuid.uuid4()}</searchID>"
-                f"<trackList><trackID>{tid}</trackID></trackList>"
-                f"<timeSpanList><timeSpan>"
-                f"<startTime>2020-01-01T00:00:00Z</startTime><endTime>{end}</endTime>"
-                f"</timeSpan></timeSpanList>"
-                f"<maxResults>0</maxResults>"
-                f"</CMSearchDescription>"
-            )
-            d = self._post("/ISAPI/ContentMgmt/search", xml)
-            root = d.get("CMSearchResult") or d.get("cmSearchResult") or {}
-            total = int(root.get("numOfMatches") or root.get("totalMatches") or 0)
-            if total > 0:
-                res = self._search_api(tid, "2020-01-01T00:00:00Z", end, total - 1)
-                if res:
-                    return res[0].get("timeSpan", {}).get("endTime") or None
-        except Exception:
-            pass
+        now = datetime.now()
+
+        for d in range(max_lookback_days):
+            win_end   = now - timedelta(days=d)
+            win_start = win_end - timedelta(hours=24)
+            segs = self._collect_segments(tid, self._fmt_time(win_start), self._fmt_time(win_end))
+            ends = [s.get("timeSpan", {}).get("endTime") for s in segs]
+            ends = [e for e in ends if e]
+            if ends:
+                return max(ends)
         return None
 
     def get_recording_gaps(self, cid, days: int = 7, min_gap_minutes: int = 10) -> str:
@@ -319,40 +426,19 @@ class HikvisionNVR:
         Phát hiện khoảng ngắt quãng trong ghi hình.
         Kiểm tra [days] ngày gần nhất, báo cáo các gap > [min_gap_minutes] phút.
         Trả về chuỗi mô tả hoặc rỗng nếu không có gap.
-
-        NOTE: Không dùng searchResultPosition vì nhiều firmware Hikvision bỏ qua tham số
-        này và luôn trả kết quả từ đầu. Thay vào đó query từng khoảng 24h một lần.
+        Thời gian hiển thị theo giờ NVR (= giờ VN, xem docstring module).
         """
-        from datetime import datetime as _dt, timedelta
-
-        def _parse_iso(s):
-            try:
-                s = s.strip()
-                if s.endswith("Z"):
-                    s = s[:-1] + "+00:00"
-                dt = _dt.fromisoformat(s)
-                if dt.tzinfo is None:
-                    # NVR trả naive theo giờ địa phương (UTC+7), không phải UTC
-                    dt = dt.replace(tzinfo=timezone(timedelta(hours=7)))
-                return dt
-            except Exception:
-                return None
-
         tid = self._get_track_id(cid)
-        now_utc = _dt.now(timezone.utc)
+        now = datetime.now()
 
-        # Query từng khoảng 24h để tránh firmware bỏ qua searchResultPosition
+        # Quét từng cửa sổ 24h, mỗi cửa sổ paginate đầy đủ (không giới hạn 100)
         segments = []
         for d in range(days):
-            win_end   = now_utc - timedelta(days=d)
+            win_end   = now - timedelta(days=d)
             win_start = win_end - timedelta(hours=24)
-            s = win_start.strftime("%Y-%m-%dT%H:%M:%SZ")
-            e = win_end.strftime("%Y-%m-%dT%H:%M:%SZ")
-            try:
-                batch = self._search_api(tid, s, e, pos=0, max_results=100)
-                segments.extend(batch)
-            except Exception:
-                pass
+            segments.extend(
+                self._collect_segments(tid, self._fmt_time(win_start), self._fmt_time(win_end))
+            )
 
         if len(segments) < 2:
             return ""
@@ -374,18 +460,17 @@ class HikvisionNVR:
         # Tìm gap
         gaps = []
         for i in range(len(unique) - 1):
-            end_t   = _parse_iso(unique[i].get("timeSpan", {}).get("endTime", ""))
-            start_t = _parse_iso(unique[i + 1].get("timeSpan", {}).get("startTime", ""))
+            end_t   = self._parse_naive(unique[i].get("timeSpan", {}).get("endTime", ""))
+            start_t = self._parse_naive(unique[i + 1].get("timeSpan", {}).get("startTime", ""))
             if end_t and start_t:
                 diff_min = (start_t - end_t).total_seconds() / 60
                 if diff_min > min_gap_minutes:
-                    # Hiển thị theo giờ NVR (UTC — đồng hồ NVR chạy UTC)
-                    end_local   = end_t.strftime("%m-%d %H:%M")
-                    start_local = start_t.strftime("%m-%d %H:%M")
                     hours = int(diff_min // 60)
                     mins  = int(diff_min % 60)
                     dur = f"{hours}h{mins:02d}m" if hours else f"{mins}m"
-                    gaps.append(f"{end_local}→{start_local}({dur})")
+                    gaps.append(
+                        f"{end_t.strftime('%m-%d %H:%M')}→{start_t.strftime('%m-%d %H:%M')}({dur})"
+                    )
 
         if not gaps:
             return ""

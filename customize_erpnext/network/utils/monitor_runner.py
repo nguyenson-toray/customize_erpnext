@@ -5,32 +5,34 @@ from customize_erpnext.network.utils.hikvision import HikvisionNVR
 
 
 def _parse_dt(iso_str):
+    """Chuỗi thời gian ISAPI → "YYYY-MM-DD HH:MM:SS".
+
+    NVR trả wall-clock theo giờ NVR (probe 2026-07-08: cả 2 NVR chạy
+    Asia/Ho_Chi_Minh qua NTP, trùng tz hệ thống Frappe; hậu tố "Z" của ISAPI
+    KHÔNG có nghĩa UTC). Vì vậy giữ nguyên wall-clock, chỉ bỏ tz — tuyệt đối
+    không .astimezone() (trước đây làm lệch +7h).
+    """
+    dt = _parse_naive_dt(iso_str)
+    return dt.strftime("%Y-%m-%d %H:%M:%S") if dt else None
+
+
+def _parse_naive_dt(iso_str):
     if not iso_str:
         return None
     try:
         from datetime import datetime as _dt
-        return (
-            _dt.fromisoformat(iso_str.replace("Z", "+00:00"))
-               .astimezone()
-               .strftime("%Y-%m-%d %H:%M:%S")
-        )
+        dt = _dt.fromisoformat(str(iso_str).strip().replace("Z", ""))
+        return dt.replace(tzinfo=None) if dt.tzinfo else dt
     except Exception:
         return None
 
 
 def _days_since(iso_str):
-    if not iso_str:
+    dt = _parse_naive_dt(iso_str)
+    if not dt:
         return None
-    try:
-        from datetime import datetime as _dt, timezone
-        dt = (
-            _dt.fromisoformat(iso_str.replace("Z", "+00:00"))
-               .astimezone()
-               .replace(tzinfo=None)
-        )
-        return round((now_datetime() - dt).total_seconds() / 86400, 1)
-    except Exception:
-        return None
+    # now_datetime() = naive theo tz hệ thống Frappe — cùng quy ước với dt
+    return round((now_datetime() - dt).total_seconds() / 86400, 1)
 
 
 def _parse_recipients(recipients):
@@ -53,6 +55,7 @@ def run_monitor_for_nvr(nvr_name, send_email=True, recipients=None, gap_days=7, 
     cho từng camera nên rất chậm (job có thể chạy >10 phút khi bật).
     """
     check_gaps = sbool(check_gaps)
+    send_email = sbool(send_email)
     nvr_doc = frappe.get_doc("NVR", nvr_name)
     now = now_datetime()
 
@@ -65,86 +68,91 @@ def run_monitor_for_nvr(nvr_name, send_email=True, recipients=None, gap_days=7, 
     gap_min_minutes = int(gap_min_minutes)
 
     client = HikvisionNVR(nvr_doc)
+    try:
+        if not client.is_online():
+            tracker.status = "Offline"
+            tracker.note   = f"Cannot connect to {nvr_doc.host}:{nvr_doc.port}"
+            frappe.db.set_value("NVR", nvr_name, "status", "Offline")
+            tracker.insert(ignore_permissions=True)
+            frappe.db.commit()
+            if send_email:
+                _send_email(tracker, recipients=recipients)
+            return tracker.name
 
-    if not client.is_online():
-        tracker.status = "Offline"
-        tracker.note   = f"Cannot connect to {nvr_doc.host}:{nvr_doc.port}"
-        frappe.db.set_value("NVR", nvr_name, "status", "Offline")
+        tracker.status = "Online"
+
+        # System status
+        sys_st = client.get_system_status()
+        tracker.up_time = sys_st.get("uptime")
+        tracker.cpu     = sys_st.get("cpu")
+        tracker.ram     = sys_st.get("ram")
+
+        # Update NVR master
+        dev_info = client.get_device_info()
+        if dev_info:
+            frappe.db.set_value("NVR", nvr_name, {
+                "model":    dev_info.get("model"),
+                "firmware": dev_info.get("firmware"),
+                "serial":   dev_info.get("serial"),
+                "status":   "Online",
+            })
+
+        # HDD summary
+        hdds = client.get_hdd_status()
+        if hdds:
+            tracker.hdd_summary = " | ".join(
+                f"HDD{h['id']}: {h['status']} {h['used_pct']}% ({h['capacity_gb']}GB)"
+                for h in hdds
+            )
+
+        # Lấy danh sách camera đã đăng ký trong DocType (keyed by channel_no)
+        registered = {
+            d.channel_no: d.name
+            for d in frappe.get_all(
+                "Camera",
+                filters={"nvr": nvr_name},
+                fields=["name", "channel_no"],
+                order_by="channel_no asc",
+            )
+        }
+
+        # Camera details — chỉ xử lý các channel có trong Camera master
+        cameras = client.get_camera_status()
+        matched = [
+            c for c in cameras
+            if str(c["id"]).isdigit() and int(c["id"]) in registered
+        ]
+
+        tracker.camera_total   = len(matched)
+        tracker.camera_online  = sum(1 for c in matched if c["online"])
+        tracker.camera_offline = tracker.camera_total - tracker.camera_online
+
+        for cam in matched:
+            row = tracker.append("details", {})
+            row.camera      = registered[int(cam["id"])]
+            row.nvr         = nvr_name
+            row.channel_no  = int(cam["id"])
+            row.camera_name = cam["name"]
+            row.status      = "Online" if cam["online"] else "Offline"
+
+            if cam["online"]:
+                oldest = client.get_oldest_recording(cam["id"])
+                row.last_time_recorded = _parse_dt(oldest)
+                row.days_recorded      = _days_since(oldest)
+                if check_gaps:
+                    row.gap = client.get_recording_gaps(cam["id"], days=gap_days, min_gap_minutes=gap_min_minutes)
+            else:
+                latest = client.get_latest_recording(cam["id"])
+                row.offline_since = _parse_dt(latest)
+
         tracker.insert(ignore_permissions=True)
         frappe.db.commit()
-        if send_email and send_email != "false":
-            _send_email(tracker, recipients=recipients)
+
+        if send_email:
+            _send_email(tracker, recipients=recipients, hdds=hdds)
         return tracker.name
-
-    tracker.status = "Online"
-
-    # System status
-    sys_st = client.get_system_status()
-    tracker.up_time = sys_st.get("uptime")
-    tracker.cpu     = sys_st.get("cpu")
-    tracker.ram     = sys_st.get("ram")
-
-    # Update NVR master
-    dev_info = client.get_device_info()
-    if dev_info:
-        frappe.db.set_value("NVR", nvr_name, {
-            "model":    dev_info.get("model"),
-            "firmware": dev_info.get("firmware"),
-            "serial":   dev_info.get("serial"),
-            "status":   "Online",
-        })
-
-    # HDD summary
-    hdds = client.get_hdd_status()
-    if hdds:
-        tracker.hdd_summary = " | ".join(
-            f"HDD{h['id']}: {h['status']} {h['used_pct']}% ({h['capacity_gb']}GB)"
-            for h in hdds
-        )
-
-    # Lấy danh sách camera đã đăng ký trong DocType (keyed by channel_no)
-    registered = {
-        d.channel_no: d.name
-        for d in frappe.get_all(
-            "Camera",
-            filters={"nvr": nvr_name},
-            fields=["name", "channel_no"],
-            order_by="channel_no asc",
-        )
-    }
-
-    # Camera details — chỉ xử lý các channel có trong Camera master
-    cameras = client.get_camera_status()
-    matched = [c for c in cameras if int(c["id"]) in registered]
-
-    tracker.camera_total   = len(matched)
-    tracker.camera_online  = sum(1 for c in matched if c["online"])
-    tracker.camera_offline = tracker.camera_total - tracker.camera_online
-
-    for cam in matched:
-        row = tracker.append("details", {})
-        row.camera      = registered[int(cam["id"])]
-        row.nvr         = nvr_name
-        row.channel_no  = int(cam["id"])
-        row.camera_name = cam["name"]
-        row.status      = "Online" if cam["online"] else "Offline"
-
-        if cam["online"]:
-            oldest = client.get_oldest_recording(cam["id"])
-            row.last_time_recorded = _parse_dt(oldest)
-            row.days_recorded      = _days_since(oldest)
-            if check_gaps:
-                row.gap = client.get_recording_gaps(cam["id"], days=gap_days, min_gap_minutes=gap_min_minutes)
-        else:
-            latest = client.get_latest_recording(cam["id"])
-            row.offline_since = _parse_dt(latest)
-
-    tracker.insert(ignore_permissions=True)
-    frappe.db.commit()
-
-    if send_email and send_email != "false":
-        _send_email(tracker, recipients=recipients, hdds=hdds)
-    return tracker.name
+    finally:
+        client.close()
 
 
 @frappe.whitelist()
@@ -167,7 +175,10 @@ def run_all_nvr(send_email=True, recipients=None, gap_days=7, gap_min_minutes=10
             # ("Work-horse terminated unexpectedly")
             raise
         except Exception as e:
-            frappe.log_error(f"Network - NVR Monitor [{nvr_name}]: {e}", "Network")
+            # Bỏ các thay đổi dở dang (vd. set_value lên NVR master trước khi lỗi)
+            # để commit của NVR kế tiếp không commit nhầm chúng
+            frappe.db.rollback()
+            frappe.log_error(frappe.get_traceback(), f"Network - NVR Monitor [{nvr_name}]")
             results.append({"nvr": nvr_name, "error": str(e), "ok": False})
     return results
 
@@ -177,6 +188,8 @@ def run_all_nvr_daily():
 
     Đẩy sang long queue: 2 NVR × ~85 camera, mỗi camera 2-3 HTTP call
     nên tổng thời gian > 300s (timeout mặc định của queue default).
+    check_gaps=True với gap_days=1: mỗi camera online thêm 1 lần search 24h
+    (~vài phút cho cả run) — nằm trong timeout 3600s.
     """
     frappe.enqueue(
         "customize_erpnext.network.utils.monitor_runner.run_all_nvr",
@@ -187,7 +200,7 @@ def run_all_nvr_daily():
         send_email=True,
         gap_days=1,
         gap_min_minutes=10,
-        check_gaps=False,
+        check_gaps=True,
     )
 
 
@@ -245,8 +258,8 @@ def _send_email(tracker_doc, recipients=None, hdds=None):
     nvr_color     = "green" if tracker_doc.status == "Online" else "red"
     offline_color = "red" if tracker_doc.camera_offline else "green"
 
-    # Min / Max days stored (chỉ tính camera Online có dữ liệu)
-    days_vals = [r.days_recorded for r in details if r.status == "Online" and r.days_recorded]
+    # Min / Max days stored (chỉ tính camera Online có dữ liệu; 0.0 vẫn là dữ liệu hợp lệ)
+    days_vals = [r.days_recorded for r in details if r.status == "Online" and r.days_recorded is not None]
     min_days  = f"{min(days_vals):.1f}" if days_vals else "N/A"
     max_days  = f"{max(days_vals):.1f}" if days_vals else "N/A"
 
@@ -295,7 +308,7 @@ def _send_email(tracker_doc, recipients=None, hdds=None):
         if r.status == "Online":
             status_cell = "<td style='color:green;text-align:center'>&#10004; Online</td>"
             last_rec    = r.last_time_recorded or "—"
-            days_rec    = f"{r.days_recorded:.1f} days" if r.days_recorded else "—"
+            days_rec    = f"{r.days_recorded:.1f} days" if r.days_recorded is not None else "—"
             offline_since = "—"
             gap_cell    = f"<td style='font-size:11px;color:#c60'>{r.gap or ''}</td>"
         else:
@@ -344,9 +357,9 @@ def _send_email(tracker_doc, recipients=None, hdds=None):
 </p>
 """
 
+    # Không dùng now=True: để Email Queue gửi (có retry, không block job theo SMTP)
     frappe.sendmail(
         recipients=recipient_list,
         subject=subject,
         message=message,
-        now=True,
     )

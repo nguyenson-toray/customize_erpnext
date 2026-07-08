@@ -226,6 +226,9 @@ def run_monitor(nvr=None):
     """
     Trigger CCTV monitor from Excel / Power Query (no email sent).
 
+    Chạy nền qua long queue (quét NVR mất nhiều phút — không chạy inline
+    trong web request). Kết quả xem trong CCTV Tracking sau khi job xong.
+
     Parameters
     ----------
     nvr : str  — NVR name to run (optional).
@@ -234,21 +237,34 @@ def run_monitor(nvr=None):
     Returns
     -------
     { ok: bool, results: [...] }
-      Each result: { nvr, doc, ok } on success, or { nvr, error, ok: false }
+      Shape giữ nguyên cho run_monitor.pq: mỗi result { nvr, doc, ok };
+      doc = "queued" (mới đưa vào queue) hoặc "already running".
     """
-    from customize_erpnext.network.utils.monitor_runner import (
-        run_all_nvr,
-        run_monitor_for_nvr,
-    )
-
     try:
         if nvr:
-            doc_name = run_monitor_for_nvr(nvr_name=nvr, send_email=False)
-            return {"ok": True, "results": [{"nvr": nvr, "doc": doc_name, "ok": True}]}
+            # Validate sớm để Power Query nhận lỗi rõ ràng thay vì job fail âm thầm
+            if not frappe.db.exists("NVR", nvr):
+                return {"ok": False, "results": [{"nvr": nvr, "error": "NVR not found", "ok": False}]}
+            job = frappe.enqueue(
+                "customize_erpnext.network.utils.monitor_runner.run_monitor_for_nvr",
+                queue="long",
+                timeout=3600,
+                job_id=f"nvr_monitor_manual_{nvr}",
+                deduplicate=True,
+                nvr_name=nvr,
+                send_email=False,
+            )
         else:
-            results = run_all_nvr(send_email=False)
-            all_ok = all(r.get("ok") for r in results)
-            return {"ok": all_ok, "results": results}
+            job = frappe.enqueue(
+                "customize_erpnext.network.utils.monitor_runner.run_all_nvr",
+                queue="long",
+                timeout=3600,
+                job_id="nvr_monitor_manual_all",
+                deduplicate=True,
+                send_email=False,
+            )
+        status = "queued" if job else "already running"
+        return {"ok": True, "results": [{"nvr": nvr or "ALL", "doc": status, "ok": True}]}
     except Exception as e:
-        frappe.log_error(f"cctv_api.run_monitor: {e}", "Network")
+        frappe.log_error(frappe.get_traceback(), "cctv_api.run_monitor")
         return {"ok": False, "results": [], "error": str(e)}
