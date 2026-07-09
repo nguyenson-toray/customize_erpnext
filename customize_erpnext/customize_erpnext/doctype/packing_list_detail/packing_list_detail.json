@@ -13,10 +13,12 @@
   "pcs",
   "net_weight",
   "gross_weight",
+  "empty_weight",
   "cbm",
   "carton_type",
   "sku",
-  "upc"
+  "upc",
+  "photo"
  ],
  "fields": [
   {
@@ -87,6 +89,14 @@
    "precision": "2"
   },
   {
+   "fieldname": "empty_weight",
+   "fieldtype": "Float",
+   "label": "Empty Carton (kg)",
+   "precision": "3",
+   "print_hide": 1,
+   "read_only": 1
+  },
+  {
    "columns": 1,
    "fieldname": "cbm",
    "fieldtype": "Float",
@@ -101,6 +111,14 @@
    "fieldtype": "Data",
    "in_list_view": 1,
    "label": "Carton Size (L*W*H cm)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "photo",
+   "fieldtype": "Attach Image",
+   "in_list_view": 1,
+   "label": "Photo",
+   "print_hide": 1,
    "read_only": 1
   }
  ],

@@ -53,11 +53,14 @@ class PackingList(Document):
         # carton type). Totals are a plain sum, so editing a gross weight (scale)
         # stays consistent without re-generating.
         rows = self.details or []
-        # Contents is only kept for mixed cartons; clear it on non-mixed rows
-        # (also cleans up rows generated before this rule).
+        gross_to_net = (self.weight_mode or "") == "Gross to Net"
         for d in rows:
+            # Contents is only kept for mixed cartons; clear it on non-mixed rows.
             if not self._is_mixed(d):
                 d.contents = ""
+            # Reverse weight: Net = Gross - empty carton (Gross entered from scale).
+            if gross_to_net:
+                d.net_weight = flt(flt(d.gross_weight) - flt(d.empty_weight), 3)
         self.total_quantity = sum(cint(d.pcs) for d in rows)
         self.total_carton = len(rows)
         self.total_net_weight = flt(sum(flt(d.net_weight) for d in rows), 3)
@@ -115,10 +118,21 @@ class PackingList(Document):
     def build_cartons(self):
         qty_map, sizes, colors, sku_map = self._parse_items()
         weight_map = self._parse_weight()
+        # Warn if the Net Weight table is missing / not tab-separated: sizes with
+        # no weight would silently produce Net = 0.
+        missing_w = [s for s in sizes if s not in weight_map]
+        if missing_w:
+            frappe.throw(
+                _(
+                    "Net Weight per Piece (box 2) has no weight for size(s): {0}. "
+                    "Check it is tab-separated, one line per size: Size &lt;Tab&gt; Weight."
+                ).format(", ".join(missing_w))
+            )
         boxes, _by_label = self._get_boxes()
         big, small = self._big_small(boxes)
         cap = big["cap"]  # a full carton is packed in the larger box
         threshold = cint(self.small_carton_threshold)
+        max_sizes = cint(self.max_size_per_mixed_carton) or 999
 
         cartons = []     # each carton is a list of (color, size, pcs) lines
         leftovers = []   # (color, size, rem)
@@ -141,7 +155,7 @@ class PackingList(Document):
             for (color, size, rem) in leftovers:
                 cartons.append([(color, size, rem)])
         else:
-            cartons.extend(self._combine_leftovers(leftovers, cap, mode))
+            cartons.extend(self._combine_leftovers(leftovers, cap, mode, max_sizes))
 
         # Assign a box to each carton (larger box for full cartons, smaller box
         # for not-yet-full cartons per the threshold).
@@ -198,17 +212,18 @@ class PackingList(Document):
             "pcs": pcs,
             "net_weight": flt(net, 3),
             "gross_weight": flt(net + box["empty"], 3),
+            "empty_weight": box["empty"],
             "cbm": box["cbm"],
             "carton_type": box["label"],
         }
 
-    def _combine_leftovers(self, leftovers, cap, mode):
+    def _combine_leftovers(self, leftovers, cap, mode, max_sizes=999):
         """Combine leftover remainders into mixed cartons (single box).
 
         Each whole (color, size) remainder is placed into one carton using
-        First-Fit-Decreasing, so a size's leftover is never split across cartons
-        (different sizes/colors may still share a carton). The grouping key
-        constrains what may share a carton:
+        First-Fit-Decreasing, so a size's leftover is never split across cartons.
+        A mixed carton may hold at most `max_sizes` distinct sizes. The grouping
+        key constrains what may share a carton:
           By Color        -> one color per carton (sizes mixed)
           By Size         -> one size per carton (colors mixed)
           By Color & Size -> anything may be mixed
@@ -228,15 +243,24 @@ class PackingList(Document):
         result = []
         for items in groups.values():
             # Largest remainders first, then drop each whole into the first
-            # carton with room.
+            # carton with room and within the distinct-size limit.
             pieces = sorted(items, key=lambda x: x[2], reverse=True)
-            bins = []  # each: {"remaining": int, "lines": [(color, size, pcs)]}
+            bins = []  # each: {"remaining": int, "sizes": set, "lines": [...]}
             for (color, size, rem) in pieces:
-                target = next((b for b in bins if b["remaining"] >= rem), None)
+                target = next(
+                    (
+                        b
+                        for b in bins
+                        if b["remaining"] >= rem
+                        and (size in b["sizes"] or len(b["sizes"]) < max_sizes)
+                    ),
+                    None,
+                )
                 if target is None:
-                    target = {"remaining": cap, "lines": []}
+                    target = {"remaining": cap, "sizes": set(), "lines": []}
                     bins.append(target)
                 target["lines"].append((color, size, rem))
+                target["sizes"].add(size)
                 target["remaining"] -= rem
             for b in bins:
                 result.append(b["lines"])
@@ -452,6 +476,7 @@ def _result(pl):
                 "pcs": d.pcs,
                 "net_weight": d.net_weight,
                 "gross_weight": d.gross_weight,
+                "empty_weight": d.empty_weight,
                 "cbm": d.cbm,
                 "carton_type": d.carton_type,
             }
@@ -469,7 +494,7 @@ def _result(pl):
 
 
 @frappe.whitelist()
-def generate_detail(doc):
+def generate_detail(doc, force=0):
     """Build carton rows + totals from the (possibly unsaved) form data.
 
     Returns plain data; the client applies it to the form so it works before
@@ -479,6 +504,17 @@ def generate_detail(doc):
         doc = frappe.parse_json(doc)
 
     pl = frappe.get_doc(doc)
+    photos = [d.get("photo") for d in (pl.details or []) if d.get("photo")]
+    if photos and not cint(force):
+        frappe.throw(
+            _("Cartons already have photos — regenerating would lose them. Delete the photos first."),
+            title=_("Photos exist"),
+        )
+    # Forced regenerate: delete the now-orphaned photo files.
+    for url in photos:
+        name = frappe.db.get_value("File", {"file_url": url}, "name")
+        if name:
+            frappe.delete_doc("File", name, ignore_permissions=True, force=True)
     pl.build_cartons()
     pl._recalc_totals()
     return _result(pl)
@@ -496,3 +532,182 @@ def apply_mix(doc, cartons):
     pl.apply_mix_edit(cartons)
     pl._recalc_totals()
     return _result(pl)
+
+
+def _clean_name(s):
+    return re.sub(r"[^A-Za-z0-9]+", "-", (s or "").strip()).strip("-") or "NA"
+
+
+@frappe.whitelist()
+def save_carton_photo(packing_list, carton_no, color, size, image):
+    """Save a (cropped, resized) carton photo as File {No}_{CartonNo}_{Color}_{Size}.jpg."""
+    import base64
+
+    frappe.has_permission("Packing List", "write", doc=packing_list, throw=True)
+    m = re.search(r"base64,(.*)$", image or "", re.S)
+    if not m:
+        frappe.throw(_("Invalid image data"))
+    data = base64.b64decode(m.group(1))
+    fname = "{0}_{1}_{2}_{3}.jpg".format(
+        _clean_name(packing_list), cint(carton_no), _clean_name(color), _clean_name(size)
+    )
+    # Remove any previous photo of the same carton so re-capture doesn't pile up.
+    prefix = "{0}_{1}_".format(_clean_name(packing_list), cint(carton_no))
+    for old in frappe.get_all(
+        "File",
+        filters={"attached_to_doctype": "Packing List", "attached_to_name": packing_list},
+        fields=["name", "file_name"],
+    ):
+        if (old.file_name or "").startswith(prefix):
+            frappe.delete_doc("File", old.name, ignore_permissions=True, force=True)
+
+    # Let Frappe create the File (flat), then relocate it under
+    # private/files/packing_list/ with the exact name.
+    import os
+    import shutil
+
+    from frappe.utils.file_manager import save_file
+
+    f = save_file(fname, data, "Packing List", packing_list, is_private=1)
+
+    folder = frappe.get_site_path("private", "files", "packing_list")
+    os.makedirs(folder, exist_ok=True)
+    old_disk = frappe.get_site_path(f.file_url.lstrip("/"))
+    new_url = "/private/files/packing_list/" + fname
+    new_disk = os.path.join(folder, fname)
+    if os.path.abspath(old_disk) != os.path.abspath(new_disk):
+        if os.path.exists(new_disk):
+            os.remove(new_disk)
+        shutil.move(old_disk, new_disk)
+    frappe.db.set_value(
+        "File", f.name, {"file_url": new_url, "file_name": fname}, update_modified=False
+    )
+    return new_url
+
+
+@frappe.whitelist()
+def download_all_photos(packing_list):
+    """Zip every carton photo of the packing list and stream it as a download."""
+    import io
+    import zipfile
+    from frappe.utils.file_manager import get_file
+
+    frappe.has_permission("Packing List", "read", doc=packing_list, throw=True)
+    doc = frappe.get_doc("Packing List", packing_list)
+    buf = io.BytesIO()
+    count = 0
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        for d in doc.details:
+            url = d.get("photo")
+            if not url:
+                continue
+            try:
+                _fname, content = get_file(url)
+            except Exception:
+                continue
+            # Name each zip entry exactly No_CartonNo_Color_Size.jpg.
+            entry = "{0}_{1}_{2}_{3}.jpg".format(
+                _clean_name(doc.name), cint(d.carton_no), _clean_name(d.color), _clean_name(d.size)
+            )
+            z.writestr(entry, content)
+            count += 1
+    if not count:
+        frappe.throw(_("No carton photos to download"))
+    frappe.response["filename"] = "{0}_photos.zip".format(doc.name)
+    frappe.response["filecontent"] = buf.getvalue()
+    frappe.response["type"] = "download"
+
+
+@frappe.whitelist()
+def read_scale_ocr(image, decimals=2):
+    """Read a red 7-segment scale display (cropped) via ssocr.
+
+    Isolates the red digits (redness = R - (G+B)/2), drops noise specks, then
+    runs ssocr and divides by 10**decimals (scales use a fixed decimal place).
+    """
+    import base64
+    import io
+    import os
+    import shutil
+    import subprocess
+    import tempfile
+
+    import numpy as np
+    from PIL import Image, ImageOps
+
+    if not shutil.which("ssocr"):
+        frappe.throw(_("ssocr is not installed on the server (sudo apt-get install ssocr)."))
+    m = re.search(r"base64,(.*)$", image or "", re.S)
+    if not m:
+        frappe.throw(_("Invalid image data"))
+
+    im = Image.open(io.BytesIO(base64.b64decode(m.group(1)))).convert("RGB")
+    a = np.asarray(im).astype(int)
+    red = a[:, :, 0] - (a[:, :, 1] + a[:, :, 2]) // 2
+    mask = red > 100  # bright-red LED pixels only
+    if mask.sum() < 40:
+        return {"ok": False, "value": None, "raw": ""}
+
+    # Locate the display: dilate to merge the digit strokes, then keep the
+    # largest red cluster. Robust to reddish cartons scattered across the frame.
+    from scipy import ndimage as ndi
+
+    labels, n = ndi.label(ndi.binary_dilation(mask, iterations=10))
+    if n == 0:
+        return {"ok": False, "value": None, "raw": ""}
+    sizes = ndi.sum(mask, labels, np.arange(1, n + 1))
+    core = mask & (labels == int(np.argmax(sizes)) + 1)
+    ys0, xs0 = np.where(core)
+    region = core[ys0.min(): ys0.max() + 1, xs0.min(): xs0.max() + 1]
+
+    colsum = region.sum(0)
+    active = colsum > (region.shape[0] * 0.10)
+    runs, start = [], None
+    for i, v in enumerate(list(active) + [False]):
+        if v and start is None:
+            start = i
+        elif not v and start is not None:
+            runs.append((start, i))
+            start = None
+    sized = [(s, e, int(colsum[s:e].sum())) for (s, e) in runs]
+    if not sized:
+        return {"ok": False, "value": None, "raw": ""}
+    peak = max(r[2] for r in sized)
+    big = [(s, e) for (s, e, sm) in sized if sm > peak * 0.2]  # drop noise specks
+    x0, x1 = min(s for s, e in big), max(e for s, e in big)
+
+    sub = region[:, x0:x1]
+    ys = np.where(sub.any(1))[0]
+    mono = (sub[ys.min(): ys.max() + 1] * 255).astype("uint8")
+    img = Image.fromarray(mono)
+    # Scale to a consistent digit height so ssocr works regardless of distance.
+    new_h = 150
+    img = img.resize((max(1, round(img.width * new_h / img.height)), new_h), Image.NEAREST)
+    padded = Image.new("L", (img.width + 40, img.height + 40), 0)
+    padded.paste(img, (20, 20))
+    proc = ImageOps.invert(padded)  # black digits on white for ssocr
+
+    fd, path = tempfile.mkstemp(suffix=".png")
+    try:
+        os.close(fd)
+        proc.save(path)
+        out = subprocess.run(
+            ["ssocr", "-d", "-1", "-t", "50", "remove_isolated", path],
+            capture_output=True,
+            text=True,
+            timeout=20,
+        )
+        raw = (out.stdout or "").strip()
+        digits = re.sub(r"\D", "", raw)
+        if not digits:
+            return {"ok": False, "value": None, "raw": raw or (out.stderr or "").strip()}
+        dec = cint(decimals)
+        value = float(digits) / (10 ** dec) if dec > 0 else float(digits)
+        # "confident" only when ssocr recognised every character (no '_').
+        confident = re.fullmatch(r"[0-9.]+", raw) is not None
+        return {"ok": True, "value": value, "digits": digits, "raw": raw, "confident": confident}
+    finally:
+        try:
+            os.remove(path)
+        except Exception:
+            pass

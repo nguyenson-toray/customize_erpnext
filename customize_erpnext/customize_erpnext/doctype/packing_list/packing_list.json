@@ -28,10 +28,12 @@
   "section_carton",
   "column_break_msjo",
   "carton_types",
-  "column_break_duux",
   "container_type",
+  "weight_mode",
+  "column_break_duux",
   "combine_mode",
   "small_carton_threshold",
+  "max_size_per_mixed_carton",
   "generate_btn",
   "section_input",
   "items_text",
@@ -93,6 +95,7 @@
    "label": "Description of Goods"
   },
   {
+   "collapsible": 1,
    "fieldname": "section_carton",
    "fieldtype": "Section Break",
    "label": "Carton & Container"
@@ -148,7 +151,8 @@
    "reqd": 1
   },
   {
-   "description": "<p>Example:</p>\n<p>Size Weight<br>SM 0.4<br>MD 0.5<br>LG 0.6<br>XL 0.7<br>XXL 0.8</p>",
+   "default": "Size    Weight\nSM  0.4\nMD  0.5\nLG  0.6\nXL  0.7\nXXL 0.8",
+   "description": "<p>Example:</p>\n<p>Size&nbsp;&nbsp;Weight\n<br>SM&nbsp;&nbsp;0.4\n<br>MD&nbsp;&nbsp;0.5\n<br>LG&nbsp;&nbsp;0.6\n<br>XL&nbsp;&nbsp;0.7\n<br>XXL&nbsp;&nbsp;0.8</p>",
    "fieldname": "weight_text",
    "fieldtype": "Code",
    "label": "2. Net Weight per Piece (kg, by size)",
@@ -240,11 +244,27 @@
    "fieldtype": "HTML",
    "is_virtual": 1,
    "label": "Size/Color Summary"
+  },
+  {
+   "default": "2",
+   "fieldname": "max_size_per_mixed_carton",
+   "fieldtype": "Select",
+   "label": "Max Size Per Mixed Carton",
+   "options": "2\n3\n4"
+  },
+  {
+   "default": "Net to Gross",
+   "description": "Net to Gross: Net t\u00ednh t\u1eeb s\u1ed1 c\u00e1i, Gross = Net + th\u00f9ng r\u1ed7ng. Gross to Net: nh\u1eadp Gross (t\u1eeb c\u00e2n), Net = Gross - th\u00f9ng r\u1ed7ng.",
+   "fieldname": "weight_mode",
+   "fieldtype": "Select",
+   "label": "Weight Mode",
+   "options": "Net to Gross\nGross to Net",
+   "print_hide": 1
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-06-23 09:02:55.819794",
+ "modified": "2026-07-09 14:52:44.308310",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Packing List",

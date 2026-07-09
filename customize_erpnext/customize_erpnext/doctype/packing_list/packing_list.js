@@ -5,6 +5,8 @@ frappe.ui.form.on("Packing List", {
 	refresh(frm) {
 		frm.add_custom_button(__("Generate Carton Detail"), () => generate_cartons(frm));
 		frm.add_custom_button(__("Edit Mix"), () => open_mix_dialog(frm));
+		frm.add_custom_button(__("📷 Take Photo"), () => carton_capture(frm));
+		frm.add_custom_button(__("⬇ Download Photo"), () => download_all_carton_photos(frm));
 		frm.add_custom_button(__("Hướng dẫn"), () => show_packing_guide());
 		update_carton_summary(frm);
 		update_size_color_summary(frm);
@@ -18,6 +20,29 @@ frappe.ui.form.on("Packing List", {
 		update_size_color_summary(frm);
 	},
 });
+
+// Reverse weight: when Gross is entered (from scale) in "Gross to Net" mode,
+// derive Net = Gross - empty carton, and refresh the weight totals live.
+frappe.ui.form.on("Packing List Detail", {
+	gross_weight(frm, cdt, cdn) {
+		if ((frm.doc.weight_mode || "") !== "Gross to Net") return;
+		const row = locals[cdt][cdn];
+		row.net_weight = flt(flt(row.gross_weight) - flt(row.empty_weight), 3);
+		frm.refresh_field("details");
+		sum_weight_totals(frm);
+	},
+});
+
+function sum_weight_totals(frm) {
+	let net = 0,
+		gross = 0;
+	(frm.doc.details || []).forEach((d) => {
+		net += flt(d.net_weight);
+		gross += flt(d.gross_weight);
+	});
+	frm.set_value("total_net_weight", flt(net, 3));
+	frm.set_value("total_gross_weight", flt(gross, 3));
+}
 
 // Parse the combined Items table (Color, Size, Quantity, ...) the same way the
 // server does (tab- or 2+-space separated; duplicate color+size rows summed).
@@ -234,20 +259,30 @@ function update_carton_summary(frm) {
 }
 
 function generate_cartons(frm) {
-	frappe.call({
-		method: "customize_erpnext.customize_erpnext.doctype.packing_list.packing_list.generate_detail",
-		args: { doc: frm.doc },
-		freeze: true,
-		freeze_message: __("Generating cartons..."),
-		callback(r) {
-			if (!r.message) return;
-			apply_result(frm, r.message);
-			frappe.show_alert(
-				{ message: __("Generated {0} cartons", [frm.doc.total_carton]), indicator: "green" },
-				5
-			);
-		},
-	});
+	const run = (force) =>
+		frappe.call({
+			method: "customize_erpnext.customize_erpnext.doctype.packing_list.packing_list.generate_detail",
+			args: { doc: frm.doc, force: force ? 1 : 0 },
+			freeze: true,
+			freeze_message: __("Generating cartons..."),
+			callback(r) {
+				if (!r.message) return;
+				apply_result(frm, r.message);
+				frappe.show_alert(
+					{ message: __("Generated {0} cartons", [frm.doc.total_carton]), indicator: "green" },
+					5
+				);
+			},
+		});
+
+	if ((frm.doc.details || []).some((d) => d.photo)) {
+		frappe.confirm(
+			__("The carton image has been taken — recreating it will DELETE all previously taken images and weight data. Continue ?"),
+			() => run(true) // Yes
+		);
+		return;
+	}
+	run(false);
 }
 
 function apply_result(frm, message) {
@@ -458,4 +493,263 @@ function open_mix_dialog(frm) {
 
 	render();
 	dialog.show();
+}
+
+// ----------------------------------------------------------------------- //
+// Carton photos: capture -> crop -> resize/compress -> save; download all
+// ----------------------------------------------------------------------- //
+function carton_capture(frm) {
+	if (frm.is_new()) {
+		frappe.msgprint(__("Lưu Packing List trước khi chụp ảnh."));
+		return;
+	}
+	const sel = frm.fields_dict.details.grid.get_selected_children();
+	if (sel.length !== 1) {
+		frappe.msgprint(__("Tích chọn đúng 1 dòng thùng, rồi bấm Chụp ảnh."));
+		return;
+	}
+	get_carton_image((data_url) => carton_crop_dialog(frm, sel[0], data_url));
+}
+
+// Live camera in a dialog if available (needs HTTPS/localhost); otherwise the
+// device camera / file picker (works over HTTP, opens camera on mobile).
+function get_carton_image(on_image) {
+	if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) {
+		return carton_file_input(on_image);
+	}
+	const d = new frappe.ui.Dialog({
+		title: __("Camera"),
+		fields: [{ fieldtype: "HTML", fieldname: "cam" }],
+		primary_action_label: __("📷 Chụp"),
+		primary_action() {
+			const video = d.fields_dict.cam.$wrapper.find("video")[0];
+			if (!video || !video.videoWidth) return;
+			const cv = document.createElement("canvas");
+			cv.width = video.videoWidth;
+			cv.height = video.videoHeight;
+			cv.getContext("2d").drawImage(video, 0, 0);
+			stop();
+			d.hide();
+			on_image(cv.toDataURL("image/jpeg", 0.92));
+		},
+	});
+	let stream = null;
+	const stop = () => {
+		if (stream) {
+			stream.getTracks().forEach((t) => t.stop());
+			stream = null;
+		}
+	};
+	d.onhide = stop;
+	d.fields_dict.cam.$wrapper.html(
+		'<video autoplay playsinline muted style="width:100%;max-height:60vh;background:#000"></video>'
+	);
+	navigator.mediaDevices
+		.getUserMedia({ video: { facingMode: { ideal: "environment" } } })
+		.then((s) => {
+			stream = s;
+			d.fields_dict.cam.$wrapper.find("video")[0].srcObject = s;
+		})
+		.catch(() => {
+			d.hide();
+			carton_file_input(on_image);
+		});
+	d.show();
+}
+
+function carton_file_input(on_image) {
+	const inp = document.createElement("input");
+	inp.type = "file";
+	inp.accept = "image/*";
+	inp.setAttribute("capture", "environment");
+	inp.onchange = () => {
+		const f = inp.files && inp.files[0];
+		if (!f) return;
+		const r = new FileReader();
+		r.onload = () => on_image(r.result);
+		r.readAsDataURL(f);
+	};
+	inp.click();
+}
+
+function carton_crop_dialog(frm, row, data_url) {
+	const d = new frappe.ui.Dialog({
+		title: __("Cắt ảnh — thùng #{0}", [row.carton_no]),
+		size: "large",
+		fields: [{ fieldtype: "HTML", fieldname: "crop" }],
+		primary_action_label: __("Lưu ảnh"),
+		primary_action() {
+			if (!d._cropper) return;
+			// Resize to a resolution that keeps the carton and the scale digits
+			// readable, then JPEG-compress (not the raw full-size photo).
+			const canvas = d._cropper.getCroppedCanvas({
+				maxWidth: 1600,
+				maxHeight: 1600,
+				imageSmoothingQuality: "high",
+			});
+			if (!canvas) {
+				frappe.msgprint(__("Chưa chọn được vùng ảnh, thử lại."));
+				return;
+			}
+			const out = canvas.toDataURL("image/jpeg", 0.88);
+			frappe.call({
+				method: "customize_erpnext.customize_erpnext.doctype.packing_list.packing_list.save_carton_photo",
+				args: {
+					packing_list: frm.doc.name,
+					carton_no: row.carton_no,
+					color: row.color,
+					size: row.size,
+					image: out,
+				},
+				freeze: true,
+				freeze_message: __("Đang lưu ảnh..."),
+				callback(r) {
+					if (!r.message) return;
+					// Re-capture: the old photo file is replaced server-side; clear the
+					// old weight so a stale kg can't linger if OCR is skipped.
+					const re_capture = !!row.photo;
+					frappe.model.set_value(row.doctype, row.name, "photo", r.message);
+					if (re_capture) {
+						frappe.model.set_value(row.doctype, row.name, "gross_weight", 0);
+						frappe.model.set_value(row.doctype, row.name, "net_weight", 0);
+					}
+					d.hide();
+					const next_no = row.carton_no + 1;
+					frm.save().then(() => {
+						frappe.show_alert(
+							{ message: __("Đã lưu ảnh thùng #{0}", [row.carton_no]), indicator: "green" },
+							5
+						);
+						// Read the scale weight from the same capture.
+						scale_ocr_dialog(frm, row.doctype, row.name, data_url);
+						// Clear the checkbox and pre-select the next carton.
+						select_next_carton(frm, next_no);
+					});
+				},
+			});
+		},
+	});
+	d.fields_dict.crop.$wrapper.html(
+		`<img class="pl-crop-img" src="${data_url}" style="max-width:100%;display:block">`
+	);
+	d.$wrapper.find(".modal-dialog").css({ "max-width": "820px", width: "90vw" });
+	// Destroy the cropper when the dialog closes (avoids stale instances / id clashes).
+	d.onhide = () => {
+		if (d._cropper) {
+			d._cropper.destroy();
+			d._cropper = null;
+		}
+	};
+	d.show();
+	setTimeout(() => {
+		if (typeof Cropper === "undefined") {
+			frappe.msgprint(__("Cropper.js chưa được tải."));
+			return;
+		}
+		// Query the image inside THIS dialog's wrapper (not a global id).
+		const img = d.fields_dict.crop.$wrapper.find("img.pl-crop-img")[0];
+		if (img) {
+			d._cropper = new Cropper(img, { viewMode: 1, autoCropArea: 1, background: false });
+		}
+	}, 250);
+}
+
+function download_all_carton_photos(frm) {
+	if (frm.is_new()) {
+		frappe.msgprint(__("Lưu Packing List trước."));
+		return;
+	}
+	if (!(frm.doc.details || []).some((d) => d.photo)) {
+		frappe.msgprint(__("Chưa có ảnh thùng nào để tải."));
+		return;
+	}
+	window.open(
+		"/api/method/customize_erpnext.customize_erpnext.doctype.packing_list.packing_list.download_all_photos?packing_list=" +
+		encodeURIComponent(frm.doc.name)
+	);
+}
+
+// Crop the scale digits from the capture, OCR the weight, apply to Gross.
+
+// Auto-detect & read the red scale digits from the captured photo (no manual
+// crop — hard on mobile). User verifies/edits the number before applying.
+function scale_ocr_dialog(frm, cdt, cdn, source) {
+	const row = () => locals[cdt][cdn];
+	const d = new frappe.ui.Dialog({
+		title: __("Số cân (Gross) — thùng #{0}", [row().carton_no]),
+		fields: [
+			{ fieldtype: "HTML", fieldname: "preview" },
+			{ fieldtype: "Float", fieldname: "weight", label: __("Số cân / Gross (kg)"), precision: 3 },
+			{ fieldtype: "HTML", fieldname: "note" },
+		],
+		primary_action_label: __("Áp dụng vào Gross"),
+		primary_action() {
+			const v = flt(d.get_value("weight"));
+			if (!v) {
+				frappe.msgprint(__("Chưa có số cân — nhập tay hoặc Đọc lại."));
+				return;
+			}
+			frappe.model.set_value(cdt, cdn, "gross_weight", v);
+			if ((frm.doc.weight_mode || "") === "Gross to Net") {
+				frappe.model.set_value(cdt, cdn, "net_weight", flt(v - flt(row().empty_weight), 3));
+			}
+			d.hide();
+			sum_weight_totals(frm);
+			frm.save().then(() =>
+				frappe.show_alert(
+					{ message: __("Đã cập nhật Gross thùng #{0}", [row().carton_no]), indicator: "green" },
+					4
+				)
+			);
+		},
+		secondary_action_label: __("Bỏ qua"),
+		secondary_action() {
+			d.hide();
+		},
+	});
+	d.fields_dict.preview.$wrapper.html(
+		`<img src="${source}" style="max-width:100%;max-height:36vh;display:block;margin:0 auto">
+		<div style="text-align:center;margin-top:6px"><button class="btn btn-sm btn-default ocr-redo">🔄 ${__(
+			"Đọc lại số cân"
+		)}</button></div>`
+	);
+	const run_ocr = () => {
+		frappe.call({
+			method: "customize_erpnext.customize_erpnext.doctype.packing_list.packing_list.read_scale_ocr",
+			args: { image: source, decimals: 2 },
+			freeze: true,
+			freeze_message: __("Đang đọc số cân..."),
+			callback(r) {
+				const m = r.message || {};
+				if (m.ok && m.value != null) {
+					d.set_value("weight", m.value);
+					const warn = m.confident === false;
+					d.fields_dict.note.$wrapper.html(
+						`<div class="small" style="color:${warn ? "#c0392b" : "#27ae60"}">${warn ? "⚠ " : "✓ "
+						}OCR: ${frappe.utils.escape_html(String(m.raw || ""))} → <b>${m.value} kg</b>${warn ? " — " + __("chưa chắc chắn, kiểm tra kỹ") : ""
+						}</div>`
+					);
+				} else {
+					d.fields_dict.note.$wrapper.html(
+						`<div class="small text-muted">${__("Không đọc được số — nhập tay.")}</div>`
+					);
+				}
+			},
+		});
+	};
+	d.$wrapper.on("click", ".ocr-redo", run_ocr);
+	d.show();
+	run_ocr(); // auto-read on open
+}
+
+// Clear all detail checkboxes and pre-select the next carton (by carton_no).
+function select_next_carton(frm, next_no) {
+	const grid = frm.fields_dict.details && frm.fields_dict.details.grid;
+	if (!grid || !grid.grid_rows) return;
+	grid.grid_rows.forEach((gr) => {
+		const want = gr.doc && gr.doc.carton_no === next_no;
+		gr.doc.__checked = want ? 1 : 0;
+		const cb = gr.row_check && gr.row_check.find("input[type=checkbox]");
+		if (cb && cb.length) cb.prop("checked", !!want);
+	});
 }
