@@ -105,6 +105,7 @@
   },
   {
    "default": "0",
+   "description": "0 = Issue in joining date",
    "fieldname": "eligible_after_days",
    "fieldtype": "Int",
    "in_list_view": 1,
@@ -127,7 +128,6 @@
   },
   {
    "default": "0",
-   "description": "Issue once only (e.g. bottle); never in Supplement; needs 'Issued Bottle' on profile.",
    "fieldname": "one_time",
    "fieldtype": "Check",
    "label": "One-Time Issue"
@@ -141,7 +141,7 @@
   }
  ],
  "links": [],
- "modified": "2026-07-01 16:43:52.868440",
+ "modified": "2026-07-08 13:03:55.070064",
  "modified_by": "Administrator",
  "module": "Uniform Control",
  "name": "Uniform Rule",

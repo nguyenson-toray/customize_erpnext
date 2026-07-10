@@ -109,7 +109,7 @@ def seed_test_tracking():
         if not joining:
             continue
         doc = frappe.get_doc("Employee Uniform Profile", p.name)
-        existing = {_template_of(r.item_template) for r in doc.items}
+        existing = {_template_of(r.item_template) for r in doc.all_tracking_rows()}
         new_items = []
 
         if has_bottle and BOTTLE not in existing:
@@ -131,7 +131,7 @@ def seed_test_tracking():
         if not new_items:
             continue
         for item in new_items:
-            doc.append("items", {
+            doc.append(doc.tracking_field_for(item), {
                 "item_template": item,
                 "last_issue_date": joining,
                 "last_issue_qty": 1,

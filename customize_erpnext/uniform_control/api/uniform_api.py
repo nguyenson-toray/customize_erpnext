@@ -295,9 +295,9 @@ def rebuild_tracking(employee):
             a["item"] = r.item_code
 
     profile = frappe.get_doc("Employee Uniform Profile", name)
-    by_tmpl = {_template_of(row.item_template): row for row in profile.items}
+    by_tmpl = {_template_of(row.item_template): row for row in profile.all_tracking_rows()}
     for tmpl, a in agg.items():
-        row = by_tmpl.get(tmpl) or profile.append("items", {})
+        row = by_tmpl.get(tmpl) or profile.append(profile.tracking_field_for(tmpl), {})
         row.item_template = a["item"]
         row.last_issue_date = a["last"]
         row.last_issue_qty = a["last_qty"]

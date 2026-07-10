@@ -4,6 +4,7 @@ from frappe.utils import cint, today, add_months, date_diff, getdate
 
 from customize_erpnext.uniform_control.utils import (
     get_reissue_months,
+    get_rule_for_tracking,
     get_shoe_rack_for_employee,
     apply_default_rules,
 )
@@ -21,11 +22,29 @@ class EmployeeUniformProfile(Document):
     def _refresh_items(self, setting):
         """Recompute next_due_date + status on every save — single source of
         truth. Lets HR backfill history manually (item + last_issue_date) and
-        get due dates generated automatically."""
+        get due dates generated automatically. Runs over BOTH tracking tables
+        (shirts + other items)."""
         reminder_days = cint(setting.reminder_days_before) or 30
-        for row in self.items or []:
+        for row in self.all_tracking_rows():
             row.next_due_date = self._compute_next_due(row, setting)
             row.status = _compute_item_status(row, reminder_days)
+
+    def all_tracking_rows(self):
+        """Every issuance-tracking row, across the shirt and other tables."""
+        return list(self.shirt_items or []) + list(self.items or [])
+
+    def find_tracking_row(self, template):
+        """Locate a tracking row (either table) whose item resolves to template."""
+        return next(
+            (r for r in self.all_tracking_rows()
+             if _template_of(r.item_template) == template),
+            None,
+        )
+
+    def tracking_field_for(self, template, setting=None):
+        """Which child table an item belongs to: 'shirt_items' when its rule
+        category is Shirt, else 'items'."""
+        return tracking_field_for(self.employee, template, setting)
 
     def _compute_next_due(self, row, setting):
         if not row.last_issue_date:
@@ -37,6 +56,13 @@ class EmployeeUniformProfile(Document):
 def _template_of(item):
     """Template of an item (variant_of), or the item itself if it's a template."""
     return (frappe.db.get_value("Item", item, "variant_of") or item) if item else item
+
+
+def tracking_field_for(employee, template, setting=None):
+    """Child table a tracking row belongs to: 'shirt_items' when the matching
+    Uniform Rule category is Shirt, else 'items' (caps, shoes, bottles, ...)."""
+    rule = get_rule_for_tracking(_template_of(template), employee, setting)
+    return "shirt_items" if (rule and rule.category == "Shirt") else "items"
 
 
 def _compute_item_status(row, reminder_days=30):
@@ -63,14 +89,14 @@ def update_profile_after_allocation(employee, item_code, qty, posting_date):
 
     template = _template_of(item_code)
     profile = frappe.get_doc("Employee Uniform Profile", profile_name)
-    row = next((r for r in profile.items if _template_of(r.item_template) == template), None)
+    row = profile.find_tracking_row(template)
     if row:
         row.item_template = item_code
         row.last_issue_date = posting_date
         row.last_issue_qty = qty
         row.total_issued_qty = (row.total_issued_qty or 0) + qty
     else:
-        profile.append("items", {
+        profile.append(profile.tracking_field_for(template), {
             "item_template": item_code,
             "last_issue_date": posting_date,
             "last_issue_qty": qty,
@@ -91,7 +117,7 @@ def revert_profile_after_cancel(employee, item_template):
         return
 
     profile = frappe.get_doc("Employee Uniform Profile", profile_name)
-    row = next((r for r in profile.items if _template_of(r.item_template) == item_template), None)
+    row = profile.find_tracking_row(item_template)
     if not row:
         return
 

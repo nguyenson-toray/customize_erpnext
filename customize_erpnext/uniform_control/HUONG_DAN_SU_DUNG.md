@@ -169,6 +169,7 @@ Lỗi nền được ghi vào **Error Log** (Desk → Error Log).
 
 - **Uniform Allocation** (Chứng từ cấp phát) = **nguồn sự thật** của lịch sử cấp: 1 chứng từ cho nhiều NV, có Stock Entry, audit đầy đủ. Submit → tự trừ kho & cập nhật hồ sơ.
 - **Employee Uniform Profile → Issuance Tracking** = **bảng tổng hợp tự động (read-only)** suy ra từ các Allocation: loại đã cấp, ngày gần nhất, **hạn kế tiếp + trạng thái** — phục vụ tính điều kiện cấp & nhắc hạn. Không sửa tay; nếu nghi lệch, bấm **Rebuild Tracking** trên hồ sơ để dựng lại từ Allocation.
+  - Tracking chia làm **2 bảng** cho dễ nhìn: **Shirts (Áo)** = các item category *Shirt*; **Other Items** = mũ, dép, bình nước… Việc phân loại tự động theo category của Uniform Rule; báo cáo/dashboard/email vẫn gộp chung tất cả item.
 - **Employee Uniform Profile** còn lưu: size áo, giới tính, áo/mũ được gán, vị trí để dép.
 
 ## 2.2 Bước 1 — Hoàn thiện hồ sơ đồng phục

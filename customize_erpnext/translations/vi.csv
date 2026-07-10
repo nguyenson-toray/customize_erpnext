@@ -624,3 +624,5 @@ Peak Window Minutes,Độ dài khung cao điểm (phút)
 Length in minutes of each peak window,Độ dài mỗi khung cao điểm tính bằng phút
 "Peak Times must be comma-separated HH:MM values, e.g. 07:40,16:00","Giờ cao điểm phải là các giá trị HH:MM cách nhau dấu phẩy, vd: 07:40,16:00"
 "Queue an attendance recalculation immediately when an Overtime Registration is submitted or cancelled (affected employees/dates only). When Include Draft OT Registrations is also ON, saving/deleting a Draft OTR recalculates too","Đưa vào hàng đợi tính lại chấm công ngay khi phiếu Đăng ký tăng ca được submit hoặc hủy (chỉ nhân viên/ngày bị ảnh hưởng). Khi bật thêm Tính cả phiếu OT nháp thì lưu/xóa phiếu Nháp cũng tính lại"
+Shirts,Áo
+Other Items,Item khác

@@ -7,3 +7,4 @@ customize_erpnext.patches.remove_shift_registration_and_custom_attendance
 
 [post_model_sync]
 customize_erpnext.patches.migrate_attendance_machine_to_setting
+customize_erpnext.patches.split_shirt_tracking

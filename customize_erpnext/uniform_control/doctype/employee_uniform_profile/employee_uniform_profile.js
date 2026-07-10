@@ -21,9 +21,11 @@ frappe.ui.form.on('Employee Uniform Profile', {
 	refresh(frm) {
 		// Issuance Tracking is an auto rollup from Uniform Allocation — read-only.
 		// (Source of truth = Uniform Allocation. Legacy backfill via Data Import.)
-		frm.set_df_property('items', 'read_only', 1);
-		frm.set_df_property('items', 'cannot_add_rows', 1);
-		frm.set_df_property('items', 'cannot_delete_rows', 1);
+		['shirt_items', 'items'].forEach((f) => {
+			frm.set_df_property(f, 'read_only', 1);
+			frm.set_df_property(f, 'cannot_add_rows', 1);
+			frm.set_df_property(f, 'cannot_delete_rows', 1);
+		});
 
 		if (!frm.is_new()) {
 			frm.add_custom_button(__('Apply Defaults'), () => {

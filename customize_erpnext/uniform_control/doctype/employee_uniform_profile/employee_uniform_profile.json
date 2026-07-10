@@ -25,6 +25,7 @@
   "shoe_size",
   "shoe_rack_location",
   "section_items",
+  "shirt_items",
   "items",
   "section_notes",
   "notes"
@@ -156,9 +157,17 @@
    "label": "Issuance Tracking"
   },
   {
+   "description": "Shirts / polos issued to this employee (category Shirt).",
+   "fieldname": "shirt_items",
+   "fieldtype": "Table",
+   "label": "Shirts",
+   "options": "Employee Uniform Item"
+  },
+  {
+   "description": "All other issued items (caps, shoes, bottles, ...).",
    "fieldname": "items",
    "fieldtype": "Table",
-   "label": "Uniform Items",
+   "label": "Other Items",
    "options": "Employee Uniform Item"
   },
   {
