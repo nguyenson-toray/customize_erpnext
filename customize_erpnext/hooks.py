@@ -38,6 +38,7 @@ doctype_js = {
     "Attendance": "public/js/custom_scripts/attendance.js",
     "Shift Type": "public/js/custom_scripts/shift_type.js",
     "Batch": "public/js/custom_scripts/batch.js",
+    "Packing List": "public/js/packing_list_scale.js",
 }
 
 # List view customizations

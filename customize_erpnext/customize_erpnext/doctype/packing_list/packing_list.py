@@ -557,6 +557,7 @@ def save_carton_photo(packing_list, carton_no, color, size, image):
         "File",
         filters={"attached_to_doctype": "Packing List", "attached_to_name": packing_list},
         fields=["name", "file_name"],
+        order_by="creation desc",
     ):
         if (old.file_name or "").startswith(prefix):
             frappe.delete_doc("File", old.name, ignore_permissions=True, force=True)

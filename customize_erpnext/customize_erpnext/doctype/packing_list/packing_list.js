@@ -5,9 +5,15 @@ frappe.ui.form.on("Packing List", {
 	refresh(frm) {
 		frm.add_custom_button(__("Generate Carton Detail"), () => generate_cartons(frm));
 		frm.add_custom_button(__("Edit Mix"), () => open_mix_dialog(frm));
-		frm.add_custom_button(__("📷 Take Photo"), () => carton_capture(frm));
+		frm.add_custom_button(__("📷 Chụp / Cân"), () => carton_action(frm));
 		frm.add_custom_button(__("⬇ Download Photo"), () => download_all_carton_photos(frm));
 		frm.add_custom_button(__("Hướng dẫn"), () => show_packing_guide());
+		// Đọc cân trực tiếp qua Web Serial (chỉ Chrome/Edge + HTTPS).
+		if (window.plScale && plScale.supported()) {
+			frm.add_custom_button(__("⚙️ Scale Settings"), () => plScale.settingsDialog(), __("Cân"));
+			scale_indicator(frm);
+			plScale.tryReconnect(); // tự nối lại cổng đã cấp quyền
+		}
 		update_carton_summary(frm);
 		update_size_color_summary(frm);
 	},
@@ -42,6 +48,26 @@ function sum_weight_totals(frm) {
 	});
 	frm.set_value("total_net_weight", flt(net, 3));
 	frm.set_value("total_gross_weight", flt(gross, 3));
+}
+
+// Lưu gom (coalesce): tránh nhiều frm.save() chồng nhau khi cân/chụp liên tiếp
+// (save đang chạy mà gọi tiếp -> lỗi "Document has been modified").
+function pl_save(frm) {
+	if (frm.__pl_saving) {
+		frm.__pl_save_again = true;
+		return frm.__pl_saving;
+	}
+	frm.__pl_saving = frm
+		.save()
+		.catch(() => {})
+		.finally(() => {
+			frm.__pl_saving = null;
+			if (frm.__pl_save_again) {
+				frm.__pl_save_again = false;
+				pl_save(frm);
+			}
+		});
+	return frm.__pl_saving;
 }
 
 // Parse the combined Items table (Color, Size, Quantity, ...) the same way the
@@ -195,6 +221,19 @@ function show_packing_guide() {
     <li><b>Thùng ghép:</b> cột Color/Size/SKU/UPC/Contents liệt kê từng mục, mỗi mục 1 dòng.</li>
     <li><b>Net Weight</b> = Σ(số cái × khối lượng 1 cái theo size); <b>Gross</b> = Net + thùng rỗng.</li>
     <li><b>Gross Weight</b> sửa tay được (vd nhập từ cân điện tử); tổng tự cập nhật khi lưu.</li>
+  </ul>
+
+  <h4 style="margin:12px 0 6px">📷 Chụp ảnh & Cân (sau khi đã chốt thùng)</h4>
+  <ul style="padding-left:18px;margin:0">
+    <li><b>Weight Source</b> (chỉ khi Weight Mode = <i>Gross to Net</i>): <b>Scale</b> = đọc từ cân điện tử;
+      <b>OCR</b> = đọc số trên ảnh. Cả 2 đều cho nhập kg tay.</li>
+    <li>Bấm <b>📷 Chụp / Cân</b>: tích 1 thùng (hoặc bỏ tích → nhập số thùng bắt đầu). Trong dialog chọn <b>Chế độ</b>:
+      <b>Chụp ảnh + Cân</b> / <b>Chỉ chụp ảnh</b> / <b>Chỉ cân</b>.</li>
+    <li>Tick <b>Liên tiếp (tự sang thùng kế)</b> để làm cả loạt không phải chọn từng thùng.
+      Với <i>Chỉ cân</i>: đặt thùng lên cân → số ổn định (ST) tự điền → <b>Enter</b> ghi & sang thùng kế; <b>Esc</b> thoát.</li>
+    <li><b>Scale:</b> cân trước — số cân hiện trực tiếp; <b>📷 Chụp & Lưu</b> lưu ảnh + ghi Gross cùng lúc.
+      <b>OCR:</b> chụp xong tự đọc số trên ảnh; nếu sai bấm <b>📷 Chụp cận màn hình cân</b> để đọc lại (ảnh cận không lưu).</li>
+    <li>Cấu hình cổng cân ở <b>⚙️ Scale Settings</b> (Chrome/Edge + HTTPS). <b>⬇ Download Photo</b> tải toàn bộ ảnh (zip).</li>
   </ul>
 
   <h4 style="margin:12px 0 6px">📑 Dữ liệu mẫu cho ô "1. Items"
@@ -498,63 +537,354 @@ function open_mix_dialog(frm) {
 // ----------------------------------------------------------------------- //
 // Carton photos: capture -> crop -> resize/compress -> save; download all
 // ----------------------------------------------------------------------- //
-function carton_capture(frm) {
+const PL_CAM_KEY = "pl_camera_id";
+const PL_MODE_KEY = "pl_capture_mode";
+const PL_CONT_KEY = "pl_capture_cont";
+const M_BOTH = "Chụp ảnh + Cân";
+const M_PHOTO = "Chỉ chụp ảnh";
+const M_SCALE = "Chỉ cân";
+
+// Thùng kế tiếp theo carton_no.
+function next_carton(frm, no) {
+	return (frm.doc.details || []).find((r) => r.carton_no === no + 1) || null;
+}
+
+// Thùng đầu tiên cần xử lý: chưa có ảnh; nếu tất cả đã có ảnh -> chưa có Gross; else #1.
+function first_carton_needing(frm) {
+	const rows = (frm.doc.details || []).slice().sort((a, b) => a.carton_no - b.carton_no);
+	if (!rows.length) return null;
+	return (
+		rows.find((r) => !r.photo) ||
+		rows.find((r) => !flt(r.gross_weight)) ||
+		rows[0]
+	);
+}
+
+// Nút gộp "Chụp / Cân": xác định thùng bắt đầu (đã tích, hoặc nhập số thùng — mặc định
+// thùng cần xử lý) rồi mở dialog. Trong dialog có "Liên tiếp" để tự sang thùng kế.
+function carton_action(frm) {
 	if (frm.is_new()) {
-		frappe.msgprint(__("Lưu Packing List trước khi chụp ảnh."));
+		frappe.msgprint(__("Lưu Packing List trước khi chụp/cân."));
+		return;
+	}
+	if (!(frm.doc.details || []).length) {
+		frappe.msgprint(__("Chưa có thùng nào — bấm Generate Carton Detail trước."));
 		return;
 	}
 	const sel = frm.fields_dict.details.grid.get_selected_children();
-	if (sel.length !== 1) {
-		frappe.msgprint(__("Tích chọn đúng 1 dòng thùng, rồi bấm Chụp ảnh."));
+	if (sel.length > 1) {
+		frappe.msgprint(__("Chỉ tích 1 dòng thùng (hoặc bỏ tích để chọn theo số thùng)."));
 		return;
 	}
-	get_carton_image((data_url) => carton_crop_dialog(frm, sel[0], data_url));
+	if (sel.length === 1) return open_capture_dialog(frm, sel[0]);
+	// Chưa chọn thùng -> nhập số thùng bắt đầu (mặc định thùng cần xử lý).
+	const start = first_carton_needing(frm);
+	frappe.prompt(
+		[
+			{
+				fieldtype: "Int",
+				fieldname: "carton_no",
+				label: __("Bắt đầu từ thùng số (Carton No)"),
+				default: start ? start.carton_no : 1,
+				reqd: 1,
+			},
+		],
+		(v) => {
+			const row = (frm.doc.details || []).find((r) => cint(r.carton_no) === cint(v.carton_no));
+			if (!row) {
+				frappe.msgprint(__("Không tìm thấy thùng #{0}.", [v.carton_no]));
+				return;
+			}
+			select_next_carton(frm, row.carton_no);
+			open_capture_dialog(frm, row);
+		},
+		__("Chọn thùng để chụp / cân"),
+		__("Tiếp tục")
+	);
 }
 
-// Live camera in a dialog if available (needs HTTPS/localhost); otherwise the
-// device camera / file picker (works over HTTP, opens camera on mobile).
-function get_carton_image(on_image) {
-	if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) {
-		return carton_file_input(on_image);
-	}
+// 1 dialog gộp cho 1 thùng: chụp ảnh và/hoặc đọc cân theo Chế độ (nhớ lựa chọn).
+// force_continuous: khi mở lại tự động cho thùng kế (giữ trạng thái Liên tiếp).
+function open_capture_dialog(frm, row, force_continuous) {
+	// Panel cân chỉ khi Gross to Net + weight_source = Scale + trình duyệt hỗ trợ.
+	const scale_available =
+		(frm.doc.weight_mode || "") === "Gross to Net" &&
+		(frm.doc.weight_source || "OCR") === "Scale" &&
+		window.plScale &&
+		plScale.supported();
+	const has_cam = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+
+	let curRow = row; // thùng đang xử lý (đổi khi Liên tiếp sang thùng kế)
+	const modes = [M_BOTH, M_PHOTO];
+	if (scale_available) modes.push(M_SCALE);
+	let mode = localStorage.getItem(PL_MODE_KEY) || M_BOTH;
+	if (!modes.includes(mode)) mode = M_BOTH;
+	const cont_default = force_continuous || localStorage.getItem(PL_CONT_KEY) === "1" ? 1 : 0;
+
 	const d = new frappe.ui.Dialog({
-		title: __("Camera"),
-		fields: [{ fieldtype: "HTML", fieldname: "cam" }],
-		primary_action_label: __("📷 Chụp"),
+		title: __("Chụp / Cân — thùng #{0}", [curRow.carton_no]),
+		fields: [
+			{ fieldtype: "Select", fieldname: "mode", label: __("Chế độ"), options: modes.join("\n"), default: mode },
+			{
+				fieldtype: "Check",
+				fieldname: "continuous",
+				label: __("Liên tiếp (tự sang thùng kế)"),
+				default: cont_default,
+			},
+			{ fieldtype: "HTML", fieldname: "cam" },
+			{ fieldtype: "HTML", fieldname: "picker" },
+			{ fieldtype: "HTML", fieldname: "scale_live" },
+			{ fieldtype: "Float", fieldname: "scale_weight", label: __("Số cân / Gross (kg)"), precision: 3 },
+		],
+		primary_action_label: __("Thực hiện"),
 		primary_action() {
-			const video = d.fields_dict.cam.$wrapper.find("video")[0];
-			if (!video || !video.videoWidth) return;
-			const cv = document.createElement("canvas");
-			cv.width = video.videoWidth;
-			cv.height = video.videoHeight;
-			cv.getContext("2d").drawImage(video, 0, 0);
-			stop();
-			d.hide();
-			on_image(cv.toDataURL("image/jpeg", 0.92));
+			do_action();
 		},
 	});
+	// Đổi tiêu đề + số thùng hiển thị khi sang thùng kế.
+	const update_target = () => {
+		d.set_title(__("Chụp / Cân — thùng #{0}", [curRow.carton_no]));
+		d.$wrapper.find(".sc-cn").text(curRow.carton_no);
+	};
+
 	let stream = null;
-	const stop = () => {
+	let offScale = null;
+	let closed = false; // dialog đã đóng chưa (chặn race getUserMedia resolve sau khi đóng)
+	const stop_cam = () => {
 		if (stream) {
 			stream.getTracks().forEach((t) => t.stop());
 			stream = null;
 		}
 	};
-	d.onhide = stop;
+	const stop_scale = () => {
+		if (offScale) {
+			offScale();
+			offScale = null;
+		}
+	};
+	const cleanup = () => {
+		closed = true;
+		stop_cam();
+		stop_scale();
+	};
+	d.onhide = cleanup;
+
+	// ---------- Camera ----------
 	d.fields_dict.cam.$wrapper.html(
-		'<video autoplay playsinline muted style="width:100%;max-height:60vh;background:#000"></video>'
+		has_cam
+			? '<video autoplay playsinline muted style="width:100%;max-height:55vh;background:#000"></video>'
+			: `<div class="text-muted small" style="padding:8px">${__(
+					"Camera trong dialog cần HTTPS. Bấm Chụp & Lưu để mở camera thiết bị / chọn ảnh."
+			  )}</div>`
 	);
-	navigator.mediaDevices
-		.getUserMedia({ video: { facingMode: { ideal: "environment" } } })
-		.then((s) => {
-			stream = s;
-			d.fields_dict.cam.$wrapper.find("video")[0].srcObject = s;
-		})
-		.catch(() => {
-			d.hide();
-			carton_file_input(on_image);
+	const refresh_devices = () =>
+		navigator.mediaDevices.enumerateDevices().then((list) => {
+			const cams = list.filter((x) => x.kind === "videoinput");
+			if (cams.length < 2) {
+				d.fields_dict.picker.$wrapper.html("");
+				return;
+			}
+			const cur =
+				(stream && stream.getVideoTracks()[0] && stream.getVideoTracks()[0].getSettings().deviceId) ||
+				localStorage.getItem(PL_CAM_KEY) ||
+				"";
+			const opts = cams
+				.map(
+					(c, i) =>
+						`<option value="${c.deviceId}"${c.deviceId === cur ? " selected" : ""}>${frappe.utils.escape_html(
+							c.label || __("Camera {0}", [i + 1])
+						)}</option>`
+				)
+				.join("");
+			d.fields_dict.picker.$wrapper.html(
+				`<label class="small text-muted" style="display:block;margin-top:6px">${__("Chọn camera")}</label>
+				<select class="form-control input-sm pl-cam-sel">${opts}</select>`
+			);
 		});
+	const start_stream = (deviceId) => {
+		if (!has_cam || closed) return Promise.resolve();
+		stop_cam();
+		const constraints = deviceId
+			? { video: { deviceId: { exact: deviceId } } }
+			: { video: { facingMode: { ideal: "environment" } } };
+		return navigator.mediaDevices
+			.getUserMedia(constraints)
+			.then((s) => {
+				// Dialog đã đóng trong lúc chờ quyền camera -> tắt ngay, tránh leak.
+				if (closed) {
+					s.getTracks().forEach((t) => t.stop());
+					return;
+				}
+				stream = s;
+				const v = d.fields_dict.cam.$wrapper.find("video")[0];
+				if (v) v.srcObject = s;
+				return refresh_devices();
+			})
+			.catch(() => {
+				if (deviceId) {
+					frappe.show_alert(
+						{ message: __("Không mở được webcam đã chọn, dùng camera mặc định."), indicator: "orange" },
+						4
+					);
+					localStorage.removeItem(PL_CAM_KEY);
+					return start_stream(null);
+				}
+				frappe.show_alert({ message: __("Không mở được camera trong dialog."), indicator: "orange" }, 4);
+			});
+	};
+	d.$wrapper.on("change", ".pl-cam-sel", function () {
+		localStorage.setItem(PL_CAM_KEY, this.value);
+		start_stream(this.value);
+	});
+
+	// ---------- Cân ----------
+	d.fields_dict.scale_live.$wrapper.html(
+		`<div class="text-center" style="padding:2px 0">
+			<span class="sc-flag small text-muted">${__("Đang chờ cân…")}</span>
+			<span class="sc-num" style="font-size:28px;font-weight:700;margin-left:8px">--</span>
+			<button class="btn btn-xs btn-default sc-reweigh" style="margin-left:8px">🔄 ${__("Cân lại")}</button>
+			<div class="small text-muted">${__("Thùng")} #<b class="sc-cn">${curRow.carton_no}</b></div>
+		</div>`
+	);
+	const read_stable = () =>
+		plScale
+			.readStableWeight({ timeoutMs: 8000, needConsecutive: 3 })
+			.then((w) => d.set_value("scale_weight", flt(w, 3)))
+			.catch(() => {});
+	d.$wrapper.on("click", ".sc-reweigh", read_stable);
+	const start_scale = () => {
+		if (offScale) return;
+		offScale = plScale.onReading((p) => {
+			if (!p) return;
+			d.$wrapper.find(".sc-num").text(p.weight.toFixed(3)).css("color", p.stable ? "#27ae60" : "#c0392b");
+			d.$wrapper.find(".sc-flag").text(p.stable ? "ST — ổn định" : "US — chưa ổn định");
+			// ST -> tự điền số cân (weighing liên tiếp mượt); vẫn sửa tay được khi cân đứng yên.
+			if (p.stable) d.set_value("scale_weight", flt(p.weight, 3));
+		});
+		ensure_scale().then((ok) => {
+			if (ok) read_stable();
+			else
+				frappe.show_alert(
+					{ message: __("Chưa kết nối cân — nhập tay hoặc mở ⚙️ Scale Settings."), indicator: "orange" },
+					5
+				);
+		});
+	};
+
+	// ---------- Đổi chế độ: bật/tắt panel + camera + cân + nhãn nút ----------
+	const apply_mode = () => {
+		const m = d.get_value("mode");
+		const usePhoto = m !== M_SCALE;
+		const useScale = m !== M_PHOTO && scale_available;
+		d.fields_dict.cam.$wrapper.toggle(usePhoto);
+		d.fields_dict.picker.$wrapper.toggle(usePhoto);
+		d.fields_dict.scale_live.$wrapper.toggle(useScale);
+		d.fields_dict.scale_weight.$wrapper.toggle(useScale);
+		if (usePhoto && !stream) start_stream(localStorage.getItem(PL_CAM_KEY) || null);
+		if (!usePhoto) stop_cam();
+		if (useScale) start_scale();
+		else stop_scale();
+		d.get_primary_btn().text(m === M_SCALE ? __("⚖️ Ghi số cân") : __("📷 Chụp & Lưu"));
+	};
+	d.fields_dict.mode.df.onchange = () => apply_mode();
+
+	// ---------- Thực hiện ----------
+	let busy = false; // chặn double-trigger (Enter + click / bấm nhanh) làm nhảy 2 thùng
+	function do_action() {
+		if (busy) return;
+		busy = true;
+		setTimeout(() => {
+			busy = false;
+		}, 350);
+		const m = d.get_value("mode");
+		const continuous = !!cint(d.get_value("continuous"));
+		localStorage.setItem(PL_MODE_KEY, m);
+		localStorage.setItem(PL_CONT_KEY, continuous ? "1" : "0");
+
+		// Chỉ cân: ghi Gross, không ảnh. Liên tiếp -> giữ dialog, sang thùng kế.
+		if (m === M_SCALE) {
+			const v = flt(d.get_value("scale_weight"));
+			if (!v) {
+				frappe.msgprint(__("Chưa có số cân."));
+				return;
+			}
+			const done_no = curRow.carton_no;
+			apply_gross(frm, curRow.doctype, curRow.name, v);
+			pl_save(frm); // gom save, tránh đua nhau khi bấm nhanh
+			const nxt = next_carton(frm, done_no);
+			select_next_carton(frm, done_no + 1);
+			if (continuous && nxt) {
+				curRow = nxt;
+				update_target();
+				d.set_value("scale_weight", 0);
+				frappe.show_alert(
+					{ message: __("Ghi #{0} → sang #{1}", [done_no, nxt.carton_no]), indicator: "green" },
+					2
+				);
+			} else {
+				cleanup();
+				d.hide();
+				frappe.show_alert(
+					{ message: __("Đã ghi Gross thùng #{0}", [done_no]), indicator: "green" },
+					3
+				);
+			}
+			return;
+		}
+
+		// Chụp ảnh (photo / both). gross truyền vào crop dialog:
+		//   false       -> chỉ chụp (không đụng cân/OCR)
+		//   number(>=0) -> both + có cân phần cứng (áp nếu >0, focus nếu 0)
+		//   null        -> both nhưng không có cân -> OCR/Manual theo weight_source
+		const finish_photo = (data_url) => {
+			let gross;
+			if (m === M_PHOTO) gross = false;
+			else if (scale_available) gross = flt(d.get_value("scale_weight"));
+			else gross = null;
+			const target = curRow;
+			const done_no = target.carton_no;
+			cleanup();
+			d.hide();
+			// Sau khi lưu ảnh xong: nếu Liên tiếp -> mở tiếp thùng kế.
+			carton_crop_dialog(frm, target, data_url, gross, () => {
+				if (!continuous) return;
+				const nxt = next_carton(frm, done_no);
+				if (nxt) open_capture_dialog(frm, nxt, true);
+				else
+					frappe.show_alert(
+						{ message: __("Đã xử lý thùng cuối cùng"), indicator: "green" },
+						3
+					);
+			});
+		};
+		if (!has_cam) {
+			carton_file_input(finish_photo);
+			return;
+		}
+		const video = d.fields_dict.cam.$wrapper.find("video")[0];
+		if (!video || !video.videoWidth) {
+			frappe.msgprint(__("Camera chưa sẵn sàng."));
+			return;
+		}
+		const cv = document.createElement("canvas");
+		cv.width = video.videoWidth;
+		cv.height = video.videoHeight;
+		cv.getContext("2d").drawImage(video, 0, 0);
+		finish_photo(cv.toDataURL("image/jpeg", 0.92));
+	}
+
+	// Enter = thực hiện (đặc biệt cho cân liên tiếp không rời bàn phím); Esc = đóng.
+	d.$wrapper.on("keydown", (e) => {
+		if (e.key === "Enter" && d.get_value("mode") === M_SCALE) {
+			e.preventDefault();
+			do_action();
+		} else if (e.key === "Escape") {
+			d.hide();
+		}
+	});
+
 	d.show();
+	apply_mode();
 }
 
 function carton_file_input(on_image) {
@@ -572,7 +902,125 @@ function carton_file_input(on_image) {
 	inp.click();
 }
 
-function carton_crop_dialog(frm, row, data_url) {
+// Camera nhẹ chỉ để lấy 1 ảnh (không lưu) — dùng cho chụp cận màn hình cân đọc OCR.
+function quick_camera(on_image) {
+	if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) return carton_file_input(on_image);
+	const d = new frappe.ui.Dialog({
+		title: __("📷 Chụp cận màn hình cân (chỉ đọc số, không lưu ảnh)"),
+		fields: [
+			{ fieldtype: "HTML", fieldname: "cam" },
+			{ fieldtype: "HTML", fieldname: "picker" },
+		],
+		primary_action_label: __("📷 Chụp & Đọc"),
+		primary_action() {
+			const video = d.fields_dict.cam.$wrapper.find("video")[0];
+			if (!video || !video.videoWidth) {
+				frappe.msgprint(__("Camera chưa sẵn sàng."));
+				return;
+			}
+			const cv = document.createElement("canvas");
+			cv.width = video.videoWidth;
+			cv.height = video.videoHeight;
+			cv.getContext("2d").drawImage(video, 0, 0);
+			cleanup();
+			d.hide();
+			on_image(cv.toDataURL("image/jpeg", 0.92));
+		},
+	});
+	let stream = null;
+	let closed = false;
+	const stop = () => {
+		if (stream) {
+			stream.getTracks().forEach((t) => t.stop());
+			stream = null;
+		}
+	};
+	const cleanup = () => {
+		closed = true;
+		stop();
+	};
+	const refresh_devices = () =>
+		navigator.mediaDevices.enumerateDevices().then((list) => {
+			const cams = list.filter((x) => x.kind === "videoinput");
+			if (cams.length < 2) {
+				d.fields_dict.picker.$wrapper.html("");
+				return;
+			}
+			const cur =
+				(stream && stream.getVideoTracks()[0] && stream.getVideoTracks()[0].getSettings().deviceId) ||
+				localStorage.getItem(PL_CAM_KEY) ||
+				"";
+			const opts = cams
+				.map(
+					(c, i) =>
+						`<option value="${c.deviceId}"${c.deviceId === cur ? " selected" : ""}>${frappe.utils.escape_html(
+							c.label || __("Camera {0}", [i + 1])
+						)}</option>`
+				)
+				.join("");
+			d.fields_dict.picker.$wrapper.html(
+				`<label class="small text-muted" style="display:block;margin-top:6px">${__("Chọn camera")}</label>
+				<select class="form-control input-sm pl-cam-sel">${opts}</select>`
+			);
+		});
+	const start_stream = (deviceId) => {
+		stop();
+		const constraints = deviceId
+			? { video: { deviceId: { exact: deviceId } } }
+			: { video: { facingMode: { ideal: "environment" } } };
+		return navigator.mediaDevices
+			.getUserMedia(constraints)
+			.then((s) => {
+				if (closed) {
+					s.getTracks().forEach((t) => t.stop());
+					return;
+				}
+				stream = s;
+				const v = d.fields_dict.cam.$wrapper.find("video")[0];
+				if (v) v.srcObject = s;
+				return refresh_devices();
+			})
+			.catch(() => {
+				if (deviceId) {
+					localStorage.removeItem(PL_CAM_KEY);
+					return start_stream(null);
+				}
+				d.hide();
+				carton_file_input(on_image);
+			});
+	};
+	d.onhide = cleanup;
+	d.fields_dict.cam.$wrapper.html(
+		'<video autoplay playsinline muted style="width:100%;max-height:55vh;background:#000"></video>'
+	);
+	d.$wrapper.on("change", ".pl-cam-sel", function () {
+		localStorage.setItem(PL_CAM_KEY, this.value);
+		start_stream(this.value);
+	});
+	start_stream(localStorage.getItem(PL_CAM_KEY) || null);
+	d.show();
+}
+
+// Chụp cận màn hình cân -> OCR đọc kg (ảnh KHÔNG lưu). on_result(m) với m từ read_scale_ocr.
+function closeup_ocr_read(on_result) {
+	quick_camera((data_url) => {
+		frappe.call({
+			method: "customize_erpnext.customize_erpnext.doctype.packing_list.packing_list.read_scale_ocr",
+			args: { image: data_url, decimals: 2 },
+			freeze: true,
+			freeze_message: __("Đang đọc số cân (ảnh cận)..."),
+			callback: (r) => on_result(r.message || {}),
+		});
+	});
+}
+
+// gross: số cân đã đọc trong dialog chụp (cân trước, chụp sau).
+//   false -> chế độ "Chỉ chụp ảnh": lưu ảnh, KHÔNG đụng cân/OCR (giữ kg cũ).
+//   null  -> chưa cân trong dialog (OCR/Manual) -> after_photo_weight lo tiếp.
+//   >0    -> áp ngay vào Gross; nếu verify thì đối chiếu OCR ảnh (cảnh báo nếu lệch).
+//   0     -> đã bật cân nhưng chưa lấy được số -> để user nhập tay (focus Gross).
+// on_after(): gọi sau khi hoàn tất 1 thùng (áp Gross xong) — dùng cho Liên tiếp.
+function carton_crop_dialog(frm, row, data_url, gross, on_after) {
 	const d = new frappe.ui.Dialog({
 		title: __("Cắt ảnh — thùng #{0}", [row.carton_no]),
 		size: "large",
@@ -608,8 +1056,14 @@ function carton_crop_dialog(frm, row, data_url) {
 					// Re-capture: the old photo file is replaced server-side; clear the
 					// old weight so a stale kg can't linger if OCR is skipped.
 					const re_capture = !!row.photo;
+					const photo_only = gross === false;
+					const weighed = typeof gross === "number" && flt(gross) > 0;
 					frappe.model.set_value(row.doctype, row.name, "photo", r.message);
-					if (re_capture) {
+					if (weighed) {
+						// Đã cân trong dialog chụp -> áp Gross ngay (không cần dialog cân sau).
+						apply_gross(frm, row.doctype, row.name, flt(gross, 3));
+					} else if (!photo_only && re_capture) {
+						// OCR/Manual chụp lại -> xóa kg cũ (chỉ-chụp thì GIỮ nguyên kg).
 						frappe.model.set_value(row.doctype, row.name, "gross_weight", 0);
 						frappe.model.set_value(row.doctype, row.name, "net_weight", 0);
 					}
@@ -620,10 +1074,18 @@ function carton_crop_dialog(frm, row, data_url) {
 							{ message: __("Đã lưu ảnh thùng #{0}", [row.carton_no]), indicator: "green" },
 							5
 						);
-						// Read the scale weight from the same capture.
-						scale_ocr_dialog(frm, row.doctype, row.name, data_url);
 						// Clear the checkbox and pre-select the next carton.
 						select_next_carton(frm, next_no);
+						if (weighed || photo_only) {
+							// Gross đã áp (hoặc chỉ chụp) -> xong thùng này.
+							if (on_after) on_after();
+						} else if (gross === 0) {
+							// Bật cân nhưng chưa lấy được số -> nhập tay (dừng liên tiếp).
+							focus_gross(frm, row.doctype, row.name);
+						} else {
+							// OCR / chưa cân trong dialog -> điều phối; xong thì on_after.
+							after_photo_weight(frm, row.doctype, row.name, data_url, on_after);
+						}
 					});
 				},
 			});
@@ -673,7 +1135,7 @@ function download_all_carton_photos(frm) {
 
 // Auto-detect & read the red scale digits from the captured photo (no manual
 // crop — hard on mobile). User verifies/edits the number before applying.
-function scale_ocr_dialog(frm, cdt, cdn, source) {
+function scale_ocr_dialog(frm, cdt, cdn, source, on_after) {
 	const row = () => locals[cdt][cdn];
 	const d = new frappe.ui.Dialog({
 		title: __("Số cân (Gross) — thùng #{0}", [row().carton_no]),
@@ -689,18 +1151,15 @@ function scale_ocr_dialog(frm, cdt, cdn, source) {
 				frappe.msgprint(__("Chưa có số cân — nhập tay hoặc Đọc lại."));
 				return;
 			}
-			frappe.model.set_value(cdt, cdn, "gross_weight", v);
-			if ((frm.doc.weight_mode || "") === "Gross to Net") {
-				frappe.model.set_value(cdt, cdn, "net_weight", flt(v - flt(row().empty_weight), 3));
-			}
+			apply_gross(frm, cdt, cdn, v);
 			d.hide();
-			sum_weight_totals(frm);
-			frm.save().then(() =>
+			frm.save().then(() => {
 				frappe.show_alert(
 					{ message: __("Đã cập nhật Gross thùng #{0}", [row().carton_no]), indicator: "green" },
 					4
-				)
-			);
+				);
+				if (on_after) on_after();
+			});
 		},
 		secondary_action_label: __("Bỏ qua"),
 		secondary_action() {
@@ -709,35 +1168,45 @@ function scale_ocr_dialog(frm, cdt, cdn, source) {
 	});
 	d.fields_dict.preview.$wrapper.html(
 		`<img src="${source}" style="max-width:100%;max-height:36vh;display:block;margin:0 auto">
-		<div style="text-align:center;margin-top:6px"><button class="btn btn-sm btn-default ocr-redo">🔄 ${__(
-			"Đọc lại số cân"
-		)}</button></div>`
+		<div style="text-align:center;margin-top:6px">
+			<button class="btn btn-sm btn-default ocr-redo">🔄 ${__("Đọc lại số cân")}</button>
+			<button class="btn btn-sm btn-default ocr-closeup" style="margin-left:6px">📷 ${__(
+				"Chụp cận màn hình cân"
+			)}</button>
+		</div>`
 	);
+	// Hiện kết quả OCR (dùng chung cho đọc ảnh gốc & ảnh cận).
+	const render_ocr = (m, tag) => {
+		if (m && m.ok && m.value != null) {
+			d.set_value("weight", m.value);
+			const warn = m.confident === false;
+			d.fields_dict.note.$wrapper.html(
+				`<div class="small" style="color:${warn ? "#c0392b" : "#27ae60"}">${warn ? "⚠ " : "✓ "}${
+					tag ? tag + " " : ""
+				}OCR: ${frappe.utils.escape_html(String(m.raw || ""))} → <b>${m.value} kg</b>${
+					warn ? " — " + __("chưa chắc chắn, kiểm tra kỹ") : ""
+				}</div>`
+			);
+		} else {
+			d.fields_dict.note.$wrapper.html(
+				`<div class="small text-muted">${__("Không đọc được số — thử chụp cận hoặc nhập tay.")}</div>`
+			);
+		}
+	};
 	const run_ocr = () => {
 		frappe.call({
 			method: "customize_erpnext.customize_erpnext.doctype.packing_list.packing_list.read_scale_ocr",
 			args: { image: source, decimals: 2 },
 			freeze: true,
 			freeze_message: __("Đang đọc số cân..."),
-			callback(r) {
-				const m = r.message || {};
-				if (m.ok && m.value != null) {
-					d.set_value("weight", m.value);
-					const warn = m.confident === false;
-					d.fields_dict.note.$wrapper.html(
-						`<div class="small" style="color:${warn ? "#c0392b" : "#27ae60"}">${warn ? "⚠ " : "✓ "
-						}OCR: ${frappe.utils.escape_html(String(m.raw || ""))} → <b>${m.value} kg</b>${warn ? " — " + __("chưa chắc chắn, kiểm tra kỹ") : ""
-						}</div>`
-					);
-				} else {
-					d.fields_dict.note.$wrapper.html(
-						`<div class="small text-muted">${__("Không đọc được số — nhập tay.")}</div>`
-					);
-				}
-			},
+			callback: (r) => render_ocr(r.message || {}),
 		});
 	};
 	d.$wrapper.on("click", ".ocr-redo", run_ocr);
+	// Chụp cận màn hình cân để đọc lại (chỉ đọc kg, KHÔNG lưu ảnh này).
+	d.$wrapper.on("click", ".ocr-closeup", () =>
+		closeup_ocr_read((m) => render_ocr(m, __("(ảnh cận)")))
+	);
 	d.show();
 	run_ocr(); // auto-read on open
 }
@@ -753,3 +1222,133 @@ function select_next_carton(frm, next_no) {
 		if (cb && cb.length) cb.prop("checked", !!want);
 	});
 }
+
+/* ==================== Đọc cân trực tiếp (Web Serial) ==================== */
+
+// Badge trạng thái cân trên dashboard form; tự cập nhật theo sự kiện.
+function scale_indicator(frm) {
+	if (frm.__scale_off) frm.__scale_off();
+	const badge = frm.dashboard.add_indicator(__("Cân: chưa kết nối"), "red");
+	frm.__scale_off = plScale.onStatus((s) => {
+		const map = {
+			connected: [__("Cân: đã kết nối"), "green"],
+			disconnected: [__("Cân: chưa kết nối"), "red"],
+			reading: [__("Cân: đang đọc…"), "orange"],
+		};
+		const [txt, color] = map[s] || map.disconnected;
+		if (badge && badge.length)
+			badge.text(txt).removeClass("green red orange gray blue").addClass(color);
+	});
+}
+
+// Ghi Gross vào 1 dòng thùng; nếu Gross to Net thì tính lại Net = Gross - tare.
+function apply_gross(frm, cdt, cdn, value) {
+	const row = locals[cdt][cdn];
+	frappe.model.set_value(cdt, cdn, "gross_weight", value);
+	if ((frm.doc.weight_mode || "") === "Gross to Net")
+		frappe.model.set_value(cdt, cdn, "net_weight", flt(value - flt(row.empty_weight), 3));
+	sum_weight_totals(frm);
+}
+
+// Đảm bảo có kết nối cân (không cần gesture nếu cổng đã cấp quyền).
+function ensure_scale() {
+	if (!(window.plScale && plScale.supported())) return Promise.resolve(false);
+	if (plScale.isConnected()) return Promise.resolve(true);
+	return plScale
+		.tryReconnect()
+		.then((ok) => ok || plScale.connect().then(() => true).catch(() => false))
+		.catch(() => false);
+}
+
+// Manual: chỉ đưa con trỏ vào ô Gross của dòng thùng (không dialog).
+function focus_gross(frm, cdt, cdn) {
+	const grid = frm.fields_dict.details && frm.fields_dict.details.grid;
+	if (!grid) return;
+	const gr = (grid.grid_rows || []).find((g) => g.doc && g.doc.name === cdn);
+	if (!gr) return;
+	gr.toggle_view(true);
+	setTimeout(() => {
+		const f = gr.grid_form && gr.grid_form.fields_dict && gr.grid_form.fields_dict.gross_weight;
+		if (f && f.$input) f.$input.focus();
+	}, 250);
+}
+
+// Điều phối lấy Gross sau khi lưu ảnh, theo weight_source (Scale / OCR — cả 2 nhập tay được).
+// on_after(): gọi khi xong (áp Gross) để Liên tiếp sang thùng kế.
+function after_photo_weight(frm, cdt, cdn, data_url, on_after) {
+	// Chỉ có ý nghĩa khi Gross to Net (Net to Gross: Gross suy ra từ Net).
+	if ((frm.doc.weight_mode || "") !== "Gross to Net") {
+		if (on_after) on_after();
+		return;
+	}
+	if ((frm.doc.weight_source || "OCR") === "Scale") return scale_after_photo(frm, cdt, cdn, on_after);
+	return scale_ocr_dialog(frm, cdt, cdn, data_url, on_after); // OCR
+}
+
+// Sau lưu ảnh với weight_source = Scale (khi chưa cân trong dialog chụp).
+function scale_after_photo(frm, cdt, cdn, on_after) {
+	const row = () => locals[cdt][cdn];
+	ensure_scale().then((ok) => {
+		if (!ok) {
+			// Không kết nối được cân -> nhập Gross tay (dừng liên tiếp).
+			frappe.msgprint(
+				__("Không kết nối được cân. Mở ⚙️ Scale Settings để kết nối, hoặc nhập Gross tay.")
+			);
+			focus_gross(frm, cdt, cdn);
+			return;
+		}
+		const d = new frappe.ui.Dialog({
+			title: __("⚖️ Số cân (Gross) — thùng #{0}", [row().carton_no]),
+			fields: [
+				{ fieldtype: "HTML", fieldname: "live" },
+				{ fieldtype: "Float", fieldname: "weight", label: __("Số cân / Gross (kg)"), precision: 3 },
+				{ fieldtype: "HTML", fieldname: "note" },
+			],
+			primary_action_label: __("Áp dụng vào Gross"),
+			primary_action() {
+				const v = flt(d.get_value("weight"));
+				if (!v) {
+					frappe.msgprint(__("Chưa có số cân."));
+					return;
+				}
+				apply_gross(frm, cdt, cdn, v);
+				d.hide();
+				frm.save().then(() => {
+					frappe.show_alert(
+						{ message: __("Đã cập nhật Gross thùng #{0}", [row().carton_no]), indicator: "green" },
+						4
+					);
+					if (on_after) on_after();
+				});
+			},
+			secondary_action_label: __("Bỏ qua"),
+			secondary_action() {
+				d.hide();
+			},
+		});
+		d.fields_dict.live.$wrapper.html(
+			`<div class="text-center" style="padding:4px">
+				<div class="sc-flag small text-muted">${__("Đang chờ cân ổn định…")}</div>
+				<div class="sc-num" style="font-size:40px;font-weight:700;line-height:1.1">--</div>
+			</div>`
+		);
+		// Hiển thị số cân nhảy live.
+		const off = plScale.onReading((p) => {
+			if (!p) return;
+			d.$wrapper.find(".sc-num").text(p.weight.toFixed(3)).css("color", p.stable ? "#27ae60" : "#c0392b");
+			d.$wrapper.find(".sc-flag").text(p.stable ? "ST — ổn định" : "US — chưa ổn định");
+		});
+		d.onhide = () => off();
+		// Đọc số cân ổn định (mặc định lấy số này); lỗi -> vẫn cho nhập tay.
+		plScale
+			.readStableWeight({ timeoutMs: 8000, needConsecutive: 3 })
+			.then((w) => d.set_value("weight", flt(w, 3)))
+			.catch((err) => {
+				d.fields_dict.note.$wrapper.html(
+					`<div class="small" style="color:#c0392b">⚠ ${frappe.utils.escape_html(err.message || "")}</div>`
+				);
+			});
+		d.show();
+	});
+}
+

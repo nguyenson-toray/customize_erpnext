@@ -30,6 +30,7 @@
   "carton_types",
   "container_type",
   "weight_mode",
+  "weight_source",
   "column_break_duux",
   "combine_mode",
   "small_carton_threshold",
@@ -253,18 +254,28 @@
    "options": "2\n3\n4"
   },
   {
-   "default": "Net to Gross",
+   "default": "Gross to Net",
    "description": "Net to Gross: Net t\u00ednh t\u1eeb s\u1ed1 c\u00e1i, Gross = Net + th\u00f9ng r\u1ed7ng. Gross to Net: nh\u1eadp Gross (t\u1eeb c\u00e2n), Net = Gross - th\u00f9ng r\u1ed7ng.",
    "fieldname": "weight_mode",
    "fieldtype": "Select",
    "label": "Weight Mode",
    "options": "Net to Gross\nGross to Net",
    "print_hide": 1
+  },
+  {
+   "default": "Scale",
+   "depends_on": "eval:doc.weight_mode=='Gross to Net'",
+   "description": "Ngu\u1ed3n l\u1ea5y Gross (ch\u1ec9 khi Weight Mode = Gross to Net). C\u1ea3 2 \u0111\u1ec1u cho nh\u1eadp kg tay. Scale: \u0111\u1ecdc t\u1eeb c\u00e2n \u0111i\u1ec7n t\u1eed (\u2696\ufe0f Scale Settings). OCR: \u0111\u1ecdc s\u1ed1 tr\u00ean \u1ea3nh.",
+   "fieldname": "weight_source",
+   "fieldtype": "Select",
+   "label": "Weight Source",
+   "options": "OCR\nScale",
+   "print_hide": 1
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-07-09 14:52:44.308310",
+ "modified": "2026-07-10 13:27:20.094422",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Packing List",

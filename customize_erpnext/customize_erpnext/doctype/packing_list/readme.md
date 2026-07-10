@@ -107,8 +107,18 @@ Dialog ma trận (thùng ghép × mảnh lẻ). `apply_mix_edit`:
 
 ## 7. Ảnh thùng + OCR số cân
 
-**Chụp (JS):** nút *📷 Take Photo* → tích 1 dòng thùng → camera (getUserMedia; fallback
-camera thiết bị trên HTTP) → crop khung thùng → resize ≤1600px, JPEG 0.88.
+**Chụp/Cân (JS):** một nút gộp *📷 Chụp / Cân* → **tích 1 dòng thùng** (hoặc **chưa tích →
+nhập số thùng bắt đầu**, mặc định = thùng đầu chưa có ảnh) → mở dialog với:
+- **Chế độ** (nhớ `localStorage.pl_capture_mode`): *Chụp ảnh + Cân* / *Chỉ chụp ảnh* /
+  *Chỉ cân* (chỉ hiện *Chỉ cân* khi có cân — xem §7b).
+- **Liên tiếp (tự sang thùng kế)** (nhớ `localStorage.pl_capture_cont`): làm cả loạt **không
+  phải chọn từng thùng**. *Chỉ cân* + Liên tiếp = cân cả lô bằng **Enter** (Esc thoát);
+  *Chụp…* + Liên tiếp = lưu xong tự mở thùng kế.
+
+Chụp: camera (getUserMedia; fallback camera thiết bị trên HTTP; có dropdown chọn webcam) →
+crop khung thùng → resize ≤1600px, JPEG 0.88. Panel cân live ngay trong dialog (cân trước,
+chụp & lưu sau; số ST tự điền, sửa tay được). Camera được **tắt sạch khi đóng dialog** (có cờ
+`closed` chặn race `getUserMedia` resolve sau khi đóng). Save gom qua `pl_save()` tránh đua nhau.
 
 **Lưu (`save_carton_photo`):** File tại `/private/files/packing_list/`, tên
 `{No}_{CartonNo}_{Color}_{Size}.jpg`. Chụp lại cùng thùng → **xóa ảnh cũ + kg cũ**.
@@ -122,9 +132,72 @@ Sau khi lưu: **clear checkbox + tự tích thùng kế tiếp** (`select_next_c
 5. Cờ `confident` = ssocr đọc sạch (không ký tự lạ). Chụp **gần** → đọc đúng; **xa** →
    thất bại rõ ràng (không ghi số sai). **Luôn cho user xác nhận/sửa** → Áp dụng vào Gross.
 - **Yêu cầu:** cài `ssocr` trên server (`sudo apt-get install ssocr`). ssocr hơi yếu với số **7**.
+- **Chụp cận đọc lại:** nếu số OCR sai, nút **📷 Chụp cận màn hình cân** (trong dialog OCR và
+  dialog cảnh báo lệch của *Scale + OCR verify*) mở camera chụp **cận màn hình cân** → OCR đọc
+  lại kg chính xác hơn. Ảnh cận **chỉ để đọc số, KHÔNG lưu**.
 
 **Tải tất cả (`download_all_photos`):** nén zip toàn bộ ảnh, tên file trong zip đúng chuẩn.
 Nút bị chặn nếu chưa có ảnh nào.
+
+**Chọn webcam:** dialog camera có dropdown chọn nguồn (ưu tiên webcam USB ngoài); lưu
+`deviceId` vào `localStorage.pl_camera_id`, lần sau tự dùng lại. Rút webcam → fallback
+camera mặc định + báo nhẹ. Label camera chỉ hiện sau khi đã cấp quyền camera.
+
+---
+
+## 7b. Đọc cân trực tiếp (Web Serial API)
+
+Lấy `gross_weight` **thẳng từ đầu cân Jadever** (JIK/JWI) qua cáp USB–RS232 (cổng COM),
+**không cần app/bridge** cài trên máy — toàn bộ nằm trong JS của form (`navigator.serial`).
+Chỉ chạy trên **Chrome/Edge + HTTPS**; Firefox/Safari không hỗ trợ → nút cân **tự ẩn**,
+OCR (§7) vẫn dùng bình thường.
+
+**Cấu hình (per-máy, lưu `localStorage.pl_scale_cfg` — KHÔNG lưu vào DocType):**
+nút **⚙️ Scale Settings** → baudRate (mặc định **9600**), dataBits 8, parity none, stopBits 1;
+`regex` parse dòng (4 nhóm: cờ ST/US · mode GS/NT · số · đơn vị). Mặc định:
+`(ST|US)\s*,\s*(GS|NT)\s*,?\s*([+-]?\s*\d+(?:\.\d+)?)\s*(kg|g|lb)?`. Đơn vị `g` → tự ÷1000 về kg.
+Nút **Test** hiện raw + kết quả parse live để chỉnh regex theo model đầu cân.
+
+**Ổn định:** `plScale.readStableWeight({timeoutMs:8000, needConsecutive:3})` — chỉ chốt khi
+nhận đủ **3 dòng ST liên tiếp cùng giá trị**; quá hạn → reject kèm 3 dòng raw gần nhất.
+Trạng thái hiển thị badge trên form (đã kết nối / chưa kết nối / đang đọc); rút cáp →
+đổi trạng thái, nối lại 1 chạm; F5/đóng tab → đóng cổng sạch (không lock COM).
+
+**Field `weight_source`** (chỉ khi `weight_mode = Gross to Net`) — **2 lựa chọn, cả 2 đều
+cho nhập kg tay:**
+
+| weight_source | Luồng lấy Gross |
+|---|---|
+| **OCR** (mặc định) | Chụp → lưu ảnh → OCR đọc số cân trên **ảnh** (§7). Nút **📷 Chụp cận** để đọc lại nếu sai; ô Gross sửa tay được |
+| **Scale** | **Cân trước, chụp sau:** dialog chụp có panel cân live (ST/US), số ổn định tự điền, **sửa tay được** / 🔄 Cân lại → **📷 Chụp & Lưu** lưu ảnh + áp Gross cùng lúc. Chưa kết nối cân → nhập tay |
+
+> Với **Scale**, việc đọc cân **gộp thẳng vào dialog chụp** (cân trước — chụp & lưu sau) khi chọn
+> chế độ *Chụp ảnh + Cân*; hoặc chọn **Chỉ cân** (± Liên tiếp) để cân không cần ảnh.
+
+**Đọc cân không cần ảnh** (đã gộp vào nút *📷 Chụp / Cân*, chế độ **Chỉ cân**):
+- Không Liên tiếp: đặt thùng → số ST tự điền → **Ghi số cân** → ghi Gross + tự tích thùng kế.
+- **Liên tiếp**: dialog giữ mở; đặt thùng → **Enter** = ghi + nhảy thùng kế, **Esc** = thoát —
+  cân cả lô chục thùng không rời bàn phím. (Có busy-guard 350ms chống nhảy 2 thùng do double-Enter.)
+
+**Kết nối:** lần đầu **⚙️ Scale Settings → Kết nối cổng COM** (cần user click chọn cổng).
+Sau đó `getPorts()` tự nối lại cổng đã cấp quyền (không cần chọn lại). Áp Gross xong,
+nếu Gross to Net → Net = Gross − tare (như §6).
+
+**Cấu hình đầu cân Jadever:** vào menu đầu cân đặt chế độ in ra cổng RS232 là
+**continuous / stream** (in liên tục), đúng baud (mặc định 9600, 8-N-1) để form nhận data
+liên tiếp. Nếu đầu cân chỉ in khi bấm Print → mỗi lần cân phải bấm Print trên đầu cân.
+
+**Khi nào Scale vs OCR:**
+
+| | Scale (Web Serial) | OCR (ssocr) |
+|---|---|---|
+| Độ chính xác | Cao (số thật từ đầu cân) | Phụ thuộc ảnh; yếu số 7, ảnh xa |
+| Phần cứng | Laptop + cáp USB-RS232 tới đầu cân | Chỉ cần ảnh có màn hình cân |
+| Trình duyệt | Chỉ Chrome/Edge + HTTPS | Mọi trình duyệt |
+| Dùng khi | Có bàn cân cố định nối cáp | Chụp bằng điện thoại / không nối cáp |
+
+Module cân: `public/js/packing_list_scale.js` (nạp qua `hooks.doctype_js["Packing List"]`),
+export `window.plScale`. **Client-side thuần — không thêm method Python.**
 
 ---
 
