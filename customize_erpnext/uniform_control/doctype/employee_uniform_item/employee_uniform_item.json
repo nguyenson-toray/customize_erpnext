@@ -2,6 +2,7 @@
  "actions": [],
  "creation": "2026-06-05 00:00:00",
  "doctype": "DocType",
+ "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
   "item_template",
@@ -13,13 +14,13 @@
  ],
  "fields": [
   {
+   "description": "The exact variant issued (e.g. \u00c1o thun n\u1eef S, M\u0169 \u0110\u1ecf).",
    "fieldname": "item_template",
    "fieldtype": "Link",
    "in_list_view": 1,
    "label": "Item",
    "options": "Item",
-   "reqd": 1,
-   "description": "The exact variant issued (e.g. Áo thun nữ S, Mũ Đỏ)."
+   "reqd": 1
   },
   {
    "fieldname": "last_issue_date",
@@ -55,12 +56,13 @@
  ],
  "istable": 1,
  "links": [],
- "modified": "2026-06-05 00:00:00",
+ "modified": "2026-07-11 15:57:39.201207",
  "modified_by": "Administrator",
  "module": "Uniform Control",
  "name": "Employee Uniform Item",
  "owner": "Administrator",
  "permissions": [],
+ "row_format": "Dynamic",
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": []

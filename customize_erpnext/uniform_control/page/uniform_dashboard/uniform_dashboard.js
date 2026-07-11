@@ -116,10 +116,15 @@ frappe.pages['uniform-dashboard'].on_page_load = function (wrapper) {
 	const due_columns = [
 		{
 			name: __('Employee'), width: 100,
-			format: (v) => `<a href="/app/employee-uniform-profile/${encodeURIComponent(v)}">${esc(v)}</a>`
+			format: (v) => `<a href="/app/employee/${encodeURIComponent(v)}">${esc(v)}</a>`
+		},
+		{
+			// Profile name = employee id (autoname field:employee)
+			name: __('Profile'), width: 80,
+			format: (v) => (v ? `<a href="/app/employee-uniform-profile/${encodeURIComponent(v)}">${__('Open')} →</a>` : '')
 		},
 		{ name: __('Employee Name'), width: 160 },
-		{ name: __('Department'), width: 130 },
+		{ name: __('Section'), width: 120 },
 		{ name: __('Group'), width: 100 },
 		{ name: __('Uniform Type'), width: 130 },
 		{ name: __('Size'), width: 60 },
@@ -190,7 +195,7 @@ frappe.pages['uniform-dashboard'].on_page_load = function (wrapper) {
 	function render_due(rows) {
 		$body.find('[data-count="due"]').text(rows.length ? `(${rows.length})` : '');
 		due_data = rows.map((r) => [
-			r.employee, r.employee_name, r.department, r.custom_group, r.item_template,
+			r.employee, r.employee, r.employee_name, r.custom_section, r.custom_group, r.item_template,
 			r.size, r.qty_per_cycle, r.cycles, r.total_qty, r.next_due_date, r.status,
 		]);
 		refresh_due_dt();

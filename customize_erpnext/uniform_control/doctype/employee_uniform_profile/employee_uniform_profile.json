@@ -158,6 +158,7 @@
    "label": "Issuance Tracking"
   },
   {
+   "allow_bulk_edit": 1,
    "description": "Shirts / polos issued to this employee (category Shirt).",
    "fieldname": "shirt_items",
    "fieldtype": "Table",
@@ -165,6 +166,7 @@
    "options": "Employee Uniform Item"
   },
   {
+   "allow_bulk_edit": 1,
    "description": "All other issued items (caps, shoes, bottles, ...).",
    "fieldname": "items",
    "fieldtype": "Table",
@@ -195,7 +197,7 @@
   }
  ],
  "links": [],
- "modified": "2026-07-11 10:47:19.124639",
+ "modified": "2026-07-11 15:56:56.330502",
  "modified_by": "Administrator",
  "module": "Uniform Control",
  "name": "Employee Uniform Profile",
