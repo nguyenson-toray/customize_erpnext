@@ -12,7 +12,13 @@
   "warehouse",
   "from_date",
   "to_date",
-  "section_lines",
+  "section_types",
+  "include_somi",
+  "include_thun",
+  "include_cap",
+  "include_bottle",
+  "include_shoe",
+  "column_break_types1",
   "lines",
   "section_break_gnxw",
   "current_ratio_html",
@@ -70,10 +76,44 @@
    "label": "To Date"
   },
   {
-   "depends_on": "eval:doc.mode!='Re-issue'",
-   "fieldname": "section_lines",
+   "description": "Untick a type to leave it out of the forecast. Default: all types.",
+   "fieldname": "section_types",
    "fieldtype": "Section Break",
-   "label": "Recruitment Plan (New Hires)"
+   "label": "Item Types to Forecast & Designations to Recruit"
+  },
+  {
+   "default": "1",
+   "fieldname": "include_somi",
+   "fieldtype": "Check",
+   "label": "Shirt"
+  },
+  {
+   "default": "1",
+   "fieldname": "include_thun",
+   "fieldtype": "Check",
+   "label": "T-Shirt"
+  },
+  {
+   "fieldname": "column_break_types1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "include_cap",
+   "fieldtype": "Check",
+   "label": "Cap"
+  },
+  {
+   "default": "1",
+   "fieldname": "include_bottle",
+   "fieldtype": "Check",
+   "label": "Bottle"
+  },
+  {
+   "default": "1",
+   "fieldname": "include_shoe",
+   "fieldtype": "Check",
+   "label": "Shoe"
   },
   {
    "allow_bulk_edit": 1,
@@ -84,6 +124,7 @@
    "options": "Uniform Demand Forecast Line"
   },
   {
+   "collapsible": 1,
    "fieldname": "section_break_gnxw",
    "fieldtype": "Section Break",
    "label": "Current Ratio"
@@ -94,6 +135,7 @@
    "label": "Current Shirt Ratio"
   },
   {
+   "collapsible": 1,
    "fieldname": "section_summary",
    "fieldtype": "Section Break",
    "label": "Forecast Breakdown"
@@ -141,7 +183,7 @@
   }
  ],
  "links": [],
- "modified": "2026-07-01 16:45:49.315925",
+ "modified": "2026-07-11 10:42:48.089307",
  "modified_by": "Administrator",
  "module": "Uniform Control",
  "name": "Uniform Demand Forecast",

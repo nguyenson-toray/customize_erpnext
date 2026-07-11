@@ -311,6 +311,7 @@ Dùng để **chuẩn bị/nhập kho trước**. Vào Dashboard → **Demand Fo
 
 **Các bước:**
 1. Chọn **Mode**. Với New Hires: điền bảng **Chức danh cần tuyển** (chức danh + số lượng). Với Re-issue: đặt **To Date**. (Warehouse mặc định kho đồng phục.) **Save**.
+   - Mục **Item Types to Forecast** (mặc định chọn hết): bỏ tick loại không cần dự toán — **Shirt** (áo sơ mi) / **T-Shirt** (áo thun) / **Cap** (mũ) / **Bottle** (bình nước) / **Shoe** (dép). Loại bỏ tick sẽ không xuất hiện trong Forecast Items. Bỏ tick hết → báo lỗi.
 2. Bấm nút **Forecast** (góc trên phải). Hệ thống tính nhu cầu theo từng **variant** (áo nam/nữ theo size, mũ theo bộ phận, dép, bình nước…) + **tồn hiện tại**.
 3. Có thể **sửa tay** cột **SL dự toán** rồi Save (tổng tự tính lại). Bấm **Tải Excel** để xuất toàn bộ phiếu — 5 sheet: **Info** (mode, ngày, kho, tổng, ghi chú), **Recruitment Plan** (bảng chức danh cần tuyển), **Forecast** (kết quả), **Current Ratio (Recruited)** và **Current Ratio (Company)**.
 

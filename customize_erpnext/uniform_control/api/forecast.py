@@ -40,6 +40,26 @@ def compute(forecast):
     prefix = get_employee_id_prefix()
     mode = doc.mode or "New Hires"
 
+    # Item-type filter (5 checkboxes, default all). Missing field (old rows
+    # before migrate) counts as included.
+    def _on(v):
+        return 1 if v is None else cint(v)
+    included = {
+        "somi": _on(doc.get("include_somi")),
+        "thun": _on(doc.get("include_thun")),
+        "Cap": _on(doc.get("include_cap")),
+        "Bottle": _on(doc.get("include_bottle")),
+        "Shoe": _on(doc.get("include_shoe")),
+    }
+    if not any(included.values()):
+        frappe.throw(_("Select at least one item type to forecast."))
+
+    def _type_key(category, item):
+        """included-map key for a rule/variant: shirts split by sơ mi vs thun."""
+        if category == "Shirt":
+            return "somi" if "sơ mi" in (item or "").lower() else "thun"
+        return category
+
     hire = {}      # variant -> {"people":float,"per":int,"template","size","category"}
     unmapped = []  # (designation, headcount) with no segment data to infer from
     total_hc = 0.0  # headcount spread across segments (New Hires)
@@ -71,6 +91,10 @@ def compute(forecast):
                     continue
                 total_hc += count
                 rules = get_rules_by_category(seg, setting)
+                # Drop the item types HR left unticked (coverage warnings then
+                # only consider the included types).
+                rules = {c: r for c, r in rules.items()
+                         if included.get(_type_key(c, r.item), 1)}
                 for cat in rules:
                     covered[cat] = covered.get(cat, 0.0) + count
                 seg_records.append({"designation": d.designation, "grade": seg.get("grade"),
@@ -94,6 +118,8 @@ def compute(forecast):
             if qty <= 0:
                 continue
             m = rd["meta"].get(variant, {})
+            if not included.get(_type_key(m.get("category"), m.get("template")), 1):
+                continue
             if variant in demand:
                 demand[variant]["qty"] += cint(qty)
             else:

@@ -490,7 +490,7 @@ Computing demand...,Đang tính nhu cầu...
 Shirt Breakdown (Gender / Size),Phân tích áo (Giới tính / Size)
 Total shirts,Tổng áo
 Shirt (Áo sơ mi),Áo sơ mi
-T-shirt (Áo thun),Áo thun
+T-Shirt (Áo thun),Áo thun
 Current Shirt Ratio (calculation basis),Tỉ lệ áo hiện tại (cơ sở tính)
 No current employee data.,Chưa có dữ liệu nhân viên hiện tại.
 As of {0},Tính đến {0}
@@ -636,3 +636,8 @@ Include left employees,Gồm cả nhân viên đã nghỉ
 Create,Tạo
 Created {0} profile(s) of {1} employees.,Đã tạo {0} profile trên {1} nhân viên.
 Clear Selection,Bỏ chọn
+Bottle,Bình nước
+Shoe,Dép
+Item Types to Forecast,Loại item cần dự toán
+Untick a type to leave it out of the forecast. Default: all types.,Bỏ tick loại nào thì loại đó không được tính vào dự toán. Mặc định: tất cả.
+Select at least one item type to forecast.,Chọn ít nhất một loại item để dự toán.

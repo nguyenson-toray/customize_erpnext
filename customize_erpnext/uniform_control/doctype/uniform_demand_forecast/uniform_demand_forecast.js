@@ -129,7 +129,7 @@ function shirt_tables_html(rows) {
 	rows.forEach((r) => {
 		const txt = (r.item_code || r.template || '').toLowerCase();
 		const type = txt.indexOf('sơ mi') !== -1 ? __('Shirt (Áo sơ mi)')
-			: txt.indexOf('thun') !== -1 ? __('T-shirt (Áo thun)')
+			: txt.indexOf('thun') !== -1 ? __('T-Shirt (Áo thun)')
 				: __('Shirt');
 		(types[type] = types[type] || []).push(r);
 	});
@@ -223,6 +223,8 @@ function show_forecast_help() {
 							<li>Cấp lại → chọn <i>To Date</i> (mặc định: hôm nay + 1 năm).</li>
 						</ul>
 					</li>
+					<li>Mục <b>Loại item cần dự toán</b> (mặc định chọn hết): bỏ tick loại không cần
+						(<i>Áo sơ mi / Áo thun / Mũ / Bình nước / Dép</i>) — loại bỏ tick sẽ không xuất hiện trong kết quả.</li>
 					<li>Bấm nút <b>Forecast</b> (góc trên bên phải) — hệ thống lập bảng <i>Forecast Items</i>: nhu cầu theo từng <b>biến thể</b> (từng kích cỡ áo, từng màu mũ, dép, bình nước…) kèm <b>tồn kho hiện tại</b>.</li>
 					<li>Rà soát, có thể <b>điều chỉnh cột SL dự toán</b> rồi <b>Lưu</b>. Sử dụng bảng này làm cơ sở lập kế hoạch mua sắm / nhập kho.</li>
 					<li>Bấm <b>Tải Excel</b> để xuất toàn bộ phiếu — 5 sheet: <i>Info</i> (thông tin phiếu), <i>Recruitment Plan</i> (bảng chức danh cần tuyển), <i>Forecast</i> (kết quả), và <i>Current Ratio</i> cả hai phạm vi (Recruited &amp; Company).</li>

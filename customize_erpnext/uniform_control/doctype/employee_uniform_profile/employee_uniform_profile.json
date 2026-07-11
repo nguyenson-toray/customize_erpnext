@@ -79,6 +79,7 @@
    "fetch_from": "employee.status",
    "fieldname": "employment_status",
    "fieldtype": "Data",
+   "in_list_view": 1,
    "label": "Employment Status",
    "read_only": 1
   },
@@ -194,7 +195,7 @@
   }
  ],
  "links": [],
- "modified": "2026-06-18 13:17:57.497757",
+ "modified": "2026-07-11 10:47:19.124639",
  "modified_by": "Administrator",
  "module": "Uniform Control",
  "name": "Employee Uniform Profile",
