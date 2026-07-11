@@ -188,8 +188,12 @@
         });
         const url = new URLSearchParams(location.search);
         const pre = url.get("emp");
-        const match = pre && allEmps.find(e => e.employee_id === pre);
-        if (match) { pickEmp(match); }
+        if (pre) {
+          // Direct link (?emp=...) — mở thẳng vào nhân viên, ẩn ô tìm/chọn.
+          // HR có thể mở bất kỳ NV (kể cả không có trong danh sách); server tự kiểm tra quyền.
+          document.getElementById("picker_card").classList.add("hidden");
+          onEmpSelected(pre);
+        }
       } catch (e) { toast(e.message); inp.placeholder = "Không tải được danh sách"; }
     })();
 
@@ -295,7 +299,10 @@
         document.getElementById("success_area").classList.add("hidden");
         document.getElementById("submit_btn").disabled = false;
         window.scrollTo({ top: 0, behavior: "smooth" });
-      } catch (e) { toast(e.message); }
+      } catch (e) {
+        toast(e.message);
+        document.getElementById("picker_card").classList.remove("hidden");  // tránh dead-end
+      }
     }
 
     // ---------- render ----------

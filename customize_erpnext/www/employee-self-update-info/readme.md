@@ -254,31 +254,34 @@ Thay dropdown bằng ô tìm kiếm:
 
 ---
 
-## Đồng bộ về Employee — CHƯA TRIỂN KHAI (plan để dành)
+## Review + Đồng bộ về Employee (ĐÃ TRIỂN KHAI)
 
-Hiện tại dữ liệu submit **không** ghi ngược vào Employee (chỉ Excel/PDF). Khi cần sync, kiến trúc đã sẵn sàng vì **key trong `data_json` chính là fieldname Employee** → sync = `emp.set(fieldname, value)`, **không cần `_SYNC_MAP`**.
+**Vòng đời:** `Draft → Submitted → Reviewed → Synced`. **Phải Review trước, rồi mới Sync được.**
 
-**Phạm vi sync (dự kiến):**
+**Chỉ sync field thuộc Employee** (gồm `custom_`) — vì key trong `data_json` chính là fieldname Employee → `emp.set(fieldname, _coerce(value, fieldtype))`, **không cần `_SYNC_MAP`**.
 
 | Loại field | Sync? |
 |---|---|
-| Field Employee thường (Data/Date/Select/Int/Check/Link/Phone…) | ✅ ghi thẳng |
-| Field địa chỉ `custom_*_province/_commune/_village` | ✅ ghi tên (text) |
-| Custom field (`is_custom`) | ❌ không có field Employee |
-| `__remarks` (ghi chú) | ❌ không phải field Employee |
+| Field Employee thường / `custom_*` (Data/Date/Select/Int/Check/Link/Phone…) | ✅ ghi thẳng |
+| Field địa chỉ `custom_*_province/_commune/_village` | ✅ ghi tên; **tự dựng lại `custom_*_address_full`** = village + commune + province |
+| Custom field (`is_custom`) | ❌ không thuộc Employee |
+| `__remarks` (ghi chú) | ❌ |
 | `employee` / `name` (định danh) | ❌ bỏ qua |
 
-**Việc cần làm khi triển khai:**
-1. Doctype `Employee Self Update Info`: thêm status `Synced` + `synced_on` (Datetime) + `synced_by` (Link User).
-2. API `sync_to_employee(names)` (HR-only): mỗi record → `_build_config()` lọc field thật (non-custom, ≠ employee/name) → `emp.set(fieldname, _coerce(value, fieldtype))` → `emp.save()` trong try/except riêng từng record → set `Synced`. Trả `{synced, failed, errors}`.
-3. Helper `_coerce(value, fieldtype)`: ép kiểu an toàn (rỗng→None cho Date/Int/Link; Check→0/1; …; lỗi → bỏ field đó + ghi errors).
-4. List/Form JS: nút **"Sync to Employee"** (bulk ở list, đơn ở form) + confirm + tổng kết.
+**APIs (HR):**
+- `review_forms(names)`: `Submitted → Reviewed` (bỏ qua record khác trạng thái). Ghi `reviewed_on/by`. Trả `{reviewed, skipped, results}`.
+- `sync_to_employee(names)`: **chỉ record `Reviewed`**; mỗi record `emp.set()` các field thật → dựng lại `_full` → `emp.save()` trong **try/except + commit riêng từng record** (1 lỗi không chặn phần còn lại) → `Synced` + `synced_on/by`. Trả `{synced, failed, skipped, results:[{employee, ok, message}]}` — message chứa **lỗi Frappe trả về** nếu save Employee thất bại.
+- `_coerce_for_employee(value, fieldtype)`: rỗng→None cho Date/Int/Float/Link; Check→0/1; Int/Float cast; còn lại string.
 
-**Quyết định còn treo (chốt khi làm):**
-- Trigger: HR bấm nút (khuyến nghị) vs auto khi submit.
-- Có bước **Approve** trước sync không (Submitted → Approved → Synced).
-- Địa chỉ `_full`: có tự dựng lại `custom_*_address_full = village + commune + province` khi sync không (tránh stale), hay chỉ ghi field được cấu hình.
-- Lưu ý: sync **ghi đè** field Employee bằng giá trị NV nhập; lưu Employee có thể bung validate → phải bắt lỗi từng record.
+**Nút (desk, `__()` translatable):**
+- **List view**: `Download Excel` (chọn → chỉ record đã chọn; không chọn → tất cả), `Mark Reviewed`, `Sync to Employee` (bulk theo record tick) → hiện **dialog kết quả** (bảng từng NV: ✅/❌ + chi tiết lỗi).
+- **Form view**: `Mark Reviewed` (khi Submitted), `Sync to Employee` (khi Reviewed), `Edit in Portal` (khi chưa Synced).
+
+**HR sửa dữ liệu** = nút **"Edit in Portal"** → mở `/employee-self-update-info?emp=<id>` (cùng trang NV, đầy đủ widget địa chỉ/QR/validation). HR đăng nhập → **bỏ qua bước xác thực DOB** (`_is_hr()` trong `_gate` + `get_field_config.require_dob`) và **được sửa BẤT KỲ nhân viên nào**, kể cả NV không có trong danh sách Setting (`_ensure_eligible` bỏ qua eligibility cho HR; nhân viên thường vẫn chỉ sửa được nếu có trong danh sách). Trang **vào thẳng** form NV (ẩn ô tìm/chọn khi có `?emp=`; load lỗi → hiện lại ô chọn). HR sửa & gửi lại → status về `Submitted` (cần review lại).
+
+**Hiển thị cho HR** (thay JSON thô khó đọc): form có field HTML `data_view` render bảng **Nhãn : Giá trị** theo section, ô khác giá trị Employee hiện tại **tô vàng + "Cũ: …"** (ẩn khi đã Synced). JSON thô nằm trong section **"Raw Data (JSON)"** thu gọn. API `get_submission_view(name)`.
+
+> Lưu ý: sync **ghi đè** field Employee bằng giá trị NV khai; `emp.save()` có thể bung validate của Employee → lỗi được bắt & hiện chi tiết theo từng record, không làm hỏng các record khác.
 
 ---
 

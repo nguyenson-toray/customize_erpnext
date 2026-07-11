@@ -239,9 +239,27 @@ def _code_ok(setting, employee_id, code):
 	return bool(day) and _num_eq(code, day)
 
 
+def _is_hr():
+	"""True if the current session is a logged-in HR / System Manager."""
+	if frappe.session.user in ("Guest", None):
+		return False
+	return any(r in frappe.get_roles() for r in ("HR Manager", "HR User", "System Manager"))
+
+
+def _ensure_eligible(setting, employee_id):
+	"""HR may edit ANY employee; employees themselves only those in the setting."""
+	if _is_hr():
+		if not frappe.db.exists("Employee", employee_id):
+			frappe.throw(_("Employee not found"))
+		return
+	if employee_id not in _eligible_ids(setting):
+		frappe.throw(_("Employee not eligible for self update"), frappe.PermissionError)
+
+
 def _gate(setting, employee_id, code):
-	"""Throw unless verification passes (no-op when validate_by_dob is off)."""
-	if not setting.validate_by_dob:
+	"""Throw unless verification passes. No-op when validate_by_dob is off or the
+	caller is logged-in HR (HR edits a submission via the same portal page)."""
+	if not setting.validate_by_dob or _is_hr():
 		return
 	if not _code_ok(setting, employee_id, code):
 		frappe.throw(_("Verification failed. Please check the code."), frappe.ValidationError)
@@ -256,7 +274,8 @@ def get_field_config():
 	"""Return the dynamic field configuration for the web form."""
 	setting = _get_setting()
 	config = _build_config()
-	config["require_dob"] = bool(setting.validate_by_dob)
+	# HR editing via the portal skips the DOB verification step.
+	config["require_dob"] = bool(setting.validate_by_dob) and not _is_hr()
 	return config
 
 
@@ -269,9 +288,8 @@ def verify_employee(employee_id, code):
 	if not employee_id:
 		frappe.throw(_("Missing employee"))
 	setting = _get_setting()
-	if employee_id not in _eligible_ids(setting):
-		frappe.throw(_("Employee not eligible for self update"), frappe.PermissionError)
-	if not setting.validate_by_dob:
+	_ensure_eligible(setting, employee_id)
+	if not setting.validate_by_dob or _is_hr():
 		return {"valid": True}
 	return {"valid": _code_ok(setting, employee_id, code)}
 
@@ -321,8 +339,7 @@ def get_form_data(employee_id, code=None):
 		frappe.throw(_("Missing employee"))
 
 	setting = _get_setting()
-	if employee_id not in _eligible_ids(setting):
-		frappe.throw(_("Employee not eligible for self update"), frappe.PermissionError)
+	_ensure_eligible(setting, employee_id)
 	_gate(setting, employee_id, code)
 
 	config = _build_config()
@@ -373,8 +390,7 @@ def save_form_data(employee_id, data, code=None):
 		frappe.throw(_("Missing employee"))
 
 	setting = _get_setting()
-	if employee_id not in _eligible_ids(setting):
-		frappe.throw(_("Employee not eligible for self update"), frappe.PermissionError)
+	_ensure_eligible(setting, employee_id)
 	_gate(setting, employee_id, code)
 
 	if isinstance(data, str):
@@ -444,8 +460,7 @@ def download_submission_pdf(employee_id, code=None):
 	if not employee_id:
 		frappe.throw(_("Missing employee"))
 	setting = _get_setting()
-	if employee_id not in _eligible_ids(setting):
-		frappe.throw(_("Employee not eligible for self update"), frappe.PermissionError)
+	_ensure_eligible(setting, employee_id)
 	_gate(setting, employee_id, code)
 
 	if not frappe.db.exists(INFO_DT, employee_id):
@@ -654,3 +669,193 @@ def _fmt(value):
 	if value is None:
 		return ""
 	return str(value)
+
+
+@frappe.whitelist()
+def get_submission_view(name):
+	"""Human-readable view of a submission for HR (instead of raw JSON).
+
+	Returns {sections:[{label, rows:[{label, value, old, changed, custom}]}],
+	remarks}. `changed` compares the submitted value with the current Employee
+	value (only for real Employee fields).
+	"""
+	_require_hr()
+	doc = frappe.get_doc(INFO_DT, name)
+	saved = json.loads(doc.data_json or "{}")
+	config = _build_config()
+
+	real = [f["fieldname"] for sec in config["sections"] for f in sec["fields"] if not f.get("custom")]
+	emp_vals = frappe.db.get_value("Employee", doc.employee, real, as_dict=True) or {} if real else {}
+
+	sections = []
+	for sec in config["sections"]:
+		rows = []
+		for f in sec["fields"]:
+			fn = f["fieldname"]
+			if fn in ("employee", "name"):
+				continue  # identity — already shown on the record header
+			new_v = saved.get(fn)
+			new_s = "" if new_v is None else str(new_v)
+			old_s = "" if f.get("custom") else _fmt(emp_vals.get(fn))
+			rows.append({
+				"label": f["label"],
+				"value": new_s,
+				"old": old_s,
+				"changed": (not f.get("custom")) and fn in saved and new_s != old_s,
+				"custom": bool(f.get("custom")),
+			})
+		if rows:
+			sections.append({"label": sec["label"], "rows": rows})
+
+	return {"sections": sections, "remarks": saved.get(REMARKS_KEY) or ""}
+
+
+# ---------------------------------------------------------------------------
+# Review + Sync to Employee
+# ---------------------------------------------------------------------------
+
+# Address groups on Employee whose "_full" is rebuilt = village, commune, province.
+_ADDRESS_GROUPS = [
+	{
+		"province": "custom_current_address_province",
+		"commune": "custom_current_address_commune",
+		"village": "custom_current_address_village",
+		"full": "custom_current_address_full",
+	},
+	{
+		"province": "custom_permanent_address_province",
+		"commune": "custom_permanent_address_commune",
+		"village": "custom_permanent_address_village",
+		"full": "custom_permanent_address_full",
+	},
+	{
+		"province": "custom_place_of_origin_address_province",
+		"commune": "custom_place_of_origin_address_commune",
+		"village": "custom_place_of_origin_address_village",
+		"full": "custom_place_of_origin_address_full",
+	},
+]
+
+
+def _coerce_for_employee(value, fieldtype):
+	"""Convert a submitted (string) value to something safe for emp.set()."""
+	if value is None:
+		return None
+	sval = str(value).strip()
+	if sval == "":
+		# Empty → clear numeric/date/link fields; keep "" for text.
+		if fieldtype in ("Int", "Float", "Currency", "Date", "Datetime", "Time", "Link"):
+			return None
+		return ""
+	if fieldtype == "Check":
+		return 1 if sval in ("1", "true", "True", "on", "yes", "Có") else 0
+	if fieldtype == "Int":
+		return int(float(sval))
+	if fieldtype in ("Float", "Currency"):
+		return float(sval)
+	return sval
+
+
+def _rebuild_address_full(emp, changed_fieldnames):
+	"""Recompute custom_*_address_full = village + commune + province (like the
+	Employee form) for any address group whose parts were touched."""
+	for g in _ADDRESS_GROUPS:
+		if not any(g[k] in changed_fieldnames for k in ("province", "commune", "village")):
+			continue
+		parts = [emp.get(g["village"]), emp.get(g["commune"]), emp.get(g["province"])]
+		emp.set(g["full"], ", ".join([p for p in parts if p]))
+
+
+@frappe.whitelist()
+def review_forms(names):
+	"""Mark Submitted forms as Reviewed (required before syncing).
+
+	`names` = JSON list of Employee Self Update Info names.
+	Returns {reviewed, skipped, results:[{employee, ok, message}]}.
+	"""
+	_require_hr()
+	if isinstance(names, str):
+		names = json.loads(names or "[]")
+	if not names:
+		frappe.throw(_("No records selected."))
+
+	reviewed, skipped, results = 0, 0, []
+	for name in names:
+		doc = frappe.get_doc(INFO_DT, name)
+		if doc.status != "Submitted":
+			skipped += 1
+			results.append({"employee": doc.employee, "ok": False,
+				"message": _("Bỏ qua — trạng thái {0} (chỉ review được bản Submitted)").format(doc.status)})
+			continue
+		doc.status = "Reviewed"
+		doc.reviewed_on = now_datetime()
+		doc.reviewed_by = frappe.session.user
+		doc.save(ignore_permissions=True)
+		reviewed += 1
+		results.append({"employee": doc.employee, "ok": True, "message": _("Đã review")})
+	frappe.db.commit()
+	return {"reviewed": reviewed, "skipped": skipped, "results": results}
+
+
+@frappe.whitelist()
+def sync_to_employee(names):
+	"""Write reviewed submissions into the Employee record.
+
+	Only fields that exist on Employee (incl. custom_ fields) are written; custom
+	free-form fields and remarks are ignored. Only records with status = Reviewed
+	are synced. Each record is saved independently so one failure does not block
+	the rest. `names` = JSON list. Returns {synced, failed, skipped, results}.
+	"""
+	_require_hr()
+	if isinstance(names, str):
+		names = json.loads(names or "[]")
+	if not names:
+		frappe.throw(_("No records selected."))
+
+	config = _build_config()
+	# Real Employee fields only (non-custom, excluding identity fields).
+	emp_fields = {
+		f["fieldname"]: f
+		for sec in config["sections"]
+		for f in sec["fields"]
+		if not f.get("custom") and f["fieldname"] not in ("employee", "name")
+	}
+
+	synced, failed, skipped, results = 0, 0, 0, []
+	for name in names:
+		doc = frappe.get_doc(INFO_DT, name)
+		if doc.status != "Reviewed":
+			skipped += 1
+			results.append({"employee": doc.employee, "employee_name": doc.employee_name, "ok": False,
+				"message": _("Bỏ qua — cần Review trước khi Sync (trạng thái: {0})").format(doc.status)})
+			continue
+
+		saved = json.loads(doc.data_json or "{}")
+		try:
+			emp = frappe.get_doc("Employee", doc.employee)
+			meta = emp.meta
+			changed = []
+			for fn, f in emp_fields.items():
+				if fn not in saved:
+					continue
+				if not meta.has_field(fn):
+					continue  # field no longer on Employee
+				emp.set(fn, _coerce_for_employee(saved.get(fn), f["fieldtype"]))
+				changed.append(fn)
+			_rebuild_address_full(emp, set(changed))
+			emp.save(ignore_permissions=True)
+
+			doc.status = "Synced"
+			doc.synced_on = now_datetime()
+			doc.synced_by = frappe.session.user
+			doc.save(ignore_permissions=True)
+			frappe.db.commit()
+			synced += 1
+			results.append({"employee": doc.employee, "employee_name": doc.employee_name, "ok": True,
+				"message": _("Đã đồng bộ {0} trường").format(len(changed))})
+		except Exception as e:
+			frappe.db.rollback()
+			failed += 1
+			results.append({"employee": doc.employee, "employee_name": doc.employee_name, "ok": False,
+				"message": str(e)})
+	return {"synced": synced, "failed": failed, "skipped": skipped, "results": results}
