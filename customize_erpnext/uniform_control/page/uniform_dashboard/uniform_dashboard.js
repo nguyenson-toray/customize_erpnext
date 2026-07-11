@@ -34,6 +34,23 @@ frappe.pages['uniform-dashboard'].on_page_load = function (wrapper) {
 		<div class="uniform-dashboard" style="padding: 0 var(--padding-md);">
 			<div class="row" data-section="cards" style="margin-bottom: 15px;"></div>
 
+			<!-- Global filter bar — drives BOTH tables below (Stock Plan's Reissue
+			     Need column and the Employees Due for Issue list). Kept OUTSIDE the
+			     Stock Plan card so it doesn't read as a Stock-Plan-only filter. -->
+			<div class="row"><div class="col-12">
+				<div class="frappe-card" style="padding:10px 15px; margin-bottom:15px;">
+					<div class="d-flex justify-content-between align-items-center flex-wrap" style="gap:10px;">
+						<div class="d-flex align-items-center flex-wrap" style="gap:10px;">
+							<span style="font-size:var(--text-sm); font-weight:600; white-space:nowrap;">${__('Reissue due on/before')}</span>
+							<div data-due-before style="width:150px;"></div>
+							<button class="btn btn-xs btn-default" data-include-forecast>${__('Include Forecast Demand')}…</button>
+							<span class="text-muted" style="font-size:var(--text-sm);">${__('Applies to both tables: Stock Plan (Reissue Need) and Employees Due for Issue.')}</span>
+						</div>
+						<div class="text-muted" data-forecast-note style="font-size:var(--text-sm);"></div>
+					</div>
+				</div>
+			</div></div>
+
 			<!-- HERO: stock purchasing plan (collapsible, open by default) -->
 			<div class="row"><div class="col-12">
 				<div class="frappe-card" style="padding:15px; margin-bottom:15px;">
@@ -42,15 +59,7 @@ frappe.pages['uniform-dashboard'].on_page_load = function (wrapper) {
 							<h6 style="display:inline; margin:0;">${__('Stock Plan')}
 								<span class="text-muted" data-count="plan"></span></h6>
 						</summary>
-						<div class="d-flex justify-content-between align-items-center flex-wrap" style="gap:10px; margin:8px 0 10px;">
-							<div class="text-muted" data-forecast-note style="font-size:var(--text-sm);"></div>
-							<div class="d-flex align-items-center flex-wrap" style="gap:10px; margin-left:auto;">
-								<span class="text-muted" style="font-size:var(--text-sm); white-space:nowrap;">${__('Reissue due on/before')}</span>
-								<div data-due-before style="width:150px;"></div>
-								<button class="btn btn-xs btn-default" data-include-forecast>${__('Include Forecast Demand')}…</button>
-							</div>
-						</div>
-						<div data-table="plan"></div>
+						<div data-table="plan" style="margin-top:10px;"></div>
 					</details>
 				</div>
 			</div></div>
@@ -334,7 +343,9 @@ frappe.pages['uniform-dashboard'].on_page_load = function (wrapper) {
 
 	// ── Data loading ─────────────────────────────────────────────────────────
 	function load_due() {
-		const due_before = due_before_ctl.get_value() || null;
+		// Cleared date = today, matching the field's "Today" placeholder and the
+		// Excel export default (the server's own default would be today + 1 year).
+		const due_before = due_before_ctl.get_value() || frappe.datetime.get_today();
 		return frappe.call({
 			method: `${API}.uniform_api.get_due_items`,
 			args: { limit: 100000, due_before },

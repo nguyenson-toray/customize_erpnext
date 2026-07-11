@@ -641,3 +641,4 @@ Shoe,Dép
 Item Types to Forecast,Loại item cần dự toán
 Untick a type to leave it out of the forecast. Default: all types.,Bỏ tick loại nào thì loại đó không được tính vào dự toán. Mặc định: tất cả.
 Select at least one item type to forecast.,Chọn ít nhất một loại item để dự toán.
+Applies to both tables: Stock Plan (Reissue Need) and Employees Due for Issue.,Áp dụng cho cả 2 bảng: Stock Plan (cột Cần cấp lại) và Employees Due for Issue.
