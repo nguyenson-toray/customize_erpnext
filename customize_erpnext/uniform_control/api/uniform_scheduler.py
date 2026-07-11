@@ -28,45 +28,59 @@ def send_weekly_uniform_alert(force=False):
         alert_cutoff = add_days(today_date, reminder_days)
 
         from customize_erpnext.uniform_control.utils import (
-            is_managed_employee, get_rule_for_tracking,
+            get_rule_for_tracking, get_employee_id_prefix,
         )
 
         # ── Employees due for reissue (+ qty needed per variant) ──
+        # Scope by next_due_date ONLY: the stored `status` field is refreshed
+        # just on profile save, so it goes stale between saves and would
+        # silently drop rows that crossed the Due-Soon boundary since then.
+        # The date condition is exactly equivalent to a fresh status check.
+        prefix = get_employee_id_prefix()
+        prefix_cond = "AND p.employee LIKE %(prefix)s" if prefix else ""
+        due_items = frappe.db.sql(
+            f"""
+            SELECT p.employee, p.employee_name, p.department,
+                   eui.item_template, eui.next_due_date
+            FROM `tabEmployee Uniform Item` eui
+            INNER JOIN `tabEmployee Uniform Profile` p ON p.name = eui.parent
+            INNER JOIN `tabEmployee` e ON e.name = p.employee
+            WHERE eui.next_due_date IS NOT NULL AND eui.next_due_date <= %(cutoff)s
+              AND e.status = 'Active' {prefix_cond}
+            ORDER BY eui.next_due_date ASC
+            """,
+            {"cutoff": alert_cutoff, "prefix": f"{prefix}%"}, as_dict=True,
+        )
+
+        # Batch variant→template resolution (avoids one query per row)
+        variants = {di.item_template for di in due_items if di.item_template}
+        template_of = {}
+        if variants:
+            for it in frappe.get_all("Item", filters={"name": ["in", list(variants)]},
+                                     fields=["name", "variant_of"]):
+                template_of[it.name] = it.variant_of or it.name
+
         due_rows = []
         needed = {}  # variant item_code -> total qty needed next reissue
-        due_items = frappe.get_all(
-            "Employee Uniform Item",
-            filters={
-                # due-soon AND overdue: next_due on/before the reminder cutoff
-                "next_due_date": ["<=", alert_cutoff],
-                "status": ["in", ["Due Soon", "Overdue"]],
-            },
-            fields=["parent", "item_template", "next_due_date", "status"],
-            order_by="next_due_date asc",
-        )
+        rule_cache = {}  # (employee, template) -> rule
         for di in due_items:
-            profile = frappe.db.get_value(
-                "Employee Uniform Profile", di.parent,
-                ["employee", "employee_name", "department"], as_dict=True,
-            ) or {}
-            emp = profile.get("employee")
-            if not emp or not is_managed_employee(emp):
-                continue
-            if frappe.db.get_value("Employee", emp, "status") != "Active":
-                continue
             variant = di.item_template
-            template = frappe.db.get_value("Item", variant, "variant_of") or variant
-            rule = get_rule_for_tracking(template, emp, setting)
+            template = template_of.get(variant, variant)
+            key = (di.employee, template)
+            if key not in rule_cache:
+                rule_cache[key] = get_rule_for_tracking(template, di.employee, setting)
+            rule = rule_cache[key]
             qty = cint(rule.reissue_qty) if rule and not rule.one_time else 0
             needed[variant] = needed.get(variant, 0) + qty
             due_rows.append({
-                "employee": emp,
-                "employee_name": profile.get("employee_name"),
-                "department": profile.get("department"),
+                "employee": di.employee,
+                "employee_name": di.employee_name,
+                "department": di.department,
                 "item_template": variant,
                 "qty": qty,
                 "next_due_date": str(di.next_due_date),
-                "status": di.status,
+                # status derived from the date — always fresh
+                "status": "Overdue" if getdate(di.next_due_date) < today_date else "Due Soon",
             })
 
         # ── Stock: ALL U-Uniform stockable variants (include 0 qty) ──

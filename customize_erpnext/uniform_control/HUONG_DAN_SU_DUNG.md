@@ -193,9 +193,10 @@ Hồ sơ được tạo tự động khi nhân viên mới vào. HR mở **Emplo
 > ⚠️ **Cấp bậc (Grade) trên Employee** quyết định **áo sơ mi vs áo thun** (rule áo theo Grade×Gender). Nhân viên thiếu Grade → không khớp rule áo → bị bỏ qua khi cấp/dự toán. Nên đảm bảo Employee có Grade.
 
 **Công cụ hàng loạt (nút trên danh sách Employee Uniform Profile):**
-- **Create Missing Profiles** — tạo hồ sơ cho mọi NV Active còn thiếu.
+- **Create Missing Profiles** — tạo hồ sơ cho mọi NV Active còn thiếu. Tick **"Gồm cả nhân viên đã nghỉ"** để tạo cả cho NV đã nghỉ việc — dùng khi cần **import/lưu lịch sử cấp phát** (việc cấp phát cho NV không còn Active vẫn bị chặn như thường).
 - **Recompute Due Dates** — tính lại hạn kế tiếp + trạng thái toàn bộ (chạy **sau khi đổi Chu kỳ cấp lại** trong Rule).
 - **Sync Shoe Rack Locations** — đồng bộ vị trí để dép từ Shoe Rack.
+- **Seed Test Tracking** *(chỉ Administrator — công cụ test)* — sinh dữ liệu tracking mẫu cho toàn bộ hồ sơ: áo theo `shirt_item` đã gán (variant có size — tôn trọng Shirt Size nếu có, thiếu thì gán theo tỉ lệ S/M/L/XL và điền ngược vào hồ sơ), mũ/dép/bình theo rule, SL = First Issue Qty của rule. Dialog có 2 chế độ: **Insert to DB** (ghi thẳng, không tạo trùng) hoặc **Download Excel for import** (file snapshot đầy đủ đúng định dạng Data Import).
 
 **Ý nghĩa trạng thái** trong bảng theo dõi:
 
@@ -274,7 +275,8 @@ Vào **/app/uniform-dashboard** (tìm "Uniform Dashboard" trong thanh tìm kiế
   - **Cần forecast**: bấm **"Cộng nhu cầu dự toán…"** chọn 1+ Uniform Demand Forecast → cộng số lượng dự toán vào cột này.
     - Forecast kiểu **New Hires** → cộng bình thường; **không** đổi mốc "Đến hạn vào/trước" (giữ mốc bạn đang chọn).
     - Forecast kiểu **Re-issue / Both** (đã bao gồm nhu cầu cấp lại) → tự đặt mốc theo **To Date của forecast**, đồng thời **ẩn cột Cần re-issue** để **tránh tính lặp** (có ghi chú cam cảnh báo).
-  - Bảng dùng lưới chuẩn Frappe: **sắp xếp/lọc từng cột** ngay trên đầu cột.
+    - **Bỏ chọn forecast** không cần tải lại trang: bấm **✕ Bỏ chọn** ngay cạnh ghi chú, hoặc nút **Bỏ chọn** trong dialog → bảng quay về nhu cầu cấp lại tính đến hôm nay.
+  - Bảng dùng lưới chuẩn Frappe: **sắp xếp/lọc từng cột** ngay trên đầu cột; cả bảng **thu gọn/mở** được (mặc định mở).
 - **Bảng "Employees Due for Issue"** (thu gọn, bấm mở): mỗi NV/item kèm **SL/chu kỳ · Số chu kỳ · Tổng SL** trong khoảng lọc; click mã NV mở hồ sơ.
 - **2 biểu đồ**: số lượng cấp theo tháng và theo nhóm (Group).
 - **Nút thao tác**: Cấp phát, Nhập kho, Lịch sử, Hồ sơ, **Uniform Tracking**, **Demand Forecast** (dự toán), **Xuất Excel** (2 sheet: Kế hoạch nhập kho + NV đến hạn — theo đúng mốc lọc & forecast đang chọn).
@@ -282,6 +284,7 @@ Vào **/app/uniform-dashboard** (tìm "Uniform Dashboard" trong thanh tìm kiế
 ## 2.8 Theo dõi & cảnh báo
 
 - **Email thứ Hai 08:30 hàng tuần** gồm 2 bảng: variant tồn thấp cần nhập thêm, và nhân viên sắp/đã đến hạn cấp bổ sung.
+- Email tuần và thẻ KPI (Due Soon/Overdue) tính **trực tiếp theo Ngày đến hạn** của NV Active có mã đúng tiền tố — không phụ thuộc trạng thái lưu trên hồ sơ, nên **không bao giờ bỏ sót** dù hồ sơ lâu chưa được lưu lại. (Trạng thái hiển thị trên hồ sơ vẫn cập nhật mỗi khi save / bấm Recompute Due Dates.)
 - Danh sách nhân viên đến hạn cũng xem được bằng Excel (mục 2.7).
 
 ## 2.9 Báo cáo qua Excel (Power Query)

@@ -4,9 +4,9 @@ from frappe.utils import cint, today, add_months, date_diff, getdate
 
 from customize_erpnext.uniform_control.utils import (
     get_reissue_months,
-    get_rule_for_tracking,
     get_shoe_rack_for_employee,
     apply_default_rules,
+    load_active_rules,
 )
 
 
@@ -59,10 +59,25 @@ def _template_of(item):
 
 
 def tracking_field_for(employee, template, setting=None):
-    """Child table a tracking row belongs to: 'shirt_items' when the matching
-    Uniform Rule category is Shirt, else 'items' (caps, shoes, bottles, ...)."""
-    rule = get_rule_for_tracking(_template_of(template), employee, setting)
-    return "shirt_items" if (rule and rule.category == "Shirt") else "items"
+    """Child table a tracking row belongs to: 'shirt_items' for shirts, else
+    'items' (caps, shoes, bottles, ...).
+
+    "Is a shirt" is a property of the ITEM, so classify by item: the template
+    is any active Shirt rule's item, or the employee's assigned shirt_item.
+    (Matching the employee's own rule instead would mis-route shirts for
+    employees no Shirt rule matches — e.g. missing gender.)"""
+    tmpl = _template_of(template)
+    shirt_rule_items = {
+        r.item for r in load_active_rules() if r.category == "Shirt" and r.item
+    }
+    if tmpl in shirt_rule_items:
+        return "shirt_items"
+    shirt_item = frappe.db.get_value(
+        "Employee Uniform Profile", {"employee": employee}, "shirt_item"
+    ) if employee else None
+    if shirt_item and _template_of(shirt_item) == tmpl:
+        return "shirt_items"
+    return "items"
 
 
 def _compute_item_status(row, reminder_days=30):

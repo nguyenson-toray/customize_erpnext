@@ -626,3 +626,13 @@ Length in minutes of each peak window,Độ dài mỗi khung cao điểm tính b
 "Queue an attendance recalculation immediately when an Overtime Registration is submitted or cancelled (affected employees/dates only). When Include Draft OT Registrations is also ON, saving/deleting a Draft OTR recalculates too","Đưa vào hàng đợi tính lại chấm công ngay khi phiếu Đăng ký tăng ca được submit hoặc hủy (chỉ nhân viên/ngày bị ảnh hưởng). Khi bật thêm Tính cả phiếu OT nháp thì lưu/xóa phiếu Nháp cũng tính lại"
 Shirts,Áo
 Other Items,Item khác
+Insert to DB,Ghi vào CSDL
+Download Excel for import,Tải Excel để import
+Action,Hành động
+Run,Chạy
+Excel is laid out for Data Import into Employee Uniform Profile (Update Existing Records).,Excel được định dạng để Data Import vào Employee Uniform Profile (Update Existing Records).
+Include left employees,Gồm cả nhân viên đã nghỉ
+"Also create profiles for employees who have left — keeps their issuance history importable. Allocations to non-Active employees stay blocked.","Tạo profile cả cho nhân viên đã nghỉ — để import/lưu lịch sử cấp phát. Việc cấp phát cho nhân viên không còn Active vẫn bị chặn."
+Create,Tạo
+Created {0} profile(s) of {1} employees.,Đã tạo {0} profile trên {1} nhân viên.
+Clear Selection,Bỏ chọn

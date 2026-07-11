@@ -162,13 +162,30 @@ def get_dashboard_summary():
         and flt(b.actual_qty) <= reorder_levels[b.item_code]
     )
 
-    # Due / overdue employees
-    due_soon = frappe.db.count(
-        "Employee Uniform Item", {"status": "Due Soon"}
-    )
-    overdue = frappe.db.count(
-        "Employee Uniform Item", {"status": "Overdue"}
-    )
+    # Due / overdue — computed from next_due_date (the stored `status` field is
+    # only refreshed on profile save, so it goes stale between saves), and
+    # scoped to Active managed employees like the due list itself.
+    from customize_erpnext.uniform_control.utils import get_employee_id_prefix
+
+    setting_reminder = cint(
+        frappe.db.get_single_value("Uniform Setting", "reminder_days_before")
+    ) or 30
+    prefix = get_employee_id_prefix()
+    prefix_cond = "AND p.employee LIKE %(prefix)s" if prefix else ""
+    due_soon, overdue = frappe.db.sql(
+        f"""
+        SELECT
+            SUM(eui.next_due_date >= %(today)s AND eui.next_due_date <= %(cutoff)s),
+            SUM(eui.next_due_date < %(today)s)
+        FROM `tabEmployee Uniform Item` eui
+        INNER JOIN `tabEmployee Uniform Profile` p ON p.name = eui.parent
+        INNER JOIN `tabEmployee` e ON e.name = p.employee
+        WHERE eui.next_due_date IS NOT NULL
+          AND e.status = 'Active' {prefix_cond}
+        """,
+        {"today": today(), "cutoff": add_days(today(), setting_reminder),
+         "prefix": f"{prefix}%"},
+    )[0]
 
     # Recent allocations (last 30 days)
     recent_allocs = frappe.db.count(

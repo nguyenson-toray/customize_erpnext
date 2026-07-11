@@ -34,20 +34,24 @@ frappe.pages['uniform-dashboard'].on_page_load = function (wrapper) {
 		<div class="uniform-dashboard" style="padding: 0 var(--padding-md);">
 			<div class="row" data-section="cards" style="margin-bottom: 15px;"></div>
 
-			<!-- HERO: stock purchasing plan -->
+			<!-- HERO: stock purchasing plan (collapsible, open by default) -->
 			<div class="row"><div class="col-12">
 				<div class="frappe-card" style="padding:15px; margin-bottom:15px;">
-					<div class="d-flex justify-content-between align-items-center flex-wrap" style="gap:10px; margin-bottom:10px;">
-						<h6 style="margin:0;">${__('Stock Plan')}
-							<span class="text-muted" data-count="plan"></span></h6>
-						<div class="d-flex align-items-center flex-wrap" style="gap:10px;">
-							<span class="text-muted" style="font-size:var(--text-sm); white-space:nowrap;">${__('Reissue due on/before')}</span>
-							<div data-due-before style="width:150px;"></div>
-							<button class="btn btn-xs btn-default" data-include-forecast>${__('Include Forecast Demand')}…</button>
+					<details data-section="plan" open>
+						<summary style="cursor:pointer; user-select:none;">
+							<h6 style="display:inline; margin:0;">${__('Stock Plan')}
+								<span class="text-muted" data-count="plan"></span></h6>
+						</summary>
+						<div class="d-flex justify-content-between align-items-center flex-wrap" style="gap:10px; margin:8px 0 10px;">
+							<div class="text-muted" data-forecast-note style="font-size:var(--text-sm);"></div>
+							<div class="d-flex align-items-center flex-wrap" style="gap:10px; margin-left:auto;">
+								<span class="text-muted" style="font-size:var(--text-sm); white-space:nowrap;">${__('Reissue due on/before')}</span>
+								<div data-due-before style="width:150px;"></div>
+								<button class="btn btn-xs btn-default" data-include-forecast>${__('Include Forecast Demand')}…</button>
+							</div>
 						</div>
-					</div>
-					<div class="text-muted" data-forecast-note style="font-size:var(--text-sm); margin-bottom:6px;"></div>
-					<div data-table="plan"></div>
+						<div data-table="plan"></div>
+					</details>
 				</div>
 			</div></div>
 
@@ -143,9 +147,10 @@ frappe.pages['uniform-dashboard'].on_page_load = function (wrapper) {
 	let selected_forecasts = [];  // names of the included forecasts (for export)
 	let forecast_has_reissue = false;  // a selected forecast already includes reissue
 	let plan_dt = null;
+	let plan_data = [];
 
 	function build_plan() {
-		const data = stock_rows.map((x) => {
+		plan_data = stock_rows.map((x) => {
 			// A Re-issue/Both forecast already contains reissue demand → don't add
 			// the dashboard's own reissue on top (would double-count).
 			const reissue = forecast_has_reissue ? 0 : flt(needed_map[x.item_code]);
@@ -156,10 +161,17 @@ frappe.pages['uniform-dashboard'].on_page_load = function (wrapper) {
 				reissue, forecast, total, total - flt(x.actual_qty),
 			];
 		});
-		$body.find('[data-count="plan"]').text(data.length ? `(${data.length})` : '');
-		if (!plan_dt) plan_dt = make_dt($body.find('[data-table="plan"]')[0], PLAN_COLS);
-		plan_dt.refresh(data, PLAN_COLS);
+		$body.find('[data-count="plan"]').text(plan_data.length ? `(${plan_data.length})` : '');
+		refresh_plan_dt();
 	}
+
+	// DataTable needs a visible container — rebuild when the <details> reopens.
+	function refresh_plan_dt() {
+		if (!$body.find('details[data-section="plan"]').prop('open')) return;
+		if (!plan_dt) plan_dt = make_dt($body.find('[data-table="plan"]')[0], PLAN_COLS);
+		plan_dt.refresh(plan_data, PLAN_COLS);
+	}
+	$body.find('details[data-section="plan"]').on('toggle', refresh_plan_dt);
 
 	// ── Employees due (lazy — built when the <details> is first opened, since a
 	// DataTable needs a visible container to size itself) ──────────────────────
@@ -205,6 +217,21 @@ frappe.pages['uniform-dashboard'].on_page_load = function (wrapper) {
 	due_before_ctl.set_value(frappe.datetime.get_today());
 	due_before_ctl.$input.on('change', () => load_due());
 
+	// Drop the included forecast demand — back to today's reissue only.
+	// (No page reload needed: state is reset and the plan is recomputed.)
+	function clear_forecasts() {
+		selected_forecasts = [];
+		forecast_needed = {};
+		forecast_has_reissue = false;
+		$body.find('[data-forecast-note]').empty().css('color', '');
+		due_before_ctl.set_value(frappe.datetime.get_today());
+		load_due();
+	}
+	$body.on('click', '[data-clear-forecast]', function (e) {
+		e.preventDefault();
+		clear_forecasts();
+	});
+
 	// Include selected Uniform Demand Forecast(s) into the plan's Forecast Need.
 	$body.find('[data-include-forecast]').on('click', () => {
 		const dialog = new frappe.ui.Dialog({
@@ -222,12 +249,7 @@ frappe.pages['uniform-dashboard'].on_page_load = function (wrapper) {
 				selected_forecasts = names;
 				const note = $body.find('[data-forecast-note]');
 				if (!names.length) {
-					// Cleared → back to today's reissue demand only
-					forecast_needed = {};
-					forecast_has_reissue = false;
-					note.text('');
-					due_before_ctl.set_value(frappe.datetime.get_today());
-					load_due();
+					clear_forecasts();
 					return;
 				}
 				frappe.call({
@@ -248,9 +270,16 @@ frappe.pages['uniform-dashboard'].on_page_load = function (wrapper) {
 					} else {
 						note.css('color', '');
 					}
-					note.text(txt);
+					note.html(
+						`${esc(txt)} <a href="#" data-clear-forecast style="margin-left:6px; white-space:nowrap;">✕ ${__('Clear Selection')}</a>`
+					);
 					load_due();   // recompute reissue up to the forecast's To Date, then build_plan
 				});
+			},
+			secondary_action_label: __('Clear Selection'),
+			secondary_action() {
+				dialog.hide();
+				clear_forecasts();
 			},
 		});
 		dialog.show();

@@ -1,10 +1,11 @@
-"""Uniform demand forecast for planned new hires, driven by an HRMS Staffing Plan.
-
-Headcount per designation comes from the Staffing Plan (vacancies / positions).
-Staffing Plan has no gender/size, while Uniform Rules + variants do — so gender
-split and size mix are inferred from CURRENT employees in the same designation
-(fallback: by gender only, then company-wide). Output = demand per item variant
-vs current stock. HR can then edit forecast_qty manually."""
+"""Uniform demand forecast — three modes on one document:
+  - New Hires: HR enters designation + headcount lines (Recruitment Plan);
+    gender split and size mix are inferred from CURRENT employees of the same
+    designation (fallback: by gender only, then company-wide);
+  - Re-issue: upcoming multi-cycle reissue demand up to To Date (reissue_demand);
+  - Both: the sum of the two.
+Output = demand per item variant vs current stock. HR can then edit
+forecast_qty manually."""
 import re
 
 import frappe
