@@ -411,14 +411,10 @@ doc_events = {
 # ------------------
 
 # include js, css files in header of desk.html
-# Include Cropper.js library for image cropping
-app_include_css = [
-    "https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css"
-]
-
+# Cropper.js KHÔNG include toàn cục nữa — employee.js tự lazy-load bản
+# self-host tại /assets/customize_erpnext/cropperjs/ khi mở dialog crop
 app_include_js = [
-    "/assets/customize_erpnext/js/fingerprint_scanner_dialog.js",
-    "https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"
+    "/assets/customize_erpnext/js/fingerprint_scanner_dialog.js"
 ]
 
 # Include CSS and JS files in web pages (including web forms)

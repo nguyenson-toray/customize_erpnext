@@ -2137,7 +2137,7 @@ function show_update_employee_photo_dialog(listview) {
                         <input type="file" id="employee-photo-input" multiple accept="image/*"
                                class="form-control" style="height: auto; padding: 6px 12px;">
                         <p class="help-box small text-muted">
-                            ${__('Select multiple photos. File name must start with the employee code followed by a space. Example: TIQN-0003 Nguyen Van A.jpg')}
+                            ${__('Select multiple photos. File name must start with the employee code followed by a space. Example: "TIQN-0003 Nguyen Van A.jpg". Digits only also works — "0003 Nguyen Van A.jpg" is treated as TIQN-0003')}
                         </p>
                     </div>
                 `
@@ -2206,7 +2206,18 @@ function show_update_employee_photo_dialog(listview) {
             let employeeCode = fileName.replace(/\.[^.]+$/, '').trim().split(/\s+/)[0].toUpperCase();
             // Strip trailing junk after the code (e.g. "TIQN-2267." / "TIQN-2267_A" → "TIQN-2267")
             const codeMatch = employeeCode.match(/^([A-Z]+-\d+)/);
-            if (codeMatch) employeeCode = codeMatch[1];
+            if (codeMatch) {
+                employeeCode = codeMatch[1];
+            } else {
+                // Numeric-only code also gets junk stripped: "0148.A" → "0148"
+                const numMatch = employeeCode.match(/^(\d+)/);
+                if (numMatch) employeeCode = numMatch[1];
+            }
+            // Digits only ("0148") → default to TIQN-0148
+            // (normalize BEFORE dedupe so "0148 A.jpg" and "TIQN-0148 B.jpg" count as duplicates)
+            if (/^\d+$/.test(employeeCode)) {
+                employeeCode = 'TIQN-' + employeeCode.padStart(4, '0');
+            }
 
             if (!employeeCode) {
                 results.errors.push({ file: fileName, error: __('Cannot extract employee code from file name') });
@@ -2224,7 +2235,7 @@ function show_update_employee_photo_dialog(listview) {
 
             processed_codes.add(employeeCode);
 
-            // Find employee by exact code (first token of file name)
+            // Find employee by exact code
             await new Promise(resolve => {
                 frappe.call({
                     method: 'frappe.client.get_list',

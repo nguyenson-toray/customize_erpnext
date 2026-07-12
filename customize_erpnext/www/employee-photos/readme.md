@@ -16,6 +16,10 @@ public/bg_removal/     # Model @imgly (~211MB, phục vụ local)
 ├── resources.json
 └── <58 chunk files>   # hash-named binary chunks
 
+public/cropperjs/      # Cropper.js 1.6.2 self-host (không dùng CDN)
+├── cropper.min.js
+└── cropper.min.css
+
 public/face_api/       # Model face-api.js (vladmandic)
 ├── face-api.esm.js    # ~1.3MB (bundle TF.js + WebGL)
 └── models/
@@ -101,11 +105,15 @@ openUploadDialog(photo)
 **B. Upload hàng loạt (global upload)**
 ```
 handleGlobalPhotoUpload(files)
-  → mỗi file: lấy mã TIQN-XXXX từ tên file
+  → mỗi file: mã NV = từ ĐẦU TIÊN của tên file (tách theo dấu cách, bỏ phần mở rộng)
   → uploadEmployeePhoto(employeeId, dataUrl)
 ```
 
-Tên file phải có format: `TIQN-0001 Nguyen Van A.jpg`
+Quy tắc tên file (áp dụng cả ở Employee List → Update Employee Photo):
+- `TIQN-0148 Nguyễn Thái Sơn.jpg` → `TIQN-0148`
+- **Chỉ số** `0148 xxx.jpg` / `148 xxx.jpg` → tự hiểu là `TIQN-0148` (padStart 4 số)
+- Ký tự thừa dính sau mã bị cắt: `0148.Nguyen.jpg`, `TIQN-2267_A.jpg` vẫn nhận đúng mã
+- Mã đầy đủ không có trong cache (nhân viên mới) → **vẫn upload**, server validate
 
 **C. Qua Photo Editor (nút Edit)**
 ```
@@ -310,18 +318,22 @@ segCv     ← canvas tạm (không dùng sau khi chuyển sang @imgly)
 ### `process_employee_photo(employee_id, employee_name, image_data, remove_bg)`
 
 ```
-1. Decode base64 → PIL Image
-2. Convert sang RGB (bỏ alpha nếu có)
-3. Resize → 600×800px (LANCZOS)
-4. Lưu JPEG quality=85 vào:
-   {site}/public/files/employee_photos/{employee_id} {employee_name}.jpg
-5. Xóa file cũ + File documents cũ trong DB
-6. Tạo File document mới trong Frappe
-7. Cập nhật field `image` trên Employee record
+1. Decode base64 → PIL Image (JPEG hoặc PNG — PNG giữ nền trong suốt)
+2. Convert mode phù hợp (JPEG: bỏ alpha; PNG: giữ RGBA)
+3. Kích thước:
+   - Đã đúng 600×800 → bỏ qua resample (batch/editor gửi sẵn 600×800)
+   - Sai tỷ lệ (VD 9:16) → ImageOps.fit center-crop 3:4, centering=(0.5, 0.4)
+   - Đúng 3:4 khác cỡ → resize LANCZOS
+4. employee_name lấy từ DB theo employee_id (param client chỉ là fallback);
+   employee không tồn tại → frappe.throw
+5. GHI FILE MỚI TRƯỚC: {site}/public/files/employee_photos/{employee_id} {employee_name}.{jpg|png}
+6. Rồi mới dọn file cũ (File docs + glob orphan cả *.jpg và *.png, chừa file vừa ghi)
+7. Tạo File document mới, cập nhật Employee.image, commit
 8. Return { status: 'success', file_url: '...', file_name: '...' }
 ```
 
 Response key là `file_url` (không phải `new_file_url`).
+Đã XÓA (dead code): `upload_employee_image`, `update_employee_photo`.
 
 ---
 
@@ -379,9 +391,10 @@ Lock tự hết hạn sau 10 phút nếu client bị crash không release.
 ### RAM Management
 
 - **Dynamic RAM guard**: sau mỗi inference birefnet, nếu RAM > 70% → evict session ngay lập tức.
-- **Post-batch eviction**: `batch_rembg_release_lock` xóa session + set `_REMBG_EVICT_KEY` để tất cả workers evict lazy.
-- **Manual eviction**: nút **Làm mới** (refresh) gọi `cleanup_rembg_worker()` × (worker_count × 2) lần — đảm bảo hit tất cả workers theo round-robin.
-- **Idle eviction**: sau 15 phút không có inference → scheduler set evict flag, workers evict khi nhận request tiếp theo.
+- **Keep-warm** (2026-07): `batch_rembg_release_lock` chỉ nhả lock, KHÔNG evict; đóng batch modal cũng KHÔNG evict — model giữ warm cho lượt kế tiếp, tránh cold-start birefnet ~30-60s.
+- **Manual eviction**: nút **Làm mới** (refresh) gọi `cleanup_rembg_worker()` × (worker_count × 2) lần — cách duy nhất evict chủ động.
+- **Idle eviction**: sau 30 phút không có inference → scheduler set evict flag, workers evict khi nhận request tiếp theo.
+- **Warm-up khi mở batch modal**: `prepareBatchAi()` chiếm lock sớm + gửi ảnh 32×32 (birefnet: 2 request warm 2 worker) — model load ngầm trong lúc user chỉnh crop; chip `#batchAiStatus` hiển thị trạng thái. Chiếm lock sớm cũng tránh warm-up bị single-edit guard chặn lock lúc bấm xử lý.
 
 ### Warm-up birefnet-portrait
 
@@ -404,7 +417,7 @@ cd /home/frappe/frappe-bench
 | Face detect thất bại | Console `[runAutoPipeline] face detect failed` → crop thủ công |
 | Nút Edit/Delete không hiện sau upload | `refreshPhotoCardImage` dùng `addEventListener` (không phải setAttribute) |
 | Nền bị màu drift sau enhance | Kiểm tra logic restore alpha trong `continueAutoPipeline` |
-| Upload hàng loạt bỏ qua file | Tên file phải bắt đầu bằng `TIQN-XXXX` |
+| Upload hàng loạt bỏ qua file | Từ đầu tiên của tên file phải là mã NV (`TIQN-0148`/`0148`); xem 2.4-B |
 | Camera không hoạt động | Cần HTTPS, kiểm tra `navigator.mediaDevices` |
 | postMessage không nhận | Kiểm tra `EDITOR_READY` → `sendToEditor()` flow |
 
@@ -467,9 +480,12 @@ Footer bước 1 gồm:
   - `birefnet-portrait` → **2** (2 × 20 GB ≈ 40 GB, safe trên 64 GB)
   - `u2net` → **10** (10 × 500 MB ≈ 5 GB)
 
-- **Giới hạn**: tối đa **10 ảnh** mỗi lần batch.
-
-> **Lý do giới hạn 10 ảnh**: Giới hạn 10 ảnh + concurrent=2 kiểm soát số workers bị load birefnet. OOM thực tế xảy ra với 12 ảnh (3 workers × 20 GB = 60 GB > 64 GB).
+- **Giới hạn**: tối đa **20 ảnh** mỗi lần batch (2026-07, sau khi nâng onnxruntime 1.27 — u2net ~0.33s/ảnh).
+  - Chọn **>10 ảnh + birefnet** → hộp confirm báo thời gian ước tính và gợi ý u2net (không ép).
+  - RAM guard 70% server-side vẫn là chốt chặn OOM cuối (từng OOM với 3 workers birefnet × 20 GB).
+- **Settings nhớ lại** (localStorage): `ep_bg_engine`, `ep_rembg_model`, `ep_batch_bg`.
+- **Phím tắt**: `Enter` = lưu ảnh đã duyệt (bước 2); `Esc` = đóng (confirm nếu đang xử lý).
+- **So sánh trước/sau**: giữ nút `👁 Gốc` trên card bước 2 → hiện ảnh crop gốc.
 
 **Bước 2 — Duyệt kết quả:**
 - Mỗi ảnh được xử lý: canvas crop → remove bg (AI) → white bg → beautify
@@ -481,16 +497,18 @@ Footer bước 1 gồm:
 
 ```
 applyCropToPhoto(url, sx, sy, sw, sh)
-  → canvas drawImage → 600×800 JPEG (croppedDataUrl)
+  → canvas drawImage → 600×800, trả { canvas, isPng } (KHÔNG encode JPEG trung gian)
 
-processPhotoFull(croppedDataUrl)
-  → batchRemoveBg(imageData)   — @imgly, publicPath local CDN
-  → composite on #f0f0f0 background
-  → _batchAnalyzeDeep(imageData) → params
-  → _batchApplyFilters(imageData, params)
-  → return JPEG dataUrl
+processPhotoFull({ canvas, isPng })
+  → ImageData trực tiếp từ canvas (lossless)
+  → xóa nền: rembg (server, mặc định) hoặc @imgly (client)
+    — PNG trong suốt / nền trắng sẵn → bỏ qua bước AI
+  → composite lên màu nền đã chọn
+  → analyzeDeep → applyFilters (beautify)
+  → return JPEG dataUrl quality 0.95 (+ rawDataUrl, bgRemovedDataUrl, origDataUrl)
 
-callFrappeMethod(process_employee_photo, { image_data: processedDataUrl, remove_bg: 0 })
+saveBatchApproved() — song song 4 request
+  → callFrappeMethod(process_employee_photo, { image_data, remove_bg: 0 })
   → save to server → return file_url
 ```
 

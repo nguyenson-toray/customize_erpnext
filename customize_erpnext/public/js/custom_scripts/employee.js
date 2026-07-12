@@ -2,6 +2,34 @@
 // import apps/customize_erpnext/customize_erpnext/public/js/shared_fingerprint_sync.js
 // import apps/customize_erpnext/customize_erpnext/public/js/photo_crop_shared.js
 
+// Lazy-load Cropper.js (self-hosted, không phụ thuộc CDN) khi cần crop ảnh
+function ensure_cropperjs() {
+    return new Promise((resolve, reject) => {
+        if (typeof Cropper !== 'undefined') return resolve();
+        if (!document.getElementById('cropperjs-css')) {
+            const l = document.createElement('link');
+            l.id = 'cropperjs-css';
+            l.rel = 'stylesheet';
+            l.href = '/assets/customize_erpnext/cropperjs/cropper.min.css';
+            document.head.appendChild(l);
+        }
+        let s = document.getElementById('cropperjs-js');
+        if (s) {
+            // Script đang load từ lượt gọi trước
+            s.addEventListener('load', () => resolve());
+            s.addEventListener('error', () => reject(new Error('Cropper.js load failed')));
+            if (typeof Cropper !== 'undefined') resolve();
+            return;
+        }
+        s = document.createElement('script');
+        s.id = 'cropperjs-js';
+        s.src = '/assets/customize_erpnext/cropperjs/cropper.min.js';
+        s.onload = () => resolve();
+        s.onerror = () => reject(new Error('Cropper.js load failed'));
+        document.head.appendChild(s);
+    });
+}
+
 // Ensure FingerprintScannerDialog is available
 function ensureFingerprintModule() {
     return new Promise((resolve) => {
@@ -660,37 +688,35 @@ function show_crop_dialog(frm, imageDataUrl) {
 
         const image = document.getElementById('image-to-crop');
 
-        // Check if Cropper.js is available
-        if (typeof Cropper === 'undefined') {
+        // Lazy-load Cropper.js (local asset) rồi khởi tạo — không cần include toàn cục
+        ensure_cropperjs().then(function () {
+            dialog.cropper_instance = new Cropper(image, {
+                aspectRatio: 3 / 4,  // Fixed 3:4 ratio
+                viewMode: 1,
+                dragMode: 'move',
+                autoCropArea: 0.85,
+                restore: false,
+                guides: true,
+                center: true,
+                highlight: false,
+                cropBoxMovable: true,
+                cropBoxResizable: true,
+                toggleDragModeOnDblclick: false,
+                responsive: true,
+                background: true,
+                modal: true,
+                zoomable: true,
+                zoomOnTouch: true,
+                zoomOnWheel: true,
+                wheelZoomRatio: 0.1,
+            });
+        }).catch(function () {
             frappe.msgprint({
                 title: __('Library Not Loaded'),
                 message: __('Cropper.js not loaded. Please refresh and try again.'),
                 indicator: 'red'
             });
             dialog.hide();
-            return;
-        }
-
-        // Initialize Cropper.js with 3:4 aspect ratio
-        dialog.cropper_instance = new Cropper(image, {
-            aspectRatio: 3 / 4,  // Fixed 3:4 ratio
-            viewMode: 1,
-            dragMode: 'move',
-            autoCropArea: 0.85,
-            restore: false,
-            guides: true,
-            center: true,
-            highlight: false,
-            cropBoxMovable: true,
-            cropBoxResizable: true,
-            toggleDragModeOnDblclick: false,
-            responsive: true,
-            background: true,
-            modal: true,
-            zoomable: true,
-            zoomOnTouch: true,
-            zoomOnWheel: true,
-            wheelZoomRatio: 0.1,
         });
 
         // Detect PNG transparency and show color picker if needed

@@ -15,11 +15,40 @@
             box-sizing: border-box;
         }
 
+        /* ── Design tokens ──
+           "Denim" #2f5da8: màu chỉ xanh ngành may — primary duy nhất của trang.
+           ok/warn/danger chỉ dùng cho trạng thái ảnh, không trang trí. */
+        :root {
+            --bg: #f4f6f9;
+            --surface: #ffffff;
+            --ink: #1c2733;
+            --ink-2: #5a6876;
+            --line: #e3e8ee;
+            --primary: #2f5da8;
+            --primary-strong: #27508f;
+            --primary-tint: rgba(47, 93, 168, 0.08);
+            --ok: #1e9e6a;
+            --ok-tint: rgba(30, 158, 106, 0.1);
+            --warn: #c97e16;
+            --warn-tint: rgba(201, 126, 22, 0.12);
+            --danger: #d64545;
+            --radius: 10px;
+            --shadow-1: 0 1px 3px rgba(28, 39, 51, 0.08);
+            --shadow-2: 0 6px 18px rgba(28, 39, 51, 0.12);
+        }
+
         body {
             font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            background: #f5f7fa;
+            background: var(--bg);
             padding: 20px;
-            color: #2e3842;
+            color: var(--ink);
+        }
+
+        /* Số liệu luôn thẳng cột */
+        .chip-stat b,
+        .coverage-label,
+        .file-info {
+            font-variant-numeric: tabular-nums;
         }
 
         .container {
@@ -28,17 +57,64 @@
         }
 
         .header {
-            background: white;
-            padding: 20px 30px;
-            border-radius: 8px;
+            background: var(--surface);
+            padding: 18px 30px 20px;
+            border-radius: var(--radius);
             margin-bottom: 20px;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            box-shadow: var(--shadow-1);
+            border-top: 3px solid var(--primary);
         }
 
         h1 {
-            color: #2e3842;
-            font-size: 24px;
+            color: var(--ink);
+            font-size: 22px;
+            font-weight: 700;
+            letter-spacing: -0.01em;
             margin-bottom: 10px;
+        }
+
+        /* ── Coverage bar: thanh độ phủ ảnh — việc chính của trang là lấp phần cam ── */
+        .coverage {
+            flex: 1;
+            min-width: 220px;
+            max-width: 420px;
+        }
+
+        .coverage-track {
+            height: 8px;
+            border-radius: 4px;
+            background: var(--warn-tint);
+            overflow: hidden;
+        }
+
+        .coverage-fill {
+            height: 100%;
+            width: 0%;
+            border-radius: 4px;
+            background: linear-gradient(90deg, var(--primary), #3f74c9);
+            transition: width .6s cubic-bezier(.22, 1, .36, 1);
+        }
+
+        .coverage-label {
+            margin-top: 6px;
+            font-size: 12px;
+            color: var(--ink-2);
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .coverage-label b {
+            color: var(--ink);
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+
+            .coverage-fill,
+            .photo-card,
+            .photo-card img {
+                transition: none !important;
+            }
         }
 
         .stats {
@@ -85,9 +161,9 @@
         }
 
         .chip-stat.info {
-            background: rgba(79, 142, 255, 0.1);
-            color: #1a56cc;
-            border-color: rgba(79, 142, 255, 0.2);
+            background: var(--primary-tint);
+            color: var(--primary);
+            border-color: rgba(47, 93, 168, 0.25);
         }
 
         .search-box {
@@ -177,7 +253,7 @@
         }
 
         input:checked+.slider {
-            background-color: #4f8eff;
+            background-color: var(--primary);
         }
 
         input:checked+.slider:before {
@@ -199,14 +275,14 @@
         }
 
         .control-group button#btnGlobalUpload {
-            background-color: #4f8eff;
+            background-color: var(--primary);
             color: white;
-            border-color: #3b7dec;
+            border-color: var(--primary-strong);
         }
 
         .control-group button#btnGlobalUpload:hover {
-            background-color: #3b7dec;
-            box-shadow: 0 4px 12px rgba(79, 142, 255, 0.25);
+            background-color: var(--primary-strong);
+            box-shadow: 0 4px 12px rgba(47, 93, 168, 0.25);
         }
 
         .control-group button#refreshBtn {
@@ -227,7 +303,7 @@
 
         .spinner {
             border: 3px solid #f3f3f3;
-            border-top: 3px solid #5e64ff;
+            border-top: 3px solid var(--primary);
             border-radius: 50%;
             width: 40px;
             height: 40px;
@@ -265,9 +341,9 @@
             grid-template-columns: repeat(auto-fill, minmax(var(--card-min, 200px), 1fr));
             gap: 20px;
             padding: 20px;
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            background: var(--surface);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow-1);
         }
 
         @media (min-width: 1400px) {
@@ -298,7 +374,7 @@
 
         .photo-card:hover {
             transform: translateY(-4px);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            box-shadow: var(--shadow-2);
         }
 
         .photo-card .photo-img-wrap {
@@ -489,7 +565,7 @@
 
         .edit-btn:hover,
         .upload-btn:hover {
-            background: rgba(79, 142, 255, 0.9);
+            background: rgba(47, 93, 168, 0.9);
             transform: scale(1.1);
         }
 
@@ -645,7 +721,7 @@
         }
 
         .editor-modal-title .emp-name {
-            color: #4f8eff;
+            color: var(--primary);
             font-family: monospace;
         }
 
@@ -782,7 +858,7 @@
         }
 
         .upload-modal-box h3 .emp-label {
-            color: #4f8eff;
+            color: var(--primary);
             font-family: monospace;
             font-size: 13px;
             font-weight: normal;
@@ -831,8 +907,8 @@
 
         .upload-choice-btn:hover {
             background: #252b35;
-            border-color: #4f8eff;
-            color: #4f8eff;
+            border-color: var(--primary);
+            color: var(--primary);
         }
 
         /* Camera modal */
@@ -865,7 +941,7 @@
 
         .btn-capture {
             padding: 9px 22px;
-            background: #4f8eff;
+            background: var(--primary);
             color: white;
             border: none;
             border-radius: 7px;
@@ -1119,7 +1195,7 @@
             right: 30px;
             width: 50px;
             height: 50px;
-            background: #4f8eff;
+            background: var(--primary);
             color: white;
             border: none;
             border-radius: 50%;
@@ -1127,7 +1203,7 @@
             display: none;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 4px 15px rgba(79, 142, 255, 0.4);
+            box-shadow: 0 4px 15px rgba(47, 93, 168, 0.4);
             z-index: 1000;
             /* Lower than editor Modal (9999) */
             transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
@@ -1154,8 +1230,8 @@
 
         .back-to-top:hover {
             transform: translateY(-5px) scale(1.1);
-            background: #3b7dec;
-            box-shadow: 0 6px 20px rgba(79, 142, 255, 0.5);
+            background: var(--primary-strong);
+            box-shadow: 0 6px 20px rgba(47, 93, 168, 0.5);
         }
 
         .back-to-top:active {
@@ -1167,13 +1243,13 @@
            ═══════════════════════════════════════════ */
         .btn-multi-select {
             padding: 8px 16px;
-            border: 1px solid #4f8eff;
+            border: 1px solid var(--primary);
             border-radius: 6px;
             font-size: 13px;
             font-weight: 500;
             cursor: pointer;
             background-color: white;
-            color: #4f8eff;
+            color: var(--primary);
             transition: all 0.2s;
             display: flex;
             align-items: center;
@@ -1182,7 +1258,7 @@
 
         .btn-multi-select:hover,
         .btn-multi-select.active {
-            background-color: #4f8eff;
+            background-color: var(--primary);
             color: white;
         }
 
@@ -1197,7 +1273,7 @@
         }
 
         .gallery.multi-select-active .photo-card.selected {
-            outline: 3px solid #4f8eff;
+            outline: 3px solid var(--primary);
             outline-offset: 2px;
             transform: scale(0.97);
         }
@@ -1232,8 +1308,8 @@
         }
 
         .photo-card.selected .card-select-overlay {
-            background: #4f8eff;
-            border-color: #4f8eff;
+            background: var(--primary);
+            border-color: var(--primary);
             color: white;
         }
 
@@ -1279,7 +1355,7 @@
         }
 
         .bulk-count span {
-            color: #4f8eff;
+            color: var(--primary);
             font-size: 18px;
             font-weight: 700;
         }
@@ -1311,8 +1387,8 @@
 
         .btn-bulk-download {
             background: #1e2229;
-            color: #4f8eff;
-            border: 1px solid #4f8eff;
+            color: var(--primary);
+            border: 1px solid var(--primary);
         }
 
         .btn-bulk-download:not(:disabled):hover {
@@ -1320,7 +1396,7 @@
         }
 
         .btn-bulk-id {
-            background: linear-gradient(135deg, #4f8eff, #00d4b0);
+            background: linear-gradient(135deg, var(--primary), #00d4b0);
             color: white;
         }
 
@@ -1456,7 +1532,7 @@
 
         .batch-progress-bar {
             height: 100%;
-            background: linear-gradient(90deg, #4f8eff, #00d4b0);
+            background: linear-gradient(90deg, var(--primary), #00d4b0);
             border-radius: 2px;
             transition: width 0.3s;
             width: 0%;
@@ -1527,7 +1603,7 @@
             width: 22px;
             height: 22px;
             border: 2px solid #252b35;
-            border-top-color: #4f8eff;
+            border-top-color: var(--primary);
             border-radius: 50%;
             animation: spin 0.8s linear infinite;
         }
@@ -1705,7 +1781,7 @@
 
         .btn-batch-save {
             padding: 10px 24px;
-            background: linear-gradient(135deg, #4f8eff, #00d4b0);
+            background: linear-gradient(135deg, var(--primary), #00d4b0);
             color: white;
             border: none;
             border-radius: 8px;
@@ -1756,8 +1832,8 @@
         }
 
         .batch-bg-swatch.on {
-            border-color: #4f8eff;
-            box-shadow: 0 0 0 1px #4f8eff;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 1px var(--primary);
         }
 
         .batch-bg-swatch:hover:not(.on) {
@@ -1780,7 +1856,7 @@
         .bcpreset-btn.active {
             background: rgba(79, 142, 255, 0.18);
             color: #7fb3ff;
-            border-color: rgba(79, 142, 255, 0.5);
+            border-color: rgba(47, 93, 168, 0.5);
         }
 
         .bcpreset-btn:hover:not(.active) {
@@ -1802,7 +1878,7 @@
         .btn-bg-engine.active {
             background: rgba(79, 142, 255, 0.18);
             color: #7fb3ff;
-            border-color: rgba(79, 142, 255, 0.5);
+            border-color: rgba(47, 93, 168, 0.5);
         }
 
         .btn-batch-adj {
@@ -1848,7 +1924,7 @@
             width: 16px;
             height: 16px;
             border: 2px solid #323a48;
-            border-top-color: #4f8eff;
+            border-top-color: var(--primary);
             border-radius: 50%;
             animation: spin 0.8s linear infinite;
             flex-shrink: 0;
@@ -1873,8 +1949,8 @@
         }
 
         .batch-step-pill.active {
-            background: rgba(79, 142, 255, 0.2);
-            color: #4f8eff;
+            background: rgba(47, 93, 168, 0.25);
+            color: var(--primary);
         }
 
         .batch-step-pill.done {
@@ -1928,7 +2004,7 @@
         }
 
         .s1-crop-box.dragging {
-            border-color: #4f8eff;
+            border-color: var(--primary);
             opacity: 0.9;
         }
 
@@ -1994,7 +2070,7 @@
         .s1-adjust-btn {
             padding: 3px 7px;
             background: rgba(79, 142, 255, 0.15);
-            color: #4f8eff;
+            color: var(--primary);
             border: 1px solid rgba(79, 142, 255, 0.3);
             border-radius: 4px;
             font-size: 11px;
@@ -2020,9 +2096,21 @@
         }
 
         /* ── Clickable stat chips ── */
-        .chip-stat.clickable { cursor: pointer; user-select: none; transition: transform .1s, box-shadow .15s; }
-        .chip-stat.clickable:hover { transform: translateY(-1px); box-shadow: 0 2px 6px rgba(0,0,0,.15); }
-        .chip-stat.chip-active { outline: 2px solid #4A90D9; outline-offset: 1px; }
+        .chip-stat.clickable {
+            cursor: pointer;
+            user-select: none;
+            transition: transform .1s, box-shadow .15s;
+        }
+
+        .chip-stat.clickable:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 6px rgba(0, 0, 0, .15);
+        }
+
+        .chip-stat.chip-active {
+            outline: 2px solid var(--primary);
+            outline-offset: 1px;
+        }
 
         /* ── Group-by section headers ── */
         .group-header {
@@ -2036,12 +2124,18 @@
             padding: 8px 12px;
             margin: 4px -4px 0;
             background: #eef3f8;
-            border-left: 4px solid #4A90D9;
+            border-left: 4px solid var(--primary);
             border-radius: 6px;
             font-weight: 600;
             font-size: 14px;
         }
-        .group-header .gh-count { font-weight: 400; color: #667; font-size: 12px; }
+
+        .group-header .gh-count {
+            font-weight: 400;
+            color: #667;
+            font-size: 12px;
+        }
+
         .group-header .gh-select {
             margin-left: auto;
             font-size: 12px;
@@ -2051,16 +2145,38 @@
             background: #fff;
             cursor: pointer;
         }
-        .group-header .gh-select:hover { background: #4A90D9; color: #fff; border-color: #4A90D9; }
+
+        .group-header .gh-select:hover {
+            background: var(--primary);
+            color: #fff;
+            border-color: var(--primary);
+        }
 
         /* ── Card size segmented control ── */
-        .card-size-seg { display: inline-flex; border: 1px solid #d1d8dd; border-radius: 5px; overflow: hidden; }
+        .card-size-seg {
+            display: inline-flex;
+            border: 1px solid #d1d8dd;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+
         .card-size-seg button {
-            border: none; background: #fff; padding: 4px 10px; cursor: pointer; font-size: 12px;
+            border: none;
+            background: #fff;
+            padding: 4px 10px;
+            cursor: pointer;
+            font-size: 12px;
             border-right: 1px solid #d1d8dd;
         }
-        .card-size-seg button:last-child { border-right: none; }
-        .card-size-seg button.on { background: #4A90D9; color: #fff; }
+
+        .card-size-seg button:last-child {
+            border-right: none;
+        }
+
+        .card-size-seg button.on {
+            background: var(--primary);
+            color: #fff;
+        }
 
         /* ── Modal navigation + actions ── */
         .modal-nav {
@@ -2068,7 +2184,7 @@
             top: 50%;
             transform: translateY(-50%);
             z-index: 1002;
-            background: rgba(0,0,0,.45);
+            background: rgba(0, 0, 0, .45);
             color: #fff;
             border: none;
             font-size: 30px;
@@ -2080,9 +2196,19 @@
             align-items: center;
             justify-content: center;
         }
-        .modal-nav:hover { background: rgba(0,0,0,.7); }
-        .modal-nav.prev { left: 12px; }
-        .modal-nav.next { right: 12px; }
+
+        .modal-nav:hover {
+            background: rgba(0, 0, 0, .7);
+        }
+
+        .modal-nav.prev {
+            left: 12px;
+        }
+
+        .modal-nav.next {
+            right: 12px;
+        }
+
         .modal-actions {
             position: fixed;
             bottom: 18px;
@@ -2092,23 +2218,32 @@
             display: none;
             gap: 10px;
         }
+
         .modal-actions button {
-            background: rgba(20,22,28,.85);
+            background: rgba(20, 22, 28, .85);
             color: #fff;
-            border: 1px solid rgba(255,255,255,.25);
+            border: 1px solid rgba(255, 255, 255, .25);
             border-radius: 8px;
             padding: 9px 16px;
             font-size: 14px;
             cursor: pointer;
         }
-        .modal-actions button:hover { background: rgba(74,144,217,.9); }
+
+        .modal-actions button:hover {
+            background: rgba(47, 93, 168, 0.9);
+        }
+
         @media (max-width: 640px) {
-            .modal-nav { width: 40px; height: 56px; font-size: 22px; }
+            .modal-nav {
+                width: 40px;
+                height: 56px;
+                font-size: 22px;
+            }
         }
     </style>
     <!-- Cropper.js for crop step (same as employee.js) -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
+    <link rel="stylesheet" href="/assets/customize_erpnext/cropperjs/cropper.min.css">
+    <script src="/assets/customize_erpnext/cropperjs/cropper.min.js"></script>
     <!-- Shared photo crop utilities (transparency detection + background fill) -->
     <script src="/assets/customize_erpnext/js/photo_crop_shared.js"></script>
     <!-- Shared photo processing utilities (filters, analysis, bg detection) -->
@@ -2137,11 +2272,27 @@
         <div class="header">
             <div
                 style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; flex-wrap: wrap; gap: 15px;">
-                <h1 style="margin-bottom: 0;">📸 Thư viện ảnh nhân viên</h1>
+                <div style="display:flex;flex-direction:column;gap:10px;min-width:240px;flex:1;">
+                    <h1 style="margin-bottom: 0;">📸 Thư viện ảnh nhân viên</h1>
+                    <div class="coverage" title="Tỷ lệ nhân viên đã có ảnh">
+                        <div class="coverage-track">
+                            <div class="coverage-fill" id="coverageFill"></div>
+                        </div>
+                        <div class="coverage-label">
+                            <span><b id="coverageDone">--</b> đã có ảnh · còn <b id="coverageLeft">--</b> chưa có</span>
+                            <span id="coveragePct">--%</span>
+                        </div>
+                    </div>
+                </div>
                 <div class="stat-chips" id="statChips">
-                    <div class="chip-stat info clickable" id="chipTotal" title="Xóa hết bộ lọc"><span>👤</span> <b id="statTotal">--</b> nhân viên</div>
-                    <div class="chip-stat ok clickable" id="chipHasPhoto" title="Chỉ hiện nhân viên đã có ảnh"><span>📸</span> <b id="statHasPhoto">--</b> có ảnh</div>
-                    <div class="chip-stat warn clickable" id="chipNoPhoto" title="Chỉ hiện nhân viên chưa có ảnh"><span>⚠️</span> <b id="statNoPhoto">--</b> chưa có</div>
+                    <div class="chip-stat info clickable" id="chipTotal" title="Xóa hết bộ lọc"><span>👤</span> <b
+                            id="statTotal">--</b> nhân viên</div>
+                    <div class="chip-stat ok clickable" id="chipHasPhoto" title="Chỉ hiện nhân viên đã có ảnh">
+                        <span>📸</span> <b id="statHasPhoto">--</b> có ảnh
+                    </div>
+                    <div class="chip-stat warn clickable" id="chipNoPhoto" title="Chỉ hiện nhân viên chưa có ảnh">
+                        <span>⚠️</span> <b id="statNoPhoto">--</b> chưa có
+                    </div>
                     <div class="chip-stat" id="statUpdate" style="font-size: 11px; opacity: 0.7;">Đang tải...</div>
                 </div>
             </div>
@@ -2160,7 +2311,7 @@
                     <div class="control-group" style="margin-left: auto;">
                         <button id="btnFilterToggle" class="mobile-only" style="display: none;">🎚️ Bộ lọc</button>
                         <button id="btnGlobalUpload"
-                            title='Tên file bắt đầu bằng mã nhân viên, cách họ tên bằng dấu cách&#10;VD: "TIQN-0148 Nguyễn Thái Sơn.JPG"'>📤
+                            title='Tên file bắt đầu bằng mã nhân viên:&#10;VD: "TIQN-0148 Nguyễn Thái Sơn.jpg"&#10;Hoặc "TIQN-0148.jpg" &#10;Hoặc "0148.jpg"'>📤
                             <span class="ctrl-text">Tải ảnh lên</span></button>
                         <input type="file" id="globalPhotoInput" accept="image/*" multiple style="display:none;">
                         <button id="btnMultiSelect" class="btn-multi-select">☑️ <span class="ctrl-text">Chọn
@@ -3018,6 +3169,17 @@
             statHasPhoto.textContent = hasPhotoCount;
             statNoPhoto.textContent = allPhotos.length - hasPhotoCount;
 
+            // Coverage bar — độ phủ ảnh toàn công ty
+            const pct = allPhotos.length ? Math.round(hasPhotoCount / allPhotos.length * 100) : 0;
+            const fill = document.getElementById('coverageFill');
+            if (fill) fill.style.width = pct + '%';
+            const done = document.getElementById('coverageDone');
+            if (done) done.textContent = hasPhotoCount;
+            const left = document.getElementById('coverageLeft');
+            if (left) left.textContent = allPhotos.length - hasPhotoCount;
+            const pctEl = document.getElementById('coveragePct');
+            if (pctEl) pctEl.textContent = pct + '%';
+
             const timestamp = localStorage.getItem(CACHE_CONFIG.TIMESTAMP_KEY);
             if (timestamp) {
                 statUpdate.textContent = `Cập nhật: ${timestamp}`;
@@ -3642,14 +3804,30 @@
                 let firstToken = file.name.replace(/\.[^.]+$/, '').trim().split(/\s+/)[0] || '';
                 // Cắt ký tự thừa dính sau mã (VD "TIQN-2267." / "TIQN-2267_Nguyen" → "TIQN-2267")
                 const codeMatch = firstToken.match(/^([A-Za-z]+-\d+)/);
-                if (codeMatch) firstToken = codeMatch[1];
+                if (codeMatch) {
+                    firstToken = codeMatch[1];
+                } else {
+                    // Mã số thuần cũng cắt junk: "0148.Nguyen" → "0148"
+                    const numMatch = firstToken.match(/^(\d+)/);
+                    if (numMatch) firstToken = numMatch[1];
+                }
 
-                if (firstToken) {
-                    const employeeId = firstToken.toUpperCase();
-                    const emp = allPhotos.find(p => (p.employee_id || '').toUpperCase() === employeeId);
+                let employeeId = null;
+                let emp = null;
+                if (/^\d+$/.test(firstToken)) {
+                    // Chỉ có số (VD "0148 xxx") → mặc định hiểu là TIQN-0148
+                    employeeId = 'TIQN-' + firstToken.padStart(4, '0');
+                } else if (firstToken) {
+                    employeeId = firstToken.toUpperCase();
+                }
+                if (employeeId) {
+                    emp = allPhotos.find(p => (p.employee_id || '').toUpperCase() === employeeId);
                     // Không thấy trong cache vẫn upload — server tự validate nhân viên
                     // tồn tại và lấy tên từ DB (nhân viên mới tạo chưa có trong cache)
                     if (!emp) console.log(`[globalUpload] ${employeeId} not in cached list — uploading anyway (server validates)`);
+                }
+
+                if (employeeId) {
                     await new Promise(resolve => {
                         const reader = new FileReader();
                         reader.onload = function (ev) {
@@ -4015,8 +4193,10 @@
                 showEditorToast('⚠️ Không có nhân viên nào có ảnh trong danh sách đã chọn', 'err');
                 return;
             }
-            if (photos.length > 10) {
-                showEditorToast('⚠️ Đang chọn ' + photos.length + ' ảnh — vui lòng bỏ chọn bớt, tối đa 10 ảnh mỗi lần', 'err');
+            // Cap 20: u2net (0.3s/ảnh, 10 luồng) xử lý 20 ảnh trong ~10-20s;
+            // RAM client ~60MB và layout 10 cột vẫn thoải mái. birefnet >10 ảnh sẽ được gợi ý đổi engine.
+            if (photos.length > 20) {
+                showEditorToast('⚠️ Đang chọn ' + photos.length + ' ảnh — vui lòng bỏ chọn bớt, tối đa 20 ảnh mỗi lần', 'err');
                 return;
             }
             _batchCropData = {};
@@ -4765,6 +4945,14 @@
         async function confirmCropZones() {
             const entries = Object.values(_batchCropData).filter(d => d.sx !== null);
             if (entries.length === 0) { showEditorToast('⚠️ Ảnh chưa tải xong, vui lòng chờ', 'err'); return; }
+
+            // Batch lớn + birefnet (2 luồng, chậm trên CPU) → gợi ý u2net, không ép
+            if (entries.length > 10 && _bgEngine === 'rembg' && _rembgModel === 'birefnet-portrait') {
+                const estMin = Math.ceil(entries.length * 10 / 2 / 60);
+                if (!confirm(`${entries.length} ảnh với birefnet sẽ mất ~${estMin} phút.\n` +
+                    `💡 Model u2net nhanh hơn ~5 lần (tóc kém hơn một chút) — đổi ở mục ⚙️ engine.\n\n` +
+                    `Vẫn tiếp tục với birefnet?`)) return;
+            }
 
             // Acquire rembg lock (only when using rembg engine)
             // Tái dùng session đã chiếm lúc mở modal (prepareBatchAi) — cùng ID thì server chỉ renew TTL
