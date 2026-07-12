@@ -100,7 +100,7 @@ const state = {
     allowedEarlyDistribute: 10,
     timeCompareMode: "datetime", // 'datetime' or 'time_only'
     chartLayout: "vertical", // 'vertical' or 'horizontal'
-    pollingInterval: 3, // seconds
+    pollingInterval: 15, // seconds (realtime là kênh chính, polling chỉ là fallback)
     // Sort
     sortField: null,
     sortOrder: "asc",
@@ -110,9 +110,39 @@ const state = {
 };
 
 // ============================================================
+// Settings Persistence (localStorage)
+// ============================================================
+const HC_SETTINGS_KEY = "hc_mgmt_settings";
+const HC_PERSISTED_KEYS = [
+    "allowedLateDistribute", "allowedLateCollect", "allowedEarlyDistribute",
+    "timeCompareMode", "chartLayout", "pollingInterval",
+];
+
+function loadPersistedSettings() {
+    try {
+        const saved = JSON.parse(localStorage.getItem(HC_SETTINGS_KEY) || "{}");
+        HC_PERSISTED_KEYS.forEach(k => {
+            if (saved[k] !== undefined && saved[k] !== null) state[k] = saved[k];
+        });
+    } catch (e) { /* JSON hỏng → dùng mặc định */ }
+}
+
+function savePersistedSettings() {
+    const out = {};
+    HC_PERSISTED_KEYS.forEach(k => { out[k] = state[k]; });
+    localStorage.setItem(HC_SETTINGS_KEY, JSON.stringify(out));
+}
+
+// Escape mọi dữ liệu user-provided trước khi chèn vào HTML (chống XSS từ note, tên...)
+function esc(v) {
+    return frappe.utils.escape_html(v == null ? "" : String(v));
+}
+
+// ============================================================
 // Page Setup
 // ============================================================
 frappe.pages["health-check-up-management"].on_page_load = function (wrapper) {
+    loadPersistedSettings();
     const page = frappe.ui.make_app_page({
         parent: wrapper,
         title: L.app_title,
@@ -156,9 +186,8 @@ frappe.pages["health-check-up-management"].on_page_load = function (wrapper) {
     // Setup tab clicks
     setupTabNavigation();
 
-    // Network online/offline handling
-    window.addEventListener("online", onNetworkOnline);
-    window.addEventListener("offline", onNetworkOffline);
+    // Network listeners được gắn trong on_page_show (fire cả lần đầu) —
+    // on_page_hide remove chúng, nên gắn ở đây sẽ mất khi rời trang rồi quay lại.
     updateOfflineBanner();
     // Nếu vào trang khi đang online và có queue từ session trước → flush ngay
     if (navigator.onLine && getOfflineQueue().length > 0) {
@@ -297,7 +326,16 @@ frappe.pages["health-check-up-management"].on_page_show = function () {
     // Re-subscribe realtime when returning to page (also fires on first load)
     setupRealtime();
     setupPollingAutoSync();
+    // Re-attach network listeners (on_page_hide removes them); remove-first tránh gắn trùng
+    window.removeEventListener("online", onNetworkOnline);
+    window.removeEventListener("offline", onNetworkOffline);
+    window.addEventListener("online", onNetworkOnline);
+    window.addEventListener("offline", onNetworkOffline);
     updateOfflineBanner();
+    // Queue còn tồn từ lúc rời trang → flush lại
+    if (navigator.onLine && getOfflineQueue().length > 0) {
+        flushOfflineQueue();
+    }
 };
 
 frappe.pages["health-check-up-management"].on_page_hide = function () {
@@ -466,14 +504,14 @@ function renderDashboardFilters() {
             <label class="hc-dash-filter-label">Section</label>
             <select class="hc-dash-filter-select" id="dash-filter-section">
                 <option value="all">Tất cả</option>
-                ${sectionList.map(s => `<option value="${s}" ${state.dashFilterSection === s ? 'selected' : ''}>${s}</option>`).join('')}
+                ${sectionList.map(s => `<option value="${esc(s)}" ${state.dashFilterSection === s ? 'selected' : ''}>${esc(s)}</option>`).join('')}
             </select>
         </div>
         <div class="hc-dash-filter-item">
             <label class="hc-dash-filter-label">Group</label>
             <select class="hc-dash-filter-select" id="dash-filter-group">
                 <option value="all">Tất cả</option>
-                ${groupList.map(g => `<option value="${g}" ${state.dashFilterGroup === g ? 'selected' : ''}>${g}</option>`).join('')}
+                ${groupList.map(g => `<option value="${esc(g)}" ${state.dashFilterGroup === g ? 'selected' : ''}>${esc(g)}</option>`).join('')}
             </select>
         </div>
         <div class="hc-dash-filter-item hc-dash-filter-time-range">
@@ -736,7 +774,7 @@ function showSettingsDialog() {
                 fieldname: "polling_interval",
                 label: "Polling interval (giây)",
                 default: state.pollingInterval,
-                description: "Tần suất tự động đồng bộ dữ liệu. Mặc định: 3 giây.",
+                description: "Tần suất đồng bộ dự phòng (realtime là kênh chính). Mặc định: 15 giây.",
             },
         ],
         primary_action_label: L.btn_save,
@@ -746,11 +784,12 @@ function showSettingsDialog() {
             state.allowedEarlyDistribute = values.allowed_early_dist;
             state.timeCompareMode = values.time_compare_mode === L.time_compare_datetime ? "datetime" : "time_only";
             state.chartLayout = values.chart_layout === "Dọc" ? "vertical" : "horizontal";
-            const newInterval = Math.max(1, parseInt(values.polling_interval) || 3);
+            const newInterval = Math.max(1, parseInt(values.polling_interval) || 15);
             if (newInterval !== state.pollingInterval) {
                 state.pollingInterval = newInterval;
                 setupPollingAutoSync(); // restart với interval mới
             }
+            savePersistedSettings(); // giữ cấu hình qua các lần reload
             renderActiveTab();
             dialog.hide();
         },
@@ -763,7 +802,7 @@ function showSettingsDialog() {
             allowed_early_dist: 10,
             time_compare_mode: L.time_compare_datetime,
             chart_layout: "Dọc",
-            polling_interval: 3,
+            polling_interval: 15,
         });
     });
 
@@ -849,15 +888,15 @@ function showStatModal(type) {
         return `<tbody>${rows.map((r, i) => `
             <tr class="${i % 2 ? 'hc-row-alt' : ''}">
                 <td>${i + 1}</td>
-                <td class="hc-mono">${r.hospital_code || ""}</td>
-                <td class="hc-mono">${r.employee || ""}</td>
-                <td class="hc-bold">${r.employee_name || ""}</td>
-                <td>${r.custom_group || ""}</td>
+                <td class="hc-mono">${esc(r.hospital_code)}</td>
+                <td class="hc-mono">${esc(r.employee)}</td>
+                <td class="hc-bold">${esc(r.employee_name)}</td>
+                <td>${esc(r.custom_group)}</td>
                 <td class="hc-mono">${formatTime(r.start_time)}</td>
                 <td class="hc-mono">${formatTime(r.end_time)}</td>
                 <td class="hc-mono ${r.start_time_actual ? 'hc-green' : 'hc-muted'}">${formatTime(r.start_time_actual)}</td>
                 <td class="hc-mono ${r.end_time_actual ? 'hc-green' : 'hc-muted'}">${formatTime(r.end_time_actual)}</td>
-                <td style="max-width:200px; white-space:normal;">${r.note || ""}</td>
+                <td style="max-width:200px; white-space:normal;">${esc(r.note)}</td>
             </tr>`).join("")}
         </tbody>`;
     }
@@ -924,7 +963,7 @@ function renderHorizontalChart(containerId, dataArray, labelField) {
         const pctNotSt = (not_started / maxVal) * 100;
         html += `
         <div class="hc-hchart-row">
-            <div class="hc-hchart-label" title="${label}">${label} <span class="hc-hchart-val">(${item.total})</span></div>
+            <div class="hc-hchart-label" title="${esc(label)}">${esc(label)} <span class="hc-hchart-val">(${item.total})</span></div>
             <div class="hc-hchart-bars">
                 <div class="hc-hchart-bar hc-hchart-bar-comp" style="width: ${pctComp}%" title="Hoàn thành: ${completed}"></div>
                 <div class="hc-hchart-bar hc-hchart-bar-exam" style="width: ${pctExam}%" title="Đang khám: ${in_exam}"></div>
@@ -944,6 +983,23 @@ function renderHorizontalChart(containerId, dataArray, labelField) {
 
 function getHcColor(name, fallback) {
     return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+}
+
+// Xoay label trục X của frappe-charts (retry vì chart render async,
+// setTimeout cố định dễ hụt trên máy chậm)
+function rotateChartLabels(containerId, labels, attempt = 0) {
+    const ticks = document.querySelectorAll(`#${containerId} .x.axis .tick text`);
+    if (ticks.length === 0) {
+        if (attempt < 10) setTimeout(() => rotateChartLabels(containerId, labels, attempt + 1), 200);
+        return;
+    }
+    ticks.forEach((el, idx) => {
+        if (labels[idx]) el.textContent = labels[idx];
+        el.setAttribute("text-anchor", "end");
+        el.style.transformBox = "fill-box";
+        el.style.transformOrigin = "right center";
+        el.style.transform = "rotate(-45deg)";
+    });
 }
 
 function renderCharts() {
@@ -993,15 +1049,7 @@ function renderCharts() {
                 type: "bar", height: 300, colors,
                 barOptions: { stacked: true, spaceRatio: 0.4 },
             });
-            setTimeout(() => {
-                document.querySelectorAll("#chart-start-time .x.axis .tick text").forEach((el, idx) => {
-                    if (labels[idx]) el.textContent = labels[idx];
-                    el.setAttribute("text-anchor", "end");
-                    el.style.transformBox = "fill-box";
-                    el.style.transformOrigin = "right center";
-                    el.style.transform = "rotate(-45deg)";
-                });
-            }, 500);
+            rotateChartLabels("chart-start-time", labels);
         }
     }
 
@@ -1021,15 +1069,7 @@ function renderCharts() {
                 type: "bar", height: 300, colors,
                 barOptions: { stacked: true, spaceRatio: 0.4 },
             });
-            setTimeout(() => {
-                document.querySelectorAll("#chart-section .x.axis .tick text").forEach((el, idx) => {
-                    if (labels[idx]) el.textContent = labels[idx];
-                    el.setAttribute("text-anchor", "end");
-                    el.style.transformBox = "fill-box";
-                    el.style.transformOrigin = "right center";
-                    el.style.transform = "rotate(-45deg)";
-                });
-            }, 500);
+            rotateChartLabels("chart-section", labels);
         }
     }
 
@@ -1049,15 +1089,7 @@ function renderCharts() {
                 type: "bar", height: 300, colors,
                 barOptions: { stacked: true, spaceRatio: 0.3 },
             });
-            setTimeout(() => {
-                document.querySelectorAll("#chart-group .x.axis .tick text").forEach((el, idx) => {
-                    if (labels[idx]) el.textContent = labels[idx];
-                    el.setAttribute("text-anchor", "end");
-                    el.style.transformBox = "fill-box";
-                    el.style.transformOrigin = "right center";
-                    el.style.transform = "rotate(-45deg)";
-                });
-            }, 500);
+            rotateChartLabels("chart-group", labels);
         }
     }
 }
@@ -1419,12 +1451,24 @@ async function doScan(mode) {
 
     if (recordItem && mode === "distribute" && recordItem.start_time_actual) {
         frappe.confirm(
-            `Hồ sơ của <b>${recordItem.employee_name}</b> đã được Phát vào lúc <b>${formatTime(recordItem.start_time_actual)}</b>.<br><br>Bạn có chắc chắn muốn phát lại và ghi đè thời gian hiện tại không?`,
+            `Hồ sơ của <b>${esc(recordItem.employee_name)}</b> đã được Phát vào lúc <b>${formatTime(recordItem.start_time_actual)}</b>.<br><br>Bạn có chắc chắn muốn phát lại và ghi đè thời gian hiện tại không?`,
             () => {
                 executeCall();
             },
             () => {
                 // Use Cancelled
+                $input.val("").trigger("input").focus();
+                $note.val("");
+            }
+        );
+    } else if (recordItem && mode === "collect" && recordItem.end_time_actual) {
+        // Thu lại hồ sơ đã thu → xác nhận trước khi ghi đè (đồng bộ UX với phát lại)
+        frappe.confirm(
+            `Hồ sơ của <b>${esc(recordItem.employee_name)}</b> đã được Thu vào lúc <b>${formatTime(recordItem.end_time_actual)}</b>.<br><br>Bạn có chắc chắn muốn thu lại và ghi đè thời gian + X-Quang/Phụ khoa hiện tại không?`,
+            () => {
+                executeCall();
+            },
+            () => {
                 $input.val("").trigger("input").focus();
                 $note.val("");
             }
@@ -1488,10 +1532,10 @@ function showScanResult(type, message, record) {
 
     if (record) {
         html += `<div class="hc-result-detail">
-            <strong>${record.hospital_code}</strong> —
-            ${record.employee} — ${record.employee_name}<br/>
-            ${record.custom_section || ""} / ${record.custom_group || ""} —
-            ${record.designation || ""}
+            <strong>${esc(record.hospital_code)}</strong> —
+            ${esc(record.employee)} — ${esc(record.employee_name)}<br/>
+            ${esc(record.custom_section)} / ${esc(record.custom_group)} —
+            ${esc(record.designation)}
         </div>`;
     }
 
@@ -1531,15 +1575,15 @@ function renderHistory() {
             (h) => `
         <div class="hc-history-item hc-history-${h.type}" style="display: flex; align-items: center; gap: 8px; padding: 4px 8px; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
             <span class="hc-history-time" style="font-weight: 500; min-width: 60px;">${h.time}</span>
-            <span class="hc-history-code" style="color: var(--hc-primary); font-weight: 600; min-width: 50px;">${h.code}</span>
-            <span style="color: var(--hc-text-light); min-width: 40px;">${h.emp || ''}</span>
-            <span class="hc-history-name" style="font-weight: 600; min-width: 120px; text-overflow: ellipsis; overflow: hidden;">${h.name}</span>
-            <span style="color: var(--hc-text-light); min-width: 60px;">${h.group || ''}</span>
+            <span class="hc-history-code" style="color: var(--hc-primary); font-weight: 600; min-width: 50px;">${esc(h.code)}</span>
+            <span style="color: var(--hc-text-light); min-width: 40px;">${esc(h.emp)}</span>
+            <span class="hc-history-name" style="font-weight: 600; min-width: 120px; text-overflow: ellipsis; overflow: hidden;">${esc(h.name)}</span>
+            <span style="color: var(--hc-text-light); min-width: 60px;">${esc(h.group)}</span>
             ${h.mode === "collect" ? `
                 <span style="color: var(--hc-text-light); min-width: 70px;">${h.xray ? 'X-Quang' : ''}</span>
                 <span style="color: var(--hc-text-light); min-width: 75px;">${h.gynec ? 'Phụ khoa' : ''}</span>
             ` : ''}
-            <span style="color: var(--hc-yellow); font-style: italic; overflow: hidden; text-overflow: ellipsis; flex: 1;">${h.note || ''}</span>
+            <span style="color: var(--hc-yellow); font-style: italic; overflow: hidden; text-overflow: ellipsis; flex: 1;">${esc(h.note)}</span>
             <span class="hc-history-mode" style="font-weight: 600; min-width: 30px; text-align: right;">${h.mode === "distribute" ? "Phát" : "Thu"}</span>
         </div>`
         )
@@ -1555,6 +1599,13 @@ const HC_OFFLINE_QUEUE_KEY = "hc_offline_scan_queue";
 function isNetworkError(e) {
     if (!navigator.onLine) return true;
     if (e instanceof TypeError && /fetch|Failed to fetch|NetworkError/i.test(e.message)) return true;
+    // frappe.call (jQuery ajax): status/readyState 0 = không kết nối được server
+    // (server down, timeout, DNS...) dù navigator.onLine vẫn true
+    if (e && typeof e === "object") {
+        if (e.status === 0 || e.readyState === 0 || e.httpStatus === 0) return true;
+        if (e.statusText === "timeout" || e.statusText === "error" && e.status === 0) return true;
+        if (e.xhr && (e.xhr.status === 0 || e.xhr.readyState === 0)) return true;
+    }
     return false;
 }
 
@@ -1568,7 +1619,15 @@ function saveOfflineQueue(queue) {
 
 function enqueueOfflineScan(mode, args) {
     const queue = getOfflineQueue();
-    queue.push({ mode, args, timestamp: new Date().toISOString(), date: state.currentDate });
+    queue.push({
+        mode,
+        args,
+        timestamp: new Date().toISOString(),
+        // Giờ scan thật (local) — gửi kèm khi flush để server ghi đúng giờ scan
+        // thay vì giờ flush (scanned_at param của scan_distribute/scan_collect)
+        scanned_at: frappe.datetime.now_datetime(),
+        date: state.currentDate,
+    });
     saveOfflineQueue(queue);
     updateOfflineBanner();
 }
@@ -1598,49 +1657,79 @@ function updateOfflineBanner() {
     }
 }
 
+let hcFlushInProgress = false;
+
 async function flushOfflineQueue() {
+    // Lock chống chạy song song (event 'online' + timeout lúc load + on_page_show
+    // có thể gọi cùng lúc → gửi trùng scan)
+    if (hcFlushInProgress) return;
     const queue = getOfflineQueue();
     if (queue.length === 0) return;
+    hcFlushInProgress = true;
 
     updateOfflineBanner(); // show "đang đồng bộ"
-    const failed = [];
-    for (const item of queue) {
-        try {
-            const method = item.mode === "distribute"
-                ? `${API_BASE}.scan_distribute`
-                : `${API_BASE}.scan_collect`;
-            const r = await frappe.call({ method, args: item.args });
-            if (r.message && r.message.success) {
-                const rec = r.message.record;
-                if (rec) {
-                    const idx = state.records.findIndex(s => s.name === rec.name);
-                    if (idx !== -1) {
-                        if (item.mode === "distribute") {
-                            state.records[idx].start_time_actual = rec.start_time_actual;
-                        } else {
-                            state.records[idx].end_time_actual = rec.end_time_actual;
-                            state.records[idx].x_ray = rec.x_ray;
-                            state.records[idx].gynecological_exam = rec.gynecological_exam;
+    const failedNetwork = [];
+    const failedServer = [];
+    try {
+        for (const item of queue) {
+            try {
+                const method = item.mode === "distribute"
+                    ? `${API_BASE}.scan_distribute`
+                    : `${API_BASE}.scan_collect`;
+                // Gửi kèm giờ scan thật để server ghi đúng thời điểm scan
+                const args = { ...item.args };
+                if (item.scanned_at) args.scanned_at = item.scanned_at;
+                const r = await frappe.call({ method, args });
+                if (r.message && r.message.success) {
+                    const rec = r.message.record;
+                    if (rec) {
+                        const idx = state.records.findIndex(s => s.name === rec.name);
+                        if (idx !== -1) {
+                            if (item.mode === "distribute") {
+                                state.records[idx].start_time_actual = rec.start_time_actual;
+                            } else {
+                                state.records[idx].end_time_actual = rec.end_time_actual;
+                                state.records[idx].x_ray = rec.x_ray;
+                                state.records[idx].gynecological_exam = rec.gynecological_exam;
+                            }
+                            if (rec.status) state.records[idx].status = rec.status;
                         }
-                        if (rec.status) state.records[idx].status = rec.status;
+                        addToHistory(rec, item.mode, "success");
                     }
-                    addToHistory(rec, item.mode, "success");
+                }
+            } catch (e) {
+                if (isNetworkError(e)) {
+                    failedNetwork.push(item); // giữ lại để retry sau
+                } else {
+                    // Server từ chối (record không tồn tại, validate lỗi...) —
+                    // retry sẽ không thành công, nhưng phải báo operator biết để xử lý tay
+                    failedServer.push({ item, message: e.message || L.msg_server_error });
                 }
             }
-        } catch (e) {
-            if (isNetworkError(e)) {
-                failed.push(item); // giữ lại để retry sau
-            }
-            // Server error: bỏ qua, không retry
         }
+    } finally {
+        hcFlushInProgress = false;
     }
 
-    saveOfflineQueue(failed);
+    saveOfflineQueue(failedNetwork);
     recalculateStats();
     updateTabCounts();
     updateOfflineBanner();
 
-    if (failed.length === 0 && queue.length > 0) {
+    if (failedServer.length > 0) {
+        const lines = failedServer.map(f => {
+            const code = f.item.args.hospital_code || f.item.args.employee || "?";
+            const modeLabel = f.item.mode === "distribute" ? "Phát" : "Thu";
+            return `<li><b>${esc(code)}</b> (${modeLabel} — ${esc(f.item.scanned_at || f.item.timestamp || "")}): ${esc(f.message)}</li>`;
+        }).join("");
+        frappe.msgprint({
+            title: "Một số scan tồn không gửi được",
+            message: `<p>Các scan sau bị server từ chối, cần kiểm tra và ghi nhận lại thủ công:</p><ul>${lines}</ul>`,
+            indicator: "red",
+        });
+    }
+
+    if (failedNetwork.length === 0 && failedServer.length === 0 && queue.length > 0) {
         frappe.show_alert({ message: L.msg_queue_flushed, indicator: "green" }, 3);
     }
 }
@@ -1749,16 +1838,16 @@ function renderTable() {
                 ].filter(Boolean).join(" ");
 
                 return `
-        <tr class="${rowClass}" data-name="${r.name}" title="Double click để mở chi tiết">
+        <tr class="${rowClass}" data-name="${esc(r.name)}" title="Double click để mở chi tiết">
             <td>${i + 1}</td>
-            <td class="hc-mono">${r.hospital_code || ""}</td>
-            <td class="hc-mono hc-dim">${r.employee || ""}</td>
+            <td class="hc-mono">${esc(r.hospital_code)}</td>
+            <td class="hc-mono hc-dim">${esc(r.employee)}</td>
             <td class="hc-bold">
-                ${r.employee_name || ""}
+                ${esc(r.employee_name)}
                 ${r.pregnant ? ' 🤰' : ""}
             </td>
-            <td class="${r.gender === "Nữ" || r.gender === "Female" ? "hc-pink" : "hc-cyan"}">${r.gender || ""}</td>
-            <td class="hc-dim">${r.custom_group || ""}</td>
+            <td class="${r.gender === "Nữ" || r.gender === "Female" ? "hc-pink" : "hc-cyan"}">${esc(r.gender)}</td>
+            <td class="hc-dim">${esc(r.custom_group)}</td>
             <td class="hc-mono">${formatTime(r.start_time)}</td>
             <td class="hc-mono ${r.start_time_actual ? "hc-green" : "hc-muted"}">${formatTime(r.start_time_actual)}</td>
             <td class="hc-center">${diffHtml}</td>
@@ -2083,14 +2172,16 @@ function setupPollingAutoSync() {
 
         frappe.call({
             method: "customize_erpnext.health_check_up.api.health_check_api.get_health_check_data",
-            args: { date: state.currentDate, hospital_code: null },
+            args: { date: state.currentDate },
             callback: function (r) {
                 if (r.message && r.message.records) {
                     const newRecords = r.message.records;
 
-                    // Generate hashes to compare if states changed
-                    const currHash = state.records.reduce((acc, rec) => acc + (rec.start_time_actual || "") + (rec.end_time_actual || ""), "");
-                    const newHash = newRecords.reduce((acc, rec) => acc + (rec.start_time_actual || "") + (rec.end_time_actual || ""), "");
+                    // So sánh bằng modified — bắt được MỌI thay đổi (note, x_ray, status...)
+                    // chứ không chỉ actual times
+                    const hashOf = recs => recs.reduce((acc, rec) => acc + rec.name + (rec.modified || ""), "");
+                    const currHash = hashOf(state.records);
+                    const newHash = hashOf(newRecords);
 
                     // Update last-sync timestamp
                     const nowStr = frappe.datetime.now_time().slice(0, 5);
@@ -2134,11 +2225,23 @@ let hcQrLibLoaded = false;
 
 function loadQrLib(callback) {
     if (hcQrLibLoaded) { callback(); return; }
-    const script = document.createElement('script');
-    script.src = 'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js';
-    script.onload = () => { hcQrLibLoaded = true; callback(); };
-    script.onerror = () => frappe.show_alert({ message: 'Không tải được thư viện camera.', indicator: 'red' });
-    document.head.appendChild(script);
+    // Bundle local (hoạt động cả khi mạng nội bộ chặn internet), CDN chỉ là fallback
+    const sources = [
+        '/assets/customize_erpnext/js/lib/html5-qrcode.min.js',
+        'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js',
+    ];
+    const tryLoad = (idx) => {
+        if (idx >= sources.length) {
+            frappe.show_alert({ message: 'Không tải được thư viện camera.', indicator: 'red' });
+            return;
+        }
+        const script = document.createElement('script');
+        script.src = sources[idx];
+        script.onload = () => { hcQrLibLoaded = true; callback(); };
+        script.onerror = () => tryLoad(idx + 1);
+        document.head.appendChild(script);
+    };
+    tryLoad(0);
 }
 
 function playScanBeep() {

@@ -6,7 +6,7 @@
 
 import frappe
 from frappe.model.document import Document
-from frappe.utils import nowtime, today, getdate
+from frappe.utils import nowtime, today, getdate, get_time
 
 
 class HealthCheckUp(Document):
@@ -14,8 +14,9 @@ class HealthCheckUp(Document):
         self.fetch_employee_info()
         self.check_pregnant_status()
         self.validate_hospital_code_unique()
+        self.validate_employee_unique()
         self.compute_status()
-        # self.validate_times()
+        self.validate_times()
 
     def compute_status(self):
         """Auto-compute status based on actual times."""
@@ -54,18 +55,29 @@ class HealthCheckUp(Document):
     def check_pregnant_status(self):
         """
         Auto-check pregnant status for female employees.
-        Cấu trúc mới: kiểm tra pregnant_from_date có giá trị trên EM record của employee.
+        Đang mang thai = ngày khám nằm trong khoảng [pregnant_from_date, pregnant_to_date]
+        trên Employee Maternity (pregnant_to_date trống = chưa sinh → vẫn đang mang thai).
         """
         if self.gender not in ("Female", "Nữ"):
             self.pregnant = 0
             return
 
-        is_pregnant = frappe.db.get_value(
+        check_date = getdate(self.date) if self.date else getdate(today())
+
+        rows = frappe.get_all(
             "Employee Maternity",
-            {"employee": self.employee},
-            "pregnant_from_date",
+            filters={"employee": self.employee, "pregnant_from_date": ("is", "set")},
+            fields=["pregnant_from_date", "pregnant_to_date"],
+            order_by="pregnant_from_date desc",
         )
-        self.pregnant = 1 if is_pregnant else 0
+
+        self.pregnant = 0
+        for row in rows:
+            if getdate(row.pregnant_from_date) <= check_date and (
+                not row.pregnant_to_date or check_date <= getdate(row.pregnant_to_date)
+            ):
+                self.pregnant = 1
+                break
 
     def validate_hospital_code_unique(self):
         """
@@ -92,14 +104,42 @@ class HealthCheckUp(Document):
                 ).format(self.hospital_code, self.date, existing)
             )
 
+    def validate_employee_unique(self):
+        """
+        Ensure one employee has only one record per examination day.
+        Without this, scan APIs may silently write to the wrong record.
+        """
+        if not (self.employee and self.date):
+            return
+
+        existing = frappe.db.exists(
+            "Health Check-Up",
+            {
+                "employee": self.employee,
+                "date": self.date,
+                "name": ("!=", self.name),
+            },
+        )
+
+        if existing:
+            frappe.throw(
+                frappe._(
+                    "Nhân viên <b>{0}</b> đã có hồ sơ khám cho ngày <b>{1}</b> "
+                    "(Record: {2})"
+                ).format(self.employee, self.date, existing)
+            )
+
     def validate_times(self):
-        """Validate that end_time is after start_time"""
+        """Validate that end_time is after start_time.
+        Compare via get_time() — plain string compare fails on '9:00' vs '10:00'."""
         if self.start_time and self.end_time:
-            if str(self.start_time) >= str(self.end_time):
+            if get_time(str(self.start_time)) >= get_time(str(self.end_time)):
                 frappe.throw(frappe._("End Time phải sau Start Time"))
 
         if self.start_time_actual and self.end_time_actual:
-            if str(self.start_time_actual) > str(self.end_time_actual):
+            if get_time(str(self.start_time_actual)) > get_time(str(self.end_time_actual)):
                 frappe.throw(
-                    frappe._("End Time Actual phải sau Start Time Actual")
+                    frappe._("Giờ Thu HS thực tế ({0}) không được sớm hơn giờ Phát HS thực tế ({1})").format(
+                        self.end_time_actual, self.start_time_actual
+                    )
                 )

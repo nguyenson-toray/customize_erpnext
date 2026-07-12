@@ -16,7 +16,7 @@ frappe.ui.form.on("Health Check-Up", {
     },
 
     gender(frm) {
-        if (frm.doc.gender == 'Female') {
+        if (frm.doc.gender === 'Female' || frm.doc.gender === 'Nữ') {
             frm.trigger("check_pregnant");
             frm.set_value("gynecological_exam", 1);
             frm.set_df_property("gynecological_exam", "read_only", 0);
@@ -43,13 +43,19 @@ frappe.ui.form.on("Health Check-Up", {
         }
     },
     check_pregnant(frm) {
-        // Cấu trúc mới: kiểm tra pregnant_from_date có giá trị trên EM record
-        if (frm.is_new() && (frm.doc.gender === "Female")) {
+        // Đang mang thai = ngày khám nằm trong [pregnant_from_date, pregnant_to_date]
+        // (pregnant_to_date trống = chưa sinh). Cùng logic với server check_pregnant_status().
+        if (frm.is_new() && (frm.doc.gender === "Female" || frm.doc.gender === "Nữ") && frm.doc.employee) {
             frappe.db.get_value("Employee Maternity",
                 { employee: frm.doc.employee },
-                "pregnant_from_date"
+                ["pregnant_from_date", "pregnant_to_date"]
             ).then((r) => {
-                frm.set_value("pregnant", (r && r.message && r.message.pregnant_from_date) ? 1 : 0);
+                const m = r && r.message;
+                const checkDate = frm.doc.date || frappe.datetime.get_today();
+                const isPregnant = m && m.pregnant_from_date
+                    && m.pregnant_from_date <= checkDate
+                    && (!m.pregnant_to_date || checkDate <= m.pregnant_to_date);
+                frm.set_value("pregnant", isPregnant ? 1 : 0);
             });
         }
     },

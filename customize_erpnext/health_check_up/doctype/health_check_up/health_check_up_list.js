@@ -81,6 +81,8 @@ frappe.listview_settings["Health Check-Up"] = {
 
 function hcAdminDialog(opts) {
     const todayYMD = frappe.datetime.get_today();
+    // Mật khẩu này chỉ là bước chặn thao tác nhầm (UX). Bảo mật thật nằm ở server:
+    // các API admin yêu cầu role System Manager (_require_admin trong health_check_api.py).
     const expectedPwd = "1111";
 
     const toDateRow = opts.hasToDate ? `

@@ -7,6 +7,16 @@ Trang quản lý khám sức khỏe nhân viên. Gồm 2 file chính:
 - **Backend**: `../../api/health_check_api.py`
 - **Hướng dẫn người dùng**: `document_for_user.md` (popup trong trang)
 
+## Design system v3.0 "Phiếu Khám" (CSS, 2026-07-12)
+
+CSS viết lại toàn bộ (chỉ CSS — không đổi class name hay JS). Hướng thiết kế: hồ sơ khám bệnh viện + mã vạch, light-only (dùng ở xưởng ánh sáng mạnh), **không load font/asset ngoài** (mạng nội bộ chặn internet).
+
+- **Màu ngữ nghĩa nhất quán** (charts tự ăn theo qua `getHcColor`): Hoàn thành = viridian `--hc-green/#0E7A63` (= primary), Đang khám = amber `--hc-yellow/#B77208`, Chưa khám/Trễ phát = đỏ lâm sàng `--hc-red/#C13740`, Trễ thu = `--hc-orange`, Phát HS = xanh phim X-quang `--hc-blue/#275F7C`.
+- **Signature**: khu scan — dải mã vạch (`--hc-barcode`, `.hc-scan-card::before`) + ô nhập kiểu khung ngắm máy quét (bracket 4 góc trên `.hc-input-group::before/::after`, sáng viridian khi focus).
+- Stat card kiểu "tab hồ sơ": tick màu bên trái, số Inter 800 tabular-nums; navigation (tab active, filter active) dùng **mực đậm** `--hc-ink`, không dùng màu brand.
+- Fix kèm: định nghĩa `--hc-text-light` (JS inline styles reference nó), thêm `.hc-result-orange` (scan warning), utilities `.hc-yellow`/`.hc-orange` (dùng cho "Sớm P"/"Trễ T"), style `hc-history-success/update/error` (viền trái theo kết quả), `.hc-clickable-row` cursor, `prefers-reduced-motion`, `:focus-visible`.
+- Sau khi đổi CSS cần `bench clear-cache` + hard-refresh trình duyệt.
+
 ---
 
 ## Kiến trúc
@@ -22,11 +32,16 @@ Trang quản lý khám sức khỏe nhân viên. Gồm 2 file chính:
 
     └── on_page_show()                ← fires EVERY time page becomes visible (kể cả lần đầu)
             ├── setupRealtime()       → lắng nghe Socket.IO
-            ├── setupPollingAutoSync()→ fallback polling (configurable, mặc định 3 giây)
-            └── updateOfflineBanner() → hiển thị banner nếu có queue tồn đọng
+            ├── setupPollingAutoSync()→ fallback polling (configurable, mặc định 15 giây)
+            ├── (network listeners)   → re-attach online/offline (on_page_hide remove chúng)
+            ├── updateOfflineBanner() → hiển thị banner nếu có queue tồn đọng
+            └── flushOfflineQueue()   → nếu online và còn queue tồn
 ```
 
-> **Lưu ý**: `setupRealtime()` và `setupPollingAutoSync()` chỉ đặt trong `on_page_show` (không trùng lặp ở `on_page_load`) vì `on_page_show` cũng fire lần đầu.
+> **Lưu ý**: `setupRealtime()`, `setupPollingAutoSync()` và network listeners đặt trong `on_page_show`
+> (không trùng lặp ở `on_page_load`) vì `on_page_show` cũng fire lần đầu — và vì `on_page_hide`
+> remove listener, nếu chỉ gắn ở `on_page_load` thì rời trang rồi quay lại sẽ mất auto-flush.
+> Cấu hình (ngưỡng trễ, polling, chart layout...) persist qua `localStorage` key `hc_mgmt_settings`.
 
 ---
 
@@ -181,20 +196,35 @@ Fallback: setupPollingAutoSync() → state.pollingInterval giây/lần
 
 ```
 executeCall() → network error → auto-retry 2 lần → enqueueOfflineScan() → localStorage
-window 'online' → flushOfflineQueue() → gửi lại → cập nhật state + status
+window 'online' / on_page_show → flushOfflineQueue() → gửi lại (kèm scanned_at) → cập nhật state
 ```
 
 | Lỗi | Xử lý |
 |-----|-------|
-| Network error | Retry 2 lần → queue localStorage |
+| Network error (offline, server down, timeout — `isNetworkError`) | Retry 2 lần → queue localStorage |
 | HTTP 403 | Thông báo → reload sau 2s |
 | Server error (500, frappe.throw) | Hiện thông báo, giữ input |
 
-localStorage key: `"hc_offline_scan_queue"` → `[{mode, args, timestamp, date}, ...]`
+- localStorage key: `"hc_offline_scan_queue"` → `[{mode, args, timestamp, scanned_at, date}, ...]`
+- `scanned_at` (giờ scan thật, local) được gửi kèm khi flush → server ghi đúng giờ scan
+  thay vì giờ flush (param `scanned_at` của `scan_distribute`/`scan_collect`).
+- `flushOfflineQueue` có lock (`hcFlushInProgress`) chống chạy song song → không gửi trùng.
+- Item bị **server từ chối** khi flush (record không tồn tại, validate lỗi...) sẽ bị bỏ khỏi queue
+  nhưng hiện `frappe.msgprint` liệt kê từng mã để operator ghi nhận lại thủ công.
 
 ---
 
 ## Backend API — `health_check_api.py`
+
+### Permission guards (server-side, thêm 2026-07-12)
+
+| Guard | Áp dụng cho | Điều kiện |
+|---|---|---|
+| `_require_read()` | get_health_check_dates, get_health_check_data, lookup_record, get_excel_data | `frappe.has_permission("Health Check-Up", "read")` |
+| `_require_write()` | scan_distribute, scan_collect | `frappe.has_permission("Health Check-Up", "write")` |
+| `_require_admin()` | clear_actual_data, recalculate_status_by_date, change_date | Role **System Manager** |
+
+> Mật khẩu "1111" trong list view chỉ là chặn thao tác nhầm — bảo mật thật nằm ở `_require_admin()`.
 
 ### API công khai (whitelist)
 
@@ -202,13 +232,17 @@ localStorage key: `"hc_offline_scan_queue"` → `[{mode, args, timestamp, date},
 |---|---|
 | `get_health_check_dates()` | Danh sách ngày có dữ liệu (desc) |
 | `get_health_check_data(date)` | Records + stats (dùng field `status` để đếm) |
-| `scan_distribute(...)` | Phát HS: ghi `start_time_actual`, save → compute_status |
-| `scan_collect(...)` | Thu HS: ghi `end_time_actual`, save → compute_status |
+| `scan_distribute(..., scanned_at)` | Phát HS: ghi `start_time_actual`, save → compute_status. `scanned_at` = giờ scan thật (offline queue) |
+| `scan_collect(..., scanned_at)` | Thu HS: ghi `end_time_actual`, save → compute_status |
 | `lookup_record(code, date)` | Tìm record theo mã HS hoặc mã NV |
-| `get_excel_data(date)` | Xuất Excel (dùng column `status` thay vì SQL IF) |
-| `recalculate_status_by_date(date)` | Bulk recalc status cho tất cả record theo ngày |
+| `get_excel_data(date)` | Xuất Excel (strip HTML cột Result; throw nếu không có data) |
+| `recalculate_status_by_date(date)` | Bulk recalc status theo ngày; record lỗi validate được skip + trả về trong `errors` |
 | `clear_actual_data(date)` | Xóa actual times theo ngày (admin) |
-| `change_date(from_date, to_date)` | Chuyển date toàn bộ records (admin) |
+| `change_date(from_date, to_date)` | Chuyển date toàn bộ records (admin, raw SQL + cập nhật `modified`) |
+
+### `_find_record` — match mã NV ngắn
+- Suffix match `LIKE '%<code 4 số>'` — **cùng rule với client** (`employee.endsWith(code)`).
+- `LIMIT 2` để phát hiện ambiguous: khớp ≥2 hồ sơ → throw yêu cầu nhập mã đầy đủ.
 
 ### `get_health_check_data` — stats counting
 Stats đếm dựa trên field `status`:
@@ -300,7 +334,9 @@ Các menu item (IT only, cần mật khẩu):
 | Phút khám sớm cho phép | `allowedEarlyDistribute` | 10 |
 | Cách so sánh thời gian | `timeCompareMode` | datetime |
 | Hướng biểu đồ | `chartLayout` | vertical |
-| Polling interval (giây) | `pollingInterval` | 3 |
+| Polling interval (giây) | `pollingInterval` | 15 |
+
+> Tất cả persist vào `localStorage` (`hc_mgmt_settings`) — giữ nguyên sau khi reload.
 
 ---
 
@@ -325,7 +361,7 @@ note, modified
 | Vấn đề | Kiểm tra |
 |---|---|
 | Stats không khớp | `recalculateStats()` dùng `r.status`; `calcFilteredStats()` cho dashboard (có thể khác) |
-| Realtime không hoạt động | Kiểm tra `setupPollingAutoSync()` fallback (3s); room: `task_progress:health_check_updates` |
+| Realtime không hoạt động | Kiểm tra `setupPollingAutoSync()` fallback (15s); room: `task_progress:health_check_updates` |
 | Status sai | Chạy "Recalculate Status" từ List View → menu Admin |
 | Khoảng giờ TT không lọc đúng | Logic: `!actual_time` → giữ lại; có actual time → lọc theo khoảng |
 | Tab Phát/Thu bị disable | `loadData()` so sánh date với today |
@@ -346,10 +382,13 @@ health_check_up/
 │   ├── document_for_user.md            ← Nội dung hướng dẫn người dùng
 │   └── readme.md                       ← File này
 ├── api/
-│   └── health_check_api.py             ← Backend API
-├── doctype/health_check_up/
-│   ├── health_check_up.py              ← Controller (compute_status)
-│   ├── health_check_up_list.js         ← List view (admin menu items)
-│   └── health_check_up.json            ← DocType definition (field status)
-└── public/health_check_guide.html      ← Static guide page (dự phòng)
+│   └── health_check_api.py             ← Backend API (permission guards + scan APIs)
+└── doctype/health_check_up/
+    ├── health_check_up.py              ← Controller (compute_status, validate_times, unique checks)
+    ├── health_check_up_list.js         ← List view (admin menu items)
+    ├── health_check_up.json            ← DocType definition (field status)
+    └── test_health_check_up.py         ← Tests (compute_status, validate_times, pregnant)
+
+Ngoài module:
+public/js/lib/html5-qrcode.min.js       ← Camera lib bundle local (CDN chỉ là fallback)
 ```

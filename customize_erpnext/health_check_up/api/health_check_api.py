@@ -6,7 +6,56 @@
 # Realtime events are published for instant multi-client updates.
 
 import frappe
-from frappe.utils import nowtime, today, getdate, now_datetime, get_datetime
+from frappe.utils import nowtime, today, getdate, now_datetime, get_datetime, strip_html_tags
+
+
+# ===========================================================================
+# PERMISSION GUARDS
+# ===========================================================================
+
+ADMIN_ROLES = {"System Manager"}
+
+
+def _require_read():
+    """Chặn user không có quyền đọc Health Check-Up (data sức khỏe nhạy cảm)."""
+    if not frappe.has_permission("Health Check-Up", "read"):
+        frappe.throw(
+            frappe._("Bạn không có quyền xem dữ liệu Khám Sức Khỏe."),
+            frappe.PermissionError,
+        )
+
+
+def _require_write():
+    """Chặn user không có quyền ghi (scan phát/thu hồ sơ)."""
+    if not frappe.has_permission("Health Check-Up", "write"):
+        frappe.throw(
+            frappe._("Bạn không có quyền ghi nhận phát/thu hồ sơ."),
+            frappe.PermissionError,
+        )
+
+
+def _require_admin():
+    """Các thao tác bulk (clear/change date/recalc) chỉ dành cho System Manager."""
+    if ADMIN_ROLES.isdisjoint(frappe.get_roles()):
+        frappe.throw(
+            frappe._("Chức năng này chỉ dành cho quản trị viên (System Manager)."),
+            frappe.PermissionError,
+        )
+
+
+def _resolve_scan_time(scanned_at=None):
+    """
+    Determine the actual time to record for a scan.
+    scanned_at: optional "YYYY-MM-DD HH:MM:SS" string sent by the client when
+    flushing the offline queue, so the recorded time is the real scan time
+    instead of the flush time.
+    """
+    if scanned_at:
+        try:
+            return get_datetime(scanned_at).strftime("%H:%M:%S")
+        except Exception:
+            pass
+    return nowtime()
 
 
 # ===========================================================================
@@ -19,6 +68,8 @@ def get_excel_data(date=None):
     Returns data formatted for frappe.desk.reportview.export_query
     so the user can download an Excel file of the Health Check data.
     """
+    _require_read()
+
     if not date:
         date = today()
         
@@ -56,7 +107,7 @@ def get_excel_data(date=None):
     )
     
     if not records:
-        return []
+        frappe.throw(frappe._("Không có dữ liệu khám sức khỏe cho ngày {0}.").format(date))
 
     # Get ordered columns map
     columns = list(records[0].keys())
@@ -70,11 +121,15 @@ def get_excel_data(date=None):
             # Convert timedeltas to string format HH:MM:SS
             if hasattr(val, 'seconds'):
                 val = str(val)
-                
+
             # If the value is a boolean or checkbox, make it an integer
             if col in ['Pregnant', 'X-Ray', 'Gynecological Exam']:
                 val = 1 if val else 0
-                
+
+            # Result is a Text Editor field — export plain text, not raw HTML
+            if col == 'Result' and val:
+                val = strip_html_tags(str(val))
+
             row.append(val)
         result.append(row)
 
@@ -95,6 +150,8 @@ def get_health_check_dates():
     Returns:
         list[str]: Dates in YYYY-MM-DD format, sorted descending (newest first)
     """
+    _require_read()
+
     dates = frappe.db.sql(
         """
         SELECT DISTINCT date
@@ -126,6 +183,8 @@ def get_health_check_data(date=None):
             "sections": list[dict]
         }
     """
+    _require_read()
+
     if not date:
         result = frappe.db.sql(
             "SELECT MAX(date) as max_date FROM `tabHealth Check-Up`",
@@ -246,7 +305,7 @@ def get_health_check_data(date=None):
 
 
 @frappe.whitelist()
-def scan_distribute(hospital_code=None, employee=None, date=None, note=None):
+def scan_distribute(hospital_code=None, employee=None, date=None, note=None, scanned_at=None):
     """
     Record the actual distribution time for a health check record.
     Called when an operator scans a barcode or enters a code to distribute
@@ -257,6 +316,8 @@ def scan_distribute(hospital_code=None, employee=None, date=None, note=None):
         employee (str, optional): Employee ID or short code (4 digits)
         date (str, optional): Date, defaults to today
         note (str, optional): Note to append
+        scanned_at (str, optional): "YYYY-MM-DD HH:MM:SS" — real scan time,
+            sent when flushing offline queue
 
     Returns:
         dict: {success, already_existed, record}
@@ -264,6 +325,8 @@ def scan_distribute(hospital_code=None, employee=None, date=None, note=None):
     Raises:
         frappe.ValidationError: If record not found
     """
+    _require_write()
+
     if not date:
         date = today()
 
@@ -272,20 +335,19 @@ def scan_distribute(hospital_code=None, employee=None, date=None, note=None):
         frappe.throw(_build_not_found_msg(hospital_code, employee, date))
 
     doc = frappe.get_doc("Health Check-Up", record.name)
-    
+
     if doc.end_time_actual:
         frappe.throw("Không thể phát hồ sơ vì hồ sơ này đã được Thu xong.")
 
     already_existed = bool(doc.start_time_actual)
-    doc.start_time_actual = nowtime()
-    
+    doc.start_time_actual = _resolve_scan_time(scanned_at)
+
     if note:
         existing_note = doc.note or ""
         prefix = "\n" if existing_note else ""
         doc.note = f"{existing_note}{prefix}[Cấp HS] {note}"
 
     doc.save(ignore_permissions=True)
-    frappe.db.commit()
 
     # Publish realtime event for all connected clients
     _publish_update(date, doc, "distribute")
@@ -306,6 +368,7 @@ def scan_collect(
     gynecological_exam=0,
     note=None,
     manual_start_time=None,
+    scanned_at=None,
 ):
     """
     Record the actual collection time for a health check record.
@@ -322,10 +385,14 @@ def scan_collect(
         gynecological_exam (int): 1 if Gynecological exam was done, 0 otherwise
         note (str, optional): Note to append
         manual_start_time (str, optional): Time string to record as start_time_actual
+        scanned_at (str, optional): "YYYY-MM-DD HH:MM:SS" — real scan time,
+            sent when flushing offline queue
 
     Returns:
         dict: {success, already_existed, record}
     """
+    _require_write()
+
     if not date:
         date = today()
 
@@ -339,7 +406,7 @@ def scan_collect(
     doc = frappe.get_doc("Health Check-Up", record.name)
 
     already_existed = bool(doc.end_time_actual)
-    doc.end_time_actual = nowtime()
+    doc.end_time_actual = _resolve_scan_time(scanned_at)
     doc.x_ray = x_ray
     doc.gynecological_exam = gynecological_exam
 
@@ -352,7 +419,6 @@ def scan_collect(
         doc.note = f"{existing_note}{prefix}[Thu HS] {note}"
 
     doc.save(ignore_permissions=True)
-    frappe.db.commit()
 
     # Publish realtime event for all connected clients
     _publish_update(date, doc, "collect")
@@ -377,6 +443,8 @@ def lookup_record(code, date=None):
     Returns:
         dict: {found: bool, record: dict or None}
     """
+    _require_read()
+
     if not date:
         date = today()
 
@@ -438,7 +506,9 @@ def _find_record(hospital_code=None, employee=None, date=None):
     if employee:
         employee = str(employee).strip()
 
-        # Case 1: Short numeric code (4 digits) → search with LIKE
+        # Case 1: Short numeric code (4 digits) → suffix match (same rule as
+        # client-side preview which uses employee.endsWith(code)).
+        # LIMIT 2 to detect ambiguous matches instead of silently picking one.
         if len(employee) <= 5 and employee.isdigit():
             records = frappe.db.sql(
                 """
@@ -446,13 +516,21 @@ def _find_record(hospital_code=None, employee=None, date=None):
                 FROM `tabHealth Check-Up`
                 WHERE date = %(date)s
                   AND employee LIKE %(pattern)s
-                LIMIT 1
+                ORDER BY employee ASC
+                LIMIT 2
             """.format(
                     fields=", ".join(fields)
                 ),
-                {"date": date, "pattern": f"%{employee.zfill(4)}%"},
+                {"date": date, "pattern": f"%{employee.zfill(4)}"},
                 as_dict=True,
             )
+            if len(records) > 1:
+                frappe.throw(
+                    frappe._(
+                        "Mã <b>{0}</b> khớp nhiều hồ sơ ({1}, {2}, ...). "
+                        "Vui lòng quét mã bệnh viện hoặc nhập mã nhân viên đầy đủ."
+                    ).format(employee, records[0].employee, records[1].employee)
+                )
             if records:
                 return _convert_time_fields(records[0])
 
@@ -494,8 +572,11 @@ def _build_not_found_msg(hospital_code, employee, date):
 def clear_actual_data(date):
     """
     Clear start_time_actual and end_time_actual for all Health Check-Up records
-    on the given date. Password validation is done on the client side (ddmm).
+    on the given date. Server-side: System Manager only (the password prompt in
+    the list view is just a UX speed bump, not a security measure).
     """
+    _require_admin()
+
     if not date:
         frappe.throw("Vui lòng chọn ngày.")
 
@@ -518,7 +599,6 @@ def clear_actual_data(date):
             doc.save(ignore_permissions=True)
             count += 1
 
-    frappe.db.commit()
     return {"cleared": count, "total": len(records)}
 
 
@@ -527,7 +607,10 @@ def recalculate_status_by_date(date):
     """
     Bulk-recalculate the status field for all Health Check-Up records on a given date.
     Triggers validate() on each doc so compute_status() runs.
+    Records failing validation are skipped and reported back.
     """
+    _require_admin()
+
     if not date:
         frappe.throw("Vui lòng chọn ngày.")
 
@@ -541,21 +624,26 @@ def recalculate_status_by_date(date):
         frappe.throw(f"Không có bản ghi nào cho ngày {date}.")
 
     count = 0
+    errors = []
     for r in records:
-        doc = frappe.get_doc("Health Check-Up", r["name"])
-        doc.save(ignore_permissions=True)
-        count += 1
+        try:
+            doc = frappe.get_doc("Health Check-Up", r["name"])
+            doc.save(ignore_permissions=True)
+            count += 1
+        except Exception as e:
+            errors.append({"name": r["name"], "error": str(e)})
 
-    frappe.db.commit()
-    return {"updated": count, "total": len(records)}
+    return {"updated": count, "total": len(records), "errors": errors}
 
 
 @frappe.whitelist()
 def change_date(from_date, to_date):
     """
     Change the date field of all Health Check-Up records from from_date to to_date.
-    Password validation is done on the client side (ddmm).
+    Server-side: System Manager only.
     """
+    _require_admin()
+
     if not from_date or not to_date:
         frappe.throw("Vui lòng cung cấp ngày nguồn và ngày đích.")
 
@@ -578,11 +666,12 @@ def change_date(from_date, to_date):
         frappe.throw(f"Không có bảng ghi nào cho ngày {from_date}.")
 
     count = len(records)
+    # Bulk raw-SQL update (bypasses validate() intentionally — admin op);
+    # keep `modified` in sync so client polling picks up the change.
     frappe.db.sql(
-        "UPDATE `tabHealth Check-Up` SET `date` = %s WHERE `date` = %s",
-        (to_date, from_date)
+        "UPDATE `tabHealth Check-Up` SET `date` = %s, `modified` = %s WHERE `date` = %s",
+        (to_date, now_datetime(), from_date)
     )
-    frappe.db.commit()
     return {"updated": count}
 
 
