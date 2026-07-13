@@ -9,6 +9,13 @@ import os
 import tempfile
 from customize_erpnext.api.site_restriction import only_for_sites
 
+
+def _get_employee_prefix():
+	"""Employee ID prefix from Attendance Calculation Setting (cached doc, cheap to call).
+	Empty prefix = no filtering (LIKE '%' / startswith(''))."""
+	from customize_erpnext.customize_erpnext.doctype.attendance_calculation_setting.attendance_calculation_setting import get_attendance_settings
+	return (get_attendance_settings().employee_id_prefix or "").strip()
+
 @frappe.whitelist()
 def send_daily_attendance_report(report_date=None, recipients=None, force_update_attendance=0, bypass_holiday_check=0):
 	"""
@@ -125,8 +132,10 @@ def _send_daily_attendance_report_job(report_date_str, recipient_list, force_upd
 			"detail_join_resign_date": 1
 		}
 
-		# Get report data
+		# Get report data — only employees with the configured prefix
+		emp_prefix = _get_employee_prefix()
 		data = get_data(filters)
+		data = [row for row in data if str(row.get('employee') or '').startswith(emp_prefix)]
 
 		# Calculate statistics
 		stats = calculate_attendance_statistics(report_date_str, data)
@@ -202,7 +211,7 @@ def calculate_attendance_statistics(report_date, data):
 	- Total on leave (On Leave, Half Day)
 	- Working hours summary
 	"""
-	prefix = "TIQN"
+	prefix = _get_employee_prefix()
 	# Count employees who were active on report_date
 	# (not current Active count — some may have left since then)
 	total_employees = frappe.db.sql("""
@@ -236,7 +245,8 @@ def calculate_attendance_statistics(report_date, data):
 	maternity_emp_set = set(frappe.db.sql_list("""
 		SELECT employee FROM `tabEmployee Maternity`
 		WHERE maternity_from_date <= %(date)s AND maternity_to_date >= %(date)s
-	""", {"date": report_date}))
+		  AND employee LIKE %(prefix)s
+	""", {"date": report_date, "prefix": f"{prefix}%"}))
 
 	# Bulk-load employee details (designation, attendance_device_id) in ONE query
 	all_employees = set(row.get('employee') for row in data if row.get('employee'))
@@ -392,7 +402,8 @@ def get_last_employee_checkin_time():
 		last_checkin = frappe.db.sql("""
 			SELECT MAX(time) as last_time
 			FROM `tabEmployee Checkin`
-		""", as_dict=True)
+			WHERE employee LIKE %(prefix)s
+		""", {"prefix": f"{_get_employee_prefix()}%"}, as_dict=True)
 
 		if last_checkin and last_checkin[0].get('last_time'):
 			last_time = last_checkin[0].get('last_time')
@@ -479,11 +490,13 @@ def get_incomplete_checkins(start_date, end_date):
 			AND ec.time < %(end)s
 			AND ec.device_id IS NOT NULL
 		WHERE e.status = 'Active'
+		  AND e.name LIKE %(prefix)s
 		GROUP BY e.name, DATE(ec.time)
 		ORDER BY DATE(ec.time) DESC, e.name ASC
 	""", {
 		"start": f"{start_date} 00:00:00",
-		"end": f"{end_date} 23:59:59"
+		"end": f"{end_date} 23:59:59",
+		"prefix": f"{_get_employee_prefix()}%"
 	}, as_dict=True)
 
 	# Step 4: Resolve shift for each row using pre-loaded map
@@ -643,6 +656,7 @@ def get_early_checkout_day_shift(report_date):
 			  AND a.working_hours >= 7
 			  AND a.working_hours < 8
 			  AND a.docstatus = 1
+			  AND e.name LIKE %(prefix)s
 			GROUP BY
 				a.name, a.employee, a.attendance_date, a.working_hours, a.shift,
 				e.attendance_device_id, e.employee_name, e.department,
@@ -650,7 +664,7 @@ def get_early_checkout_day_shift(report_date):
 			HAVING TIME(MAX(ec.time)) >= '16:00:00'
 			   AND TIME(MAX(ec.time)) <  '17:00:00'
 			ORDER BY e.custom_group, e.employee_name
-		""", {"yesterday": yesterday_str}, as_dict=True)
+		""", {"yesterday": yesterday_str, "prefix": f"{_get_employee_prefix()}%"}, as_dict=True)
 		return rows, yesterday_str
 	except Exception as e:
 		frappe.logger().error(f"Error in get_early_checkout_day_shift: {str(e)}")
@@ -681,9 +695,10 @@ def get_left_employees_with_checkins(report_date):
 				ON e.name = ec.employee
 				AND DATE(ec.time) = %(report_date)s
 			WHERE e.status = 'Left'
+			  AND e.name LIKE %(prefix)s
 			GROUP BY e.name
 			ORDER BY e.custom_group, e.employee_name
-		""", {"report_date": report_date}, as_dict=True)
+		""", {"report_date": report_date, "prefix": f"{_get_employee_prefix()}%"}, as_dict=True)
 		return rows
 	except Exception as e:
 		frappe.logger().error(f"Error getting left employees with checkins: {str(e)}")
