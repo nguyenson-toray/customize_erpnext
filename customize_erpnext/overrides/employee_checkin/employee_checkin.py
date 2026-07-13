@@ -706,12 +706,13 @@ def bulk_update_employee_checkin(from_date=None, to_date=None, employees=None):
 	# Load shift assignments for date range
 	shift_assignments_by_employee = defaultdict(list)
 	if min_date and max_date:
+		# No status filter — HRMS auto-marks expired assignments "Inactive";
+		# they remain valid for their historical date range (see engine preload)
 		assignments = frappe.get_all(
 			"Shift Assignment",
 			filters={
 				"employee": ["in", unique_employees],
 				"docstatus": 1,
-				"status": "Active",
 				"start_date": ["<=", max_date]
 			},
 			fields=["employee", "shift_type", "start_date", "end_date"]
@@ -750,6 +751,10 @@ def bulk_update_employee_checkin(from_date=None, to_date=None, employees=None):
 		# Final fallback to configured default shift (priority 3)
 		return get_attendance_settings().default_shift
 
+	# Preload valid Shift Type names once — replaces a frappe.db.exists()
+	# round-trip per checkin (thousands of queries on big ranges)
+	valid_shift_types = set(frappe.get_all("Shift Type", pluck="name"))
+
 	# STEP 3: Process in batches and collect bulk updates
 	batch_size = 500
 	total_checked = 0
@@ -783,8 +788,8 @@ def bulk_update_employee_checkin(from_date=None, to_date=None, employees=None):
 				try:
 					from frappe.utils import get_time
 
-					# Verify shift type exists
-					if not frappe.db.exists("Shift Type", new_shift):
+					# Verify shift type exists (in-memory set, no DB round-trip)
+					if new_shift not in valid_shift_types:
 						frappe.log_error(f"Shift Type '{new_shift}' not found for checkin {checkin.name}", "Shift Type Missing")
 						new_shift = get_attendance_settings().default_shift
 

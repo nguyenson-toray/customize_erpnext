@@ -175,22 +175,22 @@ Truy cập: **Báo cáo > Shift Attendance Customize**
 
 ---
 
-## Excel Export — 7 sheets (từ 2026-07-05)
+## Excel Export — 6 sheets y hệt app chuẩn (từ 2026-07-13)
 
-Nút **Export Excel** trên report (`export_attendance_excel`) xuất file gồm:
+Nút **Export Excel** trên report (`export_attendance_excel`) xuất workbook **đúng
+format app Flutter chuẩn** (replica từ `flutter_app_chuẩn/timesheetFunctions.dart`,
+code: `standard_export.py`). Tên file: `Timesheet_{yymmdd}_{yymmdd}_{timestamp}.xlsx`.
 
-### Sheet gốc (giữ nguyên)
-1. **Timesheet** — bảng công theo ngày (kiểu C&B template)
-2. **Overtime** — bảng OT theo ngày
-3. **Quy định nghỉ phép** — copy từ file quy định
+1. **Important Note** — bất thường: `[Resigned + Att]` (đã nghỉ việc còn chấm công), `[Ra 16-17h]` (nữ ca Day checkout 16-17h không có chế độ thai sản/con nhỏ tại ngày đó). Nguồn: `custom_note` của Attendance.
+2. **Detail** — 1 dòng/(NV × ngày có ≥1 người chấm công), gồm cả NV vắng (giờ trống, số 0); 20 cột; notes tiếng Việt như app (`Vào trễ`, `Ra sớm`, `Chế độ mang thai`…) + bổ sung `Phép: {abbr}` từ Leave Application (app không có dữ liệu phép).
+3. **Summary** — 1 dòng/NV: 8 cột cố định (No, ID, Name, Joining, Resign, Group, Section, Position) + tổng giờ/công/3 loại OT (tổng công = Σ working_day từng ngày đã làm tròn).
+4. **Timesheet** — ma trận NV × ngày (dd/mm, gồm CN — header CN tô xám) + Total; giá trị = công/ngày, chỉ ghi khi >0.
+5. **Overtime** — ma trận như trên, giá trị = **OT Final**; chỉ NV có tổng OT > 0.
+6. **Shift** — ma trận NV ca xoay (Shift 1 chữ cam, Shift 2 chữ xanh) × ngày (gồm CN); chỉ xuất hiện khi range có attendance Shift 1/2.
 
-### Sheet mới — cấu trúc giống app chấm công cũ (LEGACY_APP_TIMESHEET_ALGORITHM.md §13)
-4. **Important Note** — bất thường: `[Resigned + Att]` (đã nghỉ việc còn chấm công), `[Ra 16-17h]` (nữ checkout 16-17h chưa có hồ sơ thai sản). Nguồn: field `custom_note` của Attendance.
-5. **Detail** — 1 dòng/nhân viên/ngày, 20 cột: No, Date, Employee ID, Finger ID (`attendance_device_id`), Full name, Department, Section, Group, Shift, First In, Last Out, Working (hour) `0.00`, Working (day) `0.00`, OT Actual/Approved/Final `0.0`, Note Checkin (flags Late/Early/Maternity/Leave + custom_note), Note Sunday, Joining/Resign Date.
-6. **Summary** — 1 dòng/nhân viên: tổng giờ, tổng công (= Σ working_day theo ngày đã làm tròn), tổng 3 loại OT.
-7. **Shift** — ma trận NV ca xoay (có ≥1 ngày Shift 1/Shift 2) × ngày (bỏ Chủ Nhật), cell = tên ca.
+Sheet kiểu C&B cũ (Timesheet footer chữ ký, Overtime C&B, Quy định nghỉ phép) đã bỏ hẳn theo yêu cầu.
 
-Lưu ý: export >30.000 records (NV × ngày) tự chuyển background job; file public tự xóa sau 2 phút.
+Lưu ý (từ 2026-07-06): export ≤45.000 records (NV × ngày ≈ 45 ngày full công ty) chạy **sync ngay** (~17s cho 1 tháng); lớn hơn → background job với progress bar, chống double-click (dedup theo user+range), khi xong có **thông báo chuông kèm link tải** (nhận được cả khi rời trang); file sync tự xóa sau 2 phút, file background giữ 30 phút.
 
 ---
 

@@ -438,11 +438,12 @@ def get_incomplete_checkins(start_date, end_date):
 	range_start = getdate(start_date)
 	range_end = getdate(end_date)
 	shift_reg_map = {}  # (employee, date) -> shift
+	# No status filter — HRMS auto-marks expired assignments "Inactive";
+	# they remain valid for their historical date range
 	shift_regs = frappe.db.sql("""
 		SELECT employee, shift_type AS shift, start_date, end_date
 		FROM `tabShift Assignment`
 		WHERE docstatus = 1
-		  AND status = 'Active'
 		  AND start_date <= %(end_date)s
 		  AND (end_date IS NULL OR end_date >= %(start_date)s)
 		ORDER BY start_date DESC, creation DESC

@@ -87,12 +87,13 @@ class OvertimeRegistration(Document):
         if dates:
             min_date = min(dates)
             max_date = max(dates)
+            # No status filter — HRMS auto-marks expired assignments "Inactive";
+            # they remain valid for their historical date range
             shift_assigns = frappe.db.sql("""
                 SELECT employee, shift_type AS shift, start_date, end_date
                 FROM `tabShift Assignment`
                 WHERE employee IN %(employees)s
                   AND docstatus = 1
-                  AND status = 'Active'
                   AND start_date <= %(max_date)s
                   AND (end_date IS NULL OR end_date >= %(min_date)s)
                 ORDER BY start_date DESC, creation DESC
@@ -606,13 +607,13 @@ def get_shift_type(employee, date):
     if date_obj.weekday() == 6:  # Sunday
         return get_attendance_settings().default_shift, "Default Shift For Sunday"
 
-    # Priority 1: Shift Assignment
+    # Priority 1: Shift Assignment (no status filter — "Inactive" = expired
+    # by HRMS's nightly job, still valid for its historical date range)
     shift_assign = frappe.db.sql("""
         SELECT shift_type
         FROM `tabShift Assignment`
         WHERE employee = %(employee)s
           AND docstatus = 1
-          AND status = 'Active'
           AND start_date <= %(date)s
           AND (end_date IS NULL OR end_date >= %(date)s)
         ORDER BY start_date DESC, creation DESC

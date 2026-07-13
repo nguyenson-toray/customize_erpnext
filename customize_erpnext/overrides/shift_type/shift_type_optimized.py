@@ -234,12 +234,15 @@ def preload_reference_data(employee_list: List[str], from_date: str, to_date: st
 	# 3. Load shift assignments (for date range)
 	print(f"   Loading shift assignments...")
 	data['shift_assignments'] = defaultdict(list)
+	# NOTE: no status filter — HRMS's nightly job marks assignments whose
+	# end_date has passed as "Inactive" (= expired, still historically valid).
+	# Filtering on Active would silently resolve past dates to the default
+	# shift on every recompute. To void an assignment, CANCEL it (docstatus 2).
 	assignments = frappe.get_all(
 		"Shift Assignment",
 		filters={
 			"employee": ["in", employee_list] if employee_list else ["is", "set"],
 			"docstatus": 1,
-			"status": "Active",
 			"start_date": ["<=", to_date]
 		},
 		fields=["employee", "shift_type", "start_date", "end_date"]
