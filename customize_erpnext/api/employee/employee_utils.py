@@ -42,9 +42,10 @@ _REMBG_RAM_LIMIT_PCT = 70   # % tổng RAM tối đa cho rembg sessions
 _REMBG_HEAVY_MODELS  = {'birefnet-portrait'}  # models cần kiểm soát RAM
 
 # Redis keys để đồng bộ idle-cleanup giữa các worker Gunicorn
-_REMBG_ACTIVE_KEY = 'rembg_last_used'    # timestamp lần dùng cuối
+_REMBG_ACTIVE_KEY = 'rembg_last_used'    # timestamp lần dùng cuối (mọi inference — cho idle timer)
+_REMBG_SINGLE_KEY = 'rembg_single_last'  # timestamp inference KHÔNG có batch lock (photo editor đơn)
 _REMBG_EVICT_KEY  = 'rembg_evict_after'  # nếu session load trước ts này → cần evict
-_REMBG_IDLE_TTL   = 30 * 60              # 30 phút 
+_REMBG_IDLE_TTL   = 30 * 60              # 30 phút
 
 
 def _evict_rembg_if_stale():
@@ -89,15 +90,16 @@ def batch_rembg_acquire_lock(session_id):
             return {'acquired': True}
         return {'acquired': False, 'holder': data}
     # Kiểm tra có ai đang xóa nền đơn lẻ (photo editor thủ công) không.
-    # Nếu _REMBG_ACTIVE_KEY được cập nhật trong 120s và không có batch lock
-    # → là single-edit đang chạy → chặn batch mới để tránh tranh RAM.
-    active_ts = cache.get_value(_REMBG_ACTIVE_KEY)
-    if active_ts:
+    # Dùng _REMBG_SINGLE_KEY (chỉ set khi inference KHÔNG dưới batch lock) —
+    # không dùng _REMBG_ACTIVE_KEY vì warm-up/batch của chính user cũng set key đó,
+    # sẽ tự chặn mình khi mở batch lần kế tiếp trong vòng 120s.
+    single_ts = cache.get_value(_REMBG_SINGLE_KEY)
+    if single_ts:
         try:
-            if time.time() - float(active_ts) < 120:
+            if time.time() - float(single_ts) < 120:
                 return {'acquired': False, 'holder': {
                     'user': 'người dùng khác',
-                    'started_at': datetime.fromtimestamp(float(active_ts)).strftime('%H:%M:%S'),
+                    'started_at': datetime.fromtimestamp(float(single_ts)).strftime('%H:%M:%S'),
                     'type': 'single_edit',
                 }}
         except Exception:
@@ -205,10 +207,15 @@ def remove_bg_rembg(image_data, model_name='birefnet-portrait'):
         else:
             os.environ['OMP_NUM_THREADS'] = old_omp
 
-    # Cập nhật thời điểm dùng gần nhất — reset lại 15-phút idle timer
+    # Cập nhật thời điểm dùng gần nhất — reset idle timer
     try:
-        frappe.cache().set_value(_REMBG_ACTIVE_KEY, time.time(),
-                                 expires_in_sec=_REMBG_IDLE_TTL * 3)
+        cache = frappe.cache()
+        cache.set_value(_REMBG_ACTIVE_KEY, time.time(),
+                        expires_in_sec=_REMBG_IDLE_TTL * 3)
+        # Chỉ đánh dấu "single edit" khi KHÔNG chạy dưới batch lock —
+        # warm-up/batch không được tự chặn batch kế tiếp (guard 120s trong acquire_lock)
+        if not cache.get_value(_REMBG_LOCK_KEY):
+            cache.set_value(_REMBG_SINGLE_KEY, time.time(), expires_in_sec=300)
     except Exception:
         pass
 

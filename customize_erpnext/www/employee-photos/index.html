@@ -5328,12 +5328,16 @@
             });
         });
 
-        // Close batch modal on backdrop click
-        document.getElementById('batchIdModal').addEventListener('click', function (e) {
-            if (e.target === this && !_batchProcessing) closeBatchModal();
-        });
-        document.getElementById('batchCropAdjustModal').addEventListener('click', function (e) {
-            if (e.target === this) closeBatchCropAdjust();
+        // Close batch modal on backdrop click.
+        // PHẢI chờ DOMContentLoaded: markup 2 modal này nằm SAU script — bind trực tiếp
+        // sẽ throw TypeError (null) và giết toàn bộ script phía sau (bug tồn tại từ trước).
+        window.addEventListener('DOMContentLoaded', function () {
+            document.getElementById('batchIdModal').addEventListener('click', function (e) {
+                if (e.target === this && !_batchProcessing) closeBatchModal();
+            });
+            document.getElementById('batchCropAdjustModal').addEventListener('click', function (e) {
+                if (e.target === this) closeBatchCropAdjust();
+            });
         });
 
         // Close modal with ESC key
