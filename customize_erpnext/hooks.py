@@ -427,3 +427,12 @@ web_include_js = [
     "/assets/customize_erpnext/js/job_application_form.js"
 ]
 
+
+# Methods callable directly in Jinja templates (print formats, web pages).
+# Dùng thay cho frappe.call() trong print format: frappe.call đi qua execute_cmd
+# nên đòi hỏi HTTP request context (render từ console/scheduler sẽ lỗi).
+jinja = {
+    "methods": [
+        "customize_erpnext.api.qr_label_print.generate_qr_code_base64",
+    ],
+}
