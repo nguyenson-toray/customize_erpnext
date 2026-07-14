@@ -3,7 +3,6 @@
 
 frappe.ui.form.on("Employee Maternity", {
 	refresh(frm) {
-		frm.set_df_property("leave_application", "read_only", 1);
 		// Derived fields are read-only — computed by server on save
 		frm.set_df_property("pregnant_to_date", "read_only", 1);
 		frm.set_df_property("youg_child_from_date", "read_only", 1);
@@ -98,17 +97,17 @@ function _recalculate_young_child_from(frm) {
 }
 
 /**
- * Validate 1 cặp ngày: from < to
+ * Validate 1 cặp ngày: from <= to (phase có thể chỉ 1 ngày)
  */
 function validate_pair(frm, from_field, to_field, label) {
 	const from_date = frm.doc[from_field];
 	const to_date = frm.doc[to_field];
 	if (!from_date || !to_date) return true;
 
-	if (frappe.datetime.str_to_obj(from_date) >= frappe.datetime.str_to_obj(to_date)) {
+	if (frappe.datetime.str_to_obj(from_date) > frappe.datetime.str_to_obj(to_date)) {
 		frappe.msgprint({
 			title: __("Invalid Date Range"),
-			message: __("{0}: From Date must be before To Date", [label]),
+			message: __("{0}: From Date cannot be after To Date", [label]),
 			indicator: "red",
 		});
 		frm.set_value(to_field, "");

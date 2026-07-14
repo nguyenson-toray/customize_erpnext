@@ -3,11 +3,25 @@
 
 import frappe
 from frappe import _
-from frappe.utils import getdate, add_days, today
+from frappe.utils import getdate, add_days, add_months, today
 from frappe.model.document import Document
 from datetime import date
 from dateutil.relativedelta import relativedelta
 import json
+
+
+def _gestational_age_months(estimated_due_date, on_date=None):
+	"""Gestational age in months, clamped to [0, 9.5].
+	Formula: 9.5 - (DATEDIF(on_date, estimated_due_date, 'm') + 1)"""
+	if not estimated_due_date:
+		return 0
+	on_date = on_date or date.today()
+	edd = getdate(estimated_due_date)
+	if edd <= on_date:
+		return 9.5
+	rd = relativedelta(edd, on_date)
+	months_diff = rd.years * 12 + rd.months
+	return max(0, min(9.5, round(9.5 - (months_diff + 1), 1)))
 
 
 class EmployeeMaternity(Document):
@@ -27,16 +41,7 @@ class EmployeeMaternity(Document):
 
 	@property
 	def gestational_age(self):
-		"""Gestational age in months. Formula: 9.5 - (DATEDIF(TODAY, estimated_due_date, 'm') + 1)"""
-		if not self.estimated_due_date:
-			return 0
-		today_date = date.today()
-		edd = getdate(self.estimated_due_date)
-		if edd <= today_date:
-			return 9.5
-		rd = relativedelta(edd, today_date)
-		months_diff = rd.years * 12 + rd.months
-		return round(9.5 - (months_diff + 1), 1)
+		return _gestational_age_months(self.estimated_due_date)
 
 	# =========================================================================
 	# Validation
@@ -49,64 +54,74 @@ class EmployeeMaternity(Document):
 		self.calculate_status()
 
 	def calculate_derived_dates(self):
-		"""Auto-calculate derived dates — always overrides, no conditions.
+		"""Auto-calculate derived dates. Mirrors _recalculate_derived() in employee_maternity.js
+		so UI save and Data Import produce the same result.
+
+		effective maternity start = maternity_from_date, fallback maternity_from_date_estimate.
 
 		Rules:
-		  pregnant_to_date     = maternity_from_date - 1 day
+		  pregnant_to_date     = effective maternity start - 1 day
+		                         (fallback: estimated_due_date; never cleared)
+		  maternity_to_date    = effective maternity start + 6 months (only if empty)
 		  youg_child_from_date = maternity_to_date + 1 day
 		  youg_child_to_date   = date_of_birth + 364 days
+
+		During Data Import, values are never cleared — only overridden when a
+		source field to derive from is present (imported legacy records may have
+		phase dates without the source fields).
 		"""
-		if self.maternity_from_date:
-			self.pregnant_to_date = add_days(getdate(self.maternity_from_date), -1)
+		in_import = bool(frappe.flags.in_import)
+		effective_mat_from = self.maternity_from_date or self.maternity_from_date_estimate
+
+		if self.pregnant_from_date:
+			if effective_mat_from:
+				self.pregnant_to_date = add_days(getdate(effective_mat_from), -1)
+			elif self.estimated_due_date:
+				self.pregnant_to_date = getdate(self.estimated_due_date)
+
+		if effective_mat_from and not self.maternity_to_date:
+			self.maternity_to_date = add_months(getdate(effective_mat_from), 6)
 
 		if self.maternity_to_date:
 			self.youg_child_from_date = add_days(getdate(self.maternity_to_date), 1)
-		else:
+		elif not in_import:
 			self.youg_child_from_date = None
 
 		if self.date_of_birth:
 			self.youg_child_to_date = add_days(getdate(self.date_of_birth), 364)
 
 	def validate_dates(self):
-		"""Validate from < to for each date pair.
-		Note: pregnant_to_date and youg_child_from_date are auto-derived,
-		so the 'to without from' check is skipped for those.
-		"""
+		"""Validate from <= to for each date pair (a phase may be a single day)."""
 		pairs = [
 			("pregnant_from_date", "pregnant_to_date", _("Pregnant")),
 			("maternity_from_date", "maternity_to_date", _("Maternity Leave")),
 			("youg_child_from_date", "youg_child_to_date", _("Young Child")),
 		]
-		derived_to_fields = {"pregnant_to_date", "youg_child_from_date"}
 
 		for from_field, to_field, label in pairs:
 			from_date = self.get(from_field)
 			to_date = self.get(to_field)
 			if from_date and to_date:
-				if getdate(from_date) >= getdate(to_date):
+				if getdate(from_date) > getdate(to_date):
 					frappe.throw(
-						_("{0}: From Date must be earlier than To Date").format(label)
+						_("{0}: From Date cannot be after To Date").format(label)
 					)
-			# if to_date and not from_date and to_field not in derived_to_fields:
-			# 	frappe.throw(
-			# 		_("{0}: To Date is set but From Date is missing").format(label)
-			# 	)
 
 	def calculate_status(self):
 		"""Set status field based on which date period today falls into.
-		If today falls in multiple periods (data legacy), pick the one with the latest from_date."""
-		from datetime import date as _date
-		today_date = _date.today()
+		If today falls in multiple periods (data legacy), pick the one with the latest from_date.
+		Maternity phase falls back to maternity_from_date_estimate when the actual date
+		is not yet known, so status is not blank during actual leave."""
+		today_date = date.today()
+		effective_mat_from = self.maternity_from_date or self.maternity_from_date_estimate
 
 		active = []  # list of (from_date, status_label)
 		checks = [
-			("pregnant_from_date",    "pregnant_to_date",    "Pregnant"),
-			("maternity_from_date",   "maternity_to_date",   "Maternity Leave"),
-			("youg_child_from_date",  "youg_child_to_date",  "Young Child"),
+			(self.pregnant_from_date, self.pregnant_to_date, "Pregnant"),
+			(effective_mat_from,      self.maternity_to_date, "Maternity Leave"),
+			(self.youg_child_from_date, self.youg_child_to_date, "Young Child"),
 		]
-		for from_field, to_field, label in checks:
-			from_val = self.get(from_field)
-			to_val   = self.get(to_field)
+		for from_val, to_val, label in checks:
 			if not from_val:
 				continue
 			f = getdate(from_val)
@@ -148,21 +163,20 @@ class EmployeeMaternity(Document):
 				getdate(self.youg_child_to_date) if self.youg_child_to_date else None,
 			)
 
-		# Cần ít nhất end_date để kiểm tra overlap
-		valid_periods = {k: v for k, v in periods.items() if v[1] is not None}
-		names = list(valid_periods.keys())
+		# Period không có end_date được coi là open-ended (kéo dài vô hạn)
+		names = list(periods.keys())
 
 		for i in range(len(names)):
 			for j in range(i + 1, len(names)):
 				a_name, b_name = names[i], names[j]
-				a_from, a_to = valid_periods[a_name]
-				b_from, b_to = valid_periods[b_name]
+				a_from, a_to = periods[a_name]
+				b_from, b_to = periods[b_name]
 				# Overlap nếu: a_from <= b_to AND b_from <= a_to
-				if a_from <= b_to and b_from <= a_to:
+				if a_from <= (b_to or date.max) and b_from <= (a_to or date.max):
 					frappe.throw(
 						_("Date periods overlap between {0} ({1} → {2}) and {3} ({4} → {5})").format(
-							_(a_name), a_from, a_to,
-							_(b_name), b_from, b_to,
+							_(a_name), a_from, a_to or _("ongoing"),
+							_(b_name), b_from, b_to or _("ongoing"),
 						)
 					)
 
@@ -174,18 +188,18 @@ class EmployeeMaternity(Document):
 		self._collect_affected_dates()
 
 	def _collect_affected_dates(self):
-		"""So sánh old vs new để tìm các ngày cần recalc attendance"""
-		affected_dates = set()
+		"""So sánh old vs new để tìm các ngày cần recalc attendance.
+		Nếu đổi employee, thu thập ngày cho CẢ employee cũ lẫn mới
+		(employee cũ cần clear trạng thái maternity trên attendance)."""
+		jobs = {}  # employee -> set of date strings
 
 		if not self.is_new():
 			old_doc = self.get_doc_before_save()
 			if old_doc:
-				# Collect all old date ranges
-				self._add_all_ranges(affected_dates, old_doc)
-
 				# Kiểm tra có thay đổi không
 				# Include source fields that trigger derived-date recalculation
 				tracked_fields = [
+					"employee",
 					"pregnant_from_date", "pregnant_to_date",
 					"maternity_from_date", "maternity_from_date_estimate",
 					"maternity_to_date",
@@ -200,12 +214,20 @@ class EmployeeMaternity(Document):
 				if not changed:
 					return
 
-		# Collect new date ranges
-		self._add_all_ranges(affected_dates, self)
+				# Collect all old date ranges (theo employee cũ)
+				old_dates = set()
+				self._add_all_ranges(old_dates, old_doc)
+				if old_dates:
+					jobs.setdefault(old_doc.employee, set()).update(old_dates)
 
-		if affected_dates:
-			self._maternity_affected_dates = list(affected_dates)
-			self._maternity_employee = self.employee
+		# Collect new date ranges
+		new_dates = set()
+		self._add_all_ranges(new_dates, self)
+		if new_dates:
+			jobs.setdefault(self.employee, set()).update(new_dates)
+
+		if jobs:
+			self._maternity_recalc_jobs = {emp: sorted(dates) for emp, dates in jobs.items()}
 
 	def _add_all_ranges(self, date_set, doc):
 		"""Thu thập dates từ cả 3 giai đoạn của doc"""
@@ -244,23 +266,10 @@ class EmployeeMaternity(Document):
 # Hook Functions
 # =============================================================================
 
-def validate_maternity(doc, method):
-	doc.validate()
-
-
 def on_maternity_update(doc, method):
+	# Frappe chạy on_update sau CẢ insert lẫn save — không cần hook after_insert riêng
+	# (dates đã được thu thập trong before_save, hook này chạy cho cả doc mới)
 	_queue_attendance_recalculation(doc, "on_update")
-
-
-def on_maternity_insert(doc, method):
-	if not hasattr(doc, "_maternity_affected_dates"):
-		affected_dates = set()
-		doc._add_all_ranges(affected_dates, doc)
-		if affected_dates:
-			doc._maternity_affected_dates = list(affected_dates)
-			doc._maternity_employee = doc.employee
-
-	_queue_attendance_recalculation(doc, "after_insert")
 
 
 def on_maternity_delete(doc, method):
@@ -268,17 +277,17 @@ def on_maternity_delete(doc, method):
 	doc._add_all_ranges(affected_dates, doc)
 
 	if affected_dates:
-		doc._maternity_affected_dates = list(affected_dates)
-		doc._maternity_employee = doc.employee
+		doc._maternity_recalc_jobs = {doc.employee: sorted(affected_dates)}
 		_queue_attendance_recalculation(doc, "on_trash")
 
 
 def _queue_attendance_recalculation(doc, trigger):
 	"""Queue background job để recalculate attendance cho các ngày bị ảnh hưởng
-	(CHỈ cho employee của record này).
+	(mỗi employee bị ảnh hưởng 1 job — thường 1, là 2 khi record đổi employee).
 	Hoạt động cho cả: UI save, Data Import (add new / update if exist), on_trash.
 
-	Gated by setting recalc_attendance_on_maternity_change (default OFF):
+	Gated by setting recalc_attendance_on_maternity_change
+	(label: "Recalc Attendance on Maternity Save/Delete", default OFF):
 	khi tắt, attendance cập nhật ở lần chạy full kế tiếp hoặc Bulk Update thủ công.
 	"""
 	try:
@@ -288,44 +297,46 @@ def _queue_attendance_recalculation(doc, trigger):
 		if not frappe.utils.cint(get_attendance_settings().recalc_attendance_on_maternity_change):
 			return
 
-		if not hasattr(doc, "_maternity_affected_dates") or not doc._maternity_affected_dates:
+		jobs = getattr(doc, "_maternity_recalc_jobs", None)
+		if not jobs:
 			return
 
-		affected_dates = doc._maternity_affected_dates
-		employee = getattr(doc, "_maternity_employee", doc.employee)
+		for employee, affected_dates in jobs.items():
+			affected_dates_sorted = sorted([getdate(d) for d in affected_dates])
+			from_date  = str(affected_dates_sorted[0])
+			to_date    = str(affected_dates_sorted[-1])
+			total_days = len(affected_dates_sorted)
 
-		affected_dates_sorted = sorted([getdate(d) for d in affected_dates])
-		from_date  = str(affected_dates_sorted[0])
-		to_date    = str(affected_dates_sorted[-1])
-		total_days = len(affected_dates_sorted)
+			job_id = f"maternity_attendance_{employee}_{int(frappe.utils.now_datetime().timestamp())}"
 
-		job_id = f"maternity_attendance_{employee}_{int(frappe.utils.now_datetime().timestamp())}"
-
-		frappe.enqueue(
-			"customize_erpnext.customize_erpnext.doctype.employee_maternity.employee_maternity.background_update_attendance_for_maternity",
-			queue="long",
-			timeout=1800,
-			job_id=job_id,
-			employee=employee,
-			affected_dates_json=json.dumps([str(d) for d in affected_dates_sorted]),
-			from_date=from_date,
-			to_date=to_date,
-		)
-
-		# Skip popup during Data Import (no active web request)
-		if not getattr(frappe.flags, "in_import", False):
-			frappe.msgprint(
-				msg=_("Maternity period changed. Updating attendance for {0} days ({1} → {2})...").format(
-					total_days, from_date, to_date
-				),
-				title=_("Attendance Update Queued"),
-				indicator="blue",
+			frappe.enqueue(
+				"customize_erpnext.customize_erpnext.doctype.employee_maternity.employee_maternity.background_update_attendance_for_maternity",
+				queue="long",
+				timeout=1800,
+				job_id=job_id,
+				# Job chỉ được đẩy vào queue sau khi transaction commit —
+				# tránh worker recalc khi record chưa thực sự lưu/xóa
+				enqueue_after_commit=True,
+				employee=employee,
+				affected_dates_json=json.dumps([str(d) for d in affected_dates_sorted]),
+				from_date=from_date,
+				to_date=to_date,
 			)
 
-		frappe.logger().info(
-			f"[Maternity] {trigger} — {employee}: queued {total_days} days "
-			f"({from_date} → {to_date}). job_id={job_id}"
-		)
+			# Skip popup during Data Import (no active web request)
+			if not getattr(frappe.flags, "in_import", False):
+				frappe.msgprint(
+					msg=_("Maternity period changed. Updating attendance for {0} days ({1} → {2})...").format(
+						total_days, from_date, to_date
+					),
+					title=_("Attendance Update Queued"),
+					indicator="blue",
+				)
+
+			frappe.logger().info(
+				f"[Maternity] {trigger} — {employee}: queued {total_days} days "
+				f"({from_date} → {to_date}). job_id={job_id}"
+			)
 
 	except Exception as e:
 		frappe.log_error(
@@ -505,7 +516,7 @@ _MATERNITY_LABELS_VI = {
 }
 
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def get_employee_maternity_for_excel(
 	employee=None,
 	status=None,
@@ -516,6 +527,9 @@ def get_employee_maternity_for_excel(
 ):
 	"""
 	API for Excel / Power Query – returns Employee Maternity list.
+	Requires an authenticated session or API key
+	(Authorization: token <api_key>:<api_secret>) — dữ liệu thai sản nhạy cảm,
+	không mở allow_guest.
 
 	Params:
 		employee  : filter by employee ID
@@ -622,16 +636,7 @@ def get_employee_maternity_for_excel(
 
 		# gestational_age
 		edd = row.get("estimated_due_date")
-		if edd:
-			edd_date = getdate(edd)
-			if edd_date <= today_date:
-				r["gestational_age"] = 9.5
-			else:
-				diff = _rd(edd_date, today_date)
-				months_diff = diff.years * 12 + diff.months
-				r["gestational_age"] = round(9.5 - (months_diff + 1), 1)
-		else:
-			r["gestational_age"] = ""
+		r["gestational_age"] = _gestational_age_months(edd, today_date) if edd else ""
 
 		# seniority
 		doj = row.get("date_of_joining")

@@ -1,123 +1,110 @@
 # Employee Maternity
 
-Standalone doctype quản lý các giai đoạn thai sản của nhân viên. Thay thế child table `custom_maternity_tracking` cũ trong Employee.
+Doctype quản lý các giai đoạn thai sản của nhân viên. Mỗi nhân viên 1 record cho 1 chu kỳ thai sản, chứa **cả 3 giai đoạn** dưới dạng 3 cặp ngày (không còn kiểu 1 record / 1 type như bản cũ).
 
-## Cấu trúc
+## Cấu trúc field
 
 | Field | Type | Mô tả |
 |-------|------|-------|
-| `employee` | Link → Employee | Nhân viên |
-| `type` | Select | `Pregnant` / `Maternity Leave` / `Young Child` |
-| `from_date` | Date | Ngày bắt đầu |
-| `to_date` | Date | Ngày kết thúc |
-| `apply_benefit` | Check | Áp dụng giảm 1 giờ làm việc |
-| `leave_application` | Link → Leave Application | Chỉ có khi type = "Maternity Leave" |
-| `note` | Small Text | Ghi chú |
-| `estimated_due_date` | Date | Ngày dự sinh (chỉ hiển thị khi Pregnant) |
-| `date_of_birth` | Date | Ngày sinh con (chỉ hiển thị khi Young Child) |
+| `employee` | Link → Employee | Nhân viên (reqd) |
+| `full_name`, `group`, `designation`, `date_of_joining` | fetch | Fetch từ Employee |
+| `status` | Select (read-only) | `Pregnant` / `Maternity Leave` / `Young Child` / `Inactive` / rỗng — **tự tính**, xem bên dưới |
+| `apply_benefit` | Check (default 1) | Áp dụng giảm 1 giờ làm việc |
+| `pregnant_from_date` | Date | Bắt đầu thai kỳ (HR nhập) |
+| `pregnant_to_date` | Date (read-only) | **Derived** |
+| `estimated_due_date` | Date | Ngày dự sinh |
+| `maternity_from_date` | Date | Bắt đầu nghỉ thai sản (thực tế) |
+| `maternity_from_date_estimate` | Date | Bắt đầu nghỉ thai sản (dự kiến — fallback khi chưa có ngày thực tế) |
+| `maternity_to_date` | Date | Kết thúc nghỉ thai sản |
+| `date_of_birth` | Date | Ngày sinh con |
+| `youg_child_from_date` | Date (read-only) | **Derived** |
+| `youg_child_to_date` | Date (read-only) | **Derived** |
+| `gestational_age` | Float (virtual) | Tuổi thai (tháng), clamp [0, 9.5] |
+| `seniority` | Int (virtual) | Thâm niên (tháng) từ date_of_joining |
 
-## 3 loại type
+## Derived dates (server `calculate_derived_dates()` — mirror client JS)
 
-### 1. Pregnant (Mang thai)
-- Tạo thủ công bởi HR
-- `apply_benefit` mặc định = 1, có thể tắt
-- Chỉ khi `apply_benefit = 1` mới được giảm giờ
+`effective_mat_from = maternity_from_date || maternity_from_date_estimate`
 
-### 2. Maternity Leave (Nghỉ thai sản)
-- **Tự động tạo** khi submit Leave Application có leave type = `"Nghỉ hưởng BHXH/ Social insurance leave - Thai sản"`
-- **Tự động xóa** khi cancel Leave Application
-- **Tự động cập nhật** from_date/to_date khi LA được amend
-- Các field readonly, không cho phép sửa thủ công
-- `apply_benefit` luôn = 1
+| Field | Công thức |
+|-------|-----------|
+| `pregnant_to_date` | `effective_mat_from - 1 ngày` (fallback: `estimated_due_date`; không bao giờ bị clear) |
+| `maternity_to_date` | `effective_mat_from + 6 tháng` (chỉ khi đang trống) |
+| `youg_child_from_date` | `maternity_to_date + 1 ngày` |
+| `youg_child_to_date` | `date_of_birth + 364 ngày` |
 
-### 3. Young Child (Nuôi con nhỏ)
-- Tạo thủ công bởi HR
-- `apply_benefit` luôn áp dụng (auto benefit)
+**Data Import:** giá trị import không bao giờ bị xóa — chỉ bị ghi đè khi có source field để derive (record legacy có thể import trực tiếp phase dates mà không có source fields).
+
+## Status
+
+`calculate_status()`: hôm nay rơi vào giai đoạn nào → status đó. Giai đoạn Maternity dùng `effective_mat_from` (fallback estimate). Nếu rơi vào nhiều giai đoạn (data legacy) → chọn giai đoạn có from_date muộn nhất. Qua hết `youg_child_to_date` → `Inactive`. Không rơi vào đâu → rỗng.
+
+- **Tự tính lại hàng ngày** — scheduler cron 00:00: `scheduled_calculate_all_maternity_statuses()`
+- **List view** có nút **Calculate Status** (tất cả hoặc records được chọn) và **Show Invalid Records** (tìm record có gap ≠ 1 ngày giữa các giai đoạn)
+
+## Validation
+
+- Mỗi cặp: `from <= to` (cho phép phase 1 ngày)
+- 3 giai đoạn không được overlap trong cùng record; giai đoạn thiếu to_date được coi là open-ended (vô hạn) khi check overlap
 
 ## Ảnh hưởng đến Attendance
 
-Khi tạo/sửa/xóa Employee Maternity record, hệ thống tự động:
+**Gated by Attendance Calculation Setting → "Recalc Attendance on Maternity Save/Delete"** (`recalc_attendance_on_maternity_change`, mặc định **OFF**). Khi OFF, attendance chỉ được cập nhật ở lần chạy full kế tiếp hoặc Bulk Update thủ công.
 
-1. Thu thập các ngày bị ảnh hưởng (so sánh old vs new dates)
-2. Giới hạn đến ngày hôm nay và relieving_date của employee
-3. Queue background job gọi `bulk_update_attendance_optimized()` để recalculate attendance
+Khi ON, mỗi lần tạo/sửa/xóa record:
+
+1. `before_save` so sánh old vs new → thu thập các ngày bị ảnh hưởng theo employee (đổi employee → recalc cho **cả** employee cũ và mới)
+2. Giới hạn đến hôm nay và `relieving_date - 1`
+3. `on_update` / `on_trash` → queue background job (`enqueue_after_commit=True`, queue long) gọi `_core_process_attendance_logic_optimized()` cho đúng những ngày đó
+4. Job skip nếu đang giờ cao điểm check-in/out (`is_peak_time()`) — lần chạy full kế tiếp bù
+
+Lưu ý: Frappe chạy `on_update` sau **cả insert lẫn save** → không đăng ký hook `after_insert` (sẽ bị queue đôi).
 
 ### Maternity Benefit trong Attendance
-- Attendance field `custom_maternity_benefit` = 1 khi employee có benefit
-- Khi có benefit: **giảm 1 giờ** khỏi standard working hours (cho phép về sớm 1 giờ)
-- Logic check benefit (dùng chung cho tất cả nơi tính attendance):
 
-```
-if type in ('Young Child', 'Maternity Leave'):
-    benefit = True  # Luôn được hưởng
-elif type == 'Pregnant' and apply_benefit == 1:
-    benefit = True  # Chỉ khi được tick
-```
+- Attendance field `custom_maternity_benefit` = 1 khi employee có benefit → **giảm 1 giờ** khỏi standard working hours
+- Benefit theo giai đoạn (dựa trên ngày attendance rơi vào cặp from/to nào):
+  - `Maternity Leave`, `Young Child`: luôn benefit
+  - `Pregnant`: chỉ khi `apply_benefit = 1`
 
-### Các file tham chiếu Employee Maternity để tính attendance
+### Các nơi đọc Employee Maternity
 
-| File | Function | Mô tả |
-|------|----------|-------|
-| `api/employee/employee_utils.py` | `check_employee_maternity_status()` | Check maternity status + benefit |
-| `overrides/employee_checkin/employee_checkin.py` | `check_maternity_benefit()` | Check benefit khi tính checkin |
-| `overrides/shift_type/shift_type_optimized.py` | `preload_reference_data()` | Bulk load maternity data |
-| `overrides/shift_type/shift_type_optimized.py` | `check_maternity_status_cached()` | Check từ preloaded data |
-| `overrides/attendance/attendance.py` | `get_attendance_custom_additional_info()` | Hiển thị info trên Attendance form |
-| `report/maternity_tracking_report/` | `get_data()` | Report thai sản |
+| File | Mô tả |
+|------|-------|
+| `overrides/shift_type/shift_type_optimized.py` | `check_maternity_status_cached()` + preload — tính attendance |
+| `api/employee/employee_utils.py` | `check_employee_maternity_status()` |
+| `overrides/attendance/attendance.py` | Info hiển thị trên Attendance form |
+| `customize_erpnext/report/employee_maternity_report/` | Report thai sản |
+| `customize_erpnext/report/shift_attendance_customize/` | Report + scheduler + standard export |
+| `health_check_up/doctype/health_check_up/` | Xác định pregnant theo khoảng ngày khi khám sức khỏe |
 
 ## Hooks (hooks.py)
 
 ```python
-# Employee Maternity Events
 "Employee Maternity": {
-    "validate": "...employee_maternity.validate_maternity",
-    "on_update": "...employee_maternity.on_maternity_update",
-    "after_insert": "...employee_maternity.on_maternity_insert",
-    "on_trash": "...employee_maternity.on_maternity_delete",
+    "on_update": "...employee_maternity.on_maternity_update",   # chạy sau cả insert lẫn save
+    "on_trash":  "...employee_maternity.on_maternity_delete",
 }
 
-# Leave Application → Employee Maternity sync
-"Leave Application": {
-    "on_submit": "...leave_application.sync_maternity_leave_on_submit",
-    "on_cancel": "...leave_application.sync_maternity_leave_on_cancel",
-    "on_update_after_submit": "...leave_application.sync_maternity_leave_on_update",
-}
+# Scheduler: daily 00:00
+"...employee_maternity.scheduled_calculate_all_maternity_statuses"
 ```
 
-## Validation
+(Không còn LA → Employee Maternity auto-sync; record do HR quản lý thủ công / Data Import.)
 
-- `from_date` phải trước `to_date`
-- Không cho phép overlap ngày giữa các record cùng employee
-- Record type "Maternity Leave" không thể tạo/sửa thủ công (chỉ từ Leave Application)
+## API
 
-## Data flow
+### `get_employee_maternity_for_excel` (Power Query / Excel)
 
-```
-Leave Application (submit/cancel/amend)
-    │ leave_type == "Nghỉ hưởng BHXH/... Thai sản"
-    ▼
-Employee Maternity (auto sync, type="Maternity Leave")
-    │
-    ├── on_update / after_insert / on_trash
-    ▼
-Background Job: bulk_update_attendance_optimized()
-    │
-    ▼
-Attendance records (custom_maternity_benefit = 0 hoặc 1)
-    │
-    ▼
-Working hours calculation: standard_hours - 1 (nếu benefit = 1)
-```
+`@frappe.whitelist()` — **yêu cầu đăng nhập hoặc API key** (`Authorization: token <api_key>:<api_secret>`). Không mở `allow_guest` vì dữ liệu thai sản nhạy cảm.
 
-## SQL Query Pattern
+Params: `employee`, `status`, `group`, `page`, `page_size` (0 = all), `lang` (`en`/`vi`).
+Trả về `{ data, columns, col_keys, total, page, page_size, total_pages }` kèm 2 virtual field `gestational_age`, `seniority`.
 
-Tất cả nơi query maternity đều dùng pattern:
+### `calculate_all_maternity_statuses(names=None)`
 
-```sql
-SELECT type, from_date, to_date, apply_benefit
-FROM `tabEmployee Maternity`
-WHERE employee = %(employee)s
-  AND type IN ('Pregnant', 'Maternity Leave', 'Young Child')
-  AND from_date <= %(date)s
-  AND to_date >= %(date)s
-```
+Batch recalc status (dùng bởi nút list view + scheduler). `names=None` → tất cả.
+
+### `get_invalid_maternity_records()`
+
+Tìm record có gap giữa các giai đoạn ≠ 1 ngày (dùng bởi nút "Show Invalid Records").

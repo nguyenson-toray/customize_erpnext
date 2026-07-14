@@ -358,10 +358,11 @@ doc_events = {
 
     # Employee Maternity Events
     # - Auto-update Attendance when maternity date ranges change (UI + Data Import)
+    # - Gated by Attendance Calculation Setting "Recalc Attendance on Maternity Save/Delete" (default OFF)
+    # - on_update fires after both insert and save — no separate after_insert hook needed
     "Employee Maternity": {
-        "on_update":    "customize_erpnext.customize_erpnext.doctype.employee_maternity.employee_maternity.on_maternity_update",
-        "after_insert": "customize_erpnext.customize_erpnext.doctype.employee_maternity.employee_maternity.on_maternity_insert",
-        "on_trash":     "customize_erpnext.customize_erpnext.doctype.employee_maternity.employee_maternity.on_maternity_delete",
+        "on_update": "customize_erpnext.customize_erpnext.doctype.employee_maternity.employee_maternity.on_maternity_update",
+        "on_trash":  "customize_erpnext.customize_erpnext.doctype.employee_maternity.employee_maternity.on_maternity_delete",
     },
 
     # Stock Entry Events
