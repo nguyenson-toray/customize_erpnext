@@ -46,7 +46,6 @@
 
         /* Số liệu luôn thẳng cột */
         .chip-stat b,
-        .coverage-label,
         .file-info {
             font-variant-numeric: tabular-nums;
         }
@@ -63,6 +62,27 @@
             margin-bottom: 20px;
             box-shadow: var(--shadow-1);
             border-top: 3px solid var(--primary);
+            /* Dính ở đỉnh khi cuộn — toàn bộ chức năng luôn thao tác được */
+            position: sticky;
+            top: 0;
+            z-index: 50;
+        }
+
+        .header.is-stuck {
+            box-shadow: var(--shadow-2);
+            border-radius: 0 0 var(--radius) var(--radius);
+        }
+
+        /* Mobile: header chiếm quá nhiều màn hình → bỏ sticky, chỉ giữ trên desktop */
+        @media (max-width: 768px) {
+            .header {
+                position: static;
+            }
+
+            .header.is-stuck {
+                box-shadow: var(--shadow-1);
+                border-radius: var(--radius);
+            }
         }
 
         h1 {
@@ -73,44 +93,8 @@
             margin-bottom: 10px;
         }
 
-        /* ── Coverage bar: thanh độ phủ ảnh — việc chính của trang là lấp phần cam ── */
-        .coverage {
-            flex: 1;
-            min-width: 220px;
-            max-width: 420px;
-        }
-
-        .coverage-track {
-            height: 8px;
-            border-radius: 4px;
-            background: var(--warn-tint);
-            overflow: hidden;
-        }
-
-        .coverage-fill {
-            height: 100%;
-            width: 0%;
-            border-radius: 4px;
-            background: linear-gradient(90deg, var(--primary), #3f74c9);
-            transition: width .6s cubic-bezier(.22, 1, .36, 1);
-        }
-
-        .coverage-label {
-            margin-top: 6px;
-            font-size: 12px;
-            color: var(--ink-2);
-            display: flex;
-            justify-content: space-between;
-            gap: 12px;
-        }
-
-        .coverage-label b {
-            color: var(--ink);
-        }
-
         @media (prefers-reduced-motion: reduce) {
 
-            .coverage-fill,
             .photo-card,
             .photo-card img {
                 transition: none !important;
@@ -334,6 +318,23 @@
             gap: 15px;
             align-items: center;
             flex-wrap: wrap;
+        }
+
+        /* Hàng filter: luôn 1 hàng — tràn thì cuộn ngang, không xuống dòng */
+        .filters-row {
+            flex-wrap: nowrap;
+            gap: 12px;
+            overflow-x: auto;
+            padding-bottom: 4px;
+            scrollbar-width: thin;
+        }
+
+        .filters-row .control-group {
+            flex-shrink: 0;
+        }
+
+        .filters-row .ctrl-text {
+            white-space: nowrap;
         }
 
         .gallery {
@@ -2116,7 +2117,8 @@
         .group-header {
             grid-column: 1 / -1;
             position: sticky;
-            top: 0;
+            /* Dính ngay dưới header sticky (offset đo bằng JS theo chiều cao header thực) */
+            top: var(--sticky-offset, 0px);
             z-index: 5;
             display: flex;
             align-items: center;
@@ -2150,6 +2152,13 @@
             background: var(--primary);
             color: #fff;
             border-color: var(--primary);
+        }
+
+        /* Mobile: header không sticky → group header dính sát đỉnh viewport */
+        @media (max-width: 768px) {
+            .group-header {
+                top: 0;
+            }
         }
 
         /* ── Card size segmented control ── */
@@ -2269,21 +2278,10 @@
 
 <body>
     <div class="container">
-        <div class="header">
+        <div class="header" id="pageHeader">
             <div
                 style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; flex-wrap: wrap; gap: 15px;">
-                <div style="display:flex;flex-direction:column;gap:10px;min-width:240px;flex:1;">
-                    <h1 style="margin-bottom: 0;">📸 Thư viện ảnh nhân viên</h1>
-                    <div class="coverage" title="Tỷ lệ nhân viên đã có ảnh">
-                        <div class="coverage-track">
-                            <div class="coverage-fill" id="coverageFill"></div>
-                        </div>
-                        <div class="coverage-label">
-                            <span><b id="coverageDone">--</b> đã có ảnh · còn <b id="coverageLeft">--</b> chưa có</span>
-                            <span id="coveragePct">--%</span>
-                        </div>
-                    </div>
-                </div>
+                <h1 style="margin-bottom: 0;">📸 Thư viện ảnh nhân viên</h1>
                 <div class="stat-chips" id="statChips">
                     <div class="chip-stat info clickable" id="chipTotal" title="Xóa hết bộ lọc"><span>👤</span> <b
                             id="statTotal">--</b> nhân viên</div>
@@ -2300,12 +2298,31 @@
             <div class="controls-container">
                 <!-- Row 1: Search + Actions -->
                 <div class="controls-row" style="margin-bottom: 12px;">
-                    <div style="position: relative; flex: 1; min-width: 250px;">
+                    <div style="position: relative; flex: 0 1 320px; min-width: 200px;">
                         <span
                             style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); opacity: 0.5;">🔍</span>
                         <input type="text" class="search-box" id="searchBox"
-                            placeholder="Tìm kiếm theo mã hoặc tên nhân viên..."
+                            placeholder="Tìm theo mã hoặc tên..."
                             style="width: 100%; margin: 0; padding-left: 36px;">
+                    </div>
+
+                    <div class="control-group" title="Trạng thái làm việc">
+                        <span class="ctrl-icon">👔</span>
+                        <select id="statusFilterSelect" title="Trạng thái làm việc"
+                            style="padding: 4px 8px; border: 1px solid #d1d8dd; border-radius: 4px;">
+                            <option value="active" selected>Đang làm việc</option>
+                            <option value="left">Đã nghỉ việc</option>
+                            <option value="all">Tất cả</option>
+                        </select>
+                    </div>
+
+                    <div class="control-group" title="Cỡ thẻ ảnh">
+                        <span class="ctrl-icon">🔳</span>
+                        <div class="card-size-seg" id="cardSizeSeg">
+                            <button data-size="140">S</button>
+                            <button data-size="200" class="on">M</button>
+                            <button data-size="260">L</button>
+                        </div>
                     </div>
 
                     <div class="control-group" style="margin-left: auto;">
@@ -2322,16 +2339,6 @@
 
                 <!-- Row 2: Filters -->
                 <div class="controls-row filters-row" id="filtersRow">
-                    <div class="control-group">
-                        <label class="toggle-switch-label" title="Chỉ hiển thị nhân viên đang làm việc">
-                            <label class="toggle-switch">
-                                <input type="checkbox" id="showActiveOnlyCheckbox" checked>
-                                <span class="slider"></span>
-                            </label>
-                            <span class="ctrl-text"> Đang làm việc</span>
-                        </label>
-                    </div>
-
                     <div class="control-group">
                         <label class="toggle-switch-label" title="Chỉ hiển thị nhân viên chưa có ảnh">
                             <label class="toggle-switch">
@@ -2378,15 +2385,6 @@
                             </label>
                             <span class="ctrl-text"> Nhóm theo bộ phận</span>
                         </label>
-                    </div>
-
-                    <div class="control-group" title="Cỡ thẻ ảnh">
-                        <span class="ctrl-icon">🔳</span>
-                        <div class="card-size-seg" id="cardSizeSeg">
-                            <button data-size="140">S</button>
-                            <button data-size="200" class="on">M</button>
-                            <button data-size="260">L</button>
-                        </div>
                     </div>
 
                     <div class="control-group">
@@ -2642,7 +2640,8 @@
                 const eng = localStorage.getItem('ep_bg_engine');
                 if (eng === 'imgly' || eng === 'rembg') setBgEngine(eng);
                 const model = localStorage.getItem('ep_rembg_model');
-                if (model === 'u2net' || model === 'birefnet-portrait') setRembgModel(model);
+                // Luôn gọi để khởi tạo hint mô tả model (kể cả khi dùng mặc định)
+                setRembgModel(model === 'u2net' || model === 'birefnet-portrait' ? model : _rembgModel);
                 const bg = localStorage.getItem('ep_batch_bg');
                 if (bg && /^#[0-9a-fA-F]{6}$/.test(bg)) {
                     _batchBgColor = bg;
@@ -2669,15 +2668,18 @@
             });
 
             // Setup event listeners
-            document.getElementById('showActiveOnlyCheckbox').addEventListener('change', function () {
+            document.getElementById('statusFilterSelect').addEventListener('change', function () {
                 applyFilters();
             });
 
             document.getElementById('showExtraInfoCheckbox').addEventListener('change', function (e) {
                 if (e.target.checked) {
-                    // Ask for password
+                    // Mật khẩu = ngày hiện tại định dạng ddmm (VD 05/07 → "0507")
+                    const now = new Date();
+                    const pad = n => String(n).padStart(2, '0');
+                    const expected = pad(now.getDate()) + pad(now.getMonth() + 1);
                     const password = prompt('Nhập mật khẩu để xem số điện thoại và địa chỉ:');
-                    if (password !== '1111') {
+                    if (password !== expected) {
                         alert('Mật khẩu không đúng!');
                         e.target.checked = false;
                         return;
@@ -2718,7 +2720,7 @@
                 this.classList.toggle('active', isHidden);
             });
 
-            // Back to Top button visibility
+            // Back to Top button visibility + sticky header state
             window.addEventListener('scroll', function () {
                 const btn = document.getElementById('backToTop');
                 if (btn) {
@@ -2728,7 +2730,24 @@
                         btn.classList.remove('show');
                     }
                 }
+                const header = document.getElementById('pageHeader');
+                if (header) header.classList.toggle('is-stuck', window.scrollY > 10);
             });
+
+            // Sticky offset cho group header: dính ngay dưới header
+            // (chiều cao header đổi khi filter wrap / mobile toggle → dùng ResizeObserver)
+            const pageHeader = document.getElementById('pageHeader');
+            function updateStickyOffset() {
+                if (!pageHeader) return;
+                document.documentElement.style.setProperty(
+                    '--sticky-offset', (pageHeader.offsetHeight + 4) + 'px');
+            }
+            updateStickyOffset();
+            if (window.ResizeObserver && pageHeader) {
+                new ResizeObserver(updateStickyOffset).observe(pageHeader);
+            } else {
+                window.addEventListener('resize', updateStickyOffset);
+            }
         });
 
         // Swipe to close modal
@@ -2829,7 +2848,7 @@
         }
 
         function applyFilters() {
-            const showActiveOnly = document.getElementById('showActiveOnlyCheckbox').checked;
+            const statusFilter = document.getElementById('statusFilterSelect').value; // active | left | all
             const showNoPhotoOnly = document.getElementById('showNoPhotoOnlyCheckbox').checked;
             const dateFrom = document.getElementById('dateFilterFrom').value;
             const dateTo = document.getElementById('dateFilterTo').value;
@@ -2840,12 +2859,11 @@
 
             // Filter photos on client-side
             filteredPhotos = allPhotos.filter(photo => {
-                // Filter by active status - only show Active employees
-                if (showActiveOnly) {
-                    // Skip if no status or status is not Active
-                    if (!photo.status || photo.status !== 'Active') {
-                        return false;
-                    }
+                // Filter by work status: active = Đang làm việc, left = Đã nghỉ việc (mọi trạng thái khác Active)
+                if (statusFilter === 'active') {
+                    if (!photo.status || photo.status !== 'Active') return false;
+                } else if (statusFilter === 'left') {
+                    if (photo.status === 'Active') return false;
                 }
 
                 // Filter by no photo
@@ -2912,12 +2930,8 @@
             }
 
             // Debug: Log filter results
-            console.log(`Filter applied - showActiveOnly: ${showActiveOnly}, customGroup: ${customGroup || 'All'}`);
+            console.log(`Filter applied - status: ${statusFilter}, customGroup: ${customGroup || 'All'}`);
             console.log(`Result: ${filteredPhotos.length} photos (from ${allPhotos.length} total)`);
-            if (showActiveOnly) {
-                const nonActiveCount = allPhotos.filter(p => p.status !== 'Active').length;
-                console.log(`Filtered out ${nonActiveCount} non-Active employees`);
-            }
 
             displayPhotos();
             updateStats();
@@ -2935,7 +2949,8 @@
             const p = new URLSearchParams();
             const q = document.getElementById('searchBox').value.trim();
             if (q) p.set('q', q);
-            if (!document.getElementById('showActiveOnlyCheckbox').checked) p.set('all', '1');
+            const statusVal = document.getElementById('statusFilterSelect').value;
+            if (statusVal !== 'active') p.set('status', statusVal);
             if (document.getElementById('showNoPhotoOnlyCheckbox').checked) p.set('nophoto', '1');
             if (_hasPhotoOnly) p.set('hasphoto', '1');
             const group = document.getElementById('groupSelect').value;
@@ -2957,7 +2972,11 @@
             _urlRestoring = true;
             try {
                 if (p.get('q')) document.getElementById('searchBox').value = p.get('q');
-                if (p.get('all') === '1') document.getElementById('showActiveOnlyCheckbox').checked = false;
+                // 'all=1' là param cũ (backward-compat với link đã share)
+                const urlStatus = p.get('status') || (p.get('all') === '1' ? 'all' : '');
+                if (urlStatus === 'left' || urlStatus === 'all') {
+                    document.getElementById('statusFilterSelect').value = urlStatus;
+                }
                 if (p.get('nophoto') === '1') document.getElementById('showNoPhotoOnlyCheckbox').checked = true;
                 _hasPhotoOnly = p.get('hasphoto') === '1';
                 if (p.get('from')) document.getElementById('dateFilterFrom').value = p.get('from');
@@ -2999,7 +3018,7 @@
             document.getElementById('chipTotal').addEventListener('click', () => {
                 // Reset toàn bộ bộ lọc
                 document.getElementById('searchBox').value = '';
-                document.getElementById('showActiveOnlyCheckbox').checked = true;
+                document.getElementById('statusFilterSelect').value = 'active';
                 document.getElementById('showNoPhotoOnlyCheckbox').checked = false;
                 _hasPhotoOnly = false;
                 document.getElementById('dateFilterFrom').value = '';
@@ -3168,17 +3187,6 @@
             const hasPhotoCount = allPhotos.filter(p => p.url && p.url !== '/assets/erpnext/images/default-avatar.png').length;
             statHasPhoto.textContent = hasPhotoCount;
             statNoPhoto.textContent = allPhotos.length - hasPhotoCount;
-
-            // Coverage bar — độ phủ ảnh toàn công ty
-            const pct = allPhotos.length ? Math.round(hasPhotoCount / allPhotos.length * 100) : 0;
-            const fill = document.getElementById('coverageFill');
-            if (fill) fill.style.width = pct + '%';
-            const done = document.getElementById('coverageDone');
-            if (done) done.textContent = hasPhotoCount;
-            const left = document.getElementById('coverageLeft');
-            if (left) left.textContent = allPhotos.length - hasPhotoCount;
-            const pctEl = document.getElementById('coveragePct');
-            if (pctEl) pctEl.textContent = pct + '%';
 
             const timestamp = localStorage.getItem(CACHE_CONFIG.TIMESTAMP_KEY);
             if (timestamp) {
@@ -4543,11 +4551,18 @@
             if (document.getElementById('batchIdModal').classList.contains('open')) prepareBatchAi();
         }
 
+        const _REMBG_MODEL_HINTS = {
+            'u2net': '⚡ nhanh ~0.3s/ảnh · tóc thường',
+            'birefnet-portrait': '✨ tóc đẹp nhất · chậm ~10s/ảnh',
+        };
+
         function setRembgModel(model) {
             _rembgModel = model;
             document.getElementById('bgeModelSelect')?.querySelectorAll('button').forEach(btn => {
                 btn.classList.toggle('active', btn.dataset.model === model);
             });
+            const hint = document.getElementById('bgeModelHint');
+            if (hint) hint.textContent = _REMBG_MODEL_HINTS[model] || '';
             // birefnet: 2 concurrent, RAM guard server-side tự evict nếu >70% (44GB)
             // u2net: 10 concurrent × ~500MB = 5GB
             if (model === 'birefnet-portrait') setRembgConcurrency(2);
@@ -5448,15 +5463,20 @@
                 </div>
                 <div style="width:1px;height:20px;background:#323a48;flex-shrink:0;"></div>
                 <span style="color:#8a95b0;font-size:11px;white-space:nowrap;flex-shrink:0;">Xóa nền:</span>
-                <button class="btn-bg-engine" id="bge_imgly" onclick="setBgEngine('imgly')">JS (@imgly)</button>
-                <button class="btn-bg-engine active" id="bge_rembg" onclick="setBgEngine('rembg')">🖥 rembg</button>
+                <button class="btn-bg-engine" id="bge_imgly" onclick="setBgEngine('imgly')"
+                    title="Xóa nền chạy ngay trên máy bạn (không tốn tài nguyên server).&#10;Chất lượng trung bình, tốc độ tùy máy — dùng khi server bận.">JS (@imgly)</button>
+                <button class="btn-bg-engine active" id="bge_rembg" onclick="setBgEngine('rembg')"
+                    title="Xóa nền AI chạy trên server — chất lượng theo model chọn bên cạnh.">🖥 rembg</button>
                 <div id="bgeModelRow" style="display:flex;align-items:center;gap:4px;flex-shrink:0;">
                     <span style="color:#8a95b0;font-size:11px;">Model:</span>
                     <div id="bgeModelSelect" style="display:flex;gap:4px;">
-                        <button class="btn-bg-engine" data-model="u2net" onclick="setRembgModel('u2net')">u2net</button>
+                        <button class="btn-bg-engine" data-model="u2net" onclick="setRembgModel('u2net')"
+                            title="⚡ NHANH: ~0.3 giây/ảnh, chạy 10 ảnh song song.&#10;Viền tóc thô hơn một chút — đủ tốt cho ảnh thẻ đồng phục, nền phẳng.&#10;Nên dùng cho batch nhiều ảnh.">u2net</button>
                         <button class="btn-bg-engine active" data-model="birefnet-portrait"
-                            onclick="setRembgModel('birefnet-portrait')">birefnet</button>
+                            onclick="setRembgModel('birefnet-portrait')"
+                            title="✨ CHẤT LƯỢNG CAO NHẤT: giữ sợi tóc, viền mượt (model chân dung 2024).&#10;Chậm ~10-20 giây/ảnh, chỉ chạy 2 ảnh song song, lần đầu chờ load model.&#10;Nên dùng khi tóc xõa/nền phức tạp hoặc ảnh cần in lớn.">birefnet</button>
                     </div>
+                    <span id="bgeModelHint" style="color:#6f7d96;font-size:10.5px;white-space:nowrap;"></span>
                 </div>
                 <div style="margin-left:auto;display:flex;gap:8px;align-items:center;flex-shrink:0;">
                     <button class="btn-batch-cancel" onclick="closeBatchModal()">Hủy</button>

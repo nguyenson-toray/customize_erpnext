@@ -1240,12 +1240,12 @@
         <div class="tb-sep"></div>
         <button class="tb" id="tbBg" onclick="doRemoveBg()" disabled>🪄 Xóa nền AI</button>
         <select id="bgEngineSelect" onchange="setEditorBgEngine(this.value)" disabled
-            title="Chọn engine xóa nền"
+            title="u2net: nhanh ~0.3s, tóc thường — đủ cho ảnh thẻ đồng phục&#10;birefnet: tóc đẹp nhất, chậm ~10s, lần đầu chờ load model&#10;@imgly: chạy trên máy bạn, không tốn server"
             style="background:var(--s3);color:var(--text);border:1px solid var(--border);
                    border-radius:6px;padding:3px 6px;font-size:11px;cursor:pointer;">
-            <option value="rembg-u2net">u2net</option>
-            <option value="rembg-birefnet">birefnet</option>
-            <option value="imgly">@imgly (JS)</option>
+            <option value="rembg-birefnet" selected>birefnet · ✨ nét tóc, chậm</option>
+            <option value="rembg-u2net">u2net · ⚡ nhanh</option>
+            <option value="imgly">@imgly (JS) · trên máy bạn</option>
         </select>
         <div class="tb-sep"></div>
         <!-- Compare toggle -->
@@ -1509,7 +1509,7 @@
     };
 
     let _editorBgEngine = 'rembg';          // 'rembg' | 'imgly'
-    let _editorBgModel  = 'u2net';          // 'u2net' | 'birefnet-portrait'
+    let _editorBgModel  = 'birefnet-portrait';  // mặc định birefnet — chất lượng tóc tốt nhất
     let _editorImglyLib = null;             // lazy-loaded @imgly module
 
     // ═══════════════════════════════════
