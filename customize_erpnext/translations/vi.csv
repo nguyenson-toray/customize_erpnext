@@ -624,6 +624,15 @@ Peak Window Minutes,Độ dài khung cao điểm (phút)
 Length in minutes of each peak window,Độ dài mỗi khung cao điểm tính bằng phút
 "Peak Times must be comma-separated HH:MM values, e.g. 07:40,16:00","Giờ cao điểm phải là các giá trị HH:MM cách nhau dấu phẩy, vd: 07:40,16:00"
 "Queue an attendance recalculation immediately when an Overtime Registration is submitted or cancelled (affected employees/dates only). When Include Draft OT Registrations is also ON, saving/deleting a Draft OTR recalculates too","Đưa vào hàng đợi tính lại chấm công ngay khi phiếu Đăng ký tăng ca được submit hoặc hủy (chỉ nhân viên/ngày bị ảnh hưởng). Khi bật thêm Tính cả phiếu OT nháp thì lưu/xóa phiếu Nháp cũng tính lại"
+"Only employees whose ID starts with this prefix are processed when no explicit employee list is given, and only they are included in the Shift Attendance Customize Excel export","Chỉ xử lý nhân viên có mã bắt đầu bằng tiền tố này khi không truyền danh sách cụ thể, và chỉ họ được đưa vào file Excel export của report Shift Attendance Customize"
+Please select an Item first,Vui lòng chọn Item trước
+Please enter Lot Number,Vui lòng nhập Lot Number
+Please enter Roll Number,Vui lòng nhập Roll Number
+Lot Number and Roll Number must not contain the character |,Lot Number và Roll Number không được chứa ký tự |
+Could not fetch Item details,Không lấy được thông tin Item
+"Cannot generate Batch ID: both Lot Number and Roll Number are required (Lot: {0}, Roll: {1})","Không tạo được Batch ID: cần nhập đủ cả Lot Number và Roll Number (Lot: {0}, Roll: {1})"
+Cannot generate Batch ID: Item Name is empty for Item {0},Không tạo được Batch ID: Item {0} chưa có Item Name
+"Batch {0} already exists (Lot {1}, Roll {2})","Batch {0} đã tồn tại (Lot {1}, Roll {2})"
 Shirts,Áo
 Other Items,Item khác
 Insert to DB,Ghi vào CSDL
@@ -642,3 +651,12 @@ Item Types to Forecast,Loại item cần dự toán
 Untick a type to leave it out of the forecast. Default: all types.,Bỏ tick loại nào thì loại đó không được tính vào dự toán. Mặc định: tất cả.
 Select at least one item type to forecast.,Chọn ít nhất một loại item để dự toán.
 Applies to both tables: Stock Plan (Reissue Need) and Employees Due for Issue.,Áp dụng cho cả 2 bảng: Stock Plan (cột Cần cấp lại) và Employees Due for Issue.
+Profile,Hồ sơ
+Open,Mở
+
+# Overtime Registration dialog (redesign 2026-07-14)
+"Select employees and days to see the total","Chọn nhân viên và ngày để xem tổng"
+"{0} employees × {1} days × {2} h/day","{0} nhân viên × {1} ngày × {2} giờ/ngày"
+"{0} man-hours","{0} giờ công"
+"Begin Time must be before End Time","Giờ bắt đầu phải trước giờ kết thúc"
+"Remove","Xóa"

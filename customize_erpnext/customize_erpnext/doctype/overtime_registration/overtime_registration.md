@@ -1,165 +1,130 @@
-# Overtime Registration - Tài liệu Thuật toán
+# Overtime Registration - Tài liệu
+
+> Cập nhật 2026-07-14: redesign dialog "Get Employees" (1 dialog 2 cột + ledger giờ công),
+> đổi tên hàm entry để tránh xung đột global scope, fix bug lệch ngày `toISOString()`.
 
 ## Tổng quan
-Tài liệu này mô tả các thuật toán xác thực và logic nghiệp vụ cho doctype Overtime Registration.
 
-## Các Hàm Xác thực
+Doctype đăng ký tăng ca theo lô: tổ trưởng chọn nhóm → tuần → ngày → khung giờ → danh sách
+nhân viên, hệ thống sinh các dòng chi tiết vào bảng con `ot_employees`
+(Overtime Registration Detail). Trước khi lưu có kiểm tra chế độ thai sản và xung đột
+với OT đã duyệt (server-side).
 
-### 1. validate_duplicate_employees() - Kiểm tra trùng lặp trong form
-**Mục đích**: Ngăn chặn các bản ghi tăng ca trùng lặp hoặc chồng chéo thời gian trong cùng một form.
+## Dialog "Get Employees" (redesign 2026-07-14)
 
-**Thuật toán**:
-1. Thu thập tất cả entries từ bảng con `ot_employees`
-2. Xác thực các trường bắt buộc (employee, date, from, to) cho mỗi entry
-3. So sánh từng entry với mọi entry khác sử dụng vòng lặp lồng nhau
-4. Với các entry có cùng employee và date, kiểm tra chồng chéo thời gian bằng hàm `times_overlap()`
-5. Nếu phát hiện chồng chéo, hiển thị thông báo lỗi và ngăn lưu
+Nút **Actions → Get Employees** mở **một** dialog duy nhất (trước đây là 2 dialog lồng nhau).
+Entry point: `show_ot_registration_dialog(frm)` trong `overtime_registration.js`.
 
-**Độ phức tạp thời gian**: O(n²) với n là số lượng entries
+### Bố cục 2 cột
 
-**Ví dụ**:
--  Hợp lệ: Nhân viên A (16:00-18:00) và Nhân viên A (18:00-20:00) - Thời gian kề nhau
-- ❌ Không hợp lệ: Nhân viên A (16:00-18:00) và Nhân viên A (17:00-19:00) - Thời gian chồng chéo
-
-### 2. validate_conflicting_ot_requests() - Kiểm tra xung đột với yêu cầu đã có
-**Mục đích**: Ngăn chặn xung đột với các yêu cầu tăng ca đã được submit trước đó.
-
-**Thuật toán**:
-1. Do việc truy vấn database từ client-side gặp vấn đề phân quyền
-2. Hàm này chuyển việc kiểm tra xung đột cho server-side (Python)
-3. JavaScript chỉ xác thực các trường hợp trong form hiện tại
-4. Server sẽ kiểm tra và báo lỗi nếu có xung đột với dữ liệu đã có
-
-**Triển khai**:
-- Client-side: Chỉ kiểm tra trong form hiện tại
-- Server-side: Kiểm tra với database đầy đủ
-
-### 3. calculate_totals_and_apply_reason() - Tính tổng và áp dụng lý do
-**Mục đích**: Quản lý trường lý do chung và tính toán các tổng số.
-
-**Thuật toán**:
-1. **Tính Tổng số**:
-   - Đếm nhân viên riêng biệt sử dụng Set
-   - Tính tổng giờ tăng ca bằng cách tính hiệu thời gian
-   - Cập nhật trường `total_employees` và `total_hours`
-
-2. **Quản lý Lý do**:
-   - Nếu `reason_general` trống:
-     - Thu thập các lý do duy nhất, không trống từ các dòng con
-     - Sắp xếp và nối chúng bằng dấu phẩy
-     - Đặt làm `reason_general`
-   - Nếu `reason_general` đã có giá trị:
-     - Áp dụng cho tất cả các dòng con có lý do trống
-
-**Ví dụ**:
-- Lý do con: ["Đơn hàng gấp", "Yêu cầu khách hàng"] → Chung: "Đơn hàng gấp, Yêu cầu khách hàng"
-- Chung: "Deadline sản xuất" → Áp dụng cho tất cả lý do con trống
-
-## Hàm Hỗ trợ
-
-### times_overlap(from1, to1, from2, to2) - Kiểm tra chồng chéo thời gian
-**Mục đích**: Xác định hai khoảng thời gian có chồng chéo hay không.
-
-**Thuật toán**:
-```javascript
-// Chuyển đổi chuỗi thời gian thành Date objects
-time1Start = new Date(`2000-01-01T${from1}`)
-time1End = new Date(`2000-01-01T${to1}`)
-time2Start = new Date(`2000-01-01T${from2}`)
-time2End = new Date(`2000-01-01T${to2}`)
-
-// Kiểm tra chồng chéo sử dụng công thức giao của khoảng
-return time1Start < time2End && time2Start < time1End
+```
+┌───────────────────────────────────────────────────────────────┐
+│  Select Employees for Overtime Registration                   │
+├──────────────────────────┬────────────────────────────────────┤
+│ Group    [Link, reqd]    │ Employee Selection                 │
+│ Week     [3 nút tuần]    │ [🔍 tìm theo tên / mã NV]          │
+│ Days     [6 ô lịch T2-T7]│ ┌────────────────────────────────┐ │
+│ Begin | End Time         │ │ ☐ Select All   Showing N       │ │
+│ Reason   [Small Text]    │ │ ☑ TIQN-0148  Nguyễn Văn A      │ │
+│                          │ └────────────────────────────────┘ │
+│                          │ Selected: 12   [chip ×][chip ×]…   │
+├──────────────────────────┴────────────────────────────────────┤
+│ 12 employees × 3 days × 2 h/day = 72 man-hours  [Add Selected]│
+└───────────────────────────────────────────────────────────────┘
 ```
 
-**Giải thích Logic**:
-- Sử dụng thuật toán phát hiện chồng chéo khoảng tiêu chuẩn
-- Các khoảng kề nhau (16:00-18:00 và 18:00-20:00) trả về false (không chồng chéo)
-- Các khoảng chồng chéo (16:00-18:00 và 17:00-19:00) trả về true
+- **Cột trái (kế hoạch)**: Group (Link) → Week (segmented 3 tuần, kèm khoảng ngày) →
+  Day tiles (ô kiểu tờ lịch: thứ + số ngày, chấm đánh dấu hôm nay, nút "Select All") →
+  Begin/End Time (nằm cạnh nhau) → Reason (bắt buộc).
+- **Cột phải (nhân viên)**: chọn Group là roster **tự tải ngay** (không cần dialog thứ 2);
+  ô tìm kiếm lọc realtime có highlight; "Select All" áp dụng theo kết quả đang lọc;
+  nhân viên đã chọn hiển thị thành chip có nút × và bộ đếm. Chọn được nhiều nhóm:
+  đổi Group thì roster tải lại nhưng danh sách đã chọn (Map) giữ nguyên.
+- **Ledger footer** (điểm nhấn): dòng tổng sống
+  `{người} × {ngày} × {giờ/ngày} = {tổng giờ công}` cập nhật theo từng click;
+  giờ sai (begin ≥ end) báo đỏ ngay tại footer.
 
-**Các Trường hợp Kiểm tra**:
-| Khoảng 1 | Khoảng 2 | Chồng chéo | Lý do |
-|----------|----------|------------|-------|
-| 16:00-18:00 | 18:00-20:00 | ❌ | Kề nhau (chạm điểm cuối) |
-| 16:00-18:00 | 17:00-19:00 |  | Chồng chéo |
-| 16:00-18:00 | 14:00-16:00 | ❌ | Kề nhau (chạm điểm đầu) |
-| 16:00-18:00 | 14:00-17:00 |  | Chồng chéo |
-| 16:00-18:00 | 17:00-17:30 |  | Khoảng này chứa khoảng kia |
-| 16:00-18:00 | 19:00-21:00 | ❌ | Hoàn toàn tách biệt |
+### Hành vi quan trọng
 
-## Chi tiết Triển khai
+| Hành vi | Chi tiết |
+|---|---|
+| Đổi tuần | **Xóa toàn bộ ngày đã chọn** (quyết định 2026-07-14, tránh đăng ký nhầm tuần); bấm lại tuần đang chọn thì không làm gì |
+| Group bị khóa | `filter_employee_by = 'custom_group'` + `request_by_group` → Group pre-fill, khóa query, tự tải roster |
+| Phân quyền | `get_user_filter_value()` đọc `filter_employee_by` (custom field, không nằm trong JSON doctype); sai nhóm → chặn kèm alert |
+| Ngày của dòng con | Format local `ot_format_ymd()` — **không dùng** `toISOString()` (UTC làm lệch ngày trước 07:00 giờ VN) |
+| Dòng con | Set đủ `employee`, `employee_name`, `group` (từ `custom_group`), `date`, `begin_time`, `end_time`, `reason` |
+| State | `frm._ot_dialog_state` (Map nhân viên, Set ngày, weekOffset…); reset mỗi lần mở dialog |
+| Giới hạn | Roster tải tối đa 500 nhân viên/nhóm (limit_page_length) |
 
-### Xác thực Client-Side (JavaScript)
-- Xác thực trùng lặp trong form được triển khai bằng JavaScript
-- Thực thi trong sự kiện `validate` của form trước khi submit
-- Cung cấp phản hồi ngay lập tức cho người dùng
-- Sử dụng `frappe.validated = false` để ngăn submit form
+### Kỹ thuật UI
 
-### Xác thực Server-Side (Python)
-- Xác thực xung đột với dữ liệu existing được xử lý bằng Python
-- Có quyền truy cập đầy đủ database
-- Xử lý trong method `validate()` của document
-- Hiển thị lỗi với link có thể click đến document xung đột
+- CSS inject 1 lần qua `<style id="ot-reg-dialog-css">`, scope class `.ot-reg-modal`.
+- Màu lấy từ theme vars của desk (tự động light/dark qua `html[data-theme="dark"]`);
+  1 màu nhấn hổ phách `#b45309` (light) / `#f5b83d` (dark) cho trạng thái chọn + số tổng.
+- Số liệu (ngày, giờ, đếm, ledger) dùng font mono (`--ot-mono`).
+- A11y: day tiles là `<button>` có `aria-pressed`, ledger `aria-live="polite"`,
+  focus-visible outline, transition tôn trọng `prefers-reduced-motion`.
+- **UI English-first** + dịch qua `translations/vi.csv`
+  (mục "# Overtime Registration dialog (redesign 2026-07-14)").
 
-### Thông báo Lỗi
-- Hỗ trợ đa ngôn ngữ sử dụng hàm `__()`
-- Bao gồm số dòng để dễ dàng xác định
-- Link có thể click đến document xung đột
-- Thông tin chi tiết về khoảng thời gian
+### ⚠ Global scope của doctype JS
 
-### Cân nhắc Hiệu suất
-- Xác thực trùng lặp: Độ phức tạp O(n²) có thể chấp nhận cho các trường hợp thông thường
-- Xác thực xung đột: Sử dụng truy vấn database nhưng giới hạn bởi filters employee/date
-- Tất cả xác thực chạy đồng bộ để đảm bảo tính toàn vẹn dữ liệu
+Doctype JS được eval vào **global scope** của desk. `overtime_request.js` có hàm
+`show_employee_selection_dialog` riêng, nên hàm của Overtime Registration được đổi tên thành
+`show_ot_registration_dialog` (2026-07-14) để 2 form không ghi đè lẫn nhau khi mở trong cùng
+phiên. **Quy tắc**: hàm global mới trong file này phải có prefix `ot_` hoặc tên riêng biệt.
 
-## Cấu trúc Database
+## Luồng lưu (before_save)
 
-### Overtime Registration (Parent)
-- `reason_general`: Lý do chung áp dụng cho tất cả entries
-- `total_employees`: Số lượng nhân viên riêng biệt được tính
-- `total_hours`: Tổng số giờ tăng ca được tính
+1. `before_save` → nếu chưa check: chặn save, gọi `check_all_before_save(frm)`.
+2. Gọi song song 2 API server:
+   - `check_employees_with_maternity_benefits` — NV mang thai/nuôi con nhỏ bắt đầu OT
+     đúng giờ tan ca → đề nghị lùi giờ sớm hơn (`adjust_hours` từ Attendance Calculation Setting).
+   - `check_overtime_conflicts` — trùng với OT đã submit ở phiếu khác.
+3. Có kết quả → mở dialog "Kiểm tra trước khi lưu" với 2 checkbox:
+   điều chỉnh giờ thai sản / xóa dòng trùng → rồi `frm.save()`.
+4. Không có gì → save thẳng. Lỗi server → vẫn cho save (không chặn người dùng).
 
-### Overtime Registration Detail (Child)
-- `employee`: Link đến Employee master
-- `date`: Ngày tăng ca
-- `from`: Thời gian bắt đầu
-- `to`: Thời gian kết thúc  
-- `reason`: Lý do cụ thể (có thể kế thừa từ lý do chung)
+## Các hàm xác thực client (event `validate`)
 
-## Quy tắc Nghiệp vụ
+| Hàm | Mục đích |
+|---|---|
+| `remove_empty_overtime_rows` | Tự xóa dòng không có employee (silent khi validate) |
+| `validate_required_fields` | Bắt buộc employee, date, begin_time, end_time từng dòng |
+| `validate_time_order` | `begin_time < end_time` |
+| `validate_duplicate_rows` | Cùng NV + ngày không được chồng chéo giờ (dùng `times_overlap`, O(n²)) |
+| `validate_single_post_shift_entry` | Cùng NV + ngày chỉ nên 1 dòng OT liên tục; nhiều dòng → cảnh báo gộp |
+| `calculate_totals_and_apply_reason` | Đếm NV riêng biệt (`total_employees`), tổng giờ (`total_hours`); đồng bộ `reason_general` ↔ reason dòng con |
+| `update_registered_groups` | Gom các `group` riêng biệt của dòng con vào `registered_groups` |
 
-1. **Trường Bắt buộc**: Employee, Date, From Time, To Time phải được cung cấp
-2. **Không Chồng chéo**: Cùng nhân viên không thể có khoảng thời gian chồng chéo trong cùng ngày
-3. **Cho phép Kề nhau**: Khoảng thời gian chạm nhau (16:00-18:00, 18:00-20:00) là hợp lệ
-4. **Ngăn chặn Xung đột**: Không thể tạo entries chồng chéo với requests đã submit
-5. **Kế thừa Lý do**: Lý do chung áp dụng cho entries không có lý do riêng
-6. **Tự động Tính tổng**: Số lượng nhân viên và giờ được tính tự động
+### times_overlap(from1, to1, from2, to2)
 
-## Xử lý Lỗi
+```javascript
+// Chồng chéo khi: start1 < end2 && start2 < end1
+// Khoảng kề nhau (16:00-18:00 và 18:00-20:00) KHÔNG tính là chồng chéo
+```
 
-### Lỗi Xác thực
-- Dừng thực thi ngay khi tìm thấy lỗi đầu tiên
-- Hiển thị thông báo lỗi rõ ràng với tham chiếu dòng
-- Làm nổi bật xung đột cụ thể với dữ liệu existing
+| Khoảng 1 | Khoảng 2 | Chồng chéo |
+|----------|----------|------------|
+| 16:00-18:00 | 18:00-20:00 | ❌ kề nhau |
+| 16:00-18:00 | 17:00-19:00 | ✔ |
+| 16:00-18:00 | 14:00-16:00 | ❌ kề nhau |
+| 16:00-18:00 | 17:00-17:30 | ✔ chứa nhau |
 
-### Tính toàn vẹn Dữ liệu
-- Tất cả xác thực phải pass trước khi save
-- Các thao tác atomic đảm bảo tính nhất quán
-- Link đến document xung đột để dễ dàng giải quyết
+## Cấu trúc dữ liệu
 
-## Kiến trúc Hybrid
+### Overtime Registration (parent)
+- `requested_by` / `requested_by_full_name`: tự điền theo user hiện tại khi tạo mới
+- `approver` / `approver_full_name`: tự điền theo pattern Leave Application (HRMS department approver)
+- `reason_general`, `total_employees`, `total_hours`, `registered_groups`: tự tính
+- `request_by_group`, `filter_employee_by` (custom field): khóa/lọc phạm vi chọn nhân viên
 
-### JavaScript (Client-side)
-- **Ưu điểm**: Phản hồi tức thì, trải nghiệm người dùng tốt
-- **Hạn chế**: Không thể truy vấn database do vấn đề phân quyền
-- **Sử dụng cho**: Xác thực trong form hiện tại
+### Overtime Registration Detail (child `ot_employees`)
+- `employee`, `employee_name`, `group`, `date`, `begin_time`, `end_time`, `reason`
 
-### Python (Server-side)  
-- **Ưu điểm**: Quyền truy cập đầy đủ database, bảo mật
-- **Hạn chế**: Phản hồi chậm hơn
-- **Sử dụng cho**: Xác thực với dữ liệu existing, logic phức tạp
+## Kiến trúc hybrid
 
-### Tổng kết Approach
-1. **JavaScript xử lý**: Trùng lặp trong form, tính toán tổng, áp dụng lý do
-2. **Python xử lý**: Xung đột với database, xác thực phức tạp
-3. **Kết hợp**: Tối ưu trải nghiệm người dùng và bảo mật dữ liệu
+- **JavaScript (client)**: phản hồi tức thì — validate trong form, tính tổng, dialog chọn nhân viên.
+- **Python (server)**: kiểm tra cần quyền đọc DB đầy đủ — xung đột với phiếu đã submit,
+  chế độ thai sản, validate khi submit.
+- Thông báo lỗi đa ngôn ngữ (`__()`), kèm số dòng và link tới document xung đột.
