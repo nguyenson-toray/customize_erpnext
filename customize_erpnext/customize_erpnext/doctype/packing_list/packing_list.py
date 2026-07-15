@@ -538,9 +538,25 @@ def _clean_name(s):
     return re.sub(r"[^A-Za-z0-9]+", "-", (s or "").strip()).strip("-") or "NA"
 
 
+def _photo_prefix(packing_list, carton_no):
+    """Stable prefix of a carton's photo: {No}_{CartonNo}_ (kg comes after, so a
+    re-weigh still matches the same carton)."""
+    return "{0}_{1}_".format(_clean_name(packing_list), cint(carton_no))
+
+
+def _photo_name(packing_list, carton_no, gross, color, size):
+    """{No}_{CartonNo}_{kg}kg_{Color}_{Size}.jpg — kg right after the carton no."""
+    return "{0}{1}kg_{2}_{3}.jpg".format(
+        _photo_prefix(packing_list, carton_no),
+        f"{flt(gross):.2f}",
+        _clean_name(color),
+        _clean_name(size),
+    )
+
+
 @frappe.whitelist()
-def save_carton_photo(packing_list, carton_no, color, size, image):
-    """Save a (cropped, resized) carton photo as File {No}_{CartonNo}_{Color}_{Size}.jpg."""
+def save_carton_photo(packing_list, carton_no, color, size, image, gross=0):
+    """Save a (cropped, resized) carton photo as {No}_{CartonNo}_{kg}kg_{Color}_{Size}.jpg."""
     import base64
 
     frappe.has_permission("Packing List", "write", doc=packing_list, throw=True)
@@ -548,11 +564,9 @@ def save_carton_photo(packing_list, carton_no, color, size, image):
     if not m:
         frappe.throw(_("Invalid image data"))
     data = base64.b64decode(m.group(1))
-    fname = "{0}_{1}_{2}_{3}.jpg".format(
-        _clean_name(packing_list), cint(carton_no), _clean_name(color), _clean_name(size)
-    )
+    fname = _photo_name(packing_list, carton_no, gross, color, size)
     # Remove any previous photo of the same carton so re-capture doesn't pile up.
-    prefix = "{0}_{1}_".format(_clean_name(packing_list), cint(carton_no))
+    prefix = _photo_prefix(packing_list, carton_no)
     for old in frappe.get_all(
         "File",
         filters={"attached_to_doctype": "Packing List", "attached_to_name": packing_list},
@@ -587,6 +601,97 @@ def save_carton_photo(packing_list, carton_no, color, size, image):
 
 
 @frappe.whitelist()
+def rename_carton_photo(packing_list, carton_no, color, size, gross):
+    """Rename an existing carton photo so the filename carries the current kg.
+
+    Needed when the weight is known only AFTER the photo is saved (OCR flow) or
+    when Gross is corrected later. Returns the new file_url, or None if no photo.
+    """
+    import os
+
+    frappe.has_permission("Packing List", "write", doc=packing_list, throw=True)
+    prefix = _photo_prefix(packing_list, carton_no)
+    target = None
+    for f in frappe.get_all(
+        "File",
+        filters={"attached_to_doctype": "Packing List", "attached_to_name": packing_list},
+        fields=["name", "file_name", "file_url"],
+        order_by="creation desc",
+    ):
+        if (f.file_name or "").startswith(prefix):
+            target = f
+            break
+    if not target:
+        return None
+
+    fname = _photo_name(packing_list, carton_no, gross, color, size)
+    if target.file_name == fname:
+        return target.file_url  # already correct
+
+    folder = frappe.get_site_path("private", "files", "packing_list")
+    os.makedirs(folder, exist_ok=True)
+    old_disk = frappe.get_site_path((target.file_url or "").lstrip("/"))
+    new_disk = os.path.join(folder, fname)
+    new_url = "/private/files/packing_list/" + fname
+    if os.path.exists(old_disk) and os.path.abspath(old_disk) != os.path.abspath(new_disk):
+        if os.path.exists(new_disk):
+            os.remove(new_disk)
+        os.rename(old_disk, new_disk)
+    frappe.db.set_value(
+        "File", target.name, {"file_url": new_url, "file_name": fname}, update_modified=False
+    )
+    return new_url
+
+
+@frappe.whitelist()
+def delete_all_photos(packing_list):
+    """Delete every carton photo of a Packing List.
+
+    Removes the File records (which deletes the file on disk), clears the photo
+    link on each detail row, and sweeps any stray file left in the folder for
+    this packing list (orphans from an interrupted save).
+    """
+    import glob
+    import os
+
+    frappe.has_permission("Packing List", "write", doc=packing_list, throw=True)
+    doc = frappe.get_doc("Packing List", packing_list)
+
+    # 1) File records attached to this document (File.on_trash removes the disk file).
+    deleted = 0
+    for f in frappe.get_all(
+        "File",
+        filters={"attached_to_doctype": "Packing List", "attached_to_name": packing_list},
+        fields=["name"],
+        order_by="creation desc",
+    ):
+        try:
+            frappe.delete_doc("File", f.name, ignore_permissions=True, force=True)
+            deleted += 1
+        except Exception:
+            pass
+
+    # 2) Clear the link on the rows.
+    for d in (doc.details or []):
+        if d.photo:
+            frappe.db.set_value(
+                "Packing List Detail", d.name, "photo", "", update_modified=False
+            )
+
+    # 3) Sweep leftovers on disk: "{No}_" prefix is unique per packing list.
+    swept = 0
+    folder = frappe.get_site_path("private", "files", "packing_list")
+    for p in glob.glob(os.path.join(folder, "{0}_*".format(_clean_name(packing_list)))):
+        try:
+            os.remove(p)
+            swept += 1
+        except Exception:
+            pass
+
+    return {"deleted": deleted, "swept": swept}
+
+
+@frappe.whitelist()
 def download_all_photos(packing_list):
     """Zip every carton photo of the packing list and stream it as a download."""
     import io
@@ -606,10 +711,9 @@ def download_all_photos(packing_list):
                 _fname, content = get_file(url)
             except Exception:
                 continue
-            # Name each zip entry exactly No_CartonNo_Color_Size.jpg.
-            entry = "{0}_{1}_{2}_{3}.jpg".format(
-                _clean_name(doc.name), cint(d.carton_no), _clean_name(d.color), _clean_name(d.size)
-            )
+            # Name each zip entry from the CURRENT row data, so the kg is always
+            # up to date even if the stored File was named before weighing.
+            entry = _photo_name(doc.name, d.carton_no, d.gross_weight, d.color, d.size)
             z.writestr(entry, content)
             count += 1
     if not count:
@@ -619,48 +723,88 @@ def download_all_photos(packing_list):
     frappe.response["type"] = "download"
 
 
-@frappe.whitelist()
-def read_scale_ocr(image, decimals=2):
-    """Read a red 7-segment scale display (cropped) via ssocr.
+# ---------------------------------------------------------------------- #
+# Scale OCR (red 7-segment display) — ssocr + image pipeline
+#
+# Robustness comes from three things, all optional/fallback-safe:
+#   roi       – caller-supplied display box (fixed station calibrates once)
+#   ensemble  – several ssocr variants + majority vote (fixes the weak '7')
+#   expected  – theoretical gross from the packing data, used as an anchor
+# ---------------------------------------------------------------------- #
+SSOCR_THRESHOLDS = (50, 30, 70)
+SSOCR_ANGLES = (0, -3, 3)
+DIGIT_HEIGHT = 150  # normalise digit size so ssocr sees a consistent scale
+# Below this many source pixels the digits carry too little information to read:
+# upscaling cannot invent detail, and ssocr then returns confident garbage.
+# Measured on real photos: 12-30px -> nonsense; a close-up (~250px) -> exact.
+MIN_DIGIT_PX = 40
 
-    Isolates the red digits (redness = R - (G+B)/2), drops noise specks, then
-    runs ssocr and divides by 10**decimals (scales use a fixed decimal place).
+
+def _parse_roi(roi):
+    """Normalised {x,y,w,h} in 0..1 → clamped dict, or None if unusable."""
+    if not roi:
+        return None
+    if isinstance(roi, str):
+        try:
+            roi = frappe.parse_json(roi)
+        except Exception:
+            return None
+    if not isinstance(roi, dict):
+        return None
+    x, y = flt(roi.get("x")), flt(roi.get("y"))
+    w, h = flt(roi.get("w")), flt(roi.get("h"))
+    x = max(0.0, min(1.0, x))
+    y = max(0.0, min(1.0, y))
+    w = min(w, 1.0 - x)
+    h = min(h, 1.0 - y)
+    if w <= 0.02 or h <= 0.02:  # too small to be a real selection
+        return None
+    return {"x": x, "y": y, "w": w, "h": h}
+
+
+def _expected_gross(packing_list, carton_no):
+    """Theoretical gross of a carton = Σ(pcs × net/size) + tare.
+
+    Derived from the packing data (weight_text + the carton's lines), so it is
+    independent of whatever is currently typed in gross_weight. Used only as a
+    sanity anchor — never as the answer. Returns None when not derivable.
     """
-    import base64
-    import io
-    import os
-    import shutil
-    import subprocess
-    import tempfile
+    if not packing_list or not carton_no:
+        return None
+    try:
+        doc = frappe.get_doc("Packing List", packing_list)
+        row = next(
+            (d for d in (doc.details or []) if cint(d.carton_no) == cint(carton_no)), None
+        )
+        if not row:
+            return None
+        wmap = doc._parse_weight()
+        if not wmap:
+            return None
+        lines = (
+            doc._parse_contents(row.contents)
+            if row.contents
+            else [(row.color, row.size, cint(row.pcs))]
+        )
+        net = sum(flt(wmap.get(s, 0)) * p for (_c, s, p) in lines)
+        if net <= 0:
+            return None
+        return flt(net + flt(row.empty_weight), 3)
+    except Exception:
+        return None
 
+
+def _red_mask(im):
+    """Bright-red LED pixels only: redness = R - (G+B)/2."""
     import numpy as np
-    from PIL import Image, ImageOps
 
-    if not shutil.which("ssocr"):
-        frappe.throw(_("ssocr is not installed on the server (sudo apt-get install ssocr)."))
-    m = re.search(r"base64,(.*)$", image or "", re.S)
-    if not m:
-        frappe.throw(_("Invalid image data"))
-
-    im = Image.open(io.BytesIO(base64.b64decode(m.group(1)))).convert("RGB")
     a = np.asarray(im).astype(int)
     red = a[:, :, 0] - (a[:, :, 1] + a[:, :, 2]) // 2
-    mask = red > 100  # bright-red LED pixels only
-    if mask.sum() < 40:
-        return {"ok": False, "value": None, "raw": ""}
+    return red > 100
 
-    # Locate the display: dilate to merge the digit strokes, then keep the
-    # largest red cluster. Robust to reddish cartons scattered across the frame.
-    from scipy import ndimage as ndi
 
-    labels, n = ndi.label(ndi.binary_dilation(mask, iterations=10))
-    if n == 0:
-        return {"ok": False, "value": None, "raw": ""}
-    sizes = ndi.sum(mask, labels, np.arange(1, n + 1))
-    core = mask & (labels == int(np.argmax(sizes)) + 1)
-    ys0, xs0 = np.where(core)
-    region = core[ys0.min(): ys0.max() + 1, xs0.min(): xs0.max() + 1]
-
+def _trim_columns(region):
+    """Drop noise specks: keep only the strong column-runs of a red blob."""
     colsum = region.sum(0)
     active = colsum > (region.shape[0] * 0.10)
     runs, start = [], None
@@ -672,43 +816,252 @@ def read_scale_ocr(image, decimals=2):
             start = None
     sized = [(s, e, int(colsum[s:e].sum())) for (s, e) in runs]
     if not sized:
-        return {"ok": False, "value": None, "raw": ""}
+        return None
     peak = max(r[2] for r in sized)
-    big = [(s, e) for (s, e, sm) in sized if sm > peak * 0.2]  # drop noise specks
+    big = [(s, e) for (s, e, sm) in sized if sm > peak * 0.2]
     x0, x1 = min(s for s, e in big), max(e for s, e in big)
+    return region[:, x0:x1]
 
-    sub = region[:, x0:x1]
+
+def _digit_regions(mask, max_n=6):
+    """Candidate digit strips, largest red cluster first.
+
+    The display is NOT always the largest red thing in the frame — a warehouse
+    has fire extinguishers, PCCC boxes, signs and red pipes (measured: such a
+    photo has 5x more red pixels than the display alone). So hand back several
+    candidates and let the caller keep the one that actually reads as digits.
+    """
+    import numpy as np
+    from scipy import ndimage as ndi
+
+    labels, n = ndi.label(ndi.binary_dilation(mask, iterations=10))
+    if n == 0:
+        return []
+    sizes = ndi.sum(mask, labels, np.arange(1, n + 1))
+    out = []
+    for idx in np.argsort(sizes)[::-1][:max_n]:
+        if sizes[idx] < 40:
+            continue
+        core = mask & (labels == int(idx) + 1)
+        ys0, xs0 = np.where(core)
+        if not len(ys0):
+            continue
+        region = core[ys0.min(): ys0.max() + 1, xs0.min(): xs0.max() + 1]
+        trimmed = _trim_columns(region)
+        if trimmed is not None and trimmed.size:
+            out.append(trimmed)
+    return out
+
+
+def _prep_image(sub, closing=False, angle=0):
+    """Digit strip (bool) → PNG-ready image for ssocr (black digits on white).
+
+    closing repairs broken LED strokes (the usual cause of 7→1 / 8→0);
+    angle compensates a slightly tilted shot.
+    """
+    import numpy as np
+    from PIL import Image, ImageOps
+    from scipy import ndimage as ndi
+
     ys = np.where(sub.any(1))[0]
+    if not len(ys):
+        return None
     mono = (sub[ys.min(): ys.max() + 1] * 255).astype("uint8")
     img = Image.fromarray(mono)
-    # Scale to a consistent digit height so ssocr works regardless of distance.
-    new_h = 150
-    img = img.resize((max(1, round(img.width * new_h / img.height)), new_h), Image.NEAREST)
+    if img.height < 4 or img.width < 4:
+        return None
+    img = img.resize(
+        (max(1, round(img.width * DIGIT_HEIGHT / img.height)), DIGIT_HEIGHT), Image.NEAREST
+    )
+    if angle:
+        img = img.rotate(angle, resample=Image.BILINEAR, expand=True, fillcolor=0)
+    if closing:
+        arr = np.asarray(img) > 127
+        arr = ndi.binary_closing(arr, structure=np.ones((3, 3)), iterations=2)
+        img = Image.fromarray((arr * 255).astype("uint8"))
     padded = Image.new("L", (img.width + 40, img.height + 40), 0)
     padded.paste(img, (20, 20))
-    proc = ImageOps.invert(padded)  # black digits on white for ssocr
+    return ImageOps.invert(padded)
+
+
+def _ssocr_read(img, threshold):
+    """Run ssocr on a prepared image; '' on any failure."""
+    import os
+    import subprocess
+    import tempfile
 
     fd, path = tempfile.mkstemp(suffix=".png")
     try:
         os.close(fd)
-        proc.save(path)
+        img.save(path)
         out = subprocess.run(
-            ["ssocr", "-d", "-1", "-t", "50", "remove_isolated", path],
+            ["ssocr", "-d", "-1", "-t", str(threshold), "remove_isolated", path],
             capture_output=True,
             text=True,
             timeout=20,
         )
-        raw = (out.stdout or "").strip()
-        digits = re.sub(r"\D", "", raw)
-        if not digits:
-            return {"ok": False, "value": None, "raw": raw or (out.stderr or "").strip()}
-        dec = cint(decimals)
-        value = float(digits) / (10 ** dec) if dec > 0 else float(digits)
-        # "confident" only when ssocr recognised every character (no '_').
-        confident = re.fullmatch(r"[0-9.]+", raw) is not None
-        return {"ok": True, "value": value, "digits": digits, "raw": raw, "confident": confident}
+        return (out.stdout or "").strip()
+    except Exception:
+        return ""
     finally:
         try:
             os.remove(path)
         except Exception:
             pass
+
+
+def _value_of(digits, dec):
+    return float(digits) / (10 ** dec) if dec > 0 else float(digits)
+
+
+def _plausible(value, expected):
+    """A reading is plausible when it is in the same ballpark as the theory.
+    Wide band on purpose: it must catch 10x/decimal blunders, not small drift.
+    """
+    if not expected:
+        return True
+    return expected * 0.6 <= value <= expected * 1.5
+
+
+def _read_strip(sub, dec, expected):
+    """OCR one candidate digit strip. Returns a result dict, or None."""
+
+    def attempt(closing, angle, thr):
+        """Digits ONLY when ssocr read every character.
+
+        A dirty read like '9y2' must never be squeezed into '92' (= 0.92 instead
+        of 9.42): dropping the unreadable char silently shifts the decimal by 10x.
+        Reporting nothing is safer — the user then types the weight.
+        """
+        img = _prep_image(sub, closing, angle)
+        if img is None:
+            return None, None
+        raw = _ssocr_read(img, thr)
+        if not raw or not re.fullmatch(r"[0-9.]+", raw):
+            return None, raw
+        digits = re.sub(r"\D", "", raw)
+        # A scale never shows a single digit; 1 digit means ssocr found a blob.
+        return (digits if len(digits) >= 2 else None), raw
+
+    # Fast path: a good shot reads cleanly on the first variant.
+    digits, raw = attempt(True, 0, SSOCR_THRESHOLDS[0])
+    if digits and _plausible(_value_of(digits, dec), expected):
+        return {
+            "ok": True, "value": _value_of(digits, dec), "digits": digits, "raw": raw,
+            "confident": True, "votes": 1, "expected": expected, "plausible": True,
+        }
+
+    # Ensemble: vary stroke repair / tilt / threshold, then vote (clean reads only).
+    votes = {}
+    for closing in (True, False):
+        for angle in SSOCR_ANGLES:
+            for thr in SSOCR_THRESHOLDS:
+                d, r = attempt(closing, angle, thr)
+                if not d:
+                    continue
+                v = votes.setdefault(d, {"n": 0, "raw": r})
+                v["n"] += 1
+    if not votes:
+        return None
+
+    # Rank: plausible against the theoretical gross first, then most votes.
+    def rank(item):
+        d, v = item
+        return (1 if _plausible(_value_of(d, dec), expected) else 0, v["n"])
+
+    digits, v = max(votes.items(), key=rank)
+    value = _value_of(digits, dec)
+    plausible = _plausible(value, expected)
+    return {
+        "ok": True,
+        "value": value,
+        "digits": digits,
+        "raw": v["raw"],
+        "confident": bool(v["n"] >= 2 and plausible),
+        "votes": v["n"],
+        "expected": expected,
+        "plausible": plausible,
+    }
+
+
+def _ocr_image(im, dec, expected):
+    """Full pipeline on one image. Returns a result dict, or None if unreadable.
+
+    Tries each red cluster (biggest first) instead of betting on the largest one:
+    in a warehouse the biggest red blob is often a fire extinguisher / PCCC box,
+    not the display. Shape gates reject non-digit blobs before ssocr can turn
+    them into confident nonsense.
+    """
+    mask = _red_mask(im)
+    if mask.sum() < 40:
+        return None
+    diag = None  # first useful diagnosis, reported only if nothing reads
+    for sub in _digit_regions(mask):
+        # Too few pixels -> upscaling cannot invent detail; ask for a closer shot.
+        if sub.shape[0] < MIN_DIGIT_PX:
+            diag = diag or {
+                "ok": False, "value": None, "raw": "", "reason": "too_small",
+                "digit_px": int(sub.shape[0]), "need_px": MIN_DIGIT_PX, "expected": expected,
+            }
+            continue
+        # A weight reading (>=2 seven-segment digits) is always wider than tall.
+        if sub.shape[1] < sub.shape[0] * 1.2:
+            diag = diag or {
+                "ok": False, "value": None, "raw": "", "reason": "not_a_display",
+                "expected": expected,
+            }
+            continue
+        res = _read_strip(sub, dec, expected)
+        if res:
+            return res
+    return diag
+
+
+@frappe.whitelist()
+def read_scale_ocr(image, decimals=2, roi=None, packing_list=None, carton_no=None):
+    """Read the red 7-segment scale display and return the weight in kg.
+
+    decimals is fixed by the scale (2 by default): ssocr reports digits only, so
+    "943" → 9.43. roi/packing_list/carton_no are optional; without them this
+    behaves exactly like the original full-frame reader.
+    """
+    import base64
+    import io
+    import shutil
+
+    from PIL import Image
+
+    if not shutil.which("ssocr"):
+        frappe.throw(_("ssocr is not installed on the server (sudo apt-get install ssocr)."))
+    m = re.search(r"base64,(.*)$", image or "", re.S)
+    if not m:
+        frappe.throw(_("Invalid image data"))
+
+    im = Image.open(io.BytesIO(base64.b64decode(m.group(1)))).convert("RGB")
+    dec = cint(decimals)
+    expected = _expected_gross(packing_list, carton_no)
+
+    # Try the calibrated display box first, then the whole frame as a fallback,
+    # so a stale/misplaced ROI can never make things worse than before.
+    tries = []
+    r = _parse_roi(roi)
+    if r:
+        W, H = im.size
+        box = (
+            int(r["x"] * W), int(r["y"] * H),
+            int((r["x"] + r["w"]) * W), int((r["y"] + r["h"]) * H),
+        )
+        if box[2] - box[0] >= 20 and box[3] - box[1] >= 20:
+            tries.append(im.crop(box))
+    tries.append(im)
+
+    # A successful read wins immediately; otherwise keep the last diagnosis (e.g.
+    # "too_small") but still let the next attempt try — a misplaced ROI must never
+    # stop the full-frame fallback.
+    last = None
+    for t_im in tries:
+        res = _ocr_image(t_im, dec, expected)
+        if res and res.get("ok"):
+            return res
+        last = res or last
+    return last or {"ok": False, "value": None, "raw": "", "expected": expected}

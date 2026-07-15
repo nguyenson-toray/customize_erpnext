@@ -120,24 +120,68 @@ crop khung thùng → resize ≤1600px, JPEG 0.88. Panel cân live ngay trong di
 chụp & lưu sau; số ST tự điền, sửa tay được). Camera được **tắt sạch khi đóng dialog** (có cờ
 `closed` chặn race `getUserMedia` resolve sau khi đóng). Save gom qua `pl_save()` tránh đua nhau.
 
+**Độ phân giải camera (`PL_CAM_RES`)** — quyết định OCR đọc được hay không:
+- Xin `{width:{ideal:3840}, height:{ideal:2160}}`. **`ideal` = xin cái gần nhất**, không phải trần
+  → để số thấp là **tự bó chân**. Webcam 1080p vẫn trả 1920×1080; điện thoại 4K thì cho 4K.
+- Không set gì → trình duyệt hay trả **640×480** → chữ số cân chỉ 12–30px → **OCR ra rác**.
+- `getUserMedia` chỉ lấy được **luồng video** (≤1080p/4K), **không phải full cảm biến 12–48MP**
+  — ảnh full sensor chỉ có qua app camera gốc (nhánh `carton_file_input`).
+- Dialog hiện **độ phân giải thực nhận được**; cạnh ngắn < 1000px → cảnh báo đỏ.
+- Giá phải trả: OCR upload nguyên khung base64 (1080p ≈ 0.3–0.5MB; 4K ≈ 2–4MB). Ảnh *lưu*
+  không ảnh hưởng (đã crop + cap 1600px).
+
 **Lưu (`save_carton_photo`):** File tại `/private/files/packing_list/`, tên
-`{No}_{CartonNo}_{Color}_{Size}.jpg`. Chụp lại cùng thùng → **xóa ảnh cũ + kg cũ**.
-Sau khi lưu: **clear checkbox + tự tích thùng kế tiếp** (`select_next_carton`).
+**`{No}_{CartonNo}_{kg}kg_{Color}_{Size}.jpg`** (vd `PL01_12_9.43kg_Redrock_XXL.jpg`) —
+**số kg đứng ngay sau số thùng**, 2 chữ số thập phân (`_photo_name()`).
+Chụp lại cùng thùng → **xóa ảnh cũ + kg cũ** (dọn theo prefix `{No}_{CartonNo}_`, không phụ
+thuộc kg nên đổi cân vẫn khớp). Sau khi lưu: **clear checkbox + tự tích thùng kế** (`select_next_carton`).
+
+**kg trong tên file theo từng luồng:**
+- **Scale** (cân trước, chụp sau): kg đã biết lúc lưu → tên file đúng ngay.
+- **OCR** (kg chỉ có sau khi ảnh đã lưu): lưu với kg hiện tại, sau khi bấm *Áp dụng vào Gross*
+  → `rename_carton_photo` **đổi tên file** cho đúng kg (JS: `rename_photo_for`).
+- **Sửa Gross tay trong lưới**: tên file **không** tự đổi — nhưng **zip tải về luôn đúng** vì
+  `download_all_photos` đặt tên entry từ `gross_weight` **hiện tại** của dòng.
 
 **OCR (`read_scale_ocr`, ssocr):** ngay sau lưu, dialog tự đọc số cân trên **cùng ảnh**:
 1. Mặt nạ đỏ `R−(G+B)/2 > 100`.
-2. Khu trú màn hình: **dilate + lấy cụm liên thông đỏ lớn nhất** (scipy) → tách nhiễu thùng nâu.
-3. Bỏ đốm nhiễu (giữ cụm cột lớn), resize chữ số về cao ~150px, `ssocr -d -1 remove_isolated`.
-4. **Chia 10^decimals** (mặc định 2 → `943` = 9.43 kg).
-5. Cờ `confident` = ssocr đọc sạch (không ký tự lạ). Chụp **gần** → đọc đúng; **xa** →
-   thất bại rõ ràng (không ghi số sai). **Luôn cho user xác nhận/sửa** → Áp dụng vào Gross.
+2. **Nhiều cụm ứng viên** (`_digit_regions`, tối đa 6, lớn→nhỏ): dilate + gắn nhãn liên thông.
+   **KHÔNG cược vào cụm lớn nhất** — trong kho, cụm đỏ lớn nhất thường là **thùng PCCC / bình
+   chữa cháy** chứ không phải mặt cân (đo thực tế: ảnh có PCCC = **15.308 px đỏ**, gấp **5×** ảnh
+   thường ~3.000). Thử lần lượt tới khi có cụm đọc ra số.
+3. **Cổng chặn hình dạng** cho từng cụm: `too_small` (chữ số < 40px) · `not_a_display`
+   (rộng < 1.2× cao — dãy số 7 đoạn luôn rộng hơn cao) → chặn ssocr biến vật đỏ thành số rác.
+4. `_read_strip`: resize chữ số về ~150px + **ensemble** (closing / ±3° / `-t` 30·50·70) → bỏ phiếu.
+   **Chỉ nhận bản đọc sạch** — `'9y2'` KHÔNG được rút thành `'92'` (=0.92 thay vì 9.43, sai 10×).
+5. **Chia 10^decimals** (luôn 2 → `586` = 5.86 kg). Mỏ neo **Gross dự kiến** loại số sai magnitude.
+
+**Kết quả đo trên ảnh thật (ground truth):**
+
+| Ảnh | Chữ số | px đỏ | Kết quả |
+|---|---|---|---|
+| Nền thùng carton | 63px | 3.040 | 5.83 ✅ |
+| Nền thùng carton | 59px | 2.706 | 5.84 ✅ |
+| **Nền có thùng PCCC** | 184px* | 15.308 | 5.86 ✅ (bỏ qua cụm PCCC) |
+| Ảnh cũ 480×640 | 10–31px | — | ⚪ từ chối (`too_small`) — trước đây trả **số rác** |
+
+\* cụm lớn nhất là PCCC (168×184, cao hơn rộng) → bị loại, tìm tiếp ra mặt cân.
+
+**Hướng dẫn chụp cho user** (hiện trong dialog chụp + khi OCR fail + nút Hướng dẫn):
+**nền phía sau càng đơn giản càng tốt** — tránh vật đỏ (PCCC, bình chữa cháy, biển báo đỏ,
+ống đỏ, áo đỏ); đứng **đủ gần** (chữ số ≥ 40px); chụp **thẳng**, không loá đèn.
 - **Yêu cầu:** cài `ssocr` trên server (`sudo apt-get install ssocr`). ssocr hơi yếu với số **7**.
-- **Chụp cận đọc lại:** nếu số OCR sai, nút **📷 Chụp cận màn hình cân** (trong dialog OCR và
-  dialog cảnh báo lệch của *Scale + OCR verify*) mở camera chụp **cận màn hình cân** → OCR đọc
-  lại kg chính xác hơn. Ảnh cận **chỉ để đọc số, KHÔNG lưu**.
+- **Dialog OCR chỉ hiện 1 nhắc nhở**: *"Đối chiếu số này với số đang hiển thị trên cân trước khi
+  Áp dụng"* — không hiện raw/độ tin cậy/kg dự kiến. Đọc sai → **user tự sửa kg**.
+- **Không có chức năng chụp cận** (đã bỏ): ảnh quá xa thì báo lý do và để user nhập tay.
 
 **Tải tất cả (`download_all_photos`):** nén zip toàn bộ ảnh, tên file trong zip đúng chuẩn.
 Nút bị chặn nếu chưa có ảnh nào.
+
+**Xoá tất cả (`delete_all_photos`):** nút **🗑 Xoá tất cả ảnh** (có confirm, không hoàn tác):
+1. Xoá **File records** attach vào Packing List → Frappe tự xoá **file trên đĩa** (`File.on_trash`).
+2. Xoá **link `photo`** trên từng dòng thùng (`db.set_value`, `update_modified=False`).
+3. **Quét dọn file mồ côi** còn sót trong `/private/files/packing_list/` theo prefix `{No}_`.
+Client `frm.reload_doc()` sau khi xoá vì link được xoá thẳng dưới DB.
 
 **Chọn webcam:** dialog camera có dropdown chọn nguồn (ưu tiên webcam USB ngoài); lưu
 `deviceId` vào `localStorage.pl_camera_id`, lần sau tự dùng lại. Rút webcam → fallback
@@ -168,7 +212,7 @@ cho nhập kg tay:**
 
 | weight_source | Luồng lấy Gross |
 |---|---|
-| **OCR** (mặc định) | Chụp → lưu ảnh → OCR đọc số cân trên **ảnh** (§7). Nút **📷 Chụp cận** để đọc lại nếu sai; ô Gross sửa tay được |
+| **OCR** (mặc định) | Chụp → lưu ảnh → OCR đọc số cân trên **ảnh** (§7). Luôn nhắc **đối chiếu với mặt cân**; đọc sai/không đọc được → **nhập kg tay** |
 | **Scale** | **Cân trước, chụp sau:** dialog chụp có panel cân live (ST/US), số ổn định tự điền, **sửa tay được** / 🔄 Cân lại → **📷 Chụp & Lưu** lưu ảnh + áp Gross cùng lúc. Chưa kết nối cân → nhập tay |
 
 > Với **Scale**, việc đọc cân **gộp thẳng vào dialog chụp** (cân trước — chụp & lưu sau) khi chọn
@@ -226,8 +270,10 @@ export `window.plScale`. **Client-side thuần — không thêm method Python.**
 |---|---|
 | `generate_detail(doc, force=0)` | Xếp thùng + tổng; chặn/force khi đã có ảnh |
 | `apply_mix(doc, cartons)` | Áp dụng chỉnh tay thùng ghép (bảo toàn) |
-| `save_carton_photo(packing_list, carton_no, color, size, image)` | Lưu ảnh thùng |
-| `download_all_photos(packing_list)` | Zip tải tất cả ảnh |
+| `save_carton_photo(packing_list, carton_no, color, size, image, gross=0)` | Lưu ảnh thùng (tên có kg) |
+| `rename_carton_photo(packing_list, carton_no, color, size, gross)` | Đổi tên ảnh theo Gross mới |
+| `download_all_photos(packing_list)` | Zip tải tất cả ảnh (tên theo Gross hiện tại) |
+| `delete_all_photos(packing_list)` | Xoá toàn bộ ảnh: File + file trên đĩa + link trong bảng |
 | `read_scale_ocr(image, decimals=2)` | OCR số cân bằng ssocr |
 
 > ⚠️ Thêm/đổi **method Python** → cần **`bench restart`** (web worker gunicorn `--preload`
@@ -235,11 +281,39 @@ export `window.plScale`. **Client-side thuần — không thêm method Python.**
 
 ---
 
-## 11. Files
+## 11. Test OCR (ảnh thật)
+
+```
+doctype/packing_list/test_images/   ảnh cân thật, tên file = kg thật
+    5.83_nen-carton.jpg
+    5.84_nen-carton.jpg
+    5.86_nen-pccc-nhieu-vat-do.jpg   ← ảnh từng làm hỏng OCR (cụm đỏ lớn nhất = thùng PCCC)
+doctype/packing_list/test_packing_list.py   → class TestScaleOCR
+```
+
+- **Thêm ca test = thả thêm 1 ảnh** vào `test_images/` đặt tên `<kg>_<mô tả>.jpg` — kỳ vọng lấy
+  từ chính tên file, **không cần sửa code**. Nên giữ lại các ảnh từng làm OCR sai.
+- 2 test: (1) đọc đúng kg mọi ảnh mẫu; (2) ảnh bị thu nhỏ ×4 (~480×640 như ảnh cũ) **phải bị
+  từ chối**, không được đoán bừa.
+- Chạy: site production đang tắt test (`allow_tests`), chạy trực tiếp:
+  ```bash
+  cd sites && ../env/bin/python -c "
+  import frappe, unittest
+  frappe.init(site='erp.tiqn.local'); frappe.connect()
+  from customize_erpnext.customize_erpnext.doctype.packing_list.test_packing_list import TestScaleOCR
+  unittest.TextTestRunner(verbosity=2).run(unittest.TestLoader().loadTestsFromTestCase(TestScaleOCR))"
+  ```
+  Tự `skip` nếu máy chưa cài `ssocr`.
+
+---
+
+## 12. Files
 ```
 doctype/packing_list/               packing_list.{json,py,js}, readme.md
+                                    test_packing_list.py, test_images/*.jpg
 doctype/packing_list_detail/        packing_list_detail.{json,py}
 doctype/packing_list_carton_type/   packing_list_carton_type.{json,py}
 print_format/packing_list/          packing_list.json
+public/js/packing_list_scale.js     module đọc cân Web Serial (window.plScale)
 ```
 Phụ thuộc: `ssocr` (system), `numpy`/`scipy`/`Pillow` (env), Cropper.js (CDN, `app_include_js`).
