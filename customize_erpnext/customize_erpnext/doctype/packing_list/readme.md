@@ -99,9 +99,27 @@ Dialog ma trận (thùng ghép × mảnh lẻ). `apply_mix_edit`:
 
 ## 6. Khối lượng: Net ↔ Gross (`weight_mode`)
 
-- **Net to Gross (mặc định):** Net từ số cái; Gross = Net + tare.
+- **Net to Gross (mặc định):** Net = Σ(pcs × net/size) từ bảng cân nặng; Gross = Net + tare.
+  Gross **chỉ được set lúc Generate** — không chỗ nào tính lại (để user sửa tay được).
 - **Gross to Net:** nhập **Gross** (từ cân) → **Net = Gross − tare** (`empty_weight`).
   Tính live khi gõ Gross trong lưới, và khi lưu (`_recalc_totals`).
+- **Guard:** `Gross ≤ 0` → **Net = 0** (không trừ tare thành **số âm**). Ở cả server
+  (`_recalc_totals`) lẫn client (sự kiện `gross_weight`).
+
+> ⚠️ **Đổi `weight_mode` là thao tác PHÁ DỮ LIỆU.** Chuyển sang *Gross to Net* khi chưa cân
+> (Gross = 0) → `net = gross − tare` **ghi đè Net lý thuyết thành 0**, mất vĩnh viễn. Sau đó
+> quay lại *Net to Gross* thì `Gross = Net + tare = 0 + tare` = chỉ còn tare. Đã gặp thật.
+> **Cứu bằng `recalc_weights`** (nút *🧹 Tính lại Gross từ Net*) — tính Net lại **từ bảng cân
+> nặng × pcs**, nguồn sự thật duy nhất không bị phá; **giữ nguyên ảnh & số thùng** (khác
+> Generate — Generate **xoá sạch ảnh**). Đây cũng là cách áp bảng cân nặng đã sửa lên một
+> list đã chụp ảnh xong.
+
+**Nút reset (theo mode):**
+
+| `weight_mode` | Nhãn nút | Hành vi |
+|---|---|---|
+| Gross to Net | **🧹 Xoá toàn bộ Gross** | Gross = 0, Net = 0 → cân lại. Ảnh giữ nguyên |
+| Net to Gross | **🧹 Tính lại Gross từ Net** | `recalc_weights`: Net = bảng × pcs, Gross = Net + tare |
 
 ---
 
@@ -120,6 +138,21 @@ crop khung thùng → resize ≤1600px, JPEG 0.88. Panel cân live ngay trong di
 chụp & lưu sau; số ST tự điền, sửa tay được). Camera được **tắt sạch khi đóng dialog** (có cờ
 `closed` chặn race `getUserMedia` resolve sau khi đóng). Save gom qua `pl_save()` tránh đua nhau.
 
+**Crop (`PL_CROP_RATIO = 3/4`):** khung **3:4 dọc** (chuẩn 600×800), `autoCropArea: 0.85`.
+> Trước dùng `autoCropArea: 1` → khung crop **phủ kín ảnh** → bấm Lưu mà không kéo khung thì
+> "vùng crop" = cả ảnh → **lưu y hệt ảnh gốc**. Đúng lỗi user báo *"ko lưu đúng vùng crop"*.
+
+**Nút 🔄 Chụp lại** ở **cả 2** dialog — ảnh mờ / thiếu mặt cân / OCR sai thì chụp lại ngay,
+khỏi đóng rồi bắt đầu lại:
+- Dialog **cắt ảnh**: `set_secondary_action` (Frappe `.off("click")` trước khi gắn nên thay hẳn
+  nút đóng; vẫn đóng được bằng ✕ ở header).
+- Dialog **đọc kg**: nút cạnh *Đọc lại số cân*. Phân biệt rõ: **🔄 Đọc lại** = OCR lại **cùng ảnh**
+  (rẻ); **📷 Chụp lại** = chụp **ảnh mới** (ghi đè ảnh cũ theo prefix, không sinh file rác).
+
+**Cropper.js:** hooks.py **đã bỏ include toàn cục**, và `ensure_cropperjs()` chỉ có trong
+`employee.js` (chỉ nạp ở DocType Employee) → Packing List báo *"Cropper.js chưa được tải"*.
+Đã có `pl_ensure_cropper()` tự nạp bản self-host `/assets/customize_erpnext/cropperjs/`.
+
 **Độ phân giải camera (`PL_CAM_RES`)** — quyết định OCR đọc được hay không:
 - Xin `{width:{ideal:3840}, height:{ideal:2160}}`. **`ideal` = xin cái gần nhất**, không phải trần
   → để số thấp là **tự bó chân**. Webcam 1080p vẫn trả 1920×1080; điện thoại 4K thì cho 4K.
@@ -136,35 +169,71 @@ chụp & lưu sau; số ST tự điền, sửa tay được). Camera được **
 Chụp lại cùng thùng → **xóa ảnh cũ + kg cũ** (dọn theo prefix `{No}_{CartonNo}_`, không phụ
 thuộc kg nên đổi cân vẫn khớp). Sau khi lưu: **clear checkbox + tự tích thùng kế** (`select_next_carton`).
 
-**kg trong tên file theo từng luồng:**
-- **Scale** (cân trước, chụp sau): kg đã biết lúc lưu → tên file đúng ngay.
-- **OCR** (kg chỉ có sau khi ảnh đã lưu): lưu với kg hiện tại, sau khi bấm *Áp dụng vào Gross*
-  → `rename_carton_photo` **đổi tên file** cho đúng kg (JS: `rename_photo_for`).
-- **Sửa Gross tay trong lưới**: tên file **không** tự đổi — nhưng **zip tải về luôn đúng** vì
-  `download_all_photos` đặt tên entry từ `gross_weight` **hiện tại** của dòng.
+**kg trong tên file — luôn khớp Gross, bất kể kg đến từ đâu:**
+- `_sync_photo_names()` chạy trong **`on_update`**: mỗi lần lưu, so tên mong muốn với tên trong
+  URL sẵn có trên dòng; **lệch mới** gọi `rename_carton_photo`. Khớp rồi thì **tốn 0 query**.
+- Vì sao cần: luồng **OCR lưu ảnh TRƯỚC khi biết kg**, nên file mang `gross_weight` tại thời
+  điểm đó = **Gross lý thuyết** từ Generate. `rename_carton_photo` chỉ chạy khi bấm *Áp dụng
+  vào Gross* → OCR bị từ chối / gõ tay ở lưới thì **tên file giữ số lý thuyết = nói dối**.
+  Gặp thật: file `..._8_12.20kg_...` trong khi cân hiển thị **12.53**.
+- `download_all_photos` vẫn đặt tên entry từ `gross_weight` **hiện tại** → zip luôn đúng.
 
-**OCR (`read_scale_ocr`, ssocr):** ngay sau lưu, dialog tự đọc số cân trên **cùng ảnh**:
-1. Mặt nạ đỏ `R−(G+B)/2 > 100`.
-2. **Nhiều cụm ứng viên** (`_digit_regions`, tối đa 6, lớn→nhỏ): dilate + gắn nhãn liên thông.
-   **KHÔNG cược vào cụm lớn nhất** — trong kho, cụm đỏ lớn nhất thường là **thùng PCCC / bình
-   chữa cháy** chứ không phải mặt cân (đo thực tế: ảnh có PCCC = **15.308 px đỏ**, gấp **5×** ảnh
-   thường ~3.000). Thử lần lượt tới khi có cụm đọc ra số.
-3. **Cổng chặn hình dạng** cho từng cụm: `too_small` (chữ số < 40px) · `not_a_display`
-   (rộng < 1.2× cao — dãy số 7 đoạn luôn rộng hơn cao) → chặn ssocr biến vật đỏ thành số rác.
-4. `_read_strip`: resize chữ số về ~150px + **ensemble** (closing / ±3° / `-t` 30·50·70) → bỏ phiếu.
-   **Chỉ nhận bản đọc sạch** — `'9y2'` KHÔNG được rút thành `'92'` (=0.92 thay vì 9.43, sai 10×).
-5. **Chia 10^decimals** (luôn 2 → `586` = 5.86 kg). Mỏ neo **Gross dự kiến** loại số sai magnitude.
+**OCR (`read_scale_ocr`, ssocr):** ngay sau lưu, dialog tự đọc số cân trên **cùng ảnh**.
+Thư viện OCR = **`ssocr` v2.23.1** (binary `/usr/bin/ssocr`, chuyên LED 7 đoạn, chỉ đọc `0-9`).
+numpy/scipy/Pillow lo tiền xử lý — **phần lớn độ chính xác nằm ở code ta, không ở ssocr**.
+
+1. **Mặt nạ đỏ** `R−(G+B)/2 > 100` (`_red_mask` — **chỗ DUY NHẤT** biết tới màu; đổi cân LED
+   màu khác chỉ sửa 2 dòng ở đây, xem §7c).
+2. **Nhiều cụm ứng viên** (`_digit_regions`, tối đa 6, lớn→nhỏ). **KHÔNG cược vào cụm lớn nhất**
+   — trong kho cụm đỏ lớn nhất thường là **thùng PCCC / bình chữa cháy** (đo: ảnh có PCCC =
+   **15.308 px đỏ**, gấp **5×** ảnh thường ~3.000). Thử lần lượt tới khi có cụm đọc ra số.
+   ⚠️ **Dilation phải theo TỈ LỆ ảnh** (`iters = min(shape)/100`, tối thiểu 6): khe giữa các chữ số
+   giãn theo độ phân giải, nên mức cố định 10px **âm thầm hết bắc cầu** trên ảnh nét → dãy số
+   **vỡ thành nhiều cụm** → lấy cụm lớn nhất = số **cụt**. Đo được: cùng 1 ảnh, 900×1600 thấy
+   **4 ô**, phóng lên 2250×4000 chỉ còn **3 ô** → `12.53` đọc thành **`1.25`**.
+3. **Cổng chặn hình dạng** cho từng cụm: `too_small` (chữ số < `MIN_DIGIT_PX` = 40px) ·
+   `not_a_display` (rộng < 1.2× cao — dãy số 7 đoạn luôn rộng hơn cao).
+4. **Đếm ô chữ số bằng hình học** (`_count_digit_cells` → `_digit_runs`) rồi ép **`ssocr -d N`**
+   và **bắt buộc `len(digits) == N`**. Đây là thứ duy nhất bắt được lỗi **thiếu hẳn 1 chữ số**
+   (đọc-sạch không thể thấy ký tự *bị mất*).
+   ⚠️ Phải xét theo **CHIỀU CAO**, không đếm pixel: số **"1" chỉ sáng 2 đoạn** → rất ít pixel →
+   lọc kiểu `sum > peak*0.2` **cắt oan số 1 đầu** → `11.79` thành `179` = **1.79**. Chữ số dù
+   mảnh vẫn **cao bằng** nhau; đốm nhiễu & dấu chấm thì thấp.
+5. `_read_strip`: resize chữ số ~150px + **ensemble** (closing / ±3° / `-t` 30·50·70) → bỏ phiếu.
+   **Chỉ nhận bản đọc sạch** — `'9y2'` KHÔNG được rút thành `'92'` (=0.92 thay vì 9.43).
+6. **Chia 10^decimals** (luôn **2** → `586` = 5.86 kg).
+
+> **KHÔNG dùng mỏ neo Gross dự kiến làm chỗ dựa.** Đa số nhập **Gross rồi suy Net**, nên
+> `weight_text` thường vắng hoặc chỉ áng chừng → mỏ neo không đáng tin. Mọi cổng chặn ở trên
+> đều **tự thân** (hình học ảnh), không cần biết thùng nặng bao nhiêu.
+
+**Lỗi OCR còn lại (chưa xử lý):** sai **giá trị** 1 chữ số mà **đúng số ô** — vd `9` → `0`
+(khác nhau đúng **1 đoạn giữa**; đoạn mờ là thành 0). Cell-count không bắt được. Gặp khi
+**chụp lại màn hình máy tính** (ảnh của ảnh: moiré + 2 lần nén). Chụp cân thật thì chưa gặp.
 
 **Kết quả đo trên ảnh thật (ground truth):**
 
 | Ảnh | Chữ số | px đỏ | Kết quả |
 |---|---|---|---|
-| Nền thùng carton | 63px | 3.040 | 5.83 ✅ |
-| Nền thùng carton | 59px | 2.706 | 5.84 ✅ |
-| **Nền có thùng PCCC** | 184px* | 15.308 | 5.86 ✅ (bỏ qua cụm PCCC) |
-| Ảnh cũ 480×640 | 10–31px | — | ⚪ từ chối (`too_small`) — trước đây trả **số rác** |
+| Nền carton, 1920×2560 | 63px | 3.040 | **5.83** ✅ |
+| Nền carton, 1920×2560 | 59px | 2.706 | **5.84** ✅ |
+| **Nền có thùng PCCC** | 184px* | 15.308 | **5.86** ✅ (bỏ qua cụm PCCC) |
+| 900×1600, 3 chữ số | 45px | 1.858 | **3.94** ✅ (45px vẫn đọc được → ngưỡng 40 hợp lý) |
+| 900×1600, 4 chữ số | 37–38px | — | ⚪ từ chối (`too_small`) — đúng mực |
+| ↑ ảnh đó phóng ×2.5 | ~95px | — | **12.53** ✅ (trước khi sửa dilation: **1.25** ❌) |
+| Ảnh cũ 480×640 | 10–31px | — | ⚪ từ chối — trước đây trả **số rác kèm `confident=True`** |
 
 \* cụm lớn nhất là PCCC (168×184, cao hơn rộng) → bị loại, tìm tiếp ra mặt cân.
+
+**Từng đọc sai như thế nào** (đều đã sửa, giữ đây để không tái phạm):
+
+| Triệu chứng | Nguyên nhân thật |
+|---|---|
+| `9.43` → `0.92` | `re.sub(r"\D","")` **vứt ký tự lỗi** rồi vẫn tính (`'9y2'`→`'92'`) |
+| `12.53` → `1.25` | **dilation cố định 10px** không bắc cầu nổi trên ảnh nét → dãy số vỡ cụm |
+| `11.79` → `1.79` | `_trim_columns` lọc theo **tổng pixel** → **cắt oan số "1"** (ít pixel, vẫn cao) |
+| chữ 12–13px → `8.88` "chắc chắn" | thiếu cổng `MIN_DIGIT_PX` |
+| **lá cờ đỏ** → `8` | thiếu cổng `not_a_display` |
 
 **Hướng dẫn chụp cho user** (hiện trong dialog chụp + khi OCR fail + nút Hướng dẫn):
 **nền phía sau càng đơn giản càng tốt** — tránh vật đỏ (PCCC, bình chữa cháy, biển báo đỏ,
@@ -274,7 +343,8 @@ export `window.plScale`. **Client-side thuần — không thêm method Python.**
 | `rename_carton_photo(packing_list, carton_no, color, size, gross)` | Đổi tên ảnh theo Gross mới |
 | `download_all_photos(packing_list)` | Zip tải tất cả ảnh (tên theo Gross hiện tại) |
 | `delete_all_photos(packing_list)` | Xoá toàn bộ ảnh: File + file trên đĩa + link trong bảng |
-| `read_scale_ocr(image, decimals=2)` | OCR số cân bằng ssocr |
+| `read_scale_ocr(image, decimals=2, roi=None, packing_list=None, carton_no=None)` | OCR số cân (ssocr) |
+| `recalc_weights(doc)` | Tính lại Net từ bảng cân nặng × pcs, Gross = Net + tare (giữ ảnh) |
 
 > ⚠️ Thêm/đổi **method Python** → cần **`bench restart`** (web worker gunicorn `--preload`
 > không tự nạp lại code; `clear-cache` chỉ xóa redis). Sửa JS/JSON → `clear-cache` + refresh.
@@ -284,12 +354,21 @@ export `window.plScale`. **Client-side thuần — không thêm method Python.**
 ## 11. Test OCR (ảnh thật)
 
 ```
-doctype/packing_list/test_images/   ảnh cân thật, tên file = kg thật
+doctype/packing_list/test_images/           PHẢI đọc đúng — tên file = kg thật trên mặt cân
+    3.94_900x1600_45px.jpg
     5.83_nen-carton.jpg
     5.84_nen-carton.jpg
-    5.86_nen-pccc-nhieu-vat-do.jpg   ← ảnh từng làm hỏng OCR (cụm đỏ lớn nhất = thùng PCCC)
+    5.86_nen-pccc-nhieu-vat-do.jpg          ← cụm đỏ lớn nhất là thùng PCCC
+doctype/packing_list/test_images/too_far/   PHẢI từ chối — chữ số < 40px, không được đoán
+    12.53_900x1600_37px_dep-croc-xanh.jpg
+    12.53_900x1600_38px.jpg
 doctype/packing_list/test_packing_list.py   → class TestScaleOCR
 ```
+
+> ⚠️ **Tên file do app lưu KHÔNG phải ground truth.** `{No}_{CartonNo}_{kg}kg_...` mang Gross
+> *tại thời điểm lưu* — có thể là Gross **lý thuyết** (xem §7). Ground truth phải **mở ảnh ra
+> nhìn mặt cân**. Đã suýt encode kỳ vọng SAI vào test vì tin tên file (`..._8_12.20kg_...`
+> trong khi cân hiện **12.53**).
 
 - **Thêm ca test = thả thêm 1 ảnh** vào `test_images/` đặt tên `<kg>_<mô tả>.jpg` — kỳ vọng lấy
   từ chính tên file, **không cần sửa code**. Nên giữ lại các ảnh từng làm OCR sai.

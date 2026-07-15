@@ -8,6 +8,13 @@ frappe.ui.form.on("Packing List", {
 		frm.add_custom_button(__("📷 Chụp / Cân"), () => carton_action(frm));
 		frm.add_custom_button(__("⬇ Download Photo"), () => download_all_carton_photos(frm));
 		frm.add_custom_button(__("🗑 Xoá tất cả ảnh"), () => delete_all_carton_photos(frm));
+		// Gross to Net: Gross là số cân nhập -> xoá. Net to Gross: Gross suy ra -> tính lại.
+		frm.add_custom_button(
+			(frm.doc.weight_mode || "") === "Gross to Net"
+				? __("🧹 Xoá toàn bộ Gross")
+				: __("🧹 Tính lại Gross từ Net"),
+			() => clear_all_gross(frm)
+		);
 		frm.add_custom_button(__("Hướng dẫn"), () => show_packing_guide());
 		// Đọc cân trực tiếp qua Web Serial (chỉ Chrome/Edge + HTTPS).
 		if (window.plScale && plScale.supported()) {
@@ -34,7 +41,10 @@ frappe.ui.form.on("Packing List Detail", {
 	gross_weight(frm, cdt, cdn) {
 		if ((frm.doc.weight_mode || "") !== "Gross to Net") return;
 		const row = locals[cdt][cdn];
-		row.net_weight = flt(flt(row.gross_weight) - flt(row.empty_weight), 3);
+		// Chưa cân (Gross = 0) -> Net = 0, đừng trừ tare thành số âm.
+		row.net_weight = flt(row.gross_weight)
+			? flt(flt(row.gross_weight) - flt(row.empty_weight), 3)
+			: 0;
 		frm.refresh_field("details");
 		sum_weight_totals(frm);
 	},
@@ -553,6 +563,7 @@ const PL_CAM_KEY = "pl_camera_id";
 const PL_MODE_KEY = "pl_capture_mode";
 const PL_CONT_KEY = "pl_capture_cont";
 const PL_ROI_KEY = "pl_scale_roi"; // khung màn hình cân (theo máy), chuẩn hoá 0..1
+const PL_CROP_RATIO = 3 / 4; // khung crop ảnh thùng: 3:4 dọc (như chuẩn 600x800)
 // Xin độ phân giải cao nhất có thể: không set thì trình duyệt hay trả 640x480 ->
 // chữ số trên cân chỉ ~12-30px = OCR đọc ra rác (đo thực tế: 63px đọc đúng, <40px vô vọng).
 // "ideal" = xin cái GẦN NHẤT với số này, nên để thấp là tự bó chân: webcam 1080p vẫn
@@ -1058,6 +1069,12 @@ function carton_crop_dialog(frm, row, data_url, gross, on_after) {
 			});
 		},
 	});
+	// Ảnh mờ / thiếu mặt cân -> chụp lại ngay, khỏi đóng rồi bắt đầu lại từ đầu.
+	d.set_secondary_action_label(__("🔄 Chụp lại"));
+	d.set_secondary_action(() => {
+		d.hide();
+		open_capture_dialog(frm, row);
+	});
 	d.fields_dict.crop.$wrapper.html(
 		`<img class="pl-crop-img" src="${data_url}" style="max-width:100%;display:block">`
 	);
@@ -1081,9 +1098,80 @@ function carton_crop_dialog(frm, row, data_url, gross, on_after) {
 		// Query the image inside THIS dialog's wrapper (not a global id).
 		const img = d.fields_dict.crop.$wrapper.find("img.pl-crop-img")[0];
 		if (img) {
-			d._cropper = new Cropper(img, { viewMode: 1, autoCropArea: 1, background: false });
+			d._cropper = new Cropper(img, {
+				viewMode: 1,
+				// Khung 3:4 (dọc) như chuẩn ảnh 600x800. autoCropArea < 1 để khung crop
+				// KHÔNG phủ kín ảnh: trước đây autoCropArea=1 nên bấm Lưu mà không kéo
+				// khung thì "vùng crop" = cả ảnh -> lưu y hệt ảnh gốc.
+				aspectRatio: PL_CROP_RATIO,
+				autoCropArea: 0.85,
+				background: false,
+			});
 		}
 	}
+}
+
+// Reset Gross của mọi thùng. Hành vi phụ thuộc weight_mode:
+//   Gross to Net : Gross là số CÂN NHẬP -> xoá về 0 (Net = 0) để cân lại.
+//   Net to Gross : Gross là số SUY RA   -> tính lại = Net + tare (xoá về 0 là hỏng
+//                  dữ liệu, vì không chỗ nào tính lại Gross ngoài Generate).
+// Ảnh luôn được giữ nguyên.
+function clear_all_gross(frm) {
+	if (frm.is_new()) {
+		frappe.msgprint(__("Lưu Packing List trước."));
+		return;
+	}
+	const rows = frm.doc.details || [];
+	if (!rows.length) {
+		frappe.msgprint(__("Chưa có thùng nào."));
+		return;
+	}
+	const g2n = (frm.doc.weight_mode || "") === "Gross to Net";
+	const n = g2n ? rows.filter((d) => flt(d.gross_weight)).length : rows.length;
+	if (g2n && !n) {
+		frappe.msgprint(__("Chưa có Gross nào để xoá."));
+		return;
+	}
+	const msg = g2n
+		? __("Xoá số cân (Gross) của <b>{0}</b> thùng để cân lại? Ảnh vẫn giữ nguyên. Không thể hoàn tác.", [n])
+		: __(
+				"Tính lại Net (từ bảng <b>Net Weight per Piece</b> × số cái) và Gross = Net + thùng rỗng cho <b>{0}</b> thùng? Ảnh giữ nguyên; mọi Gross sửa tay sẽ bị ghi đè.",
+				[n]
+		  );
+	frappe.confirm(msg, () => {
+		if (g2n) {
+			// Gán thẳng rồi refresh 1 lần: set_value từng ô sẽ bắn sự kiện hàng trăm lần.
+			rows.forEach((d) => {
+				d.gross_weight = 0;
+				d.net_weight = 0;
+			});
+			frm.dirty();
+			frm.refresh_field("details");
+			sum_weight_totals(frm);
+			frm.save().then(() =>
+				frappe.show_alert({ message: __("Đã xoá Gross của {0} thùng", [n]), indicator: "green" }, 5)
+			);
+			return;
+		}
+		// Net to Gross: tính lại Net từ BẢNG cân nặng, không tin net_weight trên dòng
+		// (mode Gross to Net có thể đã ghi đè nó thành 0 và mất số lý thuyết).
+		frappe.call({
+			method: "customize_erpnext.customize_erpnext.doctype.packing_list.packing_list.recalc_weights",
+			args: { doc: frm.doc },
+			freeze: true,
+			freeze_message: __("Đang tính lại khối lượng..."),
+			callback(r) {
+				if (!r.message) return;
+				apply_result(frm, r.message);
+				frm.save().then(() =>
+					frappe.show_alert(
+						{ message: __("Đã tính lại Net & Gross cho {0} thùng", [n]), indicator: "green" },
+						5
+					)
+				);
+			},
+		});
+	});
 }
 
 // Xoá toàn bộ ảnh thùng: xoá File + file trên đĩa, đồng thời xoá link trong bảng.
@@ -1175,6 +1263,9 @@ function scale_ocr_dialog(frm, cdt, cdn, source, on_after) {
 		`<img src="${source}" style="max-width:100%;max-height:36vh;display:block;margin:0 auto">
 		<div style="text-align:center;margin-top:6px">
 			<button class="btn btn-sm btn-default ocr-redo">🔄 ${__("Đọc lại số cân")}</button>
+			<button class="btn btn-sm btn-default ocr-retake" style="margin-left:6px">📷 ${__(
+				"Chụp lại"
+			)}</button>
 		</div>`
 	);
 	const render_ocr = (m) => {
@@ -1218,6 +1309,11 @@ function scale_ocr_dialog(frm, cdt, cdn, source, on_after) {
 		});
 	};
 	d.$wrapper.on("click", ".ocr-redo", run_ocr);
+	// Đọc sai / ảnh quá xa -> chụp lại thùng này luôn (ảnh mới ghi đè ảnh cũ).
+	d.$wrapper.on("click", ".ocr-retake", () => {
+		d.hide();
+		open_capture_dialog(frm, row());
+	});
 	d.show();
 	run_ocr(); // auto-read on open
 }

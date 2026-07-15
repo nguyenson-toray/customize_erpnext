@@ -66,6 +66,25 @@ class TestScaleOCR(IntegrationTestCase):
 				self.assertTrue(res.get("ok"), f"{name}: not read (reason={res.get('reason')})")
 				self.assertEqual(res.get("value"), expected, f"{name}: wrong kg")
 
+	def test_refuses_photos_shot_too_far(self):
+		"""test_images/too_far/ must NEVER produce a number.
+
+		Real shots whose digits fall under MIN_DIGIT_PX. Guards against loosening
+		the gate later: a wrong weight is worse than no weight, and these came back
+		as confident nonsense before the gates existed.
+		"""
+		if not shutil.which("ssocr"):
+			self.skipTest("ssocr is not installed (sudo apt-get install ssocr)")
+		paths = sorted(glob.glob(os.path.join(TEST_IMAGES, "too_far", "*.jpg")))
+		self.assertTrue(paths, "No sample photos in test_images/too_far/")
+		for path in paths:
+			name = os.path.basename(path)
+			with self.subTest(image=name):
+				with open(path, "rb") as fh:
+					res = read_scale_ocr(self._b64(fh.read()), 2) or {}
+				self.assertFalse(res.get("ok"), f"{name}: must refuse, got {res.get('value')}")
+				self.assertIsNone(res.get("value"))
+
 	def test_refuses_instead_of_guessing_when_digits_too_small(self):
 		"""A far/downscaled photo must be refused, never guessed.
 

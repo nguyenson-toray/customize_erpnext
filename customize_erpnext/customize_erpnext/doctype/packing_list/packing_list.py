@@ -44,6 +44,33 @@ class PackingList(Document):
                 show_alert=False,
             )
             self.name = self.no
+        self._sync_photo_names()
+
+    def _sync_photo_names(self):
+        """Keep the kg in each photo filename in step with the current Gross.
+
+        The name is only right if the weight was known when the photo was saved.
+        In the OCR flow the photo is saved first, and a user who types the weight
+        in the grid (or whose OCR was refused) never triggers a rename — the file
+        would keep the theoretical Gross from Generate and quietly lie.
+
+        Cheap: the wanted name is compared against the URL already on the row, so
+        a list whose names are in step costs zero queries.
+        """
+        for d in (self.details or []):
+            if not d.photo:
+                continue
+            want = _photo_name(self.name, d.carton_no, d.gross_weight, d.color, d.size)
+            if d.photo.rsplit("/", 1)[-1] == want:
+                continue
+            try:
+                new_url = rename_carton_photo(
+                    self.name, d.carton_no, d.color, d.size, d.gross_weight
+                )
+            except Exception:
+                continue  # never let a file rename break the save
+            if new_url and new_url != d.photo:
+                d.db_set("photo", new_url, update_modified=False)
 
     # ------------------------------------------------------------------ #
     # Totals
@@ -59,8 +86,14 @@ class PackingList(Document):
             if not self._is_mixed(d):
                 d.contents = ""
             # Reverse weight: Net = Gross - empty carton (Gross entered from scale).
+            # No Gross yet (not weighed / cleared) means no Net — subtracting the
+            # tare from 0 would quietly write a negative weight.
             if gross_to_net:
-                d.net_weight = flt(flt(d.gross_weight) - flt(d.empty_weight), 3)
+                d.net_weight = (
+                    flt(flt(d.gross_weight) - flt(d.empty_weight), 3)
+                    if flt(d.gross_weight) > 0
+                    else 0
+                )
         self.total_quantity = sum(cint(d.pcs) for d in rows)
         self.total_carton = len(rows)
         self.total_net_weight = flt(sum(flt(d.net_weight) for d in rows), 3)
@@ -521,6 +554,53 @@ def generate_detail(doc, force=0):
 
 
 @frappe.whitelist()
+def recalc_weights(doc):
+    """Recompute Net from the weight table x pcs, and Gross = Net + tare.
+
+    Rebuilds the weights WITHOUT re-packing, so carton numbers and photos survive
+    (Generate would delete them). Needed because "Gross to Net" defines
+    net = gross - tare: with no Gross yet that writes net = 0 and the theoretical
+    net is gone for good — so it cannot be recovered from the rows, only from the
+    weight table. Also lets a corrected weight table be applied to a packed list.
+
+    Only for "Net to Gross": in "Gross to Net" the Net follows the scale, and
+    _recalc_totals would immediately overwrite whatever we computed here.
+    """
+    if isinstance(doc, str):
+        doc = frappe.parse_json(doc)
+    pl = frappe.get_doc(doc)
+    if (pl.weight_mode or "") == "Gross to Net":
+        frappe.throw(
+            _("Weight Mode is Gross to Net: Net comes from the scale, not from the weight table.")
+        )
+
+    weight_map = pl._parse_weight()
+    missing = set()
+    for d in (pl.details or []):
+        lines = (
+            pl._parse_contents(d.contents)
+            if d.contents
+            else [(d.color, d.size, cint(d.pcs))]
+        )
+        net = 0.0
+        for (_c, size, pcs) in lines:
+            if size not in weight_map:
+                missing.add(size)
+            net += flt(weight_map.get(size, 0)) * pcs
+        d.net_weight = flt(net, 3)
+        d.gross_weight = flt(net + flt(d.empty_weight), 3)
+    if missing:
+        frappe.throw(
+            _(
+                "Net Weight per Piece (box 2) has no weight for size(s): {0}. "
+                "Check it is tab-separated, one line per size: Size &lt;Tab&gt; Weight."
+            ).format(", ".join(sorted(missing)))
+        )
+    pl._recalc_totals()
+    return _result(pl)
+
+
+@frappe.whitelist()
 def apply_mix(doc, cartons):
     """Apply a user-edited mixed-carton layout (from the Edit Mix dialog)."""
     if isinstance(doc, str):
@@ -803,10 +883,10 @@ def _red_mask(im):
     return red > 100
 
 
-def _trim_columns(region):
-    """Drop noise specks: keep only the strong column-runs of a red blob."""
+def _column_runs(region, frac=0.05):
+    """Column runs of lit pixels: one run per digit (gaps separate the digits)."""
     colsum = region.sum(0)
-    active = colsum > (region.shape[0] * 0.10)
+    active = colsum > (region.shape[0] * frac)
     runs, start = [], None
     for i, v in enumerate(list(active) + [False]):
         if v and start is None:
@@ -814,12 +894,34 @@ def _trim_columns(region):
         elif not v and start is not None:
             runs.append((start, i))
             start = None
-    sized = [(s, e, int(colsum[s:e].sum())) for (s, e) in runs]
-    if not sized:
+    return runs
+
+
+def _digit_runs(region):
+    """Runs that are really digits, judged by HEIGHT — never by pixel count.
+
+    A '1' lights only two segments, so it has few pixels but still spans the full
+    digit height. Trimming by pixel count therefore ate leading ones and turned
+    "11.79" into "179" (= 1.79). Noise specks and the decimal point are short, so
+    height separates them cleanly from digits.
+    """
+    import numpy as np
+
+    h = region.shape[0]
+    out = []
+    for (a, b) in _column_runs(region):
+        rows = np.where(region[:, a:b].any(1))[0]
+        if len(rows) and (rows.max() - rows.min() + 1) >= h * 0.5:
+            out.append((a, b))
+    return out
+
+
+def _trim_columns(region):
+    """Crop the strip to the digits, dropping specks / the decimal point."""
+    runs = _digit_runs(region)
+    if not runs:
         return None
-    peak = max(r[2] for r in sized)
-    big = [(s, e) for (s, e, sm) in sized if sm > peak * 0.2]
-    x0, x1 = min(s for s, e in big), max(e for s, e in big)
+    x0, x1 = min(a for a, b in runs), max(b for a, b in runs)
     return region[:, x0:x1]
 
 
@@ -830,11 +932,19 @@ def _digit_regions(mask, max_n=6):
     has fire extinguishers, PCCC boxes, signs and red pipes (measured: such a
     photo has 5x more red pixels than the display alone). So hand back several
     candidates and let the caller keep the one that actually reads as digits.
+
+    The dilation that glues the digits into one blob MUST scale with the image:
+    the gap between digits grows with resolution, so a fixed 10px bridge silently
+    stopped reaching on sharp photos — the number split into pieces, the biggest
+    piece won, and "12.53" came back as "1.25". Measured: at 900x1600 the strip
+    held 4 cells, the same shot at 2250x4000 held 3.
     """
     import numpy as np
     from scipy import ndimage as ndi
 
-    labels, n = ndi.label(ndi.binary_dilation(mask, iterations=10))
+    # ~1% of the short side: 9 px at 900px wide, 22 px at 2250, 38 px at 4K.
+    iters = max(6, int(round(min(mask.shape) / 100.0)))
+    labels, n = ndi.label(ndi.binary_dilation(mask, iterations=iters))
     if n == 0:
         return []
     sizes = ndi.sum(mask, labels, np.arange(1, n + 1))
@@ -884,8 +994,27 @@ def _prep_image(sub, closing=False, angle=0):
     return ImageOps.invert(padded)
 
 
-def _ssocr_read(img, threshold):
-    """Run ssocr on a prepared image; '' on any failure."""
+def _count_digit_cells(sub):
+    """How many digits are lit, counted from the gaps between them.
+
+    Self-contained — no need to know the expected weight. This is what catches the
+    dangerous failure: ssocr can return FEWER digits than are lit and still look
+    perfectly clean ("1253" -> "125" turns 12.53 into 1.25). A clean-text check
+    cannot see a MISSING character; the geometry can.
+
+    Measured on real photos: "394" -> 3 runs [27,27,27]; "12.53" -> 4 runs
+    [9,24,19,21] (the "1" is the narrow one). Counted by height like _digit_runs,
+    so a thin '1' counts and the decimal point does not.
+    """
+    return len(_digit_runs(sub))
+
+
+def _ssocr_read(img, threshold, ndigits=-1):
+    """Run ssocr on a prepared image; '' on any failure.
+
+    ndigits pins how many digits to find (-d): forcing the real count stops ssocr
+    from quietly settling for fewer. -1 lets it guess.
+    """
     import os
     import subprocess
     import tempfile
@@ -895,7 +1024,7 @@ def _ssocr_read(img, threshold):
         os.close(fd)
         img.save(path)
         out = subprocess.run(
-            ["ssocr", "-d", "-1", "-t", str(threshold), "remove_isolated", path],
+            ["ssocr", "-d", str(ndigits), "-t", str(threshold), "remove_isolated", path],
             capture_output=True,
             text=True,
             timeout=20,
@@ -924,31 +1053,40 @@ def _plausible(value, expected):
 
 
 def _read_strip(sub, dec, expected):
-    """OCR one candidate digit strip. Returns a result dict, or None."""
+    """OCR one candidate digit strip. Returns a result dict, or None.
+
+    Correctness rests on the DIGIT COUNT taken from the geometry, never on the
+    expected weight: most lists are filled Gross-first (net derived from it), so
+    the theoretical gross is often absent or rough and must not be load-bearing.
+    """
+    ncells = _count_digit_cells(sub)
+    if ncells < 2 or ncells > 6:
+        return None  # not a weight reading
 
     def attempt(closing, angle, thr):
-        """Digits ONLY when ssocr read every character.
+        """Digits ONLY when ssocr read every character AND every lit cell.
 
-        A dirty read like '9y2' must never be squeezed into '92' (= 0.92 instead
-        of 9.42): dropping the unreadable char silently shifts the decimal by 10x.
-        Reporting nothing is safer — the user then types the weight.
+        Two silent ways to be wrong:
+          '9y2'  -> stripped to '92'   (0.92 instead of 9.42)
+          '1253' -> read as '125'      (1.25 instead of 12.53)
+        Clean-text catches the first; only the cell count catches the second —
+        a clean string cannot reveal a MISSING character.
         """
         img = _prep_image(sub, closing, angle)
         if img is None:
             return None, None
-        raw = _ssocr_read(img, thr)
+        raw = _ssocr_read(img, thr, ncells)
         if not raw or not re.fullmatch(r"[0-9.]+", raw):
             return None, raw
         digits = re.sub(r"\D", "", raw)
-        # A scale never shows a single digit; 1 digit means ssocr found a blob.
-        return (digits if len(digits) >= 2 else None), raw
+        return (digits if len(digits) == ncells else None), raw
 
     # Fast path: a good shot reads cleanly on the first variant.
     digits, raw = attempt(True, 0, SSOCR_THRESHOLDS[0])
-    if digits and _plausible(_value_of(digits, dec), expected):
+    if digits:
         return {
             "ok": True, "value": _value_of(digits, dec), "digits": digits, "raw": raw,
-            "confident": True, "votes": 1, "expected": expected, "plausible": True,
+            "confident": True, "votes": 1, "cells": ncells, "expected": expected,
         }
 
     # Ensemble: vary stroke repair / tilt / threshold, then vote (clean reads only).
@@ -964,23 +1102,18 @@ def _read_strip(sub, dec, expected):
     if not votes:
         return None
 
-    # Rank: plausible against the theoretical gross first, then most votes.
-    def rank(item):
-        d, v = item
-        return (1 if _plausible(_value_of(d, dec), expected) else 0, v["n"])
-
-    digits, v = max(votes.items(), key=rank)
-    value = _value_of(digits, dec)
-    plausible = _plausible(value, expected)
+    # Most-voted wins. The candidates already all have the right number of digits,
+    # so no weight prior is needed to choose between them.
+    digits, v = max(votes.items(), key=lambda it: it[1]["n"])
     return {
         "ok": True,
-        "value": value,
+        "value": _value_of(digits, dec),
         "digits": digits,
         "raw": v["raw"],
-        "confident": bool(v["n"] >= 2 and plausible),
+        "confident": bool(v["n"] >= 2),
         "votes": v["n"],
+        "cells": ncells,
         "expected": expected,
-        "plausible": plausible,
     }
 
 
