@@ -415,7 +415,8 @@ doc_events = {
 # Cropper.js KHÔNG include toàn cục nữa — employee.js tự lazy-load bản
 # self-host tại /assets/customize_erpnext/cropperjs/ khi mở dialog crop
 app_include_js = [
-    "/assets/customize_erpnext/js/fingerprint_scanner_dialog.js"
+    "/assets/customize_erpnext/js/fingerprint_scanner_dialog.js",
+    "csv_bom_fix.bundle.js"
 ]
 
 # Include CSS and JS files in web pages (including web forms)
