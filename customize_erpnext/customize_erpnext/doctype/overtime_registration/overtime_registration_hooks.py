@@ -8,6 +8,7 @@ employees and dates using the same optimized logic as the main attendance proces
 """
 
 import frappe
+from frappe import _
 from frappe.utils import getdate
 from datetime import date, timedelta
 
@@ -113,8 +114,8 @@ def _collect_and_enqueue_attendance_update(doc, quiet=False):
 
 	if not quiet:
 		frappe.msgprint(
-			msg=f"Attendance update for {len(employee_list)} employees has been queued and will be processed shortly.",
-			title="Attendance Update Queued",
+			msg=_("Attendance update for {0} employees has been queued and will be processed shortly.").format(len(employee_list)),
+			title=_("Attendance Update Queued"),
 			indicator="blue"
 		)
 
@@ -164,8 +165,8 @@ def _process_attendance_background(doc_name, employee_list, date_list, from_date
 			frappe.publish_realtime(
 				"msgprint",
 				{
-					"message": f"[{doc_name}] Attendance updated with {stats.get('errors')} errors. Check Error Log.",
-					"title": "Attendance Update Warning",
+					"message": _("[{0}] Attendance updated with {1} errors. Check Error Log.").format(doc_name, stats.get("errors")),
+					"title": _("Attendance Update Warning"),
 					"indicator": "orange"
 				},
 				user=user
@@ -174,8 +175,8 @@ def _process_attendance_background(doc_name, employee_list, date_list, from_date
 			frappe.publish_realtime(
 				"msgprint",
 				{
-					"message": f"[{doc_name}] Successfully updated attendance for {stats.get('employees_with_attendance', 0)} employees",
-					"title": "Attendance Updated",
+					"message": _("[{0}] Successfully updated attendance for {1} employees").format(doc_name, stats.get("employees_with_attendance", 0)),
+					"title": _("Attendance Updated"),
 					"indicator": "green"
 				},
 				user=user
@@ -191,8 +192,8 @@ def _process_attendance_background(doc_name, employee_list, date_list, from_date
 		frappe.publish_realtime(
 			"msgprint",
 			{
-				"message": f"[{doc_name}] Failed to update attendance: {str(e)}",
-				"title": "Attendance Update Error",
+				"message": _("[{0}] Failed to update attendance: {1}").format(doc_name, str(e)),
+				"title": _("Attendance Update Error"),
 				"indicator": "red"
 			},
 			user=user
@@ -217,9 +218,10 @@ def recalculate_attendance_for_overtime_registration(overtime_registration_name)
 		dict: Processing statistics
 	"""
 	doc = frappe.get_doc("Overtime Registration", overtime_registration_name)
+	doc.check_permission("write")
 
 	if doc.docstatus != 1:
-		frappe.throw("Only submitted Overtime Registration can trigger attendance recalculation")
+		frappe.throw(_("Only submitted Overtime Registration can trigger attendance recalculation"))
 
 	# Call the hook function
 	update_attendance_on_overtime_change(doc, "manual_recalculation")
