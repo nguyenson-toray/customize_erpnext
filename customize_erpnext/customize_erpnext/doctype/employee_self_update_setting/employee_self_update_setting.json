@@ -1,5 +1,6 @@
 {
  "actions": [],
+ "allow_bulk_edit": 1,
  "creation": "2026-03-25 14:15:30.875906",
  "doctype": "DocType",
  "engine": "InnoDB",
@@ -99,27 +100,12 @@
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-03-31 13:25:42.711920",
+ "modified": "2026-07-16 16:03:36.263743",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Employee Self Update Setting",
  "owner": "Administrator",
- "permissions": [
-  {
-   "read": 1,
-   "role": "HR Manager",
-   "write": 1
-  },
-  {
-   "read": 1,
-   "role": "HR User"
-  },
-  {
-   "read": 1,
-   "role": "System Manager",
-   "write": 1
-  }
- ],
+ "permissions": [],
  "row_format": "Dynamic",
  "sort_field": "modified",
  "sort_order": "DESC",

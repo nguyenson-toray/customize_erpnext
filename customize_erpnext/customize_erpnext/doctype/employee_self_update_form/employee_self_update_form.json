@@ -1,5 +1,6 @@
 {
  "actions": [],
+ "allow_bulk_edit": 1,
  "autoname": "field:employee",
  "creation": "2026-03-25 08:00:00",
  "doctype": "DocType",
@@ -141,7 +142,7 @@
   {
    "fieldname": "section_basic",
    "fieldtype": "Section Break",
-   "label": "Thông tin cơ bản"
+   "label": "Th\u00f4ng tin c\u01a1 b\u1ea3n"
   },
   {
    "fieldname": "date_of_birth",
@@ -221,7 +222,7 @@
   {
    "fieldname": "section_insurance_tax",
    "fieldtype": "Section Break",
-   "label": "Bảo hiểm xã hội & Thuế"
+   "label": "B\u1ea3o hi\u1ec3m x\u00e3 h\u1ed9i & Thu\u1ebf"
   },
   {
    "fieldname": "social_insurance_number",
@@ -263,10 +264,10 @@
    "label": "Work History"
   },
   {
+   "description": "JSON array of work history rows. [] = no experience.",
    "fieldname": "work_history_json",
    "fieldtype": "Long Text",
-   "label": "Work History JSON",
-   "description": "JSON array of work history rows. [] = no experience."
+   "label": "Work History JSON"
   },
   {
    "fieldname": "section_current_address",
@@ -422,67 +423,43 @@
   {
    "fieldname": "section_personal2",
    "fieldtype": "Section Break",
-   "label": "Thông tin bổ sung"
+   "label": "Th\u00f4ng tin b\u1ed5 sung"
   },
   {
    "fieldname": "custom_strengths",
    "fieldtype": "Data",
-   "label": "Sở trường"
+   "label": "S\u1edf tr\u01b0\u1eddng"
   },
   {
    "fieldname": "custom_favorite_sport",
    "fieldtype": "Data",
-   "label": "Môn thể thao yêu thích"
+   "label": "M\u00f4n th\u1ec3 thao y\u00eau th\u00edch"
   },
   {
    "fieldname": "custom_vegetarian",
    "fieldtype": "Data",
-   "label": "Nhu cầu ăn chay"
+   "label": "Nhu c\u1ea7u \u0103n chay"
   },
   {
    "fieldname": "section_other_docs",
    "fieldtype": "Section Break",
-   "label": "Giấy tờ khác"
+   "label": "Gi\u1ea5y t\u1edd kh\u00e1c"
   },
   {
+   "description": "JSON array of uploaded file URLs. Not synced to Employee.",
    "fieldname": "other_docs_json",
    "fieldtype": "Long Text",
-   "label": "Other Documents (JSON)",
-   "description": "JSON array of uploaded file URLs. Not synced to Employee."
+   "label": "Other Documents (JSON)"
   }
  ],
  "grid_page_length": 50,
  "links": [],
- "modified": "2026-03-25 08:00:00",
+ "modified": "2026-07-16 16:03:44.840740",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Employee Self Update Form",
  "owner": "Administrator",
- "permissions": [
-  {
-   "create": 1,
-   "delete": 1,
-   "email": 1,
-   "export": 1,
-   "print": 1,
-   "read": 1,
-   "report": 1,
-   "role": "HR Manager",
-   "share": 1,
-   "write": 1
-  },
-  {
-   "create": 1,
-   "email": 1,
-   "export": 1,
-   "print": 1,
-   "read": 1,
-   "report": 1,
-   "role": "HR User",
-   "share": 1,
-   "write": 1
-  }
- ],
+ "permissions": [],
  "row_format": "Dynamic",
  "sort_field": "modified",
  "sort_order": "DESC",
