@@ -12,7 +12,8 @@ với OT đã duyệt (server-side).
 
 ## Dialog "Get Employees" (redesign 2026-07-14)
 
-Nút **Actions → Get Employees** mở **một** dialog duy nhất (trước đây là 2 dialog lồng nhau).
+Nút field **Get Employees** trong form mở **một** dialog duy nhất (trước đây là 2 dialog
+lồng nhau; các nút trong menu Actions đã bỏ — chỉ còn inner button **Pivot View**).
 Entry point: `show_ot_registration_dialog(frm)` trong `overtime_registration.js`.
 
 ### Bố cục 2 cột
@@ -48,6 +49,8 @@ Entry point: `show_ot_registration_dialog(frm)` trong `overtime_registration.js`
 
 | Hành vi | Chi tiết |
 |---|---|
+| Batch mode | "Add Selected" ghi rows nhưng dialog **không đóng**: giữ group + giờ + lý do, reset ngày + bỏ chọn NV; footer cộng dồn `N lô · M dòng · X giờ công` + nút "Undo last batch" (chỉ gỡ dòng của lô cuối, **không** khôi phục dòng bị thay thế); nút "Close" để đóng |
+| Trùng khi Add | Trùng **NV + ngày + giờ trùng/giao nhau** với dòng đã có → confirm Yes/No: Yes = xóa dòng cũ lấy dòng mới, No = giữ dòng cũ bỏ qua dòng mới; giờ kề nhau không tính trùng; dòng sạch luôn được thêm |
 | Đổi tuần | **Xóa toàn bộ ngày đã chọn** (quyết định 2026-07-14, tránh đăng ký nhầm tuần); bấm lại tuần đang chọn thì không làm gì |
 | Group bị khóa | `filter_employee_by = 'custom_group'` + `request_by_group` → Group pre-fill, khóa query, tự tải roster |
 | Phân quyền | `get_user_filter_value()` đọc `filter_employee_by` (custom field, không nằm trong JSON doctype); sai nhóm → chặn kèm alert |
@@ -73,6 +76,17 @@ Doctype JS được eval vào **global scope** của desk. `overtime_request.js`
 `show_employee_selection_dialog` riêng, nên hàm của Overtime Registration được đổi tên thành
 `show_ot_registration_dialog` (2026-07-14) để 2 form không ghi đè lẫn nhau khi mở trong cùng
 phiên. **Quy tắc**: hàm global mới trong file này phải có prefix `ot_` hoặc tên riêng biệt.
+
+## Pivot View
+
+Inner button **Pivot View** mở bảng chỉ-đọc từ bảng con hiện tại (kể cả dòng chưa lưu):
+
+- Cột: `No.` (sticky, 40px) | `Employee` (sticky) | `Group` | `Note` | các ngày (thứ + dd/MM) | `Total (h)`.
+- Ô = khung giờ `HH:MM-HH:MM` (nhiều dòng cùng ngày thì xếp chồng, hover hiện lý do); ô trống = "–".
+- Tổng 3 chiều: theo NV (cột cuối), theo ngày (dòng cuối, sticky bottom), tổng cả phiếu.
+- **Note**: icon thai sản tải async từ Employee Maternity, đối chiếu các ngày OT với khoảng
+  ngày từng pha — 🤰 = trong `pregnant_from/to_date`, 👶 = trong `youg_child_from/to_date`
+  (con < 12 tháng; fieldname thật có typo "youg"). Không có quyền đọc → cột trống, không báo lỗi.
 
 ## Luồng lưu (before_save)
 
@@ -121,6 +135,32 @@ phiên. **Quy tắc**: hàm global mới trong file này phải có prefix `ot_`
 
 ### Overtime Registration Detail (child `ot_employees`)
 - `employee`, `employee_name`, `group`, `date`, `begin_time`, `end_time`, `reason`
+
+## Validate server-side (Python, method `validate()` khi save/submit)
+
+> Gộp từ `overtime_registration_validate.MD` (đã xóa 2026-07-16) và đối chiếu lại code.
+
+| Hàm | Quy tắc |
+|---|---|
+| `validate_time_order` | begin < end từng dòng |
+| `validate_ot_outside_working_hours` | OT phải nằm **ngoài giờ làm việc** của ca: trước ca / trong giờ nghỉ trưa / sau ca (NV thai sản: mốc sau ca = shift_end − 1h); ca không cho phép OT (Shift 1/2) → chặn |
+| `validate_duplicate_employees` | Trùng/overlap giờ cùng NV + ngày trong form (bản server của check client) |
+| `validate_conflicting_ot_requests` | So với OT đã **submit** ở phiếu khác: (a) không được overlap; (b) phải **liên tục** — bắt đầu ngay sau OT cũ kết thúc, kết thúc ngay trước OT cũ bắt đầu, hoặc bắt đầu đúng giờ tan ca nếu là OT đầu tiên; lỗi kèm link phiếu xung đột |
+| `validate_ot_continuity_same_day` | Nhiều dòng cùng NV cùng ngày trong form phải liên tục, dòng đầu bắt đầu đúng giờ tan ca |
+
+Helpers: `validate_ot_continuity_with_shift`, `validate_ot_entries_continuity` (strict_mode).
+
+Cấu hình ca tham chiếu:
+
+| Ca | Giờ | Nghỉ trưa | Cho phép OT |
+|----|-----|-----------|-------------|
+| Day | 08:00–17:00 | 12:00–13:00 | Có |
+| Canteen | 07:00–16:00 | 11:00–12:00 | Có |
+| Shift 1 | 06:00–14:00 | – | Không |
+| Shift 2 | 14:00–22:00 | – | Không |
+
+Ví dụ liên tục với OT đã submit `16:00-18:00`: mới `18:00-20:00` ✓; `19:00-20:00` ✗ (hở giờ);
+chưa có OT nào → `17:00-19:00` ✓ (bắt đầu đúng giờ tan ca Day).
 
 ## Kiến trúc hybrid
 

@@ -18,14 +18,19 @@ frappe.ui.form.on("Overtime Registration", {
         //     frm.page.menu.find('[data-label="Print"]').parent().parent().remove();
         // }
         // Add custom styling for the form
-        frm.page.add_inner_button(__('Get Employees'), function () {
-            show_ot_registration_dialog(frm);
-        }, __('Actions'));
+        // frm.page.add_inner_button(__('Get Employees'), function () {
+        //     show_ot_registration_dialog(frm);
+        // }, __('Actions'));
 
         // Add button to remove empty rows
-        frm.page.add_inner_button(__('Remove Empty Rows'), function () {
-            remove_empty_overtime_rows(frm);
-        }, __('Actions'));
+        // frm.page.add_inner_button(__('Remove Empty Rows'), function () {
+        //     remove_empty_overtime_rows(frm);
+        // }, __('Actions'));
+
+        // Pivot view of the OT list (employees × dates)
+        frm.page.add_inner_button(__('Pivot View'), function () {
+            show_ot_pivot_dialog(frm);
+        });
 
         // Reset validation flags when form refreshes
         frm.pre_save_check_done = false;
@@ -133,7 +138,8 @@ frappe.ui.form.on("Overtime Registration", {
 // ---------------------------------------------------------------------------
 // "Get Employees" dialog — single-screen overtime planner.
 // Left pane: plan (group, week, days, time, reason). Right pane: team roster.
-// Footer ledger shows the live request: employees × days × h/day = man-hours.
+// Batch mode: "Add Selected" writes rows and keeps the dialog open; the footer
+// accumulates the session total (batches · rows · man-hours) with undo.
 // ---------------------------------------------------------------------------
 
 function _get_dialog_state(frm) {
@@ -145,7 +151,8 @@ function _get_dialog_state(frm) {
             selectedDays: new Set(),      // 'monday'..'saturday'
             weekOffset: 0,
             searchTerm: '',
-            loadingEmployees: false
+            loadingEmployees: false,
+            addedBatches: []              // batches written this session (for ledger + undo)
         };
     }
     return frm._ot_dialog_state;
@@ -235,7 +242,6 @@ function ensure_ot_dialog_styles() {
     --ot-accent-text: #92400e;
     --ot-wash: #fdf3e0;
     --ot-wash-border: #ecd3a4;
-    --ot-mono: ui-monospace, "SF Mono", "Cascadia Mono", "Roboto Mono", Menlo, Consolas, monospace;
 }
 html[data-theme="dark"] .ot-reg-modal,
 html[data-theme-mode="dark"] .ot-reg-modal {
@@ -270,7 +276,7 @@ html[data-theme-mode="dark"] .ot-reg-modal {
     color: var(--text-muted); line-height: 1.25;
 }
 .ot-seg button .ot-seg-label { display: block; font-size: 12px; font-weight: 600; }
-.ot-seg button .ot-seg-range { display: block; font-family: var(--ot-mono); font-size: 11px; margin-top: 1px; }
+.ot-seg button .ot-seg-range { display: block; font-size: 11px; margin-top: 1px; }
 .ot-seg button.active { background: var(--ot-wash); border-color: var(--ot-wash-border); color: var(--ot-accent-text); }
 
 .ot-days { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin-bottom: 10px; }
@@ -280,8 +286,8 @@ html[data-theme-mode="dark"] .ot-reg-modal {
     color: var(--text-color); position: relative;
 }
 .ot-day .ot-day-name { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
-.ot-day .ot-day-num { display: block; font-family: var(--ot-mono); font-size: 17px; font-weight: 600; line-height: 1.3; }
-.ot-day .ot-day-mon { display: block; font-family: var(--ot-mono); font-size: 10px; color: var(--text-muted); }
+.ot-day .ot-day-num { display: block; font-size: 17px; font-weight: 600; line-height: 1.3; }
+.ot-day .ot-day-mon { display: block; font-size: 10px; color: var(--text-muted); }
 .ot-day.selected { background: var(--ot-wash); border-color: var(--ot-accent); color: var(--ot-accent-text); }
 .ot-day.selected .ot-day-name, .ot-day.selected .ot-day-mon { color: var(--ot-accent-text); }
 .ot-day.today::after {
@@ -307,7 +313,7 @@ html[data-theme-mode="dark"] .ot-reg-modal {
     margin: 0; font-size: 12px; font-weight: 500;
     display: flex; gap: 6px; align-items: center; cursor: pointer;
 }
-.ot-roster-count { font-size: 11px; color: var(--text-muted); font-family: var(--ot-mono); }
+.ot-roster-count { font-size: 11px; color: var(--text-muted); }
 .ot-roster-row {
     display: flex; gap: 8px; align-items: center; padding: 5px 10px; margin: 0;
     cursor: pointer; font-weight: 400; border-bottom: 1px solid var(--border-color);
@@ -315,14 +321,14 @@ html[data-theme-mode="dark"] .ot-reg-modal {
 .ot-roster-row:last-child { border-bottom: none; }
 .ot-roster-row:hover { background: var(--fg-hover-color, rgba(0, 0, 0, 0.03)); }
 .ot-roster-row input { margin: 0; flex: none; }
-.ot-emp-id { font-family: var(--ot-mono); font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+.ot-emp-id { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
 .ot-roster-row.checked .ot-emp-id { color: var(--ot-accent-text); }
 .ot-emp-name { font-size: 13px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ot-roster-empty { padding: 18px 12px; text-align: center; color: var(--text-muted); font-size: 13px; }
 
 .ot-chips-head { display: flex; justify-content: space-between; align-items: center; margin: 10px 0 6px; }
 .ot-chips-head > span { font-size: var(--text-sm, 12px); color: var(--text-muted); }
-.ot-team-count { font-family: var(--ot-mono); color: var(--ot-accent-text); font-weight: 600; }
+.ot-team-count { color: var(--ot-accent-text); font-weight: 600; }
 .ot-chips { display: flex; flex-wrap: wrap; gap: 4px; max-height: 88px; overflow-y: auto; }
 .ot-chips-empty { color: var(--text-muted); font-size: 12px; }
 .ot-chip {
@@ -330,20 +336,47 @@ html[data-theme-mode="dark"] .ot-reg-modal {
     background: var(--ot-wash); border: 1px solid var(--ot-wash-border);
     color: var(--text-color); border-radius: 999px; padding: 1px 4px 1px 8px; font-size: 11.5px;
 }
-.ot-chip .ot-chip-id { font-family: var(--ot-mono); }
 .ot-chip button {
     border: none; background: none; padding: 0 4px; cursor: pointer;
     color: var(--text-muted); font-size: 13px; line-height: 1;
 }
 .ot-chip button:hover { color: var(--ot-accent-text); }
 
-.ot-ledger {
-    font-family: var(--ot-mono); font-size: 12.5px; color: var(--text-muted);
-    display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
+.ot-footer-info { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.ot-session {
+    font-size: 11.5px; color: var(--text-muted);
+    display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
 }
-.ot-ledger b { color: var(--text-color); font-weight: 600; }
-.ot-ledger .ot-ledger-total { color: var(--ot-accent-text); font-weight: 700; font-size: 14px; }
-.ot-ledger .ot-ledger-warn { color: var(--red-500, #e03636); }
+.ot-session b { color: var(--ot-accent-text); font-weight: 600; }
+
+.ot-pivot-summary { font-size: 12px; color: var(--text-muted); margin-bottom: 8px; }
+.ot-pivot { max-height: 65vh; overflow: auto; border: 1px solid var(--border-color); border-radius: 8px; }
+.ot-pivot table { border-collapse: separate; border-spacing: 0; width: 100%; font-size: 12.5px; }
+.ot-pivot th, .ot-pivot td {
+    border-bottom: 1px solid var(--border-color); border-right: 1px solid var(--border-color);
+    padding: 4px 8px; text-align: center; white-space: nowrap;
+}
+.ot-pivot th {
+    position: sticky; top: 0; z-index: 2;
+    background: var(--card-bg, var(--bg-color, #fff)); font-weight: 600;
+}
+.ot-pivot .ot-pivot-no {
+    position: sticky; left: 0; z-index: 1;
+    background: var(--card-bg, var(--bg-color, #fff));
+    width: 40px; min-width: 40px; max-width: 40px; box-sizing: border-box;
+}
+.ot-pivot .ot-pivot-emp {
+    position: sticky; left: 40px; z-index: 1;
+    background: var(--card-bg, var(--bg-color, #fff)); text-align: left;
+}
+.ot-pivot thead .ot-pivot-no, .ot-pivot thead .ot-pivot-emp { z-index: 3; }
+.ot-pivot-footrow .ot-pivot-emp { left: 0; }
+.ot-pivot-off { color: var(--text-muted); opacity: 0.5; }
+.ot-pivot-total { font-weight: 600; }
+.ot-pivot-footrow td {
+    font-weight: 600; border-top: 2px solid var(--border-color);
+    position: sticky; bottom: 0; background: var(--card-bg, var(--bg-color, #fff));
+}
 
 .ot-day:focus-visible, .ot-seg button:focus-visible,
 .ot-linkbtn:focus-visible, .ot-chip button:focus-visible {
@@ -374,6 +407,7 @@ function show_ot_registration_dialog(frm) {
     state.weekOffset = 0;
     state.searchTerm = '';
     state.loadingEmployees = false;
+    state.addedBatches = [];
 
     const locked_group = (frm.doc.filter_employee_by === 'custom_group' && frm.doc.request_by_group)
         ? frm.doc.request_by_group : null;
@@ -405,15 +439,13 @@ function show_ot_registration_dialog(frm) {
                 fieldtype: 'Time',
                 fieldname: 'time_begin',
                 label: __('Begin Time'),
-                default: '17:00:00',
-                onchange: function () { update_ot_ledger(frm); }
+                default: '17:00:00'
             },
             {
                 fieldtype: 'Time',
                 fieldname: 'time_end',
                 label: __('End Time'),
-                default: '19:00:00',
-                onchange: function () { update_ot_ledger(frm); }
+                default: '19:00:00'
             },
             {
                 fieldtype: 'Small Text',
@@ -427,6 +459,10 @@ function show_ot_registration_dialog(frm) {
         primary_action_label: __('Add Selected'),
         primary_action: function () {
             save_overtime_registration_native(frm);
+        },
+        secondary_action_label: __('Close'),
+        secondary_action: function () {
+            if (state.currentDialog) state.currentDialog.hide();
         }
     });
 
@@ -438,7 +474,6 @@ function show_ot_registration_dialog(frm) {
     render_ot_day_tiles(frm);
     render_ot_team_pane(frm);
     inject_ot_ledger(frm);
-    update_ot_ledger(frm);
 
     // A locked group is pre-filled, so load its roster immediately
     if (locked_group) {
@@ -475,7 +510,6 @@ function render_ot_week_segment(frm) {
         $wrap.find('button[data-week]').removeClass('active').attr('aria-pressed', 'false');
         $(this).addClass('active').attr('aria-pressed', 'true');
         render_ot_day_tiles(frm);
-        update_ot_ledger(frm);
     });
 }
 
@@ -514,7 +548,6 @@ function render_ot_day_tiles(frm) {
         }
         $(this).toggleClass('selected', state.selectedDays.has(day))
             .attr('aria-pressed', String(state.selectedDays.has(day)));
-        update_ot_ledger(frm);
     });
 
     $wrap.find('.ot-days-all').on('click', function () {
@@ -524,7 +557,6 @@ function render_ot_day_tiles(frm) {
             ot_day_fields().forEach(d => state.selectedDays.add(d));
         }
         render_ot_day_tiles(frm);
-        update_ot_ledger(frm);
     });
 }
 
@@ -621,7 +653,6 @@ function update_ot_roster(frm) {
         $row.toggleClass('checked', this.checked);
         $roster.find('.ot-roster-all').prop('checked', employees.every(e => state.selectedEmployees.has(e.name)));
         update_ot_chips(frm);
-        update_ot_ledger(frm);
     });
 
     $roster.find('.ot-roster-all').on('change', function () {
@@ -640,7 +671,6 @@ function update_ot_roster(frm) {
         });
         update_ot_roster(frm);
         update_ot_chips(frm);
-        update_ot_ledger(frm);
     });
 }
 
@@ -669,52 +699,17 @@ function update_ot_chips(frm) {
         state.selectedEmployees.delete($(this).attr('data-remove'));
         update_ot_roster(frm);
         update_ot_chips(frm);
-        update_ot_ledger(frm);
     });
 }
 
 function inject_ot_ledger(frm) {
     const state = _get_dialog_state(frm);
     const $footer = state.currentDialog.$wrapper.find('.modal-footer').first();
-    if ($footer.length && !$footer.find('.ot-ledger').length) {
-        $footer.prepend('<div class="ot-ledger" aria-live="polite"></div>');
+    if ($footer.length && !$footer.find('.ot-footer-info').length) {
+        $footer.prepend(`<div class="ot-footer-info">
+            <div class="ot-session" aria-live="polite" style="display: none;"></div>
+        </div>`);
     }
-}
-
-function ot_dialog_duration_hours(dialog) {
-    const begin = ot_time_to_minutes(dialog.get_value('time_begin'));
-    const end = ot_time_to_minutes(dialog.get_value('time_end'));
-    if (begin === null || end === null) return null;
-    return (end - begin) / 60;
-}
-
-function update_ot_ledger(frm) {
-    const state = _get_dialog_state(frm);
-    if (!state.currentDialog) return;
-    const $ledger = state.currentDialog.$wrapper.find('.ot-ledger');
-    if (!$ledger.length) return;
-
-    const people = state.selectedEmployees.size;
-    const days = state.selectedDays.size;
-    const hours = ot_dialog_duration_hours(state.currentDialog);
-
-    if (hours !== null && hours <= 0) {
-        $ledger.html('<span class="ot-ledger-warn">' + ot_esc(__('Begin Time must be before End Time')) + '</span>');
-        return;
-    }
-    if (!people || !days || hours === null) {
-        $ledger.html('<span>' + ot_esc(__('Select employees and days to see the total')) + '</span>');
-        return;
-    }
-
-    const total = people * days * hours;
-    const breakdown = __('{0} employees × {1} days × {2} h/day', [
-        '<b>' + people + '</b>',
-        '<b>' + days + '</b>',
-        '<b>' + ot_num(hours) + '</b>'
-    ]);
-    $ledger.html('<span>' + breakdown + '</span>'
-        + '<span class="ot-ledger-total">= ' + __('{0} man-hours', [ot_num(total)]) + '</span>');
 }
 
 function on_dialog_group_changed(frm) {
@@ -805,7 +800,6 @@ function clear_selected_employees(frm) {
         state.selectedEmployees.clear();
         update_ot_roster(frm);
         update_ot_chips(frm);
-        update_ot_ledger(frm);
         frappe.show_alert({
             message: __('All selected employees cleared'),
             indicator: 'blue'
@@ -857,39 +851,308 @@ function save_overtime_registration_native(frm) {
     }
 
     const monday = ot_monday_of_week(state.weekOffset);
-    const employee_count = state.selectedEmployees.size;
+    const day_fields = ot_day_fields();
+    const duration_hours = (end_minutes - begin_minutes) / 60;
 
+    // Conflict = same employee + same date + identical/overlapping time vs an
+    // existing row (earlier batch, manual entry, saved data): the user chooses
+    // to replace the old rows or keep them. Adjacent times are not a conflict.
+    const existing_rows = (frm.doc.ot_employees || [])
+        .filter(d => d.employee && d.date && d.begin_time && d.end_time);
+    const clean = [];
+    const conflicts = [];
     state.selectedEmployees.forEach(employee => {
         selectedDays.forEach(day => {
-            const child = frm.add_child('ot_employees');
-            child.employee = employee.name;
-            child.employee_name = employee.employee_name || employee.name;
-            if (employee.custom_group) {
-                child.group = employee.custom_group;
-            }
-
-            const dayIndex = ot_day_fields().indexOf(day);
             const date = new Date(monday);
-            date.setDate(monday.getDate() + dayIndex);
-            child.date = ot_format_ymd(date);
-
-            child.begin_time = begin_time;
-            child.end_time = end_time;
-            child.reason = reason;
+            date.setDate(monday.getDate() + day_fields.indexOf(day));
+            const date_str = ot_format_ymd(date);
+            const matches = existing_rows.filter(d => d.employee === employee.name
+                && d.date === date_str
+                && times_overlap(begin_time, end_time, d.begin_time, d.end_time));
+            if (matches.length) {
+                conflicts.push({ employee: employee, date: date_str, matches: matches });
+            } else {
+                clean.push({ employee: employee, date: date_str });
+            }
         });
     });
 
-    frm.set_value('reason_general', reason);
-    frm.set_value('total_employees', employee_count);
-    frm.refresh_field('ot_employees');
+    const commit_batch = function (extra, remove_names, replaced_count) {
+        const to_add = clean.concat(extra);
+        if (!to_add.length) return;
 
-    dialog.hide();
-    state.selectedEmployees.clear();
+        if (remove_names.size) {
+            frm.doc.ot_employees = (frm.doc.ot_employees || []).filter(d => !remove_names.has(d.name));
+        }
+
+        const row_names = [];
+        const added_employees = new Set();
+        const added_dates = new Set();
+        to_add.forEach(c => {
+            const child = frm.add_child('ot_employees');
+            child.employee = c.employee.name;
+            child.employee_name = c.employee.employee_name || c.employee.name;
+            if (c.employee.custom_group) {
+                child.group = c.employee.custom_group;
+            }
+            child.date = c.date;
+            child.begin_time = begin_time;
+            child.end_time = end_time;
+            child.reason = reason;
+            row_names.push(child.name);
+            added_employees.add(c.employee.name);
+            added_dates.add(c.date);
+        });
+
+        calculate_totals_and_apply_reason(frm);
+        frm.refresh_field('ot_employees');
+
+        // Batch mode: stay open for the next batch without re-picking the group.
+        // Days and employee selection reset; time + reason stay.
+        state.addedBatches.push({
+            rows: row_names,
+            employees: added_employees.size,
+            days: added_dates.size,
+            man_hours: row_names.length * duration_hours
+        });
+        state.selectedDays.clear();
+        state.selectedEmployees.clear();
+        render_ot_day_tiles(frm);
+        update_ot_roster(frm);
+        update_ot_chips(frm);
+        update_ot_session(frm);
+
+        frappe.show_alert({
+            message: __('Successfully added {0} employee(s) for {1} day(s)', [added_employees.size, added_dates.size]),
+            indicator: 'green'
+        });
+        if (replaced_count) {
+            frappe.show_alert({
+                message: __('Replaced {0} existing row(s)', [replaced_count]),
+                indicator: 'blue'
+            });
+        }
+    };
+
+    if (!conflicts.length) {
+        commit_batch([], new Set(), 0);
+        return;
+    }
+
+    const new_time = String(begin_time).slice(0, 5) + '-' + String(end_time).slice(0, 5);
+    const items = conflicts.map(c => c.matches.map(m =>
+        '<li><b>' + ot_esc(c.employee.name) + '</b> ' + ot_esc(c.employee.employee_name || '')
+        + ' — ' + frappe.datetime.str_to_user(c.date) + ': '
+        + __('old row #{0} ({1}-{2}) → new {3}', [
+            m.idx,
+            String(m.begin_time || '').slice(0, 5),
+            String(m.end_time || '').slice(0, 5),
+            new_time
+        ])
+        + '</li>').join('')).join('');
+
+    frappe.confirm(
+        '<p>' + __('{0} entry(ies) overlap existing rows (same employee, same date, same/overlapping time):', [conflicts.length]) + '</p>'
+        + '<ul>' + items + '</ul>'
+        + '<p><b>' + __('Replace the old row(s) with the new time?') + '</b></p>',
+        function () {
+            const remove_names = new Set();
+            conflicts.forEach(c => c.matches.forEach(m => remove_names.add(m.name)));
+            commit_batch(
+                conflicts.map(c => ({ employee: c.employee, date: c.date })),
+                remove_names,
+                remove_names.size
+            );
+        },
+        function () {
+            if (clean.length) {
+                commit_batch([], new Set(), 0);
+            }
+            frappe.show_alert({
+                message: __('Kept existing rows — skipped {0} entry(ies)', [conflicts.length]),
+                indicator: 'orange'
+            });
+        }
+    );
+}
+
+function update_ot_session(frm) {
+    const state = _get_dialog_state(frm);
+    if (!state.currentDialog) return;
+    const $session = state.currentDialog.$wrapper.find('.ot-session');
+    if (!$session.length) return;
+
+    if (!state.addedBatches.length) {
+        $session.hide().empty();
+        return;
+    }
+
+    const total_rows = state.addedBatches.reduce((sum, b) => sum + b.rows.length, 0);
+    const total_hours = state.addedBatches.reduce((sum, b) => sum + b.man_hours, 0);
+    $session.show().html(
+        '<span>✓ ' + __('{0} batch(es) added · {1} row(s) · {2} man-hours', [
+            '<b>' + state.addedBatches.length + '</b>',
+            '<b>' + total_rows + '</b>',
+            '<b>' + ot_num(total_hours) + '</b>'
+        ]) + '</span>'
+        + '<button type="button" class="ot-linkbtn ot-undo-batch">' + ot_esc(__('Undo last batch')) + '</button>'
+    );
+    $session.find('.ot-undo-batch').on('click', function () {
+        undo_last_ot_batch(frm);
+    });
+}
+
+function undo_last_ot_batch(frm) {
+    const state = _get_dialog_state(frm);
+    const batch = state.addedBatches.pop();
+    if (!batch) return;
+
+    const names = new Set(batch.rows);
+    frm.doc.ot_employees = (frm.doc.ot_employees || []).filter(d => !names.has(d.name));
+    frm.refresh_field('ot_employees');
+    calculate_totals_and_apply_reason(frm);
+    update_ot_session(frm);
 
     frappe.show_alert({
-        message: __('Successfully added {0} employee(s) for {1} day(s)', [employee_count, selectedDays.length]),
-        indicator: 'green'
+        message: __('Removed last batch ({0} row(s))', [batch.rows.length]),
+        indicator: 'blue'
     });
+}
+
+// Pivot view: rows = employees, columns = dates, cells = time ranges.
+// Reads the current (possibly unsaved) child table, so it also works while composing.
+function show_ot_pivot_dialog(frm) {
+    ensure_ot_dialog_styles();
+
+    const entries = (frm.doc.ot_employees || []).filter(d => d.employee && d.date);
+    if (!entries.length) {
+        frappe.show_alert({
+            message: __('No overtime entries yet'),
+            indicator: 'orange'
+        });
+        return;
+    }
+
+    const dates = Array.from(new Set(entries.map(d => d.date))).sort();
+    const byEmployee = new Map();
+    entries.forEach(d => {
+        if (!byEmployee.has(d.employee)) {
+            byEmployee.set(d.employee, {
+                employee_name: d.employee_name,
+                group: d.group,
+                cells: {},
+                total: 0
+            });
+        }
+        const emp = byEmployee.get(d.employee);
+        const begin = ot_time_to_minutes(d.begin_time);
+        const end = ot_time_to_minutes(d.end_time);
+        const hours = (begin !== null && end !== null && end > begin) ? (end - begin) / 60 : 0;
+        if (!emp.cells[d.date]) emp.cells[d.date] = [];
+        emp.cells[d.date].push({
+            time: (d.begin_time && d.end_time)
+                ? String(d.begin_time).slice(0, 5) + '-' + String(d.end_time).slice(0, 5) : '',
+            hours: hours,
+            reason: d.reason || ''
+        });
+        emp.total += hours;
+    });
+
+    const dayNames = [__('Sun'), __('Mon'), __('Tue'), __('Wed'), __('Thu'), __('Fri'), __('Sat')];
+    const colTotals = {};
+    let grand = 0;
+
+    let head = '<tr><th class="ot-pivot-no">' + ot_esc(__('No.')) + '</th>'
+        + '<th class="ot-pivot-emp">' + ot_esc(__('Employee')) + '</th>'
+        + '<th>' + ot_esc(__('Group')) + '</th>'
+        + '<th>' + ot_esc(__('Note')) + '</th>';
+    dates.forEach(dt => {
+        const dobj = new Date(dt);
+        head += '<th>' + ot_esc(dayNames[dobj.getDay()]) + '<br>' + ot_format_dm(dobj) + '</th>';
+        colTotals[dt] = 0;
+    });
+    head += '<th>' + ot_esc(__('Total (h)')) + '</th></tr>';
+
+    let body = '';
+    Array.from(byEmployee.keys()).sort().forEach((empId, idx) => {
+        const emp = byEmployee.get(empId);
+        body += '<tr><td class="ot-pivot-no">' + (idx + 1) + '</td>'
+            + '<td class="ot-pivot-emp"><b>' + ot_esc(empId) + '</b> ' + ot_esc(emp.employee_name || '') + '</td>'
+            + '<td>' + ot_esc(emp.group || '') + '</td>'
+            + '<td class="ot-pivot-note" data-emp="' + ot_esc(empId) + '"></td>';
+        dates.forEach(dt => {
+            const cell = emp.cells[dt];
+            if (cell && cell.length) {
+                const reasons = cell.map(c => c.reason).filter(Boolean).join('; ');
+                body += '<td class="ot-pivot-on" title="' + ot_esc(reasons) + '">'
+                    + cell.map(c => ot_esc(c.time)).join('<br>') + '</td>';
+                colTotals[dt] += cell.reduce((sum, c) => sum + c.hours, 0);
+            } else {
+                body += '<td class="ot-pivot-off">–</td>';
+            }
+        });
+        grand += emp.total;
+        body += '<td class="ot-pivot-total">' + ot_num(emp.total) + '</td></tr>';
+    });
+
+    let foot = '<tr class="ot-pivot-footrow"><td class="ot-pivot-emp" colspan="4">' + ot_esc(__('Total (h)')) + '</td>';
+    dates.forEach(dt => {
+        foot += '<td>' + ot_num(colTotals[dt]) + '</td>';
+    });
+    foot += '<td class="ot-pivot-total">' + ot_num(grand) + '</td></tr>';
+
+    const summary = __('{0} employee(s) · {1} day(s) · {2} row(s)',
+        [byEmployee.size, dates.length, entries.length]);
+
+    const dialog = new frappe.ui.Dialog({
+        title: __('Pivot View') + (frm.doc.name ? ' — ' + frm.doc.name : ''),
+        size: 'extra-large',
+        fields: [{ fieldtype: 'HTML', fieldname: 'pivot_html' }]
+    });
+    dialog.show();
+    dialog.$wrapper.addClass('ot-reg-modal');
+    dialog.get_field('pivot_html').$wrapper.html(
+        '<div class="ot-pivot-summary">' + ot_esc(summary) + '</div>'
+        + '<div class="ot-pivot"><table><thead>' + head + '</thead><tbody>' + body + foot + '</tbody></table></div>'
+    );
+
+    // Note column: maternity flags per employee, matched against the pivot's
+    // OT dates (pregnant phase / child under 12 months). Filled asynchronously;
+    // silently empty if the user cannot read Employee Maternity.
+    frappe.xcall('frappe.client.get_list', {
+        doctype: 'Employee Maternity',
+        filters: { employee: ['in', Array.from(byEmployee.keys())] },
+        fields: ['employee', 'pregnant_from_date', 'pregnant_to_date',
+            'youg_child_from_date', 'youg_child_to_date'],
+        limit_page_length: 0
+    }).then(records => {
+        const flags_by_emp = {};
+        (records || []).forEach(r => {
+            const flags = flags_by_emp[r.employee] = flags_by_emp[r.employee] || { pregnant: false, young: false };
+            dates.forEach(dt => {
+                if (r.pregnant_from_date && r.pregnant_to_date
+                    && dt >= r.pregnant_from_date && dt <= r.pregnant_to_date) {
+                    flags.pregnant = true;
+                }
+                if (r.youg_child_from_date && r.youg_child_to_date
+                    && dt >= r.youg_child_from_date && dt <= r.youg_child_to_date) {
+                    flags.young = true;
+                }
+            });
+        });
+        dialog.$wrapper.find('.ot-pivot-note').each(function () {
+            const flags = flags_by_emp[$(this).attr('data-emp')];
+            if (!flags) return;
+            let html = '';
+            if (flags.pregnant) {
+                html += '<span title="' + ot_esc(__('Pregnant')) + '">\u{1F930}</span>';
+            }
+            if (flags.young) {
+                html += (html ? ' ' : '') + '<span title="' + ot_esc(__('Young child under 12 months')) + '">\u{1F476}</span>';
+            }
+            $(this).html(html);
+        });
+    }).catch(() => { /* no read permission on Employee Maternity — leave notes empty */ });
 }
 
 
@@ -921,7 +1184,7 @@ function validate_time_order(frm) {
 
             if (time_begin >= time_end) {
 
-                frappe.msgprint(__('Row #{0}: Giờ bắt đầu ({1}) phải nhỏ hơn giờ kết thúc ({2})', [d.idx, d.begin_time, d.end_time]));
+                frappe.msgprint(__('Row #{0}: Begin Time ({1}) must be before End Time ({2})', [d.idx, d.begin_time, d.end_time]));
                 frappe.validated = false;
                 return false;
             }
@@ -959,7 +1222,7 @@ function validate_duplicate_rows(frm) {
             if (entry1.employee === entry2.employee && entry1.date === entry2.date) {
                 // Check for exact match or time overlap
                 if (times_overlap(entry1.begin_time, entry1.end_time, entry2.begin_time, entry2.end_time)) {
-                    frappe.msgprint(__('Row {0} và {1}: Trùng lặp OT cho nhân viên {2} ngày {3}',
+                    frappe.msgprint(__('Rows {0} and {1}: Duplicate OT for employee {2} on {3}',
                         [entry1.idx, entry2.idx, entry1.employee_name, entry1.date]));
                     frappe.validated = false;
                     return false;
@@ -1011,8 +1274,8 @@ function validate_single_post_shift_entry(frm) {
         const date = entries[0].date;
 
         frappe.msgprint({
-            title: __('Cảnh báo'),
-            message: __('Rows {0}: Nhân viên {1} có {2} dòng OT trong ngày {3}. Nên gộp thành 1 dòng liên tục.',
+            title: __('Warning'),
+            message: __('Rows {0}: Employee {1} has {2} OT entries on {3}. Combine them into one continuous entry.',
                 [rows, employee_name, entries.length, date]),
             indicator: 'orange'
         });
@@ -1025,105 +1288,6 @@ function validate_single_post_shift_entry(frm) {
 
 // Dead code removed: validate_ot_continuity was not called from form validate method
 
-
-// Check for maternity benefit time adjustment
-function check_maternity_benefit_adjustment(frm) {
-    if (!frm.doc.ot_employees || frm.doc.ot_employees.length === 0) {
-        frm.maternity_check_done = true;
-        frm.save();
-        return;
-    }
-
-    // Prepare entries to check
-    const entries_to_check = [];
-    for (let d of frm.doc.ot_employees) {
-        if (d.employee && d.date && d.begin_time && d.end_time) {
-            entries_to_check.push({
-                idx: d.idx,
-                employee: d.employee,
-                employee_name: d.employee_name,
-                date: d.date,
-                begin_time: d.begin_time,
-                end_time: d.end_time
-            });
-        }
-    }
-
-    if (entries_to_check.length === 0) {
-        frm.maternity_check_done = true;
-        frm.save();
-        return;
-    }
-
-    // Call server asynchronously to check for maternity benefits
-    frappe.xcall(
-        'customize_erpnext.customize_erpnext.doctype.overtime_registration.overtime_registration.check_employees_with_maternity_benefits',
-        { entries: entries_to_check }
-    ).then(result => {
-        if (result && result.length > 0) {
-            // Found employees with maternity benefits needing adjustment
-            // Build message with employee details
-            let employee_list = result.map(emp =>
-                `• Row ${emp.idx}: <b>${emp.employee_name}</b> (${emp.employee}) - ${emp.benefit_type}<br>
-                 &nbsp;&nbsp;&nbsp;${__('Period')}: ${emp.from_date} - ${emp.to_date} | ${__('Shift')}: ${emp.shift_type} | ${__('OT Date')}: ${emp.date}`
-            ).join('<br>');
-
-            let shift_end = result[0].shift_end;
-            let adjusted_shift_end = result[0].adjusted_shift_end;
-
-            let dialog = new frappe.ui.Dialog({
-                title: __('Điều chỉnh giờ tăng ca cho nhân viên có chế độ thai sản'),
-                fields: [
-                    {
-                        fieldtype: 'HTML',
-                        options: `
-                            <div style="margin-bottom: 15px;">
-                                <p>Các nhân viên sau đang trong giai đoạn <b>mang thai</b> hoặc <b>nuôi con nhỏ</b> và có giờ bắt đầu tăng ca lúc ${shift_end}:</p>
-                                <div style="background-color: #f8f9fa; padding: 10px; border-radius: 4px; margin: 10px 0;">
-                                    ${employee_list}
-                                </div>
-                                <p style="color: #6c757d;">
-                                    <i>Những nhân viên này được phép kết thúc ca sớm hơn 1 giờ so với bình thường, do đó giờ tăng ca cũng sớm hơn 1 giờ.</i>
-                                </p>
-                                <p><b>Bạn có muốn điều chỉnh giờ bắt đầu và kết thúc sớm hơn 1 giờ không?</b></p>
-                                <p style="color: #007bff;">
-                                    (${shift_end} → ${adjusted_shift_end}, giờ kết thúc cũng giảm 1 giờ tương ứng)
-                                </p>
-                            </div>
-                        `
-                    }
-                ],
-                primary_action_label: __('Có, điều chỉnh giờ'),
-                primary_action: function () {
-                    dialog.hide();
-                    adjust_maternity_employee_times(frm, result);
-                    frm.maternity_check_done = true;
-                    frm.save();
-                },
-                secondary_action_label: __('Không, giữ nguyên'),
-                secondary_action: function () {
-                    dialog.hide();
-                    frm.maternity_check_done = true;
-                    frm.save();
-                }
-            });
-
-            dialog.show();
-        } else {
-            // No employees need adjustment
-            frm.maternity_check_done = true;
-            frm.save();
-        }
-    }).catch(err => {
-        // Server error: allow save to proceed so user is not stuck
-        frappe.show_alert({
-            message: __('Could not check maternity benefits. Saving without adjustment.'),
-            indicator: 'orange'
-        });
-        frm.maternity_check_done = true;
-        frm.save();
-    });
-}
 
 function check_all_before_save(frm) {
     const entries_to_check = (frm.doc.ot_employees || [])
@@ -1170,25 +1334,25 @@ function check_all_before_save(frm) {
             const adjusted_shift_end = maternity_results[0].adjusted_shift_end;
             const emp_list_html = maternity_results.map(emp => {
                 const emp_link = `<a href="/app/employee/${emp.employee}" target="_blank">${emp.employee}</a>`;
-                return `<li>Row ${emp.idx}: <b>${emp.employee_name}</b> (${emp_link}) — ${emp.benefit_type}
-                 &nbsp;|&nbsp; ${__('Ca')}: ${emp.shift_type}
-                 &nbsp;|&nbsp; ${__('Ngày OT')}: ${frappe.datetime.str_to_user(emp.date)}</li>`;
+                return `<li>${__('Row')} ${emp.idx}: <b>${emp.employee_name}</b> (${emp_link}) — ${emp.benefit_type}
+                 &nbsp;|&nbsp; ${__('Shift')}: ${emp.shift_type}
+                 &nbsp;|&nbsp; ${__('OT Date')}: ${frappe.datetime.str_to_user(emp.date)}</li>`;
             }).join('');
             fields.push({
                 fieldtype: 'HTML',
                 options: `<div style="margin-bottom:12px;">
                     <p style="color:#856404;background:#fff3cd;padding:8px;border-radius:4px;">
-                        <b>⚠ ${__('Nhân viên có chế độ thai sản')}</b>
+                        <b>⚠ ${__('Employees with maternity benefits')}</b>
                     </p>
-                    <p>${__('Các nhân viên sau bắt đầu OT lúc')} <b>${shift_end}</b> ${__('nhưng đang trong chế độ thai sản/nuôi con nhỏ:')}</p>
+                    <p>${__('The following employees start OT at {0} but are on maternity/childcare benefits:', ['<b>' + shift_end + '</b>'])}</p>
                     <ul style="font-size:13px;">${emp_list_html}</ul>
-                    <p style="color:#6c757d;font-size:12px;">${__('Điều chỉnh giờ sớm hơn 1 giờ')}: ${shift_end} → ${adjusted_shift_end}</p>
+                    <p style="color:#6c757d;font-size:12px;">${__('Adjust time 1 hour earlier')}: ${shift_end} → ${adjusted_shift_end}</p>
                 </div>`
             });
             fields.push({
                 fieldtype: 'Check',
                 fieldname: 'adjust_maternity',
-                label: __('Điều chỉnh giờ OT sớm hơn 1 giờ cho các nhân viên này'),
+                label: __('Adjust OT time 1 hour earlier for these employees'),
                 default: 1
             });
         }
@@ -1200,11 +1364,11 @@ function check_all_before_save(frm) {
                 const emp_link = `<a href="/app/employee/${c.employee}" target="_blank">${c.employee}</a>`;
                 const doc_link = `<a href="/app/overtime-registration/${c.existing_doc}" target="_blank">${c.existing_doc}</a>`;
                 return `<tr>
-                    <td style="padding:4px 8px;">Row ${c.idx}</td>
+                    <td style="padding:4px 8px;">${__('Row')} ${c.idx}</td>
                     <td style="padding:4px 8px;"><b>${c.employee_name}</b><br><small>${emp_link}</small></td>
                     <td style="padding:4px 8px;">${date_str}</td>
                     <td style="padding:4px 8px;">${c.current_from} – ${c.current_to}</td>
-                    <td style="padding:4px 8px;">${doc_link}, Row ${c.existing_idx}: ${c.existing_from} – ${c.existing_to}</td>
+                    <td style="padding:4px 8px;">${doc_link}, ${__('Row')} ${c.existing_idx}: ${c.existing_from} – ${c.existing_to}</td>
                 </tr>`;
             }).join('');
 
@@ -1216,16 +1380,16 @@ function check_all_before_save(frm) {
                 fieldtype: 'HTML',
                 options: `<div style="margin-bottom:12px;">
                     <p style="color:#721c24;background:#f8d7da;padding:8px;border-radius:4px;">
-                        <b>✗ ${__('Xung đột với OT đã được duyệt')}</b>
+                        <b>✗ ${__('Conflicts with approved OT')}</b>
                     </p>
                     <div style="overflow-x:auto;">
                         <table style="width:100%;border-collapse:collapse;font-size:13px;">
                             <thead><tr style="background:#f5f5f5;">
-                                <th style="padding:4px 8px;text-align:left;">Row</th>
-                                <th style="padding:4px 8px;text-align:left;">${__('Nhân viên')}</th>
-                                <th style="padding:4px 8px;text-align:left;">${__('Ngày')}</th>
-                                <th style="padding:4px 8px;text-align:left;">${__('Giờ OT')}</th>
-                                <th style="padding:4px 8px;text-align:left;">${__('Trùng với')}</th>
+                                <th style="padding:4px 8px;text-align:left;">${__('Row')}</th>
+                                <th style="padding:4px 8px;text-align:left;">${__('Employee')}</th>
+                                <th style="padding:4px 8px;text-align:left;">${__('Date')}</th>
+                                <th style="padding:4px 8px;text-align:left;">${__('OT Time')}</th>
+                                <th style="padding:4px 8px;text-align:left;">${__('Conflicts with')}</th>
                             </tr></thead>
                             <tbody>${rows_html}</tbody>
                         </table>
@@ -1235,15 +1399,15 @@ function check_all_before_save(frm) {
             fields.push({
                 fieldtype: 'Check',
                 fieldname: 'remove_conflicts',
-                label: __('Xóa các dòng bị trùng khỏi form này'),
+                label: __('Remove conflicting rows from this form'),
                 default: 1
             });
         }
 
         const dialog = new frappe.ui.Dialog({
-            title: __('Kiểm tra trước khi lưu'),
+            title: __('Pre-save check'),
             fields: fields,
-            primary_action_label: __('Lưu'),
+            primary_action_label: __('Save'),
             primary_action: function () {
                 dialog.hide();
                 if (has_maternity && dialog.get_value('adjust_maternity')) {
@@ -1257,7 +1421,7 @@ function check_all_before_save(frm) {
                 frm.pre_save_check_done = true;
                 frm.save();
             },
-            secondary_action_label: __('Hủy'),
+            secondary_action_label: __('Cancel'),
             secondary_action: function () {
                 dialog.hide();
                 // User reviews manually, do not save
@@ -1293,7 +1457,7 @@ function adjust_maternity_employee_times(frm, employees_to_adjust) {
     frm.refresh_field('ot_employees');
 
     frappe.show_alert({
-        message: __('Đã điều chỉnh giờ tăng ca cho {0} nhân viên có chế độ thai sản', [employees_to_adjust.length]),
+        message: __('Adjusted OT time for {0} employee(s) with maternity benefits', [employees_to_adjust.length]),
         indicator: 'green'
     });
 }
