@@ -18,12 +18,8 @@ class EmployeeSelfUpdateInfoSetting(Document):
 
 	@frappe.whitelist()
 	def btn_add_by_date(self):
-		"""Add employees filtered by date_of_joining / group / department / section."""
-		if not (self.filter_date or self.group or self.department or self.custom_section):
-			frappe.throw(
-				_("Please choose at least one filter: Date of Joining, Group, Department or Section.")
-			)
-
+		"""Add employees filtered by date_of_joining / group / department / section.
+		No filter selected → add ALL Active employees."""
 		filters = {"status": "Active"}
 		if self.filter_date:
 			filters["date_of_joining"] = self.filter_date

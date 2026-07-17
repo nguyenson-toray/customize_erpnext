@@ -22,7 +22,16 @@ frappe.ui.form.on("Employee Self Update Info Setting", {
 	},
 
 	btn_add_by_date(frm) {
-		frm.call("btn_add_by_date").then(() => frm.refresh());
+		const run = () => frm.call("btn_add_by_date").then(() => frm.refresh());
+		const noFilter = !frm.doc.filter_date && !frm.doc.group && !frm.doc.department && !frm.doc.custom_section;
+		if (noFilter) {
+			frappe.confirm(
+				__("No filter selected — add ALL active employees?"),
+				run
+			);
+		} else {
+			run();
+		}
 	},
 
 	btn_clear_all(frm) {
@@ -285,7 +294,7 @@ function show_setting_help() {
 
   <h5>1. Eligible Employees (nhân viên được phép)</h5>
   <ul>
-    <li>Chọn bộ lọc: <b>Date of Joining</b> / <b>Group</b> / <b>Department</b> / <b>Section</b> (ít nhất 1) → bấm <b>Add Employees</b> để thêm NV Active khớp lọc.</li>
+    <li>Chọn bộ lọc: <b>Date of Joining</b> / <b>Group</b> / <b>Department</b> / <b>Section</b> → bấm <b>Add Employees</b> để thêm NV Active khớp lọc. <b>Không chọn lọc</b> → hỏi xác nhận rồi thêm <b>toàn bộ NV Active</b>.</li>
     <li><b>Clear All</b>: xoá danh sách + reset bộ lọc.</li>
     <li>Chỉ NV trong bảng này mới cập nhật được.</li>
   </ul>

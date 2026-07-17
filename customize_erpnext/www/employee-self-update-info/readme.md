@@ -99,7 +99,7 @@ Singleton. HR cấu hình ở đây.
 
 **New-Join Preset** (`selected_fields_for_new_join` + nút "↧ Fill Selected Fields from Preset"): bảng lưu sẵn **bộ field cơ bản cho nhân viên mới nhận việc**. Nhấn nút → **thay thế** toàn bộ `selected_fields` bằng nội dung preset (có hỏi xác nhận). Chỉ `selected_fields` quyết định field hiển thị trên page — preset chỉ là khuôn để điền nhanh.
 
-**Nút "Add Employees" / "Clear All"**: thêm NV theo bộ lọc `filter_date` / `group` / `department` / `custom_section` (cần ít nhất 1 bộ lọc; nhiều bộ lọc = AND, chỉ NV `status=Active`). "Clear All" xoá danh sách + reset cả 4 bộ lọc.
+**Nút "Add Employees" / "Clear All"**: thêm NV theo bộ lọc `filter_date` / `group` / `department` / `custom_section` (nhiều bộ lọc = AND, chỉ NV `status=Active`). **Không chọn bộ lọc nào** → JS hỏi xác nhận Yes/No rồi thêm **toàn bộ NV Active** (số lượng lớn). "Clear All" xoá danh sách + reset cả 4 bộ lọc.
 
 **Mã QR + link** (field `info_html`): Setting hiển thị **QR code** + link tới `/employee-self-update-info` (URL tự theo host hiện tại) để gửi cho nhân viên. Lib `qrcode.min.js` load từ asset, fallback CDN `qrcodejs@1.0.0` (copy từ Setting cũ).
 
