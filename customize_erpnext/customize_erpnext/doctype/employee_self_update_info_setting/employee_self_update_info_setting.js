@@ -11,7 +11,7 @@ frappe.ui.form.on("Employee Self Update Info Setting", {
 		_render_self_update_qr(frm);
 		frm.get_field("fields_intro").$wrapper.html(
 			`<div class="text-muted small">${__(
-				"Pick any Employee field (including custom fields) to let employees review and update it. Values are exported to Excel — they are not written back to Employee."
+				"Pick any Employee field (including custom fields) to let employees review and update it."
 			)}</div>`
 		);
 		frm.get_field("new_join_intro").$wrapper.html(
@@ -303,6 +303,8 @@ function show_setting_help() {
     <li>Cột trong bảng:
       <ul>
         <li><b>Label (Tiếng Việt)</b>: nhãn hiển thị; trống → dùng nhãn gốc của field.</li>
+        <li><b>Detail</b>: ghi chú giải thích thêm, hiện ngay dưới nhãn trên trang NV (xuống dòng + link bấm được).</li>
+        <li><b>Placeholder</b>: chữ gợi ý mờ trong ô trống (VD "12 chữ số"). Không áp cho ô ngày/chọn/checkbox.</li>
         <li><b>Section</b>: các field cùng Section gom vào 1 nhóm trên trang.</li>
         <li><b>Widget</b>: <i>Auto</i> thông thường; <i>Address Province</i> / <i>Address Ward</i> cho địa chỉ (Tỉnh → Phường/Xã).</li>
         <li><b>Required</b>: bắt buộc nhập. <b>Read Only</b>: chỉ cho xem. <b>Enable</b>: tắt để ẩn field mà không xoá.</li>

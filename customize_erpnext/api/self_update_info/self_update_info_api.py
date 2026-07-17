@@ -83,6 +83,8 @@ def _build_config():
 				"fieldname": row.employee_fieldname,
 				"label": row.label_vi or row.employee_fieldname,
 				"employee_label": row.label_vi or row.employee_fieldname,
+				"detail": row.detail or "",
+				"placeholder": row.placeholder or "",
 				"fieldtype": fieldtype,
 				"options": options,
 				"required": bool(row.required),
@@ -111,6 +113,10 @@ def _build_config():
 				# Excel/import label: always the Employee field's own label so the
 				# exported file can be re-imported into Employee (Data Import).
 				"employee_label": df.label or df.fieldname,
+				# Optional guidance shown under the label on the page.
+				"detail": row.detail or "",
+				# Optional hint text inside the empty input.
+				"placeholder": row.placeholder or "",
 				"fieldtype": df.fieldtype,
 				"options": options,
 				"required": bool(row.required),

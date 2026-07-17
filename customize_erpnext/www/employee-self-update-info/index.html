@@ -6,7 +6,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
   <title>Cập nhật thông tin nhân viên</title>
-  <link rel="stylesheet" href="/employee-self-update-info/style.css?v=4">
+  <link rel="stylesheet" href="/employee-self-update-info/style.css?v=7">
 </head>
 
 <body>
@@ -14,7 +14,7 @@
     <img class="logo" src="/assets/customize_erpnext/images/logo_white.png" alt="logo">
     <div class="company" id="company_name"></div>
     <h1>Cập nhật thông tin nhân viên</h1>
-    <p>Kiểm tra thông tin của bạn và cập nhật những mục có thay đổi</p>
+    <p>Kiểm tra thông tin của bạn và cập nhật những mục chưa có thông tin hoặc có thay đổi</p>
   </header>
 
   <div class="wrap">
@@ -46,7 +46,7 @@
     <!-- Step 2: dynamic form -->
     <div id="form_area" class="hidden">
       <div class="legend">
-        <span class="sw"></span> Ô được tô vàng = giá trị bạn vừa thay đổi
+        <span class="sw"></span> Ô có (*) là bắt buộc, Ô được tô vàng : Bạn đã thay đổi thông tin
         <span id="status_wrap" style="margin-left:auto"></span>
       </div>
       <div id="sections"></div>
@@ -65,7 +65,8 @@
     <div id="success_area" class="card success hidden">
       <div class="ico">✅</div>
       <h2>Đã gửi thông tin!</h2>
-      <p class="muted">Cảm ơn bạn. Bộ phận nhân sự sẽ tiếp nhận thông tin này.<br>Bạn có thể tải bản PDF để lưu lại.</p>
+      <p class="muted">Cảm ơn bạn. Bộ phận nhân sự sẽ tiếp nhận thông tin này.<br>Bạn có thể tải bản PDF để lưu lại, đối
+        chiếu khi cần.</p>
       <button class="btn-primary" id="pdf_btn" style="max-width:280px;margin:14px auto 0" onclick="downloadPdf()">📄 Tải
         PDF thông tin đã gửi</button>
       <button style="max-width:280px;margin:10px auto 0;background:#e2e8f0;color:#334155"
@@ -76,7 +77,7 @@
   <div class="submitbar hidden" id="submitbar">
     <div class="inner">
       <span class="muted" id="emp_label"></span>
-      <button class="btn-primary" id="submit_btn" onclick="submitForm()">Gửi thông tin</button>
+      <button class="btn-primary" id="submit_btn" onclick="submitForm()">✅ Gửi thông tin</button>
     </div>
   </div>
 
@@ -125,6 +126,12 @@
     document.addEventListener("DOMContentLoaded", () => {
       const el = document.getElementById("company_name");
       if (el) el.textContent = window.COMPANY || "";
+      // Tự lưu nháp mỗi khi người dùng gõ/chọn (delegate → bắt cả field render động).
+      const fa = document.getElementById("form_area");
+      if (fa) {
+        fa.addEventListener("input", saveDraft);
+        fa.addEventListener("change", saveDraft);
+      }
     });
 
     const S = { employee_id: null, employee_name: null, config: null, original: {}, values: {}, verifyCode: null, fieldByName: {} };
@@ -160,6 +167,55 @@
         { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
     }
 
+    // Biến URL trong text thành link bấm được.
+    // LƯU Ý: chỉ gọi trên chuỗi ĐÃ esc() — nên trong URL không thể còn " hay <.
+    function linkify(escaped) {
+      return escaped.replace(/(https?:\/\/[^\s<]+)/g, (m) => {
+        const trail = m.match(/[.,;:!?)]+$/);          // đừng nuốt dấu câu cuối
+        const url = trail ? m.slice(0, -trail[0].length) : m;
+        const tail = trail ? trail[0] : "";
+        return `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>${tail}`;
+      });
+    }
+
+    // ---------- lưu nháp cục bộ (chống mất dữ liệu khi reload/thoát) ----------
+    // Lưu theo từng nhân viên trong localStorage; xoá sau khi gửi thành công.
+    const DRAFT_TTL = 7 * 24 * 3600 * 1000;   // nháp quá 7 ngày coi như bỏ
+    const draftKey = (id) => "esui_draft_" + (id || S.employee_id || "");
+    let _draftTimer = null;
+
+    function saveDraft() {
+      if (!S.employee_id || !S.config) return;
+      clearTimeout(_draftTimer);
+      _draftTimer = setTimeout(() => {
+        try {
+          const values = {};
+          for (const sec of S.config.sections)
+            for (const f of sec.fields)
+              if (!f.read_only) values[f.fieldname] = currentValue(f);
+          const rm = document.getElementById("f__remarks");
+          localStorage.setItem(draftKey(), JSON.stringify({
+            t: Date.now(), values, remarks: rm ? rm.value : ""
+          }));
+        } catch (e) { /* localStorage bị chặn/đầy → bỏ qua, không chặn người dùng */ }
+      }, 400);
+    }
+
+    function loadDraft(empId) {
+      try {
+        const raw = localStorage.getItem(draftKey(empId));
+        if (!raw) return null;
+        const d = JSON.parse(raw);
+        if (!d || !d.t) return null;
+        if (Date.now() - d.t > DRAFT_TTL) { clearDraft(empId); return null; }
+        return d;
+      } catch (e) { return null; }
+    }
+
+    function clearDraft(empId) {
+      try { localStorage.removeItem(draftKey(empId)); } catch (e) { }
+    }
+
     function toast(msg, ok = false) {
       const t = document.getElementById("toast");
       t.textContent = msg; t.style.background = ok ? "#166534" : "#111827";
@@ -182,7 +238,7 @@
         const emps = await api(M.employees);
         allEmps = emps.map(e => ({ ...e, _hay: deburr(e.display_name + " " + e.employee_id) }));
         inp.disabled = false;
-        inp.placeholder = "Gõ mã hoặc tên để tìm…";
+        inp.placeholder = "Gõ mã nhân viên hoặc tên để tìm…";
         document.addEventListener("click", (ev) => {
           if (!ev.target.closest(".combo")) hideEmpResults();
         });
@@ -288,8 +344,16 @@
         const fd = await api(M.formData, { employee_id: empId, code: code || "" });
         S.employee_id = empId; S.employee_name = fd.employee_name;
         S.original = fd.original || {}; S.values = fd.values || {};
+
+        // Khôi phục nháp cục bộ (nếu có) — đè lên giá trị server TRƯỚC khi render
+        // để cascade địa chỉ & mọi widget cùng dựng theo dữ liệu đang nhập dở.
+        const draft = loadDraft(empId);
+        if (draft && draft.values) S.values = { ...S.values, ...draft.values };
+
         renderForm();
-        document.getElementById("f__remarks").value = fd.remarks || "";
+        document.getElementById("f__remarks").value =
+          (draft && draft.remarks != null) ? draft.remarks : (fd.remarks || "");
+        if (draft) toast("Đã khôi phục thông tin bạn nhập dở trước đó", true);
         document.getElementById("emp_label").textContent = `${fd.employee_name || empId}`;
         const sw = document.getElementById("status_wrap");
         sw.innerHTML = fd.status ?
@@ -330,6 +394,9 @@
         if (!el) return;
         const ev = (f.fieldtype === "Check") ? "change" : "input";
         el.addEventListener(ev, () => markChanged(f));
+        // Phản ánh ngay trạng thái ban đầu (quan trọng khi khôi phục nháp).
+        // Field địa chỉ bỏ qua ở đây: options nạp sau trong initAddressWidgets.
+        if (f.widget === "Auto") markChanged(f);
       }));
       initAddressWidgets();
     }
@@ -340,6 +407,9 @@
       const roAttr = f.read_only ? " disabled" : "";
       const req = f.required ? `<span class="req">*</span>` : "";
       const val = S.values[f.fieldname];
+      // Gợi ý mờ trong ô trống (cột "Placeholder" trong Setting).
+      // Không gắn cho Date (trình duyệt luôn hiện định dạng ngày) / Select / Check.
+      const ph = f.placeholder ? ` placeholder="${esc(f.placeholder)}"` : "";
       let input = "";
 
       if (f.widget === "Address Province") {
@@ -353,16 +423,16 @@
         const opts = (f.options || []).map(o => `<option value="${esc(o)}"${String(val || "") === String(o) ? " selected" : ""}>${esc(o || "— Chọn —")}</option>`).join("");
         input = `<select id="${id}"${roAttr}>${opts}</select>`;
       } else if (["Small Text", "Text", "Long Text"].includes(f.fieldtype)) {
-        input = `<textarea id="${id}"${roAttr}>${esc(val || "")}</textarea>`;
+        input = `<textarea id="${id}"${ph}${roAttr}>${esc(val || "")}</textarea>`;
       } else if (["Int", "Float", "Currency"].includes(f.fieldtype)) {
-        input = `<input type="number" id="${id}" value="${esc(val == null ? "" : val)}"${roAttr}>`;
+        input = `<input type="number" id="${id}" value="${esc(val == null ? "" : val)}"${ph}${roAttr}>`;
       } else if (f.fieldtype === "Date") {
         let dattr = "";
         if (f.validation === "Past") dattr = ` max="${todayISO()}"`;
         else if (f.validation === "Future") dattr = ` min="${todayISO()}"`;
         input = `<input type="date" id="${id}" value="${esc(val || "")}"${dattr}${roAttr}>`;
       } else {
-        input = `<input type="text" id="${id}" value="${esc(val || "")}"${valAttrs(f)}${roAttr}>`;
+        input = `<input type="text" id="${id}" value="${esc(val || "")}"${ph}${valAttrs(f)}${roAttr}>`;
       }
       // CCCD QR scan — shown only for the CCCD number field; manual input stays.
       const scanUi = (f.fieldname === CCCD_FIELD && !f.read_only)
@@ -371,9 +441,13 @@
          <input type="file" id="cccd_photo_input" accept="image/*" capture="environment" style="display:none" onchange="onCccdPhoto(event)">
          <div class="hint">Quét QR để điền nhanh số CCCD / ngày cấp / số CMND cũ. QR nhỏ/mờ khó quét trực tiếp thì bấm "Chụp ảnh" để chụp gần & rõ — hoặc nhập tay bên dưới.</div>`
         : "";
+      // Giải thích thêm cho field (cột "Detail" trong Setting) — hiện dưới nhãn.
+      const detailUi = f.detail
+        ? `<div class="field-detail">${linkify(esc(f.detail))}</div>`
+        : "";
       return `<div class="field${ro}" id="fg_${f.fieldname}">
       <label class="fl" for="${id}">${esc(f.label)} ${req}<span class="badge-changed">đã đổi</span></label>
-      ${scanUi}${input}</div>`;
+      ${detailUi}${scanUi}${input}</div>`;
     }
 
     // ---------- changed tracking ----------
@@ -426,6 +500,7 @@
           const def = [...psel.options].find(o => o.getAttribute("data-name") === DEFAULT_PROVINCE);
           if (def) psel.value = def.value;
         }
+        markChanged({ fieldname: fname, widget: "Address Province" });
         psel.addEventListener("change", () => onProvinceChange(psel));
       }
 
@@ -548,6 +623,7 @@
       btn.disabled = true; btn.textContent = "Đang gửi…";
       try {
         const r = await api(M.save, { employee_id: S.employee_id, data, code: S.verifyCode || "" });
+        clearDraft(S.employee_id);   // gửi xong → bỏ nháp cục bộ
         document.getElementById("form_area").classList.add("hidden");
         document.getElementById("submitbar").classList.add("hidden");
         document.getElementById("picker_card").classList.add("hidden");

@@ -7,6 +7,9 @@
  "field_order": [
   "employee_fieldname",
   "label_vi",
+  "column_break_vdtl",
+  "detail",
+  "placeholder",
   "column_break_1",
   "section_label",
   "widget",
@@ -39,7 +42,7 @@
    "fieldname": "label_vi",
    "fieldtype": "Data",
    "in_list_view": 1,
-   "label": "Label (Tiếng Việt)"
+   "label": "Label (Ti\u1ebfng Vi\u1ec7t)"
   },
   {
    "fieldname": "column_break_1",
@@ -150,11 +153,28 @@
    "fieldname": "custom_options",
    "fieldtype": "Small Text",
    "label": "Custom Options"
+  },
+  {
+   "fieldname": "detail",
+   "fieldtype": "Small Text",
+   "label": "Detail",
+   "placeholder": "Gi\u1ea3i th\u00edch chi ti\u1ebft th\u00eam"
+  },
+  {
+   "description": "Grey hint text shown inside the empty input on the page (e.g. \"12 ch\u1eef s\u1ed1\"). Does not replace the label.",
+   "fieldname": "placeholder",
+   "fieldtype": "Data",
+   "label": "Placeholder",
+   "placeholder": "VD: 12 ch\u1eef s\u1ed1"
+  },
+  {
+   "fieldname": "column_break_vdtl",
+   "fieldtype": "Column Break"
   }
  ],
  "istable": 1,
  "links": [],
- "modified": "2026-06-27 13:30:00.000000",
+ "modified": "2026-07-16 14:55:57.776990",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Employee Self Update Info Field",
