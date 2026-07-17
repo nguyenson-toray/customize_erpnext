@@ -143,10 +143,11 @@ label = row.label_vi or df.label or df.fieldname
 
 ## Xác thực danh tính (`validate_by_dob`)
 
-Khi bật, **bắt buộc** xác thực trước khi load & khi submit (chặn ở server, không thể bypass bằng gọi API trực tiếp).
+Khi bật, **bắt buộc** xác thực trước khi load & khi submit (chặn ở server, không bypass bằng gọi API trực tiếp; **áp cho MỌI người kể cả HR/Admin** — không có ngoại lệ theo role). Nút **"Gửi thông tin" bị ẩn** cho tới khi xác thực thành công (`.hidden{display:none !important}` để luôn thắng rule component, và `#submitbar` chỉ hiện trong `loadForm` sau verify).
 
 - **Mã đúng** = 2 số cuối **NGÀY SINH** (DD, zero-pad). VD sinh `1989-07-04` → nhập `04` (gõ `4` cũng được — so sánh theo số).
-- **Hoặc** = `bypass_code` của admin (dùng khi DOB lưu trong hệ thống bị sai, nhân viên không xác thực được).
+- **Hoặc** = `bypass_code` của admin (HR dùng để vào bất kỳ NV; hoặc khi DOB lưu bị sai).
+- **Tự động vào form** khi gõ đủ 2 số đúng (`oninput` gọi `doVerify()` — không cần bấm nút); sai → xoá ô, báo lỗi, gõ lại. Guard `_verifying` chống gọi trùng.
 
 ```python
 _dob_day(emp)  = str(date_of_birth)[-2:]            # 'YYYY-MM-DD' → 'DD'
@@ -213,7 +214,7 @@ Trang **không** giữ form state qua reload (đó là bản chất HTML, không
 - **Tự lưu** (debounce 400ms) mỗi khi NV gõ/chọn — bắt qua delegate `input`/`change` trên `#form_area` nên phủ cả field render động & select địa chỉ.
 - **Key theo từng NV**: `esui_draft_<employee_id>` → nhiều NV trên cùng máy không đè nhau.
 - **Khôi phục** trong `loadForm`: nháp được **merge đè lên giá trị server TRƯỚC khi render** → cascade Tỉnh/Xã và mọi widget dựng đúng theo dữ liệu đang nhập dở; báo toast "Đã khôi phục thông tin bạn nhập dở trước đó".
-- **Xoá nháp** sau khi gửi thành công (`clearDraft`); nháp **quá 7 ngày** (`DRAFT_TTL`) tự bỏ.
+- **Xoá nháp** sau khi gửi thành công (`clearDraft`); nháp **quá 1 ngày** (`DRAFT_TTL`) tự bỏ.
 - Bọc try/catch: localStorage bị chặn (private mode) / đầy / JSON hỏng → bỏ qua, không chặn người dùng.
 
 ## Đánh dấu field đã thay đổi
@@ -289,7 +290,9 @@ Thay dropdown bằng ô tìm kiếm:
 - **List view**: `Download Excel` (chọn → chỉ record đã chọn; không chọn → tất cả), `Mark Reviewed`, `Sync to Employee` (bulk theo record tick) → hiện **dialog kết quả** (bảng từng NV: ✅/❌ + chi tiết lỗi).
 - **Form view**: `Mark Reviewed` (khi Submitted), `Sync to Employee` (khi Reviewed), `Edit in Portal` (khi chưa Synced).
 
-**HR sửa dữ liệu** = nút **"Edit in Portal"** → mở `/employee-self-update-info?emp=<id>` (cùng trang NV, đầy đủ widget địa chỉ/QR/validation). HR đăng nhập → **bỏ qua bước xác thực DOB** (`_is_hr()` trong `_gate` + `get_field_config.require_dob`) và **được sửa BẤT KỲ nhân viên nào**, kể cả NV không có trong danh sách Setting (`_ensure_eligible` bỏ qua eligibility cho HR; nhân viên thường vẫn chỉ sửa được nếu có trong danh sách). Trang **vào thẳng** form NV (ẩn ô tìm/chọn khi có `?emp=`; load lỗi → hiện lại ô chọn). HR sửa & gửi lại → status về `Submitted` (cần review lại).
+**HR sửa dữ liệu** = nút **"Edit in Portal"** → mở `/employee-self-update-info?emp=<id>` (cùng trang NV, đầy đủ widget địa chỉ/QR/validation). HR **được mở BẤT KỲ nhân viên nào**, kể cả NV không có trong danh sách Setting (`_ensure_eligible` bỏ qua eligibility cho HR; nhân viên thường vẫn chỉ sửa được nếu có trong danh sách). Trang **vào thẳng** form NV (ẩn ô tìm/chọn khi có `?emp=`; load lỗi → hiện lại ô chọn).
+
+> **Quan trọng — xác thực áp cho MỌI người:** khi `validate_by_dob` bật thì **kể cả HR/Admin cũng phải qua bước xác thực** (không còn HR-bypass). HR dùng **`bypass_code`** (mã 2 chữ số của admin) để vào bất kỳ NV mà không cần biết ngày sinh từng người. Sau khi HR sửa & gửi → status về `Submitted` (cần review lại).
 
 **Hiển thị cho HR** (thay JSON thô khó đọc): form có field HTML `data_view` render bảng **Nhãn : Giá trị** theo section, ô khác giá trị Employee hiện tại **tô vàng + "Cũ: …"** (ẩn khi đã Synced). JSON thô nằm trong section **"Raw Data (JSON)"** thu gọn. API `get_submission_view(name)`.
 

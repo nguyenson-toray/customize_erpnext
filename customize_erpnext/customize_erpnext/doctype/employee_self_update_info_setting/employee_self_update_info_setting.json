@@ -5,6 +5,7 @@
  "engine": "InnoDB",
  "field_order": [
   "section_employees",
+  "column_break_cfsg",
   "info_html",
   "filter_date",
   "department",
@@ -69,6 +70,7 @@
    "label": "Clear All"
   },
   {
+   "columns": 2,
    "fieldname": "col_break_filter",
    "fieldtype": "Column Break"
   },
@@ -85,13 +87,12 @@
    "options": "Employee Self Update Employee"
   },
   {
-   "collapsible": 1,
    "fieldname": "section_security",
    "fieldtype": "Section Break",
    "label": "Verification"
   },
   {
-   "default": "0",
+   "default": "1",
    "description": "Require the employee to enter the last 2 digits of their day of birth before they can load/submit the form (anti-spam, prevents updating someone else's data).",
    "fieldname": "validate_by_dob",
    "fieldtype": "Check",
@@ -143,7 +144,8 @@
   {
    "fieldname": "new_join_intro",
    "fieldtype": "HTML",
-   "label": "New-Join Intro"
+   "label": "New-Join Intro",
+   "read_only": 1
   },
   {
    "fieldname": "btn_apply_new_join_preset",
@@ -157,11 +159,16 @@
    "fieldtype": "Table",
    "label": "Selected Fields for New Join",
    "options": "Employee Self Update Info Field"
+  },
+  {
+   "columns": 1,
+   "fieldname": "column_break_cfsg",
+   "fieldtype": "Column Break"
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-06-26 15:54:21.763595",
+ "modified": "2026-07-17 09:27:53.948645",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Employee Self Update Info Setting",
@@ -185,5 +192,6 @@
  "row_format": "Dynamic",
  "sort_field": "modified",
  "sort_order": "DESC",
- "states": []
+ "states": [],
+ "track_changes": 1
 }

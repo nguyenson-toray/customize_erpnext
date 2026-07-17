@@ -177,7 +177,8 @@ button:disabled { opacity:.45; cursor:not-allowed; }
 .pill-draft { background:#FBF0EA; color:var(--warn); }
 
 /* ---------- misc states ---------- */
-.hidden { display:none; }
+/* utility — must win over component display rules (e.g. .submitbar{display:flex}) */
+.hidden { display:none !important; }
 .empty { text-align:center; color:var(--muted); padding:34px 12px; }
 .success { text-align:center; padding:44px 18px; }
 .success .ico { font-size:56px; }

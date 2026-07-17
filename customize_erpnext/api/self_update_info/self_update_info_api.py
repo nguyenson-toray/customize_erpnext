@@ -263,9 +263,10 @@ def _ensure_eligible(setting, employee_id):
 
 
 def _gate(setting, employee_id, code):
-	"""Throw unless verification passes. No-op when validate_by_dob is off or the
-	caller is logged-in HR (HR edits a submission via the same portal page)."""
-	if not setting.validate_by_dob or _is_hr():
+	"""Throw unless verification passes. When validate_by_dob is on, EVERYONE
+	(including HR) must verify — HR uses the admin bypass_code to edit any
+	employee. No-op only when validate_by_dob is off."""
+	if not setting.validate_by_dob:
 		return
 	if not _code_ok(setting, employee_id, code):
 		frappe.throw(_("Verification failed. Please check the code."), frappe.ValidationError)
@@ -280,8 +281,7 @@ def get_field_config():
 	"""Return the dynamic field configuration for the web form."""
 	setting = _get_setting()
 	config = _build_config()
-	# HR editing via the portal skips the DOB verification step.
-	config["require_dob"] = bool(setting.validate_by_dob) and not _is_hr()
+	config["require_dob"] = bool(setting.validate_by_dob)
 	return config
 
 
@@ -295,7 +295,7 @@ def verify_employee(employee_id, code):
 		frappe.throw(_("Missing employee"))
 	setting = _get_setting()
 	_ensure_eligible(setting, employee_id)
-	if not setting.validate_by_dob or _is_hr():
+	if not setting.validate_by_dob:
 		return {"valid": True}
 	return {"valid": _code_ok(setting, employee_id, code)}
 

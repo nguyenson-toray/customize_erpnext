@@ -6,7 +6,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
   <title>Cập nhật thông tin nhân viên</title>
-  <link rel="stylesheet" href="/employee-self-update-info/style.css?v=7">
+  <link rel="stylesheet" href="/employee-self-update-info/style.css?v=8">
 </head>
 
 <body>
@@ -36,7 +36,8 @@
       <div class="field" style="margin-bottom:0">
         <label class="fl" for="verify_input">Nhập 2 số cuối của <b>ngày sinh</b> của bạn</label>
         <input type="text" id="verify_input" inputmode="numeric" maxlength="2"
-          placeholder="VD: sinh ngày 05/09 → nhập 05" oninput="this.value=this.value.replace(/[^0-9]/g,'')"
+          placeholder="VD: sinh ngày 05/09 → nhập 05"
+          oninput="this.value=this.value.replace(/[^0-9]/g,''); if(this.value.length===2) doVerify();"
           onkeydown="if(event.key==='Enter')doVerify()">
         <div class="hint">Bước này giúp đảm bảo đúng là bạn đang cập nhật thông tin của mình.</div>
         <button class="btn-primary" style="margin-top:12px;width:100%" onclick="doVerify()">Xác thực</button>
@@ -180,7 +181,7 @@
 
     // ---------- lưu nháp cục bộ (chống mất dữ liệu khi reload/thoát) ----------
     // Lưu theo từng nhân viên trong localStorage; xoá sau khi gửi thành công.
-    const DRAFT_TTL = 7 * 24 * 3600 * 1000;   // nháp quá 7 ngày coi như bỏ
+    const DRAFT_TTL = 24 * 3600 * 1000;   // nháp quá 1 ngày coi như bỏ
     const draftKey = (id) => "esui_draft_" + (id || S.employee_id || "");
     let _draftTimer = null;
 
@@ -322,18 +323,24 @@
       } catch (e) { toast(e.message); }
     }
 
+    let _verifying = false;
     async function doVerify() {
+      if (_verifying) return;                       // chống gọi trùng (auto + Enter)
       const code = (document.getElementById("verify_input").value || "").trim();
       if (!code) { toast("Vui lòng nhập mã xác thực"); return; }
+      _verifying = true;
       try {
         const r = await api(M.verify, { employee_id: S.employee_id, code });
         if (r && r.valid) {
           document.getElementById("verify_card").classList.add("hidden");
-          loadForm(S.employee_id, code);
+          loadForm(S.employee_id, code);           // đúng → vào thẳng form, không cần bấm nút
         } else {
           toast("Mã xác thực không đúng. Vui lòng thử lại.");
+          const vi = document.getElementById("verify_input");
+          vi.value = ""; vi.focus();               // sai → xoá để gõ lại
         }
       } catch (e) { toast(e.message); }
+      finally { _verifying = false; }
     }
 
     async function loadForm(empId, code) {
