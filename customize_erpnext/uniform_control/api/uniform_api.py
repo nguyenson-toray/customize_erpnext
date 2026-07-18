@@ -214,9 +214,9 @@ def get_due_items(limit=100, due_before=None):
     _check_permission(doctype="Employee Uniform Profile")
 
     from math import ceil
-    from frappe.utils import getdate
+    from frappe.utils import getdate, date_diff
     from customize_erpnext.uniform_control.utils import (
-        reissue_demand, leaver_missed_demand, _months_until,
+        reissue_demand, leaver_missed_demand,
     )
 
     setting = frappe.get_single("Uniform Setting")
@@ -232,7 +232,8 @@ def get_due_items(limit=100, due_before=None):
                           "monthly_total": 0, "period_months": 0}
     if enabled:
         miss = leaver_missed_demand(setting.get("attrition_months"))
-        period = _months_until(getdate(today()), getdate(to_date))
+        # day-based months so a 1-month horizon inside one calendar month ≠ 0
+        period = max(0.0, date_diff(getdate(to_date), getdate(today())) / 30.44)
         for v, monthly in miss["monthly"].items():
             e = min(cint(res["needed"].get(v, 0)), ceil(monthly * period))
             if e > 0:
@@ -240,7 +241,7 @@ def get_due_items(limit=100, due_before=None):
         attrition.update({
             "months": miss["months"], "persons": miss["persons"],
             "monthly_total": round(miss["total_qty"] / miss["months"], 1),
-            "period_months": period, "window": miss["window"],
+            "period_months": round(period, 1), "window": miss["window"],
         })
 
     rows = res["rows"]

@@ -108,15 +108,17 @@ def compute(forecast):
     leavers = {}  # variant -> measured est (positive; stored negative on rows)
     if mode in ("Re-issue", "Both"):
         from math import ceil
+        from frappe.utils import date_diff
         from customize_erpnext.uniform_control.utils import (
-            reissue_demand, leaver_missed_demand, _months_until,
+            reissue_demand, leaver_missed_demand,
         )
         to_date = doc.to_date or add_days(today(), 365)
         rd = reissue_demand(to_date, setting, prefix)
         if cint(setting.get("consider_attrition")):
             miss = leaver_missed_demand(setting.get("attrition_months"))
             start = doc.from_date or today()
-            period = _months_until(getdate(start), getdate(to_date))
+            # day-based months so a 01→31/07 plan counts as ~1 month, not 0
+            period = max(0.0, date_diff(getdate(to_date), getdate(start)) / 30.44)
             for v, monthly in miss["monthly"].items():
                 e = ceil(monthly * period)
                 if e > 0:
@@ -124,7 +126,7 @@ def compute(forecast):
             attrition = {
                 "months": miss["months"], "persons": miss["persons"],
                 "monthly_total": round(miss["total_qty"] / miss["months"], 1),
-                "period_months": period,
+                "period_months": round(period, 1),
             }
         for variant, qty in rd["needed"].items():
             if qty <= 0:
