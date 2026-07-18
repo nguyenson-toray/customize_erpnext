@@ -533,6 +533,129 @@ def get_eligible_employees_for_allocation(
     return results
 
 
+def get_attrition_rate(months=3):
+    """Average monthly attrition of managed employees over the last `months`
+    FULL calendar months (the running month is excluded).
+
+    Per month: relieved = employees whose relieving_date falls in the month;
+    headcount = employees on payroll at the month's first day (joined before
+    it and not yet relieved). Returns
+      {"rate": avg_monthly_rate, "months": n,
+       "per_month": [{"month": "YYYY-MM", "relieved", "headcount", "rate"}]}.
+    """
+    from frappe.utils import add_months
+
+    months = max(1, min(cint(months) or 3, 12))
+    prefix = get_employee_id_prefix()
+    like = f"{prefix}%" if prefix else "%"
+    first_of_current = getdate(today()).replace(day=1)
+
+    per_month, rates = [], []
+    for i in range(months, 0, -1):
+        start = add_months(first_of_current, -i)
+        end = add_months(first_of_current, -i + 1)
+        relieved = frappe.db.sql(
+            """SELECT COUNT(*) FROM `tabEmployee`
+               WHERE name LIKE %s AND relieving_date >= %s AND relieving_date < %s""",
+            (like, start, end),
+        )[0][0]
+        headcount = frappe.db.sql(
+            """SELECT COUNT(*) FROM `tabEmployee`
+               WHERE name LIKE %s AND date_of_joining < %s
+                 AND (relieving_date IS NULL OR relieving_date >= %s)""",
+            (like, start, start),
+        )[0][0]
+        rate = (relieved / headcount) if headcount else 0.0
+        per_month.append({
+            "month": str(start)[:7], "relieved": relieved,
+            "headcount": headcount, "rate": rate,
+        })
+        rates.append(rate)
+
+    return {
+        "rate": (sum(rates) / len(rates)) if rates else 0.0,
+        "months": months,
+        "per_month": per_month,
+    }
+
+
+def _months_until(from_date, to_date):
+    """Whole calendar months from from_date to to_date, floored at 0."""
+    return max(0, (to_date.year - from_date.year) * 12 + (to_date.month - from_date.month))
+
+
+def leaver_missed_demand(months=None):
+    """MEASURED missed re-issue demand — the basis of "Est. for Leavers".
+
+    Looks at the last N full months (Uniform Setting's Attrition Window when
+    `months` is None): tracking rows of RELIEVED employees whose next_due_date
+    fell inside that window AFTER they had left — i.e. re-issues that would
+    have been handed out had those people not quit. No probability model:
+    the people and quantities are real and listable.
+
+    Returns {"months": N, "window": {"from", "to"}, "persons": n,
+             "qty": {variant: missed_qty}, "monthly": {variant: qty/N},
+             "total_qty": Σ}.
+    """
+    from frappe.utils import add_months
+
+    if months is None:
+        months = frappe.db.get_single_value("Uniform Setting", "attrition_months")
+    months = max(1, min(cint(months) or 3, 12))
+    prefix = get_employee_id_prefix()
+    like = f"{prefix}%" if prefix else "%"
+    first_of_current = getdate(today()).replace(day=1)
+    window_start = add_months(first_of_current, -months)
+
+    rows = frappe.db.sql(
+        """
+        SELECT p.employee, e.relieving_date, eui.item_template,
+               COALESCE(NULLIF(i.variant_of, ''), i.name) AS tmpl,
+               COALESCE(iva.attribute_value, '') AS size
+        FROM `tabEmployee Uniform Item` eui
+        INNER JOIN `tabEmployee Uniform Profile` p ON p.name = eui.parent
+        INNER JOIN `tabEmployee` e ON e.name = p.employee
+        INNER JOIN `tabItem` i ON i.name = eui.item_template
+        LEFT JOIN `tabItem Variant Attribute` iva
+               ON iva.parent = eui.item_template AND iva.attribute = 'Size'
+        WHERE e.name LIKE %(like)s AND e.relieving_date IS NOT NULL
+          AND eui.next_due_date >= %(ws)s AND eui.next_due_date < %(we)s
+          AND e.relieving_date < eui.next_due_date
+        """,
+        {"like": like, "ws": window_start, "we": first_of_current}, as_dict=True,
+    )
+
+    persons, qty, rule_cache = set(), {}, {}
+    detail = {}  # (template, size) -> {"persons": set, "qty": n, "variant": name}
+    for r in rows:
+        key = (r.employee, r.tmpl)
+        if key not in rule_cache:
+            rule = get_rule_for_tracking(r.tmpl, r.employee)
+            rule_cache[key] = cint(rule.reissue_qty) if rule and not rule.one_time else 0
+        q = rule_cache[key]
+        if q <= 0:
+            continue
+        persons.add(r.employee)
+        qty[r.item_template] = qty.get(r.item_template, 0) + q
+        d = detail.setdefault((r.tmpl, r.size), {"persons": set(), "qty": 0})
+        d["persons"].add(r.employee)
+        d["qty"] += q
+
+    return {
+        "months": months,
+        "window": {"from": str(window_start), "to": str(add_days(first_of_current, -1))},
+        "persons": len(persons),
+        "qty": qty,
+        "monthly": {v: q / months for v, q in qty.items()},
+        "total_qty": sum(qty.values()),
+        # per template × size — for the "missed re-issues" analysis table
+        "rows": [
+            {"template": t, "size": s, "persons": len(d["persons"]), "qty": d["qty"]}
+            for (t, s), d in sorted(detail.items())
+        ],
+    }
+
+
 def reissue_demand(to_date, setting=None, prefix=None):
     """Reissue demand for current managed Active employees up to `to_date`,
     counting EVERY reissue cycle in [next_due, to_date] (not just the next one).
@@ -543,6 +666,7 @@ def reissue_demand(to_date, setting=None, prefix=None):
                   qty_per_cycle, total_qty],
        "needed": {variant: Σ total_qty},
        "meta":   {variant: {"template":.., "category":.., "size":..}}}
+
     """
     from frappe.utils import add_months
 

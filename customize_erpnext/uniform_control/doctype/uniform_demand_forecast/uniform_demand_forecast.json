@@ -7,33 +7,35 @@
  "engine": "InnoDB",
  "field_order": [
   "mode",
-  "company",
-  "column_break_1",
-  "warehouse",
+  "notes",
+  "reissue_date_range_column",
   "from_date",
   "to_date",
+  "column_break_1",
+  "company",
+  "warehouse",
+  "desc",
   "section_types",
+  "recruit_from_date",
+  "recruit_to_date",
   "column_break_types1",
   "lines",
-  "column_break_ffxr",
-  "include_somi",
-  "include_thun",
-  "include_cap",
-  "include_bottle",
-  "include_shoe",
-  "section_break_gnxw",
-  "current_ratio_html",
+  "section_items",
+  "items",
+  "analyzer_tab",
+  "section_attrition",
+  "attrition_analysis_html",
   "section_summary",
   "shirt_breakdown_html",
   "total_forecast_qty",
+  "total_est_for_leavers",
   "total_shortfall",
-  "section_items",
-  "items",
-  "section_notes",
-  "notes"
+  "section_break_gnxw",
+  "current_ratio_html"
  ],
  "fields": [
   {
+   "columns": 1,
    "default": "New Hires",
    "description": "New Hires = recruitment plan below; Re-issue = upcoming reissue demand up to To Date; Both = sum.",
    "fieldname": "mode",
@@ -48,7 +50,8 @@
    "fieldtype": "Link",
    "in_list_view": 1,
    "label": "Company",
-   "options": "Company"
+   "options": "Company",
+   "read_only": 1
   },
   {
    "fieldname": "column_break_1",
@@ -59,61 +62,43 @@
    "fieldname": "warehouse",
    "fieldtype": "Link",
    "label": "Warehouse",
-   "options": "Warehouse"
+   "options": "Warehouse",
+   "read_only": 1
   },
   {
    "depends_on": "eval:doc.mode!='New Hires'",
    "fieldname": "from_date",
    "fieldtype": "Date",
-   "in_standard_filter": 1,
-   "label": "From Date"
+   "label": "Reissue From Date"
   },
   {
    "depends_on": "eval:doc.mode!='New Hires'",
    "description": "Re-issue demand is counted up to this date (defaults to today + 1 year).",
    "fieldname": "to_date",
    "fieldtype": "Date",
-   "in_standard_filter": 1,
-   "label": "To Date"
+   "label": "Reissue To Date"
   },
   {
    "fieldname": "section_types",
    "fieldtype": "Section Break",
-   "label": "Designations to Recruit & Item Types to Forecast"
+   "label": "Recruitment Plan (New Hires)"
   },
   {
-   "default": "1",
-   "fieldname": "include_somi",
-   "fieldtype": "Check",
-   "label": "Shirt"
+   "depends_on": "eval:doc.mode!='Re-issue'",
+   "description": "Planned recruitment window (informational).",
+   "fieldname": "recruit_from_date",
+   "fieldtype": "Date",
+   "label": "Recruitment From"
   },
   {
-   "default": "1",
-   "fieldname": "include_thun",
-   "fieldtype": "Check",
-   "label": "T-Shirt"
+   "depends_on": "eval:doc.mode!='Re-issue'",
+   "fieldname": "recruit_to_date",
+   "fieldtype": "Date",
+   "label": "Recruitment To"
   },
   {
    "fieldname": "column_break_types1",
    "fieldtype": "Column Break"
-  },
-  {
-   "default": "1",
-   "fieldname": "include_cap",
-   "fieldtype": "Check",
-   "label": "Cap"
-  },
-  {
-   "default": "1",
-   "fieldname": "include_bottle",
-   "fieldtype": "Check",
-   "label": "Bottle"
-  },
-  {
-   "default": "1",
-   "fieldname": "include_shoe",
-   "fieldtype": "Check",
-   "label": "Shoe"
   },
   {
    "allow_bulk_edit": 1,
@@ -124,7 +109,18 @@
    "options": "Uniform Demand Forecast Line"
   },
   {
-   "collapsible": 1,
+   "depends_on": "eval:doc.mode!='New Hires'",
+   "fieldname": "section_attrition",
+   "fieldtype": "Section Break",
+   "label": "Attrition Analysis"
+  },
+  {
+   "depends_on": "eval:doc.mode!='New Hires'",
+   "fieldname": "attrition_analysis_html",
+   "fieldtype": "HTML",
+   "label": "Attrition Analysis"
+  },
+  {
    "fieldname": "section_break_gnxw",
    "fieldtype": "Section Break",
    "label": "Current Ratio"
@@ -135,7 +131,6 @@
    "label": "Current Shirt Ratio"
   },
   {
-   "collapsible": 1,
    "fieldname": "section_summary",
    "fieldtype": "Section Break",
    "label": "Forecast Breakdown"
@@ -146,11 +141,20 @@
    "label": "Shirt Breakdown (Gender / Size)"
   },
   {
+   "columns": 1,
    "default": "0",
    "fieldname": "total_forecast_qty",
    "fieldtype": "Int",
    "in_list_view": 1,
    "label": "Total Forecast Qty",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "description": "Informational: expected slice of the total going to future leavers (re-issue portion), stored negative.",
+   "fieldname": "total_est_for_leavers",
+   "fieldtype": "Int",
+   "label": "Total Est. for Leavers",
    "read_only": 1
   },
   {
@@ -173,21 +177,32 @@
    "options": "Uniform Demand Forecast Item"
   },
   {
-   "fieldname": "section_notes",
-   "fieldtype": "Section Break"
-  },
-  {
    "fieldname": "notes",
    "fieldtype": "Small Text",
    "label": "Notes"
   },
   {
-   "fieldname": "column_break_ffxr",
-   "fieldtype": "Column Break"
+   "fieldname": "reissue_date_range_column",
+   "fieldtype": "Column Break",
+   "label": "Reissue Date Range"
+  },
+  {
+   "fieldname": "analyzer_tab",
+   "fieldtype": "Tab Break",
+   "label": "Analysis"
+  },
+  {
+   "columns": 3,
+   "fieldname": "desc",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_preview": 1,
+   "label": "Description",
+   "read_only": 1
   }
  ],
  "links": [],
- "modified": "2026-07-11 13:23:16.625090",
+ "modified": "2026-07-17 16:03:58.502509",
  "modified_by": "Administrator",
  "module": "Uniform Control",
  "name": "Uniform Demand Forecast",
@@ -232,6 +247,7 @@
   }
  ],
  "row_format": "Dynamic",
+ "search_fields": "desc",
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": [],

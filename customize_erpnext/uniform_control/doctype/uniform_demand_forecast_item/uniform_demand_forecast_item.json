@@ -11,6 +11,8 @@
   "size",
   "category",
   "forecast_qty",
+  "est_for_leavers",
+  "total_qty",
   "current_stock"
  ],
  "fields": [
@@ -57,6 +59,24 @@
    "fieldtype": "Int",
    "in_list_view": 1,
    "label": "Forecast Qty"
+  },
+  {
+   "default": "0",
+   "description": "Informational, NEGATIVE: the slice of Forecast Qty expected to go to employees leaving before their due date (re-issue portion only).",
+   "fieldname": "est_for_leavers",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Est. for Leavers",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "description": "Forecast Qty + Est. for Leavers (the net figure).",
+   "fieldname": "total_qty",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Total",
+   "read_only": 1
   },
   {
    "default": "0",

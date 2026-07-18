@@ -1,13 +1,39 @@
 // Uniform Demand Forecast — estimate uniform demand for new hires and/or reissue.
 frappe.ui.form.on('Uniform Demand Forecast', {
+	before_save(frm) {
+		let desc_text = "";
+
+		if (frm.doc.mode === 'New Hires')
+			desc_text = `New hire : ${frm.doc.recruit_from_date} to ${frm.doc.recruit_to_date || ''}`;
+		else if (frm.doc.mode === 'Re-issue') {
+			desc_text = `Re-issue : ${frm.doc.from_date} to ${frm.doc.to_date || ''}`;
+		}
+		else {
+			desc_text = `New hire : ${frm.doc.recruit_from_date} to ${frm.doc.recruit_to_date || ''} 
+			, Re-issue : ${frm.doc.from_date} to ${frm.doc.to_date || ''}`;
+		}
+
+		frm.set_value('desc', desc_text);
+	},
 	onload(frm) {
 		if (frm.is_new() && !frm.doc.to_date) {
 			frm.set_value('to_date', frappe.datetime.add_days(frappe.datetime.get_today(), 365));
 		}
 	},
+	mode(frm) {
+		render_attrition(frm);
+	},
 	refresh(frm) {
 		render_shirt_breakdown(frm);
 		render_current_ratio(frm);
+		render_attrition(frm);
+		// Est. for Leavers is negative & informational — show it red in the grid.
+		if (frm.fields_dict.items && frm.fields_dict.items.grid) {
+			frm.fields_dict.items.grid.update_docfield_property('est_for_leavers', 'formatter',
+				(value) => (flt(value) < 0
+					? `<span style="color:var(--red-600)">${value}</span>`
+					: (value || 0)));
+		}
 		frm.add_custom_button(__('Help'), () => show_forecast_help());
 		if (frm.is_new()) return;
 		frm.add_custom_button(__('Download Excel'), () => {
@@ -24,13 +50,23 @@ frappe.ui.form.on('Uniform Demand Forecast', {
 					frappe.dom.unfreeze();
 					frm.reload_doc();
 					const m = r.message || {};
-					frappe.show_alert({
-						message: __('Forecast: {0} items, shortfall {1}', [m.total_forecast || 0, m.total_shortfall || 0]),
-						indicator: 'green',
-					});
+					let alert_msg = __('Forecast: {0} items, shortfall {1}', [m.total_forecast || 0, m.total_shortfall || 0]);
+					if (m.attrition) {
+						alert_msg += '<br>' + __('Est. for Leavers: measured {0} pcs/month (last {1} months) × {2} month(s), rounded up', [
+							m.attrition.monthly_total, m.attrition.months, m.attrition.period_months,
+						]);
+					}
+					frappe.show_alert({ message: alert_msg, indicator: 'green' });
 					// Friendly, people-oriented review notes (each = a real gap HR must handle).
 					const CAT = { Shirt: __('shirt'), Cap: __('cap'), Shoe: __('shoe'), Bottle: __('water bottle') };
 					const warnings = [];
+					if ((m.defaulted || []).length) {
+						warnings.push(
+							`<b>${__('Designations forecast with the Default Shirt Item')}</b><br>`
+							+ __('No current employees to infer from — these lines used the Default Shirt Item from Uniform Setting. Review and adjust if needed:')
+							+ '<br>' + m.defaulted.map((u) => `&nbsp;&nbsp;• ${u.designation} — ${u.headcount} ${__('people')} → ${u.item}`).join('<br>')
+						);
+					}
 					if ((m.unmapped || []).length) {
 						warnings.push(
 							`<b>${__('Designations with no current employees')}</b><br>`
@@ -73,6 +109,70 @@ frappe.ui.form.on('Uniform Demand Forecast', {
 		}).addClass('btn-primary');
 	},
 });
+
+// Attrition panel — per-month rates over the selected window + the shirts of
+// the employees who left in that window (template × size).
+function render_attrition(frm) {
+	const field = frm.fields_dict.attrition_analysis_html;
+	if (!field) return;
+	// Attrition only applies to the re-issue portion — nothing to show for New Hires.
+	if (frm.doc.mode === 'New Hires') {
+		field.$wrapper.empty();
+		return;
+	}
+	const esc = frappe.utils.escape_html;
+	frappe.call({
+		method: 'customize_erpnext.uniform_control.api.forecast.attrition_analysis',
+		callback(r) {
+			const m = r.message || {};
+			const pct = (x) => (x * 100).toFixed(2) + '%';
+
+			let months_rows = (m.per_month || []).map((x) =>
+				`<tr><td>${esc(x.month)}</td>
+					<td class="text-right">${x.relieved}</td>
+					<td class="text-right">${x.headcount}</td>
+					<td class="text-right">${pct(x.rate)}</td></tr>`
+			).join('');
+			const t1 = `
+				<div class="text-muted" style="margin-bottom:4px;"><b>${__('Attrition — last {0} full months', [m.months])}</b>
+					· ${__('average used for the deduction')}: <b>${pct(m.rate || 0)}</b>/${__('month')}
+					· ${__('configured in Uniform Setting')}</div>
+				<table class="table table-sm table-bordered" style="margin-bottom:0;">
+					<thead><tr><th>${__('Month')}</th><th class="text-right">${__('Relieved')}</th>
+						<th class="text-right">${__('Headcount')}</th><th class="text-right">${__('Rate')}</th></tr></thead>
+					<tbody>${months_rows}</tbody>
+					<tfoot><tr style="font-weight:600;"><td>${__('Average')}</td><td></td><td></td>
+						<td class="text-right">${pct(m.rate || 0)}</td></tr></tfoot>
+				</table>`;
+
+			let shirt_rows = (m.shirt_rows || []).map((x) =>
+				`<tr><td>${esc(x.template)}</td><td>${esc(x.size || '—')}</td>
+					<td class="text-right">${x.persons}</td>
+					<td class="text-right">${x.qty}</td>
+					<td class="text-right">${(x.qty / (m.months || 1)).toFixed(1)}</td></tr>`
+			).join('');
+			const t2 = `
+				<div class="text-muted" style="margin-bottom:4px;">
+					<b>${__('Missed re-issues of leavers')}</b> (${esc((m.window || {}).from || '')} → ${esc((m.window || {}).to || '')})
+					· ${__('{0} pcs by {1} leavers — avg {2}/month. Basis of Est. for Leavers.',
+						[m.missed_total || 0, m.missed_persons || 0, m.missed_monthly || 0])}</div>
+				${shirt_rows
+					? `<table class="table table-sm table-bordered" style="margin-bottom:0;">
+						<thead><tr><th>${__('Shirt Template')}</th><th>${__('Size')}</th>
+							<th class="text-right">${__('Persons')}</th><th class="text-right">${__('Qty (missed)')}</th>
+							<th class="text-right">${__('Avg / Month')}</th></tr></thead>
+						<tbody>${shirt_rows}</tbody></table>`
+					: `<span class="text-muted">${__('No missed re-issues of leavers in this window.')}</span>`}`;
+
+			field.$wrapper.html(
+				`<div style="display:flex; gap:16px; flex-wrap:wrap;">
+					<div style="flex:1 1 280px; min-width:280px;">${t1}</div>
+					<div style="flex:1 1 320px; min-width:320px;">${t2}</div>
+				</div>`
+			);
+		},
+	});
+}
 
 // Forecast breakdown by shirt type (Áo sơ mi / Áo thun) × gender × size.
 function render_shirt_breakdown(frm) {
@@ -223,11 +323,19 @@ function show_forecast_help() {
 							<li>Cấp lại → chọn <i>To Date</i> (mặc định: hôm nay + 1 năm).</li>
 						</ul>
 					</li>
-					<li>Mục <b>Loại item cần dự toán</b> (mặc định chọn hết): bỏ tick loại không cần
-						(<i>Áo sơ mi / Áo thun / Mũ / Bình nước / Dép</i>) — loại bỏ tick sẽ không xuất hiện trong kết quả.</li>
+					<li><b>Recruitment From / To</b> (chế độ Người mới): khoảng thời gian kế hoạch tuyển — chỉ để ghi nhận, không ảnh hưởng cách tính.</li>
+					<li><b>Dự phòng nghỉ việc (Est. for Leavers)</b> — cấu hình trong <b>Uniform Setting</b>
+						(Deduct Attrition + Attrition Window), <b>dùng chung cho cả Dự toán lẫn Dashboard</b>.
+						<b>Forecast Qty luôn là số ĐẦY ĐỦ</b> (theo tracking); cột <b>Est. for Leavers (số ÂM, màu đỏ)</b>
+						được <b>ĐO từ thực tế</b>: trong <b>N tháng gần nhất</b>, đếm các suất cấp lại <b>đã đến hạn nhưng
+						người nhận nghỉ việc trước hạn</b> (số người + số áo cụ thể, liệt kê được) → lấy <b>trung bình/tháng</b>
+						× <b>số tháng của kỳ dự toán</b> (Reissue From → To), <b>làm tròn LÊN</b>, theo từng variant.
+						Cột <b>Total = Forecast Qty + Est. for Leavers</b> — số thực nên chuẩn bị; <b>Thiếu tính theo Total</b>.
+						Bảng <b>Attrition Analysis</b> (tab <b>Analysis</b>) hiển thị tỉ lệ nghỉ từng tháng, số suất bị bỏ lỡ
+						(cơ sở của cột này) + cơ cấu áo của người đã nghỉ.</li>
 					<li>Bấm nút <b>Forecast</b> (góc trên bên phải) — hệ thống lập bảng <i>Forecast Items</i>: nhu cầu theo từng <b>biến thể</b> (từng kích cỡ áo, từng màu mũ, dép, bình nước…) kèm <b>tồn kho hiện tại</b>.</li>
 					<li>Rà soát, có thể <b>điều chỉnh cột SL dự toán</b> rồi <b>Lưu</b>. Sử dụng bảng này làm cơ sở lập kế hoạch mua sắm / nhập kho.</li>
-					<li>Bấm <b>Tải Excel</b> để xuất toàn bộ phiếu — 5 sheet: <i>Info</i> (thông tin phiếu), <i>Recruitment Plan</i> (bảng chức danh cần tuyển), <i>Forecast</i> (kết quả), và <i>Current Ratio</i> cả hai phạm vi (Recruited &amp; Company).</li>
+					<li>Bấm <b>Tải Excel</b> để xuất toàn bộ phiếu: <i>Info</i> (thông tin phiếu), <i>Recruitment Plan</i> (bảng chức danh cần tuyển), <i>Attrition</i> (tỉ lệ nghỉ + áo của người đã nghỉ — khi bật trừ nghỉ việc), <i>Forecast</i> (kết quả), và <i>Current Ratio</i> cả hai phạm vi (Recruited &amp; Company).</li>
 				</ol>
 
 				<p><b>Cơ chế tính chế độ "Người mới"</b></p>
@@ -241,10 +349,11 @@ function show_forecast_help() {
 						mỗi người một kích cỡ, đúng số lượng cấp lần đầu.</li>
 				</ol>
 
-				<p><b>Lưu ý — Cấp bậc (Grade)</b><br>
-				<b>Áo sơ mi được cấp theo Cấp bậc.</b> Với <b>chức danh mới hoàn toàn</b> (chưa có nhân viên để suy cơ cấu),
-				cần khai báo <b>Cấp bậc</b> tại dòng tuyển; nếu để trống, hệ thống không xác định được cấp bậc và sẽ
-				<b>cảnh báo để khai báo bổ sung</b>.</p>
+				<p><b>Chức danh mới hoàn toàn (chưa có nhân viên để suy cơ cấu)</b><br>
+				Chức danh dạng <i>…-Trainee</i> tự dùng chức danh gốc (vd <i>Sewing Worker-Trainee</i> → <i>Sewing Worker</i>).
+				Chức danh không suy được gì sẽ dự toán bằng <b>Item áo mặc định</b> cấu hình trong <b>Uniform Setting</b>
+				(hiện là <i>Áo thun nữ M</i>, × số lượng cấp lần đầu theo rule) — sau khi Forecast có <b>cảnh báo liệt kê rõ</b>
+				các dòng dùng mặc định để HR rà và chỉnh tay nếu cần.</p>
 
 				<p><b>Bảng "Tỉ lệ áo hiện tại" (chỉ tham khảo)</b><br>
 				Thể hiện cơ cấu áo của nhân viên hiện tại theo Giới tính × Kích cỡ. Có hai phạm vi:

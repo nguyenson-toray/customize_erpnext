@@ -6,11 +6,14 @@
  "field_order": [
   "uniform_warehouse",
   "uniform_item_group",
+  "default_shirt_item",
   "column_break_lqvx",
   "employee_id_prefix",
   "reminder_days_before",
   "column_break_top",
   "enable_weekly_alert",
+  "consider_attrition",
+  "attrition_months",
   "section_alert",
   "alert_recipients"
  ],
@@ -29,6 +32,13 @@
    "label": "Uniform Item Group",
    "options": "Item Group",
    "read_only": 1
+  },
+  {
+   "description": "Exact shirt variant used when there is no tracking/employee data to infer from (e.g. a brand-new designation in the Demand Forecast).",
+   "fieldname": "default_shirt_item",
+   "fieldtype": "Link",
+   "label": "Default Shirt Item",
+   "options": "Item"
   },
   {
    "description": "Only employees whose ID starts with this prefix are managed (e.g. TIQN). Others (interns...) are ignored.",
@@ -53,6 +63,22 @@
    "fieldname": "enable_weekly_alert",
    "fieldtype": "Check",
    "label": "Enable Weekly Alert"
+  },
+  {
+   "default": "1",
+   "description": "Shared by the Demand Forecast and the Dashboard. 'Est. for Leavers' is MEASURED: re-issues missed by actual leavers in the last N months → monthly average × months of the plan period, rounded up.",
+   "fieldname": "consider_attrition",
+   "fieldtype": "Check",
+   "label": "Deduct Attrition"
+  },
+  {
+   "default": "3",
+   "depends_on": "eval:doc.consider_attrition",
+   "description": "Length of the measuring window: the last N full months.",
+   "fieldname": "attrition_months",
+   "fieldtype": "Select",
+   "label": "Attrition Window (Months)",
+   "options": "1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12"
   },
   {
    "fieldname": "section_alert",

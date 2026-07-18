@@ -40,28 +40,11 @@ def compute(forecast):
     prefix = get_employee_id_prefix()
     mode = doc.mode or "New Hires"
 
-    # Item-type filter (5 checkboxes, default all). Missing field (old rows
-    # before migrate) counts as included.
-    def _on(v):
-        return 1 if v is None else cint(v)
-    included = {
-        "somi": _on(doc.get("include_somi")),
-        "thun": _on(doc.get("include_thun")),
-        "Cap": _on(doc.get("include_cap")),
-        "Bottle": _on(doc.get("include_bottle")),
-        "Shoe": _on(doc.get("include_shoe")),
-    }
-    if not any(included.values()):
-        frappe.throw(_("Select at least one item type to forecast."))
-
-    def _type_key(category, item):
-        """included-map key for a rule/variant: shirts split by sơ mi vs thun."""
-        if category == "Shirt":
-            return "somi" if "sơ mi" in (item or "").lower() else "thun"
-        return category
+    # All item types are always forecast (the per-type checkboxes were removed).
 
     hire = {}      # variant -> {"people":float,"per":int,"template","size","category"}
     unmapped = []  # (designation, headcount) with no segment data to infer from
+    defaulted = []  # lines with no data, forecast via Uniform Setting's Default Shirt Item
     total_hc = 0.0  # headcount spread across segments (New Hires)
     covered = {}    # category -> headcount for which a rule matched
     missing = {}    # (template, size) -> qty with no matching item variant
@@ -83,7 +66,18 @@ def compute(forecast):
             # and group/section caps resolve correctly.
             segs = _segments(d.designation, prefix, seg_cache)
             if not segs:
-                unmapped.append((d.designation, headcount))
+                # No current employees to infer from → fall back to the Default
+                # Shirt Item from Uniform Setting (exact variant, e.g. Áo thun nữ M).
+                item = _default_shirt_entry(setting)
+                if item:
+                    variant, tmpl, size, per = item
+                    _add_hire(hire, variant, tmpl, size, "Shirt", headcount, per)
+                    total_hc += headcount
+                    covered["Shirt"] = covered.get("Shirt", 0.0) + headcount
+                    defaulted.append({"designation": d.designation,
+                                      "headcount": headcount, "item": variant})
+                else:
+                    unmapped.append((d.designation, headcount))
                 continue
             for seg, frac in segs:
                 count = headcount * frac
@@ -91,10 +85,6 @@ def compute(forecast):
                     continue
                 total_hc += count
                 rules = get_rules_by_category(seg, setting)
-                # Drop the item types HR left unticked (coverage warnings then
-                # only consider the included types).
-                rules = {c: r for c, r in rules.items()
-                         if included.get(_type_key(c, r.item), 1)}
                 for cat in rules:
                     covered[cat] = covered.get(cat, 0.0) + count
                 seg_records.append({"designation": d.designation, "grade": seg.get("grade"),
@@ -110,16 +100,36 @@ def compute(forecast):
     demand = _round_hire_by_template(hire)  # variant -> {"qty":int,"template","size","category"}
 
     # ── Re-issue demand up to To Date (multi-cycle) — piece-based, already whole ──
+    # Forecast quantities stay FULL (gross) — same basis as the dashboard's
+    # Stock Plan. "Est. for Leavers" is MEASURED: missed re-issues of actual
+    # leavers in the Attrition Window → monthly average × months of the
+    # forecast period (from_date → to_date), rounded UP.
+    attrition = None
+    leavers = {}  # variant -> measured est (positive; stored negative on rows)
     if mode in ("Re-issue", "Both"):
-        from customize_erpnext.uniform_control.utils import reissue_demand
+        from math import ceil
+        from customize_erpnext.uniform_control.utils import (
+            reissue_demand, leaver_missed_demand, _months_until,
+        )
         to_date = doc.to_date or add_days(today(), 365)
         rd = reissue_demand(to_date, setting, prefix)
+        if cint(setting.get("consider_attrition")):
+            miss = leaver_missed_demand(setting.get("attrition_months"))
+            start = doc.from_date or today()
+            period = _months_until(getdate(start), getdate(to_date))
+            for v, monthly in miss["monthly"].items():
+                e = ceil(monthly * period)
+                if e > 0:
+                    leavers[v] = e
+            attrition = {
+                "months": miss["months"], "persons": miss["persons"],
+                "monthly_total": round(miss["total_qty"] / miss["months"], 1),
+                "period_months": period,
+            }
         for variant, qty in rd["needed"].items():
             if qty <= 0:
                 continue
             m = rd["meta"].get(variant, {})
-            if not included.get(_type_key(m.get("category"), m.get("template")), 1):
-                continue
             if variant in demand:
                 demand[variant]["qty"] += cint(qty)
             else:
@@ -138,6 +148,9 @@ def compute(forecast):
             "size": info["size"],
             "category": info["category"],
             "forecast_qty": info["qty"],
+            # stored NEGATIVE so Total = Forecast Qty + Est. for Leavers;
+            # clamped so a variant never goes below zero
+            "est_for_leavers": -min(cint(leavers.get(variant, 0)), cint(info["qty"])),
             "current_stock": stock,
         })
     doc.save(ignore_permissions=True)  # validate() recomputes totals
@@ -165,8 +178,12 @@ def compute(forecast):
         "items": len(doc.items),
         "total_forecast": doc.total_forecast_qty,
         "total_shortfall": doc.total_shortfall,
+        # measured Est.-for-Leavers info actually applied (None when off)
+        "attrition": attrition,
         # designations with no current staff to infer from → HR adds manually
         "unmapped": [{"designation": d, "headcount": h} for d, h in unmapped],
+        # lines forecast with the Default Shirt Item (no data to infer from)
+        "defaulted": defaulted,
         # categories not fully covered by any rule (partial-match headcount)
         "coverage_gaps": coverage_gaps,
         # sizes with no matching item variant (create the variant or add manually)
@@ -241,6 +258,37 @@ def current_shirt_ratio(forecast, basis="Company"):
 
 
 @frappe.whitelist()
+def attrition_analysis(months=None):
+    """Attrition data for the forecast's Attrition Analysis panel:
+      - per-month attrition of the last N full months (+ the average rate);
+      - MISSED re-issues: shirts that fell due inside the window AFTER their
+        owner had already left, grouped by template × size — the measured
+        basis of the "Est. for Leavers" column.
+    """
+    if not frappe.has_permission("Uniform Demand Forecast", "read"):
+        frappe.throw(_("Not permitted"), frappe.PermissionError)
+
+    from customize_erpnext.uniform_control.utils import get_attrition_rate, leaver_missed_demand
+
+    if months is None:
+        months = frappe.db.get_single_value("Uniform Setting", "attrition_months") or 3
+    info = get_attrition_rate(months)
+    miss = leaver_missed_demand(months)
+
+    return {
+        "rate": info["rate"],
+        "months": info["months"],
+        "per_month": info["per_month"],
+        "window": miss["window"],       # inclusive display window
+        # measured basis of "Est. for Leavers"
+        "missed_persons": miss["persons"],
+        "missed_total": miss["total_qty"],
+        "missed_monthly": round(miss["total_qty"] / miss["months"], 1),
+        "shirt_rows": miss["rows"],     # [{template, size, persons, qty}]
+    }
+
+
+@frappe.whitelist()
 def export_forecast_excel(forecast, basis="Company"):
     """Download the whole forecast as .xlsx:
       - Info: header fields (mode, dates, warehouse, totals, notes);
@@ -260,7 +308,11 @@ def export_forecast_excel(forecast, basis="Company"):
     bold = Font(bold=True)
     header_rows = []  # (worksheet, row_index_of_header) to bold afterwards
 
-    # 1) Info — the record header
+    # 1) Info — the record header. The Attrition Analysis is always exported
+    # (same content as the form's Analysis tab — historical info, any mode).
+    setting = frappe.get_single("Uniform Setting")
+    attr = attrition_analysis()
+
     ws_info = wb.create_sheet("Info")
     for k, v in [
         ("Forecast", doc.name),
@@ -269,7 +321,13 @@ def export_forecast_excel(forecast, basis="Company"):
         ("Warehouse", doc.warehouse),
         ("From Date", str(doc.from_date or "")),
         ("To Date", str(doc.to_date or "")),
+        ("Recruitment From", str(doc.get("recruit_from_date") or "")),
+        ("Recruitment To", str(doc.get("recruit_to_date") or "")),
+        ("Deduct Attrition (Uniform Setting)", "Yes" if cint(setting.get("consider_attrition")) else "No"),
+        ("Attrition Window (Months)", setting.get("attrition_months") or ""),
+        ("Attrition Rate (avg/month)", f"{attr['rate'] * 100:.2f}%"),
         ("Total Forecast Qty", doc.total_forecast_qty),
+        ("Total Est. for Leavers", doc.get("total_est_for_leavers") or 0),
         ("Total Shortfall vs Stock", doc.total_shortfall),
         ("Notes", doc.notes or ""),
     ]:
@@ -284,12 +342,35 @@ def export_forecast_excel(forecast, basis="Company"):
     for l in doc.lines:
         ws_plan.append([l.designation, l.headcount])
 
-    # 3) Forecast — computed items
+    # 2b) Attrition — rates per month + leavers' shirts (always included,
+    # mirrors the form's Attrition Analysis panel)
+    ws_a = wb.create_sheet("Attrition")
+    ws_a.append(["Month", "Relieved", "Headcount", "Rate"])
+    header_rows.append((ws_a, 1))
+    for m in attr["per_month"]:
+        ws_a.append([m["month"], m["relieved"], m["headcount"], f"{m['rate'] * 100:.2f}%"])
+    ws_a.append(["Average", "", "", f"{attr['rate'] * 100:.2f}%"])
+    ws_a.append([])
+    ws_a.append([
+        f"Missed re-issues of leavers ({attr['window']['from']} → {attr['window']['to']}) — "
+        f"basis of Est. for Leavers: {attr['missed_total']} pcs by {attr['missed_persons']} "
+        f"leavers, avg {attr['missed_monthly']}/month:"
+    ])
+    hdr_row = ws_a.max_row + 1
+    ws_a.append(["Shirt Template", "Size", "Persons", "Qty (missed)", "Avg / Month"])
+    header_rows.append((ws_a, hdr_row))
+    for r in attr["shirt_rows"]:
+        ws_a.append([r["template"], r["size"], r["persons"], r["qty"],
+                     round(r["qty"] / (attr["months"] or 1), 1)])
+
+    # 3) Forecast — computed items (Est. for Leavers is negative, informational)
     ws = wb.create_sheet("Forecast")
-    ws.append(["Item", "Uniform Type", "Size", "Category", "Forecast Qty", "Current Stock"])
+    ws.append(["Item", "Uniform Type", "Size", "Category", "Forecast Qty",
+               "Est. for Leavers", "Total", "Current Stock"])
     header_rows.append((ws, 1))
     for r in doc.items:
-        ws.append([r.item_code, r.template, r.size, r.category, r.forecast_qty, r.current_stock])
+        ws.append([r.item_code, r.template, r.size, r.category, r.forecast_qty,
+                   r.get("est_for_leavers") or 0, r.get("total_qty") or 0, r.current_stock])
 
     # 4) Current Ratio — BOTH scopes
     for scope, title in [("Recruited", "Current Ratio (Recruited)"),
@@ -315,6 +396,23 @@ def export_forecast_excel(forecast, basis="Company"):
 
 
 # ─────────────────────────────── helpers ───────────────────────────────────
+
+def _default_shirt_entry(setting):
+    """Resolve Uniform Setting's Default Shirt Item for lines with no data.
+    Returns (variant, template, size, first_qty) or None when not configured
+    or the item is missing."""
+    variant = setting.get("default_shirt_item")
+    if not variant or not frappe.db.exists("Item", variant):
+        return None
+    template = frappe.db.get_value("Item", variant, "variant_of") or variant
+    per = cint(frappe.db.get_value(
+        "Uniform Rule", {"category": "Shirt", "item": template, "is_active": 1}, "first_qty"
+    )) or 1
+    size = frappe.db.get_value(
+        "Item Variant Attribute", {"parent": variant, "attribute": "Size"}, "attribute_value"
+    ) or ""
+    return variant, template, size, per
+
 
 def _add_hire(hire, variant, template, size, category, people, per):
     e = hire.setdefault(

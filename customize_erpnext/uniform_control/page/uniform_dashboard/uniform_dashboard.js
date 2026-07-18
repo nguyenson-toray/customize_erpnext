@@ -25,7 +25,6 @@ frappe.pages['uniform-dashboard'].on_page_load = function (wrapper) {
 	page.add_inner_button(__('Export Excel'), () => {
 		const due_before = due_before_ctl.get_value() || '';
 		const params = new URLSearchParams({ due_before });
-		if (selected_forecasts.length) params.set('forecasts', JSON.stringify(selected_forecasts));
 		window.open('/api/method/customize_erpnext.uniform_control.api.uniform_api.export_dashboard_excel?' + params.toString());
 	});
 	page.add_inner_button(__('Refresh'), () => load());
@@ -39,14 +38,11 @@ frappe.pages['uniform-dashboard'].on_page_load = function (wrapper) {
 			     Stock Plan card so it doesn't read as a Stock-Plan-only filter. -->
 			<div class="row"><div class="col-12">
 				<div class="frappe-card" style="padding:10px 15px; margin-bottom:15px;">
-					<div class="d-flex justify-content-between align-items-center flex-wrap" style="gap:10px;">
-						<div class="d-flex align-items-center flex-wrap" style="gap:10px;">
-							<span style="font-size:var(--text-sm); font-weight:600; white-space:nowrap;">${__('Reissue due on/before')}</span>
-							<div data-due-before style="width:150px;"></div>
-							<button class="btn btn-xs btn-default" data-include-forecast>${__('Include Forecast Demand')}…</button>
-							<span class="text-muted" style="font-size:var(--text-sm);">${__('Applies to both tables: Stock Plan (Reissue Need) and Employees Due for Issue.')}</span>
-						</div>
-						<div class="text-muted" data-forecast-note style="font-size:var(--text-sm);"></div>
+					<div class="d-flex align-items-center flex-wrap" style="gap:10px;">
+						<span style="font-size:var(--text-sm); font-weight:600; white-space:nowrap;">${__('Reissue due on/before')}</span>
+						<div data-due-before style="width:150px;"></div>
+						<span class="text-muted" style="font-size:var(--text-sm);">${__('This date filter drives both tables below. Attrition only affects the Est. for Leavers column — never the Employees Due list.')}</span>
+						<span data-attrition-note style="font-size:var(--text-sm); color:var(--orange-600);"></span>
 					</div>
 				</div>
 			</div></div>
@@ -97,21 +93,27 @@ frappe.pages['uniform-dashboard'].on_page_load = function (wrapper) {
 	// ── DataTables (Frappe native) ───────────────────────────────────────────
 	const STATUS_COLOR = { Overdue: 'red', 'Due Soon': 'orange', Active: 'green', 'Not Issued': 'gray' };
 
-	const plan_columns = [
-		{ name: __('Uniform Type'), width: 150, editable: false },
+	// Fixed plan columns: Reissue Need = gross tracking demand; Est. for Leavers
+	// = NEGATIVE informational slice (red); Total = the two combined;
+	// Shortfall = Total − Stock.
+	const PLAN_COLS = [
+		{ name: __('Uniform Type'), width: 150 },
 		{
 			name: __('Item'), width: 200,
 			format: (v) => `<a href="/app/item/${encodeURIComponent(v)}">${esc(v)}</a>`
 		},
 		{ name: __('Stock'), width: 90, align: 'right' },
 		{ name: __('Reissue Need'), width: 120, align: 'right' },
-		{ name: __('Forecast Need'), width: 120, align: 'right' },
-		{ name: __('Total Need'), width: 100, align: 'right', format: (v) => `<b>${v || 0}</b>` },
+		{
+			name: __('Est. for Leavers'), width: 130, align: 'right',
+			format: (v) => (flt(v) < 0 ? `<span style="color:var(--red-600)">${v}</span>` : '0'),
+		},
+		{ name: __('Total'), width: 100, align: 'right', format: (v) => `<b>${v || 0}</b>` },
 		{
 			name: __('Shortfall'), width: 100, align: 'right',
 			format: (v) => (flt(v) > 0 ? `<b style="color:var(--red-600)">${v}</b>` : '')
 		},
-	];
+	].map((c) => ({ editable: false, ...c }));
 
 	const due_columns = [
 		{
@@ -139,7 +141,6 @@ frappe.pages['uniform-dashboard'].on_page_load = function (wrapper) {
 	];
 
 	// Columns are read-only (no inline editing) on this dashboard.
-	const PLAN_COLS = plan_columns.map((c) => ({ editable: false, ...c }));
 	const DUE_COLS = due_columns.map((c) => ({ editable: false, ...c }));
 
 	function make_dt(el, columns) {
@@ -154,29 +155,34 @@ frappe.pages['uniform-dashboard'].on_page_load = function (wrapper) {
 		});
 	}
 
-	// ── Stock purchasing plan ────────────────────────────────────────────────
+	// ── Stock purchasing plan (re-issue demand only) ─────────────────────────
 	let stock_rows = [];
-	let needed_map = {};          // reissue demand (multi-cycle, from due items)
-	let forecast_needed = {};     // optional demand from selected forecasts
-	let selected_forecasts = [];  // names of the included forecasts (for export)
-	let forecast_has_reissue = false;  // a selected forecast already includes reissue
+	let needed_gross = {};   // reissue demand (multi-cycle, from due items)
+	let est_map = {};        // measured Est. for Leavers per variant (positive)
+	let attrition_info = {}; // {enabled, months, persons, monthly_total, period_months}
 	let plan_dt = null;
 	let plan_data = [];
 
 	function build_plan() {
 		plan_data = stock_rows.map((x) => {
-			// A Re-issue/Both forecast already contains reissue demand → don't add
-			// the dashboard's own reissue on top (would double-count).
-			const reissue = forecast_has_reissue ? 0 : flt(needed_map[x.item_code]);
-			const forecast = flt(forecast_needed[x.item_code]);
-			const total = reissue + forecast;
-			return [
-				x.template || x.item_code, x.item_code, flt(x.actual_qty),
-				reissue, forecast, total, total - flt(x.actual_qty),
-			];
+			const gross = flt(needed_gross[x.item_code]);
+			const leavers = -flt(est_map[x.item_code]);   // ≤ 0
+			const total = gross + leavers;
+			const stock = flt(x.actual_qty);
+			return [x.template || x.item_code, x.item_code, stock, gross, leavers, total, total - stock];
 		});
 		$body.find('[data-count="plan"]').text(plan_data.length ? `(${plan_data.length})` : '');
 		refresh_plan_dt();
+	}
+
+	function render_attrition_note() {
+		$body.find('[data-attrition-note]').text(
+			attrition_info.enabled
+				? __('Est. for Leavers (negative) is MEASURED: last {0} months, {1} leavers missed re-issues (avg {2}/month) × {3} month(s) of this horizon, rounded up. Total = Reissue Need + Est.; Shortfall = Total − Stock. The Employees Due list is never adjusted.',
+					[attrition_info.months || 0, attrition_info.persons || 0,
+						attrition_info.monthly_total || 0, attrition_info.period_months || 0])
+				: __('Deduct Attrition is OFF in Uniform Setting — Est. for Leavers is 0 and Total equals Reissue Need.')
+		);
 	}
 
 	// DataTable needs a visible container — rebuild when the <details> reopens.
@@ -221,8 +227,7 @@ frappe.pages['uniform-dashboard'].on_page_load = function (wrapper) {
 	});
 
 	// Reissue horizon filter — native Frappe Date control (respects the user's
-	// date format). Default = today (only items due now); choosing a Re-issue/Both
-	// forecast below sets this to that demand's To Date.
+	// date format). Default = today (only items due now).
 	const due_before_ctl = frappe.ui.form.make_control({
 		parent: $body.find('[data-due-before]')[0],
 		df: { fieldtype: 'Date', fieldname: 'due_before', placeholder: __('Today') },
@@ -231,73 +236,6 @@ frappe.pages['uniform-dashboard'].on_page_load = function (wrapper) {
 	due_before_ctl.set_value(frappe.datetime.get_today());
 	due_before_ctl.$input.on('change', () => load_due());
 
-	// Drop the included forecast demand — back to today's reissue only.
-	// (No page reload needed: state is reset and the plan is recomputed.)
-	function clear_forecasts() {
-		selected_forecasts = [];
-		forecast_needed = {};
-		forecast_has_reissue = false;
-		$body.find('[data-forecast-note]').empty().css('color', '');
-		due_before_ctl.set_value(frappe.datetime.get_today());
-		load_due();
-	}
-	$body.on('click', '[data-clear-forecast]', function (e) {
-		e.preventDefault();
-		clear_forecasts();
-	});
-
-	// Include selected Uniform Demand Forecast(s) into the plan's Forecast Need.
-	$body.find('[data-include-forecast]').on('click', () => {
-		const dialog = new frappe.ui.Dialog({
-			title: __('Include Forecast Demand'),
-			fields: [{
-				fieldname: 'forecasts',
-				fieldtype: 'MultiSelectList',
-				label: __('Uniform Demand Forecast'),
-				get_data: (txt) => frappe.db.get_link_options('Uniform Demand Forecast', txt),
-			}],
-			primary_action_label: __('Apply'),
-			primary_action(values) {
-				dialog.hide();
-				const names = values.forecasts || [];
-				selected_forecasts = names;
-				const note = $body.find('[data-forecast-note]');
-				if (!names.length) {
-					clear_forecasts();
-					return;
-				}
-				frappe.call({
-					method: `${API}.uniform_api.get_forecast_needed`,
-					args: { forecasts: names },
-				}).then((r) => {
-					const msg = r.message || {};
-					forecast_needed = msg.needed || {};
-					forecast_has_reissue = !!msg.has_reissue;
-					// Take the forecast's quantities AND its due date (To Date) as horizon
-					if (msg.to_date) due_before_ctl.set_value(msg.to_date);
-					let txt = `+ ${__('Forecast')}: ${names.join(', ')}`
-						+ (msg.to_date ? ` — ${__('due')} ${frappe.datetime.str_to_user(msg.to_date)}` : '');
-					if (forecast_has_reissue) {
-						// Forecast already contains reissue → dashboard's own reissue is suppressed
-						txt += ` — ⚠ ${__('includes reissue; the Reissue Need column is hidden to avoid double-counting')}`;
-						note.css('color', 'var(--orange-600)');
-					} else {
-						note.css('color', '');
-					}
-					note.html(
-						`${esc(txt)} <a href="#" data-clear-forecast style="margin-left:6px; white-space:nowrap;">✕ ${__('Clear Selection')}</a>`
-					);
-					load_due();   // recompute reissue up to the forecast's To Date, then build_plan
-				});
-			},
-			secondary_action_label: __('Clear Selection'),
-			secondary_action() {
-				dialog.hide();
-				clear_forecasts();
-			},
-		});
-		dialog.show();
-	});
 
 	// ── Cards & charts ───────────────────────────────────────────────────────
 	function card(label, value, color, route) {
@@ -356,9 +294,12 @@ frappe.pages['uniform-dashboard'].on_page_load = function (wrapper) {
 			args: { limit: 100000, due_before },
 		}).then((r) => {
 			const msg = r.message || {};
-			needed_map = msg.needed || {};
+			needed_gross = msg.needed || {};
+			est_map = msg.est_for_leavers || {};   // off → empty → slice 0
+			attrition_info = msg.attrition || {};
+			render_attrition_note();
 			render_due(msg.rows || []);
-			build_plan();   // refresh the Reissue Need column
+			build_plan();
 		});
 	}
 

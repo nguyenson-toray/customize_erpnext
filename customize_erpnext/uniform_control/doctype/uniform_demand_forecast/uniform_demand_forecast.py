@@ -30,12 +30,17 @@ class UniformDemandForecast(Document):
                   "Enter each designation only once (combine the headcount).").format(
                     ", ".join(sorted(set(dups)))))
         # Refresh current stock so shortfall stays accurate on every save (L4),
-        # then keep totals in sync with manual edits to forecast_qty
-        total_forecast = total_shortfall = 0
+        # then keep totals in sync with manual edits to forecast_qty.
+        # est_for_leavers is stored NEGATIVE; row Total = forecast_qty + est;
+        # Shortfall follows the Total (net) figure.
+        total_forecast = total_est = total_shortfall = 0
         for row in self.items or []:
             if self.warehouse and row.item_code:
                 row.current_stock = int(get_item_available_qty(row.item_code, self.warehouse))
+            row.total_qty = cint(row.forecast_qty) + cint(row.est_for_leavers)
             total_forecast += cint(row.forecast_qty)
-            total_shortfall += max(0, cint(row.forecast_qty) - cint(row.current_stock))
+            total_est += cint(row.est_for_leavers)
+            total_shortfall += max(0, cint(row.total_qty) - cint(row.current_stock))
         self.total_forecast_qty = total_forecast
+        self.total_est_for_leavers = total_est
         self.total_shortfall = total_shortfall

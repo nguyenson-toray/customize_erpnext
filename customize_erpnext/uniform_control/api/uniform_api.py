@@ -213,66 +213,47 @@ def get_due_items(limit=100, due_before=None):
     Returns {"rows": [...], "needed": {variant: total_qty}}."""
     _check_permission(doctype="Employee Uniform Profile")
 
-    from customize_erpnext.uniform_control.utils import reissue_demand
+    from math import ceil
+    from frappe.utils import getdate
+    from customize_erpnext.uniform_control.utils import (
+        reissue_demand, leaver_missed_demand, _months_until,
+    )
 
+    setting = frappe.get_single("Uniform Setting")
     to_date = due_before or add_days(today(), 365)
-    res = reissue_demand(to_date)
+
+    res = reissue_demand(to_date, setting)
+
+    # "Est. for Leavers" — MEASURED model: missed re-issues of actual leavers
+    # in the Attrition Window → monthly average × months of this horizon,
+    # rounded UP, clamped to the variant's gross demand.
+    enabled = bool(cint(setting.get("consider_attrition")))
+    est, attrition = {}, {"enabled": enabled, "months": 0, "persons": 0,
+                          "monthly_total": 0, "period_months": 0}
+    if enabled:
+        miss = leaver_missed_demand(setting.get("attrition_months"))
+        period = _months_until(getdate(today()), getdate(to_date))
+        for v, monthly in miss["monthly"].items():
+            e = min(cint(res["needed"].get(v, 0)), ceil(monthly * period))
+            if e > 0:
+                est[v] = e
+        attrition.update({
+            "months": miss["months"], "persons": miss["persons"],
+            "monthly_total": round(miss["total_qty"] / miss["months"], 1),
+            "period_months": period, "window": miss["window"],
+        })
+
     rows = res["rows"]
     # `qty` kept as the per-cycle qty for backward-compatible callers
     for r in rows:
         r["qty"] = r["qty_per_cycle"]
     if cint(limit):
         rows = rows[: cint(limit)]
-    return {"rows": rows, "needed": res["needed"]}
-
-
-@frappe.whitelist()
-def get_forecast_needed(forecasts):
-    """Demand of the given Uniform Demand Forecast(s) for the dashboard plan.
-    Returns {"needed": {item: total_qty}, "to_date": latest To Date,
-             "has_reissue": bool, "reissue_names": [...]}.
-    `has_reissue` flags forecasts whose items already include reissue demand
-    (mode Re-issue/Both) — the dashboard must not add its own reissue on top,
-    otherwise the reissue portion is double-counted.
-    `forecasts` = JSON list or comma-separated string of forecast names."""
-    _check_permission(doctype="Uniform Demand Forecast")
-
-    import json
-    if isinstance(forecasts, str):
-        try:
-            names = json.loads(forecasts)
-        except (ValueError, TypeError):
-            names = [f.strip() for f in forecasts.split(",") if f.strip()]
-    else:
-        names = forecasts or []
-    if not names:
-        return {"needed": {}, "to_date": None, "has_reissue": False, "reissue_names": []}
-
-    rows = frappe.db.sql(
-        """
-        SELECT item_code, SUM(forecast_qty) q
-        FROM `tabUniform Demand Forecast Item`
-        WHERE parent IN %(names)s
-        GROUP BY item_code
-        """,
-        {"names": list(names)}, as_dict=True,
-    )
-    needed = {r.item_code: cint(r.q) for r in rows}
-
-    metas = frappe.get_all(
-        "Uniform Demand Forecast", filters={"name": ["in", list(names)]},
-        fields=["name", "to_date", "mode"],
-    )
-    reissue_names = [m.name for m in metas if m.mode in ("Re-issue", "Both")]
-    # To Date is only meaningful for reissue forecasts — it is the reissue horizon.
-    # New-Hires forecasts don't set the dashboard's reissue cutoff (their To Date
-    # is unused/stale), so only consider To Dates from Re-issue/Both forecasts.
-    to_dates = [m.to_date for m in metas if m.to_date and m.mode in ("Re-issue", "Both")]
     return {
-        "needed": needed,
-        "to_date": str(max(to_dates)) if to_dates else None,
-        "has_reissue": bool(reissue_names),
-        "reissue_names": reissue_names,
+        "rows": rows,
+        "needed": res["needed"],        # full (gross) demand, from tracking
+        "est_for_leavers": est,         # measured slice per variant (positive)
+        "attrition": attrition,
     }
 
 
@@ -385,13 +366,12 @@ def apply_default_rules(employee=None):
 
 
 @frappe.whitelist()
-def export_dashboard_excel(due_before=None, forecasts=None):
+def export_dashboard_excel(due_before=None):
     """Download dashboard data as .xlsx — matches the on-screen view:
-      sheet 1 "Stock Purchasing Plan": Stock vs Reissue/Forecast need + shortfall;
+      sheet 1 "Stock Plan": Stock | Reissue Need (gross, from tracking) |
+        Est. for Leavers (negative, informational) | Total | Shortfall;
       sheet 2 "Employees Due for Issue": reissue rows with cycles (multi-cycle).
-    `due_before` = reissue horizon (default today); `forecasts` = optional
-    Uniform Demand Forecast names whose demand is added to Forecast Need
-    (a Re-issue/Both forecast replaces the reissue column — no double count)."""
+    `due_before` = reissue horizon (default today)."""
     _check_permission()
 
     import openpyxl
@@ -403,35 +383,30 @@ def export_dashboard_excel(due_before=None, forecasts=None):
     # Default horizon = today (same as the dashboard's default filter)
     horizon = due_before or today()
     due = get_due_items(limit=100000, due_before=horizon)
-    due_rows, reissue = due["rows"], due["needed"]
-
-    forecast_need = {}
-    if forecasts:
-        fn = get_forecast_needed(forecasts)
-        forecast_need = fn["needed"]
-        if fn["has_reissue"]:
-            # The forecast already contains reissue demand — adding the
-            # dashboard's own reissue would double-count it (same rule as the UI).
-            reissue = {}
+    due_rows, gross = due["rows"], due["needed"]
+    est_map = due.get("est_for_leavers") or {}
+    attr = due.get("attrition") or {}
 
     wb = openpyxl.Workbook()
     wb.remove(wb.active)
     bold = Font(bold=True)
 
-    # Sheet 1 — purchasing plan (one row per variant)
+    # Sheet 1 — purchasing plan. Fixed columns, same as on screen:
+    # Reissue Need = gross tracking demand; Est. for Leavers = NEGATIVE
+    # informational slice; Total = the two combined; Shortfall = Total − Stock.
     ws_plan = wb.create_sheet("Stock Plan")
     ws_plan.append([
-        "Uniform Type", "Item", "Stock", "Reissue Need", "Forecast Need",
-        "Total Need", "Shortfall", "Warehouse",
+        "Uniform Type", "Item", "Stock", "Reissue Need",
+        "Est. for Leavers", "Total", "Shortfall", "Warehouse",
     ])
     for r in get_uniform_stock_excel():
         code = r.get("item_code")
         stock = cint(r.get("actual_qty"))
-        rn = cint(reissue.get(code, 0))
-        fn = cint(forecast_need.get(code, 0))
-        total = rn + fn
+        g = cint(gross.get(code, 0))
+        leavers = -cint(est_map.get(code, 0))
+        total = g + leavers
         ws_plan.append([
-            r.get("template"), r.get("item_name") or code, stock, rn, fn,
+            r.get("template"), r.get("item_name") or code, stock, g, leavers,
             total, max(0, total - stock), r.get("warehouse"),
         ])
 
@@ -447,6 +422,20 @@ def export_dashboard_excel(due_before=None, forecasts=None):
             r.get("custom_section"), r.get("custom_group"), r.get("item_template"),
             r.get("size"), r.get("qty_per_cycle"), r.get("cycles"), r.get("total_qty"),
             str(r.get("last_issue_date") or ""), str(r.get("next_due_date") or ""), r.get("status"),
+        ])
+
+    ws_plan.append([])
+    if attr.get("enabled"):
+        ws_plan.append([
+            f"Note: 'Est. for Leavers' (negative) is MEASURED: in the last {attr['months']} "
+            f"full months, {attr['persons']} leavers missed re-issues (avg "
+            f"{attr['monthly_total']}/month) → × {attr['period_months']} month(s) of this "
+            f"horizon, rounded up. Total = Reissue Need + Est.; Shortfall = Total − Stock."
+        ])
+    else:
+        ws_plan.append([
+            "Note: Deduct Attrition is OFF in Uniform Setting — Est. for Leavers is 0 "
+            "and Total equals Reissue Need."
         ])
 
     for ws in (ws_plan, ws_due):
