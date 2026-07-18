@@ -8,7 +8,7 @@ frappe.pages['uniform-dashboard'].on_page_load = function (wrapper) {
 
 	const page = frappe.ui.make_app_page({
 		parent: wrapper,
-		title: __('Uniform Dashboard'),
+		title: __('Uniform Dashboard: Re-Issue and Stock Plan'),
 		single_column: true,
 	});
 
@@ -41,24 +41,13 @@ frappe.pages['uniform-dashboard'].on_page_load = function (wrapper) {
 					<div class="d-flex align-items-center flex-wrap" style="gap:10px;">
 						<span style="font-size:var(--text-sm); font-weight:600; white-space:nowrap;">${__('Reissue due on/before')}</span>
 						<div data-due-before style="width:150px;"></div>
-						<span class="text-muted" style="font-size:var(--text-sm);">${__('This date filter drives both tables below. Attrition only affects the Est. for Leavers column — never the Employees Due list.')}</span>
+						<span class="text-muted" style="font-size:var(--text-sm);">${__('This date filter drives both tables below. Attrition only affects the Est. for Leavers column in Stock Plan table.')}</span>
 						<span data-attrition-note style="font-size:var(--text-sm); color:var(--orange-600);"></span>
 					</div>
 				</div>
 			</div></div>
 
-			<!-- HERO: stock purchasing plan (collapsible, open by default) -->
-			<div class="row"><div class="col-12">
-				<div class="frappe-card" style="padding:15px; margin-bottom:15px;">
-					<details data-section="plan" open>
-						<summary style="cursor:pointer; user-select:none;">
-							<h6 style="display:inline; margin:0;">${__('Stock Plan')}
-								<span class="text-muted" data-count="plan"></span></h6>
-						</summary>
-						<div data-table="plan" style="margin-top:10px;"></div>
-					</details>
-				</div>
-			</div></div>
+			
 
 			<!-- Collapsed: employees due for issue -->
 			<div class="row"><div class="col-12">
@@ -72,6 +61,19 @@ frappe.pages['uniform-dashboard'].on_page_load = function (wrapper) {
 							<a href="#" data-open-tracking style="font-size:var(--text-sm); white-space:nowrap;">${__('Open in Uniform Tracking')} →</a>
 						</div>
 						<div data-table="due"></div>
+					</details>
+				</div>
+			</div></div>
+
+			<!-- HERO: stock purchasing plan (collapsible, open by default) -->
+			<div class="row"><div class="col-12">
+				<div class="frappe-card" style="padding:15px; margin-bottom:15px;">
+					<details data-section="plan" open>
+						<summary style="cursor:pointer; user-select:none;">
+							<h6 style="display:inline; margin:0;">${__('Stock Plan')}
+								<span class="text-muted" data-count="plan"></span></h6>
+						</summary>
+						<div data-table="plan" style="margin-top:10px;"></div>
 					</details>
 				</div>
 			</div></div>
@@ -180,7 +182,7 @@ frappe.pages['uniform-dashboard'].on_page_load = function (wrapper) {
 			attrition_info.enabled
 				? __('Est. for Leavers (negative) is MEASURED: last {0} months, {1} leavers missed re-issues (avg {2}/month) × {3} month(s) of this horizon, rounded up. Total = Reissue Need + Est.; Shortfall = Total − Stock. The Employees Due list is never adjusted.',
 					[attrition_info.months || 0, attrition_info.persons || 0,
-						attrition_info.monthly_total || 0, attrition_info.period_months || 0])
+					attrition_info.monthly_total || 0, attrition_info.period_months || 0])
 				: __('Deduct Attrition is OFF in Uniform Setting — Est. for Leavers is 0 and Total equals Reissue Need.')
 		);
 	}

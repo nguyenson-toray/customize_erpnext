@@ -623,7 +623,7 @@ Created {0} profile(s) of {1} employees.,Đã tạo {0} profile trên {1} nhân 
 Clear Selection,Bỏ chọn
 Bottle,Bình nước
 Shoe,Dép
-"This date filter drives both tables below. Attrition only affects the Est. for Leavers column — never the Employees Due list.","Ô lọc ngày này áp cho cả 2 bảng bên dưới. Tỉ lệ nghỉ việc CHỈ ảnh hưởng cột Dự kiến cấp cho NV sẽ nghỉ — KHÔNG bao giờ đụng vào danh sách Employees Due (không thể biết chính xác ai sẽ nghỉ)."
+"This date filter drives both tables below. Attrition only affects the Est. for Leavers column in Stock Plan table.","Bộ lọc ngày này áp dụng cho cả hai bảng bên dưới. Tỷ lệ nghỉ việc chỉ ảnh hưởng đến cột Ước tính cho người nghỉ việc trong bảng "Kế hoạch kho."
 Profile,Hồ sơ
 Open,Mở
 # Overtime Registration dialog (redesign 2026-07-14)
