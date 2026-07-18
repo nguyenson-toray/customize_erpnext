@@ -2771,7 +2771,7 @@
             try {
                 const msg = await callPost('customize_erpnext.api.biometric_sync.machine_sync_time', { machine_name: machineName });
                 if (msg.status !== 'success') throw new Error(msg.message);
-                statusEl.textContent = `✅ ${machineName}: Time synced | Server: ${msg.server_time} | Device: ${msg.device_time}`;
+                statusEl.textContent = `✅ ${machineName}: Time synced | Server: ${msg.server_time} | Device: ${msg.device_time} | Drift: ${msg.drift_seconds}s`;
                 setTimeout(() => { statusEl.textContent = `${_machinesList.length} attendance machines`; }, 6000);
             } catch (e) {
                 statusEl.innerHTML = `<span style="color:#dc3545;">❌ ${escapeHtml(machineName)}: ${escapeHtml(e.message)}</span>`;

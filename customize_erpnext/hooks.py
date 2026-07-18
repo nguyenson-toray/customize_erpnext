@@ -266,6 +266,10 @@ scheduler_events = {
         "30 8 * * 1": [
             "customize_erpnext.uniform_control.api.uniform_scheduler.send_weekly_uniform_alert"
         ],
+        # Attendance machines - Sync clocks every Monday at 05:00 AM
+        "0 5 * * 1": [
+            "customize_erpnext.api.biometric_sync.sync_all_machine_times_scheduled"
+        ],
     }
 }
  

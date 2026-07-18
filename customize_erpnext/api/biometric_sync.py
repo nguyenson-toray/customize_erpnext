@@ -982,35 +982,127 @@ def machine_reboot(machine_name):
 # 9. machine_sync_time
 # ---------------------------------------------------------------------------
 
+# ZMM220 firmware (Ver 6.60) ACKs CMD_SET_TIME and then silently drops it. Small
+# corrections are dropped nearly always; larger ones usually land but not reliably
+# (a measured 20s jump was dropped while a 12s one applied), and a write issued
+# immediately after another is dropped almost every time. So: "kick" the clock 15s
+# further away from the correct time, pause, write the real time, then verify —
+# and repeat until the clock actually moved.
+_TIME_KICK_SECONDS = 15
+# Pause between consecutive writes; back-to-back writes get dropped.
+_TIME_WRITE_PAUSE = 1.0
+# Max |device - server| still considered synced, in seconds.
+_TIME_SYNC_TOLERANCE = 3
+_TIME_SYNC_MAX_ATTEMPTS = 3
+
+
+def _read_device_drift(cfg):
+    """Return (device_time, drift_seconds) on a fresh connection.
+
+    Always use a fresh connection: reading the clock on the same connection that
+    just wrote it returns stale values on this firmware.
+    """
+    from datetime import datetime
+    conn = _connect_zk(cfg)
+    try:
+        server_now = datetime.now()
+        device_time = conn.get_time()
+    finally:
+        try:
+            conn.disconnect()
+        except Exception:
+            pass
+    if not device_time:
+        raise ValueError("Device did not return its clock")
+    return device_time, (device_time - server_now).total_seconds()
+
+
+def _write_device_time(cfg, offset_seconds=0):
+    """Set the device clock to server time plus an optional offset."""
+    from datetime import datetime, timedelta
+    conn = _connect_zk(cfg)
+    try:
+        conn.set_time(datetime.now() + timedelta(seconds=offset_seconds))
+    finally:
+        try:
+            conn.disconnect()
+        except Exception:
+            pass
+
+
 @frappe.whitelist()
 def machine_sync_time(machine_name):
-    """Sync machine clock to current server time."""
+    """Sync machine clock to current server time.
+
+    Verifies the clock actually moved — the device ACKs writes it ignores, so a
+    successful command is not proof of a successful sync.
+    """
     check_biometric_access()
     from datetime import datetime
     try:
         doc = _get_machine_doc(machine_name)
         cfg = _build_zk_device(doc)
-        conn = _connect_zk(cfg)
-        device_time_str = "N/A"
-        try:
-            now = datetime.now()
-            conn.set_time(now)
-            try:
-                device_time = conn.get_time()
-                device_time_str = device_time.strftime("%Y-%m-%d %H:%M:%S") if device_time else "N/A"
-            except Exception:
-                pass
-        finally:
-            conn.disconnect()
-        return {
-            "status": "success",
+
+        device_time, drift = _read_device_drift(cfg)
+        attempts = 0
+
+        while abs(drift) > _TIME_SYNC_TOLERANCE and attempts < _TIME_SYNC_MAX_ATTEMPTS:
+            attempts += 1
+            # Kick away from the correct time, so the write that follows is a large
+            # jump too — the device drops small corrections.
+            _write_device_time(cfg, -_TIME_KICK_SECONDS if drift >= 0 else _TIME_KICK_SECONDS)
+            time.sleep(_TIME_WRITE_PAUSE)
+            _write_device_time(cfg, 0)
+            time.sleep(_TIME_WRITE_PAUSE)
+            device_time, drift = _read_device_drift(cfg)
+
+        synced = abs(drift) <= _TIME_SYNC_TOLERANCE
+        result = {
+            "status": "success" if synced else "error",
             "machine": machine_name,
-            "server_time": now.strftime("%Y-%m-%d %H:%M:%S"),
-            "device_time": device_time_str,
+            "server_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "device_time": device_time.strftime("%Y-%m-%d %H:%M:%S"),
+            "drift_seconds": round(drift, 1),
+            "attempts": attempts,
         }
+        if not synced:
+            result["message"] = f"Clock still off by {drift:+.1f}s after {attempts} attempts"
+        return result
     except Exception as e:
         frappe.log_error(f"machine_sync_time error: {e}")
         return {"status": "error", "message": str(e)}
+
+
+def sync_all_machine_times_scheduled():
+    """Scheduler task: sync the clock on every enabled machine.
+
+    Runs weekly (Monday 05:00) — see scheduler_events in hooks.py. Machines are
+    processed one at a time; one unreachable device must not stop the rest.
+    """
+    results = []
+    for machine in get_machines(enabled_only=True):
+        name = machine["name"]
+        try:
+            res = machine_sync_time(name)
+        except Exception as e:
+            res = {"status": "error", "message": str(e)}
+        results.append((name, res))
+
+    failed = [
+        f"{name}: {res.get('message') or 'unknown error'}"
+        for name, res in results
+        if res.get("status") != "success"
+    ]
+    if failed:
+        frappe.log_error(
+            title="Weekly machine time sync — failures",
+            message="\n".join(failed),
+        )
+    return {
+        "total": len(results),
+        "synced": len(results) - len(failed),
+        "failed": len(failed),
+    }
 
 
 # ---------------------------------------------------------------------------
