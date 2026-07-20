@@ -6,7 +6,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
   <title>Cập nhật thông tin nhân viên</title>
-  <link rel="stylesheet" href="/employee-self-update-info/style.css?v=8">
+  <link rel="stylesheet" href="/employee-self-update-info/style.css?v=10">
 </head>
 
 <body>
@@ -14,7 +14,7 @@
     <img class="logo" src="/assets/customize_erpnext/images/logo_white.png" alt="logo">
     <div class="company" id="company_name"></div>
     <h1>Cập nhật thông tin nhân viên</h1>
-    <p>Kiểm tra thông tin của bạn và cập nhật những mục chưa có thông tin hoặc có thay đổi</p>
+    <p>Kiểm tra và cập nhật những mục còn thiếu hoặc đã thay đổi</p>
   </header>
 
   <div class="wrap">
@@ -34,9 +34,9 @@
     <div class="card hidden" id="verify_card">
       <h2><span class="dot"></span>Xác thực danh tính</h2>
       <div class="field" style="margin-bottom:0">
-        <label class="fl" for="verify_input">Nhập 2 số cuối của <b>ngày sinh</b> của bạn</label>
+        <label class="fl" for="verify_input">Nhập 2 số <brack_display_name>ngày sinh</b> của bạn</label>
         <input type="text" id="verify_input" inputmode="numeric" maxlength="2"
-          placeholder="VD: sinh ngày 05/09 → nhập 05"
+          placeholder="VD: sinh ngày 05 tháng 09 → nhập 05"
           oninput="this.value=this.value.replace(/[^0-9]/g,''); if(this.value.length===2) doVerify();"
           onkeydown="if(event.key==='Enter')doVerify()">
         <div class="hint">Bước này giúp đảm bảo đúng là bạn đang cập nhật thông tin của mình.</div>
@@ -47,7 +47,8 @@
     <!-- Step 2: dynamic form -->
     <div id="form_area" class="hidden">
       <div class="legend">
-        <span class="sw"></span> Ô có (*) là bắt buộc, Ô được tô vàng : Bạn đã thay đổi thông tin
+        <span class="lg-item"><span class="lg-req">*</span> Bắt buộc nhập</span>
+        <span class="lg-item"><span class="sw"></span> Bạn vừa thay đổi</span>
         <span id="status_wrap" style="margin-left:auto"></span>
       </div>
       <div id="sections"></div>
@@ -56,7 +57,8 @@
       <div class="card">
         <h2><span class="dot"></span>Ghi chú thêm</h2>
         <div class="field" style="margin-bottom:0">
-          <label class="fl" for="f__remarks">Nếu có thông tin cần cập nhật thêm, vui lòng ghi vào đây</label>
+          <label class="fl" for="f__remarks">Nếu có thông tin cần cập nhật thêm,các nội dung chưa rõ, thắc mắc vui lòng
+            ghi vào đây</label>
           <textarea id="f__remarks" placeholder="(Không bắt buộc)…"></textarea>
         </div>
       </div>
@@ -66,8 +68,9 @@
     <div id="success_area" class="card success hidden">
       <div class="ico">✅</div>
       <h2>Đã gửi thông tin!</h2>
-      <p class="muted">Cảm ơn bạn. Bộ phận nhân sự sẽ tiếp nhận thông tin này.<br>Bạn có thể tải bản PDF để lưu lại, đối
-        chiếu khi cần.</p>
+      <p class="muted"><strong>Cảm ơn bạn. Bộ phận nhân sự sẽ tiếp nhận thông tin này.<br>Bạn có thể tải bản PDF để lưu
+          lại, đối
+          chiếu khi cần.</strong></p>
       <button class="btn-primary" id="pdf_btn" style="max-width:280px;margin:14px auto 0" onclick="downloadPdf()">📄 Tải
         PDF thông tin đã gửi</button>
       <button style="max-width:280px;margin:10px auto 0;background:#e2e8f0;color:#334155"
@@ -441,12 +444,16 @@
       } else {
         input = `<input type="text" id="${id}" value="${esc(val || "")}"${ph}${valAttrs(f)}${roAttr}>`;
       }
-      // CCCD QR scan — shown only for the CCCD number field; manual input stays.
+      // CCCD — chỉ 2 lựa chọn: quét QR trực tiếp, hoặc nhập tay ở ô bên dưới.
+      // (Đã tạm ẩn tuỳ chọn "Chụp / chọn ảnh CCCD" — xem khối comment bên dưới
+      //  và hàm onCccdPhoto/_decodeImageForQR nếu cần bật lại.)
       const scanUi = (f.fieldname === CCCD_FIELD && !f.read_only)
         ? `<button type="button" class="qr-scan-btn" onclick="openQRScanner()">📷 Quét mã QR trên CCCD</button>
+         <!-- TẠM ẨN — upload ảnh CCCD:
          <button type="button" class="qr-scan-btn alt" onclick="document.getElementById('cccd_photo_input').click()">🖼️ Chụp / chọn ảnh CCCD (nếu quét khó)</button>
          <input type="file" id="cccd_photo_input" accept="image/*" capture="environment" style="display:none" onchange="onCccdPhoto(event)">
-         <div class="hint">Quét QR để điền nhanh số CCCD / ngày cấp / số CMND cũ. QR nhỏ/mờ khó quét trực tiếp thì bấm "Chụp ảnh" để chụp gần & rõ — hoặc nhập tay bên dưới.</div>`
+         -->
+         <div class="hint">Bấm nút trên để quét mã QR — hệ thống tự điền số CCCD, ngày cấp, ngày hết hạn và số CMND cũ. Hoặc bạn nhập tay vào ô bên dưới.</div>`
         : "";
       // Giải thích thêm cho field (cột "Detail" trong Setting) — hiện dưới nhãn.
       const detailUi = f.detail
@@ -828,6 +835,8 @@
     }
 
     // ---------- P5: decode QR from a captured/selected photo (high-res still) ----------
+    // TẠM KHÔNG DÙNG: nút "Chụp / chọn ảnh CCCD" đã được comment trong renderField.
+    // Giữ nguyên các hàm dưới đây để bật lại nhanh khi cần (bỏ comment khối HTML đó).
     function _loadImage(file) {
       return new Promise((resolve, reject) => {
         const url = URL.createObjectURL(file);

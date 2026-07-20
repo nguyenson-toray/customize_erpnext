@@ -294,47 +294,56 @@ function show_setting_help() {
 
   <h5>1. Eligible Employees (nhân viên được phép)</h5>
   <ul>
-    <li>Chọn bộ lọc: <b>Date of Joining</b> / <b>Group</b> / <b>Department</b> / <b>Section</b> → bấm <b>Add Employees</b> để thêm NV Active khớp lọc. <b>Không chọn lọc</b> → hỏi xác nhận rồi thêm <b>toàn bộ NV Active</b>.</li>
+    <li>Chọn bộ lọc <b>Date of Joining</b> / <b>Group</b> / <b>Department</b> / <b>Section</b> → bấm <b>Add Employees</b> để thêm NV Active khớp lọc (nhiều lọc = AND). <b>Không chọn lọc</b> → hỏi xác nhận rồi thêm <b>toàn bộ NV Active</b>.</li>
     <li><b>Clear All</b>: xoá danh sách + reset bộ lọc.</li>
-    <li>Chỉ NV trong bảng này mới cập nhật được.</li>
+    <li>Nhân viên chỉ tự khai được nếu có trong bảng này. <i>Riêng HR mở được bất kỳ nhân viên nào</i> (xem mục 5).</li>
   </ul>
 
   <h5>2. Verification (xác thực)</h5>
   <ul>
-    <li><b>Validate by DOB</b>: bắt NV nhập <b>2 số cuối ngày sinh</b> trước khi xem/gửi (chống spam, tránh sửa nhầm người).</li>
-    <li><b>Bypass Code</b> (chỉ Administrator thấy): mã 2 chữ số thay cho ngày sinh khi DOB trong hệ thống bị sai.</li>
+    <li><b>Validate by DOB</b>: NV phải nhập <b>2 chữ số ngày sinh</b> trước khi xem/gửi (chống spam, tránh sửa nhầm người). Gõ đủ 2 số đúng là vào thẳng, không cần bấm nút.</li>
+    <li><b>Áp dụng cho MỌI người, kể cả HR/Admin</b> — không có ngoại lệ theo quyền.</li>
+    <li><b>Bypass Code</b> (mã 2 chữ số, chỉ Administrator thấy): dùng thay ngày sinh. <b>HR dùng mã này để mở bất kỳ nhân viên nào</b> mà không cần biết ngày sinh từng người; cũng dùng khi ngày sinh trong hệ thống bị sai.</li>
   </ul>
 
   <h5>3. Fields shown to employees (Selected Fields) — <i>quyết định field hiển thị</i></h5>
   <ul>
     <li><b>+ Add Employee Field</b>: chọn field bất kỳ của Employee (kể cả custom field).</li>
-    <li><b>+ Add Custom Field</b>: field tự do KHÔNG thuộc Employee (chỉ lưu trong bản khai).</li>
-    <li>Cột trong bảng:
+    <li><b>+ Add Custom Field</b>: field tự do KHÔNG thuộc Employee (chỉ lưu trong bản khai, không sync).</li>
+    <li>Các cột:
       <ul>
         <li><b>Label (Tiếng Việt)</b>: nhãn hiển thị; trống → dùng nhãn gốc của field.</li>
-        <li><b>Detail</b>: ghi chú giải thích thêm, hiện ngay dưới nhãn trên trang NV (xuống dòng + link bấm được).</li>
-        <li><b>Placeholder</b>: chữ gợi ý mờ trong ô trống (VD "12 chữ số"). Không áp cho ô ngày/chọn/checkbox.</li>
-        <li><b>Section</b>: các field cùng Section gom vào 1 nhóm trên trang.</li>
+        <li><b>Detail</b>: ghi chú giải thích, hiện dưới nhãn (xuống dòng được; link tự bấm được).</li>
+        <li><b>Placeholder</b>: chữ gợi ý mờ trong ô trống (VD "12 chữ số"). Không áp cho ô ngày / chọn / checkbox.</li>
+        <li><b>Section</b>: các field cùng Section gom thành 1 nhóm trên trang.</li>
         <li><b>Widget</b>: <i>Auto</i> thông thường; <i>Address Province</i> / <i>Address Ward</i> cho địa chỉ (Tỉnh → Phường/Xã).</li>
-        <li><b>Required</b>: bắt buộc nhập. <b>Read Only</b>: chỉ cho xem. <b>Enable</b>: tắt để ẩn field mà không xoá.</li>
-        <li><b>Validation</b>: Digits / Phone / Email / CCCD (12 số) / CMND (9 số) / Past (ngày ≤ hôm nay) / Future (ngày ≥ hôm nay) / Regex; kèm Min/Max Length.</li>
+        <li><b>Required</b> bắt buộc · <b>Read Only</b> chỉ xem · <b>Enable</b> tắt để ẩn field mà không xoá.</li>
+        <li><b>Validation</b>: Digits / Phone / Email / CCCD (12 số) / CMND (9 số) / Past (ngày ≤ hôm nay) / Future (ngày ≥ hôm nay) / Regex; kèm Min–Max Length. Kiểm cả ở máy NV và ở server.</li>
       </ul>
     </li>
   </ul>
 
   <h5>4. New-Join Preset</h5>
   <ul>
-    <li>Bảng field mẫu cho nhân viên mới. Nút <b>Fill Selected Fields from Preset</b> sẽ <b>thay thế</b> toàn bộ Selected Fields bằng preset.</li>
+    <li>Bảng field mẫu cho nhân viên mới. Nút <b>Fill Selected Fields from Preset</b> <b>thay thế</b> toàn bộ Selected Fields bằng preset (có hỏi xác nhận).</li>
   </ul>
 
-  <h5>5. Chia sẻ & kết xuất</h5>
+  <h5>5. Duyệt &amp; đồng bộ về Employee (doctype <i>Employee Self Update Info</i>)</h5>
+  <ul>
+    <li>Trạng thái: <b>Draft → Submitted → Reviewed → Synced</b>. <b>Phải Review trước thì mới Sync được.</b></li>
+    <li><b>List view</b>: chọn record → <b>Mark Reviewed</b>, <b>Sync to Employee</b> (chạy hàng loạt, hiện bảng kết quả từng NV kèm lỗi nếu có), <b>Download Excel</b>.</li>
+    <li><b>Form view</b>: <b>Mark Reviewed</b> → <b>Sync to Employee</b>; nút <b>Edit in Portal</b> mở trang khai của chính NV đó để HR sửa hộ (HR nhập <b>Bypass Code</b> ở bước xác thực). HR sửa xong gửi lại → quay về <b>Submitted</b>, cần review lại.</li>
+    <li>Khi Sync: <b>chỉ ghi các field thuộc Employee</b> (kể cả custom_); custom field tự do và Ghi chú <b>không</b> ghi vào Employee. Địa chỉ đầy đủ được dựng lại tự động.</li>
+  </ul>
+
+  <h5>6. Chia sẻ &amp; kết xuất</h5>
   <ul>
     <li><b>Mã QR + link</b> ở đầu form: gửi cho NV để tự khai.</li>
-    <li>List <i>Employee Self Update Info</i> → <b>Download Excel</b> (2 sheet New/Old, dùng import lại vào Employee). NV có thể <b>tải PDF</b> sau khi gửi.</li>
-    <li>Quét/chụp <b>QR CCCD</b> tự điền số CCCD, ngày cấp, CMND cũ, ngày sinh & tự tính ngày hết hạn.</li>
+    <li><b>Download Excel</b>: chọn record → chỉ record đã chọn; không chọn → tất cả. File 2 sheet (New/Old) dùng import ngược vào Employee được.</li>
+    <li>NV có thể <b>tải PDF</b> sau khi gửi. Trên trang, NV <b>quét mã QR trên CCCD</b> để tự điền số CCCD / ngày cấp / ngày hết hạn / số CMND cũ / ngày sinh — hoặc nhập tay.</li>
   </ul>
 
-  <p style="color:#b45309"><b>Lưu ý:</b> mọi thay đổi phải bấm <b>Save</b> mới có hiệu lực. Dữ liệu NV khai <b>không</b> tự ghi vào Employee — chỉ export/PDF.</p>
+  <p style="color:#b45309"><b>Lưu ý:</b> mọi thay đổi trong Setting phải bấm <b>Save</b> mới có hiệu lực. Dữ liệu NV khai <b>không tự động</b> ghi vào Employee — chỉ ghi khi HR bấm <b>Sync to Employee</b> (sau khi Review).</p>
 </div>`;
 	const d = new frappe.ui.Dialog({
 		title: __("Hướng dẫn sử dụng"),
