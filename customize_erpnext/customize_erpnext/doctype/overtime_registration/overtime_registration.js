@@ -4,9 +4,11 @@
 frappe.ui.form.on("Overtime Registration", {
     refresh(frm) {
         // Hide Print button if document is not submitted
-        frappe.db.get_single_value('Attendance Calculation Setting', 'include_draft_ot')
-            .then(val => {
-                console.log("Attendance Calculation Setting: include_draft_ot :", val);
+        frappe.call({
+            method: 'customize_erpnext.customize_erpnext.doctype.overtime_registration.overtime_registration_hooks.get_include_draft_ot'
+        })
+            .then(r => {
+                const val = r.message;
                 if (val === 0 && frm.doc.docstatus != 1) {
                     $("button[data-original-title=Print]").hide();
                     frm.page.menu.find('[data-label="Print"]').parent().parent().remove();
@@ -1119,13 +1121,10 @@ function show_ot_pivot_dialog(frm) {
     // Note column: maternity flags per employee, matched against the pivot's
     // OT dates (pregnant phase / child under 12 months). Filled asynchronously;
     // silently empty if the user cannot read Employee Maternity.
-    frappe.xcall('frappe.client.get_list', {
-        doctype: 'Employee Maternity',
-        filters: { employee: ['in', Array.from(byEmployee.keys())] },
-        fields: ['employee', 'pregnant_from_date', 'pregnant_to_date',
-            'youg_child_from_date', 'youg_child_to_date'],
-        limit_page_length: 0
-    }).then(records => {
+    frappe.xcall(
+        'customize_erpnext.customize_erpnext.doctype.overtime_registration.overtime_registration.get_maternity_flags',
+        { employees: Array.from(byEmployee.keys()) }
+    ).then(records => {
         const flags_by_emp = {};
         (records || []).forEach(r => {
             const flags = flags_by_emp[r.employee] = flags_by_emp[r.employee] || { pregnant: false, young: false };

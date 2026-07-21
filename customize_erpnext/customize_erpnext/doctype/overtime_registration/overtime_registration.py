@@ -954,3 +954,31 @@ def validate_ot_entries_continuity(entries, strict_mode=False):
             })
 
     return errors
+
+@frappe.whitelist()
+def get_maternity_flags(employees):
+	"""Return maternity/childcare date ranges for the given employees.
+
+	Whitelisted so staff filling in an Overtime Registration can see the pivot's
+	maternity note column without holding read permission on Employee Maternity.
+	The client-side `frappe.client.get_list` used previously raised
+	"Insufficient Permission for Employee Maternity" for non-admin users.
+	Uses frappe.get_all (no per-doc permission check) and exposes only the few
+	date fields the pivot needs.
+	"""
+	if isinstance(employees, str):
+		employees = frappe.parse_json(employees)
+	if not employees:
+		return []
+
+	return frappe.get_all(
+		"Employee Maternity",
+		filters={"employee": ["in", employees]},
+		fields=[
+			"employee",
+			"pregnant_from_date",
+			"pregnant_to_date",
+			"youg_child_from_date",
+			"youg_child_to_date",
+		],
+	)

@@ -227,3 +227,18 @@ def recalculate_attendance_for_overtime_registration(overtime_registration_name)
 	update_attendance_on_overtime_change(doc, "manual_recalculation")
 
 	return {"success": True, "message": "Attendance recalculated successfully"}
+
+
+@frappe.whitelist()
+def get_include_draft_ot():
+	"""Return the `include_draft_ot` flag from Attendance Calculation Setting.
+
+	Exposed as a lightweight whitelisted endpoint so non-admin users (e.g. staff
+	filling in an Overtime Registration) can read just this display flag without
+	needing read permission on the whole settings Single doctype. The previous
+	client-side `frappe.db.get_single_value(...)` call raised PermissionError for
+	such users (see Error Log uc1eqn2sj7).
+	"""
+	return frappe.utils.cint(
+		frappe.db.get_single_value("Attendance Calculation Setting", "include_draft_ot")
+	)
