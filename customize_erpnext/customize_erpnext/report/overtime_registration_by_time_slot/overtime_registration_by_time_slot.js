@@ -1,7 +1,7 @@
 // Copyright (c) 2026, IT Team - TIQN and contributors
 // For license information, please see license.txt
 
-frappe.query_reports["Overtime by Time Slot"] = {
+frappe.query_reports["Overtime Registration by Time Slot"] = {
 	"filters": [
 		{
 			"fieldname": "from_date",

@@ -1,7 +1,7 @@
 {
  "app": "customize_erpnext",
  "charts": [],
- "content": "[{\"id\":\"tiqn_header_1\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Your Shortcuts</b></span>\",\"col\":12}},{\"id\":\"tiqn_spacer_1\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"gg0jkb55vq\",\"type\":\"card\",\"data\":{\"card_name\":\"OT\",\"col\":4}},{\"id\":\"2r1vZ-j4ag\",\"type\":\"card\",\"data\":{\"card_name\":\"Employee Item Reissue\",\"col\":4}},{\"id\":\"s0wHG4LpHp\",\"type\":\"card\",\"data\":{\"card_name\":\"Vehicle\",\"col\":4}},{\"id\":\"_GhwyCa-Ws\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"XHqsd18WfF\",\"type\":\"card\",\"data\":{\"card_name\":\"Shoe Rack\",\"col\":4}},{\"id\":\"IE7s3_-H7x\",\"type\":\"card\",\"data\":{\"card_name\":\"Uniform\",\"col\":4}},{\"id\":\"JYHF73fCnD\",\"type\":\"card\",\"data\":{\"card_name\":\"Employee Self Update Info\",\"col\":4}}]",
+ "content": "[{\"id\":\"tiqn_header_1\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Your Shortcuts</b></span>\",\"col\":12}},{\"id\":\"tiqn_spacer_1\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"gg0jkb55vq\",\"type\":\"card\",\"data\":{\"card_name\":\"Overtime\",\"col\":4}},{\"id\":\"2r1vZ-j4ag\",\"type\":\"card\",\"data\":{\"card_name\":\"Employee Item Reissue\",\"col\":4}},{\"id\":\"s0wHG4LpHp\",\"type\":\"card\",\"data\":{\"card_name\":\"Vehicle\",\"col\":4}},{\"id\":\"_GhwyCa-Ws\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"XHqsd18WfF\",\"type\":\"card\",\"data\":{\"card_name\":\"Shoe Rack\",\"col\":4}},{\"id\":\"IE7s3_-H7x\",\"type\":\"card\",\"data\":{\"card_name\":\"Uniform\",\"col\":4}},{\"id\":\"JYHF73fCnD\",\"type\":\"card\",\"data\":{\"card_name\":\"Employee Self Update Info\",\"col\":4}}]",
  "creation": "2026-01-29 13:19:43.446927",
  "custom_blocks": [],
  "docstatus": 0,
@@ -226,7 +226,7 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "OT",
+   "label": "Overtime",
    "link_count": 4,
    "link_type": "DocType",
    "onboard": 0,
@@ -267,15 +267,15 @@
   {
    "hidden": 0,
    "is_query_report": 1,
-   "label": "Overtime by Time Slot",
+   "label": "Overtime Registration by Time Slot",
    "link_count": 0,
-   "link_to": "Overtime by Time Slot",
+   "link_to": "Overtime Registration by Time Slot",
    "link_type": "Report",
    "onboard": 0,
    "type": "Link"
   }
  ],
- "modified": "2026-07-21 10:29:46.572281",
+ "modified": "2026-07-21 14:23:27.593900",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "TIQN App",

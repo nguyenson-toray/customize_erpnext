@@ -87,7 +87,7 @@ def get_data(filters):
 		{section_join}
 		{where_clause}
 		GROUP BY detail.begin_time, detail.end_time
-		ORDER BY employees DESC, detail.begin_time
+		ORDER BY registrations DESC, detail.begin_time
 	"""
 
 	rows = frappe.db.sql(query, values, as_dict=True)
@@ -106,17 +106,29 @@ def _slot_label(begin, end):
 	return f"{fmt(begin)} - {fmt(end)}"
 
 
+# Bars shown on the report page. This chart lives on the REPORT PAGE, not on a
+# dashboard: the query-report view rebuilds the chart from scratch on every
+# filter change (empty + new frappe.Chart), while the dashboard widget re-renders
+# Bar/Line via frappe-charts .update(), which piles up DOM and freezes the
+# browser on this dataset. The report page path never hits .update().
+CHART_TOP_N = 12
+
+
 def get_chart(data):
 	if not data:
 		return None
 
-	# One bar per slot, all of them, ordered by headcount (data is already
-	# sorted by employees DESC).
+	# Registrations = person-day entries = meals to provision. Top slots only for
+	# readability; the table below still lists every slot with exact counts.
+	rows = sorted(data, key=lambda r: r["registrations"], reverse=True)[:CHART_TOP_N]
 	return {
 		"data": {
-			"labels": [r["time_slot"] for r in data],
-			"datasets": [{"name": _("Employees"), "values": [r["employees"] for r in data]}],
+			"labels": [r["time_slot"] for r in rows],
+			"datasets": [{"name": _("Registrations"), "values": [r["registrations"] for r in rows]}],
 		},
 		"type": "bar",
 		"colors": ["#4F9DD9"],
+		"valuesOverPoints": 1,  # show the count on top of each bar
 	}
+
+

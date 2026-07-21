@@ -30,10 +30,6 @@
    "width": "Half"
   },
   {
-   "chart": "Overtime by Time Slot",
-   "width": "Full"
-  },
-  {
    "chart": "New Hires",
    "width": "Full"
   },
@@ -61,7 +57,7 @@
  "idx": 0,
  "is_default": 0,
  "is_standard": 1,
- "modified": "2026-07-21 10:31:10.581399",
+ "modified": "2026-07-21 13:26:03.524888",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "HR Overview",
