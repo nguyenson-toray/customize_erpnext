@@ -26,7 +26,6 @@ Material Receipt - Quick Add, Thêm nhanh - Nhập NPL
 Must have space after % and before attribute value (To avoid confusion between Xl & Xxl),Phải có khoảng trắng sau % và trước giá trị thuộc tính (Để tránh nhầm lẫn giữa Xl & Xxl)
 Minimum required: item_name,Tối thiểu yêu cầu: item_name
 
-# Overtime Registration Translations
 Overtime Registration,Đăng ký tăng ca
 Request By,Người yêu cầu
 Request Date,Ngày yêu cầu
@@ -126,7 +125,6 @@ From,Từ
 To,Đến
 Begin, Bắt đầu
 End, Kết thúc
-# Shift Registration Translations
 Remove Empty Rows,Xóa các hàng trống
 Removed {0} empty rows,Đã xóa {0} hàng trống
 No empty rows found,Không tìm thấy hàng trống
@@ -141,7 +139,6 @@ Row {0}: Only \Shift 1\ and \Shift 2\ are allowed. Found: {1},Dòng {0}: Chỉ c
 Row {0}: Only \{1}\ and \{2}\ are allowed. Found: {3},Dòng {0}: Chỉ cho phép \{1}\ và \{2}\. Tìm thấy: {3}
 Shift 1,Ca 1
 Shift 2,Ca 2
-# Report Labels
 Hours,Giờ
 Time Begin,Giờ bắt đầu
 Time End,Giờ kết thúc
@@ -150,7 +147,6 @@ Total Hours (Submitted),Tổng số giờ (Đã gửi)
 Total Employee (Draft),Tổng số nhân viên (Bản nháp)
 Total Hours (Draft),Tổng số giờ (Bản nháp)
 No Group,Không có nhóm
-# Additional common translations
 Registered Groups,Nhóm đã đăng ký
 Select Employees from Group: ,Chọn nhân viên từ nhóm: 
 Select Employees from Group: {0},Chọn nhân viên từ nhóm: {0}
@@ -158,12 +154,10 @@ Current user does not have a valid {0} value,Người dùng hiện tại không 
 You can only select employees from your own group: {0},Bạn chỉ có thể chọn nhân viên từ nhóm của mình: {0}
 Error loading employees,Lỗi tải danh sách nhân viên
 Unknown error,Lỗi không xác định
-# Workspace and Menu Translations
 Shift Registration,Đăng ký ca làm việc
 Reports & Masters,Báo cáo & Danh mục
 Overtime Registration Report,Báo cáo đăng ký tăng ca
 Overtime Registration Quantity,Số lượng đăng ký tăng ca
-# Vehicle Trip Translations
 Daily employee pickup,Đón CNV hàng ngày
 Daily employeed dropoff,Trả CNV hàng ngày
 No vehicles with fixed locations found,Không tìm thấy xe có địa điểm cố định
@@ -196,7 +190,6 @@ SUMMARY: Created {0} trips for {1},TỔNG KẾT: Đã tạo {0} chuyến cho {1}
 Error creating trips for vehicle {0}: {1},Lỗi khi tạo chuyến cho xe {0}: {1}
 Created daily {0} trip for vehicle {1} at {2} for date {3},Đã tạo chuyến {0} hàng ngày cho xe {1} lúc {2} cho ngày {3}
 Error creating {0} trip for {1} on {2}: {3},Lỗi khi tạo chuyến {0} cho {1} vào ngày {2}: {3}
-# Vehicle Trip DocType Translations
 seats,chỗ ngồi
 Finish km ({0}) must be greater than start km ({1}),Số km kết thúc ({0}) phải lớn hơn số km bắt đầu ({1})
 Invalid km error,Lỗi số km không hợp lệ
@@ -214,7 +207,6 @@ Daily Pick-up,Đón hàng ngày
 Daily Drop-off,Trả hàng ngày
 Vehicle Trips,Hành trình xe
 You are not assigned to this trip. You can view but cannot edit.,Bạn không được phân công cho chuyến đi này. Bạn có thể xem nhưng không thể chỉnh sửa.
-# Vehicle Trip JS Translations
 Start Trip,Bắt đầu chuyến
 Finish Trip,Hoàn thành chuyến
 Vui lòng chọn xe trước,Vui lòng chọn xe trước
@@ -239,7 +231,6 @@ Hoàn thành,Hoàn thành
 Số km kết thúc phải lớn hơn số km bắt đầu,Số km kết thúc phải lớn hơn số km bắt đầu
 Chuyến đi đã hoàn thành,Chuyến đi đã hoàn thành
 Clear,Xóa
-# Job Portal - Job Openings page
 Job Openings,Các vị trí tuyển dụng
 "Search job titles, keywords...","Tìm kiếm vị trí, từ khóa..."
 Open Positions,Vị trí đang tuyển
@@ -253,7 +244,6 @@ Closes:,Hạn chót:
 Apply,Áp dụng
 result,kết quả
 results,kết quả
-# Job Portal - Job Detail page
 Apply Now,Ứng tuyển ngay
 Opening closed.,Đã đóng tuyển dụng.
 Location,Địa điểm
@@ -263,13 +253,11 @@ Employment Type,Loại hình
 Applications Received,Đơn đã nhận
 Closes On,Hạn chót
 Closed On,Đã đóng
-# Job Portal - Job Application form
 Job Application,Đơn ứng tuyển
 Click to upload or drag and drop,Nhấp để tải lên hoặc kéo thả
 Please enter a valid email address,Vui lòng nhập địa chỉ email hợp lệ
 Please enter a valid phone number,Vui lòng nhập số điện thoại hợp lệ
 Submitting...,Đang gửi...
-# Job Portal - Frappe web form built-in strings
 Submit,Gửi đơn
 Discard,Hủy bỏ
 Thank you for applying.,Cảm ơn bạn đã ứng tuyển.
@@ -626,7 +614,6 @@ Shoe,Dép
 "This date filter drives both tables below. Attrition only affects the Est. for Leavers column in Stock Plan table.","Bộ lọc ngày này áp dụng cho cả hai bảng bên dưới. Tỷ lệ nghỉ việc chỉ ảnh hưởng đến cột Ước tính cho người nghỉ việc trong bảng "Kế hoạch kho."
 Profile,Hồ sơ
 Open,Mở
-# Overtime Registration dialog (redesign 2026-07-14)
 Select employees and days to see the total,Chọn nhân viên và ngày để xem tổng
 {0} employees × {1} days × {2} h/day,{0} nhân viên × {1} ngày × {2} giờ/ngày
 {0} man-hours,{0} giờ công
@@ -649,7 +636,6 @@ Begin Time must be before End Time,Giờ bắt đầu phải trước giờ kế
 "No overtime entries yet","Chưa có dòng đăng ký tăng ca nào"
 "{0} employee(s) · {1} day(s) · {2} row(s)","{0} nhân viên · {1} ngày · {2} dòng"
 "Sun","CN"
-# OT Registration — pivot columns + English-first sweep (2026-07-16)
 "No.","STT"
 "Employee","Nhân viên"
 "Row","Dòng"
