@@ -2464,4 +2464,104 @@ def custom_process_auto_attendance_for_all_shifts(employees=None, days=None):
 	}
 
 
+# ============================================================================
+# WEEKLY SCHEDULED RECALCULATION (Sunday 00:00)
+# ============================================================================
+
+_WEEKDAY_FIELDS = {
+	0: "auto_recalc_mon",
+	1: "auto_recalc_tue",
+	2: "auto_recalc_wed",
+	3: "auto_recalc_thu",
+	4: "auto_recalc_fri",
+	5: "auto_recalc_sat",
+	6: "auto_recalc_sun",
+}
+
+
+def weekly_recalculate_attendance_scheduled():
+	"""Weekly attendance recalculation driven by Attendance Calculation Setting.
+
+	Scheduled hourly; runs the actual recalc only when ALL of these hold:
+	- ``auto_recalc_enabled`` is ON
+	- today's weekday is one of the selected ``auto_recalc_*`` days
+	- the current hour equals the hour of ``auto_recalc_time`` (minutes ignored)
+	- today's day-of-month is >= 5 (payroll cycle guard, closed period is not
+	  disturbed too early)
+
+	When it runs it sets ``process_attendance_after`` = the 26th of the PREVIOUS
+	month for every auto-attendance Shift Type (a permanent change), then force-
+	recalculates all attendance from that date through today.
+
+	Note on ordering: bulk_update_attendance_optimized() backs up and restores
+	each shift's process_attendance_after around its run, so we set the new
+	permanent value FIRST; the restore then puts back the value we just set.
+	"""
+	settings = frappe.get_cached_doc("Attendance Calculation Setting")
+
+	if not cint(settings.auto_recalc_enabled):
+		return
+
+	now = datetime.now()
+	today = getdate(now)
+
+	# Weekday gate
+	weekday_field = _WEEKDAY_FIELDS[today.weekday()]
+	if not cint(settings.get(weekday_field)):
+		return
+
+	# Hour gate (poll is hourly; only the hour of Run Time matters)
+	run_time = settings.auto_recalc_time
+	run_hour = get_time(run_time).hour if run_time else 0
+	if now.hour != run_hour:
+		return
+
+	if today.day < 5:
+		print(f"⏭ weekly_recalculate_attendance_scheduled: day {today.day} < 5, skipping")
+		return
+
+	# 26th of the previous month
+	last_day_prev_month = today.replace(day=1) - timedelta(days=1)
+	process_after = last_day_prev_month.replace(day=26)
+
+	print(
+		f"🗓 weekly_recalculate_attendance_scheduled: setting process_attendance_after="
+		f"{process_after} and recalculating up to {today}"
+	)
+
+	# 1) Permanently update process_attendance_after for all auto-attendance shifts
+	shift_names = frappe.get_all(
+		"Shift Type", filters={"enable_auto_attendance": 1}, pluck="name"
+	)
+	if not shift_names:
+		print("⚠ No auto-attendance Shift Types found; nothing to do")
+		return
+
+	for shift_name in shift_names:
+		frappe.db.set_value(
+			"Shift Type", shift_name, "process_attendance_after", process_after,
+			update_modified=False,
+		)
+	frappe.db.commit()
+
+	# 2) Force full recalculation from process_after -> today (Bulk Update Attendance)
+	try:
+		result = bulk_update_attendance_optimized(
+			from_date=str(process_after), to_date=str(today), force_sync=1
+		)
+		stats = (result or {}).get("result", {})
+		print(
+			f"✅ weekly_recalculate_attendance_scheduled done: "
+			f"{stats.get('actual_records')} records, "
+			f"{stats.get('shifts_processed')} shifts, "
+			f"{stats.get('processing_time')}s"
+		)
+	except Exception as e:
+		frappe.log_error(
+			f"weekly_recalculate_attendance_scheduled failed: {e}",
+			"Weekly Attendance Recalc",
+		)
+		raise
+
+
 print("✅ Shift Type Optimized (Hybrid) loaded successfully")

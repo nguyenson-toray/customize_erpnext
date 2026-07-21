@@ -259,6 +259,13 @@ scheduler_events = {
             "customize_erpnext.overrides.employee.employee.auto_mark_employees_as_left",
             "customize_erpnext.customize_erpnext.doctype.employee_maternity.employee_maternity.scheduled_calculate_all_maternity_statuses",
         ],
+        # Weekly attendance recalculation - polled hourly, gated by
+        # Attendance Calculation Setting (enable + weekdays + run-time hour).
+        # When it fires (and day-of-month >= 5): set process_attendance_after =
+        # 26th of previous month for all shift types, then force bulk recalc.
+        "0 * * * *": [
+            "customize_erpnext.overrides.shift_type.shift_type_optimized.weekly_recalculate_attendance_scheduled"
+        ],
         # NVR / CCTV Monitor - Every day at 07:00 (gap_days=1, min_gap=10)
         "0 7 * * *": [
             "customize_erpnext.network.utils.monitor_runner.run_all_nvr_daily"

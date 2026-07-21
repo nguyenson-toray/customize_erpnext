@@ -17,6 +17,18 @@
   "recalc_attendance_on_maternity_change",
   "column_break_rula",
   "recalc_attendance_on_checkin_change",
+  "weekly_recalc_section",
+  "auto_recalc_enabled",
+  "auto_recalc_time",
+  "column_break_weekly1",
+  "auto_recalc_mon",
+  "auto_recalc_tue",
+  "auto_recalc_wed",
+  "auto_recalc_thu",
+  "column_break_weekly2",
+  "auto_recalc_fri",
+  "auto_recalc_sat",
+  "auto_recalc_sun",
   "shift_processing_section",
   "default_shift",
   "employee_id_prefix",
@@ -113,6 +125,84 @@
    "fieldname": "recalc_attendance_on_checkin_change",
    "fieldtype": "Check",
    "label": "Recalc Attendance on Checkin Save/Delete"
+  },
+  {
+   "description": "Weekly scheduled full recalculation. When enabled and today matches a selected weekday at the Run Time hour, and the day-of-month is >= 5, set process_attendance_after = 26th of the previous month for all auto-attendance Shift Types and force a bulk recalculation up to today. The scheduler polls hourly, so only the HOUR of Run Time matters (minutes ignored)",
+   "fieldname": "weekly_recalc_section",
+   "fieldtype": "Section Break",
+   "label": "Weekly Auto Recalc (Scheduled)"
+  },
+  {
+   "default": "0",
+   "description": "Master switch for the weekly scheduled recalculation",
+   "fieldname": "auto_recalc_enabled",
+   "fieldtype": "Check",
+   "label": "Enable Weekly Auto Recalc"
+  },
+  {
+   "default": "00:00:00",
+   "depends_on": "auto_recalc_enabled",
+   "description": "Hour of day the recalc runs on selected weekdays (minutes ignored; the job polls hourly)",
+   "fieldname": "auto_recalc_time",
+   "fieldtype": "Time",
+   "label": "Run Time"
+  },
+  {
+   "fieldname": "column_break_weekly1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "depends_on": "auto_recalc_enabled",
+   "fieldname": "auto_recalc_mon",
+   "fieldtype": "Check",
+   "label": "Monday"
+  },
+  {
+   "default": "0",
+   "depends_on": "auto_recalc_enabled",
+   "fieldname": "auto_recalc_tue",
+   "fieldtype": "Check",
+   "label": "Tuesday"
+  },
+  {
+   "default": "0",
+   "depends_on": "auto_recalc_enabled",
+   "fieldname": "auto_recalc_wed",
+   "fieldtype": "Check",
+   "label": "Wednesday"
+  },
+  {
+   "default": "0",
+   "depends_on": "auto_recalc_enabled",
+   "fieldname": "auto_recalc_thu",
+   "fieldtype": "Check",
+   "label": "Thursday"
+  },
+  {
+   "fieldname": "column_break_weekly2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "depends_on": "auto_recalc_enabled",
+   "fieldname": "auto_recalc_fri",
+   "fieldtype": "Check",
+   "label": "Friday"
+  },
+  {
+   "default": "0",
+   "depends_on": "auto_recalc_enabled",
+   "fieldname": "auto_recalc_sat",
+   "fieldtype": "Check",
+   "label": "Saturday"
+  },
+  {
+   "default": "1",
+   "depends_on": "auto_recalc_enabled",
+   "fieldname": "auto_recalc_sun",
+   "fieldtype": "Check",
+   "label": "Sunday"
   },
   {
    "fieldname": "shift_processing_section",
