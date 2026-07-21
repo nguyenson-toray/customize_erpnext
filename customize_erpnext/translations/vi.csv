@@ -25900,3 +25900,21 @@ Days,Số ngày
 All (except Cancelled),Tất cả (trừ đã huỷ)
 Weekly Auto Recalc (Scheduled),Tự động tính lại hàng tuần (theo lịch)
 Enable Weekly Auto Recalc,Bật tự động tính lại hàng tuần
+
+# Overtime Registration — list Help dialog (2026-07-21)
+"How to register overtime","Hướng dẫn đăng ký tăng ca"
+"Create the request","Tạo phiếu đăng ký"
+"Click <b>+ Overtime Registration (+ Thêm đăng ký tăng ca)</b> (top right of this list) to open a new form.","Bấm <b>+ Overtime Registration (+ Thêm đăng ký tăng ca)</b> (góc phải phía trên danh sách này) để mở phiếu mới."
+"Get the employees","Lấy danh sách nhân viên"
+"Click <b>{0}</b>, then in the window that opens: pick a <b>Group</b>, a <b>Week</b>, one or more <b>days</b>, the <b>begin/end time</b> and the <b>reason</b>.","Bấm <b>{0}</b>, sau đó trong hộp thoại mở ra: chọn <b>Nhóm</b>, <b>Tuần</b>, một hoặc nhiều <b>ngày</b>, <b>giờ bắt đầu/kết thúc</b> và <b>lý do</b>."
+"On the right side, tick the employees to add (type a name or ID to search).","Bên phải, tick chọn nhân viên cần thêm (gõ tên hoặc mã để tìm nhanh)."
+"Add and repeat","Thêm và lặp lại"
+"Click <b>Add Selected</b> — the rows are written immediately and the window stays open.","Bấm <b>Add Selected</b> (Thêm đã chọn) — dữ liệu được ghi ngay và hộp thoại vẫn mở."
+"Need another day, time or group? Just choose again and click Add Selected — no need to start over.","Muốn đăng ký thêm ngày khác, giờ khác hoặc nhóm khác? Chỉ cần chọn lại rồi bấm Add Selected — không cần mở lại từ đầu."
+"If an entry matches one already in the list (same employee, same date, same/overlapping time), the system asks whether to replace it or keep the existing one.","Nếu dữ liệu trùng với dòng đã có (cùng nhân viên, cùng ngày, giờ trùng hoặc giao nhau), hệ thống sẽ hỏi thay thế hay giữ nguyên dòng cũ."
+"Check and save","Kiểm tra và lưu"
+"Click <b>Close</b> when done. Review the list — use <b>Pivot View</b> to see everyone at a glance — then click <b>Save</b>.","Xong hết thì bấm <b>Close</b> (Đóng). Kiểm tra lại danh sách — dùng <b>Pivot View</b> để xem tổng hợp toàn bộ — rồi bấm <b>Save</b> (Lưu)."
+"Send for approval","Gửi duyệt"
+"Click <b>Submit</b>. Found a mistake after submitting? Use <b>Cancel</b>, then <b>Amend</b> to correct it and submit again.","Bấm <b>Submit</b> (Gửi). Phát hiện sai sau khi gửi? Dùng <b>Cancel</b> (Hủy) rồi <b>Amend</b> (Sửa đổi) để chỉnh sửa và gửi lại."
+"Want screenshots? See the {0} course.","Cần xem hình minh họa? Xem khóa học {0}."
+"Got it","Đã hiểu"
