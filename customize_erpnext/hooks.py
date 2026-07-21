@@ -86,7 +86,8 @@ fixtures = [
                 "Leave Application",
                 "Job Applicant",
                 "Designation",
-                "Batch"
+                "Batch",
+                "Employee Maternity"
             ]],
             ["fieldname", "like", "custom%"]
         ]

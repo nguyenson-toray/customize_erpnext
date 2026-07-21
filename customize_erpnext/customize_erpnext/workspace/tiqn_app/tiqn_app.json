@@ -17,48 +17,6 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "OT",
-   "link_count": 3,
-   "link_to": "Overtime Registration",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Card Break"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Overtime Registration",
-   "link_count": 0,
-   "link_to": "Overtime Registration",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Overtime Registration Report",
-   "link_count": 0,
-   "link_to": "Overtime Registration",
-   "link_type": "Report",
-   "onboard": 0,
-   "report_ref_doctype": "Overtime Registration",
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Overtime Registration Quantity Report",
-   "link_count": 0,
-   "link_to": "Overtime Registration Quantity",
-   "link_type": "Report",
-   "onboard": 0,
-   "report_ref_doctype": "Overtime Registration",
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
    "label": "Employee Item Reissue",
    "link_count": 2,
    "link_to": "Employee Item Reissue",
@@ -264,9 +222,60 @@
    "link_type": "DocType",
    "onboard": 0,
    "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "OT",
+   "link_count": 4,
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Overtime Registration",
+   "link_count": 0,
+   "link_to": "Overtime Registration",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Overtime Registration Report",
+   "link_count": 0,
+   "link_to": "Overtime Registration",
+   "link_type": "Report",
+   "onboard": 0,
+   "report_ref_doctype": "Overtime Registration",
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Overtime Registration Quantity Report",
+   "link_count": 0,
+   "link_to": "Overtime Registration Quantity",
+   "link_type": "Report",
+   "onboard": 0,
+   "report_ref_doctype": "Overtime Registration",
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "Overtime by Time Slot",
+   "link_count": 0,
+   "link_to": "Overtime by Time Slot",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
   }
  ],
- "modified": "2026-07-18 11:32:58.209210",
+ "modified": "2026-07-21 10:29:46.572281",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "TIQN App",

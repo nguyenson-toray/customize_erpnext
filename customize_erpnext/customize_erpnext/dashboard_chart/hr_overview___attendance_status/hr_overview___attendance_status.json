@@ -1,0 +1,40 @@
+{
+ "chart_name": "HR Overview - Attendance Status",
+ "chart_type": "Group By",
+ "creation": "2026-07-20 13:17:52.860954",
+ "currency": "VND",
+ "docstatus": 0,
+ "doctype": "Dashboard Chart",
+ "document_type": "Attendance",
+ "filters_json": "[[\"Attendance\",\"docstatus\",\"=\",1]]",
+ "group_by_based_on": "status",
+ "group_by_type": "Count",
+ "idx": 0,
+ "is_public": 1,
+ "is_standard": 1,
+ "last_synced_on": "2026-07-20 15:44:31.787585",
+ "modified": "2026-07-20 16:49:05.179068",
+ "modified_by": "Administrator",
+ "module": "Customize Erpnext",
+ "name": "HR Overview - Attendance Status",
+ "number_of_groups": 0,
+ "owner": "Administrator",
+ "roles": [
+  {
+   "role": "Accounts Manager"
+  },
+  {
+   "role": "HR Manager"
+  },
+  {
+   "role": "HR User"
+  }
+ ],
+ "show_values_over_chart": 0,
+ "time_interval": "Yearly",
+ "timeseries": 0,
+ "timespan": "Last Year",
+ "type": "Donut",
+ "use_report_chart": 0,
+ "y_axis": []
+}

@@ -723,3 +723,8 @@ Avg / Month,TB/tháng
 No missed re-issues of leavers in this window.,Không có suất đến hạn nào của người nghỉ trong khoảng này.
 "Shared by the Demand Forecast and the Dashboard. 'Est. for Leavers' is MEASURED: re-issues missed by actual leavers in the last N months → monthly average × months of the plan period, rounded up.","Dùng chung cho Dự toán & Dashboard. Cột Dự kiến cấp cho NV sẽ nghỉ được ĐO thực tế: số suất cấp lại bị bỏ lỡ vì người nhận nghỉ trước hạn trong N tháng qua → TB/tháng × số tháng của kỳ, làm tròn lên."
 Length of the measuring window: the last N full months.,Độ dài cửa sổ đo: N tháng đầy đủ gần nhất.
+HR Overview,Tổng quan Nhân sự
+Time Slot,Khung giờ
+Registrations,Lượt đăng ký
+Days,Số ngày
+All (except Cancelled),Tất cả (trừ đã huỷ)

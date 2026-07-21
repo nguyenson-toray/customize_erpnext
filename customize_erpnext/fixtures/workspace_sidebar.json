@@ -973,7 +973,7 @@
     "indent": 0,
     "keep_closed": 0,
     "label": "Dashboard",
-    "link_to": "Attendance",
+    "link_to": "HR Overview",
     "link_type": "Dashboard",
     "navigate_to_tab": null,
     "route_options": null,
@@ -1318,7 +1318,7 @@
     "url": null
    }
   ],
-  "modified": "2026-01-12 15:50:19.885179",
+  "modified": "2026-07-20 15:01:06.137137",
   "module": "HR",
   "module_onboarding": null,
   "name": "Shift & Attendance",

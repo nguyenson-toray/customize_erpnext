@@ -1,0 +1,41 @@
+{
+ "chart_name": "HR Overview - Absent by Line, Team",
+ "chart_type": "Group By",
+ "creation": "2026-07-20 13:17:52.907428",
+ "currency": "",
+ "docstatus": 0,
+ "doctype": "Dashboard Chart",
+ "document_type": "Attendance",
+ "dynamic_filters_json": "[[\"Attendance\",\"attendance_date\",\"=\",\"frappe.datetime.get_today()\"]]",
+ "filters_json": "[[\"Attendance\",\"docstatus\",\"=\",\"1\"],[\"Attendance\",\"status\",\"=\",\"Absent\"]]",
+ "group_by_based_on": "custom_group",
+ "group_by_type": "Count",
+ "idx": 0,
+ "is_public": 1,
+ "is_standard": 1,
+ "last_synced_on": "2026-07-20 16:46:20.178207",
+ "modified": "2026-07-20 16:47:25.275629",
+ "modified_by": "Administrator",
+ "module": "Customize Erpnext",
+ "name": "HR Overview - Absent by Line, Team",
+ "number_of_groups": 0,
+ "owner": "Administrator",
+ "roles": [
+  {
+   "role": "Administrator"
+  },
+  {
+   "role": "HR Manager"
+  },
+  {
+   "role": "HR User"
+  }
+ ],
+ "show_values_over_chart": 1,
+ "time_interval": "Yearly",
+ "timeseries": 0,
+ "timespan": "Last Year",
+ "type": "Bar",
+ "use_report_chart": 0,
+ "y_axis": []
+}
