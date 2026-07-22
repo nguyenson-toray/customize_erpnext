@@ -349,8 +349,11 @@ def setup_assignment_field():
 @frappe.whitelist()
 def get_today_joiners(date=None):
     """
-    Return Active employees whose date_of_joining equals `date` (default today)
-    and who are not currently assigned to any Shoe Rack compartment.
+    Return Active employees whose date_of_joining equals `date` (default today).
+
+    Every joiner is returned (none are hidden). Each one is annotated with the
+    Shoe Rack they already occupy, if any, so the UI can show an accurate
+    status ("Assigned" + rack number) instead of always showing "Pending".
     """
     try:
         join_date = date or frappe.utils.today()
@@ -366,28 +369,40 @@ def get_today_joiners(date=None):
             return {"success": True, "employees": [], "date": join_date,
                     "total_joiners": 0, "already_assigned": 0}
 
-        # Collect every employee already occupying a compartment
-        assigned_employees = set()
-        for field in ["compartment_1_employee", "compartment_2_employee"]:
+        emp_ids = [e.name for e in employees]
+
+        # Map employee -> the rack/compartment they currently occupy
+        existing = {}
+        for comp, field in [(1, "compartment_1_employee"), (2, "compartment_2_employee")]:
             rows = frappe.get_all(
                 "Shoe Rack",
-                filters=[[field, "not in", ["", None]]],
-                fields=[field],
+                filters=[[field, "in", emp_ids]],
+                fields=["name", "rack_display_name", field],
                 limit_page_length=0
             )
             for r in rows:
-                val = r.get(field)
-                if val:
-                    assigned_employees.add(val)
+                emp = r.get(field)
+                # Keep the first rack found; an employee should only ever hold one slot
+                if emp and emp not in existing:
+                    existing[emp] = {
+                        "rack_name": r.name,
+                        "rack_display_name": r.rack_display_name,
+                        "compartment": comp,
+                    }
 
-        unassigned = [e for e in employees if e.name not in assigned_employees]
+        for e in employees:
+            info = existing.get(e.name)
+            e["already_assigned"] = bool(info)
+            e["existing_rack_name"] = info["rack_name"] if info else None
+            e["existing_rack_display_name"] = info["rack_display_name"] if info else None
+            e["existing_compartment"] = info["compartment"] if info else None
 
         return {
             "success": True,
-            "employees": unassigned,
+            "employees": employees,
             "date": join_date,
             "total_joiners": len(employees),
-            "already_assigned": len(employees) - len(unassigned)
+            "already_assigned": len(existing)
         }
 
     except Exception as e:
@@ -416,9 +431,7 @@ def suggest_shoe_racks(employees):
             "name", "rack_display_name", "gender", "compartments",
             "compartment_1_employee", "compartment_2_employee"
         ]
-        _dna_exists = frappe.db.exists(
-            "Custom Field", {"dt": "Shoe Rack", "fieldname": "do_not_auto_suggest"}
-        )
+        _dna_exists = frappe.get_meta("Shoe Rack").has_field("do_not_auto_suggest")
         if _dna_exists:
             _rack_fields.append("do_not_auto_suggest")
 
@@ -455,29 +468,48 @@ def suggest_shoe_racks(employees):
                     "gender": gender
                 })
 
-        suggestions = []
         used_slots = set()
 
-        for emp in employees:
-            emp_id = emp.get("name") or emp.get("employee")
-            emp_gender = (emp.get("gender") or "").strip()
-
-            found = None
+        def _take_slot(emp_gender, gender_strict):
+            """Return the first free slot. When gender_strict, only same-gender
+            slots are considered (used for the preference pass)."""
             for slot in available_slots:
                 slot_key = (slot["rack_name"], slot["compartment"])
                 if slot_key in used_slots:
                     continue
-                # Skip gender mismatch only when both sides have a gender value
-                if emp_gender and slot["gender"] and emp_gender != slot["gender"]:
+                if gender_strict and emp_gender and slot["gender"] and emp_gender != slot["gender"]:
                     continue
-                found = slot
                 used_slots.add(slot_key)
-                break
+                return slot
+            return None
 
+        emp_meta = []
+        for emp in employees:
+            emp_meta.append({
+                "id": emp.get("name") or emp.get("employee"),
+                "name": emp.get("employee_name") or (emp.get("name") or emp.get("employee")),
+                "gender": (emp.get("gender") or "").strip(),
+            })
+
+        assigned_slot = {}
+
+        # Pass 1: prefer a same-gender empty slot for each employee.
+        for meta in emp_meta:
+            assigned_slot[meta["id"]] = _take_slot(meta["gender"], gender_strict=True)
+
+        # Pass 2: any employee still without a slot gets the next free
+        # Standard Employee slot regardless of gender (only condition: rack_type).
+        for meta in emp_meta:
+            if assigned_slot[meta["id"]] is None:
+                assigned_slot[meta["id"]] = _take_slot(meta["gender"], gender_strict=False)
+
+        suggestions = []
+        for meta in emp_meta:
+            found = assigned_slot[meta["id"]]
             suggestions.append({
-                "employee": emp_id,
-                "employee_name": emp.get("employee_name", emp_id),
-                "gender": emp_gender,
+                "employee": meta["id"],
+                "employee_name": meta["name"],
+                "gender": meta["gender"],
                 "rack_name": found["rack_name"] if found else None,
                 "rack_display_name": found["rack_display_name"] if found else None,
                 "compartment": found["compartment"] if found else None,
