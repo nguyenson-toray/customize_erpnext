@@ -227,7 +227,7 @@
   background-color: white;
   border-radius: 8px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  padding: 24px;
+  padding: 2px;
   overflow-x: auto;
   width: 100%;
   box-sizing: border-box;
@@ -458,16 +458,6 @@
 }
 
 /* Pathway Block Styles */
-
-/* Grid container */
-.grid-container {
-  width: 100%;
-  background: #f9fafb;
-  border-radius: 8px;
-  /* padding: 1rem; */
-  min-height: 600px;
-  box-sizing: border-box;
-}
 
 /* Grid item flexible sizing */
 .grid-item {
@@ -734,7 +724,7 @@
   width: 100%;
   background: #f9fafb;
   border-radius: 8px;
-  padding: 1rem;
+  padding: 2px;
   min-height: 600px;
   box-sizing: border-box;
 }
@@ -1078,6 +1068,12 @@
   padding: 16px;
   border-left: 4px solid #2196F3;
 }
+.info-rack-card {
+  background: #f8f9fa;
+  border-radius: 6px;
+  padding: 16px;
+  border-left: 4px solid #2196F3;
+}
 
 .info-card h3 {
   margin: 0 0 12px 0;
@@ -1120,9 +1116,10 @@
 
 /* Container bọc tất cả blocks trên mobile */
 .mobile-rack-layout {
+  justify-content: center;
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 2px;
   width: 100%;
   padding: 4px;
   box-sizing: border-box;
@@ -1251,6 +1248,7 @@
 .assign-btn {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   padding: 8px 16px;
   background-color: #7c3aed;

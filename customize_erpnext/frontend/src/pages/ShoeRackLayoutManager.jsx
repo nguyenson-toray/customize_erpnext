@@ -20,6 +20,10 @@ const ShoeRackLayoutManager = () => {
   const [isEditMode, setIsEditMode] = useState(false);
   const containerRef = useRef(null);
 
+
+
+  
+
   // --- Assign Racks panel state ---
   const [showAssignPanel, setShowAssignPanel] = useState(false);
   const [assignDate, setAssignDate] = useState(() => new Date().toISOString().split('T')[0]);
@@ -86,16 +90,23 @@ const ShoeRackLayoutManager = () => {
       const result = await resp.json();
       const data = result.message || {};
       if (data.success) {
-        setJoiners((data.employees || []).map(e => ({
-          employee: e.name,
-          employee_name: e.employee_name,
-          gender: e.gender,
-          department: e.department,
-          rack_name: null,
-          rack_display_name: null,
-          compartment: null,
-          suggested: false
-        })));
+        const alreadyAssigned = new Set();
+        setJoiners((data.employees || []).map(e => {
+          if (e.already_assigned) alreadyAssigned.add(e.name);
+          return {
+            employee: e.name,
+            employee_name: e.employee_name,
+            gender: e.gender,
+            department: e.department,
+            rack_name: e.existing_rack_name || null,
+            rack_display_name: e.existing_rack_display_name || null,
+            compartment: e.existing_compartment || null,
+            suggested: false,
+            already_assigned: !!e.already_assigned
+          };
+        }));
+        // Mark DB-assigned joiners as done so they show "Assigned" + their rack
+        setAssignedSet(alreadyAssigned);
       } else {
         alert(data.message || 'Failed to load joiners');
       }
@@ -110,7 +121,10 @@ const ShoeRackLayoutManager = () => {
     if (!joiners.length) return;
     setSuggesting(true);
     try {
-      const payload = joiners.map(j => ({ name: j.employee, employee_name: j.employee_name, gender: j.gender }));
+      // Only ask suggestions for joiners who don't already have a rack
+      const pendingJoiners = joiners.filter(j => !j.already_assigned);
+      if (!pendingJoiners.length) { alert('All loaded joiners already have a rack.'); setSuggesting(false); return; }
+      const payload = pendingJoiners.map(j => ({ name: j.employee, employee_name: j.employee_name, gender: j.gender }));
       const resp = await fetch(
         '/api/method/customize_erpnext.api.api_endpoints.suggest_shoe_racks',
         {
@@ -126,8 +140,12 @@ const ShoeRackLayoutManager = () => {
       const result = await resp.json();
       const data = result.message || {};
       if (data.success) {
-        setJoiners(prev => prev.map((j, i) => {
-          const s = (data.suggestions || [])[i] || {};
+        // Map suggestions back by employee id so already-assigned rows stay intact
+        const byEmp = {};
+        (data.suggestions || []).forEach(s => { if (s.employee) byEmp[s.employee] = s; });
+        setJoiners(prev => prev.map(j => {
+          if (j.already_assigned) return j;
+          const s = byEmp[j.employee] || {};
           return { ...j, rack_name: s.rack_name || null, rack_display_name: s.rack_display_name || null, compartment: s.compartment || null, suggested: !!s.suggested };
         }));
       } else {
@@ -318,7 +336,7 @@ const ShoeRackLayoutManager = () => {
     <div class="rack">${r.rack_display_name || r.rack_name}</div>
     <div class="comp">Compartment ${r.compartment}</div>
     <div class="name">${r.employee_name}</div>
-    <div class="id">${r.employee}</div>
+    <div class="id">${r.employee}</div> 
   </div>`).join('')}
 </div>
 <script>window.onload=()=>window.print();</script>
@@ -347,9 +365,9 @@ const ShoeRackLayoutManager = () => {
       }
     });
 
-    console.log('Letter racks:', letterRacks.length);
-    console.log('Number racks:', numberRacks.length);
-    console.log('Male Icon:', maleIcon);
+    // console.log('Letter racks:', letterRacks.length);
+    // console.log('Number racks:', numberRacks.length);
+    // console.log('Male Icon:', maleIcon);
 
     // ✅ BƯỚC 2: Tạo blocks cho Number Racks (chỉ số)
     for (let i = 0; i < numberRacks.length; i += 16) {
@@ -803,7 +821,7 @@ const ShoeRackLayoutManager = () => {
         <div className="rack-info-section">
           <h2>Rack Information</h2>
           <div className="info-grid">
-            <div className="info-card">
+            <div className="info-rack-card">
               <h3>📦 Capacity</h3>
               <ul>
                 <li><strong>Rack 1-624:</strong> 2 compartments (2 users per rack)</li>
@@ -811,7 +829,7 @@ const ShoeRackLayoutManager = () => {
               </ul>
             </div>
 
-            <div className="info-card">
+            <div className="info-rack-card">
               <h3>👥 Allocation</h3>
               <ul>
                 {/* <li><strong>Rack 385-488:</strong> <img src={maleIcon} style={{width: '20px', height: '20px', objectFit: 'contain'}} alt="Male" /> Male </li> */}
@@ -1077,17 +1095,20 @@ const ShoeRackLayoutManager = () => {
                         <td>{row.department || '—'}</td>
                         <td>
                           {row.rack_name ? (
-                            <span className={`assign-rack-badge ${row.suggested ? 'suggested' : 'unmatched'}`}>
+                            <span className={`assign-rack-badge ${(row.suggested || row.already_assigned) ? 'suggested' : 'unmatched'}`}>
                               {row.rack_display_name || row.rack_name} · C{row.compartment}
+                              {row.already_assigned ? ' ✓' : ''}
                             </span>
                           ) : (
                             <span className="assign-rack-none">—</span>
                           )}
                         </td>
                         <td>
-                          {isDone
-                            ? <span className="assign-status-done">Assigned</span>
-                            : <span className="assign-status-pending">Pending</span>
+                          {row.already_assigned
+                            ? <span className="assign-status-done">Already assigned</span>
+                            : isDone
+                              ? <span className="assign-status-done">Assigned</span>
+                              : <span className="assign-status-pending">Pending</span>
                           }
                         </td>
                         <td>
@@ -1144,7 +1165,7 @@ const ShoeRackLayoutManager = () => {
 
     {/* ===== CLEAR LEFT EMPLOYEES PANEL ===== */}
     {showClearPanel && (
-      <div
+      <div 
         className="assign-overlay"
         onClick={e => e.target === e.currentTarget && setShowClearPanel(false)}
       >
@@ -1178,9 +1199,9 @@ const ShoeRackLayoutManager = () => {
                 {loadingClearItems ? 'Loading...' : 'No left employees found in any rack.'}
               </p>
             ) : (
-              <table className="assign-table">
+              <table className="assign-table">n
                 <thead>
-                  <tr>
+                  <tr>1
                     <th>#</th>
                     <th>Rack</th>
                     <th>C</th>
@@ -1201,7 +1222,7 @@ const ShoeRackLayoutManager = () => {
                         <td>{idx + 1}</td>
                         <td>
                           <span className="assign-rack-badge suggested">
-                            {row.rack_display_name}
+                          sx  {row.rack_display_name}
                           </span>
                         </td>
                         <td>{row.compartment}</td>

@@ -400,6 +400,64 @@ def force_reset_series(series_prefix):
         return {"success": False, "message": _("Error: {0}").format(str(e))}
 
 @frappe.whitelist()
+def clear_all_assignments(series_prefix=None):
+    """Remove ALL people (employees + external personnel) from racks, but KEEP the racks.
+
+    This empties the racks so a fresh list can be imported quickly.
+    It does NOT delete racks and does NOT touch the naming series counter.
+
+    Args:
+        series_prefix: optional 'RACK' | 'J' | 'G' | 'A'. If given, only that
+            series is cleared; if omitted, ALL racks are cleared.
+    """
+    filters = {}
+    if series_prefix:
+        if series_prefix not in ['RACK', 'J', 'G', 'A']:
+            return {"success": False, "message": _("Invalid series prefix")}
+        filters = {"name": ["like", f"{series_prefix}-%"]}
+
+    racks = frappe.get_all("Shoe Rack", filters=filters, fields=[
+        "name", "compartments",
+        "compartment_1_employee", "compartment_1_external_personnel",
+        "compartment_2_employee", "compartment_2_external_personnel",
+    ])
+
+    cleared_count = 0
+
+    for r in racks:
+        has_any = (
+            r.compartment_1_employee or r.compartment_1_external_personnel
+            or r.compartment_2_employee or r.compartment_2_external_personnel
+        )
+        if not has_any:
+            continue
+
+        empty_status = "0/1" if r.compartments == "1" else "0/2"
+
+        frappe.db.set_value("Shoe Rack", r.name, {
+            "compartment_1_employee": None,
+            "compartment_1_external_personnel": None,
+            "compartment_1_employee_name": None,
+            "compartment_2_employee": None,
+            "compartment_2_external_personnel": None,
+            "compartment_2_employee_name": None,
+            "status": empty_status,
+        }, update_modified=True)
+
+        cleared_count += 1
+
+    frappe.db.commit()
+
+    scope = series_prefix if series_prefix else _("all")
+    return {
+        "success": True,
+        "message": _("Cleared people from {0} racks ({1}). Racks are now empty.").format(
+            cleared_count, scope
+        ),
+        "cleared_count": cleared_count,
+    }
+
+@frappe.whitelist()
 def bulk_delete_and_reset(series_prefix):
     """Delete all racks of a series and reset to 0"""
     if series_prefix not in ['RACK', 'J', 'G', 'A']:
@@ -832,6 +890,113 @@ def bulk_edit_empty_racks(start_number, end_number, gender=None, compartments=No
     if occupied_racks:
         result["occupied"] = occupied_racks
         result["message"] += f"\n {len(occupied_racks)} racks are occupied and cannot be edited"
-    
+
     return result
+
+# ================== SYNC TO EMPLOYEE ==================
+
+@frappe.whitelist()
+def sync_racks_to_employees(rack_names=None, clear_orphans=1, dry_run=0):
+    """
+    Push rack assignments into Employee.custom_shoe_rack.
+
+    Shoe Rack is the source of truth: for every rack, whoever sits in
+    compartment_1_employee / compartment_2_employee gets that rack written
+    onto their Employee record. Employees still pointing at a rack that no
+    longer holds them are cleared (unless clear_orphans is off).
+
+    rack_names: list of Shoe Rack names to limit the sync to. Empty/None
+    syncs every Employee rack. When scoped, orphan clearing only touches
+    employees currently pointing at one of the selected racks.
+    """
+    clear_orphans = int(clear_orphans)
+    dry_run = int(dry_run)
+
+    if isinstance(rack_names, str):
+        rack_names = frappe.parse_json(rack_names)
+    rack_names = [r for r in (rack_names or []) if r]
+
+    filters = {"user_type": "Employee"}
+    if rack_names:
+        filters["name"] = ["in", rack_names]
+
+    racks = frappe.get_all("Shoe Rack",
+        filters=filters,
+        fields=["name", "rack_display_name",
+                "compartment_1_employee", "compartment_2_employee"]
+    )
+
+    # employee -> rack (from racks), plus employees sitting in more than one rack
+    expected = {}
+    conflicts = {}
+
+    for rack in racks:
+        for emp in (rack.compartment_1_employee, rack.compartment_2_employee):
+            if not emp:
+                continue
+            if emp in expected and expected[emp] != rack.name:
+                conflicts.setdefault(emp, [expected[emp]]).append(rack.name)
+                continue
+            expected[emp] = rack.name
+
+    # Current state on Employee side.
+    # Scoped run: only employees involved in the selected racks - either they
+    # sit in one now, or they still point at one. Everyone else is untouched.
+    if rack_names:
+        current = {
+            e.name: e.custom_shoe_rack
+            for e in frappe.get_all("Employee",
+                or_filters={
+                    "custom_shoe_rack": ["in", rack_names],
+                    "name": ["in", list(expected.keys()) or [""]],
+                },
+                fields=["name", "custom_shoe_rack"])
+        }
+        orphan_pool = {
+            emp: rack for emp, rack in current.items() if rack in rack_names
+        }
+    else:
+        current = {
+            e.name: e.custom_shoe_rack
+            for e in frappe.get_all("Employee",
+                filters={"custom_shoe_rack": ["is", "set"]},
+                fields=["name", "custom_shoe_rack"])
+        }
+        orphan_pool = current
+
+    updated, cleared, missing = [], [], []
+
+    for emp, rack_name in expected.items():
+        if current.get(emp) == rack_name:
+            continue
+        if not frappe.db.exists("Employee", emp):
+            missing.append(emp)
+            continue
+        if not dry_run:
+            frappe.db.set_value("Employee", emp, "custom_shoe_rack", rack_name,
+                                update_modified=False)
+        updated.append({"employee": emp, "rack": rack_name, "old": current.get(emp)})
+
+    if clear_orphans:
+        for emp, rack_name in orphan_pool.items():
+            if emp in expected or emp in conflicts:
+                continue
+            if not dry_run:
+                frappe.db.set_value("Employee", emp, "custom_shoe_rack", None,
+                                    update_modified=False)
+            cleared.append({"employee": emp, "old": rack_name})
+
+    if not dry_run:
+        frappe.db.commit()
+
+    return {
+        "success": True,
+        "message": _("Synced {0} employees, cleared {1}").format(len(updated), len(cleared)),
+        "updated": updated,
+        "cleared": cleared,
+        "conflicts": [{"employee": e, "racks": r} for e, r in conflicts.items()],
+        "missing": missing,
+        "total_racks": len(racks),
+        "dry_run": dry_run,
+    }
 
