@@ -19,6 +19,8 @@
   "validate_by_dob",
   "col_break_security",
   "bypass_code",
+  "column_break_xyjl",
+  "allow_browser_local_storage",
   "section_fields",
   "fields_intro",
   "btn_add_field",
@@ -164,11 +166,22 @@
    "columns": 1,
    "fieldname": "column_break_cfsg",
    "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_xyjl",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "description": "Save local drafts (prevents data loss when reloading/exiting)",
+   "fieldname": "allow_browser_local_storage",
+   "fieldtype": "Check",
+   "label": "Allow Browser Local Storage"
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-07-17 09:27:53.948645",
+ "modified": "2026-07-22 10:51:13.271618",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Employee Self Update Info Setting",

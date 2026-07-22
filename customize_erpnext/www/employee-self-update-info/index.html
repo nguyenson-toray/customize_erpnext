@@ -34,7 +34,7 @@
     <div class="card hidden" id="verify_card">
       <h2><span class="dot"></span>Xác thực danh tính</h2>
       <div class="field" style="margin-bottom:0">
-        <label class="fl" for="verify_input">Nhập 2 số <brack_display_name>ngày sinh</b> của bạn</label>
+        <label class="fl" for="verify_input">Nhập 2 số <b>ngày sinh</b> của bạn</label>
         <input type="text" id="verify_input" inputmode="numeric" maxlength="2"
           placeholder="VD: sinh ngày 05 tháng 09 → nhập 05"
           oninput="this.value=this.value.replace(/[^0-9]/g,''); if(this.value.length===2) doVerify();"
@@ -188,8 +188,11 @@
     const draftKey = (id) => "esui_draft_" + (id || S.employee_id || "");
     let _draftTimer = null;
 
+    // Bật/tắt lưu nháp cục bộ theo cấu hình Setting (allow_browser_local_storage).
+    const draftAllowed = () => !!(S.config && S.config.allow_local_draft);
+
     function saveDraft() {
-      if (!S.employee_id || !S.config) return;
+      if (!S.employee_id || !S.config || !draftAllowed()) return;
       clearTimeout(_draftTimer);
       _draftTimer = setTimeout(() => {
         try {
@@ -206,6 +209,7 @@
     }
 
     function loadDraft(empId) {
+      if (!draftAllowed()) return null;
       try {
         const raw = localStorage.getItem(draftKey(empId));
         if (!raw) return null;

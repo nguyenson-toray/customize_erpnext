@@ -282,6 +282,8 @@ def get_field_config():
 	setting = _get_setting()
 	config = _build_config()
 	config["require_dob"] = bool(setting.validate_by_dob)
+	# Whether the page may keep a local draft (localStorage).
+	config["allow_local_draft"] = bool(setting.allow_browser_local_storage)
 	return config
 
 
