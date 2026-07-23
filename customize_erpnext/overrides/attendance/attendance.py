@@ -7,6 +7,20 @@ from hrms.hr.utils import validate_active_employee
 
 def custom_attendance_validate(self):
 	"""Custom validation that includes 'Maternity Leave' as a valid status"""
+	# Stamp section/group from the employee on every save. The custom_section /
+	# custom_group fields use fetch_from, but that only fires when the process
+	# creating the record has fresh DocType metadata — the nightly auto-attendance
+	# runs in background workers whose meta went stale after the fields were added,
+	# leaving section/group NULL. Setting them explicitly here covers every path
+	# (nightly job, bulk absent, manual entry) regardless of meta freshness.
+	if self.employee:
+		emp = frappe.db.get_value(
+			"Employee", self.employee, ["custom_section", "custom_group"], as_dict=True
+		)
+		if emp:
+			self.custom_section = emp.custom_section
+			self.custom_group = emp.custom_group
+
 	# Include "Maternity Leave" in the allowed statuses
 	validate_status(self.status, ["Present", "Absent", "On Leave", "Half Day", "Work From Home", "Maternity Leave"])
 	validate_active_employee(self.employee)
