@@ -39,31 +39,35 @@ body {
 .wrap { max-width:680px; margin:0 auto; padding:14px; }
 
 /* ---------- header ---------- */
+/* Header = banner bounded to the form width (inside .wrap), logo pinned top-left,
+   the rest centered. */
 header.top {
   position:relative; overflow:hidden;
   background:var(--indigo-deep); color:#fff;
-  padding:26px 18px 24px; text-align:center;
+  padding:48px 16px 16px; text-align:center;
+  border-radius:14px; margin-bottom:14px;
   /* warp threads: faint vertical hairlines = woven texture */
   background-image:repeating-linear-gradient(90deg,
     rgba(255,255,255,.05) 0 1px, transparent 1px 7px);
 }
 header.top::after {
   content:""; position:absolute; left:0; right:0; bottom:0; height:3px;
-  background:linear-gradient(90deg,var(--thread) 0 22%,transparent 22%);
+  background:linear-gradient(90deg,var(--thread) 0 30%,transparent 30%);
 }
 header.top .logo {
-  height:46px; width:auto; display:block; margin:0 auto 12px;
-  object-fit:contain;
+  position:absolute; top:13px; left:15px;
+  height:26px; width:auto; object-fit:contain;
 }
 header.top .company {
-  font-family:var(--font-display); font-weight:600; font-size:12.5px;
-  letter-spacing:.14em; text-transform:uppercase; color:#B9C4DE; margin-bottom:12px;
+  font-family:var(--font-display); font-weight:600; font-size:11px;
+  letter-spacing:.08em; text-transform:uppercase; color:#B9C4DE; margin:0 0 6px;
 }
 header.top h1 {
-  font-family:var(--font-display); font-weight:700; font-size:21px;
-  margin:0; letter-spacing:-.01em;
+  font-family:var(--font-display); font-weight:700; line-height:1.2;
+  /* tự co theo bề ngang để tiêu đề luôn nằm 1 dòng (không bị cắt cụt) */
+  font-size:clamp(12px, 3.5vw, 24px);
+  margin:0; letter-spacing:-.01em; text-transform:uppercase; white-space:nowrap;
 }
-header.top p { margin:6px 0 0; opacity:.72; font-size:13px; }
 
 /* ---------- cards ---------- */
 .card {
@@ -80,20 +84,10 @@ header.top p { margin:6px 0 0; opacity:.72; font-size:13px; }
   box-shadow:0 0 0 3px var(--indigo-soft);
 }
 
-/* Signature — section cards get a woven thread spine + numbered loom chip */
-#sections { counter-reset:sec; }
+/* Signature — section cards get a woven indigo thread spine (số thứ tự đã có sẵn
+   trong nhãn Section nên không tự đánh số nữa). */
 #sections > .card {
-  counter-increment:sec; position:relative;
   border-left:3px solid var(--indigo); border-radius:2px var(--r) var(--r) 2px;
-}
-#sections > .card > h2 .dot { display:none; }
-#sections > .card > h2::before {
-  content:counter(sec,decimal-leading-zero);
-  font-family:var(--font-display); font-weight:700; font-size:12px; color:#fff;
-  background:var(--indigo); border-radius:4px;
-  min-width:26px; height:24px; padding:0 5px;
-  display:inline-flex; align-items:center; justify-content:center;
-  box-shadow:inset 0 -3px 0 rgba(198,83,43,.9); /* terracotta stitch under the number */
 }
 
 /* ---------- fields ---------- */
@@ -203,7 +197,8 @@ button:disabled { opacity:.45; cursor:not-allowed; }
   box-shadow:0 3px 10px rgba(23,35,63,.08);
   display:flex; align-items:center; gap:18px; flex-wrap:wrap;
 }
-.legend .lg-item { display:inline-flex; align-items:center; gap:7px; }
+.legend .lg-text { flex-basis:100%; color:var(--ink); font-weight:600; }
+.legend .lg-item { display:inline-flex; align-items:center; gap:7px; font-weight:600; }
 .legend .lg-req { color:#DC2626; font-weight:700; font-size:18px; line-height:1; }
 .legend .sw {
   width:20px; height:20px; border-radius:4px; background:var(--thread-tint);
@@ -302,9 +297,8 @@ button:disabled { opacity:.45; cursor:not-allowed; }
 /* ---------- larger screens ---------- */
 @media (min-width:640px) {
   .wrap { padding:22px; }
-  header.top { padding:34px 22px 30px; }
-  header.top .logo { height:54px; }
-  header.top h1 { font-size:25px; }
+  header.top { padding:50px 26px 20px; }
+  header.top .logo { height:30px; top:16px; left:22px; }
   .card { padding:22px 22px; }
   .grid2 { grid-template-columns:1fr 1fr; gap:16px; }
 }

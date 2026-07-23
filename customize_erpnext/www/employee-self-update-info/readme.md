@@ -125,6 +125,38 @@ Singleton. HR cấu hình ở đây.
 
 ---
 
+## Kế hoạch: hỗ trợ Child Table (CHƯA TRIỂN KHAI)
+
+Cho phép chọn field kiểu **`Table`** của Employee (vd `education`, `external_work_history`) và cho NV tự khai dạng **nhiều dòng**. Khả thi, không phá kiến trúc (JSON list); đây là "widget đặc biệt" thứ 2 sau địa chỉ.
+
+**Child table dùng được trên Employee:**
+
+| Field (Table) | Doctype con | Cột flat gợi ý |
+|---|---|---|
+| `education` | Employee Education | `level` (Select), `school_univ`, `qualification`, `year_of_passing`, `maj_opt_subj` |
+| `external_work_history` | Employee External Work History | `company_name`, `designation`, `salary`, `address`, `contact` |
+| `internal_work_history` | Employee Internal Work History | `branch`/`department`/`designation` (Link), `from_date`/`to_date` |
+| `custom_fingerprints` | Fingerprint Data | (KHÔNG cho NV tự khai) |
+
+**Nguyên tắc:**
+- Metadata: `get_meta("Employee")` → field `Table` có `options` = doctype con → `get_meta(child)` cho cột. Chọn cột con động **giống hệt** cách chọn field cha (lọc theo `_ALLOWED_FIELDTYPES`).
+- Storage: `data_json` lưu **list dict** — `{"education": [{"level": "...", "school_univ": "..."}, ...]}`. Không đổi schema.
+- Đã có tiền lệ ở trang cũ (`education` + `external_work_history`) → luồng chạy được.
+
+**Việc cần làm khi triển khai:**
+1. **Config**: child row `Employee Self Update Info Field` thêm cờ `is_table` + nơi khai **cột con nào hiển thị** (nhãn + validation từng cột) — vd 1 field JSON/Small Text `table_columns`, hoặc 1 child-of-child. `_ALLOWED_FIELDTYPES` bổ sung `"Table"`.
+2. **`_build_config`**: khi `is_table` → resolve doctype con, trả `{fieldtype:"Table", child_doctype, columns:[{fieldname,label,fieldtype,options,required,validation}...]}`.
+3. **Page — renderer lặp dòng** (widget mới): mỗi child = 1 khối thẻ; mỗi dòng render các cột con (tái dùng `renderField` + `validateField`); nút **+ Thêm dòng / xoá dòng**. Mobile: thẻ dọc, không bảng ngang. `currentValue`/`markChanged`/`saveDraft` cần hiểu giá trị **mảng**.
+4. **`get_form_data`**: preload dòng con hiện có từ Employee (`emp.get(fieldname)` → list dict theo cột đã chọn).
+5. **Validation**: per-cell (đã có `_validate_value`); tùy chọn "bắt buộc ≥1 dòng".
+6. **Excel**: child table **không** vào sheet phẳng New/Old được → **mỗi child 1 sheet riêng** (`ID` + các cột con, mỗi dòng con 1 row). Import ngược child rows qua Data Import cần format riêng (parent + idx).
+7. **Sync** (`sync_to_employee`): `emp.set(fieldname, [...])` (clear + append từ list dict) → child rows. Bỏ qua nếu `is_custom`.
+8. **PDF**: render child dưới dạng bảng con (nhiều dòng) trong `_build_submission_html`.
+
+**Điểm phức tạp cần chốt:** UX nhập nhiều dòng trên mobile; Excel/Import child rows; validation số dòng tối thiểu. Khuyến nghị phạm vi v1: `education` + `external_work_history`.
+
+---
+
 ## Quy tắc Label (ưu tiên tiếng Việt)
 
 Trong `get_field_config()`:

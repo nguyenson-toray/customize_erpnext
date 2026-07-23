@@ -547,10 +547,10 @@ def _build_submission_html(doc, saved, config):
 	return f"""
 <!DOCTYPE html><html><head><meta charset="utf-8"><style>
   body{{font-family:'Helvetica Neue',Arial,sans-serif;color:#1f2733;font-size:12px;margin:0}}
-  .head{{text-align:center;border-bottom:2px solid #1e3a8a;padding-bottom:10px;margin-bottom:14px}}
-  .logo{{height:54px;margin-bottom:6px}}
-  .company{{font-size:14px;font-weight:bold;color:#1e3a8a;text-transform:uppercase}}
-  .title{{font-size:16px;font-weight:bold;margin-top:6px}}
+  .head{{text-align:left;border-bottom:2px solid #1e3a8a;padding-bottom:10px;margin-bottom:14px;overflow:hidden}}
+  .logo{{height:36px;float:left;margin:2px 12px 0 0}}
+  .company{{font-size:12px;font-weight:bold;color:#1e3a8a;text-transform:uppercase}}
+  .title{{font-size:21px;font-weight:bold;color:#1e3a8a;margin-top:2px}}
   .meta{{margin:10px 0;font-size:12px}}
   .meta b{{display:inline-block;min-width:130px}}
   table{{width:100%;border-collapse:collapse;margin-top:6px}}
@@ -560,12 +560,11 @@ def _build_submission_html(doc, saved, config):
   td.val{{width:60%}}
   .remarks{{margin-top:14px;border:1px solid #d5dbe3;border-radius:6px;padding:10px}}
   .rlabel{{font-weight:bold;color:#1e3a8a;margin-bottom:4px}}
-  .foot{{margin-top:18px;font-size:10px;color:#94a3b8;text-align:center}}
 </style></head><body>
   <div class="head">
     {logo_img}
     <div class="company">{frappe.utils.escape_html(company)}</div>
-    <div class="title">Phiếu cập nhật thông tin nhân viên</div>
+    <div class="title">PHIẾU CẬP NHẬT THÔNG TIN NHÂN VIÊN</div>
   </div>
   <div class="meta">
     <div><b>Mã nhân viên:</b> {frappe.utils.escape_html(doc.employee)}</div>
@@ -574,7 +573,6 @@ def _build_submission_html(doc, saved, config):
   </div>
   <table>{''.join(rows)}</table>
   {remarks_block}
-  <div class="foot">Phiếu này do nhân viên tự kê khai —  {frappe.utils.format_datetime(frappe.utils.now_datetime(), "dd/MM/yyyy HH:mm")}.</div>
 </body></html>
 """
 

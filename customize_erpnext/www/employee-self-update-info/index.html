@@ -6,18 +6,17 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
   <title>Cập nhật thông tin nhân viên</title>
-  <link rel="stylesheet" href="/employee-self-update-info/style.css?v=10">
+  <link rel="stylesheet" href="/employee-self-update-info/style.css?v=14">
 </head>
 
 <body>
-  <header class="top">
-    <img class="logo" src="/assets/customize_erpnext/images/logo_white.png" alt="logo">
-    <div class="company" id="company_name"></div>
-    <h1>Cập nhật thông tin nhân viên</h1>
-    <p>Kiểm tra và cập nhật những mục còn thiếu hoặc đã thay đổi</p>
-  </header>
-
   <div class="wrap">
+    <header class="top">
+      <img class="logo" src="/assets/customize_erpnext/images/logo_white.png" alt="logo">
+      <div class="company" id="company_name"></div>
+      <h1>Phiếu cập nhật thông tin nhân viên</h1>
+    </header>
+
     <!-- Step 1: choose employee -->
     <div class="card" id="picker_card">
       <h2><span class="dot"></span>Chọn nhân viên</h2>
@@ -47,6 +46,7 @@
     <!-- Step 2: dynamic form -->
     <div id="form_area" class="hidden">
       <div class="legend">
+        <span class="lg-text">Kiểm tra và cập nhật những mục còn thiếu hoặc đã thay đổi.</span>
         <span class="lg-item"><span class="lg-req">*</span> Bắt buộc nhập</span>
         <span class="lg-item"><span class="sw"></span> Bạn vừa thay đổi</span>
         <span id="status_wrap" style="margin-left:auto"></span>
