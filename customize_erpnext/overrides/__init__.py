@@ -15,6 +15,7 @@ try:
 	import customize_erpnext.overrides.attendance
 	import customize_erpnext.overrides.leave_application
 	import customize_erpnext.overrides.earned_leave
+	import customize_erpnext.overrides.employees_by_age
 
 	frappe.logger().info("✅ All overrides loaded successfully (on import)")
 
