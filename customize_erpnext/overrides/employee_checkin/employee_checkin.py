@@ -170,10 +170,14 @@ def custom_calculate_working_hours_overtime(employee, attendance_date, in_time, 
 	):
 		late_entry = True
 
-	# Check early exit	
+	# Check early exit — only when the checkout falls INSIDE the shift window:
+	# after the shift starts and before it ends (minus grace). A checkout at or
+	# before the shift start means the person was not actually on the shift, so
+	# it must not be flagged as an early exit.
 	if (
 		cint(shift_type_details.enable_early_exit_marking)
 		and out_time
+		and out_time > shift_start
 		and out_time < shift_end - timedelta(minutes=cint(shift_type_details.early_exit_grace_period))
 	):
 		early_exit = True
