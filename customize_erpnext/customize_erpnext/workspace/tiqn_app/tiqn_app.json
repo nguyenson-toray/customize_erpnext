@@ -244,24 +244,22 @@
   },
   {
    "hidden": 0,
-   "is_query_report": 0,
+   "is_query_report": 1,
    "label": "Overtime Registration Report",
    "link_count": 0,
    "link_to": "Overtime Registration",
    "link_type": "Report",
    "onboard": 0,
-   "report_ref_doctype": "Overtime Registration",
    "type": "Link"
   },
   {
    "hidden": 0,
-   "is_query_report": 0,
-   "label": "Overtime Registration Quantity Report",
+   "is_query_report": 1,
+   "label": "Overtime Registration Quantity",
    "link_count": 0,
    "link_to": "Overtime Registration Quantity",
    "link_type": "Report",
    "onboard": 0,
-   "report_ref_doctype": "Overtime Registration",
    "type": "Link"
   },
   {
@@ -275,7 +273,7 @@
    "type": "Link"
   }
  ],
- "modified": "2026-07-21 14:23:27.593900",
+ "modified": "2026-07-24 10:16:57.389356",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "TIQN App",
@@ -285,7 +283,14 @@
  "public": 1,
  "quick_lists": [],
  "restrict_to_domain": "",
- "roles": [],
+ "roles": [
+  {
+   "role": "TIQN Staff"
+  },
+  {
+   "role": "Administrator"
+  }
+ ],
  "sequence_id": 2.0,
  "shortcuts": [],
  "title": "TIQN App",
