@@ -188,7 +188,10 @@ def preload_reference_data(employee_list: List[str], from_date: str, to_date: st
 		fields=[
 			"name", "employee_name", "status", "date_of_joining",
 			"relieving_date", "default_shift", "holiday_list",
-			"department", "company", "gender"
+			"department", "company", "gender",
+			# Carried into the bulk INSERT below: that INSERT bypasses the ORM, so
+			# fetch_from on Attendance.custom_section/custom_group never fires.
+			"custom_section", "custom_group"
 		]
 	)
 	for emp in emp_data:
@@ -1107,6 +1110,8 @@ def bulk_insert_attendance_records(attendance_list: List[Dict], ref_data: Dict) 
 				1 if att.get('modify_half_day_status', 0) else 0,  # modify_half_day_status
 				att.get('company'),  # company
 				att.get('department'),  # department
+				att.get('custom_section'),  # custom_section
+				att.get('custom_group'),  # custom_group
 				att.get('working_hours', 0),  # working_hours
 				str(att.get('in_time')) if att.get('in_time') else None,  # in_time
 				str(att.get('out_time')) if att.get('out_time') else None,  # out_time
@@ -1146,11 +1151,11 @@ def bulk_insert_attendance_records(attendance_list: List[Dict], ref_data: Dict) 
 					(name, employee, employee_name, attendance_date, shift, status, leave_type, leave_application,
 					 custom_leave_application_abbreviation, custom_leave_type_2, custom_leave_application_2,
 					 half_day_status, modify_half_day_status,
-					 company, department, working_hours, in_time, out_time,
+					 company, department, custom_section, custom_group, working_hours, in_time, out_time,
 					 late_entry, early_exit, custom_maternity_benefit, actual_overtime_duration,
 					 custom_approved_overtime_duration, custom_final_overtime_duration,
 					 overtime_type, standard_working_hours, custom_note, docstatus, creation, modified, owner, modified_by)
-					VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+					VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
 				"""
 
 				# Get cursor and use executemany
@@ -1672,6 +1677,8 @@ def _core_process_attendance_logic_optimized(
 					'status': attendance_status,  # Use calculated status based on thresholds
 					'company': emp_data.get('company'),
 					'department': emp_data.get('department'),
+					'custom_section': emp_data.get('custom_section'),
+					'custom_group': emp_data.get('custom_group'),
 					# Decimal rounding per reference §12: working 2dp, OT 1dp
 					'working_hours': flt(working_hours, 2),
 					'in_time': in_time,
@@ -1920,6 +1927,8 @@ def _core_process_attendance_logic_optimized(
 						'attendance_date': day,
 						'company': emp_data.get('company'),
 						'department': emp_data.get('department'),
+						'custom_section': emp_data.get('custom_section'),
+						'custom_group': emp_data.get('custom_group'),
 						'working_hours': 0,
 						**resolved,
 					})
