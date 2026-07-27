@@ -173,9 +173,10 @@ fixtures = [
         "doctype": "Workspace",
         "filters": [
             ["name", "in", [
-                "HR Setup",  
+                "HR Setup",
+                "Shift & Attendance",  # HRMS workspace: Attendance Machine card + Shift Attendance Customize report link
             ]]
-        ] 
+        ]
     },
     # Custom Reports
     # WHY NEEDED:
