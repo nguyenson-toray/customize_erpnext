@@ -1406,7 +1406,12 @@ def _core_process_attendance_logic_optimized(
 			# checkins with NULL shift_actual_end or overnight shifts ending after
 			# midnight of to_date are excluded (site only uses day shifts)
 			if fore_get_logs:
-				from datetime import datetime
+				# `datetime` is already imported at module level (line 20). A local
+				# `from datetime import datetime` here previously shadowed it for
+				# the WHOLE function (Python scoping — any assignment anywhere in a
+				# function makes the name local throughout), so when fore_get_logs
+				# was False this branch never ran and the Sunday-OT block further
+				# down (datetime.combine, ~line 1571) raised UnboundLocalError.
 				to_date_obj = frappe.utils.getdate(to_date)
 				end_of_to_date = datetime.combine(to_date_obj, datetime.max.time()).replace(microsecond=999999)
 				checkin_filters["shift_actual_end"] = ["<", end_of_to_date]
