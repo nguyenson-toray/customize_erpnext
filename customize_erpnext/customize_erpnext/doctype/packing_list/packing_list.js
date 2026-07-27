@@ -3,27 +3,53 @@
 
 frappe.ui.form.on("Packing List", {
 	refresh(frm) {
-		frm.add_custom_button(__("Generate Carton Detail"), () => generate_cartons(frm));
-		frm.add_custom_button(__("Edit Mix"), () => open_mix_dialog(frm));
-		frm.add_custom_button(__("📷 Chụp / Cân"), () => carton_action(frm));
-		frm.add_custom_button(__("⬇ Download Photo"), () => download_all_carton_photos(frm));
-		frm.add_custom_button(__("🗑 Xoá tất cả ảnh"), () => delete_all_carton_photos(frm));
+		// Nút gộp theo nhóm cho gọn thanh công cụ.
+		const G_TAO = __("Tạo thùng");
+		const G_ANH = __("Ảnh & Cân");
+		const G_TAI = __("Tải về");
+		const G_XOA = __("Xoá / Reset");
+
+		// Tạo thùng — khi bảng bị KHÓA thì ẩn Generate & Edit Mix (không cho tạo lại).
+		const locked = !!frm.doc.lock_details && !frm.is_new();
+		frm.add_custom_button(__("Hướng dẫn"), () => show_packing_guide());
+		if (!locked) {
+			frm.add_custom_button(__("Tạo chi tiết thùng"), () => generate_cartons(frm), G_TAO);
+			frm.add_custom_button(__("Chỉnh sửa thùng ghép"), () => open_mix_dialog(frm), G_TAO);
+		}
+
+
+		// Ảnh & Cân
+		frm.add_custom_button(__("📷 Chụp / Cân"), () => carton_action(frm), G_ANH);
+		if (window.plScale && plScale.supported()) {
+			// Đọc cân trực tiếp qua Web Serial (chỉ Chrome/Edge + HTTPS).
+			frm.add_custom_button(__("⚙️ Scale Settings"), () => plScale.settingsDialog(), G_ANH);
+			scale_indicator(frm);
+			plScale.tryReconnect(); // tự nối lại cổng đã cấp quyền
+		}
+
+		// Tải về
+		frm.add_custom_button(__("📊 Download Excel"), () => download_excel(frm), G_TAI);
+		frm.add_custom_button(__("🖼 Download Ảnh (zip)"), () => download_all_carton_photos(frm), G_TAI);
+
+		// Xoá / Reset
+		frm.add_custom_button(__("🗑 Xoá tất cả ảnh"), () => delete_all_carton_photos(frm), G_XOA);
 		// Gross to Net: Gross là số cân nhập -> xoá. Net to Gross: Gross suy ra -> tính lại.
 		frm.add_custom_button(
 			(frm.doc.weight_mode || "") === "Gross to Net"
 				? __("🧹 Xoá toàn bộ Gross")
 				: __("🧹 Tính lại Gross từ Net"),
-			() => clear_all_gross(frm)
+			() => clear_all_gross(frm),
+			G_XOA
 		);
-		frm.add_custom_button(__("Hướng dẫn"), () => show_packing_guide());
-		// Đọc cân trực tiếp qua Web Serial (chỉ Chrome/Edge + HTTPS).
-		if (window.plScale && plScale.supported()) {
-			frm.add_custom_button(__("⚙️ Scale Settings"), () => plScale.settingsDialog(), __("Cân"));
-			scale_indicator(frm);
-			plScale.tryReconnect(); // tự nối lại cổng đã cấp quyền
-		}
+
 		update_carton_summary(frm);
 		update_size_color_summary(frm);
+		apply_detail_lock(frm);
+	},
+
+	lock_details(frm) {
+		// Áp/gỡ khóa ngay + cập nhật nút (refresh re-add custom buttons).
+		frm.refresh();
 	},
 
 	generate_btn(frm) {
@@ -34,6 +60,24 @@ frappe.ui.form.on("Packing List", {
 		update_size_color_summary(frm);
 	},
 });
+
+// Khóa bảng Carton Details: chỉ còn sửa được kg (gross_weight) & ảnh; net vốn đã
+// read-only theo schema. Chặn thêm/xóa dòng. Nút Generate/Edit Mix đã ẩn ở refresh.
+// Chỉ SIẾT khi khóa; lúc mở khóa, frm.refresh() dựng lại grid theo schema gốc.
+function apply_detail_lock(frm) {
+	const grid = frm.fields_dict.details && frm.fields_dict.details.grid;
+	if (!grid) return;
+	if (!frm.doc.lock_details || frm.is_new()) return; // mở khóa -> mặc định theo schema
+	const editable = ["net_weight", "gross_weight", "photo", "photo_view"];
+	(grid.docfields || []).forEach((df) => {
+		if (editable.indexOf(df.fieldname) === -1) {
+			grid.update_docfield_property(df.fieldname, "read_only", 1);
+		}
+	});
+	grid.cannot_add_rows = true;
+	if (grid.df) grid.df.cannot_delete_rows = true;
+	grid.refresh();
+}
 
 // Reverse weight: when Gross is entered (from scale) in "Gross to Net" mode,
 // derive Net = Gross - empty carton, and refresh the weight totals live.
@@ -70,7 +114,7 @@ function pl_save(frm) {
 	}
 	frm.__pl_saving = frm
 		.save()
-		.catch(() => {})
+		.catch(() => { })
 		.finally(() => {
 			frm.__pl_saving = null;
 			if (frm.__pl_save_again) {
@@ -205,6 +249,9 @@ function show_packing_guide() {
     <li><b>Chọn cách ghép</b> (Combine) và <b>ngưỡng thùng nhỏ</b> (nếu có nhiều loại thùng).</li>
     <li>Bấm <b>Generate Carton Detail</b> → hệ thống tự xếp thùng.</li>
     <li>Bấm <b>Edit Mix</b> để chỉnh tay các <b>thùng ghép</b> (nếu muốn) — số lượng luôn được giữ đúng tổng.</li>
+    <li>Chốt xong, tick <b>Khóa bảng Carton Details</b> (mục General) để tránh lỡ tạo lại: bảng
+      chỉ còn sửa được <b>kg / net / gross / ảnh</b>, không thêm/xóa thùng, và nút <b>Generate /
+      Edit Mix</b> bị ẩn. Bỏ tick để mở khóa.</li>
   </ol>
 
   <h4 style="margin:0 0 6px">⚙️ Thuật toán xếp thùng</h4>
@@ -221,6 +268,9 @@ function show_packing_guide() {
     </li>
     <li><b>Chọn loại thùng</b> (khi có ≥ 2 loại): thùng <b>đầy → thùng lớn</b>; thùng <b>chưa đầy → thùng nhỏ</b>.
       Ô <i>"Use Small Carton When Pcs ≤"</i>: thùng có tổng ≤ giá trị này thì dùng thùng nhỏ (0 = mọi thùng chưa đầy đều dùng thùng nhỏ).</li>
+    <li><b>Pcs per Box Multiple Of</b> (đóng theo lố): đặt n > 0 → số cái/thùng phải <b>chia hết cho n</b>
+      (vd 6 = lố 6). Sức chứa thùng đầy tự giảm về bội số gần nhất (max 22, n=6 → <b>18</b>).
+      (Màu,size) nào <b>không</b> chia hết cho n sẽ có <b>thùng lẻ</b> chứa phần dư — hệ thống cảnh báo khi Generate. Để <b>0</b> = tắt.</li>
     <li><b>Tính toán mỗi thùng:</b> Net = Σ(số cái × khối lượng size); Gross = Net + thùng rỗng; CBM = D×R×C/1.000.000.
       Số container = TỔNG CBM ÷ dung tích loại container.</li>
   </ol>
@@ -654,6 +704,7 @@ function open_capture_dialog(frm, row, force_continuous) {
 	const d = new frappe.ui.Dialog({
 		title: __("Chụp / Cân — thùng #{0}", [curRow.carton_no]),
 		fields: [
+			{ fieldtype: "HTML", fieldname: "carton_info" },
 			{ fieldtype: "Select", fieldname: "mode", label: __("Chế độ"), options: modes.join("\n"), default: mode },
 			{
 				fieldtype: "Check",
@@ -672,10 +723,32 @@ function open_capture_dialog(frm, row, force_continuous) {
 			do_action();
 		},
 	});
-	// Đổi tiêu đề + số thùng hiển thị khi sang thùng kế.
+
+	// Panel thông tin thùng đang xử lý — để user đối chiếu, tránh chụp NHẦM thùng.
+	const render_carton_info = () => {
+		const r = curRow;
+		const esc = (x) => frappe.utils.escape_html(String(x == null ? "" : x));
+		const done = r.photo
+			? `<span style="color:#27ae60">✓ ${__("đã có ảnh")}</span>`
+			: `<span style="color:#c0392b">● ${__("chưa có ảnh")}</span>`;
+		// contents đa dòng cho thùng ghép; thùng nguyên hiện màu-size.
+		const contents = r.contents
+			? `<div style="margin-top:3px;white-space:pre-line;font-size:12px">${esc(r.contents)}</div>`
+			: "";
+		d.fields_dict.carton_info.$wrapper.html(
+			`<div style="padding:8px 10px;background:#eef4fb;border-left:4px solid #2f6fb0;border-radius:4px">
+				<div style="font-size:15px;font-weight:700">${__("Thùng")} #${esc(r.carton_no)} — ${esc(r.color)} / ${esc(r.size)}</div>
+				<div class="small" style="margin-top:2px"><b>${esc(r.pcs)} Pcs</b> · ${__("Loại thùng")}: ${esc(r.carton_type)} · ${done}</div>
+				${contents}
+			</div>`
+		);
+	};
+
+	// Đổi tiêu đề + số thùng hiển thị + panel thông tin khi sang thùng kế.
 	const update_target = () => {
 		d.set_title(__("Chụp / Cân — thùng #{0}", [curRow.carton_no]));
 		d.$wrapper.find(".sc-cn").text(curRow.carton_no);
+		render_carton_info();
 	};
 
 	let stream = null;
@@ -713,8 +786,8 @@ function open_capture_dialog(frm, row, force_continuous) {
 			? `<video autoplay playsinline muted style="width:100%;max-height:55vh;background:#000"></video>
 			   <div class="pl-cam-res small text-muted" style="text-align:right"></div>`
 			: `<div class="text-muted small" style="padding:8px">${__(
-					"Camera trong dialog cần HTTPS. Bấm Chụp & Lưu để mở camera thiết bị / chọn ảnh."
-			  )}</div>`
+				"Camera trong dialog cần HTTPS. Bấm Chụp & Lưu để mở camera thiết bị / chọn ảnh."
+			)}</div>`
 	);
 	// Hiện độ phân giải THỰC TẾ nhận được: OCR cần chữ số ≥40px, ảnh nhỏ là đọc ra rác.
 	const show_res = () => {
@@ -804,7 +877,7 @@ function open_capture_dialog(frm, row, force_continuous) {
 		plScale
 			.readStableWeight({ timeoutMs: 8000, needConsecutive: 3 })
 			.then((w) => d.set_value("scale_weight", flt(w, 3)))
-			.catch(() => {});
+			.catch(() => { });
 	d.$wrapper.on("click", ".sc-reweigh", read_stable);
 	const start_scale = () => {
 		if (offScale) return;
@@ -955,6 +1028,7 @@ function open_capture_dialog(frm, row, force_continuous) {
 
 	d.show();
 	apply_mode();
+	render_carton_info();
 }
 
 function carton_file_input(on_image) {
@@ -1149,9 +1223,9 @@ function clear_all_gross(frm) {
 	const msg = g2n
 		? __("Xoá số cân (Gross) của <b>{0}</b> thùng để cân lại? Ảnh vẫn giữ nguyên. Không thể hoàn tác.", [n])
 		: __(
-				"Tính lại Net (từ bảng <b>Net Weight per Piece</b> × số cái) và Gross = Net + thùng rỗng cho <b>{0}</b> thùng? Ảnh giữ nguyên; mọi Gross sửa tay sẽ bị ghi đè.",
-				[n]
-		  );
+			"Tính lại Net (từ bảng <b>Net Weight per Piece</b> × số cái) và Gross = Net + thùng rỗng cho <b>{0}</b> thùng? Ảnh giữ nguyên; mọi Gross sửa tay sẽ bị ghi đè.",
+			[n]
+		);
 	frappe.confirm(msg, () => {
 		if (g2n) {
 			// Gán thẳng rồi refresh 1 lần: set_value từng ô sẽ bắn sự kiện hàng trăm lần.
@@ -1235,6 +1309,19 @@ function download_all_carton_photos(frm) {
 	);
 }
 
+// Tải workbook 3 sheet (General / Detail / Summary). Mở qua /api/method GET -> trình
+// duyệt tự lưu file (frappe.response type=binary + display_content_as=attachment).
+function download_excel(frm) {
+	if (frm.is_new() || !(frm.doc.details || []).length) {
+		frappe.msgprint(__("Chưa có thùng nào — bấm Generate Carton Detail trước."));
+		return;
+	}
+	window.open(
+		"/api/method/customize_erpnext.customize_erpnext.doctype.packing_list.packing_list.download_excel?packing_list=" +
+		encodeURIComponent(frm.doc.name)
+	);
+}
+
 // Crop the scale digits from the capture, OCR the weight, apply to Gross.
 
 // Auto-detect & read the red scale digits from the captured photo (no manual
@@ -1278,8 +1365,8 @@ function scale_ocr_dialog(frm, cdt, cdn, source, on_after) {
 		<div style="text-align:center;margin-top:6px">
 			<button class="btn btn-sm btn-default ocr-redo">🔄 ${__("Đọc lại số cân")}</button>
 			<button class="btn btn-sm btn-default ocr-retake" style="margin-left:6px">📷 ${__(
-				"Chụp lại"
-			)}</button>
+			"Chụp lại"
+		)}</button>
 		</div>`
 	);
 	const render_ocr = (m) => {

@@ -18,11 +18,13 @@
   "carton_type",
   "sku",
   "upc",
-  "photo"
+  "photo",
+  "photo_view"
  ],
  "fields": [
   {
    "columns": 1,
+   "description": "S\u1ed1 th\u1ee9 t\u1ef1 th\u00f9ng.",
    "fieldname": "carton_no",
    "fieldtype": "Int",
    "label": "Carton No",
@@ -30,6 +32,7 @@
   },
   {
    "columns": 1,
+   "description": "M\u00e0u. Th\u00f9ng gh\u00e9p: li\u1ec7t k\u00ea nhi\u1ec1u m\u00e0u, c\u00e1ch nhau d\u1ea5u ph\u1ea9y.",
    "fieldname": "color",
    "fieldtype": "Data",
    "in_list_view": 1,
@@ -37,6 +40,7 @@
   },
   {
    "columns": 1,
+   "description": "Size. Th\u00f9ng gh\u00e9p: li\u1ec7t k\u00ea nhi\u1ec1u size, c\u00e1ch nhau d\u1ea5u ph\u1ea9y.",
    "fieldname": "size",
    "fieldtype": "Data",
    "in_list_view": 1,
@@ -44,6 +48,7 @@
   },
   {
    "columns": 1,
+   "description": "M\u00e3 SKU. Th\u00f9ng gh\u00e9p: m\u1ed7i m\u1ee5c 1 d\u00f2ng.",
    "fieldname": "sku",
    "fieldtype": "Small Text",
    "in_list_view": 1,
@@ -51,6 +56,7 @@
   },
   {
    "columns": 1,
+   "description": "M\u00e3 v\u1ea1ch UPC. Th\u00f9ng gh\u00e9p: m\u1ed7i m\u1ee5c 1 d\u00f2ng.",
    "fieldname": "upc",
    "fieldtype": "Small Text",
    "in_list_view": 1,
@@ -58,6 +64,7 @@
   },
   {
    "columns": 1,
+   "description": "Chi ti\u1ebft th\u00f9ng gh\u00e9p: m\u1ed7i d\u00f2ng 'M\u00e0u-Size: s\u1ed1 Pcs'. Th\u00f9ng nguy\u00ean \u0111\u1ec3 tr\u1ed1ng.",
    "fieldname": "contents",
    "fieldtype": "Small Text",
    "in_list_view": 1,
@@ -65,6 +72,7 @@
   },
   {
    "columns": 1,
+   "description": "S\u1ed1 c\u00e1i trong th\u00f9ng.",
    "fieldname": "pcs",
    "fieldtype": "Int",
    "in_list_view": 1,
@@ -72,6 +80,7 @@
   },
   {
    "columns": 1,
+   "description": "Kh\u1ed1i l\u01b0\u1ee3ng t\u1ecbnh = \u03a3(s\u1ed1 c\u00e1i \u00d7 kh\u1ed1i l\u01b0\u1ee3ng 1 c\u00e1i theo size).",
    "fieldname": "net_weight",
    "fieldtype": "Float",
    "in_list_view": 1,
@@ -89,6 +98,7 @@
    "precision": "2"
   },
   {
+   "description": "Kh\u1ed1i l\u01b0\u1ee3ng th\u00f9ng r\u1ed7ng (tare), kg.",
    "fieldname": "empty_weight",
    "fieldtype": "Float",
    "label": "Empty Carton (kg)",
@@ -98,6 +108,7 @@
   },
   {
    "columns": 1,
+   "description": "Th\u1ec3 t\u00edch th\u00f9ng = D\u00e0i\u00d7R\u1ed9ng\u00d7Cao / 1.000.000 (m\u00b3).",
    "fieldname": "cbm",
    "fieldtype": "Float",
    "in_list_view": 1,
@@ -107,6 +118,7 @@
   },
   {
    "columns": 2,
+   "description": "K\u00edch th\u01b0\u1edbc th\u00f9ng: D\u00e0i*R\u1ed9ng*Cao (cm).",
    "fieldname": "carton_type",
    "fieldtype": "Data",
    "in_list_view": 1,
@@ -114,10 +126,20 @@
    "read_only": 1
   },
   {
+   "description": "\u1ea2nh th\u00f9ng (\u0111\u00ednh k\u00e8m). L\u01b0u t\u1ea1i /private/files/packing_list/.",
    "fieldname": "photo",
    "fieldtype": "Attach Image",
    "in_list_view": 1,
    "label": "Photo",
+   "print_hide": 1,
+   "read_only": 1
+  },
+  {
+   "description": "Xem tr\u01b0\u1edbc \u1ea3nh th\u00f9ng ngay tr\u00ean l\u01b0\u1edbi (l\u1ea5y t\u1eeb \u0111\u01b0\u1eddng d\u1eabn \u1edf field Photo).",
+   "fieldname": "photo_view",
+   "fieldtype": "Image",
+   "label": "Xem \u1ea3nh",
+   "options": "photo",
    "print_hide": 1,
    "read_only": 1
   }

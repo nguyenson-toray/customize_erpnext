@@ -13,19 +13,23 @@
   "contract_no",
   "no",
   "style",
-  "size_color_summary",
   "column_break_ystx",
   "destination",
   "customer",
   "description_of_goods",
-  "total_carton_detail",
   "column_break_header",
   "total_carton",
   "total_quantity",
   "total_net_weight",
   "total_gross_weight",
+  "column_break_dhpj",
+  "lock_details",
   "total_cbm",
   "total_containers",
+  "section_break_kwzl",
+  "size_color_summary",
+  "column_break_ojsf",
+  "total_carton_detail",
   "section_carton",
   "column_break_msjo",
   "carton_types",
@@ -36,6 +40,7 @@
   "combine_mode",
   "small_carton_threshold",
   "max_size_per_mixed_carton",
+  "pcs_multiple",
   "generate_btn",
   "section_input",
   "items_text",
@@ -51,6 +56,7 @@
    "label": "General"
   },
   {
+   "description": "S\u1ed1 Packing List \u2014 \u0111\u1ed3ng th\u1eddi l\u00e0 m\u00e3 document; s\u1eeda s\u1ed1 n\u00e0y s\u1ebd t\u1ef1 \u0111\u1ed5i t\u00ean document.",
    "fieldname": "no",
    "fieldtype": "Data",
    "in_list_view": 1,
@@ -60,17 +66,20 @@
   },
   {
    "default": "Today",
+   "description": "Ng\u00e0y l\u1eadp Packing List.",
    "fieldname": "date",
    "fieldtype": "Date",
    "in_list_view": 1,
    "label": "Date"
   },
   {
+   "description": "S\u1ed1 h\u1ee3p \u0111\u1ed3ng.",
    "fieldname": "contract_no",
    "fieldtype": "Data",
    "label": "Contract No"
   },
   {
+   "description": "M\u00e3/t\u00ean style c\u1ee7a l\u00f4 h\u00e0ng.",
    "fieldname": "style",
    "fieldtype": "Data",
    "in_list_view": 1,
@@ -81,20 +90,30 @@
    "fieldtype": "Column Break"
   },
   {
+   "description": "T\u00ean kh\u00e1ch h\u00e0ng (nh\u1eadp tay, kh\u00f4ng li\u00ean k\u1ebft Customer).",
    "fieldname": "customer",
    "fieldtype": "Data",
    "in_list_view": 1,
    "label": "Customer"
   },
   {
+   "description": "C\u1ea3ng/\u0111i\u1ec3m \u0111\u1ebfn.",
    "fieldname": "destination",
    "fieldtype": "Data",
    "label": "Destination"
   },
   {
+   "description": "M\u00f4 t\u1ea3 h\u00e0ng ho\u00e1, in tr\u00ean ch\u1ee9ng t\u1eeb.",
    "fieldname": "description_of_goods",
    "fieldtype": "Small Text",
    "label": "Description of Goods"
+  },
+  {
+   "default": "0",
+   "description": "Kh\u00f3a b\u1ea3ng Carton Details: kh\u00f4ng cho s\u1eeda/th\u00eam/x\u00f3a th\u00f9ng v\u00e0 t\u1eaft n\u00fat Generate. Ch\u1ec9 c\u00f2n s\u1eeda \u0111\u01b0\u1ee3c kg/net/gross v\u00e0 \u1ea3nh. B\u1eadt sau khi \u0111\u00e3 ch\u1ed1t s\u1ed1 th\u00f9ng \u0111\u1ec3 tr\u00e1nh l\u1ee1 t\u1ea1o l\u1ea1i.",
+   "fieldname": "lock_details",
+   "fieldtype": "Check",
+   "label": "Kh\u00f3a b\u1ea3ng Carton Details"
   },
   {
    "collapsible": 1,
@@ -104,7 +123,7 @@
   },
   {
    "columns": 2,
-   "description": "One row per carton type. Assign every size used in the Quantity Table to exactly one carton type.",
+   "description": "M\u1ed9t h\u00e0ng t\u01b0\u01a1ng \u1ee9ng v\u1edbi m\u1ed9t lo\u1ea1i th\u00f9ng carton. Th\u00f9ng k\u00edch th\u01b0\u1edbc l\u1edbn h\u01a1n nh\u1eadp tr\u01b0\u1edbc.",
    "fieldname": "carton_types",
    "fieldtype": "Table",
    "label": "Carton Types",
@@ -114,6 +133,7 @@
   },
   {
    "default": "40HC",
+   "description": "Lo\u1ea1i container \u2014 d\u00f9ng t\u00ednh s\u1ed1 xe = ceil(t\u1ed5ng CBM \u00f7 dung t\u00edch).",
    "fieldname": "container_type",
    "fieldtype": "Select",
    "label": "Container Type",
@@ -122,7 +142,7 @@
   },
   {
    "default": "No Combine",
-   "description": "How partial (leftover) pieces are merged into mixed cartons to reduce carton count.",
+   "description": "Ch\u1ebf \u0111\u1ed9 gh\u00e9p th\u00f9ng",
    "fieldname": "combine_mode",
    "fieldtype": "Select",
    "label": "Combine Leftover Cartons",
@@ -131,7 +151,7 @@
   },
   {
    "default": "0",
-   "description": "When 2+ carton types: full cartons use the larger box; a carton with total pcs \u2264 this value uses the smaller box. 0 = small box for any not-yet-full carton.",
+   "description": "Khi c\u00f3 t\u1eeb 2 lo\u1ea1i th\u00f9ng carton tr\u1edf l\u00ean: th\u00f9ng carton \u0111\u1ea7y s\u1ebd d\u00f9ng th\u00f9ng l\u1edbn h\u01a1n; th\u00f9ng carton c\u00f3 t\u1ed5ng s\u1ed1 s\u1ea3n ph\u1ea9m \u2264 gi\u00e1 tr\u1ecb n\u00e0y s\u1ebd d\u00f9ng th\u00f9ng nh\u1ecf h\u01a1n. 0 = th\u00f9ng nh\u1ecf cho b\u1ea5t k\u1ef3 th\u00f9ng carton n\u00e0o ch\u01b0a \u0111\u1ea7y.",
    "fieldname": "small_carton_threshold",
    "fieldtype": "Int",
    "label": "Use Small Carton When Pcs \u2264",
@@ -167,7 +187,7 @@
   {
    "fieldname": "generate_btn",
    "fieldtype": "Button",
-   "label": "Generate Carton Detail"
+   "label": "T\u1ea1o chi ti\u1ebft th\u00f9ng"
   },
   {
    "fieldname": "section_details",
@@ -176,24 +196,28 @@
   },
   {
    "allow_bulk_edit": 1,
+   "description": "Chi ti\u1ebft t\u1eebng th\u00f9ng (1 d\u00f2ng = 1 th\u00f9ng). B\u1ea5m Generate Carton Detail \u0111\u1ec3 t\u1ea1o.",
    "fieldname": "details",
    "fieldtype": "Table",
    "label": "Packing List Detail",
    "options": "Packing List Detail"
   },
   {
+   "description": "T\u1ed5ng s\u1ed1 c\u00e1i (t\u1ef1 t\u00ednh, ch\u1ec9 \u0111\u1ecdc).",
    "fieldname": "total_quantity",
    "fieldtype": "Int",
    "label": "Total Quantity",
    "read_only": 1
   },
   {
+   "description": "T\u1ed5ng s\u1ed1 th\u00f9ng (t\u1ef1 t\u00ednh, ch\u1ec9 \u0111\u1ecdc).",
    "fieldname": "total_carton",
    "fieldtype": "Int",
    "label": "Total Carton",
    "read_only": 1
   },
   {
+   "description": "S\u1ed1 container = ceil(t\u1ed5ng CBM \u00f7 dung t\u00edch lo\u1ea1i container).",
    "fieldname": "total_containers",
    "fieldtype": "Int",
    "label": "Total Containers",
@@ -201,6 +225,7 @@
    "read_only": 1
   },
   {
+   "description": "T\u1ed5ng kh\u1ed1i l\u01b0\u1ee3ng t\u1ecbnh, kg (t\u1ef1 t\u00ednh).",
    "fieldname": "total_net_weight",
    "fieldtype": "Float",
    "label": "Total Net Weight (kg)",
@@ -208,6 +233,7 @@
    "read_only": 1
   },
   {
+   "description": "T\u1ed5ng kh\u1ed1i l\u01b0\u1ee3ng c\u1ea3 b\u00ec, kg (t\u1ef1 t\u00ednh).",
    "fieldname": "total_gross_weight",
    "fieldtype": "Float",
    "label": "Total Gross Weight (kg)",
@@ -215,6 +241,7 @@
    "read_only": 1
   },
   {
+   "description": "T\u1ed5ng th\u1ec3 t\u00edch, m\u00b3 (t\u1ef1 t\u00ednh).",
    "fieldname": "total_cbm",
    "fieldtype": "Float",
    "label": "Total CBM (m3)",
@@ -235,6 +262,7 @@
    "fieldtype": "Column Break"
   },
   {
+   "description": "Th\u1ed1ng k\u00ea s\u1ed1 th\u00f9ng nguy\u00ean (1 m\u00e0u+size) v\u00e0 th\u00f9ng gh\u00e9p.",
    "fieldname": "total_carton_detail",
    "fieldtype": "HTML",
    "is_virtual": 1,
@@ -242,6 +270,7 @@
    "print_hide": 1
   },
   {
+   "description": "B\u1ea3ng t\u1ed5ng s\u1ed1 c\u00e1i theo Size \u00d7 M\u00e0u (pivot).",
    "fieldname": "size_color_summary",
    "fieldtype": "HTML",
    "is_virtual": 1,
@@ -249,10 +278,19 @@
   },
   {
    "default": "2",
+   "description": "S\u1ed1 size kh\u00e1c nhau t\u1ed1i \u0111a \u0111\u01b0\u1ee3c ph\u00e9p trong 1 th\u00f9ng gh\u00e9p.",
    "fieldname": "max_size_per_mixed_carton",
    "fieldtype": "Select",
    "label": "Max Size Per Mixed Carton",
    "options": "2\n3\n4"
+  },
+  {
+   "default": "0",
+   "description": "S\u1ed1 c\u00e1i/th\u00f9ng ph\u1ea3i chia h\u1ebft cho gi\u00e1 tr\u1ecb n\u00e0y (vd 6 = \u0111\u00f3ng theo l\u1ed1 6). 0 = t\u1eaft. S\u1ee9c ch\u1ee9a th\u00f9ng \u0111\u1ea7y t\u1ef1 gi\u1ea3m v\u1ec1 b\u1ed9i s\u1ed1 g\u1ea7n nh\u1ea5t (max 22, n=6 \u2192 18). S\u1ed1 d\u01b0 kh\u00f4ng chia h\u1ebft \u0111\u01b0\u1ee3c d\u1ed3n v\u00e0o th\u00f9ng l\u1ebb.",
+   "fieldname": "pcs_multiple",
+   "fieldtype": "Int",
+   "label": "Pcs per Box Multiple Of",
+   "non_negative": 1
   },
   {
    "default": "Gross to Net",
@@ -272,11 +310,24 @@
    "label": "Weight Source",
    "options": "OCR\nScale",
    "print_hide": 1
+  },
+  {
+   "fieldname": "section_break_kwzl",
+   "fieldtype": "Section Break",
+   "label": "Summary"
+  },
+  {
+   "fieldname": "column_break_ojsf",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_dhpj",
+   "fieldtype": "Column Break"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-07-11 08:10:59.441007",
+ "modified": "2026-07-27 12:53:23.722436",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Packing List",

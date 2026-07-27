@@ -15,7 +15,8 @@ Module: `Customize Erpnext`. Code: `customize_erpnext/customize_erpnext/doctype/
   `destination`, `customer` (Data, không link), `description_of_goods`.
 - **Carton config:** `carton_types` (child *Packing List Carton Type*), `container_type`
   (20GP/40GP/42GP/40HC/45HC), `combine_mode`, `small_carton_threshold`,
-  `max_size_per_mixed_carton` (2/3/4), `weight_mode` (Net to Gross / Gross to Net).
+  `max_size_per_mixed_carton` (2/3/4), `pcs_multiple` (số cái/thùng chia hết cho n; 0=tắt),
+  `weight_mode` (Net to Gross / Gross to Net).
 - **Input:** `items_text` (Code), `weight_text` (Code).
 - **Totals (read-only):** `total_quantity`, `total_carton`, `total_containers`,
   `total_net_weight`, `total_gross_weight`, `total_cbm`.
@@ -65,11 +66,20 @@ Parser: `_parse_items()` → `(qty_map, sizes, colors, sku_map)`; `_parse_weight
    - **By Color & Size:** ghép tất cả.
    - Dùng **First-Fit-Decreasing** — **không bao giờ xé lẻ 1 (màu,size) ra 2 thùng**.
    - Mỗi thùng ghép chứa **tối đa `max_size_per_mixed_carton`** size khác nhau.
+2b. **`pcs_multiple` (n > 0) — số cái/THÙNG ĐẦY chia hết cho n** (đóng theo lố): trong
+   `build_cartons`, **chỉ sức chứa thùng đầy** giảm về bội số n lớn nhất ≤ max_items (26, n=6 → **24**).
+   ⚠️ **Thùng nhỏ giữ nguyên max_items** — nó chứa hàng lẻ (phần dư thường KHÔNG chia hết n).
+   Nếu giảm cả thùng nhỏ thì thùng lẻ 7 cái sẽ không lọt thùng nhỏ (đã giảm còn 6) → phải nhét
+   thùng lớn (lỗi từng gặp: thùng #27 7pcs dùng thùng lớn). Các (màu,size) không chia hết n →
+   sinh **thùng lẻ**; `frappe.msgprint` cảnh báo (không chặn). Đo: 1251 cái, n=6 → 66 thùng = 18 + thùng lẻ.
 3. **Chọn loại thùng** (`_pick_box`, khi có ≥2 loại): thùng **đầy → thùng lớn**;
    thùng **chưa đầy → thùng nhỏ** nếu tổng pcs ≤ `small_carton_threshold`
    (0 = mọi thùng chưa đầy dùng thùng nhỏ), và ≤ sức chứa thùng nhỏ.
-4. **Sắp xếp:** thùng nguyên (theo màu→size) trước → thùng ghép sau, gom theo loại thùng.
-   Đánh số `carton_no` tuần tự.
+4. **Sắp xếp** (luôn theo thứ tự bảng **Items**: Màu rồi Size), rồi đánh số `carton_no` tuần tự:
+   - **No Combine:** thùng lẻ nằm **ngay sau** các thùng đầy của **cùng (màu,size)** → đọc
+     danh sách khớp đúng thứ tự Items.
+   - **Có ghép** (By Color/Size/…): thùng đầy trước (theo Items) → thùng lẻ/ghép **dồn xuống
+     cuối**, gom theo loại thùng.
 5. Mỗi thùng: `net = Σ(pcs_size × weight_size)`, `gross = net + empty` (tare),
    `cbm = L×W×H/1.000.000`. `total_containers = ceil(total_cbm / dung_tích_container)`
    (20GP≈28, 40GP≈58, 42GP≈58, 40HC≈68, 45HC≈86 — hằng số trong code).
@@ -327,6 +337,19 @@ export `window.plScale`. **Client-side thuần — không thêm method Python.**
 
 ---
 
+## 7d. Khóa bảng Carton Details (`lock_details`)
+
+Checkbox **"Khóa bảng Carton Details"** (mục General). Khi bật (và doc đã lưu):
+- **JS** (`apply_detail_lock`): mọi field trong lưới → read-only **trừ** `net_weight`,
+  `gross_weight`, `photo`/`photo_view`; `grid.cannot_add_rows` + `grid.df.cannot_delete_rows`
+  = true (không thêm/xóa dòng); nút **Generate Carton Detail** & **Edit Mix** bị **ẩn** ở refresh.
+  Chỉ siết khi khóa — mở khóa thì `frm.refresh()` dựng lại lưới theo schema gốc.
+- **Server** (chốt thật, chống bypass): `generate_detail` và `apply_mix` **throw** nếu
+  `lock_details`. → không thể xếp lại/đổi cấu trúc thùng.
+- Mục đích: chốt số thùng rồi mới đi cân/chụp cả lô, tránh lỡ bấm Generate làm mất ảnh & số.
+
+---
+
 ## 8. Chốt cartons trước khi chụp
 
 - **Generate khi đã có ảnh:** client hiện **confirm Yes/No**; Yes → `generate_detail(force=1)`
@@ -355,9 +378,28 @@ export `window.plScale`. **Client-side thuần — không thêm method Python.**
 | `save_carton_photo(packing_list, carton_no, color, size, image, gross=0)` | Lưu ảnh thùng (tên có kg) |
 | `rename_carton_photo(packing_list, carton_no, color, size, gross)` | Đổi tên ảnh theo Gross mới |
 | `download_all_photos(packing_list)` | Zip tải tất cả ảnh (tên theo Gross hiện tại) |
+| `download_excel(packing_list)` | Xuất workbook 3 sheet: General / Detail / Summary |
 | `delete_all_photos(packing_list)` | Xoá toàn bộ ảnh: File + file trên đĩa + link trong bảng |
 | `read_scale_ocr(image, decimals=2, roi=None, packing_list=None, carton_no=None)` | OCR số cân (ssocr) |
 | `recalc_weights(doc)` | Tính lại Net từ bảng cân nặng × pcs, Gross = Net + tare (giữ ảnh) |
+
+**Nút form gộp theo nhóm:** *Tạo thùng* (Generate, Edit Mix, Hướng dẫn) · *Ảnh & Cân*
+(📷 Chụp/Cân, ⚙️ Scale Settings) · *Tải về* (📊 Download Excel, 🖼 Download Ảnh) ·
+*Xoá / Reset* (🗑 Xoá tất cả ảnh, 🧹 Xoá/Tính Gross).
+
+**Download Excel** (`download_excel`, dùng openpyxl) — **2 sheet**:
+- **General** — thông tin chung + pivot qty (Màu × Size) + tổng thùng nguyên/ghép.
+- **Detail** — mỗi thùng 1 dòng (KHÔNG kèm đường dẫn ảnh); user tự pivot bằng Excel khi cần.
+
+**Ảnh private "Forbidden" (đã xử lý):** Frappe chỉ serve file private khi có **File record**
+trỏ tới URL đó và user đọc được document đính kèm. Nếu File record mất (do rename cũ / thao tác
+cũ) trong khi ảnh vẫn trên đĩa → click ảnh bị *Forbidden*. Controller tự chữa:
+- `on_update._ensure_photo_records()`: mỗi ảnh trên lưới thiếu File record mà **còn trên đĩa** →
+  **dựng lại File** (đính kèm packing list); ảnh mất hẳn → xoá link.
+- `after_rename`: đổi `File.attached_to_name` theo tên mới (rename không tự làm → hết orphan).
+
+**Field `photo_view`** (Packing List Detail, fieldtype **Image**, options=`photo`): xem trước ảnh
+ngay trên lưới, không cần mở đính kèm.
 
 > ⚠️ Thêm/đổi **method Python** → cần **`bench restart`** (web worker gunicorn `--preload`
 > không tự nạp lại code; `clear-cache` chỉ xóa redis). Sửa JS/JSON → `clear-cache` + refresh.

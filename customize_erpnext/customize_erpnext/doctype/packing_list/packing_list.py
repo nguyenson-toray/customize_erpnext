@@ -44,7 +44,61 @@ class PackingList(Document):
                 show_alert=False,
             )
             self.name = self.no
+        self._ensure_photo_records()
         self._sync_photo_names()
+
+    def after_rename(self, old_name, new_name, merge=False):
+        # File private chỉ serve được nếu attached_to_name khớp document; rename
+        # KHÔNG tự cập nhật nên ảnh cũ sẽ "Forbidden". Trỏ lại cho đúng.
+        frappe.db.set_value(
+            "File",
+            {"attached_to_doctype": "Packing List", "attached_to_name": old_name},
+            "attached_to_name",
+            new_name,
+            update_modified=False,
+        )
+
+    def _ensure_photo_records(self):
+        """Đảm bảo mỗi ảnh trên lưới có 1 File record (để serve được, đúng quyền).
+
+        Frappe chỉ cho tải file private khi có File record trỏ tới URL đó và user
+        đọc được document đính kèm. Nếu File bị mất (rename, thao tác cũ...) trong
+        khi ảnh vẫn còn trên đĩa → click ảnh bị 'Forbidden'. Ở đây tự dựng lại
+        File cho ảnh còn trên đĩa; ảnh mất hẳn thì xoá link để khỏi báo lỗi.
+        """
+        import os
+
+        for d in (self.details or []):
+            url = d.photo
+            if not url:
+                continue
+            if frappe.db.exists("File", {"file_url": url}):
+                continue
+            disk = frappe.get_site_path(url.lstrip("/"))
+            if not os.path.exists(disk):
+                d.db_set("photo", "", update_modified=False)  # ảnh không còn -> bỏ link
+                continue
+            try:
+                f = frappe.get_doc(
+                    {
+                        "doctype": "File",
+                        "file_name": url.rsplit("/", 1)[-1],
+                        "file_url": url,
+                        "is_private": 1,
+                        "attached_to_doctype": "Packing List",
+                        "attached_to_name": self.name,
+                    }
+                )
+                f.flags.ignore_permissions = True
+                f.insert(ignore_permissions=True)
+                # File.validate có thể dời file phẳng về /private/files/ -> ép URL cũ.
+                if f.file_url != url:
+                    frappe.db.set_value(
+                        "File", f.name, {"file_url": url, "file_name": url.rsplit("/", 1)[-1]},
+                        update_modified=False,
+                    )
+            except Exception:
+                pass  # không để việc dựng File làm hỏng save
 
     def _sync_photo_names(self):
         """Keep the kg in each photo filename in step with the current Gross.
@@ -161,9 +215,38 @@ class PackingList(Document):
                     "Check it is tab-separated, one line per size: Size &lt;Tab&gt; Weight."
                 ).format(", ".join(missing_w))
             )
+        # pcs_multiple: chỉ những (màu,size) chia hết cho n mới xếp gọn thành các
+        # thùng đều chia hết cho n; phần không chia hết sẽ nằm ở thùng lẻ. Cảnh báo
+        # (không chặn) để user biết vì sao có thùng lẻ.
+        n = cint(self.pcs_multiple)
+        if n > 0:
+            odd = [
+                "{0}-{1} ({2})".format(c, s, q)
+                for (c, s), q in qty_map.items()
+                if cint(q) % n != 0 and cint(q) > 0
+            ]
+            if odd:
+                frappe.msgprint(
+                    _("Các (màu-size) sau KHÔNG chia hết cho {0} → sẽ có thùng lẻ: {1}").format(
+                        n, ", ".join(sorted(odd))
+                    ),
+                    title=_("Pcs per box"),
+                    indicator="orange",
+                )
+
         boxes, _by_label = self._get_boxes()
         big, small = self._big_small(boxes)
         cap = big["cap"]  # a full carton is packed in the larger box
+        # pcs_multiple chỉ ràng buộc THÙNG ĐẦY: giảm sức chứa thùng đầy về bội số n
+        # gần nhất (26 -> 24 khi n=6). Thùng nhỏ giữ nguyên max_items để chứa hàng lẻ.
+        if n > 0:
+            cap = (cap // n) * n
+            if cap <= 0:
+                frappe.throw(
+                    _("Pcs per Box Multiple Of ({0}) lớn hơn Max Items/Carton của thùng đầy {1}").format(
+                        n, big["label"]
+                    )
+                )
         threshold = cint(self.small_carton_threshold)
         max_sizes = cint(self.max_size_per_mixed_carton) or 999
 
@@ -197,16 +280,30 @@ class PackingList(Document):
             pcs = sum(p for (_c, _s, p) in lines)
             placed.append((lines, self._pick_box(pcs, cap, big, small, threshold)))
 
-        # Order: solid/whole cartons first (by color & size, as built), then the
-        # mixed cartons grouped by carton type (carton-type table order). Stable
-        # sort keeps the existing order within each group.
+        # Ordering — always follows the Items order (Color rồi Size):
+        #   No Combine  -> thùng lẻ nằm NGAY SAU các thùng đầy của cùng (màu,size);
+        #                  toàn bộ danh sách đọc theo đúng thứ tự bảng Items.
+        #   Có ghép     -> thùng đầy trước (theo Items), thùng lẻ/ghép DỒN XUỐNG CUỐI
+        #                  (gom theo loại thùng).
         box_rank = {b["label"]: i for i, b in enumerate(boxes)}
-        placed.sort(
-            key=lambda lb: (
-                1 if len(lb[0]) > 1 else 0,
-                box_rank.get(lb[1]["label"], 0) if len(lb[0]) > 1 else 0,
-            )
-        )
+        color_idx = {c: i for i, c in enumerate(colors)}
+        size_idx = {s: i for i, s in enumerate(sizes)}
+        combining = mode != "No Combine"
+
+        def order_key(item):
+            lines, box = item
+            is_full = len(lines) == 1 and lines[0][2] == cap  # 1 màu+size, đầy cap
+            ci = min((color_idx.get(l[0], 999) for l in lines), default=999)
+            si = min((size_idx.get(l[1], 999) for l in lines), default=999)
+            if combining:
+                # đầy trước (theo Items) -> lẻ/ghép cuối (theo loại thùng rồi Items)
+                if is_full:
+                    return (0, ci, si, 0)
+                return (1, box_rank.get(box["label"], 0), ci, si)
+            # No Combine: thuần Items order; trong cùng (màu,size) thì đầy trước lẻ sau
+            return (ci, si, 0 if is_full else 1)
+
+        placed.sort(key=order_key)
 
         # Write child rows (renumber sequentially in the final order).
         self.set("details", [])
@@ -307,7 +404,13 @@ class PackingList(Document):
         return f"{cint(length)}*{cint(width)}*{cint(height)}"
 
     def _get_boxes(self):
-        """Return (boxes, by_label). boxes[0] is the default carton type."""
+        """Return (boxes, by_label). boxes[0] is the default carton type.
+
+        `cap` = SỨC CHỨA THẬT (max_items). Ràng buộc `pcs_multiple` KHÔNG áp ở đây:
+        nó chỉ giảm sức chứa của THÙNG ĐẦY (xem build_cartons), còn thùng nhỏ vẫn
+        giữ nguyên max_items để chứa được hàng lẻ (phần dư thường không chia hết n
+        — vd thùng lẻ 7 cái vẫn phải lọt được thùng nhỏ max 10).
+        """
         rows = self.carton_types or []
         if not rows:
             frappe.throw(_("Add at least one Carton Type"))
@@ -537,6 +640,8 @@ def generate_detail(doc, force=0):
         doc = frappe.parse_json(doc)
 
     pl = frappe.get_doc(doc)
+    if cint(pl.lock_details):
+        frappe.throw(_("Bảng Carton Details đang bị khóa — bỏ tick 'Khóa bảng Carton Details' để tạo lại."))
     photos = [d.get("photo") for d in (pl.details or []) if d.get("photo")]
     if photos and not cint(force):
         frappe.throw(
@@ -609,6 +714,8 @@ def apply_mix(doc, cartons):
         cartons = frappe.parse_json(cartons)
 
     pl = frappe.get_doc(doc)
+    if cint(pl.lock_details):
+        frappe.throw(_("Bảng Carton Details đang bị khóa — bỏ tick 'Khóa bảng Carton Details' để sửa."))
     pl.apply_mix_edit(cartons)
     pl._recalc_totals()
     return _result(pl)
@@ -769,6 +876,153 @@ def delete_all_photos(packing_list):
             pass
 
     return {"deleted": deleted, "swept": swept}
+
+
+@frappe.whitelist()
+def download_excel(packing_list):
+    """Stream a 2-sheet workbook: General, Detail.
+
+    General — thông tin chung + pivot qty (màu × size) + tổng thùng nguyên/ghép.
+    Detail  — mỗi thùng 1 dòng (KHÔNG kèm đường dẫn ảnh); user tự pivot bằng Excel.
+    """
+    import io
+
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+
+    frappe.has_permission("Packing List", "read", doc=packing_list, throw=True)
+    doc = frappe.get_doc("Packing List", packing_list)
+    try:
+        qty_map, sizes, colors, _sku = doc._parse_items()
+    except Exception:
+        qty_map, sizes, colors = {}, [], []
+
+    bold = Font(bold=True)
+    head_fill = PatternFill("solid", fgColor="D9E1F2")
+    tot_fill = PatternFill("solid", fgColor="FCE4D6")
+    thin = Side(style="thin", color="B0B8C0")
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    center = Alignment(horizontal="center", vertical="center")
+    wrap = Alignment(vertical="top", wrap_text=True)
+
+    def style_header(cells):
+        for c in cells:
+            c.font = bold
+            c.fill = head_fill
+            c.alignment = center
+            c.border = border
+
+    wb = Workbook()
+
+    # ---------------- General ----------------
+    ws = wb.active
+    ws.title = "General"
+    info = [
+        ("No", doc.no),
+        ("Date", frappe.utils.formatdate(doc.date) if doc.date else ""),
+        ("Contract No", doc.contract_no),
+        ("Style", doc.style),
+        ("Destination", doc.destination),
+        ("Customer", doc.customer),
+        ("Description", doc.description_of_goods),
+        ("Container Type", doc.container_type),
+        ("Combine Mode", doc.combine_mode),
+        ("Weight Mode", doc.weight_mode),
+        ("Pcs per Box Multiple Of", doc.pcs_multiple),
+        ("Total Quantity", doc.total_quantity),
+        ("Total Carton", doc.total_carton),
+        ("Total Containers", doc.total_containers),
+        ("Total Net Weight (kg)", doc.total_net_weight),
+        ("Total Gross Weight (kg)", doc.total_gross_weight),
+        ("Total CBM", doc.total_cbm),
+    ]
+    r = 1
+    for label, val in info:
+        ws.cell(r, 1, label).font = bold
+        ws.cell(r, 2, "" if val is None else val)
+        r += 1
+
+    # Pivot qty: màu (hàng) × size (cột)
+    r += 1
+    ws.cell(r, 1, "QUANTITY PER SIZE AND COLOR").font = bold
+    r += 1
+    hdr = [ws.cell(r, 1, "")] + [ws.cell(r, 2 + i, s) for i, s in enumerate(sizes)]
+    hdr.append(ws.cell(r, 2 + len(sizes), "Total"))
+    style_header(hdr)
+    col_tot = {s: 0 for s in sizes}
+    grand = 0
+    for color in colors:
+        r += 1
+        ws.cell(r, 1, color).font = bold
+        ws.cell(r, 1).border = border
+        rowtot = 0
+        for i, s in enumerate(sizes):
+            v = cint(qty_map.get((color, s), 0))
+            rowtot += v
+            col_tot[s] += v
+            cell = ws.cell(r, 2 + i, v or "")
+            cell.border = border
+            cell.alignment = center
+        grand += rowtot
+        tc = ws.cell(r, 2 + len(sizes), rowtot)
+        tc.font = bold
+        tc.border = border
+        tc.alignment = center
+    r += 1
+    tr = [ws.cell(r, 1, "Total")] + [ws.cell(r, 2 + i, col_tot[s]) for i, s in enumerate(sizes)]
+    tr.append(ws.cell(r, 2 + len(sizes), grand))
+    for c in tr:
+        c.font = bold
+        c.fill = tot_fill
+        c.alignment = center
+        c.border = border
+
+    # Tổng thùng nguyên / ghép
+    whole = sum(1 for d in doc.details if not doc._is_mixed(d))
+    mixed = sum(1 for d in doc.details if doc._is_mixed(d))
+    r += 2
+    ws.cell(r, 1, "TOTAL CARTON DETAIL").font = bold
+    for label, val in (("Thùng nguyên (1 màu+size)", whole), ("Thùng ghép", mixed), ("Tổng thùng", whole + mixed)):
+        r += 1
+        ws.cell(r, 1, label).font = bold
+        ws.cell(r, 2, val).alignment = center
+    ws.column_dimensions["A"].width = 26
+    for i in range(len(sizes) + 1):
+        ws.column_dimensions[chr(66 + i)].width = 10
+
+    # ---------------- Detail ----------------
+    wd = wb.create_sheet("Detail")
+    cols = [
+        ("Carton No", "carton_no", 9),
+        ("Color", "color", 18),
+        ("Size", "size", 12),
+        ("Contents", "contents", 26),
+        ("Pcs", "pcs", 7),
+        ("Net Weight (kg)", "net_weight", 13),
+        ("Gross Weight (kg)", "gross_weight", 14),
+        ("Empty Carton (kg)", "empty_weight", 14),
+        ("CBM (m3)", "cbm", 10),
+        ("Carton Size (L*W*H)", "carton_type", 16),
+        ("SKU", "sku", 20),
+        ("UPC", "upc", 20),
+    ]
+    style_header([wd.cell(1, i + 1, c[0]) for i, c in enumerate(cols)])
+    for ri, d in enumerate(doc.details, start=2):
+        for ci, (_lbl, fn, _w) in enumerate(cols, start=1):
+            cell = wd.cell(ri, ci, d.get(fn))
+            cell.border = border
+            if fn in ("contents", "sku", "upc"):
+                cell.alignment = wrap
+    for i, c in enumerate(cols):
+        wd.column_dimensions[chr(65 + i)].width = c[2]
+    wd.freeze_panes = "A2"
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    frappe.response["filename"] = "{0}.xlsx".format(doc.name)
+    frappe.response["filecontent"] = buf.getvalue()
+    frappe.response["type"] = "binary"
+    frappe.response["display_content_as"] = "attachment"
 
 
 @frappe.whitelist()
