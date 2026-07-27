@@ -10,8 +10,12 @@ window.plScale = (function () {
 		parity: "none",
 		stopBits: 1,
 		// Regex mặc định Jadever: ST/US , GS/NT , <số> <đơn vị>
-		regex: "(ST|US)\\s*,\\s*(GS|NT)\\s*,?\\s*([+-]?\\s*\\d+(?:\\.\\d+)?)\\s*(kg|g|lb)?",
+		// [.,] cho phần thập phân: có đầu cân dùng DẤU PHẨY. Chỉ nhận "." thì
+		// "0,50" khớp thành "0" -> ghi 0 kg thay vì 0.5 mà không báo gì.
+		regex: "(ST|US)\\s*,\\s*(GS|NT)\\s*,?\\s*([+-]?\\s*\\d+(?:[.,]\\d+)?)\\s*(kg|g|lb)?",
 	};
+	// Regex mặc định cũ (chỉ chấp nhận dấu chấm) — nâng cấp cho máy đã lưu bản cũ.
+	const LEGACY_REGEX = "(ST|US)\\s*,\\s*(GS|NT)\\s*,?\\s*([+-]?\\s*\\d+(?:\\.\\d+)?)\\s*(kg|g|lb)?";
 
 	let cfg = load_cfg();
 	let port = null;
@@ -24,7 +28,10 @@ window.plScale = (function () {
 
 	function load_cfg() {
 		try {
-			return Object.assign({}, DEFAULT_CFG, JSON.parse(localStorage.getItem(LS_KEY) || "{}"));
+			const c = Object.assign({}, DEFAULT_CFG, JSON.parse(localStorage.getItem(LS_KEY) || "{}"));
+			// Máy đã lưu regex mặc định CŨ -> nâng lên bản mới (chỉ khi user chưa tự sửa).
+			if (c.regex === LEGACY_REGEX) c.regex = DEFAULT_CFG.regex;
+			return c;
 		} catch (e) {
 			return Object.assign({}, DEFAULT_CFG);
 		}
@@ -69,23 +76,61 @@ window.plScale = (function () {
 		}
 	}
 
-	// Parse 1 dòng -> {stable, mode, weight(kg), unit, raw} hoặc null.
+	// Các kiểu fallback khi regex cấu hình không khớp — thử lần lượt.
+	//  1) số + đơn vị chuẩn (Jadever rời cờ, cân generic).
+	//  2) DIGI DI-28SS: "=   1.88B" — cờ "=" đứng trước, KHÔNG có token kg/g/lb.
+	//     Bắt buộc có ký tự cờ ở đầu để khỏi vớ số linh tinh trong dòng.
+	const FALLBACKS = [
+		// [full, flag, mode, số, đơn vị]
+		{ re: /([+-]?\s*\d+(?:[.,]\d+)?)[\s,]*(kg|g|lb)\b/i, map: (m) => ["", "", "", m[1], m[2]] },
+		{ re: /^\s*([=~!S?])\s*([+-]?\d+(?:[.,]\d+)?)\s*([A-Za-z]{0,2})\s*$/, map: (m) => [m[0], m[1], "", m[2], ""] },
+	];
+
+	// Cờ rõ ràng cho biết ổn định (ST) hay chưa (US); ký tự khác -> để "loose".
+	function stable_from_flag(flag) {
+		flag = String(flag || "").toUpperCase();
+		if (flag === "ST") return true;
+		if (flag === "US") return false;
+		return null; // không xác định -> caller dùng chế độ loose
+	}
+
+	// Parse 1 dòng -> {stable, mode, weight(kg), unit, raw, loose} hoặc null.
 	function parseLine(line) {
-		const m = get_regex().exec(line || "");
-		if (!m) return null;
-		let w = parseFloat(String(m[3] || "").replace(/\s+/g, ""));
+		let m = get_regex().exec(line || "");
+		let loose = false;
+		if (!m) {
+			for (const f of FALLBACKS) {
+				const mm = f.re.exec(line || "");
+				if (mm) {
+					m = f.map(mm);
+					break;
+				}
+			}
+			if (!m) return null;
+			loose = true;
+		}
+		let w = parseFloat(String(m[3] || "").replace(/\s+/g, "").replace(",", "."));
 		if (isNaN(w)) return null;
 		let unit = String(m[4] || "").toLowerCase();
 		if (unit === "g") {
 			w = w / 1000; // g -> kg
 			unit = "kg";
 		}
+		// Cờ ST/US mới quyết định; cờ lạ (=, S...) hoặc regex generic không có cờ ->
+		// loose = coi như ổn định, để luật "N lần liên tiếp cùng giá trị" của
+		// readStableWeight lo phần chống số đang nhảy.
+		let st = stable_from_flag(m[1]);
+		if (st === null) {
+			loose = true;
+			st = true;
+		}
 		return {
-			stable: /st/i.test(m[1] || ""),
+			stable: st,
 			mode: String(m[2] || "").toUpperCase(),
 			weight: w,
 			unit: unit || "kg",
 			raw: line,
+			loose: loose,
 		};
 	}
 
@@ -152,11 +197,20 @@ window.plScale = (function () {
 					if (done) break;
 					if (value) {
 						textBuf += decoder.decode(value, { stream: true });
-						let idx;
-						while ((idx = textBuf.search(/\r\n|\n/)) >= 0) {
-							const line = textBuf.slice(0, idx).trim();
-							textBuf = textBuf.slice(idx).replace(/^(\r\n|\n)/, "");
-							handle_line(line);
+						// CR-only (\r) là kiểu kết dòng phổ biến của đầu cân (DIGI...).
+						// Trước chỉ tách \r\n|\n -> loại cân đó không bao giờ ra 1 dòng nào,
+						// buffer phình mãi và UI đứng ở "Đang chờ cân…" vĩnh viễn.
+						let m;
+						while ((m = /\r\n|\r|\n/.exec(textBuf))) {
+							const line = textBuf.slice(0, m.index).trim();
+							textBuf = textBuf.slice(m.index + m[0].length);
+							if (line) handle_line(line);
+						}
+						// Không có ký tự kết dòng nào -> vẫn phải nhả ra để còn chẩn đoán,
+						// nếu không thì "có data" và "không có data" trông giống hệt nhau.
+						if (textBuf.length > 120) {
+							handle_line(textBuf.trim());
+							textBuf = "";
 						}
 					}
 				}
@@ -219,13 +273,22 @@ window.plScale = (function () {
 			});
 			const timer = setTimeout(() => {
 				cleanup();
-				reject(
-					new Error(
-						!gotAny
-							? "Không nhận được dữ liệu từ cân (kiểm tra cáp/cổng COM/baud, và chế độ in liên tục của đầu cân)."
-							: "Cân không ổn định hoặc parse sai. Raw gần nhất:\n" + recent.join("\n")
-					)
-				);
+				// Ba tình huống rất khác nhau, đừng gộp làm một:
+				//   không byte nào  -> cáp/COM/baud, hoặc đầu cân chưa bật in liên tục
+				//   có byte, 0 parse -> sai regex (mỗi hãng một định dạng)
+				//   parse được       -> số đang nhảy, chưa đứng yên
+				let msg;
+				if (!recent.length)
+					msg =
+						"Không nhận được dữ liệu từ cân. Kiểm tra: cáp RS232, đúng cổng COM, baud rate, " +
+						"và đầu cân đã bật chế độ in liên tục (continuous/stream) chưa.";
+				else if (!gotAny)
+					msg =
+						"Có nhận dữ liệu nhưng KHÔNG đọc được số — nhiều khả năng sai regex hoặc sai baud " +
+						"(baud sai sẽ ra ký tự rác). Mở ⚙️ Scale Settings → Test để xem dữ liệu thô.\n" +
+						recent.join("\n");
+				else msg = "Cân chưa đứng yên (số còn nhảy). Raw gần nhất:\n" + recent.join("\n");
+				reject(new Error(msg));
 			}, timeoutMs);
 			function cleanup() {
 				clearTimeout(timer);

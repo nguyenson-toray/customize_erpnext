@@ -808,10 +808,24 @@ function open_capture_dialog(frm, row, force_continuous) {
 	d.$wrapper.on("click", ".sc-reweigh", read_stable);
 	const start_scale = () => {
 		if (offScale) return;
-		offScale = plScale.onReading((p) => {
-			if (!p) return;
+		offScale = plScale.onReading((p, raw) => {
+			// Có data nhưng không parse được -> PHẢI nói ra. Trước đây return im lặng
+			// nên "chưa nối cân" và "sai regex" trông giống hệt nhau: đứng ở "Đang chờ cân…".
+			if (!p) {
+				if (raw)
+					d.$wrapper
+						.find(".sc-flag")
+						.html(
+							`<span style="color:#c0392b">⚠ ${__("Nhận được dữ liệu nhưng chưa đọc được")}: </span>
+							<code>${frappe.utils.escape_html(String(raw).slice(0, 40))}</code>
+							<span class="text-muted"> — ${__("chỉnh regex trong ⚙️ Scale Settings")}</span>`
+						);
+				return;
+			}
 			d.$wrapper.find(".sc-num").text(p.weight.toFixed(3)).css("color", p.stable ? "#27ae60" : "#c0392b");
-			d.$wrapper.find(".sc-flag").text(p.stable ? "ST — ổn định" : "US — chưa ổn định");
+			d.$wrapper
+				.find(".sc-flag")
+				.text(p.loose ? __("Đang đọc (không có cờ ST)") : p.stable ? "ST — ổn định" : "US — chưa ổn định");
 			// ST -> tự điền số cân (weighing liên tiếp mượt); vẫn sửa tay được khi cân đứng yên.
 			if (p.stable) d.set_value("scale_weight", flt(p.weight, 3));
 		});

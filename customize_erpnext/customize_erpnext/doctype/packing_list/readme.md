@@ -268,11 +268,24 @@ OCR (§7) vẫn dùng bình thường.
 **Cấu hình (per-máy, lưu `localStorage.pl_scale_cfg` — KHÔNG lưu vào DocType):**
 nút **⚙️ Scale Settings** → baudRate (mặc định **9600**), dataBits 8, parity none, stopBits 1;
 `regex` parse dòng (4 nhóm: cờ ST/US · mode GS/NT · số · đơn vị). Mặc định:
-`(ST|US)\s*,\s*(GS|NT)\s*,?\s*([+-]?\s*\d+(?:\.\d+)?)\s*(kg|g|lb)?`. Đơn vị `g` → tự ÷1000 về kg.
-Nút **Test** hiện raw + kết quả parse live để chỉnh regex theo model đầu cân.
+`(ST|US)\s*,\s*(GS|NT)\s*,?\s*([+-]?\s*\d+(?:[.,]\d+)?)\s*(kg|g|lb)?`. Phần thập phân nhận cả
+`.` lẫn `,` (có đầu cân dùng dấu phẩy — chỉ nhận `.` thì `0,50` đọc thành `0`). `g` → ÷1000 về kg.
+Nút **Test** hiện raw + parse live để chỉnh regex theo model.
 
-**Ổn định:** `plScale.readStableWeight({timeoutMs:8000, needConsecutive:3})` — chỉ chốt khi
-nhận đủ **3 dòng ST liên tiếp cùng giá trị**; quá hạn → reject kèm 3 dòng raw gần nhất.
+**Đọc dòng đa hãng (`parseLine`):**
+- Kết dòng nhận **`\r\n | \r | \n`** — nhiều đầu cân (DIGI) dùng **CR đơn**; trước chỉ tách `\r\n|\n`
+  nên buffer phình mãi, UI đứng ở *"Đang chờ cân…"* mà data vẫn chảy về (đúng bug đã gặp).
+- Regex cấu hình không khớp → thử **fallback** theo thứ tự:
+  1. `số + kg/g/lb` (cân generic / Jadever rời cờ).
+  2. **DIGI DI-28SS:** `= <số> [ký tự]` — vd `=   1.88B` → **1.88 kg** (không có token đơn vị).
+- **Cờ ổn định:** chỉ `ST`/`US` mới quyết định; cờ lạ (`=`, `S`…) hoặc fallback không có cờ →
+  **loose = coi như ổn định**, để luật "N lần liên tiếp cùng giá trị" chống số nhảy. *(Nếu chỉ
+  dựa `/st/`, cờ `=` của DIGI sẽ mãi bị coi là chưa ổn định → không bao giờ chốt.)*
+- Có data mà **0 parse được** → panel + dialog hiện **chuỗi thô** (không im lặng như trước).
+
+**Ổn định:** `plScale.readStableWeight({timeoutMs:8000, needConsecutive:3})` — chốt khi đủ **3
+dòng liên tiếp cùng giá trị** (ưu tiên cờ ST nếu có); timeout → reject, **tách rõ 3 nguyên nhân**:
+không có byte (cáp/COM/baud/chưa bật in liên tục) · có byte nhưng 0 parse (sai regex/baud) · số còn nhảy.
 Trạng thái hiển thị badge trên form (đã kết nối / chưa kết nối / đang đọc); rút cáp →
 đổi trạng thái, nối lại 1 chạm; F5/đóng tab → đóng cổng sạch (không lock COM).
 
