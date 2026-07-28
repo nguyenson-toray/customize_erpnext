@@ -68,11 +68,11 @@
     <div id="success_area" class="card success hidden">
       <div class="ico">✅</div>
       <h2>Đã gửi thông tin!</h2>
-      <p class="muted"><strong>Cảm ơn bạn. Bộ phận nhân sự sẽ tiếp nhận thông tin này.<br>Bạn có thể tải bản PDF để lưu
-          lại, đối
-          chiếu khi cần.<br>File sau khi tải được lưu tại thư mục Download của thiết bị</strong></p>
-      <button class="btn-primary" id="pdf_btn" style="max-width:280px;margin:14px auto 0" onclick="downloadPdf()">📄 Tải
+      <p class="muted"><strong>Cảm ơn bạn. Bộ phận nhân sự sẽ tiếp nhận thông tin này.<br>Bạn có thể lưu lại bản thông
+          tin đã gửi để đối chiếu khi cần.</strong></p>
+      <button class="btn-primary" id="save_btn" style="max-width:280px;margin:14px auto 0" onclick="downloadFile()">📄 Tải
         PDF thông tin đã gửi</button>
+      <div id="save_hint" class="muted" style="max-width:300px;margin:8px auto 0;font-size:12.5px"></div>
       <button style="max-width:280px;margin:10px auto 0;background:#e2e8f0;color:#334155"
         onclick="location.reload()">Cập nhật lại (nếu cần)</button>
     </div>
@@ -122,6 +122,7 @@
       formData: "customize_erpnext.api.self_update_info.self_update_info_api.get_form_data",
       save: "customize_erpnext.api.self_update_info.self_update_info_api.save_form_data",
       pdf: "customize_erpnext.api.self_update_info.self_update_info_api.download_submission_pdf",
+      image: "customize_erpnext.api.self_update_info.self_update_info_api.download_submission_image",
       provinces: "customize_erpnext.api.vn_address.vn_address_api.get_provinces",
       wards: "customize_erpnext.api.vn_address.vn_address_api.get_wards",
     };
@@ -699,13 +700,115 @@
         document.getElementById("submitbar").classList.add("hidden");
         document.getElementById("picker_card").classList.add("hidden");
         document.getElementById("success_area").classList.remove("hidden");
+        applySaveFileType();
         window.scrollTo({ top: 0, behavior: "smooth" });
       } catch (e) { toast(e.message); btn.disabled = false; btn.textContent = "Gửi thông tin"; }
     }
 
+    // ---------- Lưu file thông tin đã gửi (PDF hoặc PNG theo Setting) ----------
+    function saveFileType() { return (S.config && S.config.save_file_type) || "PDF"; }
+    function isZalo() {
+      return /Zalo/i.test(navigator.userAgent)
+        || new URLSearchParams(location.search).get("zalo") === "1";  // test ngoài Zalo
+    }
+
+    // Đổi nhãn nút + gợi ý theo môi trường & loại file cấu hình.
+    function applySaveFileType() {
+      const btn = document.getElementById("save_btn");
+      const hint = document.getElementById("save_hint");
+      if (!btn) return;
+      if (isZalo()) {
+        // Zalo webview chặn tải/lưu file → hiện ảnh để user tự chụp màn hình.
+        btn.textContent = "🖼 Xem ảnh để chụp màn hình";
+        if (hint) hint.textContent = "Zalo không tải được file — nhấn nút để hiện ảnh, rồi chụp màn hình (screenshot) để lưu.";
+      } else if (saveFileType() === "PNG") {
+        btn.textContent = "🖼 Tải ảnh thông tin đã gửi";
+        if (hint) hint.textContent = "Ảnh (PNG) được lưu tại thư mục Tải về / Downloads của thiết bị.";
+      } else {
+        btn.textContent = "📄 Tải PDF thông tin đã gửi";
+        if (hint) hint.textContent = "File PDF được lưu tại thư mục Tải về / Downloads của thiết bị.";
+      }
+    }
+
+    function downloadFile() {
+      if (isZalo()) return showImageForSave();   // Zalo: luôn render ảnh để tự lưu
+      return saveFileType() === "PNG" ? downloadImage() : downloadPdf();
+    }
+
+    // Zalo: tải bytes PNG rồi hiển thị <img> để user tự chụp màn hình lưu lại.
+    async function showImageForSave() {
+      const btn = document.getElementById("save_btn");
+      const old = btn ? btn.textContent : "";
+      if (btn) { btn.disabled = true; btn.textContent = "Đang tạo ảnh…"; }
+      try {
+        const params = new URLSearchParams({ employee_id: S.employee_id, code: S.verifyCode || "" });
+        const res = await fetch(`/api/method/${M.image}?${params.toString()}`, { credentials: "same-origin" });
+        if (!res.ok) throw new Error("Không tạo được ảnh");
+        const blob = await res.blob();
+        renderImageOverlay(URL.createObjectURL(blob));
+      } catch (e) { toast(e.message || "Lỗi tạo ảnh"); }
+      finally { if (btn) { btn.disabled = false; btn.textContent = old; } }
+    }
+
+    function renderImageOverlay(url) {
+      const old = document.getElementById("img_save_overlay");
+      if (old) old.remove();
+      const ov = document.createElement("div");
+      ov.id = "img_save_overlay";
+      ov.innerHTML = `
+        <style>
+          #img_save_overlay{position:fixed;inset:0;z-index:1000000;background:#0C1424;
+            display:flex;flex-direction:column;
+            font-family:'Be Vietnam Pro',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+          #img_save_overlay .is-bar{flex-shrink:0;display:flex;align-items:center;gap:10px;
+            padding:12px 14px;background:#17233F;color:#fff;box-shadow:0 2px 10px rgba(0,0,0,.4)}
+          #img_save_overlay .is-bar span{flex:1;font-size:13px;line-height:1.4}
+          #img_save_overlay .is-bar b{color:#FBBF24}
+          #img_save_overlay .is-close{flex-shrink:0;border:none;background:#2A3D66;color:#fff;
+            font-size:14px;font-weight:700;padding:8px 14px;border-radius:9px}
+          #img_save_overlay .is-scroll{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;
+            padding:14px;text-align:center}
+          #img_save_overlay img{max-width:100%;height:auto;border-radius:8px;
+            box-shadow:0 10px 30px rgba(0,0,0,.5);-webkit-touch-callout:default;user-select:none}
+        </style>
+        <div class="is-bar">
+          <span>📸 <b>Chụp màn hình</b> (screenshot) để lưu lại thông tin.<br>Nếu ảnh dài, <b>kéo xuống</b> và chụp thêm cho đủ.</span>
+          <button class="is-close" onclick="document.getElementById('img_save_overlay').remove()">✕ Đóng</button>
+        </div>
+        <div class="is-scroll"><img src="${url}" alt="Phiếu thông tin nhân viên"></div>`;
+      document.body.appendChild(ov);
+    }
+
+    // PNG: tải thẳng ảnh về thiết bị (attachment).
+    async function downloadImage() {
+      const btn = document.getElementById("save_btn");
+      const old = btn ? btn.textContent : "";
+      if (btn) { btn.disabled = true; btn.textContent = "Đang tạo ảnh…"; }
+      try {
+        const params = new URLSearchParams({ employee_id: S.employee_id, code: S.verifyCode || "" });
+        const res = await fetch(`/api/method/${M.image}?${params.toString()}`, { credentials: "same-origin" });
+        if (!res.ok) throw new Error("Không tạo được ảnh");
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url; a.download = `${saveBaseName()}.png`;
+        document.body.appendChild(a); a.click(); a.remove();
+        URL.revokeObjectURL(url);
+      } catch (e) { toast(e.message || "Lỗi tạo ảnh"); }
+      finally { if (btn) { btn.disabled = false; btn.textContent = old; } }
+    }
+
+    // Tên file tải về: "<mã NV> <họ tên> <yyyyMMdd_HHmm>".
+    function saveBaseName() {
+      const d = new Date();
+      const p = n => String(n).padStart(2, "0");
+      const stamp = `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}`;
+      return `${S.employee_id} ${(S.employee_name || "").trim()} ${stamp}`.replace(/\s+/g, " ").trim();
+    }
+
     // ---------- PDF download (after submit) ----------
     async function downloadPdf() {
-      const btn = document.getElementById("pdf_btn");
+      const btn = document.getElementById("save_btn");
       const old = btn.textContent;
       btn.disabled = true; btn.textContent = "Đang tạo PDF…";
       try {

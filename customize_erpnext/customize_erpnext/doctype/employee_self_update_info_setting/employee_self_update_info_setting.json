@@ -22,6 +22,7 @@
   "column_break_xyjl",
   "allow_browser_local_storage",
   "force_open_devices_browser",
+  "save_file_type",
   "section_fields",
   "fields_intro",
   "btn_add_field",
@@ -136,7 +137,8 @@
    "fieldname": "selected_fields",
    "fieldtype": "Table",
    "label": "Selected Fields",
-   "options": "Employee Self Update Info Field"
+   "options": "Employee Self Update Info Field",
+   "reqd": 1
   },
   {
    "collapsible": 1,
@@ -184,11 +186,21 @@
    "fieldname": "force_open_devices_browser",
    "fieldtype": "Check",
    "label": "Force Open Device's Browser"
+  },
+  {
+   "default": "PDF",
+   "description": "If Force Open Device's Browser = FALSE & User use browser of Zalo \u27a1\ufe0f Must screenshot to save image",
+   "fieldname": "save_file_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Save File Type",
+   "options": "\nPDF\nPNG",
+   "reqd": 1
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-07-28 08:24:03.988234",
+ "modified": "2026-07-28 09:24:29.407185",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Employee Self Update Info Setting",

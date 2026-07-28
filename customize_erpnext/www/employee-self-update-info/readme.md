@@ -101,6 +101,8 @@ Singleton. HR cấu hình ở đây.
 
 **Nút "Add Employees" / "Clear All"**: thêm NV theo bộ lọc `filter_date` / `group` / `department` / `custom_section` (nhiều bộ lọc = AND, chỉ NV `status=Active`). **Không chọn bộ lọc nào** → JS hỏi xác nhận Yes/No rồi thêm **toàn bộ NV Active** (số lượng lớn). "Clear All" xoá danh sách + reset cả 4 bộ lọc.
 
+**Tự dọn trùng**: form JS `validate(frm)` bỏ dòng `employee` trùng khỏi grid (giữ dòng đầu) + `frappe.show_alert("Removed N duplicate…", orange)`. Server `_dedupe_employees()` chạy lại trong `validate()` như **safety net im lặng** (giữ dòng đầu, đánh lại `idx`) — không msgprint để tránh báo 2 lần.
+
 **Mã QR + link** (field `info_html`): Setting hiển thị **QR code** + link tới `/employee-self-update-info` (URL tự theo host hiện tại) để gửi cho nhân viên. Lib `qrcode.min.js` load từ asset, fallback CDN `qrcodejs@1.0.0` (copy từ Setting cũ).
 
 ### Child `Employee Self Update Info Field`
@@ -220,6 +222,17 @@ Dùng DB `vn_address` (2 cấp sau sáp nhập 2025). Xem `api/vn_address/readme
 - Màn hình success có nút **"📄 Tải PDF thông tin đã gửi"** → `downloadPdf()` mở URL **GET** `download_submission_pdf?employee_id=..&code=..` bằng thẻ `<a download>` (không dùng blob/fetch).
 - Server đặt `frappe.response["type"] = "binary"` → trả **attachment** (`application/octet-stream`), trình duyệt tải thẳng về thư mục Download. (Trước đây dùng `type="pdf"` mở inline — Zalo webview báo "downloading" nhưng không lưu file.)
 - PDF render server-side bằng `frappe.utils.pdf.get_pdf` (wkhtmltopdf) → tiếng Việt chuẩn, text chọn được. Gồm logo (base64) + tên công ty + mã/tên NV + thời điểm gửi + bảng (label tiếng Việt : giá trị đã gửi) + ghi chú.
+
+### Chọn định dạng file: PDF hay PNG
+
+- Setting **`save_file_type`** (Select `PDF` / `PNG`, mặc định `PDF`). `get_field_config` trả về key `save_file_type`.
+- Front-end (`downloadFile()`):
+  - **Trong Zalo webview** (`isZalo()`: UA chứa "Zalo" hoặc `?zalo=1` để test) → **luôn render ảnh PNG inline** (`showImageForSave()` → `renderImageOverlay()`): fetch bytes PNG → `<img>` full-screen overlay + hướng dẫn **"📸 Chụp màn hình để lưu"** (kéo xuống chụp thêm nếu ảnh dài). Zalo webview **chặn mọi tải/lưu file** (kể cả attachment lẫn nhấn-giữ "Lưu ảnh") → chụp màn hình là cách duy nhất user lấy được thông tin khi ở trong Zalo.
+  - **Ngoài Zalo** → theo `save_file_type`: `PDF` → `downloadPdf()`, `PNG` → `downloadImage()`; cả hai **tải thẳng file về thư mục Download** (fetch → blob → `<a download>`).
+  - Nhãn nút + gợi ý đổi theo môi trường (`applySaveFileType()`).
+- **Quan hệ với `force_open_devices_browser`**: hai chiến lược loại trừ nhau — bật force → chặn Zalo, user sang trình duyệt thiết bị để **tải file**; tắt force → user ở lại Zalo, nút lưu **render ảnh để nhấn-giữ lưu**.
+- PNG dùng chung HTML với PDF (`_load_submission_receipt` → `_build_submission_html`); render qua **`wkhtmltoimage`** (`_html_to_png`, stdin→stdout, width 820). Sau đó **Pillow** flatten alpha lên nền trắng + `optimize` → giảm ~4.6MB xuống ~0.12MB. Endpoint `download_submission_image` trả `type="download"`, `content_type="image/png"` (attachment).
+- PNG hữu ích khi cần ảnh xem nhanh; nhưng để tải file trong app Zalo vẫn phải mở bằng trình duyệt thiết bị (xem mục dưới) — Zalo webview chặn mọi tải file.
 
 ### Ép mở bằng trình duyệt thiết bị (Zalo webview)
 

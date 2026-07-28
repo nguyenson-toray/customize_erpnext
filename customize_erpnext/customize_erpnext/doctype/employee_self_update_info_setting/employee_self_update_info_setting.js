@@ -21,6 +21,31 @@ frappe.ui.form.on("Employee Self Update Info Setting", {
 		);
 	},
 
+	validate(frm) {
+		// Remove duplicate employees before saving and tell the user.
+		const rows = frm.doc.employees || [];
+		const seen = new Set();
+		const dupes = [];
+		for (const row of rows) {
+			if (row.employee && seen.has(row.employee)) {
+				dupes.push(row);
+			} else {
+				seen.add(row.employee);
+			}
+		}
+		if (dupes.length) {
+			dupes.forEach((row) => frm.get_field("employees").grid.grid_rows_by_docname[row.name]?.remove());
+			frm.refresh_field("employees");
+			frappe.show_alert(
+				{
+					message: __("Removed {0} duplicate employee row(s).", [dupes.length]),
+					indicator: "orange",
+				},
+				5
+			);
+		}
+	},
+
 	btn_add_by_date(frm) {
 		const run = () => frm.call("btn_add_by_date").then(() => frm.refresh());
 		const noFilter = !frm.doc.filter_date && !frm.doc.group && !frm.doc.department && !frm.doc.custom_section;

@@ -12,6 +12,22 @@ class EmployeeSelfUpdateInfoSetting(Document):
 		# Bypass code is compared against the 2-digit DOB input, so keep it 2 digits.
 		if self.bypass_code and not (0 <= self.bypass_code <= 99):
 			frappe.throw(_("Bypass Code must be a 2-digit number (0–99)."))
+		self._dedupe_employees()
+
+	def _dedupe_employees(self):
+		"""Drop duplicate rows in the employees table (keep first)."""
+		seen = set()
+		unique = []
+		for row in (self.employees or []):
+			if row.employee and row.employee in seen:
+				continue
+			seen.add(row.employee)
+			unique.append(row)
+		# Silent safety net — the form JS shows the alert when it removes duplicates.
+		if len(unique) != len(self.employees or []):
+			self.employees = unique
+			for i, row in enumerate(self.employees, start=1):
+				row.idx = i
 
 	def on_update(self):
 		frappe.cache().delete_key("employee_self_update_info_config")

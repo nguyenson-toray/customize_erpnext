@@ -287,6 +287,9 @@ def get_field_config():
 	# In Zalo's in-app browser, force the user to open in the device browser
 	# (PDF download is blocked inside the Zalo webview).
 	config["force_device_browser"] = bool(setting.get("force_open_devices_browser"))
+	# Receipt file type offered on the success screen: "PDF" (default) or "PNG".
+	# PNG renders inline so it can be long-pressed to save inside the Zalo webview.
+	config["save_file_type"] = setting.get("save_file_type") or "PDF"
 	return config
 
 
@@ -468,6 +471,26 @@ def save_form_data(employee_id, data, code=None):
 @frappe.whitelist(allow_guest=True)
 def download_submission_pdf(employee_id, code=None):
 	"""Return a PDF receipt of the employee's submitted information."""
+	html, base = _load_submission_receipt(employee_id, code)
+	from frappe.utils.pdf import get_pdf
+
+	frappe.response["filename"] = f"{base}.pdf"
+	frappe.response["filecontent"] = get_pdf(html)
+	frappe.response["type"] = "pdf"
+
+
+@frappe.whitelist(allow_guest=True)
+def download_submission_image(employee_id, code=None):
+	"""Return a PNG image of the employee's submitted information as a file download."""
+	html, base = _load_submission_receipt(employee_id, code)
+	frappe.response["filename"] = f"{base}.png"
+	frappe.response["filecontent"] = _html_to_png(html)
+	frappe.response["type"] = "download"
+	frappe.response["content_type"] = "image/png"
+
+
+def _load_submission_receipt(employee_id, code):
+	"""Shared gate + HTML build for the PDF/PNG receipt. Returns (html, base_filename)."""
 	if not employee_id:
 		frappe.throw(_("Missing employee"))
 	setting = _get_setting()
@@ -480,15 +503,58 @@ def download_submission_pdf(employee_id, code=None):
 	doc = frappe.get_doc(INFO_DT, employee_id)
 	saved = json.loads(doc.data_json or "{}")
 	config = _build_config()
-
 	html = _build_submission_html(doc, saved, config)
-	from frappe.utils.pdf import get_pdf
 
 	stamp = frappe.utils.format_datetime(now_datetime(), "yyyyMMdd_HHmm")
 	name_part = (doc.employee_name or "").strip()
-	frappe.response["filename"] = f"{employee_id} {name_part} {stamp}.pdf".strip()
-	frappe.response["filecontent"] = get_pdf(html)
-	frappe.response["type"] = "pdf"
+	base = f"{employee_id} {name_part} {stamp}".strip()
+	return html, base
+
+
+def _html_to_png(html):
+	"""Render HTML to a PNG (bytes) via wkhtmltoimage (stdin → stdout)."""
+	import subprocess
+
+	cmd = [
+		"wkhtmltoimage",
+		"--format", "png",
+		"--encoding", "utf-8",
+		"--quality", "94",
+		"--width", "820",
+		"--enable-local-file-access",
+		"--quiet",
+		"-", "-",
+	]
+	try:
+		proc = subprocess.run(
+			cmd, input=html.encode("utf-8"), stdout=subprocess.PIPE, stderr=subprocess.PIPE
+		)
+	except FileNotFoundError:
+		frappe.throw(_("wkhtmltoimage is not installed on the server."))
+	if not proc.stdout:
+		frappe.log_error(proc.stderr.decode("utf-8", "ignore"), "wkhtmltoimage failed")
+		frappe.throw(_("Could not render the image."))
+
+	# wkhtmltoimage emits a large RGBA PNG. Flatten onto white + optimize to
+	# keep the file small enough to save comfortably on a phone.
+	try:
+		import io
+
+		from PIL import Image
+
+		img = Image.open(io.BytesIO(proc.stdout))
+		if img.mode in ("RGBA", "LA", "P"):
+			bg = Image.new("RGB", img.size, "#FFFFFF")
+			img = img.convert("RGBA")
+			bg.paste(img, mask=img.split()[-1])
+			img = bg
+		else:
+			img = img.convert("RGB")
+		out = io.BytesIO()
+		img.save(out, format="PNG", optimize=True)
+		return out.getvalue()
+	except Exception:
+		return proc.stdout
 
 
 def _logo_data_uri():
