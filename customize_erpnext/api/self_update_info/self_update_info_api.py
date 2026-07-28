@@ -284,6 +284,9 @@ def get_field_config():
 	config["require_dob"] = bool(setting.validate_by_dob)
 	# Whether the page may keep a local draft (localStorage).
 	config["allow_local_draft"] = bool(setting.allow_browser_local_storage)
+	# In Zalo's in-app browser, force the user to open in the device browser
+	# (PDF download is blocked inside the Zalo webview).
+	config["force_device_browser"] = bool(setting.get("force_open_devices_browser"))
 	return config
 
 

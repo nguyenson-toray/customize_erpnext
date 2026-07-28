@@ -21,6 +21,7 @@
   "bypass_code",
   "column_break_xyjl",
   "allow_browser_local_storage",
+  "force_open_devices_browser",
   "section_fields",
   "fields_intro",
   "btn_add_field",
@@ -177,11 +178,17 @@
    "fieldname": "allow_browser_local_storage",
    "fieldtype": "Check",
    "label": "Allow Browser Local Storage"
+  },
+  {
+   "default": "1",
+   "fieldname": "force_open_devices_browser",
+   "fieldtype": "Check",
+   "label": "Force Open Device's Browser"
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-07-22 10:51:13.271618",
+ "modified": "2026-07-28 08:24:03.988234",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Employee Self Update Info Setting",

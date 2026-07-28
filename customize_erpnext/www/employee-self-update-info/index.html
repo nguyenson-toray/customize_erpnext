@@ -70,7 +70,7 @@
       <h2>Đã gửi thông tin!</h2>
       <p class="muted"><strong>Cảm ơn bạn. Bộ phận nhân sự sẽ tiếp nhận thông tin này.<br>Bạn có thể tải bản PDF để lưu
           lại, đối
-          chiếu khi cần.</strong></p>
+          chiếu khi cần.<br>File sau khi tải được lưu tại thư mục Download của thiết bị</strong></p>
       <button class="btn-primary" id="pdf_btn" style="max-width:280px;margin:14px auto 0" onclick="downloadPdf()">📄 Tải
         PDF thông tin đã gửi</button>
       <button style="max-width:280px;margin:10px auto 0;background:#e2e8f0;color:#334155"
@@ -127,16 +127,61 @@
     };
 
     // Company name in the header (injected via Jinja, set after load).
-    document.addEventListener("DOMContentLoaded", () => {
-      const el = document.getElementById("company_name");
-      if (el) el.textContent = window.COMPANY || "";
-      // Tự lưu nháp mỗi khi người dùng gõ/chọn (delegate → bắt cả field render động).
+    document.addEventListener("DOMContentLoaded", function () {
+      // Tên công ty trên header (inject qua Jinja).
+      const cn = document.getElementById("company_name");
+      if (cn) cn.textContent = window.COMPANY || "";
+      // Tự lưu nháp khi gõ/chọn (nếu Setting bật localStorage).
       const fa = document.getElementById("form_area");
-      if (fa) {
-        fa.addEventListener("input", saveDraft);
-        fa.addEventListener("change", saveDraft);
-      }
+      if (fa) { fa.addEventListener("input", saveDraft); fa.addEventListener("change", saveDraft); }
+
+      // Chặn Zalo webview: quyết định sau khi có config (init()).
     });
+
+    // Màn hình hướng dẫn mở bằng trình duyệt ngoài (chỉ hiện trong Zalo).
+    function showBrowserGuide() {
+      document.body.style.overflow = "hidden";
+      const ov = document.createElement("div");
+      ov.id = "zalo_blocker_overlay";
+      ov.innerHTML = `
+        <style>
+          #zalo_blocker_overlay{position:fixed;inset:0;z-index:999999;overflow:auto;
+            background:linear-gradient(160deg,#17233F,#0C1424);color:#fff;
+            font-family:'Be Vietnam Pro',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+            display:flex;flex-direction:column;align-items:center;justify-content:center;
+            padding:28px 22px;text-align:center;box-sizing:border-box}
+          #zalo_blocker_overlay .zb-arrow{position:fixed;top:10px;right:14px;text-align:right;z-index:2;animation:zbBounce .85s ease-in-out infinite}
+          #zalo_blocker_overlay .zb-arrow b{display:inline-block;font-size:15px;font-weight:800;color:#1B2733;
+            background:#FBBF24;padding:6px 13px;border-radius:20px;box-shadow:0 5px 16px rgba(251,191,36,.55);animation:zbPulse .85s ease-in-out infinite}
+          #zalo_blocker_overlay .zb-arrow i{display:block;font-style:normal;font-size:44px;line-height:1;margin-bottom:2px;filter:drop-shadow(0 3px 6px rgba(0,0,0,.45))}
+          #zalo_blocker_overlay .zb-ico{font-size:54px;margin-bottom:14px}
+          #zalo_blocker_overlay h2{font-size:22px;font-weight:700;margin:0 0 10px}
+          #zalo_blocker_overlay .zb-sub{font-size:14px;color:#AEB8CC;line-height:1.6;margin:0 0 22px;max-width:340px}
+          #zalo_blocker_overlay .zb-card{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);
+            border-radius:14px;padding:16px 18px;width:100%;max-width:340px;text-align:left;margin-bottom:18px}
+          #zalo_blocker_overlay .zb-t{font-weight:700;color:#7CC4FF;font-size:12px;letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px}
+          #zalo_blocker_overlay .zb-step{display:flex;align-items:flex-start;gap:11px;margin-bottom:11px;font-size:14.5px;color:#E5EAF3;line-height:1.5}
+          #zalo_blocker_overlay .zb-step:last-child{margin-bottom:0}
+          #zalo_blocker_overlay .zb-num{flex-shrink:0;width:23px;height:23px;border-radius:7px;background:#2A3D66;
+            color:#fff;font-weight:700;font-size:12px;display:flex;align-items:center;justify-content:center}
+          #zalo_blocker_overlay .zb-shot{width:100%;max-width:3000px;border-radius:12px;background:#fff;
+            border:1px solid rgba(255,255,255,.2);box-shadow:0 10px 26px rgba(0,0,0,.4)}
+          @keyframes zbBounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-11px)}}
+          @keyframes zbPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+        </style>
+        <div class="zb-arrow"><i>↗️</i></div>
+        <div class="zb-ico">🌐</div>
+        <h2>Vui lòng mở bằng trình duyệt</h2>
+        <p class="zb-sub">Trình duyệt web trong Zalo bị giới hạn tính năng: <b>không tải được file PDF</b> và dễ bị gián đoạn bởi tin nhắn / cuộc gọi.<br>Hãy mở trang này bằng <b>Chrome</b> hoặc <b>Safari</b> của thiết bị.</p>
+        <div class="zb-card">
+          <div class="zb-t">Cách mở</div>
+          <div class="zb-step"><span class="zb-num">1</span><span>Bấm nút <b>⋮</b> ở góc trên bên phải màn hình.</span></div>
+          <div class="zb-step"><span class="zb-num">2</span><span>Chọn dòng <b>“Mở bằng trình duyệt”</b> (như hình dưới).</span></div>
+        </div>
+        <img class="zb-shot" src="/employee-self-update-info/open_with_browser.png" alt="Chọn Mở bằng trình duyệt trong menu Zalo">
+      `;
+      document.body.appendChild(ov);
+    }
 
     const S = { employee_id: null, employee_name: null, config: null, original: {}, values: {}, verifyCode: null, fieldByName: {} };
 
@@ -242,6 +287,14 @@
 
     (async function init() {
       const inp = document.getElementById("emp_search");
+      // Tải config sớm: nếu bật "Force Open Device's Browser" và đang trong Zalo → chặn.
+      try { if (!S.config) S.config = await api(M.config); } catch (e) { }
+      // Thật: chỉ trong Zalo webview. Test: thêm ?zalo=1 để xem trước overlay ở trình duyệt thường.
+      const _testZalo = new URLSearchParams(location.search).get("zalo") === "1";
+      const _inZalo = /Zalo/i.test(navigator.userAgent) || _testZalo;
+      if (_inZalo && S.config && S.config.force_device_browser) {
+        showBrowserGuide();
+      }
       try {
         const emps = await api(M.employees);
         allEmps = emps.map(e => ({ ...e, _hay: deburr(e.display_name + " " + e.employee_id) }));
@@ -457,7 +510,7 @@
          <button type="button" class="qr-scan-btn alt" onclick="document.getElementById('cccd_photo_input').click()">🖼️ Chụp / chọn ảnh CCCD (nếu quét khó)</button>
          <input type="file" id="cccd_photo_input" accept="image/*" capture="environment" style="display:none" onchange="onCccdPhoto(event)">
          -->
-         <div class="hint">Bấm nút trên để quét mã QR — hệ thống tự điền số CCCD, ngày cấp, ngày hết hạn và số CMND cũ. Hoặc bạn nhập tay vào ô bên dưới.</div>`
+         <div class="hint">Bấm nút trên để quét mã QR — hệ thống tự điền số CCCD, ngày cấp, ngày hết hạn và số CMND cũ. Hoặc bạn nhập tay vào ô bên dưới nếu không quét được mã QR.</div>`
         : "";
       // Giải thích thêm cho field (cột "Detail" trong Setting) — hiện dưới nhãn.
       const detailUi = f.detail

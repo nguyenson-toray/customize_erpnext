@@ -217,8 +217,20 @@ Dùng DB `vn_address` (2 cấp sau sáp nhập 2025). Xem `api/vn_address/readme
 
 ## Tải PDF sau khi submit
 
-- Màn hình success có nút **"📄 Tải PDF thông tin đã gửi"** → gọi `download_submission_pdf` (POST, kèm `code` xác thực nếu bật) → nhận blob → tải về `ThongTin_<empid>.pdf`.
+- Màn hình success có nút **"📄 Tải PDF thông tin đã gửi"** → `downloadPdf()` mở URL **GET** `download_submission_pdf?employee_id=..&code=..` bằng thẻ `<a download>` (không dùng blob/fetch).
+- Server đặt `frappe.response["type"] = "binary"` → trả **attachment** (`application/octet-stream`), trình duyệt tải thẳng về thư mục Download. (Trước đây dùng `type="pdf"` mở inline — Zalo webview báo "downloading" nhưng không lưu file.)
 - PDF render server-side bằng `frappe.utils.pdf.get_pdf` (wkhtmltopdf) → tiếng Việt chuẩn, text chọn được. Gồm logo (base64) + tên công ty + mã/tên NV + thời điểm gửi + bảng (label tiếng Việt : giá trị đã gửi) + ghi chú.
+
+### Ép mở bằng trình duyệt thiết bị (Zalo webview)
+
+Webview trong app Zalo **chặn tải file** (kể cả attachment HTTP) → không lấy được PDF. Giải pháp: chặn & hướng dẫn người dùng mở link bằng trình duyệt thật của thiết bị.
+
+- Setting **`force_open_devices_browser`** (Check, mặc định 1) trong *Employee Self Update Info Setting*. `get_field_config` trả về key `force_device_browser`.
+- `init()` load config sớm; nếu **đang trong Zalo webview** (`/Zalo/i.test(navigator.userAgent)`) **và** `force_device_browser=true` → gọi `showBrowserGuide()`.
+- `showBrowserGuide()` phủ full-screen overlay (`#zalo_blocker_overlay`, style inject inline): mũi tên nhún + badge vàng **"Bấm vào đây"** chỉ lên nút **⋮** góc trên phải, thẻ 2 bước, và **ảnh minh hoạ** `open_with_browser.png` (menu Zalo, khoanh đỏ dòng *"Mở bằng trình duyệt"*).
+- Tắt Setting → overlay không hiện, người dùng ở lại trong Zalo.
+- **Test ngoài Zalo**: thêm `?zalo=1` vào URL để giả lập, xem trước overlay (vẫn cần Setting bật). Bỏ tham số → logic thật.
+- Ảnh hướng dẫn nằm cùng thư mục www: `open_with_browser.png`, serve tại `/employee-self-update-info/open_with_browser.png`.
 
 ## Quét QR CCCD (điền nhanh — tùy chọn)
 
