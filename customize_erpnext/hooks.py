@@ -237,8 +237,8 @@ scheduler_events = {
         "* * * * *": [
             "customize_erpnext.api.employee.employee_utils.cleanup_rembg_sessions"
         ],
-         # Shift Attendance Report - Every day at 08:10 AM
-        "10 8 * * *": [           
+         # Shift Attendance Report - Every day at 08:15 AM
+        "15 8 * * *": [           
             "customize_erpnext.customize_erpnext.report.shift_attendance_customize.scheduler.send_daily_attendance_report_scheduled"
         ],
         # Sunday overtime alert - Monday at 08:00 AM
@@ -361,7 +361,7 @@ doc_events = {
         "after_insert": [
             # "customize_erpnext.api.employee.erpnext_mongodb.sync_employee_to_mongodb",
             "customize_erpnext.api.employee.auto_assignment.set_default_holiday_list",
-            "customize_erpnext.uniform_control.api.onboarding.create_uniform_profile_on_employee_insert",
+            # "customize_erpnext.uniform_control.api.onboarding.create_uniform_profile_on_employee_insert",
         ],
         "on_trash": [
             "customize_erpnext.api.employee.employee_validation.prevent_employee_deletion",
