@@ -15,6 +15,20 @@ frappe.ui.form.on("Health Check-Up", {
         }
     },
 
+    not_check_up(frm) {
+        // Tích "Không khám" → status = "Không khám" (hiển thị ngay; server tính lại khi Save).
+        // Lý do ghi ở Note.
+        if (frm.doc.not_check_up) {
+            frm.set_value("status", "Không khám");
+            if (!frm.doc.note) {
+                frappe.show_alert({ message: __("Nhập lý do không khám vào Note"), indicator: "orange" });
+            }
+        } else if (frm.doc.status === "Không khám") {
+            frm.set_value("status",
+                frm.doc.end_time_actual ? "Hoàn thành" : (frm.doc.start_time_actual ? "Đang khám" : "Chưa khám"));
+        }
+    },
+
     gender(frm) {
         if (frm.doc.gender === 'Female' || frm.doc.gender === 'Nữ') {
             frm.trigger("check_pregnant");
@@ -43,19 +57,16 @@ frappe.ui.form.on("Health Check-Up", {
         }
     },
     check_pregnant(frm) {
-        // Đang mang thai = ngày khám nằm trong [pregnant_from_date, pregnant_to_date]
-        // (pregnant_to_date trống = chưa sinh). Cùng logic với server check_pregnant_status().
+        // Lấy theo field 'status' của Employee Maternity (status = "Pregnant") — status này đã
+        // được scheduler tự tính lại hàng ngày. Khớp server check_pregnant_status().
+        // Chỉ tự điền khi tạo mới; HR vẫn có thể nhập tay ghi đè sau đó.
         if (frm.is_new() && (frm.doc.gender === "Female" || frm.doc.gender === "Nữ") && frm.doc.employee) {
-            frappe.db.get_value("Employee Maternity",
-                { employee: frm.doc.employee },
-                ["pregnant_from_date", "pregnant_to_date"]
-            ).then((r) => {
-                const m = r && r.message;
-                const checkDate = frm.doc.date || frappe.datetime.get_today();
-                const isPregnant = m && m.pregnant_from_date
-                    && m.pregnant_from_date <= checkDate
-                    && (!m.pregnant_to_date || checkDate <= m.pregnant_to_date);
-                frm.set_value("pregnant", isPregnant ? 1 : 0);
+            frappe.db.get_list("Employee Maternity", {
+                filters: { employee: frm.doc.employee, status: "Pregnant" },
+                fields: ["name"],
+                limit: 1
+            }).then((rows) => {
+                frm.set_value("pregnant", (rows && rows.length) ? 1 : 0);
             });
         }
     },

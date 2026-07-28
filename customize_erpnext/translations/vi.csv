@@ -21134,3 +21134,18 @@ Education Level, Trình độ học vấn
 Education Detail,
 University, Trường đại học
 Contact, Liên hệ
+Upload Results,Tải lên kết quả,
+Upload Health Check Results,Tải lên kết quả khám sức khỏe,
+Select result files,Chọn file kết quả,
+File name must START with the employee code. E.g. TIQN-0148_result.pdf or 0148 result.pdf,Tên file phải BẮT ĐẦU bằng mã nhân viên. VD: TIQN-0148_result.pdf hoặc 0148 result.pdf,
+Upload & Assign,Tải lên & Gán,
+Please select at least one file.,Vui lòng chọn ít nhất 1 file.,
+Uploading...,Đang tải lên...,
+No file could be uploaded.,Không tải lên được file nào.,
+Assigning results to records...,Đang gán kết quả vào hồ sơ...,
+Assigned {0} file(s) to records.,Đã gán {0} file vào hồ sơ.,
+Not assigned ({0}):,Không gán được ({0}):,
+No exam dates found.,Không tìm thấy ngày khám nào.,
+Could not read employee code from file name,Không đọc được mã NV từ tên file,
+No exam record for {0} on {1},Không có hồ sơ khám cho {0} ngày {1},
+Health Check Date,Ngày khám,

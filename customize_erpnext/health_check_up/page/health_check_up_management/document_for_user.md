@@ -2,9 +2,9 @@
 
 ## 1. Giới thiệu chung
 - Phần mềm giúp hỗ trợ công tác phát hành và thu nhận hồ sơ khám sức khỏe một cách nhanh chóng thông qua việc quét mã vạch (Barcode) và theo dõi tiến độ theo thời gian thực ngay trên trình duyệt.
-- Truy cập http://erp.tiqn.local/desk ➡️ Health Check-Up
+- Truy cập https://erp.tiqn.local:8888/desk ➡️ Health Check-Up
 - Nhập thủ công hoặc Import danh sách vào doctype "Health Check-Up"
-- Truy cập trang quản lý : Health Check Up Management : http://erp.tiqn.local/desk/health-check-up-management
+- Truy cập trang quản lý : Health Check Up Management : https://erp.tiqn.local:8888/desk/health-check-up-management
 ### ℹ️ Toàn bộ dữ liệu được lưu tập trung tại doctype "Health Check-Up" ###
 ## 2. Giao diện chính
 Màn hình được chia làm 4 tab chính để dể thao tác:

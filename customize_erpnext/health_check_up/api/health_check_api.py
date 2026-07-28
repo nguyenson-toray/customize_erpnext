@@ -5,8 +5,11 @@
 # All methods are called from client-side JS via frappe.call().
 # Realtime events are published for instant multi-client updates.
 
+import os
+import re
+import shutil
 import frappe
-from frappe.utils import nowtime, today, getdate, now_datetime, get_datetime, strip_html_tags
+from frappe.utils import nowtime, today, getdate, now_datetime, get_datetime, strip_html_tags, cint
 
 
 # ===========================================================================
@@ -212,6 +215,7 @@ def get_health_check_data(date=None):
             start_time_actual,
             end_time_actual,
             status,
+            not_check_up,
             x_ray,
             gynecological_exam,
             note,
@@ -246,6 +250,7 @@ def get_health_check_data(date=None):
     x_ray_count = sum(1 for r in records if r.x_ray)
     gynec_count = sum(1 for r in records if r.gynecological_exam)
     pregnant_count = sum(1 for r in records if r.pregnant)
+    not_checked = sum(1 for r in records if r.status == "Không khám")
 
     # ---- Group breakdown ----
     groups = {}
@@ -290,6 +295,7 @@ def get_health_check_data(date=None):
             "completed": completed,
             "in_exam": in_exam,
             "not_started": not_started,
+            "not_checked": not_checked,
             "x_ray": x_ray_count,
             "gynecological_exam": gynec_count,
             "pregnant": pregnant_count,
@@ -745,3 +751,110 @@ def _publish_update(date, doc, action):
         room="task_progress:health_check_updates",
         after_commit=True,
     )
+
+
+# ===========================================================================
+# UPLOAD & AUTO-ASSIGN RESULT FILES (từ List View)
+# ===========================================================================
+
+def _extract_employee_code(filename):
+    """Lấy mã nhân viên ở ĐẦU tên file.
+    Hỗ trợ 'TIQN-0148_ketqua.pdf' -> 'TIQN-0148' và '0148 abc.pdf' -> '0148'.
+    """
+    if not filename:
+        return None
+    base = str(filename).rsplit("/", 1)[-1].strip()
+    m = re.match(r"([A-Za-z]{0,6}-?\d{1,6})", base)
+    return m.group(1) if m else None
+
+
+RESULT_SUBDIR = "health_check_results"  # thư mục con trên đĩa (private/files/health_check_results/<ngày>/)
+
+
+def _relocate_result_file(file_url, docname, date):
+    """Chuyển FILE VẬT LÝ vào private/files/health_check_results/<ngày khám>/ (giữ nguyên tên),
+    đồng thời đính kèm vào bản ghi (Attachments + field file_result). Trả về file_url mới.
+    Cách làm giống module Packing List (relocate sau khi Frappe tạo file phẳng)."""
+    fname = frappe.db.get_value("File", {"file_url": file_url}, "name")
+    if not fname:
+        return file_url
+    frec = frappe.db.get_value("File", fname, ["is_private", "file_url"], as_dict=True)
+    if not frec or not frec.file_url or "://" in (frec.file_url or ""):
+        return file_url  # remote / không hợp lệ -> bỏ qua di chuyển
+
+    is_private = cint(frec.is_private)
+    filename = frec.file_url.rsplit("/", 1)[-1]
+    prefix = "/private/files/" if is_private else "/files/"
+    new_url = f"{prefix}{RESULT_SUBDIR}/{date}/{filename}"
+
+    subdir = frappe.get_site_path(
+        "private" if is_private else "public", "files", RESULT_SUBDIR, str(date)
+    )
+    os.makedirs(subdir, exist_ok=True)
+    old_disk = frappe.get_site_path(frec.file_url.lstrip("/"))
+    new_disk = os.path.join(subdir, filename)
+    if os.path.exists(old_disk) and os.path.abspath(old_disk) != os.path.abspath(new_disk):
+        if os.path.exists(new_disk):
+            os.remove(new_disk)
+        shutil.move(old_disk, new_disk)
+
+    frappe.db.set_value(
+        "File",
+        fname,
+        {
+            "file_url": new_url,
+            "attached_to_doctype": "Health Check-Up",
+            "attached_to_name": docname,
+            "attached_to_field": "file_result",
+        },
+        update_modified=False,
+    )
+    return new_url
+
+
+@frappe.whitelist()
+def assign_result_files(date, files):
+    """Gán hàng loạt file kết quả vào các bản ghi Health Check-Up theo ngày khám.
+    Mã nhân viên lấy từ ĐẦU tên file (khớp cùng quy tắc với chức năng quét).
+
+    Args:
+        date: ngày khám (YYYY-MM-DD).
+        files: JSON list [{"filename": ..., "file_url": ...}, ...] (đã upload sẵn).
+    Returns:
+        dict {assigned:[...], unmatched:[...], assigned_count, unmatched_count}
+    """
+    _require_write()
+    date = getdate(date)
+    items = frappe.parse_json(files) or []
+
+    assigned = []
+    unmatched = []
+    for it in items:
+        fname = (it.get("filename") or "").strip()
+        furl = (it.get("file_url") or "").strip()
+        if not furl:
+            continue
+        code = _extract_employee_code(fname)
+        if not code:
+            unmatched.append({"filename": fname, "reason": frappe._("Could not read employee code from file name")})
+            continue
+        try:
+            rec = _find_record(hospital_code=None, employee=code, date=date)
+        except Exception as e:
+            unmatched.append({"filename": fname, "reason": strip_html_tags(str(e))})
+            continue
+        if not rec:
+            unmatched.append(
+                {"filename": fname, "reason": frappe._("No exam record for {0} on {1}").format(code, date)}
+            )
+            continue
+        new_url = _relocate_result_file(furl, rec["name"], date)
+        frappe.db.set_value("Health Check-Up", rec["name"], "file_result", new_url)
+        assigned.append({"filename": fname, "employee": rec["employee"], "docname": rec["name"]})
+
+    return {
+        "assigned": assigned,
+        "unmatched": unmatched,
+        "assigned_count": len(assigned),
+        "unmatched_count": len(unmatched),
+    }

@@ -1,8 +1,9 @@
 {
  "actions": [],
+ "allow_bulk_edit": 1,
  "allow_import": 1,
- "autoname": "hash",
- "creation": "2026-03-06 00:00:00",
+ "autoname": "format:{date}_{employee}",
+ "creation": "2026-07-28 13:09:16.562850",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -11,30 +12,30 @@
   "hospital_code",
   "health_check_type",
   "status",
+  "not_check_up",
   "column_break_info",
   "employee",
   "employee_name",
   "gender",
-  "section_break_dept",
+  "pregnant",
+  "note",
+  "column_break_dyxj",
   "department",
   "custom_section",
-  "column_break_dept",
   "custom_group",
   "designation",
-  "pregnant",
   "section_break_schedule",
   "start_time",
   "end_time",
   "column_break_time",
   "start_time_actual",
   "end_time_actual",
-  "section_break_exam",
+  "column_break_zzcz",
   "x_ray",
   "gynecological_exam",
-  "column_break_exam",
-  "note",
   "section_break_result",
-  "result"
+  "result",
+  "file_result"
  ],
  "fields": [
   {
@@ -100,11 +101,6 @@
    "read_only": 1
   },
   {
-   "fieldname": "section_break_dept",
-   "fieldtype": "Section Break",
-   "label": "Th\u00f4ng tin ph\u00f2ng ban"
-  },
-  {
    "fetch_from": "employee.department",
    "fieldname": "department",
    "fieldtype": "Link",
@@ -118,10 +114,6 @@
    "fieldtype": "Data",
    "label": "Section",
    "read_only": 1
-  },
-  {
-   "fieldname": "column_break_dept",
-   "fieldtype": "Column Break"
   },
   {
    "fetch_from": "employee.custom_group",
@@ -142,11 +134,10 @@
   {
    "default": "0",
    "depends_on": "eval:doc.gender=='Female' || doc.gender=='N\u1eef'",
-   "description": "T\u1ef1 \u0111\u1ed9ng l\u1ea5y t\u1eeb Employee Maternity (type='Pregnant')",
+   "description": "\u0110\u1ec3 tr\u1ed1ng: t\u1ef1 t\u00ednh t\u1eeb Employee Maternity. Nh\u1eadp tay/import: gi\u1eef gi\u00e1 tr\u1ecb \u0111\u00e3 nh\u1eadp.",
    "fieldname": "pregnant",
    "fieldtype": "Check",
-   "label": "Pregnant",
-   "read_only": 1
+   "label": "Pregnant"
   },
   {
    "fieldname": "section_break_schedule",
@@ -190,11 +181,6 @@
    "label": "End Time Actual"
   },
   {
-   "fieldname": "section_break_exam",
-   "fieldtype": "Section Break",
-   "label": "H\u1ea1ng m\u1ee5c kh\u00e1m b\u1ed5 sung"
-  },
-  {
    "default": "0",
    "description": "C\u00f3 ch\u1ee5p X-Quang hay kh\u00f4ng (nh\u1eadp khi thu HS)",
    "fieldname": "x_ray",
@@ -210,13 +196,10 @@
    "label": "Gynecological Exam"
   },
   {
-   "fieldname": "column_break_exam",
-   "fieldtype": "Column Break"
-  },
-  {
    "fieldname": "note",
    "fieldtype": "Small Text",
-   "label": "Note"
+   "label": "Note",
+   "placeholder": "Nh\u1eadp c\u00e1c ghi ch\u00fa b\u1ea5t th\u01b0\u1eddng : C\u00f3 vi\u1ec7c \u0111\u1ed9t xu\u1ea5t, \u00fd do kh\u00f4ng kh\u00e1m, ...."
   },
   {
    "fieldname": "section_break_result",
@@ -237,16 +220,36 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Status",
-   "options": "Ch\u01b0a kh\u00e1m\n\u0110ang kh\u00e1m\nHo\u00e0n th\u00e0nh",
+   "options": "Ch\u01b0a kh\u00e1m\n\u0110ang kh\u00e1m\nHo\u00e0n th\u00e0nh\nKh\u00f4ng kh\u00e1m",
    "read_only": 1
+  },
+  {
+   "fieldname": "file_result",
+   "fieldtype": "Attach",
+   "label": "File Result "
+  },
+  {
+   "fieldname": "column_break_dyxj",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "description": "T\u00edch ch\u1ecdn n\u1ebfu kh\u00f4ng kh\u00e1m",
+   "fieldname": "not_check_up",
+   "fieldtype": "Check",
+   "label": "Not Check Up"
+  },
+  {
+   "fieldname": "column_break_zzcz",
+   "fieldtype": "Column Break"
   }
  ],
  "links": [],
- "modified": "2026-03-30 11:24:57.391607",
+ "modified": "2026-07-28 13:23:00.733073",
  "modified_by": "Administrator",
  "module": "Health Check Up",
  "name": "Health Check-Up",
- "naming_rule": "Random",
+ "naming_rule": "Expression (old style)",
  "owner": "Administrator",
  "permissions": [
   {

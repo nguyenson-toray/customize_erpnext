@@ -18,9 +18,28 @@ class HealthCheckUp(Document):
         self.compute_status()
         self.validate_times()
 
+    def on_update(self):
+        self._organize_result_file()
+
+    def _organize_result_file(self):
+        """Chuyển file File Result vào thư mục vật lý private/files/health_check_results/<ngày khám>/.
+        Áp dụng cho mọi cách gán file (đính kèm thủ công trên form hoặc nút Upload Results)."""
+        if not self.file_result or not self.date:
+            return
+        from customize_erpnext.health_check_up.api.health_check_api import _relocate_result_file
+
+        new_url = _relocate_result_file(self.file_result, self.name, self.date)
+        if new_url and new_url != self.file_result:
+            self.db_set("file_result", new_url, update_modified=False)
+
     def compute_status(self):
-        """Auto-compute status based on actual times."""
-        if self.end_time_actual:
+        """Auto-compute status.
+        - not_check_up (Check) được tích → "Không khám" (ưu tiên cao nhất; lý do ghi ở Note).
+        - còn lại: theo giờ thực tế phát/thu.
+        """
+        if self.get("not_check_up"):
+            self.status = "Không khám"
+        elif self.end_time_actual:
             self.status = "Hoàn thành"
         elif self.start_time_actual:
             self.status = "Đang khám"
@@ -54,30 +73,28 @@ class HealthCheckUp(Document):
 
     def check_pregnant_status(self):
         """
-        Auto-check pregnant status for female employees.
-        Đang mang thai = ngày khám nằm trong khoảng [pregnant_from_date, pregnant_to_date]
-        trên Employee Maternity (pregnant_to_date trống = chưa sinh → vẫn đang mang thai).
+        Xác định trạng thái mang thai.
+        - Không phải nữ → luôn 0.
+        - Nếu đã có giá trị TƯỜNG MINH (nhập tay trên form / import có cột 'pregnant') → GIỮ NGUYÊN,
+          để loại trừ trường hợp Employee Maternity bị sai.
+        - Nếu KHÔNG nhập (giá trị None) → lấy theo field 'status' của Employee Maternity
+          (status = "Pregnant"). Status này đã được scheduler tự tính lại hàng ngày, không tính lại nữa.
         """
         if self.gender not in ("Female", "Nữ"):
             self.pregnant = 0
             return
 
-        check_date = getdate(self.date) if self.date else getdate(today())
+        # Đã nhập tay / import có giá trị → tôn trọng, không tự ghi đè.
+        if self.get("pregnant") is not None:
+            return
 
-        rows = frappe.get_all(
-            "Employee Maternity",
-            filters={"employee": self.employee, "pregnant_from_date": ("is", "set")},
-            fields=["pregnant_from_date", "pregnant_to_date"],
-            order_by="pregnant_from_date desc",
+        self.pregnant = (
+            1
+            if frappe.db.exists(
+                "Employee Maternity", {"employee": self.employee, "status": "Pregnant"}
+            )
+            else 0
         )
-
-        self.pregnant = 0
-        for row in rows:
-            if getdate(row.pregnant_from_date) <= check_date and (
-                not row.pregnant_to_date or check_date <= getdate(row.pregnant_to_date)
-            ):
-                self.pregnant = 1
-                break
 
     def validate_hospital_code_unique(self):
         """

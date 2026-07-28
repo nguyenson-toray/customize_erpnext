@@ -554,6 +554,7 @@ function renderDashboard() {
                 ${statCard("late_dist", L.stat_late_dist, s.late_dist, s.total, "red", "⏰", s.late_dist > 0)}
                 ${statCard("late_coll", L.stat_late_coll, s.late_coll, s.total, "orange", "⏳", s.late_coll > 0)}
                 ${statCard("not_started", L.stat_not_started, s.not_started, s.total, "red", "❌")}
+                ${statCard("not_checked", "Không khám", s.not_checked, s.total, "orange", "🚫", s.not_checked > 0)}
             </div>
         </div>
 
@@ -634,6 +635,7 @@ function calcFilteredStats(records) {
         completed,
         in_exam: in_exam_count,
         not_started: records.filter(r => r.status === "Chưa khám").length,
+        not_checked: records.filter(r => r.status === "Không khám").length,
         x_ray: records.filter(r => r.x_ray).length,
         gynecological_exam: records.filter(r => r.gynecological_exam).length,
         pregnant: records.filter(r => r.pregnant).length,
@@ -670,6 +672,7 @@ function updateDashboardStats() {
             ${statCard("late_dist", L.stat_late_dist, s.late_dist, s.total, "red", "⏰", s.late_dist > 0)}
             ${statCard("late_coll", L.stat_late_coll, s.late_coll, s.total, "orange", "⏳", s.late_coll > 0)}
             ${statCard("not_started", L.stat_not_started, s.not_started, s.total, "red", "❌")}
+            ${statCard("not_checked", "Không khám", s.not_checked, s.total, "orange", "🚫", s.not_checked > 0)}
         </div>
     `);
 
@@ -817,6 +820,7 @@ function getStatModalData(type) {
         case "completed": return filtered.filter(r => r.status === "Hoàn thành");
         case "in_exam": return filtered.filter(r => r.status === "Đang khám");
         case "not_started": return filtered.filter(r => r.status === "Chưa khám");
+        case "not_checked": return filtered.filter(r => r.status === "Không khám");
         case "late_dist":
             return filtered.filter(r => isRecordLateForDistribute(r));
         case "late_coll":
@@ -1757,6 +1761,7 @@ function renderEmployeeList() {
                 <button class="hc-filter-btn" data-filter="completed">${L.status_completed}</button>
                 <button class="hc-filter-btn" data-filter="distributed">${L.status_distributed}</button>
                 <button class="hc-filter-btn" data-filter="pending">${L.status_pending}</button>
+                <button class="hc-filter-btn" data-filter="not_checked">Không khám</button>
                 <button class="hc-filter-btn" data-filter="late_dist">${L.stat_late_dist}</button>
                 <button class="hc-filter-btn" data-filter="late_coll">${L.stat_late_coll}</button>
             </div>
@@ -2023,6 +2028,7 @@ function isRecordLateForCollect(r) {
 function getStatus(r) {
     if (r.status === "Hoàn thành") return "completed";
     if (r.status === "Đang khám") return "distributed";
+    if (r.status === "Không khám") return "not_checked";
     return "pending";
 }
 
@@ -2032,6 +2038,7 @@ function statusBadge(r) {
         completed: { label: L.status_completed, cls: "hc-badge-green" },
         distributed: { label: L.status_distributed, cls: "hc-badge-yellow" },
         pending: { label: L.status_pending, cls: "hc-badge-red" },
+        not_checked: { label: "Không khám", cls: "hc-badge-orange" },
     };
     const s = map[status];
     return `<span class="hc-badge ${s.cls}">${s.label}</span>`;
