@@ -1290,6 +1290,22 @@ def _core_process_attendance_logic_optimized(
 		""", {"from_date": from_date, "to_date": to_date, "prefix": f"{prefix}%"}, pluck=True)
 		stats["total_employees"] = len(employees)
 
+	# Enforce employee_id_prefix as a hard, universal gate — not just the
+	# default when no employee list is given. Callers that pass an explicit
+	# list (e.g. the "All Active Employees" bulk-update UI button, which
+	# enumerates ALL active employees with no prefix awareness) would
+	# otherwise silently bypass the setting and create attendance for
+	# out-of-scope employees (e.g. test records outside the TIQN range).
+	if prefix and employees:
+		before_count = len(employees)
+		employees = [e for e in employees if e.startswith(prefix)]
+		stats["total_employees"] = len(employees)
+		if len(employees) < before_count:
+			print(f"   ⛔ Excluded {before_count - len(employees)} employees not matching prefix '{prefix}'")
+		if not employees:
+			print(f"   ⛔ No employees match prefix '{prefix}' — nothing to do")
+			return stats
+
 	# Exclude configured employee IDs (setting: exclude_employee_ids)
 	excluded_ids = get_excluded_employee_ids()
 	if excluded_ids and employees:
