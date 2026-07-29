@@ -2652,6 +2652,8 @@
                         sw.classList.add('on');
                     }
                 }
+                // Remove-bg toggle restored last so it correctly overrides engine/model row visibility
+                if (localStorage.getItem('ep_remove_bg') === '0') setRemoveBgEnabled(false);
             } catch (e) { }
             loadGroups();
             loadPhotos();
@@ -4187,6 +4189,7 @@
             'Chuyên nghiệp': { brightness: 5, contrast: 8, saturation: -5, smooth: 0, sharpness: 4, warmth: 0, highlights: 0, shadows: 0 },
             'Tươi sáng': { brightness: 10, contrast: 5, saturation: 10, smooth: 3, sharpness: 3, warmth: 5, highlights: 5, shadows: 0 },
         };
+        let _removeBgEnabled = true; // toggle AI background removal on/off for the batch
         let _bgEngine = 'rembg'; // 'imgly' | 'rembg' — default rembg
         let _rembgModel = 'birefnet-portrait'; // default birefnet (tốt hơn cho tóc)
         let _rembgConcurrency = 2; // birefnet=2, RAM guard server-side tự điều chỉnh
@@ -4537,6 +4540,20 @@
             return out.getContext('2d').getImageData(0, 0, out.width, out.height);
         }
 
+        function setRemoveBgEnabled(enabled) {
+            _removeBgEnabled = enabled;
+            const chk = document.getElementById('chkRemoveBg');
+            if (chk) chk.checked = enabled;
+            ['bge_imgly', 'bge_rembg'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.style.display = enabled ? '' : 'none';
+            });
+            const modelRow = document.getElementById('bgeModelRow');
+            if (modelRow) modelRow.style.display = enabled && _bgEngine === 'rembg' ? 'flex' : 'none';
+            try { localStorage.setItem('ep_remove_bg', enabled ? '1' : '0'); } catch (e) { }
+            if (enabled && document.getElementById('batchIdModal').classList.contains('open')) prepareBatchAi();
+        }
+
         function setBgEngine(engine) {
             _bgEngine = engine;
             ['imgly', 'rembg'].forEach(e => {
@@ -4729,9 +4746,11 @@
                 bgRemovedDataUrl = _captureBgRemoved(imageData);
                 imageData = _compositeOnBg(imageData, _batchBgColor);
                 bgMethod = 'PNG-alpha';
-            } else if (isPng || hasWhiteBg) {
-                if (onProgress) onProgress('⏩ Bỏ qua xóa nền (PNG / nền trắng)...');
-                bgMethod = isPng ? 'PNG-skip' : 'white-skip';
+            } else if (isPng || hasWhiteBg || !_removeBgEnabled) {
+                if (onProgress) onProgress(!_removeBgEnabled && !isPng && !hasWhiteBg
+                    ? '⏩ Bỏ qua xóa nền (đã tắt)...'
+                    : '⏩ Bỏ qua xóa nền (PNG / nền trắng)...');
+                bgMethod = !_removeBgEnabled && !isPng && !hasWhiteBg ? 'manual-skip' : (isPng ? 'PNG-skip' : 'white-skip');
             } else {
                 // JPEG: remove bg via selected engine
                 if (onProgress) onProgress(_bgEngine === 'rembg' ? '🖥 Xóa nền rembg...' : '🤖 Xóa nền AI...');
@@ -5463,6 +5482,10 @@
                 </div>
                 <div style="width:1px;height:20px;background:#323a48;flex-shrink:0;"></div>
                 <span style="color:#8a95b0;font-size:11px;white-space:nowrap;flex-shrink:0;">Xóa nền:</span>
+                <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:#c8ccd6;flex-shrink:0;cursor:pointer;"
+                    title="Tắt nếu ảnh đã có nền sạch, không cần xử lý AI">
+                    <input type="checkbox" id="chkRemoveBg" checked onchange="setRemoveBgEnabled(this.checked)">
+                </label>
                 <button class="btn-bg-engine" id="bge_imgly" onclick="setBgEngine('imgly')"
                     title="Xóa nền chạy ngay trên máy bạn (không tốn tài nguyên server).&#10;Chất lượng trung bình, tốc độ tùy máy — dùng khi server bận.">JS (@imgly)</button>
                 <button class="btn-bg-engine active" id="bge_rembg" onclick="setBgEngine('rembg')"
