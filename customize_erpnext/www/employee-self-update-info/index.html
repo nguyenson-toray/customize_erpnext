@@ -46,9 +46,13 @@
     <!-- Step 2: dynamic form -->
     <div id="form_area" class="hidden">
       <div class="legend">
-        <span class="lg-text">Kiểm tra và cập nhật những mục còn thiếu hoặc đã thay đổi.</span>
+        <span class="lg-text">
+          <p>Kiểm tra và cập nhật những mục <strong><span style="color: #ff6600;">còn thiếu</span></strong> hoặc
+            <strong><span style="color: #ff0000;">cần thay đổi</span></strong>.
+          </p>
+        </span>
         <span class="lg-item"><span class="lg-req">*</span> Bắt buộc nhập</span>
-        <span class="lg-item"><span class="sw"></span> Bạn vừa thay đổi</span>
+        <span class="lg-item"><span class="sw"></span> Bạn đã thay đổi</span>
         <span id="status_wrap" style="margin-left:auto"></span>
       </div>
       <div id="sections"></div>
@@ -58,7 +62,7 @@
         <h2><span class="dot"></span>Ghi chú thêm</h2>
         <div class="field" style="margin-bottom:0">
           <label class="fl" for="f__remarks">Nếu có thông tin cần cập nhật thêm,các nội dung chưa rõ, thắc mắc vui lòng
-            ghi vào đây</label>
+            ghi vào đây hoặc liên hệ trực tiếp bộ phận Hành chính nhân sự để được hướng dẫn.</label>
           <textarea id="f__remarks" placeholder="(Không bắt buộc)…"></textarea>
         </div>
       </div>
@@ -70,7 +74,8 @@
       <h2>Đã gửi thông tin!</h2>
       <p class="muted"><strong>Cảm ơn bạn. Bộ phận nhân sự sẽ tiếp nhận thông tin này.<br>Bạn có thể lưu lại bản thông
           tin đã gửi để đối chiếu khi cần.</strong></p>
-      <button class="btn-primary" id="save_btn" style="max-width:280px;margin:14px auto 0" onclick="downloadFile()">📄 Tải
+      <button class="btn-primary" id="save_btn" style="max-width:280px;margin:14px auto 0" onclick="downloadFile()">📄
+        Tải
         PDF thông tin đã gửi</button>
       <div id="save_hint" class="muted" style="max-width:300px;margin:8px auto 0;font-size:12.5px"></div>
       <button style="max-width:280px;margin:10px auto 0;background:#e2e8f0;color:#334155"
@@ -511,7 +516,15 @@
          <button type="button" class="qr-scan-btn alt" onclick="document.getElementById('cccd_photo_input').click()">🖼️ Chụp / chọn ảnh CCCD (nếu quét khó)</button>
          <input type="file" id="cccd_photo_input" accept="image/*" capture="environment" style="display:none" onchange="onCccdPhoto(event)">
          -->
-         <div class="hint">Bấm nút trên để quét mã QR — hệ thống tự điền số CCCD, ngày cấp, ngày hết hạn và số CMND cũ. Hoặc bạn nhập tay vào ô bên dưới nếu không quét được mã QR.</div>`
+         <div class="hint"><div><ul>
+<li>Nếu thông tin CCCD đã chính xác ➡️ Bỏ qua.</li>
+<li>Nếu cần cập nhật, thay đổi:
+<ul>
+<li>Bấm nút trên để quét mã QR trên CCCD — hệ thống tự điền số CCCD, ngày cấp, ngày hết hạn và số CMND cũ.</li>
+<li>Hoặc <span style="color: #ff0000;">nhập tay vào ô bên dưới nếu <strong>KHÔNG </strong>quét được mã QR</span>.</li>
+</ul>
+</li>
+</ul></div>`
         : "";
       // Giải thích thêm cho field (cột "Detail" trong Setting) — hiện dưới nhãn.
       const detailUi = f.detail
