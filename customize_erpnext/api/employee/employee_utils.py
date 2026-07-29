@@ -1471,6 +1471,12 @@ def process_employee_photo(employee_id, employee_name, image_data):
                 'attached_to_field': 'image',
                 'file_size': len(output_data)
             })
+            # Content is already written to disk above at `file_path` — without this flag,
+            # File.before_insert() treats our file_url as "not yet saved" (it only recognizes
+            # http(s)/api-method URLs as pre-existing), re-reads the content, and rewrites it
+            # to /files/{file_name} (root, ignoring the employee_photos subfolder), leaving a
+            # duplicate physical file and a wrong file_url on the File doc.
+            file_doc.flags.copy_from_existing_file = True
             file_doc.insert(ignore_permissions=True)
 
         # Update Employee image field
