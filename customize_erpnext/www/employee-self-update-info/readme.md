@@ -69,6 +69,7 @@ Doctype `Employee Self Update Info` **không** có cột riêng cho từng thôn
 | `employee_name` | Data | fetch từ Employee |
 | `status` | Select | `Draft` / `Submitted` |
 | `submitted_on` | Datetime | thời điểm gửi |
+| `device_info` | Small Text | thiết bị đã gửi: **IP + User-Agent + Model + Platform** (server tự lấy khi submit; đọc-audit, không JS, không xin quyền, không sync sang Employee) |
 | `data_json` | Long Text | **toàn bộ dữ liệu form** (JSON) |
 
 → Thêm field mới = chỉ tick chọn trong Setting. **Không** sửa schema, **không** sửa code.
@@ -191,6 +192,30 @@ _gate(...)     # throw nếu validate_by_dob bật và code sai
 ```
 
 `bypass_code` giới hạn **0–99** (validate trong controller) để khớp ô nhập 2 chữ số, và **ẩn với mọi user không phải Administrator** (`employee_self_update_info_setting.js`), không bao giờ trả về cho trang web.
+
+---
+
+## Khoá sau khi gửi (`lock_after_submit` + `bypass_code_for_unlock`)
+
+Mục đích: NV chỉ **kê khai lần đầu**; đã gửi rồi thì lần sau vào không sửa được nữa (và **không xem/tải được phiếu** để tránh lộ thông tin cá nhân), trừ khi HR cấp **mã mở khoá**.
+
+- Setting: `lock_after_submit` (Check, default 1), `bypass_code_for_unlock` (Int, default 88, chỉ hiện khi lock bật). `get_field_config` trả `lock_after_submit` (bool) — **KHÔNG bao giờ** gửi `bypass_code_for_unlock`.
+- **Đã submit** = doc có `submitted_on`. `_is_locked = lock_after_submit and submitted_on`.
+- **Mở khoá cần CẢ HAI**: 2 số ngày sinh (`_code_ok`, chấp cả admin `bypass_code`) **VÀ** mã unlock (`_unlock_ok` = khớp `bypass_code_for_unlock`) — độc lập với `validate_by_dob`.
+- **Chặn ở server** (không bypass bằng gọi API):
+  - `_gate_edit` (load `get_form_data` + submit `save_form_data`): DOB như cũ + nếu khoá thì bắt DOB **và** unlock.
+  - `_gate_receipt` (PDF/PNG): khoá cũng chặn tải phiếu → chống lộ thông tin khi vào lại. **Ngoại lệ**: có **download token** hợp lệ.
+- **Download token**: `save_form_data` trả `download_token` = HMAC(`encryption_key`, `employee_id:window15p`) — cho phép **chính phiên vừa gửi** tải phiếu ngay (chưa có mã unlock). Cửa sổ ~15–30 phút, **không lưu DB**. Front-end giữ `S.downloadToken`, gửi kèm mọi lời gọi PDF/PNG (`receiptQuery()` / FormData). Phiên/lượt truy cập nguội không có token → bị chặn.
+- **Endpoint phụ (UX, không phải bảo mật)**: `get_access_info(emp)` → `{submitted, submitted_on (dd/MM/yyyy HH:mm), locked}`; `unlock_access(emp, code, unlock_code)` → `{valid}`.
+- **Front-end**: `onEmpSelected` gọi `get_access_info` khi `lock_after_submit`; nếu `locked` → hiện `#lock_card` (thông báo "Bạn đã cập nhật lúc … Nếu có sai sót vui lòng liên hệ HR để được cấp mã" + 2 ô: ngày sinh, mã mở khoá). `doUnlock()` → `unlock_access` đúng → `S.unlockCode` + `loadForm`.
+
+```python
+_already_submitted(emp) = bool(submitted_on)
+_unlock_ok(code)        = _num_eq(code, bypass_code_for_unlock)
+_is_locked              = lock_after_submit and _already_submitted
+_gate_edit              = _gate + (locked → require _code_ok AND _unlock_ok)
+_gate_receipt           = token hợp lệ → pass; else _gate_edit
+```
 
 ---
 

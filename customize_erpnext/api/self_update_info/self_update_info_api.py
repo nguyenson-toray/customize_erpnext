@@ -28,6 +28,37 @@ INFO_DT = "Employee Self Update Info"
 # Reserved key inside data_json for the employee's free-text remarks.
 REMARKS_KEY = "__remarks"
 
+
+def _submit_device_info():
+	"""Basic device/browser info of the submitting request: IP + User-Agent.
+
+	Read-only audit only; no permission prompt, not synced to Employee.
+	Returns '' when there is no HTTP request context (e.g. bench execute).
+	"""
+	try:
+		ip = frappe.local.request_ip or ""
+	except Exception:
+		ip = ""
+	def _h(name):
+		try:
+			return (frappe.get_request_header(name) or "").strip().strip('"')
+		except Exception:
+			return ""
+
+	# User-Agent Client Hints (Chromium/Android; empty on Safari/iOS). Requires
+	# the Accept-CH opt-in sent by the web page (see www/.../index.py).
+	model = _h("Sec-CH-UA-Model")
+	platform = " ".join(x for x in (_h("Sec-CH-UA-Platform"), _h("Sec-CH-UA-Platform-Version")) if x)
+
+	parts = []
+	if ip:
+		parts.append(f"IP: {ip}")
+	if model:
+		parts.append(f"Model: {model}")
+	if platform:
+		parts.append(f"Platform: {platform}")
+	return "\n".join(parts)
+
 # Fieldtypes the dynamic renderer knows how to handle (v1: flat + Link + Text).
 _ALLOWED_FIELDTYPES = {
 	"Data", "Date", "Datetime", "Time", "Int", "Float", "Currency",
@@ -272,6 +303,81 @@ def _gate(setting, employee_id, code):
 		frappe.throw(_("Verification failed. Please check the code."), frappe.ValidationError)
 
 
+def _already_submitted(employee_id):
+	"""True once the employee has submitted the form at least once."""
+	return bool(frappe.db.get_value(INFO_DT, employee_id, "submitted_on"))
+
+
+def _unlock_ok(setting, unlock_code):
+	"""True if the supplied unlock code matches bypass_code_for_unlock."""
+	unlock_code = (str(unlock_code or "")).strip()
+	if not unlock_code:
+		return False
+	return _num_eq(unlock_code, setting.bypass_code_for_unlock)
+
+
+def _is_locked(setting, employee_id):
+	"""True if the form is locked for this employee (submitted once + lock on)."""
+	return bool(setting.get("lock_after_submit")) and _already_submitted(employee_id)
+
+
+def _gate_edit(setting, employee_id, code, unlock_code=None):
+	"""Gate for loading/saving the form. DOB check (as _gate) plus, when the
+	form is locked after a first submission, BOTH the DOB digits AND the unlock
+	code are required (employee must contact HR for the unlock code)."""
+	_gate(setting, employee_id, code)
+	if _is_locked(setting, employee_id):
+		if not (_code_ok(setting, employee_id, code) and _unlock_ok(setting, unlock_code)):
+			frappe.throw(
+				_("This form is locked. Enter your date-of-birth digits and the unlock code from HR."),
+				frappe.PermissionError,
+			)
+
+
+# --- Short-lived download token: lets the just-submitted session download the
+# receipt (PDF/PNG) without the unlock code, while a cold visit stays locked. ---
+
+def _dl_secret():
+	return (frappe.local.conf.get("encryption_key") or frappe.local.conf.get("secret") or "csi").encode()
+
+
+def _dl_windows():
+	"""Current and previous 15-minute windows (token validity ~15–30 min)."""
+	w = int(now_datetime().timestamp() // 900)
+	return (w, w - 1)
+
+
+def _make_download_token(employee_id):
+	import hashlib
+	import hmac
+
+	msg = f"{employee_id}:{_dl_windows()[0]}".encode()
+	return hmac.new(_dl_secret(), msg, hashlib.sha256).hexdigest()[:32]
+
+
+def _download_token_ok(employee_id, token):
+	import hashlib
+	import hmac
+
+	token = (str(token or "")).strip()
+	if not token:
+		return False
+	for w in _dl_windows():
+		good = hmac.new(_dl_secret(), f"{employee_id}:{w}".encode(), hashlib.sha256).hexdigest()[:32]
+		if hmac.compare_digest(good, token):
+			return True
+	return False
+
+
+def _gate_receipt(setting, employee_id, code, unlock_code=None, token=None):
+	"""Gate for the PDF/PNG receipt. A valid fresh-submit token allows the
+	download (same session that just submitted); otherwise the full edit gate
+	applies so a locked form does not leak personal data on a later visit."""
+	if _download_token_ok(employee_id, token):
+		return
+	_gate_edit(setting, employee_id, code, unlock_code)
+
+
 # ---------------------------------------------------------------------------
 # Public APIs
 # ---------------------------------------------------------------------------
@@ -290,6 +396,9 @@ def get_field_config():
 	# Receipt file type offered on the success screen: "PDF" (default) or "PNG".
 	# PNG renders inline so it can be long-pressed to save inside the Zalo webview.
 	config["save_file_type"] = setting.get("save_file_type") or "PDF"
+	# Lock the form (and receipts) after the first submission. The secret
+	# unlock code (bypass_code_for_unlock) is NEVER sent to the client.
+	config["lock_after_submit"] = bool(setting.get("lock_after_submit"))
 	return config
 
 
@@ -306,6 +415,41 @@ def verify_employee(employee_id, code):
 	if not setting.validate_by_dob:
 		return {"valid": True}
 	return {"valid": _code_ok(setting, employee_id, code)}
+
+
+@frappe.whitelist(allow_guest=True)
+def get_access_info(employee_id):
+	"""Report whether this employee's form is locked after a first submission.
+
+	Returns {submitted, submitted_on (display), locked}. The unlock code is
+	never exposed. Low sensitivity: same as the `submitted` flag already
+	returned by get_eligible_employees.
+	"""
+	if not employee_id:
+		frappe.throw(_("Missing employee"))
+	setting = _get_setting()
+	_ensure_eligible(setting, employee_id)
+	submitted_on = frappe.db.get_value(INFO_DT, employee_id, "submitted_on")
+	return {
+		"submitted": bool(submitted_on),
+		"submitted_on": frappe.utils.format_datetime(submitted_on, "dd/MM/yyyy HH:mm") if submitted_on else "",
+		"locked": bool(setting.get("lock_after_submit")) and bool(submitted_on),
+	}
+
+
+@frappe.whitelist(allow_guest=True)
+def unlock_access(employee_id, code, unlock_code):
+	"""Pre-check the unlock: needs BOTH the DOB digits and the unlock code.
+
+	Returns {valid}. Server-side enforcement still happens in get_form_data /
+	save_form_data, so bypassing this cannot unlock the form.
+	"""
+	if not employee_id:
+		frappe.throw(_("Missing employee"))
+	setting = _get_setting()
+	_ensure_eligible(setting, employee_id)
+	valid = _code_ok(setting, employee_id, code) and _unlock_ok(setting, unlock_code)
+	return {"valid": valid}
 
 
 @frappe.whitelist(allow_guest=True)
@@ -335,10 +479,12 @@ def get_eligible_employees():
 
 
 @frappe.whitelist(allow_guest=True)
-def get_form_data(employee_id, code=None):
+def get_form_data(employee_id, code=None, unlock_code=None):
 	"""Return current Employee values overlaid with any saved draft/submission.
 
 	`code` = DOB digits / bypass code, required only when validate_by_dob is on.
+	`unlock_code` = required together with `code` when the form is locked after
+	a first submission (lock_after_submit).
 
 	Returns:
 	    {
@@ -354,7 +500,7 @@ def get_form_data(employee_id, code=None):
 
 	setting = _get_setting()
 	_ensure_eligible(setting, employee_id)
-	_gate(setting, employee_id, code)
+	_gate_edit(setting, employee_id, code, unlock_code)
 
 	config = _build_config()
 	fieldnames = _config_fieldnames(config)
@@ -398,14 +544,14 @@ def get_form_data(employee_id, code=None):
 
 
 @frappe.whitelist(allow_guest=True)
-def save_form_data(employee_id, data, code=None):
+def save_form_data(employee_id, data, code=None, unlock_code=None):
 	"""Store submitted values as JSON. Does NOT write back to Employee."""
 	if not employee_id:
 		frappe.throw(_("Missing employee"))
 
 	setting = _get_setting()
 	_ensure_eligible(setting, employee_id)
-	_gate(setting, employee_id, code)
+	_gate_edit(setting, employee_id, code, unlock_code)
 
 	if isinstance(data, str):
 		data = json.loads(data or "{}")
@@ -462,16 +608,23 @@ def save_form_data(employee_id, data, code=None):
 	doc.data_json = json.dumps(clean, ensure_ascii=False)
 	doc.status = "Submitted"
 	doc.submitted_on = now_datetime()
+	doc.device_info = _submit_device_info()
 	doc.save(ignore_permissions=True)
 	frappe.db.commit()
 
-	return {"status": "success", "message": _("Your information has been submitted.")}
+	# Short-lived token so THIS session can download the receipt right away,
+	# even though the form is now locked for later (cold) visits.
+	return {
+		"status": "success",
+		"message": _("Your information has been submitted."),
+		"download_token": _make_download_token(employee_id),
+	}
 
 
 @frappe.whitelist(allow_guest=True)
-def download_submission_pdf(employee_id, code=None):
+def download_submission_pdf(employee_id, code=None, unlock_code=None, token=None):
 	"""Return a PDF receipt of the employee's submitted information."""
-	html, base = _load_submission_receipt(employee_id, code)
+	html, base = _load_submission_receipt(employee_id, code, unlock_code, token)
 	from frappe.utils.pdf import get_pdf
 
 	frappe.response["filename"] = f"{base}.pdf"
@@ -480,22 +633,22 @@ def download_submission_pdf(employee_id, code=None):
 
 
 @frappe.whitelist(allow_guest=True)
-def download_submission_image(employee_id, code=None):
+def download_submission_image(employee_id, code=None, unlock_code=None, token=None):
 	"""Return a PNG image of the employee's submitted information as a file download."""
-	html, base = _load_submission_receipt(employee_id, code)
+	html, base = _load_submission_receipt(employee_id, code, unlock_code, token)
 	frappe.response["filename"] = f"{base}.png"
 	frappe.response["filecontent"] = _html_to_png(html)
 	frappe.response["type"] = "download"
 	frappe.response["content_type"] = "image/png"
 
 
-def _load_submission_receipt(employee_id, code):
+def _load_submission_receipt(employee_id, code, unlock_code=None, token=None):
 	"""Shared gate + HTML build for the PDF/PNG receipt. Returns (html, base_filename)."""
 	if not employee_id:
 		frappe.throw(_("Missing employee"))
 	setting = _get_setting()
 	_ensure_eligible(setting, employee_id)
-	_gate(setting, employee_id, code)
+	_gate_receipt(setting, employee_id, code, unlock_code, token)
 
 	if not frappe.db.exists(INFO_DT, employee_id):
 		frappe.throw(_("No submission found for this employee."))

@@ -43,6 +43,27 @@
       </div>
     </div>
 
+    <!-- Step 1c: locked after first submit (needs DOB + unlock code from HR) -->
+    <div class="card hidden" id="lock_card">
+      <h2><span class="dot"></span>🔒 Phiếu đã khoá</h2>
+      <p class="muted" id="lock_msg" style="margin:2px 0 14px"></p>
+      <div class="field">
+        <label class="fl" for="lock_dob">Nhập 2 số <b>ngày sinh</b> của bạn</label>
+        <input type="text" id="lock_dob" inputmode="numeric" maxlength="2"
+          placeholder="VD: sinh ngày 05 tháng 09 → nhập 05"
+          oninput="this.value=this.value.replace(/[^0-9]/g,'')"
+          onkeydown="if(event.key==='Enter')doUnlock()">
+      </div>
+      <div class="field" style="margin-bottom:0">
+        <label class="fl" for="lock_code">Mã mở khoá (do HR cấp)</label>
+        <input type="text" id="lock_code" inputmode="numeric" autocomplete="off"
+          placeholder="Nhập mã HR cung cấp"
+          oninput="this.value=this.value.replace(/[^0-9]/g,'')"
+          onkeydown="if(event.key==='Enter')doUnlock()">
+        <button class="btn-primary" style="margin-top:12px;width:100%" onclick="doUnlock()">🔓 Mở khoá &amp; chỉnh sửa</button>
+      </div>
+    </div>
+
     <!-- Step 2: dynamic form -->
     <div id="form_area" class="hidden">
       <div class="legend">
@@ -124,6 +145,8 @@
       config: "customize_erpnext.api.self_update_info.self_update_info_api.get_field_config",
       employees: "customize_erpnext.api.self_update_info.self_update_info_api.get_eligible_employees",
       verify: "customize_erpnext.api.self_update_info.self_update_info_api.verify_employee",
+      access: "customize_erpnext.api.self_update_info.self_update_info_api.get_access_info",
+      unlock: "customize_erpnext.api.self_update_info.self_update_info_api.unlock_access",
       formData: "customize_erpnext.api.self_update_info.self_update_info_api.get_form_data",
       save: "customize_erpnext.api.self_update_info.self_update_info_api.save_form_data",
       pdf: "customize_erpnext.api.self_update_info.self_update_info_api.download_submission_pdf",
@@ -189,7 +212,7 @@
       document.body.appendChild(ov);
     }
 
-    const S = { employee_id: null, employee_name: null, config: null, original: {}, values: {}, verifyCode: null, fieldByName: {} };
+    const S = { employee_id: null, employee_name: null, config: null, original: {}, values: {}, verifyCode: null, unlockCode: null, downloadToken: null, fieldByName: {} };
 
     // CCCD QR scan: only offered when this Employee field is configured.
     const CCCD_FIELD = "custom_id_card_no";              // số CCCD
@@ -368,16 +391,24 @@
 
     function resetForm() {
       document.getElementById("verify_card").classList.add("hidden");
+      document.getElementById("lock_card").classList.add("hidden");
       document.getElementById("form_area").classList.add("hidden");
       document.getElementById("submitbar").classList.add("hidden");
     }
 
-    // Decide between verification gate and loading the form directly.
+    // Decide between lock gate, verification gate, or loading the form directly.
     async function onEmpSelected(empId) {
       try {
         resetForm();
-        S.employee_id = empId; S.verifyCode = null;
+        S.employee_id = empId; S.verifyCode = null; S.unlockCode = null; S.downloadToken = null;
         if (!S.config) S.config = await api(M.config);
+
+        // Nếu đã submit + Setting khoá → yêu cầu mở khoá (ngày sinh + mã HR).
+        if (S.config.lock_after_submit) {
+          const acc = await api(M.access, { employee_id: empId });
+          if (acc && acc.locked) { showLockCard(acc); return; }
+        }
+
         if (S.config.require_dob) {
           const vc = document.getElementById("verify_card");
           vc.classList.remove("hidden");
@@ -387,6 +418,39 @@
           loadForm(empId, null);
         }
       } catch (e) { toast(e.message); }
+    }
+
+    function showLockCard(acc) {
+      document.getElementById("lock_msg").innerHTML =
+        `Bạn đã cập nhật thông tin lúc <b>${esc(acc.submitted_on || "")}</b>.<br>` +
+        `Nếu có sai sót cần nhập lại, vui lòng <b>liên hệ HR</b> để được cấp mã mở khoá.`;
+      document.getElementById("lock_dob").value = "";
+      document.getElementById("lock_code").value = "";
+      document.getElementById("lock_card").classList.remove("hidden");
+      document.getElementById("lock_dob").focus();
+    }
+
+    let _unlocking = false;
+    async function doUnlock() {
+      if (_unlocking) return;
+      const code = (document.getElementById("lock_dob").value || "").trim();
+      const unlock = (document.getElementById("lock_code").value || "").trim();
+      if (!code) { toast("Vui lòng nhập 2 số ngày sinh"); return; }
+      if (!unlock) { toast("Vui lòng nhập mã mở khoá do HR cấp"); return; }
+      _unlocking = true;
+      try {
+        const r = await api(M.unlock, { employee_id: S.employee_id, code, unlock_code: unlock });
+        if (r && r.valid) {
+          S.unlockCode = unlock;
+          document.getElementById("lock_card").classList.add("hidden");
+          loadForm(S.employee_id, code);
+        } else {
+          toast("Ngày sinh hoặc mã mở khoá không đúng. Vui lòng thử lại.");
+          document.getElementById("lock_code").value = "";
+          document.getElementById("lock_code").focus();
+        }
+      } catch (e) { toast(e.message); }
+      finally { _unlocking = false; }
     }
 
     let _verifying = false;
@@ -414,7 +478,7 @@
         S.verifyCode = code || null;
         document.getElementById("submit_btn").disabled = true;
         if (!S.config) S.config = await api(M.config);
-        const fd = await api(M.formData, { employee_id: empId, code: code || "" });
+        const fd = await api(M.formData, { employee_id: empId, code: code || "", unlock_code: S.unlockCode || "" });
         S.employee_id = empId; S.employee_name = fd.employee_name;
         S.original = fd.original || {}; S.values = fd.values || {};
 
@@ -707,7 +771,8 @@
       const btn = document.getElementById("submit_btn");
       btn.disabled = true; btn.textContent = "Đang gửi…";
       try {
-        const r = await api(M.save, { employee_id: S.employee_id, data, code: S.verifyCode || "" });
+        const r = await api(M.save, { employee_id: S.employee_id, data, code: S.verifyCode || "", unlock_code: S.unlockCode || "" });
+        S.downloadToken = (r && r.download_token) || null;   // token tải phiếu ngay sau gửi (khi bị khoá)
         clearDraft(S.employee_id);   // gửi xong → bỏ nháp cục bộ
         document.getElementById("form_area").classList.add("hidden");
         document.getElementById("submitbar").classList.add("hidden");
@@ -754,8 +819,7 @@
       const old = btn ? btn.textContent : "";
       if (btn) { btn.disabled = true; btn.textContent = "Đang tạo ảnh…"; }
       try {
-        const params = new URLSearchParams({ employee_id: S.employee_id, code: S.verifyCode || "" });
-        const res = await fetch(`/api/method/${M.image}?${params.toString()}`, { credentials: "same-origin" });
+        const res = await fetch(`/api/method/${M.image}?${receiptQuery()}`, { credentials: "same-origin" });
         if (!res.ok) throw new Error("Không tạo được ảnh");
         const blob = await res.blob();
         renderImageOverlay(URL.createObjectURL(blob));
@@ -798,8 +862,7 @@
       const old = btn ? btn.textContent : "";
       if (btn) { btn.disabled = true; btn.textContent = "Đang tạo ảnh…"; }
       try {
-        const params = new URLSearchParams({ employee_id: S.employee_id, code: S.verifyCode || "" });
-        const res = await fetch(`/api/method/${M.image}?${params.toString()}`, { credentials: "same-origin" });
+        const res = await fetch(`/api/method/${M.image}?${receiptQuery()}`, { credentials: "same-origin" });
         if (!res.ok) throw new Error("Không tạo được ảnh");
         const blob = await res.blob();
         const url = URL.createObjectURL(blob);
@@ -809,6 +872,16 @@
         URL.revokeObjectURL(url);
       } catch (e) { toast(e.message || "Lỗi tạo ảnh"); }
       finally { if (btn) { btn.disabled = false; btn.textContent = old; } }
+    }
+
+    // Query string cho endpoint tải phiếu (kèm mã mở khoá + token phiên vừa gửi).
+    function receiptQuery() {
+      return new URLSearchParams({
+        employee_id: S.employee_id,
+        code: S.verifyCode || "",
+        unlock_code: S.unlockCode || "",
+        token: S.downloadToken || "",
+      }).toString();
     }
 
     // Tên file tải về: "<mã NV> <họ tên> <yyyyMMdd_HHmm>".
@@ -829,6 +902,8 @@
         fd.append("csrf_token", window.csrf_token);
         fd.append("employee_id", S.employee_id);
         fd.append("code", S.verifyCode || "");
+        fd.append("unlock_code", S.unlockCode || "");
+        fd.append("token", S.downloadToken || "");
         const res = await fetch(`/api/method/${M.pdf}`, { method: "POST", credentials: "same-origin", body: fd });
         if (!res.ok) throw new Error("Không tạo được PDF");
         const blob = await res.blob();

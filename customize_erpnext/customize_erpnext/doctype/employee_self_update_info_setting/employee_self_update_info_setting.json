@@ -23,6 +23,9 @@
   "allow_browser_local_storage",
   "force_open_devices_browser",
   "save_file_type",
+  "column_break_uhie",
+  "lock_after_submit",
+  "bypass_code_for_unlock",
   "section_fields",
   "fields_intro",
   "btn_add_field",
@@ -88,7 +91,8 @@
    "fieldname": "employees",
    "fieldtype": "Table",
    "label": "Employees",
-   "options": "Employee Self Update Employee"
+   "options": "Employee Self Update Employee",
+   "show_description_on_click": 1
   },
   {
    "fieldname": "section_security",
@@ -196,11 +200,28 @@
    "label": "Save File Type",
    "options": "\nPDF\nPNG",
    "reqd": 1
+  },
+  {
+   "fieldname": "column_break_uhie",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "lock_after_submit",
+   "fieldtype": "Check",
+   "label": "Lock After Submit"
+  },
+  {
+   "default": "88",
+   "depends_on": "eval:doc.lock_after_submit === 1;",
+   "fieldname": "bypass_code_for_unlock",
+   "fieldtype": "Int",
+   "label": "Bypass Code For Unlock"
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-07-28 09:24:29.407185",
+ "modified": "2026-07-29 15:19:50.590054",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Employee Self Update Info Setting",

@@ -12,6 +12,9 @@ class EmployeeSelfUpdateInfoSetting(Document):
 		# Bypass code is compared against the 2-digit DOB input, so keep it 2 digits.
 		if self.bypass_code and not (0 <= self.bypass_code <= 99):
 			frappe.throw(_("Bypass Code must be a 2-digit number (0–99)."))
+		# Locking without an unlock code would lock every employee out forever.
+		if self.lock_after_submit and not self.bypass_code_for_unlock:
+			frappe.throw(_("Set a Bypass Code For Unlock when Lock After Submit is enabled."))
 		self._dedupe_employees()
 
 	def _dedupe_employees(self):
