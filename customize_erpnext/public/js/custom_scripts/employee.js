@@ -109,7 +109,7 @@ frappe.ui.form.on('Employee', {
 
             // Photo management now lives entirely on /employee-photos
             frm.add_custom_button(__('📷 Photo'), function () {
-                window.open('/employee-photos?q=' + encodeURIComponent(frm.doc.name) + '&status=all', '_blank');
+                window.open('/employee-photos?q=' + encodeURIComponent(frm.doc.name) + '&status=all&prefix=all', '_blank');
             },);
         }
         if (frm.is_new()) {

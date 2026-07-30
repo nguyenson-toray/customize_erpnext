@@ -2325,6 +2325,15 @@
                         </div>
                     </div>
 
+                    <div class="control-group" title="Lọc theo tiền tố mã nhân viên">
+                        <span class="ctrl-icon">🏢</span>
+                        <select id="prefixFilterSelect" title="Tiền tố mã nhân viên"
+                            style="padding: 4px 8px; border: 1px solid #d1d8dd; border-radius: 4px;">
+                            <option value="TIQN-" selected>TIQN</option>
+                            <option value="all">All</option>
+                        </select>
+                    </div>
+
                     <div class="control-group" style="margin-left: auto;">
                         <button id="btnFilterToggle" class="mobile-only" style="display: none;">🎚️ Bộ lọc</button>
                         <button id="btnGlobalUpload"
@@ -2694,6 +2703,10 @@
                 applyFilters();
             });
 
+            document.getElementById('prefixFilterSelect').addEventListener('change', function () {
+                applyFilters();
+            });
+
             document.getElementById('sortOrderSelect').addEventListener('change', function () {
                 applyFilters();
             });
@@ -2856,11 +2869,17 @@
             const dateTo = document.getElementById('dateFilterTo').value;
             const sortOrder = document.getElementById('sortOrderSelect').value;
             const customGroup = document.getElementById('groupSelect').value;
+            const prefixFilter = document.getElementById('prefixFilterSelect').value; // 'TIQN-' | 'all'
             const searchTerm = document.getElementById('searchBox').value.toLowerCase();
             const searchTermNoTones = removeVietnameseTones(searchTerm);
 
             // Filter photos on client-side
             filteredPhotos = allPhotos.filter(photo => {
+                // Filter by employee code prefix (e.g. only TIQN- employees)
+                if (prefixFilter !== 'all' && !(photo.employee_id || '').toUpperCase().startsWith(prefixFilter)) {
+                    return false;
+                }
+
                 // Filter by work status: active = Đang làm việc, left = Đã nghỉ việc (mọi trạng thái khác Active)
                 if (statusFilter === 'active') {
                     if (!photo.status || photo.status !== 'Active') return false;
@@ -2957,6 +2976,8 @@
             if (_hasPhotoOnly) p.set('hasphoto', '1');
             const group = document.getElementById('groupSelect').value;
             if (group) p.set('group', group);
+            const prefix = document.getElementById('prefixFilterSelect').value;
+            if (prefix !== 'TIQN-') p.set('prefix', prefix);
             const from = document.getElementById('dateFilterFrom').value;
             if (from) p.set('from', from);
             const to = document.getElementById('dateFilterTo').value;
@@ -2985,6 +3006,9 @@
                 if (p.get('to')) document.getElementById('dateFilterTo').value = p.get('to');
                 if (p.get('sort')) document.getElementById('sortOrderSelect').value = p.get('sort');
                 if (p.get('groupby') === '1') document.getElementById('groupByCheckbox').checked = true;
+                if (p.get('prefix') === 'TIQN-' || p.get('prefix') === 'all') {
+                    document.getElementById('prefixFilterSelect').value = p.get('prefix');
+                }
                 // group select được set lại sau khi loadGroups() đổ options
                 _pendingUrlGroup = p.get('group') || '';
                 updateChipStates();
@@ -3027,6 +3051,7 @@
                 document.getElementById('dateFilterTo').value = '';
                 document.getElementById('groupSelect').value = '';
                 document.getElementById('sortOrderSelect').value = 'desc';
+                document.getElementById('prefixFilterSelect').value = 'TIQN-';
                 updateChipStates();
                 applyFilters();
             });
