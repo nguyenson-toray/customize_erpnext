@@ -160,6 +160,7 @@ print(m.get_ranges.__name__)                  # 'custom_get_ranges' nếu đã p
 | `leave_application/` | `LeaveApplication.validate_attendance`, `create_or_update_attendance` | B |
 | `earned_leave/` | cấu hình/nghiệp vụ Earned Leave (nhiều hàm hr_utils + LeavePolicyAssignment) | A/B |
 | `employees_by_age/` | `get_ranges` cho dashboard chart "Employees by Age" (18–47, 48+) | A |
+| `lms_file_storage/` | `File.save_file_on_filesystem` + `delete_file_from_filesystem` — upload cho Course Lesson lưu vào `files/lms_course/{course}/{chapter}_{lesson}_{tên gốc}` (nhận diện qua Referer header vì `attached_to` không đáng tin cho luồng này) thay vì `public/files` root | B |
 
 Các file `.py` phụ (không phải thư mục patch): `leave_utils.py` (helper dùng chung).
 Các `.md` khác: `override_attendance_shift_checkin.md`, `item_stock_customize*.md` — ghi chú
