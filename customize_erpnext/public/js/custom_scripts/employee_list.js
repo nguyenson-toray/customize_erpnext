@@ -968,7 +968,7 @@ function _fp_show_config_dialog(selected_employees, machines) {
                 <span style="font-weight:normal"> — all machines except master (auto)</span>
             </label>
             <div id="fp_target_list" style="border:1px solid #dee2e6;border-radius:6px;
-                 padding:4px 8px;background:#f8f9fa;max-height:220px;overflow-y:auto">
+                 padding:4px 8px;background:#f8f9fa;max-height:200px;overflow-y:auto">
                 ${build_target_list(def_master_name)}
             </div>
         </div>
@@ -1629,148 +1629,185 @@ function _del_show_progress_dialog(job_id, user_count, total_ops, machines) {
     }, 1500);
 }
 
-function show_employee_search_dialog() {
+// Ảnh chụp thẻ: dùng chung 1 dialog cho cả 2 trường hợp (đã chọn employee trước
+// trên list view, hoặc chưa chọn gì) — trước đây là 2 dialog khác nhau (field,
+// nhãn, giá trị mặc định lệch nhau). Khi chưa có employee nào, thay info text
+// bằng 1 field MultiSelectPills để tự chọn ngay trong dialog.
+// preselected_employees: mảng {name, employee_name} (row data từ list view) —
+// cần employee_name để liệt kê "mã - họ tên", không chỉ đếm số lượng.
+function show_generate_cards_dialog(preselected_employees) {
+    const has_preselection = !!(preselected_employees && preselected_employees.length);
+    const preselected_employee_ids = has_preselection ? preselected_employees.map(e => e.name) : [];
+
+    const fields = [
+        // ── Info / chọn nhân viên ────────────────────────────
+        {
+            fieldname: 'info_section',
+            fieldtype: 'Section Break',
+            label: __('Info')
+        }
+    ];
+
+    if (has_preselection) {
+        const rows = preselected_employees
+            .map(e => {
+                const group_tag = e.custom_group
+                    ? ` <span class="badge badge-info" style="font-size:11px">${frappe.utils.escape_html(e.custom_group)}</span>`
+                    : '';
+                return `<div style="padding:2px 0">${e.name} — <strong>${frappe.utils.escape_html(e.employee_name || '')}</strong>${group_tag}</div>`;
+            })
+            .join('');
+        fields.push({
+            fieldname: 'employee_count',
+            fieldtype: 'HTML',
+            options: `
+                <p style="margin: 4px 0 6px;">${__('Tạo thẻ cho {0} nhân viên đã chọn:', [preselected_employee_ids.length])}</p>
+                <div style="max-height: 220px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: var(--border-radius); padding: 8px 12px; font-size: 12px;">
+                    ${rows}
+                </div>`
+        });
+    } else {
+        fields.push({
+            fieldname: 'employees',
+            fieldtype: 'MultiSelectPills',
+            label: __('Employees'),
+            reqd: 1,
+            description: __('Tìm và chọn nhân viên cần tạo thẻ (tối đa 50)'),
+            get_data: function (txt) {
+                return frappe.db.get_link_options('Employee', txt, { status: 'Active' });
+            }
+        });
+    }
+
+    fields.push(
+        // ── Page & Output ─────────────────────────────────────
+        {
+            fieldname: 'settings_section',
+            fieldtype: 'Section Break',
+            label: __('Page Settings')
+        },
+        {
+            fieldname: 'page_size',
+            fieldtype: 'Select',
+            label: __('Page Size'),
+            options: ['A4', 'A5'],
+            default: 'A4'
+        },
+        {
+            fieldname: 'output_type',
+            fieldtype: 'Select',
+            label: __('Output Type'),
+            options: ['html', 'pdf'],
+            default: 'html',
+            description: __('HTML: Mở tab mới, chỉnh sửa & in | PDF: Tải file PDF')
+        },
+        {
+            fieldname: 'col_break_1',
+            fieldtype: 'Column Break'
+        },
+        {
+            fieldname: 'with_barcode',
+            fieldtype: 'Check',
+            label: __('Show Barcode'),
+            default: 0,
+            description: __('Thêm barcode Code39 dưới ảnh nhân viên')
+        },
+        {
+            fieldname: 'card_border_radius',
+            fieldtype: 'Check',
+            label: __('Rounded Corners'),
+            default: 1,
+            description: __('Áp dụng border-radius 2mm cho viền thẻ')
+        },
+        {
+            fieldname: 'col_break_1b',
+            fieldtype: 'Column Break'
+        },
+        {
+            fieldname: 'bg_color',
+            fieldtype: 'Color',
+            label: __('Background Color'),
+            default: '#ffffff',
+            description: __('Màu nền áp dụng cho cả trang và thẻ')
+        },
+        {
+            fieldname: 'border_color',
+            fieldtype: 'Color',
+            label: __('Border Color'),
+            default: '#000000',
+            description: __('Màu đường viền của thẻ')
+        },
+        // ── Font ─────────────────────────────────────────────
+        {
+            fieldname: 'font_section',
+            fieldtype: 'Section Break',
+            label: __('Font')
+        },
+        {
+            fieldname: 'max_length_font_20',
+            fieldtype: 'Int',
+            label: __('Font Size Threshold'),
+            default: 20,
+            description: __('Tên ngắn hơn giá trị này dùng font 20pt')
+        },
+        {
+            fieldname: 'col_break_2',
+            fieldtype: 'Column Break'
+        },
+        {
+            fieldname: 'name_font_size',
+            fieldtype: 'Select',
+            label: __('Long Name Font Size (pt)'),
+            options: ['19', '18', '17', '16'],
+            default: '18',
+            description: __('Cỡ chữ cho tên >= ngưỡng (mặc định: 18pt)')
+        }
+    );
+
     const d = new frappe.ui.Dialog({
-        title: __('Search Employees for Card Generation'),
-        fields: [
-            {
-                fieldname: 'search_info',
-                fieldtype: 'HTML',
-                options: '<p style="margin-bottom: 10px;">' + __('Enter employee codes (one per line)') + '</p>'
-            },
-            {
-                fieldname: 'employee_codes',
-                fieldtype: 'Small Text',
-                label: __('Employee Codes'),
-                reqd: 1,
-                description: __('Enter employee codes (name field), separated by new lines. Example:<br>TIQN-0001<br>TIQN-0002<br>TIQN-0003')
-            },
-            {
-                fieldname: 'page_size',
-                fieldtype: 'Select',
-                label: __('Page Size'),
-                options: ['A4', 'A5'],
-                default: 'A4',
-                description: __('Select page size for the cards')
-            },
-            {
-                fieldname: 'max_length_font_20',
-                fieldtype: 'Int',
-                label: __('Max Length for Font 20pt'),
-                default: 20,
-                description: __('Names shorter than this will use 20pt font (default: 20)')
-            },
-            {
-                fieldname: 'name_font_size',
-                fieldtype: 'Select',
-                label: __('Font Size for Long Names (pt)'),
-                options: ['19', '18', '17', '16'],
-                default: '18',
-                description: __('Font size for names >= max length (default: 18pt)')
-            },
-            {
-                fieldname: 'with_barcode',
-                fieldtype: 'Check',
-                label: __('With Barcode'),
-                default: 0,
-                description: __('Include Code39 barcode below employee photo')
-            },
-            {
-                fieldname: 'output_type',
-                fieldtype: 'Select',
-                label: __('Output Type'),
-                options: ['pdf', 'html'],
-                default: 'pdf',
-                description: __('pdf: tải xuống PDF ngay | html: mở tab mới, có thể chỉnh sửa & in')
-            },
-            {
-                fieldname: 'bg_color',
-                fieldtype: 'Color',
-                label: __('Background Color'),
-                default: '#ffffff',
-                description: __('Background color applied to both page and card')
-            },
-            {
-                fieldname: 'border_color',
-                fieldtype: 'Color',
-                label: __('Border Color'),
-                default: '#000000',
-                description: __('Color of the card border')
-            },
-        ],
+        title: __('Generate Employee Cards'),
+        fields: fields,
+        size: 'extra-large',
         primary_action_label: __('Generate Cards'),
         primary_action: function (values) {
-            if (!values.employee_codes || !values.employee_codes.trim()) {
-                frappe.msgprint(__('Please enter at least one employee code'));
+            const employee_ids = has_preselection ? preselected_employee_ids : (values.employees || []);
+
+            if (employee_ids.length === 0) {
+                frappe.msgprint(__('Vui lòng chọn ít nhất 1 nhân viên'));
                 return;
             }
 
-            d.hide();
-
-            // Split by new line and clean up
-            const employee_codes = values.employee_codes
-                .split('\n')
-                .map(code => code.trim())
-                .filter(code => code.length > 0);
-
-            if (employee_codes.length === 0) {
-                frappe.msgprint(__('Please enter at least one employee code'));
-                return;
-            }
-
-            if (employee_codes.length > 50) {
+            if (employee_ids.length > 50) {
                 frappe.msgprint({
                     title: __('Too Many Employees'),
-                    message: __('Please enter maximum 50 employees at a time. You entered {0} employees.', [employee_codes.length]),
+                    message: __('Please select maximum 50 employees at a time. You selected {0} employees.', [employee_ids.length]),
                     indicator: 'orange'
                 });
                 return;
             }
 
-            // Show loading
+            d.hide();
+
             frappe.show_alert({
-                message: __('Searching for employees...'),
+                message: __('Đang tạo thẻ nhân viên...'),
                 indicator: 'blue'
             });
 
-            // Search for employees
-            frappe.call({
-                method: 'customize_erpnext.api.employee.employee_utils.search_employees_by_codes',
-                args: {
-                    employee_codes: employee_codes
-                },
-                callback: function (r) {
-                    if (r.message && r.message.length > 0) {
-                        // Found employees, generate cards
-                        const employee_ids = r.message.map(emp => emp.name);
-
-                        frappe.show_alert({
-                            message: __('Found {0} employees. Generating cards...', [employee_ids.length]),
-                            indicator: 'blue'
-                        });
-
-                        generate_cards_for_employees(employee_ids, values.with_barcode, values.page_size || 'A4', values.name_font_size || 18, values.max_length_font_20 || 20, values.output_type || 'pdf', undefined, values.bg_color || '#ffffff', values.border_color || '#000000');
-                    } else {
-                        frappe.msgprint({
-                            title: __('No Employees Found'),
-                            message: __('No employees found matching the provided codes.'),
-                            indicator: 'orange'
-                        });
-                    }
-                },
-                error: function () {
-                    frappe.msgprint({
-                        title: __('Error'),
-                        message: __('An error occurred while searching for employees.'),
-                        indicator: 'red'
-                    });
-                }
-            });
+            generate_cards_for_employees(
+                employee_ids,
+                values.with_barcode,
+                values.page_size || 'A4',
+                values.name_font_size || 18,
+                values.max_length_font_20 || 20,
+                values.output_type || 'html',
+                values.card_border_radius ? 1 : 0,
+                values.bg_color || '#ffffff',
+                values.border_color || '#000000'
+            );
         }
     });
 
     d.show();
-    d.$wrapper.find('.modal-dialog').css('max-width', '600px');
 
     // Force reset to A4 default each time dialog opens
     d.set_value('page_size', 'A4');
@@ -1962,12 +1999,6 @@ function print_employee_cards(listview) {
     // Get selected employees
     const selected_employees = listview.get_checked_items();
 
-    if (selected_employees.length === 0) {
-        // Show dialog to search and select employees by name
-        show_employee_search_dialog();
-        return;
-    }
-
     // Limit to 50 employees to avoid performance issues
     if (selected_employees.length > 50) {
         frappe.msgprint({
@@ -1978,130 +2009,18 @@ function print_employee_cards(listview) {
         return;
     }
 
-    // Show dialog with page size and barcode option
-    const d = new frappe.ui.Dialog({
-        title: __('Generate Employee Cards'),
-        fields: [
-            // ── Info ─────────────────────────────────────────────
-            {
-                fieldname: 'info_section',
-                fieldtype: 'Section Break',
-                label: __('Thông Tin')
-            },
-            {
-                fieldname: 'employee_count',
-                fieldtype: 'HTML',
-                options: `<p style="margin: 4px 0 2px;">${__('Tạo thẻ cho {0} nhân viên đã chọn.', [selected_employees.length])}</p>`
-            },
-            // ── Page & Output ─────────────────────────────────────
-            {
-                fieldname: 'settings_section',
-                fieldtype: 'Section Break',
-                label: __('Thiết Lập Trang')
-            },
-            {
-                fieldname: 'page_size',
-                fieldtype: 'Select',
-                label: __('Kích thước trang'),
-                options: ['A4', 'A5'],
-                default: 'A4'
-            },
-            {
-                fieldname: 'output_type',
-                fieldtype: 'Select',
-                label: __('Kiểu xuất'),
-                options: ['html', 'pdf'],
-                default: 'html',
-                description: __('HTML: Mở tab mới, chỉnh sửa & in | PDF: Tải file PDF')
-            },
-            {
-                fieldname: 'col_break_1',
-                fieldtype: 'Column Break'
-            },
-            {
-                fieldname: 'with_barcode',
-                fieldtype: 'Check',
-                label: __('Hiển thị Barcode'),
-                default: 0,
-                description: __('Thêm barcode Code39 dưới ảnh nhân viên')
-            },
-            {
-                fieldname: 'card_border_radius',
-                fieldtype: 'Check',
-                label: __('Bo góc thẻ (2mm)'),
-                default: 1,
-                description: __('Áp dụng border-radius: 2mm cho viền thẻ')
-            },
-            {
-                fieldname: 'bg_color',
-                fieldtype: 'Color',
-                label: __('Màu nền'),
-                default: '#ffffff',
-                description: __('Màu nền áp dụng cho cả trang và thẻ')
-            },
-            {
-                fieldname: 'border_color',
-                fieldtype: 'Color',
-                label: __('Màu viền'),
-                default: '#000000',
-                description: __('Màu đường viền của thẻ')
-            },
-            // ── Font ─────────────────────────────────────────────
-            {
-                fieldname: 'font_section',
-                fieldtype: 'Section Break',
-                label: __('Font Chữ')
-            },
-            {
-                fieldname: 'max_length_font_20',
-                fieldtype: 'Int',
-                label: __('Ngưỡng dùng font 20pt'),
-                default: 20,
-                description: __('Tên ngắn hơn giá trị này dùng font 20pt')
-            },
-            {
-                fieldname: 'col_break_2',
-                fieldtype: 'Column Break'
-            },
-            {
-                fieldname: 'name_font_size',
-                fieldtype: 'Select',
-                label: __('Font tên dài (pt)'),
-                options: ['19', '18', '17', '16'],
-                default: '18',
-                description: __('Cỡ chữ cho tên >= ngưỡng (mặc định: 18pt)')
-            }
-        ],
-        size: 'large',
-        primary_action_label: __('Tạo Thẻ'),
-        primary_action: function (values) {
-            d.hide();
+    if (selected_employees.length === 0) {
+        show_generate_cards_dialog([]);
+        return;
+    }
 
-            const employee_ids = selected_employees.map(emp => emp.name);
-
-            frappe.show_alert({
-                message: __('Đang tạo thẻ nhân viên...'),
-                indicator: 'blue'
-            });
-
-            generate_cards_for_employees(
-                employee_ids,
-                values.with_barcode,
-                values.page_size || 'A4',
-                values.name_font_size || 18,
-                values.max_length_font_20 || 20,
-                values.output_type || 'html',
-                values.card_border_radius ? 1 : 0,
-                values.bg_color || '#ffffff',
-                values.border_color || '#000000'
-            );
-        }
-    });
-
-    d.show();
-
-    // Force reset to A4 default each time dialog opens
-    d.set_value('page_size', 'A4');
+    // Lấy lại đầy đủ employee_name + custom_group từ server — không phụ thuộc
+    // cột nào đang hiện trên list view (checked items chỉ có sẵn field hiện cột).
+    frappe.db.get_list('Employee', {
+        filters: { name: ['in', selected_employees.map(e => e.name)] },
+        fields: ['name', 'employee_name', 'custom_group'],
+        limit: 100 // đã chặn tối đa 50 nhân viên chọn ở trên; args.limit_page_length KHÔNG được frappe.db.get_list nhận, phải dùng "limit"
+    }).then(records => show_generate_cards_dialog(records));
 }
 
 // ============================================================

@@ -1175,66 +1175,6 @@ def get_placeholder_image(type='no-photo'):
 
 
 @frappe.whitelist()
-def search_employees_by_codes(employee_codes):
-    """
-    Search employees by employee codes (name field only)
-    Args:
-        employee_codes: List of employee codes (name field) to search
-    Returns:
-        List of employee documents (name, employee_name)
-    """
-    try:
-        if isinstance(employee_codes, str):
-            employee_codes = json.loads(employee_codes)
-
-        if not employee_codes:
-            return []
-
-        frappe.logger().info(f"Searching for employees by codes: {employee_codes}")
-
-        found_employees = []
-        not_found = []
-
-        for code in employee_codes:
-            code = code.strip()
-            if not code:
-                continue
-
-            # Search by name field only (exact match)
-            employee = frappe.db.get_value('Employee', {'name': code}, ['name', 'employee_name'], as_dict=True)
-
-            if employee:
-                found_employees.append({
-                    'name': employee.name,
-                    'employee_name': employee.employee_name or ''
-                })
-            else:
-                # Not found
-                not_found.append(code)
-
-        # Log not found items
-        if not_found:
-            frappe.logger().warning(f"Employee codes not found: {not_found}")
-            # Also inform user about not found codes
-            if len(not_found) > 0:
-                frappe.msgprint(
-                    _("The following employee codes were not found: {0}").format(", ".join(not_found)),
-                    title=_("Some Employees Not Found"),
-                    indicator="orange"
-                )
-
-        frappe.logger().info(f"Found {len(found_employees)} employees out of {len(employee_codes)} codes")
-
-        return found_employees
-
-    except Exception as e:
-        import traceback
-        frappe.logger().error(f"Error searching employees: {str(e)}\n{traceback.format_exc()}")
-        frappe.log_error(f"Error: {str(e)}\n{traceback.format_exc()}", "Employee Search Error")
-        return []
-
-
-@frappe.whitelist()
 def get_file_content_base64(file_url):
     """
     Get file content as base64 for cropping
