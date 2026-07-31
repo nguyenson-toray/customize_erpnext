@@ -17,6 +17,7 @@
   "required",
   "read_only",
   "enable",
+  "auto_fill_data",
   "section_validation",
   "validation",
   "column_break_val",
@@ -170,11 +171,18 @@
   {
    "fieldname": "column_break_vdtl",
    "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "auto_fill_data",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Auto Fill Data"
   }
  ],
  "istable": 1,
  "links": [],
- "modified": "2026-07-16 14:55:57.776990",
+ "modified": "2026-07-31 08:56:15.640378",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Employee Self Update Info Field",

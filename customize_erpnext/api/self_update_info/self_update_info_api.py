@@ -122,6 +122,7 @@ def _build_config():
 				"read_only": bool(row.read_only),
 				"widget": "Auto",
 				"custom": True,
+				"auto_fill": bool(row.auto_fill_data),
 				**_validation_meta(row),
 			}
 		else:
@@ -154,6 +155,7 @@ def _build_config():
 				"read_only": bool(row.read_only),
 				"widget": row.widget or "Auto",
 				"custom": False,
+				"auto_fill": bool(row.auto_fill_data),
 				**_validation_meta(row),
 			}
 
@@ -533,6 +535,17 @@ def get_form_data(employee_id, code=None, unlock_code=None):
 			if fn in saved:
 				values[fn] = saved[fn]
 
+	# Fields with auto_fill = 0 must be re-entered every visit: never prefill
+	# them from Employee or from a previous submission.
+	no_fill = {
+		f["fieldname"]
+		for sec in config["sections"]
+		for f in sec["fields"]
+		if not f.get("auto_fill")
+	}
+	for fn in no_fill:
+		values[fn] = None
+
 	return {
 		"original": original,
 		"values": values,
@@ -608,7 +621,13 @@ def save_form_data(employee_id, data, code=None, unlock_code=None):
 	doc.data_json = json.dumps(clean, ensure_ascii=False)
 	doc.status = "Submitted"
 	doc.submitted_on = now_datetime()
-	doc.device_info = _submit_device_info()
+	# Append device info each submit (keep history) instead of replacing.
+	info = _submit_device_info()
+	if info:
+		stamp = frappe.utils.format_datetime(now_datetime(), "yyyy-MM-dd HH:mm")
+		entry = f"[{stamp}]\n{info}"
+		prev = (doc.device_info or "").strip()
+		doc.device_info = (prev + "\n\n" + entry) if prev else entry
 	doc.save(ignore_permissions=True)
 	frappe.db.commit()
 

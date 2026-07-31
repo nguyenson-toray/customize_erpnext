@@ -69,7 +69,7 @@ Doctype `Employee Self Update Info` **không** có cột riêng cho từng thôn
 | `employee_name` | Data | fetch từ Employee |
 | `status` | Select | `Draft` / `Submitted` |
 | `submitted_on` | Datetime | thời điểm gửi |
-| `device_info` | Small Text | thiết bị đã gửi: **IP + User-Agent + Model + Platform** (server tự lấy khi submit; đọc-audit, không JS, không xin quyền, không sync sang Employee) |
+| `device_info` | Small Text | thiết bị đã gửi: **IP + Model + Platform** (server lấy qua Accept-CH Client Hints; không JS, không xin quyền, không sync sang Employee). **Append mỗi lần submit** kèm mốc `[yyyy-MM-dd HH:mm]` (giữ lịch sử, không ghi đè) |
 | `data_json` | Long Text | **toàn bộ dữ liệu form** (JSON) |
 
 → Thêm field mới = chỉ tick chọn trong Setting. **Không** sửa schema, **không** sửa code.
@@ -118,6 +118,7 @@ Singleton. HR cấu hình ở đây.
 | `widget` | `Auto` / `Address Province` / `Address Ward` |
 | `required` | Bắt buộc nhập |
 | `read_only` | Chỉ cho xem (không sửa, không submit) |
+| `auto_fill_data` | **1** (mặc định): tự điền giá trị từ Employee / lần gửi trước (như hiện tại). **0**: KHÔNG prefill — mỗi lần truy cập ô để **trống**, NV phải tự nhập lại (không lấy cả từ Employee, submission, lẫn nháp cục bộ). `_build_config` trả `auto_fill`; server null hoá trong `get_form_data`, client cũng `delete S.values[fn]` sau khi merge nháp |
 | `is_custom` | Field **không** thuộc Employee (chỉ lưu trong submission) |
 | `custom_fieldtype` | Kiểu của custom field (khi `is_custom`) |
 | `custom_options` | Options cho Select (mỗi dòng 1 giá trị) |
@@ -305,7 +306,9 @@ Trang **không** giữ form state qua reload (đó là bản chất HTML, không
 ## Đánh dấu field đã thay đổi
 
 - `get_form_data` trả về `original` (giá trị Employee gốc) và `values` (giá trị hiển thị = original đè bởi bản đã lưu).
-- Frontend so sánh giá trị hiện tại với `original`; khác → thêm class `.changed` (ô tô vàng + badge "đã đổi").
+- Frontend chỉ đánh dấu `.changed` (ô tô màu terracotta) **khi NV thực sự thao tác** (event `input`/`change`) — **KHÔNG** đánh dấu lúc load. Trước đây gọi `markChanged` ngay khi render → báo nhầm với field `auto_fill`/prefill từ lần gửi trước (đã bỏ). **Không còn badge text "đã đổi"** — chỉ giữ ô tô màu + chú thích ở legend.
+
+**Bấm Gửi mà thiếu field required / sai định dạng:** ngoài toast liệt kê, `submitForm` gom **tất cả** field lỗi rồi `flashFields()` — thêm class `.field-error` (viền đỏ nháy `fieldErrPulse` ×3 + rung nhẹ) cho **mọi** field lỗi cùng lúc; tự gỡ sau 2.5s hoặc ngay khi NV nhập vào field đó. Không cuộn/không focus (dùng reflow `void offsetWidth` để animation chạy lại mỗi lần bấm Gửi).
 
 ---
 

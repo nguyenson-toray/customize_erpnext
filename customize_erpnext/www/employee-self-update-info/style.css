@@ -122,13 +122,21 @@ input::placeholder, textarea::placeholder { color:#A9B0B8; opacity:1; }
   border-color:var(--thread); background:var(--thread-tint);
   box-shadow:inset 3px 0 0 var(--thread);
 }
-.badge-changed {
-  display:none; font-family:var(--font-display); font-size:10.5px; font-weight:700;
-  color:var(--thread); background:var(--thread-tint); border:1px solid var(--thread);
-  border-radius:3px; padding:1px 7px; margin-left:8px; letter-spacing:.02em;
-  vertical-align:middle;
+
+/* required chưa nhập / sai định dạng khi bấm Gửi → viền đỏ nháy + rung nhẹ */
+.field.field-error input, .field.field-error select, .field.field-error textarea {
+  border-color:#DC2626 !important;
+  animation:fieldErrPulse .6s ease-in-out 9, fieldErrShake .34s ease 1;
 }
-.field.changed .badge-changed { display:inline-block; }
+@keyframes fieldErrPulse {
+  0%,100% { box-shadow:0 0 0 0 rgba(220,38,38,0); }
+  50%     { box-shadow:0 0 0 4px rgba(220,38,38,.22); }
+}
+@keyframes fieldErrShake {
+  0%,100% { transform:translateX(0); }
+  25%     { transform:translateX(-4px); }
+  75%     { transform:translateX(4px); }
+}
 
 .chk { display:flex; align-items:center; gap:12px; min-height:52px; }
 .chk input { width:24px; height:24px; min-height:0; accent-color:var(--indigo); }

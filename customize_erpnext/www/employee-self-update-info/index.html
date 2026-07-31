@@ -6,7 +6,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
   <title>Cập nhật thông tin nhân viên</title>
-  <link rel="stylesheet" href="/employee-self-update-info/style.css?v=14">
+  <link rel="stylesheet" href="/employee-self-update-info/style.css?v=16">
 </head>
 
 <body>
@@ -50,17 +50,15 @@
       <div class="field">
         <label class="fl" for="lock_dob">Nhập 2 số <b>ngày sinh</b> của bạn</label>
         <input type="text" id="lock_dob" inputmode="numeric" maxlength="2"
-          placeholder="VD: sinh ngày 05 tháng 09 → nhập 05"
-          oninput="this.value=this.value.replace(/[^0-9]/g,'')"
+          placeholder="VD: sinh ngày 05 tháng 09 → nhập 05" oninput="this.value=this.value.replace(/[^0-9]/g,'')"
           onkeydown="if(event.key==='Enter')doUnlock()">
       </div>
       <div class="field" style="margin-bottom:0">
         <label class="fl" for="lock_code">Mã mở khoá (do HR cấp)</label>
-        <input type="text" id="lock_code" inputmode="numeric" autocomplete="off"
-          placeholder="Nhập mã HR cung cấp"
-          oninput="this.value=this.value.replace(/[^0-9]/g,'')"
-          onkeydown="if(event.key==='Enter')doUnlock()">
-        <button class="btn-primary" style="margin-top:12px;width:100%" onclick="doUnlock()">🔓 Mở khoá &amp; chỉnh sửa</button>
+        <input type="text" id="lock_code" inputmode="numeric" autocomplete="off" placeholder="Nhập mã HR cung cấp"
+          oninput="this.value=this.value.replace(/[^0-9]/g,'')" onkeydown="if(event.key==='Enter')doUnlock()">
+        <button class="btn-primary" style="margin-top:12px;width:100%" onclick="doUnlock()">🔓 Mở khoá &amp; chỉnh
+          sửa</button>
       </div>
     </div>
 
@@ -68,7 +66,7 @@
     <div id="form_area" class="hidden">
       <div class="legend">
         <span class="lg-text">
-          <p>Kiểm tra và cập nhật những mục <strong><span style="color: #ff6600;">còn thiếu</span></strong> hoặc
+          <p>Cập nhật những mục <strong><span style="color: #ff6600;">còn thiếu</span></strong> hoặc
             <strong><span style="color: #ff0000;">cần thay đổi</span></strong>.
           </p>
         </span>
@@ -487,6 +485,12 @@
         const draft = loadDraft(empId);
         if (draft && draft.values) S.values = { ...S.values, ...draft.values };
 
+        // Field auto_fill=0: luôn để trống mỗi lần truy cập — không nhận cả
+        // giá trị server (đã null) lẫn nháp cục bộ. NV phải tự nhập lại.
+        (S.config.sections || []).forEach(sec => (sec.fields || []).forEach(f => {
+          if (f.auto_fill === false) delete S.values[f.fieldname];
+        }));
+
         renderForm();
         document.getElementById("f__remarks").value =
           (draft && draft.remarks != null) ? draft.remarks : (fd.remarks || "");
@@ -531,9 +535,8 @@
         if (!el) return;
         const ev = (f.fieldtype === "Check") ? "change" : "input";
         el.addEventListener(ev, () => markChanged(f));
-        // Phản ánh ngay trạng thái ban đầu (quan trọng khi khôi phục nháp).
-        // Field địa chỉ bỏ qua ở đây: options nạp sau trong initAddressWidgets.
-        if (f.widget === "Auto") markChanged(f);
+        // KHÔNG đánh dấu lúc load: chỉ tô "đã đổi" khi NV thực sự thao tác
+        // (tránh báo nhầm với field auto_fill / prefill từ lần gửi trước).
       }));
       initAddressWidgets();
     }
@@ -595,7 +598,7 @@
         ? `<div class="field-detail">${linkify(esc(f.detail))}</div>`
         : "";
       return `<div class="field${ro}" id="fg_${f.fieldname}">
-      <label class="fl" for="${id}">${esc(f.label)} ${req}<span class="badge-changed">đã đổi</span></label>
+      <label class="fl" for="${id}">${esc(f.label)} ${req}</label>
       ${detailUi}${scanUi}${input}</div>`;
     }
 
@@ -649,19 +652,13 @@
           const def = [...psel.options].find(o => o.getAttribute("data-name") === DEFAULT_PROVINCE);
           if (def) psel.value = def.value;
         }
-        markChanged({ fieldname: fname, widget: "Address Province" });
+        // Không markChanged lúc load (prefill) — chỉ tô khi NV đổi tỉnh.
         psel.addEventListener("change", () => onProvinceChange(psel));
       }
 
       // populate dependent wards for prefilled provinces
       for (const psel of provSelects) {
         if (psel.value) await fillWards(psel, true);
-      }
-
-      // wards without a province widget — still init prefill if empty
-      for (const wsel of document.querySelectorAll("select.addr-ward")) {
-        const f = { fieldname: wsel.dataset.fieldname, widget: "Address Ward" };
-        markChanged(f);
       }
     }
 
@@ -689,7 +686,8 @@
         } else {
           wsel.value = "";
         }
-        markChanged({ fieldname: wf, widget: "Address Ward" });
+        // Chỉ đánh dấu khi đây là thao tác đổi tỉnh của NV (không phải prefill lúc load).
+        if (!prefill) markChanged({ fieldname: wf, widget: "Address Ward" });
       }
     }
 
@@ -750,22 +748,41 @@
     }
 
     // ---------- submit ----------
+    // Nhấp nháy viền đỏ TẤT CẢ field lỗi (tự tắt sau 2.5s hoặc khi NV nhập vào field đó).
+    function flashFields(fieldnames) {
+      (fieldnames || []).forEach(fn => {
+        const fg = document.getElementById("fg_" + fn);
+        if (!fg) return;
+        fg.classList.remove("field-error");
+        void fg.offsetWidth;                 // reflow → animation chạy lại mỗi lần bấm Gửi
+        fg.classList.add("field-error");
+        const el = document.getElementById("f_" + fn);
+        const clear = () => fg.classList.remove("field-error");
+        if (el) { el.addEventListener("input", clear, { once: true }); el.addEventListener("change", clear, { once: true }); }
+        setTimeout(clear, 5500);
+      });
+    }
+
     async function submitForm() {
       const data = {};
       const missing = [];
+      const missingFields = [];   // fieldname của field required chưa nhập — để nhấp nháy
       const invalid = [];
+      const invalidFields = [];
       for (const sec of S.config.sections) {
         for (const f of sec.fields) {
           if (f.read_only) continue;
           const v = currentValue(f);
           data[f.fieldname] = v;
-          if (f.required && (v === null || v === undefined || String(v).trim() === "")) { missing.push(f.label); continue; }
+          if (f.required && (v === null || v === undefined || String(v).trim() === "")) {
+            missing.push(f.label); missingFields.push(f.fieldname); continue;
+          }
           const err = validateField(f, v);
-          if (err) invalid.push(err);
+          if (err) { invalid.push(err); invalidFields.push(f.fieldname); }
         }
       }
-      if (missing.length) { toast("Vui lòng nhập: " + missing.join(", ")); return; }
-      if (invalid.length) { toast(invalid.join(" · ")); return; }
+      if (missing.length) { toast("Vui lòng nhập: " + missing.join(", ")); flashFields(missingFields); return; }
+      if (invalid.length) { toast(invalid.join(" · ")); flashFields(invalidFields); return; }
       data[REMARKS_KEY] = (document.getElementById("f__remarks").value || "").trim();
 
       const btn = document.getElementById("submit_btn");
