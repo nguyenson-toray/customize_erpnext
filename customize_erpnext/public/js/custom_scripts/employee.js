@@ -367,10 +367,10 @@ function load_province_options(frm) {
         callback: function (r) {
             if (!r.message || !r.message.length) return;
 
-            const province_names = r.message.map(p => {
+            const province_names = [''].concat(r.message.map(p => {
                 _province_code_map[p.name] = p.code;
                 return p.name;
-            });
+            }));
 
             const DEFAULT_PROVINCE = 'Tỉnh Quảng Ngãi';
 
@@ -411,7 +411,7 @@ function load_commune_options_for_type(frm, address_type, province_name) {
         method: 'customize_erpnext.api.vn_address.vn_address_api.get_wards',
         args: { province_code: province_code },
         callback: function (r) {
-            const ward_names = (r.message || []).map(d => d.name);
+            const ward_names = [''].concat((r.message || []).map(d => d.name));
             frm.set_df_property(fields.commune, 'options', ward_names);
         }
     });
