@@ -1,6 +1,23 @@
 // Shared fingerprint sync functionality with multi-threading optimization
 // This module provides common functions for syncing fingerprints from ERP to attendance machines
 
+// Style dùng chung cho mọi dialog liệt kê "nhân viên đã chọn" (Generate Cards,
+// Sync Fingerprint 4.1/4.2, nút sync trên form Employee...): khung cuộn, mỗi
+// dòng "mã — họ tên [badge group]", không truncate. Đặt ở đây (không phải
+// employee_list.js) vì đây là file DUY NHẤT được load chung trên cả form view
+// (doctype_js) lẫn list view (doctype_list_js) — xem hooks.py.
+// employees: mảng {name|employee_id, employee_name, custom_group}.
+window.buildSelectedEmployeesHtml = function (employees) {
+    const rows = (employees || []).map(function (e) {
+        const code = e.name || e.employee_id || '';
+        const group_tag = e.custom_group
+            ? ` <span class="indicator-pill blue" style="font-size:11px">${frappe.utils.escape_html(e.custom_group)}</span>`
+            : '';
+        return `<div style="padding:2px 0">${code} — <strong>${frappe.utils.escape_html(e.employee_name || '')}</strong>${group_tag}</div>`;
+    }).join('');
+    return `<div style="max-height: 220px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: var(--border-radius); padding: 8px 12px; font-size: 12px;">${rows}</div>`;
+};
+
 window.FingerprintSyncManager = (function () {
     'use strict';
 
@@ -11,6 +28,17 @@ window.FingerprintSyncManager = (function () {
         // chunking keeps individual HTTP requests well under gunicorn timeout.
         CHUNK_SIZE: 20
     };
+
+    // Map Bootstrap-style semantic type (success/danger/warning/primary/secondary/info)
+    // sang màu của Frappe indicator-pill — dùng cho mọi badge trạng thái trong dialog
+    // này thay vì `badge bg-${type}` (không tự dark-mode).
+    function indicatorColor(type) {
+        const map = {
+            success: 'green', danger: 'red', warning: 'yellow',
+            primary: 'blue', secondary: 'gray', info: 'blue'
+        };
+        return map[type] || 'gray';
+    }
 
     // Shared dialog instance
     let syncDialog = null;
@@ -67,10 +95,21 @@ window.FingerprintSyncManager = (function () {
     }
 
     function createSyncDialog(options = {}) {
+        // Dialog.hide() (Frappe) chỉ ẩn CSS, KHÔNG xoá $wrapper khỏi DOM. Nếu mở
+        // dialog này lần 2 mà không dọn dialog cũ, id trùng (#machines-list,
+        // #sync-status, #sync-progress-bar...) vẫn còn trong document — mọi
+        // document.getElementById(...) sau đó trả về đúng phần tử CŨ (ẩn), nên
+        // dialog mới ghi update vào chỗ vô hình -> nhìn như treo mãi ở "Loading
+        // machines...". Dọn sạch DOM cũ trước khi tạo dialog mới.
+        if (syncDialog) {
+            try { syncDialog.$wrapper.remove(); } catch (e) { /* noop */ }
+            syncDialog = null;
+        }
+
         const isMultiEmployee = currentSyncState.employees.length > 1;
         const title = isMultiEmployee
-            ? __('🔄 Sync Fingerprints to Machines - {0} Employees', [currentSyncState.employees.length])
-            : __('🔄 Sync Fingerprints to Machines - {0} {1}', [currentSyncState.employees[0].employee_id, currentSyncState.employees[0].employee_name]);
+            ? __('Sync Fingerprints to Machines - {0} Employees', [currentSyncState.employees.length])
+            : __('Sync Fingerprints to Machines - {0} {1}', [currentSyncState.employees[0].employee_id, currentSyncState.employees[0].employee_name]);
 
         syncDialog = new frappe.ui.Dialog({
             title: title,
@@ -88,7 +127,7 @@ window.FingerprintSyncManager = (function () {
                 {
                     fieldname: 'machines_list',
                     fieldtype: 'HTML',
-                    options: '<div id="machines-list" style="background: #fff; border: 1px solid #dee2e6; border-radius: 8px; padding: 15px; margin-bottom: 15px;"><div class="text-center text-muted"><i class="fa fa-spinner fa-spin"></i> Loading machines...</div></div>'
+                    options: '<div id="machines-list" style="background: var(--fg-color); border: 1px solid var(--border-color); border-radius: 8px; padding: 15px; margin-bottom: 15px;"><div class="text-center text-muted"><i class="fa fa-spinner fa-spin"></i> Loading machines...</div></div>'
                 },
                 {
                     fieldname: 'sync_section',
@@ -103,14 +142,14 @@ window.FingerprintSyncManager = (function () {
                 {
                     fieldname: 'sync_status',
                     fieldtype: 'HTML',
-                    options: '<div id="sync-status" style="height: 300px; overflow-y: auto; padding: 15px; border-radius: 8px; background: #f8f9fa; border: 1px solid #dee2e6; font-family: monospace; font-size: 13px;"><div class="text-info">Ready to sync fingerprints to attendance machines...</div></div>'
+                    options: '<div id="sync-status" style="height: 300px; overflow-y: auto; padding: 15px; border-radius: 8px; background: var(--fg-color); border: 1px solid var(--border-color); font-family: monospace; font-size: 13px;"><div class="text-info">Ready to sync fingerprints to attendance machines...</div></div>'
                 }
             ],
-            primary_action_label: __('🚀 Start Sync'),
+            primary_action_label: __('Start Sync'),
             primary_action: function () {
                 startMultiThreadedSync();
             },
-            secondary_action_label: __('🔄 Refresh Machines'),
+            secondary_action_label: __('Refresh Machines'),
             secondary_action: function () {
                 if (currentSyncState.isRunning) {
                     // If sync is running, make secondary button an abort button
@@ -163,47 +202,23 @@ window.FingerprintSyncManager = (function () {
     }
 
     function generateEmployeeInfoHTML() {
-        const isMultiEmployee = currentSyncState.employees.length > 1;
+        // window.buildSelectedEmployeesHtml (định nghĩa ở đầu file) — dùng chung 1
+        // style (khung cuộn, "mã — họ tên [badge group]") cho mọi dialog liệt kê
+        // nhân viên đã chọn: Generate Cards, Sync Fingerprint 4.1 (ở đây), 4.2.
+        const employees = currentSyncState.employees;
 
-        if (isMultiEmployee) {
-            const employeeList = currentSyncState.employees
-                .slice(0, 5) // Show first 5
-                .map(emp => `<li><strong>${emp.employee_name}</strong> (${emp.employee_id})</li>`)
-                .join('');
-
-            const moreText = currentSyncState.employees.length > 5
-                ? `<li class="text-muted">... and ${currentSyncState.employees.length - 5} more employees</li>`
-                : '';
-
-            return `
-                <div class="alert alert-info" style="margin-bottom: 15px;">
-                    <div class="d-flex align-items-start">
-                        <i class="fa fa-users" style="font-size: 20px; margin-right: 10px; margin-top: 2px;"></i>
-                        <div>
-                            <strong>Selected Employees (${currentSyncState.employees.length}):</strong>
-                            <ul style="margin: 8px 0 5px 0; padding-left: 20px;">
-                                ${employeeList}
-                                ${moreText}
-                            </ul>
-                            <small class="text-muted">Fingerprints will be synced to the machines selected below (all online machines are pre-selected)</small>
-                        </div>
+        return `
+            <div class="alert alert-info" style="margin-bottom: 15px;">
+                <div class="d-flex align-items-start">
+                    <i class="fa fa-users" style="font-size: 20px; margin-right: 10px; margin-top: 2px;"></i>
+                    <div style="flex: 1; min-width: 0;">
+                        <strong>Selected Employees (${employees.length}):</strong>
+                        <div style="margin: 8px 0 5px;">${window.buildSelectedEmployeesHtml(employees)}</div>
+                        <small class="text-muted">Fingerprints will be synced to the machines selected below (all online machines are pre-selected)</small>
                     </div>
                 </div>
-            `;
-        } else {
-            const emp = currentSyncState.employees[0];
-            return `
-                <div class="alert alert-info" style="margin-bottom: 15px;">
-                    <div class="d-flex align-items-center">
-                        <i class="fa fa-user" style="font-size: 20px; margin-right: 10px;"></i>
-                        <div>
-                            <strong>Employee:</strong> ${emp.employee_name} (${emp.employee_id})<br>
-                            <small class="text-muted">Fingerprints will be synced to the machines selected below (all online machines are pre-selected)</small>
-                        </div>
-                    </div>
-                </div>
-            `;
-        }
+            </div>
+        `;
     }
 
     function generateProgressHTML() {
@@ -223,17 +238,10 @@ window.FingerprintSyncManager = (function () {
     }
 
     function styleSyncDialog() {
+        // Chỉ mở rộng size — bỏ gradient header hardcode màu (vi phạm dark-mode +
+        // "restraint first": header mặc định của Frappe Dialog đã đủ, không cần
+        // decorate riêng).
         syncDialog.$wrapper.find('.modal-dialog').addClass('modal-xl');
-        syncDialog.$wrapper.find('.modal-content').css({
-            'border-radius': '12px',
-            'box-shadow': '0 10px 30px rgba(0,0,0,0.2)'
-        });
-        syncDialog.$wrapper.find('.modal-header').css({
-            'background': 'linear-gradient(135deg, #28a745 0%, #20c997 100%)',
-            'color': 'white',
-            'border-bottom': 'none',
-            'border-radius': '12px 12px 0 0'
-        });
     }
 
     function loadMachinesList() {
@@ -242,9 +250,24 @@ window.FingerprintSyncManager = (function () {
 
         machinesDiv.innerHTML = '<div class="text-center text-muted"><i class="fa fa-spinner fa-spin"></i> Checking attendance machines...</div>';
 
+        // Backend đôi khi treo (thread bị kẹt trong ThreadPoolExecutor không trả
+        // response) — không sửa backend theo yêu cầu, chỉ chặn UI đứng hình vô thời
+        // hạn: sau 15s không có phản hồi thì báo cho user đóng dialog & mở lại.
+        let responded = false;
+        const stuckTimer = setTimeout(function () {
+            if (responded) return;
+            machinesDiv.innerHTML = `<div class="alert alert-danger">
+                <i class="fa fa-exclamation-triangle"></i>
+                ${__('Không nhận được phản hồi sau 15 giây — có thể máy chấm công đang gặp sự cố kết nối.')}
+                <br>${__('Vui lòng đóng dialog này và mở lại.')}
+            </div>`;
+        }, 15000);
+
         frappe.call({
             method: 'customize_erpnext.api.utilities.get_enabled_attendance_machines',
             callback: function (r) {
+                responded = true;
+                clearTimeout(stuckTimer);
                 if (r.message && r.message.success) {
                     displayMachinesList(r.message);
                 } else {
@@ -252,6 +275,8 @@ window.FingerprintSyncManager = (function () {
                 }
             },
             error: function (r) {
+                responded = true;
+                clearTimeout(stuckTimer);
                 machinesDiv.innerHTML = `<div class="alert alert-danger"><i class="fa fa-times"></i> Error loading machines: ${r.exc || 'Unknown error'}</div>`;
             }
         });
@@ -279,13 +304,13 @@ window.FingerprintSyncManager = (function () {
                 <div class="d-flex align-items-center">
                     <i class="fa fa-desktop text-primary me-2"></i>
                     <strong>Attendance Machines (${total_machines})</strong>
-                    <button type="button" class="btn btn-xs btn-default ms-3" id="fp-sync-select-all" style="margin-left:12px;">☑ Select All</button>
-                    <button type="button" class="btn btn-xs btn-default ms-1" id="fp-sync-unselect-all" style="margin-left:6px;">☐ Unselect All</button>
+                    <button type="button" class="btn btn-xs btn-default ms-3" id="fp-sync-select-all" style="margin-left:12px;">${__('Select All')}</button>
+                    <button type="button" class="btn btn-xs btn-default ms-1" id="fp-sync-unselect-all" style="margin-left:6px;">${__('Unselect All')}</button>
                 </div>
                 <div class="d-flex align-items-center">
-                    <small class="badge bg-primary text-white me-1" id="fp-sync-selected-count"></small>
-                    <small class="badge bg-success text-white me-1">🟢 ${online_machines}</small>
-                    <small class="badge bg-secondary text-white me-1">🔴 ${offline_machines}</small>
+                    <small class="indicator-pill blue me-1" id="fp-sync-selected-count"></small>
+                    <small class="indicator-pill green me-1">${online_machines} ${__('online')}</small>
+                    <small class="indicator-pill red me-1">${offline_machines} ${__('offline')}</small>
                     <small class="text-muted ms-2">${new Date().toLocaleTimeString()}</small>
                 </div>
             </div>
@@ -307,16 +332,12 @@ window.FingerprintSyncManager = (function () {
         `;
 
         machines.forEach(machine => {
-            const statusIcon = machine.connection_status === 'online' ? '🟢' :
-                machine.connection_status === 'offline' ? '🔴' : '⚠️';
             const statusColor = machine.connection_status === 'online' ? 'success' :
                 machine.connection_status === 'offline' ? 'danger' : 'warning';
-            const rowClass = machine.connection_status === 'online' ? 'table-success' :
-                machine.connection_status === 'offline' ? 'table-danger' : 'table-warning';
             const isOnline = machine.connection_status === 'online';
 
             html += `
-                <tr class="${rowClass}" style="border-left: 3px solid var(--bs-${statusColor});">
+                <tr style="border-left: 3px solid var(--${indicatorColor(statusColor)}-500);">
                     <td style="text-align:center; vertical-align:middle;">
                         <input type="checkbox" class="fp-sync-machine-cb" data-machine-name="${frappe.utils.escape_html(machine.device_name)}"
                                ${isOnline ? 'checked' : 'disabled'} style="width:16px;height:16px;cursor:${isOnline ? 'pointer' : 'not-allowed'};">
@@ -329,7 +350,7 @@ window.FingerprintSyncManager = (function () {
                         <span class="font-monospace">${machine.ip_address}:${machine.port}</span>
                     </td>
                     <td>
-                        <span class="badge bg-${statusColor} text-white">${statusIcon} ${machine.connection_status.toUpperCase()}</span>
+                        <span class="indicator-pill ${indicatorColor(statusColor)}">${machine.connection_status.toUpperCase()}</span>
                     </td>
                     <td>
                         ${machine.response_time > 0 ?
@@ -386,7 +407,7 @@ window.FingerprintSyncManager = (function () {
         currentSyncState.totalMachines = selectedOnline.length;
 
         const countBadge = document.getElementById('fp-sync-selected-count');
-        if (countBadge) countBadge.textContent = `☑ ${selectedOnline.length} selected`;
+        if (countBadge) countBadge.textContent = `${selectedOnline.length} ${__('selected')}`;
 
         // Rebuild the per-machine progress grid for the selected machines only
         updateMachineProgressGrid(selectedOnline);
@@ -413,7 +434,7 @@ window.FingerprintSyncManager = (function () {
                         <div class="card-body p-2">
                             <div class="d-flex justify-content-between align-items-center">
                                 <small><strong>${machine.device_name}</strong></small>
-                                <span class="badge bg-secondary text-white" id="machine-status-${index}">Waiting</span>
+                                <span class="indicator-pill gray" id="machine-status-${index}">${__('Waiting')}</span>
                             </div>
                             <div class="progress mt-1" style="height: 4px;">
                                 <div class="progress-bar" id="machine-progress-${index}"
@@ -435,9 +456,9 @@ window.FingerprintSyncManager = (function () {
             frappe.realtime.on('fingerprint_machine_sync_progress', function (data) {
                 if (!currentSyncState.isRunning || !data) return;
                 if (data.success) {
-                    updateSyncStatus(`  ✅ ${data.machine}: ${data.employee_name || data.employee} (${data.fingerprints_synced} fingerprints)`, 'success');
+                    updateSyncStatus(`  ${data.machine}: ${data.employee_name || data.employee} (${data.fingerprints_synced} fingerprints)`, 'success');
                 } else {
-                    updateSyncStatus(`  ⚠️ ${data.machine}: ${data.employee_name || data.employee} — ${data.error || 'failed'}`, 'warning');
+                    updateSyncStatus(`  ${data.machine}: ${data.employee_name || data.employee} — ${data.error || 'failed'}`, 'warning');
                 }
             });
             currentSyncState.realtimeBound = true;
@@ -459,12 +480,12 @@ window.FingerprintSyncManager = (function () {
         syncDialog.disable_primary_action();
 
         // Update secondary button label to show abort option
-        syncDialog.set_secondary_action_label(__('🛑 Abort Sync'));
+        syncDialog.set_secondary_action_label(__('Abort Sync'));
 
-        updateSyncStatus('🔄 Starting multi-threaded sync process...', 'info');
-        updateSyncStatus(`📋 Employees: ${currentSyncState.employees.length}`, 'info');
-        updateSyncStatus(`🖥️ Target machines: ${currentSyncState.totalMachines}`, 'info');
-        updateSyncStatus('🔍 Checking employee data and machines...', 'info');
+        updateSyncStatus('Starting multi-threaded sync process...', 'info');
+        updateSyncStatus(`Employees: ${currentSyncState.employees.length}`, 'info');
+        updateSyncStatus(`Target machines: ${currentSyncState.totalMachines}`, 'info');
+        updateSyncStatus('Checking employee data and machines...', 'info');
 
         try {
             // Get machines list first
@@ -483,13 +504,13 @@ window.FingerprintSyncManager = (function () {
                 throw new Error('No machine selected for sync — tick at least one online machine in the list');
             }
 
-            updateSyncStatus(`✅ Found ${onlineMachines.length} online machines`, 'success');
+            updateSyncStatus(`Found ${onlineMachines.length} online machines`, 'success');
             updateProgressBar(0, `Starting sync to ${onlineMachines.length} machines...`);
 
             // Calculate total operations
             const totalOperations = currentSyncState.employees.length * onlineMachines.length;
-            updateSyncStatus(`📊 Total operations: ${currentSyncState.employees.length} employees × ${onlineMachines.length} machines = ${totalOperations}`, 'info');
-            updateSyncStatus(`⚡ Strategy: one device connection per batch of ${CONFIG.CHUNK_SIZE} employees, machines run in parallel`, 'info');
+            updateSyncStatus(`Total operations: ${currentSyncState.employees.length} employees × ${onlineMachines.length} machines = ${totalOperations}`, 'info');
+            updateSyncStatus(`Strategy: one device connection per batch of ${CONFIG.CHUNK_SIZE} employees, machines run in parallel`, 'info');
 
             // Start all machines in parallel - each machine processes all employees
             const machinePromises = onlineMachines.map((machine, machineIndex) =>
@@ -504,11 +525,11 @@ window.FingerprintSyncManager = (function () {
                 const machine = onlineMachines[machineIndex];
 
                 if (result.status === 'fulfilled') {
-                    updateSyncStatus(`\n✅ ${machine.device_name}: Completed all ${currentSyncState.employees.length} employees`, 'success');
-                    updateMachineStatus(machineIndex, 'success', '✅ Complete');
+                    updateSyncStatus(`\n${machine.device_name}: Completed all ${currentSyncState.employees.length} employees`, 'success');
+                    updateMachineStatus(machineIndex, 'success', __('Complete'));
                 } else {
-                    updateSyncStatus(`\n❌ ${machine.device_name}: Failed - ${result.reason.message}`, 'danger');
-                    updateMachineStatus(machineIndex, 'danger', '❌ Failed');
+                    updateSyncStatus(`\n${machine.device_name}: Failed - ${result.reason.message}`, 'danger');
+                    updateMachineStatus(machineIndex, 'danger', __('Failed'));
                 }
             });
 
@@ -516,7 +537,7 @@ window.FingerprintSyncManager = (function () {
             showSyncSummary();
 
         } catch (error) {
-            updateSyncStatus(`❌ Sync failed: ${error.message}`, 'danger');
+            updateSyncStatus(`Sync failed: ${error.message}`, 'danger');
             frappe.show_alert({
                 message: __('Sync failed: ' + error.message),
                 indicator: 'red'
@@ -526,7 +547,7 @@ window.FingerprintSyncManager = (function () {
             currentSyncState.abortController = null;
             resetSyncButton();
             setTimeout(() => {
-                updateSyncStatus('🔄 Refreshing machines status...', 'info');
+                updateSyncStatus('Refreshing machines status...', 'info');
                 loadMachinesList();
             }, 2000);
         }
@@ -535,8 +556,8 @@ window.FingerprintSyncManager = (function () {
     async function syncEmployeesToMachineInChunks(machine, machineIndex, employees, totalOperations) {
         // One server call per chunk; the server keeps a single device
         // connection per call and returns per-employee results.
-        updateMachineStatus(machineIndex, 'warning', '🔄 Starting');
-        updateSyncStatus(`\n🖥️  ${machine.device_name}: Syncing ${employees.length} employees (batches of ${CONFIG.CHUNK_SIZE})...`, 'info');
+        updateMachineStatus(machineIndex, 'warning', __('Starting'));
+        updateSyncStatus(`\n${machine.device_name}: Syncing ${employees.length} employees (batches of ${CONFIG.CHUNK_SIZE})...`, 'info');
 
         let successCount = 0;
         let failCount = 0;
@@ -578,7 +599,7 @@ window.FingerprintSyncManager = (function () {
                 }
             });
 
-            updateMachineStatus(machineIndex, 'warning', `🔄 ${processed}/${employees.length}`);
+            updateMachineStatus(machineIndex, 'warning', `${processed}/${employees.length}`);
             const overallProgress = Math.round((currentSyncState.completedOperations / totalOperations) * 100);
             updateProgressBar(overallProgress, `${currentSyncState.completedOperations}/${totalOperations} operations completed`);
         }
@@ -586,7 +607,7 @@ window.FingerprintSyncManager = (function () {
         // Final status for this machine
         updateMachineStatus(machineIndex,
             failCount === 0 ? 'success' : 'warning',
-            `${failCount === 0 ? '✅' : '⚠️'} ${successCount}/${employees.length}`);
+            `${successCount}/${employees.length}`);
 
         return {
             success: true,
@@ -609,9 +630,9 @@ window.FingerprintSyncManager = (function () {
 
         syncDialog.set_primary_action(__('Retrying...'), null);
         syncDialog.disable_primary_action();
-        syncDialog.set_secondary_action_label(__('🛑 Abort Sync'));
+        syncDialog.set_secondary_action_label(__('Abort Sync'));
 
-        updateSyncStatus(`\n🔁 Retrying ${failures.length} failed operation(s)...`, 'info');
+        updateSyncStatus(`\nRetrying ${failures.length} failed operation(s)...`, 'info');
 
         // Group failures by machine
         const byMachine = {};
@@ -648,15 +669,15 @@ window.FingerprintSyncManager = (function () {
 
             const stillFailed = currentSyncState.failedOperations.length;
             if (stillFailed === 0) {
-                updateSyncStatus(`✅ Retry completed — all ${failures.length} operation(s) succeeded`, 'success');
+                updateSyncStatus(`Retry completed — all ${failures.length} operation(s) succeeded`, 'success');
                 frappe.show_alert({ message: __('Retry successful!'), indicator: 'green' });
             } else {
-                updateSyncStatus(`⚠️ Retry completed — ${failures.length - stillFailed} fixed, ${stillFailed} still failing:`, 'warning');
+                updateSyncStatus(`Retry completed — ${failures.length - stillFailed} fixed, ${stillFailed} still failing:`, 'warning');
                 currentSyncState.failedOperations.forEach(f =>
                     updateSyncStatus(`   • ${f.machine}: ${f.employee_name} — ${f.error}`, 'danger'));
             }
         } catch (error) {
-            updateSyncStatus(`❌ Retry failed: ${error.message}`, 'danger');
+            updateSyncStatus(`Retry failed: ${error.message}`, 'danger');
         } finally {
             currentSyncState.isRunning = false;
             currentSyncState.abortController = null;
@@ -669,7 +690,7 @@ window.FingerprintSyncManager = (function () {
         const progressBar = document.getElementById(`machine-progress-${machineIndex}`);
 
         if (statusBadge) {
-            statusBadge.className = `badge bg-${type} text-white`;
+            statusBadge.className = `indicator-pill ${indicatorColor(type)}`;
             statusBadge.textContent = status;
         }
 
@@ -724,20 +745,20 @@ window.FingerprintSyncManager = (function () {
         const succeeded = Math.max(currentSyncState.completedOperations - failed, 0);
         const successRate = totalOperations ? Math.round((succeeded / totalOperations) * 100) : 0;
 
-        updateSyncStatus('\n📊 SYNC SUMMARY:', 'info');
-        updateSyncStatus(`   👥 Employees processed: ${currentSyncState.employees.length}`, 'info');
-        updateSyncStatus(`   🖥️ Machine operations: ${succeeded}/${totalOperations} succeeded`, 'info');
-        updateSyncStatus(`   📈 Success rate: ${successRate}%`, 'info');
+        updateSyncStatus('\nSYNC SUMMARY:', 'info');
+        updateSyncStatus(`   Employees processed: ${currentSyncState.employees.length}`, 'info');
+        updateSyncStatus(`   Machine operations: ${succeeded}/${totalOperations} succeeded`, 'info');
+        updateSyncStatus(`   Success rate: ${successRate}%`, 'info');
 
         // Per-employee failure list with reasons
         if (failed > 0) {
-            updateSyncStatus(`\n❌ Failed operations (${failed}):`, 'danger');
+            updateSyncStatus(`\nFailed operations (${failed}):`, 'danger');
             currentSyncState.failedOperations.slice(0, 30).forEach(f =>
                 updateSyncStatus(`   • ${f.machine}: ${f.employee_name} — ${f.error}`, 'danger'));
             if (failed > 30) {
                 updateSyncStatus(`   ... and ${failed - 30} more`, 'danger');
             }
-            updateSyncStatus(`👉 Use the "🔁 Retry Failed" button to re-sync only the failed employees.`, 'warning');
+            updateSyncStatus(`Use the "Retry Failed" button to re-sync only the failed employees.`, 'warning');
         }
 
         updateProgressBar(100, `Completed: ${successRate}% success rate`);
@@ -761,7 +782,7 @@ window.FingerprintSyncManager = (function () {
     }
 
     function resetSyncButton() {
-        syncDialog.set_primary_action(__('🚀 Start Sync'), function () {
+        syncDialog.set_primary_action(__('Start Sync'), function () {
             const statusDiv = document.getElementById('sync-status');
             if (statusDiv) {
                 statusDiv.innerHTML = '<div class="text-info">Ready to sync fingerprints to attendance machines...</div>';
@@ -773,13 +794,13 @@ window.FingerprintSyncManager = (function () {
         // Secondary button: retry failed ops if any, otherwise refresh machines
         const failed = currentSyncState.failedOperations.length;
         syncDialog.set_secondary_action_label(
-            failed > 0 ? __('🔁 Retry Failed ({0})', [failed]) : __('🔄 Refresh Machines'));
+            failed > 0 ? __('Retry Failed ({0})', [failed]) : __('Refresh Machines'));
     }
 
     function abortSyncProcess() {
         if (currentSyncState.abortController) {
             currentSyncState.abortController.abort();
-            updateSyncStatus('🛑 Sync process aborted by user', 'warning');
+            updateSyncStatus('Sync process aborted by user', 'warning');
         }
 
         currentSyncState.isRunning = false;

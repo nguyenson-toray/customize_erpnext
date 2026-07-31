@@ -375,7 +375,7 @@ window.FingerprintScannerDialog = {
             })
             .catch(() => {
                 FSD.bridge_mode = null;
-                FSD.updateScanStatus('❌ Không kết nối được app Fingerprint Scanner v2 — kiểm tra: (1) app đã chạy chưa (cần bản v2.0+); (2) nếu app đang chạy mà vẫn lỗi, xem console của app — có dòng "CORS:BLOCKED" thì thêm origin đó vào bridge_config.json', 'danger');
+                FSD.updateScanStatus('❌ Không kết nối được app Fingerprint Scanner v2 — kiểm tra: (1) app đã chạy chưa (cần bản v2.0+); (2) nếu app đang chạy mà vẫn lỗi, xem console của app — có dòng "CORS:BLOCKED" thì thêm origin đó vào bridge_config.json<br>Tải driver &amp; Fingerprint Scanner Bridge v2.exe: <a href="https://github.com/nguyenson-toray/06.fingerprint_scanner_bridge/tree/main/Fingerprint%20Scanner" target="_blank" rel="noopener">tại đây</a>', 'danger');
                 if (callback) callback(FSD.bridge_mode);
             });
     },

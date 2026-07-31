@@ -1,5 +1,9 @@
 console.log('Employee list customization loaded successfully');
 // import apps/customize_erpnext/customize_erpnext/public/js/shared_fingerprint_sync.js
+// window.buildSelectedEmployeesHtml (style khung cuộn "mã — họ tên [group]" dùng
+// chung cho Generate Cards / Sync 4.1 / 4.2) được định nghĩa trong
+// shared_fingerprint_sync.js, KHÔNG phải ở đây — đó là file duy nhất load chung
+// cả form view lẫn list view (xem hooks.py doctype_js / doctype_list_js).
 
 frappe.listview_settings['Employee'] = {
     onload: function (listview) {
@@ -53,16 +57,16 @@ function show_generate_employee_list_pdf_dialog(listview) {
             {
                 fieldname: 'scope_section',
                 fieldtype: 'Section Break',
-                label: __('Phạm Vi Tạo PDF')
+                label: __('PDF Scope')
             },
             {
                 fieldname: 'select_scope',
                 fieldtype: 'Select',
-                label: __('Chọn Phạm Vi'),
+                label: __('Select Scope'),
                 options: [
-                    { label: 'Tất cả nhân viên Active', value: 'all_active' },
-                    { label: 'Chỉ những nhân viên đã chọn', value: 'selected' },
-                    { label: 'Theo khoảng mã số nhân viên', value: 'id_range' }
+                    { label: __('Tất cả nhân viên Active'), value: 'all_active' },
+                    { label: __('Chỉ những nhân viên đã chọn'), value: 'selected' },
+                    { label: __('Theo khoảng mã số nhân viên'), value: 'id_range' }
                 ],
                 default: selected_employees.length === 0 ? 'all_active' : 'selected',
                 onchange: function () {
@@ -72,14 +76,14 @@ function show_generate_employee_list_pdf_dialog(listview) {
             {
                 fieldname: 'employee_range',
                 fieldtype: 'Section Break',
-                label: __('Khoảng Mã Số Nhân Viên'),
+                label: __('Employee ID Range'),
                 depends_on: 'eval:doc.select_scope == "id_range"',
                 collapsible: 0
             },
             {
                 fieldname: 'id_prefix',
                 fieldtype: 'Data',
-                label: __('Tiền tố (Prefix)'),
+                label: __('Prefix'),
                 default: 'TIQN-',
                 description: __('Tiền tố mã số nhân viên, ví dụ: TIQN-'),
                 depends_on: 'eval:doc.select_scope == "id_range"'
@@ -87,7 +91,7 @@ function show_generate_employee_list_pdf_dialog(listview) {
             {
                 fieldname: 'id_start',
                 fieldtype: 'Data',
-                label: __('Mã số bắt đầu'),
+                label: __('Start ID'),
                 placeholder: '0001',
                 description: __('Mã số nhân viên bắt đầu (không bao gồm tiền tố)'),
                 depends_on: 'eval:doc.select_scope == "id_range"'
@@ -100,7 +104,7 @@ function show_generate_employee_list_pdf_dialog(listview) {
             {
                 fieldname: 'id_end',
                 fieldtype: 'Data',
-                label: __('Mã số kết thúc'),
+                label: __('End ID'),
                 placeholder: '0100',
                 description: __('Mã số nhân viên kết thúc (không bao gồm tiền tố)'),
                 depends_on: 'eval:doc.select_scope == "id_range"'
@@ -128,24 +132,24 @@ function show_generate_employee_list_pdf_dialog(listview) {
             {
                 fieldname: 'options_section',
                 fieldtype: 'Section Break',
-                label: __('Tùy Chọn Báo Cáo')
+                label: __('Report Options')
             },
             {
                 fieldname: 'company_name',
                 fieldtype: 'Data',
-                label: __('Tên Công Ty (Tiêu đề)'),
+                label: __('Company Name (Title)'),
                 default: 'CÔNG TY TNHH TORAY INTERNATIONAL VIET NAM - CHI NHÁNH QUẢNG NGÃI'
             },
             {
                 fieldname: 'include_section',
                 fieldtype: 'Check',
-                label: __('Hiển thị cột Tổ/Section'),
+                label: __('Show Section Column'),
                 default: 1
             },
             {
                 fieldname: 'include_department',
                 fieldtype: 'Check',
-                label: __('Hiển thị cột Bộ phận'),
+                label: __('Show Department Column'),
                 default: 0
             },
 
@@ -156,32 +160,32 @@ function show_generate_employee_list_pdf_dialog(listview) {
             {
                 fieldname: 'include_notes',
                 fieldtype: 'Check',
-                label: __('Hiển thị cột Ghi chú'),
+                label: __('Show Notes Column'),
                 default: 1
             },
             {
                 fieldname: 'page_size',
                 fieldtype: 'Select',
-                label: __('Kích thước trang'),
+                label: __('Page Size'),
                 options: ['A4', 'Letter'],
                 default: 'A4'
             },
             {
                 fieldname: 'orientation',
                 fieldtype: 'Select',
-                label: __('Hướng giấy'),
+                label: __('Orientation'),
                 options: ['Portrait', 'Landscape'],
                 default: 'Portrait'
             }
         ],
         size: 'large',
-        primary_action_label: __('Tạo PDF'),
+        primary_action_label: __('Generate PDF'),
         primary_action(values) {
             // Validate inputs
             if (values.select_scope === 'id_range') {
                 if (!values.id_start || !values.id_end) {
                     frappe.msgprint({
-                        title: __('Thiếu Thông Tin'),
+                        title: __('Missing Info'),
                         message: __('Vui lòng điền cả mã số bắt đầu và mã số kết thúc.'),
                         indicator: 'orange'
                     });
@@ -191,7 +195,7 @@ function show_generate_employee_list_pdf_dialog(listview) {
                 // Check if input is numeric
                 if (!/^\d+$/.test(values.id_start) || !/^\d+$/.test(values.id_end)) {
                     frappe.msgprint({
-                        title: __('Định Dạng Không Hợp Lệ'),
+                        title: __('Invalid Format'),
                         message: __('Mã số nhân viên phải là các chữ số (không bao gồm tiền tố).'),
                         indicator: 'orange'
                     });
@@ -205,7 +209,7 @@ function show_generate_employee_list_pdf_dialog(listview) {
                 // Check valid range
                 if (start_num > end_num) {
                     frappe.msgprint({
-                        title: __('Khoảng Không Hợp Lệ'),
+                        title: __('Invalid Range'),
                         message: __('Mã số bắt đầu phải nhỏ hơn hoặc bằng mã số kết thúc.'),
                         indicator: 'orange'
                     });
@@ -818,45 +822,73 @@ function show_multi_employee_sync_dialog(listview) {
     const selected_employees = listview.get_checked_items();
 
     if (selected_employees.length === 0) {
-        frappe.msgprint({
-            title: __('No Employees Selected'),
-            message: __('Please select at least one employee from the list to sync fingerprints to attendance machines.'),
-            indicator: 'orange'
-        });
+        // Chưa chọn sẵn trên list view — cho chọn qua multi-select ngay trong dialog
+        show_pick_employees_for_erp_sync_dialog();
         return;
     }
 
-    // Confirm action for multiple employees
-    if (selected_employees.length > 1) {
-        frappe.confirm(
-            __('You have selected {0} employees. Do you want to sync fingerprints for all of them to attendance machines?', [selected_employees.length]),
-            function () {
-                // User confirmed, proceed with sync
-                const employees = selected_employees.map(emp => ({
-                    employee_id: emp.name,
-                    employee_name: emp.employee_name || emp.name
-                }));
+    // Lấy lại employee_name + custom_group từ server (giống Generate Cards) —
+    // không phụ thuộc cột nào đang hiện trên list view.
+    frappe.db.get_list('Employee', {
+        filters: { name: ['in', selected_employees.map(e => e.name)] },
+        fields: ['name', 'employee_name', 'custom_group'],
+        limit: selected_employees.length
+    }).then(records => {
+        _start_erp_fingerprint_sync(records.map(e => ({
+            employee_id: e.name,
+            employee_name: e.employee_name || e.name,
+            custom_group: e.custom_group
+        })));
+    });
+}
 
-                // Use shared sync dialog for multi-employee sync
-                window.showSharedSyncDialog(employees, {
-                    multi_employee: true,
-                    source: 'employee_list'
-                });
+function show_pick_employees_for_erp_sync_dialog() {
+    const d = new frappe.ui.Dialog({
+        title: __('Sync Fingerprint From ERP To Attendance Machines'),
+        fields: [{
+            fieldname: 'employees',
+            fieldtype: 'MultiSelectPills',
+            label: __('Employees'),
+            reqd: 1,
+            description: __('Chưa chọn nhân viên nào trên list view — tìm và chọn ở đây'),
+            get_data: function (txt) {
+                return frappe.db.get_link_options('Employee', txt, { status: 'Active' });
             }
-        );
-    } else {
-        // Single employee selected
-        const employee = selected_employees[0];
-        const emp_data = {
-            employee_id: employee.name,
-            employee_name: employee.employee_name || employee.name
-        };
+        }],
+        primary_action_label: __('Continue'),
+        primary_action: function (values) {
+            const employee_ids = values.employees || [];
+            if (!employee_ids.length) {
+                frappe.msgprint(__('Vui lòng chọn ít nhất 1 nhân viên'));
+                return;
+            }
+            d.hide();
 
-        // Use shared sync dialog for single employee
-        window.showSharedSyncDialog([emp_data], {
-            source: 'employee_list'
-        });
-    }
+            frappe.db.get_list('Employee', {
+                filters: { name: ['in', employee_ids] },
+                fields: ['name', 'employee_name', 'custom_group'],
+                limit: employee_ids.length
+            }).then(records => {
+                _start_erp_fingerprint_sync(records.map(e => ({
+                    employee_id: e.name,
+                    employee_name: e.employee_name || e.name,
+                    custom_group: e.custom_group
+                })));
+            });
+        }
+    });
+    d.show();
+}
+
+// Confirm (nếu >1 người) rồi mở shared sync dialog — dùng chung cho cả 2 nhánh
+// (đã chọn sẵn trên list view / chọn qua multi-select) của show_multi_employee_sync_dialog.
+// Không confirm() thêm ở đây — shared sync dialog tự có bước review/xác nhận riêng
+// trước khi thực sự sync, hỏi lại ở đây là thừa 1 bước.
+function _start_erp_fingerprint_sync(employees) {
+    window.showSharedSyncDialog(employees, {
+        multi_employee: employees.length > 1,
+        source: 'employee_list'
+    });
 }
 
 // ---------------------------------------------------------------------------
@@ -866,19 +898,34 @@ function show_multi_employee_sync_dialog(listview) {
 function show_sync_fingerprint_from_machines_dialog(listview) {
     const selected_employees = listview.get_checked_items();
     frappe.show_alert({ message: __('Loading machines…'), indicator: 'blue' });
-    frappe.call({
-        method: 'customize_erpnext.api.biometric_sync.get_attendance_machines',
-        callback: function (r) {
-            if (!r.message || r.message.status !== 'success') {
-                frappe.msgprint({ title: __('Error'), message: __('Failed to load attendance machines'), indicator: 'red' });
-                return;
-            }
-            _fp_show_config_dialog(selected_employees, r.message.machines);
-        },
-        error: function () {
-            frappe.msgprint({ title: __('Error'), message: __('Failed to load attendance machines'), indicator: 'red' });
-        }
+
+    const machines_call = new Promise(function (resolve, reject) {
+        frappe.call({
+            method: 'customize_erpnext.api.biometric_sync.get_attendance_machines',
+            callback: function (r) {
+                (r.message && r.message.status === 'success') ? resolve(r.message.machines) : reject();
+            },
+            error: reject
+        });
     });
+
+    // Lấy lại employee_name + custom_group từ server (giống Generate Cards) —
+    // không phụ thuộc cột nào đang hiện trên list view.
+    const employees_call = selected_employees.length
+        ? frappe.db.get_list('Employee', {
+            filters: { name: ['in', selected_employees.map(e => e.name)] },
+            fields: ['name', 'employee_name', 'custom_group'],
+            limit: selected_employees.length
+        })
+        : Promise.resolve([]);
+
+    Promise.all([machines_call, employees_call])
+        .then(function ([machines, employees]) {
+            _fp_show_config_dialog(employees, machines);
+        })
+        .catch(function () {
+            frappe.msgprint({ title: __('Error'), message: __('Failed to load attendance machines'), indicator: 'red' });
+        });
 }
 
 function _fp_show_config_dialog(selected_employees, machines) {
@@ -886,43 +933,34 @@ function _fp_show_config_dialog(selected_employees, machines) {
     const def_master = machines.find(m => m.master_device) || machines[0];
     const def_master_name = def_master ? def_master.name : '';
 
-    // --- Employee banner ---
+    // --- Employee banner — cùng style khung cuộn với Generate Cards / Sync 4.1 ---
     let emp_info_html;
-    if (emp_count > 1) {
-        const list = selected_employees.slice(0, 5)
-            .map(e => `<strong>${e.employee_name || e.name}</strong> (${e.name})`).join(', ');
-        const more = emp_count > 5 ? ` <span class="text-muted">… +${emp_count - 5} more</span>` : '';
-        emp_info_html = `<div class="alert alert-info d-flex align-items-start" style="margin-bottom:0;padding:10px 14px">
-            <i class="fa fa-users" style="font-size:17px;margin-right:10px;margin-top:1px;flex-shrink:0"></i>
-            <div><strong>${emp_count} employees selected:</strong> ${list}${more}</div>
-        </div>`;
-    } else if (emp_count === 1) {
-        const e = selected_employees[0];
-        emp_info_html = `<div class="alert alert-info d-flex align-items-center" style="margin-bottom:0;padding:10px 14px">
-            <i class="fa fa-user" style="font-size:17px;margin-right:10px;flex-shrink:0"></i>
-            <div><strong>${e.employee_name || e.name}</strong> <span class="text-muted">(${e.name})</span></div>
+    if (emp_count > 0) {
+        emp_info_html = `<div class="alert alert-info" style="margin-bottom:0;padding:10px 14px">
+            <div style="display:flex;align-items:flex-start;gap:10px">
+                <i class="fa fa-users" style="font-size:17px;margin-top:1px;flex-shrink:0"></i>
+                <div style="flex:1;min-width:0">
+                    <strong>${emp_count} ${__('employees selected')}:</strong>
+                    <div style="margin-top:6px">${window.buildSelectedEmployeesHtml(selected_employees)}</div>
+                </div>
+            </div>
         </div>`;
     } else {
         emp_info_html = `<div class="alert alert-warning" style="margin-bottom:0;padding:10px 14px">
-            <i class="fa fa-exclamation-triangle"></i> No employees selected — enter IDs below.
+            <i class="fa fa-exclamation-triangle"></i> ${__('No employees selected — enter IDs below.')}
         </div>`;
     }
 
-    // --- Master dropdown ---
-    const master_opts = machines.map(m =>
-        `<option value="${m.name}"${m.name === def_master_name ? ' selected' : ''}>` +
-        `${m.name}${m.device_name ? ' — ' + m.device_name : ''} (${m.ip_address || ''})</option>`
-    ).join('');
-
-    // --- Target list (read-only, always all machines except master) ---
+    // --- Target list: chỉ hiển thị (read-only), không phải input -> vẫn hợp lệ
+    // dùng HTML field cho phần này (giống pattern holiday_info ở show_holiday_selection_dialog).
     function build_target_list(exclude) {
         const targets = machines.filter(m => m.name !== exclude);
         if (!targets.length) {
-            return `<div class="text-muted" style="padding:8px 4px">No other machines available</div>`;
+            return `<div class="text-muted" style="padding:8px 4px">${__('No other machines available')}</div>`;
         }
         return targets.map(m => {
             const meta = [m.device_name, m.ip_address].filter(Boolean).join(' · ');
-            return `<div class="d-flex align-items-center" style="padding:6px 4px;border-bottom:1px solid #f0f0f0">
+            return `<div class="d-flex align-items-center" style="padding:6px 4px;border-bottom:1px solid var(--border-color)">
                 <i class="fa fa-check-circle text-success" style="margin-right:8px;flex-shrink:0"></i>
                 <strong style="margin-right:8px">${m.name}</strong>
                 <span class="text-muted" style="font-size:12px">${meta}</span>
@@ -930,53 +968,64 @@ function _fp_show_config_dialog(selected_employees, machines) {
         }).join('');
     }
 
-    const config_html = `<div style="padding:2px 0">
-        <div style="margin-bottom:12px">${emp_info_html}</div>
-
-        <div style="margin-bottom:14px">
-            <label class="text-muted" style="font-size:12px;margin-bottom:4px;display:block">
-                Additional Employee IDs <span style="font-weight:normal">(one per line, optional)</span>
-            </label>
-            <textarea id="fp_extra_emp" class="form-control" rows="2"
-                placeholder="TIQN-0001&#10;TIQN-0002" style="font-size:13px;resize:vertical"></textarea>
-        </div>
-
-        <div style="display:flex;gap:16px;margin-bottom:14px;align-items:flex-end">
-            <div style="flex:1;min-width:0">
-                <label class="text-muted" style="font-size:12px;margin-bottom:4px;display:block">
-                    <i class="fa fa-star text-warning"></i>
-                    <strong>Master Machine</strong>
-                    <span style="font-weight:normal"> — source of fingerprint data</span>
-                </label>
-                <select id="fp_master_sel" class="form-control" style="font-size:13px">
-                    ${master_opts}
-                </select>
-            </div>
-            <div style="flex:0 0 auto;padding-bottom:4px">
-                <label style="display:flex;align-items:center;gap:7px;cursor:pointer;
-                              font-weight:normal;margin:0;white-space:nowrap">
-                    <input type="checkbox" id="fp_sync_to_erp" checked style="width:15px;height:15px">
-                    <span style="font-size:13px">Sync to ERPNext</span>
-                </label>
-            </div>
-        </div>
-
-        <div>
-            <label class="text-muted" style="font-size:12px;margin-bottom:6px;display:block">
-                <i class="fa fa-arrow-right text-info"></i>
-                <strong>Target Machines</strong>
-                <span style="font-weight:normal"> — all machines except master (auto)</span>
-            </label>
-            <div id="fp_target_list" style="border:1px solid #dee2e6;border-radius:6px;
-                 padding:4px 8px;background:#f8f9fa;max-height:200px;overflow-y:auto">
-                ${build_target_list(def_master_name)}
-            </div>
-        </div>
-    </div>`;
-
     const d = new frappe.ui.Dialog({
         title: __('Sync Fingerprint: Machine → Machine & ERP'),
-        fields: [{ fieldname: 'cfg', fieldtype: 'HTML', options: config_html }],
+        fields: [
+            { fieldname: 'cfg_banner', fieldtype: 'HTML', options: emp_info_html },
+            {
+                fieldname: 'extra_employees',
+                fieldtype: 'MultiSelectPills',
+                label: __('Additional Employees'),
+                description: __('Tuỳ chọn — thêm nhân viên ngoài danh sách đã chọn sẵn trên list view'),
+                get_data: function (txt) {
+                    return frappe.db.get_link_options('Employee', txt, { status: 'Active' });
+                }
+            },
+            {
+                fieldname: 'machine_section',
+                fieldtype: 'Section Break',
+                label: __('Machine Configuration')
+            },
+            {
+                fieldname: 'master_machine',
+                fieldtype: 'Select',
+                label: __('Master Machine'),
+                description: __('Source of fingerprint data'),
+                reqd: 1,
+                options: machines.map(m => ({
+                    label: `${m.name}${m.device_name ? ' — ' + m.device_name : ''} (${m.ip_address || ''})`,
+                    value: m.name
+                })),
+                default: def_master_name,
+                onchange: function () {
+                    const master = d.get_value('master_machine');
+                    if (d.fields_dict.target_list_html) {
+                        d.fields_dict.target_list_html.$wrapper.html(build_target_list(master));
+                    }
+                }
+            },
+            {
+                fieldname: 'col_break_machine',
+                fieldtype: 'Column Break'
+            },
+            {
+                fieldname: 'sync_to_erp',
+                fieldtype: 'Check',
+                label: __('Sync to ERPNext'),
+                default: 1
+            },
+            {
+                fieldname: 'target_section',
+                fieldtype: 'Section Break',
+                label: __('Target Machines'),
+                description: __('All machines except master (auto)')
+            },
+            {
+                fieldname: 'target_list_html',
+                fieldtype: 'HTML',
+                options: build_target_list(def_master_name)
+            }
+        ],
         primary_action_label: __('Start Sync'),
         primary_action: function () {
             _fp_on_submit(d, selected_employees, machines);
@@ -984,18 +1033,12 @@ function _fp_show_config_dialog(selected_employees, machines) {
     });
     d.show();
     d.$wrapper.find('.modal-dialog').addClass('modal-xl');
-
-    // Master change → update target list display (always all except new master)
-    d.$wrapper.find('#fp_master_sel').on('change', function () {
-        d.$wrapper.find('#fp_target_list').html(build_target_list($(this).val()));
-    });
 }
 
 function _fp_on_submit(d, selected_employees, machines) {
     const emp_set = new Set();
     selected_employees.forEach(e => emp_set.add(e.name));
-    const manual_text = d.$wrapper.find('#fp_extra_emp').val() || '';
-    manual_text.split('\n').map(s => s.trim()).filter(Boolean).forEach(s => emp_set.add(s));
+    (d.get_value('extra_employees') || []).forEach(s => emp_set.add(s));
     const employee_ids = [...emp_set];
 
     if (!employee_ids.length) {
@@ -1003,7 +1046,7 @@ function _fp_on_submit(d, selected_employees, machines) {
         return;
     }
 
-    const master_machine = d.$wrapper.find('#fp_master_sel').val();
+    const master_machine = d.get_value('master_machine');
     if (!master_machine) {
         frappe.msgprint({ title: __('Missing Info'), message: __('No master machine selected'), indicator: 'orange' });
         return;
@@ -1011,21 +1054,21 @@ function _fp_on_submit(d, selected_employees, machines) {
 
     // Always all machines except master — no user selection needed
     const target_machines = machines.map(m => m.name).filter(n => n !== master_machine);
-    const sync_to_erp = d.$wrapper.find('#fp_sync_to_erp').is(':checked') ? 1 : 0;
+    const sync_to_erp = d.get_value('sync_to_erp') ? 1 : 0;
 
     if (!target_machines.length && !sync_to_erp) {
         frappe.msgprint({ title: __('Missing Info'), message: __('No other machines available and ERP sync is off'), indicator: 'orange' });
         return;
     }
 
-    d.get_primary_btn().prop('disabled', true).text('Processing…');
+    d.get_primary_btn().prop('disabled', true).text(__('Processing…'));
 
     frappe.call({
         method: 'customize_erpnext.api.biometric_sync.resolve_employee_device_ids',
         args: { employee_ids_json: JSON.stringify(employee_ids) },
         callback: function (r) {
             if (!r.message || r.message.status !== 'success') {
-                d.get_primary_btn().prop('disabled', false).text('Start Sync');
+                d.get_primary_btn().prop('disabled', false).text(__('Start Sync'));
                 frappe.msgprint({ title: __('Error'), message: __('Could not fetch employee info'), indicator: 'red' });
                 return;
             }
@@ -1036,7 +1079,7 @@ function _fp_on_submit(d, selected_employees, machines) {
             const employees_for_sync = with_id.map(e => ({ employee_id: e.employee_id, employee_name: e.employee_name }));
 
             if (!user_ids.length) {
-                d.get_primary_btn().prop('disabled', false).text('Start Sync');
+                d.get_primary_btn().prop('disabled', false).text(__('Start Sync'));
                 frappe.msgprint({ title: __('Error'), message: __('None of the selected employees have an Attendance Device ID'), indicator: 'red' });
                 return;
             }
@@ -1054,14 +1097,14 @@ function _fp_on_submit(d, selected_employees, machines) {
                             frappe.confirm(
                                 `<b>${conflicts.length} employee(s)</b> already have fingerprint data in ERPNext:<br><i>${list}</i><br><br>Continuing will <b class="text-danger">overwrite</b> existing data. Confirm?`,
                                 _do,
-                                () => { d.get_primary_btn().prop('disabled', false).text('Start Sync'); }
+                                () => { d.get_primary_btn().prop('disabled', false).text(__('Start Sync')); }
                             );
                         } else {
                             _do();
                         }
                     },
                     error: function () {
-                        d.get_primary_btn().prop('disabled', false).text('Start Sync');
+                        d.get_primary_btn().prop('disabled', false).text(__('Start Sync'));
                         frappe.msgprint({ title: __('Error'), message: __('Could not check existing ERP fingerprint data'), indicator: 'red' });
                     }
                 });
@@ -1070,7 +1113,7 @@ function _fp_on_submit(d, selected_employees, machines) {
             }
         },
         error: function () {
-            d.get_primary_btn().prop('disabled', false).text('Start Sync');
+            d.get_primary_btn().prop('disabled', false).text(__('Start Sync'));
             frappe.msgprint({ title: __('Error'), message: __('Could not fetch employee info'), indicator: 'red' });
         }
     });
@@ -1095,7 +1138,7 @@ function _fp_start_sync(d, master_machine, target_machines, user_ids, employees_
         },
         callback: function (r) {
             if (!r.message || r.message.status !== 'success') {
-                d.get_primary_btn().prop('disabled', false).text('Start Sync');
+                d.get_primary_btn().prop('disabled', false).text(__('Start Sync'));
                 frappe.msgprint({ title: __('Error'), message: r.message && r.message.message || __('Failed to submit sync request'), indicator: 'red' });
                 return;
             }
@@ -1104,7 +1147,7 @@ function _fp_start_sync(d, master_machine, target_machines, user_ids, employees_
             _fp_show_progress_dialog(job_id, master_machine, target_machines, employees_for_sync, user_ids.length, skipped, sync_to_erp);
         },
         error: function () {
-            d.get_primary_btn().prop('disabled', false).text('Start Sync');
+            d.get_primary_btn().prop('disabled', false).text(__('Start Sync'));
             frappe.msgprint({ title: __('Error'), message: __('Failed to submit sync request'), indicator: 'red' });
         }
     });
@@ -1143,7 +1186,7 @@ function _fp_show_progress_dialog(job_id, master_machine, target_machines, emplo
             </div>
         </div>
         <div id="fp_results_wrap" style="height:300px;overflow-y:auto;padding:15px;border-radius:8px;
-             background:#f8f9fa;border:1px solid #dee2e6;font-family:monospace;font-size:13px">
+             background:var(--fg-color);border:1px solid var(--border-color);font-family:monospace;font-size:13px">
             <div class="text-info">Waiting for sync results...</div>
         </div>`;
 
@@ -1233,6 +1276,10 @@ function _fp_update_progress(prog_d, data) {
     }
 }
 
+// Cùng chiến lược "per-machine song song" của Sync 4.1 (shared_fingerprint_sync.js):
+// mỗi target machine xử lý tuần tự theo chunk (1 kết nối thiết bị/chunk), nhưng các
+// máy chạy SONG SONG với nhau (Promise.allSettled) — trước đây (4.2 cũ) tuần tự
+// từng cặp (nhân viên, máy) một, dùng API cũ 1-người/1-lần-gọi (chậm hơn nhiều lần).
 async function _fp_do_device_sync(prog_d, employees, target_machines, erp_results, pct_start, pct_end) {
     const total_calls = employees.length * target_machines.length;
     const all_results = [...erp_results];
@@ -1243,42 +1290,52 @@ async function _fp_do_device_sync(prog_d, employees, target_machines, erp_result
         return;
     }
 
-    for (const machine of target_machines) {
-        for (const emp of employees) {
-            await new Promise(function (resolve) {
+    const CHUNK_SIZE = (window.FingerprintSyncManager && window.FingerprintSyncManager.CONFIG.CHUNK_SIZE) || 20;
+
+    function reportProgress(phase_text) {
+        const pct = pct_start + Math.round(done / total_calls * (pct_end - pct_start));
+        _fp_update_progress(prog_d, {
+            progress_pct: pct,
+            phase: phase_text,
+            results: all_results,
+            status: 'running',
+        });
+    }
+
+    async function syncMachineInChunks(machine) {
+        for (let start = 0; start < employees.length; start += CHUNK_SIZE) {
+            const chunk = employees.slice(start, start + CHUNK_SIZE);
+
+            const batch_result = await new Promise(function (resolve) {
                 frappe.call({
-                    method: 'customize_erpnext.api.utilities.sync_employee_to_single_machine',
-                    args: { employee_id: emp.employee_id, machine_name: machine },
-                    callback: function (r) {
-                        done++;
-                        const pct = pct_start + Math.round(done / total_calls * (pct_end - pct_start));
-                        const ok = !!(r.message && r.message.success !== false && !r.exc);
-                        const msg = (r.message && (r.message.message || r.message.status)) || 'OK';
-                        all_results.push({ success: ok, user_id: emp.employee_id, machine: machine, message: msg });
-                        _fp_update_progress(prog_d, {
-                            progress_pct: pct,
-                            phase: `[Device] ${emp.employee_id} → ${machine}: ${ok ? 'OK' : 'Failed'}`,
-                            results: all_results,
-                            status: 'running',
-                        });
-                        resolve();
+                    method: 'customize_erpnext.api.utilities.sync_employees_to_machine_batch',
+                    args: {
+                        machine_name: machine,
+                        employee_ids: JSON.stringify(chunk.map(e => e.employee_id))
                     },
-                    error: function () {
-                        done++;
-                        const pct = pct_start + Math.round(done / total_calls * (pct_end - pct_start));
-                        all_results.push({ success: false, user_id: emp.employee_id, machine: machine, message: 'Network error' });
-                        _fp_update_progress(prog_d, {
-                            progress_pct: pct,
-                            phase: `[Device] ${emp.employee_id} → ${machine}: Failed`,
-                            results: all_results,
-                            status: 'running',
-                        });
-                        resolve();
-                    }
+                    callback: function (r) { resolve((r.message && r.message.results) || null); },
+                    error: function () { resolve(null); }
                 });
             });
+
+            const chunk_results = batch_result || chunk.map(e => ({
+                employee: e.employee_id, success: false, error: 'Network error'
+            }));
+
+            chunk_results.forEach(function (r) {
+                done++;
+                all_results.push({
+                    success: !!r.success,
+                    user_id: r.employee,
+                    machine: machine,
+                    message: r.success ? 'OK' : (r.error || 'Failed')
+                });
+            });
+            reportProgress(`[Device] ${machine}: ${Math.min(start + CHUNK_SIZE, employees.length)}/${employees.length}`);
         }
     }
+
+    await Promise.allSettled(target_machines.map(syncMachineInChunks));
     _fp_finish_progress(prog_d, all_results);
 }
 
@@ -1389,7 +1446,7 @@ function _del_show_preview_dialog(scan_result, config) {
             ? `${m.total_users} users`
             : `<span class="text-danger">${m.error || 'Error'}</span>`;
         return `<span style="display:inline-flex;align-items:center;gap:4px;margin:2px 6px 2px 0;
-                    font-size:12px;padding:2px 6px;background:#f0f0f0;border-radius:4px">
+                    font-size:12px;padding:2px 6px;background:var(--control-bg);border-radius:4px">
             ${icon} <strong>${m.machine}</strong> (${info})
         </span>`;
     }).join('');
@@ -1407,21 +1464,21 @@ function _del_show_preview_dialog(scan_result, config) {
 
         const rows = users.map((u, idx) => {
             const group_tag = u.custom_group
-                ? `<span class="badge badge-info" style="font-size:11px;margin-left:4px">${u.custom_group}</span>`
+                ? `<span class="indicator-pill blue" style="font-size:11px;margin-left:4px">${frappe.utils.escape_html(u.custom_group)}</span>`
                 : '';
             const emp_cell = u.employee_id
                 ? `<strong>${u.employee_name || ''}</strong><br>
                    <small class="text-muted">${u.employee_id}</small>${group_tag}`
                 : `<span class="text-muted fst-italic">— not in ERPNext</span>`;
             const reason_badge = u.reason_type === 'left_employee'
-                ? `<span class="badge bg-warning text-dark" style="font-size:11px">Left</span>`
-                : `<span class="badge bg-secondary text-white" style="font-size:11px">Unmatched</span>`;
+                ? `<span class="indicator-pill orange" style="font-size:11px">${__('Left')}</span>`
+                : `<span class="indicator-pill gray" style="font-size:11px">${__('Unmatched')}</span>`;
             const rd_cell = u.relieving_date
                 ? `${u.relieving_date}<br><small class="text-danger">+${u.days_since_relieving}d</small>`
                 : '—';
             const machine_tags = (u.machines || []).map(m =>
                 `<span style="display:inline-block;font-size:11px;padding:1px 5px;
-                    background:#e9ecef;border-radius:3px;margin:1px 2px 1px 0">${m}</span>`
+                    background:var(--control-bg);border-radius:3px;margin:1px 2px 1px 0">${m}</span>`
             ).join('');
             return `<tr>
                 <td style="text-align:center;width:36px;padding:6px 4px">
@@ -1439,19 +1496,19 @@ function _del_show_preview_dialog(scan_result, config) {
         table_html = `
         <div class="d-flex align-items-center justify-content-between" style="margin-bottom:8px">
             <div style="font-size:13px">
-                <span class="badge bg-danger text-white" style="font-size:12px">${users.length} users to delete</span>
+                <span class="indicator-pill red" style="font-size:12px">${users.length} users to delete</span>
                 &nbsp;
-                ${left_count ? `<span class="badge bg-warning text-dark" style="font-size:11px">${left_count} Left employee</span>&nbsp;` : ''}
-                ${unmatched_count ? `<span class="badge bg-secondary text-white" style="font-size:11px">${unmatched_count} Unmatched</span>` : ''}
+                ${left_count ? `<span class="indicator-pill yellow" style="font-size:11px">${left_count} Left employee</span>&nbsp;` : ''}
+                ${unmatched_count ? `<span class="indicator-pill gray" style="font-size:11px">${unmatched_count} Unmatched</span>` : ''}
             </div>
             <div style="font-size:12px">
                 <a href="#" id="del_select_all" style="margin-right:10px">Select all</a>
                 <a href="#" id="del_deselect_all">Deselect all</a>
             </div>
         </div>
-        <div style="max-height:340px;overflow-y:auto;border:1px solid #dee2e6;border-radius:6px">
+        <div style="max-height:340px;overflow-y:auto;border:1px solid var(--border-color);border-radius:6px">
             <table class="table table-sm table-hover" style="margin-bottom:0;font-size:13px">
-                <thead style="position:sticky;top:0;background:#f8f9fa;z-index:1">
+                <thead style="position:sticky;top:0;background:var(--fg-color);z-index:1">
                     <tr>
                         <th style="width:36px;text-align:center;padding:6px 4px"></th>
                         <th style="padding:6px 8px">User ID</th>
@@ -1592,7 +1649,7 @@ function _del_show_progress_dialog(job_id, user_count, total_ops, machines) {
             </div>
         </div>
         <div id="fp_results_wrap" style="height:300px;overflow-y:auto;padding:15px;border-radius:8px;
-             background:#f8f9fa;border:1px solid #dee2e6;font-family:monospace;font-size:13px">
+             background:var(--fg-color);border:1px solid var(--border-color);font-family:monospace;font-size:13px">
             <div class="text-info">Waiting for results...</div>
         </div>`;
 
@@ -1649,22 +1706,12 @@ function show_generate_cards_dialog(preselected_employees) {
     ];
 
     if (has_preselection) {
-        const rows = preselected_employees
-            .map(e => {
-                const group_tag = e.custom_group
-                    ? ` <span class="badge badge-info" style="font-size:11px">${frappe.utils.escape_html(e.custom_group)}</span>`
-                    : '';
-                return `<div style="padding:2px 0">${e.name} — <strong>${frappe.utils.escape_html(e.employee_name || '')}</strong>${group_tag}</div>`;
-            })
-            .join('');
         fields.push({
             fieldname: 'employee_count',
             fieldtype: 'HTML',
             options: `
                 <p style="margin: 4px 0 6px;">${__('Tạo thẻ cho {0} nhân viên đã chọn:', [preselected_employee_ids.length])}</p>
-                <div style="max-height: 220px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: var(--border-radius); padding: 8px 12px; font-size: 12px;">
-                    ${rows}
-                </div>`
+                ${window.buildSelectedEmployeesHtml(preselected_employees)}`
         });
     } else {
         fields.push({
@@ -2118,7 +2165,7 @@ function show_generate_users_dialog(listview) {
                 let html = `<div class="alert alert-info"><b>${__('Sẽ xử lý')}: ${count} employees</b></div>`;
                 if (count > 0 && count <= 100) {
                     html += `<div style="max-height:200px;overflow:auto;font-size:11px;">`;
-                    html += emp_list.map(e => `<span class="badge" style="margin:2px">${frappe.utils.escape_html(e)}</span>`).join(' ');
+                    html += emp_list.map(e => `<span class="indicator-pill gray" style="margin:2px">${frappe.utils.escape_html(e)}</span>`).join(' ');
                     html += `</div>`;
                 }
                 d.fields_dict.preview_html.$wrapper.html(html);
@@ -2170,25 +2217,25 @@ function show_generate_users_summary(result) {
 
     let html = `
         <div style="font-family: monospace; font-size: 13px; line-height: 1.8;">
-            <div>✅ ${__('Tạo mới thành công')} : <b>${(result.created || []).length}</b></div>
-            <div>🔄 ${__('Reactivated (enable + add role + link)')} : <b>${(result.reactivated || []).length}</b></div>
-            <div>⏭️ ${__('Bỏ qua (đã có company email)')} : <b>${(result.skipped_company_email || []).length}</b></div>
-            <div>⏭️ ${__('Bỏ qua (không có email)')} : <b>${(result.skipped_no_email || []).length}</b></div>
-            <div>⏭️ ${__('Bỏ qua (email không hợp lệ)')} : <b>${(result.skipped_invalid_email || []).length}</b></div>
-            <div>⏭️ ${__('Bỏ qua (user đã đầy đủ)')} : <b>${(result.skipped_exists || []).length}</b></div>
-            <div>❌ ${__('Lỗi')} : <b>${(result.errors || []).length}</b></div>
+            <div>${__('Tạo mới thành công')} : <b>${(result.created || []).length}</b></div>
+            <div>${__('Reactivated (enable + add role + link)')} : <b>${(result.reactivated || []).length}</b></div>
+            <div>${__('Bỏ qua (đã có company email)')} : <b>${(result.skipped_company_email || []).length}</b></div>
+            <div>${__('Bỏ qua (không có email)')} : <b>${(result.skipped_no_email || []).length}</b></div>
+            <div>${__('Bỏ qua (email không hợp lệ)')} : <b>${(result.skipped_invalid_email || []).length}</b></div>
+            <div>${__('Bỏ qua (user đã đầy đủ)')} : <b>${(result.skipped_exists || []).length}</b></div>
+            <div>${__('Lỗi')} : <b>${(result.errors || []).length}</b></div>
             <hr style="margin:8px 0">
             <div>${__('Tổng xử lý')} : <b>${total} employees</b></div>
         </div>
     `;
 
     const sections = [
-        { key: 'created', title: '✅ Created', color: '#28a745' },
-        { key: 'reactivated', title: '🔄 Reactivated', color: '#17a2b8' },
-        { key: 'skipped_company_email', title: '⏭️ Skipped — Company Email', color: '#6c757d' },
-        { key: 'skipped_no_email', title: '⏭️ Skipped — No Email', color: '#6c757d' },
-        { key: 'skipped_invalid_email', title: '⏭️ Skipped — Invalid Email', color: '#6c757d' },
-        { key: 'skipped_exists', title: '⏭️ Skipped — User Already Complete', color: '#6c757d' }
+        { key: 'created', title: 'Created', color: 'var(--green-500)' },
+        { key: 'reactivated', title: 'Reactivated', color: 'var(--blue-500)' },
+        { key: 'skipped_company_email', title: 'Skipped — Company Email', color: 'var(--text-muted)' },
+        { key: 'skipped_no_email', title: 'Skipped — No Email', color: 'var(--text-muted)' },
+        { key: 'skipped_invalid_email', title: 'Skipped — Invalid Email', color: 'var(--text-muted)' },
+        { key: 'skipped_exists', title: 'Skipped — User Already Complete', color: 'var(--text-muted)' }
     ];
 
     sections.forEach(s => {
@@ -2201,10 +2248,10 @@ function show_generate_users_summary(result) {
     });
 
     if ((result.errors || []).length > 0) {
-        html += `<details open style="margin-top:8px"><summary style="cursor:pointer;color:#dc3545"><b>❌ Errors (${result.errors.length})</b></summary>`;
+        html += `<details open style="margin-top:8px"><summary style="cursor:pointer;color:var(--red-500)"><b>Errors (${result.errors.length})</b></summary>`;
         html += `<div style="max-height:240px;overflow:auto;padding:6px;font-size:11px">`;
         html += result.errors.map(e =>
-            `<div style="margin-bottom:4px"><b>${frappe.utils.escape_html(e.employee)}</b>: <span style="color:#dc3545">${frappe.utils.escape_html(e.error)}</span></div>`
+            `<div style="margin-bottom:4px"><b>${frappe.utils.escape_html(e.employee)}</b>: <span style="color:var(--red-500)">${frappe.utils.escape_html(e.error)}</span></div>`
         ).join('');
         html += `</div></details>`;
     }

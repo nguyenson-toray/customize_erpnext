@@ -75,7 +75,7 @@ frappe.ui.form.on('Employee', {
 
         // Add custom button for fingerprint scanning if not new record
         if (!frm.is_new() && frm.doc.name) {
-            frm.add_custom_button(__('🖐️ Scan Fingerprints'), async function () {
+            frm.add_custom_button(__('Scan Fingerprints'), async function () {
                 // Show fingerprint scanner dialog with fixed employee
                 const moduleReady = await ensureFingerprintModule();
                 if (moduleReady) {
@@ -88,14 +88,15 @@ frappe.ui.form.on('Employee', {
                     });
                 }
             },);
-            frm.add_custom_button(__('⬆️ Sync Fingerprints To Machines'), async function () {
+            frm.add_custom_button(__('Sync Fingerprints To Machines'), async function () {
                 // Show fingerprint scanner dialog with fixed employee
                 // Handle sync fingerprint button click
                 if (!frm.is_new() && frm.doc.name) {
                     // Use shared sync dialog for single employee
                     const employee = {
                         employee_id: frm.doc.name,
-                        employee_name: frm.doc.employee_name
+                        employee_name: frm.doc.employee_name,
+                        custom_group: frm.doc.custom_group
                     };
                     window.showSharedSyncDialog([employee]);
                 } else {
@@ -108,7 +109,7 @@ frappe.ui.form.on('Employee', {
             },);
 
             // Photo management now lives entirely on /employee-photos
-            frm.add_custom_button(__('📷 Photo'), function () {
+            frm.add_custom_button(__('Photo'), function () {
                 window.open('/employee-photos?q=' + encodeURIComponent(frm.doc.name) + '&status=all&prefix=all', '_blank');
             },);
         }
