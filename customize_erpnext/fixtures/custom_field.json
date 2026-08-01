@@ -9156,7 +9156,7 @@
   "name": "Employee-custom_shirt_size",
   "no_copy": 0,
   "non_negative": 0,
-  "options": "\nS\nM\nL\nXL\nXXL",
+  "options": "\nS\nM\nL\nXL\n2XL\n3XL",
   "permlevel": 0,
   "placeholder": null,
   "precision": "",
