@@ -6,7 +6,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
   <title>Cập nhật thông tin nhân viên</title>
-  <link rel="stylesheet" href="/employee-self-update-info/style.css?v=16">
+  <link rel="stylesheet" href="/employee-self-update-info/style.css?v=17">
 </head>
 
 <body>
@@ -25,7 +25,7 @@
         <input type="text" id="emp_search" autocomplete="off" placeholder="Đang tải danh sách…" disabled
           oninput="onEmpSearch()" onfocus="onEmpSearch()" onkeydown="onEmpKey(event)">
         <div id="emp_results" class="combo-list hidden"></div>
-        <div class="hint">Gõ mã nhân viên (VD: TIQN-0148) hoặc tên để tìm nhanh.</div>
+        <div class="hint" id="emp_hint">Gõ mã nhân viên (VD: TIQN-0148) hoặc tên để tìm nhanh.</div>
       </div>
     </div>
 
@@ -392,6 +392,20 @@
       document.getElementById("lock_card").classList.add("hidden");
       document.getElementById("form_area").classList.add("hidden");
       document.getElementById("submitbar").classList.add("hidden");
+      lockEmpSearch(false);   // mở lại ô chọn NV khi bắt đầu lượt chọn mới
+    }
+
+    // Khóa/mở ô "Mã nhân viên hoặc Họ tên". Dùng disabled để chặn cả focus
+    // (tránh mở lại combo gợi ý sau khi đã xác thực).
+    function lockEmpSearch(locked) {
+      const inp = document.getElementById("emp_search");
+      if (!inp) return;
+      inp.disabled = locked;
+      inp.classList.toggle("locked", locked);
+      // Ẩn dòng hướng dẫn "Gõ mã nhân viên…" sau khi khóa (thừa).
+      const hint = document.getElementById("emp_hint");
+      if (hint) hint.classList.toggle("hidden", locked);
+      if (locked) hideEmpResults();
     }
 
     // Decide between lock gate, verification gate, or loading the form directly.
@@ -503,6 +517,8 @@
         document.getElementById("submitbar").classList.remove("hidden");
         document.getElementById("success_area").classList.add("hidden");
         document.getElementById("submit_btn").disabled = false;
+        // Khóa ô chọn NV sau khi xác thực/tải form thành công — không cho đổi NV.
+        lockEmpSearch(true);
         window.scrollTo({ top: 0, behavior: "smooth" });
       } catch (e) {
         toast(e.message);
@@ -649,8 +665,12 @@
           const opt = [...psel.options].find(o => o.getAttribute("data-name") === savedName);
           if (opt) psel.value = opt.value;
         } else {
-          const def = [...psel.options].find(o => o.getAttribute("data-name") === DEFAULT_PROVINCE);
-          if (def) psel.value = def.value;
+          // Chỉ set mặc định Quảng Ngãi khi field cho phép auto-fill; auto_fill=0 → để trống.
+          const fmeta = S.fieldByName[fname];
+          if (!fmeta || fmeta.auto_fill !== false) {
+            const def = [...psel.options].find(o => o.getAttribute("data-name") === DEFAULT_PROVINCE);
+            if (def) psel.value = def.value;
+          }
         }
         // Không markChanged lúc load (prefill) — chỉ tô khi NV đổi tỉnh.
         psel.addEventListener("change", () => onProvinceChange(psel));

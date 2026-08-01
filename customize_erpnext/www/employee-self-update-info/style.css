@@ -117,6 +117,12 @@ input:focus, select:focus, textarea:focus {
 }
 input::placeholder, textarea::placeholder { color:#A9B0B8; opacity:1; }
 
+/* Ô chọn NV bị khóa sau khi xác thực — vẫn đọc rõ, không cho sửa */
+#emp_search.locked {
+  background:#EEF1F5; color:#2A3D66; font-weight:600; cursor:not-allowed;
+  border-color:#D5DBE3; -webkit-text-fill-color:#2A3D66; opacity:1;
+}
+
 /* changed = a terracotta thread on the left strand (replaces flat yellow) */
 .field.changed input, .field.changed select, .field.changed textarea {
   border-color:var(--thread); background:var(--thread-tint);

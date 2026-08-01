@@ -227,7 +227,7 @@ Dùng DB `vn_address` (2 cấp sau sáp nhập 2025). Xem `api/vn_address/readme
 - Field có `widget = Address Province` → select tỉnh (`get_provinces`).
 - Field có `widget = Address Ward` → select phường/xã, **phụ thuộc tỉnh cùng section** (`get_wards(province_code)`).
 - **Lưu vào Employee field là TÊN đầy đủ** (`full_name`, vd "Phường Ba Đình"), dùng `code` chỉ để cascade nội bộ (option `value=code`, `data-name=full_name`). Tương thích dữ liệu cũ vốn lưu tên.
-- Pre-fill: match tên đã lưu với option theo `data-name`. Nếu tỉnh còn **trống** → tự điền mặc định **"Tỉnh Quảng Ngãi"** (`DEFAULT_PROVINCE`); không tô "đã đổi", nhưng sẽ được lưu khi submit.
+- Pre-fill: match tên đã lưu với option theo `data-name`. Nếu tỉnh còn **trống** → tự điền mặc định **"Tỉnh Quảng Ngãi"** (`DEFAULT_PROVINCE`); không tô "đã đổi", nhưng sẽ được lưu khi submit. **Ngoại lệ:** field tỉnh có `auto_fill_data = 0` → **KHÔNG** set mặc định, để trống cho NV tự chọn (kèm ward trống theo).
 
 ---
 
@@ -248,6 +248,7 @@ Dùng DB `vn_address` (2 cấp sau sáp nhập 2025). Xem `api/vn_address/readme
 - Màn hình success có nút **"📄 Tải PDF thông tin đã gửi"** → `downloadPdf()` mở URL **GET** `download_submission_pdf?employee_id=..&code=..` bằng thẻ `<a download>` (không dùng blob/fetch).
 - Server đặt `frappe.response["type"] = "binary"` → trả **attachment** (`application/octet-stream`), trình duyệt tải thẳng về thư mục Download. (Trước đây dùng `type="pdf"` mở inline — Zalo webview báo "downloading" nhưng không lưu file.)
 - PDF render server-side bằng `frappe.utils.pdf.get_pdf` (wkhtmltopdf) → tiếng Việt chuẩn, text chọn được. Gồm logo (base64) + tên công ty + mã/tên NV + thời điểm gửi + bảng (label tiếng Việt : giá trị đã gửi) + ghi chú.
+- **Tiêu đề nhóm (Section)** trong PDF/ảnh: `_strip_section_no()` bỏ tiền tố số thứ tự HR gõ trong `section_label` (`"1. Thông tin chung"`, `"2) Trình độ"`, `"3 - CCCD"` → tên thuần), regex `^\s*\d+\s*[.)\-–—]\s*`. Không đụng tên kiểu `"Thông tin 2 người"`.
 
 ### Chọn định dạng file: PDF hay PNG
 

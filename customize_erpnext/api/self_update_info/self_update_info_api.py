@@ -742,6 +742,18 @@ def _logo_data_uri():
 	return f"data:image/jpeg;base64,{b64}"
 
 
+def _strip_section_no(label):
+	"""Drop a leading ordinal prefix from a section name for the receipt.
+
+	e.g. "1. Thông tin chung" / "2) Trình độ" / "3 - CCCD" -> "Thông tin chung"…
+	so the PDF/PNG shows the plain Section name without the numbering HR typed.
+	"""
+	import re
+
+	cleaned = re.sub(r"^\s*\d+\s*[.)\-–—]\s*", "", label or "").strip()
+	return cleaned or (label or "")
+
+
 def _build_submission_html(doc, saved, config):
 	company = (
 		frappe.defaults.get_global_default("company")
@@ -771,7 +783,7 @@ def _build_submission_html(doc, saved, config):
 		if not sec_rows:
 			continue  # drop a section that became empty
 		rows.append(
-			f'<tr><td colspan="2" class="sec">{frappe.utils.escape_html(sec["label"])}</td></tr>'
+			f'<tr><td colspan="2" class="sec">{frappe.utils.escape_html(_strip_section_no(sec["label"]))}</td></tr>'
 		)
 		rows.extend(sec_rows)
 
