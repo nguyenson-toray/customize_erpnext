@@ -1,0 +1,240 @@
+{
+ "actions": [],
+ "allow_bulk_edit": 1,
+ "autoname": "format:LC-{employee}-{#####}",
+ "creation": "2026-08-03 16:41:00.507585",
+ "doctype": "DocType",
+ "document_type": "Setup",
+ "engine": "InnoDB",
+ "field_order": [
+  "employee",
+  "employee_name",
+  "column_break_emp",
+  "designation",
+  "department",
+  "column_break_pypx",
+  "custom_section",
+  "custom_group",
+  "section_break_contract",
+  "contract_type",
+  "start_date",
+  "end_date",
+  "column_break_status",
+  "status",
+  "next_contract_type",
+  "next_sign_date",
+  "section_break_extra",
+  "column_break_nnrp",
+  "column_break_hidden",
+  "next_stage_created",
+  "manager_email"
+ ],
+ "fields": [
+  {
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "in_global_search": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Employee",
+   "options": "Employee",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "employee.employee_name",
+   "fieldname": "employee_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Employee Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_emp",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "employee.designation",
+   "fieldname": "designation",
+   "fieldtype": "Link",
+   "label": "Designation",
+   "options": "Designation",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "employee.department",
+   "fieldname": "department",
+   "fieldtype": "Link",
+   "label": "Department",
+   "options": "Department",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_contract",
+   "fieldtype": "Section Break",
+   "label": "Contract"
+  },
+  {
+   "fieldname": "contract_type",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Contract Type",
+   "options": "Employment Type",
+   "reqd": 1
+  },
+  {
+   "fieldname": "start_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Start Date",
+   "reqd": 1
+  },
+  {
+   "description": "Auto-calculated from Contract Type's Period. Empty when Contract Type is Indefinite-term.",
+   "fieldname": "end_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "End Date",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_status",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Upcoming",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Upcoming\nSigned\nOverdue",
+   "reqd": 1
+  },
+  {
+   "description": "Auto-calculated next stage in the contract sequence. Empty when Contract Type is Indefinite-term.",
+   "fieldname": "next_contract_type",
+   "fieldtype": "Link",
+   "label": "Next Contract Type",
+   "options": "Employment Type",
+   "read_only": 1
+  },
+  {
+   "description": "= End Date + 1 day",
+   "fieldname": "next_sign_date",
+   "fieldtype": "Date",
+   "in_standard_filter": 1,
+   "label": "Next Sign Date",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_extra",
+   "fieldtype": "Section Break",
+   "label": "Additional Info"
+  },
+  {
+   "fetch_from": "employee.custom_section",
+   "fetch_if_empty": 1,
+   "fieldname": "custom_section",
+   "fieldtype": "Link",
+   "label": "Section",
+   "options": "Section"
+  },
+  {
+   "fetch_from": "employee.custom_group",
+   "fetch_if_empty": 1,
+   "fieldname": "custom_group",
+   "fieldtype": "Link",
+   "label": "Group",
+   "options": "Group"
+  },
+  {
+   "fieldname": "column_break_hidden",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "description": "Internal flag: prevents the daily scheduler from creating the next stage more than once for this record.",
+   "fieldname": "next_stage_created",
+   "fieldtype": "Check",
+   "hidden": 1,
+   "label": "Next Stage Created",
+   "no_copy": 1,
+   "print_hide": 1,
+   "report_hide": 1
+  },
+  {
+   "description": "Auto-computed from Employee > Reports To > User ID. Used as Notification recipient (Receiver By Document Field).",
+   "fieldname": "manager_email",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Manager Email",
+   "no_copy": 1,
+   "print_hide": 1,
+   "read_only": 1,
+   "report_hide": 1
+  },
+  {
+   "fieldname": "column_break_pypx",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_nnrp",
+   "fieldtype": "Column Break"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-08-04 09:40:47.771711",
+ "modified_by": "Administrator",
+ "module": "Customize Erpnext",
+ "name": "Labor Contract",
+ "naming_rule": "Expression (old style)",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "HR User",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "HR Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

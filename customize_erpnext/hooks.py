@@ -87,7 +87,8 @@ fixtures = [
                 "Job Applicant",
                 "Designation",
                 "Batch",
-                "Employee Maternity"
+                "Employee Maternity",
+                "Employment Type"
             ]],
             ["fieldname", "like", "custom%"]
         ]
@@ -259,6 +260,10 @@ scheduler_events = {
         "0 0 * * *": [
             "customize_erpnext.overrides.employee.employee.auto_mark_employees_as_left",
             "customize_erpnext.customize_erpnext.doctype.employee_maternity.employee_maternity.scheduled_calculate_all_maternity_statuses",
+            # Labor Contract - materialize next contract stage due soon + mark overdue Upcoming
+            # TẠM TẮT: chờ setup xong phần lương (Salary Structure + SSA) rồi mới bật lại.
+            # Xem doctype/labor_contract/README.md mục 10.
+            # "customize_erpnext.customize_erpnext.doctype.labor_contract.labor_contract.process_labor_contracts_daily",
         ],
         # Weekly attendance recalculation - polled hourly, gated by
         # Attendance Calculation Setting (enable + weekdays + run-time hour).
@@ -362,6 +367,10 @@ doc_events = {
             # "customize_erpnext.api.employee.erpnext_mongodb.sync_employee_to_mongodb",
             "customize_erpnext.api.employee.auto_assignment.set_default_holiday_list",
             # "customize_erpnext.uniform_control.api.onboarding.create_uniform_profile_on_employee_insert",
+            # Auto-create the first probationary Labor Contract (skipped during bulk import)
+            # TẠM TẮT: chờ setup xong phần lương (Salary Structure + SSA) rồi mới bật lại.
+            # Xem doctype/labor_contract/README.md mục 10.
+            # "customize_erpnext.customize_erpnext.doctype.labor_contract.labor_contract.create_initial_contract_on_employee_insert",
         ],
         "on_trash": [
             "customize_erpnext.api.employee.employee_validation.prevent_employee_deletion",
