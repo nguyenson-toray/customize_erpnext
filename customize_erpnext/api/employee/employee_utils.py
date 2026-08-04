@@ -73,22 +73,45 @@ def _evict_rembg_if_stale():
 
 _REMBG_LOCK_KEY = 'rembg_batch_lock'
 _REMBG_LOCK_TTL = 600  # 10 phút auto-expire phòng crash
+_REMBG_LOCK_MAX_CONCURRENT = 2  # tối đa 2 phiên batch chạy đồng thời (RAM guard 70% lo phần còn lại)
+
+
+def _read_rembg_holders(cache):
+    """Đọc + dọn holder hết hạn (crash / tab đóng không release). Trả về dict {session_id: {user, started_at, ts}}."""
+    existing = cache.get_value(_REMBG_LOCK_KEY)
+    try:
+        holders = json.loads(existing) if existing else {}
+        if not isinstance(holders, dict):
+            holders = {}
+    except Exception:
+        holders = {}
+    now = time.time()
+    return {
+        sid: h for sid, h in holders.items()
+        if isinstance(h, dict) and now - h.get('ts', 0) < _REMBG_LOCK_TTL
+    }
+
 
 @frappe.whitelist()
 def batch_rembg_acquire_lock(session_id):
-    """Thử chiếm lock xử lý rembg. Trả về {acquired, holder}."""
+    """Thử chiếm 1 trong tối đa _REMBG_LOCK_MAX_CONCURRENT slot xử lý rembg đồng thời.
+    Trả về {acquired, holder (nếu bị từ chối)}."""
     cache = frappe.cache()
-    existing = cache.get_value(_REMBG_LOCK_KEY)
-    if existing:
-        try:
-            data = json.loads(existing) if isinstance(existing, str) else existing
-        except Exception:
-            data = {}
-        if data.get('session_id') == session_id:
-            # Renew TTL cho cùng session
-            cache.set_value(_REMBG_LOCK_KEY, json.dumps(data), expires_in_sec=_REMBG_LOCK_TTL)
-            return {'acquired': True}
-        return {'acquired': False, 'holder': data}
+    holders = _read_rembg_holders(cache)
+
+    if session_id in holders:
+        # Renew cho cùng session
+        holders[session_id]['ts'] = time.time()
+        cache.set_value(_REMBG_LOCK_KEY, json.dumps(holders), expires_in_sec=_REMBG_LOCK_TTL)
+        return {'acquired': True}
+
+    if len(holders) >= _REMBG_LOCK_MAX_CONCURRENT:
+        first = next(iter(holders.values()))
+        return {'acquired': False, 'holder': {
+            'user': first.get('user'),
+            'started_at': first.get('started_at'),
+        }}
+
     # Kiểm tra có ai đang xóa nền đơn lẻ (photo editor thủ công) không.
     # Dùng _REMBG_SINGLE_KEY (chỉ set khi inference KHÔNG dưới batch lock) —
     # không dùng _REMBG_ACTIVE_KEY vì warm-up/batch của chính user cũng set key đó,
@@ -104,28 +127,28 @@ def batch_rembg_acquire_lock(session_id):
                 }}
         except Exception:
             pass
-    lock_data = {
+
+    holders[session_id] = {
         'user': frappe.session.user,
-        'session_id': session_id,
         'started_at': datetime.now().strftime('%H:%M:%S'),
+        'ts': time.time(),
     }
-    cache.set_value(_REMBG_LOCK_KEY, json.dumps(lock_data), expires_in_sec=_REMBG_LOCK_TTL)
+    cache.set_value(_REMBG_LOCK_KEY, json.dumps(holders), expires_in_sec=_REMBG_LOCK_TTL)
     return {'acquired': True}
 
 @frappe.whitelist()
 def batch_rembg_release_lock(session_id):
-    """Giải phóng lock sau batch. KHÔNG evict session ngay:
+    """Giải phóng 1 slot sau batch. KHÔNG evict session ngay:
     giữ model warm cho batch kế tiếp (tránh cold-start birefnet ~30-60s/worker).
     RAM guard 70% trong remove_bg_rembg + idle cleanup 30 phút lo việc dọn.
     """
     cache = frappe.cache()
-    existing = cache.get_value(_REMBG_LOCK_KEY)
-    if existing:
-        try:
-            data = json.loads(existing) if isinstance(existing, str) else existing
-        except Exception:
-            data = {}
-        if data.get('session_id') == session_id:
+    holders = _read_rembg_holders(cache)
+    if session_id in holders:
+        del holders[session_id]
+        if holders:
+            cache.set_value(_REMBG_LOCK_KEY, json.dumps(holders), expires_in_sec=_REMBG_LOCK_TTL)
+        else:
             cache.delete_value(_REMBG_LOCK_KEY)
     return {'ok': True}
 

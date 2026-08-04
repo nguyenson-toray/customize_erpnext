@@ -2301,8 +2301,7 @@
                     <div style="position: relative; flex: 0 1 320px; min-width: 200px;">
                         <span
                             style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); opacity: 0.5;">🔍</span>
-                        <input type="text" class="search-box" id="searchBox"
-                            placeholder="Tìm theo mã hoặc tên..."
+                        <input type="text" class="search-box" id="searchBox" placeholder="Tìm theo mã hoặc tên..."
                             style="width: 100%; margin: 0; padding-left: 36px;">
                     </div>
 
@@ -2402,7 +2401,7 @@
                                 <input type="checkbox" id="showExtraInfoCheckbox">
                                 <span class="slider"></span>
                             </label>
-                            <span class="ctrl-text"> Hiện SĐT/Địa chỉ</span>
+                            <span class="ctrl-text"> Hiện SĐT/ Địa chỉ hiện tại</span>
                         </label>
                     </div>
                 </div>
@@ -5507,12 +5506,14 @@
                 </div>
                 <div style="width:1px;height:20px;background:#323a48;flex-shrink:0;"></div>
                 <span style="color:#8a95b0;font-size:11px;white-space:nowrap;flex-shrink:0;">Xóa nền:</span>
-                <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:#c8ccd6;flex-shrink:0;cursor:pointer;"
+                <label
+                    style="display:flex;align-items:center;gap:4px;font-size:11px;color:#c8ccd6;flex-shrink:0;cursor:pointer;"
                     title="Tắt nếu ảnh đã có nền sạch, không cần xử lý AI">
                     <input type="checkbox" id="chkRemoveBg" checked onchange="setRemoveBgEnabled(this.checked)">
                 </label>
                 <button class="btn-bg-engine" id="bge_imgly" onclick="setBgEngine('imgly')"
-                    title="Xóa nền chạy ngay trên máy bạn (không tốn tài nguyên server).&#10;Chất lượng trung bình, tốc độ tùy máy — dùng khi server bận.">JS (@imgly)</button>
+                    title="Xóa nền chạy ngay trên máy bạn (không tốn tài nguyên server).&#10;Chất lượng trung bình, tốc độ tùy máy — dùng khi server bận.">JS
+                    (@imgly)</button>
                 <button class="btn-bg-engine active" id="bge_rembg" onclick="setBgEngine('rembg')"
                     title="Xóa nền AI chạy trên server — chất lượng theo model chọn bên cạnh.">🖥 rembg</button>
                 <div id="bgeModelRow" style="display:flex;align-items:center;gap:4px;flex-shrink:0;">
