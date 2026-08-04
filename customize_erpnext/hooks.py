@@ -448,5 +448,10 @@ web_include_js = [
 jinja = {
     "methods": [
         "customize_erpnext.api.qr_label_print.generate_qr_code_base64",
+        # Số tiền bằng chữ / định dạng VND cho print format.
+        # money_in_words_vi và so_tien_bang_chu là cùng một hàm (alias).
+        "customize_erpnext.api.vn_number_words.money_in_words_vi",
+        "customize_erpnext.api.vn_number_words.so_tien_bang_chu",
+        "customize_erpnext.api.vn_number_words.format_vnd",
     ],
 }
