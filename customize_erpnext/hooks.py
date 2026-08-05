@@ -296,7 +296,12 @@ scheduler_events = {
 override_doctype_class = {
     # Fix timeout khi cancel maternity leave (~6 tháng / ~180 ngày)
     # Skip HRMS cancel_attendance() loop đồng bộ, dùng background job thay thế
-    "Leave Application": "customize_erpnext.overrides.leave_application.leave_application.CustomLeaveApplication"
+    "Leave Application": "customize_erpnext.overrides.leave_application.leave_application.CustomLeaveApplication",
+
+    # Ngày công chuẩn = ngày trong kỳ - Chủ Nhật. Ngày lễ nhà nước VẪN tính công
+    # (nghỉ có lương) nên không trừ. HRMS gốc trừ cả hai -> kỳ Tết ra 18 ngày
+    # thay vì 27, sai đơn giá ngày. Xem PAYROLL_SETUP.md mục 2.2.
+    "Salary Slip": "customize_erpnext.overrides.salary_slip.salary_slip.CustomSalarySlip",
 }
 # Document Events
 doc_events = {
@@ -365,7 +370,9 @@ doc_events = {
         ],
         "after_insert": [
             # "customize_erpnext.api.employee.erpnext_mongodb.sync_employee_to_mongodb",
-            "customize_erpnext.api.employee.auto_assignment.set_default_holiday_list",
+            # ĐÃ BỎ set_default_holiday_list: nó ghi vào field cũ Employee.holiday_list
+            # mà HRMS v16.15+ không còn dùng (đã chuyển sang doctype Holiday List
+            # Assignment gán ở cấp Company). Module chấm công cũng đã đọc theo Company.
             # "customize_erpnext.uniform_control.api.onboarding.create_uniform_profile_on_employee_insert",
             # Auto-create the first probationary Labor Contract (skipped during bulk import)
             # TẠM TẮT: chờ setup xong phần lương (Salary Structure + SSA) rồi mới bật lại.

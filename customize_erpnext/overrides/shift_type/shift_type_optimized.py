@@ -23,6 +23,10 @@ from collections import defaultdict
 from typing import Dict, List, Set, Optional, Tuple
 import time
 
+# Holiday List gán ở cấp Company qua doctype Holiday List Assignment (HRMS v16.15+),
+# KHÔNG dùng field cũ Employee.holiday_list nữa — xem chú thích ở phần nạp holiday.
+from hrms.utils.holiday_list import get_assigned_holiday_list
+
 from customize_erpnext.customize_erpnext.doctype.attendance_calculation_setting.attendance_calculation_setting import (
 	get_attendance_settings,
 	get_force_update_hours,
@@ -169,6 +173,7 @@ def preload_reference_data(employee_list: List[str], from_date: str, to_date: st
 			'shifts': {shift_name: {...details}},
 			'shift_assignments': {emp_id: [{...assignments}]},
 			'holidays': {holiday_list: set(dates)},
+			'company_holiday_list': {company: holiday_list},
 			'existing_attendance': {(emp, date): attendance_name}
 		}
 	"""
@@ -187,7 +192,8 @@ def preload_reference_data(employee_list: List[str], from_date: str, to_date: st
 		filters={"name": ["in", employee_list]} if employee_list else {},
 		fields=[
 			"name", "employee_name", "status", "date_of_joining",
-			"relieving_date", "default_shift", "holiday_list",
+			# Bỏ "holiday_list": Holiday List nay lấy ở cấp Company (mục 4 bên dưới)
+			"relieving_date", "default_shift",
 			"department", "company", "gender",
 			# Carried into the bulk INSERT below: that INSERT bypasses the ORM, so
 			# fetch_from on Attendance.custom_section/custom_group never fires.
@@ -261,11 +267,23 @@ def preload_reference_data(employee_list: List[str], from_date: str, to_date: st
 		)
 	print(f"   ✓ Loaded {len(assignments)} shift assignments for {len(data['shift_assignments'])} employees")
 
-	# 4. Load holidays (unique holiday lists only)
-	print(f"   Loading holiday lists...")
+	# 4. Load holidays — theo Holiday List CẤP COMPANY
+	#
+	# KHÔNG dùng field cũ Employee.holiday_list: chỉ 377/1036 NV có set, nên với
+	# 659 NV còn lại is_holiday_cached() luôn trả False -> ngày lễ bị chấm Absent
+	# (thực tế 30/04, 01/05, 02/05/2026 đã bị Absent cho 700 người).
+	# HRMS v16.15+ cũng đã bỏ field đó, chuyển sang doctype Holiday List Assignment
+	# gán ở cấp Company -> dùng đúng API get_assigned_holiday_list().
+	print(f"   Loading holiday lists (company-level)...")
 	data['holidays'] = {}
-	unique_holiday_lists = set(emp.holiday_list for emp in emp_data if emp.holiday_list)
+	data['company_holiday_list'] = {}
 
+	for company in {emp.company for emp in emp_data if emp.company}:
+		holiday_list = get_assigned_holiday_list(company, as_on=from_date)
+		if holiday_list:
+			data['company_holiday_list'][company] = holiday_list
+
+	unique_holiday_lists = set(data['company_holiday_list'].values())
 	if unique_holiday_lists:
 		holidays = frappe.get_all(
 			"Holiday",
@@ -276,10 +294,9 @@ def preload_reference_data(employee_list: List[str], from_date: str, to_date: st
 			fields=["parent", "holiday_date"]
 		)
 		for holiday in holidays:
-			if holiday.parent not in data['holidays']:
-				data['holidays'][holiday.parent] = set()
-			data['holidays'][holiday.parent].add(holiday.holiday_date)
-	print(f"   ✓ Loaded {len(unique_holiday_lists)} holiday lists")
+			data['holidays'].setdefault(holiday.parent, set()).add(holiday.holiday_date)
+	print(f"   ✓ Loaded {len(unique_holiday_lists)} holiday list(s) "
+	      f"for {len(data['company_holiday_list'])} company(ies)")
 
 	# 5. Load existing attendance (to avoid duplicates)
 	print(f"   Loading existing attendance...")
@@ -696,11 +713,15 @@ def is_holiday_cached(
 		bool: True if holiday, False otherwise
 	"""
 	emp_data = ref_data['employees'].get(employee)
-	if not emp_data or not emp_data.holiday_list:
+	if not emp_data or not emp_data.company:
 		return False
 
-	holiday_dates = ref_data['holidays'].get(emp_data.holiday_list, set())
-	return attendance_date in holiday_dates
+	# Holiday List lấy theo COMPANY của nhân viên (không theo field cũ trên Employee)
+	holiday_list = ref_data.get('company_holiday_list', {}).get(emp_data.company)
+	if not holiday_list:
+		return False
+
+	return attendance_date in ref_data['holidays'].get(holiday_list, set())
 
 
 def should_mark_attendance_cached(
