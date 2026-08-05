@@ -39,6 +39,7 @@ doctype_js = {
     "Shift Type": "public/js/custom_scripts/shift_type.js",
     "Batch": "public/js/custom_scripts/batch.js",
     "Packing List": "public/js/packing_list_scale.js",
+    "Salary Structure Assignment": "public/js/custom_scripts/salary_structure_assignment.js",
 }
 
 # List view customizations
@@ -88,7 +89,9 @@ fixtures = [
                 "Designation",
                 "Batch",
                 "Employee Maternity",
-                "Employment Type"
+                "Employment Type",
+                "Salary Structure Assignment",
+                "Salary Slip"
             ]],
             ["fieldname", "like", "custom%"]
         ]
@@ -300,7 +303,7 @@ override_doctype_class = {
 
     # Ngày công chuẩn = ngày trong kỳ - Chủ Nhật. Ngày lễ nhà nước VẪN tính công
     # (nghỉ có lương) nên không trừ. HRMS gốc trừ cả hai -> kỳ Tết ra 18 ngày
-    # thay vì 27, sai đơn giá ngày. Xem PAYROLL_SETUP.md mục 2.2.
+    # thay vì 27, sai đơn giá ngày. Xem overrides/payroll_docs/PAYROLL_SETUP.md mục 2.2.
     "Salary Slip": "customize_erpnext.overrides.salary_slip.salary_slip.CustomSalarySlip",
 }
 # Document Events
@@ -429,6 +432,13 @@ doc_events = {
     # CRITICAL: must run BEFORE cancel — HRMS on_cancel calls cancel_attendance()
     # (controller method chạy trước doc_events hook), nếu để on_cancel thì swap
     # LA2→LA1 không bao giờ chạy vì attendance đã bị cancel (docstatus=2)
+    # Salary Structure Assignment Events
+    # - custom_si_base tự tính = lương HĐLĐ + phụ cấp thuộc diện đóng BH
+    #   (cho phép tick custom_si_base_override để nhập tay theo mức đã đăng ký BHXH)
+    "Salary Structure Assignment": {
+        "validate": "customize_erpnext.overrides.salary_structure_assignment.salary_structure_assignment.set_si_base"
+    },
+
     "Leave Application": {
         "before_cancel": [
             "customize_erpnext.overrides.leave_application.leave_application.on_leave_application_cancel",
