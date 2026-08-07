@@ -174,8 +174,8 @@ function show_bulk_update_attendance(list_view, me) {
 			}
 
 			let days_diff = frappe.datetime.get_diff(values.to_date, values.from_date);
-			if (days_diff > 92) { // ~3 months max for performance reasons
-				frappe.msgprint(__('Date range too large. Maximum 92 days recommended for optimal performance.'));
+			if (days_diff > 123) { // ~4 months max for performance reasons
+				frappe.msgprint(__('Date range too large. Maximum 123 days recommended for optimal performance.'));
 				return;
 			}
 
@@ -331,7 +331,7 @@ function execute_bulk_update_attendance_v2(values, employee_list, dialog, list_v
 			force_sync: values.force_sync || 0
 		},
 		freeze: true,
-		freeze_message: __('Processing attendance update...'),
+		freeze_message: __('Processing attendance update...⏳'),
 		callback: function (r) {
 			console.log("📡 Bulk Update Response:", r);
 
@@ -342,11 +342,23 @@ function execute_bulk_update_attendance_v2(values, employee_list, dialog, list_v
 				if (result.background_job) {
 					// Large dataset - Show background job info
 					console.log("🚀 Background job mode");
+					// Estimate comes from the server, derived from what recent runs
+					// actually achieved — a hardcoded divisor here went stale the
+					// moment the backend got faster.
+					const est_min = result.estimated_seconds_min;
+					const est_max = result.estimated_seconds_max;
 					show_background_job_dialog_v2({
 						title: __('Background Processing Started'),
 						message: result.message,
 						job_id: result.job_id,
-						estimated_records: result.estimated_records
+						estimated_records: result.estimated_records,
+						// No server estimate (older backend, or no measured run yet):
+						// say so plainly rather than implying something is in progress.
+						estimated_time: est_min
+							? (est_min === est_max
+								? `~${fmt_duration(est_min)}`
+								: `${fmt_duration(est_min)} - ${fmt_duration(est_max)}`)
+							: __('unknown')
 					});
 				} else {
 					// Small dataset - Show results immediately
@@ -393,6 +405,14 @@ function execute_bulk_update_attendance_v2(values, employee_list, dialog, list_v
 			});
 		}
 	});
+}
+
+// Human-readable duration: "45s", "2m 07s", "1h 03m"
+function fmt_duration(secs) {
+	const s = Math.round(secs || 0);
+	if (s < 60) return `${s}s`;
+	if (s < 3600) return `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, '0')}s`;
+	return `${Math.floor(s / 3600)}h ${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}m`;
 }
 
 // Results Dialog - Clean & Informative
@@ -470,6 +490,20 @@ function show_attendance_results_dialog_v2(options) {
 		console.log("📊 No shift details available");
 	}
 
+	// Runtime line: how long it actually took. For a background job the queue
+	// wait is shown separately — with a single long worker it can dominate, and
+	// without it "why did that take 12 minutes?" is unanswerable from here.
+	let runtime_html = '';
+	if (result.total_elapsed || result.run_time) {
+		const run_time = result.run_time || result.processing_time || 0;
+		const queue_wait = result.queue_wait || 0;
+		runtime_html = `
+			&nbsp;&nbsp;|&nbsp;&nbsp;<i class="fa fa-clock-o"></i>
+			${__('Total time')}: <strong>${fmt_duration(result.total_elapsed || run_time)}</strong>
+			${queue_wait ? ` (${__('queued')} ${fmt_duration(queue_wait)} + ${__('ran')} ${fmt_duration(run_time)})` : ''}
+		`;
+	}
+
 	// Build employee stats message
 	let employee_stats_html = '';
 	if (result.employees_skipped && result.employees_skipped > 0) {
@@ -495,6 +529,7 @@ function show_attendance_results_dialog_v2(options) {
 				<small class="text-muted">
 					${from_date && to_date ? `<i class="fa fa-calendar"></i> ${frappe.datetime.str_to_user(from_date)} ${__('to')} ${frappe.datetime.str_to_user(to_date)}` : ''}
 					${result.total_employees ? `&nbsp;&nbsp;|&nbsp;&nbsp;<i class="fa fa-users"></i> ${__("{0} employees processed", [result.total_employees])}` : ''}
+					${runtime_html}
 				</small>
 			</div>
 
@@ -521,7 +556,7 @@ function show_background_job_dialog_v2(options) {
 				<p class="mb-3">${options.message}</p>
 				<div>
 					<strong><i class="fa fa-list"></i> ${__('Records')}:</strong> ~${options.estimated_records}<br>
-					<strong><i class="fa fa-clock-o"></i> ${__('Estimated time')}:</strong> ${Math.ceil(options.estimated_records / 50)} - ${Math.ceil(options.estimated_records / 30)} ${__('seconds')}<br>
+					<strong><i class="fa fa-clock-o"></i> ${__('Estimated time')}:</strong> ${options.estimated_time}<br>
 					<strong><i class="fa fa-bell"></i> ${__('Notification')}:</strong> ${__("You'll be notified when complete")}
 				</div>
 			</div>

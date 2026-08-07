@@ -43,15 +43,12 @@ def get_attendance_custom_additional_info(employee, attendance_date):
 	"""
 	details = []
 
-	# Check if employee has left before this attendance date
-	emp_data = frappe.db.get_value("Employee", employee,
-		["status", "relieving_date"], as_dict=True)
-	if emp_data and emp_data.status == "Left" and emp_data.relieving_date:
-		if frappe.utils.getdate(attendance_date) > emp_data.relieving_date:
-			relieving_str = frappe.utils.formatdate(emp_data.relieving_date, "dd/mm/yyyy")
-			details.append(
-				f"⚠️ Employee has left on {relieving_str} - attendance after relieving date"
-			)
+	# NOTE: the "employee has left but still has check-ins" warning deliberately
+	# does NOT live here — it is written into custom_note by the attendance engine
+	# (build_attendance_note / _left_employee_note in shift_type_optimized.py), which
+	# is the persisted channel HR reads in reports and exports. Emitting it here too
+	# only duplicated the same sentence on the form, and with a weaker condition
+	# (strictly after the relieving date, so the relieving day itself was missed).
 
 	# Get maternity record (cấu trúc mới: 1 record/employee, 3 cặp ngày riêng)
 	em = frappe.db.sql("""

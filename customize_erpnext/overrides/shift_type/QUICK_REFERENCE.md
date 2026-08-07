@@ -1,6 +1,6 @@
 # Bulk Attendance — Quick Reference
 
-**Updated:** 2026-07-05
+**Updated:** 2026-08-06
 
 ## Settings (change here, not in code)
 
@@ -51,13 +51,36 @@ get_attendance_settings()
 
 - **OT Final = Σ min(actual, approved) PER SEGMENT** (pre / lunch / post) — never `min(total, total)`.
 - **Sunday**: worked hours go to OT fields; `working_hours` = 0. Payroll must read OT columns for Sundays.
-- **custom_note** (Attendance) is auto-written every run — do NOT let HR edit it by hand.
+- **custom_note** (Attendance) is auto-written every run — do NOT let HR edit it by hand. It is the
+  persisted anomaly channel (reports/exports read it); the Attendance form's "Additional
+  Information" panel is computed live and must not repeat what custom_note already says.
 - Attendance for Maternity-Leave-phase employees is deleted (Employee Maternity = source of truth).
-- No attendance on holidays/Sundays without checkins.
+- **No attendance on holidays/Sundays without checkins — ever.** `mark_auto_attendance_on_holidays`
+  does NOT change this: its description is *"marked on holidays if Employee Checkins exist"*, and
+  HRMS only consults it on the checkin path. Wiring it into the no-checkin path on 2026-08-06
+  produced 28,798 bogus Sunday `Absent` records (all 5 shifts have it ticked) — do not retry.
+- Ngày nghỉ/lễ lấy từ **Holiday List Assignment → Applicable For: Company** qua API gốc HRMS
+  `get_assigned_holiday_lists_to_employee_and_company()` (payroll dùng chung API này). Không dùng
+  `get_assigned_holiday_list(as_on=from_date)` — kỳ vắt qua năm sẽ lấy nhầm list năm cũ.
+- **A day with checkins is always counted, even after the relieving date** — the relieving date
+  may be wrong. custom_note flags it for HR. Only post-relieving days *without* checkins are
+  deleted.
 
 ## Gotchas
 
-- Code changes need `bench restart` (workers cache monkey patches).
+- Code changes need `bench restart` (workers cache monkey patches). Restart only when the `long`
+  queue is idle — a restart SIGKILLs a running Bulk Update mid-write.
+- **Never add a single-column index with a bare `CREATE INDEX`.** The field's `search_index = 0`
+  makes frappe's schema sync drop it on the next `bench migrate`. Set `search_index = 1` via
+  Property Setter as well — see `patches/index_checkin_attendance_field.py`. Losing the index on
+  `Employee Checkin.attendance` alone turns Bulk Update into a timeout (1949 ms → 0.29 ms per
+  unlink query).
+- A Bulk Update above 1000 estimated records runs as a background job; results arrive over
+  realtime, and there is only **one** long worker, so a second run queues behind the first.
+- A killed job used to leave Shift Type pinned to temporary `process_attendance_after` /
+  `last_sync_of_checkin` values (the `finally` never ran) — starving the incremental hourly job.
+  Those temp writes are gone; if you still see an old `last_sync_of_checkin`, it self-heals after
+  the shift ends that day.
 - Attendance names are random hashes (bulk INSERT bypasses naming series) — by design.
 - Historical ranges only match the legacy app after: OT Registrations entered in ERP + a full Bulk Update rerun.
 - Shift Assignment edits don't auto-recalc attendance — run Bulk Update or wait for the 8h/23h run.

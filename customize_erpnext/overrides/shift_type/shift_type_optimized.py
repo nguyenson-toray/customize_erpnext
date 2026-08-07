@@ -25,7 +25,7 @@ import time
 
 # Holiday List gán ở cấp Company qua doctype Holiday List Assignment (HRMS v16.15+),
 # KHÔNG dùng field cũ Employee.holiday_list nữa — xem chú thích ở phần nạp holiday.
-from hrms.utils.holiday_list import get_assigned_holiday_list
+from hrms.utils.holiday_list import get_assigned_holiday_lists_to_employee_and_company
 
 from customize_erpnext.customize_erpnext.doctype.attendance_calculation_setting.attendance_calculation_setting import (
 	get_attendance_settings,
@@ -33,6 +33,9 @@ from customize_erpnext.customize_erpnext.doctype.attendance_calculation_setting.
 	get_excluded_employee_ids,
 	is_peak_time,
 )
+
+# Single source of truth for the async hand-off size, shared with attendance_list.js
+from customize_erpnext.overrides.shift_type.attendance_config import BULK_ATTENDANCE_ASYNC_THRESHOLD
 
 # ============================================================================
 # CONFIGURATION
@@ -47,6 +50,18 @@ from customize_erpnext.customize_erpnext.doctype.attendance_calculation_setting.
 EMPLOYEE_CHUNK_SIZE_OPTIMIZED = 100
 BULK_INSERT_BATCH_SIZE = 500  # For bulk_insert operations
 CHECKIN_UPDATE_BATCH_SIZE = 1000  # For checkin updates (increased for faster processing)
+
+# Ceiling for a backgrounded bulk update. A full-company month is minutes of
+# work; this only exists so a wedged job cannot occupy a worker indefinitely.
+BULK_ATTENDANCE_JOB_TIMEOUT = 7200  # seconds
+
+# The "how long will this take" estimate is derived from what recent runs actually
+# achieved, not a hardcoded divisor — a fixed constant goes stale the moment the
+# code gets faster (it once advertised "620-1033 seconds" for a 36 second job).
+# Unit: estimated_records (employees × days) processed per second.
+BULK_ATTENDANCE_THROUGHPUT_KEY = "bulk_attendance_throughput_history"
+BULK_ATTENDANCE_THROUGHPUT_SAMPLES = 5
+BULK_ATTENDANCE_DEFAULT_THROUGHPUT = 700.0  # only until the first run is measured
 
 
 # ============================================================================
@@ -173,7 +188,8 @@ def preload_reference_data(employee_list: List[str], from_date: str, to_date: st
 			'shifts': {shift_name: {...details}},
 			'shift_assignments': {emp_id: [{...assignments}]},
 			'holidays': {holiday_list: set(dates)},
-			'company_holiday_list': {company: holiday_list},
+			'company_holidays': {company: set(dates)},      # nguồn tra ngày nghỉ
+			'company_holiday_list': {company: [list names]},  # chỉ để chẩn đoán
 			'existing_attendance': {(emp, date): attendance_name}
 		}
 	"""
@@ -267,36 +283,56 @@ def preload_reference_data(employee_list: List[str], from_date: str, to_date: st
 		)
 	print(f"   ✓ Loaded {len(assignments)} shift assignments for {len(data['shift_assignments'])} employees")
 
-	# 4. Load holidays — theo Holiday List CẤP COMPANY
+	# 4. Load holidays — Holiday List Assignment "Applicable For: Company"
 	#
 	# KHÔNG dùng field cũ Employee.holiday_list: chỉ 377/1036 NV có set, nên với
 	# 659 NV còn lại is_holiday_cached() luôn trả False -> ngày lễ bị chấm Absent
 	# (thực tế 30/04, 01/05, 02/05/2026 đã bị Absent cho 700 người).
 	# HRMS v16.15+ cũng đã bỏ field đó, chuyển sang doctype Holiday List Assignment
-	# gán ở cấp Company -> dùng đúng API get_assigned_holiday_list().
+	# gán ở cấp Company.
+	#
+	# Dùng get_assigned_holiday_lists_to_employee_and_company() (API gốc của HRMS,
+	# cũng chính là API payroll dùng) thay vì get_assigned_holiday_list(as_on=from_date):
+	# cái sau chỉ trả MỘT list theo ngày đầu kỳ, nên kỳ vắt qua năm dùng nhầm list của
+	# năm cũ — kỳ 26/12/2025-25/01/2026 lấy list "2025", không thấy 01/01/2026 trong
+	# list "2026" => 848 NV bị chấm Absent đúng ngày Tết Dương lịch.
+	# Hàm này trả về từng khoảng hiệu lực đã clip theo kỳ, nên mỗi ngày tra đúng list
+	# của nó. Kết quả gộp thành MỘT set ngày nghỉ cho mỗi company.
 	print(f"   Loading holiday lists (company-level)...")
-	data['holidays'] = {}
-	data['company_holiday_list'] = {}
+	data['holidays'] = {}            # {holiday_list: set(dates)} — giữ cho tương thích
+	data['company_holiday_list'] = {}  # {company: [list names]} — chỉ để log/chẩn đoán
+	data['company_holidays'] = {}      # {company: set(dates)} — nguồn tra cứu chính
 
-	for company in {emp.company for emp in emp_data if emp.company}:
-		holiday_list = get_assigned_holiday_list(company, as_on=from_date)
-		if holiday_list:
-			data['company_holiday_list'][company] = holiday_list
-
-	unique_holiday_lists = set(data['company_holiday_list'].values())
-	if unique_holiday_lists:
-		holidays = frappe.get_all(
-			"Holiday",
-			filters={
-				"parent": ["in", list(unique_holiday_lists)],
-				"holiday_date": ["between", [from_date, to_date]]
-			},
-			fields=["parent", "holiday_date"]
+	companies = {emp.company for emp in emp_data if emp.company}
+	if companies:
+		hl_ranges = get_assigned_holiday_lists_to_employee_and_company(
+			list(companies), from_date, to_date
 		)
-		for holiday in holidays:
-			data['holidays'].setdefault(holiday.parent, set()).add(holiday.holiday_date)
-	print(f"   ✓ Loaded {len(unique_holiday_lists)} holiday list(s) "
-	      f"for {len(data['company_holiday_list'])} company(ies)")
+		for company in companies:
+			holiday_dates = set()
+			for rng in hl_ranges.get(company, []):
+				rows = frappe.get_all(
+					"Holiday",
+					filters={
+						"parent": rng["holiday_list"],
+						# clip theo đúng khoảng hiệu lực của assignment, không lấy cả list
+						"holiday_date": ["between", [rng["from_date"], rng["to_date"]]]
+					},
+					fields=["parent", "holiday_date"]
+				)
+				for holiday in rows:
+					holiday_dates.add(holiday.holiday_date)
+					data['holidays'].setdefault(holiday.parent, set()).add(holiday.holiday_date)
+
+			data['company_holidays'][company] = holiday_dates
+			data['company_holiday_list'][company] = [r["holiday_list"] for r in hl_ranges.get(company, [])]
+
+	print(f"   ✓ Loaded holidays for {len(data['company_holidays'])} company(ies): "
+	      + ", ".join(
+			f"{c} -> {'+'.join(data['company_holiday_list'][c]) or 'none'} "
+			f"({len(data['company_holidays'][c])} days)"
+			for c in sorted(data['company_holidays'])
+		))
 
 	# 5. Load existing attendance (to avoid duplicates)
 	print(f"   Loading existing attendance...")
@@ -716,12 +752,10 @@ def is_holiday_cached(
 	if not emp_data or not emp_data.company:
 		return False
 
-	# Holiday List lấy theo COMPANY của nhân viên (không theo field cũ trên Employee)
-	holiday_list = ref_data.get('company_holiday_list', {}).get(emp_data.company)
-	if not holiday_list:
-		return False
-
-	return attendance_date in ref_data['holidays'].get(holiday_list, set())
+	# Ngày nghỉ tra theo COMPANY (Holiday List Assignment "Applicable For: Company"),
+	# không theo field cũ trên Employee. Set này đã gộp mọi Holiday List có hiệu lực
+	# trong kỳ, mỗi list clip đúng khoảng của nó — nên kỳ vắt qua năm vẫn đúng.
+	return attendance_date in ref_data.get('company_holidays', {}).get(emp_data.company, set())
 
 
 def should_mark_attendance_cached(
@@ -738,7 +772,8 @@ def should_mark_attendance_cached(
 	— that logic is handled separately in STEP 3 checkin processing.
 
 	Default behavior: Do NOT create attendance on Holiday & Sunday
-	unless employee has check-ins.
+	unless employee has check-ins, or the shift has "Mark Auto Attendance on
+	Holidays" enabled (see below).
 
 	Args:
 		employee: Employee ID
@@ -762,6 +797,17 @@ def should_mark_attendance_cached(
 	if emp_data.status == "Left" and emp_data.relieving_date:
 		if emp_data.relieving_date <= attendance_date:
 			return False
+
+	# NOTE: Shift Type."Mark Auto Attendance on Holidays" is deliberately NOT
+	# consulted here. Its field description is "auto attendance will be marked on
+	# holidays IF EMPLOYEE CHECKINS EXIST", and upstream HRMS calls
+	# should_mark_attendance() from inside the checkin groupby loop only
+	# (hrms shift_type.py:145) — the no-checkin path
+	# (mark_absent_for_dates_with_no_attendance → get_dates_for_attendance)
+	# skips holidays unconditionally, flag or not.
+	# Honouring the flag on THIS path (2026-08-06) created 28,798 bogus Sunday
+	# Absent records in one afternoon, because all 5 shifts have it ticked.
+	# Days WITH checkins are already always counted — see STEP 3.
 
 	# Check holiday (from Holiday List) — no check-in means no attendance on holidays
 	if is_holiday_cached(employee, attendance_date, ref_data):
@@ -845,6 +891,20 @@ def resolve_no_checkin_attendance(employee: str, att_date: date, ref_data: Dict)
 	}
 
 
+def _left_employee_note(relieving_date) -> str:
+	"""
+	custom_note sentence for a punch recorded on/after the relieving date.
+
+	Defined once and shared by build_attendance_note() (STEP 3) and the left-employee
+	cleanup (STEP 4b) so the two can never drift apart — STEP 4b matches on this
+	text to decide whether the note is already there.
+	"""
+	return (
+		f"Left employee (relieving {relieving_date}) but has check-ins"
+		f" - attendance still counted, verify relieving date (HR to verify)"
+	)
+
+
 def build_attendance_note(
 	employee: str,
 	attendance_date: date,
@@ -882,7 +942,7 @@ def build_attendance_note(
 	# 1. Left employee still checking in
 	if emp_data.get('status') == 'Left' and emp_data.get('relieving_date') \
 			and attendance_date >= emp_data.get('relieving_date'):
-		notes.append(f"Left employee (relieving {emp_data.get('relieving_date')}) but has check-ins")
+		notes.append(_left_employee_note(emp_data.get('relieving_date')))
 
 	# Raw shift boundaries from config — do NOT use the maternity-reduced end_time
 	# (leaving 1h early with maternity benefit is expected, not an anomaly)
@@ -965,11 +1025,161 @@ def build_attendance_note(
 	return "; ".join(notes) if notes else None
 
 
+# Attendance columns written back by _apply_attendance_updates, as
+# (column, key in att_data, value used when the key is missing or None).
+# The NOT NULL columns (working_hours, the flags, the OT durations) are why a
+# None falls back to the default instead of being written through.
+_ATTENDANCE_UPDATE_FIELDS = (
+	("shift", "shift", None),
+	("status", "status", "Present"),
+	("leave_type", "leave_type", None),
+	("leave_application", "leave_application", None),
+	("custom_leave_application_abbreviation", "custom_leave_application_abbreviation", None),
+	("custom_leave_type_2", "custom_leave_type_2", None),
+	("custom_leave_application_2", "custom_leave_application_2", None),
+	("half_day_status", "half_day_status", None),
+	("modify_half_day_status", "modify_half_day_status", 0),
+	("in_time", "in_time", None),
+	("out_time", "out_time", None),
+	("working_hours", "working_hours", 0),
+	("late_entry", "late_entry", 0),
+	("early_exit", "early_exit", 0),
+	("custom_maternity_benefit", "custom_maternity_benefit", 0),
+	("actual_overtime_duration", "actual_overtime_duration", 0),
+	("custom_approved_overtime_duration", "custom_approved_overtime_duration", 0),
+	("custom_final_overtime_duration", "custom_final_overtime_duration", 0),
+	("overtime_type", "overtime_type", None),
+	("standard_working_hours", "standard_working_hours", 0),
+	("custom_note", "custom_note", None),
+)
+
+
+def _run_temp_table_ddl(query: str) -> None:
+	"""
+	Run TEMPORARY table DDL straight on the cursor.
+
+	frappe.db.sql() refuses CREATE/DROP once the transaction has pending writes
+	("This statement can cause implicit commit"), but MariaDB exempts TEMPORARY
+	tables from implicit commits, so that guard is a false positive here. The
+	bulk INSERTs already go through frappe.db._cursor for the same reason.
+	"""
+	frappe.db._cursor.execute(query)
+
+
+def _update_attendance_rows(rows: List[Dict]) -> None:
+	"""
+	Apply one batch of attendance updates with a single JOIN UPDATE.
+
+	Rows are staged in a TEMPORARY table created with LIKE `tabAttendance`, which
+	keeps the staging column types in sync with the real table for free (empty
+	copy, so it is cheap). `tabAttendance` has no unique key beyond the primary
+	key on `name`, so staging a subset of columns cannot collide.
+	"""
+	values = []
+	for row in rows:
+		record = [row['attendance_name']]
+		for _column, key, default in _ATTENDANCE_UPDATE_FIELDS:
+			value = row.get(key, default)
+			record.append(default if value is None else value)
+		values.append(tuple(record))
+
+	columns = ", ".join(f"`{column}`" for column, _key, _default in _ATTENDANCE_UPDATE_FIELDS)
+	placeholders = ", ".join(["%s"] * (len(_ATTENDANCE_UPDATE_FIELDS) + 1))
+	assignments = ",\n\t\t\t\t".join(
+		f"a.`{column}` = t.`{column}`" for column, _key, _default in _ATTENDANCE_UPDATE_FIELDS
+	)
+
+	_run_temp_table_ddl("DROP TEMPORARY TABLE IF EXISTS `__attendance_update`")
+	_run_temp_table_ddl("CREATE TEMPORARY TABLE `__attendance_update` LIKE `tabAttendance`")
+	try:
+		frappe.db._cursor.executemany(
+			f"INSERT INTO `__attendance_update` (`name`, {columns}) VALUES ({placeholders})",
+			values
+		)
+
+		frappe.db.sql(f"""
+			UPDATE `tabAttendance` a
+			JOIN `__attendance_update` t ON t.`name` = a.`name`
+			SET a.docstatus = 1,
+				{assignments},
+				a.modified = NOW(),
+				a.modified_by = %s
+		""", (frappe.session.user,))
+	finally:
+		_run_temp_table_ddl("DROP TEMPORARY TABLE IF EXISTS `__attendance_update`")
+
+
+def _apply_attendance_update_batch(rows: List[Dict]) -> List[Dict]:
+	"""
+	Apply one batch and return the rows that made it in.
+
+	A batch that fails as a whole is retried row by row, so a single bad record
+	only costs itself — the resilience the old per-record loop provided.
+	"""
+	try:
+		_update_attendance_rows(rows)
+		return rows
+	except Exception as e:
+		if len(rows) == 1:
+			print(f"         ⚠️  Failed to update {rows[0].get('attendance_name', 'unknown')}: {str(e)}")
+			return []
+
+		print(f"      ⚠️  Batch of {len(rows)} failed ({str(e)}) — retrying row by row")
+		applied = []
+		for row in rows:
+			applied.extend(_apply_attendance_update_batch([row]))
+		return applied
+
+
+def _apply_checkin_links(link_pairs: List[Tuple[str, str]], unlink_names: List[str]) -> None:
+	"""
+	Point checkins at their attendance record, and clear the link on records that
+	no longer have any — batched instead of one query per attendance record.
+	"""
+	if link_pairs:
+		_run_temp_table_ddl("DROP TEMPORARY TABLE IF EXISTS `__checkin_link`")
+		_run_temp_table_ddl("""
+			CREATE TEMPORARY TABLE `__checkin_link` (
+				`name` varchar(140) NOT NULL,
+				`attendance` varchar(140) NOT NULL,
+				PRIMARY KEY (`name`)
+			)
+		""")
+		try:
+			for batch in create_batch(link_pairs, CHECKIN_UPDATE_BATCH_SIZE):
+				# INSERT IGNORE: a checkin belongs to exactly one attendance, so a
+				# repeated name would mean contradictory input — keep the first.
+				frappe.db._cursor.executemany(
+					"INSERT IGNORE INTO `__checkin_link` (`name`, `attendance`) VALUES (%s, %s)",
+					batch
+				)
+
+			frappe.db.sql("""
+				UPDATE `tabEmployee Checkin` c
+				JOIN `__checkin_link` l ON l.`name` = c.`name`
+				SET c.attendance = l.attendance
+			""")
+		finally:
+			_run_temp_table_ddl("DROP TEMPORARY TABLE IF EXISTS `__checkin_link`")
+
+	for batch in create_batch(unlink_names, CHECKIN_UPDATE_BATCH_SIZE):
+		placeholders = ", ".join(["%s"] * len(batch))
+		frappe.db.sql(
+			f"UPDATE `tabEmployee Checkin` SET attendance = NULL WHERE attendance IN ({placeholders})",
+			batch
+		)
+
+
 def _apply_attendance_updates(attendance_to_update: List[Dict]) -> None:
 	"""
 	Apply prepared attendance updates via direct SQL (bypass ORM for speed,
 	avoids "Cannot edit cancelled document" issues). Links checkins when
 	log_names is set, otherwise unlinks any previously linked checkins.
+
+	Updates are applied in batches through a staging table rather than one
+	UPDATE per record: a full-company month is tens of thousands of rows, and
+	those per-row round trips are what pushed the request past the gunicorn
+	timeout (120s) and got the worker killed mid-write.
 
 	NOTE: All items are pre-filtered by _check_attendance_changes(), so every
 	item here has actual changes. Commits once at the end.
@@ -977,83 +1187,26 @@ def _apply_attendance_updates(attendance_to_update: List[Dict]) -> None:
 	if not attendance_to_update:
 		return
 
-	for att_data in attendance_to_update:
-		try:
-			att_name = att_data['attendance_name']
+	start = time.time()
+	updated = 0
+	link_pairs = []    # (checkin name, attendance name) to link
+	unlink_names = []  # attendance names whose checkins must be unlinked
 
-			frappe.db.sql("""
-				UPDATE `tabAttendance`
-				SET docstatus = 1,
-					shift = %(shift)s,
-					status = %(status)s,
-					leave_type = %(leave_type)s,
-					leave_application = %(leave_application)s,
-					custom_leave_application_abbreviation = %(custom_leave_application_abbreviation)s,
-					custom_leave_type_2 = %(custom_leave_type_2)s,
-					custom_leave_application_2 = %(custom_leave_application_2)s,
-					half_day_status = %(half_day_status)s,
-					modify_half_day_status = %(modify_half_day_status)s,
-					in_time = %(in_time)s,
-					out_time = %(out_time)s,
-					working_hours = %(working_hours)s,
-					late_entry = %(late_entry)s,
-					early_exit = %(early_exit)s,
-					custom_maternity_benefit = %(custom_maternity_benefit)s,
-					actual_overtime_duration = %(actual_overtime_duration)s,
-					custom_approved_overtime_duration = %(custom_approved_overtime_duration)s,
-					custom_final_overtime_duration = %(custom_final_overtime_duration)s,
-					overtime_type = %(overtime_type)s,
-					standard_working_hours = %(standard_working_hours)s,
-					custom_note = %(custom_note)s,
-					modified = NOW(),
-					modified_by = %(user)s
-				WHERE name = %(name)s
-			""", {
-				'name': att_name,
-				'custom_note': att_data.get('custom_note'),
-				'shift': att_data.get('shift'),
-				'status': att_data.get('status', 'Present'),
-				'leave_type': att_data.get('leave_type'),
-				'leave_application': att_data.get('leave_application'),
-				'custom_leave_application_abbreviation': att_data.get('custom_leave_application_abbreviation'),
-				'custom_leave_type_2': att_data.get('custom_leave_type_2'),
-				'custom_leave_application_2': att_data.get('custom_leave_application_2'),
-				'half_day_status': att_data.get('half_day_status'),
-				'modify_half_day_status': att_data.get('modify_half_day_status', 0),
-				'in_time': att_data.get('in_time'),
-				'out_time': att_data.get('out_time'),
-				'working_hours': att_data.get('working_hours', 0),
-				'late_entry': att_data.get('late_entry', 0),
-				'early_exit': att_data.get('early_exit', 0),
-				'custom_maternity_benefit': att_data.get('custom_maternity_benefit', 0),
-				'actual_overtime_duration': att_data.get('actual_overtime_duration', 0),
-				'custom_approved_overtime_duration': att_data.get('custom_approved_overtime_duration', 0),
-				'custom_final_overtime_duration': att_data.get('custom_final_overtime_duration', 0),
-				'overtime_type': att_data.get('overtime_type'),
-				'standard_working_hours': att_data.get('standard_working_hours', 0),
-				'user': frappe.session.user
-			})
-
+	for batch in create_batch(attendance_to_update, BULK_INSERT_BATCH_SIZE):
+		for att_data in _apply_attendance_update_batch(batch):
+			updated += 1
 			log_names = att_data.get('log_names')
 			if log_names:
-				# Link checkins to attendance (parameterized to avoid SQL injection)
-				placeholders = ', '.join(['%s'] * len(log_names))
-				frappe.db.sql(
-					f"UPDATE `tabEmployee Checkin` SET attendance = %s"
-					f" WHERE name IN ({placeholders})",
-					[att_name] + log_names
-				)
+				att_name = att_data['attendance_name']
+				link_pairs.extend((log_name, att_name) for log_name in log_names)
 			else:
 				# No checkins backing this record → unlink any previously linked ones
-				frappe.db.sql(
-					"UPDATE `tabEmployee Checkin` SET attendance = NULL WHERE attendance = %s",
-					(att_name,)
-				)
-		except Exception as e:
-			print(f"         ⚠️  Failed to update {att_data.get('attendance_name', 'unknown')}: {str(e)}")
+				unlink_names.append(att_data['attendance_name'])
+
+	_apply_checkin_links(link_pairs, unlink_names)
 
 	frappe.db.commit()
-	print(f"      💾 Committed {len(attendance_to_update)} attendance updates to database")
+	print(f"      💾 Committed {updated} attendance updates to database in {time.time() - start:.2f}s")
 
 
 # ============================================================================
@@ -1300,11 +1453,21 @@ def _core_process_attendance_logic_optimized(
 	if not employees:
 		employees = frappe.db.sql("""
 			SELECT name
-			FROM `tabEmployee`
+			FROM `tabEmployee` e
 			WHERE (date_of_joining IS NULL OR date_of_joining <= %(to_date)s)
 			  AND (
 				  status = 'Active'
 				  OR (status = 'Left' AND (relieving_date IS NULL OR relieving_date >= %(from_date)s))
+				  -- Left before the range but still punching: relieving_date may
+				  -- simply be wrong. Days WITH checkins must still be calculated
+				  -- (STEP 3 creates them, STEP 4b tags them); days without stay
+				  -- untouched, so this cannot manufacture Absent records.
+				  OR (status = 'Left' AND EXISTS (
+						SELECT 1 FROM `tabEmployee Checkin` c
+						WHERE c.employee = e.name
+						  AND c.time >= %(from_date)s
+						  AND c.time < DATE_ADD(%(to_date)s, INTERVAL 1 DAY)
+				  ))
 			  )
 			  AND employee LIKE %(prefix)s
 			ORDER BY name
@@ -1492,14 +1655,18 @@ def _core_process_attendance_logic_optimized(
 				attendance_date = key[1].date() if hasattr(key[1], 'date') else getdate(key[1])
 				employee = key[0]
 
-				# Employee HAS check-ins → only check employment status, NOT holidays/Sundays
-				# Holiday/Sunday check is only applied in "no check-in" paths (STEP 4 & fore_get_logs absent)
+				# Employee HAS check-ins → do NOT apply the holiday/Sunday rules here;
+				# those belong to the "no check-in" paths (STEP 4 & the absence pass).
+				#
+				# relieving_date is deliberately NOT a gate on this path: a punch
+				# after it means either the person really worked or the relieving
+				# date is wrong, and both are cases where the day must be counted.
+				# STEP 4b keeps such records and tags them with custom_note; it only
+				# deletes post-relieving attendance that has NO checkins behind it.
 				emp_data = ref_data['employees'].get(employee)
 				if not emp_data:
 					continue
 				if emp_data.date_of_joining and emp_data.date_of_joining > attendance_date:
-					continue
-				if emp_data.status == "Left" and emp_data.relieving_date and emp_data.relieving_date < attendance_date:
 					continue
 
 				# Check maternity status using cached data (MUST match original logic!)
@@ -1717,6 +1884,14 @@ def _core_process_attendance_logic_optimized(
 					'custom_note': custom_note,
 					'shift': correct_shift,  # Use correct shift from Shift Assignment
 					'status': attendance_status,  # Use calculated status based on thresholds
+					# Half Day derived from the hour thresholds means the other half was
+					# simply not worked and no leave covers it → "Absent", which is what
+					# payroll counts (salary_slip.get_half_absent_days needs status
+					# "Half Day" AND half_day_status "Absent"; NULL is read as a full paid
+					# day). Same rule as HRMS attendance.py:199 "no leave record found".
+					# A Half Day that comes from a Leave Application overrides this to
+					# "Present" further below — see the leave blocks.
+					'half_day_status': 'Absent' if attendance_status == 'Half Day' else None,
 					'company': emp_data.get('company'),
 					'department': emp_data.get('department'),
 					'custom_section': emp_data.get('custom_section'),
@@ -1789,7 +1964,14 @@ def _core_process_attendance_logic_optimized(
 							if old_att.get('status') == 'Half Day':
 								# Half Day leave: always preserve "Half Day"
 								att_data['status'] = 'Half Day'
-								# When employee has checkin on Half Day → half_day_status = "Present"
+								# Worked the other half → that half is paid → "Present".
+								# Deliberately NOT conditioned on Leave Type.is_lwp: for an unpaid
+								# half-day leave payroll already deducts 0.5 day through
+								# calculate_lwp_ppl_and_absent_days_based_on_attendance()
+								# (salary_slip.py:790), so flagging it Absent here would deduct a
+								# second 0.5 and cost the employee a full day. HRMS sets "Present"
+								# for every leave-backed half day for exactly that reason
+								# (leave_application.py:317).
 								if has_checkin:
 									att_data['half_day_status'] = 'Present'
 									att_data['modify_half_day_status'] = 1
@@ -1952,8 +2134,10 @@ def _core_process_attendance_logic_optimized(
 						if emp_data.relieving_date <= day:
 							continue
 
-					# Skip holidays and Sundays — no check-in means no attendance on these days
-					# Attendance on holidays/Sundays is only created when employee has actual check-ins (STEP 3)
+					# Skip holidays and Sundays — no check-in means no attendance on these days.
+					# Attendance on holidays/Sundays is only created when the employee has
+					# actual check-ins (STEP 3). "Mark Auto Attendance on Holidays" does NOT
+					# apply here — see the note in should_mark_attendance_cached().
 					if is_holiday_cached(employee, day, ref_data) or day.weekday() == 6:
 						continue
 
@@ -2040,13 +2224,25 @@ def _core_process_attendance_logic_optimized(
 		if has_checkin_attendance:
 			print(f"   ⚠️ {len(has_checkin_attendance)} attendance records for left employees WITH checkins (tagging)")
 			for a in has_checkin_attendance:
-				note = f"Left employee (relieving {a.relieving_date}) but has check-ins"
+				# Safety net only: STEP 3 already writes this sentence through
+				# build_attendance_note(). PREPEND rather than replace — overwriting
+				# used to wipe the other anomalies on the same day ("Only one
+				# check-in record", Sunday work, early/late without OT...).
 				frappe.db.sql("""
 					UPDATE `tabAttendance`
-					SET custom_note = %s, modified = NOW(), modified_by = %s
-					WHERE name = %s
-					  AND (custom_note IS NULL OR custom_note != %s)
-				""", (note, frappe.session.user, a.name, note))
+					SET custom_note = CASE
+							WHEN custom_note IS NULL OR custom_note = '' THEN %(note)s
+							ELSE CONCAT(%(note)s, '; ', custom_note)
+						END,
+						modified = NOW(),
+						modified_by = %(user)s
+					WHERE name = %(name)s
+					  AND (custom_note IS NULL OR custom_note NOT LIKE 'Left employee%%')
+				""", {
+					"note": _left_employee_note(a.relieving_date),
+					"user": frappe.session.user,
+					"name": a.name
+				})
 				print(f"      - {a.employee} ({a.employee_name}): {a.attendance_date} (relieving: {a.relieving_date})")
 
 		if not invalid_attendance and not has_checkin_attendance:
@@ -2163,7 +2359,12 @@ def _core_process_attendance_logic_optimized(
 				if doj and getdate(doj) > to_date_d:
 					skipped_details.append({"employee": emp_id, "employee_name": emp_name, "reason": "Not yet joined"})
 					continue
-				if rel and getdate(rel) < from_date_d:
+				# <= not <: attendance is not marked ON the relieving date either
+				# (should_mark_attendance_cached skips when relieving_date <=
+				# attendance_date), so someone relieved exactly on from_date has no
+				# attendance for the whole range — they belong here, not in the
+				# "No checkins / Holiday" catch-all below.
+				if rel and getdate(rel) <= from_date_d:
 					skipped_details.append({"employee": emp_id, "employee_name": emp_name, "reason": "Already left"})
 					continue
 
@@ -2196,6 +2397,106 @@ def _core_process_attendance_logic_optimized(
 # OPTIMIZED ENTRY POINT
 # ============================================================================
 
+def _record_bulk_throughput(estimated_records, run_time) -> None:
+	"""Remember what this run actually achieved, for the next run's estimate."""
+	if not estimated_records or not run_time or run_time <= 0:
+		return
+	try:
+		history = frappe.cache.get_value(BULK_ATTENDANCE_THROUGHPUT_KEY) or []
+		history.append(round(estimated_records / run_time, 1))
+		frappe.cache.set_value(
+			BULK_ATTENDANCE_THROUGHPUT_KEY, history[-BULK_ATTENDANCE_THROUGHPUT_SAMPLES:]
+		)
+	except Exception:
+		# An estimate is never worth failing a completed run over
+		pass
+
+
+def _estimate_bulk_seconds(estimated_records) -> Tuple[int, int]:
+	"""
+	(fastest, slowest) seconds this run is likely to take, from measured history.
+
+	Range comes from the best and worst of the recent samples, so it widens on its
+	own when runs are inconsistent instead of pretending to a precision we lack.
+	Excludes queue wait — that depends on what else is on the long queue.
+	"""
+	history = frappe.cache.get_value(BULK_ATTENDANCE_THROUGHPUT_KEY) or []
+	rates = [r for r in history if r and r > 0] or [BULK_ATTENDANCE_DEFAULT_THROUGHPUT]
+	return (
+		max(1, int(estimated_records / max(rates))),
+		max(1, int(estimated_records / min(rates))),
+	)
+
+
+def _build_days(from_date, to_date) -> List[date]:
+	"""Every date in the inclusive range, as date objects."""
+	days = []
+	current = getdate(from_date)
+	to_date = getdate(to_date)
+	while current <= to_date:
+		days.append(current)
+		current += timedelta(days=1)
+	return days
+
+
+def _execute_bulk_update(
+	employee_list, days, from_date, to_date, estimated_records, queued_at=None
+) -> Dict:
+	"""
+	Run the optimized recalculation and shape its stats into the UI result.
+	Shared by the synchronous path and the background job.
+
+	``queued_at`` is the epoch timestamp taken when the job was put on the queue
+	(background runs only). It lets the result report how long the job waited for
+	a worker on top of how long it actually ran — with a single long worker the
+	wait can dominate, and without it "why did that take 12 minutes?" is
+	unanswerable from the dialog alone.
+
+	NOTE: this deliberately does NOT back up / overwrite / restore each Shift
+	Type's `process_attendance_after` and `last_sync_of_checkin` the way it used
+	to. Those writes were dead weight on this path — the core logic uses the
+	from_date/to_date arguments instead of process_attendance_after, and only
+	reads last_sync_of_checkin in incremental mode (fore_get_logs=False), while
+	this path always runs full-day. They were also actively harmful: when the
+	request was killed mid-run the `finally` never restored the originals, so
+	shifts were left pinned to the temporary values, and any hourly incremental
+	run landing in that window saw the wrong sync watermark.
+	"""
+	run_started = time.time()
+	stats = _core_process_attendance_logic_optimized(
+		employee_list, days, from_date, to_date, fore_get_logs=True
+	)
+	run_time = round(time.time() - run_started, 1)
+
+	# Wall clock the user actually experienced: queue wait + run
+	queue_wait = round(run_started - queued_at, 1) if queued_at else 0
+	total_elapsed = round(queue_wait + run_time, 1)
+
+	# Feed the next run's estimate with what this one actually managed
+	_record_bulk_throughput(estimated_records, run_time)
+
+	return {
+		"success": True,
+		"total_operations": estimated_records,
+		"run_time": run_time,
+		"queue_wait": queue_wait,
+		"total_elapsed": total_elapsed,
+		"finished_at": frappe.utils.now(),
+		"actual_records": stats["actual_records"],
+		"total_records_in_db": stats["total_records_in_db"],
+		"errors": stats["errors"],
+		"shifts_processed": stats["shifts_processed"],
+		"total_employees": stats["total_employees"],
+		"employees_with_attendance": stats["employees_with_attendance"],
+		"employees_skipped": stats["employees_skipped"],
+		"skipped_details": stats.get("skipped_details", []),
+		"total_days": stats["total_days"],
+		"processing_time": stats["processing_time"],
+		"records_per_second": stats["records_per_second"],
+		"per_shift": stats["per_shift"]
+	}
+
+
 @frappe.whitelist()
 def bulk_update_attendance_optimized(from_date, to_date, employees=None, batch_size=100, force_sync=0):
 	"""
@@ -2208,13 +2509,16 @@ def bulk_update_attendance_optimized(from_date, to_date, employees=None, batch_s
 		to_date: End date (string)
 		employees: Optional employee list as JSON string
 		batch_size: Batch size (default 100, increased from 20)
-		force_sync: Force synchronous processing (default 0)
+		force_sync: Force synchronous processing even for a large range (default 0).
+			Callers already running in a worker (the weekly job, the config
+			benchmark) pass 1; without it, runs above
+			BULK_ATTENDANCE_ASYNC_THRESHOLD are handed to a background job.
 
 	Returns:
-		Same format as original bulk_update_attendance
+		Same format as original bulk_update_attendance. Backgrounded runs return
+		{"background_job": True, ...} and deliver the result over realtime.
 	"""
 	import json
-	from datetime import timedelta
 
 	# ========================================================================
 	# LOCK MECHANISM - Prevent concurrent bulk updates
@@ -2274,86 +2578,56 @@ def bulk_update_attendance_optimized(from_date, to_date, employees=None, batch_s
 	print(f"📊 Workload estimation: {employees_count} employees × {days_count} days = {estimated_records} records")
 
 	# Build days list
-	days = []
-	current = from_date
-	while current <= to_date:
-		days.append(current)
-		current += timedelta(days=1)
+	days = _build_days(from_date, to_date)
 
-	# ALWAYS run synchronously with optimized version
-	# (Optimized version is fast enough to handle large datasets)
+	# Big runs go to a worker instead of blocking the HTTP request: a
+	# full-company month is tens of thousands of records and gunicorn kills the
+	# request at 120s, mid-write. attendance_list.js already registers a
+	# `bulk_update_attendance_complete` listener before calling, so the result
+	# still lands in the same dialog when the job finishes.
+	if not cint(force_sync) and estimated_records > BULK_ATTENDANCE_ASYNC_THRESHOLD:
+		try:
+			frappe.enqueue(
+				"customize_erpnext.overrides.shift_type.shift_type_optimized.run_bulk_update_attendance_background",
+				queue="long",
+				timeout=BULK_ATTENDANCE_JOB_TIMEOUT,
+				from_date=str(from_date),
+				to_date=str(to_date),
+				employee_list=employee_list,
+				estimated_records=estimated_records,
+				user=frappe.session.user,
+				lock_name=lock_name,
+				queued_at=time.time()
+			)
+		except Exception:
+			frappe.cache.delete_value(lock_name)
+			raise
+
+		est_min, est_max = _estimate_bulk_seconds(estimated_records)
+		print(f"🚀 Queued OPTIMIZED processing for {estimated_records} records "
+		      f"(background, est. {est_min}-{est_max}s)")
+
+		return {
+			"success": True,
+			"background_job": True,
+			"estimated_records": estimated_records,
+			"estimated_seconds_min": est_min,
+			"estimated_seconds_max": est_max,
+			"message": frappe._("Processing {0} records in the background.").format(estimated_records),
+			"optimized": True
+		}
+
 	print(f"⚡ Running OPTIMIZED processing for {estimated_records} records...")
 
-	# Backup shift parameters (same as original)
-	shift_backups = {}
-	shift_list = frappe.get_all("Shift Type",
-		filters={"enable_auto_attendance": 1},
-		fields=["name", "process_attendance_after", "last_sync_of_checkin"]
-	)
-
-	for shift in shift_list:
-		shift_backups[shift.name] = {
-			"process_attendance_after": shift.process_attendance_after,
-			"last_sync_of_checkin": shift.last_sync_of_checkin
-		}
-
 	try:
-		# Set temporary parameters
-		temp_process_after = from_date
-		temp_last_sync = str(to_date) + " 23:59:59"
-
-		for shift_name in shift_backups.keys():
-			frappe.db.set_value("Shift Type", shift_name, {
-				"process_attendance_after": temp_process_after,
-				"last_sync_of_checkin": temp_last_sync
-			}, update_modified=False)
-
-		frappe.db.commit()
-
-		# Use optimized core logic with fore_get_logs=True (full day mode for UI)
-		stats = _core_process_attendance_logic_optimized(
-			employee_list, days, from_date, to_date, fore_get_logs=True
-		)
-
-		result = {
-			"success": True,
-			"total_operations": estimated_records,
-			"actual_records": stats["actual_records"],
-			"total_records_in_db": stats["total_records_in_db"],
-			"errors": stats["errors"],
-			"shifts_processed": stats["shifts_processed"],
-			"total_employees": stats["total_employees"],
-			"employees_with_attendance": stats["employees_with_attendance"],
-			"employees_skipped": stats["employees_skipped"],
-			"skipped_details": stats.get("skipped_details", []),
-			"total_days": stats["total_days"],
-			"processing_time": stats["processing_time"],
-			"records_per_second": stats["records_per_second"],
-			"per_shift": stats["per_shift"]
-		}
-
+		result = _execute_bulk_update(employee_list, days, from_date, to_date, estimated_records)
 	except Exception as e:
-		# Release lock on error
-		frappe.cache.delete_value(lock_name)
 		frappe.log_error(f"Bulk update attendance error: {str(e)}", "Bulk Update Error")
 		raise
-
 	finally:
-		# Restore original parameters
-		print("🔙 Restoring original shift parameters...")
-		for shift_name, backup_values in shift_backups.items():
-			try:
-				frappe.db.set_value("Shift Type", shift_name, {
-					"process_attendance_after": backup_values["process_attendance_after"],
-					"last_sync_of_checkin": backup_values["last_sync_of_checkin"]
-				}, update_modified=False)
-			except Exception as e:
-				print(f"✗ Error restoring {shift_name}: {str(e)}")
-
-		frappe.db.commit()
-
-	# Release lock after successful completion
-	frappe.cache.delete_value(lock_name)
+		# Release the lock on success and on error alike; if the process is
+		# killed outright, the 30 minute cache expiry set above is the backstop.
+		frappe.cache.delete_value(lock_name)
 
 	return {
 		"success": True,
@@ -2361,6 +2635,39 @@ def bulk_update_attendance_optimized(from_date, to_date, employees=None, batch_s
 		"result": result,
 		"optimized": True  # Flag to indicate this used optimized version
 	}
+
+
+def run_bulk_update_attendance_background(
+	from_date, to_date, employee_list, estimated_records, user, lock_name, queued_at=None
+):
+	"""
+	Background entry point for large recalculations — see the async hand-off in
+	bulk_update_attendance_optimized().
+
+	Publishes `bulk_update_attendance_complete` to the user who started the run;
+	attendance_list.js is already listening for it and renders the same results
+	dialog the synchronous path shows.
+	"""
+	try:
+		days = _build_days(from_date, to_date)
+		result = _execute_bulk_update(
+			employee_list, days, getdate(from_date), getdate(to_date), estimated_records
+		)
+		frappe.publish_realtime(
+			"bulk_update_attendance_complete",
+			{"success": True, "result": result},
+			user=user
+		)
+	except Exception as e:
+		frappe.db.rollback()
+		frappe.log_error(f"Bulk update attendance error: {str(e)}", "Bulk Update Error")
+		frappe.publish_realtime(
+			"bulk_update_attendance_complete",
+			{"success": False, "message": str(e)},
+			user=user
+		)
+	finally:
+		frappe.cache.delete_value(lock_name)
 
 
 # ============================================================================
@@ -2544,9 +2851,15 @@ def weekly_recalculate_attendance_scheduled():
 	month for every auto-attendance Shift Type (a permanent change), then force-
 	recalculates all attendance from that date through today.
 
-	Note on ordering: bulk_update_attendance_optimized() backs up and restores
-	each shift's process_attendance_after around its run, so we set the new
-	permanent value FIRST; the restore then puts back the value we just set.
+	Ordering no longer matters the way it used to: bulk_update_attendance_optimized()
+	used to overwrite and restore each shift's process_attendance_after around its
+	run, so the permanent value had to be written first to survive the restore.
+	That temp-write/restore is gone (the recalc takes its range from the
+	from_date/to_date arguments), so the value written here simply stays put.
+
+	force_sync=1 keeps the recalc inline: this already runs inside a scheduler
+	worker, so there is no request timeout to escape and no UI listening for the
+	realtime completion event.
 	"""
 	settings = frappe.get_cached_doc("Attendance Calculation Setting")
 

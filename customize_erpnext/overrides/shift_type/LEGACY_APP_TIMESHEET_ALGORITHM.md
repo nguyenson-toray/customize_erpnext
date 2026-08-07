@@ -561,7 +561,7 @@ for (date, employee):
 
 ---
 
-## 15. Trạng thái triển khai trên ERPNext (2026-07-05)
+## 15. Trạng thái triển khai trên ERPNext (2026-08-06)
 
 Thuật toán này đã được port vào `customize_erpnext` (engine: `shift_type_optimized.py` + `employee_checkin.py`). Mapping & quyết định nghiệp vụ:
 
@@ -574,8 +574,15 @@ Thuật toán này đã được port vào `customize_erpnext` (engine: `shift_t
 | §6 normalHours | `calculate_morning_hours` / `calculate_afternoon_hours` — tương đương, credit thai sản đúng công thức 8−earlyBy |
 | §7 OT per-segment | `calculate_overtime_segments` — final = Σ min per segment, pre cap theo span, post không cap, §7.9 approved cho 0/1 log ✓. Lunch OT: thêm điều kiện checkin phủ giờ nghỉ (chặt hơn tài liệu) + flag `allow_ot_in_rest_time` |
 | §8 Chủ Nhật | ĐÃ CHỐT theo tài liệu: working_hours = 0, toàn bộ giờ → actual OT; status attendance vẫn tính từ giờ thực |
-| §9-10 Notes/Anomalies | Field `custom_note` trên Attendance (auto-ghi mỗi lần process, text tiếng Anh); [Ra 16-17h] chỉ áp cho ca kết thúc = cuối window (17:00) |
+| §9-10 Notes/Anomalies | Field `custom_note` trên Attendance (auto-ghi mỗi lần process, text tiếng Anh); [Ra 16-17h] chỉ áp cho ca kết thúc = cuối window (17:00). **[Resigned + Att]**: từ 2026-08-06 ngày đã nghỉ việc mà CÓ chấm công vẫn được tính công + gắn ghi chú (đúng tài liệu — app cũ gắn cờ dị thường chứ không loại ngày đó); trước đó bản port `continue` bỏ qua nên mất công. Ngày đã nghỉ mà KHÔNG có chấm công thì vẫn xoá. Ghi chú chỉ nằm ở `custom_note` — panel "Additional Information" trên form không lặp lại |
 | §11-12 Làm tròn | working_hours 2dp, OT 1dp khi lưu; block floor theo settings |
 | §13 Excel | Report **Shift Attendance Customize** → Export Excel: 3 sheet cũ + 4 sheet Important Note / Detail / Summary / Shift giống app cũ |
 
 Khác biệt chủ đích so với tài liệu: min pre-shift OT 60' (thay vì dùng chung 30'), CN không ép ca Day, lunch OT yêu cầu checkin phủ giờ nghỉ, notes tiếng Anh (rule English-first + vi.csv).
+
+Ngoài phạm vi tài liệu (đặc thù ERPNext, 2026-08-06): ngày nghỉ/lễ lấy qua **Holiday List
+Assignment cấp Company** bằng API gốc HRMS `get_assigned_holiday_lists_to_employee_and_company()`
+— chung nguồn với payroll, và tra đúng list cho từng ngày nên kỳ vắt qua năm không còn sai.
+Shift Type `mark_auto_attendance_on_holidays` **không** sinh công cho ngày lễ trống (mô tả field:
+*"marked on holidays if Employee Checkins exist"*); ngày CÓ checkin thì vốn đã luôn được tính.
+Chi tiết kỹ thuật (index bắt buộc, batch update, chạy nền) xem `OPTIMIZATION_GUIDE.md`.

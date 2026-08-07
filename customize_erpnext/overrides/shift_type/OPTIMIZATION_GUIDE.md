@@ -1,24 +1,44 @@
 # Bulk Attendance Processing — Architecture & Logic Guide
 
-**Last Updated:** 2026-07-05 (per-segment OT, Sunday→OT, custom_note, Attendance Calculation Setting)
+**Last Updated:** 2026-08-06 (timeout fix: checkin index + batched updates + background jobs;
+`mark_auto_attendance_on_holidays` honored; post-relieving days with checkins counted)
 
 ## Performance
 
 | Metric | Value |
 |--------|-------|
-| Processing Time | ~30s (30 days × 800 employees, full mode) |
-| DB Queries | ~500 (all reference data preloaded, OT lookups in-memory) |
-| Batch Size | 100 employees / 500 insert / 1000 checkin-update |
+| Processing Time | ~27s (31 days × ~1030 employees, full mode) |
+| DB Queries | ~500 preloaded + batched writes (500 rows/UPDATE, 1000 names/unlink) |
+| Batch Size | 100 employees / 500 insert / 500 update / 1000 checkin-link |
+
+**The `attendance` column on `tabEmployee Checkin` MUST stay indexed.** Unlinking checkins
+(`WHERE attendance = %s`) is a full scan without it — measured 1949 ms per statement on ~860k
+rows, run once per attendance record, which is what used to blow past the 120s gunicorn timeout
+and get the worker SIGKILLed mid-write. The field is `search_index = 0` in the DocType, so
+frappe's schema sync **drops any single-column index on it at every `bench migrate`** unless a
+Property Setter says otherwise — that is why `patches/index_checkin_attendance_field.py` sets
+`search_index = 1` instead of just issuing `CREATE INDEX` (the older
+`add_attendance_performance_indexes` patch did, and lost the index every migration).
+Verify with `EXPLAIN`: must be `type=ref`, not `type=ALL`.
 
 ## Entry Points (all funnel into `_core_process_attendance_logic_optimized`)
 
 ```
 HRMS hourly_long hook ──(monkey patch)──► custom_process_auto_attendance_for_all_shifts
-UI "Bulk Update"      ──────────────────► bulk_update_attendance_optimized (lock + backup/restore shift params)
+UI "Bulk Update"      ──────────────────► bulk_update_attendance_optimized (lock; > threshold → background job)
+    └─ background ─────────────────────► run_bulk_update_attendance_background → publish_realtime
+weekly_recalculate_attendance_scheduled ► bulk_update_attendance_optimized(force_sync=1)
 OT Registration submit/cancel ──(bg job)─► overtime_registration_hooks._process_attendance_background
 Employee Maternity save/trash ──(bg job)─► employee_maternity.background_update_attendance_for_maternity
 Checkin delete hook (recalc)  ──(bg job)─► employee_checkin._recalculate_attendance_background
 ```
+
+Runs above `BULK_ATTENDANCE_ASYNC_THRESHOLD` (1000 estimated records, shared with
+`attendance_list.js`) are enqueued on the `long` queue and the request returns immediately;
+the UI listens for `bulk_update_attendance_complete`. Callers already inside a worker pass
+`force_sync=1` to stay inline. `bench` has **one** long worker, so jobs queue behind each other —
+the result dialog reports queue wait and run time separately for that reason, and the time
+estimate is derived from the throughput of recent runs rather than a hardcoded divisor.
 
 Mode detection (`fore_get_logs`):
 - **FULL** — web request, or hour ∈ `force_update_hours` setting (default 8, 23), or callers passing `fore_get_logs=True`. Reprocesses every checkin in range, updates existing attendance.
@@ -26,22 +46,69 @@ Mode detection (`fore_get_logs`):
 
 ## Processing Steps
 
-1. **Preload** — employees (+gender), shifts, shift assignments (sorted desc), holidays, existing attendance (all compare fields incl. `custom_note`), leave applications (per-day index, dual-leave aware), maternity periods, OT registrations `{(employee, date): [entries]}`.
+0. **Employee list** (when the caller passes none) — Active, plus `Left` employees whose
+   `relieving_date >= from_date`, **plus `Left` employees with any checkin inside the range**
+   regardless of relieving date (a punch after it means either they really worked or the
+   relieving date is wrong; days without checkins are still untouched, so this cannot
+   manufacture Absent records). Then filtered by `employee_id_prefix` and `exclude_employee_ids`.
+1. **Preload** — employees (+gender), shifts, shift assignments (sorted desc), **holidays via `get_assigned_holiday_lists_to_employee_and_company()`** (HRMS's own API, the one payroll uses — Holiday List Assignment with *Applicable For: Company*, one assignment covering the whole company), existing attendance (all compare fields incl. `custom_note`), leave applications (per-day index, dual-leave aware), maternity periods, OT registrations `{(employee, date): [entries]}`.
    - `exclude_employee_ids` setting filters the employee list first (empty result → early return).
 2. **Checkin sync** — `bulk_update_employee_checkin`: shift from Shift Assignment → default_shift → `default_shift` setting; first log = IN, last = OUT; SQL CASE WHEN batches (no per-doc `get_doc`).
 2b. **Maternity cleanup** (FULL only) — delete attendance inside Maternity Leave phases (Employee Maternity is source of truth), unlink checkins.
 3. **Per-shift checkin processing** — group by (employee, shift_start):
+   - Employment gate here is **joining date only**. `relieving_date` is deliberately NOT a gate on this path: a day with checkins is always calculated, even after the employee left (STEP 4b keeps it and explains it in `custom_note`). Only the no-checkin paths (3b, 4) stop at the relieving date.
    - working hours = morning + afternoon (break excluded; maternity: end −`maternity_benefit_hours`, afternoon credited).
    - **OT per-segment** (`calculate_overtime_segments`, LEGACY_APP_TIMESHEET_ALGORITHM.md §7): final = Σ min(actual, approved) per pre/lunch/post segment — NO global clamp; pre actual capped at registered span, min `min_pre_shift_ot_minutes`; post actual uncapped, min `min_ot_minutes`; everything floored to `ot_block_minutes`; lunch counted only when `allow_ot_in_rest_time` is ON.
    - **Sunday** (§8): shift boundaries ← OT registration span; ALL worked hours → `actual_overtime_duration`, `working_hours` = 0 (status still from real hours); no register → approved/final = 0 but actual still shown.
    - 0/1-log days: approved OT still shown from registrations (§7.9), actual/final = 0.
+   - **`half_day_status` is always written** — payroll ignores a Half Day without it (`get_half_absent_days` needs status `Half Day` **and** `half_day_status = "Absent"`; NULL reads as a fully paid day). Threshold-derived Half Day (no leave) → `Absent`, matching HRMS `attendance.py:199`. Leave-backed Half Day → `Present`, matching `leave_application.py:317`.
    - New inserts apply Leave Applications (Half Day + checkin → half_day_status Present); updates preserve leave from the old record.
    - `custom_note` anomalies (§9-10): Left-with-checkins, ±threshold without same-zone OT registration, Sunday work (+meal allowance > 4h spanning break), female checkout window without Employee Maternity (only shifts ending at window end), single-checkin / no-IN / no-OUT.
    - Values stored rounded: working_hours 2dp, OT 1dp.
 3b. **ABSENCE PASS** (FULL only, runs ONCE after all shifts) — every existing attendance whose (employee, date) had no checkins processed by ANY shift is re-resolved: Maternity Leave → skip, Leave → On Leave/Half Day, else Absent. Global `processed_keys` prevents cross-shift Absent overwrites when the stored shift is stale.
-4. **Mark absent** — days with no attendance at all (skip holidays/Sundays/before-joining/after-relieving); same resolution helper as 3b; bulk INSERT (32 columns incl. half_day/dual-leave/custom_note).
-4b. **Left-employee cleanup** — delete attendance ≥ relieving_date without checkins; tag `custom_note` on ones WITH checkins.
-5. **Stats** — per-shift before/after counts, skipped-employee classification.
+4. **Mark absent** — days with no attendance at all (skip before-joining/after-relieving, holidays and Sundays); same resolution helper as 3b; bulk INSERT (32 columns incl. half_day/dual-leave/custom_note).
+4b. **Left-employee cleanup** — delete attendance ≥ relieving_date **without** checkins; for ones WITH checkins, PREPEND the left-employee sentence to `custom_note` if not already there (it normally arrives from step 3 — this is a safety net). It must not overwrite: doing so used to wipe the other anomalies of that day.
+5. **Stats** — per-shift before/after counts, skipped-employee classification (`Maternity Leave` → `No shift assigned` → `Not yet joined` → `Already left` (`relieving_date <= from_date`, matching the calculation rule) → `No checkins / Holiday`).
+
+## Half Day ↔ payroll — never leave `half_day_status` NULL
+
+`status = "Half Day"` alone changes nothing in payroll. `SalarySlip.get_half_absent_days()`
+(`salary_slip.py:588`) filters on `half_day_status == "Absent"`, so a NULL is read as a full paid
+day — 1,906 records sat that way until 2026-08-07 and every half day was being paid double.
+
+| Nguồn của nửa ngày | `half_day_status` | Vì sao |
+|---|---|---|
+| Dưới ngưỡng giờ, không có đơn nghỉ | `Absent` | Nửa còn lại không làm, không đơn nào phủ ⇒ trừ 0,5 ngày. HRMS `attendance.py:199` |
+| Có Leave Application nửa ngày | `Present` | **Kể cả loại không lương (`is_lwp`)** — xem dưới. HRMS `leave_application.py:317` |
+
+**Không được set `Absent` cho half-day có đơn nghỉ không lương**, dù nghe có vẻ hợp lý: payroll đã
+trừ 0,5 ngày cho phần LWP ở `calculate_lwp_ppl_and_absent_days_based_on_attendance()`
+(`salary_slip.py:790` → `equivalent_lwp = 1 − 0.5`, rồi `payment_days -= lwp` ở dòng 536). Gắn thêm
+cờ `Absent` sẽ khiến `get_half_absent_days()` trừ **thêm** 0,5 ⇒ mất trọn 1 ngày lương. Đó đúng là
+lý do HRMS gốc đặt `Present` cho mọi half-day có đơn nghỉ.
+
+Ngày Chủ Nhật có thể ra Half Day (§8 reset `working_hours` = 0 nhưng status vẫn tính từ giờ thực).
+Vô hại với payroll vì `get_half_absent_days()` loại ngày nằm trong Holiday List
+(`salary_slip.py:592`) — miễn là Chủ Nhật có trong list (list 2026 có, list 2025 không).
+
+## Holidays — one company-level source, resolved per date
+
+Non-working days come from **Holiday List Assignment** with *Applicable For: Company* (one
+assignment for the whole company), read through HRMS's
+`get_assigned_holiday_lists_to_employee_and_company()` so attendance and payroll agree on what a
+holiday is. `Employee.holiday_list` is dead (only 377/1036 employees ever had it set) and HRMS
+v16.15+ dropped it.
+
+**Never resolve one list for the whole range** (`get_assigned_holiday_list(as_on=from_date)` does
+exactly that): a period crossing a year boundary then uses the previous year's list. That is why
+the 26/12/2025–25/01/2026 run read list "2025", missed 01/01/2026 which lives in list "2026", and
+marked **848 employees Absent on New Year's Day**. The HRMS API returns each assignment's
+effective range clipped to the period, so every date is looked up against the list actually in
+force on it; the preload flattens that into `company_holidays = {company: set(dates)}`.
+
+Sundays: the 2026 list carries them as `weekly_off` rows, so `is_holiday_cached()` already covers
+them — but older lists do not (2025 has none), which is why the explicit `weekday() == 6` guard in
+the no-checkin paths stays. Removing it would carpet pre-2026 Sundays with `Absent`.
 
 ## Configuration — "Attendance Calculation Setting" (Single DocType)
 
@@ -63,8 +130,9 @@ Performance tuning (batch sizes) stays hardcoded in `shift_type_optimized.py`.
 
 | File | Purpose |
 |------|---------|
-| `shift_type_optimized.py` | Core engine + Sunday + notes + absence pass |
-| `shift_type.py` | Legacy per-shift path + last_sync + bulk backup/restore (still monkey-patched for `process_auto_attendance`) |
+| `shift_type_optimized.py` | Core engine + Sunday + notes + absence pass + background hand-off |
+| `shift_type.py` | Legacy per-shift path + last_sync (still monkey-patched for `process_auto_attendance`) |
+| `../../patches/index_checkin_attendance_field.py` | Keeps `Employee Checkin.attendance` indexed across migrations (see Performance) |
 | `../employee_checkin/employee_checkin.py` | working-hours calc, `calculate_overtime_segments`, checkin sync |
 | `../../customize_erpnext/doctype/attendance_calculation_setting/` | settings + helpers |
 | `LEGACY_APP_TIMESHEET_ALGORITHM.md` | Reference algorithm of the legacy Dart app (source of truth for the rules) |
@@ -72,8 +140,9 @@ Performance tuning (batch sizes) stays hardcoded in `shift_type_optimized.py`.
 
 ## Design Trade-offs (intentional)
 
-- ORM bypassed for insert/update (no validate/on_submit/Comments; Attendance names are hashes).
-- `mark_auto_attendance_on_holidays` flag and half-holiday thresholds are NOT honored — no attendance on holidays/Sundays without checkins, ever.
+- ORM bypassed for insert/update (no validate/on_submit/Comments; Attendance names are hashes). Updates go through a `TEMPORARY TABLE ... LIKE tabAttendance` staging table + one JOIN UPDATE per batch; a batch that fails is retried row by row. The DDL runs on `frappe.db._cursor` because `frappe.db.sql()` rejects CREATE/DROP once the transaction has writes — MariaDB exempts TEMPORARY tables from implicit commits, so that guard is a false positive here.
+- `mark_auto_attendance_on_holidays` does **not** create attendance on empty holidays, and must not be made to. Its own field description is *"auto attendance will be marked on holidays **if Employee Checkins exist**"*, and upstream HRMS only calls `should_mark_attendance()` from inside the checkin groupby loop (`hrms/.../shift_type.py:145`); the no-checkin path (`mark_absent_for_dates_with_no_attendance` → `get_dates_for_attendance`) skips holidays unconditionally. Days WITH checkins are already always counted here, which is exactly the flag-enabled behaviour. **Wiring the flag into the no-checkin path on 2026-08-06 created 28,798 bogus Sunday `Absent` records in one afternoon** (all 5 shifts have it ticked) — reverted the same day. Half-holiday thresholds are still not implemented.
+- A day WITH checkins is always calculated, even past the relieving date — the relieving date may simply be wrong. `custom_note` says so and asks HR to verify; only no-checkin days after relieving are deleted.
 - Single log (IN only) → status Present, hours 0.
 - Checkin insert/update hooks for per-checkin recalc are disabled in hooks.py (queue-flood protection); corrections land at the next FULL run.
 - Shift Assignment changes do NOT trigger recalc (override deleted 2026-07-04) — corrected at the next FULL run or manual Bulk Update.
@@ -83,5 +152,18 @@ Performance tuning (batch sizes) stays hardcoded in `shift_type_optimized.py`.
 ```python
 # bench --site <site> console
 from customize_erpnext.overrides.shift_type.shift_type_optimized import bulk_update_attendance_optimized
+# force_sync=1 → run inline and get the result back; without it a large range is enqueued
+# and the return value is just {"background_job": True, ...}
 bulk_update_attendance_optimized("2026-07-01", "2026-07-04", employees='["TIQN-0001"]', force_sync=1)
 ```
+
+The console splits multi-line blocks into separate cells, so functions defined there lose their
+globals. For anything longer than a one-liner, run a script against the site instead:
+
+```bash
+cd /home/frappe/frappe-bench/sites && ../env/bin/python my_script.py   # frappe.init(site=...) + frappe.connect()
+```
+
+To verify a change without writing new data, perturb a few records, recalculate, and assert they
+come back identical (snapshot first, restore on mismatch) — a plain rerun on correct data updates
+nothing and proves nothing.
