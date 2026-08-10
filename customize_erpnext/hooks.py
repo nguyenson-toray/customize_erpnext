@@ -306,6 +306,18 @@ override_doctype_class = {
     # thay vì 27, sai đơn giá ngày. Xem overrides/payroll_docs/PAYROLL_SETUP.md mục 2.2.
     "Salary Slip": "customize_erpnext.overrides.salary_slip.salary_slip.CustomSalarySlip",
 }
+# Khấu trừ theo pháp luật VN (BHXH/BHYT/BHTN, đoàn phí, thuế TNCN).
+# Móc vào hook `apply_regional_deductions` có sẵn của HRMS — chạy sau khi gross_pay đã
+# chốt, trước set_net_pay(). Khớp region qua Company.country = "Vietnam".
+# Formula của Salary Structure không đọc được Settings/DB nên phần này phải là Python.
+# Xem overrides/payroll_docs/PLAN_PAYROLL_SETTINGS.md mục 2.
+regional_overrides = {
+    "Vietnam": {
+        "hrms.payroll.doctype.salary_slip.salary_slip.apply_regional_deductions":
+            "customize_erpnext.overrides.payroll.vn_deductions.apply_regional_deductions",
+    }
+}
+
 # Document Events
 doc_events = {
     # Batch Events

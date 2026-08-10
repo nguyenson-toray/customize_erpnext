@@ -1,0 +1,252 @@
+{
+ "actions": [],
+ "creation": "2026-08-05 17:00:00.000000",
+ "doctype": "DocType",
+ "document_type": "Setup",
+ "engine": "InnoDB",
+ "field_order": [
+  "tax_section",
+  "deduction_rates",
+  "bracket_section",
+  "tax_brackets",
+  "probation_tax_section",
+  "probation_tax_rate",
+  "col_prob_tax",
+  "probation_tax_min_income",
+  "insurance_section",
+  "insurance_rates",
+  "insurance_opt_section",
+  "apply_si_ceiling",
+  "base_salary",
+  "col_ins_1",
+  "union_fee_amount",
+  "unpaid_days_to_skip_insurance",
+  "annual_allowance_section",
+  "menstrual_allowance_month",
+  "probation_section",
+  "probation_employment_types",
+  "ot_section",
+  "ot_cap_per_day",
+  "ot_cap_per_month",
+  "ot_cap_per_year",
+  "col_ot_2",
+  "move_excess_ot_to_kpi",
+  "automation_section",
+  "enable_insurance_auto",
+  "enable_pit_auto"
+ ],
+ "fields": [
+  {
+   "fieldname": "tax_section",
+   "fieldtype": "Section Break",
+   "label": "Personal Income Tax"
+  },
+  {
+   "fieldname": "deduction_rates",
+   "fieldtype": "Table",
+   "label": "Family Deduction Rates",
+   "options": "TIQN Tax Deduction Rate",
+   "description": "Mức giảm trừ gia cảnh theo từng mốc hiệu lực. Hệ thống lấy dòng có <b>Effective From</b> lớn nhất mà còn ≤ ngày cuối kỳ lương."
+  },
+  {
+   "fieldname": "bracket_section",
+   "fieldtype": "Section Break",
+   "label": "Progressive Tax Table"
+  },
+  {
+   "fieldname": "tax_brackets",
+   "fieldtype": "Table",
+   "label": "Tax Brackets",
+   "options": "TIQN Tax Bracket",
+   "description": "Biểu thuế luỹ tiến từng phần, tính theo <b>tháng</b>. Việt Nam khấu trừ theo biểu tháng, không annualise như HRMS gốc."
+  },
+  {
+   "fieldname": "probation_tax_section",
+   "fieldtype": "Section Break",
+   "label": "Probation Withholding",
+   "description": "NLĐ thử việc (HĐ dưới 3 tháng) bị khấu trừ <b>thuế suất cố định</b> trên thu nhập chịu thuế, <b>không</b> áp biểu luỹ tiến và <b>không</b> có giảm trừ gia cảnh. Người lao động tự quyết toán với cơ quan thuế vào tháng 4 năm sau. Căn cứ: Thông tư 111/2013/TT-BTC Điều 25."
+  },
+  {
+   "fieldname": "probation_tax_rate",
+   "fieldtype": "Percent",
+   "label": "Withholding Rate",
+   "default": "10"
+  },
+  {
+   "fieldname": "col_prob_tax",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "probation_tax_min_income",
+   "fieldtype": "Currency",
+   "label": "Minimum Income per Payment",
+   "default": "2000000",
+   "description": "Chi trả dưới mức này thì không khấu trừ."
+  },
+  {
+   "fieldname": "insurance_section",
+   "fieldtype": "Section Break",
+   "label": "Social Insurance"
+  },
+  {
+   "fieldname": "insurance_rates",
+   "fieldtype": "Table",
+   "label": "Insurance Rates",
+   "options": "TIQN Insurance Rate"
+  },
+  {
+   "fieldname": "insurance_opt_section",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "apply_si_ceiling",
+   "fieldtype": "Check",
+   "label": "Apply Contribution Ceiling",
+   "default": "0",
+   "description": "TIQN hiện <b>KHÔNG</b> áp trần. Bật thì trần = 20 × Base Salary bên dưới."
+  },
+  {
+   "fieldname": "base_salary",
+   "fieldtype": "Currency",
+   "label": "Statutory Base Salary",
+   "default": "2340000",
+   "depends_on": "apply_si_ceiling"
+  },
+  {
+   "fieldname": "col_ins_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "union_fee_amount",
+   "fieldtype": "Currency",
+   "label": "Union Fee / Month",
+   "default": "38948",
+   "description": "Đoàn phí người lao động — số tiền cố định, giống nhau cho mọi NV."
+  },
+  {
+   "fieldname": "unpaid_days_to_skip_insurance",
+   "fieldtype": "Float",
+   "label": "Unpaid Days to Skip Insurance",
+   "default": "14",
+   "description": "Nghỉ <b>không hưởng lương</b> từ số ngày làm việc này trở lên trong <b>tháng dương lịch</b> thì tháng đó <b>không đóng</b> BHXH/BHYT/BHTN (Luật BHXH 2024 số 41/2024/QH15). Ngày nghỉ <b>hưởng nguyên lương</b> (phép năm, lễ) vẫn tính là có làm việc.<br>⚠ Đếm theo <b>tháng dương lịch</b>, không theo kỳ lương 26→25."
+  },
+  {
+   "fieldname": "annual_allowance_section",
+   "fieldtype": "Section Break",
+   "label": "Annual Allowances",
+   "description": "Khoản chỉ trả <b>một lần trong năm</b>, không trả hàng tháng. Trả qua <b>Additional Salary</b>; cấu hình ở đây để hệ thống cảnh báo khi trả nhầm kỳ."
+  },
+  {
+   "fieldname": "menstrual_allowance_month",
+   "fieldtype": "Select",
+   "label": "Menstrual Allowance — Payout Month",
+   "options": "1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12",
+   "default": "12",
+   "description": "Quy chế mục 3: chi trả một năm một lần cùng kỳ lương <b>tháng 12</b>, hoặc khi lao động nữ thôi việc."
+  },
+  {
+   "fieldname": "probation_section",
+   "fieldtype": "Section Break",
+   "label": "Probation"
+  },
+  {
+   "fieldname": "probation_employment_types",
+   "fieldtype": "Table MultiSelect",
+   "label": "Employment Types Treated as Probation",
+   "options": "TIQN Probation Employment Type",
+   "description": "NLĐ thuộc các loại HĐ này <b>chưa</b> đóng BH và <b>chưa</b> đóng đoàn phí; được hoàn phần công ty đóng bằng tiền (dòng 7.6)."
+  },
+  {
+   "fieldname": "ot_section",
+   "fieldtype": "Section Break",
+   "label": "Overtime Caps (legal compliance)",
+   "description": "Dùng cho báo cáo <b>OT Compliance</b>. Hệ số OT và số giờ chuẩn/ngày nằm trong formula của Salary Structure, không đọc được từ đây."
+  },
+  {
+   "fieldname": "ot_cap_per_day",
+   "fieldtype": "Float",
+   "label": "OT Cap / Day (hours)",
+   "default": "4"
+  },
+  {
+   "fieldname": "ot_cap_per_month",
+   "fieldtype": "Float",
+   "label": "OT Cap / Month (hours)",
+   "default": "40"
+  },
+  {
+   "fieldname": "ot_cap_per_year",
+   "fieldtype": "Float",
+   "label": "OT Cap / Year (hours)",
+   "default": "300",
+   "description": "Ngành dệt may được 300h/năm (BLLĐ Đ.107 kh.3 + NĐ 145/2020 Đ.61)."
+  },
+  {
+   "fieldname": "col_ot_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "move_excess_ot_to_kpi",
+   "fieldtype": "Check",
+   "label": "Move Excess OT to KPI Incentive",
+   "default": "1",
+   "description": "Giờ tăng ca vượt <b>trần tháng</b> được chuyển sang dòng <b>4.3 KPIs incentive</b> thay vì để trong dòng OT. Đây là cách HR đang làm — đã đối chiếu trên phiếu thật TIQN-0019 (55h chấm công → 35h OT + phần vượt sang KPI). Quan trọng về thuế: tiền OT trong trần được <b>miễn thuế</b>, phần vượt trần <b>chịu thuế</b> (NĐ 253/2026 Đ.26)."
+  },
+  {
+   "fieldname": "automation_section",
+   "fieldtype": "Section Break",
+   "label": "Automatic Calculation",
+   "description": "🔴 Đã gỡ dòng 6.1–6.4 khỏi Salary Structure. TẮT <b>Auto-calculate Insurance</b> nghĩa là KHÔNG trừ bảo hiểm cho ai."
+  },
+  {
+   "fieldname": "enable_insurance_auto",
+   "fieldtype": "Check",
+   "label": "Auto-calculate Insurance & Union Fee",
+   "default": "0",
+   "description": "Bật để tính BHXH/BHYT/BHTN + đoàn phí bằng Python thay cho formula trong Salary Structure."
+  },
+  {
+   "fieldname": "enable_pit_auto",
+   "fieldtype": "Check",
+   "label": "Auto-calculate PIT",
+   "default": "0",
+   "description": "🔴 Chỉ bật khi dữ liệu Người phụ thuộc đã đủ. Tắt = nhập tay qua Additional Salary."
+  }
+ ],
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-08-05 17:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Customize Erpnext",
+ "name": "TIQN Payroll Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "HR Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "HR User"
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "quick_entry": 0,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

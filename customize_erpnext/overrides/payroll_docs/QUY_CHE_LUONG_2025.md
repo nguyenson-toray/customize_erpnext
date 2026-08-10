@@ -269,7 +269,7 @@ Mọi con số dưới đây trước kia chỉ là suy luận từ phiếu lư�
 | TIQN-0006 — chuyên cần **500.000** | tưởng "không prorate" | Trúng **bậc "nghỉ 2 lần/2 ngày → 500.000"** ✅ |
 | **TIQN-2352** — 2/26 ngày | mọi khoản × 2/26 | 2 < 8 → đúng là cắt theo ngày công ✅ |
 
-> ⚙ **Hệ quả code (✅ ĐÃ TRIỂN KHAI 05/08/2026 — xem `PAYROLL_SETUP.md` mục 5b8):**
+> ⚙ **Hệ quả code (✅ ĐÃ TRIỂN KHAI 05/08/2026 — xem `PAYROLL_SETUP.md` mục 2.3):**
 > bỏ ý tưởng `custom_employed_days`. Thay bằng công thức **theo ngưỡng**:
 > `payment_days >= 8` → nguyên mức; ngược lại → `× payment_days / total_working_days`.
 > Riêng PC nhà ở là **bậc ½**, không phải tỷ lệ. Riêng chuyên cần cần đếm số lần nghỉ/đi trễ.

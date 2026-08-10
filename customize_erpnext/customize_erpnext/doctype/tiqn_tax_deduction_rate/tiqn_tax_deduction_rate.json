@@ -1,0 +1,58 @@
+{
+ "actions": [],
+ "creation": "2026-08-05 17:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "from_date",
+  "personal_deduction",
+  "dependent_deduction",
+  "legal_basis"
+ ],
+ "fields": [
+  {
+   "fieldname": "from_date",
+   "fieldtype": "Date",
+   "label": "Effective From",
+   "reqd": 1,
+   "in_list_view": 1,
+   "columns": 2,
+   "description": "Ngày bắt đầu áp dụng mức giảm trừ này"
+  },
+  {
+   "fieldname": "personal_deduction",
+   "fieldtype": "Currency",
+   "label": "Personal Deduction / Month",
+   "reqd": 1,
+   "in_list_view": 1,
+   "columns": 3
+  },
+  {
+   "fieldname": "dependent_deduction",
+   "fieldtype": "Currency",
+   "label": "Dependent Deduction / Month",
+   "reqd": 1,
+   "in_list_view": 1,
+   "columns": 3
+  },
+  {
+   "fieldname": "legal_basis",
+   "fieldtype": "Data",
+   "label": "Legal Basis",
+   "in_list_view": 1,
+   "columns": 3
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-08-05 17:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Customize Erpnext",
+ "name": "TIQN Tax Deduction Rate",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

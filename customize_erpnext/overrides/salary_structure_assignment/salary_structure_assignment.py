@@ -22,10 +22,6 @@ SI_BASE_FIELDS = (
 	"custom_responsibility_incentive",     # Thưởng trách nhiệm
 )
 
-# Lệch dưới mức này coi như làm tròn, không cảnh báo
-SI_BASE_TOLERANCE = 1000
-
-
 def compute_si_base(doc):
 	"""Tổng các khoản cấu thành căn cứ đóng bảo hiểm."""
 	return flt(sum(flt(doc.get(f)) for f in SI_BASE_FIELDS))
@@ -48,9 +44,12 @@ def set_si_base(doc, method=None):
 		doc.custom_si_base = computed
 		return
 
-	# Ghi đè thủ công: giữ nguyên số HR nhập, nhưng nói rõ đang lệch bao nhiêu
+	# Ghi đè thủ công: giữ nguyên số HR nhập, nhưng nói rõ đang lệch bao nhiêu.
+	# Cảnh báo với MỌI mức lệch — 8 khoản cấu thành đều là Currency số nguyên đồng nên
+	# phép cộng không sinh sai số làm tròn. Đặt ngưỡng bỏ qua là âm thầm chấp nhận
+	# dữ liệu sai.
 	diff = flt(doc.custom_si_base) - computed
-	if abs(diff) > SI_BASE_TOLERANCE:
+	if diff:
 		frappe.msgprint(
 			_("SI Base đang nhập tay: {0}, lệch {1} so với tổng lương HĐLĐ + phụ cấp ({2}).").format(
 				frappe.format_value(doc.custom_si_base, {"fieldtype": "Currency"}),

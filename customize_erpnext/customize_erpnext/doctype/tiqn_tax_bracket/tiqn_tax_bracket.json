@@ -1,0 +1,75 @@
+{
+ "actions": [],
+ "creation": "2026-08-05 17:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "from_date",
+  "bracket",
+  "income_from",
+  "income_to",
+  "rate_percent",
+  "quick_deduction"
+ ],
+ "fields": [
+  {
+   "fieldname": "from_date",
+   "fieldtype": "Date",
+   "label": "Effective From",
+   "reqd": 1,
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "bracket",
+   "fieldtype": "Int",
+   "label": "Bracket",
+   "reqd": 1,
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "income_from",
+   "fieldtype": "Currency",
+   "label": "Monthly Income From",
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "income_to",
+   "fieldtype": "Currency",
+   "label": "Monthly Income To",
+   "in_list_view": 1,
+   "columns": 2,
+   "description": "Để 0 nghĩa là không giới hạn trên (bậc cuối)"
+  },
+  {
+   "fieldname": "rate_percent",
+   "fieldtype": "Percent",
+   "label": "Rate",
+   "reqd": 1,
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "quick_deduction",
+   "fieldtype": "Currency",
+   "label": "Quick Deduction",
+   "in_list_view": 1,
+   "columns": 2,
+   "description": "Số trừ nhanh — dùng cách tính rút gọn của Bộ Tài chính"
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-08-05 17:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Customize Erpnext",
+ "name": "TIQN Tax Bracket",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

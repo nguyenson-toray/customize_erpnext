@@ -1,9 +1,11 @@
 # Plan — DocType quản lý Người phụ thuộc (`Employee Dependent`)
 
 > Mục tiêu: có dữ liệu **người phụ thuộc (NPT) theo tháng** để tính thuế TNCN tự động,
-> thay cho cách nhập tay hiện nay. Xem bối cảnh ở [`PAYROLL_SETUP.md`](PAYROLL_SETUP.md) mục 5d.
+> thay cho cách nhập tay hiện nay. Xem bối cảnh ở [`PAYROLL_SETUP.md`](PAYROLL_SETUP.md) mục 2.8.
 >
-> **Trạng thái: mới là plan, chưa code.**
+> **Trạng thái: ✅ ĐÃ TRIỂN KHAI.** DocType + validate + tính thuế đều xong.
+> Còn thiếu **dữ liệu NPT thực tế từ HR** — chưa có thì thuế tính với 0 người phụ thuộc,
+> nhóm lương cao bị tính thừa thuế.
 
 ---
 
@@ -33,32 +35,48 @@ tức chưa dùng) không phù hợp:
 
 ## 3. Mô hình dữ liệu
 
-### 3.1. DocType `Employee Dependent`
+### 3.1. Một hồ sơ / nhân viên + child table
 
-- Đường dẫn: `customize_erpnext/customize_erpnext/doctype/employee_dependent/`
-- Module: **Customize Erpnext** (cùng chỗ `labor_contract`)
-- `naming_series`: `DEP-.####`
-- **Không submittable** — là hồ sơ nền, sửa nhiều lần; bật `track_changes = 1` để có lịch sử thay đổi
-- Permission: `HR Manager` + `HR User` full; **Employee không xem được của người khác**
+**Phạm vi dữ liệu — chốt 07/08/2026:** HR vẫn kê khai với cơ quan thuế bằng **phần mềm riêng**,
+chi tiết hơn ERP. Nên ERP chỉ lưu **vừa đủ để tính lương**, không nhân bản tờ khai thuế:
+đã bỏ `taxpayer_tax_code`, `dependent_tax_code`, `id_type`, `disabled_or_incapacitated`,
+`is_studying`.
+
+`id_number` **được giữ** dù thuộc phần khai báo: nhà máy có nhiều gia đình cùng làm, hai anh em
+cùng khai một người mẹ làm **sai tiền lương thật** — phần mềm kia không nhìn thấy nội bộ ERP.
+
+#### `Employee Dependent` (cha)
+
+- `customize_erpnext/customize_erpnext/doctype/employee_dependent/`
+- `autoname = field:employee` ⇒ **docname chính là mã nhân viên**. Đây là cách bảo đảm
+  *một nhân viên một hồ sơ* — không cần validate, primary key lo. Cũng nhờ vậy
+  `Employee Dependent Item.parent` = mã NV, đếm NPT chỉ cần **một query trên child table**,
+  không phải join
+- **Không submittable** — hồ sơ nền, sửa nhiều lần; `track_changes = 1` để có lịch sử
+- Permission: `HR Manager` + `HR User` full; Employee không xem được của người khác
+
+| Field | Type | Bắt buộc |
+|---|---|:---:|
+| `employee` | Link → Employee | ✅ |
+| `employee_name` | Data (fetch, read-only) | |
+| `company` | Link → Company | |
+| `dependents` | **Table → Employee Dependent Item** | ✅ |
+| `note` | Small Text | |
+
+#### `Employee Dependent Item` (con)
 
 | Field | Type | Bắt buộc | Ghi chú |
 |---|---|:---:|---|
-| `employee` | Link → Employee | ✅ | |
-| `employee_name` | Data (fetch, read-only) | | |
-| `dependent_name` | Data | ✅ | Họ tên NPT |
+| `dependent_name` | Data | ✅ | |
 | `relationship` | Select | ✅ | Con · Vợ/Chồng · Cha mẹ đẻ · Cha mẹ vợ/chồng · Cha nuôi/Mẹ kế · Anh chị em ruột · Ông bà · Cô/dì/chú/bác/cậu · Cháu ruột |
-| `date_of_birth` | Date | ✅ | Bắt buộc trên tờ khai thuế + kiểm điều kiện tuổi |
-| `id_type` | Select | ✅ | `Căn cước công dân` · `Giấy khai sinh` |
-| `id_number` | Data | ✅ | **Khoá chống trùng** |
-| `dependent_tax_code` | Data | ❌ | MST NPT — **chỉ có nếu đã được cấp** |
+| `date_of_birth` | Date | ✅ *nếu* `relationship = Child` | Chỉ để cảnh báo quá 18 tuổi |
+| `id_number` | Data | ✅ | **Khoá chống trùng** — CCCD, hoặc số giấy khai sinh với trẻ chưa có CCCD |
 | `from_date` | Date | ✅ | Tháng bắt đầu giảm trừ — **ép về ngày 01** |
 | `to_date` | Date | ❌ | Trống = còn hiệu lực |
-| `disabled_or_incapacitated` | Check | | Điều kiện nhóm 2/3 |
-| `is_studying` | Check | | Con ≥ 18 đang học ĐH/CĐ/TC/nghề |
-| `note` | Small Text | | |
 
 > **Vì sao khoá chống trùng là `id_number` chứ không phải MST:** MST NPT chỉ có *nếu đã từng
 > được cấp*. Trẻ đăng ký lần đầu chưa có MST → bắt buộc MST thì không nhập được ai.
+> ERP nay cũng không lưu MST NPT nữa.
 
 ### 3.2. Mức giảm trừ — nằm trong `TIQN Payroll Settings`
 
@@ -71,17 +89,25 @@ Doctype đó là **điều kiện tiên quyết** của giai đoạn tính PIT t
 
 ## 4. Quy tắc validate
 
-| # | Quy tắc | Lý do |
-|---|---|---|
-| 1 | `id_number` **không trùng** với bản ghi còn hiệu lực của **nhân viên khác** trong cùng năm tính thuế | Luật: mỗi NPT chỉ tính cho **01** NNT trong cùng năm |
-| 2 | `dependent_tax_code` nếu điền cũng phải unique | |
-| 3 | `from_date` luôn là **ngày 01** của tháng | Giảm trừ tính trọn tháng, không tính lẻ ngày |
-| 4 | `to_date >= from_date` | |
-| 5 | Một `id_number` không được có **2 khoảng thời gian chồng nhau** trên cùng NNT | |
-| 6 | Cảnh báo (không chặn) khi `relationship = Con`, tuổi ≥ 18, mà không tick `disabled_or_incapacitated` lẫn `is_studying` | Điều kiện luật |
-| 7 | Cảnh báo khi `Employee.custom_tax_code` trống | Không đăng ký NPT được nếu NNT chưa có MST |
+| # | Quy tắc | Tầng | Lý do |
+|---|---|---|---|
+| 1 | Một nhân viên **một** hồ sơ | primary key | `autoname = field:employee` |
+| 2 | `id_number` **không trùng** với hồ sơ của **nhân viên khác** trong cùng năm tính thuế — **trừ khi hai hồ sơ cùng MST** | chặn | Luật: mỗi NPT chỉ tính cho **01** NNT trong cùng năm. Ngoại lệ MST: xem ghi chú dưới |
+| 3 | `from_date` luôn là **ngày 01** của tháng | tự sửa | Giảm trừ tính trọn tháng, không tính lẻ ngày |
+| 4 | `to_date >= from_date` | chặn | |
+| 5 | Một `id_number` không có **2 dòng chồng thời gian** trong cùng hồ sơ | chặn | Hai dòng rời nhau (ngừng rồi khai lại) vẫn hợp lệ |
+| 6 | `relationship = Con`, đã đủ 18 tuổi mà **`to_date` trống** | cảnh báo | Quên `to_date` ⇒ trừ thừa 6,2tr/tháng **mãi mãi**. Điều kiện "đang học"/"khuyết tật" nằm ở phần mềm kê khai của HR, ERP không lưu nên không tự phán được |
 
-> Quy tắc 1 là quy tắc **cross-employee** — phải query toàn bảng, không chỉ trong hồ sơ đang mở.
+> Quy tắc 2 là quy tắc **cross-employee** — query toàn bộ child table, không chỉ hồ sơ đang mở.
+
+> 🔴 **Ngoại lệ tái tuyển (HR xác nhận 05/08/2026):** NLĐ nghỉ việc rồi vào lại được tạo hồ sơ
+> `Employee` **mới**, nên **cùng một người có 2 mã NV**. Đó cũng là lý do có 18 cặp MST trùng
+> trong dữ liệu — không phải lỗi nhập liệu.
+>
+> Nếu chặn theo mã NV thì HR **không khai được** NPT trên hồ sơ mới. Cách nhận diện duy nhất là
+> **MST**: hai hồ sơ cùng MST = cùng người nộp thuế ⇒ bỏ qua kiểm tra trùng.
+> Đã test với cặp thật `TIQN-0061` / `TIQN-0063` (cùng MST `8088766587`): cho qua;
+> khai sang `TIQN-0019` (người khác) vẫn bị chặn.
 
 ## 5. Cách PIT tiêu thụ dữ liệu
 
@@ -89,7 +115,8 @@ Doctype đó là **điều kiện tiên quyết** của giai đoạn tính PIT t
 
 ```python
 def get_dependent_count(employee: str, as_on: date) -> int
-    # dem ban ghi co from_date <= as_on AND (to_date IS NULL OR to_date >= as_on)
+    # dem dong child co from_date <= as_on AND (to_date IS NULL OR to_date >= as_on)
+    # parent == employee (autoname field:employee) -> khong can join sang doctype cha
 ```
 
 **`as_on` lấy `end_date` của Salary Slip.** Kỳ lương 26/06→25/07 là **tháng 7** ⇒ `as_on = 25/07`.
@@ -120,10 +147,10 @@ thu_nhap_tinh_thue = thu_nhap_chiu_thue − (BHXH+BHYT+BHTN)
 PIT = biểu 7 bậc luỹ tiến (5/10/15/20/25/30/35%) với số trừ nhanh
 ```
 
-Cờ `is_tax_applicable` đã khai đúng ở cấp Salary Component (`PAYROLL_SETUP.md` mục 5b8.1) nên
+Cờ `is_tax_applicable` đã khai đúng ở cấp Salary Component (`PAYROLL_SETUP.md` mục 4.1) nên
 **không cần liệt kê tên khoản trong code** — cứ đọc cờ. Đây là lý do phải sửa cờ cho đúng trước.
 
-Công thức trên **đã kiểm chứng khớp đến từng đồng** với TIQN-0148: `15.923` (mục 5d.1).
+Công thức trên **đã kiểm chứng khớp đến từng đồng** với TIQN-0148: `15.923` (mục 2.8).
 
 ### 5.3. Thay `6.5 PIT` từ Additional Salary → dòng trong Salary Structure
 Khi tự động hoá xong thì bỏ cách nhập tay. Giữ `Additional Salary` cho
@@ -131,39 +158,55 @@ Khi tự động hoá xong thì bỏ cách nhập tay. Giữ `Additional Salary`
 
 ## 6. Nhập liệu ban đầu
 
-### 6.1. Chặn cứng phải xử lý trước: MST bẩn
-Khảo sát 05/08/2026: chỉ **28%** NV Active có MST · **18 cặp trùng** giữa 2 nhân viên khác nhau ·
-16 ô ghi chữ (`"Chưa CC"`, `"Không trả lương"`) · 42 ô sai độ dài.
-→ Xuất Excel danh sách cho HR rà **trước**, vì không có MST thì không đăng ký NPT được.
-*(Việc này làm được ngay, không phụ thuộc doctype.)*
+### 6.1. MST — độ phủ thấp nhưng KHÔNG chặn
+
+Khảo sát 05/08/2026 trên NV Active: chỉ **28%** có MST · 18 cặp trùng · 16 ô ghi chữ
+(`"Chưa CC"`, `"Không trả lương"`) · 42 ô sai độ dài.
+
+- **18 cặp trùng: KHÔNG phải lỗi** — là NLĐ tái tuyển có 2 hồ sơ (xem ghi chú mục 4)
+- Thiếu MST **không chặn** việc khai NPT — chỉ cảnh báo cam, vì HR có thể nhập hồ sơ trước
+  rồi bổ sung MST sau khi đăng ký với cơ quan thuế
+
+> ❌ **Đã bỏ:** báo cáo "MST bẩn" cho HR rà — HR cho biết không cần.
 
 ### 6.2. Thu thập
-Tờ khai NPT cần: họ tên · ngày sinh · số định danh/khai sinh · MST (nếu có) · quan hệ ·
-tháng bắt đầu giảm trừ. Không cần quốc tịch (HR điền tay khi làm thủ tục với cơ quan thuế).
+ERP chỉ cần: **họ tên · quan hệ · ngày sinh (nếu là con) · số định danh/khai sinh ·
+tháng bắt đầu giảm trừ**. MST NPT, loại giấy tờ, hồ sơ chứng minh điều kiện → để ở phần mềm
+kê khai thuế của HR, không nhập vào ERP.
 
 ### 6.3. Import
-Excel → **Data Import** (doctype không submittable nên đơn giản).
+Excel → **Data Import**, chọn doctype con `Employee Dependent Item` với cột `parent` = mã NV
+(đây là lợi thế của `autoname = field:employee`: người nhập không phải tra docname cha).
 ⚠ Phải tắt `site_config.developer_mode` trước, nếu không import chạy inline và treo
 (`data_import.py:123`) — cùng bẫy với import SSA.
+⚠ Data Import **không chạy `validate()` của cha** khi ghi thẳng vào child table ⇒ luật chống
+trùng không được áp. Sau khi import phải mở/lưu lại hồ sơ, hoặc chạy một lượt rà trùng riêng.
 
-### 6.4. Dọn field chết trên Employee
-`custom_number_of_childrens` · `custom_name_of_child_1/2` · `custom_dob_of_child_1/2` —
-**độ phủ 0%**, không ai dùng. Sau khi có doctype mới thì xoá để khỏi có 2 nguồn sự thật.
+### 6.4. ❌ KHÔNG dọn 5 field con nhỏ trên Employee
 
-## 7. Thứ tự triển khai
+`custom_number_of_childrens` · `custom_name_of_child_1/2` · `custom_dob_of_child_1/2`.
 
-| GĐ | Việc | Phụ thuộc |
+Bản plan đầu đề xuất xoá vì tưởng độ phủ 0%. **Sai** — khảo sát ban đầu đếm
+`custom_number_of_childrens > 0` nên bỏ sót bản ghi để 0; thực tế **2.397 bản ghi** có giá trị.
+HR xác nhận các field này **dùng cho mục đích khác** ⇒ giữ nguyên.
+
+> Bài học: kiểm "field có chết không" phải dùng `ifnull(f,'') <> ''`, không phải `f > 0`.
+
+## 7. Thứ tự triển khai — trạng thái
+
+| GĐ | Việc | Trạng thái |
 |:--:|---|---|
-| **0** | Xuất Excel MST bẩn cho HR rà | – (làm ngay được) |
-| **1** | `TIQN Payroll Settings` — xem [`PLAN_PAYROLL_SETTINGS.md`](PLAN_PAYROLL_SETTINGS.md) | – |
-| **2** | DocType `Employee Dependent` + validate 1→7 + `get_dependent_count()` | GĐ 1 |
-| **3** | Import dữ liệu NPT từ HR | GĐ 2 + GĐ 0 |
-| **4** | Tính PIT tự động trong hook `apply_regional_deductions` | GĐ 3 |
-| **5** | Bỏ `6.5 PIT` khỏi Additional Salary, đưa lại vào Salary Structure | GĐ 4 |
-| **6** | Xoá 5 field chết trên Employee | GĐ 3 |
+| 0 | Excel MST bẩn cho HR rà | ❌ HR không cần |
+| 1 | `TIQN Payroll Settings` | ✅ xong, đã seed |
+| 2 | `Employee Dependent` (cha + child table) + validate + `get_dependent_count()` | ✅ xong, test 5/5 |
+| 3 | **Import dữ liệu NPT từ HR** | 🔴 **chưa có dữ liệu — đường tới hạn** |
+| 4 | Tính PIT tự động | ✅ xong (hook `apply_regional_deductions`) |
+| 5 | Bỏ `6.5 PIT` khỏi Additional Salary | ✅ xong — nay tính trong hook |
+| 6 | Xoá 5 field con nhỏ trên Employee | ❌ không làm — dùng cho mục đích khác |
 
-GĐ 1–2 làm được ngay và không đụng dữ liệu đang chạy. GĐ 4 **không khởi động được** nếu HR
-chưa trả dữ liệu NPT — đó là đường tới hạn.
+> ⚠ Thuế TNCN **đang chạy với 0 người phụ thuộc** cho mọi nhân viên. Với phần lớn công nhân
+> kết quả vẫn đúng (thu nhập dưới mức giảm trừ bản thân 15,5tr), nhưng nhóm lương cao sẽ bị
+> **tính thừa thuế** cho tới khi có dữ liệu NPT.
 
 ## 8. Kiểm chứng
 
@@ -171,7 +214,8 @@ chưa trả dữ liệu NPT — đó là đường tới hạn.
   TIQN-0148 phải ra đúng **15.923**
 - TIQN-0002 / TIQN-0044: sau khi có số NPT thật, PIT phải ra **0** — nếu không thì giả thuyết sai
 - Test đổi tháng: NPT đăng ký `from_date = 01/09` thì kỳ lương tháng 8 **không** được trừ, tháng 9 có
-- Test chống trùng: cùng `id_number` cho 2 nhân viên trong cùng năm → phải chặn
+- Test chống trùng: cùng `id_number` cho 2 nhân viên trong cùng năm → phải chặn;
+  khác năm tính thuế → phải cho qua
 
 ## 9. Ràng buộc dự án (vi phạm là hỏng việc)
 

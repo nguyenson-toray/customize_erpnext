@@ -13,3 +13,7 @@ customize_erpnext.patches.setup_labor_contract
 # post_model_sync: schema sync runs before this, so the index we create here is
 # the one that survives — and the Property Setter keeps later migrates off it.
 customize_erpnext.patches.index_checkin_attendance_field
+# Seed TIQN Payroll Settings. post_model_sync: cần các child doctype (TIQN Tax
+# Bracket / Tax Deduction Rate / Insurance Rate) đã tồn tại. Idempotent, và KHÔNG
+# bật enable_insurance_auto/enable_pit_auto — hai cờ đó do HR tự bật.
+customize_erpnext.patches.seed_tiqn_payroll_settings

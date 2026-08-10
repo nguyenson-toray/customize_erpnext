@@ -3,7 +3,7 @@
 > Mục tiêu: bỏ hardcode các con số do **pháp luật** và **quy chế công ty** quy định, để khi văn bản
 > thay đổi thì sửa cấu hình chứ không phải sửa code/deploy.
 >
-> **Trạng thái: plan, chưa code.**
+> **Trạng thái: ✅ ĐÃ TRIỂN KHAI 05/08/2026.** Xem kết quả ở `PAYROLL_SETUP.md` mục 3.
 
 ---
 
@@ -23,10 +23,10 @@ field của **SSA**, **Employee**, và abbr của các component khác.
 
 → Không thể "một Settings, mọi nơi đọc". Phải chia **3 tầng** theo *ai tiêu thụ hằng số*.
 
-## 2. 🔑 Lối thoát: HRMS có sẵn hook `apply_regional_deductions` — ta đang bỏ sót
+## 2. Hook `apply_regional_deductions` của HRMS
 
-Học từ **`frappe/india-payroll`** (app thống kê chính thức của Frappe cho luật Ấn Độ).
-Nó giải **đúng** bài toán "công thức không đọc được Settings" — bằng cách **không dùng công thức**.
+Giải bài toán "công thức không đọc được Settings" bằng cách **không dùng công thức**.
+Cách làm học từ **`frappe/india-payroll`** — app thống kê chính thức của Frappe cho luật Ấn Độ.
 
 ```python
 # hrms/payroll/doctype/salary_slip/salary_slip.py:877
@@ -62,19 +62,13 @@ regional_overrides = {
 ✅ **Đã xác minh chạy được trên site này:** `Company.country = "Vietnam"` ⇒ `erpnext.get_region()`
 trả `"Vietnam"` ⇒ hook khớp. Không cần override `CustomSalarySlip` cho phần này.
 
-### Ý nghĩa: TẦNG B gần như biến mất
+### Ý nghĩa
 
-Trong hook là **Python thuần** — đọc được Settings, DB, số NPT, luỹ kế OT cả năm, bảng biểu thuế…
-Không còn cần "nút Áp dụng vào Salary Structure" để nhồi hằng số vào formula.
+Trong hook là **Python thuần** — đọc được Settings, DB, số NPT, biểu thuế.
 
-| Khoản | Trước (dự kiến) | Sau khi có hook |
-|---|---|---|
-| `6.1/6.2/6.3` BHXH·BHYT·BHTN | formula + condition trong structure | **Python** — đọc tỷ lệ từ Settings theo ngày hiệu lực |
-| `6.4` Phí công đoàn | `amount` cứng 38.948 | **Python** |
-| `6.5` PIT | Additional Salary nhập tay | **Python** — biểu thuế + NPT + giảm trừ, tất cả từ Settings |
-| Điều kiện thử việc | chuỗi `["30 Days...", "60 Days..."]` lặp **6 chỗ** | **1 chỗ** trong Python |
-
-→ Món nợ **B11** (danh sách Employment Type lặp 6 lần) tự tan.
+Tính bằng Python: `6.1/6.2/6.3` BHXH·BHYT·BHTN (tỷ lệ từ Settings theo ngày hiệu lực) ·
+`6.4` đoàn phí · `6.5` PIT (biểu thuế + NPT + giảm trừ) · mốc 14 ngày ·
+danh sách Employment Type thử việc khai **một chỗ** thay vì lặp 6 chỗ trong formula.
 
 ### ⚠ Giới hạn của hook — chỉ inject được DEDUCTION
 
@@ -83,18 +77,6 @@ Không còn cần "nút Áp dụng vào Salary Structure" để nhồi hằng s�
 
 → Dòng **`7.6` hoàn 21,5% cho NV thử việc là EARNING** nên **phải giữ trong Salary Structure**
 dưới dạng formula + condition như hiện nay. Đây là ngoại lệ duy nhất.
-
-## 2b. Ba tầng (sau khi áp dụng hook)
-
-| Tầng | Ai đọc | Cách đưa vào Settings |
-|:--:|---|---|
-| **A** | Python — hook `apply_regional_deductions`, report, validate | Đọc thẳng Settings lúc chạy |
-| **B′** | Formula còn lại trong Salary Structure (OT, ngưỡng ngày công, tiền cơm, 21,5%) | Giữ hằng số trong formula; Settings chỉ là **tài liệu tham chiếu**, có báo cáo đối chiếu |
-| **C** | Không ai — mức theo từng người | **KHÔNG** đưa vào Settings |
-
-> Tầng B′ nhỏ hơn hẳn tầng B cũ, và toàn là hằng số **quy chế công ty** (ít đổi, đổi thì có
-> văn bản), không phải hằng số **pháp luật** (đổi theo nghị quyết, cần hiệu lực theo ngày).
-> Với quy mô đó thì **không cần nút "Áp dụng"** — bỏ khỏi plan.
 
 ## 3. Kiểm kê toàn bộ hằng số
 
@@ -105,11 +87,11 @@ dưới dạng formula + condition như hiện nay. Đây là ngoại lệ duy n
 | A1 | Giảm trừ bản thân | **15.500.000**/tháng | NQ 110/2025 (trước: 11.000.000) | ✅ **bắt buộc** |
 | A2 | Giảm trừ mỗi NPT | **6.200.000**/tháng | NQ 110/2025 (trước: 4.400.000) | ✅ **bắt buộc** |
 | A3 | Biểu thuế luỹ tiến **7 bậc** | 5/10/15/20/25/30/35% + ngưỡng + số trừ nhanh | Luật TNCN | ✅ **bắt buộc** |
-| A4 | Miễn thuế tiền ăn giữa ca | **730.000**/tháng | TT 111/2013 | ✅ |
+| A4 | **Thử việc: thuế suất cố định · thu nhập tối thiểu** | **10%** · **2.000.000** | TT 111/2013 Đ.25 | ➖ |
 | A5 | Trần OT ngày · tháng · năm | **4h · 40h · 300h** | BLLĐ Đ.107 + NĐ 145/2020 | ➖ (chỉ cảnh báo) |
 | A6 | Khung giờ ban đêm | **22:00 – 06:00** | BLLĐ Đ.106 | ➖ |
 | A7 | Phụ cấp đêm · OT đêm cộng thêm | **30%** · **20%** | BLLĐ Đ.98 kh.2, kh.3 | ✅ (chưa dùng) |
-| A8 | Áp trần đóng BH? · lương cơ sở | **KHÔNG áp** · 2.340.000 | TIQN không áp trần (mục 5d.3) | ✅ |
+| A8 | Áp trần đóng BH? · lương cơ sở | **KHÔNG áp** · 2.340.000 | TIQN không áp trần (mục 2.6) | ✅ |
 | A9 | Phép năm | **14 ngày** / 12 tháng | Quy chế mục 2 | ➖ |
 | A10 | Ngưỡng cảnh báo lệch SI Base | **1.000đ** | nội bộ | ➖ |
 
@@ -211,11 +193,9 @@ TIQN Payroll Settings (Single)
 │   └─ probation_employment_types  → Table MultiSelect → Employment Type
 ├─ [Miễn thuế]
 │   └─ meal_tax_exempt_monthly (Currency = 730.000)
-├─ [Bật/tắt tính tự động]                                        # xem muc 4b.6
-│   ├─ enable_insurance_auto (Check)   # BHXH/BHYT/BHTN + phi cong doan qua hook
-│   └─ enable_pit_auto (Check)         # TAT khi du lieu NPT chua du
-└─ [Kiểm tra]
-    └─ si_base_tolerance (Currency = 1.000)
+└─ [Bật/tắt tính tự động]
+    ├─ enable_insurance_auto (Check)   # BHXH/BHYT/BHTN + phí công đoàn qua hook
+    └─ enable_pit_auto (Check)         # TẮT khi dữ liệu NPT chưa đủ
 ```
 
 ### 4.3. Hàm tra cứu theo ngày hiệu lực
@@ -227,12 +207,6 @@ def get_rate(table: str, as_on: date) -> frappe._dict
 
 Dùng cho 3 bảng có hiệu lực. `as_on` = **`end_date` của Salary Slip** (cùng quy ước với đếm NPT —
 xem `PLAN_EMPLOYEE_DEPENDENT.md` mục 5.1).
-
-### 4.4. Không làm nút "Áp dụng vào Salary Structure"
-
-Bản plan đầu có ý tưởng này cho tầng B. **Bỏ** — vì tầng B đã co lại còn vài hằng số quy chế
-công ty (mục 2b). Thay bằng **báo cáo đối chiếu** Settings ↔ formula thực tế, chạy khi cần:
-rẻ hơn, không có rủi ro ghi đè nhầm formula trên structure đang chạy.
 
 ## 4b. Điểm kỹ thuật ÁP DỤNG ĐƯỢC từ `frappe/india-payroll`
 
@@ -300,7 +274,7 @@ def _full_gross(doc):
 
 nhưng **tính tiền** trên `doc.gross_pay` (đã prorate).
 
-→ Áp dụng khi nào TIQN áp trần đóng BH (hiện **không** áp — mục 5d.3). Nếu dùng chung một số,
+→ Áp dụng khi nào TIQN áp trần đóng BH (hiện **không** áp — mục 2.6). Nếu dùng chung một số,
 người lương cao nghỉ nhiều ngày sẽ **lọt vào diện đóng** sai.
 Lưu ý `default_amount` = giá trị đầy đủ chưa prorate, `amount` = đã prorate — cặp field này
 cũng hữu ích cho báo cáo.
@@ -367,17 +341,17 @@ trong file cấu hình thì **âm thầm**, còn sai trong code thì có test b�
 → **Chốt: nhóm luật có tiền + cần lịch sử (A1–A3, tỷ lệ BH, phí công đoàn) → Settings có ngày
 hiệu lực. Nhóm còn lại → hằng số Python có comment dẫn văn bản**, giống india-payroll.
 
-## 5. Thứ tự triển khai
+## 5. Trạng thái triển khai
 
-| GĐ | Việc | Ghi chú |
-|:--:|---|---|
-| **1** | Tạo `TIQN Payroll Settings` + 3 child table + seed giá trị hiện hành | Không đụng gì đang chạy |
-| **2** | Viết `overrides/payroll/vn_deductions.py` + đăng ký `regional_overrides` cho `"Vietnam"` | Bắt đầu bằng BHXH/BHYT/BHTN + phí công đoàn, đối chiếu lại 9 phiếu mẫu |
-| **3** | Gỡ `6.1–6.4` khỏi Salary Structure sau khi hook chạy đúng | Structure còn lại thuần lương/phụ cấp |
-| **4** | Thêm PIT vào hook (cần `Employee Dependent` xong trước) | Có cờ `enable_pit_auto` để bật dần |
+| Việc | |
+|---|---|
+| `TIQN Payroll Settings` + 3 child table có ngày hiệu lực + seed | ✅ |
+| `overrides/payroll/vn_deductions.py` + `regional_overrides` cho `"Vietnam"` | ✅ |
+| Gỡ `6.1–6.4` khỏi Salary Structure — structure còn thuần lương/phụ cấp | ✅ |
+| PIT trong hook (biểu luỹ tiến · thử việc 10% · đếm NPT) | ✅ |
+| Mốc 14 ngày đóng BH | ✅ |
 
-> ❌ **Bỏ khỏi plan:** "GĐ 0 — đổi phí công đoàn từ `amount` sang `formula`".
-> Không cần nữa vì dòng `6.4` sẽ rời khỏi Salary Structure hẳn.
+Hai cờ `enable_insurance_auto` / `enable_pit_auto` đang **bật**.
 
 ## 6. Cái được
 
