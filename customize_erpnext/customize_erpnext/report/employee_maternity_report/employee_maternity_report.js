@@ -4,6 +4,21 @@
 frappe.query_reports["Employee Maternity Report"] = {
 	"filters": [
 		{
+			"fieldname": "as_on_date",
+			"label": __("As On Date"),
+			"fieldtype": "Date",
+			"default": frappe.datetime.get_today(),
+			"reqd": 1,
+			"width": "80px"
+		},
+		{
+			"fieldname": "snapshot_only",
+			"label": __("Only Active on As On Date"),
+			"fieldtype": "Check",
+			"default": 1,
+			"width": "80px"
+		},
+		{
 			"fieldname": "detail",
 			"label": __("Detail"),
 			"fieldtype": "Check",
@@ -50,18 +65,6 @@ frappe.query_reports["Employee Maternity Report"] = {
 			"width": "80px"
 		},
 		{
-			"fieldname": "from_date",
-			"label": __("From Date"),
-			"fieldtype": "Date",
-			"width": "80px"
-		},
-		{
-			"fieldname": "to_date",
-			"label": __("To Date"),
-			"fieldtype": "Date",
-			"width": "80px"
-		},
-		{
 			"fieldname": "status",
 			"label": __("Status"),
 			"fieldtype": "Select",
@@ -98,12 +101,12 @@ frappe.query_reports["Employee Maternity Report"] = {
 
 	onload: function(report) {
 		report.page.add_inner_button(__("Summary Stats"), function() {
-			show_summary_stats(report.data);
+			show_summary_stats(report.data, report.get_filter_value("as_on_date"));
 		});
 	}
 };
 
-function show_summary_stats(data) {
+function show_summary_stats(data, as_on_date) {
 	if (!data || data.length === 0) {
 		frappe.msgprint(__("No data available for summary"));
 		return;
@@ -129,8 +132,12 @@ function show_summary_stats(data) {
 		if (row.status === "Completed") stats.completed++;
 	});
 
+	let title = as_on_date
+		? __("Maternity Summary as on {0}", [frappe.datetime.str_to_user(as_on_date)])
+		: __("Employee Maternity Report Summary");
+
 	let dialog = new frappe.ui.Dialog({
-		title: __("Employee Maternity Report Summary"),
+		title: title,
 		fields: [
 			{
 				fieldtype: 'HTML',
@@ -138,24 +145,24 @@ function show_summary_stats(data) {
 				options: `
 					<div class="row">
 						<div class="col-md-6">
-							<h5>Overall Statistics</h5>
+							<h5>${__("Overall Statistics")}</h5>
 							<table class="table table-condensed">
-								<tr><td><strong>Total Records:</strong></td><td>${stats.total_records}</td></tr>
+								<tr><td><strong>${__("Total Records")}:</strong></td><td>${stats.total_records}</td></tr>
 							</table>
 
-							<h5>By Maternity Type</h5>
+							<h5>${__("By Maternity Type")}</h5>
 							<table class="table table-condensed">
-								<tr><td>Pregnant:</td><td>${stats.pregnant}</td></tr>
-								<tr><td>Maternity Leave:</td><td>${stats.maternity_leave}</td></tr>
-								<tr><td>Young Child:</td><td>${stats.young_child}</td></tr>
+								<tr><td>${__("Pregnant")}:</td><td>${stats.pregnant}</td></tr>
+								<tr><td>${__("Maternity Leave")}:</td><td>${stats.maternity_leave}</td></tr>
+								<tr><td>${__("Young Child")}:</td><td>${stats.young_child}</td></tr>
 							</table>
 						</div>
 						<div class="col-md-6">
-							<h5>By Status</h5>
+							<h5>${__("By Status")}</h5>
 							<table class="table table-condensed">
-								<tr><td><span style="color: blue;">Upcoming:</span></td><td>${stats.upcoming}</td></tr>
-								<tr><td><span style="color: green;">Active:</span></td><td>${stats.active}</td></tr>
-								<tr><td><span style="color: gray;">Completed:</span></td><td>${stats.completed}</td></tr>
+								<tr><td><span style="color: blue;">${__("Upcoming")}:</span></td><td>${stats.upcoming}</td></tr>
+								<tr><td><span style="color: green;">${__("Active")}:</span></td><td>${stats.active}</td></tr>
+								<tr><td><span style="color: gray;">${__("Completed")}:</span></td><td>${stats.completed}</td></tr>
 							</table>
 						</div>
 					</div>

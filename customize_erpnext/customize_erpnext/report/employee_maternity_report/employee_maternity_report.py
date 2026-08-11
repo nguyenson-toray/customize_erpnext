@@ -3,8 +3,7 @@
 
 import frappe
 from frappe import _
-from frappe.utils import getdate, date_diff
-from datetime import date
+from frappe.utils import getdate, date_diff, nowdate
 
 
 def execute(filters=None):
@@ -140,6 +139,10 @@ def get_data(filters):
 	"""
 	Query Employee Maternity (cấu trúc mới: 1 record/employee) và expand
 	thành nhiều rows — mỗi row là 1 giai đoạn (Pregnant / Maternity Leave / Young Child).
+
+	Mọi giá trị phụ thuộc thời gian (status, seniority, gestational age) được tính
+	theo filter `as_on_date` (mặc định hôm nay). Đây chỉ là tính lại khi chạy report —
+	field `status` trên record KHÔNG bị thay đổi.
 	"""
 	conditions, params = _build_conditions(filters)
 
@@ -156,6 +159,7 @@ def get_data(filters):
 			mt.pregnant_to_date,
 			mt.estimated_due_date,
 			mt.maternity_from_date,
+			mt.maternity_from_date_estimate,
 			mt.maternity_to_date,
 			mt.youg_child_from_date,
 			mt.youg_child_to_date,
@@ -168,12 +172,17 @@ def get_data(filters):
 		ORDER BY emp.department, emp.custom_section, emp.custom_group, emp.employee_name
 	""", params, as_dict=True)
 
-	today_date = date.today()
-	data = []
+	as_on_date = _get_as_on_date(filters)
+	snapshot_only = filters.get("snapshot_only") if filters else None
+	rows_by_employee = {}  # giữ thứ tự sắp xếp của câu SQL
 	maternity_type_filter = filters.get("maternity_type") if filters else None
 
 	for rec in records:
-		seniority = _calc_seniority(rec.date_of_joining, today_date)
+		seniority = _calc_seniority(rec.date_of_joining, as_on_date)
+
+		# Giai đoạn Maternity: dùng ngày ước tính khi chưa có ngày nghỉ thật
+		# (mirror Employee Maternity.calculate_status)
+		effective_mat_from = rec.maternity_from_date or rec.maternity_from_date_estimate
 
 		# Expand thành các rows theo từng giai đoạn
 		periods = [
@@ -184,7 +193,7 @@ def get_data(filters):
 			},
 			{
 				"type": "Maternity Leave",
-				"from_date": rec.maternity_from_date,
+				"from_date": effective_mat_from,
 				"to_date": rec.maternity_to_date,
 			},
 			{
@@ -194,6 +203,7 @@ def get_data(filters):
 			},
 		]
 
+		emp_rows = rows_by_employee.setdefault(rec.employee, [])
 		for period in periods:
 			if not period["from_date"]:
 				continue  # Giai đoạn chưa có dữ liệu
@@ -205,15 +215,8 @@ def get_data(filters):
 			from_date = period["from_date"]
 			to_date = period["to_date"]
 
-			# Filter theo date range từ filters
-			if filters:
-				if filters.get("from_date") and from_date < getdate(filters["from_date"]):
-					continue
-				if filters.get("to_date") and to_date and to_date > getdate(filters["to_date"]):
-					continue
-
-			# Status
-			status = _calc_status(from_date, to_date, today_date)
+			# Status tại as_on_date
+			status = _calc_status(from_date, to_date, as_on_date)
 			if filters and filters.get("status") and status != filters["status"]:
 				continue
 
@@ -224,9 +227,9 @@ def get_data(filters):
 			# Gestational age (chỉ cho Pregnant)
 			gestational_age = None
 			if period["type"] == "Pregnant" and rec.estimated_due_date:
-				gestational_age = _calc_gestational_age(rec.estimated_due_date, today_date)
+				gestational_age = _calc_gestational_age(rec.estimated_due_date, as_on_date)
 
-			data.append({
+			emp_rows.append({
 				"employee": rec.employee,
 				"employee_name": rec.employee_name,
 				"department": rec.department,
@@ -246,7 +249,36 @@ def get_data(filters):
 				"status": status,
 			})
 
+	data = []
+	for emp_rows in rows_by_employee.values():
+		data.extend(_apply_snapshot(emp_rows, snapshot_only))
+
 	return data
+
+
+def _get_as_on_date(filters):
+	"""Ngày mốc để tính trạng thái. Mặc định hôm nay."""
+	value = filters.get("as_on_date") if filters else None
+	return getdate(value or nowdate())
+
+
+def _apply_snapshot(emp_rows, snapshot_only):
+	"""Khi bật Snapshot: mỗi nhân viên chỉ còn 1 dòng — giai đoạn đang diễn ra
+	tại as_on_date.
+
+	Nếu 1 nhân viên có nhiều giai đoạn cùng Active (record trùng, hoặc dữ liệu cũ
+	bị overlap) thì lấy giai đoạn có from_date mới nhất — cùng quy tắc ưu tiên với
+	Employee Maternity.calculate_status().
+	"""
+	if not snapshot_only:
+		return emp_rows
+
+	active = [r for r in emp_rows if r["status"] == "Active"]
+	if len(active) <= 1:
+		return active
+
+	active.sort(key=lambda r: getdate(r["from_date"]), reverse=True)
+	return active[:1]
 
 
 def _build_conditions(filters):
@@ -280,31 +312,34 @@ def _build_conditions(filters):
 	return " AND ".join(conditions), params
 
 
-def _calc_seniority(date_of_joining, today_date):
+def _calc_seniority(date_of_joining, as_on_date):
 	if not date_of_joining:
 		return 0
 	from dateutil.relativedelta import relativedelta
-	rd = relativedelta(today_date, getdate(date_of_joining))
+	doj = getdate(date_of_joining)
+	if doj >= as_on_date:
+		return 0  # as_on_date trước ngày vào làm
+	rd = relativedelta(as_on_date, doj)
 	return rd.years * 12 + rd.months
 
 
-def _calc_gestational_age(estimated_due_date, today_date):
+def _calc_gestational_age(estimated_due_date, as_on_date):
 	"""Gestational age in months: 9.5 - (complete months to due date + 1)"""
 	from dateutil.relativedelta import relativedelta
 	edd = getdate(estimated_due_date)
-	if edd <= today_date:
+	if edd <= as_on_date:
 		return 9.5
-	rd = relativedelta(edd, today_date)
+	rd = relativedelta(edd, as_on_date)
 	months_diff = rd.years * 12 + rd.months
 	return round(9.5 - (months_diff + 1), 1)
 
 
-def _calc_status(from_date, to_date, today_date):
+def _calc_status(from_date, to_date, as_on_date):
 	if not from_date:
 		return None
 	from_d = getdate(from_date)
-	if today_date < from_d:
+	if as_on_date < from_d:
 		return "Upcoming"
-	if to_date is None or from_d <= today_date <= getdate(to_date):
+	if to_date is None or from_d <= as_on_date <= getdate(to_date):
 		return "Active"
 	return "Completed"
