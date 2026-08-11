@@ -36,6 +36,14 @@ from customize_erpnext.customize_erpnext.doctype.attendance_calculation_setting.
 
 # Single source of truth for the async hand-off size, shared with attendance_list.js
 from customize_erpnext.overrides.shift_type.attendance_config import BULK_ATTENDANCE_ASYNC_THRESHOLD
+# Quy tac nghi phep dung chung voi luong Leave Application. Engine luon ghi sau cung nen hai
+# ben BUOC phai dung cung mot ham quyet dinh, neu khong moi FULL run lai ghi de lan nhau.
+# Xem overrides/leave_application/PLAN_LEAVE_OVERRIDE.md GD 1-3.
+from customize_erpnext.overrides.leave_rules import (
+	combined_abbreviation,
+	order_leave_types,
+	resolve_half_day_status,
+)
 
 # ============================================================================
 # CONFIGURATION
@@ -171,6 +179,67 @@ def determine_attendance_status(
 
 	# 3. Default to Present
 	return "Present"
+
+
+def is_shift_in_progress(attendance_date, shift_data: Dict) -> bool:
+	"""Ca của **người này** trong ngày này đã tan chưa?
+
+	Mỗi ca tan một giờ khác nhau (Shift 1 14:00 · Canteen 6:30 15:30 · Canteen 16:00 ·
+	Day 17:00 · Shift 2 22:00) nên không dùng được một mốc chung.
+
+	Dùng `frappe.flags.current_datetime` nếu có, để test giả lập được thời điểm.
+	"""
+	end = shift_data.get('end_time')
+	if end is None:
+		return False
+	shift_end = datetime.combine(attendance_date, (datetime.min + end).time())
+	now = frappe.flags.current_datetime or frappe.utils.now_datetime()
+	return now < shift_end
+
+
+def resolve_attendance_status(
+	status_hours: float, in_time, out_time, attendance_date, shift_data: Dict
+) -> str:
+	"""Trạng thái chấm công cuối cùng cho một ngày.
+
+	🔴 Ngưỡng `working_hours_threshold_for_absent` / `_for_half_day` **chỉ có nghĩa SAU KHI
+	TAN CA**. Trong lúc ca còn đang diễn ra, người lao động chưa quẹt ra là chuyện bình
+	thường — kết luận "vắng" lúc đó là sai.
+
+	Ca thực tế gặp: công nhân quẹt **đúp** ở cửa lúc vào (hai log cách nhau 1-7 giây), engine
+	ghép thành cặp IN/OUT ⇒ `working_hours = 0` ⇒ dưới ngưỡng 2,0 ⇒ `Absent`. Đo lúc 16:44
+	ngày 11/08/2026: **264 bản Absent, trong đó 262 thuộc ca CHƯA TAN** (mức nền ngày thường
+	chỉ 65-95).
+
+	⚠ Khi ca chưa tan phải bỏ qua **CẢ HAI** ngưỡng. Chỉ bỏ ngưỡng vắng thì `0 < 4,01` rơi
+	tiếp xuống `Half Day` — còn tệ hơn, vì kéo theo `half_day_status` và trừ nửa ngày lương.
+
+	Hệ quả có chủ ý: kết quả của **ngày đang diễn ra** đổi theo giờ chạy (16h ra `Present`,
+	20h ra `Absent`). Chấm công ngày chưa trọn vốn là số tạm; ngày đã qua thì
+	`is_shift_in_progress()` luôn False nên kết quả **tất định**.
+	"""
+	if not in_time:
+		# Không có log nào — lẽ ra đã bị lọc từ trước, giữ để chắc chắn
+		return 'Absent'
+
+	if is_shift_in_progress(attendance_date, shift_data):
+		return 'Present'
+
+	if not out_time:
+		# Đã quẹt vào nhưng KHÔNG có log ra — quên quẹt, hoặc máy sót log.
+		# Người lao động đã đến làm; để `Absent` là cắt trọn ngày lương của họ.
+		# `custom_note` đã ghi "Only one check-in record" để HR rà lại.
+		# 🔴 Đừng bỏ nhánh này. 2026-08-11 nó từng bị xoá vì đo nhầm: mẫu khảo sát
+		# chỉ lấy bản ghi `status='Absent'`, mà mọi bản nhánh này xử lý đều đã thành
+		# `Present` nên không nằm trong mẫu — đo ra 0 và kết luận "nhánh chết".
+		# Đo đúng (không lọc status): 728 bản đang ở `Present` nhờ nhánh này.
+		return 'Present'
+
+	return determine_attendance_status(
+		working_hours=status_hours,
+		working_hours_threshold_for_absent=shift_data.get('working_hours_threshold_for_absent', 0),
+		working_hours_threshold_for_half_day=shift_data.get('working_hours_threshold_for_half_day', 0),
+	)
 
 
 # ============================================================================
@@ -462,6 +531,7 @@ def preload_reference_data(employee_list: List[str], from_date: str, to_date: st
 			  AND docstatus = 1
 			  AND from_date <= %(to_date)s
 			  AND to_date >= %(from_date)s
+			ORDER BY name
 		""", {
 			"employees": employee_list,
 			"from_date": from_date,
@@ -482,6 +552,7 @@ def preload_reference_data(employee_list: List[str], from_date: str, to_date: st
 			  AND docstatus = 1
 			  AND from_date <= %(to_date)s
 			  AND to_date >= %(from_date)s
+			ORDER BY name
 		""", {
 			"from_date": from_date,
 			"to_date": to_date
@@ -658,11 +729,15 @@ def check_leave_status_cached(employee: str, attendance_date: date, ref_data: Di
 	if not active:
 		return None
 
+	# Tat dinh: hai query preload khong co ORDER BY nen thu tu do MySQL quyet dinh.
+	# Sap theo ten don de ket qua khong doi giua cac lan chay.
+	active.sort(key=lambda x: x['leave_application'] or '')
+
 	if len(active) == 1:
 		ld = active[0]
 		if ld['is_half_day']:
 			status = 'Half Day'
-			abbreviation = f"{ld.get('abbreviation', '')}/2"
+			abbreviation = combined_abbreviation(ld['leave_type'], None)
 		else:
 			status = 'On Leave'
 			abbreviation = ld.get('abbreviation', '')
@@ -675,17 +750,25 @@ def check_leave_status_cached(employee: str, attendance_date: date, ref_data: Di
 			'leave_application_2': None,
 		}
 
-	# Dual leave: 2 Half Day LAs on same date → Full day "On Leave"
-	la1, la2 = active[0], active[1]
-	abbr1 = la1.get('abbreviation', '')
-	abbr2 = la2.get('abbreviation', '')
-	combined_abbr = f"{abbr1}/{abbr2}" if abbr1 != abbr2 else abbr1
+	# Dual leave: 2 don nua ngay cung ngay.
+	#
+	# 🔴 Trang thai la 'Half Day', KHONG phai 'On Leave'. Hai nua ngay cong lai dung bang mot
+	# ngay vang mat, nhung 'On Leave' lam HRMS tru TRON ngay (salary_slip.py:800 dat
+	# equivalent_lwp = 1), con quy dinh cho OP/2 = 0,5 ngay cong.
+	#
+	# leave_type phai la nua is_lwp=1: HRMS chi tru luong theo loai nam o field do. Dat nguoc
+	# lai (vd Phep nam) thi HRMS bo qua ca ngay -> tra du luong cho ngay chi lam nua buoi.
+	# Xem overrides/leave_application/QUY_DINH_NGHI_PHEP_2025.md muc 5.2.
+	la_by_type = {ld['leave_type']: ld for ld in active[:2]}
+	primary_type, other_type = order_leave_types(active[0]['leave_type'], active[1]['leave_type'])
+	la1 = la_by_type[primary_type]
+	la2 = la_by_type[other_type] if other_type != primary_type else active[1]
 	return {
-		'status': 'On Leave',
-		'leave_type': la1['leave_type'],
+		'status': 'Half Day',
+		'leave_type': primary_type,
 		'leave_application': la1['leave_application'],
-		'abbreviation': combined_abbr,
-		'leave_type_2': la2['leave_type'],
+		'abbreviation': combined_abbreviation(primary_type, other_type),
+		'leave_type_2': other_type,
 		'leave_application_2': la2['leave_application'],
 	}
 
@@ -851,8 +934,11 @@ def resolve_no_checkin_attendance(employee: str, att_date: date, ref_data: Dict)
 		leave_type = leave_application = leave_abbreviation = None
 		leave_type_2 = leave_application_2 = None
 
-	# Half Day with no checkin → other half is Absent (per HRMS attendance.py:357)
-	half_day_status = 'Absent' if status == 'Half Day' else None
+	# half_day_status phu thuoc nua CON LAI duoc tra luong hay khong, khong phai chi "co checkin".
+	# Ca OP/2 (Om 1/2 + Phep nam 1/2) khong co checkin nao ma van la 'Present'.
+	half_day_status = (
+		resolve_half_day_status(False, leave_type_2) if status == 'Half Day' else None
+	)
 
 	shift = get_employee_shift_cached(employee, att_date, ref_data)
 	shift_data = ref_data['shifts'].get(shift, {})
@@ -1854,19 +1940,9 @@ def _core_process_attendance_logic_optimized(
 				# Sunday: working_hours was reset to 0 (all hours moved to OT) —
 				# status is determined from the pre-reset value (hours_for_status)
 				status_hours = hours_for_status if hours_for_status is not None else working_hours
-				if status_hours == 0 and not in_time:
-					# No logs at all - should not reach here due to earlier filtering, but just in case
-					attendance_status = 'Absent'
-				elif status_hours == 0 and in_time and not out_time:
-					# Employee has IN but no OUT yet - mark as Present (they showed up)
-					# Working hours will be calculated when OUT is recorded
-					attendance_status = 'Present'
-				else:
-					attendance_status = determine_attendance_status(
-						working_hours=status_hours,
-						working_hours_threshold_for_absent=shift_data.get('working_hours_threshold_for_absent', 0),
-						working_hours_threshold_for_half_day=shift_data.get('working_hours_threshold_for_half_day', 0)
-					)
+				attendance_status = resolve_attendance_status(
+					status_hours, in_time, out_time, attendance_date, shift_data
+				)
 
 				# Anomaly note (Left w/ checkins, ±60min no OT theo zone, Sunday + meal
 				# allowance, female checkout window, single-checkin/no-IN/no-OUT)
@@ -1946,14 +2022,17 @@ def _core_process_attendance_logic_optimized(
 								att_data['custom_leave_application_abbreviation'] = old_att.get('custom_leave_application_abbreviation')
 							elif old_att.get('leave_type'):
 								# Calculate abbreviation from leave type
-								leave_abbr = ref_data.get('leave_type_abbreviations', {}).get(
-									old_att.get('leave_type'),
-									old_att.get('leave_type', '')[:2].upper()
-								)
 								if old_att.get('status') == 'Half Day':
-									att_data['custom_leave_application_abbreviation'] = f"{leave_abbr}/2"
+									att_data['custom_leave_application_abbreviation'] = combined_abbreviation(
+										old_att.get('leave_type'), old_att.get('custom_leave_type_2')
+									)
 								else:
-									att_data['custom_leave_application_abbreviation'] = leave_abbr
+									att_data['custom_leave_application_abbreviation'] = ref_data.get(
+										'leave_type_abbreviations', {}
+									).get(
+										old_att.get('leave_type'),
+										old_att.get('leave_type', '')[:2].upper()
+									)
 
 							# Status logic based on leave type and checkin:
 							# - Half Day leave → always "Half Day"
@@ -1964,17 +2043,13 @@ def _core_process_attendance_logic_optimized(
 							if old_att.get('status') == 'Half Day':
 								# Half Day leave: always preserve "Half Day"
 								att_data['status'] = 'Half Day'
-								# Worked the other half → that half is paid → "Present".
-								# Deliberately NOT conditioned on Leave Type.is_lwp: for an unpaid
-								# half-day leave payroll already deducts 0.5 day through
-								# calculate_lwp_ppl_and_absent_days_based_on_attendance()
-								# (salary_slip.py:790), so flagging it Absent here would deduct a
-								# second 0.5 and cost the employee a full day. HRMS sets "Present"
-								# for every leave-backed half day for exactly that reason
-								# (leave_application.py:317).
-								if has_checkin:
-									att_data['half_day_status'] = 'Present'
-									att_data['modify_half_day_status'] = 1
+								# 'Present' <=> nua CON LAI duoc cong ty tra luong: di lam
+								# (co checkin) HOAC don nghi thu hai co is_lwp = 0.
+								# Gan 'Absent' sai se tru HAI lan (salary_slip.py:790 + :578)
+								# = mat tron mot ngay luong. Xem quy dinh muc 5.2.
+								att_data['half_day_status'] = resolve_half_day_status(
+									bool(has_checkin), att_data.get('custom_leave_type_2')
+								)
 							elif old_att.get('status') == 'On Leave':
 								# Full Day leave: status depends on checkin
 								if has_checkin:
@@ -2005,13 +2080,11 @@ def _core_process_attendance_logic_optimized(
 
 						has_checkin = att_data.get('working_hours', 0) > 0 or att_data.get('in_time')
 						if leave_status['status'] == 'Half Day':
-							# Half Day leave: always "Half Day"; other half from checkin
+							# Half Day leave: always "Half Day"; nua con lai xem muc 5.2 quy dinh
 							att_data['status'] = 'Half Day'
-							if has_checkin:
-								att_data['half_day_status'] = 'Present'
-								att_data['modify_half_day_status'] = 1
-							else:
-								att_data['half_day_status'] = 'Absent'
+							att_data['half_day_status'] = resolve_half_day_status(
+								bool(has_checkin), leave_status.get('leave_type_2')
+							)
 						elif has_checkin:
 							# Full Day leave + checkin → Present (keep leave link)
 							att_data['status'] = 'Present'

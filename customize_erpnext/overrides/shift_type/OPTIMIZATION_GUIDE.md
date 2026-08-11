@@ -61,8 +61,8 @@ Mode detection (`fore_get_logs`):
    - **OT per-segment** (`calculate_overtime_segments`, LEGACY_APP_TIMESHEET_ALGORITHM.md §7): final = Σ min(actual, approved) per pre/lunch/post segment — NO global clamp; pre actual capped at registered span, min `min_pre_shift_ot_minutes`; post actual uncapped, min `min_ot_minutes`; everything floored to `ot_block_minutes`; lunch counted only when `allow_ot_in_rest_time` is ON.
    - **Sunday** (§8): shift boundaries ← OT registration span; ALL worked hours → `actual_overtime_duration`, `working_hours` = 0 (status still from real hours); no register → approved/final = 0 but actual still shown.
    - 0/1-log days: approved OT still shown from registrations (§7.9), actual/final = 0.
-   - **`half_day_status` is always written** — payroll ignores a Half Day without it (`get_half_absent_days` needs status `Half Day` **and** `half_day_status = "Absent"`; NULL reads as a fully paid day). Threshold-derived Half Day (no leave) → `Absent`, matching HRMS `attendance.py:199`. Leave-backed Half Day → `Present`, matching `leave_application.py:317`.
-   - New inserts apply Leave Applications (Half Day + checkin → half_day_status Present); updates preserve leave from the old record.
+   - **`half_day_status` is always written** — payroll ignores a Half Day without it (`get_half_absent_days` needs status `Half Day` **and** `half_day_status = "Absent"`; NULL reads as a fully paid day). The value comes from `overrides/leave_rules.resolve_half_day_status()` — shared with the Leave Application flow, see the table below.
+   - New inserts and updates both apply Leave Applications through the same helper; two half-day LAs on one date become a **`Half Day`** (never `On Leave`) whose `leave_type` is the `is_lwp` half.
    - `custom_note` anomalies (§9-10): Left-with-checkins, ±threshold without same-zone OT registration, Sunday work (+meal allowance > 4h spanning break), female checkout window without Employee Maternity (only shifts ending at window end), single-checkin / no-IN / no-OUT.
    - Values stored rounded: working_hours 2dp, OT 1dp.
 3b. **ABSENCE PASS** (FULL only, runs ONCE after all shifts) — every existing attendance whose (employee, date) had no checkins processed by ANY shift is re-resolved: Maternity Leave → skip, Leave → On Leave/Half Day, else Absent. Global `processed_keys` prevents cross-shift Absent overwrites when the stored shift is stale.
@@ -70,22 +70,92 @@ Mode detection (`fore_get_logs`):
 4b. **Left-employee cleanup** — delete attendance ≥ relieving_date **without** checkins; for ones WITH checkins, PREPEND the left-employee sentence to `custom_note` if not already there (it normally arrives from step 3 — this is a safety net). It must not overwrite: doing so used to wipe the other anomalies of that day.
 5. **Stats** — per-shift before/after counts, skipped-employee classification (`Maternity Leave` → `No shift assigned` → `Not yet joined` → `Already left` (`relieving_date <= from_date`, matching the calculation rule) → `No checkins / Holiday`).
 
+## Attendance status — ngưỡng vắng chỉ áp **SAU KHI TAN CA** (11/08/2026)
+
+Engine chạy hourly nên một ngày **đang diễn ra** cũng bị đem ra kết luận. App cũ không gặp vấn đề
+này vì chỉ tính cho ngày đã trọn.
+
+Sự cố đo được **11/08/2026 lúc 16:44**: **264** bản `Absent` (mức nền ngày thường 65–95), trong đó
+**262 thuộc ca chưa tan**. Nguyên nhân: công nhân **quẹt đúp** ở cửa lúc vào (hai log cách nhau
+1–7 giây), engine ghép thành cặp IN/OUT ⇒ `working_hours = 0` ⇒ dưới
+`working_hours_threshold_for_absent = 2,0` ⇒ `Absent`.
+
+Hai hàm thuần, tách khỏi vòng lặp để test được:
+
+| Hàm | Việc |
+|---|---|
+| `is_shift_in_progress(attendance_date, shift_data)` | ca của **người này** đã tan chưa — đọc `end_time` của chính ca đó |
+| `resolve_attendance_status(status_hours, in_time, out_time, attendance_date, shift_data)` | quyết định trạng thái cuối cùng |
+
+```
+không có in_time                → Absent
+ca CHƯA tan  (có quẹt)          → Present   (tạm; lần chạy sau khi tan ca chốt lại)
+có in_time, KHÔNG có out_time   → Present   (đã đến làm, quên/sót log ra)
+còn lại                         → áp ngưỡng absent / half-day như cũ
+```
+
+⚠ **Ca chưa tan phải bỏ qua CẢ HAI ngưỡng.** Cả 5 ca đều `absent = 2,0`, `half_day = 4,01`; chỉ bỏ
+ngưỡng vắng thì `0 < 4,01` rơi tiếp xuống `Half Day` — tệ hơn, vì kéo theo `half_day_status` và
+trừ **nửa ngày lương**.
+
+⚠ Giờ tan **theo từng ca**, không dùng mốc chung: `Shift 1` 14:00 · `Canteen 6:30` 15:30 ·
+`Canteen` 16:00 · `Day` 17:00 · `Shift 2` 22:00. Lúc 16:44 Shift 1 đã tan còn Shift 2 còn 5 tiếng.
+
+🔴 **Đừng bỏ nhánh `not out_time → Present`.** Ngày 11/08/2026 nhánh này bị xoá vì **đo nhầm**: mẫu
+khảo sát lọc `status = 'Absent'`, mà mọi bản nhánh này xử lý đều đã thành `Present` nên không nằm
+trong mẫu — đo ra 0 và kết luận "nhánh chết". Đo đúng (không lọc status): **728 bản** đang ở
+`Present` nhờ nhánh đó. Xoá nó là cắt trọn ngày lương của người quên quẹt ra.
+
+**Đánh đổi có chủ ý:** ngày **đang diễn ra** đổi kết quả theo giờ chạy (16h `Present`, 20h
+`Absent`). Ngày đã qua thì `is_shift_in_progress()` luôn False nên **tất định** — vì vậy nghiệm thu
+*"chạy hai lần → 0 thay đổi"* phải chạy trên **ngày đã trọn**.
+
+Test: `test_attendance_status.py` — 27 case, không ghi DB, giả lập thời điểm bằng
+`frappe.flags.current_datetime`.
+
 ## Half Day ↔ payroll — never leave `half_day_status` NULL
 
 `status = "Half Day"` alone changes nothing in payroll. `SalarySlip.get_half_absent_days()`
 (`salary_slip.py:588`) filters on `half_day_status == "Absent"`, so a NULL is read as a full paid
 day — 1,906 records sat that way until 2026-08-07 and every half day was being paid double.
 
-| Nguồn của nửa ngày | `half_day_status` | Vì sao |
-|---|---|---|
-| Dưới ngưỡng giờ, không có đơn nghỉ | `Absent` | Nửa còn lại không làm, không đơn nào phủ ⇒ trừ 0,5 ngày. HRMS `attendance.py:199` |
-| Có Leave Application nửa ngày | `Present` | **Kể cả loại không lương (`is_lwp`)** — xem dưới. HRMS `leave_application.py:317` |
+🔴 Quy tắc **KHÔNG phải** "có checkin hay không", mà là **nửa còn lại có được công ty trả lương
+hay không**. Nguồn duy nhất: `overrides/leave_rules.resolve_half_day_status()`; căn cứ nghiệp vụ
+`overrides/leave_application/QUY_DINH_NGHI_PHEP_2025.md` mục 3.5 và 5.2.
 
-**Không được set `Absent` cho half-day có đơn nghỉ không lương**, dù nghe có vẻ hợp lý: payroll đã
-trừ 0,5 ngày cho phần LWP ở `calculate_lwp_ppl_and_absent_days_based_on_attendance()`
-(`salary_slip.py:790` → `equivalent_lwp = 1 − 0.5`, rồi `payment_days -= lwp` ở dòng 536). Gắn thêm
-cờ `Absent` sẽ khiến `get_half_absent_days()` trừ **thêm** 0,5 ⇒ mất trọn 1 ngày lương. Đó đúng là
-lý do HRMS gốc đặt `Present` cho mọi half-day có đơn nghỉ.
+| Nửa còn lại là… | `half_day_status` | Ngày công |
+|---|---|:--:|
+| Đi làm (có checkin) | `Present` | `P/2` → 1 · `O/2` → 0,5 |
+| Nghỉ phép **có lương** (`P` `MC` `HS` `HL`, `is_lwp = 0`) | `Present` | `OP/2` `COP/2` → 0,5 |
+| Nghỉ **không lương / BHXH** (`is_lwp = 1`) | `Absent` | `OCO/2` `OK/2` `COK/2` → 0 |
+| Không có gì (không đi làm, không đơn thứ 2) | `Absent` | HRMS `attendance.py:199` cũng chốt vậy |
+
+⚠ **`OP/2` (Ốm ½ + Phép năm ½) cả ngày không có checkin nào mà vẫn là `Present`** — vì nửa còn lại
+là phép năm có lương. Quy tắc cũ *"không checkin → Absent"* sai đúng ở dòng này.
+
+⚠ Ngược lại, **không** được đặt `Present` vô điều kiện cho mọi half-day có đơn nghỉ: payroll trừ
+từ **hai** nguồn độc lập — `calculate_lwp_ppl_and_absent_days_based_on_attendance()`
+(`salary_slip.py:790`) trừ 0,5 khi `leave_type.is_lwp = 1`, và `get_half_absent_days()`
+(`salary_slip.py:578`) trừ thêm 0,5 khi `half_day_status = 'Absent'`. Đặt sai theo chiều nào cũng
+lệch nửa ngày lương.
+
+### Hai đơn nửa ngày cùng ngày → `Half Day`, không phải `On Leave`
+
+| Trước | Sau |
+|---|---|
+| `status = 'On Leave'` (trọn ngày) | **`Half Day`** |
+| `leave_type = active[0]`, hai query preload **không có `ORDER BY`** | `leave_type` = nửa `is_lwp = 1`; thêm `ORDER BY name` |
+| mã tổ hợp `f"{abbr1}/{abbr2}"` | `combined_abbreviation()` — tra bảng của quy định |
+
+`'On Leave'` làm HRMS trừ **trọn ngày** (`salary_slip.py:800` đặt `equivalent_lwp = 1`), trong khi
+quy định cho `OP/2` = **0,5** ngày công. Và vì thiếu `ORDER BY`, cùng dữ liệu chạy lại có thể ra
+**0 hoặc 1** ngày công tuỳ thứ tự MySQL trả về — sai theo cả hai chiều.
+
+`leave_type` phải là nửa `is_lwp = 1`: HRMS chỉ trừ lương theo loại nằm ở field đó. Đặt nửa có
+lương vào thì HRMS bỏ qua cả ngày ⇒ trả đủ lương cho ngày chỉ làm nửa buổi.
+
+Kiểm chứng: `overrides/leave_application/test_leave_rules.py` (39 case, đối chiếu thẳng 9 dòng
+nửa ngày của quy định).
 
 Ngày Chủ Nhật có thể ra Half Day (§8 reset `working_hours` = 0 nhưng status vẫn tính từ giờ thực).
 Vô hại với payroll vì `get_half_absent_days()` loại ngày nằm trong Holiday List
@@ -143,7 +213,8 @@ Performance tuning (batch sizes) stays hardcoded in `shift_type_optimized.py`.
 - ORM bypassed for insert/update (no validate/on_submit/Comments; Attendance names are hashes). Updates go through a `TEMPORARY TABLE ... LIKE tabAttendance` staging table + one JOIN UPDATE per batch; a batch that fails is retried row by row. The DDL runs on `frappe.db._cursor` because `frappe.db.sql()` rejects CREATE/DROP once the transaction has writes — MariaDB exempts TEMPORARY tables from implicit commits, so that guard is a false positive here.
 - `mark_auto_attendance_on_holidays` does **not** create attendance on empty holidays, and must not be made to. Its own field description is *"auto attendance will be marked on holidays **if Employee Checkins exist**"*, and upstream HRMS only calls `should_mark_attendance()` from inside the checkin groupby loop (`hrms/.../shift_type.py:145`); the no-checkin path (`mark_absent_for_dates_with_no_attendance` → `get_dates_for_attendance`) skips holidays unconditionally. Days WITH checkins are already always counted here, which is exactly the flag-enabled behaviour. **Wiring the flag into the no-checkin path on 2026-08-06 created 28,798 bogus Sunday `Absent` records in one afternoon** (all 5 shifts have it ticked) — reverted the same day. Half-holiday thresholds are still not implemented.
 - A day WITH checkins is always calculated, even past the relieving date — the relieving date may simply be wrong. `custom_note` says so and asks HR to verify; only no-checkin days after relieving are deleted.
-- Single log (IN only) → status Present, hours 0.
+- Single log (IN only) → status Present, hours 0 — `resolve_attendance_status()`. Cùng hàm đó
+  hoãn ngưỡng vắng khi ca chưa tan; xem mục *Attendance status* ở trên trước khi sửa.
 - Checkin insert/update hooks for per-checkin recalc are disabled in hooks.py (queue-flood protection); corrections land at the next FULL run.
 - Shift Assignment changes do NOT trigger recalc (override deleted 2026-07-04) — corrected at the next FULL run or manual Bulk Update.
 
