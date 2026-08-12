@@ -13,6 +13,7 @@ from datetime import date, datetime, timedelta
 import frappe
 
 from customize_erpnext.overrides.shift_type.shift_type_optimized import (
+	discard_pre_shift_checkout,
 	is_shift_in_progress,
 	resolve_attendance_status,
 )
@@ -108,6 +109,42 @@ check("có IN, không OUT, ca chưa tan   → Present",
 at(20, 0)
 check("phân biệt: quẹt ĐÚP (có OUT) sau khi tan ca → Absent",
       resolve_attendance_status(0, t(7, 46), t(7, 46, 3), D, DAY), "Absent")
+
+print("\nPHẦN 4c — discard_pre_shift_checkout(): log trước giờ vào ca không phải quẹt RA")
+# ca thật: TIQN-1168 12/08, Day 08:00-17:00, hai log 07:52:44 và 07:52:46
+check("cả hai log trước 08:00        → bỏ out_time",
+      discard_pre_shift_checkout(t(7, 52, 44), t(7, 52, 46), D, DAY), None)
+check("cách nhau 4 phút, vẫn trước ca → bỏ out_time (quy tắc <60s bỏ sót)",
+      discard_pre_shift_checkout(t(7, 46, 1), t(7, 50, 13), D, DAY), None)
+check("out ĐÚNG giờ vào ca 08:00     → bỏ (<=)",
+      discard_pre_shift_checkout(t(7, 30), t(8, 0), D, DAY), None)
+check("out 08:00:01 — đã qua giờ vào  → GIỮ",
+      discard_pre_shift_checkout(t(7, 30), t(8, 0, 1), D, DAY), t(8, 0, 1))
+check("ngày làm bình thường 07:52→17:05 → GIỮ",
+      discard_pre_shift_checkout(t(7, 52), t(17, 5), D, DAY), t(17, 5))
+check("quẹt đúp lúc RA 17:01:21→17:01:39 → GIỮ (không đụng)",
+      discard_pre_shift_checkout(t(17, 1, 21), t(17, 1, 39), D, DAY), t(17, 1, 39))
+check("Shift 1 (vào 06:00): 05:54→05:56 → bỏ out_time",
+      discard_pre_shift_checkout(t(5, 54), t(5, 56), D, SHIFT1), None)
+check("chỉ có in_time, không out      → giữ None",
+      discard_pre_shift_checkout(t(7, 52), None, D, DAY), None)
+check("shift_data thiếu start_time    → GIỮ nguyên",
+      discard_pre_shift_checkout(t(7, 52), t(7, 52, 3), D, {"end_time": timedelta(hours=17)}),
+      t(7, 52, 3))
+SUNDAY = date(2026, 8, 9)   # Chủ Nhật — §8 lấy ranh giới ca từ đăng ký OT
+check("Chủ Nhật                       → GIỮ nguyên",
+      discard_pre_shift_checkout(datetime(2026, 8, 9, 7, 52), datetime(2026, 8, 9, 7, 52, 3),
+                                 SUNDAY, DAY),
+      datetime(2026, 8, 9, 7, 52, 3))
+
+print("\nPHẦN 4d — nối hai bước: sau khi bỏ out_time thì trạng thái ra đúng")
+at(20, 0)   # Day đã tan từ 17:00
+raw_out = t(7, 52, 46)
+kept = discard_pre_shift_checkout(t(7, 52, 44), raw_out, D, DAY)
+check("TRƯỚC khi sửa: out giả còn → Absent",
+      resolve_attendance_status(0, t(7, 52, 44), raw_out, D, DAY), "Absent")
+check("SAU khi sửa:  out bị bỏ  → Present",
+      resolve_attendance_status(0, t(7, 52, 44), kept, D, DAY), "Present")
 
 print("\nPHẦN 5 — NGÀY CŨ luôn tất định (không phụ thuộc giờ chạy)")
 OLD = date(2026, 7, 15)

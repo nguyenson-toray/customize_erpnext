@@ -181,6 +181,42 @@ def determine_attendance_status(
 	return "Present"
 
 
+def discard_pre_shift_checkout(in_time, out_time, attendance_date, shift_data: Dict):
+	"""Bỏ `out_time` khi TOÀN BỘ log nằm trước giờ vào ca — đó không phải lần quẹt ra.
+
+	Engine ghép `in_time` = log đầu, `out_time` = log cuối. Công nhân quẹt **đúp** ở cửa
+	lúc vào (hoặc quẹt lại vài phút sau) tạo ra một `out_time` giả nằm trước cả giờ vào ca:
+
+	    TIQN-1168  12/08  ca Day 08:00-17:00   in 07:52:44   out 07:52:46
+
+	`working_hours` khi đó = 0. Trong lúc ca chưa tan thì `resolve_attendance_status()` vẫn
+	cho `Present`, nhưng **sau khi tan ca** cái `out_time` giả đó đẩy bản ghi xuống ngưỡng
+	vắng ⇒ `Absent`, cắt trọn ngày lương của người thực ra có đi làm.
+
+	Một lần quẹt trước giờ vào ca **luôn** là quẹt vào. Bỏ `out_time` thì bản ghi rơi đúng
+	nhánh "đã đến làm, chưa/quên quẹt ra" của `resolve_attendance_status()`.
+
+	Đo 26/07-12/08 (13.155 bản có đủ in+out): **163 bản** dính, khoảng cách in→out từ 1 giây
+	tới **630 giây** — nên quy tắc "gộp hai log cách nhau < 60 giây" bỏ sót 8 bản. Điều kiện
+	`out_time <= shift_start` cũng hẹp hơn nhiều: chỉ cần quẹt ra lúc tan ca là không kích
+	hoạt, nên **không gây churn** (quy tắc < 60s làm 2.119 bản bị ghi lại mỗi FULL run).
+
+	⚠ Bỏ qua Chủ Nhật: §8 lấy ranh giới ca từ **đăng ký OT**, không phải `Shift Type`.
+	⚠ Chỉ đụng `out_time`. `in_time` = log đầu vẫn luôn đúng.
+	⚠ KHÔNG áp cho chiều ngược lại (toàn bộ log SAU giờ tan ca) — đến sau khi ca đã kết thúc
+	   không phải là "quên quẹt ra"; `custom_note` đánh dấu để HR xử lý.
+	"""
+	if not (in_time and out_time) or attendance_date.weekday() == 6:
+		return out_time
+
+	start = shift_data.get('start_time')
+	if start is None:
+		return out_time
+
+	shift_start = datetime.combine(attendance_date, (datetime.min + start).time())
+	return None if out_time <= shift_start else out_time
+
+
 def is_shift_in_progress(attendance_date, shift_data: Dict) -> bool:
 	"""Ca của **người này** trong ngày này đã tan chưa?
 
@@ -1772,6 +1808,10 @@ def _core_process_attendance_logic_optimized(
 				log_times = sorted(list({log.time for log in single_shift_logs}))
 				in_time = log_times[0] if log_times else None
 				out_time = log_times[-1] if len(log_times) > 1 else None
+				# Quẹt đúp ở cửa lúc vào sinh ra out_time giả nằm trước giờ vào ca
+				out_time = discard_pre_shift_checkout(
+					in_time, out_time, attendance_date, shift_data
+				)
 
 				# Preloaded OT entries for this (employee, date) — used by the Sunday
 				# override, custom_calculate_working_hours_overtime (in-memory OT

@@ -110,7 +110,36 @@ trong mẫu — đo ra 0 và kết luận "nhánh chết". Đo đúng (không l�
 `Absent`). Ngày đã qua thì `is_shift_in_progress()` luôn False nên **tất định** — vì vậy nghiệm thu
 *"chạy hai lần → 0 thay đổi"* phải chạy trên **ngày đã trọn**.
 
-Test: `test_attendance_status.py` — 27 case, không ghi DB, giả lập thời điểm bằng
+### `out_time` giả khi quẹt đúp trước giờ vào ca
+
+Engine ghép `in_time` = log đầu, `out_time` = log cuối, **bỏ qua `log_type`** — field
+`Shift Type.determine_check_in_and_check_out` KHÔNG được đọc ở đâu cả (32% checkin không có
+`log_type` nên không tin được).
+
+Hệ quả: quẹt đúp ở cửa lúc vào sinh ra `out_time` nằm **trước cả giờ vào ca**:
+
+```
+TIQN-1168  12/08  ca Day 08:00-17:00   in 07:52:44   out 07:52:46
+```
+
+`discard_pre_shift_checkout()` bỏ `out_time` khi `out_time <= shift_start` ⇒ bản ghi rơi đúng
+nhánh *"đã đến làm, chưa/quên quẹt ra"* → `Present`.
+
+Đo 26/07–12/08 (13.155 bản có đủ in+out, bỏ Chủ Nhật): **163 bản** dính, khoảng cách in→out từ
+**1 giây tới 630 giây**.
+
+> ❌ **Đã cân nhắc và bác bỏ:** quy tắc *"gộp hai log cách nhau < 60 giây"*. Nó **bỏ sót 8/163**
+> bản (khoảng cách tới 4 phút), và tệ hơn — nó giữ log **đầu** của cặp, nên ở **cửa ra** lại xén
+> mất vài giây của `out_time` thật (`17:01:39` → `17:01:21`), làm **2.119** bản ghi bị ghi lại
+> mỗi FULL run mà không giải quyết gì. Điều kiện `out_time <= shift_start` hẹp hơn nhiều: chỉ cần
+> quẹt ra lúc tan ca là không kích hoạt ⇒ **0 churn** trên ngày đã trọn.
+
+⚠ Bỏ qua **Chủ Nhật** — §8 lấy ranh giới ca từ đăng ký OT, không phải `Shift Type`.
+⚠ Chỉ đụng `out_time`; `in_time` = log đầu luôn đúng.
+⚠ **KHÔNG** áp cho chiều ngược lại (toàn bộ log **sau** giờ tan ca — 1 bản trong 18 ngày): đến
+sau khi ca đã kết thúc không phải là "quên quẹt ra". `custom_note` đánh dấu để HR xử lý.
+
+Test: `test_attendance_status.py` — 39 case, không ghi DB, giả lập thời điểm bằng
 `frappe.flags.current_datetime`.
 
 ## Half Day ↔ payroll — never leave `half_day_status` NULL
