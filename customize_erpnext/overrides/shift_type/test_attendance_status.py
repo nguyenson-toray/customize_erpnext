@@ -14,6 +14,7 @@ import frappe
 
 from customize_erpnext.overrides.shift_type.shift_type_optimized import (
 	discard_pre_shift_checkout,
+	is_late_entry,
 	is_shift_in_progress,
 	resolve_attendance_status,
 )
@@ -145,6 +146,24 @@ check("TRƯỚC khi sửa: out giả còn → Absent",
       resolve_attendance_status(0, t(7, 52, 44), raw_out, D, DAY), "Absent")
 check("SAU khi sửa:  out bị bỏ  → Present",
       resolve_attendance_status(0, t(7, 52, 44), kept, D, DAY), "Present")
+
+print("\nPHẦN 4e — is_late_entry(): chỉ cần in_time, và phải TRONG ca")
+LATE = {**DAY, "enable_late_entry_marking": 1, "late_entry_grace_period": 1}
+check("07:52 vào sớm                  → không trễ", is_late_entry(t(7, 52), D, LATE), False)
+check("08:01 đúng hết grace           → không trễ", is_late_entry(t(8, 1), D, LATE), False)
+check("08:02 quá grace 1 phút         → TRỄ", is_late_entry(t(8, 2), D, LATE), True)
+check("09:15 TIQN-2349                → TRỄ", is_late_entry(t(9, 15), D, LATE), True)
+check("16:59 sát giờ tan              → TRỄ", is_late_entry(t(16, 59), D, LATE), True)
+check("17:00 ĐÚNG giờ tan             → không trễ", is_late_entry(t(17, 0), D, LATE), False)
+check("17:14 TIQN-1732 (sau giờ tan)  → không trễ", is_late_entry(t(17, 14), D, LATE), False)
+check("19:00 TIQN-1613 (làm ngoài ca) → không trễ", is_late_entry(t(19, 0), D, LATE), False)
+check("không có in_time               → không trễ", is_late_entry(None, D, LATE), False)
+check("marking TẮT                    → không trễ",
+      is_late_entry(t(9, 15), D, {**LATE, "enable_late_entry_marking": 0}), False)
+check("thiếu end_time                 → không trễ",
+      is_late_entry(t(9, 15), D, {k: v for k, v in LATE.items() if k != "end_time"}), False)
+check("Chủ Nhật                       → không trễ",
+      is_late_entry(datetime(2026, 8, 9, 9, 15), date(2026, 8, 9), LATE), False)
 
 print("\nPHẦN 5 — NGÀY CŨ luôn tất định (không phụ thuộc giờ chạy)")
 OLD = date(2026, 7, 15)

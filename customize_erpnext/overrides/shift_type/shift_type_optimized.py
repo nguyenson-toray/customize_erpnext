@@ -181,6 +181,41 @@ def determine_attendance_status(
 	return "Present"
 
 
+def is_late_entry(in_time, attendance_date, shift_data: Dict) -> bool:
+	"""Vào trễ — chỉ phụ thuộc `in_time`, KHÔNG cần `out_time`.
+
+	🔴 Trước 12/08/2026, `late_entry` chỉ được tính trong nhánh `if in_time and out_time`.
+	Ai chưa/không quẹt ra thì **không bao giờ** bị đánh dấu vào trễ, dù muộn cả tiếng:
+
+	    TIQN-2349  12/08  ca Day 08:00  vào 09:15  →  late_entry = 0
+
+	Đo lúc phát hiện: 952 bản có `in_time` mà thiếu `out_time`, trong đó **9 bản vào trễ
+	thật** nhưng cả 9 đều `late_entry = 0`.
+
+	Việc này sẽ chạm tiền khi tính **thưởng chuyên cần** — quy chế trừ theo *số lần* đi trễ
+	(`payroll_docs/PLAN_ATTENDANCE_VS_QUYCHE.md` mục A4), nên đếm thiếu là trả thừa thưởng.
+
+	⚠ Phải **trong ca** mới tính đi trễ: `shift_start + grace < in_time < shift_end`.
+	Người đến SAU khi ca đã tan không phải "đi làm muộn" mà là **làm ngoài ca** (OT, hoặc ca
+	bị gán sai) — đánh dấu đi trễ sẽ trừ oan thưởng chuyên cần, vì quy chế trừ theo *số lần*
+	đi trễ. Đã gặp: `TIQN-1613` vào **19:00** và `TIQN-2334` vào **19:02** trong khi ca `Day`
+	tan 17:00. `custom_note` đã đánh dấu các ca đó để HR xử lý riêng.
+
+	Chủ Nhật bỏ qua: §8 lấy ranh giới ca từ đăng ký OT, và làm ngày CN vốn không tính đi trễ.
+	"""
+	if not in_time or attendance_date.weekday() == 6:
+		return False
+	if not cint(shift_data.get('enable_late_entry_marking')):
+		return False
+	start, end = shift_data.get('start_time'), shift_data.get('end_time')
+	if start is None or end is None:
+		return False
+	base = datetime.combine(attendance_date, datetime.min.time())
+	shift_start, shift_end = base + start, base + end
+	grace = timedelta(minutes=cint(shift_data.get('late_entry_grace_period')))
+	return shift_start + grace < in_time < shift_end
+
+
 def discard_pre_shift_checkout(in_time, out_time, attendance_date, shift_data: Dict):
 	"""Bỏ `out_time` khi TOÀN BỘ log nằm trước giờ vào ca — đó không phải lần quẹt ra.
 
@@ -1035,7 +1070,8 @@ def build_attendance_note(
 	shift_data: Dict,
 	emp_data: Dict,
 	ref_data: Dict,
-	working_hours: float = 0
+	working_hours: float = 0,
+	raw_out_time=None
 ) -> Optional[str]:
 	"""
 	Build anomaly note (custom_note) for an attendance WITH check-ins.
@@ -1076,11 +1112,19 @@ def build_attendance_note(
 	is_sunday = attendance_date.weekday() == 6
 
 	# 5. Check-in log anomalies (§9)
+	#
+	# ⚠ Dùng `raw_out_time` — giá trị TRƯỚC khi `discard_pre_shift_checkout()` bỏ đi.
+	# `out_time` đã bị bỏ khi mọi log nằm trước giờ vào ca, nên nếu đọc nó thì ngày có
+	# HAI log (quẹt đúp lúc vào) sẽ bị ghi nhầm là "Only one check-in record", và nhánh
+	# "all logs before shift start" chính xác hơn thì không bao giờ chạy được.
+	# Các mục khác trong hàm vẫn dùng `out_time` đã lọc — đúng, vì một lần quẹt trước ca
+	# không phải giờ tan làm.
+	effective_out = raw_out_time if raw_out_time is not None else out_time
 	logs_outside_shift = False
-	if in_time and not out_time:
+	if in_time and not effective_out:
 		notes.append("Only one check-in record")
-	if in_time and out_time and shift_start and shift_end and not is_sunday:
-		if out_time <= shift_start:
+	if in_time and effective_out and shift_start and shift_end and not is_sunday:
+		if effective_out <= shift_start:
 			notes.append("No check-OUT (all logs before shift start)")
 			logs_outside_shift = True
 		elif in_time >= shift_end:
@@ -1808,7 +1852,10 @@ def _core_process_attendance_logic_optimized(
 				log_times = sorted(list({log.time for log in single_shift_logs}))
 				in_time = log_times[0] if log_times else None
 				out_time = log_times[-1] if len(log_times) > 1 else None
-				# Quẹt đúp ở cửa lúc vào sinh ra out_time giả nằm trước giờ vào ca
+				# Quẹt đúp ở cửa lúc vào sinh ra out_time giả nằm trước giờ vào ca.
+				# Giữ giá trị gốc cho `build_attendance_note()` — nó cần biết thực sự có
+				# mấy log để không ghi nhầm "Only one check-in record".
+				raw_out_time = out_time
 				out_time = discard_pre_shift_checkout(
 					in_time, out_time, attendance_date, shift_data
 				)
@@ -1946,7 +1993,9 @@ def _core_process_attendance_logic_optimized(
 				else:
 					# Only 1 log or no logs - set defaults
 					working_hours = 0
-					late_entry = False
+					# `late_entry` chỉ cần in_time — đừng để chung với các giá trị cần cả
+					# cặp in/out. `early_exit` thì đúng là cần out_time nên vẫn False.
+					late_entry = is_late_entry(in_time, attendance_date, shift_data)
 					early_exit = False
 					actual_overtime = 0
 					approved_overtime = 0
@@ -1989,7 +2038,7 @@ def _core_process_attendance_logic_optimized(
 				custom_note = build_attendance_note(
 					employee, attendance_date, in_time, out_time,
 					ref_data['shifts'].get(shift_name, {}), emp_data, ref_data,
-					working_hours=status_hours
+					working_hours=status_hours, raw_out_time=raw_out_time
 				)
 
 				# Prepare attendance record with FULL fields (matches original)

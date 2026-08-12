@@ -237,6 +237,37 @@ Performance tuning (batch sizes) stays hardcoded in `shift_type_optimized.py`.
 | `LEGACY_APP_TIMESHEET_ALGORITHM.md` | Reference algorithm of the legacy Dart app (source of truth for the rules) |
 | `attendance_config.py` | Legacy feature-flag/benchmark helpers (used by attendance_list.js only) |
 
+## ⚠ Ràng buộc cấu hình: ca KHÔNG được kết thúc sau nửa đêm
+
+Với mỗi Shift Type phải giữ:
+
+```
+end_time + allow_check_out_after_shift_end_time  <  24:00
+```
+
+Ở chế độ FULL (chạy từ UI), query lấy checkin lọc `shift_actual_end < cuối ngày to_date`
+(`shift_type_optimized.py`, khối `if fore_get_logs`). Ca nào có `shift_actual_end` rơi sang
+**hôm sau** thì **toàn bộ checkin của ca đó bị loại** — engine báo *"Found 0 checkins"*, rồi bước
+"Mark absent" tạo bản ghi `Absent` với `in_time = NULL`. Người đi làm cả ngày bị cắt trọn ngày
+lương, **không có cảnh báo nào**.
+
+Đã xảy ra 12/08/2026: `Shift 2` tan 22:00 + cho ra muộn **180 phút** = **01:00 hôm sau**
+⇒ **27 bản ghi** `in_time = NULL` dù có quẹt thẻ (25 `Absent` + 2 `Half Day`).
+Khắc phục bằng cách hạ xuống **90 phút** (22:00 + 90 = 23:30) rồi chạy lại bulk update.
+
+Kiểm nhanh khi thêm/sửa ca:
+
+```sql
+SELECT name, end_time, allow_check_out_after_shift_end_time
+FROM `tabShift Type`
+WHERE TIME_TO_SEC(end_time)/3600 + IFNULL(allow_check_out_after_shift_end_time,0)/60 >= 24;
+-- kỳ vọng: 0 dòng
+```
+
+> `shift_actual_end` **lưu cứng trên từng Employee Checkin**. Đổi Shift Type không cập nhật bản
+> ghi cũ — phải chạy Bulk Update Attendance cho khoảng ngày liên quan; STEP 2
+> (`bulk_update_employee_checkin`) tính lại toàn bộ checkin trong khoảng **trước** vòng lặp theo ca.
+
 ## Design Trade-offs (intentional)
 
 - ORM bypassed for insert/update (no validate/on_submit/Comments; Attendance names are hashes). Updates go through a `TEMPORARY TABLE ... LIKE tabAttendance` staging table + one JOIN UPDATE per batch; a batch that fails is retried row by row. The DDL runs on `frappe.db._cursor` because `frappe.db.sql()` rejects CREATE/DROP once the transaction has writes — MariaDB exempts TEMPORARY tables from implicit commits, so that guard is a false positive here.
