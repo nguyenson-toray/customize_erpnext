@@ -34,6 +34,7 @@ from frappe.utils import (
     get_quarter_start,
     get_year_ending,
     get_year_start,
+    flt,
     getdate,
 )
 
@@ -459,12 +460,14 @@ def get_leaves_for_passed_period_from_eligibility(
         get_monthly_allocation_for_month,
         get_allocation_date_for_month,
         get_annual_allocation_with_seniority,
+        is_working_month,
     )
 
     current_date = getdate(frappe.flags.current_date) or getdate()
     eligibility_date = getdate(eligibility_date)
     effective_from = getdate(self.effective_from)
     doj = getdate(date_of_joining)
+    relieving_date = frappe.db.get_value("Employee", self.employee, "relieving_date")
 
     # Calculate annual allocation with seniority bonus
     total_annual = get_annual_allocation_with_seniority(
@@ -495,9 +498,9 @@ def get_leaves_for_passed_period_from_eligibility(
 
     while check_date <= current_date and check_date <= getdate(self.effective_to):
         # Only count if allocation date has passed or is today
-        if check_date <= current_date:
-            month = check_date.month
-            total_leaves += get_monthly_allocation_for_month(month, total_annual)
+        # Điều 66 NĐ 145/2020: tháng làm dưới 14 ngày KHÔNG tính là tháng làm việc
+        if check_date <= current_date and is_working_month(check_date, doj, relieving_date):
+            total_leaves += get_monthly_allocation_for_month(check_date.month, total_annual)
 
         # Move to next month
         check_date = get_allocation_date_for_month(
@@ -611,8 +614,13 @@ def custom_allocate_earned_leaves():
                 base_annual_allocation, date_of_joining, today
             ) if date_of_joining else base_annual_allocation
 
-            current_month = today.month
-            earned_leaves = get_monthly_allocation_for_month(current_month, annual_allocation)
+            # Ưu tiên số đã lên lịch trong Earned Leave Schedule: kỳ tháng 12 đã được
+            # điều chỉnh cho khớp tổng năm (_true_up_december), tính lại ở đây sẽ ra con số
+            # khác và làm cả năm cộng không đủ annual_allocation.
+            if allocation.earned_leave_schedule_exists and scheduled_leaves is not None:
+                earned_leaves = flt(scheduled_leaves)
+            else:
+                earned_leaves = get_monthly_allocation_for_month(today.month, annual_allocation)
 
             try:
                 # Update allocation using custom logic
@@ -739,12 +747,14 @@ def custom_get_earned_leave_schedule(
         get_allocation_date_for_month,
         get_next_allocation_date,
         get_annual_allocation_with_seniority,
+        is_working_month,
     )
 
     today = getdate(frappe.flags.current_date) or getdate()
     from_date = getdate(self.effective_from)
     to_date = getdate(self.effective_to)
     doj = getdate(date_of_joining) if date_of_joining else None
+    relieving_date = frappe.db.get_value("Employee", self.employee, "relieving_date")
 
     # Get allocate_on_day from leave_details
     allocate_on_day = leave_details.allocate_on_day or "First Day"
@@ -783,8 +793,8 @@ def custom_get_earned_leave_schedule(
     while date <= to_date:
         month = date.month
 
-        # Only add if date >= eligibility_date
-        if date >= eligibility_date:
+        # Điều 66 NĐ 145/2020: chỉ tính tháng làm việc từ đủ 14 ngày trở lên
+        if date >= eligibility_date and is_working_month(date, doj, relieving_date):
             # Get allocation for this month with seniority-adjusted annual
             monthly_allocation = get_monthly_allocation_for_month(month, total_annual)
 
@@ -800,7 +810,130 @@ def custom_get_earned_leave_schedule(
         # Move to next month's allocation date
         date = get_allocation_date_for_month(add_months(date, 1), allocate_on_day, doj)
 
+    _true_up_december(schedule, total_annual)
     return schedule
 
 
+def _true_up_december(schedule, total_annual):
+    """Điều chỉnh kỳ **tháng 12** để tổng cả lịch đúng bằng `total_annual`.
+
+    Các kỳ khác cấp theo tỷ lệ `annual/12` làm tròn xuống 1 chữ số nên cộng lại luôn **thiếu**
+    (14 -> 11×1,1 = 12,1). Phần thiếu dồn hết vào tháng 12.
+
+    Tính bằng `annual − tổng các kỳ khác` chứ không dùng công thức cố định `annual − 11×1,1`,
+    vì lịch thật có thể có **kỳ gộp** (nhiều tháng đã qua gộp làm một dòng) hoặc **năm không
+    trọn** (vào làm giữa năm, hoặc chưa đủ điều kiện mấy tháng đầu).
+    """
+    if not schedule:
+        return
+
+    december_idx = None
+    for i, row in enumerate(schedule):
+        if getdate(row["allocation_date"]).month == 12:
+            december_idx = i
+    # Không có kỳ tháng 12 -> dồn vào kỳ cuối, để tổng vẫn khớp thay vì thiếu âm thầm
+    if december_idx is None:
+        december_idx = len(schedule) - 1
+
+    others = sum(
+        flt(r["number_of_leaves"]) for i, r in enumerate(schedule) if i != december_idx
+    )
+    schedule[december_idx]["number_of_leaves"] = flt(flt(total_annual) - others, 1)
+
+
 print("✅ Earned Leave functions loaded")
+
+
+
+
+# =============================================================================
+# BACKFILL — chuyển lịch cũ (tháng bonus, số nguyên) sang tỷ lệ 1 chữ số thập phân
+# =============================================================================
+
+
+def rebalance_earned_leave_schedule(dry_run: int = 1, batch_size: int = 200):
+	"""Tính lại `number_of_leaves` cho các kỳ **CHƯA cấp**, rồi điều chỉnh tháng 12.
+
+	🔴 **Không đụng kỳ đã cấp** (`is_allocated = 1`): mỗi kỳ đó đã sinh một
+	`Leave Ledger Entry` tương ứng. Sửa số trên lịch mà không sửa sổ cái sẽ làm hai bên
+	lệch nhau, và sổ cái mới là thứ quyết định số dư phép.
+
+	Vì vậy tháng 12 gánh **toàn bộ** phần chênh:
+
+	    tháng 12 = annual − (tổng kỳ ĐÃ cấp) − (tổng kỳ chưa cấp khác × tỷ lệ mới)
+
+	Nhờ đó tổng cả năm vẫn đúng `annual` dù các kỳ đầu năm đã cấp theo cách cũ.
+	"""
+	from customize_erpnext.overrides.earned_leave.earned_leave_config import (
+		get_monthly_allocation_for_month,
+	)
+
+	dry_run = int(dry_run)
+	parents = {
+		r.parent for r in frappe.get_all(
+			"Earned Leave Schedule", fields=["parent"], group_by="parent"
+		)
+	}
+	names = [
+		r.name for r in frappe.get_all(
+			"Leave Allocation", filters={"docstatus": 1}, fields=["name"], order_by="name"
+		)
+		if r.name in parents
+	]
+	print(f"Leave Allocation (submitted) có lịch: {len(names)}")
+
+	changed = unchanged = 0
+	problems = []
+	for i, name in enumerate(names, 1):
+		doc = frappe.get_doc("Leave Allocation", name)
+		rows = doc.get("earned_leave_schedule") or []
+		if not rows:
+			continue
+
+		annual = flt(doc.total_leaves_allocated)
+		# total_leaves_allocated chỉ phản ánh phần ĐÃ cấp; mức năm là tổng của lịch cũ
+		annual_target = sum(flt(r.number_of_leaves) for r in rows)
+
+		monthly = get_monthly_allocation_for_month(1, annual_target)
+		pending = [r for r in rows if not r.is_allocated]
+		if not pending:
+			unchanged += 1
+			continue
+
+		december = None
+		for r in pending:
+			if getdate(r.allocation_date).month == 12:
+				december = r
+		if december is None:
+			december = pending[-1]
+
+		new_values = {}
+		for r in pending:
+			if r.name != december.name:
+				new_values[r.name] = monthly
+		allocated_total = sum(flt(r.number_of_leaves) for r in rows if r.is_allocated)
+		new_values[december.name] = flt(
+			annual_target - allocated_total - sum(new_values.values()), 1
+		)
+
+		if new_values[december.name] < 0:
+			problems.append((name, annual_target, allocated_total,
+			                 new_values[december.name]))
+			continue
+
+		if not dry_run:
+			for row_name, v in new_values.items():
+				frappe.db.set_value("Earned Leave Schedule", row_name,
+				                    "number_of_leaves", v, update_modified=False)
+		changed += 1
+		if not dry_run and i % batch_size == 0:
+			frappe.db.commit()
+			print(f"  ... {i}/{len(names)}")
+
+	if not dry_run:
+		frappe.db.commit()
+	print(f"{'[DRY RUN] ' if dry_run else ''}cập nhật: {changed} | "
+	      f"không còn kỳ chờ: {unchanged} | ⚠ tháng 12 ÂM: {len(problems)}")
+	for p in problems[:10]:
+		print(f"   ⚠ {p[0]}: năm={p[1]}, đã cấp={p[2]}, tháng 12 ra {p[3]}")
+	return {"changed": changed, "unchanged": unchanged, "problems": problems[:50]}

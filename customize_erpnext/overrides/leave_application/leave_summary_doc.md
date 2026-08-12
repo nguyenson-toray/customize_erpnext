@@ -43,3 +43,13 @@ Tài liệu này chính thức cấp số dư phép cho nhân viên để họ c
 • Leave Encashment: Quy đổi phép thành tiền, hệ thống sẽ tự tạo một khoản Additional Salary để cộng vào bảng lương.
 • Holiday List Assignment (v16): Cho phép gán nhiều danh sách ngày lễ theo thời gian, giúp lưu vết lịch sử khi nhân viên chuyển chi nhánh/phòng ban.
 • Leave Ledger (Sổ cái phép): Một hệ thống sổ cái thống nhất ghi lại mọi giao dịch (cấp phép, nghỉ phép, quy đổi) để đảm bảo tính minh bạch và báo cáo chính xác.
+
+---
+
+## Cập nhật 10/08/2026
+
+Mã tổ hợp nửa ngày và `half_day_status` nay do `overrides/leave_rules.py` quyết định, theo bảng
+của [`QUY_DINH_NGHI_PHEP_2025.md`](QUY_DINH_NGHI_PHEP_2025.md) mục 3.5.
+
+Hai đơn nửa ngày cùng ngày cho ra `status = "Half Day"` (trước đây là `On Leave` — làm HRMS trừ
+trọn ngày thay vì nửa ngày).

@@ -110,6 +110,10 @@ fixtures = [
                 "Employee Checkin",
                 "Attendance",
                 "Leave Type",
+                # Leave Application có 7 Property Setter trong DB (half_day.depends_on,
+                # field_order, naming_series HR-LAP-.YYYY.-, 4 × in_list_view) mà trước đây
+                # không được export → mất trắng khi deploy sang site khác.
+                "Leave Application",
                 "Employee Education"
             ]]
         ]

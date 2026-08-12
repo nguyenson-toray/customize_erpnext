@@ -41,15 +41,12 @@ SENIORITY_BONUS_DAYS = 1
 # This is the standard without seniority bonus
 BASE_ANNUAL_ALLOCATION = 14
 
-# Bonus months - these months get extra allocation
-# June (6) and December (12)
-BONUS_MONTHS = [6, 12]
+# Tháng gánh phần chênh khi chia annual cho 12 (xem get_monthly_allocation_for_month)
+ADJUSTMENT_MONTH = 12
 
-# Standard monthly allocation for non-bonus months
-STANDARD_MONTHLY_ALLOCATION = 1
-
-# Base bonus for bonus months (before seniority extra)
-BASE_BONUS_ALLOCATION = 1  # So bonus months get 1 + 1 = 2 days
+# ❌ Đã bỏ 10/08/2026: chiến lược "tháng bonus" (BONUS_MONTHS / STANDARD_MONTHLY_ALLOCATION /
+# BASE_BONUS_ALLOCATION) cấp số nguyên 1 ngày/tháng, tháng 6 và 12 mỗi tháng 2 ngày.
+# Nay cấp theo TỶ LỆ làm tròn xuống 1 chữ số thập phân, tháng 12 điều chỉnh cho khớp tổng.
 
 
 # =============================================================================
@@ -126,42 +123,66 @@ def get_annual_allocation_with_seniority(base_allocation, date_of_joining, refer
 # =============================================================================
 
 def get_monthly_allocation_for_month(month, annual_allocation=None):
+    """Số ngày phép tích luỹ của một tháng — **theo tỷ lệ**, làm tròn XUỐNG 1 chữ số thập phân.
+
+    `annual / 12`, floor 1 chữ số. **Tháng 12 gánh phần chênh** để cả năm cộng lại đúng
+    bằng `annual_allocation`.
+
+        14 ngày/năm -> 1,1/tháng · tháng 12 = 14 − 11×1,1 = 1,9
+        15 ngày/năm -> 1,2/tháng · tháng 12 = 15 − 11×1,2 = 1,8
+        16 ngày/năm -> 1,3/tháng · tháng 12 = 16 − 11×1,3 = 1,7
+
+    Trước 10/08/2026 hàm này chia theo "tháng bonus" (10 tháng × 1 ngày, tháng 6 và 12 mỗi
+    tháng 2 ngày). Cách đó cho số dư tròn ngày nhưng **không phản ánh mức tích luỹ thực** —
+    nghỉ việc cuối tháng 6 được tính 7 ngày trong khi theo tỷ lệ chỉ 6,9.
+
+    ⚠ Tháng 12 ở đây là mức **chuẩn** khi cả 11 tháng trước đều đã cấp đủ theo tỷ lệ.
+    Lịch cấp thực tế (`Earned Leave Schedule`) tính lại tháng 12 = `annual − tổng các kỳ khác`
+    để đúng cả khi có kỳ gộp hoặc năm không trọn.
     """
-    Get allocation for a specific month using bonus months strategy.
+    import math
 
-    Distribution logic:
-    - Standard months (10): 1 day each = 10 days
-    - June: 2 days (base)
-    - December: 2 days (base) + any extra from seniority
-    - Extra days from seniority go to December first, then June
-
-    Args:
-        month: Month number (1-12)
-        annual_allocation: Total annual allocation (default: BASE_ANNUAL_ALLOCATION)
-
-    Returns:
-        int: Number of days to allocate for that month
-
-    Example (14 days): Jan-May=1, Jun=2, Jul-Nov=1, Dec=2 → Total=14
-    Example (15 days): Jan-May=1, Jun=2, Jul-Nov=1, Dec=3 → Total=15
-    Example (16 days): Jan-May=1, Jun=3, Jul-Nov=1, Dec=3 → Total=16
-    """
     if annual_allocation is None:
         annual_allocation = BASE_ANNUAL_ALLOCATION
 
-    # Calculate extra days from seniority
-    extra = max(0, annual_allocation - BASE_ANNUAL_ALLOCATION)
+    annual = flt(annual_allocation)
+    # floor 1 chữ số; +epsilon để 1,2 không bị nhị phân đẩy xuống 1,1
+    monthly = math.floor(annual / 12 * 10 + 1e-9) / 10
 
-    # Distribute extra: December gets remainder, June gets half
-    extra_december = extra - (extra // 2)  # Ceiling division for December
-    extra_june = extra // 2
+    if month == 12:
+        return flt(annual - monthly * 11, 1)
+    return monthly
 
-    if month == 12:  # December
-        return STANDARD_MONTHLY_ALLOCATION + BASE_BONUS_ALLOCATION + extra_december
-    elif month == 6:  # June
-        return STANDARD_MONTHLY_ALLOCATION + BASE_BONUS_ALLOCATION + extra_june
-    else:  # Standard months
-        return STANDARD_MONTHLY_ALLOCATION
+
+# Số ngày làm việc tối thiểu trong một tháng dương lịch để tháng đó được tính là
+# "01 tháng làm việc thực tế" — Điều 66 Nghị định 145/2020/NĐ-CP.
+MIN_DAYS_FOR_WORKING_MONTH = 14
+
+
+def count_worked_days_in_month(any_date_in_month, date_of_joining, relieving_date=None):
+    """Số ngày người lao động thực sự thuộc biên chế trong tháng dương lịch chứa `any_date_in_month`."""
+    month_start = get_first_day(getdate(any_date_in_month))
+    month_end = get_last_day(getdate(any_date_in_month))
+
+    start = max(month_start, getdate(date_of_joining)) if date_of_joining else month_start
+    end = min(month_end, getdate(relieving_date)) if relieving_date else month_end
+
+    if start > end:
+        return 0
+    return (end - start).days + 1
+
+
+def is_working_month(any_date_in_month, date_of_joining, relieving_date=None):
+    """Tháng này có được tính là **01 tháng làm việc thực tế** không?
+
+    Điều 66 NĐ 145/2020: làm **từ đủ 14 ngày trở lên** trong tháng dương lịch thì tháng đó
+    tính là một tháng; dưới 14 ngày thì **không tính**.
+
+    Chạm tới hai đầu: tháng vào làm (DOJ giữa tháng) và tháng nghỉ việc.
+    """
+    return count_worked_days_in_month(
+        any_date_in_month, date_of_joining, relieving_date
+    ) >= MIN_DAYS_FOR_WORKING_MONTH
 
 
 def get_annual_allocation_breakdown(annual_allocation=None):
@@ -294,12 +315,8 @@ def round_earned_leaves(earned_leaves, rounding):
 
 # Legacy function for compatibility
 def get_monthly_allocation(max_leaves_allowed, rounding=None):
-    """
-    Legacy function - returns standard monthly allocation (1 day).
-
-    Note: Use get_monthly_allocation_for_month() for accurate monthly values.
-    """
-    return STANDARD_MONTHLY_ALLOCATION
+    """Legacy — dùng `get_monthly_allocation_for_month()` để có số đúng theo tháng."""
+    return get_monthly_allocation_for_month(1, max_leaves_allowed)
 
 
 # =============================================================================

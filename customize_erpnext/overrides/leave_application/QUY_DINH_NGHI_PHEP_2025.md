@@ -1,0 +1,298 @@
+# Quy định nghỉ phép TIQN — TB-TIQN/2025-0018
+
+> **Nguồn:** Thông báo `TB-TIQN/2025-0018` ngày **01/07/2025**, Công ty TNHH Toray
+> International Việt Nam – Chi nhánh Quảng Ngãi. Ký: Trưởng chi nhánh **Kitajima Motoharu**
+> + Chủ tịch Công đoàn **Lê Thanh Phong**.
+> Bản PDF gốc (scan) nằm cùng thư mục này.
+>
+> **Hiệu lực:** từ ngày ký cho đến khi có thông báo khác thay thế.
+> **Đối tượng:** toàn bộ người lao động tại công ty.
+>
+> 🔴 **Đây là nguồn sự thật cho toàn bộ logic nghỉ phép.** Khi code hoặc tài liệu khác mâu
+> thuẫn với file này thì **file này thắng**. Xem [`PLAN_LEAVE_OVERRIDE.md`](PLAN_LEAVE_OVERRIDE.md)
+> để biết chỗ nào code đang lệch.
+
+---
+
+## 1. Căn cứ
+
+Nội quy + quy chế công ty hiện hành, và **Luật Bảo hiểm xã hội số 41/2024/QH15**
+(sửa đổi, bổ sung, hiệu lực **01/07/2025**).
+
+## 2. Mức hưởng trợ cấp ốm đau do cơ quan BHXH chi trả
+
+Theo **Điều 45 Luật BHXH 41/2024/QH15**, hiệu lực 01/07/2025:
+
+| | Công thức |
+|---|---|
+| Trợ cấp ốm đau **một ngày** | mức trợ cấp ốm đau **theo tháng ÷ 24** |
+| Trợ cấp ốm đau **nửa ngày** | **½** mức trợ cấp một ngày |
+
+> Đây là tiền **cơ quan BHXH** chi trả, **không phải** công ty. Vì vậy ngày nghỉ BHXH có
+> `Thời gian tính công = 0` ở bảng mục 3 — công ty không trả lương cho ngày đó.
+> Hệ quả trong ERP: các Leave Type nhóm BHXH phải để `is_lwp = 1`.
+
+## 3. Bảng quy định nghỉ phép (phụ lục)
+
+Bốn cột nghiệp vụ, giữ nguyên tên gốc của phụ lục:
+
+- **Thời gian tính công (ngày)** — số ngày công công ty trả lương. Đây chính là phần đóng góp
+  vào `payment_days` của Salary Slip.
+- **Thể hiện trên bảng công** — mã viết tắt in trên bảng công.
+- **Trừ tiền thưởng chuyên cần/tháng** — khấu trừ vào khoản `4.1 Attendance incentive`.
+- **Ghi chú**.
+
+### 3.1. Phép năm / *Annual leave*
+
+| Nội dung | Tính công | Mã | Trừ chuyên cần |
+|---|:---:|:---:|---|
+| Phép năm 1 ngày | **1** | `P` | – |
+| Phép năm ½ ngày | **1** | `P/2` | – |
+
+> 🔴 **Nghỉ phép năm nửa ngày vẫn tính công TRỌN 1 NGÀY.** Nửa còn lại đi làm → đủ lương.
+> Đây là quy tắc bị code hiểu sai nhiều nhất.
+
+### 3.2. Nghỉ hưởng lương / *Paid leave*
+
+| Nội dung | Tính công | Mã | Trừ chuyên cần |
+|---|:---:|:---:|---|
+| Ma chay / *Funeral* | **1** | `MC` | – |
+| Hỉ sự / *Wedding* | **1** | `HS` | – |
+| Khác 1 ngày / *Other 1 day* | **1** | `HL` | – |
+| Khác ½ ngày / *Other 1/2 day* | **1** | `HL/2` | – |
+
+### 3.3. Nghỉ không lương / *Unpaid leave*
+
+| Nội dung | Tính công | Mã | Trừ chuyên cần | Ghi chú |
+|---|:---:|:---:|---|---|
+| Đi trễ / *Late* | **1 − (số giờ nghỉ / 8)** | `<1` | 100.000đ/lần | Làm tròn 1 số thập phân |
+| Về sớm / *Leaving early* | **1 − (số giờ nghỉ / 8)** | `<1` | 100.000đ/lần | Làm tròn 1 số thập phân |
+| Nghỉ không lương 1 ngày | **0** | `KL` | lần 1: 200.000đ · lần 2: 500.000đ · **lần 3 trở lên: toàn bộ** thưởng chuyên cần | |
+| Nghỉ bù / *Compensatory leave* | **0** | `NB` | – | |
+
+### 3.4. Nghỉ hưởng BHXH — trọn ngày / *1-day social insurance leave*
+
+| Nội dung | Tính công | Mã | Trừ chuyên cần |
+|---|:---:|:---:|---|
+| Nghỉ thai sản / *Maternity* | **0** | `TS` | theo tỷ lệ ngày nghỉ thực tế (**trừ ngày khám thai**) |
+| Nghỉ dưỡng sức / *Rest* | **0** | `DS` | theo tỷ lệ ngày nghỉ thực tế |
+| Ốm 1 ngày / *1-day sick* | **0** | `O` | theo tỷ lệ ngày nghỉ thực tế |
+| Con ốm 1 ngày / *1-day sick child* | **0** | `CO` | theo tỷ lệ ngày nghỉ thực tế |
+
+### 3.5. Nghỉ hưởng BHXH — nửa ngày / *1/2-day social insurance leave*
+
+Nửa ngày BHXH **luôn ghép với** một trạng thái khác cho nửa còn lại. Mã là **tổ hợp**:
+
+| Nửa ngày BHXH + nửa còn lại là… | Tính công | Mã | Trừ chuyên cần |
+|---|:---:|:---:|---|
+| Ốm + **đi làm** | **0,5** | `O/2` | theo tỷ lệ ngày nghỉ thực tế |
+| Con ốm + **đi làm** | **0,5** | `CO/2` | theo tỷ lệ ngày nghỉ thực tế |
+| Ốm + **phép năm** | **0,5** | `OP/2` | theo tỷ lệ ngày nghỉ thực tế |
+| Con ốm + **phép năm** | **0,5** | `COP/2` | theo tỷ lệ ngày nghỉ thực tế |
+| Ốm + **con ốm** | **0** | `OCO/2` | theo tỷ lệ ngày nghỉ thực tế |
+| Ốm + **đi trễ/về sớm** (số giờ nghỉ **≤ 1h**) | **0,4** | `OL/2` | 100.000đ/lần — **có giấy bộ phận Y tế xác nhận khám bệnh thì KHÔNG trừ** |
+| Con ốm + **đi trễ/về sớm** (≤ 1h) | **0,4** | `COL/2` | 100.000đ/lần |
+| Ốm + **không lương** *hoặc* Ốm + đi trễ/về sớm (**1h < giờ nghỉ < 4h**) | **0** | `OK/2` | lần 1: 200.000đ · lần 2: 500.000đ · **lần 3+: toàn bộ** |
+| Con ốm + **không lương** *hoặc* Con ốm + đi trễ/về sớm (1h < giờ nghỉ < 4h) | **0** | `COK/2` | lần 1: 200.000đ · lần 2: 500.000đ · **lần 3+: toàn bộ** |
+
+> Ghi chú `OL/2` · `COL/2`: làm tròn 1 số thập phân.
+
+## 4. Phê duyệt và xử lý vi phạm
+
+- Thời gian nghỉ phép **phải có phê duyệt** của quản lý / bộ phận nhân sự.
+- Nghỉ **không phép**, tự ý nghỉ mà không có sự chấp thuận → xử lý theo nội quy công ty và
+  Bộ luật Lao động hiện hành.
+
+---
+
+## 5. Ánh xạ sang ERP
+
+### 5.1. Leave Type ↔ mã quy định — rà soát 10/08/2026
+
+Đã khai đủ 10 Leave Type, `custom_abbreviation` khớp mã quy định.
+
+| Mã | `is_lwp` | `include_holiday` | `allow_negative` | Tính công | Leave Type |
+|:--:|:--:|:--:|:--:|:--:|---|
+| `P` | 0 | 0 | **1** | 1 | Phép năm/ Annual leave |
+| `MC` | 0 | 0 | **1** | 1 | Paid leave - Ma chay |
+| `HS` | 0 | 0 | **1** | 1 | Paid leave - Hỉ sự |
+| `HL` | 0 | 0 | **1** | 1 | Paid leave - Nghỉ hưởng lương khác |
+| `O` | 1 | 0 | 0 | 0 | BHXH - Ốm đau |
+| `CO` | 1 | 0 | 0 | 0 | BHXH - Con ốm |
+| `DS` | 1 | **1** | 0 | 0 | BHXH - Nghỉ dưỡng sức |
+| `TS` | 1 | **1** | 0 | 0 | BHXH - Thai sản |
+| `KL` | 1 | 0 | 0 | 0 | Nghỉ không lương |
+| `NB` | 1 | 0 | 0 | 0 | Nghỉ không lương - Nghỉ bù |
+
+✅ **`is_lwp` đúng 10/10** — tái tạo chính xác cột *"Thời gian tính công"* của mục 3.
+
+#### `include_holiday` — ai được tính cả ngày nghỉ
+
+| | Vì sao |
+|---|---|
+| `TS` = 1 | Thai sản nghỉ **liên tục**, tính cả Chủ Nhật và ngày lễ |
+| **`DS` = 1** | Luật BHXH: thời gian nghỉ **dưỡng sức, phục hồi sức khoẻ** *"bao gồm cả ngày nghỉ lễ, nghỉ Tết, ngày nghỉ hằng tuần"* |
+| `O` · `CO` = 0 | Ốm đau tính theo **ngày làm việc**, không kể lễ/Tết/nghỉ hằng tuần |
+| còn lại = 0 | nghỉ theo ngày làm việc |
+
+> 🔴 `DS` trước đây để **0**, khiến 15 dòng dưỡng sức rơi vào Chủ Nhật/ngày lễ **không tạo được**
+> đơn nghỉ (HRMS tính ra 0 ngày rồi `throw`). Đã sửa 10/08/2026 — cần thiết vì `DS` là **căn cứ
+> đối chiếu với phần BHYT/BHXH chi trả cho người lao động**, phải theo dõi đủ số ngày dù không
+> ảnh hưởng tiền lương.
+
+#### `allow_negative` — nghỉ phát sinh không có quota năm
+
+`HS` · `MC` · `HL` là nghỉ **cấp theo sự việc** (cưới, tang, việc khác), **không có quy tắc
+mỗi năm bao nhiêu ngày** như phép năm ⇒ không lập Leave Allocation. Nhưng
+`validate_dates_across_allocation()` (`leave_application.py:203-214`) chỉ chạy cho loại
+`is_lwp = 0` và chỉ thoát sớm khi `allow_negative = 1` — để 0 thì **mọi đơn đều bị chặn**
+*"Application period cannot be outside leave allocation period"*.
+
+⇒ đặt `allow_negative = 1` cho ba loại đó, giống `P`. Nhóm `is_lwp = 1` không cần vì HRMS
+bỏ qua kiểm số dư cho chúng.
+
+#### Còn tồn — chưa đổi, cần HR chốt
+
+| Mã | Field | Hiện tại | Ghi chú |
+|---|---|:--:|---|
+| `MC` | `max_leaves_allowed` | 0 | BLLĐ Đ.115: tang cha/mẹ/vợ/chồng/con **3 ngày**. `HS` đã đặt 3 |
+| `DS` | `max_leaves_allowed` | 0 | Luật BHXH: **5–10 ngày/năm** |
+| `O` | `max_leaves_allowed` | 0 | Ốm đau 30/40/60 ngày tuỳ thâm niên đóng BH — một con số không đủ diễn tả |
+| `P` | `applicable_after` | **30** | NV mới phải làm 30 ngày mới được nghỉ phép; quy chế **không nói** điều này |
+| tất cả | `earned_leave_frequency` | Monthly | Chỉ có tác dụng khi `is_earned_leave = 1` (chỉ `P`). Vô hại nhưng gây hiểu nhầm |
+
+> `max_leaves_allowed` chỉ có hiệu lực khi có Leave Allocation. Với `allow_negative = 1` và
+> không cấp allocation thì nó chỉ mang tính tham khảo.
+
+#### Phép năm — tích luỹ theo tháng (Điều 66 NĐ 145/2020/NĐ-CP)
+
+`Phép năm` là **earned leave** (`is_earned_leave = 1`, `Monthly`, `max_leaves_allowed = 14`),
+cộng **+1 ngày mỗi 5 năm thâm niên** (BLLĐ Đ.114).
+Cấu hình: `overrides/earned_leave/earned_leave_config.py`.
+
+##### Công thức
+
+Người lao động làm việc **chưa đủ 12 tháng** thì phép năm tính theo tỷ lệ:
+
+```
+số ngày phép = (14 + số ngày phép thâm niên) / 12 × số tháng làm việc thực tế
+```
+
+##### 🔴 "Số tháng làm việc thực tế" — mốc 14 ngày
+
+Trong một **tháng dương lịch**, nếu người lao động làm việc **từ đủ 14 ngày trở lên** thì tháng
+đó tính là **01 tháng**; **dưới 14 ngày thì không tính**.
+
+Chạm tới hai đầu: **tháng vào làm** và **tháng nghỉ việc**.
+
+| Ví dụ | Tính |
+|---|---|
+| Vào làm **10/03/2026** | tháng 3 có 22 ngày ≥ 14 → tính 1 tháng · cộng tháng 4–12 → **10 tháng** → 14/12 × 10 = **11,67** |
+| Nghỉ việc **12/08/2026** | tháng 8 chỉ 12 ngày < 14 → **không tính** · tháng 1–7 → **7 tháng** → 14/12 × 7 = **8,17** |
+
+Mốc biên: vào làm ngày **18/03** còn đúng 14 ngày → **tính**; ngày **19/03** còn 13 ngày →
+**không tính**. Code: `is_working_month()` · `count_worked_days_in_month()`.
+
+##### Chia 14 ngày cho 12 tháng
+
+`Earned Leave Schedule` trên Leave Allocation cấp theo tỷ lệ, **làm tròn xuống 1 chữ số thập
+phân**, và **tháng 12 gánh phần chênh** để cả năm cộng lại đúng bằng mức năm:
+
+| annual | tháng 1–11 | tháng 12 | tổng |
+|---:|---:|---:|---:|
+| **14** | **1,1** | **1,9** | 14,0 |
+| 15 | 1,2 | 1,8 | 15,0 |
+| 16 | 1,3 | 1,7 | 16,0 |
+| 17 | 1,4 | 1,6 | 17,0 |
+| 18 | 1,5 | 1,5 | 18,0 |
+
+Tháng 12 tính bằng `mức năm − tổng các kỳ khác` chứ **không** theo công thức cố định
+`annual − 11 × 1,1`, để vẫn đúng khi lịch có **kỳ gộp** (nhiều tháng đã qua gộp một dòng) hoặc
+**năm không trọn** (vào làm giữa năm, hoặc mấy tháng đầu chưa đủ điều kiện).
+
+> ❌ **Đã bỏ 10/08/2026:** cách chia "tháng bonus" cũ — 10 tháng × 1 ngày, tháng 6 và 12 mỗi
+> tháng 2 ngày. Nó cho số dư tròn ngày nhưng **không phản ánh mức tích luỹ thực**: nghỉ việc
+> cuối tháng 6 được tính 7 ngày trong khi theo tỷ lệ chỉ 6,6.
+>
+> ❌ Cũng đã bỏ field `custom_actual_number_of_leaves` (thử nghiệm một cột thứ hai) — nay
+> `number_of_leaves` chính nó đã là số theo tỷ lệ nên không cần cột phụ.
+
+**Không làm tròn lên ngày nguyên.** Bảng quy đổi của Điều 66 (1 tháng → 1 ngày, 3 tháng → 4
+ngày…) làm tròn phần thập phân ≥ 0,5 thành 1 ngày; ERP **giữ số lẻ** để phản ánh đúng mức tích
+luỹ. Việc làm tròn khi thanh toán phép do HR quyết định tại thời điểm chi trả.
+
+Hàm chuyển lịch cũ sang cách chia mới: `earned_leave.rebalance_earned_leave_schedule(dry_run=0)`
+— chỉ sửa các kỳ **chưa cấp**, vì kỳ đã cấp đã sinh `Leave Ledger Entry` tương ứng; tháng 12
+gánh toàn bộ phần chênh nên tổng năm vẫn đúng.
+
+#### `KL` rơi vào ngày nghỉ — chấp nhận tính 0
+
+2 dòng `KL` rơi vào Chủ Nhật. `KL` **không ảnh hưởng tiền lương** (đã là 0 ngày công) nên
+để `include_holiday = 0` và chấp nhận 2 dòng đó không tạo đơn — không đổi cấu hình.
+
+### 5.2. Nửa ngày — quy tắc `half_day_status`
+
+HRMS tính `payment_days` cho một ngày `Half Day` bằng **hai** nguồn trừ độc lập:
+
+| Nguồn | Điều kiện | Trừ |
+|---|---|---|
+| `calculate_lwp_ppl_and_absent_days_based_on_attendance()` (`salary_slip.py:790`) | `status = Half Day` **và** `leave_type.is_lwp = 1` | 0,5 |
+| `get_half_absent_days()` (`salary_slip.py:578`) | `status = Half Day` **và** `half_day_status = 'Absent'` | 0,5 |
+
+Từ đó suy ra quy tắc duy nhất tái tạo đúng cả 9 dòng mục 3.5:
+
+```
+leave_type        = nửa ngày thuộc nhóm is_lwp = 1  (BHXH / không lương)
+half_day_status   = 'Present'  nếu nửa còn lại ĐƯỢC CÔNG TY TRẢ LƯƠNG
+                    'Absent'   nếu không
+```
+
+Nửa còn lại được công ty trả lương khi: **có checkin** (đi làm), **hoặc** là nghỉ phép có lương
+(`P` · `MC` · `HS` · `HL`, tức `is_lwp = 0`).
+
+Đối chiếu từng dòng:
+
+| Mã | `leave_type` | nửa còn lại | `half_day_status` | payment_days | Quy định |
+|---|---|---|:---:|:---:|:---:|
+| `P/2` | `P` (lwp=0) | đi làm | Present | 1 | 1 ✅ |
+| `HL/2` | `HL` (lwp=0) | đi làm | Present | 1 | 1 ✅ |
+| `O/2` | `O` (lwp=1) | đi làm | Present | 0,5 | 0,5 ✅ |
+| `CO/2` | `CO` | đi làm | Present | 0,5 | 0,5 ✅ |
+| `OP/2` | `O` | phép năm (**trả lương**) | Present | 0,5 | 0,5 ✅ |
+| `COP/2` | `CO` | phép năm | Present | 0,5 | 0,5 ✅ |
+| `OCO/2` | `O` | con ốm (lwp=1) | Absent | 0 | 0 ✅ |
+| `OK/2` | `O` | không lương | Absent | 0 | 0 ✅ |
+| `COK/2` | `CO` | không lương | Absent | 0 | 0 ✅ |
+
+> 🔴 **`OP/2` là dòng bẻ mọi giả định đơn giản.** Cả ngày **không có checkin nào**, nhưng
+> `half_day_status` vẫn phải là `Present` vì nửa còn lại là phép năm có lương.
+> Quy tắc "không checkin → Absent" là **sai** ở đúng dòng này.
+
+### 5.3. 🔴 Ba dòng ERP CHƯA thể hiện được
+
+`Attendance.status` của HRMS chỉ có `1 / 0,5 / 0` ngày. Ba dòng sau cần **ngày công lẻ**:
+
+| Mã | Tính công | Vì sao HRMS không làm được |
+|---|:---:|---|
+| Đi trễ | `1 − giờ nghỉ/8` → vd **0,9** | không có trạng thái ngày công phân số |
+| Về sớm | `1 − giờ nghỉ/8` | như trên |
+| `OL/2` · `COL/2` | **0,4** | như trên |
+
+→ Phải xử lý ở **tầng khoản lương** (Salary Component / Additional Salary), **không** ở
+`Attendance.status`. `late_entry` / `early_exit` đã có sẵn trên Attendance để làm đầu vào.
+
+### 5.4. Trừ thưởng chuyên cần — bảng bậc
+
+Quy định cho **hai** thang trừ, cộng dồn với thang đi trễ/về sớm của quy chế lương:
+
+| Nhóm | Lần 1 | Lần 2 | Lần 3+ |
+|---|---|---|---|
+| Đi trễ / Về sớm / `OL/2` / `COL/2` | 100.000đ | 100.000đ | 100.000đ (mỗi lần) |
+| Nghỉ không lương (`KL`, `OK/2`, `COK/2`) | 200.000đ | 500.000đ | **toàn bộ** thưởng chuyên cần |
+| Nghỉ BHXH (`TS` `DS` `O` `CO` và các mã `/2`) | theo **tỷ lệ ngày nghỉ thực tế** | | |
+
+Miễn trừ: `OL/2` **không bị trừ** nếu có giấy bộ phận Y tế xác nhận đi khám bệnh.
+Thai sản: **không trừ** cho ngày đi khám thai.
+
+> Đây là dữ liệu mà `4.1 Attendance incentive` đang thiếu — hiện khoản này chỉ prorate theo
+> ngày công. Xem `overrides/payroll_docs/PLAN_ATTENDANCE_VS_QUYCHE.md` mục A4.

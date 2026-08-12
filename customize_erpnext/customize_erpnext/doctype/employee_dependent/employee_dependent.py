@@ -31,6 +31,11 @@ from frappe.model.document import Document
 from frappe.query_builder.functions import Coalesce
 from frappe.utils import get_first_day, get_link_to_form, getdate
 
+# Option của `relationship` là chuỗi **song ngữ** ("Child / Con"). So bằng tiền tố tiếng Anh
+# để đổi phần tiếng Việt sau này không làm vỡ logic. `mandatory_depends_on` của
+# `date_of_birth` cũng dùng `startsWith('Child')` cho khớp.
+CHILD_PREFIX = "Child"
+
 
 class EmployeeDependent(Document):
 	def validate(self):
@@ -134,7 +139,9 @@ class EmployeeDependent(Document):
 		"""
 		overdue = []
 		for row in self.dependents:
-			if row.relationship != "Child" or not row.date_of_birth or row.to_date:
+			if not (row.relationship or "").startswith(CHILD_PREFIX):
+				continue
+			if not row.date_of_birth or row.to_date:
 				continue
 			if _add_years(getdate(row.date_of_birth), 18) <= getdate(row.from_date):
 				overdue.append(f"{row.idx}. {row.dependent_name}")

@@ -1,37 +1,35 @@
-"""
-Leave Application Overrides for TIQN
+"""Leave Application overrides cho TIQN.
+
+Căn cứ nghiệp vụ: `QUY_DINH_NGHI_PHEP_2025.md`. Mọi **quyết định** (mã viết tắt,
+`half_day_status`, loại nghỉ nào vào `Attendance.leave_type`) đặt ở `overrides/leave_rules.py`
+vì engine tính công (`overrides/shift_type/shift_type_optimized.py`) ghi vào **cùng các field
+đó và luôn ghi sau cùng** — hai luồng lệch nhau thì mỗi FULL run lại ghi đè lẫn nhau.
 
 Override so với HRMS gốc:
-1. validate_attendance(): Chỉ block Full Day leave khi working_hours >= 8
-2. create_or_update_attendance(): Status logic + dual leave support
-3. on_leave_application_cancel(): Xử lý cancel đúng khi có dual leave
-4. CustomLeaveApplication.on_cancel(): Async cancel cho maternity leave (~180 ngày)
 
-HRMS gốc:
-- validate_attendance(): Block TẤT CẢ attendance "Present"/"Work From Home"
-- create_or_update_attendance(): status = "Half Day" or "On Leave" only
-- on_cancel(): cancel_attendance() lặp qua từng ngày đồng bộ → timeout với 6-month leave
+1. `validate_attendance()` — HRMS block MỌI attendance `Present`/`Work From Home`.
+   Ở đây chỉ block Full Day leave khi ngày đó đã làm đủ giờ
+   (`Attendance Calculation Setting.full_day_leave_block_hours`).
 
-=== validate_attendance() ===
-- Half Day leave: LUÔN cho phép
-- Full Day leave + working_hours >= 8: BLOCK
-- Full Day leave + working_hours < 8: Cho phép
+2. `create_or_update_attendance()` — thêm trạng thái `Present` khi Full Day leave rơi vào ngày
+   đã có checkin, và hỗ trợ hai đơn nửa ngày cùng ngày (`custom_leave_type_2`).
 
-=== create_or_update_attendance() - Status Logic ===
-| Leave Type | Has Check-in | Status     |
-|------------|--------------|------------|
-| Half Day   | Any          | Half Day   |
-| Full Day   | Yes (wh > 0) | Present    |
-| Full Day   | No (wh = 0)  | On Leave   |
+   | Đơn nghỉ  | Có checkin   | status     |
+   |-----------|--------------|------------|
+   | Half Day  | bất kỳ       | `Half Day` |
+   | Full Day  | có (wh > 0)  | `Present`  |
+   | Full Day  | không        | `On Leave` |
 
-=== Dual Leave ===
-- 2 Half Day LAs cùng ngày với 2 loại nghỉ phép khác nhau
-- LA2 lưu vào custom_leave_type_2, custom_leave_application_2
+3. `on_leave_application_cancel()` — cancel đúng khi ngày đó có hai đơn.
 
-=== Maternity Leave Cancel (async) ===
-- Skip cancel_attendance() đồng bộ của HRMS (180 vòng lặp db_set_value)
-- Attendance recalc được xử lý qua Employee Maternity hooks
-  → delete Employee Maternity → on_maternity_delete → background job
+4. `CustomLeaveApplication.cancel_attendance()` — batch SQL thay cho vòng lặp per-record của
+   HRMS, tránh timeout với đơn dài ngày (thai sản ~180 ngày).
+
+   ⚠ Giá trị còn lại của override này **chỉ là** tránh timeout và tránh `LinkExistsError` của
+   `check_no_back_links_exist()`. Việc tính lại Attendance sau khi cancel **không** do đây lo:
+   engine bước 2b tự xoá attendance trong giai đoạn Maternity Leave (Employee Maternity là
+   source of truth), và setting `recalc_attendance_on_maternity_change` **mặc định TẮT** — nên
+   thực tế không có gì recalc cho tới FULL run kế tiếp.
 """
 
 import frappe
@@ -87,7 +85,10 @@ def custom_validate_attendance(self):
 			["status", "in", ["Present", "Work From Home"]],
 			["docstatus", "=", 1],
 		],
-		fields=["name", "attendance_date", "working_hours", "half_day_status"],
+		fields=[
+			"name", "attendance_date", "working_hours", "half_day_status",
+			"actual_overtime_duration",
+		],
 		order_by="attendance_date",
 	)
 
@@ -104,7 +105,12 @@ def custom_validate_attendance(self):
 			continue
 
 		attendance_date = att.attendance_date
-		working_hours = att.working_hours or 0
+		# Ngày Chủ Nhật / ngày lễ: engine §8 reset working_hours = 0 và dồn toàn bộ giờ sang
+		# actual_overtime_duration. Chỉ đọc working_hours thì đơn nghỉ nguyên ngày LỌT QUA
+		# validate và đè lên một ngày đã đi làm 8-10 tiếng.
+		working_hours = max(
+			frappe.utils.flt(att.working_hours), frappe.utils.flt(att.actual_overtime_duration)
+		)
 
 		# Half Day leave: LUÔN cho phép
 		if self.half_day:
@@ -173,9 +179,13 @@ def custom_create_or_update_attendance(self, attendance_name, date):
 	if self.status != "Approved" or self.docstatus != 1:
 		return
 
+	from customize_erpnext.overrides.leave_rules import (
+		combined_abbreviation,
+		full_day_abbreviation,
+		resolve_half_day_status,
+	)
 	from customize_erpnext.overrides.leave_utils import (
-		get_leave_type_abbreviation,
-		get_combined_abbreviation,
+		find_other_half_day_leave_type,
 		update_attendance_with_dual_leave,
 	)
 
@@ -189,7 +199,7 @@ def custom_create_or_update_attendance(self, attendance_name, date):
 	if attendance_name:
 		# Update existing attendance
 		doc = frappe.get_doc("Attendance", attendance_name)
-		has_checkin = doc.working_hours and doc.working_hours > 0
+		has_checkin = bool(doc.working_hours and doc.working_hours > 0)
 
 		# CHECK DUAL LEAVE: Attendance đã có LA khác?
 		if doc.leave_application and doc.leave_application != self.name:
@@ -202,10 +212,11 @@ def custom_create_or_update_attendance(self, attendance_name, date):
 				# Đây là LA2 cho ngày này
 				combined_abbr = update_attendance_with_dual_leave(
 					attendance_name,
-					doc.leave_type,       # LA1 leave_type
+					doc.leave_type,        # LA1 leave_type
 					doc.leave_application, # LA1 name
 					self.leave_type,       # LA2 leave_type
-					self.name              # LA2 name
+					self.name,             # LA2 name
+					has_checkin=has_checkin,
 				)
 				frappe.msgprint(
 					_("Attendance {0} updated with 2nd leave: {1}").format(
@@ -229,38 +240,38 @@ def custom_create_or_update_attendance(self, attendance_name, date):
 		# - Full Day + không check in → "On Leave"
 		if is_half_day_for_this_date:
 			status = "Half Day"
-			half_day_status = "Present"
-			modify_half_day_status = 0 if has_checkin else 1
-		elif has_checkin:
-			status = "Present"
-			half_day_status = None
-			modify_half_day_status = 0
+			other = find_other_half_day_leave_type(self.employee, date, self.name)
+			half_day_status = resolve_half_day_status(has_checkin, other)
+			combined_abbr = combined_abbreviation(self.leave_type, other)
 		else:
-			status = "On Leave"
+			status = "Present" if has_checkin else "On Leave"
 			half_day_status = None
-			modify_half_day_status = 0
+			combined_abbr = full_day_abbreviation(self.leave_type)
 
-		# Abbreviation
-		abbr = get_leave_type_abbreviation(self.leave_type)
-		combined_abbr = f"{abbr}/2" if is_half_day_for_this_date else abbr
-
-		# Update
+		# Update. Không ghi `modify_half_day_status`: HRMS chỉ ĐỌC field này ở
+		# get_duplicate_attendance_record() (attendance.py:99), engine luôn ghi 0, và nó nằm
+		# trong danh sách compare của engine → ghi khác 0 làm mỗi FULL run update lại vô ích.
 		doc.db_set({
 			"status": status,
 			"leave_type": self.leave_type,
 			"leave_application": self.name,
 			"custom_leave_application_abbreviation": combined_abbr,
 			"half_day_status": half_day_status,
-			"modify_half_day_status": modify_half_day_status,
 		})
 
 	else:
 		# Make new attendance - không có check in
 		# Half Day → "Half Day", Full Day → "On Leave"
-		status = "Half Day" if is_half_day_for_this_date else "On Leave"
-
-		abbr = get_leave_type_abbreviation(self.leave_type)
-		combined_abbr = f"{abbr}/2" if is_half_day_for_this_date else abbr
+		if is_half_day_for_this_date:
+			status = "Half Day"
+			other = find_other_half_day_leave_type(self.employee, date, self.name)
+			# has_checkin=False: không có Attendance nào cho ngày này nên chắc chắn chưa quẹt thẻ
+			half_day_status = resolve_half_day_status(False, other)
+			combined_abbr = combined_abbreviation(self.leave_type, other)
+		else:
+			status = "On Leave"
+			half_day_status = None
+			combined_abbr = full_day_abbreviation(self.leave_type)
 
 		doc = frappe.new_doc("Attendance")
 		doc.employee = self.employee
@@ -271,8 +282,9 @@ def custom_create_or_update_attendance(self, attendance_name, date):
 		doc.leave_application = self.name
 		doc.status = status
 		doc.custom_leave_application_abbreviation = combined_abbr
-		doc.half_day_status = "Present" if status == "Half Day" else None
-		doc.modify_half_day_status = 1 if status == "Half Day" else 0
+		doc.half_day_status = half_day_status
+		# ignore_validate là BẮT BUỘC: attendance.py:197-200 tự ép half_day_status = 'Absent'
+		# khi HRMS không tự tìm thấy leave record, ghi đè giá trị vừa tính ở trên.
 		doc.flags.ignore_validate = True
 		doc.insert(ignore_permissions=True)
 		doc.submit()
@@ -291,10 +303,11 @@ def on_leave_application_cancel(doc, method):
 	- LA là LA2 → Remove LA2, giữ LA1
 	- LA là LA duy nhất → Let HRMS handle (cancel attendance)
 	"""
-	from customize_erpnext.overrides.leave_utils import (
-		get_combined_abbreviation,
-		find_attendance_for_leave,
+	from customize_erpnext.overrides.leave_rules import (
+		combined_abbreviation,
+		resolve_half_day_status,
 	)
+	from customize_erpnext.overrides.leave_utils import find_attendance_for_leave
 
 	# Chỉ xử lý Half Day leaves
 	if not doc.half_day or not doc.half_day_date:
@@ -307,12 +320,15 @@ def on_leave_application_cancel(doc, method):
 	att_name = existing_att.name
 	is_la1 = existing_att.leave_application == doc.name
 	is_la2 = existing_att.custom_leave_application_2 == doc.name
+	# Sau khi bỏ một đơn thì chỉ còn MỘT nửa là nghỉ phép; nửa còn lại được trả lương hay không
+	# giờ phụ thuộc duy nhất vào việc hôm đó có đi làm — nên phải tính lại, không hardcode.
+	has_checkin = bool(existing_att.working_hours and existing_att.working_hours > 0)
 
 	if is_la1 and existing_att.custom_leave_application_2:
 		# LA1 bị cancel, LA2 tồn tại → Swap LA2 → LA1
 		new_lt1 = existing_att.custom_leave_type_2
 		new_la1 = existing_att.custom_leave_application_2
-		new_abbr = get_combined_abbreviation(new_lt1, None)
+		new_abbr = combined_abbreviation(new_lt1, None)
 
 		frappe.db.set_value("Attendance", att_name, {
 			"leave_type": new_lt1,
@@ -321,7 +337,7 @@ def on_leave_application_cancel(doc, method):
 			"custom_leave_application_2": None,
 			"custom_leave_application_abbreviation": new_abbr,
 			"status": "Half Day",
-			"half_day_status": "Present",
+			"half_day_status": resolve_half_day_status(has_checkin, None),
 		})
 		frappe.msgprint(
 			_("Attendance {0}: swapped LA2 → LA1 ({1})").format(att_name, new_abbr),
@@ -330,14 +346,14 @@ def on_leave_application_cancel(doc, method):
 
 	elif is_la2:
 		# LA2 bị cancel → Remove LA2, giữ LA1
-		new_abbr = get_combined_abbreviation(existing_att.leave_type, None)
+		new_abbr = combined_abbreviation(existing_att.leave_type, None)
 
 		frappe.db.set_value("Attendance", att_name, {
 			"custom_leave_type_2": None,
 			"custom_leave_application_2": None,
 			"custom_leave_application_abbreviation": new_abbr,
 			"status": "Half Day",
-			"half_day_status": "Present",
+			"half_day_status": resolve_half_day_status(has_checkin, None),
 		})
 		frappe.msgprint(
 			_("Attendance {0}: removed LA2 ({1})").format(att_name, new_abbr),

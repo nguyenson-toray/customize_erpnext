@@ -27,17 +27,18 @@
    "fieldname": "relationship",
    "fieldtype": "Select",
    "label": "Relationship",
-   "options": "\nChild\nSpouse\nParent\nParent-in-law\nStep / Adoptive Parent\nSibling\nGrandparent\nUncle / Aunt\nNephew / Niece",
+   "options": "\nChild / Con\nSpouse / Vợ chồng\nParent / Bố mẹ\nParent-in-law / Bố mẹ vợ chồng\nStep or adoptive parent / Bố dượng, mẹ kế, cha mẹ nuôi\nSibling / Anh chị em ruột\nGrandparent / Ông bà\nUncle or aunt / Cô dì chú bác cậu\nNephew or niece / Cháu ruột",
    "reqd": 1,
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "columns": 2
+   "columns": 2,
+   "translatable": 0
   },
   {
    "fieldname": "date_of_birth",
    "fieldtype": "Date",
    "label": "Date of Birth",
-   "mandatory_depends_on": "eval:doc.relationship == 'Child'",
+   "mandatory_depends_on": "eval:doc.relationship && doc.relationship.startsWith('Child')",
    "in_list_view": 1,
    "columns": 1
   },

@@ -21,7 +21,9 @@ Override HRMS Leave Application để hỗ trợ:
 
 ```python
 # leave_application.py
-FULL_DAY_WORKING_HOURS_THRESHOLD = 8  # Chỉ block khi >= 8h
+# Ngưỡng lấy từ Attendance Calculation Setting.full_day_leave_block_hours (mặc định 8),
+# KHÔNG còn là hằng số. Xem leave_application.py:99.
+full_day_block_hours = get_attendance_settings().full_day_leave_block_hours
 ```
 
 ## Attendance Status Logic
@@ -119,7 +121,23 @@ LeaveApplication.create_or_update_attendance = custom_create_or_update_attendanc
 # Khi update attendance có leave
 if old_status == 'Half Day':
     status = 'Half Day'
-    half_day_status = 'Present' if has_checkin else 'Absent'
+    # Nguồn duy nhất: overrides/leave_rules.resolve_half_day_status()
+    half_day_status = resolve_half_day_status(has_checkin, other_leave_type)
 elif old_status == 'On Leave':
     status = 'Present' if has_checkin else 'On Leave'
 ```
+
+
+## ⚠ Quy tắc `half_day_status` và mã tổ hợp — đọc `leave_rules.py`
+
+Từ 10/08/2026 mọi quyết định chuyển sang `overrides/leave_rules.py`, dùng chung với engine tính
+công (`overrides/shift_type/shift_type_optimized.py`) vì engine **luôn ghi sau cùng**.
+
+`half_day_status` **không** phụ thuộc "có checkin hay không" mà phụ thuộc **nửa còn lại có được
+công ty trả lương hay không** — ca `OP/2` không có checkin nào vẫn là `Present`.
+
+Mã tổ hợp là **bảng tra** theo quy định, không phải nối chuỗi: Ốm + Không lương (`KL`) ra
+**`OK/2`**, không phải `OKL/2` cũng không phải `O/KL`.
+
+Bảng đầy đủ + căn cứ: [`QUY_DINH_NGHI_PHEP_2025.md`](QUY_DINH_NGHI_PHEP_2025.md) mục 3.5 và 5.2.
+Kiểm chứng: [`test_leave_rules.py`](test_leave_rules.py).
