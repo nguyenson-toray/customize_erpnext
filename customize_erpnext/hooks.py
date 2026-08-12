@@ -35,8 +35,7 @@ doctype_js = {
         "public/js/custom_scripts/employee.js"
     ],
     "Employee Checkin": "public/js/custom_scripts/employee_checkin.js",
-    "Attendance": "public/js/custom_scripts/attendance.js",
-    "Shift Type": "public/js/custom_scripts/shift_type.js",
+    "Attendance": "public/js/custom_scripts/attendance.js",  
     "Batch": "public/js/custom_scripts/batch.js",
     "Packing List": "public/js/packing_list_scale.js",
     "Salary Structure Assignment": "public/js/custom_scripts/salary_structure_assignment.js",
