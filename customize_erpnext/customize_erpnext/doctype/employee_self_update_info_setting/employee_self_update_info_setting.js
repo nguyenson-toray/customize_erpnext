@@ -329,6 +329,8 @@ function show_setting_help() {
     <li><b>Validate by DOB</b>: NV phải nhập <b>2 chữ số ngày sinh</b> trước khi xem/gửi (chống spam, tránh sửa nhầm người). Gõ đủ 2 số đúng là vào thẳng, không cần bấm nút.</li>
     <li><b>Áp dụng cho MỌI người, kể cả HR/Admin</b> — không có ngoại lệ theo quyền.</li>
     <li><b>Bypass Code</b> (mã 2 chữ số, chỉ Administrator thấy): dùng thay ngày sinh. <b>HR dùng mã này để mở bất kỳ nhân viên nào</b> mà không cần biết ngày sinh từng người; cũng dùng khi ngày sinh trong hệ thống bị sai.</li>
+    <li><b>Allow Browser Local Storage</b>: lưu bản nháp cục bộ trên máy NV (tránh mất dữ liệu khi tải lại / thoát giữa chừng).</li>
+    <li><b>Lock After Submit</b> + <b>Bypass Code For Unlock</b> (mã mở khoá, mặc định 88, chỉ Administrator thấy): sau khi NV gửi, trang <b>tự khoá</b>. Muốn sửa lại, NV phải nhập <b>cả 2 số ngày sinh VÀ mã mở khoá</b> do HR cấp. (Người vừa gửi vẫn tải được phiếu của mình trong ~15–30 phút mà không cần mã.)</li>
   </ul>
 
   <h5>3. Fields shown to employees (Selected Fields) — <i>quyết định field hiển thị</i></h5>
@@ -343,6 +345,7 @@ function show_setting_help() {
         <li><b>Section</b>: các field cùng Section gom thành 1 nhóm trên trang.</li>
         <li><b>Widget</b>: <i>Auto</i> thông thường; <i>Address Province</i> / <i>Address Ward</i> cho địa chỉ (Tỉnh → Phường/Xã).</li>
         <li><b>Required</b> bắt buộc · <b>Read Only</b> chỉ xem · <b>Enable</b> tắt để ẩn field mà không xoá.</li>
+        <li><b>Auto Fill Data</b>: bật (mặc định) → tự điền sẵn từ Employee / lần gửi trước; tắt → ô luôn để trống, NV phải tự nhập (kể cả field <i>Tỉnh</i> sẽ không điền mặc định).</li>
         <li><b>Validation</b>: Digits / Phone / Email / CCCD (12 số) / CMND (9 số) / Past (ngày ≤ hôm nay) / Future (ngày ≥ hôm nay) / Regex; kèm Min–Max Length. Kiểm cả ở máy NV và ở server.</li>
       </ul>
     </li>
@@ -359,13 +362,14 @@ function show_setting_help() {
     <li><b>List view</b>: chọn record → <b>Mark Reviewed</b>, <b>Sync to Employee</b> (chạy hàng loạt, hiện bảng kết quả từng NV kèm lỗi nếu có), <b>Download Excel</b>.</li>
     <li><b>Form view</b>: <b>Mark Reviewed</b> → <b>Sync to Employee</b>; nút <b>Edit in Portal</b> mở trang khai của chính NV đó để HR sửa hộ (HR nhập <b>Bypass Code</b> ở bước xác thực). HR sửa xong gửi lại → quay về <b>Submitted</b>, cần review lại.</li>
     <li>Khi Sync: <b>chỉ ghi các field thuộc Employee</b> (kể cả custom_); custom field tự do và Ghi chú <b>không</b> ghi vào Employee. Địa chỉ đầy đủ được dựng lại tự động.</li>
+    <li><b>Device Info</b>: mỗi lần gửi, hệ thống ghi lại thiết bị đã gửi (<b>IP + Model + Platform</b>) kèm thời điểm vào record (không đồng bộ sang Employee). Bản khai được <b>giữ lại</b>, không xoá — phục vụ đối chiếu.</li>
   </ul>
 
-  <h5>6. Chia sẻ &amp; kết xuất</h5>
+  <h5>6. Xuất dữ liệu Excel</h5>
   <ul>
-    <li><b>Mã QR + link</b> ở đầu form: gửi cho NV để tự khai.</li>
-    <li><b>Download Excel</b>: chọn record → chỉ record đã chọn; không chọn → tất cả. File 2 sheet (New/Old) dùng import ngược vào Employee được.</li>
-    <li>NV có thể <b>tải PDF</b> sau khi gửi. Trên trang, NV <b>quét mã QR trên CCCD</b> để tự điền số CCCD / ngày cấp / ngày hết hạn / số CMND cũ / ngày sinh — hoặc nhập tay.</li>
+    <li>Chọn record ở List view  Employee Self Update Info
+→ có thể chọn những record cần xuất file hoặc không chọn để xuất tất cả. File bao gồm 2 sheet (New/Old) dùng import ngược vào Employee được.</li>
+   
   </ul>
 
   <p style="color:#b45309"><b>Lưu ý:</b> mọi thay đổi trong Setting phải bấm <b>Save</b> mới có hiệu lực. Dữ liệu NV khai <b>không tự động</b> ghi vào Employee — chỉ ghi khi HR bấm <b>Sync to Employee</b> (sau khi Review).</p>
