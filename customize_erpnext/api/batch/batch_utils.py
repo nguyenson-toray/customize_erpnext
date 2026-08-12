@@ -1,4 +1,5 @@
 import frappe
+from frappe import _
 
 
 def _get_template_and_color(item_code):
@@ -56,12 +57,39 @@ def set_batch_defaults(doc, method=None):
     if not doc.item:
         return
 
+    doc.batch_id = _clean(doc.batch_id)
+
     template_name, color = _get_template_and_color(doc.item)
 
     if color:
         doc.custom_color = color
 
-    if not doc.batch_id:
-        lot, roll = _clean(doc.get("custom_lot_number")), _clean(doc.get("custom_roll_number"))
-        if lot and roll:
-            doc.batch_id = build_batch_id(template_name, color, lot, roll)
+    if doc.batch_id:
+        return
+
+    lot, roll = _clean(doc.get("custom_lot_number")), _clean(doc.get("custom_roll_number"))
+
+    if not lot and not roll:
+        # Batches auto-created from documents (e.g. Purchase Receipt) legitimately
+        # have no lot/roll — let ERPNext's naming series / hash naming handle them.
+        return
+
+    if not lot or not roll:
+        frappe.throw(
+            _("Cannot generate Batch ID: both Lot Number and Roll Number are required (Lot: {0}, Roll: {1})").format(
+                lot or "—", roll or "—"
+            )
+        )
+
+    if "|" in lot or "|" in roll:
+        frappe.throw(_("Lot Number and Roll Number must not contain the character |"))
+
+    if not template_name:
+        frappe.throw(_("Cannot generate Batch ID: Item Name is empty for Item {0}").format(doc.item))
+
+    batch_id = build_batch_id(template_name, color, lot, roll)
+
+    if frappe.db.exists("Batch", batch_id):
+        frappe.throw(_("Batch {0} already exists (Lot {1}, Roll {2})").format(batch_id, lot, roll))
+
+    doc.batch_id = batch_id
