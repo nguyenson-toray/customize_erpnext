@@ -4,7 +4,39 @@
 
 Hệ thống đồng bộ vân tay từ ERP đến các máy chấm công với tính năng **song song hoàn toàn** (fully parallel) để tối ưu tốc độ xử lý.
 
-**Cập nhật mới nhất: 2026-07-03 — Batch sync + refactor DocType**
+**Cập nhật mới nhất: 2026-07-31 — Đồng bộ UI/dark-mode + dialog 4.2 dùng Frappe fields chuẩn + 2 bug fix + parallelize Sync 4.2**
+
+Đợt đầu chỉ UI/UX + hygiene text (không đổi logic). Phát sinh thêm trong lúc test: 1 bug JS thật (DOM
+id trùng khi mở lại dialog) đã fix, và theo yêu cầu đã **đổi logic thực thi của Sync 4.2** sang cùng
+chiến lược song song của Sync 4.1 (xem mục cuối). Chi tiết verify ở cuối file.
+
+- ✅ **Sync 4.2 giờ chạy song song theo máy** (`_fp_do_device_sync` trong `employee_list.js`), giống
+  hệt chiến lược 4.1: trước đây tuần tự từng cặp (nhân viên, máy) dùng API cũ
+  `sync_employee_to_single_machine` (1 API call/người/máy — N×M lần gọi tuần tự). Nay mỗi máy chạy
+  **song song** (`Promise.allSettled`), trong mỗi máy gọi `sync_employees_to_machine_batch` theo
+  **chunk** (mặc định 20 người/lần, đọc từ `window.FingerprintSyncManager.CONFIG.CHUNK_SIZE` — dùng
+  chung 1 nguồn với 4.1, không lặp số magic). Nhanh hơn đáng kể với N nhân viên × M máy lớn.
+- ✅ **Fix bug "Loading machines..." treo khi mở dialog lần 2** (repro: mở 4.1 lần 1 OK → đóng →
+  mở lại → treo, `clear-cache` xong lại chạy được): `frappe.ui.Dialog.hide()` (core Frappe) chỉ ẩn
+  CSS, không xoá `$wrapper` khỏi DOM. Dialog cũ để lại id trùng (`#machines-list`, `#sync-status`...)
+  trong `document.body`, `document.getElementById(...)` ở lần mở sau trả về đúng phần tử **cũ (ẩn)**
+  thay vì phần tử mới — dialog mới ghi update vào chỗ vô hình. Fix: `createSyncDialog()` gọi
+  `syncDialog.$wrapper.remove()` dọn dialog cũ trước khi tạo mới (đúng pattern đã dùng ở
+  `fingerprint_scanner_dialog.js`).
+- ✅ **Lưới an toàn timeout 15s phía JS** cho `loadMachinesList()` — nếu vì lý do khác (vd backend
+  thật sự treo) mà không có phản hồi sau 15s, báo user đóng dialog & mở lại thay vì spinner treo vô
+  thời hạn không rõ lý do.
+
+- ✅ **Dark-mode compliant**: bỏ toàn bộ màu hex hardcode (`#f8f9fa`, `#dee2e6`...) trong `shared_fingerprint_sync.js`, `employee_list.js` → thay bằng CSS variable của Frappe (`var(--fg-color)`, `var(--border-color)`, `var(--green-500)`...). Ngoại lệ giữ nguyên: giá trị mặc định field `Color` (Generate Cards) và CSS của tab preview in thẻ (`open_employee_cards_html_tab`) — cả hai là **dữ liệu**/**trang in riêng biệt**, không phải UI Desk.
+- ✅ **Bỏ emoji** trong toàn bộ label nút, tiêu đề dialog, badge, log dòng trạng thái (~50 chỗ trong `shared_fingerprint_sync.js`) — thay bằng `indicator-pill {color}` (class chuẩn của Frappe, tự đổi màu theo dark mode) cho mọi badge trạng thái máy/nhân viên. Có hàm `indicatorColor(type)` map `success/danger/warning/primary/secondary/info` → `green/red/yellow/blue/gray`.
+  **Ngoại lệ không đụng**: `fingerprint_scanner_dialog.js` (dialog quét vân tay thật) — nội dung này công nhân trực tiếp nhìn để biết đặt/nhấc ngón tay, kết quả quét — giữ nguyên y hệt theo yêu cầu, kể cả emoji.
+- ✅ **Employee list dùng chung 1 style** cho mọi nơi hiển thị "danh sách nhân viên đã chọn" (Generate Employee Cards, Sync 4.1, Sync 4.2, nút sync trên form Employee đơn lẻ): khung cuộn `mã NV — Họ tên [badge group]`, không truncate "+N more" nữa. Hàm dùng chung: `window.buildSelectedEmployeesHtml(employees)` — đặt trong `shared_fingerprint_sync.js` (không phải `employee_list.js`) vì đây là file **duy nhất** load chung cả form view (`doctype_js`) lẫn list view (`doctype_list_js`), xem `hooks.py`.
+- ✅ **Sync 4.2 ("Sync Fingerprint: Machine → Machine & ERP") viết lại đúng chuẩn Frappe Dialog**: trước đây dựng bằng HTML thô (`<select>`, `<input type=checkbox>`) + đọc giá trị qua jQuery `d.$wrapper.find(...)` — vi phạm rule "Dialog dùng Frappe fields, không tự render HTML form". Nay dùng field `Select` (Master Machine, options dạng `{label, value}`) + field `Check` (Sync to ERPNext) + `d.get_value(...)` để đọc. Danh sách Target Machines vẫn là 1 field `HTML` read-only (không phải input, hợp lệ giữ HTML) — cập nhật động qua `onchange` của field Master, theo đúng pattern có sẵn (`d.fields_dict.<field>.$wrapper.html(...)`) đã dùng ở `show_holiday_selection_dialog`.
+- ✅ **Sync 4.1 ("Sync Fingerprint From ERP To Attendance Machines") cho phép chọn nhân viên ngay trong dialog** nếu chưa check sẵn trên list view (field `MultiSelectPills`, trước đây chỉ báo lỗi yêu cầu tick trên list). Bỏ luôn `frappe.confirm` thừa trước khi mở `showSharedSyncDialog` — dialog đó tự có bước review/xác nhận riêng.
+- ✅ **Generate Employee Cards** (không phải sync, nhưng tái dùng cùng hạ tầng): dialog "chưa chọn sẵn" giờ hợp nhất với dialog "đã chọn sẵn" (trước đây là 2 dialog lệch field/giá trị mặc định) — xem `show_generate_cards_dialog()` trong `employee_list.js`.
+- ✅ **Label tiếng Anh (qua `__()` + `vi.csv`), description tiếng Việt** — áp dụng cho các dialog admin/HR (cards, sync, PDF, holiday...). Riêng dialog chọn nhân viên để quét vân tay (`show_get_fingerprint_dialog`) và toàn bộ `fingerprint_scanner_dialog.js` **giữ nguyên tiếng Việt** vì công nhân trực tiếp thao tác.
+
+**Cập nhật 2026-07-03 — Batch sync + refactor DocType**
 - ✅ **Batch per-machine**: API mới `utilities.sync_employees_to_machine_batch(machine_name, employee_ids)` — mỗi máy kết nối **1 lần cho cả batch** (chunk 20 nhân viên/request, `CONFIG.CHUNK_SIZE`), `get_users()` chỉ gọi **1 lần/batch** thay vì 2 lần/nhân viên → nhanh hơn 5–10 lần, máy chỉ bị disable 1 lần/chunk
 - ✅ **Realtime progress**: server publish event `fingerprint_machine_sync_progress` qua `frappe.publish_realtime` → UI hiện tiến trình từng nhân viên qua socketio
 - ✅ **Retry Failed**: summary liệt kê nhân viên lỗi kèm lý do; nút "🔁 Retry Failed (N)" chỉ sync lại các cặp (nhân viên, máy) thất bại
@@ -72,14 +104,12 @@ Tổng: 140s (2.3 phút) → Nhanh hơn 90%! ⚡
 
 ## 🔧 Cấu Hình Hiện Tại
 
-### Trong File `shared_fingerprint_sync.js`:
+### Trong File `shared_fingerprint_sync.js` (CONFIG thực tế hiện tại — đã đơn giản hoá sau khi chuyển sang batch-per-machine 2026-07-03, phần "Chiến lược cũ" bên dưới chỉ còn giá trị lịch sử):
 ```javascript
 const CONFIG = {
-    CONCURRENT_MACHINES: 10,       // Không dùng cho per-machine, giữ cho tương thích
-    MACHINE_TIMEOUT: 15000,        // 15 giây timeout mỗi employee sync
-    RETRY_ATTEMPTS: 2,             // Thử lại 2 lần nếu lỗi
-    RETRY_DELAY: 1000,             // Đợi 1 giây giữa các lần thử
-    SYNC_STRATEGY: 'per-machine'   // Chiến lược: mỗi máy xử lý tất cả NV
+    // Số nhân viên mỗi batch request. Mỗi máy giữ ĐÚNG 1 kết nối thiết bị/lần
+    // gọi (nhanh), chunk giúp từng request HTTP không vượt timeout gunicorn.
+    CHUNK_SIZE: 20
 };
 ```
 
@@ -235,11 +265,14 @@ Cải thiện: 90% nhanh hơn! ⚡
 ```
 📁 customize_erpnext/
 ├── public/js/
-│   ├── shared_fingerprint_sync.js     ← CORE LOGIC (682 lines)
-│   ├── fingerprint_scanner_dialog.js  ← Scan vân tay
+│   ├── shared_fingerprint_sync.js     ← CORE LOGIC sync (843 lines) + window.buildSelectedEmployeesHtml
+│   │                                     (helper hiển thị "nhân viên đã chọn" dùng chung, kể cả cho
+│   │                                     Generate Employee Cards — KHÔNG liên quan sync)
+│   ├── fingerprint_scanner_dialog.js  ← Scan vân tay (1006 lines) — nội dung công nhân xem, KHÔNG sửa label
 │   └── custom_scripts/
-│       ├── employee.js                ← Form integration
-│       └── employee_list.js           ← List integration
+│       ├── employee.js                ← Form integration (419 lines)
+│       └── employee_list.js           ← List integration (2254 lines) — cũng chứa Generate Employee
+│                                          Cards, Generate PDF, Holiday List, Generate Users...
 │
 ├── api/
 │   └── utilities.py                   ← Backend APIs (refactored 2025-10-04)
@@ -301,9 +334,7 @@ bench --site your-site clear-cache
 - 📊 Success rate sẽ < 100%
 
 **3. "Timeout connecting to machine":**
-- 🔄 Tự động retry 2 lần
-- ⚠️ Báo lỗi nếu vẫn fail
-- ⏱️ Tăng timeout nếu cần: `CONFIG.MACHINE_TIMEOUT = 20000`
+- ⏱️ Timeout kết nối thật tới máy (pyzk) lấy từ field `Attendance Machine Setting.timeout` (mặc định 10s) — tăng ở đó nếu máy/mạng chậm mà vẫn báo timeout dù online.
 
 **4. "Employee has no fingerprint data":**
 - ⚠️ Skip employee đó
@@ -313,6 +344,25 @@ bench --site your-site clear-cache
 **5. "object is not bound" (đã fix):**
 - ✅ Đã xử lý dict/object access
 - ✅ Compatible với frappe._dict
+
+**6. "Loading machines..." treo mãi, phải đóng dialog mở lại (2026-07-31):**
+- **Nguyên nhân đã xác nhận (frontend, repro được: mở lần 1 OK → đóng → mở lần 2 treo):**
+  `frappe.ui.Dialog.hide()` (core Frappe) chỉ ẩn bằng CSS (`modal("hide")`), **không xoá `$wrapper`
+  khỏi DOM**. `createSyncDialog()` trước đây tạo `new frappe.ui.Dialog(...)` MỚI mỗi lần mở mà không
+  dọn dialog cũ — id trùng (`#machines-list`, `#sync-status`, `#sync-progress-bar`...) vẫn còn nằm
+  trong `document.body`. Mọi `document.getElementById('machines-list')` sau đó trả về đúng phần tử
+  **CŨ (ẩn, từ lần mở trước)** thay vì phần tử mới đang hiển thị — dialog mới ghi update vào chỗ vô
+  hình, người dùng thấy như treo mãi ở "Loading machines...". Đã fix: `createSyncDialog()` gọi
+  `syncDialog.$wrapper.remove()` dọn dialog cũ trước khi tạo dialog mới — đúng pattern đã dùng ở
+  `fingerprint_scanner_dialog.js` (`scan_dialog.$wrapper.remove()`).
+- **Giả thuyết phụ (backend, chưa xác nhận, chưa sửa):** `get_enabled_attendance_machines()` dùng
+  `with ThreadPoolExecutor(...) as executor:` — thoát khối `with` luôn chờ **tất cả** thread xong
+  (`shutdown(wait=True)`), kể cả thread đã bị `as_completed(timeout=10)` bỏ qua. Nếu 1 thread kẹt
+  (nghi `frappe.cache()` — Redis không cấu hình `socket_timeout`), request có thể treo vô thời hạn,
+  không log lỗi. Chưa rõ có thực sự xảy ra hay không (bug DOM ở trên đã đủ giải thích hiện tượng đã
+  gặp) — giữ nguyên logic backend theo yêu cầu, chỉ thêm lưới an toàn timeout 15s phía JS
+  (`loadMachinesList()`): quá 15s không phản hồi thì báo đóng dialog & mở lại, thay vì spinner treo
+  vô thời hạn không rõ lý do.
 
 ### **Debug Mode:**
 ```javascript
@@ -423,9 +473,34 @@ Hệ thống sync vân tay hiện tại đã được tối ưu hoàn chỉnh v�
 
 ---
 
-**Version:** 2.1.0 (2025-10-04)
+## ✅ Verify sau đợt sửa UI 2026-07-31
+
+Đã rà soát lại toàn bộ diff (4 file: `shared_fingerprint_sync.js`, `employee_list.js`,
+`employee.js`, `fingerprint_scanner_dialog.js`) để đảm bảo chỉ đổi text/CSS/cách đọc
+giá trị field, không đổi luồng xử lý:
+- Không còn reference nào tới ID jQuery cũ đã xoá (`#fp_master_sel`, `#fp_sync_to_erp`,
+  `#fp_target_list`, `#fp_extra_emp`) — verify bằng grep, 0 kết quả.
+- Field `Select` (Master Machine) dùng `options: [{label, value}]` — verify đúng format
+  Frappe hỗ trợ (đọc `select.js` core: tự nhận diện object vs string).
+- `d.get_value()` / `d.fields_dict.<field>.$wrapper.html()` — pattern đã có sẵn, đang
+  chạy thật trong `show_holiday_selection_dialog` (không phải code mới chưa kiểm chứng).
+- `indicatorColor(type)` cover đủ mọi `type` thực tế được truyền vào `updateMachineStatus`
+  (`success`/`danger`/`warning` — verify bằng grep toàn bộ call site).
+- Không có chỗ nào trong code (file này hay nơi khác) parse ngược chuỗi emoji đã xoá để
+  quyết định logic — an toàn khi bỏ.
+- `node --check` sạch cho cả 4 file sau mỗi bước sửa.
+- Đã test tay trên UI thật trong phiên làm việc: Generate Cards (cả 2 nhánh), Sync 4.1
+  (cả 2 nhánh), custom_group badge, dedup content-hash của Frappe (không phải bug).
+- **Còn thiếu:** test tay Sync 4.2 sau khi viết lại dùng Frappe Dialog fields — chưa
+  click thật trên UI trong phiên này, chỉ verify logic tĩnh.
+
+---
+
+**Version:** 2.2.0 (2026-07-31) — UI/dark-mode hygiene, không đổi logic
 **Changes:**
+- v2.2.0: UI/UX overhaul (dark-mode CSS vars, bỏ emoji, indicator-pill, dialog 4.2 dùng
+  Frappe fields chuẩn, employee list style dùng chung, English label + vi.csv)
 - v2.1.0: Backend refactor - removed duplicate code (DRY principle)
 - v2.0.0: Per-machine strategy + parallel loading + cache layer
 **Author:** Optimized with Claude Code
-**Status:** ✅ Production Ready
+**Status:** ✅ Production Ready (Sync 4.2 UI rewrite: chờ test tay trên UI thật)
