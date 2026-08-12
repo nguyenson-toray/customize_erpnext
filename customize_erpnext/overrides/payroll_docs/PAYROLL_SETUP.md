@@ -20,7 +20,11 @@ Kỳ lương: **26 tháng trước → 25 tháng này**.
 | `TIQN Payroll Settings` · `Employee Dependent` | ✅ |
 | Báo cáo `OT Compliance` | ✅ |
 | **Sync chấm công từ app HR sang ERP** | 🔴 chưa có |
-| **Dữ liệu nghỉ phép / không lương / hưởng BH** | 🔴 chưa có |
+| Ngày lễ không còn bị trừ lương (mục 4.8) | ✅ sửa 10/08/2026 |
+| **Rà soát lượt quẹt thiếu trước khi chốt lương (mục 4.10)** | ⚠ **quy trình BẮT BUỘC của HR** |
+| `custom_salary_month` (mục 4.9) | ✅ |
+| **Dữ liệu nghỉ phép** | 🟠 đã import **7.097 đơn ở dạng draft**, chờ submit — xem `../leave_application/PLAN_IMPORT_AL_2026.md` |
+| **Dữ liệu không lương / hưởng BH** | 🟠 nằm trong 7.097 đơn trên |
 | **Dữ liệu người phụ thuộc** | 🔴 chưa có — thuế đang tính với 0 NPT |
 | **Lương HĐLĐ của ~1.036 NV Active** | 🔴 mới có 16 người |
 
@@ -294,6 +298,21 @@ Salary Slip **tự nhặt** vào kể cả khi component không có trong Salary
 🔴 Additional Salary **vẫn áp** `depends_on_payment_days` của component — quà cưới 1.000.000
 cho NV đi làm 25/26 ngày sẽ ra 961.538. Mọi component dùng qua Additional Salary phải để cờ đó = **0**.
 
+Danh sách khoản phát sinh (nhóm **7 Others/Các khoản khác**), tất cả `depends_on_payment_days = 0`:
+
+| Mã | Khoản | `is_tax_applicable` |
+|---|---|:--:|
+| 7.2 | Marriage gift / Quà kết hôn | 1 |
+| 7.3 | PIT Finalization / Quyết toán thuế | 1 |
+| 7.4 | Annual leave payment / Thanh toán phép năm | 1 |
+| 7.5 | Menstrual allowance / Phụ cấp kinh nguyệt | 1 |
+| **7.7** | **Public holiday bonus / Thưởng lễ** *(thêm 10/08/2026)* | **1** |
+
+`7.7` dùng cho thưởng 30/4 · 1/5 · 2/9 · Tết. Đã kiểm A/B trên phiếu 24/25 ngày công với mức
+thưởng 1.000.000: cờ `= 0` trả **đủ 1.000.000**, cờ `= 1` chỉ còn **960.000**. Khoản này **có**
+vào thu nhập chịu thuế nhưng **không** vào căn cứ đóng BHXH (Additional Salary nằm ngoài 8 field
+tính `custom_si_base` trên SSA — đúng quy định: tiền thưởng không tính đóng BHXH).
+
 ### 4.5. Mọi thao tác ghi phải idempotent
 
 Salary Slip được tính lại nhiều lần. **Xoá dòng cũ trước rồi mới append**; gán giá trị thì
@@ -324,6 +343,135 @@ inline và treo với >1000 dòng.
 Thứ tự đúng: **bật dev mode → tạo doctype → tắt dev mode → import dữ liệu**.
 
 ---
+### 4.8. 🔴 HRMS dùng MỘT danh sách ngày nghỉ cho hai mục đích trái nhau
+
+`get_working_days_details()` (`hrms/salary_slip.py:497`) gọi `get_holidays_for_employee()`
+**một lần** rồi truyền cùng một danh sách đi khắp nơi:
+
+| Mục đích | Cần danh sách nào |
+|---|---|
+| (a) `working_days -= len(holidays)` → ngày công chuẩn | **chỉ Chủ Nhật** (mục 2.2: ngày lễ vẫn tính công) |
+| (b) bỏ qua `Absent` / `Half Day` rơi vào ngày nghỉ | **cả ngày lễ** |
+
+Override `get_holidays_for_employee()` của ta trả **chỉ Chủ Nhật** để phục vụ (a) — nếu trả đủ
+thì ngày công chuẩn kỳ Tết ra 18 thay vì 27 và sai đơn giá ngày. Nhưng khi đó (b) **không nhìn
+thấy ngày lễ**, nên một bản ghi Attendance `Absent` rơi vào ngày lễ sẽ **trừ lương thật**.
+
+**Đo được (10/08/2026)** trên `Sal Slip/TIQN-0148/202602`, kỳ Tết 26/01 → 25/02/2026:
+9 ngày Tết bị chấm `Absent` ⇒ trả **18/27** ngày, net **11.005.883** thay vì **16.694.856**
+— mất **5.688.973 đ** cho một người trong một tháng.
+
+**Đã sửa** ở `overrides/salary_slip/salary_slip.py`: thêm `all_holidays_in_period()` (Chủ Nhật
++ ngày lễ) và override đúng hai hàm tiêu thụ mục đích (b):
+
+```python
+calculate_lwp_ppl_and_absent_days_based_on_attendance()   # -> all_holidays_in_period()
+get_half_absent_days()                                    # -> all_holidays_in_period()
+get_holidays_for_employee()                               # giữ nguyên: CHỈ Chủ Nhật
+```
+
+⚠ **Cố ý KHÔNG đụng `get_unmarked_days()`.** Nó đếm ngày *chưa chấm công* bằng
+`total_working_days − đã chấm`; đưa ngày lễ vào sẽ loại các bản ghi ngày lễ khỏi nhóm "đã chấm"
+rồi tính chúng thành vắng mặt **lần nữa**. Đúng cái bẫy đã ghi ở `PLAN_ATTENDANCE_VS_QUYCHE.md`
+mục A3: **xoá bản ghi Absent ngày lễ KHÔNG phải là cách sửa**, vì
+`consider_unmarked_attendance_as = Absent` sẽ tính lại chúng thành vắng.
+
+Nhờ sửa ở tầng lương, payroll **đúng bất kể dữ liệu Attendance** — không phải chờ dọn 11.065
+bản ghi `Absent` ngày lễ.
+
+### 4.9. `custom_salary_month` — nhãn kỳ lương lấy theo `end_date`
+
+`CustomSalarySlip.set_salary_month()` điền `custom_salary_month` dạng **`Jul-2026`** mỗi lần
+validate. Lấy theo **`end_date`**: kỳ 26/06 → 25/07 là **tháng 7**; dùng `start_date` ra
+`Jun-2026`, lệch đúng một tháng.
+
+Bốn chỗ nay dùng chung mốc `end_date`: `autoname()` · `custom_salary_month` · đếm người phụ
+thuộc (`get_dependent_count`) · tra tham số theo ngày hiệu lực.
+
+⚠ Phiếu **đã submit** không nhận giá trị này qua `save()` (field không `allow_on_submit`, và
+`validate()` không chạy lại) — phải `frappe.db.set_value`. Phiếu mới thì không lo: giá trị gán
+lúc validate, tức trước khi submit.
+
+### 4.10. 🔴 BẮT BUỘC: HR rà soát lượt quẹt thiếu TRƯỚC khi chốt lương
+
+Ngày chỉ có **lượt quẹt vào**, không có lượt ra hợp lệ, được tính `Present` với
+`working_hours = 0`. Đó là **chủ ý** — người lao động đã đến làm, để `Absent` là cắt trọn ngày
+lương của họ (xem `../shift_type/OPTIMIZATION_GUIDE.md`).
+
+Cái giá phải trả: **trả đủ ngày mà không có giờ nào ghi nhận**, và **OT của ngày đó = 0** vì
+không có mốc kết thúc. Hệ thống không được phép tự đoán giờ ra.
+
+⇒ **Quy trình bắt buộc: HR rà soát và bổ sung lượt quẹt thiếu trước khi tính lương.**
+
+`CustomSalarySlip.warn_incomplete_attendance()` liệt kê các ngày đó ngay khi lưu phiếu, kèm link
+mở từng bản ghi Attendance.
+
+🔴 **Cố ý bỏ qua khi lập hàng loạt qua Payroll Entry** (`if self.payroll_entry: return`).
+`create_salary_slips_for_employees()` (`payroll_entry.py:1560`) gọi `insert()` cho **từng** nhân
+viên và **không** mute message. Đo kỳ 26/07-25/08: **938** nhân viên có ngày thiếu lượt quẹt ⇒ 938
+`msgprint` dồn vào `frappe.message_log` của một background job mà **không ai đọc**, chỉ tốn bộ nhớ.
+Đường chính để HR rà vẫn là sheet "Important Note" — cảnh báo ở đây chỉ là lưới an toàn khi lập
+hoặc sửa **một** phiếu bằng tay.
+
+> Chi phí truy vấn không đáng kể: đo 1.036 nhân viên hết **0,7 giây** nhờ index
+> `idx_att_emp_date_docstatus`.
+
+**Cảnh báo, không chặn** — kỳ **đang diễn ra** thì thiếu lượt ra là bình thường. Đo 12/08/2026:
+
+| Kỳ lương | Bản ghi thiếu | Nhân viên |
+|---|---:|---:|
+| 02/2026 → 07/2026 (đã đóng) | **1–4 mỗi kỳ** | 1–4 |
+| **08/2026 (đang diễn ra)** | **936** | 930 |
+
+Chặn cứng sẽ làm không lập nổi phiếu nháp giữa kỳ. Với kỳ đã đóng thì số lượng nhỏ, rà tay được.
+
+#### Thứ tự bắt buộc của một kỳ lương
+
+```
+1. Report "Shift Attendance Customize" → nút Export Excel
+      → sheet "Important Note" liệt kê mọi ca dị thường của kỳ
+2. HR hoàn thiện lượt quẹt thiếu  (bổ sung Employee Checkin)
+3. Bulk Update Attendance cho toàn kỳ  → tính lại ngày công + OT
+4. MỚI lập Salary Slip / Payroll Entry
+```
+
+🔴 **Không được đảo bước 3 và 4.** Bổ sung checkin mà chưa tính lại thì Attendance vẫn giữ
+`working_hours = 0` và `OT = 0` của lần chạy trước — phiếu lương sẽ lấy đúng số cũ đó.
+
+Sheet **"Important Note"** (`report/shift_attendance_customize/standard_export.py`) là bản sao
+của app cũ, gom sẵn toàn bộ dị thường từ `Attendance.custom_note`, nên HR không phải tự truy vấn.
+`warn_incomplete_attendance()` chỉ là lớp chặn cuối, nhắc lại đúng nhóm "thiếu lượt quẹt" khi lưu
+từng phiếu.
+
+Hai nhóm nguyên nhân của nhóm thiếu lượt quẹt, phân biệt bằng `custom_note`:
+
+| Note | Nghĩa |
+|---|---|
+| `Only one check-in record` | thật sự chỉ quẹt một lần — quên quẹt ra |
+| `No check-OUT (all logs before shift start)` | quẹt **đúp** ở cửa lúc vào; `out_time` giả đã bị loại bỏ |
+
+### 4.11. `total_in_words` phải là **tiếng Việt**
+
+HRMS `set_net_total_in_words()` (`hrms/salary_slip.py:192-198`) gọi
+`frappe.utils.money_in_words()` — trả về **tiếng Anh**:
+*"VND Seventeen Million, Four Hundred Thousand… only."* Không dùng được cho chứng từ trả lương
+tại Việt Nam.
+
+`CustomSalarySlip.set_net_total_in_words()` gọi `super()` trước (giữ nguyên hành vi cho mọi đồng
+tiền khác) rồi **ghi đè khi `currency == "VND"`** bằng
+`api/vn_number_words.money_in_words_vi()`:
+
+> Mười bảy triệu bốn trăm nghìn tám trăm bảy mươi tám đồng
+
+`money_in_words_vi()` thuần stdlib, **không import `frappe`**, nên
+`tests/test_vn_number_words.py` chạy được không cần bench/site. Cùng module còn có
+`format_vnd()`; cả hai đã đăng ký Jinja trong `hooks.py` để dùng trong Print Format.
+
+⚠ Phiếu **đã submit** không nhận giá trị mới qua `save()` — phải `frappe.db.set_value`,
+giống `custom_salary_month` ở mục 4.9.
+
+🔴 **Đừng dùng `frappe.format` cho tiền trên chứng từ**: `System Settings.number_format` đang là
+`"# ###,##"` (dấu cách) → ra `17 400 878`; chứng từ VN cần dấu chấm. Dùng `format_vnd()`.
 
 ## 5. Nhập liệu
 

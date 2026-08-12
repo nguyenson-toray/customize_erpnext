@@ -1,9 +1,10 @@
 # Copyright (c) 2026, IT Team - TIQN and contributors
 # For license information, please see license.txt
 
+import erpnext
 import frappe
 from frappe import _
-from frappe.utils import cint, flt, getdate
+from frappe.utils import cint, flt, get_link_to_form, getdate
 
 from customize_erpnext.customize_erpnext.doctype.tiqn_payroll_settings.tiqn_payroll_settings import (
 	get_settings,
@@ -16,6 +17,7 @@ HOLIDAYS_CACHE = "tiqn_payroll_weekly_offs"
 # Giờ OT chốt để trả lương. KHÔNG dùng `custom_approved_overtime_duration` — đó là giờ
 # đăng ký/duyệt. Ca thật TIQN-0047: approved = 66h nhưng final = 36,1h, và chỉ `final`
 # mới khớp phiếu lương.
+VND = "VND"
 OT_SOURCE_FIELD = "custom_final_overtime_duration"
 
 # Khoản trả một lần/năm — khớp theo tiền tố vì tên component có cả tiếng Anh lẫn tiếng Việt
@@ -52,7 +54,110 @@ class CustomSalarySlip(SalarySlip):
 
 	def validate(self):
 		super().validate()
+		self.set_salary_month()
+		self.warn_incomplete_attendance()
 		self.warn_annual_allowance_in_wrong_period()
+
+	def set_net_total_in_words(self):
+		"""Số tiền bằng chữ **tiếng Việt** cho phiếu lương VNĐ.
+
+		HRMS gọi `frappe.utils.money_in_words()` (`hrms/salary_slip.py:197`) — hàm đó trả về
+		**tiếng Anh** (*"Seventeen Million ... Dong only"*), không dùng được cho chứng từ trả
+		lương tại Việt Nam.
+
+		Chỉ đổi khi đồng tiền là **VND**; đồng tiền khác vẫn để HRMS xử lý như cũ.
+
+		Hàm dùng: `api/vn_number_words.money_in_words_vi()` — thuần stdlib, không import
+		`frappe`, nên `tests/test_vn_number_words.py` chạy được không cần bench/site.
+		"""
+		super().set_net_total_in_words()
+
+		from customize_erpnext.api.vn_number_words import money_in_words_vi
+
+		total = self.net_pay if self.is_rounding_total_disabled() else self.rounded_total
+		base_total = (
+			self.base_net_pay if self.is_rounding_total_disabled() else self.base_rounded_total
+		)
+		# flt(): `money_in_words_vi(None)` trả về chuỗi RỖNG, không lỗi — để nguyên thì
+		# field bằng chữ im lặng trống. flt(None) = 0.0 -> "Không đồng".
+		if self.currency == VND:
+			self.total_in_words = money_in_words_vi(flt(total))
+		if erpnext.get_company_currency(self.company) == VND:
+			self.base_total_in_words = money_in_words_vi(flt(base_total))
+
+	def set_salary_month(self):
+		"""`custom_salary_month` — kỳ lương này là tháng nào, dạng `Jul-2026`.
+
+		Lấy theo **`end_date`**, cùng quy ước với `autoname()`: kỳ 26/06 → 25/07 là **tháng 7**.
+		Dùng `start_date` sẽ ra tháng 6 — lệch đúng một tháng và rất khó phát hiện.
+
+		Field này để lọc/nhóm báo cáo cho dễ; `start_date`/`end_date` vẫn là nguồn thật.
+		"""
+		if not self.end_date:
+			return
+		self.custom_salary_month = getdate(self.end_date).strftime("%b-%Y")
+
+	def warn_incomplete_attendance(self):
+		"""🔴 Cảnh báo ngày chấm công THIẾU LƯỢT QUẸT trong kỳ — HR phải rà trước khi chốt lương.
+
+		Ngày chỉ có lượt quẹt vào (không có lượt ra hợp lệ) được tính `Present` với
+		`working_hours = 0` — xem `overrides/shift_type/OPTIMIZATION_GUIDE.md`. Đó là chủ ý:
+		người lao động **đã đến làm**, để `Absent` là cắt trọn ngày lương của họ.
+
+		Nhưng cái giá là **trả đủ ngày mà không có giờ nào ghi nhận**, và giờ OT của ngày đó
+		cũng bằng 0 vì không có mốc kết thúc. Vì vậy quy trình bắt buộc: **HR rà soát và bổ
+		sung lượt quẹt thiếu TRƯỚC khi tính lương**, không để hệ thống tự đoán.
+
+		Chỉ cảnh báo, không chặn — kỳ đang diễn ra thì thiếu lượt ra là bình thường (đo
+		12/08/2026: 936/952 bản thuộc kỳ hiện tại, các kỳ đã đóng chỉ 1-4 bản mỗi kỳ).
+		Chặn cứng sẽ làm không lập nổi phiếu nháp giữa kỳ.
+
+		🔴 **Bỏ qua khi lập hàng loạt qua Payroll Entry.**
+		`create_salary_slips_for_employees()` (`payroll_entry.py:1560`) gọi `insert()` cho
+		TỪNG nhân viên và **không** mute message. Đo kỳ 26/07-25/08: **938** nhân viên có
+		ngày thiếu lượt quẹt ⇒ 938 `msgprint` dồn vào `frappe.message_log` của một
+		background job mà **không ai đọc** — chỉ tốn bộ nhớ.
+
+		Đường chính để HR rà là **sheet "Important Note"** của report Shift Attendance
+		Customize, chạy TRƯỚC khi tính lương (`payroll_docs/PAYROLL_SETUP.md` mục 4.10).
+		Cảnh báo ở đây chỉ là lưới an toàn khi lập/sửa **một** phiếu bằng tay.
+		"""
+		if self.payroll_entry:
+			return
+		if not (self.employee and self.start_date and self.end_date):
+			return
+
+		Attendance = frappe.qb.DocType("Attendance")
+		rows = (
+			frappe.qb.from_(Attendance)
+			.select(Attendance.name, Attendance.attendance_date, Attendance.custom_note)
+			.where(
+				(Attendance.employee == self.employee)
+				& (Attendance.attendance_date.between(self.start_date, self.end_date))
+				& (Attendance.docstatus == 1)
+				& Attendance.in_time.isnotnull()
+				& Attendance.out_time.isnull()
+			)
+			.orderby(Attendance.attendance_date)
+		).run(as_dict=True)
+		if not rows:
+			return
+
+		lines = "".join(
+			"<li>{0} — {1}</li>".format(
+				frappe.utils.formatdate(r.attendance_date),
+				get_link_to_form("Attendance", r.name, label=_("open")),
+			)
+			for r in rows
+		)
+		frappe.msgprint(
+			_("{0} day(s) in this period have a check-IN but no check-OUT, so they are paid "
+			  "as a full day with 0 recorded hours (and 0 overtime).<br><br>"
+			  "Please review and complete the missing check-ins before finalising payroll."
+			  "<ul>{1}</ul>").format(len(rows), lines),
+			title=_("Incomplete attendance"),
+			indicator="orange",
+		)
 
 	def warn_annual_allowance_in_wrong_period(self):
 		"""Cảnh báo khi khoản trả MỘT LẦN/NĂM lại xuất hiện ở kỳ lương khác.
@@ -267,3 +372,42 @@ class CustomSalarySlip(SalarySlip):
 		hai loại phân biệt bằng cờ `Holiday.weekly_off`.
 		"""
 		return [d for d, weekly_off in self._holiday_map(start_date, end_date).items() if weekly_off]
+
+	def all_holidays_in_period(self) -> list:
+		"""TẤT CẢ ngày nghỉ của kỳ — Chủ Nhật **và** ngày lễ nhà nước."""
+		return list(self._holiday_map(self.start_date, self.end_date).keys())
+
+	# ------------------------------------------------------------------
+	# 🔴 HRMS dùng MỘT danh sách `holidays` cho hai mục đích trái nhau
+	# ------------------------------------------------------------------
+	# `get_working_days_details()` (hrms salary_slip.py:497) lấy `holidays` một lần rồi
+	# truyền đi khắp nơi:
+	#
+	#   (a) `working_days -= len(holidays)`   -> ngày công chuẩn: CHỈ được trừ Chủ Nhật
+	#   (b) bỏ qua Absent rơi vào ngày nghỉ   -> phải tính CẢ ngày lễ
+	#
+	# `get_holidays_for_employee()` ở trên phục vụ (a). Nếu để nguyên thì (b) không thấy
+	# ngày lễ, nên một bản ghi Attendance `Absent` rơi vào ngày lễ sẽ **trừ lương thật**.
+	#
+	# Đo được trên `Sal Slip/TIQN-0148/202602` (kỳ Tết 26/01→25/02/2026): 9 ngày Tết bị
+	# chấm Absent -> payment_days 18/27 thay vì 27/27, mất 9 ngày lương.
+	# Quy chế: ngày lễ nhà nước **vẫn tính công và trả lương**.
+	#
+	# Hai hàm dưới đây thay `holidays` bằng danh sách đầy đủ cho đúng mục đích (b).
+	# KHÔNG đụng `get_unmarked_days()`: nó đếm ngày "chưa chấm công", cần danh sách
+	# Chủ Nhật thôi — đưa cả ngày lễ vào sẽ loại 9 bản ghi Tết khỏi nhóm "đã chấm"
+	# rồi tính chúng thành vắng mặt lần nữa.
+
+	def calculate_lwp_ppl_and_absent_days_based_on_attendance(
+		self, holidays, daily_wages_fraction_for_half_day, consider_marked_attendance_on_holidays
+	):
+		return super().calculate_lwp_ppl_and_absent_days_based_on_attendance(
+			self.all_holidays_in_period(),
+			daily_wages_fraction_for_half_day,
+			consider_marked_attendance_on_holidays,
+		)
+
+	def get_half_absent_days(self, consider_marked_attendance_on_holidays, holidays):
+		return super().get_half_absent_days(
+			consider_marked_attendance_on_holidays, self.all_holidays_in_period()
+		)

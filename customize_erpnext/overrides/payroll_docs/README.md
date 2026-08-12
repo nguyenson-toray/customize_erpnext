@@ -26,6 +26,10 @@ Khi hai tài liệu mâu thuẫn, **quy chế thắng**.
 | `customize_erpnext/doctype/tiqn_payroll_settings/` | Hằng số lương do HR quản lý (mức giảm trừ, biểu thuế, tỷ lệ BH, trần OT) |
 | `customize_erpnext/doctype/employee_dependent/` | Người phụ thuộc — 1 hồ sơ / nhân viên, danh sách NPT ở child table `Employee Dependent Item` |
 | `customize_erpnext/report/ot_compliance/` | Báo cáo vượt trần làm thêm giờ |
+| `overrides/leave_rules.py` | Quy tắc nghỉ phép dùng chung cho luồng Leave Application và engine chấm công |
+| `overrides/leave_application/` | Override đơn nghỉ · import sổ nghỉ phép HR · quy định gốc + plan |
+| `overrides/leave_control_panel/` | Chọn nhân viên theo khoảng làm việc thay vì `status = Active` |
+| `overrides/earned_leave/` | Phép năm tích luỹ theo tháng (tỷ lệ, tháng 12 điều chỉnh) + mốc 14 ngày Đ.66 |
 | `patches/seed_tiqn_payroll_settings.py` | Seed giá trị hiện hành, idempotent |
 
 ## Dữ liệu đối chiếu / hồi quy
@@ -59,6 +63,9 @@ Code: `customize_erpnext/api/vn_number_words.py` — thuần stdlib, không impo
 > `System Settings.number_format = "# ###,##"` (dấu cách) → ra `17 430 045`; chứng từ VN cần dấu chấm.
 
 ## Trạng thái
+
+⚠ **Đang chờ `bench restart`** — sửa đổi ở `overrides/salary_slip/`, `overrides/leave_control_panel/`
+và `hooks.py` chưa có hiệu lực với tiến trình web đang chạy.
 
 Logic tính lương **đã xong và kiểm chứng khớp phiếu lương thật**.
 Còn chặn ở **dữ liệu**: chấm công, nghỉ phép, người phụ thuộc, lương HĐLĐ toàn công ty.

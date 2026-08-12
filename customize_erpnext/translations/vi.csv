@@ -1821,6 +1821,7 @@ Parent,Bố/Mẹ,
 Father,Bố,
 Mother,Mẹ,
 Sibling,Anh/Chị/Em,
+Relationship,Mối quan hệ,
 Relative,Người thân,
 Employee Birthday,Sinh nhật NV,
 Birthplace,Nơi sinh,
@@ -17042,6 +17043,7 @@ Discrepancy between General and Payment Ledger,Chênh lệch giữa Sổ cái v�
 Distinct unit of an Item,Đơn vị riêng biệt của Sản phẩm,
 Distribute Additional Costs Based On ,Phân phối Chi phí Bổ sung Dựa trên ,
 Do Not Include in Accounting Entries,Không Đưa vào Bút toán Kế toán,
+Do Not Suggest Shoe Rack,Không gợi ý tủ,
 Do Not Include in Total,Không Đưa vào Tổng,
 Do Not Use Batch-wise Valuation,Không Dùng Định giá theo Lô,
 Do Not Use Batchwise Valuation,Không Dùng Định giá theo Lô,
@@ -21282,3 +21284,10 @@ Young Child,Con nhỏ
 Overall Statistics,Thống kê chung
 By Maternity Type,Theo giai đoạn thai sản
 By Status,Theo trạng thái
+Maternity Record,Hồ sơ thai sản
+Incomplete attendance,Chấm công chưa đầy đủ,
+open,mở,
+Employee Dependent,Người phụ thuộc,
+ID / Birth Certificate No,Số định danh / Giấy khai sinh,
+Deduction Period,Thời gian giảm trừ,
+"{0} day(s) in this period have a check-IN but no check-OUT, so they are paid as a full day with 0 recorded hours (and 0 overtime).<br><br>Please review and complete the missing check-ins before finalising payroll.<ul>{1}</ul>","Kỳ này có {0} ngày chỉ quẹt vào mà không quẹt ra, nên vẫn tính đủ ngày công với 0 giờ làm (và 0 giờ tăng ca).<br><br>Vui lòng rà soát và bổ sung lượt quẹt thiếu trước khi chốt lương.<ul>{1}</ul>",

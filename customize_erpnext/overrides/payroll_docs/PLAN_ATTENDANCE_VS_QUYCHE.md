@@ -18,7 +18,7 @@ Sai lệch đến từ **cấu hình để trống** và **những quy tắc tro
 |:--:|---|---|
 | A1 | `Half Day` không set `half_day_status` ⇒ payroll bỏ qua | ✅ **xong** — S1 + S2 |
 | A2 | `Present` nhưng `working_hours = 0` — 1.538 bản | 🔴 chưa rà (nhóm `Half Day` 0h đã giải thích: đi làm CN) |
-| A3 | Ngày lễ / Chủ Nhật bị chấm `Absent` | ⚠ Chủ Nhật ✅ đã dọn · **ngày lễ 11.065 bản ghi chưa dọn** |
+| A3 | Ngày lễ / Chủ Nhật bị chấm `Absent` | ✅ **payroll đã miễn nhiễm** (mục 4.8 PAYROLL_SETUP) · dữ liệu 11.065 bản vẫn nên dọn |
 | A4 | Đi trễ / về sớm có ghi nhận nhưng không ai dùng | 🔴 chờ S5 |
 | A5 | Không phân biệt nghỉ **có lương** / **không lương** | 🔴 chờ S4 — chặn mốc 14 ngày BH |
 | A6 | Ngưỡng "< 8 ngày công" | ✅ xử lý ở tầng lương, không đụng chấm công |
@@ -78,7 +78,18 @@ Không tách được hai nhóm này thì **mốc 14 ngày** của Luật BHXH 2
 Nguyên nhân đã biết và **đã sửa ở code**: module trước đây đọc `Employee.holiday_list` mà chỉ
 377/1036 NV có set (mục 2.2). Nay đã chuyển sang `Holiday List Assignment` cấp Company.
 
-→ **Chỉ còn dọn dữ liệu lịch sử: 11.065 bản (đo 07/08/2026). Chưa làm.**
+🔴 **Nó CHẠM TIỀN, không chỉ là rác dữ liệu.** Đo 10/08/2026 trên `Sal Slip/TIQN-0148/202602`
+(kỳ Tết): 9 ngày Tết bị chấm `Absent` ⇒ trả 18/27 ngày, mất **5.688.973 đ** cho một người
+trong một tháng.
+
+✅ **Đã vô hiệu hoá ở tầng lương 10/08/2026** — `PAYROLL_SETUP.md` mục 4.8: Salary Slip nay dùng
+danh sách ngày nghỉ **đầy đủ** khi lọc Absent, nên payroll đúng **bất kể** dữ liệu Attendance.
+
+→ Việc dọn 11.065 bản ghi vẫn nên làm cho sạch, nhưng **không còn gấp**.
+
+⚠ **Xoá bản ghi KHÔNG phải cách sửa:** `consider_unmarked_attendance_as = Absent` sẽ tính ngày
+không có bản ghi thành vắng mặt. Phải chuyển sang trạng thái nghỉ có lương, hoặc để nguyên và
+dựa vào bản sửa ở tầng lương.
 Absent rơi vào **Chủ Nhật** đã về **0** ✅ (S3).
 
 > ⚠ Chạy lại Bulk Update Attendance **không xoá** bản ghi sai sẵn có — phải ghi/xoá tường minh.
@@ -303,7 +314,7 @@ def get_attendance_deviations(employee: str, from_date, to_date) -> dict:
 | 2 | API đếm đi trễ / về sớm theo tháng (**S5**) | – |
 | 3 | **Hỏi HR** cách tính thưởng chuyên cần (A4), rồi bổ sung vào quy chế | – |
 | 4 | Tính thưởng chuyên cần theo hai bảng của quy chế (A4) | bước 2 + 3 |
-| 5 | Dọn 11.065 bản ghi `Absent` rơi vào ngày lễ (A3) | – |
+| 5 | Dọn 11.065 bản ghi `Absent` rơi vào ngày lễ (A3) — **hết gấp**, payroll đã miễn nhiễm | – |
 | 6 | Rà 1.538 bản ghi `Present` mà `working_hours = 0` (A2) | – |
 
 > Bước 3 là **điều kiện tiên quyết** của bước 4: thưởng chuyên cần là quy tắc HR đang áp dụng
