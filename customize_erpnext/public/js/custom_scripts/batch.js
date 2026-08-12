@@ -7,7 +7,10 @@ frappe.ui.form.on('Batch', {
         }
     },
     item: function (frm) {
-        if (frm.is_new()) frm.set_value('batch_id', '');
+        if (frm.is_new()) {
+            frm.set_value('batch_id', '');
+            frm.set_value('custom_color', '');
+        }
     },
     custom_lot_number: function (frm) {
         if (frm.is_new()) frm.set_value('batch_id', '');
@@ -21,13 +24,18 @@ async function generate_batch_id(frm) {
     const { item, custom_lot_number, custom_roll_number } = frm.doc;
 
     if (!item) {
-        frappe.throw(__('Vui lòng chọn Item trước'));
+        frappe.throw(__('Please select an Item first'));
     }
-    if (!custom_lot_number || !String(custom_lot_number).trim()) {
-        frappe.throw(__('Vui lòng nhập Lot Number'));
+    const lot = custom_lot_number ? String(custom_lot_number).trim() : '';
+    const roll = custom_roll_number ? String(custom_roll_number).trim() : '';
+    if (!lot) {
+        frappe.throw(__('Please enter Lot Number'));
     }
-    if (!custom_roll_number || !String(custom_roll_number).trim()) {
-        frappe.throw(__('Vui lòng nhập Roll Number'));
+    if (!roll) {
+        frappe.throw(__('Please enter Roll Number'));
+    }
+    if (lot.includes('|') || roll.includes('|')) {
+        frappe.throw(__('Lot Number and Roll Number must not contain the character |'));
     }
 
     const r = await frappe.call({
@@ -36,13 +44,11 @@ async function generate_batch_id(frm) {
     });
 
     if (!r || !r.message) {
-        frappe.throw(__('Không lấy được thông tin Item'));
+        frappe.throw(__('Could not fetch Item details'));
     }
 
     const { template_name, color } = r.message;
     // Use lot & roll exactly as entered (no zero-padding).
-    const lot = String(custom_lot_number).trim();
-    const roll = String(custom_roll_number).trim();
 
     const batch_id = color
         ? `${template_name}|${color}|${lot}|${roll}`
@@ -50,6 +56,5 @@ async function generate_batch_id(frm) {
 
     frm.set_value('batch_id', batch_id);
     if (color) frm.set_value('custom_color', color);
-    frm.refresh_fields(['batch_id', 'custom_color']);
     frappe.show_alert({ message: __('Batch ID: {0}', [batch_id]), indicator: 'green' }, 5);
 }
