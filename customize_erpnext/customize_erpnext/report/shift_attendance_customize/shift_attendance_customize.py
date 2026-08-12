@@ -119,6 +119,16 @@ def get_columns(filters):
 		# Detail mode: show individual attendance records
 		columns = [
 			{
+				# `attendance.name` vốn đã có trong SELECT của chế độ chi tiết — chỉ thiếu
+				# định nghĩa cột. Là Link nên bấm vào mở thẳng bản ghi, tiện đối chiếu khi
+				# thấy số liệu lạ (vd late_entry, half_day_status, custom_note).
+				"label": _("Attendance ID"),
+				"fieldname": "name",
+				"fieldtype": "Link",
+				"options": "Attendance",
+				"width": 130,
+			},
+			{
 				"label": _("Date"),
 				"fieldname": "attendance_date",
 				"fieldtype": "Date",

@@ -24,6 +24,26 @@ def _gestational_age_months(estimated_due_date, on_date=None):
 	return max(0, min(9.5, round(9.5 - (months_diff + 1), 1)))
 
 
+def make_maternity_name(employee, exclude=None):
+	"""Tên hồ sơ thai sản: `HR-EM-{employee}`.
+
+	Một nhân viên có thể có nhiều chu kỳ thai sản, nên hồ sơ thứ 2, 3... được
+	thêm hậu tố `-1`, `-2`. `exclude` là tên hiện tại của record đang được đổi
+	tên — nó không bị coi là trùng với chính nó.
+	"""
+	if not employee:
+		frappe.throw(_("Employee is required before naming an Employee Maternity record"))
+
+	base = f"HR-EM-{employee}"
+	candidate = base
+	idx = 0
+	while candidate != exclude and frappe.db.exists("Employee Maternity", candidate):
+		idx += 1
+		candidate = f"{base}-{idx}"
+
+	return candidate
+
+
 class EmployeeMaternity(Document):
 	# =========================================================================
 	# Virtual Fields
@@ -44,6 +64,15 @@ class EmployeeMaternity(Document):
 		return _gestational_age_months(self.estimated_due_date)
 
 	# =========================================================================
+	# Naming
+	# =========================================================================
+
+	def autoname(self):
+		"""HR-EM-{employee}, thêm hậu tố -1, -2... cho hồ sơ thứ 2, 3 của cùng
+		nhân viên (mỗi record là 1 chu kỳ thai sản)."""
+		self.name = make_maternity_name(self.employee)
+
+	# =========================================================================
 	# Validation
 	# =========================================================================
 
@@ -62,7 +91,7 @@ class EmployeeMaternity(Document):
 		Rules:
 		  pregnant_to_date     = effective maternity start - 1 day
 		                         (fallback: estimated_due_date; never cleared)
-		  maternity_to_date    = effective maternity start + 6 months (only if empty)
+		  maternity_to_date    = effective maternity start + 6 months - 1 day (only if empty)
 		  youg_child_from_date = maternity_to_date + 1 day
 		  youg_child_to_date   = date_of_birth + 364 days
 
@@ -80,7 +109,9 @@ class EmployeeMaternity(Document):
 				self.pregnant_to_date = getdate(self.estimated_due_date)
 
 		if effective_mat_from and not self.maternity_to_date:
-			self.maternity_to_date = add_months(getdate(effective_mat_from), 6)
+			# +6 tháng rồi lùi 1 ngày: nghỉ từ 19/01 thì hết ngày 18/07, đúng 6 tháng.
+			# Không trừ 1 ngày thì thành 6 tháng 1 ngày.
+			self.maternity_to_date = add_days(add_months(getdate(effective_mat_from), 6), -1)
 
 		if self.maternity_to_date:
 			self.youg_child_from_date = add_days(getdate(self.maternity_to_date), 1)

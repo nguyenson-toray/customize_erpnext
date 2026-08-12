@@ -18,6 +18,13 @@ def get_columns(filters=None):
 
 	columns = [
 		{
+			"fieldname": "maternity_record",
+			"label": _("Maternity Record"),
+			"fieldtype": "Link",
+			"options": "Employee Maternity",
+			"width": 160,
+		},
+		{
 			"fieldname": "employee",
 			"label": _("Employee"),
 			"fieldtype": "Link",
@@ -148,6 +155,7 @@ def get_data(filters):
 
 	records = frappe.db.sql(f"""
 		SELECT
+			mt.name          AS maternity_record,
 			emp.name         AS employee,
 			emp.employee_name,
 			emp.department,
@@ -230,6 +238,7 @@ def get_data(filters):
 				gestational_age = _calc_gestational_age(rec.estimated_due_date, as_on_date)
 
 			emp_rows.append({
+				"maternity_record": rec.maternity_record,
 				"employee": rec.employee,
 				"employee_name": rec.employee_name,
 				"department": rec.department,

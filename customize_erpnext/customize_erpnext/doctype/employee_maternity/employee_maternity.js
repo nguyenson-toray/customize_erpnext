@@ -74,9 +74,10 @@ function _recalculate_derived(frm) {
 		}
 	}
 
-	// 2. maternity_to_date = mat_from + 6 months  (only if empty)
+	// 2. maternity_to_date = mat_from + 6 months - 1 day  (only if empty)
+	//    Nghỉ từ 19/01 thì hết ngày 18/07 mới đúng 6 tháng.
 	if (mat_from && !frm.doc.maternity_to_date) {
-		const mat_to = frappe.datetime.add_months(mat_from, 6);
+		const mat_to = frappe.datetime.add_days(frappe.datetime.add_months(mat_from, 6), -1);
 		frm.set_value("maternity_to_date", mat_to);
 	}
 
