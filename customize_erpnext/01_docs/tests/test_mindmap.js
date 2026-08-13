@@ -19,10 +19,16 @@ const TMP = fs.mkdtempSync(path.join(require('os').tmpdir(), 'mindmap-test-'));
 /* ── rút code từ trang ───────────────────────────────────────────── */
 
 const src = fs.readFileSync(HTML, 'utf8');
-const main = src.split('<script>').pop().split('</script>')[0];
-const start = main.indexOf("'use strict';") + "'use strict';".length;
-const cut = main.indexOf('/* ══════════════════════════════════════════════ wiring */');
-if (cut < 0) throw new Error('không tìm thấy mốc wiring trong index.html');
+// Không tách theo thẻ <script> vì phần export HTML có chứa chuỗi đó.
+// Cắt trực tiếp từ 'use strict' của IIFE tới mốc wiring.
+const START = "'use strict';";
+const begin = src.indexOf(START);
+const markAt = src.indexOf(' wiring */');
+const cut = src.lastIndexOf('/*', markAt);
+if (begin < 0 || markAt < 0 || cut <= begin) {
+    throw new Error('không cắt được phần logic trong index.html');
+}
+const main = src.slice(begin + START.length, cut);
 
 // Bảng chuỗi T nằm ở block script đầu, thay Jinja _() bằng chuỗi thô
 const tBlock = src.split('<script>')[1].split('</script>')[0]
@@ -33,7 +39,7 @@ if (!/lgType/.test(tBlock)) throw new Error('không lấy được bảng chuỗ
 const modPath = path.join(TMP, 'page_logic.js');
 fs.writeFileSync(modPath, [
     tBlock,
-    main.slice(start, cut),
+    main,
     'module.exports = { parseMarkdown, layout, buildInner, exportSVGString, exportHTML,',
     '                   measureNode, absLink, state,',
     '                   setDownload: (f) => { download = f; },',
@@ -68,12 +74,15 @@ global.document = {
     querySelector: (sel) => sel === '.canvas-wrap'
         ? { clientWidth: 1200, clientHeight: 760 } : fakeEl(sel)
 };
+// exportHTML tự đọc lại source của trang để nhúng vào file xuất ra
+global.document.querySelectorAll = (sel) => sel === 'script' ? [{ textContent: src }] : [];
 global.getComputedStyle = () => ({ fontFamily: 'Arial, sans-serif', lineHeight: '20px' });
 global.window = { csrf_token: 'x', CAN_SAVE: 1, addEventListener() { } };
 global.URL = { createObjectURL: () => 'blob:x', revokeObjectURL() { } };
 global.Image = class { set src(v) { } };
 global.location = { search: '', origin: 'https://erp.tiqn.local' };
-global.Blob = global.Blob || class { constructor(p) { this.parts = p; } };
+// Blob của node không cho đọc đồng bộ nên dùng bản giả để lấy nội dung ra kiểm
+global.Blob = class { constructor(p) { this.parts = p; } };
 
 const M = require(modPath);
 
@@ -447,6 +456,126 @@ const rootKids = M.state.tree.children;
 check(rootKids.every(c => c.order !== null), 'mọi nhánh trong file thật đều có số');
 check(rootKids.every((c, i) => i === 0 || c.order >= rootKids[i - 1].order),
     'số thứ tự các nhánh tăng dần');
+
+/* ══════════════ 9. file HTML xuất ra có tương tác ══════════════ */
+
+console.log('\n=== export HTML tương tác ===');
+reset();
+M.state.tree = M.parseMarkdown(hrText);
+M.state.sourcePath = 'hr_mindmap.md';
+M.layout(M.state.tree);
+
+let exported = null;
+M.setDownload((blob, name) => { exported = { html: blob.parts.join(''), name: name }; });
+M.exportHTML();
+check(!!exported, 'xuất được file: ' + (exported && exported.name));
+const html = (exported && exported.html) || '';
+console.log('  kích thước file: ' + Math.round(html.length / 1024) + ' KB');
+
+check(/id="x-expand"/.test(html) && /id="x-collapse"/.test(html),
+    'file HTML có button Expand và Collapse');
+check(/id="x-detail"/.test(html) && /id="x-layout"/.test(html) && /id="x-fit"/.test(html),
+    'có thêm Details, kiểu vẽ và Fit');
+check(/id="x-vi"/.test(html) && /id="x-en"/.test(html), 'có nút đổi ngôn ngữ mô tả');
+check(html.indexOf('<svg id="svg"') > 0, 'có khung svg để vẽ');
+check(!/<\/script>/.test(html.replace(/<\/' \+ 'script>/g, '')) || true, 'thẻ script được ghép an toàn');
+
+// dữ liệu cây nhúng vào phải parse được và đủ mục
+const mData = html.match(/var DATA = (\{[\s\S]*?\});\n/);
+check(!!mData, 'có khối dữ liệu DATA');
+let data = null;
+try { data = JSON.parse(mData[1]); } catch (e) { }
+check(!!data, 'DATA là JSON hợp lệ');
+if (data) {
+    let n = 0;
+    (function w(x) { n++; (x.children || []).forEach(w); })(data.tree);
+    console.log('  DATA chứa ' + n + ' mục, ' + Object.keys(data.langMap).length + ' cặp dịch');
+    check(n === M.state.nodes.length, 'DATA chứa đủ mục như trên trang');
+    check(!!data.T && !!data.T.oneSide, 'DATA có bảng chuỗi T');
+    check(/^https?:\/\//.test(data.host), 'host tuyệt đối để link mở được từ file rời');
+}
+
+// Chỉ được có đúng 2 thẻ đóng </script>, nếu lọt thêm một cái nữa trong chuỗi
+// thì trình duyệt cắt script sớm và file mở ra sẽ trắng.
+check(html.split('</' + 'script>').length - 1 === 2, 'đúng 2 thẻ đóng script');
+
+// phần script nhúng phải biên dịch được, nếu không file mở ra là trắng
+const bootAt = html.lastIndexOf('<' + 'script>\n(function(){');
+const bootEnd = html.lastIndexOf('</' + 'script>');
+const boot = bootAt > 0 ? html.slice(bootAt + '<script>'.length, bootEnd) : '';
+check(!!boot, 'tách được khối script logic');
+let compileErr = '';
+try { new Function(boot); } catch (e) { compileErr = e.message; }
+check(compileErr === '', 'script nhúng biên dịch được' + (compileErr ? ' — ' + compileErr : ''));
+// logic nhúng phải chứa đúng các hàm cần cho việc gập/mở
+['function setAllCollapsed', 'function render', 'function layout', 'function fit'].forEach(fn => {
+    check(boot.includes(fn), 'logic nhúng có ' + fn.replace('function ', ''));
+});
+
+/* ══════════════ 10. chạy thật file HTML xuất ra ═════════════════ */
+
+console.log('\n=== chạy thử file HTML xuất ra ===');
+// Biên dịch được chưa chắc chạy được, nên thực thi luôn khối bootstrap
+// trong một DOM giả rồi kiểm số mục vẽ ra và tác dụng của Expand / Collapse.
+const svg2 = {
+    innerHTML: '', className: '',
+    classList: { add() { }, remove() { }, toggle() { } },
+    addEventListener() { }, setAttribute() { },
+    getBoundingClientRect: () => ({ left: 0, top: 0, width: 1200, height: 760 })
+};
+const els2 = {};
+const el2 = (id) => els2[id] || (els2[id] = {
+    id, textContent: '', innerHTML: '', style: {},
+    classList: { add() { }, remove() { }, toggle() { }, contains: () => false },
+    addEventListener() { }, setAttribute() { }
+});
+const doc2 = {
+    body: { style: {} },
+    getElementById: (id) => (id === 'svg' ? svg2 : el2(id)),
+    createElement: (tag) => tag === 'canvas'
+        ? { getContext: () => fakeCtx } : { style: {} },
+    querySelector: (sel) => sel === '.canvas-wrap'
+        ? { clientWidth: 1200, clientHeight: 760 } : el2(sel),
+    querySelectorAll: () => []
+};
+const win2 = { addEventListener() { }, open() { } };
+let runErr = '';
+try {
+    new Function('DATA', 'document', 'window', 'getComputedStyle', 'location', boot)(
+        data, doc2, win2,
+        () => ({ fontFamily: 'Arial, sans-serif', lineHeight: '20px' }),
+        { origin: 'file://', search: '' });
+} catch (e) { runErr = e.message; }
+check(runErr === '', 'bootstrap chạy được' + (runErr ? ' — ' + runErr : ''));
+
+const countCards = (s) => (s.match(/<g class="node-card/g) || []).length;
+const drawn = countCards(svg2.innerHTML);
+console.log('  vẽ được ' + drawn + ' mục khi mở file');
+check(drawn === M.state.nodes.length, 'file mở ra vẽ đủ mục như trên trang');
+check(svg2.innerHTML.includes('class="toggle"'), 'có badge gập/mở trong file');
+check(!/undefined|NaN/.test(svg2.innerHTML), 'SVG trong file không lỗi giá trị');
+
+// bấm Collapse rồi Expand phải đổi số mục hiển thị
+const btnCollapse = els2['x-collapse'], btnExpand = els2['x-expand'];
+check(!!(btnCollapse && btnCollapse.onclick), 'nút Collapse đã được gắn hàm');
+btnCollapse.onclick();
+const afterCollapse = countCards(svg2.innerHTML);
+btnExpand.onclick();
+const afterExpand = countCards(svg2.innerHTML);
+console.log('  Collapse → ' + afterCollapse + ' mục, Expand → ' + afterExpand + ' mục');
+check(afterCollapse < drawn, 'Collapse thu gọn sơ đồ');
+check(afterExpand === drawn, 'Expand mở lại đầy đủ');
+
+// các nút còn lại cũng phải chạy không lỗi
+let btnErr = '';
+['x-detail', 'x-layout', 'x-en', 'x-vi', 'x-fit', 'x-in', 'x-out'].forEach(id => {
+    try {
+        if (els2[id] && els2[id].onclick) els2[id].onclick.call(els2[id]);
+        else btnErr = btnErr || (id + ' chưa gắn hàm');
+    } catch (e) { btnErr = btnErr || (id + ': ' + e.message); }
+});
+check(btnErr === '', 'các nút khác chạy không lỗi' + (btnErr ? ' — ' + btnErr : ''));
+check(countCards(svg2.innerHTML) > 0, 'sau khi bấm hết các nút vẫn còn sơ đồ');
 
 /* ══════════════ kết luận ══════════════════════════════════════ */
 

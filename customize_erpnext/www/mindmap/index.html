@@ -569,6 +569,10 @@
             translateFailed: "{{ _('Automatic translation unavailable, keeping Vietnamese') }}",
             oneSide: "{{ _('One side') }}",
             twoSides: "{{ _('Two sides') }}",
+            expand: "{{ _('Expand') }}",
+            collapse: "{{ _('Collapse') }}",
+            details: "{{ _('Details') }}",
+            fit: "{{ _('Fit') }}",
             copyManually: "{{ _('Copy this link') }}",
             askPct: "{{ _('Completion percentage (0-100)') }}",
             askReason: "{{ _('Reason for pending') }}",
@@ -1511,9 +1515,184 @@
                 return c;
             }
 
+            // Lấy đúng phần logic vẽ của trang này để nhúng vào file HTML xuất ra.
+            // Nhờ vậy file xuất ra dùng chung một bộ code, không phải bản sao rời rạc.
+            function pageLogicSource() {
+                try {
+                    const scripts = document.querySelectorAll('script');
+                    const src = scripts[scripts.length - 1].textContent || '';
+                    // Ghép chuỗi mốc từng phần, nếu không chính dòng này sẽ bị tìm thấy trước
+                    const MARK = ' wir' + 'ing */';
+                    const at = src.indexOf(MARK);
+                    if (at < 0) return '';
+                    const end = src.lastIndexOf('/*', at);
+                    const begin = src.indexOf("'use strict';");
+                    if (begin < 0 || end <= begin) return '';
+                    return src.slice(begin + "'use strict';".length, end);
+                } catch (e) { return ''; }
+            }
+
+            function usedLangMap() {
+                const m = {};
+                (function w(n) {
+                    if (n.desc && state.langMap[n.desc]) m[n.desc] = state.langMap[n.desc];
+                    n.children.forEach(w);
+                })(state.tree);
+                return m;
+            }
+
+            function jsonForScript(value) {
+                // \u2028 và \u2029 là ký tự xuống dòng của JS: phải viết dạng escape,
+                // viết trực tiếp sẽ làm vỡ cả file script
+                return JSON.stringify(value).replace(/</g, '\\u003c')
+                    .replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
+            }
+
+            // File HTML tương tác: có Expand / Collapse / Fit / zoom / Details / VI-EN,
+            // mở bằng trình duyệt là chạy, không cần mạng và không cần đăng nhập.
+            function exportInteractiveHTML(logic) {
+                const title = state.tree.title || baseName();
+                const data = {
+                    tree: state.tree,
+                    showDesc: state.showDesc,
+                    layoutMode: state.layoutMode,
+                    lang: state.lang,
+                    langMap: usedLangMap(),
+                    host: state.host || location.origin,
+                    T: T
+                };
+                const c = typeCounts();
+                const lg = [
+                    ['--standard', T.lgStandard], ['--override', T.lgOverride],
+                    ['--custom', T.lgCustom], ['--plain', T.lgGroup]
+                ].map(p => '<span class="it"><i class="sw" style="background:var(' + p[0]
+                    + ')"></i>' + esc(p[1]) + '</span>').join('');
+                const ico = (st, pct) => '<svg width="14" height="14" viewBox="-8 -8 16 16">'
+                    + statusIcon(st, 0, 0, pct) + '</svg>';
+                const prog = '<span class="it">' + ico('Done') + esc(T.lgDone) + '</span>'
+                    + '<span class="it">' + ico('In process', 65) + esc(T.lgInProcess) + '</span>'
+                    + '<span class="it">' + ico('Pending') + esc(T.lgPending) + '</span>';
+
+                const html = '<!DOCTYPE html>\n<html lang="vi">\n<head>\n<meta charset="utf-8">\n'
+                    + '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
+                    + '<title>' + esc(title) + '</title>\n<style>\n'
+                    + ':root{--standard:#2563eb;--override:#e8850c;--custom:#16a34a;'
+                    + '--plain:#94a3b8;--line:#d8dee7;--ink:#1c2430;--ink-soft:#5b6675}\n'
+                    + '*{margin:0;padding:0;box-sizing:border-box}html,body{height:100%}\n'
+                    + 'body{font-family:' + SVG_FONT + ';color:var(--ink);background:#fff;'
+                    + 'font-size:13px;display:flex;flex-direction:column;overflow:hidden}\n'
+                    + '.bar{flex:none;border-bottom:1px solid var(--line);padding:9px 14px;'
+                    + 'display:flex;gap:8px;align-items:center;flex-wrap:wrap}\n'
+                    + '.bar h1{font-size:14px;font-weight:650;margin-right:6px}\n'
+                    + '.bar .meta{font-size:11.5px;color:#93a0b0}\n'
+                    + 'button{font:inherit;font-size:12.5px;background:#fff;color:var(--ink);'
+                    + 'border:1px solid var(--line);border-radius:6px;padding:5px 9px;height:30px;'
+                    + 'cursor:pointer}button:hover{background:#f7f9fb;border-color:#b9c3d0}\n'
+                    + 'button.on{background:#eef4ff;border-color:#b7ccf0;color:#2f5da8;font-weight:600}\n'
+                    + '.grow{flex:1 1 auto}\n'
+                    + '.canvas-wrap{flex:1 1 auto;position:relative;overflow:hidden}\n'
+                    + '#svg{width:100%;height:100%;display:block;cursor:grab}\n'
+                    + '#svg.panning{cursor:grabbing}\n'
+                    + '.node-card{cursor:default}.toggle,.link-hit{cursor:pointer}\n'
+                    + '.toggle circle{fill:#fff;stroke:var(--plain);stroke-width:1.4}\n'
+                    + '.toggle:hover circle{fill:#eef2f7}\n'
+                    + '.legend{position:absolute;left:12px;bottom:12px;background:rgba(255,255,255,.94);'
+                    + 'border:1px solid var(--line);border-radius:8px;padding:8px 11px;display:flex;'
+                    + 'gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--ink-soft)}\n'
+                    + '.legend .grp{display:flex;gap:10px;align-items:center}\n'
+                    + '.legend .it{display:flex;gap:5px;align-items:center;white-space:nowrap}\n'
+                    + '.legend .sw{width:16px;height:3px;border-radius:2px}\n'
+                    + '.legend b{color:var(--ink);font-weight:600;font-size:10.5px;'
+                    + 'text-transform:uppercase;letter-spacing:.04em}\n'
+                    + '#empty-hint{display:none}\n'
+                    + '@media print{.bar{position:static}.canvas-wrap{overflow:visible}}\n'
+                    + '</style>\n</head>\n<body>\n'
+                    + '<div class="bar"><h1>' + esc(title) + '</h1>'
+                    + '<span class="meta">' + c.total + ' ' + esc(T.nodes) + ' · '
+                    + c.Standard + ' Standard · ' + c.Override + ' Override · '
+                    + c.Custom + ' Custom · ' + new Date().toLocaleDateString() + '</span>'
+                    + '<span class="grow"></span>'
+                    + '<button id="x-expand">＋ ' + esc(T.expand) + '</button>'
+                    + '<button id="x-collapse">－ ' + esc(T.collapse) + '</button>'
+                    + '<button id="x-detail" class="on">' + esc(T.details) + '</button>'
+                    + '<button id="x-layout">' + esc(T.oneSide) + '</button>'
+                    + '<button id="x-vi" class="on">VI</button><button id="x-en">EN</button>'
+                    + '<button id="x-fit">' + esc(T.fit) + '</button>'
+                    + '<button id="x-out">−</button><button id="x-in">+</button></div>\n'
+                    + '<div class="canvas-wrap"><svg id="svg" xmlns="http://www.w3.org/2000/svg"></svg>'
+                    + '<div id="empty-hint"></div>'
+                    + '<div class="legend"><div class="grp"><b>' + esc(T.lgType) + '</b>' + lg
+                    + '</div><div class="grp"><b>' + esc(T.lgProgress) + '</b>' + prog
+                    + '</div></div></div>\n'
+                    + '<script>\nvar DATA = ' + jsonForScript(data) + ';\n</' + 'script>\n'
+                    + '<script>\n(function(){\n"use strict";\nvar T = DATA.T;\n'
+                    + logic
+                    + '\n/* nối phần logic ở trên với trang xuất ra */\n'
+                    + 'updateStatus = function(){};\n'
+                    + 'state.tree = DATA.tree; state.showDesc = DATA.showDesc;\n'
+                    + 'state.layoutMode = DATA.layoutMode; state.lang = DATA.lang;\n'
+                    + 'state.langMap = DATA.langMap; state.host = DATA.host;\n'
+                    + 'var $$ = function(id){ return document.getElementById(id); };\n'
+                    + 'function setLayoutLabel(){ $$("x-layout").textContent ='
+                    + ' state.layoutMode === "sides" ? T.twoSides : T.oneSide; }\n'
+                    + 'function draw(keep){ render(keep); }\n'
+                    + 'setLayoutLabel(); state.fitted = false; draw(false);\n'
+                    + '$$("x-expand").onclick = function(){ setAllCollapsed(false); };\n'
+                    + '$$("x-collapse").onclick = function(){ setAllCollapsed(true); };\n'
+                    + '$$("x-detail").onclick = function(){ state.showDesc = !state.showDesc;'
+                    + ' this.classList.toggle("on", state.showDesc); draw(true); };\n'
+                    + '$$("x-layout").onclick = function(){ state.layoutMode ='
+                    + ' state.layoutMode === "sides" ? "right" : "sides"; setLayoutLabel();'
+                    + ' state.fitted = false; draw(false); };\n'
+                    + '$$("x-vi").onclick = function(){ state.lang = "vi";'
+                    + ' this.classList.add("on"); $$("x-en").classList.remove("on"); draw(true); };\n'
+                    + '$$("x-en").onclick = function(){ state.lang = "en";'
+                    + ' this.classList.add("on"); $$("x-vi").classList.remove("on"); draw(true); };\n'
+                    + '$$("x-fit").onclick = function(){ fit(); };\n'
+                    + '$$("x-in").onclick = function(){ zoomBy(1.18); };\n'
+                    + '$$("x-out").onclick = function(){ zoomBy(1/1.18); };\n'
+                    + 'var svg = $$("svg"), pan = null;\n'
+                    + 'svg.addEventListener("wheel", function(ev){ ev.preventDefault();'
+                    + ' var r = svg.getBoundingClientRect();'
+                    + ' zoomBy(ev.deltaY < 0 ? 1.12 : 1/1.12, ev.clientX - r.left, ev.clientY - r.top);'
+                    + ' }, {passive:false});\n'
+                    + 'svg.addEventListener("mousedown", function(ev){ if (ev.button) return;'
+                    + ' pan = {x:ev.clientX, y:ev.clientY, tx:state.view.tx, ty:state.view.ty};'
+                    + ' svg.classList.add("panning"); });\n'
+                    + 'window.addEventListener("mousemove", function(ev){ if (!pan) return;'
+                    + ' state.view.tx = pan.tx + ev.clientX - pan.x;'
+                    + ' state.view.ty = pan.ty + ev.clientY - pan.y; applyTransform(); });\n'
+                    + 'window.addEventListener("mouseup", function(){ pan = null;'
+                    + ' svg.classList.remove("panning"); });\n'
+                    + 'svg.addEventListener("click", function(ev){\n'
+                    + '  var a = ev.target.closest(".link-hit");\n'
+                    + '  if (a) { window.open(a.getAttribute("data-link"), "_blank", "noopener"); return; }\n'
+                    + '  var t = ev.target.closest(".toggle");\n'
+                    + '  if (!t) return;\n'
+                    + '  var k = t.getAttribute("data-toggle");\n'
+                    + '  if (state.collapsed.has(k)) state.collapsed.delete(k);'
+                    + ' else state.collapsed.add(k);\n  draw(true);\n});\n'
+                    + 'svg.addEventListener("dblclick", function(ev){\n'
+                    + '  var card = ev.target.closest(".node-card"); if (!card) return;\n'
+                    + '  var k = card.getAttribute("data-key");\n'
+                    + '  var n = state.nodes.find(function(x){ return x.key === k; });\n'
+                    + '  if (!n || !n.children.length) return;\n'
+                    + '  if (state.collapsed.has(k)) state.collapsed.delete(k);'
+                    + ' else state.collapsed.add(k);\n  draw(true);\n});\n'
+                    + 'window.addEventListener("resize", function(){ applyTransform(); });\n'
+                    + '})();\n</' + 'script>\n</body>\n</html>\n';
+
+                download(new Blob([html], { type: 'text/html;charset=utf-8' }),
+                    baseName() + '.html');
+                toast(T.exported);
+            }
+
             // Trang HTML độc lập: mở bằng trình duyệt hoặc in ra được, không cần mạng
             function exportHTML() {
                 if (!state.tree) { toast(T.nothing, true); return; }
+                const logic = pageLogicSource();
+                if (logic) { exportInteractiveHTML(logic); return; }
+                // Không rút được code thì vẫn xuất bản tĩnh, hơn là không xuất được gì
                 const out = exportSVGString();
 
                 // Tiêu đề, quy ước màu và sơ đồ đều nằm trong SVG nên trang HTML chỉ cần bọc lại

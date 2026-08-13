@@ -134,7 +134,18 @@ Trang đọc và ghi trực tiếp file `.md` trong thư mục này.
 | Điều hướng | Bấm mục → nhảy tới đúng dòng trong ô soạn. Bấm mũi tên ↗ → mở chức năng tương ứng |
 | Site | Ô chọn site quyết định link mở bằng `erp.tiqn.com.vn:8888`, `erp.tiqn.local` hay site hiện tại |
 | Chia sẻ | URL luôn chứa `?file=...`; nút `Copy link` copy sẵn |
-| Xuất | `PNG` (nền trắng, có tiêu đề + quy ước màu trong ảnh), `HTML` (link bấm được), `MD` |
+| Xuất | `PNG` ảnh nền trắng có tiêu đề + quy ước màu; `HTML` **file tương tác** (xem mục dưới); `MD` đúng nội dung đang soạn |
+
+### File HTML xuất ra là file tương tác
+
+`Export HTML` không xuất ảnh tĩnh mà nhúng luôn phần logic vẽ của trang, nên file mở bằng trình duyệt là dùng được ngay, **không cần mạng, không cần đăng nhập**:
+
+- **Expand / Collapse** toàn bộ nhánh, bấm badge số hoặc bấm đúp để gập từng nhánh
+- **Details** ẩn/hiện mô tả, **kiểu vẽ** một bên / hai bên, **Fit** và zoom, kéo để di chuyển
+- **VI / EN** đổi ngôn ngữ mô tả (bản dịch được nhúng sẵn trong file)
+- Mũi tên ↗ mở chức năng, link đã ghép host tuyệt đối nên bấm được từ file rời
+
+File khoảng 120 KB, gửi qua email hoặc chat được. Cần ảnh để dán vào slide thì dùng `Export PNG`.
 
 Vẽ ngoài hệ thống: dán file `.md` vào https://markmap.js.org/repl, extension *Markmap* của VS Code, hoặc import vào XMind / FreeMind.
 
@@ -190,7 +201,7 @@ cd apps/customize_erpnext/customize_erpnext
 node 01_docs/tests/test_mindmap.js
 ```
 
-85 kiểm tra, chạy trong ~1 giây: parse markdown (kể cả CRLF, nhãn viết tay, số thứ tự), layout không chồng lấn ở cả hai kiểu vẽ, màu đường nối, icon %, lý do Pending, đổi ngôn ngữ, link + chặn scheme lạ, và SVG export phải well-formed. Test rút code thẳng từ `index.html` nên sửa trang là test kiểm bản mới; nếu đổi tên mốc `/* ... wiring */` trong file thì test báo lỗi ngay.
+113 kiểm tra, chạy trong ~1 giây: parse markdown (kể cả CRLF, nhãn viết tay, số thứ tự), layout không chồng lấn ở cả hai kiểu vẽ, màu đường nối, icon %, lý do Pending, đổi ngôn ngữ, link + chặn scheme lạ, SVG export phải well-formed, và file HTML xuất ra được **chạy thật trong DOM giả** để chắc chắn mở lên là vẽ được và nút Expand / Collapse có tác dụng. Test rút code thẳng từ `index.html` nên sửa trang là test kiểm bản mới; nếu đổi tên mốc `/* ... wiring */` trong file thì test báo lỗi ngay.
 
 Sau khi sửa `index.py` hoặc `mindmap_docs.py`: `bench --site erp.tiqn.local clear-cache`. Không cần restart vì không đụng `hooks.py`.
 
