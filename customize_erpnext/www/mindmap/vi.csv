@@ -1,0 +1,148 @@
+# english,vietnamese
+"A built-in feature of the system, used as delivered","Chức năng có sẵn của hệ thống, dùng nguyên bản, không sửa gì"
+"A compartment holding shoes but with no known owner, needs checking","Ô đang có giày nhưng chưa biết của ai, cần rà soát"
+"A device with the wrong clock corrupts every in and out time, so check it regularly","Máy sai giờ sẽ làm sai toàn bộ giờ vào ra, cần kiểm tra định kỳ"
+A multi-sheet Excel file for checking against data kept outside the system,Bản Excel nhiều sheet để đối chiếu với dữ liệu ngoài hệ thống
+A standard feature modified to match company regulations,Chức năng chuẩn nhưng đã được sửa cho phù hợp quy định công ty
+A web application form candidates fill in and submit themselves,"Mẫu ứng tuyển trên web, ứng viên tự điền và gửi hồ sơ"
+Adjust individual cases where the general rule does not fit,Điều chỉnh riêng cho trường hợp ngoại lệ mà quy tắc chung không đúng
+Alerts are OFF by default; the administrator must choose recipients before enabling,"Cảnh báo mặc định để TẮT, người quản trị phải chọn người nhận trước khi bật"
+Allowance for employees who leave mid-period when forecasting demand,Dự phòng cho số nhân viên nghỉ giữa kỳ khi dự báo nhu cầu
+"Annual leave, unpaid leave, sick leave, maternity leave and compensatory leave","Phép năm, nghỉ không lương, nghỉ ốm, thai sản, nghỉ bù"
+Applies to female workers as required by regulation,Áp dụng cho lao động nữ theo quy định
+"Appraisal cycles, goals, appraisal criteria and feedback","Kỳ đánh giá, mục tiêu, tiêu chí đánh giá và phản hồi"
+Assign a compartment to a visitor or long-term contractor,Gán ô cho khách hoặc nhà thầu làm việc dài ngày
+Assign a compartment to someone on the employee list,Gán ô cho nhân viên trong danh sách nhân sự
+"Assign a salary from an effective date, with bulk import from Excel","Gán mức lương theo ngày hiệu lực, có thể nhập hàng loạt từ Excel"
+Assign a shift to an employee for a date range,Phân ca cho nhân viên theo khoảng thời gian
+Attach the results returned by the hospital to each person's record,Đính kèm kết quả bệnh viện trả về vào hồ sơ từng người
+Automatically emails the people in charge who is due and who is overdue,Tự gửi danh sách người sắp và đã đến hạn cho người phụ trách
+"Basic salary, allowances and deductions","Lương cơ bản, các khoản phụ cấp và các khoản trừ"
+"Build the list by department, group and designation","Lập danh sách theo bộ phận, nhóm và chức danh"
+Calculated by tax bracket with personal and dependent relief,"Tính theo bậc thuế, có giảm trừ bản thân và người phụ thuộc"
+Calculated from the rule cycle and the most recent issue,Tính theo chu kỳ của quy tắc và lần cấp gần nhất
+"Changing a compartment updates the uniform profile too, no double editing","Đổi ô để giày thì hồ sơ đồng phục của nhân viên cập nhật theo, không sửa hai nơi"
+Choose the issuing warehouse and the item group used for uniforms,Chọn kho xuất đồng phục và nhóm hàng dùng cho đồng phục
+"Company, department, designation and employee grade","Công ty, phòng ban, chức danh, bậc lương"
+Compare the forecast against stock on hand to know how much to buy,So dự báo với tồn kho hiện có để biết cần đặt mua bao nhiêu
+"Confirming the slip deducts stock automatically, no double data entry","Xác nhận phiếu là tồn kho được trừ tự động, không nhập liệu hai lần"
+"Contract type, duration and tracking of contracts due for renewal","Loại hợp đồng, thời hạn, theo dõi hợp đồng sắp hết hạn cần tái ký"
+Days in the period minus Sundays; public holidays still count as paid days,"Số ngày trong kỳ trừ các ngày chủ nhật, ngày lễ vẫn được tính công"
+"Days of notice before due, email recipients, and the weekly email on / off","Số ngày nhắc trước hạn, người nhận email và bật tắt email hằng tuần"
+"Days with an approved leave or a holiday are matched automatically, never marked absent","Ngày đã có đơn phép hoặc ngày lễ được khớp tự động, không tính vắng"
+Decides which rule wins when one person matches several rules,Quyết định quy tắc nào được áp dụng khi một người khớp nhiều quy tắc
+Declare dependents used for personal income tax relief,Khai người phụ thuộc để tính giảm trừ thuế thu nhập cá nhân
+Declare how many shoe compartments each rack has,Khai số ô để giày trên mỗi kệ
+Deduct the share for employees expected to leave during the period,Trừ bớt phần cho số lao động dự kiến nghỉ trong kỳ
+Delivered and in use,Đã triển khai và đang sử dụng
+"Detailed attendance by shift, used for reconciliation and payroll","Bảng công chi tiết theo ca, dùng để đối chiếu và tính lương"
+Developed in-house; the original system does not have it,"Chức năng tự phát triển riêng, hệ thống gốc không có"
+Download data to a file that opens with Vietnamese characters intact,"Tải dữ liệu ra file, mở lên hiển thị đúng dấu tiếng Việt"
+Drag and drop racks to match the real factory floor,Kéo thả các kệ đúng theo mặt bằng thật của nhà máy
+Draw the walkways between rows so the map is easy to read,Vẽ lối đi giữa các dãy kệ để sơ đồ dễ đọc và dễ tìm
+"Draw up one slip for many people, check it, then confirm","Lập phiếu cấp cho nhiều người, kiểm tra rồi xác nhận"
+Each user picks their own display language,Mỗi người dùng chọn ngôn ngữ hiển thị riêng
+"Employee records, attendance, overtime, leave and payroll","Hồ sơ nhân viên, chấm công, tăng ca, nghỉ phép và tiền lương"
+"Employees submit their own details on a dedicated page, HR reviews then applies them","Nhân viên tự khai thông tin qua trang riêng, HR kiểm tra rồi cập nhật vào hồ sơ"
+"Employment types such as permanent, seasonal and probation, with tracking of probation end dates","Loại hình lao động: chính thức, thời vụ, thử việc; theo dõi ngày kết thúc thử việc"
+Enroll fingerprints and check whether the sample quality is acceptable,"Đăng ký vân tay cho nhân viên, xem chất lượng mẫu vân tay đạt hay chưa"
+"Entitlement by designation, grade, section, group and gender","Định mức theo chức danh, bậc, bộ phận, nhóm và giới tính"
+Every scan is one record and is the basis for calculating attendance,"Mỗi lần nhân viên quét là một dòng dữ liệu, là cơ sở để tính công"
+"Expense claims, employee advances and travel requests","Đề nghị thanh toán chi phí, tạm ứng và yêu cầu đi công tác"
+Export the list and results of each session for records and reporting,Xuất danh sách và kết quả theo từng đợt để lưu hồ sơ và báo cáo
+"Filter by department and group, and see total man-hours update as you add people","Lọc theo bộ phận và nhóm, thấy ngay tổng giờ công khi chọn thêm người"
+"Filter by department, group, gender, joining date, or show only overdue people","Lọc theo bộ phận, nhóm, giới tính, ngày vào làm, hoặc chỉ lấy người quá hạn"
+"First issue quantity, days of service to qualify, months before reissue","Số lượng cấp lần đầu, số ngày làm việc để đủ điều kiện, số tháng cấp lại"
+Fix a single day or update many records at once after reconciliation,Sửa công từng ngày hoặc cập nhật hàng loạt sau khi đối chiếu
+Flag people not taking part and record the reason,Đánh dấu và ghi lý do cho người không tham gia đợt khám
+"Follow session progress in real time: how many done, how many left","Theo dõi tiến độ đợt khám theo thời gian thực: đã khám bao nhiêu, còn lại bao nhiêu"
+"Functions grouped into workspaces, with shortcuts on the home page",Nhóm chức năng theo khu vực làm việc và tạo lối tắt trên trang chủ
+Half a day of annual leave still counts as a full working day,Nghỉ nửa ngày phép vẫn được tính đủ công cho ngày đó
+"Handle items lost, damaged or exchanged for another size","Xử lý các trường hợp mất, hỏng hoặc đổi cỡ"
+Headcount and attendance figures summarised on a single page,Số liệu nhân sự và chấm công tổng hợp trên một trang
+Headcount and hours of overtime per time slot of the day,Số người và số giờ tăng ca theo từng khung giờ trong ngày
+"Health data is private, so only the staff in charge can view it","Thông tin sức khỏe là dữ liệu riêng tư, chỉ người phụ trách được xem"
+"Hiring needs, job openings, applicants, interviews and offer letters","Nhu cầu tuyển, tin tuyển dụng, ứng viên, phỏng vấn, thư mời nhận việc"
+How many times each item was issued and when the last one was,"Từng vật phẩm đã cấp bao nhiêu lần, lần cuối là khi nào"
+"Import leave already taken from a file, used when migrating from the old system","Nhập dữ liệu phép đã sử dụng từ file, dùng khi chuyển từ hệ thống cũ"
+"In use, free or withdrawn from use","Đang dùng, còn trống hoặc ngưng sử dụng"
+"Insurance rates, tax brackets and relief amounts, updated when the law changes","Tỷ lệ bảo hiểm, bậc thuế, mức giảm trừ, cập nhật khi quy định thay đổi"
+"Issue status, people due and stock on hand on a single page","Tình hình cấp phát, số người đến hạn và tồn kho trên một trang"
+"Issue uniforms to the right entitlement, on time, with stock under control","Cấp phát đồng phục đúng định mức, đúng hạn và kiểm soát được tồn kho"
+"Items issued only once, never on a recurring cycle","Vật phẩm chỉ cấp một lần, không cấp lại theo chu kỳ"
+Items used when no specific entitlement rule applies,Vật phẩm dùng chung khi chưa có quy tắc riêng
+Keep male and female areas separate,Bố trí khu nam và khu nữ riêng
+Leave balance per employee and leave history by period,Số dư phép từng nhân viên và lịch sử nghỉ theo kỳ
+Look up one employee's compartment or browse the full rack list,Tra nhanh vị trí ô của một nhân viên hoặc xem toàn bộ danh sách kệ
+"Look up what was issued, to whom and on which date","Tra lại đã cấp gì, cho ai, ngày nào"
+Mark which employees have a chest X-ray in this session,Đánh dấu nhân viên có chụp X-quang trong đợt khám
+Missing or odd scans are flagged with a note for HR to check and fix by hand,Quét thiếu hoặc quét lẻ được ghi chú lại để HR kiểm tra và xử lý tay
+"Mostly used as delivered, not yet tailored to the company","Phần lớn đang dùng theo bản chuẩn, chưa điều chỉnh riêng cho công ty"
+Move the whole session to another date when the hospital changes plan,Đổi ngày khám cho cả đợt khi bệnh viện thay đổi kế hoạch
+Name racks by area and classify them by type,Đặt tên kệ theo khu vực và phân loại kệ
+"Not yet examined, in progress, examined, not attending","Chưa khám, đang khám, đã khám, không khám"
+"Onboarding, transfers, promotions and the resignation process","Tiếp nhận nhân viên mới, chuyển bộ phận, thăng chức, thủ tục thôi việc"
+One compartment per person: know whose it is and which ones are free,"Mỗi người một ô để giày, biết ô nào của ai và ô nào còn trống"
+Only authorised staff can create issue slips and change entitlement rules,Chỉ người được giao quyền mới lập phiếu cấp và sửa quy tắc định mức
+Opening allocation plus leave earned month by month,Phân bổ phép đầu kỳ và phép tích lũy theo từng tháng làm việc
+"Overtime rates for normal days, Sundays and public holidays","Hệ số tăng ca cho ngày thường, chủ nhật và ngày lễ"
+Overtime slips and the hours booked on each of them,Danh sách phiếu tăng ca và số giờ theo từng phiếu
+"Periodic check-up, occupational disease check-up or another type","Khám định kỳ, khám bệnh nghề nghiệp hoặc loại khám khác"
+"Personal details, department, designation, joining date and employment status","Thông tin cá nhân, phòng ban, chức danh, ngày vào làm, trạng thái làm việc"
+Pick many employees and assign the shift in one go instead of one by one,Chọn nhiều nhân viên và phân ca cùng lúc thay vì làm từng người
+"Pick the date, pick employees, enter overtime start and end time","Chọn ngày, chọn nhân viên, khai giờ bắt đầu và giờ kết thúc tăng ca"
+"Planned but not started, shown with the reason","Đã lên kế hoạch, chưa bắt đầu, hiện kèm lý do"
+Pregnant employees skip the X-ray and the gynecological exam,Nhân viên đang mang thai được bỏ chụp X-quang và khám phụ khoa
+"Present, absent, half day, day off and public holiday","Có mặt, vắng, nửa ngày, ngày nghỉ, ngày lễ"
+Public holidays and days off in lieu for each year,Danh sách ngày lễ và ngày nghỉ bù áp dụng cho từng năm
+"Public holidays are paid leave, so they still count as working days",Ngày lễ nhà nước là nghỉ có lương nên vẫn được tính vào ngày công
+"Quantity to prepare based on entitlement, headcount and the hiring plan","Số lượng cần chuẩn bị dựa trên định mức, số lao động và kế hoạch tuyển mới"
+Reach it straight from the home page without hunting through the function list,Truy cập nhanh từ trang chủ mà không cần tìm trong danh sách chức năng
+Rebuild the whole tracking after changing a rule or fixing old data,Cập nhật lại toàn bộ theo dõi sau khi sửa quy tắc hoặc dữ liệu cũ
+Recognises the code even when leading zeros are missing,Nhận diện được cả khi mã quét thiếu số 0 ở đầu
+"Record cases where an old item is reused, with the reason for issue",Ghi nhận trường hợp dùng lại đồ cũ kèm lý do cấp
+Record the health conclusion and anything needing follow-up,Ghi kết luận sức khỏe và các lưu ý cần theo dõi
+Records minutes late or minutes left early against the shift margin,Ghi nhận số phút trễ hoặc về sớm theo dung sai của ca
+Refresh the status of the whole session after correcting data,Cập nhật lại trạng thái của cả đợt sau khi chỉnh dữ liệu
+Register each device and pull scan data into the system automatically,"Khai báo máy chấm công, lấy dữ liệu quét về hệ thống tự động"
+Review scan logs and pull data again when something is missing,"Xem log quét, lấy lại dữ liệu khi phát hiện thiếu"
+Role-based access so each person only sees data within their scope,Phân quyền theo vai trò để mỗi người chỉ thấy dữ liệu thuộc phạm vi của mình
+Run payroll for a period and generate payslips for all employees,"Chạy theo kỳ lương, sinh phiếu lương cho toàn bộ nhân viên"
+"Run periodic check-ups for the whole factory, track who attended and keep the results","Tổ chức khám định kỳ cho toàn nhà máy, theo dõi ai đã khám và lưu kết quả"
+"Salary register, bank payment list and tax summaries","Bảng lương tổng hợp, danh sách chi trả qua ngân hàng, tổng hợp thuế"
+Save the layout so everyone works from the same map,Lưu lại sơ đồ để mọi người cùng xem trên cùng một bản
+Scan the badge when handing out the form; the actual start time is recorded,"Quét thẻ nhân viên khi phát phiếu, hệ thống ghi giờ bắt đầu thực tế"
+Scan when collecting the form; the actual finish time is recorded,"Quét khi thu phiếu, hệ thống ghi giờ kết thúc thực tế"
+Scanning keeps working offline and uploads once the network is back,"Vẫn quét được khi mất mạng, dữ liệu tự đưa lên khi có mạng lại"
+See immediately who needs to be issued in the coming period,Biết ngay ai cần được cấp trong thời gian tới
+Set the date and the medical provider carrying out the check-up,Khai ngày tổ chức và đơn vị y tế thực hiện
+"Shares employee data, warehouse stock and shoe rack locations","Dùng chung dữ liệu nhân viên, kho hàng và vị trí kệ giày"
+"Social insurance, health insurance and unemployment insurance","Bảo hiểm xã hội, bảo hiểm y tế và bảo hiểm thất nghiệp"
+"Specific assignment first, then the employee default shift, then the shift of the day","Ưu tiên phân ca riêng, sau đó ca mặc định của nhân viên, cuối cùng ca theo ngày"
+Split people across time slots so production is not disrupted,"Chia đợt theo giờ để tránh dồn người, không ảnh hưởng sản xuất"
+Split the quantity across sizes using the ratio actually in use,Phân bổ số lượng theo từng cỡ dựa trên tỷ lệ đang dùng thực tế
+Splits a department into sections and groups for finer attendance and reporting,"Chia nhỏ phòng ban thành bộ phận và nhóm để chấm công, báo cáo chi tiết hơn"
+"Start time, end time, lunch break and the allowed late / early margin","Giờ vào, giờ ra, giờ nghỉ trưa, mức dung sai trễ - về sớm"
+Store each employee's sizes so the first issue is already correct,Lưu cỡ của từng nhân viên để cấp đúng ngay lần đầu
+Sync the employee list and fingerprints down to each device,Đồng bộ danh sách nhân viên và vân tay xuống từng máy
+"The department requests, the manager approves before it counts","Bộ phận đề xuất, cấp trên phê duyệt trước khi tính công"
+"The employee applies, the manager approves, attendance follows the application","Nhân viên tạo đơn, người quản lý phê duyệt, công được cập nhật theo đơn"
+"The list of people due for issue, exportable to Excel to work from","Danh sách người đến hạn cấp, xuất ra Excel để đi cấp"
+"The shoe compartment location, filled in automatically from shoe rack management","Vị trí ô để giày, lấy tự động từ phần quản lý kệ giày"
+The system emails yesterday's attendance report to the people in charge,Hệ thống tự gửi báo cáo công của ngày hôm trước cho người phụ trách
+The system turns raw scans into attendance days with no manual work,"Hệ thống ghép các lần quét thành ngày công, không cần làm tay"
+"The whole picture by area: assigned, free, and compartments to check","Nhìn tổng thể theo khu vực: ô đã gán, ô còn trống, ô cần rà soát"
+"Time off in lieu for extra days worked, and payment for unused leave",Nghỉ bù cho ngày làm thêm và thanh toán phép chưa dùng
+Total overtime hours by department and by period,Tổng hợp số giờ tăng ca theo bộ phận và theo kỳ
+Track loans and advances and deduct them from salary over time,"Theo dõi khoản vay và tạm ứng, trừ dần vào lương hằng kỳ"
+"Tracks the maternity milestones of each employee, used for attendance, leave and benefit calculation","Theo dõi các mốc thời gian liên quan thai sản của nhân viên, dùng để tính toán công phép, chế độ"
+Trade union fee deducted at the prescribed rate,Trừ đoàn phí công đoàn theo tỷ lệ quy định
+"Training programs, sessions, results and learner feedback","Chương trình đào tạo, buổi đào tạo, kết quả và phản hồi của người học"
+"Under development or in trial, shown with % complete","Đang phát triển hoặc đang chạy thử, hiện kèm % hoàn thành"
+Uniform cost by period and by department,Chi phí đồng phục theo kỳ và theo bộ phận
+Uniform stock by item and by size,Tồn kho đồng phục theo từng vật phẩm và cỡ
+"Uniforms, health check-ups and shoe racks for the whole factory","Đồng phục, khám sức khỏe và kệ giày cho toàn nhà máy"
+"Upload photos, remove the background, crop to ID-photo ratio, process many photos at once","Tải ảnh, xóa nền, cắt ảnh thẻ đúng tỷ lệ, xử lý nhiều ảnh một lượt"
+"View and print payslips, with the amount spelled out in Vietnamese words","Xem và in phiếu lương, số tiền được ghi bằng chữ tiếng Việt"
+Visitors and contractors who are off payroll but still need to be managed,"Khách, nhà thầu, người ngoài bảng lương nhưng vẫn cần quản lý"
+Warns when overtime exceeds the statutory hour limits,Cảnh báo khi vượt giới hạn giờ tăng ca theo quy định

@@ -1,0 +1,1855 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ _("Mindmap Viewer") }}</title>
+    <style>
+        /* ── Design tokens ──
+           Line colour carries the classification, so the chrome stays neutral grey
+           and never competes with blue / orange / green on the canvas. */
+        :root {
+            --bg: #eef1f5;
+            --panel: #ffffff;
+            --ink: #1c2430;
+            --ink-soft: #5b6675;
+            --ink-faint: #93a0b0;
+            --line: #d8dee7;
+            --accent: #2f5da8;
+            --standard: #2563eb;
+            --override: #e8850c;
+            --custom: #16a34a;
+            --plain: #94a3b8;
+            --danger: #d64545;
+            --ok: #16a34a;
+            --radius: 8px;
+            --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            height: 100%;
+        }
+
+        body {
+            font-family: var(--font);
+            background: var(--bg);
+            color: var(--ink);
+            font-size: 13px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* ── Top bar ── */
+        .topbar {
+            flex: none;
+            background: var(--panel);
+            border-bottom: 1px solid var(--line);
+            padding: 8px 12px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .brand {
+            font-weight: 650;
+            font-size: 13.5px;
+            letter-spacing: -.01em;
+            margin-right: 4px;
+            white-space: nowrap;
+        }
+
+        .brand span {
+            color: var(--ink-faint);
+            font-weight: 400;
+            margin-left: 6px;
+        }
+
+        .sep {
+            width: 1px;
+            height: 22px;
+            background: var(--line);
+            margin: 0 2px;
+        }
+
+        .grow {
+            flex: 1 1 auto;
+        }
+
+        button,
+        select,
+        input[type=text] {
+            font-family: inherit;
+            font-size: 12.5px;
+            color: var(--ink);
+            background: #fff;
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            padding: 5px 9px;
+            height: 30px;
+            cursor: pointer;
+        }
+
+        input[type=text] {
+            cursor: text;
+            font-family: var(--mono);
+            font-size: 11.5px;
+            min-width: 190px;
+        }
+
+        select {
+            max-width: 210px;
+        }
+
+        button:hover,
+        select:hover {
+            border-color: #b9c3d0;
+            background: #f7f9fb;
+        }
+
+        button:active {
+            background: #eef2f7;
+        }
+
+        button.primary {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: #fff;
+        }
+
+        button.primary:hover {
+            background: #274d8d;
+            border-color: #274d8d;
+        }
+
+        button:disabled {
+            opacity: .45;
+            cursor: not-allowed;
+        }
+
+        button.icon {
+            padding: 5px 8px;
+            font-weight: 600;
+        }
+
+        /* cặp nút chọn ngôn ngữ, dính liền nhau */
+        .seg {
+            display: inline-flex;
+        }
+
+        .seg button:first-child {
+            border-radius: 6px 0 0 6px;
+            border-right-width: 0;
+        }
+
+        .seg button:last-child {
+            border-radius: 0 6px 6px 0;
+        }
+
+        .seg button {
+            min-width: 34px;
+            font-weight: 600;
+        }
+
+        /* nút đang bật (hiển thị mô tả chi tiết) */
+        button.on {
+            background: #eef4ff;
+            border-color: #b7ccf0;
+            color: var(--accent);
+            font-weight: 600;
+        }
+
+        button.on:hover {
+            background: #e3edfd;
+        }
+
+        /* ── Main split ── */
+        .main {
+            flex: 1 1 auto;
+            display: flex;
+            min-height: 0;
+        }
+
+        .editor-pane {
+            flex: 0 0 400px;
+            display: flex;
+            flex-direction: column;
+            background: var(--panel);
+            border-right: 1px solid var(--line);
+            min-width: 0;
+        }
+
+        body.no-editor .editor-pane {
+            display: none;
+        }
+
+        .pane-head {
+            flex: none;
+            padding: 7px 10px;
+            border-bottom: 1px solid var(--line);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 11.5px;
+            color: var(--ink-soft);
+        }
+
+        .pane-head b {
+            color: var(--ink);
+            font-weight: 600;
+        }
+
+        #editor {
+            flex: 1 1 auto;
+            width: 100%;
+            border: 0;
+            outline: none;
+            resize: none;
+            padding: 10px 12px;
+            font-family: var(--mono);
+            font-size: 12px;
+            line-height: 1.65;
+            color: var(--ink);
+            white-space: pre;
+            overflow: auto;
+            tab-size: 2;
+        }
+
+        .splitter {
+            flex: none;
+            width: 5px;
+            cursor: col-resize;
+            background: transparent;
+        }
+
+        body.no-editor .splitter {
+            display: none;
+        }
+
+        .splitter:hover {
+            background: #cfd8e3;
+        }
+
+        .canvas-wrap {
+            flex: 1 1 auto;
+            position: relative;
+            min-width: 0;
+            background: #fff;
+            overflow: hidden;
+        }
+
+        #svg {
+            width: 100%;
+            height: 100%;
+            display: block;
+            cursor: grab;
+        }
+
+        #svg.panning {
+            cursor: grabbing;
+        }
+
+        .empty-hint {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--ink-faint);
+            font-size: 13px;
+            text-align: center;
+            padding: 24px;
+            pointer-events: none;
+        }
+
+        /* ── Legend + status ── */
+        .legend {
+            position: absolute;
+            left: 12px;
+            bottom: 12px;
+            background: rgba(255, 255, 255, .94);
+            border: 1px solid var(--line);
+            border-radius: var(--radius);
+            padding: 8px 11px;
+            display: flex;
+            gap: 14px;
+            flex-wrap: wrap;
+            font-size: 11.5px;
+            color: var(--ink-soft);
+            box-shadow: 0 1px 3px rgba(20, 30, 45, .06);
+        }
+
+        .legend .grp {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .legend .it {
+            display: flex;
+            gap: 5px;
+            align-items: center;
+            white-space: nowrap;
+        }
+
+        .legend .sw {
+            width: 16px;
+            height: 3px;
+            border-radius: 2px;
+        }
+
+        .legend b {
+            color: var(--ink);
+            font-weight: 600;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: .04em;
+        }
+
+        .statusbar {
+            flex: none;
+            background: var(--panel);
+            border-top: 1px solid var(--line);
+            padding: 5px 12px;
+            display: flex;
+            gap: 14px;
+            align-items: center;
+            font-size: 11.5px;
+            color: var(--ink-soft);
+            min-height: 28px;
+        }
+
+        .statusbar .dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--ok);
+            flex: none;
+        }
+
+        .statusbar.dirty .dot {
+            background: var(--override);
+        }
+
+        .statusbar code {
+            font-family: var(--mono);
+            font-size: 11px;
+            color: var(--ink);
+        }
+
+        .toast {
+            position: fixed;
+            top: 14px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #1c2430;
+            color: #fff;
+            padding: 9px 16px;
+            border-radius: 7px;
+            font-size: 12.5px;
+            z-index: 99;
+            opacity: 0;
+            transition: opacity .18s, transform .18s;
+            pointer-events: none;
+            max-width: 80vw;
+        }
+
+        .toast.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(3px);
+        }
+
+        .toast.err {
+            background: var(--danger);
+        }
+
+        /* ── SVG node styling ── */
+        .node-card {
+            cursor: pointer;
+        }
+
+        .node-card rect.bg {
+            fill: #fff;
+            stroke-width: 1;
+        }
+
+        .node-card:hover rect.bg {
+            fill: #f8fafc;
+        }
+
+        .node-card.selected rect.bg {
+            fill: #f1f6ff;
+        }
+
+        .toggle {
+            cursor: pointer;
+        }
+
+        .toggle circle {
+            fill: #fff;
+            stroke: var(--plain);
+            stroke-width: 1.4;
+        }
+
+        .toggle:hover circle {
+            fill: #eef2f7;
+        }
+
+        .status-hit {
+            cursor: pointer;
+        }
+
+        .help {
+            position: absolute;
+            right: 12px;
+            bottom: 12px;
+            background: rgba(255, 255, 255, .94);
+            border: 1px solid var(--line);
+            border-radius: var(--radius);
+            padding: 8px 11px;
+            font-size: 11.5px;
+            color: var(--ink-soft);
+            line-height: 1.75;
+            box-shadow: 0 1px 3px rgba(20, 30, 45, .06);
+            max-width: 260px;
+        }
+
+        .help b {
+            color: var(--ink);
+            font-weight: 600;
+        }
+
+        @media (max-width: 860px) {
+            .editor-pane {
+                flex-basis: 260px;
+            }
+
+            .help {
+                display: none;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="topbar">
+        <div class="brand">{{ _("Mindmap Viewer") }}<span>{{ _("markdown → mindmap") }}</span></div>
+        <div class="sep"></div>
+
+        <select id="file-select" title="{{ _('Markdown files on the server') }}">
+            <option value="">{{ _("Pasted content") }}</option>
+        </select>
+        <input type="text" id="file-path" placeholder="{{ _('file name or path .md') }}"
+            title="{{ _('Path is restricted to the 01_docs folder') }}">
+        <button id="btn-load" title="{{ _('Load from server, discarding unsaved edits') }}">{{ _("Load") }}</button>
+        <button id="btn-save" class="primary" title="{{ _('Save back to the source file (Ctrl+S)') }}">{{ _("Save") }}</button>
+
+        <div class="sep"></div>
+        <button id="btn-expand" class="icon" title="{{ _('Expand all') }}">＋ {{ _("Expand") }}</button>
+        <button id="btn-collapse" class="icon" title="{{ _('Collapse all') }}">－ {{ _("Collapse") }}</button>
+        <button id="btn-detail" class="on"
+            title="{{ _('Show or hide the description text on each item') }}">{{ _("Details") }}</button>
+        <button id="btn-layout" title="{{ _('Switch between one-sided and two-sided layout') }}">⇥ {{ _("One side") }}</button>
+        <span class="seg" title="{{ _('Language of the description text') }}">
+            <button id="btn-vi" class="on">VI</button><button id="btn-en">EN</button>
+        </span>
+        <button id="btn-fit" title="{{ _('Fit to screen') }}">{{ _("Fit") }}</button>
+        <button id="btn-zoom-out" class="icon" title="{{ _('Zoom out') }}">−</button>
+        <button id="btn-zoom-in" class="icon" title="{{ _('Zoom in') }}">+</button>
+
+        <div class="grow"></div>
+        <select id="host-select" title="{{ _('Site used when opening a function link') }}">
+            <option value="https://erp.tiqn.com.vn:8888">erp.tiqn.com.vn:8888</option>
+            <option value="http://erp.tiqn.local">erp.tiqn.local</option>
+            <option value="">{{ _("Current site") }}</option>
+        </select>
+        <button id="btn-link" title="{{ _('Copy a link to this document') }}">{{ _("Copy link") }}</button>
+        <button id="btn-toggle-editor" class="on"
+            title="{{ _('Show or hide the markdown pane to give the map more room') }}">◫ {{ _("Markdown") }}</button>
+        <button id="btn-png">{{ _("Export PNG") }}</button>
+        <button id="btn-html">{{ _("Export HTML") }}</button>
+        <button id="btn-md">{{ _("Export MD") }}</button>
+    </div>
+
+    <div class="main">
+        <div class="editor-pane">
+            <div class="pane-head">
+                <b>{{ _("Markdown") }}</b>
+                <span id="src-label">{{ _("pasted") }}</span>
+                <span class="grow"></span>
+                <span id="line-count"></span>
+            </div>
+            <textarea id="editor" spellcheck="false"
+                placeholder="{{ _('Paste markdown here, or pick a server file above') }}"></textarea>
+        </div>
+        <div class="splitter" id="splitter"></div>
+
+        <div class="canvas-wrap">
+            <svg id="svg" xmlns="http://www.w3.org/2000/svg"></svg>
+            <div class="empty-hint" id="empty-hint">
+                {{ _("Paste markdown on the left, or choose a file from the list above.") }}
+            </div>
+            <div class="legend">
+                <div class="grp">
+                    <b>{{ _("Line colour") }}</b>
+                    <span class="it"><i class="sw" style="background:var(--standard)"></i>{{ _("Standard — built-in") }}</span>
+                    <span class="it"><i class="sw" style="background:var(--override)"></i>{{ _("Override — modified") }}</span>
+                    <span class="it"><i class="sw" style="background:var(--custom)"></i>{{ _("Custom — in-house") }}</span>
+                    <span class="it"><i class="sw" style="background:var(--plain)"></i>{{ _("Group — mixed") }}</span>
+                </div>
+                <div class="grp">
+                    <b>{{ _("Progress") }}</b>
+                    <span class="it"><svg width="15" height="15" viewBox="-8 -8 16 16"><circle r="6.5"
+                                fill="#16a34a" />
+                            <path d="M-3 0 L-0.7 2.4 L3.2 -2.5" fill="none" stroke="#fff" stroke-width="1.9"
+                                stroke-linecap="round" stroke-linejoin="round" />
+                        </svg>{{ _("Done") }}</span>
+                    <span class="it"><svg width="15" height="15" viewBox="-8 -8 16 16">
+                            <path d="M0 0 L0 -6.5 A6.5 6.5 0 0 1 0 6.5 Z" fill="#e8850c" />
+                            <circle r="6.5" fill="none" stroke="#e8850c" stroke-width="1.7" />
+                        </svg>{{ _("In process — with % done") }}</span>
+                    <span class="it"><svg width="15" height="15" viewBox="-8 -8 16 16"><circle r="6.5" fill="#fff"
+                                stroke="#94a3b8" stroke-width="1.7" stroke-dasharray="2.6 2.2" />
+                        </svg>{{ _("Pending — with reason") }}</span>
+                </div>
+            </div>
+            <div class="help">
+                <b>{{ _("Click arrow") }}</b> — {{ _("open that function") }}<br>
+                <b>{{ _("Click icon") }}</b> — {{ _("cycle progress, asks % or reason") }}<br>
+                <b>{{ _("Shift+click icon") }}</b> — {{ _("edit % or reason only") }}<br>
+                <b>{{ _("Click node") }}</b> — {{ _("jump to that line") }}<br>
+                <b>{{ _("Double-click") }}</b> — {{ _("collapse / expand") }}<br>
+                <b>{{ _("Drag / wheel") }}</b> — {{ _("pan / zoom") }}
+            </div>
+        </div>
+    </div>
+
+    <div class="statusbar" id="statusbar">
+        <span class="dot"></span>
+        <span id="st-source">{{ _("No source loaded") }}</span>
+        <span id="st-counts"></span>
+        <span class="grow"></span>
+        <span id="st-msg"></span>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        window.csrf_token = "{{ csrf_token }}";
+        window.CAN_SAVE = {{ can_save }};
+        // Chuỗi cho phần JS sinh động — dịch phía server để giữ UI English-first + vi.csv
+        const T = {
+            saved: "{{ _('Saved to') }}",
+            loaded: "{{ _('Loaded') }}",
+            noFile: "{{ _('Pick a server file first, or paste content and use Export MD') }}",
+            noSavePerm: "{{ _('You do not have permission to save files') }}",
+            nothing: "{{ _('Nothing to render') }}",
+            pasted: "{{ _('pasted') }}",
+            unsaved: "{{ _('unsaved changes') }}",
+            inSync: "{{ _('in sync with file') }}",
+            nodes: "{{ _('items') }}",
+            confirmLoad: "{{ _('Discard unsaved changes and reload from the file?') }}",
+            exported: "{{ _('Image exported') }}",
+            pngFailed: "{{ _('Could not render the image') }}",
+            linkCopied: "{{ _('Link copied') }}",
+            readOnly: "{{ _('read only') }}",
+            readOnlyNote: "{{ _('Only the Administrator role can edit this document') }}",
+            translating: "{{ _('Translating descriptions...') }}",
+            translated: "{{ _('Descriptions translated and cached') }}",
+            translateFailed: "{{ _('Automatic translation unavailable, keeping Vietnamese') }}",
+            oneSide: "{{ _('One side') }}",
+            twoSides: "{{ _('Two sides') }}",
+            copyManually: "{{ _('Copy this link') }}",
+            askPct: "{{ _('Completion percentage (0-100)') }}",
+            askReason: "{{ _('Reason for pending') }}",
+            lgType: "{{ _('Line colour') }}",
+            lgProgress: "{{ _('Progress') }}",
+            lgStandard: "{{ _('Standard — built-in feature') }}",
+            lgOverride: "{{ _('Override — standard, modified') }}",
+            lgCustom: "{{ _('Custom — developed in-house') }}",
+            lgGroup: "{{ _('Group — mixed types') }}",
+            lgDone: "{{ _('Done') }}",
+            lgInProcess: "{{ _('In process — with % done') }}",
+            lgPending: "{{ _('Pending — with reason') }}",
+        };
+    </script>
+
+    <script>
+        (function () {
+            'use strict';
+
+            /* ══════════════════════════════════════════════ helpers */
+
+            async function callFrappeMethod(method, args) {
+                const fd = new FormData();
+                fd.append('csrf_token', window.csrf_token);
+                for (const [k, v] of Object.entries(args || {})) {
+                    fd.append(k, v === null || v === undefined ? '' : String(v));
+                }
+                const res = await fetch('/api/method/' + method, {
+                    method: 'POST', credentials: 'same-origin', body: fd
+                });
+                if (res.status === 403) { location.reload(); throw new Error('Session expired'); }
+                const data = await res.json();
+                if (data.exc) {
+                    let msg = '';
+                    try { msg = JSON.parse(JSON.parse(data._server_messages || '[]')[0]).message; } catch (e) { }
+                    throw new Error(msg || data.exc_type || 'Server error');
+                }
+                return data.message;
+            }
+
+            const $ = (id) => document.getElementById(id);
+            const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+            let toastTimer = null;
+            function toast(msg, isErr) {
+                const el = $('toast');
+                el.textContent = msg;
+                el.className = 'toast show' + (isErr ? ' err' : '');
+                clearTimeout(toastTimer);
+                toastTimer = setTimeout(() => { el.className = 'toast'; }, 2600);
+            }
+
+            /* ══════════════════════════════════════════════ constants */
+
+            const COLOR = {
+                Standard: '#2563eb',
+                Override: '#e8850c',
+                Custom: '#16a34a',
+                none: '#94a3b8'
+            };
+            const TYPES = ['Standard', 'Override', 'Custom'];
+            const STATUS_CYCLE = ['Done', 'In process', 'Pending'];
+            const STATUS_ALIAS = {
+                'done': 'Done', 'in process': 'In process', 'inprocess': 'In process',
+                'in-process': 'In process', 'in progress': 'In process', 'inprogress': 'In process',
+                'in-progress': 'In process', 'doing': 'In process', 'wip': 'In process',
+                'pending': 'Pending', 'todo': 'Pending', 'to do': 'Pending', 'to-do': 'Pending'
+            };
+
+            const FONT_TITLE = '600 13px ' + getComputedStyle(document.body).fontFamily;
+            const FONT_DESC = '400 11.5px ' + getComputedStyle(document.body).fontFamily;
+            const FONT_BADGE = '700 10px ' + getComputedStyle(document.body).fontFamily;
+            // Chỉ dùng nháy đơn: chuỗi này nằm trong attribute nháy kép của SVG.
+            // Nếu để nháy kép thì SVG sai XML và Export PNG sẽ không load được ảnh.
+            const SVG_FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif";
+
+            const PAD_X = 10, PAD_Y = 7, LINE_H = 16, DESC_H = 14;
+            const H_GAP = 46, V_GAP = 9, MAX_TEXT = 300, ICON_W = 19;
+
+            /* ══════════════════════════════════════════════ state */
+
+            const state = {
+                tree: null,
+                nodes: [],
+                lines: [],
+                sourcePath: '',   // '' = pasted content
+                dirty: false,
+                collapsed: new Set(),
+                showDesc: true,
+                lang: 'vi',            // ngôn ngữ của phần mô tả
+                langMap: {},           // { mô tả tiếng Việt: mô tả tiếng Anh }
+                langTried: new Set(),  // đã gửi đi dịch rồi, không gửi lại
+                layoutMode: 'right',   // 'right' = một bên, 'sides' = hai bên quanh gốc
+                host: 'https://erp.tiqn.com.vn:8888',   // site dùng khi mở link chức năng
+                selectedKey: null,
+                view: { k: 1, tx: 40, ty: 40 },
+                fitted: false
+            };
+
+            /* ══════════════════════════════════════════════ markdown → tree */
+
+            function stripInline(s) {
+                return s
+                    .replace(/`([^`]*)`/g, '$1')
+                    .replace(/\*\*([^*]+)\*\*/g, '$1')
+                    .replace(/__([^_]+)__/g, '$1')
+                    .replace(/\*([^*]+)\*/g, '$1')
+                    .replace(/!\[[^\]]*\]\([^)]*\)/g, '')
+                    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+                    .replace(/<[^>]+>/g, '')
+                    .trim();
+            }
+
+            const ALIAS_KEYS = Object.keys(STATUS_ALIAS).sort((a, b) => b.length - a.length);
+
+            // "In process 60%" → { status:'In process', value:'60%' }
+            // "Pending: chờ ngân sách" → { status:'Pending', value:'chờ ngân sách' }
+            function parseStatusTag(val) {
+                const low = val.trim().toLowerCase();
+                for (const k of ALIAS_KEYS) {
+                    if (low === k) return { status: STATUS_ALIAS[k], value: '' };
+                    if (low.startsWith(k)) {
+                        const rest = val.trim().slice(k.length).replace(/^[\s:.\-–—|]+/, '').trim();
+                        return { status: STATUS_ALIAS[k], value: rest };
+                    }
+                }
+                return null;
+            }
+
+            function extractTags(raw) {
+                let type = null, status = null, value = '';
+                const re = /`?\[([^\]\n]+)\]`?/g;
+                let out = raw, m, kill = [];
+                while ((m = re.exec(raw)) !== null) {
+                    const val = m[1].trim();
+                    const t = TYPES.find(x => x.toLowerCase() === val.toLowerCase());
+                    if (t) { type = t; kill.push(m[0]); continue; }
+                    const st = parseStatusTag(val);
+                    if (st) { status = st.status; value = st.value; kill.push(m[0]); }
+                }
+                kill.forEach(k => { out = out.replace(k, ''); });
+                return { text: out.replace(/\s{2,}/g, ' ').trim(), type, status, value };
+            }
+
+            function pctOf(value) {
+                const m = String(value || '').match(/-?\d+(?:[.,]\d+)?/);
+                if (!m) return null;
+                const num = parseFloat(m[0].replace(',', '.'));
+                if (!isFinite(num)) return null;
+                return Math.max(0, Math.min(100, Math.round(num)));
+            }
+
+            function splitDesc(s) {
+                const m = s.match(/\s(?:—|–|--)\s/);
+                if (!m) return { title: s.trim(), desc: '' };
+                return {
+                    title: s.slice(0, m.index).trim(),
+                    desc: s.slice(m.index + m[0].length).trim()
+                };
+            }
+
+            function parseMarkdown(text) {
+                // File từ Windows dùng CRLF; \r sót lại làm hỏng việc đo thụt lề và tách nhãn
+                state.lines = String(text).replace(/\r\n?/g, '\n').split('\n');
+                const root = { title: '', desc: '', type: null, status: null, children: [], line: -1, depth: 0 };
+                const stack = [{ node: root, depth: 0 }];
+                let headingDepth = 0, inComment = false, lastNode = root;
+
+                state.lines.forEach((raw, idx) => {
+                    let line = raw;
+                    if (inComment) { if (line.includes('-->')) inComment = false; return; }
+                    const trimmed = line.trim();
+                    if (!trimmed) return;
+                    if (trimmed.startsWith('<!--')) { if (!trimmed.includes('-->')) inComment = true; return; }
+                    if (/^(```|~~~)/.test(trimmed)) return;
+                    if (/^(-{3,}|\*{3,}|={3,})$/.test(trimmed)) return;
+
+                    let depth = null, body = null;
+
+                    const h = trimmed.match(/^(#{1,6})\s+(.*)$/);
+                    const li = line.match(/^(\s*)[-*+]\s+(.*)$/);
+                    const q = trimmed.match(/^>\s?(.*)$/);
+
+                    if (h) {
+                        depth = h[1].length;
+                        headingDepth = depth;
+                        body = h[2];
+                    } else if (li) {
+                        const indent = li[1].replace(/\t/g, '  ').length;
+                        depth = headingDepth + Math.floor(indent / 2) + 1;
+                        body = li[2];
+                    } else if (q) {
+                        // blockquote = mô tả cho node vừa tạo
+                        const d = stripInline(q[1]);
+                        if (d && lastNode && !lastNode.desc) lastNode.desc = d;
+                        return;
+                    } else {
+                        return;   // đoạn văn thường: bỏ qua
+                    }
+
+                    // Link mở chức năng tương ứng: [tiêu đề](/desk/employee)
+                    const lm = body.match(/\[([^\]]+)\]\(([^)\s]+)\)/);
+                    const link = lm ? lm[2] : '';
+
+                    const tags = extractTags(body);
+                    const parts = splitDesc(stripInline(tags.text));
+                    if (!parts.title && !parts.desc) return;
+                    // Số thứ tự tự đánh ở đầu tiêu đề, ví dụ "01. Employee Records / ..."
+                    const om = parts.title.match(/^(\d{1,3})\s*[.)\-–]?\s+/);
+
+                    while (stack.length > 1 && stack[stack.length - 1].depth >= depth) stack.pop();
+                    const parent = stack[stack.length - 1].node;
+                    const node = {
+                        title: parts.title, desc: parts.desc,
+                        type: tags.type, status: tags.status, value: tags.value || '', link: link,
+                        order: om ? parseInt(om[1], 10) : null,
+                        pct: tags.status === 'In process' ? pctOf(tags.value) : null,
+                        reason: tags.status === 'Pending' ? (tags.value || '') : '',
+                        children: [], line: idx, depth: depth
+                    };
+                    parent.children.push(node);
+                    stack.push({ node: node, depth: depth });
+                    lastNode = node;
+                });
+
+                // Một H1 duy nhất → dùng làm gốc; nhiều gốc → bọc lại
+                let tree;
+                if (root.children.length === 1) {
+                    tree = root.children[0];
+                } else if (root.children.length === 0) {
+                    tree = null;
+                } else {
+                    tree = {
+                        title: state.sourcePath || 'Mindmap', desc: '', type: null, status: null,
+                        children: root.children, line: -1, depth: 0
+                    };
+                }
+                if (tree) { sortTree(tree); assignKeys(tree, ''); }
+                return tree;
+            }
+
+            // Mục có số thứ tự thì sắp theo số, mục không có số giữ đúng thứ tự
+            // trong file markdown và xếp sau các mục đã đánh số.
+            function sortTree(node) {
+                const cs = node.children;
+                if (cs.length && cs.some(c => c.order !== null)) {
+                    cs.forEach((c, i) => { c.docIndex = i; });
+                    cs.sort(function (a, b) {
+                        const ka = a.order !== null ? a.order : 1000 + a.docIndex;
+                        const kb = b.order !== null ? b.order : 1000 + b.docIndex;
+                        return ka - kb || a.docIndex - b.docIndex;
+                    });
+                }
+                cs.forEach(sortTree);
+            }
+
+            function assignKeys(node, prefix) {
+                node.key = prefix + '/' + node.title;
+                node.children.forEach(c => assignKeys(c, node.key));
+            }
+
+            /* ══════════════════════════════════════════════ measuring + layout */
+
+            const meas = document.createElement('canvas').getContext('2d');
+
+            function wrap(text, font, maxW, maxLines) {
+                if (!text) return [];
+                meas.font = font;
+                if (meas.measureText(text).width <= maxW) return [text];
+                const words = text.split(/\s+/);
+                const lines = [];
+                let cur = '';
+                for (const w of words) {
+                    const t = cur ? cur + ' ' + w : w;
+                    if (meas.measureText(t).width <= maxW) { cur = t; continue; }
+                    if (cur) lines.push(cur);
+                    cur = w;
+                    if (lines.length === maxLines) break;
+                }
+                if (lines.length < maxLines && cur) lines.push(cur);
+                if (lines.length > maxLines) lines.length = maxLines;
+                // rút gọn dòng cuối nếu còn dư chữ
+                const joined = lines.join(' ');
+                if (joined.length < text.length) {
+                    let last = lines[lines.length - 1];
+                    while (last.length > 4 && meas.measureText(last + '…').width > maxW) last = last.slice(0, -1);
+                    lines[lines.length - 1] = last + '…';
+                }
+                return lines;
+            }
+
+            function textW(lines, font) {
+                meas.font = font;
+                return lines.reduce((m, l) => Math.max(m, meas.measureText(l).width), 0);
+            }
+
+            // Mô tả theo ngôn ngữ đang chọn; chưa có bản dịch thì giữ nguyên tiếng Việt
+            function descOf(n) {
+                if (!n.desc) return '';
+                if (state.lang !== 'en') return n.desc;
+                return state.langMap[n.desc] || n.desc;
+            }
+
+            function measureNode(n) {
+                n.titleLines = wrap(n.title, FONT_TITLE, MAX_TEXT, 2);
+                n.descLines = state.showDesc ? wrap(descOf(n), FONT_DESC, MAX_TEXT, 2) : [];
+
+                // In process → badge %; Pending → lý do. Cả hai luôn hiện, kể cả khi tắt mô tả.
+                n.badge = (n.status === 'In process' && n.pct !== null) ? n.pct + '%' : '';
+                n.reasonLines = (n.status === 'Pending' && n.reason)
+                    ? wrap(n.reason, FONT_DESC, MAX_TEXT, 2) : [];
+
+                meas.font = FONT_TITLE;
+                n.lastTitleW = n.titleLines.length
+                    ? meas.measureText(n.titleLines[n.titleLines.length - 1]).width : 0;
+                meas.font = FONT_BADGE;
+                n.badgeW = n.badge ? meas.measureText(n.badge).width + 10 : 0;
+                n.linkW = n.link ? 15 : 0;
+
+                const iw = n.status ? ICON_W : 0;
+                const tw = textW(n.titleLines, FONT_TITLE);
+                const dw = textW(n.descLines, FONT_DESC);
+                const rw = textW(n.reasonLines, FONT_DESC);
+                n.w = Math.ceil(Math.max(tw + iw + n.badgeW + n.linkW, dw, rw + 10)
+                    + PAD_X * 2) + 4;
+                n.h = Math.ceil(n.titleLines.length * LINE_H
+                    + (n.reasonLines.length ? n.reasonLines.length * DESC_H + 2 : 0)
+                    + (n.descLines.length ? n.descLines.length * DESC_H + 2 : 0)
+                    + PAD_Y * 2);
+                n.h = Math.max(n.h, 30);
+            }
+
+            function isCollapsed(n) { return state.collapsed.has(n.key) && n.children.length > 0; }
+            function kids(n) { return isCollapsed(n) ? [] : n.children; }
+
+            function countLeaves(n) {
+                const cs = kids(n);
+                return cs.length ? cs.reduce((s, c) => s + countLeaves(c), 0) : 1;
+            }
+
+            function shiftSubtree(n, dy) {
+                n.y += dy;
+                n.children.forEach(c => shiftSubtree(c, dy));
+            }
+
+            // dir = +1 vẽ sang phải, -1 vẽ sang trái. anchor là cạnh phía gần node gốc.
+            function layoutBranch(n, anchor, dir, depth, ctx) {
+                measureNode(n);
+                n.dir = dir;
+                n.level = depth;
+                n.x = dir >= 0 ? anchor : anchor - n.w;
+                ctx.flat.push(n);
+                const cs = kids(n);
+                if (!cs.length) {
+                    n.y = ctx.cursor + n.h / 2;
+                    ctx.cursor += n.h + V_GAP;
+                    return;
+                }
+                const childAnchor = dir >= 0 ? n.x + n.w + H_GAP : n.x - H_GAP;
+                const start = ctx.cursor;
+                cs.forEach(c => layoutBranch(c, childAnchor, dir, depth + 1, ctx));
+                n.y = (cs[0].y + cs[cs.length - 1].y) / 2;
+                // node cha cao hơn khối con: nới thêm chỗ
+                if (ctx.cursor - start < n.h) ctx.cursor = start + n.h + V_GAP;
+            }
+
+            function layout(tree) {
+                measureNode(tree);
+                tree.dir = 0;
+                tree.level = 0;
+                tree.x = 0;
+                const flat = [tree];
+                const cs = kids(tree);
+
+                if (state.layoutMode === 'sides' && cs.length > 1) {
+                    // Chia nhánh cấp 1 sang hai phía cho cân số lá, giữ thứ tự tài liệu
+                    const leaves = cs.map(countLeaves);
+                    const total = leaves.reduce((a, b) => a + b, 0);
+                    const right = [], left = [];
+                    let acc = 0;
+                    cs.forEach((c, i) => {
+                        if (!right.length || acc + leaves[i] / 2 <= total / 2) {
+                            right.push(c);
+                            acc += leaves[i];
+                        } else {
+                            left.push(c);
+                        }
+                    });
+                    const cR = { flat: flat, cursor: 0 };
+                    const cL = { flat: flat, cursor: 0 };
+                    right.forEach(c => layoutBranch(c, tree.w + H_GAP, 1, 1, cR));
+                    left.forEach(c => layoutBranch(c, -H_GAP, -1, 1, cL));
+                    const hR = Math.max(0, cR.cursor - V_GAP);
+                    const hL = Math.max(0, cL.cursor - V_GAP);
+                    const H = Math.max(hR, hL, tree.h);
+                    right.forEach(c => shiftSubtree(c, (H - hR) / 2));
+                    left.forEach(c => shiftSubtree(c, (H - hL) / 2));
+                    tree.y = H / 2;
+                } else {
+                    const ctx = { flat: flat, cursor: 0 };
+                    cs.forEach(c => layoutBranch(c, tree.w + H_GAP, 1, 1, ctx));
+                    tree.y = cs.length ? (cs[0].y + cs[cs.length - 1].y) / 2 : tree.h / 2;
+                }
+
+                // Dồn về gốc toạ độ dương, chừa chỗ cho badge gập ở hai bên
+                let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+                flat.forEach(n => {
+                    minX = Math.min(minX, n.x);
+                    maxX = Math.max(maxX, n.x + n.w);
+                    minY = Math.min(minY, n.y - n.h / 2);
+                    maxY = Math.max(maxY, n.y + n.h / 2);
+                });
+                const dx = 18 - minX, dy = 4 - minY;
+                flat.forEach(n => { n.x += dx; n.y += dy; });
+
+                state.nodes = flat;
+                state.bbox = { w: maxX - minX + 36, h: maxY - minY + 8 };
+            }
+
+            function countHidden(n) {
+                let c = 0;
+                (function w(x) { x.children.forEach(k => { c++; w(k); }); })(n);
+                return c;
+            }
+
+            /* ══════════════════════════════════════════════ SVG drawing */
+
+            function colorOf(n) { return COLOR[n.type] || COLOR.none; }
+
+            // Link trong file .md là đường dẫn tương đối; ghép với host đang chọn để
+            // ảnh/HTML xuất ra và link chia sẻ vẫn mở đúng site.
+            function absLink(url) {
+                if (!url) return '';
+                // Chỉ nhận http/https hoặc đường dẫn tương đối, chặn javascript: và data:
+                if (/^[a-z][a-z0-9+.-]*:/i.test(url)) {
+                    return /^https?:\/\//i.test(url) ? url : '';
+                }
+                const host = state.host || location.origin;
+                return host.replace(/\/+$/, '') + (url.startsWith('/') ? url : '/' + url);
+            }
+
+            // Miếng bánh từ 12 giờ theo chiều kim đồng hồ, thể hiện % hoàn thành
+            function pieWedge(cx, cy, r, pct, fill) {
+                if (pct <= 0) return '';
+                if (pct >= 100) {
+                    return '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="' + fill + '"/>';
+                }
+                const a = pct / 100 * Math.PI * 2;
+                const x2 = (cx + r * Math.sin(a)).toFixed(2);
+                const y2 = (cy - r * Math.cos(a)).toFixed(2);
+                const large = a > Math.PI ? 1 : 0;
+                return '<path d="M' + cx + ' ' + cy + ' L' + cx + ' ' + (cy - r) + ' A' + r + ' ' + r
+                    + ' 0 ' + large + ' 1 ' + x2 + ' ' + y2 + ' Z" fill="' + fill + '"/>';
+            }
+
+            function statusIcon(status, cx, cy, pct) {
+                if (status === 'Done') {
+                    return '<circle cx="' + cx + '" cy="' + cy + '" r="6.5" fill="' + COLOR.Custom + '"/>'
+                        + '<path d="M' + (cx - 3) + ' ' + cy + ' L' + (cx - 0.7) + ' ' + (cy + 2.4)
+                        + ' L' + (cx + 3.2) + ' ' + (cy - 2.5) + '" fill="none" stroke="#fff" stroke-width="1.9"'
+                        + ' stroke-linecap="round" stroke-linejoin="round"/>';
+                }
+                if (status === 'In process') {
+                    const p = (pct === null || pct === undefined) ? 50 : pct;
+                    return pieWedge(cx, cy, 6.5, p, COLOR.Override)
+                        + '<circle cx="' + cx + '" cy="' + cy + '" r="6.5" fill="none" stroke="'
+                        + COLOR.Override + '" stroke-width="1.7"/>';
+                }
+                return '<circle cx="' + cx + '" cy="' + cy + '" r="6.5" fill="#fff" stroke="' + COLOR.none
+                    + '" stroke-width="1.7" stroke-dasharray="2.6 2.2"/>';
+            }
+
+            function linkPath(p, c) {
+                // Nối từ cạnh hướng ra của cha tới cạnh hướng vào của con, theo chiều của con
+                const x1 = c.dir < 0 ? p.x : p.x + p.w;
+                const x2 = c.dir < 0 ? c.x + c.w : c.x;
+                const y1 = p.y, y2 = c.y;
+                const mid = x1 + (x2 - x1) * 0.5;
+                return 'M' + x1 + ' ' + y1 + ' C' + mid + ' ' + y1 + ' ' + mid + ' ' + y2
+                    + ' ' + x2 + ' ' + y2;
+            }
+
+            function nodeSVG(n, forExport) {
+                const col = colorOf(n);
+                let s = '';
+                const top = n.y - n.h / 2;
+                const cls = 'node-card' + (state.selectedKey === n.key ? ' selected' : '');
+                s += '<g class="' + cls + '" data-key="' + esc(n.key) + '" data-line="' + n.line + '">';
+                s += '<rect class="bg" x="' + n.x + '" y="' + top + '" width="' + n.w + '" height="' + n.h
+                    + '" rx="7" fill="#fff" stroke="' + col + '" stroke-opacity="0.55"/>';
+                s += '<rect x="' + n.x + '" y="' + (top + 4) + '" width="3" height="' + (n.h - 8)
+                    + '" rx="1.5" fill="' + col + '"/>';
+
+                let tx = n.x + PAD_X;
+                const firstBaseY = top + PAD_Y + 12;
+                if (n.status) {
+                    const tip = n.status + (n.value ? ' — ' + n.value : '');
+                    s += '<g class="status-hit" data-status="1" data-line="' + n.line + '">';
+                    s += '<rect x="' + (tx - 2) + '" y="' + (firstBaseY - 13) + '" width="17" height="17"'
+                        + ' fill="transparent"/>';
+                    s += statusIcon(n.status, tx + 6.5, firstBaseY - 4.5, n.pct);
+                    s += '<title>' + esc(tip) + '</title></g>';
+                    tx += ICON_W;
+                }
+                n.titleLines.forEach((l, i) => {
+                    s += '<text x="' + tx + '" y="' + (firstBaseY + i * LINE_H) + '" font-family="'
+                        + SVG_FONT + '" font-size="13" font-weight="600" fill="#1c2430">' + esc(l) + '</text>';
+                });
+                // % hoàn thành: nhãn ngay sau dòng tiêu đề cuối
+                if (n.badge) {
+                    const bx = tx + n.lastTitleW + 6;
+                    const by = firstBaseY + (n.titleLines.length - 1) * LINE_H;
+                    s += '<rect x="' + bx + '" y="' + (by - 10) + '" width="' + (n.badgeW - 3)
+                        + '" height="13.5" rx="3" fill="' + COLOR.Override + '" fill-opacity="0.13"/>';
+                    s += '<text x="' + (bx + (n.badgeW - 3) / 2) + '" y="' + (by - 0.2)
+                        + '" text-anchor="middle" font-family="' + SVG_FONT + '" font-size="10"'
+                        + ' font-weight="700" fill="#b06a00">' + esc(n.badge) + '</text>';
+                }
+                // Mũi tên mở chức năng tương ứng
+                if (n.link) {
+                    const ax = tx + n.lastTitleW + n.badgeW + 5;
+                    const ay = firstBaseY + (n.titleLines.length - 1) * LINE_H - 8;
+                    const url = absLink(n.link);
+                    const open = '<g class="link-hit" data-link="' + esc(url) + '">'
+                        + '<rect x="' + (ax - 1) + '" y="' + (ay - 1) + '" width="15" height="14"'
+                        + ' rx="3" fill="' + col + '" fill-opacity="0.10"/>'
+                        + '<path d="M' + (ax + 3.4) + ' ' + (ay + 9) + ' L' + (ax + 9.6) + ' '
+                        + (ay + 2.8) + '" stroke="' + col + '" stroke-width="1.5"'
+                        + ' stroke-linecap="round" fill="none"/>'
+                        + '<path d="M' + (ax + 5.6) + ' ' + (ay + 2.8) + ' H' + (ax + 9.8)
+                        + ' V' + (ay + 7) + '" stroke="' + col + '" stroke-width="1.5"'
+                        + ' stroke-linecap="round" stroke-linejoin="round" fill="none"/>'
+                        + '<title>' + esc(url) + '</title></g>';
+                    // Bản xuất HTML: bọc thẻ <a> để bấm được ngay trong file
+                    s += forExport
+                        ? '<a href="' + esc(url) + '" target="_blank">' + open + '</a>'
+                        : open;
+                }
+                let rowTop = firstBaseY + n.titleLines.length * LINE_H + 1;
+                // Lý do chờ: luôn hiện để người xem biết vì sao chưa làm
+                n.reasonLines.forEach((l, i) => {
+                    s += '<text x="' + (n.x + PAD_X) + '" y="' + (rowTop + i * DESC_H) + '" font-family="'
+                        + SVG_FONT + '" font-size="11.5" font-style="italic" fill="#8a6d3b">'
+                        + esc(l) + '</text>';
+                });
+                if (n.reasonLines.length) rowTop += n.reasonLines.length * DESC_H + 2;
+                n.descLines.forEach((l, i) => {
+                    s += '<text x="' + (n.x + PAD_X) + '" y="' + (rowTop + i * DESC_H) + '" font-family="'
+                        + SVG_FONT + '" font-size="11.5" fill="#5b6675">' + esc(l) + '</text>';
+                });
+                s += '</g>';
+
+                if (n.children.length) {
+                    const cx = n.dir < 0 ? n.x - 9 : n.x + n.w + 9, cy = n.y;
+                    const collapsed = isCollapsed(n);
+                    if (!forExport || collapsed) {
+                        s += '<g class="toggle" data-toggle="' + esc(n.key) + '">';
+                        s += '<circle cx="' + cx + '" cy="' + cy + '" r="7.5" fill="#fff" stroke="'
+                            + (collapsed ? col : COLOR.none) + '" stroke-width="1.4"/>';
+                        s += '<text x="' + cx + '" y="' + (cy + 3.4) + '" text-anchor="middle" font-family="'
+                            + SVG_FONT + '" font-size="' + (collapsed ? 8 : 11) + '" font-weight="700" fill="'
+                            + (collapsed ? col : '#5b6675') + '">'
+                            + (collapsed ? countHidden(n) : '−') + '</text>';
+                        s += '</g>';
+                    }
+                }
+                return s;
+            }
+
+            function buildInner(forExport) {
+                let links = '', nodes = '';
+                state.nodes.forEach(n => {
+                    kids(n).forEach(c => {
+                        links += '<path d="' + linkPath(n, c) + '" fill="none" stroke="' + colorOf(c)
+                            + '" stroke-width="2" stroke-opacity="0.85" stroke-linecap="round"/>';
+                    });
+                    nodes += nodeSVG(n, forExport);
+                });
+                return '<g class="links">' + links + '</g><g class="nodes">' + nodes + '</g>';
+            }
+
+            function render(keepView) {
+                const svg = $('svg');
+                if (!state.tree) {
+                    svg.innerHTML = '';
+                    $('empty-hint').style.display = 'flex';
+                    updateStatus();
+                    return;
+                }
+                $('empty-hint').style.display = 'none';
+                layout(state.tree);
+                const v = state.view;
+                svg.innerHTML = '<g id="viewport" transform="translate(' + v.tx + ',' + v.ty + ') scale('
+                    + v.k + ')">' + buildInner(false) + '</g>';
+                if (!keepView && !state.fitted) { fit(); state.fitted = true; }
+                updateStatus();
+            }
+
+            function applyTransform() {
+                const g = document.getElementById('viewport');
+                if (g) {
+                    g.setAttribute('transform', 'translate(' + state.view.tx + ',' + state.view.ty
+                        + ') scale(' + state.view.k + ')');
+                }
+            }
+
+            function fit() {
+                if (!state.bbox) return;
+                const wrap = document.querySelector('.canvas-wrap');
+                const vw = wrap.clientWidth, vh = wrap.clientHeight;
+                const k = Math.min((vw - 60) / state.bbox.w, (vh - 60) / state.bbox.h, 1.35);
+                state.view.k = Math.max(0.12, k);
+                state.view.tx = 30;
+                state.view.ty = Math.max(30, (vh - state.bbox.h * state.view.k) / 2);
+                applyTransform();
+            }
+
+            function zoomBy(f, cx, cy) {
+                const wrap = document.querySelector('.canvas-wrap');
+                if (cx === undefined) { cx = wrap.clientWidth / 2; cy = wrap.clientHeight / 2; }
+                const v = state.view;
+                const k2 = Math.min(4, Math.max(0.08, v.k * f));
+                v.tx = cx - (cx - v.tx) * (k2 / v.k);
+                v.ty = cy - (cy - v.ty) * (k2 / v.k);
+                v.k = k2;
+                applyTransform();
+            }
+
+            /* ══════════════════════════════════════════════ status bar */
+
+            function updateStatus() {
+                const counts = { Standard: 0, Override: 0, Custom: 0 };
+                const prog = { 'Done': 0, 'In process': 0, 'Pending': 0 };
+                let total = 0;
+                if (state.tree) {
+                    (function w(n) {
+                        total++;
+                        if (n.type) counts[n.type]++;
+                        if (n.status && prog[n.status] !== undefined) prog[n.status]++;
+                        n.children.forEach(w);
+                    })(state.tree);
+                }
+                $('st-counts').innerHTML = total
+                    ? total + ' ' + T.nodes
+                    + ' · <span style="color:' + COLOR.Standard + '">' + counts.Standard + ' Standard</span>'
+                    + ' · <span style="color:' + COLOR.Override + '">' + counts.Override + ' Override</span>'
+                    + ' · <span style="color:' + COLOR.Custom + '">' + counts.Custom + ' Custom</span>'
+                    + ' &nbsp;|&nbsp; ' + prog['Done'] + ' Done · ' + prog['In process']
+                    + ' In process · ' + prog['Pending'] + ' Pending'
+                    : '';
+                const mode = window.CAN_SAVE ? '' : ' · ' + T.readOnly;
+                $('st-source').innerHTML = (state.sourcePath
+                    ? '<code>' + esc(state.sourcePath) + '</code> — '
+                    + (state.dirty ? T.unsaved : T.inSync)
+                    : T.pasted) + mode;
+                $('statusbar').className = 'statusbar' + (state.dirty && state.sourcePath ? ' dirty' : '');
+                $('src-label').textContent = state.sourcePath || T.pasted;
+                $('line-count').textContent = state.lines.length + ' L';
+                $('btn-save').disabled = !state.sourcePath || !window.CAN_SAVE;
+            }
+
+            /* ══════════════════════════════════════════════ re-render pipeline */
+
+            let renderTimer = null;
+            function scheduleRender(immediate) {
+                clearTimeout(renderTimer);
+                const run = () => {
+                    state.tree = parseMarkdown($('editor').value);
+                    render(true);
+                };
+                if (immediate) run(); else renderTimer = setTimeout(run, 260);
+            }
+
+            function setContent(text, path) {
+                // Giữ file luôn ở dạng LF để lưu lại không lẫn CRLF
+                text = String(text).replace(/\r\n?/g, '\n');
+                $('editor').value = text;
+                state.sourcePath = path || '';
+                state.dirty = false;
+                state.fitted = false;
+                state.selectedKey = null;
+                state.tree = parseMarkdown(text);
+                render(false);
+            }
+
+            /* ══════════════════════════════════════════════ editing from the map */
+
+            // Cho phép nhãn có kèm giá trị: [In process 60%] , [Pending: chờ ngân sách]
+            const STATUS_STRIP = /\s*`?\[(?:Done|In[\s-]?process|In[\s-]?progress|Inprocess|Inprogress|Pending|Todo|To[\s-]?do|Doing|WIP)(?:[^\]\n]*)\]`?/gi;
+
+            function setStatusOnLine(lineIdx, status, value) {
+                const ta = $('editor');
+                const lines = ta.value.split('\n');
+                if (lineIdx < 0 || lineIdx >= lines.length) return;
+                let line = lines[lineIdx].replace(STATUS_STRIP, '');
+                const suffix = value ? (status === 'Pending' ? ': ' : ' ') + value : '';
+                const tag = ' `[' + status + suffix + ']`';
+                const typeMatch = line.match(/`?\[(Standard|Override|Custom)\]`?/i);
+                if (typeMatch) {
+                    const at = typeMatch.index + typeMatch[0].length;
+                    line = line.slice(0, at) + tag + line.slice(at);
+                } else {
+                    const bold = line.match(/\*\*[^*]+\*\*/);
+                    if (bold) {
+                        const at = bold.index + bold[0].length;
+                        line = line.slice(0, at) + tag + line.slice(at);
+                    } else {
+                        const sep = line.match(/\s(?:—|–|--)\s/);
+                        if (sep) line = line.slice(0, sep.index) + tag + line.slice(sep.index);
+                        else line = line.replace(/\s*$/, '') + tag;
+                    }
+                }
+                lines[lineIdx] = line;
+                ta.value = lines.join('\n');
+                state.dirty = true;
+                scheduleRender(true);
+            }
+
+            function askValue(status, node) {
+                if (status === 'In process') {
+                    const def = (node && node.pct !== null && node.pct !== undefined)
+                        ? String(node.pct) : '50';
+                    const ans = prompt(T.askPct, def);
+                    if (ans === null) return null;
+                    const p = pctOf(ans);
+                    return (p === null ? 50 : p) + '%';
+                }
+                if (status === 'Pending') {
+                    const ans = prompt(T.askReason, (node && node.reason) || '');
+                    if (ans === null) return null;
+                    return String(ans).trim();
+                }
+                return '';
+            }
+
+            // Bấm icon: đổi sang tiến độ kế tiếp. Shift+bấm: sửa % hoặc lý do của tiến độ hiện tại.
+            function cycleStatus(lineIdx, editOnly) {
+                const node = state.nodes.find(n => n.line === lineIdx);
+                const cur = node && node.status ? node.status : null;
+                const next = editOnly && cur ? cur
+                    : (cur === null ? 'Done'
+                        : STATUS_CYCLE[(STATUS_CYCLE.indexOf(cur) + 1) % STATUS_CYCLE.length]);
+                const value = askValue(next, node);
+                if (value === null) return;
+                setStatusOnLine(lineIdx, next, value);
+            }
+
+            function jumpToLine(lineIdx) {
+                if (lineIdx < 0) return;
+                const ta = $('editor');
+                if (document.body.classList.contains('no-editor')) return;
+                const lines = ta.value.split('\n');
+                let start = 0;
+                for (let i = 0; i < lineIdx; i++) start += lines[i].length + 1;
+                const end = start + lines[lineIdx].length;
+                ta.focus();
+                ta.setSelectionRange(start, end);
+                // đưa dòng đang chọn vào giữa vùng nhìn
+                const lh = parseFloat(getComputedStyle(ta).lineHeight) || 20;
+                ta.scrollTop = Math.max(0, lineIdx * lh - ta.clientHeight / 2);
+            }
+
+            /* ══════════════════════════════════════════════ collapse helpers */
+
+            function setAllCollapsed(on) {
+                state.collapsed.clear();
+                if (on && state.tree) {
+                    // gập tất cả trừ gốc, để vẫn thấy các nhánh chính
+                    state.tree.children.forEach(c => {
+                        (function w(n) {
+                            if (n.children.length) state.collapsed.add(n.key);
+                            n.children.forEach(w);
+                        })(c);
+                    });
+                }
+                render(true);
+            }
+
+            /* ══════════════════════════════════════════════ export */
+
+            // Khung quy ước màu + icon, vẽ thẳng vào ảnh/HTML để người xem tự hiểu
+            function legendSVG(w) {
+                const items = [
+                    { kind: 'head', label: T.lgType },
+                    { kind: 'line', color: COLOR.Standard, label: T.lgStandard },
+                    { kind: 'line', color: COLOR.Override, label: T.lgOverride },
+                    { kind: 'line', color: COLOR.Custom, label: T.lgCustom },
+                    { kind: 'line', color: COLOR.none, label: T.lgGroup },
+                    { kind: 'head', label: T.lgProgress },
+                    { kind: 'icon', status: 'Done', label: T.lgDone },
+                    { kind: 'icon', status: 'In process', pct: 65, label: T.lgInProcess },
+                    { kind: 'icon', status: 'Pending', label: T.lgPending }
+                ];
+                const PADL = 13, ROW = 21, GAP = 17;
+                const rows = [[]];
+                let cx = PADL;
+                meas.font = FONT_DESC;
+                items.forEach(it => {
+                    meas.font = it.kind === 'head' ? FONT_BADGE : FONT_DESC;
+                    it.tw = meas.measureText(it.label).width;
+                    it.iw = (it.kind === 'head' ? 0 : 19) + it.tw;
+                    if (it.kind === 'head' && rows[rows.length - 1].length && cx + it.iw > w - PADL - 90) {
+                        rows.push([]); cx = PADL;
+                    } else if (cx + it.iw > w - PADL) {
+                        rows.push([]); cx = PADL;
+                    }
+                    it.x = cx;
+                    rows[rows.length - 1].push(it);
+                    cx += it.iw + GAP;
+                });
+
+                const h = rows.length * ROW + 13;
+                let s = '<rect x="0" y="0" width="' + w + '" height="' + h + '" rx="7" fill="#fff"'
+                    + ' stroke="#e2e7ee"/>';
+                rows.forEach((row, ri) => {
+                    const y = 17 + ri * ROW;
+                    row.forEach(it => {
+                        if (it.kind === 'head') {
+                            s += '<text x="' + it.x + '" y="' + (y + 1) + '" font-family="' + SVG_FONT
+                                + '" font-size="10" font-weight="700" letter-spacing="0.6" fill="#1c2430">'
+                                + esc(it.label.toUpperCase()) + '</text>';
+                            return;
+                        }
+                        if (it.kind === 'line') {
+                            s += '<rect x="' + it.x + '" y="' + (y - 3.5) + '" width="16" height="3.2"'
+                                + ' rx="1.6" fill="' + it.color + '"/>';
+                        } else {
+                            s += statusIcon(it.status, it.x + 7.5, y - 2.5, it.pct);
+                        }
+                        s += '<text x="' + (it.x + 21) + '" y="' + (y + 1) + '" font-family="' + SVG_FONT
+                            + '" font-size="11.5" fill="#5b6675">' + esc(it.label) + '</text>';
+                    });
+                });
+                return { svg: s, h: h };
+            }
+
+            // Tiêu đề sơ đồ + mô tả + số liệu, để ảnh xuất ra tự nói được nó là gì
+            function headerSVG(w) {
+                const c = typeCounts();
+                const title = state.tree.title || baseName();
+                const descLines = wrap(descOf(state.tree), FONT_DESC, w - 4, 2);
+                const meta = c.total + ' ' + T.nodes + '  ·  ' + c.Standard + ' Standard  ·  '
+                    + c.Override + ' Override  ·  ' + c.Custom + ' Custom  ·  '
+                    + new Date().toLocaleDateString();
+                let y = 16;
+                let s = '<text x="0" y="' + y + '" font-family="' + SVG_FONT + '" font-size="17"'
+                    + ' font-weight="650" fill="#1c2430">' + esc(title) + '</text>';
+                y += 7;
+                descLines.forEach(l => {
+                    y += 15;
+                    s += '<text x="0" y="' + y + '" font-family="' + SVG_FONT + '" font-size="11.5"'
+                        + ' fill="#5b6675">' + esc(l) + '</text>';
+                });
+                y += 16;
+                s += '<text x="0" y="' + y + '" font-family="' + SVG_FONT + '" font-size="10.5"'
+                    + ' fill="#93a0b0">' + esc(meta) + '</text>';
+                return { svg: s, h: y + 6 };
+            }
+
+            function exportSVGString() {
+                layout(state.tree);
+                const M = 34;
+                const mapW = Math.ceil(state.bbox.w);
+                const barW = Math.max(430, Math.min(mapW, 1000));
+                const hd = headerSVG(barW);
+                const lg = legendSVG(barW);
+                const w = Math.ceil(Math.max(mapW, barW) + M * 2);
+                const topH = hd.h + 10 + lg.h + 18;
+                const h = Math.ceil(state.bbox.h + topH + M * 2);
+                return {
+                    w: w, h: h,
+                    svg: '<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="' + h
+                        + '" viewBox="0 0 ' + w + ' ' + h + '">'
+                        + '<rect x="0" y="0" width="' + w + '" height="' + h + '" fill="#ffffff"/>'
+                        + '<g transform="translate(' + M + ',' + M + ')">' + hd.svg + '</g>'
+                        + '<g transform="translate(' + M + ',' + (M + hd.h + 10) + ')">' + lg.svg + '</g>'
+                        + '<g transform="translate(' + M + ',' + (M + topH) + ')">'
+                        + buildInner(true) + '</g></svg>'
+                };
+            }
+
+            function download(blob, name) {
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = name;
+                document.body.appendChild(a);
+                a.click();
+                setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+            }
+
+            function baseName() {
+                const p = state.sourcePath || 'mindmap.md';
+                return p.replace(/^.*[\\/]/, '').replace(/\.md$/i, '');
+            }
+
+            function exportPNG() {
+                if (!state.tree) { toast(T.nothing, true); return; }
+                const out = exportSVGString();
+                // canvas có giới hạn kích thước: giữ chiều lớn nhất dưới ~12000px
+                const cap = 12000 / Math.max(out.w, out.h);
+                const scale = Math.max(0.5, Math.min(2, Math.max(1, 2400 / out.w), cap));
+                const img = new Image();
+                const blob = new Blob([out.svg], { type: 'image/svg+xml;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                img.onload = function () {
+                    const cv = document.createElement('canvas');
+                    cv.width = Math.round(out.w * scale);
+                    cv.height = Math.round(out.h * scale);
+                    const ctx = cv.getContext('2d');
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(0, 0, cv.width, cv.height);
+                    ctx.setTransform(scale, 0, 0, scale, 0, 0);
+                    ctx.drawImage(img, 0, 0);
+                    URL.revokeObjectURL(url);
+                    cv.toBlob(function (b) {
+                        if (!b) { toast(T.pngFailed, true); return; }
+                        download(b, baseName() + '.png');
+                        toast(T.exported);
+                    }, 'image/png');
+                };
+                img.onerror = function () { URL.revokeObjectURL(url); toast(T.pngFailed, true); };
+                img.src = url;
+            }
+
+            function exportMD() {
+                download(new Blob([$('editor').value], { type: 'text/markdown;charset=utf-8' }),
+                    baseName() + '.md');
+            }
+
+            function typeCounts() {
+                const c = { total: 0, Standard: 0, Override: 0, Custom: 0 };
+                if (state.tree) {
+                    (function w(n) {
+                        c.total++;
+                        if (n.type) c[n.type]++;
+                        n.children.forEach(w);
+                    })(state.tree);
+                }
+                return c;
+            }
+
+            // Trang HTML độc lập: mở bằng trình duyệt hoặc in ra được, không cần mạng
+            function exportHTML() {
+                if (!state.tree) { toast(T.nothing, true); return; }
+                const out = exportSVGString();
+
+                // Tiêu đề, quy ước màu và sơ đồ đều nằm trong SVG nên trang HTML chỉ cần bọc lại
+                const html = '<!DOCTYPE html>\n<html lang="vi">\n<head>\n<meta charset="utf-8">\n'
+                    + '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
+                    + '<title>' + esc(state.tree.title || baseName()) + '</title>\n<style>\n'
+                    + 'body{margin:0;background:#fff;color:#1c2430;font-family:' + SVG_FONT + ';}\n'
+                    + '.wrap{overflow:auto;padding:8px}svg.map{max-width:100%;height:auto}\n'
+                    + '@media print{.wrap{padding:0}}\n'
+                    + '</style>\n</head>\n<body>\n<div class="wrap">'
+                    + out.svg.replace('<svg ', '<svg class="map" ')
+                    + '</div>\n</body>\n</html>\n';
+
+                download(new Blob([html], { type: 'text/html;charset=utf-8' }), baseName() + '.html');
+                toast(T.exported);
+            }
+
+            /* ══════════════════════════════════════════════ server I/O */
+
+            async function loadFileList() {
+                try {
+                    const r = await callFrappeMethod('customize_erpnext.api.mindmap_docs.list_docs', {});
+                    const sel = $('file-select');
+                    (r.files || []).forEach(f => {
+                        const o = document.createElement('option');
+                        o.value = f.path;
+                        o.textContent = f.name + '  (' + Math.round(f.size / 1024) + ' KB)';
+                        sel.appendChild(o);
+                    });
+                    return r.files || [];
+                } catch (e) { toast(e.message, true); return []; }
+            }
+
+            async function loadFile(path) {
+                if (!path) { toast(T.noFile, true); return; }
+                if (state.dirty && !confirm(T.confirmLoad)) return;
+                try {
+                    const r = await callFrappeMethod('customize_erpnext.api.mindmap_docs.read_doc',
+                        { path: path });
+                    setContent(r.content, r.path);
+                    $('file-path').value = r.path;
+                    // Cho ô chọn file khớp với file vừa tải, kể cả khi tải bằng đường dẫn
+                    const sel = $('file-select');
+                    sel.value = Array.prototype.some.call(sel.options, o => o.value === r.path)
+                        ? r.path : '';
+                    // Đưa tên tài liệu vào URL để copy link gửi cho người khác
+                    history.replaceState(null, '', location.pathname + '?file='
+                        + encodeURIComponent(r.path));
+                    toast(T.loaded + ': ' + r.path);
+                } catch (e) { toast(e.message, true); }
+            }
+
+            async function saveFile() {
+                if (!state.sourcePath) { toast(T.noFile, true); return; }
+                if (!window.CAN_SAVE) { toast(T.noSavePerm, true); return; }
+                try {
+                    const r = await callFrappeMethod('customize_erpnext.api.mindmap_docs.write_doc',
+                        { path: state.sourcePath, content: $('editor').value });
+                    state.dirty = false;
+                    updateStatus();
+                    $('st-msg').textContent = T.saved + ' ' + r.path + ' · '
+                        + new Date().toLocaleTimeString();
+                    toast(T.saved + ' ' + r.path);
+                } catch (e) { toast(e.message, true); }
+            }
+
+            /* ══════════════════════════════════════════════ ngôn ngữ phần mô tả */
+
+            async function loadLangMap() {
+                try {
+                    const r = await callFrappeMethod('customize_erpnext.api.mindmap_docs.read_lang', {});
+                    state.langMap = r.map || {};
+                } catch (e) { /* không có bảng dịch thì cứ dùng tiếng Việt */ }
+            }
+
+            function missingDescs() {
+                const out = [];
+                const seen = {};
+                (function w(n) {
+                    const d = n.desc;
+                    if (d && !state.langMap[d] && !state.langTried.has(d) && !seen[d]) {
+                        seen[d] = 1;
+                        out.push(d);
+                    }
+                    n.children.forEach(w);
+                })(state.tree || { children: [] });
+                return out;
+            }
+
+            async function setLang(lang) {
+                state.lang = lang;
+                $('btn-vi').classList.toggle('on', lang === 'vi');
+                $('btn-en').classList.toggle('on', lang === 'en');
+                render(true);
+                if (lang !== 'en' || !state.tree) return;
+
+                if (!missingDescs().length) return;
+                // Thiếu bản dịch thì nhờ dịch tự động rồi cache lại trên máy chủ.
+                // Máy chủ giới hạn số câu mỗi lượt nên phải gửi thành nhiều đợt,
+                // và chỉ đánh dấu "đã thử" khi thật sự thất bại.
+                const CHUNK = 40;
+                let done = 0;
+                for (let round = 0; round < 12; round++) {
+                    const missing = missingDescs();
+                    if (!missing.length) break;
+                    const batch = missing.slice(0, CHUNK);
+                    if (round === 0) toast(T.translating + ' (' + missing.length + ')');
+                    try {
+                        const r = await callFrappeMethod(
+                            'customize_erpnext.api.mindmap_docs.translate_texts',
+                            { texts: JSON.stringify(batch), source: 'vi', target: 'en' });
+                        Object.assign(state.langMap, r.map || {});
+                        done += r.translated || 0;
+                        render(true);
+                        if (!r.translated) {
+                            batch.forEach(d => state.langTried.add(d));
+                            toast(T.translateFailed, true);
+                            return;
+                        }
+                    } catch (e) {
+                        batch.forEach(d => state.langTried.add(d));
+                        toast(T.translateFailed + ' — ' + e.message, true);
+                        return;
+                    }
+                }
+                if (done) toast(T.translated + ': ' + done);
+            }
+
+            function setLayoutMode(mode) {
+                state.layoutMode = mode;
+                $('btn-layout').innerHTML = mode === 'sides'
+                    ? '⇹ ' + esc(T.twoSides) : '⇥ ' + esc(T.oneSide);
+                state.fitted = false;
+                render(false);
+            }
+
+            function shareLink() {
+                return location.origin + location.pathname
+                    + (state.sourcePath ? '?file=' + encodeURIComponent(state.sourcePath) : '');
+            }
+
+            async function copyLink() {
+                const url = shareLink();
+                try {
+                    await navigator.clipboard.writeText(url);
+                    toast(T.linkCopied + ': ' + url);
+                } catch (e) {
+                    // clipboard bị chặn khi không phải HTTPS → cho copy tay
+                    prompt(T.copyManually, url);
+                }
+            }
+
+            /* ══════════════════════════════════════════════ wiring */
+
+            const svg = $('svg');
+
+            svg.addEventListener('wheel', function (ev) {
+                ev.preventDefault();
+                const r = svg.getBoundingClientRect();
+                zoomBy(ev.deltaY < 0 ? 1.12 : 1 / 1.12, ev.clientX - r.left, ev.clientY - r.top);
+            }, { passive: false });
+
+            let pan = null;
+            // mouseup xảy ra trước click nên phải giữ lại kết quả kéo để click biết mà bỏ qua
+            let panMoved = false;
+            svg.addEventListener('mousedown', function (ev) {
+                if (ev.button !== 0) return;
+                pan = { x: ev.clientX, y: ev.clientY, tx: state.view.tx, ty: state.view.ty, moved: false };
+                panMoved = false;
+                svg.classList.add('panning');
+            });
+            window.addEventListener('mousemove', function (ev) {
+                if (!pan) return;
+                const dx = ev.clientX - pan.x, dy = ev.clientY - pan.y;
+                if (Math.abs(dx) + Math.abs(dy) > 3) pan.moved = true;
+                state.view.tx = pan.tx + dx;
+                state.view.ty = pan.ty + dy;
+                applyTransform();
+            });
+            window.addEventListener('mouseup', function () {
+                if (pan) {
+                    svg.classList.remove('panning');
+                    panMoved = pan.moved;
+                }
+                pan = null;
+            });
+
+            svg.addEventListener('click', function (ev) {
+                const linkHit = ev.target.closest('.link-hit');
+                if (linkHit) {
+                    window.open(linkHit.getAttribute('data-link'), '_blank', 'noopener');
+                    return;
+                }
+                const statusHit = ev.target.closest('.status-hit');
+                if (statusHit && !window.CAN_SAVE) { toast(T.readOnlyNote, true); return; }
+                if (statusHit) {
+                    cycleStatus(parseInt(statusHit.getAttribute('data-line'), 10), ev.shiftKey);
+                    return;
+                }
+                const tog = ev.target.closest('.toggle');
+                if (tog) {
+                    const key = tog.getAttribute('data-toggle');
+                    if (state.collapsed.has(key)) state.collapsed.delete(key);
+                    else state.collapsed.add(key);
+                    render(true);
+                    return;
+                }
+                const card = ev.target.closest('.node-card');
+                if (card && !panMoved) {
+                    state.selectedKey = card.getAttribute('data-key');
+                    render(true);
+                    jumpToLine(parseInt(card.getAttribute('data-line'), 10));
+                }
+            });
+
+            svg.addEventListener('dblclick', function (ev) {
+                const card = ev.target.closest('.node-card');
+                if (!card) return;
+                const key = card.getAttribute('data-key');
+                const node = state.nodes.find(n => n.key === key);
+                if (!node || !node.children.length) return;
+                if (state.collapsed.has(key)) state.collapsed.delete(key);
+                else state.collapsed.add(key);
+                render(true);
+            });
+
+            $('editor').addEventListener('input', function () {
+                state.dirty = true;
+                scheduleRender(false);
+                updateStatus();
+            });
+
+            $('file-select').addEventListener('change', function () {
+                $('file-path').value = this.value;
+                if (this.value) loadFile(this.value);
+            });
+            $('btn-load').addEventListener('click', () => loadFile($('file-path').value.trim()));
+            $('btn-save').addEventListener('click', saveFile);
+            $('btn-expand').addEventListener('click', () => setAllCollapsed(false));
+            $('btn-collapse').addEventListener('click', () => setAllCollapsed(true));
+            $('btn-detail').addEventListener('click', function () {
+                state.showDesc = !state.showDesc;
+                this.classList.toggle('on', state.showDesc);
+                render(true);
+            });
+            $('btn-layout').addEventListener('click', function () {
+                setLayoutMode(state.layoutMode === 'sides' ? 'right' : 'sides');
+            });
+            $('host-select').addEventListener('change', function () {
+                state.host = this.value;
+                try { localStorage.setItem('mindmap_host', this.value); } catch (e) { }
+                render(true);
+            });
+            $('btn-vi').addEventListener('click', () => setLang('vi'));
+            $('btn-en').addEventListener('click', () => setLang('en'));
+            $('btn-fit').addEventListener('click', fit);
+            $('btn-zoom-in').addEventListener('click', () => zoomBy(1.18));
+            $('btn-zoom-out').addEventListener('click', () => zoomBy(1 / 1.18));
+            $('btn-png').addEventListener('click', exportPNG);
+            $('btn-html').addEventListener('click', exportHTML);
+            $('btn-md').addEventListener('click', exportMD);
+            $('btn-link').addEventListener('click', copyLink);
+            function setEditorVisible(on) {
+                document.body.classList.toggle('no-editor', !on);
+                $('btn-toggle-editor').classList.toggle('on', on);
+                try { localStorage.setItem('mindmap_editor', on ? '1' : '0'); } catch (e) { }
+                fit();
+            }
+
+            $('btn-toggle-editor').addEventListener('click', function () {
+                setEditorVisible(document.body.classList.contains('no-editor'));
+            });
+
+            window.addEventListener('keydown', function (ev) {
+                if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 's') {
+                    ev.preventDefault();
+                    saveFile();
+                }
+            });
+
+            window.addEventListener('beforeunload', function (ev) {
+                if (state.dirty && state.sourcePath) { ev.preventDefault(); ev.returnValue = ''; }
+            });
+
+            // kéo thanh chia để đổi bề rộng ô soạn thảo
+            (function () {
+                const sp = $('splitter'), pane = document.querySelector('.editor-pane');
+                let drag = null;
+                sp.addEventListener('mousedown', function (ev) {
+                    drag = { x: ev.clientX, w: pane.getBoundingClientRect().width };
+                    ev.preventDefault();
+                });
+                window.addEventListener('mousemove', function (ev) {
+                    if (!drag) return;
+                    const w = Math.min(Math.max(240, drag.w + ev.clientX - drag.x), window.innerWidth - 320);
+                    pane.style.flexBasis = w + 'px';
+                });
+                window.addEventListener('mouseup', function () { if (drag) { drag = null; fit(); } });
+            })();
+
+            let resizeTimer = null;
+            window.addEventListener('resize', function () {
+                clearTimeout(resizeTimer);
+                resizeTimer = setTimeout(() => { if (state.tree) applyTransform(); }, 150);
+            });
+
+            /* ══════════════════════════════════════════════ boot */
+
+            (async function boot() {
+                // Không phải Administrator: xem là chính, ô soạn để đọc và copy, không sửa
+                if (!window.CAN_SAVE) {
+                    $('editor').readOnly = true;
+                    $('editor').title = T.readOnlyNote;
+                }
+                try {
+                    const savedHost = localStorage.getItem('mindmap_host');
+                    if (savedHost !== null) {
+                        state.host = savedHost;
+                        $('host-select').value = savedHost;
+                    }
+                    if (localStorage.getItem('mindmap_editor') === '0') {
+                        document.body.classList.add('no-editor');
+                        $('btn-toggle-editor').classList.remove('on');
+                    }
+                } catch (e) { }
+                updateStatus();
+                const [files] = await Promise.all([loadFileList(), loadLangMap()]);
+                const params = new URLSearchParams(location.search);
+                const wanted = params.get('file');
+                // Mặc định mở sơ đồ, không mở README (README đứng đầu khi sắp theo tên)
+                const firstMap = files.find(f => /mindmap.*\.md$/i.test(f.name));
+                const pick = wanted || (firstMap ? firstMap.path : (files[0] || {}).path || '');
+                if (pick) await loadFile(pick);
+            })();
+        })();
+    </script>
+</body>
+
+</html>
