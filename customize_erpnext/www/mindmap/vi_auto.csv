@@ -1,2 +1,16 @@
 # english,"vietnamese  (bản dịch máy, sửa tay được)"
 "Headcount, presence, absence, overtime, new hires, resignations, structure by age, gender, rank","Headount, hiện diện, vắng, tăng ca, tuyển mới, nghỉ việc, cơ cấu theo độ tuổi, giới tính, cấp bậc"
+"Company, department, title, rank","Công ty, phòng ban, chức danh, cấp bậc"
+"Personal information, department, title, date of employment, working status...","Thông tin cá nhân, phòng ban, chức danh, ngày vào làm, trạng thái làm việc..."
+"Upload photos, remove background, crop card photo to correct ratio, process multiple photos at once. The image file is used for the Nv card creation function","Tải ảnh, xóa nền, cắt ảnh thẻ đúng tỷ lệ, xử lý nhiều ảnh một lượt. File ảnh được sử dụng cho chức năng tạo thẻ Nv"
+"Priority is given to separate shifts, then the employee's default shift, and finally the day shift","Ưu tiên phân ca riêng, sau đó ca mặc định của nhân viên, cuối cùng theo ca ngày"
+"IT - Declare time clock, retrieve scan data to the automatic system","IT - Khai báo máy chấm công, lấy dữ liệu quét về hệ thống tự động"
+Register fingerprint attendance for employees,Đăng ký vân tay chấm công cho nhân viên
+"IT- Check logs, handle errors","IT- Kiểm tra log, xữ lý khi có lỗi"
+Record late entry and early exit according to shift settings,"Ghi nhận vào trễ, ra sớm theo cài đặt của ca"
+"Missing scans, overtime but not significant, maternity leave, etc. are noted down for HR to check and handle.","Quét thiếu, tăng ca nhưng không có đáng ký, thai sản,... được ghi chú lại để HR kiểm tra và xử lý tay"
+Adjust and add check-in hours,"Điều chỉnh, bổ sung giờ checkin"
+"The system automatically sends today's presence/absence report, and cases of missing attendance from the previous day","Hệ thống tự gửi báo cáo hiện diện/ vắng của hôm nay, các trường hợp chấm công thiếu của ngày hôm trước"
+The Excel version has the same structure as the current timekeeping app,Bản Excel có cấu trúc giống app chấm công hiên tại
+"Department proposes, superiors approve before calculating credit - Not yet applied","Bộ phận đề xuất, cấp trên phê duyệt trước khi tính công - Chưa áp dụng"
+Warning when overtime limit is exceeded as prescribed by law,Cảnh báo khi vượt giới hạn giờ tăng ca theo quy định của luật

@@ -333,13 +333,18 @@ check(M.buildInner(false).includes('class="toggle"'), 'có badge gập / mở');
 
 console.log('\n=== ngôn ngữ phần mô tả ===');
 reset();
+// Trang đọc cả bản chuẩn và cache dịch máy, test cũng vậy
 const map = {};
-parseCSV(fs.readFileSync(path.join(PAGE, 'vi.csv'), 'utf8')).forEach(r => {
-    if (r.length < 2 || r[0].startsWith('#')) return;
-    map[r[1].trim()] = r[0].trim();
+['vi.csv', 'vi_auto.csv'].forEach(name => {
+    const p = path.join(PAGE, name);
+    if (!fs.existsSync(p)) return;
+    parseCSV(fs.readFileSync(p, 'utf8')).forEach(r => {
+        if (r.length < 2 || r[0].startsWith('#')) return;
+        map[r[1].trim()] = r[0].trim();
+    });
 });
-console.log('  vi.csv có ' + Object.keys(map).length + ' cặp');
-check(Object.keys(map).length > 140, 'vi.csv đủ số cặp mô tả');
+console.log('  bảng dịch có ' + Object.keys(map).length + ' cặp');
+check(Object.keys(map).length > 140, 'bảng dịch đủ số cặp mô tả');
 
 // Mô tả sửa tay trong .md sẽ chưa có bản dịch — trang tự dịch khi bấm EN,
 // nên đây chỉ là cảnh báo, không tính là lỗi.
@@ -355,6 +360,17 @@ if (noTrans.length) {
     console.log('  ✓ mọi mô tả đều có bản tiếng Anh');
 }
 
+// Lấy một mục có bản dịch để kiểm, không cố định vào nội dung cụ thể
+let sampleVi = null;
+(function w(n) {
+    if (!sampleVi && n.desc && map[n.desc] && map[n.desc] !== n.desc) sampleVi = n.desc;
+    n.children.forEach(w);
+})(M.state.tree);
+check(!!sampleVi, 'tìm được mục có bản dịch để kiểm');
+const headVi = (sampleVi || '').split(/[,.]/)[0].slice(0, 24);
+const headEn = (map[sampleVi] || '').split(/[,.]/)[0].slice(0, 24);
+console.log('  mẫu kiểm: "' + headVi + '" -> "' + headEn + '"');
+
 M.state.langMap = map;
 M.state.lang = 'vi';
 M.layout(M.state.tree);
@@ -362,13 +378,12 @@ const viSvg = M.buildInner(false);
 M.state.lang = 'en';
 M.layout(M.state.tree);
 const enSvg = M.buildInner(false);
-check(viSvg.includes('Công ty, phòng ban, chức danh'), 'VI: mô tả tiếng Việt');
-check(enSvg.includes('Company, department, designation'), 'EN: mô tả sang tiếng Anh');
+check(viSvg.includes(headVi), 'VI: mô tả tiếng Việt');
+check(enSvg.includes(headEn), 'EN: mô tả sang tiếng Anh');
 check(enSvg.includes('Employee profile / Thông tin nhân viên'), 'EN: tiêu đề vẫn song ngữ');
 M.state.langMap = {};
 M.layout(M.state.tree);
-check(M.buildInner(false).includes('Công ty, phòng ban, chức danh'),
-    'EN mà thiếu bản dịch: giữ nguyên tiếng Việt');
+check(M.buildInner(false).includes(headVi), 'EN mà thiếu bản dịch: giữ nguyên tiếng Việt')
 
 /* ══════════════ 7. link chức năng ══════════════════════════════ */
 

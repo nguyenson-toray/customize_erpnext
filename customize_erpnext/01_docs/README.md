@@ -19,6 +19,7 @@ Xem sơ đồ ngay trên hệ thống:
 | `ga_mindmap.md` | **GA**: đồng phục, khám sức khỏe, kệ giày |
 | `build_mindmap.py` | Script sinh 2 file trên + bảng dịch mô tả cho trang |
 | `tests/test_mindmap.js` | Test cho trang `/mindmap` (không cần cài gì, chỉ cần node) |
+| `mindmap_state.json` | Danh sách mục đã từng xuất ra `.md`, để biết mục nào bạn đã xoá có chủ ý |
 
 Files của trang nằm ở `../www/mindmap/` và `../api/mindmap_docs.py` — xem mục 6.
 
@@ -63,20 +64,29 @@ Viết `[Inprocess]`, `[In progress]`, `[Todo]` cũng được, script tự chu�
 
 ## 3. Sửa nội dung
 
-**Sửa tay trong file `.md` hoặc sửa trên trang `/mindmap` đều được, build lại không mất.** Script đọc file cũ và giữ nguyên: **tiến độ, mô tả, link, số thứ tự**. Chỉ có cấu trúc cây và nhãn phân loại là luôn lấy theo script.
+**File `.md` là bản chính.** Sửa tay trong `.md` hoặc sửa trên trang `/mindmap` đều được, build lại không mất. Script đọc file cũ và giữ nguyên:
+
+| Sửa gì trong `.md` | Build lại |
+|---|---|
+| Tiến độ, mô tả, link, phân loại, số thứ tự | Giữ nguyên |
+| **Xoá** một mục, hoặc bọc `<!-- -->` để tạm ẩn | Không dựng lại nữa |
+| Để **trống** link `[Tiêu đề]()` hoặc trống mô tả sau dấu `—` | Giữ trống |
+| Thêm mục mới vào script | Được thêm vào, có báo `+` |
 
 ```bash
 cd apps/customize_erpnext/customize_erpnext/01_docs
 python3 build_mindmap.py                 # build, giữ mọi thứ đã sửa tay
+python3 build_mindmap.py --dry-run       # chỉ báo cáo sẽ thay đổi gì, không ghi file
 python3 build_mindmap.py --renumber      # đánh số lại theo thứ tự logic trong script
-python3 build_mindmap.py --from-script   # bỏ sửa tay, lấy lại mô tả + link theo script
+python3 build_mindmap.py --from-script   # bỏ sửa tay, dựng lại đúng theo script
 python3 build_mindmap.py --json          # xuất thêm file JSON
 ```
 
-Hai lưu ý:
+Ba lưu ý:
 
-- Mục **xoá hoặc comment lại** trong `.md` sẽ được build thêm vào lại, kèm cảnh báo `⚠`. Muốn bỏ hẳn thì xoá trong `build_mindmap.py`.
-- Đổi **tiêu đề** một mục trong script thì mục đó coi như mới: tiến độ, mô tả, link, số đã sửa tay của nó không khớp được nữa và trở về mặc định.
+- Việc "mục nào đã bị xoá" được ghi ở `mindmap_state.json` (danh sách mục đã từng xuất ra `.md`). Xoá file này thì mọi mục trong script sẽ được dựng lại.
+- Đổi **tiêu đề** một mục trong script thì mục đó coi như mới: tiến độ, mô tả, link, số đã sửa tay của nó không khớp được nữa và trở về mặc định. Nếu bạn đổi tiêu đề trong `.md`, hãy đổi luôn trong script cho khớp.
+- Nội dung `.md` có thể khác `--dry-run` ở phần comment `<!-- -->` bạn tự thêm — script không sinh comment. Muốn giữ những khối comment đó thì đừng chạy build, hoặc chấp nhận mất chúng.
 
 **Thứ tự hiển thị** nằm ở dict `LOGICAL_ORDER` trong script, xếp theo logic nghiệp vụ — cái gì phải có trước thì đứng trước (khai ca trước khi tính công, cấu hình bảo hiểm/thuế trước khi chạy lương, khai kệ và vẽ sơ đồ trước khi gán ô). Sửa dict rồi chạy `--renumber`.
 
@@ -195,7 +205,7 @@ Sau khi sửa `index.py` hoặc `mindmap_docs.py`: `bench --site erp.tiqn.local 
 
 | | Số mục | Standard | Override | Custom | Có link |
 |---|---|---|---|---|---|
-| `hr_mindmap.md` | 93 | 18 | 22 | 34 | 74 |
+| `hr_mindmap.md` | 77 | 18 | 20 | 29 | 63 |
 | `ga_mindmap.md` | 93 | 0 | 0 | 69 | 69 |
 
 Phần còn lại là mục gom nhóm và nhánh chú thích. Toàn bộ GA là tự phát triển vì hệ thống gốc không có 3 module này.

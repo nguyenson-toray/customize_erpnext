@@ -46,6 +46,8 @@ import re
 
 OUT = os.path.dirname(os.path.abspath(__file__))
 LANG_CSV = os.path.realpath(os.path.join(OUT, "..", "www", "mindmap", "vi.csv"))
+# Ghi lại những mục đã từng xuất ra .md, để biết mục nào bị xoá có chủ ý
+STATE_FILE = os.path.join(OUT, "mindmap_state.json")
 
 STATUSES = ("Done", "In process", "Pending")
 TYPES = ("Standard", "Override", "Custom")
@@ -109,7 +111,7 @@ HR = n("HR - Human Resources", "Quản lý Nhân sự",
           ("Employment types such as permanent, seasonal and probation,"
            " with tracking of probation end dates",
            "Loại hình lao động: chính thức, thời vụ, thử việc;"
-           " theo dõi ngày kết thúc thử việc"), tag="Custom"),
+           " theo dõi ngày kết thúc thử việc"), tag="Standard"),
         n("External personnel", "Nhân sự ngoài công ty",
           ("Visitors and contractors who are off payroll but still need to be managed",
            "Khách, nhà thầu, người ngoài bảng lương nhưng vẫn cần quản lý"), tag="Custom"),
@@ -151,7 +153,7 @@ HR = n("HR - Human Resources", "Quản lý Nhân sự",
           ("Every scan is one record and is the basis for calculating attendance",
            "Mỗi lần nhân viên quét là một dòng dữ liệu, là cơ sở để tính công"), tag="Override"),
         g("Shift setup", "Thiết lập ca làm việc", None, [
-            n("Shift definition", "Khai báo ca",
+            n("Shift type", "Khai báo ca",
               ("Start time, end time, lunch break and the allowed late / early margin",
                "Giờ vào, giờ ra, giờ nghỉ trưa, mức dung sai trễ - về sớm"), tag="Override"),
             n("Assign shift", "Phân ca",
@@ -649,7 +651,7 @@ LINKS = {
     "Sync machine clock": "/desk/attendance-machine-setting",
     "Check scan data": "/desk/employee-checkin/view/report",
     "Check-in records": "/desk/employee-checkin",
-    "Shift definition": "/desk/shift-type",
+    "Shift type": "/desk/shift-type",
     "Assign shift": "/desk/shift-assignment",
     "Bulk shift assignment": "/desk/shift-assignment",
     "Shift priority": "/desk/shift-type",
@@ -933,16 +935,59 @@ def read_existing_meta(path):
         entry = found.setdefault(label, {})
         if num:
             entry["num"] = num
+        # Link hoặc mô tả để rỗng là có chủ ý, phải giữ rỗng chứ không lấy lại từ script
         if link_match:
             entry["link"] = link_match.group(2).strip()
-        if m.group("desc"):
+        if m.group("desc") is not None:
             entry["desc"] = m.group("desc").strip()
         for t in TAG_RE.findall(m.group("tags")):
+            if t in TYPES:
+                entry["type"] = t
+                continue
             canon, value = parse_status_tag(t)
             if canon:
                 entry["status"] = format_status(canon, value)
 
     return found, newline
+
+
+def all_labels(node, out=None):
+    if out is None:
+        out = []
+    out.append(node["label"])
+    for c in node.get("children", []):
+        all_labels(c, out)
+    return out
+
+
+def load_state():
+    try:
+        with open(STATE_FILE, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def save_state(state):
+    with open(STATE_FILE, "w", encoding="utf-8") as f:
+        json.dump(state, f, ensure_ascii=False, indent=1, sort_keys=True)
+
+
+def prune_removed(node, saved, known, removed):
+    """Bỏ khỏi cây những mục đã từng xuất ra .md nhưng nay không còn trong đó.
+
+    Đó là mục bị xoá hoặc comment lại có chủ ý, không dựng lại nữa.
+    Mục chưa từng xuất hiện (mới thêm vào script) thì vẫn được thêm.
+    """
+    keep = []
+    for c in node.get("children", []):
+        if c["label"] in known and c["label"] not in saved:
+            removed.append(c["label"])
+            continue
+        prune_removed(c, saved, known, removed)
+        keep.append(c)
+    if node.get("children") is not None:
+        node["children"] = keep
 
 
 def walk(node, depth, out, fn):
@@ -967,11 +1012,19 @@ def apply_saved_meta(node, saved, keep_content, missing):
         if entry.get("num"):
             node["num"] = entry["num"]
         if keep_content:
-            if entry.get("desc") and node.get("desc") and entry["desc"] != node["desc"]:
-                node["desc"] = entry["desc"]
+            if "desc" in entry and entry["desc"] != node.get("desc"):
                 node.pop("desc_en", None)   # mô tả đã đổi, bản dịch cũ không còn đúng
-            if entry.get("link"):
-                node["link"] = entry["link"]
+                if entry["desc"]:
+                    node["desc"] = entry["desc"]
+                else:
+                    node.pop("desc", None)
+            if "link" in entry:
+                if entry["link"]:
+                    node["link"] = entry["link"]
+                else:
+                    node.pop("link", None)
+            if entry.get("type") and node.get("type"):
+                node["type"] = entry["type"]
     for c in node.get("children", []):
         apply_saved_meta(c, saved, keep_content, missing)
 
@@ -1042,21 +1095,22 @@ LOGICAL_ORDER = {
 }
 
 
-def sort_logically(node, warnings):
+def sort_logically(node, warnings, skip=()):
     order = LOGICAL_ORDER.get(node.get("en"))
     cs = node.get("children", [])
     if order and cs:
         rank = {name: i for i, name in enumerate(order)}
         names = {c.get("en") for c in cs}
         for name in order:
-            if name not in names:
-                warnings.append(f"LOGICAL_ORDER['{node['en']}'] có '{name}' nhưng cây không có mục này")
+            if name not in names and name not in skip:
+                warnings.append(
+                    f"LOGICAL_ORDER['{node['en']}'] có '{name}' nhưng cây không có mục này")
         node["children"] = [
             c for _, c in sorted(enumerate(cs),
                                  key=lambda t: (rank.get(t[1].get("en"), 500 + t[0]), t[0]))
         ]
     for c in node.get("children", []):
-        sort_logically(c, warnings)
+        sort_logically(c, warnings, skip)
 
 
 def assign_numbers(node, force=False):
@@ -1147,18 +1201,31 @@ def write_lang_csv(trees):
     return len(pairs)
 
 
-def emit(key, tree, want_json, from_script=False, renumber=False):
+def emit(key, tree, want_json, from_script=False, renumber=False, dry_run=False,
+         state=None):
     title, subtitle = HEADERS[key]
     path = os.path.join(OUT, f"{key}_mindmap.md")
 
     apply_links(tree)
     saved, newline = read_existing_meta(path)
-    missing = []
-    apply_saved_meta(tree, saved, not from_script, missing)
     tree = dict(tree)
     tree["children"] = list(tree.get("children", [])) + [legend_branch()]
+
+    # Mục đã từng có trong .md mà nay không còn = bị xoá có chủ ý, không dựng lại
+    state = {} if state is None else state
+    known = set(state.get(key, []))
+    if not known and saved:
+        # Chưa có file trạng thái nhưng .md đã tồn tại: coi như mọi mục trong script
+        # đã từng xuất ra, để tôn trọng những mục đã bị xoá trong .md
+        known = set(all_labels(tree))
+    removed = []
+    if not from_script:
+        prune_removed(tree, saved, known, removed)
+
+    added = []
+    apply_saved_meta(tree, saved, not from_script, added)
     order_warnings = []
-    sort_logically(tree, order_warnings)
+    sort_logically(tree, order_warnings, {lb.split(" / ")[0] for lb in removed})
     assign_numbers(tree, renumber)
 
     md = [
@@ -1171,8 +1238,21 @@ def emit(key, tree, want_json, from_script=False, renumber=False):
         "",
     ]
     walk(tree, 0, md, md_line)
-    with open(path, "w", encoding="utf-8", newline=newline) as f:
-        f.write("\n".join(md) + "\n")
+    content = "\n".join(md) + "\n"
+    if dry_run:
+        old = open(path, encoding="utf-8").read() if os.path.exists(path) else ""
+        same = old.replace("\r\n", "\n") == content.replace("\r\n", "\n")
+        print(f"  [dry-run] {'giống hệt file hiện tại' if same else 'KHÁC file hiện tại'}")
+        if not same:
+            import difflib
+            diff = list(difflib.unified_diff(
+                old.replace("\r\n", "\n").split("\n"), content.split("\n"),
+                "hiện tại", "sẽ ghi", lineterm="", n=0))
+            for line in diff[:14]:
+                print("      " + line[:150])
+    else:
+        with open(path, "w", encoding="utf-8", newline=newline) as f:
+            f.write(content)
 
     if want_json:
         payload = {
@@ -1190,13 +1270,14 @@ def emit(key, tree, want_json, from_script=False, renumber=False):
           f" | tiến độ {s['status']}{kept}")
     for w in order_warnings:
         print(f"  ⚠ {w}")
-    if missing:
-        print(f"  ⚠ {len(missing)} mục có trong script nhưng không thấy trong .md"
-              " (bị xoá hoặc đang comment lại) — build đã thêm lại:")
-        for label in missing[:8]:
-            print(f"      · {label}")
-        if len(missing) > 8:
-            print(f"      · ... và {len(missing) - 8} mục nữa")
+    if removed:
+        print(f"  · bỏ qua {len(removed)} mục đã xoá trong .md: "
+              + ", ".join(removed[:4]) + (" ..." if len(removed) > 4 else ""))
+    if added:
+        print(f"  + {len(added)} mục mới từ script: "
+              + ", ".join(added[:4]) + (" ..." if len(added) > 4 else ""))
+    if not dry_run:
+        state[key] = all_labels(tree)
     return tree
 
 
@@ -1207,9 +1288,18 @@ def main():
                     help="lấy mô tả và link theo script, bỏ phần đã sửa tay trong .md")
     ap.add_argument("--renumber", action="store_true",
                     help="đánh số thứ tự lại toàn bộ theo thứ tự hiện tại")
+    ap.add_argument("--dry-run", action="store_true",
+                    help="chỉ báo cáo, không ghi file nào")
     args = ap.parse_args()
-    trees = [emit("hr", HR, args.json, args.from_script, args.renumber),
-             emit("ga", GA, args.json, args.from_script, args.renumber)]
+    state = load_state()
+    trees = [emit("hr", HR, args.json, args.from_script, args.renumber,
+                  args.dry_run, state),
+             emit("ga", GA, args.json, args.from_script, args.renumber,
+                  args.dry_run, state)]
+    if args.dry_run:
+        print("[dry-run] không ghi file nào")
+        return
+    save_state(state)
     count = write_lang_csv(trees)
     print(f"{os.path.relpath(LANG_CSV, OUT)}: {count} cặp mô tả EN/VI")
 

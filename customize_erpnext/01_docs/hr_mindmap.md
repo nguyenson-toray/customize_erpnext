@@ -9,11 +9,11 @@
 > Hồ sơ nhân viên, chấm công, tăng ca, nghỉ phép và tiền lương
 
 - **01. Employee Records / Hồ sơ nhân viên** `[Done]`
-  - **01. [Organization structure / Cơ cấu tổ chức](/desk/department)** `[Standard]` `[Done]` — Công ty, phòng ban, chức danh, bậc lương
+  - **01. [Organization structure / Cơ cấu tổ chức](/desk/department)** `[Standard]` `[Done]` — Công ty, phòng ban, chức danh, cấp bậc
     - **01. [Section & Group / Bộ phận & Nhóm](/desk/section)** `[Custom]` `[Done]` — Chia nhỏ phòng ban thành bộ phận và nhóm để chấm công, báo cáo chi tiết hơn
-  - **02. [Employment Type / Loại hình lao động](/desk/employment-type)** `[Custom]` `[Done]` — Loại hình lao động: chính thức, thời vụ, thử việc; theo dõi ngày kết thúc thử việc
-  - **03. [Employee profile / Thông tin nhân viên](/desk/employee)** `[Override]` `[Done]` — Thông tin cá nhân, phòng ban, chức danh, ngày vào làm, trạng thái làm việc
-  - **04. [Employee photo / Ảnh nhân viên](/employee-photos)** `[Custom]` `[Done]` — Tải ảnh, xóa nền, cắt ảnh thẻ đúng tỷ lệ, xử lý nhiều ảnh một lượt
+  - **02. [Employment Type / Loại hình lao động](/desk/employment-type)** `[Standard]` `[Done]` — Loại hình lao động: chính thức, thời vụ, thử việc; theo dõi ngày kết thúc thử việc
+  - **03. [Employee profile / Thông tin nhân viên](/desk/employee)** `[Override]` `[Done]` — Thông tin cá nhân, phòng ban, chức danh, ngày vào làm, trạng thái làm việc...
+  - **04. [Employee photo / Ảnh nhân viên](/employee-photos)** `[Custom]` `[Done]` — Tải ảnh, xóa nền, cắt ảnh thẻ đúng tỷ lệ, xử lý nhiều ảnh một lượt. File ảnh được sử dụng cho chức năng tạo thẻ Nv
   - **05. [Self-service update / Nhân viên tự cập nhật thông tin](/employee-self-update-info)** `[Custom]` `[Done]` — Nhân viên tự khai thông tin qua trang riêng, HR kiểm tra rồi cập nhật vào hồ sơ
   - **06. [Dependents / Người phụ thuộc](/desk/employee-dependent)** `[Custom]` `[In process 50%]` — Khai người phụ thuộc để tính giảm trừ thuế thu nhập cá nhân
   - **07. [Labor contract / Hợp đồng lao động](/desk/query-report/Labor%20Contract%20Report)** `[Custom]` `[Done]` — Loại hợp đồng, thời hạn, theo dõi hợp đồng sắp hết hạn cần tái ký
@@ -25,16 +25,16 @@
   - **10. [Employee reports / Báo cáo nhân sự](/desk/dashboard-view/HR%20Overview)** `[Override]` `[In process 80%]` — Headount, hiện diện, vắng, tăng ca, tuyển mới, nghỉ việc, cơ cấu theo độ tuổi, giới tính, cấp bậc
 - **02. Time & Attendance / Chấm công** `[Done]`
   - **01. Shift setup / Thiết lập ca làm việc** `[Done]`
-    - **01. [Shift definition / Khai báo ca](/desk/shift-type)** `[Override]` `[Done]` — Giờ vào, giờ ra, giờ nghỉ trưa, mức dung sai trễ - về sớm
+    - **01. [Shift type / Khai báo ca](/desk/shift-type)** `[Override]` `[Done]` — Giờ vào, giờ ra, giờ nghỉ trưa, mức dung sai trễ - về sớm
     - **02. [Assign shift / Phân ca](/desk/shift-assignment)** `[Standard]` `[Done]` — Phân ca cho nhân viên theo khoảng thời gian
     - **03. [Bulk shift assignment / Phân ca hàng loạt](/desk/shift-assignment-tool)** `[Custom]` `[Done]` — Chọn nhiều nhân viên và phân ca cùng lúc thay vì làm từng người
-    - **04. [Shift priority / Thứ tự xác định ca](/desk/shift-type)** `[Override]` `[Done]` — Ưu tiên phân ca riêng, sau đó ca mặc định của nhân viên, cuối cùng ca theo ngày
+    - **04. [Shift priority / Thứ tự xác định ca](/desk/shift-type)** `[Override]` `[Done]` — Ưu tiên phân ca riêng, sau đó ca mặc định của nhân viên, cuối cùng theo ca ngày
   - **02. [Fingerprint machines / Máy chấm công vân tay](/desk/attendance-machine-setting)** `[Custom]` `[Done]`
-    - **01. [Connect machines / Kết nối máy](/desk/attendance-machine-setting)** `[Custom]` `[Done]` — Khai báo máy chấm công, lấy dữ liệu quét về hệ thống tự động
+    - **01. [Connect machines / Kết nối máy](/desk/attendance-machine-setting)** `[Custom]` `[Done]` — IT - Khai báo máy chấm công, lấy dữ liệu quét về hệ thống tự động
     - **02. [Register fingerprints / Đăng ký vân tay](/desk/fingerprint-data)** `[Custom]` `[Done]` — Đăng ký vân tay chấm công cho nhân viên
     - **03. [Push employees to machines / Đưa nhân viên xuống máy](/biometric_sync)** `[Custom]` `[Done]` — Đồng bộ danh sách nhân viên và vân tay xuống từng máy
-    - **04. [Sync machine clock / Đồng bộ giờ máy](/desk/attendance-machine-setting)** `[Custom]` `[Done]` — IT
-    - **05. [Check scan data / Kiểm tra dữ liệu quét](/desk)** `[Custom]` `[Done]` — IT- Xem log quét, lấy lại dữ liệu khi phát hiện thiếu
+    - **04. [Sync machine clock / Đồng bộ giờ máy](/biometric_sync)** `[Custom]` `[Done]` — IT
+    - **05. [Check scan data / Kiểm tra dữ liệu quét](/biometric_sync)** `[Custom]` `[Done]` — IT- Kiểm tra log, xữ lý khi có lỗi
   - **03. [Check-in records / Dữ liệu quét vào - ra](/desk/employee-checkin)** `[Override]` `[Done]` — Mỗi lần nhân viên quét là một dòng dữ liệu, là cơ sở để tính công
   - **04. [Attendance calculation / Tính công tự động](/desk/attendance)** `[Override]` `[Done]`
     - **01. [Automatic daily run / Chạy tự động hằng ngày]()** `[Override]` `[Done]` — 
