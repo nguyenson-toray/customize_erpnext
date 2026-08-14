@@ -1,0 +1,51 @@
+{
+ "cards": [
+  {
+   "card": "Daily Attendance - Net Headcount"
+  },
+  {
+   "card": "Daily Attendance - Present"
+  },
+  {
+   "card": "Daily Attendance - Absent"
+  },
+  {
+   "card": "Daily Attendance - Attendance Rate"
+  },
+  {
+   "card": "Daily Attendance - Shift 2 Pending"
+  },
+  {
+   "card": "Daily Attendance - New Joiners"
+  },
+  {
+   "card": "Daily Attendance - Maternity"
+  }
+ ],
+ "charts": [
+  {
+   "chart": "Daily Attendance - Attendance by Group",
+   "width": "Half"
+  },
+  {
+   "chart": "Daily Attendance - Attendance Trend",
+   "width": "Half"
+  },
+  {
+   "chart": "Daily Attendance - Sewing Lines",
+   "width": "Full"
+  }
+ ],
+ "creation": "2026-08-14 11:02:05.018091",
+ "dashboard_name": "Daily Attendance",
+ "docstatus": 0,
+ "doctype": "Dashboard",
+ "idx": 0,
+ "is_default": 0,
+ "is_standard": 1,
+ "modified": "2026-08-14 11:13:40.587575",
+ "modified_by": "Administrator",
+ "module": "Customize Erpnext",
+ "name": "Daily Attendance",
+ "owner": "Administrator"
+}

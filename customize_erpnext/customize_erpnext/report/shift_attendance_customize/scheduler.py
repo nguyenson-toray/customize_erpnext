@@ -7,7 +7,6 @@ from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.worksheet.table import Table, TableStyleInfo
 import os
 import tempfile
-from customize_erpnext.api.site_restriction import only_for_sites
 
 
 def _get_employee_prefix():
@@ -15,59 +14,6 @@ def _get_employee_prefix():
 	Empty prefix = no filtering (LIKE '%' / startswith(''))."""
 	from customize_erpnext.customize_erpnext.doctype.attendance_calculation_setting.attendance_calculation_setting import get_attendance_settings
 	return (get_attendance_settings().employee_id_prefix or "").strip()
-
-@frappe.whitelist()
-def send_daily_attendance_report(report_date=None, recipients=None, force_update_attendance=0, bypass_holiday_check=0):
-	"""
-	Enqueue Daily Attendance Report to run in background.
-	Returns immediately so UI doesn't timeout.
-
-	Args:
-		force_update_attendance: 1 = recalculate attendance before generating report
-		                         0 = use existing attendance data as-is
-	"""
-	import re
-
-	# Parse recipients early for validation
-	if recipients:
-		if isinstance(recipients, str):
-			recipient_list = [email.strip() for email in re.split(r'[\n,]', recipients) if email.strip()]
-		else:
-			recipient_list = list(recipients)
-	else:
-		recipient_list = []
-
-	if not recipient_list:
-		return {"status": "error", "message": "No recipients specified"}
-
-	# Resolve report_date
-	if report_date:
-		if isinstance(report_date, str):
-			report_date_str = str(get_datetime(report_date).date())
-		else:
-			report_date_str = str(report_date)
-	else:
-		report_date_str = today()
-
-	do_force_update = bool(int(force_update_attendance or 0))
-	do_bypass = bool(int(bypass_holiday_check or 0))
-
-	frappe.enqueue(
-		_send_daily_attendance_report_job,
-		queue="long",
-		timeout=600,
-		report_date_str=report_date_str,
-		recipient_list=recipient_list,
-		force_update_attendance=do_force_update,
-		bypass_holiday_check=do_bypass
-	)
-
-	action = "Recalculating attendance then generating" if do_force_update else "Generating"
-	return {
-		"status": "success",
-		"message": f"{action} report for {len(recipient_list)} recipients in background"
-	}
-
 
 def _is_holiday_or_sunday(date_str):
 	"""Check if date is a Holiday (from default company Holiday List) or Sunday."""
@@ -92,114 +38,86 @@ def _is_holiday_or_sunday(date_str):
 	return False
 
 
-def _send_daily_attendance_report_job(report_date_str, recipient_list, force_update_attendance=False, bypass_holiday_check=False):
+def recalculate_attendance(report_date_str):
+	"""Rebuild attendance for one day from the raw check-ins.
+
+	Exposed on its own so a caller sending to several audiences can run it once
+	up front instead of once per mail — it is the expensive part of the job.
 	"""
-	Background job: generate and send Daily Attendance Report via email.
-	Skips sending on Holidays and Sundays unless bypass_holiday_check is True (UI-triggered).
+	from frappe.utils import getdate
 
-	Args:
-		force_update_attendance: True = recalculate attendance before generating report
-		bypass_holiday_check: True = skip holiday/Sunday check (used when triggered from UI)
+	from customize_erpnext.overrides.shift_type.shift_type_optimized import (
+		_core_process_attendance_logic_optimized,
+	)
+
+	frappe.logger().info(f"[Daily Report] Force updating attendance for {report_date_str}")
+	_core_process_attendance_logic_optimized(
+		employees=[],
+		days=[getdate(report_date_str)],
+		from_date=report_date_str,
+		to_date=report_date_str,
+		fore_get_logs=True
+	)
+	frappe.logger().info(f"[Daily Report] Attendance recalculation complete for {report_date_str}")
+
+
+def collect_daily_report_context(report_date_str, force_update_attendance=False):
+	"""Gather everything the detailed report needs for one day.
+
+	Split out of the send job so the Daily Attendance Report email can embed the
+	same detail sections without duplicating this assembly — one place decides
+	what "the detail" is, and the two mails cannot drift apart.
+
+	Returns (data, stats).
 	"""
-	# Skip sending on Holiday & Sunday (unless explicitly bypassed from UI)
-	if not bypass_holiday_check and _is_holiday_or_sunday(report_date_str):
-		frappe.logger().info(f"Skipping Daily Attendance Report for {report_date_str} — Holiday or Sunday")
-		return
+	# Recalculate attendance if requested
+	if force_update_attendance:
+		recalculate_attendance(report_date_str)
 
-	try:
-		# Recalculate attendance if requested
-		if force_update_attendance:
-			from customize_erpnext.overrides.shift_type.shift_type_optimized import _core_process_attendance_logic_optimized
-			from frappe.utils import getdate
-			frappe.logger().info(f"[Daily Report] Force updating attendance for {report_date_str}")
-			_core_process_attendance_logic_optimized(
-				employees=[],
-				days=[getdate(report_date_str)],
-				from_date=report_date_str,
-				to_date=report_date_str,
-				fore_get_logs=True
-			)
-			frappe.logger().info(f"[Daily Report] Attendance recalculation complete for {report_date_str}")
+	# Import the report get_data function
+	from customize_erpnext.customize_erpnext.report.shift_attendance_customize.shift_attendance_customize import get_data
 
-		# Import the report get_data function
-		from customize_erpnext.customize_erpnext.report.shift_attendance_customize.shift_attendance_customize import get_data
+	# Prepare filters for single date report
+	filters = {
+		"from_date": report_date_str,
+		"to_date": report_date_str,
+		"summary": 0,
+		"detail_join_resign_date": 1
+	}
 
-		# Prepare filters for single date report
-		filters = {
-			"from_date": report_date_str,
-			"to_date": report_date_str,
-			"summary": 0,
-			"detail_join_resign_date": 1
-		}
+	# Get report data — only employees with the configured prefix
+	emp_prefix = _get_employee_prefix()
+	data = get_data(filters)
+	data = [row for row in data if str(row.get('employee') or '').startswith(emp_prefix)]
 
-		# Get report data — only employees with the configured prefix
-		emp_prefix = _get_employee_prefix()
-		data = get_data(filters)
-		data = [row for row in data if str(row.get('employee') or '').startswith(emp_prefix)]
+	# Calculate statistics
+	stats = calculate_attendance_statistics(report_date_str, data)
 
-		# Calculate statistics
-		stats = calculate_attendance_statistics(report_date_str, data)
+	# Get incomplete check-ins from day 26 of previous month to yesterday
+	from frappe.utils import get_first_day, add_months
+	current_month_first = get_first_day(report_date_str)
+	prev_month_26 = add_days(add_months(current_month_first, -1), 25)
+	yesterday = add_days(report_date_str, -1)
+	incomplete_checkins = get_incomplete_checkins(prev_month_26, yesterday)
 
-		# Get incomplete check-ins from day 26 of previous month to yesterday
-		from frappe.utils import get_first_day, add_months
-		current_month_first = get_first_day(report_date_str)
-		prev_month_26 = add_days(add_months(current_month_first, -1), 25)
-		yesterday = add_days(report_date_str, -1)
-		incomplete_checkins = get_incomplete_checkins(prev_month_26, yesterday)
+	# Add incomplete checkins to stats
+	stats['incomplete_checkins'] = incomplete_checkins
+	stats['incomplete_count'] = len(incomplete_checkins)
+	stats['incomplete_processed'] = len([emp for emp in incomplete_checkins if emp.get('manual_checkins', '')])
 
-		# Add incomplete checkins to stats
-		stats['incomplete_checkins'] = incomplete_checkins
-		stats['incomplete_count'] = len(incomplete_checkins)
-		stats['incomplete_processed'] = len([emp for emp in incomplete_checkins if emp.get('manual_checkins', '')])
+	# Get employees with status 'Left' but still have checkins on report date
+	left_with_checkins = get_left_employees_with_checkins(report_date_str)
+	stats['left_with_checkins'] = left_with_checkins
+	stats['left_with_checkins_count'] = len(left_with_checkins)
 
-		# Get employees with status 'Left' but still have checkins on report date
-		left_with_checkins = get_left_employees_with_checkins(report_date_str)
-		stats['left_with_checkins'] = left_with_checkins
-		stats['left_with_checkins_count'] = len(left_with_checkins)
+	# Get early-checkout Day-shift employees (7 ≤ working_hours < 8, checkout 16:xx)
+	# These may be pregnant/nursing employees not yet registered in Employee Maternity
+	early_checkout_list, early_checkout_date = get_early_checkout_day_shift(report_date_str)
+	stats['early_checkout_list'] = early_checkout_list
+	stats['early_checkout_count'] = len(early_checkout_list)
+	stats['early_checkout_date'] = early_checkout_date
 
-		# Get early-checkout Day-shift employees (7 ≤ working_hours < 8, checkout 16:xx)
-		# These may be pregnant/nursing employees not yet registered in Employee Maternity
-		early_checkout_list, early_checkout_date = get_early_checkout_day_shift(report_date_str)
-		stats['early_checkout_list'] = early_checkout_list
-		stats['early_checkout_count'] = len(early_checkout_list)
-		stats['early_checkout_date'] = early_checkout_date
-
-		# Get last employee checkin time
-		last_checkin_time = get_last_employee_checkin_time()
-
-		# Generate email content
-		email_subject = f"Báo cáo hiện diện / vắng ngày {formatdate(report_date_str, 'dd/MM/yyyy')}"
-		email_content = generate_email_content(report_date_str, stats, data, last_checkin_time)
-
-		# Generate Excel file
-		excel_file_path, excel_file_name = generate_excel_report(report_date_str, data, stats)
-
-		# Send email with Excel attachment
-		frappe.sendmail(
-			recipients=recipient_list,
-			subject=email_subject,
-			message=email_content,
-			attachments=[{
-				'fname': excel_file_name,
-				'fcontent': open(excel_file_path, 'rb').read()
-			}],
-			delayed=False
-		)
-
-		# Clean up temporary file
-		try:
-			os.remove(excel_file_path)
-		except Exception as cleanup_error:
-			frappe.logger().warning(f"Failed to clean up temp file {excel_file_path}: {str(cleanup_error)}")
-
-		frappe.logger().info(f"Daily Attendance Report sent successfully for {report_date_str}")
-
-	except Exception as e:
-		frappe.logger().error(f"Error sending Daily Attendance Report: {str(e)}")
-		frappe.log_error(
-			title="Daily Attendance Report Scheduler Error",
-			message=frappe.get_traceback()
-		)
+	return data, stats
 
 
 def calculate_attendance_statistics(report_date, data):
@@ -391,30 +309,6 @@ def calculate_attendance_statistics(report_date, data):
 		"shift_stats": shift_stats,
 		"shift_detail_employees": sorted(shift_detail_employees, key=lambda x: (x.get("custom_group") or "").lower())
 	}
-
-
-def get_last_employee_checkin_time():
-	"""
-	Get the last employee checkin time from the system
-	Returns formatted time string or None if no checkins found
-	"""
-	try:
-		last_checkin = frappe.db.sql("""
-			SELECT MAX(time) as last_time
-			FROM `tabEmployee Checkin`
-			WHERE employee LIKE %(prefix)s
-		""", {"prefix": f"{_get_employee_prefix()}%"}, as_dict=True)
-
-		if last_checkin and last_checkin[0].get('last_time'):
-			last_time = last_checkin[0].get('last_time')
-			# Format as datetime string
-			if isinstance(last_time, str):
-				last_time = get_datetime(last_time)
-			return last_time.strftime("%H:%M:%S %d/%m/%Y")
-		return None
-	except Exception as e:
-		frappe.logger().error(f"Error getting last checkin time: {str(e)}")
-		return None
 
 
 def _timedelta_to_time(td):
@@ -706,648 +600,40 @@ def get_left_employees_with_checkins(report_date):
 		return []
 
 
-def get_current_frappe_site_name():
-	"""Get current Frappe site name"""
-	try:
-		return frappe.local.site or "ERPNext"
-	except:
-		return "ERPNext"
+def _fmt_date(value):
+	return formatdate(value, "dd/MM/yyyy") if value else ""
 
 
-def generate_email_content(report_date, stats, data, last_checkin_time=None):
-	"""
-	Generate HTML email content with statistics and three employee lists
-	"""
-	formatted_date = formatdate(report_date, "dd/MM/yyyy")
-	current_time = datetime.now().strftime("%H:%M:%S %d/%m/%Y")
+def _fmt_time(value):
+	"""Datetimes come back from SQL as datetime, MIN()/MAX() sometimes as str."""
+	if not value:
+		return ""
+	return value.strftime("%H:%M:%S") if hasattr(value, "strftime") else str(value)[:8]
 
-	# Format last checkin time message
-	last_data_time_msg = ""
-	if last_checkin_time:
-		last_data_time_msg = f"<br>Thời điểm chấm công sau cùng: {last_checkin_time}"
 
-	# Get date range for incomplete checkins
-	from frappe.utils import get_first_day, add_months
-	current_month_first = get_first_day(report_date)
-	prev_month_26 = add_days(add_months(current_month_first, -1), 25)
-	yesterday = add_days(report_date, -1)
-	date_range_formatted = f"{formatdate(prev_month_26, 'dd/MM/yyyy')} - {formatdate(yesterday, 'dd/MM/yyyy')}"
+def _add_anomaly_sheet(wb, title, headers, rows, header_font, header_fill, header_alignment, border):
+	"""One flat sheet with a numbered header row; rows are tuples without the STT."""
+	ws = wb.create_sheet(title[:31])
 
-	# Build absent employee table (excluding on leave)
-	absent_rows = ""
-	absent_list = stats.get('absent_employees', [])
+	for col, header in enumerate(headers, 1):
+		cell = ws.cell(row=1, column=col)
+		cell.value = header
+		cell.font = header_font
+		cell.fill = header_fill
+		cell.alignment = header_alignment
+		cell.border = border
 
-	if absent_list:
-		for idx, emp in enumerate(absent_list, 1):
-			bg = '#fafafa' if idx % 2 == 0 else '#ffffff'
-			absent_rows += f"""
-			<tr style="background:{bg}">
-				<td class="dc">{idx}</td>
-				<td class="dc">{formatted_date}</td>
-				<td class="d">{emp.get('attendance_device_id') or ''}</td>
-				<td class="d">{emp.get('employee') or ''}</td>
-				<td class="d"><strong>{emp.get('employee_name') or ''}</strong></td>
-				<td class="d">{emp.get('department') or ''}</td>
-				<td class="d">{emp.get('custom_group') or ''}</td>
-				<td class="d">{emp.get('shift') or ''}</td>
-				<td class="d">{emp.get('designation') or ''}</td>
-				<td class="d">{emp.get('leave_type') or ''}</td>
-				<td class="dc">{emp.get('leave_application') or ''}</td>
-				<td class="dc">{emp.get('half_day_status') or ''}</td>
-			</tr>"""
-	else:
-		absent_rows = """
-		<tr>
-			<td colspan="12" class="empty-row">Không có nhân viên vắng</td>
-		</tr>
-		"""
+	for idx, row in enumerate(rows, 1):
+		for col, value in enumerate((idx, *row), 1):
+			cell = ws.cell(row=idx + 1, column=col)
+			cell.value = value
+			cell.border = border
 
-	# Build maternity leave employee table
-	maternity_rows = ""
-	maternity_list = stats.get('maternity_employees', [])
+	ws.column_dimensions["A"].width = 6
+	for col in range(2, len(headers) + 1):
+		ws.column_dimensions[openpyxl.utils.get_column_letter(col)].width = 18
 
-	if maternity_list:
-		for idx, emp in enumerate(maternity_list, 1):
-			bg = '#fafafa' if idx % 2 == 0 else '#ffffff'
-			maternity_rows += f"""
-			<tr style="background:{bg}">
-				<td class="dc">{idx}</td>
-				<td class="dc">{formatted_date}</td>
-				<td class="d">{emp.get('attendance_device_id') or ''}</td>
-				<td class="d">{emp.get('employee') or ''}</td>
-				<td class="d"><strong>{emp.get('employee_name') or ''}</strong></td>
-				<td class="d">{emp.get('department') or ''}</td>
-				<td class="d">{emp.get('custom_group') or ''}</td>
-				<td class="d">{emp.get('shift') or ''}</td>
-				<td class="d">{emp.get('designation') or ''}</td>
-				<td class="d">{emp.get('leave_type') or ''}</td>
-				<td class="dc">{emp.get('leave_application') or ''}</td>
-				<td class="dc">{emp.get('half_day_status') or ''}</td>
-			</tr>"""
-	else:
-		maternity_rows = """
-		<tr>
-			<td colspan="12" class="empty-row">Không có nhân viên nghỉ thai sản</td>
-		</tr>
-		"""
-
-	# Build on leave employee table (excluding maternity)
-	on_leave_rows = ""
-	on_leave_list = stats.get('on_leave_employees', [])
-
-	if on_leave_list:
-		for idx, emp in enumerate(on_leave_list, 1):
-			bg = '#fafafa' if idx % 2 == 0 else '#ffffff'
-			on_leave_rows += f"""
-			<tr style="background:{bg}">
-				<td class="dc">{idx}</td>
-				<td class="dc">{formatted_date}</td>
-				<td class="d">{emp.get('attendance_device_id') or ''}</td>
-				<td class="d">{emp.get('employee') or ''}</td>
-				<td class="d"><strong>{emp.get('employee_name') or ''}</strong></td>
-				<td class="d">{emp.get('department') or ''}</td>
-				<td class="d">{emp.get('custom_group') or ''}</td>
-				<td class="d">{emp.get('shift') or ''}</td>
-				<td class="d">{emp.get('designation') or ''}</td>
-				<td class="d">{emp.get('leave_type') or ''}</td>
-				<td class="dc">{emp.get('leave_application') or ''}</td>
-				<td class="dc">{emp.get('half_day_status') or ''}</td>
-			</tr>"""
-	else:
-		on_leave_rows = """
-		<tr>
-			<td colspan="12" class="empty-row">Không có nhân viên nghỉ phép</td>
-		</tr>
-		"""
-
-	# Build "Left employees with checkins" warning table
-	left_checkin_rows = ""
-	left_checkin_list = stats.get('left_with_checkins', [])
-
-	if left_checkin_list:
-		for idx, emp in enumerate(left_checkin_list, 1):
-			first_in = emp.get('first_check_in')
-			last_out = emp.get('last_check_out')
-			first_in_str = first_in.strftime("%H:%M:%S %d/%m/%Y") if first_in and hasattr(first_in, 'strftime') else (str(first_in) if first_in else '')
-			last_out_str = last_out.strftime("%H:%M:%S %d/%m/%Y") if last_out and hasattr(last_out, 'strftime') else (str(last_out) if last_out else '')
-			relieving = emp.get('relieving_date')
-			relieving_str = formatdate(relieving, "dd/MM/yyyy") if relieving else ''
-			left_checkin_rows += f"""
-			<tr style="background:#fff8e1">
-				<td class="dc">{idx}</td>
-				<td class="d">{emp.get('attendance_device_id') or ''}</td>
-				<td class="d">{emp.get('employee_code') or ''}</td>
-				<td class="d"><strong>{emp.get('employee_name') or ''}</strong></td>
-				<td class="d">{emp.get('department') or ''}</td>
-				<td class="d">{emp.get('custom_group') or ''}</td>
-				<td class="d">{emp.get('designation') or ''}</td>
-				<td class="dc">{relieving_str}</td>
-				<td class="dc">{first_in_str}</td>
-				<td class="dc">{last_out_str}</td>
-				<td class="dc">{emp.get('checkin_count') or 0}</td>
-			</tr>"""
-	else:
-		left_checkin_rows = """
-		<tr>
-			<td colspan="11" class="empty-row">Không có trường hợp nào</td>
-		</tr>
-		"""
-
-	# Build incomplete check-ins table
-	incomplete_checkin_rows = ""
-	incomplete_list = stats.get('incomplete_checkins', [])
-
-	if incomplete_list:
-		for idx, emp in enumerate(incomplete_list, 1):
-			checkin_count = emp.get('checkin_count') or 0
-			checkin_date = emp.get('checkin_date')
-			checkin_date_formatted = formatdate(checkin_date, "dd/MM/yyyy") if checkin_date else ""
-
-			first_checkin = ""
-			last_checkout = ""
-
-			if checkin_count == 1:
-				# Single checkin - determine if check-in or check-out
-				single_time = emp.get("first_check_in")
-				if single_time:
-					if isinstance(single_time, str):
-						single_time = get_datetime(single_time)
-					formatted_time = single_time.strftime("%H:%M:%S %d/%m/%Y")
-					single_time_only = single_time.time()
-
-					begin_time = emp.get('begin_time')
-					end_time = emp.get('end_time')
-
-					# Convert timedelta to time
-					if begin_time and isinstance(begin_time, timedelta):
-						total_seconds = int(begin_time.total_seconds())
-						hours = total_seconds // 3600
-						minutes = (total_seconds % 3600) // 60
-						seconds = total_seconds % 60
-						begin_time = time_obj(hours, minutes, seconds)
-
-					if end_time and isinstance(end_time, timedelta):
-						total_seconds = int(end_time.total_seconds())
-						hours = total_seconds // 3600
-						minutes = (total_seconds % 3600) // 60
-						seconds = total_seconds % 60
-						end_time = time_obj(hours, minutes, seconds)
-
-					# Calculate distance from begin and end time
-					if begin_time and end_time:
-						single_seconds = single_time_only.hour * 3600 + single_time_only.minute * 60 + single_time_only.second
-						begin_seconds = begin_time.hour * 3600 + begin_time.minute * 60 + begin_time.second
-						end_seconds = end_time.hour * 3600 + end_time.minute * 60 + end_time.second
-
-						distance_to_begin = abs(single_seconds - begin_seconds)
-						distance_to_end = abs(single_seconds - end_seconds)
-
-						if distance_to_begin < distance_to_end:
-							first_checkin = formatted_time
-						else:
-							last_checkout = formatted_time
-					else:
-						noon_seconds = 12 * 3600
-						single_seconds = single_time_only.hour * 3600 + single_time_only.minute * 60 + single_time_only.second
-						if single_seconds < noon_seconds:
-							first_checkin = formatted_time
-						else:
-							last_checkout = formatted_time
-			else:
-				# Multiple checkins
-				first_checkin_time = emp.get("first_check_in")
-				if first_checkin_time:
-					if isinstance(first_checkin_time, str):
-						first_checkin_time = get_datetime(first_checkin_time)
-					first_checkin = first_checkin_time.strftime("%H:%M:%S %d/%m/%Y")
-
-				last_checkout_time = emp.get("last_check_out")
-				if last_checkout_time:
-					if isinstance(last_checkout_time, str):
-						last_checkout_time = get_datetime(last_checkout_time)
-					last_checkout = last_checkout_time.strftime("%H:%M:%S %d/%m/%Y")
-
-			# Get manual check-in info
-			manual_checkins = emp.get('manual_checkins', '')
-			reason_for_manual = emp.get('reason_for_manual', '')
-			other_reason_for_manual = emp.get('other_reason_for_manual', '')
-
-			bg = '#fafafa' if idx % 2 == 0 else '#ffffff'
-			processed_style = 'color:#1a7a4a;font-weight:700' if manual_checkins else 'color:#999'
-			incomplete_checkin_rows += f"""
-			<tr style="background:{bg}">
-				<td class="dc">{idx}</td>
-				<td class="dc">{checkin_date_formatted}</td>
-				<td class="d">{emp.get('attendance_device_id') or ''}</td>
-				<td class="d">{emp.get('employee_code') or ''}</td>
-				<td class="d"><strong>{emp.get('employee_name') or ''}</strong></td>
-				<td class="d">{emp.get('department') or ''}</td>
-				<td class="d">{emp.get('custom_group') or ''}</td>
-				<td class="d">{emp.get('shift') or ''}</td>
-				<td class="d">{emp.get('designation') or ''}</td>
-				<td class="dc">{first_checkin}</td>
-				<td class="dc">{last_checkout}</td>
-				<td class="dc">{checkin_count}</td>
-				<td class="dc" style="{processed_style}">{manual_checkins or '—'}</td>
-				<td class="d">{reason_for_manual}</td>
-				<td class="d">{other_reason_for_manual}</td>
-			</tr>"""
-	else:
-		incomplete_checkin_rows = """
-		<tr>
-			<td colspan="15" class="empty-row">Không có nhân viên chấm công thiếu</td>
-		</tr>
-		"""
-
-	# Build warning section for Left employees — only if there are any
-	left_with_checkins_count = stats.get('left_with_checkins_count', 0)
-	if left_with_checkins_count:
-		left_warning_section = f"""
-	<div style="margin:24px 0 0;border:2px solid #e53935;border-radius:8px;overflow:hidden">
-		<div style="background:#e53935;padding:12px 18px;display:flex;align-items:center;gap:10px">
-			<span style="font-size:20px">🚨</span>
-			<div>
-				<div style="color:#fff;font-weight:700;font-size:15px">CẢNH BÁO: Nhân viên đã nghỉ việc vẫn có chấm công ngày {formatted_date}</div>
-				<div style="color:rgba(255,255,255,.85);font-size:12px;margin-top:2px">Kiểm tra lại trạng thái nhân viên và dữ liệu chấm công bên dưới</div>
-			</div>
-		</div>
-		<table class="dt" style="margin:0">
-			<thead>
-				<tr>
-					<th class="th-warn" style="width:3%;text-align:center">STT</th>
-					<th class="th-warn" style="width:5%">Att ID</th>
-					<th class="th-warn" style="width:8%">Employee</th>
-					<th class="th-warn" style="width:18%">Employee Name</th>
-					<th class="th-warn" style="width:10%">Department</th>
-					<th class="th-warn" style="width:8%">Group</th>
-					<th class="th-warn" style="width:14%">Designation</th>
-					<th class="th-warn" style="width:8%;text-align:center">Ngày nghỉ việc</th>
-					<th class="th-warn" style="width:9%;text-align:center">Check-in đầu</th>
-					<th class="th-warn" style="width:9%;text-align:center">Check-out cuối</th>
-					<th class="th-warn" style="width:5%;text-align:center">Số lần</th>
-				</tr>
-			</thead>
-			<tbody>{left_checkin_rows}</tbody>
-		</table>
-	</div>"""
-	else:
-		left_warning_section = ""
-
-	# Build early-checkout table (7 ≤ working_hours < 8, checkout 16:xx, Day shift)
-	early_checkout_list = stats.get('early_checkout_list', [])
-	early_checkout_count = stats.get('early_checkout_count', 0)
-	early_checkout_date = stats.get('early_checkout_date', '')
-	early_checkout_date_fmt = formatdate(early_checkout_date, "dd/MM/yyyy") if early_checkout_date else ''
-
-	early_checkout_rows = ""
-	if early_checkout_list:
-		for idx, emp in enumerate(early_checkout_list, 1):
-			bg = '#fafafa' if idx % 2 == 0 else '#ffffff'
-			last_co = emp.get('last_checkout')
-			last_co_str = last_co.strftime("%H:%M:%S") if last_co and hasattr(last_co, 'strftime') else (str(last_co)[:8] if last_co else '')
-			wh = emp.get('working_hours') or 0
-			early_checkout_rows += f"""
-			<tr style="background:{bg}">
-				<td class="dc">{idx}</td>
-				<td class="dc">{early_checkout_date_fmt}</td>
-				<td class="d">{emp.get('attendance_device_id') or ''}</td>
-				<td class="d">{emp.get('employee') or ''}</td>
-				<td class="d"><strong>{emp.get('employee_name') or ''}</strong></td>
-				<td class="d">{emp.get('department') or ''}</td>
-				<td class="d">{emp.get('custom_group') or ''}</td>
-				<td class="d">{emp.get('shift') or ''}</td>
-				<td class="d">{emp.get('designation') or ''}</td>
-				<td class="dc">{last_co_str}</td>
-				<td class="dc">{wh:.2f}</td>
-			</tr>"""
-	else:
-		early_checkout_rows = """
-		<tr>
-			<td colspan="11" class="empty-row">Không có trường hợp nào</td>
-		</tr>
-		"""
-
-	if early_checkout_count:
-		early_checkout_section = f"""
-  <div style="margin:24px 0 0;border:2px solid #f57c00;border-radius:8px;overflow:hidden">
-    <div style="background:#f57c00;padding:12px 18px;display:flex;align-items:center;gap:10px">
-      <span style="font-size:20px">⚠️</span>
-      <div>
-        <div style="color:#fff;font-weight:700;font-size:15px">Về sớm bất thường — Ca Day ngày {early_checkout_date_fmt} &nbsp;<span style="font-weight:400;font-size:13px">({early_checkout_count} TH)</span></div>
-        <div style="color:rgba(255,255,255,.85);font-size:12px;margin-top:2px">Giờ làm 7–8h, checkout 16:xx — Có thể là nhân viên mang thai/nuôi con chưa cập nhật Employee Maternity</div>
-      </div>
-    </div>
-    <table class="dt" style="margin:0">
-      <thead><tr>
-        <th class="th-warn" style="width:3%;text-align:center">STT</th>
-        <th class="th-warn" style="width:5%;text-align:center">Ngày</th>
-        <th class="th-warn" style="width:5%">Att ID</th>
-        <th class="th-warn" style="width:8%">Employee</th>
-        <th class="th-warn" style="width:16%">Employee Name</th>
-        <th class="th-warn" style="width:10%">Department</th>
-        <th class="th-warn" style="width:8%">Group</th>
-        <th class="th-warn" style="width:6%">Shift</th>
-        <th class="th-warn" style="width:14%">Designation</th>
-        <th class="th-warn" style="width:8%;text-align:center">Check-out cuối</th>
-        <th class="th-warn" style="width:7%;text-align:center">Giờ làm</th>
-      </tr></thead>
-      <tbody>{early_checkout_rows}</tbody>
-    </table>
-  </div>"""
-	else:
-		early_checkout_section = ""
-
-	absent_count    = len(stats.get('absent_employees', []))
-	maternity_count = stats['maternity_count']
-	on_leave_count  = stats['on_leave_count']
-	incomplete_count = stats['incomplete_count']
-	incomplete_processed = stats['incomplete_processed']
-	site_name = get_current_frappe_site_name()
-
-	# ── Per-shift headcount summary (skip shifts with no employees) ──
-	shift_stats = stats.get('shift_stats') or {}
-	shift_stat_rows = ""
-	for shift_name in sorted(shift_stats):
-		ss = shift_stats[shift_name]
-		if not ss.get("total"):
-			continue
-		shift_stat_rows += f"""
-      <tr>
-        <td class="d"><strong>{shift_name}</strong></td>
-        <td class="dc"><strong>{ss['total']}</strong></td>
-        <td class="dc" style="color:#1a7a4a;font-weight:700">{ss['present']}</td>
-        <td class="dc" style="color:#c0392b;font-weight:700">{ss['absent']}</td>
-        <td class="dc" style="color:#ca6f1e;font-weight:700">{ss['on_leave']}</td>
-      </tr>"""
-	if shift_stat_rows:
-		shift_stats_section = f"""
-  <!-- Per-shift headcount -->
-  <div class="sec-wrap">
-    <div class="sec-hdr sh-leave">📊 Thống kê theo ca</div>
-    <table class="dt">
-      <thead><tr>
-        <th class="th-leave" style="width:30%">Ca</th>
-        <th class="th-leave" style="width:17%;text-align:center">Tổng</th>
-        <th class="th-leave" style="width:17%;text-align:center">Hiện diện</th>
-        <th class="th-leave" style="width:17%;text-align:center">Vắng</th>
-        <th class="th-leave" style="width:19%;text-align:center">Nghỉ phép</th>
-      </tr></thead>
-      <tbody>{shift_stat_rows}</tbody>
-    </table>
-  </div>"""
-	else:
-		shift_stats_section = ""
-
-	# ── Shift 2 employee detail list ──
-	shift_detail_list = stats.get('shift_detail_employees') or []
-	shift2_rows = ""
-	for idx, emp in enumerate(shift_detail_list, 1):
-		st = emp.get('status_clean') or ''
-		st_color = {'Present': '#1a7a4a', 'Absent': '#c0392b', 'On Leave': '#ca6f1e'}.get(st, '#333')
-		shift2_rows += f"""
-      <tr>
-        <td class="dc">{idx}</td>
-        <td class="d">{emp.get('employee') or ''}</td>
-        <td class="d">{emp.get('employee_name') or ''}</td>
-        <td class="d">{emp.get('custom_group') or ''}</td>
-        <td class="d">{emp.get('designation') or ''}</td>
-        <td class="dc">{emp.get('in_time') or ''}</td>
-        <td class="dc" style="color:{st_color};font-weight:700">{st}</td>
-      </tr>"""
-	if shift2_rows:
-		shift2_section = f"""
-  <!-- Shift 2 detail -->
-  <div class="sec-wrap">
-    <div class="sec-hdr sh-inc">🌙 Danh sách nhân viên Shift 2 &nbsp;<span style="font-weight:400;font-size:12px">({len(shift_detail_list)} người — ca 14:00-22:00, trạng thái tại thời điểm tạo báo cáo)</span></div>
-    <table class="dt">
-      <thead><tr>
-        <th class="th-inc" style="width:4%;text-align:center">STT</th>
-        <th class="th-inc" style="width:12%">Mã NV</th>
-        <th class="th-inc" style="width:26%">Họ tên</th>
-        <th class="th-inc" style="width:16%">Group</th>
-        <th class="th-inc" style="width:20%">Chức danh</th>
-        <th class="th-inc" style="width:10%;text-align:center">Giờ vào</th>
-        <th class="th-inc" style="width:12%;text-align:center">Trạng thái</th>
-      </tr></thead>
-      <tbody>{shift2_rows}</tbody>
-    </table>
-  </div>"""
-	else:
-		shift2_section = ""
-
-	html_content = f"""<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8">
-<style>
-  body {{ margin:0; padding:0; background:#f0f2f5; font-family:Arial,sans-serif; font-size:13px; color:#333; }}
-  .wrap {{ max-width:1200px; margin:0 auto; background:#fff; }}
-
-  /* ── Header ─────────────────────────────────────────── */
-  .hdr {{ background-color:#1b3a6b; background:linear-gradient(135deg,#1b3a6b 0%,#2874a6 100%); padding:22px 28px; }}
-  .hdr h1 {{ margin:0; color:#fff !important; font-size:20px; font-weight:700; letter-spacing:.3px; }}
-  .hdr p  {{ margin:5px 0 0; color:#d6e8f7 !important; font-size:12px; }}
-
-  /* ── Disclaimer ─────────────────────────────────────── */
-  .notice {{ background:#fef9e7; border-left:4px solid #f39c12; padding:9px 18px;
-             font-size:12.5px; color:#7d6608; }}
-
-  /* ── Stat cards ─────────────────────────────────────── */
-  .stats {{ background:#f4f6f9; padding:16px 20px; border-bottom:1px solid #e0e4ea; }}
-  .stats table {{ width:100%; border-collapse:separate; border-spacing:8px; }}
-  .card {{ background:#fff; border-radius:8px; padding:12px 10px; text-align:center;
-           box-shadow:0 1px 4px rgba(0,0,0,.08); }}
-  .card .lbl {{ font-size:10.5px; color:#888; text-transform:uppercase;
-                letter-spacing:.4px; margin-bottom:5px; }}
-  .card .val {{ font-size:26px; font-weight:800; line-height:1.1; }}
-  .c-blue   {{ color:#1f618d; }}
-  .c-green  {{ color:#1a7a4a; }}
-  .c-red    {{ color:#c0392b; }}
-  .c-purple {{ color:#6c3483; }}
-  .c-orange {{ color:#ca6f1e; }}
-  .c-teal   {{ color:#117a65; }}
-
-  /* ── Section header ──────────────────────────────────── */
-  .sec-hdr {{ padding:10px 20px; margin:0; font-size:13.5px; font-weight:700;
-              display:flex; align-items:center; gap:7px; }}
-  .sec-wrap {{ margin:22px 0 0; border:1px solid #e0e4ea; border-radius:8px; overflow:hidden; }}
-
-  /* ── Data table ──────────────────────────────────────── */
-  table.dt {{ width:100%; border-collapse:collapse; }}
-  table.dt th {{ padding:8px 10px; font-size:11.5px; font-weight:600;
-                 letter-spacing:.2px; text-align:left; }}
-  .d  {{ padding:7px 10px; font-size:12.5px; border-bottom:1px solid #f0f0f0;
-         vertical-align:middle; }}
-  .dc {{ padding:7px 10px; font-size:12.5px; border-bottom:1px solid #f0f0f0;
-         vertical-align:middle; text-align:center; }}
-  .empty-row {{ padding:14px; text-align:center; color:#aaa; font-style:italic;
-                border-bottom:1px solid #f0f0f0; }}
-
-  /* per-section th colours */
-  .th-absent   {{ background:#c0392b; color:#fff; }}
-  .th-mat      {{ background:#6c3483; color:#fff; }}
-  .th-leave    {{ background:#1f618d; color:#fff; }}
-  .th-inc      {{ background:#117a65; color:#fff; }}
-  .th-warn     {{ background:#b03a2e; color:#fff; }}
-
-  /* per-section sec-hdr colours */
-  .sh-absent {{ background:#fdf2f1; border-bottom:3px solid #c0392b; color:#922b21; }}
-  .sh-mat    {{ background:#f5eef8; border-bottom:3px solid #6c3483; color:#4a235a; }}
-  .sh-leave  {{ background:#eaf2fb; border-bottom:3px solid #1f618d; color:#1a4f7a; }}
-  .sh-inc    {{ background:#e8f8f5; border-bottom:3px solid #117a65; color:#0b5345; }}
-
-  /* ── Footer ──────────────────────────────────────────── */
-  .ftr {{ background:#f4f6f9; padding:14px 24px; text-align:center;
-          color:#aaa; font-size:11.5px; border-top:1px solid #dce1e8; margin-top:24px; }}
-</style>
-</head>
-<body>
-<div class="wrap">
-
-  <!-- Header -->
-  <div class="hdr" style="background-color:#1b3a6b;background:linear-gradient(135deg,#1b3a6b 0%,#2874a6 100%);padding:22px 28px;">
-    <h1 style="margin:0;color:#fff;font-size:20px;font-weight:700;letter-spacing:.3px;">📋 Báo cáo Hiện diện / Vắng &nbsp;—&nbsp; {formatted_date}</h1>
-    <p style="margin:5px 0 0;color:#d6e8f7;font-size:12px;">Tạo lúc {current_time}{last_data_time_msg}</p>
-  </div>
-
-  <!-- Disclaimer -->
-  <div class="notice">
-    ⚠️ <strong>Lưu ý:</strong> Dữ liệu hiện diện có thể chưa bao gồm nhân viên mới nhận việc trong ngày, nhân viên đã nghỉ việc nhưng chưa cập nhật, nhân viên làm ca 2 — cần kiểm tra lại.
-  </div>
-
-  <!-- Stat cards -->
-  <div class="stats">
-    <table><tr>
-      <td><div class="card"><div class="lbl">👥 Tổng Active</div>
-          <div class="val c-blue">{stats['total_employees']}</div></div></td>
-      <td><div class="card"><div class="lbl">✅ Hiện diện</div>
-          <div class="val c-green">{stats['total_present']}</div></div></td>
-      <td><div class="card"><div class="lbl">❌ Vắng mặt</div>
-          <div class="val c-red">{absent_count}</div></div></td>
-      <td><div class="card"><div class="lbl">🤱 Thai sản</div>
-          <div class="val c-purple">{maternity_count}</div></div></td>
-      <td><div class="card"><div class="lbl">🏖 Nghỉ phép</div>
-          <div class="val c-orange">{on_leave_count}</div></div></td>
-      <td><div class="card">
-          <div class="lbl">⏱ Chấm công thiếu</div>
-          <div class="val c-teal">{incomplete_count}</div>
-          <div style="font-size:11px;color:#888;margin-top:3px">
-            <span style="color:#1a7a4a;font-weight:700">{incomplete_processed}</span> / {incomplete_count} đã xử lý
-          </div>
-          <div style="font-size:10px;color:#aaa;margin-top:2px">{date_range_formatted}</div>
-      </div></td>
-    </tr></table>
-  </div>
-
-  {shift_stats_section}
-
-  {shift2_section}
-
-  {left_warning_section}
-
-  <!-- Absent -->
-  <div class="sec-wrap">
-    <div class="sec-hdr sh-absent">❌ Danh sách vắng mặt &nbsp;<span style="font-weight:400;font-size:12px">({absent_count} người)</span></div>
-    <table class="dt">
-      <thead><tr>
-        <th class="th-absent" style="width:3%;text-align:center">STT</th>
-        <th class="th-absent" style="width:6%;text-align:center">Ngày</th>
-        <th class="th-absent" style="width:6%">Att ID</th>
-        <th class="th-absent" style="width:8%">Employee</th>
-        <th class="th-absent" style="width:18%">Employee Name</th>
-        <th class="th-absent" style="width:9%">Department</th>
-        <th class="th-absent" style="width:8%">Group</th>
-        <th class="th-absent" style="width:7%">Shift</th>
-        <th class="th-absent" style="width:14%">Designation</th>
-        <th class="th-absent" style="width:9%">Leave Type</th>
-        <th class="th-absent" style="width:7%;text-align:center">Leave App.</th>
-        <th class="th-absent" style="width:7%;text-align:center">Half Day</th>
-      </tr></thead>
-      <tbody>{absent_rows}</tbody>
-    </table>
-  </div>
-
-  <!-- Maternity -->
-  <div class="sec-wrap">
-    <div class="sec-hdr sh-mat">🤱 Nghỉ thai sản &nbsp;<span style="font-weight:400;font-size:12px">({maternity_count} người)</span></div>
-    <table class="dt">
-      <thead><tr>
-        <th class="th-mat" style="width:3%;text-align:center">STT</th>
-        <th class="th-mat" style="width:6%;text-align:center">Ngày</th>
-        <th class="th-mat" style="width:6%">Att ID</th>
-        <th class="th-mat" style="width:8%">Employee</th>
-        <th class="th-mat" style="width:18%">Employee Name</th>
-        <th class="th-mat" style="width:9%">Department</th>
-        <th class="th-mat" style="width:8%">Group</th>
-        <th class="th-mat" style="width:7%">Shift</th>
-        <th class="th-mat" style="width:14%">Designation</th>
-        <th class="th-mat" style="width:9%">Leave Type</th>
-        <th class="th-mat" style="width:7%;text-align:center">Leave App.</th>
-        <th class="th-mat" style="width:7%;text-align:center">Half Day</th>
-      </tr></thead>
-      <tbody>{maternity_rows}</tbody>
-    </table>
-  </div>
-
-  <!-- On Leave -->
-  <div class="sec-wrap">
-    <div class="sec-hdr sh-leave">🏖 Nghỉ phép &nbsp;<span style="font-weight:400;font-size:12px">({on_leave_count} người)</span></div>
-    <table class="dt">
-      <thead><tr>
-        <th class="th-leave" style="width:3%;text-align:center">STT</th>
-        <th class="th-leave" style="width:6%;text-align:center">Ngày</th>
-        <th class="th-leave" style="width:6%">Att ID</th>
-        <th class="th-leave" style="width:8%">Employee</th>
-        <th class="th-leave" style="width:18%">Employee Name</th>
-        <th class="th-leave" style="width:9%">Department</th>
-        <th class="th-leave" style="width:8%">Group</th>
-        <th class="th-leave" style="width:7%">Shift</th>
-        <th class="th-leave" style="width:14%">Designation</th>
-        <th class="th-leave" style="width:9%">Leave Type</th>
-        <th class="th-leave" style="width:7%;text-align:center">Leave App.</th>
-        <th class="th-leave" style="width:7%;text-align:center">Half Day</th>
-      </tr></thead>
-      <tbody>{on_leave_rows}</tbody>
-    </table>
-  </div>
-
-  <!-- Incomplete check-ins -->
-  <div class="sec-wrap">
-    <div class="sec-hdr sh-inc">⏱ Chấm công thiếu &nbsp;<span style="font-weight:400;font-size:12px">({incomplete_count} TH &nbsp;·&nbsp; {date_range_formatted})</span></div>
-    <table class="dt">
-      <thead><tr>
-        <th class="th-inc" style="width:3%;text-align:center">STT</th>
-        <th class="th-inc" style="width:5%;text-align:center">Ngày</th>
-        <th class="th-inc" style="width:5%">Att ID</th>
-        <th class="th-inc" style="width:7%">Employee</th>
-        <th class="th-inc" style="width:14%">Employee Name</th>
-        <th class="th-inc" style="width:8%">Department</th>
-        <th class="th-inc" style="width:6%">Group</th>
-        <th class="th-inc" style="width:5%">Shift</th>
-        <th class="th-inc" style="width:12%">Designation</th>
-        <th class="th-inc" style="width:7%;text-align:center">Check-in</th>
-        <th class="th-inc" style="width:7%;text-align:center">Check-out</th>
-        <th class="th-inc" style="width:4%;text-align:center">Lần</th>
-        <th class="th-inc" style="width:6%;text-align:center">Đã xử lý</th>
-        <th class="th-inc" style="width:6%">Reason</th>
-        <th class="th-inc" style="width:7%">Other Reason</th>
-      </tr></thead>
-      <tbody>{incomplete_checkin_rows}</tbody>
-    </table>
-  </div>
-
-  {early_checkout_section}
-
-  <!-- Footer -->
-  <div class="ftr">
-    Gửi tự động từ <strong>ERPNext</strong> — Site: {site_name} &nbsp;|&nbsp; {current_time}
-  </div>
-
-</div>
-</body>
-</html>"""
-
-	return html_content
+	return ws
 
 
 def generate_excel_report(report_date, data, stats):
@@ -1460,8 +746,9 @@ def generate_excel_report(report_date, data, stats):
 	from_date_str = formatdate(prev_month_26, "dd/MM/yyyy")
 	to_date_str = formatdate(yesterday, "dd/MM/yyyy")
 
-	# Sheet name cannot contain / character, so use - instead
-	sheet_name = f"Missing {from_date_str} to {to_date_str}".replace('/', '-')
+	# Sheet name cannot contain / and Excel refuses names over 31 characters —
+	# the full "Missing dd-mm-yyyy to dd-mm-yyyy" is 32, so drop the century.
+	sheet_name = f"Missing {from_date_str} to {to_date_str}".replace('/', '-')[:31]
 	ws2 = wb.create_sheet(sheet_name)
 
 	# Add headers for Sheet 2
@@ -1551,6 +838,56 @@ def generate_excel_report(report_date, data, stats):
 	ws2.column_dimensions['N'].width = 20  # Reason
 	ws2.column_dimensions['O'].width = 20  # Other Reason
 
+	# Sheets 3 and 4 — the two anomaly lists. They used to exist only in the email
+	# body; now that the detail travels as this workbook, they have to live here
+	# or they would simply be lost.
+	_add_anomaly_sheet(
+		wb,
+		"Left with check-ins",
+		["STT", "Att ID", "Employee", "Employee Name", "Department", "Group",
+		 "Designation", "Ngày nghỉ việc", "Check-in đầu", "Check-out cuối", "Số lần"],
+		[
+			(
+				emp.get('attendance_device_id'),
+				emp.get('employee_code'),
+				emp.get('employee_name'),
+				emp.get('department'),
+				emp.get('custom_group'),
+				emp.get('designation'),
+				_fmt_date(emp.get('relieving_date')),
+				_fmt_time(emp.get('first_check_in')),
+				_fmt_time(emp.get('last_check_out')),
+				emp.get('checkin_count') or 0,
+			)
+			for emp in (stats.get('left_with_checkins') or [])
+		],
+		header_font, header_fill, header_alignment, border,
+	)
+
+	early_date = stats.get('early_checkout_date')
+	_add_anomaly_sheet(
+		wb,
+		"Early checkout day shift",
+		["STT", "Ngày", "Att ID", "Employee", "Employee Name", "Department", "Group",
+		 "Shift", "Designation", "Check-out cuối", "Giờ công"],
+		[
+			(
+				formatdate(early_date, "dd/MM/yyyy") if early_date else "",
+				emp.get('attendance_device_id'),
+				emp.get('employee'),
+				emp.get('employee_name'),
+				emp.get('department'),
+				emp.get('custom_group'),
+				emp.get('shift'),
+				emp.get('designation'),
+				_fmt_time(emp.get('last_checkout')),
+				round(emp.get('working_hours') or 0, 2),
+			)
+			for emp in (stats.get('early_checkout_list') or [])
+		],
+		header_font, header_fill, header_alignment, border,
+	)
+
 	# Save to temporary file
 	temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx')
 	wb.save(temp_file.name)
@@ -1559,35 +896,3 @@ def generate_excel_report(report_date, data, stats):
 	file_name = f"Attendance_Report_{formatted_date.replace('/', '')}.xlsx"
 
 	return temp_file.name, file_name
-
-@only_for_sites("erp.tiqn.local")
-def send_daily_attendance_report_scheduled():
-	"""
-	Scheduled function to send daily attendance report at 8:15 AM
-	Sends report for TODAY (current date) to track current presence/absence
-	"""
-	import frappe
-	from frappe.utils import nowdate
-
-	# Get today's date (not yesterday - we want to see current attendance at 8:15 AM)
-	report_date = nowdate()
-
-	# Default recipients
-	recipients = ["it@tiqn.com.vn", "hoanh.ltk@tiqn.com.vn", "loan.ptk@tiqn.com.vn", "ni.nht@tiqn.com.vn", "binh.dtt@tiqn.com.vn"]
-	recipients_str = "\n".join(recipients)
-
-	try:
-		# Force update: recalculate today's attendance right before sending so the
-		# 08:15 email reflects the latest checkins (cron moved from 08:10 to 08:15)
-		result = send_daily_attendance_report(report_date, recipients_str, force_update_attendance=1)
-
-		frappe.logger().info(f"Daily attendance report scheduled send completed for {report_date}: {result}")
-		return result
-
-	except Exception as e:
-		frappe.logger().error(f"Failed to send scheduled daily attendance report: {str(e)}")
-		frappe.log_error(
-			title="Daily Attendance Report Scheduled Send Failed",
-			message=f"Error sending report for {report_date}: {str(e)}"
-		)
-		raise

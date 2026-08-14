@@ -244,9 +244,15 @@ scheduler_events = {
         "* * * * *": [
             "customize_erpnext.api.employee.employee_utils.cleanup_rembg_sessions"
         ],
-         # Shift Attendance Report - Every day at 08:15 AM
-        "15 8 * * *": [           
-            "customize_erpnext.customize_erpnext.report.shift_attendance_customize.scheduler.send_daily_attendance_report_scheduled"
+        # The 08:15 Shift Attendance Report was retired on 2026-08-14: the 08:20 job
+        # below sends the same workbook to the HR list, and its two body-only
+        # anomaly lists became sheets 3 and 4 of that workbook. Sending both meant
+        # HR got two mails carrying an identical attachment built twice.
+        # Daily Attendance Report - Every day at 08:20 AM.
+        # Recipients come from Attendance Calculation Setting (Manager / HR);
+        # an empty list means that audience is simply not sent to.
+        "20 8 * * *": [
+            "customize_erpnext.api.daily_attendance_email.send_daily_attendance_email_scheduled"
         ],
         # Sunday overtime alert - Monday at 08:00 AM
         "0 8 * * 1": [

@@ -304,16 +304,13 @@ function _reset_dialog_fields(d) {
 }
 
 function send_attendance_report_dialog(report) {
-	// Get current filters to suggest default date
+	// Suggest the date currently filtered in the report
 	let filters = report.get_values();
-	let default_date = frappe.datetime.get_today();
+	let default_date = filters.from_date || frappe.datetime.get_today();
 
-	// Try to get date from current filters
-	if (filters.from_date) {
-		default_date = filters.from_date;
-	}
-
-	// Create dialog
+	// Recipients are typed in deliberately. The Manager / HR lists on Attendance
+	// Calculation Setting drive the scheduled send only, so sending by hand from
+	// here cannot reach the real audience by accident.
 	let d = new frappe.ui.Dialog({
 		title: __('Send Daily Attendance Report'),
 		fields: [
@@ -326,11 +323,20 @@ function send_attendance_report_dialog(report) {
 				description: __('Select the date for the report')
 			},
 			{
+				fieldname: 'attach_detail',
+				label: __('Attach file detail'),
+				fieldtype: 'Check',
+				default: 0,
+				description: __('Adds the detailed Excel workbook for this date.')
+			},
+			{
 				fieldname: 'force_update_attendance',
 				label: __('Force Update Attendance'),
 				fieldtype: 'Check',
 				default: 0,
-				description: __('Recalculate all attendance before sending emails. Deselect this option to only aggregate and send emails from existing data.')
+				// Not tied to the attachment: recalculating rebuilds the Attendance
+				// records the summary figures are read from too.
+				description: __('Rebuilds attendance from check-ins. Affects every figure, not just the attachment.')
 			},
 			{
 				fieldtype: 'Section Break'
@@ -340,7 +346,6 @@ function send_attendance_report_dialog(report) {
 				label: __('Email Recipients'),
 				fieldtype: 'Small Text',
 				reqd: 1,
-				default: "it@tiqn.com.vn\nhoanh.ltk@tiqn.com.vn\nloan.ptk@tiqn.com.vn\nni.nht@tiqn.com.vn\nbinh.dtt@tiqn.com.vn",
 				description: __('Enter one email address per line')
 			}
 		],
@@ -359,48 +364,34 @@ function send_attendance_report_dialog(report) {
 				return;
 			}
 
-			// Disable dialog and show loading
 			d.get_primary_btn().prop('disabled', true);
-			d.get_primary_btn().html(values.force_update_attendance
-				? __('Updating & Sending...')
-				: __('Sending...'));
 
-			// Freeze all fields in dialog
-			d.fields_dict.report_date.df.read_only = 1;
-			d.fields_dict.recipients.df.read_only = 1;
-			d.fields_dict.force_update_attendance.df.read_only = 1;
-			d.fields_dict.report_date.refresh();
-			d.fields_dict.recipients.refresh();
-			d.fields_dict.force_update_attendance.refresh();
-
-			// Call server method to send report
 			frappe.call({
-				method: 'customize_erpnext.customize_erpnext.report.shift_attendance_customize.scheduler.send_daily_attendance_report',
+				method: 'customize_erpnext.api.daily_attendance_email.send_daily_attendance_email',
 				args: {
-					report_date: values.report_date,
+					date: values.report_date,
 					recipients: values.recipients,
+					attach_detail: values.attach_detail ? 1 : 0,
 					force_update_attendance: values.force_update_attendance ? 1 : 0,
 					bypass_holiday_check: 1
 				},
-				freeze: true,
-				freeze_message: values.force_update_attendance
-					? __('⏳ Updating attendance & queuing report...')
-					: __('📨 Queuing Daily Attendance Report...'),
+				// No freeze: the work runs in a background job, so the dialog
+				// closes immediately instead of holding the user on a spinner
+				// through an attendance rebuild.
 				callback: function (r) {
-					if (r.message && r.message.status === 'success') {
-						frappe.show_alert({
-							message: __('Report is being generated in background. Email will be sent shortly.'),
-							indicator: 'green'
-						}, 7);
-						// Auto close dialog on success
+					let res = r.message || {};
+					if (res.status === 'queued') {
 						d.hide();
+						frappe.show_alert({
+							message: __('Report queued for {0}. The email will arrive shortly.', [(res.recipients || []).join(', ')]),
+							indicator: 'green'
+						}, 10);
 					} else {
 						frappe.msgprint({
-							title: __('Error'),
-							message: r.message ? r.message.message : __('Failed to send report. Please check the error log.'),
-							indicator: 'red'
+							title: __('Not Sent'),
+							message: res.message || __('Failed to send report. Please check the error log.'),
+							indicator: res.status === 'skipped' ? 'orange' : 'red'
 						});
-						// Re-enable dialog on error
 						_reset_dialog_fields(d);
 					}
 				},

@@ -1,0 +1,43 @@
+{
+ "based_on": "",
+ "chart_name": "Daily Attendance - Attendance by Group",
+ "chart_type": "Custom",
+ "creation": "2026-08-14 10:51:33.822045",
+ "custom_options": "{\n \"colors\": [\n  \"#2C7BE5\",\n  \"#D9722A\"\n ],\n \"barOptions\": {\n  \"stacked\": 0,\n  \"spaceRatio\": 0.4\n },\n \"height\": 200\n}",
+ "docstatus": 0,
+ "doctype": "Dashboard Chart",
+ "document_type": "",
+ "dynamic_filters_json": "{\"date\":\"frappe.datetime.get_today()\"}",
+ "filters_json": "{}",
+ "group_by_type": "Count",
+ "idx": 0,
+ "is_public": 1,
+ "is_standard": 1,
+ "modified": "2026-08-14 13:07:22.522233",
+ "modified_by": "Administrator",
+ "module": "Customize Erpnext",
+ "name": "Daily Attendance - Attendance by Group",
+ "number_of_groups": 0,
+ "owner": "Administrator",
+ "parent_document_type": "",
+ "roles": [
+  {
+   "role": "System Manager"
+  },
+  {
+   "role": "HR Manager"
+  },
+  {
+   "role": "HR User"
+  }
+ ],
+ "show_values_over_chart": 1,
+ "source": "Daily Attendance by Group",
+ "time_interval": "Daily",
+ "timeseries": 0,
+ "timespan": "Last Week",
+ "type": "Bar",
+ "use_report_chart": 0,
+ "value_based_on": "",
+ "y_axis": []
+}
