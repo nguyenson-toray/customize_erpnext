@@ -9,7 +9,7 @@ Functions to determine if an employee is eligible for earned leave allocation.
 Business Rules:
 - Employee must complete probation period before receiving earned leaves
 - Eligibility is checked on allocation date (15th of each month)
-- Priority: (1) custom_number_of_probation_days, (2) applicable_after
+- Priority: (1) custom_probation_days, (2) applicable_after
 """
 
 import frappe
@@ -23,7 +23,7 @@ def get_employee_probation_days(employee):
     Get probation days for employee.
 
     Logic:
-    - If Employee.custom_number_of_probation_days has a value (not null, not 0) → use it
+    - If Employee.custom_probation_days has a value (not null, not 0) → use it
     - If null/not set → return None (caller should use applicable_after)
 
     Args:
@@ -34,10 +34,10 @@ def get_employee_probation_days(employee):
     """
     if isinstance(employee, str):
         probation_days = frappe.db.get_value(
-            "Employee", employee, "custom_number_of_probation_days"
+            "Employee", employee, "custom_probation_days"
         )
     else:
-        probation_days = employee.get("custom_number_of_probation_days")
+        probation_days = employee.get("custom_probation_days")
 
     # Return the value only if it's set and > 0, otherwise None
     probation_value = cint(probation_days)
@@ -67,7 +67,7 @@ def calculate_eligibility_date(date_of_joining, probation_days, applicable_after
     - Else: eligibility_date = DOJ (no restriction)
 
     Priority:
-    1. Employee.custom_number_of_probation_days (if has value)
+    1. Employee.custom_probation_days (if has value)
     2. Leave Type.applicable_after (fallback)
 
     Args:
@@ -102,10 +102,10 @@ def is_employee_eligible_for_earned_leave(employee, allocation_date, leave_type)
 
     Business Rules:
     1. Get date_of_joining from Employee
-    2. Get custom_number_of_probation_days from Employee (if set)
+    2. Get custom_probation_days from Employee (if set)
     3. Get applicable_after from Leave Type
     4. Calculate eligibility_date:
-       - Priority (1): DOJ + custom_number_of_probation_days (if has value)
+       - Priority (1): DOJ + custom_probation_days (if has value)
        - Fallback (2): DOJ + applicable_after (from Leave Type)
     5. Employee is eligible if allocation_date >= eligibility_date
 
@@ -128,7 +128,7 @@ def is_employee_eligible_for_earned_leave(employee, allocation_date, leave_type)
     emp_info = frappe.db.get_value(
         "Employee",
         employee,
-        ["date_of_joining", "custom_number_of_probation_days", "employee_name"],
+        ["date_of_joining", "custom_probation_days", "employee_name"],
         as_dict=True
     )
 
@@ -145,7 +145,7 @@ def is_employee_eligible_for_earned_leave(employee, allocation_date, leave_type)
     doj = getdate(emp_info.date_of_joining)
 
     # Get probation days from Employee (None if not set)
-    probation_value = cint(emp_info.custom_number_of_probation_days)
+    probation_value = cint(emp_info.custom_probation_days)
     probation_days = probation_value if probation_value > 0 else None
 
     # Get applicable_after from Leave Type (fallback)

@@ -8,7 +8,7 @@ Customizations:
 3. Override earned leave applicability check for current period
 4. Skip first partial month if allocation_date < effective_from
 5. Employee eligibility check based on probation period:
-   - Priority (1): date_of_joining + custom_number_of_probation_days (if set)
+   - Priority (1): date_of_joining + custom_probation_days (if set)
    - Fallback (2): date_of_joining + applicable_after (Leave Type)
 6. Seniority bonus: +1 day per 5 years (Vietnamese Labor Law - Điều 114 BLLĐ 2019)
 7. Monthly allocation with bonus months strategy:

@@ -13,7 +13,7 @@ Customizations:
 1. Support all allocate_on_day options: First Day, Last Day, Date of Joining, 15th of Month
 2. Skip first partial month if allocation_date < effective_from
 3. Employee eligibility check based on:
-   - Priority (1): date_of_joining + custom_number_of_probation_days (Employee)
+   - Priority (1): date_of_joining + custom_probation_days (Employee)
    - Fallback (2): date_of_joining + applicable_after (Leave Type)
 4. Seniority bonus: +1 day per 5 years (Vietnamese Labor Law - Điều 114 BLLĐ 2019)
 5. Monthly allocation (bonus months strategy):

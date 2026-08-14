@@ -2522,7 +2522,7 @@ _EMPLOYEE_FIELDS = [
 	"custom_group", "designation", "custom_designation_vietnamese",
 	"custom_direct_indirect_", "grade", "branch", "reports_to",
 	"scheduled_confirmation_date", "final_confirmation_date",
-	"custom_number_of_probation_days", "contract_end_date", "date_of_retirement",
+	"custom_probation_days", "contract_end_date", "date_of_retirement",
 	"notice_number_of_days", "holiday_list", "default_shift",
 
 	# --- CCCD / Hộ chiếu ---
@@ -2599,7 +2599,7 @@ _EMPLOYEE_COLUMN_LABELS_EN = {
 	"custom_number_of_childrens": "Number of Children",
 	"employment_type": "Employment Type",	
 	"custom_direct_indirect_": "Direct / Indirect", "grade": "Grade",
-	"custom_number_of_probation_days": "Probation Days",
+	"custom_probation_days": "Probation Days",
 	"contract_end_date": "Contract End Date", "date_of_retirement": "Date of Retirement",
 	"notice_number_of_days": "Notice (Days)", "holiday_list": "Holiday List",
 	"custom_id_card_no": "ID Card No (CCCD)", "custom_id_card_date_of_issue": "ID Card Date of Issue",
@@ -2662,7 +2662,7 @@ _EMPLOYEE_COLUMN_LABELS_VI = {
 	"custom_direct_indirect_": "Direct/Indirect", "grade": "Cấp bậc",
 	"branch": "Chi nhánh", "reports_to": "Quản lý trực tiếp",
 	"scheduled_confirmation_date": "Ngày offer", "final_confirmation_date": "Ngày xác nhận",
-	"custom_number_of_probation_days": "Ngày thử việc",
+	"custom_probation_days": "Ngày thử việc",
 	"contract_end_date": "Ngày kết thúc HĐ", "date_of_retirement": "Ngày nghỉ hưu",
 	"notice_number_of_days": "Số ngày báo trước", "holiday_list": "Lịch nghỉ",
 	"default_shift": "Ca mặc định",
