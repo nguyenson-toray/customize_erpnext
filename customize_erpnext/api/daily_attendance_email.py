@@ -17,8 +17,11 @@ from frappe.utils import formatdate, getdate, nowdate
 
 from customize_erpnext.api.daily_attendance_metrics import (
 	ABSENT_COLOR,
+	OVERTIME_COLOR,
+	OVERTIME_TODAY_COLOR,
 	PRESENT_COLOR,
 	get_daily_metrics,
+	get_overtime_registrations,
 	get_trend,
 )
 
@@ -54,6 +57,10 @@ INK_MUTED = "#6B7280"
 LINE = "#E4E7EB"
 SURFACE = "#F7F8FA"
 
+# Plot area per chart. Three chart rows stack vertically, so every pixel here
+# costs three on the page: 130 gives a ~937px mail, 60 fits one 727px screen.
+# Kept tall on purpose — short bars read as squat and lose the shape the chart
+# exists to show, and the exact figures are printed above each bar regardless.
 _PLOT_HEIGHT = 130
 
 
@@ -166,6 +173,63 @@ def _column_chart(rows, name_key, bar_width=32, label_size=11):
 	)
 
 
+def _single_column_chart(
+	rows, name_key, value_key, color, bar_width=32, label_size=11, highlight_color=None
+):
+	"""One bar per category for a single measure — value above, label below.
+
+	Kept separate from _column_chart rather than folded into it: that one is
+	built around the present/absent pair and its split line, which would print a
+	meaningless "n / 0" here.
+
+	A row flagged `highlight` is drawn in `highlight_color`, larger and bolder.
+	Emphasis is carried by shade, size and weight rather than a second hue — it
+	is the same measure, just the column the reader is looking for. Three signals
+	instead of one so the column still stands out if a mail client drops the
+	background colour.
+	"""
+	peak = max([r[value_key] for r in rows] or [0]) or 1
+	highlight_color = highlight_color or color
+	lit_size = label_size + 4
+
+	values, bars, labels = [], [], []
+	for r in rows:
+		value = r[value_key]
+		lit = bool(r.get("highlight"))
+		bar_color = highlight_color if lit else color
+		size = lit_size if lit else label_size
+		height = round(value * _PLOT_HEIGHT / peak)
+		if value and height < 2:
+			height = 2
+
+		values.append(
+			f'<td align="center" valign="bottom" style="font-size:{size}px;'
+			f'color:{bar_color if lit else INK};font-weight:700;padding-bottom:3px;'
+			f'line-height:1.2">{value}</td>'
+		)
+		bar = (
+			'<table cellpadding="0" cellspacing="0" border="0" align="center" '
+			f'style="border-collapse:collapse;width:{bar_width}px"><tr>'
+			f'<td width="{bar_width}" height="{height}" bgcolor="{bar_color}" '
+			f'style="width:{bar_width}px;height:{height}px;background-color:{bar_color};'
+			'font-size:0;line-height:0;border-radius:2px">&nbsp;</td></tr></table>'
+		) if height else "&nbsp;"
+		bars.append(f'<td valign="bottom" align="center" height="{_PLOT_HEIGHT}">{bar}</td>')
+		labels.append(
+			f'<td align="center" style="font-size:{size}px;'
+			f'color:{INK if lit else INK_MUTED};font-weight:{700 if lit else 400};'
+			f'padding:6px 2px 0 2px;border-top:2px solid {LINE};line-height:1.3">'
+			f'{r[name_key]}</td>'
+		)
+
+	return (
+		'<table width="100%" cellpadding="0" cellspacing="0" border="0" '
+		'style="border-collapse:collapse">'
+		f'<tr>{"".join(values)}</tr><tr>{"".join(bars)}</tr><tr>{"".join(labels)}</tr>'
+		"</table>"
+	)
+
+
 def _legend():
 	return f"""
 	<table cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;
@@ -261,6 +325,24 @@ def build_email_html(date=None):
 	]
 	sewing = _panel("Sewing Lines", _column_chart(m["by_group"], "group", bar_width=26))
 	by_group = _panel("By Group", _column_chart(m["by_bucket"], "bucket", bar_width=28))
+	# The window runs into the future because overtime is registered in advance,
+	# so the column for the day being reported on is picked out — otherwise the
+	# reader has to count along the axis to find where "now" sits.
+	ot_rows = [
+		{
+			"label": formatdate(r["date"], "dd/MM"),
+			"qty": r["qty"],
+			"highlight": r["date"] == m["date"],
+		}
+		for r in get_overtime_registrations()
+	]
+	overtime = _panel(
+		"Overtime Registration Quantity",
+		_single_column_chart(
+			ot_rows, "label", "qty", OVERTIME_COLOR,
+			bar_width=22, label_size=10, highlight_color=OVERTIME_TODAY_COLOR,
+		),
+	)
 	last7 = _panel(
 		"Last 14 Working Days",
 		# Twice the columns in the same half-width panel, so the bars narrow to
@@ -312,6 +394,8 @@ def build_email_html(date=None):
       </tr>
     </table>
   </td></tr>
+
+  <tr><td style="padding-top:12px">{overtime}</td></tr>
 
 </table>
 </div>"""

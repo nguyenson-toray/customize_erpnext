@@ -7,6 +7,22 @@
 import frappe
 
 
+def _employee_scope():
+	"""SQL clause + params keeping other companies' on-site staff out of headcount.
+
+	Same Exclude Employee IDs setting the attendance engine uses, so the two can
+	never report a different workforce.
+	"""
+	from customize_erpnext.customize_erpnext.doctype.attendance_calculation_setting.attendance_calculation_setting import (
+		get_excluded_employee_ids,
+	)
+
+	excluded = get_excluded_employee_ids()
+	if not excluded:
+		return "", {}
+	return " AND e.name NOT IN %(excluded)s", {"excluded": tuple(sorted(excluded))}
+
+
 def _maternity_leave_people():
 	"""Number of ACTIVE employees currently on maternity leave, counted once.
 
@@ -15,13 +31,16 @@ def _maternity_leave_people():
 	DISTINCT employees instead. Restricted to Active employees so it lines up
 	with the Active headcount it is subtracted from.
 	"""
+	clause, params = _employee_scope()
 	return frappe.db.sql(
-		"""
+		f"""
 		SELECT COUNT(DISTINCT em.employee)
 		FROM `tabEmployee Maternity` em
 		JOIN `tabEmployee` e ON e.name = em.employee
 		WHERE em.status = 'Maternity Leave' AND e.status = 'Active'
-		"""
+		{clause}
+		""",
+		params,
 	)[0][0]
 
 
@@ -44,7 +63,10 @@ def net_headcount(filters=None):
 	so a plain Active count includes them; this subtracts the ones currently on
 	maternity leave, counted as distinct people.
 	"""
-	active = frappe.db.count("Employee", {"status": "Active"})
+	clause, params = _employee_scope()
+	active = frappe.db.sql(
+		f"SELECT COUNT(*) FROM `tabEmployee` e WHERE e.status = 'Active' {clause}", params
+	)[0][0]
 
 	return {
 		"value": active - _maternity_leave_people(),

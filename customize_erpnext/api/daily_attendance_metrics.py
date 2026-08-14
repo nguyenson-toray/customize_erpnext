@@ -86,13 +86,45 @@ def _prefix():
 	return _get_employee_prefix()
 
 
+def _excluded_ids():
+	"""Employees kept out of every figure — staff of other companies on site.
+
+	They badge in and out like everyone else, so they must be removed explicitly
+	or they inflate headcount and show up as absences nobody is accountable for.
+	"""
+	from customize_erpnext.customize_erpnext.doctype.attendance_calculation_setting.attendance_calculation_setting import (
+		get_excluded_employee_ids,
+	)
+
+	return get_excluded_employee_ids()
+
+
 def _prefix_filters(extra=None):
-	"""Employee filters for the ORM, with the ID prefix applied."""
-	filters = dict(extra or {})
+	"""Employee filters for the ORM: ID prefix in, excluded IDs out.
+
+	Returned as a list rather than a dict because two conditions apply to the
+	same `name` field, which a dict cannot express.
+	"""
+	filters = [[k, "=", v] if not isinstance(v, (list, tuple)) else [k, v[0], v[1]]
+	           for k, v in (extra or {}).items()]
 	prefix = _prefix()
 	if prefix:
-		filters["name"] = ("like", f"{prefix}%")
+		filters.append(["name", "like", f"{prefix}%"])
+	excluded = _excluded_ids()
+	if excluded:
+		filters.append(["name", "not in", sorted(excluded)])
 	return filters
+
+
+def _employee_scope_sql(alias="e"):
+	"""SQL fragment + params applying the same scope inside a raw query."""
+	clause = f" AND {alias}.name LIKE %(prefix)s"
+	params = {"prefix": f"{_prefix()}%"}
+	excluded = _excluded_ids()
+	if excluded:
+		clause += f" AND {alias}.name NOT IN %(excluded)s"
+		params["excluded"] = tuple(sorted(excluded))
+	return clause, params
 
 
 def _shifts_on(date):
@@ -103,9 +135,10 @@ def _shifts_on(date):
 	all but nine people anyway, and those nine already carry a Shift Assignment,
 	so reading it would only add a way for the two sources to disagree.
 	"""
+	scope, scope_params = _employee_scope_sql("e")
 	assigned = dict(
 		frappe.db.sql(
-			"""
+			f"""
 			SELECT sa.employee, sa.shift_type
 			FROM `tabShift Assignment` sa
 			JOIN `tabEmployee` e ON e.name = sa.employee
@@ -114,10 +147,10 @@ def _shifts_on(date):
 			  AND sa.start_date <= %(date)s
 			  AND (sa.end_date IS NULL OR sa.end_date >= %(date)s)
 			  AND e.status = 'Active'
-			  AND e.name LIKE %(prefix)s
+			  {scope}
 			ORDER BY sa.start_date
 			""",
-			{"date": date, "prefix": f"{_prefix()}%"},
+			{"date": date, **scope_params},
 		)
 	)
 
@@ -194,17 +227,18 @@ def _not_yet_employed(date):
 
 def _excluded_employees(date):
 	"""Everyone kept out of the Present/Absent maths, and why."""
+	scope, scope_params = _employee_scope_sql("e")
 	maternity = set(
 		frappe.db.sql(
-			"""
+			f"""
 			SELECT DISTINCT em.employee
 			FROM `tabEmployee Maternity` em
 			JOIN `tabEmployee` e ON e.name = em.employee
 			WHERE em.status = 'Maternity Leave'
 			  AND e.status = 'Active'
-			  AND e.name LIKE %(prefix)s
+			  {scope}
 			""",
-			{"prefix": f"{_prefix()}%"},
+			scope_params,
 			pluck=True,
 		)
 	)
@@ -224,6 +258,7 @@ def _attendance_by_bucket(date, excluded, shifts=None):
 	shifts = shifts or {}
 	order = bucket_order()
 	fallback = _fallback_bucket(order)
+	scope, scope_params = _employee_scope_sql("e")
 	rows = frappe.db.sql(
 		f"""
 		SELECT
@@ -237,9 +272,9 @@ def _attendance_by_bucket(date, excluded, shifts=None):
 		WHERE a.docstatus = 1
 		  AND a.attendance_date = %(date)s
 		  AND e.status = 'Active'
-		  AND e.name LIKE %(prefix)s
+		  {scope}
 		""",
-		{"date": date, "fallback": fallback, "prefix": f"{_prefix()}%"},
+		{"date": date, "fallback": fallback, **scope_params},
 		as_dict=True,
 	)
 
@@ -375,6 +410,55 @@ def get_daily_metrics(date=None):
 
 PRESENT_COLOR = "#2C7BE5"
 ABSENT_COLOR = "#D9722A"
+# Overtime is a different measure entirely, so it gets its own hue rather than
+# borrowing the present/absent pair. Validated against both on light and dark.
+OVERTIME_COLOR = "#1BAF7A"
+# Darker step of the same hue, for emphasising the day being reported on.
+OVERTIME_TODAY_COLOR = "#0E7350"
+
+
+@frappe.whitelist()
+def get_overtime_registrations(date=None):
+	"""Registered overtime headcount across this week and the next.
+
+	A fixed fortnight rather than a rolling window: overtime is registered ahead
+	of time, so the chart has to reach into the future to show the load being
+	planned, and pinning it to week boundaries keeps the columns in the same
+	place from one day to the next. Days with no registrations are kept as zero
+	so the fortnight never silently shrinks.
+
+	Which registrations count follows the Include Draft OT Registrations setting,
+	the same switch the attendance engine obeys — otherwise this chart could show
+	overtime the payroll side is ignoring, or hide overtime it is paying for.
+	Cancelled registrations are always dropped.
+	"""
+	from frappe.utils import get_first_day_of_week
+
+	from customize_erpnext.customize_erpnext.doctype.overtime_registration.overtime_registration_hooks import (
+		get_include_draft_ot,
+	)
+
+	start = getdate(get_first_day_of_week(str(getdate(date or nowdate()))))
+	end = add_days(start, 13)
+	statuses = (0, 1) if get_include_draft_ot() else (1,)
+
+	found = dict(
+		frappe.db.sql(
+			"""
+			SELECT `date`, COUNT(*) AS qty
+			FROM `tabOvertime Registration Detail`
+			WHERE docstatus IN %(statuses)s
+			  AND `date` BETWEEN %(start)s AND %(end)s
+			GROUP BY `date`
+			""",
+			{"statuses": statuses, "start": start, "end": end},
+		)
+	)
+
+	return [
+		{"date": str(d), "qty": found.get(d, 0)}
+		for d in (add_days(start, i) for i in range(14))
+	]
 
 
 def _filter_date(filters):

@@ -160,9 +160,18 @@ def is_peak_time(check_dt=None) -> bool:
 
 
 def get_excluded_employee_ids() -> set:
-	"""Employee IDs excluded from attendance processing (CSV setting → set)."""
+	"""Employee IDs excluded from attendance processing and from headcount.
+
+	These are staff of other companies working on site: they badge in and out
+	like everyone else, but they are not ours to manage or to report on.
+
+	Separated by commas or plain whitespace — the field is typed by hand, and
+	splitting on commas alone silently ignored anyone entered space-separated.
+	"""
+	import re
+
 	raw = get_attendance_settings().exclude_employee_ids or ""
-	return {part.strip() for part in str(raw).split(",") if part.strip()}
+	return {part.strip() for part in re.split(r"[,\s]+", str(raw)) if part.strip()}
 
 
 def floor_ot_to_block(hours: float, min_minutes: int = None) -> float:
