@@ -268,6 +268,25 @@ def is_shift_in_progress(attendance_date, shift_data: Dict) -> bool:
 	return now < shift_end
 
 
+def is_shift_not_started(attendance_date, shift_data: Dict) -> bool:
+	"""Ca của **người này** trong ngày này đã tới giờ vào chưa?
+
+	Đối xứng với `is_shift_in_progress()`, nhưng cho nhánh KHÔNG có log nào. Ca 2 vào
+	14:00 mà job chạy 08:00 thì cả ca bị chấm `Absent` — họ chưa vắng, chỉ là chưa tới giờ.
+
+	Ngày đã qua luôn trả False (`shift_start` nằm trước `now`) nên kết quả của ngày cũ
+	vẫn tất định. Ngày tương lai trả True — cũng đúng, không nên tạo chấm công trước.
+
+	Dùng `frappe.flags.current_datetime` nếu có, để test giả lập được thời điểm.
+	"""
+	start = shift_data.get('start_time')
+	if start is None:
+		return False
+	shift_start = datetime.combine(attendance_date, (datetime.min + start).time())
+	now = frappe.flags.current_datetime or frappe.utils.now_datetime()
+	return now < shift_start
+
+
 def resolve_attendance_status(
 	status_hours: float, in_time, out_time, attendance_date, shift_data: Dict
 ) -> str:
@@ -982,14 +1001,18 @@ def resolve_no_checkin_attendance(employee: str, att_date: date, ref_data: Dict)
 	Priority: Maternity Leave (no attendance) → Leave Application → Absent.
 
 	Returns:
-		dict with status/leave/shift fields, or None when no attendance
-		should exist (employee in Maternity Leave phase).
+		dict with status/leave/shift fields, or None when no attendance should
+		exist — employee in Maternity Leave phase, or the shift has not started
+		yet (see is_shift_not_started).
 	"""
 	maternity_status, custom_maternity_benefit = check_maternity_status_cached(employee, att_date, ref_data)
 
 	# Employee Maternity is the source of truth — no attendance during Maternity Leave
 	if maternity_status == "Maternity Leave":
 		return None
+
+	shift = get_employee_shift_cached(employee, att_date, ref_data)
+	shift_data = ref_data['shifts'].get(shift, {})
 
 	# Based on HRMS attendance.py:check_leave_record() logic
 	leave_status = check_leave_status_cached(employee, att_date, ref_data)
@@ -1001,6 +1024,13 @@ def resolve_no_checkin_attendance(employee: str, att_date: date, ref_data: Dict)
 		leave_type_2 = leave_status.get('leave_type_2')
 		leave_application_2 = leave_status.get('leave_application_2')
 	else:
+		# 🔴 Ca chưa tới giờ vào ⇒ KHÔNG tạo chấm công. Không có log là đương nhiên khi
+		# ca chưa bắt đầu; gán `Absent` lúc đó là chấm vắng cả ca 2 mỗi sáng.
+		# Chỉ chặn đúng nhánh này: nghỉ phép đã duyệt vẫn phải ra `On Leave` bình thường
+		# vì đơn nghỉ biết trước, không phụ thuộc giờ vào ca.
+		if is_shift_not_started(att_date, shift_data):
+			return None
+
 		status = 'Absent'
 		leave_type = leave_application = leave_abbreviation = None
 		leave_type_2 = leave_application_2 = None
@@ -1010,9 +1040,6 @@ def resolve_no_checkin_attendance(employee: str, att_date: date, ref_data: Dict)
 	half_day_status = (
 		resolve_half_day_status(False, leave_type_2) if status == 'Half Day' else None
 	)
-
-	shift = get_employee_shift_cached(employee, att_date, ref_data)
-	shift_data = ref_data['shifts'].get(shift, {})
 
 	# §7.9: approved OT from registrations is shown even with no checkins
 	# (actual/final stay 0)

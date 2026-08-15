@@ -1,7 +1,7 @@
 # Bulk Attendance Processing — Architecture & Logic Guide
 
-**Last Updated:** 2026-08-06 (timeout fix: checkin index + batched updates + background jobs;
-`mark_auto_attendance_on_holidays` honored; post-relieving days with checkins counted)
+**Last Updated:** 2026-08-15 (no attendance created before a shift starts — ca 2 was being marked
+absent every morning; see "Ca CHƯA TỚI GIỜ VÀO")
 
 ## Performance
 
@@ -65,8 +65,8 @@ Mode detection (`fore_get_logs`):
    - New inserts and updates both apply Leave Applications through the same helper; two half-day LAs on one date become a **`Half Day`** (never `On Leave`) whose `leave_type` is the `is_lwp` half.
    - `custom_note` anomalies (§9-10): Left-with-checkins, ±threshold without same-zone OT registration, Sunday work (+meal allowance > 4h spanning break), female checkout window without Employee Maternity (only shifts ending at window end), single-checkin / no-IN / no-OUT.
    - Values stored rounded: working_hours 2dp, OT 1dp.
-3b. **ABSENCE PASS** (FULL only, runs ONCE after all shifts) — every existing attendance whose (employee, date) had no checkins processed by ANY shift is re-resolved: Maternity Leave → skip, Leave → On Leave/Half Day, else Absent. Global `processed_keys` prevents cross-shift Absent overwrites when the stored shift is stale.
-4. **Mark absent** — days with no attendance at all (skip before-joining/after-relieving, holidays and Sundays); same resolution helper as 3b; bulk INSERT (32 columns incl. half_day/dual-leave/custom_note).
+3b. **ABSENCE PASS** (FULL only, runs ONCE after all shifts) — every existing attendance whose (employee, date) had no checkins processed by ANY shift is re-resolved: Maternity Leave → skip, Leave → On Leave/Half Day, **ca chưa tới giờ vào → skip**, else Absent. Global `processed_keys` prevents cross-shift Absent overwrites when the stored shift is stale.
+4. **Mark absent** — days with no attendance at all (skip before-joining/after-relieving, holidays and Sundays, **và ca chưa tới giờ vào**); same resolution helper as 3b; bulk INSERT (32 columns incl. half_day/dual-leave/custom_note).
 4b. **Left-employee cleanup** — delete attendance ≥ relieving_date **without** checkins; for ones WITH checkins, PREPEND the left-employee sentence to `custom_note` if not already there (it normally arrives from step 3 — this is a safety net). It must not overwrite: doing so used to wipe the other anomalies of that day.
 5. **Stats** — per-shift before/after counts, skipped-employee classification (`Maternity Leave` → `No shift assigned` → `Not yet joined` → `Already left` (`relieving_date <= from_date`, matching the calculation rule) → `No checkins / Holiday`).
 
@@ -85,6 +85,7 @@ Hai hàm thuần, tách khỏi vòng lặp để test được:
 | Hàm | Việc |
 |---|---|
 | `is_shift_in_progress(attendance_date, shift_data)` | ca của **người này** đã tan chưa — đọc `end_time` của chính ca đó |
+| `is_shift_not_started(attendance_date, shift_data)` | ca của **người này** đã tới giờ vào chưa — đọc `start_time` |
 | `resolve_attendance_status(status_hours, in_time, out_time, attendance_date, shift_data)` | quyết định trạng thái cuối cùng |
 
 ```
@@ -109,6 +110,42 @@ trong mẫu — đo ra 0 và kết luận "nhánh chết". Đo đúng (không l�
 **Đánh đổi có chủ ý:** ngày **đang diễn ra** đổi kết quả theo giờ chạy (16h `Present`, 20h
 `Absent`). Ngày đã qua thì `is_shift_in_progress()` luôn False nên **tất định** — vì vậy nghiệm thu
 *"chạy hai lần → 0 thay đổi"* phải chạy trên **ngày đã trọn**.
+
+### Ca CHƯA TỚI GIỜ VÀO ⇒ không tạo attendance (15/08/2026)
+
+Mặt còn lại của cùng vấn đề "ngày đang diễn ra". `is_shift_in_progress()` chỉ cứu được người **có**
+chấm công. Người **chưa có log nào** đi thẳng xuống nhánh vắng — và lúc 08:00 sáng thì cả ca 2
+(vào 14:00) đương nhiên chưa ai quẹt.
+
+Đo trên production **15/08/2026**: engine chạy lúc **08:00:15** tạo **8 bản `Absent`**
+(`working_hours = 0`, `in_time = NULL`) cho đúng 8 người ca 2 — toàn bộ nhân sự ca đó.
+
+`resolve_no_checkin_attendance()` giờ trả `None` khi ca chưa tới giờ vào, dùng lại đúng hợp đồng
+"`None` = không tạo attendance" vốn có sẵn cho giai đoạn Thai sản. Một chỗ sửa phủ **cả hai** đường
+sinh Absent (3b ABSENCE PASS và 4 Mark absent) vì cả hai đều đã `if resolved is None: continue`.
+
+🔴 **Guard đặt ĐÚNG nhánh `Absent`, không đặt ở đầu hàm.** Đơn nghỉ đã duyệt biết trước, không phụ
+thuộc giờ vào ca — chặn sớm thì mất luôn `On Leave`. Thứ tự bắt buộc:
+
+```
+Thai sản        → None          (không phụ thuộc giờ)
+Đơn nghỉ duyệt  → On Leave / Half Day   ← PHẢI được xét TRƯỚC guard
+ca chưa vào giờ → None          ← guard nằm ở đây
+còn lại         → Absent
+```
+
+Nghiệm thu (giả lập đồng hồ qua `frappe.flags.current_datetime`, nhân viên ca 2, ca vào 14:00):
+
+| Đồng hồ | Không có đơn nghỉ | Có đơn nghỉ duyệt |
+|---|---|---|
+| 08:20 | `no attendance` | `On Leave` |
+| 14:30 | `Absent` | `On Leave` |
+
+Ngày đã qua luôn cho `False` (giờ vào nằm trước `now`) nên **kết quả ngày cũ vẫn tất định** — nghiệm
+thu *"chạy hai lần → 0 thay đổi"* không bị ảnh hưởng.
+
+Sau khi sửa, xoá 1.011 bản của 15/08 rồi chạy lại: Absent **78 → 70**, ca 2 còn **0** bản ghi,
+Present giữ nguyên **933**, 1.125 checkin nối lại đủ.
 
 ### `out_time` giả khi quẹt đúp trước giờ vào ca
 
