@@ -1,0 +1,46 @@
+{% extends "templates/web.html" %}
+
+{%- block title -%}{{_("Not Found")}}{%- endblock -%}
+
+{% block navbar %}{% endblock %}
+{% block footer %}{% endblock %}
+
+{% block page_content %}
+<style>
+	body {
+		background-color: var(--subtle-accent);
+		font-size: var(--text-base);
+	}
+
+	.error-page {
+		text-align: center;
+		padding: 40px 15px;
+	}
+
+	.error-page img {
+		max-width: 350px;
+		width: 100%;
+		height: auto;
+		margin-bottom: 20px;
+	}
+</style>
+
+<script>
+	window.is_404 = true;
+</script>
+
+<div class="error-page">
+	<div>
+		<!-- Ảnh 404 -->
+		<img src="/files/error_404.png" alt="{{ _('Page Not Found') }}" />
+
+		<h4>
+			{{ _("Page not found") }}
+		</h4>
+		<div class="details">
+			<a href='/desk' class="text-muted">{{ _("Back to Home") }}</a>
+		</div>
+	</div>
+</div>
+
+{% endblock %}
