@@ -39,6 +39,7 @@ from frappe.utils import (
 )
 
 import frappe
+from frappe import _
 from hrms.hr.utils import get_semester_start, get_semester_end
 
 
@@ -631,7 +632,7 @@ def custom_allocate_earned_leaves():
                     "employee": allocation.employee,
                     "leave_type": e_leave_type.name,
                     "leaves": earned_leaves,
-                    "month": current_month
+                    "month": today.month
                 })
             except Exception as e:
                 log_allocation_error(allocation.name, e)
