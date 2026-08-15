@@ -122,45 +122,53 @@ def get_annual_allocation_with_seniority(base_allocation, date_of_joining, refer
 # MONTHLY ALLOCATION FUNCTIONS
 # =============================================================================
 
+def get_monthly_rate(annual_allocation=None):
+    """Mức tích luỹ của **một** tháng đủ điều kiện = `annual / 12`, giữ 2 chữ số thập phân.
+
+    KHÔNG làm tròn theo Điều 66 ở đây — luật làm tròn trên **tổng quyền lợi cả kỳ**
+    (`get_period_entitlement`), làm tròn từng tháng sẽ tích luỹ sai số.
+
+    ⚠ Trước 15/08/2026 hàm cũ `get_monthly_allocation_for_month()` dùng
+    `floor(annual/12, 1)` = 1,1 thay vì 14/12 = 1,1667 → thiếu 0,067 ngày mỗi tháng, chỉ
+    được bù ở kỳ tháng 12. Ai nghỉ việc trước tháng 12 là mất thật. Xem
+    `earned_leave_override.md` mục 2.3.
+    """
+    if annual_allocation is None:
+        annual_allocation = BASE_ANNUAL_ALLOCATION
+    return flt(flt(annual_allocation) / 12.0, 2)
+
+
 def get_monthly_allocation_for_month(month, annual_allocation=None):
-    """Số ngày phép tích luỹ của một tháng — **theo tỷ lệ**, làm tròn XUỐNG 1 chữ số thập phân.
+    """Tương thích ngược — mức tháng nay **không còn phụ thuộc vào tháng nào**.
 
-    `annual / 12`, floor 1 chữ số. **Tháng 12 gánh phần chênh** để cả năm cộng lại đúng
-    bằng `annual_allocation`.
+    Giữ chữ ký cũ vì `rebalance_earned_leave_schedule()` và vài chỗ khác còn gọi.
+    Kỳ cuối gánh phần dư do `_true_up_last_period()` xử lý, không phải hàm này.
+    """
+    return get_monthly_rate(annual_allocation)
 
-        14 ngày/năm -> 1,1/tháng · tháng 12 = 14 − 11×1,1 = 1,9
-        15 ngày/năm -> 1,2/tháng · tháng 12 = 15 − 11×1,2 = 1,8
-        16 ngày/năm -> 1,3/tháng · tháng 12 = 16 − 11×1,3 = 1,7
 
-    Trước 10/08/2026 hàm này chia theo "tháng bonus" (10 tháng × 1 ngày, tháng 6 và 12 mỗi
-    tháng 2 ngày). Cách đó cho số dư tròn ngày nhưng **không phản ánh mức tích luỹ thực** —
-    nghỉ việc cuối tháng 6 được tính 7 ngày trong khi theo tỷ lệ chỉ 6,9.
+def round_leaves_by_law(value):
+    """Làm tròn theo Điều 66 NĐ 145/2020: phần thập phân ≥ 0,5 lên 1 ngày, < 0,5 thì cắt bỏ.
 
-    ⚠ Tháng 12 ở đây là mức **chuẩn** khi cả 11 tháng trước đều đã cấp đủ theo tỷ lệ.
-    Lịch cấp thực tế (`Earned Leave Schedule`) tính lại tháng 12 = `annual − tổng các kỳ khác`
-    để đúng cả khi có kỳ gộp hoặc năm không trọn.
+        1,17 -> 1     3,50 -> 4     5,83 -> 6     12,83 -> 13
+
+    ⚠ KHÔNG dùng `round()` của Python: đó là làm tròn ngân hàng (round-half-to-even),
+    `round(2.5)` ra **2** chứ không phải 3 — sai luật đúng một nửa số trường hợp .5.
     """
     import math
 
-    if annual_allocation is None:
-        annual_allocation = BASE_ANNUAL_ALLOCATION
-
-    annual = flt(annual_allocation)
-    # floor 1 chữ số; +epsilon để 1,2 không bị nhị phân đẩy xuống 1,1
-    monthly = math.floor(annual / 12 * 10 + 1e-9) / 10
-
-    if month == 12:
-        return flt(annual - monthly * 11, 1)
-    return monthly
-
-
-# Số ngày làm việc tối thiểu trong một tháng dương lịch để tháng đó được tính là
-# "01 tháng làm việc thực tế" — Điều 66 Nghị định 145/2020/NĐ-CP.
-MIN_DAYS_FOR_WORKING_MONTH = 14
+    v = flt(value)
+    if v < 0:
+        return 0.0
+    whole = math.floor(v)
+    return float(whole + 1) if (v - whole) >= 0.5 else float(whole)
 
 
 def count_worked_days_in_month(any_date_in_month, date_of_joining, relieving_date=None):
-    """Số ngày người lao động thực sự thuộc biên chế trong tháng dương lịch chứa `any_date_in_month`."""
+    """Số ngày người lao động thuộc biên chế trong tháng dương lịch chứa `any_date_in_month`.
+
+    Chỉ còn dùng để hiển thị / kiểm tra; điều kiện tính tháng nay theo `is_working_month()`.
+    """
     month_start = get_first_day(getdate(any_date_in_month))
     month_end = get_last_day(getdate(any_date_in_month))
 
@@ -172,17 +180,74 @@ def count_worked_days_in_month(any_date_in_month, date_of_joining, relieving_dat
     return (end - start).days + 1
 
 
+# Ngày trong tháng dùng làm mốc xét "01 tháng làm việc". Phải trùng với
+# Leave Type.allocate_on_day = "15th of Month" — xem earned_leave_override.md mục 2.1.
+QUALIFYING_DAY_OF_MONTH = 15
+
+
 def is_working_month(any_date_in_month, date_of_joining, relieving_date=None):
-    """Tháng này có được tính là **01 tháng làm việc thực tế** không?
+    """Tháng này có được tính là **01 tháng làm việc** không?
 
-    Điều 66 NĐ 145/2020: làm **từ đủ 14 ngày trở lên** trong tháng dương lịch thì tháng đó
-    tính là một tháng; dưới 14 ngày thì **không tính**.
+    Luật (Điều 65 khoản 2 NĐ 145/2020): làm ≥ 50% số ngày làm việc bình thường của tháng.
+    Hiện thực tất định, khớp mốc ngày 15 ở **cả hai đầu**:
 
-    Chạm tới hai đầu: tháng vào làm (DOJ giữa tháng) và tháng nghỉ việc.
+        Tháng được tính  <=>  người lao động còn trong biên chế vào NGÀY 15 của tháng đó.
+
+        vào làm 15/01 -> CÓ      vào làm 16/01 -> KHÔNG
+        nghỉ việc 20/01 -> CÓ    nghỉ việc 10/01 -> KHÔNG
+
+    ⚠ Bản trước dùng `count_worked_days_in_month() >= 14` (đếm ngày dương lịch): tháng 31
+    ngày, vào làm ngày 16/17/18 vẫn được tính — trái quy tắc "sau ngày 15 không tính".
     """
-    return count_worked_days_in_month(
-        any_date_in_month, date_of_joining, relieving_date
-    ) >= MIN_DAYS_FOR_WORKING_MONTH
+    ref = getdate(any_date_in_month)
+    mid = datetime.date(ref.year, ref.month, QUALIFYING_DAY_OF_MONTH)
+
+    if date_of_joining and getdate(date_of_joining) > mid:
+        return False
+    if relieving_date and getdate(relieving_date) < mid:
+        return False
+    return True
+
+
+def count_qualifying_months(period_from, period_to, date_of_joining, relieving_date=None):
+    """Số tháng đủ điều kiện trong kỳ phép — mẫu số của công thức tỷ lệ.
+
+    Chỉ đếm những tháng mà **mốc ngày 15 nằm trong kỳ** và người lao động còn biên chế
+    tại mốc đó.
+    """
+    from frappe.utils import add_months
+
+    start, end = getdate(period_from), getdate(period_to)
+    months = 0
+    cursor = datetime.date(start.year, start.month, QUALIFYING_DAY_OF_MONTH)
+
+    while cursor <= end:
+        if cursor >= start and is_working_month(cursor, date_of_joining, relieving_date):
+            months += 1
+        cursor = getdate(add_months(cursor, 1))
+
+    return months
+
+
+def get_period_entitlement(
+    annual_allocation, period_from, period_to, date_of_joining, relieving_date=None
+):
+    """Quyền lợi phép của cả kỳ, đã làm tròn theo luật.
+
+        entitlement = LÀM_TRÒN_LUẬT( annual / 12 × số tháng đủ điều kiện )
+
+    Điều 113 khoản 2 BLLĐ 2019: làm chưa đủ 12 tháng thì phép tính **theo tỷ lệ**.
+
+    ⚠ Đây là chỗ bản cũ sai nặng nhất: `_true_up_december()` đặt kỳ tháng 12 =
+    `annual − tổng các kỳ khác` **vô điều kiện**, nên người làm 5 tháng vẫn nhận đủ 14 ngày.
+    Đo trên production 15/08/2026: 379 NV, thừa ~2.022 ngày.
+    """
+    months = count_qualifying_months(
+        period_from, period_to, date_of_joining, relieving_date
+    )
+    if months <= 0:
+        return 0.0
+    return round_leaves_by_law(flt(annual_allocation) / 12.0 * months)
 
 
 def get_annual_allocation_breakdown(annual_allocation=None):

@@ -456,59 +456,32 @@ def get_leaves_for_passed_period_from_eligibility(
     Returns:
         float: Number of leaves to allocate
     """
-    from frappe.utils import add_months
     from customize_erpnext.overrides.earned_leave.earned_leave_config import (
-        get_monthly_allocation_for_month,
-        get_allocation_date_for_month,
         get_annual_allocation_with_seniority,
-        is_working_month,
     )
 
     current_date = getdate(frappe.flags.current_date) or getdate()
-    eligibility_date = getdate(eligibility_date)
-    effective_from = getdate(self.effective_from)
     doj = getdate(date_of_joining)
-    relieving_date = frappe.db.get_value("Employee", self.employee, "relieving_date")
 
-    # Calculate annual allocation with seniority bonus
     total_annual = get_annual_allocation_with_seniority(
         annual_allocation, doj, current_date
     )
 
-    # Get allocate_on_day from leave_details
-    allocate_on_day = leave_details.allocate_on_day or "First Day"
+    # Dùng chung bộ dựng lịch với custom_get_earned_leave_schedule() để hai bên không lệch:
+    # phần "đã qua" chính là tổng các kỳ có ngày cấp <= hôm nay.
+    rows = build_earned_leave_rows(
+        self.employee,
+        total_annual,
+        self.effective_from,
+        self.effective_to,
+        doj,
+        eligibility_date,
+    )
 
-    # Find first allocation date in the period
-    first_alloc_date = get_allocation_date_for_month(effective_from, allocate_on_day, doj)
-
-    # If first allocation date is before effective_from, move to next month
-    if first_alloc_date < effective_from:
-        first_alloc_date = get_allocation_date_for_month(
-            add_months(effective_from, 1), allocate_on_day, doj
-        )
-
-    # If first allocation date is before eligibility_date, find first eligible date
-    check_date = first_alloc_date
-    while check_date < eligibility_date and check_date <= getdate(self.effective_to):
-        check_date = get_allocation_date_for_month(
-            add_months(check_date, 1), allocate_on_day, doj
-        )
-
-    # Count leaves for each month that has passed
-    total_leaves = 0
-
-    while check_date <= current_date and check_date <= getdate(self.effective_to):
-        # Only count if allocation date has passed or is today
-        # Điều 66 NĐ 145/2020: tháng làm dưới 14 ngày KHÔNG tính là tháng làm việc
-        if check_date <= current_date and is_working_month(check_date, doj, relieving_date):
-            total_leaves += get_monthly_allocation_for_month(check_date.month, total_annual)
-
-        # Move to next month
-        check_date = get_allocation_date_for_month(
-            add_months(check_date, 1), allocate_on_day, doj
-        )
-
-    return total_leaves
+    return flt(
+        sum(r["number_of_leaves"] for r in rows if getdate(r["allocation_date"]) <= current_date),
+        2,
+    )
 
 
 # =============================================================================
@@ -538,7 +511,6 @@ def custom_allocate_earned_leaves():
         get_upcoming_earned_leave_from_schedule,
         get_annual_allocation_from_policy,
         log_allocation_error,
-        send_email_for_failed_allocations,
         create_additional_leave_ledger_entry,
         OverAllocationError,
     )
@@ -639,7 +611,7 @@ def custom_allocate_earned_leaves():
                 failed_allocations.append(allocation.name)
 
     if failed_allocations:
-        send_email_for_failed_allocations(failed_allocations)
+        notify_failed_allocations(failed_allocations)
 
     # Log summary
     if skipped_allocations:
@@ -656,6 +628,50 @@ def custom_allocate_earned_leaves():
             "\n".join([f"- {s['employee']}: {s['leaves']} days (month {s['month']})"
                       for s in successful_allocations])
         )
+
+
+def notify_failed_allocations(failed_allocations):
+    """Tell whoever is configured that the nightly allocation had failures.
+
+    Replaces the HRMS version, which mails every enabled user holding the HR
+    Manager role. That list is not a subscription anyone opted into — it grows
+    silently as roles are handed out, and on this site it already carried the
+    `Administrator` username, which is not an address: MS 365 answered
+    "501 Invalid address" and refused the whole batch, so nobody was told
+    anything at all.
+
+    Recipients come from HR Settings > Earned Leave Alert Recipients. Blank
+    means send nothing: an alert must never guess who should read it.
+    """
+    recipients = [
+        r.strip()
+        for r in str(
+            frappe.db.get_single_value("HR Settings", "custom_earned_leave_alert_recipients") or ""
+        )
+        .replace("\n", ",")
+        .split(",")
+        if r.strip()
+    ]
+    if not recipients:
+        frappe.logger().warning(
+            f"{len(failed_allocations)} earned leave allocations failed but "
+            "HR Settings > Earned Leave Alert Recipients is empty; no mail sent"
+        )
+        return
+
+    from frappe.utils import comma_and, get_link_to_form
+
+    frappe.sendmail(
+        recipients=recipients,
+        subject=_("Failure of Automatic Allocation of Earned Leaves"),
+        message=_(
+            "Automatic Leave Allocation has failed for the following Earned Leaves: {0}. "
+            "Please check {1} for more details."
+        ).format(
+            comma_and([get_link_to_form("Leave Allocation", x) for x in failed_allocations]),
+            get_link_to_form("Error Log", label="Error Log List"),
+        ),
+    )
 
 
 def custom_update_leave_allocation(allocation, annual_allocation, e_leave_type, earned_leaves, today):
@@ -739,84 +755,153 @@ def custom_get_earned_leave_schedule(
 
     Original method: LeavePolicyAssignment.get_earned_leave_schedule
     """
-    from frappe.utils import add_months
     from customize_erpnext.overrides.earned_leave.earned_leave_eligibility import (
         is_employee_eligible_for_earned_leave,
     )
     from customize_erpnext.overrides.earned_leave.earned_leave_config import (
-        get_monthly_allocation_for_month,
-        get_allocation_date_for_month,
-        get_next_allocation_date,
         get_annual_allocation_with_seniority,
-        is_working_month,
     )
 
     today = getdate(frappe.flags.current_date) or getdate()
     from_date = getdate(self.effective_from)
-    to_date = getdate(self.effective_to)
     doj = getdate(date_of_joining) if date_of_joining else None
-    relieving_date = frappe.db.get_value("Employee", self.employee, "relieving_date")
 
-    # Get allocate_on_day from leave_details
-    allocate_on_day = leave_details.allocate_on_day or "First Day"
-
-    # Calculate annual allocation with seniority bonus
     total_annual = get_annual_allocation_with_seniority(
         annual_allocation, doj, today
     ) if doj else annual_allocation
 
-    # Get eligibility info
     eligibility_result = is_employee_eligible_for_earned_leave(
-        self.employee,
-        from_date,
-        leave_details.name
+        self.employee, from_date, leave_details.name
     )
     eligibility_date = eligibility_result["eligibility_date"] or from_date
 
-    schedule = []
+    rows = build_earned_leave_rows(
+        self.employee, total_annual, from_date, self.effective_to, doj, eligibility_date
+    )
 
-    # Row 1: Initial allocation for past allocation dates (lump sum)
-    if new_leaves_allocated:
+    schedule = []
+    past = [r for r in rows if getdate(r["allocation_date"]) <= today]
+    future = [r for r in rows if getdate(r["allocation_date"]) > today]
+
+    # Các kỳ đã qua được cấp gộp một lần vào hôm nay (giá trị này chính là
+    # new_leaves_allocated do get_leaves_for_passed_period_from_eligibility trả về —
+    # cùng nguồn build_earned_leave_rows nên luôn khớp).
+    if past:
         schedule.append({
             "allocation_date": today,
-            "number_of_leaves": new_leaves_allocated,
+            "number_of_leaves": flt(sum(r["number_of_leaves"] for r in past), 2),
             "is_allocated": 1,
             "allocated_via": "Leave Policy Assignment",
             "attempted": 1,
         })
 
-    # Find NEXT allocation date after today for future schedule
-    # (past dates are already included in new_leaves_allocated)
-    next_alloc_date = get_next_allocation_date(today, allocate_on_day, doj)
+    for r in future:
+        schedule.append({
+            "allocation_date": r["allocation_date"],
+            "number_of_leaves": r["number_of_leaves"],
+            "is_allocated": 0,
+            "allocated_via": None,
+            "attempted": 0,
+        })
 
-    # Build schedule for FUTURE allocation dates only
-    date = next_alloc_date
-    while date <= to_date:
-        month = date.month
-
-        # Điều 66 NĐ 145/2020: chỉ tính tháng làm việc từ đủ 14 ngày trở lên
-        if date >= eligibility_date and is_working_month(date, doj, relieving_date):
-            # Get allocation for this month with seniority-adjusted annual
-            monthly_allocation = get_monthly_allocation_for_month(month, total_annual)
-
-            row = {
-                "allocation_date": date,
-                "number_of_leaves": monthly_allocation,
-                "is_allocated": 0,  # Future - not yet allocated
-                "allocated_via": None,
-                "attempted": 0,
-            }
-            schedule.append(row)
-
-        # Move to next month's allocation date
-        date = get_allocation_date_for_month(add_months(date, 1), allocate_on_day, doj)
-
-    _true_up_december(schedule, total_annual)
     return schedule
 
 
+def build_earned_leave_rows(
+    employee, annual_allocation, period_from, period_to, date_of_joining, eligibility_date
+):
+    """Nguồn sự thật DUY NHẤT cho lịch cấp phép năm của một kỳ.
+
+    Cả `get_leaves_for_passed_period_from_eligibility()` (phần đã qua, cấp gộp lúc tạo LPA)
+    lẫn `custom_get_earned_leave_schedule()` (phần còn lại) đều gọi hàm này, nên hai bên
+    không thể lệch nhau.
+
+    Quy tắc (xem earned_leave_override.md):
+      1. Kỳ cấp = ngày 15 của mỗi tháng ĐỦ ĐIỀU KIỆN nằm trong kỳ phép.
+      2. Các tháng rơi vào thời gian thử việc KHÔNG mất — được **truy thu** gộp vào kỳ cấp
+         đầu tiên sau ngày hết thử việc.
+      3. Tổng cả lịch = quyền lợi cả kỳ đã làm tròn theo Điều 66; kỳ cuối gánh phần dư.
+
+    Trả về list[dict] đã sắp theo ngày, mỗi dict có allocation_date + number_of_leaves.
+    """
+    from frappe.utils import add_months
+    from customize_erpnext.overrides.earned_leave.earned_leave_config import (
+        QUALIFYING_DAY_OF_MONTH,
+        get_monthly_rate,
+        get_period_entitlement,
+        is_working_month,
+    )
+
+    period_from, period_to = getdate(period_from), getdate(period_to)
+    doj = getdate(date_of_joining) if date_of_joining else None
+    eligibility_date = getdate(eligibility_date) if eligibility_date else period_from
+    relieving_date = frappe.db.get_value("Employee", employee, "relieving_date")
+
+    entitlement = get_period_entitlement(
+        annual_allocation, period_from, period_to, doj, relieving_date
+    )
+    if not entitlement:
+        return []
+
+    # Mọi kỳ cấp đủ điều kiện trong kỳ phép
+    qualifying = []
+    cursor = datetime.date(period_from.year, period_from.month, QUALIFYING_DAY_OF_MONTH)
+    while cursor <= period_to:
+        if cursor >= period_from and is_working_month(cursor, doj, relieving_date):
+            qualifying.append(cursor)
+        cursor = getdate(add_months(cursor, 1))
+
+    if not qualifying:
+        return []
+
+    # Tách phần bị thử việc chặn — KHÔNG bỏ, dồn vào kỳ cấp đầu tiên sau khi hết thử việc
+    deferred = [d for d in qualifying if d < eligibility_date]
+    payable = [d for d in qualifying if d >= eligibility_date]
+
+    if not payable:
+        # Hết thử việc sau kỳ cấp cuối cùng (vd vào làm cuối tháng 11). Không được để mất:
+        # cấp bù đúng ngày hết thử việc, miễn là còn nằm trong kỳ phép.
+        if eligibility_date > period_to:
+            return []
+        payable = [eligibility_date]
+
+    monthly = get_monthly_rate(annual_allocation)
+    rows = []
+    for idx, d in enumerate(payable):
+        months = 1 + len(deferred) if idx == 0 else 1
+        rows.append({"allocation_date": d, "number_of_leaves": flt(monthly * months, 2)})
+
+    _true_up_last_period(rows, entitlement)
+    return rows
+
+
+def _true_up_last_period(schedule, entitlement):
+    """Kỳ **cuối cùng** gánh phần dư để tổng lịch đúng bằng `entitlement`.
+
+    Các kỳ khác cấp theo `annual/12` làm tròn 2 chữ số nên cộng lại luôn lệch chút ít so với
+    quyền lợi đã làm tròn theo Điều 66. Dồn hết chênh lệch vào kỳ cuối.
+
+    ⚠ Khác hẳn `_true_up_december()` cũ: hàm cũ dồn về `total_annual` (nguyên năm) **vô điều
+    kiện**, nên người làm 5 tháng vẫn nhận đủ 14 ngày. Nay dồn về `entitlement` đã tính theo
+    tỷ lệ số tháng thực làm.
+    """
+    if not schedule:
+        return
+
+    last = len(schedule) - 1
+    others = sum(flt(r["number_of_leaves"]) for i, r in enumerate(schedule) if i != last)
+    schedule[last]["number_of_leaves"] = flt(flt(entitlement) - others, 2)
+
+    # Không để kỳ cuối âm khi các kỳ trước đã vượt quyền lợi (làm tròn xuống)
+    if schedule[last]["number_of_leaves"] < 0:
+        schedule[last]["number_of_leaves"] = 0.0
+
+
 def _true_up_december(schedule, total_annual):
-    """Điều chỉnh kỳ **tháng 12** để tổng cả lịch đúng bằng `total_annual`.
+    """⚠ ĐÃ BỎ 15/08/2026 — giữ lại để không vỡ import cũ. Dùng `_true_up_last_period()`.
+
+    Hàm này đặt kỳ tháng 12 = `total_annual − tổng các kỳ khác` **vô điều kiện**, nên nhân
+    viên vào làm giữa kỳ vẫn nhận đủ phép cả năm (đo 15/08/2026: 379 NV, thừa ~2.022 ngày).
 
     Các kỳ khác cấp theo tỷ lệ `annual/12` làm tròn xuống 1 chữ số nên cộng lại luôn **thiếu**
     (14 -> 11×1,1 = 12,1). Phần thiếu dồn hết vào tháng 12.
