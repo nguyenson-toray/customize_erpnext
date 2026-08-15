@@ -8,7 +8,9 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "section"
+  "section",
+  "column_break_iamx",
+  "parrent"
  ],
  "fields": [
   {
@@ -19,12 +21,25 @@
    "in_standard_filter": 1,
    "label": "Section",
    "reqd": 1
+  },
+  {
+   "fieldname": "column_break_iamx",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "parrent",
+   "fieldtype": "Link",
+   "in_filter": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Parrent",
+   "options": "Department"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-07-24 10:19:08.314250",
+ "modified": "2026-08-14 10:21:29.999664",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Section",

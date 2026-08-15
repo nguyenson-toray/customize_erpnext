@@ -17,6 +17,8 @@
   "recalc_attendance_on_maternity_change",
   "column_break_rula",
   "recalc_attendance_on_checkin_change",
+  "column_break_sfsy",
+  "auto_add_checkin_for_employee_on_doj",
   "weekly_recalc_section",
   "auto_recalc_enabled",
   "auto_recalc_time",
@@ -359,12 +361,23 @@
    "fieldtype": "Data",
    "label": "Manager",
    "options": "User Email"
+  },
+  {
+   "fieldname": "column_break_sfsy",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "description": "Auto add time checkin 08:00 for new employee on first day",
+   "fieldname": "auto_add_checkin_for_employee_on_doj",
+   "fieldtype": "Check",
+   "label": "Auto Add Checkin For Employee On DOJ"
   }
  ],
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-08-14 13:09:33.399488",
+ "modified": "2026-08-15 11:15:09.063816",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Attendance Calculation Setting",
