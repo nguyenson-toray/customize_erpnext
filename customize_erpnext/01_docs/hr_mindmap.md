@@ -47,6 +47,10 @@
  - **05. [Paid holidays / Ngày lễ vẫn tính công](/desk/holiday-list)** `[Override]` `[Done]` — Ngày lễ nhà nước là nghỉ có lương nên vẫn được tính vào ngày công
 -->
   - **05. [Corrections / Điều chỉnh công]()** `[Override]` `[Done]` — Điều chỉnh, bổ sung giờ checkin
+    - **01. [Attendance confirmation request / Yêu cầu xác nhận công](/desk/attendance-request)** `[Override]` `[Done]` — Phiếu đề nghị bổ sung công; khi duyệt hệ thống tự tạo giờ chấm công và tính lại ngày công đó
+    - **02. [Suggested times / Đề xuất giờ tự động](/desk/attendance-request)** `[Custom]` `[Done]` — Hệ thống đề xuất giờ đầu ca, cuối ca, hoặc giờ kết thúc tăng ca đã đăng ký; HR vẫn sửa tay được từng dòng
+    - **03. [Bulk create / Tạo phiếu hàng loạt](/desk/attendance-request/view/list)** `[Custom]` `[Done]` — Quét một khoảng ngày, liệt kê những người quét thiếu, tạo một phiếu nháp cho mỗi nhân viên chỉ trong một bước
+    - **04. [Signature form / Giấy xác nhận công để ký](/desk/attendance-request/view/list)** `[Custom]` `[Done]` — In giấy yêu cầu xác nhận công gom theo tổ, mỗi tổ một tờ A4; bản scan đã ký được đính kèm ngược lại vào phiếu
   - **06. Attendance reports / Báo cáo chấm công** `[Done]`
     - **01. [Monthly attendance sheet / Bảng công tháng](/desk/query-report/Shift%20Attendance%20Customize)** `[Custom]` `[Done]` — Bảng công chi tiết theo ca, dùng để đối chiếu và tính lương
     - **02. [Daily email report / Báo cáo gửi email hằng ngày]()** `[Custom]` `[Done]` — Hệ thống tự gửi báo cáo hiện diện/ vắng của hôm nay, các trường hợp chấm công thiếu của ngày hôm trước
