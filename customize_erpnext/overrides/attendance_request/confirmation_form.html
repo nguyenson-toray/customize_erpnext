@@ -1,0 +1,178 @@
+{#
+  GIẤY YÊU CẦU XÁC NHẬN CÔNG — bản in để nhân viên ký.
+  Dựng theo form giấy "2. De nghi xac nhan cong.pdf", gom theo Employee.custom_group,
+  mỗi group một trang A4 dọc.
+
+  Font: Times New Roman. Server không cài font này nên stack rơi xuống Liberation
+  Serif — bản thay thế cùng metric, nhìn không phân biệt được, và có đủ dấu tiếng Việt.
+  Riêng dấu tick ✓ (U+2713) phải mượn DejaVu Sans vì Liberation Serif không có glyph.
+#}
+<style>
+	.acr-page {
+		font-family: "Times New Roman", "Liberation Serif", "DejaVu Serif", serif;
+		font-size: 10pt;
+		color: #000;
+		page-break-after: always;
+	}
+	.acr-page:last-child { page-break-after: auto; }
+
+	.acr-logo {
+		background-image: url("data:image/jpeg;base64,{{ logo_b64 }}");
+		background-repeat: no-repeat;
+		background-size: contain;
+		background-position: left top;
+		width: 45mm; height: 13.7mm;
+	}
+	.acr-company {
+		width: 62mm; font-size: 8.5pt; font-weight: bold;
+		line-height: 1.2; margin: 1.5mm 0 6mm;
+	}
+	.acr-head { width: 100%; margin-bottom: 6mm; }
+	.acr-head td { font-size: 10pt; padding: 1mm 0; }
+	.acr-title { text-align: center; font-weight: bold; margin: 0 0 5mm; line-height: 1.3; }
+	.acr-title .vi { display: block; font-size: 14pt; }
+	.acr-title .en { display: block; font-size: 12pt; }
+	.acr-intro { font-size: 9.5pt; font-style: italic; margin-bottom: 6mm; }
+	.acr-intro .en { color: #333; }
+
+	table.acr-grid { width: 100%; border-collapse: collapse; margin-bottom: 7mm; }
+	table.acr-grid th, table.acr-grid td {
+		border: 0.4mm solid #000;
+		padding: 1.8mm 1.2mm;
+		font-size: 9.5pt;
+		vertical-align: middle;
+	}
+	table.acr-grid th { text-align: center; font-weight: bold; line-height: 1.15; }
+	table.acr-grid th .en { font-weight: normal; font-style: italic; font-size: 8.5pt; }
+	table.acr-grid td.c { text-align: center; }
+	.acr-fill { font-weight: bold; text-decoration: underline; }
+
+	.acr-reasons { margin: 0 0 7mm; font-size: 9.5pt; }
+	.acr-reasons .lbl { font-style: italic; margin-bottom: 2mm; }
+	.acr-reasons div.opt { margin-bottom: 1.6mm; }
+	.acr-box {
+		display: inline-block; width: 3.8mm; height: 3.8mm;
+		border: 0.35mm solid #000; text-align: center; line-height: 3.6mm;
+		font-size: 9pt; margin-right: 1.8mm; vertical-align: middle;
+	}
+	.acr-tick { font-family: "DejaVu Sans", "Segoe UI Symbol", sans-serif; font-weight: bold; }
+
+	.acr-note { font-size: 8.5pt; line-height: 1.35; margin-bottom: 8mm; text-align: justify; }
+	.acr-note .en { font-style: italic; color: #333; }
+
+	table.acr-sign { width: 100%; border-collapse: collapse; }
+	table.acr-sign td {
+		border: 0.4mm solid #000; text-align: center;
+		font-size: 8.5pt; vertical-align: top; padding: 1.5mm 1mm; width: 20%;
+	}
+	/* Fixed height on the role block is what keeps every date line on the same
+	   baseline — "Xác nhận bởi quản lý trực tiếp, tổ trưởng" wraps to four lines
+	   and would otherwise push its own date line below the neighbouring cells'. */
+	table.acr-sign .role { display: block; height: 13mm; font-weight: bold; }
+	table.acr-sign .en { font-weight: normal; font-style: italic; }
+	table.acr-sign .dateline { display: block; margin-top: 14mm; }
+</style>
+
+{% for page in pages %}
+<div class="acr-page">
+
+	<div class="acr-logo"></div>
+	<div class="acr-company">{{ page.company or "" }}</div>
+
+	<table class="acr-head">
+		<tr>
+			<td style="width:42%">Bộ phận, tổ/ <i>Section</i>: <b>{{ page.department or "…………" }}</b></td>
+			<td style="width:33%">Tổ/<i>Line, team</i>: <b>{{ page.group or "…………" }}</b></td>
+			<td style="width:25%">Ngày/<i>Date</i>: {{ page.print_date }}</td>
+		</tr>
+		<tr><td colspan="3">Kính gửi/<i>To</i>: Phòng hành chính nhân sự - HR-GA</td></tr>
+	</table>
+
+	<div class="acr-title">
+		<span class="vi">GIẤY YÊU CẦU XÁC NHẬN CÔNG</span>
+		<span class="en">ATTENDANCE CONFIRMATION REQUEST</span>
+	</div>
+
+	<div class="acr-intro">
+		Đề nghị phòng Hành chính nhân sự giải quyết xác nhận giờ làm việc trên hệ thống chấm công
+		cho trường hợp ở bảng dưới không quét vân tay vào/ra<br>
+		<span class="en">Kindly request the HR-GA to review and confirm working hours in the attendance
+		system for the employees listed below who failed to record fingerprint check-in/check-out.</span>
+	</div>
+
+	<table class="acr-grid">
+		<thead>
+			<tr>
+				<th style="width:7%">STT<br><span class="en">No.</span></th>
+				<th style="width:13%">MSNV<br><span class="en">Code</span></th>
+				<th style="width:24%">Họ và tên<br><span class="en">Full name</span></th>
+				<th style="width:15%">Chức vụ<br><span class="en">Title</span></th>
+				<th style="width:12%">Ngày<br><span class="en">Date</span></th>
+				<th style="width:10%">Giờ vào<br><span class="en">Time in</span></th>
+				<th style="width:10%">Giờ ra<br><span class="en">Time out</span></th>
+				<th style="width:9%">Ghi chú<br><span class="en">Remark</span></th>
+			</tr>
+		</thead>
+		<tbody>
+			{% for row in page.rows %}
+			<tr>
+				<td class="c">{{ loop.index }}</td>
+				<td class="c">{{ row.employee }}</td>
+				<td>{{ row.employee_name }}</td>
+				<td>{{ row.designation or "" }}</td>
+				<td class="c">{{ row.date }}</td>
+				<td class="c {% if row.in_supplemented %}acr-fill{% endif %}">{{ row.in_time or "" }}</td>
+				<td class="c {% if row.out_supplemented %}acr-fill{% endif %}">{{ row.out_time or "" }}</td>
+				<td>{{ row.remark or "" }}</td>
+			</tr>
+			{% endfor %}
+		</tbody>
+	</table>
+
+	<div class="acr-reasons">
+		<div class="lbl">Vui lòng đánh dấu <b class="acr-tick">✓</b> vào lý do xác nhận công /
+			<i>Please tick <b class="acr-tick">✓</b> on reason for attendance confirmation</i></div>
+		<div class="opt"><span class="acr-box">{% if page.reason_index == 1 %}<span class="acr-tick">✓</span>{% endif %}</span>
+			1. Quên quét vân tay hoặc quét vân tay mà máy chưa nhận /
+			<i>Forgot to scan fingerprint or fingerprint scan not recognized by the machine</i></div>
+		<div class="opt"><span class="acr-box">{% if page.reason_index == 2 %}<span class="acr-tick">✓</span>{% endif %}</span>
+			2. Cúp điện hoặc lỗi của máy chấm công (cần xác nhận bởi IT) /
+			<i>Power outage or timekeeping machine error (Should IT confirmed)</i></div>
+		<div class="opt"><span class="acr-box">{% if page.reason_index == 3 %}<span class="acr-tick">✓</span>{% endif %}</span>
+			3. Lý do khác / <i>Other reason</i>:
+			{% if page.reason_index == 3 and page.other_reason %}<b>{{ page.other_reason }}</b>{% endif %}
+			…................................................................</div>
+	</div>
+
+	<div class="acr-note">
+		<b>Ghi chú:</b> Đối với trường hợp xác nhận công vì lý do 1 - Lỗi của người lao động thì NLĐ cần
+		gửi đề nghị xác nhận công này đến HCNS trong thời hạn 3 ngày kể từ ngày có thông tin thiếu công
+		từ C&amp;B, đối với ngày chốt công hằng tháng cần gửi trước ngày 26. Nếu trễ thời hạn thì được xem
+		và NLĐ chấp nhận nghỉ không lương, không phép.<br>
+		<span class="en"><b>Remark:</b> In cases of attendance confirmation due to reason 1 – Employee's
+		error, the employee must submit this attendance confirmation request to the HR-GA within 3 days
+		from the date of receiving the missing attendance information from C&amp;B, for the monthly
+		attendance closing, the request must be submitted before the 26th of each month. If the request
+		is submitted after the deadline, it will be considered that the employee accepts unpaid leave
+		without permission.</span>
+	</div>
+
+	<table class="acr-sign">
+		<tr>
+			<td><span class="role">Người yêu cầu<br><span class="en">Requestor</span></span>
+				<span class="dateline">…./..../…..</span></td>
+			<td><span class="role">Xác nhận bởi quản lý trực tiếp, tổ trưởng<br>
+				<span class="en">Confirmed by direct managment, leader</span></span>
+				<span class="dateline">…./..../…..</span></td>
+			<td><span class="role">Xác nhận bởi IT<br><span class="en">Confirmed by IT</span></span>
+				<span class="dateline">…./..../…..</span></td>
+			<td><span class="role">Phê duyệt bởi trưởng bộ phận<br>
+				<span class="en">Approved by manager</span></span>
+				<span class="dateline">…./..../…..</span></td>
+			<td><span class="role">Xác nhận bởi HR-GA<br><span class="en">Confirmed by HR-GA</span></span>
+				<span class="dateline">…./..../…..</span></td>
+		</tr>
+	</table>
+
+</div>
+{% endfor %}

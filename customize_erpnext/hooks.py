@@ -35,7 +35,8 @@ doctype_js = {
         "public/js/custom_scripts/employee.js"
     ],
     "Employee Checkin": "public/js/custom_scripts/employee_checkin.js",
-    "Attendance": "public/js/custom_scripts/attendance.js",  
+    "Attendance": "public/js/custom_scripts/attendance.js",
+    "Attendance Request": "public/js/custom_scripts/attendance_request.js",
     "Batch": "public/js/custom_scripts/batch.js",
     "Packing List": "public/js/packing_list_scale.js",
     "Salary Structure Assignment": "public/js/custom_scripts/salary_structure_assignment.js",
@@ -53,6 +54,8 @@ doctype_list_js = {
     ],
     "Employee Checkin": "public/js/custom_scripts/employee_checkin_list.js",
     "Attendance": "public/js/custom_scripts/attendance_list.js",
+    # Nút "Bulk Create from Missing Check-ins" + dialog đề xuất giờ + in form ký
+    "Attendance Request": "public/js/custom_scripts/attendance_request_list.js",
     "Shift Assignment": "public/js/custom_scripts/shift_assignment_list.js",
 }
 
@@ -75,6 +78,7 @@ fixtures = [
                 "Production Plan",
                 "Employee",
                 "Employee Checkin",
+                "Attendance Request",
                 "Stock Entry Detail",
                 "Stock Reconciliation",
                 "Stock Reconciliation Item",
@@ -108,6 +112,9 @@ fixtures = [
                 "Employee",
                 "Employee Checkin",
                 "Attendance",
+                # reason.options được mở rộng thêm 4 lý do bổ sung giờ công
+                # (xem override_doctype_class "Attendance Request")
+                "Attendance Request",
                 "Leave Type",
                 # Leave Application có 7 Property Setter trong DB (half_day.depends_on,
                 # field_order, naming_series HR-LAP-.YYYY.-, 4 × in_list_view) mà trước đây
@@ -314,6 +321,13 @@ override_doctype_class = {
     # (nghỉ có lương) nên không trừ. HRMS gốc trừ cả hai -> kỳ Tết ra 18 ngày
     # thay vì 27, sai đơn giá ngày. Xem overrides/payroll_docs/PAYROLL_SETUP.md mục 2.2.
     "Salary Slip": "customize_erpnext.overrides.salary_slip.salary_slip.CustomSalarySlip",
+
+    # Attendance Request cũng dùng để YÊU CẦU BỔ SUNG giờ check in/out bị thiếu
+    # (quên quét vân tay, máy lỗi, ngày làm việc đầu tiên). Chế độ suy từ `reason`:
+    # 4 lý do lấy từ Employee Checkin.custom_reason_for_manual_check_in -> tạo
+    # Employee Checkin + chạy lại engine tính công. Work From Home / On Duty giữ
+    # nguyên hành vi HRMS gốc. Xem 01_docs/attendance_request_supplement_plan.md
+    "Attendance Request": "customize_erpnext.overrides.attendance_request.attendance_request.CustomAttendanceRequest",
 }
 # Khấu trừ theo pháp luật VN (BHXH/BHYT/BHTN, đoàn phí, thuế TNCN).
 # Móc vào hook `apply_regional_deductions` có sẵn của HRMS — chạy sau khi gross_pay đã
