@@ -1,7 +1,7 @@
 {
  "cards": [
   {
-   "card": "Daily Attendance - Net Headcount"
+   "card": "HR Overview - Headcount"
   },
   {
    "card": "Daily Attendance - Present"
@@ -19,7 +19,7 @@
    "card": "Daily Attendance - New Joiners"
   },
   {
-   "card": "Daily Attendance - Maternity"
+   "card": "HR Overview - Maternity Leave"
   }
  ],
  "charts": [
@@ -43,7 +43,7 @@
  "idx": 0,
  "is_default": 0,
  "is_standard": 1,
- "modified": "2026-08-14 11:13:40.587575",
+ "modified": "2026-08-17 09:54:51.772642",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Daily Attendance",

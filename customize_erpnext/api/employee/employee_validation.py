@@ -21,9 +21,13 @@ from customize_erpnext.api.employee.employee_utils import (
 )
 
 
-def _split_employee_name_parts(employee_name):
+def split_employee_name_parts(employee_name):
     """Tách họ tên đầy đủ → (first_name, middle_name, last_name)
     VD: "Nguyễn Văn An" → ("Nguyễn", "Văn", "An")
+
+    Người dùng chỉ nhập Full Name; 3 field kia là dẫn xuất, giữ lại để code lõi
+    ERPNext/HRMS còn đọc chúng không bị rỗng. Nơi gọi chính là
+    `CustomEmployee.set_employee_name()`.
     """
     parts = (employee_name or '').strip().split()
     if not parts:
@@ -33,20 +37,21 @@ def _split_employee_name_parts(employee_name):
     return (parts[0], ' '.join(parts[1:-1]), parts[-1])
 
 
+# Tên cũ — giữ cho code ngoài còn import
+_split_employee_name_parts = split_employee_name_parts
+
+
 def before_insert_employee(doc, method=None):
     """
-    - Split employee_name → first/middle/last_name (critical for Data Import mandatory check)
     - Auto-fill employee code and attendance_device_id if not provided
     - Sync naming series so Frappe's set_new_name() (which runs AFTER before_insert with
       autoname='naming_series:') generates the exact same code we intend.
       set_series() stores (intended - 1) because Frappe does current + 1 on use.
-    """
-    if doc.employee_name:
-        first, mid, last = _split_employee_name_parts(doc.employee_name)
-        doc.first_name = first
-        doc.middle_name = mid
-        doc.last_name = last
 
+    Không còn tách họ tên ở đây: `CustomEmployee.set_employee_name()` làm việc đó
+    trong validate (chạy sau before_insert), và để hai nơi cùng tách là cách chắc
+    chắn nhất khiến chúng lệch nhau về sau.
+    """
     if not doc.employee:
         doc.employee = get_next_employee_code()
 
@@ -61,15 +66,12 @@ def before_insert_employee(doc, method=None):
 
 def validate_employee_changes(doc, method=None):
     """
-    - Sync first/middle/last_name from employee_name (always, including import)
     - Block changes to employee ID / attendance_device_id if Attendance records exist
-    """
-    if doc.employee_name:
-        first, mid, last = _split_employee_name_parts(doc.employee_name)
-        doc.first_name = first
-        doc.middle_name = mid
-        doc.last_name = last
 
+    Tách họ tên đã chuyển sang `CustomEmployee.set_employee_name()` — hook này chạy
+    SAU controller nên tách ở đây là quá muộn: core đã kịp ghép 3 field cũ đè lên
+    employee_name rồi.
+    """
     if doc.is_new() or not doc.name:
         return
 

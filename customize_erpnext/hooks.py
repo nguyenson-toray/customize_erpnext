@@ -313,6 +313,12 @@ scheduler_events = {
 #     "Stock Reconciliation": "customize_erpnext.override_methods.stock_reconciliation.custom_stock_reconciliation.CustomStockReconciliation"
 # }
 override_doctype_class = {
+    # Nghỉ thai sản = Employee.status Inactive, nhưng KHÔNG khoá tài khoản User.
+    # Core disable User khi status != Active; nghỉ thai sản thì vẫn cần đăng nhập
+    # xem phiếu lương / đơn nghỉ. Kế thừa EmployeeMaster của HRMS (HRMS cũng
+    # override "Employee") để không mất phần autoname của HRMS.
+    "Employee": "customize_erpnext.overrides.employee.employee_override.CustomEmployee",
+
     # Fix timeout khi cancel maternity leave (~6 tháng / ~180 ngày)
     # Skip HRMS cancel_attendance() loop đồng bộ, dùng background job thay thế
     "Leave Application": "customize_erpnext.overrides.leave_application.leave_application.CustomLeaveApplication",

@@ -42,6 +42,63 @@ Doctype quản lý các giai đoạn thai sản của nhân viên. Mỗi nhân v
 - **Tự tính lại hàng ngày** — scheduler cron 00:00: `scheduled_calculate_all_maternity_statuses()`
 - **List view** có nút **Calculate Status** (tất cả hoặc records được chọn) và **Show Invalid Records** (tìm record có gap ≠ 1 ngày giữa các giai đoạn)
 
+## Đồng bộ sang Employee.status (`employee_status_sync.py`)
+
+Chỉ `Maternity Leave` là nghỉ thật. `Pregnant` và `Young Child` vẫn đi làm bình
+thường (chỉ hưởng chế độ về sớm 1 giờ) nên employee giữ `Active`.
+
+| Chuyển tiếp status của record | `Employee.status` |
+|---|---|
+| `* → Maternity Leave` | `Inactive` |
+| `Maternity Leave → *` | `Active` |
+| còn lại | không đụng |
+
+**4 guard rail — đừng bỏ khi refactor:**
+
+1. **Chỉ chạy khi có chuyển tiếp** (`old != new`). Scheduler quét lại toàn bộ record
+   mỗi ngày; nếu khẳng định lại status ở trạng thái ổn định thì sẽ ghi đè thay đổi
+   thủ công của HR.
+2. **Chỉ lật `Active` ⇄ `Inactive`.** `Left` / `Suspended` là quyết định nhân sự vì
+   lý do khác — không bao giờ ghi đè.
+3. **Trước khi trả về `Active`**, kiểm tra không còn record maternity nào KHÁC của
+   employee đó đang `Maternity Leave` (một nhân viên có thể có 2–3 chu kỳ).
+4. **Ghi bằng `frappe.db.set_value`**, không `doc.save()` — lifecycle của Employee
+   clear cache toàn site và disable User trên mỗi lần save.
+
+**3 điểm gọi** (thiếu 1 là sync coi như hỏng):
+
+| Điểm | Vì sao |
+|---|---|
+| `on_maternity_update` | HR save trên UI / Data Import. Có xử lý đổi employee: employee CŨ được trả về Active |
+| `calculate_all_maternity_statuses()` | Dùng `db_set(update_modified=False)` → **bypass hook**, phải gọi tay. Đây là đường của scheduler 00:00 + nút Calculate Status, tức là nơi hầu hết chuyển tiếp thật xảy ra |
+| `on_maternity_delete` | Xoá record = giai đoạn biến mất |
+
+Mỗi lần lật đều ghi 1 Comment trên Employee (`Status Active → Inactive — Maternity phase ...`).
+
+### Employee.custom_sub_status — CHỈ HIỂN THỊ
+
+Fieldtype **HTML** → **không có cột trong DB**, không lưu gì. `get_employee_sub_status()`
+suy ra tại chỗ mỗi lần mở form; `employee.js::render_sub_status()` vẽ badge + link
+tới record. Vì không lưu nên **không filter / report theo sub-status được**.
+
+`get_current_maternity_record()` chọn record "hiện hành" **xác định** — ưu tiên
+`Maternity Leave` → `Pregnant` → `Young Child` → `Inactive`, đồng hạng thì lấy ngày
+bắt đầu giai đoạn muộn nhất, rồi `modified`. Đừng thay bằng `LIMIT 1` trần: 18 nhân
+viên đang có 2–3 record.
+
+### Hệ quả đã biết của việc thành Inactive
+
+- **Không còn được tính Attendance** — engine (`shift_type_optimized.py:1652`) chỉ lấy
+  `Active` + `Left`. Đây là **cố ý**: người đang nghỉ thai sản không cần bản ghi công.
+- **User không bị khoá** — `overrides/employee/employee_override.py::CustomEmployee`
+  chặn `update_user_status()` của core. Class này kế thừa `EmployeeMaster` của HRMS
+  (HRMS cũng chiếm `override_doctype_class["Employee"]`), đừng kế thừa thẳng core.
+- **Card HR Overview** — `maternity_leave()` phải đếm cả `Inactive` nếu không sẽ về 0;
+  `net_headcount()` vẫn chỉ trừ người còn `Active` (nếu nới ra `Inactive` sẽ trừ 2 lần).
+- **Chưa xử lý:** Labor Contract (3 chỗ chặn `status != Active`), Uniform, Self-Update,
+  Employee Photos, biometric_sync, daily_attendance_metrics — các module này sẽ bỏ qua
+  người đang nghỉ thai sản.
+
 ## Validation
 
 - Mỗi cặp: `from <= to` (cho phép phase 1 ngày)

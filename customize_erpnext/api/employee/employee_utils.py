@@ -2513,7 +2513,9 @@ def get_all_active_employees(date):
 _EMPLOYEE_FIELDS = [
 	# --- Thông tin cơ bản ---
 	"name as employee", "employee_name", "employee_number", "status", "company",
-	"naming_series", "salutation", "first_name", "middle_name", "last_name",
+	# first_name / middle_name / last_name bỏ khỏi export: chúng chỉ là phần tách
+	# ra từ employee_name, không mang thêm thông tin nào cho hồ sơ Việt Nam.
+	"naming_series", "salutation",
 	"gender", "date_of_birth", "blood_group", "marital_status",
 	"custom_number_of_childrens",
 
@@ -2532,14 +2534,15 @@ _EMPLOYEE_FIELDS = [
 	"passport_number", "date_of_issue", "valid_upto", "place_of_issue",
 
 	# --- Địa chỉ thường trú ---
+	# Section Address của core (permanent_address / current_address / 2 field
+	# accommodation_type) đã ẩn: rỗng trên cả 2411 hồ sơ và không nơi nào đọc.
+	# Bộ custom_* phủ đủ hơn — có thêm cả quê quán mà core không có.
 	"custom_permanent_address_province", "custom_permanent_address_commune",
 	"custom_permanent_address_village", "custom_permanent_address_full",
-	"permanent_accommodation_type", "permanent_address",
 
 	# --- Địa chỉ hiện tại ---
 	"custom_current_address_province", "custom_current_address_commune",
 	"custom_current_address_village", "custom_current_address_full",
-	"current_accommodation_type", "current_address",
 
 	# --- Quê quán ---
 	"custom_place_of_origin_address_province", "custom_place_of_origin_address_commune",
@@ -2612,12 +2615,10 @@ _EMPLOYEE_COLUMN_LABELS_EN = {
 	"custom_permanent_address_commune": "Permanent Address - Commune",
 	"custom_permanent_address_village": "Permanent Address - Village",
 	"custom_permanent_address_full": "Permanent Address - Full",
-	"permanent_accommodation_type": "Permanent Accommodation Type", "permanent_address": "Permanent Address",
 	"custom_current_address_province": "Current Address - Province",
 	"custom_current_address_commune": "Current Address - Commune",
 	"custom_current_address_village": "Current Address - Village",
 	"custom_current_address_full": "Current Address - Full",
-	"current_accommodation_type": "Current Accommodation Type", "current_address": "Current Address",
 	"custom_place_of_origin_address_province": "Place of Origin - Province",
 	"custom_place_of_origin_address_commune": "Place of Origin - Commune",
 	"custom_place_of_origin_address_village": "Place of Origin - Village",
@@ -2652,8 +2653,8 @@ _EMPLOYEE_COLUMN_LABELS_EN = {
 _EMPLOYEE_COLUMN_LABELS_VI = {
 	"employee": "Mã NV", "employee_name": "Họ và tên", "employee_number": "Số NV",
 	"status": "Trạng thái", "company": "Công ty", "naming_series": "Series",
-	"salutation": "Danh xưng", "first_name": "Tên", "middle_name": "Tên đệm",
-	"last_name": "Họ", "gender": "Giới tính", "date_of_birth": "Ngày sinh",
+	"salutation": "Danh xưng",
+	"gender": "Giới tính", "date_of_birth": "Ngày sinh",
 	"blood_group": "Nhóm máu", "marital_status": "Tình trạng hôn nhân",
 	"custom_number_of_childrens": "Số con",
 	"date_of_joining": "Ngày vào làm", "employment_type": "Loại HĐ",
@@ -2676,12 +2677,10 @@ _EMPLOYEE_COLUMN_LABELS_VI = {
 	"custom_permanent_address_commune": "Thường trú - Xã",
 	"custom_permanent_address_village": "Thường trú - Thôn",
 	"custom_permanent_address_full": "Thường trú - Địa chỉ đầy đủ",
-	"permanent_accommodation_type": "Loại nơi thường trú", "permanent_address": "Địa chỉ thường trú",
 	"custom_current_address_province": "Hiện tại - Tỉnh",
 	"custom_current_address_commune": "Hiện tại - Xã",
 	"custom_current_address_village": "Hiện tại - Thôn",
 	"custom_current_address_full": "Hiện tại - Địa chỉ đầy đủ",
-	"current_accommodation_type": "Loại nơi ở hiện tại", "current_address": "Địa chỉ hiện tại",
 	"custom_place_of_origin_address_province": "Quê quán - Tỉnh",
 	"custom_place_of_origin_address_commune": "Quê quán - Xã",
 	"custom_place_of_origin_address_village": "Quê quán - Thôn",

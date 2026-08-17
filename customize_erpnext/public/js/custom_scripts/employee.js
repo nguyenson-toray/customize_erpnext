@@ -43,11 +43,11 @@ frappe.ui.form.on('Employee', {
     },
 
     refresh: function (frm) {
-        // employee_name: editable; first/middle/last_name: read-only, auto-split from employee_name
+        // Full Name is what people type. Core marks it read-only because it derives
+        // the value from first/middle/last; here that runs the other way round —
+        // CustomEmployee.set_employee_name() derives the parts on save, and those
+        // three fields are hidden.
         frm.set_df_property('employee_name', 'read_only', 0);
-        frm.set_df_property('first_name', 'read_only', 1);
-        frm.set_df_property('last_name', 'read_only', 1);
-        frm.set_df_property('middle_name', 'read_only', 1);
 
         // Check if employee can be modified (name and attendance_device_id)
         if (!frm.is_new() && frm.doc.name) {
@@ -136,10 +136,8 @@ frappe.ui.form.on('Employee', {
                 });
             }
         }
-    },
 
-    employee_name: function (frm) {
-        split_employee_name(frm);
+        render_sub_status(frm);
     },
 
     custom_copy_permanent_address_to_other_adress: function (frm) {
@@ -190,13 +188,6 @@ frappe.ui.form.on('Employee', {
             return;
         }
 
-        // Sync first/middle/last_name từ employee_name trước khi lưu
-        if (frm.doc.employee_name) {
-            const _parts = frm.doc.employee_name.trim().split(/\s+/).filter(Boolean);
-            frm.doc.first_name = _parts[0] || '';
-            frm.doc.last_name = _parts.length >= 2 ? _parts[_parts.length - 1] : '';
-            frm.doc.middle_name = _parts.length >= 3 ? _parts.slice(1, -1).join(' ') : '';
-        }
         // check if employee_name icluding numbers throw error
         if (frm.doc.employee_name && /\d/.test(frm.doc.employee_name)) {
             frappe.msgprint(__('Employee name should not contain numbers'));
@@ -220,29 +211,52 @@ frappe.ui.form.on('Employee', {
 });
 
 // ============================================================
-// EMPLOYEE NAME SPLITTING FUNCTIONS
+// SUB STATUS
 // ============================================================
 
 /**
- * Tách employee_name → first_name, middle_name, last_name rồi điền vào form
- * VD: "Nguyễn Văn An" → first="Nguyễn", middle="Văn", last="An"
+ * Vẽ `custom_sub_status` — field HTML, KHÔNG có cột trong DB và không lưu gì.
+ * Nội dung được suy ra từ Employee Maternity mỗi lần mở form, nên nó luôn khớp
+ * với hồ sơ thai sản kể cả khi hồ sơ đó vừa được sửa ở nơi khác.
  */
-function split_employee_name(frm) {
-    const fullName = (frm.doc.employee_name || '').trim();
-    const parts = fullName.split(/\s+/).filter(Boolean);
-    let first = '', mid = '', last = '';
-    if (parts.length === 1) {
-        first = parts[0];
-    } else if (parts.length >= 2) {
-        first = parts[0];
-        last = parts[parts.length - 1];
-        mid = parts.slice(1, -1).join(' ');
-    }
-    frm.set_value('first_name', first);
-    frm.set_value('middle_name', mid);
-    frm.set_value('last_name', last);
-}
+function render_sub_status(frm) {
+    const field = frm.get_field('custom_sub_status');
+    if (!field || !field.$wrapper) return;
 
+    if (frm.is_new() || !frm.doc.name) {
+        field.$wrapper.empty();
+        return;
+    }
+
+    frappe.call({
+        method: 'customize_erpnext.customize_erpnext.doctype.employee_maternity.employee_status_sync.get_employee_sub_status',
+        args: { employee: frm.doc.name },
+        callback: function (r) {
+            const d = r.message;
+            if (!d) {
+                field.$wrapper.empty();
+                return;
+            }
+
+            const ref = frappe.utils.escape_html(d.reference || '');
+            const link = `/app/employee-maternity/${encodeURIComponent(d.reference || '')}`;
+
+            let period = '';
+            if (d.from_date) {
+                period = frappe.datetime.str_to_user(d.from_date) +
+                    ' → ' + (d.to_date ? frappe.datetime.str_to_user(d.to_date) : '…');
+            }
+
+            field.$wrapper.html(`
+                <div class="d-flex align-items-center flex-wrap" style="gap:8px;">
+                    <span class="indicator-pill ${d.indicator}">${__(d.label)}</span>
+                    ${period ? `<span class="text-muted small">${period}</span>` : ''}
+                    <a href="${link}" class="small">${ref}</a>
+                </div>
+            `);
+        }
+    });
+}
 
 // ============================================================
 // ADDRESS MANAGEMENT - REUSABLE FUNCTIONS

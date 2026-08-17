@@ -301,6 +301,27 @@ def on_maternity_update(doc, method):
 	# Frappe chạy on_update sau CẢ insert lẫn save — không cần hook after_insert riêng
 	# (dates đã được thu thập trong before_save, hook này chạy cho cả doc mới)
 	_queue_attendance_recalculation(doc, "on_update")
+	_sync_employee_status_on_save(doc)
+
+
+def _sync_employee_status_on_save(doc):
+	"""Đẩy status của record sang Employee.status (Maternity Leave -> Inactive).
+
+	Đổi employee giữa chừng: employee CŨ phải được trả về Active, vì record này
+	không còn mô tả họ nữa.
+	"""
+	from customize_erpnext.customize_erpnext.doctype.employee_maternity.employee_status_sync import (
+		sync_employee_status,
+	)
+
+	old_doc = None if doc.is_new() else doc.get_doc_before_save()
+	old_status = (old_doc.status or "") if old_doc else ""
+
+	if old_doc and old_doc.employee and old_doc.employee != doc.employee:
+		sync_employee_status(old_doc.employee, old_status, "", record=doc.name)
+		old_status = ""  # với employee mới thì đây là record mới toanh
+
+	sync_employee_status(doc.employee, old_status, doc.status or "", record=doc.name)
 
 
 def on_maternity_delete(doc, method):
@@ -310,6 +331,13 @@ def on_maternity_delete(doc, method):
 	if affected_dates:
 		doc._maternity_recalc_jobs = {doc.employee: sorted(affected_dates)}
 		_queue_attendance_recalculation(doc, "on_trash")
+
+	from customize_erpnext.customize_erpnext.doctype.employee_maternity.employee_status_sync import (
+		sync_employee_status,
+	)
+
+	# Record biến mất = giai đoạn của nó cũng biến mất theo
+	sync_employee_status(doc.employee, doc.status or "", "", record=doc.name)
 
 
 def _queue_attendance_recalculation(doc, trigger):
@@ -464,6 +492,10 @@ def calculate_all_maternity_statuses(names=None):
 			order_by="creation desc",
 		)
 
+	from customize_erpnext.customize_erpnext.doctype.employee_maternity.employee_status_sync import (
+		sync_employee_status,
+	)
+
 	updated = 0
 	for r in records:
 		doc = frappe.get_doc("Employee Maternity", r.name)
@@ -472,6 +504,10 @@ def calculate_all_maternity_statuses(names=None):
 		new_status = doc.status or ""
 		if new_status != old_status:
 			doc.db_set("status", new_status, update_modified=False)
+			# db_set bỏ qua on_update, nên hook đồng bộ KHÔNG chạy ở đây — phải
+			# gọi tay. Đây là đường đi của scheduler 00:00 và nút Calculate Status,
+			# tức là nơi phần lớn chuyển tiếp giai đoạn thực sự xảy ra.
+			sync_employee_status(doc.employee, old_status, new_status, record=doc.name)
 			updated += 1
 
 	return {"updated": updated, "total": len(records)}

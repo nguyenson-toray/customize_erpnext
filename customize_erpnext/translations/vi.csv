@@ -21502,3 +21502,7 @@ You are not permitted to print the selected requests.,Bạn không có quyền i
 Day of Week,Thứ,
 Check-in Time,Giờ vào,
 Check-out Time,Giờ ra,
+Inactive,Tạm ngưng,
+Maternity phase {0},Giai đoạn thai sản {0},
+Status {0} → {1} — {2},Trạng thái {0} → {1} — {2},
+cleared,đã kết thúc,

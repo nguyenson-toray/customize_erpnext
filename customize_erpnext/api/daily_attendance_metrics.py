@@ -11,7 +11,17 @@
 import frappe
 from frappe.utils import add_days, getdate, now_datetime, nowdate
 
-from customize_erpnext.api.hr_overview_cards import _maternity_leave_people
+# Scope, Active set and maternity set are shared with the HR Overview dashboard so
+# the two cannot report a different workforce — see api/headcount.py.
+from customize_erpnext.api.headcount import (
+	active_employees,
+	employee_scope_filters as _prefix_filters,
+	employee_scope_sql as _employee_scope_sql,
+	maternity_leave_employees,
+	net_headcount_set,
+	new_joiners as _new_joiners,
+	not_yet_employed as _not_yet_employed,
+)
 
 # Buckets are driven by the Group.group_attendance field, not by code — see
 # bucket_order(). Only two buckets are named here, because they carry meaning the
@@ -191,57 +201,9 @@ def _shift2_employees(date, shifts=None):
 	return {emp for emp, shift in shifts.items() if shift in late}
 
 
-def _new_joiners(date):
-	"""Employees whose first day is the report date.
-
-	They are counted and displayed, but kept out of every other calculation. Day
-	one is almost always recorded as Half Day (243 of 335 such records over three
-	months), and Half Day counts as absent — leaving them in would report a whole
-	intake as absent. On 2026-08-11 that was 21 of 28 Half Days, inflating the
-	absent figure by 29%.
-	"""
-	return set(
-		frappe.get_all(
-			"Employee",
-			filters=_prefix_filters({"status": "Active", "date_of_joining": date}),
-			pluck="name",
-		)
-	)
-
-
-def _not_yet_employed(date):
-	"""Active employees whose first day is still in the future on `date`.
-
-	Only bites when looking at a past date — someone hired last Friday is Active
-	today but was not on the payroll on Monday, so counting them would show up as
-	phantom missing attendance in the reconciliation line.
-	"""
-	return set(
-		frappe.get_all(
-			"Employee",
-			filters=_prefix_filters({"status": "Active", "date_of_joining": (">", date)}),
-			pluck="name",
-		)
-	)
-
-
 def _excluded_employees(date):
 	"""Everyone kept out of the Present/Absent maths, and why."""
-	scope, scope_params = _employee_scope_sql("e")
-	maternity = set(
-		frappe.db.sql(
-			f"""
-			SELECT DISTINCT em.employee
-			FROM `tabEmployee Maternity` em
-			JOIN `tabEmployee` e ON e.name = em.employee
-			WHERE em.status = 'Maternity Leave'
-			  AND e.status = 'Active'
-			  {scope}
-			""",
-			scope_params,
-			pluck=True,
-		)
-	)
+	maternity = maternity_leave_employees()
 	future = _not_yet_employed(date)
 	new_joiners = _new_joiners(date)
 	shifts = _shifts_on(date)
@@ -338,12 +300,15 @@ def get_daily_metrics(date=None):
 	maternity, new_joiners, shift2, future, shifts = _excluded_employees(date)
 	excluded = maternity | new_joiners | shift2 | future
 
-	active = frappe.db.count("Employee", _prefix_filters({"status": "Active"})) - len(future)
-	net = active - len(maternity) - len(new_joiners)
+	# Same set the HR Overview "Headcount" card publishes — one definition, so the
+	# two dashboards cannot show different numbers for the same day.
+	net_set = net_headcount_set(date)
+	net = len(net_set)
+	active = len(active_employees()) - len(future)
 
 	# Headcount per shift over the same universe as every other figure here, so
 	# the slices add up to net headcount rather than to some other total.
-	in_net = set(shifts) - maternity - new_joiners - future
+	in_net = set(shifts) & net_set
 	shift_headcount = {}
 	for emp in in_net:
 		shift_headcount[shifts[emp]] = shift_headcount.get(shifts[emp], 0) + 1
@@ -539,10 +504,16 @@ def chart_trend(filters=None):
 	}
 
 
-# One method backs all eight Number Cards; each card picks its figure through the
-# "metric" key in its own filters_json, so adding a card needs no new Python.
+# One method backs this dashboard's Number Cards; each card picks its figure
+# through the "metric" key in its own filters_json, so adding a card needs no new
+# Python.
+#
+# Net headcount and Maternity are deliberately absent. Both dashboards show the
+# same two figures, so they share the same two Number Cards, served by
+# api/hr_overview_cards.py — a second card here would be a second thing to keep in
+# step. get_daily_metrics() still reports them under "headcount" for the daily
+# email, computed from the same api/headcount.py functions those cards use.
 CARD_METRICS = {
-	"net_headcount": (("headcount", "net"), "Int"),
 	"present": (("status", "present"), "Int"),
 	"absent": (("status", "absent"), "Int"),
 	"attendance_rate": (("attendance_rate",), "Percent"),
@@ -550,7 +521,6 @@ CARD_METRICS = {
 	# makes the missing remainder visible instead of looking like a bug.
 	"shift2_pending": (("status", "shift2_pending"), "Int"),
 	"new_joiners": (("headcount", "new_joiners"), "Int"),
-	"maternity": (("headcount", "maternity"), "Int"),
 }
 
 
@@ -558,8 +528,8 @@ CARD_METRICS = {
 def card(filters=None):
 	"""Value for one Daily Attendance number card."""
 	filters = frappe.parse_json(filters) if filters else {}
-	metric = (filters or {}).get("metric") or "net_headcount"
-	path, fieldtype = CARD_METRICS.get(metric, CARD_METRICS["net_headcount"])
+	metric = (filters or {}).get("metric") or "present"
+	path, fieldtype = CARD_METRICS.get(metric, CARD_METRICS["present"])
 
 	value = get_daily_metrics((filters or {}).get("date"))
 	for key in path:
