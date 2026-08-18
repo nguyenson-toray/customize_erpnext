@@ -23,6 +23,7 @@ DEFAULTS = {
 	"working_block_minutes": 1,
 	"allow_ot_in_rest_time": 0,
 	"include_draft_ot": 0,
+	"include_draft_leave_application": 0,
 	"recalc_attendance_on_ot_change": 0,
 	"recalc_attendance_on_maternity_change": 0,
 	"recalc_attendance_on_checkin_change": 0,
@@ -44,6 +45,7 @@ DEFAULTS = {
 ZERO_ALLOWED_FIELDS = {
 	"allow_ot_in_rest_time",
 	"include_draft_ot",
+	"include_draft_leave_application",
 	"recalc_attendance_on_ot_change",
 	"recalc_attendance_on_maternity_change",
 	"recalc_attendance_on_checkin_change",
@@ -63,6 +65,25 @@ def get_ot_docstatus_condition(alias: str = "or_doc") -> str:
 	if frappe.utils.cint(get_attendance_settings().include_draft_ot):
 		return f"{alias}.docstatus IN (0, 1)"
 	return f"{alias}.docstatus = 1"
+
+
+def get_leave_docstatus_condition(alias: str = "") -> str:
+	"""SQL condition chọn Leave Application nào được tính vào chấm công.
+
+	Mặc định chỉ đơn đã Submit; bật `include_draft_leave_application` thì tính cả Draft.
+
+	Dùng khi nghỉ đã được duyệt trên giấy nhưng HR chưa kịp submit chứng từ — ví dụ tới kỳ chốt
+	lương mà đơn cuối tháng còn nằm ở Draft, khiến bảng công thiếu ngày nghỉ.
+
+	⚠ Cờ này **chỉ nới `docstatus`**. Điều kiện `status = 'Approved'` ở chỗ gọi vẫn giữ nguyên,
+	nên đơn Draft mà bị Rejected/Cancelled sẽ không lọt vào.
+
+	`alias` là tên bảng trong câu SQL; để trống nếu truy vấn không đặt alias.
+	"""
+	prefix = f"{alias}." if alias else ""
+	if frappe.utils.cint(get_attendance_settings().include_draft_leave_application):
+		return f"{prefix}docstatus IN (0, 1)"
+	return f"{prefix}docstatus = 1"
 
 
 class AttendanceCalculationSetting(Document):

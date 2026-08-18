@@ -28,11 +28,6 @@ def _patch():
 	bal_mod.execute = bal
 	sum_mod.execute = summ
 
-	# Gỡ filter `Consolidate Leave Types` khỏi giao diện (không còn nghĩa khi chỉ 1 leave type)
-	from customize_erpnext.overrides.leave_reports.report_js import patch as patch_report_js
-
-	patch_report_js()
-
 
 try:
 	_patch()

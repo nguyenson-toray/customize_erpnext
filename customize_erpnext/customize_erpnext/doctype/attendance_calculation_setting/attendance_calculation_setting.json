@@ -11,6 +11,8 @@
   "min_pre_shift_ot_minutes",
   "allow_ot_in_rest_time",
   "include_draft_ot",
+  "column_break_hidy",
+  "include_draft_leave_application",
   "recalc_triggers_section",
   "recalc_attendance_on_ot_change",
   "column_break_recalc",
@@ -60,7 +62,7 @@
   {
    "fieldname": "overtime_section",
    "fieldtype": "Section Break",
-   "label": "Overtime"
+   "label": "Overtime & Leave"
   },
   {
    "default": "30",
@@ -100,6 +102,13 @@
    "fieldname": "include_draft_ot",
    "fieldtype": "Check",
    "label": "Include Draft OT Registrations"
+  },
+  {
+   "default": "0",
+   "description": "Also count Leave Applications still in Draft (not yet submitted). Use when leave has been approved on paper but the documents are not submitted yet \u2014 e.g. payroll cut-off arrives before HR finishes submitting.",
+   "fieldname": "include_draft_leave_application",
+   "fieldtype": "Check",
+   "label": "Include Draft Leave Applications"
   },
   {
    "description": "Off = attendance picks up changes at the next full run (Full Update Hours) or a manual Bulk Update",
@@ -372,12 +381,16 @@
    "fieldname": "auto_add_checkin_for_employee_on_doj",
    "fieldtype": "Check",
    "label": "Auto Add Checkin For Employee On DOJ"
+  },
+  {
+   "fieldname": "column_break_hidy",
+   "fieldtype": "Column Break"
   }
  ],
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-08-15 11:15:09.063816",
+ "modified": "2026-08-18 14:57:34.288585",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Attendance Calculation Setting",

@@ -17,9 +17,16 @@ try:
 	import customize_erpnext.overrides.earned_leave
 	import customize_erpnext.overrides.leave_control_panel
 	import customize_erpnext.overrides.leave_reports
+	import customize_erpnext.overrides.shift_attendance
 	import customize_erpnext.overrides.employees_by_age
 	import customize_erpnext.overrides.employee_reminders
 	import customize_erpnext.overrides.lms_file_storage
+
+	# Cơ chế dùng chung cho JS của report (filter + clone). Gọi MỘT lần, sau các module trên vì
+	# nó tra bảng khai báo của chúng.
+	from customize_erpnext.overrides.report_js import patch as patch_report_js
+
+	patch_report_js()
 
 	frappe.logger().info("✅ All overrides loaded successfully (on import)")
 

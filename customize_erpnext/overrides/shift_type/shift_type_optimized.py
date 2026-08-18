@@ -39,6 +39,7 @@ from customize_erpnext.overrides.shift_type.attendance_config import BULK_ATTEND
 # Quy tac nghi phep dung chung voi luong Leave Application. Engine luon ghi sau cung nen hai
 # ben BUOC phai dung cung mot ham quyet dinh, neu khong moi FULL run lai ghi de lan nhau.
 # Xem overrides/leave_application/PLAN_LEAVE_OVERRIDE.md GD 1-3.
+from customize_erpnext.overrides.shift_type.leave_hour_cap import apply_to_attendance as apply_leave_hour_cap
 from customize_erpnext.overrides.leave_rules import (
 	combined_abbreviation,
 	order_leave_types,
@@ -600,13 +601,20 @@ def preload_reference_data(employee_list: List[str], from_date: str, to_date: st
 		print(f"   ⚠️  Error loading maternity tracking: {str(e)}")
 
 	# 7. Load Leave Applications (Approved leaves)
-	print(f"   Loading approved leave applications...")
+	# Submitted only, or Draft + Submitted when include_draft_leave_application setting is ON
+	# (nghỉ đã duyệt trên giấy nhưng HR chưa kịp submit trước kỳ chốt lương).
+	from customize_erpnext.customize_erpnext.doctype.attendance_calculation_setting.attendance_calculation_setting import (
+		get_leave_docstatus_condition,
+	)
+	leave_docstatus_cond = get_leave_docstatus_condition()
+
+	print(f"   Loading approved leave applications ({leave_docstatus_cond})...")
 	data['leave_applications'] = {}
 
 	# Query approved leaves that overlap with date range
 	# Based on HRMS attendance.py:check_leave_record() logic
 	if employee_list:
-		leave_records = frappe.db.sql("""
+		leave_records = frappe.db.sql(f"""
 			SELECT
 				employee,
 				leave_type,
@@ -618,7 +626,7 @@ def preload_reference_data(employee_list: List[str], from_date: str, to_date: st
 			FROM `tabLeave Application`
 			WHERE employee IN %(employees)s
 			  AND status = 'Approved'
-			  AND docstatus = 1
+			  AND {leave_docstatus_cond}
 			  AND from_date <= %(to_date)s
 			  AND to_date >= %(from_date)s
 			ORDER BY name
@@ -628,7 +636,7 @@ def preload_reference_data(employee_list: List[str], from_date: str, to_date: st
 			"to_date": to_date
 		}, as_dict=True)
 	else:
-		leave_records = frappe.db.sql("""
+		leave_records = frappe.db.sql(f"""
 			SELECT
 				employee,
 				leave_type,
@@ -639,7 +647,7 @@ def preload_reference_data(employee_list: List[str], from_date: str, to_date: st
 				name as leave_application
 			FROM `tabLeave Application`
 			WHERE status = 'Approved'
-			  AND docstatus = 1
+			  AND {leave_docstatus_cond}
 			  AND from_date <= %(to_date)s
 			  AND to_date >= %(from_date)s
 			ORDER BY name
@@ -1243,6 +1251,7 @@ _ATTENDANCE_UPDATE_FIELDS = (
 	("custom_final_overtime_duration", "custom_final_overtime_duration", 0),
 	("overtime_type", "overtime_type", None),
 	("standard_working_hours", "standard_working_hours", 0),
+	("custom_actual_working_hours", "custom_actual_working_hours", 0),
 	("custom_note", "custom_note", None),
 )
 
@@ -2173,6 +2182,11 @@ def _core_process_attendance_logic_optimized(
 								else:
 									att_data['status'] = 'On Leave'  # No checkin → On Leave
 
+						# Chặn working_hours theo đơn nghỉ phép + ghi custom_note.
+						# PHẢI đứng trước _check_attendance_changes: gọi sau thì bản ghi bị coi
+						# là "không đổi" nên cap không bao giờ được ghi xuống DB.
+						apply_leave_hour_cap(att_data)
+
 						# CHECK IF DATA HAS CHANGED before adding to update list
 						# (key already in processed_keys — added at top of loop)
 						if _check_attendance_changes(old_att, att_data):
@@ -2207,6 +2221,7 @@ def _core_process_attendance_logic_optimized(
 						else:
 							att_data['status'] = 'On Leave'
 
+					apply_leave_hour_cap(att_data)
 					attendance_to_insert.append(att_data)
 
 			# NOTE: existing attendance WITHOUT checkins is handled once for ALL

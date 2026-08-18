@@ -19,8 +19,12 @@ addition kept at the user's request: leave applications appear in Note
 Checkin as "Phép: {abbr}" (the app has no leave data).
 """
 
+import re
+
 import frappe
 from frappe.utils import getdate, now_datetime
+
+from customize_erpnext.overrides.shift_type.leave_hour_cap import is_suspicious
 from datetime import timedelta, datetime, date as date_type
 from collections import defaultdict
 
@@ -34,11 +38,11 @@ from openpyxl.worksheet.table import Table, TableStyleInfo
 DETAIL_HDRS = [
     "No", "Date", "Employee ID", "Finger ID", "Full name", "Department",
     "Section", "Group", "Shift", "First In", "Last Out",
-    "Working (hour)", "Working (day)", "OT Actual (hours)",
+    "Working (hour)", "Actual (hour)", "Working (day)", "OT Actual (hours)",
     "OT Approved (hours)", "OT Final", "Note Checkin", "Note Sunday",
     "Joining Date", "Resign Date",
 ]
-DETAIL_WIDTHS = [4, 10, 10, 6, 24, 10, 14, 18, 7, 8, 8, 8, 8, 8, 8, 8, 20, 20, 10, 10]
+DETAIL_WIDTHS = [4, 10, 10, 6, 24, 10, 14, 18, 7, 8, 8, 8, 9, 8, 8, 8, 8, 20, 20, 10, 10]
 
 EMP_FIXED_HDRS = ["No", "Employee ID", "Full name", "Joining Date",
                   "Resign Date", "Group", "Section", "Position"]
@@ -121,10 +125,10 @@ def load_export_universe(from_date, to_date, department=None):
     if emp_ids:
         att_rows = frappe.db.sql("""
             SELECT employee, attendance_date, shift, in_time, out_time,
-                   working_hours, actual_overtime_duration,
+                   working_hours, custom_actual_working_hours, actual_overtime_duration,
                    custom_approved_overtime_duration, custom_final_overtime_duration,
                    late_entry, early_exit, custom_note,
-                   custom_leave_application_abbreviation, status
+                   custom_leave_application_abbreviation, leave_application, status
             FROM `tabAttendance`
             WHERE employee IN %(employees)s
               AND attendance_date BETWEEN %(from_date)s AND %(to_date)s
@@ -227,6 +231,21 @@ def _build_notes(att_row, regime):
     if abbr:
         checkin_parts.append(f"Phép: {abbr}")
 
+    # Xin nghỉ phép nhưng vẫn đi làm — giờ thực tế vượt giờ được tính.
+    # ⚠ Hàm này chỉ dịch những chuỗi ĐÃ BIẾT trong custom_note; note nào không khai ở đây sẽ
+    # BIẾN MẤT khỏi cột Note Checkin. Thêm note mới ở engine thì phải thêm cả ở đây.
+    # Chuỗi gốc do overrides/shift_type/leave_hour_cap.leave_hour_note() sinh.
+    if "hours not counted" in note_en:
+        checkin_parts.append("Nghỉ trọn ngày nhưng vẫn đi làm - không tính giờ")
+    elif "capped to" in note_en:
+        actual = ""
+        m = re.search(r"worked ([\d.]+)h", note_en)
+        if m:
+            actual = f" {m.group(1)}h"
+        checkin_parts.append(f"Nghỉ nửa ngày nhưng làm{actual} - chặn còn 4h")
+    if "check if LA should be cancelled" in note_en:
+        checkin_parts.append("→ XEM HUỶ ĐƠN NGHỈ")
+
     # Sunday notes (attNote3)
     if "Sunday work" in note_en:
         sunday_parts.append("OT ngày CN")
@@ -273,6 +292,11 @@ def build_export_rows(universe):
                     "last_out": att_row.out_time,
                     "working_hours": working_hours,
                     "working_days": _r2(working_hours / 8.0),
+                    # Giờ THỰC TẾ theo check in/out — không bị chặn theo đơn nghỉ phép.
+                    # Xem overrides/shift_type/leave_hour_cap.py
+                    "actual_hours": _r2(att_row.custom_actual_working_hours),
+                    # Chỉ sheet Timesheet dùng — xem overrides/shift_attendance/timesheet_leave.py
+                    "leave_abbr": (att_row.custom_leave_application_abbreviation or "").strip(),
                     "ot_actual": _r1(att_row.actual_overtime_duration),
                     "ot_approved": _r1(att_row.custom_approved_overtime_duration),
                     "ot_final": _r1(att_row.custom_final_overtime_duration),
@@ -291,6 +315,19 @@ def build_export_rows(universe):
                          f"{dat_str} {emp_tag} — resigned on {resign}, has check-ins"))
                 # App suppresses [Ra 16-17h] for employees under a maternity
                 # regime at that date (leaving 1h early is expected for them)
+                # Xin nghỉ phép nhưng vẫn đi làm — HR cần biết để huỷ đơn.
+                # Ngưỡng và cách nhận diện ở overrides/shift_type/leave_hour_cap.py
+                _abbr = (att_row.custom_leave_application_abbreviation or "").strip()
+                _actual = _r2(att_row.custom_actual_working_hours)
+                if is_suspicious(_actual, _abbr, att_row.status == "Half Day",
+                                 bool(att_row.custom_leave_application_abbreviation)):
+                    _in = att_row.in_time.strftime("%H:%M") if att_row.in_time else "?"
+                    _out = att_row.out_time.strftime("%H:%M") if att_row.out_time else "?"
+                    anomalies.append(
+                        ("[Nghỉ phép + đi làm]",
+                         f"{dat_str} {emp_tag} — đơn {_abbr} nhưng làm {_actual:.2f}h "
+                         f"({_in}–{_out}) → xem huỷ {att_row.leave_application or 'đơn nghỉ'}"))
+
                 if "Female checkout" in note_en and not regime:
                     out_str = att_row.out_time.strftime("%H:%M") if att_row.out_time else "?"
                     anomalies.append(
@@ -311,6 +348,8 @@ def build_export_rows(universe):
                     "last_out": None,
                     "working_hours": 0.0,
                     "working_days": 0.0,
+                    "actual_hours": 0.0,
+                    "leave_abbr": "",
                     "ot_actual": 0.0,
                     "ot_approved": 0.0,
                     "ot_final": 0.0,
@@ -438,14 +477,15 @@ def add_detail_sheet(wb, rows, emp_by_id):
         _set_time(ws.cell(row=row, column=10), r["first_in"])
         _set_time(ws.cell(row=row, column=11), r["last_out"])
         c = ws.cell(row=row, column=12, value=r["working_hours"]); c.number_format = "0.00"
-        c = ws.cell(row=row, column=13, value=r["working_days"]); c.number_format = "0.00"
-        c = ws.cell(row=row, column=14, value=r["ot_actual"]); c.number_format = "0.0"
-        c = ws.cell(row=row, column=15, value=r["ot_approved"]); c.number_format = "0.0"
-        c = ws.cell(row=row, column=16, value=r["ot_final"]); c.number_format = "0.0"
-        ws.cell(row=row, column=17, value=r["note_checkin"])
-        ws.cell(row=row, column=18, value=r["note_sunday"])
-        _set_date(ws.cell(row=row, column=19), _joining_date(emp))
-        _set_date(ws.cell(row=row, column=20), _resign_date(emp))
+        c = ws.cell(row=row, column=13, value=r["actual_hours"]); c.number_format = "0.00"
+        c = ws.cell(row=row, column=14, value=r["working_days"]); c.number_format = "0.00"
+        c = ws.cell(row=row, column=15, value=r["ot_actual"]); c.number_format = "0.0"
+        c = ws.cell(row=row, column=16, value=r["ot_approved"]); c.number_format = "0.0"
+        c = ws.cell(row=row, column=17, value=r["ot_final"]); c.number_format = "0.0"
+        ws.cell(row=row, column=18, value=r["note_checkin"])
+        ws.cell(row=row, column=19, value=r["note_sunday"])
+        _set_date(ws.cell(row=row, column=20), _joining_date(emp))
+        _set_date(ws.cell(row=row, column=21), _resign_date(emp))
 
     _add_excel_table(ws, len(data) + 1, len(DETAIL_HDRS), "TableDetail")
     _set_widths(ws, DETAIL_WIDTHS)
@@ -480,15 +520,23 @@ def add_summary_sheet(wb, rows, emp_by_id):
 
 
 def _add_pivot_sheet(wb, sheet_name, table_name, number_fmt, pivot_values,
-                     emp_order, emp_by_id, all_dates, skip_zero_rows=False):
-    """Numeric employee × date pivot (Timesheet / Overtime), app-identical."""
+                     emp_order, emp_by_id, all_dates, skip_zero_rows=False,
+                     display_values=None):
+    """Numeric employee × date pivot (Timesheet / Overtime), app-identical.
+
+    `display_values` (tuỳ chọn, chỉ Timesheet dùng): {emp_id: {date: "P"}} — ô nào có mã thì in
+    CHỮ thay cho số, nhưng cột Total vẫn cộng số của `pivot_values`. Sheet Overtime không truyền
+    tham số này nên hành vi giữ nguyên tuyệt đối.
+    """
     ws = wb.create_sheet(sheet_name)
     date_cols = len(all_dates)
     total_col = EMP_FIXED + date_cols + 1
     _header_row(ws, EMP_FIXED_HDRS + [d.strftime("%d/%m") for d in all_dates] + ["Total"])
 
-    def apply_cell(cell, val):
-        if val > 0:
+    def apply_cell(cell, val, text=None):
+        if text is not None:
+            cell.value = text          # mã nghỉ phép: để dạng chữ, KHÔNG gán number_format
+        elif val > 0:
             cell.value = val
             cell.number_format = "0" if val == int(val) else number_fmt
         cell.alignment = _CENTER
@@ -499,9 +547,11 @@ def _add_pivot_sheet(wb, sheet_name, table_name, number_fmt, pivot_values,
         total = sum(day_map.values())
         if skip_zero_rows and total == 0:
             continue
+        text_map = (display_values or {}).get(emp_id, {})
         _write_fixed(ws, row, no, emp_by_id[emp_id])
         for ci, d in enumerate(all_dates):
-            apply_cell(ws.cell(row=row, column=EMP_FIXED + 1 + ci), day_map.get(d, 0.0))
+            apply_cell(ws.cell(row=row, column=EMP_FIXED + 1 + ci),
+                       day_map.get(d, 0.0), text_map.get(d))
         apply_cell(ws.cell(row=row, column=total_col), total)
         row += 1
 
@@ -585,16 +635,29 @@ def build_standard_workbook(from_date, to_date, department=None):
     add_summary_sheet(wb, rows, emp_by_id)
 
     # Timesheet pivot: working days per day; every employee present in rows
+    #
+    # Sheet Timesheet in MÃ NGHỈ PHÉP (P, KL, O/2...) vào ô của ngày nghỉ và tính ngày công
+    # theo mục 3 quy chế, thay vì giờ/8. Detail + Summary phía trên KHÔNG đổi — chúng vẫn dùng
+    # r["working_days"]. Xem overrides/shift_attendance/timesheet_leave.py.
+    from customize_erpnext.overrides.shift_attendance.timesheet_leave import (
+        timesheet_cell_display, timesheet_working_days)
+
     emp_order = sorted({r["emp_id"] for r in rows})
     ts_pivot = defaultdict(lambda: defaultdict(float))
+    ts_display = defaultdict(dict)
     ot_pivot = defaultdict(lambda: defaultdict(float))
     for r in rows:
-        ts_pivot[r["emp_id"]][r["date"]] += r["working_days"]
+        abbr = r.get("leave_abbr") or ""
+        ts_pivot[r["emp_id"]][r["date"]] += timesheet_working_days(abbr, r["working_hours"])
+        shown = timesheet_cell_display(abbr, r["working_hours"])
+        if isinstance(shown, str):
+            ts_display[r["emp_id"]][r["date"]] = shown
         if r["ot_final"] > 0:
             ot_pivot[r["emp_id"]][r["date"]] += r["ot_final"]
 
     _add_pivot_sheet(wb, "Timesheet", "TableTimesheet", "0.##",
-                     ts_pivot, emp_order, emp_by_id, all_dates)
+                     ts_pivot, emp_order, emp_by_id, all_dates,
+                     display_values=ts_display)
     _add_pivot_sheet(wb, "Overtime", "TableOvertime", "0.#",
                      ot_pivot, emp_order, emp_by_id, all_dates,
                      skip_zero_rows=True)

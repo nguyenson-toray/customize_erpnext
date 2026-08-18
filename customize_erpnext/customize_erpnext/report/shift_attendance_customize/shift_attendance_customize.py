@@ -480,10 +480,14 @@ def get_query(filters):
 			query = query.where(attendance.attendance_date >= filters['from_date'])
 		elif filter_key == "to_date":
 			query = query.where(attendance.attendance_date <= filters['to_date'])
+		# 🔴 Phải xét GIÁ TRỊ, không chỉ sự tồn tại của key: giao diện gửi cả ô Check đã bỏ
+		# tick (value = 0). Trước 18/08/2026 `late_entry=0` lọc y hệt `late_entry=1`.
 		elif filter_key == "late_entry" and not is_summary:
-			query = query.where(attendance.late_entry == 1)
+			if cint(filters.get("late_entry")):
+				query = query.where(attendance.late_entry == 1)
 		elif filter_key == "early_exit" and not is_summary:
-			query = query.where(attendance.early_exit == 1)
+			if cint(filters.get("early_exit")):
+				query = query.where(attendance.early_exit == 1)
 		elif filter_key == "status" and not is_summary:
 			query = query.where(attendance.status == filters['status'])
 		elif filter_key == "group":

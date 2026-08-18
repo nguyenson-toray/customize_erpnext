@@ -84,7 +84,7 @@ Giữ nguyên 8 cột và công thức.
 đề cho mỗi nhóm — chỉ có nghĩa khi report trả **nhiều** leave type. Nay chỉ còn phép năm nên nó
 luôn sinh đúng một dòng tiêu đề thừa rồi thụt lề toàn bộ phần còn lại, mà bản gốc còn để
 `default: 1` (bật sẵn). Python bỏ qua giá trị filter; ô chọn được gỡ khỏi giao diện trong
-`report_js.py`.
+`overrides/report_js.py`.
 
 **Nới hai cột định danh:** `Employee` 100 → **150**, `Employee Name` 100 → **300**. Bản gốc để
 cả hai 100px. Đo trên dữ liệu thật: tên dài nhất 26 ký tự ("Huỳnh Nguyễn Thị Kim Trang"), trung
@@ -134,10 +134,16 @@ overrides/leave_reports/
 ├── leave_report_core.py               # LeaveBalanceEngine — nạp 1 lần, tính trong bộ nhớ
 ├── employee_leave_balance.py          # execute + columns + get_data thay thế
 ├── employee_leave_balance_summary.py  # execute + columns + get_data thay thế
-├── report_js.py                       # nối JS vào script report (thêm Leave Type, gỡ filter thừa)
 ├── test_leave_reports.py              # đối chiếu mới vs gốc (1.126 assert, 5 phần)
 └── README.md
+
+overrides/report_js.py                 # dùng chung — ĐÃ CHUYỂN RA NGOÀI (xem bên dưới)
 ```
+
+> ⚠ `report_js.py` **không còn nằm trong thư mục này**. Nó đã chuyển lên `overrides/report_js.py`
+> vì nay phục vụ cả report không liên quan nghỉ phép (`Shift Attendance` — xem
+> [`../shift_attendance/README.md`](../shift_attendance/README.md)). `patch()` được gọi **một lần**
+> từ `overrides/__init__.py`, không gọi từ module này nữa.
 
 Nạp qua `overrides/__init__.py`. **Sửa Python phải `bench restart`.**
 
@@ -153,7 +159,7 @@ Nạp qua `overrides/__init__.py`. **Sửa Python phải `bench restart`.**
    vào chúng, nên bỏ đi sẽ **không có test nào đỏ** — rồi cắn khi sang kỳ 2027 có carry forward.
 4. `balance_on()` cố tình **bỏ `validate_leave_access()`** (15% thời gian bản gốc): report đã
    lọc nhân viên bằng `frappe.get_list` nên đã qua phân quyền. Đừng thêm lại trong vòng lặp.
-5. **Sửa filter/JS của report HRMS chỉ có một đường: `report_js.py`.** Frappe **không có hook**
+5. **Sửa filter/JS của report HRMS chỉ có một đường: `overrides/report_js.py`.** Frappe **không có hook**
    nào cho JS của report (không có `report_js` như `doctype_js`), và
    `query_report.get_script()` chỉ đọc `Report.javascript` **khi file `.js` không có trên đĩa**
    (`query_report.py:199`) — file HRMS thì luôn có. Nên phải gán đè `get_script` rồi nối thêm JS.

@@ -253,11 +253,98 @@ the no-checkin paths stays. Removing it would carpet pre-2026 Sundays with `Abse
 - **OT**: min_ot_minutes=30, min_pre_shift_ot_minutes=60, ot_block_minutes=1, allow_ot_in_rest_time=0, include_draft_ot=0 (ON = Draft OTRs count; same-zone overlaps merged as span min→max).
 - **Auto Recalc Triggers** (all default OFF — changes wait for the next full run): recalc_attendance_on_ot_change (OTR submit/cancel; with include_draft_ot also draft save/delete, deduped, quiet on save), recalc_attendance_on_maternity_change (that employee only), recalc_attendance_on_checkin_change (that employee+date, deduped, skipped on Data Import).
 - **Shift & Processing**: default_shift=Day, employee_id_prefix=TIQN, working_block_minutes=1, force_update_hours="8,23", exclude_employee_ids, peak_times="07:40,16:00,17:00,19:00,20:00" + peak_window_minutes=20 (**is_peak_time()** skips the hourly hook and all 3 recalc background jobs during these windows; manual Bulk Update never blocked).
-- **Maternity & Leave**: maternity_benefit_hours=1.0, full_day_leave_block_hours=8.
+- **Maternity & Leave**: maternity_benefit_hours=1.0, full_day_leave_block_hours=8, **include_draft_leave_application=0** (ON = Draft Leave Applications count too — for when leave is approved on paper but HR has not submitted the documents before the payroll cut-off).
 - **Anomaly note**: note_early_late_threshold_minutes=60, female_checkout_check_from/to=16:00/17:00.
 
+### Chặn `working_hours` theo đơn nghỉ phép (18/08/2026)
+
+Quy tắc TIQN chốt — **ba field, đừng nhầm**:
+
+| Field | Nghĩa |
+|---|---|
+| `standard_working_hours` | độ dài danh nghĩa của **ca** (8,0 ở mọi bản ghi). Không đụng |
+| `custom_actual_working_hours` | giờ **thực tế** theo check in/out — **không bao giờ** bị chặn |
+| `working_hours` | **cơ sở chốt lương** — bị chặn theo bảng dưới |
+
+| Loại đơn | `working_hours` |
+|---|---|
+| `KL` | **giữ nguyên** giờ thực tế (theo in/out) |
+| Đơn TRỌN ngày (≠ KL) | **0** |
+| Đơn NỬA ngày | **min(thực tế, 4)** |
+| Hai đơn nửa ngày cùng ngày (dual) | **0** — phủ kín cả ngày |
+| Không có đơn | giữ nguyên |
+
+Code: `overrides/shift_type/leave_hour_cap.py`, gọi từ **cả hai** nhánh ghi Attendance
+(`apply_leave_hour_cap`) — nhánh UPDATE và nhánh INSERT.
+
+⚠ **Phải gọi TRƯỚC `_check_attendance_changes()`.** Gọi sau thì bản ghi bị coi là "không đổi"
+nên cap không bao giờ được ghi xuống DB.
+
+🔴 **KHÔNG đụng tới tăng ca.** 638 bản ghi vừa có nghỉ nửa ngày vừa có OT, tổng **1.320,8 giờ
+OT final**. Hàm chỉ sửa `working_hours`; **không** sửa `in_time`/`out_time`/các field OT — cắt
+`out_time` để chặn giờ sẽ xoá sạch số OT đó. (Chủ Nhật engine đặt `actual_overtime =
+working_hours`, nhưng hiện **0 ngày nghỉ nào rơi vào Chủ Nhật** nên hai nhánh không giao nhau.)
+
+**Nghỉ đã duyệt thì KHÔNG đánh đi trễ / về sớm.** Nghỉ nửa ngày buổi sáng rồi vào lúc 12:03
+không phải vi phạm — engine chỉ so `in_time` với giờ vào ca nên không biết. Quy chế mục 3.3 trừ
+**100.000đ mỗi lần**, nên gắn nhầm là mất tiền thật: đo 18/08/2026 có **918** bản ghi nghỉ nửa
+ngày bị gắn `late_entry` và **737** bị gắn `early_exit`. `KL` là ngoại lệ (trễ/sớm chính là một
+dạng nghỉ không lương, mục 3.3 mã `<1`).
+⚠ Leave Application **không có** field cho biết nghỉ nửa nào (`custom_half_day_period` không tồn
+tại) nên phải bỏ **cả hai** cờ. Có field đó rồi thì siết lại `should_suppress_late_early()`.
+
+**Phát hiện "xin nghỉ nhưng vẫn đi làm"** — điều kiện `custom_actual_working_hours >
+working_hours`, hiện ở 4 chỗ:
+
+| Chỗ | Nội dung |
+|---|---|
+| `Attendance.custom_note` | `Half-day leave (P/2) but worked 8.00h - capped to 4.00h - check if LA should be cancelled` |
+| Excel: Detail `Note Checkin` + sheet `Important Note` | kèm mã đơn để HR bấm vào huỷ |
+
+⚠ `standard_export._build_notes()` **chỉ dịch những chuỗi đã khai**. Thêm note mới ở engine mà
+quên khai ở đó thì note **biến mất khỏi cột Note Checkin mà không báo lỗi** — đã cắn một lần.
+
+> Đã cân nhắc thêm ô Check `Leave but worked` **và** cột `Actual Working Hours` lên report —
+> **bỏ cả hai** (user chốt 18/08/2026): note trong Excel đã đủ cho quy trình của HR. Giờ thực tế
+> chỉ hiện ở cột `Actual (hour)` sheet Detail và sheet Important Note.
+
+⚠ Bug CÓ SẴN đã sửa cùng lúc (không liên quan tính năng này, giữ lại): vòng lặp filter trong
+`shift_attendance_customize.get_query()` chỉ xét **key**, không xét **giá trị** — nên
+`late_entry = 0` (bỏ tick) lọc y hệt `= 1`, ra 291 dòng thay vì 24.408. Mọi ô Check phải dùng
+`cint(filters.get(...))`.
+
+Kiểm thử: `test_leave_hour_cap.py` — 7 phần.
+
+### `include_draft_leave_application` — tính cả đơn nghỉ Draft
+
+Mặc định **OFF** = chỉ đơn đã Submit, đúng hành vi cũ. Bật khi tới kỳ chốt lương mà đơn cuối
+tháng còn nằm ở Draft, khiến bảng công thiếu ngày nghỉ.
+
+`get_leave_docstatus_condition(alias="")` sinh mệnh đề SQL — `docstatus = 1` khi tắt,
+`docstatus IN (0, 1)` khi bật. **Chỉ nới `docstatus`**: điều kiện `status = 'Approved'` ở chỗ gọi
+giữ nguyên, nên đơn Draft bị Rejected/Cancelled không lọt vào.
+
+Hai đường ghi Attendance **phải dùng chung cờ này**, nếu không cặp *đơn submit + đơn draft* cùng
+ngày sẽ giải sai `half_day_status`:
+
+| Đường | Nơi áp |
+|---|---|
+| Engine (`preload_reference_data`) | 2 truy vấn `tabLeave Application` |
+| Luồng Leave Application | `overrides/leave_utils.find_other_half_day_leave_type()` |
+
+Đo trên production kỳ 26/07→25/08/2026 (0 đơn submitted, 349 draft):
+**OFF → 0 đơn / 0 ngày · ON → 349 đơn / 487 ngày.**
+
+⚠ **Nhân viên đã nghỉ việc vẫn được tính** — truy vấn dựng danh sách nhân viên (mục "Get employee
+list") cố ý gồm `Left` có `relieving_date >= from_date`, nên đơn cho những ngày họ còn đi làm
+không bị bỏ. Nhưng ngày **từ `relieving_date` trở đi** thì không sinh chấm công: chặn hai lớp ở
+`should_mark_attendance()` và bước dọn cuối. Đã xác minh trên `TIQN-1414` (nghỉ việc 01/08, có
+đơn 04/08): 0 bản ghi từ 01/08.
+
+Kiểm thử: `test_include_draft_leave.py` — 13 assert, tự `rollback()` nên không đổi cờ thật.
+
 Access helpers (settings controller): `get_attendance_settings()`, `get_force_update_hours()`,
-`get_excluded_employee_ids()`, `get_ot_docstatus_condition()`, `is_peak_time()`,
+`get_excluded_employee_ids()`, `get_ot_docstatus_condition()`, `get_leave_docstatus_condition()`, `is_peak_time()`,
 `floor_ot_to_block()`, `floor_working_to_block()`.
 
 Performance tuning (batch sizes) stays hardcoded in `shift_type_optimized.py`.

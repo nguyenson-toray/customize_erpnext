@@ -73,7 +73,21 @@ def find_other_half_day_leave_type(employee, half_day_date, exclude_leave_applic
 	Cần cho `resolve_half_day_status()`: luồng Leave Application chỉ nhìn đơn của chính nó, nên
 	nếu không tra thêm thì không biết nửa còn lại là nghỉ có lương hay không lương — mà đó chính
 	là thứ quyết định `half_day_status`.
+
+	⚠ Phải theo cùng cờ `include_draft_leave_application` với engine chấm công. Nếu ở đây chỉ
+	nhìn đơn đã submit trong khi engine tính cả draft, thì cặp *đơn submit + đơn draft* cùng
+	ngày sẽ giải sai `half_day_status` — hai đường ghi Attendance cho ra hai kết quả khác nhau.
 	"""
+	from customize_erpnext.customize_erpnext.doctype.attendance_calculation_setting.attendance_calculation_setting import (
+		get_attendance_settings,
+	)
+
+	docstatus = (
+		["in", [0, 1]]
+		if frappe.utils.cint(get_attendance_settings().include_draft_leave_application)
+		else 1
+	)
+
 	rows = frappe.get_all(
 		"Leave Application",
 		filters={
@@ -81,7 +95,7 @@ def find_other_half_day_leave_type(employee, half_day_date, exclude_leave_applic
 			"half_day": 1,
 			"half_day_date": getdate(half_day_date),
 			"status": "Approved",
-			"docstatus": 1,
+			"docstatus": docstatus,
 			"name": ["!=", exclude_leave_application or ""],
 		},
 		fields=["leave_type"],
