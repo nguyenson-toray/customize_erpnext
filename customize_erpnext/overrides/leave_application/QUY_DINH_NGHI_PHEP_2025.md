@@ -164,66 +164,73 @@ bỏ qua kiểm số dư cho chúng.
 > `max_leaves_allowed` chỉ có hiệu lực khi có Leave Allocation. Với `allow_negative = 1` và
 > không cấp allocation thì nó chỉ mang tính tham khảo.
 
-#### Phép năm — tích luỹ theo tháng (Điều 66 NĐ 145/2020/NĐ-CP)
+#### Phép năm — tích luỹ theo tháng
 
-`Phép năm` là **earned leave** (`is_earned_leave = 1`, `Monthly`, `max_leaves_allowed = 14`),
-cộng **+1 ngày mỗi 5 năm thâm niên** (BLLĐ Đ.114).
-Cấu hình: `overrides/earned_leave/earned_leave_config.py`.
+`Phép năm` là **earned leave** (`is_earned_leave = 1`, `Monthly`, `allocate_on_day = 15th of
+Month`, `max_leaves_allowed = 14`), cộng **+1 ngày mỗi 5 năm thâm niên** (BLLĐ Đ.114).
 
-##### Công thức
+> 🔴 **Nguồn sự thật cho phần này là [`earned_leave_override.md`](../earned_leave/earned_leave_override.md)**
+> (cập nhật 15/08/2026), kèm `test_earned_leave_law.py` — 47 assert. Mục dưới đây chỉ tóm tắt để
+> đọc liền mạch với quy định nghỉ phép; **khi hai bên lệch thì file kia thắng**.
 
-Người lao động làm việc **chưa đủ 12 tháng** thì phép năm tính theo tỷ lệ:
+##### Ba quy tắc
 
-```
-số ngày phép = (14 + số ngày phép thâm niên) / 12 × số tháng làm việc thực tế
-```
+**① Tháng nào được tính là "01 tháng làm việc"** — Điều 65 khoản 2 NĐ 145/2020: làm
+**≥ 50% số ngày làm việc bình thường** của tháng đó. Hiện thực tất định:
 
-##### 🔴 "Số tháng làm việc thực tế" — mốc 14 ngày
+> Tháng được tính **⟺** người lao động **còn trong biên chế vào NGÀY 15** của tháng đó.
 
-Trong một **tháng dương lịch**, nếu người lao động làm việc **từ đủ 14 ngày trở lên** thì tháng
-đó tính là **01 tháng**; **dưới 14 ngày thì không tính**.
+| | Ngày 15 có trong biên chế? | Tính tháng |
+|---|---|---|
+| Vào làm 15/01 | có | **CÓ** |
+| Vào làm 16/01 | không | **KHÔNG** |
+| Nghỉ việc 20/01 | có | **CÓ** |
+| Nghỉ việc 10/01 | không | **KHÔNG** |
 
-Chạm tới hai đầu: **tháng vào làm** và **tháng nghỉ việc**.
+Mốc này trùng khít `allocate_on_day = "15th of Month"`, nên ngày xét điều kiện và ngày cấp là
+**một**. Code: `is_working_month()` · `count_qualifying_months()`.
 
-| Ví dụ | Tính |
+**② Mức một tháng** = `annual / 12`, giữ **2 chữ số** (14 → **1,17**). **Không** làm tròn ở
+từng tháng — luật làm tròn trên **tổng cả kỳ**, làm tròn từng tháng sẽ tích luỹ sai số.
+Code: `get_monthly_rate()`.
+
+**③ Tổng quyền lợi** = `LÀM_TRÒN_LUẬT( annual/12 × số tháng đủ điều kiện )` — Điều 113 khoản 2
+BLLĐ 2019 (chưa đủ 12 tháng thì tính theo tỷ lệ) + Điều 66 NĐ 145/2020 (thập phân **≥ 0,5 lên
+1 ngày**, `< 0,5` cắt bỏ). Kỳ cấp cuối gánh phần dư để tổng khớp tuyệt đối.
+Code: `get_period_entitlement()` · `round_leaves_by_law()`.
+
+⚠ `round_leaves_by_law()` **không** dùng `round()` của Python — đó là làm tròn ngân hàng
+(`round(2.5)` ra **2**), sai luật đúng một nửa số trường hợp `.5`.
+
+##### Thử việc — HOÃN cấp, KHÔNG mất
+
+Trong thử việc không cấp và không cho dùng phép. Hết thử việc thì **truy thu toàn bộ** các tháng
+đã đủ điều kiện, cấp gộp vào kỳ cấp đầu tiên sau đó.
+
+| Nhận việc | Thử việc | Tháng đầu tính? | Kỳ cấp đầu | Truy thu |
+|---|---|---|---|---|
+| ≤ 15 | 30 ngày | **CÓ** | 15 của tháng 2 | T1 + T2 |
+| > 15 | 30 ngày | **KHÔNG** | 15 của tháng 3 | T2 + T3 |
+| ≤ 15 | 60 ngày | **CÓ** | 15 của tháng 3 | T1 + T2 + T3 |
+| > 15 | 60 ngày | **KHÔNG** | 15 của tháng 4 | T2 + T3 + T4 |
+
+Số ngày thử việc lấy từ `Employee.custom_probation_days`, thiếu thì fallback
+`Leave Type.applicable_after` (= 30).
+
+##### ❌ Hai lỗi của bản trước (10/08/2026) — đừng làm lại
+
+Bản 10/08/2026 dùng `floor(annual/12, 1)` = **1,1** và cho **kỳ tháng 12 gánh phần chênh vô điều
+kiện**. Cả hai đều sai, sai về **hai phía ngược nhau**:
+
+| Lỗi | Hậu quả |
 |---|---|
-| Vào làm **10/03/2026** | tháng 3 có 22 ngày ≥ 14 → tính 1 tháng · cộng tháng 4–12 → **10 tháng** → 14/12 × 10 = **11,67** |
-| Nghỉ việc **12/08/2026** | tháng 8 chỉ 12 ngày < 14 → **không tính** · tháng 1–7 → **7 tháng** → 14/12 × 7 = **8,17** |
+| Mức tháng `1,1` thay vì `1,17` | thiếu 0,067 ngày/tháng, chỉ bù ở tháng 12 ⇒ **ai nghỉ việc trước tháng 12 là mất thật** |
+| `_true_up_december()` đặt tháng 12 = `annual − tổng các kỳ khác` **không xét số tháng** | người làm **5 tháng vẫn nhận đủ 14 ngày**. Đo production 15/08/2026: **379 NV, thừa ~2.022 ngày** |
 
-Mốc biên: vào làm ngày **18/03** còn đúng 14 ngày → **tính**; ngày **19/03** còn 13 ngày →
-**không tính**. Code: `is_working_month()` · `count_worked_days_in_month()`.
-
-##### Chia 14 ngày cho 12 tháng
-
-`Earned Leave Schedule` trên Leave Allocation cấp theo tỷ lệ, **làm tròn xuống 1 chữ số thập
-phân**, và **tháng 12 gánh phần chênh** để cả năm cộng lại đúng bằng mức năm:
-
-| annual | tháng 1–11 | tháng 12 | tổng |
-|---:|---:|---:|---:|
-| **14** | **1,1** | **1,9** | 14,0 |
-| 15 | 1,2 | 1,8 | 15,0 |
-| 16 | 1,3 | 1,7 | 16,0 |
-| 17 | 1,4 | 1,6 | 17,0 |
-| 18 | 1,5 | 1,5 | 18,0 |
-
-Tháng 12 tính bằng `mức năm − tổng các kỳ khác` chứ **không** theo công thức cố định
-`annual − 11 × 1,1`, để vẫn đúng khi lịch có **kỳ gộp** (nhiều tháng đã qua gộp một dòng) hoặc
-**năm không trọn** (vào làm giữa năm, hoặc mấy tháng đầu chưa đủ điều kiện).
-
-> ❌ **Đã bỏ 10/08/2026:** cách chia "tháng bonus" cũ — 10 tháng × 1 ngày, tháng 6 và 12 mỗi
-> tháng 2 ngày. Nó cho số dư tròn ngày nhưng **không phản ánh mức tích luỹ thực**: nghỉ việc
-> cuối tháng 6 được tính 7 ngày trong khi theo tỷ lệ chỉ 6,6.
->
-> ❌ Cũng đã bỏ field `custom_actual_number_of_leaves` (thử nghiệm một cột thứ hai) — nay
-> `number_of_leaves` chính nó đã là số theo tỷ lệ nên không cần cột phụ.
-
-**Không làm tròn lên ngày nguyên.** Bảng quy đổi của Điều 66 (1 tháng → 1 ngày, 3 tháng → 4
-ngày…) làm tròn phần thập phân ≥ 0,5 thành 1 ngày; ERP **giữ số lẻ** để phản ánh đúng mức tích
-luỹ. Việc làm tròn khi thanh toán phép do HR quyết định tại thời điểm chi trả.
-
-Hàm chuyển lịch cũ sang cách chia mới: `earned_leave.rebalance_earned_leave_schedule(dry_run=0)`
-— chỉ sửa các kỳ **chưa cấp**, vì kỳ đã cấp đã sinh `Leave Ledger Entry` tương ứng; tháng 12
-gánh toàn bộ phần chênh nên tổng năm vẫn đúng.
+Cũng đừng dùng lại `count_worked_days_in_month() >= 14` (đếm **ngày dương lịch**): tháng 31
+ngày, vào làm 16/17/18 vẫn đủ 14 ngày dương lịch nhưng chỉ làm **48%** số ngày làm việc — trái
+quy tắc ≥50%. Ví dụ thật: DOJ **17/07/2026** có 15 ngày dương lịch nhưng chỉ **13/27 = 48%**
+ngày làm việc ⇒ **không** tính tháng 7.
 
 #### `KL` rơi vào ngày nghỉ — chấp nhận tính 0
 

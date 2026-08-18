@@ -20,3 +20,4 @@ customize_erpnext.patches.seed_tiqn_payroll_settings
 # post_model_sync: cần child doctype "Attendance Request Checkin Detail" đã tồn tại
 # trước khi tạo Custom Field kiểu Table trỏ vào nó.
 customize_erpnext.patches.setup_attendance_request_supplement
+customize_erpnext.patches.add_leave_control_panel_include_left

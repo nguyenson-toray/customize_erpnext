@@ -21506,3 +21506,10 @@ Inactive,Tạm ngưng,
 Maternity phase {0},Giai đoạn thai sản {0},
 Status {0} → {1} — {2},Trạng thái {0} → {1} — {2},
 cleared,đã kết thúc,
+Leave(s) Allocated,Phép được cấp
+Employee Name,Tên nhân viên
+Opening Balance,Số dư đầu kỳ
+Closing Balance,Số dư cuối kỳ
+Please select a Leave Type.,Vui lòng chọn Loại nghỉ phép.
+Include employees who left during the period,Gồm cả nhân viên đã nghỉ việc trong kỳ
+"Off: only Active employees (HRMS default). On: anyone whose employment overlaps the allocation period, including Left / Inactive — they are still entitled to pro-rated annual leave for the months worked (Điều 66 NĐ 145/2020).","Tắt: chỉ nhân viên đang làm việc (mặc định HRMS). Bật: mọi người có thời gian làm việc giao với kỳ cấp phép, kể cả đã nghỉ việc — họ vẫn được hưởng phép năm theo tỷ lệ số tháng đã làm (Điều 66 NĐ 145/2020)."

@@ -40,6 +40,7 @@ doctype_js = {
     "Batch": "public/js/custom_scripts/batch.js",
     "Packing List": "public/js/packing_list_scale.js",
     "Salary Structure Assignment": "public/js/custom_scripts/salary_structure_assignment.js",
+    "Leave Control Panel": "public/js/custom_scripts/leave_control_panel.js",
 }
 
 # List view customizations
