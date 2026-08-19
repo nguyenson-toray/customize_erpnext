@@ -193,23 +193,19 @@ fixtures = [
             ]]
         ]
     },
-    # Custom Reports
-    # WHY NEEDED:
-    # - Workspace Sidebar exports LINKS/REFERENCES to reports (label, icon, position)
-    # - Report fixtures export DEFINITION of report (metadata, permissions, settings)
-    # - Need BOTH for sidebar links to work properly
-    # NOTE: Script Report code (Python/JS) is NOT exported, only metadata
-    {
-        "doctype": "Report",
-        "filters": [
-            ["name", "in", [
-                "Shift Attendance Customize",
-                "Overtime Registration",
-                "Stock Ledger Customize",
-                "Stock Balance Customize",
-            ]]
-        ]
-    },
+    # ⚠ ĐÃ BỎ fixture "Report" (18/08/2026) — ĐỪNG THÊM LẠI.
+    # Cả 4 report (Shift Attendance Customize, Overtime Registration, Stock Ledger/Balance
+    # Customize) đều `is_standard = "Yes"` và đã có file .json trong thư mục module. Frappe
+    # tự nạp chúng khi migrate vì "Report" nằm trong IMPORTABLE_DOCTYPES (frappe/model/sync.py).
+    #
+    # Fixture chỉ tạo NGUỒN THỨ HAI cho cùng một bản ghi, và nó chạy SAU bước đồng bộ file
+    # module nên luôn thắng. Sự cố thật: sửa role trong file module của Shift Attendance
+    # Customize xuống còn System Manager, migrate hai lần đều bị fixture lật lại đủ 5 role.
+    #
+    # Ghi chú cũ "Need BOTH for sidebar links to work properly" là SAI với report is_standard=Yes:
+    # link sidebar trỏ theo TÊN report, tên đã có sẵn từ file module.
+    #
+    # Nay file .json trong thư mục module là nguồn DUY NHẤT.
     # Desktop Icons
     # Export custom desktop icons for apps/modules
     # {
