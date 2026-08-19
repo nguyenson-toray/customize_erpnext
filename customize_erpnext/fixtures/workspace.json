@@ -102,21 +102,6 @@
     "hidden": 0,
     "icon": null,
     "is_query_report": 0,
-    "label": "Upload Attendance",
-    "link_count": 0,
-    "link_to": "Upload Attendance",
-    "link_type": "DocType",
-    "onboard": 0,
-    "only_for": null,
-    "report_ref_doctype": null,
-    "type": "Link"
-   },
-   {
-    "dependencies": null,
-    "description": null,
-    "hidden": 0,
-    "icon": null,
-    "is_query_report": 0,
     "label": "Time",
     "link_count": 2,
     "link_to": null,
@@ -472,7 +457,7 @@
     "type": "Link"
    }
   ],
-  "modified": "2026-07-03 13:26:31.934045",
+  "modified": "2026-08-19 07:54:10.275979",
   "module": "HR",
   "name": "Shift & Attendance",
   "number_cards": [],
