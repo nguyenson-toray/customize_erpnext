@@ -2163,7 +2163,7 @@ def _core_process_attendance_logic_optimized(
 							# - Half Day leave → always "Half Day"
 							# - Full Day leave (On Leave) + has checkin → "Present"
 							# - Full Day leave (On Leave) + no checkin → "On Leave"
-							has_checkin = att_data.get('working_hours', 0) > 0 or att_data.get('in_time')
+							has_checkin = flt(att_data.get('working_hours')) > 0
 
 							if old_att.get('status') == 'Half Day':
 								# Half Day leave: always preserve "Half Day"
@@ -2201,6 +2201,14 @@ def _core_process_attendance_logic_optimized(
 					leave_status = check_leave_status_cached(
 						att_data['employee'], att_data['attendance_date'], ref_data
 					)
+					# has_checkin = ĐÃ LÀM THẬT, không phải "có dấu vết quét".
+					# Trước đây còn `or in_time`: một lần quét trơ buổi sáng rồi về
+					# (không quét ra) cũng thành Present, dù làm 0 giờ. Đo 20/08/2026:
+					# 5 bản ghi kiểu đó, 3 cái mã O/KL nên KHÔNG bị trừ payment_days —
+					# trả lương cho ngày lẽ ra không trả.
+					# Quên quét / máy hỏng thì HR bổ sung checkin bằng Attendance Request
+					# rồi tính lại, nên không cần `in_time` làm phương án dự phòng.
+					# Cùng luật với overrides/leave_application/leave_application.py:202.
 					if leave_status:
 						att_data['leave_type'] = leave_status['leave_type']
 						att_data['leave_application'] = leave_status['leave_application']
@@ -2208,7 +2216,7 @@ def _core_process_attendance_logic_optimized(
 						att_data['custom_leave_type_2'] = leave_status.get('leave_type_2')
 						att_data['custom_leave_application_2'] = leave_status.get('leave_application_2')
 
-						has_checkin = att_data.get('working_hours', 0) > 0 or att_data.get('in_time')
+						has_checkin = flt(att_data.get('working_hours')) > 0
 						if leave_status['status'] == 'Half Day':
 							# Half Day leave: always "Half Day"; nua con lai xem muc 5.2 quy dinh
 							att_data['status'] = 'Half Day'

@@ -46,32 +46,57 @@ flowchart TD
 
 ---
 
-## 2. Chấm công —  Attendance
+## 2. Chấm công — Attendance
 
 ```mermaid
 flowchart TD
     classDef default fill:#F5F5F5,stroke:#888888,color:#333333;
 
-    A[Hệ thống tự động tính hàng giờ <br/> Hoặc bấm Bulk Update Attendance thủ công] --> B[Nạp sẵn dữ liệu nền<br/>thông tin nhân viên · ca · đơn nghỉ · OT · lễ]
-    B --> C{Ngày đó có<br/>Employee Checkin không?}
+    A[Hệ thống tự chạy hàng giờ<br/>hoặc bấm Bulk Update Attendance] --> B[Nạp dữ liệu nền<br/>nhân viên · ca · đơn nghỉ · OT · lễ]
+    B --> C{Ngày đó có<br/>Employee Checkin?}
+
     C -->|Không có| D{Có Leave Application<br/>đã duyệt?}
     D -->|Có| E[status = On Leave<br/>ghi kèm mã phép]
     D -->|Không| F{Ca đã tới giờ<br/>vào làm chưa?}
     F -->|Chưa tới| G[Chưa tạo bản ghi<br/>chờ hết ca mới xét]
     F -->|Rồi| H[status = Absent]
-    C -->|Có| I[Tính working_hours và giờ OT<br/>từ các lần chấm công]
-    I --> J[Bỏ lần quét ra<br/>trước giờ vào ca]
-    J --> K[Xác định status<br/>Present · Half Day · Absent]
-    K --> L{Ngày đó có<br/>Leave Application?}
-    L -->|Nghỉ nửa ngày| M[status = Half Day<br/>half_day_status = Present vì có đi làm]
-    L -->|Nghỉ trọn ngày| N[status = Present<br/>vẫn giữ liên kết tới đơn nghỉ]
-    L -->|Không có| O[Giữ status vừa tính]
+
+    C -->|Có| I[Tính working_hours và giờ OT<br/>bỏ lần quét ra trước giờ vào ca]
+    I --> J{Có log quét RA?}
+    J -->|Không có| K1[status = Present<br/>đề phòng quên quẹt<br/>ghi custom_note Only one check-in record]
+    J -->|Có| K{Ca đã tan chưa?}
+    K -->|Chưa tan| K2[status = Present TẠM<br/>ngày chưa trọn, chạy lại sau sẽ đổi]
+    K -->|Đã tan| K3[So giờ làm với ngưỡng của ca<br/>Present · Half Day · Absent]
+
+    K1 --> L{Ngày đó có<br/>Leave Application?}
+    K2 --> L
+    K3 --> L
+    L -->|Nghỉ nửa ngày| M[status = Half Day<br/>half_day_status tuỳ nửa còn lại]
+    L -->|Nghỉ trọn ngày<br/>VÀ có giờ làm thật| N[status = Present<br/>giữ link đơn nghỉ để HR huỷ đơn<br/>hoặc điều chỉnh chấm công phù hợp]
+    L -->|Không có đơn| O[Giữ status vừa tính]
     M --> P[Chốt working_hours theo đơn nghỉ<br/>xem sơ đồ 3]
     N --> P
     O --> P
     P --> Q[(Attendance)]
 ```
-> Nguồn: `overrides/shift_type/shift_type_optimized.py` \(preload_reference_data, check_leave_status_cached, resolve_attendance_status, discard_pre_shift_checkout, resolve_no_checkin_attendance, _core_process_attendance_logic_optimized\) · `overrides/employee_checkin/employee_checkin.py` \(custom_calculate_working_hours_overtime\) · `overrides/leave_rules.py` \(resolve_half_day_status\) · `overrides/leave_application/leave_application.py` \(custom_create_or_update_attendance — cùng luật, chạy khi duyệt đơn nghỉ\)
+> Nguồn: `overrides/shift_type/shift_type_optimized.py` \(preload_reference_data, resolve_attendance_status, is_shift_in_progress, discard_pre_shift_checkout, check_leave_status_cached, resolve_no_checkin_attendance, _core_process_attendance_logic_optimized\) · `overrides/employee_checkin/employee_checkin.py` \(custom_calculate_working_hours_overtime\) · `overrides/leave_rules.py` \(resolve_half_day_status\)
+
+> **Ba đường đều ra `Present`, ba ý nghĩa khác nhau — đừng gộp:**
+>
+> | Đường | Nghĩa | Có làm thật không |
+> |---|---|---|
+> | `K1` quét vào, không quét ra | Đề phòng quên quẹt. Để `Absent` là cắt trọn ngày lương của người có đi làm | **Chưa biết** — `working_hours` = 0 |
+> | `K2` ca chưa tan | Số tạm của ngày đang diễn ra; chạy lại sau khi tan ca sẽ ra kết quả thật | Chưa kết luận được |
+> | `N` nghỉ trọn ngày mà vẫn đi làm | Đã xin nghỉ nhưng vẫn đến làm và có giờ công | **Có**, `working_hours > 0` |
+>
+> Chỉ đường `N` mới chắc chắn là "đã đi làm". Nhánh `K1` bảo vệ **964 bản ghi** đang ở `Present`
+> nhờ nó — đừng bỏ. Từng bị xoá nhầm ngày 11/08/2026 do đo sai mẫu.
+
+> ⚠ **Hai luật đụng nhau ở 5 bản ghi \(đã rà 20/08/2026, chấp nhận giữ nguyên\).** Vừa thiếu
+> log quét ra, vừa có đơn nghỉ đã duyệt: `K1` chạy trước nên ra `Present` với 0 giờ, và nhánh
+> `L` không sửa lại được vì nó chỉ can thiệp khi status cũ là `On Leave` / `Half Day`. Hệ quả:
+> 3 bản mã `O`/`KL` không bị trừ `payment_days`. Tỷ lệ 5/167.888; `custom_note` đã ghi
+> *"Only one check-in record"* để HR tự rà.
 
 ---
 
@@ -112,7 +137,7 @@ flowchart TD
 
     B -->|Không| N1
     B -->|Có| C1
-    C3 --> OT[Giờ OT KHÔNG bị đụng<br/>1.320,8h OT của 638 bản ghi giữ nguyên]
+    C3 --> OT[Giờ OT KHÔNG thay đổi]
     C9 --> OT
     C10 --> OT
 ```

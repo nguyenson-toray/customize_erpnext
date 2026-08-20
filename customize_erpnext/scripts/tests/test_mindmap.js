@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* Test cho trang /mindmap — chạy: node 01_docs/tests/test_mindmap.js
+/* Test cho trang /mindmap — chạy: node scripts/tests/test_mindmap.js
  *
  * Không cần cài gì thêm. Test rút thẳng phần logic trong www/mindmap/index.html
  * (parse markdown, layout, vẽ SVG, export) rồi chạy với DOM giả, nên sửa trang
@@ -10,9 +10,10 @@
 const fs = require('fs');
 const path = require('path');
 
-const HERE = __dirname;                                  // 01_docs/tests
-const DOCS = path.resolve(HERE, '..');                   // 01_docs
-const PAGE = path.resolve(DOCS, '..', 'www', 'mindmap'); // www/mindmap
+const HERE = __dirname;                                       // scripts/tests
+const APP  = path.resolve(HERE, '..', '..');                  // customize_erpnext
+const DOCS = path.join(APP, 'docs', 'mindmap');               // file .md của sơ đồ
+const PAGE = path.join(APP, 'www', 'mindmap');                // trang /mindmap
 const HTML = path.join(PAGE, 'index.html');
 const TMP = fs.mkdtempSync(path.join(require('os').tmpdir(), 'mindmap-test-'));
 

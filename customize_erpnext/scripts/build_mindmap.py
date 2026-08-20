@@ -44,10 +44,14 @@ import json
 import os
 import re
 
-OUT = os.path.dirname(os.path.abspath(__file__))
-LANG_CSV = os.path.realpath(os.path.join(OUT, "..", "www", "mindmap", "vi.csv"))
-# Ghi lại những mục đã từng xuất ra .md, để biết mục nào bị xoá có chủ ý
-STATE_FILE = os.path.join(OUT, "mindmap_state.json")
+HERE = os.path.dirname(os.path.abspath(__file__))
+# 19/08/2026 dọn 01_docs: file .md sang docs/mindmap (trang /dev-tool đọc ở đó),
+# script sinh sang scripts/. Hai đường dẫn dưới đây tính từ scripts/.
+OUT = os.path.realpath(os.path.join(HERE, "..", "docs", "mindmap"))
+LANG_CSV = os.path.realpath(os.path.join(HERE, "..", "www", "mindmap", "vi.csv"))
+# Ghi lại những mục đã từng xuất ra .md, để biết mục nào bị xoá có chủ ý.
+# Là file trạng thái của script, giữ cạnh script — docs/mindmap chỉ chứa .md.
+STATE_FILE = os.path.join(HERE, "mindmap_state.json")
 
 STATUSES = ("Done", "In process", "Pending")
 TYPES = ("Standard", "Override", "Custom")
@@ -1204,6 +1208,7 @@ def write_lang_csv(trees):
 def emit(key, tree, want_json, from_script=False, renumber=False, dry_run=False,
          state=None):
     title, subtitle = HEADERS[key]
+    os.makedirs(OUT, exist_ok=True)
     path = os.path.join(OUT, f"{key}_mindmap.md")
 
     apply_links(tree)
