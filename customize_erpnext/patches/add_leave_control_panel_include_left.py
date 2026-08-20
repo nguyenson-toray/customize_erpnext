@@ -3,7 +3,7 @@
 Mặc định TẮT = hành vi HRMS gốc (chỉ `status = Active`), an toàn cho vận hành hằng ngày.
 Chỉ bật khi cần cấp phép hồi tố cho một kỳ đã qua.
 
-Xem `overrides/leave_control_panel/README.md`.
+Xem `overrides/leave_control_panel/leave_control_panel.md`.
 """
 
 import frappe

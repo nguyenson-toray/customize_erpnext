@@ -278,7 +278,7 @@ scheduler_events = {
             "customize_erpnext.customize_erpnext.doctype.employee_maternity.employee_maternity.scheduled_calculate_all_maternity_statuses",
             # Labor Contract - materialize next contract stage due soon + mark overdue Upcoming
             # TẠM TẮT: chờ setup xong phần lương (Salary Structure + SSA) rồi mới bật lại.
-            # Xem doctype/labor_contract/README.md mục 10.
+            # Xem doctype/labor_contract/labor_contract.md mục 10.
             # "customize_erpnext.customize_erpnext.doctype.labor_contract.labor_contract.process_labor_contracts_daily",
         ],
         # Weekly attendance recalculation - polled hourly, gated by
@@ -329,7 +329,7 @@ override_doctype_class = {
     # (quên quét vân tay, máy lỗi, ngày làm việc đầu tiên). Chế độ suy từ `reason`:
     # 4 lý do lấy từ Employee Checkin.custom_reason_for_manual_check_in -> tạo
     # Employee Checkin + chạy lại engine tính công. Work From Home / On Duty giữ
-    # nguyên hành vi HRMS gốc. Xem 01_docs/attendance_request_supplement_plan.md
+    # nguyên hành vi HRMS gốc. Xem docs/attendance_request_supplement_plan.md
     "Attendance Request": "customize_erpnext.overrides.attendance_request.attendance_request.CustomAttendanceRequest",
 }
 # Khấu trừ theo pháp luật VN (BHXH/BHYT/BHTN, đoàn phí, thuế TNCN).
@@ -417,7 +417,7 @@ doc_events = {
             # "customize_erpnext.uniform_control.api.onboarding.create_uniform_profile_on_employee_insert",
             # Auto-create the first probationary Labor Contract (skipped during bulk import)
             # TẠM TẮT: chờ setup xong phần lương (Salary Structure + SSA) rồi mới bật lại.
-            # Xem doctype/labor_contract/README.md mục 10.
+            # Xem doctype/labor_contract/labor_contract.md mục 10.
             # "customize_erpnext.customize_erpnext.doctype.labor_contract.labor_contract.create_initial_contract_on_employee_insert",
         ],
         "on_trash": [

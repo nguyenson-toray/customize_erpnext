@@ -1,5 +1,9 @@
 # Attendance, Shift & Check-in Override Documentation
 
+> **Mục đích:** Tổng quan ba nhóm override liên quan chấm công: Attendance, Shift và Check-in.
+> **Phạm vi:** Override HRMS/ERPNext
+> **Trạng thái:** Đang chạy · **Cập nhật:** 2026-05-25
+
 **Last Updated:** 2026-04-06
 
 ---
@@ -16,7 +20,7 @@ Module override xử lý toàn bộ luồng chấm công từ HRMS, thay thế l
 
 ---
 
-## Files
+## File liên quan
 
 | File | Mô tả |
 |------|-------|

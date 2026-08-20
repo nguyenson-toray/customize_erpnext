@@ -1,5 +1,9 @@
 # Plan — Đối chiếu module chấm công custom với Quy chế lương
 
+> **Mục đích:** Rà soát 06/08/2026 sau khi đối chiếu Payroll Entry kỳ 07/2026 với file HR
+> **Phạm vi:** Override HRMS/ERPNext
+> **Trạng thái:** Kế hoạch · **Cập nhật:** 2026-08-12
+
 > Rà soát 06/08/2026 sau khi đối chiếu Payroll Entry kỳ 07/2026 với file HR
 > (`PAYROLL_SETUP.md` mục 6.2 — 16/16 phiếu lệch).
 >

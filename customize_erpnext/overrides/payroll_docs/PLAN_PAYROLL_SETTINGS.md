@@ -1,5 +1,9 @@
 # Plan — `TIQN Payroll Settings`: gom hằng số lương vào một chỗ
 
+> **Mục đích:** Mục tiêu: bỏ hardcode các con số do **pháp luật** và **quy chế công ty** quy định, để khi văn bản
+> **Phạm vi:** Override HRMS/ERPNext
+> **Trạng thái:** Kế hoạch · **Cập nhật:** 2026-08-10
+
 > Mục tiêu: bỏ hardcode các con số do **pháp luật** và **quy chế công ty** quy định, để khi văn bản
 > thay đổi thì sửa cấu hình chứ không phải sửa code/deploy.
 >

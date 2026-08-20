@@ -1,5 +1,9 @@
 # Monkey Patch Overrides — Hướng dẫn
 
+> **Mục đích:** Thư mục `overrides/` chứa các **monkey patch**: thay thế hàm/method của Frappe, ERPNext, HRMS
+> **Phạm vi:** Override HRMS/ERPNext
+> **Trạng thái:** Đang chạy · **Cập nhật:** 2026-07-30
+
 Thư mục `overrides/` chứa các **monkey patch**: thay thế hàm/method của Frappe, ERPNext, HRMS
 bằng bản custom mà **không** sửa code core (không đụng `apps/hrms`, `apps/erpnext`,
 `apps/frappe`). Nhờ vậy `bench update` không ghi đè, và mọi tùy biến nằm gọn trong

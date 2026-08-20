@@ -1,5 +1,9 @@
 # Kế hoạch tích hợp PaddleOCR + VietOCR để đọc ảnh CCCD
 
+> **Mục đích:** Kế hoạch tích hợp PaddleOCR + VietOCR để đọc ảnh CCCD, tự điền thông tin thay vì gõ tay.
+> **Phạm vi:** Trang portal
+> **Trạng thái:** Kế hoạch · **Cập nhật:** 2026-05-25
+
 > Repo tham khảo: https://github.com/thigiacmaytinh/Vietnamese-CitizenID-Recognition
 > Bài hướng dẫn: https://thigiacmaytinh.com/huong-dan-su-dung-api-doc-cccd-bang-ocr/
 

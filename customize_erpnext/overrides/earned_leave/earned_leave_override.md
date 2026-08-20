@@ -1,5 +1,9 @@
 # Earned Leave Override — phép năm theo Bộ luật Lao động 2019
 
+> **Mục đích:** Tính phép năm theo Bộ luật Lao động 2019: tỷ lệ theo tháng thực làm, thử việc được hoãn chứ không mất, làm tròn trên tổng.
+> **Phạm vi:** Override HRMS/ERPNext
+> **Trạng thái:** Đang chạy · **Cập nhật:** 2026-08-15
+
 **Cập nhật:** 2026-08-15 — viết lại toàn bộ sau khi rà soát pháp lý.
 Bản trước (2026-02-05) mô tả chiến lược "tháng bonus" đã bị bỏ từ 10/08/2026 và ghi
 "không đủ điều kiện → bỏ qua, KHÔNG cộng dồn" như hành vi cố ý; điều đó **trái luật**.

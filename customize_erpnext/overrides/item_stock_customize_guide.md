@@ -1,5 +1,9 @@
 # Hướng dẫn sử dụng — Quản lý kho hàng TIQN
 
+> **Mục đích:** Hướng dẫn cho người dùng cuối về Item, Stock Entry và hai báo cáo tồn kho custom.
+> **Phạm vi:** Override HRMS/ERPNext
+> **Trạng thái:** Đang chạy · **Cập nhật:** 2026-06-10
+
 > Phạm vi: **Item (danh mục)** · **Stock Entry (nhập/xuất/chuyển kho)** · **2 báo cáo tồn kho custom**
 > Áp dụng: ERPNext v16 — app `customize_erpnext`
 

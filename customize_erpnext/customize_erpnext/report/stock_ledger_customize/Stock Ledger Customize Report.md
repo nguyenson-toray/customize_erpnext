@@ -1,5 +1,9 @@
 # Stock Ledger Customize Report
 
+> **Mục đích:** **Stock Ledger Customize** là một báo cáo tùy chỉnh trong ERPNext hiển thị lịch sử chi tiết của tất cả các giao dịch kho hàng (stock ledger entries) với các tính năng mở rộng.
+> **Phạm vi:** Report tự phát triển
+> **Trạng thái:** Đang chạy · **Cập nhật:** 2026-05-25
+
 ## Tổng quan
 
 **Stock Ledger Customize** là một báo cáo tùy chỉnh trong ERPNext hiển thị lịch sử chi tiết của tất cả các giao dịch kho hàng (stock ledger entries) với các tính năng mở rộng.
@@ -123,7 +127,7 @@ except ImportError:
         return []
 ```
 
-## Files cấu trúc
+## File liên quan
 
 ### 📁 stock_ledger_customize.json
 - Report metadata

@@ -4,7 +4,7 @@ Frappe phân giải script report bằng `frappe.get_attr("<module path>.execute
 (`Report.execute_module`), nên gán đè thuộc tính `execute` của module là đủ — không cần sửa
 file trong `apps/hrms`.
 
-Xem `leave_report_core.py` (vì sao + số đo) và `README.md` (hướng dẫn dùng).
+Xem `leave_report_core.py` (vì sao + số đo) và `leave_reports.md` (hướng dẫn dùng).
 """
 
 import frappe

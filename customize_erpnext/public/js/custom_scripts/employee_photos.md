@@ -1,5 +1,9 @@
 # Tính năng Chụp & Upload Ảnh Nhân viên
 
+> **Mục đích:** Tính năng cho phép chụp ảnh hoặc upload ảnh cho nhân viên với các chức năng:
+> **Phạm vi:** Script phía trình duyệt
+> **Trạng thái:** Đang chạy · **Cập nhật:** 2026-07-04
+
 ## Mô tả
 Tính năng cho phép chụp ảnh hoặc upload ảnh cho nhân viên với các chức năng:
 - Chụp ảnh trực tiếp từ camera (ưu tiên camera sau trên mobile)
@@ -148,7 +152,7 @@ bench clear-cache
    - Ảnh mới sẽ hiển thị từ database
    - Hiển thị alert "Photo saved successfully. Refreshing..."
 
-## Files liên quan
+## File liên quan
 
 ### Frontend
 - `customize_erpnext/public/js/custom_scripts/employee.js` (dòng 450-750)

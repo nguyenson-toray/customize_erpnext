@@ -1,5 +1,9 @@
 # Tính lương TIQN trên ERPNext — tài liệu thi công
 
+> **Mục đích:** Công thức dò ngược và kiểm chứng từ **9 phiếu lương thật** kỳ 07/2026 (dữ liệu gốc ở mục 8)
+> **Phạm vi:** Override HRMS/ERPNext
+> **Trạng thái:** Đang chạy · **Cập nhật:** 2026-08-12
+
 Công thức dò ngược và kiểm chứng từ **9 phiếu lương thật** kỳ 07/2026 (dữ liệu gốc ở mục 8)
 cùng bảng lương Excel của HR (16 nhân viên). Nguồn pháp lý nội bộ:
 [`QUY_CHE_LUONG_2025.md`](QUY_CHE_LUONG_2025.md) — **khi hai tài liệu mâu thuẫn, quy chế thắng**.

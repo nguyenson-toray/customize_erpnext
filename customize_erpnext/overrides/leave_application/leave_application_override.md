@@ -1,5 +1,9 @@
 # Leave Application Override
 
+> **Mục đích:** Override Leave Application của HRMS cho các quy tắc nghỉ phép riêng của TIQN.
+> **Phạm vi:** Override HRMS/ERPNext
+> **Trạng thái:** Đang chạy · **Cập nhật:** 2026-08-12
+
 **Last Updated:** 2026-02-05
 
 ## Tổng quan
@@ -86,7 +90,7 @@ Xử lý cancel khi có dual leave:
 | Annual | - | P/2 |
 | Sick | Annual | OP/2 |
 
-## Files
+## File liên quan
 
 ```
 overrides/

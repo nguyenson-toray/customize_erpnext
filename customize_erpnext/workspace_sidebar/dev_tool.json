@@ -1,0 +1,21 @@
+{
+ "app": "customize_erpnext",
+ "doctype": "Workspace Sidebar",
+ "docstatus": 0,
+ "for_user": "",
+ "header_icon": "",
+ "items": [
+  {
+   "hidden": 0,
+   "icon": "",
+   "label": "Dev Tool",
+   "link_to": "/dev-tool",
+   "link_type": "URL",
+   "type": "Link"
+  }
+ ],
+ "module": "Customize Erpnext",
+ "module_onboarding": "",
+ "name": "Dev Tool",
+ "title": "Dev Tool"
+}

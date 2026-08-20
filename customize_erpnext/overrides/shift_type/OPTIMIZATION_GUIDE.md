@@ -1,5 +1,9 @@
 # Bulk Attendance Processing — Architecture & Logic Guide
 
+> **Mục đích:** Giải thích kiến trúc và logic của engine tính công hàng loạt: nạp dữ liệu nền một lần, xử lý theo lô, các nhánh quyết định trạng thái.
+> **Phạm vi:** Override HRMS/ERPNext
+> **Trạng thái:** Đang chạy · **Cập nhật:** 2026-08-18
+
 **Last Updated:** 2026-08-15 (no attendance created before a shift starts — ca 2 was being marked
 absent every morning; see "Ca CHƯA TỚI GIỜ VÀO")
 
@@ -349,7 +353,7 @@ Access helpers (settings controller): `get_attendance_settings()`, `get_force_up
 
 Performance tuning (batch sizes) stays hardcoded in `shift_type_optimized.py`.
 
-## Files
+## File liên quan
 
 | File | Purpose |
 |------|---------|
@@ -402,7 +406,7 @@ WHERE TIME_TO_SEC(end_time)/3600 + IFNULL(allow_check_out_after_shift_end_time,0
 - Checkin insert/update hooks for per-checkin recalc are disabled in hooks.py (queue-flood protection); corrections land at the next FULL run.
 - Shift Assignment changes do NOT trigger recalc (override deleted 2026-07-04) — corrected at the next FULL run or manual Bulk Update.
 
-## Testing
+## Kiểm thử
 
 ```python
 # bench --site <site> console

@@ -1,5 +1,9 @@
 # Plan — Import dữ liệu nghỉ phép 2026 của HR (`AL_data.xlsx`)
 
+> **Mục đích:** Kế hoạch nhập dữ liệu nghỉ phép 2026 từ file AL_data.xlsx mà HR đang dùng vào hệ thống.
+> **Phạm vi:** Override HRMS/ERPNext
+> **Trạng thái:** Kế hoạch · **Cập nhật:** 2026-08-12
+
 > Nguồn: `AL_data.xlsx` — file quản lý nghỉ phép HR đang chạy **thủ công bằng Excel** để ghi nhận
 > phép và tính lương. Đặt cùng thư mục này.
 >

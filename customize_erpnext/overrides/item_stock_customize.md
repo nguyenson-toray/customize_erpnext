@@ -1,5 +1,9 @@
 # Item & Stock Customizations — TIQN ERPNext
 
+> **Mục đích:** Tổng hợp toàn bộ customization liên quan Item và Stock trong app `customize_erpnext`.
+> **Phạm vi:** Override HRMS/ERPNext
+> **Trạng thái:** Đang chạy · **Cập nhật:** 2026-06-10
+
 Tổng hợp toàn bộ customization liên quan Item và Stock trong app `customize_erpnext`.
 
 ---

@@ -10,7 +10,7 @@ grouped by Employee.custom_group.
 
 Detection reuses `scheduler.get_incomplete_checkins()` — the single source of
 truth already used by the daily attendance report. Do NOT re-derive the rules
-here; see README.md.
+here; see attendance_request.md.
 """
 
 import json

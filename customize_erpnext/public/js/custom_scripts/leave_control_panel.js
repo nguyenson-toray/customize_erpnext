@@ -5,7 +5,7 @@
 // thêm handler này thì tick vào checkbox danh sách vẫn y nguyên — HR sẽ tưởng nó không có
 // tác dụng.
 //
-// Xem `overrides/leave_control_panel/README.md`.
+// Xem `overrides/leave_control_panel/leave_control_panel.md`.
 
 frappe.ui.form.on("Leave Control Panel", {
 	custom_include_employees_who_left(frm) {

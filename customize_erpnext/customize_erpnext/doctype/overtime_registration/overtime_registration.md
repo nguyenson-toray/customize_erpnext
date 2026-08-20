@@ -1,5 +1,9 @@
 # Overtime Registration - Tài liệu
 
+> **Mục đích:** Doctype đăng ký tăng ca: chọn nhân viên hàng loạt theo ngày, kiểm tra thai sản và trùng ca trước khi lưu.
+> **Phạm vi:** DocType tự phát triển
+> **Trạng thái:** Đang chạy · **Cập nhật:** 2026-07-16
+
 > Cập nhật 2026-07-14: redesign dialog "Get Employees" (1 dialog 2 cột + ledger giờ công),
 > đổi tên hàm entry để tránh xung đột global scope, fix bug lệch ngày `toISOString()`.
 

@@ -1,5 +1,9 @@
 # Plan — DocType quản lý Người phụ thuộc (`Employee Dependent`)
 
+> **Mục đích:** Mục tiêu: có dữ liệu **người phụ thuộc (NPT) theo tháng** để tính thuế TNCN tự động,
+> **Phạm vi:** Override HRMS/ERPNext
+> **Trạng thái:** Kế hoạch · **Cập nhật:** 2026-08-10
+
 > Mục tiêu: có dữ liệu **người phụ thuộc (NPT) theo tháng** để tính thuế TNCN tự động,
 > thay cho cách nhập tay hiện nay. Xem bối cảnh ở [`PAYROLL_SETUP.md`](PAYROLL_SETUP.md) mục 2.8.
 >

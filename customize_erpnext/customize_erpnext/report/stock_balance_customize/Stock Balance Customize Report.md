@@ -1,5 +1,9 @@
 # Stock Balance Customize Report - Refactored
 
+> **Mục đích:** **Stock Balance Customize** là báo cáo tồn kho tùy chỉnh trong ERPNext được tối ưu hóa để hiển thị số dư kho hàng với tính năng grouping theo Invoice Number và stock aging analysis.
+> **Phạm vi:** Report tự phát triển
+> **Trạng thái:** Đang chạy · **Cập nhật:** 2026-05-25
+
 ## Tổng quan
 
 **Stock Balance Customize** là báo cáo tồn kho tùy chỉnh trong ERPNext được tối ưu hóa để hiển thị số dư kho hàng với tính năng grouping theo Invoice Number và stock aging analysis.

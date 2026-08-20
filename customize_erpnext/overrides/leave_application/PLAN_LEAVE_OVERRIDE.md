@@ -1,5 +1,9 @@
 # Plan — Rà soát & sửa override Nghỉ phép
 
+> **Mục đích:** Rà soát **10/08/2026**, sau khi số hoá quy định gốc thành
+> **Phạm vi:** Override HRMS/ERPNext
+> **Trạng thái:** Kế hoạch · **Cập nhật:** 2026-08-12
+
 > Rà soát **10/08/2026**, sau khi số hoá quy định gốc thành
 > [`QUY_DINH_NGHI_PHEP_2025.md`](QUY_DINH_NGHI_PHEP_2025.md).
 >

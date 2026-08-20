@@ -1,5 +1,9 @@
 # Tài Liệu Sync Fingerprint - Đồng Bộ Vân Tay
 
+> **Mục đích:** Hệ thống đồng bộ vân tay từ ERP đến các máy chấm công với tính năng **song song hoàn toàn** (fully parallel) để tối ưu tốc độ xử lý.
+> **Phạm vi:** Script phía trình duyệt
+> **Trạng thái:** Đang chạy · **Cập nhật:** 2026-08-12
+
 ## 📋 Tổng Quan
 
 Hệ thống đồng bộ vân tay từ ERP đến các máy chấm công với tính năng **song song hoàn toàn** (fully parallel) để tối ưu tốc độ xử lý.

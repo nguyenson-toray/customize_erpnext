@@ -1,5 +1,9 @@
 # Getting Started with Create React App
 
+> **Mục đích:** Bản mẫu mặc định của Create React App cho thư mục frontend. Không phải tài liệu của dự án.
+> **Phạm vi:** Ứng dụng React nhúng
+> **Trạng thái:** Đang chạy · **Cập nhật:** 2026-05-25
+
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
 
 ## Available Scripts

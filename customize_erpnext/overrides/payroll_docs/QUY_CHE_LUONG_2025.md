@@ -1,5 +1,9 @@
 # Quy chế Tiền lương, Tiền thưởng, Phúc lợi 2025 — TIQN
 
+> **Mục đích:** Bản số hoá quy chế tiền lương, thưởng và phúc lợi 2025 — nguồn gốc cho mọi công thức tính lương trong code.
+> **Phạm vi:** Override HRMS/ERPNext
+> **Trạng thái:** Đang chạy · **Cập nhật:** 2026-08-10
+
 > **Nguồn:** `TIQN-2025-HR/GA-QĐ-0001`, Revision 3, ngày **02/01/2025**
 > Công ty TNHH Toray International Việt Nam — Chi nhánh Quảng Ngãi  
 > giữ nguyên số tiền và điều kiện. Dùng làm căn cứ khai công thức lương trên ERP —

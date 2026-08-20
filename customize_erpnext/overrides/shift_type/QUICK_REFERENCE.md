@@ -1,5 +1,9 @@
 # Bulk Attendance — Quick Reference
 
+> **Mục đích:** Tra nhanh khi vận hành engine tính công: chỉnh ở đâu, chạy lệnh gì, lỗi thường gặp.
+> **Phạm vi:** Override HRMS/ERPNext
+> **Trạng thái:** Đang chạy · **Cập nhật:** 2026-08-07
+
 **Updated:** 2026-08-06
 
 ## Settings (change here, not in code)

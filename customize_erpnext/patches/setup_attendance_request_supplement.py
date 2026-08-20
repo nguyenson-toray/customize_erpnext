@@ -7,7 +7,7 @@ Tạo:
     Employee Checkin.custom_reason_for_manual_check_in
 
 Xem overrides/attendance_request/attendance_request.py và
-01_docs/attendance_request_supplement_plan.md.
+docs/attendance_request_supplement_plan.md.
 """
 
 import frappe

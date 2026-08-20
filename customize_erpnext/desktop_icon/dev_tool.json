@@ -1,0 +1,21 @@
+{
+ "app": "customize_erpnext",
+ "bg_color": "blue",
+ "creation": "2026-08-19 14:43:41.124236",
+ "docstatus": 0,
+ "doctype": "Desktop Icon",
+ "hidden": 0,
+ "icon_type": "Link",
+ "idx": 0,
+ "label": "Dev Tool",
+ "link": "/dev-tool",
+ "link_type": "External",
+ "logo_url": "/assets/customize_erpnext/images/coding.svg",
+ "modified": "2026-08-19 15:19:01.094848",
+ "modified_by": "Administrator",
+ "name": "Dev Tool",
+ "owner": "Administrator",
+ "restrict_removal": 0,
+ "roles": [],
+ "standard": 1
+}

@@ -1,5 +1,9 @@
 # [LEGACY APP] Timesheet Algorithm — `timesheetFunctions.dart`
 
+> **Mục đích:** ⚠️ Đây là thuật toán của **app chấm công CŨ** (Flutter/Dart + MongoDB, đã chạy ổn định) —
+> **Phạm vi:** Override HRMS/ERPNext
+> **Trạng thái:** Lưu trữ · **Cập nhật:** 2026-08-07
+
 > ⚠️ Đây là thuật toán của **app chấm công CŨ** (Flutter/Dart + MongoDB, đã chạy ổn định) —
 > dùng làm TÀI LIỆU THAM CHIẾU khi port sang ERPNext, KHÔNG phải code đang chạy trên ERP.
 > Trạng thái triển khai trên ERPNext: xem §15 cuối file.

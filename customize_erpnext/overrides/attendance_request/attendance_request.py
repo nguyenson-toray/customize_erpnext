@@ -16,7 +16,7 @@ Supplement mode flow:
   on_submit -> create Employee Checkin records, then re-run the attendance engine
   on_cancel -> delete those check-ins, then re-run the attendance engine
 
-See 01_docs/attendance_request_supplement_plan.md for the full design.
+See docs/attendance_request_supplement_plan.md for the full design.
 """
 
 import frappe

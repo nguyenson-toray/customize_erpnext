@@ -1,5 +1,9 @@
 # Site Restriction Module
 
+> **Mục đích:** Decorator system to restrict function execution to specific sites only (e.g., production site `erp.tiqn.local`).
+> **Phạm vi:** API nội bộ
+> **Trạng thái:** Đang chạy · **Cập nhật:** 2026-05-25
+
 ## Overview
 Decorator system to restrict function execution to specific sites only (e.g., production site `erp.tiqn.local`).
 

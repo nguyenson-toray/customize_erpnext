@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<!-- Dev Tool — khung tab. Shell chỉ lo mount/unmount; mỗi tab là 1 file JS riêng
+     trong public/js/dev_tool/tabs/ (index.py tự quét, không khai báo ở đây). -->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ _("Dev Tool") }}</title>
+    <link rel="icon" href="/assets/customize_erpnext/favicon.ico">
+    <script src="/assets/customize_erpnext/js/lib/mermaid.min.js"></script>
+    <style>
+        /* ── Design tokens ──
+           Dùng chung bảng màu với trang /mindmap để hai chức năng trông như một
+           ứng dụng: cùng nền, cùng viền, cùng màu nhấn. Trang mindmap đặt cùng
+           bộ giá trị này trong :root của nó — sửa màu thì sửa cả hai chỗ. */
+        :root {
+            --shell-bg: #edf0f3;      /* rail chuyển tab, sẫm nhất */
+            --shell-fg: #3d434b;
+            --shell-muted: #858c96;
+            --shell-border: #e2e6ea;
+            --sidebar-bg: #f6f8fa;    /* panel công cụ, sẫm hơn canvas một chút */
+            --canvas-bg: #ffffff;     /* vùng render sơ đồ: trắng */
+            --card-bg: #ffffff;
+            --card-border: #e4e8ec;
+            --accent: #2f6f6d;
+            --accent-soft: #e4efee;
+            --text-main: #23262b;
+            --danger: #a3355c;
+            --mono: ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace;
+            --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            font-family: var(--sans);
+            color: var(--text-main);
+            background: var(--canvas-bg);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* ─── Rail: chuyển tab ─── */
+        #rail {
+            width: 76px;
+            min-width: 76px;
+            background: var(--shell-bg);
+            border-right: 1px solid var(--shell-border);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 14px 0;
+        }
+        #rail .brand {
+            font-family: var(--mono);
+            font-size: 10px;
+            letter-spacing: .1em;
+            color: var(--accent);
+            text-align: center;
+            line-height: 1.3;
+            margin-bottom: 18px;
+        }
+        .rail-btn {
+            width: 60px;
+            padding: 10px 4px;
+            margin-bottom: 6px;
+            background: none;
+            border: none;
+            border-radius: 8px;
+            color: var(--shell-muted);
+            font-family: var(--sans);
+            font-size: 11px;
+            line-height: 1.3;
+            cursor: pointer;
+            text-align: center;
+        }
+        .rail-btn .ic { display: block; font-size: 19px; margin-bottom: 3px; }
+        .rail-btn:hover { background: #e0e5ea; color: var(--text-main); }
+        .rail-btn.active { background: var(--accent); color: #fff; }
+        .rail-spacer { flex: 1; }
+        #rail .home-link {
+            color: var(--shell-muted);
+            font-size: 11px;
+            text-decoration: none;
+            text-align: center;
+            padding: 8px;
+        }
+        #rail .home-link:hover { color: var(--shell-fg); }
+
+        /* ─── Panel trái của tab ─── */
+        #tab-side {
+            flex: 0 0 380px;
+            min-width: 240px;
+            background: var(--sidebar-bg);
+            color: var(--shell-fg);
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            overflow: hidden;
+        }
+        #tab-side:empty { display: none; }
+
+        /* Thanh kéo đổi bề rộng panel trái, giống trang /mindmap */
+        #splitter {
+            flex: none;
+            width: 5px;
+            cursor: col-resize;
+            background: var(--shell-border);
+        }
+        #splitter:hover, #splitter.dragging { background: var(--accent); }
+        #tab-side:empty + #splitter { display: none; }
+        body.dragging-split { cursor: col-resize; user-select: none; }
+
+        /* ─── Vùng nội dung chính ─── */
+        #tab-main {
+            flex: 1;
+            height: 100%;
+            overflow-y: auto;
+        }
+
+        /* Kiểu dùng chung cho các tab */
+        .side-header { padding: 18px 18px 12px; border-bottom: 1px solid var(--shell-border); }
+        .side-header .eyebrow {
+            font-family: var(--mono); font-size: 11px; letter-spacing: .08em;
+            text-transform: uppercase; color: var(--accent); margin: 0 0 4px;
+        }
+        .side-header h1 { font-size: 16px; margin: 0; font-weight: 600; color: var(--text-main); }
+        .side-header p { font-size: 12.5px; color: var(--shell-muted); margin: 8px 0 0; line-height: 1.5; }
+
+        .side-block { padding: 14px 18px; border-bottom: 1px solid var(--shell-border); }
+        .side-block .block-title {
+            font-family: var(--mono); font-size: 11px; letter-spacing: .06em;
+            text-transform: uppercase; color: var(--shell-muted); margin: 0 0 8px;
+        }
+        .side-scroll { flex: 1; overflow-y: auto; padding: 10px 10px 20px; }
+
+        textarea.code {
+            width: 100%; height: 240px; min-height: 90px; resize: vertical;
+            background: #fff; color: var(--text-main);
+            border: 1px solid #dde2e7; border-radius: 6px;
+            font-family: var(--mono); font-size: 11.5px; padding: 10px; line-height: 1.5;
+        }
+
+        button {
+            font-family: var(--sans); font-size: 12.5px; border: none;
+            border-radius: 5px; padding: 7px 12px; cursor: pointer; transition: opacity .15s;
+        }
+        button:hover { opacity: .85; }
+        button.primary { background: var(--accent); color: #fff; font-weight: 600; }
+        button.ghost { background: #fff; color: var(--text-main); border: 1px solid #dde2e7; }
+        .btn-row { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+
+        .doc-link {
+            display: block; padding: 9px 10px; border-radius: 6px;
+            color: var(--shell-fg); text-decoration: none; font-size: 13px;
+            line-height: 1.4; margin-bottom: 2px; cursor: pointer; border: none;
+            background: none; width: 100%; text-align: left; font-family: var(--sans);
+        }
+        .doc-link:hover { background: #e9edf1; }
+        .doc-link.active { background: var(--accent-soft); color: #16332f; font-weight: 600; }
+        .doc-link .meta {
+            display: block; font-family: var(--mono); font-size: 10.5px;
+            color: var(--shell-muted); margin-top: 3px;
+        }
+        .doc-link.active .meta { color: #4a6b67; }
+
+        .hint {
+            font-size: 11.5px; color: var(--shell-muted);
+            line-height: 1.5; margin: 8px 0 0;
+        }
+
+        #toast {
+            position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%);
+            background: #23262b; color: #fff; padding: 10px 18px; border-radius: 6px;
+            font-size: 13px; opacity: 0; pointer-events: none; transition: opacity .2s;
+            z-index: 50; max-width: 70vw;
+        }
+        #toast.show { opacity: 1; }
+        #toast.err { background: var(--danger); }
+
+        .placeholder {
+            font-family: var(--mono); font-size: 13px; color: #8b8f97;
+            padding: 40px;
+        }
+
+        .side-search {
+            width: 100%; padding: 8px 10px; font-size: 13px;
+            font-family: var(--sans); color: var(--text-main);
+            background: #fff; border: 1px solid #dde2e7; border-radius: 6px;
+        }
+        .side-search:focus { outline: none; border-color: var(--accent); }
+
+        /* dòng trích trong kết quả tìm kiếm */
+        .doc-link .hit {
+            display: block; font-family: var(--mono); font-size: 10.5px;
+            color: var(--shell-muted); margin-top: 4px; line-height: 1.45;
+            white-space: normal; word-break: break-word;
+        }
+        .doc-link mark {
+            background: #ffe8a3; color: inherit; padding: 0 1px; border-radius: 2px;
+        }
+
+        /* ─── Vùng đọc tài liệu markdown ───
+           Hai cột: nội dung + mục lục dính bên phải. Mục lục nằm ở đây chứ không
+           ở panel trái vì panel trái đã dành cho danh sách bài, và màn rộng thì
+           khoảng trống bên phải đằng nào cũng bỏ không. */
+        .md-layout {
+            display: flex; align-items: flex-start; gap: 40px;
+            max-width: 1460px; margin: 0 auto; padding: 30px 44px 90px;
+        }
+        .md-col { flex: 1 1 auto; min-width: 0; }
+        .md-toc {
+            flex: 0 0 236px; position: sticky; top: 30px;
+            max-height: calc(100vh - 70px); overflow-y: auto;
+            border-left: 1px solid var(--card-border); padding-left: 18px;
+        }
+        .md-toc-title {
+            font-family: var(--mono); font-size: 10.5px; letter-spacing: .08em;
+            text-transform: uppercase; color: var(--shell-muted); margin: 4px 0 10px;
+        }
+        .md-toc-link {
+            display: block; padding: 5px 0; font-size: 12.5px; line-height: 1.45;
+            color: var(--shell-fg); text-decoration: none; border-left: 2px solid transparent;
+            padding-left: 10px; margin-left: -11px;
+        }
+        .md-toc-link:hover { color: var(--accent); border-left-color: var(--accent); }
+        .md-toc-link.lv3 { padding-left: 24px; font-size: 12px; color: var(--shell-muted); }
+        @media (max-width: 1180px) { .md-toc { display: none; } }
+
+        /* thanh cho biết đang đọc file ngoài docs/user_manual */
+        .md-crumb {
+            display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+            padding-bottom: 14px; margin-bottom: 22px;
+            border-bottom: 1px solid var(--card-border);
+        }
+        .md-crumb-path { font-family: var(--mono); font-size: 11.5px; color: var(--shell-muted); }
+        .md-path-link {
+            font-family: var(--mono); font-size: 12.5px;
+            background: var(--accent-soft); color: var(--accent);
+            padding: 2px 5px; border-radius: 4px; text-decoration: none;
+            border-bottom: 1px solid rgba(47,111,109,.35);
+        }
+        .md-path-link:hover { background: #d4e7e5; }
+        .doc-link-broken { opacity: .5; }
+
+        .md-body {
+            font-size: 15px; line-height: 1.7; color: var(--text-main);
+        }
+        .md-body h1 { font-size: 27px; margin: 0 0 20px; line-height: 1.3; }
+        .md-body h2 {
+            font-size: 21px; margin: 38px 0 14px; padding-bottom: 8px;
+            border-bottom: 1px solid var(--card-border); line-height: 1.35;
+        }
+        .md-body h3 { font-size: 17px; margin: 28px 0 10px; }
+        .md-body h4 { font-size: 15px; margin: 22px 0 8px; }
+        .md-body p { margin: 0 0 14px; }
+        .md-body ul, .md-body ol { margin: 0 0 14px; padding-left: 24px; }
+        .md-body li { margin-bottom: 6px; }
+        .md-body a { color: var(--accent); }
+        .md-body img { max-width: 100%; height: auto; border-radius: 6px; }
+        .md-body hr { border: none; border-top: 1px solid var(--card-border); margin: 30px 0; }
+        .md-body blockquote {
+            margin: 0 0 16px; padding: 10px 16px;
+            border-left: 3px solid var(--accent); background: var(--accent-soft);
+            border-radius: 0 6px 6px 0;
+        }
+        .md-body blockquote p:last-child { margin-bottom: 0; }
+        .md-body code {
+            font-family: var(--mono); font-size: 12.5px;
+            background: #f2f4f6; padding: 2px 5px; border-radius: 4px;
+        }
+        .md-body pre {
+            background: #f7f8fa; border: 1px solid var(--card-border);
+            border-radius: 8px; padding: 14px 16px; overflow-x: auto; margin: 0 0 16px;
+        }
+        .md-body pre code { background: none; padding: 0; font-size: 12.5px; line-height: 1.55; }
+        /* bảng rộng tự cuộn ngang, không đẩy cả trang trượt */
+        .md-body table {
+            border-collapse: collapse; width: 100%; margin: 0 0 18px; font-size: 13.5px;
+            display: block; overflow-x: auto;
+        }
+        .md-body th, .md-body td {
+            border: 1px solid var(--card-border); padding: 8px 11px;
+            text-align: left; vertical-align: top;
+        }
+        .md-body th { background: #f4f6f8; font-weight: 600; }
+        .md-diagram { margin: 0 0 20px; overflow-x: auto; }
+        .md-diagram svg { max-width: 100%; height: auto; }
+        .md-diagram-failed { border-color: var(--danger); }
+
+        /* ─── Bản scan quy định (PDF) ─── */
+        .pdf-row { display: flex; align-items: stretch; gap: 4px; }
+        .pdf-row .doc-link { flex: 1 1 auto; min-width: 0; }
+        .pdf-row.active .doc-link { background: var(--accent-soft); color: #16332f; font-weight: 600; }
+        .pdf-download {
+            flex: 0 0 30px; display: flex; align-items: center; justify-content: center;
+            color: var(--shell-muted); text-decoration: none; border-radius: 6px;
+            font-size: 15px; margin-bottom: 2px;
+        }
+        .pdf-download:hover { background: var(--accent-soft); color: var(--accent); }
+
+        /* Khung xem PDF chiếm trọn vùng nội dung, dùng trình đọc của trình duyệt */
+        .pdf-view { display: flex; flex-direction: column; height: 100%; padding: 20px 28px 0; }
+        .pdf-view .md-crumb { margin-bottom: 12px; }
+        .pdf-title {
+            flex: 1 1 auto; min-width: 0; font-family: var(--mono); font-size: 12px;
+            color: var(--shell-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .pdf-btn {
+            flex: none; background: var(--accent); color: #fff; text-decoration: none;
+            font-size: 12.5px; font-weight: 600; padding: 7px 14px; border-radius: 5px;
+        }
+        .pdf-btn:hover { opacity: .88; }
+        .pdf-btn.ghost {
+            background: #fff; color: var(--text-main); border: 1px solid #dde2e7; font-weight: 500;
+        }
+        .pdf-frame {
+            flex: 1 1 auto; width: 100%; border: 1px solid var(--card-border);
+            border-radius: 8px 8px 0 0; background: #fff;
+        }
+        /* trình chiếu: bỏ thanh nút, chỉ còn trang scan */
+        body.present .pdf-view { padding: 0; }
+        body.present .pdf-view .md-crumb { display: none; }
+        body.present .pdf-frame { border: none; border-radius: 0; }
+
+        /* ─── Chế độ trình chiếu: chỉ còn sơ đồ ─── */
+        body.present #rail,
+        body.present #tab-side,
+        body.present #splitter { display: none; }
+        body.present .diagram-card {
+            border: none; background: none; padding: 0 0 12px;
+            margin-bottom: 40px;
+        }
+        /* Trình chiếu thì giấu bớt phần phụ trợ, chừa đúng tiêu đề + sơ đồ */
+        body.present .card-actions,
+        body.present .card-note,
+        body.present .source-line { display: none; }
+        body.present .diagram-card h2 { font-size: 22px; }
+        body.present .diagram-render { background: none; border: none; }
+        body.present .view-bar { opacity: .25; transition: opacity .2s; }
+        body.present .view-bar:hover { opacity: 1; }
+
+        #present-exit {
+            display: none;
+            position: fixed; top: 12px; right: 16px; z-index: 60;
+            background: rgba(20, 23, 29, .78); color: #fff;
+            font-size: 12px; padding: 7px 13px; border-radius: 6px;
+        }
+        body.present #present-exit { display: block; }
+        #present-exit:hover { background: #14171d; opacity: 1; }
+
+        /* Card diagram — dùng chung cho tab Flowchart và các tab vẽ hình sau này */
+        .diagram-card {
+            background: var(--card-bg); border: 1px solid var(--card-border);
+            border-radius: 10px; padding: 20px 24px 18px;
+            margin-bottom: 28px;
+        }
+        .diagram-card h2 {
+            font-size: 17px; margin: 0 0 12px; padding-bottom: 12px;
+            border-bottom: 1px solid var(--card-border); color: var(--text-main);
+        }
+
+        /* Thanh điều khiển hiển thị: hướng vẽ + phóng to thu nhỏ */
+        .view-bar {
+            display: flex; align-items: center; gap: 14px;
+            flex-wrap: wrap; margin-bottom: 10px;
+        }
+        .view-group {
+            display: inline-flex; align-items: center; gap: 2px;
+            background: #e9edf1; border-radius: 6px; padding: 2px;
+        }
+        .view-group button {
+            background: none; color: #5c6069; font-size: 12px;
+            padding: 5px 10px; border-radius: 4px; font-weight: 500;
+        }
+        .view-group button:hover { background: #dbe1e7; opacity: 1; }
+        .view-group button.on { background: var(--accent); color: #fff; }
+        .view-group .zoom-label {
+            font-family: var(--mono); font-size: 11.5px; color: #5c6069;
+            min-width: 46px; text-align: center; user-select: none;
+        }
+        .view-hint { font-size: 11.5px; color: #9a9ea6; }
+
+        /* Khung nhìn cố định + lớp trong dịch chuyển bằng transform, giống cách
+           trang /mindmap pan/zoom: kéo và phóng được cả khi sơ đồ nhỏ hơn khung,
+           và phóng đúng vào điểm con trỏ đang trỏ. Dùng scroll thì không làm được
+           hai chuyện đó. */
+        .diagram-render {
+            position: relative; overflow: hidden;
+            background: #ffffff; border: 1px solid #e4e8ec; border-radius: 8px;
+            cursor: grab;
+        }
+        .diagram-render.grabbing { cursor: grabbing; }
+        .diagram-stage {
+            position: absolute; top: 0; left: 0;
+            transform-origin: 0 0;
+            will-change: transform;
+        }
+        /* Mermaid gắn max-width inline lên <svg>; gỡ để phóng to được, kích thước
+           thật do JS set theo viewBox */
+        .diagram-render svg { max-width: none !important; display: block; }
+        .diagram-render .diagram-error { position: static; margin: 16px; }
+        .card-actions { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+        .card-actions button { background: var(--accent-soft); color: var(--accent); font-weight: 500; }
+        .card-note {
+            font-size: 11.5px; color: #8b8f97; line-height: 1.5; margin: 8px 0 0; max-width: 68ch;
+        }
+        .source-line {
+            font-family: var(--mono); font-size: 11.5px; color: #8b8f97;
+            margin: 14px 0 0; padding-top: 10px;
+            border-top: 1px dashed var(--card-border); word-break: break-word;
+        }
+        .diagram-error {
+            font-family: var(--mono); font-size: 12.5px; color: var(--danger);
+            background: #fdf3f6; border: 1px solid #f0d8e2; border-radius: 6px;
+            padding: 12px 14px; margin: 0; white-space: pre-wrap; width: 100%;
+        }
+    </style>
+</head>
+<body>
+
+<nav id="rail">
+    <div class="brand">DEV<br>TOOL</div>
+    <div id="rail-buttons"></div>
+    <div class="rail-spacer"></div>
+    <button class="rail-btn" id="btn-present" title="{{ _('Presentation mode (P) — diagram only') }}">
+        <span class="ic">⛶</span>{{ _("Present") }}
+    </button>
+    <a class="home-link" href="/app" title="{{ _('Back to Desk') }}">← {{ _("Desk") }}</a>
+</nav>
+<button id="present-exit" title="Esc">✕ Thoát trình chiếu</button>
+
+<aside id="tab-side"></aside>
+<div id="splitter" title="Kéo để đổi bề rộng"></div>
+<main id="tab-main">
+    <p class="placeholder">{{ _("Loading…") }}</p>
+</main>
+
+<div id="toast"></div>
+
+<script>
+    window.csrf_token = "{{ csrf_token }}";
+    window.dev_tool_can_save = {{ can_save }};
+</script>
+
+<script>
+/* ══════════════════════════ Shell ══════════════════════════
+   Chỉ làm 3 việc: giữ registry tab, vẽ rail, mount/unmount.
+   Không biết gì về nội dung từng tab.                        */
+(function () {
+    'use strict';
+
+    const tabs = [];
+    let activeId = null;
+    let activeTab = null;
+
+    /* ---------- tiện ích dùng chung, tab nào cũng gọi được ---------- */
+
+    async function callFrappeMethod(method, args) {
+        const fd = new FormData();
+        fd.append('csrf_token', window.csrf_token);
+        for (const [k, v] of Object.entries(args || {})) {
+            fd.append(k, v === null || v === undefined ? '' : String(v));
+        }
+        const res = await fetch('/api/method/' + method, {
+            method: 'POST', credentials: 'same-origin', body: fd
+        });
+        if (res.status === 403) { location.reload(); throw new Error('Session expired'); }
+        const data = await res.json();
+        if (data.exc) {
+            let msg = '';
+            try { msg = JSON.parse(JSON.parse(data._server_messages || '[]')[0]).message; } catch (e) { }
+            throw new Error(msg || data.exc_type || 'Server error');
+        }
+        return data.message;
+    }
+
+    let toastTimer = null;
+    function toast(msg, isError) {
+        const el = document.getElementById('toast');
+        el.textContent = msg;
+        el.classList.toggle('err', !!isError);
+        el.classList.add('show');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => el.classList.remove('show'), isError ? 5000 : 2200);
+    }
+
+    function copyText(text, btn) {
+        const restore = btn ? btn.textContent : null;
+        const done = () => {
+            if (btn) {
+                btn.textContent = 'Đã copy ✓';
+                setTimeout(() => { btn.textContent = restore; }, 1400);
+            }
+            toast('Đã copy vào clipboard');
+        };
+        // clipboard API chỉ chạy trên secure context; site nội bộ http thì rơi vào fallback
+        const fallback = () => {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.left = '-9999px';
+            document.body.appendChild(ta);
+            ta.select();
+            try { document.execCommand('copy'); done(); }
+            catch (e) { toast('Trình duyệt chặn copy — chọn tay rồi Ctrl+C', true); }
+            document.body.removeChild(ta);
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(done).catch(fallback);
+        } else {
+            fallback();
+        }
+    }
+
+    function downloadText(text, filename, mime) {
+        const blob = new Blob([text], { type: (mime || 'text/plain') + ';charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    const esc = (s) => String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+    /* ---------- thư viện dùng chung ----------
+       Cấu hình Mermaid ở shell, không ở từng tab: cả tab Flowchart lẫn tab Hướng
+       dẫn đều vẽ sơ đồ, và cấu hình là toàn cục nên đặt ở tab nào thì tab đó
+       thành phụ thuộc ngầm của tab kia.
+
+       htmlLabels: false là bắt buộc, không phải chọn cho đẹp. Bật lên thì Mermaid
+       gói nhãn trong <foreignObject> chứa HTML; canvas của trình duyệt KHÔNG vẽ
+       foreignObject, nên PNG xuất ra mất sạch chữ, chỉ còn khung. Tắt đi thì nhãn
+       là <text> SVG thật: trên màn, PNG và SVG giống hệt nhau, mở được bằng
+       Inkscape/Illustrator. <br/> vẫn xuống dòng bình thường. */
+    if (window.mermaid) {
+        mermaid.initialize({
+            startOnLoad: false,      // tự gọi render để bắt lỗi từng sơ đồ riêng
+            securityLevel: 'loose',
+            theme: 'default',
+            flowchart: { htmlLabels: false }
+        });
+    }
+
+    /* ---------- registry ---------- */
+
+    function registerTab(def) {
+        if (!def || !def.id || typeof def.mount !== 'function') {
+            console.error('[dev-tool] tab không hợp lệ, cần {id, mount}', def);
+            return;
+        }
+        if (tabs.some(t => t.id === def.id)) {
+            console.error('[dev-tool] trùng id tab: ' + def.id);
+            return;
+        }
+        tabs.push(Object.assign({ order: 100, icon: '•', label: def.id }, def));
+    }
+
+    /* ---------- mount / unmount ---------- */
+
+    function activate(id, push) {
+        const tab = tabs.find(t => t.id === id);
+        if (!tab || id === activeId) return;
+
+        // Tab cũ tự dọn (huỷ timer, gỡ listener) trước khi DOM bị xoá
+        if (activeTab && typeof activeTab.unmount === 'function') {
+            try { activeTab.unmount(); }
+            catch (e) { console.error('[dev-tool] unmount ' + activeTab.id, e); }
+        }
+
+        const side = document.getElementById('tab-side');
+        const main = document.getElementById('tab-main');
+        side.innerHTML = '';
+        main.innerHTML = '';
+        main.scrollTop = 0;
+
+        activeId = id;
+        activeTab = tab;
+
+        document.querySelectorAll('.rail-btn').forEach(b => {
+            b.classList.toggle('active', b.dataset.tab === id);
+        });
+
+        try {
+            tab.mount({ side: side, main: main, api: DevTool });
+        } catch (e) {
+            console.error('[dev-tool] mount ' + id, e);
+            main.innerHTML = '<p class="placeholder">Tab "' + esc(id) + '" lỗi khi khởi tạo: '
+                + esc(e && e.message ? e.message : e) + '</p>';
+        }
+
+        const url = new URL(location.href);
+        url.searchParams.set('tab', id);
+        if (push) history.pushState({ tab: id }, '', url);
+        else history.replaceState({ tab: id }, '', url);
+    }
+
+    function buildRail() {
+        tabs.sort((a, b) => (a.order - b.order) || a.label.localeCompare(b.label));
+        const box = document.getElementById('rail-buttons');
+        box.innerHTML = '';
+        tabs.forEach(t => {
+            const btn = document.createElement('button');
+            btn.className = 'rail-btn';
+            btn.dataset.tab = t.id;
+            btn.title = t.label;
+            btn.innerHTML = '<span class="ic">' + esc(t.icon) + '</span>' + esc(t.label);
+            btn.addEventListener('click', () => activate(t.id, true));
+            box.appendChild(btn);
+        });
+    }
+
+    window.addEventListener('popstate', () => {
+        const want = new URLSearchParams(location.search).get('tab');
+        if (want && want !== activeId && tabs.some(t => t.id === want)) {
+            activate(want, false);
+        }
+    });
+
+    /* ---------- thanh kéo đổi bề rộng panel trái ---------- */
+
+    const SIDE_W_KEY = 'dev_tool_side_width';
+    const SIDE_MIN = 240;
+
+    function setSideWidth(px) {
+        const max = Math.max(SIDE_MIN, window.innerWidth - 420);
+        const w = Math.min(Math.max(px, SIDE_MIN), max);
+        document.getElementById('tab-side').style.flexBasis = w + 'px';
+        return w;
+    }
+
+    function initSplitter() {
+        const sp = document.getElementById('splitter');
+        const side = document.getElementById('tab-side');
+
+        const saved = parseInt(localStorage.getItem(SIDE_W_KEY) || '', 10);
+        if (saved) setSideWidth(saved);
+
+        let drag = null;
+        sp.addEventListener('mousedown', function (ev) {
+            drag = { x: ev.clientX, w: side.getBoundingClientRect().width };
+            sp.classList.add('dragging');
+            document.body.classList.add('dragging-split');
+            ev.preventDefault();
+        });
+        window.addEventListener('mousemove', function (ev) {
+            if (!drag) return;
+            setSideWidth(drag.w + ev.clientX - drag.x);
+        });
+        window.addEventListener('mouseup', function () {
+            if (!drag) return;
+            drag = null;
+            sp.classList.remove('dragging');
+            document.body.classList.remove('dragging-split');
+            localStorage.setItem(SIDE_W_KEY, String(Math.round(side.getBoundingClientRect().width)));
+            // tab đang mở tự tính lại kích thước (flowchart nghe sự kiện này)
+            window.dispatchEvent(new Event('resize'));
+        });
+        // nhấp đúp = trả về bề rộng mặc định
+        sp.addEventListener('dblclick', function () {
+            setSideWidth(380);
+            localStorage.removeItem(SIDE_W_KEY);
+            window.dispatchEvent(new Event('resize'));
+        });
+    }
+
+    /* ---------- chế độ trình chiếu ----------
+       Ẩn rail + panel trái, chỉ chừa sơ đồ, kèm fullscreen thật của trình duyệt
+       để giấu luôn thanh địa chỉ. Tab nào cần dọn thêm bên trong thì khai
+       onPresent(on) — tab Mindmap dùng để gập ô soạn thảo trong iframe.        */
+
+    let presenting = false;
+
+    function setPresent(on) {
+        on = !!on;
+        if (on === presenting) return;
+        presenting = on;
+        document.body.classList.toggle('present', on);
+
+        if (activeTab && typeof activeTab.onPresent === 'function') {
+            try { activeTab.onPresent(on); }
+            catch (e) { console.error('[dev-tool] onPresent ' + activeTab.id, e); }
+        }
+
+        // Fullscreen thật: bị chặn nếu không phải do người dùng bấm, nên nuốt lỗi
+        try {
+            if (on && !document.fullscreenElement && document.documentElement.requestFullscreen) {
+                document.documentElement.requestFullscreen().catch(function () {});
+            } else if (!on && document.fullscreenElement && document.exitFullscreen) {
+                document.exitFullscreen().catch(function () {});
+            }
+        } catch (e) { /* trình duyệt cũ: vẫn chạy được ở chế độ ẩn thanh bên */ }
+
+        window.dispatchEvent(new Event('resize'));
+    }
+
+    function initPresent() {
+        document.getElementById('btn-present')
+            .addEventListener('click', function () { setPresent(!presenting); });
+        document.getElementById('present-exit')
+            .addEventListener('click', function () { setPresent(false); });
+
+        document.addEventListener('keydown', function (ev) {
+            if (ev.key === 'Escape' && presenting) { setPresent(false); return; }
+            // phím tắt P: bỏ qua khi đang gõ trong ô soạn thảo
+            const t = ev.target;
+            const typing = t && (t.tagName === 'TEXTAREA' || t.tagName === 'INPUT' || t.isContentEditable);
+            if (!typing && !ev.ctrlKey && !ev.metaKey && !ev.altKey && (ev.key === 'p' || ev.key === 'P')) {
+                ev.preventDefault();
+                setPresent(!presenting);
+            }
+        });
+
+        // Thoát fullscreen bằng phím của trình duyệt thì đồng bộ lại trạng thái
+        document.addEventListener('fullscreenchange', function () {
+            if (!document.fullscreenElement && presenting) setPresent(false);
+        });
+    }
+
+    const DevTool = {
+        registerTab: registerTab,
+        setPresent: setPresent,
+        isPresenting: function () { return presenting; },
+        call: callFrappeMethod,
+        toast: toast,
+        copyText: copyText,
+        downloadText: downloadText,
+        esc: esc,
+        canSave: !!window.dev_tool_can_save
+    };
+    window.DevTool = DevTool;
+
+    // Các file tab được nạp sau script này (index.py sinh thẻ script), nên khởi
+    // động ở DOMContentLoaded — lúc đó registry đã đủ.
+    document.addEventListener('DOMContentLoaded', function () {
+        initSplitter();
+        initPresent();
+        buildRail();
+        if (!tabs.length) {
+            document.getElementById('tab-main').innerHTML =
+                '<p class="placeholder">Chưa có tab nào trong public/js/dev_tool/tabs/</p>';
+            return;
+        }
+        const want = new URLSearchParams(location.search).get('tab');
+        activate(tabs.some(t => t.id === want) ? want : tabs[0].id, false);
+    });
+})();
+</script>
+
+{%- for src in tab_scripts %}
+<script src="{{ src }}"></script>
+{%- endfor %}
+
+</body>
+</html>

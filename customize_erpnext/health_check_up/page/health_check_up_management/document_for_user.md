@@ -1,5 +1,9 @@
 # Hướng Dẫn Sử Dụng Phầm Mềm Quản Lý Khám Sức Khỏe
 
+> **Mục đích:** Phần mềm giúp hỗ trợ công tác phát hành và thu nhận hồ sơ khám sức khỏe một cách nhanh chóng thông qua việc quét mã vạch (Barcode) và theo dõi tiến độ theo thời gian thực ngay trên trình duyệt.
+> **Phạm vi:** Module Khám sức khoẻ
+> **Trạng thái:** Đang chạy · **Cập nhật:** 2026-07-28
+
 ## 1. Giới thiệu chung
 - Phần mềm giúp hỗ trợ công tác phát hành và thu nhận hồ sơ khám sức khỏe một cách nhanh chóng thông qua việc quét mã vạch (Barcode) và theo dõi tiến độ theo thời gian thực ngay trên trình duyệt.
 - Truy cập https://erp.tiqn.local:8888/desk ➡️ Health Check-Up

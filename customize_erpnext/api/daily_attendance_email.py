@@ -8,7 +8,7 @@
 # so server-side rasterising is not an option either. The columns here are table
 # cells with pixel heights, which every client renders.
 #
-# Business rules live in 01_docs/daily_attendance_dashboard_plan.md.
+# Business rules live in docs/daily_attendance_dashboard_plan.md.
 
 import os
 

@@ -1,5 +1,9 @@
 # Uniform Control — Hướng dẫn sử dụng
 
+> **Mục đích:** Module quản lý tồn kho & cấp phát đồng phục cho nhân viên (ERPNext/HRMS v16, app `customize_erpnext`).
+> **Phạm vi:** Module Đồng phục
+> **Trạng thái:** Đang chạy · **Cập nhật:** 2026-07-30
+
 Module quản lý tồn kho & cấp phát đồng phục cho nhân viên (ERPNext/HRMS v16, app `customize_erpnext`).
 
 - **Phần 1 — IT Admin**: thiết lập một lần (master data, kho, cấu hình, phân quyền).

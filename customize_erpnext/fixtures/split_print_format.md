@@ -1,5 +1,9 @@
 # Print Format Split Tool
 
+> **Mục đích:** Tool để tách file `print_format.json` thành các file riêng biệt cho từng print format, tạo file HTML/CSS dễ đọc để copy vào Web UI.
+> **Phạm vi:** Fixtures
+> **Trạng thái:** Đang chạy · **Cập nhật:** 2026-05-25
+
 ## Mục đích
 
 Tool để tách file `print_format.json` thành các file riêng biệt cho từng print format, tạo file HTML/CSS dễ đọc để copy vào Web UI.

@@ -1,5 +1,9 @@
 # Quy định nghỉ phép TIQN — TB-TIQN/2025-0018
 
+> **Mục đích:** Bản số hoá quy định nghỉ phép của công ty (TB-TIQN/2025-0018) — nguồn gốc cho mọi quy tắc nghỉ phép trong code.
+> **Phạm vi:** Override HRMS/ERPNext
+> **Trạng thái:** Đang chạy · **Cập nhật:** 2026-08-18
+
 > **Nguồn:** Thông báo `TB-TIQN/2025-0018` ngày **01/07/2025**, Công ty TNHH Toray
 > International Việt Nam – Chi nhánh Quảng Ngãi. Ký: Trưởng chi nhánh **Kitajima Motoharu**
 > + Chủ tịch Công đoàn **Lê Thanh Phong**.
@@ -13,6 +17,10 @@
 > để biết chỗ nào code đang lệch.
 
 ---
+
+> 📄 **Bản scan gốc có đóng dấu:** `docs/user_manual/pdf/TB-TIQN-2025-0018-TB về Quy định nghỉ
+> phép cập nhật theo Luật BH số 41-2024-QH15_01.07.2025.pdf` — xem và tải ở `/dev-tool` → tab
+> Hướng dẫn → khối *Quy định gốc*. File .md này là bản chép lại; **nghi ngờ thì tra bản scan.**
 
 ## 1. Căn cứ
 
@@ -107,9 +115,29 @@ Nửa ngày BHXH **luôn ghép với** một trạng thái khác cho nửa còn 
 
 ## 5. Ánh xạ sang ERP
 
-### 5.1. Leave Type ↔ mã quy định — rà soát 10/08/2026
+### 5.1. Leave Type ↔ mã quy định — rà soát 10/08/2026 · đối chiếu lại bản PDF gốc 20/08/2026
 
 Đã khai đủ 10 Leave Type, `custom_abbreviation` khớp mã quy định.
+
+> **Vì sao không có Leave Type cho mã `<1`?** `<1` (đi trễ / về sớm) **không phải một loại
+> phép** — không có đơn nghỉ, không xin, không duyệt. Nó là *hệ quả* của giờ quét vân tay.
+> Đừng đi tìm nó trong danh sách Leave Type.
+
+| | `KL` | Đi trễ / về sớm |
+|---|---|---|
+| Nghỉ bao lâu | **trọn ngày** | một phần ngày |
+| Tính công | **0** | **1 − giờ nghỉ/8** (vd nghỉ 1h → 0,9) |
+| Trừ chuyên cần | 200k · 500k · toàn bộ | **100.000đ/lần**, phẳng |
+| Leave Type trong ERP | **có** — `Nghỉ không lương`, `is_lwp = 1` | **không có** |
+| Ghi nhận bằng | Leave Application | cờ `late_entry` / `early_exit` trên Attendance |
+
+> 🔴 **Trên bảng công, cả hai đều in mã `KL`** — phân biệt bằng **số giờ làm**: `KL` mà
+> `working_hours > 0` chính là đi trễ/về sớm. Xem `overrides/shift_attendance/timesheet_leave.py`
+> \(`is_late_or_early_kl`\).
+>
+> Hệ quả trong code: `KL` là **ngoại lệ** duy nhất của `overrides/shift_type/leave_hour_cap.py` —
+> không chặn `working_hours` và **vẫn giữ** cờ đi trễ/về sớm, vì đó mới là căn cứ trừ
+> 100.000đ/lần. Các mã phép khác thì bỏ cờ (nghỉ đã duyệt, vào muộn là đương nhiên).
 
 | Mã | `is_lwp` | `include_holiday` | `allow_negative` | Tính công | Leave Type |
 |:--:|:--:|:--:|:--:|:--:|---|
@@ -275,18 +303,27 @@ Nửa còn lại được công ty trả lương khi: **có checkin** (đi làm)
 > `half_day_status` vẫn phải là `Present` vì nửa còn lại là phép năm có lương.
 > Quy tắc "không checkin → Absent" là **sai** ở đúng dòng này.
 
-### 5.3. 🔴 Ba dòng ERP CHƯA thể hiện được
+### 5.3. Ba dòng cần ngày công lẻ — đã làm ở tầng báo cáo, CHƯA làm ở tầng tiền
 
-`Attendance.status` của HRMS chỉ có `1 / 0,5 / 0` ngày. Ba dòng sau cần **ngày công lẻ**:
+`Attendance.status` của HRMS chỉ có `1 / 0,5 / 0` ngày, không có trạng thái ngày công phân số.
+Ba dòng sau cần số lẻ:
 
-| Mã | Tính công | Vì sao HRMS không làm được |
+| Mã | Tính công | Trạng thái |
 |---|:---:|---|
-| Đi trễ | `1 − giờ nghỉ/8` → vd **0,9** | không có trạng thái ngày công phân số |
-| Về sớm | `1 − giờ nghỉ/8` | như trên |
-| `OL/2` · `COL/2` | **0,4** | như trên |
+| Đi trễ · Về sớm \(`<1`\) | `1 − giờ nghỉ/8` → vd **0,9** | ✅ sheet Timesheet tính đúng |
+| `OL/2` · `COL/2` | **0,4** | ✅ sheet Timesheet tính đúng |
 
-→ Phải xử lý ở **tầng khoản lương** (Salary Component / Additional Salary), **không** ở
-`Attendance.status`. `late_entry` / `early_exit` đã có sẵn trên Attendance để làm đầu vào.
+**Đã làm:** `overrides/shift_attendance/timesheet_leave.py` \(`LEAVE_WORKING_DAYS`,
+`timesheet_working_days`\) tra ngày công theo mã cho sheet **Timesheet** của Export Excel.
+Đi trễ/về sớm tính bằng `giờ làm / 8` — **bằng đúng** `1 − giờ nghỉ/8` của quy chế khi ngày
+chuẩn 8 giờ. Đã đối chiếu 21/21 mã của mục 3 với bảng trong code: khớp hết.
+
+⚠ Chỉ sheet **Timesheet**. Sheet Detail và Summary vẫn tính `working_hours / 8`, nên cột Total
+của hai sheet **khác nhau** — đây là hệ quả đã được chấp nhận, không phải lỗi.
+
+**CHƯA làm:** phần **tiền** — khấu trừ 100.000đ/lần, 200k/500k/toàn bộ ở mục 5.4 dưới đây chưa
+có Salary Component nào cài đặt. `Attendance.late_entry` / `early_exit` đã sẵn sàng làm đầu vào
+khi nào làm tới.
 
 ### 5.4. Trừ thưởng chuyên cần — bảng bậc
 

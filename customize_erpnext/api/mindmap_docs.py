@@ -1,11 +1,13 @@
 """API cho trang Mindmap Viewer: liệt kê, đọc và ghi file markdown tài liệu,
 cùng bảng dịch phần mô tả để trang đổi qua lại Anh / Việt.
 
-Chỉ cho phép truy cập file .md nằm trong customize_erpnext/01_docs.
-Mọi đường dẫn đều được resolve rồi kiểm tra lại prefix để chặn ../ đi ra ngoài.
+Chỉ cho phép truy cập file .md nằm trong customize_erpnext/docs/mindmap
+(trước 19/08/2026 nằm ở 01_docs).
+Việc quyết định file nào đọc được giao hết cho api/docs_reader.py để trang
+/mindmap và trang /dev-tool dùng chung một luật, không lệch nhau.
 
 Hai file dịch, đều nằm cạnh trang trong www/mindmap:
-  vi.csv       - do 01_docs/build_mindmap.py sinh ra, KHÔNG sửa tay (build sẽ ghi đè)
+  vi.csv       - do scripts/build_mindmap.py sinh ra, KHÔNG sửa tay (build sẽ ghi đè)
   vi_auto.csv  - cache bản dịch máy, do API translate_texts ghi thêm vào
 Cả hai cùng dạng: english,vietnamese
 """
@@ -19,7 +21,10 @@ import os
 import frappe
 from frappe import _
 
-DOCS_SUBDIR = "01_docs"
+from customize_erpnext.api import docs_reader
+
+DOCS_CATEGORY = "mindmap"
+DOCS_SUBDIR = os.path.join(docs_reader.DOCS_SUBDIR, DOCS_CATEGORY)
 LANG_SUBDIR = os.path.join("www", "mindmap")
 LANG_FILE = "vi.csv"
 LANG_AUTO_FILE = "vi_auto.csv"
@@ -49,26 +54,21 @@ def _check_edit():
 
 
 def _docs_dir():
-    app_path = frappe.get_app_path("customize_erpnext")
-    return os.path.realpath(os.path.join(app_path, DOCS_SUBDIR))
+    return docs_reader.category_dir(DOCS_CATEGORY)
 
 
 def _resolve(path):
-    """Nhận tên file hoặc đường dẫn, trả về đường dẫn tuyệt đối đã kiểm tra."""
-    if not path:
+    """Nhận tên file hoặc đường dẫn, trả về đường dẫn tuyệt đối đã kiểm tra.
+
+    Thư mục tài liệu phẳng (không có thư mục con), nên phần thư mục của giá trị
+    gửi lên bị bỏ đi — ô "file name or path .md" trên trang vẫn nhận đường dẫn cũ
+    kiểu `01_docs/hr_mindmap.md` hay `docs/mindmap/hr_mindmap.md` mà không lỗi. Việc kiểm tra thật nằm ở
+    docs_reader.resolve.
+    """
+    if not path or not path.strip():
         frappe.throw(_("File path is required"))
 
-    path = path.strip()
-    root = _docs_dir()
-    candidate = path if os.path.isabs(path) else os.path.join(root, path)
-    candidate = os.path.realpath(candidate)
-
-    if not candidate.startswith(root + os.sep):
-        frappe.throw(_("Only files inside {0} are allowed").format(DOCS_SUBDIR))
-    if not candidate.lower().endswith(".md"):
-        frappe.throw(_("Only .md files are allowed"))
-
-    return candidate
+    return docs_reader.resolve(DOCS_CATEGORY, os.path.basename(path.strip()))
 
 
 def _rel(abs_path):
@@ -106,7 +106,15 @@ def read_doc(path):
     _check_view()
     full = _resolve(path)
     if not os.path.isfile(full):
-        frappe.throw(_("File not found: {0}").format(path))
+        # Nói luôn thư mục đang tìm và những file đang có: lỗi này hay xảy ra sau
+        # khi đổi tên / chuyển thư mục, và một câu "File not found" trống không
+        # thì không đủ để biết nên sửa gì.
+        root = _docs_dir()
+        available = sorted(
+            n for n in os.listdir(root) if n.lower().endswith(".md")
+        ) if os.path.isdir(root) else []
+        frappe.throw(_("File not found: {0} (looked in {1}; available: {2})").format(
+            os.path.basename(full), root, ", ".join(available) or "-"))
 
     with open(full, encoding="utf-8") as f:
         content = f.read()

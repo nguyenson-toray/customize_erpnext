@@ -1,3 +1,9 @@
+# leave summary doc
+
+> **Mục đích:** Hệ thống Quản lý Nghỉ phép (Leave Management) trong Frappe HR là một giải pháp toàn diện cho phép tổ chức cấu hình linh hoạt các loại phép, chính sách và quy trình phê duyệt tự động nhằm tối ưu hóa trải nghiệm của nhân v
+> **Phạm vi:** Override HRMS/ERPNext
+> **Trạng thái:** Đang chạy · **Cập nhật:** 2026-08-12
+
 Hệ thống Quản lý Nghỉ phép (Leave Management) trong Frappe HR là một giải pháp toàn diện cho phép tổ chức cấu hình linh hoạt các loại phép, chính sách và quy trình phê duyệt tự động nhằm tối ưu hóa trải nghiệm của nhân viên và hiệu quả quản trị của HR.
 Dưới đây là tổng hợp chi tiết tất cả thông tin và cài đặt dựa trên tài liệu gốc:
 1. Leave Type (Loại phép)

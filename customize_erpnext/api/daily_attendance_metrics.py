@@ -6,7 +6,7 @@
 # (frappe/desk/doctype/dashboard_chart/dashboard_chart.py), so those charts report
 # all-time totals, not the numbers for one day.
 #
-# Business rules are documented in 01_docs/daily_attendance_dashboard_plan.md.
+# Business rules are documented in docs/daily_attendance_dashboard_plan.md.
 
 import frappe
 from frappe.utils import add_days, getdate, now_datetime, nowdate

@@ -1,3 +1,9 @@
+# Workspace Setup — thêm link của app vào Workspace HRMS
+
+> **Mục đích:** Script thêm link và card của app vào các Workspace có sẵn của HRMS sau mỗi lần migrate.
+> **Phạm vi:** App customize_erpnext
+> **Trạng thái:** Đang chạy · **Cập nhật:** 2026-05-25
+
   Cấu trúc Workspace
 
   Workspace có 2 thành phần chính cần thêm:
