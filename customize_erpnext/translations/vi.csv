@@ -21517,3 +21517,5 @@ Include Draft Leave Applications,Tính cả đơn nghỉ phép chưa duyệt (Dr
 Also count Leave Applications still in Draft (not yet submitted). Use when leave has been approved on paper but the documents are not submitted yet — e.g. payroll cut-off arrives before HR finishes submitting.,Tính cả các đơn nghỉ phép còn ở trạng thái Draft (chưa submit). Dùng khi nghỉ đã được duyệt trên giấy nhưng chứng từ chưa kịp submit — ví dụ tới kỳ chốt lương mà HR chưa submit xong.
 Working Hours,Giờ làm
 "Hours actually worked, from check-in/check-out. Never capped. Compare with Working Hours: if it is larger, the employee had leave but still came to work.","Số giờ làm thực tế theo check in/check out, không bị chặn. So với Giờ làm: nếu lớn hơn nghĩa là nhân viên có đơn nghỉ phép nhưng vẫn đi làm."
+Reason for Leaving Group,Nhóm lý do nghỉ việc
+Reason for Leaving Group 2,Lý do nghỉ việc chi tiết

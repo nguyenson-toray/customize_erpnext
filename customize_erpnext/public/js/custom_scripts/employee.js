@@ -431,3 +431,120 @@ function load_commune_options_for_type(frm, address_type, province_name) {
     });
 }
 
+
+// ---------------------------------------------------------------------------
+// Reason for Leaving — two cascading Selects fed from a JSON catalogue
+//
+// custom_reason_for_leaving_group    (parent, e.g. Personal / Termination)
+// custom_reason_for_leaving_group_2  (child, depends on the parent)
+// reason_for_leaving                 (Small Text, free-form extra detail)
+//
+// Both Custom Fields deliberately keep `options` EMPTY in the DocType. The list
+// lives in employee_reason_for_leaving.json and is injected at runtime, so HR
+// can edit the catalogue without a migrate/restart. Empty options also mean the
+// server skips Select validation, which is what lets legacy values survive.
+// ---------------------------------------------------------------------------
+
+const REASON_FOR_LEAVING_URL =
+    '/assets/customize_erpnext/js/custom_scripts/employee_reason_for_leaving.json';
+
+let _reason_for_leaving_catalogue = null;
+
+/**
+ * Fetch (once per page load) and normalise the reason catalogue.
+ * @returns {Promise<{group_names: string[], reasons_by_group: object}>}
+ */
+function load_reason_for_leaving_catalogue() {
+    if (_reason_for_leaving_catalogue) return _reason_for_leaving_catalogue;
+
+    _reason_for_leaving_catalogue = fetch(REASON_FOR_LEAVING_URL, { cache: 'no-cache' })
+        .then(r => {
+            if (!r.ok) throw new Error(`HTTP ${r.status}`);
+            return r.json();
+        })
+        .then(data => {
+            const group_names = [];
+            const reasons_by_group = {};
+            (data.groups || []).forEach(group => {
+                if (!group || !group.name) return;
+                group_names.push(group.name);
+                reasons_by_group[group.name] = (group.reasons || []).slice();
+            });
+            return { group_names, reasons_by_group };
+        })
+        .catch(err => {
+            // Don't cache the failure — a later refresh gets another chance.
+            _reason_for_leaving_catalogue = null;
+            console.error('Could not load reason for leaving catalogue', err);
+            return { group_names: [], reasons_by_group: {} };
+        });
+
+    return _reason_for_leaving_catalogue;
+}
+
+/**
+ * Build the option list for a Select, keeping the currently stored value even
+ * when it is no longer in the catalogue (legacy records would otherwise render
+ * blank and look like the data was lost).
+ * @param {string[]} choices
+ * @param {string} current_value
+ * @returns {string[]}
+ */
+function reason_options_with_current(choices, current_value) {
+    const options = [''].concat(choices);
+    if (current_value && !options.includes(current_value)) options.push(current_value);
+    return options;
+}
+
+/**
+ * Refresh the child Select from the currently selected parent group.
+ * @param {object} frm
+ * @param {object} catalogue
+ * @param {boolean} clear_invalid - true when the parent was just changed by the
+ *        user, so a child value belonging to the previous parent must be dropped
+ */
+function apply_reason_sub_options(frm, catalogue, clear_invalid) {
+    const group = frm.doc.custom_reason_for_leaving_group;
+    const choices = (group && catalogue.reasons_by_group[group]) || [];
+
+    if (clear_invalid && frm.doc.custom_reason_for_leaving_group_2
+        && !choices.includes(frm.doc.custom_reason_for_leaving_group_2)) {
+        frm.set_value('custom_reason_for_leaving_group_2', '');
+    }
+
+    frm.set_df_property(
+        'custom_reason_for_leaving_group_2',
+        'options',
+        reason_options_with_current(choices, frm.doc.custom_reason_for_leaving_group_2)
+    );
+    frm.toggle_display('custom_reason_for_leaving_group_2', !!group);
+}
+
+/**
+ * Load the catalogue and populate both Selects.
+ * @param {object} frm
+ * @param {boolean} clear_invalid
+ */
+function apply_reason_for_leaving_options(frm, clear_invalid) {
+    return load_reason_for_leaving_catalogue().then(catalogue => {
+        frm.set_df_property(
+            'custom_reason_for_leaving_group',
+            'options',
+            reason_options_with_current(
+                catalogue.group_names, frm.doc.custom_reason_for_leaving_group
+            )
+        );
+        apply_reason_sub_options(frm, catalogue, clear_invalid);
+    });
+}
+
+frappe.ui.form.on('Employee', {
+    refresh: function (frm) {
+        // Options live on the docfield, which form refresh resets — reapply.
+        apply_reason_for_leaving_options(frm, false);
+    },
+
+    custom_reason_for_leaving_group: function (frm) {
+        apply_reason_for_leaving_options(frm, true);
+    }
+});
