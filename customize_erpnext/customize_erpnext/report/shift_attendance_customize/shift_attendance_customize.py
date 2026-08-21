@@ -661,9 +661,20 @@ def export_attendance_excel_sync(filters, is_background=False):
 	date_range = get_export_date_range(filters)
 	_progress(15, "Building standard timesheet workbook...")
 
+	# Option từ dialog Export Excel. `leave_gap_minutes` = chênh lệch tối thiểu (phút) giữa giờ
+	# thực tế và giờ tính công để một ngày "có đơn nghỉ mà vẫn đi làm" lên sheet Important Note.
+	# `export_sheets` = danh sách sheet cần xuất, rỗng/None = tất cả.
+	gap = filters.get('leave_gap_minutes') if filters else None
+	sheets = filters.get('export_sheets') if filters else None
+	if isinstance(sheets, str):
+		sheets = [x.strip() for x in sheets.split(',') if x.strip()]
+
 	wb = build_standard_workbook(
 		date_range['from_date'], date_range['to_date'],
-		department=filters.get('department') if filters else None)
+		department=filters.get('department') if filters else None,
+		leave_gap_minutes=cint(gap) if gap not in (None, '') else 15,
+		sheets=sheets or None,
+		only_resigned=bool(cint(filters.get('only_resigned'))) if filters else False)
 	_progress(85, "Saving Excel file...")
 
 	filename = standard_export_filename(date_range['from_date'], date_range['to_date'])

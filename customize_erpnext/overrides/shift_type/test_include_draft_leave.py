@@ -7,6 +7,10 @@ Chạy:
     exec(open('../apps/customize_erpnext/customize_erpnext/overrides/shift_type/test_include_draft_leave.py').read())"
 
 ⚠ Test tự đổi giá trị cờ rồi `rollback()` — KHÔNG commit, giá trị thật của site không đổi.
+
+⚠ Test TỰ TẠO đơn draft của riêng nó (rồi rollback) thay vì trông vào đơn draft có sẵn trong DB.
+Bản đầu dựa vào dữ liệu thật; sau khi toàn bộ 7.096 đơn được submit thì không còn draft nào, ba
+phép so ở PHẦN 2/3 đỏ hết dù code không hề sai. Cờ này phải kiểm được ở mọi trạng thái dữ liệu.
 """
 
 import frappe
@@ -21,7 +25,7 @@ from customize_erpnext.overrides.shift_type import shift_type_optimized as E
 FLAG = "include_draft_leave_application"
 FROM_DATE = "2026-07-26"      # vùng chỉ có đơn Draft, không có đơn đã submit
 TO_DATE = "2026-08-25"
-ok = fail = 0
+ok = fail = skipped = 0
 
 
 def check(label, got, want=True):
@@ -37,6 +41,32 @@ def set_flag(value):
 
 
 original = get_attendance_settings().get(FLAG)
+made_drafts = []
+
+
+def make_draft(employee, from_date, to_date, half_day=0, half_day_date=None):
+	"""Đơn nghỉ draft đã duyệt, bỏ qua validate của HRMS (trùng ngày, số dư…).
+
+	Chỉ cần đúng những field engine đọc: employee, leave_type, from/to_date, half_day*,
+	docstatus, status.
+	"""
+	d = frappe.new_doc("Leave Application")
+	d.update({
+		"employee": employee,
+		"leave_type": LEAVE_TYPE,
+		"company": frappe.db.get_value("Employee", employee, "company"),
+		"from_date": from_date, "to_date": to_date,
+		"half_day": half_day, "half_day_date": half_day_date,
+		"status": "Approved", "docstatus": 0,
+	})
+	d.flags.ignore_validate = True
+	d.flags.ignore_mandatory = True
+	d.insert(ignore_permissions=True, ignore_mandatory=True)
+	made_drafts.append(d.name)
+	return d
+
+
+LEAVE_TYPE = frappe.db.get_value("Leave Type", {"is_earned_leave": 1}, "name")
 
 try:
 	print("PHẦN 1 — điều kiện SQL sinh ra")
@@ -67,7 +97,19 @@ try:
 	n_draft = frappe.db.count("Leave Application", {
 		"docstatus": 0, "status": "Approved",
 		"from_date": ["<=", TO_DATE], "to_date": [">=", FROM_DATE]})
-	print(f"     kỳ {FROM_DATE} → {TO_DATE}: {n_sub} đơn submitted · {n_draft} đơn draft")
+	print(f"     kỳ {FROM_DATE} → {TO_DATE}: {n_sub} đơn submitted · {n_draft} đơn draft sẵn có")
+
+	# Không còn draft nào trong DB thì tự dựng: một đơn trọn ngày + một đơn nửa ngày, cho nhân
+	# viên NẰM TRONG `emps` (nếu ngoài danh sách thì `preload_reference_data` không nạp).
+	if n_draft == 0:
+		emp = emps[0]
+		make_draft(emp, "2026-08-03", "2026-08-03")
+		make_draft(emp, "2026-08-05", "2026-08-05", half_day=1, half_day_date="2026-08-05")
+		n_draft = frappe.db.count("Leave Application", {
+			"docstatus": 0, "status": "Approved",
+			"from_date": ["<=", TO_DATE], "to_date": [">=", FROM_DATE]})
+		print(f"     → tự tạo {len(made_drafts)} đơn draft cho {emp} (sẽ rollback)")
+
 	check("kỳ test phải có đơn draft (nếu không phép so vô nghĩa)", n_draft > 0)
 
 	def loaded(flag):
@@ -110,7 +152,10 @@ try:
 		print(f"     {l.employee}: nghỉ việc {l.relieving_date}, đơn {l.from_date}")
 		check("không có chấm công từ ngày nghỉ việc trở đi", n_att, 0)
 	else:
-		print("     (không có đơn nào sau ngày nghỉ việc — bỏ qua)")
+		skipped += 1
+		print("     ⏭ bỏ qua: hiện không có đơn draft nào SAU ngày nghỉ việc.")
+		print("        Ca mẫu cũ TIQN-1414 đã bị đổi status Left → Active (vẫn giữ")
+		print("        relieving_date 01/08) nên không còn khớp điều kiện của engine.")
 
 	print("\nPHẦN 3 — tra nửa ngày còn lại phải theo CÙNG cờ")
 	# Nếu hai đường lệch nhau, cặp (đơn submit + đơn draft) cùng ngày sẽ giải sai half_day_status
@@ -129,7 +174,8 @@ try:
 		check("cờ BẬT thấy được đơn draft nửa ngày", on is not None)
 		check("cờ TẮT không thấy nó", off, None)
 	else:
-		print("     (không có đơn draft nửa ngày trong DB — bỏ qua)")
+		skipped += 1
+		print("     ⏭ bỏ qua: không có đơn draft nửa ngày trong DB")
 
 	print("\nPHẦN 4 — mặc định phải là TẮT (không đổi hành vi khi chưa ai bật)")
 	meta_default = frappe.get_meta("Attendance Calculation Setting").get_field(FLAG).default
@@ -140,4 +186,5 @@ finally:
 	frappe.clear_cache()
 	print(f"\n     đã rollback, cờ về giá trị ban đầu: {get_attendance_settings().get(FLAG)!r}")
 
-print(f"\n{'=' * 68}\nKẾT QUẢ: {ok} đạt / {fail} lỗi")
+print(f"\n{'=' * 68}\nKẾT QUẢ: {ok} đạt / {fail} lỗi"
+      + (f" / {skipped} bỏ qua vì dữ liệu không còn ca mẫu" if skipped else ""))

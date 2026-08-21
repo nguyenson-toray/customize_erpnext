@@ -381,6 +381,29 @@ class CustomLeaveApplication(LeaveApplication):
 	Maternity attendance recalc vẫn được xử lý qua Employee Maternity hooks khi EM được update/delete.
 	"""
 
+	def autoname(self):
+		"""`LA-YYYY-MM-#####`, trong đó **YYYY-MM lấy từ `from_date`** của đơn.
+
+		Vì sao phải viết tay thay vì đổi naming series: `.YYYY.` / `.MM.` của Frappe lấy theo
+		**ngày hôm nay**, không lấy theo field. Đơn nghỉ tháng 8 nhập vào tháng 9 sẽ mang số
+		tháng 9 — sai với cách HR tra cứu.
+
+		Thứ tự trong `frappe/model/naming.py:set_new_name`: nhánh `amended_from` chạy TRƯỚC,
+		rồi mới `doc.run_method("autoname")`, cuối cùng mới tới meta `naming_series:`. Nên hàm
+		này thắng naming series, và bản sửa đổi (amend) vẫn được Frappe đặt tên `-1`, `-2`…
+		như cũ — không cần xử lý riêng.
+
+		Mỗi tháng một bộ đếm riêng (`LA-2026-08-`), bắt đầu từ 00001.
+
+		⚠ **Chỉ áp cho đơn MỚI.** 7.097 đơn cũ giữ nguyên tên `HR-LAP-…`; đổi tên chúng sẽ phải
+		cập nhật 16.009 tham chiếu (9.261 `Attendance.leave_application` + 6.748
+		`Leave Ledger Entry.transaction_name`).
+		"""
+		from frappe.model.naming import make_autoname
+
+		d = getdate(self.from_date or self.posting_date or frappe.utils.nowdate())
+		self.name = make_autoname(f"LA-{d.year:04d}-{d.month:02d}-.#####")
+
 	def cancel_attendance(self):
 		"""Batch cancel attendance trong 1 SQL thay vì loop per-record của HRMS.
 

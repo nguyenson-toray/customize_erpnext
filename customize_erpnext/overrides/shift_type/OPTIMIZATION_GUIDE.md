@@ -303,7 +303,7 @@ working_hours`, hiện ở 4 chỗ:
 | Chỗ | Nội dung |
 |---|---|
 | `Attendance.custom_note` | `Half-day leave (P/2) but worked 8.00h - capped to 4.00h - check if LA should be cancelled` |
-| Excel: Detail `Note Checkin` + sheet `Important Note` | kèm mã đơn để HR bấm vào huỷ |
+| Excel: Detail `Note Checkin` + sheet `Important Note` | Important Note là Excel Table 8 cột, sắp xếp Type → Date → Employee: Type · Info · Working Hour · Working Hour Actual · Leave Application Abbreviation · Attendance · Leave Application · Note |
 
 ⚠ `standard_export._build_notes()` **chỉ dịch những chuỗi đã khai**. Thêm note mới ở engine mà
 quên khai ở đó thì note **biến mất khỏi cột Note Checkin mà không báo lỗi** — đã cắn một lần.
@@ -317,7 +317,22 @@ quên khai ở đó thì note **biến mất khỏi cột Note Checkin mà khôn
 `late_entry = 0` (bỏ tick) lọc y hệt `= 1`, ra 291 dòng thay vì 24.408. Mọi ô Check phải dùng
 `cint(filters.get(...))`.
 
-Kiểm thử: `test_leave_hour_cap.py` — 7 phần.
+### Option của dialog Export Excel
+
+| Option | Kiểu | Mặc định |
+|---|---|---|
+| `only_resigned` | Check | tắt — chỉ NV có `relieving_date` **trong kỳ** |
+| `leave_gap_minutes` | Select 0/15/30/60/120/180/240/240+ | **15** |
+| 6 ô chọn sheet | Check | tất cả bật |
+
+⚠ `only_resigned` **THAY THẾ** điều kiện trạng thái, không AND thêm. Điều kiện gốc dùng
+`relieving_date > from_date` \(lớn hơn **hẳn**\) nên nếu chỉ AND thêm sẽ rơi mất người nghỉ đúng
+ngày đầu kỳ — đo tháng 6/2026: 57/59, thiếu `TIQN-1653` và `TIQN-2144` đều nghỉ 01/06.
+
+⚠ Bỏ sheet "Important Note" thì phải `wb.remove(wb.active)`, nếu không file có tab rỗng tên
+"Sheet". Không chọn sheet nào thì openpyxl không lưu được workbook rỗng.
+
+Kiểm thử: `test_leave_hour_cap.py` — 78 assert, 8 phần.
 
 ### `include_draft_leave_application` — tính cả đơn nghỉ Draft
 

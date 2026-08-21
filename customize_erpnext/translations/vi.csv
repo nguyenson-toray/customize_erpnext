@@ -21519,3 +21519,15 @@ Working Hours,Giờ làm
 "Hours actually worked, from check-in/check-out. Never capped. Compare with Working Hours: if it is larger, the employee had leave but still came to work.","Số giờ làm thực tế theo check in/check out, không bị chặn. So với Giờ làm: nếu lớn hơn nghĩa là nhân viên có đơn nghỉ phép nhưng vẫn đi làm."
 Reason for Leaving Group,Nhóm lý do nghỉ việc
 Reason for Leaving Group 2,Lý do nghỉ việc chi tiết
+Only employees who resigned in this period,Chỉ nhân viên nghỉ việc trong kỳ này
+Relieving date falls inside From Date - To Date. Not the same as status Left: someone who resigned last year is also Left but unrelated to this period.,Ngày nghỉ việc nằm trong khoảng Từ ngày - Đến ngày. Khác với trạng thái Left: người nghỉ từ năm ngoái cũng là Left nhưng không liên quan kỳ này.
+Important Note sheet,Sheet Important Note
+Report leave-but-worked from (minutes),Báo 'có phép mà vẫn đi làm' từ (phút)
+Minimum gap between actual hours and counted hours before a day is listed. 0 = list everything.,Chênh lệch tối thiểu giữa giờ thực tế và giờ tính công để một ngày được liệt kê. 0 = liệt kê tất cả.
+Sheets to export,Sheet cần xuất
+No sheet selected,Chưa chọn sheet nào
+Please tick at least one sheet to export.,Vui lòng tick ít nhất một sheet để xuất.
+Working Hour,Giờ tính công
+Working Hour Actual,Giờ làm thực tế
+Leave Application Abbreviation,Mã nghỉ phép
+Type,Loại

@@ -172,15 +172,65 @@ function export_attendance_excel(report) {
 				options: 'Ascending\nDescending',
 				default: 'Ascending',
 				description: __('Sort order for employee names')
-			}
+			},
+			{
+				fieldname: 'only_resigned',
+				label: __('Only employees who resigned in this period'),
+				fieldtype: 'Check',
+				default: 0,
+				description: __('Relieving date falls inside From Date - To Date. Not the same as status Left: someone who resigned last year is also Left but unrelated to this period.')
+			},
+			{ fieldtype: 'Section Break', label: __('Important Note sheet') },
+			{
+				// Chênh dưới ngưỡng là nhiễu làm tròn (4,01h vs 4,00h = 36 giây), không phải
+				// "đi làm dù có phép". Đo được: 95/312 ca bị chặn chỉ chênh dưới 15 phút.
+				fieldname: 'leave_gap_minutes',
+				label: __('Report leave-but-worked from (minutes)'),
+				fieldtype: 'Select',
+				options: '0\n15\n30\n60\n120\n180\n240\n240+',
+				default: '15',
+				description: __('Minimum gap between actual hours and counted hours before a day is listed. 0 = list everything.')
+			},
+			{ fieldtype: 'Section Break', label: __('Sheets to export') },
+			{ fieldname: 'sheet_important_note', label: __('Important Note'), fieldtype: 'Check', default: 1 },
+			{ fieldname: 'sheet_detail', label: __('Detail'), fieldtype: 'Check', default: 1 },
+			{ fieldname: 'sheet_summary', label: __('Summary'), fieldtype: 'Check', default: 1 },
+			{ fieldtype: 'Column Break' },
+			{ fieldname: 'sheet_timesheet', label: __('Timesheet'), fieldtype: 'Check', default: 1 },
+			{ fieldname: 'sheet_overtime', label: __('Overtime'), fieldtype: 'Check', default: 1 },
+			{ fieldname: 'sheet_shift', label: __('Shift'), fieldtype: 'Check', default: 1 }
 		],
 		primary_action_label: __('Export'),
 		primary_action: function (values) {
+			// "240+" không phải số — quy về một ngưỡng đủ lớn để chỉ còn ca chênh gần trọn ca
+			filters.leave_gap_minutes = values.leave_gap_minutes === '240+'
+				? 241 : cint(values.leave_gap_minutes);
+
+			const sheet_map = {
+				sheet_important_note: 'Important Note',
+				sheet_detail: 'Detail',
+				sheet_summary: 'Summary',
+				sheet_timesheet: 'Timesheet',
+				sheet_overtime: 'Overtime',
+				sheet_shift: 'Shift'
+			};
+			const picked = Object.keys(sheet_map).filter((k) => values[k]).map((k) => sheet_map[k]);
+			if (!picked.length) {
+				frappe.msgprint({
+					title: __('No sheet selected'),
+					message: __('Please tick at least one sheet to export.'),
+					indicator: 'red'
+				});
+				return;
+			}
+			filters.export_sheets = picked.join(',');
+
 			d.hide();
 
 			// Add export options to filters
 			filters.split_department = values.split_department ? 1 : 0;
 			filters.sort_order = values.sort_order;
+			filters.only_resigned = values.only_resigned ? 1 : 0;
 
 			// Call the actual export function
 			do_export_attendance_excel(filters);

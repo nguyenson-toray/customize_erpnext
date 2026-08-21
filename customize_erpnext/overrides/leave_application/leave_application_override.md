@@ -145,3 +145,58 @@ Mã tổ hợp là **bảng tra** theo quy định, không phải nối chuỗi:
 
 Bảng đầy đủ + căn cứ: [`QUY_DINH_NGHI_PHEP_2025.md`](QUY_DINH_NGHI_PHEP_2025.md) mục 3.5 và 5.2.
 Kiểm chứng: [`test_leave_rules.py`](test_leave_rules.py).
+
+
+## Cách đặt tên đơn — `LA-YYYY-MM-#####`
+
+Từ 20/08/2026, đơn **MỚI** mang tên `LA-2026-08-00001`, trong đó **`YYYY-MM` lấy từ `from_date`**
+của đơn, không phải ngày tạo. Code: `CustomLeaveApplication.autoname()`.
+
+**Vì sao không đổi naming series mà phải viết `autoname()` tay:** `.YYYY.` / `.MM.` của Frappe lấy
+theo **ngày hôm nay**. Đơn nghỉ tháng 3 nhập vào tháng 8 sẽ mang số tháng 8 — sai với cách HR tra
+cứu. Đã kiểm: `from_date = 2026-03-05` ra `LA-2026-03-00001` dù chạy trong tháng 8.
+
+Mỗi tháng một **bộ đếm riêng**, bắt đầu từ `00001`.
+
+⚠ **Chỉ áp cho đơn mới** — quy tắc không đổi tên hồi tố. Thực tế hiện tại **0 đơn** còn mang tên
+`HR-LAP-…`, nhưng không phải vì đã đổi tên: toàn bộ đơn cũ đã được xoá và **import lại** ngày
+20/08/2026, nên tất cả 7.096 đơn hiện có đều sinh tên mới qua `autoname()`. Nếu về sau còn đơn tên
+cũ thì cứ để nguyên — đổi tên sẽ kéo theo hàng chục nghìn tham chiếu ở
+`Attendance.leave_application` và `Leave Ledger Entry.transaction_name`.
+
+⚠ Thứ tự trong `frappe/model/naming.py:set_new_name`: nhánh `amended_from` chạy **trước** rồi
+`return`, sau đó mới `run_method("autoname")`, cuối cùng mới tới meta `naming_series:`. Nên:
+bản **amend** vẫn ra `LA-2026-05-00001-1` và **không tiêu số** của bộ đếm; và Property Setter
+`naming_series = 'HR-LAP-.YYYY.-'` **giữ nguyên** làm lưới an toàn — nếu module override không nạp
+được thì đơn mới quay về tên cũ chứ không vỡ.
+
+### 🔴 Bộ đếm `tabSeries` mất dòng = HR không tạo được đơn nghỉ nào nữa
+
+Số kế tiếp của mỗi tháng nằm ở `tabSeries.current` với tiền tố `LA-YYYY-MM-`. Nếu **dòng đó biến
+mất**, `getseries()` tưởng tháng đó chưa từng phát số và bắt đầu lại từ `00001` — đụng ngay tên đã
+tồn tại:
+
+```
+DuplicateEntryError: ('Leave Application', 'LA-2026-03-00001', ...)
+```
+
+Đơn cũ vẫn nguyên vẹn, không mất dữ liệu, nhưng **mọi đơn mới đều lưu hỏng** cho tới khi dựng lại
+bộ đếm. Triệu chứng dễ đổ nhầm cho phân quyền hoặc cho chính `autoname()`.
+
+Hai đường làm mất dòng đếm:
+
+1. **Xoá hết đơn của một tháng qua UI/ORM** — `revert_series_if_last()` lùi bộ đếm, về 0 thì xoá
+   dòng. (`scripts/reset_leave_all.sql` xoá bằng SQL thuần nên **không** gây ra chuyện này.)
+2. **Script dọn dẹp xoá thẳng `tabSeries`.** Đã xảy ra thật: bản đầu của
+   `test_leave_application_naming.py` kết thúc bằng
+   `delete from tabSeries where name like 'LA-%'` + `commit()`. Lúc viết, DB vừa bị xoá sạch nên
+   chưa có đơn `LA-` nào và dòng lệnh đó vô hại. Sau khi import 7.096 đơn thật, **mỗi lần chạy test
+   là một lần xoá sạch bộ đếm production**.
+
+**Sửa:** chạy `scripts/repair_leave_application_series.sql` — dựng lại bộ đếm từ chính các bản ghi
+đang có, idempotent, chỉ nâng chứ không hạ (`GREATEST`), không đụng bản ghi nào.
+
+Kiểm thử: `test_leave_application_naming.py` — 14 assert, chỉ `rollback()` (bộ đếm nằm trong cùng
+transaction nên tự về chỗ cũ). Các assert đều **tương đối** với bộ đếm đo được lúc bắt đầu, không
+neo vào số tuyệt đối `00001` như bản đầu — nếu neo tuyệt đối thì test chỉ xanh khi bảng rỗng.
+PHẦN 5 chụp lại toàn bộ `LA-*` trước/sau và **báo đỏ nếu test làm lệch bộ đếm**.

@@ -57,12 +57,26 @@ check("trọn ngày làm 3.8h → CÓ cảnh báo (>=4h? không)",
 check("trọn ngày làm 5h → CÓ cảnh báo",
       "check if LA should be cancelled" in leave_hour_note(5.0, 0.0, "P", False), True)
 
-print("\nPHẦN 3 — đưa vào Important Note hay không")
+print("\nPHẦN 3 — đưa vào Important Note: HỄ BỊ CHẶN GIỜ LÀ BÁO, không dùng ngưỡng")
+# Ngưỡng cũ (nửa ngày >=7h) giấu mất 298/312 ca. Ví dụ thật `attendance/0ad5308fc1`:
+# nghỉ P/2 làm 6,33h — đã bị chặn, đã có custom_note, nhưng KHÔNG lên Important Note.
 check("P/2 làm 8h → có", is_suspicious(8.0, "P/2", True, True), True)
-check("P/2 làm 5h → không", is_suspicious(5.0, "P/2", True, True), False)
-check("P làm 5h → có", is_suspicious(5.0, "P", False, True), True)
+check("P/2 làm 6.33h → CÓ (ngưỡng cũ bỏ sót)", is_suspicious(6.33, "P/2", True, True), True)
+check("P/2 làm 5h → CÓ", is_suspicious(5.0, "P/2", True, True), True)
+check("P/2 làm 4.01h → CÓ (lọc nhiễu là việc của ngưỡng phút)",
+      is_suspicious(4.01, "P/2", True, True), True)
+check("P/2 làm ĐÚNG 4h → không, vì không bị chặn", is_suspicious(4.0, "P/2", True, True), False)
+check("P/2 làm 3h → không", is_suspicious(3.0, "P/2", True, True), False)
+check("P làm 0.04h → CÓ (trọn ngày, cap 0)", is_suspicious(0.04, "P", False, True), True)
+check("P làm 0h → không", is_suspicious(0.0, "P", False, True), False)
 check("KL làm 8h → KHÔNG (quy tắc miễn KL)", is_suspicious(8.0, "KL", False, True), False)
 check("không có đơn → không", is_suspicious(8.0, None, False, False), False)
+
+# Ngưỡng vẫn dùng, nhưng chỉ để NÂNG câu chữ trong note
+check("6.33h chưa tới ngưỡng → note KHÔNG nhắc huỷ đơn",
+      "check if LA should be cancelled" in leave_hour_note(6.33, 4.0, "P/2", True), False)
+check("8h vượt ngưỡng → note CÓ nhắc huỷ đơn",
+      "check if LA should be cancelled" in leave_hour_note(8.0, 4.0, "P/2", True), True)
 
 print("\nPHẦN 3b — nghỉ đã duyệt thì KHÔNG đánh đi trễ / về sớm")
 # Quy chế mục 3.3 trừ 100.000đ mỗi lần trễ/sớm → gắn nhầm là mất tiền thật của NLĐ.
@@ -204,6 +218,32 @@ for row in wb["Important Note"].iter_rows(min_row=1):
 			found = True
 check("Important Note: có nhóm [Nghỉ phép + đi làm]", found, True)
 
+# 4 cột phụ để HR tra thẳng bản ghi thay vì đọc chuỗi trong cột Detail
+note_ws = wb["Important Note"]
+# ⚠ Excel Table neo ref từ A1 nên tiêu đề ở DÒNG 1, dữ liệu từ dòng 2 (trước đây header ở dòng 3)
+check("Important Note đủ 8 cột, tiêu đề ở dòng 1", [c.value for c in note_ws[1]],
+      ["Type", "Info", "Working Hour", "Working Hour Actual",
+       "Leave Application Abbreviation", "Attendance", "Leave Application", "Note"])
+check("là Excel Table như các sheet khác",
+      [t.displayName for t in note_ws.tables.values()], ["TableImportantNote"])
+import re as _re
+_keys = []
+for _r in note_ws.iter_rows(min_row=2):
+	_m = _re.match(r"(\d{2})/(\d{2})/(\d{4}) · (\S+)", str(_r[1].value or ""))
+	if _m:
+		_keys.append((_r[0].value, f"{_m.group(3)}-{_m.group(2)}-{_m.group(1)}", _m.group(4)))
+check("sắp xếp Type → Date → Employee tăng dần", _keys, sorted(_keys))
+check("   Info có ngày, mã NV và giờ vào-ra",
+      bool(_re.match(r"\d{2}/\d{2}/\d{4} · \S+ .* · \d{2}:\d{2}–", str(note_ws.cell(row=2, column=2).value or ""))), True)
+nrow = [r for r in note_ws.iter_rows(min_row=2) if r[0].value == "[Nghỉ phép + đi làm]"]
+if nrow:
+	r0 = nrow[0]
+	check("   Working Hour là SỐ", isinstance(r0[2].value, (int, float)), True)
+	check("   Working Hour Actual > Working Hour", r0[3].value > r0[2].value, True)
+	check("   có mã nghỉ phép (abbr)", bool(r0[4].value), True)
+	check("   có tên bản ghi Attendance", bool(r0[5].value), True)
+	check("   có mã đơn nghỉ", bool(r0[6].value), True)
+
 print("\nPHẦN 7 — report: bug ô Check bỏ tick")
 from frappe.desk.query_report import run
 
@@ -225,5 +265,50 @@ ee0 = run("Shift Attendance", filters=json.dumps({**RF, "early_exit": 0}), ignor
 check("late_entry=0 KHÔNG lọc (bug cũ: lọc y như =1)", len(le0["result"]), len(off["result"]))
 check("early_exit=0 KHÔNG lọc", len(ee0["result"]), len(off["result"]))
 check("late_entry=1 vẫn lọc bình thường", len(le1["result"]) < len(off["result"]), True)
+
+print("\nPHẦN 8 — option của dialog Export Excel")
+from customize_erpnext.customize_erpnext.report.shift_attendance_customize.standard_export import (
+	ALL_SHEETS,
+	load_export_universe,
+)
+
+GF, GT = "2026-06-01", "2026-06-30"
+
+
+def _note_rows(wb):
+	if "Important Note" not in wb.sheetnames:
+		return 0
+	return sum(1 for r in wb["Important Note"].iter_rows(min_row=4)
+	           if r[0].value and "Nghỉ phép + đi làm" in str(r[0].value))
+
+
+# (a) ngưỡng phút — càng lớn càng ít dòng, đơn điệu không tăng
+counts = []
+for g in (0, 15, 60, 241):
+	counts.append(_note_rows(build_standard_workbook(GF, GT, leave_gap_minutes=g,
+	                                                 sheets=["Important Note"])))
+print(f"     ngưỡng 0/15/60/241+ phút → {counts} dòng")
+check("ngưỡng lớn hơn thì báo ít hơn (không tăng)",
+      all(counts[i] >= counts[i + 1] for i in range(len(counts) - 1)), True)
+check("ngưỡng 0 báo nhiều hơn ngưỡng mặc định", counts[0] > counts[1], True)
+check("ngưỡng 241+ không còn dòng nào", counts[-1], 0)
+
+# (b) chọn sheet
+check("mặc định đủ 6 sheet", build_standard_workbook(GF, GT).sheetnames, list(ALL_SHEETS))
+check("chọn 1 sheet → đúng 1 tab, không có tab rỗng",
+      build_standard_workbook(GF, GT, sheets=["Detail"]).sheetnames, ["Detail"])
+check("bỏ Important Note vẫn không sinh tab 'Sheet'",
+      build_standard_workbook(GF, GT, sheets=["Summary", "Shift"]).sheetnames, ["Summary", "Shift"])
+
+# (c) chỉ người nghỉ việc trong kỳ
+db = set(frappe.db.sql("""SELECT name FROM tabEmployee
+	WHERE relieving_date BETWEEN %s AND %s AND name LIKE 'TIQN%%'""", (GF, GT), pluck=True))
+got = {e.name for e in load_export_universe(GF, GT, only_resigned=True)["employees"]}
+print(f"     only_resigned → {len(got)} NV (DB: {len(db)})")
+check("khớp DB tuyệt đối", got, db)
+check("   gồm cả người nghỉ ĐÚNG ngày đầu kỳ",
+      all(frappe.db.get_value("Employee", e, "relieving_date") is not None for e in got), True)
+n_all = len(load_export_universe(GF, GT)["employees"])
+check("tắt option thì số NV không đổi", n_all > len(got), True)
 
 print(f"\n{'=' * 68}\nKẾT QUẢ: {ok} đạt / {fail} lỗi")

@@ -46,7 +46,8 @@ UNCAPPED_ABBR = {"KL"}
 
 HALF_DAY_CAP = 4.0
 
-# Ngưỡng để coi là "xin nghỉ nhưng vẫn đi làm" — đủ mạnh để nhắc HR xem lại đơn.
+# Ngưỡng NÂNG MỨC cảnh báo trong câu chữ của note ("check if LA should be cancelled").
+# KHÔNG quyết định có đưa vào Important Note hay không — xem `is_suspicious()`.
 SUSPICIOUS_HALF_DAY_HOURS = 7.0    # đơn nửa ngày mà làm gần trọn ngày
 SUSPICIOUS_FULL_DAY_HOURS = 4.0    # đơn trọn ngày mà làm quá nửa ngày
 
@@ -96,11 +97,20 @@ def leave_hour_note(actual_hours, capped_hours, abbreviation, is_half_day: bool)
 
 
 def is_suspicious(actual_hours, abbreviation, is_half_day: bool, has_leave: bool) -> bool:
-	"""Có đáng đưa vào sheet Important Note để HR xem huỷ đơn không."""
+	"""Có đưa vào sheet Important Note không — **hễ giờ bị chặn là có**.
+
+	Không dùng ngưỡng: HR cần thấy MỌI trường hợp "có đơn nghỉ mà vẫn đi làm" để quyết định
+	huỷ đơn, kể cả khi chỉ làm 4,5 giờ. Ví dụ thật `attendance/0ad5308fc1` — nghỉ `P/2` nhưng
+	làm 6,33h: đã bị chặn còn 4,0 và đã có `custom_note`, nhưng ngưỡng 7h cũ khiến nó **không**
+	lên Important Note, HR không biết mà xử lý.
+
+	`SUSPICIOUS_*_HOURS` vẫn dùng, nhưng chỉ để **nâng mức cảnh báo trong câu chữ**
+	(`leave_hour_note` thêm "check if LA should be cancelled"), không còn quyết định có báo hay không.
+	"""
 	if not has_leave or (abbreviation or "").strip() in UNCAPPED_ABBR:
 		return False
-	threshold = SUSPICIOUS_HALF_DAY_HOURS if is_half_day else SUSPICIOUS_FULL_DAY_HOURS
-	return flt(actual_hours) >= threshold
+	actual = flt(actual_hours)
+	return actual > cap_working_hours(actual, abbreviation, is_half_day, has_leave)
 
 
 def should_suppress_late_early(abbreviation, has_leave: bool) -> bool:

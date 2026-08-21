@@ -42,11 +42,15 @@ DETAIL_HDRS = [
     "OT Approved (hours)", "OT Final", "Note Checkin", "Note Sunday",
     "Joining Date", "Resign Date",
 ]
-DETAIL_WIDTHS = [4, 10, 10, 6, 24, 10, 14, 18, 7, 8, 8, 8, 9, 8, 8, 8, 8, 20, 20, 10, 10]
+DETAIL_WIDTHS = [4, 11, 10, 6, 24, 10, 14, 18, 7, 8, 8, 8, 9, 8, 8, 8, 8, 20, 20, 11, 11]
 
 EMP_FIXED_HDRS = ["No", "Employee ID", "Full name", "Joining Date",
                   "Resign Date", "Group", "Section", "Position"]
-EMP_FIXED_WIDTHS = [4, 12, 24, 10, 10, 18, 14, 14]
+EMP_FIXED_WIDTHS = [4, 12, 24, 11, 11, 18, 14, 14]
+
+# Độ rộng cột NGÀY (dd/mm) trên các sheet pivot — nới +10% so với bản gốc (6 và 8) cho dễ đọc.
+DATE_COL_WIDTH_PIVOT = 6.6      # Timesheet · Overtime
+DATE_COL_WIDTH_SHIFT = 8.8      # Shift (ô chứa chữ "Shift 1"/"Shift 2")
 EMP_FIXED = 8
 
 SUM_EXTRA_HDRS = [
@@ -55,7 +59,6 @@ SUM_EXTRA_HDRS = [
 ]
 
 SUNDAY_GRAY = "D9D9D9"
-NOTE_HDR_FILL = "D9E2F3"
 SHIFT1_COLOR = "C55A11"  # dark orange
 SHIFT2_COLOR = "1F4E79"  # dark blue
 
@@ -75,11 +78,15 @@ def _r2(v):
 
 # ── Data loading ─────────────────────────────────────────────────────────────
 
-def load_export_universe(from_date, to_date, department=None):
+def load_export_universe(from_date, to_date, department=None, only_resigned=False):
     """Employees + attendance + maternity periods for the range.
 
     Returns dict(employees=[{...}], att={(emp, date): row}, dates=[date],
     maternity={emp: [(kind, from, to)]}).
+
+    `only_resigned`: chỉ lấy người **nghỉ việc TRONG kỳ** — `relieving_date` nằm trong khoảng
+    from..to. Dùng khi HR làm thủ tục chốt lương cho người thôi việc. Không phải "status = Left":
+    người nghỉ từ năm ngoái cũng là `Left` nhưng không liên quan kỳ này.
     """
     from customize_erpnext.customize_erpnext.doctype.attendance_calculation_setting.attendance_calculation_setting import get_attendance_settings
 
@@ -95,6 +102,23 @@ def load_export_universe(from_date, to_date, department=None):
         dept_list = department if isinstance(department, list) else [department]
         conds += " AND emp.department IN %(departments)s"
         params["departments"] = tuple(dept_list)
+    # `only_resigned` THAY THẾ điều kiện trạng thái mặc định, không cộng thêm vào.
+    #
+    # ⚠ Điều kiện gốc dùng `relieving_date > from_date` (lớn hơn HẲN) nên loại luôn người nghỉ
+    # đúng ngày đầu kỳ. Nếu chỉ AND thêm `BETWEEN from AND to` thì option hứa "nghỉ việc trong
+    # kỳ" nhưng lại rơi mất họ — đo tháng 6/2026: 57/59, thiếu TIQN-1653 và TIQN-2144 đều nghỉ
+    # đúng 01/06.
+    status_cond = """(
+            (emp.status = 'Active'
+             AND (emp.date_of_joining IS NULL OR emp.date_of_joining <= %(to_date)s))
+            OR
+            (emp.status = 'Left'
+             AND (emp.date_of_joining IS NULL OR emp.date_of_joining <= %(to_date)s)
+             AND (emp.relieving_date IS NULL OR emp.relieving_date > %(from_date)s))
+        )"""
+    if only_resigned:
+        status_cond = ("(emp.relieving_date IS NOT NULL"
+                       " AND emp.relieving_date BETWEEN %(from_date)s AND %(to_date)s)")
 
     employees = frappe.db.sql(f"""
         SELECT emp.name, emp.employee_name, emp.attendance_device_id,
@@ -102,14 +126,7 @@ def load_export_universe(from_date, to_date, department=None):
                emp.designation, emp.date_of_joining, emp.relieving_date,
                emp.status, emp.default_shift
         FROM `tabEmployee` emp
-        WHERE (
-            (emp.status = 'Active'
-             AND (emp.date_of_joining IS NULL OR emp.date_of_joining <= %(to_date)s))
-            OR
-            (emp.status = 'Left'
-             AND (emp.date_of_joining IS NULL OR emp.date_of_joining <= %(to_date)s)
-             AND (emp.relieving_date IS NULL OR emp.relieving_date > %(from_date)s))
-        ) {conds}
+        WHERE {status_cond} {conds}
         ORDER BY emp.name
     """, params, as_dict=True)
 
@@ -124,7 +141,7 @@ def load_export_universe(from_date, to_date, department=None):
     dates = set()
     if emp_ids:
         att_rows = frappe.db.sql("""
-            SELECT employee, attendance_date, shift, in_time, out_time,
+            SELECT name, employee, attendance_date, shift, in_time, out_time,
                    working_hours, custom_actual_working_hours, actual_overtime_duration,
                    custom_approved_overtime_duration, custom_final_overtime_duration,
                    late_entry, early_exit, custom_note,
@@ -255,10 +272,14 @@ def _build_notes(att_row, regime):
     return " ; ".join(checkin_parts), " ; ".join(sunday_parts)
 
 
-def build_export_rows(universe):
+def build_export_rows(universe, leave_gap_minutes: int = 15):
     """One dict per (date × active employee) — the app's TimeSheetDate list.
 
     Also returns anomalies for the Important Note sheet.
+
+    `leave_gap_minutes`: chênh lệch tối thiểu (phút) giữa giờ thực tế và giờ tính công để một
+    ngày "có đơn nghỉ mà vẫn đi làm" được đưa vào sheet Important Note. `0` = báo tất.
+    Mặc định 15 vì 95/312 ca bị chặn chỉ chênh dưới 15 phút — nhiễu làm tròn, không đáng báo.
     """
     rows = []
     anomalies = []
@@ -307,32 +328,47 @@ def build_export_rows(universe):
                 note_en = att_row.custom_note or ""
                 dat_str = d.strftime("%Y-%m-%d")
                 emp_tag = f"{emp.name} {emp.employee_name}"
+                # Một dòng của sheet Important Note. Giữ ngày/mã NV thành TRƯỜNG RIÊNG để
+                # sắp xếp được — nhét vào chuỗi thì không sort theo Type/Date/Employee được.
+                _i = att_row.in_time.strftime("%H:%M") if att_row.in_time else "?"
+                _o = att_row.out_time.strftime("%H:%M") if att_row.out_time else "?"
+                anom_cols = {
+                    "date": d,
+                    "employee": emp.name,
+                    "employee_name": emp.employee_name,
+                    "in_out": f"{_i}–{_o}",
+                    "working_hours": working_hours,
+                    "actual_hours": _r2(att_row.custom_actual_working_hours),
+                    "abbr": (att_row.custom_leave_application_abbreviation or "").strip() or None,
+                    "attendance": att_row.name,
+                    "leave_application": att_row.leave_application or None,
+                }
                 if "Left employee" in note_en:
                     resign = getdate(emp.relieving_date).strftime("%Y-%m-%d") \
                         if emp.relieving_date else "?"
                     anomalies.append(
-                        ("[Resigned + Att]",
-                         f"{dat_str} {emp_tag} — resigned on {resign}, has check-ins"))
+                        ("[Resigned + Att]", f"resigned on {resign}, has check-ins", anom_cols))
                 # App suppresses [Ra 16-17h] for employees under a maternity
                 # regime at that date (leaving 1h early is expected for them)
                 # Xin nghỉ phép nhưng vẫn đi làm — HR cần biết để huỷ đơn.
                 # Ngưỡng và cách nhận diện ở overrides/shift_type/leave_hour_cap.py
                 _abbr = (att_row.custom_leave_application_abbreviation or "").strip()
                 _actual = _r2(att_row.custom_actual_working_hours)
-                if is_suspicious(_actual, _abbr, att_row.status == "Half Day",
-                                 bool(att_row.custom_leave_application_abbreviation)):
+                # Chênh dưới ngưỡng = nhiễu làm tròn (vd 4,01h vs 4,00h = 36 giây), không phải
+                # "đi làm dù có phép". Mặc định 15 phút; 0 = báo tất.
+                _excess_min = (_actual - working_hours) * 60
+                if _excess_min >= leave_gap_minutes and is_suspicious(
+                        _actual, _abbr, att_row.status == "Half Day",
+                        bool(att_row.custom_leave_application_abbreviation)):
                     _in = att_row.in_time.strftime("%H:%M") if att_row.in_time else "?"
                     _out = att_row.out_time.strftime("%H:%M") if att_row.out_time else "?"
-                    anomalies.append(
-                        ("[Nghỉ phép + đi làm]",
-                         f"{dat_str} {emp_tag} — đơn {_abbr} nhưng làm {_actual:.2f}h "
-                         f"({_in}–{_out}) → xem huỷ {att_row.leave_application or 'đơn nghỉ'}"))
+                    # Cột Note để TRỐNG: các cột số + mã đơn đã nói đủ, HR tự quyết xử lý.
+                    anomalies.append(("[Nghỉ phép + đi làm]", "", anom_cols))
 
                 if "Female checkout" in note_en and not regime:
                     out_str = att_row.out_time.strftime("%H:%M") if att_row.out_time else "?"
                     anomalies.append(
-                        ("[Ra 16-17h]",
-                         f"{dat_str} {emp_tag} — last out {out_str} (shift: {shift})"))
+                        ("[Ra 16-17h]", f"last out {out_str} (shift: {shift})", anom_cols))
             else:
                 # Absent day — blank in/out, zeros; regime note still shown
                 row = {
@@ -427,34 +463,70 @@ def _write_fixed(ws, row, no, emp):
     ws.cell(row=row, column=8, value=emp.designation or "")
 
 
-def add_important_note_sheet(ws, anomalies):
-    ws.title = "Important Note"
-    ws.cell(row=1, column=1,
-            value=f"Important Note — generated {now_datetime().strftime('%d/%m/%Y %H:%M')}")
-    hdr_fill = PatternFill(start_color=NOTE_HDR_FILL, end_color=NOTE_HDR_FILL,
-                           fill_type="solid")
-    for c, h in enumerate(("Type", "Detail"), 1):
-        cell = ws.cell(row=3, column=c, value=h)
-        cell.font = Font(bold=True)
-        cell.fill = hdr_fill
-        cell.alignment = _CENTER
-        cell.border = _THIN_BORDER
+NOTE_HDRS = ["Type", "Info", "Working Hour", "Working Hour Actual",
+             "Leave Application Abbreviation", "Attendance", "Leave Application", "Note"]
+NOTE_WIDTHS = [22, 46, 12, 16, 16, 14, 20, 34]
 
-    row = 4
-    if not anomalies:
+
+def add_important_note_sheet(ws, anomalies):
+    """Sheet bất thường, định dạng Excel Table như các sheet khác.
+
+    ⚠ `_add_excel_table` neo `ref` từ **A1**, nên tiêu đề cột phải ở **dòng 1** — không đặt được
+    dòng tiêu đề "generated ..." phía trên như trước. Thời điểm xuất đã có trong TÊN FILE
+    (`standard_export_filename`) nên không mất thông tin.
+
+    Sắp xếp **Type → Date → Employee** (tăng dần). Vì vậy anomaly phải mang `date`/`employee`
+    thành trường riêng; nhét vào chuỗi thì không sort được.
+    """
+    ws.title = "Important Note"
+    _header_row(ws, NOTE_HDRS, height=30)
+
+    rows = []
+    for item in anomalies:
+        a_type, a_note = item[0], item[1]
+        x = item[2] if len(item) > 2 else {}
+        rows.append({
+            "type": a_type,
+            "date": x.get("date"),
+            "employee": x.get("employee") or "",
+            "info": " · ".join(p for p in (
+                x["date"].strftime("%d/%m/%Y") if x.get("date") else None,
+                f"{x.get('employee', '')} {x.get('employee_name', '')}".strip() or None,
+                x.get("in_out"),
+            ) if p),
+            "working_hours": x.get("working_hours"),
+            "actual_hours": x.get("actual_hours"),
+            "abbr": x.get("abbr"),
+            "attendance": x.get("attendance"),
+            "leave_application": x.get("leave_application"),
+            "note": a_note,
+        })
+
+    # `date` có thể None với anomaly không gắn ngày -> dùng khoá thay thế cho khỏi vỡ so sánh
+    rows.sort(key=lambda r: (r["type"], r["date"] or date_type.min, r["employee"]))
+
+    row = 2
+    if not rows:
         ws.cell(row=row, column=2, value="No anomalies detected.")
         row += 1
     else:
-        for a_type, a_detail in anomalies:
-            ws.cell(row=row, column=1, value=a_type)
-            ws.cell(row=row, column=2, value=a_detail)
+        for r in rows:
+            ws.cell(row=row, column=1, value=r["type"])
+            ws.cell(row=row, column=2, value=r["info"])
+            for col, key in ((3, "working_hours"), (4, "actual_hours")):
+                if r[key] is not None:
+                    c = ws.cell(row=row, column=col, value=r[key])
+                    c.number_format = "0.00"
+                    c.alignment = _CENTER
+            c = ws.cell(row=row, column=5, value=r["abbr"])
+            c.alignment = _CENTER
+            ws.cell(row=row, column=6, value=r["attendance"])
+            ws.cell(row=row, column=7, value=r["leave_application"])
+            ws.cell(row=row, column=8, value=r["note"])
             row += 1
-    for r in range(4, row):
-        for c in (1, 2):
-            ws.cell(row=r, column=c).border = _THIN_BORDER
 
-    ws.column_dimensions["A"].width = 20
-    ws.column_dimensions["B"].width = 80
+    _add_excel_table(ws, row - 1, len(NOTE_HDRS), "TableImportantNote")
+    _set_widths(ws, NOTE_WIDTHS)
 
 
 def add_detail_sheet(wb, rows, emp_by_id):
@@ -561,7 +633,7 @@ def _add_pivot_sheet(wb, sheet_name, table_name, number_fmt, pivot_values,
             ws.cell(row=r, column=1, value=i)
 
     _add_excel_table(ws, row - 1, total_col, table_name)
-    _set_widths(ws, EMP_FIXED_WIDTHS + [6] * date_cols + [8])
+    _set_widths(ws, EMP_FIXED_WIDTHS + [DATE_COL_WIDTH_PIVOT] * date_cols + [8])
 
     # Sunday columns: gray header, keep data cells white
     white = PatternFill(start_color="FFFFFF", end_color="FFFFFF", fill_type="solid")
@@ -605,7 +677,7 @@ def add_shift_sheet(wb, rows, emp_by_id, all_dates):
         row += 1
 
     _add_excel_table(ws, row - 1, last_col, "TableShift")
-    _set_widths(ws, EMP_FIXED_WIDTHS + [8] * date_cols)
+    _set_widths(ws, EMP_FIXED_WIDTHS + [DATE_COL_WIDTH_SHIFT] * date_cols)
 
     gray = PatternFill(start_color=SUNDAY_GRAY, end_color=SUNDAY_GRAY, fill_type="solid")
     for ci, d in enumerate(all_dates):
@@ -615,10 +687,24 @@ def add_shift_sheet(wb, rows, emp_by_id, all_dates):
 
 # ── Entry point ──────────────────────────────────────────────────────────────
 
-def build_standard_workbook(from_date, to_date, department=None):
-    """Build the 6-sheet standard-app workbook. Returns openpyxl Workbook."""
-    universe = load_export_universe(from_date, to_date, department)
-    rows, anomalies = build_export_rows(universe)
+ALL_SHEETS = ("Important Note", "Detail", "Summary", "Timesheet", "Overtime", "Shift")
+
+
+def build_standard_workbook(from_date, to_date, department=None,
+                            leave_gap_minutes: int = 15, sheets=None,
+                            only_resigned: bool = False):
+    """Build the standard-app workbook. Returns openpyxl Workbook.
+
+    `sheets`: tên các sheet cần xuất; `None` = tất cả (`ALL_SHEETS`).
+    `leave_gap_minutes`: xem `build_export_rows`.
+    `only_resigned`: xem `load_export_universe`.
+
+    ⚠ `wb.active` tạo sẵn sheet đầu tiên. Nếu KHÔNG xuất "Important Note" thì phải xoá sheet
+    trống đó, nếu không file có một tab rỗng tên "Sheet".
+    """
+    wanted = set(sheets) if sheets else set(ALL_SHEETS)
+    universe = load_export_universe(from_date, to_date, department, only_resigned=only_resigned)
+    rows, anomalies = build_export_rows(universe, leave_gap_minutes=leave_gap_minutes)
     emp_by_id = {e.name: e for e in universe["employees"]}
 
     # Continuous date columns for the pivot sheets (full requested range,
@@ -630,9 +716,15 @@ def build_standard_workbook(from_date, to_date, department=None):
         d += timedelta(days=1)
 
     wb = Workbook()
-    add_important_note_sheet(wb.active, anomalies)
-    add_detail_sheet(wb, rows, emp_by_id)
-    add_summary_sheet(wb, rows, emp_by_id)
+    if "Important Note" in wanted:
+        add_important_note_sheet(wb.active, anomalies)
+    else:
+        # wb.active là sheet mặc định "Sheet" — bỏ đi, nếu không file có tab rỗng
+        wb.remove(wb.active)
+    if "Detail" in wanted:
+        add_detail_sheet(wb, rows, emp_by_id)
+    if "Summary" in wanted:
+        add_summary_sheet(wb, rows, emp_by_id)
 
     # Timesheet pivot: working days per day; every employee present in rows
     #
@@ -655,13 +747,20 @@ def build_standard_workbook(from_date, to_date, department=None):
         if r["ot_final"] > 0:
             ot_pivot[r["emp_id"]][r["date"]] += r["ot_final"]
 
-    _add_pivot_sheet(wb, "Timesheet", "TableTimesheet", "0.##",
-                     ts_pivot, emp_order, emp_by_id, all_dates,
-                     display_values=ts_display)
-    _add_pivot_sheet(wb, "Overtime", "TableOvertime", "0.#",
-                     ot_pivot, emp_order, emp_by_id, all_dates,
-                     skip_zero_rows=True)
-    add_shift_sheet(wb, rows, emp_by_id, all_dates)
+    if "Timesheet" in wanted:
+        _add_pivot_sheet(wb, "Timesheet", "TableTimesheet", "0.##",
+                         ts_pivot, emp_order, emp_by_id, all_dates,
+                         display_values=ts_display)
+    if "Overtime" in wanted:
+        _add_pivot_sheet(wb, "Overtime", "TableOvertime", "0.#",
+                         ot_pivot, emp_order, emp_by_id, all_dates,
+                         skip_zero_rows=True)
+    if "Shift" in wanted:
+        add_shift_sheet(wb, rows, emp_by_id, all_dates)
+
+    # Không sheet nào được chọn -> openpyxl không cho lưu workbook rỗng
+    if not wb.sheetnames:
+        wb.create_sheet("Empty")
 
     return wb
 

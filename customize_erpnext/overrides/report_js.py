@@ -1,7 +1,12 @@
 # Copyright (c) 2026, IT Team - TIQN
 # License: MIT
 
-"""Chèn thêm JS vào script của report HRMS — thêm filter `Leave Type`, gỡ filter thừa.
+"""Chèn / thay JS của report HRMS — cơ chế dùng chung cho mọi report.
+
+Hai kiểu can thiệp:
+  * **nối thêm** — sửa mảng `filters` sau khi HRMS đã gán (thêm `Leave Type`, gỡ filter thừa)
+  * **clone nguyên file** — phục vụ file `.js` của report khác (`Shift Attendance` dùng JS của
+    `Shift Attendance Customize`)
 
 ## Vì sao phải làm kiểu này
 
@@ -44,8 +49,51 @@ DROP_FILTERS = {
 	"Employee Leave Balance": ["consolidate_leave_types"],
 }
 
+# Report dùng NGUYÊN file .js của một report khác (filter + nút bấm y hệt).
+#   {report cần phục vụ: (app, module path của report nguồn, tên report nguồn)}
+#
+# `Shift Attendance` của HRMS được trỏ sang bản Customize — xem
+# `overrides/shift_attendance/__init__.py`. Chỉ đổi đúng chuỗi TÊN REPORT; đường dẫn python
+# `...report.shift_attendance_customize.shift_attendance_customize.export_attendance_excel`
+# trong file phải GIỮ NGUYÊN, vì nút Export Excel gọi đúng module đó.
+CLONE_JS_FROM = {
+	"Shift Attendance": (
+		"customize_erpnext",
+		"customize_erpnext/report/shift_attendance_customize/shift_attendance_customize.js",
+		"Shift Attendance Customize",
+	),
+}
+
+
+def _cloned_script(report_name: str) -> str:
+	spec = CLONE_JS_FROM.get(report_name)
+	if not spec:
+		return ""
+
+	import os
+
+	app, rel_path, source_report = spec
+	path = os.path.join(frappe.get_app_path(app), rel_path)
+	with open(path, encoding="utf-8") as f:
+		js = f.read()
+
+	# Chỉ thay chuỗi tên report trong `frappe.query_reports["..."]`, không thay đường dẫn module.
+	needle = f'frappe.query_reports["{source_report}"]'
+	if needle not in js:
+		frappe.log_error(
+			f"Không tìm thấy {needle} trong {rel_path} — bỏ qua clone JS cho {report_name}",
+			"Report JS Clone Error",
+		)
+		return ""
+
+	return js.replace(needle, f'frappe.query_reports["{report_name}"]')
+
 
 def _extra_script(report_name: str) -> str:
+	cloned = _cloned_script(report_name)
+	if cloned:
+		return cloned
+
 	index = LEAVE_TYPE_FILTER_INDEX.get(report_name)
 	drop = DROP_FILTERS.get(report_name)
 	if index is None and not drop:

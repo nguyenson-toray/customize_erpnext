@@ -108,7 +108,69 @@ Nghỉ đã duyệt cũng **không bị đánh** `late_entry` / `early_exit` (tr
 |---|---|
 | **Detail** — cột `Actual (hour)` | giờ thực tế, cạnh `Working (hour)` đã bị chặn |
 | **Detail** — cột `Note Checkin` | `Nghỉ nửa ngày nhưng làm 8.00h - chặn còn 4h ; → XEM HUỶ ĐƠN NGHỈ` |
-| **Important Note** | `[Nghỉ phép + đi làm] 15/06/2026 TIQN-0940 … → xem huỷ HR-LAP-2026-11647` |
+| **Important Note** | `[Nghỉ phép + đi làm] 15/06/2026 TIQN-0940 — đơn P/2 nhưng làm 8.00h (tính công 4.00h · 07:02–19:05) → xem huỷ HR-LAP-2026-11647` |
+
+### Sheet Important Note
+
+Định dạng **Excel Table** (`TableImportantNote`) như các sheet khác, **8 cột**, sắp xếp tăng dần
+theo **Type → Date → Employee**:
+
+| Cột | Nội dung |
+|---|---|
+| `Type` | `[Nghỉ phép + đi làm]` · `[Ra 16-17h]` · `[Resigned + Att]` |
+| `Info` | `01/04/2026 · TIQN-1643 Đào Thị Hiền · 11:26–17:05` |
+| `Working Hour` · `Working Hour Actual` | số thật, `number_format 0.00` — lọc/sắp xếp được |
+| `Leave Application Abbreviation` | `P/2`, `KL`… lấy từ Attendance |
+| `Attendance` · `Leave Application` | tên bản ghi để tra thẳng |
+| `Note` | ngữ cảnh riêng của từng loại; `[Nghỉ phép + đi làm]` để **trống** — các cột số và mã đơn đã nói đủ, HR tự quyết xử lý |
+
+Cả ba loại anomaly đều điền đủ cột.
+
+> ⚠ `_add_excel_table` neo `ref` từ **A1**, nên tiêu đề cột phải ở **dòng 1** — không đặt được
+> dòng "Important Note — generated …" phía trên như bản cũ. Thời điểm xuất đã có trong **tên
+> file** nên không mất thông tin.
+
+> ⚠ Muốn sắp xếp được thì anomaly phải mang `date` / `employee` thành **trường riêng**; nhét vào
+> chuỗi mô tả thì không sort theo Type/Date/Employee được.
+
+### Độ rộng cột ngày
+
+`DATE_COL_WIDTH_PIVOT = 6.6` \(Timesheet · Overtime\) và `DATE_COL_WIDTH_SHIFT = 8.8` \(Shift\) —
+nới **+10%** so với bản gốc 6 và 8. Cột `Date` / `Joining Date` / `Resign Date` cũng 10 → 11.
+
+### `Only employees who resigned in this period` — số dòng mỗi sheet khác nhau là ĐÚNG
+
+Bộ lọc áp cho **mọi sheet**, đã kiểm qua đường thật \(dialog → file `.xlsx`\): không sheet nào lẫn
+người ngoài danh sách. Nhưng số lượng khác nhau vì quy tắc riêng của từng sheet:
+
+| Sheet | Ví dụ kỳ 06/2026 | Vì sao |
+|---|---:|---|
+| Detail · Summary · Timesheet | 57/59 | 2 người nghỉ đúng ngày đầu kỳ không có ngày chấm công nào \(`relieving_date` là ngày làm cuối\) |
+| Overtime | 22 | `skip_zero_rows=True` — bỏ người không có tăng ca |
+| Shift | 3 | chỉ liệt kê người thuộc ca xoay `Shift 1`/`Shift 2` |
+
+User đã chốt **giữ nguyên** hành vi này \(20/08/2026\) — đừng "sửa" thành ép đủ danh sách ở mọi sheet.
+
+> Anomaly là tuple **2 hoặc 3 phần tử**: `(type, detail)` hoặc `(type, detail, dict cột phụ)`.
+> Giữ dạng 2 phần tử để anomaly mới thêm không bắt buộc phải có cột phụ.
+
+**Báo MỌI ca bị chặn giờ, không dùng ngưỡng giờ.** Ngưỡng cũ \(nửa ngày ≥7h\) giấu mất 298/312 ca —
+`attendance/0ad5308fc1` nghỉ `P/2` làm 6,33h đã bị chặn, đã có note, nhưng không lên Important Note.
+Lọc nhiễu chuyển sang **ngưỡng phút** trong dialog thay vì ngưỡng giờ trong code.
+
+### Option của dialog Export Excel
+
+| Option | Mặc định | Tác dụng |
+|---|---|---|
+| Only employees who resigned in this period | tắt | chỉ NV có `relieving_date` **trong kỳ** — dùng khi chốt lương người thôi việc |
+| Report leave-but-worked from \(minutes\) | **15** | dưới ngưỡng coi là nhiễu làm tròn \(4,01h vs 4,00h = 36 giây\); `0` = báo tất |
+| 6 ô chọn sheet | tất cả bật | xuất bớt sheet cho nhẹ file |
+
+⚠ `only_resigned` **THAY THẾ** điều kiện trạng thái chứ không AND thêm — điều kiện gốc dùng
+`relieving_date > from_date` nên AND thêm sẽ rơi mất người nghỉ đúng ngày đầu kỳ \(đo tháng 6:
+57/59\).
+
+⚠ Bỏ sheet "Important Note" thì phải `wb.remove(wb.active)`, nếu không file có tab rỗng tên "Sheet".
 
 > ⚠ Cột `Actual (hour)` được **CHÈN ở vị trí 13** nên mọi cột sau đó của sheet Detail dịch phải 1.
 > Test đọc theo chỉ số cột phải cập nhật theo.
