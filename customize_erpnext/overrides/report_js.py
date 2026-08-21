@@ -42,12 +42,13 @@ LEAVE_TYPE_FILTER_INDEX = {
 	"Employee Leave Balance Summary": 2,
 }
 
-# `consolidate_leave_types` gom dòng theo leave type và chèn một dòng tiêu đề mỗi nhóm. Report
-# nay chạy đúng MỘT leave type nên nó luôn sinh 1 dòng tiêu đề thừa rồi thụt lề phần còn lại —
-# mà bản gốc còn để `default: 1`. Python cũng đã bỏ qua giá trị filter này.
-DROP_FILTERS = {
-	"Employee Leave Balance": ["consolidate_leave_types"],
-}
+# Filter cần gỡ khỏi giao diện, theo tên report.
+#
+# `consolidate_leave_types` từng nằm đây: hồi report bị khoá cứng ở một leave type thì nó luôn
+# sinh một dòng tiêu đề thừa rồi thụt lề phần còn lại. Nay xoá trắng ô `Leave Type` là chạy đủ
+# 10 loại nên gom nhóm có nghĩa trở lại, và phía Python đã chặn nó khi chỉ có 1 loại
+# (`employee_leave_balance.custom_get_data`). Vì vậy **trả lại** ô chọn.
+DROP_FILTERS = {}
 
 # Report dùng NGUYÊN file .js của một report khác (filter + nút bấm y hệt).
 #   {report cần phục vụ: (app, module path của report nguồn, tên report nguồn)}
@@ -109,6 +110,14 @@ def _extra_script(report_name: str) -> str:
 
 	if index is not None:
 		default = (get_annual_leave_types() or [None])[0]
+		# 🔴 KHÔNG đặt `reqd: 1`. Ô bắt buộc thì giao diện không cho xoá, mà xoá trắng chính là
+		# đường duy nhất để xem TẤT CẢ leave type như bản HRMS gốc
+		# (`leave_report_core.resolve_leave_types`).
+		#
+		# Hướng dẫn đặt ở `placeholder`, KHÔNG phải `description`: thanh filter của report dựng
+		# control bằng `page.add_field()` với `only_input: true` (`frappe/public/js/frappe/ui/
+		# page.js:855`) nên `description` không bao giờ được vẽ. `placeholder` thì hiện đúng lúc
+		# ô rỗng — tức đúng lúc người dùng cần biết "rỗng nghĩa là gì".
 		parts.append(
 			"  if (!__r.filters.some((f) => f.fieldname === 'leave_type')) {\n"
 			f"    __r.filters.splice({index}, 0, {{\n"
@@ -117,7 +126,7 @@ def _extra_script(report_name: str) -> str:
 			'      fieldtype: "Link",\n'
 			'      options: "Leave Type",\n'
 			f"      default: {json.dumps(default, ensure_ascii=False)},\n"
-			"      reqd: 1,\n"
+			'      placeholder: __("All leave types"),\n'
 			"    });\n"
 			"  }"
 		)

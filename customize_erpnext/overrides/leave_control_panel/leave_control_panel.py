@@ -55,39 +55,18 @@ def _is_terminated_without_date(row) -> bool:
 
 
 def _attendance_setting_filters() -> list:
-	"""Cùng phạm vi nhân viên mà engine chấm công dùng — `Attendance Calculation Setting`.
+	"""Cùng phạm vi nhân viên mà engine chấm công và hai report số dư phép dùng.
 
-	    Employee ID Prefix   -> chỉ nhân viên `name LIKE '<prefix>%'`
-	    Exclude Employee IDs -> loại hẳn các mã liệt kê
-
-	Vì sao dùng lại thay vì tự nghĩ tiêu chí: `exclude_employee_ids` là nhân sự của công ty
-	khác làm tại nhà máy (quẹt thẻ như mọi người nhưng không thuộc mình để quản lý), cộng với
-	các record test còn sót. Trước đây `Test-9999` lọt vào danh sách cấp phép chính vì panel
-	không biết tới setting này.
+	Định nghĩa nằm ở `overrides/employee_scope.py` — một chỗ duy nhất trả lời "ai là nhân viên
+	của mình", để panel cấp phép, bảng công và report số dư không bao giờ lệch danh sách.
+	Trước đây `Test-9999` lọt vào danh sách cấp phép chính vì panel không biết tới setting này.
 
 	Áp cho **cả hai** trạng thái checkbox: đây là câu hỏi "ai là nhân viên của mình", độc lập
 	với câu hỏi "có tính người đã nghỉ hay không".
-
-	Import cục bộ: module setting nằm trong app này nhưng import ở top-level sẽ tạo vòng
-	(setting -> ... -> overrides) lúc nạp app.
 	"""
-	from customize_erpnext.customize_erpnext.doctype.attendance_calculation_setting.attendance_calculation_setting import (
-		get_attendance_settings,
-		get_excluded_employee_ids,
-	)
+	from customize_erpnext.overrides.employee_scope import scope_filters
 
-	out = []
-
-	prefix = (get_attendance_settings().employee_id_prefix or "").strip()
-	if prefix:
-		out.append(["name", "like", f"{prefix}%"])
-
-	excluded = get_excluded_employee_ids()
-	if excluded:
-		# `not in` với list rỗng sinh SQL không hợp lệ -> chỉ thêm khi có phần tử.
-		out.append(["name", "not in", sorted(excluded)])
-
-	return out
+	return scope_filters()
 
 
 def custom_get_employees(self, advanced_filters: list) -> list:

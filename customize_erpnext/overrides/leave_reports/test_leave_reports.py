@@ -40,8 +40,16 @@ def check(label, got, want):
 	return good
 
 
+# ⚠ Phải lấy nhân viên TRONG phạm vi. Bản mới trả rỗng cho người ngoài phạm vi, nên nếu danh
+# sách này chứa họ thì vòng so sánh chạy 0 lần mà test vẫn xanh — mất hết giá trị đối chiếu.
+from customize_erpnext.overrides.employee_scope import get_scope, scope_filters
+
 emps = frappe.get_all(
-	"Employee", filters={"status": "Active"}, pluck="name", order_by="name", limit=LIMIT
+	"Employee",
+	filters=[["status", "=", "Active"]] + scope_filters(),
+	pluck="name",
+	order_by="name",
+	limit=LIMIT,
 )
 print(f"Đối chiếu {len(emps)} nhân viên · kỳ {FROM_DATE} → {TO_DATE}\n")
 
@@ -132,13 +140,61 @@ rows = bal_mod.execute(
 )[1]
 check("chỉ trả đúng leave type đã chọn", len({r["leave_type"] for r in rows}), 1)
 check("đúng loại", rows[0]["leave_type"] == AD_HOC, True)
+# Bỏ trống = xem TẤT CẢ, giống bản HRMS gốc. Mặc định "phép năm" là `default` của ô filter
+# (report_js.py), KHÔNG phải hành vi của Python — nếu cả hai chỗ cùng mặc định thì người dùng
+# xoá ô chọn cũng vẫn chỉ thấy phép năm.
 rows = bal_mod.execute(
 	frappe._dict(from_date=FROM_DATE, to_date=TO_DATE, company=COMPANY, employee=emps[0])
 )[1]
-check("bỏ trống -> mặc định phép năm", rows[0]["leave_type"] == ANNUAL, True)
+n_types = frappe.db.count("Leave Type")
+check("bỏ trống -> trả đủ mọi leave type", len({r["leave_type"] for r in rows}), n_types)
+
+# Phép năm là loại HR tra nhiều nhất, mà tên tiếng Việt bắt đầu bằng "P" nên sắp theo tên là
+# nó rơi xuống CUỐI trong 10 loại (Summary: cột 31→33). Phải nằm đầu.
+check("phép năm hiện đầu tiên", rows[0]["leave_type"] == ANNUAL, True)
+scols = sum_mod.execute(frappe._dict(date=TO_DATE, company=COMPANY, employee=emps[0]))[0]
+check("Summary: nhóm cột phép năm đứng ngay sau Department", scols[3].startswith(ANNUAL), True)
 cols = bal_mod.execute(
 	frappe._dict(from_date=FROM_DATE, to_date=TO_DATE, company=COMPANY, employee=emps[0])
 )[0]
 check("employee_name rộng 300", [c for c in cols if c["fieldname"] == "employee_name"][0]["width"], 300)
+
+print("\nPHẦN 6 — phạm vi nhân viên theo Attendance Calculation Setting")
+# Bản HRMS gốc không biết tới hai field này nên kéo cả nhân sự công ty khác + bản ghi test vào
+# bảng số dư phép, lệch với bảng công và headcount mà không dấu vết nào giải thích.
+prefix, excluded = get_scope()
+print(f"     prefix {prefix!r} · loại {len(excluded)} mã: {excluded}")
+
+outsiders = [e for e in excluded if frappe.db.exists("Employee", e)]
+off_prefix = frappe.db.sql(
+	"select name from tabEmployee where name not like %s limit 1", (prefix + "%",), pluck=True
+) if prefix else []
+outsiders += off_prefix
+check("có ít nhất một nhân viên ngoài phạm vi để kiểm", bool(outsiders), True)
+
+for emp in outsiders:
+	fo = frappe._dict(from_date=FROM_DATE, to_date=TO_DATE, company=COMPANY, employee=emp)
+	check(f"{emp} · Balance loại khỏi kết quả", len(bal_mod.execute(fo)[1]), 0)
+	# Bản gốc VẪN trả dòng cho họ -> chứng minh khác biệt đến từ ta, không phải do thiếu dữ liệu
+	check(f"{emp} · bản gốc thì vẫn trả", len(bal_mod._tiqn_original_execute(fo)[1]) > 0, True)
+	check(
+		f"{emp} · Summary loại khỏi kết quả",
+		len(sum_mod.execute(frappe._dict(date=TO_DATE, company=COMPANY, employee=emp))[1]),
+		0,
+	)
+
+# Chạy không lọc employee: số nhân viên trả về phải khớp đúng phạm vi
+f_all = frappe._dict(from_date=FROM_DATE, to_date=TO_DATE, company=COMPANY,
+                     employee_status="Active", leave_type=ANNUAL)
+n_scope = len(frappe.get_all(
+	"Employee", filters=[["status", "=", "Active"], ["company", "=", COMPANY]] + scope_filters(),
+	pluck="name"))
+check("Balance: số NV khớp phạm vi", len({r["employee"] for r in bal_mod.execute(f_all)[1]}), n_scope)
+check(
+	"Summary: số NV khớp phạm vi",
+	len({r[0] for r in sum_mod.execute(
+		frappe._dict(date=TO_DATE, company=COMPANY, employee_status="Active", leave_type=ANNUAL))[1]}),
+	n_scope,
+)
 
 print(f"\n{'=' * 66}\nKẾT QUẢ: {ok} đạt / {fail} lỗi")

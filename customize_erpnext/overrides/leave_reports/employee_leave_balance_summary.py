@@ -17,6 +17,14 @@ Nên report này nay có filter `Leave Type` (**mặc định phép năm**) và 
 Chọn một loại nghỉ phát sinh thì Allocated = 0 và Balance = −(đã nghỉ), vì chúng không được phân
 bổ — đúng y bản HRMS, chỉ khác là **nhìn thấy được** thay vì bị nuốt thành 0.
 
+**Xoá trắng ô Leave Type** thì hiện đủ 10 loại, mỗi loại một bộ 3 cột — bố cục "mỗi leave type
+một nhóm cột" của bản gốc, nhưng KHÔNG còn điểm mù nói trên.
+
+## Phạm vi nhân viên
+
+Chỉ chạy cho nhân viên lọt `Employee ID Prefix` + `Exclude Employee IDs` của
+`Attendance Calculation Setting` — xem `overrides/employee_scope.py`.
+
 ## Thêm hai cột
 
 Bản gốc chỉ có `remaining`, không cho biết con số đó từ đâu ra. Thêm `Allocated` và `Taken` để
@@ -27,6 +35,7 @@ import frappe
 from frappe import _
 from frappe.utils import cint, flt
 
+from customize_erpnext.overrides.employee_scope import scope_filters
 from customize_erpnext.overrides.leave_reports.leave_report_core import (
 	LeaveBalanceEngine,
 	resolve_leave_types,
@@ -58,16 +67,22 @@ def custom_get_columns(leave_types):
 
 
 def custom_get_conditions(filters):
-	conditions = {}
+	"""Filter cho `frappe.get_list("Employee", ...)`.
+
+	Trả về **list** chứ không phải dict như bản gốc: phạm vi
+	`Attendance Calculation Setting` cần toán tử `like` / `not in`, mà dạng dict chỉ diễn đạt
+	được phép bằng. Hai dạng dùng lẫn nhau được ở `frappe.get_list`.
+	"""
+	conditions = []
 	if filters.get("company"):
-		conditions["company"] = filters.company
+		conditions.append(["company", "=", filters.company])
 	if filters.get("employee_status"):
-		conditions["status"] = filters.get("employee_status")
+		conditions.append(["status", "=", filters.get("employee_status")])
 	if filters.get("department"):
-		conditions["department"] = filters.get("department")
+		conditions.append(["department", "=", filters.get("department")])
 	if filters.get("employee"):
-		conditions["name"] = filters.get("employee")
-	return conditions
+		conditions.append(["name", "=", filters.get("employee")])
+	return conditions + scope_filters()
 
 
 def _period_start(as_on):

@@ -23,15 +23,26 @@ Tức là *dựng* câu SQL tốn ngang *chạy* nó. Nên cách tăng tốc đ�
 **đừng sinh 977 câu SQL**: toàn bộ ledger của một leave type chỉ ~6.000 dòng — nạp một lần,
 group theo nhân viên, rồi tính trong Python.
 
-## Phạm vi: MỘT leave type mỗi lần chạy
+## Phạm vi: filter `Leave Type`, mặc định phép năm — bỏ trống thì chạy HẾT
 
-Cả hai report có filter `Leave Type`, **mặc định `Phép năm`** — loại duy nhất TIQN cấp
-Leave Allocation. Chạy 1 loại thay vì 10 đã giảm 10 lần khối lượng.
+Cả hai report có filter `Leave Type`, **mặc định `Phép năm`** (loại duy nhất TIQN cấp Leave
+Allocation). Đó là việc HR làm hằng ngày và chạy 1 loại thay vì 10 giảm 10 lần khối lượng.
+
+**Xoá trắng ô đó thì report chạy MỌI leave type**, đúng như bản HRMS gốc — engine không hề bị
+giới hạn một loại, chỉ là được gọi lặp cho từng loại. Vì thế filter **không đặt `reqd`**: có
+`reqd: 1` thì giao diện không cho xoá và đường "xem tất cả" bị chặn cứng.
 
 Engine dùng được cho **mọi** leave type, kể cả 9 loại nghỉ phát sinh không phân bổ: khi đó
 `allocation_record_on()` trả rỗng nên Allocated = 0, Balance = −(đã nghỉ) — đúng y bản HRMS.
 
 ⚠ Giá trị mặc định lấy từ cờ `is_earned_leave`, **không hardcode tên** "Phép năm/ Annual leave".
+
+## Phạm vi nhân viên: theo `Attendance Calculation Setting`
+
+Cả hai report chỉ chạy cho nhân viên lọt qua `Employee ID Prefix` + `Exclude Employee IDs`
+(xem `overrides/employee_scope.py`). Bản HRMS gốc không biết tới hai field này nên kéo cả nhân
+sự công ty khác và bản ghi test vào bảng số dư phép — lệch với bảng công và với headcount mà
+không dấu vết nào giải thích vì sao.
 
 ## Bảo toàn con số
 
@@ -52,22 +63,47 @@ from frappe.utils import flt, getdate
 
 
 def get_annual_leave_types() -> list[str]:
-	"""Các Leave Type được phân bổ theo năm — hiện tại đúng 1 loại (`Phép năm`)."""
+	"""Các Leave Type được phân bổ theo năm — hiện tại đúng 1 loại (`Phép năm`).
+
+	Dùng làm **giá trị mặc định** của filter, không phải giới hạn cứng.
+	"""
 	return frappe.get_all(
 		"Leave Type", filters={"is_earned_leave": 1}, pluck="name", order_by="name"
 	)
 
 
+def get_all_leave_types() -> list[str]:
+	"""Mọi Leave Type — **phép năm lên đầu**, phần còn lại theo tên.
+
+	HRMS sắp thuần theo tên (`get_leave_types()`), mà tên tiếng Việt của phép năm bắt đầu bằng
+	"P" nên nó rơi xuống **cuối cùng trong 10 loại**. Đó là loại HR tra nhiều nhất: ở
+	`Employee Leave Balance` phải cuộn qua 9 nhóm mới tới, ở `Summary` thì 3 cột của nó nằm tận
+	cột 31→33 sau 27 cột nghỉ phát sinh.
+
+	Chỉ đổi **thứ tự hiển thị**, không đổi tập hợp — vẫn đủ mọi leave type như bản gốc.
+
+	⚠ Vẫn lấy theo cờ `is_earned_leave`, **không hardcode tên** "Phép năm/ Annual leave": tên
+	có thể đổi, cờ thì không.
+	"""
+	all_types = frappe.get_all("Leave Type", pluck="name", order_by="name")
+	first = [lt for lt in get_annual_leave_types() if lt in all_types]
+	seen = set(first)
+	return first + [lt for lt in all_types if lt not in seen]
+
+
 def resolve_leave_types(filters) -> list[str]:
 	"""Leave type mà lần chạy này xử lý.
 
-	Ưu tiên filter người dùng chọn; bỏ trống thì rơi về phép năm (mặc định của filter, nên
-	trường hợp rỗng chỉ xảy ra khi gọi từ script hoặc user tự xoá ô chọn).
+	Có chọn -> đúng loại đó. **Bỏ trống -> MỌI loại**, giống hệt bản HRMS gốc.
+
+	⚠ Đừng đổi nhánh rỗng này về phép năm. Mặc định phép năm là việc của *filter* (`default`
+	trong `report_js.py`), không phải của hàm này. Nếu cả hai chỗ cùng mặc định thì người dùng
+	xoá ô chọn cũng vẫn chỉ thấy phép năm và không có cách nào xem tất cả.
 	"""
 	chosen = filters.get("leave_type")
 	if chosen:
 		return [chosen] if isinstance(chosen, str) else list(chosen)
-	return get_annual_leave_types()
+	return get_all_leave_types()
 
 
 class LeaveBalanceEngine:

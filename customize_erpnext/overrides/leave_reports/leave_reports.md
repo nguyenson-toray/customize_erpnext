@@ -1,12 +1,14 @@
-# Override 2 report số dư phép — chỉ phép năm, tính trong bộ nhớ
+# Override 2 report số dư phép — lọc theo leave type, tính trong bộ nhớ
 
 > **Mục đích:** Override `Employee Leave Balance` và `Employee Leave Balance Summary` của HRMS.
 > **Phạm vi:** Override HRMS/ERPNext
-> **Trạng thái:** Đang chạy · **Cập nhật:** 2026-08-20
+> **Trạng thái:** Đang chạy · **Cập nhật:** 2026-08-21
 
 Override `Employee Leave Balance` và `Employee Leave Balance Summary` của HRMS.
 
-**Hai mục tiêu:** chọn được **một** leave type mỗi lần chạy (mặc định phép năm), và **hết chậm**.
+**Ba mục tiêu:** chọn được **một** leave type mỗi lần chạy (mặc định phép năm, **xoá trắng =
+xem tất cả**), chỉ chạy cho **nhân viên của mình** theo `Attendance Calculation Setting`, và
+**hết chậm**.
 
 ---
 
@@ -43,7 +45,8 @@ type)** → 977 câu SQL cho 8 nhân viên.
 Cách sửa không phải tối ưu SQL mà là **đừng sinh 977 câu SQL**:
 
 1. **Chạy 1 leave type mỗi lần** (filter `Leave Type`, mặc định phép năm) — giảm ngay 10 lần
-   khối lượng so với bản gốc luôn quét cả 10 loại
+   khối lượng so với bản gốc luôn quét cả 10 loại. Xoá trắng ô đó thì chạy đủ 10 loại, vẫn nhanh
+   (đo: 0,4 s cho 1.046 nhân viên × 10 loại) vì mỗi loại chỉ tốn 3 query.
 2. **Nạp toàn bộ ledger của leave type đó một lần** — chỉ ~6.000 dòng — rồi group theo nhân viên
    và tính hết trong Python (`AnnualLeaveEngine`)
 
@@ -75,20 +78,54 @@ sao y hành vi đó, kể cả khi nó trông như bug.
 
 ### Cả hai report: thêm filter `Leave Type`
 
-Bắt buộc chọn, **mặc định `Phép năm/ Annual leave`** (lấy theo cờ `is_earned_leave = 1`, không
-hardcode tên). Mỗi lần chạy xử lý đúng một loại → 1 dòng/nhân viên thay vì 10.
+**Mặc định `Phép năm/ Annual leave`** (lấy theo cờ `is_earned_leave = 1`, không hardcode tên).
+Mỗi lần chạy xử lý đúng một loại → 1 dòng/nhân viên thay vì 10.
+
+**Xoá trắng ô đó = xem TẤT CẢ leave type**, đúng bố cục bản HRMS gốc: `Employee Leave Balance`
+trả 10 dòng/nhân viên, `Summary` trả 10 nhóm cột.
+
+**Phép năm luôn đứng đầu.** HRMS sắp thuần theo tên, mà tên tiếng Việt bắt đầu bằng "P" nên phép
+năm rơi xuống **cuối cùng trong 10 loại** — đúng loại HR tra nhiều nhất lại nằm xa nhất: ở
+`Employee Leave Balance` phải cuộn qua 9 nhóm, ở `Summary` thì 3 cột của nó nằm tận cột 31→33 sau
+27 cột nghỉ phát sinh. `get_all_leave_types()` đẩy nó lên đầu, phần còn lại vẫn theo tên. Chỉ đổi
+**thứ tự hiển thị**, không đổi tập hợp.
+
+⚠ Filter **cố tình không đặt `reqd`**. Ô bắt buộc thì giao diện không cho xoá và đường "xem tất
+cả" bị chặn cứng. Cũng vì thế `resolve_leave_types()` phải trả **mọi** loại khi rỗng chứ không
+rơi về phép năm: mặc định phép năm là việc của `default` trong `report_js.py`. Nếu cả hai chỗ
+cùng mặc định, người dùng xoá ô chọn vẫn chỉ thấy phép năm và không hiểu vì sao.
 
 Engine dùng được cho **mọi** leave type. Chọn một trong 9 loại nghỉ phát sinh (không phân bổ) thì
 Allocated = 0 và Balance = −(đã nghỉ) — đúng y bản HRMS.
 
+### Cả hai report: chỉ chạy cho nhân viên của mình
+
+Lọc thêm theo `Attendance Calculation Setting`:
+
+| Field | Tác dụng |
+|---|---|
+| `Employee ID Prefix` | chỉ nhận `Employee.name LIKE '<prefix>%'` (hiện `TIQN` — loại 17 mã `Intern-*`) |
+| `Exclude Employee IDs` | loại hẳn các mã liệt kê (hiện `TIQN-1080`, `TIQN-2039`, `Test-9999`) |
+
+Đây không phải tuỳ chọn hiển thị. `exclude_employee_ids` là nhân sự của **công ty khác** làm việc
+tại nhà máy — quẹt thẻ như mọi người nhưng không thuộc mình để quản lý — cộng vài bản ghi test còn
+sót. Report nào bỏ qua hai field này sẽ cho danh sách khác bảng công và khác headcount, mà HR
+không có cách nào biết vì sao lệch.
+
+Định nghĩa nằm ở **`overrides/employee_scope.py`**, dùng chung với `Leave Control Panel`. Đo trên
+site: 2.437 Employee → **2.417** trong phạm vi.
+
 ### `Employee Leave Balance`
 Giữ nguyên 8 cột và công thức.
 
-**Bỏ filter `Consolidate Leave Types`.** Filter đó gom dòng theo leave type và chèn một dòng tiêu
-đề cho mỗi nhóm — chỉ có nghĩa khi report trả **nhiều** leave type. Nay chỉ còn phép năm nên nó
-luôn sinh đúng một dòng tiêu đề thừa rồi thụt lề toàn bộ phần còn lại, mà bản gốc còn để
-`default: 1` (bật sẵn). Python bỏ qua giá trị filter; ô chọn được gỡ khỏi giao diện trong
-`overrides/report_js.py`.
+**`Consolidate Leave Types` — giữ, nhưng chỉ áp khi có nhiều leave type.** Filter đó gom dòng
+theo leave type và chèn một dòng tiêu đề cho mỗi nhóm. Bản gốc để `default: 1` và chỉ chặn bằng
+`len(active_employees) > 1`, nên khi report chạy **một** leave type (mặc định ở TIQN) nó sinh đúng
+một dòng tiêu đề vô nghĩa rồi thụt lề toàn bộ phần còn lại.
+
+Thêm điều kiện `len(leave_types) > 1`: chạy một loại thì bảng phẳng, xoá ô Leave Type thì gom nhóm
+y bản gốc. Ô chọn từng bị gỡ khỏi giao diện (hồi report bị khoá cứng ở một leave type) và nay đã
+được **trả lại**.
 
 **Nới hai cột định danh:** `Employee` 100 → **150**, `Employee Name` 100 → **300**. Bản gốc để
 cả hai 100px. Đo trên dữ liệu thật: tên dài nhất 26 ký tự ("Huỳnh Nguyễn Thị Kim Trang"), trung
@@ -138,10 +175,11 @@ overrides/leave_reports/
 ├── leave_report_core.py               # LeaveBalanceEngine — nạp 1 lần, tính trong bộ nhớ
 ├── employee_leave_balance.py          # execute + columns + get_data thay thế
 ├── employee_leave_balance_summary.py  # execute + columns + get_data thay thế
-├── test_leave_reports.py              # đối chiếu mới vs gốc (1.126 assert, 5 phần)
+├── test_leave_reports.py              # đối chiếu mới vs gốc (1.141 assert, 6 phần)
 └── leave_reports.md
 
 overrides/report_js.py                 # dùng chung — ĐÃ CHUYỂN RA NGOÀI (xem bên dưới)
+overrides/employee_scope.py            # dùng chung — "ai là nhân viên của mình"
 ```
 
 > ⚠ `report_js.py` **không còn nằm trong thư mục này**. Nó đã chuyển lên `overrides/report_js.py`
@@ -169,6 +207,12 @@ Nạp qua `overrides/__init__.py`. **Sửa Python phải `bench restart`.**
    (`query_report.py:199`) — file HRMS thì luôn có. Nên phải gán đè `get_script` rồi nối thêm JS.
    ⚠ Nhớ bọc `frappe.whitelist()` khi gán đè, và nhớ hàm đó chạy cho **mọi** report nên phần nối
    thêm phải bọc try/except riêng.
-6. `cf_expiry()` dùng `frappe.utils.nowdate()` để sao y HRMS. Biết là
+6. **Danh sách nhân viên trong test phải nằm TRONG phạm vi.** Bản mới trả rỗng cho người ngoài
+   phạm vi, nên nếu `emps` chứa họ thì vòng so sánh chạy 0 lần mà test **vẫn xanh** — mất sạch giá
+   trị đối chiếu. `test_leave_reports.py` lấy `emps` qua `scope_filters()` chính vì vậy.
+7. **Đừng lọc phạm vi *sau* khi đã lấy dữ liệu.** `custom_get_employees()` đưa điều kiện vào thẳng
+   query: lọc sau vẫn kéo về cả nghìn dòng thừa, và `emp_names` truyền cho engine phải là danh
+   sách **đã** lọc thì mới giảm được khối lượng ledger.
+8. `cf_expiry()` dùng `frappe.utils.nowdate()` để sao y HRMS. Biết là
    `System Settings.time_zone` từng tự nhảy về Asia/Kolkata — chỗ này vô hại vì TIQN có 0 dòng
    CF, nhưng nếu bật carry forward thì xem lại.

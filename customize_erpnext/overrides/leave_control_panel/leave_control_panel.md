@@ -177,9 +177,11 @@ Năm điểm dễ sai:
    field mới **phải** có handler riêng, nếu không tick vào mà danh sách không đổi — HR sẽ tưởng
    checkbox không có tác dụng.
 
-Bộ lọc theo `Attendance Calculation Setting` (`_attendance_setting_filters()`) dùng lại
-`get_attendance_settings()` + `get_excluded_employee_ids()` — **đừng tự viết tiêu chí mới**,
-để panel và engine chấm công không bao giờ lệch phạm vi nhân viên.
+Bộ lọc theo `Attendance Calculation Setting` nay chỉ là một dòng uỷ quyền cho
+**`overrides/employee_scope.py`** — một chỗ duy nhất trả lời "ai là nhân viên của mình", dùng
+chung với hai report số dư phép (`overrides/leave_reports/`). **Đừng tự viết tiêu chí mới** ở
+từng nơi: panel cấp phép, bảng công và report số dư mà lệch danh sách thì không ai lần ra được
+vì sao.
 
 Phần loại người đã có allocation (`get_employees_without_allocations`) là của HRMS,
 **không override** — đừng viết lại.
