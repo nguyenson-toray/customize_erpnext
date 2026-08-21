@@ -68,15 +68,28 @@ frappe.ui.form.on('Shoe Rack', {
     },
     
     // Compartment 1 - Employee
-    compartment_1_employee: function(frm) {
+   compartment_1_employee: function(frm) {
+        if (frm.doc.compartment_1_employee && frm.doc.compartment_1_unidentified) {
+            frm.set_value('compartment_1_unidentified', 0);
+        }
         update_status_auto(frm);
         check_left_employees(frm);
     },
-    
-    // Compartment 2 - Employee
+
     compartment_2_employee: function(frm) {
+        if (frm.doc.compartment_2_employee && frm.doc.compartment_2_unidentified) {
+            frm.set_value('compartment_2_unidentified', 0);
+        }
         update_status_auto(frm);
         check_left_employees(frm);
+    },
+
+    compartment_1_unidentified: function(frm) {
+        update_status_auto(frm);
+    },
+
+    compartment_2_unidentified: function(frm) {
+        update_status_auto(frm);
     },
     
     // Compartment 1 - External
@@ -201,8 +214,8 @@ function set_personnel_filters(frm) {
 function update_status_auto(frm) {
     if (frm.is_new()) return;
     
-    let has_comp1 = frm.doc.compartment_1_employee || frm.doc.compartment_1_external_personnel;
-    let has_comp2 = frm.doc.compartment_2_employee || frm.doc.compartment_2_external_personnel;
+    let has_comp1 = frm.doc.compartment_1_employee || frm.doc.compartment_1_external_personnel || frm.doc.compartment_1_unidentified;
+    let has_comp2 = frm.doc.compartment_2_employee || frm.doc.compartment_2_external_personnel || frm.doc.compartment_2_unidentified;
     
     let new_status;
     

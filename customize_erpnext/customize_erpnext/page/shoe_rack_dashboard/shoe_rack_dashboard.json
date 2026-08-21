@@ -5,13 +5,23 @@
  "doctype": "Page",
  "icon": "icon-grid",
  "idx": 0,
- "modified": "2025-12-03 09:38:42.684999",
+ "modified": "2026-08-04 10:17:57.420782",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "shoe-rack-dashboard",
  "owner": "Administrator",
  "page_name": "shoe-rack-dashboard",
- "roles": [],
+ "roles": [
+  {
+   "role": "HR User"
+  },
+  {
+   "role": "HR Manager"
+  },
+  {
+   "role": "Administrator"
+  }
+ ],
  "script": null,
  "standard": "Yes",
  "style": null,

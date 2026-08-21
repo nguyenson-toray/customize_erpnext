@@ -1212,6 +1212,62 @@
   transform: scale(0.95);
 }
 
+.mobile-rack-block-wrapper .rack-item.group-highlight {
+  border: 2px solid #7c3aed;
+  box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.35);
+  z-index: 2;
+}
+
+.mobile-rack-block-wrapper .rack-item.group-dimmed {
+  opacity: 0.25;
+  filter: grayscale(60%);
+}
+
+/* Rack search / gender filter — the match stays fully visible while everything
+   else fades right out, so only the racks you asked for read as "present". */
+.mobile-rack-block-wrapper .rack-item.filter-hit {
+  border: 2px solid #0ea5e9;
+  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.4);
+  opacity: 1;
+  filter: none;
+  z-index: 3;
+}
+
+.mobile-rack-block-wrapper .rack-item.filter-hidden {
+  opacity: 0.08;
+  filter: grayscale(100%);
+  pointer-events: none;
+}
+
+.rack-search-input {
+  width: 120px;
+  padding: 4px 8px;
+  font-size: 13px;
+  border: 1px solid #d1d5db;
+  border-radius: 5px;
+  outline: none;
+}
+
+.rack-search-input:focus {
+  border-color: #0ea5e9;
+  box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.2);
+}
+
+.rack-filter-clear-btn {
+  padding: 4px 10px;
+  font-size: 12px;
+  color: #6b7280;
+  background: #f3f4f6;
+  border: 1px solid #d1d5db;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.rack-filter-clear-btn:hover {
+  background: #e5e7eb;
+  color: #111827;
+}
+
 /* Pathway block trên mobile - trải rộng toàn bộ hàng */
 .mobile-pathway-item {
   width: 100%;
@@ -1335,6 +1391,33 @@
   color: #111;
 }
 
+/* Mode tabs */
+.assign-mode-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 10px 24px 0;
+  border-bottom: 1px solid #f3f4f6;
+  flex-shrink: 0;
+}
+.assign-mode-tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #6b7280;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+.assign-mode-tab:hover {
+  color: #374151;
+}
+.assign-mode-tab.active {
+  color: #7c3aed;
+  border-bottom-color: #7c3aed;
+}
+
 /* Date row */
 .assign-date-row {
   display: flex;
@@ -1375,6 +1458,20 @@
 }
 .assign-load-btn:hover:not(:disabled) {
   background: #6d28d9;
+}
+
+.group-filter-select {
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  padding: 5px 8px;
+  font-size: 13px;
+  outline: none;
+  background: white;
+  color: #374151;
+}
+.group-filter-select:focus {
+  border-color: #7c3aed;
+  box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.2);
 }
 .assign-load-btn:disabled {
   opacity: 0.5;
@@ -1487,6 +1584,23 @@
 .assign-row-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+.assign-row-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+/* Rack is physically taken by an unidentified person -> move to another rack */
+.assign-row-btn.swap {
+  background: #f59e0b;
+}
+.assign-row-btn.swap:hover:not(:disabled) {
+  background: #d97706;
+}
+.assign-swapped-from {
+  margin-top: 3px;
+  font-size: 11px;
+  color: #b45309;
 }
 
 /* Toolbar */

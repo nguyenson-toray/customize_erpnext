@@ -147,7 +147,6 @@ def load_rack_layout():
                 "rack_display_name",
                 "status",
                 "compartments",
-                "gender",
                 "rack_type",
                 "block_id",
                 "block_index",
@@ -335,7 +334,7 @@ def setup_assignment_field():
             "fieldname": "do_not_auto_suggest",
             "fieldtype": "Check",
             "label": "Do Not Auto Suggest",
-            "insert_after": "gender",
+            "insert_after": "user_type",
             "description": "Exclude this rack from auto-suggestion to new employees"
         })
         doc.insert(ignore_permissions=True)
@@ -343,6 +342,36 @@ def setup_assignment_field():
         return {"success": True, "message": "Field added successfully"}
     except Exception as e:
         frappe.log_error(f"setup_assignment_field error: {str(e)}")
+        return {"success": False, "message": str(e)}
+
+
+@frappe.whitelist()
+def setup_employee_do_not_suggest_field():
+    """
+    Add custom_do_not_suggest_shoe_rack Check field to Employee doctype.
+    Run once: bench --site <site> execute customize_erpnext.api.api_endpoints.setup_employee_do_not_suggest_field
+    """
+    try:
+        if frappe.db.exists("Custom Field", {"dt": "Employee", "fieldname": "custom_do_not_suggest_shoe_rack"}):
+            return {"success": True, "message": "Field already exists"}
+
+        doc = frappe.get_doc({
+            "doctype": "Custom Field",
+            "dt": "Employee",
+            "fieldname": "custom_do_not_suggest_shoe_rack",
+            "fieldtype": "Check",
+            "label": "Do Not Suggest Shoe Rack",
+            "insert_after": "custom_shoe_rack",
+            "in_list_view": 1,
+            "in_standard_filter": 1,
+            "default": "0",
+            "description": "Exclude this employee from the Shoe Rack Suggest Slots feature"
+        })
+        doc.insert(ignore_permissions=True)
+        frappe.db.commit()
+        return {"success": True, "message": "Field added successfully"}
+    except Exception as e:
+        frappe.log_error(f"setup_employee_do_not_suggest_field error: {str(e)}")
         return {"success": False, "message": str(e)}
 
 
@@ -411,11 +440,187 @@ def get_today_joiners(date=None):
 
 
 @frappe.whitelist()
+def get_unassigned_employees():
+    """
+    Return every Active employee who does not currently occupy any Shoe Rack
+    compartment, regardless of their date_of_joining.
+
+    Used by the "All Unassigned" mode of the Assign Shoe Racks panel to catch
+    employees who slipped through - joined a while ago but were never given
+    a rack (as opposed to get_today_joiners, which only looks at one day).
+    """
+    try:
+        employees = frappe.db.sql(
+            """
+            SELECT emp.name, emp.employee_name, emp.gender, emp.date_of_joining, emp.department
+            FROM `tabEmployee` emp
+            WHERE emp.status = 'Active'
+              AND NOT EXISTS (
+                  SELECT 1 FROM `tabShoe Rack` sr
+                  WHERE sr.compartment_1_employee = emp.name
+                     OR sr.compartment_2_employee = emp.name
+              )
+            ORDER BY emp.date_of_joining DESC
+            """,
+            as_dict=True
+        )
+
+        # Same shape as get_today_joiners's employees list, so the frontend
+        # can feed either source into the same table/actions.
+        for e in employees:
+            e["already_assigned"] = False
+            e["existing_rack_name"] = None
+            e["existing_rack_display_name"] = None
+            e["existing_compartment"] = None
+
+        return {
+            "success": True,
+            "employees": employees,
+            "total_unassigned": len(employees)
+        }
+
+    except Exception as e:
+        frappe.log_error(f"get_unassigned_employees error: {str(e)}")
+        return {"success": False, "employees": [], "message": str(e)}
+
+
+def _build_slot_pools(exclude_slots=None, exclude_racks=None):
+    """
+    Build the two pools of free Standard Employee compartments used by the
+    suggestion engine.
+
+    A compartment counts as taken when it holds an Employee, an External
+    Personnel, OR when it is flagged "Chưa xác định (Unknown)" - the flag is
+    exactly how the floor team records "someone we cannot identify already
+    put their shoes here", so those slots must never be suggested again.
+
+    Args:
+        exclude_slots: iterable of (rack_name, compartment) tuples to skip
+        exclude_racks: iterable of rack names to skip entirely
+
+    Returns:
+        (paired_slots, empty_slots)
+        paired_slots -> free compartment of a rack that already has one occupant
+        empty_slots  -> free compartment of a rack with nobody in it yet
+        Each slot: {"rack_name", "rack_display_name", "compartment", "required_gender"}
+    """
+    exclude_slots = set(exclude_slots or [])
+    exclude_racks = set(exclude_racks or [])
+
+    _rack_meta = frappe.get_meta("Shoe Rack")
+    _rack_fields = [
+        "name", "rack_display_name", "compartments",
+        "compartment_1_employee", "compartment_2_employee"
+    ]
+    for _optional in (
+        "do_not_auto_suggest",
+        "compartment_1_external_personnel", "compartment_2_external_personnel",
+        "compartment_1_unidentified", "compartment_2_unidentified",
+    ):
+        if _rack_meta.has_field(_optional):
+            _rack_fields.append(_optional)
+
+    available_racks = frappe.get_all(
+        "Shoe Rack",
+        filters={"rack_type": "Standard Employee"},
+        fields=_rack_fields,
+        order_by="name asc",
+        limit_page_length=0
+    )
+
+    # Exclude racks marked do_not_auto_suggest (safe if field absent)
+    filtered_racks = [
+        r for r in available_racks
+        if not r.get("do_not_auto_suggest") and r.name not in exclude_racks
+    ]
+
+    # Look up the gender of anyone already occupying a compartment, in bulk
+    occupant_ids = set()
+    for r in filtered_racks:
+        if r.get("compartment_1_employee"):
+            occupant_ids.add(r["compartment_1_employee"])
+        if r.get("compartment_2_employee"):
+            occupant_ids.add(r["compartment_2_employee"])
+
+    occupant_gender = {}
+    occupant_no_pair = set()
+    if occupant_ids:
+        _occ_fields = ["name", "gender"]
+        if frappe.get_meta("Employee").has_field("custom_do_not_suggest_shoe_rack"):
+            _occ_fields.append("custom_do_not_suggest_shoe_rack")
+        for e in frappe.get_all(
+            "Employee",
+            filters=[["name", "in", list(occupant_ids)]],
+            fields=_occ_fields,
+            limit_page_length=0
+        ):
+            occupant_gender[e.name] = e.gender or ""
+            if e.get("custom_do_not_suggest_shoe_rack"):
+                occupant_no_pair.add(e.name)
+
+    # A paired slot is dropped entirely (not offered to anyone) when its
+    # existing occupant is flagged "Do Not Suggest Shoe Rack".
+    paired_slots = []
+    empty_slots = []
+
+    for rack in filtered_racks:
+        comp_count = int(rack.get("compartments") or 1)
+        taken = {}
+        for comp in (1, 2):
+            taken[comp] = bool(
+                rack.get(f"compartment_{comp}_employee")
+                or rack.get(f"compartment_{comp}_external_personnel")
+                or rack.get(f"compartment_{comp}_unidentified")
+            )
+
+        for comp in (1, 2):
+            if comp == 2 and comp_count != 2:
+                continue
+            if taken[comp] or (rack.name, comp) in exclude_slots:
+                continue
+
+            other = 2 if comp == 1 else 1
+            other_emp = rack.get(f"compartment_{other}_employee") if comp_count == 2 else None
+            if other_emp and other_emp in occupant_no_pair:
+                continue  # rack-mate opted out of being paired with a new person
+
+            occupied_other = taken[other] if comp_count == 2 else False
+            slot = {
+                "rack_name": rack.name,
+                "rack_display_name": rack.rack_display_name,
+                "compartment": comp,
+                "required_gender": occupant_gender.get(other_emp, "") if other_emp else "",
+            }
+            (paired_slots if occupied_other else empty_slots).append(slot)
+
+    return paired_slots, empty_slots
+
+
+@frappe.whitelist()
 def suggest_shoe_racks(employees):
     """
     Suggest the first available Standard Employee rack slot for each employee.
-    Matches on gender when both employee and rack have a gender set.
+
+    Racks no longer carry a fixed gender field - the only rule is that the
+    two people sharing a rack should be the same gender. Slots are ranked:
+
+      1. The open compartment of a rack that already has one occupant of the
+         SAME gender as the employee - fills the rack without creating a
+         mismatch.
+      2. A fully empty rack (nobody in either compartment yet).
+      3. Last resort: any remaining open compartment, even if its existing
+         occupant is a different gender, so nobody is left unassigned. Racks
+         assigned this way will show up in the "Tủ lệch giới tính" list for
+         manual follow-up.
+
     Excludes racks with do_not_auto_suggest = 1.
+
+    If an occupied compartment's occupant has
+    Employee.custom_do_not_suggest_shoe_rack = 1, the rack's other (free)
+    compartment is NOT offered to anyone else - that employee's rack is
+    protected from being auto-paired with a new person. The flagged
+    employee themselves is unaffected as a suggestion target (if they don't
+    have a rack yet, they can still be suggested one normally).
 
     Args:
         employees: JSON list of {"name": "...", "employee_name": "...", "gender": "..."}
@@ -427,57 +632,16 @@ def suggest_shoe_racks(employees):
         if isinstance(employees, str):
             employees = json.loads(employees)
 
-        _rack_fields = [
-            "name", "rack_display_name", "gender", "compartments",
-            "compartment_1_employee", "compartment_2_employee"
-        ]
-        _dna_exists = frappe.get_meta("Shoe Rack").has_field("do_not_auto_suggest")
-        if _dna_exists:
-            _rack_fields.append("do_not_auto_suggest")
-
-        available_racks = frappe.get_all(
-            "Shoe Rack",
-            filters={"rack_type": "Standard Employee"},
-            fields=_rack_fields,
-            order_by="rack_display_name asc",
-            limit_page_length=0
-        )
-
-        # Exclude racks marked do_not_auto_suggest (safe if field absent)
-        filtered_racks = [r for r in available_racks if not r.get("do_not_auto_suggest")]
-
-        # Build ordered list of available (rack, compartment) slots
-        available_slots = []
-        for rack in filtered_racks:
-            comp_count = int(rack.get("compartments") or 1)
-            gender = rack.get("gender") or ""
-
-            if not rack.get("compartment_1_employee"):
-                available_slots.append({
-                    "rack_name": rack.name,
-                    "rack_display_name": rack.rack_display_name,
-                    "compartment": 1,
-                    "gender": gender
-                })
-
-            if comp_count == 2 and not rack.get("compartment_2_employee"):
-                available_slots.append({
-                    "rack_name": rack.name,
-                    "rack_display_name": rack.rack_display_name,
-                    "compartment": 2,
-                    "gender": gender
-                })
+        paired_slots, empty_slots = _build_slot_pools()
 
         used_slots = set()
 
-        def _take_slot(emp_gender, gender_strict):
-            """Return the first free slot. When gender_strict, only same-gender
-            slots are considered (used for the preference pass)."""
-            for slot in available_slots:
+        def _take_slot(emp_gender, pool, gender_strict):
+            for slot in pool:
                 slot_key = (slot["rack_name"], slot["compartment"])
                 if slot_key in used_slots:
                     continue
-                if gender_strict and emp_gender and slot["gender"] and emp_gender != slot["gender"]:
+                if gender_strict and slot["required_gender"] and emp_gender and slot["required_gender"] != emp_gender:
                     continue
                 used_slots.add(slot_key)
                 return slot
@@ -485,23 +649,28 @@ def suggest_shoe_racks(employees):
 
         emp_meta = []
         for emp in employees:
+            emp_id = emp.get("name") or emp.get("employee")
             emp_meta.append({
-                "id": emp.get("name") or emp.get("employee"),
-                "name": emp.get("employee_name") or (emp.get("name") or emp.get("employee")),
+                "id": emp_id,
+                "name": emp.get("employee_name") or emp_id,
                 "gender": (emp.get("gender") or "").strip(),
             })
 
         assigned_slot = {}
 
-        # Pass 1: prefer a same-gender empty slot for each employee.
+        # Pass 1: fill a rack that already has a same-gender occupant (no mismatch created)
         for meta in emp_meta:
-            assigned_slot[meta["id"]] = _take_slot(meta["gender"], gender_strict=True)
+            assigned_slot[meta["id"]] = _take_slot(meta["gender"], paired_slots, gender_strict=True)
 
-        # Pass 2: any employee still without a slot gets the next free
-        # Standard Employee slot regardless of gender (only condition: rack_type).
+        # Pass 2: put into a fully empty rack
         for meta in emp_meta:
             if assigned_slot[meta["id"]] is None:
-                assigned_slot[meta["id"]] = _take_slot(meta["gender"], gender_strict=False)
+                assigned_slot[meta["id"]] = _take_slot(meta["gender"], empty_slots, gender_strict=False)
+
+        # Pass 3: last resort - any remaining open compartment, even mixed-gender
+        for meta in emp_meta:
+            if assigned_slot[meta["id"]] is None:
+                assigned_slot[meta["id"]] = _take_slot(meta["gender"], paired_slots, gender_strict=False)
 
         suggestions = []
         for meta in emp_meta:
@@ -584,6 +753,245 @@ def assign_shoe_racks(assignments):
 
 
 @frappe.whitelist()
+def swap_shoe_rack(employee, rack_name, compartment, exclude_slots=None):
+    """
+    Move an employee off a rack compartment that turns out to be physically
+    occupied, and mark that compartment as "Chưa xác định (Unknown)".
+
+    Real-world case: "Suggest Slots" proposes rack N compartment 1, but when
+    the team walks the floor someone's shoes are already in there and nobody
+    knows whose they are. This endpoint, in one step:
+
+      1. Flags the old compartment `compartment_N_unidentified = 1` so the
+         suggestion engine never offers it again (and the rack status counts
+         it as occupied), removing the employee from it when the assignment
+         had already been written to the DB.
+      2. Finds another slot for the employee using the normal suggestion
+         ranking, skipping the whole old rack plus `exclude_slots`.
+      3. Re-assigns the employee to that new slot if - and only if - they
+         were really assigned to the old one in the DB. A row that was only
+         a pending suggestion stays pending on its new slot.
+
+    The old compartment is NOT flagged when it holds a different, known
+    employee: that is a stale suggestion, not an unidentified occupant, so
+    the employee is simply pointed at another slot.
+
+    Args:
+        employee: Employee ID being moved.
+        rack_name: Shoe Rack the employee should be moved off.
+        compartment: 1 or 2 - the compartment to mark Unknown.
+        exclude_slots: optional JSON list of {"rack_name", "compartment"}
+            (or [rack_name, compartment] pairs) reserved by other rows of
+            the panel, so two people never get pointed at the same slot.
+
+    Returns:
+        {
+            "success": bool,
+            "marked_unknown": bool,        # old compartment flagged?
+            "released": bool,              # employee removed from old slot?
+            "assigned": bool,              # written into the new slot?
+            "suggested": bool,             # a new slot was found?
+            "rack_name", "rack_display_name", "compartment",   # new slot
+            "old_rack_display_name",
+            "message": str
+        }
+    """
+    try:
+        compartment = int(compartment)
+        if compartment not in (1, 2):
+            return {"success": False, "message": f"Invalid compartment: {compartment}"}
+
+        if not employee or not frappe.db.exists("Employee", employee):
+            return {"success": False, "message": f"Employee {employee} not found"}
+
+        if not rack_name or not frappe.db.exists("Shoe Rack", rack_name):
+            return {"success": False, "message": f"Rack {rack_name} not found"}
+
+        if isinstance(exclude_slots, str):
+            exclude_slots = json.loads(exclude_slots or "[]")
+
+        skip = set()
+        for s in (exclude_slots or []):
+            try:
+                if isinstance(s, dict):
+                    skip.add((s.get("rack_name"), int(s.get("compartment"))))
+                else:
+                    skip.add((s[0], int(s[1])))
+            except (TypeError, ValueError, IndexError):
+                continue
+
+        rack = frappe.get_doc("Shoe Rack", rack_name)
+        emp_field = f"compartment_{compartment}_employee"
+        flag_field = f"compartment_{compartment}_unidentified"
+        old_display = rack.rack_display_name or rack_name
+        occupant = rack.get(emp_field)
+
+        marked_unknown = False
+        released = False
+
+        if occupant and occupant != employee:
+            # Someone else legitimately holds the slot - leave the rack alone.
+            note = (f"Rack {old_display} compartment {compartment} is already "
+                    f"assigned to {occupant}, so it was not marked Unknown.")
+        else:
+            if occupant == employee:
+                rack.set(emp_field, None)
+                released = True
+            rack.set(flag_field, 1)
+            rack.save(ignore_permissions=True)
+            marked_unknown = True
+            note = f"Rack {old_display} compartment {compartment} marked Unknown."
+
+        # Find a replacement slot - the whole old rack is off the table
+        paired_slots, empty_slots = _build_slot_pools(
+            exclude_slots=skip, exclude_racks={rack_name}
+        )
+
+        gender = (frappe.db.get_value("Employee", employee, "gender") or "").strip()
+
+        def _pick(pool, gender_strict):
+            for slot in pool:
+                if gender_strict and slot["required_gender"] and gender \
+                        and slot["required_gender"] != gender:
+                    continue
+                return slot
+            return None
+
+        # Same ranking as suggest_shoe_racks: same-gender rack-mate, then a
+        # fully empty rack, then any open compartment as a last resort.
+        new_slot = (_pick(paired_slots, True)
+                    or _pick(empty_slots, False)
+                    or _pick(paired_slots, False))
+
+        if not new_slot:
+            frappe.db.commit()
+            return {
+                "success": True,
+                "marked_unknown": marked_unknown,
+                "released": released,
+                "assigned": False,
+                "suggested": False,
+                "rack_name": None,
+                "rack_display_name": None,
+                "compartment": None,
+                "old_rack_display_name": old_display,
+                "message": f"{note} No free rack left for {employee}."
+            }
+
+        assigned = False
+        if released:
+            # The employee really held the old slot, so keep them assigned.
+            new_rack = frappe.get_doc("Shoe Rack", new_slot["rack_name"])
+            new_field = f"compartment_{new_slot['compartment']}_employee"
+            if new_rack.get(new_field):
+                frappe.db.commit()
+                return {
+                    "success": False,
+                    "marked_unknown": marked_unknown,
+                    "released": released,
+                    "assigned": False,
+                    "suggested": False,
+                    "rack_name": None,
+                    "rack_display_name": None,
+                    "compartment": None,
+                    "old_rack_display_name": old_display,
+                    "message": (f"{note} But rack {new_rack.rack_display_name} "
+                                f"compartment {new_slot['compartment']} was taken "
+                                f"meanwhile - {employee} now has no rack, please "
+                                f"run Suggest Slots again.")
+                }
+            new_rack.set(new_field, employee)
+            new_rack.save(ignore_permissions=True)
+            assigned = True
+
+        frappe.db.commit()
+
+        return {
+            "success": True,
+            "marked_unknown": marked_unknown,
+            "released": released,
+            "assigned": assigned,
+            "suggested": True,
+            "rack_name": new_slot["rack_name"],
+            "rack_display_name": new_slot["rack_display_name"],
+            "compartment": new_slot["compartment"],
+            "old_rack_display_name": old_display,
+            "message": (f"{note} {employee} moved to rack "
+                        f"{new_slot['rack_display_name']} compartment "
+                        f"{new_slot['compartment']}.")
+        }
+
+    except Exception as e:
+        frappe.db.rollback()
+        frappe.log_error(f"swap_shoe_rack error: {str(e)}")
+        return {"success": False, "message": str(e)}
+
+
+@frappe.whitelist()
+def bulk_set_do_not_suggest_shoe_rack(custom_group, value=1, active_only=1):
+    """
+    Bulk set (or clear) Employee.custom_do_not_suggest_shoe_rack for every
+    employee in a given Group, so the Shoe Rack "Suggest Slots" feature
+    skips them without having to tick the field one employee at a time.
+
+    Args:
+        custom_group: Group name (Employee.custom_group) to match (required).
+        value: 1 to flag "do not suggest", 0 to clear the flag. Default 1.
+        active_only: If truthy (default), only Active employees are updated.
+
+    Returns:
+        {"success": True, "updated": N}
+    """
+    if not frappe.has_permission("Employee", "write"):
+        frappe.throw(_("Not permitted to update Employee"), frappe.PermissionError)
+
+    if not custom_group:
+        frappe.throw(_("Group is required"))
+
+    if not frappe.db.exists("Group", custom_group):
+        frappe.throw(_("Group {0} not found").format(custom_group))
+
+    value = 1 if int(value) else 0
+    filters = {"custom_group": custom_group}
+    if int(active_only or 0):
+        filters["status"] = "Active"
+
+    matched = frappe.get_all("Employee", filters=filters, pluck="name")
+    if not matched:
+        return {"success": True, "updated": 0}
+
+    frappe.db.set_value("Employee", filters, "custom_do_not_suggest_shoe_rack", value)
+    frappe.db.commit()
+
+    return {"success": True, "updated": len(matched)}
+
+
+@frappe.whitelist()
+def get_employees_by_group(custom_group):
+    """
+    Return the ids of every Employee in a given Group, for the Shoe Rack
+    Layout Manager's "highlight by Group" filter. Not restricted to Active
+    employees so racks still held by a since-left member of the group are
+    highlighted too.
+
+    Args:
+        custom_group: Group name (Employee.custom_group).
+
+    Returns:
+        {"success": True, "employees": ["EMP-0001", ...]}
+    """
+    if not custom_group:
+        return {"success": True, "employees": []}
+
+    employees = frappe.get_all(
+        "Employee",
+        filters={"custom_group": custom_group},
+        pluck="name"
+    )
+    return {"success": True, "employees": employees}
+
+
+@frappe.whitelist()
 def get_left_employees_in_racks():
     """
     Return all shoe rack compartments that are still assigned to an employee
@@ -648,7 +1056,7 @@ def get_left_employees_in_racks():
                         "department": emp.get("department") or "",
                     })
 
-        items.sort(key=lambda x: (x["rack_display_name"], x["compartment"]))
+        items.sort(key=lambda x: (x["rack_name"], x["compartment"]))
         return {"success": True, "items": items, "total": len(items)}
 
     except Exception as e:

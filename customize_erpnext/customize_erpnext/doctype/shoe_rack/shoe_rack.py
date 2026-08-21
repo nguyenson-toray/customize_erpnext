@@ -8,6 +8,29 @@ import re
 class ShoeRack(Document):
     pass
 
+
+# Fields holding a person, per compartment: (link field, name field, gender field)
+COMPARTMENT_FIELDS = {
+    "Employee": {
+        1: ("compartment_1_employee", "compartment_1_employee_name", "gender_employee_1"),
+        2: ("compartment_2_employee", "compartment_2_employee_name", "employee_2_gender"),
+    },
+    "External Personnel": {
+        1: ("compartment_1_external_personnel", None, None),
+        2: ("compartment_2_external_personnel", None, None),
+    },
+}
+
+# When ON, a person already sitting in another rack is MOVED here instead of the
+# save being blocked. Data Import turns it on automatically (frappe.flags.in_import),
+# because the imported list is meant to be the new source of truth. A bench script
+# can opt in with: frappe.flags.shoe_rack_auto_reassign = True
+AUTO_REASSIGN_FLAG = "shoe_rack_auto_reassign"
+
+
+def is_auto_reassign_mode():
+    return bool(frappe.flags.in_import or frappe.flags.get(AUTO_REASSIGN_FLAG))
+
 def validate(doc, method):
     """Validate Shoe Rack before save"""
     
@@ -37,12 +60,51 @@ def validate(doc, method):
     if doc.compartments == "1":
         doc.compartment_2_employee = None
         doc.compartment_2_external_personnel = None
-    
+
+    enforce_unidentified_flags(doc)
+
     # Auto update status
     update_status(doc)
+
+    # Warn (do not block) if the two occupants of this rack are different genders
+    check_mixed_gender(doc)
     
     # ✨ Auto-generate display name
     generate_display_name(doc)
+
+def enforce_unidentified_flags(doc):
+    """Slot có người thật thì không được tick Unknown - tự bỏ tick nếu có xung đột."""
+    if doc.compartment_1_employee or doc.compartment_1_external_personnel:
+        doc.compartment_1_unidentified = 0
+    if doc.compartment_2_employee or doc.compartment_2_external_personnel:
+        doc.compartment_2_unidentified = 0
+    # Tủ 1 ngăn thì ngăn 2 không tồn tại - cờ Unknown trên đó là vô nghĩa và
+    # chỉ làm nhiễu report get_unidentified_occupant_racks.
+    if doc.compartments == "1":
+        doc.compartment_2_unidentified = 0
+
+
+def compute_status(compartments, has_comp1, has_comp2):
+    """Status string từ tình trạng 2 ngăn. Nguồn duy nhất cho mọi chỗ tính status."""
+    if compartments == "1":
+        return "1/1" if has_comp1 else "0/1"
+
+    total_used = (1 if has_comp1 else 0) + (1 if has_comp2 else 0)
+    if total_used == 0:
+        return "0/2"
+    if total_used == 1:
+        return "1/2"
+    return "2/2"
+
+
+def update_status(doc):
+    """Auto update status - coi 'unidentified' như đã chiếm chỗ"""
+    has_comp1 = bool(doc.compartment_1_employee or doc.compartment_1_external_personnel
+                     or doc.compartment_1_unidentified)
+    has_comp2 = bool(doc.compartment_2_employee or doc.compartment_2_external_personnel
+                     or doc.compartment_2_unidentified)
+
+    doc.status = compute_status(doc.compartments, has_comp1, has_comp2)
 
 def generate_display_name(doc):
     """
@@ -80,94 +142,322 @@ def clear_incompatible_assignments(doc):
         doc.compartment_1_employee = None
         doc.compartment_2_employee = None
 
+def get_person_name(person_id, person_doctype):
+    if person_doctype == "Employee":
+        return frappe.db.get_value("Employee", person_id, "employee_name") or person_id
+    return frappe.db.get_value("External Personnel", person_id, "full_name") or person_id
+
+
 def check_duplicate_assignment(doc):
-    """Check if employee/external personnel is already assigned to another Shoe Rack"""
+    """One person = one rack.
+
+    Normal (manual) save: block the save and point at the rack already holding them.
+    Auto-reassign mode (Data Import): the incoming list wins - the person is pulled
+    out of the old rack instead, and the move is recorded on doc.flags so on_update
+    can log it.
+    """
+
+    person_doctype = "Employee" if doc.user_type == "Employee" else "External Personnel"
+    f1 = COMPARTMENT_FIELDS[person_doctype][1][0]
+    f2 = COMPARTMENT_FIELDS[person_doctype][2][0]
 
     checks = []
+    if doc.get(f1):
+        checks.append((doc.get(f1), _("Compartment 1"), person_doctype))
+    if doc.get(f2):
+        checks.append((doc.get(f2), _("Compartment 2"), person_doctype))
 
-    if doc.user_type == "Employee":
-        if doc.compartment_1_employee:
-            checks.append((doc.compartment_1_employee, "Compartment 1", "Employee"))
-        if doc.compartment_2_employee:
-            checks.append((doc.compartment_2_employee, "Compartment 2", "Employee"))
-    else:
-        if doc.compartment_1_external_personnel:
-            checks.append((doc.compartment_1_external_personnel, "Compartment 1", "External Personnel"))
-        if doc.compartment_2_external_personnel:
-            checks.append((doc.compartment_2_external_personnel, "Compartment 2", "External Personnel"))
+    # Same person in BOTH compartments of this very rack: always an error. Moving
+    # them somewhere else cannot fix it, so auto-reassign must not swallow it.
+    if len(checks) == 2 and checks[0][0] == checks[1][0]:
+        person_id = checks[0][0]
+        frappe.throw(_("{0} ({1}) is assigned to both compartments of this rack.").format(
+            get_person_name(person_id, person_doctype), person_id))
 
+    auto = is_auto_reassign_mode()
     current_name = doc.name or ""
 
     for person_id, compartment_label, person_doctype in checks:
-        if person_doctype == "Employee":
-            existing = frappe.db.sql("""
-                SELECT name, rack_display_name FROM `tabShoe Rack`
-                WHERE name != %s
-                AND (compartment_1_employee = %s OR compartment_2_employee = %s)
-                LIMIT 1
-            """, (current_name, person_id, person_id), as_dict=True)
-            person_name = frappe.db.get_value("Employee", person_id, "employee_name") or person_id
-        else:
-            existing = frappe.db.sql("""
-                SELECT name, rack_display_name FROM `tabShoe Rack`
-                WHERE name != %s
-                AND (compartment_1_external_personnel = %s OR compartment_2_external_personnel = %s)
-                LIMIT 1
-            """, (current_name, person_id, person_id), as_dict=True)
-            person_name = frappe.db.get_value("External Personnel", person_id, "full_name") or person_id
+        existing = frappe.get_all("Shoe Rack",
+            filters={"name": ["!=", current_name]},
+            or_filters={f1: person_id, f2: person_id},
+            fields=["name", "rack_display_name"],
+            limit_page_length=0,
+        )
 
-        if existing:
-            rack_name = existing[0].name
-            rack_display = existing[0].rack_display_name or rack_name
+        if not existing:
+            continue
+
+        person_name = get_person_name(person_id, person_doctype)
+
+        if not auto:
+            rack_display = existing[0].rack_display_name or existing[0].name
             frappe.throw(_(
-                "{0}: {1} ({2}) đang được xếp tại Shoe Rack <b>{3}</b>. "
-                "Không thể xếp vào 2 rack khác nhau."
+                "{0}: {1} ({2}) is already assigned to Shoe Rack <b>{3}</b>. "
+                "One person cannot be in two racks."
             ).format(compartment_label, person_name, person_id, rack_display))
 
+        for old_rack in existing:
+            for compartment in release_person_from_rack(old_rack.name, person_id, person_doctype):
+                doc.flags.rack_reassignments = (doc.flags.rack_reassignments or []) + [{
+                    "person": person_id,
+                    "person_name": person_name,
+                    "from_rack": old_rack.name,
+                    "from_rack_display": old_rack.rack_display_name or old_rack.name,
+                    "from_compartment": compartment,
+                    "to_compartment": compartment_label,
+                }]
 
-def validate_all_gender_matches(doc):
-    """Validate gender for compartments - Only for Employee racks"""
-    
-    # Skip validation for External racks
-    if doc.naming_series != "RACK-":
+
+def release_person_from_rack(rack_name, person_id, person_doctype):
+    """Empty every compartment of `rack_name` currently holding `person_id`.
+
+    Written with db.set_value, not doc.save: the old rack must not re-run validate
+    (it would recurse back into this check) and its `modified` stamp should not
+    matter for a row the import never mentioned. Status is recomputed here because
+    nothing else will do it for that rack.
+    """
+    slots = COMPARTMENT_FIELDS[person_doctype]
+
+    rack = frappe.db.get_value("Shoe Rack", rack_name, [
+        "compartments",
+        "compartment_1_employee", "compartment_2_employee",
+        "compartment_1_external_personnel", "compartment_2_external_personnel",
+        "compartment_1_unidentified", "compartment_2_unidentified",
+    ], as_dict=True)
+
+    if not rack:
+        return []
+
+    updates = {}
+    released = []
+
+    for compartment, (link_field, name_field, gender_field) in slots.items():
+        if rack.get(link_field) != person_id:
+            continue
+        updates[link_field] = None
+        # Data fields get "" not None: gender_employee_1 is not_nullable, so a
+        # NULL write blows up with IntegrityError 1048.
+        if name_field:
+            updates[name_field] = ""
+        if gender_field:
+            updates[gender_field] = ""
+        rack[link_field] = None
+        released.append(compartment)
+
+    if not updates:
+        return []
+
+    has_comp1 = bool(rack.compartment_1_employee or rack.compartment_1_external_personnel
+                     or rack.compartment_1_unidentified)
+    has_comp2 = bool(rack.compartment_2_employee or rack.compartment_2_external_personnel
+                     or rack.compartment_2_unidentified)
+    updates["status"] = compute_status(rack.compartments, has_comp1, has_comp2)
+
+    frappe.db.set_value("Shoe Rack", rack_name, updates)
+
+    return released
+
+
+def get_evicted_occupants(doc):
+    """People who sat in THIS rack before the save and are in no compartment after.
+
+    An import that overwrites a compartment silently leaves the previous occupant
+    with no rack at all - that person is usually not in the import file, so nothing
+    else would ever mention them. Worth a line in the log.
+    """
+    before = doc.get_doc_before_save()
+    if not before:
+        return []
+
+    all_fields = [f[0] for slots in COMPARTMENT_FIELDS.values() for f in slots.values()]
+    now = {doc.get(f) for f in all_fields if doc.get(f)}
+
+    evicted = []
+    for person_doctype, slots in COMPARTMENT_FIELDS.items():
+        for link_field, _name_field, _gender_field in slots.values():
+            person_id = before.get(link_field)
+            if person_id and person_id not in now:
+                evicted.append((person_id, person_doctype))
+
+    return evicted
+
+
+def log_reassignments(doc):
+    """Leave an audit trail of everyone this save moved in or pushed out.
+
+    Only in auto-reassign mode: a manual edit needs no explanation, the person
+    doing it is looking straight at the form.
+    """
+    if not is_auto_reassign_mode():
         return
-    
-    # Only validate for Employee racks
-    if doc.naming_series == "RACK-":
-        if doc.compartment_1_employee:
-            validate_gender_match(doc, doc.compartment_1_employee, "Employee", "Compartment 1")
-        
-        if doc.compartment_2_employee:
-            validate_gender_match(doc, doc.compartment_2_employee, "Employee", "Compartment 2")
 
-def validate_gender_match(doc, personnel_id, personnel_doctype, compartment_name):
-    """Validate gender matches between personnel and rack"""
-    
-    personnel_gender = frappe.db.get_value(personnel_doctype, personnel_id, "gender")
-    
-    if personnel_gender and personnel_gender != doc.gender:
-        personnel_name = frappe.db.get_value("Employee", personnel_id, "employee_name")
-        
-        frappe.throw(_(
-            "{0}: {1} is {2}, but this rack is for {3}. "
-            "Please select a {4} rack or choose a different person."
-        ).format(compartment_name, personnel_name, personnel_gender, doc.gender, personnel_gender))
+    moves = doc.flags.rack_reassignments or []
+    evicted = get_evicted_occupants(doc)
+    if not moves and not evicted:
+        return
 
-def update_status(doc):
-    """Auto update status"""
-    has_comp1 = 1 if (doc.compartment_1_employee or doc.compartment_1_external_personnel) else 0
-    has_comp2 = 1 if (doc.compartment_2_employee or doc.compartment_2_external_personnel) else 0
-    
-    if doc.compartments == "1":
-        doc.status = "1/1" if has_comp1 else "0/1"
+    lines = []
+
+    for person_id, person_doctype in evicted:
+        lines.append(_("{0} ({1}) no longer has a compartment in this rack.").format(
+            get_person_name(person_id, person_doctype), person_id))
+
+    for m in moves:
+        lines.append(_("{0} ({1}) was removed from rack {2} (compartment {3}) and placed in {4} of this rack.").format(
+            m["person_name"], m["person"], m["from_rack_display"],
+            m["from_compartment"], m["to_compartment"]))
+
+    text = "<br>".join(lines)
+
+    try:
+        doc.add_comment("Info", text)
+    except Exception:
+        # An audit comment must never be the reason an import row fails.
+        frappe.log_error(frappe.get_traceback(), "Shoe Rack Reassign Comment Error")
+
+    frappe.msgprint(text, title=_("Moved from another rack"), indicator="orange")
+
+    doc.flags.rack_reassignments = []
+
+
+def get_rack_occupants(doc_or_row):
+    """Return the two people sharing a rack as [{id, name, gender}, ...].
+
+    A rack has no gender of its own: the only rule is that the two people
+    sharing a 2-compartment rack should be the same gender. Racks with a
+    single compartment are never checked - one person, no pairing.
+    """
+    d = doc_or_row
+
+    if (d.get("compartments") if isinstance(d, dict) else d.compartments) != "2":
+        return []
+
+    def _f(field):
+        return d.get(field) if isinstance(d, dict) else d.get(field)
+
+    if _f("user_type") == "Employee":
+        doctype, name_field = "Employee", "employee_name"
+        ids = [_f("compartment_1_employee"), _f("compartment_2_employee")]
     else:
-        total_used = has_comp1 + has_comp2
-        if total_used == 0:
-            doc.status = "0/2"
-        elif total_used == 1:
-            doc.status = "1/2"
-        else:
-            doc.status = "2/2"
+        doctype, name_field = "External Personnel", "full_name"
+        ids = [_f("compartment_1_external_personnel"), _f("compartment_2_external_personnel")]
+
+    if not all(ids):
+        return []
+
+    occupants = []
+    for idx, person_id in enumerate(ids, start=1):
+        info = frappe.db.get_value(doctype, person_id, [name_field, "gender"], as_dict=True) or {}
+        occupants.append({
+            "compartment": idx,
+            "id": person_id,
+            "name": info.get(name_field) or person_id,
+            "gender": info.get("gender") or "",
+        })
+
+    return occupants
+
+def check_mixed_gender(doc):
+    """Warn (do not block) when the two people in a rack are different genders.
+
+    This is surfaced as a warning - like the "left employee still in a rack"
+    warning - so historical data stays editable and can be cleaned up from the
+    dashboard instead of blocking every save.
+    """
+    occupants = get_rack_occupants(doc)
+    if len(occupants) != 2:
+        return
+
+    p1, p2 = occupants
+    if not (p1["gender"] and p2["gender"]) or p1["gender"] == p2["gender"]:
+        return
+
+    frappe.msgprint(
+        _("Mixed gender: {0} ({1}) and {2} ({3}) are sharing this rack.").format(
+            p1["name"], _(p1["gender"]), p2["name"], _(p2["gender"])
+        ),
+        title=_("Gender Warning"),
+        indicator="orange",
+    )
+
+
+@frappe.whitelist()
+def get_gender_mismatch_racks():
+    """Return all 2-compartment racks whose two occupants have different genders.
+
+    Mirrors get_left_employees_in_racks: read-only list for a dashboard panel.
+    Gender lives on Employee / External Personnel, not on Shoe Rack, so this
+    joins both possible person doctypes and compares gender pairwise.
+    """
+    emp_rows = frappe.db.sql("""
+        SELECT sr.name as rack_name, sr.rack_display_name,
+               e1.name as c1_id, e1.employee_name as c1_name, e1.gender as c1_gender,
+               e2.name as c2_id, e2.employee_name as c2_name, e2.gender as c2_gender
+        FROM `tabShoe Rack` sr
+        JOIN `tabEmployee` e1 ON e1.name = sr.compartment_1_employee
+        JOIN `tabEmployee` e2 ON e2.name = sr.compartment_2_employee
+        WHERE sr.compartments = '2'
+          AND sr.user_type = 'Employee'
+          AND e1.gender IS NOT NULL AND e1.gender != ''
+          AND e2.gender IS NOT NULL AND e2.gender != ''
+          AND e1.gender != e2.gender
+    """, as_dict=True)
+
+    ext_rows = frappe.db.sql("""
+        SELECT sr.name as rack_name, sr.rack_display_name,
+               p1.name as c1_id, p1.full_name as c1_name, p1.gender as c1_gender,
+               p2.name as c2_id, p2.full_name as c2_name, p2.gender as c2_gender
+        FROM `tabShoe Rack` sr
+        JOIN `tabExternal Personnel` p1 ON p1.name = sr.compartment_1_external_personnel
+        JOIN `tabExternal Personnel` p2 ON p2.name = sr.compartment_2_external_personnel
+        WHERE sr.compartments = '2'
+          AND sr.user_type = 'External'
+          AND p1.gender IS NOT NULL AND p1.gender != ''
+          AND p2.gender IS NOT NULL AND p2.gender != ''
+          AND p1.gender != p2.gender
+    """, as_dict=True)
+
+    items = []
+    for r in (emp_rows + ext_rows):
+        items.append({
+            "rack_name": r.rack_name,
+            "rack_display_name": r.rack_display_name,
+            "compartment_1": {"id": r.c1_id, "name": r.c1_name, "gender": r.c1_gender},
+            "compartment_2": {"id": r.c2_id, "name": r.c2_name, "gender": r.c2_gender},
+        })
+
+    # Sort by ID: it is zero-padded (RACK-00001), so string order == number order.
+    # rack_display_name strips the zeros ("1", "10", "100") and would sort 1,10,100,101...
+    items.sort(key=lambda i: i["rack_name"])
+
+    return {
+        "success": True,
+        "items": items,
+        "total": len(items),
+    }
+
+@frappe.whitelist()
+def get_unidentified_occupant_racks():
+    """Danh sách các compartment đang bị đánh dấu Unknown, để review định kỳ."""
+    rows = frappe.db.sql("""
+        SELECT name as rack_name, rack_display_name,
+               compartment_1_unidentified, compartment_2_unidentified
+        FROM `tabShoe Rack`
+        WHERE compartment_1_unidentified = 1 OR compartment_2_unidentified = 1
+    """, as_dict=True)
+
+    items = []
+    for r in rows:
+        if r.compartment_1_unidentified:
+            items.append({"rack_name": r.rack_name, "rack_display_name": r.rack_display_name, "compartment": 1})
+        if r.compartment_2_unidentified:
+            items.append({"rack_name": r.rack_name, "rack_display_name": r.rack_display_name, "compartment": 2})
+
+    # Sort by ID: it is zero-padded (RACK-00001), so string order == number order.
+    # rack_display_name strips the zeros ("1", "10", "100") and would sort 1,10,100,101...
+    items.sort(key=lambda i: i["rack_name"])
+    return {"success": True, "items": items, "total": len(items)}
 
 def extract_rack_number(name):
     """Extract number from rack name"""
@@ -203,6 +493,7 @@ def on_update(doc, method):
     generate_display_name(doc)
     doc.db_set('status', doc.status, update_modified=False)
     doc.db_set('rack_display_name', doc.rack_display_name, update_modified=False)
+    log_reassignments(doc)
 
 # ================== SERIES MANAGEMENT ==================
 
@@ -232,7 +523,7 @@ def get_next_series_number(series_prefix):
         return 1
 
 @frappe.whitelist()
-def bulk_create_racks_by_type(rack_type, quantity, compartments, gender):
+def bulk_create_racks_by_type(rack_type, quantity, compartments):
     """Bulk create racks - Let ERPNext handle naming"""
     try:
         quantity = int(quantity)
@@ -270,7 +561,6 @@ def bulk_create_racks_by_type(rack_type, quantity, compartments, gender):
                     "naming_series": naming_series,
                     "user_type": user_type,
                     "compartments": compartments,
-                    "gender": gender,
                     "status": default_status
                 })
                 
@@ -458,6 +748,105 @@ def clear_all_assignments(series_prefix=None):
     }
 
 @frappe.whitelist()
+def clear_unidentified_flags(rack_type=None, target="both", dry_run=0):
+    """Bỏ tick 'Chưa xác định (Unknown)' hàng loạt rồi tính lại status.
+
+    Cần thiết vì field compartment_2_unidentified từng có default = 1: mọi tủ tạo
+    mới đều bị tick sẵn ngăn 2, khiến tủ trống bị tính là đã có người (0/2 -> 1/2,
+    1/2 -> 2/2) và Suggest Slots bỏ qua chúng.
+
+    Args:
+        rack_type: lọc theo Rack Type. Bỏ trống = tất cả các loại tủ.
+        target: 'both' | '1' | '2' - gỡ cờ Unknown của ngăn nào.
+        dry_run: 1 = chỉ đếm và trả về preview, không ghi gì vào DB.
+    """
+    dry_run = int(dry_run or 0)
+
+    if target not in ("both", "1", "2"):
+        return {"success": False, "message": _("Invalid target")}
+
+    clear_c1 = target in ("both", "1")
+    clear_c2 = target in ("both", "2")
+
+    filters = {}
+    if rack_type:
+        filters["rack_type"] = rack_type
+
+    or_filters = {}
+    if clear_c1:
+        or_filters["compartment_1_unidentified"] = 1
+    if clear_c2:
+        or_filters["compartment_2_unidentified"] = 1
+
+    racks = frappe.get_all("Shoe Rack",
+        filters=filters,
+        or_filters=or_filters,
+        fields=["name", "rack_display_name", "compartments", "status",
+                "compartment_1_employee", "compartment_1_external_personnel",
+                "compartment_2_employee", "compartment_2_external_personnel",
+                "compartment_1_unidentified", "compartment_2_unidentified"],
+        limit_page_length=0,
+    )
+
+    c1_cleared = 0
+    c2_cleared = 0
+    status_changed = 0
+    samples = []
+
+    for r in racks:
+        updates = {}
+
+        if clear_c1 and r.compartment_1_unidentified:
+            updates["compartment_1_unidentified"] = 0
+            c1_cleared += 1
+        if clear_c2 and r.compartment_2_unidentified:
+            updates["compartment_2_unidentified"] = 0
+            c2_cleared += 1
+
+        if not updates:
+            continue
+
+        # Cờ nào KHÔNG nằm trong phạm vi gỡ thì vẫn tiếp tục chiếm chỗ.
+        has_comp1 = bool(r.compartment_1_employee or r.compartment_1_external_personnel
+                         or (r.compartment_1_unidentified and not clear_c1))
+        has_comp2 = bool(r.compartment_2_employee or r.compartment_2_external_personnel
+                         or (r.compartment_2_unidentified and not clear_c2))
+
+        new_status = compute_status(r.compartments, has_comp1, has_comp2)
+        if new_status != r.status:
+            updates["status"] = new_status
+            status_changed += 1
+            if len(samples) < 15:
+                samples.append({
+                    "rack": r.rack_display_name or r.name,
+                    "old_status": r.status,
+                    "new_status": new_status,
+                })
+
+        if not dry_run:
+            frappe.db.set_value("Shoe Rack", r.name, updates)
+
+    if not dry_run:
+        frappe.db.commit()
+
+    racks_affected = len(racks)
+    scope = rack_type or _("all rack types")
+
+    return {
+        "success": True,
+        "dry_run": dry_run,
+        "racks_affected": racks_affected,
+        "c1_cleared": c1_cleared,
+        "c2_cleared": c2_cleared,
+        "status_changed": status_changed,
+        "samples": samples,
+        "message": _("Cleared Unknown flag on {0} rack(s) ({1}); {2} status recalculated.").format(
+            racks_affected, scope, status_changed
+        ),
+    }
+
+
+@frappe.whitelist()
 def bulk_delete_and_reset(series_prefix):
     """Delete all racks of a series and reset to 0"""
     if series_prefix not in ['RACK', 'J', 'G', 'A']:
@@ -591,32 +980,28 @@ def fix_all_rack_status():
     """Fix status for all shoe racks"""
     
     try:
-        racks = frappe.get_all("Shoe Rack", 
-            fields=["name", "compartments", 
+        racks = frappe.get_all("Shoe Rack",
+            fields=["name", "compartments",
                    "compartment_1_employee", "compartment_2_employee",
                    "compartment_1_external_personnel", "compartment_2_external_personnel",
+                   "compartment_1_unidentified", "compartment_2_unidentified",
                    "status"]
         )
-        
+
         updated = 0
         errors = []
-        
+
         for rack in racks:
             try:
-                has_comp1 = 1 if (rack.compartment_1_employee or rack.compartment_1_external_personnel) else 0
-                has_comp2 = 1 if (rack.compartment_2_employee or rack.compartment_2_external_personnel) else 0
-                
-                if rack.compartments == "1":
-                    new_status = "1/1" if has_comp1 else "0/1"
-                else:
-                    total_used = has_comp1 + has_comp2
-                    if total_used == 0:
-                        new_status = "0/2"
-                    elif total_used == 1:
-                        new_status = "1/2"
-                    else:
-                        new_status = "2/2"
-                
+                # Phải tính y hệt update_status (kể cả cờ Unknown), nếu không mỗi
+                # lần chạy "Fix All Status" sẽ ghi đè ngược lại status do save sinh ra.
+                has_comp1 = bool(rack.compartment_1_employee or rack.compartment_1_external_personnel
+                                 or rack.compartment_1_unidentified)
+                has_comp2 = bool(rack.compartment_2_employee or rack.compartment_2_external_personnel
+                                 or rack.compartment_2_unidentified)
+
+                new_status = compute_status(rack.compartments, has_comp1, has_comp2)
+
                 if rack.status != new_status:
                     frappe.db.set_value("Shoe Rack", rack.name, "status", new_status)
                     updated += 1
@@ -721,21 +1106,19 @@ def external_personnel_query(doctype, txt, searchfield, start, page_len, filters
     })
 
 @frappe.whitelist()
-def get_available_racks(user_type=None, gender=None, compartments=None, series_prefix=None):
+def get_available_racks(user_type=None, compartments=None, series_prefix=None):
     """Get available empty racks"""
     filters = {}
     
     if user_type:
         filters["user_type"] = user_type
-    if gender:
-        filters["gender"] = gender
     if compartments:
         filters["compartments"] = compartments
     
     racks = frappe.get_all("Shoe Rack", 
                           filters=filters,
                           fields=["name", "rack_display_name", "compartments", "user_type", "rack_type",
-                                 "gender", "status", 
+                                 "status", 
                                  "compartment_1_employee", "compartment_2_employee",
                                  "compartment_1_external_personnel", "compartment_2_external_personnel"],
                           order_by="name asc")
@@ -783,7 +1166,7 @@ def get_empty_racks_in_range(start_number, end_number, series_prefix='RACK'):
             "name": ["in", names],
             "status": ["in", ["0/1", "0/2"]]
         },
-        fields=["name", "rack_display_name", "status", "gender", "user_type", "rack_type"],
+        fields=["name", "rack_display_name", "status", "user_type", "rack_type"],
         order_by="name asc"
     )
     
@@ -798,7 +1181,7 @@ def get_empty_racks_in_range(start_number, end_number, series_prefix='RACK'):
     }
     
 @frappe.whitelist()
-def bulk_edit_empty_racks(start_number, end_number, gender=None, compartments=None, series_prefix='RACK'):
+def bulk_edit_empty_racks(start_number, end_number, compartments=None, series_prefix='RACK'):
     """
     Bulk edit empty racks in range - ALREADY FIXED 
     Handles multiple padding formats correctly
@@ -857,10 +1240,6 @@ def bulk_edit_empty_racks(start_number, end_number, gender=None, compartments=No
             
             # Rack is empty, can update
             doc = frappe.get_doc("Shoe Rack", rack.name)
-            
-            # Update gender if provided
-            if gender:
-                doc.gender = gender
             
             # Update compartments if provided
             if compartments:

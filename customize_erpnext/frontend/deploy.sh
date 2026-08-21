@@ -35,11 +35,11 @@ bench build --app customize_erpnext --force
 # Clear cache
 echo ""
 echo "Step 4: Clearing cache..."
-bench --site erp-vinhnt.tiqn.local clear-cache
+bench --site erp.tiqn.local clear-cache
 
 echo ""
 echo "================================"
 echo "✅ Deployment complete!"
 echo "================================"
-echo "📱 Open: http://erp-vinhnt.tiqn.local/app/shoe-rack-dashboard"
+echo "📱 Open: http://erp.tiqn.local/app/shoe-rack-dashboard"
 echo ""

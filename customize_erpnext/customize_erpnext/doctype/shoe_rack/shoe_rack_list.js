@@ -23,37 +23,55 @@ frappe.listview_settings['Shoe Rack'] = {
             // temp disable
         });
 
+        // Bulk flag Employee.custom_do_not_suggest_shoe_rack by Group, so
+        // "Suggest Slots" (Assign Shoe Racks dashboard) never pairs a new
+        // person into a rack these employees already occupy
+        listview.page.add_menu_item(__('Bulk Set: Do Not Suggest Rack (by Group)'), function () {
+            show_bulk_set_do_not_suggest_dialog();
+        });
+
         // Series Management Menu
         // listview.page.add_menu_item(__('Check Series Health'), function () {
         //     check_series_health();
         // });
 
-        // listview.page.add_menu_item(__('Bulk Delete & Reset'), function () {
-        //     show_bulk_delete_dialog();
-        // });
+        listview.page.add_menu_item(__('Bulk Delete & Reset'), function () {
+            show_bulk_delete_dialog();
+        });
 
-        // listview.page.add_menu_item(__('Reset Empty Series'), function () {
-        //     auto_reset_empty_series();
-        // });
+        listview.page.add_menu_item(__('Reset Empty Series'), function () {
+            auto_reset_empty_series();
+        });
 
         // Clear people out of racks (keep racks) so a new list can be imported fast
         listview.page.add_menu_item(__('Clear All Assignments'), function () {
             show_clear_assignments_dialog();
         });
 
-        // listview.page.add_menu_item(__('Fix All Inconsistencies'), function() {
-        //     fix_all_inconsistencies();
-        // });
+        // Untick the "Chưa xác định (Unknown)" checkboxes in bulk
+        listview.page.add_menu_item(__('Clear Unknown Flags'), function () {
+            show_clear_unknown_dialog();
+        });
+
+        listview.page.add_menu_item(__('Fix All Inconsistencies'), function() {
+
+            
+            fix_all_inconsistencies();
+
+            
+        });
 
         // Fix All Status
-        // listview.page.add_menu_item(__('Fix All Status'), function() {
-        //     fix_all_rack_status();
-        // });
+
+        
+        listview.page.add_menu_item(__('Fix All Status'), function() {
+            fix_all_rack_status();
+        });
 
         // --------- NEW: Regenerate Display Names
-        // listview.page.add_menu_item(__('Regenerate Display Names'), function() {
-        //     regenerate_display_names();
-        // });
+        listview.page.add_menu_item(__('Regenerate Display Names'), function() {
+            regenerate_display_names();
+        });
     },
 
     // Indicator shows status, not rack name
@@ -198,18 +216,6 @@ function show_bulk_create_dialog() {
                 default: '1'
             },
             {
-                fieldname: 'column_1',
-                fieldtype: 'Column Break'
-            },
-            {
-                fieldname: 'gender',
-                label: __('Gender'),
-                fieldtype: 'Select',
-                options: 'Male\nFemale',
-                reqd: 1,
-                default: 'Male'
-            },
-            {
                 fieldname: 'section_2',
                 fieldtype: 'Section Break',
                 label: 'Preview'
@@ -288,8 +294,7 @@ function create_racks(values, dialog) {
         args: {
             rack_type: values.rack_type,
             quantity: values.quantity,
-            compartments: values.compartments,
-            gender: values.gender
+            compartments: values.compartments
         },
         callback: function (r) {
             if (r.message && r.message.success) {
@@ -373,17 +378,6 @@ function show_bulk_edit_dialog() {
                 fieldtype: 'Select',
                 options: '\n1\n2',
                 description: 'Leave blank to keep existing compartments'
-            },
-            {
-                fieldname: 'column_3',
-                fieldtype: 'Column Break'
-            },
-            {
-                fieldname: 'gender',
-                label: __('Gender'),
-                fieldtype: 'Select',
-                options: '\nMale\nFemale',
-                description: 'Leave blank to keep existing gender'
             }
         ],
         primary_action_label: __('Update'),
@@ -414,7 +408,6 @@ function bulk_edit_racks(values, dialog) {
                                 start_number: values.start_number,
                                 end_number: values.end_number,
                                 compartments: values.compartments,
-                                gender: values.gender,
                                 series_prefix: values.series_prefix
                             },
                             callback: function (r) {
@@ -727,6 +720,245 @@ function show_clear_assignments_dialog() {
             );
         }
     });
+    dialog.show();
+}
+
+// CLEAR UNKNOWN FLAGS
+// The compartment_2_unidentified field used to default to 1, so every rack created
+// in bulk came out pre-ticked as "Unknown" and counted as occupied. This unticks
+// them in bulk and recalculates status.
+function show_clear_unknown_dialog() {
+    let dialog = new frappe.ui.Dialog({
+        title: __('Clear Unknown Flags'),
+        size: 'large',
+        fields: [
+            {
+                fieldname: 'info',
+                fieldtype: 'HTML',
+                options: `
+                    <div style="padding: 12px; background: #d1ecf1; border: 1px solid #bee5eb; border-radius: 5px; color: #0c5460; margin-bottom: 10px;">
+                        ${__('Unticks the "Chưa xác định (Unknown)" checkbox on the selected compartments and recalculates each rack status.')}<br><br>
+                        • ${__('Racks and people assignments are NOT touched')}<br>
+                        • ${__('A rack flagged Unknown counts as occupied, so clearing it frees the slot up for Suggest Slots')}
+                    </div>
+                `
+            },
+            {
+                fieldname: 'rack_type',
+                label: __('Rack Type'),
+                fieldtype: 'Select',
+                options: [
+                    { value: '', label: __('All rack types') },
+                    { value: 'Standard Employee', label: 'Standard Employee' },
+                    { value: 'Japanese Employee', label: 'Japanese Employee' },
+                    { value: 'Guest', label: 'Guest' },
+                    { value: 'External Personnel', label: 'External Personnel' }
+                ],
+                default: '',
+                onchange: function () {
+                    load_clear_unknown_preview(dialog);
+                }
+            },
+            {
+                fieldname: 'column_1',
+                fieldtype: 'Column Break'
+            },
+            {
+                fieldname: 'target',
+                label: __('Compartment'),
+                fieldtype: 'Select',
+                options: [
+                    { value: 'both', label: __('Both compartments') },
+                    { value: '1', label: __('Compartment 1 only') },
+                    { value: '2', label: __('Compartment 2 only') }
+                ],
+                default: 'both',
+                reqd: 1,
+                onchange: function () {
+                    load_clear_unknown_preview(dialog);
+                }
+            },
+            {
+                fieldname: 'section_preview',
+                fieldtype: 'Section Break',
+                label: __('Preview')
+            },
+            {
+                fieldname: 'preview',
+                fieldtype: 'HTML',
+                options: `<div id="clear-unknown-preview" class="text-muted">${__('Loading...')}</div>`
+            }
+        ],
+        primary_action_label: __('Clear Flags'),
+        primary_action: function (values) {
+            run_clear_unknown(dialog, values, 0);
+        }
+    });
+
+    dialog.show();
+    load_clear_unknown_preview(dialog);
+}
+
+function load_clear_unknown_preview(dialog) {
+    run_clear_unknown(dialog, dialog.get_values(true), 1);
+}
+
+function run_clear_unknown(dialog, values, dry_run) {
+    if (!values) return;
+
+    frappe.call({
+        method: 'customize_erpnext.customize_erpnext.doctype.shoe_rack.shoe_rack.clear_unidentified_flags',
+        args: {
+            rack_type: values.rack_type || null,
+            target: values.target || 'both',
+            dry_run: dry_run
+        },
+        freeze: !dry_run,
+        freeze_message: __('Clearing flags...'),
+        callback: function (r) {
+            if (!r.message || !r.message.success) {
+                frappe.msgprint({
+                    title: __('Error'),
+                    indicator: 'red',
+                    message: (r.message && r.message.message) || __('Failed')
+                });
+                return;
+            }
+
+            if (dry_run) {
+                $('#clear-unknown-preview').html(render_clear_unknown_summary(r.message));
+                dialog.get_primary_btn().prop('disabled', r.message.racks_affected === 0);
+                return;
+            }
+
+            dialog.hide();
+            frappe.show_alert({
+                message: r.message.message,
+                indicator: 'green'
+            }, 10);
+            cur_list.refresh();
+        }
+    });
+}
+
+function render_clear_unknown_summary(res) {
+    if (!res.racks_affected) {
+        return `<div class="text-muted">${__('No rack has the Unknown flag ticked in this scope.')}</div>`;
+    }
+
+    let html = `<table class="table table-bordered" style="font-size: 13px;">
+        <tr><td>${__('Racks to update')}</td><td><strong>${res.racks_affected}</strong></td></tr>
+        <tr><td>${__('Compartment 1 flags to clear')}</td><td>${res.c1_cleared}</td></tr>
+        <tr><td>${__('Compartment 2 flags to clear')}</td><td>${res.c2_cleared}</td></tr>
+        <tr><td>${__('Racks whose status will change')}</td><td><strong>${res.status_changed}</strong></td></tr>
+    </table>`;
+
+    if (res.samples && res.samples.length) {
+        html += `<div style="margin-top: 10px;"><strong>${__('Sample status changes')}:</strong>
+            <table class="table table-bordered" style="font-size: 12px; margin-top: 5px;">
+                <thead><tr><th>${__('Rack')}</th><th>${__('Before')}</th><th>${__('After')}</th></tr></thead><tbody>`;
+        res.samples.forEach(s => {
+            html += `<tr>
+                <td>${frappe.utils.escape_html(String(s.rack))}</td>
+                <td>${frappe.utils.escape_html(String(s.old_status || ''))}</td>
+                <td><strong>${frappe.utils.escape_html(String(s.new_status || ''))}</strong></td>
+            </tr>`;
+        });
+        html += '</tbody></table></div>';
+    }
+
+    return html;
+}
+
+// BULK SET DO NOT SUGGEST (by Group)
+function show_bulk_set_do_not_suggest_dialog() {
+    let dialog = new frappe.ui.Dialog({
+        title: __('Bulk Set: Do Not Suggest Rack'),
+        fields: [
+            {
+                fieldname: 'info',
+                fieldtype: 'HTML',
+                options: ` 
+                    <div style="padding: 10px; background: #e7f3ff; border: 1px solid #007bff; border-radius: 5px; margin-bottom: 15px;">
+                        <strong>ℹ️ ${__('Info')}:</strong><br>
+                        ${__('Flags Employee.Do Not Suggest Shoe Rack for everyone in the selected Group. Once flagged, if that employee already occupies a rack compartment, the "Suggest Slots" action on the Shoe Rack Dashboard will never pair a new person into the other compartment of that same rack. It does not stop the flagged employee from being suggested a rack themselves if they don\'t have one yet.')}
+                    </div>
+                `
+            },
+            {
+                fieldname: 'custom_group',
+                label: __('Group'),
+                fieldtype: 'Link',
+                options: 'Group',
+                reqd: 1
+            },
+            {
+                fieldname: 'column_1',
+                fieldtype: 'Column Break'
+            },
+            {
+                fieldname: 'mode',
+                label: __('Action'),
+                fieldtype: 'Select',
+                options: [__('Mark as Do Not Suggest'), __('Clear Do Not Suggest')].join('\n'),
+                default: __('Mark as Do Not Suggest'),
+                reqd: 1
+            },
+            {
+                fieldname: 'section_1',
+                fieldtype: 'Section Break'
+            },
+            {
+                fieldname: 'active_only',
+                label: __('Active employees only'),
+                fieldtype: 'Check',
+                default: 1
+            }
+        ],
+        primary_action_label: __('Apply'),
+        primary_action: function (values) {
+            let value = values.mode === __('Mark as Do Not Suggest') ? 1 : 0;
+            let action_desc = value
+                ? __('flag "Do Not Suggest Shoe Rack" for')
+                : __('clear "Do Not Suggest Shoe Rack" for');
+
+            frappe.confirm(
+                __('This will {0} every {1} employee in group "{2}". Continue?', [
+                    action_desc,
+                    values.active_only ? __('active') : __('active or left'),
+                    values.custom_group
+                ]),
+                function () {
+                    frappe.call({
+                        method: 'customize_erpnext.api.api_endpoints.bulk_set_do_not_suggest_shoe_rack',
+                        args: {
+                            custom_group: values.custom_group,
+                            value: value,
+                            active_only: values.active_only ? 1 : 0
+                        },
+                        freeze: true,
+                        freeze_message: __('Updating employees...'),
+                        callback: function (r) {
+                            if (r.exc || !r.message || !r.message.success) {
+                                frappe.msgprint({
+                                    title: __('Error'),
+                                    indicator: 'red',
+                                    message: (r.message && r.message.message) || __('Failed to update employees. Check Error Log.')
+                                });
+                                return;
+                            }
+                            dialog.hide();
+                            frappe.show_alert({
+                                message: __('Updated {0} employee(s).', [r.message.updated]),
+                                indicator: 'green'
+                            }, 5);
+                        }
+                    });
+                }
+            );
+        }
+    });
+
     dialog.show();
 }
 

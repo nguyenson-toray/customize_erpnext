@@ -2,7 +2,7 @@
  "actions": [],
  "allow_import": 1,
  "allow_rename": 1,
- "autoname": "field:rack_display_name",
+ "autoname": "naming_series:[rack_display_name]",
  "creation": "2025-12-03 10:42:48.172650",
  "doctype": "DocType",
  "engine": "InnoDB",
@@ -13,17 +13,19 @@
   "section_break_1",
   "compartments",
   "user_type",
-  "gender",
-  "do_not_auto_suggest",
   "status",
   "section_break_2",
   "compartment_1_employee",
   "compartment_1_employee_name",
+  "gender_employee_1",
   "compartment_1_external_personnel",
+  "compartment_1_unidentified",
   "column_break_1",
   "compartment_2_employee",
   "compartment_2_employee_name",
-  "compartment_2_external_personnel"
+  "employee_2_gender",
+  "compartment_2_external_personnel",
+  "compartment_2_unidentified"
  ],
  "fields": [
   {
@@ -81,23 +83,6 @@
    "options": "Employee\nExternal",
    "read_only": 1,
    "reqd": 1
-  },
-  {
-   "fieldname": "gender",
-   "fieldtype": "Select",
-   "in_list_view": 1,
-   "label": "Gender",
-   "options": "Male\nFemale",
-   "reqd": 1
-  },
-  {
-   "default": "0",
-   "description": "If checked, this rack is excluded from auto-suggestion when assigning new joiners",
-   "fieldname": "do_not_auto_suggest",
-   "fieldtype": "Check",
-   "in_list_view": 1,
-   "in_standard_filter": 1,
-   "label": "Do Not Auto Suggest"
   },
   {
    "fieldname": "status",
@@ -159,10 +144,10 @@
    "fieldtype": "Data",
    "in_list_view": 1,
    "label": "Compartment 1 Employee Name",
-   "mask": 1,
    "options": "Employee"
   },
   {
+   "depends_on": "eval:doc.compartments=='2' && doc.user_type=='Employee'",
    "description": "For Standard and Japanese employees",
    "fetch_from": "compartment_2_employee.employee_name",
    "fetch_if_empty": 1,
@@ -171,16 +156,48 @@
    "in_list_view": 1,
    "label": "Compartment 2 Employee Name",
    "options": "Employee"
+  },
+  {
+   "fetch_from": "compartment_1_employee.gender",
+   "fieldname": "gender_employee_1",
+   "fieldtype": "Data",
+   "label": "Employee 1 Gender",
+   "not_nullable": 1,
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval:doc.compartments=='2' && doc.user_type=='Employee'",
+   "fetch_from": "compartment_2_employee.gender",
+   "fieldname": "employee_2_gender",
+   "fieldtype": "Data",
+   "label": "Employee 2 Gender",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:!doc.compartment_1_employee && !doc.compartment_1_external_personnel",
+   "description": "Tick khi ph\u00e1t hi\u1ec7n c\u00f3 ng\u01b0\u1eddi d\u00f9ng slot n\u00e0y nh\u01b0ng ch\u01b0a x\u00e1c \u0111\u1ecbnh \u0111\u01b0\u1ee3c nh\u00e2n vi\u00ean n\u00e0o. S\u1ebd t\u1ef1 b\u1ecf tick khi c\u00f3 nh\u00e2n vi\u00ean \u0111\u01b0\u1ee3c g\u00e1n v\u00e0o.",
+   "fieldname": "compartment_1_unidentified",
+   "fieldtype": "Check",
+   "label": "Compartment 1 - Ch\u01b0a x\u00e1c \u0111\u1ecbnh (Unknown)"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.compartments=='2' && !doc.compartment_2_employee && !doc.compartment_2_external_personnel",
+   "description": "Tick khi ph\u00e1t hi\u1ec7n c\u00f3 ng\u01b0\u1eddi d\u00f9ng slot n\u00e0y nh\u01b0ng ch\u01b0a x\u00e1c \u0111\u1ecbnh \u0111\u01b0\u1ee3c nh\u00e2n vi\u00ean n\u00e0o. S\u1ebd t\u1ef1 b\u1ecf tick khi c\u00f3 nh\u00e2n vi\u00ean \u0111\u01b0\u1ee3c g\u00e1n v\u00e0o.",
+   "fieldname": "compartment_2_unidentified",
+   "fieldtype": "Check",
+   "label": "Compartment 2 - Ch\u01b0a x\u00e1c \u0111\u1ecbnh (Unknown)"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-07-22 10:28:28.863180",
+ "modified": "2026-08-12 10:33:26.953188",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Shoe Rack",
- "naming_rule": "By fieldname",
+ "naming_rule": "By \"Naming Series\" field",
  "owner": "Administrator",
  "permissions": [
   {
@@ -222,7 +239,7 @@
  ],
  "row_format": "Dynamic",
  "search_fields": "compartment_1_employee,compartment_1_employee_name, compartment_2_employee, compartment_2_employee_name",
- "sort_field": "rack_display_name",
+ "sort_field": "name",
  "sort_order": "ASC",
  "states": [],
  "title_field": "rack_display_name"
