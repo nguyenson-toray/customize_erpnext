@@ -7,18 +7,18 @@
 				"Chăm sóc gia đình",
 				"Không phù hợp với công việc/ có việc khác",
 				"Lương thấp",
-				"Kinh doanh riêng",
 				"Sức khỏe",
-				"Định hướng",
-				"Vấn đề khác",
-				"Tự ý nghỉ việc/ NLĐ không đồng ý tái ký"
+				"Định hướng nghề nghiệp",
+				"Khoảng cách địa lý",
+				"Tự ý nghỉ việc/ NLĐ không đồng ý tái ký",
+				"Vấn đề khác"
 			]
 		},
 		{
 			"name": "Termination",
 			"reasons": [
-				"Không tái ký",
-				"Không đạt thử việc"
+				"Không đạt yêu cầu tái ký",
+				"Không đạt yêu cầu thử việc"
 			]
 		}
 	]

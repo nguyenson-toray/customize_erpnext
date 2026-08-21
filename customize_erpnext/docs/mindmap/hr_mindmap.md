@@ -22,7 +22,7 @@
   -->
   - **08. [Maternity records / Thai sản](/desk/query-report/Employee%20Maternity%20Report)** `[Custom]` `[Done]` — Theo dõi các mốc thời gian liên quan thai sản của nhân viên, dùng để tính toán công phép, chế độ
   - **09. [Joining & leaving / Tiếp nhận & nghỉ việc](/desk/employee-onboarding)** `[Standard]` `[Pending: Triển khai sau, cùng với module Tuyển dụng]` — Tiếp nhận nhân viên mới, chuyển bộ phận, thăng chức, thủ tục thôi việc
-  - **10. [Employee reports / Báo cáo nhân sự](/desk/dashboard-view/HR%20Overview)** `[Override]` `[In process 80%]` — Headount, hiện diện, vắng, tăng ca, tuyển mới, nghỉ việc, cơ cấu theo độ tuổi, giới tính, cấp bậc
+  - **10. [Employee reports / Báo cáo nhân sự](/desk/dashboard-view/HR%20Overview)** `[Override]` `[Done]` — Headount, hiện diện, vắng, tăng ca, tuyển mới, nghỉ việc, cơ cấu theo độ tuổi, giới tính, cấp bậc
 - **02. Time & Attendance / Chấm công** `[Done]`
   - **01. Shift setup / Thiết lập ca làm việc** `[Done]`
     - **01. [Shift type / Khai báo ca](/desk/shift-type)** `[Override]` `[Done]` — Giờ vào, giờ ra, giờ nghỉ trưa, mức dung sai trễ - về sớm
@@ -53,7 +53,7 @@
     - **04. [Signature form / Giấy xác nhận công để ký](/desk/attendance-request/view/list)** `[Custom]` `[Done]` — In giấy yêu cầu xác nhận công gom theo tổ, mỗi tổ một tờ A4; bản scan đã ký được đính kèm ngược lại vào phiếu
   - **06. Attendance reports / Báo cáo chấm công** `[Done]`
     - **01. [Monthly attendance sheet / Bảng công tháng](/desk/query-report/Shift%20Attendance%20Customize)** `[Custom]` `[Done]` — Bảng công chi tiết theo ca, dùng để đối chiếu và tính lương
-    - **02. [Daily email report / Báo cáo gửi email hằng ngày]()** `[Custom]` `[Done]` — Hệ thống tự gửi báo cáo hiện diện/ vắng của hôm nay, các trường hợp chấm công thiếu của ngày hôm trước
+    - **02. [Daily email report / Báo cáo gửi email hằng ngày]()** `[Custom]` `[Done]` — Hệ thống tự gửi báo cáo: Headcount/ hiện diện/ vắng/ đăng ký tăng ca của hôm nay, các trường hợp chấm công thiếu của ngày hôm trước
     - **03. [Excel export / Xuất Excel](/desk/query-report/Shift%20Attendance%20Customize)** `[Custom]` `[Done]` — Bản Excel có cấu trúc giống app chấm công hiên tại
  
 - **03. [Overtime / Tăng ca](/desk/overtime-registration)** `[Custom]` `[Done]`
@@ -75,9 +75,9 @@
   - **04. [Leave application / Đơn xin nghỉ phép](/desk/leave-application)** `[Override]` `[Done]` — Nhân viên tạo đơn, người quản lý phê duyệt, công được cập nhật theo đơn
   - **05. [Half day leave / Nghỉ nửa ngày](/desk/leave-application)** `[Override]` `[Done]` — Nghỉ nửa ngày phép vẫn được tính đủ công cho ngày đó
   - **06. [Compensatory & encashment / Nghỉ bù & thanh toán phép](/desk/compensatory-leave-request)** `[Standard]` `[Pending]` — Nghỉ bù cho ngày làm thêm và thanh toán phép chưa dùng
-  - **07. [Leave reports / Báo cáo phép](/desk/query-report/Employee%20Leave%20Balance)** `[Standard]` `[Pending: 30]` — Số dư phép từng nhân viên và lịch sử nghỉ theo kỳ
+  - **07. [Leave reports / Báo cáo phép](/desk/query-report/Employee%20Leave%20Balance)** `[Standard]` `[Done]` — Số dư phép từng nhân viên và lịch sử nghỉ theo kỳ
 - **05. Payroll / Tiền lương** `[Done]`
-  - **01. [Payroll settings / Cấu hình lương](/desk/tiqn-payroll-settings)** `[Custom]` `[In process 30%]` — Tỷ lệ bảo hiểm, bậc thuế, mức giảm trừ, cập nhật khi quy định thay đổi
+  - **01. [Payroll settings / Cấu hình lương](/desk/tiqn-payroll-settings)** `[Custom]` `[Pending: 50]` — Tỷ lệ bảo hiểm, bậc thuế, mức giảm trừ, cập nhật khi quy định thay đổi
   - **02. [Salary structure / Cơ cấu lương](/desk/salary-structure)** `[Standard]` `[In process 30%]` — Lương cơ bản, các khoản phụ cấp và các khoản trừ
   - **03. [Salary assignment / Gán lương cho nhân viên](/desk/salary-structure-assignment)** `[Override]` `[In process 30%]` — Gán mức lương theo ngày hiệu lực, có thể nhập hàng loạt từ Excel
   - **04. [Standard working days / Ngày công chuẩn](/desk/salary-slip)** `[Override]` `[In process 30%]` — Số ngày trong kỳ trừ các ngày chủ nhật, ngày lễ vẫn được tính công

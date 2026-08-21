@@ -43,6 +43,9 @@ frappe.listview_settings['Employee'] = {
         listview.page.add_menu_item(__('7 Generate Users'), function () {
             show_generate_users_dialog(listview);
         });
+            listview.page.add_menu_item(__('8 Generate Custom Employee List'), function () {
+        show_generate_custom_list_dialog(listview);
+        });
 
     }
 };
@@ -2265,4 +2268,590 @@ function show_generate_users_summary(result) {
     });
     summary_dialog.show();
 }
+// ─────────────────────────────────────────────────────────────────────────────
+// Generate Custom Employee List
+// ─────────────────────────────────────────────────────────────────────────────
+// `source` = tên field thật trong DB, dùng khi `fieldname` là cột dẫn xuất
+// (vd: id_no_prefix hiển thị phần số của `name`).
+const CUSTOM_LIST_STANDARD_FIELDS = [
+    { fieldname: 'name', label: 'Mã nhân viên (MSNV)', width: '80px', nowrap: 1 },
+    { fieldname: 'id_no_prefix', label: 'MSNV (bỏ tiền tố)', source: 'name', width: '55px', nowrap: 1 },
+    { fieldname: 'employee_name', label: 'Họ và tên', width: '', nowrap: 0 },
+    { fieldname: 'attendance_device_id', label: 'Mã máy chấm công', width: '65px', nowrap: 1 },
+    { fieldname: 'date_of_birth', label: 'Ngày sinh', is_date: 1, width: '75px', nowrap: 1 },
+    { fieldname: 'gender', label: 'Giới tính', width: '55px', nowrap: 1 },
+    { fieldname: 'designation', label: 'Chức danh', width: '', nowrap: 0 },
+    { fieldname: 'department', label: 'Phòng ban', width: '', nowrap: 0 },
+    { fieldname: 'custom_section', label: 'Tổ (Section)', width: '', nowrap: 0 },
+    { fieldname: 'custom_group', label: 'Group', width: '', nowrap: 0 },
+    { fieldname: 'date_of_joining', label: 'Ngày nhận việc', is_date: 1, width: '75px', nowrap: 1 },
+    { fieldname: 'company_email', label: 'Email công ty', width: '', nowrap: 0 },
+    { fieldname: 'cell_number', label: 'Số điện thoại', width: '85px', nowrap: 1 },
+];
+const CUSTOM_LIST_FIELD_MAP = {};
+CUSTOM_LIST_STANDARD_FIELDS.forEach(f => CUSTOM_LIST_FIELD_MAP[f.fieldname] = f);
 
+// Tên field thật trong DB cần fetch cho một cột.
+function custom_list_db_field(fieldname) {
+    const f = CUSTOM_LIST_FIELD_MAP[fieldname];
+    return (f && f.source) || fieldname;
+}
+
+function show_generate_custom_list_dialog(listview) {
+    const selected_employees = listview.get_checked_items();
+
+    const fields = [
+        // ── Phạm vi nhân viên ────────────────────────────────
+        { fieldname: 'scope_section', fieldtype: 'Section Break', label: __('Phạm Vi Nhân Viên') },
+        {
+            fieldname: 'select_scope',
+            fieldtype: 'Select',
+            label: __('Chọn Phạm Vi'),
+            options: [
+                { label: __('Tất cả nhân viên Active'), value: 'all_active' },
+                { label: __('Chỉ những nhân viên đã chọn'), value: 'selected' },
+                { label: __('Theo khoảng mã số nhân viên'), value: 'id_range' }
+            ],
+            default: selected_employees.length === 0 ? 'all_active' : 'selected',
+            onchange: function () { update_custom_list_scope_display(); }
+        },
+        { fieldname: 'employee_range', fieldtype: 'Section Break', depends_on: 'eval:doc.select_scope == "id_range"' },
+        {
+            fieldname: 'id_prefix', fieldtype: 'Data', label: __('Prefix'), default: 'TIQN-',
+            description: __('Tiền tố mã nhân viên'),
+            depends_on: 'eval:doc.select_scope == "id_range"',
+            onchange: function () { update_custom_list_scope_display(); }
+        },
+        {
+            fieldname: 'id_start', fieldtype: 'Data', label: __('Start ID'), placeholder: '1',
+            description: __('Chỉ nhập SỐ, không cần số 0 ở đầu'),
+            depends_on: 'eval:doc.select_scope == "id_range"',
+            onchange: function () { update_custom_list_scope_display(); }
+        },
+        { fieldname: 'col_break_scope', fieldtype: 'Column Break', depends_on: 'eval:doc.select_scope == "id_range"' },
+        {
+            fieldname: 'id_end', fieldtype: 'Data', label: __('End ID'), placeholder: '100',
+            description: __('Chỉ nhập SỐ, không cần số 0 ở đầu'),
+            depends_on: 'eval:doc.select_scope == "id_range"',
+            onchange: function () { update_custom_list_scope_display(); }
+        },
+        { fieldname: 'scope_info_section', fieldtype: 'Section Break' },
+        { fieldname: 'scope_info', fieldtype: 'HTML' },
+
+        // ── Tiêu đề báo cáo ──────────────────────────────────
+        { fieldname: 'title_section', fieldtype: 'Section Break', label: __('Tiêu Đề') },
+        {
+            fieldname: 'report_title',
+            fieldtype: 'Data',
+            label: __('Tiêu đề bảng'),
+            default: __('DANH SÁCH NHÂN VIÊN NGÀY {0}', [frappe.datetime.str_to_user(frappe.datetime.get_today())])
+        },
+        {
+            fieldname: 'sort_by',
+            fieldtype: 'Select',
+            label: __('Sắp xếp theo'),
+            options: [
+                { label: __('MSNV — mới nhất trước (giảm dần)'), value: 'msnv_desc' },
+                { label: __('MSNV — cũ nhất trước (tăng dần)'), value: 'msnv_asc' },
+                { label: __('Họ và tên (A → Z)'), value: 'name_asc' }
+            ],
+            default: 'msnv_desc'
+        },
+        { fieldname: 'col_break_title', fieldtype: 'Column Break' },
+        {
+            fieldname: 'page_orientation',
+            fieldtype: 'Select',
+            label: __('Hướng giấy in'),
+            options: [
+                { label: __('A4 dọc (Portrait)'), value: 'portrait' },
+                { label: __('A4 ngang (Landscape)'), value: 'landscape' }
+            ],
+            default: 'portrait',
+            description: __('Độ rộng cột tự co lại cho vừa khổ giấy đã chọn.')
+        },
+
+        // ── Danh sách cột hợp nhất ─────────────────────────────
+        { fieldname: 'columns_section', fieldtype: 'Section Break', label: __('Các Cột Trong Bảng') },
+        {
+            fieldname: 'columns_help',
+            fieldtype: 'HTML',
+            options: `<div class="text-muted" style="font-size:12px;margin-bottom:8px">
+                <i class="fa fa-info-circle"></i>
+                ${__('Chọn "Nguồn dữ liệu" để cột tự lấy giá trị thật, hoặc để "(Trống)" cho cột ký/điền tay. Nhóm: các cột liền kề CÙNG tên Nhóm sẽ tự gộp tiêu đề cha (dùng "||" để xuống dòng). Độ rộng: nhập vd 70px hoặc 10%, để trống = tự chia đều phần còn lại — tổng độ rộng luôn vừa khổ giấy, không bị tràn/cắt khi in PDF.')}
+            </div>`
+        },
+        {
+            fieldname: 'custom_columns_html',
+            fieldtype: 'HTML',
+            options: `
+                <div id="custom-columns-header" style="display:flex;gap:6px;margin-bottom:4px;font-size:12px;color:#6c757d">
+                    <div style="flex:1.3">${__('Nguồn dữ liệu')}</div>
+                    <div style="flex:1">${__('Tên cột hiển thị')}</div>
+                    <div style="flex:1">${__('Nhóm (tùy chọn)')}</div>
+                    <div style="width:90px">${__('Độ rộng')}</div>
+                    <div style="width:70px;text-align:center">${__('Ko xuống dòng')}</div>
+                    <div style="width:34px"></div>
+                </div>
+                <div id="custom-columns-container" style="margin-bottom:10px"></div>
+                <button type="button" class="btn btn-default btn-sm" id="btn-add-custom-column">
+                    <i class="fa fa-plus"></i> ${__('Thêm cột')}
+                </button>
+            `
+        }
+    ];
+
+    const d = new frappe.ui.Dialog({
+        title: __('Generate Custom Employee List'),
+        fields: fields,
+        size: 'extra-large',
+        primary_action_label: __('Generate'),
+        primary_action(values) {
+            if (values.select_scope === 'id_range') {
+                if (!values.id_start || !values.id_end) {
+                    frappe.msgprint({ title: __('Missing Info'), message: __('Vui lòng điền cả mã số bắt đầu và mã số kết thúc.'), indicator: 'orange' });
+                    return;
+                }
+                if (!/^\d+$/.test(values.id_start.trim()) || !/^\d+$/.test(values.id_end.trim())) {
+                    frappe.msgprint({ title: __('Invalid Format'), message: __('Mã số nhân viên phải là các chữ số.'), indicator: 'orange' });
+                    return;
+                }
+                if (parseInt(values.id_start, 10) > parseInt(values.id_end, 10)) {
+                    frappe.msgprint({ title: __('Invalid Range'), message: __('Mã số bắt đầu phải nhỏ hơn hoặc bằng mã số kết thúc.'), indicator: 'orange' });
+                    return;
+                }
+            } else if (values.select_scope === 'selected' && selected_employees.length === 0) {
+                frappe.msgprint({ title: __('Chưa Chọn Nhân Viên'), message: __('Vui lòng chọn ít nhất một nhân viên hoặc chọn phạm vi khác.'), indicator: 'orange' });
+                return;
+            }
+
+            const columns = collect_custom_columns(d);
+            if (columns.length === 0) {
+                frappe.msgprint({ title: __('Chưa Có Cột'), message: __('Vui lòng thêm ít nhất 1 cột.'), indicator: 'orange' });
+                return;
+            }
+
+            // Tab preview PHẢI mở ngay trong user gesture (click Generate).
+            // Mở trong callback của frappe.call sẽ bị popup blocker chặn im lặng
+            // → không có gì hiện ra, người dùng tưởng app treo.
+            const tab = window.open('', '_blank');
+            if (!tab) {
+                frappe.msgprint({
+                    title: __('Popup Blocked'),
+                    message: __('Trình duyệt đã chặn cửa sổ mới. Hãy cho phép popup cho site này rồi bấm Generate lại.'),
+                    indicator: 'orange'
+                });
+                return;
+            }
+            write_custom_list_to_tab(tab, custom_list_loading_html());
+
+            d.hide();
+            generate_custom_employee_list(values, selected_employees, columns, tab);
+        }
+    });
+
+    d.$wrapper.on('click', '#btn-add-custom-column', function () {
+        add_custom_column_row(d);
+    });
+    d.$wrapper.on('click', '.remove-custom-col-btn', function () {
+        $(this).closest('.custom-col-row').remove();
+    });
+    // Khi chọn nguồn dữ liệu, tự điền Tên cột / Độ rộng / Không xuống dòng theo
+    // gợi ý mặc định của field đó (chỉ tự điền nếu ô đang trống — không ghi đè
+    // giá trị người dùng đã tự sửa).
+    d.$wrapper.on('change', '.custom-col-source', function () {
+        const $row = $(this).closest('.custom-col-row');
+        const f = CUSTOM_LIST_FIELD_MAP[$(this).val()];
+        if (!f) return;
+        const $label_input = $row.find('.custom-col-input');
+        const $width_input = $row.find('.custom-col-width-input');
+        if (!$label_input.val().trim()) $label_input.val(f.label);
+        if (!$width_input.val().trim() && f.width) $width_input.val(f.width);
+        $row.find('.custom-col-nowrap-input').prop('checked', !!f.nowrap);
+    });
+
+    d.show();
+    d.$wrapper.find('.modal-dialog').addClass('modal-xl');
+
+    // Dòng mẫu mặc định — tái hiện đúng cấu trúc trong ảnh bạn gửi, đã bind
+    // field thật + đặt sẵn độ rộng/nowrap hợp lý để không bị tràn/cắt khi in.
+    add_custom_column_row(d, 'name', 'MSNV', '', '80px', 1);
+    add_custom_column_row(d, 'employee_name', 'Họ và tên', '', '155px', 1);
+    add_custom_column_row(d, 'designation', 'Chức danh', '', '120px', 1);
+    add_custom_column_row(d, 'date_of_joining', 'Ngày nhận việc', '', '75px', 1);
+    add_custom_column_row(d, 'gender', 'Giới tính', '', '45px', 1);
+    add_custom_column_row(d, '', 'Loại nón', 'Nón, giày', '55px', 0);
+    add_custom_column_row(d, '', 'Size giày', 'Nón, giày', '55px', 0);
+    add_custom_column_row(d, '', 'Size áo', 'Nón, giày', '50px', 0);
+    add_custom_column_row(d, '', 'Ký nhận nón, giày', 'Nón, giày', '55px', 0);
+    add_custom_column_row(d, '', 'Ký nhận áo đồng phục', 'Áo đồng phục||Ngày:.........', '85px', 0);
+
+    update_custom_list_scope_display();
+
+    function update_custom_list_scope_display() {
+        const scope_type = d.get_value('select_scope');
+        if (scope_type === 'all_active') {
+            frappe.call({
+                method: 'frappe.client.get_count',
+                args: { doctype: 'Employee', filters: { status: 'Active' } },
+                callback: function (r) {
+                    d.fields_dict.scope_info.$wrapper.html(
+                        `<div class="alert alert-info">${__('Sẽ xuất tất cả')} <strong>${r.message || 0}</strong> ${__('nhân viên đang hoạt động.')}</div>`
+                    );
+                }
+            });
+        } else if (scope_type === 'selected') {
+            d.fields_dict.scope_info.$wrapper.html(
+                selected_employees.length > 0
+                    ? `<div class="alert alert-success">${__('Sẽ xuất')} <strong>${selected_employees.length}</strong> ${__('nhân viên đã chọn.')}</div>`
+                    : `<div class="alert alert-warning">${__('Chưa chọn nhân viên nào trên list view.')}</div>`
+            );
+        } else {
+            const prefix = d.get_value('id_prefix') || '';
+            const start = (d.get_value('id_start') || '').trim();
+            const end = (d.get_value('id_end') || '').trim();
+            const range_txt = (start && end)
+                ? `${frappe.utils.escape_html(prefix)}<b>${frappe.utils.escape_html(start)}</b> → ${frappe.utils.escape_html(prefix)}<b>${frappe.utils.escape_html(end)}</b>`
+                : __('(chưa nhập)');
+            d.fields_dict.scope_info.$wrapper.html(
+                `<div class="alert alert-info">
+                    ${__('Lọc nhân viên Active theo GIÁ TRỊ SỐ của mã')}: ${range_txt}<br>
+                    <span style="font-size:12px">${__('Số 0 ở đầu không quan trọng — nhập 1 hay 0001 đều khớp mã TIQN-0001.')}</span>
+                </div>`
+            );
+        }
+    }
+}
+
+function add_custom_column_row(d, prefillFieldname, prefillLabel, prefillGroup, prefillWidth, prefillNowrap) {
+    const options_html = ['<option value="">' + __('(Trống - tự nhập tay)') + '</option>']
+        .concat(CUSTOM_LIST_STANDARD_FIELDS.map(f =>
+            `<option value="${f.fieldname}" ${f.fieldname === prefillFieldname ? 'selected' : ''}>${frappe.utils.escape_html(f.label)}</option>`
+        )).join('');
+
+    const row = $(`
+        <div class="custom-col-row" style="display:flex;gap:6px;margin-bottom:6px;align-items:center">
+            <select class="custom-col-source form-control" style="flex:1.3">${options_html}</select>
+            <input type="text" class="custom-col-input form-control" style="flex:1"
+                placeholder="${__('Tên cột')}" value="${prefillLabel ? frappe.utils.escape_html(prefillLabel) : ''}">
+            <input type="text" class="custom-col-group-input form-control" style="flex:1"
+                placeholder="${__('vd: Nón, giày')}" value="${prefillGroup ? frappe.utils.escape_html(prefillGroup) : ''}">
+            <input type="text" class="custom-col-width-input form-control" style="width:90px"
+                placeholder="70px" value="${prefillWidth ? frappe.utils.escape_html(prefillWidth) : ''}">
+            <div style="width:70px;text-align:center">
+                <input type="checkbox" class="custom-col-nowrap-input" style="width:16px;height:16px;cursor:pointer" ${prefillNowrap ? 'checked' : ''}>
+            </div>
+            <button type="button" class="btn btn-danger btn-sm remove-custom-col-btn" style="width:34px">
+                <i class="fa fa-times"></i>
+            </button>
+        </div>
+    `);
+    d.$wrapper.find('#custom-columns-container').append(row);
+}
+
+function collect_custom_columns(d) {
+    const cols = [];
+    d.$wrapper.find('.custom-col-row').each(function () {
+        const fieldname = $(this).find('.custom-col-source').val();
+        const label = ($(this).find('.custom-col-input').val() || '').trim();
+        const group = ($(this).find('.custom-col-group-input').val() || '').trim();
+        const width = ($(this).find('.custom-col-width-input').val() || '').trim();
+        const nowrap = $(this).find('.custom-col-nowrap-input').is(':checked');
+        if (!label) return; // bỏ qua dòng chưa đặt tên cột
+        const meta = fieldname ? CUSTOM_LIST_FIELD_MAP[fieldname] : null;
+        cols.push({
+            fieldname: fieldname || null,
+            label,
+            group,
+            width,
+            nowrap,
+            is_date: !!(meta && meta.is_date)
+        });
+    });
+    return cols;
+}
+
+function generate_custom_employee_list(values, selected_employees, columns, tab) {
+    // Luôn fetch `name` (dùng cho STT/khoá) + field thật của từng cột có nguồn.
+    const db_fields = ['name'];
+    columns.forEach(c => {
+        if (!c.fieldname) return;
+        const dbf = custom_list_db_field(c.fieldname);
+        if (db_fields.indexOf(dbf) === -1) db_fields.push(dbf);
+    });
+
+    // Mã cố định 4 chữ số zero-pad (TIQN-0002) nên sắp chuỗi `name` cũng chính
+    // là sắp theo số — không cần CAST.
+    const CUSTOM_LIST_ORDER_BY = {
+        msnv_desc: 'name desc',
+        msnv_asc: 'name asc',
+        name_asc: 'employee_name asc'
+    };
+    const order_by = CUSTOM_LIST_ORDER_BY[values.sort_by] || 'name desc';
+
+    let get_list_args;
+    let post_filter = null;
+
+    if (values.select_scope === 'all_active') {
+        get_list_args = { doctype: 'Employee', filters: { status: 'Active' }, fields: db_fields, order_by: order_by, limit_page_length: 0 };
+    } else if (values.select_scope === 'selected') {
+        const ids = selected_employees.map(e => e.name);
+        get_list_args = { doctype: 'Employee', filters: { name: ['in', ids] }, fields: db_fields, order_by: order_by, limit_page_length: 0 };
+    } else {
+        // Lọc theo GIÁ TRỊ SỐ của mã, không dựng sẵn danh sách mã rồi `name in [...]`.
+        // Mã trong DB zero-pad 4 chữ số (TIQN-0001); cách cũ pad theo độ dài chuỗi
+        // người dùng gõ nên "1"→"TIQN-1" không tồn tại (ra sai/rỗng), và với
+        // khoảng rộng thì gửi hàng nghìn mã lên server làm request treo.
+        const prefix = values.id_prefix || '';
+        const start_num = parseInt(values.id_start, 10);
+        const end_num = parseInt(values.id_end, 10);
+        const filters = { status: 'Active' };
+        if (prefix) filters.name = ['like', prefix.replace(/[%_]/g, '\\$&') + '%'];
+        get_list_args = { doctype: 'Employee', filters: filters, fields: db_fields, order_by: order_by, limit_page_length: 0 };
+        post_filter = function (rows) {
+            return rows.filter(function (r) {
+                const suffix = String(r.name).slice(prefix.length);
+                if (!/^\d+$/.test(suffix)) return false;
+                const n = parseInt(suffix, 10);
+                return n >= start_num && n <= end_num;
+            });
+        };
+    }
+
+    frappe.call({
+        method: 'frappe.client.get_list',
+        args: get_list_args,
+        // KHÔNG dùng freeze:true — tab preview đã hiện "Đang tải..." rồi; phủ
+        // freeze lên app trong lúc chờ khiến người dùng tưởng app bị treo.
+        callback: function (r) {
+            let employees = r.message || [];
+            if (post_filter) employees = post_filter(employees);
+            if (employees.length === 0) {
+                if (tab && !tab.closed) tab.close();
+                frappe.msgprint({ title: __('Không Có Dữ Liệu'), message: __('Không tìm thấy nhân viên nào phù hợp.'), indicator: 'orange' });
+                return;
+            }
+            try {
+                const html = build_custom_list_html(values.report_title, employees, columns, values.page_orientation);
+                write_custom_list_to_tab(tab, html);
+                frappe.show_alert({ message: __('Đã xuất {0} nhân viên.', [employees.length]), indicator: 'green' });
+            } catch (e) {
+                // frappe nuốt exception trong success handler → tự báo ra ngoài.
+                console.error(e);
+                if (tab && !tab.closed) tab.close();
+                frappe.msgprint({ title: __('Error'), message: __('Lỗi khi dựng bảng: {0}', [e.message || e]), indicator: 'red' });
+            }
+        },
+        error: function () {
+            if (tab && !tab.closed) tab.close();
+        }
+    });
+}
+
+function format_header_label(label) {
+    return frappe.utils.escape_html(label).replace(/\|\|/g, '<br>');
+}
+
+// Chỉ nhận độ rộng hợp lệ (chống chèn CSS tuỳ ý vào <col style="...">).
+// Nhập số trần "70" được hiểu là "70px". Trả về {kind:'px'|'pct'|'auto', value}.
+function parse_custom_list_width(w) {
+    const v = (w || '').trim();
+    if (!v) return { kind: 'auto' };
+    if (/^\d+(\.\d+)?$/.test(v)) return { kind: 'px', value: parseFloat(v) };
+    const m = v.match(/^(\d+(?:\.\d+)?)(px|%)$/);
+    if (!m) return { kind: 'auto' };
+    return m[2] === '%' ? { kind: 'pct', value: parseFloat(m[1]) } : { kind: 'px', value: parseFloat(m[1]) };
+}
+
+// Khổ in A4 trừ lề 8mm mỗi bên, quy ra px ở 96dpi.
+const CUSTOM_LIST_PAGE = {
+    portrait: { mm: 210 - 16, label: 'A4 dọc' },
+    landscape: { mm: 297 - 16, label: 'A4 ngang' }
+};
+const CUSTOM_LIST_PX_PER_MM = 96 / 25.4;
+
+// Co các cột px cho tổng độ rộng vừa khổ giấy — nếu không, bảng tràn ra ngoài
+// và bị cắt khi in (rõ nhất ở A4 dọc vì hẹp hơn A4 ngang ~30%).
+function fit_custom_list_widths(columns, page_px) {
+    const STT_PX = 36;
+    const AUTO_MIN_PX = 55;   // chỗ tối thiểu chừa cho cột để trống (tự chia)
+    const HARD_MIN_PX = 24;   // không co nhỏ hơn mức này
+
+    const parsed = columns.map(c => parse_custom_list_width(c.width));
+    const auto_count = parsed.filter(p => p.kind === 'auto').length;
+    const pct_px = parsed.reduce((sum, p) => p.kind === 'pct' ? sum + page_px * p.value / 100 : sum, 0);
+    const fixed_px = parsed.reduce((sum, p) => p.kind === 'px' ? sum + p.value : sum, STT_PX);
+
+    const budget = page_px - pct_px - auto_count * AUTO_MIN_PX;
+    let scale = 1;
+    if (fixed_px > budget && budget > 0) scale = budget / fixed_px;
+
+    return {
+        scale: scale,
+        stt: Math.max(HARD_MIN_PX, Math.round(STT_PX * scale)),
+        cols: parsed.map(p => {
+            if (p.kind === 'auto') return '';
+            if (p.kind === 'pct') return p.value + '%';
+            return Math.max(HARD_MIN_PX, Math.round(p.value * scale)) + 'px';
+        })
+    };
+}
+
+function build_custom_list_html(title, employees, columns, page_orientation) {
+    const is_landscape = page_orientation === 'landscape';
+    const page = CUSTOM_LIST_PAGE[is_landscape ? 'landscape' : 'portrait'];
+    const page_px = Math.floor(page.mm * CUSTOM_LIST_PX_PER_MM);
+    const th_style_base = 'border:1px solid #000;background:#f0f0f0;text-align:center;vertical-align:middle;word-wrap:break-word;overflow-wrap:break-word';
+    const td_style_base = 'border:1px solid #000;word-wrap:break-word;overflow-wrap:break-word';
+
+    const GENDER_ABBREVIATION = {
+        'Male': 'M', 'Female': 'F', 'Other': 'O',
+        'Nam': 'M', 'Nữ': 'F', 'Khác': 'O'
+    };
+
+    const format_cell = (emp, col) => {
+        if (!col.fieldname) return ''; // cột trống — để tay điền/ký
+        if (col.fieldname === 'id_no_prefix') {
+            const m = String(emp.name || '').match(/(\d+)\s*$/);
+            return frappe.utils.escape_html(m ? m[1] : String(emp.name || ''));
+        }
+        const v = emp[custom_list_db_field(col.fieldname)];
+        if (v === null || v === undefined || v === '') return '';
+        if (col.fieldname === 'gender') {
+            return frappe.utils.escape_html(GENDER_ABBREVIATION[v] || v);
+        }
+        if (col.is_date) {
+            try { return frappe.datetime.str_to_user(v); } catch (e) { return frappe.utils.escape_html(String(v)); }
+        }
+        return frappe.utils.escape_html(String(v));
+    };
+    const nowrap_style = (col) => col && col.nowrap ? 'white-space:nowrap;' : '';
+
+    // ── <colgroup> — độ rộng đã co cho vừa khổ giấy, bảng không tràn ──
+    const fitted = fit_custom_list_widths(columns, page_px);
+    let colgroup = `<colgroup><col style="width:${fitted.stt}px">`; // STT
+    fitted.cols.forEach(w => {
+        colgroup += `<col${w ? ` style="width:${w}"` : ''}>`;
+    });
+    colgroup += '</colgroup>';
+
+    // Cột bị co nhiều thì hạ cỡ chữ / padding cho chữ khỏi bị ngắt vụn.
+    const font_px = fitted.scale < 0.75 ? 9 : (is_landscape ? 12 : 10.5);
+    const cell_pad = fitted.scale < 0.75 ? '3px 3px' : '5px 6px';
+
+    // ── Hàng tiêu đề 1: STT + các cột (rowspan hoặc colspan theo nhóm) ──
+    let row1 = `<th style="${th_style_base}" rowspan="2">STT</th>`;
+
+    let i = 0;
+    while (i < columns.length) {
+        const col = columns[i];
+        if (!col.group) {
+            row1 += `<th style="${th_style_base}${nowrap_style(col)}" rowspan="2">${format_header_label(col.label)}</th>`;
+            i++;
+        } else {
+            let j = i;
+            while (j < columns.length && columns[j].group === col.group) j++;
+            const span = j - i;
+            row1 += `<th style="${th_style_base}" colspan="${span}">${format_header_label(col.group)}</th>`;
+            i = j;
+        }
+    }
+
+    // ── Hàng tiêu đề 2: chỉ các cột thuộc 1 nhóm mới cần ô riêng ──
+    let row2 = '';
+    columns.forEach(col => {
+        if (col.group) {
+            row2 += `<th style="${th_style_base}${nowrap_style(col)}">${format_header_label(col.label)}</th>`;
+        }
+    });
+    const has_row2 = columns.some(c => c.group);
+
+    // ── Dữ liệu ──
+    let rows = '';
+    employees.forEach((emp, idx) => {
+        rows += `<tr><td style="${td_style_base};text-align:center">${idx + 1}</td>`;
+        columns.forEach(col => {
+            rows += `<td style="${td_style_base}${nowrap_style(col)}">${format_cell(emp, col) || '&nbsp;'}</td>`;
+        });
+        rows += `</tr>`;
+    });
+
+    const safe_title = frappe.utils.escape_html(title || '');
+
+    return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>${safe_title}</title>
+<style>
+    body { font-family: Arial, sans-serif; font-size: ${font_px}px; margin: 0; background: #e9ecef; }
+    h1 { text-align:center; font-size:16px; margin:0 0 12px; }
+    table { border-collapse: collapse; width: 100%; table-layout: fixed; font-size: ${font_px}px; }
+    th, td { padding: ${cell_pad}; }
+    tr { page-break-inside: avoid; }
+    thead { display: table-header-group; }
+    /* Khung xem trước đúng bề ngang vùng in của khổ giấy đã chọn (${page.label}),
+       nên những gì thấy trên màn hình là những gì in ra. */
+    #cl-page { width: ${page.mm}mm; margin: 0 auto; background: #fff; padding: 8mm 0; }
+    #cl-toolbar {
+        position: fixed; top: 0; left: 0; right: 0; z-index: 9999;
+        background: #f8f9fa; border-bottom: 1px solid #dee2e6; padding: 6px 16px;
+        display: flex; align-items: center; gap: 10px;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 13px;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    }
+    #cl-toolbar .tb-title { font-weight: 600; color: #343a40; }
+    #cl-btn-print { padding: 4px 16px; background: #198754; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; }
+    #cl-btn-print:hover { background: #146c43; }
+    @media screen {
+        body { padding-top: 44px; }
+        #cl-page { box-shadow: 0 0 8px rgba(0,0,0,0.15); margin-top: 12px; margin-bottom: 24px; }
+    }
+    @media print {
+        @page { size: A4 ${is_landscape ? 'landscape' : 'portrait'}; margin: 8mm; }
+        #cl-toolbar { display: none !important; }
+        body { padding-top: 0 !important; margin: 0 !important; background: #fff !important; }
+        #cl-page { width: auto !important; margin: 0 !important; padding: 0 !important; box-shadow: none !important; }
+    }
+</style>
+</head>
+<body>
+    <div id="cl-toolbar">
+        <span class="tb-title">Custom Employee List — ${employees.length} NV · ${page.label} · click vào ô trong bảng để sửa nội dung</span>
+        <span style="flex:1"></span>
+        <button id="cl-btn-print" onclick="window.print()">Print</button>
+    </div>
+    <div id="cl-page">
+        <h1 contenteditable="true">${safe_title}</h1>
+        <table contenteditable="true">
+            ${colgroup}
+            <thead>
+                <tr>${row1}</tr>
+                ${has_row2 ? `<tr>${row2}</tr>` : ''}
+            </thead>
+            <tbody>${rows}</tbody>
+        </table>
+    </div>
+</body>
+</html>`;
+}
+
+function custom_list_loading_html() {
+    return `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>${__('Đang tải...')}</title></head>
+<body style="font-family:Arial,sans-serif;display:flex;align-items:center;justify-content:center;height:90vh;color:#6c757d">
+    <div style="text-align:center">
+        <div style="font-size:16px;margin-bottom:6px">${__('Đang tải dữ liệu nhân viên...')}</div>
+        <div style="font-size:12px">${__('Cửa sổ này sẽ tự hiển thị bảng khi tải xong.')}</div>
+    </div>
+</body></html>`;
+}
+
+// `contenteditable` chỉ đặt trên <h1>/<table>, KHÔNG đặt trên cả <body>: cho cả
+// tài liệu editable làm trình duyệt tính lại layout rất nặng với bảng nhiều dòng
+// (tab preview đơ) và người dùng có thể xoá nhầm cả thanh công cụ.
+function write_custom_list_to_tab(tab, html) {
+    if (!tab || tab.closed) return;
+    tab.document.open();
+    tab.document.write(html);
+    tab.document.close();
+}

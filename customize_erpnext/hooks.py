@@ -95,7 +95,9 @@ fixtures = [
                 "Employee Maternity",
                 "Employment Type",
                 "Salary Structure Assignment",
-                "Salary Slip"
+                "Salary Slip",
+                "Employee Education"
+                
             ]],
             ["fieldname", "like", "custom%"]
         ]
@@ -175,7 +177,7 @@ fixtures = [
         "filters": [
             ["name", "in", [
                 # "HR Setup",  # HRMS sidebar with custom reports
-                "Shift & Attendance",  # HRMS sidebar with custom reports
+                # "Shift & Attendance",  # HRMS sidebar with custom reports
                 "Stock",  # Stock sidebar with custom reports
                 "Uniform Control",  # Uniform Control module sidebar
 
