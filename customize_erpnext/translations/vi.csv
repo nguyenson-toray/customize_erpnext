@@ -21532,3 +21532,40 @@ Working Hour Actual,Giờ làm thực tế
 Leave Application Abbreviation,Mã nghỉ phép
 Type,Loại
 All leave types,Tất cả loại nghỉ phép
+Resignation Application,Đơn nghỉ việc
+Resignation Reason,Lý do nghỉ việc
+Resignation Reason Group,Nhóm lý do nghỉ việc
+Reason Group,Nhóm lý do
+Reason Detail,Diễn giải thêm
+Relieving Date,Ngày bắt đầu nghỉ việc
+Notice Days,Số ngày báo trước
+Handover,Bàn giao
+Handover Progress,Tiến độ bàn giao
+Handover Note,Ghi chú bàn giao
+ID Card Returned,Đã trả thẻ nhân viên
+Uniform Returned,Đã trả đồng phục
+Shoe Rack Cleared,Đã trả tủ giày
+Fingerprint Removed,Đã xoá vân tay
+Tools Returned,Đã trả công cụ dụng cụ
+Work Handed Over,Đã bàn giao công việc
+Withdraw,Rút đơn
+Withdraw Resignation,Rút đơn nghỉ việc
+Withdrawal Date,Ngày rút đơn
+Withdrawal Reason,Lý do rút đơn
+Withdrawing...,Đang rút đơn...
+Resignation withdrawn,Đã rút đơn nghỉ việc
+Short Notice,Báo trước ngắn
+Invalid Relieving Date,Ngày nghỉ không hợp lệ
+Duplicate Resignation,Trùng đơn nghỉ việc
+Employee Already Left,Nhân viên đã nghỉ việc
+Reason Does Not Match Group,Lý do không thuộc nhóm đã chọn
+Still Has Subordinates,Còn nhân viên cấp dưới
+Group In Use,Nhóm đang được dùng
+Reason In Use,Lý do đang được dùng
+Leaving date has passed,Đã qua ngày nghỉ việc
+Set Preferred Email to create a user account,Điền Preferred Email để tạo được tài khoản
+Handover Attachment,File đính kèm bàn giao
+Letter Dated After Leaving,Đơn lập sau ngày nghỉ
+Resignation Letter Date is {0} day(s) after the Relieving Date.,Ngày nhận đơn sau ngày nghỉ {0} ngày.
+Resignation Letter Date is {0} days after the Relieving Date. More than {1} days apart is almost always a typo — check the year.,Ngày nhận đơn sau ngày nghỉ {0} ngày. Lệch quá {1} ngày gần như chắc chắn là gõ nhầm — kiểm tra lại năm.
+"Relieving Date cannot be before Date of Joining ({0}).","Ngày nghỉ không được trước ngày vào làm ({0})."

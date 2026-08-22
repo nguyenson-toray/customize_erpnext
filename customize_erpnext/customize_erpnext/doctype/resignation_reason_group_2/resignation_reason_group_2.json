@@ -1,0 +1,102 @@
+{
+ "actions": [],
+ "autoname": "field:reason_for_leaving_group_2",
+ "creation": "2026-08-21 09:00:00.000000",
+ "doctype": "DocType",
+ "document_type": "Setup",
+ "engine": "InnoDB",
+ "field_order": [
+  "reason_for_leaving_group_2",
+  "reason_for_leaving_group",
+  "is_active",
+  "column_break_desc",
+  "description"
+ ],
+ "fields": [
+  {
+   "description": "Lý do nghỉ việc. Đây cũng là tên bản ghi nên phải duy nhất trên toàn bộ danh mục, không chỉ trong nhóm.",
+   "fieldname": "reason_for_leaving_group_2",
+   "fieldtype": "Data",
+   "in_global_search": 1,
+   "in_list_view": 1,
+   "label": "Reason",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "reason_for_leaving_group",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Reason Group",
+   "options": "Resignation Reason Group",
+   "reqd": 1
+  },
+  {
+   "default": "1",
+   "description": "Bỏ tick để ẩn khỏi ô chọn trên đơn mới. Bản ghi cũ đang dùng vẫn giữ nguyên.",
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Active"
+  },
+  {
+   "fieldname": "column_break_desc",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Description"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-08-21 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Customize Erpnext",
+ "name": "Resignation Reason Group 2",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "HR Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "HR User",
+   "share": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "creation",
+ "sort_order": "ASC",
+ "states": [],
+ "track_changes": 1
+}

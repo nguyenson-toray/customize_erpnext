@@ -138,47 +138,69 @@ frappe.ui.form.on('Employee', {
         }
 
         render_sub_status(frm);
+        toggle_create_user_button(frm);
+    },
+
+    prefered_email: function (frm) {
+        // Core chỉ thêm nút lúc refresh. Điền email xong mà không refresh thì nút không xuất
+        // hiện lại — refresh để core tự quyết định, rồi hàm dưới lọc lần nữa.
+        frm.refresh();
+    },
+
+    prefered_contact_email: function (frm) {
+        // Core suy `prefered_email` từ field này (employee.js:125), nên đổi nó là đổi điều kiện.
+        frm.refresh();
     },
 
     custom_copy_permanent_address_to_other_adress: function (frm) {
         if (frm.doc.custom_copy_permanent_address_to_other_adress) {
             console.log('Copy permanent address to current and origin address');
             copy_address(frm, 'permanent', 'current');
-            copy_address(frm, 'permanent', 'place_of_origin');
+            translate_address_to_english(frm, 'current');
+            // 🚧 TẠM TẮT 21/08/2026 — field quê quán đã bị gỡ khỏi Employee.
+            // copy_address(frm, 'permanent', 'place_of_origin');
         }
     },
     // Current Address handlers
     custom_current_address_village: function (frm) {
         build_address_full_for_type(frm, 'current');
+        translate_address_to_english(frm, 'current');
     },
     custom_current_address_commune: function (frm) {
         build_address_full_for_type(frm, 'current');
+        translate_address_to_english(frm, 'current');
     },
     custom_current_address_province: function (frm) {
         handle_province_change(frm, 'current');
+        translate_address_to_english(frm, 'current');
     },
 
     // Permanent Address handlers
     custom_permanent_address_village: function (frm) {
         build_address_full_for_type(frm, 'permanent');
+        translate_address_to_english(frm, 'permanent');
     },
     custom_permanent_address_commune: function (frm) {
         build_address_full_for_type(frm, 'permanent');
+        translate_address_to_english(frm, 'permanent');
     },
     custom_permanent_address_province: function (frm) {
         handle_province_change(frm, 'permanent');
+        translate_address_to_english(frm, 'permanent');
     },
 
-    // Place of Origin Address handlers
-    custom_place_of_origin_address_village: function (frm) {
-        build_address_full_for_type(frm, 'place_of_origin');
-    },
-    custom_place_of_origin_address_commune: function (frm) {
-        build_address_full_for_type(frm, 'place_of_origin');
-    },
-    custom_place_of_origin_address_province: function (frm) {
-        handle_province_change(frm, 'place_of_origin');
-    },
+        // 🚧 TẠM TẮT 21/08/2026 — field custom_place_of_origin_address_* đã bị gỡ khỏi
+        //    Employee. Giữ nguyên để khai lại sau; bỏ comment là chạy như cũ.
+    // // Place of Origin Address handlers
+    // custom_place_of_origin_address_village: function (frm) {
+    //     build_address_full_for_type(frm, 'place_of_origin');
+    // },
+    // custom_place_of_origin_address_commune: function (frm) {
+    //     build_address_full_for_type(frm, 'place_of_origin');
+    // },
+    // custom_place_of_origin_address_province: function (frm) {
+    //     handle_province_change(frm, 'place_of_origin');
+    // },
 
     before_save: function (frm) {
         // Ensure employee code follows TIQN-XXXX format
@@ -206,9 +228,37 @@ frappe.ui.form.on('Employee', {
         // Build all address full fields before saving
         build_address_full_for_type(frm, 'permanent');
         build_address_full_for_type(frm, 'current');
-        build_address_full_for_type(frm, 'place_of_origin');
+        // 🚧 TẠM TẮT 21/08/2026 — quê quán đã gỡ khỏi Employee.
+        // build_address_full_for_type(frm, 'place_of_origin');
     },
 });
+
+// ============================================================
+// CREATE USER — chỉ hiện khi đã có Preferred Email
+// ============================================================
+
+/**
+ * Gỡ nút "Create User" khi chưa có Preferred Email.
+ *
+ * Core thêm nút chỉ với điều kiện `!frm.is_new() && !frm.doc.user_id`
+ * (erpnext/setup/doctype/employee/employee.js:49) rồi mở hộp thoại với email mặc định là
+ * `prefered_email || company_email || personal_email`. Chưa có email nào thì ô đó trống, HR bấm
+ * Create User và nhận lỗi "Email is required to create a user" từ server — nút mời gọi một thao
+ * tác chắc chắn thất bại.
+ *
+ * Gỡ nút chứ không disable: doctype_js của app chạy SAU refresh của core nên nút đã được thêm
+ * rồi; `remove_custom_button` là đường sạch nhất, không phải vá vào nội bộ hộp thoại của core.
+ */
+function toggle_create_user_button(frm) {
+    if (frm.is_new() || frm.doc.user_id) return;   // core vốn đã không thêm nút
+    if (frm.doc.prefered_email) return;            // đủ điều kiện — để nguyên nút của core
+
+    frm.remove_custom_button(__('Create User'));
+    frm.dashboard.add_indicator(
+        __('Set Preferred Email to create a user account'),
+        'orange'
+    );
+}
 
 // ============================================================
 // SUB STATUS
@@ -278,12 +328,16 @@ const ADDRESS_TYPES = {
         village: 'custom_current_address_village',
         full: 'custom_current_address_full'
     },
-    place_of_origin: {
-        province: 'custom_place_of_origin_address_province',
-        commune: 'custom_place_of_origin_address_commune',
-        village: 'custom_place_of_origin_address_village',
-        full: 'custom_place_of_origin_address_full'
-    }
+    // 🚧 TẠM TẮT 21/08/2026 — field quê quán đã bị gỡ khỏi Employee.
+    //    🔴 Đây là chỗ BẮT BUỘC phải comment: `load_province_options` và `before_save` duyệt
+    //    Object.keys(ADDRESS_TYPES) rồi gọi set_df_property lên từng field. Để lại là gọi lên
+    //    field không tồn tại. Bỏ comment cùng lúc với việc khai lại 4 field kia.
+    // place_of_origin: {
+    //     province: 'custom_place_of_origin_address_province',
+    //     commune: 'custom_place_of_origin_address_commune',
+    //     village: 'custom_place_of_origin_address_village',
+    //     full: 'custom_place_of_origin_address_full'
+    // }
 };
 
 /**
@@ -308,6 +362,42 @@ function handle_province_change(frm, address_type) {
 
     // Build full address
     build_address_full_for_type(frm, address_type);
+}
+
+/**
+ * Ô tiếng Anh tương ứng của mỗi loại địa chỉ. Đây là field LÕI của Employee, không phải custom.
+ * Không có 'place_of_origin' — quê quán không có ô tiếng Anh nào.
+ */
+const ENGLISH_ADDRESS_FIELD = {
+    permanent: 'permanent_address',
+    current: 'current_address'
+};
+
+/**
+ * Dịch địa chỉ sang tiếng Anh và ghi vào ô lõi tương ứng.
+ *
+ * Chỉ chạy khi người dùng vừa SỬA một ô địa chỉ tiếng Việt trên form. Không chạy lúc mở hồ sơ:
+ * địa chỉ tiếng Anh có thể được nhập thẳng bằng Data Import theo đúng bản dịch tay của HR, dịch
+ * đè lên là xoá mất công sức đó. Server cũng chặn ở `sync_english_addresses` với cùng lý do.
+ *
+ * Bản tiếng Anh này in lên HỢP ĐỒNG LAO ĐỘNG, nên phải thấy kết quả ngay trước khi lưu.
+ */
+function translate_address_to_english(frm, address_type) {
+    const target = ENGLISH_ADDRESS_FIELD[address_type];
+    if (!target) return;
+
+    const fields = ADDRESS_TYPES[address_type];
+    frappe.call({
+        method: 'customize_erpnext.overrides.employee.employee_address.translate_address',
+        args: {
+            village: frm.doc[fields.village] || '',
+            commune: frm.doc[fields.commune] || '',
+            province: frm.doc[fields.province] || ''
+        },
+        callback: function (r) {
+            if (r.message !== undefined) frm.set_value(target, r.message);
+        }
+    });
 }
 
 /**
@@ -433,118 +523,39 @@ function load_commune_options_for_type(frm, address_type, province_name) {
 
 
 // ---------------------------------------------------------------------------
-// Reason for Leaving — two cascading Selects fed from a JSON catalogue
+// Reason for Leaving — hai Link nối tầng
 //
-// custom_reason_for_leaving_group    (parent, e.g. Personal / Termination)
-// custom_reason_for_leaving_group_2  (child, depends on the parent)
-// reason_for_leaving                 (Small Text, free-form extra detail)
+// custom_reason_for_leaving_group    -> Resignation Reason Group
+// custom_reason_for_leaving_group_2  -> Resignation Reason Group 2 (lọc theo nhóm)
+// reason_for_leaving                 -> Small Text, diễn giải thêm
 //
-// Both Custom Fields deliberately keep `options` EMPTY in the DocType. The list
-// lives in employee_reason_for_leaving.json and is injected at runtime, so HR
-// can edit the catalogue without a migrate/restart. Empty options also mean the
-// server skips Select validation, which is what lets legacy values survive.
+// Trước đây là hai Select có `options` rỗng, danh sách bơm vào lúc chạy từ
+// employee_reason_for_leaving.json bằng ~95 dòng JS. HR muốn tự thêm/bớt nên
+// danh mục đã chuyển thành DocType — cả file JSON lẫn khối JS đó đã bị xoá.
+// Xem patches/add_resignation_reason_catalogue.py.
 // ---------------------------------------------------------------------------
 
-const REASON_FOR_LEAVING_URL =
-    '/assets/customize_erpnext/js/custom_scripts/employee_reason_for_leaving.json';
-
-let _reason_for_leaving_catalogue = null;
-
-/**
- * Fetch (once per page load) and normalise the reason catalogue.
- * @returns {Promise<{group_names: string[], reasons_by_group: object}>}
- */
-function load_reason_for_leaving_catalogue() {
-    if (_reason_for_leaving_catalogue) return _reason_for_leaving_catalogue;
-
-    _reason_for_leaving_catalogue = fetch(REASON_FOR_LEAVING_URL, { cache: 'no-cache' })
-        .then(r => {
-            if (!r.ok) throw new Error(`HTTP ${r.status}`);
-            return r.json();
-        })
-        .then(data => {
-            const group_names = [];
-            const reasons_by_group = {};
-            (data.groups || []).forEach(group => {
-                if (!group || !group.name) return;
-                group_names.push(group.name);
-                reasons_by_group[group.name] = (group.reasons || []).slice();
-            });
-            return { group_names, reasons_by_group };
-        })
-        .catch(err => {
-            // Don't cache the failure — a later refresh gets another chance.
-            _reason_for_leaving_catalogue = null;
-            console.error('Could not load reason for leaving catalogue', err);
-            return { group_names: [], reasons_by_group: {} };
-        });
-
-    return _reason_for_leaving_catalogue;
-}
-
-/**
- * Build the option list for a Select, keeping the currently stored value even
- * when it is no longer in the catalogue (legacy records would otherwise render
- * blank and look like the data was lost).
- * @param {string[]} choices
- * @param {string} current_value
- * @returns {string[]}
- */
-function reason_options_with_current(choices, current_value) {
-    const options = [''].concat(choices);
-    if (current_value && !options.includes(current_value)) options.push(current_value);
-    return options;
-}
-
-/**
- * Refresh the child Select from the currently selected parent group.
- * @param {object} frm
- * @param {object} catalogue
- * @param {boolean} clear_invalid - true when the parent was just changed by the
- *        user, so a child value belonging to the previous parent must be dropped
- */
-function apply_reason_sub_options(frm, catalogue, clear_invalid) {
-    const group = frm.doc.custom_reason_for_leaving_group;
-    const choices = (group && catalogue.reasons_by_group[group]) || [];
-
-    if (clear_invalid && frm.doc.custom_reason_for_leaving_group_2
-        && !choices.includes(frm.doc.custom_reason_for_leaving_group_2)) {
-        frm.set_value('custom_reason_for_leaving_group_2', '');
-    }
-
-    frm.set_df_property(
-        'custom_reason_for_leaving_group_2',
-        'options',
-        reason_options_with_current(choices, frm.doc.custom_reason_for_leaving_group_2)
-    );
-    frm.toggle_display('custom_reason_for_leaving_group_2', !!group);
-}
-
-/**
- * Load the catalogue and populate both Selects.
- * @param {object} frm
- * @param {boolean} clear_invalid
- */
-function apply_reason_for_leaving_options(frm, clear_invalid) {
-    return load_reason_for_leaving_catalogue().then(catalogue => {
-        frm.set_df_property(
-            'custom_reason_for_leaving_group',
-            'options',
-            reason_options_with_current(
-                catalogue.group_names, frm.doc.custom_reason_for_leaving_group
-            )
-        );
-        apply_reason_sub_options(frm, catalogue, clear_invalid);
-    });
-}
-
 frappe.ui.form.on('Employee', {
-    refresh: function (frm) {
-        // Options live on the docfield, which form refresh resets — reapply.
-        apply_reason_for_leaving_options(frm, false);
+    setup: function (frm) {
+        frm.set_query('custom_reason_for_leaving_group', () => ({
+            filters: { is_active: 1 },
+        }));
+
+        // Lọc HIỂN THỊ. Cặp nhóm/lý do lệch nhau qua Data Import hay API thì
+        // không có gì ở đây chặn được — chốt chặn thật nằm ở
+        // ResignationApplication.validate_reason() cho đơn nghỉ việc.
+        frm.set_query('custom_reason_for_leaving_group_2', () => ({
+            filters: {
+                reason_for_leaving_group: frm.doc.custom_reason_for_leaving_group || '',
+                is_active: 1,
+            },
+        }));
     },
 
     custom_reason_for_leaving_group: function (frm) {
-        apply_reason_for_leaving_options(frm, true);
-    }
+        // Đổi nhóm thì lý do cũ gần như chắc chắn không còn thuộc nhóm mới.
+        if (frm.doc.custom_reason_for_leaving_group_2) {
+            frm.set_value('custom_reason_for_leaving_group_2', '');
+        }
+    },
 });

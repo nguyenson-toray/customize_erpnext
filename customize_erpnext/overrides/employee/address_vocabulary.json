@@ -1,0 +1,64 @@
+{
+  "_comment": [
+    "Từ vựng dịch địa chỉ sang tiếng Anh cho HỢP ĐỒNG LAO ĐỘNG.",
+    "Sửa file này là đổi được cách dịch — không cần sửa code, không cần bench restart,",
+    "chỉ cần clear-cache (hoặc đợi tối đa 1 ngày, xem TTL trong employee_address.py).",
+    "",
+    "Bộ từ này rút ra từ api/address_converter/address.csv — 2.398 địa chỉ HR đã dịch tay.",
+    "Đếm trên toàn cột tiếng Anh của file đó: Province 2346, Commune 2132, Village 1909,",
+    "District 643, Ward 215, City 211, Group 169, Town 28.",
+    "Và những từ file đó KHÔNG dùng: Hamlet 1, Area 0, Quarter 0, Residential 0, Team 0,",
+    "Block 0 — nên 'thôn' là Village chứ không phải Hamlet, 'khu dân cư' là Group chứ không",
+    "phải Residential Area.",
+    "",
+    "Không cần quan tâm thứ tự các dòng: code tự xét cụm DÀI trước cụm NGẮN, nên",
+    "'tổ dân phố' luôn được xét trước 'tổ'.",
+    "Khoá viết thường, KHÔNG dấu — code bỏ dấu trước khi so, nên 'thôn' và 'Thôn' đều khớp."
+  ],
+
+  "local_suffix": {
+    "_comment": "Cấp thôn/xóm/tổ: tiền tố tiếng Việt -> hậu tố tiếng Anh. 'Thôn Phước Bình' -> 'Phuoc Binh Village'. Phần còn lại thuần số thì đảo: 'Tổ 23' -> 'Group 23'.",
+    "thon": "Village",
+    "xom": "Village",
+    "to dan pho": "Group",
+    "khu dan cu": "Group",
+    "tdp": "Group",
+    "kdc": "Group",
+    "doi": "Group",
+    "to": "Group"
+  },
+
+  "local_prefix": {
+    "_comment": "Tiền tố giữ nguyên vị trí đầu chuỗi: 'Số 18' -> 'No.18'.",
+    "so": "No."
+  },
+
+  "admin_unit": {
+    "_comment": "Cấp hành chính. Bình thường KHÔNG dùng tới — tên tiếng Anh lấy từ cột full_name_en của bảng provinces/wards, chính xác hơn. Bộ này chỉ là phương án dự phòng, xem cờ translate_unmatched_admin bên dưới.",
+    "tinh": "Province",
+    "thanh pho": "City",
+    "tp": "City",
+    "quan": "District",
+    "huyen": "District",
+    "thi xa": "Town",
+    "thi tran": "Town",
+    "tt": "Town",
+    "phuong": "Ward",
+    "xa": "Commune",
+    "dac khu": "Special Zone"
+  },
+
+  "translate_unmatched_admin": false,
+  "_comment_flag": [
+    "false (mặc định) — xã/tỉnh không tra được trong bảng provinces/wards thì GIỮ NGUYÊN",
+    "tiếng Việt. Nhờ vậy lọc 'current_address LIKE %Tỉnh %' là ra đúng danh sách cần sửa.",
+    "",
+    "true — dịch máy bằng bảng admin_unit ở trên.",
+    "",
+    "🔴 Cân nhắc trước khi bật true: bảng provinces chỉ có đơn vị SAU sáp nhập 2025. Dữ liệu",
+    "còn 36 hồ sơ mang tên tỉnh cũ ('Tỉnh Quảng Nam', 'Tỉnh Bình Định', 'Tỉnh Phú Yên' — đã",
+    "sáp nhập, không còn tồn tại). Bật true là in 'Quang Nam Province' lên hợp đồng lao động,",
+    "trông rất chuẩn nhưng đặt tên một đơn vị hành chính KHÔNG CÒN — sai âm thầm, ký xong mới",
+    "biết. Để false thì nó lòi ra tiếng Việt và người ta sửa được trước khi in."
+  ]
+}

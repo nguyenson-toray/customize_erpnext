@@ -987,12 +987,14 @@ _ADDRESS_GROUPS = [
 		"village": "custom_permanent_address_village",
 		"full": "custom_permanent_address_full",
 	},
-	{
-		"province": "custom_place_of_origin_address_province",
-		"commune": "custom_place_of_origin_address_commune",
-		"village": "custom_place_of_origin_address_village",
-		"full": "custom_place_of_origin_address_full",
-	},
+	# 🚧 TẠM TẮT 21/08/2026 — field custom_place_of_origin_address_* đã bị gỡ khỏi Employee.
+	#    Giữ nguyên để khai lại sau; bỏ comment cả khối là chạy như cũ.
+	# {
+	# "province": "custom_place_of_origin_address_province",
+	# "commune": "custom_place_of_origin_address_commune",
+	# "village": "custom_place_of_origin_address_village",
+	# "full": "custom_place_of_origin_address_full",
+	# },
 ]
 
 

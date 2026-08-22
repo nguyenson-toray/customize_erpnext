@@ -2544,9 +2544,11 @@ _EMPLOYEE_FIELDS = [
 	"custom_current_address_province", "custom_current_address_commune",
 	"custom_current_address_village", "custom_current_address_full",
 
-	# --- Quê quán ---
-	"custom_place_of_origin_address_province", "custom_place_of_origin_address_commune",
-	"custom_place_of_origin_address_village", "custom_place_of_origin_address_full",
+	# 🚧 TẠM TẮT 21/08/2026 — field custom_place_of_origin_address_* đã bị gỡ khỏi Employee.
+	#    Giữ nguyên để khai lại sau; bỏ comment cả khối là chạy như cũ.
+	# # --- Quê quán ---
+	# "custom_place_of_origin_address_province", "custom_place_of_origin_address_commune",
+	# "custom_place_of_origin_address_village", "custom_place_of_origin_address_full",
 
 	# --- Liên hệ ---
 	"cell_number", "personal_email", "company_email", "prefered_email",
@@ -2619,10 +2621,12 @@ _EMPLOYEE_COLUMN_LABELS_EN = {
 	"custom_current_address_commune": "Current Address - Commune",
 	"custom_current_address_village": "Current Address - Village",
 	"custom_current_address_full": "Current Address - Full",
-	"custom_place_of_origin_address_province": "Place of Origin - Province",
-	"custom_place_of_origin_address_commune": "Place of Origin - Commune",
-	"custom_place_of_origin_address_village": "Place of Origin - Village",
-	"custom_place_of_origin_address_full": "Place of Origin - Full",
+	# 🚧 TẠM TẮT 21/08/2026 — field custom_place_of_origin_address_* đã bị gỡ khỏi Employee.
+	#    Giữ nguyên để khai lại sau; bỏ comment cả khối là chạy như cũ.
+	# "custom_place_of_origin_address_province": "Place of Origin - Province",
+	# "custom_place_of_origin_address_commune": "Place of Origin - Commune",
+	# "custom_place_of_origin_address_village": "Place of Origin - Village",
+	# "custom_place_of_origin_address_full": "Place of Origin - Full",
 	"personal_email": "Personal Email",
 	"company_email": "Company Email", "prefered_email": "Preferred Email",
 	"prefered_contact_email": "Preferred Contact Email", "user_id": "User ID",
@@ -2681,10 +2685,12 @@ _EMPLOYEE_COLUMN_LABELS_VI = {
 	"custom_current_address_commune": "Hiện tại - Xã",
 	"custom_current_address_village": "Hiện tại - Thôn",
 	"custom_current_address_full": "Hiện tại - Địa chỉ đầy đủ",
-	"custom_place_of_origin_address_province": "Quê quán - Tỉnh",
-	"custom_place_of_origin_address_commune": "Quê quán - Xã",
-	"custom_place_of_origin_address_village": "Quê quán - Thôn",
-	"custom_place_of_origin_address_full": "Quê quán - Địa chỉ đầy đủ",
+	# 🚧 TẠM TẮT 21/08/2026 — field custom_place_of_origin_address_* đã bị gỡ khỏi Employee.
+	#    Giữ nguyên để khai lại sau; bỏ comment cả khối là chạy như cũ.
+	# "custom_place_of_origin_address_province": "Quê quán - Tỉnh",
+	# "custom_place_of_origin_address_commune": "Quê quán - Xã",
+	# "custom_place_of_origin_address_village": "Quê quán - Thôn",
+	# "custom_place_of_origin_address_full": "Quê quán - Địa chỉ đầy đủ",
 	"cell_number": "Số điện thoại", "personal_email": "Email cá nhân",
 	"company_email": "Email công ty", "prefered_email": "Email ưu tiên",
 	"prefered_contact_email": "Loại email ưu tiên", "user_id": "User ID",

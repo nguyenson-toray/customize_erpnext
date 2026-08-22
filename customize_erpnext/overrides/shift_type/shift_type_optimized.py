@@ -2389,8 +2389,10 @@ def _core_process_attendance_logic_optimized(
 	print(f"🧹 CLEANUP ATTENDANCE FOR LEFT EMPLOYEES")
 	print(f"{'='*80}")
 	try:
-		# Find attendance on or after relieving_date that have NO linked checkins
-		# relieving_date is the last official day — Absent records on that day should be removed
+		# Find attendance on or after relieving_date that have NO linked checkins.
+		# relieving_date is the FIRST day the employee is no longer at work, not their last
+		# working day — which is why the cut is `>= relieving_date` and why an Absent record
+		# dated exactly on relieving_date is wrong and gets removed.
 		invalid_attendance = frappe.db.sql("""
 			SELECT a.name, a.employee, a.employee_name, a.attendance_date, e.relieving_date
 			FROM `tabAttendance` a

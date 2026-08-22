@@ -1,0 +1,367 @@
+{
+ "actions": [],
+ "allow_import": 1,
+ "creation": "2026-08-21 09:00:00",
+ "doctype": "DocType",
+ "document_type": "Document",
+ "engine": "InnoDB",
+ "field_order": [
+  "employee",
+  "employee_name",
+  "date_of_joining",
+  "column_break_efhu",
+  "relieving_date",
+  "resignation_letter_date",
+  "column_break_emp",
+  "designation",
+  "department",
+  "column_break_emp2",
+  "custom_section",
+  "custom_group",
+  "section_break_dates",
+  "column_break_ekuz",
+  "column_break_dates",
+  "notice_days",
+  "section_break_reason",
+  "reason_for_leaving_group",
+  "reason_for_leaving_group_2",
+  "column_break_reason",
+  "reason_detail",
+  "section_break_handover",
+  "handover_id_card",
+  "handover_uniform",
+  "handover_shoe_rack",
+  "column_break_handover",
+  "handover_fingerprint",
+  "handover_tools",
+  "handover_work",
+  "column_break_handover2",
+  "handover_progress",
+  "handover_note",
+  "handover_attachment",
+  "section_break_withdraw",
+  "withdrawal_date",
+  "column_break_withdraw",
+  "withdrawal_reason",
+  "amended_from"
+ ],
+ "fields": [
+  {
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "in_global_search": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Employee",
+   "options": "Employee",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "employee.employee_name",
+   "fieldname": "employee_name",
+   "fieldtype": "Data",
+   "in_global_search": 1,
+   "in_list_view": 1,
+   "label": "Employee Name",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "employee.date_of_joining",
+   "fieldname": "date_of_joining",
+   "fieldtype": "Date",
+   "label": "Date of Joining",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_emp",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "employee.designation",
+   "fieldname": "designation",
+   "fieldtype": "Link",
+   "label": "Designation",
+   "options": "Designation",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "employee.department",
+   "fieldname": "department",
+   "fieldtype": "Link",
+   "label": "Department",
+   "options": "Department",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_emp2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "employee.custom_section",
+   "fieldname": "custom_section",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Section",
+   "options": "Section",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "employee.custom_group",
+   "fieldname": "custom_group",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Group",
+   "options": "Group",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_dates",
+   "fieldtype": "Section Break",
+   "hidden": 1,
+   "label": "Dates"
+  },
+  {
+   "default": "Today",
+   "description": "Ng\u00e0y nh\u1eadn \u0111\u01a1n",
+   "fieldname": "resignation_letter_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Resignation Letter Date",
+   "reqd": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "description": "Ng\u00e0y B\u1eaeT \u0110\u1ea6U ngh\u1ec9 vi\u1ec7c",
+   "fieldname": "relieving_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Relieving Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_dates",
+   "fieldtype": "Column Break"
+  },
+  {
+   "allow_on_submit": 1,
+   "description": "T\u1ea0M \u1ea8N. Ng\u01b0\u1ee1ng b\u00e1o tr\u01b0\u1edbc ph\u1ee5 thu\u1ed9c lo\u1ea1i h\u1ee3p \u0111\u1ed3ng (BLL\u0110 2019 \u0110i\u1ec1u 35: 30 ng\u00e0y v\u1edbi H\u0110 x\u00e1c \u0111\u1ecbnh th\u1eddi h\u1ea1n, 45 ng\u00e0y v\u1edbi H\u0110 kh\u00f4ng x\u00e1c \u0111\u1ecbnh th\u1eddi h\u1ea1n) \u2014 m\u00e0 lo\u1ea1i h\u1ee3p \u0111\u1ed3ng do module Labor Contract qu\u1ea3n, ch\u01b0a ho\u00e0n thi\u1ec7n. V\u1eabn \u0111\u01b0\u1ee3c t\u00ednh v\u00e0 l\u01b0u \u0111\u1ec3 khi b\u1eadt l\u1ea1i kh\u00f4ng c\u00f3 kho\u1ea3ng tr\u1ed1ng d\u1eef li\u1ec7u.",
+   "fieldname": "notice_days",
+   "fieldtype": "Int",
+   "hidden": 1,
+   "label": "Notice Days",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_reason",
+   "fieldtype": "Section Break",
+   "label": "Reason for Leaving"
+  },
+  {
+   "fieldname": "reason_for_leaving_group",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Reason for Leaving Group",
+   "options": "Resignation Reason Group"
+  },
+  {
+   "fieldname": "reason_for_leaving_group_2",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Reason for Leaving Group 2",
+   "options": "Resignation Reason Group 2"
+  },
+  {
+   "fieldname": "column_break_reason",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Di\u1ec5n gi\u1ea3i th\u00eam. N\u1ed9i dung n\u00e0y \u0111\u01b0\u1ee3c ghi sang Employee.reason_for_leaving.",
+   "fieldname": "reason_detail",
+   "fieldtype": "Small Text",
+   "label": "Reason Detail"
+  },
+  {
+   "description": "Tick \u0111\u01b0\u1ee3c c\u1ea3 sau khi duy\u1ec7t \u0111\u01a1n \u2014 th\u1ef1c t\u1ebf tr\u1ea3 th\u1ebb / tr\u1ea3 \u0111\u1ed3ng ph\u1ee5c di\u1ec5n ra v\u00e0o ng\u00e0y l\u00e0m vi\u1ec7c cu\u1ed1i.",
+   "fieldname": "section_break_handover",
+   "fieldtype": "Section Break",
+   "label": "Handover"
+  },
+  {
+   "allow_on_submit": 1,
+   "default": "0",
+   "fieldname": "handover_id_card",
+   "fieldtype": "Check",
+   "label": "ID Card Returned"
+  },
+  {
+   "allow_on_submit": 1,
+   "default": "0",
+   "fieldname": "handover_uniform",
+   "fieldtype": "Check",
+   "label": "Uniform Returned"
+  },
+  {
+   "allow_on_submit": 1,
+   "default": "0",
+   "fieldname": "handover_shoe_rack",
+   "fieldtype": "Check",
+   "label": "Shoe Rack Cleared"
+  },
+  {
+   "fieldname": "column_break_handover",
+   "fieldtype": "Column Break"
+  },
+  {
+   "allow_on_submit": 1,
+   "default": "0",
+   "fieldname": "handover_fingerprint",
+   "fieldtype": "Check",
+   "label": "Fingerprint Removed"
+  },
+  {
+   "allow_on_submit": 1,
+   "default": "0",
+   "fieldname": "handover_tools",
+   "fieldtype": "Check",
+   "label": "Tools Returned"
+  },
+  {
+   "allow_on_submit": 1,
+   "default": "0",
+   "fieldname": "handover_work",
+   "fieldtype": "Check",
+   "label": "Work Handed Over"
+  },
+  {
+   "fieldname": "column_break_handover2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "handover_progress",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Handover Progress",
+   "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "handover_note",
+   "fieldtype": "Small Text",
+   "label": "Handover Note"
+  },
+  {
+   "allow_on_submit": 1,
+   "description": "Bi\u00ean b\u1ea3n b\u00e0n giao \u0111\u00e3 k\u00fd, \u1ea3nh ch\u1ee5p hi\u1ec7n tr\u1ea1ng\u2026 \u0110\u00ednh k\u00e8m \u0111\u01b0\u1ee3c c\u1ea3 sau khi duy\u1ec7t \u0111\u01a1n, v\u00ec vi\u1ec7c b\u00e0n giao di\u1ec5n ra v\u00e0o nh\u1eefng ng\u00e0y l\u00e0m vi\u1ec7c cu\u1ed1i. C\u1ea7n nhi\u1ec1u h\u01a1n m\u1ed9t file th\u00ec d\u00f9ng th\u00eam m\u1ee5c Attachments \u1edf thanh b\u00ean.",
+   "fieldname": "handover_attachment",
+   "fieldtype": "Attach",
+   "label": "Handover Attachment"
+  },
+  {
+   "depends_on": "eval:doc.withdrawal_date || doc.docstatus == 2",
+   "fieldname": "section_break_withdraw",
+   "fieldtype": "Section Break",
+   "label": "Withdrawal"
+  },
+  {
+   "allow_on_submit": 1,
+   "description": "\u0110i\u1ec1n b\u1eb1ng n\u00fat Withdraw. H\u1ed9p tho\u1ea1i Cancel m\u1eb7c \u0111\u1ecbnh c\u1ee7a Frappe kh\u00f4ng h\u1ecfi \u0111\u01b0\u1ee3c ng\u00e0y.",
+   "fieldname": "withdrawal_date",
+   "fieldtype": "Date",
+   "label": "Withdrawal Date",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_withdraw",
+   "fieldtype": "Column Break"
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "withdrawal_reason",
+   "fieldtype": "Small Text",
+   "label": "Withdrawal Reason",
+   "read_only": 1
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Resignation Application",
+   "print_hide": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_efhu",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_ekuz",
+   "fieldtype": "Column Break"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2026-08-21 15:00:09.589564",
+ "modified_by": "Administrator",
+ "module": "Customize Erpnext",
+ "name": "Resignation Application",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "amend": 1,
+   "cancel": 1,
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "amend": 1,
+   "cancel": 1,
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "HR Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "cancel": 1,
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "HR User",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "show_title_field_in_link": 1,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "employee_name",
+ "track_changes": 1
+}

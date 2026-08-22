@@ -37,8 +37,10 @@ _ONBOARDING_FIELDS = [
 	"current_address_village", "current_address_full",
 	"permanent_address_province", "permanent_address_commune",
 	"permanent_address_village", "permanent_address_full",
-	"place_of_origin_province", "place_of_origin_commune",
-	"place_of_origin_village", "place_of_origin_full",
+	# 🚧 TẠM TẮT 21/08/2026 — field custom_place_of_origin_address_* đã bị gỡ khỏi Employee.
+	#    Giữ nguyên để khai lại sau; bỏ comment cả khối là chạy như cũ.
+	# "place_of_origin_province", "place_of_origin_commune",
+	# "place_of_origin_village", "place_of_origin_full",
 	"personal_email",
 	"number_of_childrens",
 	"emergency_contact_name", "emergency_phone_number",
@@ -69,10 +71,12 @@ _SYNC_MAP = {
 	"permanent_address_commune":      "custom_permanent_address_commune",
 	"permanent_address_village":      "custom_permanent_address_village",
 	"permanent_address_full":         "custom_permanent_address_full",
-	"place_of_origin_province":       "custom_place_of_origin_address_province",
-	"place_of_origin_commune":        "custom_place_of_origin_address_commune",
-	"place_of_origin_village":        "custom_place_of_origin_address_village",
-	"place_of_origin_full":           "custom_place_of_origin_address_full",
+	# 🚧 TẠM TẮT 21/08/2026 — field custom_place_of_origin_address_* đã bị gỡ khỏi Employee.
+	#    Giữ nguyên để khai lại sau; bỏ comment cả khối là chạy như cũ.
+	# "place_of_origin_province":       "custom_place_of_origin_address_province",
+	# "place_of_origin_commune":        "custom_place_of_origin_address_commune",
+	# "place_of_origin_village":        "custom_place_of_origin_address_village",
+	# "place_of_origin_full":           "custom_place_of_origin_address_full",
 	"personal_email":                 "personal_email",
 	"emergency_contact_name":         "person_to_be_contacted",
 	"emergency_phone_number":         "emergency_phone_number",
@@ -85,7 +89,9 @@ _SYNC_MAP = {
 # Feature flag keys with their defaults (1 = enabled)
 _FEATURE_FLAGS = [
 	"upload_cccd", "current_address", "permanent_address",
-	"place_of_origin_address", "personal_email",
+	# 🚧 TẠM TẮT 21/08/2026 — field custom_place_of_origin_address_* đã bị gỡ khỏi Employee.
+	#    Giữ nguyên để khai lại sau; bỏ comment cả khối là chạy như cũ.
+	# "place_of_origin_address", "personal_email",
 	"emergency_contact", "number_of_childrens",
 	"tax_code", "shirt_size", "shoe_size",
 ]
@@ -340,7 +346,9 @@ def save_onboarding_form(employee_id, **kwargs):
 
 	doc.current_address_full   = _join_addr("current_address_village",  "current_address_commune",  "current_address_province")
 	doc.permanent_address_full = _join_addr("permanent_address_village", "permanent_address_commune", "permanent_address_province")
-	doc.place_of_origin_full   = _join_addr("place_of_origin_village",  "place_of_origin_commune",  "place_of_origin_province")
+	# 🚧 TẠM TẮT 21/08/2026 — field custom_place_of_origin_address_* đã bị gỡ khỏi Employee.
+	#    Giữ nguyên để khai lại sau; bỏ comment cả khối là chạy như cũ.
+	# doc.place_of_origin_full   = _join_addr("place_of_origin_village",  "place_of_origin_commune",  "place_of_origin_province")
 
 	# Always set to Pending Review when employee saves
 	doc.status = "Pending Review"
@@ -674,8 +682,10 @@ def download_onboarding_excel(names=None):
 			"current_address_village", "current_address_full",
 			"permanent_address_province", "permanent_address_commune",
 			"permanent_address_village", "permanent_address_full",
-			"place_of_origin_province", "place_of_origin_commune",
-			"place_of_origin_village", "place_of_origin_full",
+    # 🚧 TẠM TẮT 21/08/2026 — field custom_place_of_origin_address_* đã bị gỡ khỏi Employee.
+    #    Giữ nguyên để khai lại sau; bỏ comment cả khối là chạy như cũ.
+			# "place_of_origin_province", "place_of_origin_commune",
+			# "place_of_origin_village", "place_of_origin_full",
 			"personal_email",
 			"emergency_contact_name", "emergency_phone_number",
 		],
@@ -709,8 +719,10 @@ def download_onboarding_excel(names=None):
 		"current_address_village", "current_address_full",
 		"permanent_address_province", "permanent_address_commune",
 		"permanent_address_village", "permanent_address_full",
-		"place_of_origin_province", "place_of_origin_commune",
-		"place_of_origin_village", "place_of_origin_full",
+    # 🚧 TẠM TẮT 21/08/2026 — field custom_place_of_origin_address_* đã bị gỡ khỏi Employee.
+    #    Giữ nguyên để khai lại sau; bỏ comment cả khối là chạy như cũ.
+		# "place_of_origin_province", "place_of_origin_commune",
+		# "place_of_origin_village", "place_of_origin_full",
 		"personal_email",
 		"emergency_contact_name", "emergency_phone_number",
 	]

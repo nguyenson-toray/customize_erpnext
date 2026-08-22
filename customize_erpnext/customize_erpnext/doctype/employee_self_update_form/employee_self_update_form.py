@@ -40,6 +40,8 @@ class EmployeeSelfUpdateForm(Document):
 		self.permanent_address_full = _join(
 			self.permanent_address_village, self.permanent_address_commune, self.permanent_address_province
 		)
-		self.place_of_origin_full = _join(
-			self.place_of_origin_village, self.place_of_origin_commune, self.place_of_origin_province
-		)
+    # 🚧 TẠM TẮT 21/08/2026 — field custom_place_of_origin_address_* đã bị gỡ khỏi Employee.
+    #    Giữ nguyên để khai lại sau; bỏ comment cả khối là chạy như cũ.
+		# self.place_of_origin_full = _join(
+		# self.place_of_origin_village, self.place_of_origin_commune, self.place_of_origin_province
+		# )

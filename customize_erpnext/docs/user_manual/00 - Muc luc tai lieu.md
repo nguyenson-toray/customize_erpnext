@@ -58,8 +58,10 @@ trong app này.
 
 ## Hồ sơ nhân viên
 
+- `overrides/employee/employee_address.md` — Địa chỉ tiếng Anh trên Employee
 - `customize_erpnext/doctype/employee_maternity/employee_maternity.md` — Employee Maternity
 - `customize_erpnext/doctype/labor_contract/labor_contract.md` — Labor Contract
+- `customize_erpnext/doctype/resignation_application/resignation_application.md` — Đơn nghỉ việc — Resignation Application
 - `www/employee-photos/employee-photos.md` — Employee Photos — Tài liệu kỹ thuật
 - `public/js/custom_scripts/employee_photos.md` — Tính năng Chụp & Upload Ảnh Nhân viên
 - `www/employee-self-update/employee-self-update.md` — Employee Self Update — Tài liệu kỹ thuật
@@ -94,6 +96,7 @@ trong app này.
 ## Sơ đồ và tài liệu về tài liệu
 
 - `docs/flowchart/payroll.md` — Flowchart — Toàn bộ luồng chấm công, tính lương TIQN
+- `docs/flowchart/employee.md` — Flowchart — Hồ sơ nhân viên (Employee)
 - `docs/mindmap_guide.md` — Hướng dẫn bộ sơ đồ mindmap — Sơ đồ chức năng hệ thống / System Functional Mindmaps
 - `docs/user_manual/dev-tool.md` — Hướng dẫn dùng trang Dev Tool
 - `docs/user_manual/Attendance Request.md` — Attendance Request — bổ sung giờ check in/out

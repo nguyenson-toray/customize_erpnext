@@ -22,3 +22,15 @@ customize_erpnext.patches.seed_tiqn_payroll_settings
 customize_erpnext.patches.setup_attendance_request_supplement
 customize_erpnext.patches.add_leave_control_panel_include_left
 customize_erpnext.patches.add_attendance_actual_working_hours
+# post_model_sync: cần DocType Resignation Reason Group / Resignation Reason đã tồn tại
+# trước khi trỏ Custom Field kiểu Link vào chúng. Idempotent.
+customize_erpnext.patches.add_resignation_reason_catalogue
+# post_model_sync: cần DocType Resignation Application đã tồn tại trước khi trỏ Link vào.
+# Field là virtual (không có cột) — giá trị do CustomEmployee property trả về. Idempotent.
+customize_erpnext.patches.add_employee_resignation_link
+# post_model_sync: rename_field cần field MỚI đã có trong meta và cột CŨ còn trong bảng.
+# Đổi tên 3 field của Resignation Application cho khớp Employee. Idempotent.
+customize_erpnext.patches.rename_resignation_application_fields
+# post_model_sync: rename_field cần field MỚI đã có trong meta và cột CŨ còn trong bảng.
+# Đổi tên 2 field của Resignation Reason Group 2 cho khớp Employee / Resignation Application.
+customize_erpnext.patches.rename_resignation_reason_fields
