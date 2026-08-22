@@ -34,10 +34,6 @@
    "width": "Half"
   },
   {
-   "chart": "Employee Resignation",
-   "width": "Half"
-  },
-  {
    "chart": "Employees by Grade",
    "width": "Half"
   },
@@ -48,6 +44,18 @@
   {
    "chart": "Employees by Age",
    "width": "Half"
+  },
+  {
+   "chart": "Employee Resignation",
+   "width": "Half"
+  },
+  {
+   "chart": "Employee Resign By Reason Group",
+   "width": "Half"
+  },
+  {
+   "chart": "Employee Resign By Reason Group 2",
+   "width": "Full"
   }
  ],
  "creation": "2026-07-20 13:18:18.776203",
@@ -57,7 +65,7 @@
  "idx": 0,
  "is_default": 0,
  "is_standard": 1,
- "modified": "2026-07-23 16:03:47.613348",
+ "modified": "2026-08-22 15:43:03.839767",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "HR Overview",
