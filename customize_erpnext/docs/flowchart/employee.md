@@ -68,6 +68,15 @@ flowchart TD
 > | `custom_reason_for_leaving_group_2` | Resignation Reason Group 2 | **chưa dùng** |
 > | `custom_resignation_application` | Resignation Application | **field ảo** |
 
+> **Ô chọn nối tầng — lọc khoan dung, có lý do.** Trên form Employee, chọn `department` thì
+> `custom_section` chỉ còn các Section thuộc bộ phận đó; chọn `custom_section` thì `custom_group`
+> lọc theo. Đổi cha mà con không còn thuộc cha mới thì con **được xoá kèm thông báo**.
+>
+> ⚠ Bộ lọc nhận **cả bản ghi có `parrent` rỗng**, không lọc cứng. Đo 22/08/2026: **13/27 Section**
+> và **11/63 Group** chưa khai `parrent`. Lọc cứng sẽ giấu mất chúng khỏi ô chọn — HR không nhập
+> được người mới vào những tổ ấy, tức là filter còn hại hơn không có. Khai đủ `parrent` rồi thì
+> bỏ chuỗi rỗng khỏi hai bộ lọc trong `public/js/custom_scripts/employee.js` để siết lại.
+
 > **Ba điểm khác HRMS gốc:**
 >
 > | Điểm | Thực tế ở TIQN |

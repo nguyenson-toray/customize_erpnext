@@ -40,6 +40,7 @@ frappe.ui.form.on('Employee', {
     onload: function (frm) {
         // Load province options for both current and permanent address
         load_province_options(frm);
+        set_resignnation_fields_read_only(frm);
     },
 
     refresh: function (frm) {
@@ -73,8 +74,8 @@ frappe.ui.form.on('Employee', {
             });
         }
 
-        // Add custom button for fingerprint scanning if not new record
-        if (!frm.is_new() && frm.doc.name) {
+        // Add custom button for fingerprint scanning if not new record and status is Active
+        if (!frm.is_new() && frm.doc.name && frm.doc.status === 'Active') {
             frm.add_custom_button(__('Scan Fingerprints'), async function () {
                 // Show fingerprint scanner dialog with fixed employee
                 const moduleReady = await ensureFingerprintModule();
@@ -189,8 +190,8 @@ frappe.ui.form.on('Employee', {
         translate_address_to_english(frm, 'permanent');
     },
 
-        // 🚧 TẠM TẮT 21/08/2026 — field custom_place_of_origin_address_* đã bị gỡ khỏi
-        //    Employee. Giữ nguyên để khai lại sau; bỏ comment là chạy như cũ.
+    // 🚧 TẠM TẮT 21/08/2026 — field custom_place_of_origin_address_* đã bị gỡ khỏi
+    //    Employee. Giữ nguyên để khai lại sau; bỏ comment là chạy như cũ.
     // // Place of Origin Address handlers
     // custom_place_of_origin_address_village: function (frm) {
     //     build_address_full_for_type(frm, 'place_of_origin');
@@ -204,7 +205,7 @@ frappe.ui.form.on('Employee', {
 
     before_save: function (frm) {
         // Ensure employee code follows TIQN-XXXX format
-        if (frm.doc.employee && !frm.doc.employee.startsWith('TIQN-') && !frm.doc.employee.startsWith('TT-') ) {
+        if (frm.doc.employee && !frm.doc.employee.startsWith('TIQN-') && !frm.doc.employee.startsWith('TT-')) {
             frappe.msgprint(__('Employee code should follow TIQN-XXXX or TT-XXXX format'));
             frappe.validated = false;
             return;
@@ -232,6 +233,16 @@ frappe.ui.form.on('Employee', {
         // build_address_full_for_type(frm, 'place_of_origin');
     },
 });
+function set_resignnation_fields_read_only(frm) {
+    // check custom_resignation_application is not null
+    const has_resination_application = frm.doc.custom_resignation_application ? true : false;
+    // console.log('has_resination_application', has_resination_application);
+    frm.set_df_property('custom_reason_for_leaving_group', 'read_only', has_resination_application);
+    frm.set_df_property('custom_reason_for_leaving_group_2', 'read_only', has_resination_application);
+    frm.set_df_property('reason_for_leaving', 'read_only', has_resination_application);
+    frm.set_df_property('resignation_letter_date', 'read_only', has_resination_application);
+    frm.set_df_property('relieving_date', 'read_only', has_resination_application);
+}
 
 // ============================================================
 // CREATE USER — chỉ hiện khi đã có Preferred Email
@@ -559,3 +570,64 @@ frappe.ui.form.on('Employee', {
         }
     },
 });
+
+// ---------------------------------------------------------------------------
+// Department -> Section -> Group — ba Link nối tầng
+//
+// Section.parrent trỏ Department, Group.parrent trỏ Section (tên field viết
+// thiếu chữ 'a', đã đi vào dữ liệu — đừng đổi).
+//
+// 🔴 Lọc KHOAN DUNG, không lọc cứng. Đo ngày 22/08/2026: 13/27 Section và
+// 11/63 Group **chưa khai parrent**. Lọc cứng `parrent = department` sẽ giấu
+// mất 13 Section đó khỏi ô chọn — HR không nhập được người mới vào những tổ
+// ấy, tức là filter còn hại hơn không có. Nên nhận cả bản ghi có parrent rỗng:
+// vẫn thu hẹp danh sách, mà không chặn ai.
+//
+// Khai đủ parrent rồi thì bỏ chuỗi rỗng khỏi hai bộ lọc dưới đây để siết lại.
+// ---------------------------------------------------------------------------
+
+frappe.ui.form.on('Employee', {
+    setup: function (frm) {
+        frm.set_query('custom_section', () => {
+            if (!frm.doc.department) return {};        // chưa chọn Bộ phận thì cho xem hết
+            return { filters: { parrent: ['in', [frm.doc.department, '']] } };
+        });
+
+        frm.set_query('custom_group', () => {
+            if (!frm.doc.custom_section) return {};
+            return { filters: { parrent: ['in', [frm.doc.custom_section, '']] } };
+        });
+    },
+
+    department: function (frm) {
+        clear_if_orphaned(frm, 'custom_section', 'Section', frm.doc.department);
+    },
+
+    custom_section: function (frm) {
+        clear_if_orphaned(frm, 'custom_group', 'Group', frm.doc.custom_section);
+    },
+});
+
+/** Xoá giá trị con khi nó KHÔNG còn thuộc cha vừa chọn.
+ *
+ * Xoá vô điều kiện là sai: 56 hồ sơ hiện có đang mang cặp section/group lệch
+ * nhau (vd 49 người `Technical & Develop` + group `Sample` thuộc `Sewing`).
+ * HR mở một hồ sơ như vậy rồi sửa field khác mà bị thổi bay group thì mất dữ
+ * liệu im lặng. Chỉ xoá khi thật sự lệch, và nói cho người dùng biết.
+ */
+function clear_if_orphaned(frm, child_field, child_doctype, new_parent) {
+    const value = frm.doc[child_field];
+    if (!value || !new_parent) return;
+
+    frappe.db.get_value(child_doctype, value, 'parrent').then((r) => {
+        const parrent = (r.message || {}).parrent;
+        if (!parrent) return;                  // chưa khai parrent -> không kết luận được
+        if (parrent === new_parent) return;    // vẫn khớp
+
+        frm.set_value(child_field, '');
+        frappe.show_alert({
+            message: __('{0} đã xoá vì không thuộc {1}', [__(child_field), new_parent]),
+            indicator: 'orange',
+        });
+    });
+}

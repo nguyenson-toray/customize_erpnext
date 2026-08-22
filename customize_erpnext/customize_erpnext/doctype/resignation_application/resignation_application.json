@@ -158,6 +158,7 @@
    "label": "Reason for Leaving"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "reason_for_leaving_group",
    "fieldtype": "Link",
    "in_standard_filter": 1,
@@ -165,6 +166,7 @@
    "options": "Resignation Reason Group"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "reason_for_leaving_group_2",
    "fieldtype": "Link",
    "in_list_view": 1,
@@ -177,6 +179,7 @@
    "fieldtype": "Column Break"
   },
   {
+   "allow_on_submit": 1,
    "description": "Di\u1ec5n gi\u1ea3i th\u00eam. N\u1ed9i dung n\u00e0y \u0111\u01b0\u1ee3c ghi sang Employee.reason_for_leaving.",
    "fieldname": "reason_detail",
    "fieldtype": "Small Text",
@@ -306,7 +309,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-08-21 15:00:09.589564",
+ "modified": "2026-08-22 14:50:18.909142",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Resignation Application",
