@@ -495,6 +495,8 @@ doc_events = {
 # lazy-load bản self-host tại /assets/customize_erpnext/cropperjs/ khi cần crop
 app_include_js = [
     "/assets/customize_erpnext/js/fingerprint_scanner_dialog.js",
+    # Ẩn field bị chặn theo perm_level khỏi dialog "Export Data" (UI only, server vẫn chặn thật)
+    "/assets/customize_erpnext/js/hide_restricted_export_fields.js",
     "csv_bom_fix.bundle.js"
 ]
 
