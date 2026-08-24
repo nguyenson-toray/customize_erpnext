@@ -124,10 +124,22 @@ HR = n("HR - Human Resources", "Quản lý Nhân sự",
            " leave and benefit calculation",
            "Theo dõi các mốc thời gian liên quan thai sản của nhân viên,"
            " dùng để tính toán công phép, chế độ"), tag="Custom"),
-        n("Joining & leaving", "Tiếp nhận & nghỉ việc",
-          ("Onboarding, transfers, promotions and the resignation process",
-           "Tiếp nhận nhân viên mới, chuyển bộ phận, thăng chức, thủ tục thôi việc"),
+        n("Onboarding", "Tiếp nhận",
+          ("Steps for taking on a new employee: checklist, handover and paperwork",
+           "Thủ tục tiếp nhận nhân viên mới: danh sách việc cần làm, bàn giao,"
+           " hoàn tất hồ sơ"), tag="Standard"),
+        n("Transfer & promotion", "Điều chuyển & thăng chức",
+          ("Move between departments, change designation, promote,"
+           " and keep the history of changes",
+           "Chuyển bộ phận, đổi chức danh, thăng chức và lưu lại lịch sử thay đổi"),
           tag="Standard"),
+        n("Resignation Application", "Đơn nghỉ việc",
+          ("Resignation letter date, relieving date, notice days, reason for leaving,"
+           " plus the handover checklist: ID card, uniform, shoe rack, fingerprint,"
+           " tools and work",
+           "Ngày nộp đơn, ngày nghỉ chính thức, số ngày báo trước, lý do nghỉ"
+           " và danh sách bàn giao: thẻ, đồng phục, kệ giày, vân tay, công cụ,"
+           " công việc"), tag="Custom"),
         n("Employee reports", "Báo cáo nhân sự",
           ("Headcount lists, age structure, years of service and workforce movement",
            "Danh sách nhân sự, cơ cấu theo độ tuổi, thâm niên, biến động nhân sự"),
@@ -644,7 +656,9 @@ LINKS = {
     "Employment Type": "/desk/employment-type",
     "External personnel": "/desk/external-personnel",
     "Maternity records": "/desk/query-report/Employee%20Maternity%20Report",
-    "Joining & leaving": "/desk/employee-onboarding",
+    "Onboarding": "/desk/employee-onboarding",
+    "Transfer & promotion": "/desk/employee-transfer",
+    "Resignation Application": "/desk/resignation-application",
     "Employee reports": "/desk/employee/view/report",
 
     # ── HR: chấm công
@@ -1047,7 +1061,9 @@ LOGICAL_ORDER = {
     "Employee Records": [
         "Organization structure", "Employment Type", "Employee profile", "Employee photo",
         "Self-service update", "Dependents", "Labor contract", "External personnel",
-        "Maternity records", "Joining & leaving", "Employee reports",
+        "Maternity records", "Onboarding", "Transfer & promotion",
+        "Resignation Application",
+        "Employee reports",
     ],
     # Khai ca trước, rồi thiết bị thu dữ liệu, rồi mới tính công được
     "Time & Attendance": [
