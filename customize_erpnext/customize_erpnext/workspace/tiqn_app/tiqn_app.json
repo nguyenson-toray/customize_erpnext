@@ -227,7 +227,7 @@
    "hidden": 0,
    "is_query_report": 0,
    "label": "Overtime",
-   "link_count": 4,
+   "link_count": 5,
    "link_type": "DocType",
    "onboard": 0,
    "type": "Card Break"
@@ -271,9 +271,19 @@
    "link_type": "Report",
    "onboard": 0,
    "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "Overtime Compliance",
+   "link_count": 0,
+   "link_to": "OT Compliance",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
   }
  ],
- "modified": "2026-07-24 10:16:57.389356",
+ "modified": "2026-08-22 15:56:13.676914",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "TIQN App",
