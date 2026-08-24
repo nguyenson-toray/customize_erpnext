@@ -21569,3 +21569,14 @@ Letter Dated After Leaving,Đơn lập sau ngày nghỉ
 Resignation Letter Date is {0} day(s) after the Relieving Date.,Ngày nhận đơn sau ngày nghỉ {0} ngày.
 Resignation Letter Date is {0} days after the Relieving Date. More than {1} days apart is almost always a typo — check the year.,Ngày nhận đơn sau ngày nghỉ {0} ngày. Lệch quá {1} ngày gần như chắc chắn là gõ nhầm — kiểm tra lại năm.
 "Relieving Date cannot be before Date of Joining ({0}).","Ngày nghỉ không được trước ngày vào làm ({0})."
+Search,Tìm kiếm,
+Search all documents (Ctrl+K),Tìm trong toàn bộ tài liệu (Ctrl+K),
+Search every .md document in the app…,Tìm trong mọi tài liệu .md của app…,
+close,đóng,
+move,di chuyển,
+Dev Tool,Dev Tool,
+Loading…,Đang tải…,
+Presentation mode (P) — diagram only,Chế độ trình chiếu (P) — chỉ hiện sơ đồ,
+No item matches,Không có mục nào khớp,
+"File in the link no longer exists, opened the default diagram instead","File trong link không còn nữa, đã mở sơ đồ mặc định",
+No .md file found in customize_erpnext/docs/mindmap on the server,Không tìm thấy file .md nào trong customize_erpnext/docs/mindmap trên máy chủ,

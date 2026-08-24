@@ -75,10 +75,14 @@
     }
 
     /** Tô đậm chỗ khớp trong đoạn trích — so sánh trên bản đã bỏ dấu. */
+    function stripAccentsLower(t) {
+        return String(t || '').replace(/đ/g, 'd').replace(/Đ/g, 'D')
+            .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    }
+
     function highlight(text, q) {
         const api = window.DevTool;
-        const strip = (t) => t.replace(/đ/g, 'd').replace(/Đ/g, 'D')
-            .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+        const strip = stripAccentsLower;
         const i = strip(text).indexOf(strip(q));
         if (i < 0) return api.esc(text);
         return api.esc(text.slice(0, i))
@@ -282,6 +286,46 @@
     /* ─────────────── vùng đọc ─────────────── */
 
     /** Khung bài: cột nội dung + cột mục lục bên phải. */
+    /** Tô sáng chỗ khớp đầu tiên trong bài rồi cuộn tới, dùng khi mở từ ô tìm kiếm. */
+    function focusMatch(q) {
+        const needle = stripAccentsLower(q);
+        if (!needle || needle.length < 2) return false;
+        const article = mainEl && mainEl.querySelector('.md-body');
+        if (!article) return false;
+
+        article.querySelectorAll('mark.find-hit').forEach(function (m) {
+            m.replaceWith(document.createTextNode(m.textContent));
+        });
+
+        // Đi qua từng text node để không phá cấu trúc thẻ khi chèn <mark>
+        const walker = document.createTreeWalker(article, NodeFilter.SHOW_TEXT, {
+            acceptNode: function (node) {
+                if (!node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+                const tag = node.parentNode && node.parentNode.nodeName;
+                if (tag === 'SCRIPT' || tag === 'STYLE') return NodeFilter.FILTER_REJECT;
+                return NodeFilter.FILTER_ACCEPT;
+            }
+        });
+
+        let node;
+        while ((node = walker.nextNode())) {
+            const at = stripAccentsLower(node.nodeValue).indexOf(needle);
+            if (at < 0) continue;
+
+            const range = document.createRange();
+            range.setStart(node, at);
+            range.setEnd(node, Math.min(at + q.length, node.nodeValue.length));
+            const mark = document.createElement('mark');
+            mark.className = 'find-hit';
+            try { range.surroundContents(mark); }
+            catch (e) { return false; }        // khớp vắt qua nhiều thẻ thì bỏ qua
+
+            mark.scrollIntoView({ block: 'center' });
+            return true;
+        }
+        return false;
+    }
+
     function buildArticle(html, crumb) {
         mainEl.innerHTML = '';
 
@@ -484,6 +528,17 @@
         label: 'Hướng dẫn',
         icon: '📖',
         order: 30,
+
+        // Dùng lại đúng luật của ô tìm kiếm trong tab này: file thuộc
+        // docs/user_manual mở như bài thường, còn lại mở dạng liên kết.
+        openDoc: function (req) {
+            if (!req || !req.rel) return;
+            const done = req.appDoc ? openLink(req.rel) : openFile(req.filename);
+            // Bài render xong (kể cả mermaid) mới tô sáng được
+            Promise.resolve(done).then(function () {
+                if (req.query) focusMatch(req.query);
+            });
+        },
 
         mount: async function (ctx) {
             mainEl = ctx.main;

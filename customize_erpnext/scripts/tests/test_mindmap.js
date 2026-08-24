@@ -42,7 +42,7 @@ fs.writeFileSync(modPath, [
     tBlock,
     main,
     'module.exports = { parseMarkdown, layout, buildInner, exportSVGString, exportHTML,',
-    '                   measureNode, absLink, state,',
+    '                   measureNode, absLink, state, focusNode, findNode,',
     '                   setDownload: (f) => { download = f; },',
     '                   setEditorValue: (v) => { document.getElementById("editor").value = v; } };',
 ].join('\n'));
@@ -67,7 +67,10 @@ const fakeCtx = {
     fillRect() { }, drawImage() { }, setTransform() { }, fillStyle: ''
 };
 global.document = {
-    body: { style: {} },
+    body: {
+        style: {},
+        classList: { add() { }, remove() { }, toggle() { }, contains: () => false }
+    },
     getElementById: (id) => els[id] || (els[id] = fakeEl(id)),
     createElement: (tag) => tag === 'canvas'
         ? { getContext: () => fakeCtx, toBlob(cb) { cb({}); }, width: 0, height: 0 }
@@ -577,6 +580,72 @@ let btnErr = '';
 });
 check(btnErr === '', 'các nút khác chạy không lỗi' + (btnErr ? ' — ' + btnErr : ''));
 check(countCards(svg2.innerHTML) > 0, 'sau khi bấm hết các nút vẫn còn sơ đồ');
+
+/* ══════════════ 11. tìm và focus một mục ═══════════════════════ */
+
+console.log('\n=== focus mục theo từ khoá ===');
+reset();
+M.state.tree = M.parseMarkdown(hrText);
+M.layout(M.state.tree);
+
+// gập hết để chắc chắn focus phải tự mở nhánh cha
+M.state.tree.children.forEach(function (c) {
+    (function w(n) { if (n.children.length) M.state.collapsed.add(n.key); n.children.forEach(w); })(c);
+});
+M.layout(M.state.tree);
+const collapsedCount = M.state.nodes.length;
+
+const hit = M.focusNode('Đơn nghỉ việc');
+check(hit === true, 'tìm thấy mục theo từ khoá có dấu');
+const focused = M.state.nodes.find(function (n) { return n.key === M.state.focusKey; });
+check(!!focused, 'mục được focus đã hiện ra (nhánh cha tự mở)');
+check(focused && focused.title.includes('Đơn nghỉ việc'), 'focus đúng mục: '
+    + (focused && focused.title));
+check(M.state.selectedKey === M.state.focusKey, 'mục đó cũng được chọn');
+check(M.state.nodes.length > collapsedCount,
+    'số mục hiển thị tăng lên ' + collapsedCount + ' → ' + M.state.nodes.length);
+const svgF = M.buildInner(false);
+check(/class="node-card[^"]*focus"/.test(svgF), 'vẽ mục focus kèm class focus');
+
+// phải PHÓNG VÀO chứ không chỉ dịch khung: đang xem toàn sơ đồ thì k rất nhỏ
+reset();
+M.state.tree = M.parseMarkdown(hrText);
+M.layout(M.state.tree);
+M.state.view.k = 0.25;                       // giả lập vừa bấm Fit trên sơ đồ lớn
+M.focusNode('Đơn nghỉ việc');
+console.log('  zoom 0.25 → ' + M.state.view.k);
+check(M.state.view.k >= 1, 'zoom được đẩy lên mức đọc được (' + M.state.view.k + ')');
+
+// và mục đó phải nằm giữa khung nhìn 1200x760 của DOM giả
+const t = M.state.nodes.find(function (n) { return n.key === M.state.focusKey; });
+const cx = t.x * M.state.view.k + M.state.view.tx + (t.w * M.state.view.k) / 2;
+const cy = t.y * M.state.view.k + M.state.view.ty;
+console.log('  tâm mục sau khi focus: ' + Math.round(cx) + ', ' + Math.round(cy));
+check(Math.abs(cx - 600) < 2 && Math.abs(cy - 380) < 2, 'mục nằm đúng giữa khung nhìn');
+
+// đang zoom sâu hơn rồi thì giữ nguyên, đừng thu nhỏ lại
+M.state.view.k = 1.8;
+M.focusNode('Đơn nghỉ việc');
+check(M.state.view.k === 1.8, 'đang zoom sâu thì không bị kéo về 1');
+
+// gõ không dấu vẫn phải khớp
+reset();
+M.state.tree = M.parseMarkdown(hrText);
+M.layout(M.state.tree);
+check(M.focusNode('don nghi viec') === true, 'gõ không dấu vẫn khớp');
+check(M.state.nodes.find(function (n) { return n.key === M.state.focusKey; })
+    .title.includes('Đơn nghỉ việc'), 'không dấu ra đúng mục');
+
+// khớp trong phần mô tả khi tiêu đề không chứa từ khoá
+check(M.focusNode('bàn giao') === true, 'khớp được trong phần mô tả');
+console.log('   "bàn giao" → ' + M.state.nodes.find(
+    function (n) { return n.key === M.state.focusKey; }).title);
+
+// từ khoá không có thì báo false, không được ném lỗi
+let thrown = '';
+let miss = null;
+try { miss = M.focusNode('zzzz-khong-co-gi'); } catch (e) { thrown = e.message; }
+check(thrown === '' && miss === false, 'không tìm thấy thì trả về false, không lỗi');
 
 /* ══════════════ kết luận ══════════════════════════════════════ */
 

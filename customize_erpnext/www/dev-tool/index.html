@@ -180,6 +180,65 @@
         #toast.show { opacity: 1; }
         #toast.err { background: var(--danger); }
 
+        /* ---------- tìm kiếm toàn trang (Ctrl+K) ---------- */
+        #search-overlay {
+            position: fixed; inset: 0; z-index: 60;
+            background: rgba(35, 38, 43, .34);
+            display: none; align-items: flex-start; justify-content: center;
+            padding: 10vh 16px 16px;
+        }
+        #search-overlay.open { display: flex; }
+        #search-box {
+            width: 100%; max-width: 720px; max-height: 74vh;
+            background: var(--card-bg); border: 1px solid var(--card-border);
+            border-radius: 10px; box-shadow: 0 18px 48px rgba(20, 26, 34, .22);
+            display: flex; flex-direction: column; overflow: hidden;
+        }
+        #search-input {
+            width: 100%; padding: 15px 18px; border: 0; border-bottom: 1px solid var(--shell-border);
+            font-family: var(--sans); font-size: 15px; color: var(--text-main);
+        }
+        #search-input:focus { outline: none; }
+        #search-results { overflow: auto; padding: 6px; }
+        .sr-item {
+            display: block; width: 100%; text-align: left; cursor: pointer;
+            background: none; border: 0; border-radius: 7px;
+            padding: 9px 12px; font-family: var(--sans); color: var(--text-main);
+        }
+        .sr-item:hover, .sr-item.sel { background: var(--accent-soft); }
+        .sr-title { font-size: 13.5px; font-weight: 600; }
+        .sr-title .tag {
+            font-size: 10.5px; font-weight: 600; text-transform: uppercase;
+            letter-spacing: .04em; color: var(--accent);
+            background: var(--accent-soft); border-radius: 4px;
+            padding: 1px 6px; margin-right: 7px; vertical-align: 1px;
+        }
+        .sr-item.sel .tag { background: #fff; }
+        .sr-path { font-family: var(--mono); font-size: 11px; color: var(--shell-muted); }
+        .sr-snip { font-size: 12px; color: #5c626b; margin-top: 2px; }
+        .sr-snip mark, .sr-title mark, .sr-path mark { background: #ffe9a8; color: inherit; }
+        .sr-empty { padding: 18px; font-size: 13px; color: var(--shell-muted); }
+
+        /* chỗ khớp trong tài liệu sau khi mở từ ô tìm kiếm */
+        mark.find-hit {
+            background: #ffd873; color: inherit; border-radius: 2px;
+            padding: 0 2px; box-shadow: 0 0 0 3px #ffd87355;
+            animation: hit-fade 2.4s ease-out 1 forwards;
+        }
+        @keyframes hit-fade {
+            0%, 60% { background: #ffd873; }
+            100% { background: #fff0bf; }
+        }
+        #search-foot {
+            border-top: 1px solid var(--shell-border); padding: 7px 14px;
+            font-size: 11.5px; color: var(--shell-muted);
+            display: flex; gap: 14px; flex-wrap: wrap;
+        }
+        #search-foot kbd {
+            font-family: var(--mono); font-size: 10.5px; background: var(--shell-bg);
+            border: 1px solid var(--shell-border); border-radius: 4px; padding: 1px 5px;
+        }
+
         .placeholder {
             font-family: var(--mono); font-size: 13px; color: #8b8f97;
             padding: 40px;
@@ -425,6 +484,9 @@
     <div class="brand">DEV<br>TOOL</div>
     <div id="rail-buttons"></div>
     <div class="rail-spacer"></div>
+    <button class="rail-btn" id="btn-search" title="{{ _('Search all documents (Ctrl+K)') }}">
+        <span class="ic">⌕</span>{{ _("Search") }}
+    </button>
     <button class="rail-btn" id="btn-present" title="{{ _('Presentation mode (P) — diagram only') }}">
         <span class="ic">⛶</span>{{ _("Present") }}
     </button>
@@ -437,6 +499,20 @@
 <main id="tab-main">
     <p class="placeholder">{{ _("Loading…") }}</p>
 </main>
+
+<div id="search-overlay" role="dialog" aria-modal="true">
+    <div id="search-box">
+        <input type="text" id="search-input" autocomplete="off" spellcheck="false"
+               placeholder="{{ _('Search every .md document in the app…') }}">
+        <div id="search-results"></div>
+        <div id="search-foot">
+            <span><kbd>↑</kbd><kbd>↓</kbd> {{ _("move") }}</span>
+            <span><kbd>Enter</kbd> {{ _("open") }}</span>
+            <span><kbd>Esc</kbd> {{ _("close") }}</span>
+            <span id="search-count"></span>
+        </div>
+    </div>
+</div>
 
 <div id="toast"></div>
 
@@ -550,6 +626,181 @@
         });
     }
 
+    /* ---------- tìm kiếm toàn trang ---------- */
+
+    // Bảng tra thư mục -> tab. Thêm tab mới đọc docs/<tên> thì thêm một dòng.
+    const DOC_TAB = { mindmap: 'mindmap', flowchart: 'flowchart', user_manual: 'user-manual' };
+    // Tài liệu nằm ngoài docs/ (README, ghi chú trong code...) xem ở tab Hướng dẫn
+    const FALLBACK_TAB = 'user-manual';
+
+    let searchTimer = null;
+    let searchResults = [];
+    let searchSel = 0;
+    let searchSeq = 0;
+    let pendingOpen = null;
+
+    function stripAccents(t) {
+        return (t || '').replace(/đ/g, 'd').replace(/Đ/g, 'D')
+            .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    }
+
+    function markHit(text, q) {
+        const i = stripAccents(text).indexOf(stripAccents(q));
+        if (i < 0) return esc(text);
+        return esc(text.slice(0, i)) + '<mark>' + esc(text.slice(i, i + q.length))
+            + '</mark>' + esc(text.slice(i + q.length));
+    }
+
+    /** docs/mindmap/hr.md -> {tab:'mindmap', filename:'hr.md'} */
+    function routeOf(rel) {
+        const parts = rel.split('/');
+        if (parts[0] === 'docs' && DOC_TAB[parts[1]] && parts.length === 3) {
+            return { tab: DOC_TAB[parts[1]], filename: parts[2], rel: rel };
+        }
+        return { tab: FALLBACK_TAB, filename: parts[parts.length - 1], rel: rel, appDoc: true };
+    }
+
+    function flushPendingOpen() {
+        if (!pendingOpen || !activeTab) return;
+        const req = pendingOpen;
+        pendingOpen = null;
+        if (typeof activeTab.openDoc !== 'function') return;
+        try { activeTab.openDoc(req); }
+        catch (e) { console.error('[dev-tool] openDoc ' + activeTab.id, e); }
+    }
+
+    function openSearchResult(r) {
+        const req = routeOf(r.rel);
+        req.line = r.line;
+        req.query = document.getElementById('search-input').value.trim();
+        closeSearch();
+
+        if (!tabs.some(t => t.id === req.tab)) {
+            toast('Không có tab nào mở được ' + req.rel, true);
+            return;
+        }
+        pendingOpen = req;
+        if (activeId === req.tab) flushPendingOpen();
+        else activate(req.tab, true);
+    }
+
+    function renderSearch(total, q) {
+        const box = document.getElementById('search-results');
+        const count = document.getElementById('search-count');
+        if (!searchResults.length) {
+            box.innerHTML = '<p class="sr-empty">Không tìm thấy "' + esc(q) + '".</p>';
+            count.textContent = '';
+            return;
+        }
+        count.textContent = searchResults.length
+            + (total > searchResults.length ? ' / ' + total : '') + ' kết quả';
+
+        box.innerHTML = '';
+        searchResults.forEach(function (r, i) {
+            const route = routeOf(r.rel);
+            const tab = tabs.find(t => t.id === route.tab);
+            const btn = document.createElement('button');
+            btn.className = 'sr-item' + (i === searchSel ? ' sel' : '');
+            btn.innerHTML =
+                '<div class="sr-title"><span class="tag">'
+                + esc(route.appDoc ? 'app' : (tab ? tab.label : route.tab)) + '</span>'
+                + markHit(r.title, q) + '</div>'
+                + '<div class="sr-path">' + markHit(r.rel, q) + '</div>'
+                + (r.snippet ? '<div class="sr-snip">L' + r.line + ': '
+                    + markHit(r.snippet, q) + '</div>' : '');
+            btn.addEventListener('click', function () { openSearchResult(r); });
+            btn.addEventListener('mousemove', function () { setSel(i); });
+            box.appendChild(btn);
+        });
+    }
+
+    function setSel(i) {
+        const items = document.querySelectorAll('#search-results .sr-item');
+        if (!items.length) return;
+        searchSel = Math.max(0, Math.min(i, items.length - 1));
+        items.forEach((el, k) => el.classList.toggle('sel', k === searchSel));
+        items[searchSel].scrollIntoView({ block: 'nearest' });
+    }
+
+    async function runSearch(q) {
+        const seq = ++searchSeq;
+        try {
+            const r = await callFrappeMethod(
+                'customize_erpnext.api.docs_reader.search_docs', { query: q, limit: 30 });
+            if (seq !== searchSeq) return;      // bỏ kết quả của lần gõ cũ
+            searchResults = (r && r.results) || [];
+            searchSel = 0;
+            renderSearch(r ? r.total : 0, q);
+        } catch (e) {
+            if (seq !== searchSeq) return;
+            document.getElementById('search-results').innerHTML =
+                '<p class="sr-empty">Tìm kiếm lỗi: ' + esc(e.message) + '</p>';
+        }
+    }
+
+    function openSearch() {
+        const ov = document.getElementById('search-overlay');
+        ov.classList.add('open');
+        const input = document.getElementById('search-input');
+        input.select();
+        input.focus();
+    }
+
+    function closeSearch() {
+        document.getElementById('search-overlay').classList.remove('open');
+    }
+
+    function initSearch() {
+        const ov = document.getElementById('search-overlay');
+        const input = document.getElementById('search-input');
+
+        document.getElementById('btn-search').addEventListener('click', openSearch);
+        ov.addEventListener('mousedown', function (ev) {
+            if (ev.target === ov) closeSearch();       // bấm ra ngoài hộp thì đóng
+        });
+
+        input.addEventListener('input', function () {
+            const q = input.value.trim();
+            clearTimeout(searchTimer);
+            if (q.length < 2) {
+                searchResults = [];
+                document.getElementById('search-results').innerHTML =
+                    '<p class="sr-empty">Gõ ít nhất 2 ký tự. Không cần dấu:'
+                    + ' "nghi phep" vẫn ra "nghỉ phép".</p>';
+                document.getElementById('search-count').textContent = '';
+                return;
+            }
+            searchTimer = setTimeout(function () { runSearch(q); }, 220);
+        });
+
+        input.addEventListener('keydown', function (ev) {
+            if (ev.key === 'ArrowDown') { ev.preventDefault(); setSel(searchSel + 1); }
+            else if (ev.key === 'ArrowUp') { ev.preventDefault(); setSel(searchSel - 1); }
+            else if (ev.key === 'Enter' && searchResults[searchSel]) {
+                ev.preventDefault();
+                openSearchResult(searchResults[searchSel]);
+            }
+        });
+
+        document.addEventListener('keydown', function (ev) {
+            const open = ov.classList.contains('open');
+            if (ev.key === 'Escape' && open) { ev.preventDefault(); closeSearch(); return; }
+            if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 'k') {
+                ev.preventDefault();
+                open ? closeSearch() : openSearch();
+                return;
+            }
+            // phím "/" mở nhanh, trừ khi đang gõ trong ô nhập
+            const t = ev.target;
+            const typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA'
+                || t.isContentEditable);
+            if (ev.key === '/' && !open && !typing && !ev.ctrlKey && !ev.metaKey) {
+                ev.preventDefault();
+                openSearch();
+            }
+        });
+    }
+
     /* ---------- registry ---------- */
 
     function registerTab(def) {
@@ -590,7 +841,10 @@
         });
 
         try {
-            tab.mount({ side: side, main: main, api: DevTool });
+            // mount có thể là async: đợi xong mới giao yêu cầu mở file từ tìm kiếm
+            Promise.resolve(tab.mount({ side: side, main: main, api: DevTool }))
+                .then(flushPendingOpen)
+                .catch(function (e) { console.error('[dev-tool] mount ' + id, e); });
         } catch (e) {
             console.error('[dev-tool] mount ' + id, e);
             main.innerHTML = '<p class="placeholder">Tab "' + esc(id) + '" lỗi khi khởi tạo: '
@@ -734,6 +988,8 @@
         copyText: copyText,
         downloadText: downloadText,
         esc: esc,
+        openSearch: openSearch,
+        openDoc: function (rel) { openSearchResult({ rel: rel, line: 0 }); },
         canSave: !!window.dev_tool_can_save
     };
     window.DevTool = DevTool;
@@ -743,6 +999,7 @@
     document.addEventListener('DOMContentLoaded', function () {
         initSplitter();
         initPresent();
+        initSearch();
         buildRail();
         if (!tabs.length) {
             document.getElementById('tab-main').innerHTML =

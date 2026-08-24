@@ -686,6 +686,26 @@
         icon: '⇄',
         order: 20,
 
+        // Kết quả tìm kiếm của khung Dev Tool trỏ tới một file trong docs/flowchart
+        openDoc: function (req) {
+            if (!req || !req.filename) return;
+            Promise.resolve(openFile(req.filename, window.DevTool)).then(function () {
+                if (!req.query) return;
+                // Sơ đồ không có khái niệm dòng, nên tô chỗ khớp trong ô nguồn
+                const input = document.getElementById('fc-input');
+                if (!input) return;
+                const strip = (t) => String(t || '').replace(/đ/g, 'd').replace(/Đ/g, 'D')
+                    .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+                const at = strip(input.value).indexOf(strip(req.query));
+                if (at < 0) return;
+                input.focus();
+                input.setSelectionRange(at, at + req.query.length);
+                const before = input.value.slice(0, at).split('\n').length - 1;
+                const lh = parseFloat(getComputedStyle(input).lineHeight) || 18;
+                input.scrollTop = Math.max(0, before * lh - input.clientHeight / 2);
+            });
+        },
+
         mount: async function (ctx) {
             mainEl = ctx.main;
             const api = ctx.api;

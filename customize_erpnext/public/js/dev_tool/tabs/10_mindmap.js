@@ -38,6 +38,24 @@
             ctx.main.appendChild(frame);
         },
 
+        // Mở đúng file khi bấm một kết quả tìm kiếm của khung Dev Tool.
+        // Trang /mindmap đã đọc ?file= sẵn nên chỉ cần đổi src.
+        openDoc: function (req) {
+            if (!frame || !req || !req.filename) return;
+            const file = encodeURIComponent(req.filename);
+            const q = req.query || '';
+
+            // Đang mở đúng file rồi thì gọi thẳng hàm focus của trang bên trong,
+            // khỏi nạp lại iframe (giữ nguyên mức zoom và nhánh đang mở).
+            const win = frame.contentWindow;
+            const sameFile = (frame.getAttribute('src') || '').indexOf('file=' + file) >= 0;
+            if (sameFile && win && typeof win.mindmapFocus === 'function') {
+                if (q) win.mindmapFocus(q);
+                return;
+            }
+            frame.src = PAGE_URL + '?file=' + file + (q ? '&find=' + encodeURIComponent(q) : '');
+        },
+
         // Trình chiếu: gập luôn ô soạn thảo bên trong trang mindmap. iframe cùng
         // origin nên bấm thẳng nút của trang đó, dùng chính logic nó có sẵn thay
         // vì tự gán class (nút còn gọi fit() vẽ lại cho vừa khung).
