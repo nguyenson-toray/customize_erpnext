@@ -930,6 +930,59 @@ def _fmt(value):
 	return str(value)
 
 
+# Field types HR may edit inline on the Desk form (plain text-like inputs).
+# Excludes Select/Check/Date/Datetime/Time/Link and the address widgets.
+_TEXT_EDITABLE_TYPES = {"Data", "Small Text", "Text", "Long Text", "Int", "Float", "Currency", "Phone"}
+_MULTILINE_TYPES = {"Small Text", "Text", "Long Text"}
+
+
+def _is_text_editable(f):
+	"""True if HR can edit this field's value directly on the Desk form."""
+	return (
+		f.get("fieldtype") in _TEXT_EDITABLE_TYPES
+		and f.get("widget") in (None, "", "Auto")
+		and not f.get("read_only")
+	)
+
+
+@frappe.whitelist()
+def update_submission_values(name, values):
+	"""HR edits text-type submitted values inline on the Desk form.
+
+	Only text-like fields (see _is_text_editable) are written back into
+	`data_json`; Select/Date/Link/address widgets are ignored. Not allowed once
+	the record is Synced. `values` = JSON {fieldname: value}.
+	"""
+	_require_hr()
+	if isinstance(values, str):
+		values = json.loads(values or "{}")
+	doc = frappe.get_doc(INFO_DT, name)
+	if doc.status == "Synced":
+		frappe.throw(_("Đã đồng bộ — không sửa được. Dùng Edit in Portal nếu cần."))
+
+	config = _build_config()
+	editable = {
+		f["fieldname"]
+		for sec in config["sections"]
+		for f in sec["fields"]
+		if _is_text_editable(f)
+	}
+	saved = json.loads(doc.data_json or "{}")
+	changed = 0
+	for k, v in (values or {}).items():
+		if k not in editable:
+			continue
+		nv = "" if v is None else str(v).strip()
+		if str(saved.get(k, "")) != nv:
+			saved[k] = nv
+			changed += 1
+	if changed:
+		doc.data_json = json.dumps(saved, ensure_ascii=False)
+		doc.save(ignore_permissions=True)
+		frappe.db.commit()
+	return {"ok": True, "changed": changed}
+
+
 @frappe.whitelist()
 def get_submission_view(name):
 	"""Human-readable view of a submission for HR (instead of raw JSON).
@@ -957,11 +1010,14 @@ def get_submission_view(name):
 			new_s = "" if new_v is None else str(new_v)
 			old_s = "" if f.get("custom") else _fmt(emp_vals.get(fn))
 			rows.append({
+				"fieldname": fn,
 				"label": f["label"],
 				"value": new_s,
 				"old": old_s,
 				"changed": (not f.get("custom")) and fn in saved and new_s != old_s,
 				"custom": bool(f.get("custom")),
+				"editable": _is_text_editable(f),
+				"multiline": f.get("fieldtype") in _MULTILINE_TYPES,
 			})
 		if rows:
 			sections.append({"label": sec["label"], "rows": rows})
@@ -1059,19 +1115,44 @@ def review_forms(names):
 
 
 @frappe.whitelist()
-def sync_to_employee(names):
-	"""Write reviewed submissions into the Employee record.
+def get_syncable_fields():
+	"""Return the real Employee fields (non-custom) that Sync can write, for the
+	HR field-picker dialog. `[{fieldname, label}]`."""
+	_require_hr()
+	config = _build_config()
+	return [
+		{"fieldname": f["fieldname"], "label": f["label"]}
+		for sec in config["sections"]
+		for f in sec["fields"]
+		if not f.get("custom") and f["fieldname"] not in ("employee", "name")
+	]
+
+
+@frappe.whitelist()
+def sync_to_employee(names, fields=None):
+	"""Write submissions into the Employee record.
 
 	Only fields that exist on Employee (incl. custom_ fields) are written; custom
-	free-form fields and remarks are ignored. Only records with status = Reviewed
-	are synced. Each record is saved independently so one failure does not block
-	the rest. `names` = JSON list. Returns {synced, failed, skipped, results}.
+	free-form fields and remarks are ignored. `fields` (optional JSON list of
+	fieldnames) limits Sync to the HR-selected fields; omitted → all configured
+	fields. When Disable Review is on, records are synced straight from Submitted;
+	otherwise only Reviewed records are synced. Each record is saved independently
+	so one failure does not block the rest. Returns {synced, failed, skipped, results}.
 	"""
 	_require_hr()
 	if isinstance(names, str):
 		names = json.loads(names or "[]")
 	if not names:
 		frappe.throw(_("No records selected."))
+	if isinstance(fields, str):
+		fields = json.loads(fields or "null")
+	if fields is not None and not fields:
+		frappe.throw(_("Select at least one field to sync."))
+
+	setting = _get_setting()
+	# Disable Review → sync from Submitted; else require Reviewed. Reviewed is
+	# always accepted so legacy already-reviewed records still sync.
+	allowed = {"Submitted", "Reviewed"} if setting.get("disable_review") else {"Reviewed"}
 
 	config = _build_config()
 	# Real Employee fields only (non-custom, excluding identity fields).
@@ -1081,14 +1162,19 @@ def sync_to_employee(names):
 		for f in sec["fields"]
 		if not f.get("custom") and f["fieldname"] not in ("employee", "name")
 	}
+	# Limit to the HR-selected fields when provided.
+	if fields is not None:
+		sel = set(fields)
+		emp_fields = {fn: f for fn, f in emp_fields.items() if fn in sel}
 
 	synced, failed, skipped, results = 0, 0, 0, []
 	for name in names:
 		doc = frappe.get_doc(INFO_DT, name)
-		if doc.status != "Reviewed":
+		if doc.status not in allowed:
 			skipped += 1
+			need = _("Submitted") if setting.get("disable_review") else _("Reviewed")
 			results.append({"employee": doc.employee, "employee_name": doc.employee_name, "ok": False,
-				"message": _("Bỏ qua — cần Review trước khi Sync (trạng thái: {0})").format(doc.status)})
+				"message": _("Bỏ qua — cần trạng thái {0} để Sync (hiện tại: {1})").format(need, doc.status)})
 			continue
 
 		saved = json.loads(doc.data_json or "{}")

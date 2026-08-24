@@ -362,7 +362,9 @@ Thay dropdown bằng ô tìm kiếm:
 
 ## Review + Đồng bộ về Employee (ĐÃ TRIỂN KHAI)
 
-**Vòng đời:** `Draft → Submitted → Reviewed → Synced`. **Phải Review trước, rồi mới Sync được.**
+**Vòng đời:** `Draft → Submitted → (Reviewed) → Synced`.
+
+**Setting `disable_review`** (Check, default 1): bật → **bỏ bước Review**, HR Sync thẳng từ `Submitted` (không có nút "Mark Reviewed"); tắt → giữ luồng cũ `Submitted → Reviewed → Synced`. `sync_to_employee` chấp nhận `Submitted` khi bật, còn `Reviewed` **luôn** được nhận (record cũ đã review vẫn sync được). Nút Desk đọc `disable_review` qua `frappe.db.get_single_value` để ẩn/hiện "Mark Reviewed" và điều kiện hiện "Sync".
 
 **Chỉ sync field thuộc Employee** (gồm `custom_`) — vì key trong `data_json` chính là fieldname Employee → `emp.set(fieldname, _coerce(value, fieldtype))`, **không cần `_SYNC_MAP`**.
 
@@ -375,19 +377,23 @@ Thay dropdown bằng ô tìm kiếm:
 | `employee` / `name` (định danh) | ❌ bỏ qua |
 
 **APIs (HR):**
-- `review_forms(names)`: `Submitted → Reviewed` (bỏ qua record khác trạng thái). Ghi `reviewed_on/by`. Trả `{reviewed, skipped, results}`.
-- `sync_to_employee(names)`: **chỉ record `Reviewed`**; mỗi record `emp.set()` các field thật → dựng lại `_full` → `emp.save()` trong **try/except + commit riêng từng record** (1 lỗi không chặn phần còn lại) → `Synced` + `synced_on/by`. Trả `{synced, failed, skipped, results:[{employee, ok, message}]}` — message chứa **lỗi Frappe trả về** nếu save Employee thất bại.
+- `review_forms(names)`: `Submitted → Reviewed` (bỏ qua record khác trạng thái). Ghi `reviewed_on/by`. Trả `{reviewed, skipped, results}`. *(Chỉ dùng khi `disable_review = 0`.)*
+- `get_syncable_fields()`: trả `[{fieldname, label}]` các field Employee thật (non-custom, bỏ `employee`/`name`) — cho dialog chọn field ở list view.
+- `sync_to_employee(names, fields=None)`: trạng thái hợp lệ = `{Submitted, Reviewed}` nếu `disable_review` bật, ngược lại `{Reviewed}`. `fields` (JSON list fieldname) → **chỉ ghi các field HR chọn**; `None` → tất cả. Rỗng → throw. Mỗi record `emp.set()` field thật → dựng lại `_full` → `emp.save()` trong **try/except + commit riêng từng record** → `Synced` + `synced_on/by`. Trả `{synced, failed, skipped, results:[{employee, ok, message}]}`.
 - `_coerce_for_employee(value, fieldtype)`: rỗng→None cho Date/Int/Float/Link; Check→0/1; Int/Float cast; còn lại string.
+- `get_submission_view(name)`: mỗi row có thêm `fieldname` (để dialog Sync ở form view build checkbox).
 
 **Nút (desk, `__()` translatable):**
-- **List view**: `Download Excel` (chọn → chỉ record đã chọn; không chọn → tất cả), `Mark Reviewed`, `Sync to Employee` (bulk theo record tick) → hiện **dialog kết quả** (bảng từng NV: ✅/❌ + chi tiết lỗi).
-- **Form view**: `Mark Reviewed` (khi Submitted), `Sync to Employee` (khi Reviewed), `Edit in Portal` (khi chưa Synced).
+- **List view**: `Download Excel`; `Mark Reviewed` **chỉ khi `disable_review = 0`**; `Sync to Employee` → mở **dialog `MultiCheck` chọn field** (mặc định tick tất cả) + nút "Select all / none" → `sync_to_employee(names, fields)` → dialog kết quả (bảng từng NV ✅/❌).
+- **Form view**: `Mark Reviewed` (khi `disable_review=0` & Submitted); `Sync to Employee` (khi `disable_review` ? Submitted/Reviewed : Reviewed) → mở dialog chọn field, **mặc định tick các field "đã đổi"** (kèm giá trị); `Edit in Portal` (khi chưa Synced).
 
 **HR sửa dữ liệu** = nút **"Edit in Portal"** → mở `/employee-self-update-info?emp=<id>` (cùng trang NV, đầy đủ widget địa chỉ/QR/validation). HR **được mở BẤT KỲ nhân viên nào**, kể cả NV không có trong danh sách Setting (`_ensure_eligible` bỏ qua eligibility cho HR; nhân viên thường vẫn chỉ sửa được nếu có trong danh sách). Trang **vào thẳng** form NV (ẩn ô tìm/chọn khi có `?emp=`; load lỗi → hiện lại ô chọn).
 
 > **Quan trọng — xác thực áp cho MỌI người:** khi `validate_by_dob` bật thì **kể cả HR/Admin cũng phải qua bước xác thực** (không còn HR-bypass). HR dùng **`bypass_code`** (mã 2 chữ số của admin) để vào bất kỳ NV mà không cần biết ngày sinh từng người. Sau khi HR sửa & gửi → status về `Submitted` (cần review lại).
 
 **Hiển thị cho HR** (thay JSON thô khó đọc): form có field HTML `data_view` render bảng **Nhãn : Giá trị** theo section, ô khác giá trị Employee hiện tại **tô vàng + "Cũ: …"** (ẩn khi đã Synced). JSON thô nằm trong section **"Raw Data (JSON)"** thu gọn. API `get_submission_view(name)`.
+
+**Sửa trực tiếp field text ngay trên form Desk (HR):** các field **kiểu text** (`Data, Small Text, Text, Long Text, Int, Float, Currency, Phone`, widget `Auto`, không read-only) render thành **ô nhập inline** trong `data_view`; **Select/Check/Date/Link và widget tỉnh/xã KHÔNG** cho sửa. Nút **"Save Field Edits"** (hiện khi có field sửa được & chưa Synced) gom giá trị → `update_submission_values(name, values)` ghi lại `data_json` (chỉ nhận field text hợp lệ, chặn khi `Synced`, giữ nguyên status). `get_submission_view` trả thêm cờ `editable`/`multiline` mỗi row. Dùng khi HR cần sửa nhanh sai sót chính tả trước khi Sync — khỏi mở Edit in Portal.
 
 > Lưu ý: sync **ghi đè** field Employee bằng giá trị NV khai; `emp.save()` có thể bung validate của Employee → lỗi được bắt & hiện chi tiết theo từng record, không làm hỏng các record khác.
 

@@ -26,6 +26,7 @@
   "column_break_uhie",
   "lock_after_submit",
   "bypass_code_for_unlock",
+  "disable_review",
   "section_fields",
   "fields_intro",
   "btn_add_field",
@@ -217,6 +218,13 @@
    "fieldname": "bypass_code_for_unlock",
    "fieldtype": "Int",
    "label": "Bypass Code For Unlock"
+  },
+  {
+   "default": "1",
+   "description": "Skip the Reviewed step — HR can Sync submissions straight from Submitted (no Mark Reviewed).",
+   "fieldname": "disable_review",
+   "fieldtype": "Check",
+   "label": "Disable Review"
   }
  ],
  "issingle": 1,
