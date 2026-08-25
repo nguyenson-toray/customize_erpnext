@@ -177,3 +177,98 @@ def _disable_linked_user(employee: str):
 		return
 	if frappe.db.get_value("User", user_id, "enabled"):
 		frappe.db.set_value("User", user_id, "enabled", 0)
+
+
+@frappe.whitelist()
+def sync_fetch_from_fields(apply: bool = False, status: str = "Active") -> dict:
+	"""Đồng bộ lại các field `fetch_from` trên Employee với nguồn của chúng.
+
+	    bench --site <site> execute \
+	        customize_erpnext.overrides.employee.employee.sync_fetch_from_fields
+	    # ghi thật:      --kwargs "{'apply': True}"
+	    # tất cả status: --kwargs "{'apply': True, 'status': None}"
+
+	## Vì sao cần
+
+	`fetch_from` chỉ chạy lúc lưu document, và 3/4 field dẫn xuất trên Employee còn để
+	`fetch_if_empty = 1` — nghĩa là chúng **chỉ được điền khi đang trống** và **không bao
+	giờ tự làm mới** khi field nguồn đổi. Sửa `Designation.custom_designation_vn`, hoặc
+	đổi `Employee.designation` bằng bất cứ đường nào không đi qua `doc.save()`
+	(Data Import, `db_set`, patch), là giá trị dẫn xuất đứng im.
+
+	Đo trên site 2026-08-25: 420 nhân viên Active có `custom_designation_vietnamese`
+	khác hẳn `custom_designation_vn` của chức danh họ đang giữ.
+
+	## Nguồn rỗng thì GIỮ NGUYÊN
+
+	16/115 Designation chưa điền `custom_designation_vn`. Ép theo nguồn sẽ xoá trắng tên
+	tiếng Việt của người đang mang các chức danh đó — thiếu thì phải điền vào Designation
+	chứ không phải xoá bên Employee.
+
+	Chỉ ghi đúng field lệch, bằng `db.set_value` chứ không `doc.save()`: 1.386 nhân viên
+	mang `status = "Left "` (thừa dấu cách) sẽ rớt `validate_status()` của erpnext.
+	"""
+	frappe.only_for(("HR Manager", "System Manager"))
+
+	meta = frappe.get_meta("Employee")
+	derived = []
+	for df in meta.fields:
+		source_field, _, target_field = (df.fetch_from or "").partition(".")
+		source_df = meta.get_field(source_field) if source_field else None
+		# `set_only_once` = chốt một lần rồi thôi, đồng bộ lại là phá. custom_probation_days
+		# để cờ này vì một người chỉ thử việc đúng một lần, lúc vào làm — số ngày thử việc
+		# phải giữ theo chức danh LÚC TUYỂN, không chạy theo chức danh sau khi thăng chức.
+		if target_field and source_df and source_df.fieldtype == "Link" and not df.set_only_once:
+			derived.append((df.fieldname, source_field, source_df.options, target_field))
+
+	filters = {"status": status} if status else {}
+	employees = frappe.get_all(
+		"Employee",
+		filters=filters,
+		fields=["name"] + sorted({f for row in derived for f in (row[0], row[1])}),
+	)
+
+	source_cache: dict = {}
+
+	def source_value(link_doctype, name, target_field):
+		key = (link_doctype, name, target_field)
+		if key not in source_cache:
+			source_cache[key] = frappe.db.get_value(link_doctype, name, target_field)
+		return source_cache[key]
+
+	updates, skipped_empty = {}, 0
+	for row in employees:
+		for fieldname, source_field, link_doctype, target_field in derived:
+			source_name = row.get(source_field)
+			if not source_name:
+				continue
+
+			value = source_value(link_doctype, source_name, target_field)
+			if value in (None, ""):
+				if row.get(fieldname):
+					skipped_empty += 1
+				continue
+
+			if (row.get(fieldname) or "") != value:
+				updates.setdefault(row.name, {})[fieldname] = value
+
+	per_field: dict = {}
+	for changes in updates.values():
+		for fieldname in changes:
+			per_field[fieldname] = per_field.get(fieldname, 0) + 1
+
+	print(f"{len(employees)} nhân viên (status={status!r}), {len(updates)} người cần sửa")
+	for fieldname, count in sorted(per_field.items()):
+		print(f"  {fieldname:34} {count}")
+	print(f"  bỏ qua vì nguồn rỗng (giữ nguyên, không xoá): {skipped_empty}")
+
+	if not apply:
+		print('\nDRY RUN — chưa ghi gì. Chạy lại với --kwargs "{\'apply\': True}" để áp dụng.')
+		return {"employees": len(employees), "to_update": len(updates), "by_field": per_field}
+
+	for name, changes in updates.items():
+		frappe.db.set_value("Employee", name, changes, update_modified=True)
+	frappe.db.commit()
+	print(f"đã cập nhật {len(updates)} nhân viên")
+
+	return {"employees": len(employees), "updated": len(updates), "by_field": per_field}

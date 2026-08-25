@@ -41,6 +41,10 @@ doctype_js = {
     "Packing List": "public/js/packing_list_scale.js",
     "Salary Structure Assignment": "public/js/custom_scripts/salary_structure_assignment.js",
     "Leave Control Panel": "public/js/custom_scripts/leave_control_panel.js",
+    # Cùng 1 file cho 2 doctype: HRMS include chung hrms/hr/employee_property_update.js
+    # (xem override_doctype_class "Employee Promotion" / "Employee Transfer")
+    "Employee Promotion": "public/js/custom_scripts/employee_property_update_override.js",
+    "Employee Transfer": "public/js/custom_scripts/employee_property_update_override.js",
 }
 
 # List view customizations
@@ -96,8 +100,10 @@ fixtures = [
                 "Employment Type",
                 "Salary Structure Assignment",
                 "Salary Slip",
-                "Employee Education"
-                
+                "Employee Education",
+                # custom_section / custom_group: Employee Internal Work History gốc chỉ
+                # có branch/department/designation nên timeline thiếu 2 cấp tổ chức này
+                "Employee Internal Work History"
             ]],
             ["fieldname", "like", "custom%"]
         ]
@@ -123,7 +129,9 @@ fixtures = [
                 # field_order, naming_series HR-LAP-.YYYY.-, 4 × in_list_view) mà trước đây
                 # không được export → mất trắng khi deploy sang site khác.
                 "Leave Application",
-                "Employee Education"
+                "Employee Education",
+                # branch bỏ khỏi grid + chốt độ rộng cột để chỗ cho Section/Group
+                "Employee Internal Work History"
             ]]
         ]
     },
@@ -333,6 +341,13 @@ override_doctype_class = {
     # Employee Checkin + chạy lại engine tính công. Work From Home / On Duty giữ
     # nguyên hành vi HRMS gốc. Xem docs/attendance_request_supplement_plan.md
     "Attendance Request": "customize_erpnext.overrides.attendance_request.attendance_request.CustomAttendanceRequest",
+
+    # Thuyên chuyển / thăng chức: chỉ cho đổi 6 field tổ chức, và dựng lại
+    # Employee.internal_work_history từ TOÀN BỘ doc đã submit thay vì append.
+    # HRMS append nên import dữ liệu quá khứ sẽ ghi đè giá trị hiện tại của
+    # Employee bằng giá trị cũ. Xem overrides/employee_property/work_history.py
+    "Employee Promotion": "customize_erpnext.overrides.employee_property.employee_promotion.CustomEmployeePromotion",
+    "Employee Transfer": "customize_erpnext.overrides.employee_property.employee_transfer.CustomEmployeeTransfer",
 }
 # Khấu trừ theo pháp luật VN (BHXH/BHYT/BHTN, đoàn phí, thuế TNCN).
 # Móc vào hook `apply_regional_deductions` có sẵn của HRMS — chạy sau khi gross_pay đã

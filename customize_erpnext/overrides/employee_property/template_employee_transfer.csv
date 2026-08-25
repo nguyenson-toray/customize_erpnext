@@ -1,0 +1,6 @@
+employee,transfer_date,transfer_details.fieldname,transfer_details.new
+TIQN-0001,2023-04-01,department,Sewing - TIQN
+,,custom_section,Sewing 1
+,,custom_group,Line 3
+TIQN-0001,2024-07-15,custom_group,Line 5
+TIQN-0002,2024-01-10,department,Cutting - TIQN

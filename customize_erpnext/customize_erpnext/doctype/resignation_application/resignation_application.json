@@ -131,6 +131,7 @@
   },
   {
    "allow_on_submit": 1,
+   "bold": 1,
    "description": "Ng\u00e0y B\u1eaeT \u0110\u1ea6U ngh\u1ec9 vi\u1ec7c",
    "fieldname": "relieving_date",
    "fieldtype": "Date",
@@ -183,6 +184,7 @@
    "description": "Di\u1ec5n gi\u1ea3i th\u00eam. N\u1ed9i dung n\u00e0y \u0111\u01b0\u1ee3c ghi sang Employee.reason_for_leaving.",
    "fieldname": "reason_detail",
    "fieldtype": "Small Text",
+   "in_list_view": 1,
    "label": "Reason Detail"
   },
   {
@@ -309,7 +311,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-08-22 14:50:18.909142",
+ "modified": "2026-08-25 10:53:28.636776",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Resignation Application",

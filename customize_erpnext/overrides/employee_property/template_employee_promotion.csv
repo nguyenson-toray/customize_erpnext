@@ -1,0 +1,4 @@
+employee,promotion_date,promotion_details.fieldname,promotion_details.new
+TIQN-0001,2024-07-15,designation,Team Leader
+,,reports_to,TIQN-0009
+TIQN-0002,2025-01-01,designation,Sub Leader
