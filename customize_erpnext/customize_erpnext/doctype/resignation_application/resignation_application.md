@@ -128,6 +128,29 @@ dùng đúng tên này).
 3. **Bỏ qua hai việc của core:** kiểm nhân viên còn cấp dưới `Active` (`reports_to`), và khoá
    tài khoản `User`. Nay gọi tường minh cả hai.
 
+### 🔴 Cái giá của điều kiện `status = 'Active'` (26/08/2026)
+
+Lỗi 1 ở trên sửa đúng, nhưng đổi lại: **job này chỉ đánh `Left` cho người đang `Active`.** Ai đang
+`Inactive` thì tới ngày nghỉ việc vẫn **không bao giờ** được chuyển sang `Left` — và
+`Inactive` chính là trạng thái của **người đang nghỉ thai sản**
+(`employee_status_sync.py`). Trên site còn 17 `Intern-000x` `Inactive` + `relieving_date` quá hạn,
+nằm đúng vào lỗ này.
+
+**Quyết định 26/08: giữ nguyên `status = 'Active'`, không nới ra cho `Inactive`** — nới ra là mở
+lại đúng cái bẫy "HR mở lại người thành `Active`/`Inactive` rồi đêm sau bị ép `Left` trở lại".
+Bên nào cần biết "đã nghỉ việc chưa" thì **tự đọc `relieving_date`**, đừng tin `status == 'Left'`:
+
+```python
+# customize_erpnext/doctype/employee_maternity/employee_maternity.py
+def _has_left(relieving_date, employee_status, on_date): ...
+```
+
+⚠ Hệ quả cho mọi code kiểm tra nghỉ việc bằng Python: **`Employee.status` trong DB là `"Left "` —
+có dấu cách ở cuối, 1.393 bản ghi.** MySQL so sánh kiểu PAD SPACE nên `WHERE status = 'Left'` vẫn
+khớp và không ai phát hiện ra, nhưng `"Left " == "Left"` trong Python là **False**. Phải `.strip()`.
+`mark_employee_left()` cũng so trần như vậy — hiện vô hại vì job đã lọc `status='Active'` ở SQL
+trước khi tới, nhưng đừng sao chép mẫu đó đi chỗ khác.
+
 ### ⚠ Vì sao KHÔNG dùng `doc.save()`
 
 Đường hiển nhiên là `doc.save()` để core tự validate. **Đã thử và phải bỏ**: save một Employee là

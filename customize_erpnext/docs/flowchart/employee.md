@@ -143,7 +143,9 @@ flowchart TD
 > `Employee Item Reissue`.
 >
 > **Job theo lịch động tới Employee:** `auto_mark_employees_as_left` \(00:00, đổi status sang
-> `Left`\) và `scheduled_calculate_all_maternity_statuses` \(tính lại giai đoạn thai sản\).
+> `Left`\) và `scheduled_calculate_all_maternity_statuses` \(00:10, tính lại giai đoạn thai sản\).
+> **Thứ tự này bắt buộc**: người tới ngày nghỉ việc phải mang `Left` trước, rồi maternity mới đóng
+> giai đoạn của họ trong cùng một đêm. Đổi giờ một trong hai thì giữ nguyên thứ tự.
 
 > **Phạm vi đếm không phải "tất cả Employee".** Hai bộ lọc nằm ở `Attendance Calculation Setting`:
 >
@@ -213,7 +215,9 @@ flowchart TD
 
     subgraph MT["Nghỉ thai sản — employee_status_sync"]
         direction TB
-        A[(Employee Maternity)] --> B{Giai đoạn hiện tại?}
+        A[(Employee Maternity)] --> A1{Đã nghỉ việc chưa?<br/>relieving_date &lt;= hôm nay}
+        A1 -->|Rồi| A2[status hồ sơ = Inactive<br/>đóng mọi giai đoạn<br/>giữ nguyên ngày tháng]
+        A1 -->|Chưa| B{Giai đoạn hiện tại?}
         B -->|Maternity Leave| C[đề nghị status = Inactive]
         B -->|Pregnant · Young Child| D[đề nghị status = Active<br/>vẫn đi làm, chỉ hưởng chế độ giảm giờ]
     end
@@ -229,21 +233,38 @@ flowchart TD
     end
 
     C --> E{Status hiện tại có nằm<br/>trong nhóm được phép lật?}
+    A2 --> E
     D --> E
     R7 --> E
     E -->|Left hoặc Suspended| F[KHÔNG đụng<br/>quyết định nhân sự vì lý do khác]
-    E -->|Active hoặc Inactive| G[Ghi status mới]
+    E -->|Active hoặc Inactive| E2{Đề nghị về Active<br/>mà người này đã nghỉ việc?}
+    E2 -->|Đúng| F2[CHẶN<br/>không gọi người đã nghỉ việc đi làm lại]
+    E2 -->|Không| G[Ghi status mới]
 
     G --> H{Inactive vì nghỉ sinh?}
     H -->|Đúng| I[KHÔNG khoá tài khoản User<br/>vẫn xem được phiếu lương, đơn nghỉ]
     H -->|Lý do khác| J[Khoá User như HRMS gốc]
     G --> K[custom_sub_status<br/>field HTML, không lưu DB<br/>tính lại mỗi lần mở form]
 ```
-> Nguồn: `customize_erpnext/doctype/employee_maternity/employee_status_sync.py` \(sync_employee_status, FLIPPABLE_STATUSES, PHASE_PRIORITY, is_inactive_for_maternity, get_employee_sub_status\) · `customize_erpnext/doctype/resignation_application/resignation_application.py` \(sync_to_employee, revert_employee, mark_employee_left\) · `overrides/employee/employee.py` \(auto_mark_employees_as_left — job 00:00\) · `overrides/employee/employee_override.py` \(CustomEmployee.update_user_status\) · `hooks.py` \(doc_events."Employee Maternity", scheduler_events\)
+> Nguồn: `customize_erpnext/doctype/employee_maternity/employee_status_sync.py` \(sync_employee_status, FLIPPABLE_STATUSES, PHASE_PRIORITY, is_inactive_for_maternity, get_employee_sub_status\) · `customize_erpnext/doctype/resignation_application/resignation_application.py` \(sync_to_employee, revert_employee, mark_employee_left\) · `overrides/employee/employee.py` \(auto_mark_employees_as_left — job 00:00\) · `customize_erpnext/doctype/employee_maternity/employee_maternity.py` \(_has_left, calculate_status\) · `overrides/employee/employee_override.py` \(CustomEmployee.update_user_status\) · `hooks.py` \(doc_events."Employee Maternity", scheduler_events\)
 
 > **Hai nguồn đổi status, một cửa ghi.** Cả thai sản lẫn nghỉ việc đều chỉ *đề nghị* trạng thái;
 > cùng đi qua một chốt `FLIPPABLE_STATUSES = ("Active", "Inactive")`. `Left` và `Suspended` là
 > quyết định của HR vì lý do khác — ghi đè lên là sai.
+
+> 🔴 **`FLIPPABLE_STATUSES` KHÔNG đủ để bảo vệ người đã nghỉ việc.** Job 00:00 chỉ quét người đang
+> `Active`, mà người nghỉ thai sản mang `Inactive` → tới ngày nghỉ việc họ **không** được đổi sang
+> `Left`, vẫn nằm trong nhóm được phép lật. Khi giai đoạn thai sản đóng lại, nhánh
+> "rời `Maternity Leave` → trả về `Active`" sẽ vớ đúng nhóm này và **cho người đã nghỉ việc đi làm
+> lại trên giấy tờ**. Vì vậy `_set_employee_status()` có thêm chốt thứ hai: đề nghị `Active` mà
+> `relieving_date` đã qua thì bỏ qua.
+
+> 🔴 **Điều kiện "đã nghỉ việc" phải đọc `relieving_date`, không phải `status == 'Left'`** — cùng
+> lý do trên. Xem `_has_left()`; "còn làm tại ngày X" là `relieving_date > X`.
+
+> 🔴 **`Employee.status` trên site này là `"Left "` — CÓ DẤU CÁCH ở cuối, 1.393 bản ghi.** MySQL so
+> sánh kiểu PAD SPACE nên `WHERE status = 'Left'` vẫn khớp và không ai phát hiện ra, nhưng trong
+> Python `"Left " == "Left"` là **False**. Mọi so sánh status bằng Python phải `.strip()`.
 
 > 🔴 **Duyệt đơn nghỉ việc cho ngày ở TƯƠNG LAI thì KHÔNG đổi status ngay.** `status = 'Left'` là
 > công tắc cả hệ thống đang đọc: engine chấm công ngừng tính công, phép năm ngừng cấp. Duyệt ngày
@@ -272,7 +293,7 @@ flowchart TD
 | `Group.group_attendance` | Nhóm hiển thị trên báo cáo chấm công: Pro-Sewing, Pro-Preparation, Pro-QAQC, Pro-Other, Engineering, Office, Canteen |
 | `attendance_device_id` | Số nhân viên đăng ký trên máy chấm công — khoá nối với mọi lần quét |
 | `default_shift` | Ca mặc định, dùng khi không có Shift Assignment cho ngày đó |
-| `status` | `Active` · `Inactive` · `Suspended` · `Left` |
+| `status` | `Active` · `Inactive` · `Suspended` · `Left` — ⚠ giá trị trong DB là `"Left "` có dấu cách |
 | `custom_sub_status` | Field HTML chỉ để hiển thị, tính từ Employee Maternity, **không có cột trong DB** |
 | `custom_probation_days` | Số ngày thử việc, dùng cho phép năm và thuế TNCN |
 | `custom_si_base` | Mức lương đóng bảo hiểm, nằm trên Salary Structure Assignment |

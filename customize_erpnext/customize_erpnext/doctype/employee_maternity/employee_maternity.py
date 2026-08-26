@@ -24,6 +24,28 @@ def _gestational_age_months(estimated_due_date, on_date=None):
 	return max(0, min(9.5, round(9.5 - (months_diff + 1), 1)))
 
 
+def _has_left(relieving_date, employee_status, on_date):
+	"""Nhân viên đã rời công ty tính đến `on_date` chưa?
+
+	⚠ `relieving_date` là ngày **bắt đầu** nghỉ việc, không phải ngày làm cuối —
+	ngày làm cuối là `relieving_date - 1`. Nên "còn làm tại ngày X" là
+	`relieving_date > X`, và đã nghỉ là `relieving_date <= X`.
+
+	`relieving_date` được ưu tiên hơn `Employee.status`: job `auto_mark_employees_as_left`
+	chạy 00:00 chỉ đổi status cho người đang `Active`, nên một người đang thai sản
+	(status = `Inactive`) tới ngày nghỉ vẫn không được đổi sang `Left`. Chỉ nhìn status
+	là bỏ sót đúng nhóm người mà module này quan tâm.
+
+	⚠ `.strip()` là bắt buộc: trên site này **1.393 Employee mang status `"Left "` có dấu
+	cách ở cuối**. MySQL so sánh kiểu PAD SPACE nên `WHERE status = 'Left'` vẫn khớp và
+	không ai phát hiện ra, nhưng `"Left " == "Left"` trong Python là **False** — so trần
+	thì nhánh fallback này im lặng bỏ sót đúng những người nó sinh ra để bắt.
+	"""
+	if relieving_date and getdate(relieving_date) <= on_date:
+		return True
+	return (employee_status or "").strip() == "Left"
+
+
 def make_maternity_name(employee, exclude=None):
 	"""Tên hồ sơ thai sản: `HR-EM-{employee}`.
 
@@ -138,12 +160,44 @@ class EmployeeMaternity(Document):
 						_("{0}: From Date cannot be after To Date").format(label)
 					)
 
-	def calculate_status(self):
+	def employee_has_left(self, on_date=None, employment=None):
+		"""Nhân viên của record này đã nghỉ việc tính đến `on_date` chưa?
+
+		`employment`: dict `{relieving_date, status}` đã tra sẵn — batch truyền vào để
+		khỏi bắn thêm một query cho mỗi record. Truyền `{}` nghĩa là "đã tra, không có
+		dữ liệu"; để `None` thì tự tra.
+		"""
+		if not self.employee:
+			return False
+		if employment is None:
+			employment = frappe.db.get_value(
+				"Employee", self.employee, ["relieving_date", "status"], as_dict=True
+			) or {}
+		if not employment:
+			return False
+		return _has_left(
+			employment.get("relieving_date"), employment.get("status"), on_date or date.today()
+		)
+
+	def calculate_status(self, employment=None):
 		"""Set status field based on which date period today falls into.
 		If today falls in multiple periods (data legacy), pick the one with the latest from_date.
 		Maternity phase falls back to maternity_from_date_estimate when the actual date
-		is not yet known, so status is not blank during actual leave."""
+		is not yet known, so status is not blank during actual leave.
+
+		Nghỉ việc thì cắt hết: xem `employee_has_left()`.
+		"""
 		today_date = date.today()
+
+		if self.employee_has_left(today_date, employment):
+			# Đã nghỉ việc = chấm dứt chế độ, kể cả khi ngày kết thúc giai đoạn còn ở
+			# tương lai. Không có "con nhỏ" hay "nghỉ thai sản" cho người không còn
+			# trong bảng lương — cứ để status chạy tiếp thì report, dashboard và
+			# `custom_sub_status` trên form Employee đều báo họ đang hưởng chế độ.
+			# Ngày tháng của record giữ nguyên: đó là lịch sử, chỉ trạng thái là đóng.
+			self.status = "Inactive"
+			return
+
 		effective_mat_from = self.maternity_from_date or self.maternity_from_date_estimate
 
 		active = []  # list of (from_date, status_label)
@@ -474,7 +528,10 @@ def calculate_all_maternity_statuses(names=None):
 	Batch-recalculate `status` for Employee Maternity records.
 	- names=None  → all records
 	- names=[...] → only the given record names (JSON list or Python list)
-	Returns: { updated: N, total: N }
+	Returns: { updated: N, total: N, closed_for_left: N }
+
+	`closed_for_left` đếm riêng số record bị đóng vì nhân viên đã nghỉ việc — đây là
+	nhóm không tự đóng theo ngày tháng, nên tách ra để đọc log cho rõ.
 	"""
 	if names:
 		if isinstance(names, str):
@@ -482,44 +539,69 @@ def calculate_all_maternity_statuses(names=None):
 		records = frappe.get_all(
 			"Employee Maternity",
 			filters=[["name", "in", names]],
-			fields=["name"],
+			fields=["name", "employee"],
 			order_by="creation desc",
 		)
 	else:
 		records = frappe.get_all(
 			"Employee Maternity",
-			fields=["name"],
+			fields=["name", "employee"],
 			order_by="creation desc",
 		)
+
+	# Tra một lần cho cả lô: job này quét toàn bảng, hỏi Employee từng record là
+	# thêm vài trăm query mỗi đêm chỉ để đọc 2 field.
+	employee_ids = sorted({r.employee for r in records if r.employee})
+	employment = {}
+	if employee_ids:
+		employment = {
+			row.name: row
+			for row in frappe.get_all(
+				"Employee",
+				filters=[["name", "in", employee_ids]],
+				fields=["name", "relieving_date", "status"],
+			)
+		}
 
 	from customize_erpnext.customize_erpnext.doctype.employee_maternity.employee_status_sync import (
 		sync_employee_status,
 	)
 
 	updated = 0
+	closed_for_left = 0
 	for r in records:
 		doc = frappe.get_doc("Employee Maternity", r.name)
 		old_status = doc.status or ""
-		doc.calculate_status()
+		# `or {}` chứ không để None: nhân viên đã bị xoá thì coi như "đã tra, không có
+		# dữ liệu", tránh doc tự bắn lại query chỉ để nhận cùng một kết quả rỗng.
+		doc.calculate_status(employment=employment.get(doc.employee) or {})
 		new_status = doc.status or ""
 		if new_status != old_status:
 			doc.db_set("status", new_status, update_modified=False)
 			# db_set bỏ qua on_update, nên hook đồng bộ KHÔNG chạy ở đây — phải
-			# gọi tay. Đây là đường đi của scheduler 00:00 và nút Calculate Status,
+			# gọi tay. Đây là đường đi của scheduler 00:10 và nút Calculate Status,
 			# tức là nơi phần lớn chuyển tiếp giai đoạn thực sự xảy ra.
 			sync_employee_status(doc.employee, old_status, new_status, record=doc.name)
 			updated += 1
+			if doc.employee_has_left(employment=employment.get(doc.employee) or {}):
+				closed_for_left += 1
 
-	return {"updated": updated, "total": len(records)}
+	return {"updated": updated, "total": len(records), "closed_for_left": closed_for_left}
 
 
 def scheduled_calculate_all_maternity_statuses():
-	"""Scheduler wrapper — called by hooks.py cron at 00:00 daily."""
+	"""Scheduler wrapper — called by hooks.py cron at 00:10 daily.
+
+	⚠ 00:10 chứ không 00:00: `auto_mark_employees_as_left` chạy lúc 00:00 và phải
+	xong trước, để người vừa tới ngày nghỉ việc đã mang status `Left` khi job này
+	quét qua. Đổi giờ một trong hai job thì phải giữ nguyên thứ tự này.
+	"""
 	try:
 		result = calculate_all_maternity_statuses()
 		frappe.logger().info(
 			f"[Scheduler] Employee Maternity status recalc: "
-			f"updated {result['updated']} / {result['total']} records"
+			f"updated {result['updated']} / {result['total']} records "
+			f"({result['closed_for_left']} đóng vì nhân viên đã nghỉ việc)"
 		)
 	except Exception as e:
 		frappe.log_error(str(e), "Employee Maternity Scheduled Status Recalc Error")

@@ -282,14 +282,19 @@ scheduler_events = {
         #     "customize_erpnext.customize_erpnext.doctype.vehicle_trip.daily_trips.create_daily_trips_dropoff"
         # ],
 
-        # Auto mark employees as Left + recalculate maternity status - Every day at 00:00
+        # Auto mark employees as Left - Every day at 00:00
         "0 0 * * *": [
             "customize_erpnext.overrides.employee.employee.auto_mark_employees_as_left",
-            "customize_erpnext.customize_erpnext.doctype.employee_maternity.employee_maternity.scheduled_calculate_all_maternity_statuses",
             # Labor Contract - materialize next contract stage due soon + mark overdue Upcoming
             # TẠM TẮT: chờ setup xong phần lương (Salary Structure + SSA) rồi mới bật lại.
             # Xem doctype/labor_contract/labor_contract.md mục 10.
             # "customize_erpnext.customize_erpnext.doctype.labor_contract.labor_contract.process_labor_contracts_daily",
+        ],
+        # Recalculate maternity status - 00:10, tức là SAU auto_mark_employees_as_left.
+        # Thứ tự này bắt buộc: người tới ngày nghỉ việc phải được chuyển sang `Left`
+        # trước, rồi maternity mới đóng giai đoạn của họ trong cùng một đêm.
+        "10 0 * * *": [
+            "customize_erpnext.customize_erpnext.doctype.employee_maternity.employee_maternity.scheduled_calculate_all_maternity_statuses",
         ],
         # Weekly attendance recalculation - polled hourly, gated by
         # Attendance Calculation Setting (enable + weekdays + run-time hour).

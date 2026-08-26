@@ -26,6 +26,24 @@ frappe.query_reports["Employee Maternity Report"] = {
 			"width": "80px"
 		},
 		{
+			// Mặc định Active + Inactive = "còn trong công ty". Người nghỉ thai sản mang
+			// Employee.status = Inactive, nên bỏ Inactive ra là giấu đúng nhóm mà report
+			// này sinh ra để theo dõi. Đây cũng là bộ status của
+			// api/headcount.py::MATERNITY_EMPLOYEE_STATUSES, nhờ vậy report khớp với
+			// number card "Maternity Leave" trên HR Overview.
+			// Để trống = tất cả, kể cả người đã nghỉ việc.
+			"fieldname": "employee_status",
+			"label": __("Employee Status"),
+			"fieldtype": "MultiSelectList",
+			"default": ["Active", "Inactive"],
+			"width": "100px",
+			get_data: function (txt) {
+				return ["Active", "Inactive", "Suspended", "Left"]
+					.filter(v => !txt || v.toLowerCase().includes(txt.toLowerCase()))
+					.map(v => ({ value: v, description: "" }));
+			}
+		},
+		{
 			"fieldname": "employee",
 			"label": __("Employee"),
 			"fieldtype": "Link",

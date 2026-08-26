@@ -13,6 +13,8 @@ nothing. `get_employee_sub_status()` derives it live from Employee Maternity
 every time the form renders.
 """
 
+from datetime import date
+
 import frappe
 from frappe import _
 from frappe.utils import getdate
@@ -85,10 +87,29 @@ def _set_employee_status(employee, target, record, phase):
 	whole site cache and disables the linked User on every save, and neither
 	belongs in a maternity phase change.
 	"""
-	current = frappe.db.get_value("Employee", employee, "status")
-	if current is None:
+	from customize_erpnext.customize_erpnext.doctype.employee_maternity.employee_maternity import (
+		_has_left,
+	)
+
+	emp = frappe.db.get_value(
+		"Employee", employee, ["status", "relieving_date"], as_dict=True
+	)
+	if not emp or emp.status is None:
 		return  # employee was deleted
+	current = emp.status
 	if current == target or current not in FLIPPABLE_STATUSES:
+		return
+
+	# Không bao giờ gọi người đã nghỉ việc trở lại `Active`. `Left` đã được chặn bởi
+	# FLIPPABLE_STATUSES, nhưng người đang thai sản mang status `Inactive`, mà
+	# `auto_mark_employees_as_left` chỉ quét người `Active` — nên tới ngày nghỉ việc họ
+	# vẫn còn `Inactive`. Khi giai đoạn thai sản đóng lại, nhánh "về Active" ở
+	# `sync_employee_status` sẽ vớ đúng những người này và cho họ đi làm lại trên giấy tờ.
+	# `date.today()` chứ không `nowdate()`: job chạy 00:10, đúng khung giờ mà
+	# `System Settings.time_zone` nhiều lần tự nhảy về `Asia/Kolkata` (UTC+5:30) và làm
+	# `nowdate()` lệch một ngày. `date.today()` đọc đồng hồ OS — cùng đồng hồ với
+	# `calculate_status()`, nên hai bên không bao giờ bất đồng về "hôm nay".
+	if target == "Active" and _has_left(emp.relieving_date, current, date.today()):
 		return
 
 	frappe.db.set_value("Employee", employee, "status", target)

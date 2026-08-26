@@ -298,6 +298,17 @@ def _build_conditions(filters):
 	conditions = ["1=1"]
 	params = {}
 
+	# Mặc định (do JS đặt) là Active + Inactive = "còn trong công ty". Để trống thì
+	# lấy tất cả, kể cả người đã nghỉ việc — báo cáo lịch sử vẫn xem được.
+	# MultiSelectList gửi lên list; chấp nhận cả string cho ai gọi report bằng
+	# route_options / API.
+	employee_status = filters.get("employee_status")
+	if isinstance(employee_status, str):
+		employee_status = [employee_status] if employee_status else []
+	if employee_status:
+		conditions.append("emp.status IN %(employee_status)s")
+		params["employee_status"] = tuple(employee_status)
+
 	if filters.get("employee"):
 		conditions.append("emp.name = %(employee)s")
 		params["employee"] = filters["employee"]

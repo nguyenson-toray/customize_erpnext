@@ -43,8 +43,59 @@ Doctype quản lý các giai đoạn thai sản của nhân viên. Mỗi nhân v
 
 `calculate_status()`: hôm nay rơi vào giai đoạn nào → status đó. Giai đoạn Maternity dùng `effective_mat_from` (fallback estimate). Nếu rơi vào nhiều giai đoạn (data legacy) → chọn giai đoạn có from_date muộn nhất. Qua hết `youg_child_to_date` → `Inactive`. Không rơi vào đâu → rỗng.
 
-- **Tự tính lại hàng ngày** — scheduler cron 00:00: `scheduled_calculate_all_maternity_statuses()`
+- **Tự tính lại hàng ngày** — scheduler cron 00:10: `scheduled_calculate_all_maternity_statuses()`
 - **List view** có nút **Calculate Status** (tất cả hoặc records được chọn) và **Show Invalid Records** (tìm record có gap ≠ 1 ngày giữa các giai đoạn)
+
+### 🔴 Nghỉ việc cắt hết mọi giai đoạn
+
+`calculate_status()` kiểm tra nhân viên **trước** khi nhìn ngày tháng: đã nghỉ việc → `Inactive`,
+kể cả khi `youg_child_to_date` còn ở tương lai. Ngày tháng trên record giữ nguyên (đó là lịch sử),
+chỉ trạng thái là đóng.
+
+⚠ **`relieving_date` là ngày BẮT ĐẦU nghỉ việc, không phải ngày làm cuối** — ngày làm cuối là
+`relieving_date - 1`. Nên "còn làm tại ngày X" là `relieving_date > X` (xem `_has_left()`).
+
+⚠ **Không dùng `Employee.status == 'Left'` làm điều kiện duy nhất.**
+`auto_mark_employees_as_left` (00:00) chỉ quét người đang `Active`, mà người đang thai sản mang
+status `Inactive` → tới ngày nghỉ việc họ **không** được đổi sang `Left`. `_has_left()` vì vậy ưu
+tiên `relieving_date`, `status` chỉ là fallback. (Quyết định 26/08: **không** nới
+`auto_mark_employees_as_left` ra cho `Inactive` — sửa ở phía maternity thôi. 17 Intern-000x đang
+`Inactive` + quá hạn `relieving_date` vì vậy vẫn không bao giờ thành `Left`; cố ý không đụng.)
+
+🔴 **`Employee.status` trên site này là `"Left "` — CÓ DẤU CÁCH ở cuối, 1.393 bản ghi.**
+MySQL so sánh kiểu PAD SPACE nên `WHERE status = 'Left'` và `IN ('Active','Inactive')` vẫn đúng,
+không ai phát hiện ra. Nhưng trong Python `"Left " == "Left"` là **False**. Mọi so sánh status
+bằng Python phải `.strip()` (xem `_has_left`). Chỗ khác còn dính bẫy này:
+`overrides/employee/employee.py::mark_employee_left` (hiện vô hại vì job đã lọc `status='Active'` ở SQL).
+
+Vì cùng lý do đó, `_set_employee_status()` chặn thêm một nhánh: **không bao giờ đưa người đã
+nghỉ việc về `Active`**. Khi giai đoạn thai sản đóng lại, nhánh `old == Maternity Leave → Active`
+của `sync_employee_status()` sẽ vớ đúng nhóm `Inactive + đã qua relieving_date` này và cho họ đi
+làm lại trên giấy tờ. `FLIPPABLE_STATUSES` không đỡ được vì status của họ là `Inactive`, không phải `Left`.
+
+Đo trên site 26/08/2026: **36/250 record** đang mở cho người đã nghỉ việc (4 `Maternity Leave`,
+18 `Young Child`, 14 rỗng) — record cũ nhất từ 2023. **Đã chạy Calculate Status trên production
+26/08**, giờ còn 0; chạy lại batch trả `{updated: 0, closed_for_left: 0}`.
+
+### Filter `Employee Status` trên report (thêm 26/08/2026)
+
+`Employee Maternity Report` trước đây không lọc `Employee.status` → hiện cả người đã nghỉ việc
+như đang hưởng chế độ, lệch với number card. Đã thêm filter `employee_status`
+(MultiSelectList, **mặc định `["Active", "Inactive"]`**).
+
+⚠ Mặc định **phải có `Inactive`**: người đang nghỉ thai sản mang `Employee.status = Inactive`,
+bỏ nó ra là giấu đúng nhóm mà report sinh ra để theo dõi. Đây cũng đúng bộ
+`api/headcount.py::MATERNITY_EMPLOYEE_STATUSES`. Để trống filter = lấy tất cả (xem lịch sử).
+
+Đo 26/08/2026 với `maternity_type = Maternity Leave` + `status = Active`:
+
+| | Số NV |
+|---|---|
+| Report, không lọc `employee_status` | 32 |
+| Report, mặc định `Active + Inactive` | **28** |
+| Number card HR Overview | **28** |
+
+Hai tập **trùng khít** — `report - card` và `card - report` đều rỗng.
 
 ## Đồng bộ sang Employee.status (`employee_status_sync.py`)
 
@@ -74,7 +125,7 @@ thường (chỉ hưởng chế độ về sớm 1 giờ) nên employee giữ `A
 | Điểm | Vì sao |
 |---|---|
 | `on_maternity_update` | HR save trên UI / Data Import. Có xử lý đổi employee: employee CŨ được trả về Active |
-| `calculate_all_maternity_statuses()` | Dùng `db_set(update_modified=False)` → **bypass hook**, phải gọi tay. Đây là đường của scheduler 00:00 + nút Calculate Status, tức là nơi hầu hết chuyển tiếp thật xảy ra |
+| `calculate_all_maternity_statuses()` | Dùng `db_set(update_modified=False)` → **bypass hook**, phải gọi tay. Đây là đường của scheduler 00:00 + nút Calculate Status, tức là nơi hầu hết chuyển tiếp thật xảy ra. Tra `Employee.relieving_date/status` một lần cho cả lô rồi truyền xuống `calculate_status(employment=...)` |
 | `on_maternity_delete` | Xoá record = giai đoạn biến mất |
 
 Mỗi lần lật đều ghi 1 Comment trên Employee (`Status Active → Inactive — Maternity phase ...`).
@@ -147,8 +198,9 @@ Lưu ý: Frappe chạy `on_update` sau **cả insert lẫn save** → không đ�
     "on_trash":  "...employee_maternity.on_maternity_delete",
 }
 
-# Scheduler: daily 00:00
-"...employee_maternity.scheduled_calculate_all_maternity_statuses"
+# Scheduler: daily 00:10 — PHẢI sau auto_mark_employees_as_left (00:00),
+# để người vừa tới ngày nghỉ việc đã mang status Left khi job này quét qua.
+"10 0 * * *": ["...employee_maternity.scheduled_calculate_all_maternity_statuses"]
 ```
 
 (Không còn LA → Employee Maternity auto-sync; record do HR quản lý thủ công / Data Import.)
@@ -165,6 +217,8 @@ Trả về `{ data, columns, col_keys, total, page, page_size, total_pages }` k�
 ### `calculate_all_maternity_statuses(names=None)`
 
 Batch recalc status (dùng bởi nút list view + scheduler). `names=None` → tất cả.
+Trả `{updated, total, closed_for_left}` — `closed_for_left` đếm riêng số record đóng vì nhân viên
+đã nghỉ việc (nhóm này không tự đóng theo ngày tháng).
 
 ### `get_invalid_maternity_records()`
 
