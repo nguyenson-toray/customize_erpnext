@@ -22,7 +22,10 @@
   -->
   - **08. [Maternity records / Thai sản](/desk/query-report/Employee%20Maternity%20Report)** `[Custom]` `[Done]` — Theo dõi các mốc thời gian liên quan thai sản của nhân viên, dùng để tính toán công phép, chế độ
   - **09. [Onboarding / Tiếp nhận](/desk/employee-onboarding)** `[Standard]` `[In process 50%]` — Thủ tục tiếp nhận nhân viên mới: danh sách việc cần làm, bàn giao, hoàn tất hồ sơ
-  - **10. [Transfer & promotion / Điều chuyển & thăng chức](/desk/employee-transfer)** `[Standard]` `[In process 50%]` — Chuyển bộ phận, đổi chức danh, thăng chức và lưu lại lịch sử thay đổi
+  - **10. [Transfer & promotion / Điều chuyển & thăng chức](/desk/employee-transfer)** `[Standard]` `[Done]` — Chuyển bộ phận, đổi chức danh, thăng chức và lưu lại lịch sử thay đổi
+    - **01. [Employee Transfer / Điểu chuyển](/desk/employee-transfer)**  `[Override]` `[Done]`
+    - **02. [Employee Promotion / Thăng chức](/desk/employee-promotion)**  `[Override]` `[Done]`
+    - **03. [Employee Transfer and Promotion Report/ Báo cáo điều chuyển & thăng chức](/desk/query-report/Employee%20Transfer%20and%20Promotion)**  `[Custom]` `[Done]`
   - **11. [Resignation Application / Đơn nghỉ việc](/desk/resignation-application)** `[Custom]` `[Done]` — Ngày nộp đơn, ngày nghỉ chính thức, số ngày báo trước, lý do nghỉ và danh sách bàn giao: thẻ, đồng phục, kệ giày, vân tay, công cụ, công việc
   - **12. [Employee reports / Báo cáo nhân sự](/desk/dashboard-view/HR%20Overview)** `[Override]` `[Done]` — Headount, hiện diện, vắng, tăng ca, tuyển mới, nghỉ việc, cơ cấu theo độ tuổi, giới tính, cấp bậc
 - **02. Time & Attendance / Chấm công** `[Done]`
