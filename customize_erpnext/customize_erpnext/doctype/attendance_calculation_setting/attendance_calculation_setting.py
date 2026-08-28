@@ -27,6 +27,7 @@ DEFAULTS = {
 	"recalc_attendance_on_ot_change": 0,
 	"recalc_attendance_on_maternity_change": 0,
 	"recalc_attendance_on_checkin_change": 0,
+	"recalc_attendance_on_leave_application_cancel": 0,
 	"exclude_employee_ids": "",
 	"maternity_benefit_hours": 1.0,
 	"full_day_leave_block_hours": 8.0,
@@ -49,6 +50,7 @@ ZERO_ALLOWED_FIELDS = {
 	"recalc_attendance_on_ot_change",
 	"recalc_attendance_on_maternity_change",
 	"recalc_attendance_on_checkin_change",
+	"recalc_attendance_on_leave_application_cancel",
 	"exclude_employee_ids",
 	"peak_times",  # cleared field = peak-skip disabled (never-set = defaults)
 }

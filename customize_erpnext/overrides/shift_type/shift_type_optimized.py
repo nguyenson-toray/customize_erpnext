@@ -871,6 +871,63 @@ def check_leave_status_cached(employee: str, attendance_date: date, ref_data: Di
 	}
 
 
+def apply_leave_to_attendance(att_data: Dict, ref_data: Dict) -> None:
+	"""Ghi 5 field nghỉ phép + `status`/`half_day_status` cho MỘT ngày CÓ checkin.
+
+	Nguồn sự thật DUY NHẤT là index đơn nghỉ đã preload (`check_leave_status_cached`),
+	**không** phải bản ghi Attendance cũ.
+
+	Trước đây nhánh update giữ nguyên (preserve) leave_type/leave_application từ bản ghi
+	cũ và chỉ chỉnh `status` khi status CŨ là 'Half Day'/'On Leave'. Hai hệ quả đã đo được:
+
+	  1. Ngày trước đó đã là 'Absent' thì giữ nguyên 'Absent' kèm link đơn nghỉ
+	     → 61 bản ghi `Absent` mang đơn nghỉ đã duyệt (27 dòng Phép năm = trừ lương oan),
+	       rải từ 12/2025 đến 08/2026.
+	  2. Đơn bị cancel/xoá thì link cũ sống mãi, vì không có gì tra lại đơn còn hiệu lực.
+
+	Giờ mọi ngày đều được tra lại từ đầu, nên engine tự lành cho MỌI nguồn lệch:
+	cancel đơn, xoá đơn, amend, sửa ngày, import sai.
+
+	Không có đơn phủ ngày này ⇒ XOÁ sạch 5 field (ghi None → `_update_attendance_rows`
+	ghi xuống NULL), và giữ nguyên `status`/`half_day_status` đã tính từ giờ công.
+	"""
+	leave_status = check_leave_status_cached(
+		att_data['employee'], att_data['attendance_date'], ref_data
+	)
+
+	if not leave_status:
+		att_data['leave_type'] = None
+		att_data['leave_application'] = None
+		att_data['custom_leave_application_abbreviation'] = None
+		att_data['custom_leave_type_2'] = None
+		att_data['custom_leave_application_2'] = None
+		return
+
+	att_data['leave_type'] = leave_status['leave_type']
+	att_data['leave_application'] = leave_status['leave_application']
+	att_data['custom_leave_application_abbreviation'] = leave_status.get('abbreviation')
+	att_data['custom_leave_type_2'] = leave_status.get('leave_type_2')
+	att_data['custom_leave_application_2'] = leave_status.get('leave_application_2')
+
+	# has_checkin = ĐÃ LÀM THẬT, không phải "có dấu vết quét". Một lần quét trơ buổi sáng
+	# rồi về (không quét ra) làm 0 giờ ⇒ không phải Present.
+	# Cùng luật với overrides/leave_application/leave_application.py.
+	has_checkin = flt(att_data.get('working_hours')) > 0
+
+	if leave_status['status'] == 'Half Day':
+		att_data['status'] = 'Half Day'
+		# 'Present' <=> nửa CÒN LẠI được công ty trả lương: đi làm (có checkin) HOẶC
+		# đơn nghỉ thứ hai có is_lwp = 0. Gán 'Absent' sai sẽ trừ HAI lần
+		# (salary_slip.py:790 + :588) = mất trọn một ngày lương. Quy định mục 5.2.
+		att_data['half_day_status'] = resolve_half_day_status(
+			has_checkin, leave_status.get('leave_type_2')
+		)
+	else:
+		# Nghỉ nguyên ngày: có đi làm ⇒ Present (vẫn giữ link đơn), không ⇒ On Leave.
+		att_data['status'] = 'Present' if has_checkin else 'On Leave'
+		att_data['half_day_status'] = None
+
+
 def get_employee_shift_cached(
 	employee: str,
 	attendance_date,
@@ -2130,57 +2187,9 @@ def _core_process_attendance_logic_optimized(
 						old_att = ref_data['existing_attendance'][key]
 						att_data['attendance_name'] = old_att['name']  # Add name for update
 
-						# CRITICAL: Preserve leave_type and leave_application from old attendance
-						# This handles Half Day leave case: employee has leave but also checks in
-						if old_att.get('leave_type') or old_att.get('leave_application'):
-							att_data['leave_type'] = old_att.get('leave_type')
-							att_data['leave_application'] = old_att.get('leave_application')
-
-							# Preserve dual leave fields (for 2 separate Half Day LAs on same date)
-							if old_att.get('custom_leave_type_2'):
-								att_data['custom_leave_type_2'] = old_att.get('custom_leave_type_2')
-							if old_att.get('custom_leave_application_2'):
-								att_data['custom_leave_application_2'] = old_att.get('custom_leave_application_2')
-
-							# Calculate abbreviation if not already set
-							if old_att.get('custom_leave_application_abbreviation'):
-								att_data['custom_leave_application_abbreviation'] = old_att.get('custom_leave_application_abbreviation')
-							elif old_att.get('leave_type'):
-								# Calculate abbreviation from leave type
-								if old_att.get('status') == 'Half Day':
-									att_data['custom_leave_application_abbreviation'] = combined_abbreviation(
-										old_att.get('leave_type'), old_att.get('custom_leave_type_2')
-									)
-								else:
-									att_data['custom_leave_application_abbreviation'] = ref_data.get(
-										'leave_type_abbreviations', {}
-									).get(
-										old_att.get('leave_type'),
-										old_att.get('leave_type', '')[:2].upper()
-									)
-
-							# Status logic based on leave type and checkin:
-							# - Half Day leave → always "Half Day"
-							# - Full Day leave (On Leave) + has checkin → "Present"
-							# - Full Day leave (On Leave) + no checkin → "On Leave"
-							has_checkin = flt(att_data.get('working_hours')) > 0
-
-							if old_att.get('status') == 'Half Day':
-								# Half Day leave: always preserve "Half Day"
-								att_data['status'] = 'Half Day'
-								# 'Present' <=> nua CON LAI duoc cong ty tra luong: di lam
-								# (co checkin) HOAC don nghi thu hai co is_lwp = 0.
-								# Gan 'Absent' sai se tru HAI lan (salary_slip.py:790 + :578)
-								# = mat tron mot ngay luong. Xem quy dinh muc 5.2.
-								att_data['half_day_status'] = resolve_half_day_status(
-									bool(has_checkin), att_data.get('custom_leave_type_2')
-								)
-							elif old_att.get('status') == 'On Leave':
-								# Full Day leave: status depends on checkin
-								if has_checkin:
-									att_data['status'] = 'Present'  # Has checkin → Present
-								else:
-									att_data['status'] = 'On Leave'  # No checkin → On Leave
+						# Đơn nghỉ luôn được tra lại từ index preload (xem apply_leave_to_attendance):
+						# KHÔNG kế thừa từ bản ghi cũ, để link của đơn đã cancel/xoá không sống sót.
+						apply_leave_to_attendance(att_data, ref_data)
 
 						# Chặn working_hours theo đơn nghỉ phép + ghi custom_note.
 						# PHẢI đứng trước _check_attendance_changes: gọi sau thì bản ghi bị coi
@@ -2193,41 +2202,9 @@ def _core_process_attendance_logic_optimized(
 							attendance_to_update.append(att_data)
 					# else: Incremental mode already filtered by attendance="not set", shouldn't reach here
 				else:
-					# New attendance - will be inserted
-					# Apply approved Leave Application (if any) — same status logic as the
-					# update path above. Without this, a Half Day LA + checkins on a date
-					# with no pre-existing attendance would never get linked to the LA
-					# (the update path only preserves leave from the OLD record).
-					leave_status = check_leave_status_cached(
-						att_data['employee'], att_data['attendance_date'], ref_data
-					)
-					# has_checkin = ĐÃ LÀM THẬT, không phải "có dấu vết quét".
-					# Trước đây còn `or in_time`: một lần quét trơ buổi sáng rồi về
-					# (không quét ra) cũng thành Present, dù làm 0 giờ. Đo 20/08/2026:
-					# 5 bản ghi kiểu đó, 3 cái mã O/KL nên KHÔNG bị trừ payment_days —
-					# trả lương cho ngày lẽ ra không trả.
-					# Quên quét / máy hỏng thì HR bổ sung checkin bằng Attendance Request
-					# rồi tính lại, nên không cần `in_time` làm phương án dự phòng.
-					# Cùng luật với overrides/leave_application/leave_application.py:202.
-					if leave_status:
-						att_data['leave_type'] = leave_status['leave_type']
-						att_data['leave_application'] = leave_status['leave_application']
-						att_data['custom_leave_application_abbreviation'] = leave_status.get('abbreviation')
-						att_data['custom_leave_type_2'] = leave_status.get('leave_type_2')
-						att_data['custom_leave_application_2'] = leave_status.get('leave_application_2')
-
-						has_checkin = flt(att_data.get('working_hours')) > 0
-						if leave_status['status'] == 'Half Day':
-							# Half Day leave: always "Half Day"; nua con lai xem muc 5.2 quy dinh
-							att_data['status'] = 'Half Day'
-							att_data['half_day_status'] = resolve_half_day_status(
-								bool(has_checkin), leave_status.get('leave_type_2')
-							)
-						elif has_checkin:
-							# Full Day leave + checkin → Present (keep leave link)
-							att_data['status'] = 'Present'
-						else:
-							att_data['status'] = 'On Leave'
+					# Bản ghi mới — cùng một hàm với nhánh update ở trên, nên hai nhánh
+					# không thể lệch nhau nữa.
+					apply_leave_to_attendance(att_data, ref_data)
 
 					apply_leave_hour_cap(att_data)
 					attendance_to_insert.append(att_data)

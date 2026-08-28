@@ -21,6 +21,8 @@
   "recalc_attendance_on_checkin_change",
   "column_break_sfsy",
   "auto_add_checkin_for_employee_on_doj",
+  "column_break_levw",
+  "recalc_attendance_on_leave_application_cancel",
   "weekly_recalc_section",
   "auto_recalc_enabled",
   "auto_recalc_time",
@@ -377,7 +379,7 @@
   },
   {
    "default": "1",
-   "description": "Auto add time checkin 08:00 for new employee on first day",
+   "description": "Auto add time checkin 08:00 for new employee on joining date",
    "fieldname": "auto_add_checkin_for_employee_on_doj",
    "fieldtype": "Check",
    "label": "Auto Add Checkin For Employee On DOJ"
@@ -385,12 +387,22 @@
   {
    "fieldname": "column_break_hidy",
    "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_levw",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "recalc_attendance_on_leave_application_cancel",
+   "fieldtype": "Check",
+   "label": "Recalc Attendance on Leave Application Cancel"
   }
  ],
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-08-18 14:57:34.288585",
+ "modified": "2026-08-28 10:29:15.620779",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Attendance Calculation Setting",

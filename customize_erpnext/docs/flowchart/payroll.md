@@ -23,6 +23,7 @@ rồi dán vào draw.io qua **Extras ▸ Edit Diagram…** (dán từng sơ đ�
 flowchart TD
     classDef default fill:#F5F5F5,stroke:#888888,color:#333333;
 
+    EM[(Employee<br/>Thông tin nhân viên)] --> ENG
     CK[(Employee Checkin<br/>Quét vân tay)] --> ENG[Tính công tự động<br/>chạy theo giờ hoặc bấm tay]
     SA[(Shift Assignment<br/>Phân ca cho nhân viên)] --> ENG
     ST[(Shift Type<br/>Quy định giờ vào ra · ngưỡng trễ sớm)] --> ENG
@@ -30,6 +31,7 @@ flowchart TD
     LA[(Leave Application<br/>Đơn nghỉ phép đã duyệt)] --> ENG
     OTR[(Overtime Registration<br/>Đăng ký tăng ca)] --> ENG
     MAT[(Employee Maternity<br/>Hồ sơ thai sản)] --> ENG
+    ACS[Attendance Calculation Setting<br/>Các cài đặt chấm công] --> ENG
     ENG --> ATT[(Attendance<br/>status · working_hours · giờ OT)]
 
     SS[(Salary Structure<br/>cấu trúc lương)] --> SSA[(Salary Structure Assignment<br/>base · custom_si_base)]
@@ -52,7 +54,7 @@ flowchart TD
 flowchart TD
     classDef default fill:#F5F5F5,stroke:#888888,color:#333333;
 
-    A[Hệ thống tự chạy hàng giờ<br/>hoặc bấm Bulk Update Attendance] --> B[Nạp dữ liệu nền<br/>nhân viên · ca · đơn nghỉ · OT · lễ]
+    A[Hệ thống tự chạy hàng giờ<br/>hoặc bấm Bulk Update Attendance] --> B[Nạp dữ liệu nền<br/>nhân viên · ca · đơn nghỉ · OT · lễ · các cài đặt]
     B --> C{Ngày đó có<br/>Employee Checkin?}
 
     C -->|Không có| D{Có Leave Application<br/>đã duyệt?}
@@ -73,13 +75,15 @@ flowchart TD
     K3 --> L
     L -->|Nghỉ nửa ngày| M[status = Half Day<br/>half_day_status tuỳ nửa còn lại]
     L -->|Nghỉ trọn ngày<br/>VÀ có giờ làm thật| N[status = Present<br/>giữ link đơn nghỉ để HR huỷ đơn<br/>hoặc điều chỉnh chấm công phù hợp]
-    L -->|Không có đơn| O[Giữ status vừa tính]
+    L -->|Nghỉ trọn ngày<br/>KHÔNG có giờ làm thật| N2[status = On Leave<br/>ghi kèm mã phép]
+    L -->|Không có đơn| O[Giữ status vừa tính<br/>XOÁ link đơn nghỉ cũ nếu còn sót]
     M --> P[Chốt working_hours theo đơn nghỉ<br/>xem sơ đồ 3]
     N --> P
+    N2 --> P
     O --> P
     P --> Q[(Attendance)]
 ```
-> Nguồn: `overrides/shift_type/shift_type_optimized.py` \(preload_reference_data, resolve_attendance_status, is_shift_in_progress, discard_pre_shift_checkout, check_leave_status_cached, resolve_no_checkin_attendance, _core_process_attendance_logic_optimized\) · `overrides/employee_checkin/employee_checkin.py` \(custom_calculate_working_hours_overtime\) · `overrides/leave_rules.py` \(resolve_half_day_status\)
+> Nguồn: `overrides/shift_type/shift_type_optimized.py` \(preload_reference_data, resolve_attendance_status, is_shift_in_progress, discard_pre_shift_checkout, check_leave_status_cached, apply_leave_to_attendance, resolve_no_checkin_attendance, _core_process_attendance_logic_optimized\) · `overrides/employee_checkin/employee_checkin.py` \(custom_calculate_working_hours_overtime\) · `overrides/leave_rules.py` \(resolve_half_day_status\)
 
 > **Ba đường đều ra `Present`, ba ý nghĩa khác nhau — đừng gộp:**
 >
@@ -89,14 +93,27 @@ flowchart TD
 > | `K2` ca chưa tan | Số tạm của ngày đang diễn ra; chạy lại sau khi tan ca sẽ ra kết quả thật | Chưa kết luận được |
 > | `N` nghỉ trọn ngày mà vẫn đi làm | Đã xin nghỉ nhưng vẫn đến làm và có giờ công | **Có**, `working_hours > 0` |
 >
-> Chỉ đường `N` mới chắc chắn là "đã đi làm". Nhánh `K1` bảo vệ **964 bản ghi** đang ở `Present`
-> nhờ nó — đừng bỏ. Từng bị xoá nhầm ngày 11/08/2026 do đo sai mẫu.
+> Chỉ đường `N` mới chắc chắn là "đã đi làm". Nhánh `K1` bảo vệ **1.223 bản ghi** đang ở `Present`
+> nhờ nó \(đo 28/08/2026; 964 khi đo lần đầu 11/08/2026\) — đừng bỏ. Từng bị xoá nhầm ngày
+> 11/08/2026 do đo sai mẫu.
 
-> ⚠ **Hai luật đụng nhau ở 5 bản ghi \(đã rà 20/08/2026, chấp nhận giữ nguyên\).** Vừa thiếu
-> log quét ra, vừa có đơn nghỉ đã duyệt: `K1` chạy trước nên ra `Present` với 0 giờ, và nhánh
-> `L` không sửa lại được vì nó chỉ can thiệp khi status cũ là `On Leave` / `Half Day`. Hệ quả:
-> 3 bản mã `O`/`KL` không bị trừ `payment_days`. Tỷ lệ 5/167.888; `custom_note` đã ghi
-> *"Only one check-in record"* để HR tự rà.
+> ✅ **Mâu thuẫn `K1` ↔ `L` đã xử lý ngày 28/08/2026.** Trước đó nhánh `L` chỉ can thiệp khi
+> status cũ là `On Leave` / `Half Day`, nên ngày vừa thiếu log quét ra vừa có đơn nghỉ đã duyệt
+> bị `K1` chốt ở `Present` với 0 giờ và không ai sửa lại — 3 bản mã `O`/`KL` thoát trừ
+> `payment_days`. Cùng lỗ hổng đó còn giữ nguyên `Absent` kèm link đơn nghỉ trên **61 bản ghi**
+> \(27 dòng phép năm = trừ lương oan\).
+>
+> Nay `L` **luôn** tra lại đơn nghỉ từ dữ liệu nền, không kế thừa status/link của bản ghi cũ
+> \(`apply_leave_to_attendance`\), nên:
+>
+> | Ca | Trước | Nay |
+> |---|---|---|
+> | Thiếu log ra + nghỉ trọn ngày, 0 giờ thật | `Present` 0 giờ | `On Leave` — 5 bản ghi |
+> | `Absent` + đơn nghỉ đã duyệt | giữ `Absent` | tính lại đúng — 61 bản ghi |
+> | Đơn nghỉ bị huỷ / xoá | link chết ở lại vĩnh viễn | field đơn nghỉ được xoá |
+>
+> Nhánh `K1` **không** đổi: ngày thiếu log ra mà **không** có đơn nghỉ vẫn là `Present`
+> \(1.223 bản ghi\) — đừng bỏ.
 
 ---
 

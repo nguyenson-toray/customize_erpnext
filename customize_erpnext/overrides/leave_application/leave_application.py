@@ -405,25 +405,158 @@ class CustomLeaveApplication(LeaveApplication):
 		self.name = make_autoname(f"LA-{d.year:04d}-{d.month:02d}-.#####")
 
 	def cancel_attendance(self):
-		"""Batch cancel attendance trong 1 SQL thay vì loop per-record của HRMS.
+		"""Gỡ đơn nghỉ khỏi Attendance khi cancel — 2 câu SQL, không loop.
 
-		Khác HRMS gốc: CHỈ cancel attendance thuộc chính LA này (hoặc không link
-		LA nào — legacy). Bắt buộc với dual-leave: hook before_cancel đã swap
-		LA2→LA1 trước đó, attendance sau swap có leave_application = LA2 ≠ LA
-		đang cancel nên phải được giữ nguyên.
+		HRMS gốc lặp từng bản ghi gọi `db.set_value()` (~180 lần với đơn thai sản 6 tháng)
+		→ timeout web request. Chỉ skip cũng không được: `check_no_back_links_exist()` chạy
+		sau `on_cancel` sẽ throw `LinkExistsError` khi còn Attendance submitted trỏ tới đơn.
+
+		Hai nhóm bản ghi, hai cách xử lý khác nhau — chia theo **có giờ công hay không**,
+		không chia theo `status`:
+
+		  • `working_hours > 0` — người ta CÓ đi làm hôm đó (nghỉ nửa ngày làm nửa còn lại,
+		    hoặc nghỉ nguyên ngày nhưng vẫn vào ca). Huỷ đơn nghỉ **không được xoá ngày công**
+		    ⇒ GIỮ bản ghi, chỉ gỡ 5 field đơn nghỉ. Giữ luôn document name và link
+		    `Employee Checkin.attendance` — cancel rồi tạo lại sẽ phải nối lại toàn bộ checkin.
+		  • `working_hours = 0` — không có gì để giữ ⇒ cancel bản ghi như HRMS.
+
+		Khác HRMS gốc điểm nữa: CHỈ đụng attendance thuộc chính đơn này (hoặc không link đơn
+		nào — dữ liệu cũ). Bắt buộc với dual leave: hook `before_cancel` đã swap LA2→LA1 trước
+		đó, bản ghi sau swap có `leave_application` = LA2 ≠ đơn đang cancel nên phải sống sót.
+
+		`status` của nhóm giữ lại chưa đúng ngay: nó vẫn là 'Half Day'/'Present' tính theo đơn
+		vừa gỡ. Engine tính lại mới ra đúng — xem `_queue_recalc_after_cancel()`.
 		"""
 		from frappe.utils import now
+
 		if self.docstatus != 2:
 			return
+
+		args = (now(), frappe.session.user, self.employee, self.from_date, self.to_date, self.name)
+
+		# 1. Có giờ công → giữ bản ghi, gỡ dấu vết đơn nghỉ.
+		#    half_day_status = NULL vì không còn nửa ngày nghỉ nào để mô tả.
+		frappe.db.sql("""
+			UPDATE `tabAttendance`
+			SET leave_type = NULL,
+			    leave_application = NULL,
+			    custom_leave_application_abbreviation = NULL,
+			    custom_leave_type_2 = NULL,
+			    custom_leave_application_2 = NULL,
+			    half_day_status = NULL,
+			    modified = %s, modified_by = %s
+			WHERE employee = %s
+			  AND attendance_date BETWEEN %s AND %s
+			  AND docstatus < 2
+			  AND IFNULL(working_hours, 0) > 0
+			  AND leave_application = %s
+		""", args)
+
+		# 2. Không có giờ công → cancel như HRMS.
 		frappe.db.sql("""
 			UPDATE `tabAttendance`
 			SET docstatus = 2, modified = %s, modified_by = %s
 			WHERE employee = %s
 			  AND attendance_date BETWEEN %s AND %s
 			  AND docstatus < 2
+			  AND IFNULL(working_hours, 0) = 0
 			  AND status IN ('On Leave', 'Half Day')
 			  AND (leave_application IS NULL OR leave_application = %s)
-		""", (now(), frappe.session.user, self.employee, self.from_date, self.to_date, self.name))
+		""", args)
+
+		self._queue_recalc_after_cancel()
+
+	def _queue_recalc_after_cancel(self):
+		"""Đẩy job tính lại attendance cho đúng khoảng ngày của đơn vừa cancel.
+
+		Gated bởi `Attendance Calculation Setting` → **Recalc Attendance on Leave Application
+		Cancel** (mặc định TẮT). Tắt thì attendance đúng lại ở FULL run kế tiếp (giờ 8 và 23)
+		hoặc Bulk Update thủ công — cùng quy ước với 3 cờ recalc còn lại.
+
+		Cần thiết vì bản ghi được GIỮ ở nhóm 1 vẫn mang `status` tính theo đơn vừa gỡ; chỉ
+		engine mới tính lại được 'Present'/'Half Day'/'Absent' từ giờ công thật.
+		"""
+		try:
+			from customize_erpnext.customize_erpnext.doctype.attendance_calculation_setting.attendance_calculation_setting import (
+				get_attendance_settings,
+			)
+
+			if not frappe.utils.cint(
+				get_attendance_settings().recalc_attendance_on_leave_application_cancel
+			):
+				return
+
+			frappe.enqueue(
+				"customize_erpnext.overrides.leave_application.leave_application."
+				"background_recalculate_attendance_for_leave_cancel",
+				queue="long",
+				timeout=1800,
+				job_id=f"leave_cancel_attendance_{self.name}_"
+				       f"{int(frappe.utils.now_datetime().timestamp())}",
+				# Job chỉ vào queue sau khi transaction commit — tránh worker đọc phải
+				# trạng thái cũ khi đơn chưa thực sự được ghi docstatus = 2
+				enqueue_after_commit=True,
+				employee=self.employee,
+				from_date=str(self.from_date),
+				to_date=str(self.to_date),
+				leave_application=self.name,
+			)
+		except Exception:
+			# Không được để lỗi enqueue chặn việc cancel đơn
+			frappe.log_error(
+				frappe.get_traceback(), "Leave cancel: queue attendance recalc failed"
+			)
+
+
+def background_recalculate_attendance_for_leave_cancel(
+	employee, from_date, to_date, leave_application=None
+):
+	"""Background job: tính lại attendance cho khoảng ngày của đơn nghỉ vừa cancel.
+
+	Chỉ chạy những ngày <= hôm nay (ngày tương lai chưa có gì để tính) và bỏ qua khung giờ
+	cao điểm quét vân tay — cùng quy ước với job recalc của Employee Maternity.
+	"""
+	from datetime import date as _date
+
+	from customize_erpnext.customize_erpnext.doctype.attendance_calculation_setting.attendance_calculation_setting import (
+		is_peak_time,
+	)
+	from customize_erpnext.overrides.shift_type.shift_type_optimized import (
+		_core_process_attendance_logic_optimized,
+	)
+
+	if is_peak_time():
+		frappe.logger().info(
+			f"[LeaveCancel] Peak time — bỏ qua recalc cho {employee} ({leave_application})"
+		)
+		return
+
+	today = _date.today()
+	start, end = getdate(from_date), getdate(to_date)
+	days = []
+	while start <= end:
+		if start <= today:
+			days.append(start)
+		start = frappe.utils.add_days(start, 1)
+
+	if not days:
+		frappe.logger().info(f"[LeaveCancel] {employee}: không có ngày quá khứ — bỏ qua.")
+		return
+
+	frappe.logger().info(
+		f"[LeaveCancel] Bắt đầu — {employee}: {len(days)} ngày ({from_date} → {to_date}), "
+		f"đơn {leave_application}"
+	)
+	_core_process_attendance_logic_optimized(
+		employees=[employee],
+		days=days,
+		from_date=str(days[0]),
+		to_date=str(days[-1]),
+		fore_get_logs=True,
+	)
+	frappe.db.commit()
+	frappe.logger().info(f"[LeaveCancel] Xong — {employee}: {len(days)} ngày.")
+
 
 
 print("✅ Leave Application overrides loaded")
