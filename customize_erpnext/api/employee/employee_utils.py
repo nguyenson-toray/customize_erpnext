@@ -2293,7 +2293,7 @@ def check_employee_maternity_status(employee, attendance_date):
 		SELECT pregnant_from_date, pregnant_to_date, estimated_due_date,
 		       maternity_from_date, maternity_to_date,
 		       youg_child_from_date, youg_child_to_date,
-		       apply_benefit
+		       apply_hour_reduction
 		FROM `tabEmployee Maternity`
 		WHERE employee = %(employee)s
 		LIMIT 1
@@ -2316,8 +2316,8 @@ def check_employee_maternity_status(employee, attendance_date):
 	if rec.pregnant_from_date:
 		eff_to = rec.pregnant_to_date or rec.estimated_due_date
 		if eff_to and getdate(rec.pregnant_from_date) <= check_d <= getdate(eff_to):
-			apply_benefit = bool(rec.apply_benefit)
-			return "Pregnant", apply_benefit
+			apply_hour_reduction = bool(rec.apply_hour_reduction)
+			return "Pregnant", apply_hour_reduction
 
 	return maternity_status, apply_pregnant_benefit
 

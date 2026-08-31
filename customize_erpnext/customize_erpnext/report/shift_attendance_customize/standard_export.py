@@ -3,8 +3,11 @@ Standard-app Excel export — faithful Python replica of the Flutter timesheet
 app's `TimesheetFunctions.exportTimesheets()` (see flutter_app_chuẩn/
 timesheetFunctions.dart and App_Chuẩn_timesheetAlgorithm.md).
 
-Produces exactly 6 sheets, in order:
+Produces the app's 6 sheets, in order:
     Important Note | Detail | Summary | Timesheet | Overtime | Shift
+
+plus one TIQN-only sheet the Flutter app does not have, inserted after Timesheet:
+    Leave Application   (đơn nghỉ giao nhau với kỳ — xem `add_leave_application_sheet`)
 
 Data source is the Attendance table (values computed by the optimized
 attendance engine); the row universe mirrors the app:
@@ -14,15 +17,19 @@ attendance engine); the row universe mirrors the app:
     ones (blank in/out, zeros) — joiners appear from joining date, leavers
     disappear from relieving date unless they still have attendance.
 
-Layout, formats and sheet set follow the Dart source exactly. One content
-addition kept at the user's request: leave applications appear in Note
-Checkin as "Phép: {abbr}" (the app has no leave data).
+⚠ Một chỗ CỐ Ý lệch app: nhân viên không có một bản ghi Attendance nào trong
+kỳ bị loại hẳn khỏi file (nghỉ thai sản / nghỉ dài ngày — ở nhà cả kỳ, không
+tính lương). Xem cuối `load_export_universe()`.
+
+Layout and formats follow the Dart source exactly. Two content additions kept
+at the user's request: leave applications appear in Note Checkin as
+"Phép: {abbr}" (the app has no leave data), and the `Leave Application` sheet.
 """
 
 import re
 
 import frappe
-from frappe.utils import getdate, now_datetime
+from frappe.utils import cint, getdate, now_datetime
 
 from customize_erpnext.overrides.shift_type.leave_hour_cap import is_suspicious
 from datetime import timedelta, datetime, date as date_type
@@ -161,6 +168,39 @@ def load_export_universe(from_date, to_date, department=None, only_resigned=Fals
             if r.in_time:
                 dates.add(r.attendance_date)
 
+    # Ngày nghỉ theo Holiday List đang được gán cho nhân viên. Dùng cho luật "CN/lễ chỉ hiện
+    # người thực sự đi làm" của sheet Detail. Cùng nguồn với import_leave._holidays() để hai
+    # bên không lệch nhau.
+    holidays = {
+        getdate(h.holiday_date)
+        for h in frappe.get_all(
+            "Holiday",
+            filters={
+                "parent": ["in", frappe.get_all("Holiday List Assignment",
+                                                pluck="holiday_list") or [""]],
+                "holiday_date": ["between", [from_date, to_date]],
+            },
+            fields=["holiday_date"],
+        )
+    }
+
+    # Nhân viên KHÔNG có một bản ghi Attendance nào trong kỳ thì loại khỏi file: bản chất là
+    # ở nhà cả kỳ (nghỉ thai sản, nghỉ dài ngày) — không tính lương, mà để lại thì họ chiếm
+    # trọn một khối dòng số 0 trên Detail/Summary/Timesheet. Đo kỳ 08/2026: bỏ 29 người, cả 29
+    # đều đang trong kỳ nghỉ thai sản.
+    #
+    # ⚠ "Có Attendance" tính cả bản ghi On Leave/Absent không có giờ check-in — chỉ cần tồn tại
+    # bản ghi là hiện, đúng yêu cầu "trong date range có attendance thì phải thể hiện".
+    #
+    # ⚠ KHÔNG áp khi `only_resigned`: option đó dùng để chốt lương người thôi việc, mà người
+    # nghỉ đúng ngày đầu kỳ thì cả kỳ không có bản ghi nào (ngày làm cuối = relieving_date − 1).
+    # Áp luật này vào đó là làm rỗng đúng danh sách HR cần — đo tháng 6/2026: mất TIQN-1653 và
+    # TIQN-2144, cả hai nghỉ đúng 01/06.
+    if not only_resigned:
+        emp_with_att = {emp_id for emp_id, _d in att}
+        employees = [e for e in employees if e.name in emp_with_att]
+        emp_ids = [e.name for e in employees]
+
     # Maternity periods → per-date regime flags ("Chế độ mang thai/con nhỏ")
     maternity = defaultdict(list)
     if emp_ids:
@@ -189,11 +229,44 @@ def load_export_universe(from_date, to_date, department=None, only_resigned=Fals
     return {
         "employees": employees,
         "att": att,
+        "holidays": holidays,
         "dates": sorted(dates),
         "maternity": maternity,
         "from_date": from_date,
         "to_date": to_date,
     }
+
+
+def load_leave_applications(emp_ids, from_date, to_date):
+    """Đơn nghỉ GIAO NHAU với kỳ, cho sheet `Leave Application`.
+
+    Cột From/To in NGUYÊN ngày của đơn, không kẹp vào biên kỳ — đơn vắt qua đầu/cuối tháng vẫn
+    phải đọc ra đúng khoảng thật (đợt import 08/2026 có 16 đơn dài tới 14/09).
+
+    Trạng thái lấy theo `include_draft_leave_application` của Attendance Calculation Setting: cờ
+    đó quyết định engine có tính đơn Draft vào bảng công hay không, nên sheet này phải đi theo,
+    nếu không HR thấy mã `P` trên Timesheet mà không tìm ra đơn tương ứng.
+    """
+    if not emp_ids:
+        return []
+
+    from customize_erpnext.customize_erpnext.doctype.attendance_calculation_setting.attendance_calculation_setting import get_attendance_settings
+
+    docstatus = (0, 1) if cint(get_attendance_settings().include_draft_leave_application) else (1,)
+
+    return frappe.db.sql("""
+        SELECT la.name, la.employee, la.leave_type, lt.custom_abbreviation AS abbr,
+               la.from_date, la.to_date, la.total_leave_days,
+               la.half_day, la.half_day_date, la.status, la.docstatus, la.description
+        FROM `tabLeave Application` la
+        LEFT JOIN `tabLeave Type` lt ON lt.name = la.leave_type
+        WHERE la.employee IN %(employees)s
+          AND la.docstatus IN %(docstatus)s
+          AND la.from_date <= %(to_date)s
+          AND la.to_date >= %(from_date)s
+        ORDER BY la.employee, la.from_date, la.name
+    """, {"employees": emp_ids, "docstatus": docstatus,
+          "from_date": getdate(from_date), "to_date": getdate(to_date)}, as_dict=True)
 
 
 def _regime(universe, emp_id, d):
@@ -529,38 +602,81 @@ def add_important_note_sheet(ws, anomalies):
     _set_widths(ws, NOTE_WIDTHS)
 
 
-def add_detail_sheet(wb, rows, emp_by_id):
-    ws = wb.create_sheet("Detail")
-    _header_row(ws, DETAIL_HDRS)
+ACTUAL_HDR = "Actual (hour)"
 
-    data = sorted(rows, key=lambda r: (r["date"], r["emp_id"]))
+
+def _actually_worked(r) -> bool:
+    """Ngày đó nhân viên có thực sự đi làm hay không."""
+    return bool(r["first_in"]) or bool(r["last_out"]) \
+        or r["working_hours"] > 0 or r["actual_hours"] > 0 or r["ot_final"] > 0
+
+
+def add_detail_sheet(wb, rows, emp_by_id, holidays=None, show_actual=True):
+    """Detail — 1 dòng/(ngày × nhân viên).
+
+    `holidays`: Chủ Nhật và ngày lễ chỉ liệt kê người **thực sự đi làm**. Ngày thường vẫn giữ
+    nguyên cả người vắng (dòng số 0) như app. Lý do: một Chủ Nhật chỉ vài chục người tăng ca mà
+    vẫn in đủ ~1.000 dòng số 0 thì sheet phình vô ích và HR phải lọc tay.
+
+    `show_actual`: cột `Actual (hour)` bị bỏ khi `With Leave Application = 0`, vì ở chế độ đó
+    `working_hours` ĐÃ được thay bằng chính `custom_actual_working_hours` nên hai cột luôn bằng
+    nhau — xem `build_standard_workbook`.
+    """
+    ws = wb.create_sheet("Detail")
+    holidays = holidays or set()
+
+    keep = [h != ACTUAL_HDR or show_actual for h in DETAIL_HDRS]
+    hdrs = [h for h, k in zip(DETAIL_HDRS, keep) if k]
+    widths = [w for w, k in zip(DETAIL_WIDTHS, keep) if k]
+    _header_row(ws, hdrs)
+
+    data = [r for r in sorted(rows, key=lambda r: (r["date"], r["emp_id"]))
+            if not (r["date"].weekday() == 6 or r["date"] in holidays)
+            or _actually_worked(r)]
+
     for no, r in enumerate(data, 1):
         row = no + 1
         emp = emp_by_id[r["emp_id"]]
-        ws.cell(row=row, column=1, value=no)
-        _set_date(ws.cell(row=row, column=2), r["date"])
-        ws.cell(row=row, column=3, value=r["emp_id"])
-        ws.cell(row=row, column=4, value=r["finger_id"])
-        ws.cell(row=row, column=5, value=r["name"])
-        ws.cell(row=row, column=6, value=r["department"])
-        ws.cell(row=row, column=7, value=r["section"])
-        ws.cell(row=row, column=8, value=r["group"])
-        ws.cell(row=row, column=9, value=r["shift"])
-        _set_time(ws.cell(row=row, column=10), r["first_in"])
-        _set_time(ws.cell(row=row, column=11), r["last_out"])
-        c = ws.cell(row=row, column=12, value=r["working_hours"]); c.number_format = "0.00"
-        c = ws.cell(row=row, column=13, value=r["actual_hours"]); c.number_format = "0.00"
-        c = ws.cell(row=row, column=14, value=r["working_days"]); c.number_format = "0.00"
-        c = ws.cell(row=row, column=15, value=r["ot_actual"]); c.number_format = "0.0"
-        c = ws.cell(row=row, column=16, value=r["ot_approved"]); c.number_format = "0.0"
-        c = ws.cell(row=row, column=17, value=r["ot_final"]); c.number_format = "0.0"
-        ws.cell(row=row, column=18, value=r["note_checkin"])
-        ws.cell(row=row, column=19, value=r["note_sunday"])
-        _set_date(ws.cell(row=row, column=20), _joining_date(emp))
-        _set_date(ws.cell(row=row, column=21), _resign_date(emp))
+        # (giá trị, number_format, kiểu ô) — "d" ngày · "t" giờ · None giá trị thường
+        cells = [
+            (no, None, None),
+            (r["date"], None, "d"),
+            (r["emp_id"], None, None),
+            (r["finger_id"], None, None),
+            (r["name"], None, None),
+            (r["department"], None, None),
+            (r["section"], None, None),
+            (r["group"], None, None),
+            (r["shift"], None, None),
+            (r["first_in"], None, "t"),
+            (r["last_out"], None, "t"),
+            (r["working_hours"], "0.00", None),
+        ]
+        if show_actual:
+            cells.append((r["actual_hours"], "0.00", None))
+        cells += [
+            (r["working_days"], "0.00", None),
+            (r["ot_actual"], "0.0", None),
+            (r["ot_approved"], "0.0", None),
+            (r["ot_final"], "0.0", None),
+            (r["note_checkin"], None, None),
+            (r["note_sunday"], None, None),
+            (_joining_date(emp), None, "d"),
+            (_resign_date(emp), None, "d"),
+        ]
+        for col, (val, fmt, kind) in enumerate(cells, 1):
+            cell = ws.cell(row=row, column=col)
+            if kind == "d":
+                _set_date(cell, val)
+            elif kind == "t":
+                _set_time(cell, val)
+            else:
+                cell.value = val
+                if fmt:
+                    cell.number_format = fmt
 
-    _add_excel_table(ws, len(data) + 1, len(DETAIL_HDRS), "TableDetail")
-    _set_widths(ws, DETAIL_WIDTHS)
+    _add_excel_table(ws, len(data) + 1, len(hdrs), "TableDetail")
+    _set_widths(ws, widths)
 
 
 def add_summary_sheet(wb, rows, emp_by_id):
@@ -589,6 +705,43 @@ def add_summary_sheet(wb, rows, emp_by_id):
 
     _add_excel_table(ws, row - 1, EMP_FIXED + 5, "TableSummary")
     _set_widths(ws, EMP_FIXED_WIDTHS + [8] * 5)
+
+
+LA_HDRS = ["Leave Type", "Abbr", "From Date", "To Date", "Total Days",
+           "Half Day Date", "Status", "Docstatus", "Leave Application", "Reason"]
+LA_WIDTHS = [34, 7, 11, 11, 9, 12, 10, 11, 18, 30]
+
+_DOCSTATUS_LABEL = {0: "Draft", 1: "Submitted", 2: "Cancelled"}
+
+
+def add_leave_application_sheet(wb, leaves, emp_by_id):
+    """Mot dong mot don nghi. Dung lai 8 cot nhan vien chuan cua Summary/Shift."""
+    ws = wb.create_sheet("Leave Application")
+    _header_row(ws, EMP_FIXED_HDRS + LA_HDRS)
+
+    row = 1
+    for la in leaves:
+        emp = emp_by_id.get(la.employee)
+        if emp is None:      # NV da bi loai khoi universe (khong co Attendance nao trong ky)
+            continue
+        row += 1
+        _write_fixed(ws, row, row - 1, emp)
+        ws.cell(row=row, column=EMP_FIXED + 1, value=la.leave_type)
+        ws.cell(row=row, column=EMP_FIXED + 2, value=la.abbr)
+        _set_date(ws.cell(row=row, column=EMP_FIXED + 3), getdate(la.from_date))
+        _set_date(ws.cell(row=row, column=EMP_FIXED + 4), getdate(la.to_date))
+        c = ws.cell(row=row, column=EMP_FIXED + 5, value=_r2(la.total_leave_days))
+        c.number_format = "0.##"
+        _set_date(ws.cell(row=row, column=EMP_FIXED + 6),
+                  getdate(la.half_day_date) if la.half_day and la.half_day_date else None)
+        ws.cell(row=row, column=EMP_FIXED + 7, value=la.status)
+        ws.cell(row=row, column=EMP_FIXED + 8,
+                value=_DOCSTATUS_LABEL.get(la.docstatus, la.docstatus))
+        ws.cell(row=row, column=EMP_FIXED + 9, value=la.name)
+        ws.cell(row=row, column=EMP_FIXED + 10, value=(la.description or "").strip())
+
+    _add_excel_table(ws, row, EMP_FIXED + len(LA_HDRS), "TableLeaveApplication")
+    _set_widths(ws, EMP_FIXED_WIDTHS + LA_WIDTHS)
 
 
 def _add_pivot_sheet(wb, sheet_name, table_name, number_fmt, pivot_values,
@@ -687,25 +840,51 @@ def add_shift_sheet(wb, rows, emp_by_id, all_dates):
 
 # ── Entry point ──────────────────────────────────────────────────────────────
 
-ALL_SHEETS = ("Important Note", "Detail", "Summary", "Timesheet", "Overtime", "Shift")
+ALL_SHEETS = ("Important Note", "Detail", "Summary", "Timesheet",
+              "Leave Application", "Overtime", "Shift")
 
 
 def build_standard_workbook(from_date, to_date, department=None,
                             leave_gap_minutes: int = 15, sheets=None,
-                            only_resigned: bool = False):
+                            only_resigned: bool = False,
+                            with_leave_application: bool = True):
     """Build the standard-app workbook. Returns openpyxl Workbook.
 
     `sheets`: tên các sheet cần xuất; `None` = tất cả (`ALL_SHEETS`).
     `leave_gap_minutes`: xem `build_export_rows`.
     `only_resigned`: xem `load_export_universe`.
 
+    `with_leave_application` (option "With Leave Application" của dialog Export Excel):
+
+        True  — giữ nguyên `working_hours` (giờ đã bị chặn theo đơn nghỉ) và mã nghỉ P/KL/O/2…
+                trên sheet Timesheet; sheet `Leave Application` LUÔN được xuất.
+        False — thay `working_hours` bằng `custom_actual_working_hours` (giờ thực tế theo check
+                in/out) cho MỌI tính toán, và bỏ mã nghỉ để ô Timesheet chỉ còn số; sheet
+                `Leave Application` chỉ ra khi được tick trong "Sheets to export".
+
+    ⚠ Sheet **Important Note** không đổi trong cả hai chế độ — nó được dựng bên trong
+    `build_export_rows()` từ giá trị gốc, trước khi phần swap dưới đây chạy.
+
     ⚠ `wb.active` tạo sẵn sheet đầu tiên. Nếu KHÔNG xuất "Important Note" thì phải xoá sheet
     trống đó, nếu không file có một tab rỗng tên "Sheet".
     """
     wanted = set(sheets) if sheets else set(ALL_SHEETS)
+    if with_leave_application:
+        # =1 thì sheet đơn nghỉ là phần không thể thiếu của file, bỏ qua lựa chọn trong dialog.
+        wanted.add("Leave Application")
     universe = load_export_universe(from_date, to_date, department, only_resigned=only_resigned)
     rows, anomalies = build_export_rows(universe, leave_gap_minutes=leave_gap_minutes)
     emp_by_id = {e.name: e for e in universe["employees"]}
+
+    # `anomalies` đã dựng xong ở trên ⇒ sheet Important Note miễn nhiễm với phần swap này.
+    # Overtime (chỉ `ot_final`) và Shift (chỉ tên ca) không đọc giờ nên cũng không đổi.
+    if not with_leave_application:
+        for r in rows:
+            r["working_hours"] = r["actual_hours"]
+            r["working_days"] = _r2(r["actual_hours"] / 8.0)
+            # Bỏ mã nghỉ: `timesheet_working_days("P", …)` trả 1,0 công BẤT KỂ số giờ, giữ mã
+            # lại thì giờ thực tế không có tác dụng gì trên đúng những ngày cần nó nhất.
+            r["leave_abbr"] = ""
 
     # Continuous date columns for the pivot sheets (full requested range,
     # like the app's dateRange input)
@@ -722,7 +901,8 @@ def build_standard_workbook(from_date, to_date, department=None,
         # wb.active là sheet mặc định "Sheet" — bỏ đi, nếu không file có tab rỗng
         wb.remove(wb.active)
     if "Detail" in wanted:
-        add_detail_sheet(wb, rows, emp_by_id)
+        add_detail_sheet(wb, rows, emp_by_id, holidays=universe["holidays"],
+                         show_actual=with_leave_application)
     if "Summary" in wanted:
         add_summary_sheet(wb, rows, emp_by_id)
 
@@ -751,6 +931,13 @@ def build_standard_workbook(from_date, to_date, department=None,
         _add_pivot_sheet(wb, "Timesheet", "TableTimesheet", "0.##",
                          ts_pivot, emp_order, emp_by_id, all_dates,
                          display_values=ts_display)
+    if "Leave Application" in wanted:
+        add_leave_application_sheet(
+            wb,
+            load_leave_applications([e.name for e in universe["employees"]],
+                                    universe["from_date"], universe["to_date"]),
+            emp_by_id)
+
     if "Overtime" in wanted:
         _add_pivot_sheet(wb, "Overtime", "TableOvertime", "0.#",
                          ot_pivot, emp_order, emp_by_id, all_dates,

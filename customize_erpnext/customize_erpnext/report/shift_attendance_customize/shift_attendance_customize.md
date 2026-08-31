@@ -42,7 +42,7 @@ Report tùy chỉnh từ "Shift Attendance" của HRMS v16, hiển thị chi ti�
 12. **Actual Overtime Duration** - Thời gian tăng ca thực tế
 13. **Approved Overtime Duration** - Thời gian tăng ca được duyệt
 14. **Final Overtime Duration** - Thời gian tăng ca cuối cùng
-15. **Maternity Benefit** - Chế độ thai sản
+15. **-1h** (`custom_hour_reduction`) - Giảm 1 giờ làm việc (mang thai hoặc con dưới 12 tháng)
 16. **Late Entry** - Checkbox đi muộn
 17. **Early Exit** - Checkbox về sớm
 18. **Leave Application** - Đơn xin nghỉ
@@ -78,7 +78,7 @@ Report tùy chỉnh từ "Shift Attendance" của HRMS v16, hiển thị chi ti�
 - **Summary** - Checkbox tổng hợp dữ liệu theo nhân viên (mặc định: tắt)
   - Khi bật: tự động bật "Detail Join / Resign Date"
   - Hiển thị tổng số giờ làm việc, ngày công, overtime theo từng nhân viên
-  - Ẩn các cột chi tiết: Date, Status, In/Out Time, Maternity Benefit, Late Entry, Early Exit, Leave Application, Attendance ID
+  - Ẩn các cột chi tiết: Date, Status, In/Out Time, -1h, Late Entry, Early Exit, Leave Application, Attendance ID
 
 ### Report Summary
 
@@ -107,7 +107,7 @@ Report sử dụng các custom fields sau trong DocType **Attendance**:
 - `actual_overtime_duration` (Float) - Thời gian tăng ca thực tế
 - `custom_approved_overtime_duration` (Float) - Thời gian tăng ca được duyệt
 - `custom_final_overtime_duration` (Float) - Thời gian tăng ca cuối cùng
-- `custom_maternity_benefit` (Data) - Chế độ thai sản
+- `custom_hour_reduction` (Check) - Giảm 1 giờ làm việc (mang thai hoặc con dưới 12 tháng)
 
 Trong DocType **Employee**:
 
@@ -179,18 +179,38 @@ Truy cập: **Báo cáo > Shift Attendance Customize**
 
 ---
 
-## Excel Export — 6 sheets y hệt app chuẩn (từ 2026-07-13)
+## Excel Export — 6 sheets y hệt app chuẩn + 1 sheet riêng TIQN (từ 2026-07-13)
 
 Nút **Export Excel** trên report (`export_attendance_excel`) xuất workbook **đúng
 format app Flutter chuẩn** (replica từ `flutter_app_chuẩn/timesheetFunctions.dart`,
 code: `standard_export.py`). Tên file: `Timesheet_{yymmdd}_{yymmdd}_{timestamp}.xlsx`.
 
 1. **Important Note** — bất thường: `[Resigned + Att]` (đã nghỉ việc còn chấm công), `[Ra 16-17h]` (nữ ca Day checkout 16-17h không có chế độ thai sản/con nhỏ tại ngày đó). Nguồn: `custom_note` của Attendance.
-2. **Detail** — 1 dòng/(NV × ngày có ≥1 người chấm công), gồm cả NV vắng (giờ trống, số 0); 20 cột; notes tiếng Việt như app (`Vào trễ`, `Ra sớm`, `Chế độ mang thai`…) + bổ sung `Phép: {abbr}` từ Leave Application (app không có dữ liệu phép).
+2. **Detail** — 1 dòng/(NV × ngày có ≥1 người chấm công), gồm cả NV vắng (giờ trống, số 0); 21 cột; notes tiếng Việt như app (`Vào trễ`, `Ra sớm`, `Chế độ mang thai`…) + bổ sung `Phép: {abbr}` từ Leave Application (app không có dữ liệu phép). Hai luật riêng của TIQN:
+   - **Chủ Nhật và ngày lễ chỉ liệt kê người thực sự đi làm** (có First/Last hoặc có giờ/OT > 0). Ngày thường vẫn giữ nguyên cả người vắng. Đo CN 30/08/2026: 3 dòng thay vì 1.011.
+   - Khi `With Leave Application = 0` thì **bỏ hẳn cột `Actual (hour)`** (còn 20 cột), vì ở chế độ đó `Working (hour)` đã chính là `custom_actual_working_hours` nên hai cột luôn bằng nhau.
 3. **Summary** — 1 dòng/NV: 8 cột cố định (No, ID, Name, Joining, Resign, Group, Section, Position) + tổng giờ/công/3 loại OT (tổng công = Σ working_day từng ngày đã làm tròn).
 4. **Timesheet** — ma trận NV × ngày (dd/mm, gồm CN — header CN tô xám) + Total; giá trị = công/ngày, chỉ ghi khi >0.
-5. **Overtime** — ma trận như trên, giá trị = **OT Final**; chỉ NV có tổng OT > 0.
-6. **Shift** — ma trận NV ca xoay (Shift 1 chữ cam, Shift 2 chữ xanh) × ngày (gồm CN); chỉ xuất hiện khi range có attendance Shift 1/2.
+5. **Leave Application** *(riêng TIQN, app không có)* — 1 dòng/đơn nghỉ **giao nhau** với kỳ; 8 cột cố định + `Leave Type · Abbr · From · To · Total Days · Half Day Date · Status · Docstatus · Leave Application · Reason`. Cột From/To in **nguyên ngày của đơn**, không kẹp vào biên kỳ. Lấy cả đơn Draft khi `Attendance Calculation Setting.include_draft_leave_application` bật (hiện đang bật), vì engine cũng tính đơn Draft vào bảng công.
+6. **Overtime** — ma trận như trên, giá trị = **OT Final**; chỉ NV có tổng OT > 0.
+7. **Shift** — ma trận NV ca xoay (Shift 1 chữ cam, Shift 2 chữ xanh) × ngày (gồm CN); chỉ xuất hiện khi range có attendance Shift 1/2.
+
+### Option `With Leave Application` (dialog Export Excel, mặc định BẬT)
+
+| | =1 | =0 |
+|---|---|---|
+| Detail · Summary · Timesheet | `working_hours` (đã bị chặn theo đơn nghỉ) + in mã nghỉ `P`/`KL`/`O/2`… | `custom_actual_working_hours` **thay chỗ** `working_hours` cho mọi tính toán, **bỏ** mã nghỉ ⇒ ô Timesheet chỉ còn số |
+| Cột `Actual (hour)` của Detail | có (21 cột) | **bỏ** (20 cột) — trùng hệt cột `Working (hour)` |
+| Sheet `Leave Application` | **luôn xuất**, bỏ qua lựa chọn trong "Sheets to export" | theo checkbox trong "Sheets to export" |
+| `Important Note` · `Overtime` · `Shift` | không đổi | không đổi |
+
+⚠ Important Note miễn nhiễm vì `anomalies` được dựng **bên trong** `build_export_rows()`, trước khi phần swap chạy. Bỏ mã nghỉ khi =0 là bắt buộc: `timesheet_working_days("P", …)` trả 1,0 công **bất kể số giờ**, giữ mã lại thì giờ thực tế vô tác dụng đúng ở những ngày cần nó nhất.
+
+### Ai bị loại khỏi file
+
+Nhân viên **không có một bản ghi Attendance nào** trong kỳ bị loại hẳn (`load_export_universe`): bản chất là ở nhà cả kỳ — nghỉ thai sản, nghỉ dài ngày — không tính lương, mà để lại thì chiếm trọn một khối dòng số 0. Đo kỳ 08/2026: bỏ 29 người, cả 29 đều đang trong kỳ nghỉ thai sản. Chỉ cần **tồn tại** bản ghi là hiện, kể cả `On Leave`/`Absent` không có giờ check-in.
+
+🔴 Luật này **không áp** khi bật option *Only employees who resigned in this period*: người nghỉ đúng ngày đầu kỳ thì cả kỳ không có bản ghi nào (ngày làm cuối = `relieving_date − 1`), áp vào là làm rỗng đúng danh sách HR cần để chốt lương. Đo tháng 6/2026: mất TIQN-1653 và TIQN-2144.
 
 Sheet kiểu C&B cũ (Timesheet footer chữ ký, Overtime C&B, Quy định nghỉ phép) đã bỏ hẳn theo yêu cầu.
 

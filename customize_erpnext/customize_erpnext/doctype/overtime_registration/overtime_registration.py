@@ -128,7 +128,7 @@ class OvertimeRegistration(Document):
                        pregnant_from_date, pregnant_to_date, estimated_due_date,
                        maternity_from_date, maternity_to_date,
                        youg_child_from_date, youg_child_to_date,
-                       apply_benefit
+                       apply_hour_reduction
                 FROM `tabEmployee Maternity`
                 WHERE employee IN %(employees)s
                   AND (
@@ -158,7 +158,7 @@ class OvertimeRegistration(Document):
                     if rec.pregnant_from_date:
                         eff_to = rec.pregnant_to_date or rec.estimated_due_date
                         if eff_to and getdate(rec.pregnant_from_date) <= check_d <= getdate(eff_to):
-                            if rec.apply_benefit == 1:
+                            if rec.apply_hour_reduction == 1:
                                 self._maternity_cache[(emp, dt)] = (True, "Mang thai", rec.pregnant_from_date, eff_to)
                                 break
 

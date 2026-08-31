@@ -19,7 +19,7 @@
   "status",
   "note",
   "section_maternity",
-  "apply_benefit",
+  "apply_hour_reduction",
   "pregnant_from_date",
   "pregnant_to_date",
   "estimated_due_date",
@@ -73,10 +73,10 @@
   },
   {
    "default": "1",
-   "fieldname": "apply_benefit",
+   "fieldname": "apply_hour_reduction",
    "fieldtype": "Check",
    "in_list_view": 1,
-   "label": "Apply Benefit"
+   "label": "Apply Hour Reduction"
   },
   {
    "fieldname": "note",

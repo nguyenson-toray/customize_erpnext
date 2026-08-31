@@ -21521,8 +21521,16 @@ Reason for Leaving Group,Nhóm lý do nghỉ việc
 Reason for Leaving Group 2,Lý do nghỉ việc chi tiết
 Only employees who resigned in this period,Chỉ nhân viên nghỉ việc trong kỳ này
 Relieving date falls inside From Date - To Date. Not the same as status Left: someone who resigned last year is also Left but unrelated to this period.,Ngày nghỉ việc nằm trong khoảng Từ ngày - Đến ngày. Khác với trạng thái Left: người nghỉ từ năm ngoái cũng là Left nhưng không liên quan kỳ này.
+Relieving date inside From-To. Not the same as status Left.,Ngày nghỉ việc nằm trong khoảng Từ - Đến. Khác với trạng thái Left.
+Group employees under department headers,Gom nhân viên theo tiêu đề bộ phận
+Hours,Giờ công
+With Leave Application,Kèm đơn nghỉ phép
+"Working Hours (capped by leave) + leave codes on Timesheet. Leave Application sheet always included.","Dùng Working Hours (đã chặn theo đơn nghỉ) + in mã nghỉ trên Timesheet. Luôn kèm sheet Leave Application."
+"Actual Working Hours everywhere, no leave codes, no Actual column on Detail.","Dùng Actual Working Hours cho mọi tính toán, bỏ mã nghỉ, bỏ cột Actual trên sheet Detail."
 Important Note sheet,Sheet Important Note
+Important Note: report leave-but-worked from,Important Note: báo 'có phép mà vẫn đi làm' từ
 Report leave-but-worked from (minutes),Báo 'có phép mà vẫn đi làm' từ (phút)
+Minutes of gap before a day is listed. 0 = list everything.,Số phút chênh lệch để một ngày được liệt kê. 0 = liệt kê tất cả.
 Minimum gap between actual hours and counted hours before a day is listed. 0 = list everything.,Chênh lệch tối thiểu giữa giờ thực tế và giờ tính công để một ngày được liệt kê. 0 = liệt kê tất cả.
 Sheets to export,Sheet cần xuất
 No sheet selected,Chưa chọn sheet nào

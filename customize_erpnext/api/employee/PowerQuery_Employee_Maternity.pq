@@ -113,8 +113,8 @@ let
     ActiveFloats = List.Intersect({Table.ColumnNames(WithDates), FloatCols}),
     WithFloats   = Table.TransformColumnTypes(WithDates, List.Transform(ActiveFloats, each {_, type number})),
 
-    IntCols_EN = {"Seniority (months)", "Apply Benefit"},
-    IntCols_VI = {"Thâm niên (tháng)", "Áp dụng quyền lợi"},
+    IntCols_EN = {"Seniority (months)", "Apply Hour Reduction"},
+    IntCols_VI = {"Thâm niên (tháng)", "Áp dụng giảm 1 giờ"},
     IntCols    = if Lang = "vi" then IntCols_VI else IntCols_EN,
     ActiveInts = List.Intersect({Table.ColumnNames(WithFloats), IntCols}),
     WithInts   = Table.TransformColumnTypes(WithFloats, List.Transform(ActiveInts, each {_, Int64.Type})),

@@ -106,6 +106,10 @@ def _check_attendance_changes(old_att: Dict, new_att: Dict) -> bool:
 		('in_time', None, True),           # datetime field
 		('out_time', None, True),          # datetime field
 		('working_hours', 0, False),
+		# Thiếu dòng này thì bản ghi chỉ lệch mỗi giờ thực tế bị coi là "không đổi" nên
+		# _apply_attendance_updates() không bao giờ ghi xuống DB — dù field CÓ trong
+		# _ATTENDANCE_UPDATE_FIELDS. Đo được 23.371/25.955 bản ghi tháng 8/2026 kẹt vì lý do này.
+		('custom_actual_working_hours', 0, False),
 		('late_entry', 0, False),
 		('early_exit', 0, False),
 		('leave_type', None, False),
@@ -116,7 +120,7 @@ def _check_attendance_changes(old_att: Dict, new_att: Dict) -> bool:
 		('half_day_status', None, False),
 		('modify_half_day_status', 0, False),
 		('custom_note', None, False),
-		('custom_maternity_benefit', 0, False),
+		('custom_hour_reduction', 0, False),
 		('actual_overtime_duration', 0, False),
 		('custom_approved_overtime_duration', 0, False),
 		('custom_final_overtime_duration', 0, False),
@@ -510,8 +514,9 @@ def preload_reference_data(employee_list: List[str], from_date: str, to_date: st
 			"leave_type", "leave_application", "custom_leave_application_abbreviation",
 			"custom_leave_type_2", "custom_leave_application_2",  # Dual leave support
 			"half_day_status", "modify_half_day_status", "custom_note",
-			"in_time", "out_time", "working_hours", "late_entry", "early_exit",
-			"custom_maternity_benefit", "actual_overtime_duration",
+			"in_time", "out_time", "working_hours", "custom_actual_working_hours",
+			"late_entry", "early_exit",
+			"custom_hour_reduction", "actual_overtime_duration",
 			"custom_approved_overtime_duration", "custom_final_overtime_duration",
 			"overtime_type", "standard_working_hours"
 		]
@@ -553,7 +558,7 @@ def preload_reference_data(employee_list: List[str], from_date: str, to_date: st
 			       pregnant_from_date, pregnant_to_date, estimated_due_date,
 			       maternity_from_date, maternity_to_date,
 			       youg_child_from_date, youg_child_to_date,
-			       apply_benefit
+			       apply_hour_reduction
 			FROM `tabEmployee Maternity`
 			WHERE {where_clause}
 		""", params, as_dict=True)
@@ -574,7 +579,7 @@ def preload_reference_data(employee_list: List[str], from_date: str, to_date: st
 						"from_date": getdate(rec.pregnant_from_date),
 						"effective_to_date": getdate(eff_to),
 						"estimated_due_date": rec.estimated_due_date,
-						"apply_benefit": rec.apply_benefit,
+						"apply_hour_reduction": rec.apply_hour_reduction,
 					})
 
 			# Maternity Leave period
@@ -583,7 +588,7 @@ def preload_reference_data(employee_list: List[str], from_date: str, to_date: st
 					"type": "Maternity Leave",
 					"from_date": getdate(rec.maternity_from_date),
 					"effective_to_date": getdate(rec.maternity_to_date),
-					"apply_benefit": 1,
+					"apply_hour_reduction": 1,
 				})
 
 			# Young Child period
@@ -592,7 +597,7 @@ def preload_reference_data(employee_list: List[str], from_date: str, to_date: st
 					"type": "Young Child",
 					"from_date": getdate(rec.youg_child_from_date),
 					"effective_to_date": getdate(rec.youg_child_to_date),
-					"apply_benefit": 1,
+					"apply_hour_reduction": 1,
 				})
 
 		total_periods = sum(len(v) for v in data['maternity_tracking'].values())
@@ -779,10 +784,10 @@ def check_maternity_status_cached(employee: str, attendance_date: date, ref_data
 			# Logic:
 			# - Young Child: always apply benefit (reduce working hours)
 			# - Maternity Leave: always apply benefit
-			# - Pregnant: only if apply_benefit checkbox is ticked
+			# - Pregnant: only if apply_hour_reduction checkbox is ticked
 			if record['type'] in ('Young Child', 'Maternity Leave'):
 				apply_pregnant_benefit = True
-			elif record['type'] == 'Pregnant' and record.get('apply_benefit'):
+			elif record['type'] == 'Pregnant' and record.get('apply_hour_reduction'):
 				apply_pregnant_benefit = True
 
 			return (maternity_status, apply_pregnant_benefit)
@@ -1070,7 +1075,7 @@ def resolve_no_checkin_attendance(employee: str, att_date: date, ref_data: Dict)
 		exist — employee in Maternity Leave phase, or the shift has not started
 		yet (see is_shift_not_started).
 	"""
-	maternity_status, custom_maternity_benefit = check_maternity_status_cached(employee, att_date, ref_data)
+	maternity_status, custom_hour_reduction = check_maternity_status_cached(employee, att_date, ref_data)
 
 	# Employee Maternity is the source of truth — no attendance during Maternity Leave
 	if maternity_status == "Maternity Leave":
@@ -1115,7 +1120,7 @@ def resolve_no_checkin_attendance(employee: str, att_date: date, ref_data: Dict)
 		seg_shift = frappe._dict(shift_data)
 		# Maternity: registrations start at the reduced shift end — zone
 		# classification needs the adjusted end_time
-		if custom_maternity_benefit and seg_shift.get('end_time') is not None:
+		if custom_hour_reduction and seg_shift.get('end_time') is not None:
 			seg_shift.end_time = seg_shift.end_time - timedelta(
 				hours=flt(get_attendance_settings().maternity_benefit_hours)
 			)
@@ -1133,7 +1138,7 @@ def resolve_no_checkin_attendance(employee: str, att_date: date, ref_data: Dict)
 		'custom_leave_application_2': leave_application_2,
 		'half_day_status': half_day_status,
 		'modify_half_day_status': 0,
-		'custom_maternity_benefit': custom_maternity_benefit,
+		'custom_hour_reduction': custom_hour_reduction,
 		'shift': shift,
 		'standard_working_hours': shift_data.get('custom_standard_working_hours', 0),
 		'custom_note': None,  # no checkins → clear any stale anomaly note
@@ -1302,7 +1307,7 @@ _ATTENDANCE_UPDATE_FIELDS = (
 	("working_hours", "working_hours", 0),
 	("late_entry", "late_entry", 0),
 	("early_exit", "early_exit", 0),
-	("custom_maternity_benefit", "custom_maternity_benefit", 0),
+	("custom_hour_reduction", "custom_hour_reduction", 0),
 	("actual_overtime_duration", "actual_overtime_duration", 0),
 	("custom_approved_overtime_duration", "custom_approved_overtime_duration", 0),
 	("custom_final_overtime_duration", "custom_final_overtime_duration", 0),
@@ -1546,11 +1551,16 @@ def bulk_insert_attendance_records(attendance_list: List[Dict], ref_data: Dict) 
 				att.get('custom_section'),  # custom_section
 				att.get('custom_group'),  # custom_group
 				att.get('working_hours', 0),  # working_hours
+				# Giờ THỰC TẾ theo check in/out, do apply_leave_hour_cap() tính trước khi cap
+				# `working_hours`. Thiếu cột này ở INSERT thì mọi bản ghi MỚI ra actual = 0 trong
+				# khi nhánh UPDATE (_ATTENDANCE_UPDATE_FIELDS) vẫn ghi đúng — đo được 23.371/25.955
+				# bản ghi tháng 8/2026 sai vì lý do này.
+				att.get('custom_actual_working_hours', 0),  # custom_actual_working_hours
 				str(att.get('in_time')) if att.get('in_time') else None,  # in_time
 				str(att.get('out_time')) if att.get('out_time') else None,  # out_time
 				1 if att.get('late_entry', 0) else 0,  # late_entry
 				1 if att.get('early_exit', 0) else 0,  # early_exit
-				1 if att.get('custom_maternity_benefit', 0) else 0,  # custom_maternity_benefit
+				1 if att.get('custom_hour_reduction', 0) else 0,  # custom_hour_reduction
 				att.get('actual_overtime_duration', 0),  # actual_overtime_duration
 				att.get('custom_approved_overtime_duration', 0),  # custom_approved_overtime_duration
 				att.get('custom_final_overtime_duration', 0),  # custom_final_overtime_duration
@@ -1584,11 +1594,12 @@ def bulk_insert_attendance_records(attendance_list: List[Dict], ref_data: Dict) 
 					(name, employee, employee_name, attendance_date, shift, status, leave_type, leave_application,
 					 custom_leave_application_abbreviation, custom_leave_type_2, custom_leave_application_2,
 					 half_day_status, modify_half_day_status,
-					 company, department, custom_section, custom_group, working_hours, in_time, out_time,
-					 late_entry, early_exit, custom_maternity_benefit, actual_overtime_duration,
+					 company, department, custom_section, custom_group, working_hours,
+					 custom_actual_working_hours, in_time, out_time,
+					 late_entry, early_exit, custom_hour_reduction, actual_overtime_duration,
 					 custom_approved_overtime_duration, custom_final_overtime_duration,
 					 overtime_type, standard_working_hours, custom_note, docstatus, creation, modified, owner, modified_by)
-					VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+					VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
 				"""
 
 				# Get cursor and use executemany
@@ -1929,7 +1940,7 @@ def _core_process_attendance_logic_optimized(
 					continue
 
 				# Check maternity status using cached data (MUST match original logic!)
-				maternity_status, custom_maternity_benefit = check_maternity_status_cached(employee, attendance_date, ref_data)
+				maternity_status, custom_hour_reduction = check_maternity_status_cached(employee, attendance_date, ref_data)
 
 				# Skip: employee on maternity leave — no attendance created, even with checkins
 				if maternity_status == "Maternity Leave":
@@ -2020,7 +2031,7 @@ def _core_process_attendance_logic_optimized(
 
 					# CRITICAL: Maternity benefit reduces shift end_time by maternity_benefit_hours
 					# (setting; MUST match custom_create_or_update_attendance logic!)
-					if custom_maternity_benefit:
+					if custom_hour_reduction:
 						shift_type_details.end_time = shift_type_details.end_time - timedelta(
 							hours=flt(get_attendance_settings().maternity_benefit_hours)
 						)
@@ -2032,7 +2043,7 @@ def _core_process_attendance_logic_optimized(
 						in_time,
 						out_time,
 						shift_type_details,
-						custom_maternity_benefit,
+						custom_hour_reduction,
 						ot_entries=ot_entries
 					)
 
@@ -2102,7 +2113,7 @@ def _core_process_attendance_logic_optimized(
 						seg_shift = frappe._dict(shift_data)
 						# Maternity: registrations start at the reduced shift end —
 						# zone classification needs the adjusted end_time
-						if custom_maternity_benefit and seg_shift.get('end_time') is not None:
+						if custom_hour_reduction and seg_shift.get('end_time') is not None:
 							seg_shift.end_time = seg_shift.end_time - timedelta(
 								hours=flt(get_attendance_settings().maternity_benefit_hours)
 							)
@@ -2160,7 +2171,7 @@ def _core_process_attendance_logic_optimized(
 					'out_time': out_time,
 					'late_entry': late_entry,
 					'early_exit': early_exit,
-					'custom_maternity_benefit': custom_maternity_benefit,
+					'custom_hour_reduction': custom_hour_reduction,
 					'actual_overtime_duration': flt(actual_overtime, 1),
 					'custom_approved_overtime_duration': flt(approved_overtime, 1),
 					'custom_final_overtime_duration': flt(final_overtime, 1),

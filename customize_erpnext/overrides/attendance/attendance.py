@@ -56,7 +56,7 @@ def get_attendance_custom_additional_info(employee, attendance_date):
 			pregnant_from_date, pregnant_to_date, estimated_due_date,
 			maternity_from_date, maternity_to_date,
 			youg_child_from_date, youg_child_to_date,
-			apply_benefit
+			apply_hour_reduction
 		FROM `tabEmployee Maternity`
 		WHERE employee = %(employee)s
 		LIMIT 1
@@ -76,7 +76,7 @@ def get_attendance_custom_additional_info(employee, attendance_date):
 			eff_to = rec.pregnant_to_date or rec.estimated_due_date
 			if eff_to and rec.pregnant_from_date <= check_date <= frappe.utils.getdate(eff_to):
 				maternity_records.append(rec)
-				benefit_label = "Benefit Applied" if rec.apply_benefit == 1 else "No Benefit"
+				benefit_label = "Hour Reduction Applied" if rec.apply_hour_reduction == 1 else "No Hour Reduction"
 				details.append(
 					f"🤰 Pregnant: {_fmt(rec.pregnant_from_date)} - {_fmt(eff_to)} ({benefit_label})"
 				)

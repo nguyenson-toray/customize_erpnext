@@ -157,48 +157,75 @@ function export_attendance_excel(report) {
 	// Show export options dialog
 	let d = new frappe.ui.Dialog({
 		title: __('Export Excel Options'),
+		size: 'large',
 		fields: [
+			{ fieldtype: 'Section Break', label: __('Hours') },
 			{
-				fieldname: 'split_department',
-				label: __('Split by Department'),
+				fieldname: 'with_leave_application',
+				label: __('With Leave Application'),
 				fieldtype: 'Check',
-				default: 0,
-				description: __('Group employees by department with department headers')
+				default: 1,
+				on_change: function () {
+					// =1 thì sheet đơn nghỉ luôn được xuất -> tích sẵn và khoá lại, cho dialog
+					// không nói một đằng mà file ra một nẻo.
+					const on = !!d.get_value('with_leave_application');
+					if (on) { d.set_value('sheet_leave_application', 1); }
+					d.set_df_property('sheet_leave_application', 'read_only', on ? 1 : 0);
+					// HTML field: set thang qua $wrapper, set_df_property('options') khong re-render.
+					const hint = d.get_field('hours_mode_hint');
+					if (hint) {
+						hint.$wrapper.html(
+							`<div class="text-muted small" style="margin:-8px 0 4px 0">${on
+								? __('Working Hours (capped by leave) + leave codes on Timesheet. Leave Application sheet always included.')
+								: __('Actual Working Hours everywhere, no leave codes, no Actual column on Detail.')
+							}</div>`);
+					}
+				}
 			},
-			{
-				fieldname: 'sort_order',
-				label: __('Sort by Employee'),
-				fieldtype: 'Select',
-				options: 'Ascending\nDescending',
-				default: 'Ascending',
-				description: __('Sort order for employee names')
-			},
+			{ fieldname: 'hours_mode_hint', fieldtype: 'HTML' },
+			{ fieldtype: 'Section Break', label: __('Employees') },
 			{
 				fieldname: 'only_resigned',
 				label: __('Only employees who resigned in this period'),
 				fieldtype: 'Check',
 				default: 0,
-				description: __('Relieving date falls inside From Date - To Date. Not the same as status Left: someone who resigned last year is also Left but unrelated to this period.')
+				description: __('Relieving date inside From-To. Not the same as status Left.')
 			},
-			{ fieldtype: 'Section Break', label: __('Important Note sheet') },
+			{
+				fieldname: 'split_department',
+				label: __('Split by Department'),
+				fieldtype: 'Check',
+				default: 0,
+				description: __('Group employees under department headers')
+			},
+			{ fieldtype: 'Column Break' },
+			{
+				fieldname: 'sort_order',
+				label: __('Sort by Employee'),
+				fieldtype: 'Select',
+				options: 'Ascending\nDescending',
+				default: 'Ascending'
+			},
 			{
 				// Chênh dưới ngưỡng là nhiễu làm tròn (4,01h vs 4,00h = 36 giây), không phải
 				// "đi làm dù có phép". Đo được: 95/312 ca bị chặn chỉ chênh dưới 15 phút.
 				fieldname: 'leave_gap_minutes',
-				label: __('Report leave-but-worked from (minutes)'),
+				label: __('Important Note: report leave-but-worked from'),
 				fieldtype: 'Select',
 				options: '0\n15\n30\n60\n120\n180\n240\n240+',
 				default: '15',
-				description: __('Minimum gap between actual hours and counted hours before a day is listed. 0 = list everything.')
+				description: __('Minutes of gap before a day is listed. 0 = list everything.')
 			},
 			{ fieldtype: 'Section Break', label: __('Sheets to export') },
 			{ fieldname: 'sheet_important_note', label: __('Important Note'), fieldtype: 'Check', default: 1 },
 			{ fieldname: 'sheet_detail', label: __('Detail'), fieldtype: 'Check', default: 1 },
 			{ fieldname: 'sheet_summary', label: __('Summary'), fieldtype: 'Check', default: 1 },
+			{ fieldname: 'sheet_leave_application', label: __('Leave Application'), fieldtype: 'Check', default: 1 },
 			{ fieldtype: 'Column Break' },
 			{ fieldname: 'sheet_timesheet', label: __('Timesheet'), fieldtype: 'Check', default: 1 },
 			{ fieldname: 'sheet_overtime', label: __('Overtime'), fieldtype: 'Check', default: 1 },
-			{ fieldname: 'sheet_shift', label: __('Shift'), fieldtype: 'Check', default: 1 }
+			{ fieldname: 'sheet_shift', label: __('Shift'), fieldtype: 'Check', default: 1 },
+			{ fieldname: 'sheet_la', label: __('LA'), fieldtype: 'Check', default: 1 }
 		],
 		primary_action_label: __('Export'),
 		primary_action: function (values) {
@@ -210,6 +237,7 @@ function export_attendance_excel(report) {
 				sheet_important_note: 'Important Note',
 				sheet_detail: 'Detail',
 				sheet_summary: 'Summary',
+				sheet_leave_application: 'Leave Application',
 				sheet_timesheet: 'Timesheet',
 				sheet_overtime: 'Overtime',
 				sheet_shift: 'Shift'
@@ -231,6 +259,7 @@ function export_attendance_excel(report) {
 			filters.split_department = values.split_department ? 1 : 0;
 			filters.sort_order = values.sort_order;
 			filters.only_resigned = values.only_resigned ? 1 : 0;
+			filters.with_leave_application = values.with_leave_application ? 1 : 0;
 
 			// Call the actual export function
 			do_export_attendance_excel(filters);
@@ -238,6 +267,8 @@ function export_attendance_excel(report) {
 	});
 
 	d.show();
+	d.fields_dict.with_leave_application.df.on_change();
+
 }
 
 // Actual export function (separated from dialog)

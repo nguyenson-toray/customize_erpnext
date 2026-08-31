@@ -231,8 +231,8 @@ def get_columns(filters):
 				"width": 100,
 			},
 			{
-				"label": _("Maternity Benefit"),
-				"fieldname": "custom_maternity_benefit",
+				"label": _("-1h"),
+				"fieldname": "custom_hour_reduction",
 				"fieldtype": "Data",
 				"width": 100,
 			},
@@ -463,7 +463,7 @@ def get_query(filters):
 				attendance.actual_overtime_duration.as_("actual_overtime_duration"),
 				attendance.custom_approved_overtime_duration,
 				attendance.custom_final_overtime_duration.as_("final_overtime_duration"),
-				attendance.custom_maternity_benefit,
+				attendance.custom_hour_reduction,
 				attendance.custom_leave_application_abbreviation,
 				attendance.overtime_type,
 				# Extra fields for the Excel export sheets (Detail/Summary/Shift/Important Note)
@@ -641,7 +641,7 @@ def export_attendance_excel(filters=None):
 def export_attendance_excel_sync(filters, is_background=False):
 	"""Excel export pipeline — standard-app (Flutter timesheet) 6-sheet format.
 
-	Sheets: Important Note | Detail | Summary | Timesheet | Overtime | Shift
+	Sheets: Important Note | Detail | Summary | Timesheet | Leave Application | Overtime | Shift
 	(see standard_export.py). is_background=True adds realtime progress updates
 	and a longer file retention (user may come back later for the download)."""
 	import json
@@ -664,17 +664,22 @@ def export_attendance_excel_sync(filters, is_background=False):
 	# Option từ dialog Export Excel. `leave_gap_minutes` = chênh lệch tối thiểu (phút) giữa giờ
 	# thực tế và giờ tính công để một ngày "có đơn nghỉ mà vẫn đi làm" lên sheet Important Note.
 	# `export_sheets` = danh sách sheet cần xuất, rỗng/None = tất cả.
+	# `with_leave_application` = 1 -> giu working_hours + ma nghi, luon them sheet Leave
+	# Application. = 0 -> thay working_hours bang custom_actual_working_hours cho moi tinh toan
+	# va bo ma nghi. Xem build_standard_workbook(). Mac dinh 1 = hanh vi cu.
 	gap = filters.get('leave_gap_minutes') if filters else None
 	sheets = filters.get('export_sheets') if filters else None
 	if isinstance(sheets, str):
 		sheets = [x.strip() for x in sheets.split(',') if x.strip()]
+	with_la = filters.get('with_leave_application', 1) if filters else 1
 
 	wb = build_standard_workbook(
 		date_range['from_date'], date_range['to_date'],
 		department=filters.get('department') if filters else None,
 		leave_gap_minutes=cint(gap) if gap not in (None, '') else 15,
 		sheets=sheets or None,
-		only_resigned=bool(cint(filters.get('only_resigned'))) if filters else False)
+		only_resigned=bool(cint(filters.get('only_resigned'))) if filters else False,
+		with_leave_application=bool(cint(with_la)))
 	_progress(85, "Saving Excel file...")
 
 	filename = standard_export_filename(date_range['from_date'], date_range['to_date'])

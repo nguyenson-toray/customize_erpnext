@@ -489,7 +489,7 @@ def mark_bulk_attendance_absent_maternity_leave(employees=None, days=None):
 			# Prepare attendance docs for each unmarked day
 			for date in filtered_unmarked_days:
 				# Check maternity status
-				maternity_status, custom_maternity_benefit = check_employee_maternity_status(employee, date)
+				maternity_status, custom_hour_reduction = check_employee_maternity_status(employee, date)
 
 				# Determine attendance status
 				status = 'Maternity Leave' if maternity_status == 'Maternity Leave' else 'Absent'
@@ -505,7 +505,7 @@ def mark_bulk_attendance_absent_maternity_leave(employees=None, days=None):
 					"attendance_date": get_datetime(date),
 					"status": status,
 					"shift": shift,
-					"custom_maternity_benefit": custom_maternity_benefit
+					"custom_hour_reduction": custom_hour_reduction
 				}
 				print(f"doc_dict : {doc_dict}")
 				# Insert (but don't submit yet)

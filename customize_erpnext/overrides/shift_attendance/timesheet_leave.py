@@ -13,6 +13,11 @@ và được yêu cầu giữ nguyên, nên phần logic mới nằm ở đây, 
 
 CHỈ sheet Timesheet. Sheet Detail và Summary **giữ nguyên** cách tính `working_hours / 8`.
 
+⚠ Option `With Leave Application = 0` của dialog Export Excel **vô hiệu hoá toàn bộ bảng dưới
+đây**: `standard_export.build_standard_workbook()` ép `leave_abbr = ""` trước khi gọi vào đây, nên
+mọi ngày rơi về nhánh `giờ/8` (với giờ = `custom_actual_working_hours`). Cố ý — giữ mã lại thì
+`P` vẫn trả 1,0 công bất kể số giờ, tức giờ thực tế vô tác dụng đúng ở những ngày cần nó nhất.
+
 ⚠ Hệ quả đã được chấp nhận: cột Total của Timesheet sẽ **khác** tổng của Summary. Ví dụ một
 nhân viên nghỉ 3 ngày `P`: Timesheet +3 ngày công (đúng quy chế), Summary +0 (vì 0 giờ làm).
 

@@ -13,7 +13,7 @@ Doctype quản lý các giai đoạn thai sản của nhân viên. Mỗi nhân v
 | `employee` | Link → Employee | Nhân viên (reqd) |
 | `full_name`, `group`, `designation`, `date_of_joining` | fetch | Fetch từ Employee |
 | `status` | Select (read-only) | `Pregnant` / `Maternity Leave` / `Young Child` / `Inactive` / rỗng — **tự tính**, xem bên dưới |
-| `apply_benefit` | Check (default 1) | Áp dụng giảm 1 giờ làm việc |
+| `apply_hour_reduction` | Check (default 1) | Áp dụng giảm 1 giờ làm việc (Apply Hour Reduction) |
 | `pregnant_from_date` | Date | Bắt đầu thai kỳ (HR nhập) |
 | `pregnant_to_date` | Date (read-only) | **Derived** |
 | `estimated_due_date` | Date | Ngày dự sinh |
@@ -172,12 +172,12 @@ Khi ON, mỗi lần tạo/sửa/xóa record:
 
 Lưu ý: Frappe chạy `on_update` sau **cả insert lẫn save** → không đăng ký hook `after_insert` (sẽ bị queue đôi).
 
-### Maternity Benefit trong Attendance
+### Hour Reduction trong Attendance
 
-- Attendance field `custom_maternity_benefit` = 1 khi employee có benefit → **giảm 1 giờ** khỏi standard working hours
+- Attendance field `custom_hour_reduction` = 1 khi employee có benefit → **giảm 1 giờ** khỏi standard working hours
 - Benefit theo giai đoạn (dựa trên ngày attendance rơi vào cặp from/to nào):
   - `Maternity Leave`, `Young Child`: luôn benefit
-  - `Pregnant`: chỉ khi `apply_benefit = 1`
+  - `Pregnant`: chỉ khi `apply_hour_reduction = 1`
 
 ### Các nơi đọc Employee Maternity
 

@@ -392,7 +392,7 @@ def custom_create_or_update_attendance(
 	in_time = None
 	out_time = None
 	maternity_status = None
-	maternity_status, custom_maternity_benefit = check_employee_maternity_status(employee, attendance_date)
+	maternity_status, custom_hour_reduction = check_employee_maternity_status(employee, attendance_date)
 	attendance = None
 	shift_type_details = frappe.db.get_value(
 		"Shift Type",
@@ -401,7 +401,7 @@ def custom_create_or_update_attendance(
 		as_dict=True
 	)
 	# Maternity benefit: reduce shift end_time by maternity_benefit_hours (setting)
-	if custom_maternity_benefit:
+	if custom_hour_reduction:
 		# shift_type_details.end_time is a timedelta object (e.g., timedelta(hours=17) for 17:00)
 		shift_type_details.end_time = shift_type_details.end_time - timedelta(
 			hours=flt(get_attendance_settings().maternity_benefit_hours)
@@ -415,7 +415,7 @@ def custom_create_or_update_attendance(
 		"attendance_date": attendance_date,
 		"status": status,
 		"shift": shift,
-		"custom_maternity_benefit": custom_maternity_benefit,
+		"custom_hour_reduction": custom_hour_reduction,
 		"standard_working_hours": shift_type_details.custom_standard_working_hours
 		}
 	if attendance := get_existing_attendance(employee, attendance_date):
@@ -443,7 +443,7 @@ def custom_create_or_update_attendance(
 				in_time,
 				out_time,
 				shift_type_details,
-				custom_maternity_benefit
+				custom_hour_reduction
 			)
 		else:
 			# Only 1 log - set defaults
@@ -476,7 +476,7 @@ def custom_create_or_update_attendance(
 		attendance.employee = employee
 		attendance.attendance_date = attendance_date
 		attendance.shift = shift
-		attendance.custom_maternity_benefit = custom_maternity_benefit
+		attendance.custom_hour_reduction = custom_hour_reduction
 
 		# Check if we have logs
 		if len(logs) == 0:
@@ -499,7 +499,7 @@ def custom_create_or_update_attendance(
 					attendance.in_time,
 					attendance.out_time,
 					shift_type_details,
-					custom_maternity_benefit
+					custom_hour_reduction
 				)
 			else:
 				# Only 1 log - don't set out_time, set defaults

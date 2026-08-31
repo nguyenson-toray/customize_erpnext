@@ -172,7 +172,7 @@ def get_data(filters):
 			mt.youg_child_from_date,
 			mt.youg_child_to_date,
 			mt.date_of_birth,
-			mt.apply_benefit,
+			mt.apply_hour_reduction,
 			mt.note
 		FROM `tabEmployee` emp
 		INNER JOIN `tabEmployee Maternity` mt ON emp.name = mt.employee

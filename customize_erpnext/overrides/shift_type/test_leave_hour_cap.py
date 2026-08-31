@@ -21,7 +21,13 @@ from customize_erpnext.overrides.shift_type.leave_hour_cap import (
 	leave_hour_note,
 )
 
-SAMPLE_ATT = "0ab39aa717"      # TIQN-0940 15/06/2026 · P/2 · làm 8h · OT final 3.0
+# Tra theo (nhân viên, ngày) chứ KHÔNG neo tên bản ghi: mọi đợt reset dữ liệu chấm công đều
+# xoá rồi tạo lại Attendance với tên hash mới, neo cứng là test chết câm ở PHẦN 5.
+SAMPLE_EMP, SAMPLE_DATE = "TIQN-0940", "2026-06-15"   # P/2 · làm 8h · OT final 3.0
+SAMPLE_ATT = frappe.db.get_value(
+	"Attendance", {"employee": SAMPLE_EMP, "attendance_date": SAMPLE_DATE, "docstatus": 1}, "name")
+if not SAMPLE_ATT:
+	frappe.throw(f"Không tìm thấy Attendance mẫu của {SAMPLE_EMP} ngày {SAMPLE_DATE}")
 ok = fail = 0
 
 
@@ -169,7 +175,11 @@ check("note có cảnh báo huỷ đơn",
       "check if LA should be cancelled" in (after.custom_note or ""), True)
 
 # Bản ghi thật thứ hai: nghỉ nửa ngày buổi sáng, vào 12:03 → KHÔNG được là đi trễ
-LATE_SAMPLE = "a3b4580f1f"      # TIQN-2220 17/07/2026 · P/2 · vào 12:03, ca Day 08:00
+LATE_EMP, LATE_DATE = "TIQN-2220", "2026-07-17"   # P/2 · vào 12:03, ca Day 08:00
+LATE_SAMPLE = frappe.db.get_value(
+	"Attendance", {"employee": LATE_EMP, "attendance_date": LATE_DATE, "docstatus": 1}, "name")
+if not LATE_SAMPLE:
+	frappe.throw(f"Không tìm thấy Attendance mẫu của {LATE_EMP} ngày {LATE_DATE}")
 ls = frappe.db.get_value("Attendance", LATE_SAMPLE,
                          ["late_entry", "early_exit", "custom_leave_application_abbreviation"],
                          as_dict=1)
@@ -293,12 +303,70 @@ check("ngưỡng lớn hơn thì báo ít hơn (không tăng)",
 check("ngưỡng 0 báo nhiều hơn ngưỡng mặc định", counts[0] > counts[1], True)
 check("ngưỡng 241+ không còn dòng nào", counts[-1], 0)
 
-# (b) chọn sheet
-check("mặc định đủ 6 sheet", build_standard_workbook(GF, GT).sheetnames, list(ALL_SHEETS))
+# (b) chọn sheet — `with_leave_application=1` (mặc định) LUÔN ép thêm sheet Leave Application,
+#     nên phần chọn sheet phải test ở chế độ =0 mới thấy đúng tập đã tick.
+check("mặc định đủ 7 sheet", build_standard_workbook(GF, GT).sheetnames, list(ALL_SHEETS))
 check("chọn 1 sheet → đúng 1 tab, không có tab rỗng",
-      build_standard_workbook(GF, GT, sheets=["Detail"]).sheetnames, ["Detail"])
+      build_standard_workbook(GF, GT, sheets=["Detail"],
+                              with_leave_application=False).sheetnames, ["Detail"])
 check("bỏ Important Note vẫn không sinh tab 'Sheet'",
-      build_standard_workbook(GF, GT, sheets=["Summary", "Shift"]).sheetnames, ["Summary", "Shift"])
+      build_standard_workbook(GF, GT, sheets=["Summary", "Shift"],
+                              with_leave_application=False).sheetnames, ["Summary", "Shift"])
+check("with_leave_application=1 ép thêm sheet dù không tick",
+      build_standard_workbook(GF, GT, sheets=["Detail"]).sheetnames,
+      ["Detail", "Leave Application"])
+
+# (b2) =0 thay working_hours bằng giờ thực tế và bỏ mã nghỉ trên Timesheet
+_ts_on = build_standard_workbook(GF, GT, sheets=["Timesheet"])["Timesheet"]
+_ts_off = build_standard_workbook(GF, GT, sheets=["Timesheet"],
+                                  with_leave_application=False)["Timesheet"]
+
+
+def _abbr_cells(ws):
+	return sum(1 for row in ws.iter_rows(min_row=2)
+	           for c in row[8:] if isinstance(c.value, str) and c.value.strip())
+
+
+print(f"     ô có mã nghỉ: with=1 → {_abbr_cells(_ts_on)} · with=0 → {_abbr_cells(_ts_off)}")
+check("=1 có in mã nghỉ trên Timesheet", _abbr_cells(_ts_on) > 0, True)
+check("=0 không còn ô nào là mã nghỉ", _abbr_cells(_ts_off), 0)
+
+# (b3) Important Note KHÔNG đổi giữa hai chế độ
+check("Important Note giống nhau ở cả hai chế độ",
+      _note_rows(build_standard_workbook(GF, GT, sheets=["Important Note"])),
+      _note_rows(build_standard_workbook(GF, GT, sheets=["Important Note"],
+                                         with_leave_application=False)))
+
+# (b3b) sheet Detail — cột Actual và luật CN/lễ
+def _detail(wb):
+	ws = wb["Detail"]
+	hdrs = [c.value for c in ws[1]]
+	rows = list(ws.iter_rows(min_row=2, values_only=True))
+	return hdrs, rows
+
+
+_h_on, _r_on = _detail(build_standard_workbook(GF, GT, sheets=["Detail"]))
+_h_off, _r_off = _detail(build_standard_workbook(GF, GT, sheets=["Detail"],
+                                                 with_leave_application=False))
+check("=1 Detail có cột Actual (hour)", "Actual (hour)" in _h_on, True)
+check("=0 Detail bỏ cột Actual (hour)", "Actual (hour)" in _h_off, False)
+check("=0 Detail ít hơn đúng 1 cột", len(_h_on) - len(_h_off), 1)
+
+_i_date, _i_in, _i_out = _h_on.index("Date"), _h_on.index("First In"), _h_on.index("Last Out")
+_i_wh, _i_ot = _h_on.index("Working (hour)"), _h_on.index("OT Final")
+_sun = [r for r in _r_on if r[_i_date].weekday() == 6]
+_sun_idle = [r for r in _sun
+             if not r[_i_in] and not r[_i_out] and not (r[_i_wh] or 0) and not (r[_i_ot] or 0)]
+print(f"     Detail Chủ Nhật: {len(_sun)} dòng, {len(_sun_idle)} dòng không đi làm")
+check("Chủ Nhật không còn dòng của người không đi làm", len(_sun_idle), 0)
+check("ngày thường vẫn giữ dòng người vắng",
+      any(not r[_i_in] for r in _r_on if r[_i_date].weekday() != 6), True)
+
+# (b4) NV không có Attendance nào trong kỳ bị loại khỏi universe
+_uni = load_export_universe(GF, GT)
+_emp_in_att = {e for e, _d in _uni["att"]}
+check("mọi NV trong universe đều có ít nhất 1 bản ghi Attendance",
+      all(e.name in _emp_in_att for e in _uni["employees"]), True)
 
 # (c) chỉ người nghỉ việc trong kỳ
 db = set(frappe.db.sql("""SELECT name FROM tabEmployee

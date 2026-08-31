@@ -290,7 +290,7 @@ class EmployeeMaternity(Document):
 					"maternity_to_date",
 					"youg_child_from_date", "youg_child_to_date",
 					"estimated_due_date", "date_of_birth",
-					"apply_benefit",
+					"apply_hour_reduction",
 				]
 				changed = any(
 					str(getattr(old_doc, f, "") or "") != str(getattr(self, f, "") or "")
@@ -613,7 +613,7 @@ def scheduled_calculate_all_maternity_statuses():
 
 _MATERNITY_FIELDS = [
 	"name", "employee", "employee_name", "group", "designation",
-	"date_of_joining", "status", "apply_benefit", "note",
+	"date_of_joining", "status", "apply_hour_reduction", "note",
 	"pregnant_from_date", "pregnant_to_date", "estimated_due_date",
 	"maternity_from_date", "maternity_to_date", "date_of_birth",
 	"youg_child_from_date", "youg_child_to_date",
@@ -628,7 +628,7 @@ _MATERNITY_LABELS_EN = {
 	"designation":        "Designation",
 	"date_of_joining":    "Date of Joining",
 	"status":             "Status",
-	"apply_benefit":      "Apply Benefit",
+	"apply_hour_reduction": "Apply Hour Reduction",
 	"note":               "Note",
 	"pregnant_from_date": "Pregnant From",
 	"pregnant_to_date":   "Pregnant To",
@@ -650,7 +650,7 @@ _MATERNITY_LABELS_VI = {
 	"designation":        "Chức danh",
 	"date_of_joining":    "Ngày vào làm",
 	"status":             "Trạng thái",
-	"apply_benefit":      "Áp dụng quyền lợi",
+	"apply_hour_reduction": "Áp dụng giảm 1 giờ",
 	"note":               "Ghi chú",
 	"pregnant_from_date": "Ngày bắt đầu thai kỳ",
 	"pregnant_to_date":   "Ngày kết thúc thai kỳ",
@@ -733,7 +733,7 @@ def get_employee_maternity_for_excel(
 			SELECT
 				em.name, em.employee, emp.employee_name,
 				em.`group`, em.designation, em.date_of_joining,
-				em.status, em.apply_benefit, em.note,
+				em.status, em.apply_hour_reduction, em.note,
 				em.pregnant_from_date, em.pregnant_to_date, em.estimated_due_date,
 				em.maternity_from_date, em.maternity_to_date, em.date_of_birth,
 				em.youg_child_from_date, em.youg_child_to_date
@@ -756,7 +756,7 @@ def get_employee_maternity_for_excel(
 			SELECT
 				em.name, em.employee, emp.employee_name,
 				em.`group`, em.designation, em.date_of_joining,
-				em.status, em.apply_benefit, em.note,
+				em.status, em.apply_hour_reduction, em.note,
 				em.pregnant_from_date, em.pregnant_to_date, em.estimated_due_date,
 				em.maternity_from_date, em.maternity_to_date, em.date_of_birth,
 				em.youg_child_from_date, em.youg_child_to_date
