@@ -185,7 +185,10 @@ fixtures = [
         "filters": [
             ["name", "in", [
                 # "HR Setup",  # HRMS sidebar with custom reports
-                # "Shift & Attendance",  # HRMS sidebar with custom reports
+                # Bản HRMS thiếu chính link "Attendance" (chỉ có trong card ở thân
+                # workspace) nên bộ chọn sidebar không bao giờ về được đây — xem
+                # sidebar_resolution_fix.bundle.js
+                "Shift & Attendance",
                 "Stock",  # Stock sidebar with custom reports
                 "Uniform Control",  # Uniform Control module sidebar
 
@@ -517,8 +520,15 @@ app_include_js = [
     "/assets/customize_erpnext/js/fingerprint_scanner_dialog.js",
     # Ẩn field bị chặn theo perm_level khỏi dialog "Export Data" (UI only, server vẫn chặn thật)
     "/assets/customize_erpnext/js/hide_restricted_export_fields.js",
-    "csv_bom_fix.bundle.js"
+    "csv_bom_fix.bundle.js",
+    # Sidebar workspace v16: chọn sidebar tất định cho mọi route
+    # (search/URL trực tiếp vốn ra sidebar khác với khi click từ workspace)
+    "sidebar_resolution_fix.bundle.js"
 ]
+
+# Đánh dấu sidebar nào là bản auto-generate từ Module Def — boot gốc trộn chung
+# với Workspace Sidebar thật nên client không phân biệt được (xem boot.py)
+extend_bootinfo = "customize_erpnext.overrides.workspace_sidebar.boot.mark_auto_generated_sidebars"
 
 # Include CSS and JS files in web pages (including web forms)
 web_include_css = [
