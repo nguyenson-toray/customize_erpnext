@@ -7,14 +7,14 @@ frappe.query_reports["Overtime Registration Quantity"] = {
 			"fieldname": "from_date",
 			"label": __("From Date"),
 			"fieldtype": "Date",
-			"default": frappe.datetime.get_today(),
+			"default": frappe.datetime.week_start(),
 			"reqd": 1
 		},
 		{
 			"fieldname": "to_date",
 			"label": __("To Date"),
 			"fieldtype": "Date",
-			"default": frappe.datetime.get_today(),
+			"default": frappe.datetime.add_days(frappe.datetime.week_end(), 7),
 			"reqd": 1
 		},
 		{
@@ -24,15 +24,7 @@ frappe.query_reports["Overtime Registration Quantity"] = {
 			"options": "Group"
 		}
 	],
-	"onload": function (report) {
-		// Set default period to current week
-		let today = frappe.datetime.get_today();
-		let start_of_week = frappe.datetime.add_days(today, -frappe.datetime.get_day_diff(today, frappe.datetime.week_start()));
-		let end_of_next_week = frappe.datetime.add_days(start_of_week, 13);
 
-		report.set_filter_value('from_date', start_of_week);
-		report.set_filter_value('to_date', end_of_next_week);
-	},
 	"formatter": function (value, row, column, data, default_formatter) {
 		value = default_formatter(value, row, column, data);
 

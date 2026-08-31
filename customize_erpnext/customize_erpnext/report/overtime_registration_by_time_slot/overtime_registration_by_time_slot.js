@@ -14,7 +14,7 @@ frappe.query_reports["Overtime Registration by Time Slot"] = {
 			"fieldname": "to_date",
 			"label": __("To Date"),
 			"fieldtype": "Date",
-			"default": frappe.datetime.week_end(),
+			"default": frappe.datetime.add_days(frappe.datetime.week_end(), 7),
 			"reqd": 1
 		},
 		{
