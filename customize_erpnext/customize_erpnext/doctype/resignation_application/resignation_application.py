@@ -123,24 +123,24 @@ MAX_LATE_LETTER_DAYS = 30
 
 class ResignationApplication(Document):
 	# ------------------------------------------------------------------ naming
-	def autoname(self):
-		"""`RA-YYYY-MM-#####`, YYYY-MM lấy từ `resignation_letter_date`.
+	# def autoname(self):
+	# 	"""`RA-YYYY-MM-#####`, YYYY-MM lấy từ `resignation_letter_date`.
 
-		Không dùng naming series `.YYYY.`/`.MM.`: chúng lấy theo **ngày chạy**, nên đơn nhận
-		tháng 3 mà nhập vào tháng 8 sẽ mang số tháng 8 — sai với cách HR tra cứu.
+	# 	Không dùng naming series `.YYYY.`/`.MM.`: chúng lấy theo **ngày chạy**, nên đơn nhận
+	# 	tháng 3 mà nhập vào tháng 8 sẽ mang số tháng 8 — sai với cách HR tra cứu.
 
-		⚠ Số phát ra ngay khi lưu lần đầu. Sửa `resignation_letter_date` sau đó KHÔNG đổi tên bản ghi
-		(Frappe không đổi tên khi save lại) — đó là lý do field có description nhắc sửa trước
-		khi lưu.
+	# 	⚠ Số phát ra ngay khi lưu lần đầu. Sửa `resignation_letter_date` sau đó KHÔNG đổi tên bản ghi
+	# 	(Frappe không đổi tên khi save lại) — đó là lý do field có description nhắc sửa trước
+	# 	khi lưu.
 
-		🔴 Bộ đếm nằm ở `tabSeries` với tiền tố `RA-YYYY-MM-`. Mất dòng đó là phát lại từ 00001
-		và đụng tên đã tồn tại (`DuplicateEntryError`) — cùng cái bẫy đã xảy ra với Leave
-		Application, xem `scripts/repair_leave_application_series.sql`.
-		"""
-		from frappe.model.naming import make_autoname
+	# 	🔴 Bộ đếm nằm ở `tabSeries` với tiền tố `RA-YYYY-MM-`. Mất dòng đó là phát lại từ 00001
+	# 	và đụng tên đã tồn tại (`DuplicateEntryError`) — cùng cái bẫy đã xảy ra với Leave
+	# 	Application, xem `scripts/repair_leave_application_series.sql`.
+	# 	"""
+	# 	from frappe.model.naming import make_autoname
 
-		d = getdate(self.resignation_letter_date or business_today())
-		self.name = make_autoname(f"RA-{d.year:04d}-{d.month:02d}-.#####")
+	# 	d = getdate(self.resignation_letter_date or business_today())
+	# 	self.name = make_autoname(f"RA-{d.year:04d}-{d.month:02d}-.#####")
 
 	# ---------------------------------------------------------------- validate
 	def validate(self):
