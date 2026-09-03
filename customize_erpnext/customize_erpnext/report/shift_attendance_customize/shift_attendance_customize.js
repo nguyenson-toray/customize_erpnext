@@ -185,6 +185,11 @@ function export_attendance_excel(report) {
 			{ fieldname: 'hours_mode_hint', fieldtype: 'HTML' },
 			{ fieldtype: 'Section Break', label: __('Employees') },
 			{
+				fieldname: 'employees_hint',
+				fieldtype: 'HTML',
+				options: `<div class="text-muted small" style="margin:-4px 0 10px 0">${__('Lists everyone working in the date range. Anyone with no attendance at all in the range — maternity or long leave — is left out, unless they resigned during the range.')}</div>`
+			},
+			{
 				fieldname: 'only_resigned',
 				label: __('Only employees who resigned in this period'),
 				fieldtype: 'Check',
