@@ -224,8 +224,7 @@ function export_attendance_excel(report) {
 			{ fieldtype: 'Column Break' },
 			{ fieldname: 'sheet_timesheet', label: __('Timesheet'), fieldtype: 'Check', default: 1 },
 			{ fieldname: 'sheet_overtime', label: __('Overtime'), fieldtype: 'Check', default: 1 },
-			{ fieldname: 'sheet_shift', label: __('Shift'), fieldtype: 'Check', default: 1 },
-			{ fieldname: 'sheet_la', label: __('LA'), fieldtype: 'Check', default: 1 }
+			{ fieldname: 'sheet_shift', label: __('Shift'), fieldtype: 'Check', default: 1 }
 		],
 		primary_action_label: __('Export'),
 		primary_action: function (values) {
