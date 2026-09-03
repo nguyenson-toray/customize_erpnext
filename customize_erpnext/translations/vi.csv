@@ -21588,3 +21588,6 @@ Presentation mode (P) — diagram only,Chế độ trình chiếu (P) — chỉ 
 No item matches,Không có mục nào khớp,
 "File in the link no longer exists, opened the default diagram instead","File trong link không còn nữa, đã mở sơ đồ mặc định",
 No .md file found in customize_erpnext/docs/mindmap on the server,Không tìm thấy file .md nào trong customize_erpnext/docs/mindmap trên máy chủ,
+Employee Not Found,Không tìm thấy nhân viên,
+Skipped {0} row(s) with unknown Employee: {1},Đã bỏ qua {0} dòng có nhân viên không tồn tại: {1},
+"No valid employee in this registration. Unknown employee: {0}","Không có nhân viên hợp lệ trong phiếu này. Nhân viên không tồn tại: {0}",

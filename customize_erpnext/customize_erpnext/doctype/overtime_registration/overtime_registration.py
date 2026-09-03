@@ -51,6 +51,59 @@ class OvertimeRegistration(Document):
         # Calculate totals
         self.calculate_totals_and_apply_reason()
 
+    def _validate_links(self):
+        """Skip rows whose Employee does not exist instead of rejecting the doc.
+
+        Frappe validates links before `validate()` runs on insert, so a couple of
+        stale/placeholder codes coming from the MongoDB OT sync (e.g. "TIQN-")
+        used to fail the whole registration. Drop those rows first, then let the
+        core check the remaining links.
+        """
+        self.drop_unknown_employees()
+        super()._validate_links()
+
+    def drop_unknown_employees(self):
+        """Remove OT rows pointing at an Employee that no longer exists."""
+        rows = self.ot_employees or []
+        if not rows:
+            return
+
+        codes = {d.employee for d in rows if d.employee}
+        existing = set()
+        if codes:
+            existing = {
+                r.name
+                for r in frappe.get_all(
+                    "Employee", filters={"name": ["in", list(codes)]}, fields=["name"]
+                )
+            }
+
+        kept = [d for d in rows if d.employee in existing]
+        skipped = [d for d in rows if d.employee not in existing]
+        if not skipped:
+            return
+
+        skipped_codes = sorted({(d.employee or "").strip() or "(empty)" for d in skipped})
+
+        if not kept:
+            frappe.throw(
+                _("No valid employee in this registration. Unknown employee: {0}").format(
+                    ", ".join(skipped_codes)
+                )
+            )
+
+        for idx, d in enumerate(kept, start=1):
+            d.idx = idx
+        self.set("ot_employees", kept)
+
+        message = _("Skipped {0} row(s) with unknown Employee: {1}").format(
+            len(skipped), ", ".join(skipped_codes)
+        )
+        frappe.msgprint(message, title=_("Employee Not Found"), indicator="orange")
+        frappe.logger("overtime_registration").warning(
+            f"{self.name or 'new'}: {message}"
+        )
+
     def validate_time_order(self):
         """Begin time must be before end time on every row."""
         for d in self.ot_employees or []:
