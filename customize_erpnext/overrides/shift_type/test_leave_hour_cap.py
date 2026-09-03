@@ -365,8 +365,13 @@ check("ngày thường vẫn giữ dòng người vắng",
 # (b4) NV không có Attendance nào trong kỳ bị loại khỏi universe
 _uni = load_export_universe(GF, GT)
 _emp_in_att = {e for e, _d in _uni["att"]}
-check("mọi NV trong universe đều có ít nhất 1 bản ghi Attendance",
-      all(e.name in _emp_in_att for e in _uni["employees"]), True)
+_kept_no_att = [e for e in _uni["employees"] if e.name not in _emp_in_att]
+print(f"     universe {len(_uni['employees'])} NV · giữ dù 0 Attendance: {len(_kept_no_att)}")
+check("NV không có Attendance nào chỉ được giữ khi nghỉ việc TRONG kỳ",
+      all(e.relieving_date
+          and frappe.utils.getdate(GF) <= frappe.utils.getdate(e.relieving_date)
+          <= frappe.utils.getdate(GT)
+          for e in _kept_no_att), True)
 
 # (c) chỉ người nghỉ việc trong kỳ
 db = set(frappe.db.sql("""SELECT name FROM tabEmployee

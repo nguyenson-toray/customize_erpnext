@@ -192,13 +192,25 @@ def load_export_universe(from_date, to_date, department=None, only_resigned=Fals
     # ⚠ "Có Attendance" tính cả bản ghi On Leave/Absent không có giờ check-in — chỉ cần tồn tại
     # bản ghi là hiện, đúng yêu cầu "trong date range có attendance thì phải thể hiện".
     #
-    # ⚠ KHÔNG áp khi `only_resigned`: option đó dùng để chốt lương người thôi việc, mà người
-    # nghỉ đúng ngày đầu kỳ thì cả kỳ không có bản ghi nào (ngày làm cuối = relieving_date − 1).
-    # Áp luật này vào đó là làm rỗng đúng danh sách HR cần — đo tháng 6/2026: mất TIQN-1653 và
-    # TIQN-2144, cả hai nghỉ đúng 01/06.
+    # ⚠ HAI ngoại lệ, đều là "về lý thuyết vẫn còn làm việc trong kỳ nên phải có mặt để chốt":
+    #
+    # 1. `only_resigned`: option đó dùng để chốt lương người thôi việc, mà người nghỉ đúng ngày
+    #    đầu kỳ thì cả kỳ không có bản ghi nào. Áp luật vào đó là làm rỗng đúng danh sách HR
+    #    cần — đo tháng 6/2026: mất TIQN-1653 và TIQN-2144, cả hai nghỉ đúng 01/06.
+    #
+    # 2. `relieving_date` rơi TRONG kỳ: người nghỉ việc giữa kỳ vẫn phải lên Summary dù không
+    #    có bản ghi nào. Ngày làm cuối = relieving_date − 1 (xem employee_maternity/README), nên
+    #    nếu ngày đó rơi vào Chủ Nhật/lễ thì cả kỳ không có Attendance. Đo kỳ 26/07→25/08/2026:
+    #    6 người, trong đó TIQN-2341 nghỉ 27/07 mà 26/07 là Chủ Nhật.
+    #    Người nghỉ SAU kỳ mà cả kỳ không đi làm thì vẫn bị loại — đo cùng kỳ: TIQN-0767 và
+    #    TIQN-1308 nghỉ 26/08, cả hai nghỉ thai sản từ 02/2026, đúng là không hưởng lương kỳ này.
     if not only_resigned:
         emp_with_att = {emp_id for emp_id, _d in att}
-        employees = [e for e in employees if e.name in emp_with_att]
+        employees = [
+            e for e in employees
+            if e.name in emp_with_att
+            or (e.relieving_date and from_date <= getdate(e.relieving_date) <= to_date)
+        ]
         emp_ids = [e.name for e in employees]
 
     # Maternity periods → per-date regime flags ("Chế độ mang thai/con nhỏ")

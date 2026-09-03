@@ -210,7 +210,11 @@ code: `standard_export.py`). Tên file: `Timesheet_{yymmdd}_{yymmdd}_{timestamp}
 
 Nhân viên **không có một bản ghi Attendance nào** trong kỳ bị loại hẳn (`load_export_universe`): bản chất là ở nhà cả kỳ — nghỉ thai sản, nghỉ dài ngày — không tính lương, mà để lại thì chiếm trọn một khối dòng số 0. Đo kỳ 08/2026: bỏ 29 người, cả 29 đều đang trong kỳ nghỉ thai sản. Chỉ cần **tồn tại** bản ghi là hiện, kể cả `On Leave`/`Absent` không có giờ check-in.
 
-🔴 Luật này **không áp** khi bật option *Only employees who resigned in this period*: người nghỉ đúng ngày đầu kỳ thì cả kỳ không có bản ghi nào (ngày làm cuối = `relieving_date − 1`), áp vào là làm rỗng đúng danh sách HR cần để chốt lương. Đo tháng 6/2026: mất TIQN-1653 và TIQN-2144.
+Hai ngoại lệ, đều là "về lý thuyết vẫn còn làm việc trong kỳ nên phải có mặt để chốt":
+
+🔴 **Nghỉ việc TRONG kỳ** (`relieving_date` nằm giữa From–To) thì **luôn giữ**, dù 0 bản ghi. Ngày làm cuối = `relieving_date − 1`; ngày đó rơi vào Chủ Nhật/lễ là cả kỳ không có Attendance nào. Đo kỳ 26/07→25/08/2026: 6 người, điển hình TIQN-2341 nghỉ 27/07 mà 26/07 là Chủ Nhật — họ lên Summary/Timesheet với toàn số 0. Người nghỉ **sau** kỳ mà cả kỳ không đi làm thì vẫn bị loại (TIQN-0767, TIQN-1308 nghỉ 26/08, thai sản từ 02/2026 — đúng là không hưởng lương kỳ này).
+
+🔴 Luật này cũng **không áp** khi bật option *Only employees who resigned in this period*, vì người nghỉ đúng ngày đầu kỳ bị chính điều kiện `relieving_date > from_date` của universe loại trước đó. Đo tháng 6/2026: mất TIQN-1653 và TIQN-2144.
 
 Sheet kiểu C&B cũ (Timesheet footer chữ ký, Overtime C&B, Quy định nghỉ phép) đã bỏ hẳn theo yêu cầu.
 
