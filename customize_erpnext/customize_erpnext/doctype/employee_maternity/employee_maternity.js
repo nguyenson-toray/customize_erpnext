@@ -4,7 +4,7 @@
 frappe.ui.form.on("Employee Maternity", {
 	refresh(frm) {
 		// Derived fields are read-only — computed by server on save
-		frm.set_df_property("pregnant_to_date", "read_only", 1);
+		// frm.set_df_property("pregnant_to_date", "read_only", 1);
 		frm.set_df_property("youg_child_from_date", "read_only", 1);
 	},
 
@@ -122,8 +122,8 @@ function validate_pair(frm, from_field, to_field, label) {
  */
 function validate_all_pairs(frm) {
 	const pairs = [
-		{ from: "pregnant_from_date",   to: "pregnant_to_date",   label: __("Pregnant") },
-		{ from: "maternity_from_date",  to: "maternity_to_date",  label: __("Maternity Leave") },
+		{ from: "pregnant_from_date", to: "pregnant_to_date", label: __("Pregnant") },
+		{ from: "maternity_from_date", to: "maternity_to_date", label: __("Maternity Leave") },
 		{ from: "youg_child_from_date", to: "youg_child_to_date", label: __("Young Child") },
 	];
 
@@ -137,7 +137,7 @@ function validate_all_pairs(frm) {
 		.map(p => ({
 			label: p.label,
 			from: frappe.datetime.str_to_obj(frm.doc[p.from]),
-			to:   frappe.datetime.str_to_obj(frm.doc[p.to]),
+			to: frappe.datetime.str_to_obj(frm.doc[p.to]),
 		}));
 
 	for (let i = 0; i < active.length; i++) {
