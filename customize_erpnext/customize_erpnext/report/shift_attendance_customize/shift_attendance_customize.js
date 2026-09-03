@@ -206,15 +206,16 @@ function export_attendance_excel(report) {
 				options: 'Ascending\nDescending',
 				default: 'Ascending'
 			},
+			{ fieldtype: 'Section Break', label: __('Important Note sheet') },
 			{
 				// Chênh dưới ngưỡng là nhiễu làm tròn (4,01h vs 4,00h = 36 giây), không phải
 				// "đi làm dù có phép". Đo được: 95/312 ca bị chặn chỉ chênh dưới 15 phút.
 				fieldname: 'leave_gap_minutes',
-				label: __('Important Note: report leave-but-worked from'),
+				label: __('Flag "on leave but still worked" from'),
 				fieldtype: 'Select',
 				options: '0\n15\n30\n60\n120\n180\n240\n240+',
 				default: '15',
-				description: __('Minutes of gap before a day is listed. 0 = list everything.')
+				description: __('Minutes worked beyond what the leave pays for. Below this it is only rounding, not a real case. 0 = flag every case.')
 			},
 			{ fieldtype: 'Section Break', label: __('Sheets to export') },
 			{ fieldname: 'sheet_important_note', label: __('Important Note'), fieldtype: 'Check', default: 1 },

@@ -21529,6 +21529,8 @@ With Leave Application,Kèm đơn nghỉ phép
 "Actual Working Hours everywhere, no leave codes, no Actual column on Detail.","Dùng Actual Working Hours cho mọi tính toán, bỏ mã nghỉ, bỏ cột Actual trên sheet Detail."
 Important Note sheet,Sheet Important Note
 Important Note: report leave-but-worked from,Important Note: báo 'có phép mà vẫn đi làm' từ
+"Flag ""on leave but still worked"" from","Báo ""có phép mà vẫn đi làm"" từ"
+"Minutes worked beyond what the leave pays for. Below this it is only rounding, not a real case. 0 = flag every case.","Số phút làm vượt quá phần đơn nghỉ đã trả công. Dưới mức này chỉ là sai số làm tròn, không phải trường hợp thật. 0 = báo mọi trường hợp."
 Report leave-but-worked from (minutes),Báo 'có phép mà vẫn đi làm' từ (phút)
 Minutes of gap before a day is listed. 0 = list everything.,Số phút chênh lệch để một ngày được liệt kê. 0 = liệt kê tất cả.
 Minimum gap between actual hours and counted hours before a day is listed. 0 = list everything.,Chênh lệch tối thiểu giữa giờ thực tế và giờ tính công để một ngày được liệt kê. 0 = liệt kê tất cả.
