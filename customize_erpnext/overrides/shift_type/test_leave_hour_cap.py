@@ -364,14 +364,30 @@ check("ngày thường vẫn giữ dòng người vắng",
 
 # (b4) NV không có Attendance nào trong kỳ bị loại khỏi universe
 _uni = load_export_universe(GF, GT)
+_uni_names = {e.name for e in _uni["employees"]}
 _emp_in_att = {e for e, _d in _uni["att"]}
 _kept_no_att = [e for e in _uni["employees"] if e.name not in _emp_in_att]
-print(f"     universe {len(_uni['employees'])} NV · giữ dù 0 Attendance: {len(_kept_no_att)}")
-check("NV không có Attendance nào chỉ được giữ khi nghỉ việc TRONG kỳ",
-      all(e.relieving_date
-          and frappe.utils.getdate(GF) <= frappe.utils.getdate(e.relieving_date)
-          <= frappe.utils.getdate(GT)
-          for e in _kept_no_att), True)
+_on_ml = set(frappe.db.sql_list(
+	"SELECT DISTINCT employee FROM `tabEmployee Maternity`"
+	" WHERE maternity_from_date IS NOT NULL AND maternity_to_date IS NOT NULL"
+	"   AND maternity_from_date <= %s AND maternity_to_date >= %s", (GT, GF)))
+
+
+def _resigned_in_range(emp):
+	return bool(emp.relieving_date) and (
+		frappe.utils.getdate(GF) <= frappe.utils.getdate(emp.relieving_date)
+		<= frappe.utils.getdate(GT))
+
+
+print(f"     universe {len(_uni['employees'])} NV · giữ dù 0 Attendance: {len(_kept_no_att)}"
+      f" · đang nghỉ thai sản trong kỳ: {len(_on_ml)}")
+# Tiêu chí loại là NGHỈ THAI SẢN, không phải "0 Attendance"
+check("NV giữ lại mà 0 Attendance thì không phải người đang nghỉ thai sản",
+      all(e.name not in _on_ml or _resigned_in_range(e) for e in _kept_no_att), True)
+check("người nghỉ thai sản không đi làm ngày nào trong kỳ đã bị loại",
+      all(n not in _uni_names for n in _on_ml - _emp_in_att
+          if not _resigned_in_range(frappe._dict(
+              relieving_date=frappe.db.get_value("Employee", n, "relieving_date")))), True)
 
 # (c) chỉ người nghỉ việc trong kỳ
 db = set(frappe.db.sql("""SELECT name FROM tabEmployee

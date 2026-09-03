@@ -184,31 +184,49 @@ def load_export_universe(from_date, to_date, department=None, only_resigned=Fals
         )
     }
 
-    # Nhân viên KHÔNG có một bản ghi Attendance nào trong kỳ thì loại khỏi file: bản chất là
-    # ở nhà cả kỳ (nghỉ thai sản, nghỉ dài ngày) — không tính lương, mà để lại thì họ chiếm
-    # trọn một khối dòng số 0 trên Detail/Summary/Timesheet. Đo kỳ 08/2026: bỏ 29 người, cả 29
-    # đều đang trong kỳ nghỉ thai sản.
+    # CHỈ loại người ĐANG NGHỈ THAI SẢN mà cả kỳ không có bản ghi Attendance nào: họ ở nhà trọn
+    # kỳ, không hưởng lương, để lại thì chiếm nguyên một khối dòng số 0 trên
+    # Detail/Summary/Timesheet.
+    #
+    # 🔴 Tiêu chí là NGHỈ THAI SẢN, KHÔNG phải "0 Attendance". Người vẫn còn làm việc mà cả kỳ
+    # không có bản ghi nào (mới vào chưa quẹt, nghỉ dài ngày vì lý do khác…) VẪN phải hiện — họ
+    # còn trong biên chế nên bảng công phải có dòng của họ, dù toàn số 0.
     #
     # ⚠ "Có Attendance" tính cả bản ghi On Leave/Absent không có giờ check-in — chỉ cần tồn tại
-    # bản ghi là hiện, đúng yêu cầu "trong date range có attendance thì phải thể hiện".
+    # bản ghi là hiện.
     #
-    # ⚠ HAI ngoại lệ, đều là "về lý thuyết vẫn còn làm việc trong kỳ nên phải có mặt để chốt":
+    # ⚠ Hai ngoại lệ, đều là "vẫn còn làm việc trong kỳ nên phải có mặt để chốt":
     #
     # 1. `only_resigned`: option đó dùng để chốt lương người thôi việc, mà người nghỉ đúng ngày
     #    đầu kỳ thì cả kỳ không có bản ghi nào. Áp luật vào đó là làm rỗng đúng danh sách HR
     #    cần — đo tháng 6/2026: mất TIQN-1653 và TIQN-2144, cả hai nghỉ đúng 01/06.
     #
-    # 2. `relieving_date` rơi TRONG kỳ: người nghỉ việc giữa kỳ vẫn phải lên Summary dù không
-    #    có bản ghi nào. Ngày làm cuối = relieving_date − 1 (xem employee_maternity/README), nên
-    #    nếu ngày đó rơi vào Chủ Nhật/lễ thì cả kỳ không có Attendance. Đo kỳ 26/07→25/08/2026:
-    #    6 người, trong đó TIQN-2341 nghỉ 27/07 mà 26/07 là Chủ Nhật.
-    #    Người nghỉ SAU kỳ mà cả kỳ không đi làm thì vẫn bị loại — đo cùng kỳ: TIQN-0767 và
-    #    TIQN-1308 nghỉ 26/08, cả hai nghỉ thai sản từ 02/2026, đúng là không hưởng lương kỳ này.
+    # 2. `relieving_date` rơi TRONG kỳ: người nghỉ việc giữa kỳ vẫn phải lên Summary. Ngày làm
+    #    cuối = relieving_date − 1, rơi vào Chủ Nhật/lễ là cả kỳ không có Attendance. Đo kỳ
+    #    26/07→25/08/2026: TIQN-2341 nghỉ 27/07 mà 26/07 là Chủ Nhật.
+    #
+    # Đo kỳ 26/07→25/08/2026: 35 người không có Attendance = 31 nghỉ thai sản (loại) + 4 nghỉ
+    # việc 27/07 (giữ). TIQN-0767 và TIQN-1308 nghỉ việc 26/08 tức SAU kỳ, lại nghỉ thai sản từ
+    # 02/2026 nên vẫn bị loại — đúng, kỳ này họ không hưởng lương.
+    on_maternity_leave = set()
+    if emp_ids:
+        on_maternity_leave = {
+            m.employee
+            for m in frappe.db.sql(
+                "SELECT DISTINCT employee FROM `tabEmployee Maternity`"
+                " WHERE employee IN %(employees)s"
+                "   AND maternity_from_date IS NOT NULL AND maternity_to_date IS NOT NULL"
+                "   AND maternity_from_date <= %(to_date)s AND maternity_to_date >= %(from_date)s",
+                {"employees": emp_ids, "from_date": from_date, "to_date": to_date},
+                as_dict=True)
+        }
+
     if not only_resigned:
         emp_with_att = {emp_id for emp_id, _d in att}
         employees = [
             e for e in employees
             if e.name in emp_with_att
+            or e.name not in on_maternity_leave
             or (e.relieving_date and from_date <= getdate(e.relieving_date) <= to_date)
         ]
         emp_ids = [e.name for e in employees]

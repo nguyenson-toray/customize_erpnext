@@ -208,11 +208,15 @@ code: `standard_export.py`). Tên file: `Timesheet_{yymmdd}_{yymmdd}_{timestamp}
 
 ### Ai bị loại khỏi file
 
-Nhân viên **không có một bản ghi Attendance nào** trong kỳ bị loại hẳn (`load_export_universe`): bản chất là ở nhà cả kỳ — nghỉ thai sản, nghỉ dài ngày — không tính lương, mà để lại thì chiếm trọn một khối dòng số 0. Đo kỳ 08/2026: bỏ 29 người, cả 29 đều đang trong kỳ nghỉ thai sản. Chỉ cần **tồn tại** bản ghi là hiện, kể cả `On Leave`/`Absent` không có giờ check-in.
+Chỉ loại người **đang nghỉ thai sản** mà cả kỳ **không có một bản ghi Attendance nào** (`load_export_universe`): họ ở nhà trọn kỳ, không hưởng lương, để lại thì chiếm nguyên một khối dòng số 0.
+
+🔴 Tiêu chí là **nghỉ thai sản**, KHÔNG phải "0 Attendance". Người vẫn còn làm việc mà cả kỳ không có bản ghi nào (mới vào chưa quẹt, nghỉ dài ngày vì lý do khác…) **vẫn phải hiện** — còn trong biên chế thì bảng công phải có dòng, dù toàn số 0. Chỉ cần **tồn tại** bản ghi là hiện, kể cả `On Leave`/`Absent` không có giờ check-in.
 
 Hai ngoại lệ, đều là "về lý thuyết vẫn còn làm việc trong kỳ nên phải có mặt để chốt":
 
-🔴 **Nghỉ việc TRONG kỳ** (`relieving_date` nằm giữa From–To) thì **luôn giữ**, dù 0 bản ghi. Ngày làm cuối = `relieving_date − 1`; ngày đó rơi vào Chủ Nhật/lễ là cả kỳ không có Attendance nào. Đo kỳ 26/07→25/08/2026: 6 người, điển hình TIQN-2341 nghỉ 27/07 mà 26/07 là Chủ Nhật — họ lên Summary/Timesheet với toàn số 0. Người nghỉ **sau** kỳ mà cả kỳ không đi làm thì vẫn bị loại (TIQN-0767, TIQN-1308 nghỉ 26/08, thai sản từ 02/2026 — đúng là không hưởng lương kỳ này).
+🔴 **Nghỉ việc TRONG kỳ** (`relieving_date` nằm giữa From–To) thì **luôn giữ**, kể cả người đang nghỉ thai sản. Ngày làm cuối = `relieving_date − 1`; ngày đó rơi vào Chủ Nhật/lễ là cả kỳ không có Attendance nào. Đo kỳ 26/07→25/08/2026: TIQN-2341 nghỉ 27/07 mà 26/07 là Chủ Nhật — lên Summary/Timesheet với toàn số 0. Người nghỉ **sau** kỳ mà cả kỳ nghỉ thai sản thì vẫn bị loại (TIQN-0767, TIQN-1308 nghỉ 26/08, thai sản từ 02/2026 — đúng là không hưởng lương kỳ này).
+
+Đo 6 kỳ lương 26→25 gần nhất: mọi người bị loại đều đang nghỉ thai sản, chưa kỳ nào có người "còn làm việc mà 0 Attendance" — luật này là để chặn trước, không phải sửa lỗi đang xảy ra.
 
 🔴 Luật này cũng **không áp** khi bật option *Only employees who resigned in this period*, vì người nghỉ đúng ngày đầu kỳ bị chính điều kiện `relieving_date > from_date` của universe loại trước đó. Đo tháng 6/2026: mất TIQN-1653 và TIQN-2144.
 
