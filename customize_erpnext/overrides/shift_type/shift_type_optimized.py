@@ -1804,6 +1804,22 @@ def _core_process_attendance_logic_optimized(
 	# Only runs in fore_get_logs mode (Bulk Update UI).
 	# Employee Maternity is the source of truth — no attendance should exist
 	# for employees in the "Maternity Leave" phase.
+	#
+	# 🔴 XOÁ VÔ ĐIỀU KIỆN, KỂ CẢ NGÀY CÓ CHECK-IN — CỐ Ý, ĐỪNG "SỬA CHO NHẤT QUÁN".
+	# Nhánh nghỉ việc ở STEP 4b làm ngược lại (giữ bản ghi có check-in, gắn cảnh báo),
+	# nhìn qua tưởng hai chỗ bất nhất. Không phải: đây là chính sách hai đầu, khớp với
+	# STEP 3 ("no attendance created, even with checkins"). Hồ sơ Employee Maternity là
+	# nguồn sự thật, quẹt thẻ trong kỳ nghỉ thai sản KHÔNG tự động thành công.
+	#
+	# Sửa nửa vời (giữ ở đây mà STEP 3 vẫn bỏ qua) còn tệ hơn: bản ghi cũ nằm lại mà
+	# không bao giờ được tính lại. Sửa cả hai đầu = ĐỔI CHÍNH SÁCH LƯƠNG — chốt
+	# 04/09/2026: KHÔNG đổi.
+	#
+	# Ca "HR ghi sai ngày, nhân viên đi làm thật" (đo 04/09/2026: 4 người / 66 lần quẹt)
+	# được phát hiện bằng nhãn [Thai sản + Att] trên sheet Important Note, xem
+	# `standard_export.load_maternity_checkin_conflicts()`. HR sửa `maternity_to_date`
+	# rồi chạy lại Bulk Update là công dựng lại — check-in không bao giờ bị xoá, đoạn
+	# dưới chỉ gỡ link `Employee Checkin.attendance` rồi xoá Attendance.
 	# ========================================================================
 	if fore_get_logs:
 		maternity_to_cancel = []
@@ -1942,7 +1958,10 @@ def _core_process_attendance_logic_optimized(
 				# Check maternity status using cached data (MUST match original logic!)
 				maternity_status, custom_hour_reduction = check_maternity_status_cached(employee, attendance_date, ref_data)
 
-				# Skip: employee on maternity leave — no attendance created, even with checkins
+				# Skip: employee on maternity leave — no attendance created, even with checkins.
+				# Đầu kia của chính sách ở STEP 2b (xoá bản ghi cũ). Quẹt thẻ trong kỳ nghỉ
+				# thai sản được BÁO chứ không được tính công: nhãn [Thai sản + Att] trên sheet
+				# Important Note. Chốt 04/09/2026, đừng nới ra mà không đổi cả STEP 2b.
 				if maternity_status == "Maternity Leave":
 					continue
 

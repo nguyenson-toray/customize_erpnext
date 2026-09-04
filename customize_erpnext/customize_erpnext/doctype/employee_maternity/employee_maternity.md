@@ -121,6 +121,33 @@ thì tạo mới rồi override sau. Sai lệch hiện tại: 27/1.042 ≈ 2,6%.
 `is_inactive_for_maternity()` giữ lại làm lưới an toàn cho `Employee.update_user_status()`: nếu HR
 tự tay set `Inactive` cho người đang nghỉ thai sản thì User liên kết vẫn không bị khoá.
 
+## 🔴 Quẹt thẻ trong kỳ nghỉ thai sản: BÁO, không tính công (chốt 04/09/2026)
+
+Engine có **chính sách hai đầu**, cố ý:
+
+| Chỗ | Hành vi |
+|---|---|
+| `shift_type_optimized.py` STEP 2b | xoá **vô điều kiện** mọi Attendance rơi vào kỳ nghỉ thai sản, kể cả ngày có check-in |
+| `shift_type_optimized.py` STEP 3 | không tạo Attendance cho ngày đó — *"no attendance created, even with checkins"* |
+
+Nhìn qua tưởng bất nhất với nhánh **nghỉ việc** (STEP 4b giữ bản ghi có check-in rồi gắn cảnh báo
+`[Resigned + Att]`). Không phải: hồ sơ Employee Maternity là nguồn sự thật, quẹt thẻ trong kỳ nghỉ
+thai sản **không** tự động thành công.
+
+⚠ Sửa **nửa vời** còn tệ hơn hiện tại: giữ bản ghi ở STEP 2b mà STEP 3 vẫn bỏ qua thì bản ghi cũ
+nằm lại và không bao giờ được tính lại. Sửa **cả hai đầu** = đổi chính sách lương (66 ngày quẹt
+thẻ sẽ bắt đầu được tính công). Đã cân nhắc 04/09/2026 và **quyết định giữ nguyên**.
+
+Ca "HR ghi sai ngày, nhân viên đi làm thật" được xử lý bằng **phát hiện + sửa dữ liệu**, không
+phải bằng cách nới engine:
+
+1. Nhãn `[Thai sản + Att]` trên sheet Important Note của Export Excel
+   (`standard_export.load_maternity_checkin_conflicts()`) — đo 04/09/2026: 4 người / 66 lần quẹt,
+   riêng TIQN-0160 quẹt 61 lần từ 29/07 đến 04/09/2025 trong khi hồ sơ ghi nghỉ tới 04/09.
+2. HR sửa `maternity_to_date` → chạy lại Bulk Update cho khoảng đó → công dựng lại đầy đủ.
+   **Không mất gì**: STEP 2b chỉ `UPDATE Employee Checkin SET attendance = NULL` rồi xoá
+   Attendance — bản thân check-in không bao giờ bị xoá.
+
 Đo trên site 26/08/2026: **36/250 record** đang mở cho người đã nghỉ việc (4 `Maternity Leave`,
 18 `Young Child`, 14 rỗng) — record cũ nhất từ 2023. **Đã chạy Calculate Status trên production
 26/08**, giờ còn 0; chạy lại batch trả `{updated: 0, closed_for_left: 0}`.
