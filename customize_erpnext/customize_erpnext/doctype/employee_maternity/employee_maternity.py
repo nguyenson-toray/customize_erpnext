@@ -94,9 +94,14 @@ class EmployeeMaternity(Document):
 		Report `employee_maternity_report` vốn đã chặn đúng (`period["type"] ==
 		"Pregnant"`); đây là chỗ form và API Excel còn sót.
 
-		⚠ Trả `None` KHÔNG đủ để ô trống: field là `Float` nên Frappe ép về `0.0` khi
-		dựng doc. Vì vậy field còn mang `depends_on: eval:doc.status=="Pregnant"` trong
-		doctype json — đó mới là thứ giấu hẳn ô khỏi form. API Excel trả chuỗi rỗng.
+		🔴 Field phải là `Data`, KHÔNG được là `Float`. `base_document.get_valid_dict()`
+		ép `flt(value)` cho mọi fieldtype float-like (`base_document.py:561`) nên `None`
+		thành `0.0`, không có cách nào giữ null — mà "tuổi thai 0" cũng sai như 9,5.
+		`Data` không rơi vào nhánh cast nào nên `None` đi thẳng ra ngoài. Đổi lại thành
+		Float là 0.0 quay lại ngay, im lặng.
+
+		Field còn mang `depends_on: eval:doc.status=="Pregnant"` để giấu hẳn ô rỗng khỏi
+		form. API Excel trả chuỗi rỗng.
 		"""
 		if (self.status or "") != "Pregnant":
 			return None
