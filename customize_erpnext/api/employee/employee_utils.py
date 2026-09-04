@@ -6,6 +6,7 @@ import math
 import json
 import time
 from frappe import _
+from frappe.model import no_value_fields
 from frappe.utils.file_manager import save_file
 from frappe.utils.pdf import get_pdf
 from frappe.utils import get_site_path
@@ -2506,188 +2507,133 @@ def get_all_active_employees(date):
 	""", {"date": date}, as_dict=True)
 
 
+
+
 # =============================================================================
 # EXCEL / POWER QUERY API
 # =============================================================================
+#
+# Nguồn cột DUY NHẤT là meta của DocType Employee:
+#   - lấy TOÀN BỘ field, trừ những field liệt kê trong
+#     customize_erpnext/public/js/hide_export_fields.json (khoá "Employee")
+#   - label = label tiếng Anh của doctype, KHÔNG dịch (không dùng _())
+#   - thứ tự cột = thứ tự field trong doctype
+# Muốn thêm/bớt cột thì sửa doctype hoặc hide_export_fields.json, đừng sửa file này.
 
-_EMPLOYEE_FIELDS = [
-	# --- Thông tin cơ bản ---
-	"name as employee", "employee_name", "employee_number", "status", "company",
-	# first_name / middle_name / last_name bỏ khỏi export: chúng chỉ là phần tách
-	# ra từ employee_name, không mang thêm thông tin nào cho hồ sơ Việt Nam.
-	"naming_series", "salutation",
-	"gender", "date_of_birth", "blood_group", "marital_status",
-
-	# --- Thông tin công việc ---
-	"date_of_joining", "employment_type", "department", "custom_section",
-	"custom_group", "designation", "custom_designation_vietnamese",
-	"grade", "branch", "reports_to",
-	"scheduled_confirmation_date", "final_confirmation_date",
-	"custom_probation_days", "contract_end_date", "date_of_retirement",
-	"notice_number_of_days", "holiday_list", "default_shift",
-
-	# --- CCCD / Hộ chiếu ---
-	"custom_id_card_no", "custom_id_card_date_of_issue", "custom_id_card_place_of_issue",
-	"custom_id_card_cmnd_no", "custom_id_card_cmnd_date_of_issue",
-	"custom_id_card_cmnd_place_of_issue",
-	"passport_number", "date_of_issue", "valid_upto", "place_of_issue",
-
-	# --- Địa chỉ thường trú ---
-	# Section Address của core (permanent_address / current_address / 2 field
-	# accommodation_type) đã ẩn: rỗng trên cả 2411 hồ sơ và không nơi nào đọc.
-	# Bộ custom_* phủ đủ hơn — có thêm cả quê quán mà core không có.
-	"custom_permanent_address_province", "custom_permanent_address_commune",
-	"custom_permanent_address_village", "custom_permanent_address_full",
-
-	# --- Địa chỉ hiện tại ---
-	"custom_current_address_province", "custom_current_address_commune",
-	"custom_current_address_village", "custom_current_address_full",
-
-	# ⛔ 04/09/2026 — bộ custom_place_of_origin_address_* (quê quán) đã DROP hẳn khỏi
-	#    tabEmployee. Không khai lại được bằng cách bỏ comment; phải tạo lại Custom Field.
-
-	# --- Liên hệ ---
-	"cell_number", "personal_email", "company_email", "prefered_email",
-	"prefered_contact_email", "user_id",
-	"person_to_be_contacted", "relation", "emergency_phone_number",
-
-	# --- Lương / Tài chính ---
-	"salary_mode", "salary_currency", "ctc", "bank_name", "custom_bank_branch",
-	"bank_ac_no", "iban", "custom_tax_code", "custom_social_insurance_number",
-	"custom_privilege",
-
-	# --- Bảo hiểm y tế ---
-	"health_insurance_provider", "health_insurance_no",
-
-	# --- Thông tin thêm ---
-	"custom_shirt_size", "custom_shoe_size", "custom_driving_license",
-
-	# --- Phê duyệt ---
-	"leave_approver", "expense_approver", "shift_request_approver",
-	"payroll_cost_center", "employee_advance_account",
-
-	# --- Nghỉ việc ---
-	"resignation_letter_date", "relieving_date", "reason_for_leaving",
-	"leave_encashed", "encashment_date", "held_on", "new_workplace",
-
-	# --- Hệ thống ---
-	"attendance_device_id", "job_applicant",
-]
-
-# Basic field set (for field_set="basic" option)
-_EMPLOYEE_BASIC_FIELDS = [
-	"name as employee", "attendance_device_id", "employee_name", "status",
-	"gender", "grade", "date_of_birth", "date_of_joining", "department",
-	"custom_section", "custom_group", "designation", "relieving_date", "reason_for_leaving",
-]
-
-# English labels (fieldname -> English label)
-_EMPLOYEE_COLUMN_LABELS_EN = {
-	"employee": "Employee ID", "employee_name": "Full Name", 
-    "attendance_device_id": "Attendance Device ID", "status": "Status",	
-	"gender": "Gender", "date_of_birth": "Date of Birth","date_of_joining": "Date of Joining",
-    "department": "Department", "custom_section": "Section", "custom_group": "Group",
-	"designation": "Designation", "custom_designation_vietnamese": "Designation (Vietnamese)",
-    "cell_number": "Mobile",
-	"blood_group": "Blood Group", "marital_status": "Marital Status",
-    "bank_name": "Bank Name", "custom_bank_branch": "Bank Branch","bank_ac_no": "Bank Account No",
-	"employment_type": "Employment Type",	
-	"grade": "Grade",
-	"custom_probation_days": "Probation Days",
-	"contract_end_date": "Contract End Date", "date_of_retirement": "Date of Retirement",
-	"notice_number_of_days": "Notice (Days)", "holiday_list": "Holiday List",
-	"custom_id_card_no": "ID Card No (CCCD)", "custom_id_card_date_of_issue": "ID Card Date of Issue",
-	"custom_id_card_place_of_issue": "ID Card Place of Issue",
-	"custom_id_card_cmnd_no": "Old ID Card No (CMND)", "custom_id_card_cmnd_date_of_issue": "Old ID Card Date of Issue",
-	"custom_id_card_cmnd_place_of_issue": "Old ID Card Place of Issue",
-	"passport_number": "Passport Number", "date_of_issue": "Passport Date of Issue",
-	"valid_upto": "Passport Valid Up To", "place_of_issue": "Passport Place of Issue",
-	"custom_permanent_address_province": "Permanent Address - Province",
-	"custom_permanent_address_commune": "Permanent Address - Commune",
-	"custom_permanent_address_village": "Permanent Address - Village",
-	"custom_permanent_address_full": "Permanent Address - Full",
-	"custom_current_address_province": "Current Address - Province",
-	"custom_current_address_commune": "Current Address - Commune",
-	"custom_current_address_village": "Current Address - Village",
-	"custom_current_address_full": "Current Address - Full",
-	"personal_email": "Personal Email",
-	"company_email": "Company Email", "prefered_email": "Preferred Email",
-	"prefered_contact_email": "Preferred Contact Email", "user_id": "User ID",
-	"person_to_be_contacted": "Emergency Contact Name", "relation": "Relation",
-	"emergency_phone_number": "Emergency Phone",
-	"salary_mode": "Salary Mode", "salary_currency": "Salary Currency",
-	"ctc": "CTC", 
-	"custom_tax_code": "Tax Code", "custom_social_insurance_number": "Social Insurance No",
-	"custom_privilege": "Privilege",
-	"health_insurance_provider": "Health Insurance Provider", "health_insurance_no": "Health Insurance No",
-	"custom_shirt_size": "Shirt Size", "custom_shoe_size": "Shoe Size",
-	"custom_driving_license": "Driving License",
-	"leave_approver": "Leave Approver", "expense_approver": "Expense Approver",
-	"shift_request_approver": "Shift Request Approver", "payroll_cost_center": "Payroll Cost Center",
-	"employee_advance_account": "Employee Advance Account",
-	"resignation_letter_date": "Resignation Letter Date", "relieving_date": "Relieving Date",
-	"reason_for_leaving": "Reason for Leaving", "leave_encashed": "Leave Encashed",
-	"encashment_date": "Encashment Date", "held_on": "Exit Interview Held On",
-	"new_workplace": "New Workplace",
-	"job_applicant": "Job Applicant",
+# Fieldtype -> kiểu dữ liệu trả cho client (Power Query dùng để ép kiểu cột)
+_EXPORT_TYPE_MAP = {
+	"Date": "Date",
+	"Datetime": "Datetime",
+	"Time": "Time",
+	"Int": "Int",
+	"Check": "Int",
+	"Float": "Float",
+	"Currency": "Float",
+	"Percent": "Float",
 }
 
-# Vietnamese labels (fieldname -> Vietnamese label)
-_EMPLOYEE_COLUMN_LABELS_VI = {
-	"employee": "Mã NV", "employee_name": "Họ và tên", "employee_number": "Số NV",
-	"status": "Trạng thái", "company": "Công ty", "naming_series": "Series",
-	"salutation": "Danh xưng",
-	"gender": "Giới tính", "date_of_birth": "Ngày sinh",
-	"blood_group": "Nhóm máu", "marital_status": "Tình trạng hôn nhân",
-	"date_of_joining": "Ngày vào làm", "employment_type": "Loại HĐ",
-	"department": "Phòng ban", "custom_section": "Bộ phận", "custom_group": "Nhóm",
-	"designation": "Chức vụ", "custom_designation_vietnamese": "Chức vụ (VN)",
-	"grade": "Cấp bậc",
-	"branch": "Chi nhánh", "reports_to": "Quản lý trực tiếp",
-	"scheduled_confirmation_date": "Ngày offer", "final_confirmation_date": "Ngày xác nhận",
-	"custom_probation_days": "Ngày thử việc",
-	"contract_end_date": "Ngày kết thúc HĐ", "date_of_retirement": "Ngày nghỉ hưu",
-	"notice_number_of_days": "Số ngày báo trước", "holiday_list": "Lịch nghỉ",
-	"default_shift": "Ca mặc định",
-	"custom_id_card_no": "Số CCCD", "custom_id_card_date_of_issue": "Ngày cấp CCCD",
-	"custom_id_card_place_of_issue": "Nơi cấp CCCD",
-	"custom_id_card_cmnd_no": "Số CMND", "custom_id_card_cmnd_date_of_issue": "Ngày cấp CMND",
-	"custom_id_card_cmnd_place_of_issue": "Nơi cấp CMND",
-	"passport_number": "Số hộ chiếu", "date_of_issue": "Ngày cấp HC",
-	"valid_upto": "Ngày hết hạn HC", "place_of_issue": "Nơi cấp HC",
-	"custom_permanent_address_province": "Thường trú - Tỉnh",
-	"custom_permanent_address_commune": "Thường trú - Xã",
-	"custom_permanent_address_village": "Thường trú - Thôn",
-	"custom_permanent_address_full": "Thường trú - Địa chỉ đầy đủ",
-	"custom_current_address_province": "Hiện tại - Tỉnh",
-	"custom_current_address_commune": "Hiện tại - Xã",
-	"custom_current_address_village": "Hiện tại - Thôn",
-	"custom_current_address_full": "Hiện tại - Địa chỉ đầy đủ",
-	"cell_number": "Số điện thoại", "personal_email": "Email cá nhân",
-	"company_email": "Email công ty", "prefered_email": "Email ưu tiên",
-	"prefered_contact_email": "Loại email ưu tiên", "user_id": "User ID",
-	"person_to_be_contacted": "Người liên hệ khẩn", "relation": "Quan hệ",
-	"emergency_phone_number": "SĐT khẩn cấp",
-	"salary_mode": "Hình thức lương", "salary_currency": "Tiền tệ",
-	"ctc": "CTC", "bank_name": "Ngân hàng", "custom_bank_branch": "Chi nhánh NH",
-	"bank_ac_no": "Số tài khoản", "iban": "IBAN",
-	"custom_tax_code": "Mã số thuế", "custom_social_insurance_number": "Số BHXH",
-	"custom_privilege": "Quyền lợi",
-	"health_insurance_provider": "Nhà cung cấp BHYT", "health_insurance_no": "Số thẻ BHYT",
-	"custom_shirt_size": "Cỡ áo", "custom_shoe_size": "Cỡ giày",
-	"custom_driving_license": "Bằng lái xe",
-	"leave_approver": "Người duyệt nghỉ phép", "expense_approver": "Người duyệt chi phí",
-	"shift_request_approver": "Người duyệt ca", "payroll_cost_center": "Cost Center lương",
-	"employee_advance_account": "Tài khoản ứng trước",
-	"resignation_letter_date": "Ngày nộp đơn", "relieving_date": "Ngày nghỉ việc",
-	"reason_for_leaving": "Lý do nghỉ", "leave_encashed": "Đã thanh toán phép?",
-	"encashment_date": "Ngày thanh toán phép", "held_on": "Ngày phỏng vấn thôi việc",
-	"new_workplace": "Nơi làm việc mới",
-	"attendance_device_id": "ID máy chấm công", "job_applicant": "Hồ sơ ứng tuyển",
+# Giới hạn phân trang
+_EXPORT_DEFAULT_PAGE_SIZE = 5000
+_EXPORT_MAX_PAGE_SIZE = 20000
+
+# Chỉ lấy hồ sơ nhân viên thật: name bắt đầu bằng 'TIQN'
+# (loại 'Intern-*' và 'Test-*' — không phải nhân viên chính thức)
+_EXPORT_NAME_PREFIX = "TIQN"
+
+# Bỏ thêm ngoài hide_export_fields.json — chỉ áp cho API này, KHÔNG đụng
+# tới dialog Export Data / template Data Import.
+_EXPORT_EXTRA_EXCLUDE = {
+	"naming_series",
 }
 
+# 13 cột luôn đứng đầu, đúng thứ tự này; phần còn lại giữ thứ tự doctype.
+_EXPORT_PINNED_FIELDS = [
+	"employee",					# Employee
+	"attendance_device_id",		# Att ID
+	"employee_name",			# Full Name
+	"status",					# Status
+	"gender",					# Gender
+	"department",				# Department
+	"custom_section",			# Section
+	"custom_group",				# Group
+	"designation",				# Designation
+	"grade",					# Grade
+	"date_of_joining",			# Date of Joining
+	"date_of_birth",			# Date of Birth
+	"relieving_date",			# Relieving Date
+]
 
-@frappe.whitelist(allow_guest=True)
+
+def _get_hidden_export_fields(doctype="Employee"):
+	"""Danh sách fieldname bị ẩn khỏi export, đọc từ hide_export_fields.json."""
+	path = frappe.get_app_path("customize_erpnext", "public", "js", "hide_export_fields.json")
+	try:
+		with open(path, encoding="utf-8") as f:
+			data = json.load(f)
+	except (OSError, ValueError):
+		frappe.log_error(frappe.get_traceback(), "hide_export_fields.json unreadable")
+		return set()
+	return set(data.get(doctype) or [])
+
+
+def _get_company_abbr_suffixes():
+	"""(' - TIQN', ...) — hậu tố abbr công ty gắn vào tên Department/Cost Center."""
+	abbrs = frappe.get_all("Company", pluck="abbr")
+	return tuple(f" - {a}" for a in abbrs if a)
+
+
+def _strip_company_abbr(value, suffixes=None):
+	"""'Production - TIQN' -> 'Production'."""
+	if not value:
+		return value
+	if suffixes is None:
+		suffixes = _get_company_abbr_suffixes()
+	for suffix in suffixes:
+		if value.endswith(suffix):
+			return value[: -len(suffix)]
+	return value
+
+
+def _get_employee_export_columns():
+	"""
+	Trả về list dict {fieldname, label, fieldtype, type} theo đúng thứ tự doctype.
+
+	Bỏ qua: field không có giá trị (Section/Column Break, HTML, Table…),
+	field trong hide_export_fields.json, và field không tồn tại trong `tabEmployee`.
+	"""
+	hidden = _get_hidden_export_fields("Employee") | _EXPORT_EXTRA_EXCLUDE
+	table_columns = set(frappe.db.get_table_columns("Employee"))
+	seen_labels = set()
+	columns = []
+
+	for df in frappe.get_meta("Employee").fields:
+		if df.fieldtype in no_value_fields:
+			continue
+		if df.fieldname in hidden or df.fieldname not in table_columns:
+			continue
+
+		# label tiếng Anh nguyên bản của doctype — KHÔNG qua _() để không bị dịch
+		label = (df.label or df.fieldname).strip()
+		if label in seen_labels:
+			# Power Query không cho 2 cột trùng tên → tách bằng fieldname
+			label = f"{label} ({df.fieldname})"
+		seen_labels.add(label)
+
+		columns.append({
+			"fieldname": df.fieldname,
+			"label": label,
+			"fieldtype": df.fieldtype,
+			"type": _EXPORT_TYPE_MAP.get(df.fieldtype, "Text"),
+		})
+
+	# Đẩy 13 cột cố định lên đầu; cột nào bị ẩn/không tồn tại thì bỏ qua.
+	by_fieldname = {c["fieldname"]: c for c in columns}
+	pinned = [by_fieldname[f] for f in _EXPORT_PINNED_FIELDS if f in by_fieldname]
+	pinned_set = {c["fieldname"] for c in pinned}
+	return pinned + [c for c in columns if c["fieldname"] not in pinned_set]
+
+
+@frappe.whitelist()
 def get_employees_for_excel(
 	status=None,
 	department=None,
@@ -2695,69 +2641,78 @@ def get_employees_for_excel(
 	custom_group=None,
 	date_of_joining_from=None,
 	date_of_joining_to=None,
-	include_left=0,
 	page=1,
-	page_size=500,
-	lang="en",
-	field_set="all",
+	page_size=_EXPORT_DEFAULT_PAGE_SIZE,
 ):
 	"""
-	API for Excel / Power Query – returns employee list with full or basic fields.
+	API cho Excel / Power Query — danh sách nhân viên, toàn bộ field của doctype.
+
+	⚠ Cần xác thực bằng API key/secret (header `Authorization: token <key>:<secret>`).
+	   Không còn allow_guest.
+
+	Chỉ trả về hồ sơ có name bắt đầu bằng 'TIQN' (bỏ Intern-*/Test-*).
 
 	Params:
-		status            : 'Active' | 'Left' | 'Inactive' | None (all)
-		department        : filter by department name
-		custom_section    : filter by section name
-		custom_group      : filter by group name
-		date_of_joining_from / to : filter by joining date (YYYY-MM-DD)
-		include_left      : 1 = include resigned employees
-		page / page_size  : pagination (default 500 per page, max 2000)
-		lang              : 'en' (default) | 'vi'  – column label language
-		field_set         : 'all' (default) | 'basic'
-		                    basic = employee, attendance_device_id, employee_name,
-		                            status, gender, grade, date_of_birth,
-		                            date_of_joining, department, custom_section,
-		                            custom_group, designation, relieving_date,
-		                            reason_for_leaving
+		status                    : 'Active' | 'Left' | None (tất cả)
+		department                : lọc theo phòng ban, nhận cả 'Production'
+		                            lẫn 'Production - TIQN'
+		custom_section            : lọc theo Section
+		custom_group              : lọc theo Group
+		date_of_joining_from / to : lọc theo ngày vào làm (YYYY-MM-DD)
+		page / page_size          : phân trang (mặc định 5000/trang, tối đa 20000;
+		                            page_size=0 → lấy hết trong 1 request)
 
 	Returns:
 		{
-			"data"        : [...],
-			"columns"     : [...],   # column labels (EN or VI)
-			"col_keys"    : [...],   # actual field names
+			"data"        : [...],   # key = fieldname
+			"columns"     : [...],   # label tiếng Anh theo doctype
+			"col_keys"    : [...],   # fieldname, cùng thứ tự với columns
+			"col_types"   : [...],   # 'Text'|'Date'|'Datetime'|'Time'|'Int'|'Float'
 			"total"       : int,
 			"page"        : int,
 			"page_size"   : int,
 			"total_pages" : int,
 		}
 	"""
-	page      = cint(page)
+	# --- Xác thực: bắt buộc API key/secret (hoặc session hợp lệ) ---------------
+	if frappe.session.user in (None, "", "Guest"):
+		frappe.throw(
+			_("Authentication required: pass an API key/secret in the Authorization header."),
+			frappe.AuthenticationError,
+		)
+	if not frappe.has_permission("Employee", "read"):
+		raise frappe.PermissionError(_("Not permitted to read Employee"))
+
+	# --- Phân trang ------------------------------------------------------------
+	page = cint(page)
 	page_size = cint(page_size)
-	load_all  = page_size == 0           # page_size=0 → no LIMIT, return all
-	if not load_all and (page_size < 0 or page_size > 2000):
-		page_size = 500
+	load_all = page_size == 0			 # page_size=0 → không LIMIT, trả hết
+	if not load_all and (page_size < 0 or page_size > _EXPORT_MAX_PAGE_SIZE):
+		page_size = _EXPORT_DEFAULT_PAGE_SIZE
 	if page < 1:
 		page = 1
 
-	# Choose field list
-	active_fields = _EMPLOYEE_BASIC_FIELDS if field_set == "basic" else _EMPLOYEE_FIELDS
+	export_columns = _get_employee_export_columns()
+	col_keys = [c["fieldname"] for c in export_columns]
 
-	# Choose label dict
-	label_dict = _EMPLOYEE_COLUMN_LABELS_VI if lang == "vi" else _EMPLOYEE_COLUMN_LABELS_EN
-
-	# Build WHERE clause
-	conditions = []
-	params = {}
+	# --- WHERE -----------------------------------------------------------------
+	conditions = ["emp.name LIKE %(name_prefix)s"]
+	params = {"name_prefix": _EXPORT_NAME_PREFIX + "%"}
 
 	if status:
-		conditions.append("emp.status = %(status)s")
+		status = cstr(status).strip()
+		if status not in ("Active", "Left"):
+			frappe.throw(_("Invalid status {0}. Allowed values: Active, Left").format(status))
+		# ⚠ dữ liệu có cả 'Left ' (dư 1 dấu cách) → phải TRIM trước khi so sánh
+		conditions.append("TRIM(emp.status) = %(status)s")
 		params["status"] = status
-	elif not cint(include_left):
-		conditions.append("emp.status != 'Left'")
 
 	if department:
-		conditions.append("emp.department = %(department)s")
-		params["department"] = department
+		# chấp nhận cả tên có và không có hậu tố abbr công ty
+		dept = _strip_company_abbr(cstr(department).strip())
+		conditions.append("(emp.department = %(department)s OR emp.department LIKE %(department_like)s)")
+		params["department"] = dept
+		params["department_like"] = dept + " - %"
 
 	if custom_section:
 		conditions.append("emp.custom_section = %(custom_section)s")
@@ -2777,57 +2732,38 @@ def get_employees_for_excel(
 
 	where_sql = ("WHERE " + " AND ".join(conditions)) if conditions else ""
 
-	# Build SELECT list
-	select_fields = []
-	col_order = []
-	for f in active_fields:
-		if " as " in f:
-			actual, alias = f.split(" as ")
-			select_fields.append(f"emp.{actual.strip()} as `{alias.strip()}`")
-			col_order.append(alias.strip())
-		else:
-			select_fields.append(f"emp.`{f}`")
-			col_order.append(f)
+	# --- SELECT ----------------------------------------------------------------
+	select_sql = ", ".join(f"emp.`{f}`" for f in col_keys)
 
-	select_sql = ", ".join(select_fields)
-
-	# Count
 	total = frappe.db.sql(
 		f"SELECT COUNT(*) FROM `tabEmployee` emp {where_sql}",
-		params
+		params,
 	)[0][0]
 
-	# Data with pagination (or all at once)
-	if load_all:
-		rows = frappe.db.sql(
-			f"""
-			SELECT {select_sql}
-			FROM `tabEmployee` emp
-			{where_sql}
-			ORDER BY emp.name
-			""",
-			params,
-			as_dict=True,
-		)
-		page_size = total
-		page      = 1
-	else:
-		offset = (page - 1) * page_size
-		params["limit"]  = page_size
-		params["offset"] = offset
-		rows = frappe.db.sql(
-			f"""
-			SELECT {select_sql}
-			FROM `tabEmployee` emp
-			{where_sql}
-			ORDER BY emp.name
-			LIMIT %(limit)s OFFSET %(offset)s
-			""",
-			params,
-			as_dict=True,
-		)
+	limit_sql = ""
+	if not load_all:
+		params["limit"] = page_size
+		params["offset"] = (page - 1) * page_size
+		limit_sql = "LIMIT %(limit)s OFFSET %(offset)s"
 
-	# Sanitize: None → "", date → ISO string
+	rows = frappe.db.sql(
+		f"""
+		SELECT {select_sql}
+		FROM `tabEmployee` emp
+		{where_sql}
+		ORDER BY emp.name
+		{limit_sql}
+		""",
+		params,
+		as_dict=True,
+	)
+
+	if load_all:
+		page_size = total
+		page = 1
+
+	# --- Làm sạch: None → "", date → ISO, bỏ hậu tố ' - TIQN' của department ----
+	abbr_suffixes = _get_company_abbr_suffixes()
 	cleaned = []
 	for row in rows:
 		r = {}
@@ -2836,18 +2772,20 @@ def get_employees_for_excel(
 				r[k] = ""
 			elif hasattr(v, "isoformat"):
 				r[k] = v.isoformat()
+			elif isinstance(v, str):
+				v = v.strip()
+				r[k] = _strip_company_abbr(v, abbr_suffixes) if k == "department" else v
 			else:
 				r[k] = v
 		cleaned.append(r)
 
-	columns = [label_dict.get(f, f) for f in col_order]
-
 	return {
-		"data"        : cleaned,
-		"columns"     : columns,
-		"col_keys"    : col_order,
-		"total"       : total,
-		"page"        : page,
-		"page_size"   : page_size,
+		"data"		  : cleaned,
+		"columns"	  : [c["label"] for c in export_columns],
+		"col_keys"	  : col_keys,
+		"col_types"	  : [c["type"] for c in export_columns],
+		"total"		  : total,
+		"page"		  : page,
+		"page_size"	  : page_size,
 		"total_pages" : math.ceil(total / page_size) if page_size else 1,
 	}

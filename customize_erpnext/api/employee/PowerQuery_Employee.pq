@@ -1,6 +1,22 @@
 // ============================================================
 // Power Query M – Employee List from ERPNext
 // ============================================================
+// Columns / labels / order are driven entirely by the Employee
+// DocType (minus public/js/hide_export_fields.json), so this
+// query never needs editing when a field is added or removed.
+// The first 13 columns are always pinned in this order:
+//   Employee, Att ID, Full Name, Status, Gender, Department,
+//   Section, Group, Designation, Grade, Date of Joining,
+//   Date of Birth, Relieving Date.
+// Only employees whose ID starts with "TIQN" are returned
+// (Intern-* / Test-* records are excluded server-side).
+//
+// AUTHENTICATION (required – the API is no longer allow_guest)
+//   1. ERPNext → User → <api user> → API Access → Generate Keys
+//   2. Paste key + secret below.
+//   3. Data → Get Data → Web → paste any URL → set the connection
+//      to "Anonymous" (the token is sent via the Headers below).
+// ============================================================
 let
     // ╔══════════════════════════════════════════════════════╗
     // ║                    CONFIGURATION                    ║
@@ -12,32 +28,27 @@ let
     BaseUrl = "https://erp.tiqn.com.vn:8888",
     ApiMethod = "/api/method/customize_erpnext.api.employee.employee_utils.get_employees_for_excel",
 
+    // ── API KEY / SECRET ─────────────────────────────────────
+    ApiKey    = "PASTE_API_KEY_HERE",
+    ApiSecret = "PASTE_API_SECRET_HERE",
+    AuthHeader = "token " & ApiKey & ":" & ApiSecret,
+
     // true  → load ALL records in 1 request (recommended)
     // false → paginate by PageSize below
     LoadAll  = true,
-    PageSize = if LoadAll then 0 else 500,   // 0 = no limit; max 2000 when paginating
-    // ── LANGUAGE ─────────────────────────────────────────────
-    // "en"  → English labels  (Employee ID, Full Name, …)
-    // "vi"  → Vietnamese labels (Mã NV, Họ và tên, …)
-    Lang = "en",
-    // ── FIELD SET ────────────────────────────────────────────
-    // "all"   → 106 fields
-    // "basic" → 14 fields: Employee ID, Attendance Device ID,
-    //           Full Name, Status, Gender, Grade, Date of Birth,
-    //           Date of Joining, Department, Section, Group,
-    //           Designation, Relieving Date, Reason for Leaving
-    FieldSet = "all",
+    PageSize = if LoadAll then 0 else 5000,  // 0 = no limit; max 20000 when paginating
+
     // ── FILTERS (null = no filter) ────────────────────────────
     FilterStatus = null,
-    // "Active" | "Left" | "Inactive" | null
+    // "Active" | "Left" | null (= all)
     FilterDepartment = null,
+    // "Production" hoặc "Production - TIQN", cả hai đều được
     FilterSection = null,
     FilterGroup = null,
     FilterDojFrom = null,
     // "YYYY-MM-DD"
     FilterDojTo = null,
-    IncludeLeft = "1",
-    // "1" = include resigned employees
+
     // ─────────────────────────────────────────────────────────
     // ╔══════════════════════════════════════════════════════╗
     // ║               INTERNAL FUNCTIONS                    ║
@@ -49,6 +60,7 @@ let
             pairs = List.Transform(keys, each _ & "=" & Uri.EscapeDataString(Text.From(Record.Field(params, _))))
         in
             Text.Combine(pairs, "&"),
+
     // Fetch one page — Binary.Buffer fixes the Formula Firewall
     // "references other queries or steps" error
     FetchPage = (pageNum as number) as record =>
@@ -61,9 +73,6 @@ let
                     custom_group = FilterGroup,
                     date_of_joining_from = FilterDojFrom,
                     date_of_joining_to = FilterDojTo,
-                    include_left = IncludeLeft,
-                    lang = Lang,
-                    field_set = FieldSet,
                     page = Text.From(pageNum),
                     page_size = Text.From(PageSize)
                 ]
@@ -73,11 +82,15 @@ let
             // prevents Power Query Formula Firewall from blocking
             // cross-step data source references
             raw = Binary.Buffer(Web.Contents(url, [
-                Headers = [#"Accept" = "application/json"]
+                Headers = [
+                    #"Accept" = "application/json",
+                    #"Authorization" = AuthHeader
+                ]
             ])),
             parsed = Json.Document(raw)
         in
             parsed[message],
+
     // ╔══════════════════════════════════════════════════════╗
     // ║                  FETCH DATA                         ║
     // ╚══════════════════════════════════════════════════════╝
@@ -85,6 +98,7 @@ let
     TotalPages = Page1[total_pages],
     ColKeys    = Page1[col_keys],
     ColLabels  = Page1[columns],
+    ColTypes   = Page1[col_types],
 
     // When LoadAll=true, TotalPages=1 → single request, no loop needed
     AllPageData = List.Transform(
@@ -92,55 +106,34 @@ let
         each if _ = 1 then Page1[data] else FetchPage(_)[data]
     ),
     AllRecords = List.Combine(AllPageData),
+
     // ╔══════════════════════════════════════════════════════╗
     // ║               BUILD TABLE                           ║
     // ╚══════════════════════════════════════════════════════╝
     RawTable = Table.FromList(AllRecords, Splitter.SplitByNothing(), {"_row"}, null, ExtraValues.Error),
-    Expanded = Table.ExpandRecordColumn(RawTable, "_row", ColKeys, ColKeys),
-    Renamed = Table.RenameColumns(Expanded, List.Zip({ColKeys, ColLabels})),
+    // Expand straight to the DocType labels (col_keys -> columns), so there is
+    // no separate rename step that could collide with an existing column name.
+    Renamed = Table.ExpandRecordColumn(RawTable, "_row", ColKeys, ColLabels),
+
     // ╔══════════════════════════════════════════════════════╗
     // ║               TYPE CONVERSIONS                      ║
     // ╚══════════════════════════════════════════════════════╝
-    DateCols_EN = {
-        "Date of Birth",
-        "Date of Joining",
-        "Offer Date",
-        "Confirmation Date",
-        "Contract End Date",
-        "Date of Retirement",
-        "ID Card Date of Issue",
-        "Old ID Card Date of Issue",
-        "Passport Date of Issue",
-        "Passport Valid Up To",
-        "Resignation Letter Date",
-        "Relieving Date",
-        "Encashment Date",
-        "Exit Interview Held On"
-    },
-    DateCols_VI = {
-        "Ngày sinh",
-        "Ngày vào làm",
-        "Ngày offer",
-        "Ngày xác nhận",
-        "Ngày kết thúc HĐ",
-        "Ngày nghỉ hưu",
-        "Ngày cấp CCCD",
-        "Ngày cấp CMND",
-        "Ngày cấp HC",
-        "Ngày hết hạn HC",
-        "Ngày nộp đơn",
-        "Ngày nghỉ việc",
-        "Ngày thanh toán phép",
-        "Ngày phỏng vấn thôi việc"
-    },
-    DateCols = if Lang = "vi" then DateCols_VI else DateCols_EN,
-    ActiveDates = List.Intersect({Table.ColumnNames(Renamed), DateCols}),
-    WithDates = Table.TransformColumnTypes(Renamed, List.Transform(ActiveDates, each {_, type date})),
-    IntCols_EN = {"Number of Children", "Notice (Days)"},
-    IntCols_VI = {"Số con", "Số ngày báo trước"},
-    IntCols = if Lang = "vi" then IntCols_VI else IntCols_EN,
-    ActiveInts = List.Intersect({Table.ColumnNames(WithDates), IntCols}),
-    WithInts = Table.TransformColumnTypes(WithDates, List.Transform(ActiveInts, each {_, Int64.Type})),
-    FinalTable = Table.ReplaceValue(WithInts, "", null, Replacer.ReplaceValue, Table.ColumnNames(WithInts))
+    // Empty string → null FIRST, otherwise "" breaks date/number casts
+    Blanked = Table.ReplaceValue(Renamed, "", null, Replacer.ReplaceValue, Table.ColumnNames(Renamed)),
+
+    // col_types comes from the API (derived from the DocType fieldtype),
+    // so no hard-coded column-name lists to maintain here.
+    MapType = (t as text) as type =>
+        if t = "Date" then type date
+        else if t = "Datetime" then type datetime
+        else if t = "Time" then type time
+        else if t = "Int" then Int64.Type
+        else if t = "Float" then type number
+        else type text,
+    Transforms = List.Transform(
+        List.Zip({ColLabels, ColTypes}),
+        each {_{0}, MapType(_{1})}
+    ),
+    FinalTable = Table.TransformColumnTypes(Blanked, Transforms)
 in
     FinalTable
