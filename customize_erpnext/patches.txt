@@ -34,3 +34,7 @@ customize_erpnext.patches.rename_resignation_application_fields
 # post_model_sync: rename_field cần field MỚI đã có trong meta và cột CŨ còn trong bảng.
 # Đổi tên 2 field của Resignation Reason Group 2 cho khớp Employee / Resignation Application.
 customize_erpnext.patches.rename_resignation_reason_fields
+# post_model_sync: cột thật `Employee.custom_is_maternity_leave` + nạp giá trị lần đầu.
+# Cần cột THẬT vì Number Card / Dashboard Chart kiểu "Document Type" không join được
+# sang Employee Maternity. Idempotent.
+customize_erpnext.patches.add_employee_maternity_leave_flag

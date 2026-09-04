@@ -185,7 +185,8 @@ Nút **Export Excel** trên report (`export_attendance_excel`) xuất workbook *
 format app Flutter chuẩn** (replica từ `flutter_app_chuẩn/timesheetFunctions.dart`,
 code: `standard_export.py`). Tên file: `Timesheet_{yymmdd}_{yymmdd}_{timestamp}.xlsx`.
 
-1. **Important Note** — bất thường: `[Resigned + Att]` (đã nghỉ việc còn chấm công), `[Ra 16-17h]` (nữ ca Day checkout 16-17h không có chế độ thai sản/con nhỏ tại ngày đó). Nguồn: `custom_note` của Attendance.
+1. **Important Note** — bất thường: `[Resigned + Att]` (đã nghỉ việc còn chấm công), `[Ra 16-17h]` (nữ ca Day checkout 16-17h không có chế độ thai sản/con nhỏ tại ngày đó), `[Nghỉ phép + đi làm]` (xem option bên dưới). Nguồn: `custom_note` của Attendance.
+   - `[Thai sản + Att]` — ngày nằm **trong kỳ nghỉ thai sản** mà nhân viên vẫn quẹt thẻ, gần như luôn là `maternity_to_date` nhập sai. Nguồn **KHÔNG** phải Attendance mà là `Employee Checkin`: engine cố ý không tạo Attendance cho ngày trong kỳ nghỉ thai sản (`shift_type_optimized.py` STEP 3) và xoá luôn bản ghi cũ (STEP 2b), nên những ngày này không để lại dấu vết nào trong bảng Attendance. Xem `load_maternity_checkin_conflicts()`. Đo 04/09/2026 trên toàn bộ dữ liệu: 4 người / 66 lần quẹt, riêng TIQN-0160 quẹt 61 lần suốt hơn một tháng.
 2. **Detail** — 1 dòng/(NV × ngày có ≥1 người chấm công), gồm cả NV vắng (giờ trống, số 0); 21 cột; notes tiếng Việt như app (`Vào trễ`, `Ra sớm`, `Chế độ mang thai`…) + bổ sung `Phép: {abbr}` từ Leave Application (app không có dữ liệu phép). Hai luật riêng của TIQN:
    - **Chủ Nhật và ngày lễ chỉ liệt kê người thực sự đi làm** (có First/Last hoặc có giờ/OT > 0). Ngày thường vẫn giữ nguyên cả người vắng. Đo CN 30/08/2026: 3 dòng thay vì 1.011.
    - Khi `With Leave Application = 0` thì **bỏ hẳn cột `Actual (hour)`** (còn 20 cột), vì ở chế độ đó `Working (hour)` đã chính là `custom_actual_working_hours` nên hai cột luôn bằng nhau.

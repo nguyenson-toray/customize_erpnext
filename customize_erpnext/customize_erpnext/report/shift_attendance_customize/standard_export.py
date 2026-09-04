@@ -299,6 +299,85 @@ def load_leave_applications(emp_ids, from_date, to_date):
           "from_date": getdate(from_date), "to_date": getdate(to_date)}, as_dict=True)
 
 
+def load_maternity_checkin_conflicts(from_date, to_date, department=None):
+    """Ngày nằm TRONG kỳ nghỉ thai sản mà nhân viên vẫn quẹt thẻ.
+
+    Phải soi thẳng `Employee Checkin`, không thể lấy từ `build_export_rows`: engine cố ý không
+    tạo Attendance cho ngày trong kỳ nghỉ thai sản (`shift_type_optimized.py` STEP 3, "no
+    attendance created, even with checkins") và xoá luôn bản ghi cũ (STEP 2b), nên những ngày
+    này KHÔNG để lại dấu vết nào trong bảng Attendance.
+
+    Gần như luôn là `maternity_to_date` nhập sai — người đi làm lại sớm hơn ngày ghi trong hồ
+    sơ. Đo 04/09/2026 trên toàn bộ dữ liệu: 4 người / 66 lần quẹt, riêng TIQN-0160 quẹt 61 lần
+    suốt hơn một tháng mà không có một bản ghi công nào.
+    """
+    from customize_erpnext.customize_erpnext.doctype.attendance_calculation_setting.attendance_calculation_setting import (
+        get_attendance_settings,
+        get_excluded_employee_ids,
+    )
+
+    params = {"from_date": getdate(from_date), "to_date": getdate(to_date)}
+    conds = ""
+
+    prefix = (get_attendance_settings().employee_id_prefix or "").strip()
+    if prefix:
+        conds += " AND e.name LIKE %(prefix)s"
+        params["prefix"] = f"{prefix}%"
+    if department:
+        conds += " AND e.department IN %(departments)s"
+        params["departments"] = tuple(department if isinstance(department, list) else [department])
+    excluded = get_excluded_employee_ids() or set()
+    if excluded:
+        conds += " AND e.name NOT IN %(excluded)s"
+        params["excluded"] = tuple(sorted(excluded))
+
+    return frappe.db.sql(f"""
+        SELECT c.employee, e.employee_name, DATE(c.time) AS att_date,
+               MIN(c.time) AS first_in, MAX(c.time) AS last_out, COUNT(*) AS punches,
+               em.maternity_from_date, em.maternity_to_date
+        FROM `tabEmployee Checkin` c
+        JOIN `tabEmployee` e ON e.name = c.employee
+        JOIN `tabEmployee Maternity` em ON em.employee = c.employee
+        WHERE DATE(c.time) BETWEEN %(from_date)s AND %(to_date)s
+          AND em.maternity_from_date IS NOT NULL
+          AND em.maternity_to_date IS NOT NULL
+          AND DATE(c.time) BETWEEN em.maternity_from_date AND em.maternity_to_date
+          {conds}
+        GROUP BY c.employee, e.employee_name, DATE(c.time),
+                 em.maternity_from_date, em.maternity_to_date
+        ORDER BY c.employee, att_date
+    """, params, as_dict=True)
+
+
+def maternity_conflict_anomalies(from_date, to_date, department=None):
+    """`load_maternity_checkin_conflicts` -> dòng cho sheet Important Note."""
+    out = []
+    for r in load_maternity_checkin_conflicts(from_date, to_date, department):
+        _i = r.first_in.strftime("%H:%M") if r.first_in else "?"
+        _o = r.last_out.strftime("%H:%M") if r.last_out else "?"
+        out.append((
+            "[Thai sản + Att]",
+            "maternity leave {0} – {1}, {2} punch(es): check the maternity dates".format(
+                getdate(r.maternity_from_date).strftime("%d/%m/%Y"),
+                getdate(r.maternity_to_date).strftime("%d/%m/%Y"),
+                r.punches,
+            ),
+            {
+                "date": getdate(r.att_date),
+                "employee": r.employee,
+                "employee_name": r.employee_name,
+                "in_out": f"{_i}–{_o}",
+                # Cố ý để trống: những ngày này KHÔNG có bản ghi Attendance nào để dẫn tới.
+                "working_hours": None,
+                "actual_hours": None,
+                "abbr": None,
+                "attendance": None,
+                "leave_application": None,
+            },
+        ))
+    return out
+
+
 def _regime(universe, emp_id, d):
     """'Pregnant' / 'Young Child' / None for employee on date."""
     for kind, frm, to in universe["maternity"].get(emp_id, []):
@@ -926,6 +1005,10 @@ def build_standard_workbook(from_date, to_date, department=None,
 
     wb = Workbook()
     if "Important Note" in wanted:
+        # Ngày quẹt thẻ rơi vào kỳ nghỉ thai sản không để lại bản ghi Attendance nào (engine
+        # cố ý bỏ qua), nên phải bơm vào đây chứ không thể lấy từ `build_export_rows`.
+        anomalies = anomalies + maternity_conflict_anomalies(
+            universe["from_date"], universe["to_date"], department)
         add_important_note_sheet(wb.active, anomalies)
     else:
         # wb.active là sheet mặc định "Sheet" — bỏ đi, nếu không file có tab rỗng

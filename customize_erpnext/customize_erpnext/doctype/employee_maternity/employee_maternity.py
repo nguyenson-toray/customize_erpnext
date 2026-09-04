@@ -355,27 +355,26 @@ def on_maternity_update(doc, method):
 	# Frappe chạy on_update sau CẢ insert lẫn save — không cần hook after_insert riêng
 	# (dates đã được thu thập trong before_save, hook này chạy cho cả doc mới)
 	_queue_attendance_recalculation(doc, "on_update")
-	_sync_employee_status_on_save(doc)
+	_sync_maternity_flag_on_save(doc)
 
 
-def _sync_employee_status_on_save(doc):
-	"""Đẩy status của record sang Employee.status (Maternity Leave -> Inactive).
+def _sync_maternity_flag_on_save(doc):
+	"""Ghi lại `Employee.custom_is_maternity_leave` cho nhân viên của record này.
 
-	Đổi employee giữa chừng: employee CŨ phải được trả về Active, vì record này
-	không còn mô tả họ nữa.
+	Đổi employee giữa chừng: phải ghi lại cho CẢ HAI, vì record này không còn mô tả
+	người cũ nữa. `sync_maternity_flag` tự tra lại DB nên không cần truyền trạng thái
+	cũ/mới — một nhân viên có thể giữ nhiều hồ sơ, rời khỏi một hồ sơ không chứng minh
+	được họ đã đi làm lại.
 	"""
 	from customize_erpnext.customize_erpnext.doctype.employee_maternity.employee_status_sync import (
-		sync_employee_status,
+		sync_maternity_flag,
 	)
 
 	old_doc = None if doc.is_new() else doc.get_doc_before_save()
-	old_status = (old_doc.status or "") if old_doc else ""
-
 	if old_doc and old_doc.employee and old_doc.employee != doc.employee:
-		sync_employee_status(old_doc.employee, old_status, "", record=doc.name)
-		old_status = ""  # với employee mới thì đây là record mới toanh
+		sync_maternity_flag(old_doc.employee)
 
-	sync_employee_status(doc.employee, old_status, doc.status or "", record=doc.name)
+	sync_maternity_flag(doc.employee)
 
 
 def on_maternity_delete(doc, method):
@@ -387,11 +386,13 @@ def on_maternity_delete(doc, method):
 		_queue_attendance_recalculation(doc, "on_trash")
 
 	from customize_erpnext.customize_erpnext.doctype.employee_maternity.employee_status_sync import (
-		sync_employee_status,
+		sync_maternity_flag,
 	)
 
-	# Record biến mất = giai đoạn của nó cũng biến mất theo
-	sync_employee_status(doc.employee, doc.status or "", "", record=doc.name)
+	# Record biến mất = giai đoạn của nó cũng biến mất theo. `on_trash` chạy TRƯỚC khi
+	# dòng bị xoá khỏi DB nên phải loại nó ra, nếu không record đang xoá vẫn tự đếm
+	# mình và cờ không bao giờ được gỡ.
+	sync_maternity_flag(doc.employee, exclude_record=doc.name)
 
 
 def _queue_attendance_recalculation(doc, trigger):
@@ -564,7 +565,7 @@ def calculate_all_maternity_statuses(names=None):
 		}
 
 	from customize_erpnext.customize_erpnext.doctype.employee_maternity.employee_status_sync import (
-		sync_employee_status,
+		sync_all_maternity_flags,
 	)
 
 	updated = 0
@@ -578,15 +579,23 @@ def calculate_all_maternity_statuses(names=None):
 		new_status = doc.status or ""
 		if new_status != old_status:
 			doc.db_set("status", new_status, update_modified=False)
-			# db_set bỏ qua on_update, nên hook đồng bộ KHÔNG chạy ở đây — phải
-			# gọi tay. Đây là đường đi của scheduler 00:10 và nút Calculate Status,
-			# tức là nơi phần lớn chuyển tiếp giai đoạn thực sự xảy ra.
-			sync_employee_status(doc.employee, old_status, new_status, record=doc.name)
 			updated += 1
 			if doc.employee_has_left(employment=employment.get(doc.employee) or {}):
 				closed_for_left += 1
 
-	return {"updated": updated, "total": len(records), "closed_for_left": closed_for_left}
+	# 🔴 Khẳng định lại cờ cho TOÀN BỘ nhân viên, không chỉ record vừa đổi giai đoạn.
+	# Bản cũ chỉ đồng bộ khi có chuyển tiếp, nên khi một thao tác cập nhật Employee
+	# hàng loạt ghi đè mất giá trị (25/08/2026, 34 người) thì không lần chạy nào sau
+	# đó sửa lại. Hai câu UPDATE theo tập, rẻ hơn nhiều so với lặp từng người.
+	flags = sync_all_maternity_flags()
+
+	return {
+		"updated": updated,
+		"total": len(records),
+		"closed_for_left": closed_for_left,
+		"flags_set": flags["set"],
+		"flags_cleared": flags["cleared"],
+	}
 
 
 def scheduled_calculate_all_maternity_statuses():
@@ -601,7 +610,8 @@ def scheduled_calculate_all_maternity_statuses():
 		frappe.logger().info(
 			f"[Scheduler] Employee Maternity status recalc: "
 			f"updated {result['updated']} / {result['total']} records "
-			f"({result['closed_for_left']} đóng vì nhân viên đã nghỉ việc)"
+			f"({result['closed_for_left']} đóng vì nhân viên đã nghỉ việc); "
+			f"cờ thai sản: bật {result['flags_set']}, gỡ {result['flags_cleared']}"
 		)
 	except Exception as e:
 		frappe.log_error(str(e), "Employee Maternity Scheduled Status Recalc Error")

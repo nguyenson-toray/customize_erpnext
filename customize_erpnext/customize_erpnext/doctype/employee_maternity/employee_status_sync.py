@@ -1,29 +1,54 @@
 # Copyright (c) 2026, IT Team - TIQN and contributors
 # For license information, please see license.txt
 
-"""Keep `Employee.status` in step with the maternity cycle, and expose the
-sub-status that the read-only `Employee.custom_sub_status` HTML field renders.
+"""Cờ `Employee.custom_is_maternity_leave` và sub-status của hồ sơ thai sản.
 
-Only `Maternity Leave` means the employee is actually away — `Pregnant` and
-`Young Child` still work a normal roster (they only earn the one-hour early
-leave benefit), so those phases keep the employee `Active`.
+Chỉ `Maternity Leave` nghĩa là người đó thật sự vắng mặt — `Pregnant` và
+`Young Child` vẫn đi làm bình thường (chỉ được giảm 1 giờ cuối ca), nên hai giai
+đoạn đó không bật cờ.
 
-`custom_sub_status` is an HTML field: it has no database column and stores
-nothing. `get_employee_sub_status()` derives it live from Employee Maternity
-every time the form renders.
+## 🔴 KHÔNG bao giờ đổi `Employee.status` sang `Inactive`
+
+Bản trước của module này lật `Active -> Inactive` khi vào kỳ nghỉ thai sản. Đã bỏ
+hẳn, và đừng dựng lại — bốn lý do, đo trên chính site này:
+
+1. **Mất dữ liệu quẹt thẻ.** `hrms/hr/doctype/employee_checkin/employee_checkin.py:29`
+   gọi `validate_active_employee()` -> throw với Inactive. Máy chấm công đẩy dữ liệu
+   qua API (64.226 bản ghi/tháng) sẽ lỗi. Mà chuyện "HR ghi sai ngày, nhân viên đi làm
+   thật" ĐANG xảy ra: 4 người / 66 lần check-in rơi vào kỳ nghỉ thai sản.
+2. **Engine tính công bỏ qua** (`shift_type_optimized.py`: chỉ `Active` hoặc `Left`).
+3. **Export Excel bỏ qua** (`standard_export.py`: cùng điều kiện).
+4. **Leave Control Panel bỏ qua** (`hrms .../leave_control_panel.py:195` lọc `Active`)
+   -> không cấp phép năm, trong khi Điều 65 NĐ 145/2020 vẫn tính thời gian nghỉ thai
+   sản là thời gian làm việc để hưởng phép năm.
+
+Ngoài ra `status` là field mà hàng chục luồng khác cùng ghi: ngày 25/08/2026 một
+thao tác cập nhật Employee hàng loạt đã ghi đè 34 người vừa được lật sang `Inactive`
+về lại `Active`, và cơ chế cũ (chỉ chạy khi CÓ CHUYỂN TIẾP) không bao giờ sửa lại.
+Cờ riêng + khẳng định lại mỗi đêm là để không lặp lại chuyện đó.
+
+## Nguồn sự thật
+
+Cờ lấy từ `Employee Maternity.status == "Maternity Leave"`, **không** lấy từ khoảng
+ngày. Phải đúng nguồn này vì `api/headcount.py::maternity_leave_employees()` — thứ
+quyết định Net Headcount trên dashboard và daily email — cũng đọc chính nó. Dùng
+khoảng ngày thì hai bên lệch nhau: đo 04/09/2026 có 28 record phủ hôm nay nhưng chỉ
+27 mang status `Maternity Leave` (record còn lại thuộc người đã nghỉ việc, đã được
+đóng thành `Inactive`).
+
+`custom_sub_status` là field HTML: không có cột trong DB, không lưu gì.
+`get_employee_sub_status()` suy ra từ Employee Maternity mỗi lần form render.
 """
 
-from datetime import date
-
 import frappe
-from frappe import _
-from frappe.utils import getdate
+from frappe.utils import cint, getdate
 
 MATERNITY_LEAVE = "Maternity Leave"
 
-# Employee statuses this module is allowed to flip. `Left` and `Suspended` are
-# lifecycle decisions HR made for other reasons — never overwrite them.
-FLIPPABLE_STATUSES = ("Active", "Inactive")
+# Cờ chỉ-đọc trên Employee. Có cột thật trong `tabEmployee` (khác `custom_sub_status`
+# là HTML ảo) để Number Card / Dashboard Chart kiểu "Document Type" lọc được — loại
+# đó chỉ lọc được field nằm trên chính doctype, không join sang Employee Maternity.
+MATERNITY_FLAG_FIELD = "custom_is_maternity_leave"
 
 # Which Employee Maternity record wins when an employee holds several (a second
 # cycle, or a duplicate). Lower number = higher priority. Records with a blank
@@ -47,30 +72,74 @@ PHASE_INDICATOR = {
 # Employee.status sync
 # =============================================================================
 
-def sync_employee_status(employee, old_status, new_status, record=None):
-	"""Flip `Employee.status` when a maternity record enters or leaves `Maternity Leave`.
+def sync_maternity_flag(employee, exclude_record=None):
+	"""Ghi lại `Employee.custom_is_maternity_leave` cho MỘT nhân viên.
 
-	Acts on **transitions only** (old != new). Steady state is deliberately left
-	alone: the daily scheduler re-runs over every record, and reasserting a status
-	on each pass would stomp whatever HR set by hand in between.
+	Suy ra từ DB chứ không nhận trạng thái từ caller: một nhân viên có thể giữ nhiều
+	hồ sơ Employee Maternity (chu kỳ thứ hai, hoặc trùng), nên rời khỏi một hồ sơ
+	không chứng minh được người đó đã đi làm lại.
+
+	`exclude_record`: bắt buộc truyền khi gọi từ `on_trash`. Frappe chạy `on_trash`
+	TRƯỚC khi xoá dòng khỏi DB, nên nếu không loại record đang xoá ra thì nó vẫn tự
+	đếm mình và cờ không bao giờ được gỡ.
+
+	Dùng `db.set_value` chứ không `doc.save()`: vòng đời Employee xoá cache toàn site
+	và vô hiệu hoá User liên kết ở mỗi lần save, cả hai đều không thuộc về một thay
+	đổi giai đoạn thai sản. `update_modified=False` để không đụng `modified` — nếu
+	không, job 00:10 mỗi đêm sẽ đẩy 1.000+ nhân viên lên đầu list "vừa sửa".
 	"""
 	if not employee:
 		return
 
-	old_status = old_status or ""
-	new_status = new_status or ""
-	if old_status == new_status:
+	current = frappe.db.get_value("Employee", employee, MATERNITY_FLAG_FIELD)
+	if current is None and not frappe.db.exists("Employee", employee):
+		return  # nhân viên đã bị xoá
+
+	target = 1 if _has_other_maternity_leave(employee, exclude_record) else 0
+	if cint(current) == target:
 		return
 
-	if new_status == MATERNITY_LEAVE:
-		_set_employee_status(employee, "Inactive", record, new_status)
-	elif old_status == MATERNITY_LEAVE:
-		# A second cycle may still be running on another record — an employee can
-		# hold more than one Employee Maternity row, so leaving this one is not
-		# proof the employee is back at work.
-		if _has_other_maternity_leave(employee, record):
-			return
-		_set_employee_status(employee, "Active", record, new_status)
+	frappe.db.set_value(
+		"Employee", employee, MATERNITY_FLAG_FIELD, target, update_modified=False
+	)
+
+
+def sync_all_maternity_flags():
+	"""Khẳng định lại cờ cho TOÀN BỘ nhân viên. Trả về `{"set": n, "cleared": n}`.
+
+	🔴 Khẳng định lại TẤT CẢ, không chỉ record vừa đổi giai đoạn. Đây đúng là chỗ bản
+	cũ sai: nó chỉ ghi khi có chuyển tiếp, nên khi một thao tác hàng loạt ghi đè mất
+	giá trị (25/08/2026, 34 người) thì không lần chạy nào sau đó sửa lại.
+
+	Hai câu UPDATE theo tập, không lặp từng người: site có 1.042 nhân viên Active và
+	job này chạy hằng đêm.
+	"""
+	on_leave = set(
+		frappe.db.sql_list(
+			"SELECT DISTINCT employee FROM `tabEmployee Maternity`"
+			" WHERE status = %s AND employee IS NOT NULL",
+			MATERNITY_LEAVE,
+		)
+	)
+	flagged = set(
+		frappe.db.sql_list(
+			f"SELECT name FROM `tabEmployee` WHERE `{MATERNITY_FLAG_FIELD}` = 1"
+		)
+	)
+
+	to_set = on_leave - flagged
+	to_clear = flagged - on_leave
+
+	for names, value in ((to_set, 1), (to_clear, 0)):
+		if not names:
+			continue
+		frappe.db.sql(
+			f"UPDATE `tabEmployee` SET `{MATERNITY_FLAG_FIELD}` = %(value)s"
+			" WHERE name IN %(names)s",
+			{"value": value, "names": tuple(names)},
+		)
+
+	return {"set": len(to_set), "cleared": len(to_clear)}
 
 
 def _has_other_maternity_leave(employee, exclude_record):
@@ -78,59 +147,6 @@ def _has_other_maternity_leave(employee, exclude_record):
 	if exclude_record:
 		filters["name"] = ("!=", exclude_record)
 	return bool(frappe.db.exists("Employee Maternity", filters))
-
-
-def _set_employee_status(employee, target, record, phase):
-	"""Write Employee.status, skipping anything outside the Active/Inactive pair.
-
-	Uses db.set_value rather than doc.save(): the Employee lifecycle clears the
-	whole site cache and disables the linked User on every save, and neither
-	belongs in a maternity phase change.
-	"""
-	from customize_erpnext.customize_erpnext.doctype.employee_maternity.employee_maternity import (
-		_has_left,
-	)
-
-	emp = frappe.db.get_value(
-		"Employee", employee, ["status", "relieving_date"], as_dict=True
-	)
-	if not emp or emp.status is None:
-		return  # employee was deleted
-	current = emp.status
-	if current == target or current not in FLIPPABLE_STATUSES:
-		return
-
-	# Không bao giờ gọi người đã nghỉ việc trở lại `Active`. `Left` đã được chặn bởi
-	# FLIPPABLE_STATUSES, nhưng người đang thai sản mang status `Inactive`, mà
-	# `auto_mark_employees_as_left` chỉ quét người `Active` — nên tới ngày nghỉ việc họ
-	# vẫn còn `Inactive`. Khi giai đoạn thai sản đóng lại, nhánh "về Active" ở
-	# `sync_employee_status` sẽ vớ đúng những người này và cho họ đi làm lại trên giấy tờ.
-	# `date.today()` chứ không `nowdate()`: job chạy 00:10, đúng khung giờ mà
-	# `System Settings.time_zone` nhiều lần tự nhảy về `Asia/Kolkata` (UTC+5:30) và làm
-	# `nowdate()` lệch một ngày. `date.today()` đọc đồng hồ OS — cùng đồng hồ với
-	# `calculate_status()`, nên hai bên không bao giờ bất đồng về "hôm nay".
-	if target == "Active" and _has_left(emp.relieving_date, current, date.today()):
-		return
-
-	frappe.db.set_value("Employee", employee, "status", target)
-
-	# Status flips on a batch of people with no visible cause are hard to audit
-	# later, so leave a breadcrumb naming the record that caused it.
-	reason = _("Maternity phase {0}").format(phase or _("cleared"))
-	if record:
-		reason = f"{reason} ({record})"
-	try:
-		frappe.get_doc({
-			"doctype": "Comment",
-			"comment_type": "Info",
-			"reference_doctype": "Employee",
-			"reference_name": employee,
-			"content": _("Status {0} → {1} — {2}").format(current, target, reason),
-		}).insert(ignore_permissions=True)
-	except Exception:
-		frappe.log_error(
-			frappe.get_traceback(), "Employee Maternity status sync: comment failed"
-		)
 
 
 # =============================================================================

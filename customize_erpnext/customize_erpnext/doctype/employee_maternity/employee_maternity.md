@@ -68,10 +68,58 @@ không ai phát hiện ra. Nhưng trong Python `"Left " == "Left"` là **False**
 bằng Python phải `.strip()` (xem `_has_left`). Chỗ khác còn dính bẫy này:
 `overrides/employee/employee.py::mark_employee_left` (hiện vô hại vì job đã lọc `status='Active'` ở SQL).
 
-Vì cùng lý do đó, `_set_employee_status()` chặn thêm một nhánh: **không bao giờ đưa người đã
-nghỉ việc về `Active`**. Khi giai đoạn thai sản đóng lại, nhánh `old == Maternity Leave → Active`
-của `sync_employee_status()` sẽ vớ đúng nhóm `Inactive + đã qua relieving_date` này và cho họ đi
-làm lại trên giấy tờ. `FLIPPABLE_STATUSES` không đỡ được vì status của họ là `Inactive`, không phải `Left`.
+(Đoạn trên viết từ thời module còn lật `Employee.status`. Từ 04/09/2026 **không còn lật nữa** —
+xem mục dưới. `_has_left()` vẫn ưu tiên `relieving_date` vì 17 Intern-000x vẫn mang `Inactive`.)
+
+## 🔴 Không dùng `Employee.status = Inactive` cho thai sản (chốt 04/09/2026)
+
+Trước đây `employee_status_sync.py` lật `Active → Inactive` khi vào kỳ nghỉ thai sản. **Đã bỏ
+hẳn.** Thay bằng cờ chỉ-đọc `Employee.custom_is_maternity_leave`. Bốn lý do, đo trên chính site:
+
+1. **Mất dữ liệu quẹt thẻ.** `hrms/hr/doctype/employee_checkin/employee_checkin.py:29` gọi
+   `validate_active_employee()` → throw với `Inactive`. Máy chấm công đẩy dữ liệu qua API
+   (64.226 bản ghi/tháng) sẽ lỗi. Mà chuyện "HR ghi sai ngày, nhân viên đi làm thật" **đang xảy
+   ra**: 4 người / 66 lần quẹt rơi vào kỳ nghỉ thai sản.
+2. **Engine tính công bỏ qua** — `shift_type_optimized.py` chỉ lấy `Active` hoặc `Left`.
+3. **Export Excel bỏ qua** — `standard_export.py` cùng điều kiện.
+4. **Leave Control Panel bỏ qua** — HRMS lọc `Active`, nên không cấp phép năm, trong khi Điều 65
+   NĐ 145/2020 vẫn tính thời gian nghỉ thai sản là thời gian làm việc để hưởng phép năm.
+
+Và `status` là field hàng chục luồng khác cùng ghi: **25/08/2026 một thao tác cập nhật Employee
+hàng loạt đã ghi đè 34 người vừa lật sang `Inactive` về lại `Active`** (xem Comment audit
+`"Status Active → Inactive — Maternity phase …"`, 34 dòng từ 17/08 đến 26/08), và cơ chế cũ chỉ
+chạy khi CÓ CHUYỂN TIẾP nên không lần nào sửa lại.
+
+### Cờ `custom_is_maternity_leave`
+
+| | |
+|---|---|
+| Kiểu | `Check`, `read_only`, `in_standard_filter` — **cột thật** trong `tabEmployee` |
+| Nguồn | `Employee Maternity.status == "Maternity Leave"`, **không** phải khoảng ngày |
+| Ghi bởi | job 00:10 (`sync_all_maternity_flags`, khẳng định lại TOÀN BỘ), `on_update`, `on_trash` |
+
+🔴 **Nguồn phải là `status`, không phải khoảng ngày.** `api/headcount.py::maternity_leave_employees()`
+— thứ quyết định Net Headcount trên dashboard và daily email — cũng đọc `status`. Đo 04/09/2026:
+28 record có khoảng ngày phủ hôm nay nhưng chỉ **27** mang status `Maternity Leave` (cái lệch
+thuộc người đã nghỉ việc, record đã đóng thành `Inactive`). Lấy khác nguồn là hai con số lệch nhau
+mà không ai truy được vì sao.
+
+🔴 **Cờ chỉ mang nghĩa HÔM NAY.** Mọi thứ tính theo kỳ (engine, Export Excel, báo cáo tháng) vẫn
+phải đọc `maternity_from_date..maternity_to_date`. Join vào cờ này là xuất báo cáo tháng 3 vào
+tháng 9 sẽ ra sai.
+
+Vì sao cần **cột thật** trong khi `Employee Maternity.status` đã có sẵn thông tin: Number Card và
+Dashboard Chart kiểu "Document Type" chỉ lọc được field nằm trên **chính doctype** của chúng,
+không join sang doctype khác. Không có cột này thì 7 chart/card đếm nhân viên của hrms (Total
+Employees, Department Wise Employee Count, Gender Diversity Ratio, Employees by Branch/Type/Grade,
+Designation Wise Employee Count) không có cách nào trừ người đang nghỉ thai sản.
+
+⚠ **Chưa đụng 7 chart/card đó** (chốt 04/09/2026: không sửa bản gốc của hrms vì `is_standard = 1`
++ module HR ⇒ `bench migrate` sync lại từ file app và lật ngược mọi sửa đổi trên UI). Cái nào cần
+thì tạo mới rồi override sau. Sai lệch hiện tại: 27/1.042 ≈ 2,6%.
+
+`is_inactive_for_maternity()` giữ lại làm lưới an toàn cho `Employee.update_user_status()`: nếu HR
+tự tay set `Inactive` cho người đang nghỉ thai sản thì User liên kết vẫn không bị khoá.
 
 Đo trên site 26/08/2026: **36/250 record** đang mở cho người đã nghỉ việc (4 `Maternity Leave`,
 18 `Young Child`, 14 rỗng) — record cũ nhất từ 2023. **Đã chạy Calculate Status trên production
