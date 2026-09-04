@@ -107,6 +107,7 @@
    "read_only": 1
   },
   {
+   "depends_on": "eval:doc.status==\"Pregnant\"",
    "description": "Months",
    "fieldname": "gestational_age",
    "fieldtype": "Float",

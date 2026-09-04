@@ -83,6 +83,23 @@ class EmployeeMaternity(Document):
 
 	@property
 	def gestational_age(self):
+		"""Tuổi thai — CHỈ có nghĩa ở giai đoạn `Pregnant`.
+
+		Sau khi sinh, `estimated_due_date` đã lùi vào quá khứ nên
+		`_gestational_age_months()` kẹp về 9,5 và giai đoạn `Maternity Leave` /
+		`Young Child` hiện "tuổi thai 9,5 tháng" — vô nghĩa với người đã sinh xong.
+		Đo 04/09/2026: HR-EM-TIQN-0919 (Young Child, con sinh 15/03/2026) và
+		HR-EM-TIQN-1478 (Maternity Leave) đều báo 9,5.
+
+		Report `employee_maternity_report` vốn đã chặn đúng (`period["type"] ==
+		"Pregnant"`); đây là chỗ form và API Excel còn sót.
+
+		⚠ Trả `None` KHÔNG đủ để ô trống: field là `Float` nên Frappe ép về `0.0` khi
+		dựng doc. Vì vậy field còn mang `depends_on: eval:doc.status=="Pregnant"` trong
+		doctype json — đó mới là thứ giấu hẳn ô khỏi form. API Excel trả chuỗi rỗng.
+		"""
+		if (self.status or "") != "Pregnant":
+			return None
 		return _gestational_age_months(self.estimated_due_date)
 
 	# =========================================================================
@@ -793,9 +810,13 @@ def get_employee_maternity_for_excel(
 			else:
 				r[k] = v
 
-		# gestational_age
+		# gestational_age — chỉ giai đoạn Pregnant, xem property cùng tên
 		edd = row.get("estimated_due_date")
-		r["gestational_age"] = _gestational_age_months(edd, today_date) if edd else ""
+		r["gestational_age"] = (
+			_gestational_age_months(edd, today_date)
+			if edd and (row.get("status") or "") == "Pregnant"
+			else ""
+		)
 
 		# seniority
 		doj = row.get("date_of_joining")
