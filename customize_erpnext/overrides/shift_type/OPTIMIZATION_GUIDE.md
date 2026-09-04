@@ -61,7 +61,7 @@ Mode detection (`fore_get_logs`):
 2b. **Maternity cleanup** (FULL only) — delete attendance inside Maternity Leave phases (Employee Maternity is source of truth), unlink checkins.
 3. **Per-shift checkin processing** — group by (employee, shift_start):
    - Employment gate here is **joining date only**. `relieving_date` is deliberately NOT a gate on this path: a day with checkins is always calculated, even after the employee left (STEP 4b keeps it and explains it in `custom_note`). Only the no-checkin paths (3b, 4) stop at the relieving date.
-   - working hours = morning + afternoon (break excluded; maternity: end −`maternity_benefit_hours`, afternoon credited).
+   - working hours = morning + afternoon (break excluded; maternity: end −`hour_reduction_hours`, afternoon credited).
    - **OT per-segment** (`calculate_overtime_segments`, LEGACY_APP_TIMESHEET_ALGORITHM.md §7): final = Σ min(actual, approved) per pre/lunch/post segment — NO global clamp; pre actual capped at registered span, min `min_pre_shift_ot_minutes`; post actual uncapped, min `min_ot_minutes`; everything floored to `ot_block_minutes`; lunch counted only when `allow_ot_in_rest_time` is ON.
    - **Sunday** (§8): shift boundaries ← OT registration span; ALL worked hours → `actual_overtime_duration`, `working_hours` = 0 (status still from real hours); no register → approved/final = 0 but actual still shown.
    - 0/1-log days: approved OT still shown from registrations (§7.9), actual/final = 0.
@@ -257,7 +257,7 @@ the no-checkin paths stays. Removing it would carpet pre-2026 Sundays with `Abse
 - **OT**: min_ot_minutes=30, min_pre_shift_ot_minutes=60, ot_block_minutes=1, allow_ot_in_rest_time=0, include_draft_ot=0 (ON = Draft OTRs count; same-zone overlaps merged as span min→max).
 - **Auto Recalc Triggers** (all default OFF — changes wait for the next full run): recalc_attendance_on_ot_change (OTR submit/cancel; with include_draft_ot also draft save/delete, deduped, quiet on save), recalc_attendance_on_maternity_change (that employee only), recalc_attendance_on_checkin_change (that employee+date, deduped, skipped on Data Import).
 - **Shift & Processing**: default_shift=Day, employee_id_prefix=TIQN, working_block_minutes=1, force_update_hours="8,23", exclude_employee_ids, peak_times="07:40,16:00,17:00,19:00,20:00" + peak_window_minutes=20 (**is_peak_time()** skips the hourly hook and all 3 recalc background jobs during these windows; manual Bulk Update never blocked).
-- **Maternity & Leave**: maternity_benefit_hours=1.0, full_day_leave_block_hours=8, **include_draft_leave_application=0** (ON = Draft Leave Applications count too — for when leave is approved on paper but HR has not submitted the documents before the payroll cut-off).
+- **Maternity & Leave**: hour_reduction_hours=1.0, full_day_leave_block_hours=8, **include_draft_leave_application=0** (ON = Draft Leave Applications count too — for when leave is approved on paper but HR has not submitted the documents before the payroll cut-off).
 - **Anomaly note**: note_early_late_threshold_minutes=60, female_checkout_check_from/to=16:00/17:00.
 
 ### Chặn `working_hours` theo đơn nghỉ phép (18/08/2026)

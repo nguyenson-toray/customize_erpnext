@@ -24,7 +24,7 @@ The form has a built-in Vietnamese algorithm reference (collapsible section
 | Recalc Attendance on Maternity Save/Delete | OFF | ON = recalc that employee's affected dates on Employee Maternity save/delete |
 | Recalc Attendance on Checkin Save/Delete | OFF | ON = recalc that employee+date on checkin insert/update/delete (deduped) |
 | Exclude Employee IDs | — | CSV, skipped from processing entirely |
-| Maternity Benefit Hours | 1.0 | Shift end reduced, hours still credited |
+| Hour Reduction Hours | 1.0 | Shift end reduced, hours still credited |
 | Full Day Leave Block Hours | 8 | Block full-day LA when already worked ≥ this |
 | Default Shift | Day | Fallback when no assignment/default |
 | Employee ID Prefix | TIQN | Fallback employee query filter |

@@ -29,7 +29,7 @@ DEFAULTS = {
 	"recalc_attendance_on_checkin_change": 0,
 	"recalc_attendance_on_leave_application_cancel": 0,
 	"exclude_employee_ids": "",
-	"maternity_benefit_hours": 1.0,
+	"hour_reduction_hours": 1.0,
 	"full_day_leave_block_hours": 8.0,
 	"default_shift": "Day",
 	"employee_id_prefix": "TIQN",

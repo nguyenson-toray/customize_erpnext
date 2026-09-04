@@ -12,15 +12,15 @@ from customize_erpnext.customize_erpnext.doctype.attendance_calculation_setting.
 )
 
 
-def get_maternity_benefit_hours():
+def get_hour_reduction_hours():
     """Hours the shift end is reduced for maternity benefit (from settings)."""
-    return flt(get_attendance_settings().maternity_benefit_hours)
+    return flt(get_attendance_settings().hour_reduction_hours)
 
 
 def maternity_adjusted_end(shift_end):
     """Shift end time reduced by maternity benefit hours."""
     shift_end_dt = datetime.combine(datetime.today(), shift_end)
-    return (shift_end_dt - timedelta(hours=get_maternity_benefit_hours())).time()
+    return (shift_end_dt - timedelta(hours=get_hour_reduction_hours())).time()
 
 
 class OvertimeRegistration(Document):
@@ -762,7 +762,7 @@ def validate_ot_continuity_with_shift(begin_time, end_time, shift_config, has_ma
     break_start = shift_config["break_start"]
     break_end = shift_config["break_end"]
 
-    # For maternity, shift ends earlier by maternity_benefit_hours (setting)
+    # For maternity, shift ends earlier by hour_reduction_hours (setting)
     if has_maternity:
         maternity_shift_end = maternity_adjusted_end(shift_end)
     else:
@@ -901,7 +901,7 @@ def check_employees_with_maternity_benefits(entries):
             adjusted_shift_end = maternity_adjusted_end(shift_end)
 
             employees_needing_adjustment.append({
-                "adjust_hours": get_maternity_benefit_hours(),  # JS uses this to shift begin/end times
+                "adjust_hours": get_hour_reduction_hours(),  # JS uses this to shift begin/end times
                 "idx": entry.get("idx"),
                 "employee": employee,
                 "employee_name": employee_name,

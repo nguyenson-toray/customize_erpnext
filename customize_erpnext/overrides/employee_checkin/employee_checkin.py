@@ -123,7 +123,7 @@ def calculate_afternoon_hours(check_in, check_out, shift_end_break_time, shift_e
 	afternoon_hours = time_diff_in_hours(afternoon_end, afternoon_start)
 	if afternoon_hours > 0 and has_maternity:
 		# Maternity benefit: leave early but still counted as full hours
-		afternoon_hours += flt(get_attendance_settings().maternity_benefit_hours)
+		afternoon_hours += flt(get_attendance_settings().hour_reduction_hours)
 	return afternoon_hours
 
 
@@ -400,11 +400,11 @@ def custom_create_or_update_attendance(
 		["start_time", "end_time", "custom_begin_break_time", "custom_end_break_time", "custom_standard_working_hours", "overtime_type","custom_overtime_minutes_threshold", "enable_late_entry_marking", "late_entry_grace_period", "enable_early_exit_marking", "early_exit_grace_period"],
 		as_dict=True
 	)
-	# Maternity benefit: reduce shift end_time by maternity_benefit_hours (setting)
+	# Maternity benefit: reduce shift end_time by hour_reduction_hours (setting)
 	if custom_hour_reduction:
 		# shift_type_details.end_time is a timedelta object (e.g., timedelta(hours=17) for 17:00)
 		shift_type_details.end_time = shift_type_details.end_time - timedelta(
-			hours=flt(get_attendance_settings().maternity_benefit_hours)
+			hours=flt(get_attendance_settings().hour_reduction_hours)
 		)
 
 	# Initialize status (will be set to "Present" if updating existing attendance)

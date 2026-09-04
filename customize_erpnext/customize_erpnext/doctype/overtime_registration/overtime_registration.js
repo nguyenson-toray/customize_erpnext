@@ -1435,7 +1435,7 @@ function check_all_before_save(frm) {
 }
 
 // Adjust begin_time and end_time for employees with maternity benefits
-// (offset comes from server: Attendance Calculation Setting → maternity_benefit_hours)
+// (offset comes from server: Attendance Calculation Setting → hour_reduction_hours)
 function adjust_maternity_employee_times(frm, employees_to_adjust) {
     // Create a map of idx to adjustment hours
     const adjustment_map = new Map();

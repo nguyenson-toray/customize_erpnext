@@ -1122,7 +1122,7 @@ def resolve_no_checkin_attendance(employee: str, att_date: date, ref_data: Dict)
 		# classification needs the adjusted end_time
 		if custom_hour_reduction and seg_shift.get('end_time') is not None:
 			seg_shift.end_time = seg_shift.end_time - timedelta(
-				hours=flt(get_attendance_settings().maternity_benefit_hours)
+				hours=flt(get_attendance_settings().hour_reduction_hours)
 			)
 		approved_ot = calculate_overtime_segments(
 			employee, att_date, None, None, seg_shift, ot_entries=ot_entries
@@ -2048,11 +2048,11 @@ def _core_process_attendance_logic_optimized(
 							shift_type_details.start_time = sunday_start
 							shift_type_details.end_time = sunday_end
 
-					# CRITICAL: Maternity benefit reduces shift end_time by maternity_benefit_hours
+					# CRITICAL: Maternity benefit reduces shift end_time by hour_reduction_hours
 					# (setting; MUST match custom_create_or_update_attendance logic!)
 					if custom_hour_reduction:
 						shift_type_details.end_time = shift_type_details.end_time - timedelta(
-							hours=flt(get_attendance_settings().maternity_benefit_hours)
+							hours=flt(get_attendance_settings().hour_reduction_hours)
 						)
 
 					# Gọi hàm tính working_hours theo logic cũ (morning + afternoon - break)
@@ -2134,7 +2134,7 @@ def _core_process_attendance_logic_optimized(
 						# zone classification needs the adjusted end_time
 						if custom_hour_reduction and seg_shift.get('end_time') is not None:
 							seg_shift.end_time = seg_shift.end_time - timedelta(
-								hours=flt(get_attendance_settings().maternity_benefit_hours)
+								hours=flt(get_attendance_settings().hour_reduction_hours)
 							)
 						approved_overtime = calculate_overtime_segments(
 							employee, attendance_date, in_time, None,

@@ -20906,7 +20906,7 @@ Only employees whose ID starts with this prefix are processed when no explicit e
 Full Update Hours,Giờ chạy cập nhật toàn bộ
 "Hours of day (0-23, comma separated) when the hourly job runs a FULL day reprocess instead of incremental","Các giờ trong ngày (0-23, cách nhau dấu phẩy) mà job hằng giờ chạy xử lý lại TOÀN BỘ ngày thay vì chỉ phần mới"
 Maternity & Leave,Thai sản & Nghỉ phép
-Maternity Benefit Hours,Số giờ quyền lợi thai sản
+Hour Reduction Hours,Số giờ giảm ca
 Hours the shift end is reduced for employees with maternity benefit (leave early but still counted as full hours),Số giờ được giảm cuối ca cho nhân viên hưởng chế độ thai sản (về sớm nhưng vẫn tính đủ giờ)
 Full Day Leave Block Hours,Số giờ chặn nghỉ phép cả ngày
 Block Full Day Leave Application when the employee already has attendance with at least this many working hours,Chặn đơn nghỉ phép cả ngày khi nhân viên đã có chấm công với ít nhất số giờ làm việc này
