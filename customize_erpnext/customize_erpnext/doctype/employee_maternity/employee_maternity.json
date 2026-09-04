@@ -102,7 +102,6 @@
    "description": "Months from Date of Joining to today",
    "fieldname": "seniority",
    "fieldtype": "Int",
-   "is_virtual": 1,
    "label": "Seniority",
    "read_only": 1
   },
@@ -111,7 +110,6 @@
    "description": "Months",
    "fieldname": "gestational_age",
    "fieldtype": "Data",
-   "is_virtual": 1,
    "label": "Gestational Age",
    "read_only": 1
   },

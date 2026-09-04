@@ -3,7 +3,7 @@
 
 import frappe
 from frappe import _
-from frappe.utils import getdate, add_days, add_months, today
+from frappe.utils import flt, getdate, add_days, add_months, today
 from frappe.model.document import Document
 from datetime import date
 from dateutil.relativedelta import relativedelta
@@ -22,6 +22,33 @@ def _gestational_age_months(estimated_due_date, on_date=None):
 	rd = relativedelta(edd, on_date)
 	months_diff = rd.years * 12 + rd.months
 	return max(0, min(9.5, round(9.5 - (months_diff + 1), 1)))
+
+
+def _seniority_months(date_of_joining, on_date=None):
+	"""Thâm niên tính bằng THÁNG TRÒN từ ngày vào làm."""
+	if not date_of_joining:
+		return 0
+	on_date = on_date or date.today()
+	rd = relativedelta(on_date, getdate(date_of_joining))
+	return rd.years * 12 + rd.months
+
+
+def _gestational_age_display(estimated_due_date, status, on_date=None):
+	"""Giá trị lưu vào cột `gestational_age`, hoặc `None`.
+
+	Chỉ có nghĩa ở giai đoạn `Pregnant`: sau khi sinh, `estimated_due_date` đã lùi vào
+	quá khứ nên `_gestational_age_months()` kẹp về 9,5 và `Maternity Leave` /
+	`Young Child` sẽ hiện "tuổi thai 9,5 tháng" — vô nghĩa với người đã sinh xong.
+
+	🔴 Trả CHUỖI (hoặc None) vì cột là `Data`, KHÔNG được đổi sang `Float`:
+	`base_document.get_valid_dict()` ép `flt(value)` vô điều kiện cho mọi fieldtype
+	float-like (`frappe/model/base_document.py:561`) nên `None` thành `0.0` — mà
+	"tuổi thai 0 tháng" cho người đã sinh cũng sai như 9,5. Đổi ngược lại là 0.0 quay
+	lại ngay và im lặng. API Excel tự đổi về số khi trả ra.
+	"""
+	if (status or "") != "Pregnant" or not estimated_due_date:
+		return None
+	return f"{_gestational_age_months(estimated_due_date, on_date):.1f}"
 
 
 def _has_left(relieving_date, employee_status, on_date):
@@ -68,44 +95,28 @@ def make_maternity_name(employee, exclude=None):
 
 class EmployeeMaternity(Document):
 	# =========================================================================
-	# Virtual Fields
+	# Derived metrics — LƯU DB, không còn virtual
 	# =========================================================================
+	#
+	# Trước 04/09/2026 hai field này là `is_virtual`. Bỏ virtual để API Excel /
+	# PowerQuery đọc thẳng cột thay vì tính lại từng dòng mỗi lần gọi.
+	#
+	# 🔴 ĐỪNG dựng lại `@property` cùng tên: field thật thì Frappe GÁN
+	# `self.<fieldname> = value` khi nạp doc, mà property không có setter sẽ ném
+	# `AttributeError: can't set attribute` — hỏng mọi thao tác đọc/ghi doc.
+	#
+	# Cả hai phụ thuộc "hôm nay" nên phải tính lại HẰNG NGÀY cùng `status`:
+	# `calculate_all_maternity_statuses()` (job 00:10) gọi `calculate_derived_metrics()`
+	# cho MỌI record, không chỉ record đổi giai đoạn.
 
-	@property
-	def seniority(self):
-		"""Seniority in months from date_of_joining to today"""
-		if not self.date_of_joining:
-			return 0
-		doj = getdate(self.date_of_joining)
-		today_date = date.today()
-		rd = relativedelta(today_date, doj)
-		return rd.years * 12 + rd.months
+	def calculate_derived_metrics(self):
+		"""Tính `seniority` và `gestational_age`. Gọi SAU `calculate_status()`.
 
-	@property
-	def gestational_age(self):
-		"""Tuổi thai — CHỈ có nghĩa ở giai đoạn `Pregnant`.
-
-		Sau khi sinh, `estimated_due_date` đã lùi vào quá khứ nên
-		`_gestational_age_months()` kẹp về 9,5 và giai đoạn `Maternity Leave` /
-		`Young Child` hiện "tuổi thai 9,5 tháng" — vô nghĩa với người đã sinh xong.
-		Đo 04/09/2026: HR-EM-TIQN-0919 (Young Child, con sinh 15/03/2026) và
-		HR-EM-TIQN-1478 (Maternity Leave) đều báo 9,5.
-
-		Report `employee_maternity_report` vốn đã chặn đúng (`period["type"] ==
-		"Pregnant"`); đây là chỗ form và API Excel còn sót.
-
-		🔴 Field phải là `Data`, KHÔNG được là `Float`. `base_document.get_valid_dict()`
-		ép `flt(value)` cho mọi fieldtype float-like (`base_document.py:561`) nên `None`
-		thành `0.0`, không có cách nào giữ null — mà "tuổi thai 0" cũng sai như 9,5.
-		`Data` không rơi vào nhánh cast nào nên `None` đi thẳng ra ngoài. Đổi lại thành
-		Float là 0.0 quay lại ngay, im lặng.
-
-		Field còn mang `depends_on: eval:doc.status=="Pregnant"` để giấu hẳn ô rỗng khỏi
-		form. API Excel trả chuỗi rỗng.
+		Thứ tự bắt buộc: `gestational_age` chỉ có nghĩa khi `status == "Pregnant"`,
+		mà `status` do `calculate_status()` đặt.
 		"""
-		if (self.status or "") != "Pregnant":
-			return None
-		return _gestational_age_months(self.estimated_due_date)
+		self.seniority = _seniority_months(self.date_of_joining)
+		self.gestational_age = _gestational_age_display(self.estimated_due_date, self.status)
 
 	# =========================================================================
 	# Naming
@@ -125,6 +136,7 @@ class EmployeeMaternity(Document):
 		self.validate_dates()
 		self.validate_date_overlap()
 		self.calculate_status()
+		self.calculate_derived_metrics()
 
 	def calculate_derived_dates(self):
 		"""Auto-calculate derived dates. Mirrors _recalculate_derived() in employee_maternity.js
@@ -592,6 +604,7 @@ def calculate_all_maternity_statuses(names=None):
 
 	updated = 0
 	closed_for_left = 0
+	metrics_updated = 0
 	for r in records:
 		doc = frappe.get_doc("Employee Maternity", r.name)
 		old_status = doc.status or ""
@@ -605,6 +618,20 @@ def calculate_all_maternity_statuses(names=None):
 			if doc.employee_has_left(employment=employment.get(doc.employee) or {}):
 				closed_for_left += 1
 
+		# `seniority` và `gestational_age` phụ thuộc "hôm nay" nên phải tính lại cho MỌI
+		# record, kể cả record không đổi giai đoạn — thâm niên tăng mỗi tháng và tuổi thai
+		# tăng mỗi ngày. Đây là lý do hai field bỏ virtual mà vẫn luôn đúng.
+		old_seniority, old_gest = doc.seniority, doc.gestational_age
+		doc.calculate_derived_metrics()
+		changes = {}
+		if doc.seniority != old_seniority:
+			changes["seniority"] = doc.seniority
+		if doc.gestational_age != old_gest:
+			changes["gestational_age"] = doc.gestational_age
+		if changes:
+			doc.db_set(changes, update_modified=False)
+			metrics_updated += 1
+
 	# 🔴 Khẳng định lại cờ cho TOÀN BỘ nhân viên, không chỉ record vừa đổi giai đoạn.
 	# Bản cũ chỉ đồng bộ khi có chuyển tiếp, nên khi một thao tác cập nhật Employee
 	# hàng loạt ghi đè mất giá trị (25/08/2026, 34 người) thì không lần chạy nào sau
@@ -615,6 +642,7 @@ def calculate_all_maternity_statuses(names=None):
 		"updated": updated,
 		"total": len(records),
 		"closed_for_left": closed_for_left,
+		"metrics_updated": metrics_updated,
 		"flags_set": flags["set"],
 		"flags_cleared": flags["cleared"],
 	}
@@ -633,6 +661,7 @@ def scheduled_calculate_all_maternity_statuses():
 			f"[Scheduler] Employee Maternity status recalc: "
 			f"updated {result['updated']} / {result['total']} records "
 			f"({result['closed_for_left']} đóng vì nhân viên đã nghỉ việc); "
+			f"metrics {result['metrics_updated']}; "
 			f"cờ thai sản: bật {result['flags_set']}, gỡ {result['flags_cleared']}"
 		)
 	except Exception as e:
@@ -682,16 +711,16 @@ _MATERNITY_LABELS_VI = {
 	"designation":        "Chức danh",
 	"date_of_joining":    "Ngày vào làm",
 	"status":             "Trạng thái",
-	"apply_hour_reduction": "Áp dụng giảm 1 giờ",
+	"apply_hour_reduction": "Áp dụng giảm 1h",
 	"note":               "Ghi chú",
-	"pregnant_from_date": "Ngày bắt đầu thai kỳ",
-	"pregnant_to_date":   "Ngày kết thúc thai kỳ",
+	"pregnant_from_date": "Ngày BĐ chế độ mang thai",
+	"pregnant_to_date":   "Ngày KT chế độ mang thai",
 	"estimated_due_date": "Ngày dự sinh",
-	"maternity_from_date":"Ngày bắt đầu nghỉ thai sản",
-	"maternity_to_date":  "Ngày kết thúc nghỉ thai sản",
+	"maternity_from_date":"Ngày BĐ nghỉ thai sản",
+	"maternity_to_date":  "Ngày KT nghỉ thai sản",
 	"date_of_birth":      "Ngày sinh (con)",
-	"youg_child_from_date":"Ngày bắt đầu con nhỏ",
-	"youg_child_to_date": "Ngày kết thúc con nhỏ",
+	"youg_child_from_date":"Ngày BĐ chế độ con nhỏ",
+	"youg_child_to_date": "Ngày KT chế độ con nhỏ",
 	"gestational_age":    "Tuổi thai (tháng)",
 	"seniority":          "Thâm niên (tháng)",
 }
@@ -723,8 +752,6 @@ def get_employee_maternity_for_excel(
 		{ data, columns, col_keys, total, page, page_size, total_pages }
 	"""
 	from math import ceil
-	from datetime import date as _date
-	from dateutil.relativedelta import relativedelta as _rd
 
 	page      = frappe.utils.cint(page)
 	page_size = frappe.utils.cint(page_size)
@@ -758,7 +785,7 @@ def get_employee_maternity_for_excel(
 		params,
 	)[0][0]
 
-	# Fetch rows (exclude virtual fields gestational_age & seniority)
+	# `gestational_age` / `seniority` giờ là CỘT THẬT — đọc thẳng, không tính lại từng dòng.
 	if load_all:
 		rows = frappe.db.sql(
 			f"""
@@ -768,7 +795,8 @@ def get_employee_maternity_for_excel(
 				em.status, em.apply_hour_reduction, em.note,
 				em.pregnant_from_date, em.pregnant_to_date, em.estimated_due_date,
 				em.maternity_from_date, em.maternity_to_date, em.date_of_birth,
-				em.youg_child_from_date, em.youg_child_to_date
+				em.youg_child_from_date, em.youg_child_to_date,
+				em.gestational_age, em.seniority
 			FROM `tabEmployee Maternity` em
 			LEFT JOIN `tabEmployee` emp ON emp.name = em.employee
 			{where_sql}
@@ -791,7 +819,8 @@ def get_employee_maternity_for_excel(
 				em.status, em.apply_hour_reduction, em.note,
 				em.pregnant_from_date, em.pregnant_to_date, em.estimated_due_date,
 				em.maternity_from_date, em.maternity_to_date, em.date_of_birth,
-				em.youg_child_from_date, em.youg_child_to_date
+				em.youg_child_from_date, em.youg_child_to_date,
+				em.gestational_age, em.seniority
 			FROM `tabEmployee Maternity` em
 			LEFT JOIN `tabEmployee` emp ON emp.name = em.employee
 			{where_sql}
@@ -802,8 +831,7 @@ def get_employee_maternity_for_excel(
 			as_dict=True,
 		)
 
-	# Compute virtual fields + sanitize
-	today_date = _date.today()
+	# Chỉ sanitize — hai field dẫn xuất đã nằm sẵn trong cột, job 00:10 giữ chúng đúng.
 	cleaned = []
 	for row in rows:
 		r = {}
@@ -815,21 +843,9 @@ def get_employee_maternity_for_excel(
 			else:
 				r[k] = v
 
-		# gestational_age — chỉ giai đoạn Pregnant, xem property cùng tên
-		edd = row.get("estimated_due_date")
-		r["gestational_age"] = (
-			_gestational_age_months(edd, today_date)
-			if edd and (row.get("status") or "") == "Pregnant"
-			else ""
-		)
-
-		# seniority
-		doj = row.get("date_of_joining")
-		if doj:
-			diff = _rd(today_date, getdate(doj))
-			r["seniority"] = diff.years * 12 + diff.months
-		else:
-			r["seniority"] = ""
+		# Cột `gestational_age` là `Data` (để giữ được NULL) nên đọc ra là chuỗi — Excel
+		# cần SỐ, đổi lại ở đây. Rỗng thì giữ rỗng, đừng biến thành 0.
+		r["gestational_age"] = flt(r["gestational_age"]) if r["gestational_age"] != "" else ""
 
 		cleaned.append(r)
 
