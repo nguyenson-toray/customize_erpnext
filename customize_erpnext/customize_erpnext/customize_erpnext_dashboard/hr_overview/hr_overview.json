@@ -18,12 +18,12 @@
  ],
  "charts": [
   {
-   "chart": "HR Overview - Absent by Line, Team",
+   "chart": "Daily Attendance - Attendance by Group",
    "width": "Full"
   },
   {
-   "chart": "HR Overview - Absent by Section",
-   "width": "Half"
+   "chart": "Daily Attendance - Sewing Lines",
+   "width": "Full"
   },
   {
    "chart": "Overtime Registration Quantity",
@@ -34,8 +34,16 @@
    "width": "Half"
   },
   {
-   "chart": "Employees by Grade",
+   "chart": "Employee Resign By Reason Group",
    "width": "Half"
+  },
+  {
+   "chart": "Employee Resignation Quantity",
+   "width": "Half"
+  },
+  {
+   "chart": "Employee Resign By Reason Group 2",
+   "width": "Full"
   },
   {
    "chart": "Gender Diversity Ratio",
@@ -46,16 +54,8 @@
    "width": "Half"
   },
   {
-   "chart": "Employee Resignation",
+   "chart": "Employees by Grade",
    "width": "Half"
-  },
-  {
-   "chart": "Employee Resign By Reason Group",
-   "width": "Half"
-  },
-  {
-   "chart": "Employee Resign By Reason Group 2",
-   "width": "Full"
   }
  ],
  "creation": "2026-07-20 13:18:18.776203",
@@ -65,7 +65,7 @@
  "idx": 0,
  "is_default": 0,
  "is_standard": 1,
- "modified": "2026-08-22 15:43:03.839767",
+ "modified": "2026-09-04 14:40:02.576505",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "HR Overview",
