@@ -136,7 +136,7 @@ flowchart TD
 > | **Lương** | `Salary Structure Assignment` · `Salary Slip` |
 > | **Chế độ** | `Employee Maternity` · `Health Check-Up` |
 > | **Cấp phát** | `Employee Uniform Profile` · `Employee Item Reissue` · `Shoe Rack` |
-> | **Tự cập nhật** | `Employee Self Update Info` · `Employee Self Update Form` |
+> | **Tự cập nhật** | `Employee Self Update Info` |
 
 > **Báo cáo đọc Employee:** `Shift Attendance Customize` · `OT Compliance` ·
 > `Overtime Registration` \(3 biến thể\) · `Labor Contract Report` · `Employee Maternity Report` ·

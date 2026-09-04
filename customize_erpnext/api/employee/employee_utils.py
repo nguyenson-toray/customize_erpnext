@@ -2517,12 +2517,11 @@ _EMPLOYEE_FIELDS = [
 	# ra từ employee_name, không mang thêm thông tin nào cho hồ sơ Việt Nam.
 	"naming_series", "salutation",
 	"gender", "date_of_birth", "blood_group", "marital_status",
-	"custom_number_of_childrens",
 
 	# --- Thông tin công việc ---
 	"date_of_joining", "employment_type", "department", "custom_section",
 	"custom_group", "designation", "custom_designation_vietnamese",
-	"custom_direct_indirect_", "grade", "branch", "reports_to",
+	"grade", "branch", "reports_to",
 	"scheduled_confirmation_date", "final_confirmation_date",
 	"custom_probation_days", "contract_end_date", "date_of_retirement",
 	"notice_number_of_days", "holiday_list", "default_shift",
@@ -2544,11 +2543,8 @@ _EMPLOYEE_FIELDS = [
 	"custom_current_address_province", "custom_current_address_commune",
 	"custom_current_address_village", "custom_current_address_full",
 
-	# 🚧 TẠM TẮT 21/08/2026 — field custom_place_of_origin_address_* đã bị gỡ khỏi Employee.
-	#    Giữ nguyên để khai lại sau; bỏ comment cả khối là chạy như cũ.
-	# # --- Quê quán ---
-	# "custom_place_of_origin_address_province", "custom_place_of_origin_address_commune",
-	# "custom_place_of_origin_address_village", "custom_place_of_origin_address_full",
+	# ⛔ 04/09/2026 — bộ custom_place_of_origin_address_* (quê quán) đã DROP hẳn khỏi
+	#    tabEmployee. Không khai lại được bằng cách bỏ comment; phải tạo lại Custom Field.
 
 	# --- Liên hệ ---
 	"cell_number", "personal_email", "company_email", "prefered_email",
@@ -2563,14 +2559,8 @@ _EMPLOYEE_FIELDS = [
 	# --- Bảo hiểm y tế ---
 	"health_insurance_provider", "health_insurance_no",
 
-	# --- Học vấn ---
-	"custom_education_level", "custom_university", "custom_major",
-	"custom_education_detail",
-
 	# --- Thông tin thêm ---
 	"custom_shirt_size", "custom_shoe_size", "custom_driving_license",
-	"custom_driving_license_note", "custom_favorite_sport", "custom_vegetarian",
-	"custom_strengths",
 
 	# --- Phê duyệt ---
 	"leave_approver", "expense_approver", "shift_request_approver",
@@ -2601,9 +2591,8 @@ _EMPLOYEE_COLUMN_LABELS_EN = {
     "cell_number": "Mobile",
 	"blood_group": "Blood Group", "marital_status": "Marital Status",
     "bank_name": "Bank Name", "custom_bank_branch": "Bank Branch","bank_ac_no": "Bank Account No",
-	"custom_number_of_childrens": "Number of Children",
 	"employment_type": "Employment Type",	
-	"custom_direct_indirect_": "Direct / Indirect", "grade": "Grade",
+	"grade": "Grade",
 	"custom_probation_days": "Probation Days",
 	"contract_end_date": "Contract End Date", "date_of_retirement": "Date of Retirement",
 	"notice_number_of_days": "Notice (Days)", "holiday_list": "Holiday List",
@@ -2621,12 +2610,6 @@ _EMPLOYEE_COLUMN_LABELS_EN = {
 	"custom_current_address_commune": "Current Address - Commune",
 	"custom_current_address_village": "Current Address - Village",
 	"custom_current_address_full": "Current Address - Full",
-	# 🚧 TẠM TẮT 21/08/2026 — field custom_place_of_origin_address_* đã bị gỡ khỏi Employee.
-	#    Giữ nguyên để khai lại sau; bỏ comment cả khối là chạy như cũ.
-	# "custom_place_of_origin_address_province": "Place of Origin - Province",
-	# "custom_place_of_origin_address_commune": "Place of Origin - Commune",
-	# "custom_place_of_origin_address_village": "Place of Origin - Village",
-	# "custom_place_of_origin_address_full": "Place of Origin - Full",
 	"personal_email": "Personal Email",
 	"company_email": "Company Email", "prefered_email": "Preferred Email",
 	"prefered_contact_email": "Preferred Contact Email", "user_id": "User ID",
@@ -2637,12 +2620,8 @@ _EMPLOYEE_COLUMN_LABELS_EN = {
 	"custom_tax_code": "Tax Code", "custom_social_insurance_number": "Social Insurance No",
 	"custom_privilege": "Privilege",
 	"health_insurance_provider": "Health Insurance Provider", "health_insurance_no": "Health Insurance No",
-	"custom_education_level": "Education Level", "custom_university": "University",
-	"custom_major": "Major", "custom_education_detail": "Education Detail",
 	"custom_shirt_size": "Shirt Size", "custom_shoe_size": "Shoe Size",
-	"custom_driving_license": "Driving License", "custom_driving_license_note": "Driving License Note",
-	"custom_favorite_sport": "Favorite Sport", "custom_vegetarian": "Vegetarian",
-	"custom_strengths": "Strengths",
+	"custom_driving_license": "Driving License",
 	"leave_approver": "Leave Approver", "expense_approver": "Expense Approver",
 	"shift_request_approver": "Shift Request Approver", "payroll_cost_center": "Payroll Cost Center",
 	"employee_advance_account": "Employee Advance Account",
@@ -2660,11 +2639,10 @@ _EMPLOYEE_COLUMN_LABELS_VI = {
 	"salutation": "Danh xưng",
 	"gender": "Giới tính", "date_of_birth": "Ngày sinh",
 	"blood_group": "Nhóm máu", "marital_status": "Tình trạng hôn nhân",
-	"custom_number_of_childrens": "Số con",
 	"date_of_joining": "Ngày vào làm", "employment_type": "Loại HĐ",
 	"department": "Phòng ban", "custom_section": "Bộ phận", "custom_group": "Nhóm",
 	"designation": "Chức vụ", "custom_designation_vietnamese": "Chức vụ (VN)",
-	"custom_direct_indirect_": "Direct/Indirect", "grade": "Cấp bậc",
+	"grade": "Cấp bậc",
 	"branch": "Chi nhánh", "reports_to": "Quản lý trực tiếp",
 	"scheduled_confirmation_date": "Ngày offer", "final_confirmation_date": "Ngày xác nhận",
 	"custom_probation_days": "Ngày thử việc",
@@ -2685,12 +2663,6 @@ _EMPLOYEE_COLUMN_LABELS_VI = {
 	"custom_current_address_commune": "Hiện tại - Xã",
 	"custom_current_address_village": "Hiện tại - Thôn",
 	"custom_current_address_full": "Hiện tại - Địa chỉ đầy đủ",
-	# 🚧 TẠM TẮT 21/08/2026 — field custom_place_of_origin_address_* đã bị gỡ khỏi Employee.
-	#    Giữ nguyên để khai lại sau; bỏ comment cả khối là chạy như cũ.
-	# "custom_place_of_origin_address_province": "Quê quán - Tỉnh",
-	# "custom_place_of_origin_address_commune": "Quê quán - Xã",
-	# "custom_place_of_origin_address_village": "Quê quán - Thôn",
-	# "custom_place_of_origin_address_full": "Quê quán - Địa chỉ đầy đủ",
 	"cell_number": "Số điện thoại", "personal_email": "Email cá nhân",
 	"company_email": "Email công ty", "prefered_email": "Email ưu tiên",
 	"prefered_contact_email": "Loại email ưu tiên", "user_id": "User ID",
@@ -2702,12 +2674,8 @@ _EMPLOYEE_COLUMN_LABELS_VI = {
 	"custom_tax_code": "Mã số thuế", "custom_social_insurance_number": "Số BHXH",
 	"custom_privilege": "Quyền lợi",
 	"health_insurance_provider": "Nhà cung cấp BHYT", "health_insurance_no": "Số thẻ BHYT",
-	"custom_education_level": "Trình độ học vấn", "custom_university": "Trường",
-	"custom_major": "Ngành học", "custom_education_detail": "Chi tiết học vấn",
 	"custom_shirt_size": "Cỡ áo", "custom_shoe_size": "Cỡ giày",
-	"custom_driving_license": "Bằng lái xe", "custom_driving_license_note": "Ghi chú bằng lái",
-	"custom_favorite_sport": "Thể thao yêu thích", "custom_vegetarian": "Ăn chay",
-	"custom_strengths": "Điểm mạnh",
+	"custom_driving_license": "Bằng lái xe",
 	"leave_approver": "Người duyệt nghỉ phép", "expense_approver": "Người duyệt chi phí",
 	"shift_request_approver": "Người duyệt ca", "payroll_cost_center": "Cost Center lương",
 	"employee_advance_account": "Tài khoản ứng trước",
