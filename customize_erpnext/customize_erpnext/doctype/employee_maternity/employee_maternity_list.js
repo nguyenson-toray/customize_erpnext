@@ -1,4 +1,27 @@
 frappe.listview_settings["Employee Maternity"] = {
+	add_fields: ["status"],
+
+	get_indicator(doc) {
+		// Bảng màu để TRONG hàm có chủ đích: `*_list.js` được nạp thẳng vào global scope
+		// của desk, khai báo `const` ở top-level mà trùng tên với một file list khác là
+		// "Identifier has already been declared" và vỡ cả trang list.
+		//
+		// Màu phải khớp `employee_status_sync.PHASE_INDICATOR` — cùng một trạng thái mà
+		// pill trên form Employee (`custom_sub_status`) một màu, list một màu khác thì
+		// rất khó chịu. Sửa một bên phải sửa bên kia.
+		const color = {
+			"Pregnant": "blue",
+			"Maternity Leave": "orange",
+			"Young Child": "green",
+			"Inactive": "gray",
+		}[doc.status];
+
+		// Status rỗng = chưa rơi vào giai đoạn nào. Cố ý KHÔNG trả indicator: để trống
+		// còn phân biệt được với `Inactive` (hồ sơ đã đóng), vốn cũng màu xám.
+		if (!color) return;
+		return [__(doc.status), color, `status,=,${doc.status}`];
+	},
+
 	onload(listview) {
 		// ── Button: Calculate Status ────────────────────────────────
 		listview.page.add_inner_button(__("Calculate Status"), () => {
