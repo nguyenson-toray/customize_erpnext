@@ -27,7 +27,7 @@ Kỳ lương: **26 tháng trước → 25 tháng này**.
 | Ngày lễ không còn bị trừ lương (mục 4.8) | ✅ sửa 10/08/2026 |
 | **Rà soát lượt quẹt thiếu trước khi chốt lương (mục 4.10)** | ⚠ **quy trình BẮT BUỘC của HR** |
 | `custom_salary_month` (mục 4.9) | ✅ |
-| **Dữ liệu nghỉ phép** | 🟠 đã import **7.097 đơn ở dạng draft**, chờ submit — xem `../leave_application/PLAN_IMPORT_AL_2026.md` |
+| **Dữ liệu nghỉ phép** | ✅ import lại từ `AL_data_2026.xlsx` ngày 05/09/2026: **7.460 đơn đã submit** (16 dòng trùng ngày + 6 đơn "đã đi làm đủ 8 giờ" chờ HR xử lý) — xem `../leave_application/import_leave_application.py` |
 | **Dữ liệu không lương / hưởng BH** | 🟠 nằm trong 7.097 đơn trên |
 | **Dữ liệu người phụ thuộc** | 🔴 chưa có — thuế đang tính với 0 NPT |
 | **Lương HĐLĐ của ~1.036 NV Active** | 🔴 mới có 16 người |

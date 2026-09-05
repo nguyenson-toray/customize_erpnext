@@ -252,8 +252,16 @@ làm sai lệch kết quả — phải dùng đúng đường ghi mà production
 
 ## 4c. GĐ 9 — Import dữ liệu nghỉ phép 2026 của HR
 
-HR đưa `AL_data.xlsx` (9.745 dòng, 25/04/2025 → 25/08/2026) để import **sau khi** các GĐ trên xong.
-Kế hoạch riêng: [`PLAN_IMPORT_AL_2026.md`](PLAN_IMPORT_AL_2026.md).
+Đợt đầu (10/08/2026) import từ `AL_data.xlsx` (9.745 dòng, 25/04/2025 → 25/08/2026).
+
+> ⛔ **Đã thay thế 05/09/2026.** File Excel cũ, tool import cũ và bản plan riêng của đợt đó đều
+> đã xoá. HR chuyển sang `AL_data_2026.xlsx` — mỗi dòng là một đơn nghỉ hoàn chỉnh, có sẵn
+> `From Date` / `To Date` / `Leave Type Name`, nên toàn bộ phần gom dòng → đơn của bản cũ không
+> còn cần. Tool hiện tại: [`import_leave_application.py`](import_leave_application.py), đã ghi
+> đầy đủ quy trình 4 bước + các bẫy trong docstring của chính nó.
+>
+> Kết quả import lại: xoá sạch rồi dựng lại **7.460 đơn đã submit**; 16 dòng trùng ngày và 6 đơn
+> "đã đi làm đủ 8 giờ" bị từ chối, chờ HR xử lý.
 
 Hai điều file đó **đổi lại** plan này:
 
@@ -262,7 +270,7 @@ Hai điều file đó **đổi lại** plan này:
 - ⚠️ **Vấn đề 1 đang chờ sẵn 1.723 dòng `P/2`** — nhưng đo lại thì **1.709/1.723** dòng đó ERP đã
   có checkin nên vẫn ra `Present` đúng; chỉ **14** dòng lệch (≈ 7 ngày lương), không phải con số
   861 mà bản plan đầu ước tính. Thứ tự "override trước" vẫn đúng, lý do là **tính đúng đắn và khả
-  năng kiểm chứng**, không phải quy mô tiền. Chi tiết: `PLAN_IMPORT_AL_2026.md` mục 8.
+  năng kiểm chứng**, không phải quy mô tiền.
 
 ## 4d. ✅ Đã thực hiện — 10/08/2026
 
@@ -301,7 +309,7 @@ Phát sinh trong lúc làm, đã code xong:
 | **Leave Control Panel** chọn NV theo khoảng làm việc, không theo `status = Active` | `overrides/leave_control_panel/` | kỳ 26/12/2025 → 25/12/2026: **1.036 → 1.508** người (+447 Left nghỉ giữa kỳ, +25 Inactive); 893 người nghỉ trước kỳ vẫn bị loại |
 | **Phép năm chia theo tỷ lệ** thay cho "tháng bonus" | `overrides/earned_leave/` | `annual/12` floor 1 chữ số, tháng 12 điều chỉnh; + mốc 14 ngày Điều 66 NĐ 145/2020 |
 | **Ngày lễ không còn bị trừ lương** | `overrides/salary_slip/` | `PAYROLL_SETUP.md` mục 4.8 — đo được mất 5,69 triệu/người kỳ Tết |
-| Import 7.097 đơn nghỉ | `import_leave.py` | `PLAN_IMPORT_AL_2026.md` mục 12 |
+| Import 7.097 đơn nghỉ | ~~`import_leave.py`~~ (đã xoá 05/09/2026) | thay bằng `import_leave_application.py` + `AL_data_2026.xlsx` |
 
 ## 5. Thứ tự đề xuất
 

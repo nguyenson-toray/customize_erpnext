@@ -168,9 +168,9 @@ def load_export_universe(from_date, to_date, department=None, only_resigned=Fals
             if r.in_time:
                 dates.add(r.attendance_date)
 
-    # Ngày nghỉ theo Holiday List đang được gán cho nhân viên. Dùng cho luật "CN/lễ chỉ hiện
-    # người thực sự đi làm" của sheet Detail. Cùng nguồn với import_leave._holidays() để hai
-    # bên không lệch nhau.
+    # Ngày nghỉ theo Holiday List đang được gán cho nhân viên (`Holiday List Assignment`).
+    # Dùng cho luật "CN/lễ chỉ hiện người thực sự đi làm" của sheet Detail. Mọi chỗ cần ngày
+    # lễ phải đọc cùng nguồn này, nếu không hai bên lệch nhau.
     holidays = {
         getdate(h.holiday_date)
         for h in frappe.get_all(

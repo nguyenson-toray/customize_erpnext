@@ -41,7 +41,6 @@ trong app này.
 - `overrides/leave_reports/leave_reports.md` — Override 2 report số dư phép — chỉ phép năm, tính trong bộ nhớ
 - `overrides/leave_application/leave_summary_doc.md` — leave summary doc
 - `overrides/leave_application/PLAN_LEAVE_OVERRIDE.md` — Plan — Rà soát & sửa override Nghỉ phép
-- `overrides/leave_application/PLAN_IMPORT_AL_2026.md` — Plan — Import dữ liệu nghỉ phép 2026 của HR (`AL_data.xlsx`)
 
 ## Tiền lương
 
