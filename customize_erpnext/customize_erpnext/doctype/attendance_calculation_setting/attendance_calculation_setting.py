@@ -28,7 +28,6 @@ DEFAULTS = {
 	"recalc_attendance_on_maternity_change": 0,
 	"recalc_attendance_on_checkin_change": 0,
 	"recalc_attendance_on_leave_application_cancel": 0,
-	"exclude_employee_ids": "",
 	"hour_reduction_hours": 1.0,
 	"full_day_leave_block_hours": 8.0,
 	"default_shift": "Day",
@@ -51,7 +50,6 @@ ZERO_ALLOWED_FIELDS = {
 	"recalc_attendance_on_maternity_change",
 	"recalc_attendance_on_checkin_change",
 	"recalc_attendance_on_leave_application_cancel",
-	"exclude_employee_ids",
 	"peak_times",  # cleared field = peak-skip disabled (never-set = defaults)
 }
 
@@ -182,19 +180,57 @@ def is_peak_time(check_dt=None) -> bool:
 	return False
 
 
+def _legacy_exclude_text() -> str:
+	"""Giá trị ô `exclude_employee_ids` cũ, đọc THẲNG `tabSingles`.
+
+	🔴 KHÔNG dùng `frappe.db.get_single_value()`: hàm đó kiểm tra meta và `frappe.throw`
+	`Field ... does not exist` khi field đã bị gỡ khỏi doctype — tức đúng tình huống này.
+	Dùng nó ở đây làm sập luôn engine tính công, vì mọi nơi đều gọi qua
+	`get_excluded_employee_ids()`.
+	"""
+	row = frappe.db.sql(
+		"SELECT value FROM tabSingles WHERE doctype = %s AND field = %s",
+		("Attendance Calculation Setting", "exclude_employee_ids"),
+	)
+	return (row[0][0] if row and row[0][0] else "") or ""
+
+
 def get_excluded_employee_ids() -> set:
 	"""Employee IDs excluded from attendance processing and from headcount.
 
 	These are staff of other companies working on site: they badge in and out
 	like everyone else, but they are not ours to manage or to report on.
 
-	Separated by commas or plain whitespace — the field is typed by hand, and
-	splitting on commas alone silently ignored anyone entered space-separated.
+	🔴 Nút thắt DUY NHẤT của danh sách loại trừ — engine tính công, Net Headcount,
+	daily email, Export Excel và `employee_scope` đều gọi vào đây. Đổi cách lưu thì chỉ
+	sửa hàm này, không phải sửa 6 chỗ kia.
+
+	Từ 05/09/2026 nguồn là bảng con `exclude_employees` (Table MultiSelect → Link
+	Employee), thay cho ô `exclude_employee_ids` (Small Text) gõ tay. Lý do đổi: gõ sai
+	mã trong ô text **hỏng trong im lặng** — không ai bị loại, không có lỗi nào, mà
+	danh sách này chi phối cùng lúc cả bốn nơi trên. Link thì không gõ sai được.
+
+	Vẫn GỘP thêm giá trị của field cũ để site chưa chạy patch không bị nới rộng phạm vi
+	trong im lặng. ⚠ Đọc bằng `_legacy_exclude_text()` (SQL thẳng vào `tabSingles`) chứ
+	KHÔNG `doc.get()` hay `get_single_value()` — xem lý do ở hàm đó. Bỏ nhánh này sau khi
+	mọi site đã migrate.
 	"""
 	import re
 
-	raw = get_attendance_settings().exclude_employee_ids or ""
-	return {part.strip() for part in re.split(r"[,\s]+", str(raw)) if part.strip()}
+	try:
+		doc = frappe.get_cached_doc("Attendance Calculation Setting")
+	except Exception:
+		return set()
+
+	ids = {
+		(row.employee or "").strip()
+		for row in (doc.get("exclude_employees") or [])
+		if (row.employee or "").strip()
+	}
+
+	legacy = _legacy_exclude_text()
+	ids |= {part.strip() for part in re.split(r"[,\s]+", str(legacy)) if part.strip()}
+	return ids
 
 
 def floor_ot_to_block(hours: float, min_minutes: int = None) -> float:

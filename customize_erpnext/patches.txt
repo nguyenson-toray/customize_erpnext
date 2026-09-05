@@ -38,3 +38,7 @@ customize_erpnext.patches.rename_resignation_reason_fields
 # Cần cột THẬT vì Number Card / Dashboard Chart kiểu "Document Type" không join được
 # sang Employee Maternity. Idempotent.
 customize_erpnext.patches.add_employee_maternity_leave_flag
+# post_model_sync: exclude_employee_ids (Small Text gõ tay) -> bảng con exclude_employees
+# (Table MultiSelect -> Link Employee). Patch đếm vào/ra và throw nếu lệch — mất danh sách
+# này là engine/headcount/email/export đồng loạt nới rộng phạm vi trong im lặng. Idempotent.
+customize_erpnext.patches.migrate_exclude_employee_ids_to_table
