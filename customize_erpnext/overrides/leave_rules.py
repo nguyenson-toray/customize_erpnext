@@ -99,6 +99,35 @@ def resolve_half_day_status(has_checkin: bool, other_leave_type: str | None = No
 	return "Absent"
 
 
+def dual_leave_note(leave_type: str | None, leave_type_2: str | None,
+                    half_day_status: str | None) -> str | None:
+	"""Câu giải thích cho ngày nghỉ HAI nửa, ghi vào `Attendance.custom_note`.
+
+	`half_day_status` trả lời **"nửa còn lại có được TRẢ LƯƠNG không"**, không phải "có đi
+	làm không" — xem `resolve_half_day_status()`. Nhưng trên form nhãn là *"Status for Other
+	Half"* và giá trị là `Present`, rất dễ đọc thành "nửa kia có đi làm", trong khi ngày này
+	thường không có một lần quẹt thẻ nào.
+
+	Đã bị hiểu nhầm thật: `attendance/ab461a99a8` (TIQN-2070, 24/08/2026, Con ốm ½ + Phép năm ½,
+	`half_day_status = Present`, in/out đều rỗng). Ghi hẳn câu giải thích vào bản ghi để người
+	đọc không phải tra code mới hiểu.
+
+	Trả `None` khi không phải ngày nghỉ hai nửa.
+	"""
+	if not leave_type or not leave_type_2:
+		return None
+
+	paid = (half_day_status or "") == "Present"
+	return (
+		f"Nghỉ 2 nửa ngày ({combined_abbreviation(leave_type, leave_type_2)}): "
+		f"{get_abbreviation(leave_type)} + {get_abbreviation(leave_type_2)}"
+		" — cả ngày KHÔNG đi làm."
+		f" 'Status for Other Half' = {half_day_status} nghĩa là nửa còn lại "
+		+ ("ĐƯỢC công ty trả lương" if paid else "KHÔNG được công ty trả lương")
+		+ ", KHÔNG phải 'có đi làm'."
+	)
+
+
 def order_leave_types(leave_type_1: str, leave_type_2: str | None = None) -> tuple:
 	"""Sắp lại thành `(chính, còn lại)`; **chính** là nửa `is_lwp = 1`.
 

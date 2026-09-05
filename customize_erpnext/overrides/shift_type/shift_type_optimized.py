@@ -42,6 +42,7 @@ from customize_erpnext.overrides.shift_type.attendance_config import BULK_ATTEND
 from customize_erpnext.overrides.shift_type.leave_hour_cap import apply_to_attendance as apply_leave_hour_cap
 from customize_erpnext.overrides.leave_rules import (
 	combined_abbreviation,
+	dual_leave_note,
 	order_leave_types,
 	resolve_half_day_status,
 )
@@ -1141,7 +1142,9 @@ def resolve_no_checkin_attendance(employee: str, att_date: date, ref_data: Dict)
 		'custom_hour_reduction': custom_hour_reduction,
 		'shift': shift,
 		'standard_working_hours': shift_data.get('custom_standard_working_hours', 0),
-		'custom_note': None,  # no checkins → clear any stale anomaly note
+		# Không có checkin thì mọi ghi chú bất thường cũ phải bị xoá; riêng ngày nghỉ HAI
+		# nửa thì ghi câu giải thích `half_day_status` — xem `dual_leave_note()`.
+		'custom_note': dual_leave_note(leave_type, leave_type_2, half_day_status),
 	}
 
 
