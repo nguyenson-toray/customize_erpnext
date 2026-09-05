@@ -1682,6 +1682,11 @@ def _core_process_attendance_logic_optimized(
 	if isinstance(to_date, str):
 		to_date = frappe.utils.getdate(to_date)
 
+	# Khoảng ngày NGƯỜI DÙNG CHỌN, giữ lại trước khi kẹp. Việc TÍNH công phải kẹp về hôm
+	# nay (không tính trước tương lai), nhưng việc DỌN thì phải bám đúng khoảng đã chọn —
+	# nếu không, phần tương lai của khoảng HR chọn không bao giờ với tới được.
+	selected_to_date = to_date
+
 	# if to_date > today(): to_date
 	if to_date > date.today():
 		to_date = date.today()
@@ -2272,6 +2277,7 @@ def _core_process_attendance_logic_optimized(
 	if fore_get_logs:
 		try:
 			absence_updates = []
+			stale_not_started = []   # (key, attendance name) — ca chưa tới giờ, phải xoá
 			for (employee, att_date), old_att in ref_data['existing_attendance'].items():
 				if (employee, att_date) in processed_keys:
 					continue
@@ -2288,7 +2294,24 @@ def _core_process_attendance_logic_optimized(
 
 				resolved = resolve_no_checkin_attendance(employee, att_date, ref_data)
 				if resolved is None:
-					# Maternity Leave phase — no attendance (STEP 2b cleans these up)
+					# 🔴 `resolve_no_checkin_attendance` trả None vì HAI lý do khác nhau, phải
+					# tách ra — bản cũ gộp làm một và bỏ sót hẳn lý do thứ hai:
+					#
+					# 1. Nghỉ thai sản  -> STEP 2b đã xoá bản ghi rồi, `continue` là đủ.
+					# 2. Ca CHƯA TỚI GIỜ VÀO -> không ai dọn. Bản ghi cũ (sinh ra khi ca cũ
+					#    đã qua giờ vào nên bị chấm Absent) nằm lại nguyên với ca CŨ.
+					#
+					# Ca gặp 05/09/2026: gán Shift 2 (vào 14:00) lúc 08:28 cho người sáng đó
+					# đã có bản ghi Absent/Day tạo lúc 08:20 -> bulk calculate không đụng gì,
+					# 11 người kẹt. Nghịch lý: sau 14:00 thì lại chạy đúng, vì `resolved`
+					# có `shift` mới và `_check_attendance_changes` bắt được.
+					#
+					# Đúng theo thiết kế thì lúc này KHÔNG được phép có chấm công -> xoá.
+					# Ca bắt đầu thì job kế tiếp tự tạo lại.
+					maternity_status, _ = check_maternity_status_cached(employee, att_date, ref_data)
+					if maternity_status == "Maternity Leave":
+						continue
+					stale_not_started.append(((employee, att_date), old_att['name']))
 					continue
 
 				if not stored_shift and resolved['shift'] not in ref_data['shifts']:
@@ -2317,6 +2340,28 @@ def _core_process_attendance_logic_optimized(
 			if absence_updates:
 				print(f"\n   🔄 ABSENCE PASS: updating {len(absence_updates)} attendance records without checkins")
 				_apply_attendance_updates(absence_updates)
+
+			if stale_not_started:
+				# Chỉ xoá bản ghi KHÔNG có check-in nào link. Nhánh này theo định nghĩa đã
+				# loại hết ngày có log (`processed_keys`), nhưng vẫn kiểm lại ở DB — xoá
+				# nhầm ngày có công thật là mất dữ liệu không lấy lại được.
+				names = [n for _key, n in stale_not_started]
+				placeholders = ', '.join(['%s'] * len(names))
+				safe = frappe.db.sql(
+					f"""SELECT a.name FROM `tabAttendance` a
+					    WHERE a.name IN ({placeholders})
+					      AND NOT EXISTS (SELECT 1 FROM `tabEmployee Checkin` c
+					                      WHERE c.attendance = a.name)""",
+					tuple(names), pluck=True)
+				if safe:
+					safe_set = set(safe)
+					ph = ', '.join(['%s'] * len(safe))
+					frappe.db.sql(f"DELETE FROM `tabAttendance` WHERE name IN ({ph})", tuple(safe))
+					frappe.db.commit()
+					for key, name in stale_not_started:
+						if name in safe_set:
+							ref_data['existing_attendance'].pop(key, None)
+					print(f"   🗑️ ABSENCE PASS: deleted {len(safe)} stale records whose shift has not started yet")
 		except Exception as e:
 			stats["errors"] += 1
 			frappe.log_error(message=str(e), title="Absence Pass Error (Optimized)")
@@ -2473,6 +2518,89 @@ def _core_process_attendance_logic_optimized(
 	except Exception as e:
 		frappe.log_error(message=str(e), title="Cleanup Left Employee Attendance Error")
 		print(f"   ❌ Error during cleanup: {str(e)}")
+
+	# ========================================================================
+	# STEP 4c: CLEANUP CANCELLED ATTENDANCE SUPERSEDED BY A VALID RECORD
+	# ========================================================================
+	# Huỷ một Leave Application làm HRMS huỷ theo MỌI Attendance mà đơn đó sinh ra
+	# (`docstatus = 2`). Engine sau đó dựng lại đúng những ngày có check-in, nhưng trên
+	# một bản ghi MỚI — `docstatus = 2` trong Frappe là trạng thái cuối, không hồi lại
+	# được. Kết quả: bản đã huỷ nằm chung danh sách với bản hợp lệ của cùng ngày, HR mở
+	# list thấy dòng gạch ngang "Cancelled" cho đúng ngày CÓ tính công và tưởng chưa
+	# được tính lại.
+	#
+	# Ca gặp 05/09/2026: LA-2026-08-01686 (TIQN-2380, KL 26/08→14/09) bị huỷ lúc
+	# 10:14:05, engine dựng lại 10:14:06 — ngày 04/09 vẫn đủ 8 giờ trên bản ghi mới,
+	# nhưng bản cũ HR-ATT-2026-19860 vẫn nằm đó ở trạng thái Cancelled.
+	#
+	# Xoá bản đã huỷ trong HAI trường hợp:
+	#
+	#   (a) Đã có bản `docstatus = 1` cho cùng (nhân viên, ngày) — ngày đó đã được dựng
+	#       lại đúng, bản huỷ chỉ còn là rác gây hiểu nhầm.
+	#   (b) Ngày TƯƠNG LAI. Đơn nghỉ đã huỷ thì không còn lý do gì để tồn tại một dòng
+	#       `On Leave` cho ngày chưa tới, và không thể có check-in để dựng lại bản mới.
+	#
+	# 🔴 Biên trên là `selected_to_date` — khoảng NGƯỜI DÙNG CHỌN, KHÔNG phải `to_date` đã
+	# bị kẹp về hôm nay ở đầu hàm. Việc tính công phải kẹp (không tính trước tương lai),
+	# nhưng việc dọn thì không: kẹp rồi thì phần tương lai của khoảng HR chọn không bao
+	# giờ với tới được. Đo 05/09/2026: 7 bản ghi 07→14/09 của LA-2026-08-01686 kẹt đúng
+	# vì lý do này. Vẫn KHÔNG vượt ra ngoài khoảng đã chọn — HR không hỏi thì không đụng.
+	#
+	# ⚠ An toàn với đơn nghỉ CÒN HIỆU LỰC: bước này chỉ đụng `docstatus = 2`. Attendance
+	# tương lai sinh từ đơn đã submit mang `docstatus = 1` nên không bị chạm (đo cùng
+	# ngày: 26 bản ghi 03→14/09 từ các đơn còn hiệu lực).
+	#
+	# Bản đã huỷ ở ngày QUÁ KHỨ mà không có bản thay thế thì giữ — đó là ngày engine cố ý
+	# không tạo chấm công (lễ/CN/ngoài thời gian làm việc), bản huỷ là vết duy nhất còn lại.
+	#
+	# Đánh đổi đã chấp nhận: mất vết audit của lần huỷ đơn trên những bản bị xoá.
+	if fore_get_logs and employees:
+		print(f"\n{'='*80}")
+		print(f"🧹 CLEANUP CANCELLED ATTENDANCE SUPERSEDED BY A VALID RECORD")
+		print(f"{'='*80}")
+		try:
+			superseded = frappe.db.sql("""
+				SELECT a.name
+				FROM `tabAttendance` a
+				WHERE a.docstatus = 2
+				  AND a.employee IN %(employees)s
+				  AND a.attendance_date BETWEEN %(from_date)s AND %(selected_to_date)s
+				  AND (
+					EXISTS (
+					  SELECT 1 FROM `tabAttendance` b
+					  WHERE b.employee = a.employee
+						AND b.attendance_date = a.attendance_date
+						AND b.docstatus = 1
+					)
+					OR a.attendance_date > %(today)s
+				  )
+			""", {
+				"employees": tuple(employees),
+				"from_date": from_date_str,
+				"selected_to_date": selected_to_date,
+				"today": date.today(),
+			}, pluck=True)
+
+			if superseded:
+				placeholders = ', '.join(['%s'] * len(superseded))
+				# Check-in lẽ ra đã trỏ sang bản mới rồi (đo 05/09: 0 cái còn trỏ vào bản
+				# huỷ), nhưng gỡ trước cho chắc — xoá Attendance mà để link treo thì lần
+				# chạy incremental sau coi checkin đó là "đã xử lý" và bỏ qua vĩnh viễn.
+				frappe.db.sql(
+					f"UPDATE `tabEmployee Checkin` SET attendance = NULL"
+					f" WHERE attendance IN ({placeholders})",
+					tuple(superseded))
+				frappe.db.sql(
+					f"DELETE FROM `tabAttendance` WHERE name IN ({placeholders})",
+					tuple(superseded))
+				frappe.db.commit()
+				print(f"   ✓ Deleted {len(superseded)} cancelled records (superseded, or dated in the future)")
+			else:
+				print(f"   ✓ No cleanup needed")
+		except Exception as e:
+			stats["errors"] += 1
+			frappe.log_error(message=str(e), title="Cleanup Superseded Cancelled Attendance Error")
+			print(f"   ❌ Error during cleanup: {str(e)}")
 
 	# ========================================================================
 	# STEP 5: CALCULATE STATISTICS FROM DATABASE (Accurate count after processing)
