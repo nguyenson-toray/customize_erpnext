@@ -81,11 +81,9 @@ def run_monitor_for_nvr(nvr_name, send_email=True, recipients=None, gap_days=7, 
 
         tracker.status = "Online"
 
-        # System status
+        # System status — chỉ lấy uptime; CPU/RAM firmware trả N/A nên đã bỏ
         sys_st = client.get_system_status()
         tracker.up_time = sys_st.get("uptime")
-        tracker.cpu     = sys_st.get("cpu")
-        tracker.ram     = sys_st.get("ram")
 
         # Update NVR master
         dev_info = client.get_device_info()
@@ -140,7 +138,9 @@ def run_monitor_for_nvr(nvr_name, send_email=True, recipients=None, gap_days=7, 
                 row.last_time_recorded = _parse_dt(oldest)
                 row.days_recorded      = _days_since(oldest)
                 if check_gaps:
-                    row.gap = client.get_recording_gaps(cam["id"], days=gap_days, min_gap_minutes=gap_min_minutes)
+                    row.gap = client.get_recording_gaps(
+                        cam["id"], days=gap_days, min_gap_minutes=gap_min_minutes
+                    )
             else:
                 latest = client.get_latest_recording(cam["id"])
                 row.offline_since = _parse_dt(latest)
@@ -237,6 +237,18 @@ def _hdd_html(hdds: list) -> str:
     return " &nbsp;|&nbsp; ".join(parts)
 
 
+def _gap_cell(gap: str) -> str:
+    """Ô Gap — đỏ đậm khi camera đang ngừng ghi (gap đuôi hoặc không có bản ghi)."""
+    if not gap:
+        return "<td></td>"
+    alarming = "NOW(" in gap or gap.startswith("NO RECORDING")
+    style = (
+        "font-size:11px;color:#c00;font-weight:bold" if alarming
+        else "font-size:11px;color:#c60"
+    )
+    return f"<td style='{style}'>{gap}</td>"
+
+
 def _send_email(tracker_doc, recipients=None, hdds=None):
     """Gửi email tóm tắt + chi tiết tất cả camera.
     recipients: string CSV hoặc list. Nếu rỗng → không gửi.
@@ -310,7 +322,7 @@ def _send_email(tracker_doc, recipients=None, hdds=None):
             last_rec    = r.last_time_recorded or "—"
             days_rec    = f"{r.days_recorded:.1f} days" if r.days_recorded is not None else "—"
             offline_since = "—"
-            gap_cell    = f"<td style='font-size:11px;color:#c60'>{r.gap or ''}</td>"
+            gap_cell    = _gap_cell(r.gap)
         else:
             status_cell   = "<td style='color:red;text-align:center'>&#10008; Offline</td>"
             last_rec      = "—"

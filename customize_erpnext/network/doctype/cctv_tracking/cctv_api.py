@@ -91,7 +91,7 @@ def cctv_detail(nvr=None, date=None):
         "Location",
         "Priority",
         "Status",
-        "Last Time Recorded",
+        "Oldest Recording",
         "Gap Info",
         "Offline Since",
         "Tracking Record",

@@ -26,8 +26,6 @@ Lưu kết quả mỗi lần giám sát hệ thống NVR/Camera Hikvision. Mỗi
 | `nvr_name` | Data | fetch_from nvr.nvr_name |
 | `status` | Select | Online / Offline |
 | `up_time` | Data | Thời gian hoạt động VD: `2 ngày 03:15:42` |
-| `cpu` | Percent | CPU usage (N/A với firmware DS-9664NI-I8) |
-| `ram` | Percent | RAM usage (N/A với firmware DS-9664NI-I8) |
 | `camera_total` | Int | Tổng số camera **đã đăng ký trong DocType** |
 | `camera_online` | Int | Số camera online |
 | `camera_offline` | Int | Số camera offline |
@@ -65,7 +63,7 @@ run_all_nvr()
          ├─ HikvisionNVR.is_online()
          │    ├─ Offline → lưu tracker status=Offline, gửi email, return
          │    └─ Online → tiếp tục
-         ├─ get_system_status()     → up_time, cpu, ram
+         ├─ get_system_status()     → up_time (CPU/RAM đã bỏ: firmware trả N/A)
          ├─ get_device_info()       → cập nhật NVR master (model, firmware, serial)
          ├─ get_hdd_status()        → hdd_summary
          ├─ load registered cameras → Camera DocType {channel_no: cam_name}
@@ -75,6 +73,8 @@ run_all_nvr()
               ├─ Online:
               │    ├─ get_oldest_recording()   → last_time_recorded, days_recorded
               │    └─ get_recording_gaps()     → gap (7 ngày, gap > 10 phút)
+              │         Bắt cả 3 trường hợp camera Online mà ngừng ghi:
+              │         "NO RECORDING 24h" · gap đuôi "…→NOW(5h17m)" · gap đầu cửa sổ
               └─ Offline:
                    └─ get_latest_recording()  → offline_since
 ```
@@ -89,7 +89,7 @@ Channel NVR không có trong Camera master → **bỏ qua hoàn toàn**.
 | Endpoint | Method | Mục đích |
 |----------|--------|---------|
 | `/ISAPI/System/deviceInfo` | GET | Kiểm tra online, lấy model/firmware/serial |
-| `/ISAPI/System/status` | GET | Uptime (`deviceUpTime`), CPU/RAM |
+| `/ISAPI/System/status` | GET | Uptime (`deviceUpTime`) |
 | `/ISAPI/ContentMgmt/Storage` | GET | Danh sách HDD và dung lượng |
 | `/ISAPI/System/workingstatus/chanStatus?format=json` | GET | Trạng thái online/offline từng kênh + tên |
 | `/ISAPI/System/Video/inputs/channels` | GET | Fallback: lấy tên camera |

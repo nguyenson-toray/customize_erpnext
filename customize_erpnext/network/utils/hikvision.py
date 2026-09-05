@@ -421,15 +421,27 @@ class HikvisionNVR:
                 return max(ends)
         return None
 
-    def get_recording_gaps(self, cid, days: int = 7, min_gap_minutes: int = 10) -> str:
-        """
-        Phát hiện khoảng ngắt quãng trong ghi hình.
-        Kiểm tra [days] ngày gần nhất, báo cáo các gap > [min_gap_minutes] phút.
-        Trả về chuỗi mô tả hoặc rỗng nếu không có gap.
+    @staticmethod
+    def _fmt_duration(minutes: float) -> str:
+        hours = int(minutes // 60)
+        mins  = int(minutes % 60)
+        return f"{hours}h{mins:02d}m" if hours else f"{mins}m"
+
+    def get_recording_report(self, cid, days: int = 7, min_gap_minutes: int = 10) -> dict:
+        """Quét [days] ngày gần nhất, trả về {"gap": str, "latest": str|None}.
+
+        Ngoài gap giữa 2 segment liền kề, còn bắt 3 trường hợp bản cũ bỏ sót —
+        camera vẫn Online nhưng đã ngừng ghi thì mọi cột khác đều trông bình thường:
+          - Không có segment nào trong cả cửa sổ → "NO RECORDING <n>h"
+          - Gap đuôi (segment cuối → hiện tại)   → "...→NOW(...)"
+          - Gap đầu (đầu cửa sổ → segment đầu)
+        "latest" = endTime lớn nhất trong cửa sổ, None nếu không có — dùng để
+        tính gap đuôi, không tốn thêm HTTP call.
         Thời gian hiển thị theo giờ NVR (= giờ VN, xem docstring module).
         """
         tid = self._get_track_id(cid)
         now = datetime.now()
+        window_start = now - timedelta(days=days)
 
         # Quét từng cửa sổ 24h, mỗi cửa sổ paginate đầy đủ (không giới hạn 100)
         segments = []
@@ -440,38 +452,53 @@ class HikvisionNVR:
                 self._collect_segments(tid, self._fmt_time(win_start), self._fmt_time(win_end))
             )
 
-        if len(segments) < 2:
-            return ""
-
-        # Dedup + sort theo startTime
+        # Dedup theo (start, end) + parse; bỏ segment không parse được
         seen = set()
-        unique = []
+        spans = []
         for seg in segments:
-            ts = seg.get("timeSpan", {})
+            ts  = seg.get("timeSpan", {})
             key = (ts.get("startTime", ""), ts.get("endTime", ""))
-            if key not in seen:
-                seen.add(key)
-                unique.append(seg)
-        unique.sort(key=lambda x: x.get("timeSpan", {}).get("startTime", ""))
+            if key in seen:
+                continue
+            seen.add(key)
+            st = self._parse_naive(ts.get("startTime"))
+            en = self._parse_naive(ts.get("endTime"))
+            if st and en:
+                spans.append((st, en))
+        spans.sort()
 
-        if len(unique) < 2:
-            return ""
+        if not spans:
+            return {"gap": f"NO RECORDING {days * 24}h", "latest": None}
 
-        # Tìm gap
-        gaps = []
-        for i in range(len(unique) - 1):
-            end_t   = self._parse_naive(unique[i].get("timeSpan", {}).get("endTime", ""))
-            start_t = self._parse_naive(unique[i + 1].get("timeSpan", {}).get("startTime", ""))
-            if end_t and start_t:
-                diff_min = (start_t - end_t).total_seconds() / 60
-                if diff_min > min_gap_minutes:
-                    hours = int(diff_min // 60)
-                    mins  = int(diff_min % 60)
-                    dur = f"{hours}h{mins:02d}m" if hours else f"{mins}m"
-                    gaps.append(
-                        f"{end_t.strftime('%m-%d %H:%M')}→{start_t.strftime('%m-%d %H:%M')}({dur})"
-                    )
+        latest = max(en for _, en in spans)
+        gaps   = []
 
-        if not gaps:
-            return ""
-        return "; ".join(gaps)
+        # Gap đầu cửa sổ
+        lead_min = (spans[0][0] - window_start).total_seconds() / 60
+        if lead_min > min_gap_minutes:
+            gaps.append(
+                f"{window_start.strftime('%m-%d %H:%M')}"
+                f"\u2192{spans[0][0].strftime('%m-%d %H:%M')}({self._fmt_duration(lead_min)})"
+            )
+
+        # Gap giữa 2 segment liền kề
+        for (_, end_t), (start_t, _) in zip(spans, spans[1:]):
+            diff_min = (start_t - end_t).total_seconds() / 60
+            if diff_min > min_gap_minutes:
+                gaps.append(
+                    f"{end_t.strftime('%m-%d %H:%M')}"
+                    f"\u2192{start_t.strftime('%m-%d %H:%M')}({self._fmt_duration(diff_min)})"
+                )
+
+        # Gap đuôi — camera đang ngừng ghi tính tới thời điểm chạy
+        trail_min = (now - latest).total_seconds() / 60
+        if trail_min > min_gap_minutes:
+            gaps.append(
+                f"{latest.strftime('%m-%d %H:%M')}\u2192NOW({self._fmt_duration(trail_min)})"
+            )
+
+        return {"gap": "; ".join(gaps), "latest": latest.strftime("%Y-%m-%dT%H:%M:%S")}
+
+    def get_recording_gaps(self, cid, days: int = 7, min_gap_minutes: int = 10) -> str:
+        """Chuỗi mô tả gap, rỗng nếu không có — wrapper của get_recording_report()."""
+        return self.get_recording_report(cid, days=days, min_gap_minutes=min_gap_minutes)["gap"]

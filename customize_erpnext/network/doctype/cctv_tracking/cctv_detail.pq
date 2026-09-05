@@ -1,6 +1,8 @@
 // ============================================================
 // Power Query M — CCTV Detail from ERPNext
 // Loads: Video Recorded Detail (camera-level per NVR scan)
+//
+// AUTHENTICATION — điền ApiKey / ApiSecret ở phần CONFIGURATION bên dưới
 // ============================================================
 let
     // ╔══════════════════════════════════════════════════════╗
@@ -8,6 +10,16 @@ let
     // ╚══════════════════════════════════════════════════════╝
     BaseUrl   = "https://erp.tiqn.com.vn:8888",
     ApiMethod = "/api/method/customize_erpnext.network.doctype.cctv_tracking.cctv_api.cctv_detail",
+    // ── API KEY / SECRET ─────────────────────────────────────
+    // ERPNext → User → <api user> → API Access → Generate Keys, rồi dán vào đây.
+    // Header Authorization đi kèm MỌI request. Endpoint hiện vẫn allow_guest=True
+    // nên để nguyên "PASTE_..." vẫn chạy, nhưng điền sẵn thì file Excel không phải
+    // sửa lại vào ngày khoá endpoint.
+    // Trong Power Query đặt connection là "Anonymous" — token đi theo Headers, KHÔNG
+    // qua lớp auth của Power Query.
+    ApiKey     = "PASTE_API_KEY_HERE",
+    ApiSecret  = "PASTE_API_SECRET_HERE",
+    AuthHeader = "token " & ApiKey & ":" & ApiSecret,
 
     // ── FILTERS (null = no filter) ────────────────────────
     // NVR name, e.g. "NVR-Insite" or "NVR-Outsite"
@@ -33,7 +45,16 @@ let
     // ╚══════════════════════════════════════════════════════╝
     QS  = BuildQS([nvr = FilterNVR, date = FilterDate]),
     Url = BaseUrl & ApiMethod & (if QS = "" then "" else "?" & QS),
-    Raw = Binary.Buffer(Web.Contents(Url, [Headers = [#"Accept" = "application/json"]])),
+    // Binary.Buffer → cache response trong bộ nhớ, tránh Formula Firewall của
+    // Power Query chặn tham chiếu nguồn dữ liệu giữa các bước
+    Raw = Binary.Buffer(
+        Web.Contents(Url, [
+            Headers = [
+                #"Accept"        = "application/json",
+                #"Authorization" = AuthHeader
+            ]
+        ])
+    ),
     Parsed  = Json.Document(Raw),
     Payload = Parsed[message],
 
@@ -50,14 +71,21 @@ let
     // ╔══════════════════════════════════════════════════════╗
     // ║               TYPE CONVERSIONS                      ║
     // ╚══════════════════════════════════════════════════════╝
-    DateTimeCols = {"Last Time Recorded", "Offline Since", "Last Modified"},
-    ActiveDT     = List.Intersect({Table.ColumnNames(Renamed), DateTimeCols}),
-    WithDT       = Table.TransformColumnTypes(Renamed, List.Transform(ActiveDT, each {_, type datetime})),
+    // 🔴 PHẢI đổi "" -> null TRƯỚC mọi Table.TransformColumnTypes: API trả chuỗi rỗng
+    // cho ô trống, ép "" sang `type datetime`/`type number` sinh ô **Error** chứ không
+    // phải null, và ReplaceValue chạy sau thì không sửa được Error nữa.
+    // (VD: "Offline Since" rỗng với mọi camera Online, "Gap Info" rỗng khi không có gap.)
+    Blanked = Table.ReplaceValue(Renamed, "", null, Replacer.ReplaceValue, Table.ColumnNames(Renamed)),
+
+    DateTimeCols = {"Oldest Recording", "Offline Since", "Last Modified"},
+    ActiveDT     = List.Intersect({Table.ColumnNames(Blanked), DateTimeCols}),
+    WithDT       = Table.TransformColumnTypes(Blanked, List.Transform(ActiveDT, each {_, type datetime})),
 
     IntCols    = {"Channel No.", "Priority"},
     ActiveInts = List.Intersect({Table.ColumnNames(WithDT), IntCols}),
     WithInts   = Table.TransformColumnTypes(WithDT, List.Transform(ActiveInts, each {_, Int64.Type})),
 
-    FinalTable = Table.ReplaceValue(WithInts, "", null, Replacer.ReplaceValue, Table.ColumnNames(WithInts))
+    // Không ReplaceValue lần nữa — đã làm ở `Blanked`
+    FinalTable = WithInts
 in
     FinalTable

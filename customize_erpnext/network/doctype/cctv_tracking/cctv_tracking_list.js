@@ -1,4 +1,18 @@
 frappe.listview_settings["CCTV Tracking"] = {
+	add_fields: ["status", "camera_offline"],
+	// Tô màu bằng formatters chứ không phải get_indicator: get_indicator làm
+	// Frappe gỡ hẳn cột Status khỏi list view (frappe/list/list_view.js).
+	formatters: {
+		status(value) {
+			if (!value) return "";
+			const color = value === "Online" ? "var(--green-600, #1a7a1a)" : "var(--red-600, #c00)";
+			return `<span style="color:${color};font-weight:600">\u25cf ${__(value)}</span>`;
+		},
+		camera_offline(value) {
+			if (!value) return `<span style="color:var(--green-600, #1a7a1a)">0</span>`;
+			return `<span style="color:var(--red-600, #c00);font-weight:600">${value}</span>`;
+		},
+	},
 	onload(listview) {
 		listview.page.add_inner_button(__("Run Now"), function () {
 			frappe.prompt(
