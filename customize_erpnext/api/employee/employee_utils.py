@@ -200,8 +200,11 @@ def remove_bg_rembg(image_data, model_name='birefnet-portrait'):
     """
     try:
         from rembg import remove as rembg_remove, new_session
-    except ImportError:
-        frappe.throw('rembg chưa được cài đặt. Chạy: pip install rembg')
+    except ImportError as e:
+        # Đừng đoán là "chưa cài" — rembg kéo theo pymatting/numba/onnxruntime,
+        # một dependency lệch version cũng ném ImportError ở đây. In nguyên văn.
+        frappe.log_error(frappe.get_traceback(), 'rembg import failed')
+        frappe.throw(f'Không nạp được rembg: {e}')
 
     global _rembg_sessions, _rembg_session_loaded_at
 

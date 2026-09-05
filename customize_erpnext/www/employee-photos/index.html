@@ -2643,10 +2643,11 @@
             restoreCardSize();
             setupStatChips();
 
-            // Khôi phục lựa chọn engine/model/màu nền batch từ lần dùng trước
+            // Khôi phục lựa chọn model/màu nền batch từ lần dùng trước
+            // Engine KHÔNG lưu localStorage — luôn mặc định rembg (server-side) mỗi lần mở trang,
+            // tránh trường hợp máy này dùng imgly, máy kia dùng rembg gây khác biệt khó lần.
             try {
-                const eng = localStorage.getItem('ep_bg_engine');
-                if (eng === 'imgly' || eng === 'rembg') setBgEngine(eng);
+                setBgEngine('rembg');
                 const model = localStorage.getItem('ep_rembg_model');
                 // Luôn gọi để khởi tạo hint mô tả model (kể cả khi dùng mặc định)
                 setRembgModel(model === 'u2net' || model === 'birefnet-portrait' ? model : _rembgModel);
@@ -2660,8 +2661,9 @@
                         sw.classList.add('on');
                     }
                 }
-                // Remove-bg toggle restored last so it correctly overrides engine/model row visibility
-                if (localStorage.getItem('ep_remove_bg') === '0') setRemoveBgEnabled(false);
+                // Xóa nền KHÔNG lưu localStorage — luôn mặc định BẬT mỗi lần mở trang.
+                // Gọi cuối cùng để state checkbox thắng phần hiện/ẩn hàng engine/model ở trên.
+                setRemoveBgEnabled(true);
             } catch (e) { }
             loadGroups();
             loadPhotos();
@@ -4574,7 +4576,6 @@
             });
             const modelRow = document.getElementById('bgeModelRow');
             if (modelRow) modelRow.style.display = enabled && _bgEngine === 'rembg' ? 'flex' : 'none';
-            try { localStorage.setItem('ep_remove_bg', enabled ? '1' : '0'); } catch (e) { }
             if (enabled && document.getElementById('batchIdModal').classList.contains('open')) prepareBatchAi();
         }
 
@@ -4587,7 +4588,6 @@
             if (modelRow) modelRow.style.display = engine === 'rembg' ? 'flex' : 'none';
             const concRow = document.getElementById('bgeConcRow');
             if (concRow) concRow.style.display = engine === 'rembg' ? 'flex' : 'none';
-            try { localStorage.setItem('ep_bg_engine', engine); } catch (e) { }
             // Đổi engine khi modal đang mở → warm-up lại (hoặc ẩn chip nếu imgly)
             if (document.getElementById('batchIdModal').classList.contains('open')) prepareBatchAi();
         }
@@ -5103,7 +5103,17 @@
                 const badge = document.getElementById(`bcbadge_${photo.employee_id}`);
 
                 if (error || !dataUrl) {
-                    if (loading) loading.innerHTML = '<span style="color:#ff5a5a;font-size:11px;padding:8px;text-align:center;">Lỗi xử lý</span>';
+                    if (loading) {
+                        // Hiện nguyên văn lỗi server thay vì nhãn chung "Lỗi xử lý".
+                        // Dùng textContent (không innerHTML) vì message đến từ frappe.throw.
+                        const msg = (error && error.message) ? String(error.message) : 'Lỗi xử lý';
+                        loading.innerHTML = '';
+                        const sp = document.createElement('span');
+                        sp.style.cssText = 'color:#ff5a5a;font-size:11px;padding:8px;text-align:center;word-break:break-word;';
+                        sp.textContent = msg.length > 90 ? msg.slice(0, 90) + '…' : msg;
+                        sp.title = msg;   // hover để xem đầy đủ
+                        loading.appendChild(sp);
+                    }
                     _batchResults[photo.employee_id] = { dataUrl: null, rawDataUrl: null, bgRemovedDataUrl: null, origDataUrl: null, bgColor: _batchBgColor, preset: 'auto', approved: false, photo };
                     setBatchStatus(photo.employee_id, 'skipped');
                 } else {
