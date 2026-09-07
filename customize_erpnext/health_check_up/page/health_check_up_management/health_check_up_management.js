@@ -32,6 +32,7 @@ const L = {
     chart_by_section: "Tiến độ theo Section",
     chart_by_group: "Tiến độ theo Group",
     chart_by_start_time: "Tiến độ theo Giờ bắt đầu dự kiến",
+    chart_hint: "Hoàn thành / Tổng",
     scan_placeholder: "Scan hoặc nhập mã hồ sơ / mã nhân viên...",
     btn_distribute: "Ghi nhận phát HS",
     btn_collect: "Ghi nhận thu HS",
@@ -67,9 +68,6 @@ const L = {
     allowed_late_dist: "Phút khám trễ cho phép",
     allowed_late_coll: "Phút nộp HS trễ cho phép",
     allowed_early_dist: "Phút khám sớm cho phép",
-    time_compare_mode: "Cách so sánh thời gian",
-    time_compare_datetime: "Kết hợp date & time",
-    time_compare_time_only: "Chỉ dựa vào time",
     btn_save: "Lưu",
     btn_reset: "Mặc định",
     stat_late_dist: "Trễ giờ phát HS",
@@ -98,8 +96,7 @@ const state = {
     allowedLateDistribute: 10,
     allowedLateCollect: 0,
     allowedEarlyDistribute: 10,
-    timeCompareMode: "datetime", // 'datetime' or 'time_only'
-    chartLayout: "vertical", // 'vertical' or 'horizontal'
+    chartLayout: "horizontal", // 'horizontal' or 'vertical'
     pollingInterval: 15, // seconds (realtime là kênh chính, polling chỉ là fallback)
     // Sort
     sortField: null,
@@ -115,12 +112,22 @@ const state = {
 const HC_SETTINGS_KEY = "hc_mgmt_settings";
 const HC_PERSISTED_KEYS = [
     "allowedLateDistribute", "allowedLateCollect", "allowedEarlyDistribute",
-    "timeCompareMode", "chartLayout", "pollingInterval",
+    "chartLayout", "pollingInterval",
 ];
+
+// Tăng số này mỗi khi ĐỔI GIÁ TRỊ MẶC ĐỊNH của một setting. savePersistedSettings() ghi
+// TẤT CẢ các key mỗi lần bấm Lưu, nên máy nào đã từng mở dialog là có sẵn giá trị cũ trong
+// localStorage — không có bước migrate thì mặc định mới không bao giờ có tác dụng.
+// v2 (09/2026): mặc định Hướng biểu đồ đổi Dọc → Ngang.
+const HC_SETTINGS_VERSION = 2;
 
 function loadPersistedSettings() {
     try {
         const saved = JSON.parse(localStorage.getItem(HC_SETTINGS_KEY) || "{}");
+        if ((saved._v || 1) < HC_SETTINGS_VERSION) {
+            // Bỏ giá trị cũ của riêng key đổi mặc định, các setting còn lại giữ nguyên.
+            delete saved.chartLayout;
+        }
         HC_PERSISTED_KEYS.forEach(k => {
             if (saved[k] !== undefined && saved[k] !== null) state[k] = saved[k];
         });
@@ -128,7 +135,7 @@ function loadPersistedSettings() {
 }
 
 function savePersistedSettings() {
-    const out = {};
+    const out = { _v: HC_SETTINGS_VERSION };
     HC_PERSISTED_KEYS.forEach(k => { out[k] = state[k]; });
     localStorage.setItem(HC_SETTINGS_KEY, JSON.stringify(out));
 }
@@ -269,11 +276,11 @@ function showGuideDialog() {
         <div class="hg-grid">
             <div class="hg-card">
                 <b>Tiến độ chung</b>
-                <span>👥 Tổng hồ sơ (cố định) · 📤 Đã phát HS · 🔄 Đang khám · ✅ Hoàn thành · 🔬 X-Quang · 👩‍⚕️ Phụ khoa</span>
+                <span>👥 Tổng hồ sơ (cố định) · 📤 Đã phát HS · 🔄 Đang khám · ✅ Hoàn thành · ❌ Chưa khám · 🚫 Không khám</span>
             </div>
             <div class="hg-card">
                 <b>Thông tin thêm</b>
-                <span>👨 Nam · 👩 Nữ · 🤰 Mang thai · ⏰ Trễ giờ phát · ⏳ Trễ giờ thu · ❌ Chưa khám</span>
+                <span>👨 Nam · 👩 Nữ · 🤰 Mang thai · 🔬 X-Quang · 👩‍⚕️ Phụ khoa · ⏰ Trễ giờ phát · ⏳ Trễ giờ thu <em>(chỉ hiện số, không hiện %)</em></span>
             </div>
         </div>
         <p>Click vào thẻ → mở danh sách NV thuộc nhóm đó.</p>
@@ -542,35 +549,35 @@ function renderDashboard() {
                 ${statCard("distributed", L.stat_distributed, s.distributed, s.total, "blue", "📤")}
                 ${statCard("in_exam", L.stat_in_exam, s.in_exam, s.total, "yellow", "🔄")}
                 ${statCard("completed", L.stat_completed, s.completed, s.total, "green", "✅")}
-                ${statCard("x_ray", L.stat_xray, s.x_ray, s.total, "cyan", "🔬")}
-                ${statCard("gynecological_exam", L.stat_gynec, s.gynecological_exam, s.total, "purple", "👩‍⚕️")}
+                ${statCard("not_started", L.stat_not_started, s.not_started, s.total, "red", "❌")}
+                ${statCard("not_checked", "Không khám", s.not_checked, s.total, "orange", "🚫", s.not_checked > 0)}
             </div>
 
             <div class="hc-stats-group-title">Thông tin thêm</div>
             <div class="hc-stats-grid mb-3">
-                ${statCard("male", "Nam", s.male, s.total, "blue", "👨")}
-                ${statCard("female", "Nữ", s.female, s.total, "pink", "👩")}
-                ${statCard("pregnant", L.stat_pregnant, s.pregnant, s.total, "purple", "🤰")}
-                ${statCard("late_dist", L.stat_late_dist, s.late_dist, s.total, "red", "⏰", s.late_dist > 0)}
-                ${statCard("late_coll", L.stat_late_coll, s.late_coll, s.total, "orange", "⏳", s.late_coll > 0)}
-                ${statCard("not_started", L.stat_not_started, s.not_started, s.total, "red", "❌")}
-                ${statCard("not_checked", "Không khám", s.not_checked, s.total, "orange", "🚫", s.not_checked > 0)}
+                ${statCard("male", "Nam", s.male, null, "blue", "👨")}
+                ${statCard("female", "Nữ", s.female, null, "pink", "👩")}
+                ${statCard("pregnant", L.stat_pregnant, s.pregnant, null, "purple", "🤰")}
+                ${statCard("x_ray", L.stat_xray, s.x_ray, null, "cyan", "🔬")}
+                ${statCard("gynecological_exam", L.stat_gynec, s.gynecological_exam, null, "purple", "👩‍⚕️")}
+                ${statCard("late_dist", L.stat_late_dist, s.late_dist, null, "red", "⏰", s.late_dist > 0)}
+                ${statCard("late_coll", L.stat_late_coll, s.late_coll, null, "orange", "⏳", s.late_coll > 0)}
             </div>
         </div>
 
         <!-- Charts -->
         <div class="hc-charts-stack">
             <div class="hc-chart-card">
-                <div class="hc-chart-title">${L.chart_by_start_time}</div>
+                <div class="hc-chart-title">${L.chart_by_start_time}<span class="hc-chart-hint">${L.chart_hint}</span></div>
                 <div id="chart-start-time"></div>
             </div>
             <div class="hc-charts-row">
                 <div class="hc-chart-card">
-                    <div class="hc-chart-title">${L.chart_by_group}</div>
+                    <div class="hc-chart-title">${L.chart_by_group}<span class="hc-chart-hint">${L.chart_hint}</span></div>
                     <div id="chart-group"></div>
                 </div>
                 <div class="hc-chart-card">
-                    <div class="hc-chart-title">${L.chart_by_section}</div>
+                    <div class="hc-chart-title">${L.chart_by_section}<span class="hc-chart-hint">${L.chart_hint}</span></div>
                     <div id="chart-section"></div>
                 </div>
             </div>
@@ -660,19 +667,19 @@ function updateDashboardStats() {
             ${statCard("distributed", L.stat_distributed, s.distributed, s.total, "blue", "📤")}
             ${statCard("in_exam", L.stat_in_exam, s.in_exam, s.total, "yellow", "🔄")}
             ${statCard("completed", L.stat_completed, s.completed, s.total, "green", "✅")}
-            ${statCard("x_ray", L.stat_xray, s.x_ray, s.total, "cyan", "🔬")}
-            ${statCard("gynecological_exam", L.stat_gynec, s.gynecological_exam, s.total, "purple", "👩‍⚕️")}
+            ${statCard("not_started", L.stat_not_started, s.not_started, s.total, "red", "❌")}
+            ${statCard("not_checked", "Không khám", s.not_checked, s.total, "orange", "🚫", s.not_checked > 0)}
         </div>
 
         <div class="hc-stats-group-title">Thông tin thêm</div>
         <div class="hc-stats-grid mb-3">
-            ${statCard("male", "Nam", s.male, s.total, "blue", "👨")}
-            ${statCard("female", "Nữ", s.female, s.total, "pink", "👩")}
-            ${statCard("pregnant", L.stat_pregnant, s.pregnant, s.total, "purple", "🤰")}
-            ${statCard("late_dist", L.stat_late_dist, s.late_dist, s.total, "red", "⏰", s.late_dist > 0)}
-            ${statCard("late_coll", L.stat_late_coll, s.late_coll, s.total, "orange", "⏳", s.late_coll > 0)}
-            ${statCard("not_started", L.stat_not_started, s.not_started, s.total, "red", "❌")}
-            ${statCard("not_checked", "Không khám", s.not_checked, s.total, "orange", "🚫", s.not_checked > 0)}
+            ${statCard("male", "Nam", s.male, null, "blue", "👨")}
+            ${statCard("female", "Nữ", s.female, null, "pink", "👩")}
+            ${statCard("pregnant", L.stat_pregnant, s.pregnant, null, "purple", "🤰")}
+            ${statCard("x_ray", L.stat_xray, s.x_ray, null, "cyan", "🔬")}
+            ${statCard("gynecological_exam", L.stat_gynec, s.gynecological_exam, null, "purple", "👩‍⚕️")}
+            ${statCard("late_dist", L.stat_late_dist, s.late_dist, null, "red", "⏰", s.late_dist > 0)}
+            ${statCard("late_coll", L.stat_late_coll, s.late_coll, null, "orange", "⏳", s.late_coll > 0)}
         </div>
     `);
 
@@ -760,13 +767,6 @@ function showSettingsDialog() {
             },
             {
                 fieldtype: "Select",
-                fieldname: "time_compare_mode",
-                label: L.time_compare_mode,
-                options: `${L.time_compare_datetime}\n${L.time_compare_time_only}`,
-                default: state.timeCompareMode === "datetime" ? L.time_compare_datetime : L.time_compare_time_only,
-            },
-            {
-                fieldtype: "Select",
                 fieldname: "chart_layout",
                 label: "Hướng biểu đồ",
                 options: "Dọc\nNgang",
@@ -785,7 +785,6 @@ function showSettingsDialog() {
             state.allowedLateDistribute = values.allowed_late_dist;
             state.allowedLateCollect = values.allowed_late_coll;
             state.allowedEarlyDistribute = values.allowed_early_dist;
-            state.timeCompareMode = values.time_compare_mode === L.time_compare_datetime ? "datetime" : "time_only";
             state.chartLayout = values.chart_layout === "Dọc" ? "vertical" : "horizontal";
             const newInterval = Math.max(1, parseInt(values.polling_interval) || 15);
             if (newInterval !== state.pollingInterval) {
@@ -803,8 +802,7 @@ function showSettingsDialog() {
             allowed_late_dist: 10,
             allowed_late_coll: 0,
             allowed_early_dist: 10,
-            time_compare_mode: L.time_compare_datetime,
-            chart_layout: "Dọc",
+            chart_layout: "Ngang",
             polling_interval: 15,
         });
     });
@@ -937,9 +935,10 @@ function showStatModal(type) {
 }
 
 function statCard(type, label, value, total, color, icon, isAlert = false) {
+    // 1 chữ số thập phân, nhưng bỏ ".0" cho số tròn (100% chứ không phải 100.0%)
     const pct =
         total != null && total > 0
-            ? Math.round((value / total) * 100) + "%"
+            ? (((value || 0) / total) * 100).toFixed(1).replace(/\.0$/, "") + "%"
             : "";
     const alertClass = isAlert ? " hc-stat-alert" : "";
     return `
@@ -967,7 +966,7 @@ function renderHorizontalChart(containerId, dataArray, labelField) {
         const pctNotSt = (not_started / maxVal) * 100;
         html += `
         <div class="hc-hchart-row">
-            <div class="hc-hchart-label" title="${esc(label)}">${esc(label)} <span class="hc-hchart-val">(${item.total})</span></div>
+            <div class="hc-hchart-label" title="${esc(label)}">${esc(label)} <span class="hc-hchart-val">(${completed}/${item.total})</span></div>
             <div class="hc-hchart-bars">
                 <div class="hc-hchart-bar hc-hchart-bar-comp" style="width: ${pctComp}%" title="Hoàn thành: ${completed}"></div>
                 <div class="hc-hchart-bar hc-hchart-bar-exam" style="width: ${pctExam}%" title="Đang khám: ${in_exam}"></div>
@@ -1041,7 +1040,7 @@ function renderCharts() {
         if (state.chartLayout === "horizontal") {
             renderHorizontalChart("chart-start-time", startTimeArr, "slot");
         } else if (typeof frappe.Chart !== "undefined") {
-            const labels = startTimeArr.map((s) => `${s.slot} (${s.total})`);
+            const labels = startTimeArr.map((s) => `${s.slot} (${s.completed}/${s.total})`);
             new frappe.Chart("#chart-start-time", {
                 data: {
                     labels, datasets: [
@@ -1061,7 +1060,7 @@ function renderCharts() {
         if (state.chartLayout === "horizontal") {
             renderHorizontalChart("chart-section", sectionArr, "section");
         } else if (typeof frappe.Chart !== "undefined") {
-            const labels = sectionArr.map((s) => `${s.section} (${s.total})`);
+            const labels = sectionArr.map((s) => `${s.section} (${s.completed}/${s.total})`);
             new frappe.Chart("#chart-section", {
                 data: {
                     labels, datasets: [
@@ -1081,7 +1080,7 @@ function renderCharts() {
         if (state.chartLayout === "horizontal") {
             renderHorizontalChart("chart-group", groupArr, "group");
         } else if (typeof frappe.Chart !== "undefined") {
-            const labels = groupArr.map((g) => `${g.group} (${g.total})`);
+            const labels = groupArr.map((g) => `${g.group} (${g.completed}/${g.total})`);
             new frappe.Chart("#chart-group", {
                 data: {
                     labels, datasets: [
@@ -1303,10 +1302,12 @@ function populateScanHistory(mode) {
     // Filter records that have the timeField set
     const scanned = state.records.filter(r => r[timeField]);
 
-    // Sort descending by time — use formatTime to pad hours (e.g. "9:30" → "09:30") so string compare works correctly
+    // Sort descending by time — pad every part (e.g. "9:5:3" → "09:05:03") so string compare works
+    // correctly. Compare with seconds, otherwise two scans in the same minute sort arbitrarily and
+    // the record just scanned can land below an older one.
     scanned.sort((a, b) => {
-        const ta = formatTime(a[timeField]);
-        const tb = formatTime(b[timeField]);
+        const ta = padTime(a[timeField]);
+        const tb = padTime(b[timeField]);
         if (ta < tb) return 1;
         if (ta > tb) return -1;
         return 0;
@@ -1314,6 +1315,7 @@ function populateScanHistory(mode) {
 
     // Take top 50, map to history format
     state.scanHistory = scanned.slice(0, 50).map(r => ({
+        key: r.name,
         time: formatTime(r[timeField]),
         code: r.hospital_code,
         emp: r.employee,
@@ -1482,7 +1484,7 @@ async function doScan(mode) {
         const defaultTime = recordItem.start_time || "07:30:00";
 
         let d = new frappe.ui.Dialog({
-            title: "Thiếu thời gian Phát HS",
+            title: "Thiếu thời gian Phát HS - Hãy cập nhật giờ phát thực tế trước khi Thu",
             fields: [
                 {
                     label: "Hồ sơ này chưa được ghi nhận Phát HS. Vui lòng bổ sung giờ phát thực tế:",
@@ -1549,7 +1551,15 @@ function showScanResult(type, message, record) {
 
 function addToHistory(record, mode, type) {
     const time = new Date().toLocaleTimeString("vi-VN");
+    // populateScanHistory() rebuilds the whole list from state.records (realtime event / polling),
+    // so the record we are about to prepend may already be in there — drop it first, otherwise the
+    // same scan shows up twice until the next rebuild.
+    const key = record && record.name;
+    if (key) {
+        state.scanHistory = state.scanHistory.filter(h => h.key !== key);
+    }
     state.scanHistory.unshift({
+        key,
         time,
         code: record.hospital_code,
         emp: record.employee,
@@ -1808,22 +1818,22 @@ function renderTable() {
                 let diffHtml = "—";
                 let diffs = [];
                 if (r.start_time && r.start_time_actual) {
-                    const diffMin = getMinutesDiffByMode(r.start_time, r.start_time_actual, state.currentDate, state.currentDate);
+                    const diffMin = getMinutesDifference(r.start_time, r.start_time_actual);
                     if (diffMin > state.allowedLateDistribute) diffs.push(`<span class="hc-red">Đã trễ P ${diffMin}p</span>`);
                     else if (diffMin < -state.allowedEarlyDistribute) diffs.push(`<span class="hc-yellow">Sớm P ${Math.abs(diffMin)}p</span>`);
                 }
                 if (r.end_time && r.end_time_actual) {
-                    const diffMin = getMinutesDiffByMode(r.end_time, r.end_time_actual, state.currentDate, state.currentDate);
+                    const diffMin = getMinutesDifference(r.end_time, r.end_time_actual);
                     if (diffMin > state.allowedLateCollect) diffs.push(`<span class="hc-orange">Đã trễ T ${diffMin}p</span>`);
                 }
 
                 const now = getProactiveNow();
-                const lateDistMin = getMinutesDiffByMode(r.start_time, now.time, state.currentDate, now.date);
+                const lateDistMin = getMinutesDifference(r.start_time, now.time);
                 const isLateDist = !r.start_time_actual && r.start_time && lateDistMin > state.allowedLateDistribute;
                 if (isLateDist) {
                     diffs.push(`<span class="hc-red" style="font-weight:bold;">Đang trễ P ${lateDistMin}p</span>`);
                 }
-                const lateCollMin = getMinutesDiffByMode(r.end_time, now.time, state.currentDate, now.date);
+                const lateCollMin = getMinutesDifference(r.end_time, now.time);
                 const isLateColl = r.start_time_actual && !r.end_time_actual && r.end_time && lateCollMin > state.allowedLateCollect;
                 if (isLateColl) {
                     diffs.push(`<span class="hc-orange" style="font-weight:bold;">Đang trễ T ${lateCollMin}p</span>`);
@@ -1972,50 +1982,21 @@ function getMinutesDifference(timePlanned, timeActual) {
     return 0;
 }
 
-// Returns minutes difference using full datetime (date + time) comparison
-function getMinutesDiffDatetime(datePlanned, timePlanned, dateActual, timeActual) {
-    const pad = s => String(s).split(":").slice(0, 2).map(x => x.padStart(2, "0")).join(":");
-    const dt1 = new Date(`${datePlanned}T${pad(timePlanned)}:00`);
-    const dt2 = new Date(`${dateActual}T${pad(timeActual)}:00`);
-    if (isNaN(dt1.getTime()) || isNaN(dt2.getTime())) return 0;
-    return Math.round((dt2 - dt1) / 60000);
-}
-
-// Returns {date, time} of "now" for the active mode
+// Mốc "bây giờ" để tính trễ CHỦ ĐỘNG (hồ sơ chưa có giờ thực tế).
+// Chỉ so sánh phần giờ — ngày khám quá khứ coi như đã hết ngày (23:59:59),
+// ngày tương lai coi như chưa bắt đầu (00:00:00) nên không bao giờ bị tính trễ.
 function getProactiveNow() {
     const today = frappe.datetime.get_today();
-    const nowTime = frappe.datetime.now_time();
-    if (state.timeCompareMode === "datetime") {
-        // datetime mode: use actual system time; future dates are never late
-        if (state.currentDate > today) return { date: state.currentDate, time: "00:00:00" };
-        return { date: today, time: nowTime };
-    } else {
-        // time_only mode: legacy proactive logic (only time matters)
-        if (state.currentDate === today) return { date: today, time: nowTime };
-        if (state.currentDate < today) return { date: state.currentDate, time: "23:59:59" };
-        return { date: state.currentDate, time: "00:00:00" };
-    }
-}
-
-// Minutes difference honoring state.timeCompareMode
-// datePlanned / dateActual are optional; default to state.currentDate for both
-function getMinutesDiffByMode(timePlanned, timeActual, datePlanned, dateActual) {
-    if (state.timeCompareMode === "datetime") {
-        return getMinutesDiffDatetime(
-            datePlanned || state.currentDate,
-            timePlanned,
-            dateActual || state.currentDate,
-            timeActual
-        );
-    }
-    return getMinutesDifference(timePlanned, timeActual);
+    if (state.currentDate === today) return { time: frappe.datetime.now_time() };
+    if (state.currentDate < today) return { time: "23:59:59" };
+    return { time: "00:00:00" };
 }
 
 function isRecordLateForDistribute(r) {
     if (r.start_time_actual) return false;
     if (!r.start_time) return false;
     const now = getProactiveNow();
-    return getMinutesDiffByMode(r.start_time, now.time, state.currentDate, now.date) > state.allowedLateDistribute;
+    return getMinutesDifference(r.start_time, now.time) > state.allowedLateDistribute;
 }
 
 function isRecordLateForCollect(r) {
@@ -2023,7 +2004,7 @@ function isRecordLateForCollect(r) {
     if (r.end_time_actual) return false;
     if (!r.end_time) return false;
     const now = getProactiveNow();
-    return getMinutesDiffByMode(r.end_time, now.time, state.currentDate, now.date) > state.allowedLateCollect;
+    return getMinutesDifference(r.end_time, now.time) > state.allowedLateCollect;
 }
 function getStatus(r) {
     if (r.status === "Hoàn thành") return "completed";
@@ -2042,6 +2023,15 @@ function statusBadge(r) {
     };
     const s = map[status];
     return `<span class="hc-badge ${s.cls}">${s.label}</span>`;
+}
+
+// "9:5:3" → "09:05:03" — full precision, for sorting only
+function padTime(val) {
+    if (!val) return "";
+    return String(val)
+        .split(":")
+        .map(p => p.padStart(2, "0"))
+        .join(":");
 }
 
 function formatTime(val) {

@@ -7,6 +7,8 @@ frappe.ui.form.on("Health Check-Up", {
             frappe.set_route("health-check-up-management");
         }, __("Actions"));
 
+        hcSetStatusIndicator(frm);
+
         if (frm.doc.start_time_actual && frm.doc.end_time_actual) {
             frm.set_intro('Đã hoàn thành khám sức khỏe', 'blue');
             frm.set_df_property("employee", "read_only", 1);
@@ -72,3 +74,20 @@ frappe.ui.form.on("Health Check-Up", {
     },
 
 });
+
+// Pill trạng thái trên header form. Cùng bảng màu với cột Status ở list view
+// (`health_check_up_list.js`) và chú giải trang Health Check Up Management — sửa một chỗ
+// thì phải sửa cả ba.
+function hcSetStatusIndicator(frm) {
+    // Doc mới / đang sửa dở: để nguyên "Not Saved" của Frappe, đừng che mất.
+    if (frm.is_new() || frm.is_dirty() || !frm.doc.status) return;
+
+    const color = {
+        "Chưa khám": "gray",
+        "Đang khám": "yellow",
+        "Hoàn thành": "green",
+        "Không khám": "orange",
+    }[frm.doc.status];
+
+    if (color) frm.page.set_indicator(__(frm.doc.status), color);
+}

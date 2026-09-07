@@ -509,6 +509,18 @@
     gap: 8px;
 }
 
+/* Chú thích ý nghĩa con số trong ngoặc ở nhãn biểu đồ — nằm sát mép phải của tiêu đề.
+   Phải huỷ uppercase/letter-spacing thừa kế từ .hc-chart-title thì mới đọc được. */
+.hc-chart-hint {
+    margin-left: auto;
+    color: var(--hc-text-light);
+    font-size: 10px;
+    font-weight: 500;
+    text-transform: none;
+    letter-spacing: 0;
+    white-space: nowrap;
+}
+
 .hc-chart-title::before {
     content: '';
     display: inline-block;

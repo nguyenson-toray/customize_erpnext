@@ -336,11 +336,18 @@ Các menu item (IT only, cần mật khẩu):
 | Phút khám trễ cho phép | `allowedLateDistribute` | 10 |
 | Phút nộp HS trễ cho phép | `allowedLateCollect` | 0 |
 | Phút khám sớm cho phép | `allowedEarlyDistribute` | 10 |
-| Cách so sánh thời gian | `timeCompareMode` | datetime |
-| Hướng biểu đồ | `chartLayout` | vertical |
+| Hướng biểu đồ | `chartLayout` | horizontal |
 | Polling interval (giây) | `pollingInterval` | 15 |
 
 > Tất cả persist vào `localStorage` (`hc_mgmt_settings`) — giữ nguyên sau khi reload.
+> Blob có khoá `_v` (`HC_SETTINGS_VERSION`): đổi giá trị mặc định của setting nào thì tăng `_v`
+> và xoá key đó trong `loadPersistedSettings()`, nếu không máy đã từng bấm Lưu sẽ giữ mãi giá trị cũ.
+
+**Đã bỏ (09/2026):** tuỳ chọn *Cách so sánh thời gian* (`timeCompareMode`). Mọi phép tính trễ/sớm
+giờ luôn chỉ so sánh phần **giờ** — xem `getMinutesDifference()` và `getProactiveNow()`.
+
+Biểu đồ tiến độ (Section / Group / Giờ bắt đầu) hiển thị nhãn dạng **`hoàn thành/tổng`**,
+ví dụ `Sample (12/45)`.
 
 ---
 

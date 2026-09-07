@@ -2,8 +2,8 @@
  "actions": [],
  "allow_bulk_edit": 1,
  "allow_import": 1,
- "autoname": "format:{date}_{employee}",
- "creation": "2026-07-28 13:09:16.562850",
+ "autoname": "format:{date}-{employee}",
+ "creation": "2026-09-07 14:44:34.014820",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -66,7 +66,6 @@
   {
    "fieldname": "health_check_type",
    "fieldtype": "Data",
-   "in_standard_filter": 1,
    "label": "Health Check Type",
    "options": "\nKh\u00e1m s\u1ee9c kh\u1ecfe + B\u1ec7nh ngh\u1ec1 nghi\u1ec7p\nKh\u00e1m s\u1ee9c kh\u1ecfe\nKh\u00e1m s\u1ee9c kh\u1ecfe l\u00e0m b\u1ebfp",
    "reqd": 1
@@ -137,6 +136,8 @@
    "description": "\u0110\u1ec3 tr\u1ed1ng: t\u1ef1 t\u00ednh t\u1eeb Employee Maternity. Nh\u1eadp tay/import: gi\u1eef gi\u00e1 tr\u1ecb \u0111\u00e3 nh\u1eadp.",
    "fieldname": "pregnant",
    "fieldtype": "Check",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Pregnant"
   },
   {
@@ -150,7 +151,6 @@
    "fieldtype": "Time",
    "in_filter": 1,
    "in_list_view": 1,
-   "in_standard_filter": 1,
    "label": "Start Time",
    "reqd": 1
   },
@@ -169,7 +169,6 @@
    "description": "Th\u1eddi gian ph\u00e1t HS th\u1ef1c t\u1ebf (scan ho\u1eb7c nh\u1eadp th\u1ee7 c\u00f4ng)",
    "fieldname": "start_time_actual",
    "fieldtype": "Time",
-   "in_filter": 1,
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Start Time Actual"
@@ -198,6 +197,7 @@
   {
    "fieldname": "note",
    "fieldtype": "Small Text",
+   "in_list_view": 1,
    "label": "Note",
    "placeholder": "Nh\u1eadp c\u00e1c ghi ch\u00fa b\u1ea5t th\u01b0\u1eddng : C\u00f3 vi\u1ec7c \u0111\u1ed9t xu\u1ea5t, \u00fd do kh\u00f4ng kh\u00e1m, ...."
   },
@@ -245,7 +245,7 @@
   }
  ],
  "links": [],
- "modified": "2026-07-28 13:23:00.733073",
+ "modified": "2026-09-07 16:24:43.121151",
  "modified_by": "Administrator",
  "module": "Health Check Up",
  "name": "Health Check-Up",

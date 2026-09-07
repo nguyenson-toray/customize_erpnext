@@ -10,6 +10,17 @@ from frappe.utils import nowtime, today, getdate, get_time
 
 
 class HealthCheckUp(Document):
+    def before_naming(self):
+        """Chuẩn hoá `date` TRƯỚC khi Frappe dựng name.
+
+        Naming rule là `format:{date}-{employee}`, và nó đọc giá trị THÔ trên doc chứ không phải
+        giá trị đã ép kiểu khi ghi DB. Data Import từ Excel đưa ô ngày sang dạng chuỗi
+        "2026-09-26 00:00:00", nên name bị dính đuôi " 00:00:00" trong khi cột `date` dưới DB
+        vẫn đúng. getdate() ở đây cắt phần giờ ngay từ đầu.
+        """
+        if self.date:
+            self.date = getdate(self.date)
+
     def validate(self):
         self.fetch_employee_info()
         self.check_pregnant_status()
