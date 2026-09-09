@@ -6,7 +6,7 @@
  *
  * Semantic status colors (nhất quán toàn trang, kể cả charts qua getHcColor):
  *   Hoàn thành  = viridian  (--hc-green / --hc-primary)
- *   Đang khám   = amber     (--hc-yellow)
+ *   Đang khám   = yellow     (--hc-yellow)
  *   Chưa khám / Trễ phát = clinical red (--hc-red)
  *   Trễ thu     = orange
  *   Phát HS     = x-ray blue (--hc-blue)
@@ -28,7 +28,8 @@
     --hc-text: #16281F;
     --hc-text-secondary: #46584E;
     --hc-text-muted: #7C8F84;
-    --hc-text-light: #7C8F84; /* alias — JS inline styles reference var(--hc-text-light) */
+    --hc-text-light: #7C8F84;
+    /* alias — JS inline styles reference var(--hc-text-light) */
     --hc-ink: #16281F;
 
     /* brand = trạng thái Hoàn thành */
@@ -37,11 +38,11 @@
     --hc-primary-light: #E2F1EB;
 
     /* semantic family — cùng độ bão hòa, họ lâm sàng */
-    --hc-green: #0E7A63;
+    --hc-green: #1d8800;
     --hc-green-light: #DFF0E9;
-    --hc-yellow: #B77208;
+    --hc-yellow: #f5e325d2;
     --hc-yellow-light: #F9EFD9;
-    --hc-red: #C13740;
+    --hc-red: #db1220;
     --hc-red-light: #F9E7E8;
     --hc-blue: #275F7C;
     --hc-blue-light: #E3EEF4;
@@ -78,27 +79,56 @@
    Animations
    ============================================================ */
 @keyframes hc-fadeIn {
-    from { opacity: 0; transform: translateY(5px); }
-    to   { opacity: 1; transform: translateY(0); }
+    from {
+        opacity: 0;
+        transform: translateY(5px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 @keyframes hc-slideIn {
-    from { opacity: 0; transform: translateX(-8px); }
-    to   { opacity: 1; transform: translateX(0); }
+    from {
+        opacity: 0;
+        transform: translateX(-8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
 }
 
 @keyframes hc-pulse {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(14, 122, 99, 0.35); }
-    50%      { box-shadow: 0 0 0 8px rgba(14, 122, 99, 0); }
+
+    0%,
+    100% {
+        box-shadow: 0 0 0 0 rgba(14, 122, 99, 0.35);
+    }
+
+    50% {
+        box-shadow: 0 0 0 8px rgba(14, 122, 99, 0);
+    }
 }
 
 @keyframes hc-countUp {
-    from { opacity: 0; transform: scale(0.9); }
-    to   { opacity: 1; transform: scale(1); }
+    from {
+        opacity: 0;
+        transform: scale(0.9);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
 }
 
 /* Quality floor: tôn trọng reduced motion */
 @media (prefers-reduced-motion: reduce) {
+
     .hc-app *,
     .hc-app *::before,
     .hc-app *::after {
@@ -332,12 +362,24 @@
 }
 
 /* Frappe Time control compact trong filter bar */
-.hc-dash-filter-time-range .frappe-control { margin: 0; }
-.hc-dash-filter-time-range .frappe-control .form-group { margin-bottom: 0; }
+.hc-dash-filter-time-range .frappe-control {
+    margin: 0;
+}
+
+.hc-dash-filter-time-range .frappe-control .form-group {
+    margin-bottom: 0;
+}
+
 .hc-dash-filter-time-range .frappe-control .control-label,
-.hc-dash-filter-time-range .frappe-control .help-box { display: none !important; }
+.hc-dash-filter-time-range .frappe-control .help-box {
+    display: none !important;
+}
+
 .hc-dash-filter-time-range .frappe-control .control-input-wrapper,
-.hc-dash-filter-time-range .frappe-control .control-input { height: 28px; }
+.hc-dash-filter-time-range .frappe-control .control-input {
+    height: 28px;
+}
+
 .hc-dash-filter-time-range .frappe-control input.input-with-feedback {
     height: 28px;
     font-size: 12px;
@@ -376,7 +418,9 @@
     background: var(--hc-border);
 }
 
-.mb-3 { margin-bottom: 1.1rem; }
+.mb-3 {
+    margin-bottom: 1.1rem;
+}
 
 .hc-stat-card {
     background: var(--hc-card);
@@ -390,12 +434,29 @@
     animation: hc-fadeIn 0.35s ease-out both;
 }
 
-.hc-stat-card:nth-child(1) { animation-delay: 0s; }
-.hc-stat-card:nth-child(2) { animation-delay: 0.03s; }
-.hc-stat-card:nth-child(3) { animation-delay: 0.06s; }
-.hc-stat-card:nth-child(4) { animation-delay: 0.09s; }
-.hc-stat-card:nth-child(5) { animation-delay: 0.12s; }
-.hc-stat-card:nth-child(6) { animation-delay: 0.15s; }
+.hc-stat-card:nth-child(1) {
+    animation-delay: 0s;
+}
+
+.hc-stat-card:nth-child(2) {
+    animation-delay: 0.03s;
+}
+
+.hc-stat-card:nth-child(3) {
+    animation-delay: 0.06s;
+}
+
+.hc-stat-card:nth-child(4) {
+    animation-delay: 0.09s;
+}
+
+.hc-stat-card:nth-child(5) {
+    animation-delay: 0.12s;
+}
+
+.hc-stat-card:nth-child(6) {
+    animation-delay: 0.15s;
+}
 
 .hc-stat-card:hover {
     box-shadow: var(--hc-shadow);
@@ -415,14 +476,37 @@
     background: var(--hc-border);
 }
 
-.hc-stat-cyan::before   { background: var(--hc-cyan); }
-.hc-stat-blue::before   { background: var(--hc-blue); }
-.hc-stat-green::before  { background: var(--hc-green); }
-.hc-stat-yellow::before { background: var(--hc-yellow); }
-.hc-stat-red::before    { background: var(--hc-red); }
-.hc-stat-pink::before   { background: var(--hc-pink); }
-.hc-stat-purple::before { background: var(--hc-purple); }
-.hc-stat-orange::before { background: var(--hc-orange); }
+.hc-stat-cyan::before {
+    background: var(--hc-cyan);
+}
+
+.hc-stat-blue::before {
+    background: var(--hc-blue);
+}
+
+.hc-stat-green::before {
+    background: var(--hc-green);
+}
+
+.hc-stat-yellow::before {
+    background: var(--hc-yellow);
+}
+
+.hc-stat-red::before {
+    background: var(--hc-red);
+}
+
+.hc-stat-pink::before {
+    background: var(--hc-pink);
+}
+
+.hc-stat-purple::before {
+    background: var(--hc-purple);
+}
+
+.hc-stat-orange::before {
+    background: var(--hc-orange);
+}
 
 .hc-stat-label {
     color: var(--hc-text-muted);
@@ -465,8 +549,15 @@
 
 /* Alert pulse cho thẻ trễ giờ */
 @keyframes hc-alert-pulse {
-    0%, 100% { box-shadow: var(--hc-shadow-sm); }
-    50%      { box-shadow: 0 0 0 5px rgba(193, 55, 64, 0.16), var(--hc-shadow); }
+
+    0%,
+    100% {
+        box-shadow: var(--hc-shadow-sm);
+    }
+
+    50% {
+        box-shadow: 0 0 0 5px rgba(193, 55, 64, 0.16), var(--hc-shadow);
+    }
 }
 
 .hc-stat-alert {
@@ -474,8 +565,14 @@
     border-color: var(--hc-red);
 }
 
-.hc-stat-alert .hc-stat-icon { opacity: 0.6; filter: none; }
-.hc-stat-alert .hc-stat-value { color: var(--hc-red); }
+.hc-stat-alert .hc-stat-icon {
+    opacity: 0.6;
+    filter: none;
+}
+
+.hc-stat-alert .hc-stat-value {
+    color: var(--hc-red);
+}
 
 /* ============================================================
    Dashboard — Charts
@@ -530,10 +627,14 @@
     border-radius: 1px;
 }
 
-.hc-chart-card .graph-svg-tip { font-family: var(--hc-font) !important; }
+.hc-chart-card .graph-svg-tip {
+    font-family: var(--hc-font) !important;
+}
 
 /* Chừa chỗ cho label xoay 45° không bị cắt */
-.hc-chart-card .frappe-chart { padding-bottom: 20px; }
+.hc-chart-card .frappe-chart {
+    padding-bottom: 20px;
+}
 
 /* Row 2: Group + Section cạnh nhau */
 .hc-charts-row {
@@ -543,8 +644,14 @@
 }
 
 @media (min-width: 900px) {
-    .hc-charts-row { flex-direction: row; }
-    .hc-charts-row .hc-chart-card { flex: 1; min-width: 0; }
+    .hc-charts-row {
+        flex-direction: row;
+    }
+
+    .hc-charts-row .hc-chart-card {
+        flex: 1;
+        min-width: 0;
+    }
 }
 
 /* ============================================================
@@ -591,10 +698,22 @@
     overflow: hidden;
 }
 
-.hc-hchart-bar { height: 100%; transition: width 0.4s ease; }
-.hc-hchart-bar-comp { background: var(--hc-green); }
-.hc-hchart-bar-exam { background: var(--hc-yellow); }
-.hc-hchart-bar-none { background: var(--hc-red); }
+.hc-hchart-bar {
+    height: 100%;
+    transition: width 0.4s ease;
+}
+
+.hc-hchart-bar-comp {
+    background: var(--hc-green);
+}
+
+.hc-hchart-bar-exam {
+    background: var(--hc-yellow);
+}
+
+.hc-hchart-bar-none {
+    background: var(--hc-red);
+}
 
 .hc-hchart-legend {
     display: flex;
@@ -617,12 +736,23 @@
     border-radius: 2px;
 }
 
-.hc-bg-comp { background-color: var(--hc-green); }
-.hc-bg-exam { background-color: var(--hc-yellow); }
-.hc-bg-none { background-color: var(--hc-red); }
+.hc-bg-comp {
+    background-color: var(--hc-green);
+}
+
+.hc-bg-exam {
+    background-color: var(--hc-yellow);
+}
+
+.hc-bg-none {
+    background-color: var(--hc-red);
+}
 
 @media (max-width: 600px) {
-    .hc-hchart-label { flex: 0 0 100px; font-size: 11px; }
+    .hc-hchart-label {
+        flex: 0 0 100px;
+        font-size: 11px;
+    }
 }
 
 /* ============================================================
@@ -638,7 +768,9 @@
 }
 
 @media (max-width: 900px) {
-    .hc-scan-layout { grid-template-columns: 1fr; }
+    .hc-scan-layout {
+        grid-template-columns: 1fr;
+    }
 }
 
 .hc-scan-card {
@@ -715,7 +847,9 @@
     color: #F5F8F6;
 }
 
-.hc-radio-label input[type="radio"] { accent-color: var(--hc-primary); }
+.hc-radio-label input[type="radio"] {
+    accent-color: var(--hc-primary);
+}
 
 /* ── Khung ngắm máy quét ─────────────────────────────────────
    Input group có 4 bracket góc (2 pseudo-element, mỗi cái 2 cạnh);
@@ -836,8 +970,14 @@
 }
 
 /* Note toggle — desktop luôn hiện textarea, mobile thu gọn */
-.hc-note-toggle-wrap { margin-bottom: 16px; }
-.hc-note-toggle-btn { display: none; }
+.hc-note-toggle-wrap {
+    margin-bottom: 16px;
+}
+
+.hc-note-toggle-btn {
+    display: none;
+}
+
 .hc-note-toggle-wrap .hc-scan-note {
     display: block !important;
     margin-bottom: 0;
@@ -855,8 +995,13 @@
         margin-bottom: 6px;
     }
 
-    .hc-note-toggle-wrap .hc-scan-note { display: none !important; }
-    .hc-note-toggle-wrap .hc-scan-note.hc-note-visible { display: block !important; }
+    .hc-note-toggle-wrap .hc-scan-note {
+        display: none !important;
+    }
+
+    .hc-note-toggle-wrap .hc-scan-note.hc-note-visible {
+        display: block !important;
+    }
 }
 
 .hc-scan-note {
@@ -875,7 +1020,9 @@
     transition: border-color var(--hc-transition);
 }
 
-.hc-scan-note:focus { border-color: var(--hc-primary); }
+.hc-scan-note:focus {
+    border-color: var(--hc-primary);
+}
 
 /* Mini stats trong tab Thu */
 .hc-collect-mini-stats {
@@ -939,7 +1086,9 @@
     user-select: none;
 }
 
-.hc-checkbox-label:hover { border-color: var(--hc-primary); }
+.hc-checkbox-label:hover {
+    border-color: var(--hc-primary);
+}
 
 .hc-checkbox-label:has(input:checked) {
     border-color: var(--hc-primary);
@@ -992,7 +1141,9 @@
 }
 
 /* Camera button — chỉ hiện trên thiết bị cảm ứng */
-.hc-camera-btn { display: none; }
+.hc-camera-btn {
+    display: none;
+}
 
 @media (pointer: coarse) {
     .hc-camera-btn {
@@ -1019,7 +1170,9 @@
 /* ============================================================
    Scan Result
    ============================================================ */
-.hc-scan-result { margin-top: 20px; }
+.hc-scan-result {
+    margin-top: 20px;
+}
 
 .hc-result {
     padding: 16px 18px;
@@ -1035,7 +1188,9 @@
     border-color: var(--hc-green);
 }
 
-.hc-result-green.hc-result-new { animation: hc-pulse 0.6s ease-out; }
+.hc-result-green.hc-result-new {
+    animation: hc-pulse 0.6s ease-out;
+}
 
 .hc-result-yellow {
     background: var(--hc-yellow-light);
@@ -1058,10 +1213,21 @@
     margin-bottom: 6px;
 }
 
-.hc-result-green .hc-result-msg  { color: var(--hc-primary-dark); }
-.hc-result-yellow .hc-result-msg { color: var(--hc-yellow); }
-.hc-result-orange .hc-result-msg { color: var(--hc-orange); }
-.hc-result-red .hc-result-msg    { color: var(--hc-red); }
+.hc-result-green .hc-result-msg {
+    color: var(--hc-primary-dark);
+}
+
+.hc-result-yellow .hc-result-msg {
+    color: var(--hc-yellow);
+}
+
+.hc-result-orange .hc-result-msg {
+    color: var(--hc-orange);
+}
+
+.hc-result-red .hc-result-msg {
+    color: var(--hc-red);
+}
 
 .hc-result-detail {
     color: var(--hc-text-secondary);
@@ -1118,12 +1284,22 @@
     animation: hc-slideIn 0.25s ease-out;
 }
 
-.hc-history-item:last-child { border-bottom: none; }
+.hc-history-item:last-child {
+    border-bottom: none;
+}
 
 /* Mã màu theo kết quả scan */
-.hc-history-success { border-left-color: var(--hc-green); }
-.hc-history-update  { border-left-color: var(--hc-yellow); }
-.hc-history-error   { border-left-color: var(--hc-red); }
+.hc-history-success {
+    border-left-color: var(--hc-green);
+}
+
+.hc-history-update {
+    border-left-color: var(--hc-yellow);
+}
+
+.hc-history-error {
+    border-left-color: var(--hc-red);
+}
 
 .hc-history-time {
     color: var(--hc-text-muted);
@@ -1135,7 +1311,9 @@
     font-family: var(--hc-mono);
 }
 
-.hc-history-name { color: var(--hc-text); }
+.hc-history-name {
+    color: var(--hc-text);
+}
 
 .hc-history-mode {
     color: var(--hc-text-muted);
@@ -1168,7 +1346,9 @@
     transition: border-color var(--hc-transition), box-shadow var(--hc-transition);
 }
 
-.hc-search-input::placeholder { color: var(--hc-text-muted); }
+.hc-search-input::placeholder {
+    color: var(--hc-text-muted);
+}
 
 .hc-search-input:focus {
     border-color: var(--hc-primary);
@@ -1250,19 +1430,38 @@
     transition: background var(--hc-transition);
 }
 
-.hc-table tbody tr { transition: background var(--hc-transition); }
+.hc-table tbody tr {
+    transition: background var(--hc-transition);
+}
 
-.hc-table tbody tr:hover { background: var(--hc-primary-light) !important; }
+.hc-table tbody tr:hover {
+    background: var(--hc-primary-light) !important;
+}
 
-.hc-row-alt { background: #F7FAF8; }
+.hc-row-alt {
+    background: #F7FAF8;
+}
 
-.hc-clickable-row { cursor: pointer; }
+.hc-clickable-row {
+    cursor: pointer;
+}
 
 /* Highlight hàng đang trễ */
-.hc-row-late-dist { background: var(--hc-red-light) !important; }
-.hc-row-late-dist:hover { background: #F3D8DA !important; }
-.hc-row-late-coll { background: var(--hc-orange-light) !important; }
-.hc-row-late-coll:hover { background: #F1DECB !important; }
+.hc-row-late-dist {
+    background: var(--hc-red-light) !important;
+}
+
+.hc-row-late-dist:hover {
+    background: #F3D8DA !important;
+}
+
+.hc-row-late-coll {
+    background: var(--hc-orange-light) !important;
+}
+
+.hc-row-late-coll:hover {
+    background: #F1DECB !important;
+}
 
 .hc-table-count {
     padding: 9px 13px;
@@ -1295,17 +1494,49 @@
     font-variant-numeric: tabular-nums;
 }
 
-.hc-bold { font-weight: 600; }
-.hc-dim { color: var(--hc-text-secondary); }
-.hc-muted { color: var(--hc-text-muted); }
-.hc-cyan { color: var(--hc-cyan); }
-.hc-pink { color: var(--hc-pink); }
-.hc-center { text-align: center; }
+.hc-bold {
+    font-weight: 600;
+}
 
-.hc-green { color: var(--hc-green); font-weight: 600; }
-.hc-red { color: var(--hc-red); font-weight: 600; }
-.hc-yellow { color: var(--hc-yellow); font-weight: 600; }
-.hc-orange { color: var(--hc-orange); font-weight: 600; }
+.hc-dim {
+    color: var(--hc-text-secondary);
+}
+
+.hc-muted {
+    color: var(--hc-text-muted);
+}
+
+.hc-cyan {
+    color: var(--hc-cyan);
+}
+
+.hc-pink {
+    color: var(--hc-pink);
+}
+
+.hc-center {
+    text-align: center;
+}
+
+.hc-green {
+    color: var(--hc-green);
+    font-weight: 600;
+}
+
+.hc-red {
+    color: var(--hc-red);
+    font-weight: 600;
+}
+
+.hc-yellow {
+    color: var(--hc-yellow);
+    font-weight: 600;
+}
+
+.hc-orange {
+    color: var(--hc-orange);
+    font-weight: 600;
+}
 
 /* ============================================================
    Status Badges — chấm trạng thái + nhãn
@@ -1331,12 +1562,35 @@
     flex-shrink: 0;
 }
 
-.hc-badge-green  { background: var(--hc-green-light);  color: var(--hc-primary-dark); }
-.hc-badge-yellow { background: var(--hc-yellow-light); color: var(--hc-yellow); }
-.hc-badge-red    { background: var(--hc-red-light);    color: var(--hc-red); }
-.hc-badge-blue   { background: var(--hc-blue-light);   color: var(--hc-blue); }
-.hc-badge-purple { background: var(--hc-purple-light); color: var(--hc-purple); }
-.hc-badge-orange { background: var(--hc-orange-light); color: var(--hc-orange); }
+.hc-badge-green {
+    background: var(--hc-green-light);
+    color: var(--hc-primary-dark);
+}
+
+.hc-badge-yellow {
+    background: var(--hc-yellow-light);
+    color: var(--hc-yellow);
+}
+
+.hc-badge-red {
+    background: var(--hc-red-light);
+    color: var(--hc-red);
+}
+
+.hc-badge-blue {
+    background: var(--hc-blue-light);
+    color: var(--hc-blue);
+}
+
+.hc-badge-purple {
+    background: var(--hc-purple-light);
+    color: var(--hc-purple);
+}
+
+.hc-badge-orange {
+    background: var(--hc-orange-light);
+    color: var(--hc-orange);
+}
 
 /* ============================================================
    Sync status indicator
@@ -1362,7 +1616,9 @@
     flex-shrink: 0;
 }
 
-.hc-sync-status[data-synced="1"] { display: flex; }
+.hc-sync-status[data-synced="1"] {
+    display: flex;
+}
 
 /* ============================================================
    Offline Banner
@@ -1397,11 +1653,16 @@
 /* ============================================================
    Scan Line Animation (camera)
    ============================================================ */
-#hc-qr-reader { position: relative; }
+#hc-qr-reader {
+    position: relative;
+}
 
 .hc-scan-line-wrap {
     position: absolute;
-    top: 0; left: 0; right: 0; bottom: 0;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
     pointer-events: none;
     z-index: 10;
     overflow: hidden;
@@ -1418,17 +1679,32 @@
 }
 
 @keyframes hc-scan-sweep {
-    0%   { top: 10%; opacity: 0.4; }
-    10%  { opacity: 1; }
-    90%  { opacity: 1; }
-    100% { top: 90%; opacity: 0.4; }
+    0% {
+        top: 10%;
+        opacity: 0.4;
+    }
+
+    10% {
+        opacity: 1;
+    }
+
+    90% {
+        opacity: 1;
+    }
+
+    100% {
+        top: 90%;
+        opacity: 0.4;
+    }
 }
 
 /* ============================================================
    Responsive — Tablet (< 1024px)
    ============================================================ */
 @media (max-width: 1024px) {
-    .hc-stats-grid { grid-template-columns: repeat(4, 1fr); }
+    .hc-stats-grid {
+        grid-template-columns: repeat(4, 1fr);
+    }
 
     .hc-scan-layout {
         grid-template-columns: 360px 1fr;
@@ -1445,9 +1721,17 @@
         gap: 8px;
     }
 
-    .hc-stat-card { padding: 12px 12px 11px 15px; }
-    .hc-stat-value { font-size: 24px; }
-    .hc-stat-icon { font-size: 18px; }
+    .hc-stat-card {
+        padding: 12px 12px 11px 15px;
+    }
+
+    .hc-stat-value {
+        font-size: 24px;
+    }
+
+    .hc-stat-icon {
+        font-size: 18px;
+    }
 
     .hc-header {
         flex-direction: column;
@@ -1462,7 +1746,9 @@
         scrollbar-width: none;
     }
 
-    .hc-tabs::-webkit-scrollbar { display: none; }
+    .hc-tabs::-webkit-scrollbar {
+        display: none;
+    }
 
     .hc-tab {
         padding: 8px 13px;
@@ -1475,8 +1761,13 @@
         gap: 12px;
     }
 
-    .hc-scan-card { padding: 22px 14px 20px; }
-    .hc-scan-title { font-size: 17px; }
+    .hc-scan-card {
+        padding: 22px 14px 20px;
+    }
+
+    .hc-scan-title {
+        font-size: 17px;
+    }
 
     .hc-scan-subtitle {
         font-size: 12px;
@@ -1535,10 +1826,21 @@
         font-size: 16px;
     }
 
-    .hc-scan-result { margin-top: 14px; }
-    .hc-result { padding: 13px 12px; }
-    .hc-result-msg { font-size: 14px; }
-    .hc-result-detail { font-size: 12px; }
+    .hc-scan-result {
+        margin-top: 14px;
+    }
+
+    .hc-result {
+        padding: 13px 12px;
+    }
+
+    .hc-result-msg {
+        font-size: 14px;
+    }
+
+    .hc-result-detail {
+        font-size: 12px;
+    }
 
     /* History — panel gọn có cuộn */
     .hc-scan-history {
@@ -1548,7 +1850,9 @@
         -webkit-overflow-scrolling: touch;
     }
 
-    .hc-history-mode { display: none; }
+    .hc-history-mode {
+        display: none;
+    }
 
     /* ── Dashboard ── */
     .hc-dash-filter-select {
@@ -1562,15 +1866,23 @@
         -webkit-overflow-scrolling: touch;
     }
 
-    .hc-chart-card { padding: 13px 12px; }
+    .hc-chart-card {
+        padding: 13px 12px;
+    }
 
     /* ── Bảng danh sách ── */
-    .hc-table { font-size: 12px; }
+    .hc-table {
+        font-size: 12px;
+    }
 
     .hc-table th,
-    .hc-table td { padding: 8px 8px; }
+    .hc-table td {
+        padding: 8px 8px;
+    }
 
-    .hc-list-toolbar { gap: 8px; }
+    .hc-list-toolbar {
+        gap: 8px;
+    }
 
     .hc-search-input {
         min-width: 0;
@@ -1582,6 +1894,7 @@
    Print
    ============================================================ */
 @media print {
+
     .hc-header,
     .hc-tabs,
     .hc-scan-card,

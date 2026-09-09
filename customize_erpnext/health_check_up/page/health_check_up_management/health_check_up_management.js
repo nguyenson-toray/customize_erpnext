@@ -33,6 +33,8 @@ const L = {
     chart_by_group: "Tiến độ theo Group",
     chart_by_start_time: "Tiến độ theo Giờ bắt đầu dự kiến",
     chart_hint: "Hoàn thành / Tổng",
+    filter_type: "Health Check Type",
+    type_unknown: "Không xác định",
     scan_placeholder: "Scan hoặc nhập mã hồ sơ / mã nhân viên...",
     btn_distribute: "Ghi nhận phát HS",
     btn_collect: "Ghi nhận thu HS",
@@ -92,6 +94,7 @@ const state = {
     dashFilterStartTime: "all",
     dashFilterSection: "all",
     dashFilterGroup: "all",
+    dashFilterType: "all",
     // Settings
     allowedLateDistribute: 10,
     allowedLateCollect: 0,
@@ -276,7 +279,7 @@ function showGuideDialog() {
         <div class="hg-grid">
             <div class="hg-card">
                 <b>Tiến độ chung</b>
-                <span>👥 Tổng hồ sơ (cố định) · 📤 Đã phát HS · 🔄 Đang khám · ✅ Hoàn thành · ❌ Chưa khám · 🚫 Không khám</span>
+                <span>👥 Tổng hồ sơ (cố định) · 📤 Đã phát HS · 🔄 Đang khám · ✅ Hoàn thành · ❌ Chưa khám · 🚫 Không khám · 🩺 một thẻ cho mỗi Health Check Type có trong ngày <em>(số hoàn thành, % tính trong chính loại đó)</em></span>
             </div>
             <div class="hg-card">
                 <b>Thông tin thêm</b>
@@ -287,7 +290,7 @@ function showGuideDialog() {
 
         <h4>Bộ lọc Dashboard</h4>
         <ul>
-            <li><strong>Giờ bắt đầu / Section / Group</strong> — lọc theo lịch hẹn & phòng ban.</li>
+            <li><strong>Giờ bắt đầu / Section / Group / Health Check Type</strong> — lọc theo lịch hẹn, phòng ban & loại khám.</li>
             <li><strong>Thời gian thu / phát HS</strong> — lọc theo giờ phát/thu thực tế (mặc định 07:00–17:00). Record chưa có actual time luôn được giữ.</li>
         </ul>
 
@@ -498,6 +501,7 @@ function renderDashboardFilters() {
     const startTimes = [...new Set(state.records.map(r => formatTime(r.start_time)).filter(t => t !== "—"))].sort();
     const sectionList = [...new Set(state.records.map(r => r.custom_section).filter(Boolean))].sort();
     const groupList = [...new Set(state.records.map(r => r.custom_group).filter(Boolean))].sort();
+    const typeList = [...new Set(state.records.map(r => r.health_check_type).filter(Boolean))].sort();
 
     $("#hc-dash-filters-wrap").html(`
         <div class="hc-dash-filter-item">
@@ -521,6 +525,13 @@ function renderDashboardFilters() {
                 ${groupList.map(g => `<option value="${esc(g)}" ${state.dashFilterGroup === g ? 'selected' : ''}>${esc(g)}</option>`).join('')}
             </select>
         </div>
+        <div class="hc-dash-filter-item">
+            <label class="hc-dash-filter-label">${L.filter_type}</label>
+            <select class="hc-dash-filter-select" id="dash-filter-type">
+                <option value="all">Tất cả</option>
+                ${typeList.map(t => `<option value="${esc(t)}" ${state.dashFilterType === t ? 'selected' : ''}>${esc(t)}</option>`).join('')}
+            </select>
+        </div>
         <div class="hc-dash-filter-item hc-dash-filter-time-range">
             <label class="hc-dash-filter-label">Thời gian phát / thu HS</label>
             <div style="display:flex; align-items:center; gap:4px;">
@@ -538,6 +549,7 @@ function renderDashboard() {
     // Apply dashboard filters
     const filtered = getDashboardFilteredRecords();
     const s = calcFilteredStats(filtered);
+    const typeCards = healthCheckTypeCards(filtered, "                ");
 
     return `
     <div class="hc-dashboard">
@@ -551,6 +563,7 @@ function renderDashboard() {
                 ${statCard("completed", L.stat_completed, s.completed, s.total, "green", "✅")}
                 ${statCard("not_started", L.stat_not_started, s.not_started, s.total, "red", "❌")}
                 ${statCard("not_checked", "Không khám", s.not_checked, s.total, "orange", "🚫", s.not_checked > 0)}
+${typeCards}
             </div>
 
             <div class="hc-stats-group-title">Thông tin thêm</div>
@@ -597,6 +610,9 @@ function getDashboardFilteredRecords() {
     }
     if (state.dashFilterGroup !== "all") {
         records = records.filter(r => r.custom_group === state.dashFilterGroup);
+    }
+    if (state.dashFilterType !== "all") {
+        records = records.filter(r => r.health_check_type === state.dashFilterType);
     }
 
     // Filter by actual time range:
@@ -659,6 +675,7 @@ function updateDashboardStats() {
 
     const filtered = getDashboardFilteredRecords();
     const s = calcFilteredStats(filtered);
+    const typeCards = healthCheckTypeCards(filtered, "            ");
 
     $wrapper.html(`
         <div class="hc-stats-group-title">Tiến độ chung</div>
@@ -669,6 +686,7 @@ function updateDashboardStats() {
             ${statCard("completed", L.stat_completed, s.completed, s.total, "green", "✅")}
             ${statCard("not_started", L.stat_not_started, s.not_started, s.total, "red", "❌")}
             ${statCard("not_checked", "Không khám", s.not_checked, s.total, "orange", "🚫", s.not_checked > 0)}
+${typeCards}
         </div>
 
         <div class="hc-stats-group-title">Thông tin thêm</div>
@@ -704,6 +722,10 @@ function setupDashboardFilters() {
         state.dashFilterGroup = $(this).val();
         renderActiveTab();
     });
+    $("#dash-filter-type").on("change", function () {
+        state.dashFilterType = $(this).val();
+        renderActiveTab();
+    });
     // Frappe Time controls for khoảng giờ TT
     const ctrlFrom = frappe.ui.form.make_control({
         parent: document.getElementById("dash-time-from-wrap"),
@@ -730,6 +752,7 @@ function setupDashboardFilters() {
         state.dashFilterStartTime = "all";
         state.dashFilterSection = "all";
         state.dashFilterGroup = "all";
+        state.dashFilterType = "all";
         state.dashTimeFrom = "07:00";
         state.dashTimeTo = "17:00";
         renderActiveTab();
@@ -812,6 +835,11 @@ function showSettingsDialog() {
 
 function getStatModalData(type) {
     const filtered = getDashboardFilteredRecords();
+    // Thẻ Health Check Type dùng type động dạng "hct:<tên loại>"
+    if (String(type).startsWith("hct:")) {
+        const wanted = String(type).slice(4);
+        return filtered.filter(r => (r.health_check_type || L.type_unknown) === wanted);
+    }
     switch (type) {
         case "total": return filtered;
         case "distributed": return filtered.filter(r => r.status !== "Chưa khám");
@@ -934,6 +962,31 @@ function showStatModal(type) {
     dialog.show();
 }
 
+// Thẻ theo Health Check Type. Giá trị dựng TỪ DỮ LIỆU chứ không hard-code theo options
+// của field — thêm/đổi loại khám trên DocType thì dashboard tự có thẻ tương ứng.
+// `ind` là thụt lề để HTML sinh ra khớp với khối gọi (2 khối, thụt lề khác nhau).
+function healthCheckTypeCards(filtered, ind) {
+    // Mỗi loại một cặp {tổng, hoàn thành} — tiến độ phải tính TRONG loại đó, lấy
+    // filtered.length làm mẫu số thì ra tỷ trọng của loại trên tổng hồ sơ, không phải tiến độ.
+    const byType = {};
+    filtered.forEach(r => {
+        const t = r.health_check_type || L.type_unknown;
+        if (!byType[t]) byType[t] = { total: 0, completed: 0 };
+        byType[t].total++;
+        if (r.status === "Hoàn thành") byType[t].completed++;
+    });
+    const keys = Object.keys(byType).sort();
+    if (!keys.length) return "";
+
+    // Bắt đầu bằng purple/pink — hai màu mà nhóm "Tiến độ chung" chưa dùng, để thẻ loại
+    // khám không trùng vạch màu với các thẻ trạng thái đứng ngay trước nó.
+    const colors = ["purple", "pink", "cyan", "blue", "green", "orange", "yellow", "red"];
+    return keys
+        .map((t, i) => ind + statCard(
+            `hct:${t}`, t, byType[t].completed, byType[t].total, colors[i % colors.length], "🩺"))
+        .join("\n");
+}
+
 function statCard(type, label, value, total, color, icon, isAlert = false) {
     // 1 chữ số thập phân, nhưng bỏ ".0" cho số tròn (100% chứ không phải 100.0%)
     const pct =
@@ -942,7 +995,7 @@ function statCard(type, label, value, total, color, icon, isAlert = false) {
             : "";
     const alertClass = isAlert ? " hc-stat-alert" : "";
     return `
-    <div class="hc-stat-card hc-stat-${color} clickable-card${alertClass}" data-type="${type}" style="cursor: pointer;">
+    <div class="hc-stat-card hc-stat-${color} clickable-card${alertClass}" data-type="${esc(type)}" style="cursor: pointer;">
         <div class="hc-stat-label">${label}</div>
         <div class="hc-stat-value">${(value || 0).toLocaleString()}</div>
         ${pct ? `<div class="hc-stat-pct">${pct} / ${total}</div>` : ""}
