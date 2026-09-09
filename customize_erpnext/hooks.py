@@ -306,8 +306,8 @@ scheduler_events = {
         "0 * * * *": [
             "customize_erpnext.overrides.shift_type.shift_type_optimized.weekly_recalculate_attendance_scheduled"
         ],
-        # NVR / CCTV Monitor - Every day at 07:00 (gap_days=1, min_gap=10)
-        "0 7 * * *": [
+        # NVR / CCTV Monitor - Every day at 07:30 (gap_days=1, min_gap=10)
+        "30 7 * * *": [
             "customize_erpnext.network.utils.monitor_runner.run_all_nvr_daily"
         ],
         # Uniform Control - Weekly alert every Monday at 08:30 AM

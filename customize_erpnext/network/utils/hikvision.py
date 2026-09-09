@@ -255,19 +255,34 @@ class HikvisionNVR:
             return None
 
     def _collect_segments(self, tid: str, start: str, end: str) -> list:
-        """Lấy toàn bộ segment trong cửa sổ [start, end].
+        """Toàn bộ segment trong cửa sổ [start, end] (bỏ cờ đầy đủ)."""
+        return self._collect_segments_ex(tid, start, end)[0]
 
-        Firmware bỏ qua searchResultPosition nên paginate bằng cách dời
-        startTime qua endTime lớn nhất đã thấy, dừng khi batch < 100.
+    def _collect_segments_ex(self, tid: str, start: str, end: str):
+        """(segments, complete) — complete=False khi có request lỗi/chạm trần trang.
+
+        Firmware bỏ qua searchResultPosition nên paginate bằng cách dời startTime
+        qua endTime lớn nhất đã thấy.
+
+        🔴 Điều kiện dừng PHẢI là cờ `responseStatusStrg` chứ KHÔNG phải
+        `len(batch) < maxResults`: firmware trả tối đa **64 item/response** bất kể
+        maxResults, kèm status "MORE" khi còn dữ liệu. Bản cũ dừng ở 64 < 100 nên
+        camera nào >64 segment/24h (độ phân giải cao → file cắt ngắn, vd Camera48
+        ch53 NVR-Insite: 82 đoạn/ngày) bị cắt mất phần đuôi → đẻ ra gap giả
+        "…→NOW(...)" trong khi playback trên đầu ghi hoàn toàn bình thường.
         """
         segments = []
-        cursor = start
-        for _ in range(20):  # chặn trên 2000 segment / cửa sổ
-            batch = self._search_api(tid, cursor, end, pos=0, max_results=100)
+        cursor   = start
+        for _ in range(20):  # 20 × 64 ≈ 1.280 segment / cửa sổ 24h
+            batch, status = self._search_page(tid, cursor, end, max_results=100)
+            if status == "ERROR":
+                # Dừng giữa chừng: phần đuôi cửa sổ chưa đọc được, KHÔNG được
+                # coi là "hết bản ghi" (xem get_recording_report)
+                return segments, False
             if not batch:
                 break
             segments.extend(batch)
-            if len(batch) < 100:
+            if status != "MORE":
                 break
             ends = [b.get("timeSpan", {}).get("endTime") for b in batch]
             ends = [e for e in ends if e]
@@ -275,9 +290,16 @@ class HikvisionNVR:
             if not new_cursor or new_cursor <= cursor:
                 break
             cursor = new_cursor
-        return segments
+        else:
+            return segments, False  # chạm trần 20 trang
+        return segments, True
 
     def _search_api(self, tid: str, start: str, end: str, pos: int = 0, max_results: int = 1) -> list:
+        """Danh sách segment (bỏ status) — dùng cho các phép hỏi 'có/không'."""
+        return self._search_page(tid, start, end, pos, max_results)[0]
+
+    def _search_page(self, tid: str, start: str, end: str, pos: int = 0, max_results: int = 1):
+        """(items, status) — status: "OK" | "MORE" | "ERROR" (request hỏng)."""
         xml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <CMSearchDescription>
     <searchID>{uuid.uuid4()}</searchID>
@@ -297,9 +319,11 @@ class HikvisionNVR:
             items = match.get("searchMatchItem") if isinstance(match, dict) else []
             if not items and isinstance(match, list):
                 items = match
-            return [items] if isinstance(items, dict) else (items or [])
+            items = [items] if isinstance(items, dict) else (items or [])
+            status = (root.get("responseStatusStrg") or "OK").upper()
+            return items, status
         except Exception:
-            return []
+            return [], "ERROR"
 
     def _daily_distribution_days(self, tid: str, start: str, end: str) -> list:
         """Danh sách ngày có ghi hình (sorted). [] nếu firmware không hỗ trợ/không có."""
@@ -443,14 +467,17 @@ class HikvisionNVR:
         now = datetime.now()
         window_start = now - timedelta(days=days)
 
-        # Quét từng cửa sổ 24h, mỗi cửa sổ paginate đầy đủ (không giới hạn 100)
+        # Quét từng cửa sổ 24h, mỗi cửa sổ paginate đầy đủ
         segments = []
+        complete = True
         for d in range(days):
             win_end   = now - timedelta(days=d)
             win_start = win_end - timedelta(hours=24)
-            segments.extend(
-                self._collect_segments(tid, self._fmt_time(win_start), self._fmt_time(win_end))
+            segs, ok = self._collect_segments_ex(
+                tid, self._fmt_time(win_start), self._fmt_time(win_end)
             )
+            segments.extend(segs)
+            complete = complete and ok
 
         # Dedup theo (start, end) + parse; bỏ segment không parse được
         seen = set()
@@ -468,7 +495,11 @@ class HikvisionNVR:
         spans.sort()
 
         if not spans:
-            return {"gap": f"NO RECORDING {days * 24}h", "latest": None}
+            # Không có segment + đọc lỗi = không biết gì, đừng báo "mất ghi hình"
+            return {
+                "gap": f"NO RECORDING {days * 24}h" if complete else "SEARCH FAILED",
+                "latest": None,
+            }
 
         latest = max(en for _, en in spans)
         gaps   = []
@@ -490,9 +521,13 @@ class HikvisionNVR:
                     f"\u2192{start_t.strftime('%m-%d %H:%M')}({self._fmt_duration(diff_min)})"
                 )
 
-        # Gap đuôi — camera đang ngừng ghi tính tới thời điểm chạy
+        # Gap đuôi — camera đang ngừng ghi tính tới thời điểm chạy.
+        # Chỉ tin khi đọc đủ cửa sổ: đọc thiếu thì "segment cuối" chỉ là chỗ dừng
+        # của vòng phân trang, không phải chỗ camera ngừng ghi.
         trail_min = (now - latest).total_seconds() / 60
-        if trail_min > min_gap_minutes:
+        if not complete:
+            gaps.append("SEARCH FAILED")
+        elif trail_min > min_gap_minutes:
             gaps.append(
                 f"{latest.strftime('%m-%d %H:%M')}\u2192NOW({self._fmt_duration(trail_min)})"
             )
