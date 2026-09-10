@@ -23,13 +23,18 @@ def _get_machine_doc(machine_name):
 
 
 def _build_zk_device(doc):
-    """Build ZK device config dict from machine config."""
+    """Build ZK device config dict from machine config.
+
+    `password` is the numeric comm key (the ZK protocol has no username);
+    attendance machines leave it unset, the IT door controller may use one.
+    """
     return {
         "ip": doc.ip_address,
         "port": int(doc.port or 4370),
         "timeout": int(doc.timeout or 10),
         "force_udp": bool(doc.force_udp),
         "ommit_ping": bool(doc.ommit_ping),
+        "password": int(doc.password or 0),
     }
 
 
@@ -40,6 +45,7 @@ def _connect_zk(device_cfg):
         device_cfg["ip"],
         port=device_cfg["port"],
         timeout=device_cfg["timeout"],
+        password=int(device_cfg.get("password") or 0),
         force_udp=device_cfg["force_udp"],
         ommit_ping=device_cfg["ommit_ping"],
     )

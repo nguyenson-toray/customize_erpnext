@@ -917,6 +917,60 @@
             color: var(--text-3);
             font-style: italic;
         }
+
+        /* Door access table: sortable + per-column filter header */
+        #daLogsTable th {
+            padding: 6px 8px;
+            vertical-align: top;
+        }
+
+        #daLogsTable td {
+            padding: 5px 8px;
+        }
+
+        .da-th {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            cursor: pointer;
+            user-select: none;
+            white-space: nowrap;
+        }
+
+        .da-th:hover {
+            color: var(--primary);
+        }
+
+        .da-sort-ind {
+            font-size: 9px;
+            color: var(--text-3);
+        }
+
+        .da-th.sorted .da-sort-ind {
+            color: var(--primary);
+        }
+
+        input.da-col-filter {
+            width: 100%;
+            min-width: 0;
+            height: 24px;
+            margin-top: 4px;
+            padding: 0 6px;
+            font-size: 11.5px;
+            font-weight: 400;
+            text-transform: none;
+            letter-spacing: 0;
+            border: 1px solid var(--border-2);
+            border-radius: 4px;
+            background: var(--surface);
+        }
+
+        input.da-note-input {
+            width: 100%;
+            min-width: 0;
+            height: 26px;
+            font-size: 12.5px;
+        }
     </style>
 </head>
 
@@ -952,6 +1006,11 @@
             <button class="tab-btn" data-tab="tab-resync" onclick="switchTab('tab-resync')">
                 <span class="tab-icon">🔧</span><span class="tab-label">Manual Re-sync</span>
             </button>
+            {% if is_system_manager %}
+            <button class="tab-btn" data-tab="tab-door" onclick="switchTab('tab-door')">
+                <span class="tab-icon">🚪</span><span class="tab-label">IT Door Access</span>
+            </button>
+            {% endif %}
         </div>
 
         <!-- ════════════════════════════════════════════════════════
@@ -1357,7 +1416,8 @@
         <div id="tab-resync" class="tab-panel">
 
             <div class="card">
-                <div class="card-title"><span class="section-num">1</span> 🔁 Re-sync Device → ERPNext (date range)</div>
+                <div class="card-title"><span class="section-num">1</span> 🔁 Re-sync Device → ERPNext (date range)
+                </div>
                 <div style="font-size:12.5px;color:var(--text-2);margin-bottom:10px;">
                     Re-read attendance logs directly from the selected machines and push them to ERPNext.
                     Existing checkins are skipped automatically (duplicate-safe).
@@ -1376,7 +1436,8 @@
                     <div class="form-group"><label>From date</label><input type="date" id="rsDevFrom"></div>
                     <div class="form-group"><label>To date</label><input type="date" id="rsDevTo"></div>
                 </div>
-                <button class="btn btn-primary" id="rsDevBtn" onclick="rsRunDeviceResync()">▶ Re-sync from devices</button>
+                <button class="btn btn-primary" id="rsDevBtn" onclick="rsRunDeviceResync()">▶ Re-sync from
+                    devices</button>
             </div>
 
             <div class="card">
@@ -1389,7 +1450,8 @@
                     <div class="form-group"><label>From date</label><input type="date" id="rsMongoFrom"></div>
                     <div class="form-group"><label>To date</label><input type="date" id="rsMongoTo"></div>
                 </div>
-                <button class="btn btn-primary" id="rsMongoBtn" onclick="rsRunMongoResync()">▶ Sync from MongoDB</button>
+                <button class="btn btn-primary" id="rsMongoBtn" onclick="rsRunMongoResync()">▶ Sync from
+                    MongoDB</button>
             </div>
 
             <div class="card">
@@ -1423,8 +1485,9 @@
                         Type <strong>DELETE</strong> to confirm:</label>
                     <div style="display:flex;gap:8px;align-items:center;">
                         <input type="text" id="rsDelConfirm" oninput="rsDelConfirmInput()" autocomplete="off"
-                               style="width:160px;padding:6px 10px;border:1px solid var(--border-2);border-radius:6px;">
-                        <button class="btn btn-sm btn-danger-sm" id="rsDelBtn" onclick="rsRunDeleteOt()" disabled>🗑 Delete OT</button>
+                            style="width:160px;padding:6px 10px;border:1px solid var(--border-2);border-radius:6px;">
+                        <button class="btn btn-sm btn-danger-sm" id="rsDelBtn" onclick="rsRunDeleteOt()" disabled>🗑
+                            Delete OT</button>
                     </div>
                 </div>
             </div>
@@ -1439,6 +1502,124 @@
             </div>
 
         </div><!-- end tab-resync -->
+
+        {% if is_system_manager %}
+        <!-- ════════════════════════════════════════════════════════
+             TAB 7: IT DOOR ACCESS (ZKTeco F21Lite door controller)
+        ════════════════════════════════════════════════════════ -->
+        <div id="tab-door" class="tab-panel">
+
+            <div class="card">
+                <div class="card-title"><span class="section-num">1</span> 🚪 Door controller</div>
+                <div style="font-size:12.5px;color:var(--text-2);margin-bottom:10px;">
+                    Reads punches straight from the IT room door controller and stores them as
+                    <strong>Door Access Log</strong>. These punches never become attendance checkins.
+                    Fetching the same range again is safe — rows already stored are skipped.
+                </div>
+                <div class="form-row" style="margin-bottom:10px;">
+                    <div class="form-group"><label>Device IP</label>
+                        <input type="text" id="daIp" placeholder="192.168.1.201" autocomplete="off">
+                    </div>
+                    <div class="form-group"><label>Port</label>
+                        <input type="text" id="daPort" value="4370" style="min-width:90px;">
+                    </div>
+                    <div class="form-group"><label>Password (comm key)</label>
+                        <input type="password" id="daPass" placeholder="0" autocomplete="new-password"
+                            style="height:34px;padding:0 10px;border:1px solid var(--border-2);border-radius:6px;font-size:13px;font-family:'DM Sans',sans-serif;min-width:140px;">
+                    </div>
+                    <div class="form-group"><label>From date</label><input type="date" id="daFetchFrom"></div>
+                    <div class="form-group"><label>To date</label><input type="date" id="daFetchTo"></div>
+                    <div class="form-group">
+                        <button class="btn btn-primary" id="daFetchBtn" onclick="daFetchLogs()">⬇ Get logs from
+                            device</button>
+                    </div>
+                </div>
+                <div style="font-size:11.5px;color:var(--text-3);">
+                    IP / port are remembered in this browser. The password is never stored.
+                </div>
+                <div id="daFetchResult" style="margin-top:10px;font-size:13px;"></div>
+            </div>
+
+            <div class="card">
+                <div class="card-title"><span class="section-num">2</span> 📋 Access logs</div>
+                <div class="form-row" style="margin-bottom:10px;">
+                    <div class="form-group"><label>From date</label><input type="date" id="daFrom"></div>
+                    <div class="form-group"><label>To date</label><input type="date" id="daTo"></div>
+                    <div class="form-group"><label>Search (user id / employee / name / note)</label>
+                        <input type="text" id="daKeyword" placeholder="e.g. 3, TIQN-0148, Sơn"
+                            onkeydown="if(event.key==='Enter')daLoadLogs()">
+                    </div>
+                    <div class="form-group"><label>Rows</label>
+                        <select id="daLimit" style="min-width:100px;">
+                            <option value="200">200</option>
+                            <option value="500" selected>500</option>
+                            <option value="1000">1000</option>
+                            <option value="2000">2000</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <button class="btn btn-secondary" id="daRefreshBtn" onclick="daLoadLogs()">🔄 Refresh</button>
+                    </div>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap;">
+                    <span id="daLogsMeta" style="font-size:12.5px;color:var(--text-2);"></span>
+                    <button class="btn-link" id="daClearFiltersBtn" style="display:none;"
+                        onclick="daClearColumnFilters()">clear column filters</button>
+                </div>
+                <div class="user-table-wrap" style="max-height:520px;">
+                    <table id="daLogsTable">
+                        <thead>
+                            <tr>
+                                <th style="width:170px;">
+                                    <div class="da-th" onclick="daSort('timestamp')">Timestamp<span
+                                            class="da-sort-ind"></span></div>
+                                    <input class="da-col-filter" data-col="timestamp" oninput="daRender()"
+                                        placeholder="2026-09-10">
+                                </th>
+                                <th style="width:95px;">
+                                    <div class="da-th" onclick="daSort('user_id')">User ID<span
+                                            class="da-sort-ind"></span></div>
+                                    <input class="da-col-filter" data-col="user_id" oninput="daRender()"
+                                        placeholder="filter">
+                                </th>
+                                <th style="width:130px;">
+                                    <div class="da-th" onclick="daSort('employee')">Employee<span
+                                            class="da-sort-ind"></span></div>
+                                    <input class="da-col-filter" data-col="employee" oninput="daRender()"
+                                        placeholder="filter">
+                                </th>
+                                <th>
+                                    <div class="da-th" onclick="daSort('employee_name')">Name<span
+                                            class="da-sort-ind"></span></div>
+                                    <input class="da-col-filter" data-col="employee_name" oninput="daRender()"
+                                        placeholder="filter">
+                                </th>
+                                <th style="width:130px;">
+                                    <div class="da-th" onclick="daSort('device_ip')">Device IP<span
+                                            class="da-sort-ind"></span></div>
+                                    <input class="da-col-filter" data-col="device_ip" oninput="daRender()"
+                                        placeholder="filter">
+                                </th>
+                                <th style="width:240px;">
+                                    <div class="da-th" onclick="daSort('note')">Note<span class="da-sort-ind"></span>
+                                    </div>
+                                    <input class="da-col-filter" data-col="note" oninput="daRender()"
+                                        placeholder="filter">
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody id="daLogsBody">
+                            <tr>
+                                <td colspan="6" style="color:var(--text-3);">No data loaded yet.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div><!-- end tab-door -->
+        {% endif %}
+
 
     </div><!-- end main-wrap -->
 
@@ -1502,6 +1683,7 @@
             // Lazy actions on tab open
             if (tabId === 'tab-machines' && !_machinesLoaded) loadMachineCards();
             if (tabId === 'tab-resync') rsInitTab();
+            if (tabId === 'tab-door') daInitTab();
             if (tabId === 'tab-fp41' && _allMachines.length) fp41RenderMachines();
         }
 
@@ -2233,56 +2415,56 @@
             fp41UpdateSyncBtn();
             try {
 
-            const ps = document.getElementById('fp41ProgressSection');
-            ps.classList.add('visible');
-            const logEl = document.getElementById('fp41ResultLog');
-            const phaseEl = document.getElementById('fp41ProgressPhase');
-            const barEl = document.getElementById('fp41ProgressBar');
-            logEl.innerHTML = '';
+                const ps = document.getElementById('fp41ProgressSection');
+                ps.classList.add('visible');
+                const logEl = document.getElementById('fp41ResultLog');
+                const phaseEl = document.getElementById('fp41ProgressPhase');
+                const barEl = document.getElementById('fp41ProgressBar');
+                logEl.innerHTML = '';
 
-            function appendLog(cls, text) {
-                const d = document.createElement('div');
-                d.className = cls; d.textContent = text;
-                logEl.appendChild(d); logEl.scrollTop = logEl.scrollHeight;
-            }
-
-            appendLog('info-line', `▶ Starting: ${_fp41Employees.length} employees × ${selMachines.length} machines = ${total} operations`);
-            appendLog('info-line', `⚡ Strategy: each machine runs in parallel, all employees per machine in sequence`);
-            let done = 0, okCount = 0, failCount = 0;
-
-            // Each machine gets its own async worker — all machines run in parallel simultaneously
-            // Within each machine: employees processed sequentially (1 connection at a time per machine)
-            const machinePromises = selMachines.map(async (machine) => {
-                appendLog('info-line', `── ▶ ${machine} started ──`);
-                let machineOk = 0, machineFail = 0;
-
-                for (const emp of _fp41Employees) {
-                    const empId = emp.employee_id;
-                    try {
-                        const msg = await callPost('customize_erpnext.api.utilities.sync_employee_to_single_machine', {
-                            employee_id: empId,
-                            machine_name: machine,
-                        });
-                        const ok = msg && msg.success !== false && msg.status !== 'error';
-                        const detail = msg ? (msg.message || msg.status || 'OK') : 'OK';
-                        if (ok) { okCount++; machineOk++; appendLog('ok', `✓ ${empId} → ${machine}: ${detail}`); }
-                        else { failCount++; machineFail++; appendLog('fail', `✗ ${empId} → ${machine}: ${detail}`); }
-                    } catch (e) {
-                        failCount++; machineFail++;
-                        appendLog('fail', `✗ ${empId} → ${machine}: ${e.message}`);
-                    }
-                    done++;
-                    barEl.style.width = Math.round(done / total * 100) + '%';
-                    phaseEl.textContent = `Syncing... (${done}/${total}) | ✅ ${okCount} ❌ ${failCount}`;
+                function appendLog(cls, text) {
+                    const d = document.createElement('div');
+                    d.className = cls; d.textContent = text;
+                    logEl.appendChild(d); logEl.scrollTop = logEl.scrollHeight;
                 }
 
-                appendLog('info-line', `── ✅ ${machine}: ${machineOk} OK / ${machineFail} failed ──`);
-            });
+                appendLog('info-line', `▶ Starting: ${_fp41Employees.length} employees × ${selMachines.length} machines = ${total} operations`);
+                appendLog('info-line', `⚡ Strategy: each machine runs in parallel, all employees per machine in sequence`);
+                let done = 0, okCount = 0, failCount = 0;
 
-            await Promise.allSettled(machinePromises);
+                // Each machine gets its own async worker — all machines run in parallel simultaneously
+                // Within each machine: employees processed sequentially (1 connection at a time per machine)
+                const machinePromises = selMachines.map(async (machine) => {
+                    appendLog('info-line', `── ▶ ${machine} started ──`);
+                    let machineOk = 0, machineFail = 0;
 
-            phaseEl.textContent = `✅ Done: ${okCount} OK / ${failCount} errors`;
-            appendLog('info-line', `\n=== COMPLETE: ${okCount} OK / ${failCount} FAILED / ${total} total ===`);
+                    for (const emp of _fp41Employees) {
+                        const empId = emp.employee_id;
+                        try {
+                            const msg = await callPost('customize_erpnext.api.utilities.sync_employee_to_single_machine', {
+                                employee_id: empId,
+                                machine_name: machine,
+                            });
+                            const ok = msg && msg.success !== false && msg.status !== 'error';
+                            const detail = msg ? (msg.message || msg.status || 'OK') : 'OK';
+                            if (ok) { okCount++; machineOk++; appendLog('ok', `✓ ${empId} → ${machine}: ${detail}`); }
+                            else { failCount++; machineFail++; appendLog('fail', `✗ ${empId} → ${machine}: ${detail}`); }
+                        } catch (e) {
+                            failCount++; machineFail++;
+                            appendLog('fail', `✗ ${empId} → ${machine}: ${e.message}`);
+                        }
+                        done++;
+                        barEl.style.width = Math.round(done / total * 100) + '%';
+                        phaseEl.textContent = `Syncing... (${done}/${total}) | ✅ ${okCount} ❌ ${failCount}`;
+                    }
+
+                    appendLog('info-line', `── ✅ ${machine}: ${machineOk} OK / ${machineFail} failed ──`);
+                });
+
+                await Promise.allSettled(machinePromises);
+
+                phaseEl.textContent = `✅ Done: ${okCount} OK / ${failCount} errors`;
+                appendLog('info-line', `\n=== COMPLETE: ${okCount} OK / ${failCount} FAILED / ${total} total ===`);
 
             } finally {
                 // always release the flags, or the beforeunload guard stays armed forever
@@ -3066,6 +3248,204 @@
             rsRunJob('rsDelBtn', '🗑 Delete OT',
                 'customize_erpnext.api.biometric_resync.delete_ot',
                 { from_date: from, to_date: to, confirm_text: confirmText });
+        }
+
+        // ══════════════════════════════════════════════════════════════════════════════
+        // TAB 7: IT DOOR ACCESS
+        // ══════════════════════════════════════════════════════════════════════════════
+        let _daInited = false;
+
+        function daInitTab() {
+            if (_daInited) return;
+            _daInited = true;
+
+            // device config is remembered per browser (password never stored)
+            const saved = JSON.parse(localStorage.getItem('doorAccessDevice') || '{}');
+            if (saved.ip) document.getElementById('daIp').value = saved.ip;
+            if (saved.port) document.getElementById('daPort').value = saved.port;
+
+            const today = new Date();
+            const iso = d => new Date(d.getTime() - d.getTimezoneOffset() * 60000)
+                .toISOString().slice(0, 10);
+            const weekAgo = new Date(today.getTime() - 6 * 86400000);
+            document.getElementById('daFetchFrom').value = iso(weekAgo);
+            document.getElementById('daFetchTo').value = iso(today);
+            document.getElementById('daFrom').value = iso(weekAgo);
+            document.getElementById('daTo').value = iso(today);
+
+            daLoadLogs();
+        }
+
+        async function daFetchLogs() {
+            const ip = document.getElementById('daIp').value.trim();
+            const port = document.getElementById('daPort').value.trim() || '4370';
+            const password = document.getElementById('daPass').value.trim() || '0';
+            const from = document.getElementById('daFetchFrom').value;
+            const to = document.getElementById('daFetchTo').value;
+            const resEl = document.getElementById('daFetchResult');
+
+            if (!ip) { resEl.innerHTML = '<span style="color:var(--danger);">❌ Device IP is required</span>'; return; }
+            localStorage.setItem('doorAccessDevice', JSON.stringify({ ip, port }));
+
+            const btn = document.getElementById('daFetchBtn');
+            btn.disabled = true;
+            btn.textContent = '⏳ Reading device...';
+            resEl.innerHTML = '<span style="color:var(--text-2);">Connecting to ' + escapeHtml(ip) + '...</span>';
+            try {
+                const msg = await callPost('customize_erpnext.api.door_access.fetch_door_logs',
+                    { ip, port, password, from_date: from, to_date: to });
+                if (msg.status !== 'success') throw new Error(msg.message || 'Fetch failed');
+                resEl.innerHTML = `<span style="color:var(--success);">✅ Done</span> —
+                    device holds <strong>${msg.fetched}</strong> punches,
+                    <strong>${msg.in_range}</strong> in ${msg.from_date} → ${msg.to_date}:
+                    <strong>${msg.inserted}</strong> new,
+                    ${msg.duplicated} already stored,
+                    ${msg.no_employee} without employee${msg.error ? `, <span style="color:var(--danger);">${msg.error} errors</span>` : ''}.`;
+                daLoadLogs();
+            } catch (e) {
+                resEl.innerHTML = '<span style="color:var(--danger);">❌ ' + escapeHtml(e.message) + '</span>';
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '⬇ Get logs from device';
+            }
+        }
+
+        // rows currently loaded from the server; the column filters and the
+        // sort below work on this set (the server already applied the date
+        // range + search box and returned at most `Rows` rows).
+        let _daRows = [];
+        let _daSortCol = 'timestamp';
+        let _daSortDir = 'desc';
+
+        async function daLoadLogs() {
+            const body = document.getElementById('daLogsBody');
+            const meta = document.getElementById('daLogsMeta');
+            const btn = document.getElementById('daRefreshBtn');
+            btn.disabled = true;
+            body.innerHTML = '<tr><td colspan="6" style="color:var(--text-3);">Loading...</td></tr>';
+            try {
+                const msg = await callGet('customize_erpnext.api.door_access.get_door_logs', {
+                    from_date: document.getElementById('daFrom').value,
+                    to_date: document.getElementById('daTo').value,
+                    keyword: document.getElementById('daKeyword').value.trim(),
+                    limit: document.getElementById('daLimit').value
+                });
+                if (msg.status !== 'success') throw new Error(msg.message || 'Load failed');
+                _daRows = msg.rows || [];
+                _daServerInfo = msg;
+                daRender();
+            } catch (e) {
+                _daRows = [];
+                body.innerHTML = `<tr><td colspan="6" style="color:var(--danger);">❌ ${escapeHtml(e.message)}</td></tr>`;
+                meta.textContent = '';
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        let _daServerInfo = null;
+
+        function daColumnFilters() {
+            const out = {};
+            document.querySelectorAll('#daLogsTable .da-col-filter').forEach(inp => {
+                const v = inp.value.trim().toLowerCase();
+                if (v) out[inp.dataset.col] = v;
+            });
+            return out;
+        }
+
+        function daClearColumnFilters() {
+            document.querySelectorAll('#daLogsTable .da-col-filter').forEach(inp => { inp.value = ''; });
+            daRender();
+        }
+
+        function daSort(col) {
+            if (_daSortCol === col) {
+                _daSortDir = _daSortDir === 'asc' ? 'desc' : 'asc';
+            } else {
+                _daSortCol = col;
+                // text columns read naturally A→Z first, timestamps newest first
+                _daSortDir = col === 'timestamp' ? 'desc' : 'asc';
+            }
+            daRender();
+        }
+
+        function _daCompare(a, b) {
+            const va = (a[_daSortCol] === null || a[_daSortCol] === undefined) ? '' : String(a[_daSortCol]);
+            const vb = (b[_daSortCol] === null || b[_daSortCol] === undefined) ? '' : String(b[_daSortCol]);
+            // empty values always sink to the bottom, whichever direction
+            if (!va && !vb) return 0;
+            if (!va) return 1;
+            if (!vb) return -1;
+            let r;
+            const na = Number(va), nb = Number(vb);
+            if (va !== '' && vb !== '' && !isNaN(na) && !isNaN(nb)) r = na - nb;   // e.g. User ID 3 before 10
+            else r = va.localeCompare(vb, undefined, { numeric: true, sensitivity: 'base' });
+            return _daSortDir === 'asc' ? r : -r;
+        }
+
+        function daRender() {
+            const body = document.getElementById('daLogsBody');
+            const meta = document.getElementById('daLogsMeta');
+            const filters = daColumnFilters();
+            const filterKeys = Object.keys(filters);
+
+            const rows = _daRows.filter(r => filterKeys.every(col => {
+                const v = (r[col] === null || r[col] === undefined) ? '' : String(r[col]).toLowerCase();
+                return v.includes(filters[col]);
+            })).sort(_daCompare);
+
+            // sort indicators
+            document.querySelectorAll('#daLogsTable .da-th').forEach(th => {
+                const col = (th.getAttribute('onclick') || '').match(/'([^']+)'/)[1];
+                const ind = th.querySelector('.da-sort-ind');
+                const active = col === _daSortCol;
+                th.classList.toggle('sorted', active);
+                ind.textContent = active ? (_daSortDir === 'asc' ? '▲' : '▼') : '↕';
+            });
+
+            document.getElementById('daClearFiltersBtn').style.display = filterKeys.length ? '' : 'none';
+
+            const info = _daServerInfo;
+            let text = '';
+            if (info) {
+                text = `${rows.length} row(s)`;
+                if (filterKeys.length) text += ` of ${_daRows.length} loaded`;
+                text += ` — ${info.from_date} → ${info.to_date} · ${info.total} log(s) in DB for this range`;
+                if (info.total > info.shown) text += ' (raise Rows or narrow the range to load them all)';
+            }
+            meta.textContent = text;
+
+            if (!rows.length) {
+                body.innerHTML = `<tr><td colspan="6" style="color:var(--text-3);">${_daRows.length ? 'No row matches the column filters.' : 'No logs in this range.'}</td></tr>`;
+                return;
+            }
+
+            body.innerHTML = rows.map(r => `
+                <tr>
+                    <td style="white-space:nowrap;">${escapeHtml(r.timestamp || '')}</td>
+                    <td>${escapeHtml(r.user_id || '')}</td>
+                    <td>${r.employee ? escapeHtml(r.employee) : '<span style="color:var(--danger);">—</span>'}</td>
+                    <td>${escapeHtml(r.employee_name || '')}</td>
+                    <td>${escapeHtml(r.device_ip || '')}</td>
+                    <td><input type="text" class="da-note-input" value="${escapeHtml(r.note || '')}"
+                               data-name="${escapeHtml(r.name)}" onchange="daSaveNote(this)" placeholder="—"></td>
+                </tr>`).join('');
+        }
+
+        async function daSaveNote(input) {
+            const original = input.style.borderColor;
+            try {
+                await callPost('customize_erpnext.api.door_access.update_note',
+                    { name: input.dataset.name, note: input.value });
+                const row = _daRows.find(r => r.name === input.dataset.name);
+                if (row) row.note = input.value;   // keep the loaded set in sync for filter/sort
+                input.style.borderColor = 'var(--success)';
+                setTimeout(() => { input.style.borderColor = original; }, 1200);
+            } catch (e) {
+                input.style.borderColor = 'var(--danger)';
+                alert('Could not save note: ' + e.message);
+            }
         }
 
     </script>

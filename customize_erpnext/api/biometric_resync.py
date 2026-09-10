@@ -144,11 +144,20 @@ def resync_device_logs(machine_names_json, from_date, to_date):
 
 
 def _fetch_device_attendance(machine_name):
-    """Read all attendance logs from one machine (device re-enabled in finally)."""
-    from customize_erpnext.api.biometric_sync import _get_machine_doc, _build_zk_device, _connect_zk
+    """Read all attendance logs from one machine of Attendance Machine Setting."""
+    from customize_erpnext.api.biometric_sync import _get_machine_doc, _build_zk_device
 
     doc = _get_machine_doc(machine_name)
-    cfg = _build_zk_device(doc)
+    return fetch_attendance_from_cfg(_build_zk_device(doc), machine_name)
+
+
+def fetch_attendance_from_cfg(cfg, label):
+    """Read all attendance logs from any ZK device config (device re-enabled in finally).
+
+    Shared by the machine re-sync above and the IT door controller
+    (customize_erpnext.api.door_access), which is configured ad hoc by IP.
+    """
+    from customize_erpnext.api.biometric_sync import _connect_zk
 
     conn = None
     last_err = None
@@ -161,16 +170,16 @@ def _fetch_device_attendance(machine_name):
             last_err = e
             time.sleep(CONNECT_RETRY_DELAY_S)
     if conn is None:
-        raise ConnectionError(f"Cannot connect to {machine_name} after {CONNECT_RETRIES} attempts: {last_err}")
+        raise ConnectionError(f"Cannot connect to {label} after {CONNECT_RETRIES} attempts: {last_err}")
 
     try:
         conn.disable_device()
-        return conn.get_attendance()
+        return conn.get_attendance() or []
     finally:
         try:
             conn.enable_device()
         except Exception:
-            frappe.log_error(f"Failed to re-enable device {machine_name}")
+            frappe.log_error(f"Failed to re-enable device {label}")
         conn.disconnect()
 
 
