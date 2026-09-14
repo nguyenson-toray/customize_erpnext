@@ -82,292 +82,563 @@ HR = n("HR - Human Resources", "Quản lý Nhân sự",
        ("Employee records, attendance, overtime, leave and payroll",
         "Hồ sơ nhân viên, chấm công, tăng ca, nghỉ phép và tiền lương"),
        status=None, children=[
-
-    g("Employee Records", "Hồ sơ nhân viên", None, [
-        n("Employee profile", "Thông tin nhân viên",
-          ("Personal details, department, designation, joining date and employment status",
-           "Thông tin cá nhân, phòng ban, chức danh, ngày vào làm, trạng thái làm việc"),
-          tag="Override"),
+    g("Employee Records", "Hồ sơ nhân viên",
+      ("Core people data: organisation structure, each employee's profile and documents, and"
+       " the lifecycle milestones from onboarding and transfer to resignation",
+       "Dữ liệu gốc về con người: cơ cấu tổ chức, hồ sơ và giấy tờ của từng nhân viên, cùng các"
+       " mốc vòng đời từ tiếp nhận, điều chuyển đến nghỉ việc"),
+      children=[
         n("Organization structure", "Cơ cấu tổ chức",
-          ("Company, department, designation and employee grade",
-           "Công ty, phòng ban, chức danh, bậc lương"), tag="Standard", children=[
+          ("Company, department, designation and grade",
+           "Công ty, phòng ban, chức danh, cấp bậc"),
+          tag="Standard",
+          children=[
             n("Section & Group", "Bộ phận & Nhóm",
               ("Splits a department into sections and groups for finer attendance and reporting",
                "Chia nhỏ phòng ban thành bộ phận và nhóm để chấm công, báo cáo chi tiết hơn"),
-              tag="Custom"),
-        ]),
+              tag="Custom",
+            ),
+          ],
+        ),
+        n("Employment Type", "Loại hình lao động",
+          ("Employment types such as permanent, seasonal and probation, with tracking of"
+           " probation end dates",
+           "Loại hình lao động: chính thức, thời vụ, thử việc; theo dõi ngày kết thúc thử việc"),
+          tag="Standard",
+        ),
+        n("Employee profile", "Thông tin nhân viên",
+          ("Personal details, department, designation, joining date, employment status and so"
+           " on",
+           "Thông tin cá nhân, phòng ban, chức danh, ngày vào làm, trạng thái làm việc..."),
+          tag="Override",
+        ),
         n("Employee photo", "Ảnh nhân viên",
-          ("Upload photos, remove the background, crop to ID-photo ratio,"
-           " process many photos at once",
-           "Tải ảnh, xóa nền, cắt ảnh thẻ đúng tỷ lệ, xử lý nhiều ảnh một lượt"),
-          tag="Custom"),
+          ("Upload photos, remove the background, crop to ID-photo ratio and process many at"
+           " once. The image is reused by the employee ID card feature",
+           "Tải ảnh, xóa nền, cắt ảnh thẻ đúng tỷ lệ, xử lý nhiều ảnh một lượt. File ảnh được"
+           " sử dụng cho chức năng tạo thẻ Nv"),
+          tag="Custom",
+        ),
         n("Self-service update", "Nhân viên tự cập nhật thông tin",
-          ("Employees submit their own details on a dedicated page, HR reviews then applies them",
+          ("Employees submit their own details on a dedicated page, HR reviews then applies"
+           " them",
            "Nhân viên tự khai thông tin qua trang riêng, HR kiểm tra rồi cập nhật vào hồ sơ"),
-          tag="Custom"),
+          tag="Custom",
+        ),
         n("Dependents", "Người phụ thuộc",
           ("Declare dependents used for personal income tax relief",
-           "Khai người phụ thuộc để tính giảm trừ thuế thu nhập cá nhân"), tag="Custom"),
+           "Khai người phụ thuộc để tính giảm trừ thuế thu nhập cá nhân"),
+          tag="Custom",
+        ),
         n("Labor contract", "Hợp đồng lao động",
           ("Contract type, duration and tracking of contracts due for renewal",
-           "Loại hợp đồng, thời hạn, theo dõi hợp đồng sắp hết hạn cần tái ký"), tag="Custom"),
-        n("Employment Type", "Loại hình lao động",
-          ("Employment types such as permanent, seasonal and probation,"
-           " with tracking of probation end dates",
-           "Loại hình lao động: chính thức, thời vụ, thử việc;"
-           " theo dõi ngày kết thúc thử việc"), tag="Standard"),
-        n("External personnel", "Nhân sự ngoài công ty",
-          ("Visitors and contractors who are off payroll but still need to be managed",
-           "Khách, nhà thầu, người ngoài bảng lương nhưng vẫn cần quản lý"), tag="Custom"),
+           "Loại hợp đồng, thời hạn, theo dõi hợp đồng sắp hết hạn cần tái ký"),
+          tag="Custom",
+        ),
         n("Maternity records", "Thai sản",
-          ("Tracks the maternity milestones of each employee, used for attendance,"
-           " leave and benefit calculation",
-           "Theo dõi các mốc thời gian liên quan thai sản của nhân viên,"
-           " dùng để tính toán công phép, chế độ"), tag="Custom"),
+          ("Tracks the maternity milestones of each employee, used for attendance, leave and"
+           " benefit calculation",
+           "Theo dõi các mốc thời gian liên quan thai sản của nhân viên, dùng để tính toán công"
+           " phép, chế độ"),
+          tag="Custom",
+        ),
         n("Onboarding", "Tiếp nhận",
           ("Steps for taking on a new employee: checklist, handover and paperwork",
-           "Thủ tục tiếp nhận nhân viên mới: danh sách việc cần làm, bàn giao,"
-           " hoàn tất hồ sơ"), tag="Standard"),
+           "Thủ tục tiếp nhận nhân viên mới: danh sách việc cần làm, bàn giao, hoàn tất hồ sơ"),
+          tag="Standard",
+        ),
         n("Transfer & promotion", "Điều chuyển & thăng chức",
-          ("Move between departments, change designation, promote,"
-           " and keep the history of changes",
+          ("Move between departments, change designation, promote, and keep the history of"
+           " changes",
            "Chuyển bộ phận, đổi chức danh, thăng chức và lưu lại lịch sử thay đổi"),
-          tag="Standard"),
+          tag="Standard",
+          children=[
+            n("Employee Transfer", "Điều chuyển",
+              None,
+              tag="Override",
+            ),
+            n("Employee Promotion", "Thăng chức",
+              None,
+              tag="Override",
+            ),
+            n("Employee Transfer & Promotion Report", "Báo cáo điều chuyển & thăng chức",
+              None,
+              tag="Custom",
+            ),
+          ],
+        ),
         n("Resignation Application", "Đơn nghỉ việc",
-          ("Resignation letter date, relieving date, notice days, reason for leaving,"
-           " plus the handover checklist: ID card, uniform, shoe rack, fingerprint,"
-           " tools and work",
-           "Ngày nộp đơn, ngày nghỉ chính thức, số ngày báo trước, lý do nghỉ"
-           " và danh sách bàn giao: thẻ, đồng phục, kệ giày, vân tay, công cụ,"
-           " công việc"), tag="Custom"),
+          ("Resignation letter date, relieving date, notice days, reason for leaving, plus the"
+           " handover checklist: ID card, uniform, shoe rack, fingerprint, tools and work",
+           "Ngày nộp đơn, ngày nghỉ chính thức, số ngày báo trước, lý do nghỉ và danh sách bàn"
+           " giao: thẻ, đồng phục, kệ giày, vân tay, công cụ, công việc"),
+          tag="Custom",
+        ),
         n("Employee reports", "Báo cáo nhân sự",
-          ("Headcount lists, age structure, years of service and workforce movement",
-           "Danh sách nhân sự, cơ cấu theo độ tuổi, thâm niên, biến động nhân sự"),
-          tag="Override"),
-    ]),
-
-    g("Time & Attendance", "Chấm công", None, [
-        n("Fingerprint machines", "Máy chấm công vân tay", None, tag="Custom", children=[
-            n("Connect machines", "Kết nối máy",
-              ("Register each device and pull scan data into the system automatically",
-               "Khai báo máy chấm công, lấy dữ liệu quét về hệ thống tự động"), tag="Custom"),
-            n("Register fingerprints", "Đăng ký vân tay",
-              ("Enroll fingerprints and check whether the sample quality is acceptable",
-               "Đăng ký vân tay cho nhân viên, xem chất lượng mẫu vân tay đạt hay chưa"),
-              tag="Custom"),
-            n("Push employees to machines", "Đưa nhân viên xuống máy",
-              ("Sync the employee list and fingerprints down to each device",
-               "Đồng bộ danh sách nhân viên và vân tay xuống từng máy"), tag="Custom"),
-            n("Sync machine clock", "Đồng bộ giờ máy",
-              ("A device with the wrong clock corrupts every in and out time, so check it regularly",
-               "Máy sai giờ sẽ làm sai toàn bộ giờ vào ra, cần kiểm tra định kỳ"), tag="Custom"),
-            n("Check scan data", "Kiểm tra dữ liệu quét",
-              ("Review scan logs and pull data again when something is missing",
-               "Xem log quét, lấy lại dữ liệu khi phát hiện thiếu"), tag="Custom"),
-        ]),
-        n("Check-in records", "Dữ liệu quét vào - ra",
-          ("Every scan is one record and is the basis for calculating attendance",
-           "Mỗi lần nhân viên quét là một dòng dữ liệu, là cơ sở để tính công"), tag="Override"),
-        g("Shift setup", "Thiết lập ca làm việc", None, [
+          ("Headcount, presence, absence, overtime, new hires, resignations, and structure by"
+           " age, gender and grade",
+           "Headount, hiện diện, vắng, tăng ca, tuyển mới, nghỉ việc, cơ cấu theo độ tuổi, giới"
+           " tính, cấp bậc"),
+          tag="Override",
+        ),
+      ],
+    ),
+    g("Time & Attendance", "Chấm công",
+      ("From shift setup and time clocks through raw scans, automatic daily attendance"
+       " calculation, corrections and reconciliation reports",
+       "Từ khai ca và máy chấm công tới dữ liệu quét vào ra, tính công tự động hằng ngày, điều"
+       " chỉnh khi sai sót và báo cáo đối chiếu"),
+      children=[
+        g("Shift setup", "Thiết lập ca làm việc",
+          None,
+          children=[
             n("Shift type", "Khai báo ca",
               ("Start time, end time, lunch break and the allowed late / early margin",
-               "Giờ vào, giờ ra, giờ nghỉ trưa, mức dung sai trễ - về sớm"), tag="Override"),
+               "Giờ vào, giờ ra, giờ nghỉ trưa, mức dung sai trễ - về sớm"),
+              tag="Override",
+            ),
             n("Assign shift", "Phân ca",
               ("Assign a shift to an employee for a date range",
-               "Phân ca cho nhân viên theo khoảng thời gian"), tag="Standard"),
+               "Phân ca cho nhân viên theo khoảng thời gian"),
+              tag="Standard",
+            ),
             n("Bulk shift assignment", "Phân ca hàng loạt",
               ("Pick many employees and assign the shift in one go instead of one by one",
-               "Chọn nhiều nhân viên và phân ca cùng lúc thay vì làm từng người"), tag="Custom"),
+               "Chọn nhiều nhân viên và phân ca cùng lúc thay vì làm từng người"),
+              tag="Custom",
+            ),
             n("Shift priority", "Thứ tự xác định ca",
-              ("Specific assignment first, then the employee default shift, then the shift of the day",
-               "Ưu tiên phân ca riêng, sau đó ca mặc định của nhân viên, cuối cùng ca theo ngày"),
-              tag="Override"),
-        ]),
-        n("Attendance calculation", "Tính công tự động", None, tag="Override", children=[
+              ("Specific shift assignment first, then the employee's default shift, and finally"
+               " the shift of the day",
+               "Ưu tiên phân ca riêng, sau đó ca mặc định của nhân viên, cuối cùng theo ca ngày"),
+              tag="Override",
+            ),
+          ],
+        ),
+        n("Fingerprint machines", "Máy chấm công vân tay",
+          None,
+          tag="Custom",
+          children=[
+            n("Connect machines", "Kết nối máy",
+              ("IT - register the time clocks and pull scan data into the system automatically",
+               "IT - Khai báo máy chấm công, lấy dữ liệu quét về hệ thống tự động"),
+              tag="Custom",
+            ),
+            n("Register fingerprints", "Đăng ký vân tay",
+              ("Enroll attendance fingerprints for employees",
+               "Đăng ký vân tay chấm công cho nhân viên"),
+              tag="Custom",
+            ),
+            n("Push employees to machines", "Đưa nhân viên xuống máy",
+              ("Sync the employee list and fingerprints down to each device",
+               "Đồng bộ danh sách nhân viên và vân tay xuống từng máy"),
+              tag="Custom",
+            ),
+            n("Sync machine clock", "Đồng bộ giờ máy",
+              ("IT",
+               "IT"),
+              tag="Custom",
+            ),
+            n("Check scan data", "Kiểm tra dữ liệu quét",
+              ("IT - review the scan logs and handle errors",
+               "IT- Kiểm tra log, xữ lý khi có lỗi"),
+              tag="Custom",
+            ),
+          ],
+        ),
+        n("Check-in records", "Dữ liệu quét vào - ra",
+          ("Every scan is one record and is the basis for calculating attendance",
+           "Mỗi lần nhân viên quét là một dòng dữ liệu, là cơ sở để tính công"),
+          tag="Override",
+        ),
+        n("Attendance calculation", "Tính công tự động",
+          None,
+          tag="Override",
+          children=[
             n("Automatic daily run", "Chạy tự động hằng ngày",
-              ("The system turns raw scans into attendance days with no manual work",
-               "Hệ thống ghép các lần quét thành ngày công, không cần làm tay"), tag="Override"),
+              None,
+              tag="Override",
+            ),
             n("Attendance status", "Trạng thái ngày công",
               ("Present, absent, half day, day off and public holiday",
-               "Có mặt, vắng, nửa ngày, ngày nghỉ, ngày lễ"), tag="Standard"),
+               "Có mặt, vắng, nửa ngày, ngày nghỉ, ngày lễ"),
+              tag="Standard",
+            ),
             n("Late & early leave", "Trễ giờ & về sớm",
-              ("Records minutes late or minutes left early against the shift margin",
-               "Ghi nhận số phút trễ hoặc về sớm theo dung sai của ca"), tag="Standard"),
+              ("Records late arrival and early departure against the shift settings",
+               "Ghi nhận vào trễ, ra sớm theo cài đặt của ca"),
+              tag="Standard",
+            ),
             n("Leave-linked days", "Ngày công theo đơn phép",
-              ("Days with an approved leave or a holiday are matched automatically, never marked absent",
+              ("Days with an approved leave or a holiday are matched automatically, never"
+               " marked absent",
                "Ngày đã có đơn phép hoặc ngày lễ được khớp tự động, không tính vắng"),
-              tag="Override"),
-            n("Paid holidays", "Ngày lễ vẫn tính công",
-              ("Public holidays are paid leave, so they still count as working days",
-               "Ngày lễ nhà nước là nghỉ có lương nên vẫn được tính vào ngày công"),
-              tag="Override"),
+              tag="Override",
+            ),
             n("Anomaly note", "Ghi chú bất thường",
-              ("Missing or odd scans are flagged with a note for HR to check and fix by hand",
-               "Quét thiếu hoặc quét lẻ được ghi chú lại để HR kiểm tra và xử lý tay"),
-              tag="Custom"),
-        ]),
+              ("Missing scans, unregistered overtime, maternity cases and the like are noted"
+               " for HR to check and fix by hand",
+               "Quét thiếu, tăng ca nhưng không có đáng ký, thai sản,... được ghi chú lại để HR"
+               " kiểm tra và xử lý tay"),
+              tag="Custom",
+            ),
+          ],
+        ),
         n("Corrections", "Điều chỉnh công",
-          ("Fix a single day or update many records at once after reconciliation",
-           "Sửa công từng ngày hoặc cập nhật hàng loạt sau khi đối chiếu"), tag="Override"),
-        g("Attendance reports", "Báo cáo chấm công", None, [
+          ("Adjust or add check-in times",
+           "Điều chỉnh, bổ sung giờ checkin"),
+          tag="Override",
+          children=[
+            n("Attendance confirmation request", "Yêu cầu xác nhận công",
+              ("A request to supplement attendance; on approval the system creates the check-in"
+               " times and recalculates that day",
+               "Phiếu đề nghị bổ sung công; khi duyệt hệ thống tự tạo giờ chấm công và tính lại"
+               " ngày công đó"),
+              tag="Override",
+            ),
+            n("Suggested times", "Đề xuất giờ tự động",
+              ("The system suggests the shift start, shift end or the end of registered"
+               " overtime; HR can still edit each row by hand",
+               "Hệ thống đề xuất giờ đầu ca, cuối ca, hoặc giờ kết thúc tăng ca đã đăng ký; HR"
+               " vẫn sửa tay được từng dòng"),
+              tag="Custom",
+            ),
+            n("Bulk create", "Tạo phiếu hàng loạt",
+              ("Scan a date range, list everyone with missing scans and create one draft"
+               " request per employee in a single step",
+               "Quét một khoảng ngày, liệt kê những người quét thiếu, tạo một phiếu nháp cho"
+               " mỗi nhân viên chỉ trong một bước"),
+              tag="Custom",
+            ),
+            n("Signature form", "Giấy xác nhận công để ký",
+              ("Print the confirmation form grouped by team, one A4 sheet per team; the signed"
+               " scan is attached back to the request",
+               "In giấy yêu cầu xác nhận công gom theo tổ, mỗi tổ một tờ A4; bản scan đã ký"
+               " được đính kèm ngược lại vào phiếu"),
+              tag="Custom",
+            ),
+          ],
+        ),
+        g("Attendance reports", "Báo cáo chấm công",
+          None,
+          children=[
             n("Monthly attendance sheet", "Bảng công tháng",
               ("Detailed attendance by shift, used for reconciliation and payroll",
-               "Bảng công chi tiết theo ca, dùng để đối chiếu và tính lương"), tag="Custom"),
+               "Bảng công chi tiết theo ca, dùng để đối chiếu và tính lương"),
+              tag="Custom",
+            ),
             n("Daily email report", "Báo cáo gửi email hằng ngày",
-              ("The system emails yesterday's attendance report to the people in charge",
-               "Hệ thống tự gửi báo cáo công của ngày hôm trước cho người phụ trách"),
-              tag="Custom"),
+              ("The system emails today's headcount, presence, absence and registered overtime,"
+               " plus yesterday's missing attendance cases",
+               "Hệ thống tự gửi báo cáo: Headcount/ hiện diện/ vắng/ đăng ký tăng ca của hôm"
+               " nay, các trường hợp chấm công thiếu của ngày hôm trước"),
+              tag="Custom",
+            ),
             n("Excel export", "Xuất Excel",
-              ("A multi-sheet Excel file for checking against data kept outside the system",
-               "Bản Excel nhiều sheet để đối chiếu với dữ liệu ngoài hệ thống"), tag="Custom"),
-            n("HR overview dashboard", "Bảng điều khiển tổng quan HR",
-              ("Headcount and attendance figures summarised on a single page",
-               "Số liệu nhân sự và chấm công tổng hợp trên một trang"), tag="Custom"),
-        ]),
-    ]),
-
-    n("Overtime", "Tăng ca", None, tag="Custom", children=[
+              ("An Excel file laid out the same way as the attendance app currently in use",
+               "Bản Excel có cấu trúc giống app chấm công hiên tại"),
+              tag="Custom",
+            ),
+          ],
+        ),
+      ],
+    ),
+    n("Overtime", "Tăng ca",
+      ("Register overtime hours by date and by employee, approve them, then summarise in"
+       " reports and check the hour limits set by law",
+       "Đăng ký giờ tăng ca theo ngày và theo nhân viên, phê duyệt, tổng hợp báo cáo và kiểm"
+       " tra giới hạn giờ theo quy định của luật"),
+      tag="Custom",
+      children=[
         n("Register overtime", "Đăng ký tăng ca",
-          ("Pick the date, pick employees, enter overtime start and end time",
-           "Chọn ngày, chọn nhân viên, khai giờ bắt đầu và giờ kết thúc tăng ca"), tag="Custom"),
-        n("Employee picker", "Chọn nhân viên",
-          ("Filter by department and group, and see total man-hours update as you add people",
-           "Lọc theo bộ phận và nhóm, thấy ngay tổng giờ công khi chọn thêm người"),
-          tag="Custom"),
-        n("Overtime levels", "Bậc tăng ca",
-          ("Overtime rates for normal days, Sundays and public holidays",
-           "Hệ số tăng ca cho ngày thường, chủ nhật và ngày lễ"), tag="Custom"),
+          ("Pick the date and the employees, enter overtime start and end time; the Get"
+           " Employees button filters by department and group and shows total man-hours as you"
+           " add people",
+           "Chọn ngày, chọn nhân viên, khai giờ bắt đầu và giờ kết thúc tăng ca; nút Get"
+           " Employees lọc theo bộ phận và nhóm, thấy ngay tổng giờ công khi chọn thêm người"),
+          tag="Custom",
+        ),
         n("Request & approval", "Yêu cầu & phê duyệt",
-          ("The department requests, the manager approves before it counts",
-           "Bộ phận đề xuất, cấp trên phê duyệt trước khi tính công"), tag="Custom"),
-        g("Overtime reports", "Báo cáo tăng ca", None, [
+          ("The department requests and the manager approves before it counts - not in use yet",
+           "Bộ phận đề xuất, cấp trên phê duyệt trước khi tính công - Chưa áp dụng"),
+          tag="Custom",
+        ),
+        g("Overtime reports", "Báo cáo tăng ca",
+          None,
+          children=[
             n("By registration", "Theo phiếu đăng ký",
               ("Overtime slips and the hours booked on each of them",
-               "Danh sách phiếu tăng ca và số giờ theo từng phiếu"), tag="Custom"),
+               "Danh sách phiếu tăng ca và số giờ theo từng phiếu"),
+              tag="Custom",
+            ),
             n("By time slot", "Theo khung giờ",
               ("Headcount and hours of overtime per time slot of the day",
-               "Số người và số giờ tăng ca theo từng khung giờ trong ngày"), tag="Custom"),
+               "Số người và số giờ tăng ca theo từng khung giờ trong ngày"),
+              tag="Custom",
+            ),
             n("By quantity", "Theo số lượng",
               ("Total overtime hours by department and by period",
-               "Tổng hợp số giờ tăng ca theo bộ phận và theo kỳ"), tag="Custom"),
+               "Tổng hợp số giờ tăng ca theo bộ phận và theo kỳ"),
+              tag="Custom",
+            ),
             n("Compliance check", "Kiểm tra tuân thủ",
-              ("Warns when overtime exceeds the statutory hour limits",
-               "Cảnh báo khi vượt giới hạn giờ tăng ca theo quy định"), tag="Custom"),
-        ]),
-    ]),
-
-    g("Leave", "Nghỉ phép", None, [
+              ("Warns when overtime exceeds the limits set by law",
+               "Cảnh báo khi vượt giới hạn giờ tăng ca theo quy định của luật"),
+              tag="Custom",
+            ),
+          ],
+        ),
+      ],
+    ),
+    g("Leave", "Nghỉ phép",
+      ("Set up leave types and the holiday list, allocate balances, employees apply and"
+       " managers approve, and the result flows straight into the attendance sheet",
+       "Khai loại phép và lịch nghỉ lễ, phân bổ số dư phép, nhân viên nộp đơn và quản lý duyệt,"
+       " kết quả cập nhật thẳng vào bảng công"),
+      children=[
         n("Leave types", "Loại phép",
           ("Annual leave, unpaid leave, sick leave, maternity leave and compensatory leave",
-           "Phép năm, nghỉ không lương, nghỉ ốm, thai sản, nghỉ bù"), tag="Standard"),
+           "Phép năm, nghỉ không lương, nghỉ ốm, thai sản, nghỉ bù"),
+          tag="Standard",
+        ),
+        n("Holiday list", "Lịch nghỉ lễ",
+          ("Public holidays and days off in lieu for each year",
+           "Danh sách ngày lễ và ngày nghỉ bù áp dụng cho từng năm"),
+          tag="Standard",
+        ),
         n("Leave balance", "Số dư phép",
           ("Opening allocation plus leave earned month by month",
-           "Phân bổ phép đầu kỳ và phép tích lũy theo từng tháng làm việc"), tag="Override"),
+           "Phân bổ phép đầu kỳ và phép tích lũy theo từng tháng làm việc"),
+          tag="Override",
+        ),
         n("Leave application", "Đơn xin nghỉ phép",
           ("The employee applies, the manager approves, attendance follows the application",
            "Nhân viên tạo đơn, người quản lý phê duyệt, công được cập nhật theo đơn"),
-          tag="Override"),
+          tag="Override",
+        ),
         n("Half day leave", "Nghỉ nửa ngày",
           ("Half a day of annual leave still counts as a full working day",
-           "Nghỉ nửa ngày phép vẫn được tính đủ công cho ngày đó"), tag="Override"),
-        n("Import leave from Excel", "Nhập phép từ Excel",
-          ("Import leave already taken from a file, used when migrating from the old system",
-           "Nhập dữ liệu phép đã sử dụng từ file, dùng khi chuyển từ hệ thống cũ"),
-          tag="Custom"),
-        n("Holiday list", "Lịch nghỉ lễ",
-          ("Public holidays and days off in lieu for each year",
-           "Danh sách ngày lễ và ngày nghỉ bù áp dụng cho từng năm"), tag="Standard"),
+           "Nghỉ nửa ngày phép vẫn được tính đủ công cho ngày đó"),
+          tag="Override",
+        ),
         n("Compensatory & encashment", "Nghỉ bù & thanh toán phép",
           ("Time off in lieu for extra days worked, and payment for unused leave",
-           "Nghỉ bù cho ngày làm thêm và thanh toán phép chưa dùng"), tag="Standard"),
+           "Nghỉ bù cho ngày làm thêm và thanh toán phép chưa dùng"),
+          tag="Standard",
+        ),
         n("Leave reports", "Báo cáo phép",
           ("Leave balance per employee and leave history by period",
-           "Số dư phép từng nhân viên và lịch sử nghỉ theo kỳ"), tag="Standard"),
-    ]),
-
-    g("Payroll", "Tiền lương", None, [
-        n("Salary structure", "Cơ cấu lương",
-          ("Basic salary, allowances and deductions",
-           "Lương cơ bản, các khoản phụ cấp và các khoản trừ"), tag="Standard"),
-        n("Salary assignment", "Gán lương cho nhân viên",
-          ("Assign a salary from an effective date, with bulk import from Excel",
-           "Gán mức lương theo ngày hiệu lực, có thể nhập hàng loạt từ Excel"), tag="Override"),
-        n("Payroll run", "Chạy bảng lương",
-          ("Run payroll for a period and generate payslips for all employees",
-           "Chạy theo kỳ lương, sinh phiếu lương cho toàn bộ nhân viên"), tag="Standard"),
-        n("Standard working days", "Ngày công chuẩn",
-          ("Days in the period minus Sundays; public holidays still count as paid days",
-           "Số ngày trong kỳ trừ các ngày chủ nhật, ngày lễ vẫn được tính công"),
-          tag="Override"),
-        n("Vietnam statutory deductions", "Khấu trừ theo luật Việt Nam", None,
-          tag="Override", children=[
-            n("Insurance", "Bảo hiểm",
-              ("Social insurance, health insurance and unemployment insurance",
-               "Bảo hiểm xã hội, bảo hiểm y tế và bảo hiểm thất nghiệp"), tag="Override"),
-            n("Union fee", "Đoàn phí",
-              ("Trade union fee deducted at the prescribed rate",
-               "Trừ đoàn phí công đoàn theo tỷ lệ quy định"), tag="Override"),
-            n("Personal income tax", "Thuế thu nhập cá nhân",
-              ("Calculated by tax bracket with personal and dependent relief",
-               "Tính theo bậc thuế, có giảm trừ bản thân và người phụ thuộc"), tag="Override"),
-        ]),
+           "Số dư phép từng nhân viên và lịch sử nghỉ theo kỳ"),
+          tag="Standard",
+        ),
+      ],
+    ),
+    g("Payroll", "Tiền lương",
+      ("Configure insurance and tax rates, assign salary structures to employees, run payroll"
+       " for the period, then issue payslips and payment reports",
+       "Cấu hình tỷ lệ bảo hiểm và thuế, gán cơ cấu lương cho nhân viên, chạy bảng lương theo"
+       " kỳ rồi phát phiếu lương và báo cáo chi trả"),
+      children=[
         n("Payroll settings", "Cấu hình lương",
           ("Insurance rates, tax brackets and relief amounts, updated when the law changes",
            "Tỷ lệ bảo hiểm, bậc thuế, mức giảm trừ, cập nhật khi quy định thay đổi"),
-          tag="Custom"),
+          tag="Custom",
+        ),
+        n("Salary structure", "Cơ cấu lương",
+          ("Basic salary, allowances and deductions",
+           "Lương cơ bản, các khoản phụ cấp và các khoản trừ"),
+          tag="Standard",
+        ),
+        n("Salary assignment", "Gán lương cho nhân viên",
+          ("Assign a salary from an effective date, with bulk import from Excel",
+           "Gán mức lương theo ngày hiệu lực, có thể nhập hàng loạt từ Excel"),
+          tag="Override",
+        ),
+        n("Standard working days", "Ngày công chuẩn",
+          ("Days in the period minus Sundays; public holidays still count as paid days",
+           "Số ngày trong kỳ trừ các ngày chủ nhật, ngày lễ vẫn được tính công"),
+          tag="Override",
+        ),
+        n("Vietnam statutory deductions", "Khấu trừ theo luật Việt Nam",
+          None,
+          tag="Override",
+          children=[
+            n("Insurance", "Bảo hiểm",
+              ("Social insurance, health insurance and unemployment insurance",
+               "Bảo hiểm xã hội, bảo hiểm y tế và bảo hiểm thất nghiệp"),
+              tag="Override",
+            ),
+            n("Union fee", "Đoàn phí",
+              ("Trade union fee deducted at the prescribed rate",
+               "Trừ đoàn phí công đoàn theo tỷ lệ quy định"),
+              tag="Override",
+            ),
+            n("Personal income tax", "Thuế thu nhập cá nhân",
+              ("Calculated by tax bracket with personal and dependent relief",
+               "Tính theo bậc thuế, có giảm trừ bản thân và người phụ thuộc"),
+              tag="Override",
+            ),
+          ],
+        ),
+        n("Payroll run", "Chạy bảng lương",
+          ("Run payroll for a period and generate payslips for all employees",
+           "Chạy theo kỳ lương, sinh phiếu lương cho toàn bộ nhân viên"),
+          tag="Standard",
+        ),
         n("Payslip", "Phiếu lương",
           ("View and print payslips, with the amount spelled out in Vietnamese words",
-           "Xem và in phiếu lương, số tiền được ghi bằng chữ tiếng Việt"), tag="Override"),
+           "Xem và in phiếu lương, số tiền được ghi bằng chữ tiếng Việt"),
+          tag="Override",
+        ),
         n("Payroll reports", "Báo cáo lương",
           ("Salary register, bank payment list and tax summaries",
            "Bảng lương tổng hợp, danh sách chi trả qua ngân hàng, tổng hợp thuế"),
-          tag="Standard"),
-        n("Loans & advances", "Khoản vay & tạm ứng",
-          ("Track loans and advances and deduct them from salary over time",
-           "Theo dõi khoản vay và tạm ứng, trừ dần vào lương hằng kỳ"), tag="Standard"),
-    ]),
-
+          tag="Standard",
+        ),
+      ],
+    ),
+    g("Recruitment", "Tuyển dụng",
+      ("The whole flow: plan the headcount need, post the opening, receive and interview"
+       " applicants, up to the point the applicant becomes an employee",
+       "Quy trình xuyên suốt: hoạch định nhu cầu, đăng tin, tiếp nhận và phỏng vấn ứng viên,"
+       " đến khi ứng viên trở thành nhân viên chính thức"),
+      children=[
+        n("Staffing Plan", "Kế hoạch nhân sự",
+          ("Plan headcount and recruitment budget for a period; the number of openings per"
+           " designation is capped by the vacancies in the plan. Optional step",
+           "Hoạch định số lượng và ngân sách tuyển dụng cho một khoảng thời gian; số tin tuyển"
+           " của mỗi chức danh bị giới hạn bởi số vị trí trống trong kế hoạch. Bước tùy chọn"),
+          tag="Standard",
+          children=[
+            n("Check Vacancies On Job Offer Creation", "Ràng buộc chỉ tiêu",
+              ("This box must be ticked in HR Settings for the vacancy control to take effect",
+               "Phải tích mục này trong HR Settings thì việc kiểm soát chỉ tiêu mới có hiệu lực"),
+              tag="Standard",
+            ),
+          ],
+        ),
+        n("Job Requisition", "Yêu cầu tuyển dụng",
+          ("Internal request to hire, optionally with an approval step; the system measures"
+           " Time to Fill from the request until the position is filled. Optional step",
+           "Đề xuất tuyển nhân sự trong nội bộ, có thể kèm phê duyệt; hệ thống tự tính Time to"
+           " Fill từ lúc yêu cầu tới khi tuyển xong. Bước tùy chọn"),
+          tag="Standard",
+        ),
+        n("Job Opening", "Vị trí tuyển dụng",
+          ("A vacant position; it must exist before any applicant can be linked to it. Closing"
+           " it blocks new applicants and flips the related requisition to Filled",
+           "Vị trí còn trống, bắt buộc phải có thì mới tạo được hồ sơ ứng viên; đóng vị trí là"
+           " chặn nộp thêm, và yêu cầu tuyển dụng liên quan tự chuyển sang Filled"),
+          tag="Standard",
+        ),
+        n("Job Portal", "Cổng tuyển dụng",
+          ("The /jobs page where candidates search and apply themselves; submitting creates a"
+           " Job Applicant automatically. The opening must have Publish on website ticked to"
+           " show up",
+           "Trang /jobs để ứng viên tự tìm và nộp đơn, nộp xong hệ thống tự tạo hồ sơ ứng viên;"
+           " phải tích Publish on website ở vị trí tuyển dụng thì tin mới hiện ra"),
+          tag="Custom",
+        ),
+        n("Job Applicant", "Hồ sơ ứng viên",
+          ("The central record of recruitment: profile, source, interview history and ratings;"
+           " created by hand, from the job portal, from a referral or straight from an opening",
+           "Tài liệu trung tâm của tuyển dụng: hồ sơ, nguồn ứng viên, lịch sử phỏng vấn và đánh"
+           " giá; tạo tay, từ cổng tuyển dụng, từ giới thiệu nội bộ hoặc tạo nhanh từ vị trí"
+           " tuyển dụng"),
+          tag="Standard",
+          children=[
+            n("Employee Referral", "Giới thiệu nội bộ",
+              ("An employee refers a candidate; when the candidate is accepted or rejected, the"
+               " referral record follows automatically",
+               "Nhân viên giới thiệu ứng viên; khi ứng viên được nhận hoặc bị loại thì trạng"
+               " thái bản ghi giới thiệu tự cập nhật theo"),
+              tag="Standard",
+            ),
+            n("Applicant status", "Trạng thái ứng viên",
+              ("Open, Replied, Rejected, Hold, Accepted; clearing an interview does NOT change"
+               " the applicant status - HR reviews the summary and updates it by hand",
+               "Open, Replied, Rejected, Hold, Accepted; phỏng vấn đạt KHÔNG tự đổi trạng thái"
+               " ứng viên, HR phải xem tổng hợp rồi cập nhật tay"),
+              tag="Standard",
+            ),
+          ],
+        ),
+        n("Interview", "Phỏng vấn",
+          ("Schedule interviews round by round and record the interviewers' ratings",
+           "Lên lịch phỏng vấn theo từng vòng và ghi nhận đánh giá của người phỏng vấn"),
+          tag="Standard",
+          children=[
+            n("Interview Round", "Vòng phỏng vấn",
+              ("Define the rounds and the interviewers of each round; required before any"
+               " interview can be scheduled",
+               "Khai các vòng và người phỏng vấn của từng vòng; bắt buộc có trước khi lên lịch"
+               " được"),
+              tag="Standard",
+            ),
+            n("Interview Type", "Hình thức phỏng vấn",
+              ("Classify the format: panel, face to face and so on. Optional",
+               "Phân loại hình thức: hội đồng, trực tiếp… Tùy chọn"),
+              tag="Standard",
+            ),
+            n("Interview Feedback", "Đánh giá phỏng vấn",
+              ("Only people attached to the round can submit feedback; the system summarises"
+               " skill scores and comments per applicant",
+               "Chỉ người được gắn vào vòng phỏng vấn mới gửi được đánh giá; hệ thống tổng hợp"
+               " điểm kỹ năng và nhận xét theo từng ứng viên"),
+              tag="Standard",
+            ),
+            n("Calendar & reminder", "Lịch & nhắc lịch",
+              ("See the interviews in a calendar and let the system email reminders to the"
+               " interviewers",
+               "Xem các buổi phỏng vấn dạng lịch và tự gửi email nhắc lịch cho người phỏng vấn"),
+              tag="Standard",
+            ),
+          ],
+        ),
+        n("Job Offer", "Thư mời nhận việc",
+          ("The formal offer, always created from an applicant record: job description, notice"
+           " period, incentives and annual leave days",
+           "Thư mời chính thức, bắt buộc tạo từ một hồ sơ ứng viên: mô tả công việc, thời gian"
+           " báo trước khi nghỉ, thưởng, số ngày phép năm"),
+          tag="Standard",
+        ),
+        n("Appointment Letter", "Thư bổ nhiệm",
+          ("The formal letter asking the candidate to join; write it from a template and print"
+           " a PDF to send",
+           "Văn bản chính thức mời ứng viên gia nhập công ty; soạn theo mẫu có sẵn rồi in PDF"
+           " gửi ứng viên"),
+          tag="Standard",
+        ),
+        n("Employee Onboarding", "Tiếp nhận nhân viên mới",
+          ("Final step of recruitment: carries the applicant data over to create the official"
+           " employee record - see the Employee Records branch",
+           "Bước cuối của tuyển dụng: kế thừa dữ liệu ứng viên để tạo hồ sơ nhân viên chính"
+           " thức, chi tiết xem nhánh Hồ sơ nhân viên"),
+          tag="Standard",
+        ),
+      ],
+    ),
     g("Other HR functions", "Chức năng HR khác",
       ("Mostly used as delivered, not yet tailored to the company",
-       "Phần lớn đang dùng theo bản chuẩn, chưa điều chỉnh riêng cho công ty"), [
-        n("Recruitment", "Tuyển dụng",
-          ("Hiring needs, job openings, applicants, interviews and offer letters",
-           "Nhu cầu tuyển, tin tuyển dụng, ứng viên, phỏng vấn, thư mời nhận việc"),
-          tag="Standard"),
-        n("Online job application", "Ứng tuyển trực tuyến",
-          ("A web application form candidates fill in and submit themselves",
-           "Mẫu ứng tuyển trên web, ứng viên tự điền và gửi hồ sơ"), tag="Custom"),
+       "Phần lớn đang dùng theo bản chuẩn, chưa điều chỉnh riêng cho công ty"),
+      children=[
         n("Performance appraisal", "Đánh giá hiệu suất",
           ("Appraisal cycles, goals, appraisal criteria and feedback",
-           "Kỳ đánh giá, mục tiêu, tiêu chí đánh giá và phản hồi"), tag="Standard"),
+           "Kỳ đánh giá, mục tiêu, tiêu chí đánh giá và phản hồi"),
+          tag="Standard",
+        ),
         n("Training", "Đào tạo",
           ("Training programs, sessions, results and learner feedback",
            "Chương trình đào tạo, buổi đào tạo, kết quả và phản hồi của người học"),
-          tag="Standard"),
+          tag="Standard",
+        ),
         n("Expense claim & travel", "Hoàn ứng & công tác",
           ("Expense claims, employee advances and travel requests",
-           "Đề nghị thanh toán chi phí, tạm ứng và yêu cầu đi công tác"), tag="Standard"),
-    ]),
-
-    g("System & Access", "Hệ thống & phân quyền", None, [
-        n("Roles & permissions", "Vai trò & phân quyền",
-          ("Role-based access so each person only sees data within their scope",
-           "Phân quyền theo vai trò để mỗi người chỉ thấy dữ liệu thuộc phạm vi của mình"),
-          tag="Standard"),
-        n("Email alerts", "Cảnh báo qua email",
-          ("Alerts are OFF by default; the administrator must choose recipients before enabling",
-           "Cảnh báo mặc định để TẮT, người quản trị phải chọn người nhận trước khi bật"),
-          tag="Override"),
-        n("Vietnamese interface", "Giao diện tiếng Việt",
-          ("Each user picks their own display language",
-           "Mỗi người dùng chọn ngôn ngữ hiển thị riêng"), tag="Custom"),
-        n("Excel & CSV export", "Xuất Excel & CSV",
-          ("Download data to a file that opens with Vietnamese characters intact",
-           "Tải dữ liệu ra file, mở lên hiển thị đúng dấu tiếng Việt"), tag="Override"),
-        n("Menu & shortcuts", "Menu & lối tắt",
-          ("Functions grouped into workspaces, with shortcuts on the home page",
-           "Nhóm chức năng theo khu vực làm việc và tạo lối tắt trên trang chủ"), tag="Custom"),
-    ]),
+           "Đề nghị thanh toán chi phí, tạm ứng và yêu cầu đi công tác"),
+          tag="Standard",
+        ),
+      ],
+    ),
 ])
 
 
@@ -570,7 +841,7 @@ GA = n("GA - General Affairs", "Hành chính tổng hợp",
           ("Follow session progress in real time: how many done, how many left",
            "Theo dõi tiến độ đợt khám theo thời gian thực: đã khám bao nhiêu, còn lại bao nhiêu"),
           tag="Custom"),
-        n("Excel export", "Xuất Excel",
+        n("Session Excel export", "Xuất Excel đợt khám",
           ("Export the list and results of each session for records and reporting",
            "Xuất danh sách và kết quả theo từng đợt để lưu hồ sơ và báo cáo"), tag="Custom"),
         n("Access control", "Phân quyền truy cập",
@@ -645,176 +916,190 @@ GA = n("GA - General Affairs", "Hành chính tổng hợp",
 # nên cùng một file .md mở được ở erp.tiqn.com.vn:8888 hay erp.tiqn.local đều đúng.
 # Desk của Frappe v16 nằm ở /desk (đường /app chỉ chuyển hướng sang /desk).
 LINKS = {
-    # ── HR: hồ sơ nhân viên
-    "Employee profile": "/desk/employee",
-    "Organization structure": "/desk/department",
-    "Section & Group": "/desk/section",
-    "Employee photo": "/employee-photos",
-    "Self-service update": "/employee-self-update-info",
-    "Dependents": "/desk/employee-dependent",
-    "Labor contract": "/desk/query-report/Labor%20Contract%20Report",
-    "Employment Type": "/desk/employment-type",
-    "External personnel": "/desk/external-personnel",
-    "Maternity records": "/desk/query-report/Employee%20Maternity%20Report",
-    "Onboarding": "/desk/employee-onboarding",
-    "Transfer & promotion": "/desk/employee-transfer",
-    "Resignation Application": "/desk/resignation-application",
-    "Employee reports": "/desk/employee/view/report",
-
-    # ── HR: chấm công
-    "Fingerprint machines": "/desk/attendance-machine-setting",
-    "Connect machines": "/desk/attendance-machine-setting",
-    "Register fingerprints": "/desk/fingerprint-data",
-    "Push employees to machines": "/biometric_sync",
-    "Sync machine clock": "/desk/attendance-machine-setting",
-    "Check scan data": "/desk/employee-checkin/view/report",
-    "Check-in records": "/desk/employee-checkin",
-    "Shift type": "/desk/shift-type",
-    "Assign shift": "/desk/shift-assignment",
-    "Bulk shift assignment": "/desk/shift-assignment",
-    "Shift priority": "/desk/shift-type",
-    "Attendance calculation": "/desk/attendance",
-    "Automatic daily run": "/desk/shift-type",
-    "Attendance status": "/desk/attendance/view/report",
-    "Late & early leave": "/desk/attendance/view/report",
-    "Leave-linked days": "/desk/attendance",
-    "Paid holidays": "/desk/holiday-list",
-    "Anomaly note": "/desk/attendance/view/report",
-    "Corrections": "/desk/attendance",
-    "Monthly attendance sheet": "/desk/query-report/Shift%20Attendance%20Customize",
-    "Daily email report": "/desk/query-report/Shift%20Attendance%20Customize",
-    "Excel export": "/desk/query-report/Shift%20Attendance%20Customize",
-    "HR overview dashboard": "/desk/hr",
-
-    # ── HR: tăng ca
-    "Overtime": "/desk/overtime-registration",
-    "Register overtime": "/desk/overtime-registration",
-    "Employee picker": "/desk/overtime-registration/new",
-    "Overtime levels": "/desk/overtime-level",
-    "Request & approval": "/desk/overtime-request",
-    "By registration": "/desk/query-report/Overtime%20Registration",
-    "By time slot": "/desk/query-report/Overtime%20Registration%20by%20Time%20Slot",
-    "By quantity": "/desk/query-report/Overtime%20Registration%20Quantity",
-    "Compliance check": "/desk/query-report/OT%20Compliance",
-
-    # ── HR: nghỉ phép
-    "Leave types": "/desk/leave-type",
-    "Leave balance": "/desk/leave-allocation",
-    "Leave application": "/desk/leave-application",
-    "Half day leave": "/desk/leave-application",
-    "Import leave from Excel": "/desk/data-import",
-    "Holiday list": "/desk/holiday-list",
-    "Compensatory & encashment": "/desk/compensatory-leave-request",
-    "Leave reports": "/desk/query-report/Employee%20Leave%20Balance",
-
-    # ── HR: tiền lương
-    "Salary structure": "/desk/salary-structure",
-    "Salary assignment": "/desk/salary-structure-assignment",
-    "Payroll run": "/desk/payroll-entry",
-    "Standard working days": "/desk/salary-slip",
-    "Vietnam statutory deductions": "/desk/tiqn-payroll-settings",
-    "Insurance": "/desk/tiqn-insurance-rate",
-    "Union fee": "/desk/tiqn-payroll-settings",
-    "Personal income tax": "/desk/tiqn-tax-bracket",
-    "Payroll settings": "/desk/tiqn-payroll-settings",
-    "Payslip": "/desk/salary-slip",
-    "Payroll reports": "/desk/query-report/Salary%20Register",
-    "Loans & advances": "/desk/employee-advance",
-
-    # ── HR: chức năng khác
-    "Recruitment": "/desk/job-opening",
-    "Online job application": "/jobs",
-    "Performance appraisal": "/desk/appraisal",
-    "Training": "/desk/training-program",
-    "Expense claim & travel": "/desk/expense-claim",
-
-    # ── HR: hệ thống
-    "Roles & permissions": "/desk/role",
-    "Email alerts": "/desk/notification",
-    "Vietnamese interface": "/desk/user",
-    "Excel & CSV export": "/desk/data-export",
-    "Menu & shortcuts": "/desk/workspace",
-
-    # ── GA: đồng phục
-    "Uniform Control": "/desk/uniform-dashboard",
-    "Uniform warehouse & items": "/desk/uniform-setting",
-    "Default items": "/desk/uniform-setting",
-    "Alert settings": "/desk/uniform-setting",
-    "Attrition assumption": "/desk/uniform-setting",
-    "Who gets what": "/desk/uniform-rule",
-    "Quantity & cycle": "/desk/uniform-rule",
-    "One-time items": "/desk/uniform-rule",
-    "Rule priority": "/desk/uniform-rule",
-    "Sizes": "/desk/employee-uniform-profile",
-    "Shoe rack location": "/desk/employee-uniform-profile",
-    "Next due date": "/desk/employee-uniform-profile",
-    "Manual override": "/desk/employee-uniform-profile",
-    "Issued history": "/desk/query-report/Uniform%20Tracking",
-    "Find eligible employees": "/desk/uniform-allocation/new",
-    "Create & confirm slip": "/desk/uniform-allocation",
-    "Warehouse issue": "/desk/stock-entry",
-    "Reuse old items": "/desk/uniform-allocation",
-    "Item reissue": "/desk/query-report/Employee%20Item%20Reissue",
-    "Due & overdue list": "/desk/query-report/Uniform%20Tracking",
-    "Recalculate": "/desk/uniform-dashboard",
-    "Forecast by period": "/desk/uniform-demand-forecast",
-    "Size ratio": "/desk/uniform-demand-forecast",
-    "Leavers estimate": "/desk/uniform-demand-forecast",
-    "Shortfall vs stock": "/desk/uniform-demand-forecast",
-    "Summary dashboard": "/desk/uniform-dashboard",
-    "Stock report": "/desk/uniform-dashboard",
-    "Due employees report": "/desk/query-report/Uniform%20Tracking",
-    "Allocation history report": "/desk/uniform-allocation/view/report",
-    "Cost report": "/desk/uniform-dashboard",
-    "Weekly reminder email": "/desk/uniform-setting",
-    "Uniform Manager role": "/desk/role/Uniform%20Manager",
-    "Links to other functions": "/desk/employee-uniform-profile",
-
-    # ── GA: khám sức khỏe
-    "Health Check-Up": "/desk/health-check-up-management",
-    "Date & hospital": "/desk/health-check-up",
-    "Check-up type": "/desk/health-check-up",
-    "Employee list": "/desk/health-check-up/view/report",
-    "Planned time slot": "/desk/health-check-up-management",
-    "Reschedule": "/desk/health-check-up-management",
-    "X-ray": "/desk/health-check-up/view/report",
-    "Gynecological exam": "/desk/health-check-up/view/report",
-    "Pregnancy exclusion": "/desk/health-check-up/view/report",
-    "Not attending": "/desk/health-check-up/view/report",
-    "Scan to hand out form": "/desk/health-check-up-management",
-    "Scan to collect form": "/desk/health-check-up-management",
-    "Employee code lookup": "/desk/health-check-up-management",
-    "Works offline": "/desk/health-check-up-management",
-    "Status per employee": "/desk/health-check-up/view/report",
-    "Recalculate status": "/desk/health-check-up-management",
-    "Attach result files": "/desk/health-check-up-management",
-    "Result & note": "/desk/health-check-up",
-    "Management page": "/desk/health-check-up-management",
+    # Sinh lại từ docs/mindmap/hr_mindmap.md (nhánh HR) + giữ nguyên phần GA.
+    # Link thật nằm trong .md; dict này chỉ là mặc định cho mục mới thêm.
     "Access control": "/desk/role",
-
-    # ── GA: kệ giày
-    "Shoe Rack Management": "/desk/shoe-rack-dashboard",
-    "Rack name & type": "/desk/shoe-rack",
-    "Compartments": "/desk/shoe-rack",
-    "Rack status": "/desk/shoe-rack/view/report",
+    "Alert settings": "/desk/uniform-setting",
+    "Allocation history report": "/desk/uniform-allocation/view/report",
+    "Anomaly note": "/desk/attendance/view/report",
+    "Appointment Letter": "/desk/appointment-letter",
+    "Assign shift": "/desk/shift-assignment",
     "Assign to employee": "/desk/shoe-rack",
     "Assign to external personnel": "/desk/external-personnel",
-    "Unidentified user": "/desk/shoe-rack/view/report",
-    "Gender per compartment": "/desk/shoe-rack/view/report",
-    "Layout manager": "/desk/layout-manager",
-    "Pathways": "/desk/layout-manager",
-    "Save layout": "/desk/shoe-rack-layout-settings",
-    "Dashboard": "/desk/shoe-rack-dashboard",
-    "Search & list": "/desk/shoe-rack",
+    "Attach result files": "/desk/health-check-up-management",
+    "Attendance calculation": "/desk/attendance",
+    "Attendance confirmation request": "/desk/attendance-request",
+    "Attendance status": "/desk/attendance/view/list",
+    "Attrition assumption": "/desk/uniform-setting",
     "Auto sync to uniform profile": "/desk/employee-uniform-profile",
+    "Automatic daily run": "/desk/shift-type",
+    "Bulk create": "/desk/attendance-request/view/list",
+    "Bulk shift assignment": "/desk/shift-assignment-tool",
+    "By quantity": "/desk/query-report/Overtime%20Registration%20Quantity",
+    "By registration": "/desk/query-report/Overtime%20Registration",
+    "By time slot": "/desk/query-report/Overtime%20Registration%20by%20Time%20Slot",
+    "Check Vacancies On Job Offer Creation": "/desk/hr-settings",
+    "Check scan data": "/biometric_sync",
+    "Check-in records": "/desk/employee-checkin",
+    "Check-up type": "/desk/health-check-up",
+    "Compartments": "/desk/shoe-rack",
+    "Compensatory & encashment": "/desk/compensatory-leave-request",
+    "Compliance check": "/desk/query-report/OT%20Compliance",
+    "Connect machines": "/desk/attendance-machine-setting",
+    "Corrections": "/desk/attendance",
+    "Cost report": "/desk/uniform-dashboard",
+    "Create & confirm slip": "/desk/uniform-allocation",
+    "Daily email report": "/desk/query-report/Shift%20Attendance%20Customize",
+    "Dashboard": "/desk/shoe-rack-dashboard",
+    "Date & hospital": "/desk/health-check-up",
+    "Default items": "/desk/uniform-setting",
+    "Dependents": "/desk/employee-dependent",
+    "Due & overdue list": "/desk/query-report/Uniform%20Tracking",
+    "Due employees report": "/desk/query-report/Uniform%20Tracking",
+    "Employee Onboarding": "/desk/employee-onboarding",
+    "Employee Promotion": "/desk/employee-promotion",
+    "Employee Referral": "/desk/employee-referral",
+    "Employee Transfer": "/desk/employee-transfer",
+    "Employee Transfer & Promotion Report": "/desk/query-report/Employee%20Transfer%20and%20Promotion",
+    "Employee code lookup": "/desk/health-check-up-management",
+    "Employee list": "/desk/health-check-up/view/report",
+    "Employee photo": "/employee-photos",
+    "Employee profile": "/desk/employee",
+    "Employee reports": "/desk/dashboard-view/HR%20Overview",
+    "Employment Type": "/desk/employment-type",
+    "Excel export": "/desk/query-report/Shift%20Attendance%20Customize",
+    "Expense claim & travel": "/desk/expense-claim",
+    "Find eligible employees": "/desk/uniform-allocation/new",
+    "Fingerprint machines": "/desk/attendance-machine-setting",
+    "Forecast by period": "/desk/uniform-demand-forecast",
+    "Gender per compartment": "/desk/shoe-rack/view/report",
+    "Gynecological exam": "/desk/health-check-up/view/report",
+    "Half day leave": "/desk/leave-application",
+    "Health Check-Up": "/desk/health-check-up-management",
+    "Holiday list": "/desk/holiday-list",
+    "Insurance": "/desk/tiqn-insurance-rate",
+    "Interview": "/desk/interview",
+    "Interview Feedback": "/desk/interview-feedback",
+    "Interview Round": "/desk/interview-round",
+    "Interview Type": "/desk/interview-type",
+    "Issued history": "/desk/query-report/Uniform%20Tracking",
+    "Item reissue": "/desk/query-report/Employee%20Item%20Reissue",
+    "Job Applicant": "/desk/job-applicant",
+    "Job Offer": "/desk/job-offer",
+    "Job Opening": "/desk/job-opening",
+    "Job Portal": "/jobs",
+    "Job Requisition": "/desk/job-requisition",
+    "Labor contract": "/desk/query-report/Labor%20Contract%20Report",
+    "Late & early leave": "/desk/attendance/view/list",
+    "Layout manager": "/desk/layout-manager",
+    "Leave application": "/desk/leave-application",
+    "Leave balance": "/desk/leave-allocation",
+    "Leave reports": "/desk/query-report/Employee%20Leave%20Balance",
+    "Leave types": "/desk/leave-type",
+    "Leave-linked days": "/desk/attendance",
+    "Leavers estimate": "/desk/uniform-demand-forecast",
+    "Links to other functions": "/desk/employee-uniform-profile",
+    "Management page": "/desk/health-check-up-management",
+    "Manual override": "/desk/employee-uniform-profile",
+    "Maternity records": "/desk/query-report/Employee%20Maternity%20Report",
     "Menu shortcut": "/desk/workspace",
+    "Monthly attendance sheet": "/desk/query-report/Shift%20Attendance%20Customize",
+    "Next due date": "/desk/employee-uniform-profile",
+    "Not attending": "/desk/health-check-up/view/report",
+    "Onboarding": "/desk/employee-onboarding",
+    "One-time items": "/desk/uniform-rule",
+    "Organization structure": "/desk/department",
+    "Overtime": "/desk/overtime-registration",
+    "Pathways": "/desk/layout-manager",
+    "Payroll reports": "/desk/query-report/Salary%20Register",
+    "Payroll run": "/desk/payroll-entry",
+    "Payroll settings": "/desk/tiqn-payroll-settings",
+    "Payslip": "/desk/salary-slip",
+    "Performance appraisal": "/desk/appraisal",
+    "Personal income tax": "/desk/tiqn-tax-bracket",
+    "Planned time slot": "/desk/health-check-up-management",
+    "Pregnancy exclusion": "/desk/health-check-up/view/report",
+    "Push employees to machines": "/biometric_sync",
+    "Quantity & cycle": "/desk/uniform-rule",
+    "Rack name & type": "/desk/shoe-rack",
+    "Rack status": "/desk/shoe-rack/view/report",
+    "Recalculate": "/desk/uniform-dashboard",
+    "Recalculate status": "/desk/health-check-up-management",
+    "Recruitment": "/desk/job-opening",
+    "Register fingerprints": "/desk/fingerprint-data",
+    "Register overtime": "/desk/overtime-registration",
+    "Request & approval": "/desk/overtime-request",
+    "Reschedule": "/desk/health-check-up-management",
+    "Resignation Application": "/desk/resignation-application",
+    "Result & note": "/desk/health-check-up",
+    "Reuse old items": "/desk/uniform-allocation",
+    "Rule priority": "/desk/uniform-rule",
+    "Salary assignment": "/desk/salary-structure-assignment",
+    "Salary structure": "/desk/salary-structure",
+    "Save layout": "/desk/shoe-rack-layout-settings",
+    "Scan to collect form": "/desk/health-check-up-management",
+    "Scan to hand out form": "/desk/health-check-up-management",
+    "Search & list": "/desk/shoe-rack",
+    "Section & Group": "/desk/section",
+    "Self-service update": "/employee-self-update-info",
+    "Shift priority": "/desk/shift-type",
+    "Shift type": "/desk/shift-type",
+    "Session Excel export": "/desk/health-check-up-management",
+    "Shoe Rack Management": "/desk/shoe-rack-dashboard",
+    "Shoe rack location": "/desk/employee-uniform-profile",
+    "Shortfall vs stock": "/desk/uniform-demand-forecast",
+    "Signature form": "/desk/attendance-request/view/list",
+    "Size ratio": "/desk/uniform-demand-forecast",
+    "Sizes": "/desk/employee-uniform-profile",
+    "Staffing Plan": "/desk/staffing-plan",
+    "Standard working days": "/desk/salary-slip",
+    "Status per employee": "/desk/health-check-up/view/report",
+    "Stock report": "/desk/uniform-dashboard",
+    "Suggested times": "/desk/attendance-request",
+    "Summary dashboard": "/desk/uniform-dashboard",
+    "Sync machine clock": "/biometric_sync",
+    "Training": "/desk/training-program",
+    "Transfer & promotion": "/desk/employee-transfer",
+    "Unidentified user": "/desk/shoe-rack/view/report",
+    "Uniform Control": "/desk/uniform-dashboard",
+    "Uniform Manager role": "/desk/role/Uniform%20Manager",
+    "Uniform warehouse & items": "/desk/uniform-setting",
+    "Union fee": "/desk/tiqn-payroll-settings",
+    "Vietnam statutory deductions": "/desk/tiqn-payroll-settings",
+    "Warehouse issue": "/desk/stock-entry",
+    "Weekly reminder email": "/desk/uniform-setting",
+    "Who gets what": "/desk/uniform-rule",
+    "Works offline": "/desk/health-check-up-management",
+    "X-ray": "/desk/health-check-up/view/report",
 }
+
+
+def check_duplicate_names(tree, warnings):
+    """Hai mục cùng tiêu đề tiếng Anh sẽ dùng chung một dòng LINKS -> một trong hai
+    mục nhận link sai. Đã xảy ra: "Excel export" của Khám sức khỏe từng trỏ sang
+    báo cáo chấm công."""
+    seen = {}
+    for n in all_nodes(tree):
+        seen.setdefault(n["en"], []).append(n["label"])
+    for en, labels in seen.items():
+        if len(labels) > 1:
+            warnings.append("trùng tiêu đề tiếng Anh '%s': %s — link sẽ lấy nhầm của nhau"
+                            % (en, " | ".join(labels)))
+
+
+def all_nodes(node):
+    yield node
+    for c in node.get("children", []):
+        yield from all_nodes(c)
 
 
 def apply_links(node):
     link = LINKS.get(node.get("en"))
     if link:
         node["link"] = link
+    guide = GUIDES.get(node.get("en"))
+    if guide:
+        node["guide"] = guide
     for c in node.get("children", []):
         apply_links(c)
 
@@ -872,10 +1157,14 @@ STATUS_ALIASES = {
 
 LINE_RE = re.compile(
     r"^\s*- \*\*(?P<label>.+?)\*\*(?P<tags>(?:\s*`\[[^\]]+\]`)*)"
-    r"(?:\s*(?:—|–|--)\s*(?P<desc>.*?))?\s*$"
+    r"(?:\s*(?:—|–|--)\s*(?P<desc>.*?))?"
+    # link bài hướng dẫn có thể đứng cuối dòng ngay cả khi mục không có mô tả
+    r"(?:\s*\[[^\]]*\]\(/lms/[^)\s]*\))?\s*$"
 )
 TAG_RE = re.compile(r"`\[([^\]]+)\]`")
 MD_LINK_RE = re.compile(r"\[([^\]]+)\]\(([^)]*)\)")
+# Link bài hướng dẫn trong LMS, đặt cuối dòng: [Guide](/lms/courses/module-hrms/learn/4-1)
+GUIDE_LINK_RE = re.compile(r"\s*\[([^\]]*)\]\((/lms/[^)\s]*)\)")
 # Số thứ tự tự đánh ở đầu tiêu đề: "01. Employee Records / Hồ sơ nhân viên"
 ORDER_RE = re.compile(r"^\s*(\d{1,3})\s*[.)\-–]?\s+")
 
@@ -940,12 +1229,20 @@ def read_existing_meta(path):
                 in_comment = True
             continue
 
+        if stripped.startswith("> "):
+            g = GUIDE_LINK_RE.search(line)
+            if g:
+                found.setdefault("__root__", {})["guide"] = g.group(2).strip()
+            continue
+
         m = LINE_RE.match(line)
         if not m:
             continue
 
         raw_label = m.group("label")
         link_match = MD_LINK_RE.search(raw_label)
+        # Link thứ hai trỏ vào /lms/ là bài hướng dẫn, nằm cuối dòng sau phần mô tả
+        guide_match = GUIDE_LINK_RE.search(line)
         # Tiêu đề có thể được bọc thành link markdown, bỏ phần link để khớp đúng mục
         label = MD_LINK_RE.sub(r"\1", raw_label).strip()
         # Số thứ tự tự đánh không tính vào khoá khớp, nhưng phải giữ lại
@@ -956,8 +1253,13 @@ def read_existing_meta(path):
         # Link hoặc mô tả để rỗng là có chủ ý, phải giữ rỗng chứ không lấy lại từ script
         if link_match:
             entry["link"] = link_match.group(2).strip()
+        if guide_match:
+            entry["guide"] = guide_match.group(2).strip()
         if m.group("desc") is not None:
-            entry["desc"] = m.group("desc").strip()
+            desc = m.group("desc")
+            if guide_match:
+                desc = desc.replace(guide_match.group(0), "")   # tách link hướng dẫn ra khỏi mô tả
+            entry["desc"] = desc.strip()
         for t in TAG_RE.findall(m.group("tags")):
             if t in TYPES:
                 entry["type"] = t
@@ -1014,6 +1316,12 @@ def walk(node, depth, out, fn):
         walk(c, depth + 1, out, fn)
 
 
+def apply_root_guide(tree, saved):
+    entry = saved.get("__root__") or {}
+    if entry.get("guide"):
+        tree["guide"] = entry["guide"]
+
+
 def apply_saved_meta(node, saved, keep_content, missing):
     """Áp lại phần đã sửa tay trong .md lên cây lấy từ script.
 
@@ -1041,11 +1349,34 @@ def apply_saved_meta(node, saved, keep_content, missing):
                     node["link"] = entry["link"]
                 else:
                     node.pop("link", None)
+            if entry.get("guide"):
+                node["guide"] = entry["guide"]
             if entry.get("type") and node.get("type"):
                 node["type"] = entry["type"]
     for c in node.get("children", []):
         apply_saved_meta(c, saved, keep_content, missing)
 
+
+# ============================================================ LINK BÀI HƯỚNG DẪN
+# Bài học trong LMS ứng với từng mục. Khoá là tiêu đề tiếng Anh, giống LINKS.
+# Đường dẫn đọc bài: /lms/courses/<khoá>/learn/<chương>-<bài>
+#   module-hrms     1 Employee Photo · 2 Leaves · 3 Shift & Attendance
+#                   4 Recruitment · 5 HR Setup
+#   uniform-control 1 Vận hành · 2 Thiết lập · 3 Báo cáo · 4 Tổng quan
+#   helth-check-up  1 Khám sức khỏe
+HRMS = "/lms/courses/module-hrms/learn/"
+UNIFORM = "/lms/courses/uniform-control/learn/"
+HEALTH = "/lms/courses/helth-check-up/learn/"
+
+GUIDES = {
+    # Node gốc của sơ đồ HR trỏ vào trang khoá học, không gắn từng bài cho mục con:
+    # bài học hay được sắp lại, gắn lẻ là phải sửa theo liên tục.
+    "HR - Human Resources": "/lms/courses/module-hrms",
+    # GA gồm ba module thuộc ba khoá khác nhau nên gắn ở từng nhánh
+    "Uniform Control": "/lms/courses/uniform-control",
+    "Health Check-Up": "/lms/courses/helth-check-up",
+    "Shoe Rack Management": "/lms/courses/module-hrms/learn/5-4",
+}
 
 # ============================================================ THỨ TỰ HIỂN THỊ
 # Thứ tự theo logic nghiệp vụ: cái gì phải có trước thì đứng trước, rồi tới
@@ -1053,64 +1384,91 @@ def apply_saved_meta(node, saved, keep_content, missing):
 # Mục không liệt kê ở đây sẽ xếp sau, giữ nguyên thứ tự trong cây.
 # Đổi thứ tự thì sửa ở đây rồi chạy: python3 build_mindmap.py --renumber
 LOGICAL_ORDER = {
-    "HR - Human Resources": [
-        "Employee Records", "Time & Attendance", "Overtime", "Leave", "Payroll",
-        "Other HR functions", "System & Access",
-    ],
-    # Cơ cấu và loại hình lao động phải khai trước khi lập hồ sơ nhân viên
+    # Thứ tự hiển thị. Phần HR sinh từ chính hr_mindmap.md nên luôn khớp file.
     "Employee Records": [
         "Organization structure", "Employment Type", "Employee profile", "Employee photo",
-        "Self-service update", "Dependents", "Labor contract", "External personnel",
-        "Maternity records", "Onboarding", "Transfer & promotion",
-        "Resignation Application",
-        "Employee reports",
+        "Self-service update", "Dependents", "Labor contract", "Maternity records",
+        "Onboarding", "Transfer & promotion", "Resignation Application", "Employee reports",
     ],
-    # Khai ca trước, rồi thiết bị thu dữ liệu, rồi mới tính công được
+    "Organization structure": [
+        "Section & Group",
+    ],
+    "Transfer & promotion": [
+        "Employee Transfer", "Employee Promotion", "Employee Transfer & Promotion Report",
+    ],
     "Time & Attendance": [
-        "Shift setup", "Fingerprint machines", "Check-in records",
-        "Attendance calculation", "Corrections", "Attendance reports",
+        "Shift setup", "Fingerprint machines", "Check-in records", "Attendance calculation",
+        "Corrections", "Attendance reports",
+    ],
+    "Shift setup": [
+        "Shift type", "Assign shift", "Bulk shift assignment", "Shift priority",
+    ],
+    "Fingerprint machines": [
+        "Connect machines", "Register fingerprints", "Push employees to machines",
+        "Sync machine clock", "Check scan data",
+    ],
+    "Attendance calculation": [
+        "Automatic daily run", "Attendance status", "Late & early leave", "Leave-linked days",
+        "Anomaly note",
+    ],
+    "Corrections": [
+        "Attendance confirmation request", "Suggested times", "Bulk create", "Signature form",
+    ],
+    "Attendance reports": [
+        "Monthly attendance sheet", "Daily email report", "Excel export",
     ],
     "Overtime": [
-        "Overtime levels", "Register overtime", "Employee picker",
-        "Request & approval", "Overtime reports",
+        "Register overtime", "Request & approval", "Overtime reports",
+    ],
+    "Overtime reports": [
+        "By registration", "By time slot", "By quantity", "Compliance check",
     ],
     "Leave": [
-        "Leave types", "Holiday list", "Leave balance", "Leave application",
-        "Half day leave", "Compensatory & encashment", "Import leave from Excel",
-        "Leave reports",
+        "Leave types", "Holiday list", "Leave balance", "Leave application", "Half day leave",
+        "Compensatory & encashment", "Leave reports",
     ],
-    # Cấu hình tỷ lệ bảo hiểm và bậc thuế phải có trước khi chạy lương
     "Payroll": [
-        "Payroll settings", "Salary structure", "Salary assignment",
-        "Standard working days", "Vietnam statutory deductions", "Payroll run",
-        "Payslip", "Loans & advances", "Payroll reports",
+        "Payroll settings", "Salary structure", "Salary assignment", "Standard working days",
+        "Vietnam statutory deductions", "Payroll run", "Payslip", "Payroll reports",
+    ],
+    "Vietnam statutory deductions": [
+        "Insurance", "Union fee", "Personal income tax",
+    ],
+    "Recruitment": [
+        "Staffing Plan", "Job Requisition", "Job Opening", "Job Portal", "Job Applicant",
+        "Interview", "Job Offer", "Appointment Letter", "Employee Onboarding",
+    ],
+    "Staffing Plan": [
+        "Check Vacancies On Job Offer Creation",
+    ],
+    "Job Applicant": [
+        "Employee Referral", "Applicant status",
+    ],
+    "Interview": [
+        "Interview Round", "Interview Type", "Interview Feedback", "Calendar & reminder",
     ],
     "Other HR functions": [
-        "Recruitment", "Online job application", "Performance appraisal",
-        "Training", "Expense claim & travel",
+        "Performance appraisal", "Training", "Expense claim & travel",
     ],
-    "System & Access": [
-        "Roles & permissions", "Menu & shortcuts", "Vietnamese interface",
-        "Excel & CSV export", "Email alerts",
+    "HR - Human Resources": [
+        "Employee Records", "Time & Attendance", "Overtime", "Leave", "Payroll", "Recruitment",
+        "Other HR functions",
     ],
     "GA - General Affairs": [
         "Uniform Control", "Health Check-Up", "Shoe Rack Management",
     ],
-    # Thiết lập và định mức trước, cấp phát sau, cuối cùng là dự báo và báo cáo
     "Uniform Control": [
         "Initial setup", "Uniform Manager role", "Entitlement rules",
-        "Employee uniform profile", "Allocation & issue", "Tracking",
-        "Weekly reminder email", "Demand forecast", "Dashboard & reports",
-        "Links to other functions",
+        "Employee uniform profile", "Allocation & issue", "Tracking", "Weekly reminder email",
+        "Demand forecast", "Dashboard & reports", "Links to other functions",
     ],
     "Health Check-Up": [
         "Plan a session", "Exam items", "Management page", "On-site scanning",
-        "Status & results", "Excel export", "Access control",
+        "Status & results", "Session Excel export", "Access control",
     ],
-    # Khai kệ, vẽ sơ đồ mặt bằng, rồi mới gán ô cho từng người
     "Shoe Rack Management": [
-        "Rack records", "Floor layout", "Compartment assignment", "Dashboard",
-        "Search & list", "Auto sync to uniform profile", "Menu shortcut",
+        "Rack records", "Floor layout", "Compartment assignment", "Dashboard", "Search & list",
+        "Auto sync to uniform profile", "Menu shortcut",
     ],
 }
 
@@ -1168,6 +1526,8 @@ def md_line(node, depth, out):
     if node.get("status"):
         tags += f" `[{node['status']}]`"
     desc = f" — {node['desc']}" if node.get("desc") else ""
+    if node.get("guide"):
+        desc += f" [Guide]({node['guide']})"
     label = node["label"]
     if node.get("link"):
         label = f"[{label}]({node['link']})"
@@ -1176,8 +1536,9 @@ def md_line(node, depth, out):
     if depth == 0:
         out.append(f"# {node['label']}")
         if node.get("desc"):
+            guide = f" [Guide]({node['guide']})" if node.get("guide") else ""
             out.append("")
-            out.append(f"> {node['desc']}")
+            out.append(f"> {node['desc']}{guide}")
         out.append("")
         return
     out.append(f"{'  ' * (depth - 1)}- **{label}**{tags}{desc}")
@@ -1245,7 +1606,10 @@ def emit(key, tree, want_json, from_script=False, renumber=False, dry_run=False,
 
     added = []
     apply_saved_meta(tree, saved, not from_script, added)
+    if not from_script:
+        apply_root_guide(tree, saved)
     order_warnings = []
+    check_duplicate_names(tree, order_warnings)
     sort_logically(tree, order_warnings, {lb.split(" / ")[0] for lb in removed})
     assign_numbers(tree, renumber)
 
@@ -1311,16 +1675,21 @@ def main():
                     help="đánh số thứ tự lại toàn bộ theo thứ tự hiện tại")
     ap.add_argument("--dry-run", action="store_true",
                     help="chỉ báo cáo, không ghi file nào")
+    ap.add_argument("--lang-only", action="store_true",
+                    help="chỉ sinh lại bảng dịch vi.csv, không ghi file .md")
     args = ap.parse_args()
     state = load_state()
+    # lang-only cũng không ghi .md: giữ nguyên phần comment người dùng tự thêm trong file
+    skip_md = args.dry_run or args.lang_only
     trees = [emit("hr", HR, args.json, args.from_script, args.renumber,
-                  args.dry_run, state),
+                  skip_md, state),
              emit("ga", GA, args.json, args.from_script, args.renumber,
-                  args.dry_run, state)]
+                  skip_md, state)]
     if args.dry_run:
         print("[dry-run] không ghi file nào")
         return
-    save_state(state)
+    if not args.lang_only:
+        save_state(state)
     count = write_lang_csv(trees)
     print(f"{os.path.relpath(LANG_CSV, OUT)}: {count} cặp mô tả EN/VI")
 

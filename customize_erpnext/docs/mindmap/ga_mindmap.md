@@ -8,7 +8,7 @@
 
 > Đồng phục, khám sức khỏe và kệ giày cho toàn nhà máy
 
-- **01. [Uniform Control / Quản lý đồng phục](/desk/uniform-dashboard)** `[Custom]` `[Done]` — Cấp phát đồng phục đúng định mức, đúng hạn và kiểm soát được tồn kho
+- **01. [Uniform Control / Quản lý đồng phục](/desk/uniform-dashboard)** `[Custom]` `[Done]` — Cấp phát đồng phục đúng định mức, đúng hạn và kiểm soát được tồn kho [Guide](/lms/courses/uniform-control)
   - **01. Initial setup / Thiết lập ban đầu** `[Done]`
     - **01. [Uniform warehouse & items / Kho & danh mục đồng phục](/desk/uniform-setting)** `[Custom]` `[Done]` — Chọn kho xuất đồng phục và nhóm hàng dùng cho đồng phục
     - **02. [Default items / Vật phẩm mặc định](/desk/uniform-setting)** `[Custom]` `[Done]` — Vật phẩm dùng chung khi chưa có quy tắc riêng
@@ -48,7 +48,7 @@
     - **04. [Allocation history report / Báo cáo lịch sử cấp phát](/desk/uniform-allocation/view/report)** `[Custom]` `[Done]` — Tra lại đã cấp gì, cho ai, ngày nào
     - **05. [Cost report / Báo cáo chi phí](/desk/uniform-dashboard)** `[Custom]` `[Done]` — Chi phí đồng phục theo kỳ và theo bộ phận
   - **10. [Links to other functions / Liên kết với chức năng khác](/desk/employee-uniform-profile)** `[Custom]` `[Done]` — Dùng chung dữ liệu nhân viên, kho hàng và vị trí kệ giày
-- **02. [Health Check-Up / Khám sức khỏe](/desk/health-check-up-management)** `[Custom]` `[Done]` — Tổ chức khám định kỳ cho toàn nhà máy, theo dõi ai đã khám và lưu kết quả
+- **02. [Health Check-Up / Khám sức khỏe](/desk/health-check-up-management)** `[Custom]` `[Done]` — Tổ chức khám định kỳ cho toàn nhà máy, theo dõi ai đã khám và lưu kết quả [Guide](/lms/courses/helth-check-up)
   - **01. Plan a session / Lập kế hoạch đợt khám** `[Done]`
     - **01. [Date & hospital / Ngày khám & bệnh viện](/desk/health-check-up)** `[Custom]` `[Done]` — Khai ngày tổ chức và đơn vị y tế thực hiện
     - **02. [Check-up type / Loại khám](/desk/health-check-up)** `[Custom]` `[Done]` — Khám định kỳ, khám bệnh nghề nghiệp hoặc loại khám khác
@@ -71,9 +71,9 @@
     - **02. [Recalculate status / Tính lại trạng thái](/desk/health-check-up-management)** `[Custom]` `[Done]` — Cập nhật lại trạng thái của cả đợt sau khi chỉnh dữ liệu
     - **03. [Attach result files / Gắn file kết quả](/desk/health-check-up-management)** `[Custom]` `[Done]` — Đính kèm kết quả bệnh viện trả về vào hồ sơ từng người
     - **04. [Result & note / Kết luận & ghi chú](/desk/health-check-up)** `[Custom]` `[Done]` — Ghi kết luận sức khỏe và các lưu ý cần theo dõi
-  - **06. [Excel export / Xuất Excel](/desk/query-report/Shift%20Attendance%20Customize)** `[Custom]` `[Done]` — Xuất danh sách và kết quả theo từng đợt để lưu hồ sơ và báo cáo
+  - **06. [Session Excel export / Xuất Excel đợt khám](/desk/health-check-up-management)** `[Custom]` `[Done]` — Xuất danh sách và kết quả theo từng đợt để lưu hồ sơ và báo cáo
   - **07. [Access control / Phân quyền truy cập](/desk/role)** `[Custom]` `[Done]` — Thông tin sức khỏe là dữ liệu riêng tư, chỉ người phụ trách được xem
-- **03. [Shoe Rack Management / Quản lý kệ giày](/desk/shoe-rack-dashboard)** `[Custom]` `[Done]` — Mỗi người một ô để giày, biết ô nào của ai và ô nào còn trống
+- **03. [Shoe Rack Management / Quản lý kệ giày](/desk/shoe-rack-dashboard)** `[Custom]` `[Done]` — Mỗi người một ô để giày, biết ô nào của ai và ô nào còn trống [Guide](/lms/courses/module-hrms/learn/5-4)
   - **01. Rack records / Hồ sơ kệ** `[Done]`
     - **01. [Rack name & type / Tên & loại kệ](/desk/shoe-rack)** `[Custom]` `[Done]` — Đặt tên kệ theo khu vực và phân loại kệ
     - **02. [Compartments / Số ô của kệ](/desk/shoe-rack)** `[Custom]` `[Done]` — Khai số ô để giày trên mỗi kệ
@@ -91,12 +91,3 @@
   - **05. [Search & list / Tìm kiếm & danh sách](/desk/shoe-rack)** `[Custom]` `[Done]` — Tra nhanh vị trí ô của một nhân viên hoặc xem toàn bộ danh sách kệ
   - **06. [Auto sync to uniform profile / Tự đồng bộ sang hồ sơ đồng phục](/desk/employee-uniform-profile)** `[Custom]` `[Done]` — Đổi ô để giày thì hồ sơ đồng phục của nhân viên cập nhật theo, không sửa hai nơi
   - **07. [Menu shortcut / Lối tắt trên menu](/desk/workspace)** `[Custom]` `[Done]` — Truy cập nhanh từ trang chủ mà không cần tìm trong danh sách chức năng
-- **04. Legend / Chú thích ký hiệu**
-  - **01. Classification / Phân loại chức năng**
-    - **01. Standard / Chuẩn** — Chức năng có sẵn của hệ thống, dùng nguyên bản, không sửa gì
-    - **02. Override / Đã sửa** — Chức năng chuẩn nhưng đã được sửa cho phù hợp quy định công ty
-    - **03. Custom / Phát triển thêm** — Chức năng tự phát triển riêng, hệ thống gốc không có
-  - **02. Progress / Tiến độ**
-    - **01. Done / Hoàn thành** — Đã triển khai và đang sử dụng
-    - **02. In process / Đang làm** — Đang phát triển hoặc đang chạy thử, hiện kèm % hoàn thành
-    - **03. Pending / Chờ làm** — Đã lên kế hoạch, chưa bắt đầu, hiện kèm lý do
