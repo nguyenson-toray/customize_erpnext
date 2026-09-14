@@ -473,6 +473,7 @@
             currentFile = name;
             currentLink = null;
             currentPdf = null;
+            api.setDocParam(name);        // giữ bài đang đọc qua lần F5
 
             const parts = buildArticle(r.html, null);
             await renderMermaidBlocks(parts.article, token);
@@ -508,6 +509,7 @@
 
             currentLink = r.rel;
             currentPdf = null;
+            api.setDocParam(r.rel);       // đường dẫn có dấu / để phân biệt với bài trong thư mục
             const parts = buildArticle(r.html, buildCrumb(r.rel, r.modified));
             await renderMermaidBlocks(parts.article, token);
             if (token !== renderToken) return;
@@ -548,8 +550,13 @@
 
             const list = await loadFiles();
             loadPdfs();          // chạy song song, không chặn bài đầu tiên
-            if (list.length) {
-                await openFile(list[0].name);
+            const want = window.DevTool.getDocParam();
+            if (want && want.indexOf('/') >= 0) {
+                await openLink(want);                     // tài liệu ngoài thư mục
+            } else if (list.length) {
+                const pick = list.some(function (f) { return f.name === want; })
+                    ? want : list[0].name;
+                await openFile(pick);
             } else {
                 mainEl.innerHTML = '<p class="placeholder">Chưa có bài nào. '
                     + 'Thả file .md vào customize_erpnext/docs/user_manual/ rồi mở lại tab này.</p>';

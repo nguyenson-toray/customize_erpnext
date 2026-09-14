@@ -42,7 +42,7 @@ fs.writeFileSync(modPath, [
     tBlock,
     main,
     'module.exports = { parseMarkdown, layout, buildInner, exportSVGString, exportHTML,',
-    '                   measureNode, absLink, state, focusNode, findNode,',
+    '                   measureNode, absLink, state, focusNode, findNode, fmtTime,',
     '                   setDownload: (f) => { download = f; },',
     '                   setEditorValue: (v) => { document.getElementById("editor").value = v; } };',
 ].join('\n'));
@@ -194,6 +194,19 @@ for (const f of files) {
     })(tree);
     check(badLine === 0, 'line index trỏ đúng dòng nguồn');
 
+    // Hai mục cùng tiêu đề tiếng Anh thì dùng chung một dòng LINKS trong
+    // build_mindmap.py, một trong hai sẽ nhận link của mục kia (đã từng xảy ra:
+    // "Excel export" của Khám sức khỏe trỏ sang báo cáo chấm công).
+    const byEn = {};
+    (function w(n) {
+        const en = n.title.replace(/^\d{1,3}\s*[.)\-–]?\s+/, '').split(' / ')[0];
+        (byEn[en] = byEn[en] || []).push(n.title);
+        n.children.forEach(w);
+    })(tree);
+    const dupEn = Object.keys(byEn).filter(function (k) { return byEn[k].length > 1; });
+    check(dupEn.length === 0, 'không có hai mục trùng tiêu đề tiếng Anh'
+        + (dupEn.length ? ' — ' + dupEn.join(', ') : ''));
+
     // layout
     M.layout(tree);
     const nodes = M.state.nodes;
@@ -224,7 +237,8 @@ for (const f of files) {
 
     // vẽ
     const inner = M.buildInner(false);
-    const links = (inner.match(/<path d="M[^"]+" fill="none" stroke="#[0-9a-f]{6}"/g) || []).length;
+    // Chỉ đếm trong <g class="links">: icon mũi tên và icon sách cũng là <path>
+    const links = ((inner.split('<g class="nodes">')[0]).match(/<path /g) || []).length;
     check(links === nodes.length - 1, 'số đường nối = số mục trừ 1');
     check(!/undefined|NaN/.test(inner), 'SVG không chứa NaN / undefined');
     check((inner.match(/<g class="node-card/g) || []).length === total, 'vẽ đủ thẻ cho mọi mục');
@@ -363,7 +377,9 @@ check(Object.keys(map).length > 140, 'bảng dịch đủ số cặp mô tả');
 // nên đây chỉ là cảnh báo, không tính là lỗi.
 const noTrans = [];
 (function w(n) {
-    if (n.desc && !map[n.desc]) noTrans.push(n.title);
+    // Mô tả thuần ASCII (vd "IT") không cần dịch: bản EN trùng bản VI nên
+    // build_mindmap.py cố tình không ghi cặp đó vào vi.csv.
+    if (n.desc && !map[n.desc] && /[^\x00-\x7F]/.test(n.desc)) noTrans.push(n.title);
     n.children.forEach(w);
 })(M.state.tree);
 if (noTrans.length) {
@@ -521,10 +537,12 @@ check(compileErr === '', 'script nhúng biên dịch được' + (compileErr ? '
 console.log('\n=== chạy thử file HTML xuất ra ===');
 // Biên dịch được chưa chắc chạy được, nên thực thi luôn khối bootstrap
 // trong một DOM giả rồi kiểm số mục vẽ ra và tác dụng của Expand / Collapse.
+const svgEvents = {};
 const svg2 = {
     innerHTML: '', className: '',
     classList: { add() { }, remove() { }, toggle() { } },
-    addEventListener() { }, setAttribute() { },
+    addEventListener(ev, fn) { svgEvents[ev] = fn; },
+    setAttribute() { },
     getBoundingClientRect: () => ({ left: 0, top: 0, width: 1200, height: 760 })
 };
 const els2 = {};
@@ -542,7 +560,8 @@ const doc2 = {
         ? { clientWidth: 1200, clientHeight: 760 } : el2(sel),
     querySelectorAll: () => []
 };
-const win2 = { addEventListener() { }, open() { } };
+const opened = [];
+const win2 = { addEventListener() { }, open(url) { opened.push(url); } };
 let runErr = '';
 try {
     new Function('DATA', 'document', 'window', 'getComputedStyle', 'location', boot)(
@@ -580,6 +599,27 @@ let btnErr = '';
 });
 check(btnErr === '', 'các nút khác chạy không lỗi' + (btnErr ? ' — ' + btnErr : ''));
 check(countCards(svg2.innerHTML) > 0, 'sau khi bấm hết các nút vẫn còn sơ đồ');
+
+// Bấm icon trong file HTML xuất ra: phải mở được cả link chức năng lẫn bài hướng dẫn.
+// Bootstrap từng chỉ bắt .link-hit nên icon sách bấm không ăn.
+function fakeHit(cls, url) {
+    return {
+        target: {
+            closest: function (sel) {
+                return sel.split(',').some(function (x) { return x.trim() === '.' + cls; })
+                    ? { getAttribute: function () { return url; } } : null;
+            }
+        }
+    };
+}
+check(typeof svgEvents.click === 'function', 'file HTML có gắn xử lý bấm chuột');
+opened.length = 0;
+svgEvents.click(fakeHit('link-hit', 'https://erp/desk/employee'));
+check(opened[0] === 'https://erp/desk/employee', 'bấm mũi tên mở được chức năng');
+opened.length = 0;
+svgEvents.click(fakeHit('guide-hit', 'https://erp/lms/courses/module-hrms'));
+check(opened[0] === 'https://erp/lms/courses/module-hrms',
+    'bấm icon sách mở được bài hướng dẫn');
 
 /* ══════════════ 11. tìm và focus một mục ═══════════════════════ */
 
@@ -646,6 +686,130 @@ let thrown = '';
 let miss = null;
 try { miss = M.focusNode('zzzz-khong-co-gi'); } catch (e) { thrown = e.message; }
 check(thrown === '' && miss === false, 'không tìm thấy thì trả về false, không lỗi');
+
+/* ══════════════ 12. màu nền theo nhánh ═════════════════════════ */
+
+console.log('\n=== màu nền từng nhánh cấp 1 ===');
+reset();
+M.state.tree = M.parseMarkdown(hrText);
+M.layout(M.state.tree);
+
+const tints = M.state.tree.children.map(function (c) { return c.tint; });
+console.log('  ' + M.state.tree.children.length + ' nhánh: ' + tints.join(' '));
+check(tints.every(Boolean), 'mọi nhánh cấp 1 đều có màu nền');
+
+// mặc định lúc mở trang, kiểm thẳng trên source vì reset() của test đã đổi state
+check(/layoutMode:\s*'sides'/.test(src), 'mặc định là kiểu vẽ hai bên');
+check(/setAllCollapsed\(true\);[\s\S]{0,40}fit\(\);/.test(src),
+    'mở file xong là gập hết rồi canh vừa khung');
+check(new Set(tints).size === tints.length, 'mỗi nhánh một màu, không trùng');
+check(M.state.tree.tint === '#fff', 'gốc vẫn nền trắng');
+check(M.state.tree.children[0].children.every(function (c) { return !c.tint; }),
+    'mục con không tô màu, chỉ nhánh cấp 1');
+
+const svgT = M.buildInner(false);
+tints.forEach(function (t) {
+    if (!svgT.includes('fill="' + t + '"')) check(false, 'màu ' + t + ' có trong SVG');
+});
+check(tints.every(function (t) { return svgT.includes('fill="' + t + '"'); }),
+    'SVG vẽ đúng màu nền của từng nhánh');
+// ảnh export cũng phải giữ màu, vì bản xuất không có CSS của trang
+check(M.exportSVGString().svg.includes('fill="' + tints[0] + '"'), 'ảnh export giữ màu nền');
+
+// mọi nhánh cấp 1 phải có câu tóm tắt
+const noDesc = M.state.tree.children.filter(function (c) { return !c.desc; })
+    .map(function (c) { return c.title; });
+// câu tóm tắt dài phải hiện đủ, node tự cao lên chứ không cắt chữ
+reset();
+M.layout(M.state.tree);
+const cutDesc = M.state.tree.children.filter(function (c) {
+    return c.descLines.some(function (l) { return l.endsWith('…'); });
+});
+const maxLines = Math.max.apply(null, M.state.tree.children.map(function (c) {
+    return c.descLines.length;
+}));
+console.log('  mô tả nhánh dài nhất: ' + maxLines + ' dòng');
+check(cutDesc.length === 0, 'không câu tóm tắt nào bị cắt'
+    + (cutDesc.length ? ' — ' + cutDesc[0].title : ''));
+check(maxLines >= 3, 'mô tả được xuống nhiều dòng (' + maxLines + ')');
+const tallest = Math.max.apply(null, M.state.tree.children.map(function (c) { return c.h; }));
+check(tallest > 60, 'node cao lên theo số dòng (' + Math.round(tallest) + 'px)');
+
+check(noDesc.length === 0, 'mọi nhánh cấp 1 đều có mô tả tóm tắt'
+    + (noDesc.length ? ' — thiếu: ' + noDesc.join(' | ') : ''));
+
+/* ══════════════ 13. lần sửa cuối trên bản xuất ra ══════════════ */
+
+console.log('\n=== last modified trên bản export ===');
+reset();
+M.state.tree = M.parseMarkdown(hrText);
+M.state.sourcePath = 'hr_mindmap.md';
+M.state.sourceMtime = 1789357618;                 // 14/09/2026 10:46 giờ máy chủ
+const stamp = M.fmtTime(1789357618);
+console.log('  mtime hiển thị: ' + stamp);
+check(/^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}$/.test(stamp), 'định dạng dd/mm/yyyy HH:MM');
+check(M.fmtTime(0) === '', 'không có mtime thì để trống');
+
+M.layout(M.state.tree);
+const svgMeta = M.exportSVGString().svg;
+check(svgMeta.includes(stamp), 'ảnh export có ghi lần sửa cuối của file');
+check(svgMeta.includes('updated') && svgMeta.includes('exported'),
+    'ảnh export phân biệt lần sửa cuối và lúc xuất');
+
+let out = null;
+M.setDownload(function (blob, name) { out = blob.parts.join(''); });
+M.setEditorValue(hrText);
+M.exportHTML();
+check(out.includes(stamp), 'file HTML cũng có lần sửa cuối');
+
+// nội dung dán vào thì không có file nguồn, không được bịa mốc thời gian
+M.state.sourceMtime = 0;
+M.layout(M.state.tree);
+const svgNoMtime = M.exportSVGString().svg;
+check(!svgNoMtime.includes('updated'), 'dán nội dung: không ghi lần sửa cuối');
+check(svgNoMtime.includes('exported'), 'nhưng vẫn ghi lúc xuất');
+
+/* ══════════════ 14. link bài hướng dẫn trong LMS ═══════════════ */
+
+console.log('\n=== link bài hướng dẫn (LMS) ===');
+reset();
+for (const f of files) {
+    const tree = M.parseMarkdown(fs.readFileSync(path.join(DOCS, f), 'utf8'));
+    const withGuide = [];
+    const dirty = [];
+    (function w(n) {
+        if (n.guide) withGuide.push(n);
+        if ((n.desc && /\[Guide\]|\/lms\//.test(n.desc))
+            || /\[Guide\]|\/lms\//.test(n.title)) dirty.push(n.title);
+        n.children.forEach(w);
+    })(tree);
+    console.log('  ' + f + ': ' + withGuide.length + ' link — '
+        + withGuide.map(function (n) { return n.title.replace(/^\d+\.\s/, '').split(' / ')[0]; }).join(', '));
+    check(dirty.length === 0, f + ': link hướng dẫn không lẫn vào tiêu đề hay mô tả'
+        + (dirty.length ? ' — ' + dirty[0] : ''));
+    check(withGuide.length >= 1 && withGuide.length <= 3,
+        f + ': chỉ gắn ở node gốc hoặc cấp module, không rải xuống mục con');
+    check(withGuide.every(function (n) { return n.guide.startsWith('/lms/courses/'); }),
+        f + ': link trỏ đúng vào khoá học');
+}
+
+// node gốc của HR nhận link từ dòng mô tả (blockquote), không phải dòng bullet
+const hrTree = M.parseMarkdown(hrText);
+check(hrTree.guide === '/lms/courses/module-hrms', 'node gốc HR có link khoá học');
+check(!/Guide|lms/.test(hrTree.desc), 'mô tả node gốc không dính link');
+check(hrTree.children.every(function (c) { return !c.guide; }), 'các nhánh con HR không còn link');
+
+// vẽ và bấm được
+M.state.tree = hrTree;
+M.state.host = 'https://erp.tiqn.com.vn:8888';
+M.layout(M.state.tree);
+const svgG = M.buildInner(false);
+check(svgG.includes('class="guide-hit"'), 'có vùng bấm mở khoá học');
+check(svgG.includes('https://erp.tiqn.com.vn:8888/lms/courses/module-hrms'),
+    'link hướng dẫn ghép host đầy đủ');
+check(M.buildInner(true).includes('<a href="https://erp.tiqn.com.vn:8888/lms/courses/'),
+    'export HTML bọc thẻ a cho link hướng dẫn');
+check(!/undefined|NaN/.test(M.exportSVGString().svg), 'ảnh export vẫn hợp lệ');
 
 /* ══════════════ kết luận ══════════════════════════════════════ */
 

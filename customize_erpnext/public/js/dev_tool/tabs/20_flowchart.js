@@ -668,6 +668,7 @@
                 { category: CATEGORY, filename: name });
             currentFile = name;
             currentMtime = r.mtime;
+            api.setDocParam(name);        // giữ tài liệu qua lần F5
             markActiveFile();
             updateSaveState();
             const input = document.getElementById('fc-input');
@@ -718,7 +719,11 @@
 
             const list = await loadFiles(api);
             if (list.length) {
-                await openFile(list[0].name, api);
+                // Ưu tiên tài liệu ghi trên URL, không thì lấy file đầu
+                const want = api.getDocParam();
+                const pick = list.some(function (f) { return f.name === want; })
+                    ? want : list[0].name;
+                await openFile(pick, api);
             } else {
                 sections = [];
                 renderAll(api);

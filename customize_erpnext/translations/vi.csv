@@ -21594,3 +21594,8 @@ No .md file found in customize_erpnext/docs/mindmap on the server,Không tìm th
 Employee Not Found,Không tìm thấy nhân viên,
 Skipped {0} row(s) with unknown Employee: {1},Đã bỏ qua {0} dòng có nhân viên không tồn tại: {1},
 "No valid employee in this registration. Unknown employee: {0}","Không có nhân viên hợp lệ trong phiếu này. Nhân viên không tồn tại: {0}",
+exported,xuất lúc,
+updated,cập nhật,
+Click book,Bấm icon sách,
+Open the guide lesson,Mở bài hướng dẫn,
+open the guide lesson,mở bài hướng dẫn,

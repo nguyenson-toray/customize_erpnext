@@ -382,13 +382,14 @@
             cursor: pointer;
         }
 
+        /* Không đặt fill ở đây: màu nền từng nhánh do thuộc tính fill của rect quyết định,
+           CSS mà đặt fill là đè mất màu (CSS luôn thắng presentation attribute). */
         .node-card rect.bg {
-            fill: #fff;
             stroke-width: 1;
         }
 
         .node-card:hover rect.bg {
-            fill: #f8fafc;
+            filter: brightness(.965);
         }
 
         /* Chỉ bật lúc focus: kéo/zoom bằng chuột phải nhạy tức thì, không có transition */
@@ -403,12 +404,13 @@
         }
 
         @keyframes focus-pulse {
-            0% { fill: #fff6d8; }
-            100% { fill: #fff; }
+            0% { filter: brightness(.86); }
+            100% { filter: none; }
         }
 
         .node-card.selected rect.bg {
-            fill: #f1f6ff;
+            stroke-width: 2;
+            stroke-opacity: .95;
         }
 
         .toggle {
@@ -426,6 +428,10 @@
         }
 
         .status-hit {
+            cursor: pointer;
+        }
+
+        .guide-hit {
             cursor: pointer;
         }
 
@@ -479,7 +485,7 @@
         <button id="btn-collapse" class="icon" title="{{ _('Collapse all') }}">－ {{ _("Collapse") }}</button>
         <button id="btn-detail" class="on"
             title="{{ _('Show or hide the description text on each item') }}">{{ _("Details") }}</button>
-        <button id="btn-layout" title="{{ _('Switch between one-sided and two-sided layout') }}">⇥ {{ _("One side") }}</button>
+        <button id="btn-layout" title="{{ _('Switch between one-sided and two-sided layout') }}">⇹ {{ _("Two sides") }}</button>
         <span class="seg" title="{{ _('Language of the description text') }}">
             <button id="btn-vi" class="on">VI</button><button id="btn-en">EN</button>
         </span>
@@ -545,6 +551,7 @@
             </div>
             <div class="help">
                 <b>{{ _("Click arrow") }}</b> — {{ _("open that function") }}<br>
+                <b>{{ _("Click book") }}</b> — {{ _("open the guide lesson") }}<br>
                 <b>{{ _("Click icon") }}</b> — {{ _("cycle progress, asks % or reason") }}<br>
                 <b>{{ _("Shift+click icon") }}</b> — {{ _("edit % or reason only") }}<br>
                 <b>{{ _("Click node") }}</b> — {{ _("jump to that line") }}<br>
@@ -585,6 +592,9 @@
             pngFailed: "{{ _('Could not render the image') }}",
             linkCopied: "{{ _('Link copied') }}",
             readOnly: "{{ _('read only') }}",
+            updated: "{{ _('updated') }}",
+            guideTip: "{{ _('Open the guide lesson') }}",
+            exportedOn: "{{ _('exported') }}",
             notFound: "{{ _('No item matches') }}",
             readOnlyNote: "{{ _('Only the Administrator role can edit this document') }}",
             translating: "{{ _('Translating descriptions...') }}",
@@ -640,6 +650,15 @@
             const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;')
                 .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
+            /** 1789357618 -> "14/09/2026 10:46"; rỗng khi không có mtime. */
+            function fmtTime(epoch) {
+                if (!epoch) return '';
+                const d = new Date(epoch * 1000);
+                const p = (n) => String(n).padStart(2, '0');
+                return p(d.getDate()) + '/' + p(d.getMonth() + 1) + '/' + d.getFullYear()
+                    + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+            }
+
             let toastTimer = null;
             function toast(msg, isErr) {
                 const el = $('toast');
@@ -675,6 +694,9 @@
 
             const PAD_X = 10, PAD_Y = 7, LINE_H = 16, DESC_H = 14;
             const H_GAP = 46, V_GAP = 9, MAX_TEXT = 300, ICON_W = 19;
+            // Câu tóm tắt của nhánh dài hơn mô tả của mục con, cắt 2 dòng là mất chữ.
+            // Cho xuống tối đa 6 dòng; chiều cao node tính theo số dòng nên tự giãn ra.
+            const DESC_LINES = 6, REASON_LINES = 3;
 
             /* ══════════════════════════════════════════════ state */
 
@@ -683,13 +705,14 @@
                 nodes: [],
                 lines: [],
                 sourcePath: '',   // '' = pasted content
+                sourceMtime: 0,   // mtime của file, để ghi 'lần sửa cuối'
                 dirty: false,
                 collapsed: new Set(),
                 showDesc: true,
                 lang: 'vi',            // ngôn ngữ của phần mô tả
                 langMap: {},           // { mô tả tiếng Việt: mô tả tiếng Anh }
                 langTried: new Set(),  // đã gửi đi dịch rồi, không gửi lại
-                layoutMode: 'right',   // 'right' = một bên, 'sides' = hai bên quanh gốc
+                layoutMode: 'sides',   // 'right' = một bên, 'sides' = hai bên quanh gốc
                 host: 'https://erp.tiqn.com.vn:8888',   // site dùng khi mở link chức năng
                 selectedKey: null,
                 focusKey: null,
@@ -765,6 +788,7 @@
                 const root = { title: '', desc: '', type: null, status: null, children: [], line: -1, depth: 0 };
                 const stack = [{ node: root, depth: 0 }];
                 let headingDepth = 0, inComment = false, lastNode = root;
+                let headingGuide = '';
 
                 state.lines.forEach((raw, idx) => {
                     let line = raw;
@@ -775,16 +799,25 @@
                     if (/^(```|~~~)/.test(trimmed)) return;
                     if (/^(-{3,}|\*{3,}|={3,})$/.test(trimmed)) return;
 
+                    // Link bài hướng dẫn (/lms/...) tách ra trước, vì nó có thể nằm ở
+                    // dòng mô tả của node gốc chứ không riêng dòng bullet
+                    const gm = line.match(/\s*\[([^\]]*)\]\((\/lms\/[^)\s]*)\)/);
+                    const guide = gm ? gm[2] : '';
+                    if (gm) line = line.replace(gm[0], '');
+
                     let depth = null, body = null;
 
-                    const h = trimmed.match(/^(#{1,6})\s+(.*)$/);
+                    // dùng bản đã bỏ link hướng dẫn, nếu không chữ "Guide" lọt vào mô tả
+                    const clean = line.trim();
+                    const h = clean.match(/^(#{1,6})\s+(.*)$/);
                     const li = line.match(/^(\s*)[-*+]\s+(.*)$/);
-                    const q = trimmed.match(/^>\s?(.*)$/);
+                    const q = clean.match(/^>\s?(.*)$/);
 
                     if (h) {
                         depth = h[1].length;
                         headingDepth = depth;
                         body = h[2];
+                        headingGuide = guide || headingGuide;
                     } else if (li) {
                         const indent = li[1].replace(/\t/g, '  ').length;
                         depth = headingDepth + Math.floor(indent / 2) + 1;
@@ -793,12 +826,13 @@
                         // blockquote = mô tả cho node vừa tạo
                         const d = stripInline(q[1]);
                         if (d && lastNode && !lastNode.desc) lastNode.desc = d;
+                        if (guide && lastNode && !lastNode.guide) lastNode.guide = guide;
                         return;
                     } else {
                         return;   // đoạn văn thường: bỏ qua
                     }
 
-                    // Link mở chức năng tương ứng: [tiêu đề](/desk/employee)
+                    // Link mở chức năng nằm ở tiêu đề; link hướng dẫn đã tách ở trên
                     const lm = body.match(/\[([^\]]+)\]\(([^)\s]+)\)/);
                     const link = lm ? lm[2] : '';
 
@@ -812,7 +846,8 @@
                     const parent = stack[stack.length - 1].node;
                     const node = {
                         title: parts.title, desc: parts.desc,
-                        type: tags.type, status: tags.status, value: tags.value || '', link: link,
+                        type: tags.type, status: tags.status, value: tags.value || '',
+                        link: link, guide: guide,
                         order: om ? parseInt(om[1], 10) : null,
                         pct: tags.status === 'In process' ? pctOf(tags.value) : null,
                         reason: tags.status === 'Pending' ? (tags.value || '') : '',
@@ -835,7 +870,10 @@
                         children: root.children, line: -1, depth: 0
                     };
                 }
-                if (tree) { sortTree(tree); assignKeys(tree, ''); }
+                if (tree) {
+                    if (headingGuide && !tree.guide) tree.guide = headingGuide;
+                    sortTree(tree); assignKeys(tree, ''); assignTints(tree);
+                }
                 return tree;
             }
 
@@ -852,6 +890,28 @@
                     });
                 }
                 cs.forEach(sortTree);
+            }
+
+            // Màu nền nhạt cho từng nhánh cấp 1, để nhìn là biết đang ở nhánh nào.
+            // Đủ nhạt để chữ đen vẫn rõ và ảnh in ra không bị bệt màu.
+            const BRANCH_TINT = [
+                '#eef3ff',  // xanh dương
+                '#ecf9f1',  // xanh lá
+                '#fff3e6',  // cam
+                '#f5eefc',  // tím
+                '#fff0f1',  // hồng
+                '#e9f7fa',  // xanh ngọc
+                '#fdf7e3',  // vàng
+                '#eef0f4',  // xám xanh
+                '#f0f7e8',  // ô liu
+                '#fdeef7'   // hồng sen
+            ];
+
+            function assignTints(root) {
+                root.tint = '#fff';
+                root.children.forEach(function (branch, i) {
+                    branch.tint = BRANCH_TINT[i % BRANCH_TINT.length];
+                });
             }
 
             function assignKeys(node, prefix) {
@@ -903,19 +963,19 @@
 
             function measureNode(n) {
                 n.titleLines = wrap(n.title, FONT_TITLE, MAX_TEXT, 2);
-                n.descLines = state.showDesc ? wrap(descOf(n), FONT_DESC, MAX_TEXT, 2) : [];
+                n.descLines = state.showDesc ? wrap(descOf(n), FONT_DESC, MAX_TEXT, DESC_LINES) : [];
 
                 // In process → badge %; Pending → lý do. Cả hai luôn hiện, kể cả khi tắt mô tả.
                 n.badge = (n.status === 'In process' && n.pct !== null) ? n.pct + '%' : '';
                 n.reasonLines = (n.status === 'Pending' && n.reason)
-                    ? wrap(n.reason, FONT_DESC, MAX_TEXT, 2) : [];
+                    ? wrap(n.reason, FONT_DESC, MAX_TEXT, REASON_LINES) : [];
 
                 meas.font = FONT_TITLE;
                 n.lastTitleW = n.titleLines.length
                     ? meas.measureText(n.titleLines[n.titleLines.length - 1]).width : 0;
                 meas.font = FONT_BADGE;
                 n.badgeW = n.badge ? meas.measureText(n.badge).width + 10 : 0;
-                n.linkW = n.link ? 15 : 0;
+                n.linkW = (n.link ? 15 : 0) + (n.guide ? 15 : 0);
 
                 const iw = n.status ? ICON_W : 0;
                 const tw = textW(n.titleLines, FONT_TITLE);
@@ -1089,7 +1149,8 @@
                     + (state.focusKey === n.key ? ' focus' : '');
                 s += '<g class="' + cls + '" data-key="' + esc(n.key) + '" data-line="' + n.line + '">';
                 s += '<rect class="bg" x="' + n.x + '" y="' + top + '" width="' + n.w + '" height="' + n.h
-                    + '" rx="7" fill="#fff" stroke="' + col + '" stroke-opacity="0.55"/>';
+                    + '" rx="7" fill="' + (n.tint || '#fff') + '" stroke="' + col
+                    + '" stroke-opacity="0.55"/>';
                 s += '<rect x="' + n.x + '" y="' + (top + 4) + '" width="3" height="' + (n.h - 8)
                     + '" rx="1.5" fill="' + col + '"/>';
 
@@ -1137,6 +1198,25 @@
                     s += forExport
                         ? '<a href="' + esc(url) + '" target="_blank">' + open + '</a>'
                         : open;
+                }
+                // Icon sách: mở bài hướng dẫn trong LMS
+                if (n.guide) {
+                    const gx = tx + n.lastTitleW + n.badgeW + 5 + (n.link ? 17 : 0);
+                    const gy = firstBaseY + (n.titleLines.length - 1) * LINE_H - 8;
+                    const gurl = absLink(n.guide);
+                    const book = '<g class="guide-hit" data-link="' + esc(gurl) + '">'
+                        + '<rect x="' + (gx - 1) + '" y="' + (gy - 1) + '" width="15" height="14"'
+                        + ' rx="3" fill="' + col + '" fill-opacity="0.10"/>'
+                        + '<path d="M' + (gx + 3) + ' ' + (gy + 2.6) + ' h3.4 v8 h-3.4 z"'
+                        + ' fill="none" stroke="' + col + '" stroke-width="1.3"'
+                        + ' stroke-linejoin="round"/>'
+                        + '<path d="M' + (gx + 6.4) + ' ' + (gy + 2.6) + ' h3.4 v8 h-3.4"'
+                        + ' fill="none" stroke="' + col + '" stroke-width="1.3"'
+                        + ' stroke-linejoin="round"/>'
+                        + '<title>' + esc(T.guideTip) + '</title></g>';
+                    s += forExport
+                        ? '<a href="' + esc(gurl) + '" target="_blank">' + book + '</a>'
+                        : book;
                 }
                 let rowTop = firstBaseY + n.titleLines.length * LINE_H + 1;
                 // Lý do chờ: luôn hiện để người xem biết vì sao chưa làm
@@ -1250,7 +1330,8 @@
                     + ' &nbsp;|&nbsp; ' + prog['Done'] + ' Done · ' + prog['In process']
                     + ' In process · ' + prog['Pending'] + ' Pending'
                     : '';
-                const mode = window.CAN_SAVE ? '' : ' · ' + T.readOnly;
+                const mode = (window.CAN_SAVE ? '' : ' · ' + T.readOnly)
+                    + (state.sourceMtime ? ' · ' + T.updated + ' ' + fmtTime(state.sourceMtime) : '');
                 $('st-source').innerHTML = (state.sourcePath
                     ? '<code>' + esc(state.sourcePath) + '</code> — '
                     + (state.dirty ? T.unsaved : T.inSync)
@@ -1276,6 +1357,7 @@
             function setContent(text, path) {
                 // Giữ file luôn ở dạng LF để lưu lại không lẫn CRLF
                 text = String(text).replace(/\r\n?/g, '\n');
+                if (!path) state.sourceMtime = 0;
                 $('editor').value = text;
                 state.sourcePath = path || '';
                 state.dirty = false;
@@ -1441,9 +1523,12 @@
                 const c = typeCounts();
                 const title = state.tree.title || baseName();
                 const descLines = wrap(descOf(state.tree), FONT_DESC, w - 4, 2);
+                // Ghi rõ hai mốc thời gian khác nhau: lần sửa cuối của tài liệu và
+                // lúc xuất bản này ra — nhìn ảnh cũ là biết nội dung đã cũ chưa.
                 const meta = c.total + ' ' + T.nodes + '  ·  ' + c.Standard + ' Standard  ·  '
-                    + c.Override + ' Override  ·  ' + c.Custom + ' Custom  ·  '
-                    + new Date().toLocaleDateString();
+                    + c.Override + ' Override  ·  ' + c.Custom + ' Custom'
+                    + (state.sourceMtime ? '  ·  ' + T.updated + ' ' + fmtTime(state.sourceMtime) : '')
+                    + '  ·  ' + T.exportedOn + ' ' + fmtTime(Math.floor(Date.now() / 1000));
                 let y = 16;
                 let s = '<text x="0" y="' + y + '" font-family="' + SVG_FONT + '" font-size="17"'
                     + ' font-weight="650" fill="#1c2430">' + esc(title) + '</text>';
@@ -1582,6 +1667,7 @@
                     tree: state.tree,
                     showDesc: state.showDesc,
                     layoutMode: state.layoutMode,
+                    collapsed: Array.from(state.collapsed),
                     lang: state.lang,
                     langMap: usedLangMap(),
                     host: state.host || location.origin,
@@ -1636,7 +1722,11 @@
                     + '<div class="bar"><h1>' + esc(title) + '</h1>'
                     + '<span class="meta">' + c.total + ' ' + esc(T.nodes) + ' · '
                     + c.Standard + ' Standard · ' + c.Override + ' Override · '
-                    + c.Custom + ' Custom · ' + new Date().toLocaleDateString() + '</span>'
+                    + c.Custom + ' Custom'
+                    + (state.sourceMtime
+                        ? ' · ' + esc(T.updated) + ' ' + fmtTime(state.sourceMtime) : '')
+                    + ' · ' + esc(T.exportedOn) + ' '
+                    + fmtTime(Math.floor(Date.now() / 1000)) + '</span>'
                     + '<span class="grow"></span>'
                     + '<button id="x-expand">＋ ' + esc(T.expand) + '</button>'
                     + '<button id="x-collapse">－ ' + esc(T.collapse) + '</button>'
@@ -1658,6 +1748,7 @@
                     + 'state.tree = DATA.tree; state.showDesc = DATA.showDesc;\n'
                     + 'state.layoutMode = DATA.layoutMode; state.lang = DATA.lang;\n'
                     + 'state.langMap = DATA.langMap; state.host = DATA.host;\n'
+                    + 'state.collapsed = new Set(DATA.collapsed || []);\n'
                     + 'var $$ = function(id){ return document.getElementById(id); };\n'
                     + 'function setLayoutLabel(){ $$("x-layout").textContent ='
                     + ' state.layoutMode === "sides" ? T.twoSides : T.oneSide; }\n'
@@ -1691,7 +1782,8 @@
                     + 'window.addEventListener("mouseup", function(){ pan = null;'
                     + ' svg.classList.remove("panning"); });\n'
                     + 'svg.addEventListener("click", function(ev){\n'
-                    + '  var a = ev.target.closest(".link-hit");\n'
+                    + '  // cả mũi tên mở chức năng lẫn icon sách mở bài hướng dẫn\n'
+                    + '  var a = ev.target.closest(".link-hit, .guide-hit");\n'
                     + '  if (a) { window.open(a.getAttribute("data-link"), "_blank", "noopener"); return; }\n'
                     + '  var t = ev.target.closest(".toggle");\n'
                     + '  if (!t) return;\n'
@@ -1763,6 +1855,7 @@
                     const r = await callFrappeMethod('customize_erpnext.api.mindmap_docs.read_doc',
                         { path: path });
                     setContent(r.content, r.path);
+                    state.sourceMtime = r.mtime || 0;
                     $('file-path').value = r.path;
                     // Cho ô chọn file khớp với file vừa tải, kể cả khi tải bằng đường dẫn
                     const sel = $('file-select');
@@ -1771,6 +1864,14 @@
                     // Đưa tên tài liệu vào URL để copy link gửi cho người khác
                     history.replaceState(null, '', location.pathname + '?file='
                         + encodeURIComponent(r.path));
+                    // Nhúng trong /dev-tool: báo lên khung để URL ngoài cũng mang tên
+                    // tài liệu, F5 không rơi về sơ đồ mặc định
+                    if (window.parent && window.parent !== window) {
+                        try {
+                            window.parent.postMessage(
+                                { type: 'mindmap:file', file: r.path }, location.origin);
+                        } catch (e) { }
+                    }
                     toast(T.loaded + ': ' + r.path);
                 } catch (e) {
                     toast(e.message, true);
@@ -1797,6 +1898,7 @@
                     const r = await callFrappeMethod('customize_erpnext.api.mindmap_docs.write_doc',
                         { path: state.sourcePath, content: $('editor').value });
                     state.dirty = false;
+                    state.sourceMtime = r.mtime || state.sourceMtime;
                     updateStatus();
                     $('st-msg').textContent = T.saved + ' ' + r.path + ' · '
                         + new Date().toLocaleTimeString();
@@ -1990,6 +2092,11 @@
             });
 
             svg.addEventListener('click', function (ev) {
+                const guideHit = ev.target.closest('.guide-hit');
+                if (guideHit) {
+                    window.open(guideHit.getAttribute('data-link'), '_blank', 'noopener');
+                    return;
+                }
                 const linkHit = ev.target.closest('.link-hit');
                 if (linkHit) {
                     window.open(linkHit.getAttribute('data-link'), '_blank', 'noopener');
@@ -2142,6 +2249,10 @@
                 const pick = wanted || (firstMap ? firstMap.path : (files[0] || {}).path || '');
                 if (pick) {
                     await loadFile(pick);
+                    // Mặc định mỗi lần mở: hai bên + gập hết + canh vừa khung, để nhìn
+                    // được toàn cảnh ngay. Người dùng tự mở nhánh nào thì mở.
+                    setAllCollapsed(true);
+                    fit();
                     // ?find= dùng khi mở từ ô tìm kiếm của trang /dev-tool
                     const find = params.get('find');
                     if (find) focusNode(find);

@@ -626,6 +626,21 @@
         });
     }
 
+    /* ---------- tên tài liệu trên URL ---------- */
+
+    // Giữ tên tài liệu đang mở trên URL của khung, để F5 hay gửi link cho người
+    // khác vẫn ra đúng tài liệu đó chứ không rơi về file mặc định của tab.
+    function getDocParam() {
+        return new URLSearchParams(location.search).get('file') || '';
+    }
+
+    function setDocParam(value) {
+        const url = new URL(location.href);
+        if (value) url.searchParams.set('file', value);
+        else url.searchParams.delete('file');
+        history.replaceState({ tab: activeId }, '', url);
+    }
+
     /* ---------- tìm kiếm toàn trang ---------- */
 
     // Bảng tra thư mục -> tab. Thêm tab mới đọc docs/<tên> thì thêm một dòng.
@@ -853,6 +868,8 @@
 
         const url = new URL(location.href);
         url.searchParams.set('tab', id);
+        // push = người dùng vừa bấm đổi tab: tài liệu của tab cũ không còn đúng nữa
+        if (push) url.searchParams.delete('file');
         if (push) history.pushState({ tab: id }, '', url);
         else history.replaceState({ tab: id }, '', url);
     }
@@ -988,6 +1005,8 @@
         copyText: copyText,
         downloadText: downloadText,
         esc: esc,
+        getDocParam: getDocParam,
+        setDocParam: setDocParam,
         openSearch: openSearch,
         openDoc: function (rel) { openSearchResult({ rel: rel, line: 0 }); },
         canSave: !!window.dev_tool_can_save

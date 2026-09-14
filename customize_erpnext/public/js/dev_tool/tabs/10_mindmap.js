@@ -16,6 +16,7 @@
 
     let frame = null;
     let collapsedByUs = false;
+    let onFrameMsg = null;
 
     window.DevTool.registerTab({
         id: 'mindmap',
@@ -31,8 +32,17 @@
             ctx.main.innerHTML = '';
             ctx.main.style.overflow = 'hidden';
 
+            // Giữ tài liệu đang xem qua lần F5: tên file nằm trên URL của khung
+            onFrameMsg = function (ev) {
+                if (ev.origin !== location.origin) return;
+                if (!ev.data || ev.data.type !== 'mindmap:file') return;
+                ctx.api.setDocParam(ev.data.file);
+            };
+            window.addEventListener('message', onFrameMsg);
+
+            const want = ctx.api.getDocParam();
             frame = document.createElement('iframe');
-            frame.src = PAGE_URL;
+            frame.src = PAGE_URL + (want ? '?file=' + encodeURIComponent(want) : '');
             frame.title = 'Mindmap';
             frame.style.cssText = 'width:100%;height:100%;border:0;display:block;';
             ctx.main.appendChild(frame);
@@ -76,6 +86,7 @@
         },
 
         unmount: function () {
+            if (onFrameMsg) { window.removeEventListener('message', onFrameMsg); onFrameMsg = null; }
             // Gỡ src trước khi DOM bị xoá để trình duyệt dừng hẳn trang bên trong
             if (frame) { frame.src = 'about:blank'; frame = null; }
             collapsedByUs = false;

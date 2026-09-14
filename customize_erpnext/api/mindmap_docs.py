@@ -119,7 +119,8 @@ def read_doc(path):
     with open(full, encoding="utf-8") as f:
         content = f.read()
 
-    return {"path": _rel(full), "content": content}
+    # mtime để trang hiện "lần sửa cuối" trên thanh trạng thái và trên bản xuất ra
+    return {"path": _rel(full), "content": content, "mtime": int(os.path.getmtime(full))}
 
 
 def _lang_path(name):
@@ -246,4 +247,5 @@ def write_doc(path, content):
     with open(full, "w", encoding="utf-8") as f:
         f.write(content)
 
-    return {"path": _rel(full), "bytes": len(content.encode("utf-8"))}
+    return {"path": _rel(full), "bytes": len(content.encode("utf-8")),
+            "mtime": int(os.path.getmtime(full))}
