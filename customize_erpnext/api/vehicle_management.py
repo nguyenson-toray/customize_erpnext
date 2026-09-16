@@ -378,9 +378,33 @@ def get_user_by_zalo_id(zalo_user_id):
 # 3.2 Vehicle Request APIs
 # ---------------------------------------------------------------------------
 @frappe.whitelist(methods=["GET", "POST"])
-def get_requests(status=None, limit=200):
+def get_requests(status=None, employee_id=None, employee_id_display=None, limit=200):
+	"""Vehicle requests, optionally narrowed to one status and/or one employee.
+
+	`employee_id` filters on the DocType field `employee_id_display`; both
+	spellings are accepted because the Mini App and the DocType disagree on the
+	name. Leaving it out returns the whole queue - that is the dispatcher's view
+	and the existing behaviour, so nothing that already works changes.
+
+	⚠ This is a CONVENIENCE filter, not an authorisation boundary. Every Mini App
+	install shares one API key, so whoever holds it can ask for any employee's
+	requests simply by putting a different code in the parameter - the server has
+	no way to tell one requester from another in Phase 1. Real per-requester
+	isolation needs server-side identity: Phase 2 maps the Zalo user to an
+	employee through `TIQN Zalo Role Map`, and the filter must then be derived
+	from the authenticated session rather than trusted from the caller.
+	`get_my_requests(zalo_user_id)` has exactly the same limitation today.
+	"""
 	_guard("TIQN Vehicle Request")
-	filters = {"status": status} if status else {}
+
+	filters = {}
+	if status:
+		filters["status"] = status
+
+	employee = employee_id or employee_id_display
+	if employee:
+		filters["employee_id_display"] = employee
+
 	return _decorate_requests(frappe.get_all(
 		"TIQN Vehicle Request",
 		filters=filters,

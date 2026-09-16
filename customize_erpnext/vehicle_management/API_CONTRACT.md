@@ -184,7 +184,7 @@ ngày; qua ngày cố ý không chặn (sẽ cản nhập bù chuyến cũ) như
 | | `update_trip(name, **fields)` · `confirm_trip` · `cancel_trip` | POST/PUT |
 | | `update_trip_route` · `acknowledge_route_change` | POST/PUT |
 | | `checkin_trip` · `checkout_trip` | POST/PUT |
-| Yêu cầu | `get_requests(status?)` · `get_my_requests(zalo_user_id)` · `get_request(name)` | GET |
+| Yêu cầu | `get_requests(status?, employee_id?)` · `get_my_requests(zalo_user_id)` · `get_request(name)` | GET |
 | | `create_request(...)` · `update_request(name, **fields)` | POST |
 | | `approve_request` · `reject_request` · `assign_request_to_trip` · `combine_requests_to_trip` | POST/PUT |
 | Xe | `get_vehicles()` · `get_vehicle_status()` | GET |
@@ -207,6 +207,29 @@ Sai mật khẩu **5 lần** → khoá tài xế đó **15 phút**. Tên tài x�
 giải mã ngược được); `check_password()` chỉ khớp dòng `encrypted=0` nên **không bao giờ**
 verify được field này — phải dùng `doc.get_password()`. Cột trong bảng chứa `"*" * độ_dài`
 ⇒ **select field đó là lộ độ dài mật khẩu**.
+
+### Lọc yêu cầu theo nhân viên
+
+```
+GET .../get_requests?employee_id=EMP004            → chỉ yêu cầu của EMP004
+GET .../get_requests?status=pending                → cả hàng đợi (màn Dispatcher)
+GET .../get_requests?status=pending&employee_id=EMP004   → kết hợp
+```
+
+Không truyền `employee_id` thì trả toàn bộ — hành vi cũ, **không breaking change**.
+Nhận cả `employee_id` lẫn `employee_id_display`.
+
+🔴 **Key mã nhân viên trong payload là `employee_id_display`, KHÔNG phải `employee_id`.**
+`employee_id` chỉ là tên **tham số lọc**. Client đọc nhầm sang `employee_id` sẽ thấy
+`undefined` và lịch sử trống — đúng triệu chứng đã gặp.
+
+⚠ **Đây là bộ lọc tiện dụng, KHÔNG phải ranh giới phân quyền.** Mọi bản Mini App dùng
+**chung một API key**, nên ai cầm key đó chỉ cần đổi mã trong tham số là đọc được yêu cầu
+của người khác. Server ở Phase 1 không có cách nào phân biệt hai người yêu cầu.
+
+Muốn cô lập thật thì phải có **danh tính phía server**: Phase 2 ánh xạ Zalo user → nhân
+viên qua `TIQN Zalo Role Map`, và bộ lọc phải **suy ra từ phiên đăng nhập** chứ không tin
+tham số client gửi lên. `get_my_requests(zalo_user_id)` hiện cũng đúng hạn chế này.
 
 ### Excel
 

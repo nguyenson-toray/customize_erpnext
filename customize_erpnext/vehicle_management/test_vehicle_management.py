@@ -921,6 +921,37 @@ check(
 )
 
 
+print("\n=== get_requests lọc theo nhân viên ===")
+mine = [
+	vm.create_request(
+		employee_name="TEST Mine", employee_id_display="EMP-MINE",
+		request_time=add_to_date(now_datetime(), hours=40 + i),
+		from_location="A", to_location="B",
+	)["name"]
+	for i in range(2)
+]
+other = vm.create_request(
+	employee_name="TEST Other", employee_id_display="EMP-OTHER",
+	request_time=add_to_date(now_datetime(), hours=45),
+	from_location="A", to_location="B",
+)["name"]
+
+got = vm.get_requests(employee_id="EMP-MINE", limit=0)
+check("chỉ trả yêu cầu của mã đó", sorted(r["name"] for r in got), sorted(mine))
+check("không lẫn của người khác", other in [r["name"] for r in got], False)
+check("cách viết employee_id_display cũng nhận",
+      sorted(r["name"] for r in vm.get_requests(employee_id_display="EMP-MINE", limit=0)), sorted(mine))
+check("kết hợp với status",
+      [r["name"] for r in vm.get_requests(status="pending", employee_id="EMP-MINE", limit=0)], sorted(mine))
+check("mã không tồn tại -> rỗng, KHÔNG trả hết",
+      vm.get_requests(employee_id="EMP-KHONG-TON-TAI", limit=0), [])
+check("không truyền -> vẫn là hàng đợi đầy đủ (dispatcher không đổi)",
+      len(vm.get_requests(limit=0)) > len(got), True)
+# Khoá tên field trả về: Mini App đọc employee_id_display, không phải employee_id.
+check("key mã NV trong payload", "employee_id_display" in got[0], True)
+check("KHÔNG có key employee_id", "employee_id" in got[0], False)
+
+
 frappe.db.commit = _REAL_COMMIT
 frappe.db.rollback()
 
