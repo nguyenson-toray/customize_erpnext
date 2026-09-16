@@ -881,14 +881,23 @@ kẹt lơ lửng. Hủy chuyến đó sẽ nhả **tất cả** yêu cầu trở
 
 #### Cảnh báo quá giờ trên danh sách chờ duyệt
 
-Card yêu cầu gọn còn **4 dòng**, hàng đợi vốn được đọc bằng cách *lướt*:
+Card yêu cầu gọn còn **5 dòng**, hàng đợi vốn được đọc bằng cách *lướt*:
 
 ```
 CÒN 3 GIỜ 58 PHÚT                      18:29     ← thời gian + giờ, 1 dòng
-🔗 Nguyễn Văn An  EMP001  [3👤]                  ← ai
+🔗 Nguyễn Văn An  EMP001  👤 3                   ← ai, mấy người
 Toray VSIP → Sân bay Chu Lai                     ← đi đâu
+Họp với UBND                                     ← để làm gì
 [ Xếp xe ] [ Từ chối ]
 ```
+
+**Mục đích và số người phải hiện ra**, không nhét vào tooltip: đó chính là hai thứ quyết
+định xếp xe nào — Kia 7 chỗ không chở nổi 10 người, và "đi sân bay" khác "ghé ngân hàng
+15 phút". Số người hiện **luôn luôn**, kể cả khi bằng 1, để cột số không nhảy chỗ giữa các
+card. `notes` vẫn ở tooltip — đó là chi tiết, không phải tiêu chí.
+
+Số người cũng nằm trong danh sách chọn của dialog "Tạo chuyến → Từ yêu cầu chờ duyệt", vì
+chọn xe ở đó mà không thấy số người là chọn mò.
 
 - **Số thời gian tương đối đứng ĐẦU card**, trên cả tên, tô màu theo trạng thái: hổ phách
   `#FFA500` (bình thường) · cam `#FF8800` (sắp tới giờ) · đỏ `#FF4444` (quá giờ). Đó là

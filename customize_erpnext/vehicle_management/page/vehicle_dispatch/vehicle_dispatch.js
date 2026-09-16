@@ -464,9 +464,9 @@ class VehicleDashboard {
 				const route =
 					[r.from_location, r.to_location].filter(Boolean).map(esc).join(' → ') || '—';
 				const urgency = request_urgency(r);
-				// Purpose and notes become the card's tooltip instead of two more
-				// lines. They are context, not something a dispatcher scans for, and
-				// the queue is read by scanning.
+				// Purpose earns its own line: deciding which vehicle to send needs to
+				// know what the trip is FOR, and a tooltip is not something anyone
+				// finds. Notes stay in the tooltip - they are detail, not criteria.
 				const tip = [r.purpose, r.notes].filter(Boolean).join(' — ');
 
 				return `
@@ -481,9 +481,10 @@ class VehicleDashboard {
 					${combinable.has(r.name) ? '<span class="vd-req-link" title="Có thể gom chung xe">🔗</span>' : ''}
 					<b>${esc(r.employee_name || '—')}</b>
 					<span class="vd-req-dept">${esc(r.employee_id_display || '')}</span>
-					${r.passenger_count > 1 ? `<span class="vd-req-pax">${r.passenger_count}👤</span>` : ''}
+					<span class="vd-req-pax" title="${__('Số người đi')}">👤 ${cint(r.passenger_count) || 1}</span>
 				</div>
 				<div class="vd-req-route">${route}</div>
+				${r.purpose ? `<div class="vd-req-purpose">${esc(r.purpose)}</div>` : ''}
 				<div class="vd-req-actions">
 					<button class="vd-btn-sm vd-btn-approve" data-req-assign="${esc(r.name)}">${__('Xếp xe')}</button>
 					<button class="vd-btn-sm vd-btn-reject" data-req-reject="${esc(r.name)}">${__('Từ chối')}</button>
@@ -713,6 +714,9 @@ class VehicleDashboard {
 								`<b>${esc(when)}</b>${rel}`,
 								'·',
 								esc(r.employee_name || r.name),
+								// Số người quyết định chọn xe nào - Kia 7 chỗ không chở
+								// nổi 10 người - nên nó phải nằm ngay trên dòng chọn.
+								`👤${cint(r.passenger_count) || 1}`,
 								'·',
 								`${esc(r.from_location || '—')} → ${esc(r.to_location || '—')}`,
 							]
