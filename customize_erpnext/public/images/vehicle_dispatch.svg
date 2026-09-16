@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Điều hành xe">
+  <title>Điều hành xe</title>
+  <!-- Rounded tile in the module's orange, matching the dashboard header gradient. -->
+  <defs>
+    <linearGradient id="vdTile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FF8800"/>
+      <stop offset="1" stop-color="#E65100"/>
+    </linearGradient>
+  </defs>
+  <rect x="16" y="16" width="480" height="480" rx="108" fill="url(#vdTile)"/>
+
+  <!-- Bus body -->
+  <rect x="120" y="128" width="272" height="216" rx="40" fill="#FFFFFF"/>
+  <!-- Windscreen band -->
+  <rect x="152" y="164" width="208" height="76" rx="20" fill="#E65100" opacity="0.9"/>
+  <!-- Window divider -->
+  <rect x="248" y="164" width="16" height="76" fill="#FFFFFF"/>
+  <!-- Head lights -->
+  <circle cx="168" cy="300" r="18" fill="#FFC46B"/>
+  <circle cx="344" cy="300" r="18" fill="#FFC46B"/>
+  <!-- Wheels -->
+  <circle cx="176" cy="356" r="36" fill="#2B2B2B"/>
+  <circle cx="176" cy="356" r="14" fill="#FFFFFF"/>
+  <circle cx="336" cy="356" r="36" fill="#2B2B2B"/>
+  <circle cx="336" cy="356" r="14" fill="#FFFFFF"/>
+  <!-- Motion lines: this is the DISPATCH board, not a parked bus -->
+  <rect x="56" y="196" width="46" height="18" rx="9" fill="#FFFFFF" opacity="0.75"/>
+  <rect x="40" y="244" width="62" height="18" rx="9" fill="#FFFFFF" opacity="0.55"/>
+  <rect x="56" y="292" width="46" height="18" rx="9" fill="#FFFFFF" opacity="0.35"/>
+</svg>

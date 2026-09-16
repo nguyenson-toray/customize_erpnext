@@ -1,0 +1,356 @@
+{
+ "actions": [],
+ "allow_import": 1,
+ "allow_rename": 0,
+ "autoname": "TIQN-TRIP-.YYYY.-.####",
+ "creation": "2026-09-15 10:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "section_plan",
+  "trip_name",
+  "trip_type",
+  "template_id",
+  "column_break_plan",
+  "vehicle",
+  "driver",
+  "section_route",
+  "trip_date",
+  "depart_time",
+  "from_location",
+  "to_location",
+  "column_break_route",
+  "dispatcher_note",
+  "notes",
+  "route_changed",
+  "section_status",
+  "status",
+  "confirmed_at",
+  "column_break_status",
+  "cancelled_reason",
+  "section_checkin",
+  "km_start",
+  "km_start_photo",
+  "checkin_time",
+  "checkin_notes",
+  "column_break_checkin",
+  "start_gps_lat",
+  "start_gps_lng",
+  "section_checkout",
+  "km_end",
+  "km_end_photo",
+  "checkout_time",
+  "checkout_notes",
+  "column_break_checkout",
+  "end_gps_lat",
+  "end_gps_lng",
+  "total_km",
+  "additional_cost",
+  "section_passengers",
+  "passengers",
+  "section_stops",
+  "stops"
+ ],
+ "fields": [
+  {
+   "fieldname": "section_plan",
+   "fieldtype": "Section Break",
+   "label": "Plan"
+  },
+  {
+   "fieldname": "trip_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Trip Name"
+  },
+  {
+   "default": "on_demand",
+   "fieldname": "trip_type",
+   "fieldtype": "Select",
+   "in_standard_filter": 1,
+   "label": "Trip Type",
+   "options": "on_demand\nfixed",
+   "reqd": 1
+  },
+  {
+   "depends_on": "eval:doc.trip_type=='fixed'",
+   "description": "Name of the TIQN Fixed Trip Template this trip was created from",
+   "fieldname": "template_id",
+   "fieldtype": "Data",
+   "label": "Template ID",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_plan",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "vehicle",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Vehicle",
+   "options": "TIQN Vehicle",
+   "reqd": 1
+  },
+  {
+   "fieldname": "driver",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Driver",
+   "options": "TIQN Driver",
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_route",
+   "fieldtype": "Section Break",
+   "label": "Route"
+  },
+  {
+   "fieldname": "trip_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Trip Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "depart_time",
+   "fieldtype": "Time",
+   "in_list_view": 1,
+   "label": "Depart Time"
+  },
+  {
+   "fieldname": "from_location",
+   "fieldtype": "Data",
+   "label": "From Location"
+  },
+  {
+   "fieldname": "to_location",
+   "fieldtype": "Data",
+   "label": "To Location"
+  },
+  {
+   "fieldname": "column_break_route",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "dispatcher_note",
+   "fieldtype": "Small Text",
+   "label": "Dispatcher Note"
+  },
+  {
+   "description": "Free text from the Mini App. dispatcher_note is the dispatcher's own channel.",
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Notes"
+  },
+  {
+   "default": "0",
+   "description": "Route was edited while the trip was running and the driver has not acknowledged it yet",
+   "fieldname": "route_changed",
+   "fieldtype": "Check",
+   "label": "Route Changed",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_status",
+   "fieldtype": "Section Break",
+   "label": "Status"
+  },
+  {
+   "default": "scheduled",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "scheduled\nconfirmed\nin_progress\ncompleted\ncancelled",
+   "reqd": 1
+  },
+  {
+   "fieldname": "confirmed_at",
+   "fieldtype": "Datetime",
+   "label": "Confirmed At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_status",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:doc.status=='cancelled'",
+   "fieldname": "cancelled_reason",
+   "fieldtype": "Small Text",
+   "label": "Cancelled Reason"
+  },
+  {
+   "fieldname": "section_checkin",
+   "fieldtype": "Section Break",
+   "label": "Check In"
+  },
+  {
+   "fieldname": "km_start",
+   "fieldtype": "Float",
+   "label": "KM Start",
+   "non_negative": 1,
+   "precision": "1"
+  },
+  {
+   "fieldname": "km_start_photo",
+   "fieldtype": "Attach",
+   "label": "KM Start Photo"
+  },
+  {
+   "fieldname": "checkin_time",
+   "fieldtype": "Datetime",
+   "label": "Check In Time",
+   "read_only": 1
+  },
+  {
+   "fieldname": "checkin_notes",
+   "fieldtype": "Small Text",
+   "label": "Check In Notes"
+  },
+  {
+   "fieldname": "column_break_checkin",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "start_gps_lat",
+   "fieldtype": "Float",
+   "label": "Start GPS Lat",
+   "precision": "6"
+  },
+  {
+   "fieldname": "start_gps_lng",
+   "fieldtype": "Float",
+   "label": "Start GPS Lng",
+   "precision": "6"
+  },
+  {
+   "fieldname": "section_checkout",
+   "fieldtype": "Section Break",
+   "label": "Check Out"
+  },
+  {
+   "fieldname": "km_end",
+   "fieldtype": "Float",
+   "label": "KM End",
+   "non_negative": 1,
+   "precision": "1"
+  },
+  {
+   "fieldname": "km_end_photo",
+   "fieldtype": "Attach",
+   "label": "KM End Photo"
+  },
+  {
+   "fieldname": "checkout_time",
+   "fieldtype": "Datetime",
+   "label": "Check Out Time",
+   "read_only": 1
+  },
+  {
+   "fieldname": "checkout_notes",
+   "fieldtype": "Small Text",
+   "label": "Check Out Notes"
+  },
+  {
+   "fieldname": "column_break_checkout",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "end_gps_lat",
+   "fieldtype": "Float",
+   "label": "End GPS Lat",
+   "precision": "6"
+  },
+  {
+   "fieldname": "end_gps_lng",
+   "fieldtype": "Float",
+   "label": "End GPS Lng",
+   "precision": "6"
+  },
+  {
+   "fieldname": "total_km",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Total KM",
+   "precision": "1",
+   "read_only": 1
+  },
+  {
+   "fieldname": "additional_cost",
+   "fieldtype": "Currency",
+   "label": "Additional Cost",
+   "options": "Company:company:default_currency"
+  },
+  {
+   "fieldname": "section_passengers",
+   "fieldtype": "Section Break",
+   "label": "Passengers"
+  },
+  {
+   "fieldname": "passengers",
+   "fieldtype": "Table",
+   "label": "Passengers",
+   "options": "TIQN Trip Passenger"
+  },
+  {
+   "fieldname": "section_stops",
+   "fieldtype": "Section Break",
+   "label": "Stops"
+  },
+  {
+   "fieldname": "stops",
+   "fieldtype": "Table",
+   "label": "Stops",
+   "options": "TIQN Trip Stop"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-09-15 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Vehicle Management",
+ "name": "TIQN Vehicle Trip",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Vehicle Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "search_fields": "vehicle,driver,trip_date",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "trip_name",
+ "track_changes": 1
+}

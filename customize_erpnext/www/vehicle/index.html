@@ -1,0 +1,6 @@
+{% extends "templates/web.html" %}
+{# get_context() always redirects; this file exists only because Frappe needs a
+   template beside index.py for the route to resolve. #}
+{% block page_content %}
+<p>{{ _("Redirecting to the vehicle dashboard...") }}</p>
+{% endblock %}

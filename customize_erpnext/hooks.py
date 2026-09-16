@@ -255,6 +255,8 @@ scheduler_events = {
     "hourly": [
         # Delete attendance Excel export files older than 45 minutes
         "customize_erpnext.customize_erpnext.report.shift_attendance_customize.shift_attendance_customize.cleanup_export_files",
+        # Same for the vehicle KM report exports (bao-cao-xe-*.xlsx)
+        "customize_erpnext.api.vehicle_management.cleanup_trip_report_exports",
     ],
     "cron": {
          # Chạy mỗi phút - Giải phóng RAM rembg sau 30 phút không dùng rembg để edit ảnh thẻ
@@ -284,6 +286,22 @@ scheduler_events = {
         # "45 16 * * *": [
         #     "customize_erpnext.customize_erpnext.doctype.vehicle_trip.daily_trips.create_daily_trips_dropoff"
         # ],
+
+        # Fixed vehicle trips (vehicle_management/API_CONTRACT.md mục 8) - the driver opens
+        # the Mini App and the trip is already there.
+        # Frappe evaluates cron with now_datetime(), i.e. the SITE timezone, not UTC:
+        # System Settings.time_zone is Asia/Ho_Chi_Minh and the server clock matches,
+        # so these really do fire at 06:30 and 17:00 Vietnam time. That setting is
+        # known to revert to Asia/Kolkata on this site - if fixed trips start showing
+        # up ~1.5 hours late, check it first.
+        # The job only creates schedules whose depart_time equals the current HH:MM,
+        # and is idempotent on (vehicle, trip_date, depart_time, trip_type=fixed).
+        "30 6 * * *": [
+            "customize_erpnext.api.vehicle_management.create_scheduled_trips"
+        ],
+        "0 17 * * *": [
+            "customize_erpnext.api.vehicle_management.create_scheduled_trips"
+        ],
 
         # Auto mark employees as Left - Every day at 00:00
         "0 0 * * *": [

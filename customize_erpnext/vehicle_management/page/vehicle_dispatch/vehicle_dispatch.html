@@ -1,0 +1,46 @@
+<div class="vd-root">
+
+  <div class="vd-header">
+    <div class="vd-header-left">
+      <span class="vd-title">🚌 Điều hành xe</span>
+      <span class="vd-subtitle" data-el="date-label"></span>
+      <button class="vd-btn-tool" data-act="vehicle-status">🛠 Đổi trạng thái xe</button>
+      <button class="vd-btn-tool vd-btn-danger" data-act="reset-demo" hidden>♻️ Xoá hết &amp; tạo lại dữ liệu mẫu</button>
+    </div>
+    <div class="vd-header-right">
+      <div class="vd-date-control" data-el="date-mount"></div>
+      <button class="vd-btn-refresh" data-act="refresh" title="Làm mới">⟳</button>
+      <span class="vd-auto-label" data-el="auto-label"></span>
+    </div>
+  </div>
+
+  <div class="vd-stats-row">
+    <div class="vd-kpi-row" data-el="kpi-row"></div>
+    <div class="vd-vehicle-strip" data-el="vehicle-strip"></div>
+  </div>
+
+  <div class="vd-main">
+
+    <div class="vd-col-trips">
+      <div class="vd-section-header">
+        <span class="vd-section-title" data-el="trip-title">📋 Chuyến</span>
+        <span class="vd-clear-filter" data-act="clear-filter" style="display:none">✕ Bỏ lọc</span>
+        <button class="vd-btn-new" data-act="new-trip">+ Tạo chuyến</button>
+      </div>
+      <div data-el="trip-list"></div>
+    </div>
+
+    <div class="vd-col-requests">
+      <div class="vd-section-header">
+        <span class="vd-section-title">
+          ⏳ Chờ duyệt
+          <span class="vd-badge-count" data-el="req-count">0</span>
+        </span>
+        <a href="/app/tiqn-vehicle-request?status=pending" class="vd-link-all">Tất cả →</a>
+      </div>
+      <div data-el="request-list"></div>
+    </div>
+
+  </div>
+
+</div>

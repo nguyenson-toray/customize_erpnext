@@ -1,0 +1,52 @@
+{
+ "actions": [],
+ "creation": "2026-09-15 10:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "location",
+  "landmark",
+  "stop_order"
+ ],
+ "fields": [
+  {
+   "columns": 5,
+   "fieldname": "location",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Location",
+   "reqd": 1
+  },
+  {
+   "columns": 4,
+   "fieldname": "landmark",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Landmark"
+  },
+  {
+   "columns": 1,
+   "description": "Stop sequence. Named stop_order because `order` is a reserved SQL keyword.",
+   "fieldname": "stop_order",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Order",
+   "non_negative": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 0,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-09-15 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Vehicle Management",
+ "name": "TIQN Trip Stop",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

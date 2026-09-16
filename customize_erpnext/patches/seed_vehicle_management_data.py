@@ -1,0 +1,139 @@
+# Copyright (c) 2026, IT Team - TIQN and contributors
+# For license information, please see license.txt
+
+"""post_model_sync: seed vehicles, drivers and fixed trip templates.
+
+Numbers below are the real fleet, copied from the legacy `Vehicle List` records
+(plates and odometers were verified against the live site). Driver phone numbers
+and Zalo User IDs are NOT seeded - nobody has given us those yet, and a fake
+phone number in a dispatch system is worse than an empty one. An admin fills
+them in, plus the `TIQN Zalo Role Map` rows, before the Mini App goes live.
+
+Depart times 06:30 / 17:15 come from vehicle_management/README.md. The legacy
+scheduler used 05:30 / 17:00 - if the spec times are wrong, fix the six
+`TIQN Fixed Trip Schedule` records, not this patch.
+
+Idempotent, and stable under admin edits: records are keyed on the vehicle
+(license plate / assigned vehicle / shift number), never on the editable
+display names, so renaming a driver or a template does not produce duplicates
+if this patch is ever re-run.
+"""
+
+import frappe
+
+VEHICLES = [
+	{
+		"vehicle_name": "Bus 1",
+		"license_plate": "43B-043.95",
+		"vehicle_type": "Bus",
+		"capacity": 16,
+		"notes": "Ford Transit. Migrated from legacy Vehicle List 'Bus 1'.",
+		"_from": "Vincom",
+		"_to": "Công ty Toray",
+		"_driver": "Mr. Dũng",
+	},
+	{
+		"vehicle_name": "Bus 2",
+		"license_plate": "76F-000.52",
+		"vehicle_type": "Bus",
+		"capacity": 16,
+		"notes": "Ford Transit. Migrated from legacy Vehicle List 'Bus 2'.",
+		"_from": "Dốc Sỏi",
+		"_to": "Công ty Toray",
+		"_driver": "Mr. Hậu",
+	},
+	{
+		"vehicle_name": "Kia",
+		"license_plate": "76H-058.34",
+		"vehicle_type": "MPV",
+		"capacity": 7,
+		"notes": "Kia Carnival. Migrated from legacy Vehicle List 'Kia'.",
+		"_from": "Vincom",
+		"_to": "Công ty Toray",
+		"_driver": "Mr Duy",
+	},
+]
+
+MORNING_DEPART = "06:30:00"
+AFTERNOON_DEPART = "17:15:00"
+
+
+def execute():
+	for spec in VEHICLES:
+		vehicle = _ensure_vehicle(spec)
+		driver = _ensure_driver(spec["_driver"], vehicle)
+		_ensure_schedule(
+			f"{spec['_from']} - {spec['_to']} ({spec['vehicle_name']} morning)",
+			driver, vehicle, MORNING_DEPART, spec["_from"], spec["_to"], 1,
+		)
+		_ensure_schedule(
+			f"{spec['_to']} - {spec['_from']} ({spec['vehicle_name']} afternoon)",
+			driver, vehicle, AFTERNOON_DEPART, spec["_to"], spec["_from"], 2,
+		)
+
+
+def _ensure_vehicle(spec):
+	existing = frappe.db.get_value("TIQN Vehicle", {"license_plate": spec["license_plate"]}, "name")
+	if existing:
+		return existing
+
+	doc = frappe.get_doc(
+		{
+			"doctype": "TIQN Vehicle",
+			"vehicle_name": spec["vehicle_name"],
+			"license_plate": spec["license_plate"],
+			"vehicle_type": spec["vehicle_type"],
+			"capacity": spec["capacity"],
+			"status": "available",
+			"notes": spec["notes"],
+		}
+	).insert(ignore_permissions=True)
+	return doc.name
+
+
+def _ensure_driver(driver_name, vehicle):
+	# Keyed on the vehicle, NOT on driver_name: the seeded names are a best guess
+	# copied from the legacy Vehicle List and an admin is expected to correct them
+	# (they already have). Keying on the name would make a re-run create a second
+	# driver for the same vehicle instead of recognising the corrected record.
+	existing = frappe.db.get_value(
+		"TIQN Driver", {"assigned_vehicle": vehicle}, "name", order_by="creation asc"
+	)
+	if existing:
+		return existing
+
+	doc = frappe.get_doc(
+		{
+			"doctype": "TIQN Driver",
+			"driver_name": driver_name,
+			"assigned_vehicle": vehicle,
+			"is_active": 1,
+			# phone and zalo_user_id left blank on purpose - see module docstring.
+			"notes": "Phone and Zalo User ID still to be filled in by an admin.",
+		}
+	).insert(ignore_permissions=True)
+	return doc.name
+
+
+def _ensure_schedule(template_name, driver, vehicle, depart_time, from_location, to_location, trip_number):
+	# One template per vehicle per shift. Same reasoning as _ensure_driver: the
+	# template_name is editable, the (vehicle, trip_number) pair is what identifies it.
+	if frappe.db.exists(
+		"TIQN Fixed Trip Schedule", {"vehicle": vehicle, "trip_number": trip_number}
+	):
+		return
+
+	frappe.get_doc(
+		{
+			"doctype": "TIQN Fixed Trip Schedule",
+			"schedule_name": template_name,
+			"trip_name_template": template_name,
+			"driver": driver,
+			"vehicle": vehicle,
+			"depart_time": depart_time,
+			"from_location": from_location,
+			"to_location": to_location,
+			"trip_number": trip_number,
+			"is_active": 1,
+		}
+	).insert(ignore_permissions=True)

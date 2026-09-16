@@ -1,0 +1,289 @@
+/* Điều hành xe — palette matched to the Zalo Mini App so a dispatcher sees the
+   same colours on the phone and at the desk.
+
+   Brand accents (orange header, KPI colours, status colours) are literal on
+   purpose: they carry meaning and must not shift between themes. Surfaces and
+   text go through Frappe's own theme tokens with a light fallback, otherwise the
+   whole page stays white inside a dark Desk and the text disappears. */
+
+.vd-root {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg-color, #F5F6FA);
+  min-height: 100vh;
+
+  --vd-surface: var(--card-bg, #ffffff);
+  --vd-ink: var(--text-color, #222222);
+  --vd-muted: var(--text-muted, #888888);
+  --vd-line: var(--border-color, #eeeeee);
+  --vd-shadow: 0 1px 4px rgba(0, 0, 0, 0.07);
+  --vd-shadow-lift: 0 3px 10px rgba(0, 0, 0, 0.12);
+}
+
+/* ── Header ─────────────────────────────────────────────── */
+.vd-header {
+  background: linear-gradient(135deg, #E65100, #FF8800);
+  color: #fff;
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+.vd-header-left { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.vd-title { font-size: 18px; font-weight: 700; }
+
+/* Actions sit on the header bar itself, beside the title - no separate toolbar
+   row, which is one less horizontal band between the user and the trip list.
+   Every action stays a visible button; nothing hides behind a ⋯ menu. */
+.vd-btn-tool {
+  background: rgba(255, 255, 255, 0.18);
+  border: 1.5px solid rgba(255, 255, 255, 0.45);
+  color: #fff; border-radius: 8px;
+  padding: 4px 11px; font-size: 12.5px; font-weight: 600;
+  cursor: pointer; white-space: nowrap;
+  transition: background 0.15s;
+}
+.vd-btn-tool:hover { background: rgba(255, 255, 255, 0.34); }
+/* The reset wipes every trip and request, so it does not look like its neighbours. */
+.vd-btn-danger { background: rgba(0, 0, 0, 0.22); border-color: rgba(255, 255, 255, 0.35); }
+.vd-btn-danger:hover { background: #C62828; border-color: #C62828; }
+.vd-subtitle { font-size: 12px; opacity: 0.85; margin-left: 10px; }
+.vd-header-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+/* Frappe's own Date control is mounted here (frappe.ui.form.make_control), not a
+   raw <input type="date">: it gives the app's datepicker, the user's date format
+   and, crucially, a get_value() that always returns YYYY-MM-DD whatever the
+   browser locale is. Only the skin is ours. */
+.vd-date-control { width: 148px; }
+.vd-date-control .form-control,
+.vd-date-control input {
+  padding: 5px 10px; border-radius: 8px; border: none; height: auto;
+  font-size: 13px; color: #333; background: rgba(255, 255, 255, 0.92);
+}
+.vd-date-control .form-control:focus { box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.6); }
+.vd-btn-refresh {
+  background: rgba(255, 255, 255, 0.2);
+  border: 1.5px solid rgba(255, 255, 255, 0.5);
+  color: #fff; border-radius: 8px; padding: 4px 12px;
+  font-size: 16px; cursor: pointer; transition: background 0.15s;
+}
+.vd-btn-refresh:hover { background: rgba(255, 255, 255, 0.35); }
+.vd-auto-label { font-size: 11px; opacity: 0.75; min-width: 112px; text-align: right; }
+
+/* ── Stats band ─────────────────────────────────────────
+   KPI chips and vehicle cards share ONE row. Stacked they ate ~240px of height
+   before the first trip appeared; side by side the band is ~90px and the trip
+   list starts that much higher up the screen. Both halves wrap to their own line
+   on a narrow window rather than crushing each other. */
+.vd-stats-row {
+  display: flex;
+  gap: 12px;
+  padding: 12px 20px 8px;
+  align-items: stretch;
+  flex-wrap: wrap;
+}
+.vd-kpi-row { display: flex; gap: 8px; flex: 4 1 380px; min-width: 0; }
+.vd-vehicle-strip { display: flex; gap: 8px; flex: 5 1 440px; min-width: 0; overflow-x: auto; }
+
+.vd-kpi {
+  flex: 1 1 0;
+  min-width: 84px;
+  border-radius: 12px;
+  padding: 10px 8px;
+  text-align: center;
+  cursor: pointer;
+  border: 2px solid transparent;
+  background: var(--vd-surface);
+  box-shadow: var(--vd-shadow);
+  transition: transform 0.15s, box-shadow 0.15s;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.vd-kpi:hover { transform: translateY(-1px); box-shadow: var(--vd-shadow-lift); }
+.vd-kpi-top { display: flex; align-items: baseline; justify-content: center; gap: 6px; }
+.vd-kpi-icon { font-size: 15px; }
+.vd-kpi-value { font-size: 24px; font-weight: 700; line-height: 1; }
+.vd-kpi-label { font-size: 11px; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ── Vehicle cards — compact, horizontal ────────────────
+   Thumbnail beside the text instead of a 90px banner above it: that banner was
+   what made the old two-row layout so tall. */
+.vd-vehicle-card {
+  flex: 1 1 0;
+  min-width: 150px;
+  background: var(--vd-surface);
+  border-radius: 12px;
+  border: 2px solid var(--vd-line);
+  box-shadow: var(--vd-shadow);
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.vd-vehicle-card.clickable { cursor: pointer; }
+.vd-vehicle-card.clickable:hover { transform: translateY(-1px); box-shadow: var(--vd-shadow-lift); }
+
+.vd-vehicle-img {
+  position: relative;
+  width: 46px; height: 46px; flex: 0 0 46px;
+  border-radius: 10px; overflow: hidden;
+  background: var(--control-bg, #f0f0f0);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px;
+}
+.vd-vehicle-img img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.vd-status-dot {
+  position: absolute; bottom: 2px; right: 2px;
+  width: 10px; height: 10px; border-radius: 50%;
+  border: 2px solid var(--vd-surface);
+}
+.vd-vehicle-info { min-width: 0; flex: 1; }
+.vd-vehicle-name {
+  font-weight: 700; font-size: 13px; color: var(--vd-ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.vd-vehicle-plate {
+  font-size: 11px; color: var(--vd-muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.vd-vehicle-status { font-size: 11px; font-weight: 600; white-space: nowrap; }
+.vd-vehicle-depart { font-size: 11px; color: #0068FF; }
+
+/* ── Main content ───────────────────────────────────────── */
+.vd-main { display: flex; gap: 14px; padding: 0 20px 30px; flex-wrap: wrap; }
+.vd-col-trips { flex: 7 1 420px; min-width: 0; }
+.vd-col-requests { flex: 4 1 280px; min-width: 0; }
+
+.vd-section-header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+.vd-section-title { font-size: 15px; font-weight: 700; color: var(--vd-ink); flex: 1; }
+.vd-badge-count { background: #FF4444; color: #fff; border-radius: 10px; padding: 1px 7px; font-size: 12px; font-weight: 700; }
+.vd-clear-filter { font-size: 12px; color: var(--vd-muted); cursor: pointer; }
+.vd-clear-filter:hover { color: #FF4444; }
+.vd-link-all { font-size: 12px; color: #0068FF; text-decoration: none; }
+.vd-btn-new {
+  background: #E65100; color: #fff; border: none; border-radius: 8px;
+  padding: 6px 14px; font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.vd-btn-new:hover { background: #BF360C; }
+
+/* ── Trip columns — one per vehicle ─────────────────────
+   auto-fit, not a hard 3: the column count follows however many vehicles exist,
+   so adding a fourth vehicle does not need a CSS edit, and a narrow window folds
+   them to two or one instead of crushing them. */
+.vd-trip-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 10px;
+  align-items: start;
+}
+.vd-trip-col { min-width: 0; }
+.vd-trip-col-head {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 10px; margin-bottom: 8px;
+  border-radius: 9px;
+  background: var(--vd-surface);
+  border-left: 4px solid var(--vd-line);
+  box-shadow: var(--vd-shadow);
+}
+.vd-trip-col-name {
+  font-size: 13px; font-weight: 700; color: var(--vd-ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.vd-trip-col-plate { font-size: 11px; color: var(--vd-muted); }
+.vd-trip-col-count {
+  margin-left: auto; font-size: 11px; font-weight: 700;
+  background: var(--control-bg, #eee); color: var(--vd-muted);
+  border-radius: 9px; padding: 1px 7px;
+}
+.vd-col-empty {
+  text-align: center; padding: 16px 8px;
+  background: var(--vd-surface); border-radius: 10px;
+  color: var(--vd-muted); font-size: 12px;
+}
+
+/* ── Trip cards ─────────────────────────────────────────── */
+.vd-trip-card {
+  background: var(--vd-surface); border-radius: 12px;
+  padding: 10px 11px; margin-bottom: 8px;
+  box-shadow: var(--vd-shadow); border-left: 4px solid var(--vd-line);
+  transition: box-shadow 0.15s;
+}
+.vd-trip-card:hover { box-shadow: var(--vd-shadow-lift); }
+.vd-trip-head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.vd-trip-time { font-size: 15px; font-weight: 700; color: var(--vd-ink); }
+.vd-trip-route {
+  font-size: 13px; font-weight: 600; color: var(--vd-ink);
+  overflow-wrap: anywhere; line-height: 1.35;
+}
+.vd-trip-meta { font-size: 11px; color: var(--vd-muted); margin-top: 3px; overflow-wrap: anywhere; }
+.vd-trip-km { font-size: 11px; color: #00C851; font-weight: 600; margin-top: 2px; }
+.vd-status-badge {
+  display: inline-block; padding: 2px 8px; border-radius: 11px;
+  font-size: 10.5px; font-weight: 600; color: #fff; white-space: nowrap;
+}
+.vd-trip-actions { display: flex; gap: 6px; margin-top: 8px; }
+.vd-btn-sm { padding: 3px 9px; border-radius: 7px; font-size: 11.5px; cursor: pointer; border: none; font-weight: 600; white-space: nowrap; }
+.vd-btn-detail { background: var(--control-bg, #F3F4F6); color: var(--vd-ink); }
+.vd-btn-detail:hover { background: var(--fg-hover-color, #E5E7EB); }
+.vd-btn-cancel { background: #FFEBEE; color: #FF4444; }
+.vd-btn-cancel:hover { background: #FFCDD2; }
+
+/* ── Request cards ──────────────────────────────────────
+   The queue is read by scanning, so the card is four short rows, not eight:
+   urgency + clock on one line, who on the next, the route, then the buttons.
+   Purpose and notes moved into the card's tooltip - context, not scan material. */
+.vd-req-card {
+  background: var(--vd-surface); border-radius: 10px;
+  padding: 8px 10px; margin-bottom: 6px;
+  box-shadow: var(--vd-shadow); border-left: 4px solid #FFA500;
+}
+.vd-req-card.is-soon { border-left-color: #FF8800; }
+.vd-req-card.is-late { border-left-color: #FF4444; box-shadow: 0 0 0 1px #FF444433, var(--vd-shadow); }
+
+.vd-req-top { display: flex; align-items: baseline; gap: 8px; }
+.vd-req-countdown {
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.02em; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.vd-req-when { margin-left: auto; font-size: 11px; color: var(--vd-muted); white-space: nowrap; }
+
+.vd-req-who {
+  display: flex; align-items: baseline; gap: 5px;
+  font-size: 13px; color: var(--vd-ink); margin-top: 1px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.vd-req-link { flex: 0 0 auto; }
+.vd-req-dept { font-size: 10.5px; color: var(--vd-muted); }
+.vd-req-pax {
+  font-size: 10.5px; color: var(--vd-muted);
+  border: 1px solid var(--vd-line); border-radius: 8px; padding: 0 5px;
+}
+
+.vd-req-route {
+  font-size: 12px; color: var(--vd-muted); margin-top: 1px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+.vd-req-actions { display: flex; gap: 6px; margin-top: 6px; }
+.vd-btn-approve { background: #0068FF; color: #fff; }
+.vd-btn-approve:hover { background: #0056D6; }
+.vd-btn-reject { background: #FFEBEE; color: #FF4444; }
+.vd-btn-assign { background: #E8F5E9; color: #00A344; }
+
+/* ── Empty / loading ────────────────────────────────────── */
+.vd-empty {
+  text-align: center; padding: 32px;
+  background: var(--vd-surface); border-radius: 12px;
+  color: var(--vd-muted); font-size: 14px;
+}
+.vd-empty-icon { font-size: 36px; margin-bottom: 8px; }
+.vd-loading { text-align: center; padding: 40px; color: var(--vd-muted); font-size: 14px; }
+
+@media (max-width: 720px) {
+  .vd-header { align-items: flex-start; }
+  .vd-auto-label { text-align: left; }
+}
