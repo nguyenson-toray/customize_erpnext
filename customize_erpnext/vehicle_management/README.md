@@ -15,7 +15,7 @@ App, kịch bản dữ liệu test, spec trang, prompt Excel) **đã xoá** — 
 gom hết vào hai file trên.
 
 Module Frappe: `Vehicle Management` (đã khai trong `modules.txt`).
-Trang điều hành: **`/vehicle`** (redirect sang `/app/vehicle-dispatch`).
+Trang điều hành: **`/app/vehicle-dispatch`**.
 API: `customize_erpnext/api/vehicle_management.py`.
 
 ---
@@ -47,7 +47,7 @@ file Excel đang cộng.
 |---|---|
 | 8 DocType `TIQN *` | `vehicle_management/doctype/` |
 | 32 REST endpoint | `api/vehicle_management.py` |
-| Trang điều hành `/vehicle` | `vehicle_management/page/vehicle_dispatch/` + `www/vehicle/` (redirect) |
+| Trang điều hành | `vehicle_management/page/vehicle_dispatch/` → `/app/vehicle-dispatch` |
 | Role `Vehicle Manager` | patch `create_vehicle_manager_role` (pre_model_sync) |
 | Dữ liệu mồi 3 xe / 3 tài xế / 6 lịch cố định | patch `seed_vehicle_management_data` (post_model_sync) |
 | ZNS (Phase 2, **đang TẮT**) | `utils/zns.py` |
@@ -661,19 +661,23 @@ hạn theo **xe TEST** của chính nó, không bao giờ đếm cả đội xe.
 Thay hẳn `vehicle-dispatch` cũ (đã xoá). **Chỉ có một trang điều hành**, đừng tạo thêm.
 
 ```
-vehicle_management/page/vehicle/   vehicle.json · vehicle.html · vehicle.css · vehicle.js
-www/vehicle/index.py               redirect /vehicle → /app/vehicle
+vehicle_management/page/vehicle_dispatch/
+    vehicle_dispatch.json · .html · .css · .js     → /app/vehicle-dispatch
 ```
 
-### 🔴 Desk Page KHÔNG phục vụ ở URL trần
+### ⚠ Desk Page KHÔNG phục vụ ở URL trần
 
-Prompt ghi truy cập `https://…:8888/vehicle`, nhưng Frappe Desk Page **chỉ** ở
-`/app/<name>`; `/vehicle` trần trả **404** (đã kiểm). Giải pháp: một trang `www/vehicle/`
-chỉ làm nhiệm vụ redirect, kèm chặn Guest và chặn thiếu role.
+Frappe chỉ phục vụ Desk Page ở `/app/<name>`; một URL trần như `/vehicle` trả **404**.
 
-**Không** viết lại thành portal page thật, vì trang `www/` **không có object `frappe` JS**
-— mất sạch `frappe.call`, `frappe.ui.Dialog`, `frappe.datetime`. Xem
-[[reference_frappe_www_page_csrf]].
+Từng có `www/vehicle/index.py` chỉ để redirect `/vehicle` → `/app/vehicle-dispatch`, theo
+yêu cầu của prompt cũ. **Đã xoá**: không lối vào nào dùng tới nó (desktop icon và sidebar
+đều trỏ thẳng `/app/vehicle-dispatch`), mà nó lại **chép cứng danh sách role** của Page —
+thêm `Vehicle Dispatcher` vào Page sau này thì `/vehicle` vẫn lặng lẽ từ chối người đó.
+Một lối vào, một nơi khai quyền.
+
+Nếu sau này thật sự cần URL ngắn: **không** viết lại thành portal page thật, vì trang
+`www/` **không có object `frappe` JS** — mất sạch `frappe.call`, `frappe.ui.Dialog`,
+`frappe.datetime`. Xem [[reference_frappe_www_page_csrf]].
 
 ### Frappe tự nạp `.html` và `.css` của Page
 
