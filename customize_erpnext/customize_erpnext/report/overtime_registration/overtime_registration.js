@@ -38,6 +38,7 @@ frappe.query_reports["Overtime Registration"] = {
 				"",
 				"Draft",
 				"Submitted",
+				"Rejected",
 				"Cancelled"
 			]
 		}

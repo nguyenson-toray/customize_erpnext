@@ -21069,7 +21069,7 @@ Click <b>Add Selected</b> — the rows are written immediately and the window st
 "Need another day, time or group? Just choose again and click Add Selected — no need to start over.","Muốn đăng ký thêm ngày khác, giờ khác hoặc nhóm khác? Chỉ cần chọn lại rồi bấm Add Selected — không cần mở lại từ đầu."
 "If an entry matches one already in the list (same employee, same date, same/overlapping time), the system asks whether to replace it or keep the existing one.","Nếu dữ liệu trùng với dòng đã có (cùng nhân viên, cùng ngày, giờ trùng hoặc giao nhau), hệ thống sẽ hỏi thay thế hay giữ nguyên dòng cũ."
 Check and save,Kiểm tra và lưu
-Click <b>Close</b> when done. Review the list — use <b>Pivot View</b> to see everyone at a glance — then click <b>Save</b>.,Xong hết thì bấm <b>Close</b> (Đóng). Kiểm tra lại danh sách — dùng <b>Pivot View</b> để xem tổng hợp toàn bộ — rồi bấm <b>Save</b> (Lưu).
+"Click <b>Close</b> when done. Review the list — use <b>View Summary Table</b> to see everyone at a glance — then click <b>Save</b>.","Xong hết thì bấm <b>Close</b> (Đóng). Kiểm tra lại danh sách — bấm <b>Xem bảng tổng hợp</b> để xem toàn bộ — rồi bấm <b>Save</b> (Lưu)."
 Send for approval,Gửi duyệt
 "Click <b>Submit</b>. Found a mistake after submitting? Use <b>Cancel</b>, then <b>Amend</b> to correct it and submit again.",Bấm <b>Submit</b> (Gửi). Phát hiện sai sau khi gửi? Dùng <b>Cancel</b> (Hủy) rồi <b>Amend</b> (Sửa đổi) để chỉnh sửa và gửi lại.
 Want screenshots? See the {0} course.,Cần xem hình minh họa? Xem khóa học {0}.
@@ -21755,3 +21755,11 @@ Cannot change the route of a {0} trip,Không thể đổi lộ trình của chuy
 A phone number is required to send a ZNS message,Cần số điện thoại để gửi tin ZNS,
 Unknown ZNS event: {0},Sự kiện ZNS không hợp lệ: {0},
 Số người đi,Số người đi,
+"Add Employees","Thêm nhân viên"
+"OT Employees","Nhân viên tăng ca"
+"Leave Approver of the requester's department","Người duyệt nghỉ phép của bộ phận người đăng ký"
+"Remarks of Approver","Ghi chú của người duyệt"
+"Week","Tuần"
+"First time? Follow the step-by-step guide.","Lần đầu dùng? Xem hướng dẫn từng bước."
+"View Summary Table","Xem bảng tổng hợp"
+"Summary Table","Bảng tổng hợp"

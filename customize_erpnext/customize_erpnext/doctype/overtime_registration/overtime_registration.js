@@ -29,48 +29,35 @@ frappe.ui.form.on("Overtime Registration", {
         //     remove_empty_overtime_rows(frm);
         // }, __('Actions'));
 
-        // Pivot view of the OT list (employees × dates)
-        frm.page.add_inner_button(__('Pivot View'), function () {
-            show_ot_pivot_dialog(frm);
-        });
+
+        // Guided tour (Form Tour "Overtime Registration"): prominent banner at
+        // the top of the form (inner buttons collapse into the "..." menu on
+        // phones); auto-runs once per browser on the first new registration
+        render_ot_help_banner(frm);
+        render_ot_inline_pivot_button(frm);
+        if (frm.is_new() && !ot_tour_seen()) {
+            frappe.utils.sleep(600).then(() => start_ot_form_tour(frm));
+        }
 
         // Reset validation flags when form refreshes
         frm.pre_save_check_done = false;
         frm.ot_continuity_validated = false;
 
-        // Auto-populate requested_by with current user's employee
-        if (frm.is_new() && !frm.doc.requested_by) {
-            frappe.call({
-                method: 'frappe.client.get_list',
-                args: {
-                    doctype: 'Employee',
-                    fields: ['name', 'employee_name'],
-                    filters: {
-                        'user_id': frappe.session.user
-                    }
-                },
-                callback: function (r) {
-                    if (r.message && r.message.length > 0) {
-                        const employee = r.message[0];
-                        frm.set_value('requested_by', employee.name);
-                        // Auto-fill approver based on requested_by
-                        set_approver_based_on_requested_by(frm, employee.name);
-                    }
+        // New registration: group + approver of the logged-in user's employee
+        // (the server sets the same from the doc owner on save)
+        if (frm.is_new()) {
+            frappe.xcall('frappe.client.get_value', {
+                doctype: 'Employee',
+                filters: { user_id: frappe.session.user },
+                fieldname: ['name', 'custom_group']
+            }).then(emp => {
+                if (!emp || !emp.name) return;
+                if (!frm.doc.request_by_group && emp.custom_group) {
+                    frm.set_value('request_by_group', emp.custom_group);
                 }
-            });
+                set_approver_for_employee(frm, emp.name);
+            }).catch(() => { /* no Employee read permission — server fills on save */ });
         }
-
-        // Set query filter for approver field (same as Leave Application)
-        frm.set_query("approver", function () {
-            return {
-                query: "hrms.hr.doctype.department_approver.department_approver.get_approvers",
-                filters: {
-                    employee: frm.doc.requested_by,
-                    doctype: frm.doc.doctype,
-                },
-            };
-        });
-
 
     },
     get_employees_button(frm) {
@@ -108,32 +95,7 @@ frappe.ui.form.on("Overtime Registration", {
         if (!validate_single_post_shift_entry(frm)) {
             return false;
         }
-
-        // Calculate totals
-        calculate_totals_and_apply_reason(frm);
-
-        // Update registered groups summary
-        update_registered_groups(frm);
-    },
-
-    requested_by(frm) {
-        // Auto-fill approver when requested_by field changes
-        if (frm.doc.requested_by) {
-            set_approver_based_on_requested_by(frm, frm.doc.requested_by);
-        } else {
-            // Clear approver if requested_by is cleared
-            frm.set_value('approver', '');
-            frm.set_value('approver_full_name', '');
-        }
-    },
-
-    approver(frm) {
-        // Set approver full name when approver changes (get employee name, not user name)
-        if (frm.doc.approver) {
-            get_employee_name_from_user(frm, frm.doc.approver);
-        } else {
-            frm.set_value('approver_full_name', '');
-        }
+        // Totals / approver name are computed server-side
     }
 });
 
@@ -257,12 +219,59 @@ html[data-theme-mode="dark"] .ot-reg-modal {
     display: flex; align-items: center; justify-content: space-between;
     gap: 12px; flex-wrap: wrap;
 }
-.ot-reg-modal [data-fieldname="time_begin"],
-.ot-reg-modal [data-fieldname="time_end"] {
-    display: inline-block; width: calc(50% - 5px); vertical-align: top;
+/* Controls regrouped into rows by arrange_ot_dialog_rows(): Group + Week,
+   Begin + End time. Wraps only when the column is too narrow for both. */
+.ot-reg-modal .ot-row { display: flex; gap: 12px; align-items: flex-start; flex-wrap: wrap; }
+.ot-reg-modal .ot-row > * { min-width: 0; }
+.ot-reg-modal .ot-row-group > [data-fieldname="selected_group"] { flex: 1 1 150px; }
+.ot-reg-modal .ot-row-group > [data-fieldname="week_html"] { flex: 2 1 250px; }
+.ot-reg-modal .ot-row-time > .frappe-control { flex: 1 1 120px; }
+.ot-reg-modal .ot-row-group .ot-seg { margin-bottom: 0; }
+/* Tablet portrait (and phones): stack the plan pane above the roster so each
+   row gets the full dialog width and stays on one line */
+@media (max-width: 991px) {
+    .ot-reg-modal .modal-body .form-column { flex: 0 0 100%; max-width: 100%; }
+    .ot-reg-modal .form-column + .form-column { margin-top: 6px; }
 }
-.ot-reg-modal [data-fieldname="time_begin"] { margin-right: 6px; }
 
+.ot-step-no {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 18px; height: 18px; margin-right: 6px; border-radius: 50%;
+    background: var(--ot-accent); color: #fff; font-size: 11px; font-weight: 600;
+    line-height: 1; vertical-align: 1px;
+}
+html[data-theme="dark"] .ot-reg-modal .ot-step-no { color: #1c1c1c; }
+.ot-reg-modal .btn-modal-primary .ot-step-no { background: rgba(255, 255, 255, 0.25); color: inherit; }
+.ot-help-banner {
+    display: flex; align-items: center; gap: 10px; margin: 0 0 12px;
+    padding: 10px 12px; border-radius: 10px;
+    background: #fdf3e0; border: 1px solid #ecd3a4; color: #92400e;
+}
+html[data-theme="dark"] .ot-help-banner {
+    background: rgba(245, 184, 61, 0.12); border-color: rgba(245, 184, 61, 0.4); color: #f7c96b;
+}
+.ot-help-banner .ot-help-icon {
+    flex: none; width: 26px; height: 26px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: #b45309; color: #fff; font-weight: 700;
+}
+.ot-help-banner .ot-help-text { flex: 1; font-size: 13px; font-weight: 500; }
+.ot-help-banner .ot-help-btn {
+    flex: none; background: #b45309; border-color: #b45309; color: #fff;
+    font-weight: 600; min-height: 36px; padding: 4px 16px;
+}
+.ot-help-banner .ot-help-btn:hover { background: #92400e; border-color: #92400e; color: #fff; }
+/* "Add Employees" + "View Summary Table" on one row */
+.frappe-control[data-fieldname="get_employees_button"] .control-input {
+    display: flex; flex-wrap: nowrap; align-items: stretch; gap: 8px;
+}
+.frappe-control[data-fieldname="get_employees_button"] .control-input .btn { margin: 0; }
+@media (max-width: 991px), (pointer: coarse) {
+    .frappe-control[data-fieldname="get_employees_button"] .control-input .btn {
+        flex: 1 1 0; min-width: 0; min-height: 44px; padding: 6px 10px; font-size: 14px;
+        white-space: normal; line-height: 1.2;
+    }
+}
 .ot-mini-head { display: flex; align-items: center; justify-content: space-between; margin: 4px 0 6px; }
 .ot-mini-head > span { font-size: var(--text-sm, 12px); color: var(--text-muted); }
 .ot-linkbtn {
@@ -372,7 +381,6 @@ html[data-theme-mode="dark"] .ot-reg-modal {
     background: var(--card-bg, var(--bg-color, #fff)); text-align: left;
 }
 .ot-pivot thead .ot-pivot-no, .ot-pivot thead .ot-pivot-emp { z-index: 3; }
-.ot-pivot-footrow .ot-pivot-emp { left: 0; }
 .ot-pivot-off { color: var(--text-muted); opacity: 0.5; }
 .ot-pivot-total { font-weight: 600; }
 .ot-pivot-footrow td {
@@ -384,8 +392,65 @@ html[data-theme-mode="dark"] .ot-reg-modal {
 .ot-linkbtn:focus-visible, .ot-chip button:focus-visible {
     outline: 2px solid var(--ot-accent); outline-offset: 1px;
 }
-@media (max-width: 640px) {
+/* Touch devices (target: tablets) and phones: 44px+ touch targets, 16px
+   inputs (no zoom-on-focus), action bar pinned to the bottom so "Add
+   Selected" stays reachable while scrolling the roster */
+@media (max-width: 767px), (pointer: coarse) {
+    .ot-reg-modal .modal-footer {
+        position: sticky; bottom: 0; z-index: 5; padding: 10px 14px;
+        background: var(--modal-bg, var(--card-bg, #fff));
+        border-top: 1px solid var(--border-color);
+        box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.06);
+    }
+    .ot-reg-modal .modal-footer .standard-actions { display: flex; gap: 8px; margin: 0; }
+    .ot-reg-modal .modal-footer .standard-actions .btn { min-height: 44px; min-width: 110px; font-size: 15px; margin: 0; }
+    .ot-reg-modal [data-fieldname="reason"] textarea { height: 64px; min-height: 64px; }
+    .ot-reg-modal input.form-control, .ot-reg-modal textarea.form-control { font-size: 16px; min-height: 40px; }
+
+    .ot-seg button { padding: 8px 4px; min-height: 48px; }
+    .ot-days { gap: 8px; }
+    .ot-day { padding: 10px 2px 12px; }
+    .ot-day .ot-day-name { font-size: 11px; }
+    .ot-day .ot-day-num { font-size: 19px; }
+    .ot-linkbtn { font-size: 13px; padding: 8px 0; }
+
+    .ot-search { font-size: 16px; padding: 10px 12px; }
+    .ot-roster { max-height: 50vh; }
+    .ot-roster-head { padding: 8px 12px; }
+    .ot-roster-head label { font-size: 14px; }
+    .ot-roster-row { padding: 10px 12px; min-height: 48px; gap: 10px; }
+    .ot-roster-row input, .ot-roster-head input { width: 20px; height: 20px; }
+    .ot-emp-id { font-size: 13px; }
+    .ot-emp-name { font-size: 15px; }
+    .ot-chips { max-height: 80px; }
+    .ot-chip { font-size: 13px; padding: 4px 4px 4px 10px; }
+    .ot-chip button { font-size: 18px; padding: 0 8px; min-height: 28px; }
+
+    .ot-pivot { max-height: calc(100dvh - 170px); -webkit-overflow-scrolling: touch; }
+    .ot-help-banner .ot-help-btn { min-height: 44px; padding: 6px 20px; font-size: 14px; }
+}
+
+/* Narrow screens (phones, tablets in split view): full-screen sheet, stacked panes */
+@media (max-width: 767px) {
+    .ot-reg-modal .modal-dialog { margin: 0; max-width: 100%; width: 100%; min-height: 100%; }
+    .ot-reg-modal .modal-content { border-radius: 0; border: none; min-height: 100vh; min-height: 100dvh; }
+    .ot-reg-modal .modal-body { padding: 12px 14px; }
+    .ot-reg-modal .ot-footer-info { width: 100%; }
+    .ot-reg-modal .modal-footer .standard-actions { width: 100%; }
+    .ot-reg-modal .modal-footer .standard-actions .btn { flex: 1; min-width: 0; }
+    .ot-reg-modal .modal-footer .standard-actions .btn-modal-primary { flex: 2; }
     .ot-days { grid-template-columns: repeat(3, 1fr); }
+    .ot-emp-name { white-space: normal; }
+
+    .ot-pivot table { font-size: 12px; }
+    .ot-pivot th, .ot-pivot td { padding: 4px 5px; }
+    .ot-pivot .ot-pivot-no, .ot-pivot .ot-pivot-grp { display: none; }
+    .ot-pivot .ot-pivot-emp { left: 0; min-width: 104px; max-width: 128px; white-space: normal; }
+    .ot-pivot .ot-pivot-id { display: block; font-size: 11px; }
+    .ot-pivot .ot-pivot-name { display: block; line-height: 1.25; }
+    .ot-pivot .ot-t { display: block; }
+    .ot-pivot .ot-t-dash { display: none; }
+    .ot-pivot .ot-slot + .ot-slot { border-top: 1px dashed var(--border-color); margin-top: 2px; padding-top: 2px; }
 }
 @media (prefers-reduced-motion: no-preference) {
     .ot-day, .ot-seg button, .ot-chip { transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease; }
@@ -417,6 +482,9 @@ function show_ot_registration_dialog(frm) {
     const dialog = new frappe.ui.Dialog({
         title: __('Select Employees for Overtime Registration'),
         size: 'extra-large',
+        // Frappe focuses the first input on open; on phones/tablets that pops
+        // the on-screen keyboard over the dialog. Group is pre-filled anyway.
+        no_focus: window.matchMedia('(max-width: 767px), (pointer: coarse)').matches,
         fields: [
             {
                 fieldtype: 'Link',
@@ -476,11 +544,36 @@ function show_ot_registration_dialog(frm) {
     render_ot_day_tiles(frm);
     render_ot_team_pane(frm);
     inject_ot_ledger(frm);
+    arrange_ot_dialog_rows(dialog);
+    add_ot_dialog_step_numbers(dialog);
 
     // A locked group is pre-filled, so load its roster immediately
     if (locked_group) {
         on_dialog_group_changed(frm);
+    } else {
+        // Pre-select the logged-in user's own group; set_value fires the
+        // field's onchange, which loads the roster
+        get_current_user_group(frm).then(group => {
+            if (group && state.currentDialog === dialog && !dialog.get_value('selected_group')) {
+                dialog.set_value('selected_group', group);
+            }
+        });
     }
+}
+
+// custom_group of the logged-in user's Employee (cached per form)
+function get_current_user_group(frm) {
+    if (frm._ot_user_group !== undefined) {
+        return Promise.resolve(frm._ot_user_group);
+    }
+    return frappe.xcall('frappe.client.get_value', {
+        doctype: 'Employee',
+        filters: { user_id: frappe.session.user },
+        fieldname: 'custom_group'
+    }).then(r => {
+        frm._ot_user_group = (r && r.custom_group) || null;
+        return frm._ot_user_group;
+    }).catch(() => null);
 }
 
 function render_ot_week_segment(frm) {
@@ -488,7 +581,7 @@ function render_ot_week_segment(frm) {
     const $wrap = state.currentDialog.get_field('week_html').$wrapper;
     const labels = [__('Current Week'), __('Week +1'), __('Week +2')];
 
-    let html = '<div class="ot-mini-head"><span>' + ot_esc(__('Week')) + '</span></div><div class="ot-seg" role="group">';
+    let html = '<div class="ot-mini-head"><span>' + ot_step_badge(2) + ot_esc(__('Week')) + '</span></div><div class="ot-seg" role="group">';
     for (let i = 0; i < 3; i++) {
         const monday = ot_monday_of_week(i);
         const sunday = new Date(monday);
@@ -522,7 +615,7 @@ function render_ot_day_tiles(frm) {
     const names = ot_day_labels();
     const todayStr = new Date().toDateString();
 
-    let html = '<div class="ot-mini-head"><span>' + ot_esc(__('Day Selection')) + '</span>'
+    let html = '<div class="ot-mini-head"><span>' + ot_step_badge(3) + ot_esc(__('Day Selection')) + '</span>'
         + '<button type="button" class="ot-linkbtn ot-days-all">' + ot_esc(__('Select All')) + '</button></div>';
     html += '<div class="ot-days">';
     ot_day_fields().forEach((dayField, index) => {
@@ -567,7 +660,7 @@ function render_ot_team_pane(frm) {
     const $wrap = state.currentDialog.get_field('team_html').$wrapper;
 
     $wrap.html(`
-        <div class="ot-mini-head"><span>${ot_esc(__('Employee Selection'))}</span></div>
+        <div class="ot-mini-head"><span>${ot_step_badge(6)}${ot_esc(__('Employee Selection'))}</span></div>
         <input type="search" class="ot-search"
             placeholder="${ot_esc(__('Type employee name or ID to filter...'))}"
             aria-label="${ot_esc(__('Search Employees'))}">
@@ -906,7 +999,6 @@ function save_overtime_registration_native(frm) {
             added_dates.add(c.date);
         });
 
-        calculate_totals_and_apply_reason(frm);
         frm.refresh_field('ot_employees');
 
         // Batch mode: stay open for the next batch without re-picking the group.
@@ -923,6 +1015,11 @@ function save_overtime_registration_native(frm) {
         update_ot_roster(frm);
         update_ot_chips(frm);
         update_ot_session(frm);
+        // On phones the day tiles are far above the roster — bring them back
+        // into view for the next batch
+        if (window.matchMedia('(max-width: 767px), (pointer: coarse)').matches) {
+            state.currentDialog.$wrapper.animate({ scrollTop: 0 }, 200);
+        }
 
         frappe.show_alert({
             message: __('Successfully added {0} employee(s) for {1} day(s)', [added_employees.size, added_dates.size]),
@@ -1012,7 +1109,6 @@ function undo_last_ot_batch(frm) {
     const names = new Set(batch.rows);
     frm.doc.ot_employees = (frm.doc.ot_employees || []).filter(d => !names.has(d.name));
     frm.refresh_field('ot_employees');
-    calculate_totals_and_apply_reason(frm);
     update_ot_session(frm);
 
     frappe.show_alert({
@@ -1053,7 +1149,10 @@ function show_ot_pivot_dialog(frm) {
         if (!emp.cells[d.date]) emp.cells[d.date] = [];
         emp.cells[d.date].push({
             time: (d.begin_time && d.end_time)
-                ? String(d.begin_time).slice(0, 5) + '-' + String(d.end_time).slice(0, 5) : '',
+                ? '<span class="ot-t">' + ot_esc(String(d.begin_time).slice(0, 5)) + '</span>'
+                  + '<span class="ot-t-dash">-</span>'
+                  + '<span class="ot-t">' + ot_esc(String(d.end_time).slice(0, 5)) + '</span>'
+                : '',
             hours: hours,
             reason: d.reason || ''
         });
@@ -1066,8 +1165,8 @@ function show_ot_pivot_dialog(frm) {
 
     let head = '<tr><th class="ot-pivot-no">' + ot_esc(__('No.')) + '</th>'
         + '<th class="ot-pivot-emp">' + ot_esc(__('Employee')) + '</th>'
-        + '<th>' + ot_esc(__('Group')) + '</th>'
-        + '<th>' + ot_esc(__('Note')) + '</th>';
+        + '<th class="ot-pivot-grp">' + ot_esc(__('Group')) + '</th>'
+        + '<th class="ot-pivot-note-h">' + ot_esc(__('Note')) + '</th>';
     dates.forEach(dt => {
         const dobj = new Date(dt);
         head += '<th>' + ot_esc(dayNames[dobj.getDay()]) + '<br>' + ot_format_dm(dobj) + '</th>';
@@ -1079,15 +1178,16 @@ function show_ot_pivot_dialog(frm) {
     Array.from(byEmployee.keys()).sort().forEach((empId, idx) => {
         const emp = byEmployee.get(empId);
         body += '<tr><td class="ot-pivot-no">' + (idx + 1) + '</td>'
-            + '<td class="ot-pivot-emp"><b>' + ot_esc(empId) + '</b> ' + ot_esc(emp.employee_name || '') + '</td>'
-            + '<td>' + ot_esc(emp.group || '') + '</td>'
+            + '<td class="ot-pivot-emp"><b class="ot-pivot-id">' + ot_esc(empId) + '</b> '
+            + '<span class="ot-pivot-name">' + ot_esc(emp.employee_name || '') + '</span></td>'
+            + '<td class="ot-pivot-grp">' + ot_esc(emp.group || '') + '</td>'
             + '<td class="ot-pivot-note" data-emp="' + ot_esc(empId) + '"></td>';
         dates.forEach(dt => {
             const cell = emp.cells[dt];
             if (cell && cell.length) {
                 const reasons = cell.map(c => c.reason).filter(Boolean).join('; ');
                 body += '<td class="ot-pivot-on" title="' + ot_esc(reasons) + '">'
-                    + cell.map(c => ot_esc(c.time)).join('<br>') + '</td>';
+                    + cell.map(c => '<div class="ot-slot">' + c.time + '</div>').join('') + '</td>';
                 colTotals[dt] += cell.reduce((sum, c) => sum + c.hours, 0);
             } else {
                 body += '<td class="ot-pivot-off">–</td>';
@@ -1097,7 +1197,11 @@ function show_ot_pivot_dialog(frm) {
         body += '<td class="ot-pivot-total">' + ot_num(emp.total) + '</td></tr>';
     });
 
-    let foot = '<tr class="ot-pivot-footrow"><td class="ot-pivot-emp" colspan="4">' + ot_esc(__('Total (h)')) + '</td>';
+    // One cell per leading column (no colspan): columns hidden on phones
+    // would otherwise shift the totals under the wrong dates
+    let foot = '<tr class="ot-pivot-footrow"><td class="ot-pivot-no"></td>'
+        + '<td class="ot-pivot-emp">' + ot_esc(__('Total (h)')) + '</td>'
+        + '<td class="ot-pivot-grp"></td><td class="ot-pivot-note-h"></td>';
     dates.forEach(dt => {
         foot += '<td>' + ot_num(colTotals[dt]) + '</td>';
     });
@@ -1107,7 +1211,7 @@ function show_ot_pivot_dialog(frm) {
         [byEmployee.size, dates.length, entries.length]);
 
     const dialog = new frappe.ui.Dialog({
-        title: __('Pivot View') + (frm.doc.name ? ' — ' + frm.doc.name : ''),
+        title: __('Summary Table') + (frm.doc.name ? ' — ' + frm.doc.name : ''),
         size: 'extra-large',
         fields: [{ fieldtype: 'HTML', fieldname: 'pivot_html' }]
     });
@@ -1488,85 +1592,6 @@ function subtract_hours(time_str, hours_to_subtract) {
 // Dead code removed: check_conflicts_with_submitted_records was not called from validate method
 
 
-function calculate_totals_and_apply_reason(frm) {
-    if (!frm.doc.ot_employees || frm.doc.ot_employees.length === 0) {
-        frm.set_value('total_employees', 0);
-        frm.set_value('total_hours', 0);
-        return;
-    }
-
-    const distinct_employees = new Set();
-    let total_hours = 0.0;
-    const child_reasons = new Set();
-
-    // First pass: calculate totals and gather unique, non-empty child reasons
-    frm.doc.ot_employees.forEach(d => {
-        if (d.employee) {
-            distinct_employees.add(d.employee);
-        }
-
-        if (d.begin_time && d.end_time) {
-            // Simple time difference calculation
-            const from_parts = d.begin_time.split(':');
-            const to_parts = d.end_time.split(':');
-            const from_minutes = parseInt(from_parts[0]) * 60 + parseInt(from_parts[1]);
-            const to_minutes = parseInt(to_parts[0]) * 60 + parseInt(to_parts[1]);
-            const diff_hours = (to_minutes - from_minutes) / 60;
-            total_hours += diff_hours;
-        }
-
-        if (d.reason && d.reason.trim()) {
-            child_reasons.add(d.reason.trim());
-        }
-    });
-
-    // Update totals
-    frm.set_value('total_employees', distinct_employees.size);
-    frm.set_value('total_hours', total_hours);
-
-    // If general reason is empty, populate it from unique child reasons
-    // Also update if child_reasons has multiple unique reasons
-    if (child_reasons.size > 0 && (!frm.doc.reason_general || child_reasons.size > 1)) {
-        const sorted_reasons = Array.from(child_reasons).sort();
-        frm.set_value('reason_general', sorted_reasons.join(', '));
-    }
-
-    // If a general reason now exists (either provided by user or generated),
-    // apply it to any child rows that have an empty reason.
-    if (frm.doc.reason_general) {
-        frm.doc.ot_employees.forEach(d => {
-            if (!d.reason) {
-                d.reason = frm.doc.reason_general;
-            }
-        });
-        frm.refresh_field('ot_employees');
-    }
-}
-
-function update_registered_groups(frm) {
-    if (!frm.doc.ot_employees || frm.doc.ot_employees.length === 0) {
-        frm.set_value('registered_groups', '');
-        return;
-    }
-
-    const distinct_groups = new Set();
-
-    // Collect unique groups from all rows
-    frm.doc.ot_employees.forEach(d => {
-        if (d.group && d.group.trim()) {
-            distinct_groups.add(d.group.trim());
-        }
-    });
-
-    // Update registered groups summary
-    if (distinct_groups.size > 0) {
-        const sorted_groups = Array.from(distinct_groups).sort();
-        frm.set_value('registered_groups', sorted_groups.join(', '));
-    } else {
-        frm.set_value('registered_groups', '');
-    }
-}
-
 // Helper function to check if two time ranges overlap
 function times_overlap(from1, to1, from2, to2) {
     // Convert time strings to Date objects for comparison
@@ -1621,60 +1646,123 @@ function remove_empty_overtime_rows(frm, silent = false) {
     }
 }
 
-// Function to auto-fill approver based on requested_by employee using HRMS pattern
-function set_approver_based_on_requested_by(frm, employee) {
+// Approver = Leave Approver of the requester (Employee.leave_approver, else the
+// department's first Leave Approver) — same rule the server applies on save.
+function set_approver_for_employee(frm, employee) {
     if (!employee) {
         return;
     }
-
-    // Use the same method as Leave Application
     frappe.call({
         method: 'hrms.hr.doctype.leave_application.leave_application.get_leave_approver',
-        args: {
-            employee: employee
-        },
+        args: { employee: employee },
         callback: function (r) {
-            if (r && r.message) {
-                frm.set_value('approver', r.message);
-
-                // Set the approver full name (get employee name, not user name)
-                if (r.message) {
-                    get_employee_name_from_user(frm, r.message);
-                }
-            } else {
-                frm.set_value('approver', '');
-                frm.set_value('approver_full_name', '');
-            }
+            frm.set_value('approver', (r && r.message) || '');
         },
-        error: function (r) {
+        error: function () {
             frm.set_value('approver', '');
-            frm.set_value('approver_full_name', '');
         }
     });
 }
 
-// Helper function to get employee name from user ID for approver_full_name field
-function get_employee_name_from_user(frm, user_id) {
-    frappe.call({
-        method: 'frappe.client.get_value',
-        args: {
-            doctype: 'Employee',
-            fieldname: 'employee_name',
-            filters: {
-                'user_id': user_id
-            }
-        },
-        callback: function (emp_r) {
-            if (emp_r.message && emp_r.message.employee_name) {
-                frm.set_value('approver_full_name', emp_r.message.employee_name);
-            } else {
-                // Fallback to user's full name if no employee record found
-                frm.set_value('approver_full_name', frappe.user.full_name(user_id));
-            }
-        },
-        error: function (r) {
-            // Fallback to user's full name on error
-            frm.set_value('approver_full_name', frappe.user.full_name(user_id));
-        }
+// ---------------------------------------------------------------------------
+// Guided tour — steps live in the Form Tour doc "Overtime Registration"
+// (customize_erpnext/form_tour/overtime_registration). The dialog sections are
+// numbered ①–⑦ so the tour's step list maps 1:1 onto the dialog.
+// ---------------------------------------------------------------------------
+
+const OT_TOUR_SEEN_KEY = 'ot_registration_tour_seen';
+
+function ot_tour_seen() {
+    try {
+        return localStorage.getItem(OT_TOUR_SEEN_KEY) === '1';
+    } catch (e) {
+        return true; // storage blocked: don't pop the tour on every new form
+    }
+}
+
+function start_ot_form_tour(frm) {
+    try {
+        localStorage.setItem(OT_TOUR_SEEN_KEY, '1');
+    } catch (e) { /* ignore */ }
+    if (!frm.tour) return;
+    frm.tour.init({ tour_name: 'Overtime Registration' }).then(() => {
+        apply_ot_tour_element_selectors(frm);
+        frm.tour.start();
     });
+}
+
+// Frappe's FormTour only targets form fields. Steps flagged "UI Tour" in the
+// Form Tour doc carry an element_selector instead (toolbar Save / workflow
+// Actions); "a || b" = first visible match, else the toolbar itself.
+function apply_ot_tour_element_selectors(frm) {
+    const steps = (frm.tour.tour && frm.tour.tour.steps) || [];
+    let changed = false;
+    frm.tour.driver_steps.forEach(ds => {
+        const step = steps.find(s => s.name === ds.name);
+        if (!step || !step.element_selector) return;
+        const candidates = step.element_selector.split('||').map(x => x.trim()).filter(Boolean);
+        const found = candidates.map(sel => $(sel).filter(':visible').get(0)).find(Boolean);
+        ds.element = found || $('.page-head:visible .page-actions').get(0) || ds.element;
+        changed = true;
+    });
+    if (changed) frm.tour.update_driver_steps();
+}
+
+// Pivot view of the OT list (employees × dates): button next to "Add Employees"
+// (not a toolbar inner button — Frappe hides those on tablet portrait / phones)
+function render_ot_inline_pivot_button(frm) {
+    const field = frm.fields_dict.get_employees_button;
+    if (!field || !field.$wrapper) return;
+    ensure_ot_dialog_styles();
+    const $w = field.$wrapper;
+    if (!$w.find('.ot-inline-pivot').length) {
+        $('<button type="button" class="btn btn-default btn-sm ot-inline-pivot"></button>')
+            .text(__('View Summary Table'))
+            .on('click', () => show_ot_pivot_dialog(frm))
+            .insertAfter($w.find('button').first());
+    }
+}
+
+// Help banner at the top of the form — only while the requester is composing
+function render_ot_help_banner(frm) {
+    const $wrapper = $(frm.layout.wrapper);
+    let $banner = $wrapper.find('.ot-help-banner');
+    const show = frm.doc.docstatus === 0 && (frm.is_new() || !frm.doc.workflow_state || frm.doc.workflow_state === 'Draft');
+    if (!show) {
+        $banner.remove();
+        return;
+    }
+    if ($banner.length) return;
+    ensure_ot_dialog_styles();
+    $banner = $(`<div class="ot-help-banner" role="note">
+        <span class="ot-help-icon" aria-hidden="true">?</span>
+        <span class="ot-help-text">${ot_esc(__('First time? Follow the step-by-step guide.'))}</span>
+        <button type="button" class="btn btn-sm ot-help-btn">${ot_esc(__('Help'))}</button>
+    </div>`);
+    $banner.find('.ot-help-btn').on('click', () => start_ot_form_tour(frm));
+    $wrapper.prepend($banner);
+}
+
+function ot_step_badge(n) {
+    return '<span class="ot-step-no">' + n + '</span>';
+}
+
+// Put Group + Week, and Begin + End time, side by side (a nested Section Break
+// would break the dialog's 2-pane column layout, so regroup the DOM instead)
+function arrange_ot_dialog_rows(dialog) {
+    const wrap = (fieldnames, cls) => {
+        const $controls = fieldnames.map(f => dialog.get_field(f).$wrapper);
+        const $row = $('<div class="ot-row"></div>').addClass(cls).insertBefore($controls[0]);
+        $controls.forEach($c => $row.append($c));
+    };
+    wrap(['selected_group', 'week_html'], 'ot-row-group');
+    wrap(['time_begin', 'time_end'], 'ot-row-time');
+}
+
+function add_ot_dialog_step_numbers(dialog) {
+    const label = (fieldname) => dialog.get_field(fieldname).$wrapper.find('.control-label').first();
+    label('selected_group').prepend(ot_step_badge(1));
+    label('time_begin').prepend(ot_step_badge(4));
+    label('reason').prepend(ot_step_badge(5));
+    dialog.get_primary_btn().prepend(ot_step_badge(7));
 }

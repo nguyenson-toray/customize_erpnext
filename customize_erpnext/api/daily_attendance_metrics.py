@@ -413,6 +413,9 @@ def get_overtime_registrations(date=None):
 			SELECT `date`, COUNT(*) AS qty
 			FROM `tabOvertime Registration Detail`
 			WHERE docstatus IN %(statuses)s
+			  AND parent NOT IN (
+				SELECT name FROM `tabOvertime Registration` WHERE workflow_state = 'Rejected'
+			  )
 			  AND `date` BETWEEN %(start)s AND %(end)s
 			GROUP BY `date`
 			""",

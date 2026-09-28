@@ -50,7 +50,8 @@ def get_data(filters=None):
     if not filters:
         filters = {}
     
-    conditions = []
+    # Rejected registrations (workflow) are submitted but never count
+    conditions = ["IFNULL(parent.workflow_state, '') != 'Rejected'"]
     values = {}
     
     if filters.get("from_date"):

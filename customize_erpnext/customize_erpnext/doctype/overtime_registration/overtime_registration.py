@@ -10,6 +10,7 @@ from datetime import time, datetime, timedelta
 from customize_erpnext.customize_erpnext.doctype.attendance_calculation_setting.attendance_calculation_setting import (
     get_attendance_settings,
 )
+from hrms.hr.doctype.leave_application.leave_application import get_employee_leave_approver
 
 
 def get_hour_reduction_hours():
@@ -26,6 +27,9 @@ def maternity_adjusted_end(shift_end):
 class OvertimeRegistration(Document):
     def validate(self):
         """Validation khi lưu (Save) - theo thứ tự"""
+        self.set_requester_and_approver()
+        self.validate_approver_for_workflow()
+
         # Pre-load shift and maternity data for all employees to avoid N+1 queries
         self._preload_employee_data()
 
@@ -50,6 +54,73 @@ class OvertimeRegistration(Document):
 
         # Calculate totals
         self.calculate_totals_and_apply_reason()
+
+    def get_requester_employee(self):
+        """Employee of the user who created the registration (the requester)."""
+        user = self.owner or frappe.session.user
+        return frappe.db.get_value("Employee", {"user_id": user}, ["name", "employee_name", "custom_group"], as_dict=True)
+
+    def get_requester_name(self):
+        emp = self.get_requester_employee()
+        return (emp and emp.employee_name) or frappe.utils.get_fullname(self.owner or frappe.session.user)
+
+    def set_requester_and_approver(self):
+        """Requester = Employee of the creating user; approver = Leave Approver.
+
+        Approver follows the HRMS Leave Application rule (Employee.leave_approver,
+        else the department's first Leave Approver) and is refreshed while the
+        doc is still a draft so the approval workflow always targets the
+        current approver.
+        """
+        emp = self.get_requester_employee()
+        if not emp:
+            return
+        if not self.request_by_group:
+            self.request_by_group = emp.custom_group
+
+        if self.docstatus == 0:
+            approver = get_employee_leave_approver(emp.name)
+            if approver:
+                self.approver = approver
+        if self.approver:
+            self.approver_full_name = frappe.db.get_value(
+                "Employee", {"user_id": self.approver}, "employee_name"
+            ) or frappe.utils.get_fullname(self.approver)
+
+    def validate_approver_for_workflow(self):
+        """Workflow has ONE approval level: the requester's Leave Approver.
+
+        Sending to "Pending" without an approver would park the registration
+        where nobody can act on it.
+        """
+        if self.get("workflow_state") == "Pending" and not self.approver:
+            frappe.throw(
+                _("No approver found for {0}. Ask HR to set a Leave Approver for the employee's department.").format(
+                    self.get_requester_name()
+                ),
+                title=_("Missing Approver"),
+            )
+
+    def on_update(self):
+        self.share_with_approver()
+
+    def share_with_approver(self):
+        """Give the approver read/write/submit on this registration.
+
+        Approvers may hold only the Employee role (if_owner), which would hide
+        other people's registrations and block the Approve/Reject transition.
+        """
+        if self.get("workflow_state") != "Pending" or not self.approver:
+            return
+        if self.approver in ("Administrator", self.owner):
+            return
+        from frappe.share import add_docshare
+
+        add_docshare(
+            self.doctype, self.name, self.approver,
+            read=1, write=1, submit=1,
+            flags={"ignore_share_permission": True},
+        )
 
     def _validate_links(self):
         """Skip rows whose Employee does not exist instead of rejecting the doc.
@@ -418,6 +489,7 @@ class OvertimeRegistration(Document):
                 AND child.date IN %(dates)s
                 AND parent.name != %(current_doc_name)s
                 AND parent.docstatus = 1
+                AND IFNULL(parent.workflow_state, '') != 'Rejected'
                 ORDER BY child.begin_time
             """, {
                 "employees": employees,
@@ -504,41 +576,17 @@ class OvertimeRegistration(Document):
                             ))
 
     def calculate_totals_and_apply_reason(self):
-        """Manage general reason field and calculate totals"""
-        if not self.ot_employees:
-            self.total_employees = 0
-            self.total_hours = 0
-            return
-
+        """Doc-level totals (hidden fields, used by the approval e-mail)."""
         distinct_employees = set()
         total_hours = 0.0
-        child_reasons = set()
-
-        # First pass: calculate totals and gather unique, non-empty child reasons
-        for d in self.ot_employees:
+        for d in self.ot_employees or []:
             if d.employee:
                 distinct_employees.add(d.employee)
-
             if d.get("begin_time") and d.get("end_time"):
                 total_hours = flt(total_hours + time_diff_in_hours(d.end_time, d.get("begin_time")), 2)
 
-            if d.reason:
-                child_reasons.add(d.reason.strip())
-
-        # Update totals
         self.total_employees = len(distinct_employees)
         self.total_hours = flt(total_hours, 2)
-
-        # If general reason is empty, populate it from unique child reasons
-        if not self.reason_general and child_reasons:
-            self.reason_general = ", ".join(sorted(list(child_reasons)))
-
-        # If a general reason now exists (either provided by user or generated),
-        # apply it to any child rows that have an empty reason.
-        if self.reason_general:
-            for d in self.ot_employees:
-                if not d.reason:
-                    d.reason = self.reason_general
 
 @frappe.whitelist()
 def check_overtime_conflicts(entries, current_doc_name="new"):
@@ -563,6 +611,7 @@ def check_overtime_conflicts(entries, current_doc_name="new"):
             AND child.date = %(date)s
             AND parent.name != %(current_doc_name)s
             AND parent.docstatus = 1
+            AND IFNULL(parent.workflow_state, '') != 'Rejected'
             ORDER BY child.begin_time
         """, {
             "employee": entry["employee"],
@@ -1035,3 +1084,23 @@ def get_maternity_flags(employees):
 			"youg_child_to_date",
 		],
 	)
+
+
+def get_owner_only_condition(alias="parent", user=None):
+    """SQL condition limiting raw-SQL reads to what the user may open.
+
+    Users whose only read access comes from an "Only If Creator" permission
+    (e.g. TIQN Staff / Employee) see the registrations they created plus the
+    ones shared with them (the approver share). Any role with unrestricted
+    read (HR Manager, TIQN Manager, ...) wins -> no condition.
+    """
+    user = user or frappe.session.user
+    perms = frappe.permissions.get_role_permissions(frappe.get_meta("Overtime Registration"), user=user)
+    if not perms.get("read") or "read" not in (perms.get("if_owner") or {}):
+        return ""
+    u = frappe.db.escape(user)
+    return (
+        f"({alias}.owner = {u} OR {alias}.name IN ("
+        f"SELECT share_name FROM `tabDocShare` WHERE share_doctype = 'Overtime Registration'"
+        f" AND `read` = 1 AND (user = {u} OR everyone = 1)))"
+    )

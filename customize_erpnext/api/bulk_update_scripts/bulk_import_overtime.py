@@ -160,11 +160,9 @@ def bulk_import_overtime(file_path=None):
                     # Tạo Overtime Registration document
                     ot_doc = frappe.new_doc("Overtime Registration")
                     ot_doc.request_date = getdate(request_date)
-                    ot_doc.reason_general = batch_reason
-
-                    # Thêm chi tiết nhân viên
+                    # Thêm chi tiết nhân viên (reason_general đã bỏ 2026-09-24 → lý do ghi vào từng dòng)
                     for emp_data in batch_employees:
-                        ot_doc.append("ot_employees", emp_data)
+                        ot_doc.append("ot_employees", dict(emp_data, reason=emp_data.get("reason") or batch_reason))
 
                     # Lưu document
                     ot_doc.flags.ignore_permissions = True

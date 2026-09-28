@@ -415,8 +415,11 @@ def _run_ot_sync_job(from_date, cache_key, to_date=None):
         created = skipped = failed = 0
         for i, (request_no, recs) in enumerate(sorted(grouped.items())):
             try:
-                if frappe.get_all("Overtime Registration",
-                                  filters=[["reason_general", "like", f"%Request number: {request_no}%"]],
+                # The request number lives in the rows' reason (the parent
+                # reason_general field was removed 2026-09-24)
+                ot_reason = f"Sync from MongoDB: Request number: {request_no}"
+                if frappe.get_all("Overtime Registration Detail",
+                                  filters=[["reason", "like", f"%Request number: {request_no}%"]],
                                   limit=1):
                     skipped += 1
                     continue
@@ -443,6 +446,7 @@ def _run_ot_sync_job(from_date, cache_key, to_date=None):
                         "date": ot_date,
                         "begin_time": begin_time,
                         "end_time": end_time,
+                        "reason": ot_reason,
                     })
 
                 if not ot_employees:
@@ -453,7 +457,6 @@ def _run_ot_sync_job(from_date, cache_key, to_date=None):
 
                 doc = frappe.get_doc({
                     "doctype": "Overtime Registration",
-                    "reason_general": f"Sync from MongoDB: Request number: {request_no}",
                     "request_date": request_date,
                     "ot_employees": ot_employees,
                 })

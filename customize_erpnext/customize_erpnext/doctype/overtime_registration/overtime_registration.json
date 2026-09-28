@@ -3,71 +3,65 @@
  "allow_bulk_edit": 1,
  "allow_import": 1,
  "autoname": "naming_series:",
- "creation": "2025-08-08 23:33:14.711192",
+ "creation": "2026-09-24 14:12:20.958062",
  "default_view": "List",
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
   "naming_series",
+  "request_by_group",
   "request_date",
-  "reason_general",
-  "column_break_kjuy",
+  "column_break_vede",
   "total_employees",
   "total_hours",
-  "registered_groups",
-  "column_break_qnut",
-  "requested_by",
-  "requested_by_full_name",
-  "request_by_group",
-  "column_break_vede",
-  "approver",
-  "approver_full_name",
-  "remarks",
   "employees_section",
   "get_employees_button",
   "ot_employees",
-  "amended_from"
+  "section_break_knfq",
+  "approver_full_name",
+  "approver",
+  "amended_from",
+  "column_break_trdy",
+  "remarks"
  ],
  "fields": [
-  {
-   "fieldname": "requested_by",
-   "fieldtype": "Link",
-   "in_list_view": 1,
-   "label": "Request By",
-   "options": "Employee",
-   "read_only": 1
-  },
   {
    "default": "Today",
    "fieldname": "request_date",
    "fieldtype": "Date",
+   "hidden": 1,
    "in_standard_filter": 1,
    "label": "Request Date",
+   "print_hide": 1,
    "read_only": 1
   },
   {
    "fieldname": "total_employees",
    "fieldtype": "Int",
+   "hidden": 1,
    "label": "Total Employees",
+   "print_hide": 1,
    "read_only": 1
   },
   {
    "fieldname": "total_hours",
    "fieldtype": "Float",
+   "hidden": 1,
    "label": "Total Hours",
    "precision": "2",
+   "print_hide": 1,
    "read_only": 1
   },
   {
    "fieldname": "employees_section",
    "fieldtype": "Section Break",
-   "label": "Employees"
+   "label": "OT Employees"
   },
   {
    "fieldname": "get_employees_button",
    "fieldtype": "Button",
-   "label": "Get Employees By Group"
+   "label": "Add Employees"
   },
   {
    "allow_bulk_edit": 1,
@@ -79,6 +73,7 @@
    "reqd": 1
   },
   {
+   "depends_on": "eval:!doc.__islocal",
    "fieldname": "remarks",
    "fieldtype": "Small Text",
    "label": "Remarks of Approver"
@@ -93,30 +88,10 @@
    "read_only": 1
   },
   {
-   "fieldname": "column_break_qnut",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "column_break_kjuy",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "reason_general",
-   "fieldtype": "Small Text",
-   "label": "General Reason for OT"
-  },
-  {
-   "fetch_from": "requested_by.custom_group",
-   "fetch_if_empty": 1,
    "fieldname": "request_by_group",
    "fieldtype": "Data",
+   "hidden": 1,
    "label": "Group",
-   "read_only": 1
-  },
-  {
-   "fieldname": "registered_groups",
-   "fieldtype": "Small Text",
-   "label": "Registered Groups",
    "read_only": 1
   },
   {
@@ -131,18 +106,12 @@
    "read_only": 1
   },
   {
+   "fetch_from": "approver.full_name",
    "fieldname": "approver_full_name",
    "fieldtype": "Data",
+   "hidden": 1,
    "label": "Approver",
-   "read_only": 1
-  },
-  {
-   "fetch_from": "requested_by.employee_name",
-   "fetch_if_empty": 1,
-   "fieldname": "requested_by_full_name",
-   "fieldtype": "Data",
-   "in_standard_filter": 1,
-   "label": "Request By",
+   "print_hide": 1,
    "read_only": 1
   },
   {
@@ -153,12 +122,20 @@
    "label": "Series",
    "options": "OTR-.YY..MM..DD.-.####.",
    "read_only": 1
+  },
+  {
+   "fieldname": "section_break_knfq",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_trdy",
+   "fieldtype": "Column Break"
   }
  ],
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-07-23 16:39:40.553666",
+ "modified": "2026-09-28 12:51:13.804532",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Overtime Registration",

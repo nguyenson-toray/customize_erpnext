@@ -1,0 +1,9 @@
+<p>Có phiếu đăng ký tăng ca đang chờ bạn duyệt.<br><i>An overtime registration is waiting for your approval.</i></p>
+<table cellpadding="6" cellspacing="0" border="1" style="border-collapse:collapse;border-color:#d0d0d0;font-size:14px;">
+  <tr><td bgcolor="#f5f5f5"><b>Số phiếu / No.</b></td><td>{{ doc.name }}</td></tr>
+  <tr><td bgcolor="#f5f5f5"><b>Người đăng ký / Requested by</b></td><td>{{ frappe.db.get_value("Employee", {"user_id": doc.owner}, "employee_name") or frappe.get_fullname(doc.owner) }}</td></tr>
+  <tr><td bgcolor="#f5f5f5"><b>Nhóm / Group</b></td><td>{{ doc.ot_employees | map(attribute="group") | select | unique | join(", ") }}</td></tr>
+  <tr><td bgcolor="#f5f5f5"><b>Số NV / Employees</b></td><td>{{ doc.total_employees or 0 }}</td></tr>
+  <tr><td bgcolor="#f5f5f5"><b>Tổng giờ / Total hours</b></td><td>{{ doc.total_hours or 0 }}</td></tr>
+</table>
+<p><a href="{{ frappe.utils.get_url_to_form(doc.doctype, doc.name) }}"><b>Mở phiếu để Duyệt / Từ chối &rarr; Open to Approve / Reject</b></a></p>

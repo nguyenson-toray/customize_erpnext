@@ -109,6 +109,7 @@ def get_attendance_custom_additional_info(employee, attendance_date):
 		WHERE otd.employee = %(employee)s
 		  AND otd.date = %(date)s
 		  AND ot.docstatus IN (0, 1)
+		  AND IFNULL(ot.workflow_state, '') != 'Rejected'
 		ORDER BY otd.begin_time
 	""", {"employee": employee, "date": attendance_date}, as_dict=1)
 

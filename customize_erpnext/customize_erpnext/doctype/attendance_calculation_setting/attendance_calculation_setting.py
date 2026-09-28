@@ -61,10 +61,14 @@ def get_ot_docstatus_condition(alias: str = "or_doc") -> str:
 	include_draft_ot setting is ON. Overlapping entries in the same zone are
 	merged downstream via span (min begin - max end) in
 	calculate_overtime_segments / the Sunday override.
+
+	Registrations the approver rejected (workflow_state "Rejected", submitted
+	with docstatus 1) never count.
 	"""
+	not_rejected = f"IFNULL({alias}.workflow_state, '') != 'Rejected'"
 	if frappe.utils.cint(get_attendance_settings().include_draft_ot):
-		return f"{alias}.docstatus IN (0, 1)"
-	return f"{alias}.docstatus = 1"
+		return f"({alias}.docstatus IN (0, 1) AND {not_rejected})"
+	return f"({alias}.docstatus = 1 AND {not_rejected})"
 
 
 def get_leave_docstatus_condition(alias: str = "") -> str:

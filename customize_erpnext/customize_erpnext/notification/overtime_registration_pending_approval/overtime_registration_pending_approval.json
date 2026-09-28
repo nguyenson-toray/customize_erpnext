@@ -1,0 +1,34 @@
+{
+ "attach_files": "",
+ "attach_print": 0,
+ "channel": "Email",
+ "condition": "doc.workflow_state == \"Pending\" and doc.approver",
+ "condition_type": "Python",
+ "creation": "2026-09-24 13:51:26.696336",
+ "days_in_advance": 0,
+ "docstatus": 0,
+ "doctype": "Notification",
+ "document_type": "Overtime Registration",
+ "enabled": 1,
+ "event": "Value Change",
+ "idx": 0,
+ "is_standard": 1,
+ "message": "<p>C\u00f3 phi\u1ebfu \u0111\u0103ng k\u00fd t\u0103ng ca \u0111ang ch\u1edd b\u1ea1n duy\u1ec7t.<br><i>An overtime registration is waiting for your approval.</i></p>\n<table cellpadding=\"6\" cellspacing=\"0\" border=\"1\" style=\"border-collapse:collapse;border-color:#d0d0d0;font-size:14px;\">\n  <tr><td bgcolor=\"#f5f5f5\"><b>S\u1ed1 phi\u1ebfu / No.</b></td><td>{{ doc.name }}</td></tr>\n  <tr><td bgcolor=\"#f5f5f5\"><b>Ng\u01b0\u1eddi \u0111\u0103ng k\u00fd / Requested by</b></td><td>{{ frappe.db.get_value(\"Employee\", {\"user_id\": doc.owner}, \"employee_name\") or frappe.get_fullname(doc.owner) }}</td></tr>\n  <tr><td bgcolor=\"#f5f5f5\"><b>Nh\u00f3m / Group</b></td><td>{{ doc.ot_employees | map(attribute=\"group\") | select | unique | join(\", \") }}</td></tr>\n  <tr><td bgcolor=\"#f5f5f5\"><b>S\u1ed1 NV / Employees</b></td><td>{{ doc.total_employees or 0 }}</td></tr>\n  <tr><td bgcolor=\"#f5f5f5\"><b>T\u1ed5ng gi\u1edd / Total hours</b></td><td>{{ doc.total_hours or 0 }}</td></tr>\n</table>\n<p><a href=\"{{ frappe.utils.get_url_to_form(doc.doctype, doc.name) }}\"><b>M\u1edf phi\u1ebfu \u0111\u1ec3 Duy\u1ec7t / T\u1eeb ch\u1ed1i &rarr; Open to Approve / Reject</b></a></p>",
+ "message_type": "HTML",
+ "minutes_offset": 0,
+ "modified": "2026-09-24 14:13:31.525465",
+ "modified_by": "Administrator",
+ "module": "Customize Erpnext",
+ "name": "Overtime Registration Pending Approval",
+ "notification_type": "Alert",
+ "owner": "Administrator",
+ "recipients": [
+  {
+   "receiver_by_document_field": "approver"
+  }
+ ],
+ "send_system_notification": 0,
+ "send_to_all_assignees": 0,
+ "subject": "[OT] {{ doc.name }} ch\u1edd duy\u1ec7t / pending approval - {{ frappe.get_fullname(doc.owner) }}",
+ "value_changed": "workflow_state"
+}

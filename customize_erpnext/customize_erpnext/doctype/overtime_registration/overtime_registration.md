@@ -17,7 +17,7 @@ với OT đã duyệt (server-side).
 ## Dialog "Get Employees" (redesign 2026-07-14)
 
 Nút field **Get Employees** trong form mở **một** dialog duy nhất (trước đây là 2 dialog
-lồng nhau; các nút trong menu Actions đã bỏ — chỉ còn inner button **Pivot View**).
+lồng nhau; các nút trong menu Actions đã bỏ — chỉ còn inner button **View Summary Table (Xem bảng tổng hợp)**).
 Entry point: `show_ot_registration_dialog(frm)` trong `overtime_registration.js`.
 
 ### Bố cục 2 cột
@@ -81,9 +81,9 @@ Doctype JS được eval vào **global scope** của desk. `overtime_request.js`
 `show_ot_registration_dialog` (2026-07-14) để 2 form không ghi đè lẫn nhau khi mở trong cùng
 phiên. **Quy tắc**: hàm global mới trong file này phải có prefix `ot_` hoặc tên riêng biệt.
 
-## Pivot View
+## View Summary Table (Xem bảng tổng hợp)
 
-Inner button **Pivot View** mở bảng chỉ-đọc từ bảng con hiện tại (kể cả dòng chưa lưu):
+Inner button **View Summary Table (Xem bảng tổng hợp)** mở bảng chỉ-đọc từ bảng con hiện tại (kể cả dòng chưa lưu):
 
 - Cột: `No.` (sticky, 40px) | `Employee` (sticky) | `Group` | `Note` | các ngày (thứ + dd/MM) | `Total (h)`.
 - Ô = khung giờ `HH:MM-HH:MM` (nhiều dòng cùng ngày thì xếp chồng, hover hiện lý do); ô trống = "–".
@@ -132,10 +132,82 @@ Inner button **Pivot View** mở bảng chỉ-đọc từ bảng con hiện tạ
 ## Cấu trúc dữ liệu
 
 ### Overtime Registration (parent)
-- `requested_by` / `requested_by_full_name`: tự điền theo user hiện tại khi tạo mới
-- `approver` / `approver_full_name`: tự điền theo pattern Leave Application (HRMS department approver)
-- `reason_general`, `total_employees`, `total_hours`, `registered_groups`: tự tính
+> Tối giản cho mobile (2026-09-24): form chỉ còn hiện **Group**, **Approver**, **Remarks of
+> Approver** (ẩn khi tạo mới), nút **Add Employees** và bảng `ot_employees`.
+
+- **ĐÃ XOÁ (2026-09-24):** `requested_by`, `requested_by_full_name`, `reason_general`, `registered_groups`
+  (cột DB vẫn còn, Frappe không drop). Người đăng ký = Employee của `owner`
+  (`get_requester_employee()`); bản in "Prepared by" và email cũng đọc theo `owner`.
+  🔴 Khoá chống trùng của đồng bộ MongoDB giờ là `Overtime Registration Detail.reason`
+  ("Sync from MongoDB: Request number: …") — sửa ở `api/biometric_resync.py`, tool
+  `apps/biometric-attendance-sync-tool/05.*` (REST filter bảng con) và `bulk_import_overtime.py`.
+  4.455/4.455 phiếu sync cũ đã có request number ở dòng con.
+- `approver`: read-only, server tự điền ở mỗi lần save khi còn draft =
+  `get_employee_leave_approver()` của HRMS (Employee.leave_approver, không có thì Leave
+  Approver đầu tiên của Department).
+- `approver_full_name`, `total_employees`, `total_hours`, `request_date`: ẩn, server tự tính
+  (dùng trong email duyệt). Print format V2 tự tính SL NV / Số giờ từ bảng con.
+- `request_by_group`: server điền từ custom_group của Employee người tạo (không còn fetch_from).
+- ⚠ Jinja (print format / notification): dùng `frappe.get_fullname`, KHÔNG có `frappe.utils.get_fullname`
+  (= None → "NoneType is not callable", mail không gửi, chỉ có Error Log).
 - `request_by_group`, `filter_employee_by` (custom field): khóa/lọc phạm vi chọn nhân viên
+
+### Workflow "Overtime Registration" — 1 cấp duyệt (2026-09-24)
+Workflow chỉ nằm trong DB (không có trong fixtures/repo). 4 transition:
+
+| Từ | Action | Tới | Allowed | Condition |
+|---|---|---|---|---|
+| Draft (0) | Submit | Pending (0) | All | — |
+| Pending | Approve | Approved (1) | All | `doc.approver == frappe.session.user` |
+| Pending | Reject | Rejected (1) | All | `doc.approver == frappe.session.user` |
+| Approved | Cancel | Cancelled (2) | Department Manager | — (cần quyền cancel theo role; share không cấp cancel) |
+
+- Cấp 2 sẽ thêm sau: chèn state giữa Pending → Approved.
+- `validate_approver_for_workflow()`: chặn chuyển sang Pending khi `approver` rỗng.
+- `share_with_approver()` (on_update): khi Pending thì share read/write/submit cho người duyệt, vì người duyệt
+  có thể chỉ có role Employee (if_owner), không share thì không thấy phiếu và không duyệt được.
+- 🔴 **Rejected = docstatus 1** → mọi truy vấn "OT được tính" phải loại `workflow_state = 'Rejected'`:
+  `get_ot_docstatus_condition()` (engine chấm công), `overrides/attendance/attendance.py`,
+  `api/daily_attendance_metrics.py`, 2 query kiểm tra trùng trong `overtime_registration.py`, 3 report OT.
+  Query mới đọc OT thì dùng `get_ot_docstatus_condition()`, đừng viết `docstatus = 1` trần.
+- Email của chính Workflow: vì allowed = `All` (role ảo, không có dòng Has Role) và điều kiện được tính
+  theo user đang thao tác, nên workflow của Frappe **không gửi mail cho ai**.
+- Mail cho người duyệt đi qua Notification **"Overtime Registration Pending Approval"** (standard, thư mục
+  `customize_erpnext/notification/`): Value Change `workflow_state` → Pending, gửi cho field `approver`.
+  Draft/Reject/Approve không gửi. Test 2026-09-24: 1 mail đến son.nt (Leave Approver của Office + Production).
+  ⚠ Khai thêm Leave Approver cho phòng nào là người đó bắt đầu nhận mail thật.
+
+### Phân quyền xem (2026-09-28)
+- Quyền thật nằm ở **Custom DocPerm** (DB, không có trong fixtures) — file JSON của DocType KHÔNG có hiệu lực.
+- `TIQN Staff` và `Employee`: `if_owner = 1` → chỉ thấy phiếu mình tạo + phiếu được share (người duyệt).
+  Các role khác (HR Manager, TIQN Manager, Department Manager, TIQN Factory Manager…) thấy tất cả.
+  Frappe **cộng dồn** role: user có TIQN Staff + HR/TIQN Manager vẫn thấy tất cả (user chọn "role quản lý thắng").
+- Report SQL thô không đi qua phân quyền → report "Overtime Registration" (chi tiết từng dòng) dùng
+  `get_owner_only_condition()` trong `overtime_registration.py`. 2 report tổng hợp (Quantity, By Time Slot)
+  chỉ ra số theo nhóm/khung giờ, không lọc. Report chi tiết mới nào cũng phải gọi hàm này.
+
+### Hướng dẫn (Form Tour) — 2026-09-24
+- Form Tour **"Overtime Registration"** (standard, file `customize_erpnext/form_tour/overtime_registration/`),
+  3 bước tiếng Việt cho công nhân. Nội dung tiếng Việt nằm trong dữ liệu tour, không nằm trong JS.
+- Thanh **Help** màu cam ở đầu form (chỉ khi phiếu Draft/mới). Không dùng inner button vì trên mobile
+  Frappe dồn inner button vào menu "⋯". Tour tự chạy 1 lần/trình duyệt ở phiếu mới đầu tiên
+  (localStorage `ot_registration_tour_seen`).
+- Bước 4 (Lưu) và bước 5 (Gửi đơn) trỏ vào toolbar: step có `element_selector` (fieldname giả = `approver`,
+  vì Form Tour không phải UI tour thì bắt buộc có fieldname); `apply_ot_tour_element_selectors()` đổi
+  element, `a || b` = phần tử đầu tiên đang hiện.
+- Dialog đánh số ①–⑦ (Nhóm, Tuần, Ngày, Giờ, Lý do, Nhân viên, nút Add Selected) khớp danh sách ở bước 1
+  của tour — đổi thứ tự trong dialog thì sửa cả tour.
+- View Summary Table (Xem bảng tổng hợp) mobile: ẩn cột No./Group, mã + tên xuống 2 dòng, giờ bắt đầu/kết thúc xếp chồng; hàng tổng
+  không dùng colspan (cột bị ẩn sẽ làm lệch).
+- **Thiết bị mục tiêu = TABLET** (2026-09-28). CSS chia 2 lớp: `(max-width:767px), (pointer:coarse)` = vùng chạm
+  ≥44px, input 16px, footer dialog dính đáy (áp cả tablet); `(max-width:767px)` = full màn hình, xếp 1 cột, pivot ẩn cột.
+  Dialog mở với `no_focus` trên màn cảm ứng, nếu không bàn phím ảo sẽ bật lên che dialog.
+  ⚠ Frappe ẩn inner toolbar ở màn md (768–991, tablet dọc) và xs (`page.html`: `custom-actions hidden-xs hidden-md`)
+  → nút View Summary Table (Xem bảng tổng hợp) CHỈ nằm cạnh "Add Employees" (`.ot-inline-pivot`, mọi màn hình); đã bỏ inner button trên toolbar.
+- Hàng gộp (2026-09-28): `arrange_ot_dialog_rows()` gom DOM thành hàng flex: Nhóm + Tuần, Giờ bắt đầu + Giờ kết thúc
+  (không dùng Section Break lồng vì sẽ phá bố cục 2 cột). ≤991px (tablet dọc) xếp 2 cột chồng lên nhau để mỗi hàng
+  đủ rộng; ≥992px giữ 2 cột. CSS `inline-block 50%` cũ bị rớt dòng do khoảng trắng giữa phần tử → đã bỏ.
+- Mobile (≤767px): dialog full màn hình, footer dính đáy, vùng bấm ≥44px, font input 16px (tránh iOS zoom).
 
 ### Overtime Registration Detail (child `ot_employees`)
 - `employee`, `employee_name`, `group`, `date`, `begin_time`, `end_time`, `reason`

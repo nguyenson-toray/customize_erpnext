@@ -82,6 +82,14 @@ def get_data(filters=None):
         filters = {}
     
     conditions = []
+
+    # TIQN Staff / Employee ("Only If Creator"): own + shared registrations only
+    from customize_erpnext.customize_erpnext.doctype.overtime_registration.overtime_registration import (
+        get_owner_only_condition,
+    )
+    owner_only = get_owner_only_condition("parent")
+    if owner_only:
+        conditions.append(owner_only)
     values = {}
     
     if filters.get("from_date"):
@@ -104,7 +112,9 @@ def get_data(filters=None):
         if filters.get("status") == "Draft":
             conditions.append("parent.docstatus = 0")
         elif filters.get("status") == "Submitted":
-            conditions.append("parent.docstatus = 1")
+            conditions.append("parent.docstatus = 1 AND IFNULL(parent.workflow_state, '') != 'Rejected'")
+        elif filters.get("status") == "Rejected":
+            conditions.append("parent.workflow_state = 'Rejected'")
         elif filters.get("status") == "Cancelled":
             conditions.append("parent.docstatus = 2")
     
@@ -123,6 +133,7 @@ def get_data(filters=None):
             detail.end_time,
             detail.reason,
             CASE 
+                WHEN parent.workflow_state = 'Rejected' THEN 'Rejected'
                 WHEN parent.docstatus = 0 THEN 'Draft'
                 WHEN parent.docstatus = 1 THEN 'Submitted'
                 WHEN parent.docstatus = 2 THEN 'Cancelled'

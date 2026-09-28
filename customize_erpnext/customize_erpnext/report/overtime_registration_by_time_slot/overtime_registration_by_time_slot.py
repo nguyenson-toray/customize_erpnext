@@ -10,10 +10,11 @@ import frappe
 from frappe import _
 from frappe.utils import get_first_day_of_week, get_last_day_of_week, getdate, today
 
+# Rejected registrations (workflow) are submitted but never count
 STATUS_DOCSTATUS = {
 	"Draft": "parent.docstatus = 0",
-	"Submitted": "parent.docstatus = 1",
-	"All (except Cancelled)": "parent.docstatus < 2",
+	"Submitted": "parent.docstatus = 1 AND IFNULL(parent.workflow_state, '') != 'Rejected'",
+	"All (except Cancelled)": "parent.docstatus < 2 AND IFNULL(parent.workflow_state, '') != 'Rejected'",
 }
 
 

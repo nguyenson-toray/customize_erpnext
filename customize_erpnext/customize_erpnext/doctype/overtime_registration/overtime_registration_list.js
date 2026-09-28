@@ -52,7 +52,7 @@ function show_ot_help_dialog() {
 		},
 		{
 			title: __("Check and save"),
-			html: __("Click <b>Close</b> when done. Review the list — use <b>Pivot View</b> to see everyone at a glance — then click <b>Save</b>.")
+			html: __("Click <b>Close</b> when done. Review the list — use <b>View Summary Table</b> to see everyone at a glance — then click <b>Save</b>.")
 		},
 		{
 			title: __("Send for approval"),
