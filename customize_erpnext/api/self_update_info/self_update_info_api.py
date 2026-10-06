@@ -63,6 +63,10 @@ def _submit_device_info():
 _ALLOWED_FIELDTYPES = {
 	"Data", "Date", "Datetime", "Time", "Int", "Float", "Currency",
 	"Select", "Check", "Small Text", "Text", "Long Text", "Link", "Phone",
+	# 4 field Tỉnh/Xã của Employee là Autocomplete (api/vn_address_search). Thiếu dòng này
+	# thì _build_config bỏ qua chúng im lặng → trang mất ô địa chỉ. Trang render theo widget
+	# Address Province/Ward nên không cần biết fieldtype.
+	"Autocomplete",
 }
 
 

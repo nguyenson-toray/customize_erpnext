@@ -140,6 +140,12 @@ frappe.ui.form.on('Employee', {
 
         render_sub_status(frm);
         toggle_create_user_button(frm);
+
+        // Filter bỏ dấu + maxItems cho 4 field Tỉnh/Xã (idempotent).
+        Object.values(ADDRESS_TYPES).forEach(fields => {
+            customize_erpnext.vn_address.enhance_control(frm.fields_dict[fields.province]);
+            customize_erpnext.vn_address.enhance_control(frm.fields_dict[fields.commune]);
+        });
     },
 
     prefered_email: function (frm) {
@@ -153,13 +159,32 @@ frappe.ui.form.on('Employee', {
         frm.refresh();
     },
 
+    // Button (trước 06/10/2026 là Check is_virtual=1 — Frappe coi field ảo là read-only nên
+    // checkbox không bấm được từ 31/07/2026). Địa chỉ hiện tại đã có và khác → hỏi trước khi ghi đè.
     custom_copy_permanent_address_to_other_adress: function (frm) {
-        if (frm.doc.custom_copy_permanent_address_to_other_adress) {
-            console.log('Copy permanent address to current and origin address');
-            copy_address(frm, 'permanent', 'current');
-            translate_address_to_english(frm, 'current');
-            // 🚧 TẠM TẮT 21/08/2026 — field quê quán đã bị gỡ khỏi Employee.
-            // copy_address(frm, 'permanent', 'place_of_origin');
+        const from = ADDRESS_TYPES.permanent;
+        const to = ADDRESS_TYPES.current;
+        const parts = ['province', 'commune', 'village'];
+
+        if (!parts.some(p => frm.doc[from[p]])) {
+            frappe.show_alert({ message: __('Permanent address is empty'), indicator: 'orange' });
+            return;
+        }
+
+        const run = () => copy_address(frm, 'permanent', 'current')
+            .then(() => translate_address_to_english(frm, 'current'));
+        // 🚧 TẠM TẮT 21/08/2026 — field quê quán đã bị gỡ khỏi Employee.
+        // copy_address(frm, 'permanent', 'place_of_origin');
+
+        const current_filled = parts.some(p => frm.doc[to[p]]);
+        const same = parts.every(p => (frm.doc[to[p]] || '') === (frm.doc[from[p]] || ''));
+        if (current_filled && !same) {
+            frappe.confirm(
+                __('Overwrite current address?') + '<br><br>' + frappe.utils.escape_html(frm.doc[to.full] || ''),
+                run
+            );
+        } else {
+            run();
         }
     },
     // Current Address handlers
@@ -167,11 +192,15 @@ frappe.ui.form.on('Employee', {
         build_address_full_for_type(frm, 'current');
         translate_address_to_english(frm, 'current');
     },
+    // Autocomplete lưu nguyên chữ đã gõ khi rời ô — enforce_choice xoá giá trị không có
+    // trong danh sách. set_value('') gọi lại chính handler này với giá trị rỗng.
     custom_current_address_commune: function (frm) {
+        if (!customize_erpnext.vn_address.enforce_choice(frm, 'custom_current_address_commune')) return;
         build_address_full_for_type(frm, 'current');
         translate_address_to_english(frm, 'current');
     },
     custom_current_address_province: function (frm) {
+        if (!customize_erpnext.vn_address.enforce_choice(frm, 'custom_current_address_province')) return;
         handle_province_change(frm, 'current');
         translate_address_to_english(frm, 'current');
     },
@@ -182,10 +211,12 @@ frappe.ui.form.on('Employee', {
         translate_address_to_english(frm, 'permanent');
     },
     custom_permanent_address_commune: function (frm) {
+        if (!customize_erpnext.vn_address.enforce_choice(frm, 'custom_permanent_address_commune')) return;
         build_address_full_for_type(frm, 'permanent');
         translate_address_to_english(frm, 'permanent');
     },
     custom_permanent_address_province: function (frm) {
+        if (!customize_erpnext.vn_address.enforce_choice(frm, 'custom_permanent_address_province')) return;
         handle_province_change(frm, 'permanent');
         translate_address_to_english(frm, 'permanent');
     },
@@ -368,7 +399,7 @@ function handle_province_change(frm, address_type) {
     } else {
         // If province is cleared, clear commune and its options
         frm.set_value(fields.commune, '');
-        frm.set_df_property(fields.commune, 'options', []);
+        customize_erpnext.vn_address.set_options(frm, fields.commune, []);
     }
 
     // Build full address
@@ -445,19 +476,16 @@ function build_address_full_for_type(frm, address_type) {
  * @param {string} from_type - Source address type
  * @param {string} to_type - Target address type
  */
-function copy_address(frm, from_type, to_type) {
+async function copy_address(frm, from_type, to_type) {
     const from_fields = ADDRESS_TYPES[from_type];
     const to_fields = ADDRESS_TYPES[to_type];
 
-    // Copy all address fields
-    frm.set_value(to_fields.village, frm.doc[from_fields.village]);
-    frm.set_value(to_fields.commune, frm.doc[from_fields.commune]);
-    frm.set_value(to_fields.province, frm.doc[from_fields.province]);
-
-    // Load communes for the copied province
-    if (frm.doc[from_fields.province]) {
-        load_commune_options_for_type(frm, to_type, frm.doc[from_fields.province]);
-    }
+    // Tỉnh trước, nạp xong list xã của tỉnh đó, rồi mới gán xã: handler đổi tỉnh xoá xã,
+    // và enforce_choice xoá xã không có trong list đang nạp.
+    await frm.set_value(to_fields.province, frm.doc[from_fields.province]);
+    await load_commune_options_for_type(frm, to_type, frm.doc[from_fields.province]);
+    await frm.set_value(to_fields.commune, frm.doc[from_fields.commune]);
+    await frm.set_value(to_fields.village, frm.doc[from_fields.village]);
 
     // Build full address
     build_address_full_for_type(frm, to_type);
@@ -469,66 +497,53 @@ function copy_address(frm, from_type, to_type) {
 // ADDRESS SELECTION FUNCTIONS - PROVINCE & COMMUNE
 // ============================================================
 
-// Province name → code lookup, populated once on form load
-const _province_code_map = {};
+// 4 field Tỉnh/Xã là Autocomplete (gõ để tìm, không dấu). Danh sách + filter bỏ dấu +
+// enforce_choice nằm ở public/js/vn_address_autocomplete.js (nạp trước file này qua
+// hooks.py doctype_js). Plan + bẫy: api/vn_address_search/README.md
 
 /**
- * Load province options using the vn_address DB API (consistent with employee-self-update-info).
- * Stores province name (name) in the field; keeps code in _province_code_map for ward lookup.
+ * Load province options (api/vn_address_search). Field lưu full_name, vd "Tỉnh Quảng Ngãi".
  */
 function load_province_options(frm) {
-    frappe.call({
-        method: 'customize_erpnext.api.vn_address.vn_address_api.get_provinces',
-        callback: function (r) {
-            if (!r.message || !r.message.length) return;
+    const addr = customize_erpnext.vn_address;
+    addr.load_provinces().then(provinces => {
+        if (!provinces || !provinces.length) return;
 
-            const province_names = [''].concat(r.message.map(p => {
-                _province_code_map[p.name] = p.code;
-                return p.name;
-            }));
+        const DEFAULT_PROVINCE = 'Tỉnh Quảng Ngãi';
 
-            const DEFAULT_PROVINCE = 'Tỉnh Quảng Ngãi';
+        Object.keys(ADDRESS_TYPES).forEach(address_type => {
+            const fields = ADDRESS_TYPES[address_type];
+            addr.set_options(frm, fields.province, provinces);
 
-            Object.keys(ADDRESS_TYPES).forEach(address_type => {
-                const fields = ADDRESS_TYPES[address_type];
-                frm.set_df_property(fields.province, 'options', province_names);
-
-                if (frm.doc[fields.province]) {
-                    // Existing record — load communes for saved province
-                    load_commune_options_for_type(frm, address_type, frm.doc[fields.province]);
-                } else if (frm.is_new()) {
-                    // New employee — default all address provinces to Quảng Ngãi
-                    frm.set_value(fields.province, DEFAULT_PROVINCE);
-                    load_commune_options_for_type(frm, address_type, DEFAULT_PROVINCE);
-                }
-            });
-        }
+            if (frm.doc[fields.province]) {
+                // Existing record — load communes for saved province
+                load_commune_options_for_type(frm, address_type, frm.doc[fields.province]);
+            } else if (frm.is_new()) {
+                // New employee — default all address provinces to Quảng Ngãi
+                frm.set_value(fields.province, DEFAULT_PROVINCE);
+                load_commune_options_for_type(frm, address_type, DEFAULT_PROVINCE);
+            }
+        });
     });
 }
 
 /**
- * Load ward (commune/phường-xã) options for the selected province
- * (vn_address DB API: get_wards by province code).
+ * Load ward (commune/phường-xã) options for the selected province.
  * Note: the Employee field is named `*_commune`, which maps to a "ward" in the API.
+ * Tỉnh không có trong danh sách (tên trước sáp nhập) → list xã rỗng.
  * @param {object} frm
  * @param {string} address_type - 'permanent' | 'current' | 'place_of_origin'
- * @param {string} province_name - Province display name (name), used to look up code
+ * @param {string} province_name - Province full_name
+ * @returns {Promise}
  */
 function load_commune_options_for_type(frm, address_type, province_name) {
-    if (!province_name || !ADDRESS_TYPES[address_type]) return;
+    if (!ADDRESS_TYPES[address_type]) return Promise.resolve();
 
-    const province_code = _province_code_map[province_name];
-    if (!province_code) return;
-
+    const addr = customize_erpnext.vn_address;
     const fields = ADDRESS_TYPES[address_type];
 
-    frappe.call({
-        method: 'customize_erpnext.api.vn_address.vn_address_api.get_wards',
-        args: { province_code: province_code },
-        callback: function (r) {
-            const ward_names = [''].concat((r.message || []).map(d => d.name));
-            frm.set_df_property(fields.commune, 'options', ward_names);
-        }
+    return addr.load_wards(province_name).then(wards => {
+        addr.set_options(frm, fields.commune, wards || []);
     });
 }
 

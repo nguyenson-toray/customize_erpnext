@@ -2,7 +2,7 @@
 
 > **Mục đích:** Cung cấp dữ liệu Tỉnh/Thành → Phường/Xã theo cấu trúc 2 cấp sau sáp nhập 2025, cho các form nhập địa chỉ.
 > **Phạm vi:** API nội bộ
-> **Trạng thái:** Đang chạy · **Cập nhật:** 2026-08-20
+> **Trạng thái:** Đang chạy · **Cập nhật:** 2026-10-06
 
 > Cập nhật: 26/06/2026
 
@@ -60,6 +60,10 @@ Quyền: chỉ **Administrator** hoặc **System Manager** (`@frappe.whitelist()
 ### Khi tác giả GitHub cập nhật (nghị định mới đổi tỉnh/xã)
 → **Chỉ chạy lại lệnh import ở trên.** Không cần sửa gì khác.
 
+Lần cập nhật gần nhất: **06/10/2026** (upstream `8b78ba5`, 22/09/2026) — vẫn 34 tỉnh / 3.321 xã; 14 xã + 4 tỉnh đổi tên
+(`Tỉnh Quảng Ninh`/`Tỉnh Bắc Ninh` → `Thành phố …`), `Xã Ba Chẽ` **đổi mã** 06978 → 06970, bảng `wards` thêm cột `postal_code`.
+⚠ Mã CÓ THỂ đổi giữa các lần cập nhật — đừng lưu mã xã lâu dài mà không đối chiếu lại.
+
 ### Nếu tác giả ĐỔI CẤU TRÚC BẢNG (thêm/đổi cột, hoặc quay lại 3 cấp)
 → Cập nhật câu `SELECT` trong `vn_address_api.py` cho khớp tên cột mới. Kiểm tra nhanh cấu trúc hiện tại:
 
@@ -83,7 +87,8 @@ Tất cả `allow_guest=True` (trang self-update phục vụ nhân viên không 
 
 **Nơi đang dùng (`get_provinces` / `get_wards`):**
 - Trang `www/employee-self-update-info` (cascade Tỉnh → Phường/Xã).
-- Form Employee desk: `public/js/custom_scripts/employee.js` (`load_province_options` / `load_commune_options_for_type`) — đã chuyển từ API cũ `address_converter` sang đây. Lưu ý: field Employee tên `custom_*_commune` nhưng API là `get_wards` (Commune ↔ Ward).
+- ~~Form Employee desk~~ — **từ 06/10/2026 chuyển sang `api/vn_address_search/`** (4 field tỉnh/xã là Autocomplete, tìm không dấu; xem `api/vn_address_search/README.md`). Lưu ý: field Employee tên `custom_*_commune` nhưng API là ward (Commune ↔ Ward).
+- `overrides/employee/employee_address.py` (dịch địa chỉ sang tiếng Anh) đọc thẳng bảng `provinces` / `wards`.
 - Cache: `vn_address_provinces`, `vn_address_wards:<province_code>`. `import_vn_units` gọi `clear_cache` nên không cần xoá thủ công.
 
 ---

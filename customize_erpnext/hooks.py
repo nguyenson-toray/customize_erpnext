@@ -32,6 +32,8 @@ doctype_js = {
     "Employee": [
         "public/js/fingerprint_scanner_dialog.js",
         "public/js/shared_fingerprint_sync.js",
+        # Phải đứng TRƯỚC employee.js — employee.js gọi customize_erpnext.vn_address.*
+        "public/js/vn_address_autocomplete.js",
         "public/js/custom_scripts/employee.js"
     ],
     "Employee Checkin": "public/js/custom_scripts/employee_checkin.js",
@@ -451,6 +453,9 @@ doc_events = {
         ],
         "validate": [
             "customize_erpnext.api.employee.employee_validation.validate_employee_changes",
+            # Tỉnh/Xã phải có trong danh sách + xã thuộc tỉnh; chỉ kiểm khi địa chỉ đổi.
+            # Hook riêng vì validate_employee_changes return sớm (hồ sơ mới, chưa chấm công…).
+            "customize_erpnext.api.vn_address_search.vn_address_search_api.validate_employee_address",
         ],
         "after_insert": [
             # "customize_erpnext.api.employee.erpnext_mongodb.sync_employee_to_mongodb",

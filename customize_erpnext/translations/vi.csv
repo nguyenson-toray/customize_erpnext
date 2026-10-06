@@ -21763,3 +21763,12 @@ Số người đi,Số người đi,
 "First time? Follow the step-by-step guide.","Lần đầu dùng? Xem hướng dẫn từng bước."
 "View Summary Table","Xem bảng tổng hợp"
 "Summary Table","Bảng tổng hợp"
+Please select a value from the list,Vui lòng chọn một giá trị trong danh sách,
+Please select a province before the ward,Vui lòng chọn Tỉnh/Thành trước khi chọn Phường/Xã,
+{0} is not a valid province,{0} không phải Tỉnh/Thành hợp lệ,
+{0} does not belong to {1},{0} không thuộc {1},
+Invalid Address,Địa chỉ không hợp lệ,
+Copy Permanent Address to Current Address,Sao chép địa chỉ thường trú sang địa chỉ hiện tại,
+Overwrite current address?,Ghi đè địa chỉ hiện tại?,
+Permanent address is empty,Địa chỉ thường trú đang trống,
+Address data not imported yet. Run import_vn_units.,Chưa có dữ liệu địa chỉ. Chạy import_vn_units.,
