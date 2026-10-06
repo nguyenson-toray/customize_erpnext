@@ -2,16 +2,38 @@
 // For license information, please see license.txt
 
 frappe.ui.form.on("Employee Self Update Info", {
+	// Giá trị HR sửa trên bảng (data_view) được ghép vào data_json khi bấm Save / Ctrl+S.
+	// Server kiểm tra lại ở controller validate (validate_desk_edit).
+	before_save(frm) {
+		const edits = frm._esui_edits || {};
+		if (!Object.keys(edits).length) return;
+		const saved = JSON.parse(frm.doc.data_json || "{}");
+		Object.assign(saved, edits);
+		frm.doc.data_json = JSON.stringify(saved);
+	},
+
+	after_save(frm) {
+		frm._esui_edits = {};
+	},
+
 	refresh(frm) {
 		if (frm.is_new()) return;
 
 		_esui_render_view(frm);
 
-		if (frm.doc.status !== "Synced") {
-			frm.add_custom_button(__("Edit in Portal"), () => {
-				window.open("/employee-self-update-info?emp=" + encodeURIComponent(frm.doc.employee), "_blank");
-			});
-		}
+		// Cùng phiếu PDF như trang www (kèm cam kết + chữ ký). Đang có ô sửa chưa lưu → PDF là bản đã lưu.
+		frm.add_custom_button(__("Generate PDF"), () => {
+			if (frm.is_dirty()) {
+				frappe.show_alert({ message: __("Unsaved edits are not in the PDF. Save first."), indicator: "orange" });
+			}
+			window.open(
+				"/api/method/customize_erpnext.api.self_update_info.self_update_info_api.download_pdf_for_hr?name="
+					+ encodeURIComponent(frm.doc.name),
+				"_blank"
+			);
+		});
+
+		// "Edit in Portal" đã bỏ (06/10/2026): HR sửa trực tiếp trên bảng; CCCD nhập tay.
 
 		// Nút Review/Sync phụ thuộc Setting "Disable Review".
 		frappe.db.get_single_value("Employee Self Update Info Setting", "disable_review").then((dr) => {
@@ -114,6 +136,8 @@ function _esui_form_sync_dialog(frm) {
 }
 
 // Render the submission as a readable table (label : value) in the data_view field.
+// HR sửa được ô text / select / tỉnh / xã (theo row.editor từ get_submission_view);
+// sửa ô nào → form "Not Saved", lưu bằng nút Save chuẩn (before_save ghép vào data_json).
 function _esui_render_view(frm) {
 	const wrap = frm.get_field("data_view");
 	if (!wrap) return;
@@ -124,7 +148,8 @@ function _esui_render_view(frm) {
 			if (!r.message) return;
 			const esc = frappe.utils.escape_html;
 			const synced = frm.doc.status === "Synced";
-			let hasEditable = false;
+			const addr = [];   // ô tỉnh/xã cần dựng control Autocomplete sau khi chèn HTML
+			const dates = [];  // ô ngày → control Date của Frappe
 			let html = `<style>
 				.esui-sec{margin:0 0 14px}
 				.esui-sec h5{margin:0 0 6px;color:#1e40af;font-weight:700}
@@ -135,28 +160,39 @@ function _esui_render_view(frm) {
 				.esui-old{color:#94a3b8;font-size:11px;margin-top:3px}
 				.esui-badge{display:inline-block;font-size:10px;font-weight:700;color:#b45309;
 					background:#fff7e6;border:1px solid #f0b429;border-radius:10px;padding:0 6px;margin-left:6px}
-				.esui-edit{width:100%;font-size:13px;padding:3px 6px;border:1px solid #cbd5e1;border-radius:4px}
+				.esui-edit{width:100%;font-size:13px;padding:3px 6px;border:1px solid #cbd5e1;border-radius:4px;background:#fff}
 				.esui-edit:focus{border-color:#2563eb;outline:none}
+				.esui-ac .form-group{margin-bottom:0}
 			</style>`;
 			(r.message.sections || []).forEach((sec) => {
 				html += `<div class="esui-sec"><h5>${esc(sec.label)}</h5><table class="esui-tbl">`;
 				sec.rows.forEach((row) => {
 					const chg = row.changed && !synced;
 					const oldHint = chg ? `<div class="esui-old">${__("Old")}: ${esc(row.old) || "—"}</div>` : "";
-					const editable = row.editable && !synced;
+					const editor = synced ? null : row.editor;
+					const fn = esc(row.fieldname);
+					const v = esc(row.value);
 					let cell;
-					if (editable) {
-						hasEditable = true;
-						const v = esc(row.value);
-						const fn = esc(row.fieldname);
-						cell = row.multiline
-							? `<textarea class="esui-edit" data-fieldname="${fn}" rows="2">${v}</textarea>`
-							: `<input type="text" class="esui-edit" data-fieldname="${fn}" value="${v}">`;
-						cell += oldHint;
+					if (editor === "text") {
+						cell = `<input type="text" class="esui-edit" data-fieldname="${fn}" value="${v}">`;
+					} else if (editor === "textarea") {
+						cell = `<textarea class="esui-edit" data-fieldname="${fn}" rows="2">${v}</textarea>`;
+					} else if (editor === "select") {
+						const opts = (row.options || []).map((o) =>
+							`<option value="${esc(o)}"${o === row.value ? " selected" : ""}>${esc(__(o)) || "&nbsp;"}</option>`
+						).join("");
+						cell = `<select class="esui-edit" data-fieldname="${fn}">${opts}</select>`;
+					} else if (editor === "province" || editor === "ward") {
+						cell = `<div class="esui-ac" data-fieldname="${fn}"></div>`;
+						addr.push(row);
+					} else if (editor === "date") {
+						cell = `<div class="esui-ac" data-fieldname="${fn}"></div>`;
+						dates.push(row);
 					} else {
 						const badge = chg ? `<span class="esui-badge">${__("changed")}</span>` : "";
-						cell = `${esc(row.value) || "—"}${badge}${oldHint}`;
+						cell = `${v || "—"}${badge}`;
 					}
+					cell += oldHint;
 					html += `<tr><td class="l">${esc(row.label)}</td><td class="${chg ? "esui-chg" : ""}">${cell}</td></tr>`;
 				});
 				html += `</table></div>`;
@@ -167,46 +203,114 @@ function _esui_render_view(frm) {
 			}
 			wrap.$wrapper.html(html);
 
-			// HR sửa trực tiếp field text → nút lưu lại data_json (khi chưa Synced).
-			if (hasEditable) {
-				// Bắt giá trị NGAY khi HR gõ (delegation) — tránh đọc nhầm input cũ
-				// nếu data_view bị re-render giữa lúc gõ và lúc bấm Lưu.
-				frm._esui_edits = {};
-				wrap.$wrapper.off("input.esui change.esui").on("input.esui change.esui", ".esui-edit", function () {
-					frm._esui_edits[this.dataset.fieldname] = this.value;
-				});
-
-				frm.add_custom_button(__("Save Field Edits"), () => {
-					// Đọc DOM hiện tại + đè bằng giá trị bắt lúc gõ (chắc chắn đúng).
-					const values = {};
-					wrap.$wrapper.find(".esui-edit").each((i, el) => {
-						if (el.dataset.fieldname) values[el.dataset.fieldname] = el.value;
-					});
-					Object.assign(values, frm._esui_edits || {});
-					if (!Object.keys(values).length) {
-						frappe.msgprint(__("No editable field found."));
-						return;
-					}
-					frappe.call({
-						method: "customize_erpnext.api.self_update_info.self_update_info_api.update_submission_values",
-						type: "POST",
-						args: { name: frm.doc.name, values: JSON.stringify(values) },
-						freeze: true,
-						freeze_message: __("Saving..."),
-						callback(res) {
-							if (res.message) {
-								frappe.show_alert({
-									message: __("Saved {0} field(s).", [res.message.changed]),
-									indicator: res.message.changed ? "green" : "orange",
-								});
-							}
-							frm.reload_doc();
-						},
-					});
-				}).addClass("btn-primary");
-			}
+			frm._esui_edits = {};
+			const mark = (fieldname, value) => {
+				frm._esui_edits[fieldname] = value;
+				frm.dirty();
+			};
+			wrap.$wrapper.off("input.esui change.esui").on("input.esui change.esui", ".esui-edit", function () {
+				mark(this.dataset.fieldname, this.value);
+			});
+			if (addr.length) _esui_make_address_controls(frm, wrap, addr, mark);
+			if (dates.length) _esui_make_date_controls(wrap, dates, mark);
 		},
 	});
+}
+
+// Ngày: control Date của Frappe — hiện theo định dạng ngày hệ thống, get_value() trả ISO yyyy-mm-dd
+// (đúng dạng data_json đang lưu). Server chuẩn hoá + kiểm tra Past/Future lại.
+function _esui_make_date_controls(wrap, rows, mark) {
+	rows.forEach((row) => {
+		const parent = wrap.$wrapper.find(`.esui-ac[data-fieldname="${row.fieldname}"]`)[0];
+		if (!parent) return;
+		let ready = false;   // set_value lúc dựng không tính là HR sửa
+		let current = row.value || "";
+		const c = frappe.ui.form.make_control({
+			parent,
+			df: {
+				fieldtype: "Date",
+				fieldname: "esui_" + row.fieldname,
+				onchange() {
+					if (!ready) return;
+					const v = c.get_value() || "";
+					if (v === current) return;
+					current = v;
+					mark(row.fieldname, v);
+				},
+			},
+			render_input: true,
+			only_input: true,
+		});
+		Promise.resolve(c.set_value(row.value || "")).then(() => { ready = true; });
+	});
+}
+
+// Tỉnh/xã: control Autocomplete thật của Frappe + helper public/js/vn_address_autocomplete.js
+// (tìm không dấu, chỉ nhận giá trị trong danh sách). Đổi tỉnh → xoá xã + nạp list xã mới.
+function _esui_make_address_controls(frm, wrap, rows, mark) {
+	const addr = customize_erpnext.vn_address;
+	const controls = {};
+	const value_of = (fn) => (fn in frm._esui_edits ? frm._esui_edits[fn] : (rows.find((r) => r.fieldname === fn) || {}).value) || "";
+	let ready = false;   // set_value lúc dựng control không tính là HR sửa
+
+	const load_wards_for = (row) => {
+		const c = controls[row.fieldname];
+		const prov = row.province_field ? value_of(row.province_field) : "";
+		return addr.load_wards(prov).then((wards) => {
+			c.df.options = wards || [];
+			c.set_data(wards || []);
+		});
+	};
+
+	rows.forEach((row) => {
+		const parent = wrap.$wrapper.find(`.esui-ac[data-fieldname="${row.fieldname}"]`)[0];
+		if (!parent) return;
+		const c = frappe.ui.form.make_control({
+			parent,
+			df: {
+				fieldtype: "Autocomplete",
+				fieldname: "esui_" + row.fieldname,
+				options: [],
+				placeholder: row.editor === "province" ? __("Select province") : __("Select ward"),
+				onchange() {
+					if (!ready) return;
+					const val = c.get_value() || "";
+					const data = c.get_data() || [];
+					if (val && data.length && !data.some((d) => d.value === val)) {
+						frappe.show_alert({ message: __("Please select a value from the list"), indicator: "orange" });
+						c.set_value("");
+						return;
+					}
+					if (val === value_of(row.fieldname)) return;
+					mark(row.fieldname, val);
+					if (row.editor === "province") {
+						rows.filter((w) => w.province_field === row.fieldname).forEach((w) => {
+							if (value_of(w.fieldname)) {
+								mark(w.fieldname, "");
+								controls[w.fieldname] && controls[w.fieldname].set_value("");
+							}
+							controls[w.fieldname] && load_wards_for(w);
+						});
+					}
+				},
+			},
+			render_input: true,
+			only_input: true,
+		});
+		addr.enhance_control(c);
+		controls[row.fieldname] = c;
+		c.set_value(row.value || "");
+	});
+
+	addr.load_provinces().then((provinces) => {
+		rows.filter((r) => r.editor === "province").forEach((r) => {
+			const c = controls[r.fieldname];
+			if (!c) return;
+			c.df.options = provinces;
+			c.set_data(provinces);
+		});
+		return Promise.all(rows.filter((r) => r.editor === "ward" && controls[r.fieldname]).map(load_wards_for));
+	}).then(() => { ready = true; });
 }
 
 function _esui_form_result(m) {

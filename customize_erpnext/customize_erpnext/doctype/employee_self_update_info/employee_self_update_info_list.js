@@ -15,15 +15,7 @@ frappe.listview_settings["Employee Self Update Info"] = {
 	},
 
 	onload(listview) {
-		listview.page.add_inner_button(__("Download Excel"), () => {
-			const selected = listview.get_checked_items().map((d) => d.name);
-			// download_excel streams a binary response; use a form POST so the
-			// browser saves the file (open_url_post adds the CSRF token).
-			open_url_post(
-				"/api/method/customize_erpnext.api.self_update_info.self_update_info_api.download_excel",
-				{ names: selected.length ? JSON.stringify(selected) : "" }
-			);
-		});
+		listview.page.add_inner_button(__("Download Excel"), () => _esui_excel_dialog(listview));
 
 		// "Mark Reviewed" chỉ hiện khi Setting KHÔNG bật Disable Review.
 		frappe.db.get_single_value("Employee Self Update Info Setting", "disable_review").then((dr) => {
@@ -157,4 +149,70 @@ function esui_show_result(title, summary, results) {
 		</table></div>`;
 	const d = new frappe.ui.Dialog({ title, size: "large", fields: [{ fieldtype: "HTML", options: html }] });
 	d.show();
+}
+
+// Dialog xuất Excel:
+//   All Info      → file cũ (New Data import lại được + Old Data)
+//   Info for Sign → danh sách in cho NV ký: chọn field (mặc định tất cả), tuỳ chọn chỉ field đã đổi.
+function _esui_excel_dialog(listview) {
+	const API = "customize_erpnext.api.self_update_info.self_update_info_api";
+	const selected = listview.get_checked_items().map((d) => d.name);
+	frappe.xcall(`${API}.get_info_for_sign_fields`).then((fields) => {
+		const scope = selected.length
+			? __("{0} selected record(s)", [selected.length])
+			: __("All records");
+		const d = new frappe.ui.Dialog({
+			title: __("Download Excel"),
+			size: "large",
+			fields: [
+				{ fieldtype: "HTML", options: `<div class="text-muted" style="margin-bottom:6px">${scope}</div>` },
+				{
+					fieldtype: "Select",
+					fieldname: "export_type",
+					label: __("Export Type"),
+					options: [
+						{ value: "All Info", label: __("All Info") },
+						{ value: "Info for Sign", label: __("Info for Sign") },
+					],
+					default: "All Info",
+				},
+				{
+					fieldtype: "Check",
+					fieldname: "only_changed",
+					label: __("Only changed information"),
+					default: 0,
+					depends_on: "eval:doc.export_type=='Info for Sign'",
+				},
+				{
+					fieldtype: "MultiCheck",
+					fieldname: "fields",
+					label: __("Fields"),
+					options: fields.map((f) => ({ label: f.label, value: f.fieldname, checked: 1 })),
+					columns: 3,
+					select_all: true,
+					depends_on: "eval:doc.export_type=='Info for Sign'",
+				},
+			],
+			primary_action_label: __("Download"),
+			primary_action(v) {
+				const args = {
+					names: selected.length ? JSON.stringify(selected) : "",
+					export_type: v.export_type,
+				};
+				if (v.export_type === "Info for Sign") {
+					const picked = v.fields || [];
+					if (!picked.length) {
+						frappe.msgprint(__("Select at least one field."));
+						return;
+					}
+					args.fields = JSON.stringify(picked);
+					args.only_changed = v.only_changed ? 1 : 0;
+				}
+				d.hide();
+				// download_excel trả file nhị phân → POST form để trình duyệt lưu (open_url_post kèm CSRF).
+				open_url_post(`/api/method/${API}.download_excel`, args);
+			},
+		});
+		d.show();
+	});
 }

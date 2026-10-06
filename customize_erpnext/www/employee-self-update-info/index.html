@@ -6,7 +6,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
   <title>Cập nhật thông tin nhân viên</title>
-  <link rel="stylesheet" href="/employee-self-update-info/style.css?v=17">
+  <link rel="stylesheet" href="/employee-self-update-info/style.css?v=18">
 </head>
 
 <body>
@@ -64,6 +64,7 @@
 
     <!-- Step 2: dynamic form -->
     <div id="form_area" class="hidden">
+      <div class="purpose-note" id="purpose_note">Các thông tin này sẽ được sử dụng và xử lý vào việc làm hồ sơ nhân sự, thủ tục hành chính, hợp đồng lao động.</div>
       <div class="legend">
         <span class="lg-text">
           <p>Cập nhật những mục <strong><span style="color: #ff6600;">còn thiếu</span></strong> hoặc
@@ -83,6 +84,24 @@
           <label class="fl" for="f__remarks">Nếu có thông tin cần cập nhật thêm,các nội dung chưa rõ, thắc mắc vui lòng
             ghi vào đây hoặc liên hệ trực tiếp bộ phận Hành chính nhân sự để được hướng dẫn.</label>
           <textarea id="f__remarks" placeholder="(Không bắt buộc)…"></textarea>
+        </div>
+      </div>
+
+      <!-- Cam kết + chữ ký (bắt buộc với NV; HR sửa qua ?emp= thì không bắt buộc) -->
+      <div class="card" id="sign_card">
+        <h2><span class="dot"></span>Cam kết &amp; chữ ký</h2>
+        <label class="commit-row" for="f__commit">
+          <input type="checkbox" id="f__commit">
+          <span id="commit_text">Tôi cam kết các thông tin đã khai ở trên là đúng sự thật và chịu trách nhiệm về thông tin đã cung cấp.</span>
+        </label>
+        <div class="field" style="margin:14px 0 0">
+          <label class="fl">Chữ ký <span class="req" id="sign_req">*</span>
+            <span class="muted" id="sign_hint" style="font-weight:400"> — dùng ngón tay hoặc chuột ký vào khung dưới</span></label>
+          <div class="sign-wrap">
+            <canvas id="sign_pad"></canvas>
+            <div class="sign-placeholder" id="sign_placeholder">Ký tên tại đây</div>
+          </div>
+          <button type="button" class="btn-ghost" id="sign_clear" onclick="SignPad.clear()">↺ Xoá, ký lại</button>
         </div>
       </div>
     </div>
@@ -506,6 +525,7 @@
         }));
 
         renderForm();
+        resetSignCard(!!fd.is_hr);
         document.getElementById("f__remarks").value =
           (draft && draft.remarks != null) ? draft.remarks : (fd.remarks || "");
         if (draft) toast("Đã khôi phục thông tin bạn nhập dở trước đó", true);
@@ -767,6 +787,94 @@
       return attrs;
     }
 
+    // ---------- cam kết + chữ ký ----------
+    // Ô ký tự viết (pointer events: chuột, bút, cảm ứng — chạy trong Zalo webview), không thư viện.
+    // Xuất PNG nền trắng, thu về rộng tối đa 600px để file nhỏ (server giới hạn kích thước).
+    const SignPad = (() => {
+      let canvas, ctx, drawing = false, hasInk = false, last = null;
+      function size() {
+        const r = canvas.getBoundingClientRect();
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = Math.round(r.width * dpr);
+        canvas.height = Math.round(r.height * dpr);
+        ctx = canvas.getContext("2d");
+        ctx.scale(dpr, dpr);
+        ctx.lineWidth = 2.2; ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.strokeStyle = "#111827";
+      }
+      function pos(e) {
+        const r = canvas.getBoundingClientRect();
+        return { x: e.clientX - r.left, y: e.clientY - r.top };
+      }
+      function setInk(v) {
+        hasInk = v;
+        document.getElementById("sign_placeholder").style.display = v ? "none" : "";
+      }
+      function init() {
+        canvas = document.getElementById("sign_pad");
+        size();
+        canvas.addEventListener("pointerdown", (e) => {
+          drawing = true; last = pos(e); canvas.setPointerCapture(e.pointerId);
+          ctx.beginPath(); ctx.arc(last.x, last.y, 1.1, 0, Math.PI * 2); ctx.fillStyle = "#111827"; ctx.fill();
+          setInk(true); e.preventDefault();
+        });
+        canvas.addEventListener("pointermove", (e) => {
+          if (!drawing) return;
+          const p = pos(e);
+          ctx.beginPath(); ctx.moveTo(last.x, last.y); ctx.lineTo(p.x, p.y); ctx.stroke();
+          last = p; e.preventDefault();
+        });
+        const end = () => { drawing = false; };
+        canvas.addEventListener("pointerup", end);
+        canvas.addEventListener("pointercancel", end);
+        // Xoay màn hình / đổi cỡ → vẽ lại khung trống (nét cũ bị co giãn nên xoá cho chắc).
+        let w = window.innerWidth;
+        window.addEventListener("resize", () => { if (window.innerWidth !== w) { w = window.innerWidth; clear(); } });
+      }
+      function clear() {
+        if (!canvas) return;
+        size(); setInk(false);
+      }
+      function toDataURL() {
+        const maxW = 600;
+        const scale = Math.min(1, maxW / canvas.width);
+        const out = document.createElement("canvas");
+        out.width = Math.round(canvas.width * scale);
+        out.height = Math.round(canvas.height * scale);
+        const o = out.getContext("2d");
+        o.fillStyle = "#fff"; o.fillRect(0, 0, out.width, out.height);
+        o.drawImage(canvas, 0, 0, out.width, out.height);
+        return out.toDataURL("image/png");
+      }
+      return { init, clear, toDataURL, isEmpty: () => !hasInk };
+    })();
+
+    // Mỗi lần mở form: bỏ tick + xoá chữ ký (chữ ký đi theo đúng lần gửi này).
+    // HR mở qua ?emp= → không bắt buộc; không ký thì server giữ chữ ký cũ của NV.
+    let _signInit = false;
+    function resetSignCard(isHR) {
+      S.isHR = isHR;
+      if (S.config && S.config.commitment_text) document.getElementById("commit_text").textContent = S.config.commitment_text;
+      if (S.config && S.config.purpose_text) document.getElementById("purpose_note").textContent = S.config.purpose_text;
+      document.getElementById("f__commit").checked = false;
+      document.getElementById("sign_req").style.display = isHR ? "none" : "";
+      document.getElementById("sign_hint").textContent = isHR
+        ? " — HR: không bắt buộc, để trống thì giữ chữ ký cũ của nhân viên"
+        : " — dùng ngón tay hoặc chuột ký vào khung dưới";
+      // canvas phải đang hiển thị mới đo được kích thước → khởi tạo sau khi form hiện.
+      requestAnimationFrame(() => {
+        if (!_signInit) { SignPad.init(); _signInit = true; }
+        SignPad.clear();
+      });
+    }
+
+    function flashCard(id) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.classList.remove("card-error"); void el.offsetWidth; el.classList.add("card-error");
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      setTimeout(() => el.classList.remove("card-error"), 2500);
+    }
+
     // ---------- submit ----------
     // Nhấp nháy viền đỏ TẤT CẢ field lỗi (tự tắt sau 2.5s hoặc khi NV nhập vào field đó).
     function flashFields(fieldnames) {
@@ -805,10 +913,20 @@
       if (invalid.length) { toast(invalid.join(" · ")); flashFields(invalidFields); return; }
       data[REMARKS_KEY] = (document.getElementById("f__remarks").value || "").trim();
 
+      const committed = document.getElementById("f__commit").checked;
+      const signature = SignPad.isEmpty() ? "" : SignPad.toDataURL();
+      if (!S.isHR) {
+        if (!committed) { toast("Vui lòng tick ô cam kết thông tin khai đúng sự thật."); flashCard("sign_card"); return; }
+        if (!signature) { toast("Vui lòng ký tên vào ô chữ ký."); flashCard("sign_card"); return; }
+      }
+
       const btn = document.getElementById("submit_btn");
       btn.disabled = true; btn.textContent = "Đang gửi…";
       try {
-        const r = await api(M.save, { employee_id: S.employee_id, data, code: S.verifyCode || "", unlock_code: S.unlockCode || "" });
+        const r = await api(M.save, {
+          employee_id: S.employee_id, data, code: S.verifyCode || "", unlock_code: S.unlockCode || "",
+          commitment: committed ? 1 : 0, signature
+        });
         S.downloadToken = (r && r.download_token) || null;   // token tải phiếu ngay sau gửi (khi bị khoá)
         clearDraft(S.employee_id);   // gửi xong → bỏ nháp cục bộ
         document.getElementById("form_area").classList.add("hidden");

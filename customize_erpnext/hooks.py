@@ -36,6 +36,8 @@ doctype_js = {
         "public/js/vn_address_autocomplete.js",
         "public/js/custom_scripts/employee.js"
     ],
+    # Ô tỉnh/xã HR sửa trên bảng data_view (form JS gọi customize_erpnext.vn_address.* lúc chạy)
+    "Employee Self Update Info": "public/js/vn_address_autocomplete.js",
     "Employee Checkin": "public/js/custom_scripts/employee_checkin.js",
     "Attendance": "public/js/custom_scripts/attendance.js",
     "Attendance Request": "public/js/custom_scripts/attendance_request.js",

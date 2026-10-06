@@ -27,6 +27,19 @@ SETTING_DT = "Employee Self Update Info Setting"
 INFO_DT = "Employee Self Update Info"
 # Reserved key inside data_json for the employee's free-text remarks.
 REMARKS_KEY = "__remarks"
+# Chữ ký vẽ trên trang www: PNG data URL; canvas ~600x200 nét đen thường < 30 KB.
+_SIGNATURE_PREFIX = "data:image/png;base64,"
+_SIGNATURE_MAX_LEN = 400_000
+# Câu cam kết — dùng chung cho trang www (qua get_field_config) và phiếu PDF/PNG.
+COMMITMENT_TEXT = (
+	"Tôi cam kết các thông tin đã khai ở trên là đúng sự thật và chịu trách nhiệm "
+	"về thông tin đã cung cấp."
+)
+# Thông báo đầu trang www.
+PURPOSE_TEXT = (
+	"Các thông tin này sẽ được sử dụng và xử lý vào việc làm hồ sơ nhân sự, "
+	"thủ tục hành chính, hợp đồng lao động."
+)
 
 
 def _submit_device_info():
@@ -405,6 +418,8 @@ def get_field_config():
 	# Lock the form (and receipts) after the first submission. The secret
 	# unlock code (bypass_code_for_unlock) is NEVER sent to the client.
 	config["lock_after_submit"] = bool(setting.get("lock_after_submit"))
+	config["commitment_text"] = COMMITMENT_TEXT
+	config["purpose_text"] = PURPOSE_TEXT
 	return config
 
 
@@ -557,14 +572,32 @@ def get_form_data(employee_id, code=None, unlock_code=None):
 		"status": status,
 		"employee_name": employee_name,
 		"remarks": remarks,
+		# HR sửa qua ?emp= → trang không bắt buộc cam kết + chữ ký.
+		"is_hr": _is_hr(),
 	}
 
 
 @frappe.whitelist(allow_guest=True)
-def save_form_data(employee_id, data, code=None, unlock_code=None):
-	"""Store submitted values as JSON. Does NOT write back to Employee."""
+def save_form_data(employee_id, data, code=None, unlock_code=None, commitment=None, signature=None):
+	"""Store submitted values as JSON. Does NOT write back to Employee.
+
+	`commitment` (1/0) + `signature` (data URL PNG từ ô vẽ chữ ký): bắt buộc với NV;
+	HR sửa qua ?emp= thì không bắt buộc — không gửi chữ ký thì giữ chữ ký cũ.
+	"""
 	if not employee_id:
 		frappe.throw(_("Missing employee"))
+
+	is_hr = _is_hr()
+	committed = frappe.utils.cint(commitment) == 1
+	signature = (signature or "").strip()
+	if signature:
+		if not signature.startswith(_SIGNATURE_PREFIX) or len(signature) > _SIGNATURE_MAX_LEN:
+			frappe.throw(_("Invalid signature image"))
+	if not is_hr:
+		if not committed:
+			frappe.throw("Vui lòng tick ô cam kết thông tin khai đúng sự thật.")
+		if not signature:
+			frappe.throw("Vui lòng ký tên vào ô chữ ký.")
 
 	setting = _get_setting()
 	_ensure_eligible(setting, employee_id)
@@ -632,6 +665,11 @@ def save_form_data(employee_id, data, code=None, unlock_code=None):
 		entry = f"[{stamp}]\n{info}"
 		prev = (doc.device_info or "").strip()
 		doc.device_info = (prev + "\n\n" + entry) if prev else entry
+	if signature:
+		doc.signature = signature
+		doc.commitment_confirmed = 1 if committed else 0
+		doc.signed_on = now_datetime()
+	doc.flags.from_portal = True
 	doc.save(ignore_permissions=True)
 	frappe.db.commit()
 
@@ -653,6 +691,26 @@ def download_submission_pdf(employee_id, code=None, unlock_code=None, token=None
 	frappe.response["filename"] = f"{base}.pdf"
 	frappe.response["filecontent"] = get_pdf(html)
 	frappe.response["type"] = "pdf"
+
+
+@frappe.whitelist()
+def download_pdf_for_hr(name):
+	"""Nút "Generate PDF" trên form Desk: cùng phiếu PDF như trang www, cho HR (không cần mã)."""
+	_require_hr()
+	doc = frappe.get_doc(INFO_DT, name)
+	doc.check_permission("read")
+	html = _build_submission_html(doc, json.loads(doc.data_json or "{}"), _build_config())
+	from frappe.utils.pdf import get_pdf
+
+	frappe.response["filename"] = f"{_receipt_base(doc)}.pdf"
+	frappe.response["filecontent"] = get_pdf(html)
+	frappe.response["type"] = "pdf"
+
+
+def _receipt_base(doc):
+	"""Tên file phiếu: "<mã NV> <họ tên> <yyyyMMdd_HHmm>"."""
+	stamp = frappe.utils.format_datetime(now_datetime(), "yyyyMMdd_HHmm")
+	return f"{doc.employee} {(doc.employee_name or '').strip()} {stamp}".strip()
 
 
 @frappe.whitelist(allow_guest=True)
@@ -680,11 +738,7 @@ def _load_submission_receipt(employee_id, code, unlock_code=None, token=None):
 	saved = json.loads(doc.data_json or "{}")
 	config = _build_config()
 	html = _build_submission_html(doc, saved, config)
-
-	stamp = frappe.utils.format_datetime(now_datetime(), "yyyyMMdd_HHmm")
-	name_part = (doc.employee_name or "").strip()
-	base = f"{employee_id} {name_part} {stamp}".strip()
-	return html, base
+	return html, _receipt_base(doc)
 
 
 def _html_to_png(html):
@@ -800,6 +854,25 @@ def _build_submission_html(doc, saved, config):
 		)
 
 	logo_img = f"<img src='{logo}' class='logo'/>" if logo else ""
+	# Đã ký → "Ký lúc" ở khung chữ ký là mốc thời gian; chỉ phiếu cũ chưa ký mới hiện giờ gửi.
+	submitted_line = "" if doc.get("signed_on") else f"<div><b>Thời điểm gửi:</b> {submitted}</div>"
+
+	# Cam kết + chữ ký (vẽ trên trang www). Chỉ nhận đúng data URL PNG đã kiểm ở save_form_data.
+	sign_block = ""
+	sig = doc.get("signature") or ""
+	if doc.get("commitment_confirmed") or sig:
+		signed = frappe.utils.format_datetime(doc.signed_on, "dd/MM/yyyy HH:mm") if doc.get("signed_on") else ""
+		sig_img = f"<img src='{sig}' class='sig'/>" if sig.startswith(_SIGNATURE_PREFIX) else ""
+		sign_block = (
+			"<div class='commit'>"
+			+ ("<b>Cam kết:</b> " if doc.get("commitment_confirmed") else "")
+			+ frappe.utils.escape_html(COMMITMENT_TEXT)
+			+ "</div><div class='signbox'><div class='slabel'>Người khai ký tên</div>"
+			+ sig_img
+			+ f"<div class='sname'>{frappe.utils.escape_html(doc.employee_name or '')}</div>"
+			+ (f"<div class='sdate'>Ký lúc: {signed}</div>" if signed else "")
+			+ "</div>"
+		)
 
 	return f"""
 <!DOCTYPE html><html><head><meta charset="utf-8"><style>
@@ -817,6 +890,12 @@ def _build_submission_html(doc, saved, config):
   td.val{{width:60%}}
   .remarks{{margin-top:14px;border:1px solid #d5dbe3;border-radius:6px;padding:10px}}
   .rlabel{{font-weight:bold;color:#1e3a8a;margin-bottom:4px}}
+  .commit{{margin-top:16px;font-style:italic}}
+  .signbox{{margin:12px 0 0 auto;width:260px;text-align:center}}
+  .slabel{{font-weight:bold}}
+  .sig{{max-width:240px;max-height:90px;margin:6px 0}}
+  .sname{{font-weight:bold}}
+  .sdate{{font-size:11px;color:#64748b}}
 </style></head><body>
   <div class="head">
     {logo_img}
@@ -826,10 +905,11 @@ def _build_submission_html(doc, saved, config):
   <div class="meta">
     <div><b>Mã nhân viên:</b> {frappe.utils.escape_html(doc.employee)}</div>
     <div><b>Họ và tên:</b> {frappe.utils.escape_html(doc.employee_name or "")}</div>
-    <div><b>Thời điểm gửi:</b> {submitted}</div>
+    {submitted_line}
   </div>
   <table>{''.join(rows)}</table>
   {remarks_block}
+  {sign_block}
 </body></html>
 """
 
@@ -839,7 +919,7 @@ def _build_submission_html(doc, saved, config):
 # ---------------------------------------------------------------------------
 
 @frappe.whitelist()
-def download_excel(names=None):
+def download_excel(names=None, export_type="All Info", fields=None, only_changed=0):
 	"""Export submissions to xlsx with two sheets — "New Data" (values submitted
 	by employees) and "Old Data" (current Employee values).
 
@@ -851,8 +931,12 @@ def download_excel(names=None):
 	"New Data" is the first sheet (the importable one); changed cells are
 	highlighted. `names` = JSON list of Employee Self Update Info names, or None
 	for all.
+
+	`export_type="Info for Sign"` → file riêng, xem _download_info_for_sign.
 	"""
 	_require_hr()
+	if export_type == "Info for Sign":
+		return _download_info_for_sign(names, fields, frappe.utils.cint(only_changed))
 	import io
 
 	from openpyxl import Workbook
@@ -934,57 +1018,359 @@ def _fmt(value):
 	return str(value)
 
 
-# Field types HR may edit inline on the Desk form (plain text-like inputs).
-# Excludes Select/Check/Date/Datetime/Time/Link and the address widgets.
+# ---------------------------------------------------------------------------
+# Excel "Info for Sign" — danh sách in ra cho NV ký xác nhận
+# ---------------------------------------------------------------------------
+
+INFO_FOR_SIGN_REMARKS = "__remarks"  # mục "Ghi chú" trong danh sách field của dialog
+
+
+@frappe.whitelist()
+def get_info_for_sign_fields():
+	"""Field cho dialog Excel: [{fieldname, label}] theo thứ tự config + mục Ghi chú."""
+	_require_hr()
+	config = _build_config()
+	labels = _sign_labels(config)
+	out = [
+		{"fieldname": f["fieldname"], "label": labels[f["fieldname"]]}
+		for sec in config["sections"]
+		for f in sec["fields"]
+		if f["fieldname"] not in ("employee", "name")
+	]
+	out.append({"fieldname": INFO_FOR_SIGN_REMARKS, "label": "Ghi chú"})
+	return out
+
+
+def _sign_labels(config):
+	"""{fieldname: nhãn tiếng Việt} cho Info for Sign.
+
+	Nhãn trùng giữa các Section (Tỉnh / Xã / Chi tiết… của "Địa chỉ thường trú" và
+	"Địa chỉ hiện tại") → ghép tên Section: "Địa chỉ thường trú - Tỉnh".
+	"""
+	from collections import Counter
+
+	items = [
+		(sec["label"], f["fieldname"], _(f["label"], lang="vi"))
+		for sec in config["sections"]
+		for f in sec["fields"]
+		if f["fieldname"] not in ("employee", "name")
+	]
+	dup = Counter(label for _sec, _fn, label in items)
+	return {
+		fn: (f"{_strip_section_no(sec)} - {label}" if dup[label] > 1 else label)
+		for sec, fn, label in items
+	}
+
+
+# Thông tin liên hệ khẩn cấp (field chuẩn Employee) — Info for Sign ghép thành 1 dòng.
+_EMERGENCY_FIELDS = ("person_to_be_contacted", "relation", "emergency_phone_number")
+
+
+def _sign_items(config, wanted):
+	"""Các dòng của Info for Sign theo thứ tự config: [(nhãn, [field], kiểu)].
+
+	- Section có ô tỉnh (widget Address Province) → 1 dòng "address" mang tên Section,
+	  gồm mọi field đã chọn của Section đó;
+	- 3 field liên hệ khẩn cấp → 1 dòng "emergency" ("Liên hệ khẩn cấp"), đặt ở chỗ field đầu tiên;
+	- còn lại mỗi field 1 dòng.
+	`wanted` = set fieldname được chọn, None = tất cả.
+	"""
+	labels = _sign_labels(config)
+	pick = lambda f: f["fieldname"] not in ("employee", "name") and (wanted is None or f["fieldname"] in wanted)
+	emergency = [f for sec in config["sections"] for f in sec["fields"] if pick(f) and f["fieldname"] in _EMERGENCY_FIELDS]
+	items = []
+	for sec in config["sections"]:
+		fs = [f for f in sec["fields"] if pick(f)]
+		if not fs:
+			continue
+		if any(f.get("widget") == "Address Province" for f in sec["fields"]):
+			items.append((_strip_section_no(sec["label"]), fs, "address"))
+			continue
+		for f in fs:
+			if f["fieldname"] in _EMERGENCY_FIELDS:
+				if f is emergency[0]:
+					items.append(("Liên hệ khẩn cấp", emergency, "emergency"))
+				continue
+			items.append((labels[f["fieldname"]], [f], "field"))
+	return items
+
+
+def _sign_join(kind, parts):
+	"""Ghép giá trị của 1 dòng. parts = [(field, giá trị đã định dạng)] theo thứ tự config."""
+	if kind == "address":
+		# Như custom_*_address_full: chi tiết (thôn/số nhà) → xã → tỉnh.
+		rank = {"Address Ward": 1, "Address Province": 2}
+		ordered = sorted(parts, key=lambda p: rank.get(p[0].get("widget"), 0))
+		return ", ".join(v for _f, v in ordered if v)
+	if kind == "emergency":
+		by = {f["fieldname"]: v for f, v in parts}
+		name, rel, phone = by.get("person_to_be_contacted"), by.get("relation"), by.get("emergency_phone_number")
+		head = " ".join(x for x in (name, f"({rel})" if rel else "") if x)
+		return " - ".join(x for x in (head, phone) if x)
+	return parts[0][1] if parts else ""
+
+
+def _sign_value_vi(f, value):
+	"""Giá trị hiển thị tiếng Việt: Select dịch theo bảng vi, Date dd/mm/yyyy, Check Có/Không."""
+	if value in (None, ""):
+		return ""
+	ft = f.get("fieldtype")
+	if ft == "Select":
+		return _(str(value), lang="vi")
+	if ft == "Date":
+		try:
+			return frappe.utils.getdate(value).strftime("%d/%m/%Y")
+		except Exception:
+			return str(value)
+	if ft == "Check":
+		return "Có" if frappe.utils.cint(value) else "Không"
+	return str(value).strip()
+
+
+def _download_info_for_sign(names, fields, only_changed):
+	"""1 sheet "Info for Sign", A4 dọc: STT | Nhân viên (Mã NV xuống dòng Họ tên) | Thông tin | Nội dung | Chữ ký.
+
+	- STT đánh theo NHÂN VIÊN; STT / Nhân viên / Chữ ký gộp ô theo nhân viên.
+	- Địa chỉ mỗi Section 1 dòng dạng đầy đủ; liên hệ khẩn cấp 1 dòng (xem _sign_items).
+
+	- Nội dung LUÔN là thông tin mới (NV khai); mới trống → lấy giá trị Employee hiện tại;
+	  cả hai trống → bỏ dòng.
+	- `fields` = JSON list fieldname (mặc định: tất cả); `only_changed` = chỉ field có giá trị
+	  mới khác Employee.
+	- Mã NV / Họ tên / Chữ ký gộp ô theo nhân viên; cột Chữ ký để trống để ký tay khi in.
+	"""
+	import io
+
+	from openpyxl import Workbook
+	from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+
+	if isinstance(names, str):
+		names = json.loads(names or "null")
+	if isinstance(fields, str):
+		fields = json.loads(fields or "null")
+
+	config = _build_config()
+	wanted = set(fields) if fields else None
+	items = _sign_items(config, wanted)
+	with_remarks = wanted is None or INFO_FOR_SIGN_REMARKS in wanted
+	real = [f["fieldname"] for _l, fs, _k in items for f in fs if not f.get("custom")]
+
+	filters = {"name": ["in", names]} if names else {}
+	records = frappe.get_all(
+		INFO_DT, filters=filters, fields=["name", "employee", "employee_name", "data_json"], order_by="employee asc"
+	)
+
+	people = []  # [(employee, employee_name, [(label, value)])]
+	for rec in records:
+		saved = json.loads(rec.data_json or "{}")
+		old = (frappe.db.get_value("Employee", rec.employee, real, as_dict=True) or {}) if real else {}
+		lines = []
+		for label, fs, kind in items:
+			parts, any_changed = [], False
+			for f in fs:
+				fn = f["fieldname"]
+				new_s = _fmt(saved.get(fn)).strip()
+				old_s = "" if f.get("custom") else _fmt(old.get(fn)).strip()
+				any_changed = any_changed or (fn in saved and new_s != old_s)
+				parts.append((f, _sign_value_vi(f, new_s or old_s)))
+			if only_changed and not any_changed:
+				continue
+			value = _sign_join(kind, parts)
+			if value:
+				lines.append((label, value))
+		remarks = (saved.get(REMARKS_KEY) or "").strip()
+		if with_remarks and remarks:
+			lines.append(("Ghi chú", remarks))
+		if lines:
+			people.append((rec.employee, rec.employee_name or "", lines))
+
+	wb = Workbook()
+	ws = wb.active
+	ws.title = "Info for Sign"
+
+	company = (
+		frappe.defaults.get_global_default("company")
+		or frappe.db.get_single_value("Global Defaults", "default_company")
+		or ""
+	)
+	header = ["STT", "Nhân viên", "Thông tin", "Nội dung", "Chữ ký"]
+	ncol = len(header)
+	thin = Side(style="thin", color="808080")
+	border = Border(left=thin, right=thin, top=thin, bottom=thin)
+	center = Alignment(horizontal="center", vertical="center", wrap_text=True)
+	left = Alignment(horizontal="left", vertical="center", wrap_text=True)
+
+	ws.append([company.upper()])
+	ws.append(["DANH SÁCH XÁC NHẬN THÔNG TIN NHÂN VIÊN"])
+	ws.append([f"Ngày: {frappe.utils.now_datetime().strftime('%d/%m/%Y')}"])
+	for r in (1, 2, 3):
+		ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=ncol)
+		ws.cell(row=r, column=1).alignment = Alignment(horizontal="center")
+	ws.cell(row=1, column=1).font = Font(bold=True, size=11)
+	ws.cell(row=2, column=1).font = Font(bold=True, size=14)
+	ws.cell(row=3, column=1).font = Font(italic=True, size=10)
+
+	head_row = 5
+	for c, h in enumerate(header, 1):
+		cell = ws.cell(row=head_row, column=c, value=h)
+		cell.font = Font(bold=True)
+		cell.alignment = center
+		cell.border = border
+		cell.fill = PatternFill(start_color="DCE6F1", end_color="DCE6F1", fill_type="solid")
+
+	row = head_row + 1
+	for stt, (emp, emp_name, lines) in enumerate(people, 1):
+		first = row
+		for label, value in lines:
+			head = row == first
+			who = f"{emp}\n{emp_name}" if emp_name else emp  # Mã NV xuống dòng Họ tên, chung 1 ô
+			vals = [stt if head else None, who if head else None, label, value, None]
+			for c, v in enumerate(vals, 1):
+				cell = ws.cell(row=row, column=c, value=v)
+				cell.border = border
+				cell.alignment = center if c in (1, 2, 5) else left
+			row += 1
+		last = row - 1
+		for c in (1, 2, 5):  # STT, Nhân viên, Chữ ký gộp theo nhân viên
+			if last > first:
+				ws.merge_cells(start_row=first, start_column=c, end_row=last, end_column=c)
+		if last == first:
+			ws.row_dimensions[first].height = 42  # đủ chỗ ký + 2 dòng Mã NV/Họ tên khi NV chỉ có 1 dòng
+
+	# A4 dọc: tổng ~95 ký tự để vừa 1 trang ngang khi fitToWidth.
+	for col, width in zip("ABCDE", (5, 17, 19, 38, 16)):
+		ws.column_dimensions[col].width = width
+	ws.print_title_rows = f"{head_row}:{head_row}"
+	ws.page_setup.orientation = "portrait"
+	ws.page_setup.paperSize = ws.PAPERSIZE_A4
+	ws.page_setup.fitToWidth = 1
+	ws.page_setup.fitToHeight = 0
+	ws.sheet_properties.pageSetUpPr.fitToPage = True
+	ws.print_options.horizontalCentered = True
+
+	buf = io.BytesIO()
+	wb.save(buf)
+	frappe.response["filename"] = "employee_info_for_sign.xlsx"
+	frappe.response["filecontent"] = buf.getvalue()
+	frappe.response["type"] = "binary"
+
+
+# HR sửa trực tiếp giá trị đã khai ngay trên bảng của form Desk (data_view), rồi lưu bằng
+# nút Save chuẩn: JS ghép vào data_json, controller validate gọi validate_desk_edit().
 _TEXT_EDITABLE_TYPES = {"Data", "Small Text", "Text", "Long Text", "Int", "Float", "Currency", "Phone"}
 _MULTILINE_TYPES = {"Small Text", "Text", "Long Text"}
 
 
-def _is_text_editable(f):
-	"""True if HR can edit this field's value directly on the Desk form."""
-	return (
-		f.get("fieldtype") in _TEXT_EDITABLE_TYPES
-		and f.get("widget") in (None, "", "Auto")
-		and not f.get("read_only")
-	)
+def _hr_editor(f):
+	"""Loại ô HR được sửa trên Desk: text | textarea | select | date | province | ward — hoặc None.
 
-
-@frappe.whitelist()
-def update_submission_values(name, values):
-	"""HR edits text-type submitted values inline on the Desk form.
-
-	Only text-like fields (see _is_text_editable) are written back into
-	`data_json`; Select/Date/Link/address widgets are ignored. Not allowed once
-	the record is Synced. `values` = JSON {fieldname: value}.
+	Field read_only trên trang (NV không được sửa) thì HR cũng không sửa ở đây.
+	Check/Datetime/Time/Link chưa hỗ trợ.
 	"""
-	_require_hr()
-	if isinstance(values, str):
-		values = json.loads(values or "{}")
-	doc = frappe.get_doc(INFO_DT, name)
-	if doc.status == "Synced":
-		frappe.throw(_("Đã đồng bộ — không sửa được. Dùng Edit in Portal nếu cần."))
+	if f.get("read_only"):
+		return None
+	widget = f.get("widget") or "Auto"
+	if widget == "Address Province":
+		return "province"
+	if widget == "Address Ward":
+		return "ward"
+	if widget != "Auto":
+		return None
+	ft = f.get("fieldtype")
+	if ft == "Select" and f.get("options"):
+		return "select"
+	if ft == "Date":
+		return "date"  # data_json lưu ISO yyyy-mm-dd, giống <input type=date> của trang www
+	if ft in _TEXT_EDITABLE_TYPES:
+		return "textarea" if ft in _MULTILINE_TYPES else "text"
+	return None
 
+
+def _address_pairs(config):
+	"""[(province_fieldname, ward_fieldname)] — ghép theo section, giống trang www
+	(mỗi section có 1 field widget Address Province dẫn các field Address Ward)."""
+	pairs = []
+	for sec in config["sections"]:
+		prov = None
+		for f in sec["fields"]:
+			if f.get("widget") == "Address Province":
+				prov = f["fieldname"]
+			elif f.get("widget") == "Address Ward":
+				pairs.append((prov, f["fieldname"]))
+	return pairs
+
+
+# Field trên doc chỉ trang www được ghi (NV ký) — Desk không được đổi.
+_PORTAL_ONLY_FIELDS = ("commitment_confirmed", "signed_on", "signature")
+
+
+def validate_desk_edit(doc):
+	"""Chốt chặn khi data_json / chữ ký bị đổi NGOÀI trang www (form Desk, API, import).
+
+	Gọi từ EmployeeSelfUpdateInfo.validate; save_form_data đặt flags.from_portal để bỏ qua.
+	- chữ ký / cam kết: không ai được sửa ngoài trang www;
+	- data_json: chỉ HR, không khi Synced, chỉ field có _hr_editor, giá trị phải hợp lệ
+	  (Select ∈ options, định dạng như trang www, cặp tỉnh/xã đúng).
+	"""
+	before = doc.get_doc_before_save()
+	if not before:
+		return
+
+	for fn in _PORTAL_ONLY_FIELDS:
+		if doc.has_value_changed(fn):
+			frappe.throw(_("{0} can only be changed on the self-update page.").format(_(doc.meta.get_label(fn))))
+
+	if (before.data_json or "") == (doc.data_json or ""):
+		return
+
+	_require_hr()
+	if before.status == "Synced":
+		frappe.throw(_("Already synced to Employee — submitted data can no longer be edited."))
+
+	old = json.loads(before.data_json or "{}")
+	new = json.loads(doc.data_json or "{}")
 	config = _build_config()
-	editable = {
-		f["fieldname"]
-		for sec in config["sections"]
-		for f in sec["fields"]
-		if _is_text_editable(f)
-	}
-	saved = json.loads(doc.data_json or "{}")
-	changed = 0
-	for k, v in (values or {}).items():
-		if k not in editable:
+	fields = {f["fieldname"]: f for sec in config["sections"] for f in sec["fields"]}
+
+	changed = set()
+	errors = []
+	for k in set(old) | set(new):
+		ov, nv = old.get(k), new.get(k)
+		if ov == nv:
 			continue
-		nv = "" if v is None else str(v).strip()
-		if str(saved.get(k, "")) != nv:
-			saved[k] = nv
-			changed += 1
-	if changed:
-		doc.data_json = json.dumps(saved, ensure_ascii=False)
-		doc.save(ignore_permissions=True)
-		frappe.db.commit()
-	return {"ok": True, "changed": changed}
+		f = fields.get(k)
+		if not f or not _hr_editor(f):
+			frappe.throw(_("Field {0} cannot be edited here.").format(f["label"] if f else k))
+		nv = "" if nv is None else str(nv).strip()
+		new[k] = nv
+		if str(ov or "") == nv:
+			continue
+		changed.add(k)
+		if _hr_editor(f) == "select" and nv and nv not in (f.get("options") or []):
+			errors.append(_("{0}: {1} is not a valid option").format(f["label"], nv))
+			continue
+		if _hr_editor(f) == "date" and nv:
+			try:
+				nv = new[k] = frappe.utils.getdate(nv).isoformat()
+			except Exception:
+				errors.append(_("{0}: {1} is not a valid date").format(f["label"], nv))
+				continue
+		err = _validate_value(f, nv)
+		if err:
+			errors.append(err)
+
+	from customize_erpnext.api.vn_address_search.vn_address_search_api import get_address_error
+
+	for prov, ward in _address_pairs(config):
+		if not ({prov, ward} & changed):
+			continue
+		err = get_address_error(new.get(prov) if prov else "", new.get(ward))
+		if err:
+			errors.append(f"{fields[ward]['label']}: {err}")
+
+	if errors:
+		frappe.throw("<br>".join(errors), title=_("Invalid Data"))
+	doc.data_json = json.dumps(new, ensure_ascii=False)
 
 
 @frappe.whitelist()
@@ -1003,6 +1389,7 @@ def get_submission_view(name):
 	real = [f["fieldname"] for sec in config["sections"] for f in sec["fields"] if not f.get("custom")]
 	emp_vals = frappe.db.get_value("Employee", doc.employee, real, as_dict=True) or {} if real else {}
 
+	prov_of = {ward: prov for prov, ward in _address_pairs(config)}
 	sections = []
 	for sec in config["sections"]:
 		rows = []
@@ -1020,8 +1407,9 @@ def get_submission_view(name):
 				"old": old_s,
 				"changed": (not f.get("custom")) and fn in saved and new_s != old_s,
 				"custom": bool(f.get("custom")),
-				"editable": _is_text_editable(f),
-				"multiline": f.get("fieldtype") in _MULTILINE_TYPES,
+				"editor": _hr_editor(f),
+				"options": f.get("options") if _hr_editor(f) == "select" else None,
+				"province_field": prov_of.get(fn),
 			})
 		if rows:
 			sections.append({"label": sec["label"], "rows": rows})

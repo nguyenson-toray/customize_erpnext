@@ -308,6 +308,28 @@ button:disabled { opacity:.45; cursor:not-allowed; }
 }
 #btn_torch.on { background:#E4A11B; border-color:#E4A11B; color:#1B2733; }
 
+/* ---------- mục đích sử dụng thông tin (đầu form) ---------- */
+.purpose-note {
+  margin-top:14px; padding:12px 14px; border-radius:var(--r);
+  background:var(--indigo-soft); border:1px solid #CBD3E6; color:var(--indigo-deep);
+  font-size:13.5px; font-weight:600; line-height:1.5;
+}
+
+/* ---------- cam kết + chữ ký (cuối form) ---------- */
+.commit-row { display:flex; gap:10px; align-items:flex-start; cursor:pointer; font-size:14px; line-height:1.5; }
+.commit-row input { width:20px; height:20px; flex:0 0 20px; margin-top:2px; accent-color:var(--indigo); }
+.sign-wrap { position:relative; border:1.5px dashed #9AA5B8; border-radius:10px; background:#fff; }
+#sign_pad { display:block; width:100%; height:180px; touch-action:none; cursor:crosshair; }
+.sign-placeholder {
+  position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+  color:#B6BFCC; font-size:15px; pointer-events:none; user-select:none;
+}
+.btn-ghost {
+  margin-top:8px; background:transparent; border:1px solid var(--line); color:var(--muted);
+  border-radius:8px; padding:6px 12px; font-size:13px; cursor:pointer; min-height:0;
+}
+.card.card-error { border-color:#DC2626; animation:fieldErrShake .4s; }
+
 /* ---------- larger screens ---------- */
 @media (min-width:640px) {
   .wrap { padding:22px; }
