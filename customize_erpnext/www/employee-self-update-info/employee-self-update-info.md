@@ -25,9 +25,9 @@ www/employee-self-update-info/
 api/self_update_info/
   self_update_info_api.py   ← Public + HR APIs
 
-api/vn_address/             ← DB địa chỉ VN (xem readme riêng trong thư mục này)
+api/vn_address_search/      ← DB địa chỉ VN + API tỉnh/xã (README.md trong thư mục)
   import_vn_units.py
-  vn_address_api.py
+  vn_address_search_api.py
 
 doctype/employee_self_update_info/            ← Lưu bản submit của từng NV
   employee_self_update_info.json/.py
@@ -226,10 +226,11 @@ _gate_receipt           = token hợp lệ → pass; else _gate_edit
 
 ## Địa chỉ — cascade Tỉnh → Phường/Xã
 
-Dùng DB `vn_address` (2 cấp sau sáp nhập 2025). Xem `api/vn_address/vn_address.md`.
+Dùng DB địa chỉ 2 cấp (sau sáp nhập 2025) qua `api/vn_address_search` (từ 07/10/2026; trước đó `api/vn_address`). Xem `api/vn_address_search/README.md`.
 
-- Field có `widget = Address Province` → select tỉnh (`get_provinces`).
-- Field có `widget = Address Ward` → select phường/xã, **phụ thuộc tỉnh cùng section** (`get_wards(province_code)`).
+- Field có `widget = Address Province` → select tỉnh (`get_province_options`).
+- Field có `widget = Address Ward` → select phường/xã, **phụ thuộc tỉnh cùng section** (`get_ward_options(province)`).
+- API trả `{value, label, code}`; trang đổi về `{code, name}` trong `loadProvinces` / `loadWards`. Field Employee vẫn lưu **tên** (full_name).
 - **Lưu vào Employee field là TÊN đầy đủ** (`full_name`, vd "Phường Ba Đình"), dùng `code` chỉ để cascade nội bộ (option `value=code`, `data-name=full_name`). Tương thích dữ liệu cũ vốn lưu tên.
 - Pre-fill: match tên đã lưu với option theo `data-name`. Nếu tỉnh còn **trống** → tự điền mặc định **"Tỉnh Quảng Ngãi"** (`DEFAULT_PROVINCE`); không tô "đã đổi", nhưng sẽ được lưu khi submit. **Ngoại lệ:** field tỉnh có `auto_fill_data = 0` → **KHÔNG** set mặc định, để trống cho NV tự chọn (kèm ward trống theo).
 
@@ -384,7 +385,7 @@ Thay dropdown bằng ô tìm kiếm:
 - `get_submission_view(name)`: mỗi row có thêm `fieldname` (để dialog Sync ở form view build checkbox).
 
 **Nút (desk, `__()` translatable):**
-- **List view**: `Download Excel` → **dialog**: `All Info` (New Data + Old Data, như cũ) | `Info for Sign` (danh sách in cho NV ký: chọn field — mặc định tất cả, ô "Chỉ thông tin đã thay đổi" mặc định tắt; nội dung luôn là giá trị MỚI, mới trống → lấy Employee; **A4 dọc**, cột: STT | Nhân viên (Mã NV xuống dòng Họ tên) | Thông tin | Nội dung | Chữ ký (trống, ký tay); STT đánh theo NV, STT/Nhân viên/Chữ ký gộp ô theo NV; địa chỉ mỗi Section 1 dòng đầy đủ "thôn, xã, tỉnh"; liên hệ khẩn cấp 1 dòng "Tên (Quan hệ) - SĐT"; nhãn trùng giữa các Section ghi kèm tên Section); `Mark Reviewed` **chỉ khi `disable_review = 0`**; `Sync to Employee` → mở **dialog `MultiCheck` chọn field** (mặc định tick tất cả) + nút "Select all / none" → `sync_to_employee(names, fields)` → dialog kết quả (bảng từng NV ✅/❌).
+- **List view**: `Download Excel` → **dialog**: `All Info` (New Data + Old Data, như cũ) | `Info for Sign` (danh sách in cho NV ký: field lấy theo ô **"Info for Sign"** của từng field trong Setting (mặc định không tick; dialog chỉ liệt kê, không chọn; chưa tick field nào → báo lỗi); luôn in đủ các field đó, không lọc "chỉ thay đổi"; ghi chú NV không xuất; nội dung luôn là giá trị MỚI, mới trống → lấy Employee; **A4 ngang**, cột: STT | Nhân viên (Mã NV xuống dòng Họ tên) | Thông tin | Nội dung | Ghi chú (trống, ghi tay) | Chữ ký (trống, ký tay); STT đánh theo NV, STT/Nhân viên/Ghi chú/Chữ ký gộp ô theo NV; địa chỉ mỗi Section 1 dòng đầy đủ "thôn, xã, tỉnh"; liên hệ khẩn cấp 1 dòng "Tên (Quan hệ) - SĐT"; nhãn trùng giữa các Section ghi kèm tên Section); `Mark Reviewed` **chỉ khi `disable_review = 0`**; `Sync to Employee` → mở **dialog `MultiCheck` chọn field** (mặc định tick tất cả) + nút "Select all / none" → `sync_to_employee(names, fields)` → dialog kết quả (bảng từng NV ✅/❌).
 - **Form view**: `Mark Reviewed` (khi `disable_review=0` & Submitted); `Sync to Employee` (khi `disable_review` ? Submitted/Reviewed : Reviewed) → mở dialog chọn field, **mặc định tick các field "đã đổi"** (kèm giá trị); `Generate PDF` (`download_pdf_for_hr` — cùng phiếu PDF như trang www, kèm cam kết + chữ ký). **`Edit in Portal` đã BỎ (06/10/2026)** — HR sửa trên bảng, CCCD nhập tay.
 
 **HR mở trang www cho 1 NV** (không còn nút, gõ tay URL) = `/employee-self-update-info?emp=<id>`. HR **được mở BẤT KỲ nhân viên nào**, kể cả NV không có trong danh sách Setting (`_ensure_eligible` bỏ qua eligibility cho HR; nhân viên thường vẫn chỉ sửa được nếu có trong danh sách). Trang **vào thẳng** form NV (ẩn ô tìm/chọn khi có `?emp=`; load lỗi → hiện lại ô chọn).

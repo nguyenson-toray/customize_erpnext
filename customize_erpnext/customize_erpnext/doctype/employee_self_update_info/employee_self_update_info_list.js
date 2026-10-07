@@ -153,17 +153,23 @@ function esui_show_result(title, summary, results) {
 
 // Dialog xuất Excel:
 //   All Info      → file cũ (New Data import lại được + Old Data)
-//   Info for Sign → danh sách in cho NV ký: chọn field (mặc định tất cả), tuỳ chọn chỉ field đã đổi.
+//   Info for Sign → danh sách in cho NV ký: field lấy theo ô "Info for Sign" của từng field trong
+//                   Employee Self Update Info Setting (không chọn ở đây); luôn là thông tin mới nhất.
 function _esui_excel_dialog(listview) {
 	const API = "customize_erpnext.api.self_update_info.self_update_info_api";
 	const selected = listview.get_checked_items().map((d) => d.name);
-	frappe.xcall(`${API}.get_info_for_sign_fields`).then((fields) => {
+	frappe.xcall(`${API}.get_info_for_sign_fields`).then((labels) => {
+		const esc = frappe.utils.escape_html;
 		const scope = selected.length
 			? __("{0} selected record(s)", [selected.length])
 			: __("All records");
+		const setting_link = `<a href="/app/employee-self-update-info-setting" target="_blank">${__("Employee Self Update Info Setting")}</a>`;
+		const sign_info = labels.length
+			? `<div class="text-muted small">${__("Information exported (ticked \"Info for Sign\" in {0}):", [setting_link])}</div>
+				<ul style="margin:6px 0 0 18px">${labels.map((l) => `<li>${esc(l)}</li>`).join("")}</ul>`
+			: `<div class="text-danger">${__("No field is ticked \"Info for Sign\" in {0}.", [setting_link])}</div>`;
 		const d = new frappe.ui.Dialog({
 			title: __("Download Excel"),
-			size: "large",
 			fields: [
 				{ fieldtype: "HTML", options: `<div class="text-muted" style="margin-bottom:6px">${scope}</div>` },
 				{
@@ -177,19 +183,9 @@ function _esui_excel_dialog(listview) {
 					default: "All Info",
 				},
 				{
-					fieldtype: "Check",
-					fieldname: "only_changed",
-					label: __("Only changed information"),
-					default: 0,
-					depends_on: "eval:doc.export_type=='Info for Sign'",
-				},
-				{
-					fieldtype: "MultiCheck",
-					fieldname: "fields",
-					label: __("Fields"),
-					options: fields.map((f) => ({ label: f.label, value: f.fieldname, checked: 1 })),
-					columns: 3,
-					select_all: true,
+					fieldtype: "HTML",
+					fieldname: "sign_fields",
+					options: sign_info,
 					depends_on: "eval:doc.export_type=='Info for Sign'",
 				},
 			],
@@ -199,14 +195,9 @@ function _esui_excel_dialog(listview) {
 					names: selected.length ? JSON.stringify(selected) : "",
 					export_type: v.export_type,
 				};
-				if (v.export_type === "Info for Sign") {
-					const picked = v.fields || [];
-					if (!picked.length) {
-						frappe.msgprint(__("Select at least one field."));
-						return;
-					}
-					args.fields = JSON.stringify(picked);
-					args.only_changed = v.only_changed ? 1 : 0;
+				if (v.export_type === "Info for Sign" && !labels.length) {
+					frappe.msgprint(__("No field is ticked \"Info for Sign\" in {0}.", [setting_link]));
+					return;
 				}
 				d.hide();
 				// download_excel trả file nhị phân → POST form để trình duyệt lưu (open_url_post kèm CSRF).

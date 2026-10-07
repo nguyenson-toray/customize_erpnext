@@ -84,7 +84,7 @@ frappe.ui.form.on("Employee Self Update Info Setting", {
 			() => {
 				const COPY = [
 					"employee_fieldname", "label_vi", "section_label", "widget",
-					"required", "read_only", "enable", "is_custom", "custom_fieldtype", "custom_options",
+					"required", "read_only", "enable", "is_custom", "custom_fieldtype", "custom_options", "info_for_sign",
 				];
 				frm.clear_table("selected_fields");
 				preset.forEach((src) => {

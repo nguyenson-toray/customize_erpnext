@@ -28,7 +28,7 @@ TDP Liên Hiệp 1C, Xã Bình An, Tỉnh Gia Lai
 
 ## Quy ước lấy từ mẫu hợp đồng đang dùng
 
-`api/address_converter/address.csv` — 2.398 địa chỉ HR đã dịch tay cho **hợp đồng lao động**. Đây
+`address.csv` (file HR dịch tay, từng để ở `api/address_converter/`, chưa bao giờ commit; thư mục đó đã xoá 07/10/2026 — bộ từ rút ra nằm trong `address_vocabulary.json`) — 2.398 địa chỉ HR đã dịch tay cho **hợp đồng lao động**. Đây
 là văn bản pháp lý, nên bộ từ phải khớp đúng cái HR đang in, không được tự chế.
 
 ⚠ File đó **KHÔNG dùng làm bảng tra 1-1 được**: cột tiếng Anh lệch dòng ở rất nhiều chỗ — dòng
@@ -53,7 +53,13 @@ bịa ra "Residential Area" — từ đó không có trong vốn từ HR đang d
 ### Bảng tiền tố — nằm ở `address_vocabulary.json`, KHÔNG hardcode
 
 Sửa file `overrides/employee/address_vocabulary.json` là đổi được cách dịch: **không cần sửa code,
-không cần `bench restart`**, chỉ `bench clear-cache` (hoặc đợi hết TTL 1 ngày).
+không cần `bench restart`**. Từ vựng + bảng tên tỉnh/xã tiếng Anh nằm trong Redis key `tiqn:addr_en:*` (TTL 1 ngày).
+⚠ `bench clear-cache` **KHÔNG** xoá các key này (chỉ xoá key của Frappe). Muốn áp dụng ngay:
+
+```bash
+bench --site erp.tiqn.local execute frappe.cache.delete_keys --args "['tiqn:addr_en:']"
+```
+(đã kiểm chứng 07/10/2026: xoá đủ 3 key `provinces` / `wards` / `vocab`; lần dịch kế tiếp tự nạp lại.)
 
 Không cần để ý thứ tự các dòng trong file — code tự sắp **cụm dài trước cụm ngắn** lúc nạp, nên
 `tổ dân phố` luôn được xét trước `tổ`. Khoá viết thường không dấu; code bỏ dấu trước khi so nên
@@ -186,6 +192,6 @@ Cả bốn Property Setter (`hidden`, `label`, và `read_only`/`label` của hai
    liên quan **được comment lại chứ không xoá**, tìm bằng `grep 'TẠM TẮT 21/08/2026'`.
 5. **Field không hiện thì kiểm Section Break trước**, đừng kiểm mỗi field (xem mục trên).
 6. **Đổi cách dịch thì sửa `address_vocabulary.json`, đừng sửa code.** Sửa xong nhớ
-   `bench clear-cache` — từ vựng cache 1 ngày.
+   xoá cache `tiqn:addr_en:*` (lệnh ở mục trên) — `bench clear-cache` KHÔNG xoá được, nếu không thì đợi TTL 1 ngày.
 7. Tên tiếng Anh của xã/tỉnh lấy từ `full_name_en` của bảng `provinces`/`wards`, **không** từ
    bảng `admin_unit` trong JSON. Bảng đó chỉ là phương án dự phòng, xem cờ ở trên.

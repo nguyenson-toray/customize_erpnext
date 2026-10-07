@@ -13,7 +13,10 @@ Hai field này là field lõi kiểu Small Text, trước đây bỏ trống ho�
 Ví dụ: `TDP Liên Hiệp 1C, Xã Bình An, Tỉnh Gia Lai` -> `Lien Hiep 1C Group, Binh An Commune,
 Gia Lai Province`.
 
-## Từ vựng lấy từ `api/address_converter/address.csv`
+## Từ vựng lấy từ `address.csv`
+
+(File HR dịch tay, từng để ở `api/address_converter/`, chưa bao giờ commit; thư mục đó đã xoá
+07/10/2026. Bộ từ rút ra nằm trong `address_vocabulary.json`.)
 
 File đó là 2.398 địa chỉ HR đã dịch tay. Cột tiếng Anh của nó **lệch dòng ở nhiều chỗ** (dòng
 `Xã Tây Vinh, huyện Tây Sơn, tỉnh Bình Định` lại ghép với `Lien Hiep 1C Group, Binh An Commune,

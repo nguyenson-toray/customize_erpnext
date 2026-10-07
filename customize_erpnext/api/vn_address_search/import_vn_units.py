@@ -10,7 +10,7 @@ Tables created (plain MySQL tables in the site DB, NOT Frappe DocTypes):
 
 Usage (admin / CLI):
     bench --site <site> execute \
-        customize_erpnext.api.vn_address.import_vn_units.import_vn_units
+        customize_erpnext.api.vn_address_search.import_vn_units.import_vn_units
 """
 
 import os

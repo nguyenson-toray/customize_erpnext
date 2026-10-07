@@ -108,7 +108,7 @@ trong app này.
 ## Hạ tầng, công cụ nội bộ
 
 - `api/site_restriction.md` — Site Restriction Module
-- `api/vn_address/vn_address.md` — VN Address — Cơ sở dữ liệu địa giới hành chính Việt Nam
+- `api/vn_address_search/README.md` — VN Address Search — Dữ liệu tỉnh/xã Việt Nam (import GitHub) + tra cứu, Autocomplete tỉnh/xã
 - `overrides/monkey_patch.md` — Monkey Patch Overrides — Hướng dẫn
 - `workspace_setup.md` — Workspace Setup — thêm link của app vào Workspace HRMS
 

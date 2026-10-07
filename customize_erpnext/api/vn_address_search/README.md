@@ -1,35 +1,36 @@
 # VN Address Search — Tỉnh/Xã dạng Autocomplete (tìm được)
 
-> **Mục đích:** Cho 4 field địa chỉ Tỉnh/Xã trên Employee gõ để tìm (kể cả không dấu) thay cho Select chỉ cuộn chọn.
-> **Phạm vi:** API nội bộ + helper JS
-> **Trạng thái:** 🟢 Đang chạy (triển khai + commit 2026-10-06) · **Cập nhật:** 2026-10-06
+> **Mục đích:** Dữ liệu Tỉnh/Xã Việt Nam (2 cấp, sau sáp nhập 2025) + tra cứu cho mọi form nhập địa chỉ: 4 field Tỉnh/Xã trên Employee (Autocomplete, gõ để tìm kể cả không dấu), bảng sửa của HR trên Employee Self Update Info, trang `/employee-self-update-info`.
+> **Phạm vi:** Import dữ liệu + API nội bộ + helper JS
+> **Trạng thái:** 🟢 Đang chạy · **Cập nhật:** 2026-10-07
 
 Phương án đã chọn: **đổi fieldtype `Select` → `Autocomplete`**, giữ nguyên dữ liệu (lưu tên, không lưu mã).
 Phương án DocType + Link đã cân nhắc và **không chọn** (`.claude/plans/vn_address_doctype.md`).
 
 ---
 
-## 1. Hiện trạng (chưa đụng tới)
+## 1. Bối cảnh (trước 06/10/2026)
 
 | Thành phần | File | Ghi chú |
 |---|---|---|
 | 4 field Select | `fixtures/custom_field.json` | `custom_{current,permanent}_address_{province,commune}`, options rỗng, bơm lúc chạy |
-| Nạp options | `public/js/custom_scripts/employee.js` (`load_province_options`, `load_commune_options_for_type`) | gọi `api/vn_address/vn_address_api` |
+| Nạp options | `public/js/custom_scripts/employee.js` (`load_province_options`, `load_commune_options_for_type`) | gọi `api/vn_address/vn_address_api` (cũ) |
 | Trang self-update | `www/employee-self-update-info/` + `api/self_update_info/self_update_info_api.py` | render theo `widget` Address Province/Ward |
-| Dữ liệu | bảng thô `provinces` (34) / `wards` (3.321) | nạp bởi `api/vn_address/import_vn_units.py` |
+| Dữ liệu | bảng thô `provinces` (34) / `wards` (3.321) | nạp bởi `import_vn_units.py` (07/10/2026 chuyển từ `api/vn_address/` sang thư mục này — mục 8) |
 
 Dữ liệu đã cập nhật từ GitHub ngày 2026-10-06 (upstream `8b78ba5`), user quyết định **giữ**. Bản cũ còn
 ở `bak20261006_provinces` / `bak20261006_wards` — xoá sau khi ổn định.
 
-## 2. File trong thư mục này (MỚI, không file nào đang chạy import tới)
+## 2. File trong thư mục này
 
 ```
 api/vn_address_search/
   __init__.py
+  import_vn_units.py           ← tải SQL từ GitHub, nạp 4 bảng thô (mục 8)
   vn_address_search_api.py     ← API + hàm validate server
   test_vn_address_search.py    ← test READ-ONLY (20 assert)
   README.md                    ← file này
-public/js/vn_address_autocomplete.js   ← helper JS, CHƯA có trong hooks.py
+public/js/vn_address_autocomplete.js   ← helper JS (doctype_js Employee + Employee Self Update Info)
 ```
 
 ### API (`vn_address_search_api.py`)
@@ -42,7 +43,7 @@ public/js/vn_address_autocomplete.js   ← helper JS, CHƯA có trong hooks.py
 | `get_address_error(province, ward)` | (Python) | chuỗi lỗi hoặc `None` |
 | `validate_employee_address(doc, method)` | (Python) | throw nếu địa chỉ **vừa đổi** mà sai |
 
-- `allow_guest=True` cho 3 method whitelisted, giống API cũ (trang self-update phục vụ NV không đăng nhập). Chỉ đọc.
+- `allow_guest=True` cho 3 method whitelisted (trang `/employee-self-update-info` phục vụ NV không đăng nhập — từ 07/10/2026 dùng `get_province_options` / `get_ward_options`, trước đó dùng `api/vn_address/vn_address_api`). Chỉ đọc.
 - Sắp xếp theo **tên ngắn** (`Ba Tơ`), không theo full_name — để `Phường X` và `Xã X` không bị tách thành 2 khối.
 - **Không cache**: 34 / tối đa 168 dòng, query < 1ms; không bao giờ trả dữ liệu cũ sau khi import lại.
 - So khớp tên luôn `COLLATE utf8mb4_bin` (xem bẫy 4.1).
@@ -149,7 +150,7 @@ nhưng file .py đang được import ⇒ **restart**.
 
 ### Bước F — Dọn (sau khi ổn định)
 - Xoá `bak20261006_provinces`, `bak20261006_wards`.
-- Cân nhắc cho `api/vn_address/vn_address_api.py` dùng chung hàm của module này.
+- ✅ 07/10/2026: `import_vn_units.py` chuyển vào đây; trang self-update chuyển sang API này; **đã xoá** `api/address_converter/` (JSON tĩnh 2025, 6 endpoint guest, không còn ai gọi) và cả `api/vn_address/` (`vn_address_api.py` hết nơi gọi). Đây là module tỉnh/xã duy nhất.
 
 ## 6. Test sau khi nối
 
@@ -171,3 +172,51 @@ nhưng file .py đang được import ⇒ **restart**.
 ## 7. Rollback
 4 field về `Select` + revert employee.js / hooks.py / employee_validation.py / self_update_info_api.py.
 Không có dữ liệu nào bị đổi ⇒ không mất gì. Thư mục này có thể xoá nguyên khối.
+
+## 8. Dữ liệu tỉnh/xã — import / cập nhật từ GitHub
+
+**Nguồn:** https://github.com/thanglequoc/vietnamese-provinces-database (thư mục `mysql/`) — 2 cấp Tỉnh → Phường/Xã,
+cập nhật theo từng nghị định. Lưu thành **bảng MySQL thường trong DB site** (không phải DocType):
+
+| Bảng | Cột chính | Số dòng (10/2026) |
+|---|---|---|
+| `provinces` | `code` (PK), `name`, `full_name`, `name_en`, `full_name_en`, `administrative_unit_id` | 34 |
+| `wards` | `code` (PK), `name`, `full_name`, `full_name_en`, `postal_code`, `province_code` (FK) | 3.321 |
+| `administrative_units` | `id` (PK), `full_name`, `short_name`, … | 5 |
+| `administrative_regions` | `id` (PK), `name`, `name_en`, … | 8 |
+
+- **2 cấp**: `wards.province_code` trỏ thẳng `provinces.code` — không có Huyện/Quận.
+- Không có tiền tố `tab` → `bench migrate` không quản lý (chủ ý — dữ liệu tham chiếu).
+- Ngoài module này, `overrides/employee/employee_address.py` (dịch địa chỉ sang tiếng Anh cho hợp đồng) đọc thẳng 2 bảng.
+
+### Import / cập nhật (idempotent)
+
+```bash
+bench --site erp.tiqn.local execute \
+  customize_erpnext.api.vn_address_search.import_vn_units.import_vn_units
+```
+
+1. Tải `mysql_CreateTables_vn_units.sql` + `mysql_ImportData_vn_units.sql` từ GitHub.
+2. Gói thành 1 script: `SET FOREIGN_KEY_CHECKS=0` → **DROP** 4 bảng → CREATE → INSERT → `SET FOREIGN_KEY_CHECKS=1`.
+3. Nạp qua client `mariadb`/`mysql` (pipe stdin, giữ multi-row INSERT + UTF-8), credential từ `frappe.conf` (`MYSQL_PWD`).
+4. `frappe.clear_cache()`; in số liệu (`Imported VN address data: 34 provinces, 3321 wards`). API module này không cache nên có dữ liệu mới ngay.
+
+Quyền: Administrator / System Manager. ⚠ Lệnh **DROP bảng** — chạy lúc ít người dùng, và nên sao lưu trước
+(`CREATE TABLE bak<yyyymmdd>_wards AS SELECT * FROM wards`) để còn so sánh / khôi phục.
+
+**Khi nghị định mới đổi tỉnh/xã** → chỉ chạy lại lệnh trên. Lần gần nhất **06/10/2026** (upstream `8b78ba5`): 14 xã +
+4 tỉnh đổi tên (`Tỉnh Quảng Ninh` / `Tỉnh Bắc Ninh` → `Thành phố …`), `Xã Ba Chẽ` **đổi mã** 06978 → 06970, thêm cột
+`postal_code`. ⚠ Mã CÓ THỂ đổi giữa các lần cập nhật. Employee lưu **tên** nên không vỡ, nhưng hồ sơ cũ giữ tên cũ
+(validate chỉ chặn khi địa chỉ bị sửa).
+
+**Nếu tác giả đổi cấu trúc bảng** (đổi cột, quay lại 3 cấp) → sửa câu SELECT trong `vn_address_search_api.py` và
+`overrides/employee/employee_address.py`. Kiểm tra: `bench --site erp.tiqn.local mariadb -e "DESCRIBE provinces; DESCRIBE wards;"`
+
+### Xử lý sự cố
+
+| Triệu chứng | Nguyên nhân / cách xử lý |
+|---|---|
+| `Address data not imported yet` | Chưa chạy `import_vn_units` |
+| `VN address import failed: ...` | Lỗi client mariadb (credential/charset) — đọc stderr in kèm |
+| Dịch tiếng Anh vẫn ra tên cũ sau import | Cache `tiqn:addr_en:*` của `employee_address.py` (TTL 24h). ⚠ `clear-cache` / `frappe.clear_cache()` **KHÔNG** xoá key này (chỉ xoá key của Frappe) — đợi hết 24h hoặc `bench --site erp.tiqn.local execute frappe.cache.delete_keys --args "['tiqn:addr_en:']"` |
+| `Failed to get method for command` | Đổi method Python nhưng chưa `bench restart` |

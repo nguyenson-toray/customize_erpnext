@@ -4,7 +4,7 @@
 
 """Danh sách Tỉnh/Xã cho field **Autocomplete** + kiểm tra cặp (tỉnh, xã).
 
-Đọc cùng 2 bảng thô `provinces` / `wards` mà `api/vn_address/import_vn_units.py` nạp từ GitHub.
+Đọc 2 bảng thô `provinces` / `wards` do `import_vn_units.py` (cùng thư mục) nạp từ GitHub.
 Plan + bẫy: README.md cùng thư mục.
 
 ## 🔴 So khớp tên PHẢI là `COLLATE utf8mb4_bin`

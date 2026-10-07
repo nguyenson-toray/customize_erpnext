@@ -35,11 +35,6 @@ COMMITMENT_TEXT = (
 	"Tôi cam kết các thông tin đã khai ở trên là đúng sự thật và chịu trách nhiệm "
 	"về thông tin đã cung cấp."
 )
-# Thông báo đầu trang www.
-PURPOSE_TEXT = (
-	"Các thông tin này sẽ được sử dụng và xử lý vào việc làm hồ sơ nhân sự, "
-	"thủ tục hành chính, hợp đồng lao động."
-)
 
 
 def _submit_device_info():
@@ -140,6 +135,8 @@ def _build_config():
 				"widget": "Auto",
 				"custom": True,
 				"auto_fill": bool(row.auto_fill_data),
+				# Tick "Info for Sign" trong Setting → field có trong Excel Info for Sign.
+				"info_for_sign": bool(row.get("info_for_sign")),
 				**_validation_meta(row),
 			}
 		else:
@@ -173,6 +170,8 @@ def _build_config():
 				"widget": row.widget or "Auto",
 				"custom": False,
 				"auto_fill": bool(row.auto_fill_data),
+				# Tick "Info for Sign" trong Setting → field có trong Excel Info for Sign.
+				"info_for_sign": bool(row.get("info_for_sign")),
 				**_validation_meta(row),
 			}
 
@@ -419,7 +418,6 @@ def get_field_config():
 	# unlock code (bypass_code_for_unlock) is NEVER sent to the client.
 	config["lock_after_submit"] = bool(setting.get("lock_after_submit"))
 	config["commitment_text"] = COMMITMENT_TEXT
-	config["purpose_text"] = PURPOSE_TEXT
 	return config
 
 
@@ -919,7 +917,7 @@ def _build_submission_html(doc, saved, config):
 # ---------------------------------------------------------------------------
 
 @frappe.whitelist()
-def download_excel(names=None, export_type="All Info", fields=None, only_changed=0):
+def download_excel(names=None, export_type="All Info"):
 	"""Export submissions to xlsx with two sheets — "New Data" (values submitted
 	by employees) and "Old Data" (current Employee values).
 
@@ -936,7 +934,7 @@ def download_excel(names=None, export_type="All Info", fields=None, only_changed
 	"""
 	_require_hr()
 	if export_type == "Info for Sign":
-		return _download_info_for_sign(names, fields, frappe.utils.cint(only_changed))
+		return _download_info_for_sign(names)
 	import io
 
 	from openpyxl import Workbook
@@ -1022,23 +1020,21 @@ def _fmt(value):
 # Excel "Info for Sign" — danh sách in ra cho NV ký xác nhận
 # ---------------------------------------------------------------------------
 
-INFO_FOR_SIGN_REMARKS = "__remarks"  # mục "Ghi chú" trong danh sách field của dialog
+def _info_for_sign_wanted(config):
+	"""Fieldname được tick "Info for Sign" trong Setting (selected_fields)."""
+	return {f["fieldname"] for sec in config["sections"] for f in sec["fields"] if f.get("info_for_sign")}
 
 
 @frappe.whitelist()
 def get_info_for_sign_fields():
-	"""Field cho dialog Excel: [{fieldname, label}] theo thứ tự config + mục Ghi chú."""
+	"""Các dòng sẽ có trong Info for Sign (để dialog Excel hiện cho HR biết): [nhãn].
+
+	Theo cờ "Info for Sign" của từng field trong Setting; địa chỉ / liên hệ khẩn cấp đã gộp.
+	"""
 	_require_hr()
 	config = _build_config()
-	labels = _sign_labels(config)
-	out = [
-		{"fieldname": f["fieldname"], "label": labels[f["fieldname"]]}
-		for sec in config["sections"]
-		for f in sec["fields"]
-		if f["fieldname"] not in ("employee", "name")
-	]
-	out.append({"fieldname": INFO_FOR_SIGN_REMARKS, "label": "Ghi chú"})
-	return out
+	wanted = _info_for_sign_wanted(config)
+	return [label for label, _fs, _k in _sign_items(config, wanted)] if wanted else []
 
 
 def _sign_labels(config):
@@ -1127,16 +1123,16 @@ def _sign_value_vi(f, value):
 	return str(value).strip()
 
 
-def _download_info_for_sign(names, fields, only_changed):
-	"""1 sheet "Info for Sign", A4 dọc: STT | Nhân viên (Mã NV xuống dòng Họ tên) | Thông tin | Nội dung | Chữ ký.
+def _download_info_for_sign(names):
+	"""1 sheet "Info for Sign", A4 ngang: STT | Nhân viên (Mã NV xuống dòng Họ tên) | Thông tin | Nội dung | Ghi chú | Chữ ký.
 
 	- STT đánh theo NHÂN VIÊN; STT / Nhân viên / Chữ ký gộp ô theo nhân viên.
 	- Địa chỉ mỗi Section 1 dòng dạng đầy đủ; liên hệ khẩn cấp 1 dòng (xem _sign_items).
 
 	- Nội dung LUÔN là thông tin mới (NV khai); mới trống → lấy giá trị Employee hiện tại;
 	  cả hai trống → bỏ dòng.
-	- `fields` = JSON list fieldname (mặc định: tất cả); `only_changed` = chỉ field có giá trị
-	  mới khác Employee.
+	- Chỉ các field được tick "Info for Sign" trong Setting (NV chỉ ký xác nhận một số thông tin),
+	  LUÔN đủ các field đó (không lọc "chỉ thay đổi"). Ghi chú NV không xuất.
 	- Mã NV / Họ tên / Chữ ký gộp ô theo nhân viên; cột Chữ ký để trống để ký tay khi in.
 	"""
 	import io
@@ -1146,13 +1142,15 @@ def _download_info_for_sign(names, fields, only_changed):
 
 	if isinstance(names, str):
 		names = json.loads(names or "null")
-	if isinstance(fields, str):
-		fields = json.loads(fields or "null")
 
 	config = _build_config()
-	wanted = set(fields) if fields else None
+	wanted = _info_for_sign_wanted(config)
+	if not wanted:
+		frappe.throw(
+			_("No field is ticked \"Info for Sign\" in Employee Self Update Info Setting."),
+			title=_("Info for Sign"),
+		)
 	items = _sign_items(config, wanted)
-	with_remarks = wanted is None or INFO_FOR_SIGN_REMARKS in wanted
 	real = [f["fieldname"] for _l, fs, _k in items for f in fs if not f.get("custom")]
 
 	filters = {"name": ["in", names]} if names else {}
@@ -1166,21 +1164,15 @@ def _download_info_for_sign(names, fields, only_changed):
 		old = (frappe.db.get_value("Employee", rec.employee, real, as_dict=True) or {}) if real else {}
 		lines = []
 		for label, fs, kind in items:
-			parts, any_changed = [], False
+			parts = []
 			for f in fs:
 				fn = f["fieldname"]
 				new_s = _fmt(saved.get(fn)).strip()
 				old_s = "" if f.get("custom") else _fmt(old.get(fn)).strip()
-				any_changed = any_changed or (fn in saved and new_s != old_s)
 				parts.append((f, _sign_value_vi(f, new_s or old_s)))
-			if only_changed and not any_changed:
-				continue
 			value = _sign_join(kind, parts)
 			if value:
 				lines.append((label, value))
-		remarks = (saved.get(REMARKS_KEY) or "").strip()
-		if with_remarks and remarks:
-			lines.append(("Ghi chú", remarks))
 		if lines:
 			people.append((rec.employee, rec.employee_name or "", lines))
 
@@ -1193,7 +1185,7 @@ def _download_info_for_sign(names, fields, only_changed):
 		or frappe.db.get_single_value("Global Defaults", "default_company")
 		or ""
 	)
-	header = ["STT", "Nhân viên", "Thông tin", "Nội dung", "Chữ ký"]
+	header = ["STT", "Nhân viên", "Thông tin", "Nội dung", "Ghi chú", "Chữ ký"]
 	ncol = len(header)
 	thin = Side(style="thin", color="808080")
 	border = Border(left=thin, right=thin, top=thin, bottom=thin)
@@ -1224,24 +1216,25 @@ def _download_info_for_sign(names, fields, only_changed):
 		for label, value in lines:
 			head = row == first
 			who = f"{emp}\n{emp_name}" if emp_name else emp  # Mã NV xuống dòng Họ tên, chung 1 ô
-			vals = [stt if head else None, who if head else None, label, value, None]
+			# Ghi chú (cột 5) + Chữ ký (cột 6) để trống cho ghi tay / ký tay, gộp theo nhân viên.
+			vals = [stt if head else None, who if head else None, label, value, None, None]
 			for c, v in enumerate(vals, 1):
 				cell = ws.cell(row=row, column=c, value=v)
 				cell.border = border
-				cell.alignment = center if c in (1, 2, 5) else left
+				cell.alignment = left if c in (3, 4, 5) else center
 			row += 1
 		last = row - 1
-		for c in (1, 2, 5):  # STT, Nhân viên, Chữ ký gộp theo nhân viên
+		for c in (1, 2, 5, 6):  # STT, Nhân viên, Ghi chú, Chữ ký gộp theo nhân viên
 			if last > first:
 				ws.merge_cells(start_row=first, start_column=c, end_row=last, end_column=c)
 		if last == first:
 			ws.row_dimensions[first].height = 42  # đủ chỗ ký + 2 dòng Mã NV/Họ tên khi NV chỉ có 1 dòng
 
-	# A4 dọc: tổng ~95 ký tự để vừa 1 trang ngang khi fitToWidth.
-	for col, width in zip("ABCDE", (5, 17, 19, 38, 16)):
+	# A4 ngang: tổng ~140 ký tự để vừa 1 trang khi fitToWidth; cột Nội dung rộng cho địa chỉ đầy đủ.
+	for col, width in zip("ABCDEF", (5, 20, 24, 56, 24, 22)):
 		ws.column_dimensions[col].width = width
 	ws.print_title_rows = f"{head_row}:{head_row}"
-	ws.page_setup.orientation = "portrait"
+	ws.page_setup.orientation = "landscape"
 	ws.page_setup.paperSize = ws.PAPERSIZE_A4
 	ws.page_setup.fitToWidth = 1
 	ws.page_setup.fitToHeight = 0

@@ -45,24 +45,43 @@ def run():
 	config = api._build_config()
 	fields = {f["fieldname"]: f for s in config["sections"] for f in s["fields"]}
 
-	# ---------- dialog field list ----------
-	fl = api.get_info_for_sign_fields()
-	check("dialog: có mục Ghi chú cuối", fl[-1]["fieldname"] == api.INFO_FOR_SIGN_REMARKS, fl[-1])
-	check("dialog: đủ field config", len(fl) - 1 == len([f for f in fields if f not in ("employee", "name")]), len(fl))
+	# Cờ "Info for Sign" giả lập TRONG BỘ NHỚ (không ghi Setting): bọc _build_config.
+	real_build = api._build_config
+	flagged = {"value": None}  # None = tick tất cả; set = chỉ các field này
+
+	def fake_build():
+		cfg = real_build()
+		for sec in cfg["sections"]:
+			for f in sec["fields"]:
+				f["info_for_sign"] = flagged["value"] is None or f["fieldname"] in flagged["value"]
+		return cfg
+
+	# ---------- chưa tick field nào → báo lỗi, dialog rỗng ----------
+	flagged["value"] = set()
+	api._build_config = fake_build
+	try:
+		check("flag: chưa tick → dialog rỗng", api.get_info_for_sign_fields() == [])
+		check("flag: chưa tick → xuất báo lỗi", _expect_throw(lambda: api._download_info_for_sign("[]")))
+		flagged["value"] = None
+		fl = api.get_info_for_sign_fields()
+		check("dialog: liệt kê dòng gộp (địa chỉ/khẩn cấp)", "Liên hệ khẩn cấp" in fl and "Địa chỉ hiện tại" in fl, fl)
+	finally:
+		api._build_config = real_build
 
 	# ---------- Info for Sign ----------
 	recs = frappe.get_all(DT, filters={"status": "Submitted"}, fields=["name", "data_json"], limit=3, order_by="name")
 	names = [r.name for r in recs]
 
-	api._download_info_for_sign(json.dumps(names), None, 0)
+	api._build_config = fake_build  # tick tất cả cho các kiểm tra layout bên dưới
+	api._download_info_for_sign(json.dumps(names))
 	wb, ws, rows = _read_sheet()
 	check("sign: 1 sheet tên Info for Sign", wb.sheetnames == ["Info for Sign"], wb.sheetnames)
 	check(
 		"sign: tiêu đề cột tiếng Việt",
-		[c.value for c in ws[5]] == ["STT", "Nhân viên", "Thông tin", "Nội dung", "Chữ ký"],
+		[c.value for c in ws[5]] == ["STT", "Nhân viên", "Thông tin", "Nội dung", "Ghi chú", "Chữ ký"],
 	)
-	check("sign: cột Chữ ký luôn trống", all(r[4] in (None, "") for r in rows))
-	check("sign: A4 dọc", ws.page_setup.orientation == "portrait")
+	check("sign: cột Ghi chú + Chữ ký luôn trống", all(r[4] in (None, "") and r[5] in (None, "") for r in rows))
+	check("sign: A4 ngang", ws.page_setup.orientation == "landscape" and str(ws.page_setup.paperSize) == str(ws.PAPERSIZE_A4), (ws.page_setup.orientation, repr(ws.page_setup.paperSize)))
 	first_who = next(r[1] for r in rows if r[1])
 	check("sign: ô Nhân viên = Mã NV xuống dòng Họ tên", "\n" in first_who and first_who.split("\n")[0].startswith(("TIQN", "TT")), first_who)
 	stts = [r[0] for r in rows if r[0] is not None]
@@ -73,9 +92,11 @@ def run():
 	merged = [str(m) for m in ws.merged_cells.ranges]
 	check("sign: có gộp ô Nhân viên", any(m.startswith("B") for m in merged), merged[:5])
 	b_ranges = sorted(m.replace("B", "") for m in merged if m.startswith("B"))
-	a_ranges = sorted(m.replace("A", "") for m in merged if m.startswith("A") and ":E" not in m)
+	a_ranges = sorted(m.replace("A", "") for m in merged if m.startswith("A") and ":F" not in m)
+	f_ranges = sorted(m.replace("F", "") for m in merged if m.startswith("F"))
+	check("sign: Chữ ký gộp ô đúng như Nhân viên", f_ranges == sorted(m.replace("B", "") for m in merged if m.startswith("B")))
 	e_ranges = sorted(m.replace("E", "") for m in merged if m.startswith("E"))
-	check("sign: Chữ ký gộp ô đúng như Nhân viên", e_ranges == sorted(m.replace("B", "") for m in merged if m.startswith("B")))
+	check("sign: Ghi chú gộp ô đúng như Nhân viên", e_ranges == f_ranges, e_ranges)
 	check("sign: STT gộp ô đúng như Mã NV", a_ranges == b_ranges, (a_ranges, b_ranges))
 	sl = api._sign_labels(config)
 	check("sign: nhãn không trùng", len(set(sl.values())) == len(sl))
@@ -124,18 +145,19 @@ def run():
 	expected.pop("Ghi chú", None); got.pop("Ghi chú", None)
 	check("sign: nội dung = mới, trống thì cũ", got == expected, f"{len(got)} dòng của {r0.employee}")
 
-	# chọn bớt field
+	# chỉ các field được tick
 	pick = [f for f in fields if f not in ("employee", "name")][:2]
-	api._download_info_for_sign(json.dumps(names), json.dumps(pick), 0)
+	flagged["value"] = set(pick)
+	api._download_info_for_sign(json.dumps(names))
 	_, _, rows2 = _read_sheet()
 	labels2 = {r[2] for r in rows2}
 	allowed = {l for l, _f, _k in api._sign_items(config, set(pick))}
-	check("sign: chỉ field đã chọn", labels2 <= allowed, labels2)
+	check("sign: chỉ field được tick", labels2 and labels2 <= allowed, labels2)
+	check("sign: không còn dòng Ghi chú", "Ghi chú" not in labels2)
 
-	# chỉ thay đổi ⊆ tất cả
-	api._download_info_for_sign(json.dumps(names), None, 1)
-	_, _, rows3 = _read_sheet()
-	check("sign: chỉ thay đổi ≤ tất cả", len(rows3) <= len(rows), (len(rows3), len(rows)))
+	import inspect
+	check("sign: không còn tuỳ chọn chỉ thay đổi", "only_changed" not in inspect.signature(api.download_excel).parameters)
+	api._build_config = real_build
 
 	# All Info không đổi
 	api.download_excel(json.dumps(names))
@@ -252,7 +274,9 @@ def run():
 		(frappe.response["filename"], len(frappe.response["filecontent"])))
 
 	cfg = api.get_field_config()
-	check("config: có commitment_text + purpose_text", cfg.get("commitment_text") and cfg.get("purpose_text"))
+	check("config: có commitment_text", bool(cfg.get("commitment_text")))
+	check("config: không còn purpose_text (thông báo đầu trang lấy từ index.html)", "purpose_text" not in cfg)
+	check("config: field mang cờ info_for_sign", all("info_for_sign" in f for s in cfg["sections"] for f in s["fields"]))
 
 	frappe.db.rollback()
 	failed = [r for r in results if not r[0]]
