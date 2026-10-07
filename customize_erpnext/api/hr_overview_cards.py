@@ -22,7 +22,12 @@ def maternity_leave(filters=None):
 		"value": len(maternity_leave_employees()),
 		"fieldtype": "Int",
 		"route": ["query-report", "Employee Maternity Report"],
-		"route_options": {"maternity_type": "Maternity Leave"},
+		# Report viết lại 07/10/2026: lọc theo khoảng ngày → hôm nay = From = To.
+		"route_options": {
+			"from_date": frappe.utils.nowdate(),
+			"to_date": frappe.utils.nowdate(),
+			"show": "Maternity Leave",
+		},
 	}
 
 

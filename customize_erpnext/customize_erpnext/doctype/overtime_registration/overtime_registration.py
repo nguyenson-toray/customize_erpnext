@@ -662,12 +662,14 @@ def times_overlap(from1, to1, from2, to2):
 def check_maternity_benefit(employee, date):
     """Check if employee has maternity benefit on given date.
     Returns: (has_benefit, benefit_type_vi, from_date, to_date)
-    Delegates benefit logic to check_employee_maternity_status (employee_utils).
+    Delegates benefit logic to get_employee_maternity_phase (employee_utils).
     Fetches date ranges only when a benefit is confirmed.
     """
-    from customize_erpnext.api.employee.employee_utils import check_employee_maternity_status
+    from customize_erpnext.api.employee.employee_utils import get_employee_maternity_phase
 
-    status, has_benefit = check_employee_maternity_status(employee, date)
+    # Lấy khoảng ngày từ ĐÚNG hồ sơ đang phủ `date` — trước 07/10/2026 là
+    # get_value({"employee": ...}) lấy đại 1 hồ sơ, NV có 2 chu kỳ hiện sai ngày.
+    status, has_benefit, em = get_employee_maternity_phase(employee, date)
     if not has_benefit:
         return False, None, None, None
 
@@ -677,16 +679,6 @@ def check_maternity_benefit(employee, date):
         "Pregnant": "Mang thai",
     }
     vi_label = label_map.get(status)
-
-    em = frappe.db.get_value(
-        "Employee Maternity", {"employee": employee},
-        ["maternity_from_date", "maternity_to_date",
-         "youg_child_from_date", "youg_child_to_date",
-         "pregnant_from_date", "pregnant_to_date", "estimated_due_date"],
-        as_dict=True
-    )
-    if not em:
-        return True, vi_label, None, None
 
     if status == "Maternity Leave":
         return True, vi_label, em.maternity_from_date, em.maternity_to_date

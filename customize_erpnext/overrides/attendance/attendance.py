@@ -50,7 +50,9 @@ def get_attendance_custom_additional_info(employee, attendance_date):
 	# only duplicated the same sentence on the form, and with a weaker condition
 	# (strictly after the relieving date, so the relieving day itself was missed).
 
-	# Get maternity record (cấu trúc mới: 1 record/employee, 3 cặp ngày riêng)
+	# Mọi hồ sơ của NV (1 hồ sơ = 1 chu kỳ thai sản; con thứ 2 = hồ sơ thứ 2). Trước
+	# 07/10/2026 là `LIMIT 1` không ORDER BY → NV có 2 chu kỳ (19 NV lúc đó) có thể
+	# đọc nhầm hồ sơ cũ và mất ghi chú thai sản. Mỗi hồ sơ tự kiểm khoảng ngày của nó.
 	em = frappe.db.sql("""
 		SELECT
 			pregnant_from_date, pregnant_to_date, estimated_due_date,
@@ -59,14 +61,13 @@ def get_attendance_custom_additional_info(employee, attendance_date):
 			apply_hour_reduction
 		FROM `tabEmployee Maternity`
 		WHERE employee = %(employee)s
-		LIMIT 1
+		ORDER BY pregnant_from_date, creation
 	""", {"employee": employee}, as_dict=1)
 
 	maternity_records = []  # dùng để kiểm tra có maternity không (cho note cuối)
+	check_date = frappe.utils.getdate(attendance_date)
 
-	if em:
-		rec = em[0]
-		check_date = frappe.utils.getdate(attendance_date)
+	for rec in em:
 
 		def _fmt(d):
 			return frappe.utils.formatdate(d, "dd/mm/yyyy") if d else "?"

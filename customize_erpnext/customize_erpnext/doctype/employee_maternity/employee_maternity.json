@@ -3,7 +3,6 @@
  "allow_bulk_edit": 1,
  "allow_import": 1,
  "allow_rename": 1,
- "autoname": "",
  "creation": "2026-02-06 16:11:17.468992",
  "default_view": "List",
  "doctype": "DocType",
@@ -15,19 +14,23 @@
   "group",
   "column_break_halv",
   "designation",
+  "child_order",
+  "is_twins",
   "column_break_qrtt",
   "status",
   "note",
   "section_maternity",
   "apply_hour_reduction",
   "pregnant_from_date",
+  "pregnancy_notified_date",
   "pregnant_to_date",
   "estimated_due_date",
+  "is_miscarriage",
   "gestational_age",
   "seniority",
   "column_break_ytbx",
   "maternity_from_date",
-  "maternity_from_date_estimate",
+  "leave_months",
   "maternity_to_date",
   "date_of_birth",
   "column_break_zgfm",
@@ -45,6 +48,23 @@
    "reqd": 1
   },
   {
+   "fetch_from": "employee.employee_name",
+   "fetch_if_empty": 1,
+   "fieldname": "full_name",
+   "fieldtype": "Data",
+   "in_filter": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Full Name",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "employee.date_of_joining",
+   "fieldname": "date_of_joining",
+   "fieldtype": "Date",
+   "label": "Date of Joining"
+  },
+  {
    "fetch_from": "employee.custom_group",
    "fieldname": "group",
    "fieldtype": "Data",
@@ -54,10 +74,8 @@
    "label": "Group"
   },
   {
-   "fetch_from": "employee.date_of_joining",
-   "fieldname": "date_of_joining",
-   "fieldtype": "Date",
-   "label": "Date of Joining"
+   "fieldname": "column_break_halv",
+   "fieldtype": "Column Break"
   },
   {
    "fetch_from": "employee.designation",
@@ -68,88 +86,18 @@
    "label": "Designation"
   },
   {
-   "fieldname": "column_break_halv",
-   "fieldtype": "Column Break"
-  },
-  {
-   "default": "1",
-   "fieldname": "apply_hour_reduction",
-   "fieldtype": "Check",
-   "in_list_view": 1,
-   "label": "Apply Hour Reduction"
-  },
-  {
-   "fieldname": "note",
-   "fieldtype": "Small Text",
-   "label": "Note"
-  },
-  {
-   "fieldname": "pregnant_from_date",
-   "fieldtype": "Date",
-   "label": "Pregnant From Date"
-  },
-  {
-   "fieldname": "pregnant_to_date",
-   "fieldtype": "Date",
-   "label": "Pregnant To Date"
-  },
-  {
-   "fieldname": "estimated_due_date",
-   "fieldtype": "Date",
-   "label": "Estimated Due Date"
-  },
-  {
-   "description": "Months from Date of Joining to today",
-   "fieldname": "seniority",
+   "description": "1 = first child, 2 = second child, ...",
+   "fieldname": "child_order",
    "fieldtype": "Int",
-   "label": "Seniority",
-   "read_only": 1
+   "label": "Child Number",
+   "non_negative": 1
   },
   {
-   "depends_on": "eval:doc.status==\"Pregnant\"",
-   "description": "Months",
-   "fieldname": "gestational_age",
-   "fieldtype": "Data",
-   "label": "Gestational Age",
-   "read_only": 1
-  },
-  {
-   "fieldname": "section_maternity",
-   "fieldtype": "Section Break"
-  },
-  {
-   "fieldname": "maternity_from_date",
-   "fieldtype": "Date",
-   "label": "Maternity From Date"
-  },
-  {
-   "fieldname": "maternity_to_date",
-   "fieldtype": "Date",
-   "label": "Maternity To Date"
-  },
-  {
-   "fieldname": "column_break_ytbx",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "youg_child_from_date",
-   "fieldtype": "Date",
-   "label": "Young Child From Date"
-  },
-  {
-   "fieldname": "youg_child_to_date",
-   "fieldtype": "Date",
-   "label": "Young Child To Date",
-   "read_only": 1
-  },
-  {
-   "fieldname": "date_of_birth",
-   "fieldtype": "Date",
-   "label": "Date of Birth"
-  },
-  {
-   "fieldname": "column_break_zgfm",
-   "fieldtype": "Column Break"
+   "default": "0",
+   "description": "Twins add 1 month to Leave Months.",
+   "fieldname": "is_twins",
+   "fieldtype": "Check",
+   "label": "Twins"
   },
   {
    "fieldname": "column_break_qrtt",
@@ -166,26 +114,122 @@
    "read_only": 1
   },
   {
-   "fieldname": "maternity_from_date_estimate",
-   "fieldtype": "Date",
-   "label": "Maternity From Date Estimate"
+   "fieldname": "note",
+   "fieldtype": "Small Text",
+   "label": "Note"
   },
   {
-   "fetch_from": "employee.employee_name",
-   "fetch_if_empty": 1,
-   "fieldname": "full_name",
-   "fieldtype": "Data",
-   "in_filter": 1,
+   "fieldname": "section_maternity",
+   "fieldtype": "Section Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "apply_hour_reduction",
+   "fieldtype": "Check",
    "in_list_view": 1,
-   "in_standard_filter": 1,
-   "label": "Full Name",
+   "label": "Apply Hour Reduction"
+  },
+  {
+   "fieldname": "pregnant_from_date",
+   "fieldtype": "Date",
+   "label": "Pregnant From Date",
+   "reqd": 1
+  },
+  {
+   "description": "Date HR received the pregnancy information",
+   "fieldname": "pregnancy_notified_date",
+   "fieldtype": "Date",
+   "label": "Pregnancy Notified Date"
+  },
+  {
+   "description": "Required. Empty → copied from Estimated Due Date. Entering Maternity From Date sets this to the day before.",
+   "fieldname": "pregnant_to_date",
+   "fieldtype": "Date",
+   "label": "Pregnant To Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "estimated_due_date",
+   "fieldtype": "Date",
+   "label": "Estimated Due Date"
+  },
+  {
+   "fieldname": "is_miscarriage",
+   "fieldtype": "Check",
+   "label": "Miscarriage",
+   "default": "0",
+   "description": "Tick to enter the miscarriage date: it becomes Pregnant To Date, later phases are cleared and a line is added to Note."
+  },
+  {
+   "depends_on": "eval:doc.status==\"Pregnant\"",
+   "description": "Months",
+   "fieldname": "gestational_age",
+   "fieldtype": "Data",
+   "label": "Gestational Age",
+   "read_only": 1
+  },
+  {
+   "description": "Months from Date of Joining to today",
+   "fieldname": "seniority",
+   "fieldtype": "Int",
+   "label": "Seniority",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_ytbx",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "= Pregnant To Date + 1. Enter the official leave start here when known — Pregnant To Date moves to the day before. Miscarriage / no birth: clear this field and write it in Note — later phases are not calculated.",
+   "fieldname": "maternity_from_date",
+   "fieldtype": "Date",
+   "label": "Maternity From Date",
+   "read_only_depends_on": "eval:doc.is_miscarriage"
+  },
+  {
+   "default": "6",
+   "description": "Default 6 months; 2nd child +1; twins +1 (2nd child twins = 8). Recalculated when Child Number or Twins changes; can be edited manually.",
+   "fieldname": "leave_months",
+   "fieldtype": "Int",
+   "label": "Leave Months",
+   "non_negative": 1,
+   "reqd": 1,
+   "read_only_depends_on": "eval:doc.is_miscarriage"
+  },
+  {
+   "description": "= Maternity From Date + Leave Months - 1 day",
+   "fieldname": "maternity_to_date",
+   "fieldtype": "Date",
+   "label": "Maternity To Date"
+  },
+  {
+   "fieldname": "date_of_birth",
+   "fieldtype": "Date",
+   "label": "Date of Birth",
+   "read_only_depends_on": "eval:doc.is_miscarriage"
+  },
+  {
+   "fieldname": "column_break_zgfm",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "youg_child_from_date",
+   "fieldtype": "Date",
+   "label": "Young Child From Date",
+   "read_only": 1
+  },
+  {
+   "description": "= Date of Birth + 364 days. Empty until Date of Birth is entered.",
+   "fieldname": "youg_child_to_date",
+   "fieldtype": "Date",
+   "label": "Young Child To Date",
    "read_only": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-07-14 11:32:36.223830",
+ "modified": "2026-10-07 15:00:00.000000",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Employee Maternity",

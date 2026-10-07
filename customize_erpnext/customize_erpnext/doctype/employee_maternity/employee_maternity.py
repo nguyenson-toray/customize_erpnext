@@ -3,7 +3,7 @@
 
 import frappe
 from frappe import _
-from frappe.utils import flt, getdate, add_days, add_months, today
+from frappe.utils import cint, flt, getdate, add_days, add_months, today
 from frappe.model.document import Document
 from datetime import date
 from dateutil.relativedelta import relativedelta
@@ -73,6 +73,53 @@ def _has_left(relieving_date, employee_status, on_date):
 	return (employee_status or "").strip() == "Left"
 
 
+DEFAULT_LEAVE_MONTHS = 6
+
+
+def default_leave_months(child_order, is_twins):
+	"""Số tháng nghỉ thai sản mặc định — user chốt 07/10/2026 theo Luật Dân số 2025 +
+	Luật BHXH 2024 (hiệu lực 01/07/2026, user đưa nội dung, mình không tự kiểm chứng):
+	  con thứ 2 → +1 tháng (7);  sinh đôi → +1 tháng;  con thứ 2 sinh đôi → 8.
+	Con thứ 1 / thứ 3 trở đi → 6 (sinh đôi 7). Áp mặc định cho mọi hồ sơ, KHÔNG xét ngày
+	hiệu lực — hồ sơ quá khứ HR tự sửa tay. Mirror _default_leave_months() trong JS.
+	"""
+	return DEFAULT_LEAVE_MONTHS + (1 if cint(child_order) == 2 else 0) + (1 if cint(is_twins) else 0)
+
+
+def maternity_end_date(mat_from, leave_months):
+	"""Ngày cuối nghỉ thai sản: nghỉ từ 19/01, 6 tháng → hết 18/07 (+N tháng rồi lùi 1 ngày)."""
+	return add_days(add_months(getdate(mat_from), int(leave_months)), -1)
+
+
+def whole_leave_months(mat_from, mat_to):
+	"""Số tháng TRÒN giữa 2 ngày theo đúng quy ước `maternity_end_date`, 0 nếu lệch.
+
+	Dùng để suy `leave_months` ngược từ ngày có sẵn (patch backfill + Data Import).
+	Trả 0 (= "không dùng leave_months") khi ngày không rơi đúng tròn tháng — nếu
+	điền bừa một số gần đúng thì lần save kế tiếp sẽ tính lại và ĐỔI ngày HR đã nhập.
+	"""
+	if not mat_from or not mat_to:
+		return 0
+	mat_from, mat_to = getdate(mat_from), getdate(mat_to)
+	rd = relativedelta(add_days(mat_to, 1), mat_from)
+	months = rd.years * 12 + rd.months
+	if months > 0 and maternity_end_date(mat_from, months) == mat_to:
+		return months
+	return 0
+
+
+MISCARRIAGE_NOTE_PREFIX = "Sẩy thai ngày"  # nội dung lưu trong Note — user chốt nguyên văn
+
+
+def miscarriage_note(note, miscarriage_date):
+	"""Note có đúng 1 dòng "Sẩy thai ngày dd/mm/yyyy" (thay dòng cũ nếu đổi ngày).
+	Mirror _miscarriage_note() trong employee_maternity.js."""
+	line = f"{MISCARRIAGE_NOTE_PREFIX} {getdate(miscarriage_date).strftime('%d/%m/%Y')}"
+	# Bỏ mọi dòng ghi sẩy thai cũ, kể cả gõ tay khác hoa/thường ("sẩy thai 17/07/2026").
+	lines = [l for l in (note or "").splitlines() if not l.strip().lower().startswith("sẩy thai")]
+	return "\n".join([line] + [l for l in lines if l.strip()])
+
+
 def make_maternity_name(employee, exclude=None):
 	"""Tên hồ sơ thai sản: `HR-EM-{employee}`.
 
@@ -132,50 +179,107 @@ class EmployeeMaternity(Document):
 	# =========================================================================
 
 	def validate(self):
+		self.validate_employee_gender()
+		self.apply_default_leave_months()
 		self.calculate_derived_dates()
 		self.validate_dates()
 		self.validate_date_overlap()
 		self.calculate_status()
 		self.calculate_derived_metrics()
 
-	def calculate_derived_dates(self):
-		"""Auto-calculate derived dates. Mirrors _recalculate_derived() in employee_maternity.js
-		so UI save and Data Import produce the same result.
+	def validate_employee_gender(self):
+		"""Chỉ nhân viên nữ. JS đã lọc ô chọn, nhưng Data Import không đi qua set_query."""
+		if not self.employee:
+			return
+		gender = frappe.db.get_value("Employee", self.employee, "gender")
+		if gender != "Female":
+			frappe.throw(
+				_("Employee {0} is not Female (Gender: {1})").format(self.employee, gender or _("Not Set"))
+			)
 
-		effective maternity start = maternity_from_date, fallback maternity_from_date_estimate.
+	def apply_default_leave_months(self):
+		"""Đổi Con thứ mấy / Sinh đôi → Leave Months tính lại theo `default_leave_months()`.
 
-		Rules:
-		  pregnant_to_date     = effective maternity start - 1 day
-		                         (fallback: estimated_due_date; never cleared)
-		  maternity_to_date    = effective maternity start + 6 months - 1 day (only if empty)
-		  youg_child_from_date = maternity_to_date + 1 day
-		  youg_child_to_date   = date_of_birth + 364 days
-
-		During Data Import, values are never cleared — only overridden when a
-		source field to derive from is present (imported legacy records may have
-		phase dates without the source fields).
+		Hồ sơ cũ: chỉ khi một trong hai ô THẬT SỰ đổi — mở ra lưu lại không bị đụng, số tháng
+		HR sửa tay SAU đó được giữ. Hồ sơ mới: tính nếu Leave Months đang là mặc định.
 		"""
-		in_import = bool(frappe.flags.in_import)
-		effective_mat_from = self.maternity_from_date or self.maternity_from_date_estimate
+		if self.flags.keep_leave_months:
+			return  # script nạp dữ liệu lịch sử: số tháng lấy từ ngày thực tế, không theo luật mới
+		if self.is_new():
+			# Hồ sơ mới / Data Import: số tháng khác mặc định 6 là HR cố ý nhập → giữ.
+			if cint(self.leave_months) in (0, DEFAULT_LEAVE_MONTHS):
+				self.leave_months = default_leave_months(self.child_order, self.is_twins)
+		elif self.has_value_changed("child_order") or self.has_value_changed("is_twins"):
+			self.leave_months = default_leave_months(self.child_order, self.is_twins)
 
-		if self.pregnant_from_date:
-			if effective_mat_from:
-				self.pregnant_to_date = add_days(getdate(effective_mat_from), -1)
-			elif self.estimated_due_date:
-				self.pregnant_to_date = getdate(self.estimated_due_date)
+	def calculate_derived_dates(self):
+		"""Tính các ngày dẫn xuất. Mirror `_recalculate_derived()` trong employee_maternity.js.
 
-		if effective_mat_from and not self.maternity_to_date:
-			# +6 tháng rồi lùi 1 ngày: nghỉ từ 19/01 thì hết ngày 18/07, đúng 6 tháng.
-			# Không trừ 1 ngày thì thành 6 tháng 1 ngày.
-			self.maternity_to_date = add_days(add_months(getdate(effective_mat_from), 6), -1)
+		Quy tắc (user chốt 07/10/2026) — 3 giai đoạn LUÔN liên tục, không hở không chồng:
+		  pregnant_from_date   : HR nhập (bắt buộc)
+		  pregnant_to_date     : HR nhập (bắt buộc); trống thì copy estimated_due_date;
+		                         HR nhập/sửa maternity_from_date → = maternity_from - 1
+		  maternity_from_date  = pregnant_to_date + 1
+		  maternity_to_date    = maternity_from + leave_months - 1 ngày (leave_months mặc định 6)
+		  youg_child_from_date = maternity_to_date + 1
+		  youg_child_to_date   = date_of_birth + 364; chưa có ngày sinh → trống
 
-		if self.maternity_to_date:
-			self.youg_child_from_date = add_days(getdate(self.maternity_to_date), 1)
-		elif not in_import:
-			self.youg_child_from_date = None
+		Bên nào thắng khi cả 2 ngày nối nhau đều có giá trị: maternity_from_date nếu nó
+		vừa ĐỔI (HR nhập ngày nghỉ chính thức), ngược lại pregnant_to_date.
 
-		if self.date_of_birth:
-			self.youg_child_to_date = add_days(getdate(self.date_of_birth), 364)
+		Maternity From TRỐNG = không có nghỉ thai sản (sẩy thai / không sinh — HR ghi Note,
+		user chốt 07/10/2026) → không tự tính các giai đoạn sau. Chỉ TỰ ĐIỀN Maternity From
+		khi tạo hồ sơ mới hoặc khi HR sửa Pregnant To; HR xoá trống Maternity From thì
+		tôn trọng, kể cả khi cùng lúc sửa Pregnant To.
+		"""
+		if self.get("is_miscarriage"):
+			self.apply_miscarriage()
+			return
+
+		if not self.pregnant_to_date and self.estimated_due_date:
+			self.pregnant_to_date = getdate(self.estimated_due_date)
+
+		cleared = (
+			not self.is_new()
+			and not self.maternity_from_date
+			and self.has_value_changed("maternity_from_date")
+		)
+		if self.maternity_from_date and self.has_value_changed("maternity_from_date"):
+			self.pregnant_to_date = add_days(getdate(self.maternity_from_date), -1)
+		elif self.pregnant_to_date and not cleared and (
+			self.maternity_from_date  # đã có → giữ liên tục
+			or self.is_new()
+			or self.has_value_changed("pregnant_to_date")
+			or self.has_value_changed("is_miscarriage")  # bỏ tick Sẩy thai → tính lại
+		):
+			self.maternity_from_date = add_days(getdate(self.pregnant_to_date), 1)
+
+		if not self.leave_months:
+			self.leave_months = DEFAULT_LEAVE_MONTHS
+		self.maternity_to_date = (
+			maternity_end_date(self.maternity_from_date, self.leave_months)
+			if self.maternity_from_date else None
+		)
+		self.youg_child_from_date = (
+			add_days(getdate(self.maternity_to_date), 1) if self.maternity_to_date else None
+		)
+		self.youg_child_to_date = (
+			add_days(getdate(self.date_of_birth), 364) if self.date_of_birth else None
+		)
+
+	def apply_miscarriage(self):
+		"""Sẩy thai (user chốt 07/10/2026): Pregnant To Date = ngày sẩy thai (dialog trên form
+		điền sẵn), xoá mọi ngày của các giai đoạn sau, Note có dòng "Sẩy thai ngày dd/mm/yyyy".
+		Chạy cả khi Data Import (không qua dialog) — nên Note được bảo đảm ở đây.
+		"""
+		if not self.pregnant_to_date:
+			frappe.throw(_("Miscarriage: Pregnant To Date (the miscarriage date) is required"))
+		for f in (
+			"maternity_from_date", "maternity_to_date", "date_of_birth",
+			"youg_child_from_date", "youg_child_to_date",
+		):
+			self.set(f, None)
+		self.note = miscarriage_note(self.note, self.pregnant_to_date)
 
 	def validate_dates(self):
 		"""Validate from <= to for each date pair (a phase may be a single day)."""
@@ -216,8 +320,6 @@ class EmployeeMaternity(Document):
 	def calculate_status(self, employment=None):
 		"""Set status field based on which date period today falls into.
 		If today falls in multiple periods (data legacy), pick the one with the latest from_date.
-		Maternity phase falls back to maternity_from_date_estimate when the actual date
-		is not yet known, so status is not blank during actual leave.
 
 		Nghỉ việc thì cắt hết: xem `employee_has_left()`.
 		"""
@@ -232,13 +334,14 @@ class EmployeeMaternity(Document):
 			self.status = "Inactive"
 			return
 
-		effective_mat_from = self.maternity_from_date or self.maternity_from_date_estimate
-
 		active = []  # list of (from_date, status_label)
 		checks = [
 			(self.pregnant_from_date, self.pregnant_to_date, "Pregnant"),
-			(effective_mat_from,      self.maternity_to_date, "Maternity Leave"),
-			(self.youg_child_from_date, self.youg_child_to_date, "Young Child"),
+			(self.maternity_from_date, self.maternity_to_date, "Maternity Leave"),
+			# Chưa có ngày sinh con → Young Child To trống → CHƯA tính là Con nhỏ
+			# (user chốt 07/10/2026; khớp engine tính công vốn bỏ qua giai đoạn thiếu ngày kết thúc).
+			(self.youg_child_from_date if self.youg_child_to_date else None,
+			 self.youg_child_to_date, "Young Child"),
 		]
 		for from_val, to_val, label in checks:
 			if not from_val:
@@ -252,6 +355,11 @@ class EmployeeMaternity(Document):
 			# Hết chế độ: all phases done and today is past young-child end date
 			if self.youg_child_to_date and today_date > getdate(self.youg_child_to_date):
 				self.status = "Inactive"
+			elif (
+				self.get("is_miscarriage") and self.pregnant_to_date
+				and today_date > getdate(self.pregnant_to_date)
+			):
+				self.status = "Inactive"  # sẩy thai = hết chu kỳ
 			else:
 				self.status = ""
 		else:
@@ -264,16 +372,15 @@ class EmployeeMaternity(Document):
 		After calculate_derived_dates(), periods are always consecutive (1 day apart),
 		so this acts as a safety check for manually overridden values.
 		"""
-		effective_mat_from = self.maternity_from_date or self.maternity_from_date_estimate
 		periods = {}
 		if self.pregnant_from_date:
 			periods["Pregnant"] = (
 				getdate(self.pregnant_from_date),
 				getdate(self.pregnant_to_date) if self.pregnant_to_date else None,
 			)
-		if effective_mat_from:
+		if self.maternity_from_date:
 			periods["Maternity Leave"] = (
-				getdate(effective_mat_from),
+				getdate(self.maternity_from_date),
 				getdate(self.maternity_to_date) if self.maternity_to_date else None,
 			)
 		if self.youg_child_from_date:
@@ -320,7 +427,7 @@ class EmployeeMaternity(Document):
 				tracked_fields = [
 					"employee",
 					"pregnant_from_date", "pregnant_to_date",
-					"maternity_from_date", "maternity_from_date_estimate",
+					"maternity_from_date", "leave_months",
 					"maternity_to_date",
 					"youg_child_from_date", "youg_child_to_date",
 					"estimated_due_date", "date_of_birth",
@@ -679,6 +786,8 @@ _MATERNITY_FIELDS = [
 	"maternity_from_date", "maternity_to_date", "date_of_birth",
 	"youg_child_from_date", "youg_child_to_date",
 	"gestational_age", "seniority",
+	# Thêm 07/10/2026 — để CUỐI để Power Query đang map theo vị trí cột không lệch.
+	"child_order", "is_twins", "pregnancy_notified_date", "leave_months",
 ]
 
 _MATERNITY_LABELS_EN = {
@@ -701,6 +810,10 @@ _MATERNITY_LABELS_EN = {
 	"youg_child_to_date": "Young Child To",
 	"gestational_age":    "Gestational Age (months)",
 	"seniority":          "Seniority (months)",
+	"child_order":        "Child Number",
+	"is_twins":           "Twins",
+	"pregnancy_notified_date": "Pregnancy Notified Date",
+	"leave_months":       "Leave Months",
 }
 
 _MATERNITY_LABELS_VI = {
@@ -723,6 +836,10 @@ _MATERNITY_LABELS_VI = {
 	"youg_child_to_date": "Ngày KT chế độ con nhỏ",
 	"gestational_age":    "Tuổi thai (tháng)",
 	"seniority":          "Thâm niên (tháng)",
+	"child_order":        "Con thứ mấy",
+	"is_twins":           "Sinh đôi",
+	"pregnancy_notified_date": "Ngày nhận thông tin mang thai",
+	"leave_months":       "Số tháng nghỉ thai sản",
 }
 
 
@@ -796,7 +913,8 @@ def get_employee_maternity_for_excel(
 				em.pregnant_from_date, em.pregnant_to_date, em.estimated_due_date,
 				em.maternity_from_date, em.maternity_to_date, em.date_of_birth,
 				em.youg_child_from_date, em.youg_child_to_date,
-				em.gestational_age, em.seniority
+				em.gestational_age, em.seniority,
+				em.child_order, em.is_twins, em.pregnancy_notified_date, em.leave_months
 			FROM `tabEmployee Maternity` em
 			LEFT JOIN `tabEmployee` emp ON emp.name = em.employee
 			{where_sql}
@@ -820,7 +938,8 @@ def get_employee_maternity_for_excel(
 				em.pregnant_from_date, em.pregnant_to_date, em.estimated_due_date,
 				em.maternity_from_date, em.maternity_to_date, em.date_of_birth,
 				em.youg_child_from_date, em.youg_child_to_date,
-				em.gestational_age, em.seniority
+				em.gestational_age, em.seniority,
+				em.child_order, em.is_twins, em.pregnancy_notified_date, em.leave_months
 			FROM `tabEmployee Maternity` em
 			LEFT JOIN `tabEmployee` emp ON emp.name = em.employee
 			{where_sql}
@@ -867,12 +986,18 @@ def get_employee_maternity_for_excel(
 # Invalid Records API
 # =============================================================================
 
+# Sinh xong thường cần vài ngày HR mới nhận giấy khai sinh → chỉ báo thiếu sau 14 ngày.
+MISSING_DOB_GRACE_DAYS = 14
+
+
 @frappe.whitelist()
 def get_invalid_maternity_records():
 	"""
 	Find Employee Maternity records where consecutive phases are not exactly 1 day apart:
 	  - pregnant_to_date → maternity_from_date gap ≠ 1 day
 	  - maternity_to_date → youg_child_from_date gap ≠ 1 day
+	  - đã nghỉ thai sản > MISSING_DOB_GRACE_DAYS ngày mà chưa có date_of_birth
+	    (thiếu ngày sinh con → không tính được Young Child / "Cycle End" trên report)
 
 	Returns list of { name, employee, employee_name, issues: [...] }
 	"""
@@ -881,7 +1006,9 @@ def get_invalid_maternity_records():
 		SELECT
 			em.name, em.employee, emp.employee_name,
 			em.pregnant_to_date, em.maternity_from_date,
-			em.maternity_to_date, em.youg_child_from_date
+			em.maternity_to_date, em.youg_child_from_date,
+			em.date_of_birth, em.status,
+			em.maternity_from_date AS mat_from
 		FROM `tabEmployee Maternity` em
 		LEFT JOIN `tabEmployee` emp ON emp.name = em.employee
 		WHERE
@@ -890,8 +1017,13 @@ def get_invalid_maternity_records():
 			OR
 			(em.maternity_to_date IS NOT NULL AND em.youg_child_from_date IS NOT NULL
 			 AND DATEDIFF(em.youg_child_from_date, em.maternity_to_date) != 1)
+			OR
+			(em.date_of_birth IS NULL AND IFNULL(em.status, '') != 'Inactive'
+			 AND em.maternity_from_date
+			     <= DATE_SUB(%(today)s, INTERVAL %(grace)s DAY))
 		ORDER BY em.employee
 		""",
+		{"today": date.today(), "grace": MISSING_DOB_GRACE_DAYS},
 		as_dict=True,
 	)
 
@@ -912,6 +1044,17 @@ def get_invalid_maternity_records():
 					f"Maternity Leave → Young Child: gap {gap} day(s) "
 					f"({r.maternity_to_date} → {r.youg_child_from_date})"
 				)
+		if (
+			not r.date_of_birth
+			and (r.status or "") != "Inactive"
+			and r.mat_from
+			and (date.today() - getdate(r.mat_from)).days >= MISSING_DOB_GRACE_DAYS
+		):
+			issues.append(
+				_("Missing child's Date of Birth (maternity leave started {0})").format(
+					frappe.utils.formatdate(r.mat_from)
+				)
+			)
 		if issues:
 			result.append({
 				"name":          r.name,

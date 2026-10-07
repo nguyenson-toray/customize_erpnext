@@ -2287,43 +2287,49 @@ def generate_employee_list_html(employee_data, company_name, include_department=
     """
     
     return html
-def check_employee_maternity_status(employee, attendance_date):
-	"""Cấu trúc mới: 1 record/employee với 3 cặp ngày riêng biệt."""
-	from frappe.utils import getdate
-	apply_pregnant_benefit = False
-	maternity_status = None
+def get_employee_maternity_phase(employee, attendance_date):
+	"""(status, apply_benefit, record) của NV tại `attendance_date`, hoặc (None, False, None).
 
-	em = frappe.db.sql("""
-		SELECT pregnant_from_date, pregnant_to_date, estimated_due_date,
+	Duyệt MỌI hồ sơ của NV — 1 hồ sơ = 1 chu kỳ thai sản, con thứ 2 là hồ sơ thứ 2.
+	Trước 07/10/2026 là `LIMIT 1` không ORDER BY: NV có 2 chu kỳ (19 NV lúc đó) có thể
+	bị đọc hồ sơ cũ → mất giảm giờ / mất chặn tăng ca đúng lúc đang mang thai.
+	Thứ tự ưu tiên giữa các giai đoạn giữ nguyên: Maternity Leave → Young Child → Pregnant.
+	Hồ sơ mới hơn thắng nếu 2 hồ sơ cùng phủ ngày đó (dữ liệu chồng lấn).
+	"""
+	from frappe.utils import getdate
+
+	records = frappe.db.sql("""
+		SELECT name, pregnant_from_date, pregnant_to_date, estimated_due_date,
 		       maternity_from_date, maternity_to_date,
 		       youg_child_from_date, youg_child_to_date,
 		       apply_hour_reduction
 		FROM `tabEmployee Maternity`
 		WHERE employee = %(employee)s
-		LIMIT 1
+		ORDER BY pregnant_from_date DESC, creation DESC
 	""", {"employee": employee}, as_dict=True)
 
-	if not em:
-		return maternity_status, apply_pregnant_benefit
-
-	rec = em[0]
 	check_d = getdate(attendance_date)
 
-	if rec.maternity_from_date and rec.maternity_to_date:
-		if getdate(rec.maternity_from_date) <= check_d <= getdate(rec.maternity_to_date):
-			return "Maternity Leave", True
+	def within(start, end):
+		return start and end and getdate(start) <= check_d <= getdate(end)
 
-	if rec.youg_child_from_date and rec.youg_child_to_date:
-		if getdate(rec.youg_child_from_date) <= check_d <= getdate(rec.youg_child_to_date):
-			return "Young Child", True
+	for rec in records:
+		if within(rec.maternity_from_date, rec.maternity_to_date):
+			return "Maternity Leave", True, rec
+	for rec in records:
+		if within(rec.youg_child_from_date, rec.youg_child_to_date):
+			return "Young Child", True, rec
+	for rec in records:
+		if within(rec.pregnant_from_date, rec.pregnant_to_date or rec.estimated_due_date):
+			return "Pregnant", bool(rec.apply_hour_reduction), rec
 
-	if rec.pregnant_from_date:
-		eff_to = rec.pregnant_to_date or rec.estimated_due_date
-		if eff_to and getdate(rec.pregnant_from_date) <= check_d <= getdate(eff_to):
-			apply_hour_reduction = bool(rec.apply_hour_reduction)
-			return "Pregnant", apply_hour_reduction
+	return None, False, None
 
-	return maternity_status, apply_pregnant_benefit
+
+def check_employee_maternity_status(employee, attendance_date):
+	"""(status, apply_benefit) — xem get_employee_maternity_phase()."""
+	status, benefit, _ = get_employee_maternity_phase(employee, attendance_date)
+	return status, benefit
 
 @frappe.whitelist()
 def get_employees_of_assigntment_shifts_on_date(shift_type, attendance_date):

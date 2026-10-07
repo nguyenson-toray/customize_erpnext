@@ -64,3 +64,9 @@ customize_erpnext.patches.seed_vehicle_driver_passwords
 # `template_name` column still in the table - only true after the sync. Also renumbers
 # TIQN-FTT-00x -> TIQN-FST-00x and repoints Vehicle Trip.template_id. Idempotent.
 customize_erpnext.patches.rename_fixed_trip_schedule_fields
+# post_model_sync: cần cột `leave_months` (thêm 07/10/2026). Cột default 6 nên phải suy
+# ngược từ ngày, không thì hồ sơ 7 tháng bị cắt còn 6 ở lần save kế tiếp. Idempotent.
+customize_erpnext.patches.backfill_maternity_leave_months
+# post_model_sync: quy tắc ngày thai sản v2 (07/10/2026) — bỏ maternity_from_date_estimate,
+# Maternity From = Pregnant To + 1, giai đoạn liên tục. Áp cho mọi hồ sơ. Idempotent.
+customize_erpnext.patches.apply_maternity_date_rules_v2

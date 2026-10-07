@@ -158,7 +158,7 @@ def _phase_start(row):
 	if row.status == "Pregnant":
 		return row.pregnant_from_date
 	if row.status == MATERNITY_LEAVE:
-		return row.maternity_from_date or row.maternity_from_date_estimate
+		return row.maternity_from_date
 	if row.status == "Young Child":
 		return row.youg_child_from_date
 	return row.youg_child_to_date  # Inactive = everything already finished
@@ -180,7 +180,7 @@ def get_current_maternity_record(employee):
 		fields=[
 			"name", "status", "modified",
 			"pregnant_from_date", "pregnant_to_date",
-			"maternity_from_date", "maternity_from_date_estimate", "maternity_to_date",
+			"maternity_from_date", "maternity_to_date",
 			"youg_child_from_date", "youg_child_to_date",
 		],
 	)
@@ -202,7 +202,7 @@ def _phase_range(row):
 	if row.status == "Pregnant":
 		return row.pregnant_from_date, row.pregnant_to_date
 	if row.status == MATERNITY_LEAVE:
-		return (row.maternity_from_date or row.maternity_from_date_estimate), row.maternity_to_date
+		return row.maternity_from_date, row.maternity_to_date
 	if row.status == "Young Child":
 		return row.youg_child_from_date, row.youg_child_to_date
 	return None, row.youg_child_to_date

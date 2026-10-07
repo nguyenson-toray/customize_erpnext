@@ -21799,3 +21799,70 @@ The employee confirmed the declared information is true (checkbox on the self-up
 "Information exported (ticked ""Info for Sign"" in {0}):","Thông tin sẽ xuất (đã tick ""Info for Sign"" trong {0}):",
 "No field is ticked ""Info for Sign"" in {0}.","Chưa tick ""Info for Sign"" cho field nào trong {0}.",
 "Include this field in the ""Info for Sign"" Excel (the list employees sign to confirm). Only tick the information that needs a signature.","Đưa field này vào Excel ""Info for Sign"" (danh sách nhân viên ký xác nhận). Chỉ tick những thông tin cần ký.",
+Child Number,Con thứ mấy
+"1 = first child, 2 = second child, ...","1 = con đầu, 2 = con thứ hai, ..."
+Twins,Sinh đôi
+Pregnancy Notified Date,Ngày nhận thông tin mang thai
+Date HR received the pregnancy information,Ngày HR nhận được thông tin mang thai
+Leave Months,Số tháng nghỉ thai sản
+Employee {0} is not Female (Gender: {1}),Nhân viên {0} không phải nữ (Giới tính: {1})
+Return to Work,Đi làm lại
+Return Date,Ngày đi làm lại
+Left at Phase,Nghỉ việc ở giai đoạn
+Did Not Return,Không quay lại làm
+After Young Child Period,Sau chế độ con nhỏ
+Pregnant From,Mang thai từ
+Maternity From,Nghỉ thai sản từ
+Maternity To,Nghỉ thai sản đến
+Click to show only this group,Bấm để chỉ hiện nhóm này
+In Period,Trong kỳ
+Before Pregnancy,Trước khi mang thai
+Maternity Status,Tình trạng thai sản
+Cycle End,Kết thúc chu kỳ
+Compact View,Rút gọn
+"Missing child's Date of Birth (maternity leave started {0})","Thiếu ngày sinh của con (đã nghỉ thai sản từ {0})"
+Pregnant To,Mang thai đến
+Young Child From,Con nhỏ từ
+Young Child To,Con nhỏ đến
+"Required. Empty → copied from Estimated Due Date. Entering Maternity From Date sets this to the day before.","Bắt buộc. Để trống → lấy theo Ngày dự sinh. Nhập Ngày bắt đầu nghỉ thai sản thì ô này tự thành ngày liền trước."
+"= Pregnant To Date + 1. Enter the official leave start here when known — Pregnant To Date moves to the day before. Miscarriage / no birth: clear this field and write it in Note — later phases are not calculated.","= Ngày kết thúc mang thai + 1. Khi có ngày nghỉ chính thức thì nhập vào đây — Ngày kết thúc mang thai tự lùi về ngày liền trước. Sẩy thai / không sinh: xoá trống ô này và ghi vào Note — các giai đoạn sau sẽ không được tính."
+= Maternity From Date + Leave Months - 1 day,= Ngày bắt đầu nghỉ thai sản + Số tháng nghỉ - 1 ngày
+= Date of Birth + 364 days. Empty until Date of Birth is entered.,= Ngày sinh con + 364 ngày. Để trống cho tới khi nhập ngày sinh con.
+"Default 6 months; 2nd child +1; twins +1 (2nd child twins = 8). Recalculated when Child Number or Twins changes; can be edited manually.","Mặc định 6 tháng; con thứ 2 +1; sinh đôi +1 (con thứ 2 sinh đôi = 8). Tự tính lại khi đổi Con thứ mấy hoặc Sinh đôi; có thể sửa tay."
+Twins add 1 month to Leave Months.,Sinh đôi được cộng thêm 1 tháng vào Số tháng nghỉ thai sản.
+Miscarriage,Sẩy thai
+Miscarriage Date,Ngày sẩy thai
+"Tick to enter the miscarriage date: it becomes Pregnant To Date, later phases are cleared and a line is added to Note.","Tick để nhập ngày sẩy thai: ngày này thành Ngày kết thúc mang thai, các giai đoạn sau bị xoá và Note được ghi thêm một dòng."
+"This date becomes Pregnant To Date. Maternity Leave, Date of Birth and Young Child dates will be cleared.","Ngày này sẽ thành Ngày kết thúc mang thai. Các ngày Nghỉ thai sản, Ngày sinh con và Con nhỏ sẽ bị xoá."
+Miscarriage Date cannot be before Pregnant From Date,Ngày sẩy thai không được trước Ngày bắt đầu mang thai
+Miscarriage Date cannot be in the future,Ngày sẩy thai không được ở tương lai
+Unmark miscarriage? Maternity dates will be recalculated from Pregnant To Date.,Bỏ đánh dấu sẩy thai? Các ngày nghỉ thai sản sẽ được tính lại từ Ngày kết thúc mang thai.
+Miscarriage: Pregnant To Date (the miscarriage date) is required,Sẩy thai: phải có Ngày kết thúc mang thai (ngày sẩy thai)
+All records are valid,Tất cả hồ sơ đều hợp lệ
+Apply Hour Reduction,Áp dụng giảm 1 giờ
+Calculate Status,Tính lại trạng thái
+Calculating status for all records...,Đang tính lại trạng thái cho tất cả hồ sơ...
+Calculating status for {0} selected records...,Đang tính lại trạng thái cho {0} hồ sơ đã chọn...
+Checking records...,Đang kiểm tra hồ sơ...
+Confirm,Xác nhận
+Date Overlap,Trùng khoảng ngày
+"Date periods overlap between {0} ({1} → {2}) and {3} ({4} → {5})","Khoảng ngày {0} ({1} → {2}) và {3} ({4} → {5}) bị chồng nhau"
+Date periods overlap between {0} and {1},Khoảng ngày {0} và {1} bị chồng nhau
+Employee Maternity Report,Báo cáo thai sản nhân viên
+Employee is required before naming an Employee Maternity record,Phải chọn nhân viên trước khi đặt tên hồ sơ thai sản
+Gestational Age,Tuổi thai
+Invalid Date Range,Khoảng ngày không hợp lệ
+Invalid Records — {0} found,Hồ sơ không hợp lệ — tìm thấy {0}
+Maternity From Date,Ngày bắt đầu nghỉ thai sản
+Maternity To Date,Ngày kết thúc nghỉ thai sản
+"Maternity period changed. Updating attendance for {0} days ({1} → {2})...","Giai đoạn thai sản đã thay đổi. Đang cập nhật chấm công cho {0} ngày ({1} → {2})..."
+Months from Date of Joining to today,Số tháng từ ngày vào làm tới hôm nay
+Pregnant From Date,Ngày bắt đầu mang thai
+Pregnant To Date,Ngày kết thúc mang thai
+Record,Bản ghi
+Show Invalid Records,Hồ sơ không hợp lệ
+Today,Hôm nay
+"Updated {0} / {1} records","Đã cập nhật {0} / {1} hồ sơ"
+Young Child From Date,Ngày bắt đầu chế độ con nhỏ
+Young Child To Date,Ngày kết thúc chế độ con nhỏ
+ongoing,đang diễn ra
