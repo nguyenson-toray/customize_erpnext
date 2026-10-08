@@ -66,27 +66,13 @@ def _default_range(from_date, to_date):
     return from_d, to_d
 
 
-@frappe.whitelist()
-def fetch_door_logs(ip, port=DEFAULT_PORT, password=0, from_date=None, to_date=None):
-    """Read punches from the door controller and store the new ones.
+def store_door_punches(attendances, device_ip, d_from, d_to):
+    """Insert the punches in [d_from, d_to] that are not stored yet.
 
-    Duplicate-safe: the device keeps its whole history, so the same range can
-    be fetched again and again — rows already stored are skipped.
+    Shared by the ad-hoc IT door tab (fetch_door_logs) and /door_control.
+    Duplicate-safe at three levels: pairs already in the DB, pairs seen earlier
+    in this batch, and the (user_id, timestamp) unique index. Never commits.
     """
-    _check_access()
-
-    ip = (ip or "").strip()
-    if not ip:
-        frappe.throw(_("Device IP is required"))
-    d_from, d_to = _default_range(from_date, to_date)
-
-    try:
-        # same retry + disable/enable/disconnect handling as the machine re-sync
-        attendances = fetch_attendance_from_cfg(_door_cfg(ip, port, password), f"door {ip}")
-    except Exception as e:
-        frappe.log_error(f"fetch_door_logs error: {e}", "Door Access")
-        return {"status": "error", "message": str(e)}
-
     in_range = [a for a in attendances if a.timestamp and d_from <= a.timestamp.date() <= d_to]
 
     # existing (user_id, timestamp) pairs in the range — one query, not one per punch
@@ -119,6 +105,9 @@ def fetch_door_logs(ip, port=DEFAULT_PORT, password=0, from_date=None, to_date=N
         if not employee:
             counts["no_employee"] += 1
 
+        # savepoint, not a full rollback: a duplicate must not undo the rows
+        # already inserted earlier in this same request
+        frappe.db.savepoint("door_punch")
         try:
             doc = frappe.get_doc({
                 "doctype": "Door Access Log",
@@ -126,17 +115,43 @@ def fetch_door_logs(ip, port=DEFAULT_PORT, password=0, from_date=None, to_date=N
                 "employee": employee,
                 "employee_name": employee_name,
                 "timestamp": ts,
-                "device_ip": ip,
+                "device_ip": device_ip,
             })
             doc.insert(ignore_permissions=True)
             counts["inserted"] += 1
         except frappe.DuplicateEntryError:
-            frappe.db.rollback()
+            frappe.db.rollback(save_point="door_punch")
             counts["duplicated"] += 1
         except Exception as e:
-            frappe.db.rollback()
+            frappe.db.rollback(save_point="door_punch")
             counts["error"] += 1
             frappe.log_error(f"Door log insert failed for {user_id} @ {ts}: {e}", "Door Access")
+
+    return counts
+
+
+@frappe.whitelist()
+def fetch_door_logs(ip, port=DEFAULT_PORT, password=0, from_date=None, to_date=None):
+    """Read punches from the door controller and store the new ones.
+
+    Duplicate-safe: the device keeps its whole history, so the same range can
+    be fetched again and again — rows already stored are skipped.
+    """
+    _check_access()
+
+    ip = (ip or "").strip()
+    if not ip:
+        frappe.throw(_("Device IP is required"))
+    d_from, d_to = _default_range(from_date, to_date)
+
+    try:
+        # same retry + disable/enable/disconnect handling as the machine re-sync
+        attendances = fetch_attendance_from_cfg(_door_cfg(ip, port, password), f"door {ip}")
+    except Exception as e:
+        frappe.log_error(f"fetch_door_logs error: {e}", "Door Access")
+        return {"status": "error", "message": str(e)}
+
+    counts = store_door_punches(attendances, ip, d_from, d_to)
 
     frappe.db.commit()
     counts["status"] = "success"

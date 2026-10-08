@@ -2,7 +2,7 @@ import frappe
 from customize_erpnext.api.biometric_auth import check_biometric_access
 from frappe import _
 
-from customize_erpnext.api.attendance_machines import get_machine, get_machines
+from customize_erpnext.api.attendance_machines import check_door_machine_access, get_machine, get_machines
 
 # Python code (get_role_profile)
 @frappe.whitelist()
@@ -564,14 +564,12 @@ def sync_employee_to_single_machine(employee_id, machine_name):
         if error:
             return error
 
-        # Get specific machine (by device_name)
-        machine = frappe._dict(get_machine(machine_name))
-
-        if not machine.enable:
-            return {
-                "success": False,
-                "message": f"Machine {machine.device_name} is disabled"
-            }
+        # Get specific machine (by device_name); a door controller is allowed
+        # here but only for the Door Control role (pushing a fingerprint = access)
+        machine = frappe._dict(get_machine(machine_name, allow_door=True))
+        check_door_machine_access(machine)
+        # A disabled machine is allowed: the sync dialog lists it unticked and the
+        # user ticks it on purpose. `enable` only keeps it out of automatic runs.
 
         # Sync to single machine
         result = sync_to_single_machine(machine, employee_data)
@@ -631,7 +629,8 @@ def sync_employees_to_machine_batch(machine_name, employee_ids):
     if isinstance(employee_ids, str):
         employee_ids = _json.loads(employee_ids)
 
-    machine = frappe._dict(get_machine(machine_name))
+    machine = frappe._dict(get_machine(machine_name, allow_door=True))
+    check_door_machine_access(machine)
     results = []
 
     def record(emp_id, emp_name, success, fp_count=0, error=None):
@@ -664,10 +663,8 @@ def sync_employees_to_machine_batch(machine_name, employee_ids):
             "results": results,
         }
 
-    if not machine.enable:
-        for emp_id in employee_ids:
-            record(emp_id, emp_id, False, error=f"Machine {machine.device_name} is disabled")
-        return summary()
+    # A disabled machine is allowed here: the sync dialog lists it unticked and
+    # the user ticks it on purpose. `enable` only keeps it out of automatic runs.
 
     # Prepare all employee data up front (DB reads before touching the device)
     prepared = []
@@ -993,14 +990,24 @@ def sync_to_single_machine(machine_config, employee_data):
         }
 
 @frappe.whitelist()
-def get_enabled_attendance_machines():
-    """Get list of enabled attendance machines with parallel connection checks"""
+def get_enabled_attendance_machines(include_door=0, include_disabled=0):
+    """Get list of enabled attendance machines with parallel connection checks.
+
+    Sent only by the "Sync Fingerprints to Machines" dialog (shared_fingerprint_sync.js),
+    which lists these extra machines UNticked so they can be chosen when needed:
+    - `include_door=1` adds the door controllers — only for users with the Door
+      Control role; everyone else never sees them.
+    - `include_disabled=1` adds machines with Enable unticked.
+    """
     check_biometric_access()
     try:
         from concurrent.futures import ThreadPoolExecutor, as_completed
 
         # Get enabled machines (from Attendance Machine Setting single doctype)
-        machines = get_machines(enabled_only=True)
+        include_door = frappe.utils.cint(include_door) and "Door Control" in frappe.get_roles()
+        machines = get_machines(
+            enabled_only=not frappe.utils.cint(include_disabled), include_door=include_door
+        )
 
         if not machines:
             return {
@@ -1031,6 +1038,8 @@ def get_enabled_attendance_machines():
                         "ip_address": machine.get("ip_address"),
                         "port": machine.get("port") or 4370,
                         "location": machine.get("location") or "",
+                        "is_door_control": machine.get("is_door_control"),
+                        "enable": machine.get("enable"),
                         "connection_status": connection_status["status"],
                         "connection_message": connection_status["message"],
                         "response_time": connection_status.get("response_time", 0)
@@ -1044,6 +1053,8 @@ def get_enabled_attendance_machines():
                         "ip_address": machine.get("ip_address"),
                         "port": machine.get("port") or 4370,
                         "location": machine.get("location") or "",
+                        "is_door_control": machine.get("is_door_control"),
+                        "enable": machine.get("enable"),
                         "connection_status": "error",
                         "connection_message": f"Check timeout: {str(e)}",
                         "response_time": 0

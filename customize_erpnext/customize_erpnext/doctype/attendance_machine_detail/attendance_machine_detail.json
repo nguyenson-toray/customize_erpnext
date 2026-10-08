@@ -10,7 +10,13 @@
   "enable",
   "master_device",
   "location",
-  "model"
+  "model",
+  "door_control_section",
+  "is_door_control",
+  "unlock_seconds",
+  "column_break_door",
+  "sensor_type",
+  "allow_hold_close"
  ],
  "fields": [
   {
@@ -58,12 +64,55 @@
    "fieldtype": "Data",
    "label": "Model",
    "columns": 2
+  },
+  {
+   "fieldname": "door_control_section",
+   "fieldtype": "Section Break",
+   "label": "Door Control"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_door_control",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "columns": 1,
+   "label": "Is Door Control",
+   "description": "Door controller: shown on /door_control and kept out of every attendance function. Only the 'Sync Fingerprint From ERP To Attendance Machines' dialog lists it (unticked, Door Control role only)."
+  },
+  {
+   "default": "5",
+   "depends_on": "is_door_control",
+   "fieldname": "unlock_seconds",
+   "fieldtype": "Int",
+   "label": "Unlock Seconds",
+   "description": "How long the lock stays open when 'Open' is pressed on /door_control"
+  },
+  {
+   "fieldname": "column_break_door",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "None",
+   "depends_on": "is_door_control",
+   "fieldname": "sensor_type",
+   "fieldtype": "Select",
+   "label": "Sensor Type",
+   "options": "None\nNO\nNC",
+   "description": "Lock status sensor wired to the device's sensor input. ZKTeco LB-35 = NO. Must match Door Sensor Mode on the device menu, otherwise /door_control ignores the sensor and shows a warning. None = no sensor."
+  },
+  {
+   "default": "0",
+   "depends_on": "is_door_control",
+   "fieldname": "allow_hold_close",
+   "fieldtype": "Check",
+   "label": "Allow Hold Open / Close",
+   "description": "Shows the 'Hold open' and 'Close' buttons. Leave off until it is verified on this device that 'Close' really locks the door early"
   }
  ],
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-07-03 14:00:00.000000",
+ "modified": "2026-10-08 11:30:00.000000",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Attendance Machine Detail",

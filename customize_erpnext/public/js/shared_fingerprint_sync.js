@@ -265,6 +265,10 @@ window.FingerprintSyncManager = (function () {
 
         frappe.call({
             method: 'customize_erpnext.api.utilities.get_enabled_attendance_machines',
+            // every machine of the Setting: disabled ones and door controllers (the
+            // latter only for the Door Control role, checked server-side) come back
+            // too and are listed UNticked — ticked only when really needed
+            args: { include_door: 1, include_disabled: 1 },
             callback: function (r) {
                 responded = true;
                 clearTimeout(stuckTimer);
@@ -335,15 +339,24 @@ window.FingerprintSyncManager = (function () {
             const statusColor = machine.connection_status === 'online' ? 'success' :
                 machine.connection_status === 'offline' ? 'danger' : 'warning';
             const isOnline = machine.connection_status === 'online';
+            // Door controller: never pre-selected — a fingerprint there opens a door,
+            // so it has to be ticked on purpose for the few people allowed in.
+            const isDoor = !!machine.is_door_control;
+            // Machine with Enable unticked in the Setting: listed, never pre-selected
+            const isDisabled = machine.enable === false || machine.enable === 0;
+            const autoTick = !isDoor && !isDisabled;
 
             html += `
                 <tr style="border-left: 3px solid var(--${indicatorColor(statusColor)}-500);">
                     <td style="text-align:center; vertical-align:middle;">
                         <input type="checkbox" class="fp-sync-machine-cb" data-machine-name="${frappe.utils.escape_html(machine.device_name)}"
-                               ${isOnline ? 'checked' : 'disabled'} style="width:16px;height:16px;cursor:${isOnline ? 'pointer' : 'not-allowed'};">
+                               data-auto="${autoTick ? 1 : 0}"
+                               ${isOnline ? (autoTick ? 'checked' : '') : 'disabled'} style="width:16px;height:16px;cursor:${isOnline ? 'pointer' : 'not-allowed'};">
                     </td>
                     <td>
                         <strong>${machine.device_name}</strong>
+                        ${isDoor ? `<span class="indicator-pill orange" style="margin-left:6px" title="${__('Door controller — tick only to grant door access')}"><i class="fa fa-key"></i> ${__('Door')}</span>` : ''}
+                        ${isDisabled ? `<span class="indicator-pill gray" style="margin-left:6px" title="${__('Enable is unticked in Attendance Machine Setting — tick only when needed')}">${__('Disabled')}</span>` : ''}
                         ${machine.location ? `<br><small class="text-muted">${machine.location}</small>` : ''}
                     </td>
                     <td>
@@ -391,7 +404,10 @@ window.FingerprintSyncManager = (function () {
     }
 
     function setAllMachineCheckboxes(checked) {
-        document.querySelectorAll('.fp-sync-machine-cb:not(:disabled)').forEach(cb => { cb.checked = checked; });
+        // "Select All" ticks the usual machines only (never a door controller or a
+        // disabled machine — those are ticked one by one); "Unselect All" clears everything
+        const selector = checked ? '.fp-sync-machine-cb:not(:disabled)[data-auto="1"]' : '.fp-sync-machine-cb:not(:disabled)';
+        document.querySelectorAll(selector).forEach(cb => { cb.checked = checked; });
         onMachineSelectionChange();
     }
 
@@ -489,7 +505,7 @@ window.FingerprintSyncManager = (function () {
 
         try {
             // Get machines list first
-            const machinesResponse = await callFrappeMethod('customize_erpnext.api.utilities.get_enabled_attendance_machines');
+            const machinesResponse = await callFrappeMethod('customize_erpnext.api.utilities.get_enabled_attendance_machines', { include_door: 1, include_disabled: 1 });
 
             if (!machinesResponse.success || !machinesResponse.machines) {
                 throw new Error(machinesResponse.message || 'Failed to get machines list');

@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#0f172a">
+    <title>Door Control</title>
+    <link rel="icon" href="/assets/customize_erpnext/images/door_control.svg">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500&display=swap">
+    <style>
+        /* Layout: phone = one column + bottom tab bar (Doors / Access log);
+           >= 1024px = door grid left, access log right. Palette follows /biometric_sync. */
+        :root {
+            --bg: #eef2f6; --surface: #ffffff; --surface-2: #f6f8fb; --line: #e2e8f0; --line-2: #cbd5e1;
+            --fg: #0f172a; --fg-2: #475569; --fg-3: #7c8aa0;
+            --accent: #2563eb; --accent-soft: #e6eefe; --on-accent: #ffffff;
+            --ok: #047857; --ok-soft: #dcf3ea;
+            --open: #b45309; --open-soft: #fdf0d9; --open-ring: #f59e0b;
+            --bad: #c0262d; --bad-soft: #fde4e4;
+            --idle: #64748b; --idle-soft: #edf1f5;
+            --scrim: rgba(15, 23, 42, .45);
+            --f-ui: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            --f-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            color-scheme: light;
+        }
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #0c111b; --surface: #151c29; --surface-2: #1b2433; --line: #263042; --line-2: #344157;
+                --fg: #e6ebf3; --fg-2: #a8b3c5; --fg-3: #75839a;
+                --accent: #5b8cff; --accent-soft: #1d2b4d; --on-accent: #0b1220;
+                --ok: #3fcf9a; --ok-soft: #123227; --open: #fbbf5a; --open-soft: #3a2a10; --open-ring: #fbbf24;
+                --bad: #ff7b7b; --bad-soft: #3b1719; --idle: #8b97aa; --idle-soft: #202a3a;
+                --scrim: rgba(0, 0, 0, .6);
+                color-scheme: dark;
+            }
+        }
+
+        * { box-sizing: border-box; }
+        html, body { height: 100%; }
+        body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--f-ui); font-size: 15px; line-height: 1.45; -webkit-tap-highlight-color: transparent; }
+        button { font: inherit; }
+        .app { height: 100%; display: flex; flex-direction: column; }
+
+        /* top bar */
+        .bar { display: flex; align-items: center; gap: 12px; padding: calc(12px + env(safe-area-inset-top, 0px)) 16px 12px; background: var(--surface); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 4; }
+        .brand { display: flex; align-items: center; gap: 10px; min-width: 0; color: inherit; text-decoration: none; }
+        .brand .logo { width: 38px; height: 38px; border-radius: 10px; background: var(--fg); color: var(--bg); display: grid; place-items: center; flex: none; }
+        .brand b { display: block; font-size: 17px; line-height: 1.1; }
+        .brand small { display: block; color: var(--fg-3); font-size: 12.5px; }
+        .bar .sp { flex: 1; }
+        .iconbtn { width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--fg-2); display: grid; place-items: center; cursor: pointer; text-decoration: none; }
+        .iconbtn:hover { background: var(--surface-2); }
+        .iconbtn.spin svg { animation: spin .8s linear infinite; }
+
+        .btn { font-weight: 600; border-radius: 12px; border: 1px solid transparent; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 0 16px; min-height: 46px; transition: background .15s, transform .05s; }
+        .btn:active { transform: scale(.98); }
+        .btn:focus-visible, .iconbtn:focus-visible, .chip:focus-visible, .tab:focus-visible, .switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+        .btn.primary { background: var(--accent); color: var(--on-accent); }
+        .btn.ghost { background: var(--surface); border-color: var(--line-2); color: var(--fg); }
+        .btn.ghost:hover { background: var(--surface-2); }
+        .btn.danger-o { background: transparent; border-color: var(--bad); color: var(--bad); }
+        .btn.danger { background: var(--bad); color: #fff; }
+        .btn[disabled] { opacity: .45; cursor: not-allowed; }
+        .btn.xl { min-height: 58px; font-size: 17px; border-radius: 14px; width: 100%; }
+        .btn.busy { pointer-events: none; opacity: .7; }
+
+        /* body */
+        .main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr); }
+        /* minmax(0, …) + min-width: 0 — a grid column never grows to its content's min-content
+           width: the nowrap chip row (long door names) must scroll inside, not widen the page.
+           A wider page makes phones zoom out and the fixed tab bar drops off-screen. */
+        .doors, .log { min-width: 0; }
+        .doors { overflow: auto; padding: 16px 16px calc(96px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; gap: 14px; }
+        .doors-grid { display: grid; gap: 14px; grid-template-columns: 1fr; }
+        .summary { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 13.5px; color: var(--fg-2); }
+        .summary .sp { flex: 1; }
+        .pill { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; font-size: 13px; border-radius: 999px; padding: 4px 10px; }
+        .pill.ok { background: var(--ok-soft); color: var(--ok); }
+        .pill.open { background: var(--open-soft); color: var(--open); }
+        .pill.idle { background: var(--idle-soft); color: var(--idle); }
+
+        /* door card — the stripe on top is the at-a-glance state */
+        .door { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 18px; display: flex; flex-direction: column; gap: 14px; position: relative; overflow: hidden; }
+        .door::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 5px; background: var(--ok); }
+        .door.is-open::before { background: var(--open-ring); }
+        .door.is-off::before { background: var(--idle); }
+        /* lock state unknown (no working sensor): neutral, never green "locked" */
+        .door.is-idle::before { background: var(--accent); }
+        .door.is-idle .state-ico { background: var(--accent-soft); color: var(--accent); }
+        .door-top { display: flex; gap: 14px; align-items: center; }
+        .state-ico { width: 64px; height: 64px; border-radius: 18px; display: grid; place-items: center; flex: none; position: relative; background: var(--ok-soft); color: var(--ok); }
+        .door.is-open .state-ico { background: var(--open-soft); color: var(--open); }
+        .door.is-off .state-ico { background: var(--idle-soft); color: var(--idle); }
+        .ring { position: absolute; inset: -3px; width: 70px; height: 70px; transform: rotate(-90deg); }
+        .ring circle { fill: none; stroke: var(--open-ring); stroke-width: 4; stroke-linecap: round; transition: stroke-dashoffset .25s linear; }
+        .door-name { min-width: 0; flex: 1; }
+        .door-name h3 { margin: 0; font-size: 21px; line-height: 1.15; letter-spacing: -.01em; overflow-wrap: anywhere; }
+        .door-name .meta { font-family: var(--f-mono); font-size: 12px; color: var(--fg-3); margin-top: 3px; overflow-wrap: anywhere; }
+        .state-line { font-size: 21px; font-weight: 700; line-height: 1.15; margin-top: 2px; color: var(--ok); }
+        .door.is-open .state-line { color: var(--open); }
+        .door.is-off .state-line { color: var(--idle); }
+        .cd { font-variant-numeric: tabular-nums; }
+        .facts { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; color: var(--fg-2); }
+        .facts span { display: inline-flex; align-items: center; gap: 5px; }
+        .facts .warn { color: var(--open); font-weight: 600; align-items: flex-start; }
+        .facts .warn svg { flex: none; margin-top: 2px; }
+        .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .actions .xl { grid-column: 1 / -1; }
+        .last { font-size: 12.5px; color: var(--fg-3); border-top: 1px solid var(--line); padding-top: 10px; display: flex; gap: 6px; align-items: center; min-width: 0; }
+        .last span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+        .emergency { border: 1px dashed var(--bad); border-radius: 16px; padding: 14px; display: flex; gap: 12px; align-items: center; background: var(--surface); }
+        .emergency p { margin: 0; font-size: 13px; color: var(--fg-2); flex: 1; min-width: 0; }
+        .emergency b { color: var(--fg); display: block; font-size: 14.5px; }
+
+        .empty { background: var(--surface); border: 1px dashed var(--line-2); border-radius: 18px; padding: 28px 20px; text-align: center; color: var(--fg-2); }
+        .empty h3 { margin: 0 0 6px; color: var(--fg); }
+        .empty a { color: var(--accent); font-weight: 600; }
+        .skeleton { height: 230px; border-radius: 18px; background: linear-gradient(90deg, var(--surface) 0%, var(--surface-2) 50%, var(--surface) 100%); background-size: 200% 100%; animation: shimmer 1.2s infinite; border: 1px solid var(--line); }
+
+        /* access log */
+        .log { background: var(--surface); display: flex; flex-direction: column; min-height: 0; }
+        .log-head { padding: 16px 16px 12px; border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 12px; }
+        .log-title { display: flex; align-items: center; gap: 10px; }
+        .log-title h2 { margin: 0; font-size: 17px; flex: 1; }
+        .chips { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+        .chips::-webkit-scrollbar { display: none; }
+        .chip { font-size: 13px; font-weight: 600; white-space: nowrap; border-radius: 999px; border: 1px solid var(--line-2); background: var(--surface); color: var(--fg-2); padding: 7px 13px; cursor: pointer; }
+        .chip.on { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+        .log-tools { display: flex; gap: 8px; align-items: center; font-size: 13px; color: var(--fg-2); flex-wrap: wrap; }
+        .log-tools .sp { flex: 1; }
+        .switch { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; background: none; border: 0; color: inherit; padding: 4px 0; }
+        .switch i { width: 38px; height: 22px; border-radius: 999px; background: var(--line-2); position: relative; transition: background .15s; }
+        .switch i::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: left .15s; }
+        .switch[aria-checked="true"] i { background: var(--accent); }
+        .switch[aria-checked="true"] i::after { left: 19px; }
+        .legend-mini { display: inline-flex; gap: 10px; align-items: center; color: var(--fg-3); }
+        .legend-mini span { display: inline-flex; gap: 4px; align-items: center; }
+        .log-list { overflow: auto; padding: 0 16px calc(96px + env(safe-area-inset-bottom, 0px)); flex: 1; min-height: 0; }
+        .day { font-size: 11.5px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--fg-3); padding: 14px 0 6px; position: sticky; top: 0; background: var(--surface); }
+        .ev { display: grid; grid-template-columns: 64px 34px 1fr; gap: 10px; align-items: start; padding: 9px 0; border-bottom: 1px solid var(--line); }
+        .ev time { font-family: var(--f-mono); font-size: 13px; color: var(--fg-2); padding-top: 7px; font-variant-numeric: tabular-nums; }
+        .ev .ico { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; }
+        .ev.fingerprint .ico { background: var(--accent-soft); color: var(--accent); }
+        .ev.erp .ico { background: var(--open-soft); color: var(--open); }
+        .ev.failed .ico { background: var(--bad-soft); color: var(--bad); }
+        .ev .what { min-width: 0; }
+        .ev .who { font-weight: 600; font-size: 14.5px; overflow-wrap: anywhere; }
+        .ev .sub { font-size: 12.5px; color: var(--fg-3); overflow-wrap: anywhere; }
+        .ev.new { animation: flash 1.8s ease-out; }
+        .log-empty { color: var(--fg-3); padding: 28px 0; text-align: center; }
+
+        /* phone tabs */
+        .tabs { position: fixed; left: 0; right: 0; bottom: 0; display: grid; grid-template-columns: 1fr 1fr; background: var(--surface); border-top: 1px solid var(--line); padding: 6px 10px calc(8px + env(safe-area-inset-bottom, 0px)); z-index: 5; }
+        .tab { font-size: 12.5px; font-weight: 600; background: none; border: 0; color: var(--fg-3); display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px; cursor: pointer; border-radius: 12px; position: relative; }
+        .tab[aria-selected="true"] { color: var(--accent); }
+        .badge { position: absolute; top: 2px; left: calc(50% + 8px); min-width: 18px; height: 18px; border-radius: 9px; background: var(--bad); color: #fff; font-size: 11px; display: grid; place-items: center; padding: 0 5px; }
+        .main[data-tab="doors"] .log { display: none; }
+        .main[data-tab="log"] .doors { display: none; }
+
+        @media (min-width: 640px) {
+            .doors-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        }
+        @media (min-width: 1024px) {
+            .main, .main[data-tab] { grid-template-columns: minmax(0, 1fr) 400px; }
+            .main[data-tab] .log, .main[data-tab] .doors { display: flex; }
+            .log { border-left: 1px solid var(--line); }
+            .doors { padding: 18px; }
+            .log-list { padding-bottom: 16px; }
+            .tabs { display: none; }
+            .toast { bottom: 24px; }
+        }
+        @media (min-width: 1500px) {
+            .doors-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        }
+        /* phone: compact cards so three doors fit on one screen; Open / Hold / Close share one row */
+        @media (max-width: 639px) {
+            .bar { padding: calc(10px + env(safe-area-inset-top, 0px)) 12px 10px; }
+            .doors { padding: 12px 12px calc(84px + env(safe-area-inset-bottom, 0px)); gap: 10px; }
+            .doors-grid { gap: 10px; }
+            .summary { font-size: 12.5px; gap: 6px; }
+            .pill { font-size: 12px; padding: 3px 9px; }
+            .door { padding: 10px 12px; gap: 8px; border-radius: 16px; }
+            .door::before { height: 4px; }
+            .door-top { gap: 12px; }
+            .state-ico { width: 48px; height: 48px; border-radius: 14px; }
+            .state-ico > svg:not(.ring) { width: 24px; height: 24px; }
+            .ring { width: 54px; height: 54px; }
+            .door-name h3 { font-size: 18px; }
+            .state-line { font-size: 17px; margin-top: 1px; }
+            .door-name .meta { font-size: 11.5px; margin-top: 1px; }
+            .facts { font-size: 12px; }
+            .actions { grid-template-columns: 1fr auto auto; gap: 8px; }
+            .actions .xl { grid-column: auto; min-height: 46px; font-size: 16px; border-radius: 12px; }
+            .actions .xl:only-child { grid-column: 1 / -1; }
+            .actions .btn.ghost:not(.xl) { min-height: 46px; padding: 0 12px; font-size: 14px; }
+            .last { padding-top: 6px; font-size: 12px; }
+            .emergency { padding: 12px; }
+        }
+
+        /* confirmation: bottom sheet on phone, dialog on desktop */
+        .overlay { position: fixed; inset: 0; background: var(--scrim); display: flex; align-items: flex-end; z-index: 20; animation: fade .15s; }
+        .dlg { background: var(--surface); width: 100%; padding: 22px 20px calc(24px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; gap: 14px; border-radius: 24px 24px 0 0; animation: up .2s ease-out; }
+        .grab { width: 42px; height: 5px; border-radius: 3px; background: var(--line-2); align-self: center; margin-top: -8px; }
+        .dlg h4 { margin: 0; font-size: 20px; text-wrap: balance; }
+        .dlg p { margin: 0; color: var(--fg-2); }
+        .dlg .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .dlg .ico-big { width: 56px; height: 56px; border-radius: 16px; display: grid; place-items: center; background: var(--open-soft); color: var(--open); }
+        .dlg.danger .ico-big { background: var(--bad-soft); color: var(--bad); }
+        .steps { display: flex; gap: 6px; font-size: 12px; font-weight: 600; color: var(--fg-3); }
+        .steps span { flex: 1; border-top: 3px solid var(--line-2); padding-top: 6px; }
+        .steps span.on { border-color: var(--bad); color: var(--bad); }
+        .hold { position: relative; overflow: hidden; user-select: none; -webkit-user-select: none; touch-action: none; }
+        .hold .fill { position: absolute; inset: 0; background: rgba(255, 255, 255, .3); transform-origin: left; transform: scaleX(0); }
+        .hold.go .fill { transition: transform 1.5s linear; transform: scaleX(1); }
+        .hold span { position: relative; }
+        @media (min-width: 640px) {
+            .overlay { align-items: center; justify-content: center; padding: 16px; }
+            .dlg { max-width: 440px; border-radius: 18px; padding: 24px; }
+            .grab { display: none; }
+        }
+
+        .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(86px + env(safe-area-inset-bottom, 0px)); background: var(--fg); color: var(--bg); font-weight: 600; font-size: 14px; padding: 11px 16px; border-radius: 12px; z-index: 30; max-width: calc(100% - 32px); text-align: center; animation: fade .2s; }
+        .toast.err { background: var(--bad); color: #fff; }
+
+        @keyframes fade { from { opacity: 0; } }
+        @keyframes up { from { transform: translateY(40px); } }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes shimmer { to { background-position: -200% 0; } }
+        @keyframes flash { from { background: var(--accent-soft); } to { background: transparent; } }
+        @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+    </style>
+</head>
+
+<body>
+    <div class="app">
+        <header class="bar">
+            <a class="brand" href="/app" title="{{ _('Back to Desk') }}">
+                <div class="logo"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v17M3 21h18"/><circle cx="15" cy="12" r=".9" fill="currentColor"/></svg></div>
+                <div><b>{{ _('Door Control') }}</b><small id="door-count">&nbsp;</small></div>
+            </a>
+            <span class="sp"></span>
+            <button class="iconbtn" id="btn-refresh" data-act="refresh" aria-label="{{ _('Refresh status') }}" title="{{ _('Refresh status') }}"></button>
+        </header>
+
+        <main class="main" id="main" data-tab="doors">
+            <section class="doors" id="doors-panel" aria-label="{{ _('Doors') }}">
+                <div class="doors-grid"><div class="skeleton"></div><div class="skeleton"></div></div>
+            </section>
+            <aside class="log" id="log-panel" aria-label="{{ _('Access log') }}">
+                <div class="log-head">
+                    <div class="log-title">
+                        <h2>{{ _('Access log') }}</h2>
+                        <button class="btn ghost" style="min-height:40px" id="btn-fetch" data-act="fetch"></button>
+                    </div>
+                    <div class="chips" id="chips"></div>
+                    <div class="log-tools">
+                        <button class="switch" role="switch" aria-checked="false" id="sw-auto" data-act="auto"><i></i>{{ _('Auto refresh 30s') }}</button>
+                        <span class="sp"></span>
+                        <span class="legend-mini" id="legend-mini"></span>
+                    </div>
+                </div>
+                <div class="log-list" id="log-list"><div class="log-empty">{{ _('Loading…') }}</div></div>
+            </aside>
+        </main>
+
+        <nav class="tabs" role="tablist">
+            <button class="tab" role="tab" aria-selected="true" data-act="tab" data-id="doors" id="tab-doors"></button>
+            <button class="tab" role="tab" aria-selected="false" data-act="tab" data-id="log" id="tab-log"></button>
+        </nav>
+    </div>
+
+    <script>
+        window.csrf_token = "{{ csrf_token }}";
+        window.__messages = {{ messages_json }};
+    </script>
+    <script>
+    (function () {
+        'use strict';
+
+        // ─── i18n: strings are English, translated server-side (vi.csv) ─────────────
+        function __(text, args) {
+            let s = (window.__messages && window.__messages[text]) || text;
+            (args || []).forEach((a, i) => { s = s.split('{' + i + '}').join(a); });
+            return s;
+        }
+        const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+        // ─── API (www page: no `frappe` object; POST needs CSRF in FormData) ─────────
+        function _err(data, status) {
+            try {
+                if (data._server_messages) {
+                    const m = JSON.parse(data._server_messages).map(x => { try { return JSON.parse(x).message; } catch (e) { return x; } });
+                    if (m.length) return m.join(' ').replace(/<[^>]+>/g, '');
+                }
+            } catch (e) { /* fall through */ }
+            return data.exception || data.exc_type || `HTTP ${status}`;
+        }
+        async function call(method, args, post) {
+            let res;
+            const url = `/api/method/customize_erpnext.api.door_control.${method}`;
+            if (post) {
+                const fd = new FormData();
+                fd.append('csrf_token', window.csrf_token);
+                Object.entries(args || {}).forEach(([k, v]) => fd.append(k, v == null ? '' : String(v)));
+                res = await fetch(url, { method: 'POST', credentials: 'same-origin', body: fd });
+            } else {
+                const qs = new URLSearchParams();
+                Object.entries(args || {}).forEach(([k, v]) => { if (v != null && v !== '') qs.set(k, String(v)); });
+                res = await fetch(url + (qs.toString() ? `?${qs}` : ''), { credentials: 'same-origin' });
+            }
+            if (res.status === 401) { location.reload(); throw new Error(__('Session expired')); }
+            let data;
+            try { data = await res.json(); } catch (e) { throw new Error(`HTTP ${res.status}`); }
+            if (!res.ok || data.exc || data.exc_type) throw new Error(_err(data, res.status));
+            return data.message;
+        }
+
+        // ─── icons ────────────────────────────────────────────────────────────────────
+        const svg = (d, s = 24, extra = '') => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}${extra}</svg>`;
+        const I = {
+            lock: s => svg('<rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V7.5a4 4 0 0 1 8 0V11"/>', s),
+            door: s => svg('<path d="M5 21V4a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v17M3 21h18"/>', s, '<circle cx="15" cy="12" r=".9" fill="currentColor"/>'),
+            unlock: s => svg('<rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V7.5a4 4 0 0 1 7.7-1.5"/>', s),
+            off: s => svg('<path d="M2 8.8a15 15 0 0 1 4.2-2.6M10.7 5.1A15 15 0 0 1 22 8.8M5 12.6a10 10 0 0 1 3-1.9M15.5 10.9A10 10 0 0 1 19 12.6M8.5 16.1a5 5 0 0 1 7 0"/><path d="M3 3l18 18"/>', s, '<circle cx="12" cy="19.5" r=".8" fill="currentColor"/>'),
+            fp: s => svg('<path d="M7 4.7A9 9 0 0 1 21 12v1M3 12a9 9 0 0 1 1.5-5M7.5 20A9 9 0 0 1 6 15.5V12a6 6 0 0 1 12 0v2M12 12v3a6 6 0 0 0 2.5 5M9 12a3 3 0 0 1 6 0v3.5"/>', s),
+            erp: s => svg('<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>', s),
+            warn: s => svg('<path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17h.01"/>', s),
+            refresh: s => svg('<path d="M20 11a8 8 0 0 0-14.6-4.5L4 8M4 4v4h4M4 13a8 8 0 0 0 14.6 4.5L20 16M20 20v-4h-4"/>', s),
+            dl: s => svg('<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>', s),
+            list: s => svg('<path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/>', s),
+            grid: s => svg('<rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/>', s),
+            sensor: s => svg('<circle cx="12" cy="12" r="2"/><path d="M7.8 7.8a6 6 0 0 0 0 8.4M16.2 7.8a6 6 0 0 1 0 8.4"/>', s),
+            clock: s => svg('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>', s),
+        };
+        const CIRC = 2 * Math.PI * 32;
+
+        // ─── state ────────────────────────────────────────────────────────────────────
+        const S = {
+            doors: [], loaded: false, loadError: null,
+            openUntil: {},          // device_name -> Date.now() ms when the lock closes again
+            events: [], filter: 'all', newestKey: null, unseen: 0,
+            tab: 'doors', auto: false, fetching: false, refreshing: false,
+        };
+        try { S.auto = localStorage.getItem('doorControl.auto') === '1'; } catch (e) { /* storage blocked */ }
+        try { S.filter = localStorage.getItem('doorControl.filter') || 'all'; } catch (e) { /* storage blocked */ }
+
+        const $ = id => document.getElementById(id);
+        const pad = n => String(n).padStart(2, '0');
+        // server datetimes are "YYYY-MM-DD HH:MM:SS[.ffffff]" in the site's timezone — parse as text, never via Date/toISOString
+        const parts = ts => { const m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):?(\d{2})?/.exec(ts || ''); return m ? { y: m[1], mo: m[2], d: m[3], h: m[4], mi: m[5], s: m[6] || '00' } : null; };
+        const hhmm = ts => { const p = parts(ts); return p ? `${p.h}:${p.mi}` : ''; };
+        const hhmmss = ts => { const p = parts(ts); return p ? `${p.h}:${p.mi}:${p.s}` : ''; };
+        const localYmd = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+        function dayLabel(ts) {
+            const p = parts(ts); if (!p) return '';
+            const ymd = `${p.y}-${p.mo}-${p.d}`, dmy = `${p.d}/${p.mo}/${p.y}`;
+            const today = new Date(), yest = new Date(); yest.setDate(today.getDate() - 1);
+            if (ymd === localYmd(today)) return `${__('Today')} · ${dmy}`;
+            if (ymd === localYmd(yest)) return `${__('Yesterday')} · ${dmy}`;
+            return dmy;
+        }
+        const remaining = d => Math.max(0, Math.ceil(((S.openUntil[d.device_name] || 0) - Date.now()) / 1000));
+        const isOpen = d => remaining(d) > 0;
+        const fmtLeft = s => s >= 60 ? `${Math.floor(s / 60)}:${pad(s % 60)}` : `${s}s`;
+
+        function actionText(e) {
+            switch (e.action) {
+                case 'Unlock': return __('Opened for {0}s from ERP', [e.seconds]);
+                case 'Hold Open': return __('Held open from ERP');
+                case 'Close': return __('Closed from ERP');
+                case 'Unlock All': return __('Opened all doors (emergency)');
+                default: return e.action || '';
+            }
+        }
+        function lastText(last) {
+            if (!last) return __('No activity yet');
+            const p = parts(last.timestamp);
+            // date only when it is not today
+            const t = (p && `${p.y}-${p.mo}-${p.d}` !== localYmd(new Date()) ? `${p.d}/${p.mo} ` : '') + hhmm(last.timestamp);
+            if (last.kind === 'fingerprint') return `${t} · ${__('{0} — fingerprint', [last.who])}`;
+            const what = actionText(last);
+            return `${t} · ${last.who}: ${last.result === 'Failed' ? __('{0} failed', [what]) : what}`;
+        }
+
+        // ─── render: doors ─────────────────────────────────────────────────────────────
+        // Lock status sensor (LB-35 NO/COM) wired: it is the truth, fingerprint opens included
+        const sensorKnown = d => d.has_door_sensor && d.online && (d.sensor === 'locked' || d.sensor === 'unlocked');
+        const isUnlocked = d => d.online && (sensorKnown(d) ? d.sensor === 'unlocked' : isOpen(d));
+
+        function doorCard(d) {
+            const off = !d.online, erpOpen = !off && isOpen(d), left = remaining(d);
+            const bySensor = sensorKnown(d);
+            const open = !off && isUnlocked(d);
+            const hold = erpOpen && d.hold;
+            // Without a working lock sensor the real lock state is unknown: "Locked" is NOT
+            // shown (08/10/2026 — a broken emergency glass kept a bolt released while the
+            // page said Locked). Only what is certain: an ERP open countdown, or offline.
+            const cls = off ? 'is-off' : open ? 'is-open' : bySensor ? '' : 'is-idle';
+            const total = d.hold ? (d._holdTotal || left) : d.unlock_seconds;
+            const ring = erpOpen ? `<svg class="ring" viewBox="0 0 70 70" aria-hidden="true"><circle cx="35" cy="35" r="32" data-ring="${esc(d.device_name)}" data-total="${total}" stroke-dasharray="${CIRC}" stroke-dashoffset="${CIRC * (1 - Math.min(1, left / total))}"/></svg>` : '';
+            const cd = erpOpen ? ` · <span class="cd" data-cd="${esc(d.device_name)}">${fmtLeft(left)}</span>` : '';
+            const state = off ? __('Offline')
+                : bySensor ? (open ? __('Bolt released') : __('Bolt locked')) + cd
+                : hold ? `${__('Held open')}${cd}`
+                : erpOpen ? `${__('Open')}${cd}`
+                : '';
+            const ico = off ? I.off(30) : open ? I.unlock(30) : bySensor ? I.lock(30) : I.door(30);
+            const facts = [];
+            if (bySensor) {
+                facts.push(`<span title="${esc(__('Raw sensor value: {0}', [d.sensor_raw]))}">${I.sensor(15)}${__('From the lock sensor')}</span>`);
+            } else if (d.has_door_sensor && !off && d.sensor_mode_mismatch) {
+                facts.push(`<span class="warn">${I.warn(15)}${esc(__('Door Sensor Mode on the device is {0} but Sensor Type is {1}. Change it on the device menu. Showing the ERP command state.', [d.device_sensor_mode, d.sensor_type]))}</span>`);
+            } else if (d.has_door_sensor && !off) {
+                facts.push(`<span>${I.sensor(15)}${__('Lock sensor not readable — showing the ERP command state')}</span>`);
+            }
+            if (off && d.error) facts.push(`<span title="${esc(d.error)}">${esc(__('Cannot reach the device'))}</span>`);
+            const n = esc(d.device_name);
+            let acts;
+            if (off) {
+                acts = `<button class="btn xl ghost" data-act="retry">${I.refresh(20)}${__('Try to reconnect')}</button>`;
+            } else {
+                acts = `<button class="btn xl primary" data-act="ask-open" data-id="${n}" ${erpOpen ? 'disabled' : ''}>${I.unlock(22)}${__('Open {0} seconds', [d.unlock_seconds])}</button>`;
+                if (d.allow_hold_close) {
+                    // switched off server-side for now (HOLD_CLOSE_ENABLED): shown, but disabled
+                    const off = !d.hold_close_enabled;
+                    const tip = off ? ` title="${esc(__('Temporarily unavailable'))}"` : '';
+                    acts += `<button class="btn ghost" data-act="ask-hold" data-id="${n}"${tip} ${off || hold ? 'disabled' : ''}>${__('Hold open')}</button>
+                             <button class="btn ghost" data-act="close" data-id="${n}"${tip} ${!off && (open || erpOpen) ? '' : 'disabled'}>${__('Close')}</button>`;
+                }
+            }
+            const meta = [d.location, d.ip_address].filter(Boolean).map(esc).join(' · ');
+            return `<article class="door ${cls}" data-door="${n}">
+                <div class="door-top">
+                    <div class="state-ico">${ico}${ring}</div>
+                    <div class="door-name"><h3>${n}</h3>${state ? `<div class="state-line">${state}</div>` : ''}<div class="meta">${meta}</div></div>
+                </div>
+                ${facts.length ? `<div class="facts">${facts.join('')}</div>` : ''}
+                <div class="actions">${acts}</div>
+                <div class="last">${I.clock(15)}<span>${esc(lastText(d.last))}</span></div>
+            </article>`;
+        }
+
+        function renderDoors() {
+            const panel = $('doors-panel');
+            $('door-count').textContent = S.loaded ? __('{0} doors', [S.doors.length]) : ' ';
+            if (!S.loaded) return;
+            if (S.loadError && !S.doors.length) {
+                panel.innerHTML = `<div class="empty"><h3>${__('Could not load the doors')}</h3><p>${esc(S.loadError)}</p><button class="btn ghost" data-act="refresh">${I.refresh(18)}${__('Try again')}</button></div>`;
+                return;
+            }
+            if (!S.doors.length) {
+                panel.innerHTML = `<div class="empty"><h3>${__('No door controller yet')}</h3><p>${__('Tick "Is Door Control" on a device in Attendance Machine Setting, then refresh this page.')}</p><p><a href="/app/attendance-machine-setting">${__('Open Attendance Machine Setting')}</a></p></div>`;
+                return;
+            }
+            const online = S.doors.filter(d => d.online).length;
+            const open = S.doors.filter(isUnlocked).length;
+            const offline = S.doors.length - online;
+            const now = new Date();
+            panel.innerHTML = `
+                <div class="summary">
+                    <span class="pill ok">${__('{0}/{1} online', [online, S.doors.length])}</span>
+                    ${open ? `<span class="pill open">${__('{0} open', [open])}</span>` : ''}
+                    ${offline ? `<span class="pill idle">${__('{0} offline', [offline])}</span>` : ''}
+                    <span class="sp"></span><span>${__('Updated {0}', [`${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`])}</span>
+                </div>
+                <div class="doors-grid">${S.doors.map(doorCard).join('')}</div>
+                <div class="emergency">
+                    <p><b>${__('Open all doors')}</b>${__('For emergencies such as a fire alarm. Needs two confirmation steps.')}</p>
+                    <button class="btn danger-o" data-act="ask-all" ${online ? '' : 'disabled'}>${__('Open all')}</button>
+                </div>`;
+        }
+
+        // ─── render: access log ────────────────────────────────────────────────────────
+        const evKey = e => `${e.kind}|${e.timestamp}|${e.device_name}|${e.who}`;
+        function renderChips() {
+            const opts = [['all', __('All doors')], ...S.doors.map(d => [d.device_name, d.device_name])];
+            if (!opts.some(o => o[0] === S.filter)) S.filter = 'all';
+            $('chips').innerHTML = opts.map(([k, v]) => `<button class="chip ${S.filter === k ? 'on' : ''}" data-act="filter" data-id="${esc(k)}">${esc(v)}</button>`).join('');
+        }
+        function renderLog(flashKeys) {
+            renderChips();
+            const rows = S.events.filter(e => S.filter === 'all' || e.device_name === S.filter);
+            if (!rows.length) { $('log-list').innerHTML = `<div class="log-empty">${__('No log for this door yet. Press "Get logs" to read the device.')}</div>`; return; }
+            let day = null, html = '';
+            rows.forEach(e => {
+                const dl = dayLabel(e.timestamp);
+                if (dl !== day) { day = dl; html += `<div class="day">${esc(dl)}</div>`; }
+                let ico, who = e.who, sub;
+                if (e.kind === 'fingerprint') {
+                    ico = I.fp(18);
+                    if (!e.matched) who = __('ID {0}', [e.user_id]);
+                    sub = e.matched ? __('Fingerprint') : __('Fingerprint · not linked to any employee');
+                } else {
+                    ico = e.kind === 'erp' ? I.erp(18) : I.warn(18);
+                    sub = e.kind === 'erp' ? actionText(e) : __('{0} failed: {1}', [actionText(e), e.error || '']);
+                }
+                const isNew = flashKeys && flashKeys.has(evKey(e));
+                html += `<div class="ev ${e.kind}${isNew ? ' new' : ''}"><time title="${esc(e.timestamp)}">${hhmmss(e.timestamp)}</time><div class="ico">${ico}</div>
+                    <div class="what"><div class="who">${esc(who)}</div><div class="sub">${esc(sub)} · ${esc(e.device_name || '')}</div></div></div>`;
+            });
+            $('log-list').innerHTML = html;
+        }
+        function renderChrome() {
+            $('btn-refresh').innerHTML = I.refresh(18);
+            $('btn-refresh').classList.toggle('spin', S.refreshing);
+            $('btn-fetch').innerHTML = `${I.dl(18)}${S.fetching ? __('Reading…') : __('Get logs')}`;
+            $('btn-fetch').classList.toggle('busy', S.fetching);
+            $('sw-auto').setAttribute('aria-checked', S.auto ? 'true' : 'false');
+            $('legend-mini').innerHTML = `<span>${I.fp(14)}${__('Fingerprint')}</span><span>${I.erp(14)}ERP</span>`;
+            $('main').dataset.tab = S.tab;
+            $('tab-doors').setAttribute('aria-selected', S.tab === 'doors');
+            $('tab-log').setAttribute('aria-selected', S.tab === 'log');
+            $('tab-doors').innerHTML = `${I.grid(22)}${__('Doors')}`;
+            $('tab-log').innerHTML = `${I.list(22)}${__('Access log')}${S.unseen && S.tab !== 'log' ? `<span class="badge">${S.unseen > 99 ? '99+' : S.unseen}</span>` : ''}`;
+        }
+
+        // ─── data ─────────────────────────────────────────────────────────────────────
+        // LB-35 re-locks 0/3/6 s after the relay window: with a sensor, read the bolt
+        // again right after the window and once more after the longest delay
+        const sensorTimers = {};
+        function scheduleSensorRefresh(d) {
+            clearTimeout(sensorTimers[d.device_name]);
+            const ms = d.open_remaining * 1000;
+            sensorTimers[d.device_name] = setTimeout(() => {
+                loadDoors(true);
+                sensorTimers[d.device_name] = setTimeout(() => loadDoors(true), 6500);
+            }, ms + 1200);
+        }
+        function applyDoor(d) {
+            if (d.open_remaining > 0) {
+                S.openUntil[d.device_name] = Date.now() + d.open_remaining * 1000;
+                if (d.hold && !d._holdTotal) d._holdTotal = Math.max(d.open_remaining, 1);
+                if (d.has_door_sensor && d.online && !d.hold) scheduleSensorRefresh(d);
+            } else {
+                delete S.openUntil[d.device_name];
+            }
+        }
+        async function loadDoors(force) {
+            S.refreshing = true; renderChrome();
+            try {
+                const r = await call('get_doors', { force: force ? 1 : 0 });
+                const prevHold = Object.fromEntries(S.doors.map(d => [d.device_name, d._holdTotal]));
+                S.doors = r.doors || [];
+                S.doors.forEach(d => { if (d.hold) d._holdTotal = prevHold[d.device_name]; applyDoor(d); });
+                S.loadError = null;
+            } catch (e) {
+                S.loadError = e.message;
+                if (S.loaded) toast(e.message, true);
+            } finally {
+                S.loaded = true; S.refreshing = false;
+                renderDoors(); renderChrome();
+            }
+        }
+        async function loadTimeline() {
+            try {
+                const r = await call('get_timeline', {});
+                const before = new Set(S.events.map(evKey));
+                const fresh = S.events.length ? new Set((r.events || []).map(evKey).filter(k => !before.has(k))) : new Set();
+                S.events = r.events || [];
+                if (fresh.size && S.tab !== 'log' && window.innerWidth < 1024) S.unseen += fresh.size;
+                renderLog(fresh); renderChrome();
+            } catch (e) {
+                $('log-list').innerHTML = `<div class="log-empty">${esc(e.message)}</div>`;
+            }
+        }
+        async function fetchLogs(silent) {
+            if (S.fetching) return;
+            S.fetching = true; renderChrome();
+            try {
+                const r = await call('fetch_logs', {}, true);
+                if (!silent) {
+                    const failed = (r.results || []).filter(x => !x.success).map(x => x.device_name);
+                    toast(failed.length ? __('{0} new log(s). Could not read: {1}', [r.inserted, failed.join(', ')]) : __('{0} new log(s)', [r.inserted]), !!failed.length);
+                }
+            } catch (e) {
+                if (!silent) toast(e.message, true);
+            } finally {
+                S.fetching = false; renderChrome();
+            }
+            await loadTimeline();
+        }
+
+        // ─── commands ─────────────────────────────────────────────────────────────────
+        async function command(method, name, btn) {
+            if (btn) btn.classList.add('busy');
+            try {
+                const r = await call(method, { device_name: name }, true);
+                const i = S.doors.findIndex(d => d.device_name === name);
+                if (r.door && i >= 0) {
+                    if (method === 'hold_open') r.door._holdTotal = r.door.open_remaining;
+                    S.doors[i] = r.door; applyDoor(r.door);
+                }
+                if (r.success) {
+                    toast(method === 'close_door' ? __('{0} locked', [name]) : method === 'hold_open' ? __('{0} is held open', [name]) : __('{0} opened', [name]));
+                } else {
+                    toast(__('Could not reach {0}: {1}', [name, r.message || '']), true);
+                }
+            } catch (e) {
+                toast(e.message, true);
+            } finally {
+                renderDoors(); loadTimeline();
+            }
+        }
+        async function openAll() {
+            toast(__('Opening all doors…'));
+            try {
+                const r = await call('unlock_all', {}, true);
+                const failed = r.results.filter(x => !x.success).map(x => x.device_name);
+                toast(failed.length ? __('{0} door(s) opened. Failed: {1}', [r.opened, failed.join(', ')]) : __('{0} door(s) opened', [r.opened]), !!failed.length);
+            } catch (e) {
+                toast(e.message, true);
+            }
+            await loadDoors(true); loadTimeline();
+        }
+
+        // ─── confirmation sheet ───────────────────────────────────────────────────────
+        function closeModal() { document.querySelectorAll('.overlay').forEach(n => n.remove()); }
+        function modal(html, onReady) {
+            closeModal();
+            const ov = document.createElement('div');
+            ov.className = 'overlay';
+            ov.innerHTML = html;
+            ov.addEventListener('click', e => { if (e.target === ov) closeModal(); });
+            document.body.appendChild(ov);
+            const first = ov.querySelector('[data-focus]'); if (first) first.focus();
+            if (onReady) onReady(ov);
+        }
+        function askOpen(d) {
+            modal(`<div class="dlg" role="dialog" aria-modal="true"><div class="grab"></div>
+                <div class="ico-big">${I.unlock(30)}</div>
+                <h4>${esc(__('Open {0}?', [d.device_name]))}</h4>
+                <p>${__('The door opens for {0} seconds, then locks again. The command is logged under your name.', [d.unlock_seconds])}</p>
+                <div class="row"><button class="btn xl ghost" data-act="cancel">${__('Cancel')}</button>
+                <button class="btn xl primary" data-act="do-open" data-id="${esc(d.device_name)}" data-focus>${__('Open door')}</button></div></div>`);
+        }
+        function askHold(d) {
+            modal(`<div class="dlg" role="dialog" aria-modal="true"><div class="grab"></div>
+                <div class="ico-big">${I.unlock(30)}</div>
+                <h4>${esc(__('Hold {0} open?', [d.device_name]))}</h4>
+                <p>${__('The door stays unlocked for up to 15 minutes or until you press Close. The command is logged under your name.')}</p>
+                <div class="row"><button class="btn xl ghost" data-act="cancel">${__('Cancel')}</button>
+                <button class="btn xl primary" data-act="do-hold" data-id="${esc(d.device_name)}" data-focus>${__('Hold open')}</button></div></div>`);
+        }
+        function askAll(step) {
+            const online = S.doors.filter(d => d.online);
+            const offline = S.doors.filter(d => !d.online).map(d => d.device_name);
+            if (step === 1) {
+                modal(`<div class="dlg danger" role="dialog" aria-modal="true"><div class="grab"></div>
+                    <div class="steps"><span class="on">1. ${__('Confirm')}</span><span>2. ${__('Hold to open')}</span></div>
+                    <div class="ico-big">${I.warn(28)}</div>
+                    <h4>${__('Open all {0} online doors?', [online.length])}</h4>
+                    <p>${__('Every door opens at the same time.')}${offline.length ? ' ' + esc(__('Offline and will not open: {0}', [offline.join(', ')])) : ''}</p>
+                    <div class="row"><button class="btn xl ghost" data-act="cancel" data-focus>${__('Cancel')}</button>
+                    <button class="btn xl danger" data-act="all-step2">${__('Continue')}</button></div></div>`);
+                return;
+            }
+            modal(`<div class="dlg danger" role="dialog" aria-modal="true"><div class="grab"></div>
+                <div class="steps"><span class="on">1. ${__('Confirm')}</span><span class="on">2. ${__('Hold to open')}</span></div>
+                <h4>${__('Hold the button for 1.5 seconds to open all doors')}</h4>
+                <p>${__('Let go before the bar is full to cancel.')}</p>
+                <button class="btn xl danger hold" data-focus><span class="fill"></span><span>${__('Hold to open all')}</span></button>
+                <button class="btn ghost" data-act="cancel">${__('Cancel')}</button></div>`, ov => {
+                const hb = ov.querySelector('.hold');
+                let timer = null;
+                const start = e => { e.preventDefault(); if (timer) return; hb.classList.add('go'); timer = setTimeout(() => { closeModal(); openAll(); }, 1500); };
+                const stop = () => { hb.classList.remove('go'); clearTimeout(timer); timer = null; };
+                hb.addEventListener('pointerdown', start);
+                ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => hb.addEventListener(ev, stop));
+                hb.addEventListener('keydown', e => { if ((e.key === ' ' || e.key === 'Enter') && !e.repeat) start(e); });
+                hb.addEventListener('keyup', stop);
+                hb.addEventListener('contextmenu', e => e.preventDefault());
+            });
+        }
+
+        let toastTimer = null;
+        function toast(msg, isErr) {
+            document.querySelectorAll('.toast').forEach(n => n.remove());
+            const t = document.createElement('div');
+            t.className = 'toast' + (isErr ? ' err' : '');
+            t.setAttribute('role', 'status');
+            t.textContent = msg;
+            document.body.appendChild(t);
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => t.remove(), isErr ? 5000 : 2600);
+        }
+
+        // ─── events ───────────────────────────────────────────────────────────────────
+        document.addEventListener('click', e => {
+            const b = e.target.closest('[data-act]');
+            if (!b) return;
+            const id = b.dataset.id;
+            const d = S.doors.find(x => x.device_name === id);
+            switch (b.dataset.act) {
+                case 'ask-open': if (d) askOpen(d); break;
+                case 'do-open': closeModal(); command('unlock_door', id); break;
+                case 'ask-hold': if (d) askHold(d); break;
+                case 'do-hold': closeModal(); command('hold_open', id); break;
+                case 'close': command('close_door', id, b); break;
+                case 'ask-all': askAll(1); break;
+                case 'all-step2': askAll(2); break;
+                case 'cancel': closeModal(); break;
+                case 'retry': case 'refresh': loadDoors(true); break;
+                case 'fetch': fetchLogs(false); break;
+                case 'filter':
+                    S.filter = id; try { localStorage.setItem('doorControl.filter', id); } catch (err) { /* ignore */ }
+                    renderLog(); break;
+                case 'auto':
+                    S.auto = !S.auto; try { localStorage.setItem('doorControl.auto', S.auto ? '1' : '0'); } catch (err) { /* ignore */ }
+                    renderChrome(); toast(S.auto ? __('Logs refresh every 30 seconds') : __('Auto refresh is off'));
+                    if (S.auto) fetchLogs(true);
+                    break;
+                case 'tab':
+                    S.tab = id; if (id === 'log') S.unseen = 0;
+                    renderChrome(); break;
+            }
+        });
+        document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+        // countdown: update the numbers in place, re-render a card when its time is up
+        setInterval(() => {
+            let ended = false;
+            S.doors.forEach(d => {
+                const until = S.openUntil[d.device_name];
+                if (!until) return;
+                const left = remaining(d);
+                document.querySelectorAll(`[data-cd="${CSS.escape(d.device_name)}"]`).forEach(n => { n.textContent = fmtLeft(left); });
+                document.querySelectorAll(`[data-ring="${CSS.escape(d.device_name)}"]`).forEach(n => {
+                    n.setAttribute('stroke-dashoffset', CIRC * (1 - Math.min(1, left / (+n.dataset.total || 1))));
+                });
+                if (left <= 0) { delete S.openUntil[d.device_name]; d.hold = false; d._holdTotal = null; ended = true; }
+            });
+            if (ended) renderDoors();
+        }, 250);
+
+        // polling only while the page is visible: status 15 s, logs 30 s when switched on
+        let ticks = 0;
+        setInterval(() => {
+            if (document.hidden || document.querySelector('.overlay')) return;
+            ticks += 1;
+            loadDoors(false);
+            if (S.auto && ticks % 2 === 0) fetchLogs(true);
+        }, 15000);
+        document.addEventListener('visibilitychange', () => { if (!document.hidden) loadDoors(false); });
+
+        renderChrome();
+        loadDoors(false);
+        loadTimeline();
+        if (S.auto) fetchLogs(true);
+    })();
+    </script>
+</body>
+
+</html>

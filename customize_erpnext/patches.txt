@@ -10,6 +10,9 @@ customize_erpnext.patches.add_attendance_performance_indexes #rerun 2026-07-13 i
 # `Vehicle Manager` role. DocPerm.role is a Link, so the Role has to exist BEFORE the
 # model sync imports those DocTypes. Idempotent.
 customize_erpnext.patches.create_vehicle_manager_role
+# pre_model_sync: Door Control Action / Door Access Log ship a DocPerm row for the
+# `Door Control` role (Link) - the role must exist before the model sync. Idempotent.
+customize_erpnext.patches.create_door_control_role
 
 # pre_model_sync: the app folder now only ships `tiqn_fixed_trip_schedule`, so the sync
 # would treat `TIQN Fixed Trip Template` as an orphan DocType and delete it - along with

@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Door Control">
+  <title>Door Control</title>
+  <!-- Slate tile like the /door_control top bar logo; door with an amber "unlocked" badge. -->
+  <defs>
+    <linearGradient id="dcTile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1E293B"/>
+      <stop offset="1" stop-color="#0F172A"/>
+    </linearGradient>
+  </defs>
+  <rect x="16" y="16" width="480" height="480" rx="108" fill="url(#dcTile)"/>
+
+  <!-- Door frame + leaf -->
+  <path d="M150 400V118a14 14 0 0 1 14-14h184a14 14 0 0 1 14 14v282" fill="none" stroke="#E2E8F0" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M110 400h292" stroke="#E2E8F0" stroke-width="28" stroke-linecap="round"/>
+  <circle cx="306" cy="262" r="16" fill="#E2E8F0"/>
+
+  <!-- Padlock badge -->
+  <circle cx="372" cy="372" r="92" fill="#F59E0B"/>
+  <rect x="326" y="362" width="92" height="66" rx="14" fill="#0F172A"/>
+  <path d="M344 362v-22a28 28 0 0 1 54-10" fill="none" stroke="#0F172A" stroke-width="16" stroke-linecap="round"/>
+</svg>

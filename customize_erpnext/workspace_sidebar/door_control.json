@@ -1,0 +1,37 @@
+{
+ "app": "customize_erpnext",
+ "doctype": "Workspace Sidebar",
+ "docstatus": 0,
+ "for_user": "",
+ "header_icon": "",
+ "items": [
+  {
+   "hidden": 0,
+   "icon": "",
+   "label": "Door Control",
+   "link_to": "/door_control",
+   "link_type": "URL",
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "icon": "",
+   "label": "Door Control Action",
+   "link_to": "Door Control Action",
+   "link_type": "DocType",
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "icon": "",
+   "label": "Door Access Log",
+   "link_to": "Door Access Log",
+   "link_type": "DocType",
+   "type": "Link"
+  }
+ ],
+ "module": "Network",
+ "module_onboarding": "",
+ "name": "Door Control",
+ "title": "Door Control"
+}

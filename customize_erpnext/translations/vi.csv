@@ -21864,3 +21864,94 @@ Today,Hôm nay
 Young Child From Date,Ngày bắt đầu chế độ con nhỏ
 Young Child To Date,Ngày kết thúc chế độ con nhỏ
 ongoing,đang diễn ra
+Access log,Nhật ký ra vào
+All doors,Tất cả cửa
+Allow Hold Open / Close,Cho phép Giữ mở / Đóng
+Auto refresh 30s,Tự làm mới 30s
+Auto refresh is off,Đã tắt tự làm mới
+Cannot reach the device,Không kết nối được máy
+Closed from ERP,Đóng từ ERP
+Could not load the doors,Không tải được danh sách cửa
+Could not reach {0}: {1},Không kết nối được {0}: {1}
+Device IP,IP thiết bị
+Door,Cửa
+Door Control,Quản lý cửa
+Door Control Action,Lệnh điều khiển cửa
+Door controller — tick only to grant door access,Máy quản lý cửa — chỉ tick khi muốn cấp quyền mở cửa
+"Door controller: shown on /door_control and kept out of every attendance function. Only the 'Sync Fingerprint From ERP To Attendance Machines' dialog lists it (unticked, Door Control role only).","Máy quản lý cửa: hiện trên /door_control và bị loại khỏi mọi chức năng chấm công. Chỉ dialog 'Sync Fingerprint From ERP To Attendance Machines' liệt kê máy này (mặc định không tick, chỉ role Door Control thấy)."
+Every door opens at the same time.,Mọi cửa sẽ mở cùng lúc.
+Fingerprint · not linked to any employee,Vân tay · không khớp nhân viên nào
+For emergencies such as a fire alarm. Needs two confirmation steps.,"Dùng khi khẩn cấp, ví dụ báo cháy. Cần xác nhận 2 bước."
+Get logs,Lấy log
+Held open,Đang giữ mở
+Held open from ERP,Giữ mở từ ERP
+Hold Open,Giữ mở
+Hold open,Giữ mở
+Hold open / Close is not enabled for {0},{0} chưa bật chức năng Giữ mở / Đóng
+Hold the button for 1.5 seconds to open all doors,"Giữ nút 1,5 giây để mở tất cả cửa"
+Hold to open,Giữ để mở
+Hold to open all,Giữ để mở tất cả
+Hold {0} open?,Giữ mở {0}?
+How long the lock stays open when 'Open' is pressed on /door_control,Số giây khoá mở mỗi lần bấm 'Mở' trên /door_control
+ID {0},ID {0}
+Is Door Control,Là máy quản lý cửa
+Leave off until it is verified on this device that 'Close' really locks the door early,Để tắt cho tới khi đã kiểm chứng trên máy này rằng lệnh 'Đóng' thật sự khoá cửa sớm
+Let go before the bar is full to cancel.,Thả tay trước khi thanh chạy hết để huỷ.
+Logs refresh every 30 seconds,Tự làm mới log mỗi 30 giây
+No activity yet,Chưa có hoạt động
+No door controller is enabled,Chưa có máy quản lý cửa nào được bật
+No door controller yet,Chưa có máy quản lý cửa
+"No log for this door yet. Press ""Get logs"" to read the device.","Chưa có log cho cửa này. Bấm ""Lấy log"" để đọc từ máy."
+Offline and will not open: {0},"Mất kết nối, sẽ không mở được: {0}"
+Open Attendance Machine Setting,Mở Attendance Machine Setting
+Open all,Mở tất cả
+Open all doors,Mở tất cả cửa
+Open all {0} online doors?,Mở tất cả {0} cửa đang trực tuyến?
+Open door,Mở cửa
+Open {0} seconds,Mở {0} giây
+Open {0}?,Mở cửa {0}?
+Opened all doors (emergency),Mở tất cả cửa (khẩn cấp)
+Opened for {0}s from ERP,Mở {0} giây từ ERP
+Opening all doors…,Đang mở tất cả cửa…
+Raw sensor value: {0},Giá trị cảm biến thô: {0}
+Reading…,Đang đọc…
+Refresh status,Làm mới trạng thái
+Row {0}: Unlock Seconds must be between 1 and 60,Dòng {0}: Unlock Seconds phải từ 1 đến 60
+Row {0}: {1} is a door controller and cannot be the Master Device,"Dòng {0}: {1} là máy quản lý cửa, không được làm Master Device"
+Seconds,Số giây
+Session expired,Phiên đăng nhập đã hết hạn
+"The door opens for {0} seconds, then locks again. The command is logged under your name.",Cửa mở trong {0} giây rồi tự khoá lại. Lệnh được ghi vào nhật ký dưới tên của bạn.
+The door stays unlocked for up to 15 minutes or until you press Close. The command is logged under your name.,Cửa mở tối đa 15 phút hoặc tới khi bạn bấm Đóng. Lệnh được ghi vào nhật ký dưới tên của bạn.
+"Tick ""Is Door Control"" on a device in Attendance Machine Setting, then refresh this page.","Tick ""Is Door Control"" cho một máy trong Attendance Machine Setting rồi tải lại trang này."
+Try again,Thử lại
+Try to reconnect,Thử kết nối lại
+Unlock All,Mở tất cả
+Unlock Seconds,Số giây mở khoá
+Updated {0},Cập nhật {0}
+{0} door(s) opened,Đã mở {0} cửa
+{0} door(s) opened. Failed: {1},Đã mở {0} cửa. Lỗi: {1}
+{0} doors,{0} cửa
+{0} failed,{0} thất bại
+{0} failed: {1},{0} thất bại: {1}
+{0} is a door controller and cannot be used by attendance functions,"{0} là máy quản lý cửa, không dùng được cho chức năng chấm công"
+{0} is disabled in Attendance Machine Setting,{0} đang bị tắt trong Attendance Machine Setting
+{0} is held open,{0} đang giữ mở
+{0} is not a door controller,{0} không phải máy quản lý cửa
+{0} locked,Đã khoá {0}
+{0} new log(s),{0} log mới
+{0} new log(s). Could not read: {1},{0} log mới. Không đọc được: {1}
+{0} offline,{0} mất kết nối
+{0} open,{0} đang mở
+{0} opened,Đã mở {0}
+{0} — fingerprint,{0} — quẹt vân tay
+{0}/{1} online,{0}/{1} trực tuyến
+Enable is unticked in Attendance Machine Setting — tick only when needed,Máy đang tắt (Enable) trong Attendance Machine Setting — chỉ tick khi cần
+Bolt released,Đã nhả chốt
+Bolt locked,Đã chốt
+From the lock sensor,Theo cảm biến chốt khoá
+Lock sensor not readable — showing the ERP command state,Không đọc được cảm biến chốt — đang hiện trạng thái theo lệnh ERP
+Sensor Type,Loại cảm biến
+"Lock status sensor wired to the device's sensor input. ZKTeco LB-35 = NO. Must match Door Sensor Mode on the device menu, otherwise /door_control ignores the sensor and shows a warning. None = no sensor.","Cảm biến trạng thái khoá đấu vào cổng sensor của máy. ZKTeco LB-35 = NO. Phải khớp Door Sensor Mode trong menu máy, nếu không /door_control bỏ qua cảm biến và hiện cảnh báo. None = không có cảm biến."
+Door Sensor Mode on the device is {0} but Sensor Type is {1}. Change it on the device menu. Showing the ERP command state.,Door Sensor Mode trên máy là {0} nhưng Sensor Type là {1}. Hãy đổi trong menu máy. Đang hiện trạng thái theo lệnh ERP.
+Temporarily unavailable,Tạm thời chưa dùng được
+Hold open / Close is temporarily unavailable,Giữ mở / Đóng tạm thời chưa dùng được
