@@ -4,7 +4,7 @@
 frappe.ui.form.on("Employee Self Update Info Setting", {
 	refresh(frm) {
 		// Bypass code is for Administrator only — hide it from HR users.
-		frm.toggle_display("bypass_code", frappe.session.user === "Administrator");
+		// frm.toggle_display("bypass_code", frappe.session.user === "Administrator");
 
 		frm.add_custom_button(__("Help"), () => show_setting_help());
 
