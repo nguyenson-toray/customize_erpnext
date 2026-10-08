@@ -104,8 +104,7 @@ function show_maternity_report_help() {
 		<p>Theo dõi nhân viên nữ trong chu kỳ thai sản:
 		<b>Pregnant / Mang thai → Maternity Leave / Nghỉ thai sản → Young Child / Con nhỏ</b>,
 		và ai đã nghỉ việc trong chu kỳ đó. Mỗi dòng là <b>1 hồ sơ thai sản</b>.</p>
-		<p class="text-muted">Thuật ngữ ghi song ngữ <b>English / Tiếng Việt</b> — giao diện hiện theo ngôn ngữ của tài khoản.</p>
-
+		
 		<h5>Cách xem</h5>
 		<ol>
 			<li>Chọn <b>From Date / Từ ngày</b> – <b>To Date / Đến ngày</b> (mặc định là tháng hiện tại).</li>
