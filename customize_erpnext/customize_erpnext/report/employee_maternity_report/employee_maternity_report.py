@@ -260,13 +260,12 @@ def _left_during(rec):
 # cộng ngày nghỉ việc. Các cột dưới đây chỉ hiện khi bỏ tick "Compact View".
 # Maternity To bỏ được vì = Return Date - 1.
 # Rút gọn còn bỏ thêm Department (user chốt 07/10/2026: đã có Group).
-# Đầy đủ: mỗi giai đoạn đủ 2 cột ngày Từ – Đến; 2 cột "Return Date" / "Cycle End" của
-# chế độ Rút gọn chính là Young Child From / To nên chỉ đổi nhãn.
+# Đầy đủ: mỗi giai đoạn đủ 2 cột ngày Từ – Đến. Tên cột GIỐNG NHAU ở cả 2 chế độ
+# (user chốt 08/10/2026) — Rút gọn chỉ bớt cột, không đổi nhãn.
 _FULL_ONLY_COLUMNS = {
 	"department", "pregnant_to_date", "pregnancy_notified_date", "estimated_due_date",
 	"gestational_age", "maternity_to_date",
 }
-_FULL_LABELS = {"return_date": "Young Child From", "youg_child_to_date": "Young Child To"}
 
 
 def get_columns(compact=1):
@@ -293,17 +292,15 @@ def get_columns(compact=1):
 		col("maternity_from_date", "Maternity From", "Date"),
 		col("maternity_to_date", "Maternity To", "Date"),
 		col("leave_months", "Leave Months", "Int", 90),
-		col("return_date", "Return Date", "Date"),
-		# = Young Child To Date (con đủ 12 tháng). Chưa có ngày sinh con thì để trống
+		# = Maternity To + 1 = ngày đi làm lại
+		col("return_date", "Young Child From", "Date"),
+		# = Date of Birth + 364 = hết chu kỳ. Chưa có ngày sinh con thì để trống
 		# — user chốt không tạm tính theo ngày dự sinh.
-		col("youg_child_to_date", "Cycle End", "Date"),
+		col("youg_child_to_date", "Young Child To", "Date"),
 		col("relieving_date", "Relieving Date", "Date"),
 		col("left_during", "Left at Phase", width=150),
 		col("note", "Note", width=200),
 	]
 	if compact:
 		return [c for c in columns if c["fieldname"] not in _FULL_ONLY_COLUMNS]
-	for c in columns:
-		if c["fieldname"] in _FULL_LABELS:
-			c["label"] = _(_FULL_LABELS[c["fieldname"]])
 	return columns

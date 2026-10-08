@@ -997,7 +997,7 @@ def get_invalid_maternity_records():
 	  - pregnant_to_date → maternity_from_date gap ≠ 1 day
 	  - maternity_to_date → youg_child_from_date gap ≠ 1 day
 	  - đã nghỉ thai sản > MISSING_DOB_GRACE_DAYS ngày mà chưa có date_of_birth
-	    (thiếu ngày sinh con → không tính được Young Child / "Cycle End" trên report)
+	    (thiếu ngày sinh con → không tính được Young Child / "Young Child To" trên report)
 
 	Returns list of { name, employee, employee_name, issues: [...] }
 	"""

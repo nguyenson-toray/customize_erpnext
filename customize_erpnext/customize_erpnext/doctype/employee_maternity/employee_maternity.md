@@ -160,7 +160,7 @@ scheduler_events["cron"]["10 0 * * *"] = ["...employee_maternity.scheduled_calcu
 - Mọi giai đoạn bị cắt tại `relieving_date − 1`. Cột `left_during` ("Left at Phase"): Before Pregnancy /
   Pregnant / Maternity Leave / Did Not Return / Young Child / After Young Child Period. Sự kiện nghỉ việc gán cho
   hồ sơ mới nhất bắt đầu trước ngày nghỉ việc (`_left_record_by_employee`).
-- **Compact View**: 4 mốc (Pregnant From, Maternity From, Return Date, Cycle End) + Relieving Date. Bỏ tick: đủ cặp
+- **Compact View**: 4 mốc (Pregnant From, Maternity From, Young Child From = ngày đi làm lại, Young Child To = hết chu kỳ) + Relieving Date. Tên cột **giống nhau ở 2 chế độ** — Rút gọn chỉ bớt cột. Bỏ tick: đủ cặp
   Từ–Đến cho mỗi giai đoạn + Department, Pregnancy Notified Date, Estimated Due Date, Gestational Age.
 - ⚠ `query_report.js` **không gửi filter có giá trị falsy** (Check bỏ tick) → thiếu key = 0:
   `cint(filters.get("compact"))`, không được `filters.get("compact", 1)`.

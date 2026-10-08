@@ -21807,7 +21807,6 @@ Date HR received the pregnancy information,Ngày HR nhận được thông tin m
 Leave Months,Số tháng nghỉ thai sản
 Employee {0} is not Female (Gender: {1}),Nhân viên {0} không phải nữ (Giới tính: {1})
 Return to Work,Đi làm lại
-Return Date,Ngày đi làm lại
 Left at Phase,Nghỉ việc ở giai đoạn
 Did Not Return,Không quay lại làm
 After Young Child Period,Sau chế độ con nhỏ
@@ -21818,7 +21817,6 @@ Click to show only this group,Bấm để chỉ hiện nhóm này
 In Period,Trong kỳ
 Before Pregnancy,Trước khi mang thai
 Maternity Status,Tình trạng thai sản
-Cycle End,Kết thúc chu kỳ
 Compact View,Rút gọn
 "Missing child's Date of Birth (maternity leave started {0})","Thiếu ngày sinh của con (đã nghỉ thai sản từ {0})"
 Pregnant To,Mang thai đến
