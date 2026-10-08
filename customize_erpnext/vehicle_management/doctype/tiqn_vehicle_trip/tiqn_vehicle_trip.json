@@ -1,56 +1,48 @@
 {
  "actions": [],
  "allow_import": 1,
- "allow_rename": 0,
  "autoname": "TIQN-TRIP-.YYYY.-.####",
- "creation": "2026-09-15 10:00:00.000000",
+ "creation": "2026-09-15 10:00:00",
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
   "section_plan",
   "trip_name",
-  "trip_type",
+  "vehicle",
   "template_id",
   "column_break_plan",
-  "vehicle",
-  "driver",
+  "trip_type",
+  "status",
+  "cancelled_reason",
   "section_route",
   "trip_date",
   "depart_time",
+  "purpose",
   "from_location",
   "to_location",
   "column_break_route",
   "dispatcher_note",
   "notes",
   "route_changed",
-  "section_status",
-  "status",
-  "confirmed_at",
-  "column_break_status",
-  "cancelled_reason",
   "section_checkin",
   "km_start",
   "km_start_photo",
   "checkin_time",
   "checkin_notes",
-  "column_break_checkin",
   "start_gps_lat",
   "start_gps_lng",
-  "section_checkout",
+  "column_break_checkin",
   "km_end",
   "km_end_photo",
   "checkout_time",
   "checkout_notes",
-  "column_break_checkout",
   "end_gps_lat",
   "end_gps_lng",
   "total_km",
   "additional_cost",
   "section_passengers",
-  "passengers",
-  "section_stops",
-  "stops"
+  "passengers"
  ],
  "fields": [
   {
@@ -95,15 +87,6 @@
    "reqd": 1
   },
   {
-   "fieldname": "driver",
-   "fieldtype": "Link",
-   "in_list_view": 1,
-   "in_standard_filter": 1,
-   "label": "Driver",
-   "options": "TIQN Driver",
-   "reqd": 1
-  },
-  {
    "fieldname": "section_route",
    "fieldtype": "Section Break",
    "label": "Route"
@@ -137,6 +120,12 @@
    "fieldtype": "Column Break"
   },
   {
+   "description": "Why the vehicle is needed. Separate from `notes`: this is the trip's reason and goes on the KM report, notes is free text the Mini App collects. combine_requests_to_trip() joins the purposes of the merged requests into this.",
+   "fieldname": "purpose",
+   "fieldtype": "Small Text",
+   "label": "Purpose"
+  },
+  {
    "fieldname": "dispatcher_note",
    "fieldtype": "Small Text",
    "label": "Dispatcher Note"
@@ -156,11 +145,6 @@
    "read_only": 1
   },
   {
-   "fieldname": "section_status",
-   "fieldtype": "Section Break",
-   "label": "Status"
-  },
-  {
    "default": "scheduled",
    "fieldname": "status",
    "fieldtype": "Select",
@@ -171,16 +155,6 @@
    "reqd": 1
   },
   {
-   "fieldname": "confirmed_at",
-   "fieldtype": "Datetime",
-   "label": "Confirmed At",
-   "read_only": 1
-  },
-  {
-   "fieldname": "column_break_status",
-   "fieldtype": "Column Break"
-  },
-  {
    "depends_on": "eval:doc.status=='cancelled'",
    "fieldname": "cancelled_reason",
    "fieldtype": "Small Text",
@@ -189,7 +163,7 @@
   {
    "fieldname": "section_checkin",
    "fieldtype": "Section Break",
-   "label": "Check In"
+   "label": "Check In / Out"
   },
   {
    "fieldname": "km_start",
@@ -231,11 +205,6 @@
    "precision": "6"
   },
   {
-   "fieldname": "section_checkout",
-   "fieldtype": "Section Break",
-   "label": "Check Out"
-  },
-  {
    "fieldname": "km_end",
    "fieldtype": "Float",
    "label": "KM End",
@@ -257,10 +226,6 @@
    "fieldname": "checkout_notes",
    "fieldtype": "Small Text",
    "label": "Check Out Notes"
-  },
-  {
-   "fieldname": "column_break_checkout",
-   "fieldtype": "Column Break"
   },
   {
    "fieldname": "end_gps_lat",
@@ -298,23 +263,11 @@
    "fieldtype": "Table",
    "label": "Passengers",
    "options": "TIQN Trip Passenger"
-  },
-  {
-   "fieldname": "section_stops",
-   "fieldtype": "Section Break",
-   "label": "Stops"
-  },
-  {
-   "fieldname": "stops",
-   "fieldtype": "Table",
-   "label": "Stops",
-   "options": "TIQN Trip Stop"
   }
  ],
  "grid_page_length": 50,
- "index_web_pages_for_search": 0,
  "links": [],
- "modified": "2026-09-15 10:00:00.000000",
+ "modified": "2026-09-23 13:17:34.120381",
  "modified_by": "Administrator",
  "module": "Vehicle Management",
  "name": "TIQN Vehicle Trip",

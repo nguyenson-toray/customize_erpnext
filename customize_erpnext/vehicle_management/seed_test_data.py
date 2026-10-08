@@ -18,10 +18,11 @@ Tuesday that is "today" with trips still to run.
 Deliberately NOT whitelisted and NOT wired to any hook: it writes across the
 whole fleet and must only ever be run by hand.
 
-Vehicles and drivers are NOT created or renamed here. They are real records and
-the driver names (Mr. Lương / Mr. Long / Mr. Duy) were set by an admin; the
-sample names in the prompt are ignored on purpose. The script only checks the
-three vehicles and three drivers exist and stops if they do not.
+Vehicles are NOT created or renamed here - they are real records; the sample names
+in the prompt are ignored on purpose. The script checks the three vehicles exist
+and stops if they do not.
+
+Tài xế cũng không khai ở đây: chuyến gán theo XE, tài xế được suy ra lúc đọc từ xe.
 
 Idempotent: a trip is keyed on (trip_name, trip_date) and a request on
 (employee_name, request_time), so re-running adds nothing.
@@ -31,7 +32,8 @@ import frappe
 from frappe.utils import flt, getdate
 
 VEHICLES = {"bus1": "TIQN-VEH-001", "bus2": "TIQN-VEH-002", "kia": "TIQN-VEH-003"}
-DRIVERS = {"bus1": "TIQN-DRV-001", "bus2": "TIQN-DRV-002", "kia": "TIQN-DRV-003"}
+# Tài xế KHÔNG còn khai ở đây: chuyến gán theo XE. Một bản sao thứ hai của
+# "ai lái xe này" chính là thứ đã mục nát khi đổi tên tài xế ngày 22/09.
 
 
 # ---------------------------------------------------------------- 14/09 (Sun)
@@ -42,7 +44,7 @@ TRIP_14_01 = {
 	"trip_type": "on_demand", "trip_date": "2026-09-14", "status": "completed",
 	"depart_time": "06:00",
 	"from_location": "Toray VSIP Quảng Ngãi", "to_location": "Sân bay Đà Nẵng",
-	"vehicle": VEHICLES["bus1"], "driver": DRIVERS["bus1"],
+	"vehicle": VEHICLES["bus1"],
 	"km_start": 50200, "km_end": 50350,
 	"checkin_time": "2026-09-14 06:10:00", "checkout_time": "2026-09-14 09:45:00",
 	"additional_cost": 150000, "checkout_notes": "Qua trạm thu phí 2 lần",
@@ -52,7 +54,7 @@ TRIP_14_02 = {
 	"trip_type": "on_demand", "trip_date": "2026-09-14", "status": "completed",
 	"depart_time": "14:30",
 	"from_location": "Toray VSIP", "to_location": "BV Đa Khoa Quảng Ngãi",
-	"vehicle": VEHICLES["kia"], "driver": DRIVERS["kia"],
+	"vehicle": VEHICLES["kia"],
 	"km_start": 30100, "km_end": 30140,
 	"checkin_time": "2026-09-14 14:35:00", "checkout_time": "2026-09-14 15:20:00",
 	"checkin_notes": "Trường hợp khẩn cấp, không có yêu cầu trước",
@@ -69,7 +71,7 @@ TRIP_15_01 = {
 	"trip_name": "Chuyến sáng — Bus 1", "trip_type": "fixed",
 	"trip_date": "2026-09-15", "status": "completed", "depart_time": "06:30",
 	"from_location": "Ký túc xá VSIP", "to_location": "Toray VSIP",
-	"vehicle": VEHICLES["bus1"], "driver": DRIVERS["bus1"],
+	"vehicle": VEHICLES["bus1"],
 	"km_start": 50350, "km_end": 50362,
 	"checkin_time": "2026-09-15 06:32:00", "checkout_time": "2026-09-15 07:05:00",
 }
@@ -77,7 +79,7 @@ TRIP_15_02 = {
 	"trip_name": "Chuyến sáng — Bus 2", "trip_type": "fixed",
 	"trip_date": "2026-09-15", "status": "completed", "depart_time": "06:30",
 	"from_location": "Ký túc xá", "to_location": "Toray VSIP",
-	"vehicle": VEHICLES["bus2"], "driver": DRIVERS["bus2"],
+	"vehicle": VEHICLES["bus2"],
 	"km_start": 28000, "km_end": 28012,
 	"checkin_time": "2026-09-15 06:28:00", "checkout_time": "2026-09-15 07:10:00",
 }
@@ -85,7 +87,7 @@ TRIP_15_03 = {
 	"trip_name": "Họp UBND Tỉnh", "trip_type": "on_demand",
 	"trip_date": "2026-09-15", "status": "completed", "depart_time": "09:00",
 	"from_location": "Toray VSIP", "to_location": "UBND Tỉnh Quảng Ngãi",
-	"vehicle": VEHICLES["kia"], "driver": DRIVERS["kia"],
+	"vehicle": VEHICLES["kia"],
 	"km_start": 30140, "km_end": 30158,
 	"checkin_time": "2026-09-15 09:05:00", "checkout_time": "2026-09-15 11:30:00",
 }
@@ -93,7 +95,7 @@ TRIP_15_04 = {
 	"trip_name": "Chuyến chiều — Bus 1", "trip_type": "fixed",
 	"trip_date": "2026-09-15", "status": "completed", "depart_time": "17:00",
 	"from_location": "Toray VSIP", "to_location": "Ký túc xá VSIP",
-	"vehicle": VEHICLES["bus1"], "driver": DRIVERS["bus1"],
+	"vehicle": VEHICLES["bus1"],
 	"km_start": 50362, "km_end": 50374,
 	"checkin_time": "2026-09-15 17:02:00", "checkout_time": "2026-09-15 17:40:00",
 }
@@ -101,20 +103,20 @@ TRIP_15_05 = {
 	"trip_name": "Chuyến chiều — Bus 2", "trip_type": "fixed",
 	"trip_date": "2026-09-15", "status": "in_progress", "depart_time": "17:00",
 	"from_location": "Toray VSIP", "to_location": "Ký túc xá",
-	"vehicle": VEHICLES["bus2"], "driver": DRIVERS["bus2"],
+	"vehicle": VEHICLES["bus2"],
 	"km_start": 28012, "checkin_time": "2026-09-15 17:05:00",
 }
 TRIP_15_06 = {
 	"trip_name": "Đón khách — KCN Quảng Phú", "trip_type": "on_demand",
 	"trip_date": "2026-09-15", "status": "scheduled", "depart_time": "18:30",
 	"from_location": "Toray VSIP", "to_location": "KCN Quảng Phú",
-	"vehicle": VEHICLES["kia"], "driver": DRIVERS["kia"],
+	"vehicle": VEHICLES["kia"],
 }
 TRIP_15_07 = {
 	"trip_name": "Chuyến thêm bị hủy", "trip_type": "on_demand",
 	"trip_date": "2026-09-15", "status": "cancelled", "depart_time": "13:00",
 	"from_location": "Toray VSIP", "to_location": "UBND TP Quảng Ngãi",
-	"vehicle": VEHICLES["bus1"], "driver": DRIVERS["bus1"],
+	"vehicle": VEHICLES["bus1"],
 	"cancelled_reason": "Khách hủy đột xuất",
 }
 REQ_15_02 = {
@@ -148,19 +150,19 @@ TRIP_16_01 = {
 	"trip_name": "Chuyến sáng — Bus 1", "trip_type": "fixed",
 	"trip_date": "2026-09-16", "status": "scheduled", "depart_time": "06:30",
 	"from_location": "Ký túc xá VSIP", "to_location": "Toray VSIP",
-	"vehicle": VEHICLES["bus1"], "driver": DRIVERS["bus1"],
+	"vehicle": VEHICLES["bus1"],
 }
 TRIP_16_02 = {
 	"trip_name": "Chuyến sáng — Bus 2", "trip_type": "fixed",
 	"trip_date": "2026-09-16", "status": "scheduled", "depart_time": "06:30",
 	"from_location": "Ký túc xá", "to_location": "Toray VSIP",
-	"vehicle": VEHICLES["bus2"], "driver": DRIVERS["bus2"],
+	"vehicle": VEHICLES["bus2"],
 }
 TRIP_16_03 = {
 	"trip_name": "Kế toán — Ngân hàng", "trip_type": "on_demand",
 	"trip_date": "2026-09-16", "status": "scheduled", "depart_time": "09:00",
 	"from_location": "Toray VSIP", "to_location": "Vietcombank Quảng Ngãi",
-	"vehicle": VEHICLES["kia"], "driver": DRIVERS["kia"],
+	"vehicle": VEHICLES["kia"],
 	"notes": "Mang theo hồ sơ công ty",
 }
 REQ_16_06 = {
@@ -234,7 +236,6 @@ def execute(purge=False):
 # ---------------------------------------------------------------------------
 def _require_masters():
 	missing = [v for v in VEHICLES.values() if not frappe.db.exists("TIQN Vehicle", v)]
-	missing += [d for d in DRIVERS.values() if not frappe.db.exists("TIQN Driver", d)]
 	if missing:
 		frappe.throw(
 			"Missing master records: {0}. Run `bench migrate` so "
@@ -276,6 +277,9 @@ def _trip(data, log, passengers=None):
 	doc.update(data)
 	for row in passengers or []:
 		doc.append("passengers", row)
+	# Dữ liệu mẫu dựng lại lịch sử đã qua nên cố ý tạo chuyến ở trạng thái cuối.
+	# Cờ này là cách CODE SERVER nói "tôi đang ghi lịch sử"; client không đặt được.
+	doc.flags.allow_backdated_status = True
 	doc.insert(ignore_permissions=True)
 
 	log.append(f"  OK   trip {doc.name} — {data['trip_name']} ({data['trip_date']}, {data['status']})")
@@ -378,10 +382,11 @@ def verify():
 	print("3.9 không ai lái 2 chuyến cùng lúc")
 	from collections import Counter
 	running = Counter(
-		t.driver for t in frappe.get_all(
-			"TIQN Vehicle Trip", filters={"status": "in_progress"}, fields=["driver"])
+		t.vehicle for t in frappe.get_all(
+			"TIQN Vehicle Trip", filters={"status": "in_progress"}, fields=["vehicle"])
 	)
-	expect("drivers with >1 in_progress", [d for d, n in running.items() if n > 1], [])
+	# Xe mới là thứ không thể ở hai nơi cùng lúc; tài xế chỉ là thông tin suy ra.
+	expect("xe chạy >1 chuyến cùng lúc", [v for v, n in running.items() if n > 1], [])
 
 	print("3.5 / 3.6 shape của get_trips")
 	trips = vm.get_trips(date="2026-09-15", limit=0)
@@ -467,8 +472,17 @@ def verify():
 		expect("Bus 2 km", km.get("Bus 2"), 12.0)
 		expect("Kia km", km.get("Kia"), 58.0)
 
-		for key, driver in DRIVERS.items():
-			expect(f"{key} chuyến hôm 16/09", len(vm.get_today_trips_by_driver(driver, "2026-09-16")), 1)
+		# Tài xế suy từ xe, không còn bảng ánh xạ cứng.
+		for key, vehicle in VEHICLES.items():
+			driver = frappe.db.get_value(
+				"TIQN Zalo Role Map",
+				{"role": "driver", "vehicle": vehicle, "disabled": 0},
+				"name", order_by="creation asc",
+			)
+			expect(f"{key} có tài xế", bool(driver), True)
+			if driver:
+				expect(f"{key} chuyến hôm 16/09",
+				       len(vm.get_today_trips_by_driver(driver, "2026-09-16")), 1)
 
 	print("\n" + ("TẤT CẢ INVARIANT ĐỀU ĐẠT" if not problems
 	              else f"{len(problems)} LỖI: {problems}"))

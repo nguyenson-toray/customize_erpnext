@@ -26,6 +26,7 @@ from datetime import timedelta
 
 import frappe
 from frappe import _
+from frappe.rate_limiter import rate_limit
 from frappe.utils import cint, flt, get_datetime, get_time, getdate, now_datetime, nowdate
 
 from customize_erpnext.vehicle_management.doctype.tiqn_vehicle.tiqn_vehicle import (
@@ -39,9 +40,26 @@ from customize_erpnext.vehicle_management.doctype.tiqn_vehicle_request.tiqn_vehi
 # Event the Dispatcher page listens on so it can refresh without polling.
 DISPATCH_EVENT = "tiqn_vehicle_dispatch_update"
 
-# Phase 1 driver login brute-force guard (see verify_driver_login).
-MAX_LOGIN_ATTEMPTS = 5
-LOCKOUT_SECONDS = 15 * 60
+# Đăng nhập bằng mật khẩu (Phase 1) ĐÃ BỎ 23/09/2026. Danh tính giờ là tài khoản
+# Zalo: `get_user_by_zalo_id()` trả về vai trò, và vai trò đó là đăng nhập.
+
+# Per-IP rate limits on the three endpoints worth abusing. Generous on purpose: a
+# Zalo Mini App runs in a webview on a phone, so a whole 4G cell can arrive behind
+# ONE carrier-NAT address. These numbers stop a script, not a busy morning.
+#
+# 🔴 Do NOT use site_config["rate_limit"] for this. Despite the name it is not a
+# request counter and not per-IP: RateLimiter keys on
+# f"rate-limit-counter-{window_number}" with no identity in it, and counts
+# MICROSECONDS OF REQUEST TIME for the WHOLE SITE. Setting it means that once every
+# user together has spent N seconds of server time in the window, everyone gets 429
+# - the nine dispatchers on Desk included. Wrong tool entirely.
+RATE_PHONE_DECODE = 60   # per IP per hour: a Zalo token is single-use, 2-min expiry
+RATE_EXCEL = 20          # per IP per hour: every call writes a file to disk
+
+# How long before departure a fixed trip appears. A shuttle created at dawn for a
+# 17:15 run sits on the board all day looking like something that needs attention,
+# and the dispatcher cannot tell it apart from a trip that is actually due.
+SCHEDULE_LEAD_MINUTES = 15
 
 REQUEST_FIELDS = [
 	"name", "employee_name", "employee_id_display", "zalo_user_id",
@@ -51,13 +69,14 @@ REQUEST_FIELDS = [
 ]
 
 TRIP_FIELDS = [
-	"name", "trip_name", "trip_type", "template_id", "vehicle", "driver",
-	"trip_date", "depart_time", "from_location", "to_location",
+	# `driver` KHÔNG có ở đây: chuyến thuộc về XE, tài xế được suy ra lúc đọc.
+	"name", "trip_name", "trip_type", "template_id", "vehicle",
+	"trip_date", "depart_time", "from_location", "to_location", "purpose",
 	"dispatcher_note", "notes", "status", "route_changed",
 	"km_start", "km_end", "total_km", "km_start_photo", "km_end_photo",
 	"start_gps_lat", "start_gps_lng", "end_gps_lat", "end_gps_lng",
 	"additional_cost", "checkin_notes", "checkout_notes",
-	"checkin_time", "checkout_time", "confirmed_at", "cancelled_reason",
+	"checkin_time", "checkout_time", "cancelled_reason",
 	"creation", "modified",
 ]
 
@@ -74,11 +93,11 @@ VEHICLE_FIELDS = [
 # rule lives in TIQNVehicleTrip.validate()/on_update() - one-way status
 # transitions, km_end > km_start, odometer continuity, total_km, vehicle status
 # and linked requests all still run on doc.save(). A field NOT in this set
-# (template_id, total_km, confirmed_at...) is derived and must stay derived.
+# (template_id, total_km...) is derived and must stay derived.
 TRIP_EDITABLE_FIELDS = {
-	"trip_name", "trip_type", "vehicle", "driver", "trip_date", "depart_time",
-	"from_location", "to_location", "dispatcher_note", "notes", "additional_cost",
-	"status", "cancelled_reason", "confirmed_at", "route_changed",
+	"trip_name", "trip_type", "vehicle", "trip_date", "depart_time",
+	"from_location", "to_location", "purpose", "dispatcher_note", "notes", "additional_cost",
+	"status", "cancelled_reason", "route_changed",
 	"km_start", "km_end", "km_start_photo", "km_end_photo",
 	"checkin_time", "checkout_time", "checkin_notes", "checkout_notes",
 	"passengers",
@@ -102,7 +121,7 @@ REQUEST_EDITABLE_FIELDS = REQUEST_WORKFLOW_FIELDS | REQUEST_CONTENT_FIELDS
 # Fields that reach the DB as a DATETIME column and therefore need the ISO
 # spelling normalised out (see _normalise_dt_in).
 DATETIME_INPUT_FIELDS = {
-	"checkin_time", "checkout_time", "confirmed_at",
+	"checkin_time", "checkout_time",
 	"request_time", "return_time", "submit_time",
 }
 
@@ -131,7 +150,7 @@ IGNORED_REQUEST_ARGS: set[str] = set()
 FRAMEWORK_ARGS = {"cmd", "csrf_token", "doctype", "name", "run_method", "ignore_permissions", "flags"}
 
 SCHEDULE_FIELDS = [
-	"name", "schedule_name", "driver", "vehicle", "depart_time",
+	"name", "schedule_name", "vehicle", "depart_time",
 	"from_location", "to_location", "trip_name_template", "trip_number",
 	"is_active", "days_of_week",
 ]
@@ -227,19 +246,43 @@ def _vehicle_lookup(names):
 	}
 
 
-def _driver_lookup(names):
-	names = [n for n in set(names) if n]
-	if not names:
+def _driver_lookup(vehicle_names):
+	"""Xe -> tài xế đang được gán cho xe đó, một truy vấn.
+
+	🔴 Chuyến LUÔN gán theo XE, không gán cho người (23/09/2026). Tài xế của một chuyến
+	được suy ra lúc đọc, từ xe. Tài xế xe nào thì thấy chuyến của xe đó.
+
+	Vì sao không lưu `driver` trên chuyến: lưu tức là giữ một bản sao thứ hai của
+	"ai lái xe này". Bản sao đó đã mục nát hai lần trong dự án này - lần đổi tên tài xế
+	làm chết 6 lịch cố định, và ba tài khoản Zalo cùng trỏ về một tài xế.
+
+	⚠ Đây là câu trả lời cho câu hỏi BÂY GIỜ ("gọi ai về chuyến này"), không phải câu
+	hỏi LÚC ĐÓ. Xem get_trip_report() về việc vì sao không còn thống kê km theo tài xế.
+
+	Nhiều tài khoản cùng một xe (tài xế thay ca) thì lấy bản ghi tạo sớm nhất, bỏ qua
+	`disabled`, để kết quả ổn định giữa các lần đọc.
+	"""
+	vehicle_names = [n for n in set(vehicle_names) if n]
+	if not vehicle_names:
 		return {}
-	return {
-		d.name: d
-		for d in frappe.get_all(
-			"TIQN Driver",
-			filters={"name": ("in", names)},
-			fields=["name", "driver_name", "phone"],
-			limit_page_length=0,
-		)
-	}
+
+	out = {}
+	for d in frappe.get_all(
+		"TIQN Zalo Role Map",
+		filters={"role": "driver", "disabled": 0, "vehicle": ("in", vehicle_names)},
+		fields=["name", "display_name", "phone", "id_by_oa", "is_leader", "vehicle"],
+		order_by="creation asc",
+		limit_page_length=0,
+	):
+		out.setdefault(d.vehicle, d)
+	return out
+
+
+def _vehicle_of_driver(driver_name):
+	"""Xe của một tài xế. Lọc "chuyến của tài xế X" thực chất là lọc theo xe của X."""
+	return frappe.db.get_value(
+		"TIQN Zalo Role Map", {"name": driver_name, "role": "driver"}, "vehicle"
+	)
 
 
 def _decorate_trips(rows):
@@ -249,18 +292,26 @@ def _decorate_trips(rows):
 	vehicle or a driver, so they are resolved in bulk rather than per row.
 	"""
 	vehicles = _vehicle_lookup([r.get("vehicle") for r in rows])
-	drivers = _driver_lookup([r.get("driver") for r in rows])
+	drivers = _driver_lookup([r.get("vehicle") for r in rows])
 
 	for row in rows:
 		vehicle = vehicles.get(row.get("vehicle"))
-		driver = drivers.get(row.get("driver"))
+		driver = drivers.get(row.get("vehicle"))
+		# Khoá `driver` vẫn có trong payload cho client, nhưng là giá trị SUY RA từ xe,
+		# không phải cột lưu trên chuyến.
+		row["driver"] = driver.name if driver else None
 		row["vehicle_name"] = vehicle.vehicle_name if vehicle else None
 		row["license_plate"] = vehicle.license_plate if vehicle else None
-		row["driver_name"] = driver.driver_name if driver else None
+		row["driver_name"] = driver.display_name if driver else None
+		row["driver_phone"] = driver.phone if driver else None
+		# Both, because they are different things and only one opens a chat.
+		# docname CHÍNH LÀ zalo_user_id - không còn field rời để lệch nhau.
+		row["driver_zalo_user_id"] = driver.name if driver else None
+		row["driver_zalo_id_by_oa"] = driver.id_by_oa if driver else None
 
 		row["trip_date"] = _fmt_date(row.get("trip_date"))
 		row["depart_time"] = _fmt_time(row.get("depart_time"))
-		for field in ("checkin_time", "checkout_time", "confirmed_at", "creation", "modified"):
+		for field in ("checkin_time", "checkout_time", "creation", "modified"):
 			if field in row:
 				row[field] = _fmt_datetime(row.get(field))
 
@@ -312,21 +363,207 @@ def _serialise_trip(doc):
 		}
 		for row in sorted(doc.passengers or [], key=lambda r: cint(r.pickup_order))
 	]
-	data["stops"] = [
-		{
-			"location": row.location,
-			"landmark": row.landmark,
-			"order": cint(row.stop_order),
-			"row_name": row.name,
-		}
-		for row in sorted(doc.stops or [], key=lambda r: cint(r.stop_order))
-	]
 	return data
 
 
 # ---------------------------------------------------------------------------
 # 3.1 Auth & Role
 # ---------------------------------------------------------------------------
+ZALO_GRAPH_PHONE_URL = "https://graph.zalo.me/v2.0/me/info"
+ZALO_TIMEOUT_SECONDS = 10
+
+# docs.zaloplatforms.com/docs/MA/api/errorCode. Zalo's own text is four terse English
+# words that do not say WHOSE problem it is, and the difference matters enormously:
+# 116/117/118 are this server's configuration and no amount of Mini App debugging will
+# help, while 114/115/119 are the token and no amount of key-swapping will.
+#
+# 118 deserves its own note. "code is invalid - code belongs to different application"
+# is what you get when the secret key is a perfectly valid secret OF THE WRONG ZALO
+# APP. Read as plain English it sounds like the token is broken; it is not.
+# 🔴 Plain strings, NOT _() calls. `_()` at module level resolves once at import and
+# freezes whatever language that worker happened to boot in; every later request then
+# gets that same language. Translation happens at throw time below.
+ZALO_SERVER_CONFIG_ERRORS = {
+	116: "zalo_app_vehicle_management_secret_key is empty in site_config.json on this server.",
+	117: ("Zalo rejected this server's zalo_app_vehicle_management_secret_key: the value in site_config.json "
+	      "is not a valid App Secret Key. Get it from developers.zalo.me, in the management "
+	      "page of the Zalo app this Mini App belongs to."),
+	118: ("This server's zalo_app_vehicle_management_secret_key belongs to a DIFFERENT Zalo app than the one "
+	      "the Mini App logged in with. The key itself is valid - it is the wrong app. "
+	      "Check that site_config.json holds the secret of the same app."),
+}
+
+ZALO_CALLER_ERRORS = {
+	114: "No phone token was sent.",
+	115: "Zalo says this phone token is not valid.",
+	119: ("This phone token has already been used. Each token works once and expires after "
+	      "2 minutes - call getPhoneNumber() again for a fresh one rather than retrying "
+	      "this request."),
+	-1401: "The user has to authorise the Mini App before the phone number can be read.",
+}
+
+
+@frappe.whitelist(methods=["POST"])
+@rate_limit(limit=RATE_PHONE_DECODE, seconds=60 * 60, methods="POST")
+def decode_phone_token(phone_token, access_token, zalo_user_id=None):
+	"""Turn the token Zalo's getPhoneNumber() hands the Mini App into a real number.
+
+	Returns {"phone", "phone_local", "raw", "saved_to"}.
+
+	POST only, and deliberately so: it reaches an external service and it writes.
+	A GET would be rolled back by frappe/app.py sync_database() - the same trap that
+	made download_trip_report_excel hand out URLs for files it had just deleted.
+
+	`zalo_user_id` is optional. Pass it and the number is written straight onto that
+	TIQN Zalo Role Map row, which saves the Mini App a second round trip and, more
+	importantly, stops a decoded phone number from travelling back out to the client
+	and in again just to be stored.
+	"""
+	_guard("TIQN Zalo Role Map", "write" if zalo_user_id else "read")
+
+	phone_token = (phone_token or "").strip()
+	access_token = (access_token or "").strip()
+	if not phone_token or not access_token:
+		frappe.throw(_("phone_token and access_token are required"))
+
+	# 🔴 No default. The spec suggested falling back to "YOUR_ZALO_APP_SECRET_KEY",
+	# which would send a placeholder to Zalo and come back with a generic failure -
+	# the one error message that tells nobody the key was never configured. And a
+	# real secret must never sit in source: this file is in git and app/public is
+	# served without authentication.
+	secret_key = frappe.conf.get("zalo_app_vehicle_management_secret_key")
+	if not secret_key:
+		frappe.throw(
+			_("zalo_app_vehicle_management_secret_key is not set in site_config.json - ask the administrator "
+			  "to add it before using Zalo phone lookup")
+		)
+
+	import requests
+
+	try:
+		# A request with no timeout can hold a gunicorn worker until the 120s SIGKILL
+		# (config/supervisor.conf: -t 120); Zalo being slow must not cost us a worker.
+		resp = requests.get(
+			ZALO_GRAPH_PHONE_URL,
+			headers={
+				"access_token": access_token,
+				"code": phone_token,
+				"secret_key": secret_key,
+			},
+			timeout=ZALO_TIMEOUT_SECONDS,
+		)
+		data = resp.json()
+	except requests.Timeout:
+		frappe.throw(_("Zalo did not answer within {0} seconds").format(ZALO_TIMEOUT_SECONDS))
+	except (requests.RequestException, ValueError):
+		# 🔴 Never put the exception text in the message: it can quote the request
+		# headers back, and those carry the app secret. The detail goes to the error
+		# log, which only Desk users can read.
+		frappe.log_error(title="Zalo phone lookup failed", message=frappe.get_traceback())
+		frappe.throw(_("Could not reach Zalo to look up the phone number"))
+
+	code = cint(data.get("error"))
+	if code != 0 or not (data.get("data") or {}).get("number"):
+		message = data.get("message") or _("unknown error")
+
+		# 🔴 Zalo validates the SESSION first and the SECRET KEY second, so a wrong
+		# secret only surfaces once a real access_token is sent. A made-up token
+		# returns "Session key invalid" and proves nothing about the key - a false
+		# all-clear I gave once already (21/09/2026). Do not test this with fake
+		# tokens and conclude anything.
+		if code in ZALO_SERVER_CONFIG_ERRORS or "secret_key" in str(message):
+			frappe.throw("{0} ({1} {2}: {3})".format(
+				_(ZALO_SERVER_CONFIG_ERRORS.get(code, ZALO_SERVER_CONFIG_ERRORS[117])),
+				_("Zalo error"), code, message,
+			))
+
+		if code in ZALO_CALLER_ERRORS:
+			frappe.throw("{0} ({1} {2}: {3})".format(
+				_(ZALO_CALLER_ERRORS[code]), _("Zalo error"), code, message
+			))
+
+		# Unmapped: pass Zalo's own wording on. It says nothing about our key.
+		frappe.throw(_("Zalo refused the phone token: {0} ({1} {2})").format(
+			message, _("Zalo error"), code
+		))
+
+	raw = str(data["data"]["number"]).strip()
+	phone, phone_local = _format_zalo_phone(raw)
+
+	saved_to = None
+	if zalo_user_id:
+		zalo_user_id = str(zalo_user_id).strip()
+		name = frappe.db.get_value("TIQN Zalo Role Map", {"zalo_user_id": zalo_user_id}, "name")
+		if not name:
+			frappe.throw(
+				_("No Zalo Role Map entry for {0} - it must exist before a phone number "
+				  "can be stored on it").format(zalo_user_id)
+			)
+		# db_set: one denormalised field, and a save() here would re-run validation
+		# that has nothing to do with storing a phone number.
+		frappe.db.set_value("TIQN Zalo Role Map", name, "phone", phone)
+		saved_to = name
+
+	return {"phone": phone, "phone_local": phone_local, "raw": raw, "saved_to": saved_to}
+
+
+@frappe.whitelist(methods=["POST", "PUT"])
+def update_zalo_id_by_oa(zalo_user_id, id_by_oa):
+	"""Store getUserInfo().idByOA on the caller's TIQN Zalo Role Map row.
+
+	The Mini App can also PUT this straight to /api/resource/TIQN Zalo Role Map/<name>
+	- the key already has write permission. This endpoint exists so that path is not
+	the only one: it writes exactly one field, refuses a blank, and cannot be used to
+	change a role, which the generic REST route can.
+
+	Separate from update_zalo_user_id() because `id_by_oa` lives only on the Role Map,
+	while that one writes to three different doctypes. Folding them together would
+	mean a `role` argument that silently ignores this field for two of its three
+	values.
+	"""
+	_guard("TIQN Zalo Role Map", "write")
+
+	zalo_user_id = (zalo_user_id or "").strip()
+	id_by_oa = (id_by_oa or "").strip()
+	if not zalo_user_id or not id_by_oa:
+		frappe.throw(_("zalo_user_id and id_by_oa are required"))
+
+	name = frappe.db.get_value("TIQN Zalo Role Map", {"zalo_user_id": zalo_user_id}, "name")
+	if not name:
+		frappe.throw(
+			_("No Zalo Role Map entry for {0}").format(zalo_user_id), frappe.DoesNotExistError
+		)
+
+	frappe.db.set_value("TIQN Zalo Role Map", name, "id_by_oa", id_by_oa)
+	return {"name": name, "zalo_user_id": zalo_user_id, "id_by_oa": id_by_oa}
+
+
+def _format_zalo_phone(raw):
+	"""Zalo's "84962200089" -> ("+84-962200089", "0962200089").
+
+	Two spellings on purpose. `phone` is the format the Mini App asked for. But
+	`TIQN Zalo Role Map.phone` holds local numbers ("0905..."), so a lookup that compares
+	against the +84 form would never match anything - a mismatch that shows up as
+	"driver not found" long after anyone remembers this conversion happened.
+	`phone_local` is the one to compare with.
+
+	Only the digits are trusted; Zalo has been seen returning both "84..." and a
+	leading-zero local number.
+	"""
+	digits = "".join(ch for ch in str(raw) if ch.isdigit())
+	if not digits:
+		frappe.throw(_("Zalo returned a phone number that has no digits in it"))
+
+	if digits.startswith("84") and len(digits) > 9:
+		subscriber = digits[2:]
+	elif digits.startswith("0"):
+		subscriber = digits[1:]
+	else:
+		subscriber = digits
+
+	return f"+84-{subscriber}", f"0{subscriber}"
+
+
 @frappe.whitelist(methods=["GET", "POST"])
 def get_user_by_zalo_id(zalo_user_id):
 	"""Resolve a Zalo account to its Mini App role. Returns None if unmapped."""
@@ -339,35 +576,43 @@ def get_user_by_zalo_id(zalo_user_id):
 	row = frappe.db.get_value(
 		"TIQN Zalo Role Map",
 		{"zalo_user_id": zalo_user_id},
-		["zalo_user_id", "display_name", "role", "driver_ref", "employee_id"],
+		["zalo_user_id", "id_by_oa", "display_name", "phone", "role", "vehicle",
+		 "is_leader", "disabled", "employee_id"],
 		as_dict=True,
 	)
 	if not row:
 		return None
 
+	# Bị chặn thì coi như chưa map: Mini App đã biết cách xử lý `null` (màn chọn vai
+	# trò), còn trả về một vai trò kèm cờ `disabled` thì mọi chỗ gọi đều phải nhớ kiểm
+	# cờ đó - sót một chỗ là lọt.
+	if cint(row.disabled):
+		return None
+
 	result = {
 		"zalo_user_id": row.zalo_user_id,
+		# The ID openChat() actually needs. zalo_user_id is app-scoped and will not
+		# open a chat, so the two are never interchangeable - see TIQN Zalo Role Map.
+		"id_by_oa": row.id_by_oa,
 		"display_name": row.display_name,
+		# Filled by decode_phone_token(); null until the user has granted Zalo's
+		# phone permission at least once.
+		"phone": row.phone,
 		"role": row.role,
 	}
 
-	if row.role == "driver" and row.driver_ref:
-		driver = frappe.db.get_value(
-			"TIQN Driver",
-			row.driver_ref,
-			["name", "driver_name", "phone", "assigned_vehicle", "is_active"],
-			as_dict=True,
-		)
-		if driver:
-			result.update(
-				{
-					"driver_id": driver.name,
-					"driver_name": driver.driver_name,
-					"driver_phone": driver.phone,
-					"vehicle_id": driver.assigned_vehicle,
-					"is_active": driver.is_active,
-				}
+	if row.role == "driver":
+		result["is_leader"] = cint(row.is_leader)
+		result["vehicle"] = row.vehicle
+		vehicle = (
+			frappe.db.get_value(
+				"TIQN Vehicle", row.vehicle, ["vehicle_name", "license_plate"], as_dict=True
 			)
+			if row.vehicle
+			else None
+		)
+		result["vehicle_name"] = vehicle.vehicle_name if vehicle else None
+		result["license_plate"] = vehicle.license_plate if vehicle else None
 	elif row.role == "requester":
 		result["employee_id"] = row.employee_id
 
@@ -540,21 +785,96 @@ def assign_request_to_trip(request_name, trip_name):
 	return _serialise_request(request)
 
 
+# Written into dispatcher_note, so it is STORED DATA, not a UI label. That is why it
+# is not wrapped in _(): a translated string would freeze whichever language the
+# caller happened to have, and the note is read by Vietnamese drivers in the Mini App
+# long after the request that created it is gone. Same exception as the
+# vehicle-dispatch page content.
+EXTRA_STOPS_PREFIX = "Ghé thêm"
+
+
+def _extra_destinations(requests, destination):
+	"""Điểm đến của các yêu cầu được gộp mà KHÁC điểm đến của chuyến.
+
+	A combined trip has one `to_location` - the first request's. The others are not
+	lost: they go into dispatcher_note so the driver reads them in the same place as
+	every other instruction. They are deliberately NOT concatenated into
+	`to_location`: that field is matched, filtered and grouped in reports, and
+	"Sân bay Chu Lai | Ga Quảng Ngãi" is one place that does not exist.
+
+	Order follows `request_names`, repeats collapse, blanks drop.
+	"""
+	seen = {(destination or "").strip().lower()}
+	out = []
+	for doc in requests:
+		text = (doc.to_location or "").strip()
+		if text and text.lower() not in seen:
+			seen.add(text.lower())
+			out.append(text)
+	return out
+
+
+def _build_dispatch_note(extra, typed):
+	"""Extra destinations first, then whatever the dispatcher typed.
+
+	The drop-offs are what the driver has to act on; a dispatcher's remark that
+	pushed them below the fold would be worse than useless.
+	"""
+	parts = []
+	if extra:
+		parts.append(f"{EXTRA_STOPS_PREFIX}: " + ", ".join(extra))
+	if typed and typed.strip():
+		parts.append(typed.strip())
+	return "\n".join(parts) or None
+
+
+def _merge_purposes(requests):
+	"""The reasons of the merged requests as one " | " string.
+
+	Order follows `request_names` so the trip reads in the order the dispatcher
+	picked. Blanks are dropped and repeats collapse - three people going to the same
+	medical check should read "Kham suc khoe", not the same phrase three times.
+	Returns None rather than "" so a trip with nothing to say leaves the field empty
+	instead of storing a blank string.
+	"""
+	seen, parts = set(), []
+	for doc in requests:
+		text = (doc.purpose or "").strip()
+		if text and text.lower() not in seen:
+			seen.add(text.lower())
+			parts.append(text)
+	return " | ".join(parts) or None
+
+
 @frappe.whitelist(methods=["POST", "PUT"])
 def combine_requests_to_trip(
 	request_names,
 	vehicle,
-	driver=None,
 	trip_date=None,
 	depart_time=None,
 	from_location=None,
 	to_location=None,
+	purpose=None,
+	notes=None,
 	dispatcher_note=None,
+	trip_type="on_demand",
 ):
 	"""Create one trip carrying several approved requests.
 
-	`driver` is optional: leave it out and TIQNVehicleTrip.validate() fills in the
-	vehicle's default driver. Pass it only to override with a stand-in.
+	Không có tham số `driver`: chuyến gán theo XE. Tài xế được suy ra lúc đọc, từ xe.
+
+	`purpose` is likewise optional: left out, it is gathered from the requests being
+	merged (see _merge_purposes). A dispatcher who types one keeps theirs.
+
+	The trip gets ONE `to_location` - the first request's, unless the caller names
+	another. Every other destination among the merged requests is listed in
+	`dispatcher_note` instead of being concatenated into `to_location`.
+
+	Passengers are NOT a parameter. They are derived from `request_names`, because
+	the passenger rows carry the request link that TIQNVehicleTrip.sync_linked_requests()
+	follows to move each request to `assigned` and to hand it back to `approved` if
+	the trip is later cancelled. A client-supplied passenger list would quietly cut
+	that link and strand the requests.
 	"""
 	_guard("TIQN Vehicle Trip", "create")
 	_guard("TIQN Vehicle Request", "write")
@@ -575,17 +895,25 @@ def combine_requests_to_trip(
 		requests.append(doc)
 
 	first = requests[0]
+	# ONE destination, the first request's. The rest are listed in dispatcher_note by
+	# _build_dispatch_note() - see _extra_destinations() for why they must not be
+	# joined into this field.
+	destination = to_location or first.to_location
+
 	trip = frappe.get_doc(
 		{
 			"doctype": "TIQN Vehicle Trip",
-			"trip_type": "on_demand",
+			"trip_type": trip_type or "on_demand",
 			"vehicle": vehicle,
-			"driver": driver,
 			"trip_date": getdate(trip_date) if trip_date else getdate(first.request_time),
 			"depart_time": depart_time or get_time(first.request_time),
 			"from_location": from_location or first.from_location,
-			"to_location": to_location or first.to_location,
-			"dispatcher_note": dispatcher_note,
+			"to_location": destination,
+			"purpose": purpose or _merge_purposes(requests),
+			"notes": notes,
+			"dispatcher_note": _build_dispatch_note(
+				_extra_destinations(requests, destination), dispatcher_note
+			),
 			"status": "scheduled",
 			"passengers": [
 				{
@@ -613,7 +941,9 @@ def get_trips(date=None, vehicle=None, driver=None, status=None, limit=200):
 	if vehicle:
 		filters["vehicle"] = vehicle
 	if driver:
-		filters["driver"] = driver
+		# Chuyến gán theo XE, nên "chuyến của tài xế X" = chuyến của xe X lái.
+		# Tài xế chưa được gán xe thì không có chuyến nào: trả RỖNG, không trả hết.
+		filters["vehicle"] = _vehicle_of_driver(driver) or "__khong-co-xe__"
 	if status:
 		filters["status"] = status
 
@@ -634,11 +964,14 @@ def get_trip(name):
 
 @frappe.whitelist(methods=["GET", "POST"])
 def get_today_trips_by_driver(driver_name, date=None):
-	"""driver_name is the TIQN Driver docname (e.g. TIQN-DRV-001)."""
+	"""driver_name là docname của `TIQN Zalo Role Map`, tức chính Zalo user ID."""
 	_guard("TIQN Vehicle Trip")
 	return _decorate_trips(frappe.get_all(
 		"TIQN Vehicle Trip",
-		filters={"driver": driver_name, "trip_date": getdate(date) if date else getdate(nowdate())},
+		filters={
+			"vehicle": _vehicle_of_driver(driver_name) or "__khong-co-xe__",
+			"trip_date": getdate(date) if date else getdate(nowdate()),
+		},
 		fields=TRIP_FIELDS,
 		order_by="depart_time asc, creation asc",
 		limit_page_length=0,
@@ -665,13 +998,23 @@ def get_last_completed_trip_by_vehicle(vehicle, date=None):
 
 @frappe.whitelist(methods=["GET", "POST"])
 def get_fixed_templates_for_driver(driver_name, trip_date=None):
-	"""Active templates of a driver, each flagged with today's trip if created."""
+	"""Lịch cố định của một tài xế, mỗi lịch kèm cờ đã tạo chuyến hôm nay chưa.
+
+	🔴 "Của tài xế này" = của XE mà tài xế đó lái. Lịch cố định không còn field `driver`
+	(23/09): nó nói xe nào chạy ca nào, thế là đủ. Tài xế xe nào thì thấy lịch xe đó.
+
+	Tài xế chưa được gán xe thì không có lịch nào - trả rỗng, không trả hết.
+	"""
 	_guard("TIQN Fixed Trip Schedule")
 	on_date = getdate(trip_date) if trip_date else getdate(nowdate())
 
+	vehicle = _vehicle_of_driver(driver_name)
+	if not vehicle:
+		return []
+
 	templates = frappe.get_all(
 		"TIQN Fixed Trip Schedule",
-		filters={"driver": driver_name, "is_active": 1},
+		filters={"is_active": 1, "vehicle": vehicle},
 		fields=SCHEDULE_FIELDS,
 		order_by="trip_number asc, depart_time asc",
 		limit_page_length=0,
@@ -704,18 +1047,17 @@ def get_fixed_templates_for_driver(driver_name, trip_date=None):
 def create_trip(
 	vehicle,
 	trip_date,
-	driver=None,
 	depart_time=None,
 	from_location=None,
 	to_location=None,
 	trip_type="on_demand",
+	purpose=None,
 	dispatcher_note=None,
 	trip_name=None,
 	notes=None,
 	status=None,
 	template_id=None,
 	passengers=None,
-	stops=None,
 ):
 	_guard("TIQN Vehicle Trip", "create")
 
@@ -731,23 +1073,15 @@ def create_trip(
 			"trip_type": trip_type or "on_demand",
 			"template_id": template_id,
 			"vehicle": vehicle,
-			"driver": driver,
 			"trip_date": getdate(trip_date),
 			"depart_time": depart_time,
 			"from_location": from_location,
 			"to_location": to_location,
+			"purpose": purpose,
 			"dispatcher_note": dispatcher_note,
 			"notes": notes,
 			"status": status or "scheduled",
 			"passengers": _build_passenger_rows(passengers),
-			"stops": [
-				{
-					"location": row.get("location"),
-					"landmark": row.get("landmark"),
-					"stop_order": cint(row.get("stop_order") or row.get("order") or idx + 1),
-				}
-				for idx, row in enumerate(_as_dict_list(stops))
-			],
 		}
 	).insert()
 
@@ -790,13 +1124,11 @@ def create_trip_from_template(template_name, trip_date=None):
 			"trip_type": "fixed",
 			"template_id": template.name,
 			"vehicle": template.vehicle,
-			"driver": template.driver,
 			"trip_date": on_date,
 			"depart_time": template.depart_time,
 			"from_location": template.from_location,
 			"to_location": template.to_location,
 			"status": "confirmed",
-			"confirmed_at": now_datetime(),
 		}
 	).insert()
 
@@ -1051,7 +1383,6 @@ def confirm_trip(name):
 		frappe.throw(_("Only a scheduled trip can be confirmed (current: {0})").format(doc.status))
 
 	doc.status = "confirmed"
-	doc.confirmed_at = now_datetime()
 	doc.save()
 	_notify_dispatch("trip_confirmed", {"trip": doc.name})
 	return _serialise_trip(doc)
@@ -1098,7 +1429,7 @@ def update_trip_route(name, from_location=None, to_location=None, dispatcher_not
 		"tiqn_trip_route_changed",
 		{
 			"trip": doc.name,
-			"driver": doc.driver,
+			"vehicle": doc.vehicle,
 			"from_location": doc.from_location,
 			"to_location": doc.to_location,
 			"dispatcher_note": doc.dispatcher_note,
@@ -1213,7 +1544,7 @@ def get_vehicles(status=None):
 		"TIQN Vehicle Trip",
 		filters={"vehicle": ("in", [v.name for v in vehicles]), "status": "in_progress"},
 		fields=[
-			"name", "vehicle", "driver", "trip_name", "from_location", "to_location",
+			"name", "vehicle", "trip_name", "from_location", "to_location",
 			"depart_time", "checkin_time", "km_start", "route_changed",
 		],
 		order_by="checkin_time desc",
@@ -1222,22 +1553,42 @@ def get_vehicles(status=None):
 	for row in running:
 		by_vehicle.setdefault(row.vehicle, row)
 
-	driver_names = {
-		d.name: d.driver_name
-		for d in frappe.get_all(
-			"TIQN Driver", fields=["name", "driver_name"], limit_page_length=0
-		)
-	}
+	drivers = _driver_lookup([v.name for v in vehicles])
 
 	for vehicle in vehicles:
+		# Tài xế thuộc về XE, nên gắn thẳng lên xe - chuyến chỉ mượn lại.
+		driver = drivers.get(vehicle.name)
+		vehicle["driver"] = driver.name if driver else None
+		vehicle["driver_name"] = driver.display_name if driver else None
+
 		trip = by_vehicle.get(vehicle.name)
 		if trip:
-			trip["driver_name"] = driver_names.get(trip.driver)
+			trip["driver"] = vehicle["driver"]
+			trip["driver_name"] = vehicle["driver_name"]
 			trip["depart_time"] = _fmt_time(trip.get("depart_time"))
 			trip["checkin_time"] = _fmt_datetime(trip.get("checkin_time"))
 		vehicle["current_trip"] = trip
 
 	return vehicles
+
+
+@frappe.whitelist(methods=["GET", "POST"])
+def get_vehicle(name):
+	"""One vehicle, same shape as a row of get_vehicles() including `current_trip`.
+
+	The Mini App has been calling this all along and getting "Method Not Found" -
+	it was simply never written. Built on get_vehicles() rather than fetching the
+	doc directly so the two can never disagree about what a vehicle looks like;
+	`current_trip` in particular is computed, not stored.
+	"""
+	_guard("TIQN Vehicle")
+	if not frappe.db.exists("TIQN Vehicle", name):
+		frappe.throw(_("Vehicle {0} not found").format(name), frappe.DoesNotExistError)
+
+	for vehicle in get_vehicles():
+		if vehicle["name"] == name:
+			return vehicle
+	return None
 
 
 @frappe.whitelist(methods=["GET", "POST"])
@@ -1266,134 +1617,137 @@ def update_vehicle_status(vehicle, status):
 
 @frappe.whitelist(methods=["GET", "POST"])
 def get_drivers():
-	"""Active drivers, for the Mini App login picker.
+	"""Tài xế đang hoạt động, cho màn chọn tài xế.
 
-	Never selects `password`. The column holds "*" repeated to the length of the
-	real password, so asking for it would hand out the password length for free.
-	`zalo_user_id` is left out for the same reason - this list is readable by
-	anyone holding the Mini App's shared API key, which ships inside the client.
+	Tài xế = bản ghi `TIQN Zalo Role Map` có `role = driver` và chưa bị `disabled`.
+
+	`zalo_user_id` bằng chính docname nên không giấu được, nhưng `id_by_oa` thì CỐ Ý
+	không trả: đây là danh sách MỌI tài xế, đọc được bằng API key nằm trong client.
+	Muốn ID mở chat thì lấy `driver_zalo_id_by_oa` trong object chuyến - chỉ lộ tài xế
+	của đúng chuyến đang xem.
 	"""
-	_guard("TIQN Driver")
+	_guard("TIQN Zalo Role Map")
 
 	drivers = frappe.get_all(
-		"TIQN Driver",
-		filters={"is_active": 1},
-		# is_active is already the filter, but it ships in the payload too: the
-		# dispatch page checks it before auto-filling a driver, and a field that is
-		# absent reads as falsy there - the driver would never be filled in.
-		fields=["name", "driver_name", "phone", "assigned_vehicle", "is_active"],
-		order_by="driver_name asc",
+		"TIQN Zalo Role Map",
+		filters={"role": "driver", "disabled": 0},
+		fields=["name", "display_name", "phone", "vehicle", "is_leader"],
+		order_by="display_name asc",
 		limit_page_length=0,
 	)
 	if not drivers:
 		return []
 
-	# One query for every vehicle instead of one per driver.
 	vehicles = {
 		v.name: v
 		for v in frappe.get_all(
 			"TIQN Vehicle",
-			filters={"name": ("in", [d.assigned_vehicle for d in drivers if d.assigned_vehicle])},
+			filters={"name": ("in", [d.vehicle for d in drivers if d.vehicle])},
 			fields=["name", "vehicle_name", "license_plate"],
 			limit_page_length=0,
 		)
 	}
 
 	for driver in drivers:
-		vehicle = vehicles.get(driver.assigned_vehicle)
-		if vehicle:
-			driver["assigned_vehicle_name"] = f"{vehicle.vehicle_name} \u2022 {vehicle.license_plate}"
-		else:
-			driver["assigned_vehicle_name"] = driver.assigned_vehicle
+		vehicle = vehicles.get(driver.vehicle)
+		# Tên cũ giữ nguyên để client không phải đổi: `driver_name` và
+		# `assigned_vehicle` là hai khoá Mini App đang đọc.
+		driver["driver_name"] = driver.display_name
+		driver["assigned_vehicle"] = driver.vehicle
+		driver["assigned_vehicle_name"] = (
+			f"{vehicle.vehicle_name} \u2022 {vehicle.license_plate}" if vehicle else driver.vehicle
+		)
+		driver["is_active"] = 1  # đã lọc disabled=0; giữ khoá cũ cho client
 
 	return drivers
 
 
-@frappe.whitelist(methods=["POST"])
-def verify_driver_login(driver_name, password):
-	"""Phase 1 driver login: pick your name, type the password.
+# 🔴 `verify_driver_login()` ĐÃ XOÁ 23/09/2026, cùng field `password` và bốn hàm khoá
+# chống dò mật khẩu (`_login_cache_key`, `_check_login_lockout`, `_record_failed_login`,
+# `_clear_failed_logins`).
+#
+# Nó ra đời vì lúc đó chưa nối được danh tính Zalo. Giờ đã nối: `get_user_by_zalo_id()`
+# trả vai trò của tài khoản Zalo, và vai trò đó CHÍNH LÀ đăng nhập. Giữ thêm một đường
+# đăng nhập thứ hai bằng tên + mật khẩu dùng chung, trên một DocType không còn tồn tại,
+# là giữ một cánh cửa mà không ai nhớ ra để khoá.
+#
+# Chặn một người dùng: đặt cờ `disabled` trên bản ghi Zalo Role Map của họ.
 
-	Phase 2 replaces this with the Zalo User ID mapping, at which point this
-	endpoint and the `password` field should be removed rather than left lying
-	around.
 
-	Security notes, so nobody mistakes this for real authentication:
-	  * A DocType `Password` field is ENCRYPTED, not hashed - frappe stores it in
-	    `__Auth` with encrypted=1 and can decrypt it back. `check_password()`
-	    only ever matches hashed rows (encrypted=0), so it can never verify this
-	    field; `Document.get_password()` is the accessor that works.
-	  * Passwords here are short and shared, so the endpoint locks a driver out
-	    for LOCKOUT_SECONDS after MAX_LOGIN_ATTEMPTS wrong tries. Without that,
-	    a value like "driver01" falls in seconds.
+def get_dispatcher_zalo_id():
+	"""The dispatcher's OA-scoped Zalo id, or None.
+
+	🔴 Returns `id_by_oa`, NOT `zalo_user_id`. This used to return `zalo_user_id`,
+	which was wrong: that id is APP-scoped and openChat() cannot use it. It looks
+	like a valid id and it is a valid id - just not for opening a chat, so the
+	failure is a chat that never opens with nothing to explain why.
+
+	No fallback to `zalo_user_id` on purpose. A missing chat button is honest; a
+	button that silently does nothing is a bug report nobody can reproduce. Empty
+	until the Mini App is verified by the OA, or the dispatcher follows the linked OA.
 	"""
-	_guard("TIQN Driver")
-
-	if not driver_name or not password:
-		frappe.throw(_("Driver and password are required"), frappe.AuthenticationError)
-
-	if not frappe.db.exists("TIQN Driver", driver_name):
-		# Same message as a wrong password: do not confirm which names exist.
-		frappe.throw(_("Incorrect driver or password"), frappe.AuthenticationError)
-
-	_check_login_lockout(driver_name)
-
-	driver = frappe.get_doc("TIQN Driver", driver_name)
-	if not driver.is_active:
-		frappe.throw(_("This driver is no longer active"), frappe.AuthenticationError)
-
-	stored = driver.get_password("password", raise_exception=False)
-	if not stored:
-		frappe.throw(
-			_("No Mini App password has been set for {0} yet").format(driver.driver_name),
-			frappe.AuthenticationError,
-		)
-
-	if not hmac.compare_digest(str(stored), str(password)):
-		_record_failed_login(driver_name)
-		frappe.throw(_("Incorrect driver or password"), frappe.AuthenticationError)
-
-	_clear_failed_logins(driver_name)
-
-	vehicle = (
-		frappe.db.get_value(
-			"TIQN Vehicle", driver.assigned_vehicle, ["vehicle_name", "license_plate"], as_dict=True
-		)
-		if driver.assigned_vehicle
-		else None
+	return frappe.db.get_value(
+		"TIQN Zalo Role Map",
+		{"role": "dispatcher", "id_by_oa": ("is", "set")},
+		"id_by_oa",
+		order_by="modified desc",
 	)
 
-	return {
-		"name": driver.name,
-		"driver_name": driver.driver_name,
-		"phone": driver.phone,
-		"assigned_vehicle": driver.assigned_vehicle,
-		"assigned_vehicle_name": vehicle.vehicle_name if vehicle else None,
-		"assigned_vehicle_plate": vehicle.license_plate if vehicle else None,
-	}
+
+# Chỉ còn `requester`: đó là khoá `zalo_user_id` nằm trên bản ghi YÊU CẦU, để biết ai đã
+# đặt xe.
+#
+# `driver` và `dispatcher` đã bỏ: danh tính của họ LÀ bản ghi `TIQN Zalo Role Map`, mà
+# docname của bản ghi đó chính là zalo_user_id - ghi id lên chính nó là thao tác vô
+# nghĩa. Từ chối thẳng kèm lời giải thích, còn hơn im lặng chấp nhận một lời gọi không
+# làm gì.
+ZALO_ID_TARGETS = {
+	"requester": "TIQN Vehicle Request",
+}
 
 
-def _login_cache_key(driver_name):
-	return f"tiqn_driver_login_fail:{driver_name}"
+@frappe.whitelist(methods=["POST", "PUT"])
+def update_zalo_user_id(role, doc_name, zalo_user_id):
+	"""Store the Zalo id the Mini App just read from getUserInfo().
 
+	The id is what openChat() needs to put two people in a conversation, and the
+	Mini App is the only place it can be obtained - so it has to travel back here.
 
-def _check_login_lockout(driver_name):
-	attempts = cint(frappe.cache.get_value(_login_cache_key(driver_name)))
-	if attempts >= MAX_LOGIN_ATTEMPTS:
+	⚠ Nothing proves the caller owns the id being written. Every Mini App install
+	shares one API key, so this endpoint would let a holder of that key point any
+	driver's chat at themselves. It is deliberately narrow because of that: the
+	target doctype comes from ZALO_ID_TARGETS rather than from the client, and only
+	this one field is written. Real ownership needs Phase 2 server-side identity -
+	the same gap recorded for get_requests() and get_my_requests().
+	"""
+	role = (role or "").strip().lower()
+	if role in ("driver", "dispatcher"):
 		frappe.throw(
-			_("Too many failed attempts. Try again in {0} minutes.").format(LOCKOUT_SECONDS // 60),
-			frappe.AuthenticationError,
+			_("A {0} is identified by their TIQN Zalo Role Map record, whose name IS the "
+			  "Zalo user ID - there is nothing to write. Create or update that record "
+			  "instead.").format(role)
 		)
 
+	doctype = ZALO_ID_TARGETS.get(role)
+	if not doctype:
+		frappe.throw(_("Unknown role {0}").format(role))
 
-def _record_failed_login(driver_name):
-	key = _login_cache_key(driver_name)
-	attempts = cint(frappe.cache.get_value(key)) + 1
-	# The TTL is refreshed on every failure, so a slow drip does not reset it.
-	frappe.cache.set_value(key, attempts, expires_in_sec=LOCKOUT_SECONDS)
+	_guard(doctype, "write")
 
+	if not frappe.db.exists(doctype, doc_name):
+		frappe.throw(_("{0} {1} not found").format(_(doctype), doc_name), frappe.DoesNotExistError)
 
-def _clear_failed_logins(driver_name):
-	frappe.cache.delete_value(_login_cache_key(driver_name))
+	zalo_user_id = (zalo_user_id or "").strip()
+	if not zalo_user_id:
+		frappe.throw(_("Zalo User ID is required"))
+
+	# db_set, not doc.save(): this is one denormalised field and saving a request
+	# would re-run the workflow validation that update_request() enforces - a
+	# requester re-opening the app should not be blocked from storing a chat id
+	# because their request has since been approved.
+	frappe.db.set_value(doctype, doc_name, "zalo_user_id", zalo_user_id)
+
+	return {"doctype": doctype, "name": doc_name, "zalo_user_id": zalo_user_id}
 
 
 # ---------------------------------------------------------------------------
@@ -1411,7 +1765,9 @@ def get_trip_report(start_date, end_date, vehicle=None, driver=None):
 	if vehicle:
 		filters["vehicle"] = vehicle
 	if driver:
-		filters["driver"] = driver
+		# Chuyến gán theo XE, nên "chuyến của tài xế X" = chuyến của xe X lái.
+		# Tài xế chưa được gán xe thì không có chuyến nào: trả RỖNG, không trả hết.
+		filters["vehicle"] = _vehicle_of_driver(driver) or "__khong-co-xe__"
 
 	trips = _decorate_trips(frappe.get_all(
 		"TIQN Vehicle Trip",
@@ -1421,7 +1777,10 @@ def get_trip_report(start_date, end_date, vehicle=None, driver=None):
 		limit_page_length=0,
 	))
 
-	km_by_vehicle, km_by_driver = {}, {}
+	km_by_vehicle = {}
+	# Keyed by docname, so two vehicles sharing a display name stay apart - which
+	# km_by_vehicle, keyed by the name people type, cannot do.
+	by_vehicle = {}
 	total_km = total_cost = 0.0
 	completed = cancelled = 0
 
@@ -1429,7 +1788,6 @@ def get_trip_report(start_date, end_date, vehicle=None, driver=None):
 		# _decorate_trips() already resolved the names; fall back to the docname so
 		# a deleted vehicle still groups under something readable.
 		trip["vehicle_name"] = trip.get("vehicle_name") or trip.get("vehicle")
-		trip["driver_name"] = trip.get("driver_name") or trip.get("driver")
 
 		if trip.status == "completed":
 			completed += 1
@@ -1442,7 +1800,20 @@ def get_trip_report(start_date, end_date, vehicle=None, driver=None):
 
 		if km:
 			km_by_vehicle[trip["vehicle_name"]] = flt(km_by_vehicle.get(trip["vehicle_name"], 0)) + km
-			km_by_driver[trip["driver_name"]] = flt(km_by_driver.get(trip["driver_name"], 0)) + km
+
+			key = trip.get("vehicle") or trip["vehicle_name"]
+			entry = by_vehicle.setdefault(
+				key,
+				{
+					"vehicle": trip.get("vehicle"),
+					"name": trip["vehicle_name"],
+					"license_plate": trip.get("license_plate"),
+					"km": 0.0,
+					"trips": 0,
+				},
+			)
+			entry["km"] += km
+			entry["trips"] += 1
 
 	return {
 		"trips": trips,
@@ -1452,8 +1823,21 @@ def get_trip_report(start_date, end_date, vehicle=None, driver=None):
 			"total_additional_cost": flt(total_cost, 2),
 			"completed": completed,
 			"cancelled": cancelled,
+			# Unchanged shape, still {display name: km} - the Mini App reads this and
+			# a rename here would break it. `vehicles` below is the richer view.
 			"km_by_vehicle": {k: flt(v, 1) for k, v in km_by_vehicle.items()},
-			"km_by_driver": {k: flt(v, 1) for k, v in km_by_driver.items()},
+			# 🔴 KHÔNG còn `km_by_driver`. Chuyến gán theo XE, nên "ai lái" chỉ suy được
+			# từ tài xế HIỆN TẠI của xe. Với câu hỏi BÂY GIỜ (gọi ai) thì suy là đúng;
+			# với câu hỏi LÚC ĐÓ - tháng 9 ai chạy bao nhiêu km - thì sai: tài xế đổi
+			# xe là lịch sử bị viết lại, âm thầm. Thà không có con số còn hơn có một
+			# con số lặng lẽ đổi nghĩa.
+			# Same numbers with the plate attached, biggest first, for a report
+			# heading that has to read "Bus 1 - 43A-12345".
+			"vehicles": sorted(
+				({**v, "km": flt(v["km"], 1)} for v in by_vehicle.values()),
+				key=lambda v: v["km"],
+				reverse=True,
+			),
 		},
 	}
 
@@ -1605,7 +1989,7 @@ def create_scheduled_trips(trip_date=None, force_all=False):
 	"""
 	on_date = getdate(trip_date) if trip_date else getdate(nowdate())
 	weekday = WEEKDAY_NAMES[on_date.weekday()]
-	now_hhmm = now_datetime().strftime("%H:%M")
+	now = now_datetime()
 
 	schedules = frappe.get_all(
 		"TIQN Fixed Trip Schedule",
@@ -1615,7 +1999,7 @@ def create_scheduled_trips(trip_date=None, force_all=False):
 		limit_page_length=0,
 	)
 
-	created, skipped, not_due = [], [], []
+	created, skipped, not_due, failed = [], [], [], []
 
 	for schedule in schedules:
 		allowed = [d.strip() for d in (schedule.days_of_week or "").split(",") if d.strip()]
@@ -1623,12 +2007,25 @@ def create_scheduled_trips(trip_date=None, force_all=False):
 			not_due.append(schedule.name)
 			continue
 
-		# Each cron tick only creates the trips due at that tick. `force_all`
-		# exists for a manual catch-up run, and for tests.
+		# A trip appears SCHEDULE_LEAD_MINUTES before it leaves, not at dawn for the
+		# whole day.
+		#
+		# 🔴 This used to be an exact string match against the current HH:MM, which
+		# meant the job only ever created schedules departing at the very minute cron
+		# fired. Cron ran at 06:30 and 17:00; the afternoon shuttles depart at 17:15.
+		# They therefore NEVER got created - three vehicles, every working day, and
+		# nothing in the log to say so, because a schedule that does not match is
+		# simply counted as "not due". Only the demo seeder ever produced them, which
+		# is exactly why it looked fine on screen.
+		#
+		# A window also survives a cron tick that runs a few seconds late, which an
+		# exact minute match does not.
 		depart = _fmt_time(schedule.depart_time)
-		if not force_all and depart != now_hhmm:
-			not_due.append(schedule.name)
-			continue
+		if not force_all:
+			minutes_away = (get_datetime(f"{on_date} {depart}") - now).total_seconds() / 60
+			if not (0 <= minutes_away <= SCHEDULE_LEAD_MINUTES):
+				not_due.append(schedule.name)
+				continue
 
 		existing = frappe.db.exists(
 			"TIQN Vehicle Trip",
@@ -1643,17 +2040,39 @@ def create_scheduled_trips(trip_date=None, force_all=False):
 			skipped.append(schedule.name)
 			continue
 
-		created.append(_create_trip_from_schedule(schedule, on_date))
+		# 🔴 One bad schedule must not take the whole fleet's morning with it.
+		# Without this, a single dangling link raised out of the loop and NOTHING
+		# got created - every shuttle missing, one traceback in the log, and the
+		# working schedules never even tried. Seen for real 21/09/2026: renaming
+		# the drivers left all six schedules pointing at TIQN-DRV-00x-old, and
+		# set_default_driver() could not heal it because it only fills a BLANK
+		# driver, never replaces one that is merely wrong.
+		# Savepoint, not a bare rollback: rollback() would throw away the trips
+		# already created earlier in this same loop, turning one broken schedule
+		# into an empty morning anyway.
+		save_point = f"fixed_trip_{schedule.name}".replace("-", "_")
+		frappe.db.savepoint(save_point)
+		try:
+			created.append(_create_trip_from_schedule(schedule, on_date))
+		except Exception:
+			frappe.db.rollback(save_point=save_point)
+			failed.append(schedule.name)
+			frappe.log_error(
+				title=f"Fixed trip not created: {schedule.name}",
+				message=frappe.get_traceback(),
+			)
 
 	frappe.db.commit()  # scheduler task: nothing else commits for us
 
 	summary = {
 		"date": str(on_date),
 		"weekday": weekday,
-		"clock": now_hhmm,
+		"clock": now.strftime("%H:%M"),
+		"lead_minutes": SCHEDULE_LEAD_MINUTES,
 		"created": created,
 		"skipped": skipped,
 		"not_due": not_due,
+		"failed": failed,
 	}
 	frappe.logger("vehicle_management").info({"create_scheduled_trips": summary})
 
@@ -1680,7 +2099,6 @@ def _create_trip_from_schedule(schedule, on_date):
 			"trip_date": on_date,
 			"status": "scheduled",
 			"vehicle": schedule.vehicle,
-			"driver": schedule.driver,
 			"depart_time": schedule.depart_time,
 			"from_location": schedule.from_location,
 			"to_location": schedule.to_location,
@@ -1697,12 +2115,18 @@ def _create_trip_from_schedule(schedule, on_date):
 EXCEL_HEADERS = [
 	("Date", 12), ("Vehicle", 16), ("License Plate", 14), ("Driver", 20),
 	("Start Time", 12), ("End Time", 12),
-	("From", 28), ("To", 28),
+	("From", 28), ("To", 28), ("Purpose", 30),
 	("KM Start", 12), ("KM End", 12), ("Billable KM", 12),
 	("Additional Cost", 18), ("Status", 14), ("Notes", 30),
 ]
-KM_COLUMNS = (9, 10, 11)
-COST_COLUMN = 12
+# 1-based column numbers, derived from the headers above rather than written out:
+# inserting a column used to mean editing four separate constants and a pair of
+# hand-spelled "K2:K" formula ranges, and missing one silently formats the wrong
+# column or totals the wrong one.
+_COL = {label: i for i, (label, _w) in enumerate(EXCEL_HEADERS, 1)}
+KM_COLUMNS = (_COL["KM Start"], _COL["KM End"], _COL["Billable KM"])
+TOTAL_KM_COLUMN = _COL["Billable KM"]
+COST_COLUMN = _COL["Additional Cost"]
 KM_FORMAT = "#,##0.00"
 COST_FORMAT = "#,##0"
 
@@ -1712,6 +2136,7 @@ EXPORT_RETENTION_MINUTES = 45
 
 
 @frappe.whitelist(methods=["GET", "POST"])
+@rate_limit(limit=RATE_EXCEL, seconds=60 * 60)
 def download_trip_report_excel(start_date, end_date, vehicle=None, driver=None):
 	"""Build the KM report as .xlsx and return a URL to fetch it.
 
@@ -1761,6 +2186,7 @@ def download_trip_report_excel(start_date, end_date, vehicle=None, driver=None):
 			_excel_clock(trip.get("checkout_time")),
 			trip.get("from_location") or "",
 			trip.get("to_location") or "",
+			trip.get("purpose") or "",
 			flt(trip.get("km_start")),
 			flt(trip.get("km_end")),
 			flt(trip.get("total_km")),
@@ -1781,12 +2207,11 @@ def download_trip_report_excel(start_date, end_date, vehicle=None, driver=None):
 		ws.cell(total, 1, _("TOTAL")).font = Font(bold=True)
 		# Real formulas, not pre-computed numbers: someone filtering or deleting a
 		# row in Excel then sees the total follow.
-		km_cell = ws.cell(total, 11, f"=SUM(K2:K{last})")
-		km_cell.number_format = KM_FORMAT
-		km_cell.font = Font(bold=True)
-		cost_cell = ws.cell(total, COST_COLUMN, f"=SUM(L2:L{last})")
-		cost_cell.number_format = COST_FORMAT
-		cost_cell.font = Font(bold=True)
+		for column, fmt in ((TOTAL_KM_COLUMN, KM_FORMAT), (COST_COLUMN, COST_FORMAT)):
+			letter = get_column_letter(column)
+			cell = ws.cell(total, column, f"=SUM({letter}2:{letter}{last})")
+			cell.number_format = fmt
+			cell.font = Font(bold=True)
 
 	stream = io.BytesIO()
 	wb.save(stream)
@@ -1799,6 +2224,25 @@ def download_trip_report_excel(start_date, end_date, vehicle=None, driver=None):
 			"content": stream.getvalue(),
 		}
 	).save(ignore_permissions=True)
+
+	# 🔴 This endpoint WRITES, and Frappe throws away the writes of any request
+	# whose HTTP method is "safe". frappe/app.py sync_database() commits only for
+	# POST/PUT/DELETE/PATCH or when this flag is set - a GET is rolled back.
+	# On top of that, File registers a rollback observer: File.on_rollback() sees
+	# flags.new_file and calls _delete_file_on_disk(). So a GET here built the
+	# spreadsheet, wrote it, returned a correct URL, and then DELETED the file
+	# before the response left the server. The link works in the payload and 404s
+	# in the browser, with nothing in the log to say why.
+	# Seen for real 21/09/2026: the Mini App showed
+	# /files/bao-cao-xe-...-260921_105145.xlsx and the file was already gone 80
+	# seconds later - long before the 45-minute cleanup could have touched it.
+	#
+	# Setting the flag, rather than calling frappe.db.commit() here, is deliberate:
+	# commit() inside a whitelisted method flushes whatever else the caller had
+	# open and makes the test suite leak records into the real database. The flag
+	# is read once by the request layer and is simply absent outside a request, so
+	# bench console and the tests behave exactly as before.
+	frappe.local.flags.commit = True
 
 	return {
 		# Relative, as vehicle_management/API_CONTRACT.md mục 7 specifies.

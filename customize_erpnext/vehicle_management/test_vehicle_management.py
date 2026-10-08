@@ -14,6 +14,7 @@ saving new Leave Applications in August 2026.
 """
 
 import re
+from datetime import timedelta
 
 import frappe
 from frappe.utils import add_days, add_to_date, flt, getdate, now_datetime, nowdate
@@ -68,24 +69,19 @@ vehicle = frappe.get_doc(
 	}
 ).insert()
 
+# Tài xế = một tài khoản Zalo có role=driver và được gán xe. DocType TIQN Driver đã bỏ.
+# Zalo user ID phải là số >= 10 chữ số, nếu không validate_id_by_oa... (id_by_oa) và quy
+# ước dữ liệu thật sẽ khác nhau - dùng dạng 19 chữ số y như ngoài đời.
 driver = frappe.get_doc(
 	{
-		"doctype": "TIQN Driver",
-		"driver_name": "TEST Driver",
-		"phone": "0900000000",
-		"assigned_vehicle": vehicle.name,
-		"zalo_user_id": "zalo_test_driver",
-		"is_active": 1,
-	}
-).insert()
-
-frappe.get_doc(
-	{
 		"doctype": "TIQN Zalo Role Map",
-		"zalo_user_id": "zalo_test_driver",
+		"zalo_user_id": "9119000000000000001",
 		"display_name": "TEST Driver",
+		# ⚠ Role Map.phone là fieldtype `Phone`, BẮT BUỘC mã quốc gia - khác
+		# TIQN Driver.phone cũ vốn là `Data`. Dạng nội địa "0900..." bị từ chối.
+		"phone": "+84-900000000",
 		"role": "driver",
-		"driver_ref": driver.name,
+		"vehicle": vehicle.name,
 	}
 ).insert()
 
@@ -95,7 +91,8 @@ template = frappe.get_doc(
 		"schedule_name": "TEST morning run",
 		"trip_name_template": "TEST morning run",
 		"days_of_week": "Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday",
-		"driver": driver.name,
+		# driver để TRỐNG: suy từ xe lúc tạo chuyến. Lịch cố định không giữ bản sao
+		# thứ hai của "ai lái xe này" - chính bản sao đó đã mục nát khi đổi tên tài xế.
 		"vehicle": vehicle.name,
 		"depart_time": "06:30:00",
 		"from_location": "TEST Vincom",
@@ -108,10 +105,14 @@ print(f"  vehicle={vehicle.name} driver={driver.name} template={template.name}")
 
 
 print("\n=== 3.1 get_user_by_zalo_id ===")
-user = vm.get_user_by_zalo_id("zalo_test_driver")
+# 🔴 MỘT bản ghi cho một người. Trước 23/09 phải có hai - TIQN Driver + một dòng Role
+# Map trỏ về nó - và chúng lệch nhau được (đã lệch thật: 3 tài khoản Zalo cùng trỏ về
+# một tài xế). Giờ tài khoản Zalo CHÍNH LÀ tài xế.
+user = vm.get_user_by_zalo_id(driver.name)
 check("role", user["role"], "driver")
-check("driver_id", user["driver_id"], driver.name)
-check("vehicle_id", user["vehicle_id"], vehicle.name)
+check("zalo_user_id chính là docname", user["zalo_user_id"], driver.name)
+check("vehicle", user["vehicle"], vehicle.name)
+check("kèm tên xe", user["vehicle_name"], vehicle.vehicle_name)
 check("unknown id returns None", vm.get_user_by_zalo_id("nobody_at_all"), None)
 
 
@@ -192,7 +193,7 @@ check("last completed trip found", last["name"], trip["name"])
 
 print("\n=== 3.3 odometer continuity across trips ===")
 trip2 = vm.create_trip(
-	vehicle=vehicle.name, driver=driver.name, trip_date=TODAY,
+	vehicle=vehicle.name, trip_date=TODAY,
 	depart_time="09:00:00", from_location="TEST Toray", to_location="TEST Port",
 )
 throws("km_start below previous km_end", vm.checkin_trip, trip2["name"], 14000)
@@ -214,7 +215,6 @@ print("\n=== 3.2 combine requests ===")
 combined = vm.combine_requests_to_trip(
 	request_names=[req["name"]],
 	vehicle=vehicle.name,
-	driver=driver.name,
 	trip_date=TODAY,
 	depart_time="14:00:00",
 )
@@ -238,7 +238,11 @@ check(
 
 print("\n=== 3.4 vehicle status guard ===")
 throws("in_trip cannot be set by hand", vm.update_vehicle_status, vehicle.name, "in_trip")
-check("maintenance", vm.update_vehicle_status(vehicle.name, "maintenance")["status"], "maintenance")
+# Xe của đối tác: TIQN không theo dõi bảo dưỡng hay hư hỏng, chỉ cần biết dùng được
+# hay không. `maintenance` + `broken` cũ gộp thành `not_available` (23/09).
+check("not_available", vm.update_vehicle_status(vehicle.name, "not_available")["status"], "not_available")
+throws("trạng thái cũ maintenance bị từ chối", vm.update_vehicle_status, vehicle.name, "maintenance")
+throws("trạng thái cũ broken bị từ chối", vm.update_vehicle_status, vehicle.name, "broken")
 check("back to available", vm.update_vehicle_status(vehicle.name, "available")["status"], "available")
 
 
@@ -274,7 +278,11 @@ check("stats carry every status key",
 report = vm.get_trip_report(add_days(TODAY, -1), TODAY, vehicle=vehicle.name)
 check("report totals km of completed trip", report["summary"]["total_km"], 38.0)
 check("km_by_vehicle keyed by name", report["summary"]["km_by_vehicle"].get("TEST Vehicle"), 38.0)
-check("km_by_driver keyed by name", report["summary"]["km_by_driver"].get("TEST Driver"), 38.0)
+# 🔴 KHÔNG còn `km_by_driver`. Chuyến gán theo XE, nên "ai lái" chỉ suy được từ tài xế
+# HIỆN TẠI của xe - đúng cho câu hỏi bây giờ, sai cho câu hỏi lúc đó. Tài xế đổi xe là
+# lịch sử km bị viết lại, âm thầm. Thà không có con số còn hơn có một con số đổi nghĩa.
+check("KHÔNG còn thống kê km theo tài xế", "km_by_driver" in report["summary"], False)
+check("km theo XE vẫn còn", report["summary"]["km_by_vehicle"].get("TEST Vehicle"), 38.0)
 
 overview = vm.get_dispatch_overview(TODAY)
 check("overview carries every panel", sorted(overview.keys()),
@@ -301,62 +309,28 @@ check(
 )
 
 
-print("\n=== Phase 1 driver login ===")
-driver.password = "test-secret-1"
-driver.save()
+print("\n=== đăng nhập: danh tính Zalo, KHÔNG còn mật khẩu ===")
+# 🔴 `verify_driver_login()` đã xoá 23/09 cùng field `password`. Vai trò trả về từ
+# `get_user_by_zalo_id()` CHÍNH LÀ đăng nhập. Chốt lại để không ai dựng lại đường thứ hai.
+check("verify_driver_login không còn tồn tại", hasattr(vm, "verify_driver_login"), False)
+check("hằng số khoá đăng nhập cũng đi theo",
+      any(hasattr(vm, n) for n in ("MAX_LOGIN_ATTEMPTS", "LOCKOUT_SECONDS", "RATE_LOGIN")), False)
+check("DocType TIQN Driver không còn", frappe.db.exists("DocType", "TIQN Driver"), None)
 
-listed = vm.get_drivers()
-me = [d for d in listed if d["name"] == driver.name]
-check("active driver is listed", len(me), 1)
-check("no password field in the list", "password" in me[0], False)
-check("no zalo id in the list", "zalo_user_id" in me[0], False)
-check("vehicle label built", me[0]["assigned_vehicle_name"], "TEST Vehicle \u2022 99Z-999.99")
-
-logged_in = vm.verify_driver_login(driver.name, "test-secret-1")
-check("login returns the driver", logged_in["name"], driver.name)
-check("login returns the vehicle", logged_in["assigned_vehicle_name"], "TEST Vehicle")
-check("login returns the plate", logged_in["assigned_vehicle_plate"], "99Z-999.99")
-check("login never returns the password", "password" in logged_in, False)
-
-throws("wrong password", vm.verify_driver_login, driver.name, "wrong")
-throws("empty password", vm.verify_driver_login, driver.name, "")
-throws("unknown driver", vm.verify_driver_login, "TIQN-DRV-NOPE", "test-secret-1")
-vm._clear_failed_logins(driver.name)
-
-# Brute-force guard: the 6th attempt must be refused even with the right password.
-for _i in range(vm.MAX_LOGIN_ATTEMPTS):
-	try:
-		vm.verify_driver_login(driver.name, "wrong")
-	except Exception:
-		pass
-throws("locked out after 5 failures", vm.verify_driver_login, driver.name, "test-secret-1")
-vm._clear_failed_logins(driver.name)
-check("lockout clears", vm.verify_driver_login(driver.name, "test-secret-1")["name"], driver.name)
-
-# A driver with no password set must not fall through to "any password works".
-no_pwd = frappe.get_doc(
-	{"doctype": "TIQN Driver", "driver_name": "TEST No Password", "is_active": 1}
-).insert()
-throws("driver without a password", vm.verify_driver_login, no_pwd.name, "anything")
-
-inactive = frappe.get_doc(
-	{"doctype": "TIQN Driver", "driver_name": "TEST Inactive", "is_active": 0}
-).insert()
-inactive.password = "x"
-inactive.save()
-throws("inactive driver", vm.verify_driver_login, inactive.name, "x")
-check(
-	"inactive driver hidden from the picker",
-	[d for d in vm.get_drivers() if d["name"] == inactive.name],
-	[],
-)
-
-check(
-	"column stores only asterisks",
-	set(frappe.db.get_value("TIQN Driver", driver.name, "password") or ""),
-	{"*"},
-)
-
+# Chặn một người: cờ `disabled` trên bản ghi Zalo Role Map.
+blocked = frappe.get_doc({
+	"doctype": "TIQN Zalo Role Map", "zalo_user_id": "9119000000000000009",
+	"display_name": "TEST Bị chặn", "role": "driver", "vehicle": vehicle.name,
+}).insert(ignore_permissions=True)
+check("chưa chặn -> get_user_by_zalo_id trả vai trò",
+      vm.get_user_by_zalo_id(blocked.name)["role"], "driver")
+frappe.db.set_value("TIQN Zalo Role Map", blocked.name, "disabled", 1)
+# Trả None chứ không trả vai trò kèm cờ: mọi chỗ gọi đã biết xử lý None, còn một cờ
+# phụ thì chỉ cần sót MỘT chỗ kiểm là lọt.
+check("bị chặn -> coi như chưa map", vm.get_user_by_zalo_id(blocked.name), None)
+check("bị chặn -> biến khỏi danh sách tài xế",
+      [d for d in vm.get_drivers() if d["name"] == blocked.name], [])
+frappe.db.set_value("TIQN Zalo Role Map", blocked.name, "disabled", 0)
 
 print("\n=== Phase 1 CRUD: update_request ===")
 crud_req = vm.create_request(
@@ -371,7 +345,7 @@ throws("vehicle-only arg on a request", vm.update_request, crud_req["name"], cur
 throws("assigned without a trip", vm.update_request, crud_req["name"], status="assigned")
 
 crud_trip = vm.create_trip(
-	vehicle=vehicle.name, driver=driver.name, trip_date=TODAY,
+	vehicle=vehicle.name, trip_date=TODAY,
 	depart_time="15:00:00", from_location="TEST Toray", to_location="TEST Port",
 )
 # The Phase 1 flow has no separate approval: pending jumps straight to assigned.
@@ -430,7 +404,7 @@ check("vehicle released", frappe.db.get_value("TIQN Vehicle", vehicle.name, "sta
 # Re-saving a finished trip must not trip the odometer rule just because a later
 # trip on the same vehicle has since logged a higher KM End.
 later = vm.create_trip(
-	vehicle=vehicle.name, driver=driver.name, trip_date=TODAY, depart_time="18:00:00",
+	vehicle=vehicle.name, trip_date=TODAY, depart_time="18:00:00",
 )
 vm.update_trip(later["name"], status="in_progress", km_start=14600)
 vm.update_trip(later["name"], status="completed", km_end=14700)
@@ -440,12 +414,12 @@ check(
 	"edited later",
 )
 
-fresh = vm.create_trip(vehicle=vehicle.name, driver=driver.name, trip_date=TODAY)
+fresh = vm.create_trip(vehicle=vehicle.name, trip_date=TODAY)
 throws("odometer continuity still guarded", vm.update_trip, fresh["name"], km_start=100)
 
 
 print("\n=== Phase 1 CRUD: passengers as a JSON array ===")
-pax_trip = vm.create_trip(vehicle=vehicle.name, driver=driver.name, trip_date=TODAY)
+pax_trip = vm.create_trip(vehicle=vehicle.name, trip_date=TODAY)
 updated = vm.update_trip(
 	pax_trip["name"],
 	passengers=[
@@ -465,16 +439,16 @@ check(
 
 
 print("\n=== Phase 1 CRUD: update_vehicle ===")
-check("maintenance via update_vehicle", vm.update_vehicle(vehicle.name, status="maintenance")["status"], "maintenance")
+check("not_available via update_vehicle", vm.update_vehicle(vehicle.name, status="not_available")["status"], "not_available")
 check("back to available", vm.update_vehicle(vehicle.name, status="available")["status"], "available")
 throws("bogus status", vm.update_vehicle, vehicle.name, status="flying")
 throws("in_trip with no running trip", vm.update_vehicle, vehicle.name, status="in_trip")
 throws("unknown vehicle", vm.update_vehicle, "TIQN-VEH-NOPE", status="available")
 
-run_trip = vm.create_trip(vehicle=vehicle.name, driver=driver.name, trip_date=TODAY)
+run_trip = vm.create_trip(vehicle=vehicle.name, trip_date=TODAY)
 vm.update_trip(run_trip["name"], status="in_progress", km_start=14700)
 check("in_trip accepted while a trip runs", vm.update_vehicle(vehicle.name, status="in_trip")["status"], "in_trip")
-throws("cannot park a vehicle mid-trip", vm.update_vehicle, vehicle.name, status="maintenance")
+throws("cannot park a vehicle mid-trip", vm.update_vehicle, vehicle.name, status="not_available")
 vm.cancel_trip(run_trip["name"], "test")
 
 
@@ -521,7 +495,7 @@ throws(
 )
 
 # Once a dispatcher has acted on it, the ride details freeze.
-lock_trip = vm.create_trip(vehicle=vehicle.name, driver=driver.name, trip_date=TODAY)
+lock_trip = vm.create_trip(vehicle=vehicle.name, trip_date=TODAY)
 vm.update_request(editable["name"], status="assigned", assigned_trip=lock_trip["name"])
 throws("content locked once assigned", vm.update_request, editable["name"], from_location="Hijacked")
 throws("notes locked too", vm.update_request, editable["name"], notes="sneaky")
@@ -564,7 +538,7 @@ name_src = vm.create_request(
 	request_time=add_to_date(now_datetime(), hours=11),
 	from_location="X", to_location="Y",
 )
-pk = vm.create_trip(vehicle=vehicle.name, driver=driver.name, trip_date=TODAY)
+pk = vm.create_trip(vehicle=vehicle.name, trip_date=TODAY)
 
 # The exact shape the Mini App sends: snake_case request_id / from_location.
 out = vm.update_trip(pk["name"], passengers=[
@@ -602,7 +576,7 @@ check("round trip does not leak the docname", out["passengers"][0]["passenger_na
 
 # create_trip used to accept a narrower set than update_trip - now identical.
 made = vm.create_trip(
-	vehicle=vehicle.name, driver=driver.name, trip_date=TODAY,
+	vehicle=vehicle.name, trip_date=TODAY,
 	passengers=[{"name": "Created Pax", "from_location": "Cong 5", "request_id": name_src["name"], "order": 2}],
 )
 check("create_trip maps the same keys", made["passengers"][0]["from_location"], "Cong 5")
@@ -612,7 +586,7 @@ check("create_trip keeps the sent order", made["passengers"][0]["order"], 2)
 
 print("\n=== API contract: wire formats ===")
 fmt_trip = vm.create_trip(
-	vehicle=vehicle.name, driver=driver.name, trip_date=TODAY,
+	vehicle=vehicle.name, trip_date=TODAY,
 	depart_time="06:30:00", from_location="A", to_location="B",
 	notes="contract note", status="scheduled",
 )
@@ -706,7 +680,7 @@ check(
 
 
 print("\n=== Part 1: client tolerance ===")
-tol = vm.create_trip(vehicle=vehicle.name, driver=driver.name, trip_date=TODAY)
+tol = vm.create_trip(vehicle=vehicle.name, trip_date=TODAY)
 
 # A browser's Date.toISOString() must not reach MySQL as-is.
 iso = vm.update_trip(tol["name"], status="in_progress", km_start=99960,
@@ -760,15 +734,32 @@ _content = frappe.get_doc("File", {"file_name": xls["filename"]}).get_content()
 _ws = _x.load_workbook(_io.BytesIO(_content)).active
 check("sheet name", _ws.title, "Vehicle Report")
 check("header row frozen", _ws.freeze_panes, "A2")
-check("14 columns", _ws.max_column, 14)
-check("KM cells are numbers, not text", isinstance(_ws.cell(2, 11).value, (int, float)), True)
-check("KM number format", _ws.cell(2, 11).number_format, "#,##0.00")
-check("cost number format", _ws.cell(2, 12).number_format, "#,##0")
-check("total row is a real SUM formula", str(_ws.cell(_ws.max_row, 11).value).startswith("=SUM("), True)
+# Đọc vị trí cột từ EXCEL_HEADERS thay vì viết cứng: 3 assert này từng đứt hàng
+# loạt chỉ vì chèn thêm cột Purpose, che mất lỗi thật nếu có.
+check("số cột khớp EXCEL_HEADERS", _ws.max_column, len(vm.EXCEL_HEADERS))
+_km, _cost = vm.TOTAL_KM_COLUMN, vm.COST_COLUMN
+check("KM cells are numbers, not text", isinstance(_ws.cell(2, _km).value, (int, float)), True)
+check("KM number format", _ws.cell(2, _km).number_format, "#,##0.00")
+check("cost number format", _ws.cell(2, _cost).number_format, "#,##0")
+check("total row is a real SUM formula", str(_ws.cell(_ws.max_row, _km).value).startswith("=SUM("), True)
+check("SUM trỏ đúng cột của chính nó",
+      f"=SUM({_x.utils.get_column_letter(_km)}2:" in str(_ws.cell(_ws.max_row, _km).value), True)
+check("SUM chi phí trỏ đúng cột của chính nó",
+      f"=SUM({_x.utils.get_column_letter(_cost)}2:" in str(_ws.cell(_ws.max_row, _cost).value), True)
 check("total row is labelled", _ws.cell(_ws.max_row, 1).value, "TOTAL")
 
 check("an empty range still returns a file",
       vm.download_trip_report_excel("2020-01-01", "2020-01-02")["row_count"], 0)
+
+# 🔴 Endpoint này GHI (tạo File). Frappe rollback mọi request có method "an toàn"
+# (GET/HEAD/OPTIONS) trong frappe/app.py sync_database(), và File.on_rollback()
+# XOÁ LUÔN file vừa ghi trên đĩa. Kết quả: URL trả về đúng, file đã biến mất trước
+# khi response rời server - link 404 mà log không nói gì.
+# Sự cố thật 21/09/2026. flags.commit là thứ duy nhất chặn được, nên chốt nó lại.
+frappe.local.flags.pop("commit", None)
+vm.download_trip_report_excel(add_days(TODAY, -1), TODAY)
+check("bật flags.commit để file sống qua một request GET",
+      frappe.local.flags.get("commit"), True)
 
 
 print("\n=== Tạo chuyến từ NHIỀU yêu cầu (chế độ 2 của dialog Tạo chuyến) ===")
@@ -784,7 +775,6 @@ multi = [
 multi_trip = vm.combine_requests_to_trip(
 	request_names=multi,
 	vehicle=vehicle.name,
-	driver=driver.name,
 	trip_date=TODAY,
 	depart_time="20:00:00",
 	from_location="Toray VSIP",
@@ -818,20 +808,33 @@ check(
 )
 
 
-print("\n=== Chọn xe là đủ: tài xế tự điền ở MỌI đường tạo chuyến ===")
+print("\n=== chuyến gán theo XE: tài xế suy ra, không lưu ===")
 auto_veh = frappe.get_doc({
 	"doctype": "TIQN Vehicle", "vehicle_name": "TEST Auto", "license_plate": "98Y-888.88",
 	"vehicle_type": "MPV", "capacity": 7, "status": "available",
 }).insert()
 auto_drv = frappe.get_doc({
-	"doctype": "TIQN Driver", "driver_name": "TEST Auto Driver",
-	"assigned_vehicle": auto_veh.name, "is_active": 1,
+	"doctype": "TIQN Zalo Role Map", "zalo_user_id": "9119000000000000002",
+	"display_name": "TEST Auto Driver", "role": "driver", "vehicle": auto_veh.name,
 }).insert()
 
-check("create_trip bỏ trống driver", vm.create_trip(vehicle=auto_veh.name, trip_date=TODAY)["driver"], auto_drv.name)
+# 🔴 `driver` KHÔNG còn là cột trên chuyến - nó là giá trị SUY RA từ xe lúc đọc.
+made_auto = vm.create_trip(vehicle=auto_veh.name, trip_date=TODAY)
+check("create_trip: tài xế suy từ xe", made_auto["driver"], auto_drv.name)
+check("kèm tên để hiển thị", made_auto["driver_name"], "TEST Auto Driver")
+check("KHÔNG lưu cột driver trên chuyến",
+      "driver" in [c["Field"] for c in frappe.db.sql("DESC `tabTIQN Vehicle Trip`", as_dict=True)],
+      False)
+check("create_trip không còn nhận tham số driver",
+      "driver" in vm.create_trip.__wrapped__.__code__.co_varnames
+      if hasattr(vm.create_trip, "__wrapped__") else "driver" in vm.create_trip.__code__.co_varnames,
+      False)
+
 check(
-	"doc.insert thẳng (form Desk / import)",
-	frappe.get_doc({"doctype": "TIQN Vehicle Trip", "vehicle": auto_veh.name, "trip_date": TODAY}).insert().driver,
+	"doc.insert thẳng (form Desk / import) cũng vậy",
+	vm.get_trip(frappe.get_doc({
+		"doctype": "TIQN Vehicle Trip", "vehicle": auto_veh.name, "trip_date": TODAY,
+	}).insert().name)["driver"],
 	auto_drv.name,
 )
 auto_req = vm.create_request(
@@ -839,25 +842,37 @@ auto_req = vm.create_request(
 	from_location="A", to_location="B",
 )
 check(
-	"combine_requests_to_trip bỏ trống driver",
-	vm.combine_requests_to_trip(request_names=[auto_req["name"]], vehicle=auto_veh.name, trip_date=TODAY)["driver"],
+	"combine_requests_to_trip cũng suy từ xe",
+	vm.combine_requests_to_trip(request_names=[auto_req["name"]], vehicle=auto_veh.name,
+	                            trip_date=TODAY)["driver"],
 	auto_drv.name,
 )
 
-# A stand-in driver must survive: only a blank is filled.
-check(
-	"tài xế chạy thay không bị ghi đè",
-	vm.create_trip(vehicle=auto_veh.name, driver=driver.name, trip_date=TODAY)["driver"],
-	driver.name,
-)
+# Đổi tài xế của xe -> MỌI chuyến của xe đó đổi theo, kể cả chuyến đã tạo trước đó.
+# Đây chính là điều không làm được khi driver là một cột lưu trên từng chuyến.
+frappe.db.set_value("TIQN Zalo Role Map", auto_drv.name, "disabled", 1)
+thay = frappe.get_doc({
+	"doctype": "TIQN Zalo Role Map", "zalo_user_id": "9119000000000000007",
+	"display_name": "TEST Thay Ca", "role": "driver", "vehicle": auto_veh.name,
+}).insert(ignore_permissions=True)
+check("đổi tài xế của xe -> chuyến CŨ cũng đổi theo",
+      vm.get_trip(made_auto["name"])["driver"], thay.name)
 
-# An inactive driver must never be auto-assigned - the trip would go to someone gone.
-frappe.db.set_value("TIQN Driver", auto_drv.name, "is_active", 0)
-throws(
-	"xe chỉ còn tài xế đã nghỉ -> vẫn bắt nhập",
-	frappe.get_doc({"doctype": "TIQN Vehicle Trip", "vehicle": auto_veh.name, "trip_date": TODAY}).insert,
-)
-frappe.db.set_value("TIQN Driver", auto_drv.name, "is_active", 1)
+# Tài xế bị chặn không bao giờ được suy ra.
+check("tài xế bị chặn không xuất hiện",
+      vm.get_trip(made_auto["name"])["driver"] == auto_drv.name, False)
+
+# "Chuyến của tài xế X" = chuyến của XE mà X lái.
+check("get_today_trips_by_driver lọc qua xe",
+      all(t["vehicle"] == auto_veh.name for t in vm.get_today_trips_by_driver(thay.name)), True)
+check("tài xế chưa có xe -> rỗng, KHÔNG trả hết",
+      vm.get_today_trips_by_driver("khong-co-ai-the-nay"), [])
+
+frappe.db.set_value("TIQN Zalo Role Map", thay.name, "disabled", 1)
+check("xe không còn tài xế -> driver None, chuyến vẫn tồn tại",
+      vm.get_trip(made_auto["name"])["driver"], None)
+frappe.db.set_value("TIQN Zalo Role Map", auto_drv.name, "disabled", 0)
+frappe.db.set_value("TIQN Zalo Role Map", thay.name, "disabled", 1)
 
 
 print("\n=== Yêu cầu quá giờ / sắp tới giờ ===")
@@ -950,6 +965,638 @@ check("không truyền -> vẫn là hàng đợi đầy đủ (dispatcher không
 # Khoá tên field trả về: Mini App đọc employee_id_display, không phải employee_id.
 check("key mã NV trong payload", "employee_id_display" in got[0], True)
 check("KHÔNG có key employee_id", "employee_id" in got[0], False)
+
+
+print("\n=== purpose trên chuyến (Mini App tách khỏi notes) ===")
+p_reqs = [
+	vm.create_request(
+		employee_name=f"TEST Purpose {i}", employee_id_display="EMP-PUR",
+		request_time=add_to_date(now_datetime(), hours=60 + i),
+		from_location="A", to_location="B", purpose=text,
+	)["name"]
+	# Trùng nhau cố ý ở 2 dòng đầu + 1 dòng rỗng: gộp phải khử trùng và bỏ rỗng.
+	for i, text in enumerate(["Khám sức khỏe", "khám sức khỏe", "", "Nộp hồ sơ"])
+]
+combined = vm.combine_requests_to_trip(p_reqs, vehicle=vehicle.name)
+check("gộp purpose từ các yêu cầu, khử trùng + bỏ rỗng",
+      combined["purpose"], "Khám sức khỏe | Nộp hồ sơ")
+check("purpose có trong payload chuyến", "purpose" in combined, True)
+check("gộp yêu cầu -> status assigned, KHÔNG phải approved",
+      frappe.db.get_value("TIQN Vehicle Request", p_reqs[0], "status"), "assigned")
+
+# Dispatcher tự gõ thì giữ nguyên, không bị ghi đè bởi bản gộp.
+typed = vm.combine_requests_to_trip(
+	[vm.create_request(
+		employee_name="TEST Purpose Own", employee_id_display="EMP-PUR",
+		request_time=add_to_date(now_datetime(), hours=70),
+		from_location="A", to_location="B", purpose="Việc của yêu cầu",
+	)["name"]],
+	vehicle=vehicle.name, purpose="Việc dispatcher gõ",
+)
+check("purpose dispatcher gõ thắng bản gộp", typed["purpose"], "Việc dispatcher gõ")
+
+made = vm.create_trip(vehicle=vehicle.name, trip_date=TODAY, purpose="Đi sân bay")
+check("create_trip lưu purpose", made["purpose"], "Đi sân bay")
+check("update_trip sửa được purpose",
+      vm.update_trip(made["name"], purpose="Đổi ý")["purpose"], "Đổi ý")
+check("get_trip trả purpose", vm.get_trip(made["name"])["purpose"], "Đổi ý")
+check("purpose có trong get_trips", "purpose" in vm.get_trips(limit=1)[0], True)
+check("purpose có trong get_today_trips_by_driver",
+      "purpose" in vm.get_today_trips_by_driver(made["driver"])[0], True)
+# purpose là LÝ DO chuyến, notes là ghi chú tự do - đừng để cái này ghi đè cái kia.
+check("purpose không đụng vào notes",
+      frappe.db.get_value("TIQN Vehicle Trip", made["name"], "notes"), None)
+
+print("\n=== is_leader + zalo_user_id ===")
+frappe.db.set_value("TIQN Zalo Role Map", driver.name, "is_leader", 1)
+listed = next(d for d in vm.get_drivers() if d["name"] == driver.name)
+check("get_drivers trả is_leader", listed["is_leader"], 1)
+# Danh sách tài xế đọc được bằng API key dùng chung -> không phát tán Zalo ID ở đây.
+check("get_drivers KHÔNG lộ zalo_user_id", "zalo_user_id" in listed, False)
+
+# zalo_user_id của tài xế CHÍNH LÀ docname - không còn field rời để lệch nhau.
+trip_row = vm.get_today_trips_by_driver(driver.name)[0]
+check("chuyến kèm zalo của tài xế để openChat",
+      trip_row["driver_zalo_user_id"], driver.name)
+
+# 🔴 Ghi zalo_user_id cho driver/dispatcher là thao tác vô nghĩa (docname LÀ id) nên bị
+# từ chối kèm giải thích, thay vì im lặng chấp nhận một lời gọi không làm gì.
+throws("update_zalo_user_id cho driver bị từ chối",
+       vm.update_zalo_user_id, "driver", driver.name, "9119000000000000003")
+throws("update_zalo_user_id cho dispatcher cũng vậy",
+       vm.update_zalo_user_id, "dispatcher", driver.name, "9119000000000000003")
+req_for_zalo = vm.create_request(
+	employee_name="TEST Zalo", employee_id_display="EMP-ZALO",
+	request_time=add_to_date(now_datetime(), hours=80),
+	from_location="A", to_location="B",
+)["name"]
+vm.update_request(req_for_zalo, status="approved")
+check("ghi được cả khi yêu cầu đã duyệt (db_set, không chạy lại validate)",
+      vm.update_zalo_user_id("requester", req_for_zalo, "zalo-req")["zalo_user_id"], "zalo-req")
+# `role` là dữ liệu client gửi lên; chỉ 3 vai được ánh xạ, phần còn lại phải bị chặn.
+throws("role lạ bị từ chối", vm.update_zalo_user_id, "User", driver.name, "x")
+throws("doctype tùy ý bị từ chối", vm.update_zalo_user_id, "Sales Invoice", driver.name, "x")
+throws("zalo id rỗng bị từ chối", vm.update_zalo_user_id, "driver", driver.name, "   ")
+throws("doc không tồn tại bị từ chối", vm.update_zalo_user_id, "driver", "KHONG-CO", "x")
+
+print("\n=== báo cáo: biển số đi kèm số km ===")
+rep = vm.get_trip_report(TODAY, TODAY)
+check("summary có nhánh vehicles", "vehicles" in rep["summary"], True)
+check("km_by_vehicle giữ nguyên hình dạng cũ",
+      isinstance(rep["summary"]["km_by_vehicle"], dict), True)
+if rep["summary"]["vehicles"]:
+	first = rep["summary"]["vehicles"][0]
+	check("mỗi dòng xe có biển số", set(first) >= {"vehicle", "name", "license_plate", "km", "trips"}, True)
+	check("sắp giảm dần theo km",
+	      [v["km"] for v in rep["summary"]["vehicles"]],
+	      sorted((v["km"] for v in rep["summary"]["vehicles"]), reverse=True))
+
+# Cột Excel phải bám theo EXCEL_HEADERS, không phải số viết cứng: thêm 1 cột mà
+# quên sửa hằng số là công thức tổng cộng nhầm cột, im lặng.
+labels = [label for label, _w in vm.EXCEL_HEADERS]
+check("Excel có cột Purpose", "Purpose" in labels, True)
+check("TOTAL_KM_COLUMN bám theo header",
+      vm.TOTAL_KM_COLUMN, labels.index("Billable KM") + 1)
+check("COST_COLUMN bám theo header", vm.COST_COLUMN, labels.index("Additional Cost") + 1)
+check("KM_COLUMNS bám theo header", list(vm.KM_COLUMNS),
+      [labels.index(x) + 1 for x in ("KM Start", "KM End", "Billable KM")])
+
+
+print("\n=== decode_phone_token (Zalo getPhoneNumber) ===")
+# Chuẩn hoá số: chỉ tin chữ số, và LUÔN trả kèm dạng nội địa.
+# ⚠ Lý do đổi từ 23/09: `Role Map.phone` là fieldtype `Phone` nên CHỈ lưu được dạng có
+# mã quốc gia ("+84-..."). `phone_local` giờ dùng để HIỂN THỊ và BẤM GỌI, không còn để
+# đối chiếu với field đã lưu.
+for raw, want in [
+	("84962200089", ("+84-962200089", "0962200089")),
+	("0962200089", ("+84-962200089", "0962200089")),
+	("962200089", ("+84-962200089", "0962200089")),
+	("+84 962 200 089", ("+84-962200089", "0962200089")),
+]:
+	check(f"chuẩn hoá {raw}", vm._format_zalo_phone(raw), want)
+throws("số không có chữ số nào bị từ chối", vm._format_zalo_phone, "khong-phai-so")
+
+# Không có khoá trong site_config thì phải NÓI RÕ là thiếu cấu hình, chứ không gửi
+# một chuỗi placeholder sang Zalo rồi trả về lỗi chung chung.
+_real_conf_get = frappe.conf.get
+frappe.conf["zalo_app_vehicle_management_secret_key"] = None
+throws("thiếu zalo_app_vehicle_management_secret_key -> báo rõ", vm.decode_phone_token, "tok", "acc")
+frappe.conf["zalo_app_vehicle_management_secret_key"] = "test-secret"
+
+throws("thiếu phone_token bị từ chối", vm.decode_phone_token, "", "acc")
+throws("thiếu access_token bị từ chối", vm.decode_phone_token, "tok", "")
+
+import requests as _rq
+
+class _Resp:
+	def __init__(self, payload):
+		self._p = payload
+	def json(self):
+		return self._p
+
+_calls = []
+_real_get = _rq.get
+
+def _fake_get(url, headers=None, timeout=None, **kw):
+	_calls.append({"url": url, "headers": headers, "timeout": timeout})
+	return _Resp(_fake_get.payload)
+
+_fake_get.payload = {"error": 0, "message": "Success", "data": {"number": "84962200089"}}
+_rq.get = _fake_get
+try:
+	out = vm.decode_phone_token("tok-123", "acc-456")
+	check("trả đúng định dạng Mini App yêu cầu", out["phone"], "+84-962200089")
+	check("kèm dạng nội địa để hiển thị / bấm gọi", out["phone_local"], "0962200089")
+	check("không lưu khi không truyền zalo_user_id", out["saved_to"], None)
+	check("gọi đúng endpoint Zalo", _calls[-1]["url"], vm.ZALO_GRAPH_PHONE_URL)
+	check("gửi đủ 3 header Zalo cần",
+	      sorted(_calls[-1]["headers"]), ["access_token", "code", "secret_key"])
+	# 🔴 Request không timeout giữ worker tới mốc SIGKILL 120s của gunicorn.
+	check("CÓ timeout", _calls[-1]["timeout"], vm.ZALO_TIMEOUT_SECONDS)
+
+	# Zalo từ chối token -> báo lại nguyên văn message của Zalo (an toàn: nói về
+	# token, không nói về secret key của mình).
+	_fake_get.payload = {"error": -201, "message": "Invalid code", "data": {}}
+	throws("Zalo trả lỗi -> throw kèm message của Zalo", vm.decode_phone_token, "tok", "acc")
+
+	# Bảng mã lỗi chính thức: docs.zaloplatforms.com/docs/MA/api/errorCode
+	# Điều quan trọng nhất mà message gốc của Zalo KHÔNG nói: lỗi của AI.
+	# 116/117/118 = cấu hình server (mò trong Mini App là vô ích)
+	# 114/115/119/-1401 = token hoặc quyền (đổi khoá là vô ích)
+	def zalo_says(code, message):
+		_fake_get.payload = {"error": code, "message": message, "data": {}}
+		try:
+			vm.decode_phone_token("tok", "acc")
+			return "KHÔNG THROW"
+		except Exception as e:
+			return str(e)
+
+	m = zalo_says(117, "secret_key is invalid")
+	check("117 -> chỉ đúng vào khoá của SERVER", "zalo_app_vehicle_management_secret_key" in m, True)
+	check("117 -> KHÔNG đổ cho phone token", "phone token" in m.lower(), False)
+	check("117 -> giữ nguyên mã gốc của Zalo để tra cứu", "117" in m, True)
+
+	m = zalo_says(116, "secret_key is empty")
+	check("116 -> báo thiếu khoá trong site_config", "site_config.json" in m, True)
+
+	# 🔴 118 đọc như lỗi token ("code is invalid") nhưng THỰC RA là khoá đúng của SAI
+	# ứng dụng. Nếu để nguyên văn Zalo, người đọc sẽ đi lùng Mini App.
+	m = zalo_says(118, "code is invalid")
+	check("118 -> nói rõ là SAI ỨNG DỤNG, không phải token hỏng",
+	      "DIFFERENT Zalo app" in m, True)
+
+	m = zalo_says(119, "code has already been used")
+	check("119 -> bảo lấy token mới thay vì thử lại", "getPhoneNumber()" in m, True)
+	check("119 -> KHÔNG đổ cho khoá của server", "zalo_app_vehicle_management_secret_key" in m, False)
+
+	m = zalo_says(-1401, "User Authentication Required")
+	check("-1401 -> là chuyện cấp quyền của user", "authorise" in m, True)
+
+    # Mã lạ: chuyển nguyên văn lời Zalo, không bịa nguyên nhân.
+	m = zalo_says(-2000, "Unknown error")
+	check("mã chưa map -> chuyển nguyên văn lời Zalo", "Unknown error" in m, True)
+
+	# 🔴 Bảng thông điệp phải là CHUỖI THƯỜNG, không phải _() gọi ở cấp module:
+	# _() lúc import đóng băng ngôn ngữ của worker cho mọi request về sau.
+	check("bảng lỗi lưu chuỗi thường, dịch lúc dùng",
+	      all(isinstance(v, str) for v in
+	          list(vm.ZALO_SERVER_CONFIG_ERRORS.values()) + list(vm.ZALO_CALLER_ERRORS.values())),
+	      True)
+
+	_fake_get.payload = {"error": 0, "message": "Success", "data": {}}
+	throws("Zalo trả rỗng -> throw", vm.decode_phone_token, "tok", "acc")
+
+	_fake_get.payload = {"error": 0, "message": "Success", "data": {"number": "84962200089"}}
+	throws("zalo_user_id chưa có trong Role Map -> throw",
+	       vm.decode_phone_token, "tok", "acc", "khong-co-trong-map")
+
+	frappe.get_doc({
+		"doctype": "TIQN Zalo Role Map",
+		"zalo_user_id": "zalo-test-map",
+		"display_name": "TEST Map",
+		# role=driver đòi `vehicle` (TIQNZaloRoleMap.validate) - gán luôn xe test, để
+		# bản ghi này giống thật chứ không né luật.
+		"role": "driver",
+		"vehicle": vehicle.name,
+	}).insert(ignore_permissions=True)
+	out = vm.decode_phone_token("tok", "acc", "zalo-test-map")
+	check("lưu thẳng vào Role Map", out["saved_to"], "zalo-test-map")
+	check("số đã nằm trong DB",
+	      frappe.db.get_value("TIQN Zalo Role Map", "zalo-test-map", "phone"), "+84-962200089")
+	check("get_user_by_zalo_id trả kèm phone",
+	      vm.get_user_by_zalo_id("zalo-test-map")["phone"], "+84-962200089")
+finally:
+	_rq.get = _real_get
+	frappe.conf["zalo_app_vehicle_management_secret_key"] = None
+
+# 🔴 Endpoint này GHI và gọi ra ngoài -> chỉ POST. Cho GET là bị rollback y hệt
+# sự cố Excel 21/09: ghi xong rồi mất, không báo lỗi.
+check("chỉ nhận POST", frappe.allowed_http_methods_for_whitelisted_func.get(
+      vm.decode_phone_token), ["POST"])
+# Excel là bản sửa của chính sự cố đó, nên chốt luôn: nó CÓ cho GET, và phải bù
+# bằng flags.commit (assert ở mục "Excel export"). Hai hàm, hai cách xử lý, cùng
+# một cái bẫy.
+check("download_trip_report_excel vẫn cho GET (tương thích ngược)",
+      "GET" in frappe.allowed_http_methods_for_whitelisted_func.get(
+          vm.download_trip_report_excel), True)
+
+
+print("\n=== get_vehicle (Mini App vẫn gọi, trước nay chưa hề có) ===")
+one = vm.get_vehicle(vehicle.name)
+check("trả đúng xe", one["name"], vehicle.name)
+check("có image (thẻ xe cần)", "image" in one, True)
+# Dựng trên get_vehicles() nên không thể lệch nhau; current_trip là giá trị TÍNH,
+# không lưu, nên fetch doc thẳng sẽ thiếu nó.
+check("có current_trip như một dòng của get_vehicles", "current_trip" in one, True)
+check("cùng hình dạng với get_vehicles",
+      sorted(one), sorted(next(v for v in vm.get_vehicles() if v["name"] == vehicle.name)))
+throws("xe không tồn tại -> throw, không trả None lặng lẽ", vm.get_vehicle, "KHONG-CO-XE")
+
+
+print("\n=== scheduler: 1 lịch hỏng KHÔNG được kéo cả đội xe theo ===")
+# Sự cố 21/09: đổi tên tài xế xong, cả 6 lịch cố định trỏ tới TIQN-DRV-00x-old.
+# Vòng lặp không bắt lỗi nên dòng đầu ném ra ngoài và KHÔNG chuyến nào được tạo.
+broken = frappe.new_doc("TIQN Fixed Trip Schedule")
+broken.update({
+	"schedule_name": "TEST lịch hỏng", "vehicle": vehicle.name,
+	"depart_time": "05:05:00", "from_location": "A", "to_location": "B",
+	"is_active": 1, "days_of_week": "",
+})
+broken.insert(ignore_permissions=True)
+# Link chết chỉ dựng được bằng db_set - insert sẽ chặn, đó chính là điều đang test.
+frappe.db.set_value("TIQN Fixed Trip Schedule", broken.name, "vehicle",
+                    "TIQN-VEH-KHONG-TON-TAI", update_modified=False)
+
+good = frappe.new_doc("TIQN Fixed Trip Schedule")
+good.update({
+	"schedule_name": "TEST lịch tốt", "vehicle": vehicle.name,
+	"depart_time": "05:06:00", "from_location": "A", "to_location": "B",
+	"is_active": 1, "days_of_week": "",
+})
+good.insert(ignore_permissions=True)
+
+sched_day = add_days(TODAY, 9)
+out = vm.create_scheduled_trips(trip_date=sched_day, force_all=True)
+check("lịch hỏng bị ghi nhận là failed", broken.name in out["failed"], True)
+check("lịch tốt VẪN được tạo", any(
+	frappe.db.get_value("TIQN Vehicle Trip", t, "depart_time") == timedelta(hours=5, minutes=6)
+	for t in out["created"]), True)
+# Savepoint chứ không phải rollback trần: chuyến tạo TRƯỚC dòng hỏng phải còn.
+check("chuyến tạo trước dòng hỏng không bị cuốn theo",
+      frappe.db.count("TIQN Vehicle Trip", {"trip_date": sched_day}) >= len(out["created"]), True)
+
+
+print("\n=== id_by_oa: ID mở chat, KHÁC zalo_user_id ===")
+disp = frappe.get_doc({
+	"doctype": "TIQN Zalo Role Map",
+	"zalo_user_id": "zalo-dispatcher-test",
+	"display_name": "TEST Điều hành",
+	"role": "dispatcher",
+}).insert(ignore_permissions=True)
+
+# 🔴 Chưa có id_by_oa thì bản ghi này KHÔNG được chọn, và tuyệt đối không được rơi
+# về zalo_user_id: id app-scoped trông y như một id hợp lệ nhưng openChat() không mở
+# được, nên nút chat "có mà bấm không ra gì" - lỗi không ai tái hiện nổi.
+# ⚠ KHÔNG assert `is None`: site thật có thể đã có dispatcher khác (đúng là đang có),
+# và một assert neo vào dữ liệu production sẽ đỏ vì lý do chẳng liên quan gì.
+check("chưa có id_by_oa -> KHÔNG rơi về zalo_user_id của chính nó",
+      vm.get_dispatcher_zalo_id() == disp.zalo_user_id, False)
+
+check("update_zalo_id_by_oa ghi được",
+      vm.update_zalo_id_by_oa("zalo-dispatcher-test", " 4295057266797901281 ")["id_by_oa"], "4295057266797901281")
+check("ghi thật xuống DB",
+      frappe.db.get_value("TIQN Zalo Role Map", disp.name, "id_by_oa"), "4295057266797901281")
+# Bản ghi vừa ghi id_by_oa là mới nhất theo `modified` nên nó phải thắng.
+check("có id_by_oa rồi -> dispatcher_zalo_id trả ID CỦA OA",
+      vm.get_dispatcher_zalo_id(), "4295057266797901281")
+check("và KHÁC zalo_user_id", vm.get_dispatcher_zalo_id() == disp.zalo_user_id, False)
+check("get_user_by_zalo_id trả cả hai",
+      [vm.get_user_by_zalo_id("zalo-dispatcher-test")[k] for k in ("zalo_user_id", "id_by_oa")],
+      ["zalo-dispatcher-test", "4295057266797901281"])
+
+throws("thiếu id_by_oa bị từ chối", vm.update_zalo_id_by_oa, "zalo-dispatcher-test", "  ")
+throws("zalo_user_id không có trong map bị từ chối",
+       vm.update_zalo_id_by_oa, "khong-co", "1450193930627209791")
+
+# Tài xế CHÍNH LÀ bản ghi Role Map, nên id_by_oa nằm ngay trên đó - không còn hai bản
+# ghi để lệch nhau như thời `driver_ref`.
+frappe.db.set_value("TIQN Zalo Role Map", driver.name, "id_by_oa", "7664780689128284452")
+trip_row = vm.get_today_trips_by_driver(driver.name)[0]
+check("chuyến kèm driver_zalo_id_by_oa", trip_row["driver_zalo_id_by_oa"], "7664780689128284452")
+check("vẫn giữ driver_zalo_user_id (hai thứ khác nhau)",
+      trip_row["driver_zalo_user_id"], driver.name)
+
+# Tài xế chưa có id_by_oa thì phải là None, không được mượn tạm id của ai khác.
+other_drv = frappe.get_doc({
+	"doctype": "TIQN Zalo Role Map", "zalo_user_id": "9119000000000000004",
+	"display_name": "TEST Chưa map", "role": "driver", "vehicle": vehicle.name,
+}).insert(ignore_permissions=True)
+# Xe test đang có `driver` (tạo trước) nên nó thắng theo creation asc; `other_drv` chỉ
+# để chứng minh tài xế KHÔNG có id_by_oa thì trả None chứ không mượn của ai.
+frappe.db.set_value("TIQN Zalo Role Map", driver.name, "disabled", 1)
+t_unmapped = vm.create_trip(vehicle=vehicle.name, trip_date=TODAY)
+check("tài xế chưa map -> driver_zalo_id_by_oa None",
+      vm.get_trip(t_unmapped["name"])["driver_zalo_id_by_oa"], None)
+check("vẫn có tài xế (xe luôn có người)", bool(vm.get_trip(t_unmapped["name"])["driver"]), True)
+frappe.db.set_value("TIQN Zalo Role Map", driver.name, "disabled", 0)
+
+
+print("\n=== luật trạng thái khi TẠO phải nằm ở controller, không chỉ ở endpoint ===")
+# 🔴 Sự cố 22/09: POST thẳng /api/resource/TIQN Vehicle Trip tạo được chuyến ĐÃ
+# `completed` với 999.998 km và 50.000.000đ. Bảng ALLOWED_TRANSITIONS chỉ gác UPDATE
+# (không có dòng cũ để so), còn create_trip() thì Mini App có thể đi vòng qua bằng
+# REST - key nằm sẵn trong client. TIQN trả tiền theo km thực tế nên đây chính là
+# chứng từ thanh toán.
+def new_trip_doc(status):
+	d = frappe.new_doc("TIQN Vehicle Trip")
+	d.update({"vehicle": vehicle.name, "driver": driver.name, "trip_date": TODAY,
+	          "depart_time": "04:04:00", "from_location": "A", "to_location": "B",
+	          "status": status})
+	return d
+
+throws("insert thẳng doc ở trạng thái completed bị chặn",
+       lambda: new_trip_doc("completed").insert(ignore_permissions=True))
+throws("insert thẳng doc ở trạng thái in_progress bị chặn",
+       lambda: new_trip_doc("in_progress").insert(ignore_permissions=True))
+throws("insert thẳng doc ở trạng thái cancelled bị chặn",
+       lambda: new_trip_doc("cancelled").insert(ignore_permissions=True))
+for ok_status in ("scheduled", "confirmed"):
+	d = new_trip_doc(ok_status)
+	d.insert(ignore_permissions=True)
+	check(f"vẫn tạo được ở trạng thái {ok_status}", d.status, ok_status)
+
+# Cờ dành cho CODE SERVER ghi lại lịch sử (seeder, backfill). Client không đặt được:
+# nó chỉ gửi field, không gửi flags.
+back = new_trip_doc("completed")
+back.km_start, back.km_end = 10, 30
+back.flags.allow_backdated_status = True
+back.insert(ignore_permissions=True)
+check("cờ allow_backdated_status cho phép ghi lịch sử", back.status, "completed")
+check("và vẫn tính total_km như thường", back.total_km, 20.0)
+
+# Luật phải giống hệt ở endpoint - hai đường, một luật.
+throws("create_trip cũng từ chối trạng thái cuối",
+       lambda: vm.create_trip(vehicle=vehicle.name, trip_date=TODAY, status="completed"))
+
+
+print("\n=== rate limit trên 3 endpoint đáng bị lạm dụng ===")
+_limited = frappe.rate_limiter  # module, để đọc lại decorator đã gắn
+# verify_driver_login đã xoá cùng RATE_LOGIN (23/09) - còn hai endpoint.
+for fn, want in ((vm.decode_phone_token, vm.RATE_PHONE_DECODE),
+                 (vm.download_trip_report_excel, vm.RATE_EXCEL)):
+	# Decorator bọc hàm nên hàm gốc nằm ở __wrapped__; có nó nghĩa là đã gắn.
+	check(f"{fn.__name__} có rate limit", hasattr(fn, "__wrapped__"), True)
+	check(f"{fn.__name__} có hạn mức > 0", want > 0, True)
+
+# 🔴 site_config["rate_limit"] KHÔNG phải bộ đếm request và KHÔNG theo IP: nó khoá
+# trên f"rate-limit-counter-{window}" (không có danh tính) và cộng MICRO-GIÂY thời
+# gian xử lý của CẢ SITE. Bật nó = cả công ty cùng bị 429, kể cả điều hành trên Desk.
+# Chốt lại để không ai "bật rate limit" bằng cách đó.
+check("KHÔNG dùng site_config rate_limit toàn site",
+      frappe.conf.get("rate_limit"), None)
+# Hạn mức phải rộng tay: Mini App chạy trong webview điện thoại, cả một cell 4G có
+# thể ra cùng MỘT địa chỉ NAT của nhà mạng.
+check("hạn mức decode SĐT đủ rộng", vm.RATE_PHONE_DECODE >= 30, True)
+
+
+print("\n=== nội dung yêu cầu phải ĐÓNG BĂNG ở controller, không chỉ ở endpoint ===")
+# 🔴 Đo 22/09 bằng chính API key của Mini App: PUT /api/resource/... đổi được
+# from_location của một yêu cầu ĐÃ XẾP XE. Tài xế bị gửi tới nhầm chỗ, không lỗi,
+# không dấu vết. update_request() chặn; REST thì không. Luật chỉ sống ở một endpoint
+# thì không phải là luật.
+froz = vm.create_request(
+	employee_name="TEST Đóng băng", employee_id_display="EMP-FRZ",
+	request_time=add_to_date(now_datetime(), hours=90),
+	from_location="Điểm A", to_location="Điểm B", purpose="Việc gốc",
+)["name"]
+
+d = frappe.get_doc("TIQN Vehicle Request", froz)
+d.from_location = "Sửa lúc còn pending"
+d.save(ignore_permissions=True)
+check("còn pending thì sửa thoải mái", d.from_location, "Sửa lúc còn pending")
+
+vm.update_request(froz, status="approved")
+for field, value in (("from_location", "Đổi lén"), ("request_time", add_to_date(now_datetime(), hours=99)),
+                     ("purpose", "Việc khác"), ("passenger_count", 9)):
+	doc = frappe.get_doc("TIQN Vehicle Request", froz)
+	doc.set(field, value)
+	throws(f"đã duyệt -> KHÔNG sửa được {field} (kể cả qua doc.save)",
+	       doc.save, ignore_permissions=True)
+
+# Field quy trình thì vẫn phải chạy được, nếu không thì điều hành bị khoá cứng.
+doc = frappe.get_doc("TIQN Vehicle Request", froz)
+doc.status = "rejected"
+doc.rejection_reason = "Không còn xe"
+doc.save(ignore_permissions=True)
+check("field quy trình vẫn đổi được sau khi duyệt", doc.status, "rejected")
+
+# Lưu lại mà KHÔNG đổi gì thì không được báo lỗi - nếu không, mọi thao tác
+# db-level hay save() thường lệ trên yêu cầu cũ đều gãy.
+doc = frappe.get_doc("TIQN Vehicle Request", froz)
+doc.save(ignore_permissions=True)
+check("save không đổi gì vẫn chạy bình thường", doc.status, "rejected")
+
+
+print("\n=== id_by_oa phải trông như một Zalo ID ===")
+# 🔴 Sự cố 22/09: dòng dispatcher được lưu với id_by_oa = "34". Không null ⇒
+# get_dispatcher_zalo_id() trả về nó ⇒ Mini App HIỆN nút chat ⇒ bấm không ra gì.
+# Đúng cái hỏng im lặng mà luật "không fallback" sinh ra để tránh, chỉ khác là lần
+# này giá trị xấu đến từ DỮ LIỆU chứ không từ code.
+def role_map(zid, oa):
+	d = frappe.new_doc("TIQN Zalo Role Map")
+	d.update({"zalo_user_id": zid, "display_name": "TEST OA", "role": "requester", "id_by_oa": oa})
+	return d
+
+throws("id_by_oa = '34' bị chặn", lambda: role_map("zid-oa-1", "34").insert(ignore_permissions=True))
+throws("id_by_oa có chữ bị chặn", lambda: role_map("zid-oa-2", "abc1234567").insert(ignore_permissions=True))
+throws("id_by_oa lẫn dấu cách giữa bị chặn",
+       lambda: role_map("zid-oa-3", "123 456 7890").insert(ignore_permissions=True))
+
+good = role_map("zid-oa-4", " 4295057266797901281 ")
+good.insert(ignore_permissions=True)
+check("ID thật 19 chữ số vẫn nhận", good.id_by_oa, "4295057266797901281")
+check("cắt khoảng trắng thừa", " " in (good.id_by_oa or ""), False)
+
+blank = role_map("zid-oa-5", "")
+blank.insert(ignore_permissions=True)
+check("để trống vẫn hợp lệ (chưa map là chuyện bình thường)", blank.id_by_oa, None)
+
+# Luật nằm ở controller nên đường REST cũng dính - cùng nguyên tắc với hai lỗ đã vá.
+doc = frappe.get_doc("TIQN Zalo Role Map", good.name)
+doc.id_by_oa = "7"
+throws("sửa thành giá trị rác cũng bị chặn", doc.save, ignore_permissions=True)
+
+
+print("\n=== chuyến cố định chỉ sinh ra trước giờ đi 15 phút ===")
+# 🔴 Luật cũ so CHUỖI HH:MM chính xác với lúc cron chạy. Cron ở "30 6" và "0 17",
+# lịch chiều đi lúc 17:15 ⇒ ba chuyến chiều CHƯA TỪNG được tạo, mỗi ngày làm việc,
+# và không có gì trong log vì lịch không khớp chỉ bị đếm là "not_due".
+sched_v = frappe.get_doc({
+	"doctype": "TIQN Vehicle", "vehicle_name": "TEST Lead", "license_plate": "99Y-111.11",
+	"vehicle_type": "MPV", "capacity": 7, "status": "available",
+}).insert()
+
+def make_schedule(minutes_from_now, tag):
+	depart = add_to_date(now_datetime(), minutes=minutes_from_now)
+	d = frappe.new_doc("TIQN Fixed Trip Schedule")
+	d.update({
+		"schedule_name": f"TEST {tag}", "vehicle": sched_v.name, "driver": driver.name,
+		"depart_time": depart.strftime("%H:%M:00"), "from_location": "A", "to_location": "B",
+		"is_active": 1, "days_of_week": "",
+	})
+	d.insert(ignore_permissions=True)
+	return d.name
+
+soon   = make_schedule(8,   "trong cửa sổ")      # còn 8 phút  -> phải tạo
+edge   = make_schedule(14,  "sát mép")           # còn 14 phút -> phải tạo
+far    = make_schedule(90,  "còn xa")            # còn 90 phút -> CHƯA tạo
+past   = make_schedule(-30, "đã qua giờ")        # qua 30 phút -> KHÔNG tạo nữa
+
+out = vm.create_scheduled_trips()
+check("lịch còn 8 phút -> tạo", soon in out["created"] or any(
+	frappe.db.get_value("TIQN Vehicle Trip", t, "template_id") == soon for t in out["created"]), True)
+check("lịch còn 14 phút (sát mép 15) -> tạo", any(
+	frappe.db.get_value("TIQN Vehicle Trip", t, "template_id") == edge for t in out["created"]), True)
+check("lịch còn 90 phút -> CHƯA tạo", far in out["not_due"], True)
+check("lịch đã qua giờ -> không tạo", past in out["not_due"], True)
+check("ngưỡng đúng bằng 15 phút", vm.SCHEDULE_LEAD_MINUTES, 15)
+
+# Gọi lại trong cùng cửa sổ không được nhân đôi.
+again = vm.create_scheduled_trips()
+check("chạy lại -> bỏ qua, không tạo trùng", len(again["created"]), 0)
+check("và được đếm là skipped", edge in again["skipped"], True)
+
+# force_all vẫn bỏ qua cửa sổ, dành cho chạy bù thủ công.
+forced = vm.create_scheduled_trips(force_all=True)
+check("force_all tạo cả lịch còn xa", any(
+	frappe.db.get_value("TIQN Vehicle Trip", t, "template_id") == far for t in forced["created"]), True)
+
+# 🔴 Chốt: cron phải là tick ngắn, KHÔNG phải giờ cố định. Giờ cố định thì cron time
+# và depart_time phải khớp tay mãi mãi, lệch một phút là im lặng mất chuyến.
+import customize_erpnext.hooks as _hooks
+_cron = _hooks.scheduler_events["cron"]
+_sched_crons = [k for k, v in _cron.items()
+                if any("create_scheduled_trips" in f for f in v)]
+check("chỉ còn MỘT mục cron cho chuyến cố định", len(_sched_crons), 1)
+check("và nó là tick định kỳ, không phải giờ cố định",
+      _sched_crons[0].startswith("*/"), True)
+
+# 🔴 Luật tổng quát, áp cho TOÀN BỘ hooks: Frappe khoá `Scheduled Job Type` theo
+# `method` (core/doctype/scheduled_job_type: `db.exists(..., {"method": event})`),
+# nên KHAI MỘT METHOD DƯỚI HAI CRON THÌ CHỈ MỘT CÁI SỐNG SÓT - cái sau ghi đè cái
+# trước, không lỗi, không cảnh báo. Đúng chuyện đã xảy ra: "30 6" bị "0 17" nuốt.
+from collections import defaultdict as _dd
+_seen = _dd(list)
+for _expr, _methods in _cron.items():
+	for _m in _methods:
+		_seen[_m].append(_expr)
+_dups = {m: e for m, e in _seen.items() if len(e) > 1}
+check("KHÔNG method nào khai dưới nhiều cron (cái sau nuốt cái trước)", _dups, {})
+
+# Và DB phải khớp hooks: `bench restart` KHÔNG đồng bộ bảng này, chỉ `bench migrate`.
+_db = {r.method: r.cron_format for r in frappe.get_all(
+	"Scheduled Job Type", filters={"frequency": "Cron"}, fields=["method", "cron_format"],
+	limit_page_length=0)}
+_lech = {m: (e, _db.get(m)) for m, e in _seen.items() if _db.get(m) not in e}
+check("Scheduled Job Type trong DB khớp hooks.py", _lech, {})
+
+
+print("\n=== tên chuyến: chỉ lộ trình, KHÔNG ngày giờ ===")
+auto = vm.create_trip(vehicle=vehicle.name, trip_date=TODAY, depart_time="09:45:00",
+                      from_location="Toray VSIP", to_location="Sân bay Chu Lai")
+check("tên = lộ trình thôi", auto["trip_name"], "Toray VSIP → Sân bay Chu Lai")
+# Giờ và ngày đã có cột riêng và luôn hiện cạnh tên ở mọi chỗ - nhét vào tên chỉ làm
+# tiêu đề dài tới mức bị cắt trên điện thoại.
+check("không có giờ trong tên", "09:45" in auto["trip_name"], False)
+check("không có ngày trong tên", str(TODAY) in auto["trip_name"], False)
+
+# Tên do người dùng đặt thì giữ nguyên, không bị dựng lại.
+named = vm.create_trip(vehicle=vehicle.name, trip_date=TODAY, trip_name="Đưa giám đốc",
+                       from_location="A", to_location="B")
+check("tên tự đặt được giữ nguyên", named["trip_name"], "Đưa giám đốc")
+
+# Thiếu địa điểm thì vẫn phải có tên, không để rỗng.
+bare = vm.create_trip(vehicle=vehicle.name, trip_date=TODAY)
+check("thiếu địa điểm -> vẫn có tên", bool(bare["trip_name"]), True)
+
+# 🔴 trip_name là cột Data = 140 ký tự. Chuyến gộp có thể mang nhiều điểm đến nối lại,
+# nên lộ trình dài chạm trần - vượt trần là INSERT GÃY chứ không tự cắt.
+long_trip = vm.create_trip(vehicle=vehicle.name, trip_date=TODAY,
+                           from_location="X" * 100, to_location="Y" * 100)
+check("lộ trình quá dài -> cắt, không gãy", len(long_trip["trip_name"]) <= 140, True)
+check("và có dấu ba chấm cho biết đã cắt", long_trip["trip_name"].endswith("…"), True)
+
+
+print("\n=== chuyến gộp: MỘT điểm đến, phần còn lại vào Dispatcher Note ===")
+# 🔴 Mini App từng nối nhiều điểm đến vào to_location ("A | B"). Field đó bị so khớp,
+# lọc và gom nhóm trong báo cáo, nên "A | B" thành MỘT địa điểm không hề tồn tại.
+multi = [
+	vm.create_request(
+		employee_name=f"TEST Đa điểm {i}", employee_id_display="EMP-MULTI",
+		request_time=add_to_date(now_datetime(), hours=100 + i),
+		from_location="Toray VSIP", to_location=dest, purpose=f"Việc {i}",
+	)["name"]
+	# Trùng lặp cố ý ở dòng 3: khử trùng, không liệt kê hai lần.
+	for i, dest in enumerate(["Sân bay Chu Lai", "Ga Quảng Ngãi", "sân bay chu lai", "Cảng Dung Quất"])
+]
+t = vm.combine_requests_to_trip(multi, vehicle=vehicle.name)
+check("to_location = điểm đến của yêu cầu ĐẦU TIÊN", t["to_location"], "Sân bay Chu Lai")
+check("KHÔNG nối nhiều nơi vào to_location", "|" in t["to_location"], False)
+check("các điểm còn lại nằm trong dispatcher_note",
+      t["dispatcher_note"], "Ghé thêm: Ga Quảng Ngãi, Cảng Dung Quất")
+check("khử trùng không phân biệt hoa thường",
+      t["dispatcher_note"].count("Chu Lai"), 0)
+
+# Dispatcher gõ ghi chú riêng thì cả hai cùng có, điểm đến đứng trước.
+t2 = vm.combine_requests_to_trip(
+	[vm.create_request(
+		employee_name="TEST Ghi chú", employee_id_display="EMP-MULTI",
+		request_time=add_to_date(now_datetime(), hours=110),
+		from_location="Toray VSIP", to_location="Ga Quảng Ngãi",
+	)["name"], multi[0] if False else vm.create_request(
+		employee_name="TEST Ghi chú 2", employee_id_display="EMP-MULTI",
+		request_time=add_to_date(now_datetime(), hours=111),
+		from_location="Toray VSIP", to_location="Cảng Dung Quất",
+	)["name"]],
+	vehicle=vehicle.name, dispatcher_note="Nhớ mang giấy tờ",
+)
+check("điểm đến đứng TRƯỚC ghi chú của dispatcher",
+      t2["dispatcher_note"], "Ghé thêm: Cảng Dung Quất\nNhớ mang giấy tờ")
+
+# Tất cả cùng một nơi -> không sinh dòng thừa.
+same = [
+	vm.create_request(
+		employee_name=f"TEST Cùng nơi {i}", employee_id_display="EMP-MULTI",
+		request_time=add_to_date(now_datetime(), hours=120 + i),
+		from_location="Toray VSIP", to_location="Sân bay Chu Lai",
+	)["name"]
+	for i in range(2)
+]
+t3 = vm.combine_requests_to_trip(same, vehicle=vehicle.name)
+check("cùng một điểm đến -> dispatcher_note rỗng", t3["dispatcher_note"], None)
+t4 = vm.combine_requests_to_trip(
+	[vm.create_request(
+		employee_name="TEST Chỉ ghi chú", employee_id_display="EMP-MULTI",
+		request_time=add_to_date(now_datetime(), hours=130),
+		from_location="Toray VSIP", to_location="Sân bay Chu Lai",
+	)["name"]],
+	vehicle=vehicle.name, dispatcher_note="Chỉ ghi chú",
+)
+check("không có điểm phụ -> chỉ còn ghi chú", t4["dispatcher_note"], "Chỉ ghi chú")
+
+# Hành khách vẫn mang điểm ĐÓN của từng người - đó là lý do không cần bảng stops.
+check("mỗi hành khách vẫn có điểm đón riêng",
+      all(p["from_location"] for p in vm.get_trip(t["name"])["passengers"]), True)
+
+print("\n=== bảng stops đã bỏ hẳn ===")
+check("DocType TIQN Trip Stop không còn", frappe.db.exists("DocType", "TIQN Trip Stop"), None)
+check("bảng mồ côi đã drop",
+      bool(frappe.db.sql("SHOW TABLES LIKE 'tabTIQN Trip Stop'")), False)
+check("payload chuyến KHÔNG còn khoá stops", "stops" in vm.get_trip(t["name"]), False)
+# Client cũ còn gửi `stops` thì Frappe lặng lẽ bỏ qua, không được gãy.
+check("create_trip bỏ qua tham số stops cũ, không lỗi",
+      bool(vm.create_trip(vehicle=vehicle.name, trip_date=TODAY,
+                          from_location="A", to_location="B")["name"]), True)
 
 
 frappe.db.commit = _REAL_COMMIT

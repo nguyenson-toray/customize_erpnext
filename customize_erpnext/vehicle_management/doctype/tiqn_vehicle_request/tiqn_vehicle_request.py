@@ -26,8 +26,8 @@ ALLOWED_TRANSITIONS = {
 }
 
 # Details of the ride itself, as opposed to the workflow fields (status,
-# rejection_reason, assigned_trip). Editable through the API only while the
-# request is still pending - see update_request().
+# rejection_reason, assigned_trip). Frozen once a dispatcher has acted on the
+# request - see freeze_content_once_acted_on().
 CONTENT_FIELDS = (
 	"from_location", "to_location", "request_time", "return_time",
 	"purpose", "passenger_count", "notes", "employee_id_display",
@@ -44,6 +44,7 @@ class TIQNVehicleRequest(Document):
 
 	def validate(self):
 		self.validate_status_transition()
+		self.freeze_content_once_acted_on()
 		self.validate_return_time()
 
 		if self.status == "rejected" and not self.rejection_reason:
@@ -57,6 +58,46 @@ class TIQNVehicleRequest(Document):
 
 		if not self.passenger_count or self.passenger_count < 1:
 			self.passenger_count = 1
+
+	def freeze_content_once_acted_on(self):
+		"""Once a request is past `pending`, its ride details stop being editable.
+
+		A dispatcher has already read "Toray VSIP -> airport, 14:00" and sent a
+		driver on it. Letting the pickup point change afterwards, silently, sends
+		that driver to the wrong place - and nothing on the trip would show it had
+		moved.
+
+		🔴 This rule used to live ONLY in update_request(). Measured 22/09/2026 with
+		the Mini App's own API key: a plain
+		`PUT /api/resource/TIQN Vehicle Request/<name>` changed `from_location` on a
+		request already ASSIGNED to a trip, no error, no trace. A rule that lives in
+		one endpoint is not a rule - the DocType is reachable over REST, and the key
+		ships inside the client.
+
+		The dispatcher editing the Desk form is subject to it too, on purpose: if the
+		pickup really has moved, the trip is what needs changing
+		(update_trip_route(), which flags route_changed and makes the driver
+		acknowledge it), not the paperwork behind it.
+		"""
+		if self.is_new():
+			return
+
+		previous = self.get_doc_before_save()
+		# 🔴 The status BEFORE this save is what decides, not the one being written.
+		# A requester who changes their mind sends "notes + status=cancelled" in ONE
+		# call; reading the new status would reject their own cancellation. Same
+		# semantics update_request() has always had.
+		if not previous or previous.status == "pending":
+			return
+
+		changed = [f for f in CONTENT_FIELDS if (self.get(f) or None) != (previous.get(f) or None)]
+		if changed:
+			frappe.throw(
+				_("Request {0} is already {1} - its details can no longer be changed ({2}). "
+				  "To move a trip that has already been arranged, change the trip.").format(
+					self.name, _(self.status), ", ".join(changed)
+				)
+			)
 
 	def validate_return_time(self):
 		if not self.return_time or not self.request_time:

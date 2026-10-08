@@ -18,10 +18,14 @@ ALLOWED_TRANSITIONS = {
 
 OPEN_STATUSES = ("scheduled", "confirmed", "in_progress")
 
+# A trip is born planned. Being able to CREATE one already `completed` is the same
+# thing as being able to jump straight from scheduled to completed - the transition
+# table just never sees it, because there is no previous row to compare against.
+CREATE_STATUSES = {"scheduled", "confirmed"}
+
 
 class TIQNVehicleTrip(Document):
 	def validate(self):
-		self.set_default_driver()
 		self.validate_status_transition()
 		self.validate_km()
 		self.validate_odometer_continuity()
@@ -51,33 +55,29 @@ class TIQNVehicleTrip(Document):
 		"""
 		self.sync_vehicle_status(excluding_self=True)
 
-	def set_default_driver(self):
-		"""Pick a vehicle and the driver follows.
-
-		Every driver has one default vehicle, so the pairing is already in the data
-		and asking a dispatcher to repeat it is just a chance to get it wrong.
-
-		This lives in the controller rather than in the dispatch page so it holds
-		for EVERY route into a trip: the page, the Desk form, the Zalo Mini App, the
-		06:30/17:00 scheduler, an import. `driver` is reqd on the DocType and the
-		mandatory check runs after validate(), so filling it here is enough to
-		satisfy it.
-
-		Only fills a blank - a stand-in driver the user typed is never overwritten.
-		"""
-		if self.driver or not self.vehicle:
-			return
-
-		self.driver = frappe.db.get_value(
-			"TIQN Driver",
-			{"assigned_vehicle": self.vehicle, "is_active": 1},
-			"name",
-			order_by="creation asc",
-		)
-
 	# ------------------------------------------------------------- validation
 	def validate_status_transition(self):
 		if self.is_new():
+			# 🔴 The transition table below only guards UPDATES. Without this, a
+			# plain POST to /api/resource/TIQN Vehicle Trip could create a trip that
+			# is ALREADY `completed`, with any km_start/km_end and any
+			# additional_cost - no transition, no check, nothing in the log.
+			# Proved on 22/09/2026 with the Mini App's own API key: one request
+			# created a completed trip of 999,998 km and 50,000,000 VND.
+			# TIQN pays for the actual kilometres of each trip, so this is the
+			# billing record itself. create_trip() enforced the same rule, but a
+			# rule that only lives in one endpoint is not a rule - the DocType is
+			# reachable over REST by anyone holding the key that ships in the client.
+			#
+			# The seeders and any future backfill set `allow_backdated_status` to say
+			# "I am writing history on purpose". Server code can; a client cannot.
+			if self.status not in CREATE_STATUSES and not self.flags.allow_backdated_status:
+				frappe.throw(
+					_("A new trip can only start as {0}. To record a trip that has "
+					  "already run, create it first and then move it along.").format(
+						" or ".join(sorted(CREATE_STATUSES))
+					)
+				)
 			return
 
 		previous = self.get_doc_before_save()
@@ -154,8 +154,6 @@ class TIQNVehicleTrip(Document):
 		if was == self.status:
 			return
 
-		if self.status == "confirmed" and not self.confirmed_at:
-			self.confirmed_at = now_datetime()
 		elif self.status == "in_progress" and not self.checkin_time:
 			self.checkin_time = now_datetime()
 		elif self.status == "completed" and not self.checkout_time:
@@ -167,23 +165,43 @@ class TIQNVehicleTrip(Document):
 		else:
 			self.total_km = 0
 
+	# `trip_name` is a Data column: 140 characters. Now that a combined trip can carry
+	# several destinations joined into to_location, a long route can reach that limit,
+	# and going over it makes the INSERT fail rather than shortening anything.
+	TRIP_NAME_MAX = 140
+
 	def build_trip_name(self):
+		"""Just the route: "Toray VSIP → Sân bay Chu Lai".
+
+		No time and no date. Both already have their own columns and both are shown
+		next to the name everywhere it appears, so repeating them inside the label
+		only made every trip title long enough to be cut off on a phone.
+		"""
 		parts = [p for p in (self.from_location, self.to_location) if p]
-		route = " - ".join(parts) if parts else _("Trip")
-		return f"{route} {self.depart_time or ''} {self.trip_date or ''}".strip()
+		if not parts:
+			return _("Trip")
+
+		name = " → ".join(parts)
+		if len(name) > self.TRIP_NAME_MAX:
+			name = name[: self.TRIP_NAME_MAX - 1].rstrip() + "…"
+		return name
 
 	# ----------------------------------------------------------- side effects
 	def sync_vehicle_status(self, excluding_self=False):
 		"""Keep TIQN Vehicle.status in step with the trips of that vehicle.
 
 		Only "in_trip" <-> "available" is touched. A vehicle parked in
-		maintenance / broken is left alone: a manager put it there on purpose.
+		Xe đang `not_available` thì để nguyên: có người cố ý đặt như vậy.
+
+		Xe là của đối tác nên TIQN không theo dõi bảo dưỡng hay hư hỏng - chỉ cần biết
+		dùng được hay không. Vì thế chỉ còn ba trạng thái, và `maintenance` + `broken`
+		cũ gộp lại thành `not_available` (23/09/2026).
 		"""
 		if not self.vehicle:
 			return
 
 		current = frappe.db.get_value("TIQN Vehicle", self.vehicle, "status")
-		if current in ("maintenance", "broken"):
+		if current == "not_available":
 			return
 
 		running = frappe.db.count(

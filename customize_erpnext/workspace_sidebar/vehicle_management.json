@@ -80,18 +80,6 @@
   {
    "child": 0,
    "collapsible": 0,
-   "icon": "user-round",
-   "indent": 0,
-   "keep_closed": 0,
-   "label": "Driver",
-   "link_to": "TIQN Driver",
-   "link_type": "DocType",
-   "show_arrow": 0,
-   "type": "Link"
-  },
-  {
-   "child": 0,
-   "collapsible": 0,
    "icon": "list",
    "indent": 0,
    "keep_closed": 0,
@@ -125,7 +113,7 @@
    "type": "Link"
   }
  ],
- "modified": "2026-09-16 14:04:04.481848",
+ "modified": "2026-09-23 16:30:46.257105",
  "modified_by": "Administrator",
  "module": "Vehicle Management",
  "module_onboarding": "",

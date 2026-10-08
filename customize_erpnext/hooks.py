@@ -298,12 +298,20 @@ scheduler_events = {
         # so these really do fire at 06:30 and 17:00 Vietnam time. That setting is
         # known to revert to Asia/Kolkata on this site - if fixed trips start showing
         # up ~1.5 hours late, check it first.
-        # The job only creates schedules whose depart_time equals the current HH:MM,
-        # and is idempotent on (vehicle, trip_date, depart_time, trip_type=fixed).
-        "30 6 * * *": [
-            "customize_erpnext.api.vehicle_management.create_scheduled_trips"
-        ],
-        "0 17 * * *": [
+        # Runs every 5 minutes and creates only the fixed trips departing within the
+        # next SCHEDULE_LEAD_MINUTES (15). A trip shows up shortly before it leaves,
+        # not at dawn for the whole day.
+        #
+        # 🔴 This used to be two fixed ticks, "30 6" and "0 17", matching the current
+        # HH:MM exactly. The afternoon shuttles depart at 17:15, so they NEVER got
+        # created - nothing in the log, because a schedule that does not match is
+        # counted as "not due". Do not go back to fixed ticks: the cron time and the
+        # depart_time then have to be kept in step by hand, forever, and nobody is
+        # told when they drift apart.
+        #
+        # 5-minute ticks give each schedule three chances inside the 15-minute window,
+        # and the job is idempotent on (vehicle, trip_date, depart_time, trip_type=fixed).
+        "*/5 * * * *": [
             "customize_erpnext.api.vehicle_management.create_scheduled_trips"
         ],
 

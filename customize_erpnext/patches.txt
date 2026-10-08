@@ -59,10 +59,6 @@ customize_erpnext.patches.migrate_exclude_employee_ids_to_table
 # 3 real vehicles, 3 drivers and 6 fixed trip templates. Leaves driver phone /
 # Zalo User ID blank - nobody has supplied those yet. Idempotent.
 customize_erpnext.patches.seed_vehicle_management_data
-# post_model_sync: needs the `password` column on TIQN Driver. Sets the Phase 1
-# Mini App password for the 3 seeded drivers, and ONLY when none is set yet - an
-# admin-chosen password survives every later migrate. Idempotent.
-customize_erpnext.patches.seed_vehicle_driver_passwords
 # post_model_sync: rename_field needs `schedule_name` in the meta AND the old
 # `template_name` column still in the table - only true after the sync. Also renumbers
 # TIQN-FTT-00x -> TIQN-FST-00x and repoints Vehicle Trip.template_id. Idempotent.

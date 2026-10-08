@@ -1,7 +1,7 @@
 # Copyright (c) 2026, IT Team - TIQN and contributors
 # For license information, please see license.txt
 
-"""post_model_sync: seed vehicles, drivers and fixed trip templates.
+"""post_model_sync: seed vehicles and fixed trip templates.
 
 Numbers below are the real fleet, copied from the legacy `Vehicle List` records
 (plates and odometers were verified against the live site). Driver phone numbers
@@ -30,7 +30,6 @@ VEHICLES = [
 		"notes": "Ford Transit. Migrated from legacy Vehicle List 'Bus 1'.",
 		"_from": "Vincom",
 		"_to": "Công ty Toray",
-		"_driver": "Mr. Dũng",
 	},
 	{
 		"vehicle_name": "Bus 2",
@@ -40,7 +39,6 @@ VEHICLES = [
 		"notes": "Ford Transit. Migrated from legacy Vehicle List 'Bus 2'.",
 		"_from": "Dốc Sỏi",
 		"_to": "Công ty Toray",
-		"_driver": "Mr. Hậu",
 	},
 	{
 		"vehicle_name": "Kia",
@@ -50,7 +48,6 @@ VEHICLES = [
 		"notes": "Kia Carnival. Migrated from legacy Vehicle List 'Kia'.",
 		"_from": "Vincom",
 		"_to": "Công ty Toray",
-		"_driver": "Mr Duy",
 	},
 ]
 
@@ -61,14 +58,13 @@ AFTERNOON_DEPART = "17:15:00"
 def execute():
 	for spec in VEHICLES:
 		vehicle = _ensure_vehicle(spec)
-		driver = _ensure_driver(spec["_driver"], vehicle)
 		_ensure_schedule(
 			f"{spec['_from']} - {spec['_to']} ({spec['vehicle_name']} morning)",
-			driver, vehicle, MORNING_DEPART, spec["_from"], spec["_to"], 1,
+			vehicle, MORNING_DEPART, spec["_from"], spec["_to"], 1,
 		)
 		_ensure_schedule(
 			f"{spec['_to']} - {spec['_from']} ({spec['vehicle_name']} afternoon)",
-			driver, vehicle, AFTERNOON_DEPART, spec["_to"], spec["_from"], 2,
+			vehicle, AFTERNOON_DEPART, spec["_to"], spec["_from"], 2,
 		)
 
 
@@ -91,33 +87,15 @@ def _ensure_vehicle(spec):
 	return doc.name
 
 
-def _ensure_driver(driver_name, vehicle):
-	# Keyed on the vehicle, NOT on driver_name: the seeded names are a best guess
-	# copied from the legacy Vehicle List and an admin is expected to correct them
-	# (they already have). Keying on the name would make a re-run create a second
-	# driver for the same vehicle instead of recognising the corrected record.
-	existing = frappe.db.get_value(
-		"TIQN Driver", {"assigned_vehicle": vehicle}, "name", order_by="creation asc"
-	)
-	if existing:
-		return existing
-
-	doc = frappe.get_doc(
-		{
-			"doctype": "TIQN Driver",
-			"driver_name": driver_name,
-			"assigned_vehicle": vehicle,
-			"is_active": 1,
-			# phone and zalo_user_id left blank on purpose - see module docstring.
-			"notes": "Phone and Zalo User ID still to be filled in by an admin.",
-		}
-	).insert(ignore_permissions=True)
-	return doc.name
-
-
-def _ensure_schedule(template_name, driver, vehicle, depart_time, from_location, to_location, trip_number):
-	# One template per vehicle per shift. Same reasoning as _ensure_driver: the
-	# template_name is editable, the (vehicle, trip_number) pair is what identifies it.
+def _ensure_schedule(template_name, vehicle, depart_time, from_location, to_location, trip_number):
+	# One template per vehicle per shift: the template_name is editable, the
+	# (vehicle, trip_number) pair is what identifies it.
+	#
+	# 🔴 KHÔNG gán driver ở đây. Tài xế giờ là một tài khoản Zalo được quản lý nâng vai
+	# trò (DocType `TIQN Driver` đã bỏ 23/09/2026), nên một patch khởi tạo không thể
+	# biết trước ai. Để trống thì TIQNVehicleTrip.set_default_driver() suy từ xe lúc
+	# tạo chuyến - đó cũng là nguồn sự thật duy nhất, thay vì một bản sao trên lịch có
+	# thể mục nát (đã mục nát thật khi đổi tên tài xế ngày 22/09).
 	if frappe.db.exists(
 		"TIQN Fixed Trip Schedule", {"vehicle": vehicle, "trip_number": trip_number}
 	):
@@ -128,7 +106,6 @@ def _ensure_schedule(template_name, driver, vehicle, depart_time, from_location,
 			"doctype": "TIQN Fixed Trip Schedule",
 			"schedule_name": template_name,
 			"trip_name_template": template_name,
-			"driver": driver,
 			"vehicle": vehicle,
 			"depart_time": depart_time,
 			"from_location": from_location,

@@ -1,30 +1,47 @@
 # Copyright (c) 2026, IT Team - TIQN and contributors
 # For license information, please see license.txt
 
-"""Full-month demo dataset for the Vehicle Management module.
+"""Demo dataset for the Vehicle Management module.
 
+    # default: the last 7 days, today included
     bench --site erp.tiqn.local execute \
         customize_erpnext.vehicle_management.seed_month.execute
 
-    # a different month
+    # any range
     bench --site erp.tiqn.local execute \
         customize_erpnext.vehicle_management.seed_month.execute \
-        --kwargs "{'year': 2026, 'month': 10, 'purge': True}"
+        --kwargs "{'from_date': '2026-10-01', 'to_date': '2026-10-15'}"
 
-Shape of the month, per vehicle:
+    # a whole month (what this file used to do by default)
+    bench --site erp.tiqn.local execute \
+        customize_erpnext.vehicle_management.seed_month.execute \
+        --kwargs "{'year': 2026, 'month': 9}"
+
+The default is a window ending TODAY rather than a fixed month: a fixed month goes
+stale the day it ends, and the dispatch board - which opens on today - shows an
+empty day. Seeding "the last 7 days" always lands data on the day people look at.
+
+Shape of a day, per vehicle:
   * 2 fixed shuttle runs every day except Sunday, created from the vehicle's two
     TIQN Fixed Trip Schedule rows (so `template_id` points at a real schedule).
-  * 2-4 on-demand trips a day, most of them raised from a TIQN Vehicle Request.
+  * 1-2 on-demand trips a day, most of them raised from a TIQN Vehicle Request.
+
+So 3-4 trips per vehicle on a working day. It used to be 2-4 ad-hoc runs on top of
+the two shuttles, which put up to 6 cards in one column and pushed the dispatch
+board into scrolling - the point of the demo data is a day someone can read at a
+glance, not the busiest day imaginable.
 
 Statuses follow the calendar rather than being sprinkled at random: a day in the
-past is finished, today is half-done, tomorrow has not started. That is what makes
+past is finished, today is half-done, a day still to come has not started. That is what makes
 the dashboard, the KPI chips and the KM report show believable numbers.
 
-Every state the code can produce appears somewhere in the month - see CASES at the
+Every state the code can produce appears somewhere in the range - see CASES at the
 bottom of execute()'s log for the tally.
 
-DETERMINISTIC: seeded Random, so two runs of the same month produce the same data
-and a number quoted in a bug report can be reproduced.
+DETERMINISTIC: seeded Random, so two runs of the same range on the same day produce
+the same data and a number quoted in a bug report can be reproduced. (The default
+window moves with the calendar, so "the last 7 days" seeded tomorrow is a different
+dataset - pass explicit dates to reproduce one.)
 
 Not whitelisted, no hook: it deletes every trip and request before it starts.
 """
@@ -33,11 +50,20 @@ import random
 from datetime import timedelta
 
 import frappe
-from frappe.utils import add_to_date, flt, get_datetime, getdate, now_datetime
+from frappe import _
+from frappe.utils import add_to_date, get_datetime, getdate, now_datetime
+
+from customize_erpnext.api.vehicle_management import _merge_purposes
 
 SEED = 20260916
 
-# Odometer each vehicle starts the month on.
+DEFAULT_DAYS = 7
+# A year. The reset runs on a worker with a 30-minute lock; a month measures ~8.5s,
+# so this is far inside it - the cap only stops a typo like 2062 from running for
+# hours with the button locked.
+MAX_DAYS = 366
+
+# Odometer each vehicle starts the range on.
 START_KM = {"TIQN-VEH-001": 48000, "TIQN-VEH-002": 26000, "TIQN-VEH-003": 28500}
 
 PLACES = [
@@ -61,11 +87,23 @@ REJECT_REASONS = [
 	"Đề nghị đi chung với chuyến đã có",
 ]
 CANCEL_REASONS = ["Khách hủy đột xuất", "Thay đổi lịch họp", "Mưa lớn, hoãn chuyến"]
+# Free-text notes from the Mini App. Deliberately NOT reasons for the trip - that
+# is `purpose`, a separate field with its own column in the KM report.
+TRIP_NOTES = [
+	"Khách chờ sẵn ở sảnh", "Gọi trước 10 phút khi tới", "Có mang theo thùng hàng",
+	"Đi cổng sau, cổng chính đang sửa", "Chờ khách khoảng 30 phút rồi về",
+]
 
 HOME = "Toray VSIP Quảng Ngãi"
 
 
-def execute(year=2026, month=9, purge=True):
+def execute(from_date=None, to_date=None, year=None, month=None, purge=True):
+	"""Seed every day from `from_date` to `to_date` (default: the last 7 days).
+
+	`year`/`month` seeds that whole calendar month instead; it cannot be mixed with
+	dates.
+	"""
+	days = resolve_days(from_date=from_date, to_date=to_date, year=year, month=month)
 	rng = random.Random(SEED)
 	_require_masters()
 
@@ -73,7 +111,6 @@ def execute(year=2026, month=9, purge=True):
 		_purge()
 
 	today = getdate(now_datetime())
-	days = _days_in_month(int(year), int(month))
 	schedules = _schedules_by_vehicle()
 	vehicles = list(START_KM)
 	odometer = dict(START_KM)
@@ -109,7 +146,10 @@ def execute(year=2026, month=9, purge=True):
 			else:
 				case("chủ nhật không có chuyến cố định")
 
-			for _ in range(rng.randint(2, 4) if not is_sunday else rng.randint(0, 2)):
+			# 1-2 on a working day, 0-1 on Sunday. Keep the upper bound low: three
+			# vehicles x (2 shuttles + N ad-hoc) is what the board has to fit in
+			# three columns without scrolling.
+			for _ in range(rng.randint(1, 2) if not is_sunday else rng.randint(0, 1)):
 				plans.append(_plan_on_demand(rng))
 
 			plans.sort(key=lambda p: p["depart"])
@@ -119,7 +159,7 @@ def execute(year=2026, month=9, purge=True):
 			# needs the whole sorted day, not one row at a time.
 			# Only the first vehicle is left out on the road. With all three
 			# mid-trip the board would never show an idle vehicle, and there would
-			# be nothing to put into maintenance - three vehicles, three statuses.
+			# be nothing to mark not_available - three vehicles, three statuses.
 			running_depart = None
 			if not past and not future and vehicle == vehicles[0]:
 				now_clock = now_datetime().strftime("%H:%M:%S")
@@ -136,6 +176,7 @@ def execute(year=2026, month=9, purge=True):
 						to_location=schedule.to_location,
 						trip_name=schedule.trip_name_template or schedule.schedule_name,
 						trip_type="fixed", template_id=schedule.name,
+						purpose="Đưa đón CBNV",
 						status=_fixed_status(past, future, schedule.depart_time, rng),
 						odometer=odometer, rng=rng, stats=stats, case=case,
 					)
@@ -156,7 +197,36 @@ def execute(year=2026, month=9, purge=True):
 	print("\nCác trường hợp đã sinh:")
 	for name in sorted(cases):
 		print(f"  {cases[name]:>4}  {name}")
-	return {"trips": stats["trips"], "requests": stats["requests"], "cases": cases}
+	return {
+		"trips": stats["trips"],
+		"requests": stats["requests"],
+		"from_date": str(days[0]),
+		"to_date": str(days[-1]),
+		"cases": cases,
+	}
+
+
+def resolve_days(from_date=None, to_date=None, year=None, month=None):
+	"""The list of dates to seed. Raises on a range the reset must not start.
+
+	Public so the page endpoint can validate BEFORE it queues the job: a bad range
+	found inside the worker only reaches the user as a traceback over realtime,
+	after the button has already said "rebuilding".
+	"""
+	if year or month:
+		if from_date or to_date:
+			frappe.throw(_("Give either a month or a date range, not both"))
+		today = getdate(now_datetime())
+		return _days_in_month(int(year or today.year), int(month or today.month))
+
+	end = getdate(to_date) if to_date else getdate(now_datetime())
+	start = getdate(from_date) if from_date else end - timedelta(days=DEFAULT_DAYS - 1)
+	if start > end:
+		frappe.throw(_("From Date cannot be after To Date"))
+	span = (end - start).days + 1
+	if span > MAX_DAYS:
+		frappe.throw(_("Demo data can cover at most {0} days, got {1}").format(MAX_DAYS, span))
+	return [start + timedelta(days=i) for i in range(span)]
 
 
 # ---------------------------------------------------------------------------
@@ -166,6 +236,39 @@ def _require_masters():
 		frappe.throw(f"Thiếu xe: {', '.join(missing)}. Chạy `bench migrate` trước.")
 	if not frappe.db.count("TIQN Fixed Trip Schedule", {"is_active": 1}):
 		frappe.throw("Chưa có TIQN Fixed Trip Schedule nào đang bật.")
+	_ensure_demo_drivers()
+
+
+# Tài xế mẫu. Zalo user ID là số 19 chữ số giống thật, CỐ ĐỊNH để hai lần seed ra cùng
+# một bộ dữ liệu. Ngoài đời các bản ghi này sinh ra khi người dùng mở Mini App lần đầu
+# (vai trò mặc định `requester`) rồi được quản lý nâng lên `driver` và gán xe.
+DEMO_DRIVERS = {
+	"TIQN-VEH-001": ("9110000000000000001", "Mr. Lương"),
+	"TIQN-VEH-002": ("9110000000000000002", "Mr. Long"),
+	"TIQN-VEH-003": ("9110000000000000003", "Mr. Duy"),
+}
+
+
+def _ensure_demo_drivers():
+	"""Mỗi xe một tài xế đang hoạt động, nếu chưa có.
+
+	KHÔNG đụng vào bản ghi đã có: người thật đã đăng nhập Zalo và được gán xe thì giữ
+	nguyên, seed chỉ lấp chỗ trống.
+	"""
+	for vehicle, (zalo_id, display_name) in DEMO_DRIVERS.items():
+		if frappe.db.exists("TIQN Zalo Role Map", {"role": "driver", "vehicle": vehicle, "disabled": 0}):
+			continue
+		if frappe.db.exists("TIQN Zalo Role Map", zalo_id):
+			frappe.db.set_value("TIQN Zalo Role Map", zalo_id,
+			                    {"role": "driver", "vehicle": vehicle, "disabled": 0})
+			continue
+		frappe.get_doc({
+			"doctype": "TIQN Zalo Role Map",
+			"zalo_user_id": zalo_id,
+			"display_name": display_name,
+			"role": "driver",
+			"vehicle": vehicle,
+		}).insert(ignore_permissions=True)
 
 
 def _purge():
@@ -208,7 +311,7 @@ def _schedules_by_vehicle():
 
 def _fixed_status(past, future, depart, rng):
 	if past:
-		# One shuttle in the whole month gets cancelled, so the board has a
+		# About one shuttle in fifty gets cancelled, so the board has a
 		# cancelled FIXED trip too, not only cancelled ad-hoc ones.
 		return "cancelled" if rng.random() < 0.02 else "completed"
 	if future:
@@ -219,7 +322,7 @@ def _fixed_status(past, future, depart, rng):
 
 def _make_trip(vehicle, day, depart, from_location, to_location, trip_name, trip_type,
                status, odometer, rng, stats, case, template_id=None, passengers=None,
-               notes=None):
+               notes=None, purpose=None):
 	"""Insert one trip and move that vehicle's odometer along.
 
 	The odometer only advances for a trip that actually ran. A cancelled or
@@ -237,6 +340,7 @@ def _make_trip(vehicle, day, depart, from_location, to_location, trip_name, trip
 		"from_location": from_location,
 		"to_location": to_location,
 		"status": status,
+		"purpose": purpose,
 		"notes": notes,
 	})
 
@@ -264,7 +368,6 @@ def _make_trip(vehicle, day, depart, from_location, to_location, trip_name, trip
 		doc.cancelled_reason = rng.choice(CANCEL_REASONS)
 		case(f"chuyến {trip_type} bị hủy")
 	elif status == "confirmed":
-		doc.confirmed_at = _stamp(day, depart, -30)
 		case("chuyến đã xác nhận")
 	else:
 		case(f"chuyến {trip_type} chờ chạy")
@@ -274,6 +377,9 @@ def _make_trip(vehicle, day, depart, from_location, to_location, trip_name, trip
 	if passengers:
 		case(f"chuyến chở {len(passengers)} khách" if len(passengers) > 1 else "chuyến có hành khách")
 
+	# Dữ liệu mẫu dựng lại lịch sử đã qua nên cố ý tạo chuyến ở trạng thái cuối.
+	# Cờ này là cách CODE SERVER nói "tôi đang ghi lịch sử"; client không đặt được.
+	doc.flags.allow_backdated_status = True
 	doc.insert(ignore_permissions=True)
 	stats["trips"] += 1
 	return doc
@@ -308,12 +414,14 @@ def _make_on_demand(plan, vehicle, day, past, future, odometer, rng, stats, case
 	from_location, to_location = plan["from_location"], plan["to_location"]
 
 	request_doc = None
+	request_docs = []
 	if plan["with_request"]:
 		request_doc = _make_request(
 			name=plan["employee"], code=plan["code"], day=day, depart=depart,
 			from_location=from_location, to_location=to_location,
 			purpose=plan["purpose"], rng=rng, stats=stats, case=case,
 		)
+		request_docs.append(request_doc)
 	else:
 		case("chuyến phát sinh không có yêu cầu")
 
@@ -343,20 +451,37 @@ def _make_on_demand(plan, vehicle, day, past, future, odometer, rng, stats, case
 			mate = _make_request(
 				name=mate_name, code=mate_code, day=day, depart=depart,
 				from_location=from_location, to_location=to_location,
-				purpose="Đi chung xe", rng=rng, stats=stats, case=case,
+				# A real second reason, not "Đi chung xe": the merged purpose is what
+				# the KM report prints, and "Đi chung xe" says nothing about why the
+				# company paid for the kilometres.
+				purpose=rng.choice(PURPOSES), rng=rng, stats=stats, case=case,
 			)
+			request_docs.append(mate)
 			passengers.append({
 				"request": mate.name, "passenger_name": mate.employee_name,
 				"pickup_location": mate.from_location, "pickup_order": 2,
 			})
+
+	# Gather the purpose the way production does - through the API's own merger,
+	# not a copy of it. A seed that reimplements the rule proves nothing about the
+	# rule; this way a change to _merge_purposes shows up in the demo data.
+	if request_docs:
+		purpose = _merge_purposes(request_docs)
+		if len(request_docs) > 1:
+			case("chuyến gộp nhiều mục đích")
+	else:
+		purpose = plan["purpose"]
 
 	trip = _make_trip(
 		vehicle=vehicle, day=day, depart=depart,
 		from_location=from_location, to_location=to_location,
 		trip_name=f"{from_location} → {to_location}",
 		trip_type="on_demand", status=status, odometer=odometer, rng=rng,
-		stats=stats, case=case, passengers=passengers,
-		notes=plan["purpose"] if rng.random() < 0.25 else None,
+		stats=stats, case=case, passengers=passengers, purpose=purpose,
+		# `notes` is free text the Mini App collects, NOT the reason for the trip -
+		# that is `purpose` now and has its own column in the KM report. This used
+		# to hold a copy of the purpose because there was nowhere else to put it.
+		notes=rng.choice(TRIP_NOTES) if rng.random() < 0.25 else None,
 	)
 
 	# The dispatcher re-routed a trip that was already moving and the driver has
@@ -509,22 +634,22 @@ def _make_edge_cases(today, rng, stats, case):
 	case("yêu cầu ĐÃ DUYỆT chờ xếp xe (trạng thái chỉ có ở Desk)")
 
 	# --- a vehicle out of service ---------------------------------------------
-	# Never a vehicle that is mid-trip: "in maintenance" and "on the road" at the
+	# Never a vehicle that is mid-trip: "not available" and "on the road" at the
 	# same time is a contradiction the dashboard would happily display.
 	idle = [
 		v for v in frappe.get_all("TIQN Vehicle", pluck="name", order_by="name asc")
 		if not frappe.db.exists("TIQN Vehicle Trip", {"vehicle": v, "status": "in_progress"})
 	]
 	if idle:
-		frappe.db.set_value("TIQN Vehicle", idle[-1], "status", "maintenance",
+		frappe.db.set_value("TIQN Vehicle", idle[-1], "status", "not_available",
 		                    update_modified=False)
-		case("xe đang BẢO TRÌ")
+		case("xe KHÔNG SẴN SÀNG")
 	if len(idle) > 1:
 		case("xe SẴN SÀNG (đang đỗ)")
 
 	_close_stale_requests(today, case)
 
-	print("  Đã thêm các ca đặc biệt (quá giờ, gom xe, từ chối, tự hủy, bảo trì)")
+	print("  Đã thêm các ca đặc biệt (quá giờ, gom xe, từ chối, tự hủy, xe nghỉ)")
 
 
 def _close_stale_requests(today, case):

@@ -7,10 +7,10 @@ from frappe.model.document import Document
 
 # Statuses a human is allowed to set. "in_trip" is owned by the trip check in /
 # check out flow — see TIQNVehicleTrip.sync_vehicle_status().
-MANUAL_STATUSES = ("available", "maintenance", "broken")
+MANUAL_STATUSES = ("available", "not_available")
 
 # Every legal value of TIQN Vehicle.status, in the order the Select field lists them.
-VEHICLE_STATUSES = ("available", "in_trip", "maintenance", "broken")
+VEHICLE_STATUSES = ("available", "in_trip", "not_available")
 
 
 class TIQNVehicle(Document):

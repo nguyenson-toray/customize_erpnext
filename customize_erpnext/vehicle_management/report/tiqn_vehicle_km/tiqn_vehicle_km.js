@@ -40,12 +40,6 @@ frappe.query_reports['TIQN Vehicle KM'] = {
 			options: 'TIQN Vehicle',
 		},
 		{
-			fieldname: 'driver',
-			label: __('Driver'),
-			fieldtype: 'Link',
-			options: 'TIQN Driver',
-		},
-		{
 			fieldname: 'status',
 			label: __('Status'),
 			fieldtype: 'Select',

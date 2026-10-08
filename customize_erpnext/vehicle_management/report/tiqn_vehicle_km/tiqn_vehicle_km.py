@@ -49,7 +49,6 @@ def _get_columns():
 		{"label": _("Trip"), "fieldname": "name", "fieldtype": "Link", "options": "TIQN Vehicle Trip", "width": 165},
 		{"label": _("Vehicle"), "fieldname": "vehicle", "fieldtype": "Link", "options": "TIQN Vehicle", "width": 120},
 		{"label": _("License Plate"), "fieldname": "license_plate", "fieldtype": "Data", "width": 110},
-		{"label": _("Driver"), "fieldname": "driver", "fieldtype": "Link", "options": "TIQN Driver", "width": 130},
 		{"label": _("Depart"), "fieldname": "depart_time", "fieldtype": "Data", "width": 70},
 		{"label": _("From"), "fieldname": "from_location", "fieldtype": "Data", "width": 170},
 		{"label": _("To"), "fieldname": "to_location", "fieldtype": "Data", "width": 170},
@@ -67,8 +66,6 @@ def _get_rows(filters):
 	conditions = {"trip_date": ("between", [filters.from_date, filters.to_date])}
 	if filters.vehicle:
 		conditions["vehicle"] = filters.vehicle
-	if filters.driver:
-		conditions["driver"] = filters.driver
 	if filters.status:
 		conditions["status"] = filters.status
 
@@ -76,7 +73,7 @@ def _get_rows(filters):
 		"TIQN Vehicle Trip",
 		filters=conditions,
 		fields=[
-			"name", "trip_date", "depart_time", "vehicle", "driver",
+			"name", "trip_date", "depart_time", "vehicle",
 			"from_location", "to_location", "km_start", "km_end", "total_km",
 			"additional_cost", "status", "trip_type", "notes", "checkout_notes",
 		],

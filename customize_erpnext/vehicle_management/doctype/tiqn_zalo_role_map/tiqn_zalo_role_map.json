@@ -1,19 +1,26 @@
 {
  "actions": [],
  "allow_import": 1,
- "allow_rename": 0,
  "autoname": "field:zalo_user_id",
- "creation": "2026-09-15 10:00:00.000000",
+ "creation": "2026-09-15 10:00:00",
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
   "zalo_user_id",
+  "id_by_oa",
   "display_name",
+  "phone",
   "column_break_role",
   "role",
-  "driver_ref",
-  "employee_id"
+  "employee_id",
+  "employee",
+  "full_name",
+  "disabled",
+  "notes",
+  "column_break_zmwy",
+  "vehicle",
+  "is_leader"
  ],
  "fields": [
   {
@@ -23,6 +30,13 @@
    "label": "Zalo User ID",
    "reqd": 1,
    "unique": 1
+  },
+  {
+   "description": "Zalo getUserInfo().idByOA - the ID scoped to the Official Account. THIS is the one openChat() needs. `zalo_user_id` above is app-scoped and does NOT work for openChat, even though it looks like a perfectly good ID. Empty until the Mini App is verified by the OA, or the user follows the linked OA.",
+   "fieldname": "id_by_oa",
+   "fieldtype": "Data",
+   "in_standard_filter": 1,
+   "label": "ID by OA"
   },
   {
    "description": "So an admin can tell who this Zalo account belongs to",
@@ -37,34 +51,83 @@
   },
   {
    "default": "requester",
+   "description": "M\u1ecdi t\u00e0i kho\u1ea3n Zalo v\u00e0o app l\u1ea7n \u0111\u1ea7u l\u00e0 `requester`. Qu\u1ea3n l\u00fd n\u00e2ng l\u00ean `driver` (k\u00e8m xe) ho\u1eb7c `dispatcher` khi c\u1ea7n.",
    "fieldname": "role",
    "fieldtype": "Select",
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Role",
-   "options": "requester\ndispatcher\ndriver",
-   "reqd": 1
-  },
-  {
-   "depends_on": "eval:doc.role=='driver'",
-   "fieldname": "driver_ref",
-   "fieldtype": "Link",
-   "label": "Driver",
-   "mandatory_depends_on": "eval:doc.role=='driver'",
-   "options": "TIQN Driver"
+   "options": "\nrequester\ndispatcher\ndriver"
   },
   {
    "depends_on": "eval:doc.role=='requester'",
    "description": "Reference only - not linked to the Employee DocType",
    "fieldname": "employee_id",
    "fieldtype": "Data",
+   "hidden": 1,
    "label": "Employee ID"
+  },
+  {
+   "fieldname": "phone",
+   "fieldtype": "Phone",
+   "label": "Phone"
+  },
+  {
+   "depends_on": "eval:doc.role==\"driver\"",
+   "description": "Xe ng\u01b0\u1eddi n\u00e0y l\u00e1i. Thay cho DocType TIQN Driver c\u0169: t\u00e0i x\u1ebf gi\u1edd CH\u00cdNH L\u00c0 m\u1ed9t t\u00e0i kho\u1ea3n Zalo \u0111\u01b0\u1ee3c qu\u1ea3n l\u00fd g\u00e1n vai tr\u00f2, kh\u00f4ng c\u00f2n l\u00e0 b\u1ea3n ghi ri\u00eang.",
+   "fieldname": "vehicle",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Vehicle",
+   "options": "TIQN Vehicle"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.role==\"driver\"",
+   "description": "T\u1ed5 tr\u01b0\u1edfng. Mini App hi\u1ec7n th\u00eam tab B\u00e1o c\u00e1o. \u0110\u00e2y l\u00e0 g\u1ee3i \u00fd UI, kh\u00f4ng ph\u1ea3i ph\u00e2n quy\u1ec1n - endpoint b\u00e1o c\u00e1o v\u1eabn \u0111\u1ecdc \u0111\u01b0\u1ee3c b\u1eb1ng API key d\u00f9ng chung.",
+   "fieldname": "is_leader",
+   "fieldtype": "Check",
+   "label": "Is Leader"
+  },
+  {
+   "default": "0",
+   "description": "Ch\u1eb7n t\u00e0i kho\u1ea3n Zalo n\u00e0y d\u00f9ng app. Kh\u00e1c v\u1edbi xo\u00e1 b\u1ea3n ghi: l\u1ecbch s\u1eed chuy\u1ebfn v\u00e0 y\u00eau c\u1ea7u v\u1eabn tr\u1ecf t\u1edbi \u0111\u00e2y, ch\u1ec9 l\u00e0 kh\u00f4ng \u0111\u0103ng nh\u1eadp \u0111\u01b0\u1ee3c n\u1eefa.",
+   "fieldname": "disabled",
+   "fieldtype": "Check",
+   "in_standard_filter": 1,
+   "label": "Disabled"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Notes"
+  },
+  {
+   "fieldname": "column_break_zmwy",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Employee",
+   "options": "Employee"
+  },
+  {
+   "fetch_from": "employee.employee_name",
+   "fetch_if_empty": 1,
+   "fieldname": "full_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Full Name"
   }
  ],
  "grid_page_length": 50,
- "index_web_pages_for_search": 0,
  "links": [],
- "modified": "2026-09-15 10:00:00.000000",
+ "modified": "2026-09-29 14:50:32.572760",
  "modified_by": "Administrator",
  "module": "Vehicle Management",
  "name": "TIQN Zalo Role Map",
@@ -97,7 +160,7 @@
   }
  ],
  "row_format": "Dynamic",
- "search_fields": "display_name,role",
+ "search_fields": "display_name,role,full_name",
  "show_title_field_in_link": 1,
  "sort_field": "creation",
  "sort_order": "DESC",

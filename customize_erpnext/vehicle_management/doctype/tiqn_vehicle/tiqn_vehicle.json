@@ -55,13 +55,13 @@
   },
   {
    "default": "available",
-   "description": "in_trip is set automatically by trip check in / check out",
+   "description": "Xe của công ty đối tác: TIQN không quản lý bảo dưỡng hay hư hỏng, chỉ cần biết dùng được hay không. `in_trip` do hệ thống tự đặt.",
    "fieldname": "status",
    "fieldtype": "Select",
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Status",
-   "options": "available\nin_trip\nmaintenance\nbroken",
+   "options": "available\nin_trip\nnot_available",
    "reqd": 1
   },
   {

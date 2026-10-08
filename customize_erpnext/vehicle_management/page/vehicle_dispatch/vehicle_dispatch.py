@@ -32,8 +32,10 @@ def get_page_context():
 
 
 @frappe.whitelist(methods=["POST"])
-def reset_demo_data(year=None, month=None):
-	"""DELETE every trip and request, then rebuild a month of demo data.
+def reset_demo_data(from_date=None, to_date=None):
+	"""DELETE every trip and request, then rebuild demo data for from_date..to_date.
+
+	Both dates default to the last 7 days, today included (seed_month.DEFAULT_DAYS).
 
 	Returns immediately; the work runs on the `long` queue and announces itself on
 	SEED_EVENT when it finishes.
@@ -47,6 +49,12 @@ def reset_demo_data(year=None, month=None):
 	if frappe.session.user != "Administrator":
 		frappe.throw(_("Only Administrator can reset the demo data"), frappe.PermissionError)
 
+	from customize_erpnext.vehicle_management import seed_month
+
+	# Validate here, not only in the worker: a bad range found there reaches the
+	# user as a traceback after the page has already said "rebuilding".
+	days = seed_month.resolve_days(from_date=from_date, to_date=to_date)
+
 	if frappe.cache.get_value(SEED_LOCK):
 		frappe.throw(_("A reset is already running. Wait for it to finish."))
 
@@ -59,30 +67,33 @@ def reset_demo_data(year=None, month=None):
 		queue="long",
 		timeout=3600,
 		user=frappe.session.user,
-		year=year,
-		month=month,
+		# Resolved dates, not the raw arguments: "the last 7 days" must mean the
+		# week the button was pressed in, even if the job starts after midnight.
+		from_date=str(days[0]),
+		to_date=str(days[-1]),
 		enqueue_after_commit=True,
 	)
 
-	return {"queued": True, "message": _("Rebuilding the demo data in the background...")}
+	return {
+		"queued": True,
+		"from_date": str(days[0]),
+		"to_date": str(days[-1]),
+		"message": _("Rebuilding the demo data in the background..."),
+	}
 
 
-def run_reset_demo_data(user, year=None, month=None):
+def run_reset_demo_data(user, from_date, to_date):
 	"""Background half of reset_demo_data(). Never call this over HTTP."""
 	from customize_erpnext.vehicle_management import seed_month
 
 	try:
-		kwargs = {"purge": True}
-		if year:
-			kwargs["year"] = int(year)
-		if month:
-			kwargs["month"] = int(month)
-
-		summary = seed_month.execute(**kwargs)
+		summary = seed_month.execute(from_date=from_date, to_date=to_date, purge=True)
 		payload = {
 			"success": True,
 			"trips": summary["trips"],
 			"requests": summary["requests"],
+			"from_date": summary["from_date"],
+			"to_date": summary["to_date"],
 		}
 	except Exception:
 		frappe.log_error(frappe.get_traceback(), "Vehicle demo data reset failed")

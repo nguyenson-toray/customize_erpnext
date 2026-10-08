@@ -35,8 +35,7 @@ const KPI_CONFIG = [
 const VEHICLE_STATUS = {
 	available: { label: 'Đang đỗ', color: '#00C851' },
 	in_trip: { label: 'Đang chạy', color: '#FF8800' },
-	maintenance: { label: 'Bảo trì', color: '#9E9E9E' },
-	broken: { label: 'Hỏng hóc', color: '#FF4444' },
+	not_available: { label: 'Không sẵn sàng', color: '#9E9E9E' },
 };
 const ASSIGNED_STATUS = { label: 'Đã xếp chuyến', color: '#0068FF' };
 
@@ -587,7 +586,6 @@ class VehicleDashboard {
 					{
 						request_names: JSON.stringify([name]),
 						vehicle: values.vehicle,
-						driver: values.driver,
 						trip_date: values.trip_date,
 						depart_time: values.depart_time,
 					},
@@ -618,22 +616,22 @@ class VehicleDashboard {
 		);
 	}
 
-	driver_for_vehicle(vehicle) {
-		// Every driver is assigned a default vehicle, so picking the vehicle picks
-		// the driver. Only active drivers count - an inactive one would be filled
-		// in silently and the trip would be handed to somebody who has left.
-		const match = this.drivers.find((d) => d.assigned_vehicle === vehicle && d.is_active);
-		return match ? match.name : null;
+	driver_name_for_vehicle(vehicle) {
+		const match = this.drivers.find((d) => d.assigned_vehicle === vehicle);
+		return match ? match.driver_name : null;
 	}
 
 	vehicle_and_driver_fields(get_dialog) {
-		// Shared by Tạo chuyến / Xếp xe / Gom yêu cầu so the three dialogs cannot
-		// drift apart. The driver stays editable: a stand-in driver is normal.
+		// Shared by Tạo chuyến / Xếp xe so the dialogs cannot drift apart.
 		//
-		// `get_dialog` is a getter rather than the dialog itself because these
-		// fields are built BEFORE the dialog exists. Reaching for the dialog
-		// through Frappe control internals worked too, but it breaks the day
-		// those internals move.
+		// 🔴 CHỈ chọn xe. Chuyến gán theo XE, không gán cho người (23/09) - tài xế
+		// hiện ra để xác nhận đang chọn đúng xe, KHÔNG phải một ô để điền. Trước đây
+		// nó là ô Link sửa được, và chính bản sao "ai lái xe này" trên từng chuyến là
+		// thứ đã mục nát hai lần: đổi tên tài xế làm chết 6 lịch cố định, ba tài khoản
+		// Zalo cùng trỏ về một tài xế.
+		//
+		// `get_dialog` là getter chứ không phải dialog, vì các field này dựng TRƯỚC
+		// khi dialog tồn tại.
 		return [
 			{
 				fieldname: 'vehicle',
@@ -643,16 +641,17 @@ class VehicleDashboard {
 				onchange: () => {
 					const dialog = get_dialog();
 					if (!dialog) return;
-					const driver = this.driver_for_vehicle(dialog.get_value('vehicle'));
-					if (driver) dialog.set_value('driver', driver);
+					const name = this.driver_name_for_vehicle(dialog.get_value('vehicle'));
+					dialog.set_df_property(
+						'driver_hint', 'options',
+						name ? `👤 ${frappe.utils.escape_html(name)}` : __('Xe này chưa có tài xế'),
+					);
 				},
 			},
 			{
-				fieldname: 'driver',
-				fieldtype: 'Link',
-				options: 'TIQN Driver',
-				label: __('Tài xế'),
-				description: __('Tự điền theo xe. Chỉ sửa khi có người chạy thay.'),
+				fieldname: 'driver_hint',
+				fieldtype: 'HTML',
+				options: __('Chọn xe để xem tài xế'),
 			},
 		];
 	}
@@ -775,7 +774,6 @@ class VehicleDashboard {
 						{
 							request_names: JSON.stringify(chosen),
 							vehicle: values.vehicle,
-							driver: values.driver,
 							trip_date: values.trip_date,
 							depart_time: values.depart_time,
 							from_location: values.from_location,
@@ -791,7 +789,6 @@ class VehicleDashboard {
 					'create_trip',
 					{
 						vehicle: values.vehicle,
-						driver: values.driver,
 						trip_date: values.trip_date,
 						depart_time: values.depart_time,
 						from_location: values.from_location,
@@ -834,24 +831,49 @@ class VehicleDashboard {
 	}
 
 	reset_demo_dialog() {
-		frappe.warn(
-			__('Xoá toàn bộ dữ liệu và tạo lại?'),
-			__(
-				'Mọi <b>chuyến xe</b> và <b>yêu cầu</b> hiện có sẽ bị xoá vĩnh viễn, rồi dựng lại một tháng dữ liệu mẫu.<br><br>Xe, tài xế và lịch cố định được giữ nguyên. Không thể hoàn tác.'
-			),
-			() => this.start_reset(),
-			__('Xoá và tạo lại')
-			// 5th arg of frappe.warn is is_minimizable - deliberately left off:
-			// this dialog should be answered, not parked in a corner.
-		);
+		// Default = the last 7 days ending today (seed_month.DEFAULT_DAYS): the
+		// board opens on today, so a seed that misses today looks like an empty page.
+		const today = frappe.datetime.get_today();
+		const d = new frappe.ui.Dialog({
+			title: __('Xoá toàn bộ dữ liệu và tạo lại?'),
+			fields: [
+				{
+					fieldtype: 'HTML',
+					options: `<div class="alert alert-danger" style="margin-bottom:12px">${__(
+						'Mọi <b>chuyến xe</b> và <b>yêu cầu</b> hiện có sẽ bị xoá vĩnh viễn, rồi dựng lại dữ liệu mẫu cho khoảng ngày bên dưới.<br><br>Xe, tài xế và lịch cố định được giữ nguyên. Không thể hoàn tác.'
+					)}</div>`,
+				},
+				{
+					fieldname: 'from_date',
+					fieldtype: 'Date',
+					label: __('Từ ngày'),
+					reqd: 1,
+					default: frappe.datetime.add_days(today, -6),
+				},
+				{ fieldtype: 'Column Break' },
+				{ fieldname: 'to_date', fieldtype: 'Date', label: __('Đến ngày'), reqd: 1, default: today },
+			],
+			primary_action_label: __('Xoá và tạo lại'),
+			primary_action: (values) => {
+				if (values.from_date > values.to_date) {
+					frappe.msgprint(__('Từ ngày không được sau Đến ngày'));
+					return;
+				}
+				d.hide();
+				this.start_reset(values.from_date, values.to_date);
+			},
+		});
+		d.get_primary_btn().removeClass('btn-primary').addClass('btn-danger');
+		d.show();
 	}
 
-	start_reset() {
+	start_reset(from_date, to_date) {
 		this.$('auto-label').text(__('đang tạo lại dữ liệu mẫu...'));
 		frappe
 			.call({
 				method: PAGE_API + '.reset_demo_data',
 				type: 'POST',
+				args: { from_date, to_date },
 				freeze: true,
 				freeze_message: __('Đang xếp hàng công việc...'),
 			})
@@ -868,7 +890,12 @@ class VehicleDashboard {
 		if (!data) return;
 		if (data.success) {
 			frappe.show_alert({
-				message: __('Đã tạo lại {0} chuyến và {1} yêu cầu.', [data.trips, data.requests]),
+				message: __('Đã tạo lại {0} chuyến và {1} yêu cầu ({2} → {3}).', [
+					data.trips,
+					data.requests,
+					frappe.datetime.str_to_user(data.from_date),
+					frappe.datetime.str_to_user(data.to_date),
+				]),
 				indicator: 'green',
 			});
 			this.load(true);
@@ -895,8 +922,7 @@ class VehicleDashboard {
 					// refuses it here, so it is not offered.
 					options: [
 						{ value: 'available', label: __('Đang đỗ') },
-						{ value: 'maintenance', label: __('Bảo trì') },
-						{ value: 'broken', label: __('Hỏng hóc') },
+						{ value: 'not_available', label: __('Không sẵn sàng') },
 					],
 				},
 			],
