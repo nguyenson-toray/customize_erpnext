@@ -916,7 +916,7 @@ function showStatModal(type) {
             return `<tbody><tr><td colspan="${cols.length + 1}" class="text-center text-muted">Không có dữ liệu</td></tr></tbody>`;
         }
         return `<tbody>${rows.map((r, i) => `
-            <tr class="${i % 2 ? 'hc-row-alt' : ''}">
+            <tr class="hc-stat-modal-row ${i % 2 ? 'hc-row-alt' : ''}" data-name="${esc(r.name)}" title="Double click để mở chi tiết">
                 <td>${i + 1}</td>
                 <td class="hc-mono">${esc(r.hospital_code)}</td>
                 <td class="hc-mono">${esc(r.employee)}</td>
@@ -926,14 +926,16 @@ function showStatModal(type) {
                 <td class="hc-mono">${formatTime(r.end_time)}</td>
                 <td class="hc-mono ${r.start_time_actual ? 'hc-green' : 'hc-muted'}">${formatTime(r.start_time_actual)}</td>
                 <td class="hc-mono ${r.end_time_actual ? 'hc-green' : 'hc-muted'}">${formatTime(r.end_time_actual)}</td>
-                <td style="max-width:200px; white-space:normal;">${esc(r.note)}</td>
+                <td style="max-width:280px; white-space:normal;">${esc(r.note)}</td>
             </tr>`).join("")}
         </tbody>`;
     }
 
     function renderTable() {
-        return `<div style="max-height:420px; overflow-y:auto; overflow-x:auto;">
-            <table class="table table-bordered hc-stat-modal-table" style="font-size:11px;" id="stat-modal-table">
+        // Chiều cao theo viewport: màn to thì thấy được nhiều dòng hơn, màn nhỏ vẫn còn
+        // chỗ cho header/footer của modal. 360px là sàn để không bẹp trên laptop 768px.
+        return `<div style="max-height:max(360px, calc(100vh - 150px)); overflow-y:auto; overflow-x:auto;">
+            <table class="table table-bordered hc-stat-modal-table" style="font-size:12px;" id="stat-modal-table">
                 ${renderThead()}
                 ${renderTbody()}
             </table>
@@ -945,7 +947,18 @@ function showStatModal(type) {
         size: "extra-large",
     });
 
+    dialog.$wrapper.addClass("hc-stat-modal-wrapper");
     $(dialog.body).html(renderTable());
+
+    // Class RIÊNG (không dùng lại .hc-clickable-row của bảng Danh Sách NV): handler kia
+    // delegate trên $(document) nên sẽ bắn thêm một lần nữa ở đây và mở 2 tab. Bind vào
+    // dialog.body cũng để dblclick chạy được kể cả khi user chưa mở tab Danh Sách NV.
+    $(dialog.body).on("dblclick", ".hc-stat-modal-row", function () {
+        const docName = $(this).data("name");
+        if (docName) {
+            window.open(`/desk/health-check-up/${encodeURIComponent(docName)}`, "_blank");
+        }
+    });
 
     $(dialog.body).on("click", ".hc-stat-modal-th", function () {
         const field = $(this).data("field");
@@ -1870,39 +1883,45 @@ function renderTable() {
             (r, i) => {
                 let diffHtml = "—";
                 let diffs = [];
-                if (r.start_time && r.start_time_actual) {
-                    const diffMin = getMinutesDifference(r.start_time, r.start_time_actual);
-                    if (diffMin > state.allowedLateDistribute) diffs.push(`<span class="hc-red">Đã trễ P ${diffMin}p</span>`);
-                    else if (diffMin < -state.allowedEarlyDistribute) diffs.push(`<span class="hc-yellow">Sớm P ${Math.abs(diffMin)}p</span>`);
-                }
-                if (r.end_time && r.end_time_actual) {
-                    const diffMin = getMinutesDifference(r.end_time, r.end_time_actual);
-                    if (diffMin > state.allowedLateCollect) diffs.push(`<span class="hc-orange">Đã trễ T ${diffMin}p</span>`);
-                }
 
-                const now = getProactiveNow();
-                const lateDistMin = getMinutesDifference(r.start_time, now.time);
-                const isLateDist = !r.start_time_actual && r.start_time && lateDistMin > state.allowedLateDistribute;
-                if (isLateDist) {
-                    diffs.push(`<span class="hc-red" style="font-weight:bold;">Đang trễ P ${lateDistMin}p</span>`);
-                }
-                const lateCollMin = getMinutesDifference(r.end_time, now.time);
-                const isLateColl = r.start_time_actual && !r.end_time_actual && r.end_time && lateCollMin > state.allowedLateCollect;
-                if (isLateColl) {
-                    diffs.push(`<span class="hc-orange" style="font-weight:bold;">Đang trễ T ${lateCollMin}p</span>`);
-                }
+                // "Không khám" thì bỏ qua toàn bộ phép tính trễ/sớm — khớp với thẻ
+                // Trễ phát/Trễ thu trên dashboard, nếu không sẽ lệch số giữa 2 chỗ.
+                if (isNotCheckUp(r)) {
+                    diffHtml = `<span class="hc-muted">Không khám</span>`;
+                } else {
+                    if (r.start_time && r.start_time_actual) {
+                        const diffMin = getMinutesDifference(r.start_time, r.start_time_actual);
+                        if (diffMin > state.allowedLateDistribute) diffs.push(`<span class="hc-red">Đã trễ P ${diffMin}p</span>`);
+                        else if (diffMin < -state.allowedEarlyDistribute) diffs.push(`<span class="hc-yellow">Sớm P ${Math.abs(diffMin)}p</span>`);
+                    }
+                    if (r.end_time && r.end_time_actual) {
+                        const diffMin = getMinutesDifference(r.end_time, r.end_time_actual);
+                        if (diffMin > state.allowedLateCollect) diffs.push(`<span class="hc-orange">Đã trễ T ${diffMin}p</span>`);
+                    }
 
-                if (diffs.length > 0) {
-                    diffHtml = diffs.join("<br>");
-                } else if ((r.start_time && r.start_time_actual) || (r.end_time && r.end_time_actual)) {
-                    diffHtml = `<span class="hc-green">Đúng giờ</span>`;
+                    // Dùng lại đúng 2 hàm mà thẻ thống kê dùng, đừng chép lại điều kiện.
+                    const now = getProactiveNow();
+                    if (isRecordLateForDistribute(r)) {
+                        const m = getMinutesDifference(r.start_time, now.time);
+                        diffs.push(`<span class="hc-red" style="font-weight:bold;">Đang trễ P ${m}p</span>`);
+                    }
+                    if (isRecordLateForCollect(r)) {
+                        const m = getMinutesDifference(r.end_time, now.time);
+                        diffs.push(`<span class="hc-orange" style="font-weight:bold;">Đang trễ T ${m}p</span>`);
+                    }
+
+                    if (diffs.length > 0) {
+                        diffHtml = diffs.join("<br>");
+                    } else if ((r.start_time && r.start_time_actual) || (r.end_time && r.end_time_actual)) {
+                        diffHtml = `<span class="hc-green">Đúng giờ</span>`;
+                    }
                 }
 
                 const rowClass = [
                     "hc-clickable-row",
                     i % 2 ? "hc-row-alt" : "",
-                    isLateDist ? "hc-row-late-dist" : "",
-                    isLateColl ? "hc-row-late-coll" : "",
+                    isRecordLateForDistribute(r) ? "hc-row-late-dist" : "",
+                    isRecordLateForCollect(r) ? "hc-row-late-coll" : "",
                 ].filter(Boolean).join(" ");
 
                 return `
@@ -2045,7 +2064,15 @@ function getProactiveNow() {
     return { time: "00:00:00" };
 }
 
+// Hồ sơ "Không khám" thì không có nghĩa vụ phát/thu, nên KHÔNG bao giờ bị tính trễ.
+// Kiểm cả cờ lẫn status: status do compute_status() suy ra từ cờ, nhưng dữ liệu cũ
+// (trước khi có cờ) chỉ còn status.
+function isNotCheckUp(r) {
+    return !!r.not_check_up || r.status === "Không khám";
+}
+
 function isRecordLateForDistribute(r) {
+    if (isNotCheckUp(r)) return false;
     if (r.start_time_actual) return false;
     if (!r.start_time) return false;
     const now = getProactiveNow();
@@ -2053,6 +2080,7 @@ function isRecordLateForDistribute(r) {
 }
 
 function isRecordLateForCollect(r) {
+    if (isNotCheckUp(r)) return false;
     if (!r.start_time_actual) return false;
     if (r.end_time_actual) return false;
     if (!r.end_time) return false;

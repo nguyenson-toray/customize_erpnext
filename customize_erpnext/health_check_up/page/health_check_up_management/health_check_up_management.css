@@ -1481,6 +1481,30 @@
 }
 
 /* Stat Modal table */
+/* Dialog "Danh sách nhân viên" (click vào thẻ thống kê) — nới rộng.
+   Frappe gắn .modal-xl lên chính phần tử .modal chứ không phải .modal-dialog, và
+   Bootstrap khoá .modal-xl ở max-width 1140px; bảng 10 cột nhét vào đó rất chật.
+   Selector 2 class để thắng .modal-xl mà không cần !important. */
+.hc-stat-modal-wrapper.modal-xl {
+    max-width: min(1720px, 96vw);
+}
+
+.hc-stat-modal-wrapper .modal-body {
+    padding-top: var(--padding-sm);
+    padding-bottom: var(--padding-sm);
+}
+
+/* Đẩy modal lên sát mép trên để phần chiều cao vừa nới ra thực sự dùng được —
+   margin mặc định của .modal-dialog ăn mất ~3.5rem trên/dưới. */
+.hc-stat-modal-wrapper .modal-dialog {
+    margin-top: 1rem;
+    margin-bottom: 1rem;
+}
+
+.hc-stat-modal-row {
+    cursor: pointer;
+}
+
 .hc-stat-modal-table tbody tr:hover td {
     background: var(--hc-primary-light) !important;
 }
