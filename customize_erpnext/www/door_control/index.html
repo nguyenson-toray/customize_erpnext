@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="theme-color" content="#0f172a">
     <title>Door Control</title>
-    <link rel="icon" href="/assets/customize_erpnext/images/door_control.svg">
+    <link rel="icon" href="/assets/customize_erpnext/images/door_control.svg?v=20261009">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500&display=swap">
     <style>
         /* Layout: phone = one column + bottom tab bar (Doors / Access log);
@@ -45,7 +45,7 @@
         /* top bar */
         .bar { display: flex; align-items: center; gap: 12px; padding: calc(12px + env(safe-area-inset-top, 0px)) 16px 12px; background: var(--surface); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 4; }
         .brand { display: flex; align-items: center; gap: 10px; min-width: 0; color: inherit; text-decoration: none; }
-        .brand .logo { width: 38px; height: 38px; border-radius: 10px; background: var(--fg); color: var(--bg); display: grid; place-items: center; flex: none; }
+        .brand .logo { width: 38px; height: 38px; flex: none; display: block; }
         .brand b { display: block; font-size: 17px; line-height: 1.1; }
         .brand small { display: block; color: var(--fg-3); font-size: 12.5px; }
         .bar .sp { flex: 1; }
@@ -79,6 +79,8 @@
         .pill.ok { background: var(--ok-soft); color: var(--ok); }
         .pill.open { background: var(--open-soft); color: var(--open); }
         .pill.idle { background: var(--idle-soft); color: var(--idle); }
+        .pill.bad { background: var(--bad-soft); color: var(--bad); }
+        .summary .upd { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; font-variant-numeric: tabular-nums; color: var(--fg-3); }
 
         /* door card — the stripe on top is the at-a-glance state */
         .door { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 18px; display: flex; flex-direction: column; gap: 14px; position: relative; overflow: hidden; }
@@ -171,7 +173,7 @@
             .tabs { display: none; }
             .toast { bottom: 24px; }
         }
-        @media (min-width: 1500px) {
+        @media (min-width: 1200px) {
             .doors-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
         }
         /* phone: compact cards so three doors fit on one screen; Open / Hold / Close share one row */
@@ -237,10 +239,11 @@
     <div class="app">
         <header class="bar">
             <a class="brand" href="/app" title="{{ _('Back to Desk') }}">
-                <div class="logo"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v17M3 21h18"/><circle cx="15" cy="12" r=".9" fill="currentColor"/></svg></div>
+                <img class="logo" src="/assets/customize_erpnext/images/door_control.svg?v=20261009" alt="" width="38" height="38">
                 <div><b>{{ _('Door Control') }}</b><small id="door-count">&nbsp;</small></div>
             </a>
             <span class="sp"></span>
+            <a class="iconbtn" href="/app/door-alert-setting" target="_blank" rel="noopener" aria-label="{{ _('Door alert settings') }}" title="{{ _('Door alert settings') }}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></a>
             <button class="iconbtn" id="btn-refresh" data-act="refresh" aria-label="{{ _('Refresh status') }}" title="{{ _('Refresh status') }}"></button>
         </header>
 
@@ -361,6 +364,10 @@
             if (ymd === localYmd(yest)) return `${__('Yesterday')} · ${dmy}`;
             return dmy;
         }
+        // Location (Attendance Machine Setting) is the short display name, e.g. "Main Hall";
+        // the device name stays as the id (API calls, filters) and is shown small under it
+        const label = d => (d && (d.location || d.device_name)) || '';
+        const doorLabel = name => label(S.doors.find(d => d.device_name === name)) || name || '';
         const remaining = d => Math.max(0, Math.ceil(((S.openUntil[d.device_name] || 0) - Date.now()) / 1000));
         const isOpen = d => remaining(d) > 0;
         const fmtLeft = s => s >= 60 ? `${Math.floor(s / 60)}:${pad(s % 60)}` : `${s}s`;
@@ -401,8 +408,8 @@
             const total = d.hold ? (d._holdTotal || left) : d.unlock_seconds;
             const ring = erpOpen ? `<svg class="ring" viewBox="0 0 70 70" aria-hidden="true"><circle cx="35" cy="35" r="32" data-ring="${esc(d.device_name)}" data-total="${total}" stroke-dasharray="${CIRC}" stroke-dashoffset="${CIRC * (1 - Math.min(1, left / total))}"/></svg>` : '';
             const cd = erpOpen ? ` · <span class="cd" data-cd="${esc(d.device_name)}">${fmtLeft(left)}</span>` : '';
-            const state = off ? __('Offline')
-                : bySensor ? (open ? __('Bolt released') : __('Bolt locked')) + cd
+            const state = off ? `<span title="${esc(d.error || __('Cannot reach the device'))}">${__('Offline')}</span>`
+                : bySensor ? (open ? __('Not locked') : __('Bolt locked')) + cd
                 : hold ? `${__('Held open')}${cd}`
                 : erpOpen ? `${__('Open')}${cd}`
                 : '';
@@ -415,7 +422,6 @@
             } else if (d.has_door_sensor && !off) {
                 facts.push(`<span>${I.sensor(15)}${__('Lock sensor not readable — showing the ERP command state')}</span>`);
             }
-            if (off && d.error) facts.push(`<span title="${esc(d.error)}">${esc(__('Cannot reach the device'))}</span>`);
             const n = esc(d.device_name);
             let acts;
             if (off) {
@@ -430,11 +436,13 @@
                              <button class="btn ghost" data-act="close" data-id="${n}"${tip} ${!off && (open || erpOpen) ? '' : 'disabled'}>${__('Close')}</button>`;
                 }
             }
-            const meta = [d.location, d.ip_address].filter(Boolean).map(esc).join(' · ');
+            // IP only (and only for the Administrator role — the server sends "" otherwise);
+            // the full device name repeats the title and wrapped to 2 lines on phones
+            const meta = esc(d.ip_address || '');
             return `<article class="door ${cls}" data-door="${n}">
                 <div class="door-top">
                     <div class="state-ico">${ico}${ring}</div>
-                    <div class="door-name"><h3>${n}</h3>${state ? `<div class="state-line">${state}</div>` : ''}<div class="meta">${meta}</div></div>
+                    <div class="door-name"><h3 title="${n}">${esc(label(d))}</h3>${state ? `<div class="state-line">${state}</div>` : ''}${meta ? `<div class="meta">${meta}</div>` : ''}</div>
                 </div>
                 ${facts.length ? `<div class="facts">${facts.join('')}</div>` : ''}
                 <div class="actions">${acts}</div>
@@ -461,9 +469,9 @@
             panel.innerHTML = `
                 <div class="summary">
                     <span class="pill ok">${__('{0}/{1} online', [online, S.doors.length])}</span>
-                    ${open ? `<span class="pill open">${__('{0} open', [open])}</span>` : ''}
-                    ${offline ? `<span class="pill idle">${__('{0} offline', [offline])}</span>` : ''}
-                    <span class="sp"></span><span>${__('Updated {0}', [`${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`])}</span>
+                    ${open ? `<span class="pill open">${S.doors.some(sensorKnown) ? __('{0} not locked', [open]) : __('{0} open', [open])}</span>` : ''}
+                    ${offline ? `<span class="pill bad">${__('{0} offline', [offline])}</span>` : ''}
+                    <span class="sp"></span><span class="upd" title="${esc(__('Updated {0}', [`${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`]))}">${I.clock(13)}${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}</span>
                 </div>
                 <div class="doors-grid">${S.doors.map(doorCard).join('')}</div>
                 <div class="emergency">
@@ -475,7 +483,7 @@
         // ─── render: access log ────────────────────────────────────────────────────────
         const evKey = e => `${e.kind}|${e.timestamp}|${e.device_name}|${e.who}`;
         function renderChips() {
-            const opts = [['all', __('All doors')], ...S.doors.map(d => [d.device_name, d.device_name])];
+            const opts = [['all', __('All doors')], ...S.doors.map(d => [d.device_name, label(d)])];
             if (!opts.some(o => o[0] === S.filter)) S.filter = 'all';
             $('chips').innerHTML = opts.map(([k, v]) => `<button class="chip ${S.filter === k ? 'on' : ''}" data-act="filter" data-id="${esc(k)}">${esc(v)}</button>`).join('');
         }
@@ -498,7 +506,7 @@
                 }
                 const isNew = flashKeys && flashKeys.has(evKey(e));
                 html += `<div class="ev ${e.kind}${isNew ? ' new' : ''}"><time title="${esc(e.timestamp)}">${hhmmss(e.timestamp)}</time><div class="ico">${ico}</div>
-                    <div class="what"><div class="who">${esc(who)}</div><div class="sub">${esc(sub)} · ${esc(e.device_name || '')}</div></div></div>`;
+                    <div class="what"><div class="who">${esc(who)}</div><div class="sub">${esc(sub)} · ${esc(doorLabel(e.device_name))}</div></div></div>`;
             });
             $('log-list').innerHTML = html;
         }
@@ -571,7 +579,7 @@
             try {
                 const r = await call('fetch_logs', {}, true);
                 if (!silent) {
-                    const failed = (r.results || []).filter(x => !x.success).map(x => x.device_name);
+                    const failed = (r.results || []).filter(x => !x.success).map(x => doorLabel(x.device_name));
                     toast(failed.length ? __('{0} new log(s). Could not read: {1}', [r.inserted, failed.join(', ')]) : __('{0} new log(s)', [r.inserted]), !!failed.length);
                 }
             } catch (e) {
@@ -593,9 +601,10 @@
                     S.doors[i] = r.door; applyDoor(r.door);
                 }
                 if (r.success) {
-                    toast(method === 'close_door' ? __('{0} locked', [name]) : method === 'hold_open' ? __('{0} is held open', [name]) : __('{0} opened', [name]));
+                    const nm = doorLabel(name);
+                    toast(method === 'close_door' ? __('{0} locked', [nm]) : method === 'hold_open' ? __('{0} is held open', [nm]) : __('{0} opened', [nm]));
                 } else {
-                    toast(__('Could not reach {0}: {1}', [name, r.message || '']), true);
+                    toast(__('Could not reach {0}: {1}', [doorLabel(name), r.message || '']), true);
                 }
             } catch (e) {
                 toast(e.message, true);
@@ -607,7 +616,7 @@
             toast(__('Opening all doors…'));
             try {
                 const r = await call('unlock_all', {}, true);
-                const failed = r.results.filter(x => !x.success).map(x => x.device_name);
+                const failed = r.results.filter(x => !x.success).map(x => doorLabel(x.device_name));
                 toast(failed.length ? __('{0} door(s) opened. Failed: {1}', [r.opened, failed.join(', ')]) : __('{0} door(s) opened', [r.opened]), !!failed.length);
             } catch (e) {
                 toast(e.message, true);
@@ -630,7 +639,7 @@
         function askOpen(d) {
             modal(`<div class="dlg" role="dialog" aria-modal="true"><div class="grab"></div>
                 <div class="ico-big">${I.unlock(30)}</div>
-                <h4>${esc(__('Open {0}?', [d.device_name]))}</h4>
+                <h4>${esc(__('Open {0}?', [label(d)]))}</h4>
                 <p>${__('The door opens for {0} seconds, then locks again. The command is logged under your name.', [d.unlock_seconds])}</p>
                 <div class="row"><button class="btn xl ghost" data-act="cancel">${__('Cancel')}</button>
                 <button class="btn xl primary" data-act="do-open" data-id="${esc(d.device_name)}" data-focus>${__('Open door')}</button></div></div>`);
@@ -638,14 +647,14 @@
         function askHold(d) {
             modal(`<div class="dlg" role="dialog" aria-modal="true"><div class="grab"></div>
                 <div class="ico-big">${I.unlock(30)}</div>
-                <h4>${esc(__('Hold {0} open?', [d.device_name]))}</h4>
+                <h4>${esc(__('Hold {0} open?', [label(d)]))}</h4>
                 <p>${__('The door stays unlocked for up to 15 minutes or until you press Close. The command is logged under your name.')}</p>
                 <div class="row"><button class="btn xl ghost" data-act="cancel">${__('Cancel')}</button>
                 <button class="btn xl primary" data-act="do-hold" data-id="${esc(d.device_name)}" data-focus>${__('Hold open')}</button></div></div>`);
         }
         function askAll(step) {
             const online = S.doors.filter(d => d.online);
-            const offline = S.doors.filter(d => !d.online).map(d => d.device_name);
+            const offline = S.doors.filter(d => !d.online).map(label);
             if (step === 1) {
                 modal(`<div class="dlg danger" role="dialog" aria-modal="true"><div class="grab"></div>
                     <div class="steps"><span class="on">1. ${__('Confirm')}</span><span>2. ${__('Hold to open')}</span></div>

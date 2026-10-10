@@ -133,6 +133,10 @@ phải hỏi. Không `disable_device`, không ghi option khi chỉ được phé
 ## 8. UI
 
 - Mobile-first. < 640 px: card gọn (~165 px) để **3 cửa/màn hình**; Open/Hold/Close chung 1 hàng.
+- **Tên hiển thị = field `location`** của dòng máy (09/10: "Main Hall", "Office", "IT"), trống thì dùng
+  `device_name`. Dùng cho card, chip lọc, nhật ký, hộp xác nhận, toast VÀ tin Telegram. `device_name`
+  vẫn là khoá (API, filter), hiện ở tooltip tiêu đề; dòng phụ chỉ còn IP. Card offline không có dòng
+  lỗi riêng (lỗi ở tooltip chữ "Ngoại tuyến"). ≥ 1200 px: 3 cột.
   < 1024 px: tab dưới "Cửa / Nhật ký ra vào". ≥ 1024 px: lưới cửa trái + nhật ký phải.
 - 🔴 Lưới phải là `minmax(0, 1fr)` + `.doors, .log { min-width: 0 }`. Với `1fr` thường, hàng chip
   tên cửa (nowrap) kéo trang rộng hơn màn hình → điện thoại zoom-out → thanh tab dưới rơi khỏi màn
@@ -157,7 +161,7 @@ máy giả `192.0.2.1` (TEST-NET, offline); mọi máy cửa khác bị tắt tr
 xoá cache key test. 🔴 `frappe.render_template` từ CHUỖI chặn `.__` ("Illegal template") — render
 trang phải theo path (`is_path=True`).
 
-Thay đổi `.py` cần `bench restart`; đổi field DocType cần `bench migrate` (hoặc `import_file_by_path`
+`test_door_control.py` tắt `frappe.log_error` trong lúc chạy (Error Log ghi ngoài transaction, rollback không xoá). Thay đổi `.py` cần `bench restart`; đổi field DocType cần `bench migrate` (hoặc `import_file_by_path`
 cho đúng file JSON); `index.html` không cần restart.
 
 ## 10. Còn treo
@@ -168,3 +172,61 @@ cho đúng file JSON); `index.html` không cần restart.
    `SENSOR_STATES`; cửa 2 cánh (.48) cần biết 2 sensor nối tiếp hay song song.
 3. **Realtime `EF_UNLOCK`:** biết lúc relay mở (kể cả vân tay) mà không cần sensor.
 4. Tab 4.1 trên `/biometric_sync` chưa hiện máy cửa/máy tắt (chỉ dialog trên Desk có).
+
+## 11. Cảnh báo Telegram (`api/door_alerts.py`, 09/10/2026)
+
+Plan + quyết định: `.claude/plans/door_alerts.md`.
+
+- **Setting:** Single `Door Alert Setting` (module Network) — tạo **TẮT**, bảng `recipients`
+  (`Door Alert Recipient`: label, chat_id, enabled); bot token là field Password.
+  Nút: **Send Test Message** (gửi được cả khi tắt) · **Get Chat ID** (đọc `getUpdates`, cần gõ
+  `/start@<bot>` trong group trước vì bot ở privacy mode; group nâng cấp supergroup → id mới) ·
+  **Check Now** (chạy ngay, bỏ qua chu kỳ). Khung trạng thái (HTML) trên form: cửa đang theo dõi +
+  online, lần kiểm tra/gửi cuối, số tin hôm nay, lỗi gần nhất. Trang /door_control có nút ⚙ tới
+  form. Quyền: System Manager + Door Control.
+- **Sự kiện (09/10 bản 2):** `erp_open_alert` / `fingerprint_alert` = Off / After Hours / Always ·
+  `alert_unknown_user` · `alert_device_offline` (+ `offline_after_minutes`) · `alert_unlock_all` ·
+  `alert_command_failed`. 1 lần mở = 1 dòng ("ngoài giờ" thắng). "Mở tất cả" = đúng 1 dòng "N/M cửa đã mở" (chỉ nêu tên cửa LỖI), gom theo người bấm + khoảng cách ≤ 10 s chứ không theo phút đồng hồ. Patch
+  `door_alert_setting_select_fields` chuyển 4 ô tick cũ sang 2 Select.
+- **Chọn cửa:** ô `send_door_alerts` trên dòng máy cửa của Attendance Machine Setting (mặc định bật).
+- **Mute Until:** trước thời điểm đó không gửi gì; sự kiện bị BỎ (không dồn lại), mốc vẫn dời.
+- **Bối cảnh vận hành:** giờ làm (mặc định 06:00–22:00, mọi ngày) công tắc trên khoá để OFF ⇒
+  chốt luôn nhả, ~1000 công nhân qua lại ⇒ hoạt động cửa trong giờ KHÔNG báo. Ngoài giờ báo ngay
+  mọi lượt quẹt + mọi lệnh mở từ ERP. Tin ghi mã NV + họ tên.
+- **Job:** cron `* * * * *` → `door_alerts.tick()`. Tắt ⇒ đọc 1 field rồi thoát. Bật ⇒ mỗi
+  `check_interval_minutes`: probe cửa, đọc log **không `disable_device`** (job không bao giờ làm
+  cửa từ chối vân tay), lấy Door Control Action + Door Access Log có `creation` trong cửa sổ
+  (`last_check_at`, now] → gom thành **1 tin / người nhận**. Tổng hợp ngày: 1 lần sau
+  `daily_summary_time`.
+- **Sự kiện:** mất kết nối ≥ N phút (1 tin mất + 1 tin có lại) · Mở tất cả (gộp 1 sự kiện) · lệnh
+  lỗi · mở từ ERP ngoài giờ · quẹt ngoài giờ · ID lạ (mọi lúc). Tuỳ chọn thêm (09/10, user yêu cầu):
+  `alert_every_erp_open` / `alert_every_fingerprint` — báo MỌI lần mở từ ERP / mọi lượt quẹt, kể cả
+  trong giờ; 1 lần mở vẫn 1 dòng ("ngoài giờ" thắng khi áp dụng). Chỉ xét cửa đang bật trong Setting. Punch có `timestamp` cũ hơn 30 phút
+  (log tồn đọng lần đầu đọc máy) chỉ lưu, không báo.
+- **Bền vững:** gửi lỗi ở MỌI người nhận ⇒ không dời `last_check_at` (lần sau gửi lại, tối đa
+  nhìn lùi 1 ngày); token bị thay `<token>` trong mọi lỗi. Trạng thái runtime ghi bằng
+  `set_value(update_modified=False)` ⇒ admin đang mở form không bị TimestampMismatch.
+- **Ngôn ngữ tin:** theo System Settings → hiện là `en` ⇒ tin tiếng Anh (bản dịch vi đã có trong
+  vi.csv nhưng chưa dùng; user: "dịch để sau").
+- **Test:** `api/test_door_alerts.py` (56 assert; máy giả, `requests.post` mock, không gửi thật).
+- 🔴 Cron mới cần `bench migrate` (restart không đủ).
+
+## 12. Cảm biến chốt LB-35 + cảnh báo "chưa khoá sau giờ làm" (10/10/2026)
+
+Plan: `.claude/plans/door_sensor.md`.
+
+- **Cờ tổng** `Door Alert Setting.use_lock_sensor` (mặc định TẮT): tắt ⇒ `door_control._apply_sensor_flag`
+  ép `has_door_sensor = False` ⇒ không đọc sensor/DSM, trang + form + Telegram không hiện gì về sensor.
+- **Ánh xạ**: `sensor_locked_value` (Select 1/0, mặc định 1) thay hằng `SENSOR_STATES`.
+  `door_control.sensor_reading(door, probe)` → ("locked"/"unlocked"/None, mismatch) — dùng chung cho
+  trang, khung trạng thái và cảnh báo. Lệch Door Sensor Mode ⇒ None.
+- **Sensor Type mặc định NO** (patch `door_sensor_type_default_no` đặt NO cho 3 cửa; máy chấm công giữ None).
+- **Cảnh báo** (`door_alerts._not_locked_events`): ngoài giờ, chốt nhả liên tục ≥ 2 phút
+  (`NOT_LOCKED_CONFIRM_MIN`, lọc quẹt vân tay/mở ERP) ⇒ 🔴 "Door not locked after hours"; nhắc mỗi
+  `not_locked_repeat_minutes` (mặc định 30) ⇒ "Door still not locked"; khoá lại ⇒ 🟢 "Door locked".
+  Vào giờ làm ⇒ xoá trạng thái, im lặng. Offline/lệch DSM ⇒ giữ trạng thái, không báo. Trạng thái ở cache
+  `door_alerts:not_locked:<cửa>`; `last_sent` chỉ dời khi gửi được (hoặc đang mute).
+- **Read Sensors Now** (`door_alerts.read_sensors`): đọc thô mọi cửa kể cả khi cờ tắt — để hiệu chỉnh.
+  10/10: cả 3 cửa đọc `1`/DSM=NO, kể cả Main Hall đang nhả chốt ⇒ **sensor chưa đấu dây — KHÔNG bật cờ**
+  (bật lúc này sẽ luôn báo "đã khoá", không bao giờ cảnh báo).
+- Test: `test_door_alerts.py` 70 assert, `test_door_control.py` 50 assert.

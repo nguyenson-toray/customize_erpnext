@@ -69,3 +69,9 @@ customize_erpnext.patches.backfill_maternity_leave_months
 # post_model_sync: quy tắc ngày thai sản v2 (07/10/2026) — bỏ maternity_from_date_estimate,
 # Maternity From = Pregnant To + 1, giai đoạn liên tục. Áp cho mọi hồ sơ. Idempotent.
 customize_erpnext.patches.apply_maternity_date_rules_v2
+# post_model_sync: Door Alert Setting — 4 alert checks became 2 Selects (Off/After Hours/Always);
+# carries the current values over, then drops the orphan tabSingles rows. Idempotent.
+customize_erpnext.patches.door_alert_setting_select_fields
+# post_model_sync: door controllers' Sensor Type None -> NO (LB-35 bolt sensor is NO/COM).
+# No effect until Door Alert Setting → Use Lock Sensor is on. Idempotent.
+customize_erpnext.patches.door_sensor_type_default_no

@@ -21980,3 +21980,63 @@ Sensor Type,Loại cảm biến
 Door Sensor Mode on the device is {0} but Sensor Type is {1}. Change it on the device menu. Showing the ERP command state.,Door Sensor Mode trên máy là {0} nhưng Sensor Type là {1}. Hãy đổi trong menu máy. Đang hiện trạng thái theo lệnh ERP.
 Temporarily unavailable,Tạm thời chưa dùng được
 Hold open / Close is temporarily unavailable,Giữ mở / Đóng tạm thời chưa dùng được
+... and {0} more events,... và {0} sự kiện khác
+Add at least one enabled recipient before enabling door alerts,Thêm ít nhất một người nhận đang bật trước khi bật cảnh báo cửa
+Any time,Mọi lúc
+"Any time. One message when it goes offline, one when it is back","Mọi lúc. Một tin khi mất kết nối, một tin khi kết nối lại"
+Any time. The ID on the device matches no employee,Mọi lúc. ID trên máy không khớp nhân viên nào
+Bot Token,Bot Token
+Bot Token is empty,Bot Token đang trống
+Chat ID,Chat ID
+Check Interval (Minutes),Chu kỳ kiểm tra (phút)
+Check Interval (Minutes) must be between 1 and 60,Chu kỳ kiểm tra (phút) phải từ 1 đến 60
+Daily Summary Time,Giờ gửi tin tổng hợp
+Door Alert Recipient,Người nhận cảnh báo cửa
+Door Alert Setting,Cài đặt cảnh báo cửa
+Door Device Offline,Máy cửa mất kết nối
+Door alert,Cảnh báo cửa
+Door alerts: test message,Cảnh báo cửa: tin nhắn thử
+Door device back online,Máy cửa đã kết nối lại
+Door device offline for {0} minutes,Máy cửa mất kết nối {0} phút
+Door summary,Tổng hợp cửa
+Earlier than the start time = the working period runs past midnight,Sớm hơn giờ bắt đầu = giờ làm việc kéo qua nửa đêm
+Enter the Bot Token before enabling door alerts,Nhập Bot Token trước khi bật cảnh báo cửa
+Events to Send,Sự kiện cần gửi
+Every punch outside working hours,Mọi lượt quẹt ngoài giờ làm việc
+Fingerprint After Hours,Quẹt vân tay ngoài giờ
+Fingerprint ID matches no employee,ID vân tay không khớp nhân viên nào
+Fingerprint after hours,Quẹt vân tay ngoài giờ
+From @BotFather. Stored encrypted,Lấy từ @BotFather. Được lưu mã hoá
+How often door logs are read and alerts are sent (1-60),Bao lâu đọc log cửa và gửi cảnh báo một lần (1-60)
+Last Check At,Lần kiểm tra cuối
+Last Error,Lỗi gần nhất
+Last Summary Date,Ngày gửi tổng hợp gần nhất
+Master switch. Off = nothing is checked and nothing is sent,"Công tắc tổng. Tắt = không kiểm tra, không gửi gì"
+No enabled recipient,Chưa có người nhận nào đang bật
+Offline After (Minutes),Báo mất kết nối sau (phút)
+Offline After (Minutes) must be between 1 and 1440,Báo mất kết nối sau (phút) phải từ 1 đến 1440
+Open All Doors Used,Có người dùng Mở tất cả cửa
+Open Command Failed,Lệnh mở thất bại
+Open all doors used,Có người dùng Mở tất cả cửa
+Open command failed,Lệnh mở thất bại
+Opened From ERP After Hours,Mở từ ERP ngoài giờ
+Opened from ERP after hours,Mở từ ERP ngoài giờ
+Same every day. Outside these hours fingerprint punches and ERP opens are reported,"Áp dụng mọi ngày. Ngoài khung giờ này, quẹt vân tay và lệnh mở từ ERP sẽ được báo"
+"Save the settings first, then send the test message.",Hãy lưu cài đặt trước rồi mới gửi tin thử.
+Send Daily Summary,Gửi tin tổng hợp hằng ngày
+Send Test Message,Gửi tin thử
+Sent from ERP at {0} by {1},Gửi từ ERP lúc {0} bởi {1}
+Still offline: {0},Vẫn mất kết nối: {0}
+Telegram alerts for the door controllers of /door_control,Cảnh báo Telegram cho các máy cửa của /door_control
+Telegram chat id. A group id starts with -100,Chat id Telegram. Id của group bắt đầu bằng -100
+Test Message,Tin nhắn thử
+Unknown Fingerprint ID,ID vân tay lạ
+"Who or which group this is, e.g. Security managers","Người hoặc nhóm nào, ví dụ Quản lý an ninh"
+Work End Time,Giờ kết thúc làm việc
+Work Start Time,Giờ bắt đầu làm việc
+failed: {0},lỗi: {0}
+opened: {0},đã mở: {0}
+"{0} punches ({1} after hours, {2} unknown ID) · {3} ERP opens{4}","{0} lượt quẹt ({1} ngoài giờ, {2} ID lạ) · {3} lần mở từ ERP{4}"
+{0} — offline for {1} minutes,{0} — đã mất kết nối {1} phút
+Not locked,Chưa khoá
+{0} not locked,{0} cửa chưa khoá

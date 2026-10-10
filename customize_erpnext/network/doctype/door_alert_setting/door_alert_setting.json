@@ -1,0 +1,358 @@
+{
+ "actions": [],
+ "creation": "2026-10-09 09:00:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "issingle": 1,
+ "field_order": [
+  "enabled",
+  "column_break_top",
+  "mute_until",
+  "status_section",
+  "status_html",
+  "check_now",
+  "telegram_section",
+  "bot_token",
+  "recipients",
+  "get_chat_ids",
+  "column_break_tg",
+  "send_test_message",
+  "hours_section",
+  "work_start_time",
+  "column_break_hours",
+  "work_end_time",
+  "events_section",
+  "erp_open_alert",
+  "fingerprint_alert",
+  "alert_unknown_user",
+  "column_break_events",
+  "alert_device_offline",
+  "offline_after_minutes",
+  "alert_unlock_all",
+  "alert_command_failed",
+  "sensor_section",
+  "use_lock_sensor",
+  "sensor_locked_value",
+  "read_sensors",
+  "column_break_sensor",
+  "alert_not_locked_after_hours",
+  "not_locked_repeat_minutes",
+  "schedule_section",
+  "check_interval_minutes",
+  "column_break_schedule",
+  "daily_summary",
+  "daily_summary_time",
+  "runtime_section",
+  "last_check_at",
+  "last_sent_at",
+  "last_summary_date",
+  "column_break_runtime",
+  "sent_count_date",
+  "sent_count",
+  "last_error"
+ ],
+ "fields": [
+  {
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "label": "Enabled",
+   "default": "0",
+   "description": "Master switch. Off = nothing is checked and nothing is sent"
+  },
+  {
+   "fieldname": "column_break_top",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "mute_until",
+   "fieldtype": "Datetime",
+   "label": "Mute Until",
+   "description": "No message is sent before this time (checks still run, nothing is queued). Leave empty for normal"
+  },
+  {
+   "fieldname": "status_section",
+   "fieldtype": "Section Break",
+   "label": "Status"
+  },
+  {
+   "fieldname": "status_html",
+   "fieldtype": "HTML",
+   "label": "Status"
+  },
+  {
+   "fieldname": "check_now",
+   "fieldtype": "Button",
+   "label": "Check Now"
+  },
+  {
+   "fieldname": "telegram_section",
+   "fieldtype": "Section Break",
+   "label": "Telegram"
+  },
+  {
+   "fieldname": "bot_token",
+   "fieldtype": "Password",
+   "label": "Bot Token",
+   "description": "From @BotFather. Stored encrypted"
+  },
+  {
+   "fieldname": "recipients",
+   "fieldtype": "Table",
+   "label": "Recipients",
+   "options": "Door Alert Recipient"
+  },
+  {
+   "fieldname": "get_chat_ids",
+   "fieldtype": "Button",
+   "label": "Get Chat ID",
+   "description": "Add the bot to the group, send /start@<bot name> in the group, then press this button"
+  },
+  {
+   "fieldname": "column_break_tg",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "send_test_message",
+   "fieldtype": "Button",
+   "label": "Send Test Message"
+  },
+  {
+   "fieldname": "hours_section",
+   "fieldtype": "Section Break",
+   "label": "Working Hours",
+   "description": "Same every day"
+  },
+  {
+   "fieldname": "work_start_time",
+   "fieldtype": "Time",
+   "label": "Work Start Time",
+   "default": "06:00:00",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_hours",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "work_end_time",
+   "fieldtype": "Time",
+   "label": "Work End Time",
+   "default": "22:00:00",
+   "reqd": 1,
+   "description": "Earlier than the start time = the working period runs past midnight"
+  },
+  {
+   "fieldname": "events_section",
+   "fieldtype": "Section Break",
+   "label": "Events to Send",
+   "description": "Which doors are watched: tick Send Door Alerts on the door rows of Attendance Machine Setting"
+  },
+  {
+   "fieldname": "erp_open_alert",
+   "fieldtype": "Select",
+   "label": "Opened From ERP",
+   "options": "Off\nAfter Hours\nAlways",
+   "default": "Off"
+  },
+  {
+   "fieldname": "fingerprint_alert",
+   "fieldtype": "Select",
+   "label": "Fingerprint",
+   "options": "Off\nAfter Hours\nAlways",
+   "default": "Off",
+   "description": "Always also covers fingerprint IDs that match no employee"
+  },
+  {
+   "fieldname": "alert_unknown_user",
+   "fieldtype": "Check",
+   "label": "Unknown Fingerprint ID",
+   "default": "0",
+   "description": "Any time. The ID on the device matches no employee"
+  },
+  {
+   "fieldname": "column_break_events",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "alert_device_offline",
+   "fieldtype": "Check",
+   "label": "Door Device Offline",
+   "default": "0",
+   "description": "Any time. One message when it goes offline, one when it is back"
+  },
+  {
+   "fieldname": "offline_after_minutes",
+   "fieldtype": "Int",
+   "label": "Offline After (Minutes)",
+   "default": "5",
+   "depends_on": "alert_device_offline"
+  },
+  {
+   "fieldname": "alert_unlock_all",
+   "fieldtype": "Check",
+   "label": "Open All Doors Used",
+   "default": "0",
+   "description": "Any time"
+  },
+  {
+   "fieldname": "alert_command_failed",
+   "fieldtype": "Check",
+   "label": "Open Command Failed",
+   "default": "0",
+   "description": "Any time"
+  },
+  {
+   "fieldname": "sensor_section",
+   "fieldtype": "Section Break",
+   "label": "Lock Sensor",
+   "description": "ZKTeco LB-35 bolt sensor (NO/COM) wired to the SEN/GND input of the door device. Calibrate with Read Sensors Now before turning this on"
+  },
+  {
+   "fieldname": "use_lock_sensor",
+   "fieldtype": "Check",
+   "label": "Use Lock Sensor",
+   "default": "0",
+   "description": "Master switch. Off = sensors are not read and /door_control shows nothing about them"
+  },
+  {
+   "fieldname": "sensor_locked_value",
+   "fieldtype": "Select",
+   "label": "Sensor Value When Locked",
+   "options": "1\n0",
+   "default": "1",
+   "depends_on": "use_lock_sensor",
+   "description": "Raw value the device reports while the bolt is locked (see Read Sensors Now)"
+  },
+  {
+   "fieldname": "read_sensors",
+   "fieldtype": "Button",
+   "label": "Read Sensors Now"
+  },
+  {
+   "fieldname": "column_break_sensor",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "alert_not_locked_after_hours",
+   "fieldtype": "Check",
+   "label": "Not Locked After Hours",
+   "default": "0",
+   "depends_on": "use_lock_sensor",
+   "description": "Outside working hours: message when a bolt stays unlocked for 2 minutes, a reminder every N minutes, and one message once it is locked"
+  },
+  {
+   "fieldname": "not_locked_repeat_minutes",
+   "fieldtype": "Int",
+   "label": "Remind Every (Minutes)",
+   "default": "30",
+   "depends_on": "eval:doc.use_lock_sensor && doc.alert_not_locked_after_hours"
+  },
+  {
+   "fieldname": "schedule_section",
+   "fieldtype": "Section Break",
+   "label": "Schedule"
+  },
+  {
+   "fieldname": "check_interval_minutes",
+   "fieldtype": "Int",
+   "label": "Check Interval (Minutes)",
+   "default": "2",
+   "reqd": 1,
+   "description": "How often door logs are read and alerts are sent (1-60)"
+  },
+  {
+   "fieldname": "column_break_schedule",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "daily_summary",
+   "fieldtype": "Check",
+   "label": "Send Daily Summary",
+   "default": "0"
+  },
+  {
+   "fieldname": "daily_summary_time",
+   "fieldtype": "Time",
+   "label": "Daily Summary Time",
+   "default": "18:00:00",
+   "depends_on": "daily_summary"
+  },
+  {
+   "fieldname": "runtime_section",
+   "fieldtype": "Section Break",
+   "label": "Runtime",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "last_check_at",
+   "fieldtype": "Datetime",
+   "label": "Last Check At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_sent_at",
+   "fieldtype": "Datetime",
+   "label": "Last Sent At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_summary_date",
+   "fieldtype": "Date",
+   "label": "Last Summary Date",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_runtime",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "sent_count_date",
+   "fieldtype": "Date",
+   "label": "Sent Count Date",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sent_count",
+   "fieldtype": "Int",
+   "label": "Messages Sent That Day",
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_error",
+   "fieldtype": "Small Text",
+   "label": "Last Error",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-10-10 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Network",
+ "name": "Door Alert Setting",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "print": 1,
+   "email": 0
+  },
+  {
+   "role": "Door Control",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "print": 1,
+   "email": 0
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1,
+ "description": "Telegram alerts for the door controllers of /door_control"
+}

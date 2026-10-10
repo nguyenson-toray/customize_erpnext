@@ -60,7 +60,9 @@
    "fieldname": "device_ip",
    "fieldtype": "Data",
    "label": "Device IP",
-   "read_only": 1
+   "read_only": 1,
+   "permlevel": 1,
+   "description": "Visible to the Administrator role only (no role is granted permission level 1)"
   },
   {
    "fieldname": "section_break_note",
@@ -74,7 +76,7 @@
  ],
  "index_web_pages_for_search": 0,
  "links": [],
- "modified": "2026-10-08 10:00:00.000000",
+ "modified": "2026-10-09 20:30:00.000000",
  "modified_by": "Administrator",
  "module": "Network",
  "name": "Door Access Log",

@@ -29,6 +29,7 @@ lock's re-lock delay). With the sensor, the page shows the bolt state.
 """
 
 import hashlib
+import re
 import time
 from concurrent.futures import ThreadPoolExecutor
 
@@ -57,12 +58,11 @@ HOLD_CLOSE_ENABLED = False
 FETCH_RANGE_DAYS = 30
 TIMELINE_LIMIT = 150
 
-# Raw CMD_DOORSTATE_RRQ byte -> bolt state from the LB-35 status sensor.
-# UNVERIFIED: no sensor is wired yet. Both devices answer 0x01 with no sensor
-# configured (DSM=2) and with NO + nothing wired, i.e. 0x01 is the device's
-# "normal / closed" reading, hence 1 = locked. Calibrate once a sensor is wired
-# (swap the values if reversed); the page also shows the raw byte in a tooltip.
-SENSOR_STATES = {1: "locked", 0: "unlocked"}
+# Raw CMD_DOORSTATE_RRQ byte -> bolt state from the LB-35 status sensor: the byte
+# meaning "locked" is Door Alert Setting.sensor_locked_value (default 1 — both
+# devices answer 0x01 with no sensor wired, i.e. the "normal" reading). It must be
+# calibrated with "Read Sensors Now" once the sensor is wired. Every sensor feature
+# is off unless Door Alert Setting.use_lock_sensor is ticked.
 SENSOR_SETTLE_S = 0.8        # let the bolt move before reading the sensor after a command
 # Device option `DSM` (Door Sensor Mode, set on the device menu) -> Sensor Type of the Setting.
 # Measured on F21Lite fw 6.60, 08/10/2026: both untouched devices read DSM=2 (factory
@@ -78,12 +78,59 @@ def _check_access():
     frappe.only_for(ROLE)
 
 
+# Device IPs are shown only to the Administrator role (user request 09/10/2026):
+# every payload of this module goes through these two helpers.
+_IP_RE = re.compile(r"\b\d{1,3}(?:\.\d{1,3}){3}\b")
+
+
+def can_see_ip():
+    return "Administrator" in frappe.get_roles()
+
+
+def mask_ip(text):
+    """Hide IPv4 addresses inside a message (errors carry them) for non-admins."""
+    if not text or can_see_ip():
+        return text
+    return _IP_RE.sub("•••", str(text))
+
+
+def lock_sensor_enabled():
+    """Door Alert Setting → Use Lock Sensor: master switch of every sensor feature."""
+    try:
+        return bool(frappe.db.get_single_value("Door Alert Setting", "use_lock_sensor"))
+    except Exception:
+        return False
+
+
+def _apply_sensor_flag(doors):
+    """A row's Sensor Type only counts while the master switch is on."""
+    on = lock_sensor_enabled()
+    for d in doors:
+        d["has_door_sensor"] = bool(d["has_door_sensor"] and on)
+    return doors
+
+
+def sensor_reading(door, probe):
+    """(state, mismatch) from one probe: state is "locked" / "unlocked" / None.
+
+    None when there is no sensor, no reading, or the device's Door Sensor Mode
+    differs from the row's Sensor Type (the byte is meaningless then).
+    """
+    raw, mode = probe.get("sensor_raw"), probe.get("device_sensor_mode")
+    mismatch = bool(door["has_door_sensor"] and mode and mode != door["sensor_type"])
+    if not door["has_door_sensor"] or raw is None or mismatch:
+        return None, mismatch
+    value = frappe.db.get_single_value("Door Alert Setting", "sensor_locked_value")
+    locked_value = 1 if value in (None, "") else frappe.utils.cint(value)
+    return ("locked" if int(raw) == locked_value else "unlocked"), mismatch
+
+
 def _doors():
-    return get_machines(enabled_only=True, door_only=True)
+    return _apply_sensor_flag(get_machines(enabled_only=True, door_only=True))
 
 
 def _door(device_name):
-    door = get_machine(device_name, allow_door=True)
+    door = _apply_sensor_flag([get_machine(device_name, allow_door=True)])[0]
     if not door["is_door_control"]:
         frappe.throw(_("{0} is not a door controller").format(device_name))
     if not door["enable"]:
@@ -238,11 +285,11 @@ def _door_payload(door, probe):
     device_mode = probe.get("device_sensor_mode")
     # the byte only means "locked/unlocked" when the device reads the input the way
     # the lock is wired: a mode mismatch makes the sensor value meaningless
-    mismatch = bool(door["has_door_sensor"] and device_mode and device_mode != door["sensor_type"])
+    state, mismatch = sensor_reading(door, probe)
     return {
         "device_name": door["device_name"],
         "location": door["location"],
-        "ip_address": door["ip_address"],
+        "ip_address": door["ip_address"] if can_see_ip() else "",
         "model": door["model"],
         "unlock_seconds": door["unlock_seconds"],
         "has_door_sensor": door["has_door_sensor"],
@@ -252,10 +299,10 @@ def _door_payload(door, probe):
         "allow_hold_close": door["allow_hold_close"],
         "hold_close_enabled": HOLD_CLOSE_ENABLED,
         "online": bool(probe.get("online")),
-        "error": probe.get("error"),
+        "error": mask_ip(probe.get("error")),
         "response_ms": probe.get("response_ms"),
         "checked_at": probe.get("checked_at"),
-        "sensor": SENSOR_STATES.get(sensor_raw) if (sensor_raw is not None and not mismatch) else None,
+        "sensor": state,
         "sensor_raw": sensor_raw,
         "open_remaining": remaining,
         "hold": hold,
@@ -290,7 +337,7 @@ def _command(door, action_label, seconds, zk_action, open_for=None, hold=False):
             _run(_cfg(door, COMMAND_TIMEOUT_S), zk_action)
     except Exception as e:
         ok, error = False, e
-        frappe.log_error(f"{action_label} {door['device_name']} ({door['ip_address']}): {e}", "Door Control")
+        frappe.log_error(title="Door Control", message=f"{action_label} {door['device_name']} ({door['ip_address']}): {e}")
 
     _log_action(door, action_label, seconds, ok, error)
     if ok:
@@ -307,7 +354,7 @@ def _command(door, action_label, seconds, zk_action, open_for=None, hold=False):
         probe["checked_at"] = str(now_datetime())
     else:
         probe = {"online": ok, "error": str(error) if error else None, "checked_at": str(now_datetime())}
-    return {"success": ok, "message": str(error) if error else None, "door": _door_payload(door, probe)}
+    return {"success": ok, "message": mask_ip(str(error)) if error else None, "door": _door_payload(door, probe)}
 
 
 def _require_hold_close(door):
@@ -391,8 +438,8 @@ def unlock_all():
             _set_open(door, door["unlock_seconds"])
             frappe.cache.delete_value(_key("probe", door["device_name"]))
         else:
-            frappe.log_error(f"Unlock All {door['device_name']} ({door['ip_address']}): {error}", "Door Control")
-        results.append({"device_name": door["device_name"], "success": ok, "message": str(error) if error else None})
+            frappe.log_error(title="Door Control", message=f"Unlock All {door['device_name']} ({door['ip_address']}): {error}")
+        results.append({"device_name": door["device_name"], "success": ok, "message": mask_ip(str(error)) if error else None})
 
     return {
         "results": results,
@@ -411,7 +458,16 @@ def fetch_logs(device_name=None, force=0):
     """
     _check_access()
     doors = [_door(device_name)] if device_name else _doors()
-    force = frappe.utils.cint(force)
+    return read_new_punches(doors, force=frappe.utils.cint(force))
+
+
+def read_new_punches(doors, force=False, pause_device=True):
+    """Store new punches of `doors` in Door Access Log; shared by fetch_logs and
+    the alert job (api/door_alerts.py). No permission check — callers do it.
+
+    `pause_device=False` reads without disable_device(): the scheduled alert job
+    must never make a door ignore fingerprints, not even for a second.
+    """
     to_d = getdate(now_datetime())
     from_d = getdate(add_days(to_d, -(FETCH_RANGE_DAYS - 1)))
 
@@ -420,6 +476,8 @@ def fetch_logs(device_name=None, force=0):
         count = conn.records
         if count == known:
             return count, None
+        if not pause_device:
+            return count, conn.get_attendance() or []
         conn.disable_device()
         try:
             return count, conn.get_attendance() or []
@@ -443,8 +501,8 @@ def fetch_logs(device_name=None, force=0):
             frappe.cache.set_value(count_key, count)
         except Exception as e:
             res["success"] = False
-            res["message"] = str(e)
-            frappe.log_error(f"fetch_logs {door['device_name']} ({door['ip_address']}): {e}", "Door Control")
+            res["message"] = mask_ip(str(e))
+            frappe.log_error(title="Door Control", message=f"fetch_logs {door['device_name']} ({door['ip_address']}): {e}")
         results.append(res)
 
     return {
@@ -502,7 +560,7 @@ def get_timeline(device_name=None, limit=TIMELINE_LIMIT):
             "who": a.user_full_name or a.user,
             "action": a.action,
             "seconds": a.seconds,
-            "error": a.error,
+            "error": mask_ip(a.error),
         }
         for a in actions
     ]

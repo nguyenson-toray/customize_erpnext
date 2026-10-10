@@ -20,6 +20,12 @@ import customize_erpnext.api.attendance_machines as am
 import customize_erpnext.api.door_control as dc
 
 TEST_IP = "10.0.1.50"
+
+
+def _sensor_flag(on):
+    """Door Alert Setting.use_lock_sensor without writing the DB."""
+    from unittest.mock import patch as _p
+    return _p.object(dc, "lock_sensor_enabled", lambda: on)
 FAKE_IP = "192.0.2.1"
 
 frappe.set_user("Administrator")
@@ -68,6 +74,10 @@ for r in settings.machines:
 attendance_count = sum(1 for r in settings.machines if r.enable and not r.is_door_control)
 
 _orig_get_settings = am._get_settings
+# the fake offline door makes door_control log errors; Error Log is written outside
+# the transaction (rollback would not remove it), so silence it during the test
+_orig_log_error = frappe.log_error
+frappe.log_error = lambda *a, **k: None
 am._get_settings = lambda: settings
 touched_keys = [dc._key(k, n) for k in ("probe", "open", "records") for n in (TEST_NAME, fake.device_name)]
 
@@ -109,6 +119,16 @@ try:
     check("đẩy vân tay lên máy chấm công không bị chặn",
           not raises(lambda: am.check_door_machine_access({"is_door_control": False})))
     frappe.set_user("Administrator")
+
+    print("3b. Cờ Use Lock Sensor TẮT → không có gì về sensor")
+    with _sensor_flag(False):
+        d_off = {d["device_name"]: d for d in dc.get_doors(force=1)["doors"]}[TEST_NAME]
+    check("cờ tắt: has_door_sensor = False dù Sensor Type = NO", not d_off["has_door_sensor"])
+    check("cờ tắt: không đọc sensor", d_off["sensor_raw"] is None and d_off["sensor"] is None and d_off["device_sensor_mode"] is None)
+
+    # the rest of this test exercises the sensor path: master switch on
+    _sensor_ctx = _sensor_flag(True)
+    _sensor_ctx.__enter__()
 
     print("4. get_doors — trạng thái")
     r = dc.get_doors(force=1)
@@ -185,6 +205,22 @@ try:
     only = dc.get_timeline(device_name=fake.device_name)["events"]
     check("lọc theo cửa", only and all(e["device_name"] == fake.device_name for e in only), str(len(only)))
 
+    print("8b. IP chỉ cho role Administrator")
+    import re as _re
+    ip_re = _re.compile(r"\b\d{1,3}(?:\.\d{1,3}){3}\b")
+    check("Administrator thấy IP", {d["device_name"]: d for d in dc.get_doors()["doors"]}[TEST_NAME]["ip_address"] == TEST_IP)
+    from unittest.mock import patch as _patch
+    with _patch.object(dc, "can_see_ip", lambda: False):
+        doors_na = dc.get_doors(force=1)["doors"]
+        check("người khác: không có ip_address", all(d["ip_address"] == "" for d in doors_na))
+        check("người khác: lỗi máy offline không lộ IP",
+              not any(ip_re.search(d.get("error") or "") for d in doors_na), str([d.get("error") for d in doors_na]))
+        r_na = dc.unlock_door(fake.device_name)
+        check("người khác: thông báo lệnh lỗi không lộ IP", r_na["message"] and not ip_re.search(r_na["message"]), r_na["message"])
+        tl_na = dc.get_timeline()["events"]
+        check("người khác: nhật ký lệnh lỗi không lộ IP", not any(ip_re.search(e.get("error") or "") for e in tl_na))
+    check("mask_ip giữ nguyên cho Administrator", dc.mask_ip("192.0.2.1: timed out") == "192.0.2.1: timed out")
+
     print("9. Trang /door_control: chuỗi dịch")
     import importlib
     page = importlib.import_module("customize_erpnext.www.door_control.index")
@@ -195,6 +231,11 @@ try:
     check("mọi chuỗi đều có bản dịch vi", not missing, str(missing[:5]))
 finally:
     am._get_settings = _orig_get_settings
+    frappe.log_error = _orig_log_error
+    try:
+        _sensor_ctx.__exit__(None, None, None)
+    except NameError:
+        pass
     frappe.set_user("Administrator")
     frappe.db.rollback()
     for k in touched_keys:

@@ -49,6 +49,8 @@ def _row_to_dict(row, settings):
         "sensor_type": row.sensor_type or "None",
         "has_door_sensor": (row.sensor_type or "None") in ("NO", "NC"),
         "allow_hold_close": bool(row.allow_hold_close),
+        # Door Alert Setting watches this door (default on)
+        "send_door_alerts": bool(row.send_door_alerts) if row.get("send_door_alerts") is not None else True,
     }
 
 

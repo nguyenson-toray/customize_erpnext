@@ -265,7 +265,10 @@ scheduler_events = {
     "cron": {
          # Chạy mỗi phút - Giải phóng RAM rembg sau 30 phút không dùng rembg để edit ảnh thẻ
         "* * * * *": [
-            "customize_erpnext.api.employee.employee_utils.cleanup_rembg_sessions"
+            "customize_erpnext.api.employee.employee_utils.cleanup_rembg_sessions",
+            # Telegram door alerts — no-op while Door Alert Setting is off; the
+            # check interval itself is configured in the setting
+            "customize_erpnext.api.door_alerts.tick",
         ],
         # The 08:15 Shift Attendance Report was retired on 2026-08-14: the 08:20 job
         # below sends the same workbook to the HR list, and its two body-only

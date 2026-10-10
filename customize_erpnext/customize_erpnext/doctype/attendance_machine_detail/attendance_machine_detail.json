@@ -16,7 +16,8 @@
   "unlock_seconds",
   "column_break_door",
   "sensor_type",
-  "allow_hold_close"
+  "allow_hold_close",
+  "send_door_alerts"
  ],
  "fields": [
   {
@@ -92,13 +93,13 @@
    "fieldtype": "Column Break"
   },
   {
-   "default": "None",
+   "default": "NO",
    "depends_on": "is_door_control",
    "fieldname": "sensor_type",
    "fieldtype": "Select",
    "label": "Sensor Type",
    "options": "None\nNO\nNC",
-   "description": "Lock status sensor wired to the device's sensor input. ZKTeco LB-35 = NO. Must match Door Sensor Mode on the device menu, otherwise /door_control ignores the sensor and shows a warning. None = no sensor."
+   "description": "Lock status sensor wired to the device's sensor input. ZKTeco LB-35 = NO. Must match Door Sensor Mode on the device menu, otherwise /door_control ignores the sensor and shows a warning. None = no sensor. Only used while Use Lock Sensor is ticked in Door Alert Setting."
   },
   {
    "default": "0",
@@ -107,12 +108,20 @@
    "fieldtype": "Check",
    "label": "Allow Hold Open / Close",
    "description": "Shows the 'Hold open' and 'Close' buttons. Leave off until it is verified on this device that 'Close' really locks the door early"
+  },
+  {
+   "default": "1",
+   "depends_on": "is_door_control",
+   "fieldname": "send_door_alerts",
+   "fieldtype": "Check",
+   "label": "Send Door Alerts",
+   "description": "Telegram alerts (Door Alert Setting) watch this door. Untick to silence one door, e.g. while it is being repaired"
   }
  ],
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-10-08 11:30:00.000000",
+ "modified": "2026-10-10 09:00:00.000000",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Attendance Machine Detail",
