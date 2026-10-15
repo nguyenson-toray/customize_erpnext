@@ -3,7 +3,7 @@
  "allow_import": 1,
  "allow_rename": 1,
  "autoname": "naming_series:",
- "creation": "2026-04-08 00:00:00",
+ "creation": "2026-10-15 08:40:40.343266",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -13,7 +13,8 @@
   "channel_no",
   "ip_address",
   "location",
-  "priority"
+  "priority",
+  "disabled"
  ],
  "fields": [
   {
@@ -33,6 +34,7 @@
    "fieldname": "nvr",
    "fieldtype": "Link",
    "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "NVR",
    "options": "NVR",
    "reqd": 1
@@ -60,11 +62,18 @@
    "fieldtype": "Int",
    "label": "Priority",
    "non_negative": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "disabled",
+   "fieldtype": "Check",
+   "in_standard_filter": 1,
+   "label": "Disabled"
   }
  ],
  "in_create": 1,
  "links": [],
- "modified": "2026-04-08 16:52:54.934913",
+ "modified": "2026-10-15 08:45:37.500459",
  "modified_by": "Administrator",
  "module": "Network",
  "name": "Camera",

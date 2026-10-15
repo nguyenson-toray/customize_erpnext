@@ -2,7 +2,7 @@
 
 > **Mục đích:** Doctype theo dõi camera CCTV: tình trạng hoạt động, lịch kiểm tra và cảnh báo khi mất kết nối.
 > **Phạm vi:** Module Thiết bị mạng
-> **Trạng thái:** Đang chạy · **Cập nhật:** 2026-08-20
+> **Trạng thái:** Đang chạy · **Cập nhật:** 2026-10-15
 
 Module: `Network` | App: `customize_erpnext`
 
@@ -66,7 +66,7 @@ run_all_nvr()
          ├─ get_system_status()     → up_time (CPU/RAM đã bỏ: firmware trả N/A)
          ├─ get_device_info()       → cập nhật NVR master (model, firmware, serial)
          ├─ get_hdd_status()        → hdd_summary
-         ├─ load registered cameras → Camera DocType {channel_no: cam_name}
+         ├─ load registered cameras → Camera DocType {channel_no: cam_name}, bỏ camera disabled=1
          ├─ get_camera_status()     → danh sách tất cả channel từ NVR
          ├─ filter matched          → chỉ giữ channel có trong Camera DocType
          └─ for each matched camera:
@@ -80,7 +80,7 @@ run_all_nvr()
 ```
 
 **Quan trọng:** `camera_total / online / offline` chỉ đếm camera đã đăng ký trong DocType Camera.
-Channel NVR không có trong Camera master → **bỏ qua hoàn toàn**.
+Channel NVR không có trong Camera master, hoặc Camera có `disabled = 1` → **bỏ qua hoàn toàn**.
 
 ---
 
@@ -223,6 +223,12 @@ network/
 ### Thêm camera mới
 1. Vào **Camera DocType** → New → điền đúng `nvr` và `channel_no`
 2. Monitor tự nhận khi chạy tiếp theo (không cần restart)
+
+### Tạm ngưng theo dõi 1 camera
+- Tick **Disabled** trên Camera (field `disabled`, mặc định 0)
+- Lần chạy monitor sau: camera bị bỏ qua như chưa đăng ký — không có dòng trong `details`, không tính vào `camera_total/online/offline`, không lên email
+- Các bản CCTV Tracking cũ giữ nguyên dòng của camera đó
+- Bỏ tick để theo dõi lại. Lọc nhanh trên list Camera bằng filter **Disabled**
 
 ### Camera trên NVR nhưng không trong DocType
 - Bị bỏ qua hoàn toàn, không xuất hiện trong CCTV Tracking

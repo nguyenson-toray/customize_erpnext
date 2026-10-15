@@ -108,7 +108,7 @@ def run_monitor_for_nvr(nvr_name, send_email=True, recipients=None, gap_days=7, 
             d.channel_no: d.name
             for d in frappe.get_all(
                 "Camera",
-                filters={"nvr": nvr_name},
+                filters={"nvr": nvr_name, "disabled": 0},
                 fields=["name", "channel_no"],
                 order_by="channel_no asc",
             )
