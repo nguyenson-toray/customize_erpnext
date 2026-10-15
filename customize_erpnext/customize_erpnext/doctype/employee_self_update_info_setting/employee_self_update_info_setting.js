@@ -6,6 +6,8 @@ frappe.ui.form.on("Employee Self Update Info Setting", {
 		// Bypass code is for Administrator only — hide it from HR users.
 		// frm.toggle_display("bypass_code", frappe.session.user === "Administrator");
 
+		// Cạnh nút Help: thay TOÀN BỘ danh sách Employees bằng NV vào làm hôm nay.
+		frm.add_custom_button(__("Employee Join Today"), () => _esui_join_today(frm));
 		frm.add_custom_button(__("Help"), () => show_setting_help());
 
 		_render_self_update_qr(frm);
@@ -382,4 +384,18 @@ function show_setting_help() {
 		primary_action() { d.hide(); },
 	});
 	d.show();
+}
+
+// Nút "Employee Join Today" (thanh công cụ, cạnh Help) → controller btn_join_today.
+function _esui_join_today(frm) {
+	if (frm.is_dirty()) {
+		frappe.msgprint(__("Save the Setting first."));
+		return;
+	}
+	frappe.confirm(
+		__("Clear the current list ({0} employee(s)) and fill it with Active employees joining today?", [
+			(frm.doc.employees || []).length,
+		]),
+		() => frm.call("btn_join_today").then(() => frm.reload_doc())
+	);
 }

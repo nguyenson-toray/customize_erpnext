@@ -73,6 +73,29 @@ class EmployeeSelfUpdateInfoSetting(Document):
 			frappe.msgprint(_("All matched employees are already in the list."))
 
 	@frappe.whitelist()
+	def btn_join_today(self):
+		"""Thay TOÀN BỘ danh sách bằng NV Active có Date of Joining = hôm nay (ngày theo System Settings).
+
+		Khác "Add Employees": xoá danh sách cũ trước, và bỏ qua các ô lọc Group/Department/Section.
+		"""
+		today = frappe.utils.today()
+		employees = frappe.get_all(
+			"Employee",
+			filters={"status": "Active", "date_of_joining": today},
+			pluck="name",
+			order_by="employee_name asc",
+		)
+		self.employees = []
+		for emp in employees:
+			self.append("employees", {"employee": emp})
+		self.save()
+		date_str = frappe.utils.formatdate(today)
+		if employees:
+			frappe.msgprint(_("Replaced the list with {0} employee(s) joining today ({1}).").format(len(employees), date_str))
+		else:
+			frappe.msgprint(_("No Active employee joins today ({0}). The list is now empty.").format(date_str))
+
+	@frappe.whitelist()
 	def btn_clear_all(self):
 		"""Clear the employees table and reset filters."""
 		self.employees = []

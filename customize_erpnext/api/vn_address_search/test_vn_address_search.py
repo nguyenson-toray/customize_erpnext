@@ -34,6 +34,15 @@ def run():
 	total = sum(len(api.get_ward_options(p["code"])) for p in provinces)
 	check("tổng 3.321 xã", total == 3321, total)
 
+	labels = [p["label"] for p in provinces]
+	check("tỉnh: 'Thành phố …' đứng trước 'Tỉnh …'", max(i for i, l in enumerate(labels) if l.startswith("Thành phố")) < min(i for i, l in enumerate(labels) if l.startswith("Tỉnh ")), labels[:3])
+	tp = [l for l in labels if l.startswith("Thành phố")]
+	check("tỉnh: Đ sau D/C theo chữ cái tiếng Việt", tp.index("Thành phố Đà Nẵng") > tp.index("Thành phố Cần Thơ") and tp.index("Thành phố Đà Nẵng") < tp.index("Thành phố Hà Nội"), tp)
+	w = [x["label"] for x in qn_by_code]
+	check("xã: 'Phường …' trước 'Xã …'", max(i for i, l in enumerate(w) if l.startswith("Phường")) < min(i for i, l in enumerate(w) if l.startswith("Xã ")), w[:3])
+	xa = [l for l in w if l.startswith("Xã ")]
+	check("xã: ABC trong khối Xã (Ba Tô trước Ba Tơ: ô trước ơ)", xa.index("Xã Ba Tô") < xa.index("Xã Ba Tơ") < xa.index("Xã Ba Vì"), xa[:8])
+
 	check("tỉnh không dấu bị từ chối", api._province_code("Tinh Quang Ngai") is None)
 	check("tỉnh sai → []", api.get_ward_options("Tỉnh Không Có") == [])
 

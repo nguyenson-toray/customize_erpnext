@@ -228,9 +228,17 @@ _gate_receipt           = token hợp lệ → pass; else _gate_edit
 
 Dùng DB địa chỉ 2 cấp (sau sáp nhập 2025) qua `api/vn_address_search` (từ 07/10/2026; trước đó `api/vn_address`). Xem `api/vn_address_search/README.md`.
 
-- Field có `widget = Address Province` → select tỉnh (`get_province_options`).
-- Field có `widget = Address Ward` → select phường/xã, **phụ thuộc tỉnh cùng section** (`get_ward_options(province)`).
-- API trả `{value, label, code}`; trang đổi về `{code, name}` trong `loadProvinces` / `loadWards`. Field Employee vẫn lưu **tên** (full_name).
+- Field có `widget = Address Province` / `Address Ward` → **ô gõ để tìm** (combobox, 15/10/2026) thay cho `<select>`:
+  lọc bỏ dấu (`deburr`: "ba to" ra Ba Tơ + Ba Tô), mở ô trống thấy đủ danh sách, phím ↑ ↓ Enter Esc, chạm để chọn, nút ✕ xoá.
+  **Chỉ nhận giá trị trong danh sách**: rời ô mà chữ gõ không khớp đúng 1 tên (có dấu) → trả về giá trị cũ + toast;
+  không tự đoán theo bản bỏ dấu.
+- Ô xã **phụ thuộc tỉnh cùng section** (`get_ward_options(province)`): khoá khi chưa có tỉnh; đổi/xoá tỉnh → xoá xã.
+- Giá trị đã chọn nằm ở `input.dataset.value` (tên đầy đủ) — `currentValue()` đọc từ đây, chữ đang gõ không phải giá trị.
+- Dữ liệu cũ không có trong danh mục (tên trước sáp nhập…) → ô để trống, không báo (user quyết 15/10/2026).
+- Dùng chung **API** với form Employee (`api/vn_address_search`), JS **độc lập** (trang không có object `frappe`).
+- Chốt chặn server: `save_form_data` → `_portal_address_errors` (tỉnh phải có trong danh mục, xã thuộc tỉnh,
+  so `COLLATE utf8mb4_bin`); chỉ kiểm cặp KHÁC giá trị Employee hiện tại → hồ sơ tên cũ không đổi vẫn gửi được.
+- Test giao diện: chạy JS thật của `index.html` trong jsdom (36 ca, không thuộc repo); test server: `test_self_update_sign.run`.
 - **Lưu vào Employee field là TÊN đầy đủ** (`full_name`, vd "Phường Ba Đình"), dùng `code` chỉ để cascade nội bộ (option `value=code`, `data-name=full_name`). Tương thích dữ liệu cũ vốn lưu tên.
 - Pre-fill: match tên đã lưu với option theo `data-name`. Nếu tỉnh còn **trống** → tự điền mặc định **"Tỉnh Quảng Ngãi"** (`DEFAULT_PROVINCE`); không tô "đã đổi", nhưng sẽ được lưu khi submit. **Ngoại lệ:** field tỉnh có `auto_fill_data = 0` → **KHÔNG** set mặc định, để trống cho NV tự chọn (kèm ward trống theo).
 
@@ -289,6 +297,24 @@ Copy từ trang cũ, **rút gọn chỉ lấy 3 trường**: số CCCD, ngày c�
 - Format QR CCCD (pipe-separated): `parts[0]`=CCCD, `parts[1]`=CMND cũ, `parts[6]`=ngày cấp (ddmmyyyy → ISO).
 - Điền vào (chỉ khi field tương ứng có trong config): `custom_id_card_no`, `custom_id_card_date_of_issue`, `custom_id_card_cmnd_no`, `date_of_birth` (ngày sinh, parts[3]) — và đánh dấu "đã đổi". CMND chỉ điền nếu đủ 9 số. Ngày cấp/ngày sinh trong QR là **ddmmyyyy** → `toISO` đổi sang `yyyy-mm-dd` (đã verify với CCCD thật; `<input type=date>` hiển thị theo locale trình duyệt nhưng giá trị lưu luôn đúng ISO).
 - **Ngày hết hạn CCCD (`custom_id_card__date_of_expired`) tự tính** vì QR không chứa: `_cccdExpiryISO(dob, issueDate)` theo Luật Căn cước 2023 — mốc 14/25/40/60 tuổi, cấp trong 2 năm trước mốc → tính sang mốc kế; cấp ≥58 tuổi → không thời hạn (bỏ trống). VD: sinh 04/07/1989, cấp 12/08/2021 (32 tuổi) → hết hạn 04/07/2029 (40 tuổi).
+  - **Từ 15/10/2026 ô này luôn tự tính, không cho nhập** (cả trang www, bảng sửa của HR, form Employee): tính lại mỗi khi
+    đổi ngày cấp / ngày sinh (không chỉ khi quét QR); server tính lại khi gửi (`_apply_cccd_expiry`) và khi lưu Employee
+    (hook `api/employee/cccd_expiry.set_employee_cccd_expiry`, field read_only). Bỏ qua luật "Future" + bắt buộc cho ô này
+    (thẻ đã quá hạn vẫn ghi đúng ngày quá khứ, NV không bị chặn gửi). Sinh 29/02 → 28/02 năm không nhuận (bản cũ ra ngày
+    không tồn tại). 3 bản thuật toán (Python, employee.js, index.html) đã đối chiếu khớp 2.531/2.531 hồ sơ.
+  - Đã điền 2.258 hồ sơ Employee đang trống (backfill_employee_expiry, không đổi `modified`); sao lưu ở
+    `bak20261015_employee_cccd_expiry`.
+- **Tự chuẩn hoá chữ NV/HR nhập** (16/10/2026, không cảnh báo, không hỏi): field chữ (Data / Small Text / Text / Long Text,
+  widget Auto), trừ validation Email → NFC, gộp khoảng trắng, chèn dấu cách chữ–số (`Xóm1` → `Xóm 1`; chỉ khi phần chữ ≥ 2 ký
+  tự có chữ thường → giữ `B2`, `TDP1`, `ABC123`), **viết hoa ký tự đầu của cả ô**. Validation **"Person Name"** (lựa chọn mới
+  trong Setting) → Hoa Đầu Mỗi Từ (`ĐOÀN THANH PHI` → `Đoàn Thanh Phi`). Trang: `normalizeText()` khi rời ô + khi gửi;
+  server: `_normalize_text()` trong `save_form_data` và `validate_desk_edit` (nguồn chuẩn) — 2 bản đã đối chiếu khớp.
+  Chỉ áp cho bản ghi mới / lần lưu mới, không sửa dữ liệu cũ. Đã đo trước khi làm: ~1% ô nghi không dấu, 49 ô dính chữ–số.
+- **Ô "Ghi chú thêm" gắn cứng đã BỎ** (16/10/2026): trang + `save_form_data` không còn `__remarks`. Cần ghi chú → thêm custom field
+  (Small Text) trong Setting. Ghi chú cũ trong data_json (21 phiếu) vẫn hiện ở bảng HR / PDF / Excel như trước (không xử lý thêm).
+- **Giá trị điền sẵn khi ô trống** (`FIELD_DEFAULTS` trong index.html, 15/10/2026): `custom_ethnicity` = "Kinh". Chỉ điền lúc
+  mở form khi ô đang trống; NV sửa được; không áp cho field `auto_fill = 0` / read_only; không tô "đã đổi" lúc load.
+  Tỉnh mặc định "Tỉnh Quảng Ngãi" xử lý riêng (`DEFAULT_PROVINCE`).
 
 > Khác trang cũ: **không** parse địa chỉ / không điền ngày sinh / không xử lý ảnh CCCD — đúng yêu cầu chỉ lấy CCCD + ngày cấp + CMND cũ.
 
@@ -385,7 +411,13 @@ Thay dropdown bằng ô tìm kiếm:
 - `get_submission_view(name)`: mỗi row có thêm `fieldname` (để dialog Sync ở form view build checkbox).
 
 **Nút (desk, `__()` translatable):**
-- **List view**: `Download Excel` → **dialog**: `All Info` (New Data + Old Data, như cũ) | `Info for Sign` (danh sách in cho NV ký: field lấy theo ô **"Info for Sign"** của từng field trong Setting (mặc định không tick; dialog chỉ liệt kê, không chọn; chưa tick field nào → báo lỗi); luôn in đủ các field đó, không lọc "chỉ thay đổi"; ghi chú NV không xuất; nội dung luôn là giá trị MỚI, mới trống → lấy Employee; **A4 ngang**, cột: STT | Nhân viên (Mã NV xuống dòng Họ tên) | Thông tin | Nội dung | Ghi chú (trống, ghi tay) | Chữ ký (trống, ký tay); STT đánh theo NV, STT/Nhân viên/Ghi chú/Chữ ký gộp ô theo NV; địa chỉ mỗi Section 1 dòng đầy đủ "thôn, xã, tỉnh"; liên hệ khẩn cấp 1 dòng "Tên (Quan hệ) - SĐT"; nhãn trùng giữa các Section ghi kèm tên Section); `Mark Reviewed` **chỉ khi `disable_review = 0`**; `Sync to Employee` → mở **dialog `MultiCheck` chọn field** (mặc định tick tất cả) + nút "Select all / none" → `sync_to_employee(names, fields)` → dialog kết quả (bảng từng NV ✅/❌).
+- **List view**: `Download File` (trước 15/10/2026 tên "Download Excel") → **dialog**: `All Info` (New Data + Old Data, như cũ) | `Info for Sign` (danh sách in cho NV ký: field lấy theo ô **"Info for Sign"** của từng field trong Setting (mặc định không tick; dialog chỉ liệt kê, không chọn; chưa tick field nào → báo lỗi); luôn in đủ các field đó, không lọc "chỉ thay đổi"; field chưa có dữ liệu (cả mới lẫn Employee đều trống) VẪN in dòng, ô Nội dung trống để NV mới tự ghi tay; ghi chú NV không xuất; nội dung luôn là giá trị MỚI, mới trống → lấy Employee; **A4 ngang**, cột: STT | Nhân viên (Mã NV xuống dòng Họ tên) | Thông tin | Nội dung | Ghi chú (trống, ghi tay) | Chữ ký (trống, ký tay); STT đánh theo NV, STT/Nhân viên/Ghi chú/Chữ ký gộp ô theo NV; địa chỉ mỗi Section 1 dòng đầy đủ "thôn, xã, tỉnh"; liên hệ khẩn cấp 1 dòng "Tên (Quan hệ) - SĐT"; số CCCD + ngày cấp 1 dòng "CCCD": "<số>, cấp ngày dd/mm/yyyy" (ngày hết hạn vẫn dòng riêng; nhóm khai ở `_SIGN_GROUPS`); **Định dạng Excel hoặc PDF** (ô "File Format"): PDF = A4 ngang, lề trên/dưới 10mm (trái/phải 15mm), trang 1 = tiêu đề + 4 NV, các trang
+sau = 5 NV, mỗi trang là 1 bảng riêng nên tên cột lặp lại, chân trang "Trang x/y" (footer-center của wkhtmltopdf, không cần JS); cỡ chữ
+chung = LỚN NHẤT (5–16px, tìm nhị phân; trước 16/10 trần 11px để thừa chỗ) mà không trang nào tràn — `get_pdf` TẮT JavaScript nên phải dựng thử + đếm trang (pypdf);
+cấu hình thật (8 dòng/NV) → xem test_info_for_sign_pdf. Tick quá nhiều mục (cỡ tốt nhất < 6px) → tự lùi bố cục 3/4, 2/3… (`_SIGN_PDF_FALLBACK`); cỡ chữ dò trên MẪU (trang 1 + 6 trang
+nặng nhất) rồi dựng cả file 1 lần để kiểm — dò trên cả file tốn ~6s/lần với 915 phiếu, dễ vượt timeout 120s; PDF **tối đa 100 phiếu**
+mỗi lần (`INFO_FOR_SIGN_PDF_MAX_RECORDS`, chặn ở server + dialog; Excel không giới hạn); tên file `employee_info_for_sign_ddmmyyyy.pdf`;
+PDF trả kiểu attachment (tải về ngay, không lưu gì trên server); nhãn trùng giữa các Section ghi kèm tên Section); `Mark Reviewed` **chỉ khi `disable_review = 0`**; `Sync to Employee` → mở **dialog `MultiCheck` chọn field** (mặc định tick tất cả) + nút "Select all / none" → `sync_to_employee(names, fields)` → dialog kết quả (bảng từng NV ✅/❌).
 - **Form view**: `Mark Reviewed` (khi `disable_review=0` & Submitted); `Sync to Employee` (khi `disable_review` ? Submitted/Reviewed : Reviewed) → mở dialog chọn field, **mặc định tick các field "đã đổi"** (kèm giá trị); `Generate PDF` (`download_pdf_for_hr` — cùng phiếu PDF như trang www, kèm cam kết + chữ ký). **`Edit in Portal` đã BỎ (06/10/2026)** — HR sửa trên bảng, CCCD nhập tay.
 
 **HR mở trang www cho 1 NV** (không còn nút, gõ tay URL) = `/employee-self-update-info?emp=<id>`. HR **được mở BẤT KỲ nhân viên nào**, kể cả NV không có trong danh sách Setting (`_ensure_eligible` bỏ qua eligibility cho HR; nhân viên thường vẫn chỉ sửa được nếu có trong danh sách). Trang **vào thẳng** form NV (ẩn ô tìm/chọn khi có `?emp=`; load lỗi → hiện lại ô chọn).
@@ -396,7 +428,9 @@ Thay dropdown bằng ô tìm kiếm:
 
 **Sửa trực tiếp ngay trên form Desk (HR, 06/10/2026):** `get_submission_view` trả `editor` mỗi row (`_hr_editor`): `text` / `textarea` / `select` (dropdown) / `date` (control Date, lưu ISO) / `province` / `ward` (control Autocomplete + `public/js/vn_address_autocomplete.js`, đổi tỉnh → xoá xã). Check/Datetime/Link và field read_only: chỉ xem. Sửa ô nào → form "Not Saved" → lưu bằng **Save chuẩn / Ctrl+S** (`before_save` JS ghép vào `data_json`). Chốt chặn server: controller `validate` → `validate_desk_edit` (chỉ HR, chặn khi `Synced`, chỉ field có editor, Select ∈ options, ngày hợp lệ + Past/Future, xã thuộc tỉnh; `commitment_confirmed`/`signed_on`/`signature` chỉ trang www ghi được — `save_form_data` đặt `flags.from_portal`). Nút "Save Field Edits" + `update_submission_values` **đã xoá**.
 
-**Cam kết + chữ ký (06/10/2026):** trang www có thông báo mục đích ở đầu form, cuối form checkbox cam kết + ô vẽ chữ ký (canvas, pointer events). NV bắt buộc; HR mở `?emp=` thì không bắt buộc (không ký → giữ chữ ký cũ). Lưu vào `commitment_confirmed`, `signed_on`, `signature` (PNG data URL ≤ 400 KB). Phiếu PDF/PNG có câu cam kết + chữ ký + "Ký lúc" (đã ký thì bỏ "Thời điểm gửi"). Test: `api/self_update_info/test_self_update_sign.run`.
+**Cam kết + chữ ký (06/10/2026):** trang www có thông báo mục đích ở đầu form, cuối form checkbox cam kết + ô vẽ chữ ký (canvas, pointer events). NV bắt buộc; HR mở `?emp=` thì không bắt buộc (không ký → giữ chữ ký cũ). Lưu vào `commitment_confirmed`, `signed_on`, `signature` (PNG data URL ≤ 400 KB). Phiếu PDF/PNG có câu cam kết + chữ ký + "Ký lúc" (đã ký thì bỏ "Thời điểm gửi"). Phiếu thu gọn để **vừa 1 trang A4** (15/10/2026: lề 15mm cả 4 phía — user chọn — khai qua rule `.print-format`
+— đặt qua `options` của get_pdf sẽ bị mặc định 15mm ghi đè; chữ 11px; với lề 15mm đã đo 40 phiếu dài nhất = 1 trang, kể cả ghi chú 600 ký tự).
+Ngày (field Date) in dạng dd/mm/yyyy; chỉ dòng tiêu đề Section có nền, cột nhãn không tô nền. Test: `api/self_update_info/test_self_update_sign.run`.
 
 > Lưu ý: sync **ghi đè** field Employee bằng giá trị NV khai; `emp.save()` có thể bung validate của Employee → lỗi được bắt & hiện chi tiết theo từng record, không làm hỏng các record khác.
 

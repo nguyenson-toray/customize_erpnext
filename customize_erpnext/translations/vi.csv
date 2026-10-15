@@ -22040,3 +22040,13 @@ opened: {0},đã mở: {0}
 {0} — offline for {1} minutes,{0} — đã mất kết nối {1} phút
 Not locked,Chưa khoá
 {0} not locked,{0} cửa chưa khoá
+Employee Join Today,Nhân viên vào làm hôm nay,
+Clear the current list ({0} employee(s)) and fill it with Active employees joining today?,Xoá danh sách hiện tại ({0} nhân viên) và điền lại các nhân viên vào làm hôm nay?,
+Replaced the list with {0} employee(s) joining today ({1}).,Đã thay danh sách bằng {0} nhân viên vào làm hôm nay ({1}).,
+No Active employee joins today ({0}). The list is now empty.,Không có nhân viên nào vào làm hôm nay ({0}). Danh sách đã được xoá trống.,
+Save the Setting first.,Hãy lưu Setting trước.,
+New Joiners,Tiếp nhận nhân viên mới,
+File Format,Định dạng file,
+No record to export.,Không có phiếu nào để xuất.,
+Person Name,Họ tên người,Employee Self Update Info Field
+PDF can export at most {0} records at a time ({1} selected). Select fewer records or use Excel.,PDF chỉ xuất tối đa {0} phiếu mỗi lần (đang chọn {1}). Hãy chọn ít phiếu hơn hoặc dùng Excel.,

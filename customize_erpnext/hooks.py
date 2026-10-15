@@ -469,6 +469,8 @@ doc_events = {
             # Tỉnh/Xã phải có trong danh sách + xã thuộc tỉnh; chỉ kiểm khi địa chỉ đổi.
             # Hook riêng vì validate_employee_changes return sớm (hồ sơ mới, chưa chấm công…).
             "customize_erpnext.api.vn_address_search.vn_address_search_api.validate_employee_address",
+            # Ngày hết hạn CCCD (read_only) luôn tính lại từ ngày sinh + ngày cấp.
+            "customize_erpnext.api.employee.cccd_expiry.set_employee_cccd_expiry",
         ],
         "after_insert": [
             # "customize_erpnext.api.employee.erpnext_mongodb.sync_employee_to_mongodb",

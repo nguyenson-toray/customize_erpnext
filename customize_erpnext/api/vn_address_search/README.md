@@ -44,7 +44,9 @@ public/js/vn_address_autocomplete.js   ← helper JS (doctype_js Employee + Empl
 | `validate_employee_address(doc, method)` | (Python) | throw nếu địa chỉ **vừa đổi** mà sai |
 
 - `allow_guest=True` cho 3 method whitelisted (trang `/employee-self-update-info` phục vụ NV không đăng nhập — từ 07/10/2026 dùng `get_province_options` / `get_ward_options`, trước đó dùng `api/vn_address/vn_address_api`). Chỉ đọc.
-- Sắp xếp theo **tên ngắn** (`Ba Tơ`), không theo full_name — để `Phường X` và `Xã X` không bị tách thành 2 khối.
+- Sắp xếp **ABC theo tên hiển thị** (full_name) với `COLLATE utf8mb4_vietnamese_ci` (Đ sau D, Ă/Â sau A) → các khối
+  "Phường …" rồi "Xã …", "Thành phố …" rồi "Tỉnh …". (Trước 15/10/2026 sắp theo tên ngắn → tên đầy đủ xen kẽ, user
+  thấy như chưa sắp xếp.)
 - **Không cache**: 34 / tối đa 168 dòng, query < 1ms; không bao giờ trả dữ liệu cũ sau khi import lại.
 - So khớp tên luôn `COLLATE utf8mb4_bin` (xem bẫy 4.1).
 
@@ -137,6 +139,9 @@ nhưng file .py đang được import ⇒ **restart**.
 ### Nơi đang dùng helper JS `public/js/vn_address_autocomplete.js`
 - Form Employee (`doctype_js` Employee, đứng trước `employee.js`).
 - Form Employee Self Update Info — ô tỉnh/xã HR sửa trên bảng `data_view` (`doctype_js` riêng).
+- Trang `/employee-self-update-info` dùng **chung API** (`get_province_options` / `get_ward_options`) nhưng **JS riêng**
+  (combobox tự viết trong `index.html`, trang không có object `frappe`); server chặn cặp sai ở
+  `self_update_info_api._portal_address_errors` (gọi `get_address_error`).
   Kiểm tra cặp tỉnh/xã phía server dùng `get_address_error` (gọi từ `self_update_info_api.validate_desk_edit`).
 
 ### Bước D — Trang `/employee-self-update-info`

@@ -239,6 +239,21 @@ button:disabled { opacity:.45; cursor:not-allowed; }
 .combo-item .ok { color:var(--ok); font-weight:700; }
 .combo-empty { padding:16px 12px; color:var(--muted); font-size:13.5px; text-align:center; }
 
+/* ô tự tính (ngày hết hạn CCCD) — chỉ đọc */
+input.auto-calc { background:#F4F3EF; color:var(--ink); cursor:default; pointer-events:none; }
+
+/* ---------- ô Tỉnh / Phường-Xã gõ để tìm (dùng lại .combo*) ---------- */
+.addr-combo input { padding-right:40px; }
+.addr-combo input:disabled { background:#F4F3EF; color:var(--muted); cursor:not-allowed; }
+.addr-combo .combo-list { max-height:min(320px, 50vh); }
+.addr-combo .combo-item { justify-content:flex-start; }
+.addr-clear {
+  position:absolute; right:6px; top:50%; transform:translateY(-50%);
+  min-height:0; width:30px; height:30px; padding:0; border-radius:50%;
+  background:transparent; color:var(--muted); font-size:15px; line-height:30px;
+}
+.addr-clear:hover { background:var(--indigo-soft); color:var(--ink); }
+
 /* ---------- CCCD scan buttons ---------- */
 .qr-scan-btn {
   width:100%; margin-bottom:8px; background:var(--indigo); color:#fff;

@@ -18,10 +18,16 @@ HR (login required):
 """
 
 import json
+import re
 
 import frappe
 from frappe import _
 from frappe.utils import now_datetime
+
+from customize_erpnext.api.employee.cccd_expiry import DOB_FIELD as CCCD_DOB_FIELD
+from customize_erpnext.api.employee.cccd_expiry import EXPIRY_FIELD as CCCD_EXPIRY_FIELD
+from customize_erpnext.api.employee.cccd_expiry import ISSUE_FIELD as CCCD_ISSUE_FIELD
+from customize_erpnext.api.employee.cccd_expiry import cccd_expiry_iso
 
 SETTING_DT = "Employee Self Update Info Setting"
 INFO_DT = "Employee Self Update Info"
@@ -204,6 +210,42 @@ _VALIDATION_PATTERNS = {
 }
 
 
+# Tự chuẩn hoá chữ NV/HR nhập (16/10/2026). Cùng quy tắc với normalizeText() trên trang www — sửa
+# một nơi thì sửa cả hai. Chỉ field chữ widget Auto, trừ Email.
+_NORMALIZE_TYPES = {"Data", "Small Text", "Text", "Long Text"}
+# Chèn dấu cách giữa CHỮ và SỐ khi phần chữ ≥ 2 ký tự và có chữ thường: "Xóm1" → "Xóm 1";
+# giữ nguyên mã như "B2", "TDP1", "ABC123".
+_WORD_DIGIT = re.compile(r"(?<![^\W\d_])([^\W\d_]{2,})(?=\d)")
+_EMAIL_LIKE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def _normalize_text(f, value):
+	"""NFC, gộp khoảng trắng, chèn dấu cách chữ–số, viết hoa ký tự đầu (Person Name: hoa đầu mỗi từ).
+
+	Không đụng: field không phải chữ, widget khác Auto, validation Email.
+	"""
+	import unicodedata
+
+	if value is None or not isinstance(value, str):
+		return value
+	if f.get("fieldtype") not in _NORMALIZE_TYPES or (f.get("widget") or "Auto") != "Auto":
+		return value
+	# Email (theo Validation, hoặc giá trị trông như email dù field chưa gán Validation Email): chỉ bỏ khoảng trắng.
+	if (f.get("validation") or "") == "Email" or _EMAIL_LIKE.match(value.strip()):
+		return value.strip()
+	v = unicodedata.normalize("NFC", value)
+	multiline = f.get("fieldtype") != "Data"
+	lines = v.split("\n") if multiline else [v]
+	lines = [re.sub(r"[ \t\u00a0]+", " ", ln).strip() for ln in lines]
+	v = "\n".join(ln for ln in lines) if multiline else lines[0]
+	v = v.strip()
+	if (f.get("validation") or "") == "Person Name":
+		# Hoa đầu mỗi từ, phần còn lại thường: "ĐOÀN THANH PHI" / "duong minh thang" → "Đoàn Thanh Phi".
+		return " ".join(w[:1].upper() + w[1:].lower() for w in v.split(" ") if w)
+	v = _WORD_DIGIT.sub(lambda m: m.group(1) + " " if any(c.islower() for c in m.group(1)) else m.group(1), v)
+	return v[:1].upper() + v[1:]
+
+
 def _validate_value(field, value):
 	"""Return an error message (str) if `value` fails the field's validation,
 	else None. Empty values pass here (handled by the required check)."""
@@ -254,6 +296,51 @@ def _validate_value(field, value):
 	if re.match(pattern, val) is None:
 		return _("{0}: phải là {1}").format(label, desc)
 	return None
+
+
+def _apply_cccd_expiry(config, values, employee_id):
+	"""Ghi ngày hết hạn CCCD vào `values` (dict data_json) = tính từ ngày sinh + ngày cấp.
+
+	Ngày sinh / ngày cấp lấy trong `values` nếu có (NV vừa khai), không thì lấy Employee.
+	Chỉ khi field ngày hết hạn có trên trang và không read_only. Thuật toán: api/employee/cccd_expiry.py.
+	"""
+	fields = {f["fieldname"]: f for sec in config["sections"] for f in sec["fields"]}
+	f = fields.get(CCCD_EXPIRY_FIELD)
+	if not f or f.get("read_only") or f.get("custom"):
+		return
+	emp = frappe.db.get_value("Employee", employee_id, [CCCD_DOB_FIELD, CCCD_ISSUE_FIELD], as_dict=True) or {}
+	dob = values[CCCD_DOB_FIELD] if CCCD_DOB_FIELD in values else emp.get(CCCD_DOB_FIELD)
+	issue = values[CCCD_ISSUE_FIELD] if CCCD_ISSUE_FIELD in values else emp.get(CCCD_ISSUE_FIELD)
+	values[CCCD_EXPIRY_FIELD] = cccd_expiry_iso(dob, issue)
+
+
+def _portal_address_errors(config, clean, employee_id):
+	"""Lỗi cặp Tỉnh/Xã NV gửi từ trang www: tỉnh phải có trong danh mục, xã phải thuộc tỉnh.
+
+	Trang dùng ô gõ-để-tìm (chỉ nhận giá trị trong danh sách) — đây là chốt chặn server cho mọi
+	request gửi thẳng. Chỉ kiểm cặp có giá trị KHÁC Employee hiện tại: hồ sơ còn tên trước sáp
+	nhập mà NV không đụng tới thì không bị chặn. Field read_only (không có trong `clean`) lấy
+	giá trị Employee.
+	"""
+	pairs = _address_pairs(config)
+	if not pairs:
+		return []
+	fields = {f["fieldname"]: f for sec in config["sections"] for f in sec["fields"]}
+	real = [fn for pair in pairs for fn in pair if fn and not fields[fn].get("custom")]
+	now = (frappe.db.get_value("Employee", employee_id, real, as_dict=True) or {}) if real else {}
+
+	from customize_erpnext.api.vn_address_search.vn_address_search_api import get_address_error
+
+	errors = []
+	for prov, ward in pairs:
+		keys = [k for k in (prov, ward) if k]
+		value = {k: str(clean.get(k, now.get(k)) or "").strip() for k in keys}
+		if not any(value[k] != str(now.get(k) or "").strip() for k in keys):
+			continue
+		err = get_address_error(value.get(prov, ""), value[ward])
+		if err:
+			errors.append(f"{fields[ward]['label']}: {err}")
+	return errors
 
 
 def _config_fieldnames(config):
@@ -615,17 +702,22 @@ def save_form_data(employee_id, data, code=None, unlock_code=None, commitment=No
 		if not f["read_only"]
 	}
 	clean = {k: v for k, v in (data or {}).items() if k in allowed and k in editable}
+	# Ô "Ghi chú thêm" gắn cứng (__remarks) đã bỏ 16/10/2026 — cần ghi chú thì thêm custom field trong Setting.
 
-	# Free-text remarks (always allowed, stored under a reserved key).
-	remarks = (data or {}).get(REMARKS_KEY)
-	if remarks not in (None, ""):
-		clean[REMARKS_KEY] = str(remarks).strip()
+	# Tự chuẩn hoá chữ (NFC, khoảng trắng, chữ–số, viết hoa ký tự đầu / Person Name).
+	fields_by_name = {f["fieldname"]: f for sec in config["sections"] for f in sec["fields"]}
+	for k in list(clean):
+		if k in fields_by_name:
+			clean[k] = _normalize_text(fields_by_name[k], clean[k])
+
+	# Ngày hết hạn CCCD: không nhận giá trị gửi lên, luôn tự tính.
+	_apply_cccd_expiry(config, clean, employee_id)
 
 	# Validate required fields.
 	missing = []
 	for sec in config["sections"]:
 		for f in sec["fields"]:
-			if f["required"] and not f["read_only"]:
+			if f["required"] and not f["read_only"] and f["fieldname"] != CCCD_EXPIRY_FIELD:
 				val = clean.get(f["fieldname"])
 				if val is None or str(val).strip() == "":
 					missing.append(f["label"])
@@ -636,11 +728,12 @@ def save_form_data(employee_id, data, code=None, unlock_code=None, commitment=No
 	errors = []
 	for sec in config["sections"]:
 		for f in sec["fields"]:
-			if f["read_only"]:
-				continue
+			if f["read_only"] or f["fieldname"] == CCCD_EXPIRY_FIELD:
+				continue  # ngày hết hạn tự tính: thẻ đã quá hạn thì vẫn ghi đúng, không chặn "Future"
 			err = _validate_value(f, clean.get(f["fieldname"]))
 			if err:
 				errors.append(err)
+	errors += _portal_address_errors(config, clean, employee_id)
 	if errors:
 		frappe.throw("<br>".join(errors))
 
@@ -702,7 +795,8 @@ def download_pdf_for_hr(name):
 
 	frappe.response["filename"] = f"{_receipt_base(doc)}.pdf"
 	frappe.response["filecontent"] = get_pdf(html)
-	frappe.response["type"] = "pdf"
+	frappe.response["type"] = "download"   # attachment → tải về ngay; không lưu gì trên server
+	frappe.response["content_type"] = "application/pdf"
 
 
 def _receipt_base(doc):
@@ -810,6 +904,14 @@ def _strip_section_no(label):
 	return cleaned or (label or "")
 
 
+def _fmt_date_vn(value):
+	"""'2001-07-29' → '29/07/2001'; giá trị không phải ngày → giữ nguyên."""
+	try:
+		return frappe.utils.getdate(value).strftime("%d/%m/%Y")
+	except Exception:
+		return str(value)
+
+
 def _build_submission_html(doc, saved, config):
 	company = (
 		frappe.defaults.get_global_default("company")
@@ -830,6 +932,8 @@ def _build_submission_html(doc, saved, config):
 				continue
 			val = saved.get(f["fieldname"])
 			val = "" if val is None else str(val)
+			if f.get("fieldtype") == "Date" and val:
+				val = _fmt_date_vn(val)  # ngày trên phiếu: dd/mm/yyyy
 			sec_rows.append(
 				"<tr><td class='lbl'>{0}</td><td class='val'>{1}</td></tr>".format(
 					frappe.utils.escape_html(f["label"]),
@@ -874,26 +978,31 @@ def _build_submission_html(doc, saved, config):
 
 	return f"""
 <!DOCTYPE html><html><head><meta charset="utf-8"><style>
-  body{{font-family:'Helvetica Neue',Arial,sans-serif;color:#1f2733;font-size:12px;margin:0}}
-  .head{{text-align:left;border-bottom:2px solid #1e3a8a;padding-bottom:10px;margin-bottom:14px;overflow:hidden}}
-  .logo{{height:36px;float:left;margin:2px 12px 0 0}}
-  .company{{font-size:12px;font-weight:bold;color:#1e3a8a;text-transform:uppercase}}
-  .title{{font-size:21px;font-weight:bold;color:#1e3a8a;margin-top:2px}}
-  .meta{{margin:10px 0;font-size:12px}}
-  .meta b{{display:inline-block;min-width:130px}}
-  table{{width:100%;border-collapse:collapse;margin-top:6px}}
-  td{{border:1px solid #d5dbe3;padding:6px 8px;vertical-align:top}}
-  td.sec{{background:#eef2ff;font-weight:bold;color:#1e3a8a}}
-  td.lbl{{width:40%;background:#f7f9fc;color:#475569}}
+  /* Lề trang PDF: get_pdf đọc từ rule .print-format (khai ở options của get_pdf sẽ bị ghi đè).
+     Lề 15mm cả 4 phía (user chọn 15/10/2026); phần còn lại thu gọn để phiếu + chữ ký vừa 1 trang A4. */
+  .print-format{{margin-top:15mm;margin-bottom:15mm;margin-left:15mm;margin-right:15mm}}
+  body{{font-family:'Helvetica Neue',Arial,sans-serif;color:#1f2733;font-size:11px;line-height:1.3;margin:0}}
+  .head{{text-align:left;border-bottom:2px solid #1e3a8a;padding-bottom:6px;margin-bottom:8px;overflow:hidden}}
+  .logo{{height:30px;float:left;margin:1px 10px 0 0}}
+  .company{{font-size:11px;font-weight:bold;color:#1e3a8a;text-transform:uppercase}}
+  .title{{font-size:17px;font-weight:bold;color:#1e3a8a;margin-top:1px}}
+  .meta{{margin:6px 0;font-size:11px}}
+  .meta b{{display:inline-block;min-width:110px}}
+  table{{width:100%;border-collapse:collapse;margin-top:4px}}
+  tr{{page-break-inside:avoid}}
+  td{{border:1px solid #d5dbe3;padding:3px 7px;vertical-align:top}}
+  td.sec{{background:#eef2ff;font-weight:bold;color:#1e3a8a;padding:3px 7px}}
+  td.lbl{{width:40%;color:#475569}}  /* chỉ dòng tiêu đề Section (td.sec) có nền */
   td.val{{width:60%}}
-  .remarks{{margin-top:14px;border:1px solid #d5dbe3;border-radius:6px;padding:10px}}
-  .rlabel{{font-weight:bold;color:#1e3a8a;margin-bottom:4px}}
-  .commit{{margin-top:16px;font-style:italic}}
-  .signbox{{margin:12px 0 0 auto;width:260px;text-align:center}}
+  .remarks{{margin-top:8px;border:1px solid #d5dbe3;border-radius:5px;padding:6px 8px}}
+  .rlabel{{font-weight:bold;color:#1e3a8a;margin-bottom:2px}}
+  .signoff{{page-break-inside:avoid}}
+  .commit{{margin-top:8px;font-style:italic}}
+  .signbox{{margin:4px 0 0 auto;width:240px;text-align:center}}
   .slabel{{font-weight:bold}}
-  .sig{{max-width:240px;max-height:90px;margin:6px 0}}
+  .sig{{max-width:220px;max-height:60px;margin:3px 0}}
   .sname{{font-weight:bold}}
-  .sdate{{font-size:11px;color:#64748b}}
+  .sdate{{font-size:10px;color:#64748b}}
 </style></head><body>
   <div class="head">
     {logo_img}
@@ -907,7 +1016,7 @@ def _build_submission_html(doc, saved, config):
   </div>
   <table>{''.join(rows)}</table>
   {remarks_block}
-  {sign_block}
+  <div class="signoff">{sign_block}</div>
 </body></html>
 """
 
@@ -917,7 +1026,7 @@ def _build_submission_html(doc, saved, config):
 # ---------------------------------------------------------------------------
 
 @frappe.whitelist()
-def download_excel(names=None, export_type="All Info"):
+def download_excel(names=None, export_type="All Info", file_format="Excel"):
 	"""Export submissions to xlsx with two sheets — "New Data" (values submitted
 	by employees) and "Old Data" (current Employee values).
 
@@ -930,10 +1039,13 @@ def download_excel(names=None, export_type="All Info"):
 	highlighted. `names` = JSON list of Employee Self Update Info names, or None
 	for all.
 
-	`export_type="Info for Sign"` → file riêng, xem _download_info_for_sign.
+	`export_type="Info for Sign"` → file riêng, xem _download_info_for_sign;
+	`file_format="PDF"` (chỉ Info for Sign) → _download_info_for_sign_pdf.
 	"""
 	_require_hr()
 	if export_type == "Info for Sign":
+		if file_format == "PDF":
+			return _download_info_for_sign_pdf(names)
 		return _download_info_for_sign(names)
 	import io
 
@@ -1060,6 +1172,13 @@ def _sign_labels(config):
 
 # Thông tin liên hệ khẩn cấp (field chuẩn Employee) — Info for Sign ghép thành 1 dòng.
 _EMERGENCY_FIELDS = ("person_to_be_contacted", "relation", "emergency_phone_number")
+# Số CCCD + ngày cấp → 1 dòng "CCCD": "<số>, cấp ngày dd/mm/yyyy" (ngày hết hạn vẫn dòng riêng).
+_CCCD_FIELDS = ("custom_id_card_no", CCCD_ISSUE_FIELD)
+# Nhóm field gộp thành 1 dòng: kind → (fieldnames, nhãn dòng). Dòng đặt ở chỗ field đầu tiên của nhóm.
+_SIGN_GROUPS = {
+	"emergency": (_EMERGENCY_FIELDS, "Liên hệ khẩn cấp"),
+	"cccd": (_CCCD_FIELDS, "CCCD"),
+}
 
 
 def _sign_items(config, wanted):
@@ -1067,13 +1186,17 @@ def _sign_items(config, wanted):
 
 	- Section có ô tỉnh (widget Address Province) → 1 dòng "address" mang tên Section,
 	  gồm mọi field đã chọn của Section đó;
-	- 3 field liên hệ khẩn cấp → 1 dòng "emergency" ("Liên hệ khẩn cấp"), đặt ở chỗ field đầu tiên;
+	- nhóm trong _SIGN_GROUPS (liên hệ khẩn cấp, số CCCD + ngày cấp) → 1 dòng, đặt ở chỗ field đầu tiên;
 	- còn lại mỗi field 1 dòng.
 	`wanted` = set fieldname được chọn, None = tất cả.
 	"""
 	labels = _sign_labels(config)
 	pick = lambda f: f["fieldname"] not in ("employee", "name") and (wanted is None or f["fieldname"] in wanted)
-	emergency = [f for sec in config["sections"] for f in sec["fields"] if pick(f) and f["fieldname"] in _EMERGENCY_FIELDS]
+	group_of = {fn: kind for kind, (fns, _l) in _SIGN_GROUPS.items() for fn in fns}
+	members = {
+		kind: [f for sec in config["sections"] for f in sec["fields"] if pick(f) and f["fieldname"] in fns]
+		for kind, (fns, _l) in _SIGN_GROUPS.items()
+	}
 	items = []
 	for sec in config["sections"]:
 		fs = [f for f in sec["fields"] if pick(f)]
@@ -1083,9 +1206,10 @@ def _sign_items(config, wanted):
 			items.append((_strip_section_no(sec["label"]), fs, "address"))
 			continue
 		for f in fs:
-			if f["fieldname"] in _EMERGENCY_FIELDS:
-				if f is emergency[0]:
-					items.append(("Liên hệ khẩn cấp", emergency, "emergency"))
+			kind = group_of.get(f["fieldname"])
+			if kind:
+				if f is members[kind][0]:
+					items.append((_SIGN_GROUPS[kind][1], members[kind], kind))
 				continue
 			items.append((labels[f["fieldname"]], [f], "field"))
 	return items
@@ -1103,6 +1227,10 @@ def _sign_join(kind, parts):
 		name, rel, phone = by.get("person_to_be_contacted"), by.get("relation"), by.get("emergency_phone_number")
 		head = " ".join(x for x in (name, f"({rel})" if rel else "") if x)
 		return " - ".join(x for x in (head, phone) if x)
+	if kind == "cccd":
+		by = {f["fieldname"]: v for f, v in parts}
+		no, issued = by.get("custom_id_card_no"), by.get(CCCD_ISSUE_FIELD)  # ngày đã dd/mm/yyyy (_sign_value_vi)
+		return ", ".join(x for x in (no, f"cấp ngày {issued}" if issued else "") if x)
 	return parts[0][1] if parts else ""
 
 
@@ -1123,26 +1251,17 @@ def _sign_value_vi(f, value):
 	return str(value).strip()
 
 
-def _download_info_for_sign(names):
-	"""1 sheet "Info for Sign", A4 ngang: STT | Nhân viên (Mã NV xuống dòng Họ tên) | Thông tin | Nội dung | Ghi chú | Chữ ký.
+INFO_FOR_SIGN_HEADER = ("STT", "Nhân viên", "Thông tin", "Nội dung", "Ghi chú", "Chữ ký")
+INFO_FOR_SIGN_TITLE = "DANH SÁCH XÁC NHẬN THÔNG TIN NHÂN VIÊN"
 
-	- STT đánh theo NHÂN VIÊN; STT / Nhân viên / Chữ ký gộp ô theo nhân viên.
-	- Địa chỉ mỗi Section 1 dòng dạng đầy đủ; liên hệ khẩn cấp 1 dòng (xem _sign_items).
 
-	- Nội dung LUÔN là thông tin mới (NV khai); mới trống → lấy giá trị Employee hiện tại;
-	  cả hai trống → bỏ dòng.
-	- Chỉ các field được tick "Info for Sign" trong Setting (NV chỉ ký xác nhận một số thông tin),
-	  LUÔN đủ các field đó (không lọc "chỉ thay đổi"). Ghi chú NV không xuất.
-	- Mã NV / Họ tên / Chữ ký gộp ô theo nhân viên; cột Chữ ký để trống để ký tay khi in.
+def _info_for_sign_people(names):
+	"""Dữ liệu chung cho Info for Sign (Excel + PDF): ([(mã NV, họ tên, [(nhãn, nội dung)])], tên công ty).
+
+	Nội dung = thông tin mới (NV khai), mới trống → Employee; cả hai trống → vẫn có dòng, nội dung "".
 	"""
-	import io
-
-	from openpyxl import Workbook
-	from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
-
 	if isinstance(names, str):
 		names = json.loads(names or "null")
-
 	config = _build_config()
 	wanted = _info_for_sign_wanted(config)
 	if not wanted:
@@ -1157,8 +1276,7 @@ def _download_info_for_sign(names):
 	records = frappe.get_all(
 		INFO_DT, filters=filters, fields=["name", "employee", "employee_name", "data_json"], order_by="employee asc"
 	)
-
-	people = []  # [(employee, employee_name, [(label, value)])]
+	people = []
 	for rec in records:
 		saved = json.loads(rec.data_json or "{}")
 		old = (frappe.db.get_value("Employee", rec.employee, real, as_dict=True) or {}) if real else {}
@@ -1170,22 +1288,200 @@ def _download_info_for_sign(names):
 				new_s = _fmt(saved.get(fn)).strip()
 				old_s = "" if f.get("custom") else _fmt(old.get(fn)).strip()
 				parts.append((f, _sign_value_vi(f, new_s or old_s)))
-			value = _sign_join(kind, parts)
-			if value:
-				lines.append((label, value))
-		if lines:
-			people.append((rec.employee, rec.employee_name or "", lines))
-
-	wb = Workbook()
-	ws = wb.active
-	ws.title = "Info for Sign"
-
+			# Chưa có dữ liệu → VẪN in dòng, Nội dung để trống cho NV tự ghi tay bổ sung.
+			lines.append((label, _sign_join(kind, parts)))
+		people.append((rec.employee, rec.employee_name or "", lines))
 	company = (
 		frappe.defaults.get_global_default("company")
 		or frappe.db.get_single_value("Global Defaults", "default_company")
 		or ""
 	)
-	header = ["STT", "Nhân viên", "Thông tin", "Nội dung", "Ghi chú", "Chữ ký"]
+	return people, company
+
+
+# PDF Info for Sign: A4 ngang, lề trên/dưới 10mm; trang 1 = tiêu đề + 4 NV, các trang sau 5 NV;
+# mỗi trang là 1 bảng riêng → tên cột lặp lại; chân trang "Trang x/y". Cỡ chữ chung = lớn nhất mà
+# không trang nào tràn (tìm nhị phân, dựng thử + đếm trang).
+INFO_FOR_SIGN_PDF_FIRST = 4
+INFO_FOR_SIGN_PDF_PER_PAGE = 5
+# Tick quá nhiều mục (vd 17 dòng/NV) thì 4/5 NV không vừa ở cỡ chữ đọc được → lùi bố cục.
+_SIGN_PDF_FALLBACK = ((3, 4), (2, 3), (1, 2), (1, 1))
+_SIGN_PDF_MIN_FONT = 6.0   # px — dưới mức này coi như không đọc được, lùi bố cục
+_SIGN_PDF_MAX_FONT = 16.0  # px — trần cỡ chữ; trang còn trống thì chữ lớn dần tới khi lấp đầy
+_SIGN_PDF_COL_WIDTHS = (3.5, 13, 15.5, 38, 15.5, 14.5)   # % — cùng tỉ lệ cột Excel
+_SIGN_PDF_SAMPLE_PAGES = 6   # số trang "nặng" nhất (+ trang 1) dùng để dò cỡ chữ
+INFO_FOR_SIGN_PDF_MAX_RECORDS = 100   # PDF tối đa 100 phiếu/lần (user 16/10/2026); Excel không giới hạn
+
+
+def _info_for_sign_pdf_pages(people, first=INFO_FOR_SIGN_PDF_FIRST, per=INFO_FOR_SIGN_PDF_PER_PAGE):
+	rest = people[first:]
+	return [people[:first]] + [rest[i:i + per] for i in range(0, len(rest), per)]
+
+
+def _info_for_sign_pdf_html(pages, company, font_px):
+	esc = frappe.utils.escape_html
+	head = "".join(f"<th style='width:{w}%'>{esc(h)}</th>" for h, w in zip(INFO_FOR_SIGN_HEADER, _SIGN_PDF_COL_WIDTHS))
+	today = frappe.utils.now_datetime().strftime("%d/%m/%Y")
+	stt = 0
+	blocks = []
+	for i, page in enumerate(pages):
+		body = []
+		for emp, emp_name, lines in page:
+			stt += 1
+			n = len(lines) or 1
+			who = esc(emp) + (f"<br>{esc(emp_name)}" if emp_name else "")
+			for j, (label, value) in enumerate(lines or [("", "")]):
+				cells = ""
+				if j == 0:
+					cells += f"<td class='c' rowspan='{n}'>{stt}</td><td class='c' rowspan='{n}'>{who}</td>"
+				cells += f"<td>{esc(label)}</td><td>{esc(value)}</td>"
+				if j == 0:
+					cells += f"<td rowspan='{n}'></td><td rowspan='{n}'></td>"
+				body.append(f"<tr class='{'first' if j == 0 else ''}'>{cells}</tr>")
+		title = ""
+		if i == 0:
+			title = (
+				f"<div class='co'>{esc(company.upper())}</div><div class='ti'>{esc(INFO_FOR_SIGN_TITLE)}</div>"
+				f"<div class='dt'>Ngày: {today}</div>"
+			)
+		brk = " style='page-break-after:always'" if i < len(pages) - 1 else ""
+		blocks.append(f"<div class='pg'{brk}>{title}<table><thead><tr>{head}</tr></thead><tbody>{''.join(body)}</tbody></table></div>")
+	f = font_px
+	return f"""<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+  .print-format{{margin-top:10mm;margin-bottom:10mm;margin-left:15mm;margin-right:15mm}}
+  body{{font-family:Arial,'Helvetica Neue',sans-serif;color:#111;margin:0;font-size:{f}px}}
+  .co{{text-align:center;font-weight:bold;font-size:{f + 1}px}}
+  .ti{{text-align:center;font-weight:bold;font-size:{f + 5}px;margin:2px 0}}
+  .dt{{text-align:center;font-style:italic;font-size:{f}px;margin-bottom:6px}}
+  table{{width:100%;border-collapse:collapse;table-layout:fixed}}
+  /* line-height 1.1 + đệm 1px: dòng thấp nhất có thể → cùng số dòng/trang nhưng chữ lớn hơn. */
+  th,td{{border:1px solid #808080;padding:1px 4px;line-height:1.1;vertical-align:middle;word-wrap:break-word}}
+  th{{background:#DCE6F1;font-weight:bold;text-align:center}}
+  td.c{{text-align:center}}
+  tr.first td{{border-top:1.5px solid #333}}
+  tr{{page-break-inside:avoid}}
+</style></head><body>{''.join(blocks)}</body></html>"""
+
+
+def _download_info_for_sign_pdf(names):
+	"""PDF Info for Sign (cùng dữ liệu với Excel): A4 ngang, lề trên/dưới 10mm, chân trang "Trang x/y".
+
+	Trang 1: tiêu đề + 4 NV; các trang sau: 5 NV; mỗi trang lặp lại tên cột. Cỡ chữ: tìm nhị phân
+	(bước 0,5px, 5–16px) cỡ LỚN NHẤT mà số trang = số trang dự kiến (không trang nào tràn).
+	Cỡ tốt nhất < 6px (tick quá nhiều mục) → lùi bố cục 3/4, 2/3, … (_SIGN_PDF_FALLBACK).
+	get_pdf tắt JavaScript nên không tự co theo trang được.
+	"""
+	import io
+
+	from frappe.utils.pdf import get_pdf
+	from pypdf import PdfReader
+
+	people, company = _info_for_sign_people(names)
+	if not people:
+		frappe.throw(_("No record to export."))
+	if len(people) > INFO_FOR_SIGN_PDF_MAX_RECORDS:
+		frappe.throw(
+			_("PDF can export at most {0} records at a time ({1} selected). Select fewer records or use Excel.").format(
+				INFO_FOR_SIGN_PDF_MAX_RECORDS, len(people)
+			),
+			title=_("Info for Sign"),
+		)
+	options = {
+		"orientation": "Landscape",
+		"page-size": "A4",
+		# Số trang do wkhtmltopdf tự thay [page]/[topage] — không cần JavaScript.
+		"footer-center": "Trang [page]/[topage]",
+		"footer-font-size": "8",
+		"footer-spacing": "2",
+	}
+
+	def count(html):
+		pdf = get_pdf(html, options=dict(options))
+		return pdf, len(PdfReader(io.BytesIO(pdf)).pages)
+
+	def weight(page):
+		# Ước lượng độ "nặng": số dòng + dòng xuống hàng của nội dung dài.
+		return sum(1 + len(v) // 45 for _e, _n, lines in page for _l, v in lines)
+
+	def best_font(pages):
+		"""(cỡ chữ lớn nhất vừa trang theo bước 0,5px trong 5px…_SIGN_PDF_MAX_FONT, pdf) — None nếu 5px vẫn tràn.
+
+		Tìm cỡ chữ trên MẪU nhỏ (trang 1 có tiêu đề + các trang nặng nhất) cho nhanh — dựng cả
+		file mỗi lần tốn ~6s/915 phiếu, tìm nhị phân trên cả file sẽ vượt timeout 120s của gunicorn.
+		Sau đó dựng cả file 1 lần để kiểm; vẫn tràn thì giảm 0,5px.
+		"""
+		heavy = sorted(range(1, len(pages)), key=lambda i: weight(pages[i]), reverse=True)[:_SIGN_PDF_SAMPLE_PAGES]
+		sample = [pages[0]] + [pages[i] for i in sorted(heavy)]
+		cache = {}
+
+		def fits(half):
+			if half not in cache:
+				cache[half] = count(_info_for_sign_pdf_html(sample, company, half / 2))[1] <= len(sample)
+			return cache[half]
+
+		top = int(_SIGN_PDF_MAX_FONT * 2)
+		if fits(top):
+			lo = top
+		elif not fits(10):
+			return None
+		else:
+			lo, hi = 10, top   # fits(lo) đúng, fits(hi) sai
+			while hi - lo > 1:
+				mid = (lo + hi) // 2
+				if fits(mid):
+					lo = mid
+				else:
+					hi = mid
+		while True:   # kiểm trên cả file
+			pdf, n = count(_info_for_sign_pdf_html(pages, company, lo / 2))
+			if n <= len(pages):
+				return lo / 2, pdf
+			if lo <= 10:
+				return None
+			lo -= 1
+
+	layouts = ((INFO_FOR_SIGN_PDF_FIRST, INFO_FOR_SIGN_PDF_PER_PAGE),) + _SIGN_PDF_FALLBACK
+	pdf = None
+	for first, per in layouts:
+		got = best_font(_info_for_sign_pdf_pages(people, first, per))
+		if got and (got[0] >= _SIGN_PDF_MIN_FONT or (first, per) == layouts[-1]):
+			pdf = got[1]
+			break
+	if pdf is None:   # cả bố cục 1 NV/trang ở 5px vẫn tràn — vẫn xuất (có thể tràn trang)
+		pdf = count(_info_for_sign_pdf_html(_info_for_sign_pdf_pages(people, 1, 1), company, 5.0))[0]
+	# Tên file theo ngày xuất, không khoảng trắng: employee_info_for_sign_ddmmyyyy.pdf
+	frappe.response["filename"] = f"employee_info_for_sign_{frappe.utils.now_datetime().strftime('%d%m%Y')}.pdf"
+	frappe.response["filecontent"] = pdf
+	# "download" = Content-Disposition: attachment → trình duyệt TẢI VỀ ngay (type "pdf" là inline = mở xem).
+	# File chỉ nằm trong bộ nhớ của request, không lưu gì trên server.
+	frappe.response["type"] = "download"
+	frappe.response["content_type"] = "application/pdf"
+
+
+def _download_info_for_sign(names):
+	"""1 sheet "Info for Sign", A4 ngang: STT | Nhân viên (Mã NV xuống dòng Họ tên) | Thông tin | Nội dung | Ghi chú | Chữ ký.
+
+	- STT đánh theo NHÂN VIÊN; STT / Nhân viên / Chữ ký gộp ô theo nhân viên.
+	- Địa chỉ mỗi Section 1 dòng dạng đầy đủ; liên hệ khẩn cấp 1 dòng (xem _sign_items).
+
+	- Nội dung LUÔN là thông tin mới (NV khai); mới trống → lấy giá trị Employee hiện tại;
+	  cả hai trống → VẪN in dòng, ô Nội dung trống để NV mới tự ghi tay bổ sung.
+	- Chỉ các field được tick "Info for Sign" trong Setting (NV chỉ ký xác nhận một số thông tin),
+	  LUÔN đủ các field đó (không lọc "chỉ thay đổi"). Ghi chú NV không xuất.
+	- Mã NV / Họ tên / Chữ ký gộp ô theo nhân viên; cột Chữ ký để trống để ký tay khi in.
+	"""
+	import io
+
+	from openpyxl import Workbook
+	from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+
+	people, company = _info_for_sign_people(names)
+
+	wb = Workbook()
+	ws = wb.active
+	ws.title = "Info for Sign"
+
+	header = list(INFO_FOR_SIGN_HEADER)
 	ncol = len(header)
 	thin = Side(style="thin", color="808080")
 	border = Border(left=thin, right=thin, top=thin, bottom=thin)
@@ -1193,7 +1489,7 @@ def _download_info_for_sign(names):
 	left = Alignment(horizontal="left", vertical="center", wrap_text=True)
 
 	ws.append([company.upper()])
-	ws.append(["DANH SÁCH XÁC NHẬN THÔNG TIN NHÂN VIÊN"])
+	ws.append([INFO_FOR_SIGN_TITLE])
 	ws.append([f"Ngày: {frappe.utils.now_datetime().strftime('%d/%m/%Y')}"])
 	for r in (1, 2, 3):
 		ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=ncol)
@@ -1260,8 +1556,8 @@ def _hr_editor(f):
 	Field read_only trên trang (NV không được sửa) thì HR cũng không sửa ở đây.
 	Check/Datetime/Time/Link chưa hỗ trợ.
 	"""
-	if f.get("read_only"):
-		return None
+	if f.get("read_only") or f.get("fieldname") == CCCD_EXPIRY_FIELD:
+		return None  # ngày hết hạn CCCD tự tính (validate_desk_edit) — không cho sửa tay
 	widget = f.get("widget") or "Auto"
 	if widget == "Address Province":
 		return "province"
@@ -1334,7 +1630,7 @@ def validate_desk_edit(doc):
 		f = fields.get(k)
 		if not f or not _hr_editor(f):
 			frappe.throw(_("Field {0} cannot be edited here.").format(f["label"] if f else k))
-		nv = "" if nv is None else str(nv).strip()
+		nv = _normalize_text(f, "" if nv is None else str(nv).strip())
 		new[k] = nv
 		if str(ov or "") == nv:
 			continue
@@ -1351,6 +1647,10 @@ def validate_desk_edit(doc):
 		err = _validate_value(f, nv)
 		if err:
 			errors.append(err)
+
+	# Ngày sinh / ngày cấp vừa sửa → ngày hết hạn CCCD tính lại (sau vòng kiểm field ở trên).
+	if {CCCD_DOB_FIELD, CCCD_ISSUE_FIELD} & changed:
+		_apply_cccd_expiry(config, new, doc.employee)
 
 	from customize_erpnext.api.vn_address_search.vn_address_search_api import get_address_error
 
@@ -1393,11 +1693,15 @@ def get_submission_view(name):
 			new_v = saved.get(fn)
 			new_s = "" if new_v is None else str(new_v)
 			old_s = "" if f.get("custom") else _fmt(emp_vals.get(fn))
+			is_date = f.get("fieldtype") == "Date"
 			rows.append({
 				"fieldname": fn,
 				"label": f["label"],
 				"value": new_s,
 				"old": old_s,
+				# Hiển thị: field Date → dd/mm/yyyy ("value"/"old" giữ ISO cho ô sửa + so sánh).
+				"display": _fmt_date_vn(new_s) if is_date and new_s else new_s,
+				"old_display": _fmt_date_vn(old_s) if is_date and old_s else old_s,
 				"changed": (not f.get("custom")) and fn in saved and new_s != old_s,
 				"custom": bool(f.get("custom")),
 				"editor": _hr_editor(f),

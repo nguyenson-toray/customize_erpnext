@@ -26,10 +26,10 @@ frappe.ui.form.on("Employee Self Update Info", {
 			if (frm.is_dirty()) {
 				frappe.show_alert({ message: __("Unsaved edits are not in the PDF. Save first."), indicator: "orange" });
 			}
-			window.open(
-				"/api/method/customize_erpnext.api.self_update_info.self_update_info_api.download_pdf_for_hr?name="
-					+ encodeURIComponent(frm.doc.name),
-				"_blank"
+			// POST cùng trang: server trả attachment → trình duyệt tải file về, không mở tab trống.
+			open_url_post(
+				"/api/method/customize_erpnext.api.self_update_info.self_update_info_api.download_pdf_for_hr",
+				{ name: frm.doc.name }
 			);
 		});
 
@@ -76,7 +76,7 @@ function _esui_form_sync_dialog(frm) {
 			(r.message.sections || []).forEach((sec) => {
 				(sec.rows || []).forEach((row) => {
 					if (row.custom) return; // custom fields không ghi vào Employee
-					const val = row.value || "—";
+					const val = row.display || row.value || "—";   // ngày: dd/mm/yyyy
 					opts.push({
 						label: `${frappe.utils.escape_html(row.label)} : ${frappe.utils.escape_html(val)}`,
 						value: row.fieldname,
@@ -168,7 +168,7 @@ function _esui_render_view(frm) {
 				html += `<div class="esui-sec"><h5>${esc(sec.label)}</h5><table class="esui-tbl">`;
 				sec.rows.forEach((row) => {
 					const chg = row.changed && !synced;
-					const oldHint = chg ? `<div class="esui-old">${__("Old")}: ${esc(row.old) || "—"}</div>` : "";
+					const oldHint = chg ? `<div class="esui-old">${__("Old")}: ${esc(row.old_display || row.old) || "—"}</div>` : "";
 					const editor = synced ? null : row.editor;
 					const fn = esc(row.fieldname);
 					const v = esc(row.value);
@@ -190,7 +190,7 @@ function _esui_render_view(frm) {
 						dates.push(row);
 					} else {
 						const badge = chg ? `<span class="esui-badge">${__("changed")}</span>` : "";
-						cell = `${v || "—"}${badge}`;
+						cell = `${esc(row.display || row.value) || "—"}${badge}`;   // ngày: dd/mm/yyyy
 					}
 					cell += oldHint;
 					html += `<tr><td class="l">${esc(row.label)}</td><td class="${chg ? "esui-chg" : ""}">${cell}</td></tr>`;

@@ -31,6 +31,12 @@ EMPLOYEE_ADDRESS_FIELDS = {
 }
 
 
+# Thứ tự danh sách = ABC theo TÊN HIỂN THỊ (full_name), bảng chữ cái tiếng Việt (Đ sau D, Ă/Â sau A).
+# Bảng thô dùng utf8mb4_unicode_ci (coi Đ = D) nên phải ép collation. User chọn 15/10/2026 — trước đó
+# sắp theo tên ngắn làm "Tỉnh …"/"Thành phố …" xen kẽ, nhìn như chưa sắp xếp.
+_ORDER = "full_name COLLATE utf8mb4_vietnamese_ci, code"
+
+
 def _tables_ready():
 	return bool(
 		frappe.db.sql(
@@ -60,10 +66,10 @@ def _province_code(province):
 
 @frappe.whitelist(allow_guest=True)
 def get_province_options():
-	"""[{value, label, code}] — value = label = full_name. Sắp theo tên ngắn (bỏ "Tỉnh"/"Thành phố")."""
+	"""[{value, label, code}] — value = label = full_name, ABC theo tên hiển thị (xem _ORDER)."""
 	_require_tables()
 	rows = frappe.db.sql(
-		"SELECT code, full_name FROM provinces ORDER BY name, code",
+		f"SELECT code, full_name FROM provinces ORDER BY {_ORDER}",
 		as_dict=True,
 	)
 	return [{"value": r.full_name, "label": r.full_name, "code": r.code} for r in rows]
@@ -73,15 +79,14 @@ def get_province_options():
 def get_ward_options(province):
 	"""[{value, label, code}] các xã của một tỉnh. `province` = mã hoặc full_name.
 
-	Sắp theo tên ngắn để "Phường X" và "Xã X" nằm cạnh nhau theo chữ cái, thay vì dồn hết
-	Phường lên trước Xã.
+	ABC theo tên hiển thị (xem _ORDER): khối "Phường …" rồi khối "Xã …".
 	"""
 	_require_tables()
 	code = _province_code(province)
 	if not code:
 		return []
 	rows = frappe.db.sql(
-		"SELECT code, full_name FROM wards WHERE province_code = %s ORDER BY name, code",
+		f"SELECT code, full_name FROM wards WHERE province_code = %s ORDER BY {_ORDER}",
 		(code,),
 		as_dict=True,
 	)

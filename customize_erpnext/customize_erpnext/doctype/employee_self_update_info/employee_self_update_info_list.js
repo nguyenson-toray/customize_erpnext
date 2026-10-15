@@ -15,7 +15,7 @@ frappe.listview_settings["Employee Self Update Info"] = {
 	},
 
 	onload(listview) {
-		listview.page.add_inner_button(__("Download Excel"), () => _esui_excel_dialog(listview));
+		listview.page.add_inner_button(__("Download File"), () => _esui_excel_dialog(listview));
 
 		// "Mark Reviewed" chỉ hiện khi Setting KHÔNG bật Disable Review.
 		frappe.db.get_single_value("Employee Self Update Info Setting", "disable_review").then((dr) => {
@@ -151,13 +151,14 @@ function esui_show_result(title, summary, results) {
 	d.show();
 }
 
-// Dialog xuất Excel:
+// Dialog Download File (xuất Excel / PDF):
 //   All Info      → file cũ (New Data import lại được + Old Data)
 //   Info for Sign → danh sách in cho NV ký: field lấy theo ô "Info for Sign" của từng field trong
 //                   Employee Self Update Info Setting (không chọn ở đây); luôn là thông tin mới nhất.
 function _esui_excel_dialog(listview) {
 	const API = "customize_erpnext.api.self_update_info.self_update_info_api";
 	const selected = listview.get_checked_items().map((d) => d.name);
+	const PDF_MAX = 100;   // = INFO_FOR_SIGN_PDF_MAX_RECORDS ở server
 	frappe.xcall(`${API}.get_info_for_sign_fields`).then((labels) => {
 		const esc = frappe.utils.escape_html;
 		const scope = selected.length
@@ -169,7 +170,7 @@ function _esui_excel_dialog(listview) {
 				<ul style="margin:6px 0 0 18px">${labels.map((l) => `<li>${esc(l)}</li>`).join("")}</ul>`
 			: `<div class="text-danger">${__("No field is ticked \"Info for Sign\" in {0}.", [setting_link])}</div>`;
 		const d = new frappe.ui.Dialog({
-			title: __("Download Excel"),
+			title: __("Download File"),
 			fields: [
 				{ fieldtype: "HTML", options: `<div class="text-muted" style="margin-bottom:6px">${scope}</div>` },
 				{
@@ -177,10 +178,19 @@ function _esui_excel_dialog(listview) {
 					fieldname: "export_type",
 					label: __("Export Type"),
 					options: [
-						{ value: "All Info", label: __("All Info") },
 						{ value: "Info for Sign", label: __("Info for Sign") },
+						{ value: "All Info", label: __("All Info") }
 					],
-					default: "All Info",
+					default: "Info for Sign",
+				},
+				{
+					// Info for Sign: Excel hoặc PDF (A4 ngang: trang 1 = 3 NV, các trang sau = 4 NV).
+					fieldtype: "Select",
+					fieldname: "file_format",
+					label: __("File Format"),
+					options: ["PDF", "Excel"],
+					default: "PDF",
+					depends_on: "eval:doc.export_type=='Info for Sign'",
 				},
 				{
 					fieldtype: "HTML",
@@ -195,9 +205,17 @@ function _esui_excel_dialog(listview) {
 					names: selected.length ? JSON.stringify(selected) : "",
 					export_type: v.export_type,
 				};
-				if (v.export_type === "Info for Sign" && !labels.length) {
-					frappe.msgprint(__("No field is ticked \"Info for Sign\" in {0}.", [setting_link]));
-					return;
+				if (v.export_type === "Info for Sign") {
+					if (!labels.length) {
+						frappe.msgprint(__("No field is ticked \"Info for Sign\" in {0}.", [setting_link]));
+						return;
+					}
+					args.file_format = v.file_format || "Excel";
+					// PDF tối đa 100 phiếu (server kiểm lại cả khi không chọn dòng nào = xuất tất cả).
+					if (args.file_format === "PDF" && selected.length > PDF_MAX) {
+						frappe.msgprint(__("PDF can export at most {0} records at a time ({1} selected). Select fewer records or use Excel.", [PDF_MAX, selected.length]));
+						return;
+					}
 				}
 				d.hide();
 				// download_excel trả file nhị phân → POST form để trình duyệt lưu (open_url_post kèm CSRF).

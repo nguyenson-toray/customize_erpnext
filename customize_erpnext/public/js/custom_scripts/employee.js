@@ -646,3 +646,51 @@ function clear_if_orphaned(frm, child_field, child_doctype, new_parent) {
         });
     });
 }
+
+
+// ---------------------------------------------------------------------------
+// Ngày hết hạn CCCD — read_only, tự tính từ ngày sinh + ngày cấp (Luật Căn cước 2023).
+// Cùng thuật toán với api/employee/cccd_expiry.py (server tính lại mỗi lần lưu — nguồn chuẩn)
+// và _cccdExpiryISO trên trang /employee-self-update-info. Sửa một nơi thì sửa cả ba.
+// ---------------------------------------------------------------------------
+
+/**
+ * Mốc 14 / 25 / 40 / 60 tuổi; cấp trong 2 năm trước 1 mốc → mốc kế tiếp; cấp từ 58 tuổi → không
+ * thời hạn (""). Sinh 29/02 mà năm hết hạn không nhuận → 28/02.
+ * @returns {string} "YYYY-MM-DD" hoặc ""
+ */
+function cccd_expiry(dob, issue) {
+    const dp = /^(\d{4})-(\d{2})-(\d{2})/.exec(dob || "");
+    const ip = /^(\d{4})-(\d{2})-(\d{2})/.exec(issue || "");
+    if (!dp || !ip) return "";
+    const [dy, dm, dd] = [+dp[1], +dp[2], +dp[3]];
+    const [iy, im, id] = [+ip[1], +ip[2], +ip[3]];
+    let age = iy - dy;
+    if (im < dm || (im === dm && id < dd)) age--;
+    const ms = [14, 25, 40, 60];
+    let exp_age = null;
+    for (let i = 0; i < ms.length; i++) {
+        if (age < ms[i]) {
+            exp_age = age >= ms[i] - 2 ? (i + 1 < ms.length ? ms[i + 1] : null) : ms[i];
+            break;
+        }
+    }
+    if (exp_age === null) return "";
+    const y = dy + exp_age;
+    const leap = (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+    const day = dm === 2 && dd === 29 && !leap ? 28 : dd;
+    const p = (n) => String(n).padStart(2, "0");
+    return `${y}-${p(dm)}-${p(day)}`;
+}
+
+function set_cccd_expiry(frm) {
+    const v = cccd_expiry(frm.doc.date_of_birth, frm.doc.custom_id_card_date_of_issue) || null;
+    if ((frm.doc.custom_id_card__date_of_expired || null) !== v) {
+        frm.set_value("custom_id_card__date_of_expired", v);
+    }
+}
+
+frappe.ui.form.on('Employee', {
+    date_of_birth: set_cccd_expiry,
+    custom_id_card_date_of_issue: set_cccd_expiry,
+});

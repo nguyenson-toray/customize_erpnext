@@ -6,7 +6,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
   <title>Cập nhật thông tin nhân viên</title>
-  <link rel="stylesheet" href="/employee-self-update-info/style.css?v=18">
+  <link rel="stylesheet" href="/employee-self-update-info/style.css?v=20">
 </head>
 
 <body>
@@ -66,8 +66,7 @@
     <div id="form_area" class="hidden">
       <div class="purpose-note" id="purpose_note">Các thông tin này sẽ được sử dụng và xử lý vào việc làm hồ sơ nhân sự,
         thủ tục hành chính, hợp đồng lao động.<br> Hãy nhập thông tin rõ ràng, sử dụng tiếng Việt có dấu theo mẫu gợi ý
-        ở
-        mỗi ô</div>
+        ở mỗi ô.</div>
       <div class="legend">
         <span class="lg-text">
           <p>Cập nhật những mục <strong><span style="color: #ff6600;">còn thiếu</span></strong> hoặc
@@ -80,15 +79,7 @@
       </div>
       <div id="sections"></div>
 
-      <!-- Free-text remarks (always shown) -->
-      <div class="card">
-        <h2><span class="dot"></span>Ghi chú thêm</h2>
-        <div class="field" style="margin-bottom:0">
-          <label class="fl" for="f__remarks">Nếu có thông tin cần cập nhật thêm,các nội dung chưa rõ, thắc mắc vui lòng
-            ghi vào đây hoặc liên hệ trực tiếp bộ phận Hành chính nhân sự để được hướng dẫn.</label>
-          <textarea id="f__remarks" placeholder="(Không bắt buộc)…"></textarea>
-        </div>
-      </div>
+      <!-- Ô "Ghi chú thêm" gắn cứng đã bỏ 16/10/2026: cần thì thêm custom field (Small Text) trong Setting. -->
 
       <!-- Cam kết + chữ ký (bắt buộc với NV; HR sửa qua ?emp= thì không bắt buộc) -->
       <div class="card" id="sign_card">
@@ -161,7 +152,6 @@
   <script>
     window.csrf_token = "{% endraw %}{{ csrf_token }}{% raw %}";
     window.COMPANY = "{% endraw %}{{ company }}{% raw %}";
-    const REMARKS_KEY = "__remarks";
 
     const M = {
       config: "customize_erpnext.api.self_update_info.self_update_info_api.get_field_config",
@@ -243,6 +233,9 @@
     const CCCD_EXPIRE_FIELD = "custom_id_card__date_of_expired";  // ngày hết hạn (tự tính theo luật)
     const DOB_FIELD = "date_of_birth";                   // ngày sinh (điền nếu field có trên form)
     const DEFAULT_PROVINCE = "Tỉnh Quảng Ngãi";          // mặc định điền khi tỉnh còn trống
+    // Giá trị điền sẵn khi ô còn trống lúc mở form (NV vẫn sửa được). Không áp cho field
+    // auto_fill = 0 / read_only. Tỉnh mặc định xử lý riêng trong initAddressWidgets.
+    const FIELD_DEFAULTS = { custom_ethnicity: "Kinh" };
     let provincesCache = null;
     const wardsCache = {};
 
@@ -296,10 +289,7 @@
           for (const sec of S.config.sections)
             for (const f of sec.fields)
               if (!f.read_only) values[f.fieldname] = currentValue(f);
-          const rm = document.getElementById("f__remarks");
-          localStorage.setItem(draftKey(), JSON.stringify({
-            t: Date.now(), values, remarks: rm ? rm.value : ""
-          }));
+          localStorage.setItem(draftKey(), JSON.stringify({ t: Date.now(), values }));
         } catch (e) { /* localStorage bị chặn/đầy → bỏ qua, không chặn người dùng */ }
       }, 400);
     }
@@ -528,11 +518,14 @@
         (S.config.sections || []).forEach(sec => (sec.fields || []).forEach(f => {
           if (f.auto_fill === false) delete S.values[f.fieldname];
         }));
+        (S.config.sections || []).forEach(sec => (sec.fields || []).forEach(f => {
+          const def = FIELD_DEFAULTS[f.fieldname];
+          if (def === undefined || f.auto_fill === false || f.read_only) return;
+          if (norm(S.values[f.fieldname]).trim() === "") S.values[f.fieldname] = def;
+        }));
 
         renderForm();
         resetSignCard(!!fd.is_hr);
-        document.getElementById("f__remarks").value =
-          (draft && draft.remarks != null) ? draft.remarks : (fd.remarks || "");
         if (draft) toast("Đã khôi phục thông tin bạn nhập dở trước đó", true);
         document.getElementById("emp_label").textContent = `${fd.employee_name || empId}`;
         const sw = document.getElementById("status_wrap");
@@ -576,9 +569,21 @@
         if (!el) return;
         const ev = (f.fieldtype === "Check") ? "change" : "input";
         el.addEventListener(ev, () => markChanged(f));
+        if (NORMALIZE_TYPES.has(f.fieldtype) && (f.widget || "Auto") === "Auto" && !f.read_only) {
+          // Rời ô → ghi lại bản đã chuẩn hoá để NV thấy (không cảnh báo, không hỏi).
+          el.addEventListener("change", () => {
+            const nv = normalizeText(f, el.value);
+            if (nv !== el.value) { el.value = nv; markChanged(f); }
+          });
+        }
+        if (f.fieldname === CCCD_ISSUE_FIELD || f.fieldname === DOB_FIELD) {
+          el.addEventListener("input", () => recalcCccdExpiry(true));
+          el.addEventListener("change", () => recalcCccdExpiry(true));
+        }
         // KHÔNG đánh dấu lúc load: chỉ tô "đã đổi" khi NV thực sự thao tác
         // (tránh báo nhầm với field auto_fill / prefill từ lần gửi trước).
       }));
+      recalcCccdExpiry(false);
       initAddressWidgets();
     }
 
@@ -593,10 +598,15 @@
       const ph = f.placeholder ? ` placeholder="${esc(f.placeholder)}"` : "";
       let input = "";
 
-      if (f.widget === "Address Province") {
-        input = `<select id="${id}" class="addr-province" data-fieldname="${f.fieldname}"${roAttr}><option value="">— Chọn tỉnh/thành —</option></select>`;
-      } else if (f.widget === "Address Ward") {
-        input = `<select id="${id}" class="addr-ward" data-fieldname="${f.fieldname}" data-prov-field="${provField || ''}"${roAttr}><option value="">— Chọn phường/xã —</option></select>`;
+      if (f.widget === "Address Province" || f.widget === "Address Ward") {
+        // Ô gõ để tìm (xem "address combobox" bên dưới); giá trị đã chọn nằm ở dataset.value.
+        const kind = f.widget === "Address Province" ? "province" : "ward";
+        input = `<div class="combo addr-combo" data-kind="${kind}" data-fieldname="${f.fieldname}"` +
+          ` data-prov-field="${kind === "ward" ? (provField || "") : ""}" data-ro="${f.read_only ? 1 : 0}">` +
+          `<input type="text" id="${id}" autocomplete="off" disabled data-value="" data-code=""` +
+          ` placeholder="${kind === "province" ? "Gõ để tìm tỉnh/thành…" : "Chọn tỉnh/thành trước"}">` +
+          `<button type="button" class="addr-clear hidden" tabindex="-1" aria-label="Xoá">✕</button>` +
+          `<div class="combo-list hidden"></div></div>`;
       } else if (f.fieldtype === "Check") {
         const ck = (val === 1 || val === "1" || val === true) ? " checked" : "";
         input = `<div class="chk"><input type="checkbox" id="${id}"${ck}${roAttr}><span class="muted">Có</span></div>`;
@@ -607,6 +617,11 @@
         input = `<textarea id="${id}"${ph}${roAttr}>${esc(val || "")}</textarea>`;
       } else if (["Int", "Float", "Currency"].includes(f.fieldtype)) {
         input = `<input type="number" id="${id}" value="${esc(val == null ? "" : val)}"${ph}${roAttr}>`;
+      } else if (f.fieldname === CCCD_EXPIRE_FIELD) {
+        // Ngày hết hạn CCCD: KHÔNG cho nhập — tự tính từ ngày sinh + ngày cấp (recalcCccdExpiry);
+        // server tính lại khi gửi (self_update_info_api._apply_cccd_expiry).
+        input = `<input type="date" id="${id}" value="${esc(val || "")}" readonly tabindex="-1" class="auto-calc">` +
+          `<div class="hint">Tự tính theo ngày sinh và ngày cấp. Để trống = không thời hạn hoặc chưa đủ thông tin.</div>`;
       } else if (f.fieldtype === "Date") {
         let dattr = "";
         if (f.validation === "Past") dattr = ` max="${todayISO()}"`;
@@ -649,10 +664,30 @@
       if (!el) return "";
       if (f.fieldtype === "Check") return el.checked ? 1 : 0;
       if (f.widget === "Address Province" || f.widget === "Address Ward") {
-        const opt = el.options[el.selectedIndex];
-        return opt ? (opt.getAttribute("data-name") || "") : "";
+        return el.dataset.value || "";   // chữ đang gõ để lọc KHÔNG phải giá trị
       }
-      return el.value;
+      return normalizeText(f, el.value);
+    }
+
+    // Tự chuẩn hoá chữ NV nhập — cùng quy tắc _normalize_text() ở server (server làm lại khi lưu;
+    // sửa một nơi thì sửa cả hai). Field chữ widget Auto, trừ Email:
+    //  NFC · gộp khoảng trắng · "Xóm1" → "Xóm 1" (phần chữ ≥ 2 ký tự có chữ thường; giữ "B2", "TDP1")
+    //  · viết hoa ký tự đầu · Person Name: Hoa Đầu Mỗi Từ. Không cảnh báo, không hỏi.
+    const NORMALIZE_TYPES = new Set(["Data", "Small Text", "Text", "Long Text"]);
+    function normalizeText(f, v) {
+      if (typeof v !== "string") return v;
+      if (!NORMALIZE_TYPES.has(f.fieldtype) || (f.widget || "Auto") !== "Auto") return v;
+      // Email (Validation, hoặc giá trị trông như email dù chưa gán Validation): chỉ bỏ khoảng trắng.
+      if ((f.validation || "") === "Email" || /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v.trim())) return v.trim();
+      v = v.normalize("NFC");
+      const multiline = f.fieldtype !== "Data";
+      const lines = (multiline ? v.split("\n") : [v]).map(l => l.replace(/[ \t\u00a0]+/g, " ").trim());
+      v = (multiline ? lines.join("\n") : lines[0]).trim();
+      if (f.validation === "Person Name") {
+        return v.split(" ").filter(Boolean).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(" ");
+      }
+      v = v.replace(/(?<![\p{L}])(\p{L}{2,})(?=\d)/gu, (m) => (/\p{Ll}/u.test(m) ? m + " " : m));
+      return v.charAt(0).toUpperCase() + v.slice(1);
     }
 
     function norm(v) { return (v === null || v === undefined) ? "" : String(v); }
@@ -664,9 +699,11 @@
       fg.classList.toggle("changed", changed);
     }
 
-    // ---------- address cascade ----------
-    // api/vn_address_search trả [{value, label, code}] (value = label = full_name) → đổi về
-    // {code, name} mà phần dựng <select> bên dưới đang dùng.
+    // ---------- address combobox (Tỉnh → Phường/Xã) ----------
+    // Gõ để tìm (bỏ dấu: "ba to" ra Ba Tơ + Ba Tô), CHỈ nhận giá trị trong danh sách.
+    // Dữ liệu: api/vn_address_search — dùng chung API với form Employee; JS độc lập vì trang www
+    // không có object frappe. Server chặn lại cặp sai ở save_form_data (_portal_address_errors).
+    // Giá trị lưu = tên đầy đủ ("Tỉnh Quảng Ngãi", "Xã Ba Tơ") như Employee.
     const toCodeName = (rows) => (rows || []).map(r => ({ code: r.code, name: r.label }));
     async function loadProvinces() {
       if (!provincesCache) provincesCache = toCodeName(await api(M.provinces));
@@ -678,64 +715,158 @@
       return wardsCache[code];
     }
 
+    const addrState = {};   // fieldname → { items:[{code,name,_hay}], matches:[], active }
+    const addrBox = (fn) => document.querySelector(`.addr-combo[data-fieldname="${fn}"]`);
+    const addrInput = (fn) => document.getElementById("f_" + fn);
+    const addrWards = (provFn) => [...document.querySelectorAll(`.addr-combo[data-kind="ward"][data-prov-field="${provFn}"]`)];
+
+    function addrSetItems(fn, items) {
+      addrState[fn] = { items: (items || []).map(it => ({ ...it, _hay: deburr(it.name) })), matches: [], active: -1 };
+    }
+
+    // Bật/tắt ô: read_only luôn tắt; ô xã tắt khi chưa có tỉnh (chưa có list).
+    function addrEnable(fn, on) {
+      const box = addrBox(fn), inp = addrInput(fn);
+      inp.disabled = !on || box.dataset.ro === "1";
+      if (box.dataset.kind === "ward") inp.placeholder = on ? "Gõ để tìm phường/xã…" : "Chọn tỉnh/thành trước";
+      addrToggleClear(fn);
+    }
+    function addrToggleClear(fn) {
+      const inp = addrInput(fn);
+      addrBox(fn).querySelector(".addr-clear").classList.toggle("hidden", inp.disabled || !inp.dataset.value);
+    }
+
+    // Chốt giá trị. notify=true khi là thao tác của NV → bắn "input" để markChanged + lưu nháp.
+    function addrCommit(fn, item, notify) {
+      const inp = addrInput(fn);
+      const prev = inp.dataset.value || "";
+      inp.dataset.value = item ? item.name : "";
+      inp.dataset.code = item ? item.code : "";
+      inp.value = inp.dataset.value;
+      addrHide(fn);
+      addrToggleClear(fn);
+      const changed = inp.dataset.value !== prev;
+      if (notify && changed) inp.dispatchEvent(new Event("input", { bubbles: true }));
+      if (changed && addrBox(fn).dataset.kind === "province") fillWards(fn, !notify);
+    }
+
+    function addrOpen(fn, q) {
+      const st = addrState[fn];
+      if (!st) return;
+      const needle = deburr((q || "").trim());
+      st.matches = needle ? st.items.filter(it => it._hay.includes(needle)) : st.items.slice();
+      const cur = addrInput(fn).dataset.value;
+      st.active = needle ? (st.matches.length ? 0 : -1) : st.matches.findIndex(it => it.name === cur);
+      addrRender(fn);
+    }
+
+    function addrRender(fn) {
+      const st = addrState[fn], list = addrBox(fn).querySelector(".combo-list");
+      list.innerHTML = st.matches.length
+        ? st.matches.map((it, i) => `<div class="combo-item${i === st.active ? " active" : ""}" data-i="${i}">${esc(it.name)}</div>`).join("")
+        : `<div class="combo-empty">Không tìm thấy — gõ ít chữ hơn hoặc bỏ dấu</div>`;
+      list.classList.remove("hidden");
+      const el = list.querySelector(".combo-item.active");
+      if (el) el.scrollIntoView({ block: "nearest" });
+    }
+
+    function addrHide(fn) { const b = addrBox(fn); if (b) b.querySelector(".combo-list").classList.add("hidden"); }
+
+    // Rời ô: chữ đang gõ không phải giá trị đã chọn → khớp ĐÚNG 1 tên (có dấu) thì nhận, ô trống thì
+    // xoá, còn lại trả về giá trị cũ. Không tự đoán theo bản bỏ dấu (Ba Tơ ≠ Ba Tô).
+    function addrSettle(fn) {
+      const inp = addrInput(fn), st = addrState[fn];
+      addrHide(fn);
+      const typed = inp.value.trim();
+      if (typed === (inp.dataset.value || "")) return;
+      if (!typed) { addrCommit(fn, null, true); return; }
+      const hit = st && st.items.find(it => it.name === typed);
+      if (hit) { addrCommit(fn, hit, true); return; }
+      inp.value = inp.dataset.value || "";
+      toast("Vui lòng chọn trong danh sách gợi ý");
+    }
+
+    function addrWire(box) {
+      const fn = box.dataset.fieldname, inp = addrInput(fn), list = box.querySelector(".combo-list");
+      inp.addEventListener("focus", () => {
+        inp.select();
+        addrOpen(fn, "");
+        // Điện thoại: đẩy ô lên để bàn phím không che danh sách.
+        setTimeout(() => inp.scrollIntoView({ block: "start", behavior: "smooth" }), 250);
+      });
+      inp.addEventListener("input", (ev) => { if (ev.isTrusted) addrOpen(fn, inp.value); });
+      inp.addEventListener("keydown", (ev) => {
+        const st = addrState[fn];
+        if (!st) return;
+        if (list.classList.contains("hidden") && ev.key === "ArrowDown") { addrOpen(fn, ""); ev.preventDefault(); return; }
+        if (ev.key === "ArrowDown") { ev.preventDefault(); st.active = Math.min(st.active + 1, st.matches.length - 1); addrRender(fn); }
+        else if (ev.key === "ArrowUp") { ev.preventDefault(); st.active = Math.max(st.active - 1, 0); addrRender(fn); }
+        else if (ev.key === "Enter") {
+          ev.preventDefault();
+          const it = st.matches[st.active >= 0 ? st.active : 0];
+          if (it) addrCommit(fn, it, true);
+        } else if (ev.key === "Escape") { inp.value = inp.dataset.value || ""; addrHide(fn); }
+      });
+      inp.addEventListener("blur", () => setTimeout(() => addrSettle(fn), 120));
+      // mousedown/pointerdown + preventDefault: chọn trước khi ô mất focus (blur).
+      list.addEventListener("pointerdown", (ev) => {
+        const el = ev.target.closest(".combo-item");
+        if (!el) return;
+        ev.preventDefault();
+        addrCommit(fn, addrState[fn].matches[+el.dataset.i], true);
+      });
+      box.querySelector(".addr-clear").addEventListener("pointerdown", (ev) => {
+        ev.preventDefault();
+        addrCommit(fn, null, true);
+      });
+    }
+
     async function initAddressWidgets() {
-      const provSelects = [...document.querySelectorAll("select.addr-province")];
-      if (provSelects.length === 0 && document.querySelectorAll("select.addr-ward").length === 0) return;
-      const provinces = await loadProvinces();
+      const boxes = [...document.querySelectorAll(".addr-combo")];
+      if (!boxes.length) return;
+      boxes.forEach(addrWire);
+      let provinces;
+      try { provinces = await loadProvinces(); }
+      catch (e) { toast("Không tải được danh sách tỉnh/thành: " + e.message); return; }
 
-      for (const psel of provSelects) {
-        const fname = psel.dataset.fieldname;
-        psel.innerHTML = `<option value="">— Chọn tỉnh/thành —</option>` +
-          provinces.map(p => `<option value="${esc(p.code)}" data-name="${esc(p.name)}">${esc(p.name)}</option>`).join("");
-        // prefill by saved name; if empty → default to Quảng Ngãi
-        const savedName = norm(S.values[fname]);
-        if (savedName) {
-          const opt = [...psel.options].find(o => o.getAttribute("data-name") === savedName);
-          if (opt) psel.value = opt.value;
-        } else {
-          // Chỉ set mặc định Quảng Ngãi khi field cho phép auto-fill; auto_fill=0 → để trống.
-          const fmeta = S.fieldByName[fname];
-          if (!fmeta || fmeta.auto_fill !== false) {
-            const def = [...psel.options].find(o => o.getAttribute("data-name") === DEFAULT_PROVINCE);
-            if (def) psel.value = def.value;
-          }
+      for (const box of boxes.filter(b => b.dataset.kind === "province")) {
+        const fn = box.dataset.fieldname;
+        addrSetItems(fn, provinces);
+        addrEnable(fn, true);
+        // Prefill theo tên đã lưu; tỉnh trống → mặc định Quảng Ngãi khi field cho phép auto-fill.
+        // Tên không có trong danh mục (dữ liệu cũ) → để trống, không báo (user quyết 15/10/2026).
+        const saved = norm(S.values[fn]);
+        let item = saved ? provinces.find(p => p.name === saved) : null;
+        if (!saved) {
+          const fmeta = S.fieldByName[fn];
+          if (!fmeta || fmeta.auto_fill !== false) item = provinces.find(p => p.name === DEFAULT_PROVINCE);
         }
-        // Không markChanged lúc load (prefill) — chỉ tô khi NV đổi tỉnh.
-        psel.addEventListener("change", () => onProvinceChange(psel));
+        // Không markChanged lúc load — chỉ tô khi NV thao tác.
+        if (item) addrCommit(fn, item, false);   // → fillWards(fn, prefill=true)
+        else await fillWards(fn, true);
       }
-
-      // populate dependent wards for prefilled provinces
-      for (const psel of provSelects) {
-        if (psel.value) await fillWards(psel, true);
-      }
+      // Ô xã không có tỉnh cùng section: không có list → giữ khoá.
+      boxes.filter(b => b.dataset.kind === "ward" && !b.dataset.provField).forEach(b => addrEnable(b.dataset.fieldname, false));
     }
 
-    async function onProvinceChange(psel) {
-      await fillWards(psel, false);
-      markChanged({ fieldname: psel.dataset.fieldname, widget: "Address Province" });
-    }
-
-    async function fillWards(psel, prefill) {
-      const code = psel.value;
+    // Nạp list xã theo tỉnh đang chọn. prefill=true: lúc mở form (chọn lại xã đã lưu);
+    // false: NV vừa đổi tỉnh → xoá xã + tô "đã đổi".
+    async function fillWards(provFn, prefill) {
+      const code = addrInput(provFn).dataset.code;
       const wards = await loadWards(code);
-      // ward selects paired to this province field
-      const fname = psel.dataset.fieldname;
-      const wsels = [...document.querySelectorAll(`select.addr-ward[data-prov-field="${fname}"]`)];
-      for (const wsel of wsels) {
-        const wf = wsel.dataset.fieldname;
-        wsel.innerHTML = `<option value="">— Chọn phường/xã —</option>` +
-          wards.map(w => `<option value="${esc(w.code)}" data-name="${esc(w.name)}">${esc(w.name)}</option>`).join("");
+      if (addrInput(provFn).dataset.code !== code) return;   // NV đã đổi tỉnh khác trong lúc chờ
+      for (const box of addrWards(provFn)) {
+        const wf = box.dataset.fieldname;
+        addrSetItems(wf, wards);
+        addrEnable(wf, !!code);
         if (prefill) {
-          const savedName = norm(S.values[wf]);
-          if (savedName) {
-            const opt = [...wsel.options].find(o => o.getAttribute("data-name") === savedName);
-            if (opt) wsel.value = opt.value;
-          }
+          const saved = norm(S.values[wf]);
+          const item = saved ? wards.find(w => w.name === saved) : null;
+          addrCommit(wf, item, false);
         } else {
-          wsel.value = "";
+          addrCommit(wf, null, true);
+          markChanged({ fieldname: wf, widget: "Address Ward" });
         }
-        // Chỉ đánh dấu khi đây là thao tác đổi tỉnh của NV (không phải prefill lúc load).
-        if (!prefill) markChanged({ fieldname: wf, widget: "Address Ward" });
       }
     }
 
@@ -864,9 +995,7 @@
       if (S.config && S.config.commitment_text) document.getElementById("commit_text").textContent = S.config.commitment_text;
       document.getElementById("f__commit").checked = false;
       document.getElementById("sign_req").style.display = isHR ? "none" : "";
-      document.getElementById("sign_hint").textContent = isHR
-        ? " — HR: không bắt buộc, để trống thì giữ chữ ký cũ của nhân viên"
-        : " — dùng ngón tay hoặc chuột ký vào khung dưới";
+      document.getElementById("sign_hint").textContent = ": Dùng ngón tay hoặc chuột ký vào khung dưới";
       // canvas phải đang hiển thị mới đo được kích thước → khởi tạo sau khi form hiện.
       requestAnimationFrame(() => {
         if (!_signInit) { SignPad.init(); _signInit = true; }
@@ -909,6 +1038,7 @@
           if (f.read_only) continue;
           const v = currentValue(f);
           data[f.fieldname] = v;
+          if (f.fieldname === CCCD_EXPIRE_FIELD) continue;   // tự tính, không bắt buộc / không kiểm "Future"
           if (f.required && (v === null || v === undefined || String(v).trim() === "")) {
             missing.push(f.label); missingFields.push(f.fieldname); continue;
           }
@@ -918,8 +1048,6 @@
       }
       if (missing.length) { toast("Vui lòng nhập: " + missing.join(", ")); flashFields(missingFields); return; }
       if (invalid.length) { toast(invalid.join(" · ")); flashFields(invalidFields); return; }
-      data[REMARKS_KEY] = (document.getElementById("f__remarks").value || "").trim();
-
       const committed = document.getElementById("f__commit").checked;
       const signature = SignPad.isEmpty() ? "" : SignPad.toDataURL();
       if (!S.isHR) {
@@ -1220,7 +1348,24 @@
       }
       if (expAge === null) return "";  // ≥ 60 hoặc cấp trong 2 năm trước 60 → không thời hạn
       const p = n => String(n).padStart(2, "0");
-      return `${dob.y + expAge}-${p(dob.mo)}-${p(dob.d)}`;
+      const y = dob.y + expAge;
+      const leap = (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+      const day = (dob.mo === 2 && dob.d === 29 && !leap) ? 28 : dob.d;   // 29/02 → 28/02 năm không nhuận
+      return `${y}-${p(dob.mo)}-${p(day)}`;
+    }
+
+    // Tính lại ô ngày hết hạn CCCD từ ngày sinh + ngày cấp đang có trên form.
+    // Thuật toán trùng api/employee/cccd_expiry.py và employee.js (sửa một nơi thì sửa cả ba).
+    // Ngày sinh không có trên form → giữ nguyên ô; server tự tính khi gửi.
+    function recalcCccdExpiry(byUser) {
+      const exp = document.getElementById("f_" + CCCD_EXPIRE_FIELD);
+      const iss = document.getElementById("f_" + CCCD_ISSUE_FIELD);
+      const dob = document.getElementById("f_" + DOB_FIELD);
+      if (!exp || !iss || !dob) return;
+      const v = _cccdExpiryISO(dob.value, iss.value);
+      if (exp.value === v) return;
+      exp.value = v;
+      if (byUser && S.fieldByName[CCCD_EXPIRE_FIELD]) markChanged(S.fieldByName[CCCD_EXPIRE_FIELD]);
     }
 
     // Set a configured field's value (if present) and flag it as changed.
@@ -1239,8 +1384,8 @@
       if (data.issueDate) _setCccdField(CCCD_ISSUE_FIELD, data.issueDate);
       if (data.cmnd && /^\d{9}$/.test(data.cmnd)) _setCccdField(CCCD_CMND_FIELD, data.cmnd);
       if (data.dob) _setCccdField(DOB_FIELD, data.dob);  // chỉ điền nếu field date_of_birth có trên form
-      const expiry = _cccdExpiryISO(data.dob, data.issueDate);
-      if (expiry) _setCccdField(CCCD_EXPIRE_FIELD, expiry);
+      // "" = không thời hạn (cấp từ 58 tuổi) → vẫn ghi để xoá ngày cũ.
+      _setCccdField(CCCD_EXPIRE_FIELD, _cccdExpiryISO(data.dob, data.issueDate));
       toast("Đã điền thông tin từ QR CCCD", true);
     }
 
