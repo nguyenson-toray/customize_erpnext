@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="New Joiners">
+  <title>New Joiners</title>
+  <!-- Flat green tile; person silhouette (white) with a "+" badge = employee mới nhận việc. -->
+  <rect x="16" y="16" width="480" height="480" rx="112" fill="#059669"/>
+  <circle cx="220" cy="190" r="72" fill="#FFFFFF"/>
+  <path d="M92 392c0-74 58-122 128-122s128 48 128 122v8H92z" fill="#FFFFFF"/>
+  <circle cx="372" cy="356" r="70" fill="#FBBF24"/>
+  <path d="M372 318v76M334 356h76" stroke="#064E3B" stroke-width="22" stroke-linecap="round"/>
+</svg>
