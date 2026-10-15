@@ -21,16 +21,24 @@ frappe.ui.form.on("Employee Self Update Info", {
 
 		_esui_render_view(frm);
 
-		// Cùng phiếu PDF như trang www (kèm cam kết + chữ ký). Đang có ô sửa chưa lưu → PDF là bản đã lưu.
+		// Cùng phiếu PDF như trang www (kèm cam kết + chữ ký), chỉ in field tick "Info for Sign" trong Setting.
+		// Đang có ô sửa chưa lưu → PDF là bản đã lưu.
 		frm.add_custom_button(__("Generate PDF"), () => {
-			if (frm.is_dirty()) {
-				frappe.show_alert({ message: __("Unsaved edits are not in the PDF. Save first."), indicator: "orange" });
-			}
-			// POST cùng trang: server trả attachment → trình duyệt tải file về, không mở tab trống.
-			open_url_post(
-				"/api/method/customize_erpnext.api.self_update_info.self_update_info_api.download_pdf_for_hr",
-				{ name: frm.doc.name }
-			);
+			const API = "customize_erpnext.api.self_update_info.self_update_info_api";
+			// Chưa tick field nào → báo ở đây: lỗi server qua open_url_post (form POST) đẩy trang sang JSON lỗi thô.
+			frappe.xcall(`${API}.get_info_for_sign_fields`).then((labels) => {
+				if (!labels.length) {
+					frappe.msgprint(__("No field is ticked \"Info for Sign\" in {0}.", [
+						`<a href="/app/employee-self-update-info-setting" target="_blank">${__("Employee Self Update Info Setting")}</a>`,
+					]));
+					return;
+				}
+				if (frm.is_dirty()) {
+					frappe.show_alert({ message: __("Unsaved edits are not in the PDF. Save first."), indicator: "orange" });
+				}
+				// POST cùng trang: server trả attachment → trình duyệt tải file về, không mở tab trống.
+				open_url_post(`/api/method/${API}.download_pdf_for_hr`, { name: frm.doc.name });
+			});
 		});
 
 		// "Edit in Portal" đã bỏ (06/10/2026): HR sửa trực tiếp trên bảng; CCCD nhập tay.

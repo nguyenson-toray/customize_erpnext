@@ -354,6 +354,81 @@ def run():
 	check("hr pdf: ra file PDF", frappe.response["filecontent"][:4] == b"%PDF" and frappe.response["filename"].endswith(".pdf"),
 		(frappe.response["filename"], len(frappe.response["filecontent"])))
 
+	# PDF Split For Each Employee: 1 bản ghi → PDF như Generate PDF; nhiều bản ghi → ZIP mỗi NV 1 PDF.
+	import io as _io
+	import zipfile as _zip
+	api.download_excel(json.dumps(names[:1]), "Info for Sign", "PDF Split")
+	check("pdf split: 1 bản ghi → PDF thẳng", frappe.response["filecontent"][:4] == b"%PDF"
+		and frappe.response["content_type"] == "application/pdf", frappe.response["filename"])
+	api.download_excel(json.dumps(names[:2]), "Info for Sign", "PDF Split")
+	zf = _zip.ZipFile(_io.BytesIO(frappe.response["filecontent"]))
+	members = zf.namelist()
+	check("pdf split: nhiều bản ghi → ZIP mỗi NV 1 PDF",
+		frappe.response["content_type"] == "application/zip" and len(members) == 2
+		and all(zf.read(m)[:4] == b"%PDF" for m in members), members)
+	check("pdf split: giới hạn số bản ghi như PDF gộp",
+		_expect_throw(lambda: api._download_info_for_sign_pdf_split(None))
+		or frappe.db.count(DT) <= api.INFO_FOR_SIGN_PDF_MAX_RECORDS)
+
+	# PDF Split chỉ in field tick "Info for Sign" — field custom (không có trên Employee) cũng theo cờ.
+	cfg_live = real_build()
+	all_fields = [f for sec in cfg_live["sections"] for f in sec["fields"]]
+	ticked = {f["fieldname"] for f in all_fields if f.get("info_for_sign")}
+	if ticked:
+		kept = {f["fieldname"] for sec in api._info_for_sign_config(cfg_live)["sections"] for f in sec["fields"]}
+		check("pdf split: chỉ giữ field tick Info for Sign (Setting thật)", kept == ticked, sorted(kept ^ ticked))
+		unticked_custom = [f["fieldname"] for f in all_fields if f.get("custom") and not f.get("info_for_sign")]
+		check("pdf split: field custom không tick bị loại", not (set(unticked_custom) & kept), unticked_custom)
+	fake = {"sections": [
+		{"label": "A", "fields": [
+			{"fieldname": "real_on", "label": "Real On", "custom": False, "info_for_sign": True},
+			{"fieldname": "real_off", "label": "Real Off", "custom": False, "info_for_sign": False},
+			{"fieldname": "cus_on", "label": "Custom On", "custom": True, "info_for_sign": True},
+			{"fieldname": "cus_off", "label": "Custom Off", "custom": True, "info_for_sign": False},
+		]},
+		{"label": "B", "fields": [{"fieldname": "cus_b", "label": "B Off", "custom": True, "info_for_sign": False}]},
+	]}
+	got = api._info_for_sign_config(fake)
+	check("pdf split: lọc theo cờ, bỏ Section rỗng",
+		[(s["label"], [f["fieldname"] for f in s["fields"]]) for s in got["sections"]] == [("A", ["real_on", "cus_on"])],
+		got)
+	check("pdf split: chưa tick field nào → báo lỗi",
+		_expect_throw(lambda: api._info_for_sign_config({"sections": [{"label": "A", "fields": [fake["sections"][0]["fields"][3]]}]})))
+	d0 = frappe.get_doc(DT, names[0])
+	html0 = api._build_submission_html(d0, json.loads(d0.data_json or "{}"), got)
+	# Phiếu chưa ký trên www: PDF Split vẫn in cam kết + ô ký tay; Generate PDF giữ như cũ.
+	d_un = frappe.get_doc(DT, names[0])
+	d_un.signature, d_un.commitment_confirmed, d_un.signed_on = "", 0, None
+	h_paper = api._build_submission_html(d_un, {}, got, sign_on_paper=True)
+	h_plain = api._build_submission_html(d_un, {}, got)
+	check("pdf split: chưa ký → vẫn có cam kết + ô ký tay",
+		api.COMMITMENT_TEXT in h_paper and "Người khai ký tên" in h_paper and "class='sigspace'" in h_paper)
+	check("generate pdf: chưa ký → không thêm khung ký", "Người khai ký tên" not in h_plain)
+	d_sg = frappe.get_doc(DT, names[0])
+	d_sg.signature, d_sg.commitment_confirmed = api._SIGNATURE_PREFIX + "AAAA", 1
+	h_sg = api._build_submission_html(d_sg, {}, got, sign_on_paper=True)
+	check("pdf split: đã ký → in ảnh chữ ký, không thêm ô trống",
+		"class='sig'" in h_sg and "class='sigspace'" not in h_sg)
+	# Generate PDF + PDF Split dùng chung _hr_receipt_html = phiếu trang www, chỉ lọc field Info for Sign.
+	d_hr = frappe.get_doc(DT, names[0])
+	www_html = api._build_submission_html(d_hr, json.loads(d_hr.data_json or "{}"), got)
+	hr_html = api._hr_receipt_html(d_hr, got)
+	check("hr receipt: đúng phiếu trang www (cùng config) khi đã có khung ký",
+		hr_html == www_html or ("class='sigspace'" in hr_html and "class='sigspace'" not in www_html))
+	check("hr receipt: có cam kết + khung ký", api.COMMITMENT_TEXT in hr_html and "Người khai ký tên" in hr_html)
+	if ticked:
+		live_sign = api._info_for_sign_config(cfg_live)
+		hr_live = api._hr_receipt_html(d_hr, live_sign)
+		off_labels = [f["label"] for f in all_fields if not f.get("info_for_sign")
+			and f["label"] not in {g["label"] for s2 in live_sign["sections"] for g in s2["fields"]}]
+		check("hr receipt: không có nhãn field không tick (Setting thật)",
+			not [l for l in off_labels if f">{frappe.utils.escape_html(l)}<" in hr_live], off_labels)
+	src = open(api.__file__, encoding="utf-8").read()
+	check("generate pdf + pdf split cùng gọi _hr_receipt_html", src.count("= _hr_receipt_html(doc, ") == 2)
+	check("pdf split: phiếu không có nhãn field không tick",
+		"Custom On" in html0 and "Real On" in html0 and "Custom Off" not in html0 and "Real Off" not in html0
+		and ">B<" not in html0)
+
 	cfg = api.get_field_config()
 	check("config: có commitment_text", bool(cfg.get("commitment_text")))
 	check("config: không còn purpose_text (thông báo đầu trang lấy từ index.html)", "purpose_text" not in cfg)

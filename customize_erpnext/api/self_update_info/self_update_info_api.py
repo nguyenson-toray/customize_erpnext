@@ -786,17 +786,25 @@ def download_submission_pdf(employee_id, code=None, unlock_code=None, token=None
 
 @frappe.whitelist()
 def download_pdf_for_hr(name):
-	"""Nút "Generate PDF" trên form Desk: cùng phiếu PDF như trang www, cho HR (không cần mã)."""
+	"""Nút "Generate PDF" trên form Desk: cùng phiếu PDF như trang www, cho HR (không cần mã),
+	chỉ in field tick "Info for Sign" — xem _hr_receipt_html."""
 	_require_hr()
 	doc = frappe.get_doc(INFO_DT, name)
 	doc.check_permission("read")
-	html = _build_submission_html(doc, json.loads(doc.data_json or "{}"), _build_config())
+	html = _hr_receipt_html(doc, _info_for_sign_config(_build_config()))
 	from frappe.utils.pdf import get_pdf
 
 	frappe.response["filename"] = f"{_receipt_base(doc)}.pdf"
 	frappe.response["filecontent"] = get_pdf(html)
 	frappe.response["type"] = "download"   # attachment → tải về ngay; không lưu gì trên server
 	frappe.response["content_type"] = "application/pdf"
+
+
+def _hr_receipt_html(doc, sign_config):
+	"""Phiếu PDF phía HR (Generate PDF + PDF Split): đúng mẫu phiếu tải ở trang www, khác 2 điểm:
+	- chỉ field tick "Info for Sign" (`sign_config` = _info_for_sign_config(_build_config()));
+	- phiếu chưa ký trên www vẫn in cam kết + ô trống để NV ký tay (sign_on_paper)."""
+	return _build_submission_html(doc, json.loads(doc.data_json or "{}"), sign_config, sign_on_paper=True)
 
 
 def _receipt_base(doc):
@@ -912,7 +920,9 @@ def _fmt_date_vn(value):
 		return str(value)
 
 
-def _build_submission_html(doc, saved, config):
+def _build_submission_html(doc, saved, config, sign_on_paper=False):
+	"""Phiếu HTML (PDF/PNG). `sign_on_paper=True` (phiếu phía HR, _hr_receipt_html): phiếu chưa ký trên
+	trang www vẫn in câu cam kết + ô trống để NV ký tay; phiếu đã ký in chữ ký như thường."""
 	company = (
 		frappe.defaults.get_global_default("company")
 		or frappe.db.get_single_value("Global Defaults", "default_company")
@@ -975,6 +985,15 @@ def _build_submission_html(doc, saved, config):
 			+ (f"<div class='sdate'>Ký lúc: {signed}</div>" if signed else "")
 			+ "</div>"
 		)
+	elif sign_on_paper:
+		sign_block = (
+			"<div class='commit'><b>Cam kết:</b> "
+			+ frappe.utils.escape_html(COMMITMENT_TEXT)
+			+ "</div><div class='signbox'><div class='slabel'>Người khai ký tên</div>"
+			+ "<div class='sigspace'></div>"
+			+ f"<div class='sname'>{frappe.utils.escape_html(doc.employee_name or '')}</div>"
+			+ "</div>"
+		)
 
 	return f"""
 <!DOCTYPE html><html><head><meta charset="utf-8"><style>
@@ -1001,6 +1020,7 @@ def _build_submission_html(doc, saved, config):
   .signbox{{margin:4px 0 0 auto;width:240px;text-align:center}}
   .slabel{{font-weight:bold}}
   .sig{{max-width:220px;max-height:60px;margin:3px 0}}
+  .sigspace{{height:60px;margin:3px 0}}  /* ô trống để ký tay (sign_on_paper) */
   .sname{{font-weight:bold}}
   .sdate{{font-size:10px;color:#64748b}}
 </style></head><body>
@@ -1040,10 +1060,13 @@ def download_excel(names=None, export_type="All Info", file_format="Excel"):
 	for all.
 
 	`export_type="Info for Sign"` → file riêng, xem _download_info_for_sign;
-	`file_format="PDF"` (chỉ Info for Sign) → _download_info_for_sign_pdf.
+	`file_format` (chỉ Info for Sign): "PDF Split" → mỗi bản ghi 1 PDF (_download_info_for_sign_pdf_split),
+	"PDF" → gộp 1 file danh sách ký (_download_info_for_sign_pdf), còn lại → Excel.
 	"""
 	_require_hr()
 	if export_type == "Info for Sign":
+		if file_format == "PDF Split":
+			return _download_info_for_sign_pdf_split(names)
 		if file_format == "PDF":
 			return _download_info_for_sign_pdf(names)
 		return _download_info_for_sign(names)
@@ -1135,6 +1158,23 @@ def _fmt(value):
 def _info_for_sign_wanted(config):
 	"""Fieldname được tick "Info for Sign" trong Setting (selected_fields)."""
 	return {f["fieldname"] for sec in config["sections"] for f in sec["fields"] if f.get("info_for_sign")}
+
+
+def _info_for_sign_config(config):
+	"""Config chỉ giữ field tick "Info for Sign" (cả field Employee lẫn field custom); bỏ Section rỗng.
+
+	Báo lỗi như Excel / PDF gộp khi chưa tick field nào.
+	"""
+	sections = [
+		{**sec, "fields": [f for f in sec["fields"] if f.get("info_for_sign")]} for sec in config["sections"]
+	]
+	sections = [sec for sec in sections if sec["fields"]]
+	if not sections:
+		frappe.throw(
+			_("No field is ticked \"Info for Sign\" in Employee Self Update Info Setting."),
+			title=_("Info for Sign"),
+		)
+	return {**config, "sections": sections}
 
 
 @frappe.whitelist()
@@ -1456,6 +1496,51 @@ def _download_info_for_sign_pdf(names):
 	# File chỉ nằm trong bộ nhớ của request, không lưu gì trên server.
 	frappe.response["type"] = "download"
 	frappe.response["content_type"] = "application/pdf"
+
+
+def _download_info_for_sign_pdf_split(names):
+	"""PDF Split For Each Employee: mỗi bản ghi 1 PDF, đúng phiếu của nút "Generate PDF" trên form
+	(_hr_receipt_html: mẫu trang www, chỉ field tick "Info for Sign", có cam kết + chữ ký).
+	1 bản ghi → tải thẳng PDF; nhiều bản ghi → 1 file ZIP. Giới hạn
+	INFO_FOR_SIGN_PDF_MAX_RECORDS như PDF gộp (~0,35 giây/phiếu → 100 phiếu ≈ 35 giây)."""
+	import io
+	import zipfile
+
+	from frappe.utils.pdf import get_pdf
+
+	if isinstance(names, str):
+		names = json.loads(names or "null")
+	filters = {"name": ["in", names]} if names else {}
+	records = frappe.get_all(INFO_DT, filters=filters, pluck="name", order_by="employee asc")
+	if not records:
+		frappe.throw(_("No record to export."))
+	if len(records) > INFO_FOR_SIGN_PDF_MAX_RECORDS:
+		frappe.throw(
+			_("PDF can export at most {0} records at a time ({1} selected). Select fewer records or use Excel.").format(
+				INFO_FOR_SIGN_PDF_MAX_RECORDS, len(records)
+			),
+			title=_("Info for Sign"),
+		)
+	config = _info_for_sign_config(_build_config())
+	files = []
+	for name in records:
+		doc = frappe.get_doc(INFO_DT, name)
+		doc.check_permission("read")
+		html = _hr_receipt_html(doc, config)
+		files.append((f"{_receipt_base(doc)}.pdf", get_pdf(html)))
+
+	frappe.response["type"] = "download"   # attachment → tải về ngay; không lưu gì trên server
+	if len(files) == 1:
+		frappe.response["filename"], frappe.response["filecontent"] = files[0]
+		frappe.response["content_type"] = "application/pdf"
+		return
+	buf = io.BytesIO()
+	with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+		for filename, pdf in files:
+			zf.writestr(filename, pdf)
+	frappe.response["filename"] = f"employee_info_for_sign_{now_datetime().strftime('%d%m%Y')}.zip"
+	frappe.response["filecontent"] = buf.getvalue()
+	frappe.response["content_type"] = "application/zip"
 
 
 def _download_info_for_sign(names):

@@ -159,7 +159,12 @@ function _esui_excel_dialog(listview) {
 	const API = "customize_erpnext.api.self_update_info.self_update_info_api";
 	const selected = listview.get_checked_items().map((d) => d.name);
 	const PDF_MAX = 100;   // = INFO_FOR_SIGN_PDF_MAX_RECORDS ở server
-	frappe.xcall(`${API}.get_info_for_sign_fields`).then((labels) => {
+	// Không chọn dòng nào = server xuất TẤT CẢ phiếu (không theo bộ lọc list) → đếm để chặn PDF > 100
+	// ngay ở đây: lỗi từ server qua open_url_post (form POST) sẽ đẩy cả trang sang JSON lỗi thô.
+	Promise.all([
+		frappe.xcall(`${API}.get_info_for_sign_fields`),
+		selected.length ? selected.length : frappe.db.count("Employee Self Update Info"),
+	]).then(([labels, total]) => {
 		const esc = frappe.utils.escape_html;
 		const scope = selected.length
 			? __("{0} selected record(s)", [selected.length])
@@ -184,13 +189,24 @@ function _esui_excel_dialog(listview) {
 					default: "Info for Sign",
 				},
 				{
-					// Info for Sign: Excel hoặc PDF (A4 ngang: trang 1 = 3 NV, các trang sau = 4 NV).
+					// Info for Sign: PDF tách mỗi NV 1 file (= nút "Generate PDF" trên form; nhiều NV → ZIP),
+					// PDF gộp 1 file danh sách ký (A4 ngang), hoặc Excel.
 					fieldtype: "Select",
 					fieldname: "file_format",
 					label: __("File Format"),
-					options: ["PDF", "Excel"],
-					default: "PDF",
+					options: [
+						{ value: "PDF Split", label: __("PDF Split For Each Employee") },
+						{ value: "PDF", label: __("PDF Combine To 1 File") },
+						{ value: "Excel", label: __("Excel") },
+					],
+					default: "PDF Split",
 					depends_on: "eval:doc.export_type=='Info for Sign'",
+				},
+				{
+					fieldtype: "HTML",
+					fieldname: "split_info",
+					options: `<div class="text-muted small">${__("One PDF per record, the same as the \"Generate PDF\" button on the form. Several records are downloaded as one ZIP file.")}</div>`,
+					depends_on: "eval:doc.export_type=='Info for Sign' && doc.file_format=='PDF Split'",
 				},
 				{
 					fieldtype: "HTML",
@@ -206,14 +222,18 @@ function _esui_excel_dialog(listview) {
 					export_type: v.export_type,
 				};
 				if (v.export_type === "Info for Sign") {
+					args.file_format = v.file_format || "Excel";
 					if (!labels.length) {
 						frappe.msgprint(__("No field is ticked \"Info for Sign\" in {0}.", [setting_link]));
 						return;
 					}
-					args.file_format = v.file_format || "Excel";
-					// PDF tối đa 100 phiếu (server kiểm lại cả khi không chọn dòng nào = xuất tất cả).
-					if (args.file_format === "PDF" && selected.length > PDF_MAX) {
-						frappe.msgprint(__("PDF can export at most {0} records at a time ({1} selected). Select fewer records or use Excel.", [PDF_MAX, selected.length]));
+					// PDF tối đa 100 phiếu; server kiểm lại.
+					if (args.file_format !== "Excel" && total > PDF_MAX) {
+						frappe.msgprint(__("PDF can export at most {0} records at a time ({1} selected). Select fewer records or use Excel.", [PDF_MAX, total]));
+						return;
+					}
+					if (args.file_format !== "Excel" && !total) {
+						frappe.msgprint(__("No record to export."));
 						return;
 					}
 				}

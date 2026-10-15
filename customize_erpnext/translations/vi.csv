@@ -22050,3 +22050,6 @@ File Format,Định dạng file,
 No record to export.,Không có phiếu nào để xuất.,
 Person Name,Họ tên người,Employee Self Update Info Field
 PDF can export at most {0} records at a time ({1} selected). Select fewer records or use Excel.,PDF chỉ xuất tối đa {0} phiếu mỗi lần (đang chọn {1}). Hãy chọn ít phiếu hơn hoặc dùng Excel.,
+PDF Split For Each Employee,PDF tách riêng từng nhân viên,
+PDF Combine To 1 File,PDF gộp thành 1 file,
+"One PDF per record, the same as the ""Generate PDF"" button on the form. Several records are downloaded as one ZIP file.","Mỗi bản ghi 1 file PDF, giống nút ""Tạo PDF"" trên form. Nhiều bản ghi sẽ tải về chung 1 file ZIP.",
