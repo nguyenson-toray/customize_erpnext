@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta name="robots" content="noindex">
+	<title>{{ page_title }}</title>
+	<style>
+		:root { --bg: #ffffff; --fg: #1f2937; --muted: #6b7280; --rule: #e5e7eb; }
+		@media (prefers-color-scheme: dark) { :root { --bg: #111827; --fg: #e5e7eb; --muted: #9ca3af; --rule: #374151; } }
+		body { margin: 0; background: var(--bg); color: var(--fg);
+			font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+		main { max-width: 720px; margin: 0 auto; padding: 24px 16px 48px; }
+		h1, h3 { line-height: 1.3; }
+		.meta { color: var(--muted); font-size: 13px; border-bottom: 1px solid var(--rule); padding-bottom: 12px; }
+	</style>
+</head>
+<body>
+<main>
+	<div class="meta">{{ company }}{% if version %} · {{ version }}{% endif %}</div>
+	{{ content }}
+</main>
+</body>
+</html>

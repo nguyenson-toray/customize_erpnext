@@ -1,0 +1,166 @@
+{
+ "actions": [],
+ "autoname": "hash",
+ "creation": "2026-10-12 12:00:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "account",
+  "employee",
+  "phone",
+  "token_hash",
+  "column_break_main",
+  "expires_on",
+  "last_seen",
+  "login_method",
+  "client_version",
+  "ip_address",
+  "revoke_section",
+  "revoked",
+  "revoked_reason",
+  "column_break_revoke",
+  "revoked_on"
+ ],
+ "fields": [
+  {
+   "fieldname": "account",
+   "fieldtype": "Link",
+   "label": "Account",
+   "options": "TIQN Portal Account",
+   "read_only": 1,
+   "in_list_view": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "label": "Employee",
+   "options": "Employee",
+   "read_only": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "phone",
+   "fieldtype": "Data",
+   "label": "Phone",
+   "read_only": 1
+  },
+  {
+   "fieldname": "token_hash",
+   "fieldtype": "Data",
+   "label": "Token Hash",
+   "read_only": 1,
+   "unique": 1,
+   "hidden": 1,
+   "description": "SHA-256 of the session token. The token itself is never stored"
+  },
+  {
+   "fieldname": "column_break_main",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "expires_on",
+   "fieldtype": "Datetime",
+   "label": "Expires On",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "last_seen",
+   "fieldtype": "Datetime",
+   "label": "Last Seen",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "login_method",
+   "fieldtype": "Select",
+   "label": "Login Method",
+   "options": "ZALO_PHONE\nSTORED_PHONE\nDEV",
+   "read_only": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "description": "ZALO_PHONE = phone confirmed by Zalo at sign-in · STORED_PHONE = Zalo confirmed the user ID, phone taken from the account · DEV = dev_login, not verified"
+  },
+  {
+   "fieldname": "client_version",
+   "fieldtype": "Data",
+   "label": "Client Version",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ip_address",
+   "fieldtype": "Data",
+   "label": "IP Address",
+   "read_only": 1
+  },
+  {
+   "fieldname": "revoke_section",
+   "fieldtype": "Section Break",
+   "label": "Revocation"
+  },
+  {
+   "fieldname": "revoked",
+   "fieldtype": "Check",
+   "label": "Revoked",
+   "in_standard_filter": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "revoked_reason",
+   "fieldtype": "Data",
+   "label": "Revoked Reason",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_revoke",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "revoked_on",
+   "fieldtype": "Datetime",
+   "label": "Revoked On",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-10-12 15:00:00",
+ "modified_by": "Administrator",
+ "module": "Employee Portal",
+ "name": "TIQN Portal Session",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 0,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 0,
+   "email": 0,
+   "share": 0
+  },
+  {
+   "role": "HR Manager",
+   "read": 1,
+   "write": 1,
+   "create": 0,
+   "delete": 0,
+   "report": 1,
+   "export": 1,
+   "print": 0,
+   "email": 0,
+   "share": 0
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0
+}

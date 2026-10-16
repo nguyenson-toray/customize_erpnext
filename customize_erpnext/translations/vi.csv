@@ -22040,6 +22040,191 @@ opened: {0},đã mở: {0}
 {0} — offline for {1} minutes,{0} — đã mất kết nối {1} phút
 Not locked,Chưa khoá
 {0} not locked,{0} cửa chưa khoá
+"Please sign in.","Vui lòng đăng nhập."
+"Your session has ended. Please sign in again.","Phiên đăng nhập đã hết. Vui lòng đăng nhập lại."
+"Please update the app to the latest version.","Vui lòng cập nhật ứng dụng lên phiên bản mới nhất."
+"This feature is currently turned off.","Tính năng này đang tạm tắt."
+"Your account is in view-only mode.","Tài khoản của bạn đang ở chế độ chỉ xem."
+"Too many attempts. Please wait a moment and try again.","Bạn thao tác quá nhiều lần. Vui lòng đợi một lát rồi thử lại."
+"The request could not be completed.","Không thực hiện được yêu cầu."
+"Not found.","Không tìm thấy."
+"Missing Zalo access token.","Thiếu mã truy cập Zalo."
+"Missing Zalo phone token.","Thiếu mã số điện thoại Zalo."
+"Your account has been locked by the HR department. Please contact HR.","Tài khoản của bạn đã bị phòng Nhân sự khoá. Vui lòng liên hệ phòng Nhân sự."
+"action must be FOLLOWED, UNFOLLOWED or DISMISSED.","action phải là FOLLOWED, UNFOLLOWED hoặc DISMISSED."
+"Send ids, or all=1.","Gửi ids, hoặc all=1."
+"Period must look like YYYY-MM.","Kỳ phải có dạng YYYY-MM."
+"Period must look like YYYY-MM, got {0}","Kỳ phải có dạng YYYY-MM, nhận được {0}"
+"This payslip is not available.","Phiếu lương này không có hoặc chưa được phát hành."
+"Month {0}","Tháng {0}"
+"Payslip {0}","Phiếu lương {0}"
+"has been published","đã phát hành"
+"Earnings","Thu nhập","Payslip"
+"Deductions","Khấu trừ","Payslip"
+"Other Items","Khoản khác"
+"Adjustment for Previous Month","Điều chỉnh tháng trước"
+"Attendance & Overtime","Công & tăng ca"
+"Zalo did not answer within {0} seconds. Please try again.","Zalo không phản hồi sau {0} giây. Vui lòng thử lại."
+"Could not reach Zalo. Please try again.","Không kết nối được tới Zalo. Vui lòng thử lại."
+"{0} is not set in site_config.json on this server. Ask IT to add it.","Máy chủ chưa cấu hình {0} trong site_config.json. Vui lòng báo bộ phận IT."
+"{0} is empty in site_config.json on this server.","{0} trong site_config.json của máy chủ đang trống."
+"{0} belongs to a DIFFERENT Zalo app than the one the Mini App logged in with. The key itself is valid - it is the wrong app.","{0} thuộc về MỘT ỨNG DỤNG ZALO KHÁC với ứng dụng Mini App đang đăng nhập. Khoá hợp lệ nhưng sai ứng dụng."
+"Zalo rejected {0}: it is not the App Secret Key of this Mini App's Zalo app.","Zalo từ chối {0}: đây không phải App Secret Key của Zalo App gắn với Mini App này."
+"This phone token has already been used or is older than 2 minutes. Please try again.","Mã số điện thoại đã được dùng hoặc quá 2 phút. Vui lòng thử lại."
+"Please allow the app to read your phone number.","Vui lòng cho phép ứng dụng đọc số điện thoại của bạn."
+"Zalo did not accept the login token. Please try again. (Zalo {0}: {1})","Zalo không chấp nhận mã đăng nhập. Vui lòng thử lại. (Zalo {0}: {1})"
+"Row {0}: Salary Component {1} appears twice","Dòng {0}: Salary Component {1} bị lặp"
+"This payslip is published. Withdraw it on the Payslip Upload page before changing it.","Phiếu lương này đã phát hành. Hãy thu hồi ở trang Tải phiếu lương trước khi sửa."
+"Minimum Mini App Version must look like 1.0.0","Phiên bản Mini App tối thiểu phải có dạng 1.0.0"
+"Pay Day of Month must be between 1 and 31","Ngày trả lương phải từ 1 đến 31"
+"{0} cannot be negative","{0} không được âm"
+"The logo must be a public file - the Mini App loads it without logging in.","Logo phải là tệp công khai - Mini App tải logo khi chưa đăng nhập."
+"Payslip Upload","Tải phiếu lương"
+"1. Upload the salary Excel file","1. Tải lên file Excel lương"
+"2. Publish to the Mini App","2. Phát hành lên Mini App"
+"One row per employee: Period (MM-YYYY), MSNV, Name, dept, custom_section, custom_group, then one column per Salary Component. Component columns are matched by the code at the start of the header, e.g. ""3.2 ..."".","Mỗi dòng một nhân viên: Kỳ lương (MM-YYYY), MSNV, Họ tên, dept, custom_section, custom_group, sau đó mỗi cột một Salary Component. Cột khoản lương được nhận diện theo mã số ở đầu tiêu đề, ví dụ ""3.2 ...""."
+"Employees only see Published payslips. Withdraw hides a period again so it can be corrected and re-uploaded.","Nhân viên chỉ thấy phiếu đã phát hành. Thu hồi sẽ ẩn cả kỳ để sửa và tải lên lại."
+"Upload Excel","Tải lên Excel"
+"Refresh","Làm mới"
+"Checking...","Đang kiểm tra..."
+"{0} rows","{0} dòng"
+"{0} errors","{0} lỗi"
+"{0} warnings","{0} cảnh báo"
+"Periods","Các kỳ"
+"File layout","Cấu trúc file"
+"Not in the file (will be empty)","Không có trong file (sẽ để trống)"
+"Issues","Vấn đề"
+"Fix the errors in Excel and upload again.","Sửa lỗi trong Excel rồi tải lên lại."
+"I have checked the warnings above","Tôi đã kiểm tra các cảnh báo ở trên"
+"Import {0} payslips as Draft","Nhập {0} phiếu lương ở trạng thái Nháp"
+"Importing...","Đang nhập..."
+"{0} rows are being imported in the background. This page refreshes when done.","Đang nhập {0} dòng ở chế độ nền. Trang sẽ tự làm mới khi xong."
+"Imported {0} payslips as Draft","Đã nhập {0} phiếu lương ở trạng thái Nháp"
+"Imported {0} payslips as Draft (batch {1})","Đã nhập {0} phiếu lương ở trạng thái Nháp (lô {1})"
+"No payslips yet.","Chưa có phiếu lương."
+"Net Pay Total","Tổng thực lĩnh"
+"Publish","Phát hành","Payslip"
+"Published","Đã phát hành","Payslip"
+"Withdraw","Thu hồi","Payslip"
+"Withdrawn","Đã thu hồi","Payslip"
+"Views","Lượt xem","Payslip"
+"Delete Drafts","Xoá bản nháp"
+"Publish all Draft payslips of {0}? Employees will see them in the Mini App immediately.","Phát hành toàn bộ phiếu nháp kỳ {0}? Nhân viên sẽ thấy ngay trên Mini App."
+"Withdraw all published payslips of {0}? They disappear from the Mini App until published again.","Thu hồi toàn bộ phiếu đã phát hành kỳ {0}? Phiếu sẽ biến mất khỏi Mini App cho tới khi phát hành lại."
+"Delete the never-published Draft payslips of {0}?","Xoá các phiếu nháp chưa từng phát hành của kỳ {0}?"
+"Published {0} payslips","Đã phát hành {0} phiếu lương"
+"Withdrew {0} payslips","Đã thu hồi {0} phiếu lương"
+"Deleted {0} payslips","Đã xoá {0} phiếu lương"
+"Please upload an .xlsx file.","Vui lòng tải lên file .xlsx."
+"Could not find the header row. It must contain an MSNV column.","Không tìm thấy dòng tiêu đề. Dòng tiêu đề phải có cột MSNV."
+"Column ""{0}"" does not match any payslip Salary Component.","Cột ""{0}"" không khớp Salary Component nào của phiếu lương."
+"Columns ""{0}"" and ""{1}"" are both component {2}.","Cột ""{0}"" và ""{1}"" cùng là khoản {2}."
+"Missing column {0}.","Thiếu cột {0}."
+"The file is empty.","File trống."
+"No employee rows found under the header.","Không có dòng nhân viên nào dưới dòng tiêu đề."
+"Cannot read the period ""{0}"" - use MM-YYYY, e.g. 10-2026.","Không đọc được kỳ lương ""{0}"" - dùng dạng MM-YYYY, ví dụ 10-2026."
+"Employee {0} does not exist.","Nhân viên {0} không tồn tại."
+"{0}: ""{1}"" is not a number.","{0}: ""{1}"" không phải là số."
+"Duplicate of row {0} (same employee and period).","Trùng với dòng {0} (cùng nhân viên và kỳ)."
+"The {0} payslip is already published. Withdraw it first.","Phiếu lương kỳ {0} đã phát hành. Hãy thu hồi trước."
+"Name in file ""{0}"" differs from ERP ""{1}"".","Họ tên trong file ""{0}"" khác trên ERP ""{1}""."
+"Employee left on {0}, before this period started.","Nhân viên nghỉ việc từ {0}, trước khi kỳ này bắt đầu."
+"Net salary is negative.","Thực lĩnh bị âm."
+"{0} = {1:,.0f} but {2} = {3:,.0f}","{0} = {1:,.0f} nhưng {2} = {3:,.0f}"
+"{0} = {1:,.0f} but the sum of {2} = {3:,.0f}","{0} = {1:,.0f} nhưng tổng {2} = {3:,.0f}"
+"The file still has {0} error(s). Fix them and upload again.","File vẫn còn {0} lỗi. Hãy sửa rồi tải lên lại."
+"Please confirm the warnings before importing.","Vui lòng xác nhận các cảnh báo trước khi nhập."
+"{0} {1} is already published.","{0} {1} đã được phát hành."
+"Issue","Vấn đề"
+"Detail","Chi tiết"
+"Phone","Điện thoại"
+"No Phone","Thiếu số điện thoại"
+"Shared Phone","Trùng số điện thoại"
+"No Leave Approver","Chưa có người duyệt"
+"Approver Cannot Log In","Người duyệt chưa có tài khoản"
+"Never Signed In","Chưa đăng nhập lần nào"
+"Phone Not Found","SĐT không khớp hồ sơ"
+"Cell Number is empty or too short - this employee cannot sign in.","Số điện thoại trống hoặc quá ngắn - nhân viên này không đăng nhập được."
+"Same phone as {0}. Only {1} (newer code) can sign in until the number is corrected.","Trùng số với {0}. Chỉ {1} (mã mới hơn) đăng nhập được cho tới khi sửa số."
+"Cannot send leave applications or explanations from the Mini App.","Không gửi được đơn nghỉ và giải trình từ Mini App."
+"Leave Approver {0} has no enabled ERP user.","Người duyệt {0} không có tài khoản ERP đang hoạt động."
+"Signed in on {0} with {1}, which matches no employee.","Đăng nhập lúc {0} bằng số {1}, không khớp nhân viên nào."
+"Privacy Policy","Chính sách dữ liệu"
+"Terms of Use","Điều khoản sử dụng"
+"Monday","Thứ Hai","Portal"
+"Tuesday","Thứ Ba","Portal"
+"Wednesday","Thứ Tư","Portal"
+"Thursday","Thứ Năm","Portal"
+"Friday","Thứ Sáu","Portal"
+"Saturday","Thứ Bảy","Portal"
+"Sunday","Chủ nhật","Portal"
+"Mon","T2","Portal"
+"Tue","T3","Portal"
+"Wed","T4","Portal"
+"Thu","T5","Portal"
+"Fri","T6","Portal"
+"Sat","T7","Portal"
+"Sun","CN","Portal"
+"{0} h {1:02d}","{0} giờ {1:02d}","Portal"
+"{0} h","{0} giờ","Portal"
+"Office Hours","Ca hành chính","Portal"
+"Late / Left Early","Đi muộn / về sớm","Portal"
+"On Leave","Nghỉ phép","Portal"
+"Absent","Vắng","Portal"
+"Not Checked In","Chưa chấm công vào","Portal"
+"Working","Đang làm việc","Portal"
+"Checked Out","Đã về","Portal"
+"Holiday","Ngày lễ","Portal"
+"Day Off","Ngày nghỉ","Portal"
+"Pending Approval","Chờ duyệt","Portal"
+"Approved","Đã duyệt","Portal"
+"Rejected","Từ chối","Portal"
+"Cancelled","Đã hủy","Portal"
+"Submitted","Đã gửi đơn","Portal"
+"Documents requested","Yêu cầu bổ sung giấy tờ","Portal"
+"Under review","Đang chờ duyệt","Portal"
+"Per medical documents","Theo chứng từ","Portal"
+"Late {0} min","Đi muộn {0} phút","Portal"
+"Present","Có mặt","Portal"
+"Registered","Đã đăng ký","Portal"
+"Attendance {0}","Công tháng {0}","Portal"
+"Business trip / working outside","Đi công tác / làm việc bên ngoài","Portal"
+"Working remotely","Làm việc từ xa","Portal"
+"Forgot to check in/out","Quên chấm công","Portal"
+"Attendance machine error","Máy chấm công lỗi","Portal"
+"First working day","Ngày đầu đi làm","Portal"
+"Other reason","Lý do khác","Portal"
+"New Year's Day","Tết Dương lịch","Portal"
+"Lunar New Year's Eve","Giao thừa","Portal"
+"Lunar New Year","Tết Nguyên đán","Portal"
+"Second Day of Lunar New Year","Mùng 2 Tết","Portal"
+"Third Day of Lunar New Year","Mùng 3 Tết","Portal"
+"Fourth Day of Lunar New Year","Mùng 4 Tết","Portal"
+"Lunar New Year-bonus","Nghỉ Tết (bù)","Portal"
+"Liberation Day/Reunification Day","Ngày Giải phóng miền Nam","Portal"
+"International Labor Day","Quốc tế Lao động","Portal"
+"Hung Kings' Commemoration Day (observed)","Giỗ Tổ Hùng Vương (nghỉ bù)","Portal"
+"National Day","Quốc khánh","Portal"
+"Month must look like YYYY-MM.","Tháng phải có dạng YYYY-MM."
+"Invalid date.","Ngày không hợp lệ."
+"You can only explain a past day.","Chỉ gửi giải trình được cho ngày đã qua."
+"An explanation for this day is already waiting for approval.","Ngày này đã có giải trình đang chờ duyệt."
+"You do not have an approver in your employee record yet. Please contact the HR department.","Hồ sơ của bạn chưa có người duyệt đơn. Vui lòng liên hệ phòng Nhân sự."
+"Your approver does not have an active ERP account yet. Please contact the HR department.","Người duyệt trong hồ sơ của bạn chưa có tài khoản ERP. Vui lòng liên hệ phòng Nhân sự."
+"Unknown status {0}.","Trạng thái {0} không hợp lệ."
+"Dev login is turned off on this server.","Máy chủ đang tắt đăng nhập dev."
+"Missing zalo_user_id.","Thiếu zalo_user_id."
+"This Zalo account is not allowed to use dev login. Ask HR to tick Allow Dev Login on it.","Tài khoản Zalo này chưa được phép đăng nhập dev. Nhờ phòng Nhân sự tick ""Allow Dev Login"" cho tài khoản."
+"Phone {0} is not a valid mobile number.","Số {0} không phải số di động hợp lệ."
+"Phone {0} does not match the Cell Number of any employee.","Số {0} không khớp số điện thoại của nhân viên nào."
+"This phone belongs to {0}. The newest code, {1}, will be used.","Số này thuộc {0}. Mã mới nhất {1} sẽ được dùng."
+"Waiting for Phone","Chờ gán số điện thoại"
+"Zalo Account","Tài khoản Zalo"
+"Zalo ID {0} signed in on {1} without a phone. Open the account and assign the employee's phone.","Zalo ID {0} đăng nhập lúc {1} nhưng chưa có số điện thoại. Mở tài khoản và gán số điện thoại của nhân viên."
+"Zalo ID {0} signed in on {1} with {2}, which matches no employee.","Zalo ID {0} đăng nhập lúc {1} bằng số {2}, không khớp nhân viên nào."
+"Phone Source","Nguồn số điện thoại"
+"Allow Dev Login","Cho phép đăng nhập dev"
+"Login Method","Cách đăng nhập"
 Employee Join Today,Nhân viên vào làm hôm nay,
 Clear the current list ({0} employee(s)) and fill it with Active employees joining today?,Xoá danh sách hiện tại ({0} nhân viên) và điền lại các nhân viên vào làm hôm nay?,
 Replaced the list with {0} employee(s) joining today ({1}).,Đã thay danh sách bằng {0} nhân viên vào làm hôm nay ({1}).,
@@ -22049,6 +22234,104 @@ New Joiners,Tiếp nhận nhân viên mới,
 File Format,Định dạng file,
 No record to export.,Không có phiếu nào để xuất.,
 PDF can export at most {0} records at a time ({1} selected). Select fewer records or use Excel.,PDF chỉ xuất tối đa {0} phiếu mỗi lần (đang chọn {1}). Hãy chọn ít phiếu hơn hoặc dùng Excel.,
+Employee Portal Settings,Cài đặt Cổng nhân viên,
+Company Display Name,Tên công ty hiển thị,
+Shown on the Mini App intro screen,Hiển thị ở màn giới thiệu của Mini App,
+Company Short Name,Tên viết tắt công ty,
+Must be a PUBLIC file - the Mini App loads it without logging in,Phải là tệp CÔNG KHAI - Mini App tải tệp này khi chưa đăng nhập,
+HR Hotline,Hotline Nhân sự,
+Access,Quyền truy cập,
+Read-only Days After Leaving,Số ngày chỉ xem sau khi nghỉ việc,
+"A former employee can still view their data for this many days, counted from the Relieving Date. A new Zalo account of someone past this window is disabled automatically.","Nhân viên đã nghỉ việc vẫn xem được dữ liệu của mình trong số ngày này, tính từ Ngày nghỉ việc. Tài khoản Zalo mới của người đã quá hạn này sẽ tự bị khoá.",
+Session Lifetime (Days),Thời hạn phiên đăng nhập (ngày),
+Minimum Mini App Version,Phiên bản Mini App tối thiểu,
+Older Mini App builds receive CLIENT_TOO_OLD and must be updated,Bản Mini App cũ hơn sẽ nhận lỗi CLIENT_TOO_OLD và phải cập nhật,
+Pay Day of Month,Ngày trả lương trong tháng,
+Day of the month after the period ends on which salary is paid. Shown as the expected pay date of unpublished payslips,Ngày trả lương trong tháng kế tiếp sau khi kỳ lương kết thúc. Hiển thị là ngày trả lương dự kiến của phiếu lương chưa phát hành,
+Show Zero Lines by Default,Mặc định hiện dòng 0đ,
+"When unticked, payslip lines with a zero amount are hidden in the Mini App. Totals are always shown. The employee can still toggle it in the app","Khi bỏ chọn, các dòng phiếu lương có số tiền 0 sẽ bị ẩn trên Mini App. Các dòng tổng luôn hiển thị. Nhân viên vẫn có thể bật/tắt trong app",
+Uploads,Tải tệp lên,
+Max Files per Leave Application,Số tệp tối đa mỗi đơn nghỉ,
+Zalo Official Account,Zalo Official Account (OA),
+OA ID,OA ID,
+Used by followOA() and openChat() in the Mini App,Dùng cho followOA() và openChat() trong Mini App,
+Enable Chat with C&B,Bật chat với C&B,
+Send OA Messages,Gửi tin nhắn OA,
+Not used yet. Keep unticked until the recipient list has been reviewed,Chưa dùng. Để trống cho tới khi đã rà soát danh sách người nhận,
+Features,Tính năng,
+Unticked = hidden in the Mini App and refused by the server,Bỏ chọn = ẩn trên Mini App và bị server từ chối,
+View Leave,Xem nghỉ phép,
+Create Leave Application,Tạo đơn nghỉ,
+Create Attendance Explanation,Tạo giải trình chấm công,
+Invite to Follow OA,Mời quan tâm OA,
+Published without login at /portal-policy and /portal-terms,Công khai không cần đăng nhập tại /portal-policy và /portal-terms,
+Legal Version Date,Ngày phiên bản điều khoản,
+TIQN Payslip,Phiếu lương TIQN,
+As written in the uploaded Excel file,Theo đúng tệp Excel đã tải lên,
+YYYY-MM. 2026-08 = 26/07/2026 to 25/08/2026,YYYY-MM. 2026-08 = 26/07/2026 đến 25/08/2026,
+Period From,Từ ngày (kỳ),
+Period To,Đến ngày (kỳ),
+Only Published payslips are visible in the Mini App. Use the Payslip Upload page to publish or withdraw,Chỉ phiếu lương Đã phát hành mới hiển thị trên Mini App. Dùng trang Tải phiếu lương để phát hành hoặc thu hồi,
+Component 9 (Net Salary) from the uploaded file,Khoản 9 (Thực lĩnh) lấy từ tệp đã tải lên,
+Published By,Người phát hành,
+First Viewed By Employee,Nhân viên xem lần đầu lúc,
+Import Batch,Đợt nhập,
+Components,Các khoản lương,
+Import from Excel,Nhập từ Excel,
+Publish / Withdraw,Phát hành / Thu hồi,
+Import Payslips from Excel,Nhập phiếu lương từ Excel,
+Import as Draft,Nhập dạng Nháp,
+"One row per employee: Period (YYYY-MM or MM-YYYY), Period From, Period To, Employee, Employee Name, Department, Section, Group, then one column per Salary Component, matched by the code at the start of the header (e.g. ""3.2 ...""). Period From / To are optional and must match the period (26th to 25th).","Mỗi nhân viên một dòng: Period (YYYY-MM hoặc MM-YYYY), Period From, Period To, Employee, Employee Name, Department, Section, Group, sau đó mỗi Salary Component một cột, khớp theo mã số ở đầu tiêu đề cột (vd. ""3.2 ...""). Period From / To không bắt buộc, nếu có phải khớp với kỳ (ngày 26 đến ngày 25).",
+TIQN Payslip Detail,Chi tiết phiếu lương TIQN,
+TIQN Payslip View Log,Nhật ký xem phiếu lương TIQN,
+Viewed On,Xem lúc,
+Included Zero Lines,Có hiện dòng 0đ,
+TIQN Portal Account,Tài khoản Cổng nhân viên TIQN,
+The user's Zalo ID inside THIS Mini App (different from the same person's ID in the vehicle Mini App). Created automatically when the user opens the app; HR may also create the account by hand from the ID the app shows.,Zalo ID của người dùng trong CHÍNH Mini App này (khác với ID của cùng người đó trong Mini App xe). Tự tạo khi người dùng mở app; Nhân sự cũng có thể tạo tay từ ID mà app hiển thị.,
+"Phone used to find the employee (last 9 digits matched against Employee Cell Number). HR sets it by hand when Zalo could not provide the number (simulator, user refused the permission); it is overwritten whenever the user signs in with Zalo's phone permission. Changing it ends every open session of this account.","Số điện thoại dùng để tìm nhân viên (so 9 số cuối với Số di động của nhân viên). Nhân sự nhập tay khi Zalo không cung cấp được số (simulator, người dùng từ chối quyền); số này bị ghi đè mỗi khi người dùng đăng nhập có cấp quyền SĐT của Zalo. Đổi số sẽ kết thúc mọi phiên đang mở của tài khoản.",
+Zalo = confirmed by Zalo at sign-in · Manual = set by HR,Zalo = Zalo xác nhận lúc đăng nhập · Manual = Nhân sự nhập tay,
+Last Login Result,Kết quả đăng nhập gần nhất,
+Disabled Automatically,Tự động khoá,
+Message When Disabled,Thông báo khi bị khoá,
+First Login,Đăng nhập lần đầu,
+Official Account,Official Account (OA),
+Followed OA,Đã quan tâm OA,
+OA Invite Dismissed,Đã bỏ qua lời mời OA,
+Development,Phát triển,
+"Lets this account sign in with dev_login (Zalo simulator, NOT verified with Zalo). Only works while site_config has employee_portal_dev_login = 1. Tick only for the test team.","Cho phép tài khoản này đăng nhập bằng dev_login (Zalo simulator, KHÔNG được Zalo xác minh). Chỉ có tác dụng khi site_config có employee_portal_dev_login = 1. Chỉ chọn cho nhóm test.",
+TIQN Portal Notification,Thông báo Cổng nhân viên TIQN,
+Target Screen,Màn hình đích,
+Target ID,ID đích,
+Read On,Đọc lúc,
+TIQN Portal Session,Phiên Cổng nhân viên TIQN,
+Token Hash,Mã băm token,
+SHA-256 of the session token. The token itself is never stored,SHA-256 của token phiên. Bản thân token không bao giờ được lưu,
+Last Seen,Hoạt động gần nhất,
+"ZALO_PHONE = phone confirmed by Zalo at sign-in · STORED_PHONE = Zalo confirmed the user ID, phone taken from the account · DEV = dev_login, not verified","ZALO_PHONE = Zalo xác nhận SĐT lúc đăng nhập · STORED_PHONE = Zalo xác nhận User ID, SĐT lấy từ tài khoản · DEV = dev_login, không được xác minh",
+Client Version,Phiên bản client,
+Revocation,Thu hồi phiên,
+Revoked Reason,Lý do thu hồi,
+Revoked On,Thu hồi lúc,
+"{0}: cannot read the date ""{1}"".","{0}: không đọc được ngày ""{1}"".",
+{0} {1} does not match period {2} ({3} - {4}).,{0} {1} không khớp với kỳ {2} ({3} - {4}).,
+Portal Readiness,Sẵn sàng Cổng nhân viên,
+Section Total,Tổng nhóm,
+Employee Portal,Cổng nhân viên,
+Portal Section,Nhóm trên cổng,
+Where this component appears on the Mini App payslip. Hidden = not shown and not expected in the upload file,Khoản lương này nằm ở nhóm nào trên phiếu lương Mini App. Hidden = không hiển thị và không cần có trong tệp tải lên,
+Portal Row Type,Loại dòng trên cổng,
+"Section Total = the number shown as the section total (e.g. 5 for Earnings, 6 for Deductions), not repeated as a line. Subtotal = a bold line that may have detail lines under it","Section Total = số hiển thị làm tổng của nhóm (vd. 5 cho Thu nhập, 6 cho Khấu trừ), không lặp lại thành một dòng. Subtotal = dòng in đậm, có thể có các dòng chi tiết bên dưới",
+Portal Parent,Dòng cha trên cổng,
+"Subtotal this line is a detail of, e.g. 3.2 under 3.1 Allowance. Also used to check that the subtotal equals the sum of its lines on upload","Dòng tổng mà dòng này là chi tiết, vd. 3.2 nằm dưới 3.1 Phụ cấp. Cũng dùng để kiểm tra dòng tổng bằng tổng các dòng con khi tải lên",
+Portal Label,Nhãn trên cổng,
+"Short Vietnamese label shown to employees, e.g. Lương cơ bản","Nhãn tiếng Việt ngắn hiển thị cho nhân viên, vd. Lương cơ bản",
+Portal Unit,Đơn vị trên cổng,
+Portal Order,Thứ tự trên cổng,
+Sort order in the Mini App and in the upload template,Thứ tự sắp xếp trên Mini App và trong tệp mẫu tải lên,
+Blocks login and revokes open sessions on the next request. Ticked automatically for a new account whose phone does not match an employee who may use the portal (see Disabled Automatically).,Chặn đăng nhập và huỷ các phiên đang mở ở lần gọi tiếp theo. Tự được chọn cho tài khoản mới có SĐT không khớp nhân viên được phép dùng cổng (xem Tự động khoá).,
+"The system disabled this account at creation: its phone did not match an employee who may use the portal (Active, or Left within Read-only Days After Leaving). Cleared together with Disabled as soon as that changes (HR sets a matching phone, Zalo confirms one at sign-in, the person rejoins). An account HR disables by hand is never re-enabled automatically.","Hệ thống đã khoá tài khoản này lúc tạo: SĐT không khớp nhân viên được phép dùng cổng (đang làm việc, hoặc đã nghỉ nhưng còn trong Số ngày chỉ xem sau khi nghỉ việc). Tự bỏ cùng với Disabled ngay khi điều đó thay đổi (Nhân sự gán SĐT khớp, Zalo xác nhận SĐT khớp lúc đăng nhập, người đó vào làm lại). Tài khoản Nhân sự khoá tay không bao giờ tự mở lại.",
+{0} must be at least 1,{0} phải lớn hơn hoặc bằng 1,
+"Draft","Bản nháp","Portal"
 PDF Split For Each Employee,PDF tách riêng từng nhân viên,
 PDF Combine To 1 File,PDF gộp thành 1 file,
 "One PDF per record, the same as the ""Generate PDF"" button on the form. Several records are downloaded as one ZIP file.","Mỗi bản ghi 1 file PDF, giống nút ""Tạo PDF"" trên form. Nhiều bản ghi sẽ tải về chung 1 file ZIP.",

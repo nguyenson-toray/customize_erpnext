@@ -18,6 +18,9 @@ customize_erpnext.patches.create_door_control_role
 # would treat `TIQN Fixed Trip Template` as an orphan DocType and delete it - along with
 # the six configured schedules. Rename first. Idempotent.
 customize_erpnext.patches.rename_fixed_trip_template_to_schedule
+# pre_model_sync: Employee Portal DocTypes ship DocPerm rows for `Payroll Officer`
+# (Link) - the role must exist before the model sync. Also creates `Portal Approver`.
+customize_erpnext.patches.create_employee_portal_roles
 
 [post_model_sync]
 customize_erpnext.patches.migrate_attendance_machine_to_setting
@@ -75,3 +78,7 @@ customize_erpnext.patches.door_alert_setting_select_fields
 # post_model_sync: door controllers' Sensor Type None -> NO (LB-35 bolt sensor is NO/COM).
 # No effect until Door Alert Setting → Use Lock Sensor is on. Idempotent.
 customize_erpnext.patches.door_sensor_type_default_no
+# post_model_sync: Employee Portal (Zalo Mini App) - service user portal@tiqn.com.vn,
+# Settings defaults + legal templates, payslip display config on Salary Component
+# (creates its own custom_portal_* fields first: fixtures sync runs AFTER this). Idempotent.
+customize_erpnext.patches.setup_employee_portal

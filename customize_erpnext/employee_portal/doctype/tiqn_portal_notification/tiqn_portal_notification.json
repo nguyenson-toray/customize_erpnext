@@ -1,0 +1,145 @@
+{
+ "actions": [],
+ "autoname": "PN-.YYYY.-.#####",
+ "creation": "2026-10-12 12:00:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "employee",
+  "type",
+  "title",
+  "body",
+  "column_break_main",
+  "target_screen",
+  "target_id",
+  "is_read",
+  "read_on",
+  "reference_section",
+  "reference_doctype",
+  "column_break_ref",
+  "reference_name"
+ ],
+ "fields": [
+  {
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "label": "Employee",
+   "options": "Employee",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "type",
+   "fieldtype": "Select",
+   "label": "Type",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "options": "PAYSLIP_PUBLISHED\nLEAVE_APPROVED\nLEAVE_REJECTED\nLEAVE_CANCELLED\nLEAVE_NEEDS_DOCUMENTS\nEXPLANATION_APPROVED\nEXPLANATION_REJECTED\nOVERTIME_APPROVED\nGENERAL"
+  },
+  {
+   "fieldname": "title",
+   "fieldtype": "Data",
+   "label": "Title",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "body",
+   "fieldtype": "Data",
+   "label": "Body"
+  },
+  {
+   "fieldname": "column_break_main",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "target_screen",
+   "fieldtype": "Data",
+   "label": "Target Screen",
+   "read_only": 1
+  },
+  {
+   "fieldname": "target_id",
+   "fieldtype": "Data",
+   "label": "Target ID",
+   "read_only": 1
+  },
+  {
+   "fieldname": "is_read",
+   "fieldtype": "Check",
+   "label": "Read",
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "read_on",
+   "fieldtype": "Datetime",
+   "label": "Read On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "reference_section",
+   "fieldtype": "Section Break",
+   "label": "Reference"
+  },
+  {
+   "fieldname": "reference_doctype",
+   "fieldtype": "Link",
+   "label": "Reference DocType",
+   "options": "DocType",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_ref",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "reference_name",
+   "fieldtype": "Dynamic Link",
+   "label": "Reference Name",
+   "options": "reference_doctype",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-10-12 12:00:00",
+ "modified_by": "Administrator",
+ "module": "Employee Portal",
+ "name": "TIQN Portal Notification",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 0,
+   "share": 1
+  },
+  {
+   "role": "HR Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 0,
+   "report": 1,
+   "export": 1,
+   "print": 0,
+   "email": 0,
+   "share": 0
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "title",
+ "track_changes": 0
+}
