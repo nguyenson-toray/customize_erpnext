@@ -28,7 +28,13 @@
   "section_custom",
   "is_custom",
   "custom_fieldtype",
-  "custom_options"
+  "custom_options",
+  "section_table",
+  "table_columns",
+  "column_break_table",
+  "max_rows",
+  "section_select",
+  "option_labels"
  ],
  "fields": [
   {
@@ -96,12 +102,12 @@
    "label": "Validation"
   },
   {
-   "description": "Format check applied on the entered value (client + server). Digits = only 0-9; Phone = VN 10 digits starting 0; CCCD = 12 digits; CMND = 9 digits; Past = date not in the future (DOB, issue date); Future = date not in the past (expiry date); Regex = use the pattern below.",
+   "description": "Format check applied on the entered value (client + server). Digits = only 0-9; Phone = VN 10 digits starting 0; CCCD = 12 digits; CMND = 9 digits; Past = date not in the future (DOB, issue date); Future = date not in the past (expiry date); Regex = use the pattern below; Capitalize Each Word = capitalize the first letter of each word, keep the rest as typed (names, places); Sentence Case = capitalize the first letter of each sentence (free text).",
    "fieldname": "validation",
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Validation",
-   "options": "\nDigits\nPhone\nEmail\nCCCD\nCMND\nPast\nFuture\nRegex\nPerson Name"
+   "options": "\nDigits\nPhone\nEmail\nCCCD\nCMND\nPast\nFuture\nRegex\nCapitalize Each Word\nSentence Case"
   },
   {
    "fieldname": "column_break_val",
@@ -188,11 +194,44 @@
    "fieldtype": "Check",
    "in_list_view": 1,
    "label": "Info for Sign"
+  },
+  {
+   "fieldname": "section_table",
+   "fieldtype": "Section Break",
+   "label": "Child table (Education, External Work History)"
+  },
+  {
+   "fieldname": "table_columns",
+   "fieldtype": "Small Text",
+   "label": "Table Columns",
+   "description": "Only for an Employee child table field (education, external_work_history). One column per line: fieldname | Label | 1 if required. Empty = default columns."
+  },
+  {
+   "fieldname": "column_break_table",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "max_rows",
+   "fieldtype": "Int",
+   "label": "Max Rows",
+   "non_negative": 1,
+   "description": "Maximum number of rows an employee can enter. Empty = 3."
+  },
+  {
+   "fieldname": "section_select",
+   "fieldtype": "Section Break",
+   "label": "Select options"
+  },
+  {
+   "fieldname": "option_labels",
+   "fieldtype": "Small Text",
+   "label": "Option Labels",
+   "description": "Only for Select fields. Text shown on the self-update page instead of the stored value. One option per line: value | label (e.g. 6-7 | Size 6-7 \u00b7 d\u00e9p th\u01b0\u1eddng 38-39 \u00b7 ch\u00e2n 24.5-25 cm). Options not listed use the Vietnamese translation."
   }
  ],
  "istable": 1,
  "links": [],
- "modified": "2026-10-16 10:00:00.000000",
+ "modified": "2026-10-16 23:00:00.000000",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Employee Self Update Info Field",

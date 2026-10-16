@@ -83,6 +83,97 @@ _ALLOWED_FIELDTYPES = {
 	"Autocomplete",
 }
 
+# Field Link trỏ tới danh mục nhỏ → trang www hiện như Select (dropdown) thay vì ô gõ chữ tự do.
+# Giá trị = các bản ghi được chọn (theo thứ tự); bản ghi không tồn tại bị bỏ. Gender có 7 bản ghi
+# chuẩn của Frappe nhưng Employee chỉ dùng Male/Female (user 16/10/2026).
+_LINK_AS_SELECT = {
+	"Gender": ("Male", "Female"),
+}
+
+
+def _option_labels(options, overrides=None):
+	"""{giá trị: nhãn hiện trên trang www} cho Select — chỉ option có nhãn khác chính nó.
+	Giá trị lưu + Sync vẫn là giá trị gốc (vd Married → "Đã kết hôn").
+	`overrides` = cột "Option Labels" của dòng Setting, mỗi dòng `giá trị | nhãn` (vd size dép
+	`6-7 | Size 6-7 · dép thường 38-39 · chân 24.5-25 cm`) — ưu tiên hơn bản dịch vi; giá trị
+	không có trong options bị bỏ qua. Phiếu PDF / Info for Sign KHÔNG dùng nhãn này (in gọn, _sign_value_vi)."""
+	opts = [o for o in options or [] if o]
+	out = {}
+	for o in opts:
+		vi = _(o, lang="vi")
+		if vi and vi != o:
+			out[o] = vi
+	for line in (overrides or "").splitlines():
+		if "|" not in line:
+			continue
+		v, label = (x.strip() for x in line.split("|", 1))
+		if v in opts and label:
+			out[v] = label
+	return out
+
+
+# Field chỉ hiện (và khi hiện thì BẮT BUỘC) khi field khác có giá trị trong danh sách; ẩn → xoá trắng
+# (trang www, save_form_data, validate_desk_edit). Chỉ áp khi field điều kiện cũng có trong Setting.
+# Desk Employee dùng depends_on của chính Custom Field.
+_FIELD_DEPENDS = {
+	"custom_driving_license_status": ("custom_driving_license", ("Chưa",)),
+}
+
+
+def _dep_parent_value(f, values, employee):
+	"""Giá trị field điều kiện: trong `values` nếu có, không thì lấy trên Employee."""
+	parent = f["depends_on"]["field"]
+	if parent in values:
+		return values.get(parent)
+	return frappe.db.get_value("Employee", employee, parent) if employee else None
+
+
+def _apply_depends(config, values, employee):
+	"""Field có depends_on: ẩn → values[fn] = "" (Sync xoá luôn trên Employee). Trả {fieldname: đang hiện}."""
+	visible = {}
+	for sec in config["sections"]:
+		for f in sec["fields"]:
+			if not f.get("depends_on") or f.get("read_only"):
+				continue
+			fn = f["fieldname"]
+			visible[fn] = (_dep_parent_value(f, values, employee) or "") in f["depends_on"]["values"]
+			if not visible[fn]:
+				values[fn] = ""
+	return visible
+
+
+# Bảng con của Employee cho NV khai (16/10/2026) — CHỈ allow-list: `internal_work_history` do override
+# Transfer/Promotion dựng lại, `custom_fingerprints` là dữ liệu máy chấm công → không mở.
+# Giá trị = cột mặc định (fieldname, nhãn, bắt buộc) khi ô "Table Columns" của dòng Setting để trống.
+_ALLOWED_TABLES = {
+	"education": (
+		("level", "Trình độ", 1),   # đầu tiên: quyết định Trường/Ngành/Năm có ẩn / bắt buộc không
+		("school_univ", "Trường", 0),
+		("maj_opt_subj", "Ngành học", 0),
+		("year_of_passing", "Năm tốt nghiệp", 0),
+	),
+	"external_work_history": (
+		("company_name", "Công ty", 1),
+		("designation", "Chức vụ", 0),
+		("total_experience", "Tổng thời gian làm (năm)", 0),
+	),
+}
+# Cột phụ thuộc giá trị 1 cột khác của cùng dòng (user 16/10/2026), Học vấn:
+# - Trung cấp trở lên (`values`): hiện `columns` (Trường, Ngành, Năm TN); bắt buộc `required` (Trường, Ngành —
+#   Năm tốt nghiệp KHÔNG bắt buộc);
+# - đã chọn trình độ khác (THCS / THPT): `columns` ẨN và bị xoá trắng; chưa chọn: vẫn hiện, không bắt buộc.
+# Trang www + Desk + server cùng đọc field["required_if"] (chỉ giữ cột có trong cấu hình).
+_TABLE_REQUIRED_IF = {
+	"education": {
+		"column": "level",
+		"values": ("Trung cấp", "Cao đẳng", "Đại học", "Sau đại học"),
+		"columns": ("school_univ", "maj_opt_subj", "year_of_passing"),
+		"required": ("school_univ", "maj_opt_subj"),
+	},
+}
+_TABLE_MAX_ROWS = 3
+_TABLE_COLUMN_TYPES = {"Data", "Small Text", "Text", "Int", "Float", "Select", "Date"}
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -136,12 +227,40 @@ def _build_config():
 				"placeholder": row.placeholder or "",
 				"fieldtype": fieldtype,
 				"options": options,
+				"option_labels": _option_labels(options, row.get("option_labels")),
 				"required": bool(row.required),
 				"read_only": bool(row.read_only),
 				"widget": "Auto",
 				"custom": True,
 				"auto_fill": bool(row.auto_fill_data),
 				# Tick "Info for Sign" trong Setting → field có trong Excel Info for Sign.
+				"info_for_sign": bool(row.get("info_for_sign")),
+				**_validation_meta(row),
+			}
+		elif (df_by_name.get(row.employee_fieldname) or {}).get("fieldtype") == "Table":
+			# Bảng con: chỉ allow-list, cột theo "Table Columns" (trống → mặc định của _ALLOWED_TABLES).
+			df = df_by_name[row.employee_fieldname]
+			if df.fieldname not in _ALLOWED_TABLES:
+				continue
+			columns = _table_columns(row, df)
+			if not columns:
+				continue
+			field = {
+				"fieldname": df.fieldname,
+				"label": row.label_vi or df.label or df.fieldname,
+				"employee_label": df.label or df.fieldname,
+				"detail": row.detail or "",
+				"placeholder": row.placeholder or "",
+				"fieldtype": "Table",
+				"options": df.options,  # child DocType
+				"columns": columns,
+				"required_if": _table_required_if(df.fieldname, columns),
+				"max_rows": frappe.utils.cint(row.get("max_rows")) or _TABLE_MAX_ROWS,
+				"required": bool(row.required),
+				"read_only": bool(row.read_only),
+				"widget": "Auto",
+				"custom": False,
+				"auto_fill": bool(row.auto_fill_data),
 				"info_for_sign": bool(row.get("info_for_sign")),
 				**_validation_meta(row),
 			}
@@ -152,8 +271,13 @@ def _build_config():
 				continue
 
 			options = None
+			fieldtype = df.fieldtype
 			if df.fieldtype == "Select" and df.options:
 				options = [o for o in df.options.split("\n")]
+			elif df.fieldtype == "Link" and df.options in _LINK_AS_SELECT:
+				# Danh mục nhỏ (Gender) → dropdown; giá trị vẫn là tên bản ghi Link (Male/Female).
+				fieldtype = "Select"
+				options = [""] + [o for o in _LINK_AS_SELECT[df.options] if frappe.db.exists(df.options, o)]
 			elif df.fieldtype == "Link":
 				options = df.options  # the linked doctype name
 
@@ -169,8 +293,9 @@ def _build_config():
 				"detail": row.detail or "",
 				# Optional hint text inside the empty input.
 				"placeholder": row.placeholder or "",
-				"fieldtype": df.fieldtype,
+				"fieldtype": fieldtype,
 				"options": options,
+				"option_labels": _option_labels(options, row.get("option_labels")) if fieldtype == "Select" else {},
 				"required": bool(row.required),
 				"read_only": bool(row.read_only),
 				"widget": row.widget or "Auto",
@@ -187,7 +312,235 @@ def _build_config():
 			order.append(sec)
 		sections[sec]["fields"].append(field)
 
+	present = {f["fieldname"] for s in order for f in sections[s]["fields"]}
+	for s in order:
+		for f in sections[s]["fields"]:
+			dep = _FIELD_DEPENDS.get(f["fieldname"])
+			if dep and dep[0] in present:
+				f["depends_on"] = {"field": dep[0], "values": list(dep[1])}
 	return {"sections": [sections[s] for s in order]}
+
+
+def _table_columns(row, df):
+	"""Cột của field bảng con: [{fieldname, label, fieldtype, options, required, placeholder}].
+
+	"Table Columns" của dòng Setting: mỗi dòng `fieldname | Nhãn | bắt buộc(0/1)`; trống → mặc định
+	_ALLOWED_TABLES. Cột lạ / kiểu không hỗ trợ / trùng bị bỏ qua.
+	"""
+	spec = []
+	for line in (row.get("table_columns") or "").splitlines():
+		parts = [p.strip() for p in line.split("|")]
+		if parts and parts[0]:
+			spec.append((parts[0], parts[1] if len(parts) > 1 else "", frappe.utils.cint(parts[2]) if len(parts) > 2 else 0))
+	if not spec:
+		spec = _ALLOWED_TABLES.get(df.fieldname, ())
+	child = frappe.get_meta(df.options)
+	cols = []
+	for fn, label, req in spec:
+		cdf = child.get_field(fn)
+		if not cdf or cdf.fieldtype not in _TABLE_COLUMN_TYPES or any(c["fieldname"] == fn for c in cols):
+			continue
+		cols.append({
+			"fieldname": fn,
+			"label": label or _(cdf.label, lang="vi") or fn,
+			"fieldtype": cdf.fieldtype,
+			"options": (cdf.options or "").split("\n") if cdf.fieldtype == "Select" else None,
+			"option_labels": _option_labels((cdf.options or "").split("\n")) if cdf.fieldtype == "Select" else {},
+			"required": bool(req),
+			"placeholder": cdf.placeholder or "",
+		})
+	return cols
+
+
+def _table_required_if(fieldname, columns):
+	"""_TABLE_REQUIRED_IF của bảng, chỉ giữ cột có trong cấu hình; thiếu cột điều kiện → None."""
+	rule = _TABLE_REQUIRED_IF.get(fieldname)
+	have = {c["fieldname"] for c in columns}
+	if not rule or rule["column"] not in have:
+		return None
+	cols = [c for c in rule["columns"] if c in have]
+	req = [c for c in rule.get("required", rule["columns"]) if c in cols]
+	return {"column": rule["column"], "values": list(rule["values"]), "columns": cols, "required": req} if cols else None
+
+
+def _column_required(f, c, row):
+	"""Cột `c` có bắt buộc ở dòng `row` không: bắt buộc cố định, hoặc theo required_if."""
+	if c["required"]:
+		return True
+	rule = f.get("required_if")
+	return bool(rule) and c["fieldname"] in rule["required"] and row.get(rule["column"]) in rule["values"]
+
+
+def _column_hidden(f, c, row):
+	"""Cột `c` bị ẩn ở dòng `row`: thuộc required_if và cột điều kiện ĐÃ chọn giá trị ngoài `values`."""
+	rule = f.get("required_if")
+	v = row.get(rule["column"]) if rule else None
+	return bool(rule) and c["fieldname"] in rule["columns"] and bool(v) and v not in rule["values"]
+
+
+def _is_table(f):
+	return f.get("fieldtype") == "Table"
+
+
+def _employee_scalar_fields(config):
+	"""Field thật trên Employee đọc được bằng get_value (bỏ field custom + bảng con)."""
+	return [
+		f["fieldname"] for sec in config["sections"] for f in sec["fields"]
+		if not f.get("custom") and not _is_table(f)
+	]
+
+
+def _employee_table_rows(employee, f):
+	"""Dòng con hiện có trên Employee: [{name, <cột>: chuỗi}] theo idx. Số 0 / None → ""."""
+	cols = [c for c in f["columns"]]
+	rows = frappe.get_all(
+		f["options"],
+		filters={"parent": employee, "parenttype": "Employee", "parentfield": f["fieldname"]},
+		fields=["name"] + [c["fieldname"] for c in cols],
+		order_by="idx asc",
+	) if employee else []
+	out = []
+	for r in rows:
+		item = {"name": r.name}
+		for c in cols:
+			v = r.get(c["fieldname"])
+			if c["fieldtype"] in ("Int", "Float") and not v:
+				v = ""
+			elif c["fieldtype"] == "Date" and v:
+				v = str(v)
+			elif c["fieldtype"] == "Int":
+				v = str(int(v))
+			item[c["fieldname"]] = "" if v is None else str(v)
+		out.append(item)
+	return out
+
+
+def _employee_tables(employee, config):
+	"""{fieldname: dòng con hiện có} cho mọi field bảng con trong config."""
+	return {
+		f["fieldname"]: _employee_table_rows(employee, f)
+		for sec in config["sections"] for f in sec["fields"] if _is_table(f)
+	}
+
+
+def _is_blank(f, value):
+	"""Phiếu chưa có giá trị cho field: thiếu khoá / None / chuỗi trắng; bảng con: không có dòng."""
+	if _is_table(f):
+		return not _table_list(value)
+	return value is None or str(value).strip() == ""
+
+
+def _fill_from_employee(config, saved, employee):
+	"""Bản sao `saved` mà field tick "Auto Fill Data" (field Employee thật, không custom) chưa có giá trị
+	→ lấy giá trị hiện tại trên Employee. Đúng như trang www điền sẵn khi NV mở form; phủ cả field thêm
+	vào Setting SAU khi NV đã gửi phiếu (data_json không có khoá). Dùng cho phiếu PDF/PNG.
+	Info for Sign đã có quy tắc tương tự ("mới trống → Employee") trong _info_for_sign_people."""
+	missing = [
+		f for sec in config["sections"] for f in sec["fields"]
+		if f.get("auto_fill") and not f.get("custom") and f["fieldname"] not in ("employee", "name")
+		and _is_blank(f, saved.get(f["fieldname"]))
+	]
+	if not missing or not employee:
+		return saved
+	scalars = [f["fieldname"] for f in missing if not _is_table(f)]
+	emp = (frappe.db.get_value("Employee", employee, scalars, as_dict=True) or {}) if scalars else {}
+	out = dict(saved)
+	for f in missing:
+		fn = f["fieldname"]
+		v = _employee_table_rows(employee, f) if _is_table(f) else emp.get(fn)
+		if not _is_blank(f, v):
+			out[fn] = v if _is_table(f) else str(v)
+	return out
+
+
+def _table_list(value):
+	"""Giá trị bảng con trong data_json → list (chuỗi JSON / None / kiểu lạ → [])."""
+	if isinstance(value, str):
+		try:
+			value = json.loads(value or "[]")
+		except ValueError:
+			return []
+	return [r for r in value if isinstance(r, dict)] if isinstance(value, list) else []
+
+
+def _table_rows_equal(f, a, b):
+	"""So sánh 2 danh sách dòng theo các cột cấu hình (bỏ qua `name`)."""
+	key = lambda rows: [tuple(str(r.get(c["fieldname"]) or "").strip() for c in f["columns"]) for r in _table_list(rows)]
+	return key(a) == key(b)
+
+
+def _table_text(f, rows, sep="\n"):
+	"""Bảng con → chữ: mỗi dòng "Nhãn: giá trị, …" (bỏ ô trống); các dòng nối bằng `sep`."""
+	lines = []
+	for r in _table_list(rows):
+		parts = [
+			f"{c['label']}: {_sign_value_vi(c, r.get(c['fieldname']))}"
+			for c in f["columns"] if str(r.get(c["fieldname"]) or "").strip()
+		]
+		if parts:
+			lines.append(", ".join(parts))
+	return sep.join(lines)
+
+
+def _value_text(f, value):
+	"""Giá trị 1 field dạng chữ (Excel / so sánh): bảng con → _table_text, còn lại như _fmt."""
+	return _table_text(f, value) if _is_table(f) else _fmt(value)
+
+
+def _clean_table_value(f, value, employee):
+	"""Làm sạch giá trị bảng con NV / HR gửi lên → (rows, errors). Dùng chung cho trang www + Desk.
+
+	- chỉ giữ cột cấu hình; chuẩn hoá chữ; Int phải là số; Date → ISO; Select ∈ options;
+	- bỏ dòng mà mọi ô đều trống; quá `max_rows` → lỗi; cột bắt buộc trống → lỗi;
+	- `name` chỉ giữ khi đúng là dòng con của chính NV đó (để Sync sửa đúng dòng), không thì thành dòng mới.
+	"""
+	errors = []
+	if value not in (None, "") and not isinstance(value, (list, str)):
+		return [], [_("{0}: invalid data").format(f["label"])]
+	own = {r["name"] for r in _employee_table_rows(employee, f)}
+	rows, used = [], set()
+	for raw in _table_list(value):
+		row = {}
+		for c in f["columns"]:
+			v = raw.get(c["fieldname"])
+			row[c["fieldname"]] = _normalize_text(c, "" if v is None else str(v).strip())
+		for c in f["columns"]:
+			# Cột ẩn (vd THCS/THPT → Trường, Ngành, Năm TN): xoá trắng TRƯỚC khi kiểm, để giá trị còn sót
+			# (nhập trước khi đổi trình độ) không gây lỗi cho ô NV không nhìn thấy.
+			if _column_hidden(f, c, row):
+				row[c["fieldname"]] = ""
+				continue
+			v = row[c["fieldname"]]
+			label = f"{f['label']} – {c['label']}"
+			if v and c["fieldtype"] == "Int":
+				if not re.fullmatch(r"\d{1,9}", v):
+					errors.append(_("{0}: {1} is not a valid number").format(label, v))
+			elif v and c["fieldtype"] == "Float":
+				try:
+					float(v)
+				except ValueError:
+					errors.append(_("{0}: {1} is not a valid number").format(label, v))
+			elif v and c["fieldtype"] == "Date":
+				try:
+					v = frappe.utils.getdate(v).isoformat()
+				except Exception:
+					errors.append(_("{0}: {1} is not a valid date").format(label, v))
+			elif v and c["fieldtype"] == "Select" and v not in (c.get("options") or []):
+				errors.append(_("{0}: {1} is not a valid option").format(label, v))
+			row[c["fieldname"]] = v
+		if not any(row.values()):
+			continue
+		for c in f["columns"]:
+			if _column_required(f, c, row) and not row[c["fieldname"]]:
+				errors.append(_("{0} – row {1}: {2} is required").format(f["label"], len(rows) + 1, c["label"]))
+		name = raw.get("name")
+		if name in own and name not in used:
+			used.add(name)
+			row = {"name": name, **row}
+		rows.append(row)
+	if len(rows) > f["max_rows"]:
+		errors.append(_("{0}: at most {1} rows").format(f["label"], f["max_rows"]))
+	return rows, errors
 
 
 def _validation_meta(row):
@@ -217,10 +570,15 @@ _NORMALIZE_TYPES = {"Data", "Small Text", "Text", "Long Text"}
 # giữ nguyên mã như "B2", "TDP1", "ABC123".
 _WORD_DIGIT = re.compile(r"(?<![^\W\d_])([^\W\d_]{2,})(?=\d)")
 _EMAIL_LIKE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+# Chữ cái đầu câu: đầu ô / sau . ! ? … + khoảng trắng / đầu dòng; bỏ qua ngoặc, nháy mở trước chữ.
+_SENTENCE_START = re.compile(r"(^|[.!?…]\s+|\n)([\"'“‘(\[]*)([^\W\d_])")
 
 
 def _normalize_text(f, value):
-	"""NFC, gộp khoảng trắng, chèn dấu cách chữ–số, viết hoa ký tự đầu (Person Name: hoa đầu mỗi từ).
+	"""NFC, gộp khoảng trắng, chèn dấu cách chữ–số, viết hoa ký tự đầu của cả ô. Theo Validation:
+	- "Capitalize Each Word": hoa ký tự đầu MỖI từ, giữ nguyên phần còn lại ("thôn TDP1" → "Thôn TDP1");
+	- "Sentence Case": hoa ký tự đầu MỖI câu (đầu ô, sau . ! ? …, đầu mỗi dòng) — cho ô nhập tự do.
+	("Person Name" đã bỏ 16/10/2026 — trùng với Capitalize Each Word.)
 
 	Không đụng: field không phải chữ, widget khác Auto, validation Email.
 	"""
@@ -239,10 +597,11 @@ def _normalize_text(f, value):
 	lines = [re.sub(r"[ \t\u00a0]+", " ", ln).strip() for ln in lines]
 	v = "\n".join(ln for ln in lines) if multiline else lines[0]
 	v = v.strip()
-	if (f.get("validation") or "") == "Person Name":
-		# Hoa đầu mỗi từ, phần còn lại thường: "ĐOÀN THANH PHI" / "duong minh thang" → "Đoàn Thanh Phi".
-		return " ".join(w[:1].upper() + w[1:].lower() for w in v.split(" ") if w)
 	v = _WORD_DIGIT.sub(lambda m: m.group(1) + " " if any(c.islower() for c in m.group(1)) else m.group(1), v)
+	if (f.get("validation") or "") == "Capitalize Each Word":
+		return "\n".join(" ".join(w[:1].upper() + w[1:] for w in ln.split(" ")) for ln in v.split("\n"))
+	if (f.get("validation") or "") == "Sentence Case":
+		return _SENTENCE_START.sub(lambda m: m.group(1) + m.group(2) + m.group(3).upper(), v)
 	return v[:1].upper() + v[1:]
 
 
@@ -611,19 +970,15 @@ def get_form_data(employee_id, code=None, unlock_code=None):
 	config = _build_config()
 	fieldnames = _config_fieldnames(config)
 	# Only real Employee fields can be read from the Employee record; custom
-	# fields have no source value.
-	real_fields = [
-		f["fieldname"]
-		for sec in config["sections"]
-		for f in sec["fields"]
-		if not f.get("custom")
-	]
+	# fields have no source value. Bảng con đọc riêng (list dòng, kèm `name`).
+	real_fields = _employee_scalar_fields(config)
 
 	emp = frappe.db.get_value(
 		"Employee", employee_id, ["employee_name"] + real_fields, as_dict=True
 	) or {}
 	employee_name = emp.get("employee_name")
 	original = {fn: (emp.get(fn) if fn in real_fields else None) for fn in fieldnames}
+	original.update(_employee_tables(employee_id, config))
 
 	values = dict(original)
 	status = None
@@ -635,8 +990,11 @@ def get_form_data(employee_id, code=None, unlock_code=None):
 		has_existing = True
 		saved = json.loads(doc.data_json or "{}")
 		remarks = saved.get(REMARKS_KEY, "")
+		tables = {f["fieldname"] for sec in config["sections"] for f in sec["fields"] if _is_table(f)}
 		for fn in fieldnames:
 			if fn in saved:
+				if fn in tables and not isinstance(saved[fn], list):
+					continue  # bảng con lưu dạng cũ (chữ, khi còn là field custom) → giữ dòng Employee
 				values[fn] = saved[fn]
 
 	# Fields with auto_fill = 0 must be re-entered every visit: never prefill
@@ -704,35 +1062,50 @@ def save_form_data(employee_id, data, code=None, unlock_code=None, commitment=No
 	clean = {k: v for k, v in (data or {}).items() if k in allowed and k in editable}
 	# Ô "Ghi chú thêm" gắn cứng (__remarks) đã bỏ 16/10/2026 — cần ghi chú thì thêm custom field trong Setting.
 
-	# Tự chuẩn hoá chữ (NFC, khoảng trắng, chữ–số, viết hoa ký tự đầu / Person Name).
+	# Tự chuẩn hoá chữ (NFC, khoảng trắng, chữ–số, viết hoa ký tự đầu / Capitalize Each Word / Sentence Case).
 	fields_by_name = {f["fieldname"]: f for sec in config["sections"] for f in sec["fields"]}
+	table_errors = []
 	for k in list(clean):
 		if k in fields_by_name:
-			clean[k] = _normalize_text(fields_by_name[k], clean[k])
+			f = fields_by_name[k]
+			if _is_table(f):
+				# Bảng con: list dòng đã làm sạch (cột, kiểu, max_rows, cột bắt buộc, `name` của chính NV).
+				clean[k], errs = _clean_table_value(f, clean[k], employee_id)
+				table_errors += errs
+			else:
+				clean[k] = _normalize_text(f, clean[k])
 
 	# Ngày hết hạn CCCD: không nhận giá trị gửi lên, luôn tự tính.
 	_apply_cccd_expiry(config, clean, employee_id)
+	# Field "chỉ hiện khi…" (_FIELD_DEPENDS): ẩn → xoá trắng; đang hiện → bắt buộc.
+	dep_visible = _apply_depends(config, clean, employee_id)
 
 	# Validate required fields.
 	missing = []
 	for sec in config["sections"]:
 		for f in sec["fields"]:
-			if f["required"] and not f["read_only"] and f["fieldname"] != CCCD_EXPIRY_FIELD:
+			required = dep_visible[f["fieldname"]] if f["fieldname"] in dep_visible else f["required"]
+			if required and not f["read_only"] and f["fieldname"] != CCCD_EXPIRY_FIELD:
 				val = clean.get(f["fieldname"])
-				if val is None or str(val).strip() == "":
+				if (not val) if _is_table(f) else (val is None or str(val).strip() == ""):
 					missing.append(f["label"])
 	if missing:
 		frappe.throw(_("Please fill required fields: {0}").format(", ".join(missing)))
 
 	# Format validation (mirrors the client; server is the source of truth).
-	errors = []
+	errors = list(table_errors)
 	for sec in config["sections"]:
 		for f in sec["fields"]:
-			if f["read_only"] or f["fieldname"] == CCCD_EXPIRY_FIELD:
+			if f["read_only"] or f["fieldname"] == CCCD_EXPIRY_FIELD or _is_table(f):
 				continue  # ngày hết hạn tự tính: thẻ đã quá hạn thì vẫn ghi đúng, không chặn "Future"
 			err = _validate_value(f, clean.get(f["fieldname"]))
 			if err:
 				errors.append(err)
+			v = clean.get(f["fieldname"])
+			# Select (kể cả Gender hiện dạng dropdown): chỉ nhận giá trị gốc trong options — nhãn tiếng Việt
+			# ("Nữ") gửi lên sẽ làm Sync lỗi Link / Select.
+			if f.get("fieldtype") == "Select" and v not in (None, "") and v not in (f.get("options") or []):
+				errors.append(_("{0}: {1} is not a valid option").format(f["label"], v))
 	errors += _portal_address_errors(config, clean, employee_id)
 	if errors:
 		frappe.throw("<br>".join(errors))
@@ -800,11 +1173,65 @@ def download_pdf_for_hr(name):
 	frappe.response["content_type"] = "application/pdf"
 
 
+# Đầu phiếu HR (compact): dòng 1 = Mã NV · Họ tên · các field dòng đầu; mỗi dòng sau 1 tuple.
+# Field có trong Setting thì lên đầu phiếu và bỏ khỏi bảng (user 16/10/2026: bỏ hẳn "Thông tin chung").
+_HR_HEADER_LINES = (("gender",), ("date_of_birth", "cell_number"))
+# % độ rộng 6 cột đầu phiếu: nhãn | giá trị × 3 (cột 3 đủ "Số điện thoại:", cột 4 họ tên dài, cột 5 "Ngày nhận việc:").
+_HR_HEADER_COL_WIDTHS = (13, 16, 13, 26, 15, 17)
+
+# Lề PDF phía HR (user 16/10/2026: trái/phải rộng bảng hồ sơ thêm chút, trên/dưới bớt 1 xíu); phiếu www giữ 15mm.
+HR_RECEIPT_SIDE_MARGIN = "10mm"
+HR_RECEIPT_TB_MARGIN = "10mm"
+
+
 def _hr_receipt_html(doc, sign_config):
 	"""Phiếu PDF phía HR (Generate PDF + PDF Split): đúng mẫu phiếu tải ở trang www, khác 2 điểm:
 	- chỉ field tick "Info for Sign" (`sign_config` = _info_for_sign_config(_build_config()));
-	- phiếu chưa ký trên www vẫn in cam kết + ô trống để NV ký tay (sign_on_paper)."""
-	return _build_submission_html(doc, json.loads(doc.data_json or "{}"), sign_config, sign_on_paper=True)
+	- phiếu chưa ký trên www vẫn in cam kết + ô trống để NV ký tay (sign_on_paper);
+	- bảng "Hồ sơ / Tình trạng" (Setting → Document Checklist (PDF)) in ngay trên phần chữ ký;
+	- gom dòng cho gọn trang (compact): địa chỉ, CCCD + ngày cấp, liên hệ khẩn cấp.
+	Field "Auto Fill Data" phiếu chưa có giá trị → lấy từ Employee (_fill_from_employee), như phiếu www."""
+	checklist = _document_checklist_html(_get_setting().get("pdf_document_checklist"))
+	saved = _fill_from_employee(sign_config, json.loads(doc.data_json or "{}"), doc.employee)
+	return _build_submission_html(
+		doc, saved, sign_config, sign_on_paper=True, checklist_html=checklist, compact=True,
+		side_margin=HR_RECEIPT_SIDE_MARGIN, tb_margin=HR_RECEIPT_TB_MARGIN,
+	)
+
+
+def _document_checklist_html(text):
+	"""Bảng hồ sơ HR kiểm tra tay, mỗi dòng của `text` là 1 hồ sơ (dòng trống bỏ qua; trống hết → "").
+	4 cột Hồ sơ | Tình trạng | Hồ sơ | Tình trạng: nửa đầu ở cặp cột trái, nửa sau ở cặp cột phải;
+	số hồ sơ lẻ → hồ sơ cuối 1 hàng trải ngang. Cuối bảng: "Thông tin khác về hồ sơ" + dòng chấm viết tay.
+	Ô ☐ vẽ bằng CSS (span.cb) — không phụ thuộc font của wkhtmltopdf."""
+	items = [x.strip() for x in (text or "").splitlines() if x.strip()]
+	if not items:
+		return ""
+	esc = frappe.utils.escape_html
+	cb = "<span class='cb'></span>"
+	marks = f"Đạt {cb}&nbsp; Không đạt {cb}&nbsp; Quá hạn {cb}"
+
+	def doc_cell(no, colspan=""):
+		return f"<td class='cdoc'{colspan}>{no} {cb} {esc(items[no - 1])}</td>"
+
+	half = len(items) // 2
+	rows = [
+		"<tr><th class='hdoc'>Hồ sơ</th><th class='hst'>Tình trạng</th><th class='hdoc'>Hồ sơ</th><th class='hst'>Tình trạng</th></tr>"
+	]
+	status = f"<td class='cst'>{marks}<br>Khác: <span class='fill'></span></td>"
+	for i in range(1, half + 1):
+		rows.append(f"<tr>{doc_cell(i)}{status}{doc_cell(half + i)}{status}</tr>")
+	if len(items) % 2:
+		span = " colspan='2'"
+		rows.append(
+			f"<tr>{doc_cell(len(items), span)}"
+			f"<td class='cst' colspan='2'>{marks}&nbsp; Khác: <span class='fill w'></span></td></tr>"
+		)
+	rows.append(
+		"<tr><td colspan='4' class='cnote'>Thông tin khác về hồ sơ (nếu có):"
+		"<div class='dots'></div><div class='dots'></div></td></tr>"
+	)
+	return f"<div class='checklist'><table class='chk'>{''.join(rows)}</table></div>"
 
 
 def _receipt_base(doc):
@@ -835,8 +1262,8 @@ def _load_submission_receipt(employee_id, code, unlock_code=None, token=None):
 		frappe.throw(_("No submission found for this employee."))
 
 	doc = frappe.get_doc(INFO_DT, employee_id)
-	saved = json.loads(doc.data_json or "{}")
 	config = _build_config()
+	saved = _fill_from_employee(config, json.loads(doc.data_json or "{}"), doc.employee)
 	html = _build_submission_html(doc, saved, config)
 	return html, _receipt_base(doc)
 
@@ -920,9 +1347,33 @@ def _fmt_date_vn(value):
 		return str(value)
 
 
-def _build_submission_html(doc, saved, config, sign_on_paper=False):
+def _table_html(f, rows):
+	"""Bảng con trên phiếu PDF/PNG: bảng nhỏ có tiêu đề cột; không có dòng → ""."""
+	rows = _table_list(rows)
+	if not rows:
+		return ""
+	esc = frappe.utils.escape_html
+	head = "".join(f"<th>{esc(c['label'])}</th>" for c in f["columns"])
+	body = "".join(
+		"<tr>" + "".join(f"<td>{esc(_sign_value_vi(c, r.get(c['fieldname'])))}</td>" for c in f["columns"]) + "</tr>"
+		for r in rows
+	)
+	return f"<table class='sub'><tr>{head}</tr>{body}</table>"
+
+
+def _build_submission_html(
+	doc, saved, config, sign_on_paper=False, checklist_html="", compact=False, side_margin="15mm", tb_margin="15mm"
+):
 	"""Phiếu HTML (PDF/PNG). `sign_on_paper=True` (phiếu phía HR, _hr_receipt_html): phiếu chưa ký trên
-	trang www vẫn in câu cam kết + ô trống để NV ký tay; phiếu đã ký in chữ ký như thường."""
+	trang www vẫn in câu cam kết + ô trống để NV ký tay; phiếu đã ký in chữ ký như thường.
+	`checklist_html` (chỉ phiếu HR, _document_checklist_html) in sau Ghi chú, trước chữ ký — chữ ký luôn cuối phiếu.
+	`compact=True` (chỉ phiếu HR) gom dòng cho gọn trang, ghép như Info for Sign (_sign_join):
+	- mỗi Section địa chỉ (có ô Address Province) → 1 dòng "thôn, xã, tỉnh"; các Section địa chỉ liền nhau
+	  chung 1 tiêu đề "Địa chỉ";
+	- nhóm _SIGN_GROUPS (Số CCCD + ngày cấp; người liên hệ + quan hệ + SĐT khẩn cấp) → 1 dòng, đặt ở chỗ
+	  field đầu tiên của nhóm. Nhóm chỉ còn 1 field trong config thì in như thường.
+	`side_margin` / `tb_margin` = lề trái-phải / trên-dưới trang PDF (phiếu HR 10mm; phiếu www giữ 15mm).
+	compact còn đưa Giới tính lên đầu phiếu, cùng dòng Mã NV + Họ tên."""
 	company = (
 		frappe.defaults.get_global_default("company")
 		or frappe.db.get_single_value("Global Defaults", "default_company")
@@ -934,28 +1385,77 @@ def _build_submission_html(doc, saved, config, sign_on_paper=False):
 	# The employee code is already shown in the header — skip any field that just
 	# repeats it (e.g. a field mapped to `employee` / `name`).
 	skip_fields = {"employee", "name"}
+	# compact (phiếu HR): các field ở _HR_HEADER_LINES lên đầu phiếu (cạnh Mã NV / Họ tên) → bỏ khỏi bảng;
+	# Section chỉ còn các field này (vd "Thông tin chung") tự mất vì rỗng.
+	by_fn = {f["fieldname"]: f for s in config["sections"] for f in s["fields"]}
+	header_lines = [[by_fn[fn] for fn in line if fn in by_fn] for line in _HR_HEADER_LINES] if compact else []
+	skip_fields |= {f["fieldname"] for line in header_lines for f in line}
 	rows = []
+	addr_run = []  # dòng địa chỉ đã gom (compact), chờ in dưới 1 tiêu đề "Địa chỉ"
+	esc = frappe.utils.escape_html
+
+	def fmt(f):
+		"""Giá trị 1 field (không phải bảng con) như in trên phiếu."""
+		val = saved.get(f["fieldname"])
+		val = "" if val is None else str(val)
+		if f.get("fieldtype") == "Date" and val:
+			return _fmt_date_vn(val)  # ngày trên phiếu: dd/mm/yyyy
+		if f.get("fieldtype") == "Select" and val:
+			return _sign_value_vi(f, val)  # Married → "Đã kết hôn"; size dép in gọn "6-7" (không dùng Option Labels)
+		return val
+
+	def row_html(label, val_html):
+		return f"<tr><td class='lbl'>{esc(label)}</td><td class='val'>{val_html or '&mdash;'}</td></tr>"
+
+	# compact: field → nhóm gộp 1 dòng (chỉ nhóm có ≥ 2 field trong config)
+	group_of, members = {}, {}
+	if compact:
+		for kind, (fns, _label) in _SIGN_GROUPS.items():
+			ms = [f for s in config["sections"] for f in s["fields"] if f["fieldname"] in fns and not _is_table(f)]
+			if len(ms) > 1:
+				members[kind] = ms
+				group_of.update({f["fieldname"]: kind for f in ms})
+
+	def flush_addr():
+		if addr_run:
+			rows.append('<tr><td colspan="2" class="sec">Địa chỉ</td></tr>')
+			rows.extend(addr_run)
+			addr_run.clear()
+
 	for sec in config["sections"]:
+		if compact and any(f.get("widget") == "Address Province" for f in sec["fields"]):
+			fs = [f for f in sec["fields"] if f["fieldname"] not in skip_fields]
+			if fs:
+				val = _sign_join("address", [(f, str(saved.get(f["fieldname"]) or "").strip()) for f in fs])
+				addr_run.append(
+					"<tr><td class='lbl'>{0}</td><td class='val'>{1}</td></tr>".format(
+						frappe.utils.escape_html(_strip_section_no(sec["label"])),
+						frappe.utils.escape_html(val) or "&mdash;",
+					)
+				)
+			continue
+		flush_addr()
 		sec_rows = []
 		for f in sec["fields"]:
 			if f["fieldname"] in skip_fields:
 				continue
-			val = saved.get(f["fieldname"])
-			val = "" if val is None else str(val)
-			if f.get("fieldtype") == "Date" and val:
-				val = _fmt_date_vn(val)  # ngày trên phiếu: dd/mm/yyyy
-			sec_rows.append(
-				"<tr><td class='lbl'>{0}</td><td class='val'>{1}</td></tr>".format(
-					frappe.utils.escape_html(f["label"]),
-					frappe.utils.escape_html(val) or "&mdash;",
-				)
-			)
+			if _is_table(f):
+				sec_rows.append(row_html(f["label"], _table_html(f, saved.get(f["fieldname"]))))
+				continue
+			kind = group_of.get(f["fieldname"])
+			if kind:
+				if f is members[kind][0]:
+					val = _sign_join(kind, [(m, fmt(m).strip()) for m in members[kind]])
+					sec_rows.append(row_html(_SIGN_GROUPS[kind][1], esc(val)))
+				continue
+			sec_rows.append(row_html(f["label"], esc(fmt(f))))
 		if not sec_rows:
 			continue  # drop a section that became empty
 		rows.append(
 			f'<tr><td colspan="2" class="sec">{frappe.utils.escape_html(_strip_section_no(sec["label"]))}</td></tr>'
 		)
 		rows.extend(sec_rows)
+	flush_addr()
 
 	remarks = saved.get(REMARKS_KEY) or ""
 	remarks_block = ""
@@ -966,6 +1466,36 @@ def _build_submission_html(doc, saved, config, sign_on_paper=False):
 		)
 
 	logo_img = f"<img src='{logo}' class='logo'/>" if logo else ""
+	emp_code, emp_name = esc(doc.employee), esc(doc.employee_name or "")
+	# compact (phiếu HR): ô bảng đệm 2px thay 3px (cùng cỡ chữ) → thêm chỗ cho bảng hồ sơ + chữ ký trên trang 1.
+	# Đặt CUỐI <style> để thắng rule td mặc định.
+	# Cột nhãn của bảng hẹp lại (40% → 30%) để cột giá trị rộng hơn (bảng con Học vấn / Kinh nghiệm…).
+	compact_css = (
+		"table.data td{padding:2px 7px} table.data td.lbl{width:30%} table.data td.val{width:70%}" if compact else ""
+	)
+	if compact:
+		# Đầu phiếu dạng bảng không viền, cột thẳng hàng: dòng 1 Mã NV · Họ tên · (Giới tính);
+		# các dòng sau theo _HR_HEADER_LINES (Ngày sinh · Số điện thoại).
+		lines = [[("Mã nhân viên", emp_code), ("Họ và tên", emp_name)]
+			+ [(f["label"], esc(fmt(f)) or "&mdash;") for f in header_lines[0]]] if header_lines else [
+			[("Mã nhân viên", emp_code), ("Họ và tên", emp_name)]]
+		lines += [[(f["label"], esc(fmt(f)) or "&mdash;") for f in line] for line in header_lines[1:] if line]
+		# Ngày nhận việc (field của phiếu, fetch từ Employee — không phụ thuộc Setting): cuối dòng 2.
+		doj = doc.get("date_of_joining")
+		doj_item = ("Ngày nhận việc", esc(_fmt_date_vn(doj)) if doj else "&mdash;")
+		if len(lines) > 1 and len(lines[1]) < 3:
+			lines[1].append(doj_item)
+		else:
+			lines.append([doj_item])
+		# 6 cột cố định (nhãn | giá trị × 3) → 2 dòng thẳng cột, trải đều chiều ngang.
+		id_lines = "<table class='meta-t'><colgroup>" + "".join(
+			f"<col style='width:{w}%'>" for w in _HR_HEADER_COL_WIDTHS) + "</colgroup>" + "".join(
+			"<tr>" + "".join(f"<td class='mk'>{esc(lbl)}:</td><td class='mv'>{v}</td>" for lbl, v in line)
+			+ "<td></td><td></td>" * (3 - len(line)) + "</tr>"
+			for line in lines
+		) + "</table>"
+	else:
+		id_lines = f"<div><b>Mã nhân viên:</b> {emp_code}</div><div><b>Họ và tên:</b> {emp_name}</div>"
 	# Đã ký → "Ký lúc" ở khung chữ ký là mốc thời gian; chỉ phiếu cũ chưa ký mới hiện giờ gửi.
 	submitted_line = "" if doc.get("signed_on") else f"<div><b>Thời điểm gửi:</b> {submitted}</div>"
 
@@ -999,7 +1529,7 @@ def _build_submission_html(doc, saved, config, sign_on_paper=False):
 <!DOCTYPE html><html><head><meta charset="utf-8"><style>
   /* Lề trang PDF: get_pdf đọc từ rule .print-format (khai ở options của get_pdf sẽ bị ghi đè).
      Lề 15mm cả 4 phía (user chọn 15/10/2026); phần còn lại thu gọn để phiếu + chữ ký vừa 1 trang A4. */
-  .print-format{{margin-top:15mm;margin-bottom:15mm;margin-left:15mm;margin-right:15mm}}
+  .print-format{{margin-top:{tb_margin};margin-bottom:{tb_margin};margin-left:{side_margin};margin-right:{side_margin}}}
   body{{font-family:'Helvetica Neue',Arial,sans-serif;color:#1f2733;font-size:11px;line-height:1.3;margin:0}}
   .head{{text-align:left;border-bottom:2px solid #1e3a8a;padding-bottom:6px;margin-bottom:8px;overflow:hidden}}
   .logo{{height:30px;float:left;margin:1px 10px 0 0}}
@@ -1021,8 +1551,30 @@ def _build_submission_html(doc, saved, config, sign_on_paper=False):
   .slabel{{font-weight:bold}}
   .sig{{max-width:220px;max-height:60px;margin:3px 0}}
   .sigspace{{height:60px;margin:3px 0}}  /* ô trống để ký tay (sign_on_paper) */
+  table.sub{{margin:0}}  /* bảng con (Học vấn, Quá trình làm việc) trong ô giá trị */
+  table.sub th,table.sub td{{border:1px solid #e3e8ef;padding:1px 4px;font-size:10px;font-weight:normal;text-align:left}}
+  table.sub th{{color:#475569}}
   .sname{{font-weight:bold}}
   .sdate{{font-size:10px;color:#64748b}}
+  /* Bảng hồ sơ HR kiểm tra (_document_checklist_html) — không cắt đôi giữa 2 trang.
+     Cùng font / viền / tiêu đề với bảng nội dung phía trên (td, td.sec). */
+  .checklist{{margin-top:6px;page-break-inside:avoid}}
+  .tail{{page-break-inside:avoid}}  /* bảng hồ sơ + chữ ký luôn cùng trang — chữ ký không đứng riêng trang sau */
+  table.chk{{table-layout:fixed}}  /* cột theo đúng % ở th — tên hồ sơ không bị ép hẹp */
+  table.chk td{{padding:2px 7px;line-height:1.25}}
+  table.chk th{{border:1px solid #d5dbe3;padding:2px 7px;background:#eef2ff;font-weight:bold;color:#1e3a8a;text-align:left}}
+  table.chk th.hdoc{{width:23%}}
+  table.chk th.hst{{width:27%}}
+  table.chk td.cst{{white-space:nowrap}}
+  .cb{{display:inline-block;width:9px;height:9px;border:1px solid #475569;vertical-align:-1px;margin:0 1px}}
+  .fill{{display:inline-block;width:65%;border-bottom:1px dotted #475569;height:10px}}
+  /* đầu phiếu HR (compact): bảng không viền */
+  table.meta-t{{width:100%;table-layout:fixed;margin:0;border-collapse:collapse;font-size:12.5px}}
+  table.meta-t td{{border:none;padding:1px 6px 1px 0;white-space:nowrap;overflow:hidden}}
+  table.meta-t td.mk{{font-weight:bold}}
+  {compact_css}
+  .fill.w{{width:120px}}  /* hàng trải ngang: "Khác" nằm cùng dòng với Đạt / Không đạt / Quá hạn */
+  .dots{{border-bottom:1px dotted #475569;height:12px}}
 </style></head><body>
   <div class="head">
     {logo_img}
@@ -1030,13 +1582,12 @@ def _build_submission_html(doc, saved, config, sign_on_paper=False):
     <div class="title">PHIẾU CẬP NHẬT THÔNG TIN NHÂN VIÊN</div>
   </div>
   <div class="meta">
-    <div><b>Mã nhân viên:</b> {frappe.utils.escape_html(doc.employee)}</div>
-    <div><b>Họ và tên:</b> {frappe.utils.escape_html(doc.employee_name or "")}</div>
+    {id_lines}
     {submitted_line}
   </div>
-  <table>{''.join(rows)}</table>
+  <table class="data">{''.join(rows)}</table>
   {remarks_block}
-  <div class="signoff">{sign_block}</div>
+  <div class="tail">{checklist_html}<div class="signoff">{sign_block}</div></div>
 </body></html>
 """
 
@@ -1091,7 +1642,7 @@ def download_excel(names=None, export_type="All Info", file_format="Excel"):
 	# Headers use the Employee field label so the file can be imported back.
 	# A trailing "Ghi chú" column holds the employee's free-text remarks.
 	header = ["ID", "Employee Name"] + [f["employee_label"] for f in fields] + ["Ghi chú (nhân viên)"]
-	real_fieldnames = [f["fieldname"] for f in fields if not f.get("custom")]
+	real_fieldnames = _employee_scalar_fields(config)
 
 	bold = Font(bold=True)
 	changed_fill = PatternFill(start_color="FFF3B0", end_color="FFF3B0", fill_type="solid")
@@ -1103,6 +1654,7 @@ def download_excel(names=None, export_type="All Info", file_format="Excel"):
 		old_vals = frappe.db.get_value(
 			"Employee", rec.employee, real_fieldnames, as_dict=True
 		) or {} if real_fieldnames else {}
+		old_vals = {**old_vals, **_employee_tables(rec.employee, config)}
 		rows_data.append({"rec": rec, "saved": saved, "old": old_vals})
 
 	def _write_header(ws):
@@ -1119,13 +1671,13 @@ def download_excel(names=None, export_type="All Info", file_format="Excel"):
 	for rd in rows_data:
 		rec, saved, old_vals = rd["rec"], rd["saved"], rd["old"]
 		row = [rec.employee, rec.employee_name]
-		row += [_fmt(saved.get(f["fieldname"])) for f in fields]
+		row += [_value_text(f, saved.get(f["fieldname"])) for f in fields]
 		row.append(_fmt(saved.get(REMARKS_KEY)))
 		ws_new.append(row)
 		excel_row = ws_new.max_row
 		for idx, f in enumerate(fields):
 			fn = f["fieldname"]
-			if fn in saved and _fmt(saved.get(fn)) != _fmt(old_vals.get(fn)):
+			if fn in saved and _value_text(f, saved.get(fn)) != _value_text(f, old_vals.get(fn)):
 				ws_new.cell(row=excel_row, column=3 + idx).fill = changed_fill
 
 	# Sheet 2 — Old Data (current values on the Employee record, for reference).
@@ -1134,7 +1686,7 @@ def download_excel(names=None, export_type="All Info", file_format="Excel"):
 	for rd in rows_data:
 		rec = rd["rec"]
 		row = [rec.employee, rec.employee_name]
-		row += [_fmt(rd["old"].get(f["fieldname"])) for f in fields]
+		row += [_value_text(f, rd["old"].get(f["fieldname"])) for f in fields]
 		row.append("")  # no "old" remarks
 		ws_old.append(row)
 
@@ -1215,9 +1767,15 @@ _EMERGENCY_FIELDS = ("person_to_be_contacted", "relation", "emergency_phone_numb
 # Số CCCD + ngày cấp → 1 dòng "CCCD": "<số>, cấp ngày dd/mm/yyyy" (ngày hết hạn vẫn dòng riêng).
 _CCCD_FIELDS = ("custom_id_card_no", CCCD_ISSUE_FIELD)
 # Nhóm field gộp thành 1 dòng: kind → (fieldnames, nhãn dòng). Dòng đặt ở chỗ field đầu tiên của nhóm.
+# Giấy phép lái xe + tình trạng (khi "Chưa") → "Chưa (Đang đợi cấp)".
+_LICENSE_FIELDS = ("custom_driving_license", "custom_driving_license_status")
+# Size áo + size dép → "Áo: M – Dép: 6-7".
+_UNIFORM_FIELDS = ("custom_shirt_size", "custom_shoe_size")
 _SIGN_GROUPS = {
 	"emergency": (_EMERGENCY_FIELDS, "Liên hệ khẩn cấp"),
 	"cccd": (_CCCD_FIELDS, "CCCD"),
+	"license": (_LICENSE_FIELDS, "Giấy phép lái xe"),
+	"uniform": (_UNIFORM_FIELDS, "Size áo / dép"),
 }
 
 
@@ -1271,6 +1829,14 @@ def _sign_join(kind, parts):
 		by = {f["fieldname"]: v for f, v in parts}
 		no, issued = by.get("custom_id_card_no"), by.get(CCCD_ISSUE_FIELD)  # ngày đã dd/mm/yyyy (_sign_value_vi)
 		return ", ".join(x for x in (no, f"cấp ngày {issued}" if issued else "") if x)
+	if kind == "license":
+		by = {f["fieldname"]: v for f, v in parts}
+		lic, st = by.get(_LICENSE_FIELDS[0]), by.get(_LICENSE_FIELDS[1])
+		return f"{lic} ({st})" if lic and st else (lic or st or "")
+	if kind == "uniform":
+		by = {f["fieldname"]: v for f, v in parts}
+		shirt, shoe = by.get(_UNIFORM_FIELDS[0]), by.get(_UNIFORM_FIELDS[1])
+		return " – ".join(x for x in (f"Áo: {shirt}" if shirt else "", f"Dép: {shoe}" if shoe else "") if x)
 	return parts[0][1] if parts else ""
 
 
@@ -1310,7 +1876,8 @@ def _info_for_sign_people(names):
 			title=_("Info for Sign"),
 		)
 	items = _sign_items(config, wanted)
-	real = [f["fieldname"] for _l, fs, _k in items for f in fs if not f.get("custom")]
+	real = [f["fieldname"] for _l, fs, _k in items for f in fs if not f.get("custom") and not _is_table(f)]
+	tables = [f for _l, fs, _k in items for f in fs if _is_table(f)]
 
 	filters = {"name": ["in", names]} if names else {}
 	records = frappe.get_all(
@@ -1320,13 +1887,14 @@ def _info_for_sign_people(names):
 	for rec in records:
 		saved = json.loads(rec.data_json or "{}")
 		old = (frappe.db.get_value("Employee", rec.employee, real, as_dict=True) or {}) if real else {}
+		old = {**old, **{f["fieldname"]: _employee_table_rows(rec.employee, f) for f in tables}}
 		lines = []
 		for label, fs, kind in items:
 			parts = []
 			for f in fs:
 				fn = f["fieldname"]
-				new_s = _fmt(saved.get(fn)).strip()
-				old_s = "" if f.get("custom") else _fmt(old.get(fn)).strip()
+				new_s = _value_text(f, saved.get(fn)).strip()
+				old_s = "" if f.get("custom") else _value_text(f, old.get(fn)).strip()
 				parts.append((f, _sign_value_vi(f, new_s or old_s)))
 			# Chưa có dữ liệu → VẪN in dòng, Nội dung để trống cho NV tự ghi tay bổ sung.
 			lines.append((label, _sign_join(kind, parts)))
@@ -1374,7 +1942,7 @@ def _info_for_sign_pdf_html(pages, company, font_px):
 				cells = ""
 				if j == 0:
 					cells += f"<td class='c' rowspan='{n}'>{stt}</td><td class='c' rowspan='{n}'>{who}</td>"
-				cells += f"<td>{esc(label)}</td><td>{esc(value)}</td>"
+				cells += f"<td>{esc(label)}</td><td>{esc(value).replace(chr(10), '<br>')}</td>"
 				if j == 0:
 					cells += f"<td rowspan='{n}'></td><td rowspan='{n}'></td>"
 				body.append(f"<tr class='{'first' if j == 0 else ''}'>{cells}</tr>")
@@ -1388,7 +1956,7 @@ def _info_for_sign_pdf_html(pages, company, font_px):
 		blocks.append(f"<div class='pg'{brk}>{title}<table><thead><tr>{head}</tr></thead><tbody>{''.join(body)}</tbody></table></div>")
 	f = font_px
 	return f"""<!DOCTYPE html><html><head><meta charset="utf-8"><style>
-  .print-format{{margin-top:10mm;margin-bottom:10mm;margin-left:15mm;margin-right:15mm}}
+  .print-format{{margin-top:15mm;margin-bottom:15mm;margin-left:15mm;margin-right:15mm}}
   body{{font-family:Arial,'Helvetica Neue',sans-serif;color:#111;margin:0;font-size:{f}px}}
   .co{{text-align:center;font-weight:bold;font-size:{f + 1}px}}
   .ti{{text-align:center;font-weight:bold;font-size:{f + 5}px;margin:2px 0}}
@@ -1636,13 +2204,15 @@ _MULTILINE_TYPES = {"Small Text", "Text", "Long Text"}
 
 
 def _hr_editor(f):
-	"""Loại ô HR được sửa trên Desk: text | textarea | select | date | province | ward — hoặc None.
+	"""Loại ô HR được sửa trên Desk: text | textarea | select | date | province | ward | table — hoặc None.
 
 	Field read_only trên trang (NV không được sửa) thì HR cũng không sửa ở đây.
 	Check/Datetime/Time/Link chưa hỗ trợ.
 	"""
 	if f.get("read_only") or f.get("fieldname") == CCCD_EXPIRY_FIELD:
 		return None  # ngày hết hạn CCCD tự tính (validate_desk_edit) — không cho sửa tay
+	if _is_table(f):
+		return "table"  # bảng nhỏ sửa được, kiểm bằng _clean_table_value
 	widget = f.get("widget") or "Auto"
 	if widget == "Address Province":
 		return "province"
@@ -1715,6 +2285,11 @@ def validate_desk_edit(doc):
 		f = fields.get(k)
 		if not f or not _hr_editor(f):
 			frappe.throw(_("Field {0} cannot be edited here.").format(f["label"] if f else k))
+		if _is_table(f):
+			rows, errs = _clean_table_value(f, nv, doc.employee)
+			new[k] = rows
+			errors += errs
+			continue
 		nv = _normalize_text(f, "" if nv is None else str(nv).strip())
 		new[k] = nv
 		if str(ov or "") == nv:
@@ -1736,6 +2311,12 @@ def validate_desk_edit(doc):
 	# Ngày sinh / ngày cấp vừa sửa → ngày hết hạn CCCD tính lại (sau vòng kiểm field ở trên).
 	if {CCCD_DOB_FIELD, CCCD_ISSUE_FIELD} & changed:
 		_apply_cccd_expiry(config, new, doc.employee)
+
+	# Field "chỉ hiện khi…": điều kiện không thoả → xoá trắng; thoả mà trống (vừa đổi) → báo thiếu.
+	for fn, vis in _apply_depends(config, new, doc.employee).items():
+		f = fields[fn]
+		if vis and not str(new.get(fn) or "").strip() and ({fn, f["depends_on"]["field"]} & changed):
+			errors.append(_("Please fill required fields: {0}").format(f["label"]))
 
 	from customize_erpnext.api.vn_address_search.vn_address_search_api import get_address_error
 
@@ -1764,8 +2345,9 @@ def get_submission_view(name):
 	saved = json.loads(doc.data_json or "{}")
 	config = _build_config()
 
-	real = [f["fieldname"] for sec in config["sections"] for f in sec["fields"] if not f.get("custom")]
+	real = _employee_scalar_fields(config)
 	emp_vals = frappe.db.get_value("Employee", doc.employee, real, as_dict=True) or {} if real else {}
+	emp_tables = _employee_tables(doc.employee, config)
 
 	prov_of = {ward: prov for prov, ward in _address_pairs(config)}
 	sections = []
@@ -1775,9 +2357,35 @@ def get_submission_view(name):
 			fn = f["fieldname"]
 			if fn in ("employee", "name"):
 				continue  # identity — already shown on the record header
+			if _is_table(f):
+				new_rows = _table_list(saved.get(fn))
+				old_rows = emp_tables.get(fn) or []
+				# Auto Fill Data + phiếu chưa có dòng → hiện dòng Employee (như phiếu PDF, _fill_from_employee).
+				filled = bool(f.get("auto_fill") and not new_rows and old_rows)
+				rows.append({
+					"fieldname": fn,
+					"label": f["label"],
+					"value": new_rows,
+					"in_saved": fn in saved and isinstance(saved.get(fn), list),
+					"old": old_rows,
+					"display": _table_text(f, old_rows if filled else new_rows),
+					"old_display": _table_text(f, old_rows),
+					"changed": fn in saved and not filled and not _table_rows_equal(f, new_rows, old_rows),
+					"auto_filled": filled,
+					"custom": False,
+					"editor": _hr_editor(f),
+					"columns": f["columns"],
+					"required_if": f.get("required_if"),
+					"max_rows": f["max_rows"],
+				})
+				continue
 			new_v = saved.get(fn)
 			new_s = "" if new_v is None else str(new_v)
 			old_s = "" if f.get("custom") else _fmt(emp_vals.get(fn))
+			# Auto Fill Data + phiếu chưa có giá trị → hiện giá trị Employee (như phiếu PDF, _fill_from_employee).
+			filled = bool(f.get("auto_fill") and not f.get("custom") and not new_s.strip() and old_s.strip())
+			if filled:
+				new_s = old_s
 			is_date = f.get("fieldtype") == "Date"
 			rows.append({
 				"fieldname": fn,
@@ -1788,6 +2396,7 @@ def get_submission_view(name):
 				"display": _fmt_date_vn(new_s) if is_date and new_s else new_s,
 				"old_display": _fmt_date_vn(old_s) if is_date and old_s else old_s,
 				"changed": (not f.get("custom")) and fn in saved and new_s != old_s,
+				"auto_filled": filled,
 				"custom": bool(f.get("custom")),
 				"editor": _hr_editor(f),
 				"options": f.get("options") if _hr_editor(f) == "select" else None,
@@ -1845,6 +2454,24 @@ def _coerce_for_employee(value, fieldtype):
 	if fieldtype in ("Float", "Currency"):
 		return float(sval)
 	return sval
+
+
+def _sync_table_rows(emp, f, rows):
+	"""Ghi bảng con của phiếu vào Employee: dòng có `name` của Employee → sửa đúng các cột cấu hình
+	(cột khác giữ nguyên); dòng không `name` → thêm mới. Dòng Employee không có trong phiếu → GIỮ
+	NGUYÊN (user 16/10/2026: xoá hay không tính sau). Trả số dòng giữ nguyên đó."""
+	rows = _table_list(rows)
+	existing = {r.name: r for r in emp.get(f["fieldname"]) or []}
+	seen = set()
+	for r in rows:
+		vals = {c["fieldname"]: _coerce_for_employee(r.get(c["fieldname"]), c["fieldtype"]) for c in f["columns"]}
+		child = existing.get(r.get("name"))
+		if child is not None and child.name not in seen:
+			child.update(vals)
+			seen.add(child.name)
+		else:
+			emp.append(f["fieldname"], vals)
+	return len(existing) - len(seen)
 
 
 def _rebuild_address_full(emp, changed_fieldnames):
@@ -1956,11 +2583,16 @@ def sync_to_employee(names, fields=None):
 			emp = frappe.get_doc("Employee", doc.employee)
 			meta = emp.meta
 			changed = []
+			kept_rows = 0
 			for fn, f in emp_fields.items():
 				if fn not in saved:
 					continue
 				if not meta.has_field(fn):
 					continue  # field no longer on Employee
+				if _is_table(f):
+					kept_rows += _sync_table_rows(emp, f, saved.get(fn))
+					changed.append(fn)
+					continue
 				emp.set(fn, _coerce_for_employee(saved.get(fn), f["fieldtype"]))
 				changed.append(fn)
 			_rebuild_address_full(emp, set(changed))
@@ -1972,8 +2604,11 @@ def sync_to_employee(names, fields=None):
 			doc.save(ignore_permissions=True)
 			frappe.db.commit()
 			synced += 1
+			msg = _("Đã đồng bộ {0} trường").format(len(changed))
+			if kept_rows:
+				msg += " · " + _("{0} dòng bảng con không có trong phiếu — giữ nguyên trên Employee").format(kept_rows)
 			results.append({"employee": doc.employee, "employee_name": doc.employee_name, "ok": True,
-				"message": _("Đã đồng bộ {0} trường").format(len(changed))})
+				"message": msg})
 		except Exception as e:
 			frappe.db.rollback()
 			failed += 1

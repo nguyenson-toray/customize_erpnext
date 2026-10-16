@@ -246,13 +246,17 @@ function open_field_picker(frm) {
 		const meta = frappe.get_meta("Employee");
 		const ALLOWED = [
 			"Data", "Date", "Datetime", "Time", "Int", "Float", "Currency",
-			"Select", "Check", "Small Text", "Text", "Long Text", "Link", "Phone",
+			"Select", "Check", "Small Text", "Text", "Long Text", "Link", "Phone", "Autocomplete",
 		];
+		// Bảng con: chỉ allow-list (= _ALLOWED_TABLES ở self_update_info_api). Cột lấy theo ô
+		// "Table Columns" của dòng (trống = cột mặc định), số dòng theo "Max Rows" (trống = 3).
+		const ALLOWED_TABLES = ["education", "external_work_history"];
 		const SKIP = new Set(
 			(frm.doc.selected_fields || []).map((r) => r.employee_fieldname)
 		);
 		const options = (meta.fields || [])
-			.filter((df) => ALLOWED.includes(df.fieldtype))
+			.filter((df) => ALLOWED.includes(df.fieldtype)
+				|| (df.fieldtype === "Table" && ALLOWED_TABLES.includes(df.fieldname)))
 			.filter((df) => !df.hidden || df.fieldname.startsWith("custom_"))
 			.filter((df) => !SKIP.has(df.fieldname))
 			.map((df) => ({

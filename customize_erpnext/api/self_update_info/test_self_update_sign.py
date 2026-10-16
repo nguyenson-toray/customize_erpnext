@@ -142,6 +142,11 @@ def run():
 	for label, fs, kind in api._sign_items(config, None):
 		parts = []
 		for f in fs:
+			if api._is_table(f):   # bảng con: chữ nhiều dòng, cũ = dòng con trên Employee
+				new_s = api._table_text(f, saved.get(f["fieldname"])).strip()
+				old_s = api._table_text(f, api._employee_table_rows(r0.employee, f)).strip()
+				parts.append((f, api._sign_value_vi(f, new_s or old_s)))
+				continue
 			new_s = str(saved.get(f["fieldname"]) or "").strip()
 			old_s = "" if f.get("custom") else str(frappe.db.get_value("Employee", r0.employee, f["fieldname"]) or "").strip()
 			parts.append((f, api._sign_value_vi(f, new_s or old_s)))
@@ -203,7 +208,7 @@ def run():
 		)
 		check("view: ngày hiển thị dd/mm/yyyy, value giữ ISO cho ô sửa", ok and drows,
 			[(r["fieldname"], r["value"], r["display"], r["old_display"]) for r in drows][:3])
-		other = [r for sec in view["sections"] for r in sec["rows"] if r not in drows]
+		other = [r for sec in view["sections"] for r in sec["rows"] if r not in drows and not r.get("columns")]  # bảng con: display = chữ, value = list
 		check("view: field không phải ngày giữ nguyên", all(r["display"] == r["value"] for r in other))
 
 	# ---------- validate_desk_edit ----------
@@ -413,8 +418,16 @@ def run():
 	d_hr = frappe.get_doc(DT, names[0])
 	www_html = api._build_submission_html(d_hr, json.loads(d_hr.data_json or "{}"), got)
 	hr_html = api._hr_receipt_html(d_hr, got)
+	# Phiếu HR có thêm bảng hồ sơ (Setting → Document Checklist) — bỏ ra trước khi so với phiếu www.
+	chk = api._document_checklist_html(api._get_setting().get("pdf_document_checklist"))
+	hr_cmp = hr_html.replace(chk, "", 1) if chk else hr_html
+	# … và địa chỉ gom 1 dòng (compact) → so với phiếu www dựng cùng cờ.
+	www_cmp = api._build_submission_html(
+		d_hr, api._fill_from_employee(got, json.loads(d_hr.data_json or "{}"), d_hr.employee), got,
+		compact=True, side_margin=api.HR_RECEIPT_SIDE_MARGIN, tb_margin=api.HR_RECEIPT_TB_MARGIN,
+	)
 	check("hr receipt: đúng phiếu trang www (cùng config) khi đã có khung ký",
-		hr_html == www_html or ("class='sigspace'" in hr_html and "class='sigspace'" not in www_html))
+		hr_cmp == www_cmp or ("class='sigspace'" in hr_cmp and "class='sigspace'" not in www_html))
 	check("hr receipt: có cam kết + khung ký", api.COMMITMENT_TEXT in hr_html and "Người khai ký tên" in hr_html)
 	if ticked:
 		live_sign = api._info_for_sign_config(cfg_live)
@@ -598,10 +611,14 @@ def test_info_for_sign_pdf():
 		if rows_real:
 			for n in (4, 9, 14, 24):
 				pdf, texts, codes = export(all_names[:n])
-				exp = 1 + math.ceil(max(0, n - F) / P)
-				fonts_ok = sorted({f for f, lay in tried if lay[0] == min(F, n)})
-				results.append((len(pdf.pages) == exp and codes[0] == min(F, n) and all(c == P for c in codes[1:-1]),
-					f"A) thật ({rows_real} dòng/NV) {n} NV → {exp} trang, 4/5 NV mỗi trang", (codes, fonts_ok)))
+				# Bố cục thật = 4/5, hoặc lùi theo _SIGN_PDF_FALLBACK khi Setting tick nhiều mục (vd 16 dòng/NV → 3/4).
+				f1, p1 = (codes[0], codes[1] if len(codes) > 2 else P) if len(codes) > 1 else (F, P)
+				layout_ok = (f1, p1) in ((F, P),) + api._SIGN_PDF_FALLBACK or n <= f1
+				exp = 1 + math.ceil(max(0, n - f1) / p1)
+				fonts_ok = sorted({f for f, lay in tried if lay[0] == min(f1, n)})
+				results.append((layout_ok and len(pdf.pages) == exp and codes[0] == min(f1, n) and all(c == p1 for c in codes[1:-1])
+					and sum(codes) == n,
+					f"A) thật ({rows_real} dòng/NV) {n} NV → {exp} trang, bố cục {f1}/{p1} NV mỗi trang", (codes, fonts_ok)))
 				results.append((all(f"Trang {i + 1}/{exp}" in t for i, t in enumerate(texts)), f"A) {n} NV: 'Trang x/{exp}'", ""))
 				results.append(("DANH SÁCH XÁC NHẬN" in texts[0] and all("Thông tin" in t and "Chữ ký" in t for t in texts),
 					f"A) {n} NV: tiêu đề trang 1 + tên cột mọi trang", ""))
@@ -657,21 +674,29 @@ def test_normalize_text():
 	results = []
 	n = api._normalize_text
 	D = {"fieldtype": "Data", "widget": "Auto"}
-	PN = {**D, "validation": "Person Name"}
+	CW = {**D, "validation": "Capitalize Each Word"}
+	SC = {"fieldtype": "Small Text", "widget": "Auto", "validation": "Sentence Case"}
 	cases = [
 		(D, "  duong   minh thang ", "Duong minh thang", "gộp khoảng trắng + hoa ký tự đầu"),
 		(D, "thôn 3, xóm đông", "Thôn 3, xóm đông", "chỉ hoa ký tự đầu của cả ô"),
 		(D, "Xóm1,thôn", "Xóm 1,thôn", "chèn dấu cách chữ–số"),
 		(D, "B2", "B2", "giữ mã B2"), (D, "TDP1", "TDP1", "giữ viết tắt TDP1"), (D, "ABC123", "ABC123", "giữ mã ABC123"),
 		(D, "khu A1", "Khu A1", "giữ A1"),
-		(PN, "ĐOÀN THANH PHI", "Đoàn Thanh Phi", "Person Name: viết hoa toàn bộ → Hoa Đầu Mỗi Từ"),
-		(PN, " duong  minh thang", "Duong Minh Thang", "Person Name: thường → Hoa Đầu Mỗi Từ"),
+		(CW, " duong  minh thang", "Duong Minh Thang", "Capitalize Each Word: tên người → Hoa Đầu Mỗi Từ"),
+		(SC, "tôi thích bóng đá. thích cả cầu lông!  còn gì nữa? (hát) và nấu ăn",
+			"Tôi thích bóng đá. Thích cả cầu lông! Còn gì nữa? (Hát) và nấu ăn", "Sentence Case: hoa đầu mỗi câu, giữ phần còn lại"),
+		(SC, "dòng một\n dòng hai. 3 người", "Dòng một\nDòng hai. 3 người", "Sentence Case: đầu mỗi dòng; câu bắt đầu bằng số giữ nguyên"),
+		({**D, "validation": "Sentence Case"}, "xin chào. TP.HCM tốt", "Xin chào. TP.HCM tốt", "Sentence Case: không đụng chữ đã hoa / viết tắt"),
 		({**D, "validation": "Email"}, " Abc@Gmail.com ", "Abc@Gmail.com", "Email: chỉ bỏ khoảng trắng"),
 		({"fieldtype": "Small Text", "widget": "Auto"}, "dòng 1  \n  dòng   2", "Dòng 1\ndòng 2", "Small Text giữ xuống dòng"),
 		({"fieldtype": "Select", "widget": "Auto"}, "male", "male", "Select không đụng"),
 		({**D, "widget": "Address Province"}, "tỉnh x", "tỉnh x", "widget địa chỉ không đụng"),
 		(D, "Hoà", "Hoà", "NFC (dấu tách rời → dựng sẵn)"),
 		(D, " abc.def@gmail.com ", "abc.def@gmail.com", "giá trị trông như email (chưa gán Validation) → không viết hoa"),
+		({**D, "validation": "Capitalize Each Word"}, " bóng   đá, cầu lông ", "Bóng Đá, Cầu Lông", "Capitalize Each Word: hoa đầu mỗi từ"),
+		({**D, "validation": "Capitalize Each Word"}, "thôn TDP1 xóm1", "Thôn TDP1 Xóm 1", "Capitalize Each Word: giữ phần còn lại (TDP1)"),
+		({"fieldtype": "Small Text", "widget": "Auto", "validation": "Capitalize Each Word"}, "hát karaoke\n nấu  ăn",
+			"Hát Karaoke\nNấu Ăn", "Capitalize Each Word: mỗi dòng"),
 	]
 	for f, v, exp, name in cases:
 		got = n(f, v)
@@ -693,11 +718,560 @@ def test_normalize_text():
 		results.append((got == "Xóm 1 thôn tây", "Desk: HR sửa cũng được chuẩn hoá", (text_f["fieldname"], got)))
 	import inspect
 	results.append(("REMARKS_KEY" not in inspect.getsource(api.save_form_data), "save_form_data không còn lưu __remarks", ""))
-	results.append(("Person Name" in frappe.get_meta("Employee Self Update Info Field").get_field("validation").options,
-		"Setting: có lựa chọn Validation 'Person Name'", ""))
+	vopts = frappe.get_meta("Employee Self Update Info Field").get_field("validation").options.split("\n")
+	results.append(("Person Name" not in vopts and {"Capitalize Each Word", "Sentence Case"} <= set(vopts),
+		"Setting: Validation bỏ 'Person Name', có 'Capitalize Each Word' + 'Sentence Case'", vopts))
+	results.append((not frappe.db.count("Employee Self Update Info Field", {"validation": "Person Name"}),
+		"Setting: không còn dòng nào dùng 'Person Name'", ""))
 	frappe.db.rollback()
 	for ok, nm, detail in results:
 		print(f"{'PASS' if ok else 'FAIL'}  {nm}  {detail}")
 	fail = sum(1 for r in results if not r[0])
+	print(f"\n{len(results) - fail}/{len(results)} passed")
+	return {"passed": len(results) - fail, "failed": fail}
+
+
+def test_table_fields():
+	"""Field bảng con (education, external_work_history) — KHÔNG ghi DB (chỉ đọc + doc trong bộ nhớ, rollback).
+
+	    bench --site erp.tiqn.local execute \\
+	        customize_erpnext.api.self_update_info.test_self_update_sign.test_table_fields
+	"""
+	results = []
+
+	def check(name, ok, detail=""):
+		results.append((bool(ok), name, detail))
+
+	frappe.set_user("Administrator")
+	# Setting giả lập TRONG BỘ NHỚ: thêm 2 dòng bảng con + 1 dòng internal_work_history (bị chặn).
+	real_rows = api._selected_rows
+
+	def fake_rows(setting):
+		# Bỏ dòng thật của 2 bảng con (Setting thật có thể đã tick Info for Sign) → chỉ còn dòng giả bên dưới.
+		rows = [r for r in real_rows(setting)
+			if r.employee_fieldname not in ("education", "external_work_history", "internal_work_history")]
+		base = {"enable": 1, "is_custom": 0, "widget": "Auto", "auto_fill_data": 1, "required": 0, "read_only": 0,
+			"validation": "", "min_length": 0, "max_length": 0, "regex": "", "detail": "", "placeholder": ""}
+		rows.append(frappe._dict(base, employee_fieldname="education", label_vi="Học vấn", section_label="Học vấn",
+			info_for_sign=1, max_rows=0, table_columns=""))
+		rows.append(frappe._dict(base, employee_fieldname="external_work_history", label_vi="Quá trình làm việc",
+			section_label="Quá trình làm việc", info_for_sign=0, max_rows=2,
+			table_columns="company_name | Công ty | 1\nsalary | Lương | 0\nkhong_co | X | 0\ntotal_experience"))
+		rows.append(frappe._dict(base, employee_fieldname="internal_work_history", label_vi="Nội bộ", section_label="X"))
+		return rows
+
+	api._selected_rows = fake_rows
+	try:
+		cfg = api._build_config()
+		fields = {f["fieldname"]: f for s in cfg["sections"] for f in s["fields"]}
+		edu, ext = fields.get("education"), fields.get("external_work_history")
+		check("config: education có, mặc định 4 cột + 3 dòng",
+			edu and [c["fieldname"] for c in edu["columns"]] == ["level", "school_univ", "maj_opt_subj", "year_of_passing"]
+			and edu["max_rows"] == 3 and edu["fieldtype"] == "Table", edu and edu["columns"])
+		check("config: Level lấy options tiếng Việt (Property Setter)", edu and "Cao đẳng" in edu["columns"][0]["options"])
+		check("config: Table Columns tự khai — bỏ cột lạ + cột Currency (lương), nhãn trống lấy theo DocType",
+			ext and [c["fieldname"] for c in ext["columns"]] == ["company_name", "total_experience"]
+			and ext["columns"][0]["required"] and ext["max_rows"] == 2, ext and ext["columns"])
+		check("config: internal_work_history bị chặn", "internal_work_history" not in fields)
+		check("scalar fields không gồm bảng con", not {"education", "external_work_history"} & set(api._employee_scalar_fields(cfg)))
+
+		# ---- _clean_table_value ----
+		# NV vừa có phiếu vừa có dòng Education (để thử cả view / desk / Info for Sign)
+		emp_id = frappe.db.sql(
+			"""select i.employee from `tabEmployee Self Update Info` i join `tabEmployee Education` e
+			on e.parent = i.employee and e.parenttype = 'Employee' where i.status <> 'Synced' order by i.employee limit 1"""
+		)[0][0]
+		own = api._employee_table_rows(emp_id, edu)
+		check("đọc dòng Employee kèm name", own and own[0].get("name"), own)
+		other = frappe.db.get_value("Employee Education", {"parenttype": "Employee", "parent": ["!=", emp_id]}, "name")
+		rows, errs = api._clean_table_value(edu, [
+			{"name": own[0]["name"], "school_univ": "  cao đẳng  dung quất ", "level": "Cao đẳng", "maj_opt_subj": "May",
+				"year_of_passing": "2015", "x": "lạ"},
+			{"name": other, "level": "THPT"},
+			{"school_univ": "", "level": "", "maj_opt_subj": " "},
+		], emp_id)
+		check("clean: chuẩn hoá chữ, bỏ cột lạ", rows[0]["school_univ"] == "Cao đẳng dung quất" and "x" not in rows[0], rows)
+		check("clean: giữ name dòng của chính NV", rows[0].get("name") == own[0]["name"])
+		check("clean: name của NV khác → bỏ (thành dòng mới)", "name" not in rows[1], rows[1])
+		check("clean: bỏ dòng trống", len(rows) == 2 and not errs, (rows, errs))
+		_r, errs = api._clean_table_value(edu, [{"level": "Cấp 3"}, {"school_univ": "A"}, {"school_univ": "B", "year_of_passing": "năm"}], emp_id)
+		check("clean: Select sai, thiếu Trình độ (2 dòng), Int sai → 4 lỗi", len(errs) == 4, errs)
+		# Trung cấp trở lên → bắt buộc Trường, Ngành, Năm TN; THCS / THPT thì không (user 16/10/2026)
+		check("config: required_if Học vấn", edu.get("required_if") == {"column": "level",
+			"values": ["Trung cấp", "Cao đẳng", "Đại học", "Sau đại học"],
+			"columns": ["school_univ", "maj_opt_subj", "year_of_passing"],
+			"required": ["school_univ", "maj_opt_subj"]}, edu.get("required_if"))
+		_r, errs = api._clean_table_value(edu, [{"level": "Cao đẳng"}], emp_id)
+		check("required_if: Cao đẳng thiếu Trường/Ngành → 2 lỗi (Năm TN không bắt buộc)", len(errs) == 2
+			and not any("Năm tốt nghiệp" in e for e in errs), errs)
+		_r, errs = api._clean_table_value(edu, [{"level": "Đại học", "school_univ": "A", "maj_opt_subj": "B", "year_of_passing": "2020"}], emp_id)
+		check("required_if: Đại học đủ 3 ô → hợp lệ", not errs, errs)
+		_r, errs = api._clean_table_value(edu, [{"level": "THPT"}, {"level": "THCS", "school_univ": "Trường X"}], emp_id)
+		check("required_if: THCS / THPT không bắt buộc", not errs, errs)
+		check("THCS/THPT: Trường/Ngành/Năm bị xoá trắng (ô ẩn)", _r[1]["school_univ"] == "" and _r[1]["level"] == "THCS", _r)
+		_r, errs = api._clean_table_value(edu, [{"level": "THCS", "year_of_passing": "năm"}], emp_id)
+		check("ô ẩn sai định dạng không báo lỗi (bị xoá trước khi kiểm)", not errs and _r[0]["year_of_passing"] == "", (_r, errs))
+		_r, errs = api._clean_table_value(edu, [{"school_univ": "Trường Y"}], emp_id)
+		check("chưa chọn trình độ: giữ Trường, không bắt buộc", _r[0]["school_univ"] == "Trường Y", (_r, errs))
+		check("required_if: external không có luật", ext.get("required_if") is None)
+		_r, errs = api._clean_table_value(edu, [{"level": "THCS"}] * 4, emp_id)
+		check("clean: quá max_rows → lỗi", any("3" in e for e in errs), errs)
+		_r, errs = api._clean_table_value(edu, json.dumps([{"level": "THCS"}]), emp_id)
+		check("clean: nhận chuỗi JSON", _r == [{"school_univ": "", "level": "THCS", "maj_opt_subj": "", "year_of_passing": ""}] and not errs, _r)
+		_r, errs = api._clean_table_value(edu, {"level": "THCS"}, emp_id)
+		check("clean: kiểu lạ → lỗi", errs, errs)
+
+		# ---- text / receipt ----
+		txt = api._table_text(edu, [{"school_univ": "A", "level": "THCS"}, {"level": "THPT", "year_of_passing": "2010"}])
+		check("text: mỗi dòng 1 hàng, bỏ ô trống", txt == "Trình độ: THCS, Trường: A\nTrình độ: THPT, Năm tốt nghiệp: 2010", txt)
+		check("so sánh bỏ qua name", api._table_rows_equal(edu, [{"name": "x", "level": "THCS"}], [{"level": "THCS", "school_univ": ""}]))
+		doc = frappe.get_doc(DT, frappe.get_all(DT, pluck="name", limit=1)[0])
+		html = api._build_submission_html(doc, {"education": [{"school_univ": "Trường <A>", "level": "THCS"}]}, cfg)
+		check("phiếu: bảng nhỏ có tiêu đề cột, escape HTML", "class='sub'" in html and "<th>Trường</th>" in html
+			and "Trường &lt;A&gt;" in html)
+		check("phiếu: bảng con chưa khai → —", "Quá trình làm việc</td><td class='val'>&mdash;" in html)
+
+		# ---- Sync: sửa đúng dòng, thêm dòng mới, KHÔNG xoá dòng ngoài phiếu ----
+		emp = frappe.get_doc("Employee", emp_id)
+		before = [(r.name, r.school_univ, r.qualification) for r in emp.education]
+		first = emp.education[0]
+		kept = api._sync_table_rows(emp, edu, [{"school_univ": "Mới", "level": "THPT"}])
+		check("sync: dòng không name → thêm, dòng cũ giữ nguyên + đếm",
+			len(emp.education) == len(before) + 1 and kept == len(before) and emp.education[0].school_univ == before[0][1],
+			[(r.name, r.school_univ) for r in emp.education])
+		emp = frappe.get_doc("Employee", emp_id)
+		first = emp.education[0]
+		first.qualification = "Giữ cột không cấu hình"
+		kept = api._sync_table_rows(emp, edu, [{"name": first.name, "school_univ": "Sửa", "level": "THCS", "year_of_passing": ""}])
+		check("sync: name → sửa đúng dòng, giữ cột không cấu hình",
+			emp.education[0].school_univ == "Sửa" and emp.education[0].qualification == "Giữ cột không cấu hình"
+			and emp.education[0].year_of_passing in (None, 0) and len(emp.education) == len(before) and kept == len(before) - 1,
+			[(r.name, r.school_univ, r.year_of_passing) for r in emp.education])
+		# Chỉ kiểm dòng con (Employee có thể còn relation cũ ngoài danh sách — user tự sửa tay, 16/10/2026).
+		for ch in emp.education:
+			ch._validate_selects()
+		check("sync: dòng con hợp lệ Select", True)
+
+		# ---- validate_desk_edit (HR sửa trên Desk) ----
+		rec = frappe.get_all(DT, filters={"employee": emp_id}, pluck="name") or []
+		if rec:
+			d = frappe.get_doc(DT, rec[0])
+			d._doc_before_save = frappe.get_doc(DT, rec[0])
+			saved = json.loads(d.data_json or "{}")
+			saved["education"] = [{"name": first.name, "school_univ": " sửa trên desk ", "level": "Đại học",
+				"maj_opt_subj": "Kế toán", "year_of_passing": "2018"}, {}]
+			d.data_json = json.dumps(saved, ensure_ascii=False)
+			api.validate_desk_edit(d)
+			got = json.loads(d.data_json)["education"]
+			check("desk: làm sạch list (chuẩn hoá, bỏ dòng trống, giữ name)",
+				got == [{"name": first.name, "school_univ": "Sửa trên desk", "level": "Đại học", "maj_opt_subj": "Kế toán",
+					"year_of_passing": "2018"}], got)
+			saved["education"] = [{"name": first.name, "school_univ": "A", "level": "Đại học"}]
+			d.data_json = json.dumps(saved, ensure_ascii=False)
+			check("desk: Đại học thiếu Ngành → chặn", _expect_throw(lambda: api.validate_desk_edit(d)))
+			saved["education"] = [{"level": "Lớp 12"}]
+			d.data_json = json.dumps(saved, ensure_ascii=False)
+			check("desk: Select sai → chặn", _expect_throw(lambda: api.validate_desk_edit(d)))
+			view = api.get_submission_view(rec[0])
+			vrow = next((r for s in view["sections"] for r in s["rows"] if r["fieldname"] == "education"), None)
+			check("view: bảng con có columns + editor table + old_display",
+				vrow and vrow["editor"] == "table" and vrow["columns"] and vrow["old_display"] and vrow["required_if"], vrow)
+
+			# ---- Info for Sign: education tick → 1 dòng, chưa khai → lấy Employee ----
+			people, _c = api._info_for_sign_people(json.dumps(rec[:1]))
+			line = dict(people[0][2]).get("Học vấn")
+			check("info for sign: dòng Học vấn lấy từ Employee khi phiếu chưa khai", line and "Trình độ" in line or line, line)
+			check("info for sign: bảng con không tick → không có dòng", "Quá trình làm việc" not in dict(people[0][2]))
+		else:
+			check("có phiếu cho NV có Education", False, emp_id)
+
+		# ---- save_form_data: required bảng con + lỗi gom ----
+		f_req = dict(edu, required=True)
+		check("required bảng con: list rỗng = thiếu", (not []) and bool([{"level": "THCS"}]))
+		check("value_text Excel", api._value_text(edu, [{"level": "THCS"}]) == "Trình độ: THCS" and api._value_text({"fieldtype": "Data"}, 5) == "5")
+		_ = f_req
+	finally:
+		api._selected_rows = real_rows
+		frappe.db.rollback()
+
+	fail = 0
+	for ok, name, detail in results:
+		if not ok:
+			fail += 1
+		print(f"{'PASS' if ok else 'FAIL'}  {name}  {detail if not ok else ''}")
+	print(f"\n{len(results) - fail}/{len(results)} passed")
+	return {"passed": len(results) - fail, "failed": fail}
+
+
+def test_document_checklist():
+	"""Bảng "Hồ sơ / Tình trạng" cuối phiếu HR (Setting → Document Checklist (PDF)). Không ghi DB.
+	bench --site erp.tiqn.local execute customize_erpnext.api.self_update_info.test_self_update_sign.test_document_checklist"""
+	from customize_erpnext.api.self_update_info import self_update_info_api as api
+
+	results = []
+
+	def check(name, ok, detail=""):
+		results.append((bool(ok), name, detail))
+
+	H = api._document_checklist_html
+	check("trống → không có khối", H("") == "" and H(None) == "" and H(" \n\n  ") == "")
+	items = [f"Hồ sơ {i}" for i in range(1, 12)]
+	h11 = H("\n".join(items[:5]) + "\n\n  \n" + "\n".join(items[5:]))
+	trs = h11.split("<tr>")[1:]
+	check("11 mục: tiêu đề + 5 hàng đôi + 1 hàng trải ngang + Thông tin khác", len(trs) == 8, len(trs))
+	check("hàng 1: mục 1 bên trái, mục 6 bên phải", "1 <span class='cb'></span> Hồ sơ 1<" in trs[1] and "6 <span class='cb'></span> Hồ sơ 6<" in trs[1], trs[1])
+	check("hàng 5: mục 5 + mục 10", "Hồ sơ 5<" in trs[5] and "Hồ sơ 10<" in trs[5], trs[5])
+	check("mục 11 trải ngang", "colspan='2'>11 " in trs[6] and "Hồ sơ 11<" in trs[6], trs[6])
+	check("dòng trống bị bỏ (không có mục 12)", "12 <span" not in h11)
+	check("Thông tin khác về hồ sơ ở cuối", "Thông tin khác về hồ sơ (nếu có):" in trs[7])
+	check("ô tình trạng: Đạt / Không đạt / Quá hạn / Khác",
+		all(x in trs[1] for x in ("Đạt <span class='cb'>", "Không đạt <span class='cb'>", "Quá hạn <span class='cb'>", "Khác:")))
+	h10 = H("\n".join(items[:10]))
+	check("10 mục: không có hàng trải ngang", "colspan='2'" not in h10 and len(h10.split("<tr>")[1:]) == 7)
+	h1 = H("Chỉ một")
+	check("1 mục: 1 hàng trải ngang", "colspan='2'>1 " in h1 and len(h1.split("<tr>")[1:]) == 3)
+	check("escape HTML tên hồ sơ", "&lt;b&gt;" in H("<b>x</b>") and "<b>x" not in H("<b>x</b>"))
+
+	names = frappe.get_all(api.INFO_DT, pluck="name", limit=1)
+	if names:
+		doc = frappe.get_doc(api.INFO_DT, names[0])
+		cfg = {"sections": [{"label": "A", "fields": [{"fieldname": "cell_number", "label": "SĐT", "fieldtype": "Data"}]}]}
+		h = api._build_submission_html(doc, {}, cfg, sign_on_paper=True, checklist_html=h11)
+		check("phiếu HR: bảng hồ sơ nằm TRÊN chữ ký (chữ ký cuối phiếu)",
+			h.index("class='checklist'") < h.index("Người khai ký tên") and h.rindex("</table>") < h.index("Người khai ký tên"))
+		check("phiếu trang www: không có bảng hồ sơ", "class='checklist'" not in api._build_submission_html(doc, {}, cfg))
+		# Địa chỉ gom 1 dòng (chỉ phiếu HR): 2 Section địa chỉ liền nhau → 1 tiêu đề "Địa chỉ" + 2 dòng.
+		acfg = {"sections": [
+			{"label": "1. CCCD", "fields": [{"fieldname": "custom_id_card_no", "label": "Số CCCD", "fieldtype": "Data"}]},
+			{"label": "2. Địa chỉ thường trú", "fields": [
+				{"fieldname": "p1", "label": "Tỉnh", "fieldtype": "Data", "widget": "Address Province"},
+				{"fieldname": "w1", "label": "Xã", "fieldtype": "Data", "widget": "Address Ward"},
+				{"fieldname": "d1", "label": "Thôn", "fieldtype": "Data"}]},
+			{"label": "3. Địa chỉ hiện tại", "fields": [
+				{"fieldname": "p2", "label": "Tỉnh", "fieldtype": "Data", "widget": "Address Province"},
+				{"fieldname": "w2", "label": "Xã", "fieldtype": "Data", "widget": "Address Ward"},
+				{"fieldname": "d2", "label": "Thôn", "fieldtype": "Data"}]},
+			{"label": "4. Gia đình", "fields": [{"fieldname": "relation", "label": "Mối quan hệ", "fieldtype": "Data"}]},
+		]}
+		sv = {"p1": "Tỉnh Quảng Ngãi", "w1": "Xã Trường Giang", "d1": "Đông <hoà>", "p2": "Tỉnh Quảng Ngãi"}
+		hc = api._build_submission_html(doc, sv, acfg, compact=True)
+		hn = api._build_submission_html(doc, sv, acfg)
+		check("địa chỉ gom: thôn, xã, tỉnh trên 1 dòng (escape)",
+			"<td class='val'>Đông &lt;hoà&gt;, Xã Trường Giang, Tỉnh Quảng Ngãi</td>" in hc, hc[-1500:])
+		check("địa chỉ gom: section thiếu xã/thôn vẫn ghép phần có", "<td class='val'>Tỉnh Quảng Ngãi</td>" in hc)
+		check("địa chỉ gom: 1 tiêu đề 'Địa chỉ' chung, không còn tiêu đề từng section",
+			hc.count('class="sec">Địa chỉ</td>') == 1 and "Địa chỉ thường trú</td><td class='val'>" in hc
+			and 'class="sec">Địa chỉ thường trú' not in hc)
+		check("địa chỉ gom: thứ tự section giữ nguyên (CCCD → Địa chỉ → Gia đình)",
+			hc.index(">CCCD<") < hc.index(">Địa chỉ<") < hc.index(">Gia đình<"))
+		check("phiếu trang www: địa chỉ giữ từng dòng", 'class="sec">Địa chỉ thường trú' in hn and ">Thôn<" in hn)
+		# CCCD + ngày cấp, liên hệ khẩn cấp → 1 dòng (chỉ phiếu HR / compact)
+		gcfg = {"sections": [
+			{"label": "1. CCCD", "fields": [
+				{"fieldname": "custom_id_card_no", "label": "Số CCCD", "fieldtype": "Data"},
+				{"fieldname": api.CCCD_ISSUE_FIELD, "label": "Ngày cấp", "fieldtype": "Date"},
+				{"fieldname": "custom_id_card_place_of_issue", "label": "Nơi cấp", "fieldtype": "Data"}]},
+			{"label": "2. Gia đình", "fields": [
+				{"fieldname": "person_to_be_contacted", "label": "Người liên hệ", "fieldtype": "Data"},
+				{"fieldname": "relation", "label": "Mối quan hệ", "fieldtype": "Select", "options": ["", "Mẹ"], "option_labels": {}},
+				{"fieldname": "emergency_phone_number", "label": "SĐT khẩn cấp", "fieldtype": "Data"},
+				{"fieldname": "marital_status", "label": "TTHN", "fieldtype": "Select", "options": ["", "Married"],
+				 "option_labels": {"Married": "Đã kết hôn"}}]},
+		]}
+		gv = {"custom_id_card_no": "051304006293", api.CCCD_ISSUE_FIELD: "2021-05-09", "custom_id_card_place_of_issue": "Bộ Công an",
+			"person_to_be_contacted": "Nguyễn Thị <Nhỏ>", "relation": "Mẹ", "emergency_phone_number": "0382417368",
+			"marital_status": "Married"}
+		hg = api._build_submission_html(doc, gv, gcfg, compact=True)
+		check("gộp: CCCD + ngày cấp 1 dòng",
+			"<td class='lbl'>CCCD</td><td class='val'>051304006293, cấp ngày 09/05/2021</td>" in hg, hg[-2500:])
+		check("gộp: Nơi cấp vẫn dòng riêng", ">Nơi cấp</td><td class='val'>Bộ Công an<" in hg)
+		check("gộp: liên hệ khẩn cấp 1 dòng (escape)",
+			"<td class='lbl'>Liên hệ khẩn cấp</td><td class='val'>Nguyễn Thị &lt;Nhỏ&gt; (Mẹ) - 0382417368</td>" in hg)
+		check("gộp: không còn dòng lẻ Số CCCD / Ngày cấp / Mối quan hệ / SĐT",
+			not any(f">{x}</td>" in hg for x in ("Số CCCD", "Ngày cấp", "Người liên hệ", "Mối quan hệ", "SĐT khẩn cấp")))
+		check("gộp: dòng tại vị trí field đầu, field khác trong section giữ thứ tự",
+			hg.index(">CCCD</td><td class='val'>") < hg.index(">Nơi cấp<") < hg.index(">Liên hệ khẩn cấp<") < hg.index(">TTHN<"))
+		check("gộp: Select khác vẫn in nhãn", "<td class='val'>Đã kết hôn</td>" in hg)
+		g1 = {"sections": [{"label": "A", "fields": [gcfg["sections"][0]["fields"][0]]}]}
+		check("gộp: nhóm chỉ còn 1 field → in như thường",
+			">Số CCCD</td><td class='val'>051304006293<" in api._build_submission_html(doc, gv, g1, compact=True))
+		hw = api._build_submission_html(doc, gv, gcfg)
+		check("phiếu trang www: không gộp", ">Số CCCD</td>" in hw and ">Mối quan hệ</td>" in hw and ">Liên hệ khẩn cấp<" not in hw)
+		# Mã NV + Họ tên cùng 1 dòng; Size áo + Size dép 1 dòng (chỉ phiếu HR)
+		check("đầu phiếu HR: Mã NV + Họ tên cùng 1 dòng",
+			f"<tr><td class='mk'>Mã nhân viên:</td><td class='mv'>{doc.employee}</td><td class='mk'>Họ và tên:</td>" in hg)
+		check("đầu phiếu www: Mã NV, Họ tên 2 dòng", f"<div><b>Mã nhân viên:</b> {doc.employee}</div><div><b>Họ và tên:</b>" in hw)
+		ucfg = {"sections": [{"label": "Đồng phục", "fields": [
+			{"fieldname": "custom_shirt_size", "label": "Size áo", "fieldtype": "Select", "options": ["", "M"]},
+			{"fieldname": "custom_shoe_size", "label": "Size dép", "fieldtype": "Select", "options": ["", "6-7"]}]}]}
+		hu = api._build_submission_html(doc, {"custom_shirt_size": "M", "custom_shoe_size": "6-7"}, ucfg, compact=True)
+		check("gộp: Size áo / dép 1 dòng", "<td class='lbl'>Size áo / dép</td><td class='val'>Áo: M – Dép: 6-7</td>" in hu, hu[-800:])
+		hu2 = api._build_submission_html(doc, {"custom_shirt_size": "M"}, ucfg, compact=True)
+		check("gộp: thiếu size dép → chỉ 'Áo: M'", "<td class='val'>Áo: M</td>" in hu2)
+		gcf = {"sections": [{"label": "1. Thông tin chung", "fields": [
+			{"fieldname": "gender", "label": "Giới tính", "fieldtype": "Select", "options": ["", "Male", "Female"]},
+			{"fieldname": "date_of_birth", "label": "Ngày sinh", "fieldtype": "Date"},
+			{"fieldname": "cell_number", "label": "Số điện thoại", "fieldtype": "Data"}]},
+			{"label": "2. Khác", "fields": [{"fieldname": "custom_x", "label": "X", "fieldtype": "Data"}]}]}
+		hgd = api._build_submission_html(doc, {"gender": "Female", "date_of_birth": "1989-07-04", "cell_number": "09"}, gcf, compact=True)
+		meta = hgd[hgd.find("class='meta-t'"):hgd.find("</table>", hgd.find("class='meta-t'"))]
+		rows_m = meta.split("<tr>")[1:]
+		check("đầu phiếu HR dòng 1: Mã NV · Họ tên · Giới tính Nữ",
+			len(rows_m) == 2 and "Họ và tên:" in rows_m[0] and "<td class='mk'>Giới tính:</td><td class='mv'>Nữ</td>" in rows_m[0], meta)
+		check("đầu phiếu HR dòng 2: Ngày sinh dd/mm/yyyy · Số điện thoại",
+			len(rows_m) == 2 and "<td class='mk'>Ngày sinh:</td><td class='mv'>04/07/1989</td><td class='mk'>Số điện thoại:</td><td class='mv'>09</td>" in rows_m[1], meta)
+		doj = doc.get("date_of_joining")
+		check("đầu phiếu HR dòng 2: Ngày nhận việc (từ phiếu) cuối dòng",
+			len(rows_m) == 2 and f"<td class='mk'>Ngày nhận việc:</td><td class='mv'>{api._fmt_date_vn(doj) if doj else '&mdash;'}</td></tr>" in rows_m[1] + "</tr>"
+			or (len(rows_m) == 2 and f"Ngày nhận việc:</td><td class='mv'>{api._fmt_date_vn(doj) if doj else '&mdash;'}</td>" in rows_m[1]), meta)
+		h1 = api._build_submission_html(doc, {}, {"sections": [{"label": "A", "fields": [{"fieldname": "x", "label": "X", "fieldtype": "Data"}]}]}, compact=True)
+		check("đầu phiếu HR: Setting không có Ngày sinh/SĐT → Ngày nhận việc thành dòng riêng",
+			"Ngày nhận việc:" in h1 and h1[h1.find("class='meta-t'"):].count("<tr>") >= 2)
+		check("bỏ hẳn Section 'Thông tin chung' + 3 dòng khỏi bảng",
+			"Thông tin chung" not in hgd and ">Giới tính</td>" not in hgd and ">Ngày sinh</td>" not in hgd and ">Khác<" in hgd)
+		hgw = api._build_submission_html(doc, {"gender": "Female"}, gcf)
+		check("phiếu www: Giới tính vẫn là dòng trong bảng, không có đầu phiếu dạng bảng",
+			">Giới tính</td>" in hgw and "class='meta-t'" not in hgw and ">Thông tin chung<" in hgw)
+		hg0 = api._build_submission_html(doc, {}, {"sections": [{"label": "A", "fields": [gcf["sections"][0]["fields"][1]]}]}, compact=True)
+		check("đầu phiếu HR: Setting không có Giới tính → không in", "Giới tính" not in hg0)
+		check("lề PDF HR 10mm, www 15mm",
+			"margin-top:10mm;margin-bottom:10mm;margin-left:10mm" in api._hr_receipt_html(doc, gcf)
+			and "margin-top:15mm;margin-bottom:15mm;margin-left:15mm" in hgw)
+		setting_val = api._get_setting().get("pdf_document_checklist")
+		hr = api._hr_receipt_html(doc, cfg)
+		check("_hr_receipt_html lấy đúng nội dung Setting",
+			("class='checklist'" in hr) == bool((setting_val or "").strip()), setting_val)
+	else:
+		check("có phiếu để thử", False)
+
+	fail = 0
+	for ok, name, detail in results:
+		if not ok:
+			fail += 1
+		print(f"{'PASS' if ok else 'FAIL'}  {name}  {detail if not ok else ''}")
+	print(f"\n{len(results) - fail}/{len(results)} passed")
+	return {"passed": len(results) - fail, "failed": fail}
+
+
+def test_auto_fill_fallback():
+	"""Field "Auto Fill Data" phiếu chưa có giá trị (vd thêm vào Setting sau khi NV gửi) → PDF + Desk view
+	lấy giá trị Employee. Không ghi DB.
+	bench --site erp.tiqn.local execute customize_erpnext.api.self_update_info.test_self_update_sign.test_auto_fill_fallback"""
+	from customize_erpnext.api.self_update_info import self_update_info_api as api
+
+	results = []
+
+	def check(name, ok, detail=""):
+		results.append((bool(ok), name, detail))
+
+	rec = frappe.db.sql(
+		f"""select i.name, i.employee, e.gender, e.cell_number from `tab{api.INFO_DT}` i
+		join tabEmployee e on e.name = i.employee
+		where ifnull(e.gender, '') != '' and ifnull(e.cell_number, '') != '' limit 1""", as_dict=True)
+	if not rec:
+		check("có phiếu + Employee có giới tính/SĐT", False)
+	else:
+		r = rec[0]
+		F = lambda fn, **kw: {"fieldname": fn, "label": fn, "fieldtype": "Data", "auto_fill": True, **kw}
+		cfg = {"sections": [{"label": "A", "fields": [
+			F("gender", fieldtype="Link"), F("cell_number"), F("blood_group", auto_fill=False),
+			F("cus_x", custom=True),
+		]}]}
+		out = api._fill_from_employee(cfg, {"cell_number": "  "}, r.employee)
+		check("thiếu khoá → lấy Employee", out.get("gender") == r.gender, out)
+		check("chuỗi trắng → lấy Employee", out.get("cell_number") == r.cell_number, out)
+		check("auto_fill=0 → không lấy", "blood_group" not in out, out)
+		check("field custom → không lấy", "cus_x" not in out, out)
+		out2 = api._fill_from_employee(cfg, {"gender": "X", "cell_number": "0900"}, r.employee)
+		check("NV đã nhập → giữ giá trị NV", out2["gender"] == "X" and out2["cell_number"] == "0900", out2)
+		src = {"a": 1}
+		api._fill_from_employee(cfg, src, r.employee)
+		check("không sửa dict gốc", src == {"a": 1})
+
+		doc = frappe.get_doc(api.INFO_DT, r.name)
+		real_cfg = api._build_config
+		real_get = frappe.get_doc
+		try:
+			api._build_config = lambda: cfg
+			saved = json.loads(doc.data_json or "{}")
+			doc.data_json = json.dumps({k: v for k, v in saved.items() if k != "gender"})
+			frappe.get_doc = lambda dt, name=None, *a, **k: doc if (dt == api.INFO_DT and name == r.name) else real_get(dt, name, *a, **k)
+			view = api.get_submission_view(r.name)
+			g = next(x for s in view["sections"] for x in s["rows"] if x["fieldname"] == "gender")
+			check("Desk view: hiện giới tính từ Employee, không đánh dấu đổi",
+				g["display"] == r.gender and g["auto_filled"] and not g["changed"], g)
+			html = api._hr_receipt_html(doc, cfg)
+			check("PDF HR: có giới tính từ Employee (đầu phiếu)",
+				f"<td class='mk'>gender:</td><td class='mv'>{frappe.utils.escape_html(r.gender)}</td>" in html, html[html.find("meta-t"):][:300])
+		finally:
+			api._build_config = real_cfg
+			frappe.get_doc = real_get
+			frappe.db.rollback()
+
+	fail = 0
+	for ok, name, detail in results:
+		if not ok:
+			fail += 1
+		print(f"{'PASS' if ok else 'FAIL'}  {name}  {detail if not ok else ''}")
+	print(f"\n{len(results) - fail}/{len(results)} passed")
+	return {"passed": len(results) - fail, "failed": fail}
+
+
+def test_select_vi_labels():
+	"""Select hiện tiếng Việt, lưu tiếng Anh (option_labels) + Gender (Link) thành dropdown. Không ghi DB.
+	bench --site erp.tiqn.local execute customize_erpnext.api.self_update_info.test_self_update_sign.test_select_vi_labels"""
+	from customize_erpnext.api.self_update_info import self_update_info_api as api
+
+	results = []
+
+	def check(name, ok, detail=""):
+		results.append((bool(ok), name, detail))
+
+	check("_option_labels: chỉ option có bản dịch khác",
+		api._option_labels(["", "Married", "Divorced", "Ăn chay trường"]) == {"Married": "Đã kết hôn", "Divorced": "Đã ly hôn"},
+		api._option_labels(["", "Married", "Divorced", "Ăn chay trường"]))
+	check("_option_labels: đủ 4 tình trạng hôn nhân",
+		api._option_labels(["", "Single", "Married", "Divorced", "Widowed"])
+		== {"Single": "Độc thân", "Married": "Đã kết hôn", "Divorced": "Đã ly hôn", "Widowed": "Góa"})
+
+	cfg = api._build_config()
+	fields = {f["fieldname"]: f for s in cfg["sections"] for f in s["fields"]}
+	ms = fields.get("marital_status")
+	check("config: marital_status có option_labels", ms and ms["option_labels"].get("Married") == "Đã kết hôn", ms)
+	g = fields.get("gender")
+	check("config: gender (Link) → Select ['', Male, Female] + Nam/Nữ",
+		g and g["fieldtype"] == "Select" and g["options"] == ["", "Male", "Female"]
+		and g["option_labels"] == {"Male": "Nam", "Female": "Nữ"}, g)
+	veg = fields.get("custom_vegetarian")
+	check("config: Select vốn tiếng Việt → option_labels rỗng", veg is None or veg["option_labels"] == {}, veg)
+	check("config: field không phải Select → option_labels rỗng/không có",
+		all(not f.get("option_labels") for f in fields.values() if f["fieldtype"] not in ("Select", "Table")))
+	check("_hr_editor: gender sửa được bằng dropdown trên Desk", g and api._hr_editor(g) == "select")
+	check("Desk validate: Select chỉ nhận giá trị gốc", g and "Nữ" not in g["options"] and "Female" in g["options"])
+
+	names = frappe.get_all(api.INFO_DT, pluck="name", limit=1)
+	if names:
+		doc = frappe.get_doc(api.INFO_DT, names[0])
+		c2 = {"sections": [{"label": "A", "fields": [
+			dict(ms, label="TTHN"), dict(g, label="GT"),
+		]}]}
+		h = api._build_submission_html(doc, {"marital_status": "Married", "gender": "Female"}, c2)
+		check("phiếu PDF: in nhãn tiếng Việt", "<td class='val'>Đã kết hôn</td>" in h and "<td class='val'>Nữ</td>" in h)
+		h2 = api._build_submission_html(doc, {"marital_status": "Lạ"}, c2)
+		check("phiếu PDF: giá trị ngoài danh sách in nguyên", "<td class='val'>Lạ</td>" in h2)
+	check("Info for Sign: gender dịch Nữ", api._sign_value_vi({"fieldtype": "Select"}, "Female") == "Nữ")
+
+	fail = 0
+	for ok, name, detail in results:
+		if not ok:
+			fail += 1
+		print(f"{'PASS' if ok else 'FAIL'}  {name}  {detail if not ok else ''}")
+	print(f"\n{len(results) - fail}/{len(results)} passed")
+	return {"passed": len(results) - fail, "failed": fail}
+
+
+def test_shoe_sport_license():
+	"""Size dép (Select + Option Labels), Môn thể thao / Sở trường, GPLX + tình trạng (chỉ hiện khi "Chưa").
+	Lưu thử trong transaction rồi rollback — không ghi DB.
+	bench --site erp.tiqn.local execute customize_erpnext.api.self_update_info.test_self_update_sign.test_shoe_sport_license"""
+	from customize_erpnext.api.self_update_info import self_update_info_api as api
+
+	results = []
+
+	def check(name, ok, detail=""):
+		results.append((bool(ok), name, detail))
+
+	meta = frappe.get_meta("Employee")
+	check("Employee: custom_shoe_size là Select 2-3…10-11",
+		meta.get_field("custom_shoe_size").fieldtype == "Select"
+		and meta.get_field("custom_shoe_size").options.split("\n") == ["", "2-3", "4-5", "6-7", "8-9", "10-11"])
+	check("Employee: GPLX Có/Chưa/Mất", meta.get_field("custom_driving_license").options.split("\n") == ["", "Có", "Chưa", "Mất"])
+	st = meta.get_field("custom_driving_license_status")
+	check("Employee: tình trạng GPLX + depends_on Chưa",
+		st and st.options.split("\n")[1:] == ["Chưa đăng ký", "Đang đợi ngày thi", "Đang đợi cấp", "Đã thi nhưng chưa đạt"]
+		and st.depends_on == "eval:doc.custom_driving_license=='Chưa'")
+	check("Employee: Môn thể thao / Sở trường",
+		meta.get_field("custom_favorite_sport") and meta.get_field("custom_strengths"))
+	check("dữ liệu cũ: không còn GPLX 'Không' / size dép '39'",
+		not frappe.db.count("Employee", {"custom_driving_license": "Không"}) and not frappe.db.count("Employee", {"custom_shoe_size": "39"}))
+
+	ol = api._option_labels(["", "6-7", "8-9"], "6-7 | Size 6-7 · dép thường 38-39\n9-9 | lạ\nkhông có gạch\n8-9 |  ")
+	check("_option_labels: override theo dòng, bỏ giá trị lạ / nhãn trống", ol == {"6-7": "Size 6-7 · dép thường 38-39"}, ol)
+	check("_option_labels: override thắng bản dịch", api._option_labels(["Married"], "Married | Có gia đình") == {"Married": "Có gia đình"})
+
+	cfg = api._build_config()
+	F = {f["fieldname"]: f for s in cfg["sections"] for f in s["fields"]}
+	shoe = F.get("custom_shoe_size")
+	check("config: size dép Select + nhãn 3 thông tin",
+		shoe and shoe["fieldtype"] == "Select" and shoe["option_labels"].get("6-7") == "Size 6-7 · dép thường 38-39 · chân 24.5-25 cm", shoe)
+	check("config: 'Size dép - Thường mang' đã tắt", "size_shoe_home" not in F)
+	check("config: có Môn thể thao / Sở trường, tick Info for Sign",
+		all(F.get(x) and F[x]["info_for_sign"] for x in ("custom_favorite_sport", "custom_strengths")))
+	stf = F.get("custom_driving_license_status")
+	check("config: tình trạng GPLX depends_on GPLX = Chưa",
+		stf and stf["depends_on"] == {"field": "custom_driving_license", "values": ["Chưa"]}, stf)
+	check("config: field không có trong _FIELD_DEPENDS thì không có depends_on",
+		not any(f.get("depends_on") for fn, f in F.items() if fn != "custom_driving_license_status"))
+
+	# _apply_depends
+	lic_cfg = {"sections": [{"label": "A", "fields": [
+		{"fieldname": "custom_driving_license", "label": "GPLX", "fieldtype": "Select", "options": ["", "Có", "Chưa", "Mất"],
+		 "required": False, "read_only": False},
+		{"fieldname": "custom_driving_license_status", "label": "Tình trạng GPLX", "fieldtype": "Select",
+		 "options": ["", "Đang đợi cấp"], "required": False, "read_only": False,
+		 "depends_on": {"field": "custom_driving_license", "values": ["Chưa"]}},
+	]}]}
+	v = {"custom_driving_license": "Có", "custom_driving_license_status": "Đang đợi cấp"}
+	vis = api._apply_depends(lic_cfg, v, None)
+	check("depends: GPLX Có → ẩn + xoá tình trạng", vis == {"custom_driving_license_status": False} and v["custom_driving_license_status"] == "")
+	v = {"custom_driving_license": "Chưa", "custom_driving_license_status": "Đang đợi cấp"}
+	check("depends: GPLX Chưa → hiện, giữ giá trị", api._apply_depends(lic_cfg, v, None) == {"custom_driving_license_status": True}
+		and v["custom_driving_license_status"] == "Đang đợi cấp")
+
+	# PDF / Info for Sign: gộp GPLX 1 dòng, size dép in gọn
+	names = frappe.get_all(api.INFO_DT, pluck="name", limit=1)
+	if names:
+		doc = frappe.get_doc(api.INFO_DT, names[0])
+		c2 = {"sections": [{"label": "A", "fields": lic_cfg["sections"][0]["fields"] + [dict(shoe, label="Size dép")]}]}
+		h = api._build_submission_html(doc, {"custom_driving_license": "Chưa", "custom_driving_license_status": "Đang đợi cấp",
+			"custom_shoe_size": "6-7"}, c2, compact=True)
+		check("PDF HR: 'Giấy phép lái xe: Chưa (Đang đợi cấp)'",
+			"<td class='lbl'>Giấy phép lái xe</td><td class='val'>Chưa (Đang đợi cấp)</td>" in h, h[-1500:])
+		check("PDF: size dép in gọn 6-7", "<td class='val'>6-7</td>" in h)
+		h2 = api._build_submission_html(doc, {"custom_driving_license": "Có", "custom_driving_license_status": ""}, c2, compact=True)
+		check("PDF HR: GPLX Có → không có ngoặc", "<td class='val'>Có</td>" in h2)
+	check("Info for Sign: _sign_join license", api._sign_join("license", [({"fieldname": "custom_driving_license"}, "Chưa"),
+		({"fieldname": "custom_driving_license_status"}, "Đang đợi ngày thi")]) == "Chưa (Đang đợi ngày thi)")
+
+	# save_form_data thật (HR, cổng kiểm mã tắt). ⚠ save_form_data tự frappe.db.commit() → rollback KHÔNG cứu:
+	# chỉ dùng NV CHƯA có phiếu, chặn commit trong lúc test, cuối cùng rollback (sự cố 16/10: ghi đè phiếu TIQN-2548).
+	emp = frappe.db.sql(f"""select e.name from tabEmployee e where e.status = 'Active'
+		and not exists (select 1 from `tab{api.INFO_DT}` i where i.name = e.name) limit 1""")[0][0]
+	real_cfg, real_gate, real_commit = api._build_config, api._gate_edit, frappe.db.commit
+	try:
+		api._build_config = lambda: lic_cfg
+		api._gate_edit = lambda *a, **k: None
+		frappe.db.commit = lambda *a, **k: None
+		check("save: GPLX Chưa + thiếu tình trạng → chặn",
+			_expect_throw(lambda: api.save_form_data(emp, json.dumps({"custom_driving_license": "Chưa"}))))
+		api.save_form_data(emp, json.dumps({"custom_driving_license": "Có", "custom_driving_license_status": "Đang đợi cấp"}))
+		saved = json.loads(frappe.db.get_value(api.INFO_DT, emp, "data_json"))
+		check("save: GPLX Có → tình trạng bị xoá trắng", saved.get("custom_driving_license_status") == "", saved)
+		api.save_form_data(emp, json.dumps({"custom_driving_license": "Chưa", "custom_driving_license_status": "Đang đợi cấp"}))
+		saved = json.loads(frappe.db.get_value(api.INFO_DT, emp, "data_json"))
+		check("save: GPLX Chưa + tình trạng → lưu đủ", saved.get("custom_driving_license_status") == "Đang đợi cấp", saved)
+		check("save: tình trạng ngoài danh sách → chặn",
+			_expect_throw(lambda: api.save_form_data(emp, json.dumps({"custom_driving_license": "Chưa", "custom_driving_license_status": "Lạ"}))))
+	finally:
+		api._build_config, api._gate_edit = real_cfg, real_gate
+		frappe.db.commit = real_commit
+		frappe.db.rollback()
+	check("save: không để lại phiếu sau test", not frappe.db.exists(api.INFO_DT, emp), emp)
+
+	fail = 0
+	for ok, name, detail in results:
+		if not ok:
+			fail += 1
+		print(f"{'PASS' if ok else 'FAIL'}  {name}  {detail if not ok else ''}")
 	print(f"\n{len(results) - fail}/{len(results)} passed")
 	return {"passed": len(results) - fail, "failed": fail}

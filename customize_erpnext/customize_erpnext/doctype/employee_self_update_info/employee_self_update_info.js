@@ -158,6 +158,7 @@ function _esui_render_view(frm) {
 			const synced = frm.doc.status === "Synced";
 			const addr = [];   // ô tỉnh/xã cần dựng control Autocomplete sau khi chèn HTML
 			const dates = [];  // ô ngày → control Date của Frappe
+			const tables = []; // bảng con (Học vấn, Quá trình làm việc) → bảng nhỏ sửa được
 			let html = `<style>
 				.esui-sec{margin:0 0 14px}
 				.esui-sec h5{margin:0 0 6px;color:#1e40af;font-weight:700}
@@ -171,6 +172,10 @@ function _esui_render_view(frm) {
 				.esui-edit{width:100%;font-size:13px;padding:3px 6px;border:1px solid #cbd5e1;border-radius:4px;background:#fff}
 				.esui-edit:focus{border-color:#2563eb;outline:none}
 				.esui-ac .form-group{margin-bottom:0}
+				.esui-sub{width:100%;border-collapse:collapse;font-size:12px;margin:0}
+				.esui-sub th{background:#f7f9fc;color:#475569;font-weight:600;padding:3px 6px;border:1px solid #e3e8ef}
+				.esui-sub td{padding:3px 4px;border:1px solid #e3e8ef}
+				.esui-tedit{width:100%;font-size:12px;padding:2px 5px;border:1px solid #cbd5e1;border-radius:4px;background:#fff}
 			</style>`;
 			(r.message.sections || []).forEach((sec) => {
 				html += `<div class="esui-sec"><h5>${esc(sec.label)}</h5><table class="esui-tbl">`;
@@ -181,6 +186,20 @@ function _esui_render_view(frm) {
 					const fn = esc(row.fieldname);
 					const v = esc(row.value);
 					let cell;
+					if (row.columns) {
+						// Bảng con: "Old" = dòng hiện có trên Employee (chữ nhiều dòng).
+						const multi = (t) => esc(t || "").replace(/\n/g, "<br>");
+						const old = chg ? `<div class="esui-old">${__("Old")}:<br>${multi(row.old_display) || "—"}</div>` : "";
+						if (editor === "table") {
+							cell = `<div class="esui-tblwrap" data-fieldname="${fn}"></div>`;
+							tables.push(row);
+						} else {
+							const badge = chg ? `<span class="esui-badge">${__("changed")}</span>` : "";
+							cell = `${multi(row.display) || "—"}${badge}`;
+						}
+						html += `<tr><td class="l">${esc(row.label)}</td><td class="${chg ? "esui-chg" : ""}">${cell}${old}</td></tr>`;
+						return;
+					}
 					if (editor === "text") {
 						cell = `<input type="text" class="esui-edit" data-fieldname="${fn}" value="${v}">`;
 					} else if (editor === "textarea") {
@@ -221,7 +240,70 @@ function _esui_render_view(frm) {
 			});
 			if (addr.length) _esui_make_address_controls(frm, wrap, addr, mark);
 			if (dates.length) _esui_make_date_controls(wrap, dates, mark);
+			tables.forEach((row) => _esui_make_table_editor(wrap, row, mark));
 		},
+	});
+}
+
+// Bảng con: bảng nhỏ sửa được (cột theo Setting), "+ Add Row" tới max_rows, ✕ xoá dòng.
+// Giá trị = list dòng (giữ `name` dòng Employee để Sync sửa đúng dòng) → frm._esui_edits → data_json khi Save.
+// Server làm sạch + kiểm lại ở validate_desk_edit (_clean_table_value, như trang www).
+function _esui_make_table_editor(wrap, row, mark) {
+	const box = wrap.$wrapper.find(`.esui-tblwrap[data-fieldname="${row.fieldname}"]`);
+	const esc = frappe.utils.escape_html;
+	// Phiếu chưa có field này (gửi trước khi bật) → bắt đầu từ dòng hiện có trên Employee, như trang www.
+	const rows = (row.in_saved ? row.value || [] : row.old || []).map((r) => ({ ...r }));
+	const cell = (c, i, v) => {
+		const a = `class="esui-tedit" data-i="${i}" data-col="${esc(c.fieldname)}"`;
+		if (c.fieldtype === "Select") {
+			const opts = (c.options || []).map((o) =>
+				`<option value="${esc(o)}"${String(v) === String(o) ? " selected" : ""}>${esc(o) || "&nbsp;"}</option>`).join("");
+			return `<select ${a}>${opts}</select>`;
+		}
+		const type = c.fieldtype === "Date" ? "date" : (c.fieldtype === "Int" || c.fieldtype === "Float") ? "number" : "text";
+		return `<input type="${type}" ${a} value="${esc(v == null ? "" : String(v))}">`;
+	};
+	// Cột ẩn ở dòng này (vd THCS/THPT → Trường, Ngành, Năm TN) — cùng luật _column_hidden ở server.
+	const hidden = (c, r) => {
+		const rule = row.required_if;
+		const v = rule ? r[rule.column] : "";
+		return !!rule && rule.columns.includes(c.fieldname) && !!v && !rule.values.includes(v);
+	};
+	const render = () => {
+		// "*" = bắt buộc cố định; "(*)" = bắt buộc theo điều kiện (vd từ Trung cấp trở lên) — server kiểm khi Save.
+		const rif = row.required_if;
+		const mark_req = (c) => c.required ? " *" : (rif && (rif.required || []).includes(c.fieldname) ? " (*)" : "");
+		const head = row.columns.map((c) => `<th>${esc(c.label)}${mark_req(c)}</th>`).join("") + "<th style='width:28px'></th>";
+		const body = rows.map((r, i) => "<tr>" + row.columns.map((c) =>
+			`<td>${hidden(c, r) ? "<span class='text-muted'>—</span>" : cell(c, i, r[c.fieldname])}</td>`).join("")
+			+ `<td style="text-align:center"><a class="esui-tdel" data-i="${i}" title="${__("Delete")}" style="color:#dc2626;cursor:pointer">✕</a></td></tr>`).join("");
+		const add = rows.length < (row.max_rows || 3)
+			? `<button type="button" class="btn btn-xs btn-default esui-tadd" style="margin-top:4px">+ ${__("Add Row")}</button>`
+			: `<div class="text-muted small" style="margin-top:4px">${__("At most {0} rows", [row.max_rows])}</div>`;
+		box.html(`<table class="esui-sub"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>${add}`);
+	};
+	const push = () => mark(row.fieldname, rows.map((r) => {
+		const out = { ...r };
+		row.columns.forEach((c) => { if (hidden(c, r)) out[c.fieldname] = ""; });
+		return out;
+	}));
+	render();
+	box.on("input change", ".esui-tedit", function () {
+		const r = rows[+this.dataset.i];
+		if (r) r[this.dataset.col] = this.value;
+		// Đổi cột điều kiện (Trình độ) → vẽ lại để ẩn/hiện cột phụ thuộc.
+		if (row.required_if && this.dataset.col === row.required_if.column && this.tagName === "SELECT") render();
+		push();
+	});
+	box.on("click", ".esui-tdel", function () {
+		rows.splice(+this.dataset.i, 1);
+		render();
+		push();
+	});
+	box.on("click", ".esui-tadd", () => {
+		rows.push({});
+		render();
+		push();
 	});
 }
 

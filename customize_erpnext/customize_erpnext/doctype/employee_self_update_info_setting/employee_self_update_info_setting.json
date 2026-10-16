@@ -27,6 +27,8 @@
   "lock_after_submit",
   "bypass_code_for_unlock",
   "disable_review",
+  "section_hr_pdf",
+  "pdf_document_checklist",
   "section_fields",
   "fields_intro",
   "btn_add_field",
@@ -225,11 +227,23 @@
    "fieldname": "disable_review",
    "fieldtype": "Check",
    "label": "Disable Review"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "section_hr_pdf",
+   "fieldtype": "Section Break",
+   "label": "HR PDF"
+  },
+  {
+   "description": "One document per line (no numbering needed). Printed above the signature in the HR PDF (Generate PDF / PDF Split) as a checklist for HR. Leave empty to hide.",
+   "fieldname": "pdf_document_checklist",
+   "fieldtype": "Small Text",
+   "label": "Document Checklist (PDF)"
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-07-29 15:19:50.590054",
+ "modified": "2026-10-16 15:00:00.000000",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Employee Self Update Info Setting",

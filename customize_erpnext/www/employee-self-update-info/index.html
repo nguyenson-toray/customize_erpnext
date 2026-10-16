@@ -224,7 +224,7 @@
       document.body.appendChild(ov);
     }
 
-    const S = { employee_id: null, employee_name: null, config: null, original: {}, values: {}, verifyCode: null, unlockCode: null, downloadToken: null, fieldByName: {} };
+    const S = { employee_id: null, employee_name: null, config: null, original: {}, values: {}, verifyCode: null, unlockCode: null, downloadToken: null, fieldByName: {}, tables: {} };
 
     // CCCD QR scan: only offered when this Employee field is configured.
     const CCCD_FIELD = "custom_id_card_no";              // số CCCD
@@ -576,6 +576,7 @@
             if (nv !== el.value) { el.value = nv; markChanged(f); }
           });
         }
+        if (f.fieldtype === "Table") tblWire(f);
         if (f.fieldname === CCCD_ISSUE_FIELD || f.fieldname === DOB_FIELD) {
           el.addEventListener("input", () => recalcCccdExpiry(true));
           el.addEventListener("change", () => recalcCccdExpiry(true));
@@ -583,15 +584,42 @@
         // KHÔNG đánh dấu lúc load: chỉ tô "đã đổi" khi NV thực sự thao tác
         // (tránh báo nhầm với field auto_fill / prefill từ lần gửi trước).
       }));
+      // Field "chỉ hiện khi…" (f.depends_on, _FIELD_DEPENDS ở server): đổi field điều kiện → ẩn/hiện lại.
+      S.config.sections.forEach(sec => sec.fields.forEach(f => {
+        if (!f.depends_on) return;
+        const pel = document.getElementById("f_" + f.depends_on.field);
+        if (pel) pel.addEventListener("change", applyDepends);
+      }));
+      applyDepends();
       recalcCccdExpiry(false);
       initAddressWidgets();
+    }
+
+    // Đang hiện? — giá trị field điều kiện nằm trong danh sách. Cùng luật _apply_depends ở server.
+    function depVisible(f) {
+      if (!f.depends_on) return true;
+      const pf = S.fieldByName[f.depends_on.field];
+      const pv = pf ? currentValue(pf) : (S.values[f.depends_on.field] || "");
+      return f.depends_on.values.includes(pv || "");
+    }
+    // Ẩn ô không thoả điều kiện và xoá trắng giá trị (server cũng xoá khi lưu).
+    function applyDepends() {
+      S.config.sections.forEach(sec => sec.fields.forEach(f => {
+        if (!f.depends_on) return;
+        const show = depVisible(f);
+        const box = document.getElementById("fg_" + f.fieldname);
+        if (box) box.classList.toggle("hidden", !show);
+        const el = document.getElementById("f_" + f.fieldname);
+        if (!show && el && el.value) { el.value = ""; markChanged(f); }
+      }));
     }
 
     function renderField(f, provField) {
       const id = "f_" + f.fieldname;
       const ro = f.read_only ? " ro" : "";
       const roAttr = f.read_only ? " disabled" : "";
-      const req = f.required ? `<span class="req">*</span>` : "";
+      // depends_on: khi hiện thì luôn bắt buộc.
+      const req = (f.required || f.depends_on) ? `<span class="req">*</span>` : "";
       const val = S.values[f.fieldname];
       // Gợi ý mờ trong ô trống (cột "Placeholder" trong Setting).
       // Không gắn cho Date (trình duyệt luôn hiện định dạng ngày) / Select / Check.
@@ -607,11 +635,15 @@
           ` placeholder="${kind === "province" ? "Gõ để tìm tỉnh/thành…" : "Chọn tỉnh/thành trước"}">` +
           `<button type="button" class="addr-clear hidden" tabindex="-1" aria-label="Xoá">✕</button>` +
           `<div class="combo-list hidden"></div></div>`;
+      } else if (f.fieldtype === "Table") {
+        input = tblShell(f, val);
       } else if (f.fieldtype === "Check") {
         const ck = (val === 1 || val === "1" || val === true) ? " checked" : "";
         input = `<div class="chk"><input type="checkbox" id="${id}"${ck}${roAttr}><span class="muted">Có</span></div>`;
       } else if (f.fieldtype === "Select") {
-        const opts = (f.options || []).map(o => `<option value="${esc(o)}"${String(val || "") === String(o) ? " selected" : ""}>${esc(o || "— Chọn —")}</option>`).join("");
+        // Nhãn tiếng Việt (option_labels), giá trị gửi đi giữ nguyên: <option value="Married">Đã kết hôn</option>.
+        const lbl = f.option_labels || {};
+        const opts = (f.options || []).map(o => `<option value="${esc(o)}"${String(val || "") === String(o) ? " selected" : ""}>${esc(lbl[o] || o || "— Chọn —")}</option>`).join("");
         input = `<select id="${id}"${roAttr}>${opts}</select>`;
       } else if (["Small Text", "Text", "Long Text"].includes(f.fieldtype)) {
         input = `<textarea id="${id}"${ph}${roAttr}>${esc(val || "")}</textarea>`;
@@ -621,7 +653,7 @@
         // Ngày hết hạn CCCD: KHÔNG cho nhập — tự tính từ ngày sinh + ngày cấp (recalcCccdExpiry);
         // server tính lại khi gửi (self_update_info_api._apply_cccd_expiry).
         input = `<input type="date" id="${id}" value="${esc(val || "")}" readonly tabindex="-1" class="auto-calc">` +
-          `<div class="hint">Tự tính theo ngày sinh và ngày cấp. Để trống = không thời hạn hoặc chưa đủ thông tin.</div>`;
+          `<div class="hint">Tự tính theo ngày sinh và ngày cấp.</div>`;
       } else if (f.fieldtype === "Date") {
         let dattr = "";
         if (f.validation === "Past") dattr = ` max="${todayISO()}"`;
@@ -658,11 +690,132 @@
       ${detailUi}${scanUi}${input}</div>`;
     }
 
+    // ---------- bảng con của Employee (Học vấn, Quá trình làm việc) ----------
+    // Mỗi mục 1 thẻ (hợp điện thoại), ô theo f.columns; "+ Thêm" tới f.max_rows.
+    // `name` = ID dòng con trên Employee, giữ ẩn để Sync sửa đúng dòng. Dòng mà mọi ô trống bị bỏ khi gửi.
+    // Server làm sạch + kiểm lại (self_update_info_api._clean_table_value).
+    function tblRows(f) { return S.tables[f.fieldname] || (S.tables[f.fieldname] = []); }
+
+    function tblShell(f, val) {
+      const rows = (Array.isArray(val) ? val : []).map(r => ({ ...r }));
+      // Giá trị Select ngoài danh sách (dữ liệu cũ) → coi như chưa chọn: ô hiện trống thì giá trị gửi đi cũng trống.
+      rows.forEach(r => f.columns.forEach(c => {
+        if (c.fieldtype === "Select" && r[c.fieldname] && !(c.options || []).includes(r[c.fieldname])) r[c.fieldname] = "";
+      }));
+      if (!rows.length && !f.read_only) rows.push({});   // sẵn 1 thẻ trống để NV thấy ô nhập
+      S.tables[f.fieldname] = rows;
+      return `<div class="tbl" id="f_${esc(f.fieldname)}">${tblInner(f)}</div>`;
+    }
+
+    function tblCell(f, c, i, v) {
+      const a = ` data-i="${i}" data-col="${esc(c.fieldname)}"${f.read_only ? " disabled" : ""}`;
+      const ph = c.placeholder ? ` placeholder="${esc(c.placeholder)}"` : "";
+      if (c.fieldtype === "Select") {
+        const lbl = c.option_labels || {};
+        const opts = (c.options || []).map(o =>
+          `<option value="${esc(o)}"${String(v) === String(o) ? " selected" : ""}>${esc(lbl[o] || o || "— Chọn —")}</option>`).join("");
+        return `<select${a}>${opts}</select>`;
+      }
+      if (c.fieldtype === "Int" || c.fieldtype === "Float")
+        return `<input type="number" inputmode="numeric" value="${esc(v)}"${ph}${a}>`;
+      if (c.fieldtype === "Date") return `<input type="date" value="${esc(v)}"${a}>`;
+      return `<input type="text" value="${esc(v)}"${ph}${a}>`;
+    }
+
+    function tblInner(f) {
+      const rows = tblRows(f);
+      const cards = rows.map((r, i) =>
+        `<div class="tbl-row"><div class="tbl-head"><span>${i + 1}.</span>` +
+        (f.read_only ? "" : `<button type="button" class="tbl-del" data-i="${i}">✕ Xoá</button>`) + `</div>` +
+        f.columns.filter(c => !tblColHidden(f, c, r)).map(c =>
+          `<label class="tbl-lbl">${esc(c.label)}${tblColRequired(f, c, r) ? ' <span class="req">*</span>' : ""}</label>` +
+          tblCell(f, c, i, r[c.fieldname] == null ? "" : r[c.fieldname])).join("") +
+        `</div>`).join("");
+      const add = (!f.read_only && rows.length < f.max_rows)
+        ? `<button type="button" class="tbl-add">+ Thêm</button>`
+        : (!f.read_only ? `<div class="hint">Tối đa ${f.max_rows}.</div>` : "");
+      return (cards || `<div class="hint">—</div>`) + add;
+    }
+
+    function tblWire(f) {
+      const box = document.getElementById("f_" + f.fieldname);
+      if (!box || f.read_only) return;
+      const rerender = () => { box.innerHTML = tblInner(f); markChanged(f); saveDraft(); };
+      const store = (t) => {
+        if (t.dataset.col === undefined || t.dataset.i === undefined) return false;
+        const row = tblRows(f)[+t.dataset.i];
+        if (row) row[t.dataset.col] = t.value;
+        return true;
+      };
+      box.addEventListener("input", (e) => { if (store(e.target)) markChanged(f); });
+      box.addEventListener("change", (e) => {
+        const t = e.target;
+        const c = f.columns.find(x => x.fieldname === t.dataset.col);
+        if (!c) return;
+        const nv = normalizeText(c, t.value);   // rời ô → hiện bản đã chuẩn hoá như field thường
+        if (nv !== t.value) t.value = nv;
+        store(t); markChanged(f);
+        // Đổi cột điều kiện (vd Trình độ) → vẽ lại: ẩn/hiện + dấu * của các cột phụ thuộc theo giá trị mới.
+        if (f.required_if && c.fieldname === f.required_if.column) box.innerHTML = tblInner(f);
+      });
+      box.addEventListener("click", (e) => {
+        const del = e.target.closest(".tbl-del"), add = e.target.closest(".tbl-add");
+        if (del) { tblRows(f).splice(+del.dataset.i, 1); rerender(); }
+        else if (add && tblRows(f).length < f.max_rows) { tblRows(f).push({}); rerender(); }
+      });
+    }
+
+    // Giá trị gửi lên: list dòng đã chuẩn hoá, bỏ dòng trống; giữ `name` của dòng có sẵn trên Employee.
+    function tblValue(f) {
+      return tblRows(f).map(r => {
+        const out = {};
+        f.columns.forEach(c => {
+          // Cột đang ẩn (vd THCS/THPT) → gửi trống, không mang giá trị nhập trước khi đổi trình độ.
+          out[c.fieldname] = tblColHidden(f, c, r) ? "" : normalizeText(c, String(r[c.fieldname] == null ? "" : r[c.fieldname]).trim());
+        });
+        return { row: out, name: r.name };
+      }).filter(x => Object.values(x.row).some(v => v !== ""))
+        .map(x => (x.name ? { name: x.name, ...x.row } : x.row));
+    }
+
+    // Khoá so sánh "đã đổi": chỉ giá trị các cột (bỏ `name`), theo thứ tự dòng.
+    function tblKey(f, rows) {
+      return JSON.stringify((Array.isArray(rows) ? rows : []).map(r =>
+        f.columns.map(c => String(r[c.fieldname] == null ? "" : r[c.fieldname]).trim())));
+    }
+
+    // Cột bắt buộc ở dòng này: cố định (c.required) hoặc theo f.required_if — cùng luật _column_required ở server.
+    function tblColRequired(f, c, row) {
+      if (c.required) return true;
+      const rule = f.required_if;
+      return !!rule && (rule.required || []).includes(c.fieldname) && rule.values.includes((row || {})[rule.column]);
+    }
+
+    // Cột ẩn ở dòng này: thuộc required_if và cột điều kiện ĐÃ chọn giá trị ngoài danh sách — như _column_hidden.
+    function tblColHidden(f, c, row) {
+      const rule = f.required_if;
+      const v = rule ? (row || {})[rule.column] : "";
+      return !!rule && rule.columns.includes(c.fieldname) && !!v && !rule.values.includes(v);
+    }
+
+    function tblValidate(f, rows) {
+      if (rows.length > f.max_rows) return `${f.label}: tối đa ${f.max_rows}`;
+      for (let i = 0; i < rows.length; i++) {
+        for (const c of f.columns) {
+          const v = rows[i][c.fieldname];
+          if (tblColRequired(f, c, rows[i]) && !v) return `${f.label} (${i + 1}): chưa nhập ${c.label}`;
+          if (v && c.fieldtype === "Int" && !/^\d{1,9}$/.test(v)) return `${f.label} – ${c.label}: phải là số`;
+        }
+      }
+      return "";
+    }
+
     // ---------- changed tracking ----------
     function currentValue(f) {
       const el = document.getElementById("f_" + f.fieldname);
       if (!el) return "";
       if (f.fieldtype === "Check") return el.checked ? 1 : 0;
+      if (f.fieldtype === "Table") return tblValue(f);
       if (f.widget === "Address Province" || f.widget === "Address Ward") {
         return el.dataset.value || "";   // chữ đang gõ để lọc KHÔNG phải giá trị
       }
@@ -672,7 +825,8 @@
     // Tự chuẩn hoá chữ NV nhập — cùng quy tắc _normalize_text() ở server (server làm lại khi lưu;
     // sửa một nơi thì sửa cả hai). Field chữ widget Auto, trừ Email:
     //  NFC · gộp khoảng trắng · "Xóm1" → "Xóm 1" (phần chữ ≥ 2 ký tự có chữ thường; giữ "B2", "TDP1")
-    //  · viết hoa ký tự đầu · Person Name: Hoa Đầu Mỗi Từ. Không cảnh báo, không hỏi.
+    //  · viết hoa ký tự đầu · Capitalize Each Word: hoa ký tự đầu mỗi từ, giữ nguyên phần còn lại
+    //  · Sentence Case: hoa ký tự đầu mỗi câu (sau . ! ? …, đầu dòng). Không cảnh báo, không hỏi.
     const NORMALIZE_TYPES = new Set(["Data", "Small Text", "Text", "Long Text"]);
     function normalizeText(f, v) {
       if (typeof v !== "string") return v;
@@ -683,10 +837,14 @@
       const multiline = f.fieldtype !== "Data";
       const lines = (multiline ? v.split("\n") : [v]).map(l => l.replace(/[ \t\u00a0]+/g, " ").trim());
       v = (multiline ? lines.join("\n") : lines[0]).trim();
-      if (f.validation === "Person Name") {
-        return v.split(" ").filter(Boolean).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(" ");
-      }
       v = v.replace(/(?<![\p{L}])(\p{L}{2,})(?=\d)/gu, (m) => (/\p{Ll}/u.test(m) ? m + " " : m));
+      if (f.validation === "Capitalize Each Word") {
+        return v.split("\n").map(l => l.split(" ").map(x => x.charAt(0).toUpperCase() + x.slice(1)).join(" ")).join("\n");
+      }
+      if (f.validation === "Sentence Case") {
+        // cùng regex _SENTENCE_START ở server
+        return v.replace(/(^|[.!?…]\s+|\n)(["'“‘(\[]*)(\p{L})/gu, (m, a, b, c) => a + b + c.toUpperCase());
+      }
       return v.charAt(0).toUpperCase() + v.slice(1);
     }
 
@@ -695,7 +853,9 @@
     function markChanged(f) {
       const fg = document.getElementById("fg_" + f.fieldname);
       if (!fg) return;
-      const changed = norm(currentValue(f)) !== norm(S.original[f.fieldname]);
+      const changed = f.fieldtype === "Table"
+        ? tblKey(f, currentValue(f)) !== tblKey(f, S.original[f.fieldname])
+        : norm(currentValue(f)) !== norm(S.original[f.fieldname]);
       fg.classList.toggle("changed", changed);
     }
 
@@ -1036,10 +1196,17 @@
       for (const sec of S.config.sections) {
         for (const f of sec.fields) {
           if (f.read_only) continue;
+          if (!depVisible(f)) { data[f.fieldname] = ""; continue; }   // ô đang ẩn → gửi trống
           const v = currentValue(f);
           data[f.fieldname] = v;
           if (f.fieldname === CCCD_EXPIRE_FIELD) continue;   // tự tính, không bắt buộc / không kiểm "Future"
-          if (f.required && (v === null || v === undefined || String(v).trim() === "")) {
+          if (f.fieldtype === "Table") {
+            if (f.required && !v.length) { missing.push(f.label); missingFields.push(f.fieldname); continue; }
+            const terr = tblValidate(f, v);
+            if (terr) { invalid.push(terr); invalidFields.push(f.fieldname); }
+            continue;
+          }
+          if ((f.required || f.depends_on) && (v === null || v === undefined || String(v).trim() === "")) {
             missing.push(f.label); missingFields.push(f.fieldname); continue;
           }
           const err = validateField(f, v);

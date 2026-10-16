@@ -359,3 +359,11 @@ input.auto-calc { background:#F4F3EF; color:var(--ink); cursor:default; pointer-
   #qr_scan_line { animation:none; }
   * { transition:none !important; }
 }
+
+/* Bảng con (Học vấn, Quá trình làm việc): mỗi dòng 1 thẻ */
+.tbl-row { border:1px solid #E3E8EF; border-radius:10px; padding:10px 12px; margin-bottom:10px; background:#FAFBFD; }
+.tbl-head { display:flex; justify-content:space-between; align-items:center; font-weight:600; color:var(--indigo); }
+.tbl-del { border:0; background:none; color:#DC2626; font-size:13px; padding:4px 0; min-height:0; width:auto; cursor:pointer; }
+.tbl-lbl { display:block; font-size:13px; color:var(--muted); margin:8px 0 4px; }
+.tbl-add { width:100%; padding:10px; border:1.5px dashed var(--indigo); border-radius:10px; background:var(--indigo-soft);
+  color:var(--indigo); font-weight:600; cursor:pointer; }
