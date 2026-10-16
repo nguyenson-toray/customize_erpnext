@@ -8,7 +8,9 @@ from customize_erpnext.api.biometric_auth import check_biometric_access
 import json
 import time
 import base64
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import threading
+from concurrent.futures import ThreadPoolExecutor, wait
+from struct import pack
 
 from customize_erpnext.api.attendance_machines import get_machine, get_machines
 
@@ -53,6 +55,62 @@ def _connect_zk(device_cfg):
     if not conn:
         raise ConnectionError(f"Cannot connect to {device_cfg['ip']}")
     return conn
+
+
+# Machines are independent devices, so per-machine work runs in one thread per
+# machine. 🔴 Code running in these threads must NOT call frappe.* that touches
+# frappe.local (db, cache, session, log_error…): it is thread-local and unset
+# there. Threads only talk to the device; the calling thread does the rest.
+
+def _read_machine_users(machine):
+    """Connect to one machine (dict from get_machines), read its user list,
+    release it. Raises on any failure. Thread-safe (no frappe.local)."""
+    conn = _connect_zk(_build_zk_device(frappe._dict(machine)))
+    conn.disable_device()
+    try:
+        return conn.get_users()
+    finally:
+        conn.enable_device()
+        conn.disconnect()
+
+
+def _read_users_on_machines(machines):
+    """Read the user list of every machine in parallel.
+
+    Returns [(machine, users, error)] in the order of `machines`; exactly one
+    of users/error is None.
+    """
+    if not machines:
+        return []
+    with ThreadPoolExecutor(max_workers=len(machines)) as ex:
+        futures = [ex.submit(_read_machine_users, m) for m in machines]
+        out = []
+        for m, fut in zip(machines, futures):
+            try:
+                out.append((m, fut.result(), None))
+            except Exception as e:
+                out.append((m, None, e))
+    return out
+
+
+def _zk_delete_uid(conn, uid, user_id):
+    """Delete one user by device uid WITHOUT the refresh_data() that pyzk's
+    delete_user() sends after every call — the caller refreshes once per batch.
+
+    Always pass the uid: delete_user(user_id=…) alone makes pyzk download the
+    machine's whole user list to look the uid up, on every single call.
+    """
+    from zk import const
+    from zk.exception import ZKErrorResponse
+
+    send = getattr(conn, "_ZK__send_command", None)   # pyzk 0.9 private method
+    if send is None:
+        # pyzk internals changed — public call (refreshes on its own, still correct)
+        conn.delete_user(uid=uid, user_id=user_id)
+        return
+    resp = send(const.CMD_DELETE_USER, pack("h", uid))
+    if not resp.get("status"):
+        raise ZKErrorResponse("Can't delete user")
 
 
 def _shorten_name(full_name, max_length=24):
@@ -391,8 +449,10 @@ def _sync_user_to_device(user_data, machine_name, device_cfg):
 
         # Delete existing user
         existing = conn.get_users()
-        if any(u.user_id == user_id for u in existing):
-            conn.delete_user(user_id=user_id)
+        old_user = next((u for u in existing if u.user_id == user_id), None)
+        if old_user:
+            # pass uid: user_id alone makes pyzk re-download the whole user list
+            conn.delete_user(uid=old_user.uid, user_id=user_id)
             time.sleep(0.1)
 
         # Create user
@@ -540,31 +600,23 @@ def get_left_employees_on_machines(delay_days=45, include_unmatched=0):
         if not machines:
             return {"status": "error", "message": "No enabled attendance machines found"}
 
-        # --- Scan every machine ---
+        # --- Scan every machine (in parallel) ---
         user_id_to_machines = {}   # str(user_id) -> [machine_name, ...]
         machine_results = []
-        for m in machines:
-            dev_cfg = _build_zk_device(frappe._dict(m))
-            try:
-                conn = _connect_zk(dev_cfg)
-                conn.disable_device()
-                try:
-                    zk_users = conn.get_users()
-                finally:
-                    conn.enable_device()
-                    conn.disconnect()
-                for u in zk_users:
-                    uid = str(u.user_id)
-                    user_id_to_machines.setdefault(uid, []).append(m["name"])
+        for m, zk_users, err in _read_users_on_machines(machines):
+            if err is not None:
                 machine_results.append({
                     "machine": m["name"], "device_name": m.get("device_name", ""),
-                    "ip": m["ip_address"], "total_users": len(zk_users), "success": True,
+                    "ip": m["ip_address"], "total_users": 0, "success": False, "error": str(err),
                 })
-            except Exception as e:
-                machine_results.append({
-                    "machine": m["name"], "device_name": m.get("device_name", ""),
-                    "ip": m["ip_address"], "total_users": 0, "success": False, "error": str(e),
-                })
+                continue
+            for u in zk_users:
+                uid = str(u.user_id)
+                user_id_to_machines.setdefault(uid, []).append(m["name"])
+            machine_results.append({
+                "machine": m["name"], "device_name": m.get("device_name", ""),
+                "ip": m["ip_address"], "total_users": len(zk_users), "success": True,
+            })
 
         all_device_ids = list(user_id_to_machines.keys())
         if not all_device_ids:
@@ -711,10 +763,70 @@ def delete_users_from_machines(users_json):
         return {"status": "error", "message": str(e)}
 
 
+# Refresh the device index once per this many deletes (and once at the end)
+# instead of after every delete as pyzk does — bounds what is left unrefreshed
+# if the connection drops mid-batch.
+_DELETE_REFRESH_EVERY = 50
+
+
+def _delete_users_on_machine(cfg, user_ids, report):
+    """Thread worker: delete `user_ids` (str) from ONE machine over one connection.
+
+    Calls report(user_id, success, message) exactly once per user_id, in order,
+    and report(None, False, message) if the device could not be refreshed or
+    re-enabled at the end. No frappe.* in here (see _read_users_on_machines).
+    """
+    reported = 0
+    try:
+        conn = _connect_zk(cfg)
+        unrefreshed = 0
+        try:
+            conn.disable_device()
+            # ONE get_users() per machine; deletes then go by uid (see _zk_delete_uid)
+            existing = {str(u.user_id): u for u in conn.get_users()}
+            for user_id in user_ids:
+                user = existing.get(user_id)
+                if user is None:
+                    report(user_id, True, "Already absent")
+                else:
+                    try:
+                        _zk_delete_uid(conn, user.uid, user_id)
+                        existing.pop(user_id, None)
+                        unrefreshed += 1
+                        report(user_id, True, "Deleted")
+                    except Exception as e_del:
+                        report(user_id, False, str(e_del))
+                reported += 1
+                if unrefreshed >= _DELETE_REFRESH_EVERY:
+                    conn.refresh_data()
+                    unrefreshed = 0
+        finally:
+            problems = []
+            if unrefreshed:
+                try:
+                    conn.refresh_data()
+                except Exception as e:
+                    problems.append(f"refresh failed: {e}")
+            try:
+                conn.enable_device()
+            except Exception as e:
+                problems.append(f"re-enable failed: {e}")
+            try:
+                conn.disconnect()
+            except Exception:
+                pass
+            if problems:
+                report(None, False, "Device cleanup — " + "; ".join(problems))
+
+    except Exception as e_conn:
+        for user_id in user_ids[reported:]:
+            report(user_id, False, f"Connection failed: {e_conn}")
+
+
 def _run_delete_job(users, cache_key, job_id=None):
     """
     Background worker: delete users from their machines.
-    Groups by machine for efficiency (one connection per machine).
+    One connection per machine, all machines in parallel (one thread each).
     NEVER deletes ERPNext fingerprint data.
     """
     def _update(patch):
@@ -731,73 +843,74 @@ def _run_delete_job(users, cache_key, job_id=None):
         machine_cfg = {m["name"]: _build_zk_device(frappe._dict(m)) for m in machines}
 
         # Group user_ids by machine for batched single-connection deletes
-        machine_to_users = {}   # machine_name -> [{user_id, employee_name, ...}]
+        machine_to_uids = {}   # machine_name -> [str user_id, ...]
         for u in users:
             for mname in u.get("machines", []):
-                machine_to_users.setdefault(mname, []).append(u)
+                machine_to_uids.setdefault(mname, []).append(str(u["user_id"]))
 
-        results = []
-        total_ops = sum(len(ulist) for ulist in machine_to_users.values())
-        done = 0
+        total_ops = sum(len(uids) for uids in machine_to_uids.values())
 
-        for mname, ulist in machine_to_users.items():
+        # Shared with the machine threads — only touch under `lock`.
+        lock = threading.Lock()
+        results = []                                   # append-only: the UI renders new lines by index
+        progress = {mname: 0 for mname in machine_to_uids}   # machine -> user_ids reported
+
+        def _reporter(mname):
+            def report(user_id, success, message):
+                with lock:
+                    results.append({
+                        "user_id": user_id if user_id is not None else "-",
+                        "machine": mname, "success": success, "message": message,
+                    })
+                    if user_id is not None:
+                        progress[mname] += 1
+            return report
+
+        def _publish():
+            # best-effort progress — a Redis hiccup must not abort the deletes
+            try:
+                with lock:
+                    snapshot = list(results)
+                    done = sum(progress.values())
+                    parts = [f"{m} {progress[m]}/{len(uids)}" for m, uids in machine_to_uids.items()]
+                _update({
+                    "progress_pct": int(done / total_ops * 100) if total_ops else 0,
+                    "phase": f"Deleting {done}/{total_ops} — " + " · ".join(parts),
+                    "done_count": done,
+                    "results": snapshot,
+                })
+            except Exception:
+                pass
+
+        jobs = []   # (mname, cfg, uids, report)
+        for mname, uids in machine_to_uids.items():
+            report = _reporter(mname)
             cfg = machine_cfg.get(mname)
             if not cfg:
-                for u in ulist:
-                    results.append({
-                        "user_id": u["user_id"], "machine": mname,
-                        "success": False, "message": "Machine not found or disabled",
-                    })
-                    done += 1
-                continue
+                for uid in uids:
+                    report(uid, False, "Machine not found or disabled")
+            else:
+                jobs.append((mname, cfg, uids, report))
 
-            try:
-                conn = _connect_zk(cfg)
-                conn.disable_device()
-                try:
-                    existing = conn.get_users()
-                    existing_map = {str(u.user_id): u for u in existing}
+        if jobs:
+            with ThreadPoolExecutor(max_workers=len(jobs)) as ex:
+                futures = {
+                    ex.submit(_delete_users_on_machine, cfg, uids, report): (mname, uids, report)
+                    for mname, cfg, uids, report in jobs
+                }
+                pending = set(futures)
+                while pending:
+                    _, pending = wait(pending, timeout=1.0)
+                    _publish()
 
-                    for u in ulist:
-                        uid = str(u["user_id"])
-                        pct = int(done / total_ops * 100) if total_ops else 0
-                        _update({
-                            "progress_pct": pct,
-                            "phase": f"Deleting {uid} from {mname}...",
-                            "done_count": done,
-                            "results": results,
-                        })
-
-                        if uid in existing_map:
-                            try:
-                                conn.delete_user(user_id=existing_map[uid].user_id)
-                                time.sleep(0.1)
-                                results.append({
-                                    "user_id": uid, "machine": mname,
-                                    "success": True, "message": "Deleted",
-                                })
-                            except Exception as e_del:
-                                results.append({
-                                    "user_id": uid, "machine": mname,
-                                    "success": False, "message": str(e_del),
-                                })
-                        else:
-                            results.append({
-                                "user_id": uid, "machine": mname,
-                                "success": True, "message": "Already absent",
-                            })
-                        done += 1
-                finally:
-                    conn.enable_device()
-                    conn.disconnect()
-
-            except Exception as e_conn:
-                for u in ulist:
-                    results.append({
-                        "user_id": u["user_id"], "machine": mname,
-                        "success": False, "message": f"Connection failed: {e_conn}",
-                    })
-                    done += 1
+            # The worker reports every user_id itself; this only catches a bug in it
+            for fut, (mname, uids, report) in futures.items():
+                err = fut.exception()
+                if err is not None:
+                    with lock:
+                        already = progress[mname]
+                    for uid in uids[already:]:
+                        report(uid, False, f"Error: {err}")
 
         ok = sum(1 for r in results if r["success"])
         _update({
@@ -805,7 +918,7 @@ def _run_delete_job(users, cache_key, job_id=None):
             "progress_pct": 100,
             "phase": f"Done — {ok}/{len(results)} operations successful",
             "results": results,
-            "done_count": done,
+            "done_count": sum(progress.values()),
         })
 
     except Exception as e:
@@ -917,31 +1030,23 @@ def find_employee_on_machines(query):
         found_on = []
         machine_results = []
         target = str(device_id)
-        for m in machines:
-            dev_cfg = _build_zk_device(frappe._dict(m))
-            try:
-                conn = _connect_zk(dev_cfg)
-                conn.disable_device()
-                try:
-                    zk_users = conn.get_users()
-                finally:
-                    conn.enable_device()
-                    conn.disconnect()
-                hit = next((u for u in zk_users if str(u.user_id) == target), None)
+        for m, zk_users, err in _read_users_on_machines(machines):
+            if err is not None:
                 machine_results.append({
                     "machine": m["name"], "device_name": m.get("device_name", ""),
-                    "total_users": len(zk_users), "success": True,
+                    "total_users": 0, "success": False, "error": str(err),
                 })
-                if hit:
-                    found_on.append({
-                        "machine": m["name"],
-                        "device_name": m.get("device_name", ""),
-                        "on_device_name": hit.name,
-                    })
-            except Exception as e:
-                machine_results.append({
-                    "machine": m["name"], "device_name": m.get("device_name", ""),
-                    "total_users": 0, "success": False, "error": str(e),
+                continue
+            hit = next((u for u in zk_users if str(u.user_id) == target), None)
+            machine_results.append({
+                "machine": m["name"], "device_name": m.get("device_name", ""),
+                "total_users": len(zk_users), "success": True,
+            })
+            if hit:
+                found_on.append({
+                    "machine": m["name"],
+                    "device_name": m.get("device_name", ""),
+                    "on_device_name": hit.name,
                 })
 
         return {

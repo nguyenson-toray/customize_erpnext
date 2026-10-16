@@ -882,11 +882,12 @@ def sync_to_single_machine(machine_config, employee_data):
 
             # Check if user exists and delete if found
             existing_users = conn.get_users()
-            user_exists = any(u.user_id == attendance_device_id for u in existing_users)
+            existing_user = next((u for u in existing_users if u.user_id == attendance_device_id), None)
 
-            if user_exists:
+            if existing_user:
                 frappe.logger().info(f"🗑️  User {attendance_device_id} exists, deleting old data...")
-                conn.delete_user(user_id=attendance_device_id)
+                # pass uid: user_id alone makes pyzk re-download the whole user list
+                conn.delete_user(uid=existing_user.uid, user_id=attendance_device_id)
                 time.sleep(0.1)  # Give device time to process
 
             # Create new user
