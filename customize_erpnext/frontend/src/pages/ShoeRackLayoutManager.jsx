@@ -22,6 +22,12 @@ const getSingleOccupantGender = (rack) => {
   return (hasFirst ? rack.gender_employee_1 : rack.employee_2_gender) || null;
 };
 
+// A compartment physically taken by someone we could not identify is flagged
+// with compartment_N_unidentified. Racks carrying either flag need a periodic
+// human review, so the dashboard lets HR filter them out of 700+ racks.
+const hasUnknownCompartment = (rack) =>
+  !!(Number(rack.compartment_1_unidentified) || Number(rack.compartment_2_unidentified));
+
 const ShoeRackLayoutManager = () => {
   const [racks, setRacks] = useState([]);
   const [blocks, setBlocks] = useState([]);
@@ -73,6 +79,7 @@ const ShoeRackLayoutManager = () => {
   // --- Rack search + half-occupied gender filter ---
   const [rackSearch, setRackSearch] = useState('');
   const [occupantGenderFilter, setOccupantGenderFilter] = useState('');
+  const [unknownOnly, setUnknownOnly] = useState(false);
 
   useEffect(() => {
     const updateWidth = () => {
@@ -943,6 +950,12 @@ const ShoeRackLayoutManager = () => {
     }
   };
 
+  // A rack flagged "Do Not Auto Suggest" is off-limits to new joiners, so it
+  // reads red on the dashboard exactly like a full rack - no matter how many
+  // compartments are still physically free.
+  const getRackColor = (rack) =>
+    rack.do_not_auto_suggest ? 'full' : getStatusColor(rack.status);
+
   // Racks matching the typed rack name. Exact match wins over prefix match, so
   // typing "50" shows only rack 50 instead of 50 + 500 + 501...
   const searchMatchSet = useMemo(() => {
@@ -968,12 +981,20 @@ const ShoeRackLayoutManager = () => {
     );
   }, [occupantGenderFilter, racks]);
 
-  // Both filters apply together (AND). null means "no filter active".
+  // Racks with at least one compartment flagged "Chua xac dinh (Unknown)".
+  const unknownMatchSet = useMemo(() => {
+    if (!unknownOnly) return null;
+
+    return new Set(racks.filter(hasUnknownCompartment).map(r => r.name));
+  }, [unknownOnly, racks]);
+
+  // All active filters apply together (AND). null means "no filter active".
   const filterMatchSet = useMemo(() => {
-    if (!searchMatchSet) return genderMatchSet;
-    if (!genderMatchSet) return searchMatchSet;
-    return new Set([...searchMatchSet].filter(name => genderMatchSet.has(name)));
-  }, [searchMatchSet, genderMatchSet]);
+    const active = [searchMatchSet, genderMatchSet, unknownMatchSet].filter(Boolean);
+    if (active.length === 0) return null;
+
+    return active.reduce((acc, set) => new Set([...acc].filter(name => set.has(name))));
+  }, [searchMatchSet, genderMatchSet, unknownMatchSet]);
 
   // Bring the first match into view — a rack can easily be off-screen in a
   // layout this wide.
@@ -1188,10 +1209,30 @@ const ShoeRackLayoutManager = () => {
                   )}
                 </div>
               )}
-              {!isEditMode && (rackSearch || occupantGenderFilter) && (
+              {!isEditMode && (
+                <div className="unknown-filter-control" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <label
+                    style={{ fontSize: '13px', color: '#6b7280', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}
+                    title="Show only racks with a compartment marked Chua xac dinh (Unknown)"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={unknownOnly}
+                      onChange={e => setUnknownOnly(e.target.checked)}
+                    />
+                    Unknown only
+                  </label>
+                  {unknownOnly && (
+                    <span style={{ fontSize: '12px', color: unknownMatchSet && unknownMatchSet.size ? '#6b7280' : '#dc2626' }}>
+                      {`${unknownMatchSet ? unknownMatchSet.size : 0} rack(s)`}
+                    </span>
+                  )}
+                </div>
+              )}
+              {!isEditMode && (rackSearch || occupantGenderFilter || unknownOnly) && (
                 <button
                   className="rack-filter-clear-btn"
-                  onClick={() => { setRackSearch(''); setOccupantGenderFilter(''); }}
+                  onClick={() => { setRackSearch(''); setOccupantGenderFilter(''); setUnknownOnly(false); }}
                   title="Clear rack filters"
                 >
                   ✕ Clear
@@ -1294,7 +1335,7 @@ const ShoeRackLayoutManager = () => {
                               <div
                                 key={rack.name}
                                 onDoubleClick={() => rack.rack_display_name && handleRackClick(rack.name)}
-                                className={`rack-item ${getStatusColor(rack.status)} ${hasLeftEmp ? 'has-warning' : ''} ${inGroup ? 'group-highlight' : ''} ${dimmedByGroup ? 'group-dimmed' : ''} ${filterHit ? 'filter-hit' : ''} ${filterHidden ? 'filter-hidden' : ''}`}
+                                className={`rack-item ${getRackColor(rack)} ${hasLeftEmp ? 'has-warning' : ''} ${inGroup ? 'group-highlight' : ''} ${dimmedByGroup ? 'group-dimmed' : ''} ${filterHit ? 'filter-hit' : ''} ${filterHidden ? 'filter-hidden' : ''}`}
                                 title={rack.rack_display_name ? `${rack.rack_display_name} - ${rack.status || 'Empty'}${soloGender ? ` (1 free slot, current occupant: ${soloGender})` : ''}${hasLeftEmp ? ' (Contains a former employee)' : ''}${rack.do_not_auto_suggest ? ' (Do Not Auto Suggest)' : ''}` : ''}
                               >
                                 {rack.rack_display_name}
@@ -1378,7 +1419,7 @@ const ShoeRackLayoutManager = () => {
                                 <div
                                   key={rack.name}
                                   onDoubleClick={() => rack.rack_display_name && handleRackClick(rack.name)}
-                                  className={`rack-item ${getStatusColor(rack.status)} ${hasLeftEmp ? 'has-warning' : ''}`}
+                                  className={`rack-item ${getRackColor(rack)} ${hasLeftEmp ? 'has-warning' : ''}`}
                                   title={rack.rack_display_name ? `${rack.rack_display_name} - ${rack.status || 'Empty'}${hasLeftEmp ? ' (Contains a former employee)' : ''}${rack.do_not_auto_suggest ? ' (Do Not Auto Suggest)' : ''}` : ''}
                                 >
                                   {rack.rack_display_name}
