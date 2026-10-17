@@ -21057,7 +21057,6 @@ All (except Cancelled),Tất cả (trừ đã huỷ)
 Weekly Auto Recalc (Scheduled),Tự động tính lại hàng tuần (theo lịch)
 Enable Weekly Auto Recalc,Bật tự động tính lại hàng tuần
 
-# Overtime Registration — list Help dialog (2026-07-21)
 How to register overtime,Hướng dẫn đăng ký tăng ca
 Create the request,Tạo phiếu đăng ký
 Click <b>+ Overtime Registration (+ Thêm đăng ký tăng ca)</b> (top right of this list) to open a new form.,Bấm <b>+ Overtime Registration (+ Thêm đăng ký tăng ca)</b> (góc phải phía trên danh sách này) để mở phiếu mới.
@@ -21788,6 +21787,28 @@ Số người đi,Số người đi,
 "First time? Follow the step-by-step guide.","Lần đầu dùng? Xem hướng dẫn từng bước."
 "View Summary Table","Xem bảng tổng hợp"
 "Summary Table","Bảng tổng hợp"
+"Pick by Line Team / search employees","Chọn theo Line Team / tìm từng nhân viên"
+"Pick Employees","Chọn nhân viên"
+"Add by Line Team","Thêm theo Line Team"
+"Filter teams...","Lọc team..."
+"Search employee","Tìm nhân viên"
+"Type name or employee ID, Enter to add the first match","Gõ tên hoặc mã NV, Enter để thêm kết quả đầu tiên"
+"Filter selected list...","Lọc danh sách đã chọn..."
+"All Sections","Tất cả Section"
+"(No team)","(Chưa có team)"
+"No team found","Không có team nào"
+"Remove this team","Bỏ team này"
+"Type to search","Gõ để tìm"
+"No employee found","Không tìm thấy nhân viên"
+"Showing {0} of {1} matches, type more to narrow down","Đang hiện {0}/{1} kết quả, gõ thêm để thu hẹp"
+"No employee selected yet. Add from the left.","Chưa chọn nhân viên nào. Thêm từ cột bên trái."
+"Added {0} employees","Đã thêm {0} nhân viên"
+"Remove all {0} selected employees?","Bỏ toàn bộ {0} nhân viên đã chọn?"
+"No Employee Selected","Chưa chọn nhân viên"
+"Please add at least one employee to the selected list on the right.","Vui lòng thêm ít nhất một nhân viên vào danh sách bên phải."
+"PDF will include {0} selected employees.","PDF sẽ gồm {0} nhân viên đã chọn."
+"Will export {0} selected employees.","Sẽ xuất {0} nhân viên đã chọn."
+"Add employees by Line Team or search, they will appear in the list on the right.","Thêm nhân viên theo Line Team hoặc tìm kiếm, danh sách đã chọn hiện ở bên phải."
 Please select a value from the list,Vui lòng chọn một giá trị trong danh sách,
 Please select a province before the ward,Vui lòng chọn Tỉnh/Thành trước khi chọn Phường/Xã,
 {0} is not a valid province,{0} không phải Tỉnh/Thành hợp lệ,
@@ -21796,7 +21817,6 @@ Invalid Address,Địa chỉ không hợp lệ,
 Copy Permanent Address to Current Address,Sao chép địa chỉ thường trú sang địa chỉ hiện tại,
 Overwrite current address?,Ghi đè địa chỉ hiện tại?,
 Permanent address is empty,Địa chỉ thường trú đang trống,
-Address data not imported yet. Run import_vn_units.,Chưa có dữ liệu địa chỉ. Chạy import_vn_units.,
 Date Of Birth,Ngày sinh,
 Commitment & Signature,Cam kết & chữ ký,
 Commitment Confirmed,Đã cam kết,
@@ -21813,17 +21833,25 @@ Already synced to Employee — submitted data can no longer be edited.,Đã đ�
 Field {0} cannot be edited here.,Không được sửa {0} tại đây.,
 {0}: {1} is not a valid option,{0}: {1} không phải lựa chọn hợp lệ,
 Invalid signature image,Ảnh chữ ký không hợp lệ,
+"Uniform Sign-off List","Danh Sách Kí Đồng Phục"
+"List with Photos","Danh sách có hình ảnh"
+"Choosing a format replaces all columns below; you can still edit them afterwards.","Chọn format sẽ thay toàn bộ các cột bên dưới; sau đó vẫn chỉnh sửa được."
+"Pick Left employees (by Line Team / search)","Chọn nhân viên đã nghỉ việc (theo Line Team / tìm kiếm)"
+"Pick Left Employees","Chọn nhân viên đã nghỉ việc"
+"Relieved","Nghỉ việc"
+"{0} employees in range","{0} nhân viên trong khoảng"
+"Preview / Print (PDF)","Xem trước / In (PDF)"
+"Export Excel","Xuất Excel"
+"Exporting {0} employees to Excel...","Đang xuất {0} nhân viên ra Excel..."
+"Output Format","Định dạng xuất"
 Generate PDF,Tạo PDF,
 Unsaved edits are not in the PDF. Save first.,Phần sửa chưa lưu không có trong PDF. Hãy lưu trước.,
 {0}: {1} is not a valid date,{0}: {1} không phải ngày hợp lệ,
+Address data not imported yet. Run import_vn_units.,Chưa có dữ liệu địa chỉ. Chạy import_vn_units.,
 Select at least one field.,Chọn ít nhất một field.,
 Old,Cũ,
 changed,đã đổi,
 The employee confirmed the declared information is true (checkbox on the self-update page).,Nhân viên đã xác nhận thông tin khai là đúng sự thật (ô cam kết trên trang tự cập nhật).,
-"No field is ticked ""Info for Sign"" in Employee Self Update Info Setting.","Chưa tick ""Info for Sign"" cho field nào trong Employee Self Update Info Setting.",
-"Information exported (ticked ""Info for Sign"" in {0}):","Thông tin sẽ xuất (đã tick ""Info for Sign"" trong {0}):",
-"No field is ticked ""Info for Sign"" in {0}.","Chưa tick ""Info for Sign"" cho field nào trong {0}.",
-"Include this field in the ""Info for Sign"" Excel (the list employees sign to confirm). Only tick the information that needs a signature.","Đưa field này vào Excel ""Info for Sign"" (danh sách nhân viên ký xác nhận). Chỉ tick những thông tin cần ký.",
 Child Number,Con thứ mấy
 "1 = first child, 2 = second child, ...","1 = con đầu, 2 = con thứ hai, ..."
 Twins,Sinh đôi
@@ -21839,6 +21867,10 @@ Pregnant From,Mang thai từ
 Maternity From,Nghỉ thai sản từ
 Maternity To,Nghỉ thai sản đến
 Click to show only this group,Bấm để chỉ hiện nhóm này
+"No field is ticked ""Info for Sign"" in Employee Self Update Info Setting.","Chưa tick ""Info for Sign"" cho field nào trong Employee Self Update Info Setting.",
+"Information exported (ticked ""Info for Sign"" in {0}):","Thông tin sẽ xuất (đã tick ""Info for Sign"" trong {0}):",
+"No field is ticked ""Info for Sign"" in {0}.","Chưa tick ""Info for Sign"" cho field nào trong {0}.",
+"Include this field in the ""Info for Sign"" Excel (the list employees sign to confirm). Only tick the information that needs a signature.","Đưa field này vào Excel ""Info for Sign"" (danh sách nhân viên ký xác nhận). Chỉ tick những thông tin cần ký.",
 In Period,Trong kỳ
 Before Pregnancy,Trước khi mang thai
 Maternity Status,Tình trạng thai sản
@@ -21980,6 +22012,35 @@ Sensor Type,Loại cảm biến
 Door Sensor Mode on the device is {0} but Sensor Type is {1}. Change it on the device menu. Showing the ERP command state.,Door Sensor Mode trên máy là {0} nhưng Sensor Type là {1}. Hãy đổi trong menu máy. Đang hiện trạng thái theo lệnh ERP.
 Temporarily unavailable,Tạm thời chưa dùng được
 Hold open / Close is temporarily unavailable,Giữ mở / Đóng tạm thời chưa dùng được
+9 Bulk Download Employee Photos,9 Tải hàng loạt ảnh nhân viên
+Bulk Download Employee Photos,Tải hàng loạt ảnh nhân viên
+Add by Employee ID range,Thêm theo khoảng mã nhân viên
+Remove this range,Bỏ khoảng mã này
+Remove this section,Bỏ Section này
+Add the whole section,Thêm cả Section
+Employee ID must end with a number,Mã nhân viên phải kết thúc bằng số
+From and To must have the same prefix,Từ và Đến phải cùng tiền tố
+{0} employees in range ({1} already selected),{0} nhân viên trong khoảng ({1} đã chọn)
+Changing the status clears the selected list.,Đổi trạng thái sẽ xoá danh sách đã chọn.
+File Name in ZIP,Tên file trong ZIP
+Employee ID + Full Name,Mã NV + Họ tên
+Employee ID + Full Name (no accents),Mã NV + Họ tên (không dấu)
+Employee ID only,Chỉ mã NV
+"Choose ""no accents"" if file names show broken characters after unzipping.","Chọn ""không dấu"" nếu tên file bị lỗi font sau khi giải nén."
+Download ({0}),Tải về ({0})
+Checking photos...,Đang kiểm tra ảnh...
+Nothing to download,Không có gì để tải
+None of the {0} selected employees has a photo.,Không ai trong {0} nhân viên đã chọn có ảnh.
+Employee not found or no permission,Không tìm thấy nhân viên hoặc không có quyền
+No photo,Chưa có ảnh
+Photo file not found on server,Không tìm thấy file ảnh trên server
+{0} photos ({1}) will be downloaded as a ZIP file.,Sẽ tải {0} ảnh ({1}) trong một file ZIP.
+{0} employees have no downloadable photo (also listed in _missing_photos.txt inside the ZIP):,{0} nhân viên không có ảnh để tải (cũng được liệt kê trong _missing_photos.txt trong file ZIP):
+"Preparing ZIP file, the download will start shortly...","Đang tạo file ZIP, sắp bắt đầu tải về..."
+Invalid employee list,Danh sách nhân viên không hợp lệ
+You can download at most {0} employees at a time,Mỗi lần chỉ tải được tối đa {0} nhân viên
+None of the selected employees has a photo,Không nhân viên nào đã chọn có ảnh
+Employees without a downloadable photo,Nhân viên không có ảnh để tải
 ... and {0} more events,... và {0} sự kiện khác
 Add at least one enabled recipient before enabling door alerts,Thêm ít nhất một người nhận đang bật trước khi bật cảnh báo cửa
 Any time,Mọi lúc

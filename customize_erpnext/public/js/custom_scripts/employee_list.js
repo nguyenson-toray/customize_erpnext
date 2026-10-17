@@ -46,9 +46,336 @@ frappe.listview_settings['Employee'] = {
             listview.page.add_menu_item(__('8 Generate Custom Employee List'), function () {
         show_generate_custom_list_dialog(listview);
         });
+        listview.page.add_menu_item(__('9 Bulk Download Employee Photos'), function () {
+            show_bulk_download_photos_dialog(listview);
+        });
 
     }
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Employee picker 2 cột (dùng chung cho Generate Employee List PDF + Custom List)
+// Trái: thêm theo Line Team (Employee.custom_group) hoặc tìm theo tên/MSNV.
+// Phải: danh sách đã chọn. Chỉ nạp nhân viên Active — khớp với filter
+// status=Active của get_employee_data() phía server.
+// Tải 1 lần toàn bộ NV Active (~1.200 dòng, vài chục KB) rồi lọc client-side
+// cho search tức thời, khỏi gọi server mỗi lần gõ.
+// ─────────────────────────────────────────────────────────────────────────────
+function make_employee_picker($wrapper, opts) {
+    opts = opts || {};
+    // status 'Left' = chọn trong nhân viên đã nghỉ, kèm lọc theo ngày nghỉ việc.
+    const status = opts.status || 'Active';
+    const is_left = status === 'Left';
+    const esc = frappe.utils.escape_html;
+    const SEARCH_LIMIT = 50;
+    const NO_TEAM = '__none__';
+    let all_rows = [];
+    const by_id = {};
+    const picked = new Set();
+
+    $wrapper.html(`
+        <div class="emp-picker row" style="margin:0">
+            ${is_left ? `<div class="col-md-12" style="padding:0;margin-bottom:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                <span style="font-weight:600">${__('Relieving Date')}</span>
+                <span class="text-muted">${__('From')}</span>
+                <input type="date" class="form-control input-sm emp-picker-from" style="width:150px">
+                <span class="text-muted">${__('To')}</span>
+                <input type="date" class="form-control input-sm emp-picker-to" style="width:150px">
+                <span class="text-muted emp-picker-range-count" style="font-size:12px"></span>
+            </div>` : ''}
+            ${opts.id_range ? `<div class="col-md-12" style="padding:0;margin-bottom:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                <span style="font-weight:600">${__('Add by Employee ID range')}</span>
+                <span class="text-muted">${__('From')}</span>
+                <input type="text" class="form-control input-sm emp-picker-id-from" style="width:130px" placeholder="TIQN-0001">
+                <span class="text-muted">${__('To')}</span>
+                <input type="text" class="form-control input-sm emp-picker-id-to" style="width:130px" placeholder="TIQN-0100">
+                <button type="button" class="btn btn-xs btn-primary emp-picker-id-add"><i class="fa fa-plus"></i> ${__('Add')}</button>
+                <button type="button" class="btn btn-xs btn-default emp-picker-id-remove" title="${__('Remove this range')}"><i class="fa fa-minus"></i></button>
+                <span class="text-muted emp-picker-id-count" style="font-size:12px"></span>
+            </div>` : ''}
+            <div class="col-md-6" style="padding-left:0">
+                <div style="font-weight:600;margin-bottom:6px">${__('Add by Line Team')}</div>
+                <div style="display:flex;gap:6px;margin-bottom:6px">
+                    <select class="form-control input-sm emp-picker-section" style="flex:1"></select>
+                    <button type="button" class="btn btn-xs btn-default emp-picker-section-remove" style="display:none" title="${__('Remove this section')}">
+                        <i class="fa fa-minus"></i></button>
+                    <button type="button" class="btn btn-xs btn-primary emp-picker-section-add" style="display:none" title="${__('Add the whole section')}">
+                        <i class="fa fa-plus"></i> ${__('Section')}</button>
+                    <input type="text" class="form-control input-sm emp-picker-team-filter" style="flex:1"
+                        placeholder="${__('Filter teams...')}">
+                </div>
+                <div class="emp-picker-teams" style="height:170px;overflow-y:auto;border:1px solid var(--border-color);border-radius:6px"></div>
+
+                <div style="font-weight:600;margin:12px 0 6px">${__('Search employee')}</div>
+                <input type="text" class="form-control input-sm emp-picker-search"
+                    placeholder="${__('Type name or employee ID, Enter to add the first match')}">
+                <div class="emp-picker-results" style="height:170px;overflow-y:auto;border:1px solid var(--border-color);border-radius:6px;margin-top:6px"></div>
+            </div>
+            <div class="col-md-6" style="padding-right:0">
+                <div style="display:flex;align-items:center;margin-bottom:6px">
+                    <div style="font-weight:600;flex:1">${__('Selected')} (<span class="emp-picker-count">0</span>)</div>
+                    <button type="button" class="btn btn-xs btn-default emp-picker-clear">${__('Clear All')}</button>
+                </div>
+                <input type="text" class="form-control input-sm emp-picker-picked-filter" style="margin-bottom:6px"
+                    placeholder="${__('Filter selected list...')}">
+                <div class="emp-picker-picked" style="height:376px;overflow-y:auto;border:1px solid var(--border-color);border-radius:6px"></div>
+            </div>
+        </div>
+    `);
+
+    const $section = $wrapper.find('.emp-picker-section');
+    const $team_filter = $wrapper.find('.emp-picker-team-filter');
+    const $teams = $wrapper.find('.emp-picker-teams');
+    const $search = $wrapper.find('.emp-picker-search');
+    const $results = $wrapper.find('.emp-picker-results');
+    const $picked = $wrapper.find('.emp-picker-picked');
+    const $picked_filter = $wrapper.find('.emp-picker-picked-filter');
+    const row_style = 'display:flex;align-items:center;gap:6px;padding:4px 8px;border-bottom:1px solid var(--border-color);font-size:12px';
+    const muted = (txt) => `<div class="text-muted" style="padding:8px;font-size:12px">${txt}</div>`;
+
+    const $from = $wrapper.find('.emp-picker-from');
+    const $to = $wrapper.find('.emp-picker-to');
+    // Lọc khoảng ngày nghỉ việc — chỉ áp cho danh sách nguồn bên trái (team + search),
+    // KHÔNG tự bỏ người đã nằm trong danh sách bên phải.
+    function in_range(r) {
+        if (!is_left) return true;
+        const from = $from.val(), to = $to.val();
+        if (!from && !to) return true;
+        if (!r.relieving_date) return false;
+        return (!from || r.relieving_date >= from) && (!to || r.relieving_date <= to);
+    }
+    function source_rows() { return all_rows.filter(in_range); }
+
+    const team_of = (r) => r.custom_group || NO_TEAM;
+    const team_label = (t) => t === NO_TEAM ? __('(No team)') : t;
+    const emp_text = (r) => `<b>${esc(r.name)}</b> · ${esc(r.employee_name || '')}`;
+    const emp_sub = (r) => `<span class="text-muted">${esc([r.custom_section, r.custom_group].filter(Boolean).join(' / '))}${
+        is_left && r.relieving_date ? ` · ${__('Relieved')}: ${esc(frappe.datetime.str_to_user(r.relieving_date))}` : ''}</span>`;
+
+    function notify() {
+        $wrapper.find('.emp-picker-count').text(picked.size);
+        if (opts.on_change) opts.on_change(picked.size);
+    }
+
+    function add_ids(ids) {
+        let added = 0;
+        ids.forEach(id => { if (by_id[id] && !picked.has(id)) { picked.add(id); added++; } });
+        render_picked(); render_teams(); render_results(); notify();
+        return added;
+    }
+
+    function remove_ids(ids) {
+        ids.forEach(id => picked.delete(id));
+        render_picked(); render_teams(); render_results(); notify();
+    }
+
+    function render_sections() {
+        const sections = [...new Set(all_rows.map(r => r.custom_section).filter(Boolean))].sort();
+        $section.html(`<option value="">${__('All Sections')}</option>` +
+            sections.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join(''));
+    }
+
+    function render_teams() {
+        render_section_buttons();
+        render_id_range();
+        const section = $section.val();
+        const q = ($team_filter.val() || '').trim().toLowerCase();
+        const teams = {};
+        source_rows().forEach(r => {
+            if (section && r.custom_section !== section) return;
+            const t = team_of(r);
+            (teams[t] = teams[t] || []).push(r.name);
+        });
+        // Line 01..20 sắp theo số tự nhiên ("Line 2" < "Line 10").
+        const names = Object.keys(teams)
+            .filter(t => !q || team_label(t).toLowerCase().includes(q))
+            .sort((a, b) => team_label(a).localeCompare(team_label(b), undefined, { numeric: true }));
+        if (!names.length) { $teams.html(muted(__('No team found'))); return; }
+        $teams.html(names.map(t => {
+            const ids = teams[t];
+            const n_picked = ids.filter(id => picked.has(id)).length;
+            const full = n_picked === ids.length;
+            return `<div style="${row_style}">
+                <div style="flex:1">${esc(team_label(t))}
+                    <span class="text-muted">· ${n_picked ? `${n_picked}/` : ''}${ids.length}</span></div>
+                ${n_picked ? `<button type="button" class="btn btn-xs btn-default emp-picker-team-remove" data-team="${esc(t)}" title="${__('Remove this team')}">
+                    <i class="fa fa-minus"></i></button>` : ''}
+                <button type="button" class="btn btn-xs ${full ? 'btn-default' : 'btn-primary'} emp-picker-team-add" data-team="${esc(t)}" ${full ? 'disabled' : ''}>
+                    <i class="fa fa-plus"></i> ${__('Add')}</button>
+            </div>`;
+        }).join(''));
+    }
+
+    function section_ids() {
+        const section = $section.val();
+        return section ? source_rows().filter(r => r.custom_section === section).map(r => r.name) : [];
+    }
+
+    function render_section_buttons() {
+        const ids = section_ids();
+        const n_picked = ids.filter(id => picked.has(id)).length;
+        $wrapper.find('.emp-picker-section-add').toggle(ids.length > 0)
+            .prop('disabled', n_picked === ids.length)
+            .attr('title', __('Add the whole section') + ` (${ids.length})`);
+        $wrapper.find('.emp-picker-section-remove').toggle(n_picked > 0);
+    }
+
+    // Khoảng mã NV: "148" hoặc "TIQN-0148" đều được — so theo phần SỐ cuối mã, cùng tiền tố.
+    // Không gõ tiền tố → lấy tiền tố của ô còn lại, nếu cả hai trống thì lấy tiền tố
+    // phổ biến nhất (TIQN-), để "1 → 100" không kéo theo cả Intern-0001..0100.
+    const parse_id = (s) => {
+        const m = String(s || '').trim().toUpperCase().match(/^(.*?)(\d+)$/);
+        return m ? { prefix: m[1], num: parseInt(m[2], 10) } : null;
+    };
+    let main_prefix = '';
+    function id_range() {
+        const raw_from = ($wrapper.find('.emp-picker-id-from').val() || '').trim();
+        const raw_to = ($wrapper.find('.emp-picker-id-to').val() || '').trim();
+        if (!raw_from && !raw_to) return { ids: [] };
+        const f = raw_from ? parse_id(raw_from) : null, t = raw_to ? parse_id(raw_to) : null;
+        if ((raw_from && !f) || (raw_to && !t)) return { ids: [], error: __('Employee ID must end with a number') };
+        if (f && t && f.prefix && t.prefix && f.prefix !== t.prefix)
+            return { ids: [], error: __('From and To must have the same prefix') };
+        const prefix = (f && f.prefix) || (t && t.prefix) || main_prefix;
+        let lo = f ? f.num : -Infinity, hi = t ? t.num : Infinity;
+        if (lo > hi) [lo, hi] = [hi, lo];
+        const ids = source_rows().filter(r => r._pid && r._pid.prefix === prefix
+            && r._pid.num >= lo && r._pid.num <= hi).map(r => r.name);
+        return { ids, prefix };
+    }
+
+    function render_id_range() {
+        if (!opts.id_range) return;
+        const range = id_range();
+        const n_picked = range.ids.filter(id => picked.has(id)).length;
+        $wrapper.find('.emp-picker-id-count').html(range.error ? `<span class="text-danger">${esc(range.error)}</span>`
+            : (range.prefix !== undefined ? __('{0} employees in range ({1} already selected)', [range.ids.length, n_picked]) : ''));
+        $wrapper.find('.emp-picker-id-add').prop('disabled', !range.ids.length || n_picked === range.ids.length);
+        $wrapper.find('.emp-picker-id-remove').prop('disabled', !n_picked);
+    }
+
+    function team_ids(t) {
+        const section = $section.val();
+        return source_rows().filter(r => team_of(r) === t && (!section || r.custom_section === section)).map(r => r.name);
+    }
+
+    function search_matches() {
+        const q = ($search.val() || '').trim().toLowerCase();
+        if (!q) return [];
+        return source_rows().filter(r =>
+            r.name.toLowerCase().includes(q) ||
+            (r.employee_name || '').toLowerCase().includes(q) ||
+            (r.attendance_device_id || '').toLowerCase() === q
+        );
+    }
+
+    function render_results() {
+        const q = ($search.val() || '').trim();
+        if (!q) { $results.html(muted(__('Type to search'))); return; }
+        const matches = search_matches();
+        if (!matches.length) { $results.html(muted(__('No employee found'))); return; }
+        const more = matches.length > SEARCH_LIMIT
+            ? muted(__('Showing {0} of {1} matches, type more to narrow down', [SEARCH_LIMIT, matches.length])) : '';
+        $results.html(matches.slice(0, SEARCH_LIMIT).map(r => {
+            const is_picked = picked.has(r.name);
+            return `<div style="${row_style}">
+                <div style="flex:1">${emp_text(r)}<br>${emp_sub(r)}</div>
+                <button type="button" class="btn btn-xs ${is_picked ? 'btn-default' : 'btn-primary'} emp-picker-add" data-id="${esc(r.name)}" ${is_picked ? 'disabled' : ''}>
+                    ${is_picked ? '<i class="fa fa-check"></i>' : `<i class="fa fa-plus"></i> ${__('Add')}`}</button>
+            </div>`;
+        }).join('') + more);
+    }
+
+    function render_picked() {
+        if (!picked.size) { $picked.html(muted(__('No employee selected yet. Add from the left.'))); return; }
+        const q = ($picked_filter.val() || '').trim().toLowerCase();
+        const rows = [...picked].sort().map(id => by_id[id])
+            .filter(r => !q || r.name.toLowerCase().includes(q) || (r.employee_name || '').toLowerCase().includes(q)
+                || (r.custom_group || '').toLowerCase().includes(q));
+        if (!rows.length) { $picked.html(muted(__('No match'))); return; }
+        $picked.html(rows.map((r, i) => `<div style="${row_style}">
+                <div class="text-muted" style="width:28px;text-align:right">${i + 1}</div>
+                <div style="flex:1">${emp_text(r)}<br>${emp_sub(r)}</div>
+                <button type="button" class="btn btn-xs btn-default emp-picker-remove" data-id="${esc(r.name)}" title="${__('Remove')}">
+                    <i class="fa fa-times"></i></button>
+            </div>`).join(''));
+    }
+
+    $section.on('change', render_teams);
+    $wrapper.find('.emp-picker-from, .emp-picker-to').on('change', function () {
+        render_teams(); render_results();
+        $wrapper.find('.emp-picker-range-count').text(
+            ($from.val() || $to.val()) ? __('{0} employees in range', [source_rows().length]) : '');
+    });
+    $team_filter.on('input', render_teams);
+    $search.on('input', render_results);
+    $picked_filter.on('input', render_picked);
+    // Enter trong ô search sẽ submit dialog nếu không chặn.
+    $search.on('keydown', function (e) {
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        e.stopPropagation();
+        const first = search_matches().find(r => !picked.has(r.name));
+        if (first) { add_ids([first.name]); $search.select(); }
+    });
+    $wrapper.on('click', '.emp-picker-team-add', function () {
+        const n = add_ids(team_ids($(this).attr('data-team')));
+        frappe.show_alert({ message: __('Added {0} employees', [n]), indicator: 'green' }, 2);
+    });
+    $wrapper.on('click', '.emp-picker-team-remove', function () { remove_ids(team_ids($(this).attr('data-team'))); });
+    $wrapper.on('click', '.emp-picker-section-add', function () {
+        const n = add_ids(section_ids());
+        frappe.show_alert({ message: __('Added {0} employees', [n]), indicator: 'green' }, 2);
+    });
+    $wrapper.on('click', '.emp-picker-section-remove', function () { remove_ids(section_ids()); });
+    $wrapper.find('.emp-picker-id-from, .emp-picker-id-to').on('input', render_id_range)
+        .on('keydown', function (e) {
+            if (e.key !== 'Enter') return;
+            e.preventDefault();
+            e.stopPropagation();
+            $wrapper.find('.emp-picker-id-add').trigger('click');
+        });
+    $wrapper.on('click', '.emp-picker-id-add', function () {
+        const n = add_ids(id_range().ids);
+        frappe.show_alert({ message: __('Added {0} employees', [n]), indicator: 'green' }, 2);
+    });
+    $wrapper.on('click', '.emp-picker-id-remove', function () { remove_ids(id_range().ids); });
+    $wrapper.on('click', '.emp-picker-add', function () { add_ids([$(this).attr('data-id')]); });
+    $wrapper.on('click', '.emp-picker-remove', function () { remove_ids([$(this).attr('data-id')]); });
+    $wrapper.on('click', '.emp-picker-clear', function () {
+        if (!picked.size) return;
+        frappe.confirm(__('Remove all {0} selected employees?', [picked.size]), () => remove_ids([...picked]));
+    });
+
+    $teams.html(muted(__('Loading...')));
+    frappe.call({
+        method: 'frappe.client.get_list',
+        args: {
+            doctype: 'Employee',
+            filters: { status: status },
+            fields: ['name', 'employee_name', 'custom_section', 'custom_group', 'attendance_device_id', 'relieving_date'],
+            order_by: 'name asc',
+            limit_page_length: 0
+        },
+        callback: function (r) {
+            all_rows = r.message || [];
+            const prefix_count = {};
+            all_rows.forEach(row => {
+                by_id[row.name] = row;
+                row._pid = parse_id(row.name);
+                if (row._pid) prefix_count[row._pid.prefix] = (prefix_count[row._pid.prefix] || 0) + 1;
+            });
+            main_prefix = Object.keys(prefix_count).sort((a, b) => prefix_count[b] - prefix_count[a])[0] || '';
+            render_sections();
+            add_ids(opts.initial_ids || []);
+        }
+    });
+
+    return {
+        get_ids: () => [...picked].sort(),
+        count: () => picked.size
+    };
+}
 
 function show_generate_employee_list_pdf_dialog(listview) {
     // Get selected employees
@@ -69,12 +396,24 @@ function show_generate_employee_list_pdf_dialog(listview) {
                 options: [
                     { label: __('Tất cả nhân viên Active'), value: 'all_active' },
                     { label: __('Chỉ những nhân viên đã chọn'), value: 'selected' },
-                    { label: __('Theo khoảng mã số nhân viên'), value: 'id_range' }
+                    { label: __('Theo khoảng mã số nhân viên'), value: 'id_range' },
+                    { label: __('Pick by Line Team / search employees'), value: 'pick' }
                 ],
                 default: selected_employees.length === 0 ? 'all_active' : 'selected',
                 onchange: function () {
                     update_scope_display();
                 }
+            },
+            {
+                fieldname: 'picker_section',
+                fieldtype: 'Section Break',
+                label: __('Pick Employees'),
+                depends_on: 'eval:doc.select_scope == "pick"'
+            },
+            {
+                fieldname: 'employee_picker',
+                fieldtype: 'HTML',
+                depends_on: 'eval:doc.select_scope == "pick"'
             },
             {
                 fieldname: 'employee_range',
@@ -237,6 +576,13 @@ function show_generate_employee_list_pdf_dialog(listview) {
                     indicator: 'orange'
                 });
                 return;
+            } else if (values.select_scope === 'pick' && picker.count() === 0) {
+                frappe.msgprint({
+                    title: __('No Employee Selected'),
+                    message: __('Please add at least one employee to the selected list on the right.'),
+                    indicator: 'orange'
+                });
+                return;
             }
 
             // All validations passed, proceed to generate PDF
@@ -280,6 +626,9 @@ function show_generate_employee_list_pdf_dialog(listview) {
             }
 
             scope_description = `Nhân viên từ ${prefix}${values.id_start} đến ${prefix}${values.id_end}`;
+        } else if (values.select_scope === 'pick') {
+            employees = picker.get_ids();
+            scope_description = `${employees.length} nhân viên đã chọn`;
         }
 
         // Call server method to generate PDF
@@ -420,15 +769,26 @@ function show_generate_employee_list_pdf_dialog(listview) {
             d.fields_dict.id_end.$input.on('input', function () {
                 update_scope_display();
             });
+        } else if (scope_type === 'pick') {
+            const n = picker.count();
+            d.fields_dict.employee_info.$wrapper.html(n
+                ? `<div class="alert alert-success"><i class="fa fa-check-circle"></i> ${__('PDF will include {0} selected employees.', [`<strong>${n}</strong>`])}</div>`
+                : `<div class="alert alert-warning"><i class="fa fa-exclamation-triangle"></i> ${__('Add employees by Line Team or search, they will appear in the list on the right.')}</div>`);
         }
     }
+
+    // Tick sẵn trên list view → đưa luôn vào danh sách bên phải.
+    const picker = make_employee_picker(d.fields_dict.employee_picker.$wrapper, {
+        initial_ids: selected_employees.map(e => e.name),
+        on_change: () => { if (d.get_value('select_scope') === 'pick') update_scope_display(); }
+    });
 
     // Initial update
     update_scope_display();
 
     // Show dialog
     d.show();
-    d.$wrapper.find('.modal-dialog').addClass('modal-lg');
+    d.$wrapper.find('.modal-dialog').addClass('modal-xl');
 }
 
 function show_bulk_update_holiday_dialog(listview) {
@@ -2285,9 +2645,46 @@ const CUSTOM_LIST_STANDARD_FIELDS = [
     { fieldname: 'custom_section', label: 'Tổ (Section)', width: '', nowrap: 0 },
     { fieldname: 'custom_group', label: 'Group', width: '', nowrap: 0 },
     { fieldname: 'date_of_joining', label: 'Ngày nhận việc', is_date: 1, width: '75px', nowrap: 1 },
+    // relieving_date = ngày BẮT ĐẦU nghỉ (ngày làm cuối = relieving_date - 1).
+    { fieldname: 'relieving_date', label: 'Ngày nghỉ việc', is_date: 1, width: '75px', nowrap: 1 },
     { fieldname: 'company_email', label: 'Email công ty', width: '', nowrap: 0 },
     { fieldname: 'cell_number', label: 'Số điện thoại', width: '85px', nowrap: 1 },
+    // Cỡ ảnh y hệt cột "Hình ảnh" của Generate Employee List PDF (15mm × 18.33mm).
+    { fieldname: 'image', label: 'Hình ảnh', is_image: 1, width: '62px', nowrap: 1 },
 ];
+// Format dựng sẵn cho "Các Cột Trong Bảng" — chọn 1 cái là nạp lại toàn bộ dòng cột.
+// Mỗi cột: [nguồn dữ liệu, tên cột, nhóm, độ rộng, không xuống dòng].
+const CUSTOM_LIST_PRESETS = [
+    {
+        key: 'uniform_sign',
+        label: 'Uniform Sign-off List',
+        columns: [
+            ['name', 'MSNV', '', '80px', 1],
+            ['employee_name', 'Họ và tên', '', '155px', 1],
+            ['designation', 'Chức danh', '', '120px', 1],
+            ['date_of_joining', 'Ngày nhận việc', '', '75px', 1],
+            ['gender', 'Giới tính', '', '45px', 1],
+            ['', 'Loại nón', 'Nón, giày', '55px', 0],
+            ['', 'Size giày', 'Nón, giày', '55px', 0],
+            ['', 'Size áo', 'Nón, giày', '50px', 0],
+            ['', 'Ký nhận nón, giày', 'Nón, giày', '55px', 0],
+            ['', 'Ký nhận áo đồng phục', 'Áo đồng phục||Ngày:.........', '85px', 0],
+        ]
+    },
+    {
+        key: 'with_photo',
+        label: 'List with Photos',
+        columns: [
+            ['name', 'MSNV', '', '80px', 1],
+            ['employee_name', 'Họ và tên', '', '', 0],
+            ['designation', 'Chức danh', '', '120px', 0],
+            ['custom_group', 'Group', '', '80px', 0],
+            ['relieving_date', 'Ngày nghỉ việc', '', '75px', 1],
+            ['image', 'Hình ảnh', '', '62px', 1],
+        ]
+    }
+];
+
 const CUSTOM_LIST_FIELD_MAP = {};
 CUSTOM_LIST_STANDARD_FIELDS.forEach(f => CUSTOM_LIST_FIELD_MAP[f.fieldname] = f);
 
@@ -2310,11 +2707,17 @@ function show_generate_custom_list_dialog(listview) {
             options: [
                 { label: __('Tất cả nhân viên Active'), value: 'all_active' },
                 { label: __('Chỉ những nhân viên đã chọn'), value: 'selected' },
-                { label: __('Theo khoảng mã số nhân viên'), value: 'id_range' }
+                { label: __('Theo khoảng mã số nhân viên'), value: 'id_range' },
+                { label: __('Pick by Line Team / search employees'), value: 'pick' },
+                { label: __('Pick Left employees (by Line Team / search)'), value: 'pick_left' }
             ],
             default: selected_employees.length === 0 ? 'all_active' : 'selected',
             onchange: function () { update_custom_list_scope_display(); }
         },
+        { fieldname: 'picker_section', fieldtype: 'Section Break', label: __('Pick Employees'), depends_on: 'eval:doc.select_scope == "pick"' },
+        { fieldname: 'employee_picker', fieldtype: 'HTML', depends_on: 'eval:doc.select_scope == "pick"' },
+        { fieldname: 'picker_left_section', fieldtype: 'Section Break', label: __('Pick Left Employees'), depends_on: 'eval:doc.select_scope == "pick_left"' },
+        { fieldname: 'employee_picker_left', fieldtype: 'HTML', depends_on: 'eval:doc.select_scope == "pick_left"' },
         { fieldname: 'employee_range', fieldtype: 'Section Break', depends_on: 'eval:doc.select_scope == "id_range"' },
         {
             fieldname: 'id_prefix', fieldtype: 'Data', label: __('Prefix'), default: 'TIQN-',
@@ -2369,9 +2772,31 @@ function show_generate_custom_list_dialog(listview) {
             default: 'portrait',
             description: __('Độ rộng cột tự co lại cho vừa khổ giấy đã chọn.')
         },
+        {
+            fieldname: 'output_format',
+            fieldtype: 'Select',
+            label: __('Output Format'),
+            options: [
+                { label: __('Preview / Print (PDF)'), value: 'html' },
+                { label: __('Excel (.xlsx)'), value: 'excel' }
+            ],
+            default: 'html',
+            onchange: function () {
+                d.set_primary_action(this.get_value() === 'excel' ? __('Export Excel') : __('Generate'));
+            }
+        },
 
         // ── Danh sách cột hợp nhất ─────────────────────────────
         { fieldname: 'columns_section', fieldtype: 'Section Break', label: __('Các Cột Trong Bảng') },
+        {
+            fieldname: 'column_preset',
+            fieldtype: 'Select',
+            label: __('Format'),
+            options: CUSTOM_LIST_PRESETS.map(p => ({ label: __(p.label), value: p.key })),
+            default: CUSTOM_LIST_PRESETS[0].key,
+            description: __('Choosing a format replaces all columns below; you can still edit them afterwards.'),
+            onchange: function () { apply_custom_list_preset(d, this.get_value()); }
+        },
         {
             fieldname: 'columns_help',
             fieldtype: 'HTML',
@@ -2422,11 +2847,21 @@ function show_generate_custom_list_dialog(listview) {
             } else if (values.select_scope === 'selected' && selected_employees.length === 0) {
                 frappe.msgprint({ title: __('Chưa Chọn Nhân Viên'), message: __('Vui lòng chọn ít nhất một nhân viên hoặc chọn phạm vi khác.'), indicator: 'orange' });
                 return;
+            } else if ((values.select_scope === 'pick' && picker.count() === 0)
+                || (values.select_scope === 'pick_left' && picker_left.count() === 0)) {
+                frappe.msgprint({ title: __('No Employee Selected'), message: __('Please add at least one employee to the selected list on the right.'), indicator: 'orange' });
+                return;
             }
 
             const columns = collect_custom_columns(d);
             if (columns.length === 0) {
                 frappe.msgprint({ title: __('Chưa Có Cột'), message: __('Vui lòng thêm ít nhất 1 cột.'), indicator: 'orange' });
+                return;
+            }
+
+            if (values.output_format === 'excel') {
+                d.hide();
+                generate_custom_employee_list(values, scope_employees_of(values), columns, null);
                 return;
             }
 
@@ -2445,9 +2880,17 @@ function show_generate_custom_list_dialog(listview) {
             write_custom_list_to_tab(tab, custom_list_loading_html());
 
             d.hide();
-            generate_custom_employee_list(values, selected_employees, columns, tab);
+            generate_custom_employee_list(values, scope_employees_of(values), columns, tab);
         }
     });
+
+    // Scope 'pick'/'pick_left' đi chung nhánh `name in [...]` với 'selected'.
+    function scope_employees_of(values) {
+        const active_picker = { pick: picker, pick_left: picker_left }[values.select_scope];
+        return active_picker
+            ? active_picker.get_ids().map(name => ({ name }))
+            : selected_employees;
+    }
 
     d.$wrapper.on('click', '#btn-add-custom-column', function () {
         add_custom_column_row(d);
@@ -2472,24 +2915,31 @@ function show_generate_custom_list_dialog(listview) {
     d.show();
     d.$wrapper.find('.modal-dialog').addClass('modal-xl');
 
-    // Dòng mẫu mặc định — tái hiện đúng cấu trúc trong ảnh bạn gửi, đã bind
-    // field thật + đặt sẵn độ rộng/nowrap hợp lý để không bị tràn/cắt khi in.
-    add_custom_column_row(d, 'name', 'MSNV', '', '80px', 1);
-    add_custom_column_row(d, 'employee_name', 'Họ và tên', '', '155px', 1);
-    add_custom_column_row(d, 'designation', 'Chức danh', '', '120px', 1);
-    add_custom_column_row(d, 'date_of_joining', 'Ngày nhận việc', '', '75px', 1);
-    add_custom_column_row(d, 'gender', 'Giới tính', '', '45px', 1);
-    add_custom_column_row(d, '', 'Loại nón', 'Nón, giày', '55px', 0);
-    add_custom_column_row(d, '', 'Size giày', 'Nón, giày', '55px', 0);
-    add_custom_column_row(d, '', 'Size áo', 'Nón, giày', '50px', 0);
-    add_custom_column_row(d, '', 'Ký nhận nón, giày', 'Nón, giày', '55px', 0);
-    add_custom_column_row(d, '', 'Ký nhận áo đồng phục', 'Áo đồng phục||Ngày:.........', '85px', 0);
+    apply_custom_list_preset(d, d.get_value('column_preset'));
+
+    // Tick sẵn trên list view → đưa luôn vào danh sách bên phải.
+    const picker = make_employee_picker(d.fields_dict.employee_picker.$wrapper, {
+        initial_ids: selected_employees.map(e => e.name),
+        on_change: () => { if (d.get_value('select_scope') === 'pick') update_custom_list_scope_display(); }
+    });
+    // Picker riêng cho NV Left: tick sẵn trên list view thì chỉ người Left vào đây
+    // (add_ids bỏ qua mã không thuộc danh sách đã nạp).
+    const picker_left = make_employee_picker(d.fields_dict.employee_picker_left.$wrapper, {
+        status: 'Left',
+        initial_ids: selected_employees.map(e => e.name),
+        on_change: () => { if (d.get_value('select_scope') === 'pick_left') update_custom_list_scope_display(); }
+    });
 
     update_custom_list_scope_display();
 
     function update_custom_list_scope_display() {
         const scope_type = d.get_value('select_scope');
-        if (scope_type === 'all_active') {
+        if (scope_type === 'pick' || scope_type === 'pick_left') {
+            const n = (scope_type === 'pick' ? picker : picker_left).count();
+            d.fields_dict.scope_info.$wrapper.html(n
+                ? `<div class="alert alert-success">${__('Will export {0} selected employees.', [`<strong>${n}</strong>`])}</div>`
+                : `<div class="alert alert-warning">${__('Add employees by Line Team or search, they will appear in the list on the right.')}</div>`);
+        } else if (scope_type === 'all_active') {
             frappe.call({
                 method: 'frappe.client.get_count',
                 args: { doctype: 'Employee', filters: { status: 'Active' } },
@@ -2520,6 +2970,13 @@ function show_generate_custom_list_dialog(listview) {
             );
         }
     }
+}
+
+function apply_custom_list_preset(d, key) {
+    const preset = CUSTOM_LIST_PRESETS.find(p => p.key === key);
+    if (!preset) return;
+    d.$wrapper.find('#custom-columns-container').empty();
+    preset.columns.forEach(c => add_custom_column_row(d, ...c));
 }
 
 function add_custom_column_row(d, prefillFieldname, prefillLabel, prefillGroup, prefillWidth, prefillNowrap) {
@@ -2564,7 +3021,8 @@ function collect_custom_columns(d) {
             group,
             width,
             nowrap,
-            is_date: !!(meta && meta.is_date)
+            is_date: !!(meta && meta.is_date),
+            is_image: !!(meta && meta.is_image)
         });
     });
     return cols;
@@ -2593,7 +3051,7 @@ function generate_custom_employee_list(values, selected_employees, columns, tab)
 
     if (values.select_scope === 'all_active') {
         get_list_args = { doctype: 'Employee', filters: { status: 'Active' }, fields: db_fields, order_by: order_by, limit_page_length: 0 };
-    } else if (values.select_scope === 'selected') {
+    } else if (['selected', 'pick', 'pick_left'].includes(values.select_scope)) {
         const ids = selected_employees.map(e => e.name);
         get_list_args = { doctype: 'Employee', filters: { name: ['in', ids] }, fields: db_fields, order_by: order_by, limit_page_length: 0 };
     } else {
@@ -2628,6 +3086,17 @@ function generate_custom_employee_list(values, selected_employees, columns, tab)
             if (employees.length === 0) {
                 if (tab && !tab.closed) tab.close();
                 frappe.msgprint({ title: __('Không Có Dữ Liệu'), message: __('Không tìm thấy nhân viên nào phù hợp.'), indicator: 'orange' });
+                return;
+            }
+            if (values.output_format === 'excel') {
+                // open_url_post = form POST → trình duyệt tải file thẳng, không cần popup.
+                open_url_post('/api/method/customize_erpnext.api.employee.custom_list_excel.export_custom_employee_list_excel', {
+                    employees: JSON.stringify(employees.map(e => e.name)),
+                    columns: JSON.stringify(columns),
+                    title: values.report_title || '',
+                    orientation: values.page_orientation
+                });
+                frappe.show_alert({ message: __('Exporting {0} employees to Excel...', [employees.length]), indicator: 'green' });
                 return;
             }
             try {
@@ -2710,6 +3179,15 @@ function build_custom_list_html(title, employees, columns, page_orientation) {
 
     const format_cell = (emp, col) => {
         if (!col.fieldname) return ''; // cột trống — để tay điền/ký
+        if (col.is_image) {
+            const url = emp[custom_list_db_field(col.fieldname)];
+            if (!url) return '';
+            // Tab preview được dựng bằng document.write → dùng URL tuyệt đối cho chắc;
+            // encodeURI vì tên file ảnh có dấu cách + tiếng Việt. File private vẫn
+            // tải được nhờ cookie phiên (cùng origin).
+            const src = /^https?:\/\//i.test(url) ? url : frappe.urllib.get_base_url() + url;
+            return `<img src="${frappe.utils.escape_html(encodeURI(src))}" class="cl-photo" alt="" onerror="this.style.display='none'">`;
+        }
         if (col.fieldname === 'id_no_prefix') {
             const m = String(emp.name || '').match(/(\d+)\s*$/);
             return frappe.utils.escape_html(m ? m[1] : String(emp.name || ''));
@@ -2770,7 +3248,8 @@ function build_custom_list_html(title, employees, columns, page_orientation) {
     employees.forEach((emp, idx) => {
         rows += `<tr><td style="${td_style_base};text-align:center">${idx + 1}</td>`;
         columns.forEach(col => {
-            rows += `<td style="${td_style_base}${nowrap_style(col)}">${format_cell(emp, col) || '&nbsp;'}</td>`;
+            const img_style = col.is_image ? ';text-align:center;vertical-align:middle;padding:2px' : '';
+            rows += `<td style="${td_style_base}${img_style};${nowrap_style(col)}">${format_cell(emp, col) || '&nbsp;'}</td>`;
         });
         rows += `</tr>`;
     });
@@ -2788,6 +3267,7 @@ function build_custom_list_html(title, employees, columns, page_orientation) {
     table { border-collapse: collapse; width: 100%; table-layout: fixed; font-size: ${font_px}px; }
     th, td { padding: ${cell_pad}; }
     tr { page-break-inside: avoid; }
+    .cl-photo { display: block; margin: 0 auto; width: 15mm; max-width: 100%; height: 18.33mm; object-fit: contain; }
     thead { display: table-header-group; }
     /* Khung xem trước đúng bề ngang vùng in của khổ giấy đã chọn (${page.label}),
        nên những gì thấy trên màn hình là những gì in ra. */
@@ -2854,4 +3334,129 @@ function write_custom_list_to_tab(tab, html) {
     tab.document.open();
     tab.document.write(html);
     tab.document.close();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 9 Bulk Download Employee Photos — chọn NV (khoảng mã / Section / Line Team /
+// tìm từng người) rồi tải 1 file ZIP. Server: api/employee/employee_photo_download.py
+// Luôn preview trước khi tải: open_url_post submit form ngay trên trang này, server
+// mà throw là người dùng bị đưa sang trang JSON lỗi.
+// ─────────────────────────────────────────────────────────────────────────────
+const PHOTO_DOWNLOAD_API = 'customize_erpnext.api.employee.employee_photo_download';
+
+function show_bulk_download_photos_dialog(listview) {
+    const initial_ids = listview.get_checked_items().map(e => e.name);
+    let picker = null;
+    let current_status = null;
+    let d = null;  // Select gọi onchange ngay lúc dựng dialog → init_picker phải chịu được d chưa có
+
+    d = new frappe.ui.Dialog({
+        title: __('Bulk Download Employee Photos'),
+        size: 'extra-large',
+        fields: [
+            {
+                fieldname: 'status', fieldtype: 'Select', label: __('Employee Status'),
+                options: [
+                    { label: __('Active'), value: 'Active' },
+                    { label: __('Left'), value: 'Left' },
+                    { label: __('Inactive'), value: 'Inactive' }
+                ],
+                default: 'Active',
+                description: __('Changing the status clears the selected list.'),
+                onchange: () => init_picker()
+            },
+            { fieldtype: 'Column Break' },
+            {
+                fieldname: 'name_format', fieldtype: 'Select', label: __('File Name in ZIP'),
+                options: [
+                    { label: __('Employee ID + Full Name'), value: 'id_name' },
+                    { label: __('Employee ID + Full Name (no accents)'), value: 'id_name_ascii' },
+                    { label: __('Employee ID only'), value: 'id' }
+                ],
+                default: 'id_name',
+                description: __('Choose "no accents" if file names show broken characters after unzipping.')
+            },
+            { fieldtype: 'Section Break' },
+            { fieldname: 'picker_html', fieldtype: 'HTML' }
+        ],
+        primary_action_label: __('Download'),
+        primary_action: () => preview_and_download()
+    });
+
+    function update_primary_label(count) {
+        d.set_primary_action(count ? __('Download ({0})', [count]) : __('Download'), () => preview_and_download());
+    }
+
+    function init_picker() {
+        if (!d) return;
+        const status = d.get_value('status') || 'Active';
+        if (status === current_status) return;
+        current_status = status;
+        // Div mới mỗi lần: make_employee_picker gắn handler delegated lên wrapper,
+        // dùng lại wrapper cũ thì mỗi lần đổi status lại chồng thêm 1 bộ handler.
+        const $box = $('<div>').appendTo(d.fields_dict.picker_html.$wrapper.empty());
+        picker = make_employee_picker($box, {
+            status: status,
+            id_range: true,
+            initial_ids: initial_ids,
+            on_change: update_primary_label
+        });
+        update_primary_label(0);
+    }
+
+    function preview_and_download() {
+        const ids = picker ? picker.get_ids() : [];
+        if (!ids.length) {
+            frappe.msgprint(__('Please select at least one employee'));
+            return;
+        }
+        frappe.call({
+            method: `${PHOTO_DOWNLOAD_API}.preview_employee_photos`,
+            args: { employee_ids: ids },
+            freeze: true,
+            freeze_message: __('Checking photos...'),
+            callback: function (r) {
+                const p = r.message;
+                if (!p) return;
+                if (!p.photo_count) {
+                    frappe.msgprint({
+                        title: __('Nothing to download'),
+                        indicator: 'orange',
+                        message: __('None of the {0} selected employees has a photo.', [p.requested])
+                    });
+                    return;
+                }
+                confirm_download(p, ids);
+            }
+        });
+    }
+
+    function confirm_download(p, ids) {
+        const esc = frappe.utils.escape_html;
+        const reason_label = {
+            not_found: __('Employee not found or no permission'),
+            no_photo: __('No photo'),
+            file_missing: __('Photo file not found on server')
+        };
+        let msg = `<p>${__('{0} photos ({1}) will be downloaded as a ZIP file.',
+            [`<b>${p.photo_count}</b>`, frappe.form.formatters.FileSize(p.total_size)])}</p>`;
+        if (p.missing.length) {
+            msg += `<p class="text-warning">${__('{0} employees have no downloadable photo (also listed in _missing_photos.txt inside the ZIP):', [p.missing.length])}</p>
+                <div style="max-height:220px;overflow-y:auto;border:1px solid var(--border-color);border-radius:6px;font-size:12px">
+                ${p.missing.map(m => `<div style="padding:4px 8px;border-bottom:1px solid var(--border-color)">
+                    <b>${esc(m.employee)}</b> · ${esc(m.employee_name || '')}
+                    <span class="text-muted">— ${esc(reason_label[m.reason] || m.reason)}</span></div>`).join('')}
+                </div>`;
+        }
+        frappe.confirm(msg, () => {
+            open_url_post(`/api/method/${PHOTO_DOWNLOAD_API}.download_employee_photos`, {
+                employee_ids: ids,
+                name_format: d.get_value('name_format') || 'id_name'
+            });
+            frappe.show_alert({ message: __('Preparing ZIP file, the download will start shortly...'), indicator: 'blue' }, 5);
+        });
+    }
+
+    d.show();
+    init_picker();
 }
