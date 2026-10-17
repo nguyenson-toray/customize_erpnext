@@ -1,6 +1,6 @@
 {
  "app": "customize_erpnext",
- "creation": "2026-10-15 17:00:00.000000",
+ "creation": "2026-10-15 11:21:26.409017",
  "docstatus": 0,
  "doctype": "Workspace Sidebar",
  "for_user": "",
@@ -14,10 +14,10 @@
    "indent": 0,
    "keep_closed": 0,
    "label": "Employee",
+   "link_to": "Employee",
    "link_type": "DocType",
    "show_arrow": 0,
-   "type": "Link",
-   "link_to": "Employee"
+   "type": "Link"
   },
   {
    "child": 0,
@@ -25,11 +25,11 @@
    "icon": "settings",
    "indent": 0,
    "keep_closed": 0,
-   "label": "Employee Self Update Info Setting",
+   "label": "Self Update Info Setting",
+   "link_to": "Employee Self Update Info Setting",
    "link_type": "DocType",
    "show_arrow": 0,
-   "type": "Link",
-   "link_to": "Employee Self Update Info Setting"
+   "type": "Link"
   },
   {
    "child": 0,
@@ -37,14 +37,14 @@
    "icon": "file-text",
    "indent": 0,
    "keep_closed": 0,
-   "label": "Employee Self Update Info",
+   "label": "Self Update Info Records",
+   "link_to": "Employee Self Update Info",
    "link_type": "DocType",
    "show_arrow": 0,
-   "type": "Link",
-   "link_to": "Employee Self Update Info"
+   "type": "Link"
   }
  ],
- "modified": "2026-10-15 17:00:00.000000",
+ "modified": "2026-10-16 08:08:17.648300",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "module_onboarding": "",
