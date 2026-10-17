@@ -2281,7 +2281,7 @@ def generate_employee_list_html(employee_data, company_name, include_department=
         """
     
     # Close HTML
-    html += """ Tiqn123!
+    html += """
     </body>
     </html>
     """
