@@ -89,7 +89,7 @@ trong app này.
 
 ## Thiết bị chấm công, đồng bộ
 
-- `www/biometric_sync/biometric_sync.md` — Biometric Sync — `/biometric_sync`
+- `network/page/biometric_sync/biometric_sync.md` — Biometric Sync — `/desk/devices-and-security/biometric-sync`
 - `public/js/sync_fingerprint.md` — Tài Liệu Sync Fingerprint - Đồng Bộ Vân Tay
 
 ## Sơ đồ và tài liệu về tài liệu

@@ -46,7 +46,7 @@ chiến lược song song của Sync 4.1 (xem mục cuối). Chi tiết verify �
 - ✅ **Retry Failed**: summary liệt kê nhân viên lỗi kèm lý do; nút "🔁 Retry Failed (N)" chỉ sync lại các cặp (nhân viên, máy) thất bại
 - ✅ **DocType mới**: máy chấm công chuyển từ DocType `Attendance Machine` (nhiều bản ghi, đã xóa) sang Single DocType **`Attendance Machine Setting`** (bảng con `machines` = `Attendance Machine Detail`; cấu hình kết nối port/timeout/force_udp/ommit_ping dùng chung ở cấp cha). Truy cập qua helper `api/attendance_machines.py` (`get_machines`/`get_machine`). Identifier máy trong mọi API = **`device_name`** (trả về trong key `name` để tương thích ngược)
 - ✅ **Fix bug**: `force_udp or True` cũ ép luôn UDP bất kể cấu hình — nay tôn trọng giá trị cài đặt
-- ℹ️ API cũ `sync_employee_to_single_machine` (1 người/1 máy) vẫn giữ — www/biometric_sync đang dùng
+- ℹ️ API cũ `sync_employee_to_single_machine` (1 người/1 máy) vẫn giữ — page desk `biometric-sync` đang dùng
 
 **Cập nhật 2025-10-04**
 - ✅ **Chiến lược Per-Machine**: Mỗi máy xử lý tuần tự tất cả nhân viên, các máy chạy song song

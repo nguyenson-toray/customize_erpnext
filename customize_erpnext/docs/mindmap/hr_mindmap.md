@@ -37,9 +37,9 @@
   - **02. [Fingerprint machines / Máy chấm công vân tay](/desk/attendance-machine-setting)** `[Custom]` `[Done]`
     - **01. [Connect machines / Kết nối máy](/desk/attendance-machine-setting)** `[Custom]` `[Done]` — IT - Khai báo máy chấm công, lấy dữ liệu quét về hệ thống tự động
     - **02. [Register fingerprints / Đăng ký vân tay](/desk/fingerprint-data)** `[Custom]` `[Done]` — Đăng ký vân tay chấm công cho nhân viên
-    - **03. [Push employees to machines / Đưa nhân viên xuống máy](/biometric_sync)** `[Custom]` `[Done]` — Đồng bộ danh sách nhân viên và vân tay xuống từng máy
-    - **04. [Sync machine clock / Đồng bộ giờ máy](/biometric_sync)** `[Custom]` `[Done]` — IT
-    - **05. [Check scan data / Kiểm tra dữ liệu quét](/biometric_sync)** `[Custom]` `[Done]` — IT- Kiểm tra log, xữ lý khi có lỗi
+    - **03. [Push employees to machines / Đưa nhân viên xuống máy](/desk/devices-and-security/biometric-sync)** `[Custom]` `[Done]` — Đồng bộ danh sách nhân viên và vân tay xuống từng máy
+    - **04. [Sync machine clock / Đồng bộ giờ máy](/desk/devices-and-security/biometric-sync)** `[Custom]` `[Done]` — IT
+    - **05. [Check scan data / Kiểm tra dữ liệu quét](/desk/devices-and-security/biometric-sync)** `[Custom]` `[Done]` — IT- Kiểm tra log, xữ lý khi có lỗi
   - **03. [Check-in records / Dữ liệu quét vào - ra](/desk/employee-checkin)** `[Override]` `[Done]` — Mỗi lần nhân viên quét là một dòng dữ liệu, là cơ sở để tính công
   - **04. [Attendance calculation / Tính công tự động](/desk/attendance)** `[Override]` `[Done]`
     - **01. [Automatic daily run / Chạy tự động hằng ngày]()** `[Override]` `[Done]` — 

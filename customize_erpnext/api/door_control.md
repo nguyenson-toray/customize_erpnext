@@ -74,7 +74,7 @@ Service chấm công tự động `erpnext-sync-all` (`apps/biometric-attendance
 | File | Vai trò |
 |---|---|
 | `api/door_control.py` | Toàn bộ API + giao tiếp máy (docstring đầu file có các sự thật đo được) |
-| `api/door_access.py` | `store_door_punches()` dùng chung với tab "IT Door Access" cũ trên /biometric_sync |
+| `api/door_access.py` | `store_door_punches()` dùng chung với tab "IT Door Access" cũ trên trang www /biometric_sync (đã bỏ 19/10/2026) |
 | `api/attendance_machines.py` | Lọc máy cửa (§3) |
 | `www/door_control/index.py` | Kiểm tra login/role, CSRF, gom chuỗi dịch |
 | `www/door_control/index.html` | Toàn bộ UI (CSS + JS inline) |
@@ -171,7 +171,7 @@ cho đúng file JSON); `index.html` không cần restart.
 2. **Sensor:** kỹ thuật kiểm tra dây NO/COM của LB-35 vào `SEN` + `GND`. Nếu chạy ⇒ hiệu chỉnh
    `SENSOR_STATES`; cửa 2 cánh (.48) cần biết 2 sensor nối tiếp hay song song.
 3. **Realtime `EF_UNLOCK`:** biết lúc relay mở (kể cả vân tay) mà không cần sensor.
-4. Tab 4.1 trên `/biometric_sync` chưa hiện máy cửa/máy tắt (chỉ dialog trên Desk có).
+4. Tab "Sync ERP → Machines" trên trang desk `biometric-sync` chưa hiện máy cửa/máy tắt (chỉ dialog trên Desk có).
 
 ## 11. Cảnh báo Telegram (`api/door_alerts.py`, 09/10/2026)
 

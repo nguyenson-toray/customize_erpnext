@@ -1,1016 +1,40 @@
-<!DOCTYPE html>
-<html lang="vi">
+// Biometric Sync — Page desk, mở trong desk có sidebar Devices and Security.
+// Chuyển từ trang www /biometric_sync (đã xoá 19/10/2026) bằng scripts/convert_biometric_page.py;
+// từ đó FILE NÀY là nguồn chính — sửa trực tiếp ở đây. Tài liệu: biometric_sync.md cùng thư mục.
+// Plan: .claude/plans/biometric_sync_desk_page.md. Chạy thử: scripts/smoke_biometric_page.js.
+//
+// Toàn bộ code cũ chạy trong bsync.setup(root) (closure, không còn 70 hàm global); handler inline
+// gọi qua namespace `bsync.*`. CSS giới hạn trong .bsync (biometric_sync.css).
+
+frappe.provide("bsync");
+
+// HTML nằm ngay trong file JS (template literal): file .html của Page bị frappe nhúng thành chuỗi
+// bọc nháy đơn mà KHÔNG escape nháy đơn bên trong -> onclick="bsync.switchTab('x')" làm gãy cả script.
+const BSYNC_HTML = `<div class="bsync">
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Biometric Sync</title>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
-
-        /* ── CSS Variables ─────────────────────────────────────────── */
-        :root {
-            --bg: #f1f5f9;
-            --surface: #ffffff;
-            --border: #e2e8f0;
-            --border-2: #cbd5e1;
-            --text: #0f172a;
-            --text-2: #475569;
-            --text-3: #94a3b8;
-            --primary: #2563eb;
-            --success: #059669;
-            --warning: #d97706;
-            --danger: #dc2626;
-            --info: #0284c7;
-            --radius-sm: 6px;
-        }
-
-        /* ── Reset & Base ─────────────────────────────────────────── */
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            background: var(--bg);
-            color: var(--text);
-            min-height: 100vh;
-        }
-
-        /* ── Sticky Header ────────────────────────────────────────── */
-        .page-header {
-            position: sticky;
-            top: 0;
-            z-index: 100;
-            height: 52px;
-            background: #0f172a;
-            display: flex;
-            align-items: center;
-            padding: 0 20px;
-            gap: 12px;
-            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
-        }
-
-        .page-header-icon {
-            width: 32px;
-            height: 32px;
-            background: var(--primary);
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 16px;
-            flex-shrink: 0;
-        }
-
-        .page-header-titles {
-            display: flex;
-            flex-direction: column;
-            gap: 1px;
-        }
-
-        .page-header-title {
-            font-size: 14px;
-            font-weight: 700;
-            color: #ffffff;
-            line-height: 1.2;
-        }
-
-        .page-header-subtitle {
-            font-size: 11px;
-            color: #94a3b8;
-            line-height: 1.2;
-        }
-
-        /* ── Main wrap ────────────────────────────────────────────── */
-        .main-wrap {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 18px 20px 40px;
-        }
-
-        /* ── Tab Nav ──────────────────────────────────────────────── */
-        .tab-nav-wrap {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            padding: 4px;
-            margin-bottom: 18px;
-            display: flex;
-            gap: 3px;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
-        }
-
-        .tab-btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-            padding: 7px 14px;
-            border: none;
-            background: none;
-            cursor: pointer;
-            font-family: 'DM Sans', sans-serif;
-            font-size: 13px;
-            font-weight: 500;
-            color: var(--text-2);
-            border-radius: 7px;
-            transition: all .18s;
-            white-space: nowrap;
-        }
-
-        .tab-btn:hover {
-            background: var(--bg);
-            color: var(--text);
-        }
-
-        .tab-btn.active {
-            background: var(--primary);
-            color: #ffffff;
-            box-shadow: 0 2px 6px rgba(37, 99, 235, .35);
-        }
-
-        .tab-btn.disabled {
-            color: var(--text-3);
-            cursor: not-allowed;
-        }
-
-        .tab-icon {
-            font-size: 14px;
-            line-height: 1;
-        }
-
-        .tab-label {
-            line-height: 1;
-        }
-
-        /* Tab panel animation */
-        .tab-panel {
-            display: none;
-        }
-
-        .tab-panel.active {
-            display: block;
-            animation: fadeIn .18s ease;
-        }
-
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-                transform: translateY(4px);
-            }
-
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        /* ── Cards ────────────────────────────────────────────────── */
-        .card {
-            background: var(--surface);
-            border-radius: 10px;
-            border: 1px solid var(--border);
-            padding: 18px 20px;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
-            margin-bottom: 16px;
-        }
-
-        .card-title {
-            font-size: 14px;
-            font-weight: 600;
-            color: var(--text);
-            margin-bottom: 14px;
-            padding-bottom: 10px;
-            border-bottom: 1px solid var(--border);
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        /* ── Form controls ────────────────────────────────────────── */
-        .form-row {
-            display: flex;
-            gap: 12px;
-            flex-wrap: wrap;
-            align-items: flex-end;
-        }
-
-        .form-group {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
-
-        .form-group label {
-            font-weight: 500;
-            color: var(--text-2);
-            font-size: 12px;
-        }
-
-        select,
-        input[type="text"],
-        input[type="date"] {
-            height: 34px;
-            padding: 0 10px;
-            border: 1px solid var(--border-2);
-            border-radius: 6px;
-            font-size: 13px;
-            font-family: 'DM Sans', sans-serif;
-            background: var(--surface);
-            color: var(--text);
-            transition: border-color .15s, box-shadow .15s;
-            outline: none;
-        }
-
-        select:focus,
-        input[type="text"]:focus,
-        input[type="date"]:focus {
-            border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(37, 99, 235, .1);
-        }
-
-        select {
-            min-width: 280px;
-            cursor: pointer;
-        }
-
-        input[type="text"] {
-            min-width: 180px;
-        }
-
-        /* ── Buttons ──────────────────────────────────────────────── */
-        .btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-            padding: 8px 16px;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            font-family: 'DM Sans', sans-serif;
-            font-size: 13px;
-            font-weight: 500;
-            transition: opacity .15s, box-shadow .15s;
-            white-space: nowrap;
-        }
-
-        .btn:hover {
-            opacity: .88;
-        }
-
-        .btn:disabled {
-            opacity: .45;
-            cursor: not-allowed;
-        }
-
-        .btn-primary {
-            background: var(--primary);
-            color: #ffffff;
-        }
-
-        .btn-secondary {
-            background: #64748b;
-            color: #ffffff;
-        }
-
-        .btn-success {
-            background: var(--success);
-            color: #ffffff;
-        }
-
-        .btn-sm {
-            padding: 5px 11px;
-            font-size: 12px;
-        }
-
-        .btn-link {
-            background: none;
-            border: none;
-            color: var(--primary);
-            cursor: pointer;
-            font-family: 'DM Sans', sans-serif;
-            font-size: 13px;
-            text-decoration: underline;
-            padding: 0;
-        }
-
-        /* Info / Warning / Danger button variants */
-        .btn-info,
-        .btn-info-sm {
-            background: var(--info);
-            color: #ffffff;
-        }
-
-        .btn-warning,
-        .btn-warn-sm {
-            background: var(--warning);
-            color: #ffffff;
-        }
-
-        .btn-danger,
-        .btn-danger-sm {
-            background: var(--danger);
-            color: #ffffff;
-        }
-
-        /* ── Toolbar (global actions) ─────────────────────────────── */
-        .global-actions,
-        .toolbar {
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-            align-items: center;
-            padding: 10px 16px;
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            margin-bottom: 16px;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-        }
-
-        /* ── Stats bar ────────────────────────────────────────────── */
-        .stats {
-            color: var(--text-2);
-            font-size: 12px;
-            padding: 6px 11px;
-            background: var(--bg);
-            border-radius: 6px;
-            border: 1px solid var(--border);
-        }
-
-        /* ── Loading spinner ──────────────────────────────────────── */
-        .loading {
-            text-align: center;
-            padding: 30px;
-            color: var(--text-3);
-            font-size: 13px;
-        }
-
-        .spinner {
-            border: 3px solid var(--border);
-            border-top: 3px solid var(--primary);
-            border-radius: 50%;
-            width: 28px;
-            height: 28px;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 12px;
-        }
-
-        @keyframes spin {
-            0% {
-                transform: rotate(0deg);
-            }
-
-            100% {
-                transform: rotate(360deg);
-            }
-        }
-
-        /* ── Tab 1 Log styles ─────────────────────────────────────── */
-        .log-controls {
-            display: flex;
-            gap: 15px;
-            flex-wrap: wrap;
-            align-items: center;
-        }
-
-        .control-group {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .control-group label {
-            font-weight: 500;
-            color: var(--text-2);
-            font-size: 13px;
-            white-space: nowrap;
-        }
-
-        .log-container {
-            background: var(--surface);
-            border-radius: 10px;
-            border: 1px solid var(--border);
-            padding: 16px;
-            max-height: calc(100vh - 340px);
-            overflow-y: auto;
-        }
-
-        .log-line {
-            padding: 5px 10px;
-            margin-bottom: 2px;
-            border-left: 3px solid var(--text-3);
-            background: var(--bg);
-            border-radius: 4px;
-            font-family: 'JetBrains Mono', 'Consolas', monospace;
-            font-size: 11.5px;
-            line-height: 1.6;
-            word-wrap: break-word;
-            white-space: pre-wrap;
-            color: var(--text-2);
-        }
-
-        .log-line.error {
-            border-left-color: var(--danger);
-            background: #fff5f5;
-            color: #7f1d1d;
-        }
-
-        .log-line.warning {
-            border-left-color: var(--warning);
-            background: #fffbeb;
-            color: #78350f;
-        }
-
-        .log-line.info {
-            border-left-color: var(--info);
-            background: #f0f9ff;
-            color: #0c4a6e;
-        }
-
-        .no-logs {
-            text-align: center;
-            padding: 50px 20px;
-            color: var(--text-3);
-            font-size: 13px;
-        }
-
-        /* ── Tab 2 Fingerprint styles ─────────────────────────────── */
-        .section-num {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: 20px;
-            height: 20px;
-            background: var(--primary);
-            color: #ffffff;
-            border-radius: 50%;
-            font-size: 11px;
-            font-weight: 700;
-            flex-shrink: 0;
-        }
-
-        /* Machine list checkboxes */
-        .machine-list {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-            max-height: 200px;
-            overflow-y: auto;
-        }
-
-        .machine-item {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 7px 12px;
-            border: 1px solid var(--border);
-            border-radius: 7px;
-            cursor: pointer;
-            transition: background .12s, border-color .12s;
-        }
-
-        .machine-item:hover {
-            background: var(--bg);
-            border-color: var(--border-2);
-        }
-
-        .machine-item input[type="checkbox"] {
-            width: 15px;
-            height: 15px;
-            cursor: pointer;
-            accent-color: var(--primary);
-        }
-
-        .machine-item label,
-        .machine-item-label {
-            cursor: pointer;
-            flex: 1;
-            font-size: 13px;
-            color: var(--text);
-        }
-
-        .machine-item .badge {
-            font-size: 11px;
-            padding: 2px 8px;
-            border-radius: 10px;
-            background: var(--bg);
-            color: var(--text-2);
-            border: 1px solid var(--border);
-        }
-
-        .machine-item .badge.master {
-            background: #fef9c3;
-            color: #854d0e;
-            border-color: #fde68a;
-        }
-
-        /* User table */
-        .user-table-wrap {
-            overflow-x: auto;
-            max-height: 380px;
-            overflow-y: auto;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 13px;
-        }
-
-        th {
-            background: var(--bg);
-            padding: 8px 12px;
-            text-align: left;
-            font-weight: 600;
-            font-size: 11px;
-            text-transform: uppercase;
-            letter-spacing: .5px;
-            color: var(--text-2);
-            border-bottom: 2px solid var(--border);
-            position: sticky;
-            top: 0;
-            z-index: 1;
-        }
-
-        td {
-            padding: 7px 12px;
-            border-bottom: 1px solid var(--border);
-            vertical-align: middle;
-            color: var(--text);
-        }
-
-        tr:hover td {
-            background: #f8faff;
-        }
-
-        .badge-matched {
-            background: #dcfce7;
-            color: #14532d;
-            padding: 2px 8px;
-            border-radius: 10px;
-            font-size: 11px;
-            font-weight: 600;
-        }
-
-        .badge-unmatched {
-            background: #fee2e2;
-            color: #7f1d1d;
-            padding: 2px 8px;
-            border-radius: 10px;
-            font-size: 11px;
-        }
-
-        tr.unmatched td {
-            opacity: .55;
-        }
-
-        tr.unmatched input[type="checkbox"] {
-            cursor: not-allowed;
-        }
-
-        /* Progress area */
-        .progress-section {
-            display: none;
-        }
-
-        .progress-section.visible {
-            display: block;
-        }
-
-        .machine-progress {
-            margin-bottom: 10px;
-        }
-
-        .machine-progress-label {
-            display: flex;
-            justify-content: space-between;
-            font-size: 12px;
-            color: var(--text-2);
-            margin-bottom: 4px;
-        }
-
-        .progress-bar-wrap {
-            height: 6px;
-            background: var(--border);
-            border-radius: 3px;
-            overflow: hidden;
-        }
-
-        .progress-bar {
-            height: 100%;
-            background: linear-gradient(90deg, var(--primary), #7c3aed);
-            border-radius: 3px;
-            transition: width .3s;
-        }
-
-        .result-log {
-            max-height: 220px;
-            overflow-y: auto;
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 11.5px;
-            background: #0f172a;
-            color: #cbd5e1;
-            padding: 12px 14px;
-            border-radius: 8px;
-            margin-top: 10px;
-            line-height: 1.7;
-        }
-
-        .result-log .ok {
-            color: #34d399;
-        }
-
-        .result-log .fail {
-            color: #f87171;
-        }
-
-        .result-log .info-line {
-            color: #93c5fd;
-        }
-
-        /* ── Alerts ───────────────────────────────────────────────── */
-        .alert {
-            padding: 10px 14px;
-            border-radius: 7px;
-            font-size: 13px;
-            margin-bottom: 10px;
-        }
-
-        .alert-info {
-            background: #eff6ff;
-            border: 1px solid #bfdbfe;
-            color: #1e40af;
-        }
-
-        .alert-warning {
-            background: #fffbeb;
-            border: 1px solid #fde68a;
-            color: #78350f;
-        }
-
-        .alert-danger {
-            background: #fef2f2;
-            border: 1px solid #fecaca;
-            color: #7f1d1d;
-        }
-
-        .alert-success {
-            background: #f0fdf4;
-            border: 1px solid #bbf7d0;
-            color: #14532d;
-        }
-
-        /* ── Tab 4.1 / 4.3 / Machines ─────────────────────────────── */
-        textarea.form-control {
-            width: 100%;
-            padding: 8px 10px;
-            border: 1px solid var(--border-2);
-            border-radius: 6px;
-            font-size: 13px;
-            font-family: 'DM Sans', sans-serif;
-            resize: vertical;
-            color: var(--text);
-            transition: border-color .15s, box-shadow .15s;
-            outline: none;
-        }
-
-        textarea.form-control:focus {
-            border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(37, 99, 235, .1);
-        }
-
-        /* Machine management cards */
-        .machine-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-            gap: 16px;
-        }
-
-        .machine-card {
-            background: var(--surface);
-            border-radius: 10px;
-            border: 1px solid var(--border);
-            padding: 16px;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
-            transition: box-shadow .15s, border-color .15s;
-        }
-
-        .machine-card:hover {
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-            border-color: var(--border-2);
-        }
-
-        .machine-card.is-master {
-            border-top: 3px solid var(--warning);
-        }
-
-        .machine-card-head {
-            display: flex;
-            align-items: flex-start;
-            gap: 8px;
-            margin-bottom: 8px;
-        }
-
-        .machine-card-name {
-            font-size: 14px;
-            font-weight: 700;
-            color: var(--text);
-            flex: 1;
-        }
-
-        .machine-card-meta {
-            font-size: 12px;
-            color: var(--text-2);
-            margin: 2px 0;
-            font-family: 'JetBrains Mono', monospace;
-        }
-
-        .machine-card-actions {
-            display: flex;
-            gap: 6px;
-            margin-top: 12px;
-            flex-wrap: wrap;
-        }
-
-        .machine-info-panel {
-            margin-top: 12px;
-            padding: 12px;
-            background: var(--bg);
-            border-radius: 7px;
-            font-size: 12px;
-            border: 1px solid var(--border);
-            display: none;
-        }
-
-        .machine-info-panel.visible {
-            display: block;
-        }
-
-        .info-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 6px 20px;
-        }
-
-        .info-item {
-            display: flex;
-            flex-direction: column;
-        }
-
-        .info-item .ilabel {
-            font-weight: 600;
-            color: var(--text-3);
-            font-size: 10px;
-            text-transform: uppercase;
-            letter-spacing: .5px;
-        }
-
-        .info-item .ivalue {
-            color: var(--text);
-            font-size: 12.5px;
-            font-family: 'JetBrains Mono', monospace;
-        }
-
-        /* Delete preview */
-        .del-preview-wrap {
-            max-height: 340px;
-            overflow-y: auto;
-            border: 1px solid var(--border);
-            border-radius: 7px;
-        }
-
-        /* Capacity bar mini */
-        .cap-bar-wrap {
-            display: inline-block;
-            width: 80px;
-            height: 6px;
-            background: var(--border);
-            border-radius: 3px;
-            vertical-align: middle;
-            margin-left: 6px;
-        }
-
-        .cap-bar-inner {
-            height: 100%;
-            border-radius: 3px;
-            background: linear-gradient(90deg, var(--success), var(--primary));
-        }
-
-        /* All-machines info table */
-        .all-info-table-wrap {
-            overflow-x: auto;
-        }
-
-        #allMachinesInfoTable {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 12.5px;
-        }
-
-        #allMachinesInfoTable th {
-            background: var(--bg);
-            color: var(--text-2);
-            font-weight: 600;
-            font-size: 11px;
-            text-transform: uppercase;
-            letter-spacing: .5px;
-            padding: 8px 10px;
-            text-align: left;
-            border-bottom: 2px solid var(--border);
-            white-space: nowrap;
-        }
-
-        #allMachinesInfoTable td {
-            padding: 7px 10px;
-            border-bottom: 1px solid var(--border);
-            vertical-align: middle;
-            white-space: nowrap;
-        }
-
-        #allMachinesInfoTable tr:hover td {
-            background: var(--bg);
-        }
-
-        #allMachinesInfoTable tr.row-error td {
-            color: var(--danger);
-        }
-
-        #allMachinesInfoTable tr.row-loading td {
-            color: var(--text-3);
-        }
-
-        .ai-cap {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .ai-cap-bar {
-            width: 60px;
-            height: 6px;
-            background: var(--border);
-            border-radius: 3px;
-            overflow: hidden;
-            flex-shrink: 0;
-        }
-
-        .ai-cap-fill {
-            height: 100%;
-            border-radius: 3px;
-        }
-
-        /* Source + Target side-by-side */
-        .fp-machines-row {
-            display: grid;
-            grid-template-columns: 340px 1fr;
-            gap: 14px;
-            align-items: start;
-            margin-bottom: 0;
-        }
-
-        .fp-machines-row .card {
-            margin-bottom: 0;
-        }
-
-        .fp-card-targets .machine-list {
-            max-height: 260px;
-        }
-
-        @media (max-width: 860px) {
-            .fp-machines-row {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        #fp41EmpTable {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 12.5px;
-        }
-
-        #fp41EmpTable th {
-            background: var(--bg);
-            color: var(--text-2);
-            font-weight: 600;
-            font-size: 11px;
-            text-transform: uppercase;
-            letter-spacing: .5px;
-            padding: 6px 10px;
-            text-align: left;
-            border-bottom: 2px solid var(--border);
-            white-space: nowrap;
-        }
-
-        #fp41EmpTable td {
-            padding: 5px 10px;
-            border-bottom: 1px solid var(--border);
-        }
-
-        #fp41EmpTable tr:hover td {
-            background: var(--bg);
-        }
-
-        #fp41EmpTable td.missing {
-            color: var(--text-3);
-            font-style: italic;
-        }
-
-        /* Door access table: sortable + per-column filter header */
-        #daLogsTable th {
-            padding: 6px 8px;
-            vertical-align: top;
-        }
-
-        #daLogsTable td {
-            padding: 5px 8px;
-        }
-
-        .da-th {
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            cursor: pointer;
-            user-select: none;
-            white-space: nowrap;
-        }
-
-        .da-th:hover {
-            color: var(--primary);
-        }
-
-        .da-sort-ind {
-            font-size: 9px;
-            color: var(--text-3);
-        }
-
-        .da-th.sorted .da-sort-ind {
-            color: var(--primary);
-        }
-
-        input.da-col-filter {
-            width: 100%;
-            min-width: 0;
-            height: 24px;
-            margin-top: 4px;
-            padding: 0 6px;
-            font-size: 11.5px;
-            font-weight: 400;
-            text-transform: none;
-            letter-spacing: 0;
-            border: 1px solid var(--border-2);
-            border-radius: 4px;
-            background: var(--surface);
-        }
-
-        input.da-note-input {
-            width: 100%;
-            min-width: 0;
-            height: 26px;
-            font-size: 12.5px;
-        }
-    </style>
-</head>
-
-<body>
-    <!-- Sticky topbar -->
-    <header class="page-header">
-        <div class="page-header-icon">🖥</div>
-        <div class="page-header-titles">
-            <div class="page-header-title">Biometric Sync</div>
-            <div class="page-header-subtitle">Attendance machine data sync management</div>
-        </div>
-    </header>
 
     <div class="main-wrap">
 
         <!-- Tab Nav -->
         <div class="tab-nav-wrap">
-            <button class="tab-btn active" data-tab="tab-logs" onclick="switchTab('tab-logs')">
+            <button class="tab-btn active" data-tab="tab-logs" onclick="bsync.switchTab('tab-logs')">
                 <span class="tab-icon">📋</span><span class="tab-label">Logs</span>
             </button>
-            <button class="tab-btn" data-tab="tab-fingerprint" onclick="switchTab('tab-fingerprint')">
+            <button class="tab-btn" data-tab="tab-fingerprint" onclick="bsync.switchTab('tab-fingerprint')">
                 <span class="tab-icon">🔄</span><span class="tab-label">Sync Device → Device &amp; ERP</span>
             </button>
-            <button class="tab-btn" data-tab="tab-fp41" onclick="switchTab('tab-fp41')">
+            <button class="tab-btn" data-tab="tab-fp41" onclick="bsync.switchTab('tab-fp41')">
                 <span class="tab-icon">⬆</span><span class="tab-label">Sync ERP → Machines</span>
             </button>
-            <button class="tab-btn" data-tab="tab-del43" onclick="switchTab('tab-del43')">
+            <button class="tab-btn" data-tab="tab-del43" onclick="bsync.switchTab('tab-del43')">
                 <span class="tab-icon">🗑</span><span class="tab-label">Remove Left Staff</span>
             </button>
-            <button class="tab-btn" data-tab="tab-machines" onclick="switchTab('tab-machines')">
+            <button class="tab-btn" data-tab="tab-machines" onclick="bsync.switchTab('tab-machines')">
                 <span class="tab-icon">🖥</span><span class="tab-label">Machine Management</span>
             </button>
-            <button class="tab-btn" data-tab="tab-resync" onclick="switchTab('tab-resync')">
+            <button class="tab-btn" data-tab="tab-resync" onclick="bsync.switchTab('tab-resync')">
                 <span class="tab-icon">🔧</span><span class="tab-label">Manual Re-sync</span>
             </button>
-            {% if is_system_manager %}
-            <button class="tab-btn" data-tab="tab-door" onclick="switchTab('tab-door')">
-                <span class="tab-icon">🚪</span><span class="tab-label">IT Door Access</span>
-            </button>
-            {% endif %}
         </div>
 
         <!-- ════════════════════════════════════════════════════════
@@ -1022,13 +46,13 @@
                 <div class="log-controls">
                     <div class="control-group">
                         <label for="logFile">File:</label>
-                        <select id="logFile" onchange="loadLog()">
+                        <select id="logFile" onchange="bsync.loadLog()">
                             <option value="">-- Select log file --</option>
                         </select>
                     </div>
                     <div class="control-group">
                         <label for="filterLevel">Filter:</label>
-                        <select id="filterLevel" onchange="filterLines()">
+                        <select id="filterLevel" onchange="bsync.filterLines()">
                             <option value="ALL">All</option>
                             <option value="ERROR">Errors only</option>
                             <option value="WARNING">Warning+</option>
@@ -1037,7 +61,7 @@
                     </div>
                     <div class="control-group">
                         <label for="searchText">Search:</label>
-                        <input type="text" id="searchText" placeholder="Search..." onkeyup="filterLines()">
+                        <input type="text" id="searchText" placeholder="Search..." onkeyup="bsync.filterLines()">
                     </div>
                 </div>
                 <div id="stats" class="stats" style="margin-top:12px;">Select a log file to view</div>
@@ -1075,7 +99,7 @@
                             <option value="">-- Loading machines... --</option>
                         </select>
                     </div>
-                    <button class="btn btn-primary" style="width:100%;" onclick="loadMasterUsers()">
+                    <button class="btn btn-primary" style="width:100%;" onclick="bsync.loadMasterUsers()">
                         🔄 Load users from source machine
                     </button>
                     <div id="masterLoadStatus" style="margin-top:10px;"></div>
@@ -1108,9 +132,9 @@
                             Target Devices
                         </div>
                         <button class="btn btn-sm btn-secondary" style="padding:2px 8px;font-size:11px;"
-                            onclick="selectAllTargets(true)">All</button>
+                            onclick="bsync.selectAllTargets(true)">All</button>
                         <button class="btn btn-sm btn-secondary" style="padding:2px 8px;font-size:11px;"
-                            onclick="selectAllTargets(false)">None</button>
+                            onclick="bsync.selectAllTargets(false)">None</button>
                     </div>
                     <div id="targetMachineList" class="machine-list" style="max-height:200px;">
                         <div class="loading" style="padding:15px;">
@@ -1147,8 +171,8 @@
                         <label>Date of Joining ≥</label>
                         <input type="date" id="filterJoinDate">
                     </div>
-                    <button class="btn btn-primary" onclick="applyEmployeeFilter()">🔍 Filter</button>
-                    <button class="btn btn-secondary" onclick="clearEmployeeFilter()">✕ Clear</button>
+                    <button class="btn btn-primary" onclick="bsync.applyEmployeeFilter()">🔍 Filter</button>
+                    <button class="btn btn-secondary" onclick="bsync.clearEmployeeFilter()">✕ Clear</button>
                 </div>
                 <div id="filterStatus" style="margin-top:8px;"></div>
             </div>
@@ -1159,8 +183,8 @@
                     <span class="section-num">4</span>
                     Users on Source Machine
                     <div style="margin-left:auto; display:flex; gap:8px;">
-                        <button class="btn btn-sm btn-secondary" onclick="selectAllUsers(true)">All</button>
-                        <button class="btn btn-sm btn-secondary" onclick="selectAllUsers(false)">None</button>
+                        <button class="btn btn-sm btn-secondary" onclick="bsync.selectAllUsers(true)">All</button>
+                        <button class="btn btn-sm btn-secondary" onclick="bsync.selectAllUsers(false)">None</button>
                     </div>
                 </div>
                 <div id="userTableStats" class="stats" style="margin-bottom:12px;">No data loaded yet</div>
@@ -1173,7 +197,7 @@
 
             <!-- Sync Button -->
             <div style="text-align:center; margin-bottom:20px;">
-                <button class="btn btn-success" id="syncBtn" onclick="startSync()"
+                <button class="btn btn-success" id="syncBtn" onclick="bsync.startSync()"
                     style="padding:12px 32px; font-size:15px;" disabled>
                     ▶ Sync Fingerprints
                 </button>
@@ -1200,7 +224,7 @@
                 <div class="form-row" style="margin-bottom:10px;">
                     <div class="form-group">
                         <label>Scope</label>
-                        <select id="fp41Scope" onchange="onFp41ScopeChange()">
+                        <select id="fp41Scope" onchange="bsync.onFp41ScopeChange()">
                             <option value="all">All Active Employees</option>
                             <option value="date">Employees joined from date ≥</option>
                             <option value="manual">Manual input (Employee IDs)</option>
@@ -1218,7 +242,7 @@
                     <textarea id="fp41ManualIds" class="form-control" rows="4"
                         placeholder="TIQN-0001&#10;TIQN-0002&#10;TIQN-0003"></textarea>
                 </div>
-                <button class="btn btn-primary" onclick="fp41LoadEmployees()">🔍 Load Employees</button>
+                <button class="btn btn-primary" onclick="bsync.fp41LoadEmployees()">🔍 Load Employees</button>
                 <div id="fp41EmpStatus" style="margin-top:8px;font-size:13px;"></div>
                 <div id="fp41EmpTableWrap" style="display:none;margin-top:12px;">
                     <div class="all-info-table-wrap">
@@ -1241,8 +265,8 @@
             <div class="card">
                 <div class="card-title"><span class="section-num">2</span> Select Target Machines</div>
                 <div style="display:flex;gap:8px;margin-bottom:10px;">
-                    <button class="btn btn-sm btn-secondary" onclick="fp41SelectAllMachines(true)">All</button>
-                    <button class="btn btn-sm btn-secondary" onclick="fp41SelectAllMachines(false)">None</button>
+                    <button class="btn btn-sm btn-secondary" onclick="bsync.fp41SelectAllMachines(true)">All</button>
+                    <button class="btn btn-sm btn-secondary" onclick="bsync.fp41SelectAllMachines(false)">None</button>
                 </div>
                 <div id="fp41MachineList" class="machine-list">
                     <div class="loading" style="padding:15px;">
@@ -1253,7 +277,7 @@
             </div>
 
             <div style="text-align:center;margin-bottom:20px;">
-                <button class="btn btn-success" id="fp41SyncBtn" onclick="fp41StartSync()"
+                <button class="btn btn-success" id="fp41SyncBtn" onclick="bsync.fp41StartSync()"
                     style="padding:12px 32px;font-size:15px;" disabled>
                     ▶ Sync ERP → Machines
                 </button>
@@ -1306,7 +330,7 @@
                     </div>
                 </div>
                 <div style="margin-top:14px;display:flex;gap:10px;align-items:center;">
-                    <button class="btn btn-primary" id="del43ScanBtn" onclick="del43Scan()">🔍 Scan All
+                    <button class="btn btn-primary" id="del43ScanBtn" onclick="bsync.del43Scan()">🔍 Scan All
                         Machines</button>
                     <span id="del43ScanStatus" style="font-size:13px;color:var(--text-2);"></span>
                 </div>
@@ -1318,9 +342,9 @@
                     <div id="del43ScanSummary" style="margin-bottom:12px;"></div>
                     <div id="del43PreviewTable"></div>
                     <div style="margin-top:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-                        <button class="btn btn-danger" id="del43DeleteBtn" onclick="del43Delete()">🗑 Delete Selected
+                        <button class="btn btn-danger" id="del43DeleteBtn" onclick="bsync.del43Delete()">🗑 Delete Selected
                             Users</button>
-                        <button class="btn btn-secondary" onclick="del43ResetPreview()">✕ Cancel</button>
+                        <button class="btn btn-secondary" onclick="bsync.del43ResetPreview()">✕ Cancel</button>
                     </div>
                 </div>
             </div>
@@ -1336,9 +360,9 @@
                     <div class="form-group" style="flex:1;min-width:240px;">
                         <label>Employee ID / Device ID / Name</label>
                         <input type="text" id="del43FindInput" placeholder="e.g. HR-EMP-00012, 1042, or Nguyen Van A"
-                            onkeydown="if(event.key==='Enter')del43FindEmp();">
+                            onkeydown="if(event.key==='Enter')bsync.del43FindEmp();">
                     </div>
-                    <button class="btn btn-primary" id="del43FindBtn" onclick="del43FindEmp()">🔍 Find</button>
+                    <button class="btn btn-primary" id="del43FindBtn" onclick="bsync.del43FindEmp()">🔍 Find</button>
                     <span id="del43FindStatus" style="font-size:13px;color:var(--text-2);"></span>
                 </div>
                 <div id="del43FindResult" style="margin-top:14px;display:none;"></div>
@@ -1362,10 +386,10 @@
 
             <div class="global-actions toolbar">
                 <strong style="font-size:13px;color:var(--text-2);margin-right:4px;">Bulk actions:</strong>
-                <button class="btn btn-primary btn-sm" onclick="machinesRefresh()">🔄 Refresh</button>
-                <button class="btn btn-sm btn-info-sm" onclick="machinesSyncTimeAll()">🕐 Sync Time All</button>
-                <button class="btn btn-sm btn-danger-sm" onclick="machinesRebootAll()">🔁 Reboot All ⚠</button>
-                <button class="btn btn-sm" style="background:#7c3aed;color:#fff;" onclick="machinesLoadAllInfo()">📊
+                <button class="btn btn-primary btn-sm" onclick="bsync.machinesRefresh()">🔄 Refresh</button>
+                <button class="btn btn-sm btn-info-sm" onclick="bsync.machinesSyncTimeAll()">🕐 Sync Time All</button>
+                <button class="btn btn-sm btn-danger-sm" onclick="bsync.machinesRebootAll()">🔁 Reboot All ⚠</button>
+                <button class="btn btn-sm" style="background:#7c3aed;color:#fff;" onclick="bsync.machinesLoadAllInfo()">📊
                     Load Info All</button>
                 <span id="machinesGlobalStatus" style="font-size:13px;color:var(--text-2);margin-left:8px;"></span>
             </div>
@@ -1423,8 +447,8 @@
                     Existing checkins are skipped automatically (duplicate-safe).
                 </div>
                 <div style="display:flex;gap:8px;margin-bottom:8px;">
-                    <button class="btn btn-sm btn-secondary" onclick="rsSelectAllMachines(true)">All</button>
-                    <button class="btn btn-sm btn-secondary" onclick="rsSelectAllMachines(false)">None</button>
+                    <button class="btn btn-sm btn-secondary" onclick="bsync.rsSelectAllMachines(true)">All</button>
+                    <button class="btn btn-sm btn-secondary" onclick="bsync.rsSelectAllMachines(false)">None</button>
                 </div>
                 <div id="rsMachineList" class="machine-list" style="margin-bottom:10px;">
                     <div class="loading" style="padding:15px;">
@@ -1436,7 +460,7 @@
                     <div class="form-group"><label>From date</label><input type="date" id="rsDevFrom"></div>
                     <div class="form-group"><label>To date</label><input type="date" id="rsDevTo"></div>
                 </div>
-                <button class="btn btn-primary" id="rsDevBtn" onclick="rsRunDeviceResync()">▶ Re-sync from
+                <button class="btn btn-primary" id="rsDevBtn" onclick="bsync.rsRunDeviceResync()">▶ Re-sync from
                     devices</button>
             </div>
 
@@ -1450,7 +474,7 @@
                     <div class="form-group"><label>From date</label><input type="date" id="rsMongoFrom"></div>
                     <div class="form-group"><label>To date</label><input type="date" id="rsMongoTo"></div>
                 </div>
-                <button class="btn btn-primary" id="rsMongoBtn" onclick="rsRunMongoResync()">▶ Sync from
+                <button class="btn btn-primary" id="rsMongoBtn" onclick="bsync.rsRunMongoResync()">▶ Sync from
                     MongoDB</button>
             </div>
 
@@ -1464,7 +488,7 @@
                     <div class="form-group"><label>OT date from</label><input type="date" id="rsOtFrom"></div>
                     <div class="form-group"><label>OT date to</label><input type="date" id="rsOtTo"></div>
                 </div>
-                <button class="btn btn-primary" id="rsOtBtn" onclick="rsRunOtSync()">▶ Sync OT from MongoDB</button>
+                <button class="btn btn-primary" id="rsOtBtn" onclick="bsync.rsRunOtSync()">▶ Sync OT from MongoDB</button>
             </div>
 
             <div class="card" id="rsDeleteOtCard" style="display:none;border:1px solid var(--danger);">
@@ -1478,15 +502,15 @@
                     <div class="form-group"><label>From date</label><input type="date" id="rsDelFrom"></div>
                     <div class="form-group"><label>To date</label><input type="date" id="rsDelTo"></div>
                 </div>
-                <button class="btn btn-sm btn-secondary" onclick="rsPreviewDeleteOt()">🔍 Preview (dry-run)</button>
+                <button class="btn btn-sm btn-secondary" onclick="bsync.rsPreviewDeleteOt()">🔍 Preview (dry-run)</button>
                 <div id="rsDelPreview" style="margin-top:10px;font-size:13px;"></div>
                 <div id="rsDelConfirmZone" style="display:none;margin-top:10px;">
                     <label style="font-size:13px;font-weight:500;display:block;margin-bottom:4px;">
                         Type <strong>DELETE</strong> to confirm:</label>
                     <div style="display:flex;gap:8px;align-items:center;">
-                        <input type="text" id="rsDelConfirm" oninput="rsDelConfirmInput()" autocomplete="off"
+                        <input type="text" id="rsDelConfirm" oninput="bsync.rsDelConfirmInput()" autocomplete="off"
                             style="width:160px;padding:6px 10px;border:1px solid var(--border-2);border-radius:6px;">
-                        <button class="btn btn-sm btn-danger-sm" id="rsDelBtn" onclick="rsRunDeleteOt()" disabled>🗑
+                        <button class="btn btn-sm btn-danger-sm" id="rsDelBtn" onclick="bsync.rsRunDeleteOt()" disabled>🗑
                             Delete OT</button>
                     </div>
                 </div>
@@ -1503,130 +527,46 @@
 
         </div><!-- end tab-resync -->
 
-        {% if is_system_manager %}
-        <!-- ════════════════════════════════════════════════════════
-             TAB 7: IT DOOR ACCESS (ZKTeco F21Lite door controller)
-        ════════════════════════════════════════════════════════ -->
-        <div id="tab-door" class="tab-panel">
-
-            <div class="card">
-                <div class="card-title"><span class="section-num">1</span> 🚪 Door controller</div>
-                <div style="font-size:12.5px;color:var(--text-2);margin-bottom:10px;">
-                    Reads punches straight from the IT room door controller and stores them as
-                    <strong>Door Access Log</strong>. These punches never become attendance checkins.
-                    Fetching the same range again is safe — rows already stored are skipped.
-                </div>
-                <div class="form-row" style="margin-bottom:10px;">
-                    <div class="form-group"><label>Device IP</label>
-                        <input type="text" id="daIp" placeholder="192.168.1.201" autocomplete="off">
-                    </div>
-                    <div class="form-group"><label>Port</label>
-                        <input type="text" id="daPort" value="4370" style="min-width:90px;">
-                    </div>
-                    <div class="form-group"><label>Password (comm key)</label>
-                        <input type="password" id="daPass" placeholder="0" autocomplete="new-password"
-                            style="height:34px;padding:0 10px;border:1px solid var(--border-2);border-radius:6px;font-size:13px;font-family:'DM Sans',sans-serif;min-width:140px;">
-                    </div>
-                    <div class="form-group"><label>From date</label><input type="date" id="daFetchFrom"></div>
-                    <div class="form-group"><label>To date</label><input type="date" id="daFetchTo"></div>
-                    <div class="form-group">
-                        <button class="btn btn-primary" id="daFetchBtn" onclick="daFetchLogs()">⬇ Get logs from
-                            device</button>
-                    </div>
-                </div>
-                <div style="font-size:11.5px;color:var(--text-3);">
-                    IP / port are remembered in this browser. The password is never stored.
-                </div>
-                <div id="daFetchResult" style="margin-top:10px;font-size:13px;"></div>
-            </div>
-
-            <div class="card">
-                <div class="card-title"><span class="section-num">2</span> 📋 Access logs</div>
-                <div class="form-row" style="margin-bottom:10px;">
-                    <div class="form-group"><label>From date</label><input type="date" id="daFrom"></div>
-                    <div class="form-group"><label>To date</label><input type="date" id="daTo"></div>
-                    <div class="form-group"><label>Search (user id / employee / name / note)</label>
-                        <input type="text" id="daKeyword" placeholder="e.g. 3, TIQN-0148, Sơn"
-                            onkeydown="if(event.key==='Enter')daLoadLogs()">
-                    </div>
-                    <div class="form-group"><label>Rows</label>
-                        <select id="daLimit" style="min-width:100px;">
-                            <option value="200">200</option>
-                            <option value="500" selected>500</option>
-                            <option value="1000">1000</option>
-                            <option value="2000">2000</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <button class="btn btn-secondary" id="daRefreshBtn" onclick="daLoadLogs()">🔄 Refresh</button>
-                    </div>
-                </div>
-                <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap;">
-                    <span id="daLogsMeta" style="font-size:12.5px;color:var(--text-2);"></span>
-                    <button class="btn-link" id="daClearFiltersBtn" style="display:none;"
-                        onclick="daClearColumnFilters()">clear column filters</button>
-                </div>
-                <div class="user-table-wrap" style="max-height:520px;">
-                    <table id="daLogsTable">
-                        <thead>
-                            <tr>
-                                <th style="width:170px;">
-                                    <div class="da-th" onclick="daSort('timestamp')">Timestamp<span
-                                            class="da-sort-ind"></span></div>
-                                    <input class="da-col-filter" data-col="timestamp" oninput="daRender()"
-                                        placeholder="2026-09-10">
-                                </th>
-                                <th style="width:95px;">
-                                    <div class="da-th" onclick="daSort('user_id')">User ID<span
-                                            class="da-sort-ind"></span></div>
-                                    <input class="da-col-filter" data-col="user_id" oninput="daRender()"
-                                        placeholder="filter">
-                                </th>
-                                <th style="width:130px;">
-                                    <div class="da-th" onclick="daSort('employee')">Employee<span
-                                            class="da-sort-ind"></span></div>
-                                    <input class="da-col-filter" data-col="employee" oninput="daRender()"
-                                        placeholder="filter">
-                                </th>
-                                <th>
-                                    <div class="da-th" onclick="daSort('employee_name')">Name<span
-                                            class="da-sort-ind"></span></div>
-                                    <input class="da-col-filter" data-col="employee_name" oninput="daRender()"
-                                        placeholder="filter">
-                                </th>
-                                <th style="width:130px;">
-                                    <div class="da-th" onclick="daSort('device_ip')">Device IP<span
-                                            class="da-sort-ind"></span></div>
-                                    <input class="da-col-filter" data-col="device_ip" oninput="daRender()"
-                                        placeholder="filter">
-                                </th>
-                                <th style="width:240px;">
-                                    <div class="da-th" onclick="daSort('note')">Note<span class="da-sort-ind"></span>
-                                    </div>
-                                    <input class="da-col-filter" data-col="note" oninput="daRender()"
-                                        placeholder="filter">
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody id="daLogsBody">
-                            <tr>
-                                <td colspan="6" style="color:var(--text-3);">No data loaded yet.</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-        </div><!-- end tab-door -->
-        {% endif %}
-
 
     </div><!-- end main-wrap -->
 
-    <script>
+    
+</div>`;
+
+frappe.pages["biometric-sync"].on_page_load = function (wrapper) {
+    const page = frappe.ui.make_app_page({
+        parent: wrapper,
+        title: __("Biometric Sync"),
+        single_column: true,
+    });
+    $(page.body).html(BSYNC_HTML);
+    const root = page.body.find(".bsync").get(0);
+    if (!frappe.user.has_role("System Manager")) {
+        root.querySelectorAll("[data-sm-only]").forEach(el => el.remove());
+    }
+    bsync.setup(root);
+};
+
+bsync.setup = function (root) {
+
+        // ── Hộp thoại frappe thay alert/confirm gốc của trình duyệt ──────────────────
+        function _bsyncHtml(msg) {
+            return frappe.utils.escape_html(String(msg)).replace(/\n/g, '<br>');
+        }
+        function bsyncAlert(msg) {
+            frappe.msgprint({ message: _bsyncHtml(msg), indicator: 'orange' });
+        }
+        function bsyncConfirm(msg) {
+            return new Promise(resolve => {
+                // frappe.confirm tự gọi nhánh "không" khi đóng bằng X / Esc
+                frappe.confirm(_bsyncHtml(msg), () => resolve(true), () => resolve(false));
+            });
+        }
+
+
         // ─── CSRF token — injected from Python context via Jinja ─────────────────
-        window.csrf_token = "{{ csrf_token }}";
-        window.is_system_manager = {{ 1 if is_system_manager else 0 }};
+        
+        window.is_system_manager = frappe.user.has_role("System Manager") ? 1 : 0;
 
         // ─── Helper: parse Frappe error response ──────────────────────────────────────
         function _parseFrappeError(data, httpStatus) {
@@ -1656,7 +596,7 @@
         // ─── POST helper (write operations, CSRF required) ────────────────────────────
         async function callPost(method, args) {
             const fd = new FormData();
-            fd.append('csrf_token', window.csrf_token);
+            fd.append('csrf_token', frappe.csrf_token);
             for (const [k, v] of Object.entries(args || {})) {
                 fd.append(k, v === null || v === undefined ? '' : String(v));
             }
@@ -1674,16 +614,15 @@
 
         // ─── Tab switching ────────────────────────────────────────────────────────────
         function switchTab(tabId) {
-            document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            root.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+            root.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
             const panel = document.getElementById(tabId);
             if (panel) panel.classList.add('active');
-            const btn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
+            const btn = root.querySelector(`.tab-btn[data-tab="${tabId}"]`);
             if (btn) btn.classList.add('active');
             // Lazy actions on tab open
             if (tabId === 'tab-machines' && !_machinesLoaded) loadMachineCards();
             if (tabId === 'tab-resync') rsInitTab();
-            if (tabId === 'tab-door') daInitTab();
             if (tabId === 'tab-fp41' && _allMachines.length) fp41RenderMachines();
         }
 
@@ -1697,10 +636,7 @@
         // ════════════════════════════════════════════════════════════════════════════
         let allLines = [];
 
-        window.addEventListener('DOMContentLoaded', () => {
-            loadLogFiles();
-            loadMachinesForFingerprint();
-        });
+        
 
         async function loadLogFiles() {
             const sel = document.getElementById('logFile');
@@ -1842,14 +778,14 @@
         }
 
         function selectAllTargets(checked) {
-            document.querySelectorAll('.target-machine-cb').forEach(cb => cb.checked = checked);
+            root.querySelectorAll('.target-machine-cb').forEach(cb => cb.checked = checked);
             updateSyncButton();
         }
 
         // ── Load master device users ──────────────────────────────────────────────────
         async function loadMasterUsers() {
             const masterName = document.getElementById('masterMachine').value;
-            if (!masterName) { alert('Please select a source machine'); return; }
+            if (!masterName) { bsyncAlert('Please select a source machine'); return; }
 
             const statusEl = document.getElementById('masterLoadStatus');
             const tableWrap = document.getElementById('userTableWrap');
@@ -1968,7 +904,7 @@
             <table>
                 <thead>
                     <tr>
-                        <th style="width:40px;"><input type="checkbox" id="checkAllUsers" onchange="selectAllUsers(this.checked)" title="All / None"></th>
+                        <th style="width:40px;"><input type="checkbox" id="checkAllUsers" onchange="bsync.selectAllUsers(this.checked)" title="All / None"></th>
                         <th>Device ID</th>
                         <th>Employee Name</th>
                         <th>Employee ID</th>
@@ -1980,12 +916,12 @@
             </table>
         </div>`;
 
-            document.querySelectorAll('.user-cb').forEach(cb => cb.addEventListener('change', updateSyncButton));
+            root.querySelectorAll('.user-cb').forEach(cb => cb.addEventListener('change', updateSyncButton));
             updateSyncButton();
         }
 
         function selectAllUsers(checked) {
-            document.querySelectorAll('.user-cb:not([disabled])').forEach(cb => cb.checked = checked);
+            root.querySelectorAll('.user-cb:not([disabled])').forEach(cb => cb.checked = checked);
             const allCb = document.getElementById('checkAllUsers');
             if (allCb) allCb.checked = checked;
             updateSyncButton();
@@ -1993,8 +929,8 @@
 
         // ── Sync button state ─────────────────────────────────────────────────────────
         function updateSyncButton() {
-            const selectedUsers = [...document.querySelectorAll('.user-cb:checked')].length;
-            const checkedTargets = [...document.querySelectorAll('.target-machine-cb:checked')].length;
+            const selectedUsers = [...root.querySelectorAll('.user-cb:checked')].length;
+            const checkedTargets = [...root.querySelectorAll('.target-machine-cb:checked')].length;
             const syncToErp = document.getElementById('fpSyncToErp')?.checked ?? true;
             const btn = document.getElementById('syncBtn');
             const summary = document.getElementById('syncSummary');
@@ -2036,16 +972,16 @@
             const masterName = document.getElementById('masterMachine').value;
             const syncToErp = document.getElementById('fpSyncToErp').checked;
 
-            if (!masterName) { alert('Please select a source machine'); return; }
+            if (!masterName) { bsyncAlert('Please select a source machine'); return; }
 
-            const selectedUserIds = [...document.querySelectorAll('.user-cb:checked')].map(cb => cb.value);
-            if (!selectedUserIds.length) { alert('No users selected'); return; }
+            const selectedUserIds = [...root.querySelectorAll('.user-cb:checked')].map(cb => cb.value);
+            if (!selectedUserIds.length) { bsyncAlert('No users selected'); return; }
 
             // Targets: user-selected checkboxes (default = all except source)
-            const targetMachines = [...document.querySelectorAll('.target-machine-cb:checked')].map(cb => cb.value);
+            const targetMachines = [...root.querySelectorAll('.target-machine-cb:checked')].map(cb => cb.value);
 
             if (!syncToErp && targetMachines.length === 0) {
-                alert('No target machines selected. Check at least one machine or enable "Sync to ERPNext".');
+                bsyncAlert('No target machines selected. Check at least one machine or enable "Sync to ERPNext".');
                 return;
             }
 
@@ -2071,12 +1007,12 @@
                                 return `  ${id} (${u ? u.employee_name || u.device_name || '' : ''}) — ${cnt} fingerprint(s)`;
                             }).join('\n');
                         const more = existingCount > 5 ? `\n  ...and ${existingCount - 5} more` : '';
-                        if (!confirm(
+                        if (!await bsyncConfirm(
                             `${existingCount} employee(s) already have fingerprints in ERPNext:\n${preview}${more}\n\nOverwrite existing data?`
                         )) return;
                     }
                 } catch (e) {
-                    if (!confirm(`Could not check existing fingerprints: ${e.message}\nContinue anyway?`)) return;
+                    if (!await bsyncConfirm(`Could not check existing fingerprints: ${e.message}\nContinue anyway?`)) return;
                 }
             }
 
@@ -2084,7 +1020,7 @@
             const destParts = [];
             if (syncToErp) destParts.push('ERPNext');
             if (targetMachines.length) destParts.push(`${targetMachines.length} machine(s): ${targetMachines.join(', ')}`);
-            if (!confirm(`Sync ${selectedUserIds.length} user(s) from ${masterName}\n→ ${destParts.join('\n→ ')}`)) return;
+            if (!await bsyncConfirm(`Sync ${selectedUserIds.length} user(s) from ${masterName}\n→ ${destParts.join('\n→ ')}`)) return;
 
             const btn = document.getElementById('syncBtn');
             btn.disabled = true;
@@ -2272,7 +1208,7 @@
         }
 
         // ── Wire up checkbox changes ──────────────────────────────────────────────────
-        document.addEventListener('change', e => {
+        root.addEventListener('change', e => {
             if (e.target.id === 'fpSyncToErp') updateSyncButton();
             if (e.target.classList.contains('target-machine-cb')) updateSyncButton();
             if (e.target.classList.contains('fp41-machine-cb')) fp41UpdateSyncBtn();
@@ -2360,12 +1296,12 @@
         }
 
         function fp41SelectAllMachines(checked) {
-            document.querySelectorAll('.fp41-machine-cb').forEach(cb => cb.checked = checked);
+            root.querySelectorAll('.fp41-machine-cb').forEach(cb => cb.checked = checked);
             fp41UpdateSyncBtn();
         }
 
         function fp41UpdateSyncBtn() {
-            const selMachines = [...document.querySelectorAll('.fp41-machine-cb:checked')].length;
+            const selMachines = [...root.querySelectorAll('.fp41-machine-cb:checked')].length;
             const btn = document.getElementById('fp41SyncBtn');
             const summary = document.getElementById('fp41SyncSummary');
             if (!btn) return;
@@ -2405,10 +1341,10 @@
         }
 
         async function fp41StartSync() {
-            const selMachines = [...document.querySelectorAll('.fp41-machine-cb:checked')].map(cb => cb.value);
+            const selMachines = [...root.querySelectorAll('.fp41-machine-cb:checked')].map(cb => cb.value);
             if (!_fp41Employees.length || !selMachines.length) return;
             const total = _fp41Employees.length * selMachines.length;
-            if (!confirm(`Confirm sync ${_fp41Employees.length} employees → ${selMachines.length} machines?\n(${total} total operations)`)) return;
+            if (!await bsyncConfirm(`Confirm sync ${_fp41Employees.length} employees → ${selMachines.length} machines?\n(${total} total operations)`)) return;
 
             _fp41Syncing = true;
             _syncRunningCount++;
@@ -2573,8 +1509,8 @@
                             ${unmatchedCount ? `<span style="background:#6c757d;color:white;padding:2px 8px;border-radius:10px;font-size:11px;margin-left:4px;">${unmatchedCount} unmatched</span>` : ''}
                         </div>
                         <div style="font-size:12px;">
-                            <a href="#" onclick="del43SelectAll(true);return false;" style="margin-right:8px;">All</a>
-                            <a href="#" onclick="del43SelectAll(false);return false;">None</a>
+                            <a href="#" onclick="bsync.del43SelectAll(true);return false;" style="margin-right:8px;">All</a>
+                            <a href="#" onclick="bsync.del43SelectAll(false);return false;">None</a>
                         </div>
                     </div>
                     <div class="del-preview-wrap">
@@ -2595,7 +1531,7 @@
         }
 
         function del43SelectAll(checked) {
-            document.querySelectorAll('.del43-user-chk').forEach(cb => cb.checked = checked);
+            root.querySelectorAll('.del43-user-chk').forEach(cb => cb.checked = checked);
         }
 
         function del43ResetPreview() {
@@ -2607,11 +1543,11 @@
             if (!_del43ScanResult) return;
             const allUsers = _del43ScanResult.users_to_delete || [];
             const checkedIdxs = [];
-            document.querySelectorAll('.del43-user-chk:checked').forEach(cb => checkedIdxs.push(parseInt(cb.dataset.idx)));
-            if (!checkedIdxs.length) { alert('No users selected'); return; }
+            root.querySelectorAll('.del43-user-chk:checked').forEach(cb => checkedIdxs.push(parseInt(cb.dataset.idx)));
+            if (!checkedIdxs.length) { bsyncAlert('No users selected'); return; }
 
             const selected = checkedIdxs.map(i => allUsers[i]);
-            if (!confirm(`Confirm deletion of ${selected.length} user(s) from attendance machines?\nThis action CANNOT be undone.`)) return;
+            if (!await bsyncConfirm(`Confirm deletion of ${selected.length} user(s) from attendance machines?\nThis action CANNOT be undone.`)) return;
 
             const deleteBtn = document.getElementById('del43DeleteBtn');
             del43RunDeleteJob(selected, deleteBtn, '🗑 Delete Selected Users', () => {
@@ -2773,7 +1709,7 @@
                     🔒 Fingerprint data in ERPNext <strong>will not be deleted</strong>.
                 </div>
                 <div style="margin-top:14px;">
-                    <button class="btn btn-danger" id="del43FindDeleteBtn" onclick="del43SpecificDelete()">🗑 Delete from selected devices</button>
+                    <button class="btn btn-danger" id="del43FindDeleteBtn" onclick="bsync.del43SpecificDelete()">🗑 Delete from selected devices</button>
                 </div>`;
         }
 
@@ -2782,18 +1718,18 @@
             del43FindEmp();
         }
 
-        function del43SpecificDelete() {
+        async function del43SpecificDelete() {
             if (!_del43FindResult) return;
             const emp = _del43FindResult.employee || {};
             const found = _del43FindResult.found_on || [];
             const machines = [];
-            document.querySelectorAll('.del43-find-chk:checked').forEach(cb => {
+            root.querySelectorAll('.del43-find-chk:checked').forEach(cb => {
                 const f = found[parseInt(cb.dataset.idx)];
                 if (f) machines.push(f.machine);
             });
-            if (!machines.length) { alert('No devices selected'); return; }
+            if (!machines.length) { bsyncAlert('No devices selected'); return; }
 
-            if (!confirm(`Delete user_id ${emp.attendance_device_id} (${emp.employee_name}) from ${machines.length} device(s)?\nThis action CANNOT be undone.`)) return;
+            if (!await bsyncConfirm(`Delete user_id ${emp.attendance_device_id} (${emp.employee_name}) from ${machines.length} device(s)?\nThis action CANNOT be undone.`)) return;
 
             const selected = [{
                 user_id: emp.attendance_device_id,
@@ -2961,7 +1897,7 @@
         }
 
         async function machineReboot(machineName) {
-            if (!confirm(`Reboot machine "${machineName}"?\nThe device will restart and disconnect for a few seconds.`)) return;
+            if (!await bsyncConfirm(`Reboot machine "${machineName}"?\nThe device will restart and disconnect for a few seconds.`)) return;
             const statusEl = document.getElementById('machinesGlobalStatus');
             statusEl.textContent = `⏳ Sending reboot command to ${machineName}...`;
             try {
@@ -2975,8 +1911,8 @@
         }
 
         async function machinesSyncTimeAll() {
-            if (!_machinesList.length) { alert('Machines not loaded'); return; }
-            if (!confirm(`Sync time for ALL ${_machinesList.length} machines?`)) return;
+            if (!_machinesList.length) { bsyncAlert('Machines not loaded'); return; }
+            if (!await bsyncConfirm(`Sync time for ALL ${_machinesList.length} machines?`)) return;
             const statusEl = document.getElementById('machinesGlobalStatus');
             statusEl.textContent = `⏳ Syncing time on ${_machinesList.length} machines (parallel)...`;
 
@@ -2990,8 +1926,8 @@
         }
 
         async function machinesRebootAll() {
-            if (!_machinesList.length) { alert('Machines not loaded'); return; }
-            if (!confirm(`⚠ REBOOT ALL ${_machinesList.length} machines?\n\nAll devices will restart — this affects employees currently clocking in!`)) return;
+            if (!_machinesList.length) { bsyncAlert('Machines not loaded'); return; }
+            if (!await bsyncConfirm(`⚠ REBOOT ALL ${_machinesList.length} machines?\n\nAll devices will restart — this affects employees currently clocking in!`)) return;
 
             const statusEl = document.getElementById('machinesGlobalStatus');
             let done = 0;
@@ -3010,7 +1946,7 @@
         }
 
         async function machinesLoadAllInfo() {
-            if (!_machinesList.length) { alert('Machines not loaded'); return; }
+            if (!_machinesList.length) { bsyncAlert('Machines not loaded'); return; }
 
             const statusEl = document.getElementById('machinesGlobalStatus');
             const section = document.getElementById('allMachinesInfoSection');
@@ -3118,7 +2054,7 @@
         }
 
         function rsSelectAllMachines(checked) {
-            document.querySelectorAll('.rs-machine-cb').forEach(cb => { cb.checked = checked; });
+            root.querySelectorAll('.rs-machine-cb').forEach(cb => { cb.checked = checked; });
         }
 
         // Generic runner: submit whitelisted method returning {job_id}, then poll into
@@ -3168,33 +2104,33 @@
             }
         }
 
-        function rsRunDeviceResync() {
-            const machines = [...document.querySelectorAll('.rs-machine-cb:checked')].map(cb => cb.value);
+        async function rsRunDeviceResync() {
+            const machines = [...root.querySelectorAll('.rs-machine-cb:checked')].map(cb => cb.value);
             const from = document.getElementById('rsDevFrom').value;
             const to = document.getElementById('rsDevTo').value;
-            if (!machines.length) { alert('Select at least one machine'); return; }
-            if (!from || !to) { alert('Pick a date range'); return; }
-            if (!confirm(`Re-sync ${machines.length} machine(s) for ${from} → ${to}?\nExisting checkins are skipped automatically.`)) return;
+            if (!machines.length) { bsyncAlert('Select at least one machine'); return; }
+            if (!from || !to) { bsyncAlert('Pick a date range'); return; }
+            if (!await bsyncConfirm(`Re-sync ${machines.length} machine(s) for ${from} → ${to}?\nExisting checkins are skipped automatically.`)) return;
             rsRunJob('rsDevBtn', '▶ Re-sync from devices',
                 'customize_erpnext.api.biometric_resync.resync_device_logs',
                 { machine_names_json: JSON.stringify(machines), from_date: from, to_date: to });
         }
 
-        function rsRunMongoResync() {
+        async function rsRunMongoResync() {
             const from = document.getElementById('rsMongoFrom').value;
             const to = document.getElementById('rsMongoTo').value;
-            if (!from || !to) { alert('Pick a date range'); return; }
-            if (!confirm(`Sync MongoDB checkins for ${from} → ${to}?`)) return;
+            if (!from || !to) { bsyncAlert('Pick a date range'); return; }
+            if (!await bsyncConfirm(`Sync MongoDB checkins for ${from} → ${to}?`)) return;
             rsRunJob('rsMongoBtn', '▶ Sync from MongoDB',
                 'customize_erpnext.api.biometric_resync.resync_mongodb_logs',
                 { from_date: from, to_date: to });
         }
 
-        function rsRunOtSync() {
+        async function rsRunOtSync() {
             const from = document.getElementById('rsOtFrom').value;
             const to = document.getElementById('rsOtTo').value;
-            if (!from || !to) { alert('Pick an OT date range'); return; }
-            if (!confirm(`Sync OT registrations from MongoDB for OT dates ${from} → ${to}?`)) return;
+            if (!from || !to) { bsyncAlert('Pick an OT date range'); return; }
+            if (!await bsyncConfirm(`Sync OT registrations from MongoDB for OT dates ${from} → ${to}?`)) return;
             rsRunJob('rsOtBtn', '▶ Sync OT from MongoDB',
                 'customize_erpnext.api.biometric_resync.sync_ot_from_mongodb',
                 { from_date: from, to_date: to });
@@ -3208,7 +2144,7 @@
             zone.style.display = 'none';
             document.getElementById('rsDelConfirm').value = '';
             document.getElementById('rsDelBtn').disabled = true;
-            if (!from || !to) { alert('Pick a date range'); return; }
+            if (!from || !to) { bsyncAlert('Pick a date range'); return; }
             el.innerHTML = '⏳ Loading preview...';
             try {
                 const msg = await callPost('customize_erpnext.api.biometric_resync.preview_delete_ot',
@@ -3240,215 +2176,20 @@
                 document.getElementById('rsDelConfirm').value !== 'DELETE';
         }
 
-        function rsRunDeleteOt() {
+        async function rsRunDeleteOt() {
             const from = document.getElementById('rsDelFrom').value;
             const to = document.getElementById('rsDelTo').value;
             const confirmText = document.getElementById('rsDelConfirm').value;
-            if (!confirm(`⚠️ PERMANENTLY delete OT detail rows for ${from} → ${to}?\nThis cannot be undone.`)) return;
+            if (!await bsyncConfirm(`⚠️ PERMANENTLY delete OT detail rows for ${from} → ${to}?\nThis cannot be undone.`)) return;
             rsRunJob('rsDelBtn', '🗑 Delete OT',
                 'customize_erpnext.api.biometric_resync.delete_ot',
                 { from_date: from, to_date: to, confirm_text: confirmText });
         }
 
-        // ══════════════════════════════════════════════════════════════════════════════
-        // TAB 7: IT DOOR ACCESS
-        // ══════════════════════════════════════════════════════════════════════════════
-        let _daInited = false;
 
-        function daInitTab() {
-            if (_daInited) return;
-            _daInited = true;
+        // ── khởi tạo (trước là DOMContentLoaded) ─────────────────────────────────────
+        loadLogFiles();
+            loadMachinesForFingerprint();
 
-            // device config is remembered per browser (password never stored)
-            const saved = JSON.parse(localStorage.getItem('doorAccessDevice') || '{}');
-            if (saved.ip) document.getElementById('daIp').value = saved.ip;
-            if (saved.port) document.getElementById('daPort').value = saved.port;
-
-            const today = new Date();
-            const iso = d => new Date(d.getTime() - d.getTimezoneOffset() * 60000)
-                .toISOString().slice(0, 10);
-            const weekAgo = new Date(today.getTime() - 6 * 86400000);
-            document.getElementById('daFetchFrom').value = iso(weekAgo);
-            document.getElementById('daFetchTo').value = iso(today);
-            document.getElementById('daFrom').value = iso(weekAgo);
-            document.getElementById('daTo').value = iso(today);
-
-            daLoadLogs();
-        }
-
-        async function daFetchLogs() {
-            const ip = document.getElementById('daIp').value.trim();
-            const port = document.getElementById('daPort').value.trim() || '4370';
-            const password = document.getElementById('daPass').value.trim() || '0';
-            const from = document.getElementById('daFetchFrom').value;
-            const to = document.getElementById('daFetchTo').value;
-            const resEl = document.getElementById('daFetchResult');
-
-            if (!ip) { resEl.innerHTML = '<span style="color:var(--danger);">❌ Device IP is required</span>'; return; }
-            localStorage.setItem('doorAccessDevice', JSON.stringify({ ip, port }));
-
-            const btn = document.getElementById('daFetchBtn');
-            btn.disabled = true;
-            btn.textContent = '⏳ Reading device...';
-            resEl.innerHTML = '<span style="color:var(--text-2);">Connecting to ' + escapeHtml(ip) + '...</span>';
-            try {
-                const msg = await callPost('customize_erpnext.api.door_access.fetch_door_logs',
-                    { ip, port, password, from_date: from, to_date: to });
-                if (msg.status !== 'success') throw new Error(msg.message || 'Fetch failed');
-                resEl.innerHTML = `<span style="color:var(--success);">✅ Done</span> —
-                    device holds <strong>${msg.fetched}</strong> punches,
-                    <strong>${msg.in_range}</strong> in ${msg.from_date} → ${msg.to_date}:
-                    <strong>${msg.inserted}</strong> new,
-                    ${msg.duplicated} already stored,
-                    ${msg.no_employee} without employee${msg.error ? `, <span style="color:var(--danger);">${msg.error} errors</span>` : ''}.`;
-                daLoadLogs();
-            } catch (e) {
-                resEl.innerHTML = '<span style="color:var(--danger);">❌ ' + escapeHtml(e.message) + '</span>';
-            } finally {
-                btn.disabled = false;
-                btn.textContent = '⬇ Get logs from device';
-            }
-        }
-
-        // rows currently loaded from the server; the column filters and the
-        // sort below work on this set (the server already applied the date
-        // range + search box and returned at most `Rows` rows).
-        let _daRows = [];
-        let _daSortCol = 'timestamp';
-        let _daSortDir = 'desc';
-
-        async function daLoadLogs() {
-            const body = document.getElementById('daLogsBody');
-            const meta = document.getElementById('daLogsMeta');
-            const btn = document.getElementById('daRefreshBtn');
-            btn.disabled = true;
-            body.innerHTML = '<tr><td colspan="6" style="color:var(--text-3);">Loading...</td></tr>';
-            try {
-                const msg = await callGet('customize_erpnext.api.door_access.get_door_logs', {
-                    from_date: document.getElementById('daFrom').value,
-                    to_date: document.getElementById('daTo').value,
-                    keyword: document.getElementById('daKeyword').value.trim(),
-                    limit: document.getElementById('daLimit').value
-                });
-                if (msg.status !== 'success') throw new Error(msg.message || 'Load failed');
-                _daRows = msg.rows || [];
-                _daServerInfo = msg;
-                daRender();
-            } catch (e) {
-                _daRows = [];
-                body.innerHTML = `<tr><td colspan="6" style="color:var(--danger);">❌ ${escapeHtml(e.message)}</td></tr>`;
-                meta.textContent = '';
-            } finally {
-                btn.disabled = false;
-            }
-        }
-
-        let _daServerInfo = null;
-
-        function daColumnFilters() {
-            const out = {};
-            document.querySelectorAll('#daLogsTable .da-col-filter').forEach(inp => {
-                const v = inp.value.trim().toLowerCase();
-                if (v) out[inp.dataset.col] = v;
-            });
-            return out;
-        }
-
-        function daClearColumnFilters() {
-            document.querySelectorAll('#daLogsTable .da-col-filter').forEach(inp => { inp.value = ''; });
-            daRender();
-        }
-
-        function daSort(col) {
-            if (_daSortCol === col) {
-                _daSortDir = _daSortDir === 'asc' ? 'desc' : 'asc';
-            } else {
-                _daSortCol = col;
-                // text columns read naturally A→Z first, timestamps newest first
-                _daSortDir = col === 'timestamp' ? 'desc' : 'asc';
-            }
-            daRender();
-        }
-
-        function _daCompare(a, b) {
-            const va = (a[_daSortCol] === null || a[_daSortCol] === undefined) ? '' : String(a[_daSortCol]);
-            const vb = (b[_daSortCol] === null || b[_daSortCol] === undefined) ? '' : String(b[_daSortCol]);
-            // empty values always sink to the bottom, whichever direction
-            if (!va && !vb) return 0;
-            if (!va) return 1;
-            if (!vb) return -1;
-            let r;
-            const na = Number(va), nb = Number(vb);
-            if (va !== '' && vb !== '' && !isNaN(na) && !isNaN(nb)) r = na - nb;   // e.g. User ID 3 before 10
-            else r = va.localeCompare(vb, undefined, { numeric: true, sensitivity: 'base' });
-            return _daSortDir === 'asc' ? r : -r;
-        }
-
-        function daRender() {
-            const body = document.getElementById('daLogsBody');
-            const meta = document.getElementById('daLogsMeta');
-            const filters = daColumnFilters();
-            const filterKeys = Object.keys(filters);
-
-            const rows = _daRows.filter(r => filterKeys.every(col => {
-                const v = (r[col] === null || r[col] === undefined) ? '' : String(r[col]).toLowerCase();
-                return v.includes(filters[col]);
-            })).sort(_daCompare);
-
-            // sort indicators
-            document.querySelectorAll('#daLogsTable .da-th').forEach(th => {
-                const col = (th.getAttribute('onclick') || '').match(/'([^']+)'/)[1];
-                const ind = th.querySelector('.da-sort-ind');
-                const active = col === _daSortCol;
-                th.classList.toggle('sorted', active);
-                ind.textContent = active ? (_daSortDir === 'asc' ? '▲' : '▼') : '↕';
-            });
-
-            document.getElementById('daClearFiltersBtn').style.display = filterKeys.length ? '' : 'none';
-
-            const info = _daServerInfo;
-            let text = '';
-            if (info) {
-                text = `${rows.length} row(s)`;
-                if (filterKeys.length) text += ` of ${_daRows.length} loaded`;
-                text += ` — ${info.from_date} → ${info.to_date} · ${info.total} log(s) in DB for this range`;
-                if (info.total > info.shown) text += ' (raise Rows or narrow the range to load them all)';
-            }
-            meta.textContent = text;
-
-            if (!rows.length) {
-                body.innerHTML = `<tr><td colspan="6" style="color:var(--text-3);">${_daRows.length ? 'No row matches the column filters.' : 'No logs in this range.'}</td></tr>`;
-                return;
-            }
-
-            body.innerHTML = rows.map(r => `
-                <tr>
-                    <td style="white-space:nowrap;">${escapeHtml(r.timestamp || '')}</td>
-                    <td>${escapeHtml(r.user_id || '')}</td>
-                    <td>${r.employee ? escapeHtml(r.employee) : '<span style="color:var(--danger);">—</span>'}</td>
-                    <td>${escapeHtml(r.employee_name || '')}</td>
-                    <td>${escapeHtml(r.device_ip || '')}</td>
-                    <td><input type="text" class="da-note-input" value="${escapeHtml(r.note || '')}"
-                               data-name="${escapeHtml(r.name)}" onchange="daSaveNote(this)" placeholder="—"></td>
-                </tr>`).join('');
-        }
-
-        async function daSaveNote(input) {
-            const original = input.style.borderColor;
-            try {
-                await callPost('customize_erpnext.api.door_access.update_note',
-                    { name: input.dataset.name, note: input.value });
-                const row = _daRows.find(r => r.name === input.dataset.name);
-                if (row) row.note = input.value;   // keep the loaded set in sync for filter/sort
-                input.style.borderColor = 'var(--success)';
-                setTimeout(() => { input.style.borderColor = original; }, 1200);
-            } catch (e) {
-                input.style.borderColor = 'var(--danger)';
-                alert('Could not save note: ' + e.message);
-            }
-        }
-
-    </script>
-</body>
-
-</html>
+        Object.assign(bsync, { _parseFrappeError, appendResultLog, applyEmployeeFilter, buildProgressRow, callGet, callPost, clearEmployeeFilter, del43Delete, del43FindEmp, del43PickCandidate, del43RenderFind, del43RenderPreview, del43ResetPreview, del43RunDeleteJob, del43Scan, del43SelectAll, del43SpecificDelete, escapeHtml, filterLines, fp41LoadEmployees, fp41RenderEmpTable, fp41RenderMachines, fp41SelectAllMachines, fp41StartSync, fp41UpdateSyncBtn, loadLog, loadLogFiles, loadMachineCards, loadMachinesForFingerprint, loadMasterUsers, machineGetInfo, machineReboot, machineSyncTime, machinesLoadAllInfo, machinesRebootAll, machinesRefresh, machinesSyncTimeAll, onFp41ScopeChange, pollJobStatus, pollSyncJob, renderMachineCards, renderMasterDropdown, renderTargetMachines, renderUserTable, rsDelConfirmInput, rsInitTab, rsLoadMachines, rsPreviewDeleteOt, rsRunDeleteOt, rsRunDeviceResync, rsRunJob, rsRunMongoResync, rsRunOtSync, rsSelectAllMachines, runPhase2, selectAllTargets, selectAllUsers, setProgressBar, startSync, switchTab, updateSyncButton });
+};

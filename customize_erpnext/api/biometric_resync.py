@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Manual re-sync operations for the /biometric_sync page ("Manual Re-sync" tab).
+Manual re-sync operations for the desk page `biometric-sync` ("Manual Re-sync" tab).
 
 Ported from the standalone biometric-attendance-sync-tool manual menu
 (erpnext_re_sync_all.py). Running inside Frappe replaces the tool's REST +
