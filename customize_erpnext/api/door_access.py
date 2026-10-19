@@ -13,7 +13,7 @@ auto-sync service and would turn door punches into attendance.
 
 import frappe
 from frappe import _
-from frappe.utils import add_days, get_datetime, getdate, now_datetime
+from frappe.utils import add_days, cint, get_datetime, getdate, now_datetime
 
 from customize_erpnext.api.biometric_sync import _build_zk_device
 from customize_erpnext.api.biometric_resync import fetch_attendance_from_cfg
@@ -66,6 +66,15 @@ def _default_range(from_date, to_date):
     return from_d, to_d
 
 
+def _partner_user_id_from():
+    """Ngưỡng ID đối tác (từ số này trở lên) nếu Door Alert Setting bật `only_staff_user_ids`,
+    ngược lại None. Cùng tuỳ chọn mà door_alerts dùng để bỏ qua cảnh báo."""
+    setting = "Door Alert Setting"
+    if not frappe.db.get_single_value(setting, "only_staff_user_ids"):
+        return None
+    return cint(frappe.db.get_single_value(setting, "staff_user_id_limit")) or 6000
+
+
 def store_door_punches(attendances, device_ip, d_from, d_to):
     """Insert the punches in [d_from, d_to] that are not stored yet.
 
@@ -87,13 +96,19 @@ def store_door_punches(attendances, device_ip, d_from, d_to):
         )
     }
     emp_map = _employee_map()
+    partner_from = _partner_user_id_from()
 
     counts = {"fetched": len(attendances), "in_range": len(in_range),
-              "inserted": 0, "duplicated": 0, "no_employee": 0, "error": 0}
+              "inserted": 0, "duplicated": 0, "no_employee": 0, "error": 0, "partner_skipped": 0}
     seen = set()
 
     for att in in_range:
         user_id = str(att.user_id).strip()
+        # ID đối tác (Door Alert Setting → Only Staff Fingerprint IDs): KHÔNG lưu. Máy giữ nguyên
+        # lịch sử nên lần đọc sau gặp lại và lại bỏ qua — không mất gì, chỉ không vào ERP.
+        if partner_from and user_id.isdigit() and int(user_id) >= partner_from:
+            counts["partner_skipped"] += 1
+            continue
         ts = get_datetime(att.timestamp)
         key = (user_id, ts)
         if key in existing or key in seen:

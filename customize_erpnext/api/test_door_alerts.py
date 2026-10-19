@@ -64,6 +64,8 @@ def make_settings(now, after_hours=True):
     for f in ("alert_device_offline", "alert_unlock_all", "alert_command_failed", "alert_unknown_user"):
         s.set(f, 1)
     s.erp_open_alert = s.fingerprint_alert = "After Hours"
+    # Các mục 1–10 dùng ID 99000x (≥ 6000) làm ID giả -> tắt lọc ID đối tác; mục 11 kiểm riêng.
+    s.only_staff_user_ids = 0
     s.offline_after_minutes = 5
     s.check_interval_minutes = 2
     s.daily_summary = 0
@@ -356,6 +358,30 @@ try:
     long_text = "\n".join("x" * 100 for _ in range(200))
     parts = da._split(long_text)
     check("tách tin dài ≤ 3800 ký tự", len(parts) > 1 and all(len(p) <= da.MAX_MESSAGE_CHARS for p in parts), str(len(parts)))
+
+    print("11. Chỉ ID nhân viên (bỏ ID đối tác ≥ 6000)")
+    t11 = now_datetime()
+    punch("6001", t11 - timedelta(seconds=20))      # ID đối tác, không khớp NV
+    punch("5999", t11 - timedelta(seconds=10))      # ID < 6000, không khớp NV
+    s = make_settings(t11)
+    s.only_staff_user_ids, s.staff_user_id_limit = 1, 6000
+    until11 = now_datetime() + timedelta(seconds=1)   # sau khi insert: lọc theo creation <= until
+    ev = da._punch_events(s, DOORS, t11 - timedelta(minutes=2), until11)
+    lines = " ".join(e[2] for e in ev)
+    check("bật lọc: KHÔNG báo ID 6001", "ID 6001" not in lines, lines[:120])
+    check("bật lọc: VẪN báo ID 5999", "ID 5999" in lines)
+    check("ID không phải số không bị coi là đối tác", not da._is_partner_id(s, "abc"))
+    s.only_staff_user_ids = 0
+    ev = da._punch_events(s, DOORS, t11 - timedelta(minutes=2), until11)
+    check("tắt lọc: báo cả ID 6001", "ID 6001" in " ".join(e[2] for e in ev))
+    s.only_staff_user_ids = 1
+    summary = da.build_daily_summary(s, DOORS[:1], t11.date())
+    s.only_staff_user_ids = 0
+    summary_all = da.build_daily_summary(s, DOORS[:1], t11.date())
+    import re as _re
+    n_on = int(_re.search(r"(\d+) punches", summary).group(1))
+    n_off = int(_re.search(r"(\d+) punches", summary_all).group(1))
+    check("báo cáo ngày: bật lọc đếm ít hơn tắt lọc (bỏ ID ≥ 6000)", n_on < n_off, f"{n_on} vs {n_off}")
 finally:
     frappe.db.rollback()
     for k in cache_keys:

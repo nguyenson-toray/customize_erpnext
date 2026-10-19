@@ -350,6 +350,8 @@ def _punch_events(settings, doors, since, until):
     )
     events = []
     for p in rows:
+        if _is_partner_id(settings, p.user_id):
+            continue
         door = _esc(ip_to_door.get(p.device_ip, p.device_ip))
         line = f"{door} — {_fmt_time(p.timestamp, True)} · {_esc(_who(p.employee, p.employee_name, p.user_id))}"
         after = not in_work_hours(p.timestamp, settings.work_start_time, settings.work_end_time)
@@ -360,6 +362,17 @@ def _punch_events(settings, doors, since, until):
         elif settings.fingerprint_alert == "Always":
             events.append(("👆", _("Fingerprint"), line))
     return events
+
+
+def _is_partner_id(settings, user_id):
+    """Fingerprint ID của đối tác (từ `staff_user_id_limit` trở lên) — bỏ qua khi bật
+    `only_staff_user_ids`. ID không phải số không coi là đối tác (vẫn báo như cũ)."""
+    if not settings.only_staff_user_ids:
+        return False
+    try:
+        return int(str(user_id).strip()) >= int(settings.staff_user_id_limit or 6000)
+    except (TypeError, ValueError):
+        return False
 
 
 def _wants_punches(settings):
@@ -386,10 +399,11 @@ def build_daily_summary(settings, doors, day):
         return lines[0] + "\n" + _esc(_("No door controller is enabled"))
     for d in doors:
         punches = frappe.db.sql(
-            """select timestamp, employee from `tabDoor Access Log`
+            """select timestamp, employee, user_id from `tabDoor Access Log`
             where device_ip=%s and timestamp between %s and %s""",
             (d["ip_address"], start, end), as_dict=True,
         )
+        punches = [p for p in punches if not _is_partner_id(settings, p.user_id)]
         after = sum(1 for p in punches if not in_work_hours(p.timestamp, settings.work_start_time, settings.work_end_time))
         unknown = sum(1 for p in punches if not p.employee)
         acts = frappe.db.sql(
