@@ -61,18 +61,18 @@ frappe.ui.form.on("Door Alert Setting", {
 			callback(r) {
 				const o = r.message || {};
 				const esc = frappe.utils.escape_html;
-				const state = x => (x.state === "locked" ? __("Locked") : x.state === "unlocked" ? __("Not locked") : "—");
+				const state = x => (x.state === "closed" ? __("Door closed") : x.state === "open" ? __("Door open") : "—");
 				const rows = (o.doors || []).map(x => `<tr>
-					<td><b>${esc(x.door)}</b></td>
+					<td><b>${esc(x.door)}</b>${x.sensor_installed ? "" : `<div class="text-muted small">${__("Sensor Installed is off")}</div>`}</td>
 					<td>${x.online ? (x.raw ?? "—") : `<span class="text-danger" title="${esc(x.error || "")}">${__("Offline")}</span>`}</td>
 					<td>${esc(x.device_sensor_mode || "—")}${x.online && !x.mode_matches ? ` <span class="text-warning">≠ ${esc(x.sensor_type || "")}</span>` : ""}</td>
 					<td>${x.online ? state(x) : "—"}</td></tr>`).join("");
 				frappe.msgprint({
-					title: __("Lock Sensors"),
+					title: __("Door Sensors"),
 					wide: true,
 					message: `<table class="table table-sm"><thead><tr><th>${__("Door")}</th><th>${__("Raw Value")}</th>
 						<th>${__("Door Sensor Mode (device)")}</th><th>${__("Means")}</th></tr></thead><tbody>${rows}</tbody></table>
-						<div class="small text-muted">${__("Read once with the bolt locked and once unlocked: the raw value must change. The value while locked is 'Sensor Value When Locked' (now {0}).", [o.locked_value])}</div>`,
+						<div class="small text-muted">${__("Read once with the door closed and once open: the raw value must change. The value while closed is 'Sensor Value When Closed' (now {0}).", [o.closed_value])}</div>`,
 				});
 			},
 		});
@@ -151,10 +151,10 @@ function render_status(frm) {
 					${showIp ? `<td class="text-muted" style="font-family:var(--font-mono, monospace)">${esc(d.ip_address)}</td>` : ""}
 					<td>${d.online ? pill("green", __("Online")) : pill("red", __("Offline"))}</td>
 					<td>${d.watched ? pill("blue", __("Watched")) : pill("gray", __("Not watched"))}</td>
-					${s.use_lock_sensor ? `<td>${d.sensor === "locked" ? pill("green", __("Locked")) : d.sensor === "unlocked" ? pill("orange", __("Not locked")) : "—"}</td>` : ""}
+					${s.use_lock_sensor ? `<td>${d.sensor === "closed" ? pill("green", __("Closed")) : d.sensor === "open" ? pill("orange", __("Open")) : "—"}</td>` : ""}
 				</tr>`).join("");
 			const doors = rows
-				? `<table class="table table-sm" style="margin:8px 0"><thead><tr><th>${__("Door")}</th>${showIp ? "<th>IP</th>" : ""}<th>${__("Connection")}</th><th>${__("Alerts")}</th>${s.use_lock_sensor ? `<th>${__("Bolt")}</th>` : ""}</tr></thead><tbody>${rows}</tbody></table>`
+				? `<table class="table table-sm" style="margin:8px 0"><thead><tr><th>${__("Door")}</th>${showIp ? "<th>IP</th>" : ""}<th>${__("Connection")}</th><th>${__("Alerts")}</th>${s.use_lock_sensor ? `<th>${__("Door Sensor")}</th>` : ""}</tr></thead><tbody>${rows}</tbody></table>`
 				: `<div class="text-muted">${__("No door controller is enabled")}</div>`;
 
 			wrap.html(`

@@ -61,7 +61,8 @@ TEST_NAME = test_row.device_name
 test_row.enable = 1
 test_row.is_door_control = 1
 test_row.unlock_seconds = 3
-test_row.sensor_type = "NO"   # LB-35
+test_row.sensor_installed = 1
+test_row.sensor_type = "NO"   # door sensor wired on .50 (19/10/2026)
 test_row.allow_hold_close = 0
 fake = settings.append("machines", {
     "device_name": "ZZ Test Fake Door", "ip_address": FAKE_IP, "enable": 1,
@@ -120,7 +121,7 @@ try:
           not raises(lambda: am.check_door_machine_access({"is_door_control": False})))
     frappe.set_user("Administrator")
 
-    print("3b. Cờ Use Lock Sensor TẮT → không có gì về sensor")
+    print("3b. Cờ Use Door Sensor TẮT → không có gì về sensor")
     with _sensor_flag(False):
         d_off = {d["device_name"]: d for d in dc.get_doors(force=1)["doors"]}[TEST_NAME]
     check("cờ tắt: has_door_sensor = False dù Sensor Type = NO", not d_off["has_door_sensor"])
@@ -147,12 +148,17 @@ try:
     if dev_mode in ("NO", "NC"):
         test_row.sensor_type = dev_mode
         d50b = {d["device_name"]: d for d in dc.get_doors(force=1)["doors"]}[TEST_NAME]
-        check("Sensor Type khớp máy → không lệch, có trạng thái chốt",
-              not d50b["sensor_mode_mismatch"] and d50b["sensor"] in ("locked", "unlocked"), f'sensor={d50b["sensor"]}')
+        check("Sensor Type khớp máy → không lệch, có trạng thái cửa",
+              not d50b["sensor_mode_mismatch"] and d50b["sensor"] in ("closed", "open"), f'sensor={d50b["sensor"]} raw={d50b["sensor_raw"]}')
     test_row.sensor_type = "None"
     d50c = {d["device_name"]: d for d in dc.get_doors(force=1)["doors"]}[TEST_NAME]
     check("Sensor Type None → không đọc sensor", d50c["sensor_raw"] is None and not d50c["has_door_sensor"])
     test_row.sensor_type = "NO"
+    test_row.sensor_installed = 0
+    d50d = {d["device_name"]: d for d in dc.get_doors(force=1)["doors"]}[TEST_NAME]
+    check("Sensor Installed tắt → không đọc sensor dù Sensor Type = NO", d50d["sensor_raw"] is None and not d50d["has_door_sensor"])
+    check("máy giả (Sensor Installed mặc định tắt) không có sensor", not doors[fake.device_name]["has_door_sensor"])
+    test_row.sensor_installed = 1
     check("máy giả offline", not doors[fake.device_name]["online"], (doors[fake.device_name].get("error") or "")[:60])
     check("không trả comm key/password", "password" not in doors[TEST_NAME])
 

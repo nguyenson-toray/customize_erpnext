@@ -19,6 +19,9 @@
             --open: #b45309; --open-soft: #fdf0d9; --open-ring: #f59e0b;
             --bad: #c0262d; --bad-soft: #fde4e4;
             --idle: #64748b; --idle-soft: #edf1f5;
+            /* whole-card tint from the door sensor: closed = green, open = yellow */
+            --card-closed: #e2f5eb; --card-closed-line: #a3d9bf;
+            --card-open: #fff4c2; --card-open-line: #ecc94b;
             --scrim: rgba(15, 23, 42, .45);
             --f-ui: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             --f-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -31,6 +34,8 @@
                 --accent: #5b8cff; --accent-soft: #1d2b4d; --on-accent: #0b1220;
                 --ok: #3fcf9a; --ok-soft: #123227; --open: #fbbf5a; --open-soft: #3a2a10; --open-ring: #fbbf24;
                 --bad: #ff7b7b; --bad-soft: #3b1719; --idle: #8b97aa; --idle-soft: #202a3a;
+                --card-closed: #10281e; --card-closed-line: #1f5a41;
+                --card-open: #2d2709; --card-open-line: #6f5c12;
                 --scrim: rgba(0, 0, 0, .6);
                 color-scheme: dark;
             }
@@ -86,13 +91,18 @@
         .door { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 18px; display: flex; flex-direction: column; gap: 14px; position: relative; overflow: hidden; }
         .door::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 5px; background: var(--ok); }
         .door.is-open::before { background: var(--open-ring); }
+        /* tinted card (door sensor / ERP unlock window): readable at a glance across the room */
+        .door { transition: background-color .3s, border-color .3s; }
+        .door.is-closed { background: var(--card-closed); border-color: var(--card-closed-line); }
+        .door.is-open { background: var(--card-open); border-color: var(--card-open-line); }
+        .door.is-closed .state-ico { background: var(--surface); }
         .door.is-off::before { background: var(--idle); }
         /* lock state unknown (no working sensor): neutral, never green "locked" */
         .door.is-idle::before { background: var(--accent); }
         .door.is-idle .state-ico { background: var(--accent-soft); color: var(--accent); }
         .door-top { display: flex; gap: 14px; align-items: center; }
         .state-ico { width: 64px; height: 64px; border-radius: 18px; display: grid; place-items: center; flex: none; position: relative; background: var(--ok-soft); color: var(--ok); }
-        .door.is-open .state-ico { background: var(--open-soft); color: var(--open); }
+        .door.is-open .state-ico { background: var(--surface); color: var(--open); }
         .door.is-off .state-ico { background: var(--idle-soft); color: var(--idle); }
         .ring { position: absolute; inset: -3px; width: 70px; height: 70px; transform: rotate(-90deg); }
         .ring circle { fill: none; stroke: var(--open-ring); stroke-width: 4; stroke-linecap: round; transition: stroke-dashoffset .25s linear; }
@@ -102,6 +112,8 @@
         .state-line { font-size: 21px; font-weight: 700; line-height: 1.15; margin-top: 2px; color: var(--ok); }
         .door.is-open .state-line { color: var(--open); }
         .door.is-off .state-line { color: var(--idle); }
+        /* "From the door sensor" sits on the state line: the state and its source read together */
+        .state-line .src { display: inline-flex; align-items: center; gap: 4px; margin-left: 8px; font-size: 13px; font-weight: 500; color: var(--fg-2); white-space: nowrap; vertical-align: middle; }
         .cd { font-variant-numeric: tabular-nums; }
         .facts { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; color: var(--fg-2); }
         .facts span { display: inline-flex; align-items: center; gap: 5px; }
@@ -325,6 +337,7 @@
         const I = {
             lock: s => svg('<rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V7.5a4 4 0 0 1 8 0V11"/>', s),
             door: s => svg('<path d="M5 21V4a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v17M3 21h18"/>', s, '<circle cx="15" cy="12" r=".9" fill="currentColor"/>'),
+            doorOpen: s => svg('<path d="M5 21V4a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v17M3 21h18M5 3.6l8 2.4v15"/>', s, '<circle cx="10.8" cy="13" r=".9" fill="currentColor"/>'),
             unlock: s => svg('<rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V7.5a4 4 0 0 1 7.7-1.5"/>', s),
             off: s => svg('<path d="M2 8.8a15 15 0 0 1 4.2-2.6M10.7 5.1A15 15 0 0 1 22 8.8M5 12.6a10 10 0 0 1 3-1.9M15.5 10.9A10 10 0 0 1 19 12.6M8.5 16.1a5 5 0 0 1 7 0"/><path d="M3 3l18 18"/>', s, '<circle cx="12" cy="19.5" r=".8" fill="currentColor"/>'),
             fp: s => svg('<path d="M7 4.7A9 9 0 0 1 21 12v1M3 12a9 9 0 0 1 1.5-5M7.5 20A9 9 0 0 1 6 15.5V12a6 6 0 0 1 12 0v2M12 12v3a6 6 0 0 0 2.5 5M9 12a3 3 0 0 1 6 0v3.5"/>', s),
@@ -374,7 +387,7 @@
 
         function actionText(e) {
             switch (e.action) {
-                case 'Unlock': return __('Opened for {0}s from ERP', [e.seconds]);
+                case 'Unlock': return __('Unlocked for {0}s from ERP', [e.seconds]);
                 case 'Hold Open': return __('Held open from ERP');
                 case 'Close': return __('Closed from ERP');
                 case 'Unlock All': return __('Opened all doors (emergency)');
@@ -392,42 +405,53 @@
         }
 
         // ─── render: doors ─────────────────────────────────────────────────────────────
-        // Lock status sensor (LB-35 NO/COM) wired: it is the truth, fingerprint opens included
-        const sensorKnown = d => d.has_door_sensor && d.online && (d.sensor === 'locked' || d.sensor === 'unlocked');
-        const isUnlocked = d => d.online && (sensorKnown(d) ? d.sensor === 'unlocked' : isOpen(d));
+        // Door sensor wired (Sensor Installed): it is the truth about the door itself,
+        // fingerprint opens included. The ERP countdown still says the lock is released.
+        const sensorKnown = d => d.has_door_sensor && d.online && (d.sensor === 'closed' || d.sensor === 'open');
+        const isOpenNow = d => d.online && (isOpen(d) || (sensorKnown(d) && d.sensor === 'open'));
 
         function doorCard(d) {
             const off = !d.online, erpOpen = !off && isOpen(d), left = remaining(d);
-            const bySensor = sensorKnown(d);
-            const open = !off && isUnlocked(d);
+            const bySensor = sensorKnown(d), doorOpen = bySensor && d.sensor === 'open';
+            const open = !off && isOpenNow(d);
             const hold = erpOpen && d.hold;
             // Without a working lock sensor the real lock state is unknown: "Locked" is NOT
             // shown (08/10/2026 — a broken emergency glass kept a bolt released while the
             // page said Locked). Only what is certain: an ERP open countdown, or offline.
-            const cls = off ? 'is-off' : open ? 'is-open' : bySensor ? '' : 'is-idle';
+            const cls = off ? 'is-off' : open ? 'is-open' : bySensor ? 'is-closed' : 'is-idle';
             const total = d.hold ? (d._holdTotal || left) : d.unlock_seconds;
             const ring = erpOpen ? `<svg class="ring" viewBox="0 0 70 70" aria-hidden="true"><circle cx="35" cy="35" r="32" data-ring="${esc(d.device_name)}" data-total="${total}" stroke-dasharray="${CIRC}" stroke-dashoffset="${CIRC * (1 - Math.min(1, left / total))}"/></svg>` : '';
             const cd = erpOpen ? ` · <span class="cd" data-cd="${esc(d.device_name)}">${fmtLeft(left)}</span>` : '';
             const state = off ? `<span title="${esc(d.error || __('Cannot reach the device'))}">${__('Offline')}</span>`
-                : bySensor ? (open ? __('Not locked') : __('Bolt locked')) + cd
+                : bySensor ? (doorOpen ? __('Door open') : __('Door closed')) + (hold ? ` · ${__('Held open')}${cd}` : erpOpen ? ` · ${__('Unlocked')}${cd}` : '')
+                    + `<span class="src" title="${esc(__('Raw sensor value: {0}', [d.sensor_raw]))}">${I.sensor(14)}${__('From the door sensor')}</span>`
                 : hold ? `${__('Held open')}${cd}`
                 : erpOpen ? `${__('Open')}${cd}`
                 : '';
-            const ico = off ? I.off(30) : open ? I.unlock(30) : bySensor ? I.lock(30) : I.door(30);
+            const ico = off ? I.off(30) : erpOpen ? I.unlock(30) : doorOpen ? I.doorOpen(30) : I.door(30);
             const facts = [];
             if (bySensor) {
-                facts.push(`<span title="${esc(__('Raw sensor value: {0}', [d.sensor_raw]))}">${I.sensor(15)}${__('From the lock sensor')}</span>`);
+                // source shown on the state line
             } else if (d.has_door_sensor && !off && d.sensor_mode_mismatch) {
                 facts.push(`<span class="warn">${I.warn(15)}${esc(__('Door Sensor Mode on the device is {0} but Sensor Type is {1}. Change it on the device menu. Showing the ERP command state.', [d.device_sensor_mode, d.sensor_type]))}</span>`);
             } else if (d.has_door_sensor && !off) {
-                facts.push(`<span>${I.sensor(15)}${__('Lock sensor not readable — showing the ERP command state')}</span>`);
+                facts.push(`<span>${I.sensor(15)}${__('Door sensor not readable — showing the ERP command state')}</span>`);
             }
+            // the door is already open: unlocking is pointless, but stays possible (the reading
+            // can be up to STATUS_CACHE_S old, and a faulty sensor must never block opening)
+            const needless = doorOpen && !erpOpen;
+            if (off && d.last_sensor) {
+                const ls = d.last_sensor, p = parts(ls.at);
+                const at = (p && `${p.y}-${p.mo}-${p.d}` !== localYmd(new Date()) ? `${p.d}/${p.mo} ` : '') + hhmm(ls.at);
+                facts.push(`<span>${I.sensor(15)}${esc(__('Last reading: {0} · {1}', [ls.state === 'open' ? __('Door open') : __('Door closed'), at]))}</span>`);
+            }
+            if (needless) facts.push(`<span>${I.doorOpen(15)}${__('Door is open — no need to unlock')}</span>`);
             const n = esc(d.device_name);
             let acts;
             if (off) {
                 acts = `<button class="btn xl ghost" data-act="retry">${I.refresh(20)}${__('Try to reconnect')}</button>`;
             } else {
-                acts = `<button class="btn xl primary" data-act="ask-open" data-id="${n}" ${erpOpen ? 'disabled' : ''}>${I.unlock(22)}${__('Open {0} seconds', [d.unlock_seconds])}</button>`;
+                acts = `<button class="btn xl ${needless ? 'ghost' : 'primary'}" data-act="ask-open" data-id="${n}" ${erpOpen ? 'disabled' : ''}>${I.unlock(22)}${__('Unlock {0} seconds', [d.unlock_seconds])}</button>`;
                 if (d.allow_hold_close) {
                     // switched off server-side for now (HOLD_CLOSE_ENABLED): shown, but disabled
                     const off = !d.hold_close_enabled;
@@ -463,13 +487,13 @@
                 return;
             }
             const online = S.doors.filter(d => d.online).length;
-            const open = S.doors.filter(isUnlocked).length;
+            const open = S.doors.filter(isOpenNow).length;
             const offline = S.doors.length - online;
             const now = new Date();
             panel.innerHTML = `
                 <div class="summary">
                     <span class="pill ok">${__('{0}/{1} online', [online, S.doors.length])}</span>
-                    ${open ? `<span class="pill open">${S.doors.some(sensorKnown) ? __('{0} not locked', [open]) : __('{0} open', [open])}</span>` : ''}
+                    ${open ? `<span class="pill open">${__('{0} open', [open])}</span>` : ''}
                     ${offline ? `<span class="pill bad">${__('{0} offline', [offline])}</span>` : ''}
                     <span class="sp"></span><span class="upd" title="${esc(__('Updated {0}', [`${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`]))}">${I.clock(13)}${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}</span>
                 </div>
@@ -525,7 +549,7 @@
         }
 
         // ─── data ─────────────────────────────────────────────────────────────────────
-        // LB-35 re-locks 0/3/6 s after the relay window: with a sensor, read the bolt
+        // LB-35 re-locks 0/3/6 s after the relay window: with a sensor, read the door
         // again right after the window and once more after the longest delay
         const sensorTimers = {};
         function scheduleSensorRefresh(d) {
@@ -602,7 +626,7 @@
                 }
                 if (r.success) {
                     const nm = doorLabel(name);
-                    toast(method === 'close_door' ? __('{0} locked', [nm]) : method === 'hold_open' ? __('{0} is held open', [nm]) : __('{0} opened', [nm]));
+                    toast(method === 'close_door' ? __('{0} locked', [nm]) : method === 'hold_open' ? __('{0} is held open', [nm]) : __('{0} unlocked', [nm]));
                 } else {
                     toast(__('Could not reach {0}: {1}', [doorLabel(name), r.message || '']), true);
                 }
@@ -639,10 +663,10 @@
         function askOpen(d) {
             modal(`<div class="dlg" role="dialog" aria-modal="true"><div class="grab"></div>
                 <div class="ico-big">${I.unlock(30)}</div>
-                <h4>${esc(__('Open {0}?', [label(d)]))}</h4>
-                <p>${__('The door opens for {0} seconds, then locks again. The command is logged under your name.', [d.unlock_seconds])}</p>
+                <h4>${esc(__('Unlock {0}?', [label(d)]))}</h4>
+                <p>${__('The lock releases for {0} seconds, then locks again. The command is logged under your name.', [d.unlock_seconds])}</p>
                 <div class="row"><button class="btn xl ghost" data-act="cancel">${__('Cancel')}</button>
-                <button class="btn xl primary" data-act="do-open" data-id="${esc(d.device_name)}" data-focus>${__('Open door')}</button></div></div>`);
+                <button class="btn xl primary" data-act="do-open" data-id="${esc(d.device_name)}" data-focus>${__('Unlock door')}</button></div></div>`);
         }
         function askHold(d) {
             modal(`<div class="dlg" role="dialog" aria-modal="true"><div class="grab"></div>

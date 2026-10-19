@@ -103,7 +103,8 @@ def run(settings, now, probes=None, tg_ok=True, force=False, doors=None):
     return out, texts, chats, post
 
 
-cache_keys = [f"door_alerts:{k}:{d['device_name']}" for d in DOORS for k in ("offline", "not_locked")]
+cache_keys = [f"door_alerts:{k}:{d['device_name']}" for d in DOORS for k in ("offline", "not_locked")] \
+    + [da.dc._key("last_sensor", d["device_name"]) for d in DOORS]
 try:
     print("1. Giờ làm việc")
     check("06–22: 10:00 trong giờ", da.in_work_hours("2026-10-09 10:00:00", "06:00:00", "22:00:00"))
@@ -293,11 +294,15 @@ try:
     check("đánh dấu chat đã có trong bảng", ids["-1001"]["added"] and not ids["-5546758050"]["added"])
     check("trả tên bot", res["bot"] == "torayqn_bot")
 
-    print("9e. Chốt chưa khoá sau giờ làm (Lock Sensor)")
+    print("9e. Cửa mở sau giờ làm (Door Sensor)")
     for d in DOORS:
         frappe.cache.delete_value(f"door_alerts:not_locked:{d['device_name']}")
     sdoors = [dict(DOORS[0], has_door_sensor=True, sensor_type="NO"), dict(DOORS[1], has_door_sensor=True, sensor_type="NO")]
-    def probes(a, b):   # raw byte per door; sensor_locked_value is 1 in the DB
+    # raw byte per door: 1 = closed, 0 = open here (Sensor Value When Closed patched to 1;
+    # the real DB holds 0 for Production .50)
+    _closed = patch.object(da.dc, "sensor_closed_value", lambda: 1)
+    _closed.__enter__()
+    def probes(a, b):
         return {DOORS[0]["device_name"]: {"online": True, "sensor_raw": a, "device_sensor_mode": "NO"},
                 DOORS[1]["device_name"]: {"online": True, "sensor_raw": b, "device_sensor_mode": "NO"}}
     def nl_settings(t, after_hours=True):
@@ -316,22 +321,22 @@ try:
         out, texts, _c, _p = run(s, t, probes=probes(a, b), doors=sdoors, tg_ok=tg_ok)
         return out, "".join(texts)
     out, body = step(0, 0, 1)
-    check("lần đầu thấy chưa khoá: chưa báo (chờ 2 phút)", out["events"] == 0)
+    check("lần đầu thấy cửa mở: chưa báo (chờ 2 phút)", out["events"] == 0)
     out, body = step(1, 0, 1)
     check("mới 1 phút: chưa báo", out["events"] == 0)
     out, body = step(2, 0, 1)
-    check("2 phút: báo 'chưa khoá' 1 cửa", out["events"] == 1 and "Door not locked after hours" in body and "ZZ Test Door A" in body, body[-120:])
+    check("2 phút: báo 'cửa mở' 1 cửa", out["events"] == 1 and "Door left open after hours" in body and "ZZ Test Door A" in body, body[-120:])
     out, body = step(20, 0, 1)
     check("trong 30 phút: không nhắc lại", out["events"] == 0)
     out, body = step(33, 0, 1)
-    check("30 phút sau: nhắc lại", out["events"] == 1 and "Door still not locked" in body and "33 minutes" in body, body[-120:])
+    check("30 phút sau: nhắc lại", out["events"] == 1 and "Door still open" in body and "33 minutes" in body, body[-120:])
     out, body = step(40, 1, 1)
-    check("đã khoá: 1 tin 'đã khoá'", out["events"] == 1 and "Door locked" in body and "40 minutes" in body, body[-120:])
+    check("đã đóng: 1 tin 'đã đóng'", out["events"] == 1 and "Door closed" in body and "40 minutes" in body, body[-120:])
     out, body = step(42, 1, 1)
-    check("sau khi khoá: im lặng", out["events"] == 0)
+    check("sau khi đóng: im lặng", out["events"] == 0)
     # short release (fingerprint / ERP open) never alerts
     step(50, 0, 1); out, body = step(51, 1, 1)
-    check("nhả < 2 phút rồi khoá: không báo gì", out["events"] == 0)
+    check("mở < 2 phút rồi đóng: không báo gì", out["events"] == 0)
     # working hours: drop silently
     step(60, 0, 1); step(62, 0, 1)
     out, body = step(63, 0, 1, after_hours=False)
@@ -341,15 +346,37 @@ try:
     step(70, 0, 1); out, body = step(72, 0, 1, tg_ok=False)
     check("gửi lỗi: có sự kiện", out["events"] == 1)
     out, body = step(74, 0, 1)
-    check("gửi lỗi thì lần sau gửi lại tin đầu", out["events"] == 1 and "Door not locked after hours" in body)
+    check("gửi lỗi thì lần sau gửi lại tin đầu", out["events"] == 1 and "Door left open after hours" in body)
     # mismatch / offline keep state, no event
     s = nl_settings(T + timedelta(minutes=80)); s.last_check_at = T + timedelta(minutes=75)
     bad = {DOORS[0]["device_name"]: {"online": True, "sensor_raw": 0, "device_sensor_mode": "NC"}, DOORS[1]["device_name"]: {"online": False}}
     out, _t, _c, _p = run(s, T + timedelta(minutes=80), probes=bad, doors=sdoors)
-    check("lệch Door Sensor Mode / offline: không báo về khoá", out["events"] == 0)
+    check("lệch Door Sensor Mode / offline: không báo về cửa", out["events"] == 0)
     s = nl_settings(T); s.use_lock_sensor = 0
     out, _t, _c, _p = run(s, T + timedelta(minutes=90), probes=probes(0, 0), doors=sdoors, force=True)
-    check("cờ Use Lock Sensor tắt: không có sự kiện khoá", out["events"] == 0)
+    check("cờ Use Door Sensor tắt: không có sự kiện cửa", out["events"] == 0)
+    _closed.__exit__(None, None, None)
+    with patch.object(da.dc, "sensor_closed_value", lambda: 0):
+        check("Sensor Value When Closed = 0: byte 0 = đóng, 1 = mở",
+              da.dc.sensor_reading(sdoors[0], probes(0, 0)[DOORS[0]["device_name"]])[0] == "closed"
+              and da.dc.sensor_reading(sdoors[0], probes(1, 0)[DOORS[0]["device_name"]])[0] == "open")
+    nodoor = dict(DOORS[0], has_door_sensor=False, sensor_type="NO")
+    check("cửa không có sensor (Sensor Installed tắt): không đọc", da.dc.sensor_reading(nodoor, probes(0, 0)[DOORS[0]["device_name"]])[0] is None)
+    # offline: the last state read before the device dropped is carried along
+    frappe.cache.delete_value(f"door_alerts:offline:{DOORS[0]['device_name']}")
+    with patch.object(da.dc, "sensor_closed_value", lambda: 1):
+        da.dc.sensor_reading(sdoors[0], probes(0, 1)[DOORS[0]["device_name"]])      # door A read open
+    off_probes = {DOORS[0]["device_name"]: {"online": False}, DOORS[1]["device_name"]: {"online": True}}
+    t0 = now_datetime()
+    da._offline_events(make_settings(t0), sdoors, off_probes, t0)
+    ev = da._offline_events(make_settings(t0), sdoors, off_probes, t0 + timedelta(minutes=6))
+    check("offline: tin Telegram ghi trạng thái cuối DOOR OPEN", len(ev) == 1 and "DOOR OPEN" in ev[0][2], str(ev)[:160])
+    full = dict(sdoors[0], location="", model="", unlock_seconds=5, allow_hold_close=False)   # _door_payload shape
+    pl = da.dc._door_payload(full, {"online": False})
+    check("offline: payload có last_sensor = open", (pl["last_sensor"] or {}).get("state") == "open", str(pl["last_sensor"]))
+    check("online: payload không có last_sensor", da.dc._door_payload(full, probes(1, 1)[DOORS[0]["device_name"]])["last_sensor"] is None)
+    check("cửa không sensor: không có trạng thái cuối", da.dc.last_sensor(nodoor) is None)
+    frappe.cache.delete_value(f"door_alerts:offline:{DOORS[0]['device_name']}")
     for d in DOORS:
         frappe.cache.delete_value(f"door_alerts:not_locked:{d['device_name']}")
 

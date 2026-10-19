@@ -21964,11 +21964,7 @@ Open Attendance Machine Setting,Mở Attendance Machine Setting
 Open all,Mở tất cả
 Open all doors,Mở tất cả cửa
 Open all {0} online doors?,Mở tất cả {0} cửa đang trực tuyến?
-Open door,Mở cửa
-Open {0} seconds,Mở {0} giây
-Open {0}?,Mở cửa {0}?
 Opened all doors (emergency),Mở tất cả cửa (khẩn cấp)
-Opened for {0}s from ERP,Mở {0} giây từ ERP
 Opening all doors…,Đang mở tất cả cửa…
 Raw sensor value: {0},Giá trị cảm biến thô: {0}
 Reading…,Đang đọc…
@@ -21977,7 +21973,6 @@ Row {0}: Unlock Seconds must be between 1 and 60,Dòng {0}: Unlock Seconds phả
 Row {0}: {1} is a door controller and cannot be the Master Device,"Dòng {0}: {1} là máy quản lý cửa, không được làm Master Device"
 Seconds,Số giây
 Session expired,Phiên đăng nhập đã hết hạn
-"The door opens for {0} seconds, then locks again. The command is logged under your name.",Cửa mở trong {0} giây rồi tự khoá lại. Lệnh được ghi vào nhật ký dưới tên của bạn.
 The door stays unlocked for up to 15 minutes or until you press Close. The command is logged under your name.,Cửa mở tối đa 15 phút hoặc tới khi bạn bấm Đóng. Lệnh được ghi vào nhật ký dưới tên của bạn.
 "Tick ""Is Door Control"" on a device in Attendance Machine Setting, then refresh this page.","Tick ""Is Door Control"" cho một máy trong Attendance Machine Setting rồi tải lại trang này."
 Try again,Thử lại
@@ -21999,14 +21994,9 @@ Updated {0},Cập nhật {0}
 {0} new log(s). Could not read: {1},{0} log mới. Không đọc được: {1}
 {0} offline,{0} mất kết nối
 {0} open,{0} đang mở
-{0} opened,Đã mở {0}
 {0} — fingerprint,{0} — quẹt vân tay
 {0}/{1} online,{0}/{1} trực tuyến
 Enable is unticked in Attendance Machine Setting — tick only when needed,Máy đang tắt (Enable) trong Attendance Machine Setting — chỉ tick khi cần
-Bolt released,Đã nhả chốt
-Bolt locked,Đã chốt
-From the lock sensor,Theo cảm biến chốt khoá
-Lock sensor not readable — showing the ERP command state,Không đọc được cảm biến chốt — đang hiện trạng thái theo lệnh ERP
 Sensor Type,Loại cảm biến
 "Lock status sensor wired to the device's sensor input. ZKTeco LB-35 = NO. Must match Door Sensor Mode on the device menu, otherwise /door_control ignores the sensor and shows a warning. None = no sensor.","Cảm biến trạng thái khoá đấu vào cổng sensor của máy. ZKTeco LB-35 = NO. Phải khớp Door Sensor Mode trong menu máy, nếu không /door_control bỏ qua cảm biến và hiện cảnh báo. None = không có cảm biến."
 Door Sensor Mode on the device is {0} but Sensor Type is {1}. Change it on the device menu. Showing the ERP command state.,Door Sensor Mode trên máy là {0} nhưng Sensor Type là {1}. Hãy đổi trong menu máy. Đang hiện trạng thái theo lệnh ERP.
@@ -22099,8 +22089,6 @@ failed: {0},lỗi: {0}
 opened: {0},đã mở: {0}
 "{0} punches ({1} after hours, {2} unknown ID) · {3} ERP opens{4}","{0} lượt quẹt ({1} ngoài giờ, {2} ID lạ) · {3} lần mở từ ERP{4}"
 {0} — offline for {1} minutes,{0} — đã mất kết nối {1} phút
-Not locked,Chưa khoá
-{0} not locked,{0} cửa chưa khoá
 "Please sign in.","Vui lòng đăng nhập."
 "Your session has ended. Please sign in again.","Phiên đăng nhập đã hết. Vui lòng đăng nhập lại."
 "Please update the app to the latest version.","Vui lòng cập nhật ứng dụng lên phiên bản mới nhất."
@@ -22431,3 +22419,25 @@ Mindmap,Sơ đồ tư duy
 Biometric Sync,Đồng bộ máy chấm công
 Health Check Up Management,Quản lý khám sức khỏe
 Attendance Machine Setting,Cài đặt máy chấm công
+Door open,Cửa đang mở
+Door closed,Cửa đang đóng
+From the door sensor,Theo cảm biến cửa
+Door sensor not readable — showing the ERP command state,Không đọc được cảm biến cửa — đang hiện trạng thái theo lệnh ERP
+Door Sensors,Cảm biến cửa
+Door Sensor,Cảm biến cửa
+Sensor Installed,Đã lắp cảm biến
+Sensor Installed is off,Chưa tick Đã lắp cảm biến
+Use Door Sensor,Dùng cảm biến cửa
+Sensor Value When Closed,Giá trị cảm biến khi cửa đóng
+Door Open After Hours,Cửa mở ngoài giờ
+Door left open after hours,Cửa để mở ngoài giờ
+Door still open,Cửa vẫn đang mở
+"Read once with the door closed and once open: the raw value must change. The value while closed is 'Sensor Value When Closed' (now {0}).","Đọc một lần khi cửa đóng và một lần khi cửa mở: giá trị thô phải khác nhau. Giá trị lúc đóng là 'Giá trị cảm biến khi cửa đóng' (hiện là {0})."
+Unlock {0} seconds,Mở khoá {0} giây
+Unlock {0}?,Mở khoá cửa {0}?
+Unlock door,Mở khoá
+Unlocked for {0}s from ERP,Mở khoá {0} giây từ ERP
+{0} unlocked,Đã mở khoá {0}
+Door is open — no need to unlock,Cửa đang mở — không cần mở khoá
+"The lock releases for {0} seconds, then locks again. The command is logged under your name.","Khoá nhả chốt {0} giây rồi tự khoá lại. Lệnh được ghi lại dưới tên bạn."
+Last reading: {0} · {1},Lần đọc cuối: {0} · {1}

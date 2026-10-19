@@ -13,19 +13,19 @@ Facts measured on a real F21Lite (fw 6.60, ZMM220_TFT) on 2026-10-08:
   The device ACKs `unlock(0)` too, but whether that locks early is NOT
   verified — "Hold open" / "Close" are therefore behind `allow_hold_close`.
 - CMD_DOORSTATE_RRQ returns one byte from the device's sensor input, not
-  the relay (it does not change while unlocked). The lock in use, ZKTeco
-  LB-35 (fail-safe bolt, re-lock delay 0/3/6 s set on the lock), has a bolt
-  status sensor (NO/COM): wired to that input with the device's Door Sensor
-  Mode = NO, the byte is the REAL lock state, fingerprint opens included.
-  Read only when the row's Sensor Type is NO/NC, and trusted only when
-  the device's Door Sensor Mode (option DSM) matches it.
+  the relay (it does not change while unlocked). With a sensor wired to that
+  input (Door Sensor Mode = NO on the device) the byte is the REAL door
+  state, fingerprint opens included. 19/10/2026, Production (.50): 1 = door
+  open, 0 = door closed. Read only when the row has Sensor Installed + Sensor
+  Type NO/NC, and trusted only when the device's Door Sensor Mode (option
+  DSM) matches it.
 - A software unlock writes NO log on the device, hence Door Control Action.
 - Over TCP a reconnect right after a disconnect fails (BrokenPipe); UDP
   (the Setting's force_udp) reconnects fine. Retries cover both.
 
 Without the sensor, the lock state shown is the one ERP knows: "open for N
 more seconds" after a command sent from here (the real window is N + the
-lock's re-lock delay). With the sensor, the page shows the bolt state.
+lock's re-lock delay). With the sensor, the page shows Door open / closed.
 """
 
 import hashlib
@@ -58,12 +58,15 @@ HOLD_CLOSE_ENABLED = False
 FETCH_RANGE_DAYS = 30
 TIMELINE_LIMIT = 150
 
-# Raw CMD_DOORSTATE_RRQ byte -> bolt state from the LB-35 status sensor: the byte
-# meaning "locked" is Door Alert Setting.sensor_locked_value (default 1 — both
-# devices answer 0x01 with no sensor wired, i.e. the "normal" reading). It must be
-# calibrated with "Read Sensors Now" once the sensor is wired. Every sensor feature
-# is off unless Door Alert Setting.use_lock_sensor is ticked.
-SENSOR_SETTLE_S = 0.8        # let the bolt move before reading the sensor after a command
+# Raw CMD_DOORSTATE_RRQ byte -> door state: the byte meaning "closed" is Door Alert
+# Setting.sensor_locked_value (0 on Production .50, 19/10/2026; devices with nothing
+# wired answer 0x01). Calibrate with "Read Sensors Now" when a sensor is wired.
+# Every sensor feature is off unless Door Alert Setting.use_lock_sensor is ticked,
+# and per door unless its row has Sensor Installed.
+SENSOR_SETTLE_S = 0.8        # let the door / bolt move before reading the sensor after a command
+# last door state read from the sensor: shown on the offline card and in the Telegram
+# "device offline" line, so nobody mistakes "offline" for "closed"
+LAST_SENSOR_TTL_S = 24 * 3600
 # Device option `DSM` (Door Sensor Mode, set on the device menu) -> Sensor Type of the Setting.
 # Measured on F21Lite fw 6.60, 08/10/2026: both untouched devices read DSM=2 (factory
 # default = no sensor) and both read DSM=0 after "NO" was chosen on the device menu.
@@ -95,7 +98,7 @@ def mask_ip(text):
 
 
 def lock_sensor_enabled():
-    """Door Alert Setting → Use Lock Sensor: master switch of every sensor feature."""
+    """Door Alert Setting → Use Door Sensor: master switch of every sensor feature."""
     try:
         return bool(frappe.db.get_single_value("Door Alert Setting", "use_lock_sensor"))
     except Exception:
@@ -103,15 +106,21 @@ def lock_sensor_enabled():
 
 
 def _apply_sensor_flag(doors):
-    """A row's Sensor Type only counts while the master switch is on."""
+    """A row's sensor (Sensor Installed + Sensor Type) only counts while the master switch is on."""
     on = lock_sensor_enabled()
     for d in doors:
         d["has_door_sensor"] = bool(d["has_door_sensor"] and on)
     return doors
 
 
+def sensor_closed_value():
+    """Door Alert Setting → Sensor Value When Closed: the raw byte meaning "door closed"."""
+    value = frappe.db.get_single_value("Door Alert Setting", "sensor_locked_value")
+    return 1 if value in (None, "") else frappe.utils.cint(value)
+
+
 def sensor_reading(door, probe):
-    """(state, mismatch) from one probe: state is "locked" / "unlocked" / None.
+    """(state, mismatch) from one probe: state is "closed" / "open" / None.
 
     None when there is no sensor, no reading, or the device's Door Sensor Mode
     differs from the row's Sensor Type (the byte is meaningless then).
@@ -120,9 +129,18 @@ def sensor_reading(door, probe):
     mismatch = bool(door["has_door_sensor"] and mode and mode != door["sensor_type"])
     if not door["has_door_sensor"] or raw is None or mismatch:
         return None, mismatch
-    value = frappe.db.get_single_value("Door Alert Setting", "sensor_locked_value")
-    locked_value = 1 if value in (None, "") else frappe.utils.cint(value)
-    return ("locked" if int(raw) == locked_value else "unlocked"), mismatch
+    state = "closed" if int(raw) == sensor_closed_value() else "open"
+    frappe.cache.set_value(_key("last_sensor", door["device_name"]),
+                           {"state": state, "at": str(probe.get("checked_at") or now_datetime())},
+                           expires_in_sec=LAST_SENSOR_TTL_S)
+    return state, mismatch
+
+
+def last_sensor(door):
+    """{"state", "at"} of the last sensor reading (kept 24 h), or None."""
+    if not door.get("has_door_sensor"):
+        return None
+    return frappe.cache.get_value(_key("last_sensor", door["device_name"]))
 
 
 def _doors():
@@ -283,8 +301,8 @@ def _door_payload(door, probe):
     remaining, hold = _open_state(door)
     sensor_raw = probe.get("sensor_raw")
     device_mode = probe.get("device_sensor_mode")
-    # the byte only means "locked/unlocked" when the device reads the input the way
-    # the lock is wired: a mode mismatch makes the sensor value meaningless
+    # the byte only means "closed/open" when the device reads the input the way
+    # the sensor is wired: a mode mismatch makes the sensor value meaningless
     state, mismatch = sensor_reading(door, probe)
     return {
         "device_name": door["device_name"],
@@ -304,6 +322,8 @@ def _door_payload(door, probe):
         "checked_at": probe.get("checked_at"),
         "sensor": state,
         "sensor_raw": sensor_raw,
+        # offline: the device can't be read, show what it said last (never as the current state)
+        "last_sensor": None if probe.get("online") else last_sensor(door),
         "open_remaining": remaining,
         "hold": hold,
         "last": _last_activity(door),
@@ -348,7 +368,7 @@ def _command(door, action_label, seconds, zk_action, open_for=None, hold=False):
         frappe.cache.delete_value(_key("probe", door["device_name"]))
 
     if ok and door["has_door_sensor"]:
-        # read the bolt back so the page shows the real state right away
+        # read the sensor back so the page shows the real state right away
         time.sleep(SENSOR_SETTLE_S)
         probe = _probe(door)
         probe["checked_at"] = str(now_datetime())

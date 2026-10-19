@@ -15,6 +15,7 @@
   "is_door_control",
   "unlock_seconds",
   "column_break_door",
+  "sensor_installed",
   "sensor_type",
   "allow_hold_close",
   "send_door_alerts"
@@ -93,13 +94,21 @@
    "fieldtype": "Column Break"
   },
   {
-   "default": "NO",
+   "default": "0",
    "depends_on": "is_door_control",
+   "fieldname": "sensor_installed",
+   "fieldtype": "Check",
+   "label": "Sensor Installed",
+   "description": "Tick only on a door where a door sensor is really wired to the device's SEN/GND input. /door_control then shows Door open / closed for this door (needs Use Door Sensor in Door Alert Setting)"
+  },
+  {
+   "default": "NO",
+   "depends_on": "eval:doc.is_door_control && doc.sensor_installed",
    "fieldname": "sensor_type",
    "fieldtype": "Select",
    "label": "Sensor Type",
    "options": "None\nNO\nNC",
-   "description": "Lock status sensor wired to the device's sensor input. ZKTeco LB-35 = NO. Must match Door Sensor Mode on the device menu, otherwise /door_control ignores the sensor and shows a warning. None = no sensor. Only used while Use Lock Sensor is ticked in Door Alert Setting."
+   "description": "How the sensor is wired (ZKTeco LB-35 / door contact = NO). Must match Door Sensor Mode on the device menu, otherwise /door_control ignores the sensor and shows a warning"
   },
   {
    "default": "0",
@@ -121,7 +130,7 @@
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-10-10 09:00:00.000000",
+ "modified": "2026-10-19 15:35:30.751207",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Attendance Machine Detail",

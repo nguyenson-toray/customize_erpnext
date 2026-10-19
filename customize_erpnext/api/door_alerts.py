@@ -46,8 +46,8 @@ MAX_EVENT_LINES = 40          # beyond this: "... and N more"
 # a punch older than this (by its own timestamp) is backlog — e.g. the first read
 # of a device that was never fetched — and is not alerted, only stored
 PUNCH_MAX_AGE_MIN = 30
-# after hours a fingerprint / ERP open releases the bolt for 5-15 s (+ the lock's
-# 0/3/6 s re-lock delay): only a bolt seen unlocked this long is "not locked"
+# after hours a fingerprint / ERP open lets someone through in 5-15 s (+ the lock's
+# 0/3/6 s re-lock delay): only a door seen open this long is "left open"
 NOT_LOCKED_CONFIRM_MIN = 2
 
 
@@ -218,8 +218,14 @@ def _offline_events(settings, doors, probes, now):
                 state = {"since": str(now), "alerted": False}
             if not state["alerted"] and now - since >= threshold:
                 minutes = int((now - since).total_seconds() // 60)
-                events.append(("🔴", _("Door device offline for {0} minutes").format(minutes),
-                               f"{_esc(_label(door))} ({_esc(door['ip_address'])})"))
+                detail = f"{_esc(_label(door))} ({_esc(door['ip_address'])})"
+                last = dc.last_sensor(door)
+                if last:
+                    at = get_datetime(last["at"])
+                    detail += " · " + _("last reading: {0} at {1}").format(
+                        _("<b>DOOR OPEN</b>") if last["state"] == "open" else _("door closed"),
+                        at.strftime("%H:%M" if at.date() == now.date() else "%d/%m %H:%M"))
+                events.append(("🔴", _("Door device offline for {0} minutes").format(minutes), detail))
                 state["alerted"] = True
             frappe.cache.set_value(key, state)
         elif state:
@@ -232,12 +238,12 @@ def _offline_events(settings, doors, probes, now):
 
 
 def _not_locked_events(settings, doors, probes, now):
-    """Bolt left unlocked outside working hours (Lock Sensor).
+    """Door left open outside working hours (Door Sensor).
 
     Returns (events, keys_to_mark): the caller stamps `last_sent` on those keys
     only once the message went out (or alerts are muted), so a failed send is
     retried on the next run. Inside working hours every state is dropped
-    silently (the switch on the lock keeps bolts released by day on purpose).
+    silently (doors stand open by day on purpose).
     """
     events, to_mark = [], []
     repeat = timedelta(minutes=settings.not_locked_repeat_minutes or 30)
@@ -255,24 +261,24 @@ def _not_locked_events(settings, doors, probes, now):
         if state is None:
             continue  # offline / no reading / Door Sensor Mode mismatch: keep the state
         label = _esc(_label(door))
-        if state == "unlocked":
+        if state == "open":
             st = st or {"first_seen": str(now), "last_sent": None}
             first = get_datetime(st["first_seen"])
             if now - first >= confirm:
                 if not st.get("last_sent"):
-                    events.append(("🔴", _("Door not locked after hours"),
+                    events.append(("🔴", _("Door left open after hours"),
                                    _("{0} (since {1})").format(label, _fmt_time(first))))
                     to_mark.append(key)
                 elif now - get_datetime(st["last_sent"]) >= repeat:
                     minutes = int((now - first).total_seconds() // 60)
-                    events.append(("🔴", _("Door still not locked"),
+                    events.append(("🔴", _("Door still open"),
                                    _("{0} — for {1} minutes").format(label, minutes)))
                     to_mark.append(key)
             frappe.cache.set_value(key, st)
         else:
             if st.get("last_sent"):
                 minutes = int((now - get_datetime(st["first_seen"])).total_seconds() // 60)
-                events.append(("🟢", _("Door locked"), _("{0} (after {1} minutes)").format(label, minutes)))
+                events.append(("🟢", _("Door closed"), _("{0} (after {1} minutes)").format(label, minutes)))
             frappe.cache.delete_value(key)
     return events, to_mark
 
@@ -606,7 +612,8 @@ def get_status():
 @frappe.whitelist(methods=["POST"])
 def read_sensors():
     """Button "Read Sensors Now": raw sensor byte + Door Sensor Mode of every enabled
-    door, read even while Use Lock Sensor is off (this is how it gets calibrated).
+    door, read even while Use Door Sensor / Sensor Installed is off (this is how it
+    gets calibrated).
     Read-only: connect, read, disconnect."""
     from concurrent.futures import ThreadPoolExecutor
     from customize_erpnext.api.attendance_machines import get_machines
@@ -617,8 +624,7 @@ def read_sensors():
         d["has_door_sensor"] = True   # read the input whatever the row says
     with ThreadPoolExecutor(max_workers=max(1, min(len(doors), 8))) as pool:
         probes = list(pool.map(dc._probe, doors)) if doors else []
-    value = frappe.db.get_single_value(SETTING, "sensor_locked_value")
-    locked_value = 1 if value in (None, "") else frappe.utils.cint(value)
+    closed_value = dc.sensor_closed_value()
     rows = []
     for d, p in zip(doors, probes):
         raw = p.get("sensor_raw")
@@ -628,8 +634,9 @@ def read_sensors():
             "error": dc.mask_ip(p.get("error")),
             "raw": raw,
             "device_sensor_mode": p.get("device_sensor_mode"),
+            "sensor_installed": d.get("sensor_installed"),
             "sensor_type": d.get("sensor_type"),
             "mode_matches": p.get("device_sensor_mode") == d.get("sensor_type"),
-            "state": None if raw is None else ("locked" if int(raw) == locked_value else "unlocked"),
+            "state": None if raw is None else ("closed" if int(raw) == closed_value else "open"),
         })
-    return {"locked_value": locked_value, "doors": rows}
+    return {"closed_value": closed_value, "doors": rows}

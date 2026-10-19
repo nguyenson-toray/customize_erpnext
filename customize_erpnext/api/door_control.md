@@ -32,7 +32,8 @@ Máy cửa là một dòng của **Attendance Machine Setting → bảng `machin
 | `is_door_control` | Đánh dấu máy quản lý cửa |
 | `enable` | Phải bật thì mới hiện trên `/door_control` |
 | `unlock_seconds` | Số giây mở mỗi lần bấm "Mở" (1–60, validate trong Setting) |
-| `sensor_type` | `None` / `NO` / `NC` — sensor trạng thái chốt đấu vào cổng `SEN` của máy. Phải khớp Door Sensor Mode trên menu máy. **Hiện tất cả = None** (xem §6) |
+| `sensor_installed` | Cửa này đã đấu sensor thật vào `SEN`/`GND` (mặc định 0). Chỉ cửa có tick mới được đọc sensor. **Hiện chỉ `.50` Production = 1** (19/10/2026) |
+| `sensor_type` | `None` / `NO` / `NC` — cách đấu sensor (hiện khi tick `sensor_installed`). Phải khớp Door Sensor Mode trên menu máy (xem §6) |
 | `allow_hold_close` | Hiện nút "Giữ mở"/"Đóng" cho cửa này. Hiện tất cả = 0 |
 | `has_door_sensor` | Cột cũ, đã thay bằng `sensor_type`; còn trong DB, không dùng |
 
@@ -40,7 +41,7 @@ Validate (`attendance_machine_setting.py::_validate_door_controllers`): máy c�
 `master_device`; `unlock_seconds` 1–60.
 
 Cửa thật (08/10/2026): `.48` Machine 8 - Door - Office (cửa 2 cánh, 2 khoá),
-`.49` Machine 9 - Door - IT, `.50` Machine 10 - Door - Main Hall. Khoá: **ZKTeco LB-35**
+`.49` Machine 9 - Door - IT, `.50` Machine 10 - Door - Production (trước 19/10 tên "Main Hall"). Khoá: **ZKTeco LB-35**
 (fail-safe: có điện = khoá; trễ chốt 0/3/6 s chỉnh trên khoá; có sensor chốt NO/COM).
 
 ## 3. Tách biệt khỏi chấm công
@@ -106,10 +107,24 @@ Hàm `_run`/`_probe` không gọi frappe ⇒ chạy được trong ThreadPool.
   phản ánh thực tế: kính thoát hiểm vỡ ở Main Hall làm chốt nhả mà trang vẫn báo khoá). Card ở
   trạng thái trung tính (icon cửa, dải xanh dương, không dòng trạng thái). Chỉ hiện điều chắc chắn:
   "Mở · còn Xs" sau lệnh ERP (cache `door_control:open:<hash>`) và "Ngoại tuyến". Bật lại hiển thị
-  khoá khi sensor chạy (`sensor_type` NO/NC ⇒ "Đã chốt/Đã nhả chốt").
-- **Có sensor (`sensor_type` NO/NC):** đọc `CMD_DOORSTATE_RRQ` (75) → 1 byte, dịch bằng
-  `SENSOR_STATES = {1: "locked", 0: "unlocked"}` (**đoán, chưa hiệu chỉnh**). Chỉ tin khi option
-  `DSM` của máy khớp `sensor_type`; lệch ⇒ bỏ sensor + cảnh báo cam trên card.
+  trạng thái cửa khi có sensor.
+- **Có sensor (`sensor_installed` + `sensor_type` NO/NC + cờ `use_lock_sensor`):** đọc
+  `CMD_DOORSTATE_RRQ` (75) → 1 byte; byte = `sensor_locked_value` (nhãn "Sensor Value When Closed")
+  ⇒ `"closed"`, khác ⇒ `"open"`. Production `.50` (19/10/2026): **1 = cửa mở, 0 = cửa đóng** ⇒ giá trị = 0.
+  Card hiện "Cửa đang mở / Cửa đang đóng" (+ "· Đã mở khóa · Xs" khi đang trong cửa sổ lệnh ERP);
+  dải cam khi cửa mở hoặc đang mở khoá. Chỉ tin khi option `DSM` của máy khớp `sensor_type`; lệch ⇒
+  bỏ sensor + cảnh báo cam trên card.
+- **Nút "Mở khoá N giây"** (19/10/2026, phương án C): nút chỉ nhả chốt, không mở cánh ⇒ chữ là "Mở khoá"
+  (hộp xác nhận, toast, dòng lịch sử cũng vậy). Sensor báo cửa đang mở và không trong cửa sổ lệnh ERP ⇒
+  nút hạ thành nút viền + dòng "Cửa đang mở — không cần mở khoá". **Cố ý KHÔNG khoá nút**: số đọc có thể
+  cũ tới `STATUS_CACHE_S`, và sensor hỏng không được phép chặn việc mở cửa. "Mở tất cả" giữ nguyên.
+- **Màu card** (19/10/2026): sensor báo đóng ⇒ cả card nền xanh (`is-closed`); cửa mở hoặc đang trong
+  cửa sổ mở khoá ERP ⇒ nền vàng (`is-open`). Cửa không sensor giữ nền trắng (không biết thật ⇒ không tô
+  xanh). "Theo cảm biến cửa" nằm cùng hàng với trạng thái.
+- **Máy offline:** không bao giờ hiện trạng thái cũ như hiện tại — card xám "Ngoại tuyến". Mỗi lần đọc
+  được sensor, `sensor_reading` lưu cache `door_control:last_sensor:<hash>` = {state, at} 24 h
+  (`LAST_SENSOR_TTL_S`); card offline hiện dòng phụ "Lần đọc cuối: Cửa đang mở · 21:40", tin Telegram
+  "Door device offline" thêm "last reading: **DOOR OPEN** at 21:40".
 - 🔴 **Mã option `DSM` (đo thật, fw 6.60): `0=NO`, `1=NC`, `2=None` (mặc định nhà máy).** Đừng tin
   tài liệu/đoán — từng đoán ngược và gây cảnh báo sai.
 
@@ -118,9 +133,8 @@ Hàm `_run`/`_probe` không gọi frappe ⇒ chạy được trong ThreadPool.
 - pyzk 0.9 chỉ có `unlock(seconds)` — gửi `pack("I", seconds*10)`. Không có lệnh "đóng ngay";
   `unlock(0)` được ACK nhưng chưa xác minh có khoá sớm không.
 - **Mở bằng phần mềm KHÔNG ghi log trên máy** ⇒ Door Control Action là nguồn duy nhất biết ai mở.
-- `CMD_DOORSTATE_RRQ` trên cả `.48/.49/.50` **luôn `01`** — kể cả chốt nhả, mở cánh, đóng, khoá
-  (~800 lần đọc trên .48 với 4 lần quẹt, DSM=NO). Hoặc dây sensor LB-35 chưa vào `SEN`, hoặc
-  firmware không báo ⇒ để `sensor_type = None`.
+- `CMD_DOORSTATE_RRQ` khi CHƯA đấu sensor **luôn `01`** — kể cả chốt nhả, mở cánh, đóng, khoá
+  (~800 lần đọc trên .48 với 4 lần quẹt, DSM=NO). 19/10/2026 user lắp sensor cho `.50`: 1 = mở, 0 = đóng.
 - Thời gian unlock tối đa: **không có tài liệu nào xác nhận** (SDK `ACUnlock(Delay)` không ghi
   đơn vị/giới hạn; tài liệu Axxon gợi ý 1–254 s). `HOLD_OPEN_SECONDS = 900` là chưa kiểm chứng.
 - TCP: kết nối lại ngay sau disconnect → BrokenPipe; UDP (Setting đang `force_udp=1`) không bị.
@@ -133,7 +147,7 @@ phải hỏi. Không `disable_device`, không ghi option khi chỉ được phé
 ## 8. UI
 
 - Mobile-first. < 640 px: card gọn (~165 px) để **3 cửa/màn hình**; Open/Hold/Close chung 1 hàng.
-- **Tên hiển thị = field `location`** của dòng máy (09/10: "Main Hall", "Office", "IT"), trống thì dùng
+- **Tên hiển thị = field `location`** của dòng máy (19/10: "Production", "Office", "IT"), trống thì dùng
   `device_name`. Dùng cho card, chip lọc, nhật ký, hộp xác nhận, toast VÀ tin Telegram. `device_name`
   vẫn là khoá (API, filter), hiện ở tooltip tiêu đề; dòng phụ chỉ còn IP. Card offline không có dòng
   lỗi riêng (lỗi ở tooltip chữ "Ngoại tuyến"). ≥ 1200 px: 3 cột.
@@ -168,8 +182,8 @@ cho đúng file JSON); `index.html` không cần restart.
 
 1. **Giữ mở / Đóng:** đo thời gian unlock tối đa + `unlock(0)` có khoá sớm không (cần người đứng
    cạnh cửa). Xong ⇒ `HOLD_CLOSE_ENABLED = True`, chỉnh `HOLD_OPEN_SECONDS`, tick `allow_hold_close`.
-2. **Sensor:** kỹ thuật kiểm tra dây NO/COM của LB-35 vào `SEN` + `GND`. Nếu chạy ⇒ hiệu chỉnh
-   `SENSOR_STATES`; cửa 2 cánh (.48) cần biết 2 sensor nối tiếp hay song song.
+2. **Sensor `.48` / `.49`:** chưa lắp. Lắp xong ⇒ Read Sensors Now (đóng/mở phải đổi giá trị) ⇒ tick
+   `sensor_installed`; cửa 2 cánh (.48) cần 2 sensor nối tiếp.
 3. **Realtime `EF_UNLOCK`:** biết lúc relay mở (kể cả vân tay) mà không cần sensor.
 4. Tab "Sync ERP → Machines" trên trang desk `biometric-sync` chưa hiện máy cửa/máy tắt (chỉ dialog trên Desk có).
 
@@ -211,7 +225,7 @@ Plan + quyết định: `.claude/plans/door_alerts.md`.
 - **Test:** `api/test_door_alerts.py` (56 assert; máy giả, `requests.post` mock, không gửi thật).
 - 🔴 Cron mới cần `bench migrate` (restart không đủ).
 
-## 12. Cảm biến chốt LB-35 + cảnh báo "chưa khoá sau giờ làm" (10/10/2026)
+## 12. Cảm biến cửa + cảnh báo "cửa mở sau giờ làm" (10/10/2026, đổi 19/10/2026)
 
 Plan: `.claude/plans/door_sensor.md`.
 
@@ -229,4 +243,16 @@ Plan: `.claude/plans/door_sensor.md`.
 - **Read Sensors Now** (`door_alerts.read_sensors`): đọc thô mọi cửa kể cả khi cờ tắt — để hiệu chỉnh.
   10/10: cả 3 cửa đọc `1`/DSM=NO, kể cả Main Hall đang nhả chốt ⇒ **sensor chưa đấu dây — KHÔNG bật cờ**
   (bật lúc này sẽ luôn báo "đã khoá", không bao giờ cảnh báo).
-- Test: `test_door_alerts.py` 70 assert, `test_door_control.py` 50 assert.
+- Test: `test_door_alerts.py` 81 assert, `test_door_control.py` 52 assert.
+
+**19/10/2026 — đổi sang cảm biến CỬA (đóng/mở), áp dụng từng cửa:**
+- Thêm `Attendance Machine Detail.sensor_installed` (mặc định 0): `has_door_sensor` =
+  `sensor_installed` AND `sensor_type ∈ {NO, NC}` AND cờ tổng. Đã tick cho `.50`; `.48/.49` = 0.
+- Trạng thái đổi tên `locked/unlocked` → `closed/open`; tin Telegram: "Door left open after hours",
+  "Door still open", "Door closed". **Fieldname giữ nguyên** (`use_lock_sensor`, `sensor_locked_value`,
+  `alert_not_locked_after_hours`, cache `door_alerts:not_locked:*`) — chỉ đổi nhãn để khỏi patch dữ liệu.
+- DB: `use_lock_sensor = 1`, `sensor_locked_value = 0`, `alert_not_locked_after_hours` vẫn 0.
+- 19/10/2026: `.50` đổi tên `Machine 10 - Door - Main Hall` → `Machine 10 - Door - Production`, Location
+  `Production` (SQL trực tiếp + 17 dòng `Door Control Action.device_name`; cache theo tên máy rỗng, không phải chuyển).
+  ⚠ Tên máy là khoá của cache/lock file (`_key` băm tên) và của lịch sử Door Control Action — đổi tên phải sửa cả hai.
+- `door_control.sensor_closed_value()` đọc giá trị trong Setting (test patch hàm này).

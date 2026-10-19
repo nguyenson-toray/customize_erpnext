@@ -8,7 +8,7 @@ Machines are stored in the Single DocType "Attendance Machine Setting":
 - child table `machines` (Attendance Machine Detail):
   device_name (unique identifier), ip_address, enable, master_device,
   location, model, and the door-controller block
-  (is_door_control, unlock_seconds, sensor_type, allow_hold_close)
+  (is_door_control, unlock_seconds, sensor_installed, sensor_type, allow_hold_close)
 
 All consumers (utilities.py, biometric_sync.py, web UIs) must go through
 get_machines() / get_machine() so the storage model stays in one place.
@@ -46,8 +46,10 @@ def _row_to_dict(row, settings):
         "model": row.model or "",
         "is_door_control": bool(row.is_door_control),
         "unlock_seconds": int(row.unlock_seconds or 5),
+        "sensor_installed": bool(row.get("sensor_installed")),
         "sensor_type": row.sensor_type or "None",
-        "has_door_sensor": (row.sensor_type or "None") in ("NO", "NC"),
+        # a sensor counts only on doors where one is really wired (Sensor Installed)
+        "has_door_sensor": bool(row.get("sensor_installed")) and (row.sensor_type or "None") in ("NO", "NC"),
         "allow_hold_close": bool(row.allow_hold_close),
         # Door Alert Setting watches this door (default on)
         "send_door_alerts": bool(row.send_door_alerts) if row.get("send_door_alerts") is not None else True,
