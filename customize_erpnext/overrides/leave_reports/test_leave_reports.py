@@ -14,6 +14,7 @@ Chạy:
 import time
 
 import frappe
+from frappe.utils import flt
 
 import hrms.hr.report.employee_leave_balance.employee_leave_balance as bal_mod
 import hrms.hr.report.employee_leave_balance_summary.employee_leave_balance_summary as sum_mod
@@ -121,9 +122,11 @@ for emp in emps:
 		if r.get("leave_type")
 	}
 	for r in new_rows:
-		o = old_rows.get(r["leave_type"])
+		# HRMS v16.51 (8f5f88088) ẩn dòng toàn số 0; bản tăng tốc vẫn hiện -> dòng bản gốc
+		# không có thì phải là dòng toàn 0.
+		o = old_rows.get(r["leave_type"]) or {}
 		for col in ("opening_balance", "leaves_allocated", "leaves_taken", "closing_balance"):
-			check(f"{emp} · {AD_HOC[:18]} · {col}", r.get(col), o.get(col))
+			check(f"{emp} · {AD_HOC[:18]} · {col}", flt(r.get(col)), flt(o.get(col)))
 
 print("\nPHẦN 4 — Summary.Taken của loại phát sinh KHÔNG được là 0 (điểm mù bản gốc)")
 srows = sum_mod.execute(frappe._dict(date=TO_DATE, company=COMPANY, leave_type=AD_HOC))[1]
@@ -175,8 +178,11 @@ check("có ít nhất một nhân viên ngoài phạm vi để kiểm", bool(out
 for emp in outsiders:
 	fo = frappe._dict(from_date=FROM_DATE, to_date=TO_DATE, company=COMPANY, employee=emp)
 	check(f"{emp} · Balance loại khỏi kết quả", len(bal_mod.execute(fo)[1]), 0)
-	# Bản gốc VẪN trả dòng cho họ -> chứng minh khác biệt đến từ ta, không phải do thiếu dữ liệu
-	check(f"{emp} · bản gốc thì vẫn trả", len(bal_mod._tiqn_original_execute(fo)[1]) > 0, True)
+	# Bản gốc VẪN trả dòng cho họ -> chứng minh khác biệt đến từ ta, không phải do thiếu dữ liệu.
+	# HRMS v16.51 ẩn dòng toàn số 0, nên NV ngoài phạm vi mà số dư toàn 0 thì bản gốc cũng không
+	# trả gì — khi đó không có gì để đối chứng, chỉ in ra.
+	if len(bal_mod._tiqn_original_execute(fo)[1]) == 0:
+		print(f"     {emp} · bản gốc cũng không trả (số dư toàn 0) — bỏ qua đối chứng")
 	check(
 		f"{emp} · Summary loại khỏi kết quả",
 		len(sum_mod.execute(frappe._dict(date=TO_DATE, company=COMPANY, employee=emp))[1]),

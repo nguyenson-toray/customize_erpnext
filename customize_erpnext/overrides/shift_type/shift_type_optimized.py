@@ -23,10 +23,6 @@ from collections import defaultdict
 from typing import Dict, List, Set, Optional, Tuple
 import time
 
-# Holiday List gán ở cấp Company qua doctype Holiday List Assignment (HRMS v16.15+),
-# KHÔNG dùng field cũ Employee.holiday_list nữa — xem chú thích ở phần nạp holiday.
-from hrms.utils.holiday_list import get_assigned_holiday_lists_to_employee_and_company
-
 from customize_erpnext.customize_erpnext.doctype.attendance_calculation_setting.attendance_calculation_setting import (
 	get_attendance_settings,
 	get_force_update_hours,
@@ -342,6 +338,39 @@ def resolve_attendance_status(
 # OPTIMIZED DATA PRELOADING
 # ============================================================================
 
+def _holiday_ranges_by_employee(emp_company: Dict[str, str], from_date, to_date) -> Dict[str, list]:
+	"""`{emp: [{holiday_list, from_date, to_date}]}` — Holiday List có hiệu lực ở từng ngày của kỳ.
+
+	Gán Holiday List qua doctype Holiday List Assignment (HRMS v16.15+): ưu tiên assignment của
+	nhân viên, ngày nào không có thì lấy của company. KHÔNG dùng field cũ Employee.holiday_list.
+
+	HRMS v16.20 (commit c20e8deda) xoá `get_assigned_holiday_lists_to_employee_and_company`, thay
+	bằng `get_holiday_list_ranges_for_employees`. Import đặt TRONG hàm: import lỗi ở đầu module
+	từng làm sập cả module này ⇒ ShiftType không được patch ⇒ cron hàng giờ chạy logic chấm
+	công GỐC của HRMS, và kéo theo mọi override nạp sau nó trong overrides/__init__.py.
+	"""
+	try:
+		from hrms.utils.holiday_list import get_holiday_list_ranges_for_employees
+	except ImportError:  # HRMS < v16.20 — giữ để rollback HRMS vẫn chạy được
+		from hrms.utils.holiday_list import (
+			fill_employee_holiday_list_date_gaps_with_company_holiday_list,
+			get_assigned_holiday_lists_to_employee_and_company,
+		)
+
+		start, end = getdate(from_date), getdate(to_date)
+		assigned = get_assigned_holiday_lists_to_employee_and_company(
+			list(emp_company) + list({c for c in emp_company.values() if c}), start, end
+		)
+		return {
+			emp: fill_employee_holiday_list_date_gaps_with_company_holiday_list(
+				assigned.get(emp, []), assigned.get(company, []), start, end
+			)
+			for emp, company in emp_company.items()
+		}
+
+	return get_holiday_list_ranges_for_employees(emp_company, from_date, to_date)
+
+
 def preload_reference_data(employee_list: List[str], from_date: str, to_date: str) -> Dict:
 	"""
 	Preload ALL reference data needed for processing in a single pass.
@@ -353,8 +382,7 @@ def preload_reference_data(employee_list: List[str], from_date: str, to_date: st
 			'shifts': {shift_name: {...details}},
 			'shift_assignments': {emp_id: [{...assignments}]},
 			'holidays': {holiday_list: set(dates)},
-			'company_holidays': {company: set(dates)},      # nguồn tra ngày nghỉ
-			'company_holiday_list': {company: [list names]},  # chỉ để chẩn đoán
+			'employee_holidays': {emp_id: set(dates)},      # nguồn tra ngày nghỉ
 			'existing_attendance': {(emp, date): attendance_name}
 		}
 	"""
@@ -373,7 +401,7 @@ def preload_reference_data(employee_list: List[str], from_date: str, to_date: st
 		filters={"name": ["in", employee_list]} if employee_list else {},
 		fields=[
 			"name", "employee_name", "status", "date_of_joining",
-			# Bỏ "holiday_list": Holiday List nay lấy ở cấp Company (mục 4 bên dưới)
+			# Bỏ "holiday_list": Holiday List nay lấy qua Holiday List Assignment (mục 4 bên dưới)
 			"relieving_date", "default_shift",
 			"department", "company", "gender",
 			# Carried into the bulk INSERT below: that INSERT bypasses the ORM, so
@@ -448,56 +476,64 @@ def preload_reference_data(employee_list: List[str], from_date: str, to_date: st
 		)
 	print(f"   ✓ Loaded {len(assignments)} shift assignments for {len(data['shift_assignments'])} employees")
 
-	# 4. Load holidays — Holiday List Assignment "Applicable For: Company"
+	# 4. Load holidays — Holiday List Assignment, theo từng NHÂN VIÊN
 	#
 	# KHÔNG dùng field cũ Employee.holiday_list: chỉ 377/1036 NV có set, nên với
 	# 659 NV còn lại is_holiday_cached() luôn trả False -> ngày lễ bị chấm Absent
 	# (thực tế 30/04, 01/05, 02/05/2026 đã bị Absent cho 700 người).
-	# HRMS v16.15+ cũng đã bỏ field đó, chuyển sang doctype Holiday List Assignment
-	# gán ở cấp Company.
 	#
-	# Dùng get_assigned_holiday_lists_to_employee_and_company() (API gốc của HRMS,
-	# cũng chính là API payroll dùng) thay vì get_assigned_holiday_list(as_on=from_date):
-	# cái sau chỉ trả MỘT list theo ngày đầu kỳ, nên kỳ vắt qua năm dùng nhầm list của
-	# năm cũ — kỳ 26/12/2025-25/01/2026 lấy list "2025", không thấy 01/01/2026 trong
-	# list "2026" => 848 NV bị chấm Absent đúng ngày Tết Dương lịch.
-	# Hàm này trả về từng khoảng hiệu lực đã clip theo kỳ, nên mỗi ngày tra đúng list
-	# của nó. Kết quả gộp thành MỘT set ngày nghỉ cho mỗi company.
-	print(f"   Loading holiday lists (company-level)...")
-	data['holidays'] = {}            # {holiday_list: set(dates)} — giữ cho tương thích
-	data['company_holiday_list'] = {}  # {company: [list names]} — chỉ để log/chẩn đoán
-	data['company_holidays'] = {}      # {company: set(dates)} — nguồn tra cứu chính
+	# Lấy theo KHOẢNG hiệu lực trong kỳ, không lấy MỘT list theo ngày đầu kỳ: kỳ
+	# 26/12/2025-25/01/2026 từng lấy list "2025", không thấy 01/01/2026 trong list "2026"
+	# => 848 NV bị chấm Absent đúng ngày Tết Dương lịch.
+	#
+	# Theo nhân viên (không theo company) cho khớp với Salary Slip của HRMS: HR gán
+	# Holiday List riêng cho một NV thì chấm công và lương vẫn cùng một danh sách ngày nghỉ.
+	# Hiện chỉ có assignment cấp Company nên mọi NV ra cùng một dãy khoảng — set ngày được
+	# dùng chung theo dãy khoảng, không nhân bản cho từng người.
+	print(f"   Loading holiday lists (Holiday List Assignment)...")
+	data['holidays'] = {}            # {holiday_list: set(dates)} — chỉ để log/chẩn đoán
+	data['employee_holidays'] = {}   # {emp_id: set(dates)} — nguồn tra cứu chính
 
-	companies = {emp.company for emp in emp_data if emp.company}
-	if companies:
-		hl_ranges = get_assigned_holiday_lists_to_employee_and_company(
-			list(companies), from_date, to_date
-		)
-		for company in companies:
-			holiday_dates = set()
-			for rng in hl_ranges.get(company, []):
-				rows = frappe.get_all(
-					"Holiday",
-					filters={
-						"parent": rng["holiday_list"],
-						# clip theo đúng khoảng hiệu lực của assignment, không lấy cả list
-						"holiday_date": ["between", [rng["from_date"], rng["to_date"]]]
-					},
-					fields=["parent", "holiday_date"]
-				)
-				for holiday in rows:
-					holiday_dates.add(holiday.holiday_date)
-					data['holidays'].setdefault(holiday.parent, set()).add(holiday.holiday_date)
+	emp_company = {emp.name: emp.company for emp in emp_data if emp.company}
+	ranges_by_emp = _holiday_ranges_by_employee(emp_company, from_date, to_date) if emp_company else {}
+	all_ranges = [rng for ranges in ranges_by_emp.values() for rng in ranges]
 
-			data['company_holidays'][company] = holiday_dates
-			data['company_holiday_list'][company] = [r["holiday_list"] for r in hl_ranges.get(company, [])]
+	dates_by_list = defaultdict(list)
+	if all_ranges:
+		# Một query cho cả kỳ thay vì một query cho mỗi khoảng; clip theo khoảng ở dưới.
+		for holiday in frappe.get_all(
+			"Holiday",
+			filters={
+				"parent": ["in", list({rng["holiday_list"] for rng in all_ranges})],
+				"holiday_date": ["between", [
+					min(getdate(rng["from_date"]) for rng in all_ranges),
+					max(getdate(rng["to_date"]) for rng in all_ranges),
+				]],
+			},
+			fields=["parent", "holiday_date"],
+		):
+			dates_by_list[holiday.parent].append(getdate(holiday.holiday_date))
 
-	print(f"   ✓ Loaded holidays for {len(data['company_holidays'])} company(ies): "
+	dates_by_ranges = {}  # {((list, from, to), ...): set(dates)}
+	for emp_id, ranges in ranges_by_emp.items():
+		key = tuple((rng["holiday_list"], getdate(rng["from_date"]), getdate(rng["to_date"])) for rng in ranges)
+		if key not in dates_by_ranges:
+			dates = set()
+			for holiday_list, range_from, range_to in key:
+				# clip theo đúng khoảng hiệu lực của assignment, không lấy cả list
+				in_range = {d for d in dates_by_list[holiday_list] if range_from <= d <= range_to}
+				data['holidays'].setdefault(holiday_list, set()).update(in_range)
+				dates |= in_range
+			dates_by_ranges[key] = dates
+		data['employee_holidays'][emp_id] = dates_by_ranges[key]
+
+	no_list = len(emp_data) - len(data['employee_holidays'])
+	print(f"   ✓ Loaded holidays for {len(data['employee_holidays'])} employees: "
 	      + ", ".join(
-			f"{c} -> {'+'.join(data['company_holiday_list'][c]) or 'none'} "
-			f"({len(data['company_holidays'][c])} days)"
-			for c in sorted(data['company_holidays'])
-		))
+			f"{'+'.join(hl for hl, _, _ in key) or 'none'} ({len(dates)} days)"
+			for key, dates in dates_by_ranges.items()
+		)
+	      + (f" — ⚠ {no_list} employee(s) without any Holiday List" if no_list else ""))
 
 	# 5. Load existing attendance (to avoid duplicates)
 	print(f"   Loading existing attendance...")
@@ -992,14 +1028,10 @@ def is_holiday_cached(
 	Returns:
 		bool: True if holiday, False otherwise
 	"""
-	emp_data = ref_data['employees'].get(employee)
-	if not emp_data or not emp_data.company:
-		return False
-
-	# Ngày nghỉ tra theo COMPANY (Holiday List Assignment "Applicable For: Company"),
+	# Ngày nghỉ tra theo Holiday List Assignment của nhân viên (thiếu thì của company),
 	# không theo field cũ trên Employee. Set này đã gộp mọi Holiday List có hiệu lực
 	# trong kỳ, mỗi list clip đúng khoảng của nó — nên kỳ vắt qua năm vẫn đúng.
-	return attendance_date in ref_data.get('company_holidays', {}).get(emp_data.company, set())
+	return attendance_date in ref_data.get('employee_holidays', {}).get(employee, ())
 
 
 def should_mark_attendance_cached(

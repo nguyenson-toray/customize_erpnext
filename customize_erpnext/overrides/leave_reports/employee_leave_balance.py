@@ -28,7 +28,7 @@ import frappe
 from frappe import _
 from frappe.utils import add_days, cint, flt, getdate
 
-from customize_erpnext.overrides.employee_scope import apply_scope_to_query
+from customize_erpnext.overrides.employee_scope import scope_filters
 from customize_erpnext.overrides.leave_reports.leave_report_core import (
 	LeaveBalanceEngine,
 	resolve_leave_types,
@@ -72,28 +72,27 @@ def custom_get_employees(filters: Filters) -> list[dict]:
 
 	Chép lại thay vì gọi rồi lọc sau: lọc sau vẫn kéo về cả nghìn dòng thừa rồi mới bỏ đi, và
 	`emp_names` truyền cho engine phải là danh sách ĐÃ lọc thì mới đỡ được khối lượng ledger.
-	Giữ nguyên kiểu query pypika không kiểm phân quyền của bản gốc — report này vốn chỉ mở cho
-	vai trò HR.
-	"""
-	Employee = frappe.qb.DocType("Employee")
-	query = frappe.qb.from_(Employee).select(
-		Employee.name,
-		Employee.employee_name,
-		Employee.department,
-	)
 
+	🔴 `frappe.get_list` (kiểm quyền + User Permission), KHÔNG `frappe.qb`: report có role
+	**Employee** nên user không phải HR mở được — bản qb cũ cho họ thấy số dư phép của MỌI nhân
+	viên (32 user, phát hiện khi upgrade hrms v16.51 ngày 17/10/2026; upstream sửa đúng chỗ này ở
+	commit be6125b8f "restrict report to permitted employees").
+	"""
+	conditions = []
 	for field in ["company", "department"]:
 		if filters.get(field):
-			query = query.where(getattr(Employee, field) == filters.get(field))
-
+			conditions.append([field, "=", filters.get(field)])
 	if filters.get("employee"):
-		query = query.where(Employee.name == filters.get("employee"))
-
+		conditions.append(["name", "=", filters.get("employee")])
 	if filters.get("employee_status"):
-		query = query.where(Employee.status == filters.get("employee_status"))
+		conditions.append(["status", "=", filters.get("employee_status")])
 
-	query = apply_scope_to_query(query, Employee)
-	return query.run(as_dict=True)
+	return frappe.get_list(
+		"Employee",
+		filters=conditions + scope_filters(),
+		fields=["name", "employee_name", "department"],
+		limit_page_length=0,
+	)
 
 
 def custom_get_data(filters: Filters) -> list:

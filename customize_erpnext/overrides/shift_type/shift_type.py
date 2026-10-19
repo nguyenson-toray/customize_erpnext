@@ -269,6 +269,12 @@ def custom_process_auto_attendance(self, employees=None, days=None):
 		employees: Optional list of employee IDs to process. If None, processes all active employees.
 		days: Optional list of dates to process. If None, uses process_attendance_after to last_sync_of_checkin range.
 	"""
+	# HRMS v16.51 thêm check_permission("write") vào hàm gốc: role Employee ĐỌC được Shift Type nên
+	# mọi nhân viên có tài khoản desk gọi thẳng được (run_doc_method) để chạy lại chấm công.
+	# Chỉ chặn lời gọi trực tiếp từ client; scheduler / bulk tool gọi nội bộ giữ nguyên.
+	if frappe.form_dict.get("cmd") == "run_doc_method" and frappe.form_dict.get("method") == "process_auto_attendance":
+		self.check_permission("write")
+
 	if (
 		not cint(self.enable_auto_attendance)
 		or not self.process_attendance_after

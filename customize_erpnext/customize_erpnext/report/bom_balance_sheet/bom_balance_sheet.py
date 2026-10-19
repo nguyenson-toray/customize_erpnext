@@ -348,15 +348,13 @@ def get_parent_qty_from_filters(filters, item_code):
 
 
 def get_default_warehouse():
-    default_warehouse = frappe.db.get_single_value("Stock Settings", "default_warehouse")
-    
-    if not default_warehouse:
-        # Fallback to a company's default warehouse if Stock Settings doesn't have one
-        company = frappe.defaults.get_user_default("Company")
-        if company:
-            default_warehouse = frappe.db.get_value("Company", company, "default_warehouse")
-    
-    return default_warehouse
+    # ERPNext v16.50+ chuyển kho mặc định từ Stock Settings sang Company (patch
+    # move_warehouse_defaults_to_company) và XOÁ field Stock Settings.default_warehouse —
+    # get_single_value trên field không còn giờ NÉM lỗi chứ không trả None.
+    company = frappe.defaults.get_user_default("Company") or frappe.db.get_single_value(
+        "Global Defaults", "default_company"
+    )
+    return frappe.db.get_value("Company", company, "default_warehouse") if company else None
 
 
 def get_item_attributes(item_code):

@@ -398,13 +398,16 @@ class CustomSalarySlip(SalarySlip):
 	# Chủ Nhật thôi — đưa cả ngày lễ vào sẽ loại 9 bản ghi Tết khỏi nhóm "đã chấm"
 	# rồi tính chúng thành vắng mặt lần nữa.
 
-	def calculate_lwp_ppl_and_absent_days_based_on_attendance(
-		self, holidays, daily_wages_fraction_for_half_day, consider_marked_attendance_on_holidays
-	):
+	def calculate_lwp_ppl_and_absent_days_based_on_attendance(self, holidays, *args):
+		# `*args` vì chữ ký đổi theo bản HRMS (truyền nguyên phần còn lại cho bản gốc):
+		#   < v16.50: (daily_wages_fraction_for_half_day, consider_marked_attendance_on_holidays)
+		#  >= v16.50: (half_day_holidays, daily_wages_fraction_for_half_day, consider_...)
+		# Bản mới tách ngày nghỉ NỬA ngày ra tham số riêng và `holidays` chỉ còn ngày nghỉ
+		# trọn ngày — nên ngày nửa ngày phải loại khỏi danh sách đầy đủ trước khi truyền.
+		half_day_holidays = set(args[0] or []) if len(args) == 3 else set()
 		return super().calculate_lwp_ppl_and_absent_days_based_on_attendance(
-			self.all_holidays_in_period(),
-			daily_wages_fraction_for_half_day,
-			consider_marked_attendance_on_holidays,
+			[d for d in self.all_holidays_in_period() if d not in half_day_holidays],
+			*args,
 		)
 
 	def get_half_absent_days(self, consider_marked_attendance_on_holidays, holidays):
