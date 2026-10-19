@@ -22416,3 +22416,18 @@ Option Labels,Nhãn hiển thị lựa chọn,
 "Only for Select fields. Text shown on the self-update page instead of the stored value. One option per line: value | label (e.g. 6-7 | Size 6-7 · dép thường 38-39 · chân 24.5-25 cm). Options not listed use the Vietnamese translation.","Chỉ cho field Select. Chữ hiện trên trang tự cập nhật thay cho giá trị lưu. Mỗi dòng 1 lựa chọn: giá trị | nhãn (vd 6-7 | Size 6-7 · dép thường 38-39 · chân 24.5-25 cm). Lựa chọn không ghi ở đây dùng bản dịch tiếng Việt.",
 Capitalize Each Word,Viết hoa chữ đầu mỗi từ,Employee Self Update Info Field
 Sentence Case,Viết hoa chữ đầu câu,Employee Self Update Info Field
+Devices and Security,Thiết bị & An ninh
+IT Tools,Công cụ IT
+Health Checkup,Khám sức khỏe
+Attendance Devices,Thiết bị chấm công
+TIQN Masters,Danh mục TIQN
+TIQN Employee,Nhân viên TIQN
+TIQN Reports,Báo cáo TIQN
+Employee Item Reissue Report,Báo cáo cấp phát lại vật dụng
+Layout Manager,Quản lý sơ đồ
+Self Update Info Records,Hồ sơ tự cập nhật
+Self Update Info Setting,Cài đặt tự cập nhật thông tin
+Mindmap,Sơ đồ tư duy
+Biometric Sync,Đồng bộ máy chấm công
+Health Check Up Management,Quản lý khám sức khỏe
+Attendance Machine Setting,Cài đặt máy chấm công

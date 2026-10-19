@@ -185,23 +185,19 @@ fixtures = [
     #     "doctype": "Assignment Rule",
     #     "filters": []
     # },
-    # Workspace Sidebar customizations (v16+)
+    # Link TIQN trong sidebar của HRMS / ERPNext (frappe v16.50+). Đây là lớp SITE ("Edit Sidebar →
+    # For everyone") chồng lên sidebar của app — app chỉ được ship sidebar cho module của chính nó.
+    # ⚠ Fixture thắng mỗi lần migrate: sửa 6 sidebar này trên UI thì phải export lại, nếu không mất.
+    # Sidebar của module TIQN không nằm ở đây — chúng là file `<module>/sidebar/`, sinh bằng
+    # scripts/build_navigation.py. Hệ `Workspace Sidebar` cũ không còn được nạp (đã bỏ fixture).
     {
-        "doctype": "Workspace Sidebar",
+        "doctype": "Custom Sidebar",
         "filters": [
-            ["name", "in", [
-                # "HR Setup",  # HRMS sidebar with custom reports
-                # Bản HRMS thiếu chính link "Attendance" (chỉ có trong card ở thân
-                # workspace) nên bộ chọn sidebar không bao giờ về được đây — xem
-                # sidebar_resolution_fix.bundle.js
-                "Shift & Attendance",
-                "Stock",  # Stock sidebar with custom reports
-                "Uniform Control",  # Uniform Control module sidebar
-
-                # "TIQN App",  # TIQN App sidebar
-                # "Health Check Up"
-            ]]
-        ] 
+            ["user", "in", ["", None]],
+            ["module", "in", [
+                "HR Setup", "Tenure", "Shift and Attendance", "Payroll", "Stock", "Manufacturing",
+            ]],
+        ]
     },
     {
         "doctype": "Workspace",
@@ -287,15 +283,6 @@ scheduler_events = {
             # Disable Daily Timesheet
             # "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.send_sunday_overtime_alert_scheduled"
         ],
-        # Daily Vehicle Trips - Create pickup at 05:30 AM every day
-        # "30 5 * * *": [
-        #     "customize_erpnext.customize_erpnext.doctype.vehicle_trip.daily_trips.create_daily_trips_pickup"
-        # ],
-         # Daily Vehicle Trips - Create dropoff at 16:45 AM every day
-        # "45 16 * * *": [
-        #     "customize_erpnext.customize_erpnext.doctype.vehicle_trip.daily_trips.create_daily_trips_dropoff"
-        # ],
-
         # Fixed vehicle trips (vehicle_management/API_CONTRACT.md mục 8) - the driver opens
         # the Mini App and the trip is already there.
         # Frappe evaluates cron with now_datetime(), i.e. the SITE timezone, not UTC:
@@ -561,14 +548,18 @@ app_include_js = [
     # Ẩn field bị chặn theo perm_level khỏi dialog "Export Data" (UI only, server vẫn chặn thật)
     "/assets/customize_erpnext/js/hide_restricted_export_fields.js",
     "csv_bom_fix.bundle.js",
-    # Sidebar workspace v16: chọn sidebar tất định cho mọi route
-    # (search/URL trực tiếp vốn ra sidebar khác với khi click từ workspace)
-    "sidebar_resolution_fix.bundle.js"
 ]
 
-# Đánh dấu sidebar nào là bản auto-generate từ Module Def — boot gốc trộn chung
-# với Workspace Sidebar thật nên client không phân biệt được (xem boot.py)
-extend_bootinfo = "customize_erpnext.overrides.workspace_sidebar.boot.mark_auto_generated_sidebars"
+# Điều hướng (frappe v16.50+): module "Customize Erpnext" chứa hầu hết DocType/report của TIQN nhưng
+# KHÔNG có sidebar riêng — mỗi trang mở trong sidebar nào liệt kê nó (mẫu `{"HR": ["HR Setup"]}`
+# của hrms). Thứ tự = ai thắng khi 2 sidebar cùng liệt kê; trang không ai liệt kê thì về cái đầu
+# tiên user thấy được. Xem .claude/plans/customize_erpnext_navigation_reorg.md
+code_only_modules = {
+    "Customize Erpnext": [
+        "Overtime Registration", "New Joiners", "Shoe Rack", "Network", "IT Tools",
+        "HR Setup", "Shift and Attendance", "Tenure", "Payroll", "Stock", "Manufacturing",
+    ],
+}
 
 # Include CSS and JS files in web pages (including web forms)
 web_include_css = [

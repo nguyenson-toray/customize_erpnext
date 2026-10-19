@@ -1,17 +1,17 @@
 {
  "app": "customize_erpnext",
  "bg_color": "blue",
- "creation": "2026-09-16 16:00:00.000000",
+ "creation": "2026-10-17 12:00:00.000000",
  "docstatus": 0,
  "doctype": "Desktop Icon",
  "hidden": 0,
  "icon_type": "Link",
- "idx": 0,
+ "idx": 4,
  "label": "Vehicle Management",
- "link": "/app/vehicle-dispatch",
+ "link": "/desk/vehicle-management/vehicle-dispatch",
  "link_type": "External",
  "logo_url": "/assets/customize_erpnext/images/vehicle_dispatch.svg",
- "modified": "2026-09-16 16:00:00.000000",
+ "modified": "2026-10-17 12:00:00.000000",
  "modified_by": "Administrator",
  "name": "Vehicle Management",
  "owner": "Administrator",
@@ -24,6 +24,5 @@
    "role": "System Manager"
   }
  ],
- "sidebar": "Vehicle Management",
  "standard": 1
 }

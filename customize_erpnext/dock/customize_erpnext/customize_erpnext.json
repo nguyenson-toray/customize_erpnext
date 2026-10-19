@@ -1,0 +1,87 @@
+{
+ "app": "customize_erpnext",
+ "creation": "2026-10-17 12:00:00.000000",
+ "docstatus": 0,
+ "doctype": "Dock",
+ "idx": 0,
+ "items": [
+  {
+   "added": 0,
+   "hidden": 0,
+   "icon": "clock",
+   "idx": 1,
+   "link_to": "Overtime",
+   "link_type": "Sidebar",
+   "title": "Overtime"
+  },
+  {
+   "added": 0,
+   "hidden": 0,
+   "icon": "user-plus",
+   "idx": 2,
+   "link_to": "New Joiners",
+   "link_type": "Sidebar",
+   "title": "New Joiners"
+  },
+  {
+   "added": 0,
+   "hidden": 0,
+   "icon": "images",
+   "idx": 3,
+   "link_to": "Employee Photos",
+   "link_type": "Sidebar",
+   "title": "Employee Photos"
+  },
+  {
+   "added": 0,
+   "hidden": 0,
+   "icon": "shield",
+   "idx": 4,
+   "link_to": "Devices and Security",
+   "link_type": "Sidebar",
+   "title": "Devices and Security"
+  },
+  {
+   "added": 0,
+   "hidden": 0,
+   "icon": "car",
+   "idx": 5,
+   "link_to": "Vehicle Management",
+   "link_type": "Sidebar",
+   "title": "Vehicle Management"
+  },
+  {
+   "added": 0,
+   "hidden": 0,
+   "icon": "stethoscope",
+   "idx": 6,
+   "link_to": "Health Checkup",
+   "link_type": "Sidebar",
+   "title": "Health Checkup"
+  },
+  {
+   "added": 0,
+   "hidden": 0,
+   "icon": "layout-grid",
+   "idx": 7,
+   "link_to": "Shoe Rack Management",
+   "link_type": "Sidebar",
+   "title": "Shoe Rack Management"
+  },
+  {
+   "added": 0,
+   "hidden": 0,
+   "icon": "wrench",
+   "idx": 8,
+   "link_to": "IT Tools",
+   "link_type": "Sidebar",
+   "title": "IT Tools"
+  }
+ ],
+ "modified": "2026-10-17 12:00:00.000000",
+ "modified_by": "Administrator",
+ "name": "customize_erpnext",
+ "owner": "Administrator",
+ "standard": 1,
+ "user": ""
+}

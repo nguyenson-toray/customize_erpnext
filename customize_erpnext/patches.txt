@@ -22,6 +22,9 @@ customize_erpnext.patches.rename_fixed_trip_template_to_schedule
 # (Link) - the role must exist before the model sync. Also creates `Portal Approver`.
 customize_erpnext.patches.create_employee_portal_roles
 
+# Điều hướng frappe v16.50+: dọn shell/workspace/icon cũ + xoá 6 DocType không dùng.
+# PHẢI ở pre_model_sync (trước khi nạp file sidebar mới) — xem docstring.
+customize_erpnext.patches.reorganize_navigation
 [post_model_sync]
 customize_erpnext.patches.migrate_attendance_machine_to_setting
 customize_erpnext.patches.split_shirt_tracking

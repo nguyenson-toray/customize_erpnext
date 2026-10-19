@@ -4,3 +4,8 @@ Network
 Uniform Control
 Vehicle Management
 Employee Portal
+Overtime Registration
+New Joiners
+Employee Photos
+Shoe Rack
+IT Tools
