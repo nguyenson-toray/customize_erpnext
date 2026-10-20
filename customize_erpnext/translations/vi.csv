@@ -22441,3 +22441,115 @@ Unlocked for {0}s from ERP,Mở khoá {0} giây từ ERP
 Door is open — no need to unlock,Cửa đang mở — không cần mở khoá
 "The lock releases for {0} seconds, then locks again. The command is logged under your name.","Khoá nhả chốt {0} giây rồi tự khoá lại. Lệnh được ghi lại dưới tên bạn."
 Last reading: {0} · {1},Lần đọc cuối: {0} · {1}
+TIQN Quiz,Bài kiểm tra
+Quiz Link,Link bài kiểm tra
+All Active Employees,Tất cả nhân viên đang làm việc
+"Any active employee can take this quiz. When off, only the employees listed in the Employees tab can.","Mọi nhân viên đang làm việc đều được làm bài. Khi tắt, chỉ nhân viên có trong tab Nhân viên mới được làm."
+Verify by Birth Day,Xác minh bằng ngày sinh
+Employees confirm who they are with the 2 digits of their birth day (or the Bypass Code). Untick: they just pick their name and start.,Nhân viên xác minh bằng 2 số ngày sinh (hoặc Mã bỏ qua xác thực ngày sinh). Bỏ chọn: chỉ cần chọn tên là bắt đầu làm bài.
+"Optional, 2 digits. Employees whose birth day is missing or wrong can enter it instead. Leave empty to accept the birth day only.","Không bắt buộc, 2 chữ số. Nhân viên thiếu hoặc sai ngày sinh có thể nhập mã này thay thế. Để trống thì chỉ chấp nhận ngày sinh."
+Time Limit (Minutes),Thời gian làm bài (phút)
+0 = no limit,0 = không giới hạn
+0 = unlimited,0 = không giới hạn
+Show After Submit,Hiển thị sau khi nộp
+Score only,Chỉ điểm
+Score + correct answers,Điểm + đáp án đúng
+Nothing,Không hiển thị
+Pass Percentage,Tỷ lệ đạt (%)
+Shuffle Questions,Xáo trộn câu hỏi
+Shuffle Options,Xáo trộn lựa chọn
+"Shown on the first screen, before the employee starts.","Hiện ở màn hình đầu tiên, trước khi nhân viên bắt đầu làm bài."
+Questions,Câu hỏi
+Total Points,Tổng điểm
+Results,Kết quả
+TIQN Quiz Question,Câu hỏi bài kiểm tra
+"Format freely: bold, colours, lists, tables, pasted images.","Định dạng tự do: in đậm, màu chữ, danh sách, bảng, dán ảnh."
+"Set automatically: 1 correct option = Single choice, 2 or more = Multiple choice.","Tự động: 1 lựa chọn đúng = Một đáp án, từ 2 trở lên = Nhiều đáp án."
+Single choice,Một đáp án
+Multiple choice,Nhiều đáp án
+Points,Điểm
+Correct,Đáp án đúng
+Filled from the Correct ticks below.,Tự điền theo các ô đánh dấu đúng bên dưới.
+At least 2 options. Tick the correct one(s) — more than one tick makes it a Multiple choice question.,Ít nhất 2 lựa chọn. Đánh dấu (các) lựa chọn đúng — đánh dấu từ 2 ô trở lên thì thành câu Nhiều đáp án.
+Option A,Lựa chọn A
+A is correct,A đúng
+Option B,Lựa chọn B
+B is correct,B đúng
+Option C,Lựa chọn C
+C is correct,C đúng
+Option D,Lựa chọn D
+D is correct,D đúng
+Option E,Lựa chọn E
+E is correct,E đúng
+Option F,Lựa chọn F
+F is correct,F đúng
+Shown with the correct answer when Show After Submit = Score + correct answers.,Hiện kèm đáp án đúng khi Hiển thị sau khi nộp = Điểm + đáp án đúng.
+TIQN Quiz Employee,Nhân viên làm bài kiểm tra
+TIQN Quiz Response,Bài làm
+Quiz Title,Tên bài kiểm tra
+Attempt No,Lần làm
+Deadline,Hạn chót
+Submitted At,Thời điểm nộp
+Duration (Seconds),Thời gian làm (giây)
+Answers,Câu trả lời
+Technical,Kỹ thuật
+Question Order,Thứ tự câu hỏi
+Saved Answers,Câu trả lời đã lưu
+TIQN Quiz Answer,Câu trả lời bài kiểm tra
+Answer,Câu trả lời
+Correct Answer,Đáp án đúng
+Max Points,Điểm tối đa
+Selected Options,Lựa chọn đã chọn
+TIQN Quiz Result,Kết quả bài kiểm tra
+Employee Quiz,Bài kiểm tra nhân viên
+Quiz Responses,Bài làm
+Quiz Result,Kết quả bài kiểm tra
+Open Quiz,Mở bài kiểm tra
+Close Quiz,Đóng bài kiểm tra
+Result Report,Báo cáo kết quả
+Result Report (Detail),Báo cáo kết quả (chi tiết)
+Click to enlarge,Bấm để phóng to
+Download QR,Tải mã QR
+All Active Employees is ticked: every active employee can take this quiz and this list is not used.,"Đã chọn Tất cả nhân viên đang làm việc: mọi nhân viên đang làm việc đều được làm bài, danh sách này không được dùng."
+Paste Codes,Dán mã nhân viên
+"Employees have already submitted this quiz: questions, points and correct answers are locked. Use Duplicate to make a new version.","Đã có nhân viên nộp bài: câu hỏi, điểm và đáp án đúng đã bị khoá. Dùng Nhân bản (Duplicate) để tạo phiên bản mới."
+The quiz is not open yet.,Bài kiểm tra chưa mở.
+"{0} matching active employee(s), {1} not in the list yet","{0} nhân viên đang làm việc khớp bộ lọc, {1} người chưa có trong danh sách"
+Adds active employees that match all filters. Employees already in the list are skipped.,Thêm nhân viên đang làm việc khớp mọi bộ lọc. Nhân viên đã có trong danh sách sẽ được bỏ qua.
+Joined From,Vào làm từ ngày
+Joined To,Vào làm đến ngày
+{0} employee(s) added. Save the quiz to keep them.,Đã thêm {0} nhân viên. Lưu bài kiểm tra để giữ thay đổi.
+Employee Codes,Mã nhân viên
+One code per line (copy a column from Excel). TIQN-0148 or just 148.,Mỗi dòng một mã (copy một cột từ Excel). TIQN-0148 hoặc chỉ 148.
+{0} already in the list,{0} người đã có trong danh sách
+Not found: {0},Không tìm thấy: {0}
+Not active: {0},Không còn làm việc: {0}
+Eligible,Được làm bài
+Pass Rate,Tỷ lệ đạt
+Answered,Đã trả lời
+Pick a Quiz to see the answer of every question.,Chọn một bài kiểm tra để xem câu trả lời từng câu.
+One answer + points column per question (needs a Quiz).,Mỗi câu hỏi một cột câu trả lời + một cột điểm (cần chọn bài kiểm tra).
+Counted Attempt Only,Chỉ lượt được tính
+Only each employee's latest submitted attempt (the one that counts).,Chỉ lấy lượt nộp sau cùng của mỗi nhân viên (lượt được tính điểm).
+Include Not Started,Gồm cả người chưa làm
+Also list employees of this quiz who have not started yet.,Liệt kê thêm nhân viên của bài này chưa làm bài.
+"Bypass Code must be exactly 2 digits, or empty.",Mã bỏ qua xác thực ngày sinh phải đúng 2 chữ số hoặc để trống.
+Time Limit and Max Attempts cannot be negative.,Thời gian làm bài và Số lần thử tối đa không được âm.
+"This quiz already has submitted attempts, so its questions and answers cannot change (other settings and the employee list still can). Use Duplicate to make a new version.",Bài kiểm tra đã có bài nộp nên không được sửa câu hỏi và đáp án (các cài đặt khác và danh sách nhân viên vẫn sửa được). Dùng Nhân bản (Duplicate) để tạo phiên bản mới.
+Add at least one question before opening the quiz.,Thêm ít nhất một câu hỏi trước khi mở bài kiểm tra.
+"Add employees in the Employees tab, or tick All Active Employees, before opening the quiz.","Thêm nhân viên ở tab Nhân viên, hoặc chọn Tất cả nhân viên đang làm việc, trước khi mở bài kiểm tra."
+Question {0},Câu {0}
+Questions without a correct answer yet: {0}. The quiz cannot be opened until they have one.,Các câu chưa có đáp án đúng: {0}. Chưa thể mở bài kiểm tra cho tới khi đủ đáp án.
+{0}: enter the question.,{0}: nhập nội dung câu hỏi.
+{0}: Points cannot be negative.,{0}: Điểm không được âm.
+{0}: option {1} is ticked as correct but has no text.,{0}: lựa chọn {1} được đánh dấu đúng nhưng chưa có nội dung.
+{0}: enter at least 2 options.,{0}: nhập ít nhất 2 lựa chọn.
+Employee {0} is listed twice.,Nhân viên {0} bị trùng trong danh sách.
+{0}: tick Correct under the right option(s).,{0}: đánh dấu đúng dưới (các) lựa chọn đúng.
+Not Passed,Không đạt
+Attempt,Lần làm
+Completion Time,Giờ nộp
+Duration (mm:ss),Thời gian làm (phút:giây)
+Completed Attempts,Số lượt đã nộp
+Average Score,Điểm trung bình
+Points - Q{0},Điểm - Câu {0}

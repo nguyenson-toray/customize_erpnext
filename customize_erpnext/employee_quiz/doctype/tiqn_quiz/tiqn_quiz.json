@@ -1,0 +1,318 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "QUIZ-.YYYY.-.###",
+ "creation": "2026-10-20 10:00:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "settings_tab",
+  "title",
+  "column_break_1",
+  "status",
+  "column_break_tvjb",
+  "access_section",
+  "quiz_link",
+  "quiz_qr",
+  "column_break_2",
+  "all_employees",
+  "slug",
+  "column_break_sefi",
+  "verify_by_dob",
+  "column_break_kxzn",
+  "bypass_code",
+  "rules_section",
+  "time_limit_minutes",
+  "max_attempts",
+  "column_break_3",
+  "show_result",
+  "column_break_kmfu",
+  "pass_percentage",
+  "column_break_gvhg",
+  "shuffle_questions",
+  "shuffle_options",
+  "instructions_section",
+  "description",
+  "summary_section",
+  "question_count",
+  "total_points",
+  "column_break_4",
+  "questions_tab",
+  "questions",
+  "employees_tab",
+  "employees_help",
+  "employees",
+  "results_tab",
+  "results_html"
+ ],
+ "fields": [
+  {
+   "fieldname": "settings_tab",
+   "fieldtype": "Tab Break",
+   "label": "Settings"
+  },
+  {
+   "bold": 1,
+   "fieldname": "title",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Title",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Draft",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "no_copy": 1,
+   "options": "Draft\nOpen\nClosed",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_tvjb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "access_section",
+   "fieldtype": "Section Break",
+   "label": "Access"
+  },
+  {
+   "fieldname": "quiz_link",
+   "fieldtype": "Data",
+   "label": "Quiz Link",
+   "no_copy": 1,
+   "options": "URL",
+   "read_only": 1
+  },
+  {
+   "fieldname": "quiz_qr",
+   "fieldtype": "HTML",
+   "label": "Quiz QR"
+  },
+  {
+   "fieldname": "column_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "description": "Any active employee can take this quiz. When off, only the employees listed in the Employees tab can.",
+   "fieldname": "all_employees",
+   "fieldtype": "Check",
+   "label": "All Active Employees"
+  },
+  {
+   "fieldname": "slug",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Slug",
+   "no_copy": 1,
+   "read_only": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "column_break_sefi",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "description": "Employees confirm who they are with the 2 digits of their birth day (or the Bypass Code). Untick: they just pick their name and start.",
+   "fieldname": "verify_by_dob",
+   "fieldtype": "Check",
+   "label": "Verify by Birth Day"
+  },
+  {
+   "fieldname": "column_break_kxzn",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:doc.verify_by_dob",
+   "description": "Optional, 2 digits. Employees whose birth day is missing or wrong can enter it instead. Leave empty to accept the birth day only.",
+   "fieldname": "bypass_code",
+   "fieldtype": "Data",
+   "label": "Bypass Code",
+   "length": 2,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "rules_section",
+   "fieldtype": "Section Break",
+   "label": "Rules"
+  },
+  {
+   "default": "10",
+   "description": "0 = no limit",
+   "fieldname": "time_limit_minutes",
+   "fieldtype": "Int",
+   "label": "Time Limit (Minutes)"
+  },
+  {
+   "default": "1",
+   "description": "0 = unlimited",
+   "fieldname": "max_attempts",
+   "fieldtype": "Int",
+   "label": "Max Attempts"
+  },
+  {
+   "fieldname": "column_break_3",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Score + correct answers",
+   "fieldname": "show_result",
+   "fieldtype": "Select",
+   "label": "Show After Submit",
+   "options": "Score only\nScore + correct answers\nNothing"
+  },
+  {
+   "fieldname": "column_break_kmfu",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "80",
+   "fieldname": "pass_percentage",
+   "fieldtype": "Percent",
+   "in_list_view": 1,
+   "label": "Pass Percentage"
+  },
+  {
+   "fieldname": "column_break_gvhg",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "shuffle_questions",
+   "fieldtype": "Check",
+   "label": "Shuffle Questions"
+  },
+  {
+   "default": "0",
+   "fieldname": "shuffle_options",
+   "fieldtype": "Check",
+   "label": "Shuffle Options"
+  },
+  {
+   "fieldname": "instructions_section",
+   "fieldtype": "Section Break",
+   "label": "Instructions"
+  },
+  {
+   "description": "Shown on the first screen, before the employee starts.",
+   "fieldname": "description",
+   "fieldtype": "Text Editor",
+   "label": "Description"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "summary_section",
+   "fieldtype": "Section Break",
+   "label": "Summary"
+  },
+  {
+   "fieldname": "question_count",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Questions",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "total_points",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Total Points",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_4",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "questions_tab",
+   "fieldtype": "Tab Break",
+   "label": "Questions"
+  },
+  {
+   "fieldname": "questions",
+   "fieldtype": "Table",
+   "label": "Questions",
+   "options": "TIQN Quiz Question"
+  },
+  {
+   "fieldname": "employees_tab",
+   "fieldtype": "Tab Break",
+   "label": "Employees"
+  },
+  {
+   "fieldname": "employees_help",
+   "fieldtype": "HTML",
+   "label": "Employees Help"
+  },
+  {
+   "fieldname": "employees",
+   "fieldtype": "Table",
+   "label": "Employees",
+   "no_copy": 1,
+   "options": "TIQN Quiz Employee"
+  },
+  {
+   "fieldname": "results_tab",
+   "fieldtype": "Tab Break",
+   "label": "Results"
+  },
+  {
+   "fieldname": "results_html",
+   "fieldtype": "HTML",
+   "label": "Results"
+  }
+ ],
+ "links": [],
+ "make_attachments_public": 1,
+ "modified": "2026-10-20 14:08:49.108475",
+ "modified_by": "Administrator",
+ "module": "Employee Quiz",
+ "name": "TIQN Quiz",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Quiz Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "search_fields": "title,status",
+ "show_title_field_in_link": 1,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "title",
+ "track_changes": 1
+}

@@ -198,7 +198,12 @@ function _render_self_update_qr(frm) {
 		<div style="display:flex;align-items:center;gap:20px;
 			background:#ffffff;border:1px solid #bfdbfe;border-radius:10px;
 			padding:14px 20px;margin-bottom:12px">
-			<div id="self_update_info_qr_canvas" style="flex-shrink:0"></div>
+			<div style="flex-shrink:0">
+				<div class="self-update-qr" title="${__("Click to enlarge")}"
+					style="width:200px;cursor:zoom-in;background:#fff"></div>
+				<a class="self-update-qr-download btn btn-xs btn-default mt-2 hidden"
+					download="employee-self-update-qr.svg">${__("Download QR")}</a>
+			</div>
 			<div>
 				<div style="font-weight:700;font-size:16px;color:#1e40af;margin-bottom:6px">
 					📋 ${__("Employee self-update link")}
@@ -212,33 +217,35 @@ function _render_self_update_qr(frm) {
 			</div>
 		</div>`);
 
-	_load_qr_lib(() => {
-		const el = document.getElementById("self_update_info_qr_canvas");
-		if (!el || !window.QRCode) return;
-		el.innerHTML = "";
-		new QRCode(el, {
-			text: url,
-			width: 200,
-			height: 200,
-			colorDark: "#000000",
-			colorLight: "#ffffff",
-			correctLevel: QRCode.CorrectLevel.M,
-		});
+	// SVG drawn on the server (api/qr_svg.py), same as TIQN Quiz: sharp at any
+	// size and no browser library / CDN to load.
+	frappe.call({
+		method: "customize_erpnext.api.qr_svg.get_qr_svg",
+		args: { text: url },
+		callback: ({ message: svg }) => {
+			const $qr = field.$wrapper.find(".self-update-qr").html(svg);
+			$qr.find("svg").css({ width: "100%", height: "auto", display: "block" });
+			$qr.on("click", () => _show_self_update_qr(url, svg));
+			field.$wrapper
+				.find(".self-update-qr-download")
+				.attr("href", "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg))
+				.removeClass("hidden");
+		},
 	});
 }
 
-function _load_qr_lib(cb) {
-	if (window.QRCode) return cb();
-	const s = document.createElement("script");
-	s.src = "/assets/customize_erpnext/js/qrcode.min.js";
-	s.onload = cb;
-	s.onerror = () => {
-		const s2 = document.createElement("script");
-		s2.src = "https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js";
-		s2.onload = cb;
-		document.head.appendChild(s2);
-	};
-	document.head.appendChild(s);
+// Enlarged QR for the projector (same as TIQN Quiz: click the QR on the form).
+function _show_self_update_qr(url, svg) {
+	const d = new frappe.ui.Dialog({ title: __("Employee self-update link"), size: "large" });
+	d.$body.html(`
+		<div style="text-align:center">
+			<div style="max-width:360px;margin:0 auto">${svg}</div>
+			<div style="font-size:15px;margin:8px 0 18px;word-break:break-all">
+				<a href="${url}" target="_blank">${url}</a>
+			</div>
+		</div>`);
+	d.$body.find("svg").css({ width: "100%", height: "auto" });
+	d.show();
 }
 
 function open_field_picker(frm) {

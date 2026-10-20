@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#17233F" />
+  <meta name="robots" content="noindex" />
+  <title>Bài kiểm tra</title>
+  <link rel="stylesheet" href="/quiz/style.css?v={{ asset_version }}">
+</head>
+
+<body>
+  <div id="app" class="wrap">
+    <div class="loading"><span class="spinner"></span></div>
+  </div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <div id="modal" class="modal hidden" role="dialog" aria-modal="true"></div>
+
+  <script>
+    window.csrf_token = {{ csrf_token | tojson }};
+    window.COMPANY = {{ company | tojson }};
+  </script>
+  <script src="/quiz/quiz.js?v={{ asset_version }}"></script>
+</body>
+
+</html>
