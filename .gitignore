@@ -6,3 +6,6 @@ tags
 node_modules
 __pycache__
 *.bak
+
+# Sổ nghỉ HR — chứa họ tên nhân viên, không đưa lên git
+customize_erpnext/overrides/leave_application/*.xlsx

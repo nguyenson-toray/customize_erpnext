@@ -335,24 +335,29 @@ def _insert_draft(a):
 # ---------------------------------------------------------------------------
 
 
-def verify(path: str | None = None):
+def verify(path: str | None = None, since: str | None = None):
 	"""Đối chiếu SỐ ĐƠN theo loại nghỉ giữa file và ERP.
 
 	Đối chiếu theo **số đơn**, không phải số ngày: số ngày do HRMS tự tính (`total_leave_days`)
 	có trừ ngày lễ/CN tuỳ `include_holiday` của từng loại, dựng lại công thức đó ở đây chỉ tạo
 	thêm một nguồn sự thật thứ hai để lệch nhau. Tổng số ngày vẫn in ra để tham khảo.
+
+	`since`: file chỉ chứa phần nối thêm (`convert_al_hr.convert(since=...)`) → chỉ đếm đơn
+	ERP có `from_date > since`, nếu không mọi loại nghỉ đều "lệch" bằng số đơn cũ.
 	"""
 	path = path or DEFAULT_FILE
 	rows = _read(path)
 	apps, skipped, _w = build_applications(rows, _abbr_map(path))
+	if since:
+		apps = [a for a in apps if a["from_date"] > getdate(since)]
 
 	file_count = collections.Counter(a["leave_type"] for a in apps)
 	erp = frappe.db.sql("""
 		SELECT leave_type, COUNT(*) AS n, SUM(total_leave_days) AS days
 		FROM `tabLeave Application`
-		WHERE docstatus < 2
+		WHERE docstatus < 2 AND (%(since)s IS NULL OR from_date > %(since)s)
 		GROUP BY leave_type
-	""", as_dict=True)
+	""", {"since": since}, as_dict=True)
 	erp_count = {r.leave_type: r.n for r in erp}
 	erp_days = {r.leave_type: float(r.days or 0) for r in erp}
 
@@ -376,17 +381,23 @@ def verify(path: str | None = None):
 # ---------------------------------------------------------------------------
 
 
-def submit_imported(batch_size: int = 200, limit: int = 0, to_date: str | None = None):
+def submit_imported(batch_size: int = 200, limit: int = 0, to_date: str | None = None,
+                    from_date: str | None = None):
 	"""Duyệt + submit các draft đã import.
 
 	🔴 Submit sinh Attendance và ghi Leave Ledger Entry — không quay lại được bằng rollback.
 	Sau bước này PHẢI chạy `bulk_update_attendance_optimized` cho toàn khoảng ngày.
+
+	`from_date`: chỉ lấy draft có `from_date > from_date` — lần import nối thêm phải truyền
+	mốc, nếu không sẽ ôm luôn draft cũ còn sót (vd `LA-2026-08-02445` từ lần 05/09).
 	"""
 	filters = {"docstatus": 0}
 	if to_date:
 		# Lọc theo `to_date` chứ không `from_date`: đơn vắt qua mốc sẽ sinh Attendance cho
 		# cả những ngày SAU mốc, không nằm trong phạm vi được duyệt.
 		filters["to_date"] = ["<=", to_date]
+	if from_date:
+		filters["from_date"] = [">", from_date]
 	names = [
 		d.name for d in frappe.get_all(
 			"Leave Application", filters=filters, fields=["name"],
