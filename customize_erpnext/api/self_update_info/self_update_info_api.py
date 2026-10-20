@@ -36,7 +36,7 @@ REMARKS_KEY = "__remarks"
 # Chữ ký vẽ trên trang www: PNG data URL; canvas ~600x200 nét đen thường < 30 KB.
 _SIGNATURE_PREFIX = "data:image/png;base64,"
 _SIGNATURE_MAX_LEN = 400_000
-# Câu cam kết — dùng chung cho trang www (qua get_field_config) và phiếu PDF/PNG.
+# Câu cam kết mặc định — HR sửa ở Setting.commitment_text; để trống thì dùng câu này.
 COMMITMENT_TEXT = (
 	"Tôi cam kết các thông tin đã khai ở trên là đúng sự thật và chịu trách nhiệm "
 	"về thông tin đã cung cấp."
@@ -189,6 +189,15 @@ def _require_hr():
 
 def _get_setting():
 	return frappe.get_cached_doc(SETTING_DT)
+
+
+def _commitment_html(setting=None):
+	"""Câu cam kết cho trang www + phiếu PDF/PNG: Setting.commitment_text (trống → câu mặc định),
+	đã escape HTML, mỗi lần xuống dòng thành <br> (giữ cả dòng trống ở đầu/cuối HR cố ý gõ)."""
+	text = (setting or _get_setting()).get("commitment_text") or ""
+	if not text.strip():
+		text = COMMITMENT_TEXT
+	return "<br>".join(frappe.utils.escape_html(line) for line in text.replace("\r\n", "\n").split("\n"))
 
 
 def _selected_rows(setting):
@@ -863,7 +872,7 @@ def get_field_config():
 	# Lock the form (and receipts) after the first submission. The secret
 	# unlock code (bypass_code_for_unlock) is NEVER sent to the client.
 	config["lock_after_submit"] = bool(setting.get("lock_after_submit"))
-	config["commitment_text"] = COMMITMENT_TEXT
+	config["commitment_html"] = _commitment_html(setting)
 	return config
 
 
@@ -1501,6 +1510,7 @@ def _build_submission_html(
 
 	# Cam kết + chữ ký (vẽ trên trang www). Chỉ nhận đúng data URL PNG đã kiểm ở save_form_data.
 	sign_block = ""
+	commitment = _commitment_html()
 	sig = doc.get("signature") or ""
 	if doc.get("commitment_confirmed") or sig:
 		signed = frappe.utils.format_datetime(doc.signed_on, "dd/MM/yyyy HH:mm") if doc.get("signed_on") else ""
@@ -1508,7 +1518,7 @@ def _build_submission_html(
 		sign_block = (
 			"<div class='commit'>"
 			+ ("<b>Cam kết:</b> " if doc.get("commitment_confirmed") else "")
-			+ frappe.utils.escape_html(COMMITMENT_TEXT)
+			+ commitment
 			+ "</div><div class='signbox'><div class='slabel'>Người khai ký tên</div>"
 			+ sig_img
 			+ f"<div class='sname'>{frappe.utils.escape_html(doc.employee_name or '')}</div>"
@@ -1518,7 +1528,7 @@ def _build_submission_html(
 	elif sign_on_paper:
 		sign_block = (
 			"<div class='commit'><b>Cam kết:</b> "
-			+ frappe.utils.escape_html(COMMITMENT_TEXT)
+			+ commitment
 			+ "</div><div class='signbox'><div class='slabel'>Người khai ký tên</div>"
 			+ "<div class='sigspace'></div>"
 			+ f"<div class='sname'>{frappe.utils.escape_html(doc.employee_name or '')}</div>"

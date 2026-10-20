@@ -331,7 +331,7 @@ def run():
 	d.commitment_confirmed = 1
 	d.signed_on = frappe.utils.now_datetime()
 	html = api._build_submission_html(d, json.loads(d.data_json or "{}"), config)
-	check("receipt: có câu cam kết + ảnh chữ ký", api.COMMITMENT_TEXT in html and "class='sig'" in html)
+	check("receipt: có câu cam kết + ảnh chữ ký", api._commitment_html() in html and "class='sig'" in html)
 	import re as _re
 	date_fields = [f["fieldname"] for sec in config["sections"] for f in sec["fields"] if f["fieldtype"] == "Date"]
 	saved_t = json.loads(d.data_json or "{}")
@@ -407,7 +407,7 @@ def run():
 	h_paper = api._build_submission_html(d_un, {}, got, sign_on_paper=True)
 	h_plain = api._build_submission_html(d_un, {}, got)
 	check("pdf split: chưa ký → vẫn có cam kết + ô ký tay",
-		api.COMMITMENT_TEXT in h_paper and "Người khai ký tên" in h_paper and "class='sigspace'" in h_paper)
+		api._commitment_html() in h_paper and "Người khai ký tên" in h_paper and "class='sigspace'" in h_paper)
 	check("generate pdf: chưa ký → không thêm khung ký", "Người khai ký tên" not in h_plain)
 	d_sg = frappe.get_doc(DT, names[0])
 	d_sg.signature, d_sg.commitment_confirmed = api._SIGNATURE_PREFIX + "AAAA", 1
@@ -428,7 +428,7 @@ def run():
 	)
 	check("hr receipt: đúng phiếu trang www (cùng config) khi đã có khung ký",
 		hr_cmp == www_cmp or ("class='sigspace'" in hr_cmp and "class='sigspace'" not in www_html))
-	check("hr receipt: có cam kết + khung ký", api.COMMITMENT_TEXT in hr_html and "Người khai ký tên" in hr_html)
+	check("hr receipt: có cam kết + khung ký", api._commitment_html() in hr_html and "Người khai ký tên" in hr_html)
 	if ticked:
 		live_sign = api._info_for_sign_config(cfg_live)
 		hr_live = api._hr_receipt_html(d_hr, live_sign)
@@ -443,7 +443,7 @@ def run():
 		and ">B<" not in html0)
 
 	cfg = api.get_field_config()
-	check("config: có commitment_text", bool(cfg.get("commitment_text")))
+	check("config: có commitment_html", bool(cfg.get("commitment_html")))
 	check("config: không còn purpose_text (thông báo đầu trang lấy từ index.html)", "purpose_text" not in cfg)
 	check("config: field mang cờ info_for_sign", all("info_for_sign" in f for s in cfg["sections"] for f in s["fields"]))
 
@@ -1043,6 +1043,49 @@ def test_document_checklist():
 			("class='checklist'" in hr) == bool((setting_val or "").strip()), setting_val)
 	else:
 		check("có phiếu để thử", False)
+
+	fail = 0
+	for ok, name, detail in results:
+		if not ok:
+			fail += 1
+		print(f"{'PASS' if ok else 'FAIL'}  {name}  {detail if not ok else ''}")
+	print(f"\n{len(results) - fail}/{len(results)} passed")
+	return {"passed": len(results) - fail, "failed": fail}
+
+
+def test_commitment_text():
+	"""Câu cam kết lấy từ Setting.commitment_text (trống → câu mặc định). Không ghi DB.
+	bench --site erp.tiqn.local execute customize_erpnext.api.self_update_info.test_self_update_sign.test_commitment_text"""
+	results = []
+
+	def check(name, ok, detail=""):
+		results.append((bool(ok), name, detail))
+
+	H = lambda v: api._commitment_html(frappe._dict(commitment_text=v))
+	check("helper: Setting trống → mặc định", H("  \n") == api.COMMITMENT_TEXT)
+	check("helper: giữ xuống dòng ở cuối", H("Tôi xin cam kết.\n\n") == "Tôi xin cam kết.<br><br>", H("Tôi xin cam kết.\n\n"))
+	check("helper: xuống dòng → <br>", H("Dòng 1\r\nDòng 2\nDòng 3") == "Dòng 1<br>Dòng 2<br>Dòng 3", H("Dòng 1\r\nDòng 2\nDòng 3"))
+
+	real_get = api._get_setting
+	fake = frappe.copy_doc(real_get())
+	fake.commitment_text = "Cam kết <b>thử</b> & đúng\nDòng hai"
+	api._get_setting = lambda: fake
+	try:
+		cfg = api.get_field_config()
+		want = "Cam kết &lt;b&gt;thử&lt;/b&gt; &amp; đúng<br>Dòng hai"
+		check("config: commitment_html lấy từ Setting, đã escape", cfg.get("commitment_html") == want, cfg.get("commitment_html"))
+		name = frappe.db.get_value(DT, {"signature": ["like", api._SIGNATURE_PREFIX + "%"]}, "name")
+		d = frappe.get_doc(DT, name)
+		html = api._build_submission_html(d, json.loads(d.data_json or "{}"), cfg)
+		check("phiếu: in câu của Setting, đã escape",
+			want in html and api.COMMITMENT_TEXT not in html)
+		d.signature, d.commitment_confirmed, d.signed_on = "", 0, None
+		paper = api._build_submission_html(d, {}, cfg, sign_on_paper=True)
+		check("phiếu ký tay: in câu của Setting", want in paper)
+	finally:
+		api._get_setting = real_get
+		frappe.db.rollback()
+	check("trả lại _get_setting thật", api._get_setting is real_get)
 
 	fail = 0
 	for ok, name, detail in results:

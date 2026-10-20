@@ -1625,6 +1625,14 @@ msgid "Document Checklist (PDF)"
 msgstr "Danh sách hồ sơ (PDF)"
 
 #. source: tiqn
+msgid "Commitment Text"
+msgstr "Câu cam kết"
+
+#. source: tiqn
+msgid "Commitment sentence shown next to the tick box above the signature on the www page, and printed on the PDF/PNG receipts. Line breaks are kept. Leave empty to use the default sentence."
+msgstr "Câu cam kết hiện cạnh ô tick phía trên chữ ký ở trang khai thông tin, và in trên phiếu PDF/PNG. Giữ nguyên xuống dòng. Để trống thì dùng câu mặc định."
+
+#. source: tiqn
 msgid "Document Owner"
 msgstr "Chủ tài liệu"
 
