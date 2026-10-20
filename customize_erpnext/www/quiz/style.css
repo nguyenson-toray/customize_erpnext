@@ -189,6 +189,16 @@ header.top .sub { color:#D6DDEE; font-size:15px; margin-top:6px; }
 }
 .opt input:focus-visible + .mark { outline:3px solid rgba(42,61,102,.35); outline-offset:2px; }
 
+/* ---------- signature (same pad as /employee-self-update-info) ---------- */
+.sign .commit-row { display:flex; gap:10px; align-items:flex-start; cursor:pointer; font-size:16px; line-height:1.5; margin:4px 0 12px; }
+.sign .commit-row input { width:22px; height:22px; flex:0 0 22px; margin-top:2px; accent-color:var(--indigo); }
+.sign-wrap { position:relative; border:1.5px dashed #9AA5B8; border-radius:12px; background:#fff; }
+#sign_pad { display:block; width:100%; height:180px; touch-action:none; cursor:crosshair; }
+.sign-placeholder { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#A3ADBD; font-size:16px; pointer-events:none; }
+.sign .link { margin-top:4px; }
+.sign.missing { border-color:var(--bad); box-shadow:0 0 0 2px var(--bad-tint); }
+.sign.missing .qerr { display:block; }
+
 /* ---------- result ---------- */
 .result { padding:22px 16px; }
 .ring {

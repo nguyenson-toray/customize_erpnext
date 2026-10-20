@@ -136,7 +136,8 @@ def test_validation(emps):
 	check("no options rejected (no free text)", throws(lambda: _quiz(emps, status="Draft", questions=free)))
 	bad = [dict(QUESTIONS[0], option_b="", option_c="")]
 	check("needs 2 options", throws(lambda: _quiz(emps, questions=bad, status="Draft")))
-	check("open needs employees", throws(lambda: _quiz([], status="Open")))
+	check("open with an empty list is allowed", _quiz([], status="Open").status == "Open")
+	check("empty list: nobody to pick", api.get_employees(_quiz([], status="Open").slug) == [])
 	no_key = [dict(QUESTIONS[0], is_correct_b=0)]
 	check("draft without answer key saves", _quiz(emps, questions=no_key, status="Draft").question_count == 1)
 	check("open without answer key blocked", throws(lambda: _quiz(emps, questions=no_key, status="Open")))
@@ -159,6 +160,9 @@ def test_guest_flow(emps):
 	check("bad slug", throws(lambda: api.get_quiz("nope")))
 	listed = {r["id"] for r in api.get_employees(quiz.slug)}
 	check("only listed employees", listed == {e1.name, e2.name})
+	row = [r for r in api.get_employees(quiz.slug) if r["id"] == e1.name][0]
+	check("picker shows the group, not the department",
+		row["group"] == (frappe.db.get_value("Employee", e1.name, "custom_group") or "") and "dept" not in row)
 
 	check("verify wrong day", api.verify(quiz.slug, e1.name, _wrong_day(e1))["valid"] is False)
 	check("verify dob day", api.verify(quiz.slug, e1.name, _day(e1))["valid"])
@@ -293,6 +297,15 @@ def test_admin(emps):
 	check("find employees", len(rows) >= 3 and rows[0].employee and "employee_name" in rows[0])
 	recent = picker.find_employees(date_from=frappe.utils.add_days(frappe.utils.today(), -14))
 	check("find employees by joining date", len(recent) <= len(rows))
+	active = frappe.db.count("Employee", {"status": "Active"})
+	check("no filter = every active employee", len(picker.find_employees()) == active)
+	dept = frappe.db.get_value("Employee", e1.name, "department")
+	if dept:
+		check("find employees by department", all(
+			frappe.db.get_value("Employee", r.employee, "department") == dept for r in picker.find_employees(department=dept)))
+	check("setting form may use the picker",
+		len(picker.resolve_codes(e1.name, doctype="Employee Self Update Info Setting")["rows"]) == 1)
+	check("other doctypes may not", throws(lambda: picker.find_employees(doctype="ToDo"), frappe.PermissionError))
 	old = quiz.slug
 	check("qr svg", admin.get_qr_svg(quiz.name).lstrip().startswith("<"))
 	check("preview works in draft", len(api.preview_start(quiz.slug)["questions"]) == 5)
@@ -334,6 +347,31 @@ def test_no_verification(emps):
 	check("no code: start", bool(api.start(quiz.slug, e1.name, "")["response"]))
 	check("no code: list still enforced", throws(lambda: api.start(quiz.slug, emps[1].name, "")))
 	check("with code: page told", api.get_quiz(_quiz(emps[:1]).slug)["require_code"] is True)
+
+
+def test_signature(emps):
+	e1, e2 = emps[0], emps[1]
+	sig = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+	plain = _quiz([e1, e2])
+	check("signature off by default", plain.require_signature == 0 and api.start(plain.slug, e1.name, "77")["signature"] is None)
+	quiz = _quiz([e1, e2], require_signature=1)
+	keys = _keys(quiz)
+	a = api.start(quiz.slug, e1.name, "77")
+	check("page told to show the pad", a["signature"] and a["signature"]["commitment"])
+	ans = json.dumps({keys["Single"]: "B"})
+	check("no tick -> refused", throws(lambda: api.submit(a["response"], ans, sig, 0)))
+	check("no signature -> refused", throws(lambda: api.submit(a["response"], ans, "", 1)))
+	check("not a PNG data URL -> refused", throws(lambda: api.submit(a["response"], ans, "data:text/html,<b>x", 1)))
+	api.submit(a["response"], ans, sig, 1)
+	r = frappe.get_doc(service.RESPONSE_DT, a["response"])
+	check("signature stored", r.signature == sig and r.commitment_confirmed == 1)
+	b = api.start(quiz.slug, e2.name, "77")
+	frappe.db.set_value(service.RESPONSE_DT, b["response"], "deadline", now_datetime())
+	check("time up: no signature needed", api.submit(b["response"], ans)["status"] == "Submitted")
+	frappe.db.set_value("TIQN Quiz", quiz.name, "commitment_text", "")
+	c = _quiz([e1], require_signature=1, commitment_text="")
+	cc = api.start(c.slug, e1.name, "77")
+	check("empty commitment: signature only", api.submit(cc["response"], ans, sig, 0)["status"] == "Submitted")
 
 
 def _detail(filters):
@@ -397,6 +435,7 @@ def run():
 		test_all_employees_latest(emps)
 		test_admin(emps)
 		test_reports(emps)
+		test_signature(emps)
 		test_no_verification(emps)
 		test_rich_question(emps)
 	finally:

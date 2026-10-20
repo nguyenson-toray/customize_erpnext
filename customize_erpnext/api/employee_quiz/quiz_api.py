@@ -64,10 +64,6 @@ def _response(name):
 	return frappe.get_doc("TIQN Quiz", resp.quiz), resp
 
 
-def _department_labels():
-	return dict(frappe.get_all("Department", fields=["name", "department_name"], as_list=True))
-
-
 @frappe.whitelist(allow_guest=True)
 def get_quiz(slug):
 	quiz = _quiz(slug)
@@ -89,20 +85,17 @@ def get_quiz(slug):
 
 @frappe.whitelist(allow_guest=True)
 def get_employees(slug):
-	"""[{id, name, dept}] — the page filters this list locally (accent-insensitive)."""
+	"""[{id, name, group}] — the page filters this list locally (accent-insensitive).
+	`group` = Employee.custom_group, shown under the name (user 21/10/2026: not the department)."""
 	quiz = _quiz(slug)
 	_require_open(quiz)
 	filters = {"status": "Active"}
 	if not quiz.all_employees:
 		filters["name"] = ["in", [r.employee for r in quiz.employees] or [""]]
 	rows = frappe.get_all(
-		"Employee", filters=filters, fields=["name", "employee_name", "department"], order_by="name asc"
+		"Employee", filters=filters, fields=["name", "employee_name", "custom_group"], order_by="name asc"
 	)
-	depts = _department_labels()
-	return [
-		{"id": r.name, "name": r.employee_name, "dept": depts.get(r.department) or r.department or ""}
-		for r in rows
-	]
+	return [{"id": r.name, "name": r.employee_name, "group": r.custom_group or ""} for r in rows]
 
 
 @frappe.whitelist(allow_guest=True)
@@ -138,14 +131,28 @@ def save_progress(response, answers):
 
 
 @frappe.whitelist(allow_guest=True)
-def submit(response, answers=None):
+def submit(response, answers=None, signature=None, commitment=None):
 	quiz, resp = _response(response)
+	signature = (signature or "").strip()
+	if signature and (
+		not signature.startswith(service.SIGNATURE_PREFIX) or len(signature) > service.SIGNATURE_MAX_LEN
+	):
+		frappe.throw("Chữ ký không hợp lệ. Vui lòng ký lại.")
 	if resp.status == "In Progress":
 		if service.past_deadline(resp):
 			# Too late: grade what was autosaved before the deadline.
 			service.finalize(quiz, resp, service.parse_answers(resp.draft_answers), expired=True)
 		else:
-			service.finalize(quiz, resp, service.parse_answers(answers))
+			# Require Signature: commitment tick + signature, except when the clock ran out
+			# (the page auto-submits; the answers must not be lost for a missing signature).
+			if cint(quiz.require_signature) and not service.time_is_up(resp):
+				if (quiz.commitment_text or "").strip() and not cint(commitment):
+					frappe.throw("Vui lòng tick ô cam kết.")
+				if not signature:
+					frappe.throw("Vui lòng ký tên vào ô chữ ký.")
+			service.finalize(
+				quiz, resp, service.parse_answers(answers), signature=signature, committed=cint(commitment)
+			)
 	# Already submitted (double tap / retry after a lost response): same result again.
 	return service.result_payload(quiz, resp)
 
@@ -161,6 +168,7 @@ def preview_start(slug):
 		"seconds_left": cint(quiz.time_limit_minutes) * 60 or None,
 		"questions": service.questions_payload(quiz, service.build_order(quiz)),
 		"answers": {},
+		"signature": service.signature_payload(quiz),
 	}
 
 

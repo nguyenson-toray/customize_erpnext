@@ -11,6 +11,10 @@ frappe.ui.form.on("Employee Self Update Info Setting", {
 		frm.add_custom_button(__("Help"), () => show_setting_help());
 
 		_render_self_update_qr(frm);
+		// Same tool as TIQN Quiz: paste a column of employee codes from Excel.
+		const grid = frm.fields_dict.employees.grid;
+		grid.clear_custom_buttons();
+		grid.add_custom_button(__("Paste Codes"), () => _esui_paste_codes(frm));
 		frm.get_field("fields_intro").$wrapper.html(
 			`<div class="text-muted small">${__(
 				"Pick any Employee field (including custom fields) to let employees review and update it."
@@ -393,6 +397,54 @@ function show_setting_help() {
 		fields: [{ fieldtype: "HTML", fieldname: "guide", options: `<div style="max-height:70vh;overflow:auto;padding-right:6px">${html}</div>` }],
 		primary_action_label: __("Đóng"),
 		primary_action() { d.hide(); },
+	});
+	d.show();
+}
+
+// Paste Codes (copied from TIQN Quiz): rows are added to the form, the user saves.
+function _esui_paste_codes(frm) {
+	const d = new frappe.ui.Dialog({
+		title: __("Paste Codes"),
+		fields: [
+			{
+				fieldname: "codes",
+				fieldtype: "Long Text",
+				label: __("Employee Codes"),
+				reqd: 1,
+				description: __("One code per line (copy a column from Excel). TIQN-0148 or just 148."),
+			},
+		],
+		primary_action_label: __("Add"),
+		primary_action({ codes }) {
+			frappe.call({
+				method: "customize_erpnext.api.employee_quiz.employee_picker.resolve_codes",
+				args: { codes, doctype: frm.doctype },
+				freeze: true,
+				callback: ({ message: r }) => {
+					d.hide();
+					const existing = new Set((frm.doc.employees || []).map((row) => row.employee));
+					let added = 0;
+					for (const e of r.rows) {
+						if (existing.has(e.employee)) continue;
+						frm.add_child("employees", {
+							employee: e.employee,
+							employee_name: e.employee_name,
+							group: e.custom_group,
+						});
+						existing.add(e.employee);
+						added++;
+					}
+					frm.refresh_field("employees");
+					if (added) frm.dirty();
+					const lines = [__("{0} employee(s) added. Save to apply.", [added])];
+					const already = r.rows.length - added;
+					if (already) lines.push(__("{0} already in the list", [already]));
+					if (r.not_found.length) lines.push(__("Not found: {0}", [r.not_found.join(", ")]));
+					if (r.not_active.length) lines.push(__("Not active: {0}", [r.not_active.join(", ")]));
+					frappe.msgprint(lines.join("<br>"), __("Paste Codes"));
+				},
+			});
+		},
 	});
 	d.show();
 }

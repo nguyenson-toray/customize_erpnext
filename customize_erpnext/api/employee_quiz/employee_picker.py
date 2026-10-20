@@ -1,7 +1,8 @@
 # Copyright (c) 2026, IT Team - TIQN and contributors
 # For license information, please see license.txt
 
-"""Employee lookups for the Add Employees / Paste Codes buttons on TIQN Quiz.
+"""Employee lookups for the Add Employees / Paste Codes buttons on TIQN Quiz and
+Employee Self Update Info Setting.
 
 They only return rows; the form adds them to its Employees table and the user
 saves once. Nothing here needs a saved quiz — a quiz that is Open with an empty
@@ -14,20 +15,22 @@ import frappe
 from frappe import _
 from frappe.utils import getdate
 
-MANAGER_ROLES = ("Quiz Manager", "System Manager")
+# Forms that use these buttons. The caller must be allowed to edit the form it adds
+# rows to (TIQN Quiz: Quiz Manager; the Setting: HR Manager).
+FORMS = ("TIQN Quiz", "Employee Self Update Info Setting")
 EMPLOYEE_PREFIX = "TIQN-"
 ROW_FIELDS = ["name as employee", "employee_name", "department", "custom_section", "custom_group", "date_of_joining"]
 
 
-def _require_manager():
-	if not set(frappe.get_roles()) & set(MANAGER_ROLES):
+def _require_form_write(doctype):
+	if doctype not in FORMS or not frappe.has_permission(doctype, "write"):
 		frappe.throw(_("Not permitted"), frappe.PermissionError)
 
 
 @frappe.whitelist()
-def find_employees(date_from=None, date_to=None, section=None, group=None):
-	"""Active employees matching all filters, as Employees-table rows."""
-	_require_manager()
+def find_employees(date_from=None, date_to=None, department=None, section=None, group=None, doctype="TIQN Quiz"):
+	"""Active employees matching all filters (none = every active employee), as Employees-table rows."""
+	_require_form_write(doctype)
 	filters = {"status": "Active"}
 	if date_from and date_to:
 		filters["date_of_joining"] = ["between", [getdate(date_from), getdate(date_to)]]
@@ -35,6 +38,8 @@ def find_employees(date_from=None, date_to=None, section=None, group=None):
 		filters["date_of_joining"] = [">=", getdate(date_from)]
 	elif date_to:
 		filters["date_of_joining"] = ["<=", getdate(date_to)]
+	if department:
+		filters["department"] = department
 	if section:
 		filters["custom_section"] = section
 	if group:
@@ -51,9 +56,9 @@ def _resolve_code(token):
 
 
 @frappe.whitelist()
-def resolve_codes(codes):
+def resolve_codes(codes, doctype="TIQN Quiz"):
 	"""Pasted codes (any separator) -> {rows, not_found, not_active}."""
-	_require_manager()
+	_require_form_write(doctype)
 	names, not_found = [], []
 	for token in dict.fromkeys(t for t in re.split(r"[\s,;]+", codes or "") if t):
 		name = _resolve_code(token)

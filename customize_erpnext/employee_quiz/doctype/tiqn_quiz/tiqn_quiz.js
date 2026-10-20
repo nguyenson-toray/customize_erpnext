@@ -16,6 +16,62 @@ frappe.ui.form.on("TIQN Quiz", {
 		frm.trigger("setup_employee_tools");
 	},
 
+	btn_add_employees(frm) {
+		const args = {
+			date_from: frm.doc.filter_date,
+			date_to: frm.doc.filter_date,
+			department: frm.doc.filter_department,
+			section: frm.doc.filter_section,
+			group: frm.doc.filter_group,
+		};
+		const add = () =>
+			frappe.call({
+				method: `${PICKER_API}.find_employees`,
+				args,
+				freeze: true,
+				callback: ({ message: rows }) => {
+					const added = add_employee_rows(frm, rows || []);
+					frappe.show_alert({
+						message: (rows || []).length
+							? __("{0} employee(s) added. Save the quiz to keep them.", [added])
+							: __("No employee matched the filter."),
+						indicator: added ? "green" : "orange",
+					});
+				},
+			});
+		if (Object.values(args).some(Boolean)) add();
+		else frappe.confirm(__("No filter selected — add ALL active employees?"), add);
+	},
+
+	btn_clear_all(frm) {
+		frappe.confirm(__("Clear the whole employee list and filters?"), () => {
+			frm.clear_table("employees");
+			frm.refresh_field("employees");
+			["filter_date", "filter_department", "filter_section", "filter_group"].forEach((f) =>
+				frm.set_value(f, null)
+			);
+			frm.dirty();
+		});
+	},
+
+	validate(frm) {
+		// Same as Employee Self Update Info Setting: drop duplicate rows and say so.
+		const seen = new Set();
+		const dupes = (frm.doc.employees || []).filter((r) => {
+			if (r.employee && seen.has(r.employee)) return true;
+			seen.add(r.employee);
+			return false;
+		});
+		if (dupes.length) {
+			dupes.forEach((r) => frm.fields_dict.employees.grid.grid_rows_by_docname[r.name]?.remove());
+			frm.refresh_field("employees");
+			frappe.show_alert(
+				{ message: __("Removed {0} duplicate employee row(s).", [dupes.length]), indicator: "orange" },
+				5
+			);
+		}
+	},
+
 	setup_buttons(frm) {
 		if (frm.is_new()) return;
 		const group = __("Quiz");
@@ -87,8 +143,10 @@ frappe.ui.form.on("TIQN Quiz", {
 			return;
 		}
 		help.html("");
-		grid.add_custom_button(__("Add Employees"), () => add_employees_dialog(frm));
+		// Filters + Add Employees / Clear All sit on the tab (like Employee Self Update
+		// Info Setting); grid buttons are prepended, so added right-to-left.
 		grid.add_custom_button(__("Paste Codes"), () => paste_codes_dialog(frm));
+		grid.add_custom_button(__("Employee Join Today"), () => join_today(frm));
 	},
 
 	render_results(frm) {
@@ -182,71 +240,34 @@ function not_listed(frm, rows) {
 	return rows.filter((r) => !existing.has(r.employee));
 }
 
-function add_employees_dialog(frm) {
-	let d;
-	let found = [];
-	const search = frappe.utils.debounce(() => {
-		frappe.call({
-			method: `${PICKER_API}.find_employees`,
-			args: d.get_values(true),
-			callback: ({ message: rows }) => {
-				found = rows || [];
-				d.fields_dict.preview.$wrapper.html(
-					`<div>${__("{0} matching active employee(s), {1} not in the list yet", [
-						`<b>${found.length}</b>`,
-						`<b>${not_listed(frm, found).length}</b>`,
-					])}</div>`
-				);
-			},
-		});
-	}, 300);
-	const filter = (df) => Object.assign(df, { onchange: () => search() });
-	d = new frappe.ui.Dialog({
-		title: __("Add Employees"),
-		fields: [
-			{
-				fieldtype: "HTML",
-				options: `<div class="text-muted small">${__(
-					"Adds active employees that match all filters. Employees already in the list are skipped."
-				)}</div>`,
-			},
-			filter({
-				fieldname: "date_from",
-				fieldtype: "Date",
-				label: __("Joined From"),
-				default: frappe.datetime.add_days(frappe.datetime.get_today(), -14),
-			}),
-			filter({
-				fieldname: "date_to",
-				fieldtype: "Date",
-				label: __("Joined To"),
-				default: frappe.datetime.get_today(),
-			}),
-			{ fieldtype: "Column Break" },
-			filter({ fieldname: "section", fieldtype: "Link", options: "Section", label: __("Section") }),
-			filter({ fieldname: "group", fieldtype: "Link", options: "Group", label: __("Group") }),
-			{ fieldtype: "Section Break" },
-			{ fieldname: "preview", fieldtype: "HTML" },
-		],
-		primary_action_label: __("Add"),
-		primary_action(values) {
+// Replace the whole list with the active employees joining today.
+function join_today(frm) {
+	const today = frappe.datetime.get_today();
+	frappe.confirm(
+		__("Clear the current list ({0} employee(s)) and fill it with Active employees joining today?", [
+			(frm.doc.employees || []).length,
+		]),
+		() =>
 			frappe.call({
 				method: `${PICKER_API}.find_employees`,
-				args: values,
+				args: { date_from: today, date_to: today },
 				freeze: true,
 				callback: ({ message: rows }) => {
-					d.hide();
+					frm.clear_table("employees");
 					const added = add_employee_rows(frm, rows || []);
+					frm.refresh_field("employees");
+					frm.dirty();
 					frappe.show_alert({
-						message: __("{0} employee(s) added. Save the quiz to keep them.", [added]),
-						indicator: "green",
+						message: added
+							? __("{0} employee(s) added. Save the quiz to keep them.", [added])
+							: __("No Active employee joins today ({0}). The list is now empty.", [
+									frappe.datetime.str_to_user(today),
+							  ]),
+						indicator: added ? "green" : "orange",
 					});
 				},
-			});
-		},
-	});
-	d.show();
-	search();
+			}),
+	);
 }
 
 function paste_codes_dialog(frm) {

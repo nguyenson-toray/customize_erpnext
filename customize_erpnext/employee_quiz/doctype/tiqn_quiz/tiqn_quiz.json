@@ -31,6 +31,8 @@
   "column_break_gvhg",
   "shuffle_questions",
   "shuffle_options",
+  "require_signature",
+  "commitment_text",
   "instructions_section",
   "description",
   "summary_section",
@@ -40,6 +42,13 @@
   "questions_tab",
   "questions",
   "employees_tab",
+  "filter_date",
+  "filter_department",
+  "filter_section",
+  "filter_group",
+  "btn_add_employees",
+  "btn_clear_all",
+  "column_break_employees",
   "employees_help",
   "employees",
   "results_tab",
@@ -198,6 +207,21 @@
    "label": "Shuffle Options"
   },
   {
+   "fieldname": "require_signature",
+   "fieldtype": "Check",
+   "label": "Require Signature",
+   "default": "0",
+   "description": "Employees tick the commitment and sign with a finger or the mouse before submitting (like /employee-self-update-info). Not required when the time runs out."
+  },
+  {
+   "fieldname": "commitment_text",
+   "fieldtype": "Small Text",
+   "label": "Commitment Text",
+   "depends_on": "eval:doc.require_signature",
+   "default": "Tôi xác nhận đã tự làm bài kiểm tra này và chịu trách nhiệm về kết quả.",
+   "description": "Shown next to the tick box above the signature pad. Empty = no tick box, signature only."
+  },
+  {
    "fieldname": "instructions_section",
    "fieldtype": "Section Break",
    "label": "Instructions"
@@ -251,6 +275,53 @@
    "label": "Employees"
   },
   {
+   "fieldname": "filter_date",
+   "fieldtype": "Date",
+   "label": "Date of Joining",
+   "depends_on": "eval:!doc.all_employees",
+   "no_copy": 1
+  },
+  {
+   "fieldname": "filter_department",
+   "fieldtype": "Link",
+   "label": "Department",
+   "options": "Department",
+   "depends_on": "eval:!doc.all_employees",
+   "no_copy": 1
+  },
+  {
+   "fieldname": "filter_section",
+   "fieldtype": "Link",
+   "label": "Section",
+   "options": "Section",
+   "depends_on": "eval:!doc.all_employees",
+   "no_copy": 1
+  },
+  {
+   "fieldname": "filter_group",
+   "fieldtype": "Link",
+   "label": "Group",
+   "options": "Group",
+   "depends_on": "eval:!doc.all_employees",
+   "no_copy": 1
+  },
+  {
+   "fieldname": "btn_add_employees",
+   "fieldtype": "Button",
+   "label": "Add Employees",
+   "depends_on": "eval:!doc.all_employees"
+  },
+  {
+   "fieldname": "btn_clear_all",
+   "fieldtype": "Button",
+   "label": "Clear All",
+   "depends_on": "eval:!doc.all_employees"
+  },
+  {
+   "fieldname": "column_break_employees",
+   "fieldtype": "Column Break"
+  },
+  {
    "fieldname": "employees_help",
    "fieldtype": "HTML",
    "label": "Employees Help"
@@ -275,7 +346,7 @@
  ],
  "links": [],
  "make_attachments_public": 1,
- "modified": "2026-10-20 14:08:49.108475",
+ "modified": "2026-10-21 15:00:00.000000",
  "modified_by": "Administrator",
  "module": "Employee Quiz",
  "name": "TIQN Quiz",

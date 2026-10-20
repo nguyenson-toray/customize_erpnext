@@ -151,10 +151,6 @@ msgid "Add employees by Line Team or search, they will appear in the list on the
 msgstr "Thêm nhân viên theo Line Team hoặc tìm kiếm, danh sách đã chọn hiện ở bên phải."
 
 #. source: tiqn
-msgid "Add employees in the Employees tab, or tick All Active Employees, before opening the quiz."
-msgstr "Thêm nhân viên ở tab Nhân viên, hoặc chọn Tất cả nhân viên đang làm việc, trước khi mở bài kiểm tra."
-
-#. source: tiqn
 msgid "Add Section"
 msgstr "Thêm phần"
 
@@ -87553,4 +87549,36 @@ msgstr "{} {} Mở Cho Vị Trí Này."
 #. source: erpnext2vi
 msgid "← Back to upload files"
 msgstr "← Quay lại tải tệp lên"
+
+#. source: tiqn
+msgid "No filter selected — add ALL active employees?"
+msgstr "Chưa chọn bộ lọc nào — thêm TẤT CẢ nhân viên đang làm việc?"
+
+#. source: tiqn
+msgid "Removed {0} duplicate employee row(s)."
+msgstr "Đã bỏ {0} dòng nhân viên bị trùng."
+
+#. source: tiqn
+msgid "{0} employee(s) added. Save to apply."
+msgstr "Đã thêm {0} nhân viên. Lưu để áp dụng."
+
+#. source: tiqn
+msgid "No employee matched the filter."
+msgstr "Không có nhân viên nào khớp bộ lọc."
+
+#. source: tiqn
+msgid "Clear the whole employee list and filters?"
+msgstr "Xoá toàn bộ danh sách nhân viên và các bộ lọc?"
+
+#. source: tiqn
+msgid "Require Signature"
+msgstr "Bắt buộc ký tên"
+
+#. source: tiqn
+msgid "Employees tick the commitment and sign with a finger or the mouse before submitting (like /employee-self-update-info). Not required when the time runs out."
+msgstr "Nhân viên tick cam kết và ký bằng ngón tay hoặc chuột trước khi nộp (giống /employee-self-update-info). Không bắt buộc khi hết giờ."
+
+#. source: tiqn
+msgid "Shown next to the tick box above the signature pad. Empty = no tick box, signature only."
+msgstr "Hiện cạnh ô tick phía trên khung chữ ký. Để trống = không có ô tick, chỉ ký tên."
 

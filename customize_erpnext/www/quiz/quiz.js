@@ -15,12 +15,13 @@
 	const SLUG = params.get("f") || "";
 	const PREVIEW = params.get("preview") === "1";
 	const SAVE_DELAY_MS = 2500;
+	const WARN_SECONDS = 60; // timer turns red + one "1 minute left" warning
 	const MAX_RESULTS = 30;
 
 	const S = {
 		quiz: null,
 		employees: null,
-		employee: null, // {id, name, dept}
+		employee: null, // {id, name, group}
 		code: "",
 		verify: null, // verify() result
 		attempt: null, // start() payload
@@ -28,6 +29,7 @@
 		result: null,
 		deadlineAt: null, // performance.now() ms
 		timer: null,
+		warned1m: false, // the 1-minute warning was shown for this attempt
 		saveTimer: null,
 		saveState: "", // "", "saving", "saved", "error"
 		submitting: false,
@@ -245,7 +247,7 @@
 					(e, i) => `<button type="button" class="person" data-i="${i}">
 						<span class="pid">${esc(e.id)}</span>
 						<span class="pname">${esc(e.name)}</span>
-						<span class="pdept">${esc(e.dept)}</span>
+						<span class="pdept">${esc(e.group)}</span>
 					</button>`
 				)
 				.join("") +
@@ -261,10 +263,8 @@
 		who.innerHTML = `
 			<h2><span class="step">1</span>${fmt("Bạn là ai?")}</h2>
 			<div class="picked">
-				<div><div class="pname">${esc(emp.name)}</div><div class="pmeta">${esc(emp.id)} · ${esc(emp.dept)}</div></div>
-				<button type="button" class="link" id="change">${fmt("Đổi")}</button>
-			</div>`;
-		document.getElementById("change").onclick = showIdentify;
+				<div><div class="pname">${esc(emp.name)}</div><div class="pmeta">${esc(emp.id)}${emp.group ? " · " + esc(emp.group) : ""}</div></div>
+			</div>`; // no "change" button: to pick someone else, reload the page
 		if (S.quiz.require_code === false) {
 			// Quiz without verification: picking your name is enough.
 			// (=== false: a server without this flag still asks for the code.)
@@ -380,6 +380,8 @@
 	function openAttempt(a) {
 		S.attempt = a;
 		S.deadlineAt = a.seconds_left === null || a.seconds_left === undefined ? null : performance.now() + a.seconds_left * 1000;
+		// Opened with ≤ 1 minute left (resume, very short quiz): the red timer is enough.
+		S.warned1m = S.deadlineAt !== null && a.seconds_left <= WARN_SECONDS;
 		renderQuiz();
 		if (S.deadlineAt !== null) {
 			tick();
@@ -464,10 +466,18 @@
 			${PREVIEW ? `<div class="preview-banner">${fmt("Xem thử — bài làm không được lưu")}</div>` : ""}
 			<div class="qtitle">${esc(S.quiz.title)}</div>
 			${cards}
+			${a.signature ? signCardHtml(a.signature) : ""}
 			<div class="bottom-bar"><button class="btn btn-primary" id="submit">${fmt("Nộp bài")}</button></div>`);
 
 		app.querySelectorAll("input[data-key]").forEach((el) => el.addEventListener("change", onPick));
 		document.getElementById("submit").onclick = () => trySubmit(false);
+		if (a.signature) {
+			// The canvas must be on screen to measure it.
+			requestAnimationFrame(() => SignPad.init(document.getElementById("sign_pad")));
+			document.getElementById("sign_clear").onclick = () => SignPad.clear();
+			const commit = document.getElementById("sign_commit");
+			if (commit) commit.addEventListener("change", () => document.getElementById("sign_card").classList.remove("missing"));
+		}
 		updateProgress();
 		renderSaveState();
 	}
@@ -526,13 +536,27 @@
 		if (S.deadlineAt === null || !el) return;
 		const left = Math.max(0, Math.round((S.deadlineAt - performance.now()) / 1000));
 		el.textContent = String(Math.floor(left / 60)).padStart(2, "0") + ":" + String(left % 60).padStart(2, "0");
-		el.classList.toggle("danger", left <= 60);
+		el.classList.toggle("danger", left <= WARN_SECONDS);
+		if (left > 0 && left <= WARN_SECONDS && !S.warned1m && !S.submitting) {
+			S.warned1m = true;
+			warnOneMinute();
+		}
 		if (left === 0 && !S.submitting) {
 			clearInterval(S.timer);
 			S.timer = null;
 			modal(`<div class="big-icon">⏰</div><p class="lead">${fmt("Hết giờ. Đang nộp bài…")}</p>`, []);
 			submit(true);
 		}
+	}
+
+	function warnOneMinute() {
+		if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+		const msg = "Còn 1 phút! Hãy kiểm tra lại và bấm Nộp bài. Hết giờ hệ thống sẽ tự nộp.";
+		// Do not cover a dialog already open (e.g. "Nộp bài?") — a toast is enough then.
+		if (!document.getElementById("modal").classList.contains("hidden")) return toast(msg, "error");
+		modal(`<div class="big-icon">⏰</div><p class="lead">${fmt(msg)}</p>`, [
+			{ label: "Tiếp tục làm bài", primary: true },
+		]);
 	}
 
 	function trySubmit() {
@@ -544,6 +568,19 @@
 			document.getElementById("q_" + missing[0].key).scrollIntoView({ block: "center", behavior: "smooth" });
 			toast(fmt("Còn {0} câu bắt buộc chưa trả lời", [missing.length]), "error");
 			return;
+		}
+		const sign = S.attempt.signature;
+		if (sign) {
+			const commit = document.getElementById("sign_commit");
+			const msg = commit && !commit.checked ? fmt("Vui lòng tick ô cam kết.")
+				: SignPad.isEmpty() ? fmt("Vui lòng ký tên vào ô chữ ký.") : "";
+			if (msg) {
+				const card = document.getElementById("sign_card");
+				card.classList.add("missing");
+				card.scrollIntoView({ block: "center", behavior: "smooth" });
+				toast(msg, "error");
+				return;
+			}
 		}
 		const done = qs.filter(answered).length;
 		modal(
@@ -568,7 +605,13 @@
 		try {
 			const r = PREVIEW
 				? await call("preview_submit", { slug: SLUG, answers: S.answers })
-				: await call("submit", { response: S.attempt.response, answers: S.answers });
+				: await call("submit", {
+						response: S.attempt.response,
+						answers: S.answers,
+						// Time-up auto-submit sends whatever was signed; the server does not insist.
+						signature: S.attempt.signature && !SignPad.isEmpty() ? SignPad.toDataURL() : "",
+						commitment: document.getElementById("sign_commit")?.checked ? 1 : 0,
+					});
 			if (!PREVIEW) store("tiqn_quiz_" + S.attempt.response, undefined);
 			clearInterval(S.timer);
 			closeModal();
@@ -587,6 +630,106 @@
 			]);
 		}
 	}
+
+	// ------------------------------------------------------------ signature
+	// Same pad as /employee-self-update-info: pointer events (mouse, pen, touch — works in
+	// the Zalo webview), no library; PNG on white, at most 600px wide (server size limit).
+
+	function signCardHtml(sign) {
+		return `<section class="card sign" id="sign_card">
+			<div class="qhead"><span class="qno">${fmt("Cam kết & chữ ký")} <span class="req">*</span></span></div>
+			${sign.commitment ? `<label class="commit-row"><input type="checkbox" id="sign_commit">
+				<span>${esc(sign.commitment)}</span></label>` : ""}
+			<div class="sign-wrap">
+				<canvas id="sign_pad"></canvas>
+				<div class="sign-placeholder" id="sign_placeholder">${fmt("Ký tên tại đây")}</div>
+			</div>
+			<button type="button" class="link" id="sign_clear">${fmt("↺ Xoá, ký lại")}</button>
+			<div class="qerr">${fmt("Vui lòng tick cam kết và ký tên")}</div>
+		</section>`;
+	}
+
+	const SignPad = (() => {
+		let canvas, ctx, drawing = false, hasInk = false, last = null;
+		function size() {
+			const r = canvas.getBoundingClientRect();
+			const dpr = window.devicePixelRatio || 1;
+			canvas.width = Math.round(r.width * dpr);
+			canvas.height = Math.round(r.height * dpr);
+			ctx = canvas.getContext("2d");
+			ctx.scale(dpr, dpr);
+			ctx.lineWidth = 2.2;
+			ctx.lineCap = "round";
+			ctx.lineJoin = "round";
+			ctx.strokeStyle = "#111827";
+		}
+		function pos(e) {
+			const r = canvas.getBoundingClientRect();
+			return { x: e.clientX - r.left, y: e.clientY - r.top };
+		}
+		function setInk(v) {
+			hasInk = v;
+			const ph = document.getElementById("sign_placeholder");
+			if (ph) ph.style.display = v ? "none" : "";
+			if (v) document.getElementById("sign_card")?.classList.remove("missing");
+		}
+		function init(el) {
+			canvas = el;
+			if (!canvas) return;
+			size();
+			setInk(false);
+			canvas.addEventListener("pointerdown", (e) => {
+				drawing = true;
+				last = pos(e);
+				canvas.setPointerCapture(e.pointerId);
+				ctx.beginPath();
+				ctx.arc(last.x, last.y, 1.1, 0, Math.PI * 2);
+				ctx.fillStyle = "#111827";
+				ctx.fill();
+				setInk(true);
+				e.preventDefault();
+			});
+			canvas.addEventListener("pointermove", (e) => {
+				if (!drawing) return;
+				const p = pos(e);
+				ctx.beginPath();
+				ctx.moveTo(last.x, last.y);
+				ctx.lineTo(p.x, p.y);
+				ctx.stroke();
+				last = p;
+				e.preventDefault();
+			});
+			const end = () => (drawing = false);
+			canvas.addEventListener("pointerup", end);
+			canvas.addEventListener("pointercancel", end);
+		}
+		function clear() {
+			if (!canvas) return;
+			size();
+			setInk(false);
+		}
+		function toDataURL() {
+			const scale = Math.min(1, 600 / canvas.width);
+			const out = document.createElement("canvas");
+			out.width = Math.round(canvas.width * scale);
+			out.height = Math.round(canvas.height * scale);
+			const o = out.getContext("2d");
+			o.fillStyle = "#fff";
+			o.fillRect(0, 0, out.width, out.height);
+			o.drawImage(canvas, 0, 0, out.width, out.height);
+			return out.toDataURL("image/png");
+		}
+		return { init, clear, toDataURL, isEmpty: () => !canvas || !hasInk };
+	})();
+
+	// Rotating the phone resizes the pad: start a fresh signature (strokes would be distorted).
+	let lastWidth = window.innerWidth;
+	window.addEventListener("resize", () => {
+		if (window.innerWidth !== lastWidth) {
+			lastWidth = window.innerWidth;
+			SignPad.clear();
+		}
+	});
 
 	// ----------------------------------------------------------- 4. result
 

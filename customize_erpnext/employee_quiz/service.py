@@ -22,6 +22,9 @@ from customize_erpnext.employee_quiz.doctype.tiqn_quiz.tiqn_quiz import COUNTED_
 RESPONSE_DT = "TIQN Quiz Response"
 # A client that auto-submits at 00:00 still needs a moment to reach the server.
 GRACE_SECONDS = 60
+# Signature pad on the quiz page (same format as /employee-self-update-info).
+SIGNATURE_PREFIX = "data:image/png;base64,"
+SIGNATURE_MAX_LEN = 400_000
 MAX_ANSWER_LENGTH = 2000
 
 
@@ -101,6 +104,18 @@ def past_deadline(resp, grace=GRACE_SECONDS):
 	return bool(resp.deadline) and now_datetime() > get_datetime(resp.deadline) + timedelta(seconds=grace)
 
 
+def time_is_up(resp, slack=5):
+	"""The clock reached 0 (the page auto-submits then) — a few seconds of clock drift allowed."""
+	return bool(resp.deadline) and now_datetime() >= get_datetime(resp.deadline) - timedelta(seconds=slack)
+
+
+def signature_payload(quiz):
+	"""What the page shows before Submit: None, or the commitment line + signature pad."""
+	if not cint(quiz.require_signature):
+		return None
+	return {"commitment": (quiz.commitment_text or "").strip()}
+
+
 def seconds_left(resp):
 	if not resp.deadline:
 		return None
@@ -160,6 +175,7 @@ def attempt_payload(quiz, resp):
 		"seconds_left": seconds_left(resp),
 		"questions": questions_payload(quiz, order),
 		"answers": parse_answers(resp.draft_answers),
+		"signature": signature_payload(quiz),
 	}
 
 
@@ -267,7 +283,7 @@ def save_progress(resp, answers):
 	return True
 
 
-def finalize(quiz, resp, answers, expired=False):
+def finalize(quiz, resp, answers, expired=False, signature=None, committed=0):
 	qmap = question_map(quiz)
 	order = json.loads(resp.question_order or "[]")
 	questions = [qmap[item["q"]] for item in order if item["q"] in qmap]
@@ -289,6 +305,8 @@ def finalize(quiz, resp, answers, expired=False):
 			"draft_answers": json.dumps(answers, ensure_ascii=False),
 		}
 	)
+	if signature:
+		resp.update({"signature": signature, "commitment_confirmed": cint(committed)})
 	resp.save(ignore_permissions=True)
 	return resp
 

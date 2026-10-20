@@ -1,7 +1,7 @@
 {
  "actions": [],
  "autoname": "QZR-.YYYY.-.#####",
- "creation": "2026-10-20 10:00:00",
+ "creation": "2026-10-20 16:35:26.781219",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -15,20 +15,22 @@
   "column_break_kype",
   "status",
   "attempt_no",
-  "result_section",
+  "column_break_uahx",
   "score",
   "max_score",
   "percentage",
   "passed",
-  "column_break_2",
+  "result_section",
   "started_at",
-  "deadline",
-  "column_break_vezo",
   "submitted_at",
   "duration_sec",
+  "column_break_2",
+  "commitment_confirmed",
+  "signature",
   "answers_section",
   "answers",
   "technical_section",
+  "deadline",
   "question_order",
   "draft_answers"
  ],
@@ -110,8 +112,7 @@
   },
   {
    "fieldname": "result_section",
-   "fieldtype": "Section Break",
-   "label": "Result"
+   "fieldtype": "Section Break"
   },
   {
    "fieldname": "score",
@@ -157,10 +158,6 @@
    "read_only": 1
   },
   {
-   "fieldname": "column_break_vezo",
-   "fieldtype": "Column Break"
-  },
-  {
    "fieldname": "submitted_at",
    "fieldtype": "Datetime",
    "label": "Submitted At",
@@ -170,6 +167,19 @@
    "fieldname": "duration_sec",
    "fieldtype": "Int",
    "label": "Duration (Seconds)",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "commitment_confirmed",
+   "fieldtype": "Check",
+   "label": "Commitment Confirmed",
+   "read_only": 1
+  },
+  {
+   "fieldname": "signature",
+   "fieldtype": "Signature",
+   "label": "Signature",
    "read_only": 1
   },
   {
@@ -201,10 +211,14 @@
    "fieldtype": "Long Text",
    "label": "Saved Answers",
    "read_only": 1
+  },
+  {
+   "fieldname": "column_break_uahx",
+   "fieldtype": "Column Break"
   }
  ],
  "links": [],
- "modified": "2026-10-20 14:19:57.379128",
+ "modified": "2026-10-20 16:40:20.100606",
  "modified_by": "Administrator",
  "module": "Employee Quiz",
  "name": "TIQN Quiz Response",

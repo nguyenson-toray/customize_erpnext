@@ -10,7 +10,8 @@
   "department",
   "custom_section",
   "custom_group",
-  "date_of_joining"
+  "date_of_joining",
+  "dob"
  ],
  "fields": [
   {
@@ -64,11 +65,19 @@
    "in_list_view": 1,
    "label": "Date of Joining",
    "read_only": 1
+  },
+  {
+   "fetch_from": "employee.date_of_birth",
+   "fieldname": "dob",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "DOB",
+   "read_only": 1
   }
  ],
  "istable": 1,
  "links": [],
- "modified": "2026-10-20 14:02:42.564441",
+ "modified": "2026-10-20 16:15:46.156229",
  "modified_by": "Administrator",
  "module": "Employee Quiz",
  "name": "TIQN Quiz Employee",

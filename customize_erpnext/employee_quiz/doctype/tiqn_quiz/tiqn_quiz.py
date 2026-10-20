@@ -61,10 +61,8 @@ class TIQNQuiz(Document):
 		if self.status == "Open":
 			if not self.questions:
 				frappe.throw(_("Add at least one question before opening the quiz."))
-			if not self.all_employees and not self.employees:
-				frappe.throw(
-					_("Add employees in the Employees tab, or tick All Active Employees, before opening the quiz.")
-				)
+			# An empty Employees list is allowed (user 21/10/2026): nobody can take the
+			# quiz until employees are added or All Active Employees is ticked.
 
 	def _validate_questions(self):
 		seen = set()
