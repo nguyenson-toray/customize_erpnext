@@ -5,7 +5,7 @@ import json
 
 import frappe
 from frappe import _
-from frappe.utils import add_days, cint, getdate
+from frappe.utils import add_days, cint, formatdate, getdate
 from frappe.model.document import Document
 
 
@@ -41,7 +41,10 @@ PROBATION_DAYS_TO_CONTRACT_TYPE = {
 # (1 năm? 3 năm?) là quyết định nghiệp vụ nên hệ thống KHÔNG đoán — HR tự tạo tay.
 NO_PROBATION = "0"
 
-# Lý do bỏ qua, hiển thị cho HR trong bảng kết quả bulk/seed
+# Lý do bỏ qua, hiển thị cho HR trong bảng kết quả bulk/seed.
+# Probation Days TRỐNG = chức danh đặc biệt (giám đốc, trưởng chi nhánh…) không thử
+# việc và KHÔNG theo dõi hợp đồng — bỏ qua hẳn, không phải thiếu dữ liệu (user chốt
+# 21/10/2026).
 SKIP_NO_PROBATION = "no_probation_period"
 SKIP_MISSING_PROBATION_DAYS = "missing_probation_days"
 
@@ -66,7 +69,7 @@ def classify_probation_days(probation_days):
 def _probation_skip_message(skip_reason):
 	if skip_reason == SKIP_NO_PROBATION:
 		return _("No probation period (0) — create the contract manually")
-	return _("Probation Days is not set")
+	return _("No Probation Days — no contract needed")
 
 
 class LaborContract(Document):
@@ -161,6 +164,15 @@ def business_today():
 # Employee.employment_type mirror
 # =============================================================================
 
+def leaves_before(relieving_date, contract_start):
+	"""True when the employee is gone by the day a contract would start.
+
+	relieving_date is the FIRST day off at TIQN (last working day = relieving_date
+	- 1), so leaving ON the start day already means the contract is never needed.
+	"""
+	return bool(relieving_date and contract_start) and getdate(relieving_date) <= getdate(contract_start)
+
+
 def sync_employee_employment_type(employee):
 	"""Mirror the employee's CURRENT contract type onto Employee.employment_type.
 
@@ -168,6 +180,11 @@ def sync_employee_employment_type(employee):
 	whichever record was just saved: every stage of a seeded history is Signed,
 	so re-saving an old stage must not drag the employee back to "probation".
 	The current contract is the latest Signed one that has already started.
+
+	No such contract → leave the field as it is. A new hire's probation contract
+	is created Upcoming (unsigned) by the Employee.after_insert hook, and
+	clearing the employment_type their Data Import row set would make payroll
+	stop treating them as probationary until HR marks the contract signed.
 	"""
 	if not employee:
 		return
@@ -184,7 +201,9 @@ def sync_employee_employment_type(employee):
 		""",
 		{"employee": employee, "today": business_today()}, pluck=True,
 	)
-	new_value = current[0] if current else None
+	if not current:
+		return
+	new_value = current[0]
 
 	if frappe.db.get_value("Employee", employee, "employment_type") != new_value:
 		frappe.db.set_value(
@@ -237,21 +256,26 @@ def _create_initial_labor_contract(employee):
 def create_initial_contract_on_employee_insert(doc, method=None):
 	"""hooks.py doc_events["Employee"]["after_insert"]
 
-	Bỏ qua hoàn toàn khi import hàng loạt (frappe.flags.in_import) để tránh tự
-	tạo sai khi migrate/import nhân viên cũ. HR tự tạo Labor Contract tay (hoặc
-	dùng nút "Create Probation Contracts" trên List View) cho các case đó.
+	Chạy cả khi tạo NV bằng Data Import — đó là đường nhận việc thực tế ở TIQN
+	(user cho phép 21/10/2026; trước đó hook bỏ qua `in_import` để tránh tạo HĐ cho
+	đợt import NV cũ lúc go-live, việc đó đã xong).
+	Probation Days trống = chức danh đặc biệt, không theo dõi hợp đồng → bỏ qua im lặng.
 	"""
-	if frappe.flags.in_import:
+	_contract_type, skip_reason = classify_probation_days(doc.custom_probation_days)
+	if skip_reason == SKIP_MISSING_PROBATION_DAYS:
 		return
 
 	try:
 		_create_initial_labor_contract(doc.name)
 	except ValueError as e:
-		frappe.msgprint(
-			_("Employee {0}: {1} — please create the Labor Contract manually.").format(doc.name, str(e)),
-			alert=True,
-			indicator="orange",
-		)
+		# Data Import has no one watching for alerts; the row shows up in
+		# "Create Probation Contracts" instead.
+		if not frappe.flags.in_import:
+			frappe.msgprint(
+				_("Employee {0}: {1} — please create the Labor Contract manually.").format(doc.name, str(e)),
+				alert=True,
+				indicator="orange",
+			)
 	except Exception:
 		frappe.log_error(
 			frappe.get_traceback(),
@@ -268,15 +292,18 @@ def create_initial_contract_on_employee_insert(doc, method=None):
 BULK_SYNC_THRESHOLD = 20
 
 
-def _resolve_target_employees(filter_by, employees=None, date_of_joining=None):
+MISSING_CONTRACT = "Missing Contract"
+
+
+def _resolve_target_employees(filter_by, employees=None):
 	"""Active employees to attempt a first contract for.
 
-	New hires arrive in batches that all start on the same day, so the normal
-	flow is "one intake date"; the explicit employee list is the fallback for
-	odd one-off cases.
+	Default: every Active employee with no Labor Contract at all, so HR doesn't
+	have to know which intake dates still need contracts. Employees with empty
+	Probation Days hold special designations that don't get contracts, so they
+	aren't "missing" one and are left out. The explicit employee list is the
+	fallback for odd one-off cases.
 	"""
-	filter_by = filter_by or "Date of Joining"
-
 	if filter_by == "Employees":
 		if isinstance(employees, str):
 			employees = frappe.parse_json(employees)
@@ -284,29 +311,28 @@ def _resolve_target_employees(filter_by, employees=None, date_of_joining=None):
 			frappe.throw(_("Please select at least one Employee"))
 		return employees
 
-	if not date_of_joining:
-		frappe.throw(_("Please pick a Date of Joining"))
-
 	return frappe.db.sql(
 		"""
 		SELECT emp.name FROM `tabEmployee` emp
-		WHERE emp.status = 'Active' AND emp.date_of_joining = %(doj)s
-		ORDER BY emp.name
+		WHERE emp.status = 'Active'
+			AND IFNULL(emp.custom_probation_days, '') != ''
+			AND NOT EXISTS (SELECT 1 FROM `tabLabor Contract` lc WHERE lc.employee = emp.name)
+		ORDER BY emp.date_of_joining, emp.name
 		""",
-		{"doj": date_of_joining}, pluck=True,
+		pluck=True,
 	)
 
 
 @frappe.whitelist()
 def get_probation_contract_candidates(
-	filter_by="Date of Joining", employees=None, date_of_joining=None
+	filter_by=MISSING_CONTRACT, employees=None
 ):
-	"""The employees in this intake batch, one row each, so HR can eyeball the
-	actual names before creating anything. Rows that won't get a contract carry
+	"""The employees still missing a contract (or the hand-picked ones), one row
+	each, so HR can eyeball the actual names before creating anything. Rows that won't get a contract carry
 	the reason instead of a contract type."""
 	frappe.has_permission("Labor Contract", "create", throw=True)
 
-	targets = _resolve_target_employees(filter_by, employees, date_of_joining)
+	targets = _resolve_target_employees(filter_by, employees)
 	if not targets:
 		return []
 
@@ -318,7 +344,7 @@ def get_probation_contract_candidates(
 			EXISTS(SELECT 1 FROM `tabLabor Contract` lc WHERE lc.employee = emp.name) AS has_contract
 		FROM `tabEmployee` emp
 		WHERE emp.name IN %(names)s
-		ORDER BY emp.name
+		ORDER BY emp.date_of_joining, emp.name
 		""",
 		{"names": targets}, as_dict=True,
 	)
@@ -350,14 +376,14 @@ def get_probation_contract_candidates(
 
 @frappe.whitelist()
 def bulk_create_probation_contracts(
-	filter_by="Date of Joining", employees=None, date_of_joining=None
+	filter_by=MISSING_CONTRACT, employees=None
 ):
 	"""hooks.py-free entry point for the Labor Contract List View button.
 	Returns either the finished result (small selections) or {queued: True, total}
 	when the work was hand off to a background job (large selections)."""
 	frappe.has_permission("Labor Contract", "create", throw=True)
 
-	targets = _resolve_target_employees(filter_by, employees, date_of_joining)
+	targets = _resolve_target_employees(filter_by, employees)
 	if not targets:
 		return {"created": 0, "skipped": 0, "errors": [], "queued": False}
 
@@ -686,6 +712,8 @@ def _materialize_next_stage():
 		  AND lc.next_stage_created = 0
 		  AND lc.next_contract_type IS NOT NULL AND lc.next_contract_type != ''
 		  AND emp.status = 'Active'
+		  -- leaving on/before the next stage would start -> no next contract
+		  AND (emp.relieving_date IS NULL OR emp.relieving_date > lc.next_sign_date)
 		  AND DATEDIFF(lc.end_date, %(today)s) <= et.custom_warning_before
 		LIMIT 500
 		""",
@@ -715,7 +743,7 @@ def _expiring_contract_rows(from_date, to_date):
 			lc.name, lc.employee, lc.employee_name, lc.designation,
 			lc.contract_type, lc.end_date, lc.status,
 			lc.next_contract_type, lc.next_sign_date, lc.next_stage_created,
-			emp.status AS employee_status
+			emp.status AS employee_status, emp.relieving_date
 		FROM `tabLabor Contract` lc
 		INNER JOIN `tabEmployee` emp ON emp.name = lc.employee
 		WHERE lc.end_date BETWEEN %(from_date)s AND %(to_date)s
@@ -733,6 +761,8 @@ def _blocking_reason(row):
 		return _("Next contract already created")
 	if row.employee_status != "Active":
 		return _("Employee is not Active")
+	if leaves_before(row.relieving_date, row.next_sign_date):
+		return _("Leaves on {0} — no next contract").format(formatdate(row.relieving_date))
 	if row.status != "Signed":
 		return _("Current contract is not Signed yet")
 	return None
@@ -762,6 +792,7 @@ def get_expiring_contracts(from_date, to_date):
 			"status": row.status,
 			"next_contract_type": row.next_contract_type,
 			"next_sign_date": row.next_sign_date,
+			"relieving_date": row.relieving_date,
 			"can_draft": reason is None,
 			"reason": reason,
 		})
@@ -813,9 +844,15 @@ def _mark_overdue():
 	"""Upcoming đã quá ngày bắt đầu ký mà chưa Signed -> Overdue."""
 	frappe.db.sql(
 		"""
-		UPDATE `tabLabor Contract`
-		SET status = 'Overdue'
-		WHERE status = 'Upcoming' AND start_date < %(today)s
+		UPDATE `tabLabor Contract` lc
+		SET lc.status = 'Overdue'
+		WHERE lc.status = 'Upcoming' AND lc.start_date < %(today)s
+		  -- starts on/after the employee's first day off: never going to be signed
+		  AND NOT EXISTS (
+			SELECT 1 FROM `tabEmployee` emp
+			WHERE emp.name = lc.employee
+			  AND emp.relieving_date IS NOT NULL AND emp.relieving_date <= lc.start_date
+		  )
 		""",
 		{"today": business_today()},
 	)
@@ -839,7 +876,11 @@ def get_unsigned_contracts(employees=None, limit=500):
 	if isinstance(employees, str):
 		employees = frappe.parse_json(employees)
 
-	conditions = ["lc.status IN ('Upcoming', 'Overdue')"]
+	conditions = [
+		"lc.status IN ('Upcoming', 'Overdue')",
+		# a contract starting on/after the first day off will never be signed
+		"(emp.relieving_date IS NULL OR emp.relieving_date > lc.start_date)",
+	]
 	values = {"limit": cint(limit) or 500}
 	if employees:
 		conditions.append("lc.employee IN %(employees)s")
@@ -851,6 +892,7 @@ def get_unsigned_contracts(employees=None, limit=500):
 			lc.name, lc.employee, lc.employee_name, lc.designation,
 			lc.contract_type, lc.start_date, lc.end_date, lc.status
 		FROM `tabLabor Contract` lc
+		INNER JOIN `tabEmployee` emp ON emp.name = lc.employee
 		WHERE {" AND ".join(conditions)}
 		ORDER BY lc.start_date, lc.employee
 		LIMIT %(limit)s
@@ -882,6 +924,15 @@ def bulk_mark_signed(contracts):
 			if doc.status == "Signed":
 				errors.append({"contract": name, "error": _("Already Signed")})
 				continue
+			relieving_date = frappe.db.get_value("Employee", doc.employee, "relieving_date")
+			if leaves_before(relieving_date, doc.start_date):
+				errors.append({
+					"contract": name,
+					"error": _("Employee leaves on {0}, before this contract starts").format(
+						formatdate(relieving_date)
+					),
+				})
+				continue
 			doc.status = "Signed"
 			doc.save(ignore_permissions=True)
 			signed += 1
@@ -901,8 +952,7 @@ def resync_all_employment_types():
 	the field was introduced or contracts were bulk-imported).
 
 	Administrator-only: it rewrites a field on every employee that has a
-	contract, and it is authoritative — an employee with no signed, already
-	started contract gets the field cleared.
+	signed, already started contract (others keep their current value).
 	"""
 	_only_administrator()
 

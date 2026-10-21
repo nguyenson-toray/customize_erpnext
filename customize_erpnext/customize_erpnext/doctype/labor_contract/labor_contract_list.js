@@ -46,44 +46,26 @@ function show_bulk_create_probation_contracts(list_view) {
 			{
 				fieldtype: 'Section Break',
 				label: __('Target Employees'),
-				description: __('Run this once per intake batch. It creates the first probationary Labor Contract for Active employees who joined on the chosen day and don\'t have a contract yet — each contract starts on their Date of Joining, with the type taken from their Probation Days (30/60). Employees without Probation Days, or who already have a contract, are skipped.'),
+				description: __('Lists every Active employee who has no Labor Contract yet and creates their first probationary contract — each contract starts on their Date of Joining, with the type taken from their Probation Days (30/60). Employees without Probation Days hold special designations that don\'t need a contract and are not listed.'),
 			},
 			{
 				fieldtype: 'Select',
 				fieldname: 'filter_by',
 				label: __('Target'),
 				options: [
-					{ value: 'Date of Joining', label: __('By Date of Joining') },
+					{ value: 'Missing Contract', label: __('All Employees Missing a Contract') },
 					{ value: 'Employees', label: __('Specific Employees') },
 				],
-				default: 'Date of Joining',
+				default: 'Missing Contract',
 				onchange: function () {
-					const by_date = dialog.get_value('filter_by') === 'Date of Joining';
-					dialog.set_df_property('date_of_joining', 'hidden', !by_date);
-					dialog.set_df_property('date_of_joining', 'reqd', by_date);
-					dialog.set_df_property('employees', 'hidden', by_date);
-					dialog.set_df_property('employees', 'reqd', !by_date);
+					const by_employees = dialog.get_value('filter_by') === 'Employees';
+					dialog.set_df_property('employees', 'hidden', !by_employees);
+					dialog.set_df_property('employees', 'reqd', by_employees);
 					refresh_preview(dialog);
 				},
 			},
 			{
 				fieldtype: 'Column Break',
-			},
-			{
-				fieldtype: 'Date',
-				fieldname: 'date_of_joining',
-				label: __('Date of Joining'),
-				description: __('The intake date — all new hires who started that day'),
-				reqd: 1,
-				default: frappe.datetime.get_today(),
-				// Frappe applies dialog defaults asynchronously (field_group.make()
-				// resolves set_values() a tick after show()). include_default makes
-				// get_values() fall back to the default meanwhile, so the very first
-				// preview call isn't sent with an empty date.
-				include_default: 1,
-				onchange: function () {
-					refresh_preview(dialog);
-				},
 			},
 			{
 				fieldtype: 'MultiSelectList',
@@ -99,7 +81,7 @@ function show_bulk_create_probation_contracts(list_view) {
 			},
 			{
 				fieldtype: 'Section Break',
-				label: __('Employees in this batch'),
+				label: __('Employees to Process'),
 			},
 			{
 				fieldtype: 'HTML',
@@ -121,32 +103,30 @@ function refresh_preview(dialog) {
 	const values = dialog.get_values(true) || {};
 	const by_employees = values.filter_by === 'Employees';
 
-	// Never hit the server with incomplete input — it throws on a missing date,
-	// which would pop an error dialog just from opening this one.
-	const hint = by_employees
-		? (values.employees || []).length ? null : __('Select at least one employee.')
-		: values.date_of_joining ? null : __('Pick the intake date.');
-	if (hint) {
-		$('#lc-bulk-preview').html(`<div class="text-muted">${hint}</div>`);
+	// Never hit the server with an empty pick — it throws, which would pop an
+	// error dialog just from switching the target.
+	if (by_employees && !(values.employees || []).length) {
+		dialog.$wrapper
+			.find('#lc-bulk-preview')
+			.html(`<div class="text-muted">${__('Select at least one employee.')}</div>`);
 		return;
 	}
 
 	frappe.call({
 		method: 'customize_erpnext.customize_erpnext.doctype.labor_contract.labor_contract.get_probation_contract_candidates',
 		args: {
-			filter_by: values.filter_by || 'Date of Joining',
+			filter_by: values.filter_by || 'Missing Contract',
 			employees: by_employees ? JSON.stringify(values.employees || []) : null,
-			date_of_joining: by_employees ? null : values.date_of_joining,
 		},
 		callback: function (r) {
-			render_candidates($('#lc-bulk-preview'), r.message || []);
+			render_candidates(dialog.$wrapper.find('#lc-bulk-preview'), r.message || []);
 		},
 	});
 }
 
 function render_candidates($target, rows) {
 	if (!rows.length) {
-		$target.html(`<div class="text-muted">${__('No employees joined on this date.')}</div>`);
+		$target.html(`<div class="text-muted">${__('Every Active employee already has a Labor Contract.')}</div>`);
 		return;
 	}
 
@@ -161,6 +141,7 @@ function render_candidates($target, rows) {
 				<td>${frappe.utils.escape_html(row.employee)}</td>
 				<td>${frappe.utils.escape_html(row.employee_name || '')}</td>
 				<td>${frappe.utils.escape_html(row.designation || '')}</td>
+				<td>${row.date_of_joining ? frappe.datetime.str_to_user(row.date_of_joining) : ''}</td>
 				<td>${note}</td>
 			</tr>`;
 		})
@@ -177,6 +158,7 @@ function render_candidates($target, rows) {
 						<th>${__('Employee')}</th>
 						<th>${__('Name')}</th>
 						<th>${__('Designation')}</th>
+						<th>${__('Date of Joining')}</th>
 						<th>${__('Contract Type / Skip Reason')}</th>
 					</tr>
 				</thead>
@@ -190,9 +172,8 @@ function run_bulk_create_probation_contracts(values, dialog, list_view) {
 	frappe.call({
 		method: 'customize_erpnext.customize_erpnext.doctype.labor_contract.labor_contract.bulk_create_probation_contracts',
 		args: {
-			filter_by: values.filter_by || 'Date of Joining',
+			filter_by: values.filter_by || 'Missing Contract',
 			employees: values.filter_by === 'Employees' ? JSON.stringify(values.employees || []) : null,
-			date_of_joining: values.filter_by === 'Employees' ? null : values.date_of_joining || null,
 		},
 		freeze: true,
 		freeze_message: __('Processing...'),
@@ -308,7 +289,7 @@ function render_seeding_dialog(summary, list_view) {
 						<tr><td>${__('Will be seeded')}</td><td><strong>${summary.eligible}</strong></td></tr>
 						<tr><td>${__('Contracts that will be created')}</td><td><strong>${summary.total_contracts}</strong></td></tr>
 						<tr><td>${__('Skipped — no probation period (0), create manually')}</td><td>${summary.no_probation_period || 0}</td></tr>
-						<tr><td>${__('Skipped — no Probation Days set')}</td><td>${summary.missing_probation_days}</td></tr>
+						<tr><td>${__('Skipped — no Probation Days (no contract needed)')}</td><td>${summary.missing_probation_days}</td></tr>
 						<tr><td>${__('Skipped — no Date of Joining')}</td><td>${summary.missing_date_of_joining}</td></tr>
 					</table>
 
@@ -472,11 +453,11 @@ function show_review_expiring_contracts(list_view) {
 function refresh_expiring(dialog) {
 	const values = dialog.get_values(true) || {};
 	if (!values.from_date || !values.to_date) {
-		$('#lc-expiring-list').html(`<div class="text-muted">${__('Pick both dates.')}</div>`);
+		dialog.$wrapper.find('#lc-expiring-list').html(`<div class="text-muted">${__('Pick both dates.')}</div>`);
 		return;
 	}
 	if (values.from_date > values.to_date) {
-		$('#lc-expiring-list').html(
+		dialog.$wrapper.find('#lc-expiring-list').html(
 			`<div class="text-danger">${__('From Date cannot be after To Date')}</div>`
 		);
 		return;
@@ -486,7 +467,7 @@ function refresh_expiring(dialog) {
 		method: 'customize_erpnext.customize_erpnext.doctype.labor_contract.labor_contract.get_expiring_contracts',
 		args: { from_date: values.from_date, to_date: values.to_date },
 		callback: function (r) {
-			render_expiring($('#lc-expiring-list'), r.message || [], dialog);
+			render_expiring(dialog.$wrapper.find('#lc-expiring-list'), r.message || [], dialog);
 		},
 	});
 }
@@ -632,7 +613,7 @@ function show_pick_contracts_to_sign(list_view) {
 		],
 		primary_action_label: __('Mark as Signed'),
 		primary_action: function () {
-			const names = get_picked_contracts();
+			const names = get_picked_contracts(dialog);
 			if (!names.length) {
 				frappe.msgprint(__('Please select at least one contract'));
 				return;
@@ -656,7 +637,7 @@ function reload_unsigned(dialog) {
 			employees: (values.employees || []).length ? JSON.stringify(values.employees) : null,
 		},
 		callback: function (r) {
-			render_sign_picker($('#lc-sign-picker'), r.message || []);
+			render_sign_picker(dialog.$wrapper.find('#lc-sign-picker'), r.message || []);
 		},
 	});
 }
@@ -715,8 +696,11 @@ function render_sign_picker($target, rows) {
 	$target.find('.lc-sign-none').on('click', () => $target.find('.lc-sign-check').prop('checked', false));
 }
 
-function get_picked_contracts() {
-	return $('#lc-sign-picker .lc-sign-check:checked')
+// Scoped to this dialog: every button click builds a new Dialog and the old
+// ones stay (hidden) in the DOM with the same ids, so a global $('#…') lookup
+// would hit a stale dialog.
+function get_picked_contracts(dialog) {
+	return dialog.$wrapper.find('#lc-sign-picker .lc-sign-check:checked')
 		.map(function () {
 			return $(this).data('name');
 		})

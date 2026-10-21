@@ -221,8 +221,8 @@ def sync_employment_type(path: str, commit: bool = False) -> None:
 
 	Vì sao cần: toàn bộ quy tắc thử việc trong payroll (không trừ BHXH/BHYT/BHTN, không
 	trừ đoàn phí, hoàn 21,5%, thuế suất cố định 10%) đọc `Employee.employment_type`.
-	Field này do module Labor Contract đồng bộ, mà module đó đang tắt trong `hooks.py`,
-	nên nhân viên mới và nhân viên đã nghỉ đều đang để trống.
+	Field này do module Labor Contract đồng bộ (job daily bật lại 21/10/2026); trước đó
+	module tắt nên nhân viên mới và nhân viên đã nghỉ đều để trống.
 
 	Mặc định dry-run.
 	"""

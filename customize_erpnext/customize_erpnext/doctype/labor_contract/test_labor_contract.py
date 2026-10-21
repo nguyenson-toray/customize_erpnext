@@ -9,6 +9,7 @@ from .labor_contract import (
 	CONTRACT_1_YEAR,
 	CONTRACT_3_YEAR,
 	CONTRACT_INDEFINITE,
+	MISSING_CONTRACT,
 	PROBATION_30,
 	PROBATION_60,
 	SKIP_MISSING_PROBATION_DAYS,
@@ -21,6 +22,7 @@ from .labor_contract import (
 	sync_employee_employment_type,
 	get_expiring_contracts,
 	get_probation_contract_candidates,
+	leaves_before,
 	_create_initial_labor_contract,
 	_get_employment_type_periods,
 	_mark_overdue,
@@ -143,7 +145,8 @@ class IntegrationTestLaborContract(IntegrationTestCase):
 		lc = frappe.get_all("Labor Contract", filters={"employee": emp.name})
 		self.assertEqual(len(lc), 0)
 
-	def test_after_insert_skips_during_import(self):
+	def test_after_insert_also_runs_during_data_import(self):
+		# Data Import is how new hires actually arrive, so it must create the contract too
 		designation = frappe.db.get_value("Designation", {"custom_probation_days": "30"}, "name")
 		if not designation:
 			self.skipTest("No Designation with custom_probation_days=30 on this site")
@@ -153,8 +156,8 @@ class IntegrationTestLaborContract(IntegrationTestCase):
 			emp = _make_test_employee(designation=designation)
 		finally:
 			frappe.flags.in_import = False
-		lc = frappe.get_all("Labor Contract", filters={"employee": emp.name})
-		self.assertEqual(len(lc), 0)
+		lc = frappe.get_all("Labor Contract", filters={"employee": emp.name}, pluck="contract_type")
+		self.assertEqual(lc, [PROBATION_30])
 
 	# ---- Trigger B: daily scheduler ----
 
@@ -246,18 +249,34 @@ class IntegrationTestLaborContract(IntegrationTestCase):
 
 		self.assertEqual(frappe.db.get_value("Labor Contract", lc.name, "status"), "Upcoming")
 
+	# ---- Leaving before the next contract starts ----
+
+	def test_leaves_before_uses_relieving_date_as_first_day_off(self):
+		# relieving_date is the first day off: leaving ON the start day = not needed
+		self.assertTrue(leaves_before("2027-04-19", "2027-04-19"))
+		self.assertTrue(leaves_before("2026-10-22", "2027-04-19"))
+		self.assertFalse(leaves_before("2027-04-20", "2027-04-19"))
+		self.assertFalse(leaves_before(None, "2027-04-19"))
+		self.assertFalse(leaves_before("2026-10-22", None))
+
 	# ---- Bulk backfill target resolution ----
 
-	def test_resolve_targets_matches_exact_intake_date_only(self):
-		emp = _make_test_employee(date_of_joining="2026-05-10")
+	def test_resolve_targets_lists_active_employees_without_contract(self):
+		designation = frappe.db.get_value("Designation", {"custom_probation_days": "30"}, "name")
+		if not designation:
+			self.skipTest("No Designation with custom_probation_days=30 on this site")
 
-		self.assertIn(emp.name, _resolve_target_employees("Date of Joining", date_of_joining="2026-05-10"))
-		# One day either side must NOT be picked up — each intake batch is its own run
-		self.assertNotIn(emp.name, _resolve_target_employees("Date of Joining", date_of_joining="2026-05-09"))
-		self.assertNotIn(emp.name, _resolve_target_employees("Date of Joining", date_of_joining="2026-05-11"))
+		missing = _make_test_employee(designation=designation, date_of_joining="2026-05-10")
+		# the after_insert hook gave it a contract; take it away to make it "missing"
+		frappe.db.delete("Labor Contract", {"employee": missing.name})
+		# no designation -> empty Probation Days = special role, no contract needed
+		no_probation = _make_test_employee(date_of_joining="2026-05-10")
+		covered = _make_test_employee(designation=designation, date_of_joining="2026-05-10")
 
-	def test_resolve_targets_requires_a_date(self):
-		self.assertRaises(frappe.ValidationError, _resolve_target_employees, "Date of Joining")
+		targets = _resolve_target_employees(MISSING_CONTRACT)
+		self.assertIn(missing.name, targets)
+		self.assertNotIn(no_probation.name, targets)
+		self.assertNotIn(covered.name, targets)
 
 	# ---- Batch listing shown in the dialog ----
 
@@ -267,16 +286,13 @@ class IntegrationTestLaborContract(IntegrationTestCase):
 			self.skipTest("No Designation with custom_probation_days=30 on this site")
 
 		doj = "2026-04-17"
-		# in_import skips the after_insert hook, leaving this employee genuinely
-		# contract-less — that's the row the dialog should offer to create.
-		frappe.flags.in_import = True
-		try:
-			ok = _make_test_employee(designation=designation, date_of_joining=doj)
-		finally:
-			frappe.flags.in_import = False
+		ok = _make_test_employee(designation=designation, date_of_joining=doj)
+		# drop the hook's contract: a contract-less employee is the row the dialog
+		# should offer to create
+		frappe.db.delete("Labor Contract", {"employee": ok.name})
 		blank = _make_test_employee(date_of_joining=doj)  # no designation -> no probation days
 
-		rows = get_probation_contract_candidates("Date of Joining", date_of_joining=doj)
+		rows = get_probation_contract_candidates("Employees", employees=[ok.name, blank.name])
 		by_employee = {r["employee"]: r for r in rows}
 
 		self.assertIn(ok.name, by_employee)
@@ -296,16 +312,12 @@ class IntegrationTestLaborContract(IntegrationTestCase):
 		doj = "2026-04-18"
 		emp = _make_test_employee(designation=designation, date_of_joining=doj)
 		# after_insert already created one, so this employee must show as skipped
-		rows = get_probation_contract_candidates("Date of Joining", date_of_joining=doj)
+		rows = get_probation_contract_candidates("Employees", employees=[emp.name])
 		row = next(r for r in rows if r["employee"] == emp.name)
 
 		self.assertFalse(row["will_create"])
 		self.assertIn("Already", row["reason"])
 
-	def test_candidates_list_empty_for_a_day_with_no_hires(self):
-		self.assertEqual(
-			get_probation_contract_candidates("Date of Joining", date_of_joining="1990-01-01"), []
-		)
 
 	# ---- Review Expiring Contracts (date-range renewal tool) ----
 
@@ -463,6 +475,14 @@ class IntegrationTestLaborContract(IntegrationTestCase):
 		sync_employee_employment_type(emp.name)
 		self.assertIsNone(frappe.db.get_value("Employee", emp.name, "employment_type"))
 
+	def test_sync_keeps_imported_employment_type_until_a_contract_is_signed(self):
+		# New hire imported as probationary; the hook's contract is still Upcoming
+		emp = _make_test_employee()
+		frappe.db.set_value("Employee", emp.name, "employment_type", PROBATION_30)
+		self._contract(emp.name, CONTRACT_1_YEAR, "2026-01-01", status="Upcoming")
+		sync_employee_employment_type(emp.name)
+		self.assertEqual(frappe.db.get_value("Employee", emp.name, "employment_type"), PROBATION_30)
+
 	# ---- Deleting a follow-up must free the predecessor to be redrafted ----
 
 	def test_deleting_next_stage_clears_the_predecessor_flag(self):
@@ -510,7 +530,7 @@ class IntegrationTestLaborContract(IntegrationTestCase):
 		emp = _make_test_employee(date_of_joining="2026-05-10")
 		frappe.db.set_value("Employee", emp.name, "status", "Left", update_modified=False)
 
-		targets = _resolve_target_employees("Date of Joining", date_of_joining="2026-05-10")
+		targets = _resolve_target_employees(MISSING_CONTRACT)
 		self.assertNotIn(emp.name, targets)
 
 	def test_resolve_targets_by_explicit_employee_list(self):

@@ -311,9 +311,9 @@ scheduler_events = {
         "0 0 * * *": [
             "customize_erpnext.overrides.employee.employee.auto_mark_employees_as_left",
             # Labor Contract - materialize next contract stage due soon + mark overdue Upcoming
-            # TẠM TẮT: chờ setup xong phần lương (Salary Structure + SSA) rồi mới bật lại.
-            # Xem doctype/labor_contract/labor_contract.md mục 10.
-            # "customize_erpnext.customize_erpnext.doctype.labor_contract.labor_contract.process_labor_contracts_daily",
+            # Bật lại 21/10/2026 (user yêu cầu). NV sắp nghỉ đã được chặn theo
+            # relieving_date nên không phụ thuộc thứ tự chạy với job ở trên.
+            "customize_erpnext.customize_erpnext.doctype.labor_contract.labor_contract.process_labor_contracts_daily",
         ],
         # Recalculate maternity status - 00:10, tức là SAU auto_mark_employees_as_left.
         # Thứ tự này bắt buộc: người tới ngày nghỉ việc phải được chuyển sang `Left`
@@ -460,6 +460,8 @@ doc_events = {
             "customize_erpnext.api.vn_address_search.vn_address_search_api.validate_employee_address",
             # Ngày hết hạn CCCD (read_only) luôn tính lại từ ngày sinh + ngày cấp.
             "customize_erpnext.api.employee.cccd_expiry.set_employee_cccd_expiry",
+            # Ngày kết thúc HĐ thử việc = ngày vào làm + Probation Days - 1.
+            "customize_erpnext.api.employee.probation_end.set_employee_probation_end",
         ],
         "after_insert": [
             # "customize_erpnext.api.employee.erpnext_mongodb.sync_employee_to_mongodb",
@@ -467,10 +469,9 @@ doc_events = {
             # mà HRMS v16.15+ không còn dùng (đã chuyển sang doctype Holiday List
             # Assignment gán ở cấp Company). Module chấm công cũng đã đọc theo Company.
             # "customize_erpnext.uniform_control.api.onboarding.create_uniform_profile_on_employee_insert",
-            # Auto-create the first probationary Labor Contract (skipped during bulk import)
-            # TẠM TẮT: chờ setup xong phần lương (Salary Structure + SSA) rồi mới bật lại.
-            # Xem doctype/labor_contract/labor_contract.md mục 10.
-            # "customize_erpnext.customize_erpnext.doctype.labor_contract.labor_contract.create_initial_contract_on_employee_insert",
+            # Auto-create the first probationary Labor Contract — cả khi import NV
+            # (bật lại 21/10/2026, user yêu cầu)
+            "customize_erpnext.customize_erpnext.doctype.labor_contract.labor_contract.create_initial_contract_on_employee_insert",
         ],
         "on_trash": [
             "customize_erpnext.api.employee.employee_validation.prevent_employee_deletion",

@@ -694,3 +694,30 @@ frappe.ui.form.on('Employee', {
     date_of_birth: set_cccd_expiry,
     custom_id_card_date_of_issue: set_cccd_expiry,
 });
+
+
+// ---------------------------------------------------------------------------
+// Ngày kết thúc HĐ thử việc = ngày vào làm + Probation Days - 1 (cùng công thức end_date của
+// Labor Contract). Cùng thuật toán với api/employee/probation_end.py (server tính lại mỗi lần
+// lưu — nguồn chuẩn). Sửa một nơi thì sửa cả hai.
+// ---------------------------------------------------------------------------
+
+/** @returns {string} "YYYY-MM-DD" hoặc "" (thiếu ngày vào làm / Probation Days trống hoặc 0) */
+function probation_end(date_of_joining, probation_days) {
+    const days = parseInt(probation_days, 10);
+    if (!date_of_joining || !(days > 0)) return "";
+    return frappe.datetime.add_days(date_of_joining, days - 1);
+}
+
+function set_probation_end(frm) {
+    const v = probation_end(frm.doc.date_of_joining, frm.doc.custom_probation_days) || null;
+    if ((frm.doc.custom_finish_probation_contract || null) !== v) {
+        frm.set_value("custom_finish_probation_contract", v);
+    }
+}
+
+frappe.ui.form.on('Employee', {
+    date_of_joining: set_probation_end,
+    // fetched from Designation, so this also fires when the designation changes
+    custom_probation_days: set_probation_end,
+});

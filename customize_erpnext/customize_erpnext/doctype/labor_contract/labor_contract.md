@@ -2,7 +2,7 @@
 
 > **Mục đích:** Quản lý hạn hợp đồng lao động và cảnh báo tái ký.
 > **Phạm vi:** DocType tự phát triển
-> **Trạng thái:** Đang chạy · **Cập nhật:** 2026-08-20
+> **Trạng thái:** Đang chạy · **Cập nhật:** 2026-10-21
 
 Quản lý hạn hợp đồng lao động và cảnh báo tái ký. Mỗi record = **1 lần ký hợp đồng**
 (không gộp nhiều giai đoạn vào 1 record), nên lịch sử hợp đồng của một nhân viên là
@@ -97,12 +97,15 @@ next_sign_date = end_date + 1              # chỉ khi có cả end_date lẫn n
 ### 4.1. Trigger A — Nhân viên mới (tự động)
 
 `hooks.py` → `doc_events["Employee"]["after_insert"]`
-→ `create_initial_contract_on_employee_insert`
+→ `create_initial_contract_on_employee_insert` (bật lại 21/10/2026)
 
-- Bỏ qua hoàn toàn khi `frappe.flags.in_import` (import hàng loạt NV cũ)
+- Chạy **cả khi tạo NV bằng Data Import** — đường nhận việc thực tế ở TIQN (trước 21/10/2026 hook
+  bỏ qua `in_import`); khi import thì không hiện alert, NV lỗi sẽ nằm trong danh sách của
+  nút Create Probation Contracts
 - `custom_probation_days` = 30/60 → tạo HĐ thử việc tương ứng, `start_date = date_of_joining`, `status = Upcoming`
 - `= 0` → **không tạo**, báo alert "tạo tay" (xem mục 6)
-- rỗng → **không tạo**, báo alert
+- rỗng → **không tạo, im lặng** (chức danh đặc biệt, không theo dõi hợp đồng)
+- HĐ tạo ra ở trạng thái Upcoming → `employment_type` do file import điền được **giữ nguyên** (mục 5)
 
 ### 4.2. Trigger B — Job daily 00:00
 
@@ -145,10 +148,30 @@ vừa save thì chỉ cần ai đó mở lại HĐ thử việc năm 2020 bấm 
 tụt về "30 Days Probationary" — sai hoàn toàn. HĐ đã ký nhưng **chưa tới ngày bắt đầu**
 cũng không được tính.
 
-Backfill 1 lần: `resync_all_employment_types()` (**Administrator-only** — nó ghi đè lên
-mọi NV và mang tính áp đặt: NV không có HĐ Signed hợp lệ sẽ bị **xoá trắng** field này).
+Backfill 1 lần: `resync_all_employment_types()` (**Administrator-only**).
+
+**Chưa có HĐ Signed nào đã bắt đầu → GIỮ NGUYÊN `employment_type`** (sửa 21/10/2026). Lý do: hook
+`after_insert` tạo HĐ thử việc ở trạng thái Upcoming khi import NV mới; nếu xoá trắng thì giá trị
+"Probationary" do file import điền bị mất và payroll (đọc field này để biết thử việc) tính sai
+cho tới khi HR bấm ký.
 
 ---
+
+## 5b. Nhân viên nghỉ trước ngày ký hợp đồng kế tiếp
+
+`relieving_date` ở TIQN là **ngày đầu tiên nghỉ** (ngày làm cuối = relieving_date − 1).
+Nếu `relieving_date <= next_sign_date` thì tới ngày hợp đồng mới bắt đầu, NV đã nghỉ, nên
+**không tạo, không ký hợp đồng kế tiếp**. Kiểm bằng `leaves_before(relieving_date, start)`:
+
+| Chỗ | Xử lý |
+|---|---|
+| Job daily `_materialize_next_stage` | Bỏ qua, không tạo giai đoạn kế tiếp |
+| Review Expiring Contracts | Dòng bị chặn, lý do *"Leaves on {date} — no next contract"* |
+| `_mark_overdue` | HĐ Upcoming bắt đầu từ ngày nghỉ trở đi **không** bị đánh Overdue |
+| Mark as Signed | Bảng chọn không liệt kê HĐ đó; tick tay thì bị bỏ qua kèm lý do |
+| Labor Contract Report | Có cột Relieving Date; Next Sign Date / Next Contract Type bị gạch mờ |
+
+HĐ Upcoming đã lỡ tạo trước khi NV báo nghỉ **không tự xoá**: HR tự xoá nếu muốn.
 
 ## 6. Probation Days = 0 — trường hợp đặc biệt
 
@@ -161,19 +184,44 @@ là biết ngay phải làm gì:
 | Giá trị | Lý do hiển thị | Hành động của HR |
 |---|---|---|
 | `0` | *No probation period (0) — create the contract manually* | Tạo hợp đồng tay |
-| rỗng | *Probation Days is not set* | Bổ sung Probation Days cho Designation |
+| rỗng | *No Probation Days — no contract needed* | Không làm gì — xem dưới |
+
+**Rỗng = chức danh đặc biệt, KHÔNG theo dõi hợp đồng** (user chốt 21/10/2026). Chỉ một số
+chức danh như giám đốc, trưởng chi nhánh để trống Probation Days; người mang các chức
+danh đó không thử việc và bỏ qua hẳn phần hợp đồng. Vì vậy chế độ mặc định của nút
+**Create Probation Contracts** ("All Employees Missing a Contract") không liệt kê họ.
+Giá trị cần xét là `Employee.custom_probation_days` (chốt theo chức danh **lúc tuyển**,
+`set_only_once`), không phải chức danh hiện tại.
+
+> Lưu ý: Designation chỉ có lựa chọn trống/30/60, nên giá trị `0` hiện không thể nhập được.
 
 ---
 
 ## 7. Report
 
-**Labor Contract Report** (Script Report) — cột giống hệt view "Labor Contract Report 1".
+**Labor Contract Report** (Script Report).
 
-Filter: `Next Sign Date` từ/đến · `Start Date` từ/đến · Status · Contract Type ·
-Employee · Section · Group · Employee Status (mặc định `Active`).
+| Filter | Ý nghĩa |
+|---|---|
+| **Current Contract Only** (mặc định BẬT) | Chỉ HĐ đang hiệu lực hôm nay của NV **còn làm** (`relieving_date` trống hoặc sau hôm nay) — mỗi NV 1 dòng. Bỏ tick = xem cả lịch sử |
+| **Expiring** | Theo **End Date**: This Week / Next Week (tuần lịch, thứ 2–CN theo System Settings) / This Month / Next Month / Next 30 Days / Next 60 Days / Custom (hiện thêm 2 ô End Date From/To) |
+| Status · Contract Type · Employee · Section · Group | Lọc thẳng trên dòng HĐ |
 
-Sắp xếp theo `next_sign_date` để việc cần làm sớm nhất nằm trên. Status được tô màu
-xanh/cam/đỏ.
+- Contract Type lọc theo loại của **từng dòng HĐ** (kể cả HĐ cũ), không phải HĐ hiện hành —
+  muốn biết "ai đang ở loại này" thì để Current Contract Only bật.
+- Không có cột ID: bấm vào ô **Contract Type** để mở HĐ.
+- Cột **Days Left** = End Date − hôm nay; đỏ khi < 0, cam khi ≤ `custom_warning_before` của loại HĐ.
+  Sắp xếp theo End Date tăng dần (HĐ không thời hạn xuống cuối).
+- Bộ lọc Employee Status và 4 ô Start Date / Next Sign Date từ–đến đã bỏ (21/10/2026).
+
+**Nút Export Contract Data** (chỉ HR Manager / HR User / System Manager — kiểm cả ở server):
+xuất Excel các HĐ đang khớp bộ lọc, kèm thông tin để soạn HĐ giấy (CCCD, ngày/nơi cấp, địa
+chỉ, SĐT, chức danh tiếng Việt, BHXH, MST, ngân hàng…) và **HĐ kế tiếp** (loại, ngày bắt đầu =
+Next Sign Date, ngày kết thúc tính theo `custom_period`, mã + trạng thái nếu đã tạo). Phần HĐ kế
+tiếp để trống khi HĐ không thời hạn hoặc NV nghỉ trước ngày đó (cột Relieving Date). **Base Salary** lấy từ SSA đã submit
+mới nhất có `from_date <= start_date`, và chỉ có cột này khi người xuất có quyền đọc SSA.
+Tiêu đề cột cố ý để tiếng Anh cố định (không `_()`) vì mail merge Word bám theo tên cột.
+Ngày xuất dạng chữ `dd/mm/yyyy` để mail merge không đảo ngày/tháng theo locale Windows.
 
 ---
 
