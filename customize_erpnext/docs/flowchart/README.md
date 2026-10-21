@@ -6,6 +6,7 @@ Sơ đồ luồng chứng từ, để người quản lý nhìn ra hệ thống 
 | --- | --- |
 | [erpnext.md](erpnext.md) + `erpnext.drawio` | ERPNext v16: bán hàng, kho, mua hàng, sản xuất, tài sản, kế toán |
 | [hrms.md](hrms.md) + `hrms.drawio` | HRMS v16: tuyển dụng, hồ sơ, chấm công, nghỉ phép, lương, tạm ứng |
+| [attendance.md](attendance.md) | Chấm công TIQN: từ checkin đến Attendance và các báo cáo đọc từ Attendance (không gồm lương) |
 | `employee.md`, `payroll.md` | ghi chú nghiệp vụ rời, không phải sơ đồ |
 
 Hai file `.drawio` do script sinh ra, mở bằng [draw.io](https://app.diagrams.net)
