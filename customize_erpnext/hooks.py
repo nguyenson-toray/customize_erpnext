@@ -548,6 +548,8 @@ app_include_js = [
     # Ẩn field bị chặn theo perm_level khỏi dialog "Export Data" (UI only, server vẫn chặn thật)
     "/assets/customize_erpnext/js/hide_restricted_export_fields.js",
     "csv_bom_fix.bundle.js",
+    # Tooltip icon (nút In ở sidebar form) bị __() 2 lần: "Print" → "In" → "Trong"
+    "action_icon_tooltip_fix.bundle.js",
 ]
 
 # Điều hướng (frappe v16.50+): module "Customize Erpnext" chứa hầu hết DocType/report của TIQN nhưng
