@@ -12,7 +12,7 @@
  "idx": 0,
  "is_standard": "Yes",
  "letter_head": null,
- "modified": "2026-08-18 14:40:04.152982",
+ "modified": "2026-10-21 11:00:00.000000",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Shift Attendance Customize",
@@ -23,7 +23,7 @@
  "report_type": "Script Report",
  "roles": [
   {
-   "role": "System Manager"
+   "role": "Administrator"
   }
  ],
  "snapshot_report": 0,
