@@ -58,18 +58,18 @@ frappe.query_reports['Labor Contract Report'] = {
 			fieldtype: 'Link',
 			options: 'Employee',
 		},
-		{
-			fieldname: 'custom_section',
-			label: __('Section'),
-			fieldtype: 'Link',
-			options: 'Section',
-		},
-		{
-			fieldname: 'custom_group',
-			label: __('Group'),
-			fieldtype: 'Link',
-			options: 'Group',
-		},
+		// {
+		// 	fieldname: 'custom_section',
+		// 	label: __('Section'),
+		// 	fieldtype: 'Link',
+		// 	options: 'Section',
+		// },
+		// {
+		// 	fieldname: 'custom_group',
+		// 	label: __('Group'),
+		// 	fieldtype: 'Link',
+		// 	options: 'Group',
+		// },
 	],
 
 	onload: function (report) {
@@ -90,11 +90,6 @@ frappe.query_reports['Labor Contract Report'] = {
 		value = default_formatter(value, row, column, data);
 		if (!data) {
 			return value;
-		}
-
-		// The contract itself has no column of its own: its type opens it
-		if (column.fieldname === 'contract_type' && data.name) {
-			value = `<a href="${frappe.utils.get_form_link('Labor Contract', data.name)}">${value}</a>`;
 		}
 
 		// --{colour}-600 is the readable "coloured text" token in both themes;

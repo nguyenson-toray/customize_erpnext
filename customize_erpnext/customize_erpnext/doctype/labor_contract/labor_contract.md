@@ -71,7 +71,7 @@ Giá trị chuẩn (patch `setup_labor_contract` tự tạo/sửa cho khớp):
 | `next_stage_created` | Check, **ẩn** | Cờ chống tạo trùng giai đoạn kế tiếp |
 | `manager_email` | Data, **ẩn**, read-only | Tự suy từ `employee.reports_to.user_id`. Hiện chưa dùng — để sẵn cho Notification sau này |
 
-Autoname: `format:LC-{employee}-{#####}`
+Autoname: **`LC-{employee}-{NN}`** — NN = lần ký thứ mấy của NV đó, bắt đầu `01` (`autoname()` trong controller, sửa 21/10/2026; trước đó là `LC-{employee}-{#####}`). Số mới = số lớn nhất đang có + 1, nên xoá một HĐ ở giữa không làm trùng tên. HĐ cũ đã được rename theo thứ tự `start_date`.
 
 ---
 
@@ -209,8 +209,10 @@ Giá trị cần xét là `Employee.custom_probation_days` (chốt theo chức d
 
 - Contract Type lọc theo loại của **từng dòng HĐ** (kể cả HĐ cũ), không phải HĐ hiện hành —
   muốn biết "ai đang ở loại này" thì để Current Contract Only bật.
-- Không có cột ID: bấm vào ô **Contract Type** để mở HĐ.
+- Cột **ID** (mã HĐ) đứng đầu, bấm để mở HĐ.
 - Cột **Days Left** = End Date − hôm nay; đỏ khi < 0, cam khi ≤ `custom_warning_before` của loại HĐ.
+  **Để trống** khi HĐ đã có giai đoạn kế tiếp (`next_stage_created`) hoặc NV đã nghỉ — nếu không,
+  mọi HĐ cũ trong lịch sử đều hiện số âm lớn.
   Sắp xếp theo End Date tăng dần (HĐ không thời hạn xuống cuối).
 - Bộ lọc Employee Status và 4 ô Start Date / Next Sign Date từ–đến đã bỏ (21/10/2026).
 

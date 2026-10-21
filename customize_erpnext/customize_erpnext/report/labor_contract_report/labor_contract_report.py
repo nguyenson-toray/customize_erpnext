@@ -27,8 +27,9 @@ def execute(filters=None):
 
 
 def get_columns():
-	# No ID column: the Contract Type cell links to the contract itself (see JS).
 	return [
+		{"fieldname": "name", "label": _("ID"), "fieldtype": "Link",
+		 "options": "Labor Contract", "width": 170},
 		{"fieldname": "employee", "label": _("Employee"), "fieldtype": "Link",
 		 "options": "Employee", "width": 110},
 		{"fieldname": "employee_name", "label": _("Employee Name"), "fieldtype": "Data",
@@ -39,8 +40,8 @@ def get_columns():
 		 "options": "Section", "width": 120},
 		{"fieldname": "custom_group", "label": _("Group"), "fieldtype": "Link",
 		 "options": "Group", "width": 120},
-		{"fieldname": "contract_type", "label": _("Contract Type"), "fieldtype": "Data",
-		 "width": 220},
+		{"fieldname": "contract_type", "label": _("Contract Type"), "fieldtype": "Link",
+		 "options": "Employment Type", "width": 220},
 		{"fieldname": "status", "label": _("Status"), "fieldtype": "Data", "width": 90},
 		{"fieldname": "start_date", "label": _("Start Date"), "fieldtype": "Date",
 		 "width": 105},
@@ -121,7 +122,12 @@ def get_data(filters):
 			lc.name, lc.employee, lc.employee_name, lc.designation,
 			lc.custom_section, lc.custom_group, lc.contract_type, lc.status,
 			lc.start_date, lc.end_date,
-			DATEDIFF(lc.end_date, %(today)s) AS days_left,
+			-- Only for a contract still waiting on its renewal: blank once the next
+			-- stage exists or the employee has left (relieving_date = first day off),
+			-- otherwise every past stage of the chain shows a large negative number
+			IF(lc.next_stage_created = 1
+					OR (emp.relieving_date IS NOT NULL AND emp.relieving_date <= %(today)s),
+				NULL, DATEDIFF(lc.end_date, %(today)s)) AS days_left,
 			et.custom_warning_before AS warning_before,
 			lc.next_contract_type, lc.next_sign_date, emp.relieving_date,
 			-- relieving_date = first day off: leaving on/before the next sign date

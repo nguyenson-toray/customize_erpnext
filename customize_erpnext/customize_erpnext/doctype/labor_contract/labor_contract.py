@@ -73,6 +73,21 @@ def _probation_skip_message(skip_reason):
 
 
 class LaborContract(Document):
+	def autoname(self):
+		"""LC-{employee}-{NN}: NN = the employee's signing number, from 01 (user decision
+		21/10/2026). Next free number = highest existing suffix + 1, so deleting a
+		middle contract never makes a new one collide with a later stage."""
+		prefix = f"LC-{self.employee}-"
+		last = frappe.db.sql(
+			"""
+			SELECT MAX(CAST(SUBSTRING(name, %(start)s) AS UNSIGNED))
+			FROM `tabLabor Contract`
+			WHERE employee = %(employee)s AND name LIKE %(like)s
+			""",
+			{"start": len(prefix) + 1, "employee": self.employee, "like": f"{prefix}%"},
+		)[0][0]
+		self.name = f"{prefix}{cint(last) + 1:02d}"
+
 	def validate(self):
 		self.calculate_dates()
 		self.set_manager_email()
@@ -306,7 +321,7 @@ def _resolve_target_employees(filter_by, employees=None):
 	"""
 	if filter_by == "Employees":
 		if isinstance(employees, str):
-			employees = frappe.parse_json(employees)
+			employees = frappe.parse_json(employees) if employees.strip() else None
 		if not employees:
 			frappe.throw(_("Please select at least one Employee"))
 		return employees
@@ -873,8 +888,9 @@ def get_unsigned_contracts(employees=None, limit=500):
 	"""
 	frappe.has_permission("Labor Contract", "write", throw=True)
 
+	# null from the browser arrives as "" — parse_json("") raises
 	if isinstance(employees, str):
-		employees = frappe.parse_json(employees)
+		employees = frappe.parse_json(employees) if employees.strip() else None
 
 	conditions = [
 		"lc.status IN ('Upcoming', 'Overdue')",
@@ -912,7 +928,7 @@ def bulk_mark_signed(contracts):
 	frappe.has_permission("Labor Contract", "write", throw=True)
 
 	if isinstance(contracts, str):
-		contracts = frappe.parse_json(contracts)
+		contracts = frappe.parse_json(contracts) if contracts.strip() else None
 	if not contracts:
 		frappe.throw(_("Please select at least one contract"))
 
