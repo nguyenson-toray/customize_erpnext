@@ -188,13 +188,21 @@ Workflow chỉ nằm trong DB (không có trong fixtures/repo). 4 transition:
 
 ### Hướng dẫn (Form Tour) — 2026-09-24
 - Form Tour **"Overtime Registration"** (standard, file `customize_erpnext/form_tour/overtime_registration/`),
-  3 bước tiếng Việt cho công nhân. Nội dung tiếng Việt nằm trong dữ liệu tour, không nằm trong JS.
+  7 bước tiếng Việt cho công nhân: Thêm người tăng ca (dialog) → Kiểm tra lại → Thêm 1 người lẻ (nút
+  **Thêm hàng** của bảng, chọn được người nhóm khác) → Người duyệt → Xem bảng tổng hợp → Lưu phiếu → Gửi duyệt.
+  Nội dung tiếng Việt nằm trong dữ liệu tour, không nằm trong JS.
+- Workflow **tắt** (`frappe.model.has_workflow` = false) → `drop_ot_tour_approval_steps()` bỏ bước Người duyệt
+  và Gửi duyệt, đánh số lại "Bước N:" ⇒ còn 5 bước. File JSON luôn giữ đủ 7 bước.
+- Sửa file JSON xong phải nạp vào DB (tour đọc từ DB): đổi `modified` rồi
+  `bench --site <site> execute frappe.modules.import_file.import_file_by_path --kwargs '{"path":"<đường dẫn tuyệt đối>","force":1}'`
+  (hoặc `bench migrate`).
 - Thanh **Help** màu cam ở đầu form (chỉ khi phiếu Draft/mới). Không dùng inner button vì trên mobile
   Frappe dồn inner button vào menu "⋯". Tour tự chạy 1 lần/trình duyệt ở phiếu mới đầu tiên
   (localStorage `ot_registration_tour_seen`).
-- Bước 4 (Lưu) và bước 5 (Gửi đơn) trỏ vào toolbar: step có `element_selector` (fieldname giả = `approver`,
-  vì Form Tour không phải UI tour thì bắt buộc có fieldname); `apply_ot_tour_element_selectors()` đổi
-  element, `a || b` = phần tử đầu tiên đang hiện.
+- Các bước Thêm 1 người lẻ, Xem bảng tổng hợp, Lưu, Gửi đơn trỏ vào nút ngoài field: step có
+  `element_selector` (`.grid-add-row`, `.ot-inline-pivot`, toolbar; fieldname giả vì Form Tour không phải
+  UI tour thì bắt buộc có fieldname); `apply_ot_tour_element_selectors()` đổi element, `a || b` = phần
+  tử đầu tiên đang hiện.
 - Dialog đánh số ①–⑦ (Nhóm, Tuần, Ngày, Giờ, Lý do, Nhân viên, nút Add Selected) khớp danh sách ở bước 1
   của tour — đổi thứ tự trong dialog thì sửa cả tour.
 - View Summary Table (Xem bảng tổng hợp) mobile: ẩn cột No./Group, mã + tên xuống 2 dòng, giờ bắt đầu/kết thúc xếp chồng; hàng tổng
