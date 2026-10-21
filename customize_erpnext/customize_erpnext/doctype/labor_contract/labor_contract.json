@@ -195,7 +195,7 @@
    "fetch_from": "employee.status",
    "fieldname": "employee_status",
    "fieldtype": "Data",
-   "label": "Employee  Status"
+   "label": "Employee Status"
   },
   {
    "fetch_from": "employee.relieving_date",
@@ -207,7 +207,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-10-21 15:19:01.253478",
+ "modified": "2026-10-21 16:19:49.919400",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Labor Contract",

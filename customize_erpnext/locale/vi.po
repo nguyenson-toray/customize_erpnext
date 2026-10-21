@@ -87582,3 +87582,87 @@ msgstr "Nhân viên tick cam kết và ký bằng ngón tay hoặc chuột trư�
 msgid "Shown next to the tick box above the signature pad. Empty = no tick box, signature only."
 msgstr "Hiện cạnh ô tick phía trên khung chữ ký. Để trống = không có ô tick, chỉ ký tên."
 
+
+#. source: tiqn
+msgid "Labor Contract"
+msgstr "Hợp đồng lao động"
+
+#. source: tiqn
+msgid "Probation Days"
+msgstr "Số ngày thử việc"
+
+#. source: tiqn
+msgid "Finish Probation contract"
+msgstr "Ngày kết thúc thử việc"
+
+#. source: tiqn
+msgid "No Probation Days — no contract needed"
+msgstr "Không có số ngày thử việc — không cần hợp đồng"
+
+#. source: tiqn
+msgid "Leaves on {0} — no next contract"
+msgstr "Nghỉ việc từ {0} — không ký hợp đồng kế tiếp"
+
+#. source: tiqn
+msgid "Employee leaves on {0}, before this contract starts"
+msgstr "Nhân viên nghỉ việc từ {0}, trước ngày hợp đồng này bắt đầu"
+
+#. source: tiqn
+msgid "Lists every Active employee who has no Labor Contract yet and creates their first probationary contract — each contract starts on their Date of Joining, with the type taken from their Probation Days (30/60). Employees without Probation Days hold special designations that don't need a contract and are not listed."
+msgstr "Liệt kê mọi nhân viên đang làm việc chưa có hợp đồng lao động và tạo hợp đồng thử việc đầu tiên — mỗi hợp đồng bắt đầu từ ngày vào làm, loại hợp đồng lấy theo Số ngày thử việc (30/60). Nhân viên không có Số ngày thử việc thuộc chức danh đặc biệt, không cần hợp đồng nên không được liệt kê."
+
+#. source: tiqn
+msgid "All Employees Missing a Contract"
+msgstr "Tất cả nhân viên chưa có hợp đồng"
+
+#. source: tiqn
+msgid "Employees to Process"
+msgstr "Nhân viên cần xử lý"
+
+#. source: tiqn
+msgid "Every Active employee already has a Labor Contract."
+msgstr "Tất cả nhân viên đang làm việc đều đã có hợp đồng lao động."
+
+#. source: tiqn
+msgid "Skipped — no Probation Days (no contract needed)"
+msgstr "Bỏ qua — không có số ngày thử việc (không cần hợp đồng)"
+
+#. source: tiqn
+msgid "Current Contract Only"
+msgstr "Chỉ hợp đồng hiện hành"
+
+#. source: tiqn
+msgid "Only the contract in force today, for employees still working — one row per employee. Untick to see the full history."
+msgstr "Chỉ hợp đồng đang hiệu lực hôm nay của nhân viên còn làm việc — mỗi nhân viên một dòng. Bỏ chọn để xem toàn bộ lịch sử."
+
+#. source: tiqn
+msgid "Expiring"
+msgstr "Sắp hết hạn"
+
+#. source: tiqn
+msgid "Next 60 Days"
+msgstr "60 ngày tiếp theo"
+
+#. source: tiqn
+msgid "By contract End Date"
+msgstr "Theo ngày kết thúc hợp đồng"
+
+#. source: tiqn
+msgid "End Date From"
+msgstr "Ngày kết thúc từ"
+
+#. source: tiqn
+msgid "End Date To"
+msgstr "Ngày kết thúc đến"
+
+#. source: tiqn
+msgid "Export Contract Data"
+msgstr "Xuất dữ liệu hợp đồng"
+
+#. source: tiqn
+msgid "Days Left"
+msgstr "Số ngày còn lại"
+
+#. source: tiqn
+msgid "Next Contract Type"
+msgstr "Loại hợp đồng kế tiếp"
