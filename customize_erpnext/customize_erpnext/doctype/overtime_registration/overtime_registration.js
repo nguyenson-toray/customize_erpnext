@@ -1686,9 +1686,30 @@ function start_ot_form_tour(frm) {
     } catch (e) { /* ignore */ }
     if (!frm.tour) return;
     frm.tour.init({ tour_name: 'Overtime Registration' }).then(() => {
+        if (!frm.tour.tour || !frm.tour.tour.steps) return;
+        drop_ot_tour_approval_steps(frm);
         apply_ot_tour_element_selectors(frm);
         frm.tour.start();
     });
+}
+
+// Workflow "Overtime Registration" inactive → no approver / "Actions → Submit"
+// guidance (the form then shows the plain Submit button, nobody approves).
+// Drops the approver step and the workflow-Actions step, then renumbers the
+// "Bước N:" titles so the remaining steps stay 1..n.
+function drop_ot_tour_approval_steps(frm) {
+    if (frappe.model.has_workflow(frm.doctype)) return;
+    const tour = frm.tour.tour;
+    const is_approval_step = s =>
+        (s.fieldname === 'approver' && !s.ui_tour)
+        || (s.element_selector || '').includes('.actions-btn-group');
+    tour.steps = tour.steps.filter(s => !is_approval_step(s));
+    tour.steps.forEach((s, i) => {
+        s.idx = i + 1;
+        s.title = (s.title || '').replace(/^(\D*?)\d+(?=\s*:)/, `$1${i + 1}`);
+    });
+    frm.tour.build_steps();
+    frm.tour.update_driver_steps();
 }
 
 // Frappe's FormTour only targets form fields. Steps flagged "UI Tour" in the
