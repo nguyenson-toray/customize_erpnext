@@ -2466,22 +2466,51 @@ def _coerce_for_employee(value, fieldtype):
 	return sval
 
 
+def _row_key(f, row):
+	"""Nội dung 1 dòng theo các cột cấu hình (None / "" / 0 coi như trống) để so dòng phiếu với dòng Employee."""
+	return tuple(
+		"" if row.get(c["fieldname"]) in (None, "", 0) else str(row.get(c["fieldname"])).strip() for c in f["columns"]
+	)
+
+
 def _sync_table_rows(emp, f, rows):
-	"""Ghi bảng con của phiếu vào Employee: dòng có `name` của Employee → sửa đúng các cột cấu hình
-	(cột khác giữ nguyên); dòng không `name` → thêm mới. Dòng Employee không có trong phiếu → GIỮ
-	NGUYÊN (user 16/10/2026: xoá hay không tính sau). Trả số dòng giữ nguyên đó."""
+	"""Ghi bảng con của phiếu vào Employee, trả (pairs, số dòng Employee giữ nguyên).
+
+	- dòng có `name` của Employee → sửa đúng các cột cấu hình (cột khác giữ nguyên);
+	- dòng không `name` mà giống hệt một dòng Employee chưa ghép → coi là dòng đó. Phiếu Sync lại
+	  (HR đưa về Submitted) từng thêm bản sao mỗi lần: TIQN-2547 có 3 dòng học vấn giống nhau (22/10/2026);
+	- còn lại → thêm mới.
+	Dòng Employee không có trong phiếu → GIỮ NGUYÊN (user 16/10/2026: xoá hay không tính sau).
+	`pairs` = [(dòng phiếu, dòng Employee)] để sau emp.save() ghi `name` ngược vào phiếu."""
 	rows = _table_list(rows)
 	existing = {r.name: r for r in emp.get(f["fieldname"]) or []}
 	seen = set()
-	for r in rows:
-		vals = {c["fieldname"]: _coerce_for_employee(r.get(c["fieldname"]), c["fieldtype"]) for c in f["columns"]}
+	vals = [{c["fieldname"]: _coerce_for_employee(r.get(c["fieldname"]), c["fieldtype"]) for c in f["columns"]} for r in rows]
+	children = [None] * len(rows)
+	# Dòng có `name` ghép trước, để dòng không `name` không giành mất dòng Employee của chúng.
+	for i, r in enumerate(rows):
 		child = existing.get(r.get("name"))
 		if child is not None and child.name not in seen:
-			child.update(vals)
+			children[i] = child
 			seen.add(child.name)
+	for i in range(len(rows)):
+		if children[i] is None:
+			key = _row_key(f, vals[i])
+			child = next((c for n, c in existing.items() if n not in seen and _row_key(f, c) == key), None)
+			if child is not None:
+				children[i] = child
+				seen.add(child.name)
+	for i in range(len(rows)):
+		if children[i] is None:
+			children[i] = emp.append(f["fieldname"], vals[i])
 		else:
-			emp.append(f["fieldname"], vals)
-	return len(existing) - len(seen)
+			children[i].update(vals[i])
+	return list(zip(rows, children)), len(existing) - len(seen)
+
+
+def _rows_with_names(pairs):
+	"""Dòng phiếu kèm `name` dòng Employee đã ghép/tạo (gọi sau emp.save, dòng mới mới có name)."""
+	return [{"name": child.name, **{k: v for k, v in r.items() if k != "name"}} for r, child in pairs]
 
 
 def _rebuild_address_full(emp, changed_fieldnames):
@@ -2594,13 +2623,17 @@ def sync_to_employee(names, fields=None):
 			meta = emp.meta
 			changed = []
 			kept_rows = 0
+			table_pairs = []
 			for fn, f in emp_fields.items():
 				if fn not in saved:
 					continue
 				if not meta.has_field(fn):
 					continue  # field no longer on Employee
 				if _is_table(f):
-					kept_rows += _sync_table_rows(emp, f, saved.get(fn))
+					pairs, kept = _sync_table_rows(emp, f, saved.get(fn))
+					kept_rows += kept
+					if isinstance(saved.get(fn), list):
+						table_pairs.append((fn, pairs))
 					changed.append(fn)
 					continue
 				emp.set(fn, _coerce_for_employee(saved.get(fn), f["fieldtype"]))
@@ -2612,6 +2645,12 @@ def sync_to_employee(names, fields=None):
 			doc.synced_on = now_datetime()
 			doc.synced_by = frappe.session.user
 			doc.save(ignore_permissions=True)
+			if table_pairs:
+				# Ghi `name` dòng Employee (dòng mới chỉ có sau emp.save) vào phiếu → lần Sync sau sửa đúng
+				# dòng đó. db_set: không qua validate_desk_edit (đây không phải HR sửa nội dung phiếu).
+				for fn, pairs in table_pairs:
+					saved[fn] = _rows_with_names(pairs)
+				doc.db_set("data_json", json.dumps(saved, ensure_ascii=False), update_modified=False)
 			frappe.db.commit()
 			synced += 1
 			msg = _("Đã đồng bộ {0} trường").format(len(changed))
