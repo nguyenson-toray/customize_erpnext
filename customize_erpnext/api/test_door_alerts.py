@@ -82,6 +82,7 @@ def tg_response(ok_flag=True):
 
 
 STATUS = {}
+_real_set_status = da._set_status
 
 
 def run(settings, now, probes=None, tg_ok=True, force=False, doors=None):
@@ -89,6 +90,8 @@ def run(settings, now, probes=None, tg_ok=True, force=False, doors=None):
     probes = probes or {d["device_name"]: {"online": True} for d in DOORS}
 
     def set_status(**values):
+        if "alert_state" in values:   # per-door alert state lives in the DB (rolled back at the end)
+            _real_set_status(alert_state=values.pop("alert_state"))
         STATUS.update(values)
         for k, v in values.items():
             settings.set(k, v)
@@ -207,6 +210,7 @@ try:
     print("7. Mất kết nối")
     for k in cache_keys:
         frappe.cache.delete_value(k)
+        da._state_put(k, None)
     s = make_settings(now)
     s.alert_command_failed = s.alert_unlock_all = s.alert_unknown_user = 0
     s.erp_open_alert = s.fingerprint_alert = "Off"
@@ -219,8 +223,28 @@ try:
     check("mất 6 phút: báo 1 lần", out["events"] == 1 and "ZZ Test Door B" in (texts or [""])[0], str(out))
     out, texts, _c, _p = run(s, T0 + timedelta(minutes=9), probes=off)
     check("vẫn mất: không báo lặp", out["events"] == 0)
+    frappe.clear_cache()   # 21/10/2026: clear-cache used to wipe the state and re-arm the alert
+    out, texts, _c, _p = run(s, T0 + timedelta(minutes=10), probes=off, force=True)
+    check("sau clear-cache: vẫn không báo lặp", out["events"] == 0, str(out))
     out, texts, _c, _p = run(s, T0 + timedelta(minutes=12))
     check("có lại: báo kết nối lại", out["events"] == 1 and ("back online" in texts[0] or "kết nối lại" in texts[0]))
+
+    print("7b. Người nhận theo loại (Door Alerts / Device Alerts)")
+    s = make_settings(now)
+    s.recipients[0].device_alerts = 0          # Group 1: door only
+    s.recipients[1].door_alerts = 0            # Group 2: device only
+    s.alert_command_failed = s.alert_unlock_all = s.alert_unknown_user = 0
+    s.erp_open_alert = s.fingerprint_alert = "Off"
+    da._state_put(f"door_alerts:offline:{DOORS[1]['device_name']}", None)
+    T1 = now + timedelta(minutes=40)
+    run(s, T1, probes=off)
+    out, texts, chats, _p = run(s, T1 + timedelta(minutes=6), probes=off)
+    check("offline chỉ gửi người nhận Device Alerts", chats == ["-1002"], str(chats))
+    s.recipients[1].device_alerts = 0          # nobody wants device alerts
+    out, texts, chats, _p = run(s, T1 + timedelta(minutes=8), force=True)
+    check("không ai nhận Device Alerts: không gửi, không coi là lỗi", chats == [] and out.get("sent_ok") is not False, str(out))
+    check("dòng cũ chưa có cột: coi như có tick", da._receives(frappe._dict(chat_id="1"), "device"))
+    da._state_put(f"door_alerts:offline:{DOORS[1]['device_name']}", None)
 
     print("8. Telegram lỗi")
     s = make_settings(now)
@@ -296,7 +320,7 @@ try:
 
     print("9e. Cửa mở sau giờ làm (Door Sensor)")
     for d in DOORS:
-        frappe.cache.delete_value(f"door_alerts:not_locked:{d['device_name']}")
+        da._state_put(f"door_alerts:not_locked:{d['device_name']}", None)
     sdoors = [dict(DOORS[0], has_door_sensor=True, sensor_type="NO"), dict(DOORS[1], has_door_sensor=True, sensor_type="NO")]
     # raw byte per door: 1 = closed, 0 = open here (Sensor Value When Closed patched to 1;
     # the real DB holds 0 for Production .50)
@@ -341,7 +365,7 @@ try:
     step(60, 0, 1); step(62, 0, 1)
     out, body = step(63, 0, 1, after_hours=False)
     check("vào giờ làm: im lặng", out["events"] == 0)
-    check("vào giờ làm: xoá trạng thái", frappe.cache.get_value(f"door_alerts:not_locked:{DOORS[0]['device_name']}") is None)
+    check("vào giờ làm: xoá trạng thái", da._state_get(f"door_alerts:not_locked:{DOORS[0]['device_name']}") is None)
     # failed send: first alert retried
     step(70, 0, 1); out, body = step(72, 0, 1, tg_ok=False)
     check("gửi lỗi: có sự kiện", out["events"] == 1)
@@ -363,7 +387,7 @@ try:
     nodoor = dict(DOORS[0], has_door_sensor=False, sensor_type="NO")
     check("cửa không có sensor (Sensor Installed tắt): không đọc", da.dc.sensor_reading(nodoor, probes(0, 0)[DOORS[0]["device_name"]])[0] is None)
     # offline: the last state read before the device dropped is carried along
-    frappe.cache.delete_value(f"door_alerts:offline:{DOORS[0]['device_name']}")
+    da._state_put(f"door_alerts:offline:{DOORS[0]['device_name']}", None)
     with patch.object(da.dc, "sensor_closed_value", lambda: 1):
         da.dc.sensor_reading(sdoors[0], probes(0, 1)[DOORS[0]["device_name"]])      # door A read open
     off_probes = {DOORS[0]["device_name"]: {"online": False}, DOORS[1]["device_name"]: {"online": True}}
@@ -376,9 +400,9 @@ try:
     check("offline: payload có last_sensor = open", (pl["last_sensor"] or {}).get("state") == "open", str(pl["last_sensor"]))
     check("online: payload không có last_sensor", da.dc._door_payload(full, probes(1, 1)[DOORS[0]["device_name"]])["last_sensor"] is None)
     check("cửa không sensor: không có trạng thái cuối", da.dc.last_sensor(nodoor) is None)
-    frappe.cache.delete_value(f"door_alerts:offline:{DOORS[0]['device_name']}")
+    da._state_put(f"door_alerts:offline:{DOORS[0]['device_name']}", None)
     for d in DOORS:
-        frappe.cache.delete_value(f"door_alerts:not_locked:{d['device_name']}")
+        da._state_put(f"door_alerts:not_locked:{d['device_name']}", None)
 
     print("10. An toàn nội dung")
     check("escape HTML", "&lt;b&gt;" in da._esc("<b>"))
@@ -413,4 +437,5 @@ finally:
     frappe.db.rollback()
     for k in cache_keys:
         frappe.cache.delete_value(k)
+        da._state_put(k, None)
     print(f"\n{ok} PASS / {fail} FAIL  (đã rollback + xoá cache test)")

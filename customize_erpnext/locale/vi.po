@@ -87666,3 +87666,27 @@ msgstr "Số ngày còn lại"
 #. source: tiqn
 msgid "Next Contract Type"
 msgstr "Loại hợp đồng kế tiếp"
+
+#. source: tiqn
+msgid "Door Alerts"
+msgstr "Cảnh báo cửa"
+
+#. source: tiqn
+msgid "Door events: opens from ERP / fingerprint, open all, failed commands, door left open, daily summary"
+msgstr "Sự kiện cửa: mở từ ERP / vân tay, mở tất cả, lệnh lỗi, cửa để mở, tổng kết hằng ngày"
+
+#. source: tiqn
+msgid "Device Alerts"
+msgstr "Cảnh báo thiết bị"
+
+#. source: tiqn
+msgid "Door device offline / back online"
+msgstr "Máy cửa mất kết nối / kết nối lại"
+
+#. source: tiqn
+msgid "Alert State"
+msgstr "Trạng thái cảnh báo"
+
+#. source: tiqn
+msgid "Per-door alert state (offline, door left open) as JSON. Kept in the database because clear-cache wipes Redis"
+msgstr "Trạng thái cảnh báo của từng cửa (mất kết nối, cửa để mở) dạng JSON. Lưu trong database vì clear-cache xoá sạch Redis"

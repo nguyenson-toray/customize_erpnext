@@ -203,6 +203,17 @@ Plan + quyết định: `.claude/plans/door_alerts.md`.
   `alert_command_failed`. 1 lần mở = 1 dòng ("ngoài giờ" thắng). "Mở tất cả" = đúng 1 dòng "N/M cửa đã mở" (chỉ nêu tên cửa LỖI), gom theo người bấm + khoảng cách ≤ 10 s chứ không theo phút đồng hồ. Patch
   `door_alert_setting_select_fields` chuyển 4 ô tick cũ sang 2 Select.
 - **Chọn cửa:** ô `send_door_alerts` trên dòng máy cửa của Attendance Machine Setting (mặc định bật).
+- **Người nhận theo loại (22/10/2026):** mỗi dòng `recipients` có 2 ô **Door Alerts** (mở cửa, vân tay,
+  mở tất cả, lệnh lỗi, cửa mở ngoài giờ, tổng hợp ngày) và **Device Alerts** (máy offline / có lại), mặc
+  định cùng bật. Tin thiết bị và tin cửa gửi thành 2 tin riêng. Không ai nhận một loại ⇒ bỏ qua, không
+  tính là lỗi gửi. Chat riêng: mở bot → Start → nút Get Chat ID.
+- 🔴 **Trạng thái cảnh báo theo cửa nằm trong DB** (field ẩn `alert_state`, JSON, chỉ ghi khi đổi), KHÔNG
+  ở Redis: `frappe.clear_cache()` (bench clear-cache, migrate, lưu vài cài đặt) xoá MỌI key cache của
+  site trừ `persistent_cache_keys`. 21/10/2026 máy Production offline cả ngày ⇒ mỗi lần clear-cache
+  trạng thái mất ⇒ 8 tin "offline for 7–8 minutes" lặp, không có tin "back online" nào. Trạng thái cảm
+  biến cuối (`door_control:last_sensor:*`) vẫn ở Redis nhưng khai trong `persistent_cache_keys`
+  (hooks.py) nên sống qua clear-cache; chỉ mất khi Redis khởi động lại (~1 lần/tuần, ~06:xx). Mỗi
+  lượt job đọc lại sensor của cửa online ⇒ tin offline có "last reading" kể cả khi không ai mở trang.
 - **Mute Until:** trước thời điểm đó không gửi gì; sự kiện bị BỎ (không dồn lại), mốc vẫn dời.
 - **Bối cảnh vận hành:** giờ làm (mặc định 06:00–22:00, mọi ngày) công tắc trên khoá để OFF ⇒
   chốt luôn nhả, ~1000 công nhân qua lại ⇒ hoạt động cửa trong giờ KHÔNG báo. Ngoài giờ báo ngay
@@ -210,7 +221,7 @@ Plan + quyết định: `.claude/plans/door_alerts.md`.
 - **Job:** cron `* * * * *` → `door_alerts.tick()`. Tắt ⇒ đọc 1 field rồi thoát. Bật ⇒ mỗi
   `check_interval_minutes`: probe cửa, đọc log **không `disable_device`** (job không bao giờ làm
   cửa từ chối vân tay), lấy Door Control Action + Door Access Log có `creation` trong cửa sổ
-  (`last_check_at`, now] → gom thành **1 tin / người nhận**. Tổng hợp ngày: 1 lần sau
+  (`last_check_at`, now] → gom thành **1 tin / người nhận / loại** (Door / Device). Tổng hợp ngày: 1 lần sau
   `daily_summary_time`.
 - **Sự kiện:** mất kết nối ≥ N phút (1 tin mất + 1 tin có lại) · Mở tất cả (gộp 1 sự kiện) · lệnh
   lỗi · mở từ ERP ngoài giờ · quẹt ngoài giờ · ID lạ (mọi lúc). Tuỳ chọn thêm (09/10, user yêu cầu):

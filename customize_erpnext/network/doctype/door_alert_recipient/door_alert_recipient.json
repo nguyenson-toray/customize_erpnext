@@ -8,7 +8,9 @@
  "field_order": [
   "label",
   "chat_id",
-  "enabled"
+  "enabled",
+  "door_alerts",
+  "device_alerts"
  ],
  "fields": [
   {
@@ -16,7 +18,7 @@
    "fieldtype": "Data",
    "label": "Label",
    "in_list_view": 1,
-   "columns": 4,
+   "columns": 3,
    "description": "Who or which group this is, e.g. Security managers"
   },
   {
@@ -25,7 +27,7 @@
    "label": "Chat ID",
    "reqd": 1,
    "in_list_view": 1,
-   "columns": 4,
+   "columns": 2,
    "description": "Telegram chat id. A group id starts with -100"
   },
   {
@@ -34,12 +36,30 @@
    "label": "Enabled",
    "default": "1",
    "in_list_view": 1,
-   "columns": 2
+   "columns": 1
+  },
+  {
+   "fieldname": "door_alerts",
+   "fieldtype": "Check",
+   "label": "Door Alerts",
+   "default": "1",
+   "in_list_view": 1,
+   "columns": 2,
+   "description": "Door events: opens from ERP / fingerprint, open all, failed commands, door left open, daily summary"
+  },
+  {
+   "fieldname": "device_alerts",
+   "fieldtype": "Check",
+   "label": "Device Alerts",
+   "default": "1",
+   "in_list_view": 1,
+   "columns": 2,
+   "description": "Door device offline / back online"
   }
  ],
  "index_web_pages_for_search": 0,
  "links": [],
- "modified": "2026-10-09 09:00:00.000000",
+ "modified": "2026-10-22 08:10:54.016513",
  "modified_by": "Administrator",
  "module": "Network",
  "name": "Door Alert Recipient",

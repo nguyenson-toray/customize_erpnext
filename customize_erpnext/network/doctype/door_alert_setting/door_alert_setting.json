@@ -51,7 +51,8 @@
   "column_break_runtime",
   "sent_count_date",
   "sent_count",
-  "last_error"
+  "last_error",
+  "alert_state"
  ],
  "fields": [
   {
@@ -340,11 +341,20 @@
    "fieldtype": "Small Text",
    "label": "Last Error",
    "read_only": 1
+  },
+  {
+   "fieldname": "alert_state",
+   "fieldtype": "Long Text",
+   "label": "Alert State",
+   "hidden": 1,
+   "read_only": 1,
+   "no_copy": 1,
+   "description": "Per-door alert state (offline, door left open) as JSON. Kept in the database because clear-cache wipes Redis"
   }
  ],
  "index_web_pages_for_search": 0,
  "links": [],
- "modified": "2026-10-19 15:35:30.751655",
+ "modified": "2026-10-22 08:10:54.016513",
  "modified_by": "Administrator",
  "module": "Network",
  "name": "Door Alert Setting",

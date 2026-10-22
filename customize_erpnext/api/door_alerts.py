@@ -12,7 +12,8 @@ How it runs
   reads new punches WITHOUT pausing the device (a door must never ignore a
   fingerprint because of this job), then turns the Door Control Action and
   Door Access Log rows created since the previous check into events, and sends
-  them as ONE message per recipient.
+  them as ONE message per recipient. Device events (offline / back online) go to
+  recipients with "Device Alerts" ticked, everything else to "Door Alerts".
 - Once a day, at/after `daily_summary_time`, a summary of the day is sent.
 
 Operations context (09/10/2026): during working hours the lock is switched OFF
@@ -24,10 +25,14 @@ messages (not queued) until that time.
 
 Runtime state lives in the Setting's read-only fields (written with
 update_modified=False, so an admin editing the form never hits a timestamp
-conflict) and in cache keys (offline tracking only).
+conflict). Per-door alert state (offline, door left open) is JSON in the hidden
+field `alert_state` — NOT Redis: `frappe.clear_cache()` (bench clear-cache,
+migrate, ...) deletes every site cache key, and on 21/10/2026 that re-armed the
+"device offline" alert of a door that stayed offline all day, 8 times.
 """
 
 import html
+import json
 from datetime import datetime, time as dtime, timedelta
 
 import frappe
@@ -61,6 +66,31 @@ def _settings():
 
 def _set_status(**values):
     frappe.db.set_value(SETTING, SETTING, values, update_modified=False)
+
+
+def _alert_state():
+    try:
+        return json.loads(frappe.db.get_single_value(SETTING, "alert_state") or "{}")
+    except ValueError:
+        return {}
+
+
+def _state_get(key):
+    return _alert_state().get(key)
+
+
+def _state_put(key, value):
+    """Store (value=None: drop) one entry of `alert_state`; writes only on change."""
+    state = _alert_state()
+    if value is None:
+        if key not in state:
+            return
+        state.pop(key)
+    elif state.get(key) == value:
+        return
+    else:
+        state[key] = value
+    _set_status(alert_state=json.dumps(state, sort_keys=True))
 
 
 def _to_time(value):
@@ -142,13 +172,22 @@ def _split(text):
     return chunks
 
 
-def send_telegram(settings, text, only_enabled=True):
-    """Send `text` (HTML) to every enabled recipient. Returns one result per chat.
+def _receives(recipient, kind):
+    """Recipient row ticks "Door Alerts" / "Device Alerts" (a row saved before the
+    columns existed counts as ticked)."""
+    value = recipient.get(f"{kind}_alerts")
+    return True if value is None else bool(value)
+
+
+def send_telegram(settings, text, only_enabled=True, kind=None):
+    """Send `text` (HTML) to every enabled recipient — with `kind` ("door" / "device"),
+    only to those receiving that kind. Returns one result per chat.
     Never raises: a Telegram outage must not break the job or the page."""
     import requests
 
     token = settings.get_password("bot_token", raise_exception=False)
-    chats = [r for r in settings.recipients or [] if r.chat_id and (r.enabled or not only_enabled)]
+    chats = [r for r in settings.recipients or []
+             if r.chat_id and (r.enabled or not only_enabled) and (kind is None or _receives(r, kind))]
     results = []
     for r in chats:
         res = {"label": r.label, "chat_id": r.chat_id, "ok": True, "error": None}
@@ -210,7 +249,7 @@ def _offline_events(settings, doors, probes, now):
     threshold = timedelta(minutes=settings.offline_after_minutes or 5)
     for door in doors:
         key = f"door_alerts:offline:{door['device_name']}"
-        state = frappe.cache.get_value(key) or {}
+        state = _state_get(key) or {}
         online = probes.get(door["device_name"], {}).get("online")
         if not online:
             since = get_datetime(state["since"]) if state.get("since") else now
@@ -227,13 +266,13 @@ def _offline_events(settings, doors, probes, now):
                         at.strftime("%H:%M" if at.date() == now.date() else "%d/%m %H:%M"))
                 events.append(("🔴", _("Door device offline for {0} minutes").format(minutes), detail))
                 state["alerted"] = True
-            frappe.cache.set_value(key, state)
+            _state_put(key, state)
         elif state:
             if state.get("alerted"):
                 minutes = int((now - get_datetime(state["since"])).total_seconds() // 60)
                 events.append(("🟢", _("Door device back online"),
                                _("{0} — offline for {1} minutes").format(_esc(_label(door)), minutes)))
-            frappe.cache.delete_value(key)
+            _state_put(key, None)
     return events
 
 
@@ -251,10 +290,10 @@ def _not_locked_events(settings, doors, probes, now):
     working = in_work_hours(now, settings.work_start_time, settings.work_end_time)
     for door in doors:
         key = f"door_alerts:not_locked:{door['device_name']}"
-        st = frappe.cache.get_value(key) or {}
+        st = _state_get(key) or {}
         if working:
             if st:
-                frappe.cache.delete_value(key)
+                _state_put(key, None)
             continue
         probe = probes.get(door["device_name"]) or {}
         state = dc.sensor_reading(door, probe)[0] if probe.get("online") else None
@@ -274,21 +313,21 @@ def _not_locked_events(settings, doors, probes, now):
                     events.append(("🔴", _("Door still open"),
                                    _("{0} — for {1} minutes").format(label, minutes)))
                     to_mark.append(key)
-            frappe.cache.set_value(key, st)
+            _state_put(key, st)
         else:
             if st.get("last_sent"):
                 minutes = int((now - get_datetime(st["first_seen"])).total_seconds() // 60)
                 events.append(("🟢", _("Door closed"), _("{0} (after {1} minutes)").format(label, minutes)))
-            frappe.cache.delete_value(key)
+            _state_put(key, None)
     return events, to_mark
 
 
 def _mark_not_locked_sent(keys, now):
     for key in keys:
-        st = frappe.cache.get_value(key)
+        st = _state_get(key)
         if st:
             st["last_sent"] = str(now)
-            frappe.cache.set_value(key, st)
+            _state_put(key, st)
 
 
 def _action_events(settings, doors, since, until):
@@ -425,7 +464,7 @@ def build_daily_summary(settings, doors, day):
                 len(punches), after, unknown, ok, (", " + _("{0} failed").format(bad)) if bad else ""))
         )
     if names:
-        offline = [_label(d) for d in doors if (frappe.cache.get_value(f"door_alerts:offline:{d['device_name']}") or {}).get("alerted")]
+        offline = [_label(d) for d in doors if (_state_get(f"door_alerts:offline:{d['device_name']}") or {}).get("alerted")]
         if offline:
             lines.append("🔴 " + _esc(_("Still offline: {0}").format(", ".join(offline))))
     return "\n".join(lines)
@@ -469,12 +508,17 @@ def run_checks(now=None, probe=None, read_punches=None, commit=False, force=Fals
         since = max(last or (now - interval), now - timedelta(days=1))
         probes = (probe or (lambda ds: dc._probe_all(ds, force=True)))(doors)
         online = [d for d in doors if probes.get(d["device_name"], {}).get("online")]
+        # keep each sensor door's last reading fresh: the "device offline" line quotes it
+        for d in online:
+            if d.get("has_door_sensor"):
+                dc.sensor_reading(d, probes[d["device_name"]])
         if online and (_wants_punches(settings) or settings.daily_summary):
             (read_punches or (lambda ds: dc.read_new_punches(ds, pause_device=False)))(online)
 
-        events, not_locked_keys = [], []
+        # device events (offline / back online) and door events go to different recipients
+        device_events, events, not_locked_keys = [], [], []
         if settings.alert_device_offline:
-            events += _offline_events(settings, doors, probes, now)
+            device_events = _offline_events(settings, doors, probes, now)
         if settings.use_lock_sensor and settings.alert_not_locked_after_hours:
             nl_events, not_locked_keys = _not_locked_events(settings, doors, probes, now)
             events += nl_events
@@ -483,19 +527,28 @@ def run_checks(now=None, probe=None, read_punches=None, commit=False, force=Fals
 
         delivered = True
         # muted: events are dropped on purpose (not queued for later)
+        if device_events and not muted:
+            # state-based (not windowed): a failed send is not retried, as before
+            results = send_telegram(settings, _format_events(device_events, now), kind="device")
+            _record_send_errors(results)
+            # nobody subscribed to this kind = nothing to deliver, not a failure
+            out["device_sent_ok"] = not results or any(r["ok"] for r in results)
+            if any(r["ok"] for r in results):
+                _count_sent(settings, now)
         if events and not muted:
-            results = send_telegram(settings, _format_events(events, now))
+            results = send_telegram(settings, _format_events(events, now), kind="door")
             _record_send_errors(results)
             # nobody got it (Telegram down, bad token): keep the window so the
             # next run sends these events again; partial success moves on
-            delivered = any(r["ok"] for r in results)
-            out["sent_ok"] = delivered
-            if delivered:
+            delivered = not results or any(r["ok"] for r in results)
+            if any(r["ok"] for r in results):
                 _count_sent(settings, now)
+        if (events or device_events) and not muted:
+            out["sent_ok"] = delivered and out.get("device_sent_ok", True)
         if delivered or muted:
             # muted: the reminder clock keeps running, nothing piles up for later
             _mark_not_locked_sent(not_locked_keys, now)
-        out["events"] = len(events)
+        out["events"] = len(events) + len(device_events)
         if delivered:
             _set_status(last_check_at=now)
 
@@ -504,7 +557,7 @@ def run_checks(now=None, probe=None, read_punches=None, commit=False, force=Fals
         due = now.time() >= _to_time(settings.daily_summary_time)
         if due and str(settings.last_summary_date or "") != str(today):
             if not muted:
-                results = send_telegram(settings, build_daily_summary(settings, doors, today))
+                results = send_telegram(settings, build_daily_summary(settings, doors, today), kind="door")
                 _record_send_errors(results)
                 if any(r["ok"] for r in results):
                     _count_sent(settings, now)

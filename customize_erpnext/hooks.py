@@ -252,6 +252,10 @@ data_import_before_import = [
     "customize_erpnext.override_methods.item_attribute_import.before_import"
 ]
 
+# Cache keys that survive frappe.clear_cache() (bench clear-cache / migrate wipe every other key):
+# last door-sensor reading per door, quoted in the Telegram "device offline" alert
+persistent_cache_keys = ["door_control:last_sensor:"]
+
 # Scheduler Events
 scheduler_events = {
     "hourly": [
