@@ -264,7 +264,15 @@ const BSYNC_HTML = `<div class="bsync">
 
             <div class="card">
                 <div class="card-title"><span class="section-num">2</span> Select Target Machines</div>
-                <div style="display:flex;gap:8px;margin-bottom:10px;">
+                <div style="display:flex;gap:8px;margin-bottom:10px;align-items:center;flex-wrap:wrap;">
+                    <span id="fp41MachineScopeWrap" style="display:none;align-items:center;gap:6px;margin-right:8px;">
+                        <strong style="font-size:13px;color:var(--text-2);">Machines:</strong>
+                        <select id="fp41MachineScope" onchange="bsync.fp41MachineScopeChange()" style="min-width:0;">
+                            <option value="attendance">Attendance only</option>
+                            <option value="door">Door control only</option>
+                            <option value="all">All</option>
+                        </select>
+                    </span>
                     <button class="btn btn-sm btn-secondary" onclick="bsync.fp41SelectAllMachines(true)">All</button>
                     <button class="btn btn-sm btn-secondary" onclick="bsync.fp41SelectAllMachines(false)">None</button>
                 </div>
@@ -385,12 +393,21 @@ const BSYNC_HTML = `<div class="bsync">
         <div id="tab-machines" class="tab-panel">
 
             <div class="global-actions toolbar">
+                <span id="machinesScopeWrap" style="display:none;align-items:center;gap:6px;margin-right:8px;">
+                    <strong style="font-size:13px;color:var(--text-2);">Machines:</strong>
+                    <select id="machinesScope" onchange="bsync.machinesScopeChange()" style="min-width:0;">
+                        <option value="attendance">Attendance only</option>
+                        <option value="door">Door control only</option>
+                        <option value="all">All</option>
+                    </select>
+                </span>
                 <strong style="font-size:13px;color:var(--text-2);margin-right:4px;">Bulk actions:</strong>
                 <button class="btn btn-primary btn-sm" onclick="bsync.machinesRefresh()">🔄 Refresh</button>
                 <button class="btn btn-sm btn-info-sm" onclick="bsync.machinesSyncTimeAll()">🕐 Sync Time All</button>
                 <button class="btn btn-sm btn-danger-sm" onclick="bsync.machinesRebootAll()">🔁 Reboot All ⚠</button>
                 <button class="btn btn-sm" style="background:#7c3aed;color:#fff;" onclick="bsync.machinesLoadAllInfo()">📊
                     Load Info All</button>
+                <button class="btn btn-sm btn-success" onclick="bsync.machinesLoadUsersAll()">👥 Users All</button>
                 <span id="machinesGlobalStatus" style="font-size:13px;color:var(--text-2);margin-left:8px;"></span>
             </div>
 
@@ -427,6 +444,36 @@ const BSYNC_HTML = `<div class="bsync">
                                 </tr>
                             </thead>
                             <tbody id="allMachinesInfoBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Users stored on the machines -->
+            <div id="machineUsersSection" style="display:none;margin-top:18px;">
+                <div class="card">
+                    <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+                        <span>👥 Users on Machines</span>
+                        <span id="muInfo" style="font-size:11px;color:var(--text-3);font-weight:normal;"></span>
+                    </div>
+                    <div class="toolbar" style="margin-bottom:10px;">
+                        <select id="muMachine" onchange="bsync.muMachineChange()" style="min-width:220px;"></select>
+                        <input type="text" id="muSearch" placeholder="Search user ID, name, employee..." oninput="bsync.muRender()">
+                        <select id="muStatus" onchange="bsync.muRender()" style="min-width:0;">
+                            <option value="">All ERP statuses</option>
+                            <option value="Active">Active</option>
+                            <option value="Left">Left</option>
+                            <option value="other">Other status</option>
+                            <option value="none">Not in ERP</option>
+                        </select>
+                        <span id="muCount" style="font-size:13px;color:var(--text-2);"></span>
+                        <button class="btn btn-sm btn-danger-sm" id="muDeleteBtn" onclick="bsync.muDelete()" style="margin-left:auto;" disabled>🗑 Delete selected</button>
+                        <button class="btn btn-sm btn-primary" id="muDownloadBtn" onclick="bsync.muDownload()">⬇ Download xlsx</button>
+                    </div>
+                    <div class="del-preview-wrap" style="max-height:520px;">
+                        <table id="muTable">
+                            <thead id="muHead"></thead>
+                            <tbody id="muBody"></tbody>
                         </table>
                     </div>
                 </div>
@@ -719,7 +766,8 @@ bsync.setup = function (root) {
         // TAB 2 — SYNC FINGERPRINT
         // ════════════════════════════════════════════════════════════════════════════
 
-        let _allMachines = [];       // full list of enabled machines
+        let _allMachines = [];       // enabled attendance machines (Tab 2 + Tab 3 default)
+        let _fp41AllMachines = [];   // + door controllers (server adds them only for Door Control)
         let _masterUsers = [];       // users returned from master device
         let _filteredDeviceIds = null; // set of device IDs from ERPNext filter, or null (no filter)
         let _pollTimer = null;
@@ -727,9 +775,12 @@ bsync.setup = function (root) {
         // ── Load machines ─────────────────────────────────────────────────────────────
         async function loadMachinesForFingerprint() {
             try {
-                const msg = await callGet('customize_erpnext.api.utilities.get_enabled_attendance_machines', {});
+                // include_door: the server adds door controllers only for the Door Control
+                // role. Tab 2 (device → device) never uses them; Tab 3 offers them by scope.
+                const msg = await callGet('customize_erpnext.api.utilities.get_enabled_attendance_machines', { include_door: 1 });
                 if (!msg.success) throw new Error(msg.message);
-                _allMachines = msg.machines;
+                _fp41AllMachines = msg.machines || [];
+                _allMachines = _fp41AllMachines.filter(m => !m.is_door_control);
                 renderMasterDropdown();
                 renderTargetMachines(null); // null = no master selected yet
                 fp41RenderMachines();       // also populate 4.1 machine list
@@ -1308,7 +1359,9 @@ bsync.setup = function (root) {
             btn.disabled = (_fp41Employees.length === 0 || selMachines === 0 || _fp41Syncing);
             if (_fp41Employees.length > 0 && selMachines > 0) {
                 const total = _fp41Employees.length * selMachines;
-                summary.textContent = `▶ Will sync ${_fp41Employees.length} employees → ${selMachines} machines (${total} operations)`;
+                const selDoors = root.querySelectorAll('.fp41-machine-cb[data-door="1"]:checked').length;
+                summary.textContent = `▶ Will sync ${_fp41Employees.length} employees → ${selMachines} machines (${total} operations)`
+                    + (selDoors ? ` — incl. 🚪 ${selDoors} door controller(s)` : '');
             } else if (_fp41Employees.length === 0) {
                 summary.textContent = 'Load employees first';
             } else {
@@ -1316,24 +1369,45 @@ bsync.setup = function (root) {
             }
         }
 
+        function _fp41Scope() {
+            const sel = document.getElementById('fp41MachineScope');
+            return (sel && sel.value) || 'attendance';
+        }
+
+        function fp41MachineScopeChange() {
+            fp41RenderMachines();
+        }
+
         function fp41RenderMachines() {
             const wrap = document.getElementById('fp41MachineList');
             if (!wrap) return;
-            if (!_allMachines.length) {
-                wrap.innerHTML = '<div class="alert alert-warning">No enabled machines found</div>';
+            const hasDoor = _fp41AllMachines.some(m => m.is_door_control);
+            document.getElementById('fp41MachineScopeWrap').style.display = hasDoor ? 'inline-flex' : 'none';
+            const scope = hasDoor ? _fp41Scope() : 'attendance';
+            const list = scope === 'all' ? _fp41AllMachines
+                : _fp41AllMachines.filter(m => !!m.is_door_control === (scope === 'door'));
+            if (!list.length) {
+                wrap.innerHTML = `<div class="alert alert-warning">${scope === 'door' ? 'No door controllers found' : 'No enabled machines found'}</div>`;
+                fp41UpdateSyncBtn();
                 return;
             }
-            wrap.innerHTML = _allMachines.map(m => {
+            wrap.innerHTML = list.map(m => {
                 const icon = m.connection_status === 'online' ? '🟢' : '🔴';
                 const masterBadge = m.master_device ? '<span class="badge master">★ Master</span>' : '';
+                // Door controller: never pre-ticked — a fingerprint there opens the door,
+                // so it is ticked on purpose for the few people allowed in.
+                const isDoor = !!m.is_door_control;
+                const doorBadge = isDoor
+                    ? '<span class="badge" style="background:#ede9fe;color:#5b21b6;border:1px solid #ddd6fe;" title="Door controller — a fingerprint here opens the door">🚪 Door</span>'
+                    : '';
                 return `<label class="machine-item">
-                    <input type="checkbox" class="fp41-machine-cb" value="${escapeHtml(m.name)}"
-                        ${m.connection_status === 'online' ? 'checked' : ''}>
+                    <input type="checkbox" class="fp41-machine-cb" value="${escapeHtml(m.name)}" data-door="${isDoor ? 1 : 0}"
+                        ${m.connection_status === 'online' && !isDoor ? 'checked' : ''}>
                     <span class="machine-item-label">
                         ${icon} <strong>${escapeHtml(m.name)}</strong> — ${escapeHtml(m.device_name || '')}
                         <span style="color:#6c757d;">(${escapeHtml(m.ip_address)})</span>
                     </span>
-                    ${masterBadge}
+                    ${masterBadge}${doorBadge}
                     ${m.response_time > 0 ? `<span class="badge">${m.response_time}ms</span>` : ''}
                 </label>`;
             }).join('');
@@ -1341,10 +1415,17 @@ bsync.setup = function (root) {
         }
 
         async function fp41StartSync() {
-            const selMachines = [...root.querySelectorAll('.fp41-machine-cb:checked')].map(cb => cb.value);
+            const selCbs = [...root.querySelectorAll('.fp41-machine-cb:checked')];
+            const selMachines = selCbs.map(cb => cb.value);
             if (!_fp41Employees.length || !selMachines.length) return;
             const total = _fp41Employees.length * selMachines.length;
-            if (!await bsyncConfirm(`Confirm sync ${_fp41Employees.length} employees → ${selMachines.length} machines?\n(${total} total operations)`)) return;
+            const doorNames = selCbs.filter(cb => cb.dataset.door === '1').map(cb => cb.value);
+            let confirmMsg = `Confirm sync ${_fp41Employees.length} employees → ${selMachines.length} machines?\n(${total} total operations)`;
+            if (doorNames.length) {
+                confirmMsg += `\n\n🚪 ${doorNames.length} door controller(s) selected: ${doorNames.join(', ')}.`
+                    + `\nAll ${_fp41Employees.length} employees will be able to OPEN THE DOOR.`;
+            }
+            if (!await bsyncConfirm(confirmMsg)) return;
 
             _fp41Syncing = true;
             _syncRunningCount++;
@@ -1751,6 +1832,13 @@ bsync.setup = function (root) {
 
         let _machinesList = [];
         let _machinesLoaded = false;
+        // attendance | door | all — door / all only for the Door Control role (server-checked)
+        let _machinesScope = 'attendance';
+
+        function _machinesStatusText() {
+            const kind = { attendance: 'attendance ', door: 'door control ', all: '' }[_machinesScope] || '';
+            return `${_machinesList.length} ${kind}machines`;
+        }
 
         async function loadMachineCards() {
             _machinesLoaded = true;
@@ -1758,18 +1846,21 @@ bsync.setup = function (root) {
             const loadingEl = document.getElementById('machinesLoadingArea');
             const statusEl = document.getElementById('machinesGlobalStatus');
 
+            // an earlier failure replaced the spinner with the error
+            loadingEl.innerHTML = '<div class="spinner"></div><p style="margin-top:8px;">Loading machines...</p>';
             loadingEl.style.display = 'block';
             gridEl.style.display = 'none';
             statusEl.textContent = '';
 
             try {
-                const msg = await callGet('customize_erpnext.api.biometric_sync.get_attendance_machines', {});
+                const msg = await callGet('customize_erpnext.api.biometric_sync.get_attendance_machines', { scope: _machinesScope });
                 if (msg.status !== 'success') throw new Error(msg.message || 'Failed to load machine list');
+                document.getElementById('machinesScopeWrap').style.display = msg.can_door ? 'inline-flex' : 'none';
                 _machinesList = msg.machines || [];
                 renderMachineCards();
                 loadingEl.style.display = 'none';
                 gridEl.style.display = '';
-                statusEl.textContent = `${_machinesList.length} attendance machines`;
+                statusEl.textContent = `${_machinesStatusText()}`;
             } catch (e) {
                 loadingEl.innerHTML = `<div class="alert alert-danger">❌ ${escapeHtml(e.message)}</div>`;
             }
@@ -1780,10 +1871,19 @@ bsync.setup = function (root) {
             loadMachineCards();
         }
 
+        function machinesScopeChange() {
+            _machinesScope = document.getElementById('machinesScope').value;
+            // info table + user lists belong to the previous set of machines
+            Object.keys(_muData).forEach(k => delete _muData[k]);
+            document.getElementById('allMachinesInfoSection').style.display = 'none';
+            document.getElementById('machineUsersSection').style.display = 'none';
+            machinesRefresh();
+        }
+
         function renderMachineCards() {
             const gridEl = document.getElementById('machineCardsGrid');
             if (!_machinesList.length) {
-                gridEl.innerHTML = '<div class="alert alert-info">No enabled machines found in the system (Attendance Machine doctype).</div>';
+                gridEl.innerHTML = '<div class="alert alert-info">No enabled machines of this kind in Attendance Machine Setting.</div>';
                 return;
             }
             gridEl.innerHTML = _machinesList.map(m => {
@@ -1791,11 +1891,14 @@ bsync.setup = function (root) {
                 const masterBadge = isMaster
                     ? '<span style="font-size:11px;background:#fef9c3;color:#854d0e;padding:1px 8px;border-radius:10px;margin-left:6px;border:1px solid #fde68a;">★ Master</span>'
                     : '';
+                const doorBadge = m.is_door_control
+                    ? '<span style="font-size:11px;background:#ede9fe;color:#5b21b6;padding:1px 8px;border-radius:10px;margin-left:6px;border:1px solid #ddd6fe;">🚪 Door</span>'
+                    : '';
                 return `
                 <div class="machine-card${isMaster ? ' is-master' : ''}" id="mc_${CSS.escape(m.name)}">
                     <div class="machine-card-head">
                         <div class="machine-card-name">
-                            🖥 ${escapeHtml(m.name)}${masterBadge}
+                            ${m.is_door_control ? '🚪' : '🖥'} ${escapeHtml(m.name)}${masterBadge}${doorBadge}
                         </div>
                     </div>
                     <div class="machine-card-meta">📌 ${escapeHtml(m.device_name || '')}${m.model ? ' · ' + escapeHtml(m.model) : ''}</div>
@@ -1805,6 +1908,7 @@ bsync.setup = function (root) {
                         <button class="btn btn-sm btn-info-sm machine-action" data-action="info" data-machine="${escapeHtml(m.name)}">ℹ Info</button>
                         <button class="btn btn-sm btn-warn-sm machine-action" data-action="time" data-machine="${escapeHtml(m.name)}">🕐 Sync Time</button>
                         <button class="btn btn-sm btn-danger-sm machine-action" data-action="reboot" data-machine="${escapeHtml(m.name)}">🔁 Reboot</button>
+                        <button class="btn btn-sm btn-success machine-action" data-action="users" data-machine="${escapeHtml(m.name)}">👥 Users</button>
                     </div>
                     <div class="machine-info-panel" id="mip_${CSS.escape(m.name)}">
                         <span style="color:var(--text-3);font-size:12px;">Click <em>Info</em> to read device information...</span>
@@ -1812,7 +1916,7 @@ bsync.setup = function (root) {
                 </div>`;
             }).join('');
             // data-attribute + listeners instead of inline onclick with interpolated names
-            const actions = { info: machineGetInfo, time: machineSyncTime, reboot: machineReboot };
+            const actions = { info: machineGetInfo, time: machineSyncTime, reboot: machineReboot, users: machineShowUsers };
             gridEl.querySelectorAll('.machine-action').forEach(btn =>
                 btn.addEventListener('click', () => actions[btn.dataset.action](btn.dataset.machine)));
         }
@@ -1890,7 +1994,7 @@ bsync.setup = function (root) {
                 const msg = await callPost('customize_erpnext.api.biometric_sync.machine_sync_time', { machine_name: machineName });
                 if (msg.status !== 'success') throw new Error(msg.message);
                 statusEl.textContent = `✅ ${machineName}: Time synced | Server: ${msg.server_time} | Device: ${msg.device_time} | Drift: ${msg.drift_seconds}s`;
-                setTimeout(() => { statusEl.textContent = `${_machinesList.length} attendance machines`; }, 6000);
+                setTimeout(() => { statusEl.textContent = `${_machinesStatusText()}`; }, 6000);
             } catch (e) {
                 statusEl.innerHTML = `<span style="color:#dc3545;">❌ ${escapeHtml(machineName)}: ${escapeHtml(e.message)}</span>`;
             }
@@ -1904,7 +2008,7 @@ bsync.setup = function (root) {
                 const msg = await callPost('customize_erpnext.api.biometric_sync.machine_reboot', { machine_name: machineName });
                 if (msg.status !== 'success') throw new Error(msg.message);
                 statusEl.textContent = `✅ ${machineName}: Reboot command sent`;
-                setTimeout(() => { statusEl.textContent = `${_machinesList.length} attendance machines`; }, 5000);
+                setTimeout(() => { statusEl.textContent = `${_machinesStatusText()}`; }, 5000);
             } catch (e) {
                 statusEl.innerHTML = `<span style="color:#dc3545;">❌ ${escapeHtml(machineName)}: ${escapeHtml(e.message)}</span>`;
             }
@@ -1922,7 +2026,7 @@ bsync.setup = function (root) {
             const ok = results.filter(r => r.status === 'fulfilled' && r.value && r.value.status === 'success').length;
             const fail = results.length - ok;
             statusEl.textContent = `✅ Time sync done: ${ok} OK / ${fail} failed`;
-            setTimeout(() => { statusEl.textContent = `${_machinesList.length} attendance machines`; }, 6000);
+            setTimeout(() => { statusEl.textContent = `${_machinesStatusText()}`; }, 6000);
         }
 
         async function machinesRebootAll() {
@@ -1942,7 +2046,7 @@ bsync.setup = function (root) {
                 await new Promise(r => setTimeout(r, 800));
             }
             statusEl.textContent = `✅ Reboot command sent to ${done} machines`;
-            setTimeout(() => { statusEl.textContent = `${_machinesList.length} attendance machines`; }, 6000);
+            setTimeout(() => { statusEl.textContent = `${_machinesStatusText()}`; }, 6000);
         }
 
         async function machinesLoadAllInfo() {
@@ -2012,7 +2116,284 @@ bsync.setup = function (root) {
             const fail = tbody.querySelectorAll('tr.row-error').length;
             tsEl.textContent = `Updated: ${new Date().toLocaleTimeString('en-US')}`;
             statusEl.textContent = `📊 Info: ${ok} OK / ${fail} failed`;
-            setTimeout(() => { statusEl.textContent = `${_machinesList.length} attendance machines`; }, 8000);
+            setTimeout(() => { statusEl.textContent = `${_machinesStatusText()}`; }, 8000);
+        }
+
+        // ── Users on machines (view + xlsx) ─────────────────────────────────────────
+        // machine name -> { read_at, loaded_at, users } — successful reads only
+        const _muData = {};
+        const MU_ALL = '__all__';
+        // the server keeps each list 30 min for the xlsx; older ones are re-read first
+        const MU_MAX_AGE_MS = 25 * 60 * 1000;
+
+        async function _muLoad(machineName) {
+            try {
+                const msg = await callPost('customize_erpnext.api.biometric_sync.machine_get_users', { machine_name: machineName });
+                if (msg.status !== 'success') throw new Error(msg.message || 'Failed to read users');
+                _muData[machineName] = { read_at: msg.read_at, loaded_at: Date.now(), users: msg.users || [],
+                                     is_door_control: !!msg.is_door_control };
+            } catch (e) {
+                // a failed re-read must not leave the old list in the combined view
+                delete _muData[machineName];
+                throw e;
+            }
+        }
+
+        // user_ids ticked in the current view (cleared when the view changes)
+        const _muSelected = new Set();
+        const MU_PROTECTED = 'Employee still working — never deleted from attendance machines';
+
+        // 🔴 attendance machine: never delete a working employee (server enforces it too);
+        // door controller: anyone (its list is the few people allowed to open the door)
+        function _muCanDelete(u, machineName) {
+            return !!(_muData[machineName] && (_muData[machineName].is_door_control || !u.is_working));
+        }
+
+        // machines the row would be deleted from in the current view
+        function _muDeleteTargets(u, selected) {
+            return (selected === MU_ALL ? u.machines : [selected]).filter(m => _muCanDelete(u, m));
+        }
+
+        function _muUpdateSelUi() {
+            const btn = document.getElementById('muDeleteBtn');
+            if (btn.dataset.busy) return;
+            btn.disabled = !_muSelected.size;
+            btn.textContent = _muSelected.size ? `🗑 Delete selected (${_muSelected.size})` : '🗑 Delete selected';
+            const all = document.getElementById('muSelAll');
+            if (all) {
+                const boxes = [...document.querySelectorAll('#muBody .mu-sel:not(:disabled)')];
+                all.checked = boxes.length > 0 && boxes.every(b => b.checked);
+            }
+        }
+
+        function muMachineChange() {
+            _muSelected.clear();
+            muRender();
+        }
+
+        document.getElementById('muBody').addEventListener('change', ev => {
+            const box = ev.target.closest('.mu-sel');
+            if (!box) return;
+            if (box.checked) _muSelected.add(box.dataset.uid); else _muSelected.delete(box.dataset.uid);
+            _muUpdateSelUi();
+        });
+
+        function _muLoadedNames() {
+            return _machinesList.map(m => m.name).filter(n => _muData[n]);
+        }
+
+        // after a failed read dropped a list: redraw the open view (or hide it if nothing is left)
+        function _muRefreshView() {
+            const section = document.getElementById('machineUsersSection');
+            if (section.style.display === 'none') return;
+            const names = _muLoadedNames();
+            if (!names.length) { section.style.display = 'none'; return; }
+            const cur = document.getElementById('muMachine').value;
+            _muShow(cur === MU_ALL || _muData[cur] ? cur : (names.length > 1 ? MU_ALL : names[0]));
+        }
+
+        function _muUidCmp(a, b) {
+            const na = /^\d+$/.test(a), nb = /^\d+$/.test(b);
+            if (na && nb) return Number(a) - Number(b);
+            if (na !== nb) return na ? -1 : 1;
+            return a.localeCompare(b);
+        }
+
+        async function machineShowUsers(machineName) {
+            const statusEl = document.getElementById('machinesGlobalStatus');
+            statusEl.textContent = `⏳ Reading users from ${machineName}...`;
+            try {
+                await _muLoad(machineName);
+                statusEl.textContent = `✅ ${machineName}: ${_muData[machineName].users.length} users`;
+                _muShow(machineName);
+            } catch (e) {
+                statusEl.innerHTML = `<span style="color:#dc3545;">❌ ${escapeHtml(machineName)}: ${escapeHtml(e.message)}</span>`;
+                _muRefreshView();
+            }
+        }
+
+        async function machinesLoadUsersAll() {
+            if (!_machinesList.length) { bsyncAlert('Machines not loaded'); return; }
+            const statusEl = document.getElementById('machinesGlobalStatus');
+            const list = _machinesList.slice();
+            statusEl.textContent = `⏳ Reading users from ${list.length} machines (parallel)...`;
+            const results = await Promise.allSettled(list.map(m => _muLoad(m.name)));
+            const failed = results
+                .map((r, i) => r.status === 'rejected' ? `${list[i].name}: ${r.reason && r.reason.message}` : null)
+                .filter(Boolean);
+            statusEl.textContent = `👥 Users: ${list.length - failed.length} OK / ${failed.length} failed`;
+            if (failed.length) bsyncAlert('Could not read users from:\n' + failed.join('\n'));
+            if (_muLoadedNames().length) _muShow(MU_ALL);
+            else _muRefreshView();
+        }
+
+        function _muShow(selected) {
+            const names = _muLoadedNames();
+            const sel = document.getElementById('muMachine');
+            const opts = names.length > 1 ? [`<option value="${MU_ALL}">All loaded machines (${names.length})</option>`] : [];
+            names.forEach(n => opts.push(`<option value="${escapeHtml(n)}">${escapeHtml(n)} (${_muData[n].users.length})</option>`));
+            sel.innerHTML = opts.join('');
+            sel.value = (selected === MU_ALL && names.length < 2) ? (names[0] || '') : selected;
+            _muSelected.clear();
+            const section = document.getElementById('machineUsersSection');
+            section.style.display = '';
+            muRender();
+            section.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        // one row per user_id across the loaded machines, with the machines it is on
+        function _muRows(selected) {
+            if (selected !== MU_ALL) return (_muData[selected] || {}).users || [];
+            const byId = new Map();
+            for (const n of _muLoadedNames()) {
+                for (const u of _muData[n].users) {
+                    let r = byId.get(u.user_id);
+                    if (!r) { r = { ...u, machines: [] }; byId.set(u.user_id, r); }
+                    if (!r.name && u.name) r.name = u.name;
+                    r.machines.push(n);
+                }
+            }
+            return [...byId.values()].sort((a, b) => _muUidCmp(a.user_id, b.user_id));
+        }
+
+        function _muStatusBadge(status) {
+            if (!status) return '<span style="color:var(--text-3);font-style:italic;">Not in ERP</span>';
+            if (status === 'Active') return '<span class="badge-matched">Active</span>';
+            if (status === 'Left') return '<span class="badge-unmatched">Left</span>';
+            return `<span style="background:var(--bg);color:var(--text-2);padding:2px 8px;border-radius:10px;font-size:11px;">${escapeHtml(status)}</span>`;
+        }
+
+        function muRender() {
+            const selected = document.getElementById('muMachine').value;
+            const q = document.getElementById('muSearch').value.trim().toLowerCase();
+            const st = document.getElementById('muStatus').value;
+            const all = _muRows(selected);
+            const rows = all.filter(u => {
+                if (st === 'none' && u.status) return false;
+                if (st === 'other' && (!u.status || u.status === 'Active' || u.status === 'Left')) return false;
+                if ((st === 'Active' || st === 'Left') && u.status !== st) return false;
+                if (!q) return true;
+                return [u.user_id, u.name, u.employee, u.employee_name].some(v => (v || '').toLowerCase().includes(q));
+            });
+            const isAll = selected === MU_ALL;
+            const selCell = u => {
+                const targets = _muDeleteTargets(u, selected);
+                const all = isAll ? u.machines : [selected];
+                const title = !targets.length ? MU_PROTECTED
+                    : targets.length < all.length ? `Only from: ${targets.join(', ')} (${MU_PROTECTED.toLowerCase()})` : '';
+                return `<td><input type="checkbox" class="mu-sel" data-uid="${escapeHtml(u.user_id)}"
+                    ${!targets.length ? 'disabled' : ''} ${targets.length && _muSelected.has(u.user_id) ? 'checked' : ''}
+                    ${title ? `title="${escapeHtml(title)}"` : ''}></td>`;
+            };
+            const erpCells = u => `
+                <td>${escapeHtml(u.employee || '')}</td>
+                <td>${escapeHtml(u.employee_name || '')}</td>
+                <td>${_muStatusBadge(u.status)}</td>
+                <td style="white-space:nowrap;">${escapeHtml(u.relieving_date || '')}</td>
+                <td>${escapeHtml(u.custom_group || '')}</td>`;
+            const erpHead = '<th>Employee</th><th>ERP Name</th><th>ERP Status</th><th>Relieving</th><th>Group</th>';
+            const selHead = '<th style="width:28px;"><input type="checkbox" id="muSelAll" title="Select all shown (deletable)"></th>';
+            document.getElementById('muHead').innerHTML = isAll
+                ? `<tr>${selHead}<th>#</th><th>User ID</th><th>Name on Device</th>${erpHead}<th>On Machines</th></tr>`
+                : `<tr>${selHead}<th>#</th><th>UID</th><th>User ID</th><th>Name on Device</th><th>Privilege</th><th>PIN</th><th>Card</th>${erpHead}</tr>`;
+            document.getElementById('muBody').innerHTML = rows.length ? rows.map((u, i) => isAll ? `
+                <tr>${selCell(u)}<td>${i + 1}</td><td style="font-family:monospace;">${escapeHtml(u.user_id)}</td>
+                    <td>${escapeHtml(u.name)}</td>${erpCells(u)}
+                    <td title="${escapeHtml(u.machines.join(', '))}">${u.machines.length} · ${escapeHtml(u.machines.join(', '))}</td></tr>` : `
+                <tr>${selCell(u)}<td>${i + 1}</td><td style="font-family:monospace;">${u.uid}</td>
+                    <td style="font-family:monospace;">${escapeHtml(u.user_id)}</td>
+                    <td>${escapeHtml(u.name)}</td><td>${escapeHtml(u.privilege)}</td>
+                    <td>${u.has_password ? 'Yes' : ''}</td><td style="font-family:monospace;">${escapeHtml(u.card)}</td>${erpCells(u)}</tr>`).join('')
+                : `<tr><td colspan="${isAll ? 10 : 13}" style="text-align:center;color:var(--text-3);">No users match</td></tr>`;
+            document.getElementById('muSelAll').addEventListener('change', ev => {
+                document.querySelectorAll('#muBody .mu-sel:not(:disabled)').forEach(b => {
+                    b.checked = ev.target.checked;
+                    if (b.checked) _muSelected.add(b.dataset.uid); else _muSelected.delete(b.dataset.uid);
+                });
+                _muUpdateSelUi();
+            });
+            _muUpdateSelUi();
+            document.getElementById('muCount').textContent = `${rows.length} / ${all.length} users`;
+            const names = isAll ? _muLoadedNames() : [selected];
+            const reads = names.map(n => (_muData[n] || {}).read_at).filter(Boolean).sort();
+            document.getElementById('muInfo').textContent = !reads.length ? ''
+                : isAll ? `${names.length} machines · read ${reads[0]} → ${reads[reads.length - 1]}`
+                : `Read from device at ${reads[0]}`;
+        }
+
+        async function muDelete() {
+            const selected = document.getElementById('muMachine').value;
+            const ops = [];   // [{user_id, machines}] — only machines the rule allows
+            let skipped = 0, doorOps = 0;
+            for (const u of _muRows(selected).filter(r => _muSelected.has(r.user_id))) {
+                const all = selected === MU_ALL ? u.machines : [selected];
+                const targets = _muDeleteTargets(u, selected);
+                skipped += all.length - targets.length;
+                doorOps += targets.filter(m => _muData[m].is_door_control).length;
+                if (targets.length) ops.push({ user_id: u.user_id, machines: targets });
+            }
+            if (!ops.length) { bsyncAlert('Nothing deletable is selected.'); return; }
+            const nOps = ops.reduce((n, o) => n + o.machines.length, 0);
+            const machines = [...new Set(ops.flatMap(o => o.machines))];
+            let msg = `Delete ${ops.length} user(s) from ${machines.length} machine(s) — ${nOps} deletion(s)?\n`;
+            if (doorOps) msg += `\n🚪 ${doorOps} on door controllers: those people will no longer open the door.`;
+            if (skipped) msg += `\n${skipped} skipped: employees still working are never deleted from attendance machines.`;
+            msg += '\n\nThis cannot be undone on the device. Fingerprints stored in ERPNext are kept (can be re-synced).';
+            if (!await bsyncConfirm(msg)) return;
+
+            const btn = document.getElementById('muDeleteBtn');
+            const statusEl = document.getElementById('machinesGlobalStatus');
+            btn.dataset.busy = '1'; btn.disabled = true; btn.textContent = '⏳ Deleting...';
+            try {
+                const r = await callPost('customize_erpnext.api.biometric_sync.delete_users_from_machines',
+                    { users_json: JSON.stringify(ops) });
+                if (r.status !== 'success') throw new Error(r.message || 'Delete failed');
+                const d = await pollJobStatus(r.job_id, d => {
+                    statusEl.textContent = d.phase || '';
+                    btn.textContent = `⏳ ${d.progress_pct || 0}%`;
+                });
+                const res = d.results || [];
+                const failed = res.filter(x => !x.success);
+                statusEl.textContent = `🗑 ${res.length - failed.length} deleted / ${failed.length} failed — re-reading ${machines.length} machine(s)...`;
+                _muSelected.clear();
+                // re-read the touched machines so the table (and the xlsx cache) match the devices
+                await Promise.allSettled(machines.map(n => _muLoad(n)));
+                _muRefreshView();
+                statusEl.textContent = `🗑 ${res.length - failed.length} deleted / ${failed.length} failed`;
+                bsyncAlert(`Done: ${res.length - failed.length} OK / ${failed.length} failed`
+                    + (failed.length ? '\n\n' + failed.slice(0, 20).map(x => `${x.user_id} ← ${x.machine}: ${x.message}`).join('\n')
+                        + (failed.length > 20 ? `\n… and ${failed.length - 20} more` : '') : ''));
+            } catch (e) {
+                statusEl.innerHTML = `<span style="color:#dc3545;">❌ ${escapeHtml(e.message)}</span>`;
+                bsyncAlert('Delete failed: ' + e.message);
+            } finally {
+                delete btn.dataset.busy;
+                _muUpdateSelUi();
+            }
+        }
+
+        async function muDownload() {
+            const selected = document.getElementById('muMachine').value;
+            const names = selected === MU_ALL ? _muLoadedNames() : (_muData[selected] ? [selected] : []);
+            if (!names.length) { bsyncAlert('Load a user list first'); return; }
+            const btn = document.getElementById('muDownloadBtn');
+            // the server builds the file from its cached copy (30 min) — refresh old lists first,
+            // a download error would replace the whole page with a raw error
+            const stale = names.filter(n => Date.now() - _muData[n].loaded_at > MU_MAX_AGE_MS);
+            if (stale.length) {
+                btn.disabled = true; btn.textContent = '⏳ Re-reading...';
+                const res = await Promise.allSettled(stale.map(n => _muLoad(n)));
+                btn.disabled = false; btn.textContent = '⬇ Download xlsx';
+                const failed = res.map((r, i) => r.status === 'rejected' ? `${stale[i]}: ${r.reason && r.reason.message}` : null).filter(Boolean);
+                if (failed.length) {
+                    _muRefreshView();
+                    bsyncAlert('Could not re-read (list older than 25 min):\n' + failed.join('\n'));
+                    return;
+                }
+                muRender();
+            }
+            open_url_post('/api/method/customize_erpnext.api.biometric_sync.download_machine_users_xlsx',
+                { machine_names: JSON.stringify(names) });
         }
 
         // ════════════════════════════════════════════════════════════════════════════
@@ -2191,5 +2572,5 @@ bsync.setup = function (root) {
         loadLogFiles();
             loadMachinesForFingerprint();
 
-        Object.assign(bsync, { _parseFrappeError, appendResultLog, applyEmployeeFilter, buildProgressRow, callGet, callPost, clearEmployeeFilter, del43Delete, del43FindEmp, del43PickCandidate, del43RenderFind, del43RenderPreview, del43ResetPreview, del43RunDeleteJob, del43Scan, del43SelectAll, del43SpecificDelete, escapeHtml, filterLines, fp41LoadEmployees, fp41RenderEmpTable, fp41RenderMachines, fp41SelectAllMachines, fp41StartSync, fp41UpdateSyncBtn, loadLog, loadLogFiles, loadMachineCards, loadMachinesForFingerprint, loadMasterUsers, machineGetInfo, machineReboot, machineSyncTime, machinesLoadAllInfo, machinesRebootAll, machinesRefresh, machinesSyncTimeAll, onFp41ScopeChange, pollJobStatus, pollSyncJob, renderMachineCards, renderMasterDropdown, renderTargetMachines, renderUserTable, rsDelConfirmInput, rsInitTab, rsLoadMachines, rsPreviewDeleteOt, rsRunDeleteOt, rsRunDeviceResync, rsRunJob, rsRunMongoResync, rsRunOtSync, rsSelectAllMachines, runPhase2, selectAllTargets, selectAllUsers, setProgressBar, startSync, switchTab, updateSyncButton });
+        Object.assign(bsync, { _parseFrappeError, appendResultLog, applyEmployeeFilter, buildProgressRow, callGet, callPost, clearEmployeeFilter, del43Delete, del43FindEmp, del43PickCandidate, del43RenderFind, del43RenderPreview, del43ResetPreview, del43RunDeleteJob, del43Scan, del43SelectAll, del43SpecificDelete, escapeHtml, filterLines, fp41LoadEmployees, fp41MachineScopeChange, fp41RenderEmpTable, fp41RenderMachines, fp41SelectAllMachines, fp41StartSync, fp41UpdateSyncBtn, loadLog, loadLogFiles, loadMachineCards, loadMachinesForFingerprint, loadMasterUsers, machineGetInfo, machineReboot, machineSyncTime, machineShowUsers, machinesLoadAllInfo, machinesLoadUsersAll, machinesRebootAll, machinesRefresh, machinesScopeChange, machinesSyncTimeAll, muDelete, muDownload, muMachineChange, muRender, onFp41ScopeChange, pollJobStatus, pollSyncJob, renderMachineCards, renderMasterDropdown, renderTargetMachines, renderUserTable, rsDelConfirmInput, rsInitTab, rsLoadMachines, rsPreviewDeleteOt, rsRunDeleteOt, rsRunDeviceResync, rsRunJob, rsRunMongoResync, rsRunOtSync, rsSelectAllMachines, runPhase2, selectAllTargets, selectAllUsers, setProgressBar, startSync, switchTab, updateSyncButton });
 };

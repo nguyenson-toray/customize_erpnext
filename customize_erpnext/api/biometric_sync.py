@@ -12,7 +12,9 @@ import threading
 from concurrent.futures import ThreadPoolExecutor, wait
 from struct import pack
 
-from customize_erpnext.api.attendance_machines import get_machine, get_machines
+from customize_erpnext.api.attendance_machines import (
+    check_door_machine_access, get_machine, get_machines,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -22,6 +24,44 @@ from customize_erpnext.api.attendance_machines import get_machine, get_machines
 def _get_machine_doc(machine_name):
     """Return machine config as dict (from Attendance Machine Setting)."""
     return frappe._dict(get_machine(machine_name))
+
+
+def _is_working(emp, today):
+    """Employee still employed on `today`: any status but Left, or Left with a
+    relieving_date after today (relieving_date is the FIRST day off, not the last
+    day worked)."""
+    if emp.get("status") != "Left":
+        return True
+    rd = emp.get("relieving_date")
+    return bool(rd and frappe.utils.getdate(rd) > today)
+
+
+def _working_device_ids(device_ids):
+    """The device_ids among `device_ids` that belong to an employee still working
+    today. 🔴 Never deletable from an ATTENDANCE machine (door controllers are the
+    exception: their user list is the few people allowed to open the door)."""
+    device_ids = [str(d) for d in device_ids or [] if d not in (None, "")]
+    if not device_ids:
+        return set()
+    today = frappe.utils.getdate(frappe.utils.today())
+    emps = frappe.get_all(
+        "Employee",
+        filters={"attendance_device_id": ["in", device_ids]},
+        fields=["attendance_device_id", "status", "relieving_date"],
+    )
+    return {str(e.attendance_device_id) for e in emps if _is_working(e, today)}
+
+
+def _get_managed_machine_doc(machine_name):
+    """Machine config for the Machine Management tab (info, clock, reboot, user list).
+
+    Unlike _get_machine_doc it also resolves door controllers — that tab lists
+    them when asked (scope door / all) — but only for the Door Control role,
+    the same rule as pushing fingerprints to a door.
+    """
+    machine = get_machine(machine_name, allow_door=True)
+    check_door_machine_access(machine)
+    return frappe._dict(machine)
 
 
 def _build_zk_device(doc):
@@ -134,12 +174,32 @@ def _shorten_name(full_name, max_length=24):
 # 1. get_attendance_machines
 # ---------------------------------------------------------------------------
 
+MACHINE_SCOPES = ("attendance", "door", "all")
+
+
 @frappe.whitelist()
-def get_attendance_machines():
-    """Return list of enabled Attendance Machines."""
+def get_attendance_machines(scope="attendance"):
+    """Return enabled machines.
+
+    scope: "attendance" (default — what every other caller gets), "door"
+    (door controllers only) or "all". Door controllers need the Door Control
+    role; `can_door` tells the page whether to offer those scopes.
+    """
     check_biometric_access()
-    machines = get_machines(enabled_only=True)
-    return {"status": "success", "machines": machines}
+    scope = scope or "attendance"
+    if scope not in MACHINE_SCOPES:
+        frappe.throw(f"Invalid machine scope: {scope}")
+    if scope != "attendance":
+        frappe.only_for("Door Control")
+    machines = get_machines(
+        enabled_only=True, include_door=(scope == "all"), door_only=(scope == "door")
+    )
+    return {
+        "status": "success",
+        "machines": machines,
+        "scope": scope,
+        "can_door": "Door Control" in frappe.get_roles(),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -584,7 +644,7 @@ def get_left_employees_on_machines(delay_days=45, include_unmatched=0):
     """
     Scan all enabled machines and classify users into 'to delete' / 'to keep'.
     Rules:
-      - NEVER mark Active employees for deletion.
+      - NEVER mark working employees for deletion (any status but Left).
       - Left employees: delete if today > relieving_date + delay_days.
       - Unmatched user_ids: delete only if include_unmatched=1.
       - ERPNext fingerprint data is NEVER touched (kept as backup).
@@ -630,9 +690,11 @@ def get_left_employees_on_machines(delay_days=45, include_unmatched=0):
             }
 
         # --- Classify user_ids ---
+        # every status but Left counts as working — Inactive / Suspended must not
+        # fall through to "unmatched" below
         active_emps = frappe.get_all(
             "Employee",
-            filters={"status": "Active", "attendance_device_id": ["in", all_device_ids]},
+            filters={"status": ["!=", "Left"], "attendance_device_id": ["in", all_device_ids]},
             fields=["name", "employee_name", "attendance_device_id", "custom_group"],
         )
         active_set = {e["attendance_device_id"] for e in active_emps}
@@ -649,7 +711,7 @@ def get_left_employees_on_machines(delay_days=45, include_unmatched=0):
         users_to_keep_count = 0
 
         for uid, mlist in sorted(user_id_to_machines.items(), key=lambda x: x[0]):
-            # Rule 1: NEVER delete Active employees
+            # Rule 1: NEVER delete working employees
             if uid in active_set:
                 users_to_keep_count += 1
                 continue
@@ -732,6 +794,7 @@ def delete_users_from_machines(users_json):
         users = json.loads(users_json)
         if not users:
             frappe.throw("No users selected for deletion")
+        _validate_delete_request(users)
 
         import uuid
         job_id = f"fp_del_{uuid.uuid4().hex[:12]}"
@@ -758,6 +821,9 @@ def delete_users_from_machines(users_json):
 
         return {"status": "success", "job_id": job_id}
 
+    except (frappe.ValidationError, frappe.PermissionError) as e:
+        # refused request (working employee, door role, nothing selected) — not a server fault
+        return {"status": "error", "message": str(e)}
     except Exception as e:
         frappe.log_error(f"delete_users_from_machines error: {e}")
         return {"status": "error", "message": str(e)}
@@ -823,6 +889,32 @@ def _delete_users_on_machine(cfg, user_ids, report):
             report(user_id, False, f"Connection failed: {e_conn}")
 
 
+def _validate_delete_request(users):
+    """Refuse the whole request when it would delete, from an attendance machine,
+    a user_id of an employee still working — or touch a door controller without
+    the Door Control role. Machines unknown here are reported per user by the job."""
+    attendance_ids = set()
+    for name in {m for u in users for m in u.get("machines", [])}:
+        try:
+            machine = get_machine(name, allow_door=True)
+        except frappe.ValidationError:
+            continue
+        if machine.get("is_door_control"):
+            try:
+                check_door_machine_access(machine)
+            except frappe.PermissionError:
+                frappe.throw(f"Deleting users from door controller {name} needs the Door Control role",
+                             frappe.PermissionError)
+        else:
+            attendance_ids.update(str(u["user_id"]) for u in users if name in u.get("machines", []))
+    blocked = sorted(_working_device_ids(attendance_ids), key=_user_id_sort_key)
+    if blocked:
+        frappe.throw(
+            f"{len(blocked)} user(s) belong to employees still working and can never be deleted "
+            f"from an attendance machine: {', '.join(blocked[:20])}{' …' if len(blocked) > 20 else ''}"
+        )
+
+
 def _run_delete_job(users, cache_key, job_id=None):
     """
     Background worker: delete users from their machines.
@@ -838,15 +930,30 @@ def _run_delete_job(users, cache_key, job_id=None):
     try:
         _update({"status": "running", "phase": "Starting deletion..."})
 
-        # Build machine config lookup from Attendance Machine Setting
-        machines = get_machines(enabled_only=True)
+        # Build machine config lookup from Attendance Machine Setting (door
+        # controllers too: delete_users_from_machines checked the Door Control role)
+        machines = get_machines(enabled_only=True, include_door=True)
         machine_cfg = {m["name"]: _build_zk_device(frappe._dict(m)) for m in machines}
+        door_machines = {m["name"] for m in machines if m.get("is_door_control")}
 
         # Group user_ids by machine for batched single-connection deletes
         machine_to_uids = {}   # machine_name -> [str user_id, ...]
         for u in users:
             for mname in u.get("machines", []):
                 machine_to_uids.setdefault(mname, []).append(str(u["user_id"]))
+
+        # re-check right before deleting (the request was validated when queued):
+        # on attendance machines, user_ids of working employees are never sent
+        working = _working_device_ids({uid for uids in machine_to_uids.values() for uid in uids})
+        to_send, blocked_ops = {}, {}   # machine -> [user_id]
+        for mname, uids in machine_to_uids.items():
+            guard = mname not in door_machines
+            to_send[mname] = [uid for uid in uids if not (guard and uid in working)]
+            blocked_ops[mname] = [uid for uid in uids if guard and uid in working]
+
+        # user lists cached for the xlsx no longer match these machines
+        for mname in machine_to_uids:
+            frappe.cache().delete_value(_machine_users_cache_key(mname))
 
         total_ops = sum(len(uids) for uids in machine_to_uids.values())
 
@@ -883,8 +990,12 @@ def _run_delete_job(users, cache_key, job_id=None):
                 pass
 
         jobs = []   # (mname, cfg, uids, report)
-        for mname, uids in machine_to_uids.items():
+        for mname, uids in to_send.items():
             report = _reporter(mname)
+            for uid in blocked_ops[mname]:
+                report(uid, False, "Blocked — employee still working (never deleted from an attendance machine)")
+            if not uids:
+                continue
             cfg = machine_cfg.get(mname)
             if not cfg:
                 for uid in uids:
@@ -908,7 +1019,7 @@ def _run_delete_job(users, cache_key, job_id=None):
                 err = fut.exception()
                 if err is not None:
                     with lock:
-                        already = progress[mname]
+                        already = progress[mname] - len(blocked_ops[mname])
                     for uid in uids[already:]:
                         report(uid, False, f"Error: {err}")
 
@@ -1007,12 +1118,14 @@ def find_employee_on_machines(query):
             "relieving_date": str(emp["relieving_date"]) if emp.get("relieving_date") else None,
         }
 
-        # Safety: never allow deleting an Active employee
-        if emp["status"] == "Active":
+        # Safety: never allow deleting an employee who is still working
+        if _is_working(emp, frappe.utils.getdate(frappe.utils.today())):
+            why = (f"Active" if emp["status"] == "Active"
+                   else f"{emp['status']}, relieving date {emp_info['relieving_date'] or '—'}")
             return {
                 "status": "blocked",
                 "employee": emp_info,
-                "message": "This employee is Active — their user_id cannot be deleted from the devices.",
+                "message": f"This employee is still working ({why}) — their user_id cannot be deleted from the devices.",
             }
 
         device_id = emp_info["attendance_device_id"]
@@ -1071,7 +1184,7 @@ def machine_reboot(machine_name):
     """Send restart command to a ZK attendance machine."""
     check_biometric_access()
     try:
-        doc = _get_machine_doc(machine_name)
+        doc = _get_managed_machine_doc(machine_name)
         cfg = _build_zk_device(doc)
         conn = _connect_zk(cfg)
         try:
@@ -1151,7 +1264,7 @@ def machine_sync_time(machine_name):
     check_biometric_access()
     from datetime import datetime
     try:
-        doc = _get_machine_doc(machine_name)
+        doc = _get_managed_machine_doc(machine_name)
         cfg = _build_zk_device(doc)
 
         device_time, drift = _read_device_drift(cfg)
@@ -1228,7 +1341,7 @@ def machine_get_info(machine_name):
     """
     check_biometric_access()
     try:
-        doc = _get_machine_doc(machine_name)
+        doc = _get_managed_machine_doc(machine_name)
         cfg = _build_zk_device(doc)
         conn = _connect_zk(cfg)
         try:
@@ -1301,3 +1414,244 @@ def machine_get_info(machine_name):
     except Exception as e:
         frappe.log_error(f"machine_get_info error: {e}")
         return {"status": "error", "message": str(e)}
+
+
+# ---------------------------------------------------------------------------
+# 11. machine_get_users / download_machine_users_xlsx
+# ---------------------------------------------------------------------------
+
+# The device list read by machine_get_users is kept this long so the xlsx
+# download never talks to the device: it goes through open_url_post (a form
+# POST), and any server error there replaces the page with a raw JSON error.
+_MACHINE_USERS_CACHE_S = 30 * 60
+
+# pyzk zk/const.py USER_DEFAULT / USER_ENROLLER / USER_MANAGER / USER_ADMIN
+_PRIVILEGE_LABELS = {0: "User", 2: "Enroller", 6: "Manager", 14: "Admin"}
+
+
+def _machine_users_cache_key(machine_name):
+    return f"biometric_sync:machine_users:{machine_name}"
+
+
+def _device_user_row(u):
+    """One device user as plain data. The PIN itself is never sent, only whether one is set."""
+    return {
+        "uid": u.uid,
+        "user_id": str(u.user_id),
+        "name": u.name or "",
+        "privilege": _PRIVILEGE_LABELS.get(u.privilege, str(u.privilege)),
+        "has_password": bool(u.password),
+        "card": str(u.card) if u.card else "",
+        "group_id": str(u.group_id or ""),
+    }
+
+
+def _employees_by_device_id(device_ids):
+    """attendance_device_id -> Employee fields; an Active employee wins over others."""
+    if not device_ids:
+        return {}
+    emps = frappe.get_all(
+        "Employee",
+        filters={"attendance_device_id": ["in", list(device_ids)]},
+        fields=["name", "employee_name", "status", "relieving_date", "custom_group",
+                "attendance_device_id"],
+    )
+    out = {}
+    for e in emps:
+        did = str(e.attendance_device_id)
+        if did not in out or (e.status == "Active" and out[did].status != "Active"):
+            out[did] = e
+    return out
+
+
+def _with_employees(rows):
+    """Copy of device user rows with the matching ERPNext employee added."""
+    emp_by_did = _employees_by_device_id({r["user_id"] for r in rows})
+    today = frappe.utils.getdate(frappe.utils.today())
+    out = []
+    for r in rows:
+        e = emp_by_did.get(r["user_id"])
+        out.append({
+            **r,
+            "employee": e.name if e else "",
+            "employee_name": e.employee_name if e else "",
+            "status": e.status if e else "",
+            "relieving_date": str(e.relieving_date) if e and e.relieving_date else "",
+            "custom_group": (e.custom_group or "") if e else "",
+            "is_working": bool(e and _is_working(e, today)),
+        })
+    return out
+
+
+@frappe.whitelist()
+def machine_get_users(machine_name):
+    """Every user stored on one machine, matched to ERPNext employees by
+    attendance_device_id. The device list is cached for download_machine_users_xlsx."""
+    check_biometric_access()
+    try:
+        machine = _get_managed_machine_doc(machine_name)
+        users = _read_machine_users(machine)
+        rows = sorted((_device_user_row(u) for u in users), key=lambda r: r["uid"])
+        read_at = frappe.utils.now_datetime().strftime("%Y-%m-%d %H:%M:%S")
+        frappe.cache().set_value(
+            _machine_users_cache_key(machine_name),
+            {"read_at": read_at, "users": rows},
+            expires_in_sec=_MACHINE_USERS_CACHE_S,
+        )
+        return {
+            "status": "success",
+            "machine": machine_name,
+            "is_door_control": bool(machine.is_door_control),
+            "read_at": read_at,
+            "users": _with_employees(rows),
+        }
+    except Exception as e:
+        frappe.log_error(f"machine_get_users error: {e}")
+        return {"status": "error", "message": str(e)}
+
+
+def _xlsx_sheet_title(name, used):
+    """Excel sheet name: max 31 chars, none of []:*?/\\ , unique in the workbook."""
+    import re
+    base = re.sub(r"[\[\]:*?/\\]", "-", name or "Sheet").strip("'")[:31] or "Sheet"
+    title, n = base, 2
+    while title.lower() in used:
+        suffix = f" ({n})"
+        title, n = base[:31 - len(suffix)] + suffix, n + 1
+    used.add(title.lower())
+    return title
+
+
+def _user_id_sort_key(user_id):
+    """Numeric IDs in numeric order, then the rest alphabetically."""
+    return (0, int(user_id), "") if user_id.isdigit() else (1, 0, user_id)
+
+
+@frappe.whitelist()
+def download_machine_users_xlsx(machine_names):
+    """xlsx of the user lists last read by machine_get_users (never re-reads a device).
+
+    One sheet per machine; with several machines an "All Machines" sheet comes
+    first: one row per user_id with a ✓ column per machine. Employee data is
+    looked up fresh. A machine whose list is not in the cache gets a sheet that
+    says so instead of an error (see _MACHINE_USERS_CACHE_S).
+    """
+    check_biometric_access()
+    import io
+    import re
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Font, PatternFill
+    from openpyxl.utils import get_column_letter
+
+    if isinstance(machine_names, str):
+        machine_names = json.loads(machine_names)
+    machine_names = [m for m in dict.fromkeys(machine_names or []) if m]
+    if not machine_names:
+        frappe.throw("No machine selected")
+
+    loaded = {}   # machine -> {"machine", "read_at", "users"} (with employees)
+    for name in machine_names:
+        machine = _get_managed_machine_doc(name)   # same permission rule as reading
+        cached = frappe.cache().get_value(_machine_users_cache_key(name))
+        loaded[name] = {
+            "machine": machine,
+            "read_at": cached["read_at"] if cached else None,
+            "users": cached["users"] if cached else None,
+        }
+
+    # one Employee query for all machines
+    all_ids = {r["user_id"] for d in loaded.values() for r in (d["users"] or [])}
+    emp_by_did = _employees_by_device_id(all_ids)
+
+    def emp_cols(user_id):
+        e = emp_by_did.get(user_id)
+        if not e:
+            return ["", "", "Not in ERP", None, ""]
+        return [e.name, e.employee_name, e.status, e.relieving_date, e.custom_group or ""]
+
+    head_font = Font(bold=True, color="FFFFFF")
+    head_fill = PatternFill("solid", fgColor="1F4E79")
+    caption_font = Font(bold=True, size=12)
+
+    def write_sheet(ws, caption, headers, rows, widths, date_cols=(), text_cols=()):
+        ws.cell(row=1, column=1, value=caption).font = caption_font
+        for c, h in enumerate(headers, 1):
+            cell = ws.cell(row=2, column=c, value=h)
+            cell.font, cell.fill = head_font, head_fill
+            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        for r, row in enumerate(rows, 3):
+            for c, v in enumerate(row, 1):
+                cell = ws.cell(row=r, column=c, value=v)
+                if c in date_cols and v:
+                    cell.number_format = "DD/MM/YYYY"
+                elif c in text_cols:
+                    cell.number_format = "@"   # keep leading zeros of IDs
+        for c, w in enumerate(widths, 1):
+            ws.column_dimensions[get_column_letter(c)].width = w
+        ws.freeze_panes = "A3"
+        if rows:
+            ws.auto_filter.ref = f"A2:{get_column_letter(len(headers))}{len(rows) + 2}"
+
+    wb = Workbook()
+    wb.remove(wb.active)
+    used_titles = set()
+    emp_headers = ["Employee", "ERP Name", "ERP Status", "Relieving Date", "Group"]
+    emp_widths = [14, 30, 12, 14, 16]
+
+    if len(machine_names) > 1:
+        ok_names = [n for n in machine_names if loaded[n]["users"] is not None]
+        by_uid = {}   # user_id -> (first name on device, {machine})
+        for n in ok_names:
+            for r in loaded[n]["users"]:
+                entry = by_uid.setdefault(r["user_id"], [r["name"], set()])
+                if not entry[0]:
+                    entry[0] = r["name"]
+                entry[1].add(n)
+        rows = []
+        for i, uid in enumerate(sorted(by_uid, key=_user_id_sort_key), 1):
+            name_on_device, on = by_uid[uid]
+            rows.append([i, uid, name_on_device, *emp_cols(uid), len(on),
+                         *["✓" if n in on else "" for n in ok_names]])
+        missing = [n for n in machine_names if loaded[n]["users"] is None]
+        caption = f"All machines — {len(by_uid)} distinct user IDs on {len(ok_names)} machine(s)"
+        if missing:
+            caption += f" — NOT LOADED: {', '.join(missing)}"
+        write_sheet(
+            wb.create_sheet(_xlsx_sheet_title("All Machines", used_titles)), caption,
+            ["#", "User ID", "Name on Device", *emp_headers, "On # Machines", *ok_names],
+            rows, [6, 12, 26, *emp_widths, 10, *[max(10, len(n) + 2) for n in ok_names]],
+            date_cols={7}, text_cols={2},
+        )
+
+    for n in machine_names:
+        d = loaded[n]
+        ws = wb.create_sheet(_xlsx_sheet_title(n, used_titles))
+        if d["users"] is None:
+            ws.cell(row=1, column=1,
+                    value=f"{n}: user list not loaded (or older than "
+                          f"{_MACHINE_USERS_CACHE_S // 60} min) — load it on the page, then download again."
+                    ).font = caption_font
+            continue
+        kind = "door controller" if d["machine"].is_door_control else "attendance machine"
+        caption = (f"{n} ({kind}, {d['machine'].ip_address}) — {len(d['users'])} users"
+                   f" — read from device at {d['read_at']}")
+        rows = [
+            [i, r["uid"], r["user_id"], r["name"], r["privilege"],
+             "Yes" if r["has_password"] else "", r["card"], r["group_id"], *emp_cols(r["user_id"])]
+            for i, r in enumerate(d["users"], 1)
+        ]
+        write_sheet(
+            ws, caption,
+            ["#", "UID", "User ID", "Name on Device", "Privilege", "PIN Set", "Card", "Group ID",
+             *emp_headers],
+            rows, [6, 8, 12, 26, 10, 8, 12, 9, *emp_widths],
+            date_cols={12}, text_cols={3, 7, 8},
+        )
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    label = machine_names[0] if len(machine_names) == 1 else "All_Machines"
+    safe = re.sub(r"[^\w\-]+", "_", label, flags=re.UNICODE).strip("_") or "Machine"
+    frappe.response["filename"] = f"Machine_Users_{safe}_{frappe.utils.nowdate()}.xlsx"
+    frappe.response["filecontent"] = buf.getvalue()
+    frappe.response["type"] = "binary"

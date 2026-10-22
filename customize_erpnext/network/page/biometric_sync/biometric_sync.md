@@ -172,9 +172,17 @@ Summary: `"▶ Sync N users → ERPNext + M machines"`
 Kết quả lưu vào `_fp41Employees[]`.
 
 #### Chọn máy đích
-- Render từ `_allMachines[]` (đã load ở Tab 2)
-- Online machines: checked mặc định; offline: unchecked
-- Nút **All** / **None**
+- `loadMachinesForFingerprint()` gọi `get_enabled_attendance_machines?include_door=1` **một lần**:
+  `_fp41AllMachines[]` = máy chấm công + máy cửa (server chỉ thêm máy cửa cho role **Door Control**),
+  `_allMachines[]` = bỏ máy cửa → Tab 2 (Device → Device) vẫn chỉ có máy chấm công
+- Ô **Machines**: `Attendance only` (mặc định) / `Door control only` / `All` — chỉ hiện khi danh sách có máy cửa
+  (user không có role Door Control không bao giờ thấy)
+- Máy chấm công online: checked mặc định; offline: unchecked
+- 🚪 **Máy cửa: KHÔNG BAO GIỜ tick sẵn** (vân tay trên máy cửa = mở được cửa) — phải tick tay;
+  dòng tóm tắt ghi "incl. 🚪 N door controller(s)", hộp xác nhận liệt kê tên máy cửa và cảnh báo
+  "All N employees will be able to OPEN THE DOOR"
+- Server vẫn chặn: `sync_employee_to_single_machine` → `check_door_machine_access` (role Door Control)
+- Nút **All** / **None** (tick/bỏ tick mọi máy đang hiện, kể cả máy cửa)
 
 #### Trạng thái nút Sync
 ```
@@ -262,8 +270,15 @@ Card riêng **"🎯 Delete a Specific Employee"** — xóa `user_id` của **đ�
 **Lazy load**: Chỉ load khi người dùng click vào tab lần đầu (`_machinesLoaded` flag).
 
 #### Danh sách máy
-`GET biometric_sync.get_attendance_machines` → render machine cards.
-Mỗi card hiển thị: tên, device name, IP:port, location, badge "★ Master" nếu là master.
+`GET biometric_sync.get_attendance_machines?scope=` → render machine cards.
+Mỗi card hiển thị: tên, device name, IP:port, location, badge "★ Master" nếu là master, "🚪 Door" nếu là máy cửa.
+
+Ô **Machines** (Attendance only / Door control only / All) chỉ hiện với role **Door Control**
+(server trả `can_door`). Mặc định `scope=attendance` — mọi chỗ khác gọi API này không truyền scope
+nên vẫn chỉ nhận máy chấm công. `door` / `all` bị server chặn (`frappe.only_for("Door Control")`).
+Info / Sync Time / Reboot / Users dùng `_get_managed_machine_doc()` = `get_machine(allow_door=True)`
++ `check_door_machine_access` → máy cửa chỉ cho Door Control; các tab khác vẫn dùng
+`_get_machine_doc()` (từ chối máy cửa). Đổi scope → xoá danh sách user + bảng info đang mở.
 
 #### Actions từng máy
 
@@ -272,6 +287,35 @@ Mỗi card hiển thị: tên, device name, IP:port, location, badge "★ Master
 | **Info** | `POST machine_get_info` | Đọc firmware, serial, platform, FP version, user/FP/record count + capacity, device time, MAC address. Hiển thị capacity bar (xanh <60%, vàng 60-85%, đỏ >85%). |
 | **Sync Time** | `POST machine_sync_time` | Đồng bộ thời gian máy chấm công với server time. Hiển thị server time vs device time. |
 | **Reboot** | `POST machine_reboot` | Gửi lệnh restart thiết bị. Yêu cầu confirm trước. |
+| **Users** | `POST machine_get_users` | Đọc toàn bộ user trên máy (1 `get_users()`, khoá máy vài giây), ghép Employee theo `attendance_device_id` (Active thắng nếu trùng). Trả UID, User ID, tên trên máy, privilege, **chỉ cờ có PIN** (không bao giờ gửi PIN), card, group. |
+
+#### Users on Machines (bảng + xlsx)
+
+- Chọn 1 máy hoặc "All loaded machines" (gộp theo User ID, cột On Machines); lọc ERP status
+  (Active / Left / Other / Not in ERP) + tìm theo User ID, tên trên máy, mã/tên NV.
+- **Download xlsx** → `open_url_post` `download_machine_users_xlsx(machine_names)`. File dựng từ
+  bản cache 30 phút do `machine_get_users` ghi (`biometric_sync:machine_users:<máy>`), KHÔNG đọc
+  lại máy: lỗi qua form POST sẽ thay cả trang bằng JSON lỗi. Danh sách > 25 phút được đọc lại
+  trước khi tải; máy không có trong cache → sheet ghi "not loaded" thay vì lỗi.
+- File: nhiều máy → sheet "All Machines" (1 dòng/User ID, cột ✓ theo từng máy) + 1 sheet/máy;
+  User ID lưu dạng text (giữ số 0 đầu), Employee tra lại lúc tải.
+- Đọc lại 1 máy bị lỗi → bỏ danh sách cũ của máy đó khỏi bảng (không hiện dữ liệu cũ như mới).
+- **Delete selected**: tick user → `delete_users_from_machines` (job nền dùng chung với tab 4) →
+  poll → đọc lại các máy vừa xoá. Ở chế độ "All loaded machines", 1 dòng = xoá khỏi mọi máy đang chứa
+  user đó mà quy tắc cho phép. Không đụng dữ liệu vân tay trong ERPNext.
+
+#### 🔴 Quy tắc xoá user khỏi máy (`_is_working` / `_working_device_ids`)
+
+- **Máy chấm công: KHÔNG BAO GIỜ xoá user của nhân viên đang làm việc** = status khác `Left`
+  (Active / Inactive / Suspended), HOẶC `Left` nhưng `relieving_date` > hôm nay (relieving_date là
+  ngày BẮT ĐẦU nghỉ). Chặn 3 lớp: checkbox khoá trên trang → `_validate_delete_request` từ chối CẢ
+  request (không ghi Error Log) → `_run_delete_job` kiểm lại ngay trước khi gửi lệnh (dòng "Blocked").
+- **Máy cửa: ngoại lệ** — danh sách user là vài người được mở cửa, phải gỡ được cả người đang làm.
+  Cần role Door Control.
+- Cùng quy tắc áp cho tab 4: scan coi mọi status khác Left là "giữ" (trước đây Inactive/Suspended rơi
+  vào "unmatched" và bị xoá nếu tick "include unmatched"); Find employee chặn cả Left có relieving_date
+  tương lai.
+- ⚠ Test xoá: dùng user_id KHÔNG thuộc nhân viên nào (`zz…`) — `100`, `1001…1120` là mã NV Active thật.
 
 #### Bulk actions
 
@@ -281,6 +325,7 @@ Mỗi card hiển thị: tên, device name, IP:port, location, badge "★ Master
 | **Sync Time All** | `Promise.allSettled()` — **song song** tất cả máy |
 | **Reboot All** | **Tuần tự** với delay 800ms/máy — tránh gây sốc điện |
 | **Load Info All** | `Promise.allSettled()` — song song, cập nhật từng row khi có kết quả. Pre-fill spinner cho tất cả rows trước khi gọi. |
+| **Users All** | `machine_get_users` song song mọi máy đang hiện → mở bảng "All loaded machines"; máy lỗi báo trong 1 hộp thoại. |
 
 ---
 
@@ -307,7 +352,7 @@ Mỗi card hiển thị: tên, device name, IP:port, location, badge "★ Master
 | `biometric_sync.get_master_device_users?machine_name=` | Users trên máy chấm công + match với ERPNext |
 | `biometric_sync.get_employees_for_sync` | Nhân viên active từ ERPNext, filter tùy chọn |
 | `biometric_sync.get_sync_job_status?job_id=` | Trạng thái background job |
-| `biometric_sync.get_attendance_machines` | Tất cả máy (kể cả disabled) |
+| `biometric_sync.get_attendance_machines?scope=` | Máy đang bật: `attendance` (mặc định) / `door` / `all` (2 cái sau cần Door Control) |
 
 ### POST (write, cần CSRF)
 
@@ -319,10 +364,12 @@ Mỗi card hiển thị: tên, device name, IP:port, location, badge "★ Master
 | `utilities.sync_employees_to_machine_batch` | Đẩy NHIỀU nhân viên xuống 1 máy trên 1 kết nối (nhanh, có realtime progress) |
 | `biometric_sync.get_left_employees_on_machines` | Scan nhân viên cần xóa khỏi máy |
 | `biometric_sync.find_employee_on_machines` | Tìm 1 nhân viên cụ thể + scan máy chứa user_id (chặn Active) |
-| `biometric_sync.delete_users_from_machines` | Tạo background job xóa users khỏi máy |
+| `biometric_sync.delete_users_from_machines` | Tạo background job xóa users khỏi máy (chặn NV đang làm trên máy chấm công; máy cửa cần Door Control) |
 | `biometric_sync.machine_get_info` | Đọc hardware info từ thiết bị |
 | `biometric_sync.machine_sync_time` | Đồng bộ thời gian thiết bị |
 | `biometric_sync.machine_reboot` | Reboot thiết bị |
+| `biometric_sync.machine_get_users` | Toàn bộ user trên 1 máy + ghép Employee; ghi cache 30 phút cho xlsx |
+| `biometric_sync.download_machine_users_xlsx` | xlsx từ cache (qua `open_url_post`), không đọc lại máy |
 
 ---
 
@@ -340,6 +387,8 @@ Mỗi card hiển thị: tên, device name, IP:port, location, badge "★ Master
 | `_del43PollTimer` | Tab 4 | setInterval handle cho delete job polling |
 | `_machinesList[]` | Tab 5 | Danh sách máy cho machine management |
 | `_machinesLoaded` | Tab 5 | Lazy load flag |
+| `_machinesScope` | Tab 5 | `attendance` / `door` / `all` |
+| `_muData{}` | Tab 5 | máy → `{read_at, loaded_at, users}` — chỉ lần đọc thành công |
 
 ---
 
