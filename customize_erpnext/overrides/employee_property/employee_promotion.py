@@ -9,6 +9,11 @@ import frappe
 
 from hrms.hr.doctype.employee_promotion.employee_promotion import EmployeePromotion
 
+from customize_erpnext.customize_erpnext.doctype.labor_contract.labor_contract import (
+	create_appendix_on_submit,
+	remove_appendix_on_cancel,
+)
+
 from .work_history import (
 	ENFORCE_EFFECTIVE_DATE_NOT_FUTURE,
 	autofill_property_rows,
@@ -40,8 +45,11 @@ class CustomEmployeePromotion(EmployeePromotion):
 			frappe.db.set_value("Employee", self.employee, "ctc", self.revised_ctc)
 
 		rebuild_work_history(self.employee)
+		# After the rebuild: the appendix reads the new position from the work history
+		create_appendix_on_submit(self)
 
 	def on_cancel(self):
+		remove_appendix_on_cancel(self)
 		if self.revised_ctc:
 			frappe.db.set_value("Employee", self.employee, "ctc", self.current_ctc)
 

@@ -28,13 +28,14 @@ frappe.listview_settings['Labor Contract'] = {
 			show_mark_as_signed(list_view);
 		});
 
-		// One-off go-live tool: rebuilds full contract history for pre-existing
-		// employees. Administrator only — it writes thousands of records.
-		if (frappe.session.user === 'Administrator') {
-			list_view.page.add_menu_item(__('Seed Contract History'), function () {
-				show_seed_contract_history(list_view);
-			});
-		}
+		// Scans live in the ⋯ menu — the toolbar is for the renewal workflow
+		list_view.page.add_menu_item(__('1. Upload Signed Scans'), function () {
+			show_upload_scans(list_view);
+		});
+
+		list_view.page.add_menu_item(__('2. Download Signed Scans'), function () {
+			download_signed_scans(list_view);
+		});
 	},
 };
 
@@ -245,153 +246,6 @@ function show_bulk_create_result(result) {
 }
 
 // ---------------------------------------------------------------------------
-// Seed Contract History (Administrator only)
-// ---------------------------------------------------------------------------
-
-function show_seed_contract_history(list_view) {
-	frappe.call({
-		method: 'customize_erpnext.customize_erpnext.doctype.labor_contract.labor_contract.get_contract_seeding_summary',
-		freeze: true,
-		freeze_message: __('Analysing employees...'),
-		callback: function (r) {
-			if (r.exc || !r.message) {
-				return;
-			}
-			render_seeding_dialog(r.message, list_view);
-		},
-	});
-}
-
-function render_seeding_dialog(summary, list_view) {
-	const stages = summary.by_current_stage || {};
-	const stage_rows = Object.keys(stages)
-		.map(
-			(stage) =>
-				`<tr><td>${frappe.utils.escape_html(stage)}</td><td>${stages[stage]}</td></tr>`
-		)
-		.join('');
-
-	const dialog = new frappe.ui.Dialog({
-		title: __('Seed Contract History'),
-		size: 'large',
-		fields: [
-			{
-				fieldtype: 'HTML',
-				fieldname: 'summary',
-				options: `
-					<div style="padding: 12px; background: var(--bg-yellow, #fff3cd); border-radius: 6px; margin-bottom: 14px;">
-						<strong>${__('One-off go-live tool')}</strong><br>
-						${__('For every Active employee who has no Labor Contract yet, this rebuilds their whole contract chain starting from their Date of Joining — probation, then 1 year, then 3 years, then Indefinite-term — stopping at the stage they are on today. Past stages are recorded as Signed; the current stage is left for the daily job to carry forward.')}
-					</div>
-
-					<table class="table table-bordered" style="font-size: 13px;">
-						<tr><td>${__('Employees without any contract')}</td><td><strong>${summary.candidates}</strong></td></tr>
-						<tr><td>${__('Will be seeded')}</td><td><strong>${summary.eligible}</strong></td></tr>
-						<tr><td>${__('Contracts that will be created')}</td><td><strong>${summary.total_contracts}</strong></td></tr>
-						<tr><td>${__('Skipped — no probation period (0), create manually')}</td><td>${summary.no_probation_period || 0}</td></tr>
-						<tr><td>${__('Skipped — no Probation Days (no contract needed)')}</td><td>${summary.missing_probation_days}</td></tr>
-						<tr><td>${__('Skipped — no Date of Joining')}</td><td>${summary.missing_date_of_joining}</td></tr>
-					</table>
-
-					${stage_rows
-						? `<div class="mt-3"><strong>${__('Resulting current stage')}:</strong>
-							<table class="table table-bordered table-sm mt-2" style="font-size: 13px;">
-								<thead><tr><th>${__('Contract Type')}</th><th>${__('Employees')}</th></tr></thead>
-								<tbody>${stage_rows}</tbody>
-							</table>
-						   </div>`
-						: ''}
-				`,
-			},
-		],
-		primary_action_label: __('Seed Now'),
-		primary_action: function () {
-			if (!summary.eligible) {
-				frappe.msgprint(__('Nothing to seed.'));
-				return;
-			}
-			frappe.confirm(
-				__('This will create {0} Labor Contracts for {1} employees. Continue?', [
-					summary.total_contracts,
-					summary.eligible,
-				]),
-				function () {
-					run_seed_contract_history(dialog, list_view);
-				}
-			);
-		},
-	});
-
-	dialog.show();
-}
-
-function run_seed_contract_history(dialog, list_view) {
-	frappe.call({
-		method: 'customize_erpnext.customize_erpnext.doctype.labor_contract.labor_contract.seed_all_contract_history',
-		freeze: true,
-		freeze_message: __('Queueing...'),
-		callback: function (r) {
-			if (r.exc || !r.message) {
-				return;
-			}
-			dialog.hide();
-
-			if (!r.message.queued) {
-				frappe.msgprint(__('Nothing to seed.'));
-				return;
-			}
-
-			frappe.show_alert({
-				message: __('Seeding {0} employees in the background...', [r.message.total]),
-				indicator: 'blue',
-			}, 10);
-
-			frappe.realtime.off('labor_contract_seeding_complete');
-			frappe.realtime.on('labor_contract_seeding_complete', function (result) {
-				show_seeding_result(result);
-				list_view.refresh();
-			});
-		},
-	});
-}
-
-function show_seeding_result(result) {
-	const errors = result.errors || [];
-	let errors_html = '';
-	if (errors.length) {
-		const rows = errors
-			.slice(0, 20)
-			.map(
-				(e) =>
-					`<tr><td>${frappe.utils.escape_html(e.employee)}</td>` +
-					`<td>${frappe.utils.escape_html(e.error)}</td></tr>`
-			)
-			.join('');
-		errors_html = `
-			<div class="mt-3">
-				<strong>${__('Skipped')}:</strong>
-				<table class="table table-bordered table-sm mt-2">
-					<thead><tr><th>${__('Employee')}</th><th>${__('Reason')}</th></tr></thead>
-					<tbody>${rows}</tbody>
-				</table>
-				${errors.length > 20 ? `<small class="text-muted">${__('...and {0} more', [errors.length - 20])}</small>` : ''}
-			</div>`;
-	}
-
-	frappe.msgprint({
-		title: __('Seeding Completed'),
-		indicator: result.employees_seeded > 0 ? 'green' : 'orange',
-		message: `
-			<div>${__('Employees seeded')}: <strong>${result.employees_seeded}</strong></div>
-			<div>${__('Contracts created')}: <strong>${result.contracts_created}</strong></div>
-			<div>${__('Skipped')}: <strong>${result.skipped}</strong></div>
-			${errors_html}
-		`,
-		wide: true,
-	});
-}
-
-// ---------------------------------------------------------------------------
 // Review Expiring Contracts — month-at-a-time renewal workflow
 // ---------------------------------------------------------------------------
 
@@ -570,9 +424,20 @@ function show_mark_as_signed(list_view) {
 
 	if (selected.length) {
 		const names = selected.map((row) => row.name);
-		frappe.confirm(
-			__('Mark {0} selected contract(s) as Signed?', [names.length]),
-			() => run_mark_as_signed(names, null, list_view)
+		frappe.prompt(
+			[
+				{
+					fieldtype: 'Date',
+					fieldname: 'signed_on',
+					label: __('Signed On'),
+					default: frappe.datetime.get_today(),
+					reqd: 1,
+					description: __('Actual signing date'),
+				},
+			],
+			(values) => run_mark_as_signed(names, values.signed_on, null, list_view),
+			__('Mark {0} selected document(s) as Signed', [names.length]),
+			__('Mark as Signed')
 		);
 		return;
 	}
@@ -588,7 +453,18 @@ function show_pick_contracts_to_sign(list_view) {
 			{
 				fieldtype: 'Section Break',
 				label: __('Unsigned Contracts'),
-				description: __('Nothing was ticked in the list, so pick the contracts here. Marking a contract Signed also updates that employee\'s Employment Type to the contract type currently in effect.'),
+				description: __('Nothing was ticked in the list, so pick the contracts and appendices here. Marking a contract Signed also updates that employee\'s Employment Type to the contract type currently in effect.'),
+			},
+			{
+				fieldtype: 'Date',
+				fieldname: 'signed_on',
+				label: __('Signed On'),
+				default: frappe.datetime.get_today(),
+				reqd: 1,
+				description: __('Actual signing date'),
+			},
+			{
+				fieldtype: 'Column Break',
 			},
 			{
 				fieldtype: 'MultiSelectList',
@@ -612,15 +488,15 @@ function show_pick_contracts_to_sign(list_view) {
 			},
 		],
 		primary_action_label: __('Mark as Signed'),
-		primary_action: function () {
+		primary_action: function (values) {
 			const names = get_picked_contracts(dialog);
 			if (!names.length) {
 				frappe.msgprint(__('Please select at least one contract'));
 				return;
 			}
 			frappe.confirm(
-				__('Mark {0} contract(s) as Signed?', [names.length]),
-				() => run_mark_as_signed(names, dialog, list_view)
+				__('Mark {0} document(s) as Signed on {1}?', [names.length, frappe.datetime.str_to_user(values.signed_on)]),
+				() => run_mark_as_signed(names, values.signed_on, dialog, list_view)
 			);
 		},
 	});
@@ -654,7 +530,8 @@ function render_sign_picker($target, rows) {
 				<td><input type="checkbox" class="lc-sign-check" data-name="${frappe.utils.escape_html(row.name)}"></td>
 				<td>${frappe.utils.escape_html(row.employee)}</td>
 				<td>${frappe.utils.escape_html(row.employee_name || '')}</td>
-				<td>${frappe.utils.escape_html(row.contract_type || '')}</td>
+				<td>${frappe.utils.escape_html(row.name)}</td>
+				<td>${frappe.utils.escape_html(row.document_type === 'Appendix' ? __('Appendix') : row.contract_type || '')}</td>
 				<td>${frappe.datetime.str_to_user(row.start_date)}</td>
 				<td>${row.end_date ? frappe.datetime.str_to_user(row.end_date) : ''}</td>
 				<td>${frappe.utils.escape_html(row.status || '')}</td>
@@ -681,6 +558,7 @@ function render_sign_picker($target, rows) {
 						<th style="width: 32px;"></th>
 						<th>${__('Employee')}</th>
 						<th>${__('Name')}</th>
+						<th>${__('Document No')}</th>
 						<th>${__('Contract Type')}</th>
 						<th>${__('Start Date')}</th>
 						<th>${__('End Date')}</th>
@@ -707,10 +585,10 @@ function get_picked_contracts(dialog) {
 		.get();
 }
 
-function run_mark_as_signed(names, dialog, list_view) {
+function run_mark_as_signed(names, signed_on, dialog, list_view) {
 	frappe.call({
 		method: 'customize_erpnext.customize_erpnext.doctype.labor_contract.labor_contract.bulk_mark_signed',
-		args: { contracts: JSON.stringify(names) },
+		args: { contracts: JSON.stringify(names), signed_on: signed_on },
 		freeze: true,
 		freeze_message: __('Marking as Signed...'),
 		callback: function (r) {
@@ -720,14 +598,259 @@ function run_mark_as_signed(names, dialog, list_view) {
 			if (dialog) {
 				dialog.hide();
 			}
+			const skipped_rows = (r.message.errors || [])
+				.map((e) => `<tr><td>${frappe.utils.escape_html(e.contract)}</td><td>${frappe.utils.escape_html(e.error)}</td></tr>`)
+				.join('');
 			frappe.msgprint({
 				title: __('Done'),
 				indicator: r.message.signed > 0 ? 'green' : 'orange',
 				message: `<div>${__('Marked as Signed')}: <strong>${r.message.signed}</strong></div>
 				          <div>${__('Skipped')}: <strong>${r.message.skipped}</strong></div>
+				          ${skipped_rows ? `<table class="table table-bordered table-sm mt-2"><tbody>${skipped_rows}</tbody></table>` : ''}
 				          <div class="text-muted" style="margin-top:6px;">${__('Employment Type updated on the matching employees.')}</div>`,
 			});
 			list_view.refresh();
+		},
+	});
+}
+
+// ---------------------------------------------------------------------------
+// Upload Signed Scans (bulk)
+// ---------------------------------------------------------------------------
+// Each file goes to the record whose document number its name starts with
+// (TIQN-2548-HD1.pdf -> TIQN-2548-HD1). Preview first, then upload one by one
+// through upload_file + upload_scan, which re-checks every file on the server.
+
+const SCAN_METHOD = 'customize_erpnext.customize_erpnext.doctype.labor_contract.labor_contract';
+
+function show_upload_scans(list_view) {
+	let files = [];
+	let matches = [];
+	let uploaded = 0;
+
+	const dialog = new frappe.ui.Dialog({
+		title: __('Upload Signed Scans'),
+		size: 'extra-large',
+		fields: [
+			{
+				fieldtype: 'HTML',
+				fieldname: 'picker',
+				options: `<div>
+					<p class="text-muted">${__('Name each file after its document number, e.g. {0} or {1}. PDF, JPG or PNG; stored as private files.', ['<b>TIQN-2548-HD1.pdf</b>', '<b>PL-TIQN-2548-2610.pdf</b>'])}</p>
+					<input type="file" class="lc-scan-input" multiple accept=".pdf,.jpg,.jpeg,.png">
+				</div>`,
+			},
+			{
+				fieldtype: 'Section Break',
+			},
+			{
+				fieldtype: 'Check',
+				fieldname: 'mark_signed',
+				label: __('Also mark unsigned documents as Signed'),
+				default: 1,
+				onchange: () => dialog.set_df_property('signed_on', 'hidden', !dialog.get_value('mark_signed')),
+			},
+			{
+				fieldtype: 'Column Break',
+			},
+			{
+				fieldtype: 'Date',
+				fieldname: 'signed_on',
+				label: __('Signed On'),
+				default: frappe.datetime.get_today(),
+				description: __('Actual signing date'),
+			},
+			{
+				fieldtype: 'Section Break',
+			},
+			{
+				fieldtype: 'HTML',
+				fieldname: 'preview',
+				options: '<div class="lc-scan-preview"></div>',
+			},
+		],
+		primary_action_label: __('Upload'),
+		primary_action: async (values) => {
+			const ready = matches.filter((m) => !m.error && !m.done);
+			if (!ready.length) {
+				frappe.msgprint(__('No file is ready to upload.'));
+				return;
+			}
+			if (values.mark_signed && !values.signed_on) {
+				frappe.msgprint(__('Please set Signed On'));
+				return;
+			}
+			dialog.disable_primary_action();
+			for (const [i, m] of ready.entries()) {
+				frappe.show_progress(__('Uploading scans'), i, ready.length, m.file_name);
+				try {
+					const result = await upload_scan_file(files[m.index], values);
+					m.done = true;
+					m.result = result.note
+						? __('Uploaded, not signed: {0}', [result.note])
+						: __('Uploaded') + (result.status === 'Signed' ? ` · ${__('Signed')}` : '');
+					uploaded += 1;
+				} catch (e) {
+					m.error = e.message;
+				}
+				render_scan_preview(dialog, matches);
+			}
+			frappe.hide_progress();
+			dialog.enable_primary_action();
+			if (uploaded) {
+				list_view.refresh();
+			}
+			frappe.show_alert({
+				message: __('{0} scan(s) uploaded', [uploaded]),
+				indicator: uploaded ? 'green' : 'orange',
+			});
+		},
+	});
+
+	dialog.$wrapper.find('.lc-scan-input').on('change', function () {
+		files = Array.from(this.files || []);
+		uploaded = 0;
+		if (!files.length) {
+			matches = [];
+			render_scan_preview(dialog, matches);
+			return;
+		}
+		frappe.call({
+			method: `${SCAN_METHOD}.match_scan_files`,
+			args: { file_names: JSON.stringify(files.map((f) => f.name)) },
+			callback: (r) => {
+				matches = (r.message || []).map((m, index) => ({ ...m, index }));
+				// two files for one record: only the first can be attached
+				const seen = new Set();
+				for (const m of matches) {
+					if (m.contract && !m.error) {
+						if (seen.has(m.contract)) {
+							m.error = __('Another selected file is already going to {0}', [m.contract]);
+						}
+						seen.add(m.contract);
+					}
+				}
+				render_scan_preview(dialog, matches);
+			},
+		});
+	});
+
+	dialog.show();
+}
+
+function render_scan_preview(dialog, matches) {
+	const $target = dialog.$wrapper.find('.lc-scan-preview');
+	if (!matches.length) {
+		$target.html('');
+		return;
+	}
+	const esc = frappe.utils.escape_html;
+	const ready = matches.filter((m) => !m.error && !m.done).length;
+	const body = matches
+		.map((m) => {
+			let result;
+			if (m.done) {
+				result = `<span style="color: var(--green-600, green);">${esc(m.result)}</span>`;
+			} else if (m.error) {
+				result = `<span class="text-danger">${esc(m.error)}</span>`;
+			} else {
+				result = `<span class="text-muted">${__('Ready')}</span>`;
+			}
+			return `<tr>
+				<td>${esc(m.file_name)}</td>
+				<td>${m.contract ? `<a href="/app/labor-contract/${encodeURIComponent(m.contract)}" target="_blank">${esc(m.contract)}</a>` : ''}</td>
+				<td>${esc(m.employee_name || '')}</td>
+				<td>${esc(m.status ? __(m.status) : '')}</td>
+				<td>${result}</td>
+			</tr>`;
+		})
+		.join('');
+
+	$target.html(`
+		<div style="margin-bottom: 8px;">${__('{0} of {1} files ready to upload', [`<strong>${ready}</strong>`, matches.length])}</div>
+		<div style="max-height: 380px; overflow-y: auto;">
+			<table class="table table-bordered table-sm" style="font-size: 13px;">
+				<thead>
+					<tr>
+						<th>${__('File')}</th>
+						<th>${__('Document No')}</th>
+						<th>${__('Employee Name')}</th>
+						<th>${__('Status')}</th>
+						<th>${__('Result')}</th>
+					</tr>
+				</thead>
+				<tbody>${body}</tbody>
+			</table>
+		</div>
+	`);
+}
+
+async function upload_scan_file(file, values) {
+	const form_data = new FormData();
+	form_data.append('file', file, file.name);
+	form_data.append('is_private', 1);
+	form_data.append('method', `${SCAN_METHOD}.upload_scan`);
+	if (values.mark_signed) {
+		form_data.append('mark_signed', 1);
+		form_data.append('signed_on', values.signed_on);
+	}
+	const response = await fetch('/api/method/upload_file', {
+		method: 'POST',
+		headers: { Accept: 'application/json', 'X-Frappe-CSRF-Token': frappe.csrf_token },
+		body: form_data,
+	});
+	const data = await response.json().catch(() => ({}));
+	if (!response.ok) {
+		throw new Error(server_error_text(data) || response.statusText);
+	}
+	return data.message || {};
+}
+
+function server_error_text(data) {
+	try {
+		return JSON.parse(data._server_messages)
+			.map((m) => $('<div>').html(JSON.parse(m).message).text())
+			.join(' ');
+	} catch (e) {
+		return data.exception || '';
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Download Signed Scans (ZIP)
+// ---------------------------------------------------------------------------
+// Ticked rows, or every document matching the current list filters. Preview first:
+// open_url_post leaves the page for a JSON error if the download itself throws.
+
+function download_signed_scans(list_view) {
+	const ticked = (list_view.get_checked_items() || []).map((row) => row.name);
+	const args = ticked.length
+		? { contracts: JSON.stringify(ticked) }
+		: { filters: JSON.stringify(list_view.get_filters_for_args()) };
+
+	frappe.call({
+		method: `${SCAN_METHOD}.preview_scan_download`,
+		args: args,
+		freeze: true,
+		callback: (r) => {
+			const p = r.message;
+			if (!p) {
+				return;
+			}
+			const scope = ticked.length
+				? __('{0} ticked document(s)', [ticked.length])
+				: __('all documents matching the current filters');
+			if (!p.count) {
+				frappe.msgprint(__('None of {0} has a scan.', [scope]));
+				return;
+			}
+			const missing = p.missing.length
+				? `<div class="text-muted mt-2">${__('{0} document(s) without a scan are listed in _missing_scans.txt inside the ZIP.', [p.missing.length])}</div>`
+				: '';
+			frappe.confirm(
+				`${__('Download {0} scan(s) ({1}) from {2}?', [p.count, frappe.form.formatters.FileSize(p.total_size), scope])}${missing}`,
+				() => open_url_post(`/api/method/${SCAN_METHOD}.download_scans`, args)
+			);
 		},
 	});
 }

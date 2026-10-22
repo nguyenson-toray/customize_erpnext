@@ -7,6 +7,11 @@ See work_history.py for why the timeline is rebuilt instead of appended to.
 
 from hrms.hr.doctype.employee_transfer.employee_transfer import EmployeeTransfer
 
+from customize_erpnext.customize_erpnext.doctype.labor_contract.labor_contract import (
+	create_appendix_on_submit,
+	remove_appendix_on_cancel,
+)
+
 from .work_history import (
 	ENFORCE_EFFECTIVE_DATE_NOT_FUTURE,
 	autofill_property_rows,
@@ -47,11 +52,15 @@ class CustomEmployeeTransfer(EmployeeTransfer):
 			return
 
 		rebuild_work_history(self.employee)
+		# After the rebuild: the appendix reads the new position from the work history
+		create_appendix_on_submit(self)
 
 	def on_cancel(self):
 		if self.is_inter_company:
 			super().on_cancel()
 			return
+
+		remove_appendix_on_cancel(self)
 
 		rebuild_work_history(
 			self.employee,

@@ -109,7 +109,10 @@ fixtures = [
                 # có branch/department/designation nên timeline thiếu 2 cấp tổ chức này
                 "Employee Internal Work History",
                 # custom_portal_*: nhóm/nhãn hiển thị phiếu lương trên Zalo Mini App (Employee Portal)
-                "Salary Component"
+                "Salary Component",
+                # custom_create_contract_appendix: tạo phụ lục HĐLĐ khi Submit (Labor Contract v3)
+                "Employee Promotion",
+                "Employee Transfer",
             ]],
             ["fieldname", "like", "custom%"]
         ]
@@ -286,6 +289,9 @@ scheduler_events = {
         "0 8 * * 1": [
             # Disable Daily Timesheet
             # "customize_erpnext.customize_erpnext.doctype.daily_timesheet.scheduler.send_sunday_overtime_alert_scheduled"
+            # Labor Contract weekly email — expiring this week + created but not signed.
+            # Recipients / on-off: Labor Contract Settings (default son.nt@tiqn.com.vn)
+            "customize_erpnext.customize_erpnext.doctype.labor_contract_settings.labor_contract_settings.send_weekly_contract_email",
         ],
         # Fixed vehicle trips (vehicle_management/API_CONTRACT.md mục 8) - the driver opens
         # the Mini App and the trip is already there.

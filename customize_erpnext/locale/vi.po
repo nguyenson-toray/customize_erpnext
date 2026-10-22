@@ -71239,9 +71239,9 @@ msgstr "Đã ký"
 msgid "Signed By (Company)"
 msgstr "Được ký bởi (Công ty)"
 
-#. source: erpnext2vi
+#. source: tiqn
 msgid "Signed On"
-msgstr "Đã đăng nhập"
+msgstr "Ngày ký"
 
 #. source: erpnext2vi
 msgid "Signee"
@@ -87582,7 +87582,6 @@ msgstr "Nhân viên tick cam kết và ký bằng ngón tay hoặc chuột trư�
 msgid "Shown next to the tick box above the signature pad. Empty = no tick box, signature only."
 msgstr "Hiện cạnh ô tick phía trên khung chữ ký. Để trống = không có ô tick, chỉ ký tên."
 
-
 #. source: tiqn
 msgid "Labor Contract"
 msgstr "Hợp đồng lao động"
@@ -87690,3 +87689,420 @@ msgstr "Trạng thái cảnh báo"
 #. source: tiqn
 msgid "Per-door alert state (offline, door left open) as JSON. Kept in the database because clear-cache wipes Redis"
 msgstr "Trạng thái cảnh báo của từng cửa (mất kết nối, cửa để mở) dạng JSON. Lưu trong database vì clear-cache xoá sạch Redis"
+
+#. source: tiqn
+msgid "...and {0} more — see the Labor Contract Report."
+msgstr "...và {0} dòng nữa — xem Báo cáo hợp đồng lao động."
+
+#. source: tiqn
+msgid "1. Upload Signed Scans"
+msgstr "1. Tải lên bản scan đã ký"
+
+#. source: tiqn
+msgid "2. Download Signed Scans"
+msgstr "2. Tải về bản scan đã ký"
+
+#. source: tiqn
+msgid "Active Employees Only"
+msgstr "Chỉ nhân viên đang làm"
+
+#. source: tiqn
+msgid "Actual signing date"
+msgstr "Ngày ký thực tế"
+
+#. source: tiqn
+msgid "Also mark unsigned documents as Signed"
+msgstr "Đánh dấu luôn các văn bản chưa ký là Đã ký"
+
+#. source: tiqn
+msgid "Another selected file is already going to {0}"
+msgstr "Đã có file khác được chọn cho {0}"
+
+#. source: tiqn
+msgid "Appendices"
+msgstr "Phụ lục"
+
+#. source: tiqn
+msgid "Appendix"
+msgstr "Phụ lục"
+
+#. source: tiqn
+msgid "Choose the scanned file from your computer."
+msgstr "Hãy chọn file scan từ máy tính."
+
+#. source: tiqn
+msgid "Contract Appendix"
+msgstr "Phụ lục hợp đồng"
+
+#. source: tiqn
+msgid "Contract Appendix {0} created."
+msgstr "Đã tạo phụ lục hợp đồng {0}."
+
+#. source: tiqn
+msgid "Contract Appendix {0} is already signed. Delete it first if this {1} really has to be cancelled."
+msgstr "Phụ lục hợp đồng {0} đã ký. Nếu thật sự phải hủy {1} này, hãy xóa phụ lục trước."
+
+#. source: tiqn
+msgid "Contract Type must be one of: {0}"
+msgstr "Loại hợp đồng phải là một trong: {0}"
+
+#. source: tiqn
+msgid "Contracts expiring this week ({0} – {1})"
+msgstr "Hợp đồng hết hạn trong tuần ({0} – {1})"
+
+#. source: tiqn
+msgid "Create Contract Appendix"
+msgstr "Tạo phụ lục hợp đồng"
+
+#. source: tiqn
+msgid "Created but not signed yet"
+msgstr "Đã tạo nhưng chưa ký"
+
+#. source: tiqn
+msgid "Creates a Labor Contract appendix (PL-{employee}-{YYMM}) when this document is submitted."
+msgstr "Tạo phụ lục hợp đồng lao động (PL-{employee}-{YYMM}) khi phiếu này được duyệt (Submit)."
+
+#. source: tiqn
+msgid "Days Overdue"
+msgstr "Số ngày quá hạn"
+
+#. source: tiqn
+msgid "Documents without a scan"
+msgstr "Văn bản chưa có bản scan"
+
+#. source: tiqn
+msgid "Download Signed Scan"
+msgstr "Tải bản scan đã ký"
+
+#. source: tiqn
+msgid "Download {0} scan(s) ({1}) from {2}?"
+msgstr "Tải {0} bản scan ({1}) của {2}?"
+
+#. source: tiqn
+msgid "Effective Date"
+msgstr "Ngày hiệu lực"
+
+#. source: tiqn
+msgid "Employee and Effective Date are required"
+msgstr "Cần nhập Nhân viên và Ngày hiệu lực"
+
+#. source: tiqn
+msgid "Employee {0} has no contract in force on {1} — create the contract first."
+msgstr "Nhân viên {0} không có hợp đồng hiệu lực vào ngày {1} — hãy tạo hợp đồng trước."
+
+#. source: tiqn
+msgid "File name {0} must start with the document number {1}, e.g. {1}.pdf"
+msgstr "Tên file {0} phải bắt đầu bằng số văn bản {1}, ví dụ {1}.pdf"
+
+#. source: tiqn
+msgid "Labor Contract Timeline"
+msgstr "Tiến trình hợp đồng lao động"
+
+#. source: tiqn
+msgid "Labor Contracts {0}–{1}: {2} expiring, {3} not signed"
+msgstr "Hợp đồng lao động {0}–{1}: {2} sắp hết hạn, {3} chưa ký"
+
+#. source: tiqn
+msgid "Mark {0} document(s) as Signed on {1}?"
+msgstr "Đánh dấu {0} văn bản là Đã ký vào ngày {1}?"
+
+#. source: tiqn
+msgid "Mark {0} selected document(s) as Signed"
+msgstr "Đánh dấu {0} văn bản đã chọn là Đã ký"
+
+#. source: tiqn
+msgid "Name each file after its document number, e.g. {0} or {1}. PDF, JPG or PNG; stored as private files."
+msgstr "Đặt tên mỗi file theo số văn bản, ví dụ {0} hoặc {1}. Nhận PDF, JPG hoặc PNG; lưu dạng file riêng tư (private)."
+
+#. source: tiqn
+msgid "Needs Signing"
+msgstr "Cần ký"
+
+#. source: tiqn
+msgid "Next Contract"
+msgstr "Hợp đồng kế tiếp"
+
+#. source: tiqn
+msgid "Next Contract Status"
+msgstr "Trạng thái hợp đồng kế tiếp"
+
+#. source: tiqn
+msgid "No file is ready to upload."
+msgstr "Không có file nào sẵn sàng để tải lên."
+
+#. source: tiqn
+msgid "No scan"
+msgstr "Chưa có bản scan"
+
+#. source: tiqn
+msgid "None of these documents has a scan"
+msgstr "Không văn bản nào có bản scan"
+
+#. source: tiqn
+msgid "None of {0} has a scan."
+msgstr "Không có bản scan nào trong {0}."
+
+#. source: tiqn
+msgid "Not Created"
+msgstr "Chưa tạo"
+
+#. source: tiqn
+msgid "Not signed more than 30 days after it should have taken effect — including an expired contract whose follow-up was never created. A fixed-term contract left unsigned this long after the previous one expired becomes indefinite-term (Labor Code 2019, Art. 20.2)."
+msgstr "Chưa ký sau hơn 30 ngày kể từ ngày lẽ ra có hiệu lực — kể cả hợp đồng đã hết hạn mà chưa tạo hợp đồng kế tiếp. Hợp đồng xác định thời hạn hết hạn quá thời gian này mà chưa ký hợp đồng mới thì trở thành hợp đồng không xác định thời hạn (BLLĐ 2019, Điều 20.2)."
+
+#. source: tiqn
+msgid "Not supported"
+msgstr "Không hỗ trợ"
+
+#. source: tiqn
+msgid "Nothing was ticked in the list, so pick the contracts and appendices here. Marking a contract Signed also updates that employee's Employment Type to the contract type currently in effect."
+msgstr "Chưa tick dòng nào trong danh sách, hãy chọn hợp đồng và phụ lục ở đây. Đánh dấu hợp đồng Đã ký cũng cập nhật Hình thức làm việc của nhân viên theo loại hợp đồng đang hiệu lực."
+
+#. source: tiqn
+msgid "Of which renew a fixed-term contract"
+msgstr "Trong đó gia hạn hợp đồng xác định thời hạn"
+
+#. source: tiqn
+msgid "Only Administrator can do this."
+msgstr "Chỉ Administrator mới được làm việc này."
+
+#. source: tiqn
+msgid "Only PDF, JPG or PNG files are accepted"
+msgstr "Chỉ nhận file PDF, JPG hoặc PNG"
+
+#. source: tiqn
+msgid "Only employees with an unsigned contract or appendix, soonest first"
+msgstr "Chỉ nhân viên có hợp đồng hoặc phụ lục chưa ký, gần nhất lên trước"
+
+#. source: tiqn
+msgid "Overdue > 30 Days"
+msgstr "Quá hạn > 30 ngày"
+
+#. source: tiqn
+msgid "Overdue > {0} Days"
+msgstr "Quá hạn > {0} ngày"
+
+#. source: tiqn
+msgid "Parent Contract"
+msgstr "Hợp đồng gốc"
+
+#. source: tiqn
+msgid "Please enter at least one recipient"
+msgstr "Vui lòng nhập ít nhất một người nhận"
+
+#. source: tiqn
+msgid "Please set Signed On"
+msgstr "Vui lòng nhập Ngày ký"
+
+#. source: tiqn
+msgid "Queued for {0}"
+msgstr "Đã xếp hàng gửi tới {0}"
+
+#. source: tiqn
+msgid "Red rows: more than {0} days past the start date (Labor Code 2019, Article 20.2)."
+msgstr "Dòng đỏ: quá {0} ngày kể từ ngày bắt đầu (BLLĐ 2019, Điều 20.2)."
+
+#. source: tiqn
+msgid "Save the document before attaching its scan."
+msgstr "Lưu văn bản trước khi đính kèm bản scan."
+
+#. source: tiqn
+msgid "Save the settings first."
+msgstr "Hãy lưu cài đặt trước."
+
+#. source: tiqn
+msgid "Scan attached — mark {0} as Signed?"
+msgstr "Đã đính kèm bản scan — đánh dấu {0} là Đã ký?"
+
+#. source: tiqn
+msgid "Scan file not found on server"
+msgstr "Không tìm thấy file scan trên server"
+
+#. source: tiqn
+msgid "Send Weekly Email Now"
+msgstr "Gửi email tuần ngay"
+
+#. source: tiqn
+msgid "Send the weekly contract email now to: {0}?"
+msgstr "Gửi email hợp đồng hằng tuần ngay tới: {0}?"
+
+#. source: tiqn
+msgid "Sort by Next Sign Date"
+msgstr "Sắp xếp theo ngày ký kế tiếp"
+
+#. source: tiqn
+msgid "Start / Effective Date"
+msgstr "Ngày bắt đầu / hiệu lực"
+
+#. source: tiqn
+msgid "Submit the {0} first."
+msgstr "Hãy duyệt (Submit) {0} trước."
+
+#. source: tiqn
+msgid "The Effective Date month is part of the appendix number {0}. Delete this appendix and create a new one instead."
+msgstr "Tháng của Ngày hiệu lực nằm trong số phụ lục {0}. Hãy xóa phụ lục này và tạo phụ lục mới."
+
+#. source: tiqn
+msgid "The appendix number uses the month of this date."
+msgstr "Số phụ lục lấy theo tháng của ngày này."
+
+#. source: tiqn
+msgid "The file name does not start with a document number (e.g. TIQN-2548-HD1.pdf)"
+msgstr "Tên file không bắt đầu bằng số văn bản (ví dụ TIQN-2548-HD1.pdf)"
+
+#. source: tiqn
+msgid "The file name must start with {0}, e.g. {0}.pdf"
+msgstr "Tên file phải bắt đầu bằng {0}, ví dụ {0}.pdf"
+
+#. source: tiqn
+msgid "The scan holds personal data — it must be a private file."
+msgstr "Bản scan chứa dữ liệu cá nhân — phải là file riêng tư (private)."
+
+#. source: tiqn
+msgid "This is the scan of {0}, not {1}"
+msgstr "Đây là bản scan của {0}, không phải {1}"
+
+#. source: tiqn
+msgid "Too many documents ({0}+) — narrow the filters to at most {1}."
+msgstr "Quá nhiều văn bản ({0}+) — hãy thu hẹp bộ lọc còn tối đa {1}."
+
+#. source: tiqn
+msgid "Unsigned Appendices"
+msgstr "Phụ lục chưa ký"
+
+#. source: tiqn
+msgid "Unsigned for over 30 days"
+msgstr "Chưa ký quá 30 ngày"
+
+#. source: tiqn
+msgid "Unsigned for over 30 days after the previous fixed-term contract expired — by law it may already count as an indefinite-term contract (Labor Code 2019, Art. 20.2)."
+msgstr "Chưa ký quá 30 ngày sau khi hợp đồng xác định thời hạn trước đã hết hạn — theo luật có thể đã được coi là hợp đồng không xác định thời hạn (BLLĐ 2019, Điều 20.2)."
+
+#. source: tiqn
+msgid "Upload Signed Scans"
+msgstr "Tải lên bản scan đã ký"
+
+#. source: tiqn
+msgid "Uploaded"
+msgstr "Đã tải lên"
+
+#. source: tiqn
+msgid "Uploaded, not signed: {0}"
+msgstr "Đã tải lên, chưa đánh dấu ký: {0}"
+
+#. source: tiqn
+msgid "Uploading scans"
+msgstr "Đang tải lên bản scan"
+
+#. source: tiqn
+msgid "all documents matching the current filters"
+msgstr "mọi văn bản theo bộ lọc hiện tại"
+
+#. source: tiqn
+msgid "{0} From"
+msgstr "{0} từ"
+
+#. source: tiqn
+msgid "{0} Status"
+msgstr "Trạng thái {0}"
+
+#. source: tiqn
+msgid "{0} To"
+msgstr "{0} đến"
+
+#. source: tiqn
+msgid "{0} already has a scan — clear it on the form first to replace it"
+msgstr "{0} đã có bản scan — hãy xóa bản cũ trên form trước khi thay"
+
+#. source: tiqn
+msgid "{0} document(s) without a scan are listed in _missing_scans.txt inside the ZIP."
+msgstr "{0} văn bản chưa có bản scan được liệt kê trong _missing_scans.txt trong file ZIP."
+
+#. source: tiqn
+msgid "{0} scan(s) uploaded"
+msgstr "Đã tải lên {0} bản scan"
+
+#. source: tiqn
+msgid "{0} ticked document(s)"
+msgstr "{0} văn bản đã tick"
+
+#. source: tiqn
+msgid "{0}: the same file is already the scan of {1}"
+msgstr "{0}: file này đã là bản scan của {1}"
+
+#. source: tiqn
+msgid "= End Date + 1 day"
+msgstr "= Ngày kết thúc + 1 ngày"
+
+#. source: tiqn
+msgid "Actual signing date. Set to today when marked Signed and left empty."
+msgstr "Ngày ký thực tế. Để trống khi đánh dấu Đã ký thì lấy ngày hôm nay."
+
+#. source: tiqn
+msgid "Auto-calculated next stage in the contract sequence. Empty when Contract Type is Indefinite-term."
+msgstr "Giai đoạn kế tiếp trong chuỗi hợp đồng, tự tính. Để trống khi Loại hợp đồng là không xác định thời hạn."
+
+#. source: tiqn
+msgid "Auto-calculated: probation = Start Date + Period - 1 day; 1-year / 3-year contracts = the same date 1 / 3 years later - 1 day. Empty for Indefinite-term."
+msgstr "Tự tính: thử việc = Ngày bắt đầu + Thời hạn - 1 ngày; hợp đồng 1 năm / 3 năm = cùng ngày đó sau 1 / 3 năm - 1 ngày. Để trống với hợp đồng không xác định thời hạn."
+
+#. source: tiqn
+msgid "Change Type"
+msgstr "Loại thay đổi"
+
+#. source: tiqn
+msgid "Every Monday at 08:00: contracts expiring this week and documents created but not signed yet."
+msgstr "08:00 thứ Hai hằng tuần: hợp đồng hết hạn trong tuần và văn bản đã tạo nhưng chưa ký."
+
+#. source: tiqn
+msgid "For an Appendix: the Effective Date."
+msgstr "Với phụ lục: là Ngày hiệu lực."
+
+#. source: tiqn
+msgid "Internal flag: prevents the daily scheduler from creating the next stage more than once for this record."
+msgstr "Cờ nội bộ: không cho job hằng ngày tạo giai đoạn kế tiếp quá một lần cho record này."
+
+#. source: tiqn
+msgid "L = salary, C = position, LC = salary and position"
+msgstr "L = lương, C = chức vụ, LC = lương và chức vụ"
+
+#. source: tiqn
+msgid "Labor Contract Report"
+msgstr "Báo cáo hợp đồng lao động"
+
+#. source: tiqn
+msgid "Labor Contract Settings"
+msgstr "Cài đặt hợp đồng lao động"
+
+#. source: tiqn
+msgid "Next Stage Created"
+msgstr "Đã tạo giai đoạn kế tiếp"
+
+#. source: tiqn
+msgid "One email address per line (or separated by commas)."
+msgstr "Mỗi dòng một địa chỉ email (hoặc cách nhau bằng dấu phẩy)."
+
+#. source: tiqn
+msgid "Scan of the signed paper. The file name must start with the document number (e.g. TIQN-2548-HD1.pdf); stored as a private file."
+msgstr "Bản scan văn bản đã ký. Tên file phải bắt đầu bằng số văn bản (ví dụ TIQN-2548-HD1.pdf); lưu dạng file riêng tư."
+
+#. source: tiqn
+msgid "Send Weekly Email"
+msgstr "Gửi email hằng tuần"
+
+#. source: tiqn
+msgid "Signed Copy"
+msgstr "Bản đã ký"
+
+#. source: tiqn
+msgid "Signed Scan"
+msgstr "Bản scan đã ký"
+
+#. source: tiqn
+msgid "The contract in force on the Effective Date — filled in automatically."
+msgstr "Hợp đồng đang hiệu lực vào Ngày hiệu lực — tự điền."
+
+#. source: tiqn
+msgid "Weekly Email"
+msgstr "Email hằng tuần"
+

@@ -9,6 +9,14 @@ from frappe.utils.file_manager import delete_file
 LMS_CONTENT_DOCTYPES = {"Course Lesson"}
 LMS_FILE_URL_PREFIXES = ("/files/lms_course/", "/private/files/lms_course/")
 
+# Signed Labor Contract scans live in their own folder, like employee photos (user
+# 22/10/2026). Always private: ID card, salary.
+LABOR_CONTRACT_SCAN_PREFIX = "/private/files/labor_contract_scans/"
+
+# Files this module puts in sub-folders — the stock delete can't find them (see
+# custom_delete_file_from_filesystem)
+SUBFOLDER_URL_PREFIXES = LMS_FILE_URL_PREFIXES + (LABOR_CONTRACT_SCAN_PREFIX,)
+
 
 def _slugify(text):
 	"""Vietnamese-safe slug: bỏ dấu, hạ chữ thường, khoảng trắng/ký tự lạ -> '-'."""
@@ -97,6 +105,9 @@ def custom_save_file_on_filesystem(self):
 	kèm document thường...) rơi về hàm gốc File.save_file_on_filesystem, không đổi
 	hành vi.
 	"""
+	if self.attached_to_doctype == "Labor Contract" and self.attached_to_field == "scan":
+		return _save_labor_contract_scan(self)
+
 	target = _lms_upload_target(self)
 	if not target:
 		return self._original_save_file_on_filesystem()
@@ -123,6 +134,22 @@ def custom_save_file_on_filesystem(self):
 	return {"file_name": os.path.basename(fpath), "file_url": self.file_url}
 
 
+def _save_labor_contract_scan(self):
+	"""private/files/labor_contract_scans/{tên gốc}; trùng tên trên đĩa -> thêm _hash."""
+	self.is_private = 1
+	file_name = re.sub(r"[/\\%?#]", "_", self.file_name)
+	self.file_url = f"{LABOR_CONTRACT_SCAN_PREFIX}{file_name}"
+	full_path = self.get_full_path()
+	os.makedirs(os.path.dirname(full_path), exist_ok=True)
+	if os.path.exists(full_path):
+		stem, ext = os.path.splitext(file_name)
+		file_name = f"{stem}_{frappe.generate_hash(length=6)}{ext}"
+		self.file_url = f"{LABOR_CONTRACT_SCAN_PREFIX}{file_name}"
+	self.file_name = file_name
+	fpath = self.write_file()
+	return {"file_name": os.path.basename(fpath), "file_url": self.file_url}
+
+
 def custom_delete_file_from_filesystem(self, only_thumbnail=False):
 	"""Hàm gốc (frappe.utils.file_manager.delete_file) chỉ hiểu đúng path phẳng
 	1 cấp (files/<name> hoặc private/files/<name>): nó tách bằng os.path.split rồi
@@ -139,7 +166,7 @@ def custom_delete_file_from_filesystem(self, only_thumbnail=False):
 	if only_thumbnail:
 		return self._original_delete_file_from_filesystem(only_thumbnail=True)
 
-	if self.file_url and self.file_url.startswith(LMS_FILE_URL_PREFIXES):
+	if self.file_url and self.file_url.startswith(SUBFOLDER_URL_PREFIXES):
 		full_path = self.get_full_path()
 		if os.path.exists(full_path):
 			os.remove(full_path)

@@ -84,3 +84,43 @@ frappe.ui.form.on(cur_frm.doctype, {
 		});
 	},
 });
+
+// Contract appendix (Labor Contract, document type Appendix). Ticking "Create Contract
+// Appendix" before submitting creates it on submit; this button covers a forgotten tick.
+// A separate frappe.ui.form.on block: refresh handlers are queued, so the HRMS one
+// still runs.
+frappe.ui.form.on(cur_frm.doctype, {
+	refresh: function (frm) {
+		if (frm.doc.docstatus !== 1) {
+			return;
+		}
+		frappe.call({
+			method: "customize_erpnext.customize_erpnext.doctype.labor_contract.labor_contract.get_contract_appendix",
+			args: { doctype: frm.doctype, name: frm.doc.name },
+			callback: function (r) {
+				const info = r.message || {};
+				if (!info.allowed) {
+					return;
+				}
+				if (info.appendix) {
+					frm.add_custom_button(__("Contract Appendix"), () =>
+						frappe.set_route("Form", "Labor Contract", info.appendix)
+					, __("View"));
+				} else if (info.can_create) {
+					frm.add_custom_button(__("Create Contract Appendix"), () => {
+						frappe.call({
+							method: "customize_erpnext.customize_erpnext.doctype.labor_contract.labor_contract.create_contract_appendix",
+							args: { doctype: frm.doctype, name: frm.doc.name },
+							freeze: true,
+							callback: function (res) {
+								if (res.message) {
+									frappe.set_route("Form", "Labor Contract", res.message);
+								}
+							},
+						});
+					});
+				}
+			},
+		});
+	},
+});

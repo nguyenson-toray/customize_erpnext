@@ -6,6 +6,7 @@ from frappe.tests import IntegrationTestCase
 from frappe.utils import add_days, getdate, nowdate
 
 from .labor_contract import (
+	NEXT_CONTRACT_TYPE as NEXT_STAGES,
 	CONTRACT_1_YEAR,
 	CONTRACT_3_YEAR,
 	CONTRACT_INDEFINITE,
@@ -16,6 +17,10 @@ from .labor_contract import (
 	SKIP_NO_PROBATION,
 	bulk_mark_signed,
 	business_today,
+	compute_end_date,
+	contract_in_force,
+	positions_at,
+	remove_appendix_on_cancel,
 	classify_probation_days,
 	draft_expiring_contracts,
 	get_next_contract_type,
@@ -24,12 +29,9 @@ from .labor_contract import (
 	get_probation_contract_candidates,
 	leaves_before,
 	_create_initial_labor_contract,
-	_get_employment_type_periods,
 	_mark_overdue,
 	_materialize_next_stage,
-	_plan_contract_chain,
 	_resolve_target_employees,
-	_seed_employee_contract_chain,
 )
 
 # On IntegrationTestCase, the doctype test records and all
@@ -540,53 +542,6 @@ class IntegrationTestLaborContract(IntegrationTestCase):
 	def test_resolve_targets_rejects_empty_employee_list(self):
 		self.assertRaises(frappe.ValidationError, _resolve_target_employees, "Employees", employees=[])
 
-	# ---- Seeding: contract chain planning (pure date math) ----
-
-	def test_chain_for_brand_new_hire_is_probation_only(self):
-		periods = _get_employment_type_periods()
-		plan = _plan_contract_chain("2026-08-01", "30", periods, getdate("2026-08-04"))
-
-		self.assertEqual(len(plan), 1)
-		self.assertEqual(plan[0][0], PROBATION_30)
-		self.assertEqual(str(plan[0][1]), "2026-08-01")
-		self.assertEqual(str(plan[0][2]), "2026-08-30")
-
-	def test_chain_is_contiguous_with_no_gaps(self):
-		periods = _get_employment_type_periods()
-		plan = _plan_contract_chain("2020-01-01", "30", periods, getdate("2026-08-04"))
-
-		for previous, nxt in zip(plan, plan[1:]):
-			self.assertEqual(
-				str(nxt[1]), str(add_days(previous[2], 1)),
-				f"gap between {previous[0]} and {nxt[0]}",
-			)
-
-	def test_chain_for_long_tenure_ends_on_indefinite(self):
-		periods = _get_employment_type_periods()
-		# Joined 2020: 30d probation + 1y + 3y is ~4 years, so by 2026 they are
-		# on the Indefinite-term contract.
-		plan = _plan_contract_chain("2020-01-01", "30", periods, getdate("2026-08-04"))
-
-		self.assertEqual(
-			[stage[0] for stage in plan],
-			[PROBATION_30, CONTRACT_1_YEAR, CONTRACT_3_YEAR, CONTRACT_INDEFINITE],
-		)
-		self.assertIsNone(plan[-1][2])  # Indefinite-term has no end date
-
-	def test_chain_stops_at_the_stage_covering_today(self):
-		periods = _get_employment_type_periods()
-		# 60d probation from 2026-01-01 ends 2026-03-01, then the 1-year contract
-		# runs 2026-03-02 -> 2027-03-01, which covers 2026-08-04.
-		plan = _plan_contract_chain("2026-01-01", "60", periods, getdate("2026-08-04"))
-
-		self.assertEqual([stage[0] for stage in plan], [PROBATION_60, CONTRACT_1_YEAR])
-		self.assertEqual(str(plan[-1][2]), "2027-03-01")
-
-	def test_chain_empty_without_probation_days(self):
-		periods = _get_employment_type_periods()
-		self.assertEqual(_plan_contract_chain("2020-01-01", "", periods, getdate("2026-08-04")), [])
-		self.assertEqual(_plan_contract_chain("2020-01-01", None, periods, getdate("2026-08-04")), [])
-
 	# ---- Probation Days = 0 (special case: hired without probation) ----
 
 	def test_classify_probation_days(self):
@@ -596,10 +551,6 @@ class IntegrationTestLaborContract(IntegrationTestCase):
 		self.assertEqual(classify_probation_days("0"), (None, SKIP_NO_PROBATION))
 		self.assertEqual(classify_probation_days(""), (None, SKIP_MISSING_PROBATION_DAYS))
 		self.assertEqual(classify_probation_days(None), (None, SKIP_MISSING_PROBATION_DAYS))
-
-	def test_zero_probation_days_builds_no_chain(self):
-		periods = _get_employment_type_periods()
-		self.assertEqual(_plan_contract_chain("2020-01-01", "0", periods, getdate("2026-08-04")), [])
 
 	def test_zero_probation_days_is_skipped_with_its_own_reason(self):
 		emp = _make_test_employee()
@@ -612,64 +563,138 @@ class IntegrationTestLaborContract(IntegrationTestCase):
 		# Nothing auto-created — HR decides the first stage by hand
 		self.assertEqual(frappe.db.count("Labor Contract", {"employee": emp.name}), 0)
 
-	def test_zero_probation_days_is_not_seeded(self):
-		emp = _make_test_employee(date_of_joining="2020-01-01")
-		periods = _get_employment_type_periods()
-		frappe.db.set_value("Employee", emp.name, "custom_probation_days", "0", update_modified=False)
+	# ---- v3: end dates (probation by days, 1Y/3Y by calendar year) ----
 
-		with self.assertRaises(ValueError):
-			_seed_employee_contract_chain(emp.name, periods, getdate("2026-08-04"))
-		self.assertEqual(frappe.db.count("Labor Contract", {"employee": emp.name}), 0)
+	def test_end_date_probation_by_days(self):
+		self.assertEqual(str(compute_end_date(PROBATION_30, "2026-01-01")), "2026-01-30")
+		self.assertEqual(str(compute_end_date(PROBATION_60, "2026-01-01")), "2026-03-01")
 
-	# ---- Seeding: record creation ----
+	def test_end_date_fixed_term_by_calendar_year(self):
+		self.assertEqual(str(compute_end_date(CONTRACT_1_YEAR, "2024-03-29")), "2025-03-28")
+		self.assertEqual(str(compute_end_date(CONTRACT_3_YEAR, "2022-12-31")), "2025-12-30")
+		# a leap year inside the term: still the same date minus one, not 365 days
+		self.assertEqual(str(compute_end_date(CONTRACT_1_YEAR, "2023-06-01")), "2024-05-31")
 
-	def test_seed_creates_whole_chain_with_correct_flags(self):
-		emp = _make_test_employee(date_of_joining="2020-01-01")
-		periods = _get_employment_type_periods()
-		frappe.db.set_value("Employee", emp.name, "custom_probation_days", "30", update_modified=False)
+	def test_end_date_29_february_counts_as_1_march(self):
+		self.assertEqual(str(compute_end_date(CONTRACT_1_YEAR, "2024-02-29")), "2025-02-28")
+		self.assertEqual(str(compute_end_date(CONTRACT_3_YEAR, "2024-02-29")), "2027-02-28")
 
-		count = _seed_employee_contract_chain(emp.name, periods, getdate("2026-08-04"))
-		self.assertEqual(count, 4)
+	def test_end_date_indefinite_is_open(self):
+		self.assertIsNone(compute_end_date(CONTRACT_INDEFINITE, "2026-01-01"))
 
-		contracts = frappe.get_all(
-			"Labor Contract",
-			filters={"employee": emp.name},
-			fields=["contract_type", "status", "next_stage_created", "end_date"],
-			order_by="start_date asc",
-		)
-		self.assertEqual(
-			[c.contract_type for c in contracts],
-			[PROBATION_30, CONTRACT_1_YEAR, CONTRACT_3_YEAR, CONTRACT_INDEFINITE],
-		)
-		# All historical/current stages are Signed...
-		self.assertTrue(all(c.status == "Signed" for c in contracts))
-		# ...and every stage but the last is flagged so the daily job won't
-		# create a duplicate successor for it.
-		self.assertEqual([c.next_stage_created for c in contracts], [1, 1, 1, 0])
+	# ---- v3: names = document numbers ----
 
-	def test_seed_is_idempotent(self):
-		emp = _make_test_employee(date_of_joining="2020-01-01")
-		periods = _get_employment_type_periods()
-		frappe.db.set_value("Employee", emp.name, "custom_probation_days", "30", update_modified=False)
-
-		_seed_employee_contract_chain(emp.name, periods, getdate("2026-08-04"))
-		with self.assertRaises(ValueError):
-			_seed_employee_contract_chain(emp.name, periods, getdate("2026-08-04"))
-
-		self.assertEqual(frappe.db.count("Labor Contract", {"employee": emp.name}), 4)
-
-	def test_seeded_current_stage_is_not_picked_up_twice_by_daily_job(self):
-		"""The seeded chain must leave the daily job with exactly one open stage."""
+	def test_contract_names_follow_the_stage(self):
 		emp = _make_test_employee(date_of_joining="2026-01-01")
-		periods = _get_employment_type_periods()
-		frappe.db.set_value("Employee", emp.name, "custom_probation_days", "30", update_modified=False)
+		self.assertEqual(self._contract(emp.name, PROBATION_30, "2026-01-01").name, f"{emp.name}-HD")
+		self.assertEqual(self._contract(emp.name, CONTRACT_1_YEAR, "2026-01-31").name, f"{emp.name}-HD1")
+		self.assertEqual(self._contract(emp.name, CONTRACT_3_YEAR, "2027-01-31").name, f"{emp.name}-HD2")
+		self.assertEqual(self._contract(emp.name, CONTRACT_INDEFINITE, "2030-01-31").name, f"{emp.name}-HD3")
 
-		_seed_employee_contract_chain(emp.name, periods, getdate(nowdate()))
-		before = frappe.db.count("Labor Contract", {"employee": emp.name})
+	def test_duplicate_stage_gets_a_suffix(self):
+		emp = _make_test_employee(date_of_joining="2026-01-01")
+		self._contract(emp.name, CONTRACT_1_YEAR, "2026-01-01")
+		self.assertEqual(self._contract(emp.name, CONTRACT_1_YEAR, "2027-01-01").name, f"{emp.name}-HD1-2")
+		self.assertEqual(self._contract(emp.name, CONTRACT_1_YEAR, "2028-01-01").name, f"{emp.name}-HD1-3")
 
-		_materialize_next_stage()
+	def test_contract_type_outside_the_chain_is_rejected(self):
+		emp = _make_test_employee(date_of_joining="2026-01-01")
+		other = frappe.db.get_value("Employment Type", {"name": ["not in", list(NEXT_STAGES)]}, "name")
+		if not other:
+			self.skipTest("Only chain Employment Types exist on this site")
+		self.assertRaises(frappe.ValidationError, self._contract, emp.name, other, "2026-01-01")
 
-		after = frappe.db.count("Labor Contract", {"employee": emp.name})
-		# The 1-year stage seeded today runs well past the 30-day warning window,
-		# so nothing new is due yet.
-		self.assertEqual(after, before)
+	# ---- v3: appendices ----
+
+	def _appendix(self, employee, effective, **extra):
+		return frappe.get_doc({
+			"doctype": "Labor Contract",
+			"employee": employee,
+			"document_type": "Appendix",
+			"start_date": effective,
+			**extra,
+		}).insert(ignore_permissions=True)
+
+	def test_appendix_name_and_parent_contract(self):
+		emp = _make_test_employee(date_of_joining="2026-01-01")
+		self._contract(emp.name, PROBATION_30, "2026-01-01", status="Signed")
+		year = self._contract(emp.name, CONTRACT_1_YEAR, "2026-01-31", status="Signed")
+
+		pl = self._appendix(emp.name, "2026-05-26")
+		self.assertEqual(pl.name, f"PL-{emp.name}-2605")
+		self.assertEqual(pl.parent_contract, year.name)
+		self.assertIsNone(pl.end_date)
+		self.assertEqual(contract_in_force(emp.name, "2026-01-15"), f"{emp.name}-HD")
+
+		second = self._appendix(emp.name, "2026-05-30")
+		self.assertEqual(second.name, f"PL-{emp.name}-2605-2")
+
+	def test_appendix_without_contract_in_force_is_rejected(self):
+		emp = _make_test_employee(date_of_joining="2026-01-01")
+		self.assertRaises(frappe.ValidationError, self._appendix, emp.name, "2026-05-26")
+
+	def test_appendix_month_cannot_move(self):
+		emp = _make_test_employee(date_of_joining="2026-01-01")
+		self._contract(emp.name, CONTRACT_1_YEAR, "2026-01-01", status="Signed")
+		pl = self._appendix(emp.name, "2026-05-26")
+		pl.start_date = "2026-05-02"
+		pl.save(ignore_permissions=True)  # same month: fine
+		pl.start_date = "2026-06-02"
+		self.assertRaises(frappe.ValidationError, pl.save, ignore_permissions=True)
+
+	def test_signed_appendix_does_not_change_employment_type(self):
+		emp = _make_test_employee(date_of_joining="2026-01-01")
+		self._contract(emp.name, CONTRACT_1_YEAR, "2026-01-01", status="Signed")
+		self.assertEqual(frappe.db.get_value("Employee", emp.name, "employment_type"), CONTRACT_1_YEAR)
+		pl = self._appendix(emp.name, "2026-02-26")
+		bulk_mark_signed([pl.name])
+		self.assertEqual(frappe.db.get_value("Employee", emp.name, "employment_type"), CONTRACT_1_YEAR)
+
+	def test_overdue_also_applies_to_appendices(self):
+		emp = _make_test_employee(date_of_joining="2025-01-01")
+		self._contract(emp.name, CONTRACT_1_YEAR, add_days(nowdate(), -30), status="Signed")
+		pl = self._appendix(emp.name, add_days(nowdate(), -2))
+		_mark_overdue()
+		self.assertEqual(frappe.db.get_value("Labor Contract", pl.name, "status"), "Overdue")
+
+	def test_appendix_removed_or_kept_on_cancel(self):
+		emp = _make_test_employee(date_of_joining="2026-01-01")
+		self._contract(emp.name, CONTRACT_1_YEAR, "2026-01-01", status="Signed")
+		source = frappe._dict(doctype="Employee Promotion", name="HR-EMP-PRO-TEST-LC")
+		pl = self._appendix(
+			emp.name, "2026-03-01",
+			reference_doctype=source.doctype, reference_name=source.name,
+		)
+		frappe.db.set_value("Labor Contract", pl.name, "status", "Signed")
+		self.assertRaises(frappe.ValidationError, remove_appendix_on_cancel, source)
+
+		frappe.db.set_value("Labor Contract", pl.name, "status", "Upcoming")
+		remove_appendix_on_cancel(source)
+		self.assertFalse(frappe.db.exists("Labor Contract", pl.name))
+
+	# ---- v3: signing date ----
+
+	def test_bulk_sign_records_the_signing_date(self):
+		emp = _make_test_employee(date_of_joining="2026-01-01")
+		lc = self._contract(emp.name, PROBATION_30, "2026-01-01")
+		bulk_mark_signed([lc.name], signed_on="2026-01-03")
+		self.assertEqual(str(frappe.db.get_value("Labor Contract", lc.name, "signed_on")), "2026-01-03")
+
+	def test_form_sign_defaults_signed_on_to_today(self):
+		emp = _make_test_employee(date_of_joining="2026-01-01")
+		lc = self._contract(emp.name, PROBATION_30, "2026-01-01")
+		lc.status = "Signed"
+		lc.save(ignore_permissions=True)
+		self.assertEqual(getdate(lc.signed_on), getdate(business_today()))
+
+	def test_inserting_a_signed_record_leaves_signed_on_empty(self):
+		emp = _make_test_employee(date_of_joining="2026-01-01")
+		lc = self._contract(emp.name, PROBATION_30, "2026-01-01", status="Signed")
+		self.assertIsNone(lc.signed_on)
+
+	# ---- v3: position on a date (Internal Work History) ----
+
+	def test_positions_fall_back_to_the_employee_without_history(self):
+		emp = _make_test_employee(date_of_joining="2026-01-01")
+		[position] = positions_at([(emp.name, "2026-02-01")])
+		self.assertEqual(position.department, emp.department)

@@ -41,6 +41,22 @@ frappe.query_reports['Labor Contract Report'] = {
 			depends_on: "eval:doc.expiring == 'Custom'",
 		},
 		{
+			fieldname: 'overdue_30',
+			label: __('Overdue > 30 Days'),
+			fieldtype: 'Check',
+			description: __('Not signed more than 30 days after it should have taken effect — including an expired contract whose follow-up was never created. A fixed-term contract left unsigned this long after the previous one expired becomes indefinite-term (Labor Code 2019, Art. 20.2).'),
+		},
+		{
+			fieldname: 'document_type',
+			label: __('Document Type'),
+			fieldtype: 'Select',
+			options: [
+				{ value: '', label: '' },
+				{ value: 'Contract', label: __('Contract') },
+				{ value: 'Appendix', label: __('Appendix') },
+			],
+		},
+		{
 			fieldname: 'status',
 			label: __('Status'),
 			fieldtype: 'Select',
@@ -102,7 +118,22 @@ frappe.query_reports['Labor Contract Report'] = {
 			}
 		}
 
+		if (column.fieldname === 'days_overdue' && data.days_overdue) {
+			const late = data.days_overdue > 30;
+			const title = data.legal_risk
+				? __('Unsigned for over 30 days after the previous fixed-term contract expired — by law it may already count as an indefinite-term contract (Labor Code 2019, Art. 20.2).')
+				: late
+					? __('Unsigned for over 30 days')
+					: '';
+			value = `<span style="color: var(--${late ? 'red' : 'orange'}-600); font-weight: 600;" title="${title}">${late ? '⚠ ' : ''}${value}</span>`;
+		}
+
 		// Leaving on/before the next sign date: no renewal, so mute the "next" columns
+		if (column.fieldname === 'next_contract_status' && data.next_contract_status) {
+			const colors = { Signed: 'green', Overdue: 'red', Upcoming: 'orange', 'Not Created': 'gray' };
+			value = `<span style="color: var(--${colors[data.next_contract_status] || 'gray'}-600); font-weight: 600;">${__(data.next_contract_status)}</span>`;
+		}
+
 		if (data.leaves_before_next && ['next_sign_date', 'next_contract_type'].includes(column.fieldname)) {
 			const title = __('Leaves on {0} — no next contract', [
 				frappe.datetime.str_to_user(data.relieving_date),

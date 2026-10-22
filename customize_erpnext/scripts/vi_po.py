@@ -49,8 +49,9 @@ ERPNEXT2VI_APPS = ("frappe", "erpnext", "hrms", "insights", "lms", "payments")
 TAG_TIQN, TAG_E2V = "source: tiqn", "source: erpnext2vi"
 # Core strings where TIQN's meaning beats erpnext2vi (user choice 21/10/2026):
 # "Section" is our custom_section (Bộ phận), not a form section; Relieving Date is the
-# FIRST day off at TIQN; Submit/Submitted, Delivery Note/Purchase Receipt are house terms.
-TIQN_KEEP = ("Section", "Relieving Date", "Submit", "Submitted", "Delivery Note", "Purchase Receipt")
+# FIRST day off at TIQN; Submit/Submitted, Delivery Note/Purchase Receipt are house terms;
+# "Signed On" is a signing date (Labor Contract, CRM Contract), not "logged in".
+TIQN_KEEP = ("Section", "Relieving Date", "Submit", "Submitted", "Delivery Note", "Purchase Receipt", "Signed On")
 PLACEHOLDER = re.compile(r"\{[^{}]*\}|%\([a-z_]+\)s|%[sd]")
 
 

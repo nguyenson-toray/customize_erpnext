@@ -1,14 +1,33 @@
 # Labor Contract
 
-> **Mục đích:** Quản lý hạn hợp đồng lao động và cảnh báo tái ký.
+> **Mục đích:** Quản lý hợp đồng lao động (HĐ) và phụ lục (PL), cảnh báo tái ký.
 > **Phạm vi:** DocType tự phát triển
-> **Trạng thái:** Đang chạy · **Cập nhật:** 2026-10-21
+> **Trạng thái:** Đang chạy (v3 từ 22/10/2026) · **Cập nhật:** 2026-10-22
 
-Quản lý hạn hợp đồng lao động và cảnh báo tái ký. Mỗi record = **1 lần ký hợp đồng**
-(không gộp nhiều giai đoạn vào 1 record), nên lịch sử hợp đồng của một nhân viên là
-một chuỗi nhiều record nối tiếp nhau.
+**Mỗi record = 1 văn bản giấy** — một HĐ (một giai đoạn của chuỗi) hoặc một PL. Tên record
+**chính là số văn bản** HR in trên giấy:
 
-> **Phạm vi:** chỉ theo dõi hạn hợp đồng. Không in hợp đồng, không mail merge, không lương.
+| Văn bản | Tên record |
+|---|---|
+| HĐ thử việc (30/60 ngày) | `{NV}-HD` |
+| HĐ 1 năm | `{NV}-HD1` |
+| HĐ 3 năm | `{NV}-HD2` |
+| HĐ không thời hạn | `{NV}-HD3` |
+| Phụ lục | `PL-{NV}-{YYMM của ngày hiệu lực}` |
+
+Trùng số (ký lại cùng giai đoạn, 2 PL cùng tháng) → thêm hậu tố `-2`, `-3` (VD `PL-TIQN-0001-2610-2`).
+
+**DocType chỉ giữ thông tin của văn bản.** Thông tin NV (chức danh, bộ phận, CCCD, địa chỉ…)
+do report / Export tự kéo từ Employee; chức danh **tại một ngày** lấy từ Internal Work History
+(`positions_at()`).
+
+> **Không làm:** lương (PENDING), in HĐ ra PDF (mục 10). Mail merge = file Export (mục 7).
+
+**Dữ liệu trước 22/10/2026** (tên cũ `LC-{NV}-{NN}`): 3.014 HĐ đã chép sang DocType này (bảng đối
+chiếu tên cũ → mới: `private/backups/20261022_labor_contract_v3_mapping.csv`). DocType tạm
+`Labor Contract Legacy` đã **xoá hẳn** ngày 22/10/2026 (user yêu cầu); bản lưu: dump bảng cũ
+`private/backups/20261022_labor_contract_before_v3.sql.gz` + `20261022_labor_contract_legacy_archive.json.gz`
+(3.014 HĐ + 228 Version + 3.048 Comment).
 
 ---
 
@@ -55,40 +74,50 @@ Giá trị chuẩn (patch `setup_labor_contract` tự tạo/sửa cho khớp):
 - `Employee.custom_probation_days` — fetch từ Designation, dùng để suy loại HĐ thử việc đầu tiên
 - `Employee.employment_type` — **được module này ghi tự động**, xem mục 5
 
-### 2.3. Labor Contract (doctype mới)
+### 2.3. Labor Contract
 
 | Field | Type | Ghi chú |
 |---|---|---|
-| `employee` | Link → Employee | reqd |
-| `employee_name`, `designation`, `department` | fetch, read-only | Từ Employee |
-| `custom_section`, `custom_group` | Link | fetch từ Employee, sửa tay được |
-| `contract_type` | Link → Employment Type | reqd — loại của **chính giai đoạn này** |
-| `start_date` | Date | reqd |
-| `end_date` | Date, read-only | **Derived** — trống nếu Indefinite-term |
-| `next_contract_type` | Link, read-only | **Derived** — trống nếu Indefinite-term |
-| `next_sign_date` | Date, read-only | **Derived** = `end_date + 1` |
-| `status` | Select | `Upcoming` / `Signed` / `Overdue` — default `Upcoming` |
+| `employee` | Link → Employee | reqd, đặt 1 lần |
+| `employee_name`, `employee_status`, `relieving_date` | fetch | Từ Employee (lọc nhanh trên List View) |
+| `document_type` | Select | **Contract** / **Appendix**, đặt 1 lần |
+| `contract_type` | Link → Employment Type | Contract: loại của **chính giai đoạn này**, đặt 1 lần (số HĐ theo nó). Appendix: trống |
+| `parent_contract` | Link → Labor Contract, read-only | Appendix: HĐ đang hiệu lực tại ngày hiệu lực — **tự điền mỗi lần save** |
+| `start_date` | Date | reqd. Appendix: **ngày hiệu lực** (form đổi nhãn) |
+| `end_date`, `next_contract_type`, `next_sign_date` | read-only | **Derived**, chỉ Contract |
+| `status` | Select | `Upcoming` / `Signed` / `Overdue` |
+| `signed_on` | Date | Ngày ký thực tế. Đổi sang Signed mà trống → hôm nay. Đổi khỏi Signed → xoá trống. Record **tạo mới** ở trạng thái Signed (dữ liệu lịch sử, HĐ chuyển từ bản cũ) → để trống, không bịa |
+| `change_type` | Select | Appendix: **L** = lương · **C** = chức vụ · **LC** = cả hai (cột "Thay đổi" của HR) |
+| `reference_doctype`, `reference_name` | Dynamic Link, read-only | Appendix: phiếu Employee Promotion / Transfer sinh ra nó |
+| `scan` | Attach | Bản scan văn bản đã ký — **tên file phải bắt đầu bằng số văn bản**, file private (mục 4.5) |
 | `next_stage_created` | Check, **ẩn** | Cờ chống tạo trùng giai đoạn kế tiếp |
-| `manager_email` | Data, **ẩn**, read-only | Tự suy từ `employee.reports_to.user_id`. Hiện chưa dùng — để sẵn cho Notification sau này |
 
-Autoname: **`LC-{employee}-{NN}`** — NN = lần ký thứ mấy của NV đó, bắt đầu `01` (`autoname()` trong controller, sửa 21/10/2026; trước đó là `LC-{employee}-{#####}`). Số mới = số lớn nhất đang có + 1, nên xoá một HĐ ở giữa không làm trùng tên. HĐ cũ đã được rename theo thứ tự `start_date`.
+Đã bỏ (22/10/2026): `designation`, `department`, `custom_section`, `custom_group` (fetch lúc tạo
+record → 132 HĐ ghi chức danh hiện tại thay vì lúc ký) và `manager_email` (không ai đọc).
+
+Autoname: `autoname()` trong controller (`document_number()` + hậu tố trùng). Kiểm `contract_type`
+/ ngày hiệu lực ngay trong `autoname()` vì nó chạy **trước** `validate`. PL đã tạo **không đổi
+được sang tháng khác** (số PL chứa YYMM) — phải xoá tạo lại.
 
 ---
 
 ## 3. Công thức tính ngày
 
-Ba field derived được **tính lại mỗi lần save** (kể cả khi HR sửa tay), nên không bao giờ
-lệch so với cấu hình Employment Type hiện tại:
+Ba field derived được **tính lại mỗi lần save** (`compute_end_date()`), user chốt 22/10/2026:
 
 ```python
-period    = Employment Type[contract_type].custom_period
-end_date  = start_date + period - 1        # -1 để bao trọn đủ số ngày, không dư 1 ngày
-            None nếu period = 0            # Indefinite-term
-next_type = NEXT_CONTRACT_TYPE[contract_type]
-next_sign_date = end_date + 1              # chỉ khi có cả end_date lẫn next_type
+thử việc 30/60:  end_date = start_date + custom_period - 1     # theo ngày
+HĐ 1 năm / 3 năm: end_date = cùng ngày 1 / 3 năm sau - 1        # theo năm dương lịch
+                  (start 29/02 coi như 01/03 → kết thúc 28/02)
+không thời hạn:   end_date = None
+next_type        = NEXT_CONTRACT_TYPE[contract_type]
+next_sign_date   = end_date + 1                                 # khi có cả end_date lẫn next_type
 ```
 
-> Ví dụ: thử việc 60 ngày từ `2021-11-01` → `end_date = 2021-12-30` (không phải 12-31).
+> Ví dụ: HĐ 3 năm từ `31/12/2022` → `30/12/2025`. Thử việc 60 ngày từ `2021-11-01` → `2021-12-30`.
+
+`custom_period` 365/1095 của 2 loại HĐ năm **không còn dùng để tính ngày** (chỉ còn `custom_warning_before`).
+Đổi công thức 22/10/2026 làm 943/3.014 HĐ lệch 1–2 ngày so với trước, 0 NV đổi `employment_type`.
 
 ---
 
@@ -123,15 +152,52 @@ Chạy **đúng thứ tự** 2 bước (đảo thứ tự sẽ đánh Overdue oa
 
 | Nút | Ai dùng được | Tác dụng |
 |---|---|---|
-| **Create Probation Contracts** | có quyền create | Tạo HĐ thử việc đầu tiên cho **một đợt nhận việc** (chọn 1 ngày vào làm cụ thể), hoặc chọn tay vài NV. Có bảng liệt kê từng NV kèm lý do bỏ qua trước khi bấm |
-| **Review Expiring Contracts** | có quyền create | Rà HĐ hết hạn trong khoảng ngày (mặc định ngày 1 → cuối tháng), bấm tạo hàng loạt HĐ kế tiếp ở trạng thái `Upcoming`. Tối đa 500/lượt |
-| **Mark as Signed** | có quyền write | Đánh dấu đã ký hàng loạt. Có tick sẵn dòng thì chạy luôn; không tick thì mở bảng chọn (lọc theo nhiều NV) |
-| **Seed Contract History** *(menu ⋯)* | **chỉ Administrator** | Dựng **toàn bộ chuỗi lịch sử** từ ngày vào làm đến hôm nay cho NV có sẵn. Chạy 1 lần lúc go-live |
+| **Create Probation Contracts** | có quyền create | Liệt kê NV Active chưa có HĐ nào (bỏ qua NV Probation Days trống) và tạo HĐ thử việc; hoặc chọn tay vài NV |
+| **Review Expiring Contracts** | có quyền create | Rà HĐ hết hạn trong khoảng ngày (mặc định ngày 1 → cuối tháng), bấm tạo hàng loạt HĐ kế tiếp `Upcoming`. Tối đa 500/lượt |
+| **Mark as Signed** | có quyền write | Đánh dấu đã ký hàng loạt **cả HĐ lẫn PL**, có ô **Signed On** (ngày ký thực tế, mặc định hôm nay). Có tick sẵn dòng thì hỏi ngày rồi chạy; không tick thì mở bảng chọn. Kết quả liệt kê dòng bị bỏ qua + lý do |
+| **Upload Signed Scans** (menu ⋯) | có quyền write | Chọn nhiều file scan → xem trước file nào vào văn bản nào → upload; tuỳ chọn đánh Signed luôn (mặc định bật, ô Signed On). Mục 4.5 |
+| **Download Signed Scans** (menu ⋯) | có quyền create (HR) | ZIP các scan của dòng đã tick, không tick = mọi văn bản theo bộ lọc hiện tại (tối đa 3.000). Tên trong ZIP = số văn bản; văn bản chưa có scan liệt kê trong `_missing_scans.txt` |
 
-**Seeding** khác Create Probation Contracts ở chỗ: nó đi hết chuỗi để NV cũ đáp đúng
-giai đoạn hiện tại. Mọi giai đoạn đều ghi `Signed` (là sự thật trên giấy tờ), tất cả
-trừ giai đoạn cuối được set `next_stage_created = 1` để job daily không tạo trùng;
-giai đoạn cuối để mở cho job tiếp quản.
+Công cụ Seed Contract History (go-live 21/10) đã bỏ ở v3.
+
+### 4.4. Phụ lục (Appendix)
+
+- **Từ Employee Promotion / Employee Transfer**: tick **Create Contract Appendix** trước khi Submit
+  → Submit tạo PL `Upcoming`, `change_type = C`, link ngược về phiếu (sau khi dựng lại Internal Work
+  History). NV không có HĐ hiệu lực tại ngày đó → **chặn Submit**.
+  Quên tick → phiếu đã Submit có nút **Create Contract Appendix** (có rồi thì nút *View → Contract Appendix*).
+- **Cancel phiếu**: PL chưa ký → xoá theo; PL đã ký → **chặn Cancel** (phải xoá PL trước).
+- **Tạo tay** trên form (VD đổi lương): chọn Document Type = Appendix, nhập ngày hiệu lực.
+- PL **không** ảnh hưởng `employment_type`. Job 00:00 đánh `Overdue` cho cả PL quá ngày hiệu lực.
+- Code: `create_appendix_on_submit` / `remove_appendix_on_cancel` trong `labor_contract.py`, gọi từ
+  `overrides/employee_property/employee_{promotion,transfer}.py`; nút ở
+  `public/js/custom_scripts/employee_property_update_override.js`.
+
+### 4.5. Bản scan đã ký (`scan`)
+
+User yêu cầu 22/10/2026: **tên file bắt đầu bằng số văn bản** (= name của record).
+- Khớp tên: số văn bản **dài nhất** mà tên file bắt đầu bằng, và phải hết ở ranh giới từ (sau đó
+  là hết tên, dấu cách, `_`, `-`, `.`…). `TIQN-2548-HD1.pdf` → HD1 (không phải HD);
+  `TIQN-2548-HD1-2.pdf` → HD1-2 nếu record đó có; `TIQN-2548-HD1 ky.pdf` được; không phân biệt hoa thường.
+- Lưu ở thư mục riêng **`private/files/labor_contract_scans/`** (giống ảnh NV ở `files/employee_photos/`), do bản vá
+  `overrides/lms_file_storage/lms_file_storage.py` (`_save_labor_contract_scan`; xoá đúng file trong thư mục con —
+  hàm gốc Frappe chỉ lấy basename nên sẽ xoá nhầm file cùng tên ở `private/files/`). Form có nút **Download Signed Scan**.
+- Chỉ PDF / JPG / PNG, luôn **private** (có CCCD, lương). Văn bản đã có scan → phải Clear trên form
+  rồi mới upload lại. Cùng 1 file (content hash) cho 2 văn bản → chặn.
+- Upload đi qua `upload_file` với `method = upload_scan`: kiểm tên **trước khi** tạo File (Frappe
+  đổi tên file trùng trên đĩa thành `TIQN-2548-HD1a3f9c2.pdf`, và upload sai tên sẽ để lại
+  attachment rác). Form: field Scan dùng cùng method, xong thì reload form và hỏi Mark as Signed.
+- `validate_scan()` chặn các đường khác (Data Import, API): file public hoặc tên không khớp → lỗi;
+  chịu được hậu tố 6 ký tự content hash của Frappe.
+
+### 4.6. Email thứ Hai hằng tuần
+
+`Labor Contract Settings` (Single): bật/tắt + danh sách người nhận (mặc định **son.nt@tiqn.com.vn**, user
+yêu cầu 22/10/2026). Cron `0 8 * * 1` → `labor_contract_settings.send_weekly_contract_email`:
+- **HĐ hết hạn trong tuần** (End Date thứ Hai → Chủ nhật, NV còn làm sau ngày hết hạn) + HĐ kế tiếp đã tạo chưa / trạng thái.
+- **Đã tạo nhưng chưa ký** (Upcoming/Overdue, cả PL; bỏ văn bản bắt đầu từ ngày nghỉ việc trở đi); tô đỏ khi quá 30 ngày.
+- Nút **Send Weekly Email Now** trên Settings (gửi ngay tới người nhận đã lưu). Bảng HTML dùng `bgcolor` để forward Outlook không vỡ.
+- 🔴 Cron mới → phải `bench migrate` (restart không đủ).
 
 ---
 
@@ -199,31 +265,62 @@ Giá trị cần xét là `Employee.custom_probation_days` (chốt theo chức d
 
 ## 7. Report
 
-**Labor Contract Report** (Script Report).
+### 7.1. Labor Contract Report (mỗi văn bản 1 dòng)
 
 | Filter | Ý nghĩa |
 |---|---|
-| **Current Contract Only** (mặc định BẬT) | Chỉ HĐ đang hiệu lực hôm nay của NV **còn làm** (`relieving_date` trống hoặc sau hôm nay) — mỗi NV 1 dòng. Bỏ tick = xem cả lịch sử |
-| **Expiring** | Theo **End Date**: This Week / Next Week (tuần lịch, thứ 2–CN theo System Settings) / This Month / Next Month / Next 30 Days / Next 60 Days / Custom (hiện thêm 2 ô End Date From/To) |
-| Status · Contract Type · Employee · Section · Group | Lọc thẳng trên dòng HĐ |
+| **Current Contract Only** (mặc định BẬT) | Chỉ **HĐ** đang hiệu lực hôm nay của NV **còn làm** (`relieving_date` trống hoặc sau hôm nay) — mỗi NV 1 dòng. Bỏ tick = xem cả lịch sử và PL |
+| **Expiring** | Theo **End Date**: This Week / Next Week / This Month / Next Month / Next 30 Days / Next 60 Days / Custom |
+| Document Type · Status · Contract Type · Employee | Lọc thẳng trên dòng |
 
-- Contract Type lọc theo loại của **từng dòng HĐ** (kể cả HĐ cũ), không phải HĐ hiện hành —
-  muốn biết "ai đang ở loại này" thì để Current Contract Only bật.
-- Cột **ID** (mã HĐ) đứng đầu, bấm để mở HĐ.
-- Cột **Days Left** = End Date − hôm nay; đỏ khi < 0, cam khi ≤ `custom_warning_before` của loại HĐ.
-  **Để trống** khi HĐ đã có giai đoạn kế tiếp (`next_stage_created`) hoặc NV đã nghỉ — nếu không,
-  mọi HĐ cũ trong lịch sử đều hiện số âm lớn.
-  Sắp xếp theo End Date tăng dần (HĐ không thời hạn xuống cuối).
-- Bộ lọc Employee Status và 4 ô Start Date / Next Sign Date từ–đến đã bỏ (21/10/2026).
+- Designation / Section / Group = **tại ngày bắt đầu văn bản** (Internal Work History), không phải
+  hiện tại. Server vẫn nhận filter Section/Group (lọc sau khi tính) — 2 ô này đang comment trong JS.
+**Expiring ≠ Overdue** (tách nghĩa 22/10/2026):
 
-**Nút Export Contract Data** (chỉ HR Manager / HR User / System Manager — kiểm cả ở server):
-xuất Excel các HĐ đang khớp bộ lọc, kèm thông tin để soạn HĐ giấy (CCCD, ngày/nơi cấp, địa
-chỉ, SĐT, chức danh tiếng Việt, BHXH, MST, ngân hàng…) và **HĐ kế tiếp** (loại, ngày bắt đầu =
-Next Sign Date, ngày kết thúc tính theo `custom_period`, mã + trạng thái nếu đã tạo). Phần HĐ kế
-tiếp để trống khi HĐ không thời hạn hoặc NV nghỉ trước ngày đó (cột Relieving Date). **Base Salary** lấy từ SSA đã submit
-mới nhất có `from_date <= start_date`, và chỉ có cột này khi người xuất có quyền đọc SSA.
-Tiêu đề cột cố ý để tiếng Anh cố định (không `_()`) vì mail merge Word bám theo tên cột.
-Ngày xuất dạng chữ `dd/mm/yyyy` để mail merge không đảo ngày/tháng theo locale Windows.
+| | Expiring — *sắp hết hạn* | Overdue — *trễ ký* |
+|---|---|---|
+| Nói về | HĐ **đang hiệu lực** | Văn bản **mới** chưa ký |
+| Tính theo | End Date (tương lai) | Ngày lẽ ra có hiệu lực (quá khứ) |
+| Cột | **Days Left** | **Days Overdue** |
+
+- **Days Left** = End Date − hôm nay, luôn hiện khi HĐ còn hạn; sau khi hết hạn chỉ hiện (âm) khi
+  **chưa có HĐ kế tiếp**. Trống khi NV đã nghỉ. Đỏ < 0, cam ≤ `custom_warning_before`.
+  (Trước đây trống ngay khi HĐ kế tiếp được tạo → trong Expiring 32/45 dòng mất số.)
+- **Next Contract Status**: trạng thái HĐ kế tiếp (HĐ đầu tiên bắt đầu sau HĐ này — không so đúng
+  ngày, để HĐ sửa tay ngày không bị tưởng là thiếu). *Not Created* chỉ hiện khi **đã tới hạn**
+  (trong khoảng cảnh báo hoặc đã hết hạn); chưa tới hạn → trống.
+- **Days Overdue** gồm 2 trường hợp: (1) văn bản chưa ký đã qua ngày hiệu lực → tính từ ngày bắt đầu;
+  (2) HĐ đã hết hạn mà **chưa tạo** HĐ kế tiếp → tính từ Next Sign Date. NV đã nghỉ không tính.
+  Cam ≤ 30, **đỏ ⚠ > 30**. Bộ lọc **Overdue > 30 Days** + 2 thẻ tóm tắt (tổng / trong đó HĐ 3 năm
+  hoặc không thời hạn = nối tiếp HĐ xác định thời hạn). Cơ sở: BLLĐ 2019 Điều 20 khoản 2 — HĐ xác
+  định thời hạn hết hạn mà NV vẫn làm, quá 30 ngày không ký HĐ mới thì thành HĐ không xác định thời
+  hạn (`OVERDUE_LEGAL_DAYS`, `RENEWS_FIXED_TERM`). Logic ở `_add_signing_state()`.
+- **Current Contract Only** = HĐ **mới nhất đã bắt đầu** của mỗi NV còn làm — tức HĐ đang hiệu lực,
+  hoặc HĐ đã hết hạn mà không có HĐ nối tiếp (để ca quên tái ký vẫn hiện ở màn mặc định).
+
+**Nút Export Contract Data** (chỉ HR Manager / HR User / System Manager — kiểm cả ở server): **1 sheet,
+1 dòng / văn bản (HĐ + PL)**, đúng **88 cột** theo file theo dõi HĐ/PL của HR (bỏ cột "Đc cũ") —
+tiêu đề chép nguyên văn (kể cả xuống dòng trong tên cột phụ cấp) vì Word mail merge bám theo tên cột.
+
+| Cột | Cách lấy |
+|---|---|
+| Số PL/HĐ gần nhất · Mã hợp đồng · Thời gian HĐ (tháng) | HD → trống · HD1 → 1/1/12 · HD2 → 2/2/36 · HD3 → 3/3/trống · PL → YYMM, mã + thời gian của HĐ cha |
+| Ngày ×3 dạng | ngày thật · `dd/mm/yyyy` ("use", "V", "TV") · `dd Month yyyy` ("E", "DOB use", "From use", "Issued") |
+| F/M, Ông/bà, Mr/Ms, Giới tính, Gender | suy từ `gender` |
+| At | 2 cơ quan cấp CCCD dịch cố định (`PLACE_OF_ISSUE_EN`), còn lại giữ nguyên |
+| Address / Địa chỉ | `Employee.permanent_address` (tiếng Anh tự sinh) / `custom_permanent_address_full` |
+| Position currently / Vị trí HT | HĐ: chức danh tại ngày bắt đầu · PL: ngày trước hiệu lực; tiếng Việt từ `Designation.custom_designation_vn` |
+| New position / Vị trí mới | PL: chức danh tại ngày hiệu lực, chỉ khi khác |
+| Kỳ lương | kỳ 26 → 25, đặt tên theo tháng kết thúc: hiệu lực từ ngày 26 → tháng sau (`PAYROLL_PERIOD_START_DAY`) |
+| Thâm niên | `X năm Y tháng Z ngày` từ ngày vào làm tới ngày hiệu lực |
+| Số HD tham chiếu + 3 cột ngày | HĐ cha của PL và ngày bắt đầu của nó |
+| Lương (32 cột), Tình trạng thông tin, Đợt, Ngày pv | **để trống** (lương PENDING; 3 cột kia ERP không có) |
+
+### 7.2. Labor Contract Timeline (mỗi NV 1 dòng)
+
+HD · HD1 · HD2 · HD3 (từ – đến – trạng thái) · số PL / PL chưa ký · **Next Sign Date** (văn bản chưa
+ký sớm nhất, hoặc giai đoạn kế tiếp nếu chưa tạo) · Next Document · Days Left. Lọc: Active Employees
+Only (mặc định), Needs Signing (chỉ NV còn văn bản chưa ký, sắp theo ngày), Section, Group (hiện tại).
 
 ---
 
@@ -256,6 +353,11 @@ lẫn `release_predecessor` đều sẽ vẫn nhìn thấy chính record đang x
 vĩnh viễn**: job daily lẫn nút rà soát đều bỏ qua nó mãi mãi, không có đường sửa trên UI
 vì đó là field ẩn.
 
+### 8.4b. Tạo tay HĐ kế tiếp phải bật cờ HĐ cha
+`claim_predecessor()` (after_insert) bật `next_stage_created` trên HĐ kết thúc ngày liền trước —
+thiếu nó, HR tạo tay HD1 thì job 00:00 vẫn tạo thêm `HD1-2`. Job + nút rà soát còn kiểm thêm
+"đã có HĐ bắt đầu sau" cho trường hợp ngày bị sửa lệch.
+
 ### 8.5. Không `frappe.db.commit()` trong hàm `@whitelist`
 Frappe tự commit cuối request thành công. Commit trong hàm whitelist làm **rò dữ liệu test
 ra DB production** (test gọi thẳng hàm đó, commit thoát khỏi rollback). Sự cố thật:
@@ -270,24 +372,33 @@ Chỉ commit trong **background job** và **scheduler task**.
 
 ```
 customize_erpnext/customize_erpnext/doctype/labor_contract/
-├── labor_contract.py            # controller + toàn bộ API
+├── labor_contract.py            # controller + toàn bộ API (HĐ, PL, job, positions_at)
 ├── labor_contract.json          # schema
-├── labor_contract_list.js       # 3 nút + menu Seed
-├── test_labor_contract.py       # 51 test
+├── labor_contract.js            # nhãn Effective Date cho PL + upload scan trên form
+├── labor_contract_list.js       # 5 nút
+├── test_labor_contract.py
 └── labor_contract.md
-
-customize_erpnext/customize_erpnext/report/labor_contract_report/
+customize_erpnext/customize_erpnext/doctype/labor_contract_settings/ # email thứ Hai
+customize_erpnext/overrides/lms_file_storage/lms_file_storage.py     # scan -> private/files/labor_contract_scans/
+customize_erpnext/customize_erpnext/report/labor_contract_report/     # + Export 88 cột
+customize_erpnext/customize_erpnext/report/labor_contract_timeline/
+customize_erpnext/overrides/employee_property/employee_{promotion,transfer}.py   # PL khi Submit/Cancel
+customize_erpnext/public/js/custom_scripts/employee_property_update_override.js  # nút PL
 customize_erpnext/patches/setup_labor_contract.py   # custom field + 5 Employment Type
 ```
 
-hooks.py: `doc_events["Employee"]["after_insert"]` · `scheduler_events["cron"]["0 0 * * *"]`
-· fixtures Custom Field cho `Employment Type`
+hooks.py: `doc_events["Employee"]["after_insert"]` · `scheduler_events["cron"]["0 0 * * *"]` + `["0 8 * * 1"]` (email)
+· fixtures Custom Field cho `Employment Type`, `Employee Promotion`, `Employee Transfer`
+(`custom_create_contract_appendix`).
 
-Chạy test: `bench --site {site} run-tests --module customize_erpnext.customize_erpnext.doctype.labor_contract.test_labor_contract`
+Chạy test (site có `allow_tests`, **không** chạy trên production — test tạo Employee):
+`bench --site {site} run-tests --module customize_erpnext.customize_erpnext.doctype.labor_contract.test_labor_contract`
 
 ---
 
 ## 10. Roadmap — In hợp đồng ra PDF (chưa làm)
+
+> ⚠ Đã thay bằng `.claude/plans/labor_contract_print_pdf.md` (22/10/2026: lưu 2 phương án A/B, tạm hoãn).
 
 Mục tiêu: in hợp đồng hàng loạt ra PDF, trên đó có thông tin cá nhân + **thông tin lương khác nhau
 theo nhóm người lao động**.

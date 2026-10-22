@@ -1,0 +1,59 @@
+{
+ "actions": [],
+ "creation": "2026-10-22 19:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "section_weekly_email",
+  "weekly_email_enabled",
+  "weekly_email_recipients"
+ ],
+ "fields": [
+  {
+   "description": "Every Monday at 08:00: contracts expiring this week and documents created but not signed yet.",
+   "fieldname": "section_weekly_email",
+   "fieldtype": "Section Break",
+   "label": "Weekly Email"
+  },
+  {
+   "default": "1",
+   "fieldname": "weekly_email_enabled",
+   "fieldtype": "Check",
+   "label": "Send Weekly Email"
+  },
+  {
+   "default": "son.nt@tiqn.com.vn",
+   "depends_on": "weekly_email_enabled",
+   "description": "One email address per line (or separated by commas).",
+   "fieldname": "weekly_email_recipients",
+   "fieldtype": "Small Text",
+   "label": "Recipients",
+   "mandatory_depends_on": "weekly_email_enabled"
+  }
+ ],
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-10-22 19:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Customize Erpnext",
+ "name": "Labor Contract Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "read": 1,
+   "role": "System Manager",
+   "write": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "role": "HR Manager",
+   "write": 1
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}
