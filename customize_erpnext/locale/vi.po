@@ -1625,6 +1625,10 @@ msgid "Commitment Text"
 msgstr "Câu cam kết"
 
 #. source: tiqn
+msgid "Form Setup"
+msgstr "Thiết lập biểu mẫu"
+
+#. source: tiqn
 msgid "Commitment sentence shown next to the tick box above the signature on the www page, and printed on the PDF/PNG receipts. Line breaks are kept. Leave empty to use the default sentence."
 msgstr "Câu cam kết hiện cạnh ô tick phía trên chữ ký ở trang khai thông tin, và in trên phiếu PDF/PNG. Giữ nguyên xuống dòng. Để trống thì dùng câu mặc định."
 
@@ -3409,8 +3413,8 @@ msgid "Max Rows"
 msgstr "Số dòng tối đa"
 
 #. source: tiqn
-msgid "Maximum number of rows an employee can enter. Empty = 3."
-msgstr "Số dòng tối đa nhân viên được nhập. Để trống = 3."
+msgid "Maximum number of rows an employee can enter. Empty = 3. The www page pre-fills only the latest rows; on Sync, older Employee rows beyond this number are removed."
+msgstr "Số dòng tối đa nhân viên được nhập. Để trống = 3. Trang www chỉ điền sẵn các dòng mới nhất; khi Sync, các dòng cũ trên Employee vượt quá số này sẽ bị xoá."
 
 #. source: tiqn
 msgid "Median"

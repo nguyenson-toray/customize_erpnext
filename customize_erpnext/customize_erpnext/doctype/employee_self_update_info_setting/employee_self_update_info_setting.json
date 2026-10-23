@@ -4,6 +4,7 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
+  "tab_general",
   "section_employees",
   "column_break_cfsg",
   "info_html",
@@ -28,6 +29,7 @@
   "bypass_code_for_unlock",
   "disable_review",
   "commitment_text",
+  "tab_form_setup",
   "section_hr_pdf",
   "pdf_document_checklist",
   "section_fields",
@@ -41,6 +43,11 @@
   "selected_fields_for_new_join"
  ],
  "fields": [
+  {
+   "fieldname": "tab_general",
+   "fieldtype": "Tab Break",
+   "label": "General"
+  },
   {
    "fieldname": "section_employees",
    "fieldtype": "Section Break",
@@ -236,6 +243,11 @@
    "label": "Commitment Text"
   },
   {
+   "fieldname": "tab_form_setup",
+   "fieldtype": "Tab Break",
+   "label": "Form Setup"
+  },
+  {
    "collapsible": 1,
    "fieldname": "section_hr_pdf",
    "fieldtype": "Section Break",
@@ -250,7 +262,7 @@
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-10-20 11:00:00.000000",
+ "modified": "2026-10-23 13:29:28.344169",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Employee Self Update Info Setting",

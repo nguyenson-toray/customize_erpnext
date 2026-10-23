@@ -835,14 +835,14 @@ def test_table_fields():
 		emp = frappe.get_doc("Employee", emp_id)
 		before = [(r.name, r.school_univ, r.qualification) for r in emp.education]
 		first = emp.education[0]
-		_, kept = api._sync_table_rows(emp, edu, [{"school_univ": "Mới", "level": "THPT"}])
+		_, kept, _d = api._sync_table_rows(emp, edu, [{"school_univ": "Mới", "level": "THPT"}])
 		check("sync: dòng không name → thêm, dòng cũ giữ nguyên + đếm",
 			len(emp.education) == len(before) + 1 and kept == len(before) and emp.education[0].school_univ == before[0][1],
 			[(r.name, r.school_univ) for r in emp.education])
 		emp = frappe.get_doc("Employee", emp_id)
 		first = emp.education[0]
 		first.qualification = "Giữ cột không cấu hình"
-		_, kept = api._sync_table_rows(emp, edu, [{"name": first.name, "school_univ": "Sửa", "level": "THCS", "year_of_passing": ""}])
+		_, kept, _d = api._sync_table_rows(emp, edu, [{"name": first.name, "school_univ": "Sửa", "level": "THCS", "year_of_passing": ""}])
 		check("sync: name → sửa đúng dòng, giữ cột không cấu hình",
 			emp.education[0].school_univ == "Sửa" and emp.education[0].qualification == "Giữ cột không cấu hình"
 			and emp.education[0].year_of_passing in (None, 0) and len(emp.education) == len(before) and kept == len(before) - 1,
@@ -852,23 +852,71 @@ def test_table_fields():
 		n0 = len(emp.education)
 		row0 = {c["fieldname"]: emp.education[0].get(c["fieldname"]) for c in edu["columns"]}
 		form = [{k: ("" if v in (None, 0) else str(v)) for k, v in row0.items()}]
-		pairs, _ = api._sync_table_rows(emp, edu, form)
+		pairs, _k, _d = api._sync_table_rows(emp, edu, form)
 		check("sync: dòng không name giống hệt dòng Employee → ghép, không thêm",
 			len(emp.education) == n0 and pairs[0][1] is emp.education[0], [(r.name, r.school_univ) for r in emp.education])
-		pairs, _ = api._sync_table_rows(emp, edu, [{"school_univ": "Dòng mới test", "level": "THPT"}])
+		pairs, _k, _d = api._sync_table_rows(emp, edu, [{"school_univ": "Dòng mới test", "level": "THPT"}])
 		pairs[0][1].name = "tmp-new-row"  # emp.save() mới đặt name; giả lập
 		named = api._rows_with_names(pairs)
 		check("sync: ghi name dòng Employee vào phiếu", named == [{"name": "tmp-new-row", "school_univ": "Dòng mới test", "level": "THPT"}], named)
 		n1 = len(emp.education)
-		pairs, _ = api._sync_table_rows(emp, edu, named)
+		pairs, _k, _d = api._sync_table_rows(emp, edu, named)
 		check("sync lần 2 với phiếu đã có name → sửa đúng dòng, không thêm", len(emp.education) == n1 and pairs[0][1].name == "tmp-new-row")
-		pairs, _ = api._sync_table_rows(emp, edu, [{"school_univ": "Dòng mới test", "level": "THPT"}])
+		pairs, _k, _d = api._sync_table_rows(emp, edu, [{"school_univ": "Dòng mới test", "level": "THPT"}])
 		check("sync lần 2 với phiếu cũ chưa có name → ghép theo nội dung, không thêm", len(emp.education) == n1)
 		emp = frappe.get_doc("Employee", emp_id)
 		first = emp.education[0]
-		pairs, _ = api._sync_table_rows(emp, edu, [dict(form[0]), {"name": first.name, "school_univ": "Đổi", "level": "THPT"}])
+		pairs, _k, _d = api._sync_table_rows(emp, edu, [dict(form[0]), {"name": first.name, "school_univ": "Đổi", "level": "THPT"}])
 		check("sync: dòng có name được ghép trước dòng giống nội dung", pairs[1][1] is first and pairs[0][1] is not first,
 			[(r.get("name"), c.name) for r, c in pairs])
+		# ---- Max Rows = 1 (Học vấn / Kinh nghiệm, user 23/10/2026): Employee chỉ giữ dòng của lần cập nhật cuối ----
+		edu1 = dict(edu, max_rows=1)
+		emp = frappe.get_doc("Employee", emp_id)
+		emp.append("education", {"level": "THCS", "school_univ": "Cũ 1"})
+		emp.append("education", {"level": "THPT", "school_univ": "Cũ 2"})
+		for i, ch in enumerate(emp.education):
+			ch.name = ch.name or f"tmp-old-{i}"
+		n_old = len(emp.education)
+		last = emp.education[-1]
+		pairs, kept, dropped = api._sync_table_rows(emp, edu1, [{"level": "THPT", "school_univ": "Mới nhất"}])
+		check("max 1: phiếu 1 dòng mới → Employee còn đúng dòng đó, xoá hết dòng cũ",
+			[r.school_univ for r in emp.education] == ["Mới nhất"] and kept == 0 and dropped == n_old
+			and emp.education[0].idx == 1 and pairs[0][1] is emp.education[0],
+			[(r.name, r.school_univ, r.idx) for r in emp.education])
+		emp = frappe.get_doc("Employee", emp_id)
+		emp.append("education", {"level": "THCS", "school_univ": "Cũ 1"})
+		emp.append("education", {"level": "THPT", "school_univ": "Cũ 2"})
+		for i, ch in enumerate(emp.education):
+			ch.name = ch.name or f"tmp-old-{i}"
+		last = emp.education[-1]
+		pairs, kept, dropped = api._sync_table_rows(emp, edu1, [{"name": last.name, "level": "THPT", "school_univ": "Sửa dòng cuối"}])
+		check("max 1: phiếu sửa dòng mới nhất → giữ đúng dòng đó (cùng name), xoá phần còn lại",
+			len(emp.education) == 1 and emp.education[0] is last and last.school_univ == "Sửa dòng cuối",
+			[(r.name, r.school_univ) for r in emp.education])
+		emp = frappe.get_doc("Employee", emp_id)
+		pairs, kept, dropped = api._sync_table_rows(emp, edu1, [
+			{"level": "THCS", "school_univ": "Dòng 1"}, {"level": "THPT", "school_univ": "Dòng 2"}, {"level": "THPT", "school_univ": "Dòng 3"}])
+		check("max 1: phiếu cũ 3 dòng → chỉ lấy dòng cuối", [r.school_univ for r in emp.education] == ["Dòng 3"]
+			and len(pairs) == 1, [r.school_univ for r in emp.education])
+		emp = frappe.get_doc("Employee", emp_id)
+		_, kept, dropped = api._sync_table_rows(emp, edu1, [])
+		check("max 1: phiếu không có dòng → giữ 1 dòng mới nhất của Employee",
+			len(emp.education) == min(1, len(before)) and (not before or emp.education[0].name == before[-1][0]) and dropped == max(len(before) - 1, 0),
+			[(r.name, r.school_univ) for r in emp.education])
+		emp = frappe.get_doc("Employee", emp_id)
+		emp.append("education", {"level": "THPT", "school_univ": "Mới nhất DB"})
+		emp.education[-1].name = "tmp-latest"
+		real_get_all = frappe.get_all
+		frappe.get_all = lambda *a, **k: [frappe._dict(name=r.name, **{c["fieldname"]: r.get(c["fieldname"]) for c in edu1["columns"]})
+			for r in emp.education] if a and a[0] == edu1["options"] else real_get_all(*a, **k)
+		try:
+			pre = api._employee_table_rows(emp_id, edu1)
+			pre3 = api._employee_table_rows(emp_id, edu)
+		finally:
+			frappe.get_all = real_get_all
+		check("max 1: điền sẵn trang www chỉ dòng mới nhất", [r["name"] for r in pre] == ["tmp-latest"], pre)
+		check("max 3: điền sẵn tối đa 3 dòng cuối", [r["name"] for r in pre3] == [r.name for r in emp.education][-3:], pre3)
+
 		emp = frappe.get_doc("Employee", emp_id)
 		# Chỉ kiểm dòng con (Employee có thể còn relation cũ ngoài danh sách — user tự sửa tay, 16/10/2026).
 		for ch in emp.education:

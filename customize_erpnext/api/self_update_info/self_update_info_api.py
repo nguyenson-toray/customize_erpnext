@@ -400,7 +400,9 @@ def _employee_scalar_fields(config):
 
 
 def _employee_table_rows(employee, f):
-	"""Dòng con hiện có trên Employee: [{name, <cột>: chuỗi}] theo idx. Số 0 / None → ""."""
+	"""Dòng con hiện có trên Employee: [{name, <cột>: chuỗi}] theo idx. Số 0 / None → "".
+	Chỉ `max_rows` dòng CUỐI (mới nhất): Employee cũ có thể nhiều dòng hơn Max Rows (Học vấn / Kinh nghiệm
+	đặt Max Rows = 1, user 23/10/2026) — trang www điền sẵn đúng dòng đó, Sync xoá phần dư."""
 	cols = [c for c in f["columns"]]
 	rows = frappe.get_all(
 		f["options"],
@@ -421,7 +423,7 @@ def _employee_table_rows(employee, f):
 				v = str(int(v))
 			item[c["fieldname"]] = "" if v is None else str(v)
 		out.append(item)
-	return out
+	return out[-f["max_rows"]:] if f.get("max_rows") else out
 
 
 def _employee_tables(employee, config):
@@ -2474,15 +2476,19 @@ def _row_key(f, row):
 
 
 def _sync_table_rows(emp, f, rows):
-	"""Ghi bảng con của phiếu vào Employee, trả (pairs, số dòng Employee giữ nguyên).
+	"""Ghi bảng con của phiếu vào Employee, trả (pairs, số dòng Employee giữ nguyên, số dòng Employee xoá).
 
 	- dòng có `name` của Employee → sửa đúng các cột cấu hình (cột khác giữ nguyên);
 	- dòng không `name` mà giống hệt một dòng Employee chưa ghép → coi là dòng đó. Phiếu Sync lại
 	  (HR đưa về Submitted) từng thêm bản sao mỗi lần: TIQN-2547 có 3 dòng học vấn giống nhau (22/10/2026);
 	- còn lại → thêm mới.
-	Dòng Employee không có trong phiếu → GIỮ NGUYÊN (user 16/10/2026: xoá hay không tính sau).
+	Dòng Employee không có trong phiếu → giữ, miễn tổng số dòng không vượt Max Rows (giữ dòng mới nhất);
+	phần dư bị XOÁ (user 23/10/2026: Học vấn / Kinh nghiệm chỉ 1 dòng, theo lần cập nhật cuối).
+	Phiếu cũ nhiều dòng hơn Max Rows → chỉ lấy `max_rows` dòng cuối.
 	`pairs` = [(dòng phiếu, dòng Employee)] để sau emp.save() ghi `name` ngược vào phiếu."""
 	rows = _table_list(rows)
+	if f.get("max_rows"):
+		rows = rows[-f["max_rows"]:]
 	existing = {r.name: r for r in emp.get(f["fieldname"]) or []}
 	seen = set()
 	vals = [{c["fieldname"]: _coerce_for_employee(r.get(c["fieldname"]), c["fieldtype"]) for c in f["columns"]} for r in rows]
@@ -2500,12 +2506,18 @@ def _sync_table_rows(emp, f, rows):
 			if child is not None:
 				children[i] = child
 				seen.add(child.name)
+	# Dòng Employee ngoài phiếu: giữ các dòng cuối (mới nhất) vừa chỗ trống còn lại, xoá trước khi thêm dòng mới.
+	others = [c for c in emp.get(f["fieldname"]) or [] if c.name not in seen]
+	room = max(f["max_rows"] - len(rows), 0) if f.get("max_rows") else len(others)
+	drop = others[:len(others) - room]
+	for c in drop:
+		emp.remove(c)
 	for i in range(len(rows)):
 		if children[i] is None:
 			children[i] = emp.append(f["fieldname"], vals[i])
 		else:
 			children[i].update(vals[i])
-	return list(zip(rows, children)), len(existing) - len(seen)
+	return list(zip(rows, children)), len(others) - len(drop), len(drop)
 
 
 def _rows_with_names(pairs):
@@ -2622,7 +2634,7 @@ def sync_to_employee(names, fields=None):
 			emp = frappe.get_doc("Employee", doc.employee)
 			meta = emp.meta
 			changed = []
-			kept_rows = 0
+			kept_rows = dropped_rows = 0
 			table_pairs = []
 			for fn, f in emp_fields.items():
 				if fn not in saved:
@@ -2630,8 +2642,9 @@ def sync_to_employee(names, fields=None):
 				if not meta.has_field(fn):
 					continue  # field no longer on Employee
 				if _is_table(f):
-					pairs, kept = _sync_table_rows(emp, f, saved.get(fn))
+					pairs, kept, dropped = _sync_table_rows(emp, f, saved.get(fn))
 					kept_rows += kept
+					dropped_rows += dropped
 					if isinstance(saved.get(fn), list):
 						table_pairs.append((fn, pairs))
 					changed.append(fn)
@@ -2656,6 +2669,8 @@ def sync_to_employee(names, fields=None):
 			msg = _("Đã đồng bộ {0} trường").format(len(changed))
 			if kept_rows:
 				msg += " · " + _("{0} dòng bảng con không có trong phiếu — giữ nguyên trên Employee").format(kept_rows)
+			if dropped_rows:
+				msg += " · " + _("{0} dòng bảng con cũ vượt Max Rows — đã xoá khỏi Employee").format(dropped_rows)
 			results.append({"employee": doc.employee, "employee_name": doc.employee_name, "ok": True,
 				"message": msg})
 		except Exception as e:
