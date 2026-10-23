@@ -257,7 +257,7 @@ data_import_before_import = [
 
 # Cache keys that survive frappe.clear_cache() (bench clear-cache / migrate wipe every other key):
 # last door-sensor reading per door, quoted in the Telegram "device offline" alert
-persistent_cache_keys = ["door_control:last_sensor:"]
+persistent_cache_keys = ["door_control:last_sensor:", "biometric_device_log_sync:"]
 
 # Scheduler Events
 scheduler_events = {
@@ -273,7 +273,7 @@ scheduler_events = {
             "customize_erpnext.api.employee.employee_utils.cleanup_rembg_sessions",
             # Telegram door alerts — no-op while Door Alert Setting is off; the
             # check interval itself is configured in the setting
-            "customize_erpnext.api.door_alerts.tick",
+            "customize_erpnext.network.door.alerts.tick",
         ],
         # The 08:15 Shift Attendance Report was retired on 2026-08-14: the 08:20 job
         # below sends the same workbook to the HR list, and its two body-only
@@ -348,7 +348,20 @@ scheduler_events = {
         ],
         # Attendance machines - Sync clocks every Monday at 05:00 AM
         "0 5 * * 1": [
-            "customize_erpnext.api.biometric_sync.sync_all_machine_times_scheduled"
+            "customize_erpnext.network.biometric.biometric_sync.sync_all_machine_times_scheduled"
+        ],
+        # MongoDB AttLog + OtRegister -> ERPNext - Every day at 18:00 (temporary, until OT is registered in ERPNext)
+        "0 18 * * *": [
+            "customize_erpnext.network.biometric.mongodb_sync.run_daily_mongodb_sync"
+        ],
+        # Attendance machines -> Employee Checkin - every 3 minutes, queue "biometric"
+        # (replaces the biometric-attendance-sync-tool service; switch: Attendance Machine Setting)
+        "*/3 * * * *": [
+            "customize_erpnext.network.biometric.device_log_sync.enqueue_device_log_sync"
+        ],
+        # Alert when the automatic log pull has not read the machines for 15 min (peaks excluded)
+        "*/15 * * * *": [
+            "customize_erpnext.network.biometric.device_log_sync.check_heartbeat"
         ],
     }
 }

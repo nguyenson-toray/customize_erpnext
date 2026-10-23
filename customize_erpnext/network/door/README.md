@@ -37,8 +37,8 @@ Máy cửa là một dòng của **Attendance Machine Setting → bảng `machin
 | `allow_hold_close` | Hiện nút "Giữ mở"/"Đóng" cho cửa này. Hiện tất cả = 0 |
 | `has_door_sensor` | Cột cũ, đã thay bằng `sensor_type`; còn trong DB, không dùng |
 
-Validate (`attendance_machine_setting.py::_validate_door_controllers`): máy cửa không được là
-`master_device`; `unlock_seconds` 1–60.
+Validate (`attendance_machine_setting.py::_validate_door_controllers`): `unlock_seconds` 1–60
+(cờ `master_device` đã bỏ 23/10/2026).
 
 Cửa thật (08/10/2026): `.48` Machine 8 - Door - Office (cửa 2 cánh, 2 khoá),
 `.49` Machine 9 - Door - IT, `.50` Machine 10 - Door - Production (trước 19/10 tên "Main Hall"). Khoá: **ZKTeco LB-35**
@@ -46,7 +46,7 @@ Cửa thật (08/10/2026): `.48` Machine 8 - Door - Office (cửa 2 cánh, 2 kho
 
 ## 3. Tách biệt khỏi chấm công
 
-`api/attendance_machines.py` là lớp truy cập duy nhất:
+`network/biometric/machines.py` là lớp truy cập duy nhất:
 
 - `get_machines(enabled_only, include_door=False, door_only=False)` — **mặc định LOẠI máy cửa**.
 - `get_machine(name, allow_door=False)` — **từ chối máy cửa** trừ khi `allow_door=True`. Mọi chức
@@ -74,9 +74,9 @@ Service chấm công tự động `erpnext-sync-all` (`apps/biometric-attendance
 
 | File | Vai trò |
 |---|---|
-| `api/door_control.py` | Toàn bộ API + giao tiếp máy (docstring đầu file có các sự thật đo được) |
-| `api/door_access.py` | `store_door_punches()` dùng chung với tab "IT Door Access" cũ trên trang www /biometric_sync (đã bỏ 19/10/2026) |
-| `api/attendance_machines.py` | Lọc máy cửa (§3) |
+| `network/door/control.py` | Toàn bộ API + giao tiếp máy (docstring đầu file có các sự thật đo được) |
+| `network/door/access.py` | `store_door_punches()` dùng chung với tab "IT Door Access" cũ trên trang www /biometric_sync (đã bỏ 19/10/2026) |
+| `network/biometric/machines.py` | Lọc máy cửa (§3) |
 | `www/door_control/index.py` | Kiểm tra login/role, CSRF, gom chuỗi dịch |
 | `www/door_control/index.html` | Toàn bộ UI (CSS + JS inline) |
 | `network/doctype/door_control_action/` | Nhật ký lệnh ERP |
@@ -84,7 +84,7 @@ Service chấm công tự động `erpnext-sync-all` (`apps/biometric-attendance
 | `patches/create_door_control_role.py` | `pre_model_sync` — role phải có trước khi sync DocPerm |
 | `api/test_door_control.py` | Test hồi quy (§9) |
 
-## 5. API (`customize_erpnext.api.door_control.*`)
+## 5. API (`customize_erpnext.network.door.control.*`)
 
 | Hàm | Method | Việc |
 |---|---|---|
@@ -187,7 +187,7 @@ cho đúng file JSON); `index.html` không cần restart.
 3. **Realtime `EF_UNLOCK`:** biết lúc relay mở (kể cả vân tay) mà không cần sensor.
 4. Tab "Sync ERP → Machines" trên trang desk `biometric-sync` chưa hiện máy cửa/máy tắt (chỉ dialog trên Desk có).
 
-## 11. Cảnh báo Telegram (`api/door_alerts.py`, 09/10/2026)
+## 11. Cảnh báo Telegram (`network/door/alerts.py`, 09/10/2026)
 
 Plan + quyết định: `.claude/plans/door_alerts.md`.
 
@@ -267,3 +267,14 @@ Plan: `.claude/plans/door_sensor.md`.
   `Production` (SQL trực tiếp + 17 dòng `Door Control Action.device_name`; cache theo tên máy rỗng, không phải chuyển).
   ⚠ Tên máy là khoá của cache/lock file (`_key` băm tên) và của lịch sử Door Control Action — đổi tên phải sửa cả hai.
 - `door_control.sensor_closed_value()` đọc giá trị trong Setting (test patch hàm này).
+
+## 12. UDP + dò nhanh (23/10/2026)
+
+- Máy cửa **luôn đi UDP** (`biometric/machines._row_to_dict`), bất kể ô Force UDP của Setting — ô đó đã bỏ tick
+  cho máy chấm công (đọc log TCP nhanh gấp 15 lần). Qua TCP, F21Lite lỗi BrokenPipe khi kết nối lại ngay sau khi
+  ngắt (Tab 3 đẩy vân tay từng NV một → kết nối lại liên tục).
+- Dò trạng thái (`_probe`) thử TCP 4370 trước, tối đa `PROBE_PRECHECK_S`=1,5 s: máy tắt nguồn → báo offline sau
+  1,5 s thay vì 7,5 s (UDP) / 13,8 s (TCP). Lệnh mở/đóng cửa KHÔNG qua bước này (máy chậm vẫn phải nhận lệnh).
+- Máy tắt lâu ngày: bỏ tick Enable trong Setting để trang không phải dò nó.
+- ⚠ 22–23/10 Telegram trả "Unauthorized bot" → cảnh báo cửa KHÔNG tới được ai (token bot sai/bị thu hồi).
+

@@ -1264,7 +1264,7 @@ function show_sync_fingerprint_from_machines_dialog(listview) {
 
     const machines_call = new Promise(function (resolve, reject) {
         frappe.call({
-            method: 'customize_erpnext.api.biometric_sync.get_attendance_machines',
+            method: 'customize_erpnext.network.biometric.biometric_sync.get_attendance_machines',
             callback: function (r) {
                 (r.message && r.message.status === 'success') ? resolve(r.message.machines) : reject();
             },
@@ -1293,7 +1293,7 @@ function show_sync_fingerprint_from_machines_dialog(listview) {
 
 function _fp_show_config_dialog(selected_employees, machines) {
     const emp_count = selected_employees.length;
-    const def_master = machines.find(m => m.master_device) || machines[0];
+    const def_master = machines[0];
     const def_master_name = def_master ? def_master.name : '';
 
     // --- Employee banner — cùng style khung cuộn với Generate Cards / Sync 4.1 ---
@@ -1427,7 +1427,7 @@ function _fp_on_submit(d, selected_employees, machines) {
     d.get_primary_btn().prop('disabled', true).text(__('Processing…'));
 
     frappe.call({
-        method: 'customize_erpnext.api.biometric_sync.resolve_employee_device_ids',
+        method: 'customize_erpnext.network.biometric.biometric_sync.resolve_employee_device_ids',
         args: { employee_ids_json: JSON.stringify(employee_ids) },
         callback: function (r) {
             if (!r.message || r.message.status !== 'success') {
@@ -1449,7 +1449,7 @@ function _fp_on_submit(d, selected_employees, machines) {
 
             if (sync_to_erp) {
                 frappe.call({
-                    method: 'customize_erpnext.api.biometric_sync.check_employees_fingerprints_in_erp',
+                    method: 'customize_erpnext.network.biometric.biometric_sync.check_employees_fingerprints_in_erp',
                     args: { employee_ids_json: JSON.stringify(with_id.map(e => e.employee_id)) },
                     callback: function (r2) {
                         const existing = (r2.message && r2.message.existing) || {};
@@ -1492,7 +1492,7 @@ function _fp_start_sync(d, master_machine, target_machines, user_ids, employees_
 
     // ERP sync: enqueue background job (machine sync done from frontend after)
     frappe.call({
-        method: 'customize_erpnext.api.biometric_sync.sync_fingerprints',
+        method: 'customize_erpnext.network.biometric.biometric_sync.sync_fingerprints',
         args: {
             master_machine_name: master_machine,
             target_machine_names_json: '[]',
@@ -1576,7 +1576,7 @@ function _fp_show_progress_dialog(job_id, master_machine, target_machines, emplo
     // Phase 1: poll background job until done
     const poll = setInterval(function () {
         frappe.call({
-            method: 'customize_erpnext.api.biometric_sync.get_sync_job_status',
+            method: 'customize_erpnext.network.biometric.biometric_sync.get_sync_job_status',
             args: { job_id: job_id },
             callback: function (r) {
                 if (!r.message || r.message.status !== 'success') return;
@@ -1671,7 +1671,7 @@ async function _fp_do_device_sync(prog_d, employees, target_machines, erp_result
 
             const batch_result = await new Promise(function (resolve) {
                 frappe.call({
-                    method: 'customize_erpnext.api.utilities.sync_employees_to_machine_batch',
+                    method: 'customize_erpnext.network.biometric.fingerprint.sync_employees_to_machine_batch',
                     args: {
                         machine_name: machine,
                         employee_ids: JSON.stringify(chunk.map(e => e.employee_id))
@@ -1770,7 +1770,7 @@ function show_delete_left_employees_dialog() {
             frappe.show_alert({ message: __('Scanning machines…'), indicator: 'blue' });
 
             frappe.call({
-                method: 'customize_erpnext.api.biometric_sync.get_left_employees_on_machines',
+                method: 'customize_erpnext.network.biometric.biometric_sync.get_left_employees_on_machines',
                 args: { delay_days, include_unmatched },
                 callback: function (r) {
                     d.hide();
@@ -1969,7 +1969,7 @@ function _del_show_preview_dialog(scan_result, config) {
 
 function _del_start_delete(selected_users) {
     frappe.call({
-        method: 'customize_erpnext.api.biometric_sync.delete_users_from_machines',
+        method: 'customize_erpnext.network.biometric.biometric_sync.delete_users_from_machines',
         args: { users_json: JSON.stringify(selected_users) },
         callback: function (r) {
             if (!r.message || r.message.status !== 'success') {
@@ -2027,7 +2027,7 @@ function _del_show_progress_dialog(job_id, user_count, total_ops, machines) {
 
     const poll = setInterval(function () {
         frappe.call({
-            method: 'customize_erpnext.api.biometric_sync.get_sync_job_status',
+            method: 'customize_erpnext.network.biometric.biometric_sync.get_sync_job_status',
             args: { job_id },
             callback: function (r) {
                 if (!r.message || r.message.status !== 'success') return;

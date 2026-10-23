@@ -28,7 +28,7 @@ def get_context(context):
         frappe.local.flags.redirect_location = "/login?redirect-to=/door_control"
         raise frappe.Redirect
 
-    # Same role as every api/door_control.py endpoint. Administrator has all roles.
+    # Same role as every network/door/control.py endpoint. Administrator has all roles.
     if ROLE not in frappe.get_roles():
         raise frappe.PermissionError(_("You do not have permission to access this page"))
 

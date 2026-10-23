@@ -1,20 +1,7 @@
-import frappe
+"""Moved to customize_erpnext.network.biometric.auth (23/10/2026).
 
-# Roles allowed to use the biometric sync page and its APIs
-# (machine reboot/delete users are destructive; log viewer reads server files)
-BIOMETRIC_ROLES = ("System Manager", "HR Manager", "HR User")
+Temporary shim so browsers still holding the old JS (and the retired
+biometric-attendance-sync-tool, if started again) keep working — delete after ~1 week.
+"""
 
-
-def check_biometric_access():
-    """Block API access for users without a biometric-admin role.
-
-    Called at the top of every biometric-related whitelisted method so the
-    endpoints are protected even when invoked directly via /api/method/.
-    """
-    frappe.only_for(BIOMETRIC_ROLES)
-
-
-def has_biometric_access():
-    """Non-raising variant for page controllers."""
-    user_roles = set(frappe.get_roles())
-    return bool(user_roles.intersection(BIOMETRIC_ROLES))
+from customize_erpnext.network.biometric.auth import *  # noqa: F401,F403

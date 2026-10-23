@@ -314,7 +314,7 @@
         }
         async function call(method, args, post) {
             let res;
-            const url = `/api/method/customize_erpnext.api.door_control.${method}`;
+            const url = `/api/method/customize_erpnext.network.door.control.${method}`;
             if (post) {
                 const fd = new FormData();
                 fd.append('csrf_token', window.csrf_token);

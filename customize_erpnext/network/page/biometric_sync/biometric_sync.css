@@ -408,11 +408,6 @@
             color: var(--text-2);
             border: 1px solid var(--border);
         }
-.bsync .machine-item .badge.master {
-            background: #fef9c3;
-            color: #854d0e;
-            border-color: #fde68a;
-        }
 .bsync .user-table-wrap {
             overflow-x: auto;
             max-height: 380px;
@@ -574,9 +569,6 @@
 .bsync .machine-card:hover {
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
             border-color: var(--border-2);
-        }
-.bsync .machine-card.is-master {
-            border-top: 3px solid var(--warning);
         }
 .bsync .machine-card-head {
             display: flex;

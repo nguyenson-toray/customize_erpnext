@@ -817,7 +817,7 @@ window.FingerprintScannerDialog = {
         }
 
         frappe.call({
-            method: 'customize_erpnext.api.utilities.save_fingerprint_data',
+            method: 'customize_erpnext.network.biometric.fingerprint.save_fingerprint_data',
             type: 'POST',
             args: {
                 employee_id: employee_id,
@@ -849,7 +849,7 @@ window.FingerprintScannerDialog = {
 
         // Load enrolled fingers and mark them
         frappe.call({
-            method: 'customize_erpnext.api.utilities.get_employee_fingerprints_status',
+            method: 'customize_erpnext.network.biometric.fingerprint.get_employee_fingerprints_status',
             args: { employee_id: employee_id },
             callback: function (r) {
                 if (r.message && r.message.success) {
@@ -958,7 +958,7 @@ window.FingerprintScannerDialog = {
         FingerprintScannerDialog.updateScanStatus(`🗑️ Đang xóa dữ liệu vân tay ${finger_name}...`, 'warning');
 
         frappe.call({
-            method: 'customize_erpnext.api.utilities.delete_fingerprint_data',
+            method: 'customize_erpnext.network.biometric.fingerprint.delete_fingerprint_data',
             type: 'POST',
             args: {
                 employee_id: employee_id,

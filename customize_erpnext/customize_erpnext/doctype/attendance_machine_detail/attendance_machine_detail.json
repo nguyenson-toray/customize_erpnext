@@ -7,8 +7,8 @@
  "field_order": [
   "device_name",
   "ip_address",
+  "comm_password",
   "enable",
-  "master_device",
   "location",
   "model",
   "door_control_section",
@@ -38,19 +38,17 @@
    "columns": 2
   },
   {
+   "fieldname": "comm_password",
+   "fieldtype": "Data",
+   "label": "Communication Password",
+   "description": "ZKTeco comm key set on the machine (System > Comm.): digits only, 0–999999. Leave empty when the machine has none."
+  },
+  {
    "default": "1",
    "fieldname": "enable",
    "fieldtype": "Check",
    "in_list_view": 1,
    "label": "Enable",
-   "columns": 1
-  },
-  {
-   "default": "0",
-   "fieldname": "master_device",
-   "fieldtype": "Check",
-   "in_list_view": 1,
-   "label": "Master Device",
    "columns": 1
   },
   {
@@ -130,7 +128,7 @@
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-10-19 15:35:30.751207",
+ "modified": "2026-10-23 13:45:00.000000",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Attendance Machine Detail",

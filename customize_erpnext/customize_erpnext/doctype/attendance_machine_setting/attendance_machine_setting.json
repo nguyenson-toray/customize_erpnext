@@ -1,17 +1,33 @@
 {
  "actions": [],
- "creation": "2026-07-03 14:00:00.000000",
+ "creation": "2026-07-03 14:00:00",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
   "connection_section",
   "default_port",
-  "timeout",
   "column_break_conn",
+  "timeout",
+  "column_break_ztju",
   "force_udp",
+  "column_break_ntcj",
   "ommit_ping",
   "machines_section",
-  "machines"
+  "machines",
+  "auto_sync_section",
+  "auto_sync_logs",
+  "import_start_date",
+  "column_break_auto_sync",
+  "peak_times",
+  "peak_window_minutes",
+  "column_break_yycl",
+  "clear_from_device_on_fetch",
+  "error_email_section",
+  "send_error_email",
+  "column_break_error_email",
+  "error_email_cooldown_minutes",
+  "column_break_qsdb",
+  "error_email_recipients"
  ],
  "fields": [
   {
@@ -23,6 +39,7 @@
    "default": "4370",
    "fieldname": "default_port",
    "fieldtype": "Int",
+   "in_list_view": 1,
    "label": "Port",
    "reqd": 1
   },
@@ -30,6 +47,7 @@
    "default": "10",
    "fieldname": "timeout",
    "fieldtype": "Int",
+   "in_list_view": 1,
    "label": "Timeout (seconds)",
    "reqd": 1
   },
@@ -59,12 +77,108 @@
    "fieldtype": "Table",
    "label": "Machines",
    "options": "Attendance Machine Detail"
+  },
+  {
+   "fieldname": "auto_sync_section",
+   "fieldtype": "Section Break",
+   "label": "Auto Log Sync"
+  },
+  {
+   "default": "0",
+   "description": "Pull attendance logs from every enabled attendance machine every 3 minutes (door controllers excluded).",
+   "fieldname": "auto_sync_logs",
+   "fieldtype": "Check",
+   "label": "Auto Pull Attendance Logs"
+  },
+  {
+   "depends_on": "auto_sync_logs",
+   "description": "Punches before this date are never imported.",
+   "fieldname": "import_start_date",
+   "fieldtype": "Date",
+   "label": "Import Start Date",
+   "mandatory_depends_on": "auto_sync_logs"
+  },
+  {
+   "default": "07:30,07:45,17:00,18:00",
+   "depends_on": "auto_sync_logs",
+   "description": "Comma-separated start times (HH:MM) of check-in/out rush periods. The automatic log pull locks each machine for 8\u201322 s while reading, so it is SKIPPED inside these windows; punches stay on the machines and are pulled right after. Clear the field to disable.",
+   "fieldname": "peak_times",
+   "fieldtype": "Data",
+   "label": "Peak Times (skip pull)"
+  },
+  {
+   "default": "15",
+   "depends_on": "auto_sync_logs",
+   "description": "Length in minutes of each peak window (1\u2013120).",
+   "fieldname": "peak_window_minutes",
+   "fieldtype": "Int",
+   "label": "Peak Window Minutes"
+  },
+  {
+   "fieldname": "column_break_auto_sync",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "description": "Deletes the logs on the machine after each pull. Can cause data loss \u2014 kept read-only on purpose.",
+   "fieldname": "clear_from_device_on_fetch",
+   "fieldtype": "Check",
+   "label": "Clear Logs on Machine After Pull",
+   "read_only": 1
+  },
+  {
+   "fieldname": "error_email_section",
+   "fieldtype": "Section Break",
+   "label": "Error Email"
+  },
+  {
+   "default": "0",
+   "description": "Email the recipients when the automatic log pull fails.",
+   "fieldname": "send_error_email",
+   "fieldtype": "Check",
+   "label": "Send Error Email"
+  },
+  {
+   "default": "30",
+   "depends_on": "send_error_email",
+   "description": "At most one email per this many minutes.",
+   "fieldname": "error_email_cooldown_minutes",
+   "fieldtype": "Int",
+   "label": "Cooldown (Minutes)"
+  },
+  {
+   "fieldname": "column_break_error_email",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "send_error_email",
+   "description": "One email address per line.",
+   "fieldname": "error_email_recipients",
+   "fieldtype": "Small Text",
+   "label": "Recipients",
+   "mandatory_depends_on": "send_error_email"
+  },
+  {
+   "fieldname": "column_break_ztju",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_ntcj",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_yycl",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_qsdb",
+   "fieldtype": "Column Break"
   }
  ],
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-07-03 14:00:00.000000",
+ "modified": "2026-10-23 13:19:40.493342",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Attendance Machine Setting",
@@ -91,6 +205,7 @@
    "write": 1
   }
  ],
+ "row_format": "Dynamic",
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": []

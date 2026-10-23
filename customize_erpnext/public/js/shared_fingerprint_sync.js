@@ -264,7 +264,7 @@ window.FingerprintSyncManager = (function () {
         }, 15000);
 
         frappe.call({
-            method: 'customize_erpnext.api.utilities.get_enabled_attendance_machines',
+            method: 'customize_erpnext.network.biometric.fingerprint.get_enabled_attendance_machines',
             // every machine of the Setting: disabled ones and door controllers (the
             // latter only for the Door Control role, checked server-side) come back
             // too and are listed UNticked — ticked only when really needed
@@ -481,9 +481,29 @@ window.FingerprintSyncManager = (function () {
         }
     }
 
+    // Pushing locks each machine while it writes: inside a Peak Times window of
+    // Attendance Machine Setting ask first. Status unknown -> do not block.
+    async function confirmOutsidePeak() {
+        let st = null;
+        try {
+            st = await frappe.xcall('customize_erpnext.network.biometric.device_log_sync.get_peak_status');
+        } catch (e) {
+            return true;
+        }
+        if (!st || !st.in_peak) return true;
+        return new Promise(resolve => {
+            frappe.confirm(
+                __('Peak check-in time ({0}–{1}). Syncing locks the attendance machines for several seconds per batch and employees cannot clock in meanwhile. Continue anyway?', [st.start, st.end]),
+                () => resolve(true),
+                () => resolve(false)
+            );
+        });
+    }
+
     // Multi-threaded sync implementation
     async function startMultiThreadedSync() {
         if (currentSyncState.isRunning) return;
+        if (!(await confirmOutsidePeak())) return;
 
         currentSyncState.isRunning = true;
         currentSyncState.completedOperations = 0;
@@ -505,7 +525,7 @@ window.FingerprintSyncManager = (function () {
 
         try {
             // Get machines list first
-            const machinesResponse = await callFrappeMethod('customize_erpnext.api.utilities.get_enabled_attendance_machines', { include_door: 1, include_disabled: 1 });
+            const machinesResponse = await callFrappeMethod('customize_erpnext.network.biometric.fingerprint.get_enabled_attendance_machines', { include_door: 1, include_disabled: 1 });
 
             if (!machinesResponse.success || !machinesResponse.machines) {
                 throw new Error(machinesResponse.message || 'Failed to get machines list');
@@ -590,7 +610,7 @@ window.FingerprintSyncManager = (function () {
             chunk.forEach(e => { employeeById[e.employee_id] = e; });
 
             const result = await callFrappeMethod(
-                'customize_erpnext.api.utilities.sync_employees_to_machine_batch',
+                'customize_erpnext.network.biometric.fingerprint.sync_employees_to_machine_batch',
                 {
                     machine_name: machine.name,
                     employee_ids: JSON.stringify(chunk.map(e => e.employee_id))
@@ -638,6 +658,7 @@ window.FingerprintSyncManager = (function () {
         // Re-sync only the failed (employee, machine) pairs from the last run
         const failures = currentSyncState.failedOperations.slice();
         if (failures.length === 0 || currentSyncState.isRunning) return;
+        if (!(await confirmOutsidePeak())) return;
 
         currentSyncState.isRunning = true;
         currentSyncState.failedOperations = [];
@@ -663,7 +684,7 @@ window.FingerprintSyncManager = (function () {
                     if (currentSyncState.abortController && currentSyncState.abortController.signal.aborted) return;
                     const chunk = group.employees.slice(start, start + CONFIG.CHUNK_SIZE);
                     const result = await callFrappeMethod(
-                        'customize_erpnext.api.utilities.sync_employees_to_machine_batch',
+                        'customize_erpnext.network.biometric.fingerprint.sync_employees_to_machine_batch',
                         {
                             machine_name: machineName,
                             employee_ids: JSON.stringify(chunk.map(e => e.employee_id))

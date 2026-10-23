@@ -42,39 +42,45 @@ const BSYNC_HTML = `<div class="bsync">
         ════════════════════════════════════════════════════════ -->
         <div id="tab-logs" class="tab-panel active">
             <div class="card">
-                <div class="card-title">Log Viewer</div>
-                <div class="log-controls">
-                    <div class="control-group">
-                        <label for="logFile">File:</label>
-                        <select id="logFile" onchange="bsync.loadLog()">
-                            <option value="">-- Select log file --</option>
-                        </select>
-                    </div>
-                    <div class="control-group">
-                        <label for="filterLevel">Filter:</label>
-                        <select id="filterLevel" onchange="bsync.filterLines()">
-                            <option value="ALL">All</option>
-                            <option value="ERROR">Errors only</option>
-                            <option value="WARNING">Warning+</option>
-                            <option value="INFO">Info+</option>
-                        </select>
-                    </div>
-                    <div class="control-group">
-                        <label for="searchText">Search:</label>
-                        <input type="text" id="searchText" placeholder="Search..." onkeyup="bsync.filterLines()">
-                    </div>
+                <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+                    <span>Automatic Log Pull</span>
+                    <button class="btn btn-sm btn-secondary" onclick="bsync.loadSyncStatus()">↻ Refresh</button>
                 </div>
-                <div id="stats" class="stats" style="margin-top:12px;">Select a log file to view</div>
+                <div id="syncStatusSummary" class="stats">Loading...</div>
+                <div id="syncStatusAlert"></div>
+                <div style="overflow-x:auto;margin-top:10px;">
+                    <table>
+                        <thead><tr>
+                            <th>Machine</th><th>Latest checkin in ERP</th><th>Logs on device</th>
+                            <th title="Punches written to ERP in the last cycle">Inserted</th><th>Read time</th><th>Status</th>
+                        </tr></thead>
+                        <tbody id="syncStatusRows"></tbody>
+                    </table>
+                </div>
+                <div id="mongoStatus" class="stats" style="margin-top:10px;"></div>
             </div>
 
-            <div id="loading" class="loading" style="display:none;">
-                <div class="spinner"></div>
-                <p>Loading log...</p>
-            </div>
-
-            <div id="logContainer" class="log-container">
-                <div class="no-logs">
-                    <p style="font-size:1.2em;">👆 Select a log file above</p>
+            <div class="card">
+                <div class="card-title" style="cursor:pointer;" onclick="bsync.toggleRawLog()">
+                    <span id="rawLogArrow">▸</span> Raw log
+                </div>
+                <div id="rawLogBody" style="display:none;">
+                    <div class="log-controls">
+                        <div class="control-group">
+                            <label for="logFile">File:</label>
+                            <select id="logFile" onchange="bsync.loadLog()"></select>
+                        </div>
+                        <div class="control-group">
+                            <label for="searchText">Search:</label>
+                            <input type="text" id="searchText" placeholder="Search..." onkeyup="bsync.filterLines()">
+                        </div>
+                        <div class="control-group">
+                            <label><input type="checkbox" id="problemsOnly" onchange="bsync.filterLines()"> Problems only</label>
+                        </div>
+                        <button class="btn btn-sm btn-secondary" onclick="bsync.loadLog()">↻ Reload</button>
+                    </div>
+                    <div id="stats" class="stats" style="margin-top:8px;"></div>
+                    <div id="logContainer" class="log-container" style="margin-top:8px;"></div>
                 </div>
             </div>
         </div>
@@ -466,6 +472,12 @@ const BSYNC_HTML = `<div class="bsync">
                             <option value="other">Other status</option>
                             <option value="none">Not in ERP</option>
                         </select>
+                        <select id="muFingers" onchange="bsync.muRender()" style="min-width:0;" title="Fingerprint templates on the device">
+                            <option value="">All fingers</option>
+                            <option value="0">No fingerprint</option>
+                            <option value="1">Only 1 finger</option>
+                            <option value="differs">Differs between machines</option>
+                        </select>
                         <span id="muCount" style="font-size:13px;color:var(--text-2);"></span>
                         <button class="btn btn-sm btn-danger-sm" id="muDeleteBtn" onclick="bsync.muDelete()" style="margin-left:auto;" disabled>🗑 Delete selected</button>
                         <button class="btn btn-sm btn-primary" id="muDownloadBtn" onclick="bsync.muDownload()">⬇ Download xlsx</button>
@@ -623,7 +635,50 @@ bsync.setup = function (root) {
         }
 
         // ─── GET helper (read-only, no CSRF needed) ───────────────────────────────────
+        // ─── Peak Times guard ────────────────────────────────────────────────────────
+        // These calls lock attendance machines for seconds (reboot: ~1 min) — inside a
+        // Peak Times window of Attendance Machine Setting ask first. One answer covers
+        // the next 2 minutes so per-employee loops (Tab 3) do not ask again and again.
+        const PEAK_LOCKING_METHODS = new Set([
+            'customize_erpnext.network.biometric.biometric_sync.get_master_device_users',
+            'customize_erpnext.network.biometric.biometric_sync.sync_fingerprints',
+            'customize_erpnext.network.biometric.biometric_sync.get_left_employees_on_machines',
+            'customize_erpnext.network.biometric.biometric_sync.find_employee_on_machines',
+            'customize_erpnext.network.biometric.biometric_sync.delete_users_from_machines',
+            'customize_erpnext.network.biometric.biometric_sync.machine_reboot',
+            'customize_erpnext.network.biometric.biometric_sync.machine_get_users',
+            'customize_erpnext.network.biometric.fingerprint.sync_employee_to_single_machine',
+            'customize_erpnext.network.biometric.fingerprint.sync_employees_to_machine_batch',
+            'customize_erpnext.network.biometric.resync.resync_device_logs',
+        ]);
+        const PEAK_ANSWER_MS = 2 * 60 * 1000;
+        let _peakAnswer = null;   // { ok: bool, until: ms }
+        let _peakAsking = null;   // in-flight question (parallel "All machines" calls share it)
+
+        async function confirmPeakIfNeeded(method) {
+            if (!PEAK_LOCKING_METHODS.has(method)) return;
+            if (_peakAnswer && Date.now() < _peakAnswer.until) {
+                if (_peakAnswer.ok) return;
+                throw new Error(__('Cancelled: peak check-in time'));
+            }
+            if (!_peakAsking) {
+                _peakAsking = (async () => {
+                    let st = null;
+                    try { st = await callGet('customize_erpnext.network.biometric.device_log_sync.get_peak_status'); }
+                    catch (e) { return true; }   // status unknown: do not block the user's action
+                    if (!st || !st.in_peak) return true;
+                    return window.confirm(__(
+                        'Peak check-in time ({0}–{1}).\n\nThis action locks the attendance machine(s) for several seconds (reboot: about 1 minute) and employees cannot clock in meanwhile.\n\nContinue anyway?',
+                        [st.start, st.end]));
+                })().finally(() => { setTimeout(() => { _peakAsking = null; }, 0); });
+            }
+            const ok = await _peakAsking;
+            _peakAnswer = { ok, until: Date.now() + PEAK_ANSWER_MS };
+            if (!ok) throw new Error(__('Cancelled: peak check-in time'));
+        }
+
         async function callGet(method, args) {
+            await confirmPeakIfNeeded(method);
             const params = new URLSearchParams();
             for (const [k, v] of Object.entries(args || {})) {
                 if (v !== null && v !== undefined && v !== '') params.set(k, String(v));
@@ -642,6 +697,7 @@ bsync.setup = function (root) {
 
         // ─── POST helper (write operations, CSRF required) ────────────────────────────
         async function callPost(method, args) {
+            await confirmPeakIfNeeded(method);
             const fd = new FormData();
             fd.append('csrf_token', frappe.csrf_token);
             for (const [k, v] of Object.entries(args || {})) {
@@ -681,85 +737,120 @@ bsync.setup = function (root) {
         // ════════════════════════════════════════════════════════════════════════════
         // TAB 1 — LOG VIEWER
         // ════════════════════════════════════════════════════════════════════════════
-        let allLines = [];
+        let allLines = [];        // raw log, newest first
+        let _rawLogLoaded = false;
 
-        
+        // ── Status table (last cycle of the automatic pull, stored by the job) ──────
+        function _ago(iso, nowIso) {
+            if (!iso) return '';
+            const min = Math.max(0, Math.round((new Date(nowIso.replace(' ', 'T')) - new Date(iso.replace(' ', 'T'))) / 60000));
+            return min < 1 ? 'just now' : `${min} min ago`;
+        }
+
+        function _hm(iso) { return iso ? iso.slice(0, 19).replace('T', ' ') : '—'; }
+
+        async function loadSyncStatus() {
+            const sum = document.getElementById('syncStatusSummary');
+            try {
+                renderSyncStatus(await callGet('customize_erpnext.network.biometric.log_viewer.get_sync_status'));
+            } catch (e) {
+                sum.innerHTML = `<span style="color:#dc3545;">❌ ${escapeHtml(e.message)}</span>`;
+            }
+        }
+
+        function renderSyncStatus(st) {
+            const parts = [
+                st.auto_sync_logs ? '<b style="color:#16a34a;">● Auto pull ON</b>' : '<b style="color:#dc3545;">● Auto pull OFF</b>',
+                st.last_cycle ? `Last cycle: <b>${escapeHtml(_hm(st.last_cycle).slice(11))}</b> (${_ago(st.last_cycle, st.now)})` : 'Last cycle: —',
+            ];
+            if (st.peak) parts.push(`<b style="color:#b45309;">Peak now ${st.peak.start}–${st.peak.end} — machines are not read</b>`);
+            else if (st.next_peak) parts.push(`Next peak: ${st.next_peak.start}–${st.next_peak.end}`);
+            document.getElementById('syncStatusSummary').innerHTML = parts.join(' &nbsp;·&nbsp; ');
+
+            document.getElementById('syncStatusAlert').innerHTML = st.stalled
+                ? `<div class="alert alert-warning" style="margin-top:8px;">⚠ No cycle has read the machines for ${st.idle_minutes} min (peak windows excluded). Check the "biometric" worker and the scheduler.</div>`
+                : '';
+
+            const rows = (st.machines || []).map(m => {
+                let status, cls = '';
+                if (!m.in_last_cycle) status = '<span style="color:#6b7280;">not in last cycle</span>';
+                else if (m.skip_reason) status = `<span style="color:#6b7280;">skipped (${escapeHtml(m.skip_reason)})</span>`;
+                else if (m.read === null || m.read === undefined) {
+                    cls = 'style="background:#fef2f2;"';
+                    status = `<span class="badge-unmatched">❌ ${m.consecutive_failures ? m.consecutive_failures + '× ' : ''}${escapeHtml(m.error || 'failed')}</span>`;
+                } else if (!m.ok) {
+                    cls = 'style="background:#fef2f2;"';
+                    status = `<span class="badge-unmatched">❌ ${escapeHtml(m.error || 'error')}</span>`;
+                } else if (m.deferred) status = `<span style="color:#b45309;">⏸ ${escapeHtml(m.deferred)}</span>`;
+                else status = '<span class="badge-matched">✅ OK</span>';
+                const num = v => (v === null || v === undefined) ? '—' : Number(v).toLocaleString('en-US');
+                return `<tr ${cls}>
+                    <td><b>${escapeHtml(m.machine)}</b></td>
+                    <td>${escapeHtml(_hm(m.latest_checkin))}</td>
+                    <td>${num(m.read)}</td>
+                    <td>${num(m.inserted)}</td>
+                    <td>${m.seconds === null || m.seconds === undefined ? '—' : m.seconds + ' s'}</td>
+                    <td>${status}</td>
+                </tr>`;
+            });
+            document.getElementById('syncStatusRows').innerHTML = rows.join('') ||
+                '<tr><td colspan="6" style="color:#6b7280;">No enabled attendance machine</td></tr>';
+
+            const mongo = (st.mongo || []).map(x => `${escapeHtml((x.at || '').slice(5, 16))} · ${escapeHtml(x.text)}`);
+            document.getElementById('mongoStatus').innerHTML = mongo.length
+                ? `<b>MongoDB (daily 18:00):</b><br>${mongo.join('<br>')}` : '<b>MongoDB (daily 18:00):</b> no run yet';
+        }
+
+        // ── Raw log (collapsed) ─────────────────────────────────────────────────────
+        function toggleRawLog() {
+            const body = document.getElementById('rawLogBody');
+            const open = body.style.display === 'none';
+            body.style.display = open ? 'block' : 'none';
+            document.getElementById('rawLogArrow').textContent = open ? '▾' : '▸';
+            if (open && !_rawLogLoaded) loadLogFiles();
+        }
 
         async function loadLogFiles() {
             const sel = document.getElementById('logFile');
             try {
-                const msg = await callGet('customize_erpnext.api.biometric_log_viewer.get_log_files');
-                if (msg && msg.status === 'success') {
-                    const files = msg.files;
-                    sel.innerHTML = '<option value="">-- Select log file --</option>';
-                    files.forEach(f => {
-                        const o = document.createElement('option');
-                        o.value = f; o.textContent = f;
-                        sel.appendChild(o);
-                    });
-                    if (files.includes('logs.log')) { sel.value = 'logs.log'; loadLog(); }
-                }
+                const files = await callGet('customize_erpnext.network.biometric.log_viewer.get_log_files');
+                sel.innerHTML = files.map(f => `<option value="${escapeHtml(f.file)}">${escapeHtml(f.label)}</option>`).join('');
+                _rawLogLoaded = true;
+                if (files.length) loadLog();
+                else document.getElementById('logContainer').innerHTML = '<div class="no-logs"><p>No log yet</p></div>';
             } catch (e) {
-                console.error(e);
-                sel.innerHTML = `<option value="">❌ Failed to load log files: ${escapeHtml(e.message)}</option>`;
+                sel.innerHTML = `<option value="">❌ ${escapeHtml(e.message)}</option>`;
             }
         }
 
         async function loadLog() {
             const logFile = document.getElementById('logFile').value;
-            const loading = document.getElementById('loading');
-            const logContainer = document.getElementById('logContainer');
-            if (!logFile) {
-                logContainer.innerHTML = '<div class="no-logs"><p style="font-size:1.2em;">👆 Select a log file</p></div>';
-                return;
-            }
-            loading.style.display = 'block';
-            logContainer.style.display = 'none';
+            const box = document.getElementById('logContainer');
+            if (!logFile) return;
+            box.innerHTML = '<div class="no-logs"><p>Loading...</p></div>';
             try {
-                const msg = await callGet('customize_erpnext.api.biometric_log_viewer.get_log_content', { log_file: logFile });
-                if (msg && msg.status === 'success') {
-                    allLines = msg.content.split('\n').filter(l => l.trim());
-                    allLines.reverse();
-                }
-                loading.style.display = 'none';
-                logContainer.style.display = 'block';
+                const msg = await callGet('customize_erpnext.network.biometric.log_viewer.get_log_content', { log_file: logFile });
+                allLines = msg.lines || [];
                 filterLines();
             } catch (e) {
-                loading.style.display = 'none';
-                logContainer.innerHTML = `<div class="no-logs"><p style="color:#dc3545;">❌ Error: ${escapeHtml(e.message)}</p></div>`;
-                logContainer.style.display = 'block';
+                box.innerHTML = `<div class="no-logs"><p style="color:#dc3545;">❌ ${escapeHtml(e.message)}</p></div>`;
             }
         }
 
+        // a cycle row with something to look at: failure, insert error, deferral, stall, ERROR line
+        const PROBLEM_RE = /FAILED|errors=[1-9]|deferred=|STALLED|\bERROR\b|[1-9]\d* errors|[1-9]\d* failed/;
+
         function filterLines() {
-            const filterLevel = document.getElementById('filterLevel').value;
-            const searchText = document.getElementById('searchText').value.toLowerCase();
-            const logContainer = document.getElementById('logContainer');
-            // Match the level as a separate log column ("\tERROR\t", " - ERROR - ", "ERROR:"),
-            // not as a plain substring — message bodies may contain those words
-            function lineLevel(l) {
-                const m = l.match(/(?:^|\t| - |\s)(ERROR|CRITICAL|WARNING|INFO|DEBUG)(?:\t| - |:|\s|$)/);
-                return m ? m[1] : null;
-            }
+            const q = document.getElementById('searchText').value.toLowerCase();
+            const problemsOnly = document.getElementById('problemsOnly').checked;
+            const box = document.getElementById('logContainer');
             let lines = allLines;
-            if (filterLevel !== 'ALL') {
-                const levels = { ERROR: ['ERROR', 'CRITICAL'], WARNING: ['ERROR', 'CRITICAL', 'WARNING'], INFO: ['ERROR', 'CRITICAL', 'WARNING', 'INFO'] };
-                lines = lines.filter(l => levels[filterLevel].includes(lineLevel(l)));
-            }
-            if (searchText) lines = lines.filter(l => l.toLowerCase().includes(searchText));
-            if (!lines.length) {
-                logContainer.innerHTML = '<div class="no-logs"><p>No matching log lines found</p></div>';
-            } else {
-                logContainer.innerHTML = lines.map(l => {
-                    let cls = 'log-line';
-                    const lv = lineLevel(l);
-                    if (lv === 'ERROR' || lv === 'CRITICAL') cls += ' error';
-                    else if (lv === 'WARNING') cls += ' warning';
-                    else if (lv === 'INFO') cls += ' info';
-                    return `<div class="${cls}">${escapeHtml(l)}</div>`;
-                }).join('');
-            }
-            document.getElementById('stats').textContent = `Showing ${lines.length} / ${allLines.length} lines`;
+            if (problemsOnly) lines = lines.filter(l => PROBLEM_RE.test(l));
+            if (q) lines = lines.filter(l => l.toLowerCase().includes(q));
+            box.innerHTML = lines.length
+                ? lines.map(l => `<div class="log-line${PROBLEM_RE.test(l) ? ' error' : ''}">${escapeHtml(l)}</div>`).join('')
+                : '<div class="no-logs"><p>No matching lines</p></div>';
+            document.getElementById('stats').textContent = `${lines.length} / ${allLines.length} lines (newest first, last 500)`;
         }
 
         // ════════════════════════════════════════════════════════════════════════════
@@ -777,7 +868,7 @@ bsync.setup = function (root) {
             try {
                 // include_door: the server adds door controllers only for the Door Control
                 // role. Tab 2 (device → device) never uses them; Tab 3 offers them by scope.
-                const msg = await callGet('customize_erpnext.api.utilities.get_enabled_attendance_machines', { include_door: 1 });
+                const msg = await callGet('customize_erpnext.network.biometric.fingerprint.get_enabled_attendance_machines', { include_door: 1 });
                 if (!msg.success) throw new Error(msg.message);
                 _fp41AllMachines = msg.machines || [];
                 _allMachines = _fp41AllMachines.filter(m => !m.is_door_control);
@@ -850,7 +941,7 @@ bsync.setup = function (root) {
             renderTargetMachines(masterName);
 
             try {
-                const msg = await callGet('customize_erpnext.api.biometric_sync.get_master_device_users', {
+                const msg = await callGet('customize_erpnext.network.biometric.biometric_sync.get_master_device_users', {
                     machine_name: masterName
                 });
                 if (msg.status !== 'success') throw new Error(msg.message);
@@ -882,7 +973,7 @@ bsync.setup = function (root) {
 
             statusEl.innerHTML = '<span style="color:#6c757d;">🔍 Filtering...</span>';
             try {
-                const msg = await callGet('customize_erpnext.api.biometric_sync.get_employees_for_sync', {
+                const msg = await callGet('customize_erpnext.network.biometric.biometric_sync.get_employees_for_sync', {
                     employee, employee_name, attendance_device_id, date_of_joining
                 });
                 if (msg.status !== 'success') throw new Error(msg.message);
@@ -1046,7 +1137,7 @@ bsync.setup = function (root) {
             if (syncToErp && employeeIds.length > 0) {
                 try {
                     const checkMsg = await callPost(
-                        'customize_erpnext.api.biometric_sync.check_employees_fingerprints_in_erp',
+                        'customize_erpnext.network.biometric.biometric_sync.check_employees_fingerprints_in_erp',
                         { employee_ids_json: JSON.stringify(employeeIds) }
                     );
                     const existing = checkMsg.existing || {};
@@ -1093,7 +1184,7 @@ bsync.setup = function (root) {
                 if (!syncToErp) {
                     // ── Device-to-device only ────────────────────────────────────────────
                     document.getElementById('progressPhase').textContent = 'Phase 1: Device → Devices...';
-                    const msg = await callPost('customize_erpnext.api.biometric_sync.sync_fingerprints', {
+                    const msg = await callPost('customize_erpnext.network.biometric.biometric_sync.sync_fingerprints', {
                         master_machine_name: masterName,
                         target_machine_names_json: JSON.stringify(targetMachines),
                         user_ids_json: JSON.stringify(selectedUserIds),
@@ -1107,7 +1198,7 @@ bsync.setup = function (root) {
                     // ── Phase 1: Device → ERPNext ────────────────────────────────────────
                     setProgressBar('__erp__', 5, '⏳ Phase 1 running...');
                     document.getElementById('progressPhase').textContent = 'Phase 1: Reading fingerprints from device → ERPNext...';
-                    const msg = await callPost('customize_erpnext.api.biometric_sync.sync_fingerprints', {
+                    const msg = await callPost('customize_erpnext.network.biometric.biometric_sync.sync_fingerprints', {
                         master_machine_name: masterName,
                         target_machine_names_json: JSON.stringify([]),
                         user_ids_json: JSON.stringify(selectedUserIds),
@@ -1155,7 +1246,7 @@ bsync.setup = function (root) {
                     try {
                         if (Date.now() - startedAt > timeoutMs)
                             return stop(reject, new Error('Timed out waiting for the background job to finish'));
-                        const msg = await callGet('customize_erpnext.api.biometric_sync.get_sync_job_status', { job_id: jobId });
+                        const msg = await callGet('customize_erpnext.network.biometric.biometric_sync.get_sync_job_status', { job_id: jobId });
                         if (!msg || msg.status === 'not_found') {
                             if (++notFoundCount >= maxNotFound)
                                 return stop(reject, new Error('Job not found or expired — the background worker may be down'));
@@ -1224,7 +1315,7 @@ bsync.setup = function (root) {
                 for (const empId of employeeIds) {
                     try {
                         const result = await callPost(
-                            'customize_erpnext.api.utilities.sync_employee_to_single_machine',
+                            'customize_erpnext.network.biometric.fingerprint.sync_employee_to_single_machine',
                             { employee_id: empId, machine_name: machine }
                         );
                         if (result && result.success) {
@@ -1329,7 +1420,7 @@ bsync.setup = function (root) {
                         const d = document.getElementById('fp41JoinDate').value;
                         if (d) args.date_of_joining = d;
                     }
-                    const msg = await callGet('customize_erpnext.api.biometric_sync.get_employees_for_sync', args);
+                    const msg = await callGet('customize_erpnext.network.biometric.biometric_sync.get_employees_for_sync', args);
                     if (msg.status !== 'success') throw new Error(msg.message);
                     _fp41Employees = msg.employees.map(e => ({
                         employee_id: e.name,
@@ -1393,7 +1484,6 @@ bsync.setup = function (root) {
             }
             wrap.innerHTML = list.map(m => {
                 const icon = m.connection_status === 'online' ? '🟢' : '🔴';
-                const masterBadge = m.master_device ? '<span class="badge master">★ Master</span>' : '';
                 // Door controller: never pre-ticked — a fingerprint there opens the door,
                 // so it is ticked on purpose for the few people allowed in.
                 const isDoor = !!m.is_door_control;
@@ -1407,7 +1497,7 @@ bsync.setup = function (root) {
                         ${icon} <strong>${escapeHtml(m.name)}</strong> — ${escapeHtml(m.device_name || '')}
                         <span style="color:#6c757d;">(${escapeHtml(m.ip_address)})</span>
                     </span>
-                    ${masterBadge}${doorBadge}
+                    ${doorBadge}
                     ${m.response_time > 0 ? `<span class="badge">${m.response_time}ms</span>` : ''}
                 </label>`;
             }).join('');
@@ -1458,7 +1548,7 @@ bsync.setup = function (root) {
                     for (const emp of _fp41Employees) {
                         const empId = emp.employee_id;
                         try {
-                            const msg = await callPost('customize_erpnext.api.utilities.sync_employee_to_single_machine', {
+                            const msg = await callPost('customize_erpnext.network.biometric.fingerprint.sync_employee_to_single_machine', {
                                 employee_id: empId,
                                 machine_name: machine,
                             });
@@ -1511,7 +1601,7 @@ bsync.setup = function (root) {
             document.getElementById('del43ProgressSection').classList.remove('visible');
 
             try {
-                const msg = await callPost('customize_erpnext.api.biometric_sync.get_left_employees_on_machines', {
+                const msg = await callPost('customize_erpnext.network.biometric.biometric_sync.get_left_employees_on_machines', {
                     delay_days: delayDays, include_unmatched: inclUnmatched,
                 });
                 if (msg.status !== 'success') throw new Error(msg.message);
@@ -1655,7 +1745,7 @@ bsync.setup = function (root) {
             }
 
             try {
-                const msg = await callPost('customize_erpnext.api.biometric_sync.delete_users_from_machines', {
+                const msg = await callPost('customize_erpnext.network.biometric.biometric_sync.delete_users_from_machines', {
                     users_json: JSON.stringify(selected),
                 });
                 if (msg.status !== 'success') throw new Error(msg.message);
@@ -1704,7 +1794,7 @@ bsync.setup = function (root) {
             btn.disabled = true; btn.textContent = '⏳ Finding...';
             statusEl.textContent = 'Searching employee and scanning machines...';
             try {
-                const msg = await callPost('customize_erpnext.api.biometric_sync.find_employee_on_machines', { query });
+                const msg = await callPost('customize_erpnext.network.biometric.biometric_sync.find_employee_on_machines', { query });
                 statusEl.textContent = '';
                 del43RenderFind(msg);
             } catch (e) {
@@ -1853,7 +1943,7 @@ bsync.setup = function (root) {
             statusEl.textContent = '';
 
             try {
-                const msg = await callGet('customize_erpnext.api.biometric_sync.get_attendance_machines', { scope: _machinesScope });
+                const msg = await callGet('customize_erpnext.network.biometric.biometric_sync.get_attendance_machines', { scope: _machinesScope });
                 if (msg.status !== 'success') throw new Error(msg.message || 'Failed to load machine list');
                 document.getElementById('machinesScopeWrap').style.display = msg.can_door ? 'inline-flex' : 'none';
                 _machinesList = msg.machines || [];
@@ -1887,18 +1977,14 @@ bsync.setup = function (root) {
                 return;
             }
             gridEl.innerHTML = _machinesList.map(m => {
-                const isMaster = m.master_device;
-                const masterBadge = isMaster
-                    ? '<span style="font-size:11px;background:#fef9c3;color:#854d0e;padding:1px 8px;border-radius:10px;margin-left:6px;border:1px solid #fde68a;">★ Master</span>'
-                    : '';
                 const doorBadge = m.is_door_control
                     ? '<span style="font-size:11px;background:#ede9fe;color:#5b21b6;padding:1px 8px;border-radius:10px;margin-left:6px;border:1px solid #ddd6fe;">🚪 Door</span>'
                     : '';
                 return `
-                <div class="machine-card${isMaster ? ' is-master' : ''}" id="mc_${CSS.escape(m.name)}">
+                <div class="machine-card" id="mc_${CSS.escape(m.name)}">
                     <div class="machine-card-head">
                         <div class="machine-card-name">
-                            ${m.is_door_control ? '🚪' : '🖥'} ${escapeHtml(m.name)}${masterBadge}${doorBadge}
+                            ${m.is_door_control ? '🚪' : '🖥'} ${escapeHtml(m.name)}${doorBadge}
                         </div>
                     </div>
                     <div class="machine-card-meta">📌 ${escapeHtml(m.device_name || '')}${m.model ? ' · ' + escapeHtml(m.model) : ''}</div>
@@ -1928,7 +2014,7 @@ bsync.setup = function (root) {
             panelEl.innerHTML = '<div style="display:flex;align-items:center;gap:8px;"><div class="spinner" style="width:18px;height:18px;border-width:2px;"></div> Connecting...</div>';
 
             try {
-                const msg = await callPost('customize_erpnext.api.biometric_sync.machine_get_info', { machine_name: machineName });
+                const msg = await callPost('customize_erpnext.network.biometric.biometric_sync.machine_get_info', { machine_name: machineName });
                 if (msg.status !== 'success') throw new Error(msg.message);
 
                 function capBar(used, cap) {
@@ -1991,7 +2077,7 @@ bsync.setup = function (root) {
             const statusEl = document.getElementById('machinesGlobalStatus');
             statusEl.textContent = `⏳ Syncing time on ${machineName}...`;
             try {
-                const msg = await callPost('customize_erpnext.api.biometric_sync.machine_sync_time', { machine_name: machineName });
+                const msg = await callPost('customize_erpnext.network.biometric.biometric_sync.machine_sync_time', { machine_name: machineName });
                 if (msg.status !== 'success') throw new Error(msg.message);
                 statusEl.textContent = `✅ ${machineName}: Time synced | Server: ${msg.server_time} | Device: ${msg.device_time} | Drift: ${msg.drift_seconds}s`;
                 setTimeout(() => { statusEl.textContent = `${_machinesStatusText()}`; }, 6000);
@@ -2005,7 +2091,7 @@ bsync.setup = function (root) {
             const statusEl = document.getElementById('machinesGlobalStatus');
             statusEl.textContent = `⏳ Sending reboot command to ${machineName}...`;
             try {
-                const msg = await callPost('customize_erpnext.api.biometric_sync.machine_reboot', { machine_name: machineName });
+                const msg = await callPost('customize_erpnext.network.biometric.biometric_sync.machine_reboot', { machine_name: machineName });
                 if (msg.status !== 'success') throw new Error(msg.message);
                 statusEl.textContent = `✅ ${machineName}: Reboot command sent`;
                 setTimeout(() => { statusEl.textContent = `${_machinesStatusText()}`; }, 5000);
@@ -2021,7 +2107,7 @@ bsync.setup = function (root) {
             statusEl.textContent = `⏳ Syncing time on ${_machinesList.length} machines (parallel)...`;
 
             const results = await Promise.allSettled(
-                _machinesList.map(m => callPost('customize_erpnext.api.biometric_sync.machine_sync_time', { machine_name: m.name }))
+                _machinesList.map(m => callPost('customize_erpnext.network.biometric.biometric_sync.machine_sync_time', { machine_name: m.name }))
             );
             const ok = results.filter(r => r.status === 'fulfilled' && r.value && r.value.status === 'success').length;
             const fail = results.length - ok;
@@ -2038,7 +2124,7 @@ bsync.setup = function (root) {
             for (const m of _machinesList) {
                 statusEl.textContent = `⏳ Reboot ${m.name}... (${done + 1}/${_machinesList.length})`;
                 try {
-                    await callPost('customize_erpnext.api.biometric_sync.machine_reboot', { machine_name: m.name });
+                    await callPost('customize_erpnext.network.biometric.biometric_sync.machine_reboot', { machine_name: m.name });
                 } catch (e) {
                     console.error(`Reboot ${m.name}:`, e.message);
                 }
@@ -2084,7 +2170,7 @@ bsync.setup = function (root) {
             const tasks = _machinesList.map(async m => {
                 const tr = document.getElementById(`ait_${CSS.escape(m.name)}`);
                 try {
-                    const msg = await callPost('customize_erpnext.api.biometric_sync.machine_get_info', { machine_name: m.name });
+                    const msg = await callPost('customize_erpnext.network.biometric.biometric_sync.machine_get_info', { machine_name: m.name });
                     if (!tr) return;
                     if (msg.status !== 'success') throw new Error(msg.message || 'Error');
                     tr.className = '';
@@ -2128,7 +2214,7 @@ bsync.setup = function (root) {
 
         async function _muLoad(machineName) {
             try {
-                const msg = await callPost('customize_erpnext.api.biometric_sync.machine_get_users', { machine_name: machineName });
+                const msg = await callPost('customize_erpnext.network.biometric.biometric_sync.machine_get_users', { machine_name: machineName });
                 if (msg.status !== 'success') throw new Error(msg.message || 'Failed to read users');
                 _muData[machineName] = { read_at: msg.read_at, loaded_at: Date.now(), users: msg.users || [],
                                      is_door_control: !!msg.is_door_control };
@@ -2248,9 +2334,10 @@ bsync.setup = function (root) {
             for (const n of _muLoadedNames()) {
                 for (const u of _muData[n].users) {
                     let r = byId.get(u.user_id);
-                    if (!r) { r = { ...u, machines: [] }; byId.set(u.user_id, r); }
+                    if (!r) { r = { ...u, machines: [], fingersBy: {} }; byId.set(u.user_id, r); }
                     if (!r.name && u.name) r.name = u.name;
                     r.machines.push(n);
+                    if (u.fingers) r.fingersBy[n] = u.fingers;
                 }
             }
             return [...byId.values()].sort((a, b) => _muUidCmp(a.user_id, b.user_id));
@@ -2263,12 +2350,49 @@ bsync.setup = function (root) {
             return `<span style="background:var(--bg);color:var(--text-2);padding:2px 8px;border-radius:10px;font-size:11px;">${escapeHtml(status)}</span>`;
         }
 
+        // Fingerprint templates on the device (index 0..9, read with the user list)
+        const FINGER_NAMES = ['Left Little', 'Left Ring', 'Left Middle', 'Left Index', 'Left Thumb',
+                              'Right Thumb', 'Right Index', 'Right Middle', 'Right Ring', 'Right Little'];
+
+        function _muFingerText(fids) {
+            return `${fids.length}${fids.length ? ' · ' + fids.join(', ') : ''}`;
+        }
+
+        function _muFingersCell(u, isAll) {
+            if (!isAll) {
+                if (!u.fingers) return '<td style="color:var(--text-3);">—</td>';   // older cached list
+                const tip = u.fingers.map(f => `${f} = ${FINGER_NAMES[f] || 'Finger ' + f}`).join('\n') || 'No fingerprint on this machine';
+                const style = u.fingers.length ? '' : 'color:#dc3545;font-weight:600;';
+                return `<td style="white-space:nowrap;${style}" title="${escapeHtml(tip)}">${_muFingerText(u.fingers)}</td>`;
+            }
+            const per = Object.entries(u.fingersBy || {});
+            if (!per.length) return '<td style="color:var(--text-3);">—</td>';
+            const texts = new Set(per.map(([, f]) => f.join(',')));
+            const tip = per.map(([m, f]) => `${m}: ${_muFingerText(f)}`).join('\n');
+            if (texts.size === 1) {
+                const f = per[0][1];
+                const style = f.length ? '' : 'color:#dc3545;font-weight:600;';
+                return `<td style="white-space:nowrap;${style}" title="${escapeHtml(tip)}">${_muFingerText(f)}</td>`;
+            }
+            return `<td style="white-space:nowrap;color:#b45309;font-weight:600;" title="${escapeHtml(tip)}">⚠ differs</td>`;
+        }
+
         function muRender() {
             const selected = document.getElementById('muMachine').value;
             const q = document.getElementById('muSearch').value.trim().toLowerCase();
             const st = document.getElementById('muStatus').value;
+            const fq = document.getElementById('muFingers').value;
             const all = _muRows(selected);
+            // finger sets of one row: one machine -> [its list]; All -> one list per loaded machine
+            const fingerSets = u => selected === MU_ALL ? Object.values(u.fingersBy || {}) : (u.fingers ? [u.fingers] : []);
             const rows = all.filter(u => {
+                if (fq) {
+                    const sets = fingerSets(u);
+                    if (!sets.length) return false;   // list read before the Fingers column existed
+                    if (fq === '0' && !sets.every(f => f.length === 0)) return false;
+                    if (fq === '1' && !sets.some(f => f.length === 1)) return false;
+                    if (fq === 'differs' && new Set(sets.map(f => f.join(','))).size < 2) return false;
+                }
                 if (st === 'none' && u.status) return false;
                 if (st === 'other' && (!u.status || u.status === 'Active' || u.status === 'Left')) return false;
                 if ((st === 'Active' || st === 'Left') && u.status !== st) return false;
@@ -2294,17 +2418,17 @@ bsync.setup = function (root) {
             const erpHead = '<th>Employee</th><th>ERP Name</th><th>ERP Status</th><th>Relieving</th><th>Group</th>';
             const selHead = '<th style="width:28px;"><input type="checkbox" id="muSelAll" title="Select all shown (deletable)"></th>';
             document.getElementById('muHead').innerHTML = isAll
-                ? `<tr>${selHead}<th>#</th><th>User ID</th><th>Name on Device</th>${erpHead}<th>On Machines</th></tr>`
-                : `<tr>${selHead}<th>#</th><th>UID</th><th>User ID</th><th>Name on Device</th><th>Privilege</th><th>PIN</th><th>Card</th>${erpHead}</tr>`;
+                ? `<tr>${selHead}<th>#</th><th>User ID</th><th>Name on Device</th><th title="Fingerprint templates: count · finger indexes 0-9 (hover for names / per machine)">Fingers</th>${erpHead}<th>On Machines</th></tr>`
+                : `<tr>${selHead}<th>#</th><th>UID</th><th>User ID</th><th>Name on Device</th><th>Privilege</th><th>PIN</th><th>Card</th><th title="Fingerprint templates: count · finger indexes 0-9 (hover for names)">Fingers</th>${erpHead}</tr>`;
             document.getElementById('muBody').innerHTML = rows.length ? rows.map((u, i) => isAll ? `
                 <tr>${selCell(u)}<td>${i + 1}</td><td style="font-family:monospace;">${escapeHtml(u.user_id)}</td>
-                    <td>${escapeHtml(u.name)}</td>${erpCells(u)}
+                    <td>${escapeHtml(u.name)}</td>${_muFingersCell(u, true)}${erpCells(u)}
                     <td title="${escapeHtml(u.machines.join(', '))}">${u.machines.length} · ${escapeHtml(u.machines.join(', '))}</td></tr>` : `
                 <tr>${selCell(u)}<td>${i + 1}</td><td style="font-family:monospace;">${u.uid}</td>
                     <td style="font-family:monospace;">${escapeHtml(u.user_id)}</td>
                     <td>${escapeHtml(u.name)}</td><td>${escapeHtml(u.privilege)}</td>
-                    <td>${u.has_password ? 'Yes' : ''}</td><td style="font-family:monospace;">${escapeHtml(u.card)}</td>${erpCells(u)}</tr>`).join('')
-                : `<tr><td colspan="${isAll ? 10 : 13}" style="text-align:center;color:var(--text-3);">No users match</td></tr>`;
+                    <td>${u.has_password ? 'Yes' : ''}</td><td style="font-family:monospace;">${escapeHtml(u.card)}</td>${_muFingersCell(u, false)}${erpCells(u)}</tr>`).join('')
+                : `<tr><td colspan="${isAll ? 11 : 14}" style="text-align:center;color:var(--text-3);">No users match</td></tr>`;
             document.getElementById('muSelAll').addEventListener('change', ev => {
                 document.querySelectorAll('#muBody .mu-sel:not(:disabled)').forEach(b => {
                     b.checked = ev.target.checked;
@@ -2345,7 +2469,7 @@ bsync.setup = function (root) {
             const statusEl = document.getElementById('machinesGlobalStatus');
             btn.dataset.busy = '1'; btn.disabled = true; btn.textContent = '⏳ Deleting...';
             try {
-                const r = await callPost('customize_erpnext.api.biometric_sync.delete_users_from_machines',
+                const r = await callPost('customize_erpnext.network.biometric.biometric_sync.delete_users_from_machines',
                     { users_json: JSON.stringify(ops) });
                 if (r.status !== 'success') throw new Error(r.message || 'Delete failed');
                 const d = await pollJobStatus(r.job_id, d => {
@@ -2392,7 +2516,7 @@ bsync.setup = function (root) {
                 }
                 muRender();
             }
-            open_url_post('/api/method/customize_erpnext.api.biometric_sync.download_machine_users_xlsx',
+            open_url_post('/api/method/customize_erpnext.network.biometric.biometric_sync.download_machine_users_xlsx',
                 { machine_names: JSON.stringify(names) });
         }
 
@@ -2416,7 +2540,7 @@ bsync.setup = function (root) {
         async function rsLoadMachines() {
             const listEl = document.getElementById('rsMachineList');
             try {
-                const msg = await callGet('customize_erpnext.api.utilities.get_enabled_attendance_machines');
+                const msg = await callGet('customize_erpnext.network.biometric.fingerprint.get_enabled_attendance_machines');
                 if (!msg || !msg.success || !msg.machines) throw new Error((msg && msg.message) || 'Failed to load machines');
                 listEl.innerHTML = msg.machines.map(m => {
                     const mname = m.name || m.device_name;
@@ -2493,7 +2617,7 @@ bsync.setup = function (root) {
             if (!from || !to) { bsyncAlert('Pick a date range'); return; }
             if (!await bsyncConfirm(`Re-sync ${machines.length} machine(s) for ${from} → ${to}?\nExisting checkins are skipped automatically.`)) return;
             rsRunJob('rsDevBtn', '▶ Re-sync from devices',
-                'customize_erpnext.api.biometric_resync.resync_device_logs',
+                'customize_erpnext.network.biometric.resync.resync_device_logs',
                 { machine_names_json: JSON.stringify(machines), from_date: from, to_date: to });
         }
 
@@ -2503,7 +2627,7 @@ bsync.setup = function (root) {
             if (!from || !to) { bsyncAlert('Pick a date range'); return; }
             if (!await bsyncConfirm(`Sync MongoDB checkins for ${from} → ${to}?`)) return;
             rsRunJob('rsMongoBtn', '▶ Sync from MongoDB',
-                'customize_erpnext.api.biometric_resync.resync_mongodb_logs',
+                'customize_erpnext.network.biometric.mongodb_sync.resync_mongodb_logs',
                 { from_date: from, to_date: to });
         }
 
@@ -2513,7 +2637,7 @@ bsync.setup = function (root) {
             if (!from || !to) { bsyncAlert('Pick an OT date range'); return; }
             if (!await bsyncConfirm(`Sync OT registrations from MongoDB for OT dates ${from} → ${to}?`)) return;
             rsRunJob('rsOtBtn', '▶ Sync OT from MongoDB',
-                'customize_erpnext.api.biometric_resync.sync_ot_from_mongodb',
+                'customize_erpnext.network.biometric.mongodb_sync.sync_ot_from_mongodb',
                 { from_date: from, to_date: to });
         }
 
@@ -2528,7 +2652,7 @@ bsync.setup = function (root) {
             if (!from || !to) { bsyncAlert('Pick a date range'); return; }
             el.innerHTML = '⏳ Loading preview...';
             try {
-                const msg = await callPost('customize_erpnext.api.biometric_resync.preview_delete_ot',
+                const msg = await callPost('customize_erpnext.network.biometric.resync.preview_delete_ot',
                     { from_date: from, to_date: to });
                 if (msg.status !== 'success') throw new Error(msg.message || 'Preview failed');
                 let html = `<div style="margin-bottom:6px;"><strong style="color:#c0392b;">${msg.detail_count}</strong>
@@ -2563,14 +2687,14 @@ bsync.setup = function (root) {
             const confirmText = document.getElementById('rsDelConfirm').value;
             if (!await bsyncConfirm(`⚠️ PERMANENTLY delete OT detail rows for ${from} → ${to}?\nThis cannot be undone.`)) return;
             rsRunJob('rsDelBtn', '🗑 Delete OT',
-                'customize_erpnext.api.biometric_resync.delete_ot',
+                'customize_erpnext.network.biometric.resync.delete_ot',
                 { from_date: from, to_date: to, confirm_text: confirmText });
         }
 
 
         // ── khởi tạo (trước là DOMContentLoaded) ─────────────────────────────────────
-        loadLogFiles();
+        loadSyncStatus();
             loadMachinesForFingerprint();
 
-        Object.assign(bsync, { _parseFrappeError, appendResultLog, applyEmployeeFilter, buildProgressRow, callGet, callPost, clearEmployeeFilter, del43Delete, del43FindEmp, del43PickCandidate, del43RenderFind, del43RenderPreview, del43ResetPreview, del43RunDeleteJob, del43Scan, del43SelectAll, del43SpecificDelete, escapeHtml, filterLines, fp41LoadEmployees, fp41MachineScopeChange, fp41RenderEmpTable, fp41RenderMachines, fp41SelectAllMachines, fp41StartSync, fp41UpdateSyncBtn, loadLog, loadLogFiles, loadMachineCards, loadMachinesForFingerprint, loadMasterUsers, machineGetInfo, machineReboot, machineSyncTime, machineShowUsers, machinesLoadAllInfo, machinesLoadUsersAll, machinesRebootAll, machinesRefresh, machinesScopeChange, machinesSyncTimeAll, muDelete, muDownload, muMachineChange, muRender, onFp41ScopeChange, pollJobStatus, pollSyncJob, renderMachineCards, renderMasterDropdown, renderTargetMachines, renderUserTable, rsDelConfirmInput, rsInitTab, rsLoadMachines, rsPreviewDeleteOt, rsRunDeleteOt, rsRunDeviceResync, rsRunJob, rsRunMongoResync, rsRunOtSync, rsSelectAllMachines, runPhase2, selectAllTargets, selectAllUsers, setProgressBar, startSync, switchTab, updateSyncButton });
+        Object.assign(bsync, { _parseFrappeError, appendResultLog, applyEmployeeFilter, buildProgressRow, callGet, callPost, clearEmployeeFilter, del43Delete, del43FindEmp, del43PickCandidate, del43RenderFind, del43RenderPreview, del43ResetPreview, del43RunDeleteJob, del43Scan, del43SelectAll, del43SpecificDelete, escapeHtml, filterLines, fp41LoadEmployees, fp41MachineScopeChange, fp41RenderEmpTable, fp41RenderMachines, fp41SelectAllMachines, fp41StartSync, fp41UpdateSyncBtn, loadLog, loadLogFiles, loadSyncStatus, renderSyncStatus, toggleRawLog, loadMachineCards, loadMachinesForFingerprint, loadMasterUsers, machineGetInfo, machineReboot, machineSyncTime, machineShowUsers, machinesLoadAllInfo, machinesLoadUsersAll, machinesRebootAll, machinesRefresh, machinesScopeChange, machinesSyncTimeAll, muDelete, muDownload, muMachineChange, muRender, onFp41ScopeChange, pollJobStatus, pollSyncJob, renderMachineCards, renderMasterDropdown, renderTargetMachines, renderUserTable, rsDelConfirmInput, rsInitTab, rsLoadMachines, rsPreviewDeleteOt, rsRunDeleteOt, rsRunDeviceResync, rsRunJob, rsRunMongoResync, rsRunOtSync, rsSelectAllMachines, runPhase2, selectAllTargets, selectAllUsers, setProgressBar, startSync, switchTab, updateSyncButton });
 };

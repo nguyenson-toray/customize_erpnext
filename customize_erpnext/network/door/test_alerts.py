@@ -2,7 +2,7 @@
 
     cd ~/frappe-bench/sites
     ../env/bin/python -c "import frappe; frappe.init(site='erp.tiqn.local'); frappe.connect(); \
-        exec(open('../apps/customize_erpnext/customize_erpnext/api/test_door_alerts.py').read())"
+        exec(open('../apps/customize_erpnext/customize_erpnext/network/door/test_alerts.py').read())"
 
 KHÔNG kết nối máy thật, KHÔNG gửi Telegram thật: cửa là 2 máy giả (TEST-NET),
 probe/đọc log được thay bằng hàm giả, `requests.post` bị mock. Setting dựng trong
@@ -15,7 +15,7 @@ from unittest.mock import patch, MagicMock
 import frappe
 from frappe.utils import now_datetime
 
-import customize_erpnext.api.door_alerts as da
+import customize_erpnext.network.door.alerts as da
 
 frappe.set_user("Administrator")
 ok = fail = 0

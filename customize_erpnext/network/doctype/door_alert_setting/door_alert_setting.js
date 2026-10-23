@@ -1,7 +1,7 @@
 // Copyright (c) 2026, IT Team - TIQN and contributors
-// Door Alert Setting: buttons + status panel. Server side: customize_erpnext.api.door_alerts
+// Door Alert Setting: buttons + status panel. Server side: customize_erpnext.network.door.alerts
 
-const DA_API = "customize_erpnext.api.door_alerts.";
+const DA_API = "customize_erpnext.network.door.alerts.";
 
 frappe.ui.form.on("Door Alert Setting", {
 	refresh(frm) {

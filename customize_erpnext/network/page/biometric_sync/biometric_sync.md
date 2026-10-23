@@ -6,16 +6,22 @@
 
 Trang quản lý đồng bộ dữ liệu chấm công vân tay giữa các máy chấm công (ZKTeco / compatible) và ERPNext.
 
+> **Cập nhật 2026-10-23 — bỏ service `biometric-attendance-sync-tool`:** code backend chuyển vào
+> `customize_erpnext/network/biometric/` (và `network/door/`), xem `network/biometric/README.md`.
+> Lấy log tự động mỗi 3 phút = `device_log_sync.py` (bật/tắt ở Attendance Machine Setting → Auto Log Sync).
+> Tab 1 Log Viewer đọc `sites/<site>/logs/biometric_*.log` (+ log cũ của tool dạng `tool/<file>`).
+> Đường dẫn `customize_erpnext.api.*` cũ còn file chuyển tiếp ~1 tuần rồi xoá.
+
 > **Cập nhật 2026-07-03 — refactor DocType máy chấm công:**
 > DocType `Attendance Machine` (nhiều bản ghi `att_machine_*`) đã **bị xóa**, thay bằng Single DocType
 > **`Attendance Machine Setting`** với bảng con `machines` (child DocType `Attendance Machine Detail`:
-> device_name, ip_address, enable, master_device, location, model). Cấu hình kết nối
+> device_name, ip_address, comm_password, enable, location, model — `master_device` bỏ 23/10/2026). Cấu hình kết nối
 > (port, timeout, force_udp, ommit_ping) đặt ở cấp cha, dùng chung cho mọi máy.
-> Mọi truy cập cấu hình máy đi qua helper `customize_erpnext/api/attendance_machines.py`
+> Mọi truy cập cấu hình máy đi qua helper `customize_erpnext/network/biometric/machines.py`
 > (`get_machines(enabled_only)` / `get_machine(name)`). **Identifier máy = `device_name`**
 > (các API vẫn trả về trong key `name` nên JS của trang này không đổi — machine card giờ hiển thị
 > "Machine 1" thay vì "att_machine_1").
-> Ngoài ra `utilities.sync_employees_to_machine_batch(machine_name, employee_ids)` mới cho phép
+> Ngoài ra `fingerprint.sync_employees_to_machine_batch(machine_name, employee_ids)` mới cho phép
 > đẩy nhiều nhân viên xuống 1 máy trên **1 kết nối duy nhất** (nhanh hơn nhiều so với gọi lặp
 > `sync_employee_to_single_machine`).
 
@@ -30,15 +36,15 @@ Browser (index.html)
     └── callPost(method, args)  → POST /api/method/<method>        (write, kèm csrf_token trong FormData)
 
 Server (Frappe whitelisted methods)
-    ├── customize_erpnext.api.biometric_sync.*
-    ├── customize_erpnext.api.utilities.*
-    └── customize_erpnext.api.biometric_log_viewer.*
+    ├── customize_erpnext.network.biometric.biometric_sync.*
+    ├── customize_erpnext.network.biometric.fingerprint.*
+    └── customize_erpnext.network.biometric.log_viewer.*
 ```
 
 **CSRF**: Token được inject từ Python context qua Jinja (`window.csrf_token = "{{ csrf_token }}"`).
 Frappe validate CSRF từ **form body** — không dùng header. Tất cả POST dùng `FormData` với `csrf_token` appended.
 
-**Authentication & Authorization**: `index.py` kiểm tra `frappe.session.user == "Guest"`, nếu đúng redirect về `/login?redirect-to=/biometric_sync`. Ngoài ra page và **toàn bộ 25 API biometric** (trong `api/biometric_sync.py`, `api/biometric_log_viewer.py`, và các hàm fingerprint/machine của `api/utilities.py`) yêu cầu một trong các role: **System Manager / HR Manager / HR User** — check qua `api/biometric_auth.py` (`check_biometric_access()` gọi ở đầu mỗi whitelisted method, chống gọi thẳng `/api/method/`). Các hàm không thuộc biometric trong `utilities.py` (item/warehouse) không bị khóa.
+**Authentication & Authorization**: `index.py` kiểm tra `frappe.session.user == "Guest"`, nếu đúng redirect về `/login?redirect-to=/biometric_sync`. Ngoài ra page và **toàn bộ 25 API biometric** (trong `network/biometric/biometric_sync.py`, `network/biometric/log_viewer.py`, và các hàm fingerprint/machine của `api/utilities.py`) yêu cầu một trong các role: **System Manager / HR Manager / HR User** — check qua `api/biometric_auth.py` (`check_biometric_access()` gọi ở đầu mỗi whitelisted method, chống gọi thẳng `/api/method/`). Các hàm không thuộc biometric trong `utilities.py` (item/warehouse) không bị khóa.
 
 **Job polling (client)**: mọi polling job dùng chung helper `pollJobStatus()` — tự dừng khi: server trả `status='error'`, job không xuất hiện sau ~30s (worker chết/job hết hạn), hoặc quá 15 phút. UI không bao giờ bị treo poll vô hạn.
 
@@ -57,19 +63,20 @@ www/biometric_sync/
 
 ## 5 Tab chức năng
 
-### Tab 1 — Log Viewer
+### Tab 1 — Log Viewer (làm lại 23/10/2026)
 
-**Mục đích**: Xem file log của hệ thống biometric sync trực tiếp trên trình duyệt.
+**Phần trên — "Automatic Log Pull"** (`log_viewer.get_sync_status`, tự tải khi mở trang, nút ↻ Refresh):
+- Dòng tóm tắt: Auto pull ON/OFF · Last cycle (giờ + "N min ago") · đang trong giờ cao điểm / giờ cao điểm kế tiếp.
+- Cảnh báo vàng khi > 15 phút (không tính giờ cao điểm) không có chu kỳ nào đọc xong máy.
+- Bảng mỗi máy: Latest checkin in ERP (đọc trực tiếp DB) · Logs on device · New / Inserted · Read time · Status
+  (✅ / ❌ lỗi + số lần liên tiếp / ⏸ hoãn / skipped). Lấy từ kết quả chu kỳ gần nhất mà job lưu vào cache
+  `biometric_device_log_sync:last_report` (không phân tích file log).
+- 2 dòng cuối của MongoDB sync (18:00).
 
-**Luồng**:
-1. `loadLogFiles()` — gọi `GET biometric_log_viewer.get_log_files` → populate dropdown.
-   Nếu có file `logs.log` thì tự động load ngay.
-2. `loadLog()` — gọi `GET biometric_log_viewer.get_log_content?log_file=<tên>` → nhận nội dung text.
-   Tách thành mảng `allLines[]`, **đảo ngược thứ tự** (dòng mới nhất hiển thị trên cùng).
-3. `filterLines()` — lọc client-side theo:
-   - **Level**: ALL / ERROR / WARNING / INFO (kế thừa: WARNING hiển thị cả ERROR, INFO hiển thị tất cả)
-   - **Search text**: `toLowerCase()` match
-   - Tô màu dòng theo level: đỏ (ERROR/CRITICAL), vàng (WARNING), xanh dương (INFO)
+**Phần dưới — "Raw log"** (gập mặc định): chỉ 2 file `biometric_device_sync.log` / `biometric_mongodb_sync.log`
+(`get_log_files` / `get_log_content`, 500 dòng cuối, mới nhất trên cùng). Tìm kiếm + checkbox **Problems only**
+(FAILED, errors≥1, deferred, STALLED, ERROR). Đã bỏ: dropdown Level (log mới toàn INFO) và 18 file log của tool
+cũ (vẫn còn trên đĩa, không liệt kê).
 
 ---
 
@@ -78,7 +85,7 @@ www/biometric_sync/
 **Mục đích**: Đọc dữ liệu vân tay từ **máy nguồn (master)** và đẩy sang ERPNext và/hoặc các máy đích.
 
 #### Khởi tạo
-- `loadMachinesForFingerprint()` gọi `GET utilities.get_enabled_attendance_machines` → `_allMachines[]`
+- `loadMachinesForFingerprint()` gọi `GET fingerprint.get_enabled_attendance_machines` → `_allMachines[]`
 - Render dropdown chọn máy nguồn + danh sách checkbox máy đích
 
 #### Chọn máy nguồn & đích
@@ -140,7 +147,7 @@ Summary: `"▶ Sync N users → ERPNext + M machines"`
 9. runPhase2(employeeIds, matchedUsers, targetMachines)
    for machine in targetMachines:
      for empId in employeeIds:
-       POST utilities.sync_employee_to_single_machine(employee_id, machine_name)
+       POST fingerprint.sync_employee_to_single_machine(employee_id, machine_name)
        → cập nhật progress bar từng máy
    (tuần tự theo máy, tuần tự theo nhân viên)
 
@@ -196,7 +203,7 @@ confirm(N employees × M machines = total operations)
 
 for machine in selMachines:
   for emp in _fp41Employees:
-    POST utilities.sync_employee_to_single_machine(employee_id, machine_name)
+    POST fingerprint.sync_employee_to_single_machine(employee_id, machine_name)
     → ok/fail → append log
     done++
     barEl.width = done/total * 100%
@@ -271,7 +278,7 @@ Card riêng **"🎯 Delete a Specific Employee"** — xóa `user_id` của **đ�
 
 #### Danh sách máy
 `GET biometric_sync.get_attendance_machines?scope=` → render machine cards.
-Mỗi card hiển thị: tên, device name, IP:port, location, badge "★ Master" nếu là master, "🚪 Door" nếu là máy cửa.
+Mỗi card hiển thị: tên, device name, IP:port, location, "🚪 Door" nếu là máy cửa.
 
 Ô **Machines** (Attendance only / Door control only / All) chỉ hiện với role **Door Control**
 (server trả `can_door`). Mặc định `scope=attendance` — mọi chỗ khác gọi API này không truyền scope
@@ -290,6 +297,14 @@ Info / Sync Time / Reboot / Users dùng `_get_managed_machine_doc()` = `get_mach
 | **Users** | `POST machine_get_users` | Đọc toàn bộ user trên máy (1 `get_users()`, khoá máy vài giây), ghép Employee theo `attendance_device_id` (Active thắng nếu trùng). Trả UID, User ID, tên trên máy, privilege, **chỉ cờ có PIN** (không bao giờ gửi PIN), card, group. |
 
 #### Users on Machines (bảng + xlsx)
+
+- **Fingers** (23/10/2026): `machine_get_users` đọc thêm toàn bộ template vân tay (`get_templates()`, 1 lần/máy,
+  cùng phiên với `get_users`) → mỗi user có `fingers` = danh sách ngón 0..9. Cột hiện `2 · 3, 6`, rê chuột thấy tên
+  ngón; 0 ngón tô đỏ. Chế độ "All loaded machines": giống nhau giữa các máy thì hiện 1 lần, khác nhau → `⚠ differs`
+  (rê chuột xem từng máy). Bộ lọc Fingers: No fingerprint / Only 1 finger / Differs between machines. xlsx từng máy
+  thêm cột Fingers + Finger IDs. Chi phí: máy bị khoá ~4,5 s thay vì ~0,8 s (đo Machine 2: 2.196 template 3,7 s).
+  Tab 4 (quét NV nghỉ) KHÔNG đọc template. Danh sách đã cache từ trước khi có cột → hiện `—`, bấm Users lại.
+  ℹ️ User có PIN mà 0 vân tay (máy + ERP) là BÌNH THƯỜNG — chấm bằng mã PIN (Machine 2 có 6 người, 23/10).
 
 - Chọn 1 máy hoặc "All loaded machines" (gộp theo User ID, cột On Machines); lọc ERP status
   (Active / Left / Other / Not in ERP) + tìm theo User ID, tên trên máy, mã/tên NV.
@@ -331,14 +346,27 @@ Info / Sync Time / Reboot / Users dùng `_get_managed_machine_doc()` = `get_mach
 
 ### Tab 6 — Manual Re-sync
 
-**Mục đích**: Port các chức năng manual của tool CLI `biometric-attendance-sync-tool` (menu `erpnext_re_sync_all.py`) lên web — không cần SSH. Backend: `customize_erpnext/api/biometric_resync.py`; job nền dùng chung cache format `biometric_sync:{job_id}` nên client poll bằng `pollJobStatus()` sẵn có. Không đụng state của tool (status.json cursor, Mongo watermark) — duplicate được ERPNext tự chặn nên chạy song song với service auto an toàn.
+> **Rà soát 23/10/2026:**
+> - 🔴 **Delete OT xoá TẤT CẢ Overtime Registration Detail trong khoảng ngày** — cả OT nhập trực tiếp trên ERP, và
+>   **cancel rồi xoá** phiếu đã submit nằm trọn trong khoảng. Đây là CHỦ ĐÍCH của user (xoá hết trên ERP, không phải
+>   chỉ phần sync từ MongoDB) — đừng "sửa" thành chỉ xoá bản MongoDB. Chỉ System Manager, bắt buộc Preview + gõ `DELETE`.
+> - Re-sync / MongoDB / OT / Delete OT chạy queue **`long`** (trước là `default` → job dài chiếm worker short, các cron
+>   mỗi phút phải chờ).
+> - `_add_checkin` bỏ qua user_id rỗng (log rác của máy): trước đó Re-sync có thể ghi log rác vào nhân viên có
+>   `attendance_device_id` = "" (Test-9999).
+> - ⚠ Giữ `biometric_sync_only_machine0 = 1` (site_config): nếu = 0, MongoDB sync ghi checkin với `device_id`
+>   = "Machine N" → nếu giờ trong MongoDB lệch (UTC/local) sẽ đẩy mốc lấy log tự động của máy đó ra sai.
+
+> **Tự động (từ 23/10/2026):** MongoDB log + OT chạy bằng Frappe scheduler lúc **18:00** mỗi ngày (`mongodb_sync.run_daily_mongodb_sync`, cron trong hooks.py), quét 30 ngày gần nhất — thay cho service `biometric-attendance-sync-tool` (giờ chỉ còn lấy log từ máy). Kết quả: `sites/<site>/logs/biometric_mongodb_sync.log`; lỗi → Error Log. Tạm thời, sau này OT đăng ký thẳng trên ERP.
+
+**Mục đích**: Port các chức năng manual của tool CLI `biometric-attendance-sync-tool` (menu `erpnext_re_sync_all.py`) lên web — không cần SSH. Backend: `customize_erpnext/network/biometric/resync.py`; job nền dùng chung cache format `biometric_sync:{job_id}` nên client poll bằng `pollJobStatus()` sẵn có. Không đụng state của tool (status.json cursor, Mongo watermark) — duplicate được ERPNext tự chặn nên chạy song song với service auto an toàn.
 
 | Card | API | Ghi chú |
 |------|-----|---------|
-| Re-sync Device → ERPNext | `POST biometric_resync.resync_device_logs(machine_names_json, from_date, to_date)` | Chọn máy (checkbox) + khoảng ngày; đọc log từ máy qua pyzk (enable_device trong finally, retry 3 lần nếu máy đang bị service auto giữ); insert qua `add_log_based_on_employee_field` gọi trực tiếp |
-| Sync MongoDB → ERPNext | `POST biometric_resync.resync_mongodb_logs(from_date, to_date)` | Query AttLog theo khoảng ngày (biên UTC = quy ước local-as-UTC của DB); config kết nối trong `site_config.json` (keys `biometric_mongodb_*`, `biometric_sync_only_machine0`) |
-| Sync OT MongoDB → ERPNext | `POST biometric_resync.sync_ot_from_mongodb(from_date)` | Group theo requestNo, dedup theo `reason_general` "Request number: X", conflict-check từng employee/date/time; insert `Overtime Registration` qua ORM |
-| Delete OT | `POST biometric_resync.preview_delete_ot` + `delete_ot(from_date, to_date, confirm_text)` | **Chỉ System Manager** (card ẩn với user khác — `index.py` inject `is_system_manager`); bắt buộc Preview + gõ `DELETE`; xóa qua ORM (trim child rows / delete_doc), KHÔNG raw SQL; doc đã submit còn row ngoài range → skip kèm cảnh báo |
+| Re-sync Device → ERPNext | `POST resync.resync_device_logs(machine_names_json, from_date, to_date)` | Chọn máy (checkbox) + khoảng ngày; đọc log từ máy qua pyzk (enable_device trong finally, retry 3 lần nếu máy đang bị service auto giữ); insert qua `add_log_based_on_employee_field` gọi trực tiếp |
+| Sync MongoDB → ERPNext | `POST mongodb_sync.resync_mongodb_logs(from_date, to_date)` | Query AttLog theo khoảng ngày (biên UTC = quy ước local-as-UTC của DB); config kết nối trong `site_config.json` (keys `biometric_mongodb_*`, `biometric_sync_only_machine0`) |
+| Sync OT MongoDB → ERPNext | `POST mongodb_sync.sync_ot_from_mongodb(from_date)` | Group theo requestNo, dedup theo `Overtime Registration Detail.reason` chứa "Request number: X" (`reason_general` đã bỏ 24/09), conflict-check từng employee/date/time; insert `Overtime Registration` qua ORM |
+| Delete OT | `POST resync.preview_delete_ot` + `delete_ot(from_date, to_date, confirm_text)` | **Chỉ System Manager** (card ẩn với user khác — `index.py` inject `is_system_manager`); bắt buộc Preview + gõ `DELETE`; xóa qua ORM (trim child rows / delete_doc), KHÔNG raw SQL; doc đã submit còn row ngoài range → skip kèm cảnh báo |
 
 ## API endpoints sử dụng
 
@@ -348,7 +376,7 @@ Info / Sync Time / Reboot / Users dùng `_get_managed_machine_doc()` = `get_mach
 |--------|-------|
 | `biometric_log_viewer.get_log_files` | Danh sách file log |
 | `biometric_log_viewer.get_log_content?log_file=` | Nội dung file log |
-| `utilities.get_enabled_attendance_machines` | Danh sách máy đang bật |
+| `fingerprint.get_enabled_attendance_machines` | Danh sách máy đang bật |
 | `biometric_sync.get_master_device_users?machine_name=` | Users trên máy chấm công + match với ERPNext |
 | `biometric_sync.get_employees_for_sync` | Nhân viên active từ ERPNext, filter tùy chọn |
 | `biometric_sync.get_sync_job_status?job_id=` | Trạng thái background job |
@@ -360,8 +388,8 @@ Info / Sync Time / Reboot / Users dùng `_get_managed_machine_doc()` = `get_mach
 |--------|-------|
 | `biometric_sync.check_employees_fingerprints_in_erp` | Kiểm tra nhân viên đã có vân tay trong ERP chưa |
 | `biometric_sync.sync_fingerprints` | Tạo background job đồng bộ vân tay từ thiết bị |
-| `utilities.sync_employee_to_single_machine` | Đẩy 1 nhân viên xuống 1 máy |
-| `utilities.sync_employees_to_machine_batch` | Đẩy NHIỀU nhân viên xuống 1 máy trên 1 kết nối (nhanh, có realtime progress) |
+| `fingerprint.sync_employee_to_single_machine` | Đẩy 1 nhân viên xuống 1 máy |
+| `fingerprint.sync_employees_to_machine_batch` | Đẩy NHIỀU nhân viên xuống 1 máy trên 1 kết nối (nhanh, có realtime progress) |
 | `biometric_sync.get_left_employees_on_machines` | Scan nhân viên cần xóa khỏi máy |
 | `biometric_sync.find_employee_on_machines` | Tìm 1 nhân viên cụ thể + scan máy chứa user_id (chặn Active) |
 | `biometric_sync.delete_users_from_machines` | Tạo background job xóa users khỏi máy (chặn NV đang làm trên máy chấm công; máy cửa cần Door Control) |

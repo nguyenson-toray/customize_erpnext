@@ -2,7 +2,7 @@
 
     cd ~/frappe-bench/sites
     ../env/bin/python -c "import frappe; frappe.init(site='erp.tiqn.local'); frappe.connect(); \
-        exec(open('../apps/customize_erpnext/customize_erpnext/api/test_door_control.py').read())"
+        exec(open('../apps/customize_erpnext/customize_erpnext/network/door/test_control.py').read())"
 
 🔴 Chỉ được kết nối máy TEST 10.0.1.50 (user cho phép 08/10/2026) — máy này sẽ
 kêu "tách" 2 lần (unlock_door + unlock_all). Máy cửa giả 192.0.2.1 là địa chỉ
@@ -16,8 +16,8 @@ tưởng máy không có log mới trong khi các dòng đã bị rollback).
 
 import frappe
 
-import customize_erpnext.api.attendance_machines as am
-import customize_erpnext.api.door_control as dc
+import customize_erpnext.network.biometric.machines as am
+import customize_erpnext.network.door.control as dc
 
 TEST_IP = "10.0.1.50"
 
@@ -93,14 +93,11 @@ try:
     check("door_only chỉ máy cửa", door_only == {TEST_NAME, fake.device_name}, str(door_only))
     check("get_machine từ chối máy cửa", raises(lambda: am.get_machine(TEST_NAME), frappe.ValidationError))
     check("get_machine(allow_door) trả máy cửa", am.get_machine(TEST_NAME, allow_door=True)["is_door_control"])
-    from customize_erpnext.api.biometric_sync import _get_machine_doc
+    from customize_erpnext.network.biometric.biometric_sync import _get_machine_doc
     check("resync/reboot (_get_machine_doc) từ chối máy cửa",
           raises(lambda: _get_machine_doc(TEST_NAME), frappe.ValidationError))
 
     print("2. Validate Setting")
-    test_row.master_device = 1
-    check("máy cửa không được là master", raises(settings._validate_door_controllers, frappe.ValidationError))
-    test_row.master_device = 0
     test_row.unlock_seconds = 0
     check("unlock_seconds = 0 bị chặn", raises(settings._validate_door_controllers, frappe.ValidationError))
     test_row.unlock_seconds = 3

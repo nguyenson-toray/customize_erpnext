@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Settings of the Telegram door alerts (customize_erpnext.api.door_alerts).
+# Settings of the Telegram door alerts (customize_erpnext.network.door.alerts).
 # Created switched OFF with no recipients on purpose: an admin fills in the
 # chats and turns it on (same rule as every alert/e-mail feature of this app).
 
