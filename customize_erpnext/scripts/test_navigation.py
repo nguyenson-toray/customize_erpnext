@@ -7,7 +7,7 @@ Chạy:
 
 Dựng bootinfo y như trình duyệt nhận, rồi soát:
 - `canonical_shell` của mọi trang TIQN trên menu (trang mở từ ô tìm kiếm / link vào sidebar nào);
-- đủ 8 icon TIQN, Frappe HR đủ 9 icon con, dock TIQN đủ 8 module;
+- đủ 9 icon TIQN, Frappe HR đủ 9 icon con, dock TIQN đủ 9 module;
 - slug của shell khác slug trang đầu tiên (nếu trùng, router không ghi shell vào URL → sidebar "dính");
 - 6 DocType đã xoá không còn, không link nào trỏ vào;
 - tài khoản công nhân (không phải HR) thấy icon Overtime Registration.
@@ -18,7 +18,7 @@ import frappe
 from frappe.boot import get_bootinfo
 
 ICONS = {"Overtime Registration", "New Joiners", "Employee Photos", "Devices and Security",
-		 "Vehicle Management", "Health Check Up", "Shoe Rack", "IT Tools"}
+		 "Vehicle Management", "Health Check Up", "Shoe Rack", "Employee Portal", "IT Tools"}
 
 EXPECTED = {
 	"DocType": {
@@ -40,6 +40,9 @@ EXPECTED = {
 		"Employee Dependent": "Payroll", "External Personnel": "Payroll",
 		"Packing List": "Stock",
 		"Employee": "HR Setup",
+		"TIQN Payslip": "Employee Portal", "TIQN Portal Notification": "Employee Portal",
+		"TIQN Portal Link Request": "Employee Portal", "TIQN Portal Account": "Employee Portal",
+		"Employee Portal Settings": "Employee Portal",
 	},
 	"Report": {
 		"Overtime Registration": "Overtime",
@@ -52,12 +55,14 @@ EXPECTED = {
 		"Stock Balance Customize": "Stock", "Stock Ledger Customize": "Stock",
 		"BOM Balance Sheet": "Manufacturing",
 		"TIQN Vehicle KM": "Vehicle Management",
+		"Payslip Period Summary": "Employee Portal",
 	},
 	"Page": {
 		"vehicle-dispatch": "Vehicle Management",
 		"health-check-up-management": "Health Checkup",
 		"shoe-rack-dashboard": "Shoe Rack Management", "layout-manager": "Shoe Rack Management",
 		"biometric-sync": "Devices and Security",
+		"payslip-upload": "Employee Portal",
 	},
 }
 
@@ -103,12 +108,12 @@ def run():
 	print("=== 1. Administrator")
 	b = boot_for("Administrator")
 	icons = {i.label for i in b.desktop_icons if i.get("app") == "customize_erpnext"}
-	check("đúng 8 icon TIQN", icons == ICONS, f"thừa {icons - ICONS} · thiếu {ICONS - icons}")
+	check("đúng 9 icon TIQN", icons == ICONS, f"thừa {icons - ICONS} · thiếu {ICONS - icons}")
 	hr = [i.label for i in b.desktop_icons if i.get("parent_icon") == "Frappe HR"]
 	check("Frappe HR đủ 9 icon con", len(hr) == 9, hr)
 	dock = (b.get("dock") or {}).get("customize_erpnext") or {}
 	dock_items = dock.get("items") if isinstance(dock, dict) else dock
-	check("dock TIQN đủ 8 module", len(dock_items or []) == 8, dock_items)
+	check("dock TIQN đủ 9 module", len(dock_items or []) == 9, dock_items)
 
 	for icon in ICONS:
 		check(f"icon {icon} tìm được shell", sidebar_for(b.module_sidebars, icon) is not None)

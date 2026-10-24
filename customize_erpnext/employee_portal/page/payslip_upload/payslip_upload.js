@@ -24,7 +24,7 @@ class PayslipUploadPage {
 				<div class="psu-card">
 					<div class="psu-card-title">${__('1. Upload the salary Excel file')}</div>
 					<div class="text-muted small psu-help">
-						${__('One row per employee: Period (YYYY-MM or MM-YYYY), Period From, Period To, Employee, Employee Name, Department, Section, Group, then one column per Salary Component, matched by the code at the start of the header (e.g. "3.2 ..."). Period From / To are optional and must match the period (26th to 25th).')}
+						${__('One row per employee: No., Period (YYYY-MM or MM-YYYY), Period From, Period To, Pay Date, Employee, Employee Name, Designation, Department, Section, Group, then one column per Salary Component, matched by the code at the start of the header (e.g. "3.2 ..."). No. and Designation are not imported. Period From / To may be inside the period (joined or left during it); empty Pay Date = the monthly pay day.')}
 					</div>
 					<div class="psu-actions">
 						<button class="btn btn-default btn-sm psu-template">${__('Download Template')}</button>
@@ -43,9 +43,7 @@ class PayslipUploadPage {
 		`).appendTo(page.body);
 		this.inject_css();
 
-		this.$body.find('.psu-template').on('click', () => {
-			window.open(`/api/method/${PSU_API}.download_template`);
-		});
+		this.$body.find('.psu-template').on('click', () => payslip_template_dialog(PSU_API));
 		this.$body.find('.psu-upload').on('click', () => this.upload());
 		page.set_secondary_action(__('Refresh'), () => this.load_periods());
 
@@ -93,6 +91,7 @@ class PayslipUploadPage {
 			<span class="indicator-pill ${data.error_count ? 'red' : 'green'}">${__('{0} errors', [data.error_count])}</span>
 			<span class="indicator-pill ${data.warning_count ? 'orange' : 'green'}">${__('{0} warnings', [data.warning_count])}</span>
 			<span class="text-muted">${__('Periods')}: ${(data.periods || []).map(esc).join(', ') || '-'}</span>
+			${data.check_formulas ? '' : `<span class="indicator-pill gray">${__('Formula check off (Settings)')}</span>`}
 		</div>`;
 
 		if (data.header_errors.length) {
@@ -175,7 +174,15 @@ class PayslipUploadPage {
 	}
 
 	load_periods() {
-		frappe.call({ method: `${PSU_API}.get_period_summary` }).then((r) => this.render_periods(r.message || []));
+		frappe.call({ method: `${PSU_API}.get_period_summary`, type: 'GET' }).then((r) => this.render_periods(r.message || []));
+		frappe.call({ method: `${PSU_API}.get_config_errors`, type: 'GET' }).then((r) => {
+			const errors = r.message || [];
+			this.$body.find('.psu-config').remove();
+			if (!errors.length) return;
+			$(`<div class="psu-block psu-err psu-config"><b>${__('Payslip setup')}</b><ul class="psu-issues">${errors
+				.map((e) => `<li>${frappe.utils.escape_html(e)}</li>`)
+				.join('')}</ul></div>`).prependTo(this.$body);
+		});
 	}
 
 	render_periods(periods) {
@@ -187,15 +194,16 @@ class PayslipUploadPage {
 		const fmt_money = (v) => format_currency(v, 'VND', 0);
 		let html = `<table class="table table-bordered table-sm psu-table"><thead><tr>
 			<th>${__('Period')}</th><th>${__('Draft')}</th><th>${__('Published', null, 'Payslip')}</th><th>${__('Withdrawn', null, 'Payslip')}</th>
-			<th>${__('Net Pay Total')}</th><th>${__('Views', null, 'Payslip')}</th><th></th>
+			<th>${__('Final Settlement')}</th><th>${__('Net Pay Total')}</th><th>${__('Viewed', null, 'Payslip')}</th><th></th>
 		</tr></thead><tbody>`;
 		for (const p of periods) {
 			const range = `${frappe.datetime.str_to_user(p.from_date)} – ${frappe.datetime.str_to_user(p.to_date)}`;
 			html += `<tr data-period="${p.period}">
 				<td><a href="/app/tiqn-payslip?period=${encodeURIComponent(p.period)}"><b>${p.period}</b></a>
 					<div class="text-muted small">${range}</div></td>
-				<td>${p.Draft}</td><td>${p.Published}</td><td>${p.Withdrawn}</td>
-				<td class="text-right">${fmt_money(p.net_total)}</td><td>${p.views}</td>
+				<td>${p.Draft}</td><td>${p.Published}</td><td>${p.Withdrawn}</td><td>${p.final_settlement || '-'}</td>
+				<td class="text-right">${fmt_money(p.net_total)}</td>
+				<td>${p.Published ? `${p.viewed} / ${p.Published}` : '-'}</td>
 				<td class="psu-row-actions">
 					${p.Draft + p.Withdrawn ? `<button class="btn btn-primary btn-xs psu-publish">${__('Publish', null, 'Payslip')}</button>` : ''}
 					${p.Published ? `<button class="btn btn-default btn-xs psu-withdraw">${__('Withdraw', null, 'Payslip')}</button>` : ''}
@@ -221,8 +229,8 @@ class PayslipUploadPage {
 		act(
 			'.psu-publish',
 			'publish_period',
-			(p) => __('Publish all Draft payslips of {0}? Employees will see them in the Mini App immediately.', [p]),
-			(m) => __('Published {0} payslips', [m.published])
+			(p) => __('Publish all Draft payslips of {0}? Employees will see them in the Mini App immediately. Final settlements alone send no notification.', [p]),
+			(m) => (m.notified ? __('Published {0} payslips', [m.published]) : __('Published {0} payslips, no notification sent', [m.published]))
 		);
 		act(
 			'.psu-withdraw',
@@ -261,4 +269,65 @@ class PayslipUploadPage {
 		`;
 		document.head.appendChild(style);
 	}
+}
+
+// "Download Template": monthly (pick the pay period) or resigned employees (pick the
+// relieving date range) - employee columns pre-filled, HR types the numbers.
+// Same dialog in tiqn_payslip_list.js and payslip_upload.js (no shared bundle for the two).
+function payslip_template_dialog(api) {
+	frappe.call({ method: `${api}.get_template_periods`, type: 'GET' }).then((r) => {
+		const m = r.message || {};
+		const d = new frappe.ui.Dialog({
+			title: __('Download Template'),
+			fields: [
+				{
+					fieldtype: 'Check',
+					fieldname: 'resigned',
+					label: __('Resigned Employees Only'),
+					description: __(
+						'Employees who left in the date range below, paid separately within 14 days of leaving. Period To = the day before the relieving date; Pay Date is filled in.'
+					),
+				},
+				{
+					fieldtype: 'Select',
+					fieldname: 'period',
+					label: __('Pay Period'),
+					options: (m.periods || []).map((p) => ({ value: p.value, label: p.label })),
+					default: m.default,
+					depends_on: 'eval:!doc.resigned',
+					mandatory_depends_on: 'eval:!doc.resigned',
+					description: __(
+						'Employees on the payroll until the end of this period. Not included: those who left before or during it (use Resigned Employees Only), those on maternity leave for the whole period, and Exclude Employees of Attendance Calculation Setting.'
+					),
+				},
+				{
+					fieldtype: 'Date',
+					fieldname: 'from_date',
+					label: __('Relieving Date From'),
+					depends_on: 'eval:doc.resigned',
+					mandatory_depends_on: 'eval:doc.resigned',
+				},
+				{
+					fieldtype: 'Date',
+					fieldname: 'to_date',
+					label: __('Relieving Date To'),
+					depends_on: 'eval:doc.resigned',
+					mandatory_depends_on: 'eval:doc.resigned',
+				},
+			],
+			primary_action_label: __('Download'),
+			primary_action: (v) => {
+				const q = v.resigned
+					? `resigned=1&from_date=${encodeURIComponent(v.from_date)}&to_date=${encodeURIComponent(v.to_date)}`
+					: `period=${encodeURIComponent(v.period)}`;
+				if (v.resigned && v.from_date > v.to_date) {
+					frappe.msgprint(__('Relieving Date From must be on or before Relieving Date To.'));
+					return;
+				}
+				d.hide();
+				window.open(`/api/method/${api}.download_template?${q}`);
+			},
+		});
+		d.show();
+	});
 }

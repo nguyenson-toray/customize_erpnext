@@ -5,8 +5,10 @@
 
 `get_payslip_periods` NEVER returns amounts: the list screen can be shown to someone
 else holding the phone without exposing a year of salary. Amounts only come from
-`get_payslip`, which is POST because every call is logged.
+`get_payslip`, which is POST because the first call marks the payslip viewed.
 """
+
+import re
 
 import frappe
 from frappe import _
@@ -17,6 +19,7 @@ from customize_erpnext.employee_portal.utils import (
 	expected_pay_date,
 	get_settings,
 	period_bounds,
+	payslip_component_fields,
 	period_label,
 	period_of_date,
 	shift_period,
@@ -107,21 +110,22 @@ def get_payslip(period=None, include_zero=None):
 
 	data = build_payslip_payload(doc, include_zero)
 
-	now = now_datetime()
-	frappe.get_doc(
-		{
-			"doctype": "TIQN Payslip View Log",
-			"payslip": doc.name,
-			"employee": c.employee,
-			"period": doc.period,
-			"viewed_on": now,
-			"session": c.session,
-			"include_zero": int(include_zero),
-		}
-	).insert(ignore_permissions=True)
 	if not doc.first_viewed_on:
-		frappe.db.set_value("TIQN Payslip", doc.name, "first_viewed_on", now, update_modified=False)
+		_mark_viewed(doc.name)
 	return data
+
+
+def _mark_viewed(name):
+	"""First view only: after a publish ~1000 people open their payslip within minutes,
+	and every later open (back / forth, "hide 0") must not write. `IS NULL` in SQL so two
+	requests at once keep the earliest; update_modified stays untouched (HR edits only)."""
+	ps = frappe.qb.DocType("TIQN Payslip")
+	(
+		frappe.qb.update(ps)
+		.set(ps.first_viewed_on, now_datetime())
+		.where(ps.name == name)
+		.where(ps.first_viewed_on.isnull())
+	).run()
 
 
 # ---------------------------------------------------------------------------
@@ -158,12 +162,72 @@ def _amount(value, unit):
 	return int(value) if value == int(value) else value
 
 
+# "(a)", "(c=a+b)", "(j=f-g+h+i)" in the component name - the letters of the paper
+# payslip. Lower-case a-j only, so "(8%)" or "(SI+HI+UI)" never match.
+FORMULA_RE = re.compile(r"\(\s*([a-j](?:\s*=\s*[a-j](?:\s*[+-]\s*[a-j])*)?)\s*\)")
+
+
+def build_payslip_rows(doc, include_zero, components):
+	"""`rows` (contract 1.3.0): the paper payslip line by line - components in
+	custom_portal_order (= code order 1, 1.1, 1.2, 2, ... 9), each with its Unit/ĐVT
+	value and amount. Amounts are positive as printed; deductions are not negated."""
+	by_name = {c.name: c for c in components}
+	parents = {c.parent for c in components if c.parent in by_name and c.parent != c.name}
+
+	def level(c):
+		depth, seen, p = 0, {c.name}, c.parent
+		while p in by_name and p not in seen:  # a loop in the config must not hang
+			depth += 1
+			seen.add(p)
+			p = by_name[p].parent
+		return depth
+
+	rows = []
+	for c in components:
+		unit = UNITS.get(c.unit or "VND", "VND")
+		value = doc.get(c.fieldname)
+		if unit == "VND":
+			amount = _amount(value, unit)
+			quantity_unit = UNITS.get(c.qty_unit) if c.qty_fieldname else None
+			quantity = _amount(doc.get(c.qty_fieldname), quantity_unit) if c.qty_fieldname else None
+		else:  # days / hours only (1.1): nothing in the Amount column
+			amount, quantity, quantity_unit = None, _amount(value, unit), unit
+		is_header = c.row_type in ("Subtotal", "Section Total") or c.name in parents
+		if not include_zero and not is_header and not amount and not quantity:
+			continue
+		m = FORMULA_RE.search(c.name or "")
+		rows.append(
+			{
+				"no": str(c.abbr),
+				"label": c.label or c.name,
+				"formula": re.sub(r"\s+", "", m.group(1)) if m else None,
+				"quantity": quantity,
+				"quantity_unit": quantity_unit,
+				"amount": amount,
+				"level": level(c),
+				"is_header": is_header,
+			}
+		)
+	return rows
+
+
 def build_payslip_payload(doc, include_zero):
 	config = component_config()
-	amounts = {d.salary_component: flt(d.amount) for d in doc.details}
+	components = payslip_component_fields()
+	# Only components that have a field on TIQN Payslip; same "present" rule as the old
+	# child table, where every imported component had a row (0 included).
+	amounts, legacy_units = {}, {}
+	for c in components:
+		if c.section == "Attendance" and c.qty_fieldname:
+			# 1.2 / 2.1-2.3 became money lines (24/10/2026); `sections` (deprecated)
+			# keeps showing their days / hours in ATTENDANCE as before.
+			amounts[c.name] = flt(doc.get(c.qty_fieldname))
+			legacy_units[c.name] = c.qty_unit
+		else:
+			amounts[c.name] = flt(doc.get(c.fieldname))
 
 	def line(cfg, children):
-		unit = UNITS.get(cfg.unit or "VND", "VND")
+		unit = UNITS.get(legacy_units.get(cfg.name) or cfg.unit or "VND", "VND")
 		return {
 			"code": cfg.abbr,
 			"label": cfg.label or cfg.name,
@@ -225,5 +289,6 @@ def build_payslip_payload(doc, include_zero):
 			"section": doc.section,
 			"group": doc.group,
 		},
+		"rows": build_payslip_rows(doc, include_zero, components),
 		"sections": sections,
 	}

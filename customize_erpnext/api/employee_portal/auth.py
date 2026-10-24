@@ -4,6 +4,7 @@
 """Config, login and session endpoints - API_CONTRACT.md §2 and §6."""
 
 import os
+import re
 from urllib.parse import quote, unquote
 
 import frappe
@@ -29,6 +30,7 @@ from customize_erpnext.api.employee_portal.core import (
 	revoke_session,
 )
 from customize_erpnext.employee_portal.utils import (
+	clean_id_by_oa,
 	designation_label,
 	employee_access,
 	find_employees_by_phone,
@@ -41,6 +43,10 @@ from customize_erpnext.employee_portal.utils import (
 )
 from customize_erpnext.utils import zalo_graph
 
+# The whole factory WiFi is ONE public IP (NAT): after a payslip is published hundreds of
+# people sign in within minutes. Zalo must vouch for every token, and each Zalo ID has its
+# own tight limit, so the per-IP limit only stops a runaway script.
+LOGIN_PER_IP_PER_MINUTE = 3000
 UPLOAD_ACCEPT = ["image/jpeg", "image/png", "image/webp", "application/pdf"]
 
 
@@ -101,6 +107,19 @@ def oa_payload(account):
 	}
 
 
+def chat_payload():
+	"""Where the "Chat with C&B" button goes: a 1-1 chat with the payroll staff member
+	set in Settings (their ID by OA), else the Official Account when its chat is on,
+	else None (hide the button). Never falls back to a zalo_user_id - it would show a
+	button that opens nothing. Authenticated endpoints only: it is a person's ID."""
+	s = get_settings()
+	if s.get("cb_chat_id_by_oa"):
+		return {"type": "user", "id": s.cb_chat_id_by_oa, "name": s.get("cb_chat_name") or None}
+	if cint(s.oa_chat_enabled) and s.oa_id:
+		return {"type": "oa", "id": s.oa_id, "name": s.company_short_name or s.company_display_name or None}
+	return None
+
+
 # ---------------------------------------------------------------------------
 @portal_api(methods=("GET",), auth=False)
 def get_config():
@@ -112,7 +131,7 @@ def get_config():
 		"company": {
 			"name": s.company_display_name or company,
 			"short_name": s.company_short_name or None,
-			"logo_url": get_url(s.logo) if s.logo else None,
+			"logo_url": None,  # deprecated 1.5.0: the Mini App shows the Zalo App logo
 		},
 		"contacts": {"hr_hotline": s.hr_hotline or None, "company_phone": s.company_phone or None},
 		"legal": {
@@ -143,19 +162,19 @@ def login(access_token=None, phone_token=None):
 	if not access_token:
 		raise PortalError("ZALO_TOKEN_INVALID", _("Missing Zalo access token."), field="access_token")
 
-	hit_rate_limit(f"login-ip:{getattr(frappe.local, 'request_ip', '')}", 120, 60)
+	hit_rate_limit(f"login-ip:{getattr(frappe.local, 'request_ip', '')}", LOGIN_PER_IP_PER_MINUTE, 60)
 
 	try:
 		raw_phone = None
 		if phone_token:
 			# Phone first: its token dies after 2 minutes, the access token lives longer.
 			raw_phone = zalo_graph.get_phone(access_token, phone_token, SECRET_CONF)
-		zalo_user_id, _zalo_name = zalo_graph.get_user_id(access_token, SECRET_CONF)
+		zalo_user_id, zalo_name = zalo_graph.get_user_id(access_token, SECRET_CONF)
 	except zalo_graph.ZaloError as e:
 		raise PortalError(e.code, e.message, details={"zalo_code": e.zalo_code} if e.zalo_code else None)
 
 	hit_rate_limit(f"login-zalo:{zalo_user_id}", 10, 600)
-	return complete_login(zalo_user_id, raw_phone, "ZALO_PHONE" if raw_phone else "STORED_PHONE")
+	return complete_login(zalo_user_id, raw_phone, "ZALO_PHONE" if raw_phone else "STORED_PHONE", zalo_name=zalo_name)
 
 
 @portal_api(methods=("POST",), auth=False)
@@ -210,15 +229,18 @@ def _empty_payload(zalo_user_id, phone):
 		"oa": None,
 		"expired_on": None,
 		"message": None,
+		"link_request": None,
 	}
 
 
-def complete_login(zalo_user_id, raw_phone=None, login_method="ZALO_PHONE"):
+def complete_login(zalo_user_id, raw_phone=None, login_method="ZALO_PHONE", zalo_name=None):
 	"""Everything after Zalo (or dev_login) has named the user. Split out so tests can
 	drive the whole decision table without a real Zalo token.
 
 	`raw_phone` is set only when Zalo itself confirmed the number at this sign-in; it
 	then replaces whatever the account held (phone_source = Zalo).
+	`zalo_name` comes from Zalo's Graph API (never from the client); empty when the user
+	has not shared their profile - the stored name is then kept.
 	"""
 	now = now_datetime()
 	if frappe.db.exists("TIQN Portal Account", zalo_user_id):
@@ -228,6 +250,8 @@ def complete_login(zalo_user_id, raw_phone=None, login_method="ZALO_PHONE"):
 		account.zalo_user_id = zalo_user_id
 		account.first_login = now
 	account.flags.from_login = True
+	if zalo_name:
+		account.zalo_name = zalo_name
 
 	if raw_phone:
 		account.phone = local_phone(raw_phone)
@@ -253,6 +277,7 @@ def complete_login(zalo_user_id, raw_phone=None, login_method="ZALO_PHONE"):
 		result = "NO_PHONE"
 	elif not employee_row:
 		result = "NOT_FOUND"
+		payload["link_request"] = link_request_payload(zalo_user_id)
 	else:
 		result, read_only_until, expired_on = employee_access(employee_row)
 		if result == "EXPIRED":
@@ -278,6 +303,98 @@ def complete_login(zalo_user_id, raw_phone=None, login_method="ZALO_PHONE"):
 
 
 # ---------------------------------------------------------------------------
+# NOT_FOUND -> "I am employee X" -> HR approves (TIQN Portal Link Request)
+# ---------------------------------------------------------------------------
+LINK_REQUEST = "TIQN Portal Link Request"
+EMPLOYEE_ID_RE = re.compile(r"^TIQN-\d{4}$")
+LINK_REQUESTS_PER_DAY = 3
+
+
+@portal_api(methods=("POST",), auth=False)
+def link_employee_request(access_token=None, employee_id=None, full_name=None):
+	"""Ask HR to link this Zalo account to employee `employee_id`.
+
+	Who is asking comes from Zalo (access_token), never from the client - a
+	`zalo_user_id` parameter is ignored. The phone HR will approve is the one Zalo
+	confirmed at the last sign-in. Whether the typed name matches is NOT told back
+	(it would let anyone probe employee names); HR sees it on the request.
+	"""
+	access_token = (access_token or "").strip()
+	employee_id = (employee_id or "").strip().upper()
+	full_name = " ".join((full_name or "").split())
+	if not access_token:
+		raise PortalError("ZALO_TOKEN_INVALID", _("Missing Zalo access token."), field="access_token")
+	if not EMPLOYEE_ID_RE.match(employee_id):
+		raise PortalError("VALIDATION", _("Employee code must look like TIQN-0123."), field="employee_id")
+	if len(full_name) < 2 or len(full_name) > 140:
+		raise PortalError("VALIDATION", _("Please enter your full name."), field="full_name")
+
+	hit_rate_limit(f"link-ip:{getattr(frappe.local, 'request_ip', '')}", 120, 60)
+	try:
+		zalo_user_id, zalo_name = zalo_graph.get_user_id(access_token, SECRET_CONF)
+	except zalo_graph.ZaloError as e:
+		raise PortalError(e.code, e.message, details={"zalo_code": e.zalo_code} if e.zalo_code else None)
+
+	account = frappe.db.get_value(
+		"TIQN Portal Account", zalo_user_id, ["name", "phone", "disabled", "auto_disabled", "zalo_name"], as_dict=True
+	)
+	if not account:
+		raise PortalError("LOGIN_AGAIN", _("Please open the app again."))
+	if account.disabled and not account.auto_disabled:
+		raise PortalError("DISABLED", _("Your account has been locked by the HR department. Please contact HR."))
+	if not account.phone:
+		raise PortalError("VALIDATION", _("Please allow the app to read your phone number, then try again."))
+	if find_employees_by_phone(account.phone):
+		raise PortalError("LOGIN_AGAIN", _("Your phone now matches an employee record. Please open the app again."))
+	if frappe.db.exists(LINK_REQUEST, {"account": zalo_user_id, "status": "Pending"}):
+		raise PortalError("PENDING", _("You already have a request waiting for HR."))
+
+	hit_rate_limit(f"link-zalo:{zalo_user_id}", LINK_REQUESTS_PER_DAY, 86400)
+	employee = frappe.db.get_value("Employee", employee_id, ["name", "status", "relieving_date"], as_dict=True)
+	if not employee or employee_access(employee)[0] not in ("ACTIVE", "READ_ONLY"):
+		raise PortalError("NOT_FOUND", _("Employee code {0} was not found.").format(employee_id), field="employee_id")
+
+	doc = frappe.new_doc(LINK_REQUEST)
+	doc.update(
+		{
+			"account": zalo_user_id,
+			"zalo_name": zalo_name or account.zalo_name,
+			"phone": account.phone,
+			"employee": employee.name,
+			"full_name": full_name,
+		}
+	)
+	doc.insert(ignore_permissions=True)
+	return {
+		"status": "PENDING",
+		"message": _("Your request has been sent. The HR department will check it."),
+		"link_request": link_request_payload(zalo_user_id),
+	}
+
+
+def link_request_payload(zalo_user_id):
+	"""Latest request of this Zalo account if it is waiting or was rejected, else None
+	(approved = the phone matches, so login no longer answers NOT_FOUND)."""
+	if not frappe.db.table_exists(LINK_REQUEST):  # code deployed before migrate
+		return None
+	row = frappe.db.get_value(
+		LINK_REQUEST,
+		{"account": zalo_user_id},
+		["status", "employee", "creation", "reject_reason"],
+		as_dict=True,
+		order_by="creation desc",
+	)
+	if not row or row.status not in ("Pending", "Rejected"):
+		return None
+	return {
+		"status": row.status.upper(),
+		"employee_id": row.employee,
+		"created_at": fmt_datetime(row.creation),
+		"reject_reason": row.reject_reason if row.status == "Rejected" else None,
+	}
+
+
+# ---------------------------------------------------------------------------
 @portal_api(methods=("GET",))
 def me():
 	c = ctx()
@@ -292,7 +409,23 @@ def me():
 		"masked_phone": mask_phone(account.phone),
 		"session_expires_on": fmt_datetime(c.session_expires_on),
 		"oa": oa_payload(account),
+		"chat": chat_payload(),
 	}
+
+
+@portal_api(methods=("POST",))
+def set_id_by_oa(id_by_oa=None):
+	"""Mini App sends getUserInfo().idByOA after login (empty until the Mini App is
+	verified by the OA or the user follows it). Stored on the caller's OWN account only;
+	HR copies the payroll staff member's value into Settings → C&B Chat ID."""
+	try:
+		value = clean_id_by_oa(id_by_oa)
+	except frappe.ValidationError:
+		frappe.clear_messages()
+		raise PortalError("VALIDATION", _("id_by_oa must be the Zalo ID by OA (digits only)."), field="id_by_oa")
+	if value:
+		frappe.db.set_value("TIQN Portal Account", ctx().account, "id_by_oa", value, update_modified=False)
+	return {"saved": bool(value)}
 
 
 @portal_api(methods=("POST",), auth=False)

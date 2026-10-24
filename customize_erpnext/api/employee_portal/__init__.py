@@ -17,7 +17,16 @@ from customize_erpnext.api.employee_portal.attendance import (
 	get_attendance_summary,
 	get_overtime,
 )
-from customize_erpnext.api.employee_portal.auth import dev_login, get_config, login, logout, me, set_oa_follow
+from customize_erpnext.api.employee_portal.auth import (
+	dev_login,
+	get_config,
+	link_employee_request,
+	login,
+	logout,
+	me,
+	set_id_by_oa,
+	set_oa_follow,
+)
 from customize_erpnext.api.employee_portal.home import get_home
 from customize_erpnext.api.employee_portal.leave import (
 	download_document,
@@ -31,10 +40,12 @@ from customize_erpnext.api.employee_portal.payslip import get_payslip, get_paysl
 __all__ = [
 	"get_config",
 	"login",
+	"link_employee_request",
 	"dev_login",
 	"logout",
 	"me",
 	"set_oa_follow",
+	"set_id_by_oa",
 	"get_notifications",
 	"mark_notifications_read",
 	"get_payslip",

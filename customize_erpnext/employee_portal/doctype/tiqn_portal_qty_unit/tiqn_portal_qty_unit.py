@@ -4,5 +4,5 @@
 from frappe.model.document import Document
 
 
-class TIQNPayslipViewLog(Document):
+class TIQNPortalQtyUnit(Document):
 	pass

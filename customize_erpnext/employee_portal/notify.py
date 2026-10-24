@@ -34,18 +34,22 @@ def notify(
 	reference_doctype=None,
 	reference_name=None,
 ):
-	"""`title` / `body` are ENGLISH source strings (+ format args), translated to
+	"""Notification to one employee, or several (`employee` may be a list) - still ONE row.
+
+	`title` / `body` are ENGLISH source strings (+ format args), translated to
 	Vietnamese here. The text is stored, so it must not depend on the language of
 	whoever triggered it - a Desk user with English UI pressing Publish would
 	otherwise send "Payslip 09/2026" to every employee."""
 	if type not in TARGET_SCREEN:
 		frappe.throw(f"Unknown portal notification type {type}")
+	employees = [employee] if isinstance(employee, str) else list(employee or [])
 	title = frappe._(title, lang="vi").format(*title_args)
 	body = frappe._(body, lang="vi").format(*body_args) if body else None
 	return frappe.get_doc(
 		{
 			"doctype": "TIQN Portal Notification",
-			"employee": employee,
+			"audience": "Employees",
+			"employees": [{"employee": e} for e in employees],
 			"type": type,
 			"title": title,
 			"body": body,
@@ -53,5 +57,27 @@ def notify(
 			"target_id": target_id,
 			"reference_doctype": reference_doctype,
 			"reference_name": reference_name,
+		}
+	).insert(ignore_permissions=True)
+
+
+def notify_all(type, title, body=None, title_args=(), body_args=(), target_id=None):
+	"""ONE company-wide notification (audience All) instead of one row per employee.
+	No per-person read state. Idempotent on (type, target_id): publishing the rest of
+	a period later, or again after a withdraw, does not send it twice."""
+	if type not in TARGET_SCREEN:
+		frappe.throw(f"Unknown portal notification type {type}")
+	existing = frappe.db.get_value("TIQN Portal Notification", {"audience": "All", "type": type, "target_id": target_id})
+	if existing:
+		return frappe.get_doc("TIQN Portal Notification", existing)
+	return frappe.get_doc(
+		{
+			"doctype": "TIQN Portal Notification",
+			"audience": "All",
+			"type": type,
+			"title": frappe._(title, lang="vi").format(*title_args),
+			"body": frappe._(body, lang="vi").format(*body_args) if body else None,
+			"target_screen": TARGET_SCREEN[type],
+			"target_id": target_id,
 		}
 	).insert(ignore_permissions=True)

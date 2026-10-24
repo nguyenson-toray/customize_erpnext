@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Employee Portal">
+  <title>Employee Portal</title>
+  <!-- Flat Zalo-blue tile; white payslip sheet with lines and a "đ" coin = phiếu lương trên Mini App. -->
+  <rect x="16" y="16" width="480" height="480" rx="112" fill="#0068FF"/>
+  <path d="M132 96h192l56 56v264H132z" fill="#FFFFFF"/>
+  <path d="M324 96v56h56z" fill="#BFD7FF"/>
+  <path d="M172 196h132M172 244h168M172 292h112" stroke="#0068FF" stroke-width="22" stroke-linecap="round"/>
+  <circle cx="364" cy="372" r="70" fill="#FBBF24"/>
+  <text x="364" y="398" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="82" font-weight="700" fill="#7C2D12">đ</text>
+</svg>

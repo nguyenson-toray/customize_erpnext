@@ -71,14 +71,23 @@
   {
    "added": 0,
    "hidden": 0,
-   "icon": "wrench",
+   "icon": "smartphone",
    "idx": 8,
+   "link_to": "Employee Portal",
+   "link_type": "Sidebar",
+   "title": "Employee Portal"
+  },
+  {
+   "added": 0,
+   "hidden": 0,
+   "icon": "wrench",
+   "idx": 9,
    "link_to": "IT Tools",
    "link_type": "Sidebar",
    "title": "IT Tools"
   }
  ],
- "modified": "2026-10-17 12:00:00.000000",
+ "modified": "2026-10-24 18:00:00.000000",
  "modified_by": "Administrator",
  "name": "customize_erpnext",
  "owner": "Administrator",

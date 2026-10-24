@@ -2375,10 +2375,6 @@ msgid "First time? Follow the step-by-step guide."
 msgstr "Lần đầu dùng? Xem hướng dẫn từng bước."
 
 #. source: tiqn
-msgid "First Viewed By Employee"
-msgstr "Nhân viên xem lần đầu lúc"
-
-#. source: tiqn
 msgid "First Working Day"
 msgstr "Ngày làm việc đầu tiên"
 
@@ -4742,10 +4738,6 @@ msgid "Portal Parent"
 msgstr "Dòng cha trên cổng"
 
 #. source: tiqn
-msgid "Portal Readiness"
-msgstr "Sẵn sàng Cổng nhân viên"
-
-#. source: tiqn
 msgid "Portal Row Type"
 msgstr "Loại dòng trên cổng"
 
@@ -6314,10 +6306,6 @@ msgid "The lock releases for {0} seconds, then locks again. The command is logge
 msgstr "Khoá nhả chốt {0} giây rồi tự khoá lại. Lệnh được ghi lại dưới tên bạn."
 
 #. source: tiqn
-msgid "The logo must be a public file - the Mini App loads it without logging in."
-msgstr "Logo phải là tệp công khai - Mini App tải logo khi chưa đăng nhập."
-
-#. source: tiqn
 msgid "The quiz is not open yet."
 msgstr "Bài kiểm tra chưa mở."
 
@@ -6460,10 +6448,6 @@ msgstr "Phiếu lương TIQN"
 #. source: tiqn
 msgid "TIQN Payslip Detail"
 msgstr "Chi tiết phiếu lương TIQN"
-
-#. source: tiqn
-msgid "TIQN Payslip View Log"
-msgstr "Nhật ký xem phiếu lương TIQN"
 
 #. source: tiqn
 msgid "TIQN Portal Account"
@@ -55325,9 +55309,9 @@ msgstr "Báo Cáo Lương"
 msgid "Payroll Settings"
 msgstr "Cài đặt lương"
 
-#. source: erpnext2vi
+#. source: tiqn
 msgid "Payslip"
-msgstr "Bảng lương"
+msgstr "Phiếu lương"
 
 #. source: erpnext2vi
 msgid "Paytm Settings"
@@ -88110,3 +88094,934 @@ msgstr "Hợp đồng đang hiệu lực vào Ngày hiệu lực — tự điề
 msgid "Weekly Email"
 msgstr "Email hằng tuần"
 
+#. source: tiqn
+msgid "has been published"
+msgstr "đã được phát hành"
+
+#. source: tiqn
+msgctxt "Payslip"
+msgid "Earnings"
+msgstr "Thu nhập"
+
+#. source: tiqn
+msgctxt "Payslip"
+msgid "Deductions"
+msgstr "Khấu trừ"
+
+#. source: tiqn
+msgid "Adjustment for Previous Month"
+msgstr "Điều chỉnh tháng trước"
+
+#. source: tiqn
+msgid "Attendance & Overtime"
+msgstr "Công & tăng ca"
+
+#. source: tiqn
+msgctxt "Portal"
+msgid "Monday"
+msgstr "Thứ Hai"
+
+#. source: tiqn
+msgctxt "Portal"
+msgid "Tuesday"
+msgstr "Thứ Ba"
+
+#. source: tiqn
+msgctxt "Portal"
+msgid "Wednesday"
+msgstr "Thứ Tư"
+
+#. source: tiqn
+msgctxt "Portal"
+msgid "Thursday"
+msgstr "Thứ Năm"
+
+#. source: tiqn
+msgctxt "Portal"
+msgid "Friday"
+msgstr "Thứ Sáu"
+
+#. source: tiqn
+msgctxt "Portal"
+msgid "Saturday"
+msgstr "Thứ Bảy"
+
+#. source: tiqn
+msgctxt "Portal"
+msgid "Sunday"
+msgstr "Chủ nhật"
+
+#. source: tiqn
+msgctxt "Portal"
+msgid "Mon"
+msgstr "T2"
+
+#. source: tiqn
+msgctxt "Portal"
+msgid "Tue"
+msgstr "T3"
+
+#. source: tiqn
+msgctxt "Portal"
+msgid "Wed"
+msgstr "T4"
+
+#. source: tiqn
+msgctxt "Portal"
+msgid "Thu"
+msgstr "T5"
+
+#. source: tiqn
+msgctxt "Portal"
+msgid "Fri"
+msgstr "T6"
+
+#. source: tiqn
+msgctxt "Portal"
+msgid "Sat"
+msgstr "T7"
+
+#. source: tiqn
+msgctxt "Portal"
+msgid "Sun"
+msgstr "CN"
+
+#. source: tiqn
+msgctxt "Portal"
+msgid "{0} h {1:02d}"
+msgstr "{0} giờ {1:02d}"
+
+#. source: tiqn
+msgctxt "Portal"
+msgid "{0} h"
+msgstr "{0} giờ"
+
+#. source: tiqn
+msgctxt "Portal"
+msgid "Office Hours"
+msgstr "Ca hành chính"
+
+#. source: tiqn
+msgctxt "Portal"
+msgid "Late / Left Early"
+msgstr "Đi muộn / về sớm"
+
+#. source: tiqn
+msgctxt "Portal"
+msgid "On Leave"
+msgstr "Nghỉ phép"
+
+#. source: tiqn
+msgctxt "Portal"
+msgid "Absent"
+msgstr "Vắng"
+
+#. source: tiqn
+msgctxt "Portal"
+msgid "Not Checked In"
+msgstr "Chưa chấm công vào"
+
+#. source: tiqn
+msgctxt "Portal"
+msgid "Working"
+msgstr "Đang làm việc"
+
+#. source: tiqn
+msgctxt "Portal"
+msgid "Checked Out"
+msgstr "Đã về"
+
+#. source: tiqn
+msgctxt "Portal"
+msgid "Holiday"
+msgstr "Ngày lễ"
+
+#. source: tiqn
+msgctxt "Portal"
+msgid "Day Off"
+msgstr "Ngày nghỉ"
+
+#. source: tiqn
+msgctxt "Portal"
+msgid "Pending Approval"
+msgstr "Chờ duyệt"
+
+#. source: tiqn
+msgctxt "Portal"
+msgid "Approved"
+msgstr "Đã duyệt"
+
+#. source: tiqn
+msgctxt "Portal"
+msgid "Rejected"
+msgstr "Từ chối"
+
+#. source: tiqn
+msgctxt "Portal"
+msgid "Cancelled"
+msgstr "Đã hủy"
+
+#. source: tiqn
+msgctxt "Portal"
+msgid "Registered"
+msgstr "Đã đăng ký"
+
+#. source: tiqn
+msgctxt "Portal"
+msgid "Business trip / working outside"
+msgstr "Đi công tác / làm việc bên ngoài"
+
+#. source: tiqn
+msgctxt "Portal"
+msgid "Working remotely"
+msgstr "Làm việc từ xa"
+
+#. source: tiqn
+msgctxt "Portal"
+msgid "Forgot to check in/out"
+msgstr "Quên chấm công"
+
+#. source: tiqn
+msgctxt "Portal"
+msgid "Attendance machine error"
+msgstr "Máy chấm công lỗi"
+
+#. source: tiqn
+msgctxt "Portal"
+msgid "First working day"
+msgstr "Ngày đầu đi làm"
+
+#. source: tiqn
+msgctxt "Portal"
+msgid "Other reason"
+msgstr "Lý do khác"
+
+#. source: tiqn
+msgctxt "Portal"
+msgid "New Year's Day"
+msgstr "Tết Dương lịch"
+
+#. source: tiqn
+msgctxt "Portal"
+msgid "Lunar New Year's Eve"
+msgstr "Giao thừa"
+
+#. source: tiqn
+msgctxt "Portal"
+msgid "Lunar New Year"
+msgstr "Tết Nguyên đán"
+
+#. source: tiqn
+msgctxt "Portal"
+msgid "Second Day of Lunar New Year"
+msgstr "Mùng 2 Tết"
+
+#. source: tiqn
+msgctxt "Portal"
+msgid "Third Day of Lunar New Year"
+msgstr "Mùng 3 Tết"
+
+#. source: tiqn
+msgctxt "Portal"
+msgid "Fourth Day of Lunar New Year"
+msgstr "Mùng 4 Tết"
+
+#. source: tiqn
+msgctxt "Portal"
+msgid "Lunar New Year-bonus"
+msgstr "Nghỉ Tết (bù)"
+
+#. source: tiqn
+msgctxt "Portal"
+msgid "Liberation Day/Reunification Day"
+msgstr "Ngày Giải phóng miền Nam"
+
+#. source: tiqn
+msgctxt "Portal"
+msgid "International Labor Day"
+msgstr "Quốc tế Lao động"
+
+#. source: tiqn
+msgctxt "Portal"
+msgid "Hung Kings' Commemoration Day (observed)"
+msgstr "Giỗ Tổ Hùng Vương (nghỉ bù)"
+
+#. source: tiqn
+msgctxt "Portal"
+msgid "National Day"
+msgstr "Quốc khánh"
+
+#. source: tiqn
+msgctxt "Portal"
+msgid "Draft"
+msgstr "Bản nháp"
+
+#. source: tiqn
+msgctxt "Payslip"
+msgid "Attendance & Overtime"
+msgstr "Công & tăng ca"
+
+#. source: tiqn
+msgid "Adjustment & Net Pay"
+msgstr "Điều chỉnh & thực lĩnh"
+
+#. source: tiqn
+msgid "Mini App Features"
+msgstr "Tính năng Mini App"
+
+#. source: tiqn
+msgid "Notifications & Official Account"
+msgstr "Thông báo & Official Account"
+
+#. source: tiqn
+msgid "Files employees attach to a leave application or an attendance explanation"
+msgstr "Tệp nhân viên đính kèm vào đơn nghỉ hoặc phiếu giải trình"
+
+#. source: tiqn
+msgid "Unticked = hidden in the Mini App and refused by the server. The Home screen always shows the employee card (name, employee ID, section, group, date of joining)."
+msgstr "Bỏ tick = ẩn trên Mini App và server từ chối. Trang chủ luôn hiện thẻ nhân viên (họ tên, mã NV, bộ phận, tổ, ngày vào làm)."
+
+#. source: tiqn
+msgid "Payslip list and detail screens, and the latest payslip card on Home"
+msgstr "Màn danh sách và chi tiết phiếu lương, thẻ phiếu lương mới nhất ở Trang chủ"
+
+#. source: tiqn
+msgid "Attendance calendar, day detail and period summary, and the today / attendance cards on Home"
+msgstr "Lịch chấm công, chi tiết ngày, tổng hợp kỳ, và thẻ hôm nay / công tháng ở Trang chủ"
+
+#. source: tiqn
+msgid "Overtime hours inside the attendance screens and on Home. Needs Attendance"
+msgstr "Giờ tăng ca trong các màn chấm công và ở Trang chủ. Cần bật Chấm công"
+
+#. source: tiqn
+msgid "Button to send an attendance explanation from the day detail. Needs Attendance"
+msgstr "Nút gửi giải trình ở màn chi tiết ngày. Cần bật Chấm công"
+
+#. source: tiqn
+msgid "Leave balance and leave application list, and the annual leave card on Home"
+msgstr "Số dư phép, danh sách đơn nghỉ, và thẻ phép năm ở Trang chủ"
+
+#. source: tiqn
+msgid "Button to create a leave application. Needs View Leave"
+msgstr "Nút tạo đơn nghỉ. Cần bật Xem phép"
+
+#. source: tiqn
+msgid "Notification list and the unread badge (e.g. \"Payslip 10/2026 has been published\")"
+msgstr "Danh sách thông báo và số chưa đọc (vd. \"Phiếu lương 10/2026 đã được phát hành\")"
+
+#. source: tiqn
+msgid "Card on Home inviting the employee to follow the company Zalo Official Account"
+msgstr "Thẻ ở Trang chủ mời nhân viên quan tâm Zalo Official Account của công ty"
+
+#. source: tiqn
+msgid "Change the status on the Payslip Upload page (Publish / Withdraw), not here."
+msgstr "Đổi trạng thái ở trang Payslip Upload (Phát hành / Thu hồi), không sửa ở đây."
+
+#. source: tiqn
+msgid "Copied from component 9 (Net Salary)"
+msgstr "Lấy từ khoản 9 (Thực lĩnh)"
+
+#. source: tiqn
+msgid "Display name on Zalo, updated at each sign-in from Zalo. Empty until the user shares their Zalo profile with the Mini App"
+msgstr "Tên hiển thị trên Zalo, cập nhật mỗi lần đăng nhập bằng Zalo. Để trống cho tới khi người dùng cho Mini App xem hồ sơ Zalo"
+
+#. source: tiqn
+msgid "Zalo Name"
+msgstr "Tên Zalo"
+
+#. source: tiqn
+msgid "Viewed"
+msgstr "Đã xem"
+
+#. source: tiqn
+msgctxt "Payslip"
+msgid "Viewed"
+msgstr "Đã xem"
+
+#. source: tiqn
+msgid "The employee has opened this payslip in the Mini App"
+msgstr "Nhân viên đã mở phiếu lương này trên Mini App"
+
+#. source: tiqn
+msgid "Salary Component {0} has no field {1} on TIQN Payslip. Ask IT to add it."
+msgstr "Salary Component {0} chưa có field {1} trên TIQN Payslip. Báo IT thêm vào."
+
+#. source: tiqn
+msgid "TIQN Payslip field {0} matches no payslip Salary Component (code changed, or set to Hidden)."
+msgstr "Field {0} của TIQN Payslip không khớp Salary Component nào của phiếu lương (đổi mã, hoặc đặt Hidden)."
+
+#. source: tiqn
+msgid "Choose the relieving date range (From <= To)."
+msgstr "Chọn khoảng ngày nghỉ việc (Từ <= Đến)."
+
+#. source: tiqn
+msgid "Column \"{0}\": component {1} has no days / hours value (Employee Portal Settings > Day / Hour Columns)."
+msgstr "Cột \"{0}\": khoản {1} không có số ngày / giờ (Employee Portal Settings > Cột ngày / giờ)."
+
+#. source: tiqn
+msgid "Period From / To must be inside period {0} ({1} - {2})."
+msgstr "Từ ngày / Đến ngày phải nằm trong kỳ {0} ({1} - {2})."
+
+#. source: tiqn
+msgid "{0} does not look like a Zalo ID by OA - digits only, at least {1} of them."
+msgstr "{0} không giống Zalo ID by OA - chỉ gồm chữ số, ít nhất {1} số."
+
+#. source: tiqn
+msgid "Final Settlement"
+msgstr "Thanh toán nghỉ việc"
+
+#. source: tiqn
+msgid "First Viewed On"
+msgstr "Xem lần đầu lúc"
+
+#. source: tiqn
+msgid "Not Viewed"
+msgstr "Chưa xem"
+
+#. source: tiqn
+msgid "% Viewed"
+msgstr "% đã xem"
+
+#. source: tiqn
+msgid "Row {0}: {1} is listed twice in Day / Hour Columns."
+msgstr "Dòng {0}: {1} bị lặp trong Cột ngày / giờ."
+
+#. source: tiqn
+msgid "Row {0}: TIQN Payslip has no field {1} for {2}. Ask IT to add it first."
+msgstr "Dòng {0}: TIQN Payslip chưa có field {1} cho {2}. Báo IT thêm trước."
+
+#. source: tiqn
+msgid "The typed name is different from the Employee Name."
+msgstr "Họ tên nhập khác tên nhân viên trong hồ sơ."
+
+#. source: tiqn
+msgid "Zalo phone {0} already belongs to {1} - this request cannot be approved."
+msgstr "SĐT Zalo {0} đã thuộc về {1} - không duyệt được yêu cầu này."
+
+#. source: tiqn
+msgid "The employee already has Zalo phone {0}. Approving replaces it."
+msgstr "Nhân viên đã có SĐT Zalo {0}. Duyệt sẽ thay số này."
+
+#. source: tiqn
+msgid "This employee already signs in from another Zalo account: {0}."
+msgstr "Nhân viên này đang đăng nhập từ tài khoản Zalo khác: {0}."
+
+#. source: tiqn
+msgid "Other pending requests for this employee: {0}."
+msgstr "Các yêu cầu khác đang chờ cho nhân viên này: {0}."
+
+#. source: tiqn
+msgid "This request is already {0}."
+msgstr "Yêu cầu này đã ở trạng thái {0}."
+
+#. source: tiqn
+msgid "Employee has no field {0}."
+msgstr "Employee không có field {0}."
+
+#. source: tiqn
+msgid "This request has no Zalo phone."
+msgstr "Yêu cầu này không có SĐT Zalo."
+
+#. source: tiqn
+msgid "Zalo phone {0} already belongs to {1}."
+msgstr "SĐT Zalo {0} đã thuộc về {1}."
+
+#. source: tiqn
+msgid "Pick at least one employee, or set Audience to All."
+msgstr "Chọn ít nhất một nhân viên, hoặc đặt Đối tượng là Tất cả."
+
+#. source: tiqn
+msgid "Period From / To must be inside the period {0} - {1}."
+msgstr "Từ ngày / Đến ngày phải nằm trong kỳ {0} - {1}."
+
+#. source: tiqn
+msgid "Pay Period"
+msgstr "Kỳ lương"
+
+#. source: tiqn
+msgid "YYYY-MM, e.g. 2026-09"
+msgstr "YYYY-MM, ví dụ 2026-09"
+
+#. source: tiqn
+msgid "The Zalo phone is written to the employee's record; the user can sign in at the next app start."
+msgstr "SĐT Zalo sẽ được ghi vào hồ sơ nhân viên; lần mở app tới người dùng đăng nhập được."
+
+#. source: tiqn
+msgid "Reject Reason"
+msgstr "Lý do từ chối"
+
+#. source: tiqn
+msgid "Shown to the user in the Mini App"
+msgstr "Hiện cho người dùng trên Mini App"
+
+#. source: tiqn
+msgid "Reject Request"
+msgstr "Từ chối yêu cầu"
+
+#. source: tiqn
+msgid "Approve only after you have checked that the request really comes from {0} (e.g. call {1})."
+msgstr "Chỉ duyệt khi đã chắc yêu cầu đúng là của {0} (ví dụ gọi số {1})."
+
+#. source: tiqn
+msgid "One row per employee: No., Period (YYYY-MM or MM-YYYY), Period From, Period To, Pay Date, Employee, Employee Name, Designation, Department, Section, Group, then one column per Salary Component, matched by the code at the start of the header (e.g. \"3.2 ...\"). No. and Designation are not imported. Period From / To may be inside the period (joined or left during it); empty Pay Date = the monthly pay day."
+msgstr "Mỗi nhân viên một dòng: STT, Kỳ (YYYY-MM hoặc MM-YYYY), Từ ngày, Đến ngày, Ngày trả lương, Mã NV, Họ tên, Chức danh, Bộ phận, Section, Group, sau đó mỗi khoản lương một cột, nhận theo mã ở đầu tiêu đề (ví dụ \"3.2 ...\"). STT và Chức danh không được nhập. Từ / Đến ngày có thể nằm trong kỳ (vào làm hoặc nghỉ việc giữa kỳ); Ngày trả lương để trống = ngày trả lương hằng tháng."
+
+#. source: tiqn
+msgid "Formula check off (Settings)"
+msgstr "Đang tắt kiểm tra công thức (Settings)"
+
+#. source: tiqn
+msgid "Resigned Employees Only"
+msgstr "Chỉ nhân viên nghỉ việc"
+
+#. source: tiqn
+msgid "Employees who left in the date range below, paid separately within 14 days of leaving. Period To = the day before the relieving date; Pay Date is filled in."
+msgstr "Nhân viên nghỉ việc trong khoảng ngày dưới đây, thanh toán riêng trong 14 ngày kể từ ngày nghỉ. Đến ngày = ngày trước ngày nghỉ việc; Ngày trả lương được điền sẵn."
+
+#. source: tiqn
+msgid "Employees on the payroll until the end of this period. Not included: those who left before or during it (use Resigned Employees Only), those on maternity leave for the whole period, and Exclude Employees of Attendance Calculation Setting."
+msgstr "Nhân viên còn làm đến cuối kỳ. Không gồm: người nghỉ việc trước hoặc trong kỳ (dùng Chỉ nhân viên nghỉ việc), người nghỉ thai sản cả kỳ, và Exclude Employees của Attendance Calculation Setting."
+
+#. source: tiqn
+msgid "Relieving Date From"
+msgstr "Ngày nghỉ việc từ"
+
+#. source: tiqn
+msgid "Relieving Date To"
+msgstr "Ngày nghỉ việc đến"
+
+#. source: tiqn
+msgid "Relieving Date From must be on or before Relieving Date To."
+msgstr "Ngày nghỉ việc từ phải trước hoặc bằng Ngày nghỉ việc đến."
+
+#. source: tiqn
+msgid "Payslip setup"
+msgstr "Cấu hình phiếu lương"
+
+#. source: tiqn
+msgid "Publish all Draft payslips of {0}? Employees will see them in the Mini App immediately. Final settlements alone send no notification."
+msgstr "Phát hành mọi phiếu nháp của {0}? Nhân viên sẽ thấy ngay trên Mini App. Nếu chỉ có phiếu thanh toán nghỉ việc thì không gửi thông báo."
+
+#. source: tiqn
+msgid "Published {0} payslips, no notification sent"
+msgstr "Đã phát hành {0} phiếu, không gửi thông báo"
+
+#. source: tiqn
+msgid "Employee code must look like TIQN-0123."
+msgstr "Mã nhân viên phải có dạng TIQN-0123."
+
+#. source: tiqn
+msgid "Please enter your full name."
+msgstr "Vui lòng nhập họ và tên."
+
+#. source: tiqn
+msgid "Please open the app again."
+msgstr "Vui lòng mở lại ứng dụng."
+
+#. source: tiqn
+msgid "Please allow the app to read your phone number, then try again."
+msgstr "Vui lòng cho phép ứng dụng đọc số điện thoại rồi thử lại."
+
+#. source: tiqn
+msgid "Your phone now matches an employee record. Please open the app again."
+msgstr "Số điện thoại của bạn đã khớp hồ sơ nhân viên. Vui lòng mở lại ứng dụng."
+
+#. source: tiqn
+msgid "You already have a request waiting for HR."
+msgstr "Bạn đã có một yêu cầu đang chờ phòng Nhân sự duyệt."
+
+#. source: tiqn
+msgid "Employee code {0} was not found."
+msgstr "Không tìm thấy mã nhân viên {0}."
+
+#. source: tiqn
+msgid "Your request has been sent. The HR department will check it."
+msgstr "Yêu cầu đã được gửi. Phòng Nhân sự sẽ kiểm tra."
+
+#. source: tiqn
+msgid "id_by_oa must be the Zalo ID by OA (digits only)."
+msgstr "id_by_oa phải là Zalo ID by OA (chỉ gồm chữ số)."
+
+#. source: tiqn
+msgid "TIQN Portal Qty Unit"
+msgstr "Cột ngày/giờ phiếu lương TIQN"
+
+#. source: tiqn
+msgid "TIQN Portal Link Request"
+msgstr "Yêu cầu liên kết Cổng nhân viên TIQN"
+
+#. source: tiqn
+msgid "Sent from the Zalo Mini App by someone whose Zalo phone matches no employee. HR checks it is really that employee, then approves (the Zalo phone is written to the employee's Zalo phone) or rejects."
+msgstr "Gửi từ Zalo Mini App bởi người có SĐT Zalo không khớp nhân viên nào. Kiểm tra đúng là nhân viên đó rồi duyệt (SĐT Zalo được ghi vào SĐT Zalo của nhân viên) hoặc từ chối."
+
+#. source: tiqn
+msgid "Employee code the user typed"
+msgstr "Mã nhân viên người dùng nhập"
+
+#. source: tiqn
+msgid "Full Name (Typed)"
+msgstr "Họ tên (tự nhập)"
+
+#. source: tiqn
+msgid "Name the user typed - compare with Employee Name"
+msgstr "Họ tên người dùng nhập - đối chiếu với tên nhân viên"
+
+#. source: tiqn
+msgid "Name Match"
+msgstr "Khớp tên"
+
+#. source: tiqn
+msgid "Typed name = Employee Name, ignoring accents and capitals. A match does NOT prove who sent it"
+msgstr "Họ tên nhập = tên nhân viên, không phân biệt dấu và chữ hoa. Khớp tên KHÔNG chứng minh được ai đã gửi"
+
+#. source: tiqn
+msgid "Display name on Zalo, from Zalo (not typed by the user)"
+msgstr "Tên hiển thị trên Zalo, lấy từ Zalo (người dùng không tự nhập)"
+
+#. source: tiqn
+msgid "Zalo Phone"
+msgstr "SĐT Zalo"
+
+#. source: tiqn
+msgid "Phone of the Zalo account, confirmed by Zalo. Call it to check who sent the request. Approve writes it to the employee's Zalo phone"
+msgstr "SĐT của tài khoản Zalo, đã được Zalo xác nhận. Gọi số này để kiểm tra ai đã gửi yêu cầu. Duyệt sẽ ghi số này vào SĐT Zalo của nhân viên"
+
+#. source: tiqn
+msgid "Check Before Approving"
+msgstr "Kiểm tra trước khi duyệt"
+
+#. source: tiqn
+msgid "Reviewed By"
+msgstr "Người xét duyệt"
+
+#. source: tiqn
+msgid "Reviewed On"
+msgstr "Xét duyệt lúc"
+
+#. source: tiqn
+msgid "TIQN Portal Notification Recipient"
+msgstr "Người nhận thông báo Cổng nhân viên TIQN"
+
+#. source: tiqn
+msgid "Start of the period, or the date of joining when the employee joined during it"
+msgstr "Ngày đầu kỳ, hoặc ngày vào làm nếu nhân viên vào làm giữa kỳ"
+
+#. source: tiqn
+msgid "End of the period, or the day before the relieving date when the employee left during it"
+msgstr "Ngày cuối kỳ, hoặc ngày trước ngày nghỉ việc nếu nhân viên nghỉ giữa kỳ"
+
+#. source: tiqn
+msgid "Empty = the pay day of the month after the period (Settings), or relieving date + 14 days for a final settlement"
+msgstr "Để trống = ngày trả lương của tháng sau kỳ (Settings), hoặc ngày nghỉ việc + 14 ngày với phiếu thanh toán nghỉ việc"
+
+#. source: tiqn
+msgid "Net Pay, Attendance & Overtime"
+msgstr "Thực lĩnh, công & tăng ca"
+
+#. source: tiqn
+msgid "9 Net Salary/Thực lĩnh (j=f-g+h+i):"
+msgstr "9 Thực lĩnh (j=f-g+h+i):"
+
+#. source: tiqn
+msgid "1.1 Standard working days in the month/Số ngày làm việc chuẩn trong tháng"
+msgstr "1.1 Số ngày làm việc chuẩn trong tháng"
+
+#. source: tiqn
+msgid "1.2 Actual working days/Số ngày công thực tế làm việc - Days"
+msgstr "1.2 Số ngày công thực tế làm việc - Số ngày"
+
+#. source: tiqn
+msgid "2.1 OT working hours on normal day/Số giờ làm thêm ngày thường - Hours"
+msgstr "2.1 Số giờ làm thêm ngày thường - Số giờ"
+
+#. source: tiqn
+msgid "2.2 OT working hours on weekend/Số giờ làm thêm ngày cuối tuần - Hours"
+msgstr "2.2 Số giờ làm thêm ngày cuối tuần - Số giờ"
+
+#. source: tiqn
+msgid "2.3 OT working hours on Public Holiday/Số giờ làm thêm ngày Lễ - Hours"
+msgstr "2.3 Số giờ làm thêm ngày Lễ - Số giờ"
+
+#. source: tiqn
+msgid "Copied from component 9 (Net Salary) - kept for the list view, filters and the API"
+msgstr "Chép từ khoản 9 (Thực lĩnh) - dùng cho danh sách, bộ lọc và API"
+
+#. source: tiqn
+msgid "The employee left during this period and is paid separately. Publishing it sends no notification"
+msgstr "Nhân viên nghỉ việc trong kỳ và được thanh toán riêng. Phát hành phiếu này không gửi thông báo"
+
+#. source: tiqn
+msgid "When the employee first opened this payslip in the Mini App. Empty = not viewed yet"
+msgstr "Lúc nhân viên mở phiếu này lần đầu trên Mini App. Để trống = chưa xem"
+
+#. source: tiqn
+msgid "1 Basic Salary/Lương cơ bản  (a)"
+msgstr "1 Lương cơ bản (a)"
+
+#. source: tiqn
+msgid "1.2 Actual working days/Số ngày công thực tế làm việc"
+msgstr "1.2 Số ngày công thực tế làm việc"
+
+#. source: tiqn
+msgid "2 Overtime/Làm việc ngoài giờ  (b)"
+msgstr "2 Làm việc ngoài giờ (b)"
+
+#. source: tiqn
+msgid "2.1 OT working hours on normal day/Số giờ làm thêm ngày thường"
+msgstr "2.1 Số giờ làm thêm ngày thường"
+
+#. source: tiqn
+msgid "2.2 OT working hours on weekend/Số giờ làm thêm ngày cuối tuần"
+msgstr "2.2 Số giờ làm thêm ngày cuối tuần"
+
+#. source: tiqn
+msgid "2.3 OT working hours on Public Holiday/Số giờ làm thêm ngày Lễ"
+msgstr "2.3 Số giờ làm thêm ngày Lễ"
+
+#. source: tiqn
+msgid "3 Monthly Salary/Lương tháng (c=a+b)"
+msgstr "3 Lương tháng (c=a+b)"
+
+#. source: tiqn
+msgid "3.1 Allowance/Phụ cấp (d)"
+msgstr "3.1 Phụ cấp (d)"
+
+#. source: tiqn
+msgid "3.2 Technical allowance/ Phụ cấp kỹ thuật"
+msgstr "3.2 Phụ cấp kỹ thuật"
+
+#. source: tiqn
+msgid "3.3 Position allowance/Phụ cấp chức vụ"
+msgstr "3.3 Phụ cấp chức vụ"
+
+#. source: tiqn
+msgid "3.4 Accomodation Allowance/Phụ cấp nhà ở"
+msgstr "3.4 Phụ cấp nhà ở"
+
+#. source: tiqn
+msgid "3.5 Commuting allowance/Phụ cấp xăng xe"
+msgstr "3.5 Phụ cấp xăng xe"
+
+#. source: tiqn
+msgid "3.6 Phone allowance/Phụ cấp điện thoại"
+msgstr "3.6 Phụ cấp điện thoại"
+
+#. source: tiqn
+msgid "3.7 Fire prevention and fighting allowance/Phụ cấp PCCC"
+msgstr "3.7 Phụ cấp PCCC"
+
+#. source: tiqn
+msgid "3.8 Safety and hygiene allowance/Phụ cấp ATVS viên"
+msgstr "3.8 Phụ cấp ATVS viên"
+
+#. source: tiqn
+msgid "3.9 Supporting stages allowance/Phụ cấp hỗ trợ công đoạn"
+msgstr "3.9 Phụ cấp hỗ trợ công đoạn"
+
+#. source: tiqn
+msgid "3.10 Fire fighting training allowance/Phụ cấp tham gia huấn luyện PCCC"
+msgstr "3.10 Phụ cấp tham gia huấn luyện PCCC"
+
+#. source: tiqn
+msgid "4 Incentive/Thưởng (e)"
+msgstr "4 Thưởng (e)"
+
+#. source: tiqn
+msgid "4.1 Attendance incentive/ Thưởng Chuyên cần"
+msgstr "4.1 Thưởng Chuyên cần"
+
+#. source: tiqn
+msgid "4.2 Responsibility incentive/Thưởng trách nhiệm"
+msgstr "4.2 Thưởng trách nhiệm"
+
+#. source: tiqn
+msgid "4.3 KPIs incentive/Thưởng đánh giá kết quả làm việc"
+msgstr "4.3 Thưởng đánh giá kết quả làm việc"
+
+#. source: tiqn
+msgid "4.4 Processing company support/ Tiền hỗ trợ làm tại công ty gia công"
+msgstr "4.4 Tiền hỗ trợ làm tại công ty gia công"
+
+#. source: tiqn
+msgid "4.5 Shift working support/Tiền hỗ trợ làm ca"
+msgstr "4.5 Tiền hỗ trợ làm ca"
+
+#. source: tiqn
+msgid "4.6 Children support/Hỗ trợ con nhỏ"
+msgstr "4.6 Hỗ trợ con nhỏ"
+
+#. source: tiqn
+msgid "4.7 Commuting supporting/ Hỗ trợ xăng xe"
+msgstr "4.7 Hỗ trợ xăng xe"
+
+#. source: tiqn
+msgid "5 Sub total/Tổng (f=c+d+e)"
+msgstr "5 Tổng (f=c+d+e)"
+
+#. source: tiqn
+msgid "Deductions & Other Items"
+msgstr "Khấu trừ & các khoản khác"
+
+#. source: tiqn
+msgid "6 Deductions/Các khoản khấu trừ (g)"
+msgstr "6 Các khoản khấu trừ (g)"
+
+#. source: tiqn
+msgid "6.1 SI/BHXH (8%)"
+msgstr "6.1 BHXH (8%)"
+
+#. source: tiqn
+msgid "6.2 HI/BHYT (1,5%)"
+msgstr "6.2 BHYT (1,5%)"
+
+#. source: tiqn
+msgid "6.3 UI/BHTN (1%)"
+msgstr "6.3 BHTN (1%)"
+
+#. source: tiqn
+msgid "6.4 Union Fee/ Phí Công Đoàn"
+msgstr "6.4 Phí Công Đoàn"
+
+#. source: tiqn
+msgid "6.5 PIT/Thuế TNCN"
+msgstr "6.5 Thuế TNCN"
+
+#. source: tiqn
+msgid "6.6 Employee' contract compensation/Tiền bồi thường HĐ của NLĐ"
+msgstr "6.6 Tiền bồi thường HĐ của NLĐ"
+
+#. source: tiqn
+msgid "7 Others/Các khoản khác (h)"
+msgstr "7 Các khoản khác (h)"
+
+#. source: tiqn
+msgid "7.1 Meal support/Hỗ trợ tiền cơm"
+msgstr "7.1 Hỗ trợ tiền cơm"
+
+#. source: tiqn
+msgid "7.2 Marriage gift/Quà kết hôn"
+msgstr "7.2 Quà kết hôn"
+
+#. source: tiqn
+msgid "7.3 PIT Finalization/ Quyết toán thuế"
+msgstr "7.3 Quyết toán thuế"
+
+#. source: tiqn
+msgid "7.4 Annual leave payment/ Thanh toán phép năm - Days"
+msgstr "7.4 Thanh toán phép năm - Số ngày"
+
+#. source: tiqn
+msgid "7.4 Annual leave payment/ Thanh toán phép năm"
+msgstr "7.4 Thanh toán phép năm"
+
+#. source: tiqn
+msgid "7.5 Menstrual allowance/Phụ cấp kinh nguyệt - Days"
+msgstr "7.5 Phụ cấp kinh nguyệt - Số ngày"
+
+#. source: tiqn
+msgid "7.5 Menstrual allowance/Phụ cấp kinh nguyệt"
+msgstr "7.5 Phụ cấp kinh nguyệt"
+
+#. source: tiqn
+msgid "7.6 21.5% (SI+HI+UI)/21.5% (BHXH+BHYT+BHTN)"
+msgstr "7.6 21.5% (BHXH+BHYT+BHTN)"
+
+#. source: tiqn
+msgid "7.7 Public holiday bonus/Thưởng lễ"
+msgstr "7.7 Thưởng lễ"
+
+#. source: tiqn
+msgid "8 Adjustment for previous month/Điều chỉnh lương tháng trước (i)"
+msgstr "8 Điều chỉnh lương tháng trước (i)"
+
+#. source: tiqn
+msgid "Notifications Seen On"
+msgstr "Xem thông báo lúc"
+
+#. source: tiqn
+msgid "Last time this user marked the notification list read in the Mini App. Notifications created after it count as unread (no read state per notification)"
+msgstr "Lần gần nhất người dùng đánh dấu đã xem danh sách thông báo trên Mini App. Thông báo tạo sau mốc này tính là chưa đọc (không lưu trạng thái đọc từng thông báo)"
+
+#. source: tiqn
+msgid "Zalo getUserInfo().idByOA, sent by the Mini App. THIS is the ID that opens a 1-1 chat (copy it to Employee Portal Settings → C&B Chat ID for the payroll staff member). Empty until the Mini App is verified by the OA or the user follows the OA"
+msgstr "Zalo getUserInfo().idByOA do Mini App gửi. ĐÂY là ID mở chat 1-1 (chép sang Employee Portal Settings → C&B Chat ID cho nhân viên tiền lương). Trống cho tới khi Mini App được OA xác thực hoặc người dùng quan tâm OA"
+
+#. source: tiqn
+msgid "Settings for the Zalo Mini App employee portal"
+msgstr "Cài đặt Cổng nhân viên trên Zalo Mini App"
+
+#. source: tiqn
+msgid "Payslip Import"
+msgstr "Nhập phiếu lương"
+
+#. source: tiqn
+msgid "Check Formulas on Import"
+msgstr "Kiểm tra công thức khi nhập"
+
+#. source: tiqn
+msgid "Ticked: Payslip Upload warns when totals do not add up (3 = 1 + 2, 9 = 5 - 6 + 7 + 8, group = sum of its lines) and HR must confirm. Unticked: the numbers in HR's file are imported as they are"
+msgstr "Bật: Payslip Upload cảnh báo khi tổng không khớp (3 = 1 + 2, 9 = 5 - 6 + 7 + 8, nhóm = tổng các dòng con) và HR phải xác nhận. Tắt: nhập nguyên số trong file của HR"
+
+#. source: tiqn
+msgid "Day / Hour Columns"
+msgstr "Cột ngày / giờ"
+
+#. source: tiqn
+msgid "Zalo OA & Chat"
+msgstr "Zalo OA & Chat"
+
+#. source: tiqn
+msgid "Chat with C&B"
+msgstr "Chat với C&B"
+
+#. source: tiqn
+msgid "The \"Chat with C&B\" button in the Mini App opens a 1-1 Zalo chat with this person"
+msgstr "Nút \"Chat với C&B\" trên Mini App mở chat Zalo 1-1 với người này"
+
+#. source: tiqn
+msgid "C&B Chat ID (ID by OA)"
+msgstr "ID chat C&B (ID by OA)"
+
+#. source: tiqn
+msgid "Zalo \"ID by OA\" of the payroll staff member - copy it from their TIQN Portal Account (filled after they open the Mini App). NOT the Zalo User ID: that one does not open a chat"
+msgstr "Zalo \"ID by OA\" của nhân viên tiền lương - chép từ TIQN Portal Account của họ (có sau khi họ mở Mini App). KHÔNG phải Zalo User ID: ID đó không mở được chat"
+
+#. source: tiqn
+msgid "C&B Chat Name"
+msgstr "Tên hiển thị chat C&B"
+
+#. source: tiqn
+msgid "Shown on the button, e.g. \"Ms. Lan - Payroll\""
+msgstr "Hiện trên nút, ví dụ \"Chị Lan - Tiền lương\""
+
+#. source: tiqn
+msgid "Fallback: Chat with OA"
+msgstr "Dự phòng: chat với OA"
+
+#. source: tiqn
+msgid "Used only when no C&B chat ID is set below: the chat button opens the Official Account instead"
+msgstr "Chỉ dùng khi chưa có ID chat C&B bên dưới: nút chat mở Official Account thay thế"
+
+#. source: tiqn
+msgid "Audience"
+msgstr "Đối tượng"
+
+#. source: tiqn
+msgid "All = one notification for every employee (a payslip one is shown only to employees with a published payslip for that period). Employees = only the employees picked below. Read status is not tracked per person"
+msgstr "Tất cả = một thông báo cho mọi nhân viên (thông báo phiếu lương chỉ hiện cho người có phiếu đã phát hành của kỳ đó). Employees = chỉ những nhân viên chọn bên dưới. Không lưu trạng thái đọc của từng người"
+
+#. source: tiqn
+msgid "Payslip Period Summary"
+msgstr "Tổng hợp phiếu lương theo kỳ"
+
+#. source: tiqn
+msgid "Mini App"
+msgstr "Mini App"
+
+#. source: tiqn
+msgid "Link Request"
+msgstr "Yêu cầu liên kết"
+
+#. source: tiqn
+msgid "Payslip lines that show a number of days or hours next to the amount, like the paper payslip (1.2 Days, 2.1 Hours...). Needs field sc_CODE_qty on TIQN Payslip (code 1.2 = sc_1_2_qty)"
+msgstr "Các dòng phiếu lương có số ngày hoặc số giờ cạnh số tiền, như phiếu giấy (1.2 ngày, 2.1 giờ...). Cần field sc_MÃ_qty trên TIQN Payslip (mã 1.2 = sc_1_2_qty)"

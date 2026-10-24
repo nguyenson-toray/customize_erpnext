@@ -5,15 +5,14 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "employee",
+  "audience",
+  "employees",
   "type",
   "title",
   "body",
   "column_break_main",
   "target_screen",
   "target_id",
-  "is_read",
-  "read_on",
   "reference_section",
   "reference_doctype",
   "column_break_ref",
@@ -21,14 +20,24 @@
  ],
  "fields": [
   {
-   "fieldname": "employee",
-   "fieldtype": "Link",
-   "label": "Employee",
-   "options": "Employee",
+   "fieldname": "audience",
+   "fieldtype": "Select",
+   "label": "Audience",
+   "options": "All\nEmployees",
+   "default": "Employees",
    "reqd": 1,
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "search_index": 1
+   "search_index": 1,
+   "description": "All = one notification for every employee (a payslip one is shown only to employees with a published payslip for that period). Employees = only the employees picked below. Read status is not tracked per person"
+  },
+  {
+   "fieldname": "employees",
+   "fieldtype": "Table MultiSelect",
+   "label": "Employees",
+   "options": "TIQN Portal Notification Recipient",
+   "depends_on": "eval:doc.audience==\"Employees\"",
+   "mandatory_depends_on": "eval:doc.audience==\"Employees\""
   },
   {
    "fieldname": "type",
@@ -68,18 +77,6 @@
    "read_only": 1
   },
   {
-   "fieldname": "is_read",
-   "fieldtype": "Check",
-   "label": "Read",
-   "in_standard_filter": 1
-  },
-  {
-   "fieldname": "read_on",
-   "fieldtype": "Datetime",
-   "label": "Read On",
-   "read_only": 1
-  },
-  {
    "fieldname": "reference_section",
    "fieldtype": "Section Break",
    "label": "Reference"
@@ -105,7 +102,7 @@
  ],
  "index_web_pages_for_search": 0,
  "links": [],
- "modified": "2026-10-12 12:00:00",
+ "modified": "2026-10-24 18:00:00.000000",
  "modified_by": "Administrator",
  "module": "Employee Portal",
  "name": "TIQN Portal Notification",
@@ -124,16 +121,13 @@
    "share": 1
   },
   {
-   "role": "HR Manager",
-   "read": 1,
-   "write": 1,
    "create": 1,
-   "delete": 0,
-   "report": 1,
+   "delete": 1,
    "export": 1,
-   "print": 0,
-   "email": 0,
-   "share": 0
+   "read": 1,
+   "report": 1,
+   "role": "CnB",
+   "write": 1
   }
  ],
  "row_format": "Dynamic",

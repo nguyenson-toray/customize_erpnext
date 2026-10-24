@@ -5,41 +5,57 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
+  "tab_general",
   "general_section",
   "company_display_name",
   "company_short_name",
-  "logo",
   "column_break_contacts",
   "hr_hotline",
   "company_phone",
+  "tab_features",
+  "payslip_section",
+  "feature_payslip",
+  "expected_pay_day",
+  "column_break_payslip",
+  "show_zero_lines",
+  "payslip_import_section",
+  "validate_payslip_formulas",
+  "column_break_payslip_import",
+  "payslip_qty_units",
+  "attendance_section",
+  "feature_attendance",
+  "feature_overtime",
+  "column_break_attendance",
+  "feature_explanation_create",
+  "leave_section",
+  "feature_leave_view",
+  "column_break_leave",
+  "feature_leave_create",
+  "uploads_section",
+  "max_files",
+  "column_break_uploads",
+  "max_file_size_mb",
+  "notifications_section",
+  "feature_notifications",
+  "column_break_features",
+  "feature_oa_invite",
+  "tab_access",
   "access_section",
   "read_only_days",
   "session_days",
   "column_break_access",
   "min_client_version",
-  "payslip_section",
-  "expected_pay_day",
-  "column_break_payslip",
-  "show_zero_lines",
-  "uploads_section",
-  "max_files",
-  "column_break_uploads",
-  "max_file_size_mb",
+  "tab_oa",
+  "cb_chat_section",
+  "cb_chat_id_by_oa",
+  "column_break_cb_chat",
+  "cb_chat_name",
   "oa_section",
   "oa_id",
   "oa_chat_enabled",
   "column_break_oa",
   "oa_messages_enabled",
-  "features_section",
-  "feature_payslip",
-  "feature_attendance",
-  "feature_overtime",
-  "feature_notifications",
-  "column_break_features",
-  "feature_leave_view",
-  "feature_leave_create",
-  "feature_explanation_create",
-  "feature_oa_invite",
+  "tab_legal",
   "legal_section",
   "legal_version",
   "privacy_policy",
@@ -47,9 +63,14 @@
  ],
  "fields": [
   {
+   "fieldname": "tab_general",
+   "fieldtype": "Tab Break",
+   "label": "General"
+  },
+  {
    "fieldname": "general_section",
    "fieldtype": "Section Break",
-   "label": "General"
+   "label": "Company"
   },
   {
    "fieldname": "company_display_name",
@@ -61,12 +82,6 @@
    "fieldname": "company_short_name",
    "fieldtype": "Data",
    "label": "Company Short Name"
-  },
-  {
-   "fieldname": "logo",
-   "fieldtype": "Attach Image",
-   "label": "Logo",
-   "description": "Must be a PUBLIC file - the Mini App loads it without logging in"
   },
   {
    "fieldname": "column_break_contacts",
@@ -81,6 +96,179 @@
    "fieldname": "company_phone",
    "fieldtype": "Data",
    "label": "Company Phone"
+  },
+  {
+   "fieldname": "tab_features",
+   "fieldtype": "Tab Break",
+   "label": "Mini App Features"
+  },
+  {
+   "fieldname": "payslip_section",
+   "fieldtype": "Section Break",
+   "label": "Payslip",
+   "description": "Unticked = hidden in the Mini App and refused by the server. The Home screen always shows the employee card (name, employee ID, section, group, date of joining)."
+  },
+  {
+   "fieldname": "feature_payslip",
+   "fieldtype": "Check",
+   "label": "Payslip",
+   "default": "1",
+   "description": "Payslip list and detail screens, and the latest payslip card on Home"
+  },
+  {
+   "fieldname": "expected_pay_day",
+   "fieldtype": "Int",
+   "label": "Pay Day of Month",
+   "default": "5",
+   "non_negative": 1,
+   "description": "Day of the month after the period ends on which salary is paid. Shown as the expected pay date of unpublished payslips",
+   "depends_on": "eval:doc.feature_payslip"
+  },
+  {
+   "fieldname": "column_break_payslip",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "show_zero_lines",
+   "fieldtype": "Check",
+   "label": "Show Zero Lines by Default",
+   "default": "0",
+   "description": "When unticked, payslip lines with a zero amount are hidden in the Mini App. Totals are always shown. The employee can still toggle it in the app",
+   "depends_on": "eval:doc.feature_payslip"
+  },
+  {
+   "fieldname": "payslip_import_section",
+   "fieldtype": "Section Break",
+   "label": "Payslip Import",
+   "depends_on": "eval:doc.feature_payslip"
+  },
+  {
+   "fieldname": "validate_payslip_formulas",
+   "fieldtype": "Check",
+   "label": "Check Formulas on Import",
+   "default": "1",
+   "description": "Ticked: Payslip Upload warns when totals do not add up (3 = 1 + 2, 9 = 5 - 6 + 7 + 8, group = sum of its lines) and HR must confirm. Unticked: the numbers in HR's file are imported as they are"
+  },
+  {
+   "fieldname": "column_break_payslip_import",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "payslip_qty_units",
+   "fieldtype": "Table",
+   "label": "Day / Hour Columns",
+   "options": "TIQN Portal Qty Unit",
+   "description": "Payslip lines that show a number of days or hours next to the amount, like the paper payslip (1.2 Days, 2.1 Hours...). Needs field sc_CODE_qty on TIQN Payslip (code 1.2 = sc_1_2_qty)"
+  },
+  {
+   "fieldname": "attendance_section",
+   "fieldtype": "Section Break",
+   "label": "Attendance"
+  },
+  {
+   "fieldname": "feature_attendance",
+   "fieldtype": "Check",
+   "label": "Attendance",
+   "default": "0",
+   "description": "Attendance calendar, day detail and period summary, and the today / attendance cards on Home"
+  },
+  {
+   "fieldname": "feature_overtime",
+   "fieldtype": "Check",
+   "label": "Overtime",
+   "default": "0",
+   "description": "Overtime hours inside the attendance screens and on Home. Needs Attendance",
+   "depends_on": "eval:doc.feature_attendance"
+  },
+  {
+   "fieldname": "column_break_attendance",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "feature_explanation_create",
+   "fieldtype": "Check",
+   "label": "Create Attendance Explanation",
+   "default": "0",
+   "description": "Button to send an attendance explanation from the day detail. Needs Attendance",
+   "depends_on": "eval:doc.feature_attendance"
+  },
+  {
+   "fieldname": "leave_section",
+   "fieldtype": "Section Break",
+   "label": "Leave"
+  },
+  {
+   "fieldname": "feature_leave_view",
+   "fieldtype": "Check",
+   "label": "View Leave",
+   "default": "0",
+   "description": "Leave balance and leave application list, and the annual leave card on Home"
+  },
+  {
+   "fieldname": "column_break_leave",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "feature_leave_create",
+   "fieldtype": "Check",
+   "label": "Create Leave Application",
+   "default": "0",
+   "description": "Button to create a leave application. Needs View Leave",
+   "depends_on": "eval:doc.feature_leave_view"
+  },
+  {
+   "fieldname": "uploads_section",
+   "fieldtype": "Section Break",
+   "label": "Attachments",
+   "description": "Files employees attach to a leave application or an attendance explanation"
+  },
+  {
+   "fieldname": "max_files",
+   "fieldtype": "Int",
+   "label": "Max Files per Leave Application",
+   "default": "5",
+   "non_negative": 1,
+   "depends_on": "eval:doc.feature_leave_create || doc.feature_explanation_create"
+  },
+  {
+   "fieldname": "column_break_uploads",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "max_file_size_mb",
+   "fieldtype": "Int",
+   "label": "Max File Size (MB)",
+   "default": "5",
+   "non_negative": 1,
+   "depends_on": "eval:doc.feature_leave_create || doc.feature_explanation_create"
+  },
+  {
+   "fieldname": "notifications_section",
+   "fieldtype": "Section Break",
+   "label": "Notifications & Official Account"
+  },
+  {
+   "fieldname": "feature_notifications",
+   "fieldtype": "Check",
+   "label": "Notifications",
+   "default": "1",
+   "description": "Notification list and the unread badge (e.g. \"Payslip 10/2026 has been published\")"
+  },
+  {
+   "fieldname": "column_break_features",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "feature_oa_invite",
+   "fieldtype": "Check",
+   "label": "Invite to Follow OA",
+   "default": "0",
+   "description": "Card on Home inviting the employee to follow the company Zalo Official Account"
+  },
+  {
+   "fieldname": "tab_access",
+   "fieldtype": "Tab Break",
+   "label": "Access"
   },
   {
    "fieldname": "access_section",
@@ -114,51 +302,31 @@
    "description": "Older Mini App builds receive CLIENT_TOO_OLD and must be updated"
   },
   {
-   "fieldname": "payslip_section",
+   "fieldname": "tab_oa",
+   "fieldtype": "Tab Break",
+   "label": "Zalo OA & Chat"
+  },
+  {
+   "fieldname": "cb_chat_section",
    "fieldtype": "Section Break",
-   "label": "Payslip"
+   "label": "Chat with C&B",
+   "description": "The \"Chat with C&B\" button in the Mini App opens a 1-1 Zalo chat with this person"
   },
   {
-   "fieldname": "expected_pay_day",
-   "fieldtype": "Int",
-   "label": "Pay Day of Month",
-   "default": "5",
-   "non_negative": 1,
-   "description": "Day of the month after the period ends on which salary is paid. Shown as the expected pay date of unpublished payslips"
+   "fieldname": "cb_chat_id_by_oa",
+   "fieldtype": "Data",
+   "label": "C&B Chat ID (ID by OA)",
+   "description": "Zalo \"ID by OA\" of the payroll staff member - copy it from their TIQN Portal Account (filled after they open the Mini App). NOT the Zalo User ID: that one does not open a chat"
   },
   {
-   "fieldname": "column_break_payslip",
+   "fieldname": "column_break_cb_chat",
    "fieldtype": "Column Break"
   },
   {
-   "fieldname": "show_zero_lines",
-   "fieldtype": "Check",
-   "label": "Show Zero Lines by Default",
-   "default": "0",
-   "description": "When unticked, payslip lines with a zero amount are hidden in the Mini App. Totals are always shown. The employee can still toggle it in the app"
-  },
-  {
-   "fieldname": "uploads_section",
-   "fieldtype": "Section Break",
-   "label": "Uploads"
-  },
-  {
-   "fieldname": "max_files",
-   "fieldtype": "Int",
-   "label": "Max Files per Leave Application",
-   "default": "5",
-   "non_negative": 1
-  },
-  {
-   "fieldname": "column_break_uploads",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "max_file_size_mb",
-   "fieldtype": "Int",
-   "label": "Max File Size (MB)",
-   "default": "5",
-   "non_negative": 1
+   "fieldname": "cb_chat_name",
+   "fieldtype": "Data",
+   "label": "C&B Chat Name",
+   "description": "Shown on the button, e.g. \"Ms. Lan - Payroll\""
   },
   {
    "fieldname": "oa_section",
@@ -174,8 +342,9 @@
   {
    "fieldname": "oa_chat_enabled",
    "fieldtype": "Check",
-   "label": "Enable Chat with C&B",
-   "default": "1"
+   "label": "Fallback: Chat with OA",
+   "default": "1",
+   "description": "Used only when no C&B chat ID is set below: the chat button opens the Official Account instead"
   },
   {
    "fieldname": "column_break_oa",
@@ -189,62 +358,9 @@
    "description": "Not used yet. Keep unticked until the recipient list has been reviewed"
   },
   {
-   "fieldname": "features_section",
-   "fieldtype": "Section Break",
-   "label": "Features",
-   "description": "Unticked = hidden in the Mini App and refused by the server"
-  },
-  {
-   "fieldname": "feature_payslip",
-   "fieldtype": "Check",
-   "label": "Payslip",
-   "default": "1"
-  },
-  {
-   "fieldname": "feature_attendance",
-   "fieldtype": "Check",
-   "label": "Attendance",
-   "default": "0"
-  },
-  {
-   "fieldname": "feature_overtime",
-   "fieldtype": "Check",
-   "label": "Overtime",
-   "default": "0"
-  },
-  {
-   "fieldname": "feature_notifications",
-   "fieldtype": "Check",
-   "label": "Notifications",
-   "default": "1"
-  },
-  {
-   "fieldname": "column_break_features",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "feature_leave_view",
-   "fieldtype": "Check",
-   "label": "View Leave",
-   "default": "0"
-  },
-  {
-   "fieldname": "feature_leave_create",
-   "fieldtype": "Check",
-   "label": "Create Leave Application",
-   "default": "0"
-  },
-  {
-   "fieldname": "feature_explanation_create",
-   "fieldtype": "Check",
-   "label": "Create Attendance Explanation",
-   "default": "0"
-  },
-  {
-   "fieldname": "feature_oa_invite",
-   "fieldtype": "Check",
-   "label": "Invite to Follow OA",
-   "default": "0"
+   "fieldname": "tab_legal",
+   "fieldtype": "Tab Break",
+   "label": "Legal"
   },
   {
    "fieldname": "legal_section",
@@ -271,7 +387,7 @@
  "index_web_pages_for_search": 0,
  "issingle": 1,
  "links": [],
- "modified": "2026-10-12 12:00:00",
+ "modified": "2026-10-24 18:00:00.000000",
  "modified_by": "Administrator",
  "module": "Employee Portal",
  "name": "Employee Portal Settings",
@@ -290,28 +406,11 @@
    "share": 1
   },
   {
-   "role": "HR Manager",
-   "read": 1,
-   "write": 1,
-   "create": 0,
-   "delete": 0,
-   "report": 1,
    "export": 1,
-   "print": 0,
-   "email": 0,
-   "share": 0
-  },
-  {
-   "role": "Payroll Officer",
    "read": 1,
-   "write": 1,
-   "create": 0,
-   "delete": 0,
    "report": 1,
-   "export": 1,
-   "print": 0,
-   "email": 0,
-   "share": 0
+   "role": "CnB",
+   "write": 1
   }
  ],
  "row_format": "Dynamic",

@@ -1,0 +1,184 @@
+{
+ "actions": [],
+ "autoname": "PLR-.YYYY.-.#####",
+ "creation": "2026-10-24 15:00:00",
+ "description": "Sent from the Zalo Mini App by someone whose Zalo phone matches no employee. HR checks it is really that employee, then approves (the Zalo phone is written to the employee's Zalo phone) or rejects.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "status",
+  "employee",
+  "employee_name",
+  "full_name",
+  "name_match",
+  "column_break_main",
+  "account",
+  "zalo_name",
+  "phone",
+  "warning",
+  "review_section",
+  "reviewed_by",
+  "reviewed_on",
+  "column_break_review",
+  "reject_reason"
+ ],
+ "fields": [
+  {
+   "default": "Pending",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Pending\nApproved\nRejected",
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "description": "Employee code the user typed",
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Employee",
+   "options": "Employee",
+   "read_only": 1,
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fetch_from": "employee.employee_name",
+   "fieldname": "employee_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Employee Name",
+   "read_only": 1
+  },
+  {
+   "description": "Name the user typed - compare with Employee Name",
+   "fieldname": "full_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Full Name (Typed)",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "description": "Typed name = Employee Name, ignoring accents and capitals. A match does NOT prove who sent it",
+   "fieldname": "name_match",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Name Match",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_main",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "account",
+   "fieldtype": "Link",
+   "label": "Zalo Account",
+   "options": "TIQN Portal Account",
+   "read_only": 1,
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "description": "Display name on Zalo, from Zalo (not typed by the user)",
+   "fieldname": "zalo_name",
+   "fieldtype": "Data",
+   "label": "Zalo Name",
+   "read_only": 1
+  },
+  {
+   "description": "Phone of the Zalo account, confirmed by Zalo. Call it to check who sent the request. Approve writes it to the employee's Zalo phone",
+   "fieldname": "phone",
+   "fieldtype": "Data",
+   "label": "Zalo Phone",
+   "options": "Phone",
+   "read_only": 1
+  },
+  {
+   "fieldname": "warning",
+   "fieldtype": "Small Text",
+   "label": "Check Before Approving",
+   "read_only": 1
+  },
+  {
+   "collapsible": 1,
+   "depends_on": "eval:doc.status != 'Pending'",
+   "fieldname": "review_section",
+   "fieldtype": "Section Break",
+   "label": "Review"
+  },
+  {
+   "fieldname": "reviewed_by",
+   "fieldtype": "Link",
+   "label": "Reviewed By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "reviewed_on",
+   "fieldtype": "Datetime",
+   "label": "Reviewed On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_review",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Shown to the user in the Mini App",
+   "fieldname": "reject_reason",
+   "fieldtype": "Small Text",
+   "label": "Reject Reason",
+   "read_only": 1
+  }
+ ],
+ "in_create": 1,
+ "links": [],
+ "modified": "2026-10-24 18:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Employee Portal",
+ "name": "TIQN Portal Link Request",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "delete": 1,
+   "export": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "write": 1
+  },
+  {
+   "export": 1,
+   "read": 1,
+   "report": 1,
+   "role": "CnB",
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "search_fields": "employee,employee_name,full_name,phone,zalo_name",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [
+  {
+   "color": "Orange",
+   "title": "Pending"
+  },
+  {
+   "color": "Green",
+   "title": "Approved"
+  },
+  {
+   "color": "Red",
+   "title": "Rejected"
+  }
+ ],
+ "title_field": "employee_name",
+ "track_changes": 1
+}

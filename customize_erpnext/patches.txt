@@ -26,6 +26,9 @@ customize_erpnext.patches.rename_fixed_trip_template_to_schedule
 # pre_model_sync: Employee Portal DocTypes ship DocPerm rows for `Payroll Officer`
 # (Link) - the role must exist before the model sync. Also creates `Portal Approver`.
 customize_erpnext.patches.create_employee_portal_roles
+# pre_model_sync: role `CnB` - Employee Portal DocTypes / page / report ship DocPerm rows for
+# it (replacing Payroll Officer and HR Manager). Idempotent.
+customize_erpnext.patches.create_cnb_role
 
 # Điều hướng frappe v16.50+: dọn shell/workspace/icon cũ + xoá 6 DocType không dùng.
 # PHẢI ở pre_model_sync (trước khi nạp file sidebar mới) — xem docstring.
@@ -90,6 +93,24 @@ customize_erpnext.patches.door_sensor_type_default_no
 # Settings defaults + legal templates, payslip display config on Salary Component
 # (creates its own custom_portal_* fields first: fixtures sync runs AFTER this). Idempotent.
 customize_erpnext.patches.setup_employee_portal
+# post_model_sync: Employee Portal v2 - TIQN Payslip child table -> one sc_<code> field per
+# component (rows copied, then TIQN Payslip Detail dropped), TEST-SEED payslips deleted,
+# viewed backfilled, features = payslip phase (payslip + notifications). Idempotent.
+customize_erpnext.patches.employee_portal_v2
+# post_model_sync: payslip notifications one row per employee -> ONE company-wide row per
+# period (TIQN Portal Notification.audience = All). Idempotent.
+customize_erpnext.patches.employee_portal_broadcast_notifications
+# post_model_sync: TIQN Portal Notification single employee + is_read -> audience
+# Employees with a Table MultiSelect of recipients, no per-person read state. Idempotent.
+customize_erpnext.patches.employee_portal_notification_recipients
+# post_model_sync: payslip in the order of the paper payslip - custom_portal_qty_unit on
+# Salary Component (Unit/ĐVT value in sc_<code>_qty; 1.2 / 2.1-2.3 numbers move there),
+# parents 1/2/6/7, custom_portal_order = code order, show_zero_lines = 1. Idempotent.
+customize_erpnext.patches.employee_portal_payslip_paper_layout
+# post_model_sync: simpler payslip setup - days/hours lines move to Employee Portal Settings
+# (custom_portal_qty_unit deleted), viewed = first_viewed_on only (View Log DocType +
+# 3 columns dropped), report Portal Readiness deleted. Idempotent.
+customize_erpnext.patches.employee_portal_simplify_v3
 # post_model_sync: index (device_id, time) on Employee Checkin — cursor of the automatic
 # log pull (network/biometric/device_log_sync.py). Idempotent.
 customize_erpnext.patches.add_employee_checkin_device_time_index

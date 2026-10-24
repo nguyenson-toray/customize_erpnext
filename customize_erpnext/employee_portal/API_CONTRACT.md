@@ -1,6 +1,6 @@
 # Employee Portal — Hợp đồng giao diện với Zalo Mini App "Cổng nhân viên"
 
-> **Phiên bản contract: 1.1 (12/10/2026) — đang chờ đội Mini App duyệt.**
+> **Phiên bản contract: 1.5.0 (24/10/2026).** Giai đoạn hiện tại **chỉ mở phiếu lương** (+ thông báo) — xem §3.5.
 > **Đã chạy thật:** xác thực + phiếu lương + thông báo (M1). **M2** (các màn chỉ xem) code xong, chờ restart.
 > Chưa code: tạo/hủy đơn nghỉ, giấy tờ, giải trình (M3) và tin OA (M4). Xem §13. Tài liệu này được viết trước để đội Mini App dựng 21 màn bằng mock
 > (dữ liệu mẫu ở mỗi endpoint), góp ý, rồi backend mới code theo đúng bản đã chốt.
@@ -107,6 +107,12 @@ Mini App                                   ERPNext                              
   Lỗi `ZALO_TOKEN_USED` → xin token mới bằng `getPhoneNumber()`, **đừng** gửi lại token cũ.
 - Server so SĐT theo **9 số cuối** (`0905123456`, `84905123456`, `+84 905 123 456` là một).
 - SĐT khớp nhiều hồ sơ (nhân viên nghỉ rồi vào lại với mã mới) → server chọn **mã mới nhất**.
+- Hồ sơ nhân viên có 2 cột SĐT (từ 1.2.0): **SĐT đăng ký với công ty** được so trước; chỉ khi không ai có
+  số đó mới so tiếp **SĐT Zalo** (phòng Nhân sự nhập khi SĐT Zalo của nhân viên khác SĐT đăng ký). Client
+  không phải làm gì; màn 04 có thể gợi ý "SĐT Zalo khác SĐT đăng ký với công ty → báo phòng Nhân sự".
+- **Tên Zalo** (từ 1.2.0): server tự đọc tên hiển thị từ Zalo (`/v2.0/me`) mỗi lần `login` và lưu vào tài
+  khoản để phòng Nhân sự nhận ra người dùng. Zalo chỉ trả tên khi người dùng đã cho Mini App quyền thông
+  tin hồ sơ (`scope.userInfo`); không có thì để trống, **không** ảnh hưởng đăng nhập. Client **không** gửi tên.
 - **"Cập nhật số điện thoại" từ app** (màn 09): chạy lại bước 1–3 **có** `phone_token`. Số Zalo xác nhận
   luôn thay số đang lưu (kể cả số phòng Nhân sự gán). Lưu token mới server trả về.
 
@@ -117,7 +123,7 @@ Mini App                                   ERPNext                              
 | `ACTIVE` | Đang làm việc | ✅ | 06 (+07 nếu `oa.show_invite`) |
 | `READ_ONLY` | Đã nghỉ việc, còn trong hạn chỉ xem (mặc định 30 ngày từ ngày nghỉ) | ✅ | 10, và mọi màn ở chế độ chỉ xem |
 | `NO_PHONE` | Không có `phone_token` và tài khoản chưa có SĐT | ❌ | 03: nút "Cho phép đọc SĐT" (thử lại bước 2) + hiện **`zalo_user_id`** để gửi phòng Nhân sự gán SĐT |
-| `NOT_FOUND` | SĐT không khớp hồ sơ nào | ❌ | 04 (hiện `masked_phone` **và** `zalo_user_id`) |
+| `NOT_FOUND` | SĐT không khớp hồ sơ nào | ❌ | 04 (hiện `masked_phone` **và** `zalo_user_id`; form "Yêu cầu tạo tài khoản" theo `link_request` — §6 `link_employee_request`) |
 | `EXPIRED` | Hết hạn chỉ xem, hoặc hồ sơ ngừng hoạt động | ❌ | 05 |
 | `DISABLED` | Phòng Nhân sự khoá tài khoản Mini App. (Tài khoản mới không khớp nhân viên được phép dùng — người ngoài, người nghỉ quá hạn — cũng bị server tự khoá, nhưng vẫn trả `NO_PHONE`/`NOT_FOUND`/`EXPIRED`, không trả `DISABLED`.) | ❌ | 05 (dùng `message`) |
 | `DEV_NOT_ALLOWED` | *(chỉ `dev_login`)* tài khoản chưa được phép đăng nhập dev | ❌ | màn dev: hiện `zalo_user_id` + `message` |
@@ -126,8 +132,8 @@ Các kết quả không có token **không phải lỗi**: `ok: true`, chỉ là
 Nút "Thử lại" ở màn 03/04 = chạy lại cả bước 1–3 (token SĐT cũ đã dùng).
 
 `zalo_user_id` hiển thị cho người dùng dạng chọn/copy được, kèm câu "Gửi mã này cho phòng Nhân sự".
-Phòng Nhân sự tìm mã đó trong ERP (TIQN Portal Account, hoặc report Portal Readiness → "Chờ gán số điện
-thoại"), gán SĐT của nhân viên → người dùng bấm "Thử lại" là vào được.
+Phòng Nhân sự tìm mã đó trong ERP (TIQN Portal Account), gán SĐT của nhân viên → người dùng bấm "Thử lại"
+là vào được.
 
 ### 2.4 Session token
 
@@ -233,11 +239,21 @@ Tham số `page` (từ 1, mặc định 1), `page_size` (mặc định 20, tối
   `CLIENT_TOO_OLD` → hiện màn "Vui lòng cập nhật".
 - `get_config().features`: backend tắt một tính năng (vd. tạm khoá tạo đơn khi chốt công) mà không cần
   build lại Mini App. Tính năng tắt → ẩn lối vào; endpoint tương ứng trả `FEATURE_DISABLED`.
+- Phòng Nhân sự bật/tắt từng mục trên ERP (Employee Portal Settings → tab *Mini App Features*). Cờ phụ thuộc
+  tự tắt theo cờ cha: `attendance = false` ⇒ `overtime`, `explanation_create` cũng `false`;
+  `leave_view = false` ⇒ `leave_create = false`.
+- **Giai đoạn hiện tại (từ 23/10/2026):** chỉ `payslip` và `notifications` là `true`, mọi cờ khác `false`.
+  Mini App phải dựng điều hướng + trang chủ **hoàn toàn theo `features`** (không hard-code) để khi ERP bật
+  thêm mục thì hiện ra mà không cần build lại.
 
 ### 3.6 Tần suất gọi
 
 - Không có push từ server. Làm mới `get_home` khi app trở lại foreground; **không** poll nhanh hơn 60 giây.
 - `get_config` có thể cache 1 giờ.
+- **Phiếu lương** (từ 1.5.0): mỗi phiếu chỉ tải **1 lần**, cache theo `(period, published_on)` — xem §10 "Cache".
+  Sau khi phát hành, khoảng 1000 người mở app trong vài phút: mỗi lần tải thừa là tải thêm cho server.
+- Lỗi mạng / `RATE_LIMITED` / HTTP 5xx: thử lại **giãn cách** (1 s, 2 s, 4 s… + ngẫu nhiên, tối đa 3 lần;
+  `RATE_LIMITED` thì chờ đúng `details.retry_after`). Không tự thử lại dồn dập.
 - `login` bị giới hạn **10 lần / 10 phút / tài khoản Zalo** → `RATE_LIMITED` (kèm `details.retry_after` giây).
 
 ---
@@ -270,6 +286,9 @@ Danh sách đóng. Backend thêm mã mới = ghi vào §13 và báo đội Mini 
 | `FILE_TOO_LARGE` | Tệp vượt giới hạn. `details.max_size_mb` | Hiện `message` |
 | `FILE_TYPE` | Loại tệp không nhận (kiểm theo nội dung thật, không theo đuôi) | Hiện `message` |
 | `TOO_MANY_FILES` | Vượt số tệp/đơn. `details.max_files` | Hiện `message` |
+| `LOGIN_AGAIN` | *(chỉ `link_employee_request`)* Tài khoản Zalo chưa từng `login`, hoặc SĐT của tài khoản **đã khớp** hồ sơ | Chạy lại `login` |
+| `PENDING` | *(chỉ `link_employee_request`)* Đã có yêu cầu đang chờ phòng Nhân sự duyệt | Hiện trạng thái chờ |
+| `DISABLED` | *(chỉ `link_employee_request`)* Phòng Nhân sự đã khoá tài khoản Mini App | Màn 05, hiện `message` |
 
 ---
 
@@ -357,7 +376,7 @@ Gọi khi mở app, trước mọi màn (01, 03, 04, 05, 09 cần các số liê
   "api_version": "1.0",
   "min_client_version": "1.0.0",
   "company": { "name": "Công ty TNHH TIQN", "short_name": "TIQN",
-               "logo_url": "https://erp.tiqn.com.vn:8888/files/portal-logo.png" },
+               "logo_url": null },
   "contacts": { "hr_hotline": "0235 xxx xxxx", "company_phone": "0235 xxx xxxx" },
   "legal": { "privacy_policy_url": "https://erp.tiqn.com.vn:8888/portal-policy",
              "terms_url": "https://erp.tiqn.com.vn:8888/portal-terms",
@@ -417,8 +436,19 @@ Gọi khi mở app, trước mọi màn (01, 03, 04, 05, 09 cần các số liê
 { "ok": true, "data": { "result": "NOT_FOUND", "token": null, "expires_on": null,
   "zalo_user_id": "4295057266797901281",
   "masked_phone": "09•• ••• 123", "employee": null, "access": null, "oa": null,
-  "expired_on": null, "message": null }}
+  "expired_on": null, "message": null,
+  "link_request": { "status": "PENDING", "employee_id": "TIQN-0148",
+                    "created_at": "2026-10-24 09:30:00", "reject_reason": null } }}
 ```
+**`link_request`** (từ 1.4.0) — key có ở **mọi** kết quả `login`, chỉ khác `null` khi `NOT_FOUND`: yêu cầu liên kết hồ sơ
+**gần nhất** của tài khoản Zalo này (§6 `link_employee_request`).
+| `status` | Màn 04 hiện |
+|---|---|
+| `null` (chưa gửi yêu cầu nào) | Form "Yêu cầu tạo tài khoản" |
+| `PENDING` | "Yêu cầu đã gửi — mã `employee_id`, đang chờ phòng Nhân sự duyệt" (không có form) |
+| `REJECTED` | "Yêu cầu bị từ chối" + `reject_reason` (nếu có) + form gửi lại |
+
+Được duyệt → SĐT Zalo đã khớp hồ sơ → `login` trả `ACTIVE` luôn, không còn `NOT_FOUND`.
 
 `EXPIRED` (màn 05):
 ```json
@@ -435,6 +465,42 @@ khác (không phải nghỉ việc).
 
 Lỗi có thể gặp: `ZALO_TOKEN_INVALID`, `ZALO_TOKEN_USED`, `ZALO_PERMISSION`, `ZALO_SERVER_CONFIG`,
 `ZALO_UNAVAILABLE`, `RATE_LIMITED`, `CLIENT_TOO_OLD`.
+
+### `link_employee_request` — POST, không cần token *(từ 1.4.0, màn 04)*
+
+Người dùng `NOT_FOUND` tự khai **mã nhân viên + họ tên** để phòng Nhân sự liên kết. Phòng Nhân sự kiểm tra **đúng người**
+(gọi lại SĐT Zalo…) rồi duyệt trên ERP: SĐT Zalo được ghi vào hồ sơ nhân viên → lần `login` sau vào thẳng.
+
+| Tham số | Bắt buộc | |
+|---|---|---|
+| `access_token` | ✅ | từ `getAccessToken()` — server tự hỏi Zalo "ai đang gửi" |
+| `employee_id` | ✅ | `TIQN-` + 4 số (không phân biệt hoa thường) |
+| `full_name` | ✅ | 2–140 ký tự |
+
+🔴 **Không gửi `zalo_user_id`** — nếu gửi, server bỏ qua. Người gửi luôn là người Zalo xác nhận qua `access_token`.
+SĐT được duyệt là SĐT Zalo đã xác nhận ở lần `login` trước (vì vậy phải `login` có `phone_token` trước).
+
+```json
+{ "ok": true, "data": {
+  "status": "PENDING",
+  "message": "Yêu cầu đã được gửi. Phòng Nhân sự sẽ kiểm tra.",
+  "link_request": { "status": "PENDING", "employee_id": "TIQN-0148",
+                    "created_at": "2026-10-24 09:30:00", "reject_reason": null }
+}}
+```
+Server **không** cho biết họ tên nhập có khớp hồ sơ hay không (chống dò tên) — phòng Nhân sự tự đối chiếu.
+
+| Lỗi | Khi nào |
+|---|---|
+| `VALIDATION` | `employee_id` sai định dạng (`field: employee_id`), `full_name` quá ngắn (`field: full_name`), hoặc tài khoản chưa có SĐT (cho phép đọc SĐT rồi `login` lại) |
+| `NOT_FOUND` | Mã NV không có, hoặc hồ sơ không còn được dùng Mini App (`field: employee_id`) |
+| `PENDING` | Đã có yêu cầu đang chờ |
+| `LOGIN_AGAIN` | Chưa từng `login`, hoặc SĐT đã khớp hồ sơ → chạy lại `login` |
+| `DISABLED` | Phòng Nhân sự khoá tài khoản |
+| `RATE_LIMITED` | Quá **3 yêu cầu / ngày** / tài khoản Zalo |
+| `ZALO_*` | Như `login` |
+
+Không có `ALREADY_LINKED`: nhân viên đã có tài khoản Zalo khác vẫn gửi được, phòng Nhân sự thấy cảnh báo và tự quyết.
 
 ### `dev_login` — POST, không cần token *(chỉ simulator — đọc §2.6)*
 
@@ -464,12 +530,30 @@ Dùng khi mở lại app và ở màn 09 (Tài khoản).
   "login_method": "ZALO_PHONE",
   "masked_phone": "09•• ••• 123",
   "session_expires_on": "2026-11-11 08:15:00",
-  "oa": { "followed": false, "show_invite": false }
+  "oa": { "followed": false, "show_invite": false },
+  "chat": { "type": "user", "id": "7664780689128284452", "name": "Chị Lan - Tiền lương" }
 }}
 ```
 
+`chat` (từ 1.2.0): đích của nút "Chat với C&B" — xem [Chat với C&B](#chat-với-cb-màn-19-20). Cũng có trong `get_home`.
+
 `login_method`: `ZALO_PHONE` (SĐT do Zalo xác nhận lúc đăng nhập) · `STORED_PHONE` (SĐT lấy từ tài khoản) ·
 `DEV` (đăng nhập dev). Màn 09 có thể dùng để gợi ý "Cập nhật số điện thoại" khi khác `ZALO_PHONE`.
+
+### `set_id_by_oa` — POST *(từ 1.2.0)*
+
+Gọi **sau mỗi lần đăng nhập thành công**: `getUserInfo()` → gửi `idByOA` (nếu khác rỗng). Server lưu vào tài
+khoản Zalo **của chính người gọi**; phòng Nhân sự dùng giá trị này của nhân viên tiền lương để cấu hình nút chat.
+
+| Tham số | |
+|---|---|
+| `id_by_oa` | `getUserInfo().idByOA` — chỉ chữ số. **Không** gửi `id` (app-scoped) vào đây |
+
+```json
+{ "ok": true, "data": { "saved": true } }
+```
+`idByOA` rỗng (Mini App chưa được OA xác thực, người dùng chưa quan tâm OA) → không cần gọi. Giá trị không
+phải số → `VALIDATION`.
 
 ### `logout` — POST
 
@@ -518,7 +602,8 @@ Server không kiểm chứng được với Zalo là đã quan tâm thật — c
     "source": "ERP", "provisional": true
   },
   "overtime": { "period": "2026-09", "hours": 12.5, "source": "ERP" },
-  "latest_payslip": { "period": "2026-08", "label": "Phiếu lương 08/2026", "published_on": "2026-09-05" },
+  "latest_payslip": { "period": "2026-08", "label": "Phiếu lương 08/2026", "published_on": "2026-09-05",
+                      "published_at": "2026-09-05 08:00:00" },
   "notifications": {
     "unread": 2,
     "latest": { "id": "PN-2026-00031", "type": "PAYSLIP_PUBLISHED",
@@ -526,7 +611,8 @@ Server không kiểm chứng được với Zalo là đã quan tâm thật — c
                 "created_at": "2026-09-05 08:00:00", "is_read": false,
                 "target": { "screen": "PAYSLIP", "id": "2026-08" } }
   },
-  "oa": { "followed": false, "show_invite": false }
+  "oa": { "followed": false, "show_invite": false },
+  "chat": { "type": "user", "id": "7664780689128284452", "name": "Chị Lan - Tiền lương" }
 }}
 ```
 
@@ -538,7 +624,8 @@ Server không kiểm chứng được với Zalo là đã quan tâm thật — c
 | `annual_leave` | cùng công thức với màn 11 và với báo cáo số dư phép trên ERP |
 | `attendance` | cộng từ **bảng công** của kỳ 26 → 25 (cùng số với `get_attendance_summary`). `source` luôn `ERP` (từ 1.1.4 không còn `PAYSLIP`); `provisional` như `get_attendance_summary` |
 | `overtime.hours` | tổng giờ tăng ca **thực tính** trong bảng công của kỳ; `source` luôn `ERP` |
-| `latest_payslip` | phiếu đã phát hành gần nhất; `null` nếu chưa có |
+| `latest_payslip` | phiếu đã phát hành gần nhất; `null` nếu chưa có. `published_at` (từ 1.5.0) = khoá cache của phiếu, bằng `published_on` trong `get_payslip_periods` |
+| `chat` | đích nút "Chat với C&B" — như `me.chat` (§10 Chat với C&B) |
 | khối bị tắt | `today`/`attendance` (tắt `attendance`), `overtime` (tắt `overtime`), `annual_leave` (tắt `leave_view`), `latest_payslip` (tắt `payslip`), `notifications` (tắt `notifications`) → giá trị `null`, key vẫn có |
 
 ### `get_notifications` — GET (màn 08)
@@ -570,6 +657,16 @@ Server không kiểm chứng được với Zalo là đã quan tâm thật — c
 ```
 
 `title` hiển thị đậm, `body` thường (như thiết kế màn 08). Nhóm "Chưa đọc" / "Trước đó" theo `is_read`.
+
+**Từ 1.2.0 — mỗi thông báo là MỘT bản ghi, không lưu trạng thái đọc từng người:**
+- `PAYSLIP_PUBLISHED` = **một** thông báo chung cho cả công ty mỗi kỳ (trước là mỗi người một bản) — chỉ hiện với
+  nhân viên có phiếu đã phát hành của kỳ đó. Thông báo khác do phòng Nhân sự gửi cho cả công ty hoặc cho **một
+  nhóm người chọn sẵn**.
+- `is_read` = thông báo được tạo **trước** lần cuối người dùng gọi `mark_notifications_read` (server chỉ nhớ một
+  mốc thời gian cho mỗi tài khoản). Vì vậy: khi người dùng mở màn 08, gọi `mark_notifications_read(all=1)` để
+  badge `unread` về 0. Gửi `ids` thì mốc lên tới thông báo mới nhất trong `ids` — các thông báo cũ hơn cũng thành đã đọc.
+- Payload giống hệt bản cũ. `id` của một thông báo **giống nhau** giữa mọi người nhận — đừng dùng làm khoá lưu
+  cục bộ mà không kèm `employee_id`.
 
 | `type` | `target.screen` | `target.id` |
 |---|---|---|
@@ -1153,16 +1250,26 @@ app cho tới khi phát hành lại. **Không có tải PDF** (bỏ nút "Tải 
 - `expected_pay_date` = **mùng 5 tháng sau tháng kết thúc kỳ** (kỳ `2026-09` = 26/08→25/09 → trả 05/10/2026).
   Ngày trả lương do phòng Nhân sự cấu hình trên ERP (mặc định 5); `null` nếu chưa cấu hình.
 - `is_new`: phát hành rồi nhưng nhân viên chưa mở lần nào.
+- **Trạng thái "đã xem" tính theo `get_payslip`**: lần gọi đầu tiên ghi *ngày xem đầu tiên* trên ERP. Vì vậy
+  chỉ gọi `get_payslip` khi người dùng **thực sự mở** phiếu — không prefetch.
+- **Cache** (từ 1.5.0): `published_on` của mỗi kỳ là "phiên bản" của phiếu — phòng Nhân sự sửa phiếu phải rút về
+  rồi phát hành lại, `published_on` đổi. Mini App lưu kết quả `get_payslip` theo `(period, published_on)` (bộ nhớ +
+  storage của Zalo), mở lại phiếu cùng `published_on` thì dùng cache, **không** gọi lại. Xoá cache khi `logout`,
+  đổi tài khoản, hoặc nhận `SESSION_INVALID`.
+  Khoá luôn là **ngày giờ** `YYYY-MM-DD HH:MM:SS`, giống hệt nhau ở 3 chỗ: `get_payslip_periods.items[].published_on`,
+  `get_home.latest_payslip.published_at` và `get_payslip.published_on`. ⚠ `get_home.latest_payslip.published_on` chỉ
+  là **ngày** (để hiển thị) — đừng dùng làm khoá. Thiếu khoá (mở từ chỗ khác) → gọi `get_payslip` rồi lưu theo
+  `published_on` trong kết quả.
 - Nhân viên chế độ chỉ xem vẫn thấy mọi phiếu của mình (gồm phiếu tháng cuối phát hành sau ngày nghỉ).
 
 ### `get_payslip` — **POST** (màn 20, và nút "con mắt" màn 19)
 
-POST vì mỗi lần xem được **ghi log** (ai xem phiếu nào, lúc nào).
+POST vì lần mở đầu tiên được ghi lại (ngày xem đầu tiên). Các lần sau không ghi gì.
 
 | Tham số | Bắt buộc | |
 |---|---|---|
 | `period` | ✅ | `YYYY-MM` |
-| `include_zero` | | `0`/`1`; bỏ trống = theo mặc định phòng Nhân sự cấu hình. Dùng cho nút "Hiện cả khoản 0đ" |
+| `include_zero` | | `0`/`1`; bỏ trống = theo mặc định phòng Nhân sự cấu hình (hiện tại `1`). Từ 1.5.0 **luôn gửi `1`** (hoặc bỏ trống) và để nút "Ẩn khoản 0đ" lọc tại máy: bỏ dòng `is_header = false` có `amount` và `quantity` đều 0/`null` — **không** gọi lại server |
 
 ```json
 { "ok": true, "data": {
@@ -1176,6 +1283,17 @@ POST vì mỗi lần xem được **ghi log** (ai xem phiếu nào, lúc nào).
   "include_zero": false,
   "employee": { "employee_id": "TIQN-0231", "full_name": "Nguyễn Văn An",
                 "department": "Production", "section": "Sewing", "group": "Sewing 05" },
+  "rows": [
+    { "no": "1",   "label": "Lương cơ bản",   "formula": "a",     "quantity": null, "quantity_unit": null,  "amount": 6000000, "level": 0, "is_header": true },
+    { "no": "1.1", "label": "Công chuẩn",     "formula": null,    "quantity": 26,   "quantity_unit": "DAY", "amount": null,    "level": 1, "is_header": false },
+    { "no": "1.2", "label": "Công thực tế",   "formula": null,    "quantity": 24,   "quantity_unit": "DAY", "amount": 6000000, "level": 1, "is_header": false },
+    { "no": "2",   "label": "Làm thêm giờ",   "formula": "b",     "quantity": null, "quantity_unit": null,  "amount": 1400000, "level": 0, "is_header": true },
+    { "no": "2.1", "label": "Giờ làm thêm ngày thường", "formula": null, "quantity": 8.5, "quantity_unit": "HOUR", "amount": 1000000, "level": 1, "is_header": false },
+    { "no": "3",   "label": "Lương tháng",    "formula": "c=a+b", "quantity": null, "quantity_unit": null,  "amount": 7400000, "level": 0, "is_header": true },
+    { "no": "6",   "label": "Tổng khấu trừ",  "formula": "g",     "quantity": null, "quantity_unit": null,  "amount": 1100000, "level": 0, "is_header": true },
+    { "no": "6.1", "label": "BHXH (8%)",      "formula": null,    "quantity": null, "quantity_unit": null,  "amount": 800000,  "level": 1, "is_header": false },
+    { "no": "9",   "label": "Thực lĩnh",      "formula": "j=f-g+h+i", "quantity": null, "quantity_unit": null, "amount": 9150000, "level": 0, "is_header": true }
+  ],
   "sections": [
     { "key": "EARNINGS", "label": "Thu nhập", "sign": 1, "total": 10200000, "unit": "VND",
       "lines": [
@@ -1215,6 +1333,31 @@ POST vì mỗi lần xem được **ghi log** (ai xem phiếu nào, lúc nào).
 }}
 ```
 
+#### `rows` — phiếu lương như bản in giấy (từ 1.3.0, **dùng cái này**)
+
+Màn 20 hiển thị **giống phiếu lương giấy**: một bảng liền từ 1 tới 9, cột STT, đúng thứ tự trả về
+(1, 1.1, 1.2, 2, 2.1, … 3.10, 4, … 9). Ví dụ trên rút gọn; bản thật có đủ mọi khoản.
+
+| Field | |
+|---|---|
+| `no` | Số thứ tự in ở cột STT — **luôn hiển thị** |
+| `label` | Tên khoản **tiếng Việt**. Hiển thị `label` + ` (formula)` khi có `formula`: "Lương cơ bản (a)", "Lương tháng (c=a+b)", "Thực lĩnh (j=f-g+h+i)" |
+| `formula` | Ký hiệu của dòng trên phiếu giấy, `null` nếu không có |
+| `quantity`, `quantity_unit` | Giá trị cột **ĐVT** của phiếu giấy: `DAY` → "24 ngày", `HOUR` → "8,5 giờ". `null` = dòng không có ĐVT. `0` → "–" |
+| `amount` | Số tiền VND, **luôn dương như bản in** (khấu trừ không có dấu "−"). `null` = dòng không có số tiền (vd. 1.1 chỉ có số ngày). `0` → "–" |
+| `level` | `0` dòng chính, `1` dòng con (thụt vào) |
+| `is_header` | Dòng nhóm/tổng (1, 2, 3, 3.1, 4, 5, 6, 7, 8, 9) — in đậm. Dòng `no = "9"` (Thực lĩnh) nên nhấn mạnh |
+
+- Mặc định ERP trả **mọi dòng**, kể cả dòng 0 (`include_zero` mặc định = 1 từ 1.3.0), như bản in.
+  Nút "Ẩn khoản 0đ" (từ 1.5.0) lọc **tại máy** trên `rows` đã tải: bỏ dòng con có số tiền và ĐVT đều 0; dòng
+  nhóm/tổng vẫn còn. (`include_zero=0` vẫn chạy nhưng đừng dùng — tốn thêm 1 lần gọi.)
+- Không tự cộng, không tự sắp lại, không viết cứng nhãn/mã — ERP cấu hình.
+- Một dòng có thể có **cả** ĐVT lẫn số tiền (1.2, 2.1–2.3, 7.4, 7.5) — hiện cả hai trên cùng dòng.
+
+#### `sections` — **deprecated từ 1.3.0**
+
+Vẫn trả như cũ để bản Mini App đang chạy không vỡ; sẽ bỏ sau khi Mini App chuyển hẳn sang `rows`.
+
 Quy tắc hiển thị:
 
 | | |
@@ -1233,8 +1376,23 @@ Kỳ chưa phát hành / đã thu hồi / không tồn tại → `NOT_FOUND`.
 
 ### Chat với C&B (màn 19, 20)
 
-Không có endpoint. Gọi `openChat({ type: "oa", id: get_config().oa.oa_id })`. Ẩn nút khi
-`oa.chat_enabled = false` hoặc chế độ chỉ xem.
+Từ 1.2.0 nút chat mở **chat 1-1 với nhân viên tiền lương** (phòng Nhân sự cấu hình trên ERP), không còn mặc định là OA.
+Không có endpoint riêng: đọc `chat` trong `me` / `get_home`, rồi
+
+```js
+if (chat) openChat({ type: chat.type, id: chat.id });   // chat.type: "user" | "oa"
+```
+
+| `chat` | Nghĩa |
+|---|---|
+| `{ "type": "user", "id": "<ID by OA>", "name": "Chị Lan - Tiền lương" }` | Chat 1-1 với nhân viên tiền lương. `name` (có thể `null`) dùng làm nhãn nút / dòng phụ |
+| `{ "type": "oa", "id": "<OA ID>", "name": "TIQN" }` | Chưa cấu hình người — rơi về chat với OA (nếu ERP bật) |
+| `null` | Ẩn nút |
+
+- 🔴 `id` loại `user` là **ID by OA** (`getUserInfo().idByOA`), **không phải** `zalo_user_id` — app quản lý xe đã
+  vấp: `zalo_user_id` trông hợp lệ nhưng `openChat` không mở gì. Server không bao giờ trả `zalo_user_id` ở đây.
+- Ẩn nút ở chế độ chỉ xem như trước.
+- `get_config().oa.chat_enabled` vẫn còn nhưng **đừng** dùng để quyết định nút chat nữa — dùng `chat`.
 
 ---
 
@@ -1246,7 +1404,7 @@ Không có endpoint. Gọi `openChat({ type: "oa", id: get_config().oa.oa_id })`
 | 01 Giới thiệu | `get_config` (`legal.*_url`, `company`) |
 | 02 Xin quyền SĐT | `getAccessToken` + `getPhoneNumber` (SDK) → `login` (từ chối cấp SĐT → vẫn `login` không kèm `phone_token`) |
 | 03 Từ chối cấp SĐT | `login.result = NO_PHONE` → hiện `zalo_user_id` + nút cho phép SĐT + `get_config.contacts.hr_hotline` |
-| 04 Chưa có hồ sơ | `login.result = NOT_FOUND`, `masked_phone`, `zalo_user_id`; "Thử lại" = chạy lại 02 |
+| 04 Chưa có hồ sơ | `login.result = NOT_FOUND`, `masked_phone`, `zalo_user_id`, `link_request`; "Yêu cầu tạo tài khoản" = `link_employee_request`; "Thử lại" = chạy lại 02 |
 | 05 Ngừng hoạt động | `login.result = EXPIRED/DISABLED`, `expired_on`; `contacts.company_phone` |
 | 06 Trang chủ | `get_home` |
 | 07 Mời quan tâm OA | `get_home.oa.show_invite` → `followOA` (SDK) → `set_oa_follow` |
@@ -1394,9 +1552,8 @@ const r = await api.post("login", { access_token: accessToken, phone_token: phon
    simulator hiện trên ERP; phía ERP tick "Allow Dev Login" + gán SĐT nhân viên test cho nó.
    **Trên điện thoại thật (bản Development)**: dùng `login` như bản thật — có quyền SĐT thì đăng nhập
    bằng SĐT Zalo; chưa có quyền SĐT thì phía ERP gán SĐT cho Zalo User ID mà app hiện ra.
-3. Phiếu lương test: đã có phiếu **số giả** kỳ 07, 08, 09/2026 (đã phát hành) cho **TIQN-0148** và
-   **TIQN-1405** — đăng nhập bằng SĐT Zalo của hai bạn này. Sẽ xoá sạch trước khi mở cho toàn công ty
-   (`seed_test_payslips.purge`). Cần thêm người test → báo phía ERP mã nhân viên.
+3. Phiếu lương test: phía ERP import file mẫu **số giả** (kỳ 09, 10/2026) và phát hành khi cần test — hỏi phía
+   ERP kỳ nào đang có. Dữ liệu test được xoá sạch trước khi mở cho toàn công ty.
 4. Phát triển giao diện trên trình duyệt (không có token Zalo): dựng mock từ JSON mẫu trong tài liệu này.
 
 ### 12.10 Nộp duyệt & phát hành
@@ -1415,6 +1572,10 @@ Khai báo URL chính sách dữ liệu và điều khoản (`get_config().legal`
 | 12/10/2026 | 1.0-draft | Chốt công hết ngày 25, điều chỉnh tới mùng 4: `get_attendance_summary` thêm `adjust_until`, `cutoff_date` luôn có. Giữ tên máy chấm công. `login` luôn có key `expired_on`. |
 | 14/10/2026 | 1.1.1 | Trả lời `QUESTIONS_FOR_BACKEND.md` (Update 02): `designation` giờ là chức danh **tiếng Việt** (mục 17); `approver` của đơn nghỉ **có thể `null`** — đơn HR nhập tay (mục 16); `get_leave_form` thuộc **M3, chưa có** — Mini App chỉ hiện nút "Tạo đơn nghỉ" khi `get_config().features.leave_create = true` (§3.5), hiện đang `false` (mục 15). |
 | 14/10/2026 | 1.1.2 | Trả lời Update 02 (mục 18, 19): `employee.avatar_url` giờ là **URL ảnh nhân viên** (§ Employee), `null` khi không có ảnh công khai. Mục 19: simulator không có `access_token` → `login` luôn trả `ZALO_TOKEN_INVALID` "Thiếu mã truy cập Zalo" (không phải `NO_PHONE`); trên simulator dùng `dev_login`. `READ_ONLY` mặc định **30 ngày** (trước 60). Tài khoản mới không khớp nhân viên được dùng bị tự khoá phía ERP — không đổi kết quả trả về. Sửa: request song song sau khi phiên bị thu hồi giờ trả cùng `reason`/`result` (trước đó có thể ra `REVOKED`); `get_payslip_periods.upcoming` không hiện kỳ trước ngày vào làm. |
+| 24/10/2026 | 1.5.0 | **Hiệu năng lúc phát hành + gọn ERP:** phiếu lương tải 1 lần, cache theo `(period, published_on)`; "Ẩn khoản 0đ" lọc tại máy, không gọi lại (`include_zero` luôn 1) (§10). Thử lại giãn cách khi lỗi (§3.6). "Đã xem" = chỉ ghi lần mở đầu tiên. `get_config.company.logo_url` luôn `null` (dùng logo Zalo App; key sẽ bỏ ở bản sau). Giới hạn `login` theo IP nâng lên 3000/phút (cả nhà máy dùng chung 1 IP WiFi). Phía ERP: phiếu NV nghỉ việc (thanh toán riêng) có `period_to` = ngày trước ngày nghỉ và `pay_date` riêng — Mini App chỉ cần hiện đúng giá trị server trả; phát hành loại phiếu này **không** tạo thông báo. |
+| 24/10/2026 | 1.4.0 | **Yêu cầu liên kết hồ sơ** (màn 04): endpoint mới `link_employee_request` (mã NV + họ tên → phòng Nhân sự duyệt trên ERP, ghi SĐT Zalo vào hồ sơ). `login` thêm key `link_request` (khác `null` khi `NOT_FOUND`: `PENDING` / `REJECTED` + `reject_reason`). Mã lỗi mới `LOGIN_AGAIN`, `PENDING`, `DISABLED` (chỉ endpoint này). Sửa phía ERP: cột SĐT Zalo của hồ sơ trước đây không được so do sai tên field — giờ đã so. ⚠ Có hiệu lực sau lần migrate + restart tới. |
+| 24/10/2026 | 1.3.0 | **Phiếu lương như bản in giấy:** `get_payslip` thêm `rows` — một bảng liền 1→9 có STT, mỗi dòng có ĐVT (`quantity`) và số tiền (`amount`), `formula` (a), (c=a+b)…, `level`, `is_header` (§10). `sections` **deprecated** (vẫn trả, ATTENDANCE vẫn ra số ngày/giờ như cũ). Mặc định hiện cả dòng 0 (`include_zero` = 1). |
+| 23/10/2026 | 1.2.0 | **Giai đoạn phiếu lương:** `features` chỉ bật `payslip`, `notifications` (§3.5); cờ phụ thuộc tự tắt theo cờ cha. Trang chủ = thẻ nhân viên + phiếu lương mới nhất + thông báo (các khối khác `null`). "Đã xem" của phiếu tính theo `get_payslip` — không prefetch (§10). **Mỗi thông báo = 1 bản ghi** (phiếu lương: 1 thông báo chung/kỳ; HR gửi cả công ty hoặc nhóm người chọn sẵn), không lưu đọc/chưa đọc từng người — `is_read` theo lần `mark_notifications_read` cuối (§7). **Chat với C&B** = chat 1-1 với nhân viên tiền lương: `me.chat` / `get_home.chat`; endpoint mới `set_id_by_oa`. Server lưu **tên Zalo** từ `/v2.0/me` (cần `scope.userInfo`, không bắt buộc) và khớp SĐT thêm cột **SĐT Zalo** của hồ sơ sau SĐT đăng ký (§2.2). **Payload không đổi**; phía ERP đổi cấu trúc lưu phiếu (bỏ bảng con) — Mini App không bị ảnh hưởng. |
 | 15/10/2026 | 1.1.4 | **Tổng hợp công luôn lấy từ bảng công** (bỏ D14): `get_attendance_summary`, `get_home.attendance/overtime` cộng Attendance của kỳ kể cả khi đã có phiếu lương; `source` luôn `ERP`. `provisional` = hôm nay ≤ `adjust_until` (mùng 4 tháng sau), không còn phụ thuộc phiếu lương. |
 | 15/10/2026 | 1.1.3 | **Gộp tăng ca vào chấm công** (theo yêu cầu Mini App): `get_attendance_calendar` thêm `overtime_summary` + `days[].overtime_hours`; `get_attendance_day` thêm `approved_overtime_hours` + `overtime_registrations[]`; trạng thái OT thêm `DRAFT`; `get_overtime` không còn dùng (vẫn chạy, `items[]` thêm `id`). |
 | 12/10/2026 | 1.1 | **Đăng nhập theo Zalo User ID** (§2.2, §2.3, §2.6): `phone_token` thành tuỳ chọn — thiếu thì dùng SĐT phòng Nhân sự gán cho tài khoản; kết quả mới `NO_PHONE`, `DEV_NOT_ALLOWED`; mọi kết quả `login` có `zalo_user_id`; `me` thêm `zalo_user_id`, `login_method`; `get_config` thêm `dev_login`; endpoint mới `dev_login` cho simulator. ⚠ Có hiệu lực qua HTTP sau lần `bench restart` tới. |

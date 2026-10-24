@@ -7,7 +7,7 @@ import frappe
 from frappe import _
 from frappe.utils import nowdate
 
-from customize_erpnext.api.employee_portal.auth import employee_payload, oa_payload
+from customize_erpnext.api.employee_portal.auth import chat_payload, employee_payload, oa_payload
 from customize_erpnext.api.employee_portal.core import access_payload, ctx, feature_enabled, fmt_date, fmt_datetime, portal_api
 from customize_erpnext.api.employee_portal.notifications import latest_notification, unread_count
 from customize_erpnext.employee_portal import attendance_data as ad
@@ -28,6 +28,7 @@ def get_home():
 		"latest_payslip": None,
 		"notifications": None,
 		"oa": oa_payload(account),
+		"chat": chat_payload(),
 	}
 
 	if feature_enabled("attendance"):
@@ -71,8 +72,10 @@ def get_home():
 				"period": latest[0].period,
 				"label": _("Payslip {0}").format(period_label(latest[0].period)),
 				"published_on": fmt_date(latest[0].published_on),
+				# Cache key of the payslip (1.5.0): same value as get_payslip_periods.items[].published_on.
+				"published_at": fmt_datetime(latest[0].published_on),
 			}
 
 	if feature_enabled("notifications"):
-		data["notifications"] = {"unread": unread_count(c.employee), "latest": latest_notification(c.employee)}
+		data["notifications"] = {"unread": unread_count(c.employee, c.account), "latest": latest_notification(c.employee, c.account)}
 	return data

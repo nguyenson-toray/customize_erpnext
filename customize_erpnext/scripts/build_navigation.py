@@ -30,6 +30,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 APP = os.path.realpath(os.path.join(HERE, ".."))
 APP_NAME = "customize_erpnext"
 STAMP = "2026-10-17 12:00:00.000000"
+# Dock + icons changed on 24/10 (Employee Portal added): a newer `modified` makes migrate
+# re-import them - frappe skips a file whose `modified` is not newer than the DB row.
+STAMP_ICONS = "2026-10-24 18:00:00.000000"
 IMG = "/assets/customize_erpnext/images/"
 
 
@@ -77,6 +80,10 @@ SIDEBARS = [
 		link("Employee", "DocType", "Employee", icon="square-user-round"),
 		link("Self Update Info Setting", "DocType", "Employee Self Update Info Setting", icon="settings", default=1),
 		link("Self Update Info Records", "DocType", "Employee Self Update Info", icon="file-text", default=1),
+		# Employee Quiz (8cca17d, 21/10/2026) - added to the JSON by hand at the time.
+		link("Quiz", "DocType", "TIQN Quiz", icon="clipboard-check", default=1),
+		link("Quiz Responses", "DocType", "TIQN Quiz Response", icon="list-checks", default=1),
+		link("Quiz Result", "Report", "TIQN Quiz Result", icon="file-chart-column", default=1),
 	]),
 	("Employee Photos", "Employee Photos", "images", [
 		link("Employee Photos", "URL", url="/employee-photos", icon="images"),
@@ -117,6 +124,16 @@ SIDEBARS = [
 		link("Layout Manager", "Page", "layout-manager", icon="layout-grid", default=1),
 		link("Shoe Rack Layout Settings", "DocType", "Shoe Rack Layout Settings", icon="settings", default=1),
 	]),
+	("Employee Portal", "Employee Portal", "smartphone", [
+		link("Payslip Upload", "Page", "payslip-upload", icon="upload", default=1),
+		link("Payslip", "DocType", "TIQN Payslip", icon="file-text", default=1),
+		link("Payslip Period Summary", "Report", "Payslip Period Summary", icon="table", default=1),
+		section("Mini App", "smartphone"),
+		child("Notification", "DocType", "TIQN Portal Notification", default=1),
+		child("Link Request", "DocType", "TIQN Portal Link Request", default=1),
+		child("Zalo Account", "DocType", "TIQN Portal Account", default=1),
+		child("Employee Portal Settings", "DocType", "Employee Portal Settings", default=1),
+	]),
 	("IT Tools", "IT Tools", "wrench", [
 		home("IT Tools"),
 		link("Dev Tool", "URL", url="/dev-tool", icon="code"),
@@ -153,6 +170,7 @@ ICONS = [
 	("Vehicle Management", "/desk/vehicle-management/vehicle-dispatch", "vehicle_dispatch.svg", ["Vehicle Manager", "System Manager"]),
 	("Health Check Up", "/desk/health-checkup/health-check-up", "doctor.svg", ["HR Manager", "HR User", "Administrator"]),
 	("Shoe Rack", "/desk/shoe-rack-management/shoe-rack-dashboard", "shoe_rack.svg", ["HR Manager", "HR User", "Administrator"]),
+	("Employee Portal", "/desk/employee-portal/payslip-upload", "employee_portal.svg", ["CnB", "System Manager"]),
 	("IT Tools", "/desk/it-tools", "coding.svg", []),
 ]
 
@@ -228,7 +246,7 @@ def build_dock():
 	]
 	write(os.path.join(APP, "dock", APP_NAME, f"{APP_NAME}.json"), {
 		"app": APP_NAME, "creation": STAMP, "docstatus": 0, "doctype": "Dock", "idx": 0,
-		"items": items, "modified": STAMP, "modified_by": "Administrator", "name": APP_NAME,
+		"items": items, "modified": STAMP_ICONS, "modified_by": "Administrator", "name": APP_NAME,
 		"owner": "Administrator", "standard": 1, "user": "",
 	})
 
@@ -242,7 +260,7 @@ def build_icons():
 		write(os.path.join(folder, fname), {
 			"app": APP_NAME, "bg_color": "blue", "creation": STAMP, "docstatus": 0,
 			"doctype": "Desktop Icon", "hidden": 0, "icon_type": "Link", "idx": idx, "label": label,
-			"link": route, "link_type": "External", "logo_url": IMG + logo, "modified": STAMP,
+			"link": route, "link_type": "External", "logo_url": IMG + logo, "modified": STAMP_ICONS,
 			"modified_by": "Administrator", "name": label, "owner": "Administrator",
 			"restrict_removal": 0, "roles": [{"role": r} for r in roles], "standard": 1,
 		})

@@ -16,7 +16,7 @@ frappe.listview_settings['TIQN Payslip'] = {
 		return [__(doc.status, null, 'Payslip'), color, `status,=,${doc.status}`];
 	},
 	onload(listview) {
-		if (!frappe.user.has_role(['Payroll Officer', 'System Manager'])) return;
+		if (!frappe.user.has_role(['CnB', 'System Manager'])) return;
 		listview.page.add_inner_button(__('Import from Excel'), () => new PayslipImportDialog(listview));
 		listview.page.add_inner_button(__('Publish / Withdraw'), () => frappe.set_route('payslip-upload'));
 		// Named handler: off() without one would also drop the Payslip Upload page's listener.
@@ -50,7 +50,7 @@ class PayslipImportDialog {
 		this.$body = this.dialog.fields_dict.body.$wrapper;
 		this.$body.html(`
 			<div class="text-muted small" style="margin-bottom: 12px">
-				${__('One row per employee: Period (YYYY-MM or MM-YYYY), Period From, Period To, Employee, Employee Name, Department, Section, Group, then one column per Salary Component, matched by the code at the start of the header (e.g. "3.2 ..."). Period From / To are optional and must match the period (26th to 25th).')}
+				${__('One row per employee: No., Period (YYYY-MM or MM-YYYY), Period From, Period To, Pay Date, Employee, Employee Name, Designation, Department, Section, Group, then one column per Salary Component, matched by the code at the start of the header (e.g. "3.2 ..."). No. and Designation are not imported. Period From / To may be inside the period (joined or left during it); empty Pay Date = the monthly pay day.')}
 			</div>
 			<div style="display: flex; gap: 8px">
 				<button class="btn btn-default btn-sm ps-template">${__('Download Template')}</button>
@@ -58,7 +58,7 @@ class PayslipImportDialog {
 			</div>
 			<div class="ps-preview" style="margin-top: 16px"></div>
 		`);
-		this.$body.find('.ps-template').on('click', () => window.open(`/api/method/${PS_API}.download_template`));
+		this.$body.find('.ps-template').on('click', () => payslip_template_dialog(PS_API));
 		this.$body.find('.ps-upload').on('click', () => this.upload());
 		this.set_can_import(false);
 		this.dialog.show();
@@ -102,6 +102,7 @@ class PayslipImportDialog {
 			<span class="indicator-pill ${data.error_count ? 'red' : 'green'}">${__('{0} errors', [data.error_count])}</span>
 			<span class="indicator-pill ${data.warning_count ? 'orange' : 'green'}">${__('{0} warnings', [data.warning_count])}</span>
 			<span class="text-muted">${__('Periods')}: ${(data.periods || []).map(esc).join(', ') || '-'}</span>
+			${data.check_formulas ? '' : `<span class="indicator-pill gray">${__('Formula check off (Settings)')}</span>`}
 		</div>`;
 		if (data.header_errors.length) {
 			html += `<div class="text-danger" style="margin-top: 12px"><b>${__('File layout')}</b><ul>${data.header_errors
@@ -173,4 +174,65 @@ class PayslipImportDialog {
 		}
 		this.data = null;
 	}
+}
+
+// "Download Template": monthly (pick the pay period) or resigned employees (pick the
+// relieving date range) - employee columns pre-filled, HR types the numbers.
+// Same dialog in tiqn_payslip_list.js and payslip_upload.js (no shared bundle for the two).
+function payslip_template_dialog(api) {
+	frappe.call({ method: `${api}.get_template_periods`, type: 'GET' }).then((r) => {
+		const m = r.message || {};
+		const d = new frappe.ui.Dialog({
+			title: __('Download Template'),
+			fields: [
+				{
+					fieldtype: 'Check',
+					fieldname: 'resigned',
+					label: __('Resigned Employees Only'),
+					description: __(
+						'Employees who left in the date range below, paid separately within 14 days of leaving. Period To = the day before the relieving date; Pay Date is filled in.'
+					),
+				},
+				{
+					fieldtype: 'Select',
+					fieldname: 'period',
+					label: __('Pay Period'),
+					options: (m.periods || []).map((p) => ({ value: p.value, label: p.label })),
+					default: m.default,
+					depends_on: 'eval:!doc.resigned',
+					mandatory_depends_on: 'eval:!doc.resigned',
+					description: __(
+						'Employees on the payroll until the end of this period. Not included: those who left before or during it (use Resigned Employees Only), those on maternity leave for the whole period, and Exclude Employees of Attendance Calculation Setting.'
+					),
+				},
+				{
+					fieldtype: 'Date',
+					fieldname: 'from_date',
+					label: __('Relieving Date From'),
+					depends_on: 'eval:doc.resigned',
+					mandatory_depends_on: 'eval:doc.resigned',
+				},
+				{
+					fieldtype: 'Date',
+					fieldname: 'to_date',
+					label: __('Relieving Date To'),
+					depends_on: 'eval:doc.resigned',
+					mandatory_depends_on: 'eval:doc.resigned',
+				},
+			],
+			primary_action_label: __('Download'),
+			primary_action: (v) => {
+				const q = v.resigned
+					? `resigned=1&from_date=${encodeURIComponent(v.from_date)}&to_date=${encodeURIComponent(v.to_date)}`
+					: `period=${encodeURIComponent(v.period)}`;
+				if (v.resigned && v.from_date > v.to_date) {
+					frappe.msgprint(__('Relieving Date From must be on or before Relieving Date To.'));
+					return;
+				}
+				d.hide();
+				window.open(`/api/method/${api}.download_template?${q}`);
+			},
+		});
+		d.show();
+	});
 }

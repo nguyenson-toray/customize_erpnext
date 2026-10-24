@@ -4,5 +4,5 @@
 from frappe.model.document import Document
 
 
-class TIQNPayslipDetail(Document):
+class TIQNPortalNotificationRecipient(Document):
 	pass

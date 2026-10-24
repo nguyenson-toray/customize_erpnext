@@ -137,26 +137,43 @@ def mask_phone(phone):
 	return f"{local[:2]}•• ••• {local[-3:]}"
 
 
-def find_employees_by_phone(phone):
-	"""Employees whose cell_number matches `phone`, newest first.
+# Phone columns on Employee, in priority order (23/10/2026): the HR phone first; the
+# Zalo phone (custom_cell_phone_zalo, created by HR) only when no cell_number matches.
+# A column that does not exist (yet) is skipped.
+PHONE_FIELDS = ("cell_number", "custom_cell_phone_zalo")
 
+
+def find_employees_by_phone(phone):
+	"""Employees whose phone matches `phone`, newest first.
+
+	cell_number is checked first; custom_cell_phone_zalo only when no employee has the
+	number as cell_number (so an employee whose Zalo phone differs from the HR one can
+	still sign in, without stealing a number that is someone's cell_number).
 	Newest = latest date_of_joining, then highest employee code: someone who left and
 	came back gets a NEW code but keeps the old number, and the new code must win.
 	"""
 	key = phone_key(phone)
 	if not key:
 		return []
-	return frappe.db.sql(
-		"""
-		SELECT name, employee_name, status, relieving_date, date_of_joining, cell_number
-		FROM `tabEmployee`
-		WHERE IFNULL(cell_number, '') != ''
-		  AND RIGHT(REGEXP_REPLACE(cell_number, '[^0-9]', ''), 9) = %s
-		ORDER BY date_of_joining DESC, name DESC
-		""",
-		key,
-		as_dict=True,
-	)
+	meta = frappe.get_meta("Employee")
+	for field in PHONE_FIELDS:
+		if field != "cell_number" and not meta.has_field(field):
+			continue
+		rows = frappe.db.sql(
+			f"""
+			SELECT name, employee_name, status, relieving_date, date_of_joining, `{field}` AS matched_phone,
+			       %s AS matched_field
+			FROM `tabEmployee`
+			WHERE IFNULL(`{field}`, '') != ''
+			  AND RIGHT(REGEXP_REPLACE(`{field}`, '[^0-9]', ''), 9) = %s
+			ORDER BY date_of_joining DESC, name DESC
+			""",
+			(field, key),
+			as_dict=True,
+		)
+		if rows:
+			return rows
+	return []
 
 
 # ---------------------------------------------------------------------------
@@ -212,3 +229,122 @@ def designation_label(designation):
 	vn = frappe.get_cached_value("Designation", designation, "custom_designation_vn")
 	return (vn or "").strip() or designation
 
+
+
+# ---------------------------------------------------------------------------
+# Payslip component fields (v2, 23/10/2026): one field per Salary Component on
+# TIQN Payslip, named after the component's code ("3.2" -> `sc_3_2`). The display
+# config stays on Salary Component (custom_portal_*); the code links the two.
+# ---------------------------------------------------------------------------
+#
+# A paper payslip line may carry TWO values (24/10/2026): the amount and a number in
+# the "Unit/ĐVT" column (1.2 = 27 days + 17.214.001 VND). The second one lives in
+# `sc_<code>_qty`, present when the component is in Settings > Day / Hour Columns.
+# ---------------------------------------------------------------------------
+PAYSLIP_DT = "TIQN Payslip"
+COMPONENT_FIELD_PREFIX = "sc_"
+QTY_FIELD_SUFFIX = "_qty"
+
+
+def component_fieldname(abbr):
+	return COMPONENT_FIELD_PREFIX + str(abbr or "").strip().replace(".", "_")
+
+
+def component_qty_fieldname(abbr):
+	return component_fieldname(abbr) + QTY_FIELD_SUFFIX
+
+
+def _payslip_components():
+	"""Salary Components that belong on the payslip (everything not Hidden), sorted."""
+	fields = [
+		"name",
+		"salary_component_abbr as abbr",
+		"custom_portal_section as section",
+		"custom_portal_row as row_type",
+		"custom_portal_parent as parent",
+		"custom_portal_unit as unit",
+		"custom_portal_label as label",
+		"custom_portal_order as sort_order",
+	]
+	rows = frappe.get_all(
+		"Salary Component",
+		filters={"custom_portal_section": ["not in", ["", "Hidden"]]},
+		fields=fields,
+	)
+	qty_units = payslip_qty_units()
+	for r in rows:
+		r.qty_unit = qty_units.get(r.name)
+	rows.sort(key=lambda r: (cint(r.sort_order) or 9999, [int(p) for p in str(r.abbr).split(".") if p.isdigit()]))
+	return rows
+
+
+def payslip_qty_units():
+	"""{Salary Component: "Day" | "Hour"} - lines that also show days / hours (Settings)."""
+	return {r.salary_component: r.unit for r in get_settings().get("payslip_qty_units") or [] if r.salary_component}
+
+
+def payslip_component_fields():
+	"""[component row + `fieldname` + `qty_fieldname`] for every payslip component that
+	HAS a field on TIQN Payslip. `qty_fieldname` = the days / hours value, None when the
+	line has none. A component without field is refused at import."""
+	meta = frappe.get_meta(PAYSLIP_DT)
+	out = []
+	for c in _payslip_components():
+		c.fieldname = component_fieldname(c.abbr)
+		qty = component_qty_fieldname(c.abbr)
+		c.qty_fieldname = qty if c.qty_unit and meta.has_field(qty) else None
+		if meta.has_field(c.fieldname):
+			out.append(c)
+	return out
+
+
+def payslip_value_fieldnames(components=None):
+	"""Every number field of a payslip: amounts and days / hours values."""
+	out = []
+	for c in components or payslip_component_fields():
+		out.append(c.fieldname)
+		if c.qty_fieldname:
+			out.append(c.qty_fieldname)
+	return out
+
+
+def payslip_field_mismatches():
+	"""([(component, missing fieldname)], sc_* fields without a component) - both are
+	config errors. A days / hours field counts as wanted only for components in Settings > Day / Hour Columns."""
+	meta = frappe.get_meta(PAYSLIP_DT)
+	wanted = {}
+	for c in _payslip_components():
+		wanted[component_fieldname(c.abbr)] = c.name
+		if c.qty_unit:
+			wanted[component_qty_fieldname(c.abbr)] = c.name
+	no_field = [(name, fieldname) for fieldname, name in wanted.items() if not meta.has_field(fieldname)]
+	no_component = [
+		df.fieldname
+		for df in meta.fields
+		if df.fieldname.startswith(COMPONENT_FIELD_PREFIX) and df.fieldname not in wanted
+	]
+	return no_field, no_component
+
+
+# ---------------------------------------------------------------------------
+# Zalo "ID by OA" (getUserInfo().idByOA) - the only ID openChat({type: "user"}) accepts.
+# The app-scoped zalo_user_id looks just as valid but opens nothing (lesson from the
+# vehicle Mini App, vehicle_management/API_CONTRACT.md "zalo_user_id KHÔNG mở được chat").
+# ---------------------------------------------------------------------------
+MIN_ID_BY_OA_DIGITS = 10  # same shape check as TIQN Zalo Role Map
+
+
+def clean_id_by_oa(value):
+	"""Stripped ID, None when empty; raises ValidationError when it is not digits-only
+	and at least MIN_ID_BY_OA_DIGITS long (a placeholder like "34" would show a chat
+	button that silently does nothing)."""
+	value = str(value or "").strip()
+	if not value:
+		return None
+	if not value.isdigit() or len(value) < MIN_ID_BY_OA_DIGITS:
+		frappe.throw(
+			frappe._("{0} does not look like a Zalo ID by OA - digits only, at least {1} of them.").format(
+				value, MIN_ID_BY_OA_DIGITS
+			)
+		)
+	return value

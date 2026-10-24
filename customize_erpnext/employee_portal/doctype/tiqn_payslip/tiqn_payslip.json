@@ -1,48 +1,111 @@
 {
  "actions": [],
+ "allow_import": 1,
  "autoname": "format:PS-{period}-{employee}",
  "creation": "2026-10-12 12:00:00",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
+  "tab_general",
   "employee",
   "employee_name",
   "department",
   "section",
   "group",
+  "designation",
   "column_break_main",
   "period",
   "period_from",
   "period_to",
   "pay_date",
+  "attendance_section",
+  "sc_9",
+  "sc_1_1",
+  "sc_1_2_qty",
+  "column_break_attendance",
+  "sc_2_1_qty",
+  "sc_2_2_qty",
+  "sc_2_3_qty",
   "status_section",
   "status",
   "net_pay",
+  "final_settlement",
   "column_break_status",
   "published_on",
   "published_by",
+  "viewed_column",
   "first_viewed_on",
   "import_batch",
-  "details_section",
-  "details"
+  "tab_detail",
+  "column_break_earnings",
+  "sc_1",
+  "sc_1_2",
+  "sc_2",
+  "sc_2_1",
+  "sc_2_2",
+  "sc_2_3",
+  "sc_3",
+  "sc_3_1",
+  "sc_3_2",
+  "sc_3_3",
+  "sc_3_4",
+  "sc_3_5",
+  "sc_3_6",
+  "sc_3_7",
+  "sc_3_8",
+  "sc_3_9",
+  "sc_3_10",
+  "sc_4",
+  "sc_4_1",
+  "sc_4_2",
+  "sc_4_3",
+  "sc_4_4",
+  "sc_4_5",
+  "sc_4_6",
+  "sc_4_7",
+  "sc_5",
+  "column_break_deductions",
+  "sc_6",
+  "sc_6_1",
+  "sc_6_2",
+  "sc_6_3",
+  "sc_6_4",
+  "sc_6_5",
+  "sc_6_6",
+  "sc_7",
+  "sc_7_1",
+  "sc_7_2",
+  "sc_7_3",
+  "sc_7_4_qty",
+  "sc_7_4",
+  "sc_7_5_qty",
+  "sc_7_5",
+  "sc_7_6",
+  "sc_7_7",
+  "sc_8"
  ],
  "fields": [
   {
+   "fieldname": "tab_general",
+   "fieldtype": "Tab Break",
+   "label": "General"
+  },
+  {
    "fieldname": "employee",
    "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Employee",
    "options": "Employee",
    "reqd": 1,
-   "in_list_view": 1,
-   "in_standard_filter": 1,
    "search_index": 1
   },
   {
+   "description": "As written in the uploaded Excel file",
    "fieldname": "employee_name",
    "fieldtype": "Data",
-   "label": "Employee Name",
    "in_list_view": 1,
-   "description": "As written in the uploaded Excel file"
+   "label": "Employee Name"
   },
   {
    "fieldname": "department",
@@ -52,45 +115,94 @@
   {
    "fieldname": "section",
    "fieldtype": "Data",
-   "label": "Section",
-   "in_standard_filter": 1
+   "in_standard_filter": 1,
+   "label": "Section"
   },
   {
    "fieldname": "group",
    "fieldtype": "Data",
-   "label": "Group",
-   "in_standard_filter": 1
+   "in_standard_filter": 1,
+   "label": "Group"
   },
   {
    "fieldname": "column_break_main",
    "fieldtype": "Column Break"
   },
   {
+   "description": "YYYY-MM. 2026-08 = 26/07/2026 to 25/08/2026",
    "fieldname": "period",
    "fieldtype": "Data",
-   "label": "Period",
-   "reqd": 1,
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "search_index": 1,
-   "description": "YYYY-MM. 2026-08 = 26/07/2026 to 25/08/2026"
+   "label": "Period",
+   "reqd": 1,
+   "search_index": 1
   },
   {
    "fieldname": "period_from",
    "fieldtype": "Date",
    "label": "Period From",
-   "read_only": 1
+   "read_only": 1,
+   "description": "Start of the period, or the date of joining when the employee joined during it"
   },
   {
    "fieldname": "period_to",
    "fieldtype": "Date",
    "label": "Period To",
-   "read_only": 1
+   "read_only": 1,
+   "description": "End of the period, or the day before the relieving date when the employee left during it"
   },
   {
    "fieldname": "pay_date",
    "fieldtype": "Date",
-   "label": "Pay Date"
+   "label": "Pay Date",
+   "description": "Empty = the pay day of the month after the period (Settings), or relieving date + 14 days for a final settlement"
+  },
+  {
+   "fieldname": "attendance_section",
+   "fieldtype": "Section Break",
+   "label": "Net Pay, Attendance & Overtime"
+  },
+  {
+   "bold": 1,
+   "fieldname": "sc_9",
+   "fieldtype": "Currency",
+   "label": "9 Net Salary/Thực lĩnh (j=f-g+h+i):",
+   "precision": "0"
+  },
+  {
+   "fieldname": "sc_1_1",
+   "fieldtype": "Float",
+   "label": "1.1 Standard working days in the month/Số ngày làm việc chuẩn trong tháng",
+   "precision": "2"
+  },
+  {
+   "fieldname": "sc_1_2_qty",
+   "fieldtype": "Float",
+   "label": "1.2 Actual working days/Số ngày công thực tế làm việc - Days",
+   "precision": "2"
+  },
+  {
+   "fieldname": "column_break_attendance",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "sc_2_1_qty",
+   "fieldtype": "Float",
+   "label": "2.1 OT working hours on normal day/Số giờ làm thêm ngày thường - Hours",
+   "precision": "2"
+  },
+  {
+   "fieldname": "sc_2_2_qty",
+   "fieldtype": "Float",
+   "label": "2.2 OT working hours on weekend/Số giờ làm thêm ngày cuối tuần - Hours",
+   "precision": "2"
+  },
+  {
+   "fieldname": "sc_2_3_qty",
+   "fieldtype": "Float",
+   "label": "2.3 OT working hours on Public Holiday/Số giờ làm thêm ngày Lễ - Hours",
+   "precision": "2"
   },
   {
    "fieldname": "status_section",
@@ -98,25 +210,36 @@
    "label": "Status"
   },
   {
+   "default": "Draft",
+   "description": "Only Published payslips are visible in the Mini App. Use the Payslip Upload page to publish or withdraw",
    "fieldname": "status",
    "fieldtype": "Select",
-   "label": "Status",
-   "options": "Draft\nPublished\nWithdrawn",
-   "default": "Draft",
-   "reqd": 1,
    "in_list_view": 1,
    "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Draft\nPublished\nWithdrawn",
    "read_only": 1,
-   "description": "Only Published payslips are visible in the Mini App. Use the Payslip Upload page to publish or withdraw"
+   "reqd": 1
   },
   {
+   "description": "Copied from component 9 (Net Salary) - kept for the list view, filters and the API",
    "fieldname": "net_pay",
    "fieldtype": "Currency",
-   "label": "Net Pay",
-   "read_only": 1,
+   "hidden": 1,
    "in_list_view": 1,
+   "label": "Net Pay",
    "precision": "0",
-   "description": "Component 9 (Net Salary) from the uploaded file"
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "final_settlement",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Final Settlement",
+   "read_only": 1,
+   "description": "The employee left during this period and is paid separately. Publishing it sends no notification"
   },
   {
    "fieldname": "column_break_status",
@@ -136,61 +259,349 @@
    "read_only": 1
   },
   {
+   "fieldname": "viewed_column",
+   "fieldtype": "Column Break"
+  },
+  {
    "fieldname": "first_viewed_on",
    "fieldtype": "Datetime",
-   "label": "First Viewed By Employee",
-   "read_only": 1
+   "label": "First Viewed On",
+   "read_only": 1,
+   "description": "When the employee first opened this payslip in the Mini App. Empty = not viewed yet",
+   "in_list_view": 1
   },
   {
    "fieldname": "import_batch",
    "fieldtype": "Data",
+   "in_standard_filter": 1,
    "label": "Import Batch",
-   "read_only": 1,
-   "in_standard_filter": 1
+   "read_only": 1
   },
   {
-   "fieldname": "details_section",
-   "fieldtype": "Section Break",
-   "label": "Components"
+   "fieldname": "tab_detail",
+   "fieldtype": "Tab Break",
+   "label": "Detail"
   },
   {
-   "fieldname": "details",
-   "fieldtype": "Table",
-   "label": "Details",
-   "options": "TIQN Payslip Detail"
+   "fieldname": "column_break_earnings",
+   "fieldtype": "Column Break",
+   "label": "Earnings"
+  },
+  {
+   "fieldname": "sc_1",
+   "fieldtype": "Currency",
+   "label": "1 Basic Salary/Lương cơ bản  (a)",
+   "precision": "0"
+  },
+  {
+   "fieldname": "sc_1_2",
+   "fieldtype": "Currency",
+   "label": "1.2 Actual working days/Số ngày công thực tế làm việc",
+   "precision": "0"
+  },
+  {
+   "fieldname": "sc_2",
+   "fieldtype": "Currency",
+   "label": "2 Overtime/Làm việc ngoài giờ  (b)",
+   "precision": "0"
+  },
+  {
+   "fieldname": "sc_2_1",
+   "fieldtype": "Currency",
+   "label": "2.1 OT working hours on normal day/Số giờ làm thêm ngày thường",
+   "precision": "0"
+  },
+  {
+   "fieldname": "sc_2_2",
+   "fieldtype": "Currency",
+   "label": "2.2 OT working hours on weekend/Số giờ làm thêm ngày cuối tuần",
+   "precision": "0"
+  },
+  {
+   "fieldname": "sc_2_3",
+   "fieldtype": "Currency",
+   "label": "2.3 OT working hours on Public Holiday/Số giờ làm thêm ngày Lễ",
+   "precision": "0"
+  },
+  {
+   "bold": 1,
+   "fieldname": "sc_3",
+   "fieldtype": "Currency",
+   "label": "3 Monthly Salary/Lương tháng (c=a+b)",
+   "precision": "0"
+  },
+  {
+   "bold": 1,
+   "fieldname": "sc_3_1",
+   "fieldtype": "Currency",
+   "label": "3.1 Allowance/Phụ cấp (d)",
+   "precision": "0"
+  },
+  {
+   "fieldname": "sc_3_2",
+   "fieldtype": "Currency",
+   "label": "3.2 Technical allowance/ Phụ cấp kỹ thuật",
+   "precision": "0"
+  },
+  {
+   "fieldname": "sc_3_3",
+   "fieldtype": "Currency",
+   "label": "3.3 Position allowance/Phụ cấp chức vụ",
+   "precision": "0"
+  },
+  {
+   "fieldname": "sc_3_4",
+   "fieldtype": "Currency",
+   "label": "3.4 Accomodation Allowance/Phụ cấp nhà ở",
+   "precision": "0"
+  },
+  {
+   "fieldname": "sc_3_5",
+   "fieldtype": "Currency",
+   "label": "3.5 Commuting allowance/Phụ cấp xăng xe",
+   "precision": "0"
+  },
+  {
+   "fieldname": "sc_3_6",
+   "fieldtype": "Currency",
+   "label": "3.6 Phone allowance/Phụ cấp điện thoại",
+   "precision": "0"
+  },
+  {
+   "fieldname": "sc_3_7",
+   "fieldtype": "Currency",
+   "label": "3.7 Fire prevention and fighting allowance/Phụ cấp PCCC",
+   "precision": "0"
+  },
+  {
+   "fieldname": "sc_3_8",
+   "fieldtype": "Currency",
+   "label": "3.8 Safety and hygiene allowance/Phụ cấp ATVS viên",
+   "precision": "0"
+  },
+  {
+   "fieldname": "sc_3_9",
+   "fieldtype": "Currency",
+   "label": "3.9 Supporting stages allowance/Phụ cấp hỗ trợ công đoạn",
+   "precision": "0"
+  },
+  {
+   "fieldname": "sc_3_10",
+   "fieldtype": "Currency",
+   "label": "3.10 Fire fighting training allowance/Phụ cấp tham gia huấn luyện PCCC",
+   "precision": "0"
+  },
+  {
+   "bold": 1,
+   "fieldname": "sc_4",
+   "fieldtype": "Currency",
+   "label": "4 Incentive/Thưởng (e)",
+   "precision": "0"
+  },
+  {
+   "fieldname": "sc_4_1",
+   "fieldtype": "Currency",
+   "label": "4.1 Attendance incentive/ Thưởng Chuyên cần",
+   "precision": "0"
+  },
+  {
+   "fieldname": "sc_4_2",
+   "fieldtype": "Currency",
+   "label": "4.2 Responsibility incentive/Thưởng trách nhiệm",
+   "precision": "0"
+  },
+  {
+   "fieldname": "sc_4_3",
+   "fieldtype": "Currency",
+   "label": "4.3 KPIs incentive/Thưởng đánh giá kết quả làm việc",
+   "precision": "0"
+  },
+  {
+   "fieldname": "sc_4_4",
+   "fieldtype": "Currency",
+   "label": "4.4 Processing company support/ Tiền hỗ trợ làm tại công ty gia công",
+   "precision": "0"
+  },
+  {
+   "fieldname": "sc_4_5",
+   "fieldtype": "Currency",
+   "label": "4.5 Shift working support/Tiền hỗ trợ làm ca",
+   "precision": "0"
+  },
+  {
+   "fieldname": "sc_4_6",
+   "fieldtype": "Currency",
+   "label": "4.6 Children support/Hỗ trợ con nhỏ",
+   "precision": "0"
+  },
+  {
+   "fieldname": "sc_4_7",
+   "fieldtype": "Currency",
+   "label": "4.7 Commuting supporting/ Hỗ trợ xăng xe",
+   "precision": "0"
+  },
+  {
+   "bold": 1,
+   "fieldname": "sc_5",
+   "fieldtype": "Currency",
+   "label": "5 Sub total/Tổng (f=c+d+e)",
+   "precision": "0"
+  },
+  {
+   "fieldname": "column_break_deductions",
+   "fieldtype": "Column Break",
+   "label": "Deductions & Other Items"
+  },
+  {
+   "bold": 1,
+   "fieldname": "sc_6",
+   "fieldtype": "Currency",
+   "label": "6 Deductions/Các khoản khấu trừ (g)",
+   "precision": "0"
+  },
+  {
+   "fieldname": "sc_6_1",
+   "fieldtype": "Currency",
+   "label": "6.1 SI/BHXH (8%)",
+   "precision": "0"
+  },
+  {
+   "fieldname": "sc_6_2",
+   "fieldtype": "Currency",
+   "label": "6.2 HI/BHYT (1,5%)",
+   "precision": "0"
+  },
+  {
+   "fieldname": "sc_6_3",
+   "fieldtype": "Currency",
+   "label": "6.3 UI/BHTN (1%)",
+   "precision": "0"
+  },
+  {
+   "fieldname": "sc_6_4",
+   "fieldtype": "Currency",
+   "label": "6.4 Union Fee/ Phí Công Đoàn",
+   "precision": "0"
+  },
+  {
+   "fieldname": "sc_6_5",
+   "fieldtype": "Currency",
+   "label": "6.5 PIT/Thuế TNCN",
+   "precision": "0"
+  },
+  {
+   "fieldname": "sc_6_6",
+   "fieldtype": "Currency",
+   "label": "6.6 Employee' contract compensation/Tiền bồi thường HĐ của NLĐ",
+   "precision": "0"
+  },
+  {
+   "bold": 1,
+   "fieldname": "sc_7",
+   "fieldtype": "Currency",
+   "label": "7 Others/Các khoản khác (h)",
+   "precision": "0"
+  },
+  {
+   "fieldname": "sc_7_1",
+   "fieldtype": "Currency",
+   "label": "7.1 Meal support/Hỗ trợ tiền cơm",
+   "precision": "0"
+  },
+  {
+   "fieldname": "sc_7_2",
+   "fieldtype": "Currency",
+   "label": "7.2 Marriage gift/Quà kết hôn",
+   "precision": "0"
+  },
+  {
+   "fieldname": "sc_7_3",
+   "fieldtype": "Currency",
+   "label": "7.3 PIT Finalization/ Quyết toán thuế",
+   "precision": "0"
+  },
+  {
+   "fieldname": "sc_7_4_qty",
+   "fieldtype": "Float",
+   "label": "7.4 Annual leave payment/ Thanh toán phép năm - Days",
+   "precision": "2"
+  },
+  {
+   "fieldname": "sc_7_4",
+   "fieldtype": "Currency",
+   "label": "7.4 Annual leave payment/ Thanh toán phép năm",
+   "precision": "0"
+  },
+  {
+   "fieldname": "sc_7_5_qty",
+   "fieldtype": "Float",
+   "label": "7.5 Menstrual allowance/Phụ cấp kinh nguyệt - Days",
+   "precision": "2"
+  },
+  {
+   "fieldname": "sc_7_5",
+   "fieldtype": "Currency",
+   "label": "7.5 Menstrual allowance/Phụ cấp kinh nguyệt",
+   "precision": "0"
+  },
+  {
+   "fieldname": "sc_7_6",
+   "fieldtype": "Currency",
+   "label": "7.6 21.5% (SI+HI+UI)/21.5% (BHXH+BHYT+BHTN)",
+   "precision": "0"
+  },
+  {
+   "fieldname": "sc_7_7",
+   "fieldtype": "Currency",
+   "label": "7.7 Public holiday bonus/Thưởng lễ",
+   "precision": "0"
+  },
+  {
+   "bold": 1,
+   "fieldname": "sc_8",
+   "fieldtype": "Currency",
+   "label": "8 Adjustment for previous month/Điều chỉnh lương tháng trước (i)",
+   "precision": "0"
+  },
+  {
+   "fetch_from": "employee.designation",
+   "fieldname": "designation",
+   "fieldtype": "Data",
+   "in_standard_filter": 1,
+   "label": "Designation"
   }
  ],
- "index_web_pages_for_search": 0,
  "links": [],
- "modified": "2026-10-12 12:00:00",
+ "modified": "2026-10-24 18:00:00.000000",
  "modified_by": "Administrator",
  "module": "Employee Portal",
  "name": "TIQN Payslip",
+ "naming_rule": "Expression (old style)",
  "owner": "Administrator",
  "permissions": [
   {
-   "role": "System Manager",
-   "read": 1,
-   "write": 1,
    "create": 1,
    "delete": 1,
-   "report": 1,
    "export": 1,
+   "import": 1,
    "print": 1,
-   "email": 0,
-   "share": 1
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
   },
   {
-   "role": "Payroll Officer",
-   "read": 1,
-   "write": 1,
    "create": 1,
    "delete": 1,
-   "report": 1,
    "export": 1,
+   "import": 1,
    "print": 1,
-   "email": 0,
-   "share": 1
+   "read": 1,
+   "report": 1,
+   "role": "CnB",
+   "share": 1,
+   "write": 1
   }
  ],
  "row_format": "Dynamic",

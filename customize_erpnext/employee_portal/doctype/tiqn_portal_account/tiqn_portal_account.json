@@ -6,6 +6,7 @@
  "engine": "InnoDB",
  "field_order": [
   "zalo_user_id",
+  "zalo_name",
   "employee",
   "employee_name",
   "phone",
@@ -17,6 +18,7 @@
   "disabled_message",
   "first_login",
   "last_login",
+  "notifications_seen_on",
   "oa_section",
   "followed_oa",
   "oa_invite_dismissed",
@@ -27,68 +29,77 @@
  ],
  "fields": [
   {
+   "description": "The user's Zalo ID inside THIS Mini App (different from the same person's ID in the vehicle Mini App). Created automatically when the user opens the app; HR may also create the account by hand from the ID the app shows.",
    "fieldname": "zalo_user_id",
    "fieldtype": "Data",
+   "in_list_view": 1,
    "label": "Zalo User ID",
    "reqd": 1,
-   "unique": 1,
+   "set_only_once": 1,
+   "unique": 1
+  },
+  {
+   "description": "Display name on Zalo, updated at each sign-in from Zalo. Empty until the user shares their Zalo profile with the Mini App",
+   "fieldname": "zalo_name",
+   "fieldtype": "Data",
    "in_list_view": 1,
-   "description": "The user's Zalo ID inside THIS Mini App (different from the same person's ID in the vehicle Mini App). Created automatically when the user opens the app; HR may also create the account by hand from the ID the app shows.",
-   "set_only_once": 1
+   "label": "Zalo Name",
+   "read_only": 1
   },
   {
    "fieldname": "employee",
    "fieldtype": "Link",
-   "label": "Employee",
-   "options": "Employee",
    "in_list_view": 1,
    "in_standard_filter": 1,
+   "label": "Employee",
+   "options": "Employee",
    "read_only": 1,
    "search_index": 1
   },
   {
+   "fetch_from": "employee.employee_name",
    "fieldname": "employee_name",
    "fieldtype": "Data",
+   "in_list_view": 1,
    "label": "Employee Name",
-   "fetch_from": "employee.employee_name",
-   "read_only": 1,
-   "in_list_view": 1
+   "read_only": 1
   },
   {
+   "description": "Phone used to find the employee (last 9 digits matched against Employee Cell Number). HR sets it by hand when Zalo could not provide the number (simulator, user refused the permission); it is overwritten whenever the user signs in with Zalo's phone permission. Changing it ends every open session of this account.",
    "fieldname": "phone",
    "fieldtype": "Data",
-   "label": "Phone",
-   "description": "Phone used to find the employee (last 9 digits matched against Employee Cell Number). HR sets it by hand when Zalo could not provide the number (simulator, user refused the permission); it is overwritten whenever the user signs in with Zalo's phone permission. Changing it ends every open session of this account.",
-   "in_list_view": 1
+   "in_list_view": 1,
+   "label": "Phone"
   },
   {
+   "description": "Zalo = confirmed by Zalo at sign-in · Manual = set by HR",
    "fieldname": "phone_source",
    "fieldtype": "Select",
+   "in_standard_filter": 1,
    "label": "Phone Source",
    "options": "\nZalo\nManual",
-   "read_only": 1,
-   "in_standard_filter": 1,
-   "description": "Zalo = confirmed by Zalo at sign-in · Manual = set by HR"
+   "read_only": 1
   },
   {
    "fieldname": "last_result",
    "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Last Login Result",
    "options": "\nACTIVE\nREAD_ONLY\nNOT_FOUND\nNO_PHONE\nEXPIRED\nDISABLED",
-   "read_only": 1,
-   "in_list_view": 1,
-   "in_standard_filter": 1
+   "read_only": 1
   },
   {
    "fieldname": "column_break_main",
    "fieldtype": "Column Break"
   },
   {
+   "default": "0",
+   "description": "Blocks login and revokes open sessions on the next request. Ticked automatically for a new account whose phone does not match an employee who may use the portal (see Disabled Automatically).",
    "fieldname": "disabled",
    "fieldtype": "Check",
-   "label": "Disabled",
    "in_standard_filter": 1,
-   "description": "Blocks login and revokes open sessions on the next request. Ticked automatically for a new account whose phone does not match an employee who may use the portal (see Disabled Automatically)."
+   "label": "Disabled"
   },
   {
    "default": "0",
@@ -100,10 +111,10 @@
    "read_only": 1
   },
   {
+   "depends_on": "disabled",
    "fieldname": "disabled_message",
    "fieldtype": "Small Text",
-   "label": "Message When Disabled",
-   "depends_on": "disabled"
+   "label": "Message When Disabled"
   },
   {
    "fieldname": "first_login",
@@ -118,17 +129,26 @@
    "read_only": 1
   },
   {
+   "description": "Last time this user marked the notification list read in the Mini App. Notifications created after it count as unread (no read state per notification)",
+   "fieldname": "notifications_seen_on",
+   "fieldtype": "Datetime",
+   "label": "Notifications Seen On",
+   "read_only": 1
+  },
+  {
    "fieldname": "oa_section",
    "fieldtype": "Section Break",
    "label": "Official Account"
   },
   {
+   "default": "0",
    "fieldname": "followed_oa",
    "fieldtype": "Check",
    "label": "Followed OA",
    "read_only": 1
   },
   {
+   "default": "0",
    "fieldname": "oa_invite_dismissed",
    "fieldtype": "Check",
    "label": "OA Invite Dismissed",
@@ -139,59 +159,51 @@
    "fieldtype": "Column Break"
   },
   {
+   "description": "Zalo getUserInfo().idByOA, sent by the Mini App. THIS is the ID that opens a 1-1 chat (copy it to Employee Portal Settings → C&B Chat ID for the payroll staff member). Empty until the Mini App is verified by the OA or the user follows the OA",
    "fieldname": "id_by_oa",
    "fieldtype": "Data",
-   "label": "ID by OA",
-   "read_only": 1
+   "label": "ID by OA"
   },
   {
+   "collapsible": 1,
    "fieldname": "dev_section",
    "fieldtype": "Section Break",
-   "label": "Development",
-   "collapsible": 1
+   "label": "Development"
   },
   {
+   "default": "0",
+   "description": "Lets this account sign in with dev_login (Zalo simulator, NOT verified with Zalo). Only works while site_config has employee_portal_dev_login = 1. Tick only for the test team.",
    "fieldname": "allow_dev_login",
    "fieldtype": "Check",
-   "label": "Allow Dev Login",
-   "description": "Lets this account sign in with dev_login (Zalo simulator, NOT verified with Zalo). Only works while site_config has employee_portal_dev_login = 1. Tick only for the test team."
+   "label": "Allow Dev Login"
   }
  ],
- "index_web_pages_for_search": 0,
  "links": [],
- "modified": "2026-10-14 14:48:08.605447",
+ "modified": "2026-10-24 18:00:00.000000",
  "modified_by": "Administrator",
  "module": "Employee Portal",
  "name": "TIQN Portal Account",
  "owner": "Administrator",
  "permissions": [
   {
-   "role": "System Manager",
-   "read": 1,
-   "write": 1,
-   "create": 0,
    "delete": 1,
-   "report": 1,
    "export": 1,
-   "print": 0,
-   "email": 0,
-   "share": 0
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "write": 1
   },
   {
-   "role": "HR Manager",
-   "read": 1,
-   "write": 1,
    "create": 1,
-   "delete": 0,
-   "report": 1,
    "export": 1,
-   "print": 0,
-   "email": 0,
-   "share": 0
+   "read": 1,
+   "report": 1,
+   "role": "CnB",
+   "write": 1
   }
  ],
  "row_format": "Dynamic",
- "search_fields": "employee,employee_name,phone",
+ "search_fields": "employee,employee_name,phone,zalo_name",
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": [],
