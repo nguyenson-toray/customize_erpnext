@@ -887,6 +887,24 @@ w5 = payslip_admin.parse_upload(f5.file_url)["rows"][0]["warnings"]
 check("re-import: changed Period To shown (old and new)",
 	any(formatdate("2030-07-25") in w and formatdate("2030-07-20") in w for w in w5), True)
 payslip_admin.discard_upload(f5.file_url)
+# Left mid-period but Period To in the file on/after the relieving date (monthly file downloaded
+# before the relieving date was entered) -> warned; the controller would keep the file's value.
+real_relieving = frappe.db.get_value("Employee", EMP_A, "relieving_date")
+frappe.db.set_value("Employee", EMP_A, "relieving_date", "2030-07-20", update_modified=False)
+left_warn = {}
+for to_ in ("2030-07-25", "2030-07-20", "2030-07-19", None):
+	wb6 = Workbook()
+	ws6 = wb6.active
+	ws6.append(list(payslip_admin.TEMPLATE_IDENT) + comp_cols)
+	ws6.append([1, "2030-07", None, getdate(to_) if to_ else None, None, EMP_A, "", "", "", "", ""] + vals(good))
+	buf6 = io.BytesIO()
+	wb6.save(buf6)
+	f6 = frappe.get_doc({"doctype": "File", "file_name": f"unit6-{RUN}.xlsx", "is_private": 1, "content": buf6.getvalue()}).insert(ignore_permissions=True)
+	left_warn[to_] = any("last working day" in w for w in payslip_admin.parse_upload(f6.file_url)["rows"][0]["warnings"])
+	payslip_admin.discard_upload(f6.file_url)
+frappe.db.set_value("Employee", EMP_A, "relieving_date", real_relieving, update_modified=False)
+check("left mid-period: Period To >= relieving warned, < relieving / empty not",
+	left_warn, {"2030-07-25": True, "2030-07-20": True, "2030-07-19": False, None: False})
 check("delete drafts skips re-imported withdrawn", payslip_admin.delete_draft_period("2030-07")["deleted"], 0)
 check("publish takes re-imported withdrawn", payslip_admin.publish_period("2030-07")["published"], 2)
 # Pre-filled template (23/10): pick a period -> one row per employee who worked in it.

@@ -127,7 +127,9 @@ Department | Section | Group | <khoản>`.
 - Cột khoản nhận theo **mã số đầu tiêu đề** (`3.2 …`); cột `… - Days` / `… - Hours` (cũ: `Unit/ĐVT`) = số ngày/giờ.
 - `Period From/To` phải nằm trong kỳ 26→25; trống = tự tính. `Pay Date` trống = ngày trả lương tháng (hoặc nghỉ + 14).
 - Lỗi (chặn): MSNV không có, trùng dòng, ô không phải số/ngày, cột lạ, ngày ngoài kỳ, kỳ đã phát hành.
-- Cảnh báo (xác nhận rồi vẫn nhập): tên khác ERP, NV nghỉ trước kỳ, **ghi đè phiếu Draft/Withdrawn đang có** (lô + giờ
+- Cảnh báo (xác nhận rồi vẫn nhập): tên khác ERP, NV nghỉ trước kỳ, **NV nghỉ giữa kỳ mà Period To trong file ≥
+  `relieving_date`** (file tháng tải trước khi nhập ngày nghỉ — controller giữ Period To của file, không tự cắt về
+  ngày nghỉ − 1; Period To trống thì không cảnh báo vì tự tính; từ 26/10), **ghi đè phiếu Draft/Withdrawn đang có** (lô + giờ
   lưu cũ; Period From/To, Pay Date khác thì hiện cũ/mới — trước 26/10 ghi đè im lặng); nếu bật **Check Formulas on Import**: `3=1+2`,
   `5=3+3.1+4`, `9=5−6+7+8`, tổng nhóm = tổng dòng con, thực lĩnh âm. **Không bao giờ tự sửa số của HR.**
 - File upload bị xoá khỏi `File` ngay sau khi nhập/huỷ (chứa lương cả kỳ).

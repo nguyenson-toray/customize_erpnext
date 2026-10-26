@@ -54,6 +54,7 @@ Nhân viên vào làm giữa kỳ: cột *Từ ngày* là ngày vào làm.
 - **Lỗi** (đỏ): phải sửa trong Excel rồi tải lên lại. Ví dụ: mã NV không có, một người xuất hiện 2 dòng, ô không phải số, ngày ngoài kỳ, kỳ đã phát hành.
 - **Cảnh báo** (cam): vẫn nhập được sau khi tick *Tôi đã kiểm tra các cảnh báo ở trên*. Ví dụ: tên trong file khác ERP,
   tổng không khớp công thức (`3 = 1 + 2`, `5 = 3 + 3.1 + 4`, `9 = 5 − 6 + 7 + 8`, dòng nhóm ≠ tổng dòng con), thực lĩnh âm,
+  nhân viên **đã nghỉ trước kỳ**, nhân viên **nghỉ giữa kỳ mà *Đến ngày* trong file trùng hoặc sau ngày nghỉ việc** (xem mục 3),
   và **"Sẽ ghi đè phiếu … đang có"**: nhân viên + kỳ đó đã có phiếu nháp / đã thu hồi (kèm lô và giờ nhập cũ; nếu Từ ngày /
   Đến ngày / Ngày trả lương khác thì hiện cả ngày cũ và ngày trong file). Đọc kỹ để không nhập nhầm file đè lên file khác.
 - ⚠ Kiểm tra **số dòng** (ô "… rows") đúng bằng số nhân viên. Lỡ chọn **file mẫu chưa điền số** thì vẫn nhập được
@@ -95,6 +96,11 @@ Nhân viên nghỉ việc được thanh toán **trong 14 ngày kể từ ngày 
    cho người nghỉ. Họ vẫn xem được phiếu trên Mini App trong **30 ngày** sau ngày nghỉ.
 
 Khi phát hành phiếu tháng của cùng kỳ sau đó, thông báo chung vẫn được tạo như bình thường.
+
+⚠ **Tải file tháng trước khi nhập ngày nghỉ việc**: người nghỉ giữa kỳ vẫn nằm trong file tháng với *Đến ngày* = 25.
+Khi tải lên, ERP cảnh báo *"Employee left on … (last working day …), but Period To in the file is …"*. Đừng tick bỏ qua:
+xoá dòng đó khỏi file tháng và tính cho người này bằng file **Chỉ nhân viên nghỉ việc**. Nếu vẫn muốn để trong file tháng thì
+sửa *Đến ngày* thành ngày trước ngày nghỉ việc, hoặc để trống ô này (ERP tự điền).
 
 ---
 

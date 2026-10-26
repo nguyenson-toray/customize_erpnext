@@ -556,6 +556,16 @@ def parse_upload(file_url):
 				warnings.append(_("Name in file \"{0}\" differs from ERP \"{1}\".").format(name_in_file, emp.employee_name))
 			if period and emp.relieving_date and getdate(emp.relieving_date) <= period_bounds(period)[0]:
 				warnings.append(_("Employee left on {0}, before this period started.").format(emp.relieving_date))
+			elif dates["period_to"] and emp.relieving_date and getdate(dates["period_to"]) >= getdate(emp.relieving_date):
+				# Monthly file downloaded before the relieving date was entered: the controller
+				# keeps the file's Period To, so it would stay past the last working day (26/10/2026).
+				warnings.append(
+					_("Employee left on {0} (last working day {1}), but Period To in the file is {2}.").format(
+						formatdate(emp.relieving_date),
+						formatdate(add_days(emp.relieving_date, -1)),
+						formatdate(dates["period_to"]),
+					)
+				)
 
 		if check_formulas:
 			warnings += _formula_warnings(amounts, components)
