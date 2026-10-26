@@ -9,6 +9,7 @@ from urllib.parse import quote, unquote
 
 import frappe
 from frappe import _
+from frappe.model.rename_doc import rename_doc
 from frappe.utils import cint, get_url, now_datetime
 
 from customize_erpnext.api.employee_portal.core import (
@@ -40,6 +41,11 @@ from customize_erpnext.employee_portal.utils import (
 	mask_phone,
 	setting_int,
 	strip_company_suffix,
+)
+from customize_erpnext.employee_portal.doctype.tiqn_portal_link_request.tiqn_portal_link_request import (
+	MAX_REQUESTS_PER_DAY,
+	linked_accounts,
+	normalise_name,
 )
 from customize_erpnext.utils import zalo_graph
 
@@ -307,7 +313,10 @@ def complete_login(zalo_user_id, raw_phone=None, login_method="ZALO_PHONE", zalo
 # ---------------------------------------------------------------------------
 LINK_REQUEST = "TIQN Portal Link Request"
 EMPLOYEE_ID_RE = re.compile(r"^TIQN-\d{4}$")
-LINK_REQUESTS_PER_DAY = 3
+# Saved requests are limited in the record itself (MAX_REQUESTS_PER_DAY = 2, shown on
+# ERP and in the app). This cache limit counts every attempt, refused ones included,
+# so nobody can probe employee codes.
+LINK_ATTEMPTS_PER_DAY = 10
 
 
 @portal_api(methods=("POST",), auth=False)
@@ -316,8 +325,13 @@ def link_employee_request(access_token=None, employee_id=None, full_name=None):
 
 	Who is asking comes from Zalo (access_token), never from the client - a
 	`zalo_user_id` parameter is ignored. The phone HR will approve is the one Zalo
-	confirmed at the last sign-in. Whether the typed name matches is NOT told back
-	(it would let anyone probe employee names); HR sees it on the request.
+	confirmed at the last sign-in. The code and name must match the employee record
+	(accents / capitals ignored); an unknown code and a wrong name get the same
+	NOT_FOUND, so nobody learns which codes exist.
+
+	One record per Zalo account: a new request overwrites it (back to Pending, also
+	while still Pending - to fix a typo), at most MAX_REQUESTS_PER_DAY a day. An employee
+	that an active account already signs in as cannot be requested (EMPLOYEE_LINKED).
 	"""
 	access_token = (access_token or "").strip()
 	employee_id = (employee_id or "").strip().upper()
@@ -331,9 +345,10 @@ def link_employee_request(access_token=None, employee_id=None, full_name=None):
 
 	hit_rate_limit(f"link-ip:{getattr(frappe.local, 'request_ip', '')}", 120, 60)
 	try:
-		zalo_user_id, zalo_name = zalo_graph.get_user_id(access_token, SECRET_CONF)
+		zalo = zalo_graph.get_user_info(access_token, SECRET_CONF)
 	except zalo_graph.ZaloError as e:
 		raise PortalError(e.code, e.message, details={"zalo_code": e.zalo_code} if e.zalo_code else None)
+	zalo_user_id, zalo_name = zalo["id"], zalo["name"]
 
 	account = frappe.db.get_value(
 		"TIQN Portal Account", zalo_user_id, ["name", "phone", "disabled", "auto_disabled", "zalo_name"], as_dict=True
@@ -346,25 +361,54 @@ def link_employee_request(access_token=None, employee_id=None, full_name=None):
 		raise PortalError("VALIDATION", _("Please allow the app to read your phone number, then try again."))
 	if find_employees_by_phone(account.phone):
 		raise PortalError("LOGIN_AGAIN", _("Your phone now matches an employee record. Please open the app again."))
-	if frappe.db.exists(LINK_REQUEST, {"account": zalo_user_id, "status": "Pending"}):
-		raise PortalError("PENDING", _("You already have a request waiting for HR."))
 
-	hit_rate_limit(f"link-zalo:{zalo_user_id}", LINK_REQUESTS_PER_DAY, 86400)
-	employee = frappe.db.get_value("Employee", employee_id, ["name", "status", "relieving_date"], as_dict=True)
-	if not employee or employee_access(employee)[0] not in ("ACTIVE", "READ_ONLY"):
-		raise PortalError("NOT_FOUND", _("Employee code {0} was not found.").format(employee_id), field="employee_id")
+	hit_rate_limit(f"link-try:{zalo_user_id}", LINK_ATTEMPTS_PER_DAY, 86400)
+	doc = _own_request(zalo_user_id, account.phone)
+	mine = not doc.is_new() and doc.account == zalo_user_id
+	if mine and doc.count_today() >= MAX_REQUESTS_PER_DAY:
+		raise PortalError(
+			"REQUEST_LIMIT",
+			_("You can send at most {0} requests a day. Please try again tomorrow.").format(MAX_REQUESTS_PER_DAY),
+			details={"max_per_day": MAX_REQUESTS_PER_DAY, "requests_today": doc.count_today()},
+		)
 
-	doc = frappe.new_doc(LINK_REQUEST)
+	employee = frappe.db.get_value(
+		"Employee", employee_id, ["name", "employee_name", "status", "relieving_date"], as_dict=True
+	)
+	# Unknown code, no longer allowed in the app, or a name that does not match: ONE answer,
+	# so the form cannot be used to find out which codes exist (attempts are limited above).
+	if (
+		not employee
+		or employee_access(employee)[0] not in ("ACTIVE", "READ_ONLY")
+		or normalise_name(employee.employee_name) != normalise_name(full_name)
+	):
+		raise PortalError("NOT_FOUND", _("The employee code or full name is not correct. Please check again."))
+	if linked_accounts(employee.name, exclude=zalo_user_id):
+		raise PortalError(
+			"EMPLOYEE_LINKED",
+			_("This employee code already has an account on the app. Please contact the HR department."),
+			field="employee_id",
+		)
+
 	doc.update(
 		{
 			"account": zalo_user_id,
 			"zalo_name": zalo_name or account.zalo_name,
+			"zalo_avatar": zalo["picture"],
 			"phone": account.phone,
 			"employee": employee.name,
 			"full_name": full_name,
+			"status": "Pending",
+			"reviewed_by": None,
+			"reviewed_on": None,
+			"reject_reason": None,
 		}
 	)
-	doc.insert(ignore_permissions=True)
+	if not mine:  # new, or left under this phone by another Zalo account: start counting again
+		doc.request_count = doc.requests_today = 0
+	doc.count_request()
+	doc.flags.ignore_permissions = True
+	doc.insert() if doc.is_new() else doc.save()
 	return {
 		"status": "PENDING",
 		"message": _("Your request has been sent. The HR department will check it."),
@@ -372,25 +416,49 @@ def link_employee_request(access_token=None, employee_id=None, full_name=None):
 	}
 
 
+def _own_request(zalo_user_id, phone):
+	"""The request record of this Zalo account - named after its Zalo phone - locked, or a
+	new one. Phone changed since the last request -> the record is renamed to the new
+	number; a record another Zalo account left under this number (the number moved to
+	this account) is replaced."""
+	mine = frappe.db.get_value(LINK_REQUEST, {"account": zalo_user_id}, "name", for_update=True)
+	by_phone = frappe.db.get_value(LINK_REQUEST, phone, "name", for_update=True)
+	if mine and mine != phone:
+		if by_phone:
+			frappe.delete_doc(LINK_REQUEST, by_phone, force=True, ignore_permissions=True)
+		# frappe.rename_doc() has no ignore_permissions; the Mini App user has no rights on this DocType.
+		rename_doc(doctype=LINK_REQUEST, old=mine, new=phone, force=True, ignore_permissions=True, show_alert=False)
+		mine = phone
+	name = mine or by_phone
+	return frappe.get_doc(LINK_REQUEST, name) if name else frappe.new_doc(LINK_REQUEST)
+
+
 def link_request_payload(zalo_user_id):
-	"""Latest request of this Zalo account if it is waiting or was rejected, else None
+	"""The request of this Zalo account if it is waiting or was rejected, else None
 	(approved = the phone matches, so login no longer answers NOT_FOUND)."""
 	if not frappe.db.table_exists(LINK_REQUEST):  # code deployed before migrate
 		return None
-	row = frappe.db.get_value(
-		LINK_REQUEST,
-		{"account": zalo_user_id},
-		["status", "employee", "creation", "reject_reason"],
-		as_dict=True,
-		order_by="creation desc",
-	)
-	if not row or row.status not in ("Pending", "Rejected"):
+	if not frappe.db.has_column(LINK_REQUEST, "request_count"):  # v4 code before migrate
 		return None
+	name = frappe.db.get_value(LINK_REQUEST, {"account": zalo_user_id}, "name", order_by="creation desc")
+	if not name:
+		return None
+	doc = frappe.get_doc(LINK_REQUEST, name)
+	if doc.status not in ("Pending", "Rejected"):
+		return None
+	requests_today = doc.count_today()
+	requested_at = fmt_datetime(doc.last_requested_on or doc.creation)
 	return {
-		"status": row.status.upper(),
-		"employee_id": row.employee,
-		"created_at": fmt_datetime(row.creation),
-		"reject_reason": row.reject_reason if row.status == "Rejected" else None,
+		"status": doc.status.upper(),
+		"employee_id": doc.employee,
+		"requested_at": requested_at,
+		"created_at": requested_at,  # name before 1.6.0
+		"reject_reason": doc.reject_reason if doc.status == "Rejected" else None,
+		"request_count": doc.request_count or 0,
+		"requests_today": requests_today,
+		"max_per_day": MAX_REQUESTS_PER_DAY,
+		"remaining_today": max(MAX_REQUESTS_PER_DAY - requests_today, 0),
+		"can_resend": requests_today < MAX_REQUESTS_PER_DAY,
 	}
 
 

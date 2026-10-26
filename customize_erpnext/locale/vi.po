@@ -89025,3 +89025,79 @@ msgstr "Yêu cầu liên kết"
 #. source: tiqn
 msgid "Payslip lines that show a number of days or hours next to the amount, like the paper payslip (1.2 Days, 2.1 Hours...). Needs field sc_CODE_qty on TIQN Payslip (code 1.2 = sc_1_2_qty)"
 msgstr "Các dòng phiếu lương có số ngày hoặc số giờ cạnh số tiền, như phiếu giấy (1.2 ngày, 2.1 giờ...). Cần field sc_MÃ_qty trên TIQN Payslip (mã 1.2 = sc_1_2_qty)"
+
+#. source: tiqn
+msgid "You can send at most {0} requests a day. Please try again tomorrow."
+msgstr "Mỗi ngày bạn chỉ được gửi tối đa {0} yêu cầu. Vui lòng thử lại vào ngày mai."
+
+#. source: tiqn
+msgid "The employee code or full name is not correct. Please check again."
+msgstr "Mã nhân viên hoặc họ tên không đúng. Vui lòng kiểm tra lại."
+
+#. source: tiqn
+msgid "This employee code already has an account on the app. Please contact the HR department."
+msgstr "Mã nhân viên này đã có tài khoản trên ứng dụng. Vui lòng liên hệ phòng Nhân sự."
+
+#. source: tiqn
+msgid "This employee already signs in from another Zalo account: {0} - this request cannot be approved. Disable that account first if it is no longer used."
+msgstr "Nhân viên này đang đăng nhập từ tài khoản Zalo khác: {0} - không duyệt được yêu cầu này. Nếu tài khoản đó không còn dùng, hãy tắt (Disable) nó trước."
+
+#. source: tiqn
+msgid "Employee {0} already signs in from another Zalo account ({1}). Disable that account first."
+msgstr "Nhân viên {0} đang đăng nhập từ tài khoản Zalo khác ({1}). Hãy tắt (Disable) tài khoản đó trước."
+
+#. source: tiqn
+msgid "The employee can only be changed while the request is Pending."
+msgstr "Chỉ đổi được nhân viên khi yêu cầu còn ở trạng thái Chờ duyệt."
+
+#. source: tiqn
+msgid "Column \"{0}\" does not match any TIQN Payslip field."
+msgstr "Cột \"{0}\" không khớp field nào của Phiếu lương."
+
+#. source: tiqn
+msgid "Column \"{0}\": line {1} has no days / hours field on TIQN Payslip."
+msgstr "Cột \"{0}\": khoản {1} không có field số ngày / giờ trên Phiếu lương."
+
+#. source: tiqn
+msgid "Columns \"{0}\" and \"{1}\" are both line {2}."
+msgstr "Cột \"{0}\" và \"{1}\" đều là khoản {2}."
+
+#. source: tiqn
+msgid "TIQN Payslip field {0} is not a payslip line (expected sc_CODE, or sc_CODE_qty next to sc_CODE). Ask IT to fix it."
+msgstr "Field {0} của Phiếu lương không phải một khoản trên phiếu (phải là sc_MÃ, hoặc sc_MÃ_qty đi kèm sc_MÃ). Báo IT sửa."
+
+#. source: tiqn
+msgid "One row per employee: No., Period (YYYY-MM or MM-YYYY), Period From, Period To, Pay Date, Employee, Employee Name, Designation, Department, Section, Group, then one column per payslip line (the TIQN Payslip fields), matched by the code at the start of the header (e.g. \"3.2 ...\"). No. and Designation are not imported. Period From / To may be inside the period (joined or left during it); empty Pay Date = the monthly pay day."
+msgstr "Mỗi nhân viên một dòng: STT, Kỳ (YYYY-MM hoặc MM-YYYY), Từ ngày, Đến ngày, Ngày trả lương, Mã NV, Họ tên, Chức danh, Bộ phận, Section, Group, sau đó mỗi khoản trên phiếu lương một cột (các field của Phiếu lương), nhận theo mã ở đầu tiêu đề (ví dụ \"3.2 ...\"). STT và Chức danh không được nhập. Từ / Đến ngày có thể nằm trong kỳ (vào làm hoặc nghỉ việc giữa kỳ); Ngày trả lương để trống = ngày trả lương hằng tháng."
+
+#. source: tiqn
+msgid "Request Count"
+msgstr "Số lần yêu cầu"
+
+#. source: tiqn
+msgid "Requests Today"
+msgstr "Yêu cầu hôm nay"
+
+#. source: tiqn
+msgid "Last Requested On"
+msgstr "Lần yêu cầu gần nhất"
+
+#. source: tiqn
+msgid "At most 2 per day"
+msgstr "Tối đa 2 lần/ngày"
+
+#. source: tiqn
+msgid "One request per Zalo account"
+msgstr "Mỗi tài khoản Zalo một yêu cầu"
+
+#. source: tiqn
+msgid "Requests sent from the Mini App by this Zalo account. A new request overwrites this record (older content: see the history below)"
+msgstr "Số yêu cầu tài khoản Zalo này đã gửi từ Mini App. Yêu cầu mới ghi đè phiếu này (nội dung cũ: xem lịch sử bên dưới)"
+
+#. source: tiqn
+msgid "Employee code the user typed (the app checks it against the name). HR may correct it while the request is Pending"
+msgstr "Mã nhân viên người dùng nhập (app đã đối chiếu với họ tên). C&B sửa được khi yêu cầu còn Chờ duyệt"
+
+#. source: tiqn
+msgid "Phone of the Zalo account, confirmed by Zalo - also the ID of this request. Call it to check who sent the request. Approve writes it to the employee's Zalo phone"
+msgstr "SĐT của tài khoản Zalo, đã được Zalo xác nhận - cũng là mã của yêu cầu này. Gọi số này để kiểm tra ai đã gửi yêu cầu. Duyệt sẽ ghi số này vào SĐT Zalo của nhân viên"

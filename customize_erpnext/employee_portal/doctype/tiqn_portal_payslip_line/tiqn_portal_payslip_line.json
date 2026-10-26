@@ -1,0 +1,59 @@
+{
+ "actions": [],
+ "creation": "2026-10-26 15:00:00",
+ "description": "One payslip line (TIQN Payslip field) and its label on the Zalo Mini App. Rows follow the TIQN Payslip fields; only the Mini App Label is edited",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "code",
+  "payslip_field",
+  "erp_label",
+  "portal_label"
+ ],
+ "fields": [
+  {
+   "columns": 1,
+   "fieldname": "code",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "No.",
+   "read_only": 1
+  },
+  {
+   "fieldname": "payslip_field",
+   "fieldtype": "Data",
+   "label": "Payslip Field",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "columns": 4,
+   "fieldname": "erp_label",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "ERP Label",
+   "read_only": 1
+  },
+  {
+   "columns": 5,
+   "description": "Shown in the Mini App word for word: start with the line number and add the letters like the paper payslip, e.g. 9 Thực lĩnh (j=f-g+h+i). Empty = the ERP Label",
+   "fieldname": "portal_label",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Mini App Label"
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-10-26 16:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Employee Portal",
+ "name": "TIQN Portal Payslip Line",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

@@ -27,6 +27,10 @@ PARENTS = {"1": ["1.1", "1.2"], "2": ["2.1", "2.2", "2.3"], "6": [f"6.{i}" for i
 
 def execute():
 	frappe.reload_doc("employee_portal", "doctype", "tiqn_payslip")
+	if "custom_portal_unit" not in frappe.db.get_table_columns("Salary Component"):
+		# v4 (26/10/2026): the payslip no longer reads Salary Component
+		frappe.db.set_single_value("Employee Portal Settings", "show_zero_lines", 1)
+		return
 	create_custom_fields(
 		{
 			"Salary Component": [

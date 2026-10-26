@@ -22,7 +22,6 @@ DROPPED_COLUMNS = ("viewed", "view_count", "last_viewed_on")
 
 
 def execute():
-	frappe.reload_doc("employee_portal", "doctype", "tiqn_portal_qty_unit")
 	frappe.reload_doc("employee_portal", "doctype", "employee_portal_settings")
 	move_qty_units()
 	drop_view_tracking()
@@ -32,7 +31,8 @@ def execute():
 
 def move_qty_units():
 	settings = frappe.get_single(SETTINGS)
-	if not settings.payslip_qty_units:
+	# v4 (26/10/2026): the Day / Hour table is gone - units come from the TIQN Payslip labels
+	if settings.meta.has_field("payslip_qty_units") and not settings.payslip_qty_units:
 		units = {}
 		if "custom_portal_qty_unit" in frappe.db.get_table_columns("Salary Component"):
 			units = dict(

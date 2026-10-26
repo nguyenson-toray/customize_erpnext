@@ -21,7 +21,8 @@
   "payslip_import_section",
   "validate_payslip_formulas",
   "column_break_payslip_import",
-  "payslip_qty_units",
+  "payslip_lines_section",
+  "payslip_lines",
   "attendance_section",
   "feature_attendance",
   "feature_overtime",
@@ -154,11 +155,17 @@
    "fieldtype": "Column Break"
   },
   {
-   "fieldname": "payslip_qty_units",
+   "collapsible": 1,
+   "description": "Text of each line on the Mini App payslip, shown word for word (line number and letters included, e.g. 9 Thực lĩnh (j=f-g+h+i)). Rows follow the TIQN Payslip fields (added / removed by IT); edit only the Mini App Label. Employees who already opened a payslip see a new text once the app cache expires",
+   "fieldname": "payslip_lines_section",
+   "fieldtype": "Section Break",
+   "label": "Payslip Lines on the Mini App"
+  },
+  {
+   "fieldname": "payslip_lines",
    "fieldtype": "Table",
-   "label": "Day / Hour Columns",
-   "options": "TIQN Portal Qty Unit",
-   "description": "Payslip lines that show a number of days or hours next to the amount, like the paper payslip (1.2 Days, 2.1 Hours...). Needs field sc_CODE_qty on TIQN Payslip (code 1.2 = sc_1_2_qty)"
+   "label": "Payslip Lines",
+   "options": "TIQN Portal Payslip Line"
   },
   {
    "fieldname": "attendance_section",
@@ -387,7 +394,7 @@
  "index_web_pages_for_search": 0,
  "issingle": 1,
  "links": [],
- "modified": "2026-10-24 18:00:00.000000",
+ "modified": "2026-10-26 16:00:00.000000",
  "modified_by": "Administrator",
  "module": "Employee Portal",
  "name": "Employee Portal Settings",

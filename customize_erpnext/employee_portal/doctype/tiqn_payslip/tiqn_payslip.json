@@ -167,19 +167,19 @@
    "bold": 1,
    "fieldname": "sc_9",
    "fieldtype": "Currency",
-   "label": "9 Net Salary/Thực lĩnh (j=f-g+h+i):",
+   "label": "9 Net Salary (j=f-g+h+i)",
    "precision": "0"
   },
   {
    "fieldname": "sc_1_1",
    "fieldtype": "Float",
-   "label": "1.1 Standard working days in the month/Số ngày làm việc chuẩn trong tháng",
+   "label": "1.1 Standard Working Days",
    "precision": "2"
   },
   {
    "fieldname": "sc_1_2_qty",
    "fieldtype": "Float",
-   "label": "1.2 Actual working days/Số ngày công thực tế làm việc - Days",
+   "label": "1.2 Days",
    "precision": "2"
   },
   {
@@ -189,19 +189,19 @@
   {
    "fieldname": "sc_2_1_qty",
    "fieldtype": "Float",
-   "label": "2.1 OT working hours on normal day/Số giờ làm thêm ngày thường - Hours",
+   "label": "2.1 Hours",
    "precision": "2"
   },
   {
    "fieldname": "sc_2_2_qty",
    "fieldtype": "Float",
-   "label": "2.2 OT working hours on weekend/Số giờ làm thêm ngày cuối tuần - Hours",
+   "label": "2.2 Hours",
    "precision": "2"
   },
   {
    "fieldname": "sc_2_3_qty",
    "fieldtype": "Float",
-   "label": "2.3 OT working hours on Public Holiday/Số giờ làm thêm ngày Lễ - Hours",
+   "label": "2.3 Hours",
    "precision": "2"
   },
   {
@@ -290,161 +290,161 @@
   {
    "fieldname": "sc_1",
    "fieldtype": "Currency",
-   "label": "1 Basic Salary/Lương cơ bản  (a)",
+   "label": "1 Basic Salary (a)",
    "precision": "0"
   },
   {
    "fieldname": "sc_1_2",
    "fieldtype": "Currency",
-   "label": "1.2 Actual working days/Số ngày công thực tế làm việc",
+   "label": "1.2 Actual Working Days",
    "precision": "0"
   },
   {
    "fieldname": "sc_2",
    "fieldtype": "Currency",
-   "label": "2 Overtime/Làm việc ngoài giờ  (b)",
+   "label": "2 Overtime (b)",
    "precision": "0"
   },
   {
    "fieldname": "sc_2_1",
    "fieldtype": "Currency",
-   "label": "2.1 OT working hours on normal day/Số giờ làm thêm ngày thường",
+   "label": "2.1 OT on Normal Days",
    "precision": "0"
   },
   {
    "fieldname": "sc_2_2",
    "fieldtype": "Currency",
-   "label": "2.2 OT working hours on weekend/Số giờ làm thêm ngày cuối tuần",
+   "label": "2.2 OT on Weekends",
    "precision": "0"
   },
   {
    "fieldname": "sc_2_3",
    "fieldtype": "Currency",
-   "label": "2.3 OT working hours on Public Holiday/Số giờ làm thêm ngày Lễ",
+   "label": "2.3 OT on Public Holidays",
    "precision": "0"
   },
   {
    "bold": 1,
    "fieldname": "sc_3",
    "fieldtype": "Currency",
-   "label": "3 Monthly Salary/Lương tháng (c=a+b)",
+   "label": "3 Monthly Salary (c=a+b)",
    "precision": "0"
   },
   {
    "bold": 1,
    "fieldname": "sc_3_1",
    "fieldtype": "Currency",
-   "label": "3.1 Allowance/Phụ cấp (d)",
+   "label": "3.1 Allowances (d)",
    "precision": "0"
   },
   {
    "fieldname": "sc_3_2",
    "fieldtype": "Currency",
-   "label": "3.2 Technical allowance/ Phụ cấp kỹ thuật",
+   "label": "3.2 Technical Allowance",
    "precision": "0"
   },
   {
    "fieldname": "sc_3_3",
    "fieldtype": "Currency",
-   "label": "3.3 Position allowance/Phụ cấp chức vụ",
+   "label": "3.3 Position Allowance",
    "precision": "0"
   },
   {
    "fieldname": "sc_3_4",
    "fieldtype": "Currency",
-   "label": "3.4 Accomodation Allowance/Phụ cấp nhà ở",
+   "label": "3.4 Accommodation Allowance",
    "precision": "0"
   },
   {
    "fieldname": "sc_3_5",
    "fieldtype": "Currency",
-   "label": "3.5 Commuting allowance/Phụ cấp xăng xe",
+   "label": "3.5 Commuting Allowance",
    "precision": "0"
   },
   {
    "fieldname": "sc_3_6",
    "fieldtype": "Currency",
-   "label": "3.6 Phone allowance/Phụ cấp điện thoại",
+   "label": "3.6 Phone Allowance",
    "precision": "0"
   },
   {
    "fieldname": "sc_3_7",
    "fieldtype": "Currency",
-   "label": "3.7 Fire prevention and fighting allowance/Phụ cấp PCCC",
+   "label": "3.7 Fire Prevention Allowance",
    "precision": "0"
   },
   {
    "fieldname": "sc_3_8",
    "fieldtype": "Currency",
-   "label": "3.8 Safety and hygiene allowance/Phụ cấp ATVS viên",
+   "label": "3.8 Safety & Hygiene Allowance",
    "precision": "0"
   },
   {
    "fieldname": "sc_3_9",
    "fieldtype": "Currency",
-   "label": "3.9 Supporting stages allowance/Phụ cấp hỗ trợ công đoạn",
+   "label": "3.9 Supporting Stages Allowance",
    "precision": "0"
   },
   {
    "fieldname": "sc_3_10",
    "fieldtype": "Currency",
-   "label": "3.10 Fire fighting training allowance/Phụ cấp tham gia huấn luyện PCCC",
+   "label": "3.10 Fire Training Allowance",
    "precision": "0"
   },
   {
    "bold": 1,
    "fieldname": "sc_4",
    "fieldtype": "Currency",
-   "label": "4 Incentive/Thưởng (e)",
+   "label": "4 Incentives (e)",
    "precision": "0"
   },
   {
    "fieldname": "sc_4_1",
    "fieldtype": "Currency",
-   "label": "4.1 Attendance incentive/ Thưởng Chuyên cần",
+   "label": "4.1 Attendance Incentive",
    "precision": "0"
   },
   {
    "fieldname": "sc_4_2",
    "fieldtype": "Currency",
-   "label": "4.2 Responsibility incentive/Thưởng trách nhiệm",
+   "label": "4.2 Responsibility Incentive",
    "precision": "0"
   },
   {
    "fieldname": "sc_4_3",
    "fieldtype": "Currency",
-   "label": "4.3 KPIs incentive/Thưởng đánh giá kết quả làm việc",
+   "label": "4.3 KPI Incentive",
    "precision": "0"
   },
   {
    "fieldname": "sc_4_4",
    "fieldtype": "Currency",
-   "label": "4.4 Processing company support/ Tiền hỗ trợ làm tại công ty gia công",
+   "label": "4.4 Processing Company Support",
    "precision": "0"
   },
   {
    "fieldname": "sc_4_5",
    "fieldtype": "Currency",
-   "label": "4.5 Shift working support/Tiền hỗ trợ làm ca",
+   "label": "4.5 Shift Support",
    "precision": "0"
   },
   {
    "fieldname": "sc_4_6",
    "fieldtype": "Currency",
-   "label": "4.6 Children support/Hỗ trợ con nhỏ",
+   "label": "4.6 Children Support",
    "precision": "0"
   },
   {
    "fieldname": "sc_4_7",
    "fieldtype": "Currency",
-   "label": "4.7 Commuting supporting/ Hỗ trợ xăng xe",
+   "label": "4.7 Commuting Support",
    "precision": "0"
   },
   {
    "bold": 1,
    "fieldname": "sc_5",
    "fieldtype": "Currency",
-   "label": "5 Sub total/Tổng (f=c+d+e)",
+   "label": "5 Sub Total (f=c+d+e)",
    "precision": "0"
   },
   {
@@ -456,111 +456,111 @@
    "bold": 1,
    "fieldname": "sc_6",
    "fieldtype": "Currency",
-   "label": "6 Deductions/Các khoản khấu trừ (g)",
+   "label": "6 Deductions (g)",
    "precision": "0"
   },
   {
    "fieldname": "sc_6_1",
    "fieldtype": "Currency",
-   "label": "6.1 SI/BHXH (8%)",
+   "label": "6.1 SI 8%",
    "precision": "0"
   },
   {
    "fieldname": "sc_6_2",
    "fieldtype": "Currency",
-   "label": "6.2 HI/BHYT (1,5%)",
+   "label": "6.2 HI 1.5%",
    "precision": "0"
   },
   {
    "fieldname": "sc_6_3",
    "fieldtype": "Currency",
-   "label": "6.3 UI/BHTN (1%)",
+   "label": "6.3 UI 1%",
    "precision": "0"
   },
   {
    "fieldname": "sc_6_4",
    "fieldtype": "Currency",
-   "label": "6.4 Union Fee/ Phí Công Đoàn",
+   "label": "6.4 Union Fee",
    "precision": "0"
   },
   {
    "fieldname": "sc_6_5",
    "fieldtype": "Currency",
-   "label": "6.5 PIT/Thuế TNCN",
+   "label": "6.5 PIT",
    "precision": "0"
   },
   {
    "fieldname": "sc_6_6",
    "fieldtype": "Currency",
-   "label": "6.6 Employee' contract compensation/Tiền bồi thường HĐ của NLĐ",
+   "label": "6.6 Contract Compensation",
    "precision": "0"
   },
   {
    "bold": 1,
    "fieldname": "sc_7",
    "fieldtype": "Currency",
-   "label": "7 Others/Các khoản khác (h)",
+   "label": "7 Others (h)",
    "precision": "0"
   },
   {
    "fieldname": "sc_7_1",
    "fieldtype": "Currency",
-   "label": "7.1 Meal support/Hỗ trợ tiền cơm",
+   "label": "7.1 Meal Support",
    "precision": "0"
   },
   {
    "fieldname": "sc_7_2",
    "fieldtype": "Currency",
-   "label": "7.2 Marriage gift/Quà kết hôn",
+   "label": "7.2 Marriage Gift",
    "precision": "0"
   },
   {
    "fieldname": "sc_7_3",
    "fieldtype": "Currency",
-   "label": "7.3 PIT Finalization/ Quyết toán thuế",
+   "label": "7.3 PIT Finalization",
    "precision": "0"
   },
   {
    "fieldname": "sc_7_4_qty",
    "fieldtype": "Float",
-   "label": "7.4 Annual leave payment/ Thanh toán phép năm - Days",
+   "label": "7.4 Days",
    "precision": "2"
   },
   {
    "fieldname": "sc_7_4",
    "fieldtype": "Currency",
-   "label": "7.4 Annual leave payment/ Thanh toán phép năm",
+   "label": "7.4 Annual Leave Payment",
    "precision": "0"
   },
   {
    "fieldname": "sc_7_5_qty",
    "fieldtype": "Float",
-   "label": "7.5 Menstrual allowance/Phụ cấp kinh nguyệt - Days",
+   "label": "7.5 Days",
    "precision": "2"
   },
   {
    "fieldname": "sc_7_5",
    "fieldtype": "Currency",
-   "label": "7.5 Menstrual allowance/Phụ cấp kinh nguyệt",
+   "label": "7.5 Menstrual Allowance",
    "precision": "0"
   },
   {
    "fieldname": "sc_7_6",
    "fieldtype": "Currency",
-   "label": "7.6 21.5% (SI+HI+UI)/21.5% (BHXH+BHYT+BHTN)",
+   "label": "7.6 SI+HI+UI 21.5%",
    "precision": "0"
   },
   {
    "fieldname": "sc_7_7",
    "fieldtype": "Currency",
-   "label": "7.7 Public holiday bonus/Thưởng lễ",
+   "label": "7.7 Public Holiday Bonus",
    "precision": "0"
   },
   {
    "bold": 1,
    "fieldname": "sc_8",
    "fieldtype": "Currency",
-   "label": "8 Adjustment for previous month/Điều chỉnh lương tháng trước (i)",
+   "label": "8 Previous Month Adjustment (i)",
    "precision": "0"
   },
   {
@@ -572,7 +572,7 @@
   }
  ],
  "links": [],
- "modified": "2026-10-24 18:00:00.000000",
+ "modified": "2026-10-26 15:00:00.000000",
  "modified_by": "Administrator",
  "module": "Employee Portal",
  "name": "TIQN Payslip",

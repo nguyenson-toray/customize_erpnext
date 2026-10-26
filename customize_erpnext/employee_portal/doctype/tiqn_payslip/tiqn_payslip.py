@@ -25,9 +25,10 @@ class TIQNPayslip(Document):
 	attendance and would overwrite HR's figures. Nothing here is computed except the
 	period dates and `net_pay`, which is copied from component 9.
 
-	One field per Salary Component (`sc_<code>`, plus `sc_<code>_qty` for the days /
+	One field per paper payslip line (`sc_<code>`, plus `sc_<code>_qty` for the days /
 	hours column, see utils.payslip_component_fields) - no child table, so the standard Data
-	Import / Export works on it (v2, 23/10/2026).
+	Import / Export works on it (v2, 23/10/2026). The fields alone describe the payslip
+	(code, label, groups); HRMS Salary Component is not used (v4, 26/10/2026).
 
 	Status is changed only through `employee_portal.payslip_admin` (Publish /
 	Withdraw), never by editing the field or by Data Import - publishing also creates

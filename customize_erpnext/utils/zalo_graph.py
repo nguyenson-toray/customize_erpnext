@@ -105,15 +105,27 @@ def _raise_for(data, conf_key):
 
 def get_user_id(access_token, secret_conf_key):
 	"""App-scoped Zalo user id of whoever holds `access_token`."""
+	info = get_user_info(access_token, secret_conf_key)
+	return info["id"], info["name"]
+
+
+def get_user_info(access_token, secret_conf_key):
+	"""{id, name, picture} of whoever holds `access_token`. name / picture are None when
+	the user has not shared their profile; picture is an https URL on Zalo's CDN."""
 	secret = _secret(secret_conf_key)
 	data = _get(
 		ZALO_ME_URL,
 		headers={"access_token": access_token, "appsecret_proof": _appsecret_proof(access_token, secret)},
-		params={"fields": "id,name"},
+		params={"fields": "id,name,picture"},
 	)
 	if frappe.utils.cint(data.get("error")) != 0 or not data.get("id"):
 		_raise_for(data, secret_conf_key)
-	return str(data["id"]).strip(), (data.get("name") or "").strip() or None
+	picture = ((data.get("picture") or {}).get("data") or {}).get("url") or ""
+	return {
+		"id": str(data["id"]).strip(),
+		"name": (data.get("name") or "").strip() or None,
+		"picture": picture.strip() if picture.strip().startswith("https://") else None,
+	}
 
 
 def get_phone(access_token, phone_token, secret_conf_key):

@@ -169,6 +169,8 @@ def ensure_portal_custom_fields():
 
 def seed_salary_components():
 	ensure_portal_custom_fields()
+	if "custom_portal_section" not in frappe.db.get_table_columns("Salary Component"):
+		return  # v4 (26/10/2026): the payslip no longer reads Salary Component
 	rows = frappe.get_all(
 		"Salary Component",
 		fields=["name", "salary_component_abbr", "custom_portal_section"],

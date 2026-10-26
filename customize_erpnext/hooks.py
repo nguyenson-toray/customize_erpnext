@@ -108,8 +108,6 @@ fixtures = [
                 # custom_section / custom_group: Employee Internal Work History gốc chỉ
                 # có branch/department/designation nên timeline thiếu 2 cấp tổ chức này
                 "Employee Internal Work History",
-                # custom_portal_*: nhóm/nhãn hiển thị phiếu lương trên Zalo Mini App (Employee Portal)
-                "Salary Component",
                 # custom_create_contract_appendix: tạo phụ lục HĐLĐ khi Submit (Labor Contract v3)
                 "Employee Promotion",
                 "Employee Transfer",

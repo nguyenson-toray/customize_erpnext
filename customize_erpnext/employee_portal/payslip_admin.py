@@ -24,10 +24,11 @@ Two templates (download_template):
 
 Component columns are matched by the leading code of the header
 ("3.2 Technical allowance/ Phụ cấp kỹ thuật" -> abbr "3.2"), so HR may keep the
-long bilingual names, reorder columns or fix a typo in the text part. A header ending in
-"- Days" / "- Hours" (older files: "Unit/ĐVT") is the days / hours value of that line -
+long bilingual names, reorder columns or fix a typo in the text part. A header equal to the
+`sc_<code>_qty` label ("1.2 Days"; older files: "... - Days" / "- Hours" / "Unit/ĐVT") is the days / hours value of that line -
 e.g. the 27 days of 1.2 - stored in `sc_<code>_qty`; the template puts it just before the
-amount. Which lines have one: Settings > Day / Hour Columns.
+amount. Which lines have one: those with a `sc_<code>_qty` field on TIQN Payslip.
+Column headers of the template = the TIQN Payslip field labels.
 
 Numbers are taken exactly as HR computed them. The formula checks below only WARN (and
 only when Settings > Check Formulas on Import is ticked) - HR confirms and imports anyway;
@@ -40,7 +41,7 @@ import unicodedata
 
 import frappe
 from frappe import _
-from frappe.utils import add_days, cint, flt, formatdate, getdate, now_datetime, today
+from frappe.utils import add_days, cint, flt, format_datetime, formatdate, getdate, now_datetime, today
 
 from customize_erpnext.customize_erpnext.doctype.attendance_calculation_setting.attendance_calculation_setting import (
 	get_excluded_employee_ids,
@@ -71,7 +72,7 @@ FORMULAS = [
 	("5", [("+", "3"), ("+", "3.1"), ("+", "4")]),
 	("9", [("+", "5"), ("-", "6"), ("+", "7"), ("+", "8")]),
 ]
-# Group total = sum of its VND detail lines (taken from custom_portal_parent):
+# Group total = sum of its VND detail lines (parent from utils.payslip_component_fields):
 # 1 = 1.2 (1.1 is days only), 2 = 2.1 + 2.2 + 2.3.
 GROUP_TOTALS = ["1", "2", "3.1", "4", "6", "7"]
 
@@ -93,13 +94,14 @@ TEMPLATE_IDENT = (
 )
 CODE_RE = re.compile(r"^\s*(\d+(?:\.\d+)?)(?=\s|$|/|\(|-)")
 QTY_LABELS = {"Day": "Days", "Hour": "Hours"}
-# On the _norm()-ed header. "- Days" only at the END: component names themselves say
-# "working days" / "số ngày".
-QTY_RE = re.compile(r"-\s*(?:days?|hours?)\s*$|unit\s*/\s*dvt|\bdvt\b")
+# On the _norm()-ed header, when it is not exactly a field label: "<code> Day(s)/Hour(s)"
+# alone, or "- Days" at the END (older files) - never a bare "days" inside a name:
+# "1.1 Standard Working Days" is not a days column.
+QTY_RE = re.compile(r"^\d+(?:\.\d+)*\s+(?:days?|hours?)$|-\s*(?:days?|hours?)\s*$|unit\s*/\s*dvt|\bdvt\b")
 
 
 def qty_header(component):
-	return f"{component.name} - {QTY_LABELS.get(component.qty_unit, 'Days')}"
+	return component.qty_label or f"{component.name} - {QTY_LABELS.get(component.qty_unit, 'Days')}"
 
 
 def _check_role():
@@ -130,7 +132,14 @@ def get_template_periods():
 	for i in range(13):
 		p = shift_period(current, -i)
 		start, end = period_bounds(p)
-		out.append({"value": p, "label": f"{period_label(p)} ({formatdate(start)} - {formatdate(end)})"})
+		out.append(
+			{
+				"value": p,
+				"label": f"{period_label(p)} ({formatdate(start)} - {formatdate(end)})",
+				"from_date": str(start),
+				"to_date": str(end),
+			}
+		)
 	return {"default": shift_period(current, -1), "periods": out}
 
 
@@ -161,7 +170,19 @@ def template_employees(period):
 
 def resigned_employees(from_date, to_date):
 	"""Resigned template: relieving_date in [from_date, to_date], whatever the period.
-	Attendance Calculation Setting > Exclude Employees left out too."""
+	Attendance Calculation Setting > Exclude Employees left out too, and so are those
+	whose last working day is the LAST day of a period (relieving_date = the 26th): they
+	worked the whole period, so they are on the monthly template (paid on the 5th, still
+	within the 14 days) - listing them here too would make a second payslip (26/10/2026)."""
+	return [e for e in _resigned_in_range(from_date, to_date) if not _left_at_period_end(e.relieving_date)]
+
+
+def _left_at_period_end(relieving_date):
+	last = add_days(relieving_date, -1)
+	return getdate(last) == period_bounds(period_of_date(last))[1]
+
+
+def _resigned_in_range(from_date, to_date):
 	return _not_excluded(frappe.db.sql(
 		"""
 		SELECT name, employee_name, designation, department, custom_section, custom_group,
@@ -201,22 +222,30 @@ def template_row(e, period=None):
 @frappe.whitelist(methods=["GET"])
 def download_template(period=None, resigned=0, from_date=None, to_date=None):
 	"""Excel template, employee columns filled in - HR only types the numbers.
-	`period`: monthly template. `resigned` + from/to: employees who left in that range.
+	`period`: monthly template. `resigned` + `period` (+ optional from/to inside it, empty =
+	the whole period): employees whose relieving date falls in that range - every row then
+	belongs to `period` (26/10/2026: the range can no longer span periods).
 	Neither: header + one example row."""
 	_check_role()
 	resigned = cint(resigned)
-	if resigned:
-		if not (from_date and to_date) or getdate(from_date) > getdate(to_date):
-			frappe.throw(_("Choose the relieving date range (From <= To)."))
-		period = None
 	from openpyxl import Workbook
 	from openpyxl.styles import Alignment, Font, PatternFill
 
-	if period:
+	if period or resigned:
 		try:
 			period = validate_period(period)
 		except frappe.ValidationError:
 			frappe.throw(_("Period must look like YYYY-MM."))
+	if resigned:
+		start, end = period_bounds(period)
+		from_date = getdate(from_date) if from_date else start
+		to_date = getdate(to_date) if to_date else end
+		if not start <= from_date <= to_date <= end:
+			frappe.throw(
+				_("The relieving date range must be inside period {0} ({1} - {2}), From <= To.").format(
+					period_label(period), formatdate(start), formatdate(end)
+				)
+			)
 
 	wb = Workbook()
 	ws = wb.active
@@ -231,7 +260,7 @@ def download_template(period=None, resigned=0, from_date=None, to_date=None):
 	if period or resigned:
 		employees = resigned_employees(from_date, to_date) if resigned else template_employees(period)
 		for no, e in enumerate(employees, start=1):
-			row_period, first, last, pay = template_row(e, period)
+			row_period, first, last, pay = template_row(e, None if resigned else period)
 			ws.append(
 				[no, row_period, first, last, pay, e.name, e.employee_name, e.designation,
 				 strip_company_suffix(e.department), e.custom_section, e.custom_group]
@@ -263,7 +292,7 @@ def download_template(period=None, resigned=0, from_date=None, to_date=None):
 	wb.save(out)
 	if period or resigned:
 		# Holds the employee list of that moment: data file -> time stamp (app-wide rule).
-		what = f"Resigned {getdate(from_date).strftime('%y%m%d')}-{getdate(to_date).strftime('%y%m%d')}" if resigned else period
+		what = f"{period} Resigned {from_date.strftime('%y%m%d')}-{to_date.strftime('%y%m%d')}" if resigned else period
 		filename = f"Payslip {what} {now_datetime().strftime('%y%m%d %H%M%S')}.xlsx"
 	else:
 		filename = "payslip_template.xlsx"
@@ -312,19 +341,27 @@ def _map_columns(header, components):
 		m = CODE_RE.match(str(raw))
 		comp = by_abbr.get(m.group(1)) if m else None
 		if not comp:
-			errors.append(_("Column \"{0}\" does not match any payslip Salary Component.").format(raw))
+			errors.append(_("Column \"{0}\" does not match any TIQN Payslip field.").format(raw))
 			continue
-		is_qty = bool(QTY_RE.search(norm))
+		# The template header is the field label: "1.2 Days" (days / hours field) or
+		# "1.1 Standard Working Days" (an amount / days-only line, despite the "Days").
+		# Older files: "<bilingual label> - Days" or "Unit/ĐVT" (QTY_RE).
+		if comp.qty_label and norm == _norm(comp.qty_label):
+			is_qty = True
+		elif norm == _norm(comp.name):
+			is_qty = False
+		else:
+			is_qty = bool(QTY_RE.search(norm))
 		if is_qty and not comp.qty_fieldname:
 			errors.append(
-				_("Column \"{0}\": component {1} has no days / hours value (Employee Portal Settings > Day / Hour Columns).").format(
+				_("Column \"{0}\": line {1} has no days / hours field on TIQN Payslip.").format(
 					raw, comp.abbr
 				)
 			)
 			continue
 		key = (comp.abbr, is_qty)
 		if key in seen:
-			errors.append(_("Columns \"{0}\" and \"{1}\" are both component {2}.").format(seen[key], raw, comp.abbr))
+			errors.append(_("Columns \"{0}\" and \"{1}\" are both line {2}.").format(seen[key], raw, comp.abbr))
 			continue
 		seen[key] = raw
 		mapping["components"][idx] = (comp, comp.qty_fieldname if is_qty else comp.fieldname, is_qty)
@@ -484,12 +521,29 @@ def parse_upload(file_url):
 			if key in seen:
 				errors.append(_("Duplicate of row {0} (same employee and period).").format(seen[key]))
 			seen[key] = offset
-			status = existing.get(key)
-			if status is None:
-				status = frappe.db.get_value("TIQN Payslip", {"employee": employee, "period": period}, "status") or ""
-				existing[key] = status
-			if status == "Published":
+			if key not in existing:
+				existing[key] = frappe.db.get_value(
+					"TIQN Payslip",
+					{"employee": employee, "period": period},
+					["status", "import_batch", "modified", "period_from", "period_to", "pay_date"],
+					as_dict=True,
+				) or frappe._dict()
+			old = existing[key]
+			if old.status == "Published":
 				errors.append(_("The {0} payslip is already published. Withdraw it first.").format(period_label(period)))
+			elif old.status:
+				# Draft / Withdrawn would be replaced silently - e.g. a resigned file imported
+				# over the monthly one. HR confirms like any other warning (26/10/2026).
+				warnings.append(
+					_("Overwrites the existing {0} payslip of {1} (batch {2}, saved {3}).").format(
+						_(old.status), period_label(period), old.import_batch or "-", format_datetime(old.modified)
+					)
+				)
+				for field, label in (("period_from", "Period From"), ("period_to", "Period To"), ("pay_date", "Pay Date")):
+					if dates.get(field) and old.get(field) and getdate(dates[field]) != getdate(old[field]):
+						warnings.append(
+							_("{0}: {1} now, {2} in the file.").format(_(label), formatdate(old[field]), formatdate(dates[field]))
+						)
 
 		if employee:
 			if employee not in employees:
@@ -523,7 +577,7 @@ def parse_upload(file_url):
 				"values": values,
 				"errors": errors,
 				"warnings": warnings,
-				"existing_status": existing.get((employee, period)) if employee and period else None,
+				"existing_status": (existing.get((employee, period)) or {}).get("status") if employee and period else None,
 			}
 		)
 		result["error_count"] += len(errors)
@@ -671,18 +725,14 @@ def get_period_summary():
 
 @frappe.whitelist(methods=["GET"])
 def get_config_errors():
-	"""Salary Components without their TIQN Payslip field (and the reverse): such a
-	column is refused at import and never shown in the Mini App - IT must add the field."""
+	"""`sc_*` fields of TIQN Payslip the payslip cannot use (a days / hours field
+	without its amount field, a name that is not a code) - never imported nor shown in
+	the Mini App until IT fixes the field."""
 	_check_role()
-	no_field, no_component = payslip_field_mismatches()
-	out = [
-		_("Salary Component {0} has no field {1} on TIQN Payslip. Ask IT to add it.").format(c, f) for c, f in no_field
+	return [
+		_("TIQN Payslip field {0} is not a payslip line (expected sc_CODE, or sc_CODE_qty next to sc_CODE). Ask IT to fix it.").format(f)
+		for f in payslip_field_mismatches()
 	]
-	out += [
-		_("TIQN Payslip field {0} matches no payslip Salary Component (code changed, or set to Hidden).").format(f)
-		for f in no_component
-	]
-	return out
 
 
 @frappe.whitelist(methods=["POST"])

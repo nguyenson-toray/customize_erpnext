@@ -1,8 +1,8 @@
 {
  "actions": [],
- "autoname": "PLR-.YYYY.-.#####",
+ "autoname": "field:phone",
  "creation": "2026-10-24 15:00:00",
- "description": "Sent from the Zalo Mini App by someone whose Zalo phone matches no employee. HR checks it is really that employee, then approves (the Zalo phone is written to the employee's Zalo phone) or rejects.",
+ "description": "Sent from the Zalo Mini App by someone whose Zalo phone matches no employee - one record per Zalo account, named after its Zalo phone, overwritten by each new request (at most 2 per day). HR checks it is really that employee, then approves (the Zalo phone is written to the employee's Zalo phone) or rejects.",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -14,7 +14,11 @@
   "column_break_main",
   "account",
   "zalo_name",
+  "zalo_avatar",
   "phone",
+  "request_count",
+  "requests_today",
+  "last_requested_on",
   "warning",
   "review_section",
   "reviewed_by",
@@ -35,14 +39,14 @@
    "search_index": 1
   },
   {
-   "description": "Employee code the user typed",
+   "description": "Employee code the user typed (the app checks it against the name). HR may correct it while the request is Pending",
    "fieldname": "employee",
    "fieldtype": "Link",
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Employee",
    "options": "Employee",
-   "read_only": 1,
+   "read_only_depends_on": "eval:doc.status != 'Pending'",
    "reqd": 1,
    "search_index": 1
   },
@@ -76,27 +80,63 @@
    "fieldtype": "Column Break"
   },
   {
+   "description": "One request per Zalo account",
    "fieldname": "account",
    "fieldtype": "Link",
    "label": "Zalo Account",
    "options": "TIQN Portal Account",
    "read_only": 1,
    "reqd": 1,
-   "search_index": 1
+   "unique": 1
   },
   {
    "description": "Display name on Zalo, from Zalo (not typed by the user)",
    "fieldname": "zalo_name",
    "fieldtype": "Data",
+   "in_list_view": 1,
    "label": "Zalo Name",
    "read_only": 1
   },
   {
-   "description": "Phone of the Zalo account, confirmed by Zalo. Call it to check who sent the request. Approve writes it to the employee's Zalo phone",
+   "description": "Profile picture on Zalo, from Zalo (not sent by the user). Empty when the user has not shared their profile",
+   "fieldname": "zalo_avatar",
+   "fieldtype": "Attach Image",
+   "label": "Zalo Avatar",
+   "read_only": 1
+  },
+  {
+   "description": "Phone of the Zalo account, confirmed by Zalo - also the ID of this request. Call it to check who sent the request. Approve writes it to the employee's Zalo phone",
    "fieldname": "phone",
    "fieldtype": "Data",
+   "in_list_view": 1,
    "label": "Zalo Phone",
    "options": "Phone",
+   "read_only": 1,
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "default": "0",
+   "description": "Requests sent from the Mini App by this Zalo account. A new request overwrites this record (older content: see the history below)",
+   "fieldname": "request_count",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Request Count",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "description": "At most 2 per day",
+   "fieldname": "requests_today",
+   "fieldtype": "Int",
+   "label": "Requests Today",
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_requested_on",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Last Requested On",
    "read_only": 1
   },
   {
@@ -139,10 +179,11 @@
  ],
  "in_create": 1,
  "links": [],
- "modified": "2026-10-24 18:00:00.000000",
+ "modified": "2026-10-26 14:00:00.000000",
  "modified_by": "Administrator",
  "module": "Employee Portal",
  "name": "TIQN Portal Link Request",
+ "naming_rule": "By fieldname",
  "owner": "Administrator",
  "permissions": [
   {
@@ -162,8 +203,8 @@
   }
  ],
  "row_format": "Dynamic",
- "search_fields": "employee,employee_name,full_name,phone,zalo_name",
- "sort_field": "creation",
+ "search_fields": "phone,zalo_name,employee,employee_name,full_name",
+ "sort_field": "last_requested_on",
  "sort_order": "DESC",
  "states": [
   {
@@ -180,5 +221,6 @@
   }
  ],
  "title_field": "employee_name",
- "track_changes": 1
+ "track_changes": 1,
+ "image_field": "zalo_avatar"
 }

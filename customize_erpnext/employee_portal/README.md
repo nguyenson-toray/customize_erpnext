@@ -1,10 +1,12 @@
 # Employee Portal — backend cho Zalo Mini App "Cổng nhân viên"
 
 > Hợp đồng với đội Mini App: [`API_CONTRACT.md`](./API_CONTRACT.md) — **nguồn chính** cho mọi request/response
-> (bản 1.5.0, nhật ký thay đổi ở §13).
+> (bản 1.6.0, nhật ký thay đổi ở §13).
 > Plan + quyết định đã chốt với user: `~/frappe-bench/.claude/plans/` — `zalo_payslip_portal.md` (gốc),
-> `employee_portal_payslip_paper_layout.md`, `employee_portal_link_request.md`, `employee_portal_simplify_v3.md`.
+> `employee_portal_payslip_paper_layout.md`, `employee_portal_link_request.md`, `employee_portal_simplify_v3.md`,
+> `employee_portal_payslip_layout_link_request_v4.md`.
 > File này ghi cách cài, cách vận hành và **các bẫy đã vấp** khi code.
+> Hướng dẫn cho người dùng (C&B): [`HUONG_DAN_CNB.md`](./HUONG_DAN_CNB.md).
 
 ## Trạng thái (24/10/2026)
 
@@ -26,8 +28,8 @@
 TIQN Payslip, report Payslip Period Summary, TIQN Portal Notification / Account / Link Request / Session,
 Employee Portal Settings. HR Manager **không** xem được lương (quyết định 12/10). Role tạo bằng patch
 `create_cnb_role` (pre_model_sync — DocPerm trỏ tới role); **gán người do Admin làm**.
-CnB không có quyền trên Salary Component / Employee — người CnB thường đã có HR User; sửa nhãn hiển thị trên
-Salary Component (tab Employee Portal) cần HR Manager / System Manager.
+CnB không có quyền trên Employee — người CnB thường đã có HR User. Phiếu lương **không dùng** Salary Component
+của HRMS (từ 26/10): nhãn / nhóm / đơn vị đều lấy từ field của TIQN Payslip, sửa là việc của IT.
 
 ## Desk
 
@@ -65,8 +67,7 @@ Employee Portal Settings. Sinh bằng `scripts/build_navigation.py` (đừng s�
 2. **Employee Portal Settings** (tab):
    - General: tên công ty, hotline HR, SĐT công ty (logo dùng logo Zalo App, không cấu hình ở đây).
    - Mini App Features: bật/tắt tính năng (giai đoạn này chỉ Payslip + Notifications); ngày trả lương (mặc định 5);
-     hiện dòng 0; **Check Formulas on Import**; bảng **Day / Hour Columns** (dòng phiếu có số ngày/giờ cạnh số tiền:
-     1.2 Day, 2.1–2.3 Hour, 7.4–7.5 Day — mỗi dòng cần field `sc_<mã>_qty` trên TIQN Payslip).
+     hiện dòng 0; **Check Formulas on Import**.
    - Access: hạn chỉ xem sau nghỉ việc (30 ngày), số ngày phiên, phiên bản Mini App tối thiểu.
    - Zalo OA & Chat: **ID by OA** của người C&B (nút "Chat với C&B"), OA ID.
    - Legal: nội dung chính sách / điều khoản (công khai ở `/portal-policy`, `/portal-terms`).
@@ -81,7 +82,22 @@ Employee Portal Settings. Sinh bằng `scripts/build_navigation.py` (đừng s�
   nhân viên nào; đổi số = huỷ mọi phiên của tài khoản.
 - **Yêu cầu liên kết** (`NOT_FOUND`): nhân viên gửi mã NV + họ tên → **TIQN Portal Link Request** (Pending). CnB
   **gọi lại SĐT Zalo** trên phiếu để chắc đúng người (mã + tên không bí mật), xem khung cảnh báo, rồi **Approve**
-  (ghi SĐT Zalo vào `custom_cell_phone_zalo`, có Version) hoặc **Reject** (lý do hiện trên app). Tối đa 3 yêu cầu/ngày/Zalo.
+  (ghi SĐT Zalo vào `custom_cell_phone_zalo`, có Version) hoặc **Reject** (lý do hiện trên app).
+  - **1 bản ghi / tài khoản Zalo** (`account` unique), **tên bản ghi = SĐT Zalo** (`autoname: field:phone`): gửi lại =
+    ghi đè, về Pending, xoá kết quả duyệt cũ; nội dung cũ nằm ở lịch sử (Version). Đang chờ vẫn gửi lại được. SĐT
+    của tài khoản đổi → bản ghi được rename sang số mới; bản ghi tài khoản khác bỏ lại dưới số đó bị thay
+    (`auth._own_request`).
+  - Tên Zalo + **ảnh đại diện Zalo** (`zalo_avatar`, ảnh của form) do server hỏi Zalo (`zalo_graph.get_user_info`,
+    `fields=id,name,picture`) lúc gửi yêu cầu, không nhận từ app; trống nếu người dùng chưa chia sẻ hồ sơ Zalo.
+  - App chỉ nhận **mã NV + họ tên khớp** hồ sơ (`normalise_name`, bỏ dấu/hoa thường). Sai mã hay sai tên đều trả
+    cùng `NOT_FOUND` (không lộ mã nào có thật). CnB vẫn **sửa được Employee khi còn Pending** (đã duyệt/từ chối thì
+    khoá, kiểm cả ở server); đổi Employee → Khớp tên + cảnh báo tính lại.
+  - ⚠ Index unique của `account` không được model sync tạo khi còn index thường cùng tên → patch
+    `employee_portal_link_request_unique_account` (field đã bỏ `search_index`).
+  - Tối đa **2 lần/ngày** (ngày lịch), đếm trong bản ghi (`request_count`, `requests_today`, `last_requested_on`) →
+    `REQUEST_LIMIT`. Ngoài ra cache 10 lần thử/ngày/Zalo (kể cả lần bị từ chối) để chặn dò mã NV → `RATE_LIMITED`.
+  - NV đang được một **TIQN Portal Account chưa khoá** đăng nhập → app trả `EMPLOYEE_LINKED`, nút Approve cũng chặn.
+    Gỡ = **Disable** tài khoản cũ (field Employee trên tài khoản là chỉ đọc, do `login` ghi).
 - **Tự khoá tài khoản mới** (chặn người ngoài + người nghỉ quá hạn): tài khoản mới bắt đầu `disabled = 1` +
   `auto_disabled = 1`, trừ khi SĐT khớp NV `Active` hoặc `Left` còn trong hạn chỉ xem; tự mở khi điều kiện thành
   đúng. Khoá tay (`auto_disabled = 0`) không bao giờ tự mở. `login` vẫn trả `NO_PHONE`/`NOT_FOUND`/`EXPIRED`.
@@ -95,8 +111,10 @@ Employee Portal Settings. Sinh bằng `scripts/build_navigation.py` (đừng s�
 1. **Payslip Upload → Download Template**:
    - *Hằng tháng* — chọn kỳ: NV còn làm tới cuối kỳ. **Không** gồm: nghỉ trước/trong kỳ, thai sản phủ cả kỳ
      (`Employee Maternity`), **Exclude Employees** của Attendance Calculation Setting. Vào giữa kỳ → Period From = ngày vào.
-   - *Resigned Employees Only* — chọn khoảng ngày nghỉ: mỗi NV ở kỳ chứa ngày làm cuối, Period To = ngày nghỉ − 1,
-     Pay Date = ngày nghỉ + 14 (trả riêng, HR tự tính).
+   - *Resigned Employees Only* — chọn **kỳ** + khoảng ngày nghỉ **trong kỳ đó** (mặc định cả kỳ; server chặn khoảng
+     ra ngoài kỳ), mọi dòng thuộc kỳ đã chọn, Period To = ngày nghỉ − 1,
+     Pay Date = ngày nghỉ + 14 (trả riêng, HR tự tính). **Không** gồm người nghỉ đúng ngày 26 (ngày làm cuối = ngày 25
+     cuối kỳ): họ làm đủ kỳ nên nằm ở file tháng, trả ngày 5 vẫn trong hạn 14 ngày — tránh 2 phiếu cùng kỳ.
 2. Điền số → **Upload Excel** → xem lỗi/cảnh báo → **Import as Draft**.
 3. Bảng "2. Publish" → **Publish** kỳ. Phiếu tháng: tạo **1 thông báo chung** cho kỳ. Chỉ toàn phiếu NV nghỉ việc
    (`final_settlement`, tự suy từ `relieving_date` trong kỳ): **không** thông báo — HR tự nhắn họ.
@@ -109,12 +127,33 @@ Department | Section | Group | <khoản>`.
 - Cột khoản nhận theo **mã số đầu tiêu đề** (`3.2 …`); cột `… - Days` / `… - Hours` (cũ: `Unit/ĐVT`) = số ngày/giờ.
 - `Period From/To` phải nằm trong kỳ 26→25; trống = tự tính. `Pay Date` trống = ngày trả lương tháng (hoặc nghỉ + 14).
 - Lỗi (chặn): MSNV không có, trùng dòng, ô không phải số/ngày, cột lạ, ngày ngoài kỳ, kỳ đã phát hành.
-- Cảnh báo (xác nhận rồi vẫn nhập): tên khác ERP, NV nghỉ trước kỳ; nếu bật **Check Formulas on Import**: `3=1+2`,
+- Cảnh báo (xác nhận rồi vẫn nhập): tên khác ERP, NV nghỉ trước kỳ, **ghi đè phiếu Draft/Withdrawn đang có** (lô + giờ
+  lưu cũ; Period From/To, Pay Date khác thì hiện cũ/mới — trước 26/10 ghi đè im lặng); nếu bật **Check Formulas on Import**: `3=1+2`,
   `5=3+3.1+4`, `9=5−6+7+8`, tổng nhóm = tổng dòng con, thực lĩnh âm. **Không bao giờ tự sửa số của HR.**
 - File upload bị xoá khỏi `File` ngay sau khi nhập/huỷ (chứa lương cả kỳ).
-- Khoản lương = field `sc_<mã>` trên TIQN Payslip (`3.2` → `sc_3_2`), số ngày/giờ = `sc_<mã>_qty`. Nhãn / nhóm /
-  cha–con / thứ tự hiển thị: tab **Employee Portal** trên Salary Component (`custom_portal_*`). Thiếu field cho một
-  khoản → trang Payslip Upload hiện cảnh báo đỏ.
+- **Cấu trúc phiếu = field của TIQN Payslip, không dùng Salary Component của HRMS** (v4, 26/10;
+  `utils.payslip_component_fields`):
+  - mỗi dòng = field `sc_<mã>` (`3.2` → `sc_3_2`), thứ tự theo mã (1, 1.1, 1.2, 2 … 3.10, 4 … 9);
+  - label field = `"<mã> <English ngắn> (ký hiệu)"` (v5, 26/10): tiêu đề cột file mẫu / Data Import-Export = label
+    nguyên văn; `formula` = ký hiệu (a), (c=a+b) đọc từ label;
+  - **chữ Mini App** = Employee Portal Settings ▸ **Payslip Lines** (bảng con `TIQN Portal Payslip Line`, CnB sửa cột
+    Mini App Label; dòng tự đồng bộ theo field ở `sync_payslip_lines`, không thêm/xoá tay), **nguyên văn gồm số thứ tự
+    + ký hiệu** ("9 Thực lĩnh (j=f-g+h+i)"; validate bắt đầu bằng đúng mã) → payload `display_label`; `label` =
+    `strip_code_formula(display_label)` và `formula` (FORMULA_RE trên display_label) cho bản app trước 1.7.0. Trống →
+    label field ERP. Patch `employee_portal_payslip_lines_v5` + `_numbered` điền sẵn chữ app hiện trước đó. ⚠ test phải xoá cache Settings sau rollback
+    (Redis không rollback);
+  - text khác trả về app (`_()` + vi.po): System Manager đè bằng DocType **Translation** (`/app/translation`, Language
+    vi, Source Text = chuỗi tiếng Anh trong code / msgid vi.po) — không cần sửa code;
+  - số ngày/giờ = Float `sc_<mã>_qty`, label `"<mã> Days"` / `"<mã> Hours"`; upload nhận cột ngày/giờ khi tiêu đề **đúng
+    bằng** label đó (file cũ: `… - Days`, `Unit/ĐVT`) — "1.1 Standard Working Days" không phải cột ngày; Float
+    `sc_<mã>` không có field tiền (1.1) = dòng chỉ có số ngày;
+  - nhóm cha = mã cha (1.2 → 1); ngoại lệ ghi cứng `GROUP_PARENT`: 3.2–3.10 thuộc 3.1, 3.1 là dòng chính.
+    Khối / Subtotal / Section Total (chỉ cho `sections` deprecated + kiểm tổng nhóm) ở `SECTION_OF`, `SUBTOTALS`,
+    `SECTION_TOTALS` trong `utils.py`;
+  - **thêm dòng** = IT thêm field (+ `_qty` nếu có số ngày/giờ) với label đúng phiếu giấy → migrate, không cấu hình gì khác;
+  - field `sc_*` không dùng được (`_qty` thiếu field tiền, tên không phải mã) → trang Payslip Upload hiện cảnh báo đỏ.
+  - Cấu hình cũ trên Salary Component (`custom_portal_*`) đã xoá bằng patch `employee_portal_payslip_layout_v4`,
+    bản sao lưu ở `sites/erp.tiqn.local/private/backups/salary_component_portal_config_*.json`.
 - "Đã xem" = `first_viewed_on` (lần `get_payslip` đầu tiên; các lần sau không ghi DB).
 
 ## Test

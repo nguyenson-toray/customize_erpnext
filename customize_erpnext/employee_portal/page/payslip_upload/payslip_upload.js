@@ -24,7 +24,7 @@ class PayslipUploadPage {
 				<div class="psu-card">
 					<div class="psu-card-title">${__('1. Upload the salary Excel file')}</div>
 					<div class="text-muted small psu-help">
-						${__('One row per employee: No., Period (YYYY-MM or MM-YYYY), Period From, Period To, Pay Date, Employee, Employee Name, Designation, Department, Section, Group, then one column per Salary Component, matched by the code at the start of the header (e.g. "3.2 ..."). No. and Designation are not imported. Period From / To may be inside the period (joined or left during it); empty Pay Date = the monthly pay day.')}
+						${__('One row per employee: No., Period (YYYY-MM or MM-YYYY), Period From, Period To, Pay Date, Employee, Employee Name, Designation, Department, Section, Group, then one column per payslip line (the TIQN Payslip fields), matched by the code at the start of the header (e.g. "3.2 ..."). No. and Designation are not imported. Period From / To may be inside the period (joined or left during it); empty Pay Date = the monthly pay day.')}
 					</div>
 					<div class="psu-actions">
 						<button class="btn btn-default btn-sm psu-template">${__('Download Template')}</button>
@@ -271,13 +271,23 @@ class PayslipUploadPage {
 	}
 }
 
-// "Download Template": monthly (pick the pay period) or resigned employees (pick the
-// relieving date range) - employee columns pre-filled, HR types the numbers.
+// "Download Template": monthly (pick the pay period) or resigned employees of a period
+// (relieving date range inside it) - employee columns pre-filled, HR types the numbers.
 // Same dialog in tiqn_payslip_list.js and payslip_upload.js (no shared bundle for the two).
 function payslip_template_dialog(api) {
 	frappe.call({ method: `${api}.get_template_periods`, type: 'GET' }).then((r) => {
 		const m = r.message || {};
-		const d = new frappe.ui.Dialog({
+		const bounds = (period) => (m.periods || []).find((p) => p.value === period) || {};
+		// Resigned mode: the relieving date range starts as the whole period, HR may narrow it.
+		// `d` is assigned below; onchange may fire while the dialog is still being built.
+		let d = null;
+		const reset_range = () => {
+			if (!d) return;
+			const b = bounds(d.get_value('period'));
+			d.set_value('from_date', b.from_date || '');
+			d.set_value('to_date', b.to_date || '');
+		};
+		d = new frappe.ui.Dialog({
 			title: __('Download Template'),
 			fields: [
 				{
@@ -285,8 +295,9 @@ function payslip_template_dialog(api) {
 					fieldname: 'resigned',
 					label: __('Resigned Employees Only'),
 					description: __(
-						'Employees who left in the date range below, paid separately within 14 days of leaving. Period To = the day before the relieving date; Pay Date is filled in.'
+						'Employees whose relieving date is in the selected period (range below), paid separately within 14 days of leaving. Period To = the day before the relieving date; Pay Date is filled in. Those leaving on the day after the period ends worked the whole period and are on the monthly template.'
 					),
+					onchange: () => reset_range(),
 				},
 				{
 					fieldtype: 'Select',
@@ -294,11 +305,11 @@ function payslip_template_dialog(api) {
 					label: __('Pay Period'),
 					options: (m.periods || []).map((p) => ({ value: p.value, label: p.label })),
 					default: m.default,
-					depends_on: 'eval:!doc.resigned',
-					mandatory_depends_on: 'eval:!doc.resigned',
+					reqd: 1,
 					description: __(
-						'Employees on the payroll until the end of this period. Not included: those who left before or during it (use Resigned Employees Only), those on maternity leave for the whole period, and Exclude Employees of Attendance Calculation Setting.'
+						'Monthly: employees on the payroll until the end of this period. Not included: those who left before or during it (use Resigned Employees Only), those on maternity leave for the whole period, and Exclude Employees of Attendance Calculation Setting.'
 					),
+					onchange: () => reset_range(),
 				},
 				{
 					fieldtype: 'Date',
@@ -313,21 +324,30 @@ function payslip_template_dialog(api) {
 					label: __('Relieving Date To'),
 					depends_on: 'eval:doc.resigned',
 					mandatory_depends_on: 'eval:doc.resigned',
+					description: __('Must be inside the selected period.'),
 				},
 			],
 			primary_action_label: __('Download'),
 			primary_action: (v) => {
-				const q = v.resigned
-					? `resigned=1&from_date=${encodeURIComponent(v.from_date)}&to_date=${encodeURIComponent(v.to_date)}`
-					: `period=${encodeURIComponent(v.period)}`;
-				if (v.resigned && v.from_date > v.to_date) {
-					frappe.msgprint(__('Relieving Date From must be on or before Relieving Date To.'));
-					return;
+				let q = `period=${encodeURIComponent(v.period)}`;
+				if (v.resigned) {
+					const b = bounds(v.period);
+					if (v.from_date > v.to_date || v.from_date < b.from_date || v.to_date > b.to_date) {
+						frappe.msgprint(
+							__('The relieving date range must be inside the selected period ({0} - {1}), From on or before To.', [
+								frappe.datetime.str_to_user(b.from_date),
+								frappe.datetime.str_to_user(b.to_date),
+							])
+						);
+						return;
+					}
+					q += `&resigned=1&from_date=${encodeURIComponent(v.from_date)}&to_date=${encodeURIComponent(v.to_date)}`;
 				}
 				d.hide();
 				window.open(`/api/method/${api}.download_template?${q}`);
 			},
 		});
 		d.show();
+		reset_range();
 	});
 }

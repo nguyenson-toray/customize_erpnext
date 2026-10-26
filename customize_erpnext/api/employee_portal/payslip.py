@@ -16,6 +16,7 @@ from frappe.utils import cint, flt, getdate, now_datetime, today
 
 from customize_erpnext.api.employee_portal.core import PortalError, ctx, fmt_date, fmt_datetime, portal_api
 from customize_erpnext.employee_portal.utils import (
+	code_key,
 	expected_pay_date,
 	get_settings,
 	period_bounds,
@@ -26,7 +27,7 @@ from customize_erpnext.employee_portal.utils import (
 	validate_period,
 )
 
-# Custom field value on Salary Component -> (key, label, sign)
+# `section` of utils.payslip_component_fields -> (key, label, sign)
 SECTIONS = [
 	("Earnings", "EARNINGS", "Earnings", 1),
 	("Deductions", "DEDUCTIONS", "Deductions", -1),
@@ -129,32 +130,6 @@ def _mark_viewed(name):
 
 
 # ---------------------------------------------------------------------------
-def component_config():
-	"""Display config of every Salary Component, keyed by name. Custom fields from the
-	`Employee Portal` fixtures; HR edits them on the Salary Component form."""
-	rows = frappe.get_all(
-		"Salary Component",
-		fields=[
-			"name",
-			"salary_component_abbr as abbr",
-			"custom_portal_section as section",
-			"custom_portal_row as row_type",
-			"custom_portal_parent as parent",
-			"custom_portal_unit as unit",
-			"custom_portal_label as label",
-			"custom_portal_order as sort_order",
-		],
-	)
-	return {r.name: r for r in rows}
-
-
-def _sort_key(cfg):
-	parts = []
-	for p in str(cfg.abbr or "").split("."):
-		parts.append(int(p) if p.isdigit() else 0)
-	return (cint(cfg.sort_order) or 9999, parts)
-
-
 def _amount(value, unit):
 	if unit == "VND":
 		return int(round(flt(value)))
@@ -162,14 +137,14 @@ def _amount(value, unit):
 	return int(value) if value == int(value) else value
 
 
-# "(a)", "(c=a+b)", "(j=f-g+h+i)" in the component name - the letters of the paper
+# "(a)", "(c=a+b)", "(j=f-g+h+i)" in the field label - the letters of the paper
 # payslip. Lower-case a-j only, so "(8%)" or "(SI+HI+UI)" never match.
 FORMULA_RE = re.compile(r"\(\s*([a-j](?:\s*=\s*[a-j](?:\s*[+-]\s*[a-j])*)?)\s*\)")
 
 
 def build_payslip_rows(doc, include_zero, components):
 	"""`rows` (contract 1.3.0): the paper payslip line by line - components in
-	custom_portal_order (= code order 1, 1.1, 1.2, 2, ... 9), each with its Unit/ĐVT
+	code order (1, 1.1, 1.2, 2, ... 9), each with its Unit/ĐVT
 	value and amount. Amounts are positive as printed; deductions are not negated."""
 	by_name = {c.name: c for c in components}
 	parents = {c.parent for c in components if c.parent in by_name and c.parent != c.name}
@@ -195,10 +170,12 @@ def build_payslip_rows(doc, include_zero, components):
 		is_header = c.row_type in ("Subtotal", "Section Total") or c.name in parents
 		if not include_zero and not is_header and not amount and not quantity:
 			continue
-		m = FORMULA_RE.search(c.name or "")
+		# Letters as CnB wrote them in the Mini App text (Settings > Payslip Lines).
+		m = FORMULA_RE.search(c.display_label or "")
 		rows.append(
 			{
 				"no": str(c.abbr),
+				"display_label": c.display_label,
 				"label": c.label or c.name,
 				"formula": re.sub(r"\s+", "", m.group(1)) if m else None,
 				"quantity": quantity,
@@ -212,8 +189,8 @@ def build_payslip_rows(doc, include_zero, components):
 
 
 def build_payslip_payload(doc, include_zero):
-	config = component_config()
 	components = payslip_component_fields()
+	config = {c.name: c for c in components}
 	# Only components that have a field on TIQN Payslip; same "present" rule as the old
 	# child table, where every imported component had a row (0 included).
 	amounts, legacy_units = {}, {}
@@ -240,7 +217,7 @@ def build_payslip_payload(doc, include_zero):
 	sections = []
 	for section_value, key, label, sign in SECTIONS:
 		members = [cfg for name, cfg in config.items() if cfg.section == section_value and name in amounts]
-		members.sort(key=_sort_key)
+		members.sort(key=lambda m: code_key(m.abbr))
 		total_cfg = next((m for m in members if m.row_type == "Section Total"), None)
 		body = [m for m in members if m.row_type != "Section Total"]
 		names_in_body = {m.name for m in body}

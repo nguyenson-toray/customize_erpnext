@@ -22,7 +22,7 @@ import uuid
 from unittest import mock
 
 import frappe
-from frappe.utils import add_days, add_to_date, flt, getdate, now_datetime, today
+from frappe.utils import add_days, add_to_date, flt, formatdate, getdate, now_datetime, today
 
 import customize_erpnext.api.employee_portal as api
 from customize_erpnext.api.employee_portal import auth as auth_mod
@@ -90,6 +90,15 @@ def phone_of(emp):
 	move an employee's number there while testing - TIQN-0148 on 24/10)."""
 	cell, zalo = frappe.db.get_value("Employee", emp, ["cell_number", "custom_cell_phone_zalo"])
 	return cell or zalo
+
+
+# HR may also clear a test employee's phones (TIQN-1405 on 26/10): give it a throwaway
+# Zalo phone for this run - rolled back at the end like everything else.
+for _i, _emp in enumerate((EMP_A, EMP_B), start=1):
+	if not phone_of(_emp):
+		_phone = f"0999{_i}{int(RUN, 16) % 100000:05d}"
+		assert not utils.find_employees_by_phone(_phone), _phone
+		frappe.db.set_value("Employee", _emp, "custom_cell_phone_zalo", _phone, update_modified=False)
 
 
 # ---------------------------------------------------------------------------
@@ -166,9 +175,12 @@ try:
 		utils.PHONE_FIELDS = ("cell_number", "emergency_phone_number")
 		m = utils.find_employees_by_phone(stand_in.emergency_phone_number)
 		check("phone: 2nd column used when no cell_number matches", (m[0].name, m[0].matched_field), (stand_in.name, "emergency_phone_number"))
-	with_cell = next(e for e in (EMP_A, EMP_B) if frappe.db.get_value("Employee", e, "cell_number"))
-	m = utils.find_employees_by_phone(phone_of(with_cell))
-	check("phone: cell_number wins", (m[0].name, m[0].matched_field), (with_cell, "cell_number"))
+	# Any employee with a Mobile Phone - the test employees may have none (HR moves numbers while testing).
+	with_cell = next((e for e in (EMP_A, EMP_B) if frappe.db.get_value("Employee", e, "cell_number")), None) or frappe.db.get_value(
+		"Employee", {"status": "Active", "cell_number": ["is", "set"]}, "name"
+	)
+	m = utils.find_employees_by_phone(frappe.db.get_value("Employee", with_cell, "cell_number"))
+	check("phone: cell_number wins", (with_cell in [x.name for x in m], m[0].matched_field), (True, "cell_number"))
 finally:
 	utils.PHONE_FIELDS = saved_fields
 
@@ -416,10 +428,11 @@ check("disabled after login revokes session", code(r), "SESSION_INVALID")
 
 tok_ph = auth_mod.complete_login(f"unit-{RUN}-p", phone_of(EMP_B))["token"]
 real_phone_b = phone_of(EMP_B)
-frappe.db.set_value("Employee", EMP_B, "cell_number", "0911" + RUN[:6].translate(str.maketrans("abcdef", "123456")), update_modified=False)
+phone_field_b = "cell_number" if frappe.db.get_value("Employee", EMP_B, "cell_number") else "custom_cell_phone_zalo"
+frappe.db.set_value("Employee", EMP_B, phone_field_b, "0911" + RUN[:6].translate(str.maketrans("abcdef", "123456")), update_modified=False)
 r = call(api.me, token=tok_ph)
-check("HR changed the phone", (code(r), r["error"]["details"].get("reason")), ("SESSION_INVALID", "PHONE_CHANGED"))
-frappe.db.set_value("Employee", EMP_B, "cell_number", real_phone_b, update_modified=False)
+check("HR changed the phone", (code(r), (r.get("error") or {}).get("details", {}).get("reason")), ("SESSION_INVALID", "PHONE_CHANGED"))
+frappe.db.set_value("Employee", EMP_B, phone_field_b, real_phone_b, update_modified=False)
 
 r = call(api.set_oa_follow, token=TOKEN_A, action="DISMISSED")
 check("set_oa_follow DISMISSED", r["data"], {"followed": False, "show_invite": False})
@@ -438,9 +451,33 @@ check("get_config policy url absolute", r["data"]["legal"]["privacy_policy_url"]
 print("\n=== payslips ===")
 components = utils.payslip_component_fields()
 check("payslip: 44 component fields on TIQN Payslip", len(components), 44)
-check("payslip: no field/component mismatch", utils.payslip_field_mismatches(), ([], []))
+check("payslip: every sc_ field is a payslip line", utils.payslip_field_mismatches(), [])
 check("payslip: no child table any more", frappe.get_meta("TIQN Payslip").get_table_fields(), [])
-check("payslip: days/hours fields as on paper (Settings)", [c.abbr for c in components if c.qty_fieldname], ["1.2", "2.1", "2.2", "2.3", "7.4", "7.5"])
+check("payslip: days/hours fields as on paper", [c.abbr for c in components if c.qty_fieldname], ["1.2", "2.1", "2.2", "2.3", "7.4", "7.5"])
+# v4 (26/10/2026): everything comes from the TIQN Payslip fields - none from Salary Component.
+by_abbr_c = {c.abbr: c for c in components}
+check("layout: units from the labels", [(a, by_abbr_c[a].qty_unit or by_abbr_c[a].unit) for a in ("1.1", "1.2", "2.1", "7.4", "6.1")],
+	[("1.1", "Day"), ("1.2", "Day"), ("2.1", "Hour"), ("7.4", "Day"), ("6.1", "VND")])
+check("layout: parents from the codes, 3.2-3.10 under 3.1",
+	[(a, by_abbr_c[by_abbr_c[a].parent_code].abbr if by_abbr_c[a].parent_code else None) for a in ("1.2", "2.3", "3", "3.1", "3.2", "3.10", "6.6", "9")],
+	[("1.2", "1"), ("2.3", "2"), ("3", None), ("3.1", None), ("3.2", "3.1"), ("3.10", "3.1"), ("6.6", "6"), ("9", None)])
+check("layout: row types", [(a, by_abbr_c[a].row_type) for a in ("1", "3", "3.1", "4.1", "5", "9")],
+	[("1", "Line"), ("3", "Subtotal"), ("3.1", "Subtotal"), ("4.1", "Line"), ("5", "Section Total"), ("9", "Section Total")])
+check("layout: Vietnamese part of the label", [utils.portal_label(x) for x in (
+	"1 Basic Salary/Lương cơ bản  (a)", "9 Net Salary/Thực lĩnh (j=f-g+h+i):", "6.1 SI/BHXH (8%)",
+	"7.6 21.5% (SI+HI+UI)/21.5% (BHXH+BHYT+BHTN)", "3.2 Technical allowance/ Phụ cấp kỹ thuật", "4 Bonus")],
+	["Lương cơ bản", "Thực lĩnh", "BHXH (8%)", "21.5% (BHXH+BHYT+BHTN)", "Phụ cấp kỹ thuật", "Bonus"])
+_real_get_all = frappe.get_all
+
+
+def _no_salary_component(doctype, *a, **k):
+	if doctype == "Salary Component":
+		raise AssertionError("Salary Component read")
+	return _real_get_all(doctype, *a, **k)
+
+
+with mock.patch.object(frappe, "get_all", _no_salary_component):
+	check("layout: built without reading Salary Component", len(utils.payslip_component_fields()), 44)
 
 
 def code_key(abbr):
@@ -572,7 +609,33 @@ check("rows: 6 header, amount positive", (rows_by_no["6"]["is_header"], rows_by_
 check("rows: 6.1 under 6", rows_by_no["6.1"]["level"], 1)
 check("rows: plain amount line has no days/hours", (rows_by_no["6.1"]["quantity"], rows_by_no["6.1"]["quantity_unit"]), (None, None))
 check("rows: formulas", (rows_by_no["3"]["formula"], rows_by_no["9"]["formula"], rows_by_no["6.2"]["formula"]), ("c=a+b", "j=f-g+h+i", None))
-check("rows: label Vietnamese", rows_by_no["1"]["label"], "Lương cơ bản")
+check("rows: display_label = Settings > Payslip Lines word for word", (rows_by_no["1"]["display_label"], rows_by_no["1.2"]["display_label"], rows_by_no["9"]["display_label"]),
+	("1 Lương cơ bản (a)", "1.2 Số ngày công thực tế làm việc", "9 Thực lĩnh (j=f-g+h+i)"))
+check("rows: label = the text without number / letters (older app builds)", (rows_by_no["1"]["label"], rows_by_no["1.2"]["label"], rows_by_no["9"]["label"]),
+	("Lương cơ bản", "Số ngày công thực tế làm việc", "Thực lĩnh"))
+check("strip_code_formula", [utils.strip_code_formula(x) for x in ("9 Thực lĩnh (j=f-g+h+i)", "6.1 BHXH (8%)", "3.1 Phụ cấp/Trợ cấp (d)", "Thưởng")],
+	["Thực lĩnh", "BHXH (8%)", "Phụ cấp/Trợ cấp", "Thưởng"])
+st_l = frappe.get_doc("Employee Portal Settings")
+check("settings: one Payslip Lines row per payslip line, ERP label = field label",
+	[(r.code, r.payslip_field, r.erp_label) for r in st_l.payslip_lines],
+	[(c.abbr, c.fieldname, c.name) for c in components])
+row_1 = next(r for r in st_l.payslip_lines if r.payslip_field == "sc_1")
+row_1.portal_label = "Lương căn bản"
+check("settings: Mini App Label without the line number refused", refused_fn(lambda: st_l.save(ignore_permissions=True)), "refused")
+st_l.reload()  # the refused save already stamped `modified` on this copy
+row_1 = next(r for r in st_l.payslip_lines if r.payslip_field == "sc_1")
+row_1.portal_label = "1   Lương căn bản  (a = lương HĐ)"
+st_l.save(ignore_permissions=True)
+c1 = next(c for c in utils.payslip_component_fields() if c.abbr == "1")
+check("settings: CnB's text shown word for word (spaces tidied)", (c1.display_label, c1.label), ("1 Lương căn bản (a = lương HĐ)", "Lương căn bản (a = lương HĐ)"))
+row_1 = next(r for r in st_l.payslip_lines if r.payslip_field == "sc_1")
+row_1.portal_label = ""
+st_l.save(ignore_permissions=True)
+c1 = next(c for c in utils.payslip_component_fields() if c.abbr == "1")
+check("settings: empty Mini App label -> the ERP label", (c1.display_label, c1.label), ("1 Basic Salary (a)", "Basic Salary"))
+st_l.payslip_lines = st_l.payslip_lines[:-1]  # rows follow the fields whatever the form sends
+st_l.save(ignore_permissions=True)
+check("settings: rows re-synced with the fields", len(st_l.payslip_lines), len(components))
 check("payslip: attendance total null", att["total"], None)
 check("payslip: section-total line not repeated", any(l["code"] == "5" for l in earn["lines"]), False)
 check("payslip: first_viewed_on set", bool(frappe.db.get_value("TIQN Payslip", doc_a.name, "first_viewed_on")), True)
@@ -807,8 +870,23 @@ wb4.save(buf4)
 f4 = frappe.get_doc({"doctype": "File", "file_name": f"unit4-{RUN}.xlsx", "is_private": 1, "content": buf4.getvalue()}).insert(
 	ignore_permissions=True
 )
+old_batch = frappe.db.get_value("TIQN Payslip", {"employee": EMP_A, "period": "2030-07"}, "import_batch")
+row4 = payslip_admin.parse_upload(f4.file_url)["rows"][0]
+check("re-import: overwrite warned (existing status + batch)", (row4["existing_status"], any(old_batch in w for w in row4["warnings"])), ("Withdrawn", True))
+check("re-import: overwrite needs confirmation", refused_fn(lambda: payslip_admin.import_upload(f4.file_url, confirm_warnings=0)), "refused")
 payslip_admin.import_upload(f4.file_url, confirm_warnings=1)
 check("re-import withdrawn: stays Withdrawn", frappe.db.get_value("TIQN Payslip", {"employee": EMP_A, "period": "2030-07"}, "status"), "Withdrawn")
+wb5 = Workbook()
+ws5 = wb5.active
+ws5.append(list(payslip_admin.TEMPLATE_IDENT) + comp_cols)
+ws5.append([1, "2030-07", None, getdate("2030-07-20"), None, EMP_A, "", "", "", "", ""] + vals(good))
+buf5 = io.BytesIO()
+wb5.save(buf5)
+f5 = frappe.get_doc({"doctype": "File", "file_name": f"unit5-{RUN}.xlsx", "is_private": 1, "content": buf5.getvalue()}).insert(ignore_permissions=True)
+w5 = payslip_admin.parse_upload(f5.file_url)["rows"][0]["warnings"]
+check("re-import: changed Period To shown (old and new)",
+	any(formatdate("2030-07-25") in w and formatdate("2030-07-20") in w for w in w5), True)
+payslip_admin.discard_upload(f5.file_url)
 check("delete drafts skips re-imported withdrawn", payslip_admin.delete_draft_period("2030-07")["deleted"], 0)
 check("publish takes re-imported withdrawn", payslip_admin.publish_period("2030-07")["published"], 2)
 # Pre-filled template (23/10): pick a period -> one row per employee who worked in it.
@@ -851,28 +929,45 @@ if joined_during:
 	row_j = next((r for r in trows if r[5] == joined_during.name), None)
 	check("prefilled: joined during the period -> Period From = joining", row_j and getdate(row_j[2]), getdate(joined_during.date_of_joining))
 
-# Resigned template: relieving date range, Period To = relieving - 1, Pay Date = relieving + 14.
-r_from, r_to = add_days(today(), -120), today()
-payslip_admin.download_template(resigned=1, from_date=r_from, to_date=r_to)
-check("resigned template filename", frappe.response["filename"].startswith("Payslip Resigned "), True)
+# Resigned template (26/10): a pay period + relieving date range inside it (empty = the whole
+# period). Period To = relieving - 1, Pay Date = relieving + 14; relieving on the 26th left out.
+r_period = next(
+	(p for p in (utils.shift_period(utils.period_of_date(today()), -i) for i in range(12))
+	 if payslip_admin.resigned_employees(*utils.period_bounds(p))),
+	utils.shift_period(utils.period_of_date(today()), -1),
+)
+r_from, r_to = utils.period_bounds(r_period)
+payslip_admin.download_template(period=r_period, resigned=1)
+check("resigned template filename", frappe.response["filename"].startswith(f"Payslip {r_period} Resigned "), True)
 rrows = [r for r in load_workbook(io.BytesIO(frappe.response["filecontent"])).active.iter_rows(min_row=2, values_only=True) if r[5]]
 want = frappe.get_all("Employee", filters={"relieving_date": ["between", [r_from, r_to]]}, fields=["name", "relieving_date", "date_of_joining"])
 want = [e for e in want if not e.date_of_joining or getdate(e.date_of_joining) < getdate(e.relieving_date)]
 want = [e for e in want if e.name not in excluded_ids]
-check("resigned: only those who left in the range", sorted(r[5] for r in rrows), sorted(e.name for e in want))
+# Last day = end of a period (relieving on the 26th): whole period worked -> monthly template only.
+want = [e for e in want if getdate(add_days(e.relieving_date, -1)) != utils.period_bounds(utils.period_of_date(add_days(e.relieving_date, -1)))[1]]
+check("resigned: relieving on the 26th left out (on the monthly template)",
+	(payslip_admin._left_at_period_end(getdate("2026-10-26")), payslip_admin._left_at_period_end(getdate("2026-10-25")),
+	 payslip_admin._left_at_period_end(getdate("2026-10-27"))), (True, False, False))
+check("resigned: only those who left in the period", sorted(r[5] for r in rrows), sorted(e.name for e in want))
+check("resigned: every row in the chosen period", {r[1] for r in rrows} <= {r_period}, True)
 if rrows:
 	e0 = next(e for e in want if e.name == rrows[0][5])
 	last_day = add_days(e0.relieving_date, -1)
-	check("resigned: period of the last day, To = relieving - 1, Pay = relieving + 14",
+	check("resigned: To = relieving - 1, Pay = relieving + 14",
 		(rrows[0][1], getdate(rrows[0][3]), getdate(rrows[0][4])),
-		(utils.period_of_date(last_day), getdate(last_day), getdate(add_days(e0.relieving_date, 14))))
-check("resigned: range required", refused(lambda: payslip_admin.download_template(resigned=1, from_date=r_to, to_date=r_from)), "refused")
+		(r_period, getdate(last_day), getdate(add_days(e0.relieving_date, 14))))
+check("resigned: period required", refused(lambda: payslip_admin.download_template(resigned=1, from_date=r_from, to_date=r_to)), "refused")
+check("resigned: range outside the period refused",
+	refused(lambda: payslip_admin.download_template(period=r_period, resigned=1, from_date=add_days(r_from, -1), to_date=r_to)), "refused")
+check("resigned: From after To refused",
+	refused(lambda: payslip_admin.download_template(period=r_period, resigned=1, from_date=r_to, to_date=r_from)), "refused")
+check("template periods carry their dates", {k for k in payslip_admin.get_template_periods()["periods"][0]} >= {"from_date", "to_date"}, True)
 check("prefilled: bad period refused", refused(lambda: payslip_admin.download_template(period="2026-13")), "refused")
 theader = [c.value for c in tws[1]]
 c12 = next(c for c in components if c.abbr == "1.2")
 check("template: days column just before its amount", theader.index(payslip_admin.qty_header(c12)) + 1, theader.index(c12.name))
-check("template: header says Days / Hours", (payslip_admin.qty_header(c12).endswith(" - Days"),
-	payslip_admin.qty_header(next(c for c in components if c.abbr == "2.1")).endswith(" - Hours")), (True, True))
+check("template: days / hours headers short", (payslip_admin.qty_header(c12),
+	payslip_admin.qty_header(next(c for c in components if c.abbr == "2.1"))), ("1.2 Days", "2.1 Hours"))
 check("template: starts with No.", theader[:2], ["No.", "Period"])
 _m, qty_errors, _missing = payslip_admin._map_columns(
 	["Kỳ lương", "MSNV", "3.2 Technical allowance - Days"], payslip_admin._components()
@@ -883,6 +978,14 @@ _m, old_errors, _missing = payslip_admin._map_columns(["Kỳ lương", "MSNV", f
 check("upload: older 'Unit/ĐVT' header still read", (old_errors, sorted(x[2] for x in _m["components"].values())), ([], [False, True]))
 _m, name_errors, _missing = payslip_admin._map_columns(["Kỳ lương", "MSNV", c12.name], payslip_admin._components())
 check("upload: 'working days' in a name is not a days column", [x[2] for x in _m["components"].values()], [False])
+_m, _e, _missing = payslip_admin._map_columns(
+	["Kỳ lương", "MSNV", "1.1 Standard Working Days", "1.2 Days", "2.1 hour",
+	 "2.2 OT working hours on weekend/Số giờ làm thêm ngày cuối tuần - Hours", "2.2 OT working hours on weekend/Số giờ làm thêm ngày cuối tuần"],
+	payslip_admin._components(),
+)
+check("upload: v5 short headers + older bilingual ones",
+	(_e, [(x[0].abbr, x[2]) for x in _m["components"].values()]),
+	([], [("1.1", False), ("1.2", True), ("2.1", True), ("2.2", True), ("2.2", False)]))
 meta_ps = frappe.get_meta("TIQN Payslip")
 check("desk: two tabs General / Detail", [df.label for df in meta_ps.fields if df.fieldtype == "Tab Break"], ["General", "Detail"])
 ps_order = [df.fieldname for df in meta_ps.fields]
@@ -922,16 +1025,12 @@ if leaver:
 	check("period dates outside the period refused", refused(lambda: bad_dates.insert(ignore_permissions=True)), "refused")
 check("monthly payslip: not a final settlement", frappe.db.get_value("TIQN Payslip", {"employee": EMP_A, "period": "2030-07"}, "final_settlement"), 0)
 
-# Settings: days / hours lines.
 st = frappe.get_doc("Employee Portal Settings")
 check("settings: logo field gone", st.meta.has_field("logo"), False)
 check("settings: formula check on by default", st.validate_payslip_formulas, 1)
-c32 = next(c for c in components if c.abbr == "3.2")
-st.append("payslip_qty_units", {"salary_component": c32.name, "unit": "Day"})
-check("settings: days line without sc_<code>_qty refused", refused(st.validate), "refused")
-st.reload()
-st.append("payslip_qty_units", {"salary_component": c12.name, "unit": "Day"})
-check("settings: same line twice refused", refused(st.validate), "refused")
+check("settings: Day / Hour table gone (units from the field labels)", st.meta.has_field("payslip_qty_units"), False)
+check("template: headers = TIQN Payslip field labels", theader[len(payslip_admin.TEMPLATE_IDENT):][:3],
+	[frappe.get_meta("TIQN Payslip").get_label(f) for f in ("sc_1", "sc_1_1", "sc_1_2_qty")])
 
 
 # ---------------------------------------------------------------------------
@@ -1080,8 +1179,20 @@ r = auth_mod.complete_login(zid_lr, free_phone)
 check("lr: NOT_FOUND, no request yet", (r["result"], r["link_request"]), ("NOT_FOUND", None))
 
 
+AVATAR = "https://s120-ava-talk.zadn.vn/unit-test.jpg"
+with mock.patch.object(zalo_graph, "_secret", return_value="s"), mock.patch.object(
+	zalo_graph, "_get", return_value={"id": 7, "name": " N ", "picture": {"data": {"url": AVATAR}}}
+):
+	check("zalo: user info with picture", zalo_graph.get_user_info("at", "k"), {"id": "7", "name": "N", "picture": AVATAR})
+with mock.patch.object(zalo_graph, "_secret", return_value="s"), mock.patch.object(
+	zalo_graph, "_get", return_value={"id": 7, "picture": {"data": {"url": "javascript:alert(1)"}}}
+):
+	check("zalo: non-https picture dropped, no name", zalo_graph.get_user_info("at", "k"), {"id": "7", "name": None, "picture": None})
+
+
 def link(zid=zid_lr, **kwargs):
-	with mock.patch.object(zalo_graph, "get_user_id", return_value=(zid, "Zalo LR")):
+	info = {"id": zid, "name": "Zalo LR", "picture": AVATAR}
+	with mock.patch.object(zalo_graph, "get_user_info", return_value=info):
 		return call(api.link_employee_request, access_token="at", **kwargs)
 
 
@@ -1092,19 +1203,59 @@ check("lr: Zalo account never signed in", code(link(zid=f"unit-{RUN}-nobody", em
 zid_lnp = f"unit-{RUN}-lnp"
 auth_mod.complete_login(zid_lnp, None, "STORED_PHONE")
 check("lr: account without phone", code(link(zid=zid_lnp, employee_id=EMP_A, full_name="Ab")), "VALIDATION")
-check("lr: unknown employee code", code(link(employee_id=missing_code, full_name=name_a)), "NOT_FOUND")
+r_unknown = link(employee_id=missing_code, full_name=name_a)
+check("lr: unknown employee code", code(r_unknown), "NOT_FOUND")
+r_wrong = link(employee_id=EMP_A, full_name="Nguyen Van Khac Ten")
+check("lr: wrong name -> the same NOT_FOUND as an unknown code (codes cannot be probed)",
+	(code(r_wrong), r_wrong["error"]["message"], r_wrong["error"]["field"]), ("NOT_FOUND", r_unknown["error"]["message"], None))
+check("lr: refused attempts create no record", frappe.db.exists("TIQN Portal Link Request", {"account": zid_lr}), None)
+LR = "TIQN Portal Link Request"
+check("lr: employee signing in from an active account -> EMPLOYEE_LINKED", code(link(employee_id=EMP_A, full_name=name_a)), "EMPLOYEE_LINKED")
+check("lr: refused attempts create nothing", frappe.db.exists(LR, {"account": zid_lr}), None)
+taken = set(frappe.get_all("TIQN Portal Account", filters={"employee": ["is", "set"]}, pluck="employee"))
+EMP_LR = next(
+	e for e in frappe.get_all("Employee", filters={"status": "Active", "relieving_date": ["is", "not set"]}, pluck="name", order_by="name desc", limit=200)
+	if e not in taken and e not in (EMP_A, EMP_B)
+)
+name_lr = frappe.db.get_value("Employee", EMP_LR, "employee_name")
+phone_lr_before = frappe.db.get_value("Employee", EMP_LR, "custom_cell_phone_zalo")
 # A client-sent zalo_user_id is dropped: the request belongs to whoever Zalo says.
-r = link(employee_id=EMP_A.lower(), full_name=name_a.upper(), zalo_user_id=zid_a)
+r = link(employee_id=EMP_LR.lower(), full_name=name_lr.upper(), zalo_user_id=zid_a)
 check("lr: request sent", (r["ok"], r["data"]["status"], r["data"]["link_request"]["status"]), (True, "PENDING", "PENDING"))
-check("lr: answer does not reveal the employee name", normalise_name(name_a) in normalise_name(frappe.as_json(r)), False)
-check("lr: client zalo_user_id ignored", frappe.db.exists("TIQN Portal Link Request", {"account": zid_a}), None)
-req = frappe.get_doc("TIQN Portal Link Request", {"account": zid_lr})
-check("lr: stored from server data", (req.employee, utils.phone_key(req.phone), req.zalo_name, req.status), (EMP_A, utils.phone_key(free_phone), "Zalo LR", "Pending"))
+lr = r["data"]["link_request"]
+check("lr: counts in the answer", (lr["request_count"], lr["requests_today"], lr["max_per_day"], lr["remaining_today"], lr["can_resend"], bool(lr["requested_at"])),
+	(1, 1, 2, 1, True, True))
+check("lr: answer does not reveal the employee name", normalise_name(name_lr) in normalise_name(frappe.as_json(r)), False)
+check("lr: client zalo_user_id ignored", frappe.db.exists(LR, {"account": zid_a}), None)
+req = frappe.get_doc(LR, {"account": zid_lr})
+check("lr: stored from server data", (req.employee, utils.phone_key(req.phone), req.zalo_name, req.status), (EMP_LR, utils.phone_key(free_phone), "Zalo LR", "Pending"))
 check("lr: name match ignores accents/capitals", req.name_match, 1)
-check("lr: warns about the employee's other Zalo account", zid_a in (req.warning or ""), True)
-check("lr: second request while pending", code(link(employee_id=EMP_A, full_name="Ab")), "PENDING")
+check("lr: Zalo avatar from Zalo, shown as the form image", (req.zalo_avatar, req.meta.image_field), (AVATAR, "zalo_avatar"))
+check("lr: ERP counts", (req.request_count, req.requests_today, bool(req.last_requested_on)), (1, 1, True))
+check("lr: ID of the request = the Zalo phone", req.name, free_phone)
+check("lr: Employee editable on the form", frappe.get_meta(LR).get_field("employee").read_only, 0)
+req.employee = EMP_B
+req.save(ignore_permissions=True)
+check("lr: HR corrects the employee while Pending -> checks redone", (req.employee, req.name_match, bool(req.warning)), (EMP_B, 0, True))
+req.employee = EMP_LR
+req.save(ignore_permissions=True)
+
+name_plain = normalise_name(name_lr)  # typed without accents
+r = link(employee_id=EMP_LR, full_name=name_plain)
+check("lr: second request while pending overwrites", (r["ok"], frappe.db.count(LR, {"account": zid_lr})), (True, 1))
+req.reload()
+check("lr: overwritten content + counts", (req.full_name, req.name_match, req.request_count, req.requests_today), (name_plain, 1, 2, 2))
+check("lr: previous content kept in the history", frappe.db.exists("Version", {"ref_doctype": LR, "docname": req.name}) is not None, True)
 lr = auth_mod.complete_login(zid_lr, None, "STORED_PHONE")["link_request"]
-check("lr: login shows the pending request", (lr["status"], lr["employee_id"], bool(lr["created_at"])), ("PENDING", EMP_A, True))
+check("lr: login shows counts, no resend left", (lr["status"], lr["employee_id"], lr["request_count"], lr["remaining_today"], lr["can_resend"]), ("PENDING", EMP_LR, 2, 0, False))
+r = link(employee_id=EMP_LR, full_name=name_lr)
+check("lr: 3rd request in a day -> REQUEST_LIMIT", (code(r), (r.get("error") or {}).get("details", {}).get("max_per_day")), ("REQUEST_LIMIT", 2))
+check("lr: refused request changes nothing", (frappe.db.get_value(LR, req.name, "full_name"), frappe.db.get_value(LR, req.name, "request_count")), (name_plain, 2))
+frappe.db.set_value(LR, req.name, "last_requested_on", add_days(now_datetime(), -1), update_modified=False)
+lr = auth_mod.complete_login(zid_lr, None, "STORED_PHONE")["link_request"]
+check("lr: next day the count starts again", (lr["requests_today"], lr["remaining_today"], lr["can_resend"]), (0, 2, True))
+req.reload()
+check("lr: ERP shows Requests Today = 0 next day", (req.run_method("onload"), req.requests_today)[1], 0)
 
 req.reject("  Không đúng người ")
 lr = auth_mod.complete_login(zid_lr, None, "STORED_PHONE")["link_request"]
@@ -1112,25 +1263,60 @@ check("lr: rejected shown with reason", (lr["status"], lr["reject_reason"]), ("R
 check("lr: reviewer recorded", (req.reviewed_by, bool(req.reviewed_on)), ("Administrator", True))
 check("lr: a rejected request cannot be approved", refused_fn(req.approve), "refused")
 
-r = link(employee_id=EMP_A, full_name="Nguyen Van Khac Ten")
+r = link(employee_id=EMP_LR, full_name=name_lr)
 check("lr: can send again after reject", r["ok"], True)
-req2 = frappe.get_doc("TIQN Portal Link Request", {"account": zid_lr, "status": "Pending"})
-check("lr: other name -> no match + warning", (req2.name_match, bool(req2.warning)), (0, True))
-req2.approve()
-check("lr: approve writes the Zalo phone", utils.phone_key(frappe.db.get_value("Employee", EMP_A, "custom_cell_phone_zalo")), utils.phone_key(free_phone))
+req.reload()
+check("lr: same record, back to Pending, review cleared", (req.status, req.reviewed_by, req.reject_reason, req.request_count, req.requests_today, req.name_match),
+	("Pending", None, None, 3, 1, 1))
+
+# Another ACTIVE account signing in as that employee blocks the app and Approve; disabling it frees the employee.
+acc_a = frappe.db.get_value("TIQN Portal Account", zid_a, ["employee", "disabled"], as_dict=True)
+frappe.db.set_value("TIQN Portal Account", zid_a, "employee", EMP_LR, update_modified=False)
+req.set_checks()
+check("lr: warns about the employee's other Zalo account", zid_a in (req.warning or ""), True)
+check("lr: approve refused while another account signs in as the employee", refused_fn(req.approve), "refused")
+check("lr: app refuses too", code(link(employee_id=EMP_LR, full_name=name_lr)), "EMPLOYEE_LINKED")
+frappe.db.set_value("TIQN Portal Account", zid_a, "disabled", 1, update_modified=False)
+from customize_erpnext.employee_portal.doctype.tiqn_portal_link_request.tiqn_portal_link_request import linked_accounts
+check("lr: a disabled account does not count", linked_accounts(EMP_LR, exclude=zid_lr), [])
+frappe.db.set_value("TIQN Portal Account", zid_a, {"employee": acc_a.employee, "disabled": acc_a.disabled}, update_modified=False)
+
+# The Zalo account's phone changed: the same request moves to the new number.
+free_phone3 = "0900003" + RUN[:3].translate(digits)
+check("lr: third test phone matches nobody", utils.find_employees_by_phone(free_phone3), [])
+frappe.db.set_value("TIQN Portal Account", zid_lr, "phone", free_phone3, update_modified=False)
+old_name = req.name
+r = link(employee_id=EMP_LR, full_name=name_lr)
+check("lr: Zalo phone changed -> the request is renamed to the new phone",
+	(r["ok"], frappe.db.exists(LR, old_name), frappe.db.get_value(LR, {"account": zid_lr}, "name"), frappe.db.get_value(LR, free_phone3, "request_count")),
+	(True, None, free_phone3, 4))
+
+req = frappe.get_doc(LR, free_phone3)
+req.approve()
+check("lr: approve writes the Zalo phone", utils.phone_key(frappe.db.get_value("Employee", EMP_LR, "custom_cell_phone_zalo")), utils.phone_key(free_phone3))
+check("lr: approve links the Zalo account at once (no new sign-in needed)",
+	frappe.db.get_value("TIQN Portal Account", zid_lr, ["employee", "disabled", "auto_disabled"]), (EMP_LR, 0, 0))
+req.reload()
+req.employee = EMP_B
+check("lr: employee locked once reviewed", refused_fn(lambda: req.save(ignore_permissions=True)), "refused")
 r = auth_mod.complete_login(zid_lr, None, "STORED_PHONE")
-check("lr: next login ACTIVE as that employee", (r["result"], (r["employee"] or {}).get("employee_id"), r["link_request"]), ("ACTIVE", EMP_A, None))
-check("lr: phone now matches -> LOGIN_AGAIN", code(link(employee_id=EMP_A, full_name="Ab")), "LOGIN_AGAIN")
+check("lr: next login ACTIVE as that employee", (r["result"], (r["employee"] or {}).get("employee_id"), r["link_request"]), ("ACTIVE", EMP_LR, None))
+check("lr: phone now matches -> LOGIN_AGAIN", code(link(employee_id=EMP_LR, full_name="Ab")), "LOGIN_AGAIN")
+dup = frappe.get_doc({"doctype": LR, "account": zid_lr, "employee": EMP_B, "full_name": "Ab", "phone": free_phone})
+check("lr: one record per Zalo account (unique)", refused_fn(lambda: dup.insert(ignore_permissions=True)), "refused")
 
 # Approving is refused when the Zalo phone already leads to another employee.
-blocked = frappe.get_doc({"doctype": "TIQN Portal Link Request", "account": zid_lr, "employee": EMP_A, "full_name": "Ab", "phone": phone_of(EMP_B)})
+zid_blk = f"unit-{RUN}-blk"
+auth_mod.complete_login(zid_blk, None, "STORED_PHONE")
+blocked = frappe.get_doc({"doctype": LR, "account": zid_blk, "employee": EMP_LR, "full_name": "Ab", "phone": phone_of(EMP_B)})
 blocked.insert(ignore_permissions=True)
 check("lr: warns when the phone belongs to someone else", EMP_B in (blocked.warning or ""), True)
 check("lr: approve refused when the phone belongs to someone else", refused_fn(blocked.approve), "refused")
 
 zid_rl = f"unit-{RUN}-rl"
 auth_mod.complete_login(zid_rl, free_phone2)
-check("lr: 4th request in a day -> RATE_LIMITED", [code(link(zid=zid_rl, employee_id=missing_code, full_name="Ab")) for _ in range(4)], ["NOT_FOUND"] * 3 + ["RATE_LIMITED"])
+check("lr: 11th attempt in a day -> RATE_LIMITED (stops probing codes)",
+	[code(link(zid=zid_rl, employee_id=missing_code, full_name="Ab")) for _ in range(11)], ["NOT_FOUND"] * 10 + ["RATE_LIMITED"])
 
 
 # ---------------------------------------------------------------------------
@@ -1150,10 +1336,15 @@ check("report: bad period refused", refused_fn(lambda: period_report({"period": 
 frappe.db.commit = _REAL_COMMIT
 frappe.flags.in_test = False
 _REAL_ROLLBACK()
+# The rollback does not reach the Redis copy of the Settings (Payslip Lines / features
+# edited above) - drop it, or the Mini App would serve the test values.
+frappe.clear_document_cache("Employee Portal Settings", "Employee Portal Settings")
+check("rollback: Settings cache back to the saved labels",
+	next((r.portal_label for r in frappe.get_cached_doc("Employee Portal Settings").payslip_lines if r.payslip_field == "sc_1"), None), "1 Lương cơ bản (a)")
 left = frappe.db.count("TIQN Portal Account", {"name": ["like", f"unit-{RUN}%"]}) + frappe.db.count(
 	"TIQN Payslip", {"import_batch": f"UNIT-{RUN}"}
 )
 check("rollback left no UNIT records", left, 0)
 check("rollback left no link requests", frappe.db.count("TIQN Portal Link Request", {"account": ["like", f"unit-{RUN}%"]}), 0)
-check("rollback restored the Zalo phone", utils.phone_key(frappe.db.get_value("Employee", EMP_A, "custom_cell_phone_zalo")) == utils.phone_key(free_phone), False)
+check("rollback restored the Zalo phone", frappe.db.get_value("Employee", EMP_LR, "custom_cell_phone_zalo"), phone_lr_before)
 print(f"\n{ok} passed, {fail} failed")

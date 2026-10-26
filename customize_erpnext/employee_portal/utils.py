@@ -232,18 +232,44 @@ def designation_label(designation):
 
 
 # ---------------------------------------------------------------------------
-# Payslip component fields (v2, 23/10/2026): one field per Salary Component on
-# TIQN Payslip, named after the component's code ("3.2" -> `sc_3_2`). The display
-# config stays on Salary Component (custom_portal_*); the code links the two.
-# ---------------------------------------------------------------------------
+# Payslip lines (v4, 26/10/2026): TIQN Payslip alone describes the payslip - no
+# HRMS Salary Component involved. One field per paper line, named after its code
+# ("3.2" -> `sc_3_2`), labelled "<code> <short English> (formula letters)" (v5) - the
+# Excel / Data Import column header:
+#     "3.2 Technical Allowance", "3 Monthly Salary (c=a+b)"
+# code -> order and parent, "(a)" / "(c=a+b)" -> formula letters
+# (api/employee_portal/payslip.py). The Mini App text is CnB's, word for word with the
+# line number and letters ("9 Thực lĩnh (j=f-g+h+i)"): Employee Portal Settings >
+# Payslip Lines; empty -> the field label.
 #
-# A paper payslip line may carry TWO values (24/10/2026): the amount and a number in
-# the "Unit/ĐVT" column (1.2 = 27 days + 17.214.001 VND). The second one lives in
-# `sc_<code>_qty`, present when the component is in Settings > Day / Hour Columns.
+# A paper line may carry TWO values: the amount and a number in the "Unit/ĐVT"
+# column (1.2 = 27 days + 17.214.001 VND). The second one is `sc_<code>_qty`, a Float
+# labelled "<code> Days" / "<code> Hours". A Float `sc_<code>` without its amount
+# (1.1) is a days-only line.
+#
+# Adding a line = IT adds the field(s) to TIQN Payslip + migrate; the Settings row
+# appears by itself (CnB then types the Mini App label).
 # ---------------------------------------------------------------------------
 PAYSLIP_DT = "TIQN Payslip"
 COMPONENT_FIELD_PREFIX = "sc_"
 QTY_FIELD_SUFFIX = "_qty"
+COMPONENT_FIELD_RE = re.compile(r"^sc_(\d+(?:_\d+)*)$")
+QTY_UNIT_RE = re.compile(r"(?:^|[\s-])(days?|hours?)\s*$", re.IGNORECASE)
+
+# What the field labels cannot say. Paper payslip, fixed:
+# - 3.2-3.10 are the details of 3.1 "Allowance (d)", not of 3 "Monthly Salary (c=a+b)",
+#   and 3.1 itself is a main line (level 0);
+GROUP_PARENT = {"3": "3.1"}
+# - totals of a block (Section Total) and of a group that is shown even when 0 (Subtotal);
+SECTION_TOTALS = ("5", "6", "7", "8", "9")
+SUBTOTALS = ("3", "3.1", "4")
+# - block of each top-level code. The detail lines of 1 and 2 (days, overtime) went to
+#   ATTENDANCE in the deprecated `sections` payload.
+SECTION_OF = {
+	"1": "Earnings", "2": "Earnings", "3": "Earnings", "4": "Earnings", "5": "Earnings",
+	"6": "Deductions", "7": "Others", "8": "Adjustment", "9": "Net Pay",
+}
+ATTENDANCE_GROUPS = ("1", "2")
 
 
 def component_fieldname(abbr):
@@ -254,48 +280,112 @@ def component_qty_fieldname(abbr):
 	return component_fieldname(abbr) + QTY_FIELD_SUFFIX
 
 
-def _payslip_components():
-	"""Salary Components that belong on the payslip (everything not Hidden), sorted."""
-	fields = [
-		"name",
-		"salary_component_abbr as abbr",
-		"custom_portal_section as section",
-		"custom_portal_row as row_type",
-		"custom_portal_parent as parent",
-		"custom_portal_unit as unit",
-		"custom_portal_label as label",
-		"custom_portal_order as sort_order",
-	]
-	rows = frappe.get_all(
-		"Salary Component",
-		filters={"custom_portal_section": ["not in", ["", "Hidden"]]},
-		fields=fields,
-	)
-	qty_units = payslip_qty_units()
-	for r in rows:
-		r.qty_unit = qty_units.get(r.name)
-	rows.sort(key=lambda r: (cint(r.sort_order) or 9999, [int(p) for p in str(r.abbr).split(".") if p.isdigit()]))
-	return rows
+def code_key(abbr):
+	"""Sort key of a code: 1, 1.1, 1.2, 2, ... 3.9, 3.10, 4."""
+	return [int(p) for p in str(abbr).split(".") if p.isdigit()]
 
 
-def payslip_qty_units():
-	"""{Salary Component: "Day" | "Hour"} - lines that also show days / hours (Settings)."""
-	return {r.salary_component: r.unit for r in get_settings().get("payslip_qty_units") or [] if r.salary_component}
+def portal_label(label):
+	"""Default Mini App label of a payslip field label: the part after the first "/"
+	(older bilingual labels), without the code and formula letters:
+	"1 Basic Salary/Lương cơ bản  (a)"          -> "Lương cơ bản"
+	"9 Net Salary/Thực lĩnh (j=f-g+h+i):"       -> "Thực lĩnh"
+	"7.6 21.5% (SI+HI+UI)/21.5% (BHXH+BHYT+BHTN)" -> "21.5% (BHXH+BHYT+BHTN)"
+	The formula letters are sent apart (`formula`) - the Mini App shows "label (formula)".
+	"""
+	text = re.sub(r"^\s*\d+(?:\.\d+)*\s*", "", label or "")
+	if "/" in text:
+		text = text.split("/", 1)[1]
+	text = re.sub(r"\(\s*[a-j](?:\s*=[^)]*)?\s*\)\s*:?\s*$", "", text.strip())
+	return " ".join(text.strip(" :").split())
+
+
+def strip_code_formula(text):
+	"""Line text without its leading number and trailing formula letters:
+	"9 Thực lĩnh (j=f-g+h+i)" -> "Thực lĩnh" (the `label` older Mini App builds put
+	between `no` and `formula`)."""
+	text = re.sub(r"^\s*\d+(?:\.\d+)*\s*", "", text or "")
+	# Only real letters - the same shape payslip.FORMULA_RE sends as `formula`; any other
+	# note in brackets stays in the text.
+	text = re.sub(r"\(\s*[a-j](?:\s*=\s*[a-j](?:\s*[+-]\s*[a-j])*)?\s*\)\s*:?\s*$", "", text.strip())
+	return " ".join(text.strip(" :").split())
+
+
+def _qty_unit(label):
+	m = QTY_UNIT_RE.search(label or "")
+	return "Hour" if m and m.group(1).lower().startswith("hour") else "Day"
+
+
+def _parent_code(abbr, codes):
+	parts = str(abbr).split(".")
+	if len(parts) < 2 or abbr in GROUP_PARENT.values():  # 3.1 is a main line of its own
+		return None
+	parent = ".".join(parts[:-1])
+	grouped = GROUP_PARENT.get(parent)
+	if grouped and grouped != abbr and grouped in codes:
+		return grouped
+	return parent if parent in codes else None
 
 
 def payslip_component_fields():
-	"""[component row + `fieldname` + `qty_fieldname`] for every payslip component that
-	HAS a field on TIQN Payslip. `qty_fieldname` = the days / hours value, None when the
-	line has none. A component without field is refused at import."""
+	"""Every line of the payslip, in code order, read from the TIQN Payslip fields:
+
+	name          field label as on the paper ("1.2 Actual working days/Số ngày công...")
+	abbr          code "1.2"
+	fieldname     `sc_1_2` - the amount (or the days of a days-only line)
+	qty_fieldname `sc_1_2_qty` or None; qty_unit "Day" | "Hour" | None; qty_label
+	unit          "VND", or "Day" / "Hour" for a days-only line (1.1)
+	display_label Mini App text as shown, number + letters included: Settings > Payslip
+	              Lines, else `name`
+	label         display_label without number / letters (older Mini App builds)
+	parent        `name` of the group line, or None
+	section, row_type ("Line" | "Subtotal" | "Section Total") - see the tables above
+	"""
 	meta = frappe.get_meta(PAYSLIP_DT)
+	app_labels = payslip_app_labels()
+	lines = {}
+	for df in meta.fields:
+		m = COMPONENT_FIELD_RE.match(df.fieldname)
+		if m and df.fieldtype in ("Currency", "Float", "Int"):
+			lines[m.group(1).replace("_", ".")] = df
+
 	out = []
-	for c in _payslip_components():
-		c.fieldname = component_fieldname(c.abbr)
-		qty = component_qty_fieldname(c.abbr)
-		c.qty_fieldname = qty if c.qty_unit and meta.has_field(qty) else None
-		if meta.has_field(c.fieldname):
-			out.append(c)
+	for abbr in sorted(lines, key=code_key):
+		df = lines[abbr]
+		qty = meta.get_field(component_qty_fieldname(abbr))
+		top = abbr.split(".")[0]
+		days_only = df.fieldtype != "Currency"
+		out.append(
+			frappe._dict(
+				name=df.label or df.fieldname,
+				abbr=abbr,
+				fieldname=df.fieldname,
+				qty_fieldname=qty.fieldname if qty and not days_only else None,
+				qty_unit=_qty_unit(qty.label) if qty and not days_only else None,
+				qty_label=qty.label if qty and not days_only else None,
+				unit=_qty_unit(df.label) if days_only else "VND",
+				display_label=app_labels.get(df.fieldname) or df.label or abbr,
+				parent_code=_parent_code(abbr, lines),
+				section=("Attendance" if top in ATTENDANCE_GROUPS and abbr != top else SECTION_OF.get(top)),
+				row_type=(
+					"Section Total" if abbr in SECTION_TOTALS else "Subtotal" if abbr in SUBTOTALS else "Line"
+				),
+			)
+		)
+	names = {c.abbr: c.name for c in out}
+	for c in out:
+		c.parent = names.get(c.parent_code)
+		c.label = strip_code_formula(c.display_label) or c.display_label
 	return out
+
+
+def payslip_app_labels():
+	"""{payslip field: Mini App label} typed by CnB in Settings > Payslip Lines."""
+	return {
+		r.payslip_field: (r.portal_label or "").strip()
+		for r in get_settings().get("payslip_lines") or []
+		if r.payslip_field and (r.portal_label or "").strip()
+	}
 
 
 def payslip_value_fieldnames(components=None):
@@ -309,21 +399,15 @@ def payslip_value_fieldnames(components=None):
 
 
 def payslip_field_mismatches():
-	"""([(component, missing fieldname)], sc_* fields without a component) - both are
-	config errors. A days / hours field counts as wanted only for components in Settings > Day / Hour Columns."""
+	"""`sc_*` fields the payslip cannot use - config errors IT must fix on TIQN Payslip:
+	a days / hours field without its amount field, or a `sc_` field whose name is not a code."""
 	meta = frappe.get_meta(PAYSLIP_DT)
-	wanted = {}
-	for c in _payslip_components():
-		wanted[component_fieldname(c.abbr)] = c.name
-		if c.qty_unit:
-			wanted[component_qty_fieldname(c.abbr)] = c.name
-	no_field = [(name, fieldname) for fieldname, name in wanted.items() if not meta.has_field(fieldname)]
-	no_component = [
+	used = set(payslip_value_fieldnames())
+	return [
 		df.fieldname
 		for df in meta.fields
-		if df.fieldname.startswith(COMPONENT_FIELD_PREFIX) and df.fieldname not in wanted
+		if df.fieldname.startswith(COMPONENT_FIELD_PREFIX) and df.fieldname not in used
 	]
-	return no_field, no_component
 
 
 # ---------------------------------------------------------------------------

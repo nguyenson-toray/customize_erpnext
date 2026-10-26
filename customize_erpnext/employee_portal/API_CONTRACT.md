@@ -1,6 +1,6 @@
 # Employee Portal — Hợp đồng giao diện với Zalo Mini App "Cổng nhân viên"
 
-> **Phiên bản contract: 1.5.0 (24/10/2026).** Giai đoạn hiện tại **chỉ mở phiếu lương** (+ thông báo) — xem §3.5.
+> **Phiên bản contract: 1.7.0 (26/10/2026).** Giai đoạn hiện tại **chỉ mở phiếu lương** (+ thông báo) — xem §3.5.
 > **Đã chạy thật:** xác thực + phiếu lương + thông báo (M1). **M2** (các màn chỉ xem) code xong, chờ restart.
 > Chưa code: tạo/hủy đơn nghỉ, giấy tờ, giải trình (M3) và tin OA (M4). Xem §13. Tài liệu này được viết trước để đội Mini App dựng 21 màn bằng mock
 > (dữ liệu mẫu ở mỗi endpoint), góp ý, rồi backend mới code theo đúng bản đã chốt.
@@ -287,7 +287,9 @@ Danh sách đóng. Backend thêm mã mới = ghi vào §13 và báo đội Mini 
 | `FILE_TYPE` | Loại tệp không nhận (kiểm theo nội dung thật, không theo đuôi) | Hiện `message` |
 | `TOO_MANY_FILES` | Vượt số tệp/đơn. `details.max_files` | Hiện `message` |
 | `LOGIN_AGAIN` | *(chỉ `link_employee_request`)* Tài khoản Zalo chưa từng `login`, hoặc SĐT của tài khoản **đã khớp** hồ sơ | Chạy lại `login` |
-| `PENDING` | *(chỉ `link_employee_request`)* Đã có yêu cầu đang chờ phòng Nhân sự duyệt | Hiện trạng thái chờ |
+| `PENDING` | *(chỉ `link_employee_request`, **không còn trả từ 1.6.0**)* Đã có yêu cầu đang chờ phòng Nhân sự duyệt | Hiện trạng thái chờ |
+| `EMPLOYEE_LINKED` | *(chỉ `link_employee_request`, từ 1.6.0)* Mã NV đang được tài khoản Zalo khác dùng | Hiện `message` |
+| `REQUEST_LIMIT` | *(chỉ `link_employee_request`, từ 1.6.0)* Đã gửi đủ số lần trong ngày. `details.max_per_day` | Hiện `message`, không tự thử lại |
 | `DISABLED` | *(chỉ `link_employee_request`)* Phòng Nhân sự đã khoá tài khoản Mini App | Màn 05, hiện `message` |
 
 ---
@@ -438,15 +440,27 @@ Gọi khi mở app, trước mọi màn (01, 03, 04, 05, 09 cần các số liê
   "masked_phone": "09•• ••• 123", "employee": null, "access": null, "oa": null,
   "expired_on": null, "message": null,
   "link_request": { "status": "PENDING", "employee_id": "TIQN-0148",
-                    "created_at": "2026-10-24 09:30:00", "reject_reason": null } }}
+                    "requested_at": "2026-10-24 09:30:00", "created_at": "2026-10-24 09:30:00",
+                    "reject_reason": null, "request_count": 1, "requests_today": 1,
+                    "max_per_day": 2, "remaining_today": 1, "can_resend": true } }}
 ```
 **`link_request`** (từ 1.4.0) — key có ở **mọi** kết quả `login`, chỉ khác `null` khi `NOT_FOUND`: yêu cầu liên kết hồ sơ
-**gần nhất** của tài khoản Zalo này (§6 `link_employee_request`).
-| `status` | Màn 04 hiện |
+của tài khoản Zalo này (§6 `link_employee_request`). Mỗi tài khoản Zalo chỉ có **một** yêu cầu (từ 1.6.0).
+
+| `link_request` | Màn 04 hiện |
 |---|---|
-| `null` (chưa gửi yêu cầu nào) | Form "Yêu cầu tạo tài khoản" |
-| `PENDING` | "Yêu cầu đã gửi — mã `employee_id`, đang chờ phòng Nhân sự duyệt" (không có form) |
-| `REJECTED` | "Yêu cầu bị từ chối" + `reject_reason` (nếu có) + form gửi lại |
+| `null` (chưa gửi yêu cầu nào) | Form "Yêu cầu tạo tài khoản" + dòng nhỏ "Tối đa 2 lần/ngày" |
+| `status = PENDING` | "Yêu cầu đã gửi — mã `employee_id`, đang chờ phòng Nhân sự duyệt". `can_resend = true` → thêm nút **"Sửa yêu cầu"** (mở form, điền sẵn mã NV) |
+| `status = REJECTED` | "Yêu cầu bị từ chối" + `reject_reason` (nếu có) + form gửi lại khi `can_resend = true` |
+
+Field (từ 1.6.0, trừ `status`, `employee_id`, `reject_reason`):
+
+| Field | |
+|---|---|
+| `requested_at` | Lần gửi gần nhất (`created_at` = cùng giá trị, giữ cho bản app cũ — sẽ bỏ) |
+| `request_count` | Tổng số lần đã gửi — hiện "Đã gửi N lần" |
+| `requests_today`, `max_per_day`, `remaining_today` | Hôm nay đã gửi / tối đa (2) / còn lại — hiện "Hôm nay còn X lần" |
+| `can_resend` | `remaining_today > 0`. `false` → ẩn form/nút gửi lại, hiện "Bạn đã gửi đủ 2 lần hôm nay, vui lòng thử lại vào ngày mai" |
 
 Được duyệt → SĐT Zalo đã khớp hồ sơ → `login` trả `ACTIVE` luôn, không còn `NOT_FOUND`.
 
@@ -480,27 +494,39 @@ Người dùng `NOT_FOUND` tự khai **mã nhân viên + họ tên** để phòn
 🔴 **Không gửi `zalo_user_id`** — nếu gửi, server bỏ qua. Người gửi luôn là người Zalo xác nhận qua `access_token`.
 SĐT được duyệt là SĐT Zalo đã xác nhận ở lần `login` trước (vì vậy phải `login` có `phone_token` trước).
 
+- **Một yêu cầu / tài khoản Zalo** (từ 1.6.0): gửi lại thì nội dung mới **ghi đè** nội dung cũ và yêu cầu quay về `PENDING`
+  — được gửi lại cả khi đang chờ (sửa mã/họ tên gõ nhầm) lẫn sau khi bị từ chối.
+- Tối đa **2 lần/ngày** (ngày lịch giờ Việt Nam). Chỉ lần gửi **thành công** mới tính; lần bị lỗi (`VALIDATION`,
+  `NOT_FOUND`, `EMPLOYEE_LINKED`…) không tính.
+- **Mã NV và họ tên phải khớp hồ sơ** (từ 1.6.0; không phân biệt dấu, hoa/thường, khoảng trắng thừa). Không khớp →
+  `NOT_FOUND` ngay, hiện lỗi trên form, không tạo yêu cầu.
+- Mã NV đang được một tài khoản Zalo khác dùng (chưa bị khoá) → `EMPLOYEE_LINKED`.
+
 ```json
 { "ok": true, "data": {
   "status": "PENDING",
   "message": "Yêu cầu đã được gửi. Phòng Nhân sự sẽ kiểm tra.",
   "link_request": { "status": "PENDING", "employee_id": "TIQN-0148",
-                    "created_at": "2026-10-24 09:30:00", "reject_reason": null }
+                    "requested_at": "2026-10-24 09:30:00", "created_at": "2026-10-24 09:30:00",
+                    "reject_reason": null, "request_count": 1, "requests_today": 1,
+                    "max_per_day": 2, "remaining_today": 1, "can_resend": true }
 }}
 ```
-Server **không** cho biết họ tên nhập có khớp hồ sơ hay không (chống dò tên) — phòng Nhân sự tự đối chiếu.
+Sai mã hay sai tên đều nhận **cùng một** `NOT_FOUND` "Mã nhân viên hoặc họ tên không đúng…" — server không cho biết sai
+ô nào và không bao giờ trả họ tên trong hồ sơ (chống dò mã/tên). Mini App hiện `message` ở đầu form, không gắn vào ô nào.
 
 | Lỗi | Khi nào |
 |---|---|
 | `VALIDATION` | `employee_id` sai định dạng (`field: employee_id`), `full_name` quá ngắn (`field: full_name`), hoặc tài khoản chưa có SĐT (cho phép đọc SĐT rồi `login` lại) |
-| `NOT_FOUND` | Mã NV không có, hoặc hồ sơ không còn được dùng Mini App (`field: employee_id`) |
-| `PENDING` | Đã có yêu cầu đang chờ |
+| `NOT_FOUND` | Mã NV không có, hồ sơ không còn được dùng Mini App, **hoặc họ tên không khớp mã NV** (từ 1.6.0). `field: null` |
+| `EMPLOYEE_LINKED` | *(từ 1.6.0)* Mã NV này đang được một tài khoản Zalo khác dùng (`field: employee_id`). Hiện `message` ("…vui lòng liên hệ phòng Nhân sự") |
+| `REQUEST_LIMIT` | *(từ 1.6.0)* Đã gửi đủ **2 lần hôm nay**. `details: { max_per_day, requests_today }`. Hiện `message`, ẩn nút gửi; **không** tự thử lại |
 | `LOGIN_AGAIN` | Chưa từng `login`, hoặc SĐT đã khớp hồ sơ → chạy lại `login` |
 | `DISABLED` | Phòng Nhân sự khoá tài khoản |
-| `RATE_LIMITED` | Quá **3 yêu cầu / ngày** / tài khoản Zalo |
+| `RATE_LIMITED` | Thử quá **10 lần / ngày** / tài khoản Zalo, tính cả lần bị lỗi (chống dò mã NV) |
 | `ZALO_*` | Như `login` |
 
-Không có `ALREADY_LINKED`: nhân viên đã có tài khoản Zalo khác vẫn gửi được, phòng Nhân sự thấy cảnh báo và tự quyết.
+`PENDING` không còn trả từ 1.6.0 (đang chờ vẫn gửi lại được — ghi đè).
 
 ### `dev_login` — POST, không cần token *(chỉ simulator — đọc §2.6)*
 
@@ -1285,12 +1311,12 @@ POST vì lần mở đầu tiên được ghi lại (ngày xem đầu tiên). C�
                 "department": "Production", "section": "Sewing", "group": "Sewing 05" },
   "rows": [
     { "no": "1",   "label": "Lương cơ bản",   "formula": "a",     "quantity": null, "quantity_unit": null,  "amount": 6000000, "level": 0, "is_header": true },
-    { "no": "1.1", "label": "Công chuẩn",     "formula": null,    "quantity": 26,   "quantity_unit": "DAY", "amount": null,    "level": 1, "is_header": false },
-    { "no": "1.2", "label": "Công thực tế",   "formula": null,    "quantity": 24,   "quantity_unit": "DAY", "amount": 6000000, "level": 1, "is_header": false },
-    { "no": "2",   "label": "Làm thêm giờ",   "formula": "b",     "quantity": null, "quantity_unit": null,  "amount": 1400000, "level": 0, "is_header": true },
-    { "no": "2.1", "label": "Giờ làm thêm ngày thường", "formula": null, "quantity": 8.5, "quantity_unit": "HOUR", "amount": 1000000, "level": 1, "is_header": false },
+    { "no": "1.1", "label": "Số ngày làm việc chuẩn trong tháng", "formula": null,    "quantity": 26,   "quantity_unit": "DAY", "amount": null,    "level": 1, "is_header": false },
+    { "no": "1.2", "label": "Số ngày công thực tế làm việc", "formula": null,    "quantity": 24,   "quantity_unit": "DAY", "amount": 6000000, "level": 1, "is_header": false },
+    { "no": "2",   "label": "Làm việc ngoài giờ", "formula": "b",     "quantity": null, "quantity_unit": null,  "amount": 1400000, "level": 0, "is_header": true },
+    { "no": "2.1", "label": "Số giờ làm thêm ngày thường", "formula": null, "quantity": 8.5, "quantity_unit": "HOUR", "amount": 1000000, "level": 1, "is_header": false },
     { "no": "3",   "label": "Lương tháng",    "formula": "c=a+b", "quantity": null, "quantity_unit": null,  "amount": 7400000, "level": 0, "is_header": true },
-    { "no": "6",   "label": "Tổng khấu trừ",  "formula": "g",     "quantity": null, "quantity_unit": null,  "amount": 1100000, "level": 0, "is_header": true },
+    { "no": "6",   "label": "Các khoản khấu trừ", "formula": "g",     "quantity": null, "quantity_unit": null,  "amount": 1100000, "level": 0, "is_header": true },
     { "no": "6.1", "label": "BHXH (8%)",      "formula": null,    "quantity": null, "quantity_unit": null,  "amount": 800000,  "level": 1, "is_header": false },
     { "no": "9",   "label": "Thực lĩnh",      "formula": "j=f-g+h+i", "quantity": null, "quantity_unit": null, "amount": 9150000, "level": 0, "is_header": true }
   ],
@@ -1340,9 +1366,10 @@ Màn 20 hiển thị **giống phiếu lương giấy**: một bảng liền t�
 
 | Field | |
 |---|---|
-| `no` | Số thứ tự in ở cột STT — **luôn hiển thị** |
-| `label` | Tên khoản **tiếng Việt**. Hiển thị `label` + ` (formula)` khi có `formula`: "Lương cơ bản (a)", "Lương tháng (c=a+b)", "Thực lĩnh (j=f-g+h+i)" |
-| `formula` | Ký hiệu của dòng trên phiếu giấy, `null` nếu không có |
+| `display_label` | *(từ 1.7.0)* **Chữ hiển thị nguyên văn** của dòng, đã gồm số thứ tự và ký hiệu, vd. "1 Lương cơ bản (a)", "9 Thực lĩnh (j=f-g+h+i)" — phòng Nhân sự soạn trên ERP. **Dùng field này**, không ghép thêm `no` / `formula` |
+| `no` | Số thứ tự in ở cột STT. Từ 1.7.0 đã có sẵn trong `display_label` — chỉ dùng để tra cứu / làm khoá |
+| `label` | *(giữ cho bản app trước 1.7.0)* `display_label` bỏ số thứ tự và ký hiệu. Bản cũ hiển thị `no` + `label` + ` (formula)` → ra cùng chữ với `display_label`. Nhãn có thể dài → cho xuống dòng, đừng cắt |
+| `formula` | Ký hiệu của dòng (lấy từ `display_label`), `null` nếu không có. Từ 1.7.0 chỉ để tra cứu |
 | `quantity`, `quantity_unit` | Giá trị cột **ĐVT** của phiếu giấy: `DAY` → "24 ngày", `HOUR` → "8,5 giờ". `null` = dòng không có ĐVT. `0` → "–" |
 | `amount` | Số tiền VND, **luôn dương như bản in** (khấu trừ không có dấu "−"). `null` = dòng không có số tiền (vd. 1.1 chỉ có số ngày). `0` → "–" |
 | `level` | `0` dòng chính, `1` dòng con (thụt vào) |
@@ -1572,6 +1599,9 @@ Khai báo URL chính sách dữ liệu và điều khoản (`get_config().legal`
 | 12/10/2026 | 1.0-draft | Chốt công hết ngày 25, điều chỉnh tới mùng 4: `get_attendance_summary` thêm `adjust_until`, `cutoff_date` luôn có. Giữ tên máy chấm công. `login` luôn có key `expired_on`. |
 | 14/10/2026 | 1.1.1 | Trả lời `QUESTIONS_FOR_BACKEND.md` (Update 02): `designation` giờ là chức danh **tiếng Việt** (mục 17); `approver` của đơn nghỉ **có thể `null`** — đơn HR nhập tay (mục 16); `get_leave_form` thuộc **M3, chưa có** — Mini App chỉ hiện nút "Tạo đơn nghỉ" khi `get_config().features.leave_create = true` (§3.5), hiện đang `false` (mục 15). |
 | 14/10/2026 | 1.1.2 | Trả lời Update 02 (mục 18, 19): `employee.avatar_url` giờ là **URL ảnh nhân viên** (§ Employee), `null` khi không có ảnh công khai. Mục 19: simulator không có `access_token` → `login` luôn trả `ZALO_TOKEN_INVALID` "Thiếu mã truy cập Zalo" (không phải `NO_PHONE`); trên simulator dùng `dev_login`. `READ_ONLY` mặc định **30 ngày** (trước 60). Tài khoản mới không khớp nhân viên được dùng bị tự khoá phía ERP — không đổi kết quả trả về. Sửa: request song song sau khi phiên bị thu hồi giờ trả cùng `reason`/`result` (trước đó có thể ra `REVOKED`); `get_payslip_periods.upcoming` không hiện kỳ trước ngày vào làm. |
+| 26/10/2026 | 1.7.0 | `get_payslip.rows[]` thêm **`display_label`** — chữ hiển thị nguyên văn, đã gồm số thứ tự và ký hiệu ("9 Thực lĩnh (j=f-g+h+i)"), phòng Nhân sự soạn trên ERP. Mini App hiển thị field này, **không ghép** `no` / `formula` nữa. `label`, `no`, `formula` vẫn trả như cũ (bản app cũ vẫn đúng). |
+| 26/10/2026 | 1.6.1 | Không đổi payload. `rows[].label` giờ do phòng Nhân sự sửa trên ERP (Settings ▸ Payslip Lines) — có thể đổi bất cứ lúc nào, Mini App chỉ cần hiển thị đúng chữ server trả, không viết cứng. Text khác (thông báo, lỗi) cũng có thể được ERP đổi mà không cần phát hành bản app mới. |
+| 26/10/2026 | 1.6.0 | **Nhãn phiếu lương đúng phiếu giấy:** `rows[].label` (và `sections[].lines[].label`) giờ là phần tiếng Việt nguyên văn trên phiếu giấy, vd. "Công thực tế" → "Số ngày công thực tế làm việc", "Tổng thu nhập" → "Tổng" (§10). Cấu trúc, `no`, `formula`, thứ tự, số liệu **không đổi**. Nhãn dài hơn → cho xuống dòng. Phiếu đã cache vẫn hiện nhãn cũ tới khi phiếu được phát hành lại — chấp nhận được. **Yêu cầu liên kết hồ sơ** (§6): mỗi tài khoản Zalo **1 yêu cầu**, gửi lại = ghi đè (được cả khi đang chờ → không còn lỗi `PENDING`); tối đa **2 lần/ngày** → lỗi mới `REQUEST_LIMIT`; mã NV đang được tài khoản Zalo khác dùng → lỗi mới `EMPLOYEE_LINKED`; `RATE_LIMITED` giờ là quá 10 lần thử/ngày. `link_request` thêm `requested_at`, `request_count`, `requests_today`, `max_per_day`, `remaining_today`, `can_resend` (màn 04 hiện số lần, nút "Sửa yêu cầu"). Mã NV + họ tên phải khớp hồ sơ, không khớp → `NOT_FOUND` ngay (cùng câu với mã không tồn tại, `field: null`). ⚠ Có hiệu lực sau lần migrate + restart tới. |
 | 24/10/2026 | 1.5.0 | **Hiệu năng lúc phát hành + gọn ERP:** phiếu lương tải 1 lần, cache theo `(period, published_on)`; "Ẩn khoản 0đ" lọc tại máy, không gọi lại (`include_zero` luôn 1) (§10). Thử lại giãn cách khi lỗi (§3.6). "Đã xem" = chỉ ghi lần mở đầu tiên. `get_config.company.logo_url` luôn `null` (dùng logo Zalo App; key sẽ bỏ ở bản sau). Giới hạn `login` theo IP nâng lên 3000/phút (cả nhà máy dùng chung 1 IP WiFi). Phía ERP: phiếu NV nghỉ việc (thanh toán riêng) có `period_to` = ngày trước ngày nghỉ và `pay_date` riêng — Mini App chỉ cần hiện đúng giá trị server trả; phát hành loại phiếu này **không** tạo thông báo. |
 | 24/10/2026 | 1.4.0 | **Yêu cầu liên kết hồ sơ** (màn 04): endpoint mới `link_employee_request` (mã NV + họ tên → phòng Nhân sự duyệt trên ERP, ghi SĐT Zalo vào hồ sơ). `login` thêm key `link_request` (khác `null` khi `NOT_FOUND`: `PENDING` / `REJECTED` + `reject_reason`). Mã lỗi mới `LOGIN_AGAIN`, `PENDING`, `DISABLED` (chỉ endpoint này). Sửa phía ERP: cột SĐT Zalo của hồ sơ trước đây không được so do sai tên field — giờ đã so. ⚠ Có hiệu lực sau lần migrate + restart tới. |
 | 24/10/2026 | 1.3.0 | **Phiếu lương như bản in giấy:** `get_payslip` thêm `rows` — một bảng liền 1→9 có STT, mỗi dòng có ĐVT (`quantity`) và số tiền (`amount`), `formula` (a), (c=a+b)…, `level`, `is_header` (§10). `sections` **deprecated** (vẫn trả, ATTENDANCE vẫn ra số ngày/giờ như cũ). Mặc định hiện cả dòng 0 (`include_zero` = 1). |
