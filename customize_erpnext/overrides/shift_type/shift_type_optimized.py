@@ -3055,6 +3055,59 @@ def run_bulk_update_attendance_background(
 
 
 # ============================================================================
+# TODAY CATCH-UP (late arrivals during the day)
+# ============================================================================
+
+def get_today_unmarked_employees(day) -> List[str]:
+	"""Employees who punched on `day` but whose punch is not linked to any
+	attendance AND who have no attendance with an in_time for that day.
+
+	That is exactly the late arrival: the 08:20 email job built today's records
+	before they punched in, so they sit as Absent (or have no record at all),
+	and the incremental hourly run cannot see their punch until the shift ends
+	(`shift_actual_end < last_sync_of_checkin`, i.e. ~21:01 for the Day shift).
+
+	Checkout punches of people already Present are NOT picked: their in_time is
+	set. Prefix / excluded IDs are filtered later by the core logic.
+	"""
+	day = getdate(day)
+	return frappe.db.sql("""
+		SELECT DISTINCT c.employee
+		FROM `tabEmployee Checkin` c
+		LEFT JOIN `tabAttendance` a
+			ON a.employee = c.employee
+			AND a.attendance_date = %(day)s
+			AND a.docstatus < 2
+		WHERE c.time >= %(day)s AND c.time < %(next_day)s
+		  AND c.skip_auto_attendance = 0
+		  AND c.attendance IS NULL
+		  AND (a.name IS NULL OR a.in_time IS NULL)
+		ORDER BY c.employee
+	""", {"day": day, "next_day": day + timedelta(days=1)}, pluck=True)
+
+
+def _catch_up_today_unmarked(today) -> Dict:
+	"""Recalculate `today` in FULL-DAY mode for get_today_unmarked_employees().
+
+	Same call as the per-checkin hook (_recalculate_attendance_background), batched
+	once per hourly run: a handful of employees instead of one queue job per punch.
+	"""
+	employees = get_today_unmarked_employees(today)
+	print(f"\n🕘 Today catch-up ({today}): {len(employees)} employees with unlinked checkins and no in_time")
+	if not employees:
+		return {"employees": 0}
+
+	stats = _core_process_attendance_logic_optimized(
+		employees=employees,
+		days=[today],
+		from_date=today,
+		to_date=today,
+		fore_get_logs=True
+	)
+	return {"employees": len(employees), "processing_time": stats.get("processing_time")}
+
+
+# ============================================================================
 # WRAPPER FOR HRMS HOURLY HOOK (Monkey Patch Replacement)
 # ============================================================================
 
@@ -3083,6 +3136,9 @@ def custom_process_auto_attendance_for_all_shifts(employees=None, days=None):
 	if is_peak_time():
 		print("⏸️  Peak time window — skipping scheduled attendance processing")
 		return {"success": True, "skipped": "peak_time"}
+
+	# Incremental (daytime) scheduled runs only — see _catch_up_today_unmarked
+	run_today_catchup = False
 
 	# Determine date range from shift type settings
 	# HRMS uses each shift's process_attendance_after and last_sync_of_checkin
@@ -3128,6 +3184,10 @@ def custom_process_auto_attendance_for_all_shifts(employees=None, days=None):
 			if to_date < current_date:
 				print(f"   ⚠️  Extending to_date from {to_date} to {current_date} (special hour {current_hour} or UI)")
 				to_date = current_date
+		else:
+			# Full-day runs (UI / special hour) already cover today; an explicit
+			# employees list is a targeted call that must not grow.
+			run_today_catchup = not employees
 
 		# Build days list
 		days_list = []
@@ -3182,6 +3242,14 @@ def custom_process_auto_attendance_for_all_shifts(employees=None, days=None):
 		to_date=to_date
 	)
 
+	# Người vào trễ (sau job 08:20) nằm Absent tới ~22h vì incremental chỉ thấy
+	# check-in của ca ĐÃ KẾT THÚC. Bù riêng ngày hôm nay cho đúng nhóm đó.
+	today_catchup = None
+	if run_today_catchup:
+		today_catchup = _catch_up_today_unmarked(
+			getdate(frappe.flags.current_datetime or frappe.utils.now_datetime())
+		)
+
 	# NOTE: KHÔNG GỌI update_last_sync_of_checkin ở đây
 	# Lý do: HRMS hooks đã gọi update_last_sync_of_checkin TRƯỚC process_auto_attendance_for_all_shifts
 	# Thứ tự trong hooks.py:
@@ -3202,7 +3270,8 @@ def custom_process_auto_attendance_for_all_shifts(employees=None, days=None):
 		"per_shift": stats["per_shift"],
 		"processing_time": stats["processing_time"],
 		"records_per_second": stats["records_per_second"],
-		"errors": stats["errors"]
+		"errors": stats["errors"],
+		"today_catchup": today_catchup
 	}
 
 
