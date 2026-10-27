@@ -234,39 +234,63 @@ def _build_submission_html(
 	- nhóm _SIGN_GROUPS (Số CCCD + ngày cấp; người liên hệ + quan hệ + SĐT khẩn cấp) → 1 dòng, đặt ở chỗ
 	  field đầu tiên của nhóm. Nhóm chỉ còn 1 field trong config thì in như thường.
 	`side_margin` / `tb_margin` = lề trái-phải / trên-dưới trang PDF (phiếu HR 10mm; phiếu www giữ 15mm).
-	compact còn đưa Giới tính lên đầu phiếu, cùng dòng Mã NV + Họ tên."""
-	company = (
-		frappe.defaults.get_global_default("company")
-		or frappe.db.get_single_value("Global Defaults", "default_company")
-		or ""
-	)
-	logo = _logo_data_uri()
-	submitted = frappe.utils.format_datetime(doc.submitted_on, "dd/MM/yyyy HH:mm") if doc.submitted_on else ""
+	compact còn đưa Giới tính lên đầu phiếu, cùng dòng Mã NV + Họ tên.
 
-	# The employee code is already shown in the header — skip any field that just
-	# repeats it (e.g. a field mapped to `employee` / `name`).
-	skip_fields = {"employee", "name"}
+	Ghép từ: _receipt_id_lines (đầu phiếu) · _receipt_rows (bảng) · _receipt_sign_block (cam kết + chữ ký)
+	· _receipt_page (khung trang + CSS)."""
 	# compact (phiếu HR): các field ở _HR_HEADER_LINES lên đầu phiếu (cạnh Mã NV / Họ tên) → bỏ khỏi bảng;
 	# Section chỉ còn các field này (vd "Thông tin chung") tự mất vì rỗng.
 	by_fn = {f["fieldname"]: f for s in config["sections"] for f in s["fields"]}
 	header_lines = [[by_fn[fn] for fn in line if fn in by_fn] for line in _HR_HEADER_LINES] if compact else []
-	skip_fields |= {f["fieldname"] for line in header_lines for f in line}
+	# The employee code is already shown in the header — skip any field that just
+	# repeats it (e.g. a field mapped to `employee` / `name`).
+	skip_fields = {"employee", "name"} | {f["fieldname"] for line in header_lines for f in line}
+	rows = _receipt_rows(saved, config, compact, skip_fields)
+
+	remarks = saved.get(REMARKS_KEY) or ""
+	remarks_block = ""
+	if remarks:
+		remarks_block = (
+			"<div class='remarks'><div class='rlabel'>Ghi chú thêm</div>"
+			f"<div class='rtext'>{frappe.utils.escape_html(remarks)}</div></div>"
+		)
+	submitted = frappe.utils.format_datetime(doc.submitted_on, "dd/MM/yyyy HH:mm") if doc.submitted_on else ""
+	# Đã ký → "Ký lúc" ở khung chữ ký là mốc thời gian; chỉ phiếu cũ chưa ký mới hiện giờ gửi.
+	submitted_line = "" if doc.get("signed_on") else f"<div><b>Thời điểm gửi:</b> {submitted}</div>"
+	return _receipt_page(
+		id_lines=_receipt_id_lines(doc, saved, header_lines, compact),
+		submitted_line=submitted_line,
+		rows=rows,
+		remarks_block=remarks_block,
+		checklist_html=checklist_html,
+		sign_block=_receipt_sign_block(doc, sign_on_paper),
+		compact=compact,
+		side_margin=side_margin,
+		tb_margin=tb_margin,
+	)
+
+
+def _receipt_value(f, saved):
+	"""Giá trị 1 field (không phải bảng con) như in trên phiếu."""
+	val = saved.get(f["fieldname"])
+	val = "" if val is None else str(val)
+	if f.get("fieldtype") == "Date" and val:
+		return _fmt_date_vn(val)  # ngày trên phiếu: dd/mm/yyyy
+	if f.get("fieldtype") == "Select" and val:
+		return _sign_value_vi(f, val)  # Married → "Đã kết hôn"; size dép in gọn "6-7" (không dùng Option Labels)
+	return val
+
+
+def _receipt_row(label, val_html):
+	return f"<tr><td class='lbl'>{frappe.utils.escape_html(label)}</td><td class='val'>{val_html or '&mdash;'}</td></tr>"
+
+
+def _receipt_rows(saved, config, compact, skip_fields):
+	"""Các <tr> của bảng nội dung phiếu: tiêu đề Section + dòng field (bỏ `skip_fields`, Section rỗng bỏ luôn);
+	phiếu NV (không compact) thêm khối "Hồ sơ nộp kèm" cuối bảng."""
+	esc = frappe.utils.escape_html
 	rows = []
 	addr_run = []  # dòng địa chỉ đã gom (compact), chờ in dưới 1 tiêu đề "Địa chỉ"
-	esc = frappe.utils.escape_html
-
-	def fmt(f):
-		"""Giá trị 1 field (không phải bảng con) như in trên phiếu."""
-		val = saved.get(f["fieldname"])
-		val = "" if val is None else str(val)
-		if f.get("fieldtype") == "Date" and val:
-			return _fmt_date_vn(val)  # ngày trên phiếu: dd/mm/yyyy
-		if f.get("fieldtype") == "Select" and val:
-			return _sign_value_vi(f, val)  # Married → "Đã kết hôn"; size dép in gọn "6-7" (không dùng Option Labels)
-		return val
-
-	def row_html(label, val_html):
-		return f"<tr><td class='lbl'>{esc(label)}</td><td class='val'>{val_html or '&mdash;'}</td></tr>"
 
 	# compact: field → nhóm gộp 1 dòng (chỉ nhóm có ≥ 2 field trong config)
 	group_of, members = {}, {}
@@ -290,8 +314,8 @@ def _build_submission_html(
 				val = _sign_join("address", [(f, str(saved.get(f["fieldname"]) or "").strip()) for f in fs])
 				addr_run.append(
 					"<tr><td class='lbl'>{0}</td><td class='val'>{1}</td></tr>".format(
-						frappe.utils.escape_html(_strip_section_no(sec["label"])),
-						frappe.utils.escape_html(val) or "&mdash;",
+						esc(_strip_section_no(sec["label"])),
+						esc(val) or "&mdash;",
 					)
 				)
 			continue
@@ -301,20 +325,18 @@ def _build_submission_html(
 			if f["fieldname"] in skip_fields:
 				continue
 			if _is_table(f):
-				sec_rows.append(row_html(f["label"], _table_html(f, saved.get(f["fieldname"]))))
+				sec_rows.append(_receipt_row(f["label"], _table_html(f, saved.get(f["fieldname"]))))
 				continue
 			kind = group_of.get(f["fieldname"])
 			if kind:
 				if f is members[kind][0]:
-					val = _sign_join(kind, [(m, fmt(m).strip()) for m in members[kind]])
-					sec_rows.append(row_html(_SIGN_GROUPS[kind][1], esc(val)))
+					val = _sign_join(kind, [(m, _receipt_value(m, saved).strip()) for m in members[kind]])
+					sec_rows.append(_receipt_row(_SIGN_GROUPS[kind][1], esc(val)))
 				continue
-			sec_rows.append(row_html(f["label"], esc(fmt(f))))
+			sec_rows.append(_receipt_row(f["label"], esc(_receipt_value(f, saved))))
 		if not sec_rows:
 			continue  # drop a section that became empty
-		rows.append(
-			f'<tr><td colspan="2" class="sec">{frappe.utils.escape_html(_strip_section_no(sec["label"]))}</td></tr>'
-		)
+		rows.append(f'<tr><td colspan="2" class="sec">{esc(_strip_section_no(sec["label"]))}</td></tr>')
 		rows.extend(sec_rows)
 	flush_addr()
 	# Phiếu NV tải (trang www): hồ sơ đã tick + tình trạng, 2 dòng. Phiếu HR (compact) in bảng hồ sơ riêng.
@@ -322,61 +344,49 @@ def _build_submission_html(
 	if documents:
 		done = [d["document"] for d in documents if d["checked"]]
 		rows.append('<tr><td colspan="2" class="sec">Hồ sơ nộp kèm</td></tr>')
-		rows.append(row_html("Đã có", esc("; ".join(done))))
-		rows.append(row_html("Tình trạng hồ sơ", esc(_status_text_vi(documents))))
+		rows.append(_receipt_row("Đã có", esc("; ".join(done))))
+		rows.append(_receipt_row("Tình trạng hồ sơ", esc(_status_text_vi(documents))))
+	return rows
 
-	remarks = saved.get(REMARKS_KEY) or ""
-	remarks_block = ""
-	if remarks:
-		remarks_block = (
-			"<div class='remarks'><div class='rlabel'>Ghi chú thêm</div>"
-			f"<div class='rtext'>{frappe.utils.escape_html(remarks)}</div></div>"
-		)
 
-	logo_img = f"<img src='{logo}' class='logo'/>" if logo else ""
+def _receipt_id_lines(doc, saved, header_lines, compact):
+	"""Đầu phiếu: phiếu NV = 2 dòng Mã NV / Họ tên; phiếu HR (compact) = bảng không viền 6 cột."""
+	esc = frappe.utils.escape_html
 	emp_code, emp_name = esc(doc.employee), esc(doc.employee_name or "")
-	# compact (phiếu HR): ô bảng đệm 2px thay 3px (cùng cỡ chữ) → thêm chỗ cho bảng hồ sơ + chữ ký trên trang 1.
-	# Đặt CUỐI <style> để thắng rule td mặc định.
-	# Cột nhãn của bảng hẹp lại (40% → 30%) để cột giá trị rộng hơn (bảng con Học vấn / Kinh nghiệm…).
-	compact_css = (
-		"table.data td{padding:2px 7px} table.data td.lbl{width:30%} table.data td.val{width:70%}" if compact else ""
-	)
-	if compact:
-		# Đầu phiếu dạng bảng không viền, cột thẳng hàng: dòng 1 Mã NV · Họ tên · (Giới tính);
-		# các dòng sau theo _HR_HEADER_LINES (Ngày sinh · Số điện thoại).
-		lines = [[("Mã nhân viên", emp_code), ("Họ và tên", emp_name)]
-			+ [(f["label"], esc(fmt(f)) or "&mdash;") for f in header_lines[0]]] if header_lines else [
-			[("Mã nhân viên", emp_code), ("Họ và tên", emp_name)]]
-		lines += [[(f["label"], esc(fmt(f)) or "&mdash;") for f in line] for line in header_lines[1:] if line]
-		# Ngày nhận việc (field của phiếu, fetch từ Employee — không phụ thuộc Setting): cuối dòng 2.
-		doj = doc.get("date_of_joining")
-		doj_item = ("Ngày nhận việc", esc(_fmt_date_vn(doj)) if doj else "&mdash;")
-		if len(lines) > 1 and len(lines[1]) < 3:
-			lines[1].append(doj_item)
-		else:
-			lines.append([doj_item])
-		# 6 cột cố định (nhãn | giá trị × 3) → 2 dòng thẳng cột, trải đều chiều ngang.
-		id_lines = "<table class='meta-t'><colgroup>" + "".join(
-			f"<col style='width:{w}%'>" for w in _HR_HEADER_COL_WIDTHS) + "</colgroup>" + "".join(
-			"<tr>" + "".join(f"<td class='mk'>{esc(lbl)}:</td><td class='mv'>{v}</td>" for lbl, v in line)
-			+ "<td></td><td></td>" * (3 - len(line)) + "</tr>"
-			for line in lines
-		) + "</table>"
+	if not compact:
+		return f"<div><b>Mã nhân viên:</b> {emp_code}</div><div><b>Họ và tên:</b> {emp_name}</div>"
+	# Đầu phiếu dạng bảng không viền, cột thẳng hàng: dòng 1 Mã NV · Họ tên · (Giới tính);
+	# các dòng sau theo _HR_HEADER_LINES (Ngày sinh · Số điện thoại).
+	lines = [[("Mã nhân viên", emp_code), ("Họ và tên", emp_name)]
+		+ [(f["label"], esc(_receipt_value(f, saved)) or "&mdash;") for f in header_lines[0]]] if header_lines else [
+		[("Mã nhân viên", emp_code), ("Họ và tên", emp_name)]]
+	lines += [[(f["label"], esc(_receipt_value(f, saved)) or "&mdash;") for f in line] for line in header_lines[1:] if line]
+	# Ngày nhận việc (field của phiếu, fetch từ Employee — không phụ thuộc Setting): cuối dòng 2.
+	doj = doc.get("date_of_joining")
+	doj_item = ("Ngày nhận việc", esc(_fmt_date_vn(doj)) if doj else "&mdash;")
+	if len(lines) > 1 and len(lines[1]) < 3:
+		lines[1].append(doj_item)
 	else:
-		id_lines = f"<div><b>Mã nhân viên:</b> {emp_code}</div><div><b>Họ và tên:</b> {emp_name}</div>"
-	# Đã ký → "Ký lúc" ở khung chữ ký là mốc thời gian; chỉ phiếu cũ chưa ký mới hiện giờ gửi.
-	submitted_line = "" if doc.get("signed_on") else f"<div><b>Thời điểm gửi:</b> {submitted}</div>"
+		lines.append([doj_item])
+	# 6 cột cố định (nhãn | giá trị × 3) → 2 dòng thẳng cột, trải đều chiều ngang.
+	return "<table class='meta-t'><colgroup>" + "".join(
+		f"<col style='width:{w}%'>" for w in _HR_HEADER_COL_WIDTHS) + "</colgroup>" + "".join(
+		"<tr>" + "".join(f"<td class='mk'>{esc(lbl)}:</td><td class='mv'>{v}</td>" for lbl, v in line)
+		+ "<td></td><td></td>" * (3 - len(line)) + "</tr>"
+		for line in lines
+	) + "</table>"
 
-	# Cam kết + chữ ký (vẽ trên trang www). Chỉ nhận đúng data URL PNG đã kiểm ở save_form_data.
-	sign_block = ""
+
+def _receipt_sign_block(doc, sign_on_paper):
+	"""Cam kết + chữ ký (vẽ trên trang www). Chỉ nhận đúng data URL PNG đã kiểm ở save_form_data.
+	Chưa ký: phiếu HR (sign_on_paper) in cam kết + ô trống ký tay; phiếu NV thì không in gì."""
 	commitment = _commitment_html()
 	sig = doc.get("signature") or ""
 	if doc.get("commitment_confirmed") or sig:
 		signed = frappe.utils.format_datetime(doc.signed_on, "dd/MM/yyyy HH:mm") if doc.get("signed_on") else ""
 		sig_img = f"<img src='{sig}' class='sig'/>" if sig.startswith(_SIGNATURE_PREFIX) else ""
-		sign_block = (
+		return (
 			"<div class='commit'>"
-			+ ("" if doc.get("commitment_confirmed") else "")
 			+ commitment
 			+ "</div><div class='signbox'><div class='slabel'>Người khai ký tên</div>"
 			+ sig_img
@@ -384,8 +394,8 @@ def _build_submission_html(
 			+ (f"<div class='sdate'>Ký lúc: {signed}</div>" if signed else "")
 			+ "</div>"
 		)
-	elif sign_on_paper:
-		sign_block = (
+	if sign_on_paper:
+		return (
 			"<div class='commit'>"
 			+ commitment
 			+ "</div><div class='signbox'><div class='slabel'>Người khai ký tên</div>"
@@ -393,7 +403,24 @@ def _build_submission_html(
 			+ f"<div class='sname'>{frappe.utils.escape_html(doc.employee_name or '')}</div>"
 			+ "</div>"
 		)
+	return ""
 
+
+def _receipt_page(id_lines, submitted_line, rows, remarks_block, checklist_html, sign_block, compact, side_margin, tb_margin):
+	"""Khung trang phiếu: <head> + CSS, đầu phiếu (logo, công ty, tiêu đề), bảng, ghi chú, bảng hồ sơ + chữ ký."""
+	company = (
+		frappe.defaults.get_global_default("company")
+		or frappe.db.get_single_value("Global Defaults", "default_company")
+		or ""
+	)
+	logo = _logo_data_uri()
+	logo_img = f"<img src='{logo}' class='logo'/>" if logo else ""
+	# compact (phiếu HR): ô bảng đệm 2px thay 3px (cùng cỡ chữ) → thêm chỗ cho bảng hồ sơ + chữ ký trên trang 1.
+	# Đặt CUỐI <style> để thắng rule td mặc định.
+	# Cột nhãn của bảng hẹp lại (40% → 30%) để cột giá trị rộng hơn (bảng con Học vấn / Kinh nghiệm…).
+	compact_css = (
+		"table.data td{padding:2px 7px} table.data td.lbl{width:30%} table.data td.val{width:70%}" if compact else ""
+	)
 	return f"""
 <!DOCTYPE html><html><head><meta charset="utf-8"><style>
   /* Lề trang PDF: get_pdf đọc từ rule .print-format (khai ở options của get_pdf sẽ bị ghi đè).

@@ -143,6 +143,12 @@ from .receipt import (  # noqa: F401
 	_strip_section_no,
 	_table_html,
 	_build_submission_html,
+	_receipt_value,
+	_receipt_row,
+	_receipt_rows,
+	_receipt_id_lines,
+	_receipt_sign_block,
+	_receipt_page,
 )
 from .export import (  # noqa: F401
 	download_excel,
