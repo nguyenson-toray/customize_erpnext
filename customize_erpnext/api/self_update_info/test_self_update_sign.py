@@ -5,13 +5,17 @@ Chỉ sửa doc trong bộ nhớ, gọi hàm thuần, cuối cùng rollback. Kh�
 (save_form_data chỉ được gọi ở nhánh throw trước khi lưu).
 
     bench --site erp.tiqn.local execute \
-        customize_erpnext.api.self_update_info.test_self_update_sign.run
+        customize_erpnext.api.self_update_info.test_self_update_sign.run_all
+
+`run_all` chạy mọi bộ test_* + run và in bảng tổng. Test trang www (jsdom) ở
+customize_erpnext/tests_js/self_update_info (`node run.js`).
 """
 
 import io
 import json
 
 import frappe
+from frappe import _
 
 from customize_erpnext.api.self_update_info import self_update_info_api as api
 
@@ -436,8 +440,13 @@ def run():
 			and f["label"] not in {g["label"] for s2 in live_sign["sections"] for g in s2["fields"]}]
 		check("hr receipt: không có nhãn field không tick (Setting thật)",
 			not [l for l in off_labels if f">{frappe.utils.escape_html(l)}<" in hr_live], off_labels)
-	src = open(api.__file__, encoding="utf-8").read()
-	check("generate pdf + pdf split cùng gọi _hr_receipt_html", src.count("= _hr_receipt_html(doc, ") == 2)
+	import inspect
+
+	# Generate PDF + PDF Split cùng 1 đường: _hr_receipt_pdf (thu nhỏ vừa 1 trang) → _hr_receipt_html.
+	check("generate pdf + pdf split cùng gọi _hr_receipt_pdf → _hr_receipt_html",
+		"_hr_receipt_pdf(doc, " in inspect.getsource(api.download_pdf_for_hr)
+		and "_hr_receipt_pdf(doc, " in inspect.getsource(api._download_info_for_sign_pdf_split)
+		and "_hr_receipt_html(doc, " in inspect.getsource(api._hr_receipt_pdf))
 	check("pdf split: phiếu không có nhãn field không tick",
 		"Custom On" in html0 and "Real On" in html0 and "Custom Off" not in html0 and "Real Off" not in html0
 		and ">B<" not in html0)
@@ -1382,9 +1391,11 @@ def test_select_vi_labels():
 	check("_option_labels: chỉ option có bản dịch khác",
 		api._option_labels(["", "Married", "Divorced", "Ăn chay trường"]) == {"Married": "Đã kết hôn", "Divorced": "Đã ly hôn"},
 		api._option_labels(["", "Married", "Divorced", "Ăn chay trường"]))
-	check("_option_labels: đủ 4 tình trạng hôn nhân",
-		api._option_labels(["", "Single", "Married", "Divorced", "Widowed"])
-		== {"Single": "Độc thân", "Married": "Đã kết hôn", "Divorced": "Đã ly hôn", "Widowed": "Góa"})
+	# So với bản dịch vi hiện hành (không viết cứng chữ dịch — vi.po đổi "Góa" thì test vẫn đúng).
+	ms4 = ["Single", "Married", "Divorced", "Widowed"]
+	got4 = api._option_labels([""] + ms4)
+	check("_option_labels: đủ 4 tình trạng hôn nhân, nhãn = bản dịch vi",
+		set(got4) == set(ms4) and all(got4[o] == _(o, lang="vi") for o in ms4), got4)
 
 	cfg = api._build_config()
 	fields = {f["fieldname"]: f for s in cfg["sections"] for f in s["fields"]}
@@ -1527,3 +1538,28 @@ def test_shoe_sport_license():
 		print(f"{'PASS' if ok else 'FAIL'}  {name}  {detail if not ok else ''}")
 	print(f"\n{len(results) - fail}/{len(results)} passed")
 	return {"passed": len(results) - fail, "failed": fail}
+
+
+def run_all():
+	"""Chạy mọi bộ test của module (Python), in bảng tổng cuối cùng. Trả {suite: (passed, failed)}."""
+	suites = [run] + [
+		obj for name, obj in sorted(globals().items())
+		if name.startswith("test_") and callable(obj)
+	]
+	summary = {}
+	for fn in suites:
+		print(f"\n===== {fn.__name__}")
+		try:
+			r = fn() or {}
+			summary[fn.__name__] = (r.get("passed", 0), r.get("failed", 0))
+		except Exception as e:
+			frappe.db.rollback()
+			summary[fn.__name__] = (0, 1)
+			print(f"ERROR  {fn.__name__}: {e!r}")
+	print("\n===== TỔNG")
+	for name, (p, f) in summary.items():
+		print(f"{'OK  ' if not f else 'FAIL'}  {name}: {p}/{p + f}")
+	total_p = sum(p for p, _f in summary.values())
+	total_f = sum(f for _p, f in summary.values())
+	print(f"\n{total_p}/{total_p + total_f} passed")
+	return {"passed": total_p, "failed": total_f}

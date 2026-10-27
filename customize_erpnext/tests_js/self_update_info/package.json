@@ -1,0 +1,7 @@
+{
+  "name": "tiqn-self-update-info-tests",
+  "private": true,
+  "description": "jsdom tests for www/employee-self-update-info (run: npm install && node run.js)",
+  "scripts": { "test": "node run.js" },
+  "devDependencies": { "jsdom": "24.1.3" }
+}
