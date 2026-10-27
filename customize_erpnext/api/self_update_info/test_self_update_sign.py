@@ -22,6 +22,25 @@ from customize_erpnext.api.self_update_info import self_update_info_api as api
 DT = "Employee Self Update Info"
 
 
+def _set(name, value):
+	"""Thay tạm 1 tên của package self_update_info (vd `_build_config`) ở MỌI module đang giữ nó.
+
+	Code đã tách thành nhiều module (config, values, receipt…); mỗi module import tên về chỗ mình, nên
+	gán `api._build_config = fake` chỉ đổi ở mặt tiền — hàm trong module khác vẫn gọi bản thật.
+	Gọi lại với giá trị gốc để trả về như cũ."""
+	import importlib
+	import pkgutil
+
+	import customize_erpnext.api.self_update_info as pkg
+
+	for info in pkgutil.iter_modules(pkg.__path__):
+		if info.name.startswith("test_"):
+			continue
+		mod = importlib.import_module(f"{pkg.__name__}.{info.name}")
+		if name in vars(mod):
+			setattr(mod, name, value)
+
+
 def _expect_throw(fn):
 	try:
 		fn()
@@ -62,7 +81,7 @@ def run():
 
 	# ---------- chưa tick field nào → báo lỗi, dialog rỗng ----------
 	flagged["value"] = set()
-	api._build_config = fake_build
+	_set("_build_config", fake_build)
 	try:
 		check("flag: chưa tick → dialog rỗng", api.get_info_for_sign_fields() == [])
 		check("flag: chưa tick → xuất báo lỗi", _expect_throw(lambda: api._download_info_for_sign("[]")))
@@ -70,13 +89,13 @@ def run():
 		fl = api.get_info_for_sign_fields()
 		check("dialog: liệt kê dòng gộp (địa chỉ/khẩn cấp)", "Liên hệ khẩn cấp" in fl and "Địa chỉ hiện tại" in fl, fl)
 	finally:
-		api._build_config = real_build
+		_set("_build_config", real_build)
 
 	# ---------- Info for Sign ----------
 	recs = frappe.get_all(DT, filters={"status": "Submitted"}, fields=["name", "data_json"], limit=3, order_by="name")
 	names = [r.name for r in recs]
 
-	api._build_config = fake_build  # tick tất cả cho các kiểm tra layout bên dưới
+	_set("_build_config", fake_build)  # tick tất cả cho các kiểm tra layout bên dưới
 	api._download_info_for_sign(json.dumps(names))
 	wb, ws, rows = _read_sheet()
 	check("sign: 1 sheet tên Info for Sign", wb.sheetnames == ["Info for Sign"], wb.sheetnames)
@@ -184,7 +203,7 @@ def run():
 
 	import inspect
 	check("sign: không còn tuỳ chọn chỉ thay đổi", "only_changed" not in inspect.signature(api.download_excel).parameters)
-	api._build_config = real_build
+	_set("_build_config", real_build)
 
 	# All Info không đổi
 	api.download_excel(json.dumps(names))
@@ -611,7 +630,7 @@ def test_info_for_sign_pdf():
 		codes = [len(set(re.findall(r"(?:TIQN|TT|Test)-\d+", t))) for t in texts]
 		return pdf, texts, codes
 
-	api._info_for_sign_pdf_html = spy_html
+	_set("_info_for_sign_pdf_html", spy_html)
 	try:
 		all_names = sorted(frappe.get_all(DT, pluck="name", order_by="employee asc", limit=24))
 		rows_real = len(api._sign_items(real_build(), api._info_for_sign_wanted(real_build())))
@@ -638,7 +657,7 @@ def test_info_for_sign_pdf():
 		else:
 			results.append((True, "A) bỏ qua — Setting chưa tick Info for Sign", ""))
 
-		api._build_config = fake_all
+		_set("_build_config", fake_all)
 		pdf, texts, codes = export(all_names[:24])
 		layout_used = tried[-1][1][:2] if tried else None
 		results.append((0 not in codes and sum(codes) == 24, "B) tick tất cả, 24 NV: không trang nào tràn/trống", (codes, layout_used)))
@@ -666,8 +685,8 @@ def test_info_for_sign_pdf():
 		results.append((codes[0] < F, "B) tick tất cả: đã lùi bố cục (< 4 NV trang 1)", codes[:3]))
 		results.append((all(f"Trang {i + 1}/{len(texts)}" in t for i, t in enumerate(texts)), "B) đánh số trang đúng", len(texts)))
 	finally:
-		api._build_config = real_build
-		api._info_for_sign_pdf_html = real_html
+		_set("_build_config", real_build)
+		_set("_info_for_sign_pdf_html", real_html)
 		frappe.db.rollback()
 	for ok, name, detail in results:
 		print(f"{'PASS' if ok else 'FAIL'}  {name}  {detail}")
@@ -771,7 +790,7 @@ def test_table_fields():
 		rows.append(frappe._dict(base, employee_fieldname="internal_work_history", label_vi="Nội bộ", section_label="X"))
 		return rows
 
-	api._selected_rows = fake_rows
+	_set("_selected_rows", fake_rows)
 	try:
 		cfg = api._build_config()
 		fields = {f["fieldname"]: f for s in cfg["sections"] for f in s["fields"]}
@@ -973,7 +992,7 @@ def test_table_fields():
 		check("value_text Excel", api._value_text(edu, [{"level": "THCS"}]) == "Trình độ: THCS" and api._value_text({"fieldtype": "Data"}, 5) == "5")
 		_ = f_req
 	finally:
-		api._selected_rows = real_rows
+		_set("_selected_rows", real_rows)
 		frappe.db.rollback()
 
 	fail = 0
@@ -1287,7 +1306,7 @@ def test_commitment_text():
 	real_get = api._get_setting
 	fake = frappe.copy_doc(real_get())
 	fake.commitment_text = "Cam kết <b>thử</b> & đúng\nDòng hai"
-	api._get_setting = lambda: fake
+	_set("_get_setting", lambda: fake)
 	try:
 		cfg = api.get_field_config()
 		want = "Cam kết &lt;b&gt;thử&lt;/b&gt; &amp; đúng<br>Dòng hai"
@@ -1301,7 +1320,7 @@ def test_commitment_text():
 		paper = api._build_submission_html(d, {}, cfg, sign_on_paper=True)
 		check("phiếu ký tay: in câu của Setting", want in paper)
 	finally:
-		api._get_setting = real_get
+		_set("_get_setting", real_get)
 		frappe.db.rollback()
 	check("trả lại _get_setting thật", api._get_setting is real_get)
 
@@ -1353,7 +1372,7 @@ def test_auto_fill_fallback():
 		real_cfg = api._build_config
 		real_get = frappe.get_doc
 		try:
-			api._build_config = lambda: cfg
+			_set("_build_config", lambda: cfg)
 			saved = json.loads(doc.data_json or "{}")
 			doc.data_json = json.dumps({k: v for k, v in saved.items() if k != "gender"})
 			frappe.get_doc = lambda dt, name=None, *a, **k: doc if (dt == api.INFO_DT and name == r.name) else real_get(dt, name, *a, **k)
@@ -1365,7 +1384,7 @@ def test_auto_fill_fallback():
 			check("PDF HR: có giới tính từ Employee (đầu phiếu)",
 				f"<td class='mk'>gender:</td><td class='mv'>{frappe.utils.escape_html(r.gender)}</td>" in html, html[html.find("meta-t"):][:300])
 		finally:
-			api._build_config = real_cfg
+			_set("_build_config", real_cfg)
 			frappe.get_doc = real_get
 			frappe.db.rollback()
 
@@ -1512,8 +1531,8 @@ def test_shoe_sport_license():
 		and not exists (select 1 from `tab{api.INFO_DT}` i where i.name = e.name) limit 1""")[0][0]
 	real_cfg, real_gate, real_commit = api._build_config, api._gate_edit, frappe.db.commit
 	try:
-		api._build_config = lambda: lic_cfg
-		api._gate_edit = lambda *a, **k: None
+		_set("_build_config", lambda: lic_cfg)
+		_set("_gate_edit", lambda *a, **k: None)
 		frappe.db.commit = lambda *a, **k: None
 		check("save: GPLX Chưa + thiếu tình trạng → chặn",
 			_expect_throw(lambda: api.save_form_data(emp, json.dumps({"custom_driving_license": "Chưa"}))))
@@ -1526,7 +1545,8 @@ def test_shoe_sport_license():
 		check("save: tình trạng ngoài danh sách → chặn",
 			_expect_throw(lambda: api.save_form_data(emp, json.dumps({"custom_driving_license": "Chưa", "custom_driving_license_status": "Lạ"}))))
 	finally:
-		api._build_config, api._gate_edit = real_cfg, real_gate
+		_set("_build_config", real_cfg)
+		_set("_gate_edit", real_gate)
 		frappe.db.commit = real_commit
 		frappe.db.rollback()
 	check("save: không để lại phiếu sau test", not frappe.db.exists(api.INFO_DT, emp), emp)
