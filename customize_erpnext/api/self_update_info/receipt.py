@@ -30,10 +30,12 @@ from .values import (
 )
 
 
-# Phiếu PDF phía HR LUÔN 1 trang (user 27/10/2026): tràn → thu nhỏ cả trang (wkhtmltopdf --zoom) từng bước
-# 0,05 tới khi vừa. Đo 27/10: phiếu đủ mục + câu hỏi phí + bảng hồ sơ cần 0,95; mỗi lần dựng ~0,37 giây.
+# Phiếu PDF phía HR LUÔN 1 trang (user 27/10/2026): tràn → thu nhỏ cả trang (wkhtmltopdf --zoom) tới khi vừa.
+# Bước nhỏ ở đầu (user: bước 0,05 thu nhỏ thừa, cuối trang trống 13–16%). Đo 27/10: zoom 1.0 → 2 trang nhưng
+# 0,99 đã vừa với 6–9% trống (kể cả lề dưới 10mm) — wkhtmltopdf dàn trang khác hẳn khi zoom ≠ 1, không tỉ lệ
+# tuyến tính. Mỗi lần dựng ~0,37 giây; phiếu thường dựng 2 lần.
 # Tới mức nhỏ nhất vẫn tràn → trả bản nhỏ nhất (nhiều trang) chứ không cắt nội dung.
-HR_RECEIPT_ZOOM_STEPS = (1.0, 0.95, 0.9, 0.85, 0.8, 0.75, 0.7)
+HR_RECEIPT_ZOOM_STEPS = (1.0, 0.99, 0.98, 0.97, 0.96, 0.95, 0.93, 0.9, 0.85, 0.8, 0.75, 0.7)
 
 
 def _hr_receipt_pdf(doc, sign_config):
