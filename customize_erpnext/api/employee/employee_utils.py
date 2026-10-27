@@ -2527,6 +2527,12 @@ def get_all_active_employees(date):
 #     customize_erpnext/public/js/hide_export_fields.json (khoá "Employee")
 #   - label = label tiếng Anh của doctype, KHÔNG dịch (không dùng _())
 #   - thứ tự cột = thứ tự field trong doctype
+#   - cuối bảng: với MỖI bảng con (field Table) của Employee, thêm các cột của
+#     DÒNG CUỐI bảng con đó (idx lớn nhất), theo thứ tự bảng trong doctype;
+#     key = "<table_fieldname>__<fieldname>", label = "<Table label> - <label>"
+#   - ẩn NGUYÊN bảng con: thêm fieldname của field Table vào khoá "Employee"
+#     (vd "custom_fingerprints"); ẩn 1 cột của bảng con: thêm fieldname vào
+#     khoá tên DocType con (vd "Employee Education": ["year_of_passing"])
 # Muốn thêm/bớt cột thì sửa doctype hoặc hide_export_fields.json, đừng sửa file này.
 
 # Fieldtype -> kiểu dữ liệu trả cho client (Power Query dùng để ép kiểu cột)
@@ -2642,6 +2648,78 @@ def _get_employee_export_columns():
 	return pinned + [c for c in columns if c["fieldname"] not in pinned_set]
 
 
+def _get_child_table_export_columns():
+	"""
+	Cột lấy từ DÒNG CUỐI của từng bảng con (field Table) trên Employee.
+
+	Trả về list dict {table_field, child_doctype, columns}; mỗi phần tử của
+	`columns` là {fieldname, key, label, fieldtype, options, type}, với
+	key = "<table_field>__<fieldname>" để không đụng fieldname của Employee.
+
+	Bỏ qua: bảng có field Table nằm trong hide_export_fields.json (khoá
+	"Employee"), cột nằm trong khoá tên DocType con, bảng không còn cột nào.
+	"""
+	hidden_tables = _get_hidden_export_fields("Employee")
+	tables = []
+
+	for table_df in frappe.get_meta("Employee").get_table_fields():
+		if table_df.fieldname in hidden_tables:
+			continue
+
+		child_doctype = table_df.options
+		hidden = _get_hidden_export_fields(child_doctype)
+		table_columns = set(frappe.db.get_table_columns(child_doctype))
+		table_label = (table_df.label or table_df.fieldname).strip()
+		columns = []
+
+		for df in frappe.get_meta(child_doctype).fields:
+			if df.fieldtype in no_value_fields:
+				continue
+			if df.fieldname in hidden or df.fieldname not in table_columns:
+				continue
+
+			columns.append({
+				"fieldname": df.fieldname,
+				"key": f"{table_df.fieldname}__{df.fieldname}",
+				"label": f"{table_label} - {(df.label or df.fieldname).strip()}",
+				"fieldtype": df.fieldtype,
+				"options": df.options,
+				"type": _EXPORT_TYPE_MAP.get(df.fieldtype, "Text"),
+			})
+
+		if columns:
+			tables.append({
+				"table_field": table_df.fieldname,
+				"child_doctype": child_doctype,
+				"columns": columns,
+			})
+
+	return tables
+
+
+def _get_last_child_rows(table, employees):
+	"""{employee: dòng có idx lớn nhất của bảng con} — chỉ cho các employee truyền vào."""
+	if not employees:
+		return {}
+
+	select_sql = ", ".join(f"child.`{c['fieldname']}`" for c in table["columns"])
+	rows = frappe.db.sql(
+		f"""
+		SELECT child.parent, {select_sql}
+		FROM `tab{table['child_doctype']}` child
+		WHERE child.parenttype = 'Employee'
+			AND child.parentfield = %(parentfield)s
+			AND child.parent IN %(employees)s
+		ORDER BY child.parent, child.idx
+		""",
+		{"parentfield": table["table_field"], "employees": tuple(employees)},
+		as_dict=True,
+	)
+
+	# ORDER BY idx tăng dần → dòng sau ghi đè dòng trước → còn lại dòng cuối
+	return {row.parent: row for row in rows}
+
+
 @frappe.whitelist()
 def get_employees_for_excel(
 	status=None,
@@ -2654,7 +2732,8 @@ def get_employees_for_excel(
 	page_size=_EXPORT_DEFAULT_PAGE_SIZE,
 ):
 	"""
-	API cho Excel / Power Query — danh sách nhân viên, toàn bộ field của doctype.
+	API cho Excel / Power Query — danh sách nhân viên, toàn bộ field của doctype,
+	kèm các cột lấy từ DÒNG CUỐI của từng bảng con (vd "Education - Level").
 
 	⚠ Cần xác thực bằng API key/secret (header `Authorization: token <key>:<secret>`).
 	   Không còn allow_guest.
@@ -2702,7 +2781,9 @@ def get_employees_for_excel(
 		page = 1
 
 	export_columns = _get_employee_export_columns()
-	col_keys = [c["fieldname"] for c in export_columns]
+	child_tables = _get_child_table_export_columns()
+	child_columns = [c for t in child_tables for c in t["columns"]]
+	col_keys = [c["fieldname"] for c in export_columns] + [c["key"] for c in child_columns]
 
 	# --- WHERE -----------------------------------------------------------------
 	conditions = ["emp.name LIKE %(name_prefix)s"]
@@ -2742,7 +2823,7 @@ def get_employees_for_excel(
 	where_sql = ("WHERE " + " AND ".join(conditions)) if conditions else ""
 
 	# --- SELECT ----------------------------------------------------------------
-	select_sql = ", ".join(f"emp.`{f}`" for f in col_keys)
+	select_sql = ", ".join(["emp.name AS `__name`"] + [f"emp.`{c['fieldname']}`" for c in export_columns])
 
 	total = frappe.db.sql(
 		f"SELECT COUNT(*) FROM `tabEmployee` emp {where_sql}",
@@ -2771,6 +2852,22 @@ def get_employees_for_excel(
 		page_size = total
 		page = 1
 
+	# --- Dòng cuối của từng bảng con, gộp vào từng nhân viên ------------------
+	employees = [row["__name"] for row in rows]
+	for table in child_tables:
+		last_rows = _get_last_child_rows(table, employees)
+		for row in rows:
+			child = last_rows.get(row["__name"]) or {}
+			for c in table["columns"]:
+				row[c["key"]] = child.get(c["fieldname"])
+	for row in rows:
+		row.pop("__name")
+
+	# Cột Link tới Department (của Employee lẫn bảng con) đều bỏ hậu tố ' - TIQN'
+	department_keys = {"department"} | {
+		c["key"] for c in child_columns if c["fieldtype"] == "Link" and c["options"] == "Department"
+	}
+
 	# --- Làm sạch: None → "", date → ISO, bỏ hậu tố ' - TIQN' của department ----
 	abbr_suffixes = _get_company_abbr_suffixes()
 	cleaned = []
@@ -2783,16 +2880,16 @@ def get_employees_for_excel(
 				r[k] = v.isoformat()
 			elif isinstance(v, str):
 				v = v.strip()
-				r[k] = _strip_company_abbr(v, abbr_suffixes) if k == "department" else v
+				r[k] = _strip_company_abbr(v, abbr_suffixes) if k in department_keys else v
 			else:
 				r[k] = v
 		cleaned.append(r)
 
 	return {
 		"data"		  : cleaned,
-		"columns"	  : [c["label"] for c in export_columns],
+		"columns"	  : [c["label"] for c in export_columns + child_columns],
 		"col_keys"	  : col_keys,
-		"col_types"	  : [c["type"] for c in export_columns],
+		"col_types"	  : [c["type"] for c in export_columns + child_columns],
 		"total"		  : total,
 		"page"		  : page,
 		"page_size"	  : page_size,

@@ -8,6 +8,12 @@
 //   Employee, Att ID, Full Name, Status, Gender, Department,
 //   Section, Group, Designation, Grade, Date of Joining,
 //   Date of Birth, Relieving Date.
+// After those come, for EVERY child table of Employee, the
+// columns of that table's LAST row ("Education - Level",
+// "Internal Work History - Department", ...; blank if none).
+// To drop a whole child table, add its Table fieldname under
+// "Employee" in hide_export_fields.json; to drop one column,
+// add it under the child DocType key.
 // Only employees whose ID starts with "TIQN" are returned
 // (Intern-* / Test-* records are excluded server-side).
 //
