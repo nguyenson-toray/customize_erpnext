@@ -1,457 +1,302 @@
 # Employee Self Update Info — Tài liệu kỹ thuật
 
-> **Mục đích:** Trang cho nhân viên tự kiểm tra và sửa thông tin cá nhân, luôn hiện giá trị hiện có để đối chiếu.
-> **Phạm vi:** Trang portal
-> **Trạng thái:** Đang chạy · **Cập nhật:** 2026-08-20
+> **Mục đích:** trang www cho nhân viên tự kiểm tra / cập nhật thông tin cá nhân (không cần đăng nhập ERP),
+> HR xem – sửa – in phiếu – Sync vào Employee.
+> **Trạng thái:** đang chạy production · **Cập nhật:** 27/10/2026 (chuyển từ `www/` về đây — file không phải
+> `.py` trong `www/` là trang công khai; Frappe còn cố dựng `.md` thành trang).
 
-> Cập nhật: 26/06/2026
-
-Trang web cho phép **nhân viên tự kiểm tra & cập nhật thông tin cá nhân** (không cần đăng nhập ERP). Điểm khác biệt cốt lõi so với trang `employee-self-update` cũ: **HR chọn động bất kỳ field nào của doctype `Employee`** (kể cả custom field thêm sau) để đưa lên form — không cần sửa code.
-
-- Nhân viên **luôn thấy giá trị hiện có** của từng field để đối chiếu, chỉ sửa mục thay đổi.
-- Dữ liệu submit **không ghi ngược vào Employee** — chỉ lưu lại để HR **export Excel** (so sánh cũ/mới).
-- Trang cũ `employee-self-update` **không bị đụng tới** — đây là module song song, hoàn toàn mới.
+- HR **chọn động** field của Employee (kể cả custom field thêm sau) trong Setting — không sửa code.
+- NV luôn thấy giá trị hiện có để đối chiếu, chỉ sửa mục thay đổi.
+- Phiếu **không tự ghi vào Employee**: HR xem / sửa trên Desk rồi bấm **Sync**.
 
 ---
 
-## File liên quan
+## File
 
 ```
-www/employee-self-update-info/
-  index.html        ← Frontend (HTML + vanilla JS)
-  style.css         ← CSS (tách riêng) — serve static tại /employee-self-update-info/style.css
-  index.py          ← get_context: no_cache + csrf_token
+api/self_update_info/              ← server (27/10/2026: tách từ 1 file 2.792 dòng, xem "Module" bên dưới)
+  self_update_info_api.py          ← MẶT TIỀN: chỉ re-export; mọi đường dẫn whitelist giữ nguyên
+  rules.py config.py values.py access.py receipt.py export.py portal.py desk.py sync.py
+  test_self_update_sign.py         ← test Python (bench execute … run_all)
+  README.md                        ← file này
 
-api/self_update_info/
-  self_update_info_api.py   ← Public + HR APIs
+www/employee-self-update-info/     ← trang NV (CÔNG KHAI — đừng để tài liệu / ghi chú ở đây)
+  index.html                       ← markup + 2 biến Jinja (csrf_token, company)
+  form.js                          ← toàn bộ JS trang. KHÔNG đặt tên index.js: Frappe đọc <basename>.js
+                                     làm colocated_js mỗi request
+  style.css
+  index.py                         ← get_context: no_cache, csrf_token, company, asset_version (mtime
+                                     form.js/style.css → ?v= tự đổi khi sửa file)
+  open_with_browser.png            ← ảnh hướng dẫn "Mở bằng trình duyệt" (Zalo)
 
-api/vn_address_search/      ← DB địa chỉ VN + API tỉnh/xã (README.md trong thư mục)
-  import_vn_units.py
-  vn_address_search_api.py
+tests_js/self_update_info/         ← test jsdom của trang www (npm install && node run.js)
 
-doctype/employee_self_update_info/            ← Lưu bản submit của từng NV
-  employee_self_update_info.json/.py
-  employee_self_update_info_list.js           ← List view: nút Download Excel
-doctype/employee_self_update_info_setting/    ← Cấu hình (Single)
-  employee_self_update_info_setting.json/.py/.js
-doctype/employee_self_update_info_field/      ← Child table: field được chọn
-  employee_self_update_info_field.json/.py
+customize_erpnext/doctype/
+  employee_self_update_info/           ← phiếu của từng NV (+ list view: Download File, Review, Sync)
+  employee_self_update_info_setting/   ← Setting (Single)
+  employee_self_update_info_field/     ← child: field hiển thị trên trang
+  employee_self_update_info_document/  ← child: danh mục hồ sơ nộp kèm
+  employee_self_update_employee/       ← child: NV được phép cập nhật
+
+api/vn_address_search/             ← danh mục tỉnh/xã (README riêng)
+api/employee/cccd_expiry.py        ← tính ngày hết hạn CCCD (dùng chung với form Employee)
 ```
+
+## Module (server)
+
+Phụ thuộc **1 chiều** theo thứ tự dưới (module dưới import module trên, không ngược lại).
+
+| Module | Nội dung chính |
+|---|---|
+| `rules` | hằng số + luật dùng chung: `INFO_DT`, khoá `data_json` (`REMARKS_KEY`, `DOCUMENTS_KEY`), `_ALLOWED_FIELDTYPES`, `_LINK_AS_SELECT` (Gender → dropdown), `_FIELD_DEPENDS`, `_ALLOWED_TABLES`, `_TABLE_REQUIRED_IF`, câu cam kết mặc định |
+| `config` | Setting → config field: `_build_config`, `_option_labels`, `_table_columns`, `_layout_width`, `_setting_documents`, `_info_for_sign_config`, `_address_pairs` |
+| `values` | chuẩn hoá / kiểm tra / định dạng giá trị: `_normalize_text`, `_validate_value`, `_clean_table_value`, `_apply_depends`, `_apply_cccd_expiry`, `_portal_address_errors`, `_fill_from_employee`, hồ sơ nộp kèm (`_documents_snapshot`, `_document_status`), `_sign_join` / `_SIGN_GROUPS` |
+| `access` | quyền vào trang: danh sách NV, mã ngày sinh / bypass, khoá sau khi gửi, token tải phiếu |
+| `receipt` | phiếu PDF / PNG: `_build_submission_html` (ghép `_receipt_rows`, `_receipt_id_lines`, `_receipt_sign_block`, `_receipt_page`), `_hr_receipt_pdf` (luôn 1 trang), `_document_checklist_html`, `_html_to_png` |
+| `export` | `download_excel`: All Info (Excel) + Info for Sign (Excel / PDF danh sách ký / PDF từng NV / PDF 1 trang mỗi NV gộp 1 file) |
+| `portal` | API trang www (guest): `get_field_config`, `verify_employee`, `get_access_info`, `unlock_access`, `get_eligible_employees`, `get_form_data`, `save_form_data`, `download_submission_pdf` / `_image` |
+| `desk` | form Desk: `get_submission_view`, `validate_desk_edit`, `apply_document_status`, `download_pdf_for_hr` |
+| `sync` | `review_forms`, `get_syncable_fields`, `sync_to_employee` |
+
+> 🔴 **Thay tạm (monkeypatch) 1 hàm trong test** phải gán vào MỌI module đang giữ tên đó — dùng `_set(name, value)`
+> trong `test_self_update_sign.py`. Gán `api._build_config = fake` chỉ đổi ở mặt tiền, code trong module khác vẫn
+> gọi bản thật → test "qua" mà không kiểm gì.
 
 ---
 
-## Luồng trang
+## Luồng trang www
 
 ```
-Step 1: Chọn nhân viên (combobox tìm kiếm theo mã hoặc tên)
-   → get_eligible_employees()
-
-Step 1b: Xác thực (CHỈ khi Setting bật "Validate by DOB")
-   → verify_employee(employee_id, code)
-   → Nhập 2 số cuối NGÀY SINH (DD), hoặc Bypass Code của admin
-
-Step 2: Form động — render theo config + giá trị Employee hiện có
-   → get_field_config() + get_form_data(employee_id, code)
-   → Sửa field nào → ô tô vàng "đã đổi"
-   → Địa chỉ: cascade Tỉnh → Phường/Xã (DB vn_address)
-
-Step SUCCESS: Gửi xong
-   → save_form_data(employee_id, data, code) → status = "Submitted"
+1. Chọn NV (ô tìm theo mã / tên, bỏ dấu; ?emp=<id> chọn sẵn) ── get_eligible_employees
+   └ đã gửi + Setting "Lock After Submit" → thẻ khoá: ngày sinh + mã mở khoá ── get_access_info / unlock_access
+2. Xác thực (khi bật "Validate by DOB"): 2 số NGÀY sinh hoặc Bypass Code ── verify_employee
+3. Form động: get_field_config + get_form_data (Employee hiện tại, đè bởi phiếu đã gửi + nháp cục bộ)
+4. Hồ sơ nộp kèm (tick) → cam kết + ký → Gửi ── save_form_data → status "Submitted"
+5. Tải phiếu PDF / PNG ── download_submission_pdf / _image (token ngắn hạn cho chính phiên vừa gửi)
 ```
 
-**Vòng đời:** `Draft → Submitted`. Nhân viên có thể quay lại sửa & gửi lại bất cứ lúc nào (form luôn pre-load giá trị mới nhất: Employee hiện tại + đè bản đã lưu).
+**Vòng đời phiếu:** `Draft → Submitted → (Reviewed) → Synced`. NV gửi lại bao nhiêu lần cũng được (khi không bị khoá).
 
 ---
 
-## Storage động — không còn schema cứng
+## Lưu trữ — `Employee Self Update Info`
 
-Doctype `Employee Self Update Info` **không** có cột riêng cho từng thông tin. Toàn bộ giá trị lưu trong **`data_json`** dạng `{ "<employee_fieldname>": value, ... }` (key = đúng fieldname của Employee).
+1 phiếu / NV (`name` = mã NV). Giá trị khai nằm trong **`data_json`** `{ "<fieldname Employee hoặc key custom>": value }`
+— thêm field = tick trong Setting, không đổi schema.
 
-| Field | Kiểu | Ghi chú |
-|---|---|---|
-| `employee` | Link | autoname `field:employee` → tối đa 1 bản/NV |
-| `employee_name` | Data | fetch từ Employee |
-| `status` | Select | `Draft` / `Submitted` |
-| `submitted_on` | Datetime | thời điểm gửi |
-| `device_info` | Small Text | thiết bị đã gửi: **IP + Model + Platform** (server lấy qua Accept-CH Client Hints; không JS, không xin quyền, không sync sang Employee). **Append mỗi lần submit** kèm mốc `[yyyy-MM-dd HH:mm]` (giữ lịch sử, không ghi đè) |
-| `data_json` | Long Text | **toàn bộ dữ liệu form** (JSON) |
+| Field | Ghi chú |
+|---|---|
+| `status` | Draft / Submitted / Reviewed / Synced |
+| `submitted_on`, `reviewed_on/by`, `synced_on/by` | mốc thời gian |
+| `date_of_birth`, `date_of_joining` | lấy từ Employee (lọc / in đầu phiếu HR) |
+| `document_status`, `missing_documents` | **Tình trạng hồ sơ** (Documents Complete / Documents Missing + danh sách thiếu) — tính lại mỗi lần lưu |
+| `commitment_confirmed`, `signed_on`, `signature` | chỉ trang www ghi được (`validate_desk_edit` chặn đường khác) |
+| `device_info` | IP + model + platform (Client Hints), nối thêm mỗi lần gửi |
+| `data_view` | HTML: bảng xem / sửa cho HR |
+| `data_json` | toàn bộ dữ liệu |
 
-→ Thêm field mới = chỉ tick chọn trong Setting. **Không** sửa schema, **không** sửa code.
+Khoá đặc biệt trong `data_json`:
+- `__documents` (`DOCUMENTS_KEY`): **bản chụp** danh mục hồ sơ lúc gửi `[{document, required, checked}]` — Setting đổi sau
+  thì phiếu cũ vẫn đúng như lúc nộp. Sync không đọc.
+- `__remarks`: ô "Ghi chú thêm" cũ (đã bỏ 16/10/2026); phiếu cũ còn thì vẫn hiện ở bảng HR / PDF / Excel.
+- Bảng con (`education`, `external_work_history`): list dòng, dòng đã Sync mang `name` của dòng Employee.
 
 ---
 
-## Config field động (`Employee Self Update Info Setting`)
+## Setting — `Employee Self Update Info Setting`
 
-Singleton. HR cấu hình ở đây.
+**Tab General** (dùng hằng ngày)
 
-| Field | Kiểu | Mô tả |
-|---|---|---|
-| `filter_date` | Date | Lọc NV theo `date_of_joining` khi bấm "Add Employees" |
-| `group` | Link → Group | Lọc NV theo `custom_group` |
-| `department` | Link → Department | Lọc NV theo `department` |
-| `custom_section` | Link → Section | Lọc NV theo `custom_section` |
-| `employees` | Table | Danh sách NV được phép cập nhật |
-| `validate_by_dob` | Check | Bật bước xác thực bằng ngày sinh |
-| `bypass_code` | Int (0–99) | **Chỉ Administrator thấy**; mã vượt xác thực |
-| `selected_fields` | Table | **Các field thực sự hiển thị trên form** (nguồn quyết định page) |
-| `selected_fields_for_new_join` | Table | **Preset** field cơ bản cho nhân viên mới — KHÔNG ảnh hưởng page trực tiếp |
+| Field | Mô tả |
+|---|---|
+| `filter_date`, `department`, `custom_section`, `group` + nút **Add Employees** / **Clear All** | thêm NV Active theo bộ lọc (AND); không lọc gì → hỏi rồi thêm toàn bộ NV Active. Bảng `employees` có nút **Paste Codes** (dán danh sách mã NV); tự bỏ dòng trùng |
+| `info_html` | QR + link `/employee-self-update-info` để gửi NV |
+| `validate_by_dob`, `bypass_code` (0–99, chỉ Administrator thấy) | xác thực bằng 2 số ngày sinh |
+| `allow_browser_local_storage` | cho lưu nháp cục bộ |
+| `force_open_devices_browser` | trong Zalo → bắt mở bằng trình duyệt thiết bị |
+| `save_file_type` | PDF / PNG cho phiếu NV tải |
+| `lock_after_submit`, `bypass_code_for_unlock` | khoá sau khi gửi + mã mở khoá (không bao giờ gửi xuống trang) |
+| `disable_review` | bỏ bước Reviewed, Sync thẳng từ Submitted |
+| `commitment_text` | câu cam kết (giữ xuống dòng, trống → câu mặc định) |
 
-**Nút "Help"** (toolbar): mở dialog (extra-large) hướng dẫn toàn bộ cách dùng Setting này.
+**Tab Form Setup** (thường cố định)
 
-**Nút "+ Add Employee Field"** (`employee_self_update_info_setting.js`): mở dialog đọc `frappe.get_meta("Employee")`, liệt kê field hợp lệ (gồm custom field) → tick chọn. Custom field mới của Employee **tự xuất hiện** trong danh sách.
+| Field | Mô tả |
+|---|---|
+| `document_checklist` | danh mục **hồ sơ nộp kèm**: `document` + `required`. NV tick hồ sơ đã có; thiếu hồ sơ Required vẫn gửi được, chỉ thành "Documents Missing". Trống → không hiện |
+| `selected_fields` | **field thực sự hiện trên trang** (nút "+ Add Employee Field" / "+ Add Custom Field") |
+| `selected_fields_for_new_join` | **preset** cho đợt NV mới; nút "↧ Fill Selected Fields from Preset" thay toàn bộ `selected_fields` |
 
-**Nút "+ Add Custom Field"**: thêm field **tự do, KHÔNG thuộc doctype Employee** (vd ghi chú, khảo sát…). Nhập: `key` (id lưu trữ), `label_vi`, `fieldtype` (Data/Date/Int/Select/Check/…), `options` (nếu Select), section, required. Giá trị chỉ lưu trong submission (`data_json`), **không đọc/ghi Employee**.
-
-**New-Join Preset** (`selected_fields_for_new_join` + nút "↧ Fill Selected Fields from Preset"): bảng lưu sẵn **bộ field cơ bản cho nhân viên mới nhận việc**. Nhấn nút → **thay thế** toàn bộ `selected_fields` bằng nội dung preset (có hỏi xác nhận). Chỉ `selected_fields` quyết định field hiển thị trên page — preset chỉ là khuôn để điền nhanh.
-
-**Nút "Add Employees" / "Clear All"**: thêm NV theo bộ lọc `filter_date` / `group` / `department` / `custom_section` (nhiều bộ lọc = AND, chỉ NV `status=Active`). **Không chọn bộ lọc nào** → JS hỏi xác nhận Yes/No rồi thêm **toàn bộ NV Active** (số lượng lớn). "Clear All" xoá danh sách + reset cả 4 bộ lọc.
-
-**Tự dọn trùng**: form JS `validate(frm)` bỏ dòng `employee` trùng khỏi grid (giữ dòng đầu) + `frappe.show_alert("Removed N duplicate…", orange)`. Server `_dedupe_employees()` chạy lại trong `validate()` như **safety net im lặng** (giữ dòng đầu, đánh lại `idx`) — không msgprint để tránh báo 2 lần.
-
-**Mã QR + link** (field `info_html`): Setting hiển thị **QR code** + link tới `/employee-self-update-info` (URL tự theo host hiện tại) để gửi cho nhân viên. Lib `qrcode.min.js` load từ asset, fallback CDN `qrcodejs@1.0.0` (copy từ Setting cũ).
-
-### Child `Employee Self Update Info Field`
+### Cột của mỗi dòng field (`Employee Self Update Info Field`)
 
 | Cột | Mô tả |
 |---|---|
-| `employee_fieldname` | Tên field thật trong Employee — hoặc **key tự do** khi `is_custom` |
-| `label_vi` | **Label tiếng Việt** — ưu tiên hiển thị. Trống → dùng label mặc định của field Employee |
-| `detail` | Ghi chú giải thích thêm cho field — hiện **ngay dưới nhãn** trên trang NV (khối `.field-detail`, giữ xuống dòng `white-space:pre-line`; URL http/https tự thành **link bấm được** qua `linkify()` — luôn `esc()` trước) |
-| `placeholder` | Chữ gợi ý mờ trong ô trống (VD "12 chữ số"). Áp cho input text/number/textarea; **bỏ qua** Date/Select/Check |
-| `section_label` | Gom nhóm field cùng `section_label` vào 1 card |
-| `widget` | `Auto` / `Address Province` / `Address Ward` |
-| `required` | Bắt buộc nhập |
-| `read_only` | Chỉ cho xem (không sửa, không submit) |
-| `auto_fill_data` | **1** (mặc định): tự điền giá trị từ Employee / lần gửi trước (như hiện tại). **0**: KHÔNG prefill — mỗi lần truy cập ô để **trống**, NV phải tự nhập lại (không lấy cả từ Employee, submission, lẫn nháp cục bộ). `_build_config` trả `auto_fill`; server null hoá trong `get_form_data`, client cũng `delete S.values[fn]` sau khi merge nháp |
-| `is_custom` | Field **không** thuộc Employee (chỉ lưu trong submission) |
-| `custom_fieldtype` | Kiểu của custom field (khi `is_custom`) |
-| `custom_options` | Options cho Select (mỗi dòng 1 giá trị) |
+| `employee_fieldname` | fieldname Employee — hoặc key tự do khi `is_custom` |
+| `label_vi` | nhãn hiển thị (trống → label của Employee) |
+| `section_label` | gom field vào 1 thẻ (thứ tự thẻ = thứ tự xuất hiện); tiền tố số "1. " bị bỏ khi in phiếu |
+| `detail`, `placeholder` | hướng dẫn (giữ xuống dòng, URL tự thành link) / chữ mờ trong ô |
+| `widget` | Auto / Address Province / Address Ward |
+| `layout_width` | **Width on Form**: Full / Half — 2 field Half liền nhau cùng 1 hàng (xem "Bố cục") |
+| `required`, `read_only`, `enable` | |
+| `auto_fill_data` | 1: điền sẵn từ Employee / lần gửi trước; 0: luôn để trống. Phiếu PDF: field Auto Fill chưa khai → lấy Employee |
+| `info_for_sign` | field in trong **Info for Sign** và **phiếu PDF phía HR** |
+| `validation`, `min_length`, `max_length`, `regex` | Digits / Phone / Email / CCCD / CMND / Past / Future / Regex / Capitalize Each Word / Sentence Case |
+| `is_custom`, `custom_fieldtype`, `custom_options` | field không thuộc Employee (chỉ lưu trong phiếu, không Sync) — vd câu hỏi "Bạn có trả phí cho công ty Toray/ Công ty tư vấn…" (Select Có / Không) |
+| `table_columns`, `max_rows` | bảng con: cột hiển thị (`fieldname \| nhãn \| bắt buộc`, trống → mặc định), số dòng tối đa (trống = 3; Học vấn / Kinh nghiệm đang = 1) |
+| `option_labels` | Select: nhãn hiện trên trang `giá trị \| nhãn` (vd size dép) — phiếu in vẫn dùng bản gọn |
 
-> **Field từ Employee** vs **Custom field:** field Employee thì `fieldtype/label/options` lấy từ meta Employee, có giá trị cũ để đối chiếu, import được. Custom field tự định nghĩa hoàn toàn trong row, **không có giá trị cũ** (cột "old" để trống trong Excel) và **không map vào Employee khi import**.
-
-**Fieldtype hỗ trợ (v1):** Data, Date, Datetime, Time, Int, Float, Currency, Select, Check, Small Text, Text, Long Text, Link, Phone. (Attach / Table → giai đoạn sau.)
+Fieldtype hỗ trợ: Data, Date, Datetime, Time, Int, Float, Currency, Select, Check, Small Text, Text, Long Text,
+Link (Gender → dropdown Nam/Nữ), Phone, Autocomplete (tỉnh/xã), Table (chỉ `education`, `external_work_history`).
 
 ---
 
-## Kế hoạch: hỗ trợ Child Table (CHƯA TRIỂN KHAI)
+## Trang www — chi tiết
 
-Cho phép chọn field kiểu **`Table`** của Employee (vd `education`, `external_work_history`) và cho NV tự khai dạng **nhiều dòng**. Khả thi, không phá kiến trúc (JSON list); đây là "widget đặc biệt" thứ 2 sau địa chỉ.
+### Bố cục (Width on Form, 27/10/2026)
+- Mỗi thẻ là lưới 2 cột (`.fgrid`): Full = cả hàng, Half = nửa hàng — **cả trên điện thoại**; < 360px mới về 1 cột.
+- Cặp **cố định** theo thứ tự Setting: trong 1 Section, Half liền nhau ghép 1-2, 3-4… Half lẻ, hoặc bạn cặp đang ẩn
+  (field "chỉ hiện khi…"), → class `solo` = cả hàng; cặp không đổi chỗ khi ẩn/hiện (`layoutHalfRows`).
+- Nhãn 2 ô trong cặp cao bằng nhau (đo lại khi xoay màn hình / web font tải xong) → 2 ô nhập thẳng hàng. Detail của
+  field Half nằm **dưới** ô nhập. Bảng con luôn Full.
+- Đang dùng: Giới tính | Ngày sinh · Dân tộc | Tôn giáo · SĐT | Email · Ngày cấp | Ngày hết hạn · Mối quan hệ | SĐT
+  khẩn cấp · Size áo | Size dép · GPLX | Tình trạng GPLX · Số TK | Chi nhánh. **Tỉnh / Xã để Full** (Half bị cắt chữ
+  trên điện thoại); Số CCCD Full (có nút quét QR + hướng dẫn).
 
-**Child table dùng được trên Employee:**
+### Field "chỉ hiện khi…" (`_FIELD_DEPENDS`)
+`custom_driving_license_status` chỉ hiện (và khi hiện thì bắt buộc) khi GPLX = "Chưa"; ẩn → xoá trắng. Cùng luật ở
+trang, `save_form_data`, `validate_desk_edit`.
 
-| Field (Table) | Doctype con | Cột flat gợi ý |
+### Bảng con (Học vấn, Kinh nghiệm làm việc)
+- Mỗi dòng 1 thẻ; "+ Thêm" tới `max_rows`; bảng trống → sẵn 1 thẻ trống. Điền sẵn **`max_rows` dòng mới nhất** của Employee.
+- Học vấn: từ Trung cấp trở lên bắt buộc Trường + Ngành (Năm TN không); THCS / THPT ẩn và xoá trắng Trường / Ngành / Năm.
+- Dòng có `name` của Employee → Sync sửa đúng dòng đó.
+
+### Hồ sơ nộp kèm
+Thẻ ngay trên cam kết: mỗi hồ sơ 1 ô tick, `*` = bắt buộc. Gửi kèm `documents` (JSON tên hồ sơ đã tick); server dựng bản
+chụp `__documents`. Lần mở sau tick sẵn theo lần gửi trước (nháp cục bộ thắng).
+
+### Địa chỉ (Tỉnh → Xã)
+Ô gõ để tìm (bỏ dấu, ↑ ↓ Enter Esc, ✕ xoá), **chỉ nhận giá trị trong danh mục** `api/vn_address_search`; xã khoá tới khi
+có tỉnh, đổi tỉnh → xoá xã. Lưu **tên đầy đủ**. Tỉnh trống → mặc định "Tỉnh Quảng Ngãi" (trừ field `auto_fill = 0`).
+Server `_portal_address_errors`: chỉ kiểm cặp KHÁC giá trị Employee hiện tại (hồ sơ tên cũ không đổi vẫn gửi được).
+
+### CCCD
+- Nút "📷 Quét mã QR trên CCCD" (jsQR) điền số CCCD, ngày cấp, CMND cũ, ngày sinh. Tuỳ chọn chụp ảnh CCCD đang tạm ẩn
+  (code decode ảnh giữ nguyên).
+- **Ngày hết hạn luôn tự tính** theo Luật Căn cước 2023 (mốc 14/25/40/60 tuổi; cấp ≥ 58 tuổi → không thời hạn), không cho
+  nhập; server tính lại khi gửi (`_apply_cccd_expiry`) và khi lưu Employee (`api/employee/cccd_expiry`).
+
+### Chuẩn hoá chữ (không hỏi)
+Field chữ widget Auto (trừ Email): NFC, gộp khoảng trắng, chèn dấu cách chữ–số (`Xóm1` → `Xóm 1`), viết hoa đầu ô;
+Capitalize Each Word / Sentence Case theo `validation`. Trang (`normalizeText`, khi rời ô + khi gửi) và server
+(`_normalize_text`, nguồn chuẩn) cùng luật. Giá trị mặc định khi trống: Dân tộc = "Kinh".
+
+### Lưu nháp cục bộ (Setting `allow_browser_local_storage`)
+`localStorage` key `esui_draft_<mã NV>` (gồm cả hồ sơ đã tick), debounce 400ms, quá 1 ngày bỏ, xoá sau khi gửi; nháp đè giá
+trị server trước khi render.
+
+### Cam kết + chữ ký
+Câu cam kết lấy từ Setting (`config.commitment_html`, server đã escape, xuống dòng = `<br>`). NV bắt buộc tick + ký
+(canvas → PNG data URL ≤ 400 KB); HR mở `?emp=` thì không bắt buộc (không ký → giữ chữ ký cũ).
+
+### Zalo
+Webview Zalo chặn tải file. `force_open_devices_browser` bật → overlay hướng dẫn "Mở bằng trình duyệt" (`?zalo=1` để thử
+ngoài Zalo); tắt → nút lưu hiện phiếu dạng ảnh PNG để chụp màn hình.
+
+### CSRF
+Trang www không có object `frappe`: `window.csrf_token = {{ csrf_token | tojson }}` trong `index.html`, mọi lời gọi gửi
+`FormData` kèm field `csrf_token` (hàm `api()` trong `form.js`).
+
+---
+
+## Xác thực + khoá
+
+- `validate_by_dob`: mã đúng = 2 số ngày sinh (so theo số, `4` = `04`) hoặc `bypass_code`; áp cho MỌI người kể cả HR.
+  Gõ đủ 2 số là tự vào form.
+- `lock_after_submit`: đã gửi (`submitted_on`) → vào lại cần **cả** 2 số ngày sinh **và** `bypass_code_for_unlock`.
+  Khoá cũng chặn tải phiếu; ngoại lệ: **download token** HMAC (`encryption_key`, mã NV, cửa sổ 15 phút → hiệu lực ~15–30 phút) trả về từ
+  `save_form_data` cho chính phiên vừa gửi.
+- HR đăng nhập mở `/employee-self-update-info?emp=<mã>` được với **mọi** NV (kể cả không có trong danh sách Setting).
+- Chặn ở server (`_gate_edit`, `_gate_receipt`); `get_access_info` / `unlock_access` chỉ phục vụ giao diện.
+
+---
+
+## Phiếu PDF / PNG
+
+| | Phiếu NV tải (trang www) | Phiếu HR (Generate PDF, PDF Split, PDF 1 trang / NV) |
 |---|---|---|
-| `education` | Employee Education | `level` (Select), `school_univ`, `qualification`, `year_of_passing`, `maj_opt_subj` |
-| `external_work_history` | Employee External Work History | `company_name`, `designation`, `salary`, `address`, `contact` |
-| `internal_work_history` | Employee Internal Work History | `branch`/`department`/`designation` (Link), `from_date`/`to_date` |
-| `custom_fingerprints` | Fingerprint Data | (KHÔNG cho NV tự khai) |
+| Field | mọi field trong config | chỉ field tick **Info for Sign** |
+| Đầu phiếu | Mã NV, Họ tên | bảng 6 cột: Mã NV · Họ tên · Giới tính / Ngày sinh · SĐT · Ngày nhận việc |
+| Gộp dòng | không | địa chỉ 1 dòng "thôn, xã, tỉnh"; CCCD + ngày cấp; liên hệ khẩn cấp; GPLX; size áo / dép (`_SIGN_GROUPS`) |
+| Hồ sơ nộp kèm | 2 dòng "Đã có" + "Tình trạng hồ sơ" | bảng: ☑ hồ sơ NV đã tick, `*` bắt buộc, ô Đạt / Không đạt / Quá hạn / Khác để HR đánh tay, dòng Tình trạng hồ sơ |
+| Chưa ký | không in cam kết | in cam kết + ô trống ký tay |
+| Lề | 15mm | 10mm |
+| Số trang | tự nhiên | **luôn 1 trang**: `_hr_receipt_pdf` thu nhỏ (wkhtmltopdf `--zoom`) 1.0 → 0.99 → … → 0.95 → … 0.7 tới khi vừa |
 
-**Nguyên tắc:**
-- Metadata: `get_meta("Employee")` → field `Table` có `options` = doctype con → `get_meta(child)` cho cột. Chọn cột con động **giống hệt** cách chọn field cha (lọc theo `_ALLOWED_FIELDTYPES`).
-- Storage: `data_json` lưu **list dict** — `{"education": [{"level": "...", "school_univ": "..."}, ...]}`. Không đổi schema.
-- Đã có tiền lệ ở trang cũ (`education` + `external_work_history`) → luồng chạy được.
-
-**Việc cần làm khi triển khai:**
-1. **Config**: child row `Employee Self Update Info Field` thêm cờ `is_table` + nơi khai **cột con nào hiển thị** (nhãn + validation từng cột) — vd 1 field JSON/Small Text `table_columns`, hoặc 1 child-of-child. `_ALLOWED_FIELDTYPES` bổ sung `"Table"`.
-2. **`_build_config`**: khi `is_table` → resolve doctype con, trả `{fieldtype:"Table", child_doctype, columns:[{fieldname,label,fieldtype,options,required,validation}...]}`.
-3. **Page — renderer lặp dòng** (widget mới): mỗi child = 1 khối thẻ; mỗi dòng render các cột con (tái dùng `renderField` + `validateField`); nút **+ Thêm dòng / xoá dòng**. Mobile: thẻ dọc, không bảng ngang. `currentValue`/`markChanged`/`saveDraft` cần hiểu giá trị **mảng**.
-4. **`get_form_data`**: preload dòng con hiện có từ Employee (`emp.get(fieldname)` → list dict theo cột đã chọn).
-5. **Validation**: per-cell (đã có `_validate_value`); tùy chọn "bắt buộc ≥1 dòng".
-6. **Excel**: child table **không** vào sheet phẳng New/Old được → **mỗi child 1 sheet riêng** (`ID` + các cột con, mỗi dòng con 1 row). Import ngược child rows qua Data Import cần format riêng (parent + idx).
-7. **Sync** (`sync_to_employee`): `emp.set(fieldname, [...])` (clear + append từ list dict) → child rows. Bỏ qua nếu `is_custom`.
-8. **PDF**: render child dưới dạng bảng con (nhiều dòng) trong `_build_submission_html`.
-
-**Điểm phức tạp cần chốt:** UX nhập nhiều dòng trên mobile; Excel/Import child rows; validation số dòng tối thiểu. Khuyến nghị phạm vi v1: `education` + `external_work_history`.
+- PNG: cùng HTML, `wkhtmltoimage` + Pillow (nền trắng, optimize).
+- Ngày in dd/mm/yyyy; Select in nhãn tiếng Việt (`_sign_value_vi`).
+- Zoom 1.0 thường tràn 2 trang nhưng 0.99 đã vừa (wkhtmltopdf dàn trang khác khi zoom ≠ 1) → ~0,8 giây / phiếu.
 
 ---
 
-## Quy tắc Label (ưu tiên tiếng Việt)
+## Desk (HR)
 
-Trong `get_field_config()`:
+**Form phiếu**
+- `data_view`: bảng Nhãn : Giá trị theo Section, ô khác Employee tô vàng + "Cũ: …". Sửa trực tiếp (text, select, date,
+  tỉnh / xã, bảng con) → Save. Chốt chặn `validate_desk_edit`: chỉ HR, chỉ field có editor, giá trị hợp lệ; phiếu
+  **Synced** khoá — trừ tick **hồ sơ nộp kèm** (vẫn tick được khi NV nộp bổ sung).
+- Mục **Documents**: tick hồ sơ → Save → Tình trạng hồ sơ tính lại.
+- Nút: **Generate PDF**, **Mark Reviewed** (khi `disable_review = 0`), **Sync to Employee** (dialog chọn field, mặc định
+  tick field đã đổi).
 
-```python
-label = row.label_vi or df.label or df.fieldname
-```
-
-1. `label_vi` (HR nhập) — **ưu tiên cao nhất**
-2. `df.label` — label mặc định của field trong doctype Employee (KHÔNG dịch qua `_()`)
-3. `df.fieldname` — phòng khi field không có label
-
-> Lưu ý: site này nhiều field Employee đã được đặt label tiếng Việt sẵn (vd `date_of_birth` = "Ngày sinh"), nên fallback (2) thường đã ra tiếng Việt; field còn tiếng Anh (vd "Marital Status") thì HR điền `label_vi` để Việt hoá.
-
----
-
-## Xác thực danh tính (`validate_by_dob`)
-
-Khi bật, **bắt buộc** xác thực trước khi load & khi submit (chặn ở server, không bypass bằng gọi API trực tiếp; **áp cho MỌI người kể cả HR/Admin** — không có ngoại lệ theo role). Nút **"Gửi thông tin" bị ẩn** cho tới khi xác thực thành công (`.hidden{display:none !important}` để luôn thắng rule component, và `#submitbar` chỉ hiện trong `loadForm` sau verify).
-
-- **Mã đúng** = 2 số cuối **NGÀY SINH** (DD, zero-pad). VD sinh `1989-07-04` → nhập `04` (gõ `4` cũng được — so sánh theo số).
-- **Hoặc** = `bypass_code` của admin (HR dùng để vào bất kỳ NV; hoặc khi DOB lưu bị sai).
-- **Tự động vào form** khi gõ đủ 2 số đúng (`oninput` gọi `doVerify()` — không cần bấm nút); sai → xoá ô, báo lỗi, gõ lại. Guard `_verifying` chống gọi trùng.
-
-```python
-_dob_day(emp)  = str(date_of_birth)[-2:]            # 'YYYY-MM-DD' → 'DD'
-_num_eq(a, b)  = int(a) == int(b) (fallback string)  # bỏ qua số 0 đứng đầu
-_code_ok       = _num_eq(code, bypass) or _num_eq(code, day)
-_gate(...)     # throw nếu validate_by_dob bật và code sai
-```
-
-`bypass_code` giới hạn **0–99** (validate trong controller) để khớp ô nhập 2 chữ số, và **ẩn với mọi user không phải Administrator** (`employee_self_update_info_setting.js`), không bao giờ trả về cho trang web.
+**List view**
+- Lọc theo **Document Status**.
+- **Download File**: `All Info` (Excel 2 sheet New Data / Old Data, cột ID để Data Import update Employee) hoặc
+  `Info for Sign` với 4 định dạng:
+  - *PDF Split For Each Employee*: mỗi NV 1 PDF (nhiều NV → ZIP);
+  - *PDF 1 Page Per Employee (1 File)*: cùng phiếu đó, gộp 1 file, mỗi NV 1 trang theo mã NV;
+  - *PDF Combine To 1 File*: danh sách ký A4 ngang (STT | NV | Thông tin | Nội dung | Ghi chú | Chữ ký), cỡ chữ lớn nhất
+    vừa trang (dò nhị phân), tick nhiều mục thì lùi bố cục 4/5 → 3/4 → 2/3 NV mỗi trang;
+  - *Excel*.
+  PDF tối đa 100 phiếu / lần.
+- **Mark Reviewed**, **Sync to Employee** cho nhiều phiếu.
 
 ---
 
-## Khoá sau khi gửi (`lock_after_submit` + `bypass_code_for_unlock`)
+## Sync vào Employee (`sync_to_employee`)
 
-Mục đích: NV chỉ **kê khai lần đầu**; đã gửi rồi thì lần sau vào không sửa được nữa (và **không xem/tải được phiếu** để tránh lộ thông tin cá nhân), trừ khi HR cấp **mã mở khoá**.
+- Chỉ field Employee thật (kể cả `custom_*`); field custom, `__remarks`, `__documents`, `employee` / `name` bỏ qua.
+- Trạng thái nhận: Submitted + Reviewed khi `disable_review` bật, ngược lại chỉ Reviewed.
+- Địa chỉ: dựng lại `custom_*_address_full` = thôn, xã, tỉnh.
+- Bảng con: dòng có `name` → sửa đúng dòng; dòng không `name` mà giống hệt 1 dòng Employee → coi là dòng đó (Sync lại
+  không nhân bản); còn lại → thêm. Dòng Employee ngoài phiếu: giữ trong giới hạn **Max Rows** (giữ dòng mới nhất), phần dư
+  **bị xoá**. Sau `emp.save()` ghi `name` dòng Employee ngược vào phiếu.
+- Mỗi phiếu lưu + commit riêng (1 phiếu lỗi không chặn phiếu khác); kết quả báo số field, dòng giữ / xoá.
 
-- Setting: `lock_after_submit` (Check, default 1), `bypass_code_for_unlock` (Int, default 88, chỉ hiện khi lock bật). `get_field_config` trả `lock_after_submit` (bool) — **KHÔNG bao giờ** gửi `bypass_code_for_unlock`.
-- **Đã submit** = doc có `submitted_on`. `_is_locked = lock_after_submit and submitted_on`.
-- **Mở khoá cần CẢ HAI**: 2 số ngày sinh (`_code_ok`, chấp cả admin `bypass_code`) **VÀ** mã unlock (`_unlock_ok` = khớp `bypass_code_for_unlock`) — độc lập với `validate_by_dob`.
-- **Chặn ở server** (không bypass bằng gọi API):
-  - `_gate_edit` (load `get_form_data` + submit `save_form_data`): DOB như cũ + nếu khoá thì bắt DOB **và** unlock.
-  - `_gate_receipt` (PDF/PNG): khoá cũng chặn tải phiếu → chống lộ thông tin khi vào lại. **Ngoại lệ**: có **download token** hợp lệ.
-- **Download token**: `save_form_data` trả `download_token` = HMAC(`encryption_key`, `employee_id:window15p`) — cho phép **chính phiên vừa gửi** tải phiếu ngay (chưa có mã unlock). Cửa sổ ~15–30 phút, **không lưu DB**. Front-end giữ `S.downloadToken`, gửi kèm mọi lời gọi PDF/PNG (`receiptQuery()` / FormData). Phiên/lượt truy cập nguội không có token → bị chặn.
-- **Endpoint phụ (UX, không phải bảo mật)**: `get_access_info(emp)` → `{submitted, submitted_on (dd/MM/yyyy HH:mm), locked}`; `unlock_access(emp, code, unlock_code)` → `{valid}`.
-- **Front-end**: `onEmpSelected` gọi `get_access_info` khi `lock_after_submit`; nếu `locked` → hiện `#lock_card` (thông báo "Bạn đã cập nhật lúc … Nếu có sai sót vui lòng liên hệ HR để được cấp mã" + 2 ô: ngày sinh, mã mở khoá). `doUnlock()` → `unlock_access` đúng → `S.unlockCode` + `loadForm`.
+---
 
-```python
-_already_submitted(emp) = bool(submitted_on)
-_unlock_ok(code)        = _num_eq(code, bypass_code_for_unlock)
-_is_locked              = lock_after_submit and _already_submitted
-_gate_edit              = _gate + (locked → require _code_ok AND _unlock_ok)
-_gate_receipt           = token hợp lệ → pass; else _gate_edit
+## Test
+
+```bash
+# Python (không ghi DB, rollback): 335 phép kiểm
+bench --site erp.tiqn.local execute customize_erpnext.api.self_update_info.test_self_update_sign.run_all
+
+# Trang www (jsdom, JS thật của form.js): 128 phép kiểm
+cd apps/customize_erpnext/customize_erpnext/tests_js/self_update_info && npm install && node run.js
+# thử bản nháp trước khi ghi đè trang đang chạy:
+ESUI_PAGE_DIR=/đường/dẫn/bản-nháp node run.js
 ```
 
 ---
 
-## Địa chỉ — cascade Tỉnh → Phường/Xã
+## Khi sửa code
 
-Dùng DB địa chỉ 2 cấp (sau sáp nhập 2025) qua `api/vn_address_search` (từ 07/10/2026; trước đó `api/vn_address`). Xem `api/vn_address_search/README.md`.
-
-- Field có `widget = Address Province` / `Address Ward` → **ô gõ để tìm** (combobox, 15/10/2026) thay cho `<select>`:
-  lọc bỏ dấu (`deburr`: "ba to" ra Ba Tơ + Ba Tô), mở ô trống thấy đủ danh sách, phím ↑ ↓ Enter Esc, chạm để chọn, nút ✕ xoá.
-  **Chỉ nhận giá trị trong danh sách**: rời ô mà chữ gõ không khớp đúng 1 tên (có dấu) → trả về giá trị cũ + toast;
-  không tự đoán theo bản bỏ dấu.
-- Ô xã **phụ thuộc tỉnh cùng section** (`get_ward_options(province)`): khoá khi chưa có tỉnh; đổi/xoá tỉnh → xoá xã.
-- Giá trị đã chọn nằm ở `input.dataset.value` (tên đầy đủ) — `currentValue()` đọc từ đây, chữ đang gõ không phải giá trị.
-- Dữ liệu cũ không có trong danh mục (tên trước sáp nhập…) → ô để trống, không báo (user quyết 15/10/2026).
-- Dùng chung **API** với form Employee (`api/vn_address_search`), JS **độc lập** (trang không có object `frappe`).
-- Chốt chặn server: `save_form_data` → `_portal_address_errors` (tỉnh phải có trong danh mục, xã thuộc tỉnh,
-  so `COLLATE utf8mb4_bin`); chỉ kiểm cặp KHÁC giá trị Employee hiện tại → hồ sơ tên cũ không đổi vẫn gửi được.
-- Test giao diện: chạy JS thật của `index.html` trong jsdom (36 ca, không thuộc repo); test server: `test_self_update_sign.run`.
-- **Lưu vào Employee field là TÊN đầy đủ** (`full_name`, vd "Phường Ba Đình"), dùng `code` chỉ để cascade nội bộ (option `value=code`, `data-name=full_name`). Tương thích dữ liệu cũ vốn lưu tên.
-- Pre-fill: match tên đã lưu với option theo `data-name`. Nếu tỉnh còn **trống** → tự điền mặc định **"Tỉnh Quảng Ngãi"** (`DEFAULT_PROVINCE`); không tô "đã đổi", nhưng sẽ được lưu khi submit. **Ngoại lệ:** field tỉnh có `auto_fill_data = 0` → **KHÔNG** set mặc định, để trống cho NV tự chọn (kèm ward trống theo).
-
----
-
-## Header logo + tên công ty
-
-- Logo: `/assets/customize_erpnext/images/logo_white.png` trên header (đổi file logo trong `public/images/` rồi `bench build` là được).
-- Tên công ty: `index.py` lấy `default_company` (Global Defaults) → inject qua `window.COMPANY` (cùng cơ chế csrf, vì page bọc `{% raw %}`) → JS set vào `#company_name`.
-- PDF dùng logo `logo_500.jpg` (nhúng base64 trong `_logo_data_uri`).
-
-## Ô ghi chú thêm (remarks)
-
-- Textarea cố định ở cuối form (luôn hiển thị), không bắt buộc.
-- Lưu trong `data_json` dưới **key dành riêng `__remarks`** (hằng `REMARKS_KEY`), không phải field Employee → `save_form_data` xử lý riêng (không bị lọc theo config), `get_form_data` trả về `remarks`.
-- Xuất hiện ở: cột cuối Excel ("Ghi chú (nhân viên)"), và trong PDF.
-
-## Tải PDF sau khi submit
-
-- Màn hình success có nút **"📄 Tải PDF thông tin đã gửi"** → `downloadPdf()` mở URL **GET** `download_submission_pdf?employee_id=..&code=..` bằng thẻ `<a download>` (không dùng blob/fetch).
-- Server đặt `frappe.response["type"] = "binary"` → trả **attachment** (`application/octet-stream`), trình duyệt tải thẳng về thư mục Download. (Trước đây dùng `type="pdf"` mở inline — Zalo webview báo "downloading" nhưng không lưu file.)
-- PDF render server-side bằng `frappe.utils.pdf.get_pdf` (wkhtmltopdf) → tiếng Việt chuẩn, text chọn được. Gồm logo (base64) + tên công ty + mã/tên NV + thời điểm gửi + bảng (label tiếng Việt : giá trị đã gửi) + ghi chú.
-- **Tiêu đề nhóm (Section)** trong PDF/ảnh: `_strip_section_no()` bỏ tiền tố số thứ tự HR gõ trong `section_label` (`"1. Thông tin chung"`, `"2) Trình độ"`, `"3 - CCCD"` → tên thuần), regex `^\s*\d+\s*[.)\-–—]\s*`. Không đụng tên kiểu `"Thông tin 2 người"`.
-
-### Chọn định dạng file: PDF hay PNG
-
-- Setting **`save_file_type`** (Select `PDF` / `PNG`, mặc định `PDF`). `get_field_config` trả về key `save_file_type`.
-- Front-end (`downloadFile()`):
-  - **Trong Zalo webview** (`isZalo()`: UA chứa "Zalo" hoặc `?zalo=1` để test) → **luôn render ảnh PNG inline** (`showImageForSave()` → `renderImageOverlay()`): fetch bytes PNG → `<img>` full-screen overlay + hướng dẫn **"📸 Chụp màn hình để lưu"** (kéo xuống chụp thêm nếu ảnh dài). Zalo webview **chặn mọi tải/lưu file** (kể cả attachment lẫn nhấn-giữ "Lưu ảnh") → chụp màn hình là cách duy nhất user lấy được thông tin khi ở trong Zalo.
-  - **Ngoài Zalo** → theo `save_file_type`: `PDF` → `downloadPdf()`, `PNG` → `downloadImage()`; cả hai **tải thẳng file về thư mục Download** (fetch → blob → `<a download>`).
-  - Nhãn nút + gợi ý đổi theo môi trường (`applySaveFileType()`).
-- **Quan hệ với `force_open_devices_browser`**: hai chiến lược loại trừ nhau — bật force → chặn Zalo, user sang trình duyệt thiết bị để **tải file**; tắt force → user ở lại Zalo, nút lưu **render ảnh để nhấn-giữ lưu**.
-- PNG dùng chung HTML với PDF (`_load_submission_receipt` → `_build_submission_html`); render qua **`wkhtmltoimage`** (`_html_to_png`, stdin→stdout, width 820). Sau đó **Pillow** flatten alpha lên nền trắng + `optimize` → giảm ~4.6MB xuống ~0.12MB. Endpoint `download_submission_image` trả `type="download"`, `content_type="image/png"` (attachment).
-- PNG hữu ích khi cần ảnh xem nhanh; nhưng để tải file trong app Zalo vẫn phải mở bằng trình duyệt thiết bị (xem mục dưới) — Zalo webview chặn mọi tải file.
-
-### Ép mở bằng trình duyệt thiết bị (Zalo webview)
-
-Webview trong app Zalo **chặn tải file** (kể cả attachment HTTP) → không lấy được PDF. Giải pháp: chặn & hướng dẫn người dùng mở link bằng trình duyệt thật của thiết bị.
-
-- Setting **`force_open_devices_browser`** (Check, mặc định 1) trong *Employee Self Update Info Setting*. `get_field_config` trả về key `force_device_browser`.
-- `init()` load config sớm; nếu **đang trong Zalo webview** (`/Zalo/i.test(navigator.userAgent)`) **và** `force_device_browser=true` → gọi `showBrowserGuide()`.
-- `showBrowserGuide()` phủ full-screen overlay (`#zalo_blocker_overlay`, style inject inline): mũi tên nhún + badge vàng **"Bấm vào đây"** chỉ lên nút **⋮** góc trên phải, thẻ 2 bước, và **ảnh minh hoạ** `open_with_browser.png` (menu Zalo, khoanh đỏ dòng *"Mở bằng trình duyệt"*).
-- Tắt Setting → overlay không hiện, người dùng ở lại trong Zalo.
-- **Test ngoài Zalo**: thêm `?zalo=1` vào URL để giả lập, xem trước overlay (vẫn cần Setting bật). Bỏ tham số → logic thật.
-- Ảnh hướng dẫn nằm cùng thư mục www: `open_with_browser.png`, serve tại `/employee-self-update-info/open_with_browser.png`.
-
-## Quét QR CCCD (điền nhanh — tùy chọn)
-
-Copy từ trang cũ, **rút gọn chỉ lấy 3 trường**: số CCCD, ngày cấp, số CMND cũ.
-- QR mẫu :
- - 051089009620|212869262|Nguyễn Thái Sơn|04071989|Nam|Xóm 1, Thôn Phước Bình, Bình Nguyên, Bình Sơn, Quảng Ngãi|12082021
- - 051200012093|212588805|Nguyễn Thành Vinh|01062000|Nam|131/9/2 đường Hùng Vương, Tổ 5, Trần Hưng Đạo, TP. Quảng Ngãi, Quảng Ngãi|30052025||||
-- **Chỉ hiện nút "📷 Quét mã QR trên CCCD"** khi field `custom_id_card_no` có trong `selected_fields` (gắn ngay trên ô nhập số CCCD).
-- Quét chỉ là **tùy chọn điền nhanh & chính xác** — ô nhập tay vẫn luôn có, nhân viên có thể tự gõ.
-- Thư viện `jsQR` load từ CDN (`jsqr@1.4.0`). Quét đa tỉ lệ (full → crop 60% → crop 35%, upscale 900px) + tăng tương phản (histogram stretch) để đọc QR nhỏ trên CCCD. Có nút bật đèn flash nếu thiết bị hỗ trợ.
-- Format QR CCCD (pipe-separated): `parts[0]`=CCCD, `parts[1]`=CMND cũ, `parts[6]`=ngày cấp (ddmmyyyy → ISO).
-- Điền vào (chỉ khi field tương ứng có trong config): `custom_id_card_no`, `custom_id_card_date_of_issue`, `custom_id_card_cmnd_no`, `date_of_birth` (ngày sinh, parts[3]) — và đánh dấu "đã đổi". CMND chỉ điền nếu đủ 9 số. Ngày cấp/ngày sinh trong QR là **ddmmyyyy** → `toISO` đổi sang `yyyy-mm-dd` (đã verify với CCCD thật; `<input type=date>` hiển thị theo locale trình duyệt nhưng giá trị lưu luôn đúng ISO).
-- **Ngày hết hạn CCCD (`custom_id_card__date_of_expired`) tự tính** vì QR không chứa: `_cccdExpiryISO(dob, issueDate)` theo Luật Căn cước 2023 — mốc 14/25/40/60 tuổi, cấp trong 2 năm trước mốc → tính sang mốc kế; cấp ≥58 tuổi → không thời hạn (bỏ trống). VD: sinh 04/07/1989, cấp 12/08/2021 (32 tuổi) → hết hạn 04/07/2029 (40 tuổi).
-  - **Từ 15/10/2026 ô này luôn tự tính, không cho nhập** (cả trang www, bảng sửa của HR, form Employee): tính lại mỗi khi
-    đổi ngày cấp / ngày sinh (không chỉ khi quét QR); server tính lại khi gửi (`_apply_cccd_expiry`) và khi lưu Employee
-    (hook `api/employee/cccd_expiry.set_employee_cccd_expiry`, field read_only). Bỏ qua luật "Future" + bắt buộc cho ô này
-    (thẻ đã quá hạn vẫn ghi đúng ngày quá khứ, NV không bị chặn gửi). Sinh 29/02 → 28/02 năm không nhuận (bản cũ ra ngày
-    không tồn tại). 3 bản thuật toán (Python, employee.js, index.html) đã đối chiếu khớp 2.531/2.531 hồ sơ.
-  - Đã điền 2.258 hồ sơ Employee đang trống (backfill_employee_expiry, không đổi `modified`); sao lưu ở
-    `bak20261015_employee_cccd_expiry`.
-- **Tự chuẩn hoá chữ NV/HR nhập** (16/10/2026, không cảnh báo, không hỏi): field chữ (Data / Small Text / Text / Long Text,
-  widget Auto), trừ validation Email → NFC, gộp khoảng trắng, chèn dấu cách chữ–số (`Xóm1` → `Xóm 1`; chỉ khi phần chữ ≥ 2 ký
-  tự có chữ thường → giữ `B2`, `TDP1`, `ABC123`), **viết hoa ký tự đầu của cả ô**. Validation **"Person Name"** (lựa chọn mới
-  trong Setting) → Hoa Đầu Mỗi Từ (`ĐOÀN THANH PHI` → `Đoàn Thanh Phi`). Trang: `normalizeText()` khi rời ô + khi gửi;
-  server: `_normalize_text()` trong `save_form_data` và `validate_desk_edit` (nguồn chuẩn) — 2 bản đã đối chiếu khớp.
-  Chỉ áp cho bản ghi mới / lần lưu mới, không sửa dữ liệu cũ. Đã đo trước khi làm: ~1% ô nghi không dấu, 49 ô dính chữ–số.
-- **Ô "Ghi chú thêm" gắn cứng đã BỎ** (16/10/2026): trang + `save_form_data` không còn `__remarks`. Cần ghi chú → thêm custom field
-  (Small Text) trong Setting. Ghi chú cũ trong data_json (21 phiếu) vẫn hiện ở bảng HR / PDF / Excel như trước (không xử lý thêm).
-- **Giá trị điền sẵn khi ô trống** (`FIELD_DEFAULTS` trong index.html, 15/10/2026): `custom_ethnicity` = "Kinh". Chỉ điền lúc
-  mở form khi ô đang trống; NV sửa được; không áp cho field `auto_fill = 0` / read_only; không tô "đã đổi" lúc load.
-  Tỉnh mặc định "Tỉnh Quảng Ngãi" xử lý riêng (`DEFAULT_PROVINCE`).
-
-> Khác trang cũ: **không** parse địa chỉ / không điền ngày sinh / không xử lý ảnh CCCD — đúng yêu cầu chỉ lấy CCCD + ngày cấp + CMND cũ.
-
-**Phần CCCD chỉ có 2 lựa chọn:** (1) **Quét mã QR trực tiếp** bằng camera, hoặc (2) **nhập tay** vào ô bên dưới.
-
-> **Tuỳ chọn "Chụp / chọn ảnh CCCD" đang TẠM ẨN** (đã comment trong `renderField`). Code decode ảnh tĩnh (`onCccdPhoto`, `_loadImage`, `_decodeImageForQR` — thử nhiều vùng cắt × upscale × tăng tương phản → jsQR) **vẫn giữ nguyên** để bật lại nhanh: chỉ cần bỏ comment khối HTML nút + `<input type="file">` trong `renderField`. (Các bước P1 BarcodeDetector / P2 zoom-focus / ZXing-wasm vẫn để dành nếu QR nhỏ ~1.5cm khó quét.)
-
----
-
-## Lưu nháp cục bộ (chống mất dữ liệu khi reload)
-
-Trang **không** giữ form state qua reload (đó là bản chất HTML, không liên quan `no_cache`) → dùng **localStorage**:
-
-- **Bật/tắt bằng Setting**: cờ **`allow_browser_local_storage`** (Check) → `get_field_config` trả `allow_local_draft`; page gate qua `draftAllowed()` (cả lưu lẫn khôi phục). **Tắt (mặc định)** → không lưu/không khôi phục gì.
-- **Tự lưu** (debounce 400ms) mỗi khi NV gõ/chọn — bắt qua delegate `input`/`change` trên `#form_area` nên phủ cả field render động & select địa chỉ.
-- **Key theo từng NV**: `esui_draft_<employee_id>` → nhiều NV trên cùng máy không đè nhau.
-- **Khôi phục** trong `loadForm`: nháp được **merge đè lên giá trị server TRƯỚC khi render** → cascade Tỉnh/Xã và mọi widget dựng đúng theo dữ liệu đang nhập dở; báo toast "Đã khôi phục thông tin bạn nhập dở trước đó".
-- **Xoá nháp** sau khi gửi thành công (`clearDraft`); nháp **quá 1 ngày** (`DRAFT_TTL`) tự bỏ.
-- Bọc try/catch: localStorage bị chặn (private mode) / đầy / JSON hỏng → bỏ qua, không chặn người dùng.
-
-## Đánh dấu field đã thay đổi
-
-- `get_form_data` trả về `original` (giá trị Employee gốc) và `values` (giá trị hiển thị = original đè bởi bản đã lưu).
-- Frontend chỉ đánh dấu `.changed` (ô tô màu terracotta) **khi NV thực sự thao tác** (event `input`/`change`) — **KHÔNG** đánh dấu lúc load. Trước đây gọi `markChanged` ngay khi render → báo nhầm với field `auto_fill`/prefill từ lần gửi trước (đã bỏ). **Không còn badge text "đã đổi"** — chỉ giữ ô tô màu + chú thích ở legend.
-
-**Bấm Gửi mà thiếu field required / sai định dạng:** ngoài toast liệt kê, `submitForm` gom **tất cả** field lỗi rồi `flashFields()` — thêm class `.field-error` (viền đỏ nháy `fieldErrPulse` ×3 + rung nhẹ) cho **mọi** field lỗi cùng lúc; tự gỡ sau 2.5s hoặc ngay khi NV nhập vào field đó. Không cuộn/không focus (dùng reflow `void offsetWidth` để animation chạy lại mỗi lần bấm Gửi).
-
----
-
-## Combobox chọn nhân viên (1000+ NV)
-
-Thay dropdown bằng ô tìm kiếm:
-- Gõ **mã** (vd `TIQN-0148`) hoặc **tên** → lọc client-side.
-- **Không phân biệt dấu** tiếng Việt (`deburr`: NFD + bỏ dấu tổ hợp + đ→d).
-- Điều hướng phím `↑ ↓ Enter Esc`, hiển thị tối đa 50 kết quả/lần.
-- `?emp=TIQN-xxx` trên URL → tự chọn sẵn.
-
----
-
-## APIs
-
-### Public (`allow_guest=True`)
-
-| Method | Tham số | Trả về |
-|---|---|---|
-| `get_field_config()` | — | `{sections:[{label, fields:[...]}], require_dob}` |
-| `get_eligible_employees()` | — | `[{employee_id, display_name, submitted}]` |
-| `verify_employee(employee_id, code)` | mã xác thực | `{valid: bool}` (luôn `true` nếu tắt validate) |
-| `get_form_data(employee_id, code=None)` | | `{original, values, has_existing, status, employee_name}` |
-| `save_form_data(employee_id, data, code=None)` | `data` = JSON | `{status:"success", message}` |
-
-> `get_form_data` & `save_form_data` đều gọi `_gate()` — nếu `validate_by_dob` bật mà `code` sai → throw.
-
-### HR (cần đăng nhập: HR Manager / HR User / System Manager)
-
-| Method | Mô tả |
+| Sửa | Cần |
 |---|---|
-| `download_excel(names=None)` | Export xlsx **2 sheet** (`New Data` / `Old Data`). `names`=JSON list hoặc null = tất cả |
-| `download_submission_pdf(employee_id, code=None)` | (guest) PDF phiếu thông tin đã gửi — có logo + tên công ty + bảng field + ghi chú |
+| `form.js`, `style.css`, `index.html` | có hiệu lực ngay (trang đang chạy production — sửa trên bản nháp + test trước) |
+| `.py` trong `api/self_update_info/` | **`bench restart`** (worker giữ module cũ; thêm hàm mới mà chưa restart → lỗi im lặng) |
+| JSON DocType | `bench --site … execute frappe.reload_doc --args '["customize_erpnext","doctype","<tên>"]'` (bump `modified`) |
+| JS Desk (form / list / Setting) | `bench --site … clear-cache` + tải lại trang |
+| Chuỗi giao diện | tiếng Anh trong code, dịch ở `locale/vi.po` (`#. source: tiqn`) rồi `bench compile-po-to-mo --app customize_erpnext` |
 
-**Excel — thiết kế để import ngược vào Employee:**
-- Cột: `[ID, Employee Name, <label từng field>...]`.
-- **`ID`** = `Employee.name` → Data Import map vào record để **update** (chọn "Update Existing Records").
-- Header field = **label gốc của field trong doctype Employee** (`df.label`, **KHÔNG** dùng `label_vi`) → khớp khi import. VD: "Date of Birth", "Mobile", "Bank Account No".
-- **Không** có cột `Status` / `Submitted On` (tránh map nhầm vào field Employee).
-- **Sheet 1 = `New Data`** (giá trị nhân viên nhập — sheet để import; ô khác giá trị cũ **tô vàng**).
-- **Sheet 2 = `Old Data`** (giá trị Employee hiện tại — để đối chiếu).
-
-> Frappe Data Import đọc **sheet đầu tiên** → `New Data` đặt đầu để import trực tiếp. Quy trình: Data Import (Employee) → Update Existing Records → upload file → map `ID` + các field → import.
-
----
-
-## Review + Đồng bộ về Employee (ĐÃ TRIỂN KHAI)
-
-**Vòng đời:** `Draft → Submitted → (Reviewed) → Synced`.
-
-**Setting `disable_review`** (Check, default 1): bật → **bỏ bước Review**, HR Sync thẳng từ `Submitted` (không có nút "Mark Reviewed"); tắt → giữ luồng cũ `Submitted → Reviewed → Synced`. `sync_to_employee` chấp nhận `Submitted` khi bật, còn `Reviewed` **luôn** được nhận (record cũ đã review vẫn sync được). Nút Desk đọc `disable_review` qua `frappe.db.get_single_value` để ẩn/hiện "Mark Reviewed" và điều kiện hiện "Sync".
-
-**Chỉ sync field thuộc Employee** (gồm `custom_`) — vì key trong `data_json` chính là fieldname Employee → `emp.set(fieldname, _coerce(value, fieldtype))`, **không cần `_SYNC_MAP`**.
-
-| Loại field | Sync? |
-|---|---|
-| Field Employee thường / `custom_*` (Data/Date/Select/Int/Check/Link/Phone…) | ✅ ghi thẳng |
-| Field địa chỉ `custom_*_province/_commune/_village` | ✅ ghi tên; **tự dựng lại `custom_*_address_full`** = village + commune + province |
-| Custom field (`is_custom`) | ❌ không thuộc Employee |
-| `__remarks` (ghi chú) | ❌ |
-| `employee` / `name` (định danh) | ❌ bỏ qua |
-
-**APIs (HR):**
-- `review_forms(names)`: `Submitted → Reviewed` (bỏ qua record khác trạng thái). Ghi `reviewed_on/by`. Trả `{reviewed, skipped, results}`. *(Chỉ dùng khi `disable_review = 0`.)*
-- `get_syncable_fields()`: trả `[{fieldname, label}]` các field Employee thật (non-custom, bỏ `employee`/`name`) — cho dialog chọn field ở list view.
-- `sync_to_employee(names, fields=None)`: trạng thái hợp lệ = `{Submitted, Reviewed}` nếu `disable_review` bật, ngược lại `{Reviewed}`. `fields` (JSON list fieldname) → **chỉ ghi các field HR chọn**; `None` → tất cả. Rỗng → throw. Mỗi record `emp.set()` field thật → dựng lại `_full` → `emp.save()` trong **try/except + commit riêng từng record** → `Synced` + `synced_on/by`. Trả `{synced, failed, skipped, results:[{employee, ok, message}]}`.
-- `_coerce_for_employee(value, fieldtype)`: rỗng→None cho Date/Int/Float/Link; Check→0/1; Int/Float cast; còn lại string.
-- `get_submission_view(name)`: mỗi row có thêm `fieldname` (để dialog Sync ở form view build checkbox).
-
-**Nút (desk, `__()` translatable):**
-- **List view**: `Download File` (trước 15/10/2026 tên "Download Excel") → **dialog**: `All Info` (New Data + Old Data, như cũ) | `Info for Sign` (danh sách in cho NV ký: field lấy theo ô **"Info for Sign"** của từng field trong Setting (mặc định không tick; dialog chỉ liệt kê, không chọn; chưa tick field nào → báo lỗi); luôn in đủ các field đó, không lọc "chỉ thay đổi"; field chưa có dữ liệu (cả mới lẫn Employee đều trống) VẪN in dòng, ô Nội dung trống để NV mới tự ghi tay; ghi chú NV không xuất; nội dung luôn là giá trị MỚI, mới trống → lấy Employee; **A4 ngang**, cột: STT | Nhân viên (Mã NV xuống dòng Họ tên) | Thông tin | Nội dung | Ghi chú (trống, ghi tay) | Chữ ký (trống, ký tay); STT đánh theo NV, STT/Nhân viên/Ghi chú/Chữ ký gộp ô theo NV; địa chỉ mỗi Section 1 dòng đầy đủ "thôn, xã, tỉnh"; liên hệ khẩn cấp 1 dòng "Tên (Quan hệ) - SĐT"; số CCCD + ngày cấp 1 dòng "CCCD": "<số>, cấp ngày dd/mm/yyyy" (ngày hết hạn vẫn dòng riêng; nhóm khai ở `_SIGN_GROUPS`); **Định dạng Excel hoặc PDF** (ô "File Format"): PDF = A4 ngang, lề trên/dưới 10mm (trái/phải 15mm), trang 1 = tiêu đề + 4 NV, các trang
-sau = 5 NV, mỗi trang là 1 bảng riêng nên tên cột lặp lại, chân trang "Trang x/y" (footer-center của wkhtmltopdf, không cần JS); cỡ chữ
-chung = LỚN NHẤT (5–16px, tìm nhị phân; trước 16/10 trần 11px để thừa chỗ) mà không trang nào tràn — `get_pdf` TẮT JavaScript nên phải dựng thử + đếm trang (pypdf);
-cấu hình thật (8 dòng/NV) → xem test_info_for_sign_pdf. Tick quá nhiều mục (cỡ tốt nhất < 6px) → tự lùi bố cục 3/4, 2/3… (`_SIGN_PDF_FALLBACK`); cỡ chữ dò trên MẪU (trang 1 + 6 trang
-nặng nhất) rồi dựng cả file 1 lần để kiểm — dò trên cả file tốn ~6s/lần với 915 phiếu, dễ vượt timeout 120s; PDF **tối đa 100 phiếu**
-mỗi lần (`INFO_FOR_SIGN_PDF_MAX_RECORDS`, chặn ở server + dialog; Excel không giới hạn); tên file `employee_info_for_sign_ddmmyyyy.pdf`;
-PDF trả kiểu attachment (tải về ngay, không lưu gì trên server); nhãn trùng giữa các Section ghi kèm tên Section); `Mark Reviewed` **chỉ khi `disable_review = 0`**; `Sync to Employee` → mở **dialog `MultiCheck` chọn field** (mặc định tick tất cả) + nút "Select all / none" → `sync_to_employee(names, fields)` → dialog kết quả (bảng từng NV ✅/❌).
-- **Form view**: `Mark Reviewed` (khi `disable_review=0` & Submitted); `Sync to Employee` (khi `disable_review` ? Submitted/Reviewed : Reviewed) → mở dialog chọn field, **mặc định tick các field "đã đổi"** (kèm giá trị); `Generate PDF` (`download_pdf_for_hr` — cùng phiếu PDF như trang www, kèm cam kết + chữ ký). **`Edit in Portal` đã BỎ (06/10/2026)** — HR sửa trên bảng, CCCD nhập tay.
-
-**HR mở trang www cho 1 NV** (không còn nút, gõ tay URL) = `/employee-self-update-info?emp=<id>`. HR **được mở BẤT KỲ nhân viên nào**, kể cả NV không có trong danh sách Setting (`_ensure_eligible` bỏ qua eligibility cho HR; nhân viên thường vẫn chỉ sửa được nếu có trong danh sách). Trang **vào thẳng** form NV (ẩn ô tìm/chọn khi có `?emp=`; load lỗi → hiện lại ô chọn).
-
-> **Quan trọng — xác thực áp cho MỌI người:** khi `validate_by_dob` bật thì **kể cả HR/Admin cũng phải qua bước xác thực** (không còn HR-bypass). HR dùng **`bypass_code`** (mã 2 chữ số của admin) để vào bất kỳ NV mà không cần biết ngày sinh từng người. Sau khi HR sửa & gửi → status về `Submitted` (cần review lại).
-
-**Hiển thị cho HR** (thay JSON thô khó đọc): form có field HTML `data_view` render bảng **Nhãn : Giá trị** theo section, ô khác giá trị Employee hiện tại **tô vàng + "Cũ: …"** (ẩn khi đã Synced). JSON thô nằm trong section **"Raw Data (JSON)"** thu gọn. API `get_submission_view(name)`.
-
-**Sửa trực tiếp ngay trên form Desk (HR, 06/10/2026):** `get_submission_view` trả `editor` mỗi row (`_hr_editor`): `text` / `textarea` / `select` (dropdown) / `date` (control Date, lưu ISO) / `province` / `ward` (control Autocomplete + `public/js/vn_address_autocomplete.js`, đổi tỉnh → xoá xã). Check/Datetime/Link và field read_only: chỉ xem. Sửa ô nào → form "Not Saved" → lưu bằng **Save chuẩn / Ctrl+S** (`before_save` JS ghép vào `data_json`). Chốt chặn server: controller `validate` → `validate_desk_edit` (chỉ HR, chặn khi `Synced`, chỉ field có editor, Select ∈ options, ngày hợp lệ + Past/Future, xã thuộc tỉnh; `commitment_confirmed`/`signed_on`/`signature` chỉ trang www ghi được — `save_form_data` đặt `flags.from_portal`). Nút "Save Field Edits" + `update_submission_values` **đã xoá**.
-
-**Cam kết + chữ ký (06/10/2026):** trang www có thông báo mục đích ở đầu form, cuối form checkbox cam kết + ô vẽ chữ ký (canvas, pointer events). NV bắt buộc; HR mở `?emp=` thì không bắt buộc (không ký → giữ chữ ký cũ). Lưu vào `commitment_confirmed`, `signed_on`, `signature` (PNG data URL ≤ 400 KB). Phiếu PDF/PNG có câu cam kết + chữ ký + "Ký lúc" (đã ký thì bỏ "Thời điểm gửi"). Phiếu thu gọn để **vừa 1 trang A4** (15/10/2026: lề 15mm cả 4 phía — user chọn — khai qua rule `.print-format`
-— đặt qua `options` của get_pdf sẽ bị mặc định 15mm ghi đè; chữ 11px; với lề 15mm đã đo 40 phiếu dài nhất = 1 trang, kể cả ghi chú 600 ký tự).
-Ngày (field Date) in dạng dd/mm/yyyy; chỉ dòng tiêu đề Section có nền, cột nhãn không tô nền. Test: `api/self_update_info/test_self_update_sign.run`.
-
-> Lưu ý: sync **ghi đè** field Employee bằng giá trị NV khai; `emp.save()` có thể bung validate của Employee → lỗi được bắt & hiện chi tiết theo từng record, không làm hỏng các record khác.
-
----
-
-## CSRF — www page
-
-Trang `/www/` không có object `frappe` JS. Token inject qua Jinja: `window.csrf_token = "{{ csrf_token }}"`.
-Mọi lời gọi API dùng `FormData` + field `csrf_token` (Frappe validate CSRF từ **form body**, không phải header). Xem hàm `api()` trong `index.html`.
-
----
-
-## Ghi chú phát triển
-
-**Thêm field cho nhân viên cập nhật:** chỉ vào Setting → "+ Add Employee Field" → tick → Save. **Hết.** (Không migrate, không sửa code — `get_field_config` đọc meta Employee trực tiếp.)
-
-**Sau khi sửa code:**
-- `index.html` (www): có hiệu lực ngay (no_cache).
-- DocType / List / Setting JS: cần `bench build --app customize_erpnext`.
-- Thêm/đổi **whitelisted method Python**: cần `bench restart` (gunicorn cache module — nếu không restart sẽ báo "Failed to get method for command").
-
-**Site:** `erp.tiqn.local`.
-
-**Bảo mật:** trang là `allow_guest` (giống trang cũ). `validate_by_dob` là lớp chống spam/đổi nhầm người. Khi cần siết chặt hơn, bật `validate_by_dob` + đặt `bypass_code`.
+**Thêm field cho NV cập nhật:** Setting → tab Form Setup → "+ Add Employee Field" → tick → Save. Không sửa code.

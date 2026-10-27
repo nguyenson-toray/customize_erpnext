@@ -64,7 +64,7 @@ trong app này.
 - `www/employee-photos/employee-photos.md` — Employee Photos — Tài liệu kỹ thuật
 - `public/js/custom_scripts/employee_photos.md` — Tính năng Chụp & Upload Ảnh Nhân viên
 - `www/employee-self-update/employee-self-update.md` — Employee Self Update — Tài liệu kỹ thuật
-- `www/employee-self-update-info/employee-self-update-info.md` — Employee Self Update Info — Tài liệu kỹ thuật
+- `api/self_update_info/README.md` — Employee Self Update Info — Tài liệu kỹ thuật
 - `www/employee-self-update/plan_PaddleOCR_VietOCR_CCCD.md` — Kế hoạch tích hợp PaddleOCR + VietOCR để đọc ảnh CCCD
 
 ## Kho, sản xuất, in ấn
