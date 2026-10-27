@@ -605,6 +605,8 @@ jinja = {
         # money_in_words_vi và so_tien_bang_chu là cùng một hàm (alias).
         "customize_erpnext.api.vn_number_words.money_in_words_vi",
         "customize_erpnext.api.vn_number_words.so_tien_bang_chu",
+        # TIQN Payslip printout (Print Format "TIQN Payslip" + Download PDF button).
+        "customize_erpnext.employee_portal.payslip_print.payslip_print_html",
         "customize_erpnext.api.vn_number_words.format_vnd",
     ],
 }

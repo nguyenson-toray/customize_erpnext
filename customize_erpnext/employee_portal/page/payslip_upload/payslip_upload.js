@@ -24,7 +24,7 @@ class PayslipUploadPage {
 				<div class="psu-card">
 					<div class="psu-card-title">${__('1. Upload the salary Excel file')}</div>
 					<div class="text-muted small psu-help">
-						${__('One row per employee: No., Period (YYYY-MM or MM-YYYY), Period From, Period To, Pay Date, Employee, Employee Name, Designation, Department, Section, Group, then one column per payslip line (the TIQN Payslip fields), matched by the code at the start of the header (e.g. "3.2 ..."). No. and Designation are not imported. Period From / To may be inside the period (joined or left during it); empty Pay Date = the monthly pay day.')}
+						${__('One row per employee: No., Period (YYYY-MM or MM-YYYY), Period From, Period To, Pay Date, Employee, Employee Name, Designation, Department, Section, Group, Note (optional free text for the whole payslip), then one column per payslip line (the TIQN Payslip fields), matched by the code at the start of the header (e.g. "3.2 ..."). No. and Designation are not imported. Period From / To may be inside the period (joined or left during it); empty Pay Date = the monthly pay day.')}
 					</div>
 					<div class="psu-actions">
 						<button class="btn btn-default btn-sm psu-template">${__('Download Template')}</button>
@@ -273,7 +273,6 @@ class PayslipUploadPage {
 
 // "Download Template": monthly (pick the pay period) or resigned employees of a period
 // (relieving date range inside it) - employee columns pre-filled, HR types the numbers.
-// Same dialog in tiqn_payslip_list.js and payslip_upload.js (no shared bundle for the two).
 function payslip_template_dialog(api) {
 	frappe.call({ method: `${api}.get_template_periods`, type: 'GET' }).then((r) => {
 		const m = r.message || {};

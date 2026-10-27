@@ -258,6 +258,8 @@ def build_payslip_payload(doc, include_zero):
 		"published_on": fmt_datetime(doc.published_on),
 		"currency": "VND",
 		"net_pay": int(round(flt(doc.net_pay))),
+		# Free text C&B typed in the Note column for the whole payslip (1.8.0); null = none.
+		"note": (doc.get("note") or "").strip() or None,
 		"include_zero": include_zero,
 		"employee": {
 			"employee_id": doc.employee,

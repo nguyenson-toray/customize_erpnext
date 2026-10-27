@@ -91,5 +91,10 @@ class TIQNPayslip(Document):
 		def snapshot(doc):
 			return [flt(doc.get(f), 2) for f in fields]
 
-		if snapshot(before) != snapshot(self) or before.employee != self.employee or before.period != self.period:
+		if (
+			snapshot(before) != snapshot(self)
+			or before.employee != self.employee
+			or before.period != self.period
+			or (before.get("note") or "") != (self.get("note") or "")
+		):
 			frappe.throw(_("This payslip is published. Withdraw it on the Payslip Upload page before changing it."))

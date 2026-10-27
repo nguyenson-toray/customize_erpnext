@@ -47,6 +47,9 @@ Nhân viên vào làm giữa kỳ: cột *Từ ngày* là ngày vào làm.
 - Ô trống = 0. Số tiền ghi số nguyên, không ghi "đ".
 - **Không** đổi mã đầu tiêu đề. Phần chữ phía sau, thứ tự cột hay độ rộng cột thì sửa thoải mái.
 - Cột **Pay Date** để trống = ngày 5 tháng sau.
+- Cột **Note** (Ghi chú): ghi tùy ý cho cả phiếu, ví dụ lý do điều chỉnh lương tháng trước. Nhân viên thấy ghi chú
+  ở cuối phiếu trên Mini App, và ở dòng *Remark/Ghi chú* cuối phiếu in. Để trống = không có ghi chú (tải file lên lại sẽ
+  **xoá** ghi chú cũ nếu ô trống). Tối đa 1.000 ký tự.
 - Cột *STT* và *Chức danh* chỉ để dễ nhìn, ERP không đọc lại.
 
 ### Bước 3 — Tải file lên và kiểm tra
@@ -117,7 +120,26 @@ sửa *Đến ngày* thành ngày trước ngày nghỉ việc, hoặc để tr�
 
 ---
 
-## 5. Gửi thông báo khác
+## 5. In phiếu lương ra giấy
+
+Khi cần đưa phiếu giấy cho người lao động:
+- **Một phiếu**: mở phiếu → nút **Download PDF** → tải về file PDF khổ A4.
+- **Nhiều phiếu / cả kỳ lương**: danh sách **Phiếu lương** → nút **Download PDF** → hộp thoại:
+  - **Payslips**: *Ticked payslips* = các phiếu đã tick (mặc định khi có tick), hoặc *By pay period* = cả kỳ — chọn **Kỳ
+    lương**, có thể chọn thêm **Section / Group** (in riêng một bộ phận) và **Trạng thái** (mặc định *Published* = phiếu
+    đã phát hành).
+  - **Output**: **ZIP - one PDF per payslip** (mặc định, mỗi người một file PDF) hoặc **One combined PDF** (tất cả phiếu
+    trong **một file PDF**, mỗi người một trang — mở ra bấm in một lần là xong). Chỉ 1 phiếu thì luôn ra 1 file PDF.
+
+  Cả kỳ (khoảng 1.000 phiếu) mất khoảng **2 phút** (có thanh tiến độ), xong thì tự tải về; trong lúc chờ đừng đóng trang.
+  Phiếu được xếp theo **Section → Group → Mã NV** để in xong phát theo bộ phận cho tiện.
+- Tên file: `Kỳ_Section_Group_Mã NV_Họ tên.pdf`, ví dụ `2026-09_HR-GA_IT_TIQN-0148_Nguyễn Thái Sơn.pdf`.
+- Muốn in khổ **A5**: chọn khổ A5 trong hộp thoại in của máy in (tự thu nhỏ vừa trang).
+- Phiếu **chưa phát hành** (nháp / đã thu hồi) in ra có chữ chìm **"BẢN NHÁP / DRAFT"**, chỉ để kiểm tra, **không**
+  phát cho người lao động.
+- Mỗi lần in được ghi lại ở phần lịch sử cuối phiếu ("Printed PDF").
+
+## 6. Gửi thông báo khác
 
 Mini App ▸ **Thông báo** → **Thêm mới**:
 - **Đối tượng**: *Tất cả* (cả công ty), hoặc *Nhân viên* rồi chọn từng người ở ô bên dưới.
@@ -126,11 +148,11 @@ Mini App ▸ **Thông báo** → **Thêm mới**:
 
 ---
 
-## 6. Nhân viên chưa vào được app
+## 7. Nhân viên chưa vào được app
 
 App so **SĐT Zalo** của nhân viên với ô **Mobile Phone** trên hồ sơ nhân viên, không khớp thì so tiếp ô **Mobile Zalo Phone**.
 
-### 6.1 Yêu cầu liên kết (cách thường gặp)
+### 7.1 Yêu cầu liên kết (cách thường gặp)
 Nhân viên bị báo "chưa tìm thấy hồ sơ" sẽ nhập **mã NV + họ tên** trên app → hiện ở Mini App ▸ **Yêu cầu liên kết**.
 1. Mở yêu cầu, xem khung cam **Kiểm tra trước khi duyệt** và ô **Khớp tên**.
 2. 🔴 **Gọi lại số ở ô SĐT Zalo** để chắc đúng là nhân viên đó. Mã NV và họ tên ai cũng biết, nên người khác có thể
@@ -153,17 +175,17 @@ Nhân viên bị báo "chưa tìm thấy hồ sơ" sẽ nhập **mã NV + họ t
   Nếu tài khoản cũ không còn dùng (đổi điện thoại, đổi Zalo): mở **Tài khoản Zalo** cũ → tick **Đã tắt** → Lưu, rồi
   mới duyệt.
 
-### 6.2 Nhân viên không cho app đọc SĐT
+### 7.2 Nhân viên không cho app đọc SĐT
 App hiện **Zalo User ID**, nhân viên gửi mã này cho C&B. Mini App ▸ **Tài khoản Zalo** → tìm theo *Zalo User ID* →
 nhập SĐT có trong hồ sơ của nhân viên → Lưu. ERP chặn số không khớp nhân viên nào.
 
-### 6.3 Khoá tài khoản
+### 7.3 Khoá tài khoản
 **Tài khoản Zalo** → tick **Đã tắt** (Disabled), nhập lời nhắn → Lưu: nhân viên bị đăng xuất ngay. Người nghỉ việc quá
 30 ngày, hoặc người ngoài công ty, bị ERP tự khoá, không cần làm gì.
 
 ---
 
-## 7. Cài đặt Cổng nhân viên
+## 8. Cài đặt Cổng nhân viên
 
 Thường **không cần sửa**. Các mục C&B hay dùng:
 
@@ -191,12 +213,12 @@ không cần IT sửa code.
 
 ---
 
-## 8. Câu hỏi thường gặp
+## 9. Câu hỏi thường gặp
 
 **Nhân viên báo không thấy phiếu?** Kiểm tra theo thứ tự:
 - phiếu đã **Phát hành** chưa (nháp thì nhân viên không thấy);
 - đúng kỳ chưa;
-- nhân viên vào được app chưa (mục 6).
+- nhân viên vào được app chưa (mục 7).
 
 **Biết ai đã xem phiếu?** Report *Tổng hợp phiếu lương theo kỳ*, hoặc cột *Xem lần đầu lúc* trên từng phiếu.
 
@@ -209,7 +231,7 @@ sách Phiếu lương), vì ở đó ERP kiểm tra lỗi và công thức.
 
 ---
 
-## 9. Lưu ý bảo mật
+## 10. Lưu ý bảo mật
 
 - File lương chứa thu nhập của mọi người: **không gửi qua Zalo / email**, xoá bản trên máy sau khi nhập.
 - Chỉ phê duyệt *Yêu cầu liên kết* sau khi **đã gọi xác nhận** đúng người.

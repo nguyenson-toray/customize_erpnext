@@ -1,0 +1,77 @@
+{#- TIQN Payslip printout = the paper payslip (employee_portal/phiếu lương.png). Rendered by
+    payslip_print.payslip_print_html(); A4 by wkhtmltopdf (old WebKit: tables, no flexbox).
+    Printed text is the bilingual paper document, not UI: kept as on paper, not translated. -#}
+<div class="tiqn-ps">
+<style>
+	.tiqn-ps { position: relative; font-family: "Times New Roman", Times, serif; font-size: 9.5pt; color: #000; }
+	.tiqn-ps .t1 { text-align: center; font-weight: bold; font-size: 13pt; margin: 0; }
+	.tiqn-ps .t2 { text-align: center; font-weight: bold; font-style: italic; font-size: 13pt; margin: 0 0 2px; }
+	.tiqn-ps .t3 { text-align: center; font-weight: bold; font-size: 11pt; margin: 0 0 6px; }
+	.tiqn-ps .fs { text-align: center; font-weight: bold; margin: 0 0 4px; }
+	.tiqn-ps table { width: 100%; border-collapse: collapse; }
+	.tiqn-ps .info td { padding: 1px 2px; font-size: 10pt; vertical-align: top; }
+	.tiqn-ps .info .k { white-space: nowrap; }
+	.tiqn-ps .info .v { font-weight: bold; }
+	.tiqn-ps .lines { margin-top: 6px; border: 1.2px solid #000; }
+	.tiqn-ps .lines th, .tiqn-ps .lines td { border: 0.6px solid #000; padding: 1.5px 4px; line-height: 1.2; }
+	.tiqn-ps .lines th { font-weight: bold; text-align: center; vertical-align: middle; }
+	.tiqn-ps .lines .no { text-align: center; }
+	.tiqn-ps .lines .num { text-align: right; white-space: nowrap; }
+	.tiqn-ps .lines .unit { text-align: center; white-space: nowrap; }
+	.tiqn-ps .lines tr.hd td { font-weight: bold; }
+	.tiqn-ps .lines tr.net td { font-weight: bold; font-size: 11pt; padding-top: 3px; padding-bottom: 3px; }
+	.tiqn-ps i { font-style: italic; }
+	.tiqn-ps .foot { margin-top: 8px; font-size: 10pt; }
+	.tiqn-ps .foot td { padding: 2px 2px; vertical-align: top; }
+	.tiqn-ps .foot .k { white-space: nowrap; width: 1%; padding-right: 6px; }
+	.tiqn-ps .foot .v { white-space: pre-wrap; }
+	.tiqn-ps .logo { position: absolute; top: 0; left: 0; height: 7mm; }
+	.tiqn-ps .wm { position: absolute; top: 40%; left: 0; width: 100%; text-align: center; font-size: 64pt;
+		font-weight: bold; color: rgba(200, 0, 0, 0.16); -webkit-transform: rotate(-30deg); transform: rotate(-30deg); }
+</style>
+{%- if logo %}<img class="logo" src="{{ logo }}" alt="">{% endif %}
+{%- if draft %}<div class="wm">BẢN NHÁP / DRAFT</div>{% endif %}
+<p class="t1">PAYMENT SLIP/</p>
+<p class="t2">THÔNG BÁO CHI TIẾT TIỀN LƯƠNG</p>
+<p class="t3">{{ period_en }}/ {{ period_vi }}{% if period_range %} ({{ period_range }}){% endif %}</p>
+{%- if doc.final_settlement %}<p class="fs">Final settlement/<i>Thanh toán nghỉ việc</i></p>{% endif %}
+<table class="info">
+	<tr>
+		<td class="k" style="width: 16%">Full Name/<i>Họ tên</i>:</td>
+		<td class="v" style="width: 40%">{{ (doc.employee_name or "") | e }}</td>
+		<td class="k" style="width: 22%">Employee ID/<i>Mã Nhân Viên</i>:</td>
+		<td class="v">{{ doc.employee | e }}</td>
+	</tr>
+	<tr>
+		<td class="k">Position/<i>Chức vụ</i>:</td>
+		<td class="v">{{ (doc.designation or "") | e }}</td>
+		<td class="k">Dept./<i>Bộ phận</i>:</td>
+		<td class="v">{{ dept | e }}</td>
+	</tr>
+</table>
+<table class="lines">
+	<thead>
+		<tr>
+			<th style="width: 7%">No/<i>STT</i></th>
+			<th>Content/<i>Nội Dung</i></th>
+			<th style="width: 10%">Unit/<i>ĐVT</i></th>
+			<th style="width: 17%">Amount/<br><i>Số tiền (VND)</i></th>
+		</tr>
+	</thead>
+	<tbody>
+	{%- for r in rows %}
+		<tr class="{{ 'net' if r.no == '9' else ('hd' if r.is_header else '') }}">
+			<td class="no">{{ r.no }}</td>
+			<td>{{ r.english | e }}{% if r.vietnamese %}/<i>{{ r.vietnamese | e }}</i>{% endif %}{% if r.formula %} ({{ r.formula }}){% endif %}{% if r.no == '9' %}:{% endif %}</td>
+			<td class="unit">{{ r.unit }}</td>
+			<td class="num">{{ r.amount }}</td>
+		</tr>
+	{%- endfor %}
+	</tbody>
+</table>
+{#- One line each at the end, as on the paper slip - not a Remark column per line. -#}
+<table class="foot">
+	<tr><td class="k">Transfer deadline/<i>Hạn chuyển khoản</i>:</td><td class="v"><b>{{ pay_date }}</b></td></tr>
+	<tr><td class="k">Remark/<i>Ghi chú</i>:</td><td class="v">{{ note | e }}</td></tr>
+</table>
+</div>

@@ -51,7 +51,7 @@ Employee Portal Settings. Sinh bằng `scripts/build_navigation.py` (đừng s�
 | `employee_portal/utils.py` | kỳ 26→25, SĐT (9 số cuối, `cell_number` rồi `custom_cell_phone_zalo`), quyền theo trạng thái NV, field khoản lương |
 | `employee_portal/payslip_admin.py` | Desk: file mẫu (tháng / NV nghỉ việc), preview, nhập Draft, phát hành, thu hồi |
 | `employee_portal/page/payslip_upload/` | trang Payslip Upload |
-| `employee_portal/doctype/tiqn_payslip/tiqn_payslip_list.js` | nút **Import from Excel** ở list TIQN Payslip (cùng API) |
+| `employee_portal/doctype/tiqn_payslip/tiqn_payslip_list.js` | list TIQN Payslip: màu trạng thái + nút **Download PDF** (import / publish chỉ ở trang Payslip Upload, 27/10) |
 | `employee_portal/report/payslip_period_summary/` | 1 kỳ: phát hành / đã xem / chưa xem + bảng các khoản chính |
 | `employee_portal/doctype/tiqn_portal_link_request/` | yêu cầu liên kết hồ sơ, nút Approve / Reject |
 | `employee_portal/notify.py` | tạo thông báo trong app (không gửi gì ra ngoài) |
@@ -120,9 +120,28 @@ Employee Portal Settings. Sinh bằng `scripts/build_navigation.py` (đừng s�
    (`final_settlement`, tự suy từ `relieving_date` trong kỳ): **không** thông báo — HR tự nhắn họ.
 4. Sai → **Withdraw** → sửa → upload lại → Publish. **Delete Drafts** xoá phiếu nháp chưa từng phát hành.
 5. Theo dõi: report **Payslip Period Summary** (Published / Viewed / Not Viewed, các khoản 1, 2, 5, 6, 9, ngày xem đầu).
+6. **In phiếu** (27/10, `payslip_print.py` + `payslip_print.html`): nút **Download PDF** trên form và trên list. Chỉ **A4** (khổ A5 thì C&B chọn trên máy in). 1 phiếu → PDF; nhiều
+   phiếu → ZIP mỗi phiếu 1 PDF, tên `{Period}_{section}_{group}_{employee}_{employee_name}.pdf` (bỏ ký tự cấm, bỏ
+   phần rỗng). Bố cục = phiếu giấy (`phiếu lương.png`): song ngữ English/label Mini App, đủ 44 dòng (0 = "-"), dưới
+   bảng 2 dòng "Transfer deadline/Hạn chuyển khoản" (Pay Date) + "Remark/Ghi chú" (= Note; không có cột Remark từng dòng), Dept = Section - Group, Draft/Withdrawn có chữ chìm "BẢN NHÁP / DRAFT".
+   Print Format **TIQN Payslip** (mặc định của DocType) gọi cùng template qua jinja method `payslip_print_html`
+   (hooks.py) → nút Print / Ctrl+P ra đúng mẫu. Engine **wkhtmltopdf** (Chrome PDF của v16 cần gói hệ thống
+   `libasound2` chưa cài — user chọn không cài 27/10). Nhiều phiếu: render 1 lần rồi tách trang bằng pypdf; số trang ≠
+   số phiếu (phiếu tràn trang vì Note dài) → render lại từng phiếu. PDF/ZIP trả thẳng, **không** lưu File (chứa
+   lương); mỗi phiếu được ghi Comment "Printed PDF". Thứ tự: period → section → group → employee.
+   **List** chỉ 1 nút **Download PDF** (27/10): phiếu đã tick (mặc định khi có tick) hoặc **cả kỳ** (Period + Section/
+   Group/Status, mặc định Published; `get_list` = theo quyền). ~1.000 phiếu ≈ 2 phút > timeout 120 s → `start_pdf_job`
+   → job queue `long` `build_pdf_job` (render 50 phiếu/lần) → list poll `pdf_job_status` 2 s/lần → `download_pdf_job`.
+   Output **ZIP** từng PDF (mặc định, kỳ 10/2026: 134 s, 64 MB) hoặc **1 PDF gộp** (127 s, 9,4 MB); 1 phiếu → luôn là
+   PDF. Kết quả nằm ở **Redis cache** (không persistence) 30 phút, chỉ user đã bấm mới tải được, tải 1 lần rồi xoá —
+   không lưu File; mỗi user 1 job một lúc; tối đa 3.000 phiếu. Comment "Printed PDF" ghi lúc tải về.
 
 File Excel: `No. | Period | Period From | Period To | Pay Date | Employee | Employee Name | Designation |
-Department | Section | Group | <khoản>`.
+Department | Section | Group | Note | <khoản>`.
+- **Note** (27/10): field `note` (Small Text) = ghi chú tự do cho **cả phiếu**, không phải từng dòng. Cột không bắt
+  buộc (file cũ vẫn nhập được); ô trống / không có cột = xoá ghi chú cũ (như khoản tiền); > 1.000 ký tự = lỗi dòng;
+  ghi đè phiếu Draft/Withdrawn mà Note khác → cảnh báo cũ/mới. Bị khoá khi Published như số tiền. Payload `note`
+  (contract 1.8.0), in thành khung dưới bảng.
 - `No.` và `Designation` chỉ để HR nhìn, không đọc lại. Tiêu đề cũ (`Kỳ lương | MSNV | Họ tên | …`) vẫn đọc được.
 - Cột khoản nhận theo **mã số đầu tiêu đề** (`3.2 …`); cột `… - Days` / `… - Hours` (cũ: `Unit/ĐVT`) = số ngày/giờ.
 - `Period From/To` phải nằm trong kỳ 26→25; trống = tự tính. `Pay Date` trống = ngày trả lương tháng (hoặc nghỉ + 14).

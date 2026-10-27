@@ -1,6 +1,6 @@
 # Employee Portal — Hợp đồng giao diện với Zalo Mini App "Cổng nhân viên"
 
-> **Phiên bản contract: 1.7.0 (26/10/2026).** Giai đoạn hiện tại **chỉ mở phiếu lương** (+ thông báo) — xem §3.5.
+> **Phiên bản contract: 1.8.0 (27/10/2026).** Giai đoạn hiện tại **chỉ mở phiếu lương** (+ thông báo) — xem §3.5.
 > **Đã chạy thật:** xác thực + phiếu lương + thông báo (M1). **M2** (các màn chỉ xem) code xong, chờ restart.
 > Chưa code: tạo/hủy đơn nghỉ, giấy tờ, giải trình (M3) và tin OA (M4). Xem §13. Tài liệu này được viết trước để đội Mini App dựng 21 màn bằng mock
 > (dữ liệu mẫu ở mỗi endpoint), góp ý, rồi backend mới code theo đúng bản đã chốt.
@@ -1306,6 +1306,7 @@ POST vì lần mở đầu tiên được ghi lại (ngày xem đầu tiên). C�
   "published_on": "2026-09-05 08:00:00",
   "currency": "VND",
   "net_pay": 9150000,
+  "note": "Điều chỉnh tháng 7: +150.000 tiền cơm",
   "include_zero": false,
   "employee": { "employee_id": "TIQN-0231", "full_name": "Nguyễn Văn An",
                 "department": "Production", "section": "Sewing", "group": "Sewing 05" },
@@ -1358,6 +1359,12 @@ POST vì lần mở đầu tiên được ghi lại (ngày xem đầu tiên). C�
   ]
 }}
 ```
+
+#### `note` — ghi chú của phiếu *(từ 1.8.0)*
+
+Chữ tự do phòng Nhân sự ghi cho **cả phiếu** (lý do điều chỉnh, lời nhắn…), `null` khi không có. Có thể nhiều
+dòng (`\n`), tối đa 1.000 ký tự. Có thì hiện khung **"Ghi chú"** ở cuối phiếu (sau dòng 9 Thực lĩnh), giữ xuống
+dòng; `null` thì không hiện khung. Không phụ thuộc nút "Ẩn khoản 0đ". Bản app cũ bỏ qua field này vẫn đúng.
 
 #### `rows` — phiếu lương như bản in giấy (từ 1.3.0, **dùng cái này**)
 
@@ -1599,6 +1606,7 @@ Khai báo URL chính sách dữ liệu và điều khoản (`get_config().legal`
 | 12/10/2026 | 1.0-draft | Chốt công hết ngày 25, điều chỉnh tới mùng 4: `get_attendance_summary` thêm `adjust_until`, `cutoff_date` luôn có. Giữ tên máy chấm công. `login` luôn có key `expired_on`. |
 | 14/10/2026 | 1.1.1 | Trả lời `QUESTIONS_FOR_BACKEND.md` (Update 02): `designation` giờ là chức danh **tiếng Việt** (mục 17); `approver` của đơn nghỉ **có thể `null`** — đơn HR nhập tay (mục 16); `get_leave_form` thuộc **M3, chưa có** — Mini App chỉ hiện nút "Tạo đơn nghỉ" khi `get_config().features.leave_create = true` (§3.5), hiện đang `false` (mục 15). |
 | 14/10/2026 | 1.1.2 | Trả lời Update 02 (mục 18, 19): `employee.avatar_url` giờ là **URL ảnh nhân viên** (§ Employee), `null` khi không có ảnh công khai. Mục 19: simulator không có `access_token` → `login` luôn trả `ZALO_TOKEN_INVALID` "Thiếu mã truy cập Zalo" (không phải `NO_PHONE`); trên simulator dùng `dev_login`. `READ_ONLY` mặc định **30 ngày** (trước 60). Tài khoản mới không khớp nhân viên được dùng bị tự khoá phía ERP — không đổi kết quả trả về. Sửa: request song song sau khi phiên bị thu hồi giờ trả cùng `reason`/`result` (trước đó có thể ra `REVOKED`); `get_payslip_periods.upcoming` không hiện kỳ trước ngày vào làm. |
+| 27/10/2026 | 1.8.0 | `get_payslip` thêm **`note`** (string \| `null`) — ghi chú phòng Nhân sự ghi cho cả phiếu. Có thì hiện khung "Ghi chú" cuối phiếu, giữ xuống dòng. Chỉ thêm field, bản app cũ vẫn đúng. Đã chạy trên server từ 27/10. |
 | 26/10/2026 | 1.7.0 | `get_payslip.rows[]` thêm **`display_label`** — chữ hiển thị nguyên văn, đã gồm số thứ tự và ký hiệu ("9 Thực lĩnh (j=f-g+h+i)"), phòng Nhân sự soạn trên ERP. Mini App hiển thị field này, **không ghép** `no` / `formula` nữa. `label`, `no`, `formula` vẫn trả như cũ (bản app cũ vẫn đúng). |
 | 26/10/2026 | 1.6.1 | Không đổi payload. `rows[].label` giờ do phòng Nhân sự sửa trên ERP (Settings ▸ Payslip Lines) — có thể đổi bất cứ lúc nào, Mini App chỉ cần hiển thị đúng chữ server trả, không viết cứng. Text khác (thông báo, lỗi) cũng có thể được ERP đổi mà không cần phát hành bản app mới. |
 | 26/10/2026 | 1.6.0 | **Nhãn phiếu lương đúng phiếu giấy:** `rows[].label` (và `sections[].lines[].label`) giờ là phần tiếng Việt nguyên văn trên phiếu giấy, vd. "Công thực tế" → "Số ngày công thực tế làm việc", "Tổng thu nhập" → "Tổng" (§10). Cấu trúc, `no`, `formula`, thứ tự, số liệu **không đổi**. Nhãn dài hơn → cho xuống dòng. Phiếu đã cache vẫn hiện nhãn cũ tới khi phiếu được phát hành lại — chấp nhận được. **Yêu cầu liên kết hồ sơ** (§6): mỗi tài khoản Zalo **1 yêu cầu**, gửi lại = ghi đè (được cả khi đang chờ → không còn lỗi `PENDING`); tối đa **2 lần/ngày** → lỗi mới `REQUEST_LIMIT`; mã NV đang được tài khoản Zalo khác dùng → lỗi mới `EMPLOYEE_LINKED`; `RATE_LIMITED` giờ là quá 10 lần thử/ngày. `link_request` thêm `requested_at`, `request_count`, `requests_today`, `max_per_day`, `remaining_today`, `can_resend` (màn 04 hiện số lần, nút "Sửa yêu cầu"). Mã NV + họ tên phải khớp hồ sơ, không khớp → `NOT_FOUND` ngay (cùng câu với mã không tồn tại, `field: null`). ⚠ Có hiệu lực sau lần migrate + restart tới. |

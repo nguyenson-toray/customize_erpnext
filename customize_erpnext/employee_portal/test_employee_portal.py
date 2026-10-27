@@ -836,14 +836,14 @@ check("withdraw: 2", res["withdrawn"], 2)
 check("withdrawn invisible in app", code(call(api.get_payslip, token=TOKEN_A, period="2030-07")), "NOT_FOUND")
 check("withdraw removes the company-wide notification", frappe.db.exists("TIQN Portal Notification", mine[0]["id"]), None)
 
-# Template layout (24/10): No. | Period | From | To | Pay Date | Employee | Name | Designation | Dept | Section | Group.
+# Template layout (24/10, + Note 27/10): No. | Period | From | To | Pay Date | Employee | Name | Designation | Dept | Section | Group | Note.
 wb3 = Workbook()
 ws3 = wb3.active
 ws3.append(list(payslip_admin.TEMPLATE_IDENT) + comp_cols)
-ws3.append([1, "2030-07", getdate("2030-06-26"), "2030-07-25", None, EMP_A, "", "Any text", "Office", "HR-GA", "IT"] + vals(good))
-ws3.append([2, "2030-08", "2030-07-20", "2030-08-25", None, EMP_B, "", "", "", "", ""] + vals(good))
-ws3.append([3, "2030-08", "abc", None, None, EMP_A, "", "", "", "", ""] + vals(good))
-ws3.append([4, "2030-09", "2030-08-30", "2030-09-20", "2030-09-30", EMP_A, "", "", "", "", ""] + vals(good))
+ws3.append([1, "2030-07", getdate("2030-06-26"), "2030-07-25", None, EMP_A, "", "Any text", "Office", "HR-GA", "IT", None] + vals(good))
+ws3.append([2, "2030-08", "2030-07-20", "2030-08-25", None, EMP_B, "", "", "", "", "", None] + vals(good))
+ws3.append([3, "2030-08", "abc", None, None, EMP_A, "", "", "", "", "", None] + vals(good))
+ws3.append([4, "2030-09", "2030-08-30", "2030-09-20", "2030-09-30", EMP_A, "", "", "", "", "", None] + vals(good))
 buf3 = io.BytesIO()
 wb3.save(buf3)
 f3 = frappe.get_doc({"doctype": "File", "file_name": f"unit3-{RUN}.xlsx", "is_private": 1, "content": buf3.getvalue()}).insert(
@@ -864,7 +864,7 @@ payslip_admin.discard_upload(f3.file_url)
 wb4 = Workbook()
 ws4 = wb4.active
 ws4.append(list(payslip_admin.TEMPLATE_IDENT) + comp_cols)
-ws4.append([1, "2030-07", None, None, None, EMP_A, "", "", "", "", ""] + vals(good))
+ws4.append([1, "2030-07", None, None, None, EMP_A, "", "", "", "", "", None] + vals(good))
 buf4 = io.BytesIO()
 wb4.save(buf4)
 f4 = frappe.get_doc({"doctype": "File", "file_name": f"unit4-{RUN}.xlsx", "is_private": 1, "content": buf4.getvalue()}).insert(
@@ -879,7 +879,7 @@ check("re-import withdrawn: stays Withdrawn", frappe.db.get_value("TIQN Payslip"
 wb5 = Workbook()
 ws5 = wb5.active
 ws5.append(list(payslip_admin.TEMPLATE_IDENT) + comp_cols)
-ws5.append([1, "2030-07", None, getdate("2030-07-20"), None, EMP_A, "", "", "", "", ""] + vals(good))
+ws5.append([1, "2030-07", None, getdate("2030-07-20"), None, EMP_A, "", "", "", "", "", None] + vals(good))
 buf5 = io.BytesIO()
 wb5.save(buf5)
 f5 = frappe.get_doc({"doctype": "File", "file_name": f"unit5-{RUN}.xlsx", "is_private": 1, "content": buf5.getvalue()}).insert(ignore_permissions=True)
@@ -896,7 +896,7 @@ for to_ in ("2030-07-25", "2030-07-20", "2030-07-19", None):
 	wb6 = Workbook()
 	ws6 = wb6.active
 	ws6.append(list(payslip_admin.TEMPLATE_IDENT) + comp_cols)
-	ws6.append([1, "2030-07", None, getdate(to_) if to_ else None, None, EMP_A, "", "", "", "", ""] + vals(good))
+	ws6.append([1, "2030-07", None, getdate(to_) if to_ else None, None, EMP_A, "", "", "", "", "", None] + vals(good))
 	buf6 = io.BytesIO()
 	wb6.save(buf6)
 	f6 = frappe.get_doc({"doctype": "File", "file_name": f"unit6-{RUN}.xlsx", "is_private": 1, "content": buf6.getvalue()}).insert(ignore_permissions=True)
@@ -905,8 +905,116 @@ for to_ in ("2030-07-25", "2030-07-20", "2030-07-19", None):
 frappe.db.set_value("Employee", EMP_A, "relieving_date", real_relieving, update_modified=False)
 check("left mid-period: Period To >= relieving warned, < relieving / empty not",
 	left_warn, {"2030-07-25": True, "2030-07-20": True, "2030-07-19": False, None: False})
+
+# Note (27/10): free text for the whole payslip, from the "Note" column; empty = no note.
+def _note_file(note, tag):
+	wb_ = Workbook()
+	ws_ = wb_.active
+	ws_.append(list(payslip_admin.TEMPLATE_IDENT) + comp_cols)
+	ws_.append([1, "2030-07", None, None, None, EMP_A, "", "", "", "", "", note] + vals(good))
+	buf_ = io.BytesIO()
+	wb_.save(buf_)
+	return frappe.get_doc({"doctype": "File", "file_name": f"unit-note{tag}-{RUN}.xlsx", "is_private": 1, "content": buf_.getvalue()}).insert(ignore_permissions=True)
+
+
+NOTE = "Điều chỉnh tháng 6: +150.000\nLiên hệ C&B nếu có thắc mắc"
+f7 = _note_file(NOTE, 1)
+r7 = payslip_admin.parse_upload(f7.file_url)["rows"][0]
+check("note: read from the Note column", r7["note"], NOTE)
+check("note: change shown in the overwrite warning", any(w.startswith("Note:") for w in r7["warnings"]), True)
+payslip_admin.import_upload(f7.file_url, confirm_warnings=1)
+ps_note = frappe.get_doc("TIQN Payslip", {"employee": EMP_A, "period": "2030-07"})
+check("note: saved on the payslip", ps_note.note, NOTE)
+from customize_erpnext.api.employee_portal.payslip import build_payslip_payload
+check("note: in the Mini App payload", build_payslip_payload(ps_note, False)["note"], NOTE)
+f8 = _note_file("x" * (payslip_admin.NOTE_MAX + 1), 2)
+check("note: too long = row error", bool(payslip_admin.parse_upload(f8.file_url)["rows"][0]["errors"]), True)
+payslip_admin.discard_upload(f8.file_url)
+check("note: template has a Note column after Group", list(payslip_admin.TEMPLATE_IDENT)[-2:], ["Group", "Note"])
+
+# Download PDF (27/10): A4, one page per payslip; several -> ZIP of one PDF each.
+import zipfile as _zip
+from pypdf import PdfReader
+from customize_erpnext.employee_portal import payslip_print
+
+print_names = frappe.get_all("TIQN Payslip", {"period": "2030-07"}, pluck="name", order_by="employee")
+files = payslip_print.build_files(print_names)
+check("print: one PDF per payslip, one A4 page each",
+	[(len(PdfReader(io.BytesIO(pdf)).pages), round(float(PdfReader(io.BytesIO(pdf)).pages[0].mediabox.height) / 72 * 25.4)) for _d, _n, pdf in files],
+	[(1, 297)] * len(print_names))
+pdf_a = next(pdf for d, _n, pdf in files if d.employee == EMP_A)
+text_a = PdfReader(io.BytesIO(pdf_a)).pages[0].extract_text()
+check("print: Withdrawn payslip has the DRAFT watermark", "DRAFT" in text_a, True)
+check("print: note printed", "Liên hệ C&B" in text_a, True)
+check("print: file name {Period}_{section}_{group}_{employee}_{employee_name}.pdf",
+	payslip_print.pdf_filename(frappe._dict(period="2030-07", section="HR-GA", group="IT", employee=EMP_A, employee_name="Nguyễn A/B")),
+	f"2030-07_HR-GA_IT_{EMP_A}_Nguyễn A B.pdf")
+check("print: empty parts left out", payslip_print.pdf_filename(frappe._dict(period="2030-07", section=None, group="", employee=EMP_A, employee_name="X")),
+	f"2030-07_{EMP_A}_X.pdf")
+payslip_print.download_pdf(frappe.as_json(print_names))
+with _zip.ZipFile(io.BytesIO(frappe.response["filecontent"])) as zf:
+	check("print: several -> ZIP with one PDF each", (frappe.response["filename"], len(zf.namelist())), (f"2030-07_{len(print_names)} payslips.zip", len(print_names)))
+payslip_print.download_pdf(frappe.as_json(print_names[:1]))
+check("print: one -> the PDF itself", frappe.response["filename"].endswith(".pdf"), True)
+check("print: more than 200 refused", refused_fn(lambda: payslip_print.build_files([f"x{i}" for i in range(201)])), "refused")
+frappe.set_user("Guest")
+try:
+	payslip_print.download_pdf(frappe.as_json(print_names[:1]))
+	print_guest = "printed"
+except frappe.PermissionError:
+	print_guest = "refused"
+frappe.set_user("Administrator")
+frappe.clear_messages()
+check("print: role required", print_guest, "refused")
+
+# List Download PDF (27/10): ticked or a period, background job, ZIP (default) or one combined PDF, once.
+_enqueued = []
+_real_enqueue = frappe.enqueue
+frappe.enqueue = lambda method, **kw: _enqueued.append(kw)
+try:
+	for _mode in ("zip", "combined"):
+		_job = payslip_print.start_pdf_job(period="2030-07", mode=_mode)
+		check(f"period pdf {_mode}: queued with every payslip", (_job["total"], _enqueued[-1]["mode"]), (len(print_names), _mode))
+		check(f"period pdf {_mode}: one job at a time", refused_fn(lambda: payslip_print.start_pdf_job(period="2030-07")), "refused")
+		payslip_print.build_pdf_job(_job["token"], _mode)
+		_st = payslip_print.pdf_job_status(_job["token"])
+		check(f"period pdf {_mode}: done", (_st["status"], _st["done"]), ("done", len(print_names)))
+		frappe.set_user("Guest")
+		try:
+			payslip_print.pdf_job_status(_job["token"])
+			_other = "seen"
+		except (frappe.PermissionError, frappe.ValidationError):
+			_other = "refused"
+		frappe.set_user("Administrator")
+		frappe.clear_messages()
+		check(f"period pdf {_mode}: other users cannot see it", _other, "refused")
+		payslip_print.download_pdf_job(_job["token"])
+		_content = frappe.response["filecontent"]
+		if _mode == "zip":
+			with _zip.ZipFile(io.BytesIO(_content)) as zf:
+				check("period pdf zip: one PDF per payslip", (frappe.response["filename"], len(zf.namelist())), (f"2030-07_{len(print_names)} payslips.zip", len(print_names)))
+		else:
+			check("period pdf combined: one PDF, one page per payslip", (frappe.response["filename"], len(PdfReader(io.BytesIO(_content)).pages)), (f"2030-07_{len(print_names)} payslips.pdf", len(print_names)))
+		check(f"period pdf {_mode}: downloaded once", refused_fn(lambda: payslip_print.download_pdf_job(_job["token"])), "refused")
+	_job = payslip_print.start_pdf_job(names=frappe.as_json(print_names), mode="combined")
+	payslip_print.build_pdf_job(_job["token"], "combined")
+	payslip_print.download_pdf_job(_job["token"])
+	check("ticked pdf: combined PDF of the ticked payslips", (frappe.response["filename"], len(PdfReader(io.BytesIO(frappe.response["filecontent"])).pages)), (f"2030-07_{len(print_names)} payslips.pdf", len(print_names)))
+	_job = payslip_print.start_pdf_job(names=frappe.as_json(print_names[:1]), mode="zip")
+	payslip_print.build_pdf_job(_job["token"], "zip")
+	payslip_print.download_pdf_job(_job["token"])
+	check("ticked pdf: one payslip = its PDF even with ZIP picked", frappe.response["filename"].endswith(".pdf") and frappe.response["filecontent"][:4] == b"%PDF", True)
+	check("pdf job: nothing ticked, no period refused", refused_fn(lambda: payslip_print.start_pdf_job()), "refused")
+	check("pdf job options: periods latest first", payslip_print.pdf_job_options()["periods"][:1], [max(frappe.get_all("TIQN Payslip", pluck="period", distinct=True))])
+	check("period pdf: Section filter", refused_fn(lambda: payslip_print.start_pdf_job(period="2030-07", section="zz-no-such-section")), "refused")
+	check("period pdf: unknown output refused", refused_fn(lambda: payslip_print.start_pdf_job(period="2030-07", mode="docx")), "refused")
+finally:
+	frappe.enqueue = _real_enqueue
 check("delete drafts skips re-imported withdrawn", payslip_admin.delete_draft_period("2030-07")["deleted"], 0)
 check("publish takes re-imported withdrawn", payslip_admin.publish_period("2030-07")["published"], 2)
+ps_note.reload()
+ps_note.note = "changed after publishing"
+check("note: locked on a published payslip", refused_fn(lambda: ps_note.save(ignore_permissions=True)), "refused")
 # Pre-filled template (23/10): pick a period -> one row per employee who worked in it.
 from openpyxl import load_workbook
 
@@ -987,6 +1095,7 @@ check("template: days column just before its amount", theader.index(payslip_admi
 check("template: days / hours headers short", (payslip_admin.qty_header(c12),
 	payslip_admin.qty_header(next(c for c in components if c.abbr == "2.1"))), ("1.2 Days", "2.1 Hours"))
 check("template: starts with No.", theader[:2], ["No.", "Period"])
+check("template: Note column right after Group", theader[10:12], ["Group", "Note"])
 _m, qty_errors, _missing = payslip_admin._map_columns(
 	["Kỳ lương", "MSNV", "3.2 Technical allowance - Days"], payslip_admin._components()
 )

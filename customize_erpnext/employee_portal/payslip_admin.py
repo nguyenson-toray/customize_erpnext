@@ -2,15 +2,16 @@
 # For license information, please see license.txt
 
 """Desk side of payslips: Excel template, upload (preview -> import as Draft),
-publish and withdraw. Used by the `payslip-upload` page and the "Import from Excel"
-button of the TIQN Payslip list. CnB (and System Manager) only.
+publish and withdraw. Used by the `payslip-upload` page (the TIQN Payslip list has no
+import / publish buttons since 27/10/2026). CnB (and System Manager) only.
 
 Excel layout (one row per employee; template since 24/10/2026):
 
     No. | Period | Period From | Period To | Pay Date | Employee | Employee Name |
-    Designation | Department | Section | Group | <components>
+    Designation | Department | Section | Group | Note | <components>
 
-No. and Designation are for HR's eyes only - never read back. The older Vietnamese
+No. and Designation are for HR's eyes only - never read back. Note (27/10/2026) = optional
+free text for the whole payslip (Mini App + printout), at most NOTE_MAX characters. The older Vietnamese
 headers (Kỳ lương | MSNV | Họ tên | dept | custom_section | custom_group) are still read.
 Period From / To may be cut inside the period (joined / left during it); empty = the
 controller works them out. Pay Date empty = the monthly pay day (or relieving + 14 days).
@@ -86,12 +87,14 @@ IDENT_COLUMNS = {
 	"department": ("dept", "department", "phong ban"),
 	"section": ("custom_section", "section"),
 	"group": ("custom_group", "group", "to"),
+	"note": ("note", "notes", "ghi chu", "remark", "remarks"),
 }
 IGNORED_COLUMNS = ("stt", "no", "no.", "#", "designation", "chuc danh", "chuc vu")
 TEMPLATE_IDENT = (
 	"No.", "Period", "Period From", "Period To", "Pay Date", "Employee", "Employee Name",
-	"Designation", "Department", "Section", "Group",
+	"Designation", "Department", "Section", "Group", "Note",
 )
+NOTE_MAX = 1000
 CODE_RE = re.compile(r"^\s*(\d+(?:\.\d+)?)(?=\s|$|/|\(|-)")
 QTY_LABELS = {"Day": "Days", "Hour": "Hours"}
 # On the _norm()-ed header, when it is not exactly a field label: "<code> Day(s)/Hour(s)"
@@ -263,12 +266,12 @@ def download_template(period=None, resigned=0, from_date=None, to_date=None):
 			row_period, first, last, pay = template_row(e, None if resigned else period)
 			ws.append(
 				[no, row_period, first, last, pay, e.name, e.employee_name, e.designation,
-				 strip_company_suffix(e.department), e.custom_section, e.custom_group]
+				 strip_company_suffix(e.department), e.custom_section, e.custom_group, None]
 				+ blanks
 			)
 	else:
 		example_from, example_to = period_bounds("2026-10")
-		ws.append([1, "2026-10", example_from, example_to, None, "TIQN-0001", "", "", "", "", ""] + blanks)
+		ws.append([1, "2026-10", example_from, example_to, None, "TIQN-0001", "", "", "", "", "", ""] + blanks)
 	bold = Font(bold=True)
 	fill = PatternFill("solid", fgColor="DDEBF7")
 	for cell in ws[1]:
@@ -278,10 +281,11 @@ def download_template(period=None, resigned=0, from_date=None, to_date=None):
 	ws.row_dimensions[1].height = 60
 	for i in range(1, len(headers) + 1):
 		ws.column_dimensions[ws.cell(row=1, column=i).column_letter].width = 14 if i > len(TEMPLATE_IDENT) else 16
-	# No. | Period | From | To | Pay Date | Employee | Name | Designation | Dept | Section | Group
-	for letter, width in zip("ABCDEFGHIJK", (6, 9, 11, 11, 11, 11, 26, 18, 16, 12, 12)):
+	# No. | Period | From | To | Pay Date | Employee | Name | Designation | Dept | Section | Group | Note
+	for letter, width in zip("ABCDEFGHIJKL", (6, 9, 11, 11, 11, 11, 26, 10, 10, 9, 9, 10)):
 		ws.column_dimensions[letter].width = width
-	ws.freeze_panes = ws.cell(row=2, column=len(TEMPLATE_IDENT) + 1).coordinate
+	# Frozen up to Employee Name (27/10/2026): who the row is stays in view while scrolling.
+	ws.freeze_panes = ws.cell(row=2, column=TEMPLATE_IDENT.index("Employee Name") + 2).coordinate
 	# Period and Employee must stay text, or Excel turns "10-2026" into a date and
 	# "0148" into 148; Period From / To and Pay Date are real dates.
 	for row in ws.iter_rows(min_row=2, max_row=max(ws.max_row, 1000)):
@@ -496,6 +500,11 @@ def parse_upload(file_url):
 				errors.append(_("{0}: cannot read the date \"{1}\".").format(_(label), cell(key)))
 				given = None
 			dates[key] = given
+		# Free text for the whole payslip (27/10/2026). Empty / no column = no note: like the
+		# amounts, nothing is kept from an earlier upload.
+		note = str(cell("note") or "").strip() or None
+		if note and len(note) > NOTE_MAX:
+			errors.append(_("Note is longer than {0} characters.").format(NOTE_MAX))
 		if period:
 			start, end = period_bounds(period)
 			first, last = dates["period_from"] or start, dates["period_to"] or end
@@ -525,7 +534,7 @@ def parse_upload(file_url):
 				existing[key] = frappe.db.get_value(
 					"TIQN Payslip",
 					{"employee": employee, "period": period},
-					["status", "import_batch", "modified", "period_from", "period_to", "pay_date"],
+					["status", "import_batch", "modified", "period_from", "period_to", "pay_date", "note"],
 					as_dict=True,
 				) or frappe._dict()
 			old = existing[key]
@@ -544,6 +553,8 @@ def parse_upload(file_url):
 						warnings.append(
 							_("{0}: {1} now, {2} in the file.").format(_(label), formatdate(old[field]), formatdate(dates[field]))
 						)
+				if (old.note or None) != note:
+					warnings.append(_("Note: \"{0}\" now, \"{1}\" in the file.").format(old.note or "-", note or "-"))
 
 		if employee:
 			if employee not in employees:
@@ -581,6 +592,7 @@ def parse_upload(file_url):
 				"department": str(cell("department") or "").strip() or None,
 				"section": str(cell("section") or "").strip() or None,
 				"group": str(cell("group") or "").strip() or None,
+				"note": note,
 				"period": period,
 				**dates,
 				"net_pay": amounts.get("9"),
@@ -664,6 +676,7 @@ def _import_rows(rows, batch, file_url, user):
 				"period_from": r.get("period_from"),
 				"period_to": r.get("period_to"),
 				"pay_date": r.get("pay_date"),
+				"note": r.get("note"),
 				"status": "Withdrawn" if was_published else "Draft",
 				"import_batch": batch,
 			}
