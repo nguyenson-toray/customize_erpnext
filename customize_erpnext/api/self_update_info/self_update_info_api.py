@@ -61,6 +61,7 @@ from .config import (  # noqa: F401
 	_commitment_html,
 	_selected_rows,
 	_build_config,
+	_layout_width,
 	_table_columns,
 	_table_required_if,
 	_is_table,

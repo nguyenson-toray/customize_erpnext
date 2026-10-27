@@ -92,6 +92,7 @@ def _build_config():
 				"required": bool(row.required),
 				"read_only": bool(row.read_only),
 				"widget": "Auto",
+				"width": _layout_width(row),
 				"custom": True,
 				"auto_fill": bool(row.auto_fill_data),
 				# Tick "Info for Sign" trong Setting → field có trong Excel Info for Sign.
@@ -120,6 +121,7 @@ def _build_config():
 				"required": bool(row.required),
 				"read_only": bool(row.read_only),
 				"widget": "Auto",
+				"width": "Full",  # bảng con luôn cả hàng
 				"custom": False,
 				"auto_fill": bool(row.auto_fill_data),
 				"info_for_sign": bool(row.get("info_for_sign")),
@@ -160,6 +162,7 @@ def _build_config():
 				"required": bool(row.required),
 				"read_only": bool(row.read_only),
 				"widget": row.widget or "Auto",
+				"width": _layout_width(row),
 				"custom": False,
 				"auto_fill": bool(row.auto_fill_data),
 				# Tick "Info for Sign" trong Setting → field có trong Excel Info for Sign.
@@ -180,6 +183,11 @@ def _build_config():
 			if dep and dep[0] in present:
 				f["depends_on"] = {"field": dep[0], "values": list(dep[1])}
 	return {"sections": [sections[s] for s in order]}
+
+
+def _layout_width(row):
+	"""Setting → "Width on Form": "Half" = 2 field Half liền nhau cùng 1 hàng trên trang www; còn lại "Full"."""
+	return "Half" if (row.get("layout_width") or "") == "Half" else "Full"
 
 
 def _table_columns(row, df):

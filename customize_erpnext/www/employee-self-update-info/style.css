@@ -165,6 +165,17 @@ input::placeholder, textarea::placeholder { color:#A9B0B8; opacity:1; }
 
 .grid2 { display:grid; grid-template-columns:1fr; gap:14px; }
 
+/* Field trong mỗi thẻ: lưới 2 cột; Full = cả hàng, Half = nửa hàng (Setting → Width on Form).
+   Half lẻ (JS gắn .solo) = cả hàng. Cặp Half: JS cân chiều cao nhãn để 2 ô nhập thẳng hàng. */
+.fgrid { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); column-gap:12px; }
+.fgrid > .field { grid-column:1 / -1; min-width:0; }
+.fgrid > .field.half { grid-column:auto; }
+.fgrid > .field.half.solo { grid-column:1 / -1; }
+.fgrid > .field.half .field-detail { margin:6px 0 0; }
+@media (max-width:359px) {   /* = HALF_MIN_WIDTH trong form.js */
+  .fgrid > .field.half { grid-column:1 / -1; }
+}
+
 /* ---------- buttons ---------- */
 button {
   font-family:var(--font-display); font-size:16px; font-weight:600;

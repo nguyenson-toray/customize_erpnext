@@ -4,11 +4,14 @@
 const fs = require("fs");
 const path = require("path");
 
-const PAGE_DIR = path.join(__dirname, "..", "..", "www", "employee-self-update-info");
+// ESUI_PAGE_DIR = thư mục bản nháp (index.html + form.js) để thử trước khi ghi đè trang thật đang chạy.
+const PAGE_DIR = process.env.ESUI_PAGE_DIR || path.join(__dirname, "..", "..", "www", "employee-self-update-info");
 
 function pageHtml() {
   let html = fs.readFileSync(path.join(PAGE_DIR, "index.html"), "utf8")
-    .replace(/\{%\s*(end)?raw\s*%\}/g, "").replace(/\{\{[^}]*\}\}/g, "");
+    .replace(/\{%\s*(end)?raw\s*%\}/g, "")
+    // Biểu thức Jinja → 0: vẫn là JS hợp lệ ở `window.csrf_token = {{ … | tojson }};` và `?v={{ asset_version }}`.
+    .replace(/\{\{[^}]*\}\}/g, "0");
   html = html.replace(/<script src="\/employee-self-update-info\/([\w.-]+)(\?[^"]*)?"><\/script>/g,
     (_m, file) => `<script>${fs.readFileSync(path.join(PAGE_DIR, file), "utf8")}</script>`);
   return html;

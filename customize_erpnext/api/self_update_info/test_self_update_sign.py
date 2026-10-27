@@ -1290,6 +1290,52 @@ def test_document_status():
 	return {"passed": len(results) - fail, "failed": fail}
 
 
+
+def test_layout_width():
+	"""Setting → Width on Form (27/10/2026): config["width"] = Half / Full; bảng con luôn Full. Không ghi DB.
+	bench --site erp.tiqn.local execute customize_erpnext.api.self_update_info.test_self_update_sign.test_layout_width"""
+	results = []
+
+	def check(name, ok, detail=""):
+		results.append((bool(ok), name, detail))
+
+	check("_layout_width: Half / Full / trống / lạ", [api._layout_width(frappe._dict(layout_width=v)) for v in ("Half", "Full", "", None, "half")]
+		== ["Half", "Full", "Full", "Full", "Full"])
+	real_rows = api._selected_rows
+
+	def fake_rows(setting):
+		base = {"enable": 1, "widget": "Auto", "auto_fill_data": 1, "required": 0, "read_only": 0, "validation": "",
+			"min_length": 0, "max_length": 0, "regex": "", "detail": "", "placeholder": "", "info_for_sign": 0}
+		return [
+			frappe._dict(base, employee_fieldname="gender", label_vi="Giới tính", section_label="A", is_custom=0, layout_width="Half"),
+			frappe._dict(base, employee_fieldname="cell_number", label_vi="SĐT", section_label="A", is_custom=0, layout_width=""),
+			frappe._dict(base, employee_fieldname="x_custom", label_vi="X", section_label="A", is_custom=1, custom_fieldtype="Data", layout_width="Half"),
+			frappe._dict(base, employee_fieldname="education", label_vi="Học vấn", section_label="B", is_custom=0, layout_width="Half",
+				max_rows=1, table_columns=""),
+		]
+
+	_set("_selected_rows", fake_rows)
+	try:
+		f = {x["fieldname"]: x for s in api._build_config()["sections"] for x in s["fields"]}
+		check("field Employee Half → width Half", f["gender"]["width"] == "Half")
+		check("field Employee để trống → Full", f["cell_number"]["width"] == "Full")
+		check("field custom Half → Half", f["x_custom"]["width"] == "Half")
+		check("bảng con luôn Full (dù Setting chọn Half)", f["education"]["width"] == "Full")
+		check("get_field_config gửi width cho trang www",
+			all("width" in x for s in api.get_field_config()["sections"] for x in s["fields"]))
+	finally:
+		_set("_selected_rows", real_rows)
+
+	fail = 0
+	for ok, name, detail in results:
+		if not ok:
+			fail += 1
+		print(f"{'PASS' if ok else 'FAIL'}  {name}  {detail if not ok else ''}")
+	print(f"\n{len(results) - fail}/{len(results)} passed")
+	return {"passed": len(results) - fail, "failed": fail}
+
+
+
 def test_commitment_text():
 	"""Câu cam kết lấy từ Setting.commitment_text (trống → câu mặc định). Không ghi DB.
 	bench --site erp.tiqn.local execute customize_erpnext.api.self_update_info.test_self_update_sign.test_commitment_text"""

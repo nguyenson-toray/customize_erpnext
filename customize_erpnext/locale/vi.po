@@ -1621,6 +1621,14 @@ msgid "Commitment Text"
 msgstr "Câu cam kết"
 
 #. source: tiqn
+msgid "Width on Form"
+msgstr "Độ rộng trên form"
+
+#. source: tiqn
+msgid "Half: shown side by side with the next Half field of the same section on the www page (also on phones). A Half field with no Half neighbour, or whose neighbour is hidden, takes the full row. Tables always use the full width."
+msgstr "Một nửa: nằm cạnh field \"Một nửa\" kế tiếp trong cùng section trên trang www (cả trên điện thoại). Field \"Một nửa\" không có field kế bên, hoặc field kế bên đang ẩn, sẽ chiếm cả hàng. Bảng con luôn chiếm cả hàng."
+
+#. source: tiqn
 msgid "Document Checklist"
 msgstr "Danh mục hồ sơ"
 

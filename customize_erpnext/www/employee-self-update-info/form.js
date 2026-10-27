@@ -409,7 +409,7 @@
           if (f.widget === "Address Province") provFieldInSection = f.fieldname;
           return renderField(f, provFieldInSection);
         }).join("");
-        return `<div class="card"><h2><span class="dot"></span>${esc(sec.label)}</h2>${fieldsHtml}</div>`;
+        return `<div class="card"><h2><span class="dot"></span>${esc(sec.label)}</h2><div class="fgrid">${fieldsHtml}</div></div>`;
       }).join("");
 
       // wire up + index fields by name
@@ -463,7 +463,50 @@
         const el = document.getElementById("f_" + f.fieldname);
         if (!show && el && el.value) { el.value = ""; markChanged(f); }
       }));
+      layoutHalfRows();   // field ẩn/hiện → ô Half mất bạn cặp giãn cả hàng / ghép lại khi hiện
     }
+
+    // ---------- 2 field "Half" cùng 1 hàng (Setting → Width on Form) ----------
+    // Cặp CỐ ĐỊNH theo thứ tự Setting: trong mỗi Section, field Half liền nhau ghép 1-2, 3-4… (field Full / bảng
+    // con cắt chuỗi). Ô lẻ, hoặc ô có bạn cặp đang ẩn (field "chỉ hiện khi…") → class "solo" = cả hàng —
+    // không ghép lại với ô kế tiếp để cặp không đổi chỗ khi ẩn/hiện.
+    // Nhãn 2 ô trong cặp cao bằng nhau (nhãn dài xuống dòng) để 2 ô nhập thẳng hàng.
+    // Dưới HALF_MIN_WIDTH (điện thoại rất hẹp) Half cũng thành cả hàng — khớp @media trong style.css.
+    const HALF_MIN_WIDTH = 360;
+    function layoutHalfRows() {
+      const pairs = [];
+      S.config.sections.forEach(sec => {
+        let open = null;   // ô Half đang chờ ô thứ 2
+        sec.fields.forEach(f => {
+          const box = document.getElementById("fg_" + f.fieldname);
+          if (!box) return;
+          box.classList.remove("solo");
+          const lbl = box.querySelector("label.fl");
+          if (lbl) lbl.style.minHeight = "";
+          if (!box.classList.contains("half")) { if (open) pairs.push([open]); open = null; return; }
+          if (open) { pairs.push([open, box]); open = null; } else open = box;
+        });
+        if (open) pairs.push([open]);
+      });
+      const twoCols = window.innerWidth >= HALF_MIN_WIDTH;
+      pairs.forEach(pair => {
+        const shown = pair.filter(b => !b.classList.contains("hidden"));
+        if (shown.length === 1) { shown[0].classList.add("solo"); return; }
+        if (shown.length !== 2 || !twoCols) return;
+        const lbls = shown.map(b => b.querySelector("label.fl"));
+        if (lbls.some(l => !l)) return;
+        const h = Math.max(...lbls.map(l => l.offsetHeight));
+        if (h) lbls.forEach(l => { l.style.minHeight = h + "px"; });
+      });
+    }
+    // Đo lại chiều cao nhãn khi xoay / đổi cỡ màn hình và khi web font tải xong (nhãn có thể đổi số dòng).
+    let _halfTimer = null;
+    const relayoutHalf = () => {
+      clearTimeout(_halfTimer);
+      _halfTimer = setTimeout(() => { if (S.config && S.config.sections) layoutHalfRows(); }, 150);
+    };
+    window.addEventListener("resize", relayoutHalf);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(relayoutHalf);
 
     function renderField(f, provField) {
       const id = "f_" + f.fieldname;
@@ -530,15 +573,17 @@
 <li>Hoặc <span style="color: #ff0000;">nhập tay vào ô bên dưới nếu <strong>KHÔNG </strong>quét được mã QR</span>.</li>
 </ul>
 </li>
-</ul></div>`
+</ul></div></div>`
         : "";
-      // Giải thích thêm cho field (cột "Detail" trong Setting) — hiện dưới nhãn.
+      // Giải thích thêm cho field (cột "Detail" trong Setting) — hiện dưới nhãn; field Half: dưới ô nhập
+      // (để 2 ô nhập cùng hàng thẳng nhau).
       const detailUi = f.detail
         ? `<div class="field-detail">${linkify(esc(f.detail))}</div>`
         : "";
-      return `<div class="field${ro}" id="fg_${f.fieldname}">
+      const half = f.width === "Half" && f.fieldtype !== "Table";
+      return `<div class="field${ro}${half ? " half" : ""}" id="fg_${f.fieldname}">
       <label class="fl" for="${id}">${esc(f.label)} ${req}</label>
-      ${detailUi}${scanUi}${input}</div>`;
+      ${half ? "" : detailUi}${scanUi}${input}${half ? detailUi : ""}</div>`;
     }
 
     // ---------- bảng con của Employee (Học vấn, Quá trình làm việc) ----------
