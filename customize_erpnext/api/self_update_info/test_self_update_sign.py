@@ -612,7 +612,9 @@ def test_info_for_sign_pdf():
 			for n in (4, 9, 14, 24):
 				pdf, texts, codes = export(all_names[:n])
 				# Bố cục thật = 4/5, hoặc lùi theo _SIGN_PDF_FALLBACK khi Setting tick nhiều mục (vd 16 dòng/NV → 3/4).
-				f1, p1 = (codes[0], codes[1] if len(codes) > 2 else P) if len(codes) > 1 else (F, P)
+				# Chỉ 2 trang thì trang 2 không đủ để đọc số NV/trang → lấy theo bố cục có trang 1 = codes[0].
+				per_of = dict(((F, P),) + api._SIGN_PDF_FALLBACK)
+				f1, p1 = (codes[0], codes[1] if len(codes) > 2 else per_of.get(codes[0], P)) if len(codes) > 1 else (F, P)
 				layout_ok = (f1, p1) in ((F, P),) + api._SIGN_PDF_FALLBACK or n <= f1
 				exp = 1 + math.ceil(max(0, n - f1) / p1)
 				fonts_ok = sorted({f for f, lay in tried if lay[0] == min(f1, n)})
@@ -975,7 +977,7 @@ def test_table_fields():
 
 
 def test_document_checklist():
-	"""Bảng "Hồ sơ / Tình trạng" cuối phiếu HR (Setting → Document Checklist (PDF)). Không ghi DB.
+	"""Bảng "Hồ sơ / Tình trạng" cuối phiếu HR (Setting → Document Checklist). Không ghi DB.
 	bench --site erp.tiqn.local execute customize_erpnext.api.self_update_info.test_self_update_sign.test_document_checklist"""
 	from customize_erpnext.api.self_update_info import self_update_info_api as api
 
@@ -985,9 +987,10 @@ def test_document_checklist():
 		results.append((bool(ok), name, detail))
 
 	H = api._document_checklist_html
-	check("trống → không có khối", H("") == "" and H(None) == "" and H(" \n\n  ") == "")
+	L = lambda names: [{"document": n, "required": 0} for n in names]  # danh sách Setting (phiếu cũ, chưa tick)
+	check("trống → không có khối", H([]) == "" and H(None) == "" and H(L(["", "  "])) == "")
 	items = [f"Hồ sơ {i}" for i in range(1, 12)]
-	h11 = H("\n".join(items[:5]) + "\n\n  \n" + "\n".join(items[5:]))
+	h11 = H(L(items[:5] + ["  "] + items[5:]))
 	trs = h11.split("<tr>")[1:]
 	check("11 mục: tiêu đề + 5 hàng đôi + 1 hàng trải ngang + Thông tin khác", len(trs) == 8, len(trs))
 	check("hàng 1: mục 1 bên trái, mục 6 bên phải", "1 <span class='cb'></span> Hồ sơ 1<" in trs[1] and "6 <span class='cb'></span> Hồ sơ 6<" in trs[1], trs[1])
@@ -997,11 +1000,20 @@ def test_document_checklist():
 	check("Thông tin khác về hồ sơ ở cuối", "Thông tin khác về hồ sơ (nếu có):" in trs[7])
 	check("ô tình trạng: Đạt / Không đạt / Quá hạn / Khác",
 		all(x in trs[1] for x in ("Đạt <span class='cb'>", "Không đạt <span class='cb'>", "Quá hạn <span class='cb'>", "Khác:")))
-	h10 = H("\n".join(items[:10]))
+	h10 = H(L(items[:10]))
 	check("10 mục: không có hàng trải ngang", "colspan='2'" not in h10 and len(h10.split("<tr>")[1:]) == 7)
-	h1 = H("Chỉ một")
+	h1 = H(L(["Chỉ một"]))
 	check("1 mục: 1 hàng trải ngang", "colspan='2'>1 " in h1 and len(h1.split("<tr>")[1:]) == 3)
-	check("escape HTML tên hồ sơ", "&lt;b&gt;" in H("<b>x</b>") and "<b>x" not in H("<b>x</b>"))
+	check("escape HTML tên hồ sơ", "&lt;b&gt;" in H(L(["<b>x</b>"])) and "<b>x" not in H(L(["<b>x</b>"])))
+	check("phiếu cũ (chưa tick): không có dòng Tình trạng hồ sơ", "Tình trạng hồ sơ" not in h11)
+	snap = [{"document": "A", "required": 1, "checked": 1}, {"document": "B", "required": 1, "checked": 0},
+		{"document": "C", "required": 0, "checked": 0}]
+	hs = H(snap)
+	check("bản chụp: hồ sơ đã tick → ô ☑ (cb on), chưa tick → ô trống",
+		"1 <span class='cb on'></span> A *<" in hs and "<span class='cb'></span> B *<" in hs and "C<" in hs and "C *" not in hs, hs)
+	check("bản chụp: dòng Tình trạng hồ sơ liệt kê bắt buộc còn thiếu", "Thiếu: B</td>" in hs, hs)
+	check("bản chụp: ô Đạt / Không đạt / Quá hạn vẫn để HR đánh tay", "Quá hạn <span class='cb'>" in hs)
+	check("bản chụp đủ → Đủ", "Tình trạng hồ sơ (NV tự khai, * = bắt buộc):</b> Đủ<" in H(snap[:1] + snap[2:]))
 
 	names = frappe.get_all(api.INFO_DT, pluck="name", limit=1)
 	if names:
@@ -1108,12 +1120,138 @@ def test_document_checklist():
 		check("lề PDF HR 10mm, www 15mm",
 			"margin-top:10mm;margin-bottom:10mm;margin-left:10mm" in api._hr_receipt_html(doc, gcf)
 			and "margin-top:15mm;margin-bottom:15mm;margin-left:15mm" in hgw)
-		setting_val = api._get_setting().get("pdf_document_checklist")
+		setting_docs = api._setting_documents()
 		hr = api._hr_receipt_html(doc, cfg)
-		check("_hr_receipt_html lấy đúng nội dung Setting",
-			("class='checklist'" in hr) == bool((setting_val or "").strip()), setting_val)
+		saved0 = json.loads(doc.data_json or "{}")
+		check("_hr_receipt_html: phiếu cũ → danh sách Setting; có bản chụp → in bản chụp",
+			("class='checklist'" in hr) == bool(saved0.get(api.DOCUMENTS_KEY) if api.DOCUMENTS_KEY in saved0 else setting_docs),
+			setting_docs)
 	else:
 		check("có phiếu để thử", False)
+
+	fail = 0
+	for ok, name, detail in results:
+		if not ok:
+			fail += 1
+		print(f"{'PASS' if ok else 'FAIL'}  {name}  {detail if not ok else ''}")
+	print(f"\n{len(results) - fail}/{len(results)} passed")
+	return {"passed": len(results) - fail, "failed": fail}
+
+
+
+def test_document_status():
+	"""Hồ sơ nộp kèm (Setting → Document Checklist, 27/10/2026): bản chụp, Tình trạng hồ sơ, Desk, phiếu.
+	Không ghi DB (doc trong bộ nhớ, rollback).
+	bench --site erp.tiqn.local execute customize_erpnext.api.self_update_info.test_self_update_sign.test_document_status"""
+	from customize_erpnext.api.self_update_info import self_update_info_api as api
+
+	results = []
+
+	def check(name, ok, detail=""):
+		results.append((bool(ok), name, detail))
+
+	frappe.set_user("Administrator")
+	K = api.DOCUMENTS_KEY
+	fake = frappe._dict(document_checklist=[
+		frappe._dict(document=" CCCD ", required=1), frappe._dict(document="", required=1),
+		frappe._dict(document="GPLX", required=0), frappe._dict(document="Khám SK", required=1)])
+	sd = api._setting_documents(fake)
+	check("Setting: bỏ dòng trống, strip tên, required 0/1",
+		sd == [{"document": "CCCD", "required": 1}, {"document": "GPLX", "required": 0}, {"document": "Khám SK", "required": 1}], sd)
+	snap = api._documents_snapshot(json.dumps(["CCCD", "GPLX", "Lạ"]), fake)
+	check("bản chụp: tick theo tên, tên lạ bỏ qua",
+		[d["checked"] for d in snap] == [1, 1, 0] and len(snap) == 3, snap)
+	check("bản chụp: chuỗi JSON hỏng / None → chưa tick", [d["checked"] for d in api._documents_snapshot("x[", fake)] == [0, 0, 0]
+		and [d["checked"] for d in api._documents_snapshot(None, fake)] == [0, 0, 0])
+	check("Setting trống → bản chụp rỗng", api._documents_snapshot(["CCCD"], frappe._dict(document_checklist=[])) == [])
+	check("status: thiếu bắt buộc", api._document_status(snap) == ("Documents Missing", ["Khám SK"]))
+	check("status: không bắt buộc chưa tick vẫn Đủ",
+		api._document_status(api._documents_snapshot(["CCCD", "Khám SK"], fake)) == ("Documents Complete", []))
+	check("status: chưa có bản chụp → trống", api._document_status([]) == ("", []))
+	check("clean: bỏ dòng không tên, ép 0/1", api._clean_documents(json.dumps([{"document": " A ", "required": "1", "checked": True},
+		{"document": ""}, "x"])) == [{"document": "A", "required": 1, "checked": 1}])
+	check("chữ trên phiếu", api._status_text_vi(snap) == "Thiếu: Khám SK"
+		and api._status_text_vi(api._documents_snapshot(["CCCD", "Khám SK"], fake)) == "Đủ" and api._status_text_vi([]) == "")
+
+	cfg = api._build_config()
+	check("Sync không bao giờ đọc khoá hồ sơ (không phải field cấu hình)", K not in api._config_fieldnames(cfg))
+	check("get_field_config có danh sách hồ sơ Setting", api.get_field_config().get("documents") == api._setting_documents())
+
+	names = frappe.get_all(api.INFO_DT, pluck="name", limit=1)
+	try:
+		if not names:
+			check("có phiếu để thử", False)
+		else:
+			doc = frappe.get_doc(api.INFO_DT, names[0])
+			saved = json.loads(doc.data_json or "{}")
+			saved[K] = snap
+			doc.data_json = json.dumps(saved, ensure_ascii=False)
+			api.apply_document_status(doc)
+			check("apply: Documents Missing + liệt kê", doc.document_status == "Documents Missing" and doc.missing_documents == "Khám SK",
+				(doc.document_status, doc.missing_documents))
+			saved.pop(K)
+			doc.data_json = json.dumps(saved, ensure_ascii=False)
+			api.apply_document_status(doc)
+			check("apply: phiếu cũ không có bản chụp → trống", doc.document_status == "" and doc.missing_documents == "")
+
+			# Desk: HR tick hồ sơ — được cả khi Synced; sửa field khác khi Synced vẫn bị chặn.
+			def desk(status, new_saved):
+				d = frappe.get_doc(api.INFO_DT, names[0])
+				before = frappe.get_doc(api.INFO_DT, names[0])
+				before.status = status
+				before.data_json = json.dumps({**json.loads(before.data_json or "{}"), K: snap}, ensure_ascii=False)
+				d._doc_before_save = before
+				d.status = status
+				d.data_json = json.dumps(new_saved, ensure_ascii=False)
+				return d
+			base = {**json.loads(frappe.db.get_value(api.INFO_DT, names[0], "data_json") or "{}"), K: snap}
+			ticked = [dict(x, checked=1) for x in snap]
+			d = desk("Synced", {**base, K: ticked})
+			api.validate_desk_edit(d)
+			api.apply_document_status(d)
+			check("desk: phiếu Synced vẫn tick hồ sơ được → Documents Complete", d.document_status == "Documents Complete"
+				and json.loads(d.data_json)[K] == ticked, d.document_status)
+			other = next((k for k in base if k not in (K, api.REMARKS_KEY)), None)
+			if other:
+				d = desk("Synced", {**base, K: ticked, other: "đổi-test"})
+				check("desk: phiếu Synced sửa field khác → chặn", _expect_throw(lambda: api.validate_desk_edit(d)))
+			d = desk("Submitted", {**base, K: [{"document": "  ", "checked": 1}, dict(snap[0], checked="0")]})
+			api.validate_desk_edit(d)
+			check("desk: bản chụp được làm sạch", json.loads(d.data_json)[K] == [dict(snap[0], checked=0)], json.loads(d.data_json)[K])
+
+			view = api.get_submission_view(names[0])
+			check("view: trả documents + documents_key", view.get("documents_key") == K and isinstance(view.get("documents"), list))
+
+			# Phiếu NV tải: 2 dòng hồ sơ; phiếu HR (compact) không in 2 dòng này (đã có bảng hồ sơ).
+			small = {"sections": [{"label": "A", "fields": [{"fieldname": "cell_number", "label": "SĐT", "fieldtype": "Data"}]}]}
+			hw = api._build_submission_html(doc, {K: snap}, small)
+			check("phiếu www: Hồ sơ nộp kèm + Đã có + Tình trạng",
+				'class="sec">Hồ sơ nộp kèm<' in hw and "<td class='val'>CCCD; GPLX</td>" in hw
+				and "<td class='lbl'>Tình trạng hồ sơ</td><td class='val'>Thiếu: Khám SK</td>" in hw, hw[-1200:])
+			check("phiếu www: chưa có bản chụp → không có khối", "Hồ sơ nộp kèm" not in api._build_submission_html(doc, {}, small))
+			check("phiếu HR (compact): không lặp 2 dòng hồ sơ", "Hồ sơ nộp kèm" not in api._build_submission_html(doc, {K: snap}, small, compact=True))
+			doc.data_json = json.dumps({K: snap}, ensure_ascii=False)
+			hr = api._hr_receipt_html(doc, small)
+			check("phiếu HR: in bản chụp của phiếu (☑ + Thiếu)", "<span class='cb on'></span> CCCD *" in hr and "Thiếu: Khám SK" in hr)
+
+			# PDF HR luôn 1 trang (27/10/2026): phiếu đầy đủ thật + bảng hồ sơ + câu hỏi phí → thu nhỏ vừa 1 trang.
+			import io
+
+			from pypdf import PdfReader
+			full = frappe.get_doc(api.INFO_DT, names[0])
+			fs = json.loads(full.data_json or "{}")
+			fs[K] = api._documents_snapshot(["CCCD photo công chứng"])
+			fs.setdefault("recruitment_fee_paid", "Không")
+			full.data_json = json.dumps(fs, ensure_ascii=False)
+			sign_cfg = api._info_for_sign_config(cfg)
+			pages = len(PdfReader(io.BytesIO(api._hr_receipt_pdf(full, sign_cfg))).pages)
+			check("PDF HR: luôn 1 trang", pages == 1, pages)
+			tall = dict(sign_cfg, sections=sign_cfg["sections"] + [{"label": f"Thêm {i}", "fields": [
+				{"fieldname": f"x{i}", "label": f"X{i}", "fieldtype": "Data"}]} for i in range(25)])
+			pages = len(PdfReader(io.BytesIO(api._hr_receipt_pdf(full, tall))).pages)
+			check("PDF HR: quá dài so với mức nhỏ nhất → vẫn trả PDF (nhiều trang), không lỗi", pages >= 1, pages)
+	finally:
+		frappe.db.rollback()
 
 	fail = 0
 	for ok, name, detail in results:

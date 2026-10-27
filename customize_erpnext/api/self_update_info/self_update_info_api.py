@@ -33,6 +33,9 @@ SETTING_DT = "Employee Self Update Info Setting"
 INFO_DT = "Employee Self Update Info"
 # Reserved key inside data_json for the employee's free-text remarks.
 REMARKS_KEY = "__remarks"
+# Hồ sơ nộp kèm (user 27/10/2026): bản chụp danh sách Setting → Document Checklist lúc lưu phiếu,
+# [{document, required, checked}] — Setting đổi sau thì phiếu cũ vẫn đúng như lúc nộp. Không Sync.
+DOCUMENTS_KEY = "__documents"
 # Chữ ký vẽ trên trang www: PNG data URL; canvas ~600x200 nét đen thường < 30 KB.
 _SIGNATURE_PREFIX = "data:image/png;base64,"
 _SIGNATURE_MAX_LEN = 400_000
@@ -875,6 +878,8 @@ def get_field_config():
 	# unlock code (bypass_code_for_unlock) is NEVER sent to the client.
 	config["lock_after_submit"] = bool(setting.get("lock_after_submit"))
 	config["commitment_html"] = _commitment_html(setting)
+	# Hồ sơ nộp kèm: NV tick hồ sơ đã có (không chặn gửi khi thiếu — HR theo dõi ở Tình trạng hồ sơ).
+	config["documents"] = _setting_documents(setting)
 	return config
 
 
@@ -995,12 +1000,14 @@ def get_form_data(employee_id, code=None, unlock_code=None):
 	status = None
 	has_existing = False
 	remarks = ""
+	documents = []  # tên hồ sơ đã tick ở lần gửi trước
 	if frappe.db.exists(INFO_DT, employee_id):
 		doc = frappe.get_doc(INFO_DT, employee_id)
 		status = doc.status
 		has_existing = True
 		saved = json.loads(doc.data_json or "{}")
 		remarks = saved.get(REMARKS_KEY, "")
+		documents = [d["document"] for d in _clean_documents(saved.get(DOCUMENTS_KEY)) if d["checked"]]
 		tables = {f["fieldname"] for sec in config["sections"] for f in sec["fields"] if _is_table(f)}
 		for fn in fieldnames:
 			if fn in saved:
@@ -1026,17 +1033,19 @@ def get_form_data(employee_id, code=None, unlock_code=None):
 		"status": status,
 		"employee_name": employee_name,
 		"remarks": remarks,
+		"documents": documents,
 		# HR sửa qua ?emp= → trang không bắt buộc cam kết + chữ ký.
 		"is_hr": _is_hr(),
 	}
 
 
 @frappe.whitelist(allow_guest=True)
-def save_form_data(employee_id, data, code=None, unlock_code=None, commitment=None, signature=None):
+def save_form_data(employee_id, data, code=None, unlock_code=None, commitment=None, signature=None, documents=None):
 	"""Store submitted values as JSON. Does NOT write back to Employee.
 
 	`commitment` (1/0) + `signature` (data URL PNG từ ô vẽ chữ ký): bắt buộc với NV;
 	HR sửa qua ?emp= thì không bắt buộc — không gửi chữ ký thì giữ chữ ký cũ.
+	`documents` = JSON list tên hồ sơ NV tick (Setting → Document Checklist); thiếu hồ sơ bắt buộc vẫn gửi được.
 	"""
 	if not employee_id:
 		frappe.throw(_("Missing employee"))
@@ -1121,6 +1130,10 @@ def save_form_data(employee_id, data, code=None, unlock_code=None, commitment=No
 	if errors:
 		frappe.throw("<br>".join(errors))
 
+	snapshot = _documents_snapshot(documents, setting)
+	if snapshot:
+		clean[DOCUMENTS_KEY] = snapshot
+
 	employee_name = frappe.db.get_value("Employee", employee_id, "employee_name")
 
 	if frappe.db.exists(INFO_DT, employee_id):
@@ -1175,13 +1188,34 @@ def download_pdf_for_hr(name):
 	_require_hr()
 	doc = frappe.get_doc(INFO_DT, name)
 	doc.check_permission("read")
-	html = _hr_receipt_html(doc, _info_for_sign_config(_build_config()))
-	from frappe.utils.pdf import get_pdf
+	pdf = _hr_receipt_pdf(doc, _info_for_sign_config(_build_config()))
 
 	frappe.response["filename"] = f"{_receipt_base(doc)}.pdf"
-	frappe.response["filecontent"] = get_pdf(html)
+	frappe.response["filecontent"] = pdf
 	frappe.response["type"] = "download"   # attachment → tải về ngay; không lưu gì trên server
 	frappe.response["content_type"] = "application/pdf"
+
+
+# Phiếu PDF phía HR LUÔN 1 trang (user 27/10/2026): tràn → thu nhỏ cả trang (wkhtmltopdf --zoom) từng bước
+# 0,05 tới khi vừa. Đo 27/10: phiếu đủ mục + câu hỏi phí + bảng hồ sơ cần 0,95; mỗi lần dựng ~0,37 giây.
+# Tới mức nhỏ nhất vẫn tràn → trả bản nhỏ nhất (nhiều trang) chứ không cắt nội dung.
+HR_RECEIPT_ZOOM_STEPS = (1.0, 0.95, 0.9, 0.85, 0.8, 0.75, 0.7)
+
+
+def _hr_receipt_pdf(doc, sign_config):
+	"""PDF phiếu HR (_hr_receipt_html) thu nhỏ vừa đúng 1 trang A4 — Generate PDF + PDF Split."""
+	import io
+
+	from frappe.utils.pdf import get_pdf
+	from pypdf import PdfReader
+
+	html = _hr_receipt_html(doc, sign_config)
+	pdf = None
+	for zoom in HR_RECEIPT_ZOOM_STEPS:
+		pdf = get_pdf(html, {"zoom": str(zoom)})
+		if len(PdfReader(io.BytesIO(pdf)).pages) <= 1:
+			break
+	return pdf
 
 
 # Đầu phiếu HR (compact): dòng 1 = Mã NV · Họ tên · các field dòng đầu; mỗi dòng sau 1 tuple.
@@ -1199,23 +1233,94 @@ def _hr_receipt_html(doc, sign_config):
 	"""Phiếu PDF phía HR (Generate PDF + PDF Split): đúng mẫu phiếu tải ở trang www, khác 2 điểm:
 	- chỉ field tick "Info for Sign" (`sign_config` = _info_for_sign_config(_build_config()));
 	- phiếu chưa ký trên www vẫn in cam kết + ô trống để NV ký tay (sign_on_paper);
-	- bảng "Hồ sơ / Tình trạng" (Setting → Document Checklist (PDF)) in ngay trên phần chữ ký;
+	- bảng "Hồ sơ / Tình trạng" (_document_checklist_html: hồ sơ NV đã tick + ô HR đánh tay) ngay trên chữ ký;
 	- gom dòng cho gọn trang (compact): địa chỉ, CCCD + ngày cấp, liên hệ khẩn cấp.
 	Field "Auto Fill Data" phiếu chưa có giá trị → lấy từ Employee (_fill_from_employee), như phiếu www."""
-	checklist = _document_checklist_html(_get_setting().get("pdf_document_checklist"))
 	saved = _fill_from_employee(sign_config, json.loads(doc.data_json or "{}"), doc.employee)
+	# Phiếu có bản chụp hồ sơ → in đúng bản đó; phiếu cũ (trước 27/10/2026) → danh sách Setting, chưa tick.
+	documents = _clean_documents(saved.get(DOCUMENTS_KEY)) if DOCUMENTS_KEY in saved else _setting_documents()
+	checklist = _document_checklist_html(documents)
 	return _build_submission_html(
 		doc, saved, sign_config, sign_on_paper=True, checklist_html=checklist, compact=True,
 		side_margin=HR_RECEIPT_SIDE_MARGIN, tb_margin=HR_RECEIPT_TB_MARGIN,
 	)
 
 
-def _document_checklist_html(text):
-	"""Bảng hồ sơ HR kiểm tra tay, mỗi dòng của `text` là 1 hồ sơ (dòng trống bỏ qua; trống hết → "").
+def _setting_documents(setting=None):
+	"""Setting → Document Checklist: [{document, required}] (dòng trống bỏ qua)."""
+	rows = (setting or _get_setting()).get("document_checklist") or []
+	return [
+		{"document": (r.document or "").strip(), "required": 1 if r.required else 0}
+		for r in rows if (r.document or "").strip()
+	]
+
+
+def _documents_snapshot(checked, setting=None):
+	"""Danh sách Setting + đánh dấu hồ sơ NV tick (`checked` = tên hồ sơ). Setting trống → []."""
+	if isinstance(checked, str):
+		try:
+			checked = json.loads(checked or "[]")
+		except ValueError:
+			checked = []
+	ticked = {str(x).strip() for x in checked or [] if isinstance(x, str)}
+	return [{**d, "checked": 1 if d["document"] in ticked else 0} for d in _setting_documents(setting)]
+
+
+def _clean_documents(value):
+	"""Bản chụp hồ sơ HR gửi từ Desk → list sạch [{document, required, checked}] (bỏ dòng không tên)."""
+	if isinstance(value, str):
+		try:
+			value = json.loads(value or "[]")
+		except ValueError:
+			value = []
+	out = []
+	for r in value if isinstance(value, list) else []:
+		if isinstance(r, dict) and str(r.get("document") or "").strip():
+			out.append({
+				"document": str(r["document"]).strip(),
+				"required": 1 if frappe.utils.cint(r.get("required")) else 0,
+				"checked": 1 if frappe.utils.cint(r.get("checked")) else 0,
+			})
+	return out
+
+
+def _document_status(items):
+	"""(status, [hồ sơ bắt buộc chưa nộp]); chưa có bản chụp → ("", [])."""
+	if not items:
+		return "", []
+	missing = [d["document"] for d in items if d.get("required") and not d.get("checked")]
+	return ("Documents Missing" if missing else "Documents Complete"), missing
+
+
+def apply_document_status(doc):
+	"""Tình trạng hồ sơ của phiếu (document_status, missing_documents) tính lại từ data_json.
+	Gọi ở EmployeeSelfUpdateInfo.validate — mọi đường lưu (trang www, Desk, API)."""
+	try:
+		saved = json.loads(doc.data_json or "{}")
+	except ValueError:
+		saved = {}
+	status, missing = _document_status(_clean_documents(saved.get(DOCUMENTS_KEY)))
+	doc.document_status = status
+	doc.missing_documents = "\n".join(missing)
+
+
+def _status_text_vi(items):
+	"""Dòng tình trạng in trên phiếu: "Đủ" / "Thiếu: A; B"."""
+	status, missing = _document_status(items)
+	if not status:
+		return ""
+	return "Thiếu: " + "; ".join(missing) if missing else "Đủ"
+
+
+def _document_checklist_html(items):
+	"""Bảng hồ sơ cuối phiếu HR: `items` = [{document, required, checked}] (bản chụp trong phiếu; phiếu cũ chưa
+	có → danh sách Setting, chưa tick). Trống → "".
 	4 cột Hồ sơ | Tình trạng | Hồ sơ | Tình trạng: nửa đầu ở cặp cột trái, nửa sau ở cặp cột phải;
-	số hồ sơ lẻ → hồ sơ cuối 1 hàng trải ngang. Cuối bảng: "Thông tin khác về hồ sơ" + dòng chấm viết tay.
-	Ô ☐ vẽ bằng CSS (span.cb) — không phụ thuộc font của wkhtmltopdf."""
-	items = [x.strip() for x in (text or "").splitlines() if x.strip()]
+	số hồ sơ lẻ → hồ sơ cuối 1 hàng trải ngang. Ô ☐ trước tên hồ sơ = NV đã tick nộp (☑);
+	Đạt / Không đạt / Quá hạn / Khác để HR đánh tay. Cuối bảng: "Tình trạng hồ sơ" (chỉ khi phiếu có bản chụp)
+	+ "Thông tin khác về hồ sơ" + dòng chấm viết tay.
+	Ô ☐ / ☑ vẽ bằng CSS (span.cb / span.cb.on) — không phụ thuộc font của wkhtmltopdf."""
+	items = [d for d in items or [] if str(d.get("document") or "").strip()]
 	if not items:
 		return ""
 	esc = frappe.utils.escape_html
@@ -1223,7 +1328,10 @@ def _document_checklist_html(text):
 	marks = f"Đạt {cb}&nbsp; Không đạt {cb}&nbsp; Quá hạn {cb}"
 
 	def doc_cell(no, colspan=""):
-		return f"<td class='cdoc'{colspan}>{no} {cb} {esc(items[no - 1])}</td>"
+		d = items[no - 1]
+		box = "<span class='cb on'></span>" if d.get("checked") else cb
+		req = " *" if d.get("required") else ""
+		return f"<td class='cdoc'{colspan}>{no} {box} {esc(d['document'])}{req}</td>"
 
 	half = len(items) // 2
 	rows = [
@@ -1237,6 +1345,11 @@ def _document_checklist_html(text):
 		rows.append(
 			f"<tr>{doc_cell(len(items), span)}"
 			f"<td class='cst' colspan='2'>{marks}&nbsp; Khác: <span class='fill w'></span></td></tr>"
+		)
+	if any("checked" in d for d in items):
+		rows.append(
+			"<tr><td colspan='4' class='cnote'><b>Tình trạng hồ sơ (NV tự khai, * = bắt buộc):</b> "
+			f"{esc(_status_text_vi(items))}</td></tr>"
 		)
 	rows.append(
 		"<tr><td colspan='4' class='cnote'>Thông tin khác về hồ sơ (nếu có):"
@@ -1467,6 +1580,13 @@ def _build_submission_html(
 		)
 		rows.extend(sec_rows)
 	flush_addr()
+	# Phiếu NV tải (trang www): hồ sơ đã tick + tình trạng, 2 dòng. Phiếu HR (compact) in bảng hồ sơ riêng.
+	documents = _clean_documents(saved.get(DOCUMENTS_KEY)) if not compact else []
+	if documents:
+		done = [d["document"] for d in documents if d["checked"]]
+		rows.append('<tr><td colspan="2" class="sec">Hồ sơ nộp kèm</td></tr>')
+		rows.append(row_html("Đã có", esc("; ".join(done))))
+		rows.append(row_html("Tình trạng hồ sơ", esc(_status_text_vi(documents))))
 
 	remarks = saved.get(REMARKS_KEY) or ""
 	remarks_block = ""
@@ -1519,7 +1639,7 @@ def _build_submission_html(
 		sig_img = f"<img src='{sig}' class='sig'/>" if sig.startswith(_SIGNATURE_PREFIX) else ""
 		sign_block = (
 			"<div class='commit'>"
-			+ ("<b>Cam kết:</b> " if doc.get("commitment_confirmed") else "")
+			+ ("" if doc.get("commitment_confirmed") else "")
 			+ commitment
 			+ "</div><div class='signbox'><div class='slabel'>Người khai ký tên</div>"
 			+ sig_img
@@ -1529,7 +1649,7 @@ def _build_submission_html(
 		)
 	elif sign_on_paper:
 		sign_block = (
-			"<div class='commit'><b>Cam kết:</b> "
+			"<div class='commit'>"
 			+ commitment
 			+ "</div><div class='signbox'><div class='slabel'>Người khai ký tên</div>"
 			+ "<div class='sigspace'></div>"
@@ -1579,6 +1699,10 @@ def _build_submission_html(
   table.chk th.hst{{width:27%}}
   table.chk td.cst{{white-space:nowrap}}
   .cb{{display:inline-block;width:9px;height:9px;border:1px solid #475569;vertical-align:-1px;margin:0 1px}}
+  /* ☑ hồ sơ NV đã tick: dấu ✓ vẽ bằng viền xoay (không phụ thuộc font) */
+  .cb.on{{position:relative}}
+  .cb.on:after{{content:"";position:absolute;left:2px;top:-1px;width:3px;height:7px;border:solid #1e3a8a;
+    border-width:0 2px 2px 0;-webkit-transform:rotate(45deg);transform:rotate(45deg)}}
   .fill{{display:inline-block;width:65%;border-bottom:1px dotted #475569;height:10px}}
   /* đầu phiếu HR (compact): bảng không viền */
   table.meta-t{{width:100%;table-layout:fixed;margin:0;border-collapse:collapse;font-size:12.5px}}
@@ -2082,11 +2206,10 @@ def _download_info_for_sign_pdf_split(names):
 	"""PDF Split For Each Employee: mỗi bản ghi 1 PDF, đúng phiếu của nút "Generate PDF" trên form
 	(_hr_receipt_html: mẫu trang www, chỉ field tick "Info for Sign", có cam kết + chữ ký).
 	1 bản ghi → tải thẳng PDF; nhiều bản ghi → 1 file ZIP. Giới hạn
-	INFO_FOR_SIGN_PDF_MAX_RECORDS như PDF gộp (~0,35 giây/phiếu → 100 phiếu ≈ 35 giây)."""
+	INFO_FOR_SIGN_PDF_MAX_RECORDS như PDF gộp (~0,35 giây/lần dựng; phiếu tràn trang dựng thêm 1–2 lần để
+	thu nhỏ vừa 1 trang, _hr_receipt_pdf → 100 phiếu ≈ 35–75 giây)."""
 	import io
 	import zipfile
-
-	from frappe.utils.pdf import get_pdf
 
 	if isinstance(names, str):
 		names = json.loads(names or "null")
@@ -2106,8 +2229,7 @@ def _download_info_for_sign_pdf_split(names):
 	for name in records:
 		doc = frappe.get_doc(INFO_DT, name)
 		doc.check_permission("read")
-		html = _hr_receipt_html(doc, config)
-		files.append((f"{_receipt_base(doc)}.pdf", get_pdf(html)))
+		files.append((f"{_receipt_base(doc)}.pdf", _hr_receipt_pdf(doc, config)))
 
 	frappe.response["type"] = "download"   # attachment → tải về ngay; không lưu gì trên server
 	if len(files) == 1:
@@ -2280,11 +2402,15 @@ def validate_desk_edit(doc):
 		return
 
 	_require_hr()
-	if before.status == "Synced":
-		frappe.throw(_("Already synced to Employee — submitted data can no longer be edited."))
-
 	old = json.loads(before.data_json or "{}")
 	new = json.loads(doc.data_json or "{}")
+	# Hồ sơ nộp kèm: HR tick khi NV nộp bổ sung — được cả khi phiếu đã Synced (Sync không đọc khoá này).
+	if DOCUMENTS_KEY in new:
+		new[DOCUMENTS_KEY] = _clean_documents(new[DOCUMENTS_KEY])
+	only_documents = all(old.get(k) == new.get(k) for k in set(old) | set(new) if k != DOCUMENTS_KEY)
+	if before.status == "Synced" and not only_documents:
+		frappe.throw(_("Already synced to Employee — submitted data can no longer be edited."))
+
 	config = _build_config()
 	fields = {f["fieldname"]: f for sec in config["sections"] for f in sec["fields"]}
 
@@ -2292,7 +2418,7 @@ def validate_desk_edit(doc):
 	errors = []
 	for k in set(old) | set(new):
 		ov, nv = old.get(k), new.get(k)
-		if ov == nv:
+		if ov == nv or k == DOCUMENTS_KEY:
 			continue
 		f = fields.get(k)
 		if not f or not _hr_editor(f):
@@ -2417,7 +2543,11 @@ def get_submission_view(name):
 		if rows:
 			sections.append({"label": sec["label"], "rows": rows})
 
-	return {"sections": sections, "remarks": saved.get(REMARKS_KEY) or ""}
+	# Hồ sơ nộp kèm: bản chụp trong phiếu; phiếu cũ chưa có → danh sách Setting chưa tick (HR tick → tạo bản chụp).
+	has_docs = DOCUMENTS_KEY in saved
+	documents = _clean_documents(saved.get(DOCUMENTS_KEY)) if has_docs else _setting_documents()
+	return {"sections": sections, "remarks": saved.get(REMARKS_KEY) or "", "documents": documents,
+		"documents_key": DOCUMENTS_KEY}
 
 
 # ---------------------------------------------------------------------------

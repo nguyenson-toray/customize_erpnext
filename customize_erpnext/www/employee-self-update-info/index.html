@@ -6,7 +6,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
   <title>Cập nhật thông tin nhân viên</title>
-  <link rel="stylesheet" href="/employee-self-update-info/style.css?v=20">
+  <link rel="stylesheet" href="/employee-self-update-info/style.css?v=21">
 </head>
 
 <body>
@@ -80,6 +80,15 @@
       <div id="sections"></div>
 
       <!-- Ô "Ghi chú thêm" gắn cứng đã bỏ 16/10/2026: cần thì thêm custom field (Small Text) trong Setting. -->
+
+      <!-- Hồ sơ nộp kèm (Setting → Document Checklist): NV tick hồ sơ đã có; thiếu vẫn gửi được,
+           server tính Tình trạng hồ sơ (Đủ / Thiếu). Setting trống → ẩn thẻ. -->
+      <div class="card hidden" id="doc_card">
+        <h2><span class="dot"></span>Hồ sơ nộp kèm</h2>
+        <div class="hint" style="margin:-8px 0 12px">Tick các hồ sơ bạn đã có để nộp cho phòng nhân sự.
+          <span class="req">*</span> là hồ sơ bắt buộc.</div>
+        <div id="doc_list" class="doc-list"></div>
+      </div>
 
       <!-- Cam kết + chữ ký (bắt buộc với NV; HR sửa qua ?emp= thì không bắt buộc) -->
       <div class="card" id="sign_card">
@@ -289,7 +298,7 @@
           for (const sec of S.config.sections)
             for (const f of sec.fields)
               if (!f.read_only) values[f.fieldname] = currentValue(f);
-          localStorage.setItem(draftKey(), JSON.stringify({ t: Date.now(), values }));
+          localStorage.setItem(draftKey(), JSON.stringify({ t: Date.now(), values, docs: checkedDocs() }));
         } catch (e) { /* localStorage bị chặn/đầy → bỏ qua, không chặn người dùng */ }
       }, 400);
     }
@@ -525,6 +534,7 @@
         }));
 
         renderForm();
+        renderDocs(draft && Array.isArray(draft.docs) ? draft.docs : (fd.documents || []));
         resetSignCard(!!fd.is_hr);
         if (draft) toast("Đã khôi phục thông tin bạn nhập dở trước đó", true);
         document.getElementById("emp_label").textContent = `${fd.employee_name || empId}`;
@@ -1147,6 +1157,23 @@
       return { init, clear, toDataURL, isEmpty: () => !hasInk };
     })();
 
+    // ---------- Hồ sơ nộp kèm ----------
+    // `checked` = tên hồ sơ đã tick (lần gửi trước / nháp). Tên đổi trong Setting → coi như chưa tick.
+    function renderDocs(checked) {
+      const docs = (S.config && S.config.documents) || [];
+      const card = document.getElementById("doc_card");
+      card.classList.toggle("hidden", !docs.length);
+      const on = new Set(checked || []);
+      document.getElementById("doc_list").innerHTML = docs.map((d, i) =>
+        `<label class="commit-row" for="doc_${i}"><input type="checkbox" id="doc_${i}" data-doc="${esc(d.document)}"` +
+        `${on.has(d.document) ? " checked" : ""}><span>${esc(d.document)}${d.required ? ' <span class="req">*</span>' : ""}</span></label>`
+      ).join("");
+    }
+    function checkedDocs() {
+      return [...document.querySelectorAll("#doc_list input:checked")].map(el => el.dataset.doc);
+    }
+    document.addEventListener("change", e => { if (e.target.closest && e.target.closest("#doc_list")) saveDraft(); });
+
     // Mỗi lần mở form: bỏ tick + xoá chữ ký (chữ ký đi theo đúng lần gửi này).
     // HR mở qua ?emp= → không bắt buộc; không ký thì server giữ chữ ký cũ của NV.
     let _signInit = false;
@@ -1227,7 +1254,7 @@
       try {
         const r = await api(M.save, {
           employee_id: S.employee_id, data, code: S.verifyCode || "", unlock_code: S.unlockCode || "",
-          commitment: committed ? 1 : 0, signature
+          commitment: committed ? 1 : 0, signature, documents: JSON.stringify(checkedDocs())
         });
         S.downloadToken = (r && r.download_token) || null;   // token tải phiếu ngay sau gửi (khi bị khoá)
         clearDraft(S.employee_id);   // gửi xong → bỏ nháp cục bộ

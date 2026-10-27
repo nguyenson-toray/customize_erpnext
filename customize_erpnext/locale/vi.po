@@ -1617,12 +1617,44 @@ msgid "Do Not Suggest Shoe Rack"
 msgstr "Không gợi ý tủ"
 
 #. source: tiqn
-msgid "Document Checklist (PDF)"
-msgstr "Danh sách hồ sơ (PDF)"
-
-#. source: tiqn
 msgid "Commitment Text"
 msgstr "Câu cam kết"
+
+#. source: tiqn
+msgid "Document Checklist"
+msgstr "Danh mục hồ sơ"
+
+#. source: tiqn
+msgid "Documents Complete"
+msgstr "Đủ hồ sơ"
+
+#. source: tiqn
+msgid "Documents Missing"
+msgstr "Thiếu hồ sơ"
+
+#. source: tiqn
+msgid "Missing Documents"
+msgstr "Hồ sơ còn thiếu"
+
+#. source: tiqn
+msgid "Employee Self Update Info Document"
+msgstr "Hồ sơ nộp kèm"
+
+#. source: tiqn
+msgid "* = required for Documents Complete"
+msgstr "* = bắt buộc để Đủ hồ sơ"
+
+#. source: tiqn
+msgid "Documents employees tick on the www page (what they have handed in). Required rows decide the document status (Documents Complete / Documents Missing); missing ones do not block submitting. Printed at the end of the HR PDF, where HR marks the status by hand."
+msgstr "Hồ sơ nhân viên tick trên trang www (hồ sơ đã có để nộp). Các dòng Required quyết định tình trạng hồ sơ (Đủ hồ sơ / Thiếu hồ sơ); thiếu vẫn gửi được. In ở cuối PDF của HR, HR tự đánh dấu tình trạng bằng tay."
+
+#. source: tiqn
+msgid "Counted for the document status (Documents Complete / Documents Missing). Employees can still submit without it."
+msgstr "Tính vào tình trạng hồ sơ (Đủ hồ sơ / Thiếu hồ sơ). Nhân viên vẫn gửi được khi chưa có."
+
+#. source: tiqn
+msgid "From the documents ticked on the www page (or by HR below). Empty = submitted before the document checklist existed."
+msgstr "Theo các hồ sơ đã tick trên trang www (hoặc HR tick bên dưới). Trống = phiếu gửi trước khi có danh mục hồ sơ."
 
 #. source: tiqn
 msgid "Form Setup"
@@ -2725,10 +2757,6 @@ msgstr "Hotline Nhân sự"
 #. source: tiqn
 msgid "HR Overview"
 msgstr "Tổng quan Nhân sự"
-
-#. source: tiqn
-msgid "HR PDF"
-msgstr "PDF cho HR"
 
 #. source: tiqn
 msgid "Hungary"
@@ -4019,10 +4047,6 @@ msgstr "Mỗi câu hỏi một cột câu trả lời + một cột điểm (c�
 #. source: tiqn
 msgid "One code per line (copy a column from Excel). TIQN-0148 or just 148."
 msgstr "Mỗi dòng một mã (copy một cột từ Excel). TIQN-0148 hoặc chỉ 148."
-
-#. source: tiqn
-msgid "One document per line (no numbering needed). Printed above the signature in the HR PDF (Generate PDF / PDF Split) as a checklist for HR. Leave empty to hide."
-msgstr "Mỗi dòng 1 hồ sơ (không cần đánh số). In phía trên chữ ký trong PDF của HR (Generate PDF / PDF Split) để HR kiểm tra hồ sơ. Để trống thì không in."
 
 #. source: tiqn
 msgid "One PDF per record, the same as the \"Generate PDF\" button on the form. Several records are downloaded as one ZIP file."

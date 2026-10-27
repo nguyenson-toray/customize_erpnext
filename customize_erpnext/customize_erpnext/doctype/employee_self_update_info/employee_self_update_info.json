@@ -18,6 +18,10 @@
   "reviewed_by",
   "synced_on",
   "synced_by",
+  "section_documents",
+  "document_status",
+  "column_break_documents",
+  "missing_documents",
   "section_view",
   "data_view",
   "section_sign",
@@ -93,6 +97,33 @@
    "label": "Synced By",
    "options": "User",
    "read_only": 1
+  },
+  {
+   "fieldname": "section_documents",
+   "fieldtype": "Section Break",
+   "label": "Documents"
+  },
+  {
+   "description": "From the documents ticked on the www page (or by HR below). Empty = submitted before the document checklist existed.",
+   "fieldname": "document_status",
+   "fieldtype": "Select",
+   "label": "Document Status",
+   "options": "\nDocuments Complete\nDocuments Missing",
+   "read_only": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "column_break_documents",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "missing_documents",
+   "fieldtype": "Small Text",
+   "label": "Missing Documents",
+   "read_only": 1,
+   "no_copy": 1
   },
   {
    "fieldname": "section_view",
@@ -176,7 +207,7 @@
   }
  ],
  "links": [],
- "modified": "2026-10-16 22:00:00.000000",
+ "modified": "2026-10-27 14:47:56.811897",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Employee Self Update Info",

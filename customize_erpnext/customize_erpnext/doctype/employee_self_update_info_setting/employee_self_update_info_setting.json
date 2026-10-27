@@ -31,7 +31,7 @@
   "commitment_text",
   "tab_form_setup",
   "section_hr_pdf",
-  "pdf_document_checklist",
+  "document_checklist",
   "section_fields",
   "fields_intro",
   "btn_add_field",
@@ -251,18 +251,19 @@
    "collapsible": 1,
    "fieldname": "section_hr_pdf",
    "fieldtype": "Section Break",
-   "label": "HR PDF"
+   "label": "Documents"
   },
   {
-   "description": "One document per line (no numbering needed). Printed above the signature in the HR PDF (Generate PDF / PDF Split) as a checklist for HR. Leave empty to hide.",
-   "fieldname": "pdf_document_checklist",
-   "fieldtype": "Small Text",
-   "label": "Document Checklist (PDF)"
+   "description": "Documents employees tick on the www page (what they have handed in). Required rows decide the document status (Documents Complete / Documents Missing); missing ones do not block submitting. Printed at the end of the HR PDF, where HR marks the status by hand.",
+   "fieldname": "document_checklist",
+   "fieldtype": "Table",
+   "label": "Document Checklist",
+   "options": "Employee Self Update Info Document"
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-10-23 13:29:28.344169",
+ "modified": "2026-10-27 14:47:56.811897",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Employee Self Update Info Setting",

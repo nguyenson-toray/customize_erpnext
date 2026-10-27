@@ -228,6 +228,16 @@ function _esui_render_view(frm) {
 				html += `<div class="esui-sec"><h5>${__("Remarks")}</h5>
 					<div style="border:1px solid #e3e8ef;border-radius:6px;padding:8px 10px;background:#fafafa">${esc(r.message.remarks)}</div></div>`;
 			}
+			// Hồ sơ nộp kèm: HR tick khi NV nộp bổ sung (được cả khi Synced — Sync không đọc phần này).
+			// Lưu → server tính lại Document Status / Missing Documents.
+			const docs = (r.message.documents || []).map((d) => ({ ...d }));
+			if (docs.length) {
+				html += `<div class="esui-sec"><h5>${__("Documents")}</h5><table class="esui-tbl">` +
+					docs.map((d, i) => `<tr><td><label style="display:flex;gap:8px;align-items:flex-start;margin:0;font-weight:normal;cursor:pointer">
+						<input type="checkbox" class="esui-doc" data-i="${i}"${d.checked ? " checked" : ""} style="margin-top:3px">
+						<span>${esc(d.document)}${d.required ? ' <span class="text-danger">*</span>' : ""}</span></label></td></tr>`).join("") +
+					`</table><div class="text-muted small" style="margin-top:4px">${__("* = required for Documents Complete")}</div></div>`;
+			}
 			wrap.$wrapper.html(html);
 
 			frm._esui_edits = {};
@@ -241,6 +251,10 @@ function _esui_render_view(frm) {
 			if (addr.length) _esui_make_address_controls(frm, wrap, addr, mark);
 			if (dates.length) _esui_make_date_controls(wrap, dates, mark);
 			tables.forEach((row) => _esui_make_table_editor(wrap, row, mark));
+			wrap.$wrapper.off("change.esuidoc").on("change.esuidoc", ".esui-doc", function () {
+				docs[+this.dataset.i].checked = this.checked ? 1 : 0;
+				mark(r.message.documents_key, docs);
+			});
 		},
 	});
 }
