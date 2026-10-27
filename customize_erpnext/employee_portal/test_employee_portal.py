@@ -946,6 +946,8 @@ pdf_a = next(pdf for d, _n, pdf in files if d.employee == EMP_A)
 text_a = PdfReader(io.BytesIO(pdf_a)).pages[0].extract_text()
 check("print: Withdrawn payslip has the DRAFT watermark", "DRAFT" in text_a, True)
 check("print: note printed", "Liên hệ C&B" in text_a, True)
+_co = frappe.db.get_value("Employee", EMP_A, "company") or frappe.defaults.get_global_default("company")
+check("print: company name printed", bool(_co) and _co.split(" - ")[0] in text_a.replace("\n", " "), True)
 check("print: file name {Period}_{section}_{group}_{employee}_{employee_name}.pdf",
 	payslip_print.pdf_filename(frappe._dict(period="2030-07", section="HR-GA", group="IT", employee=EMP_A, employee_name="Nguyễn A/B")),
 	f"2030-07_HR-GA_IT_{EMP_A}_Nguyễn A B.pdf")
@@ -1006,12 +1008,52 @@ try:
 	check("ticked pdf: one payslip = its PDF even with ZIP picked", frappe.response["filename"].endswith(".pdf") and frappe.response["filecontent"][:4] == b"%PDF", True)
 	check("pdf job: nothing ticked, no period refused", refused_fn(lambda: payslip_print.start_pdf_job()), "refused")
 	check("pdf job options: periods latest first", payslip_print.pdf_job_options()["periods"][:1], [max(frappe.get_all("TIQN Payslip", pluck="period", distinct=True))])
-	check("period pdf: Section filter", refused_fn(lambda: payslip_print.start_pdf_job(period="2030-07", section="zz-no-such-section")), "refused")
+	_emp_count = frappe.db.count("TIQN Payslip", {"employee": EMP_A})
+	_emp_name = frappe.db.get_value("Employee", EMP_A, "employee_name")
+	_job = payslip_print.start_pdf_job(employees=frappe.as_json([EMP_A]), mode="combined")
+	check("employee pdf: no period = every payslip of the employee", _job["total"], _emp_count)
+	payslip_print.build_pdf_job(_job["token"], "combined")
+	payslip_print.download_pdf_job(_job["token"])
+	check("employee pdf: file name {employee}_{name}_{n} payslips", frappe.response["filename"].endswith(f"{EMP_A}_{payslip_print._clean(_emp_name)}_{_emp_count} payslips.pdf"), True)
+	_job = payslip_print.start_pdf_job(period="2030-07", employees=frappe.as_json([EMP_A]), mode="zip")
+	payslip_print.build_pdf_job(_job["token"], "zip")
+	payslip_print.download_pdf_job(_job["token"])
+	check("employee pdf: period + one employee = that payslip",
+		(_job["total"], frappe.response["filename"]),
+		(1, payslip_print.pdf_filename(frappe.get_doc("TIQN Payslip", {"employee": EMP_A, "period": "2030-07"}))))
+	check("employee pdf: other employee, no payslip refused", refused_fn(lambda: payslip_print.start_pdf_job(employees=frappe.as_json(["zz-no-such-employee"]))), "refused")
+	check("period pdf: Section filter", refused_fn(lambda: payslip_print.start_pdf_job(period="2030-07", sections=frappe.as_json(["zz-no-such-section"]))), "refused")
+	_secs = sorted({s for s in frappe.get_all("TIQN Payslip", {"period": "2030-07"}, pluck="section") if s})
+	if _secs:
+		_job = payslip_print.start_pdf_job(period="2030-07", sections=frappe.as_json(_secs + ["zz-no-such-section"]), mode="zip")
+		check("period pdf: several Sections", (_job["total"], frappe.cache.get_value(payslip_print.JOB_KEY.format(_job["token"]))["filename"]),
+			(frappe.db.count("TIQN Payslip", {"period": "2030-07", "section": ("in", _secs)}), f"2030-07_{len(_secs) + 1} sections_{_job['total']} payslips.zip"))
+		frappe.cache.delete_value([payslip_print.JOB_KEY.format(_job["token"]), payslip_print.USER_KEY.format("Administrator")])
+	# Employees box: not Exclude Employees, not those who left before the period.
+	from customize_erpnext.customize_erpnext.doctype.attendance_calculation_setting.attendance_calculation_setting import get_excluded_employee_ids
+	_found = lambda txt, **kw: [r["value"] for r in payslip_print.search_pdf_employees(txt, **kw)]
+	_excl = sorted(get_excluded_employee_ids())
+	if _excl:
+		check("pdf employees: Exclude Employees left out", _excl[0] in _found(_excl[0]), False)
+	_left = frappe.db.sql("""SELECT name FROM tabEmployee WHERE relieving_date <= '2026-09-26' ORDER BY relieving_date DESC LIMIT 20""", pluck=True)
+	_left = next((e for e in _left if e not in _excl), None)
+	if _left:
+		check("pdf employees: left before the period left out", _left in _found(_left, period="2026-10"), False)
+		check("pdf employees: no period = still listed (old payslips)", _left in _found(_left), True)
+	check("pdf job: Employees + Sections refused (one of the three)", refused_fn(lambda: payslip_print.start_pdf_job(period="2030-07", employees=frappe.as_json([EMP_A]), sections=frappe.as_json(["HR-GA"]))), "refused")
+	check("pdf job: Sections + Group refused", refused_fn(lambda: payslip_print.start_pdf_job(period="2030-07", sections=frappe.as_json(["HR-GA"]), group="IT")), "refused")
 	check("period pdf: unknown output refused", refused_fn(lambda: payslip_print.start_pdf_job(period="2030-07", mode="docx")), "refused")
 finally:
 	frappe.enqueue = _real_enqueue
 check("delete drafts skips re-imported withdrawn", payslip_admin.delete_draft_period("2030-07")["deleted"], 0)
 check("publish takes re-imported withdrawn", payslip_admin.publish_period("2030-07")["published"], 2)
+# ignore_no_copy=False = what the form's Duplicate does (frappe.model.copy_doc in JS).
+_dup = frappe.copy_doc(frappe.get_doc("TIQN Payslip", {"period": "2030-07", "status": "Published"}), ignore_no_copy=False)
+_dup.period = "2031-01"  # same employee + period = same name: HR changes one of them
+_dup.insert()
+check("duplicate of a published payslip saves as a new Draft, no publish history",
+	(_dup.status, _dup.published_on, _dup.published_by, _dup.first_viewed_on, _dup.import_batch, str(_dup.period_from)),
+	("Draft", None, None, None, None, "2030-12-26"))
 ps_note.reload()
 ps_note.note = "changed after publishing"
 check("note: locked on a published payslip", refused_fn(lambda: ps_note.save(ignore_permissions=True)), "refused")

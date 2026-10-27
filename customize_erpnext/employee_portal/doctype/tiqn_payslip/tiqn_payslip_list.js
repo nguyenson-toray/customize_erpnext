@@ -17,9 +17,10 @@ frappe.listview_settings['TIQN Payslip'] = {
 	},
 };
 
-// "Download PDF": the ticked payslips (default when any are ticked) or every payslip of a
-// period (optionally one Section / Group / status), as a ZIP of one PDF each (default) or
-// one combined PDF to print in one go. One payslip = its PDF.
+// "Download PDF": the ticked payslips (default when any are ticked) or by filters - a
+// period and / or employees (no period = every period of theirs) or Sections or one Group
+// (one of the three), optionally a status - as a ZIP of one PDF each (default) or one combined PDF to print in one
+// go. One payslip = its PDF.
 // Server: payslip_print.start_pdf_job -> background job -> poll -> download once.
 function payslip_pdf_dialog(listview) {
 	const api = 'customize_erpnext.employee_portal.payslip_print';
@@ -28,8 +29,16 @@ function payslip_pdf_dialog(listview) {
 		const m = r.message || {};
 		const listed = (listview.filters || []).find((f) => f[1] === 'period' && f[2] === '=');
 		const by_period = 'eval:doc.source === "period"';
-		// `d` is assigned below; onchange / get_query may run while the dialog is being built.
+		// `d` is assigned below; onchange / get_data may run while the dialog is being built.
 		let d = null;
+		// Employees, Sections and Group: one of the three only - picking one clears the others.
+		const has = (v) => (Array.isArray(v) ? v.length > 0 : !!v);
+		const only = (keep) => {
+			if (!d || !has(d.get_value(keep))) return;
+			for (const f of ['employees', 'sections', 'group']) {
+				if (f !== keep && has(d.get_value(f))) d.set_value(f, f === 'group' ? '' : []);
+			}
+		};
 		d = new frappe.ui.Dialog({
 			title: __('Download PDF'),
 			fields: [
@@ -39,7 +48,7 @@ function payslip_pdf_dialog(listview) {
 					label: __('Payslips'),
 					options: [
 						{ value: 'ticked', label: __('Ticked payslips ({0})', [ticked.length]) },
-						{ value: 'period', label: __('By pay period') },
+						{ value: 'period', label: __('By pay period / employee') },
 					],
 					default: ticked.length ? 'ticked' : 'period',
 					hidden: !ticked.length,
@@ -48,18 +57,34 @@ function payslip_pdf_dialog(listview) {
 					fieldtype: 'Select',
 					fieldname: 'period',
 					label: __('Pay Period'),
-					options: m.periods || [],
+					options: [''].concat(m.periods || []),
 					default: (listed && listed[3]) || (m.periods || [])[0],
 					depends_on: by_period,
-					mandatory_depends_on: by_period,
+					description: __('Empty = every period of the employees below.'),
 				},
 				{
-					fieldtype: 'Link',
-					fieldname: 'section',
-					label: __('Section'),
+					fieldtype: 'MultiSelectList',
+					fieldname: 'employees',
+					label: __('Employees'),
+					options: 'Employee',
+					depends_on: by_period,
+					// Not Exclude Employees (Attendance Calculation Setting), not those who left
+					// before the period.
+					get_data: (txt) =>
+						frappe
+							.call({ method: `${api}.search_pdf_employees`, args: { txt, period: d.get_value('period') }, type: 'GET' })
+							.then((r) => r.message || []),
+					onchange: () => only('employees'),
+					description: __('Employees, Sections or Group: pick one of the three (empty = everyone).'),
+				},
+				{
+					fieldtype: 'MultiSelectList',
+					fieldname: 'sections',
+					label: __('Sections'),
 					options: 'Section',
 					depends_on: by_period,
-					onchange: () => d && d.set_value('group', ''),
+					get_data: (txt) => frappe.db.get_link_options('Section', txt),
+					onchange: () => only('sections'),
 				},
 				{
 					fieldtype: 'Link',
@@ -67,8 +92,7 @@ function payslip_pdf_dialog(listview) {
 					label: __('Group'),
 					options: 'Group',
 					depends_on: by_period,
-					// Groups of the picked Section only (Group.parrent -> Section).
-					get_query: () => (d && d.get_value('section') ? { filters: { parrent: d.get_value('section') } } : {}),
+					onchange: () => only('group'),
 				},
 				{
 					fieldtype: 'Select',
@@ -98,10 +122,22 @@ function payslip_pdf_dialog(listview) {
 			],
 			primary_action_label: __('Download'),
 			primary_action: (v) => {
+				const employees = v.employees || [];
+				if (v.source !== 'ticked' && !v.period && !employees.length) {
+					frappe.msgprint(__('Pick a pay period or employees.'));
+					return;
+				}
 				const args =
 					v.source === 'ticked'
 						? { names: JSON.stringify(ticked), mode: v.mode }
-						: { period: v.period, section: v.section, group: v.group, status: v.status, mode: v.mode };
+						: {
+								period: v.period,
+								employees: JSON.stringify(employees),
+								sections: JSON.stringify(v.sections || []),
+								group: v.group,
+								status: v.status,
+								mode: v.mode,
+						  };
 				frappe.call({ method: `${api}.start_pdf_job`, args, freeze: true }).then((res) => {
 					d.hide();
 					wait_pdf_job(api, res.message.token, res.message.total);

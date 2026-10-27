@@ -11,7 +11,8 @@ not a Remark column per line): transfer deadline (Pay Date) and Remark = the pay
   renders this, so the form's Print / Ctrl+P shows the same page.
 - `download_pdf(names)` (form button): 1 payslip -> PDF straight back. Files are named
   `{Period}_{section}_{group}_{employee}_{employee_name}.pdf`.
-- List "Download PDF" (27/10/2026: one button for ticked payslips or a whole period,
+- List "Download PDF" (27/10/2026: one button for ticked payslips, a whole period or
+  chosen employees,
   ~1,000 payslips = ~2 min, over the 120 s request timeout): `start_pdf_job` ->
   background job (queue long) -> `pdf_job_status` polled by the list -> `download_pdf_job`.
   ZIP of one PDF each (default) or one combined PDF; a single payslip is always its PDF.
@@ -49,13 +50,14 @@ TEMPLATE = "customize_erpnext/employee_portal/payslip_print.html"
 PDF_OPTIONS = {
 	"page-size": "A4",
 	"orientation": "Portrait",
-	"margin-top": "10mm",
-	"margin-bottom": "10mm",
+	# 7 mm: room for the logo + company lines and a ~400 character Note on one page.
+	"margin-top": "7mm",
+	"margin-bottom": "7mm",
 	"margin-left": "12mm",
 	"margin-right": "12mm",
 	"encoding": "UTF-8",
 }
-# Small logo top-left (27/10/2026). Inlined as a data URI: get_pdf runs wkhtmltopdf with
+# Small logo top-left, company name under it (27/10/2026). Inlined as a data URI: get_pdf runs wkhtmltopdf with
 # local file access disabled, and the file is not in public/ (no URL needed).
 LOGO_FILE = os.path.join(os.path.dirname(__file__), "logo_blue.png")
 MONTHS_EN = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
@@ -121,6 +123,11 @@ def payslip_context(doc):
 		"dept": " - ".join(x for x in (doc.section, doc.group) if x),
 		"pay_date": _d(doc.pay_date),
 		"logo": _logo_data_uri(),
+		# English = the ERPNext Company; Vietnamese = Employee Portal Settings, as on the Mini App.
+		"company": frappe.db.get_value("Employee", doc.employee, "company")
+		or frappe.defaults.get_global_default("company")
+		or "",
+		"company_vi": frappe.db.get_single_value("Employee Portal Settings", "company_display_name") or "",
 		"note": (doc.get("note") or "").strip(),
 		"draft": doc.status != "Published",
 	}
@@ -145,7 +152,14 @@ def _render_pdf(docs):
 	from frappe.utils.pdf import get_pdf
 
 	body = '<div style="page-break-after: always"></div>'.join(payslip_print_html(d) for d in docs)
-	html = f'<!DOCTYPE html><html><head><meta charset="utf-8"></head><body>{body}</body></html>'
+	# get_pdf forces 15 mm top / bottom when there is no header / footer html and only
+	# lets a `.print-format` CSS rule override that - margin-top/bottom in the options
+	# alone are ignored (27/10/2026: they were - 15 mm instead of 7).
+	margins = "; ".join(f"{k}: {PDF_OPTIONS[k]}" for k in ("margin-top", "margin-bottom"))
+	html = (
+		f'<!DOCTYPE html><html><head><meta charset="utf-8"><style>.print-format {{ {margins}; }}</style></head>'
+		f"<body>{body}</body></html>"
+	)
 	return get_pdf(html, dict(PDF_OPTIONS))
 
 
@@ -292,6 +306,49 @@ def _clean(value):
 	return " ".join(FILENAME_BAD.sub(" ", str(value)).split())
 
 
+def _str_list(value):
+	"""A JSON list / one value / list from the client -> [unique non-empty strings]."""
+	if isinstance(value, str):
+		value = frappe.parse_json(value) if value.strip().startswith("[") else [value]
+	return list(dict.fromkeys(str(v) for v in (value or []) if v))
+
+
+@frappe.whitelist()
+def search_pdf_employees(txt="", period=None):
+	"""Employees for the dialog's Employees box (max 30): not Attendance Calculation
+	Setting > Exclude Employees and, with a period, not those who left before it or
+	joined after it (🔴 relieving_date = first day OFF: left before
+	= relieving_date <= the first day). CnB only (only_for), so plain SQL."""
+	frappe.only_for(ROLES)
+	from customize_erpnext.customize_erpnext.doctype.attendance_calculation_setting.attendance_calculation_setting import (
+		get_excluded_employee_ids,
+	)
+	from customize_erpnext.employee_portal.utils import period_bounds, validate_period
+
+	conditions, values = [], {"txt": f"%{txt or ''}%"}
+	if period:
+		values["start"], values["end"] = period_bounds(validate_period(period))
+		conditions += [
+			"(e.relieving_date IS NULL OR e.relieving_date > %(start)s)",
+			"(e.date_of_joining IS NULL OR e.date_of_joining <= %(end)s)",
+		]
+	excluded = get_excluded_employee_ids()
+	if excluded:
+		conditions.append("e.name NOT IN %(excluded)s")
+		values["excluded"] = tuple(excluded)
+	where = "".join(f" AND {c}" for c in conditions)
+	rows = frappe.db.sql(
+		f"""
+		SELECT e.name, e.employee_name FROM `tabEmployee` e
+		WHERE (e.name LIKE %(txt)s OR e.employee_name LIKE %(txt)s){where}
+		ORDER BY e.name LIMIT 30
+		""",
+		values,
+		as_dict=True,
+	)
+	return [{"value": r.name, "description": r.employee_name} for r in rows]
+
+
 @frappe.whitelist()
 def pdf_job_options():
 	"""Pay periods that have payslips, latest first (Section / Group are Link fields)."""
@@ -300,9 +357,10 @@ def pdf_job_options():
 
 
 @frappe.whitelist(methods=["POST"])
-def start_pdf_job(names=None, period=None, section=None, group=None, status=None, mode="zip"):
-	"""Queue the PDFs of the ticked payslips (`names`) or of a period (optionally one
-	Section / Group / status). -> {token, total}"""
+def start_pdf_job(names=None, period=None, employees=None, sections=None, group=None, status=None, mode="zip"):
+	"""Queue the PDFs of the ticked payslips (`names`), or by filters: a period and / or
+	employees (every period of theirs when no period), or Sections, or one Group - one of
+	those three only - optionally a status. -> {token, total}"""
 	frappe.only_for(ROLES)
 	if mode not in MODES:
 		frappe.throw(_("Unknown output: {0}").format(mode))
@@ -311,16 +369,25 @@ def start_pdf_job(names=None, period=None, section=None, group=None, status=None
 	if running and (_job_state(running) or {}).get("status") in ("queued", "running"):
 		frappe.throw(_("Your previous PDF download is still being prepared - wait for it to finish."))
 
+	employees, sections = _str_list(employees), _str_list(sections)
+	if not names and sum(map(bool, (employees, sections, group))) > 1:
+		frappe.throw(_("Filter by Employees, Sections or Group - one of them only."))
 	if names:
 		names = frappe.parse_json(names) if isinstance(names, str) else names
 		filters = {"name": ("in", list(dict.fromkeys(names)))}
-	elif period:
-		filters = {"period": period}
-		for field, value in (("section", section), ("group", group), ("status", status)):
+	elif period or employees:
+		filters = {}
+		if period:
+			filters["period"] = period
+		if employees:
+			filters["employee"] = ("in", employees)
+		if sections:
+			filters["section"] = ("in", sections)
+		for field, value in (("group", group), ("status", status)):
 			if value:
 				filters[field] = value
 	else:
-		frappe.throw(_("Tick the payslips or pick a pay period."))
+		frappe.throw(_("Tick the payslips, or pick a pay period or employees."))
 	# get_list: only the payslips this user may read.
 	rows = frappe.get_list(PAYSLIP_DT, filters=filters, fields=["name", "period"], limit_page_length=0)
 	if not rows:
@@ -332,7 +399,15 @@ def start_pdf_job(names=None, period=None, section=None, group=None, status=None
 	if names and len(periods) > 1:
 		stem = f"Payslips_{len(rows)}_{now_datetime().strftime('%y%m%d %H%M%S')}"
 	else:
-		parts = [_clean(p) for p in ((period, section, group) if not names else (periods.pop(),)) if p]
+		# {period}_{section}_{group}_{employee}_{name}_{n} payslips - parts not picked left out.
+		one_period = periods.pop() if len(periods) == 1 else None
+		section = (sections[0] if len(sections) == 1 else f"{len(sections)} sections") if sections else None
+		parts = [one_period] if names else [period or one_period, section, group]
+		if not names and len(employees) == 1:
+			parts += [employees[0], frappe.db.get_value("Employee", employees[0], "employee_name")]
+		elif not names and employees:
+			parts.append(f"{len(employees)} employees")
+		parts = [_clean(p) for p in parts if p]
 		stem = "_".join([p for p in parts if p] + [f"{len(rows)} payslips"])
 	token = secrets.token_urlsafe(16)
 	_set_job_state(

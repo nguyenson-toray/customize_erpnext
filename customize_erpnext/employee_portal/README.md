@@ -123,14 +123,20 @@ Employee Portal Settings. Sinh bằng `scripts/build_navigation.py` (đừng s�
 6. **In phiếu** (27/10, `payslip_print.py` + `payslip_print.html`): nút **Download PDF** trên form và trên list. Chỉ **A4** (khổ A5 thì C&B chọn trên máy in). 1 phiếu → PDF; nhiều
    phiếu → ZIP mỗi phiếu 1 PDF, tên `{Period}_{section}_{group}_{employee}_{employee_name}.pdf` (bỏ ký tự cấm, bỏ
    phần rỗng). Bố cục = phiếu giấy (`phiếu lương.png`): song ngữ English/label Mini App, đủ 44 dòng (0 = "-"), dưới
-   bảng 2 dòng "Transfer deadline/Hạn chuyển khoản" (Pay Date) + "Remark/Ghi chú" (= Note; không có cột Remark từng dòng), Dept = Section - Group, Draft/Withdrawn có chữ chìm "BẢN NHÁP / DRAFT".
-   Print Format **TIQN Payslip** (mặc định của DocType) gọi cùng template qua jinja method `payslip_print_html`
+   bảng 2 dòng "Transfer deadline/Hạn chuyển khoản" (Pay Date) + "Remark/Ghi chú" (= Note; không có cột Remark từng dòng), Dept = Section - Group, Draft/Withdrawn có chữ chìm "BẢN NHÁP / DRAFT". Đầu trang: logo, dưới là tên công ty 2 dòng (English = Company của
+   NV; tiếng Việt = Employee Portal Settings ▸ Company Display Name). Lề trên/dưới 7 mm, phải khai bằng CSS `.print-format`
+   (`get_pdf` ép 15 mm khi không có header/footer html, bỏ qua option) → Note tới ~400 ký tự vẫn 1 trang, dài hơn tràn trang 2.
+   Print Format **TIQN Payslip** (mặc định qua Property Setter `TIQN Payslip-main-default_print_format` trong fixtures — DocType chuẩn không được đặt `default_print_format` trong JSON, nếu đặt thì không lưu được DocType) gọi cùng template qua jinja method `payslip_print_html`
    (hooks.py) → nút Print / Ctrl+P ra đúng mẫu. Engine **wkhtmltopdf** (Chrome PDF của v16 cần gói hệ thống
    `libasound2` chưa cài — user chọn không cài 27/10). Nhiều phiếu: render 1 lần rồi tách trang bằng pypdf; số trang ≠
    số phiếu (phiếu tràn trang vì Note dài) → render lại từng phiếu. PDF/ZIP trả thẳng, **không** lưu File (chứa
    lương); mỗi phiếu được ghi Comment "Printed PDF". Thứ tự: period → section → group → employee.
-   **List** chỉ 1 nút **Download PDF** (27/10): phiếu đã tick (mặc định khi có tick) hoặc **cả kỳ** (Period + Section/
-   Group/Status, mặc định Published; `get_list` = theo quyền). ~1.000 phiếu ≈ 2 phút > timeout 120 s → `start_pdf_job`
+   **List** chỉ 1 nút **Download PDF** (27/10): phiếu đã tick (mặc định khi có tick) hoặc **theo bộ lọc**: Period và/hoặc
+   **Employees** (nhiều NV; bỏ trống Period = mọi kỳ của các NV đó) **hoặc Sections** (nhiều) **hoặc Group** — chỉ 1
+   trong 3 (chọn cái này JS xoá 2 cái kia, server cũng chặn) — + Status, mặc định Published; `get_list` = theo quyền. Ô
+   Employees gợi ý qua `search_pdf_employees`: bỏ Exclude Employees (Attendance Calculation Setting), có Period thì bỏ
+   người nghỉ trước kỳ (`relieving_date <= ngày 26`) / vào sau kỳ. Tên file `{period}_{section}_{group}_{employee}_{employee_name}_{n} payslips` (bỏ phần không
+   chọn; nhiều NV = `{n} employees`, nhiều Section = `{n} sections`). ~1.000 phiếu ≈ 2 phút > timeout 120 s → `start_pdf_job`
    → job queue `long` `build_pdf_job` (render 50 phiếu/lần) → list poll `pdf_job_status` 2 s/lần → `download_pdf_job`.
    Output **ZIP** từng PDF (mặc định, kỳ 10/2026: 134 s, 64 MB) hoặc **1 PDF gộp** (127 s, 9,4 MB); 1 phiếu → luôn là
    PDF. Kết quả nằm ở **Redis cache** (không persistence) 30 phút, chỉ user đã bấm mới tải được, tải 1 lần rồi xoá —

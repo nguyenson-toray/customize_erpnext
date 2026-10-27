@@ -3,7 +3,6 @@
  "allow_import": 1,
  "autoname": "format:PS-{period}-{employee}",
  "creation": "2026-10-12 12:00:00",
- "default_print_format": "TIQN Payslip",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -141,31 +140,32 @@
    "search_index": 1
   },
   {
+   "description": "Start of the period, or the date of joining when the employee joined during it",
    "fieldname": "period_from",
    "fieldtype": "Date",
    "label": "Period From",
-   "read_only": 1,
-   "description": "Start of the period, or the date of joining when the employee joined during it"
+   "no_copy": 1
   },
   {
+   "description": "End of the period, or the day before the relieving date when the employee left during it",
    "fieldname": "period_to",
    "fieldtype": "Date",
    "label": "Period To",
-   "read_only": 1,
-   "description": "End of the period, or the day before the relieving date when the employee left during it"
+   "no_copy": 1
   },
   {
+   "description": "Empty = the pay day of the month after the period (Settings), or relieving date + 14 days for a final settlement",
    "fieldname": "pay_date",
    "fieldtype": "Date",
    "label": "Pay Date",
-   "description": "Empty = the pay day of the month after the period (Settings), or relieving date + 14 days for a final settlement"
+   "no_copy": 1
   },
   {
+   "description": "Free text for the whole payslip, shown on the Mini App and the printout. Imported from the Note column of the Excel file (empty = no note)",
    "fieldname": "note",
    "fieldtype": "Small Text",
    "label": "Note",
-   "no_copy": 1,
-   "description": "Free text for the whole payslip, shown on the Mini App and the printout. Imported from the Note column of the Excel file (empty = no note)"
+   "no_copy": 1
   },
   {
    "fieldname": "attendance_section",
@@ -228,7 +228,8 @@
    "label": "Status",
    "options": "Draft\nPublished\nWithdrawn",
    "read_only": 1,
-   "reqd": 1
+   "reqd": 1,
+   "no_copy": 1
   },
   {
    "description": "Copied from component 9 (Net Salary) - kept for the list view, filters and the API",
@@ -242,13 +243,14 @@
   },
   {
    "default": "0",
+   "description": "The employee left during this period and is paid separately. Publishing it sends no notification",
    "fieldname": "final_settlement",
    "fieldtype": "Check",
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Final Settlement",
    "read_only": 1,
-   "description": "The employee left during this period and is paid separately. Publishing it sends no notification"
+   "no_copy": 1
   },
   {
    "fieldname": "column_break_status",
@@ -258,33 +260,37 @@
    "fieldname": "published_on",
    "fieldtype": "Datetime",
    "label": "Published On",
-   "read_only": 1
+   "read_only": 1,
+   "no_copy": 1
   },
   {
    "fieldname": "published_by",
    "fieldtype": "Link",
    "label": "Published By",
    "options": "User",
-   "read_only": 1
+   "read_only": 1,
+   "no_copy": 1
   },
   {
    "fieldname": "viewed_column",
    "fieldtype": "Column Break"
   },
   {
+   "description": "When the employee first opened this payslip in the Mini App. Empty = not viewed yet",
    "fieldname": "first_viewed_on",
    "fieldtype": "Datetime",
+   "in_list_view": 1,
    "label": "First Viewed On",
    "read_only": 1,
-   "description": "When the employee first opened this payslip in the Mini App. Empty = not viewed yet",
-   "in_list_view": 1
+   "no_copy": 1
   },
   {
    "fieldname": "import_batch",
    "fieldtype": "Data",
    "in_standard_filter": 1,
    "label": "Import Batch",
-   "read_only": 1
+   "read_only": 1,
+   "no_copy": 1
   },
   {
    "fieldname": "tab_detail",
@@ -581,7 +587,7 @@
   }
  ],
  "links": [],
- "modified": "2026-10-27 09:05:00.000000",
+ "modified": "2026-10-27 14:30:00.000000",
  "modified_by": "Administrator",
  "module": "Employee Portal",
  "name": "TIQN Payslip",

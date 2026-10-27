@@ -125,9 +125,16 @@ sửa *Đến ngày* thành ngày trước ngày nghỉ việc, hoặc để tr�
 Khi cần đưa phiếu giấy cho người lao động:
 - **Một phiếu**: mở phiếu → nút **Download PDF** → tải về file PDF khổ A4.
 - **Nhiều phiếu / cả kỳ lương**: danh sách **Phiếu lương** → nút **Download PDF** → hộp thoại:
-  - **Payslips**: *Ticked payslips* = các phiếu đã tick (mặc định khi có tick), hoặc *By pay period* = cả kỳ — chọn **Kỳ
-    lương**, có thể chọn thêm **Section / Group** (in riêng một bộ phận) và **Trạng thái** (mặc định *Published* = phiếu
-    đã phát hành).
+  - **Payslips**: *Ticked payslips* = các phiếu đã tick (mặc định khi có tick), hoặc *By pay period / employee* = theo bộ lọc:
+    - **Pay Period**: kỳ lương. Bỏ trống thì lấy **mọi kỳ** của các nhân viên chọn ở ô dưới (ví dụ in toàn bộ phiếu của
+      một người khi họ cần).
+    - Lọc theo **một trong ba** (chọn ô này thì hai ô kia tự xoá; bỏ trống cả ba = mọi người):
+      - **Employees**: một hoặc nhiều nhân viên. Danh sách gợi ý **không có** người trong *Exclude Employees* (Attendance
+        Calculation Setting) và người **nghỉ trước kỳ** đã chọn.
+      - **Sections**: một hoặc nhiều bộ phận.
+      - **Group**: một tổ.
+    - Phải chọn ít nhất Pay Period hoặc Employees.
+    - **Status**: mặc định *Published* = phiếu đã phát hành.
   - **Output**: **ZIP - one PDF per payslip** (mặc định, mỗi người một file PDF) hoặc **One combined PDF** (tất cả phiếu
     trong **một file PDF**, mỗi người một trang — mở ra bấm in một lần là xong). Chỉ 1 phiếu thì luôn ra 1 file PDF.
 
@@ -207,10 +214,7 @@ không cho lưu. Để trống = dùng tên tiếng Anh trên ERP.
 - Nhân viên đang mở app có thể thấy tên cũ thêm một lúc (app nhớ tạm), sau đó tự cập nhật.
 - Tên cột trong file Excel là tên tiếng Anh ngắn có mã ("3.2 Technical Allowance", "1.2 Days"), không phụ thuộc bảng này.
 
-### Các câu chữ khác trên app
-Câu thông báo, báo lỗi… trên app được dịch sẵn. Muốn đổi câu nào thì báo **System Manager** sửa ở *Translation* trên ERP,
-không cần IT sửa code.
-
+ 
 ---
 
 ## 9. Câu hỏi thường gặp
@@ -233,6 +237,5 @@ sách Phiếu lương), vì ở đó ERP kiểm tra lỗi và công thức.
 
 ## 10. Lưu ý bảo mật
 
-- File lương chứa thu nhập của mọi người: **không gửi qua Zalo / email**, xoá bản trên máy sau khi nhập.
 - Chỉ phê duyệt *Yêu cầu liên kết* sau khi **đã gọi xác nhận** đúng người.
 - Đừng chia sẻ tài khoản ERP có role CnB.

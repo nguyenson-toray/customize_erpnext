@@ -138,7 +138,10 @@ fixtures = [
                 "Leave Application",
                 "Employee Education",
                 # branch bỏ khỏi grid + chốt độ rộng cột để chỗ cho Section/Group
-                "Employee Internal Work History"
+                "Employee Internal Work History",
+                # default_print_format = "TIQN Payslip": DocType chuẩn không được đặt trong JSON
+                # ("Standard DocType cannot have default print format") → Property Setter.
+                "TIQN Payslip"
             ]]
         ]
     },
