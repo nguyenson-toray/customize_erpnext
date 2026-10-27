@@ -54,12 +54,15 @@ def download_excel(names=None, export_type="All Info", file_format="Excel"):
 
 	`export_type="Info for Sign"` → file riêng, xem _download_info_for_sign;
 	`file_format` (chỉ Info for Sign): "PDF Split" → mỗi bản ghi 1 PDF (_download_info_for_sign_pdf_split),
+	"PDF Pages" → cùng các phiếu đó gộp 1 file PDF, mỗi bản ghi 1 trang,
 	"PDF" → gộp 1 file danh sách ký (_download_info_for_sign_pdf), còn lại → Excel.
 	"""
 	_require_hr()
 	if export_type == "Info for Sign":
 		if file_format == "PDF Split":
 			return _download_info_for_sign_pdf_split(names)
+		if file_format == "PDF Pages":
+			return _download_info_for_sign_pdf_split(names, merge=True)
 		if file_format == "PDF":
 			return _download_info_for_sign_pdf(names)
 		return _download_info_for_sign(names)
@@ -431,10 +434,12 @@ def _download_info_for_sign_pdf(names):
 	frappe.response["content_type"] = "application/pdf"
 
 
-def _download_info_for_sign_pdf_split(names):
+def _download_info_for_sign_pdf_split(names, merge=False):
 	"""PDF Split For Each Employee: mỗi bản ghi 1 PDF, đúng phiếu của nút "Generate PDF" trên form
 	(_hr_receipt_html: mẫu trang www, chỉ field tick "Info for Sign", có cam kết + chữ ký).
-	1 bản ghi → tải thẳng PDF; nhiều bản ghi → 1 file ZIP. Giới hạn
+	1 bản ghi → tải thẳng PDF; nhiều bản ghi → 1 file ZIP.
+	`merge=True` ("PDF Pages", user 27/10/2026): cùng các phiếu đó nối thành 1 file PDF theo mã NV — mỗi bản
+	ghi đúng 1 trang (_hr_receipt_pdf thu nhỏ vừa 1 trang), in 1 lần là đủ. Giới hạn
 	INFO_FOR_SIGN_PDF_MAX_RECORDS như PDF gộp (~0,35 giây/lần dựng; phiếu tràn trang dựng thêm 1–2 lần để
 	thu nhỏ vừa 1 trang, _hr_receipt_pdf → 100 phiếu ≈ 35–75 giây)."""
 	import io
@@ -461,6 +466,18 @@ def _download_info_for_sign_pdf_split(names):
 		files.append((f"{_receipt_base(doc)}.pdf", _hr_receipt_pdf(doc, config)))
 
 	frappe.response["type"] = "download"   # attachment → tải về ngay; không lưu gì trên server
+	if merge:
+		from pypdf import PdfReader, PdfWriter
+
+		writer = PdfWriter()
+		for _filename, pdf in files:
+			writer.append(PdfReader(io.BytesIO(pdf)))
+		out = io.BytesIO()
+		writer.write(out)
+		frappe.response["filename"] = f"employee_info_for_sign_{now_datetime().strftime('%d%m%Y')}.pdf"
+		frappe.response["filecontent"] = out.getvalue()
+		frappe.response["content_type"] = "application/pdf"
+		return
 	if len(files) == 1:
 		frappe.response["filename"], frappe.response["filecontent"] = files[0]
 		frappe.response["content_type"] = "application/pdf"

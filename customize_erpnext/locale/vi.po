@@ -1629,6 +1629,14 @@ msgid "Half: shown side by side with the next Half field of the same section on 
 msgstr "Một nửa: nằm cạnh field \"Một nửa\" kế tiếp trong cùng section trên trang www (cả trên điện thoại). Field \"Một nửa\" không có field kế bên, hoặc field kế bên đang ẩn, sẽ chiếm cả hàng. Bảng con luôn chiếm cả hàng."
 
 #. source: tiqn
+msgid "PDF 1 Page Per Employee (1 File)"
+msgstr "PDF mỗi nhân viên 1 trang (1 file)"
+
+#. source: tiqn
+msgid "The same form as \"PDF Split For Each Employee\", all records in one PDF file: one page per record, ordered by employee ID."
+msgstr "Cùng mẫu phiếu với \"PDF tách riêng từng nhân viên\", gộp tất cả vào 1 file PDF: mỗi bản ghi 1 trang, xếp theo mã nhân viên."
+
+#. source: tiqn
 msgid "Document Checklist"
 msgstr "Danh mục hồ sơ"
 

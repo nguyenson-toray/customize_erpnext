@@ -190,16 +190,17 @@ function _esui_excel_dialog(listview) {
 				},
 				{
 					// Info for Sign: PDF tách mỗi NV 1 file (= nút "Generate PDF" trên form; nhiều NV → ZIP),
-					// PDF gộp 1 file danh sách ký (A4 ngang), hoặc Excel.
+					// cùng phiếu đó gộp 1 file mỗi NV 1 trang, PDF gộp 1 file danh sách ký (A4 ngang), hoặc Excel.
 					fieldtype: "Select",
 					fieldname: "file_format",
 					label: __("File Format"),
 					options: [
 						{ value: "PDF Split", label: __("PDF Split For Each Employee") },
+						{ value: "PDF Pages", label: __("PDF 1 Page Per Employee (1 File)") },
 						{ value: "PDF", label: __("PDF Combine To 1 File") },
 						{ value: "Excel", label: __("Excel") },
 					],
-					default: "PDF Split",
+					default: "PDF Pages",
 					depends_on: "eval:doc.export_type=='Info for Sign'",
 				},
 				{
@@ -207,6 +208,12 @@ function _esui_excel_dialog(listview) {
 					fieldname: "split_info",
 					options: `<div class="text-muted small">${__("One PDF per record, the same as the \"Generate PDF\" button on the form. Several records are downloaded as one ZIP file.")}</div>`,
 					depends_on: "eval:doc.export_type=='Info for Sign' && doc.file_format=='PDF Split'",
+				},
+				{
+					fieldtype: "HTML",
+					fieldname: "pages_info",
+					options: `<div class="text-muted small">${__("The same form as \"PDF Split For Each Employee\", all records in one PDF file: one page per record, ordered by employee ID.")}</div>`,
+					depends_on: "eval:doc.export_type=='Info for Sign' && doc.file_format=='PDF Pages'",
 				},
 				{
 					fieldtype: "HTML",

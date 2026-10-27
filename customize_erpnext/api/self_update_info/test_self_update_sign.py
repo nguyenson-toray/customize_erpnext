@@ -1336,6 +1336,53 @@ def test_layout_width():
 
 
 
+def test_pdf_pages_merged():
+	"""Download File → Info for Sign → "PDF 1 Page Per Employee (1 File)" (27/10/2026): phiếu như PDF Split,
+	gộp 1 file, mỗi bản ghi 1 trang theo mã NV. Không ghi DB.
+	bench --site erp.tiqn.local execute customize_erpnext.api.self_update_info.test_self_update_sign.test_pdf_pages_merged"""
+	from pypdf import PdfReader
+
+	results = []
+
+	def check(name, ok, detail=""):
+		results.append((bool(ok), name, detail))
+
+	frappe.set_user("Administrator")
+	names = frappe.get_all(DT, pluck="name", order_by="modified desc", limit=3)
+	if len(names) < 3:
+		check("có ≥ 3 phiếu để thử", False, names)
+	else:
+		frappe.response.clear()
+		api.download_excel(json.dumps(names), "Info for Sign", "PDF Pages")
+		r = dict(frappe.response)
+		pages = PdfReader(io.BytesIO(r["filecontent"])).pages
+		order = sorted(frappe.get_all(DT, filters={"name": ["in", names]}, pluck="employee"))
+		texts = [p.extract_text() or "" for p in pages]
+		check("1 file PDF (không phải ZIP)", r.get("content_type") == "application/pdf" and r["filename"].endswith(".pdf")
+			and r["filecontent"][:4] == b"%PDF", r.get("filename"))
+		check("3 bản ghi → 3 trang", len(pages) == 3, len(pages))
+		check("mỗi trang đúng 1 NV, theo thứ tự mã NV",
+			all(emp in texts[i] and all(o not in texts[i] for o in order if o != emp) for i, emp in enumerate(order)),
+			[t[:80] for t in texts])
+		frappe.response.clear()
+		api.download_excel(json.dumps(names[:1]), "Info for Sign", "PDF Pages")
+		check("1 bản ghi → vẫn 1 file PDF 1 trang",
+			len(PdfReader(io.BytesIO(frappe.response["filecontent"])).pages) == 1)
+		frappe.response.clear()
+		api.download_excel(json.dumps(names), "Info for Sign", "PDF Split")
+		check("PDF Split giữ nguyên: nhiều bản ghi → ZIP", frappe.response.get("content_type") == "application/zip")
+	frappe.response.clear()
+	frappe.db.rollback()
+
+	fail = 0
+	for ok, name, detail in results:
+		if not ok:
+			fail += 1
+		print(f"{'PASS' if ok else 'FAIL'}  {name}  {detail if not ok else ''}")
+	print(f"\n{len(results) - fail}/{len(results)} passed")
+	return {"passed": len(results) - fail, "failed": fail}
+
+
 def test_commitment_text():
 	"""Câu cam kết lấy từ Setting.commitment_text (trống → câu mặc định). Không ghi DB.
 	bench --site erp.tiqn.local execute customize_erpnext.api.self_update_info.test_self_update_sign.test_commitment_text"""
