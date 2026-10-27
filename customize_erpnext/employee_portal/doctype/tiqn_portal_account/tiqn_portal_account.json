@@ -86,7 +86,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Last Login Result",
-   "options": "\nACTIVE\nREAD_ONLY\nNOT_FOUND\nNO_PHONE\nEXPIRED\nDISABLED",
+   "options": "\nACTIVE\nREAD_ONLY\nNOT_FOUND\nNO_PHONE\nEXPIRED\nDISABLED\nREVIEW",
    "read_only": 1
   },
   {
@@ -179,7 +179,7 @@
   }
  ],
  "links": [],
- "modified": "2026-10-24 18:00:00.000000",
+ "modified": "2026-10-27 16:00:00.000000",
  "modified_by": "Administrator",
  "module": "Employee Portal",
  "name": "TIQN Portal Account",

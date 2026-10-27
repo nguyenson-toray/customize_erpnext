@@ -47,6 +47,7 @@ Employee Portal Settings. Sinh bằng `scripts/build_navigation.py` (đừng s�
 | `api/employee_portal/home.py` | `get_home` (thẻ NV + phiếu mới nhất + thông báo) |
 | `api/employee_portal/payslip.py` | `get_payslip_periods`, `get_payslip` (`rows` như bản in; `sections` deprecated) |
 | `api/employee_portal/notifications.py` | danh sách / đánh dấu đã xem |
+| `employee_portal/demo.py` | **dữ liệu mẫu cho reviewer của Zalo** (Review Mode) — sinh theo ngày hôm nay, phiếu lương mẫu chạy qua đúng `build_payslip_payload` |
 | `utils/zalo_graph.py` | gọi `graph.zalo.me` (user id, tên, SĐT) + dịch mã lỗi Zalo |
 | `employee_portal/utils.py` | kỳ 26→25, SĐT (9 số cuối, `cell_number` rồi `custom_cell_phone_zalo`), quyền theo trạng thái NV, field khoản lương |
 | `employee_portal/payslip_admin.py` | Desk: file mẫu (tháng / NV nghỉ việc), preview, nhập Draft, phát hành, thu hồi |
@@ -104,6 +105,15 @@ Employee Portal Settings. Sinh bằng `scripts/build_navigation.py` (đừng s�
 - **Simulator** (`dev_login`): tin User ID client gửi → rào 2 lớp: `bench --site erp.tiqn.local set-config
   employee_portal_dev_login 1` **và** tick "Allow Dev Login" + gán SĐT. Phiên dev 1 ngày. ⚠ Chỉ gán SĐT nhân viên
   test. Tắt khi không dev: `set-config employee_portal_dev_login 0`.
+- **Zalo App Review** (27/10/2026 — Zalo từ chối duyệt vì reviewer không xem được gì): Settings → Access →
+  tick **Enable Review Mode** + **Reviewer Phones** (mỗi dòng 1 SĐT Zalo đưa). SĐT do **Zalo xác nhận**
+  (`phone_source = Zalo`), không khớp NV nào → `login` trả `ACTIVE` + NV mẫu `DEMO-0001`, phiên
+  `login_method = REVIEW` không có employee, account `last_result = REVIEW`. `portal_api` thấy phiên REVIEW là trả
+  từ `demo.respond()` — **không bao giờ chạy endpoint thật**; endpoint chưa có handler mẫu → `NOT_FOUND`
+  (thêm endpoint có token mới thì PHẢI thêm handler vào `demo.HANDLERS`, test sẽ báo). Chỉ ghi vào chính account
+  của reviewer (theo dõi OA, đã xem thông báo). SĐT của NV thật luôn đăng nhập là NV đó. Tắt mode / xoá SĐT /
+  SĐT về tay NV thật → phiên REVIEW bị từ chối ngay (`REVOKED`). Không có ngày hết hạn (user chốt 27/10: chỉ thấy
+  dữ liệu mẫu). Tính năng tắt trong Settings thì reviewer cũng không thấy, như nhân viên.
 - Giới hạn `login`: 3000/phút/IP (cả nhà máy chung 1 IP WiFi) + 10 lần/10 phút/Zalo ID.
 
 ## Vận hành phiếu lương

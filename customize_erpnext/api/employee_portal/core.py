@@ -33,6 +33,7 @@ from customize_erpnext.employee_portal.utils import (
 	employee_access,
 	find_employees_by_phone,
 	get_settings,
+	is_review_phone,
 	phone_key,
 	setting_int,
 )
@@ -79,6 +80,11 @@ class PortalContext:
 	@property
 	def read_only(self):
 		return self.mode == "READ_ONLY"
+
+	@property
+	def demo(self):
+		"""Zalo app reviewer: no employee, answered from employee_portal/demo.py only."""
+		return self.login_method == "REVIEW"
 
 
 def ctx() -> PortalContext:
@@ -143,6 +149,11 @@ def portal_api(methods=("GET",), auth=True, write=False, feature=None):
 					raise PortalError("FEATURE_DISABLED", _("This feature is currently turned off."))
 				if write and frappe.local.portal and frappe.local.portal.read_only:
 					raise PortalError("READ_ONLY", _("Your account is in view-only mode."))
+				if frappe.local.portal and frappe.local.portal.demo:
+					# A reviewer session NEVER runs the real endpoint - sample data only.
+					from customize_erpnext.employee_portal import demo
+
+					return _ok(demo.respond(fn.__name__, frappe.get_newargs(fn, kwargs)))
 				# Unknown keys (cmd, a stray `employee`...) never reach the endpoint.
 				return _ok(fn(**frappe.get_newargs(fn, kwargs)))
 			except PortalError as e:
@@ -351,6 +362,22 @@ def authenticate():
 	# The phone must still lead to THIS employee: HR changed the number, or someone
 	# rejoined with a new code under the same number -> sign in again.
 	matches = find_employees_by_phone(session.phone)
+	if session.login_method == "REVIEW":
+		# Review Mode turned off, phone taken off the list, or it now belongs to a real
+		# employee -> sign in again (and get NOT_FOUND / the employee).
+		if session.employee or matches or not is_review_phone(session.phone):
+			raise _invalid(session.name, "REVOKED")
+		_touch(session)
+		return PortalContext(
+			session=session.name,
+			account=session.account,
+			employee=None,
+			employee_row=frappe._dict(),
+			mode="FULL",
+			read_only_until=None,
+			session_expires_on=session.expires_on,
+			login_method=session.login_method,
+		)
 	if not matches or matches[0].name != session.employee:
 		raise _invalid(session.name, "PHONE_CHANGED")
 
@@ -359,10 +386,7 @@ def authenticate():
 	if result == "EXPIRED":
 		raise _invalid(session.name, "STATUS_CHANGED", "EXPIRED")
 
-	if not session.last_seen or time_diff_in_seconds(now_datetime(), session.last_seen) > LAST_SEEN_EVERY_SECONDS:
-		frappe.db.set_value("TIQN Portal Session", session.name, "last_seen", now_datetime(), update_modified=False)
-		commit_if_get()
-
+	_touch(session)
 	return PortalContext(
 		session=session.name,
 		account=session.account,
@@ -373,6 +397,12 @@ def authenticate():
 		session_expires_on=session.expires_on,
 		login_method=session.login_method,
 	)
+
+
+def _touch(session):
+	if not session.last_seen or time_diff_in_seconds(now_datetime(), session.last_seen) > LAST_SEEN_EVERY_SECONDS:
+		frappe.db.set_value("TIQN Portal Session", session.name, "last_seen", now_datetime(), update_modified=False)
+		commit_if_get()
 
 
 # ---------------------------------------------------------------------------

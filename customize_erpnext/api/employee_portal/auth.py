@@ -37,6 +37,7 @@ from customize_erpnext.employee_portal.utils import (
 	find_employees_by_phone,
 	get_settings,
 	initials,
+	is_review_phone,
 	local_phone,
 	mask_phone,
 	setting_int,
@@ -268,6 +269,9 @@ def complete_login(zalo_user_id, raw_phone=None, login_method="ZALO_PHONE", zalo
 	matches = find_employees_by_phone(phone) if phone else []
 	employee_row = matches[0] if matches else None
 	account.employee = employee_row.name if employee_row else None
+	# Zalo app reviewer (Settings > Zalo App Review): a phone Zalo itself confirmed that
+	# belongs to no employee. Signs in to SAMPLE data (employee_portal/demo.py).
+	review = not employee_row and account.phone_source == "Zalo" and is_review_phone(phone)
 	account.last_login = now
 	account.apply_auto_disable()  # same as validate() will do - decide on the state that gets saved
 	read_only_until = None
@@ -279,6 +283,8 @@ def complete_login(zalo_user_id, raw_phone=None, login_method="ZALO_PHONE", zalo
 		payload["message"] = account.disabled_message or _(
 			"Your account has been locked by the HR department. Please contact HR."
 		)
+	elif review:
+		result = "ACTIVE"
 	elif not phone:
 		result = "NO_PHONE"
 	elif not employee_row:
@@ -289,12 +295,25 @@ def complete_login(zalo_user_id, raw_phone=None, login_method="ZALO_PHONE", zalo
 		if result == "EXPIRED":
 			payload["expired_on"] = fmt_date(expired_on)
 
-	account.last_result = result
+	account.last_result = "REVIEW" if review and result == "ACTIVE" else result
 	account.flags.ignore_permissions = True
 	account.save() if not account.is_new() else account.insert()
 
 	payload["result"] = result
-	if result in ("ACTIVE", "READ_ONLY"):
+	if account.last_result == "REVIEW":
+		from customize_erpnext.employee_portal import demo
+
+		token, expires_on = create_session(account.name, None, phone, "REVIEW")
+		payload.update(
+			{
+				"token": token,
+				"expires_on": fmt_datetime(expires_on),
+				"employee": demo.employee(),
+				"access": access_payload("FULL"),
+				"oa": oa_payload(account),
+			}
+		)
+	elif result in ("ACTIVE", "READ_ONLY"):
 		token, expires_on = create_session(account.name, employee_row.name, phone, login_method)
 		payload.update(
 			{

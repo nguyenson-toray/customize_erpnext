@@ -143,6 +143,16 @@ def mask_phone(phone):
 PHONE_FIELDS = ("cell_number", "custom_cell_phone_zalo")
 
 
+def is_review_phone(phone):
+	"""True when `phone` is listed in Settings > Zalo App Review and Review Mode is on.
+	Such a user sees the SAMPLE data of employee_portal/demo.py, never a real record."""
+	s = get_settings()
+	key = phone_key(phone)
+	if not key or not cint(s.get("review_mode")):
+		return False
+	return key in {phone_key(p) for p in re.split(r"[\s,;]+", s.get("review_phones") or "")}
+
+
 def find_employees_by_phone(phone):
 	"""Employees whose phone matches `phone`, newest first.
 

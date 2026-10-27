@@ -46,6 +46,10 @@
   "session_days",
   "column_break_access",
   "min_client_version",
+  "review_section",
+  "review_mode",
+  "column_break_review",
+  "review_phones",
   "tab_oa",
   "cb_chat_section",
   "cb_chat_id_by_oa",
@@ -309,6 +313,29 @@
    "description": "Older Mini App builds receive CLIENT_TOO_OLD and must be updated"
   },
   {
+   "fieldname": "review_section",
+   "fieldtype": "Section Break",
+   "label": "Zalo App Review",
+   "description": "Zalo's app reviewers sign in with their own Zalo account and see SAMPLE data only - never a real employee's data. Phones of real employees always sign in as the employee."
+  },
+  {
+   "fieldname": "review_mode",
+   "fieldtype": "Check",
+   "label": "Enable Review Mode",
+   "default": "0"
+  },
+  {
+   "fieldname": "column_break_review",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "review_phones",
+   "fieldtype": "Small Text",
+   "label": "Reviewer Phones",
+   "depends_on": "review_mode",
+   "description": "One phone per line, as given by Zalo (e.g. 0831111111). Turning Review Mode off or removing a phone ends that reviewer's session at once."
+  },
+  {
    "fieldname": "tab_oa",
    "fieldtype": "Tab Break",
    "label": "Zalo OA & Chat"
@@ -394,7 +421,7 @@
  "index_web_pages_for_search": 0,
  "issingle": 1,
  "links": [],
- "modified": "2026-10-26 16:00:00.000000",
+ "modified": "2026-10-27 16:00:00.000000",
  "modified_by": "Administrator",
  "module": "Employee Portal",
  "name": "Employee Portal Settings",

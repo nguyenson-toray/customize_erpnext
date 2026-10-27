@@ -203,6 +203,7 @@ Thường **không cần sửa**. Các mục C&B hay dùng:
 | | **Kiểm tra công thức khi nhập** | Tắt = nhập nguyên số trong file, không cảnh báo công thức |
 | Zalo OA & Chat | **ID chat C&B (ID by OA)** + tên | Nút "Chat với C&B" trên app mở chat Zalo với người này. Lấy ID ở *Tài khoản Zalo* của người đó (sau khi họ mở app) |
 | Access | Hạn chỉ xem sau nghỉ việc | Mặc định 30 ngày |
+| | **Zalo App Review** | Khi Zalo duyệt app: tick **Enable Review Mode**, điền SĐT reviewer Zalo đưa (mỗi dòng 1 số). Reviewer chỉ thấy **dữ liệu mẫu** (NV "Nguyễn Văn Mẫu", phiếu lương giả), không bao giờ thấy dữ liệu thật. Duyệt xong có thể bỏ tick |
 
 ### Tên từng khoản trên app — C&B tự sửa
 Tab *Tính năng Mini App* ▸ mục **Các dòng phiếu lương trên Mini App** (Payslip Lines): mỗi khoản một dòng, chỉ sửa cột

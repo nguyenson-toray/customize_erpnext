@@ -6,7 +6,12 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import now_datetime
 
-from customize_erpnext.employee_portal.utils import employee_access, find_employees_by_phone, local_phone
+from customize_erpnext.employee_portal.utils import (
+	employee_access,
+	find_employees_by_phone,
+	is_review_phone,
+	local_phone,
+)
 
 
 class TIQNPortalAccount(Document):
@@ -26,6 +31,8 @@ class TIQNPortalAccount(Document):
 	a NEW account starts disabled (`auto_disabled` = 1) unless its phone matches an
 	employee who may use the portal (Active, or Left but still inside the read-only
 	window). It unlocks itself once that becomes true; a hand-set Disabled never does.
+	A Zalo reviewer (Settings > Zalo App Review, phone confirmed by Zalo) counts as
+	allowed too - their session only ever sees sample data.
 	"""
 
 	def validate(self):
@@ -53,7 +60,7 @@ class TIQNPortalAccount(Document):
 
 	def employee_may_sign_in(self):
 		if not self.employee:
-			return False
+			return self.phone_source == "Zalo" and is_review_phone(self.phone)
 		row = frappe.db.get_value("Employee", self.employee, ["status", "relieving_date"], as_dict=True)
 		return bool(row) and employee_access(row)[0] in ("ACTIVE", "READ_ONLY")
 

@@ -1489,6 +1489,97 @@ check("lr: 11th attempt in a day -> RATE_LIMITED (stops probing codes)",
 
 
 # ---------------------------------------------------------------------------
+print("\n=== Zalo App Review (sample data for Zalo's reviewers) ===")
+from customize_erpnext.employee_portal import demo
+
+
+def review_settings(mode, phones):
+	frappe.db.set_single_value("Employee Portal Settings", {"review_mode": mode, "review_phones": phones})
+	frappe.clear_document_cache("Employee Portal Settings", "Employee Portal Settings")
+
+
+for f in ("payslip", "attendance", "overtime", "leave_view", "notifications"):
+	frappe.db.set_single_value("Employee Portal Settings", f"feature_{f}", 1)
+rv_phone = f"0988{int(RUN, 16) % 1000000:06d}"
+rv_other = f"0987{int(RUN, 16) % 1000000:06d}"
+assert not utils.find_employees_by_phone(rv_phone) and not utils.find_employees_by_phone(rv_other)
+review_settings(1, f"0831111111\n{rv_phone}")
+zid_rv = f"unit-{RUN}-rv"
+
+check("review: every authenticated endpoint has a sample handler",
+	sorted(n for n in api.__all__ if n not in ("get_config", "login", "link_employee_request", "dev_login", "logout", "download_document") and n not in demo.HANDLERS), [])
+r = auth_mod.complete_login(zid_rv, "84" + utils.phone_key(rv_phone))
+check("review: listed Zalo phone -> ACTIVE with the sample employee", (r["result"], r["employee"]["employee_id"]), ("ACTIVE", demo.EMPLOYEE_ID))
+TOKEN_RV = r["token"]
+check("review: account enabled, last_result REVIEW, no employee",
+	frappe.db.get_value("TIQN Portal Account", zid_rv, ["disabled", "auto_disabled", "last_result", "employee"]), (0, 0, "REVIEW", None))
+check("review: session REVIEW without employee",
+	frappe.db.get_value("TIQN Portal Session", {"token_hash": hash_token(TOKEN_RV)}, ["login_method", "employee"]), ("REVIEW", None))
+check("review: stored Zalo phone signs in again", auth_mod.complete_login(zid_rv, None, "STORED_PHONE")["result"], "ACTIVE")
+check("review: phone not on the list -> NOT_FOUND", auth_mod.complete_login(f"unit-{RUN}-rvx", rv_other)["result"], "NOT_FOUND")
+review_settings(1, f"{rv_phone}\n{phone_of(EMP_A)}")
+r = auth_mod.complete_login(f"unit-{RUN}-rva", phone_of(EMP_A))
+check("review: listed phone of a real employee signs in as the employee", (r["result"], r["employee"]["employee_id"]), ("ACTIVE", EMP_A))
+tok_rva = r["token"]
+
+# The real endpoints must never run for a reviewer: make their data readers explode.
+boom = mock.Mock(side_effect=AssertionError("real data read in review mode"))
+with mock.patch("customize_erpnext.api.employee_portal.payslip._published", boom), mock.patch(
+	"customize_erpnext.employee_portal.attendance_data.attendance_rows", boom
+), mock.patch("customize_erpnext.employee_portal.attendance_data.leave_balances", boom), mock.patch(
+	"customize_erpnext.api.employee_portal.auth.employee_payload", boom
+):
+	rv = {n: call(getattr(api, n), TOKEN_RV) for n in (
+		"me", "get_home", "get_notifications", "get_payslip_periods", "get_attendance_calendar", "get_attendance_summary",
+		"get_overtime", "get_attendance_requests", "get_leave_balances", "get_leave_applications")}
+	check("review: all screens answer", {n: code(x) for n, x in rv.items() if code(x)}, {})
+	periods = [i["period"] for i in rv["get_payslip_periods"]["data"]["items"]]
+	ps = call(api.get_payslip, TOKEN_RV, period=periods[0])
+	check("review: sample payslip, net = paper formula", (code(ps), ps["data"]["employee"]["employee_id"], ps["data"]["net_pay"]), (None, demo.EMPLOYEE_ID, 8871250))
+	check("review: sample payslip has the 9 numbered lines", [x["no"] for x in ps["data"]["rows"] if "." not in x["no"]], [str(i) for i in range(1, 10)])
+	check("review: payslip marked seen (is_new off)",
+		[i["is_new"] for i in call(api.get_payslip_periods, TOKEN_RV)["data"]["items"]], [False, True])
+	check("review: real period of an employee -> NOT_FOUND", code(call(api.get_payslip, TOKEN_RV, period="2030-07")), "NOT_FOUND")
+	ar = rv["get_attendance_requests"]["data"]["items"][0]["id"]
+	la = rv["get_leave_applications"]["data"]["items"][0]["id"]
+	check("review: detail screens", [code(call(api.get_attendance_request, TOKEN_RV, id=ar)), code(call(api.get_leave_application, TOKEN_RV, id=la)),
+		code(call(api.get_attendance_day, TOKEN_RV, date=add_days(today(), -2)))], [None, None, None])
+	check("review: a real Attendance Request id -> NOT_FOUND",
+		code(call(api.get_attendance_request, TOKEN_RV, id=frappe.db.get_value("Attendance Request", {}, "name") or "x")), "NOT_FOUND")
+	check("review: mark all read", call(api.mark_notifications_read, TOKEN_RV, all=1)["data"]["unread"], 0)
+	check("review: OA follow kept on the reviewer's own account",
+		(call(api.set_oa_follow, TOKEN_RV, action="FOLLOWED")["data"]["followed"], frappe.db.get_value("TIQN Portal Account", zid_rv, "followed_oa")), (True, 1))
+check("review: real data readers never called", boom.call_count, 0)
+check("review: no unsaved sample payslip reached the DB", frappe.db.count("TIQN Payslip", {"employee": demo.EMPLOYEE_ID}), 0)
+
+real = {n: call(getattr(api, n), tok_rva)["data"] for n in ("me", "get_home", "get_payslip_periods")}
+for n, data in real.items():
+	check(f"review: {n} has the keys of the real answer", sorted(rv[n]["data"]), sorted(data))
+check("review: employee object has the real keys", sorted(rv["me"]["data"]["employee"]), sorted(real["me"]["employee"]))
+try:
+	demo.respond("cancel_leave_application", {})
+	unknown = "answered"
+except Exception as e:
+	unknown = getattr(e, "code", repr(e))
+check("review: endpoint without a sample handler -> NOT_FOUND", unknown, "NOT_FOUND")
+
+frappe.db.set_value("Employee", EMP_B, "custom_cell_phone_zalo", rv_phone, update_modified=False)
+x = call(api.get_home, TOKEN_RV)
+check("review: phone now belongs to an employee -> session ends", (code(x), x.get("error", {}).get("details", {}).get("reason")), ("SESSION_INVALID", "REVOKED"))
+frappe.db.set_value("Employee", EMP_B, "custom_cell_phone_zalo", None, update_modified=False)
+tok2 = auth_mod.complete_login(zid_rv, None, "STORED_PHONE")["token"]
+review_settings(1, "0831111111")
+check("review: phone taken off the list -> session ends", code(call(api.get_home, tok2)), "SESSION_INVALID")
+check("review: ... and login is NOT_FOUND again", auth_mod.complete_login(zid_rv, None, "STORED_PHONE")["result"], "NOT_FOUND")
+review_settings(1, rv_phone)
+tok3 = auth_mod.complete_login(zid_rv, None, "STORED_PHONE")["token"]
+review_settings(0, rv_phone)
+check("review: Review Mode off -> session ends", code(call(api.get_home, tok3)), "SESSION_INVALID")
+check("review: Review Mode off -> NOT_FOUND", auth_mod.complete_login(zid_rv, None, "STORED_PHONE")["result"], "NOT_FOUND")
+check("review: is_review_phone off", utils.is_review_phone(rv_phone), False)
+
+
+# ---------------------------------------------------------------------------
 print("\n=== payslip period summary report ===")
 from customize_erpnext.employee_portal.report.payslip_period_summary.payslip_period_summary import execute as period_report
 
