@@ -7,6 +7,7 @@ import json
 import frappe
 from frappe import _
 from frappe.utils import now_datetime
+from frappe.utils.html_utils import sanitize_html
 
 from customize_erpnext.api.employee.cccd_expiry import EXPIRY_FIELD as CCCD_EXPIRY_FIELD
 
@@ -46,6 +47,7 @@ from .access import (
 	_gate_receipt,
 	_is_hr,
 	_make_download_token,
+	_receipt_download_allowed,
 	_unlock_ok,
 )
 from .receipt import (
@@ -100,10 +102,18 @@ def get_field_config():
 	# Receipt file type offered on the success screen: "PDF" (default) or "PNG".
 	# PNG renders inline so it can be long-pressed to save inside the Zalo webview.
 	config["save_file_type"] = setting.get("save_file_type") or "PDF"
+	# Tắt → màn hình "Đã gửi" không có nút tải phiếu (server cũng chặn ở _gate_receipt).
+	config["allow_receipt_download"] = _receipt_download_allowed(setting)
 	# Lock the form (and receipts) after the first submission. The secret
 	# unlock code (bypass_code_for_unlock) is NEVER sent to the client.
 	config["lock_after_submit"] = bool(setting.get("lock_after_submit"))
 	config["commitment_html"] = _commitment_html(setting)
+	# Ghi chú màn hình đầu (trước khi chọn NV), Text Editor: HTML làm sạch ở đây (sanitize_html bỏ script / on* /
+	# javascript:) vì trang chèn thẳng innerHTML. Editor trống (<p><br></p>) → "" để trang ẩn khung.
+	notes = setting.get("start_notes") or ""
+	config["start_notes_html"] = (
+		sanitize_html(notes, always_sanitize=True) if frappe.utils.strip_html(notes).strip() else ""
+	)
 	# Hồ sơ nộp kèm: NV tick hồ sơ đã có (không chặn gửi khi thiếu — HR theo dõi ở Tình trạng hồ sơ).
 	config["documents"] = _setting_documents(setting)
 	return config
@@ -392,7 +402,7 @@ def save_form_data(employee_id, data, code=None, unlock_code=None, commitment=No
 	return {
 		"status": "success",
 		"message": _("Your information has been submitted."),
-		"download_token": _make_download_token(employee_id),
+		"download_token": _make_download_token(employee_id) if _receipt_download_allowed(setting) else None,
 	}
 
 

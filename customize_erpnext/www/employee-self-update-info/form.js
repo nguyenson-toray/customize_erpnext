@@ -180,6 +180,7 @@
       const inp = document.getElementById("emp_search");
       // Tải config sớm: nếu bật "Force Open Device's Browser" và đang trong Zalo → chặn.
       try { if (!S.config) S.config = await api(M.config); } catch (e) { }
+      renderStartNotes();
       // Thật: chỉ trong Zalo webview. Test: thêm ?zalo=1 để xem trước overlay ở trình duyệt thường.
       const _testZalo = new URLSearchParams(location.search).get("zalo") === "1";
       const _inZalo = /Zalo/i.test(navigator.userAgent) || _testZalo;
@@ -204,6 +205,16 @@
         }
       } catch (e) { toast(e.message); inp.placeholder = "Không tải được danh sách"; }
     })();
+
+    // Ghi chú màn hình đầu (Setting → Start Screen Notes, Text Editor): HTML server đã làm sạch (sanitize_html ở
+    // get_field_config) nên chèn thẳng. Trống → ẩn. Ẩn luôn ở màn hình "Đã gửi".
+    function renderStartNotes() {
+      const box = document.getElementById("start_notes");
+      const html = (S.config && S.config.start_notes_html) || "";
+      box.innerHTML = html;
+      box.querySelectorAll("a[href]").forEach(a => { a.target = "_blank"; a.rel = "noopener noreferrer"; });
+      box.classList.toggle("hidden", !html);
+    }
 
     function onEmpSearch() {
       const q = deburr(document.getElementById("emp_search").value.trim());
@@ -627,9 +638,10 @@
           `<label class="tbl-lbl">${esc(c.label)}${tblColRequired(f, c, r) ? ' <span class="req">*</span>' : ""}</label>` +
           tblCell(f, c, i, r[c.fieldname] == null ? "" : r[c.fieldname])).join("") +
         `</div>`).join("");
+      // Đủ số dòng: "Tối đa N." — trừ Max Rows = 1 (chỉ 1 thẻ, không có nút Thêm → dòng này thừa, user 28/10/2026).
       const add = (!f.read_only && rows.length < f.max_rows)
         ? `<button type="button" class="tbl-add">+ Thêm</button>`
-        : (!f.read_only ? `<div class="hint">Tối đa ${f.max_rows}.</div>` : "");
+        : (!f.read_only && f.max_rows > 1 ? `<div class="hint">Tối đa ${f.max_rows}.</div>` : "");
       return (cards || `<div class="hint">—</div>`) + add;
     }
 
@@ -1147,6 +1159,7 @@
         document.getElementById("form_area").classList.add("hidden");
         document.getElementById("submitbar").classList.add("hidden");
         document.getElementById("picker_card").classList.add("hidden");
+        document.getElementById("start_notes").classList.add("hidden");
         document.getElementById("success_area").classList.remove("hidden");
         applySaveFileType();
         window.scrollTo({ top: 0, behavior: "smooth" });
@@ -1165,6 +1178,10 @@
       const btn = document.getElementById("save_btn");
       const hint = document.getElementById("save_hint");
       if (!btn) return;
+      // Setting tắt "Allow Receipt Download" → không có nút tải (server cũng chặn). Chỉ ẩn khi server nói rõ false.
+      const allowed = !(S.config && S.config.allow_receipt_download === false);
+      [btn, hint, document.getElementById("save_note")].forEach(el => { if (el) el.classList.toggle("hidden", !allowed); });
+      if (!allowed) return;
       if (isZalo()) {
         // Zalo webview chặn tải/lưu file → hiện ảnh để user tự chụp màn hình.
         btn.textContent = "🖼 Xem ảnh để chụp màn hình";

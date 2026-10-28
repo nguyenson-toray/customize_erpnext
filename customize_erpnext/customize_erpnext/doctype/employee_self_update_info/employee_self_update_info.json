@@ -2,7 +2,7 @@
  "actions": [],
  "allow_import": 1,
  "autoname": "field:employee",
- "creation": "2026-07-29 16:26:46.615458",
+ "creation": "2026-10-27 14:48:18.822943",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -107,12 +107,12 @@
    "description": "From the documents ticked on the www page (or by HR below). Empty = submitted before the document checklist existed.",
    "fieldname": "document_status",
    "fieldtype": "Select",
-   "label": "Document Status",
-   "options": "\nDocuments Complete\nDocuments Missing",
-   "read_only": 1,
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "no_copy": 1
+   "label": "Document Status",
+   "no_copy": 1,
+   "options": "\nDocuments Complete\nDocuments Missing",
+   "read_only": 1
   },
   {
    "fieldname": "column_break_documents",
@@ -121,9 +121,10 @@
   {
    "fieldname": "missing_documents",
    "fieldtype": "Small Text",
+   "in_list_view": 1,
    "label": "Missing Documents",
-   "read_only": 1,
-   "no_copy": 1
+   "no_copy": 1,
+   "read_only": 1
   },
   {
    "fieldname": "section_view",
@@ -207,7 +208,7 @@
   }
  ],
  "links": [],
- "modified": "2026-10-27 14:47:56.811897",
+ "modified": "2026-10-28 08:48:14.598166",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Employee Self Update Info",

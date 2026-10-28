@@ -16,6 +16,9 @@
       <h1>Phiếu cập nhật thông tin nhân viên</h1>
     </header>
 
+    <!-- Ghi chú màn hình đầu (Setting → Start Screen Notes, Text Editor): HTML server đã làm sạch. Trống → ẩn. -->
+    <div class="start-notes hidden" id="start_notes"></div>
+
     <!-- Step 1: choose employee -->
     <div class="card" id="picker_card">
       <h2><span class="dot"></span>Chọn nhân viên</h2>
@@ -63,9 +66,7 @@
 
     <!-- Step 2: dynamic form -->
     <div id="form_area" class="hidden">
-      <div class="purpose-note" id="purpose_note">Các thông tin này sẽ được sử dụng và xử lý vào việc làm hồ sơ nhân sự,
-        thủ tục hành chính, hợp đồng lao động.<br> Hãy nhập thông tin rõ ràng, sử dụng tiếng Việt có dấu theo mẫu gợi ý
-        ở mỗi ô.</div>
+      <!-- Ghi chú mục đích sử dụng thông tin (viết cứng) đã bỏ 28/10/2026 — HR tự viết trong Start Screen Notes. -->
       <div class="legend">
         <span class="lg-text">
           <p>Cập nhật những mục <strong><span style="color: #ff6600;">còn thiếu</span></strong> hoặc
@@ -114,8 +115,8 @@
     <div id="success_area" class="card success hidden">
       <div class="ico">✅</div>
       <h2>Đã gửi thông tin!</h2>
-      <p class="muted"><strong>Cảm ơn bạn. Bộ phận nhân sự sẽ tiếp nhận thông tin này.<br>Bạn có thể lưu lại bản thông
-          tin đã gửi để đối chiếu khi cần.</strong></p>
+      <p class="muted"><strong>Cảm ơn bạn. Bộ phận nhân sự sẽ tiếp nhận thông tin này.<span id="save_note"><br>Bạn có thể lưu
+          lại bản thông tin đã gửi để đối chiếu khi cần.</span></strong></p>
       <button class="btn-primary" id="save_btn" style="max-width:280px;margin:14px auto 0" onclick="downloadFile()">📄
         Tải
         PDF thông tin đã gửi</button>

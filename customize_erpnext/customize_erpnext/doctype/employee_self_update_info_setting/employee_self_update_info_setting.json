@@ -1,6 +1,6 @@
 {
  "actions": [],
- "creation": "2026-06-26 09:00:00",
+ "creation": "2026-10-28 08:27:40.997879",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -23,12 +23,16 @@
   "column_break_xyjl",
   "allow_browser_local_storage",
   "force_open_devices_browser",
+  "allow_receipt_download",
   "save_file_type",
   "column_break_uhie",
   "lock_after_submit",
   "bypass_code_for_unlock",
   "disable_review",
+  "section_break_phjn",
   "commitment_text",
+  "column_break_lwvb",
+  "start_notes",
   "tab_form_setup",
   "section_hr_pdf",
   "document_checklist",
@@ -203,7 +207,15 @@
    "label": "Force Open Device's Browser"
   },
   {
+   "default": "1",
+   "description": "Show the button to download the submitted information (PDF / image) after the employee submits. Off: no button and the server refuses the download; HR can still use Generate PDF on the form.",
+   "fieldname": "allow_receipt_download",
+   "fieldtype": "Check",
+   "label": "Allow Receipt Download"
+  },
+  {
    "default": "PDF",
+   "depends_on": "eval:doc.allow_receipt_download",
    "description": "If Force Open Device's Browser = FALSE & User use browser of Zalo \u27a1\ufe0f Must screenshot to save image",
    "fieldname": "save_file_type",
    "fieldtype": "Select",
@@ -243,6 +255,12 @@
    "label": "Commitment Text"
   },
   {
+   "description": "Shown on the first screen of the www page, above \"Choose employee\" (e.g. what to prepare before filling in). Formatting, lists and links are kept. Leave empty to hide.",
+   "fieldname": "start_notes",
+   "fieldtype": "Text Editor",
+   "label": "Start Screen Notes"
+  },
+  {
    "fieldname": "tab_form_setup",
    "fieldtype": "Tab Break",
    "label": "Form Setup"
@@ -259,11 +277,19 @@
    "fieldtype": "Table",
    "label": "Document Checklist",
    "options": "Employee Self Update Info Document"
+  },
+  {
+   "fieldname": "section_break_phjn",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_lwvb",
+   "fieldtype": "Column Break"
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-10-27 14:47:56.811897",
+ "modified": "2026-10-28 08:40:03.050244",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Employee Self Update Info Setting",

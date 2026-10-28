@@ -1383,6 +1383,92 @@ def test_pdf_pages_merged():
 	return {"passed": len(results) - fail, "failed": fail}
 
 
+
+def test_receipt_download_switch():
+	"""Setting "Allow Receipt Download" (28/10/2026): tắt → NV không tải được phiếu (kể cả có token); HR vẫn tải.
+	Không ghi DB. bench --site erp.tiqn.local execute customize_erpnext.api.self_update_info.test_self_update_sign.test_receipt_download_switch"""
+	results = []
+
+	def check(name, ok, detail=""):
+		results.append((bool(ok), name, detail))
+
+	def refused(fn):
+		try:
+			fn()
+		except (frappe.PermissionError, frappe.ValidationError):
+			frappe.clear_messages()
+			return True
+		return False
+
+	real_get = api._get_setting
+	emp = frappe.get_all(DT, pluck="employee", limit=1)[0]
+	try:
+		for on in (1, 0):
+			fake = frappe.copy_doc(real_get())
+			fake.allow_receipt_download = on
+			fake.validate_by_dob = 0
+			fake.lock_after_submit = 0
+			_set("_get_setting", lambda fake=fake: fake)
+			check(f"config.allow_receipt_download = {bool(on)}", api.get_field_config()["allow_receipt_download"] is bool(on))
+			frappe.set_user("Guest")
+			try:
+				token = api._make_download_token(emp)
+				blocked = refused(lambda: api._gate_receipt(fake, emp, None, None, token))
+			finally:
+				frappe.set_user("Administrator")
+			check("NV (Guest) có token: bật → tải được, tắt → bị chặn" + f" [{bool(on)}]", blocked is (not on), blocked)
+			check(f"HR luôn tải được [{bool(on)}]", not refused(lambda: api._gate_receipt(fake, emp, None, None, None)))
+		fake.allow_receipt_download = None
+		check("ô trống (chưa lưu) = tắt — DB đã đặt sẵn 1 khi thêm field", not api._receipt_download_allowed(fake))
+	finally:
+		_set("_get_setting", real_get)
+		frappe.set_user("Administrator")
+		frappe.db.rollback()
+
+	fail = 0
+	for ok, name, detail in results:
+		if not ok:
+			fail += 1
+		print(f"{'PASS' if ok else 'FAIL'}  {name}  {detail if not ok else ''}")
+	print(f"\n{len(results) - fail}/{len(results)} passed")
+	return {"passed": len(results) - fail, "failed": fail}
+
+
+
+def test_start_notes():
+	"""Setting "Start Screen Notes" (Text Editor, 28/10/2026): get_field_config gửi HTML đã làm sạch; editor trống → "".
+	Không ghi DB. bench --site erp.tiqn.local execute customize_erpnext.api.self_update_info.test_self_update_sign.test_start_notes"""
+	results = []
+
+	def check(name, ok, detail=""):
+		results.append((bool(ok), name, detail))
+
+	real_get = api._get_setting
+	fake = frappe.copy_doc(real_get())
+	_set("_get_setting", lambda: fake)
+	try:
+		fake.start_notes = ('<div class="ql-editor read-mode"><p>Chuẩn bị <strong>CCCD</strong></p><ul><li>BHXH</li></ul>'
+			'<p><a href="https://baohiemxahoi.gov.vn">tra cứu</a></p><script>alert(1)</script>'
+			'<img src=x onerror=alert(1)><a href="javascript:alert(1)">j</a></div>')
+		h = api.get_field_config()["start_notes_html"]
+		check("giữ định dạng: đậm, danh sách, link https", "<strong>CCCD</strong>" in h and "<li>BHXH</li>" in h
+			and 'href="https://baohiemxahoi.gov.vn"' in h, h)
+		check("bỏ <script>, onerror, javascript:", "<script" not in h and "onerror" not in h and "javascript:" not in h, h)
+		for empty in ('<div class="ql-editor read-mode"><p><br></p></div>', "", None, "   "):
+			fake.start_notes = empty
+			check(f"editor trống {empty!r} → ''", api.get_field_config()["start_notes_html"] == "")
+	finally:
+		_set("_get_setting", real_get)
+
+	fail = 0
+	for ok, name, detail in results:
+		if not ok:
+			fail += 1
+		print(f"{'PASS' if ok else 'FAIL'}  {name}  {detail if not ok else ''}")
+	print(f"\n{len(results) - fail}/{len(results)} passed")
+	return {"passed": len(results) - fail, "failed": fail}
+
+
 def test_commitment_text():
 	"""Câu cam kết lấy từ Setting.commitment_text (trống → câu mặc định). Không ghi DB.
 	bench --site erp.tiqn.local execute customize_erpnext.api.self_update_info.test_self_update_sign.test_commitment_text"""

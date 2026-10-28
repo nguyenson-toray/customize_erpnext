@@ -334,12 +334,19 @@ input.auto-calc { background:#F4F3EF; color:var(--ink); cursor:default; pointer-
 }
 #btn_torch.on { background:#E4A11B; border-color:#E4A11B; color:#1B2733; }
 
-/* ---------- mục đích sử dụng thông tin (đầu form) ---------- */
-.purpose-note {
-  margin-top:14px; padding:12px 14px; border-radius:var(--r);
+/* ---------- ghi chú màn hình đầu (Setting → Start Screen Notes, Text Editor), trên thẻ "Chọn nhân viên" ---------- */
+.start-notes {
+  margin:0 0 14px; padding:12px 14px; border-radius:var(--r);
   background:var(--indigo-soft); border:1px solid #CBD3E6; color:var(--indigo-deep);
-  font-size:13.5px; font-weight:600; line-height:1.5;
+  font-size:13.5px; line-height:1.5; overflow-wrap:anywhere;
 }
+.start-notes p { margin:0; }
+.start-notes p + p, .start-notes ul, .start-notes ol { margin-top:4px; }
+.start-notes ul, .start-notes ol { margin-bottom:0; padding-left:20px; }
+.start-notes a { color:var(--indigo); font-weight:600; text-decoration:underline; text-underline-offset:2px; overflow-wrap:anywhere; }
+.start-notes .ql-align-center { text-align:center; }
+.start-notes .ql-align-right { text-align:right; }
+.start-notes .ql-align-justify { text-align:justify; }
 
 /* ---------- cam kết + chữ ký (cuối form) ---------- */
 .commit-row { display:flex; gap:10px; align-items:flex-start; cursor:pointer; font-size:14px; line-height:1.5; }

@@ -1621,6 +1621,26 @@ msgid "Commitment Text"
 msgstr "Câu cam kết"
 
 #. source: tiqn
+msgid "Allow Receipt Download"
+msgstr "Cho tải phiếu đã gửi"
+
+#. source: tiqn
+msgid "Show the button to download the submitted information (PDF / image) after the employee submits. Off: no button and the server refuses the download; HR can still use Generate PDF on the form."
+msgstr "Hiện nút tải thông tin đã gửi (PDF / ảnh) sau khi nhân viên gửi phiếu. Tắt: không có nút và máy chủ từ chối tải; HR vẫn dùng được nút Tạo PDF trên form."
+
+#. source: tiqn
+msgid "Downloading the submitted information is turned off."
+msgstr "Chức năng tải thông tin đã gửi đang tắt."
+
+#. source: tiqn
+msgid "Start Screen Notes"
+msgstr "Ghi chú màn hình đầu"
+
+#. source: tiqn
+msgid "Shown on the first screen of the www page, above \"Choose employee\" (e.g. what to prepare before filling in). Formatting, lists and links are kept. Leave empty to hide."
+msgstr "Hiện ở màn hình đầu của trang www, phía trên \"Chọn nhân viên\" (vd cần chuẩn bị gì trước khi khai). Giữ định dạng, danh sách và đường link. Để trống thì không hiện."
+
+#. source: tiqn
 msgid "Width on Form"
 msgstr "Độ rộng trên form"
 

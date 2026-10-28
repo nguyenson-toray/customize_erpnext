@@ -127,6 +127,7 @@ from .access import (  # noqa: F401
 	_dl_windows,
 	_make_download_token,
 	_download_token_ok,
+	_receipt_download_allowed,
 	_gate_receipt,
 )
 from .receipt import (  # noqa: F401

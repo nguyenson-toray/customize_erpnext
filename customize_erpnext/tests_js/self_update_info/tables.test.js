@@ -128,6 +128,7 @@ const lastSave = (calls) => { const c = calls.filter(x => x[0].endsWith("save_fo
   box().querySelector(".tbl-add").click(); box().querySelector(".tbl-add").click();
   check("thêm 2 dòng → 3 thẻ", box().querySelectorAll(".tbl-row").length === 3);
   check("đủ max_rows → ẩn + Thêm dòng", !box().querySelector(".tbl-add"));
+  check("đủ max_rows (3) → vẫn hiện 'Tối đa 3.'", /Tối đa 3\./.test(box().textContent), box().textContent);
   // giá trị ô đã nhập vẫn còn sau khi vẽ lại
   check("vẽ lại giữ giá trị", box().querySelector('[data-col="school_univ"]').value === "Cao đẳng dung quất");
 
@@ -188,10 +189,10 @@ const lastSave = (calls) => { const c = calls.filter(x => x[0].endsWith("save_fo
   const p9 = lastSave(calls);
   check("THPT không cần Trường/Năm → gửi được", p9 && p9.education.length === 1 && p9.education[0].level === "THPT", p9);
 
-  // 10. Max Rows = 1 (Học vấn / Kinh nghiệm, 23/10/2026): 1 dòng → hết nút Thêm, hiện "Tối đa 1."
+  // 10. Max Rows = 1 (Học vấn / Kinh nghiệm, 23/10/2026): 1 dòng → hết nút Thêm; KHÔNG hiện "Tối đa 1." (28/10/2026)
   ({ w, d, calls } = await boot({ education: [{ name: "row1", school_univ: "", level: "THPT", year_of_passing: "" }] }, { edu: { max_rows: 1 } }));
   check("max 1: đã có 1 dòng → không còn + Thêm", !box().querySelector(".tbl-add"));
-  check("max 1: gợi ý 'Tối đa 1.'", /Tối đa 1\./.test(box().textContent), box().textContent);
+  check("max 1: KHÔNG có dòng 'Tối đa 1.' (chỉ 1 thẻ — thừa)", !/Tối đa/.test(box().textContent), box().textContent);
   ({ w, d, calls } = await boot({ education: [] }, { edu: { max_rows: 1 } }));
   check("max 1: bảng trống → sẵn 1 thẻ trống, không có + Thêm", box().querySelectorAll(".tbl-row").length === 1 && !box().querySelector(".tbl-add"));
   box().querySelector(".tbl-del").click();

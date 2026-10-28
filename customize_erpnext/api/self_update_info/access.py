@@ -146,10 +146,18 @@ def _download_token_ok(employee_id, token):
 	return False
 
 
+def _receipt_download_allowed(setting):
+	"""Setting "Allow Receipt Download" (28/10/2026): NV được tải phiếu PDF / ảnh sau khi gửi."""
+	return bool(frappe.utils.cint(setting.get("allow_receipt_download")))
+
+
 def _gate_receipt(setting, employee_id, code, unlock_code=None, token=None):
 	"""Gate for the PDF/PNG receipt. A valid fresh-submit token allows the
 	download (same session that just submitted); otherwise the full edit gate
-	applies so a locked form does not leak personal data on a later visit."""
+	applies so a locked form does not leak personal data on a later visit.
+	Setting tắt "Allow Receipt Download" → chặn mọi lượt tải của NV (kể cả có token); HR đăng nhập vẫn tải được."""
+	if not _receipt_download_allowed(setting) and not _is_hr():
+		frappe.throw(_("Downloading the submitted information is turned off."), frappe.PermissionError)
 	if _download_token_ok(employee_id, token):
 		return
 	_gate_edit(setting, employee_id, code, unlock_code)

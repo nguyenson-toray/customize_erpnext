@@ -114,10 +114,12 @@ Khoá đặc biệt trong `data_json`:
 | `validate_by_dob`, `bypass_code` (0–99, chỉ Administrator thấy) | xác thực bằng 2 số ngày sinh |
 | `allow_browser_local_storage` | cho lưu nháp cục bộ |
 | `force_open_devices_browser` | trong Zalo → bắt mở bằng trình duyệt thiết bị |
-| `save_file_type` | PDF / PNG cho phiếu NV tải |
+| `allow_receipt_download` | NV được tải phiếu PDF / ảnh sau khi gửi (mặc định bật). Tắt → màn hình "Đã gửi" không có nút tải, server chặn cả lượt tải có token (`_gate_receipt`); HR đăng nhập vẫn tải được |
+| `save_file_type` | PDF / PNG cho phiếu NV tải (ẩn khi tắt tải phiếu) |
 | `lock_after_submit`, `bypass_code_for_unlock` | khoá sau khi gửi + mã mở khoá (không bao giờ gửi xuống trang) |
 | `disable_review` | bỏ bước Reviewed, Sync thẳng từ Submitted |
 | `commitment_text` | câu cam kết (giữ xuống dòng, trống → câu mặc định) |
+| `start_notes` | **Start Screen Notes** (Text Editor): ghi chú ở màn hình đầu, trên thẻ "Chọn nhân viên" (cần chuẩn bị gì, thông tin dùng vào việc gì…). `get_field_config` gửi `start_notes_html` đã qua `sanitize_html` (bỏ script / on* / javascript:), trang chèn thẳng, link mở tab mới; editor trống → ẩn; ẩn ở màn hình "Đã gửi". Thay cho ghi chú mục đích viết cứng ở đầu form (đã bỏ 28/10/2026) |
 
 **Tab Form Setup** (thường cố định)
 
@@ -167,7 +169,7 @@ Link (Gender → dropdown Nam/Nữ), Phone, Autocomplete (tỉnh/xã), Table (ch
 trang, `save_form_data`, `validate_desk_edit`.
 
 ### Bảng con (Học vấn, Kinh nghiệm làm việc)
-- Mỗi dòng 1 thẻ; "+ Thêm" tới `max_rows`; bảng trống → sẵn 1 thẻ trống. Điền sẵn **`max_rows` dòng mới nhất** của Employee.
+- Mỗi dòng 1 thẻ; "+ Thêm" tới `max_rows` (đủ thì hiện "Tối đa N.", trừ `max_rows = 1` — chỉ 1 thẻ, dòng này thừa); bảng trống → sẵn 1 thẻ trống. Điền sẵn **`max_rows` dòng mới nhất** của Employee.
 - Học vấn: từ Trung cấp trở lên bắt buộc Trường + Ngành (Năm TN không); THCS / THPT ẩn và xoá trắng Trường / Ngành / Năm.
 - Dòng có `name` của Employee → Sync sửa đúng dòng đó.
 
@@ -278,10 +280,10 @@ Trang www không có object `frappe`: `window.csrf_token = {{ csrf_token | tojso
 ## Test
 
 ```bash
-# Python (không ghi DB, rollback): 335 phép kiểm
+# Python (không ghi DB, rollback): 348 phép kiểm
 bench --site erp.tiqn.local execute customize_erpnext.api.self_update_info.test_self_update_sign.run_all
 
-# Trang www (jsdom, JS thật của form.js): 128 phép kiểm
+# Trang www (jsdom, JS thật của form.js): 141 phép kiểm
 cd apps/customize_erpnext/customize_erpnext/tests_js/self_update_info && npm install && node run.js
 # thử bản nháp trước khi ghi đè trang đang chạy:
 ESUI_PAGE_DIR=/đường/dẫn/bản-nháp node run.js
