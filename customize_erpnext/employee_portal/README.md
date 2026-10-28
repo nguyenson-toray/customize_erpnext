@@ -57,7 +57,7 @@ Employee Portal Settings. Sinh bằng `scripts/build_navigation.py` (đừng s�
 | `employee_portal/page/payslip_upload/` | trang Payslip Upload |
 | `employee_portal/doctype/tiqn_payslip/tiqn_payslip_list.js` | list TIQN Payslip: màu trạng thái + nút **Download PDF** (import / publish chỉ ở trang Payslip Upload, 27/10) |
 | `employee_portal/report/payslip_period_summary/` | 1 kỳ: phát hành / đã xem / chưa xem + bảng các khoản chính (cột `basic_pay`… theo Report Column) |
-| `employee_portal/report/payslip_detail/` | 1 kỳ: mọi dòng của mọi phiếu, cột động theo dòng của kỳ (đọc `lines_json`) — thay cho export cột `sc_*`; chỉ để xem (không có cột Period → không upload lại được). Filter Pay Period của 2 report = Select từ `payslip_admin.get_report_periods` (kỳ đã có phiếu) |
+| `employee_portal/report/payslip_detail/` | 1 kỳ: mọi dòng của mọi phiếu, cột động theo dòng của kỳ (đọc `lines_json`) ; chỉ để xem (không có cột Period → không upload lại được). Filter Pay Period của 2 report = Select từ `payslip_admin.get_report_periods` (kỳ đã có phiếu) |
 | `employee_portal/doctype/tiqn_portal_link_request/` | yêu cầu liên kết hồ sơ, nút Approve / Reject |
 | `employee_portal/notify.py` | tạo thông báo trong app (không gửi gì ra ngoài) |
 | `employee_portal/translation_strings.py` | chuỗi dịch qua biến — liệt kê literal để vào `locale/vi.po` |
@@ -73,7 +73,6 @@ Employee Portal Settings. Sinh bằng `scripts/build_navigation.py` (đừng s�
    - General: tên công ty, hotline HR, SĐT công ty (logo dùng logo Zalo App, không cấu hình ở đây).
    - Mini App Features: bật/tắt tính năng (giai đoạn này chỉ Payslip + Notifications); ngày trả lương (mặc định 5);
      hiện dòng 0 (trạng thái đầu của nút "Ẩn khoản 0đ", `get_config.payslip.show_zero_lines`, app 1.9.0+).
-     Check Formulas on Import + Payslip Lines: **ẩn**, không dùng từ 28/10 (xoá ở phase 2).
    - Access: hạn chỉ xem sau nghỉ việc (30 ngày), số ngày phiên, phiên bản Mini App tối thiểu.
    - Zalo OA & Chat: **ID by OA** của người C&B (nút "Chat với C&B"), OA ID.
    - Legal: nội dung chính sách / điều khoản (công khai ở `/portal-policy`, `/portal-terms`).
@@ -144,8 +143,8 @@ Employee Portal Settings. Sinh bằng `scripts/build_navigation.py` (đừng s�
 6. **In phiếu** (27/10, `payslip_print.py` + `payslip_print.html`): nút **Download PDF** trên form và trên list. Chỉ **A4** (khổ A5 thì C&B chọn trên máy in). 1 phiếu → PDF; nhiều
    phiếu → ZIP mỗi phiếu 1 PDF, tên `{Period}_{section}_{group}_{employee}_{employee_name}.pdf` (bỏ ký tự cấm, bỏ
    phần rỗng). Bố cục = phiếu giấy (`phiếu lương.png`): song ngữ English/label Mini App, đủ 44 dòng (0 = "-"), dưới
-   bảng 2 dòng "Transfer deadline/Hạn chuyển khoản" (Pay Date) + "Remark/Ghi chú" (= Note; không có cột Remark từng dòng), Dept = Section - Group, Draft/Withdrawn có chữ chìm "BẢN NHÁP / DRAFT". Đầu trang: logo, dưới là tên công ty 2 dòng (English = Company của
-   NV; tiếng Việt = Employee Portal Settings ▸ Company Display Name). Lề trên/dưới 7 mm, phải khai bằng CSS `.print-format`
+   bảng 2 dòng "Transfer deadline/Hạn chuyển khoản" (Pay Date) + "Remark/Ghi chú" (= Note; không có cột Remark từng dòng), Dept = Section - Group, Draft/Withdrawn có chữ chìm "BẢN NHÁP / DRAFT". Đầu trang: logo (tên công ty đã bỏ, 28/10). Số kiểu Việt Nam
+   (`17.214.001`, `24,5`); dòng có Report Column = Net ghi "VNĐ" ở cột ĐVT, các dòng khác không ghi đơn vị tiền. Lề trên/dưới 7 mm, phải khai bằng CSS `.print-format`
    (`get_pdf` ép 15 mm khi không có header/footer html, bỏ qua option) → Note tới ~400 ký tự vẫn 1 trang, dài hơn tràn trang 2.
    Print Format **TIQN Payslip** (mặc định qua Property Setter `TIQN Payslip-main-default_print_format` trong fixtures — DocType chuẩn không được đặt `default_print_format` trong JSON, nếu đặt thì không lưu được DocType) gọi cùng template qua jinja method `payslip_print_html`
    (hooks.py) → nút Print / Ctrl+P ra đúng mẫu. Engine **wkhtmltopdf** (Chrome PDF của v16 cần gói hệ thống
@@ -186,8 +185,9 @@ Department | Section | Group | Note | <khoản>`.
   **Không kiểm công thức** (user chốt 28/10: 100% số liệu do HR quyết) và **không bao giờ tự sửa số của HR.**
 - File upload bị xoá khỏi `File` ngay sau khi nhập/huỷ (chứa lương cả kỳ).
 - **Cấu trúc phiếu = TIQN Payslip Structure theo kỳ** (28/10/2026, `payslip_structure.py`; plan
-  `payslip_structure_by_period.md`). Trước đó (v4–v5) là 50 field `sc_*` + Settings ▸ Payslip Lines — nay **ẩn,
-  không đọc nữa**, xoá ở phase 2:
+  `payslip_structure_by_period.md`). Trước đó (v4–v5) là 50 field `sc_*` + Settings ▸ Payslip Lines — **đã xoá**
+  (phase 2, 28/10: patch `employee_portal_drop_sc_fields` drop cột + DocType TIQN Portal Payslip Line; các patch cũ
+  v2…payslip_structure gỡ khỏi patches.txt vì đã chạy xong):
   - structure áp từ `valid_from` tới structure kế tiếp (`structure_for_period`: `valid_from` lớn nhất ≤ kỳ, so chuỗi
     YYYY-MM). Mỗi dòng: `code`, `label_en`, `label_vi` (= chữ Mini App + phần tiếng Việt bản in), `formula_display`
     (**C&B gõ tay**, chỉ để in trong ngoặc, ERP không kiểm/tính; gõ "(c=a+b)" thì tự bỏ ngoặc), `unit` (VND/Day/Hour),

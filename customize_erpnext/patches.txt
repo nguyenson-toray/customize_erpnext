@@ -96,44 +96,23 @@ customize_erpnext.patches.door_sensor_type_default_no
 # Settings defaults + legal templates, payslip display config on Salary Component
 # (creates its own custom_portal_* fields first: fixtures sync runs AFTER this). Idempotent.
 customize_erpnext.patches.setup_employee_portal
-# post_model_sync: Employee Portal v2 - TIQN Payslip child table -> one sc_<code> field per
-# component (rows copied, then TIQN Payslip Detail dropped), TEST-SEED payslips deleted,
-# viewed backfilled, features = payslip phase (payslip + notifications). Idempotent.
-customize_erpnext.patches.employee_portal_v2
 # post_model_sync: payslip notifications one row per employee -> ONE company-wide row per
 # period (TIQN Portal Notification.audience = All). Idempotent.
 customize_erpnext.patches.employee_portal_broadcast_notifications
 # post_model_sync: TIQN Portal Notification single employee + is_read -> audience
 # Employees with a Table MultiSelect of recipients, no per-person read state. Idempotent.
 customize_erpnext.patches.employee_portal_notification_recipients
-# post_model_sync: payslip in the order of the paper payslip - custom_portal_qty_unit on
-# Salary Component (Unit/ĐVT value in sc_<code>_qty; 1.2 / 2.1-2.3 numbers move there),
-# parents 1/2/6/7, custom_portal_order = code order, show_zero_lines = 1. Idempotent.
-customize_erpnext.patches.employee_portal_payslip_paper_layout
-# post_model_sync: simpler payslip setup - days/hours lines move to Employee Portal Settings
-# (custom_portal_qty_unit deleted), viewed = first_viewed_on only (View Log DocType +
-# 3 columns dropped), report Portal Readiness deleted. Idempotent.
-customize_erpnext.patches.employee_portal_simplify_v3
-# post_model_sync: TIQN Payslip independent of HRMS - Salary Component custom_portal_* (backup
-# to private/backups, fields + columns dropped), Settings Day / Hour table + TIQN Portal Qty Unit
-# deleted, Link Request counts start at 1. Idempotent.
-customize_erpnext.patches.employee_portal_payslip_layout_v4
 # post_model_sync: unique index on TIQN Portal Link Request.account - the model sync skips it
 # while the old search index of the same name exists. Idempotent.
 customize_erpnext.patches.employee_portal_link_request_unique_account
-# post_model_sync: Employee Portal Settings > Payslip Lines - Mini App labels (Vietnamese) moved off
-# the TIQN Payslip labels (now short English for Excel); filled with what the app showed. Idempotent.
-customize_erpnext.patches.employee_portal_payslip_lines_v5
-# post_model_sync: Payslip Lines Mini App Label shown word for word -> add the line number and
-# formula letters ("1 Lương cơ bản (a)"). Idempotent.
-customize_erpnext.patches.employee_portal_payslip_lines_numbered
 # post_model_sync: index (device_id, time) on Employee Checkin — cursor of the automatic
 # log pull (network/biometric/device_log_sync.py). Idempotent.
 customize_erpnext.patches.add_employee_checkin_device_time_index
 # post_model_sync: Attendance Machine Setting — Peak Times 07:30,07:45,17:00,18:00 / 15' for the
 # automatic log pull (skipped inside peaks). Only when never set. Idempotent.
 customize_erpnext.patches.set_attendance_machine_peak_defaults
-# post_model_sync: Payslip Structure - PSS-<first period> built from the sc_* fields + Settings >
-# Payslip Lines, every payslip gets its own copy of the lines (lines_json) from its sc_* values.
-# sc_* stay (hidden) until phase 2. Idempotent.
-customize_erpnext.patches.employee_portal_payslip_structure
+# post_model_sync: Payslip Structure phase 2 - the 50 hidden sc_* columns of TIQN Payslip dropped,
+# Employee Portal Settings > Payslip Lines (TIQN Portal Payslip Line) + Check Formulas deleted. The
+# Employee Portal patches that built / migrated the sc_* fields (v2 ... payslip_structure) were
+# removed with them: they had all run. Idempotent.
+customize_erpnext.patches.employee_portal_drop_sc_fields

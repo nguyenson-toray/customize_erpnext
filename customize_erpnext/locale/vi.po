@@ -89673,7 +89673,7 @@ msgstr "Phiếu kỳ {0} đang dùng Cấu trúc phiếu lương {1}, file này 
 
 #. source: tiqn
 msgid "Overwrites the existing {0} payslip of {1} (batch {2}, saved {3})."
-msgstr "Ghi đè phiếu kỳ {0} hiện có của {1} (lô {2}, lưu lúc {3})."
+msgstr "Ghi đè phiếu hiện có của kỳ {1} (trạng thái {0}, lô {2}, lưu lúc {3})."
 
 #. source: tiqn
 msgid "{0}: {1} now, {2} in the file."

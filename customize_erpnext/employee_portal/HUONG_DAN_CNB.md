@@ -203,6 +203,8 @@ Khi cần đưa phiếu giấy cho người lao động:
   Cả kỳ (khoảng 1.000 phiếu) mất khoảng **2 phút** (có thanh tiến độ), xong thì tự tải về; trong lúc chờ đừng đóng trang.
   Phiếu được xếp theo **Section → Group → Mã NV** để in xong phát theo bộ phận cho tiện.
 - Tên file: `Kỳ_Section_Group_Mã NV_Họ tên.pdf`, ví dụ `2026-09_HR-GA_IT_TIQN-0148_Nguyễn Thái Sơn.pdf`.
+- Số trên phiếu in theo kiểu Việt Nam: dấu chấm ngăn hàng nghìn, dấu phẩy ngăn số lẻ (`17.214.001`, `24,5` giờ). Chỉ
+  dòng **Thực lĩnh** ghi đơn vị "VNĐ" ở cột ĐVT; các dòng tiền khác không ghi đơn vị.
 - Muốn in khổ **A5**: chọn khổ A5 trong hộp thoại in của máy in (tự thu nhỏ vừa trang).
 - Phiếu **chưa phát hành** (nháp / đã thu hồi) in ra có chữ chìm **"BẢN NHÁP / DRAFT"**, chỉ để kiểm tra, **không**
   phát cho người lao động.

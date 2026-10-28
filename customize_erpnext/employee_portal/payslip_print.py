@@ -73,16 +73,20 @@ def _logo_data_uri():
 		return ""  # no logo rather than no printout
 
 
+# Vietnamese number format (user, 28/10/2026): "." between thousands, "," before decimals.
+_VN_DIGITS = str.maketrans({",": ".", ".": ","})
+
+
 def _fmt_money(value):
 	value = int(round(flt(value)))
-	return f"{value:,}" if value else "-"
+	return f"{value:,}".translate(_VN_DIGITS) if value else "-"
 
 
 def _fmt_qty(value):
 	value = round(flt(value), 2)
 	if not value:
 		return "-"
-	return f"{value:,.2f}".rstrip("0").rstrip(".")
+	return f"{value:,.2f}".rstrip("0").rstrip(".").translate(_VN_DIGITS)
 
 
 def _d(date, fmt="%d/%m/%Y"):
@@ -99,16 +103,19 @@ def payslip_context(doc):
 		line = snapshot[r["no"]]
 		english = line.label_en or r["label"]
 		vietnamese = line.label_vi or ""
+		is_net = line.report_key == "Net"
 		rows.append(
 			frappe._dict(
 				no=r["no"],
 				english=english,
 				vietnamese=vietnamese if vietnamese != english else "",
 				formula=r["formula"] or "",
-				unit=_fmt_qty(r["quantity"]) if r["quantity_unit"] else "",
+				# Net pay is the one line with its unit spelled out (user, 28/10/2026).
+				unit="VNĐ" if is_net else (_fmt_qty(r["quantity"]) if r["quantity_unit"] else ""),
 				amount=_fmt_money(r["amount"]) if r["amount"] is not None else "",
 				level=r["level"],
 				is_header=r["is_header"],
+				is_net=is_net,
 			)
 		)
 	year, month = (int(x) for x in doc.period.split("-"))

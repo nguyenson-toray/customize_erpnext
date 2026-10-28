@@ -192,10 +192,10 @@ Printed text is the bilingual paper document, not UI: kept as on paper, not tran
 		</thead>
 		<tbody>
 			{%- for r in rows %}
-			<tr class="{{ 'net' if r.no == '9' else ('hd' if r.is_header else '') }}">
+			<tr class="{{ 'net' if r.is_net else ('hd' if r.is_header else '') }}">
 				<td class="no">{{ r.no }}</td>
 				<td>{{ r.english | e }}{% if r.vietnamese %}/<i>{{ r.vietnamese | e }}</i>{% endif %}{% if r.formula %}
-					({{ r.formula }}){% endif %}{% if r.no == '9' %}:{% endif %}</td>
+					({{ r.formula }}){% endif %}{% if r.is_net %}:{% endif %}</td>
 				<td class="unit">{{ r.unit }}</td>
 				<td class="num">{{ r.amount }}</td>
 			</tr>

@@ -60,11 +60,15 @@ def call(fn, token=None, version=None, **kwargs):
 	def fake_header(name, default=None):
 		return headers.get(name, default)
 
+	lang = frappe.local.lang
 	with mock.patch.object(frappe, "get_request_header", side_effect=fake_header), mock.patch.object(
 		frappe.db, "rollback", lambda *a, **k: None
 	):
 		result = fn(**kwargs)
 	frappe.set_user("Administrator")
+	# The portal answers in Vietnamese (core sets frappe.local.lang = "vi"); a real request
+	# ends there - the desk checks after this one read English messages again.
+	frappe.local.lang = lang
 	return result
 
 
@@ -449,44 +453,21 @@ check("get_config policy url absolute", r["data"]["legal"]["privacy_policy_url"]
 
 # ---------------------------------------------------------------------------
 print("\n=== payslips ===")
-components = utils.payslip_component_fields()  # the hidden sc_* fields (phase 1 of the Payslip Structure)
 from customize_erpnext.employee_portal import payslip_structure as pss
 STRUCT, SLINES = pss.period_structure_lines("2030-03")  # structure of the test periods (2030-xx)
-check("payslip: 44 component fields on TIQN Payslip", len(components), 44)
-check("payslip: every sc_ field is a payslip line", utils.payslip_field_mismatches(), [])
 check("payslip: no child table any more", frappe.get_meta("TIQN Payslip").get_table_fields(), [])
-check("payslip: days/hours fields as on paper", [c.abbr for c in components if c.qty_fieldname], ["1.2", "2.1", "2.2", "2.3", "7.4", "7.5"])
-# v4 (26/10/2026): everything comes from the TIQN Payslip fields - none from Salary Component.
-by_abbr_c = {c.abbr: c for c in components}
-check("layout: units from the labels", [(a, by_abbr_c[a].qty_unit or by_abbr_c[a].unit) for a in ("1.1", "1.2", "2.1", "7.4", "6.1")],
-	[("1.1", "Day"), ("1.2", "Day"), ("2.1", "Hour"), ("7.4", "Day"), ("6.1", "VND")])
-check("layout: parents from the codes, 3.2-3.10 under 3.1",
-	[(a, by_abbr_c[by_abbr_c[a].parent_code].abbr if by_abbr_c[a].parent_code else None) for a in ("1.2", "2.3", "3", "3.1", "3.2", "3.10", "6.6", "9")],
-	[("1.2", "1"), ("2.3", "2"), ("3", None), ("3.1", None), ("3.2", "3.1"), ("3.10", "3.1"), ("6.6", "6"), ("9", None)])
-check("layout: row types", [(a, by_abbr_c[a].row_type) for a in ("1", "3", "3.1", "4.1", "5", "9")],
-	[("1", "Line"), ("3", "Subtotal"), ("3.1", "Subtotal"), ("4.1", "Line"), ("5", "Section Total"), ("9", "Section Total")])
-check("layout: Vietnamese part of the label", [utils.portal_label(x) for x in (
-	"1 Basic Salary/Lương cơ bản  (a)", "9 Net Salary/Thực lĩnh (j=f-g+h+i):", "6.1 SI/BHXH (8%)",
-	"7.6 21.5% (SI+HI+UI)/21.5% (BHXH+BHYT+BHTN)", "3.2 Technical allowance/ Phụ cấp kỹ thuật", "4 Bonus")],
-	["Lương cơ bản", "Thực lĩnh", "BHXH (8%)", "21.5% (BHXH+BHYT+BHTN)", "Phụ cấp kỹ thuật", "Bonus"])
-_real_get_all = frappe.get_all
-
-
-def _no_salary_component(doctype, *a, **k):
-	if doctype == "Salary Component":
-		raise AssertionError("Salary Component read")
-	return _real_get_all(doctype, *a, **k)
-
-
-with mock.patch.object(frappe, "get_all", _no_salary_component):
-	check("layout: built without reading Salary Component", len(utils.payslip_component_fields()), 44)
+# Phase 2 (28/10/2026): the per-line sc_* fields / columns and Settings > Payslip Lines are gone.
+check("payslip: no sc_* field or column left", (
+	[f.fieldname for f in frappe.get_meta("TIQN Payslip").fields if f.fieldname.startswith("sc_")],
+	[c for c in frappe.db.get_table_columns("TIQN Payslip") if c.startswith("sc_")]), ([], []))
+check("settings: Payslip Lines gone", (frappe.get_meta("Employee Portal Settings").has_field("payslip_lines"),
+	frappe.db.exists("DocType", "TIQN Portal Payslip Line")), (False, None))
 
 
 def code_key(abbr):
 	return [int(p) for p in str(abbr).split(".")]
 
 
-check("payslip: components in paper order (= code order)", [c.abbr for c in components], sorted([c.abbr for c in components], key=code_key))
 def _fake_amounts(employee, period):
 	"""(amounts, days / hours values) by code, deterministic per (employee, period);
 	c=a+b, f=c+d+e, j=f-g+h+i and the group totals (1 = 1.2, 2 = 2.1+2.2+2.3) hold exactly."""
@@ -621,8 +602,6 @@ check("rows: display_label = No. + Vietnamese Label + (Formula) of the structure
 	("1 Lương cơ bản (a)", "1.2 Số ngày công thực tế làm việc", "9 Thực lĩnh (j=f-g+h+i)"))
 check("rows: label = the text without number / letters (older app builds)", (rows_by_no["1"]["label"], rows_by_no["1.2"]["label"], rows_by_no["9"]["label"]),
 	("Lương cơ bản", "Số ngày công thực tế làm việc", "Thực lĩnh"))
-check("strip_code_formula", [utils.strip_code_formula(x) for x in ("9 Thực lĩnh (j=f-g+h+i)", "6.1 BHXH (8%)", "3.1 Phụ cấp/Trợ cấp (d)", "Thưởng")],
-	["Thực lĩnh", "BHXH (8%)", "Phụ cấp/Trợ cấp", "Thưởng"])
 check("payslip: attendance total null", att["total"], None)
 check("payslip: section-total line not repeated", any(l["code"] == "5" for l in earn["lines"]), False)
 check("payslip: first_viewed_on set", bool(frappe.db.get_value("TIQN Payslip", doc_a.name, "first_viewed_on")), True)
@@ -635,7 +614,7 @@ check("payslip: report columns from the lines", [frappe.db.get_value("TIQN Paysl
 r = call(api.get_payslip, token=TOKEN_A, period="2030-03", include_zero=1)
 allowance = next(l for l in r["data"]["sections"][0]["lines"] if l["code"] == "3.1")
 check("payslip: include_zero shows 3.3", any(c["code"] == "3.3" for c in allowance["children"]), True)
-check("rows: include_zero = every line in paper order", [x["no"] for x in r["data"]["rows"]], [c.abbr for c in components])
+check("rows: include_zero = every line in paper order", [x["no"] for x in r["data"]["rows"]], sorted([l.code for l in SLINES], key=code_key))
 check("rows: zero line amount 0 (Mini App shows -)", next(x for x in r["data"]["rows"] if x["no"] == "3.3")["amount"], 0)
 v2 = frappe.db.get_value("TIQN Payslip", doc_a.name, ["first_viewed_on", "modified"], as_dict=True)
 check("payslip: 2nd view keeps first_viewed_on, modified untouched", (v2.first_viewed_on, v2.modified), (v.first_viewed_on, v.modified))
@@ -949,6 +928,10 @@ pdf_a = next(pdf for d, _n, pdf in files if d.employee == EMP_A)
 text_a = PdfReader(io.BytesIO(pdf_a)).pages[0].extract_text()
 check("print: Withdrawn payslip has the DRAFT watermark", "DRAFT" in text_a, True)
 check("print: note printed", "Liên hệ C&B" in text_a, True)
+check("print: Vietnamese number format", (payslip_print._fmt_money(17214001), payslip_print._fmt_qty(1234.5), payslip_print._fmt_qty(26)),
+	("17.214.001", "1.234,5", "26"))
+_net_rows = [r for r in payslip_print.payslip_context(frappe.get_doc("TIQN Payslip", {"employee": EMP_A, "period": "2030-07"}))["rows"] if r.is_net]
+check("print: net pay line (Report Column Net) has VNĐ as its unit", [r.unit for r in _net_rows], ["VNĐ"])
 check("print: file name {Period}_{section}_{group}_{employee}_{employee_name}.pdf",
 	payslip_print.pdf_filename(frappe._dict(period="2030-07", section="HR-GA", group="IT", employee=EMP_A, employee_name="Nguyễn A/B")),
 	f"2030-07_HR-GA_IT_{EMP_A}_Nguyễn A B.pdf")
@@ -1781,11 +1764,9 @@ check("report periods filter: periods with payslips, newest first, default = new
 frappe.db.commit = _REAL_COMMIT
 frappe.flags.in_test = False
 _REAL_ROLLBACK()
-# The rollback does not reach the Redis copy of the Settings (Payslip Lines / features
-# edited above) - drop it, or the Mini App would serve the test values.
+# The rollback does not reach the Redis copy of the Settings (features edited above) -
+# drop it, or the Mini App would serve the test values.
 frappe.clear_document_cache("Employee Portal Settings", "Employee Portal Settings")
-check("rollback: Settings cache back to the saved labels",
-	next((r.portal_label for r in frappe.get_cached_doc("Employee Portal Settings").payslip_lines if r.payslip_field == "sc_1"), None), "1 Lương cơ bản (a)")
 left = frappe.db.count("TIQN Portal Account", {"name": ["like", f"unit-{RUN}%"]}) + frappe.db.count(
 	"TIQN Payslip", {"import_batch": f"UNIT-{RUN}"}
 )

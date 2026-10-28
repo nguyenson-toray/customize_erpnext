@@ -550,7 +550,7 @@ def parse_upload(file_url):
 				# over the monthly one. HR confirms like any other warning (26/10/2026).
 				warnings.append(
 					_("Overwrites the existing {0} payslip of {1} (batch {2}, saved {3}).").format(
-						_(old.status), period_label(period), old.import_batch or "-", format_datetime(old.modified)
+						_(old.status, context="Payslip"), period_label(period), old.import_batch or "-", format_datetime(old.modified)
 					)
 				)
 				for field, label in (("period_from", "Period From"), ("period_to", "Period To"), ("pay_date", "Pay Date")):

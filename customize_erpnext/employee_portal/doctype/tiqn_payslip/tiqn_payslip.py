@@ -27,7 +27,6 @@ class TIQNPayslip(Document):
 	Lines (28/10/2026): the payslip keeps its own copy of the lines of its period's
 	TIQN Payslip Structure + HR's numbers in `lines_json` (employee_portal/
 	payslip_structure.py), written by Payslip Upload. A later structure never changes it.
-	The old `sc_*` fields are hidden and no longer read.
 
 	Status is changed only through `employee_portal.payslip_admin` (Publish /
 	Withdraw), never by editing the field or by Data Import - publishing also creates

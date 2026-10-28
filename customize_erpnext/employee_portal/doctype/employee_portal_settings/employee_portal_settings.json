@@ -18,11 +18,6 @@
   "expected_pay_day",
   "column_break_payslip",
   "show_zero_lines",
-  "payslip_import_section",
-  "validate_payslip_formulas",
-  "column_break_payslip_import",
-  "payslip_lines_section",
-  "payslip_lines",
   "attendance_section",
   "feature_attendance",
   "feature_overtime",
@@ -140,41 +135,6 @@
    "default": "0",
    "description": "Starting state of the \"hide 0 lines\" toggle when an employee opens a payslip (get_config.payslip.show_zero_lines, Mini App 1.9.0 and later; older builds always start with every line). Totals are always shown. The employee can still toggle it in the app",
    "depends_on": "eval:doc.feature_payslip"
-  },
-  {
-   "fieldname": "payslip_import_section",
-   "fieldtype": "Section Break",
-   "label": "Payslip Import",
-   "depends_on": "eval:doc.feature_payslip",
-   "hidden": 1
-  },
-  {
-   "fieldname": "validate_payslip_formulas",
-   "fieldtype": "Check",
-   "label": "Check Formulas on Import",
-   "default": "1",
-   "description": "Not used since the Payslip Structure (28/10/2026): numbers are imported as HR computed them, only impossible ones are refused",
-   "hidden": 1
-  },
-  {
-   "fieldname": "column_break_payslip_import",
-   "fieldtype": "Column Break",
-   "hidden": 1
-  },
-  {
-   "collapsible": 1,
-   "description": "Not used since the Payslip Structure (28/10/2026): labels are on TIQN Payslip Structure",
-   "fieldname": "payslip_lines_section",
-   "fieldtype": "Section Break",
-   "label": "Payslip Lines on the Mini App",
-   "hidden": 1
-  },
-  {
-   "fieldname": "payslip_lines",
-   "fieldtype": "Table",
-   "label": "Payslip Lines",
-   "options": "TIQN Portal Payslip Line",
-   "hidden": 1
   },
   {
    "fieldname": "attendance_section",
@@ -426,7 +386,7 @@
  "index_web_pages_for_search": 0,
  "issingle": 1,
  "links": [],
- "modified": "2026-10-28 14:00:00.000000",
+ "modified": "2026-10-28 17:00:00.000000",
  "modified_by": "Administrator",
  "module": "Employee Portal",
  "name": "Employee Portal Settings",

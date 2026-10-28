@@ -3,8 +3,7 @@
 
 """Every line of every payslip of one pay period, one column per line - read from each
 payslip's own copy of its lines (Payslip Structure, 28/10/2026), so the columns are the
-lines of that period whatever the structure of other periods. Replaces exporting the old
-`sc_*` fields."""
+lines of that period whatever the structure of other periods."""
 
 import json
 
